@@ -1420,6 +1420,11 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::X86Sext:
         case LowerInst::X86MaskAnd:
         case LowerInst::X86Permute:
+        case LowerInst::X86MaskConvert:
+        case LowerInst::X86MaskCompare:
+        case LowerInst::X86MaskedOp:
+        case LowerInst::X86TernaryLogic:
+        case LowerInst::X86Permute2:
         case LowerInst::X86StoreOp:
         case LowerInst::X86MovbeLoad:
         case LowerInst::X86MovbeStore:

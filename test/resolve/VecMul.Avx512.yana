@@ -1,0 +1,56 @@
+{-
+   # extensions: avx512
+
+   `VecMul.yana` at the third level - Analysis-Avx512.md's order of work, which gives every runtime
+   fixture a rewritten expansion reaches an `avx512` twin beside its `sse4` and `avx2` ones. Two
+   tiers are two expansions of one source, and only running both says they agree.
+
+   The quadword product is `vpmullq` here, where every level below spends three widening products
+   and five more instructions. What the program asserts is written in `VecMul.yana`, and the numbers
+   are the same ones.
+-}
+
+fn checkBytes(v: Vec(I8), expected: Int) -> Int =
+    if lane(bitcast(v) :: Vec(Int), 0) == expected then 1 else 0
+
+fn checkQuad(v: Vec(Long), expected: Long) -> Int =
+    if lane(v, 0) == expected then 1 else 0
+
+fn main() -> Int:
+    let &n = 0 :: Int
+
+    -- 0x01, 0xff, 0x73, 0x8f from lane zero up: 1, -1, 115 and -113, two of them negative and three
+    -- of them squaring past a byte.
+    let v = bitcast(splat(0 - 1888223487) :: Vec(Int)) :: Vec(I8)
+
+    -- 0x07, 0x03, 0xfe, 0x05: 7, 3, -2 and 5.
+    let w = bitcast(splat(100532999)) :: Vec(I8)
+
+    -- 0xe1a90101 - every lane squared, and only the first two fit in a byte on the way.
+    n = n + checkBytes(v * v, 0 - 509017855)
+
+    -- 0xcb1afd07, which is the same expansion with two different operands rather than one twice: an
+    -- expansion that read one operand where it meant the other passes the square and fails this.
+    n = n + checkBytes(v * w, 0 - 887423737)
+
+    -- The identity, which the masking has to leave alone.
+    n = n + checkBytes(v * splat(1 :: I8), 0 - 1888223487)
+
+    {-
+       The quadword, whose operands have both 32-bit limbs set: 0x0000000300000005 and
+       0x000000070000000b. The answer is 0x4400000037 - the low limb from `alo*blo` and the 0x44 from
+       the two cross terms, which is the half of the sequence a wrong one loses.
+    -}
+    let x = splat(12884901893 :: Long) :: Vec(Long)
+    let y = splat(30064771083 :: Long) :: Vec(Long)
+
+    n = n + checkQuad(x * y, 292057776183)
+
+    -- A negative operand, which is where the partial products being unsigned has to not matter: the
+    -- low 64 bits of a product are the same bits read either way.
+    n = n + checkQuad(x * splat(0 - 3 :: Long), 0 - 38654705679)
+
+    -- And the identity again, which reaches the same eight instructions rather than a shortcut.
+    n = n + checkQuad(x * splat(1 :: Long), 12884901893)
+
+    return n

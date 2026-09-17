@@ -1,0 +1,109 @@
+{-
+   # extensions: avx512
+
+   `VecWide.yana` at the third level - Analysis-Avx512.md's order of work, which gives every runtime
+   fixture a rewritten expansion reaches an `avx512` twin beside its `sse4` and `avx2` ones. Two
+   tiers are two expansions of one source, and only running both says they agree.
+
+   Every instruction here may be EVEX-encoded, name one of the upper sixteen vector registers or be
+   one of the rows only this level has, which is a second set of expansions of one source that has
+   to answer the same numbers. What the program asserts is written in `VecWide.yana`, and the
+   numbers are the same ones.
+-}
+
+-- Read rather than written, but mutable, which is what stops the folder from seeing through it: a
+-- mutable global's value is not a constant at any point in the program.
+let &seed = 3 :: Int
+
+fn doubled(v: Vec(Int)) -> Vec(Int) = v + v
+
+fn scaled(v: Vec(Int), by: Int) -> Vec(Int) = v * splat(by)
+
+{-
+   A vector through a call the caller cannot see into, twice over, which is what puts one in the
+   convention's registers and - with enough of them live at once - into a frame slot. A Slot256 is
+   the only way a 32-byte value reaches memory, and `vmovups` is the only way it comes back.
+-}
+fn combined(a: Vec(Int), b: Vec(Int), c: Vec(Int), d: Vec(Int)) -> Int =
+    lane(a + b, 0) + lane(c + d, 0)
+
+fn main() -> Int:
+    let base = splat(seed) :: Vec(Int)
+
+    let twice = doubled(base)
+    let six = scaled(base, 2)
+
+    if lane(twice, 0) != 6 then return -1
+    if lane(six, 1) != 6 then return -2
+
+    {-
+       The lane count, which every assertion below is written against rather than against a number.
+
+       A lane *index* is checked where it is written and not where it runs - `constantLane` in
+       simd.cpp reports "lane 5 is past the end of a vector of 4 lanes" during resolution - so a
+       fixture cannot guard a high-lane access behind `if lanes > 4` and be compiled for a target
+       whose vectors are narrower. That is why the wide lane access is asserted in
+       `VecWide.Lanes.yana`, which has no JavaScript half at all, and why nothing here names an index
+       above the first two.
+    -}
+    let lanes = horizontalSum(splat(1) :: Vec(Int))
+
+    -- One lane different from the others, so the reduction folds something that is not the same
+    -- number in every lane and the tree's *shape* is what produces the answer.
+    let mixed = withLane(base, 0, 10)
+    if horizontalMax(mixed) != 10 then return -3
+    if horizontalMin(mixed) != 3 then return -4
+
+    -- A loop-carried vector, which is what makes one live across a back edge and gives the allocator
+    -- a phi to place. Four additions of `base` leave five times the seed in every lane, at any width.
+    let &total = base :: Vec(Int)
+    let &i = 0 :: Int
+
+    while i < 4:
+        total = total + base
+        i = i + 1
+
+    if lane(total, 0) != 15 then return -5
+    if lane(total, 1) != 15 then return -6
+
+    -- The reduction over the whole register, whose top level at eight lanes is the cross-half swap
+    -- `vperm2f128` expresses and whose lower levels are in-lane shuffles. Compared against the lane
+    -- count the target reports rather than against a number.
+    if horizontalSum(total) != lanes * 15 then return -7
+
+    -- Four vectors live at once across a call, which is what reaches a wide spill slot.
+    if combined(base, twice, six, total) != 3 + 6 + 6 + 15 then return -8
+
+    -- The comparison into a mask, the mask family over one, and the lane-wise select - all at the
+    -- wide register, and all width-independent in what they answer.
+    let above = mixed .> base
+    if count(above) != 1 then return -9
+    if !any(above) then return -10
+    if all(above) then return -11
+
+    let picked = select(above, splat(7), splat(2)) :: Vec(Int)
+    if lane(picked, 0) != 7 then return -12
+    if lane(picked, 1) != 2 then return -13
+
+    {-
+       `firstSet` at the width where the sentinel does not fit beside the mask.
+
+       On x64 this is a movemask and a bit scan, and what the scan answers for an empty mask is where
+       the two tiers differ. Below a whole register the answer comes from a sentinel bit one past the
+       last lane byte; at 256 bits there is no such bit in an `i32`, and `tzcnt`'s answer for a zero
+       operand - the operand's width - is the byte count instead. These three assertions are what say
+       the two agree: the lowest set lane, the answer where a mask is empty, and the answer where
+       every lane is set.
+
+       Lane 1 rather than lane 0 for the first of them, because a lane index is a *byte* index
+       shifted here: the bit the scan finds for lane 1 of a four-byte lane is bit 4, and a shift
+       dropped anywhere between the movemask and the answer reads as four rather than one.
+
+       Written against `lanes` rather than against a number for the reason the rest of this fixture
+       is: JavaScript has no register to read a width off, and the same source runs there at four.
+    -}
+    if firstSet(withLane(base, 1, 10) .> base) != 1 then return -14
+    if firstSet(mixed .< base) != lanes then return -15
+    if firstSet(mixed .>= base) != 0 then return -16
+
+    return lane(twice, 1) * 100 + lane(six, 0) + lane(mixed, 0)

@@ -202,6 +202,22 @@ enum : MachineOpcodeId {
     OpVMax,
 
     /*
+     * The two rotations of a packed value, which have an instruction at AVX-512 and at nothing below
+     * it - `vprold`/`vprolq` by a constant, `vprolvd`/`vprolvq` by a count per lane, and `vpshldw`
+     * with the value as both of its sources at a 16-bit lane. Opcodes of their own rather than the
+     * scalar `OpRol`/`OpRor`, for the reason every other packed opcode is apart from its scalar one;
+     * below `avx512` nothing selects them, `expandVectorRotate` having written the shifts out.
+     */
+    OpVRol,
+    OpVRor,
+
+    // A mask carried between a mask register and the vector it is in memory - see
+    // LowerInst::X86MaskConvert. Two opcodes because the two directions read and write different
+    // banks, which is what an opcode's forms all have to agree about.
+    OpMaskToVector,
+    OpVectorToMask,
+
+    /*
      * Lanes rearranged within one vector, by a pattern the encoding carries as a trailing byte.
      *
      * One opcode rather than one per lane width, because unlike the arithmetic the *machine's* lane
@@ -220,6 +236,14 @@ enum : MachineOpcodeId {
     // immediate - `vpermd`/`vpermps`. Its own opcode and not one of `OpVShuffle`'s forms, because
     // its two rows are chosen by the lane kind where every other shuffle row is chosen by a pattern.
     OpVPermute,
+
+    // `vpermi2*` - lanes taken from two vectors by an index vector, which is the destination as well.
+    // See LowerInst::X86Permute2.
+    OpVPermute2,
+
+    // `vpternlogd` - any bitwise function of three vectors, by its truth table. See
+    // LowerInst::X86TernaryLogic.
+    OpVTernaryLogic,
 
     /*
      * Every lane the same scalar.
@@ -940,6 +964,19 @@ enum class PseudoKind: U8 {
     VecWideLane,
     VecWideWithLane,
 
+    /*
+     * The three mask-register operations that are sequences - see machine_forms_evex.cpp.
+     *
+     * A complement, which is `knotd` and then the bits above the mask's lanes cleared again: a mask
+     * register holds zeros above its lanes (every comparison writes them that way), and the one
+     * reader that can see them - `kmovd` into a general register - is exactly what `count` and `all`
+     * are built on. And a mask read from and written to memory, where it is the vector of all-ones
+     * and all-zeros lanes it is everywhere else, through the form's declared scratch vector register.
+     */
+    MaskNot,
+    MaskLoad,
+    MaskStore,
+
     // The two intrinsics whose one operation is several instructions (§15.2 of the plan). Both
     // expand after allocation, which is only safe because every register and flag their expansion
     // touches is a fixed operand or a declared clobber of the form that names them - so nothing the
@@ -973,6 +1010,67 @@ enum : U8 {
     kOpcodeMap0F38 = 2,
     kOpcodeMap0F3A = 3,
 };
+
+/*
+ * Whether a VEX instruction has an EVEX spelling that means exactly the same thing, and how it is
+ * written - Analysis-Avx512.md §1.1.
+ *
+ * **One table for the whole backend**, keyed by what the VEX bytes already say (the mandatory prefix,
+ * the map and the opcode, and the ModRM.reg extension where that picks the instruction), because the
+ * question is asked from two places that must agree: the form table, which decides whether a web may
+ * be handed one of the upper sixteen vector registers (`MachineForm::namesUpperVectors`), and the
+ * prefix writer, which re-spells an instruction in EVEX where its operands turn out to need it. A
+ * form and an emitter that disagreed would be a register the allocator was promised and the encoder
+ * cannot write.
+ *
+ * What is *not* a spelling of the same instruction is refused rather than approximated, and there are
+ * three kinds of those. An opcode EVEX gives another meaning (`66 0F 74` writes a mask register under
+ * EVEX, `66 0F38 10` is `vpsrlvw`); one EVEX has no form of at all (`vpblendvb`, `vpmovmskb`,
+ * `vptest`, `vperm2i128`); and every opcode this backend never writes, which the table simply does not
+ * list.
+ */
+enum class EvexWidth: U8 {
+    W0,
+    W1,
+
+    // EVEX.W is the operand width VEX.W already carries - `vmovq`, `vpinsrq`, `vcvtsi2sd r64`, the
+    // FMA rows and the per-lane shifts, where VEX.W is not ignored either.
+    FromVex,
+};
+
+// What EVEX's compressed displacement is scaled by for this instruction's memory operand - disp8*N.
+enum class EvexTuple: U8 {
+    None,     // not stated: a nonzero displacement is written in four bytes, which is always correct
+    Vector,   // a whole vector - N is the vector length in bytes
+    Element4, // one 32-bit element
+    Element8, // one 64-bit element
+    FromVex,  // one element as wide as VEX.W says - four bytes, or eight
+    Half16,   // sixteen bytes whatever the length: a shift count, or a 128-bit half
+};
+
+struct EvexSpelling {
+    bool exists = false;
+    EvexWidth width = EvexWidth::W0;
+    EvexTuple tuple = EvexTuple::None;
+
+    // Whether the memory operand may be one element repeated - `m32bcst` or `m64bcst`, by the width -
+    // rather than the whole vector. Stated only for the rows whose element is a doubleword or a
+    // quadword; a byte or word row has no broadcast form.
+    bool broadcast = false;
+};
+
+// `mandatory` is the legacy prefix byte (0, 0x66, 0xf3, 0xf2). `extension` is ModRM.reg, read only for
+// the opcodes whose extension says which instruction it is.
+EvexSpelling evexSpellingOf(U8 mandatory, U8 map, U8 opcode, U8 extension);
+
+struct EncodingDescriptor;
+
+/*
+ * The element a form's memory operand may be broadcast from - four or eight bytes - or zero where it
+ * may not (Analysis-Avx512.md §2.3, "embedded broadcast"). An EVEX form states it; a VEX form answers
+ * what its EVEX spelling says, since broadcasting is a reason to write that spelling.
+ */
+U8 evexBroadcastBytes(const EncodingDescriptor& e);
 
 // The width an encoding operates at, which is not always the width of the value it produces: a
 // comparison yields an Int32 whatever it compared, and an unsigned cast moves at the narrower of its
@@ -1063,6 +1161,22 @@ struct EncodingDescriptor {
     U8 opcodeMap = kOpcodeMap0F;
     U8 vectorLength = 0;
 
+    /*
+     * EVEX.W and the disp8*N scale of a form that is EVEX *by construction* - one with no VEX spelling
+     * at all, such as `vpabsq`. A VEX form states neither: whether it is re-spelled in EVEX is decided
+     * at emission, and how is `evexSpellingOf`'s answer (Analysis-Avx512.md §1.1).
+     *
+     * A field of its own rather than `widthInPrefix` read a second way, which is what the scalar EVEX
+     * forms did while there were some: `vpaddq` is 66-prefixed and W1, `vpaddd` is 66-prefixed and W0,
+     * and the prefix cannot tell the two apart.
+     */
+    bool evexW = false;
+    EvexTuple evexTuple = EvexTuple::None;
+
+    // Whether the memory operand may be `m32bcst`/`m64bcst`, the element being `evexW`'s - see
+    // `evexBroadcastBytes`.
+    bool evexBroadcast = false;
+
     // How many bytes of the immediate the LoadStore family writes after the address. The other
     // families take the width from the value - one byte or four, according to which opcode was
     // chosen - but a store's immediate is as wide as the *access* rather than as wide as the number,
@@ -1125,6 +1239,26 @@ struct EncodingDescriptor {
     // Materializes the flags into the instruction's first result afterwards - `setcc` and a
     // zero-extension - for a comparison whose result could not be left in the flags.
     bool materializeFlags = false;
+
+    /*
+     * The mask register an EVEX instruction is masked by - EVEX.aaa - and whether the lanes it masks
+     * out are zeroed rather than kept (EVEX.z).
+     *
+     * Nothing a legacy or VEX encoding can say, and not a register field of ModRM either: the three
+     * bits sit in the last payload byte of the prefix, which is why this is a field of its own rather
+     * than one of the three above. A masked instruction keeps what its destination already held
+     * wherever the mask is clear, so a form that states one without `zeroMasking` is a merge and ties
+     * its result to the operand it keeps - see the select rows in machine_forms_evex.cpp.
+     */
+    OperandRef maskField;
+    bool zeroMasking = false;
+
+    /*
+     * The encoding ends in the one-byte predicate of an integer comparison into a mask register -
+     * `vpcmpd`'s and `vpcmpud`'s, which number the relations differently from `cmpps` and have all
+     * eight of them. The same position `conditionImmediate` writes, from the same selected condition.
+     */
+    bool maskPredicateImmediate = false;
 
     /*
      * `0xf0`, written ahead of every other prefix - Analysis-Atomics.md §5.3.
@@ -1264,6 +1398,17 @@ struct MachineForm {
     bool legacyOnly = false;
 
     /*
+     * Whether every vector register this form reads or writes may be one of xmm16-31.
+     *
+     * Derived when the table is built rather than stated per row: a form with no vector operand
+     * answers yes, an EVEX form answers yes, a VEX form answers what `evexSpellingOf` says of its
+     * opcode, and a legacy encoding or a pseudo - whose bytes are its own emitter's - answers no. A web
+     * that meets a form answering no at any instruction is placed in the lower sixteen for its whole
+     * life; see `computeAvoidSets` in place.cpp.
+     */
+    bool namesUpperVectors = true;
+
+    /*
      * The same operation written with a vector prefix, where the target can encode one.
      *
      * Chosen exactly as `memorySource` is - a swap made by selectForm from a fact that is not the
@@ -1303,6 +1448,14 @@ struct MachineForm {
      */
     MachineFormId wide = 0;
     MachineFormId wideOf = 0;
+
+    /*
+     * The same operation performed only where a mask register is set, over the operand it writes -
+     * `vpaddd acc{k}, acc, v` - which is what `LowerInst::X86MaskedOp` selects (Analysis-Avx512.md
+     * §2.2). Derived when the table is built for every three-operand arithmetic form whose EVEX element
+     * is its lane; zero for the rest.
+     */
+    MachineFormId masked = 0;
 
     // The operand that may be read directly out of a frame slot, and the one that may be read and
     // written there in place, as indices into `uses`. At most one of the two can be taken at any one
@@ -1587,6 +1740,10 @@ struct PackedShuffleChoice {
 
 Maybe<PackedShuffleChoice> packedShuffleChoice(LowerInst* inst);
 
+// Whether `vpermi2*` can express this shuffle whatever its pattern: two sources of the result's own
+// shape, at a level with the row for its lane - see `lowerTwoSourcePermutes`.
+bool twoSourcePermuteExpresses(LowerBase base, LowerInst* inst);
+
 // Whether every entry of a shuffle's pattern names one source, which is what the general 256-bit
 // permute can express and the two-source case that no single instruction can - see
 // `lowerWideLanePermutes`, and the refusal in `unsupportedVectorReason` that asks the same question.
@@ -1655,6 +1812,35 @@ LowerCmp packedCompareRelation(LowerCmp cmp);
  * `packedCompareRelation`, which is the form the instruction is selected at.
  */
 bool packedCompareIsInverted(LowerType type, LowerCmp cmp);
+
+/*
+ * Whether this target has one of the AVX-512 rows an expansion stands in for below it - see
+ * machine_forms_evex.cpp, and Analysis-Avx512.md §2.4.
+ *
+ * Asked by the expansions themselves, which is where the decision belongs: each one declines to
+ * rewrite what the target has an instruction for, and selection then finds the row. Answered from the
+ * rows' own required features rather than from a level, so a pass and the form it hands over to cannot
+ * disagree about what the target has - `packedMinMaxSupported` below is the same arrangement.
+ */
+enum class EvexRow: U8 {
+    QuadwordAbs,       // vpabsq
+    QuadwordSar,       // vpsraq, vpsravq
+    QuadwordMinMax,    // vpminsq, vpminuq, vpmaxsq, vpmaxuq
+    QuadwordMul,       // vpmullq
+    WordShiftPerLane,  // vpsllvw, vpsrlvw, vpsravw
+    Rotate,            // vprold/q, vprord/q, vprolvd/q, vprorvd/q
+    WordRotate,        // vpshldw
+    QuadwordToDouble,  // vcvtqq2pd
+    Narrowing,         // vpmovwb, vpmovdw, vpmovqd
+    UnsignedToFloat,   // vcvtusi2ss, vcvtusi2sd
+    GprBroadcast,      // vpbroadcastb/w/d/q from a general register
+    TernaryLogic,      // vpternlogd
+    Align,             // valignd, valignq
+    Permute2,          // vpermi2d/q/ps/pd, vpermi2w (BW)
+    BytePermute2,      // vpermi2b (VBMI)
+};
+
+bool hasEvexRow(EvexRow row);
 
 /*
  * Whether this machine has a packed minimum and maximum at this vector's lane.

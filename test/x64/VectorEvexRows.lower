@@ -1,0 +1,133 @@
+# The rows only AVX-512 has an instruction for - Analysis-Avx512.md §2.4, at both register widths.
+#
+# extensions: avx512
+#
+# Every function below is one `sse4` and `avx2` spend an expansion on, and the fixtures that pin those
+# expansions are the `Vector*.lower` files one level down, which name no level or `avx2`. What this
+# file asserts is the other half of each pair: at `avx512` the expansion declines itself, and what
+# reaches the encoder is the one instruction it stood in for.
+#
+# Every row here is EVEX by construction, so every `=>` below that is not a transfer begins with `62`.
+# Extracting them and running `objdump -b binary -m i386:x86-64 -D` is the check that the W bits, the
+# maps and the operand fields say what the form names claim.
+
+# `vpabsq` in place of `pcmpgtq`, `psubq` and a blend.
+abs(%q: i64x2, %w: i64x4): i64x2 {
+    {
+        %r = abs %q: i64x2
+        %s = abs %w: i64x4
+        ret %r
+    }
+}
+
+# `vpsraq` by a constant, by a shared runtime count, and per lane - in place of the logical shift and a
+# bias at each.
+sar(%q: i64x2, %w: i64x4, %n: I64, %c: i64x2): i64x2 {
+    {
+        %k = vsplat 13L: i64x2
+        %a = sar %q, %k: i64x2
+        %m = vsplat %n: i64x4
+        %b = sar %w, %m: i64x4
+        %d = sar %a, %c: i64x2
+        ret %d
+    }
+}
+
+# The word lane shifted per lane, which below this level is sixteen lane reads, shifts and writes.
+wordShifts(%v: i16x8, %c: i16x8, %w: i16x16, %d: i16x16): i16x8 {
+    {
+        %a = shl %v, %c: i16x8
+        %b = shr %a, %c: i16x8
+        %s = sar %b, %c: i16x8
+        %t = sar %w, %d: i16x16
+        ret %s
+    }
+}
+
+# The quadword minimum and maximum at both signednesses, in place of the comparison and the select.
+minMax(%a: i64x2, %b: i64x2, %c: i64x4, %d: i64x4): i64x2 {
+    {
+        %lt = cmp_ilt %a, %b: m64x2
+        %lo = select %lt, %a, %b: i64x2
+        %gt = cmp_gt %a, %b: m64x2
+        %hi = select %gt, %a, %b: i64x2
+        %wl = cmp_ilt %c, %d: m64x4
+        %wm = select %wl, %c, %d: i64x4
+        %r = add %lo, %hi: i64x2
+        ret %r
+    }
+}
+
+# `vpmullq` in place of three widening products.
+multiply(%a: i64x2, %b: i64x2, %c: i64x4, %d: i64x4): i64x2 {
+    {
+        %r = mul %a, %b: i64x2
+        %s = mul %c, %d: i64x4
+        ret %r
+    }
+}
+
+# The rotations: by a constant and by a count per lane at the dword and quadword lanes, `vpshldw` at a
+# word lane by a constant - a right rotation by 3 is a left one by 13 - and a byte lane, which has no
+# rotation at any level and keeps its shifts.
+rotations(%d: i32x4, %q: i64x4, %c: i32x4, %w: i16x8, %b: i8x16): i32x4 {
+    {
+        %seven = vsplat 7: i32x4
+        %a = rol %d, %seven: i32x4
+        %e = ror %a, %c: i32x4
+        %five = vsplat 5L: i64x4
+        %f = ror %q, %five: i64x4
+        %three = vsplat 3: i16x8
+        %g = ror %w, %three: i16x8
+        %one = vsplat 1: i8x16
+        %h = rol %b, %one: i8x16
+        ret %e
+    }
+}
+
+# `vcvtqq2pd`, which `Math.yana`'s `vecDoubleFromWholeBits` exists to avoid needing.
+quadToDouble(%q: i64x2, %w: i64x4): f64x2 {
+    {
+        %r = itof %q: f64x2
+        %s = itof %w: f64x4
+        ret %r
+    }
+}
+
+# The three truncating narrowings from a 256-bit register into a 128-bit one.
+narrow(%w: i16x16, %d: i32x8, %q: i64x4): i32x4 {
+    {
+        %b = cast %w: i8x16
+        %s = cast %d: i16x8
+        %r = cast %q: i32x4
+        ret %r
+    }
+}
+
+# `vcvtusi2sd` at both integer widths, in place of a zero-extension and a signed conversion at 32 bits
+# and a halve, convert, double and select at 64.
+unsignedToFloat(%u: I32, %l: I64): F64 {
+    {
+        %a = cast %u: F64
+        %b = cast %l: F64
+        %f = cast %l: F32
+        %g = cast %f: F64
+        %r = add %a, %b: F64
+        %s = add %r, %g: F64
+        ret %s
+    }
+}
+
+# A splat of a scalar that is in a general register - `vpbroadcast{b,w,d,q} xmm, r32/r64`, one
+# instruction where every tier below writes `movd` and then a broadcast of the register it landed in.
+# A float lane's scalar is already in a vector register, so it keeps the shuffle it always was.
+splats(%b: I32, %w: I32, %d: I32, %q: I64, %f: F32): i8x16 {
+    {
+        %sb = vsplat %b: i8x16
+        %sw = vsplat %w: i16x16
+        %sd = vsplat %d: i32x4
+        %sq = vsplat %q: i64x4
+        %sf = vsplat %f: f32x8
+        ret %sb
+    }
+}

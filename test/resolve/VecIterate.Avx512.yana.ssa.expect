@@ -1,0 +1,514 @@
+module ResolveTest
+
+fn sumInts(xs: Array(I32) [shared call view]) -> I32 {
+bb0(%0: Array(I32) [shared call view] guaranteed):
+  %1: %Vec(I32) address = alloc frame Vec(I32)
+  %2: I32 trivial = const 0
+  %3: Vec(I32) trivial = vec.splat inspect %2
+  store inspect %1 consume %3
+  %4: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
+  %5: Vec(I32) [unique slot 0] guaranteed = load inspect %1
+  %6: sumInts.cont.env affine = aggregate.sumInts.cont.env borrow %5
+  %7: (Vec(I32)) -> I32 [owned here shape8 .0=shared call] affine = fun.value sumInts.cont borrow %6
+  %8: I32 trivial = call vectors(Array(I32), I32) borrow %4 borrow %7
+  jump -> bb1
+
+bb1:
+  %9: Vec(I32) trivial = load inspect %1
+  %10: I32 trivial = vec.reduce add inspect %9
+  return consume %10
+}
+
+fn largest(xs: Array(I32) [shared call view], floor: I32 [shared call]) -> I32 {
+bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %Vec(I32) address = alloc frame Vec(I32)
+  store inspect %2 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: Vec(I32) trivial = vec.splat inspect %4
+  store inspect %3 consume %5
+  %6: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
+  %7: Vec(I32) [unique slot 0] guaranteed = load inspect %3
+  %8: largest.cont.env affine = aggregate.largest.cont.env borrow %7
+  %9: ({Vec(I32), I32}) -> I32 [owned here shape8 .0=shared call] affine = fun.value largest.cont borrow %8
+  %10: I32 trivial = call vectorsMasked(Array(I32), I32) borrow %6 borrow %9
+  jump -> bb1
+
+bb1:
+  %11: Vec(I32) trivial = load inspect %3
+  %12: I32 trivial = vec.reduce max inspect %11
+  return consume %12
+}
+
+fn total(xs: c [shared call]) -> a = <no body>
+
+fn biggest(xs: c [shared call], floor: a [shared call]) -> a = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %Array(I32) address = alloc frame Array(I32)
+  %1: %Array(I32) address = alloc frame Array(I32)
+  %2: %Array(F32) address = alloc frame Array(F32)
+  %3: %Array(F32) address = alloc frame Array(F32)
+  %4: %I32 address = alloc frame I32
+  %5: I32 trivial = const 1
+  %6: I32 trivial = const 2
+  %7: I32 trivial = const 3
+  %8: I32 trivial = const 4
+  %9: I32 trivial = const 5
+  %10: I32 trivial = const 6
+  %11: I32 trivial = const 7
+  %12: I32 trivial = const 8
+  %13: I32 trivial = const 9
+  %14: I32 trivial = const 10
+  %15: I32 trivial = const 11
+  %16: %I32 trivial = run.slots I32 *11 heap
+  %17: Size trivial = bitcast inspect %16
+  %18: Size trivial = const 0
+  %19: Bool trivial = eq inspect %17 inspect %18
+  call checkCondition borrow %19
+  %20: @bits(30) U32 trivial = const 11
+  %21: @bits(2) U32 trivial = const 1
+  %22: Run(I32) owned = aggregate.Run consume %16 consume %20 consume %21
+  %23: @bits(30) U32 trivial = const 11
+  %24: Array(I32) owned = aggregate.Array consume %22 consume %23
+  store inspect %0 consume %24
+  %25: Size trivial = const 0
+  %26: %I32 address = element.addr inspect %16 inspect %25
+  store inspect %26 consume %5
+  %27: Size trivial = const 1
+  %28: %I32 address = element.addr inspect %16 inspect %27
+  store inspect %28 consume %6
+  %29: Size trivial = const 2
+  %30: %I32 address = element.addr inspect %16 inspect %29
+  store inspect %30 consume %7
+  %31: Size trivial = const 3
+  %32: %I32 address = element.addr inspect %16 inspect %31
+  store inspect %32 consume %8
+  %33: Size trivial = const 4
+  %34: %I32 address = element.addr inspect %16 inspect %33
+  store inspect %34 consume %9
+  %35: Size trivial = const 5
+  %36: %I32 address = element.addr inspect %16 inspect %35
+  store inspect %36 consume %10
+  %37: Size trivial = const 6
+  %38: %I32 address = element.addr inspect %16 inspect %37
+  store inspect %38 consume %11
+  %39: Size trivial = const 7
+  %40: %I32 address = element.addr inspect %16 inspect %39
+  store inspect %40 consume %12
+  %41: Size trivial = const 8
+  %42: %I32 address = element.addr inspect %16 inspect %41
+  store inspect %42 consume %13
+  %43: Size trivial = const 9
+  %44: %I32 address = element.addr inspect %16 inspect %43
+  store inspect %44 consume %14
+  %45: Size trivial = const 10
+  %46: %I32 address = element.addr inspect %16 inspect %45
+  store inspect %46 consume %15
+  %47: Array(I32) owned = load inspect %0
+  store inspect %1 consume %47
+  %48: F32 trivial = const 3
+  %49: F32 trivial = const 1
+  %50: F32 trivial = const 4
+  %51: F32 trivial = const 1
+  %52: F32 trivial = const 5
+  %53: %F32 trivial = run.slots F32 *5 heap
+  %54: Size trivial = bitcast inspect %53
+  %55: Size trivial = const 0
+  %56: Bool trivial = eq inspect %54 inspect %55
+  call checkCondition borrow %56
+  %57: @bits(30) U32 trivial = const 5
+  %58: @bits(2) U32 trivial = const 1
+  %59: Run(F32) owned = aggregate.Run consume %53 consume %57 consume %58
+  %60: @bits(30) U32 trivial = const 5
+  %61: Array(F32) owned = aggregate.Array consume %59 consume %60
+  store inspect %2 consume %61
+  %62: Size trivial = const 0
+  %63: %F32 address = element.addr inspect %53 inspect %62
+  store inspect %63 consume %48
+  %64: Size trivial = const 1
+  %65: %F32 address = element.addr inspect %53 inspect %64
+  store inspect %65 consume %49
+  %66: Size trivial = const 2
+  %67: %F32 address = element.addr inspect %53 inspect %66
+  store inspect %67 consume %50
+  %68: Size trivial = const 3
+  %69: %F32 address = element.addr inspect %53 inspect %68
+  store inspect %69 consume %51
+  %70: Size trivial = const 4
+  %71: %F32 address = element.addr inspect %53 inspect %70
+  store inspect %71 consume %52
+  %72: Array(F32) owned = load inspect %2
+  store inspect %3 consume %72
+  %73: I32 trivial = const 0
+  store inspect %4 consume %73
+  %74: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
+  %75: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %74
+  %76: I32 trivial = call sumInts borrow %75
+  %77: I32 trivial = const 66
+  %78: Bool trivial = eq inspect %76 inspect %77
+  branch inspect %78 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %79: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
+  %80: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %79
+  %81: I32 trivial = const 0
+  %82: I32 trivial = call largest borrow %80 borrow %81
+  %83: I32 trivial = const 11
+  %84: Bool trivial = eq inspect %82 inspect %83
+  branch inspect %84 -> bb6 -> bb4
+
+bb3:
+  %85: I32 trivial = load inspect %4
+  %86: I32 trivial = const 1
+  %87: I32 trivial = add inspect %85 inspect %86
+  store inspect %4 consume %87
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %88: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
+  %89: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %88
+  %90: I32 trivial = call total(Array(I32), I32) borrow %89
+  %91: I32 trivial = const 66
+  %92: Bool trivial = eq inspect %90 inspect %91
+  branch inspect %92 -> bb9 -> bb7
+
+bb6:
+  %93: I32 trivial = load inspect %4
+  %94: I32 trivial = const 2
+  %95: I32 trivial = add inspect %93 inspect %94
+  store inspect %4 consume %95
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %96: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
+  %97: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %96
+  %98: I32 trivial = const 0
+  %99: I32 trivial = call biggest(Array(I32), I32) borrow %97 borrow %98
+  drop Array(I32) inspect %1
+  %100: I32 trivial = const 11
+  %101: Bool trivial = eq inspect %99 inspect %100
+  branch inspect %101 -> bb12 -> bb10
+
+bb9:
+  %102: I32 trivial = load inspect %4
+  %103: I32 trivial = const 4
+  %104: I32 trivial = add inspect %102 inspect %103
+  store inspect %4 consume %104
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %105: Array(F32) [shared call] guaranteed from{%3} = load inspect %3
+  %106: Array(F32) [shared slot 0 view] guaranteed from{%3} = call Array(a).elements(F32) borrow %105
+  %107: F32 trivial = call total(Array(F32), F32) borrow %106
+  %108: F32 trivial = const 14
+  %109: Bool trivial = eq inspect %107 inspect %108
+  branch inspect %109 -> bb15 -> bb13
+
+bb12:
+  %110: I32 trivial = load inspect %4
+  %111: I32 trivial = const 8
+  %112: I32 trivial = add inspect %110 inspect %111
+  store inspect %4 consume %112
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %113: Array(F32) [shared call] guaranteed from{%3} = load inspect %3
+  %114: Array(F32) [shared slot 0 view] guaranteed from{%3} = call Array(a).elements(F32) borrow %113
+  %115: F32 trivial = const 0
+  %116: F32 trivial = call biggest(Array(F32), F32) borrow %114 borrow %115
+  drop Array(F32) inspect %3
+  %117: F32 trivial = const 5
+  %118: Bool trivial = eq inspect %116 inspect %117
+  branch inspect %118 -> bb18 -> bb16
+
+bb15:
+  %119: I32 trivial = load inspect %4
+  %120: I32 trivial = const 16
+  %121: I32 trivial = add inspect %119 inspect %120
+  store inspect %4 consume %121
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %122: I32 trivial = load inspect %4
+  return consume %122
+
+bb18:
+  %123: I32 trivial = load inspect %4
+  %124: I32 trivial = const 32
+  %125: I32 trivial = add inspect %123 inspect %124
+  store inspect %4 consume %125
+  jump -> bb17
+}
+
+fn total(Array(I32), I32)(xs: Array(I32) [shared call view]) -> I32 {
+bb0(%0: Array(I32) [shared call view] guaranteed):
+  %1: %Vec(I32) address = alloc frame Vec(I32)
+  %2: I32 trivial = const 0
+  %3: Vec(I32) trivial = vec.splat inspect %2
+  store inspect %1 consume %3
+  %4: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
+  %5: Vec(I32) [unique slot 0] guaranteed = load inspect %1
+  %6: total(Array(I32), I32).cont.env affine = aggregate.total(Array(I32), I32).cont.env borrow %5
+  %7: (Vec(I32)) -> I32 [owned here shape8 .0=shared call] affine = fun.value total(Array(I32), I32).cont borrow %6
+  %8: I32 trivial = call vectors(Array(I32), I32) borrow %4 borrow %7
+  jump -> bb1
+
+bb1:
+  %9: Vec(I32) trivial = load inspect %1
+  %10: I32 trivial = vec.reduce add inspect %9
+  return consume %10
+}
+
+fn biggest(Array(I32), I32)(xs: Array(I32) [shared call view], floor: I32 [shared call]) -> I32 {
+bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %Vec(I32) address = alloc frame Vec(I32)
+  store inspect %2 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: Vec(I32) trivial = vec.splat inspect %4
+  store inspect %3 consume %5
+  %6: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
+  %7: Vec(I32) [unique slot 0] guaranteed = load inspect %3
+  %8: biggest(Array(I32), I32).cont.env affine = aggregate.biggest(Array(I32), I32).cont.env borrow %7
+  %9: ({Vec(I32), I32}) -> I32 [owned here shape8 .0=shared call] affine = fun.value biggest(Array(I32), I32).cont borrow %8
+  %10: I32 trivial = call vectorsMasked(Array(I32), I32) borrow %6 borrow %9
+  jump -> bb1
+
+bb1:
+  %11: Vec(I32) trivial = load inspect %3
+  %12: I32 trivial = vec.reduce max inspect %11
+  return consume %12
+}
+
+fn total(Array(F32), F32)(xs: Array(F32) [shared call view]) -> F32 {
+bb0(%0: Array(F32) [shared call view] guaranteed):
+  %1: %Vec(F32) address = alloc frame Vec(F32)
+  %2: F32 trivial = const 0
+  %3: Vec(F32) trivial = vec.splat inspect %2
+  store inspect %1 consume %3
+  %4: Array(F32) [shared call view] guaranteed from{%0} = load inspect %0
+  %5: Vec(F32) [unique slot 0] guaranteed = load inspect %1
+  %6: total(Array(F32), F32).cont.env affine = aggregate.total(Array(F32), F32).cont.env borrow %5
+  %7: (Vec(F32)) -> I32 [owned here shape8 .0=shared call] affine = fun.value total(Array(F32), F32).cont borrow %6
+  %8: I32 trivial = call vectors(Array(F32), F32) borrow %4 borrow %7
+  jump -> bb1
+
+bb1:
+  %9: Vec(F32) trivial = load inspect %1
+  %10: F32 trivial = vec.reduce add inspect %9
+  return consume %10
+}
+
+fn biggest(Array(F32), F32)(xs: Array(F32) [shared call view], floor: F32 [shared call]) -> F32 {
+bb0(%0: Array(F32) [shared call view] guaranteed, %1: F32 trivial):
+  %2: %F32 address = alloc frame F32 [shared call]
+  %3: %Vec(F32) address = alloc frame Vec(F32)
+  store inspect %2 borrow %1
+  %4: F32 trivial = load inspect %2
+  %5: Vec(F32) trivial = vec.splat inspect %4
+  store inspect %3 consume %5
+  %6: Array(F32) [shared call view] guaranteed from{%0} = load inspect %0
+  %7: Vec(F32) [unique slot 0] guaranteed = load inspect %3
+  %8: biggest(Array(F32), F32).cont.env affine = aggregate.biggest(Array(F32), F32).cont.env borrow %7
+  %9: ({Vec(F32), I32}) -> I32 [owned here shape8 .0=shared call] affine = fun.value biggest(Array(F32), F32).cont borrow %8
+  %10: I32 trivial = call vectorsMasked(Array(F32), F32) borrow %6 borrow %9
+  jump -> bb1
+
+bb1:
+  %11: Vec(F32) trivial = load inspect %3
+  %12: F32 trivial = vec.reduce max inspect %11
+  return consume %12
+}
+
+fn sumInts.cont(sumInts.cont.env: sumInts.cont.env [unique call], $handed: Vec(I32) [shared call]) -> I32 {
+bb0(%0: sumInts.cont.env [unique call] guaranteed, %1: Vec(I32) trivial):
+  %2: %Vec(I32) address = field.addr .acc inspect %0
+  %3: %Vec(I32) address = load inspect %2
+  %4: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  store inspect %4 borrow %1
+  %5: Vec(I32) trivial = load inspect %3
+  %6: Vec(I32) trivial = load inspect %4
+  %7: Vec(I32) trivial = add inspect %5 inspect %6
+  store inspect %3 consume %7
+  %8: I32 trivial = const 0
+  return consume %8
+}
+
+fn largest.cont(largest.cont.env: largest.cont.env [unique call], $handed: {Vec(I32), I32} [shared call]) -> I32 {
+bb0(%0: largest.cont.env [unique call] guaranteed, %1: {Vec(I32), I32} [shared call] guaranteed):
+  %2: %Vec(I32) address = field.addr .acc inspect %0
+  %3: %Vec(I32) address = load inspect %2
+  %4: %Vec(I32) address = alloc frame Vec(I32)
+  %5: %I32 address = alloc frame I32
+  %6: %Vec(I32) address = field.addr . inspect %1
+  %7: Vec(I32) trivial = load inspect %6
+  store inspect %4 consume %7
+  %8: %I32 address = field.addr . inspect %1
+  %9: I32 trivial = load inspect %8
+  store inspect %5 consume %9
+  %10: Vec(I32) trivial = load inspect %3
+  %11: I32 trivial = load inspect %5
+  %12: I32 trivial = const 0
+  %13: Vec(I32) trivial = vec.splat inspect %12
+  %14: I32 trivial = const 1
+  %15: Vec(I32) trivial = vec.withlane #1 inspect %13 inspect %14
+  %16: I32 trivial = const 2
+  %17: Vec(I32) trivial = vec.withlane #2 inspect %15 inspect %16
+  %18: I32 trivial = const 3
+  %19: Vec(I32) trivial = vec.withlane #3 inspect %17 inspect %18
+  %20: I32 trivial = const 4
+  %21: Vec(I32) trivial = vec.withlane #4 inspect %19 inspect %20
+  %22: I32 trivial = const 5
+  %23: Vec(I32) trivial = vec.withlane #5 inspect %21 inspect %22
+  %24: I32 trivial = const 6
+  %25: Vec(I32) trivial = vec.withlane #6 inspect %23 inspect %24
+  %26: I32 trivial = const 7
+  %27: Vec(I32) trivial = vec.withlane #7 inspect %25 inspect %26
+  %28: I32 trivial = convert inspect %11
+  %29: Vec(I32) trivial = vec.splat inspect %28
+  %30: Mask(I32) trivial = lt inspect %27 inspect %29
+  %31: Vec(I32) trivial = load inspect %4
+  %32: Vec(I32) trivial = load inspect %3
+  %33: Vec(I32) trivial = select inspect %30 inspect %31 inspect %32
+  %34: Mask(I32) trivial = gt inspect %10 inspect %33
+  %35: Vec(I32) trivial = select inspect %34 inspect %10 inspect %33
+  store inspect %3 consume %35
+  %36: I32 trivial = const 0
+  return consume %36
+}
+
+fn total(Array(I32), I32).cont(total(Array(I32), I32).cont.env: total(Array(I32), I32).cont.env [unique call], $handed: Vec(I32) [shared call]) -> I32 {
+bb0(%0: total(Array(I32), I32).cont.env [unique call] guaranteed, %1: Vec(I32) trivial):
+  %2: %Vec(I32) address = field.addr .acc inspect %0
+  %3: %Vec(I32) address = load inspect %2
+  %4: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  store inspect %4 borrow %1
+  %5: Vec(I32) trivial = load inspect %3
+  %6: Vec(I32) trivial = load inspect %4
+  %7: Vec(I32) trivial = call Vec(a, n).+(I32, 8) borrow %5 borrow %6
+  store inspect %3 consume %7
+  %8: I32 trivial = const 0
+  return consume %8
+}
+
+fn biggest(Array(I32), I32).cont(biggest(Array(I32), I32).cont.env: biggest(Array(I32), I32).cont.env [unique call], $handed: {Vec(I32), I32} [shared call]) -> I32 {
+bb0(%0: biggest(Array(I32), I32).cont.env [unique call] guaranteed, %1: {Vec(I32), I32} [shared call] guaranteed):
+  %2: %Vec(I32) address = field.addr .acc inspect %0
+  %3: %Vec(I32) address = load inspect %2
+  %4: %Vec(I32) address = alloc frame Vec(I32)
+  %5: %I32 address = alloc frame I32
+  %6: %Vec(I32) address = field.addr . inspect %1
+  %7: Vec(I32) trivial = load inspect %6
+  store inspect %4 consume %7
+  %8: %I32 address = field.addr . inspect %1
+  %9: I32 trivial = load inspect %8
+  store inspect %5 consume %9
+  %10: Vec(I32) trivial = load inspect %3
+  %11: I32 trivial = load inspect %5
+  %12: I32 trivial = const 0
+  %13: Vec(I32) trivial = vec.splat inspect %12
+  %14: I32 trivial = const 1
+  %15: Vec(I32) trivial = vec.withlane #1 inspect %13 inspect %14
+  %16: I32 trivial = const 2
+  %17: Vec(I32) trivial = vec.withlane #2 inspect %15 inspect %16
+  %18: I32 trivial = const 3
+  %19: Vec(I32) trivial = vec.withlane #3 inspect %17 inspect %18
+  %20: I32 trivial = const 4
+  %21: Vec(I32) trivial = vec.withlane #4 inspect %19 inspect %20
+  %22: I32 trivial = const 5
+  %23: Vec(I32) trivial = vec.withlane #5 inspect %21 inspect %22
+  %24: I32 trivial = const 6
+  %25: Vec(I32) trivial = vec.withlane #6 inspect %23 inspect %24
+  %26: I32 trivial = const 7
+  %27: Vec(I32) trivial = vec.withlane #7 inspect %25 inspect %26
+  %28: I32 trivial = convert inspect %11
+  %29: Vec(I32) trivial = vec.splat inspect %28
+  %30: Mask(I32) trivial = lt inspect %27 inspect %29
+  %31: Vec(I32) trivial = load inspect %4
+  %32: Vec(I32) trivial = load inspect %3
+  %33: Vec(I32) trivial = call Vec(a, n).Mask(a, n).select(I32, 8) borrow %30 borrow %31 borrow %32
+  %34: Mask(I32) trivial = gt inspect %10 inspect %33
+  %35: Vec(I32) trivial = select inspect %34 inspect %10 inspect %33
+  store inspect %3 consume %35
+  %36: I32 trivial = const 0
+  return consume %36
+}
+
+fn total(Array(F32), F32).cont(total(Array(F32), F32).cont.env: total(Array(F32), F32).cont.env [unique call], $handed: Vec(F32) [shared call]) -> I32 {
+bb0(%0: total(Array(F32), F32).cont.env [unique call] guaranteed, %1: Vec(F32) trivial):
+  %2: %Vec(F32) address = field.addr .acc inspect %0
+  %3: %Vec(F32) address = load inspect %2
+  %4: %Vec(F32) address = alloc frame Vec(F32) [shared call]
+  store inspect %4 borrow %1
+  %5: Vec(F32) trivial = load inspect %3
+  %6: Vec(F32) trivial = load inspect %4
+  %7: Vec(F32) trivial = call Vec(a, n).+(F32, 8) borrow %5 borrow %6
+  store inspect %3 consume %7
+  %8: I32 trivial = const 0
+  return consume %8
+}
+
+fn biggest(Array(F32), F32).cont(biggest(Array(F32), F32).cont.env: biggest(Array(F32), F32).cont.env [unique call], $handed: {Vec(F32), I32} [shared call]) -> I32 {
+bb0(%0: biggest(Array(F32), F32).cont.env [unique call] guaranteed, %1: {Vec(F32), I32} [shared call] guaranteed):
+  %2: %Vec(F32) address = field.addr .acc inspect %0
+  %3: %Vec(F32) address = load inspect %2
+  %4: %Vec(F32) address = alloc frame Vec(F32)
+  %5: %I32 address = alloc frame I32
+  %6: %Vec(F32) address = field.addr . inspect %1
+  %7: Vec(F32) trivial = load inspect %6
+  store inspect %4 consume %7
+  %8: %I32 address = field.addr . inspect %1
+  %9: I32 trivial = load inspect %8
+  store inspect %5 consume %9
+  %10: Vec(F32) trivial = load inspect %3
+  %11: I32 trivial = load inspect %5
+  %12: F32 trivial = const 0
+  %13: Vec(F32) trivial = vec.splat inspect %12
+  %14: F32 trivial = const 1
+  %15: Vec(F32) trivial = vec.withlane #1 inspect %13 inspect %14
+  %16: F32 trivial = const 2
+  %17: Vec(F32) trivial = vec.withlane #2 inspect %15 inspect %16
+  %18: F32 trivial = const 3
+  %19: Vec(F32) trivial = vec.withlane #3 inspect %17 inspect %18
+  %20: F32 trivial = const 4
+  %21: Vec(F32) trivial = vec.withlane #4 inspect %19 inspect %20
+  %22: F32 trivial = const 5
+  %23: Vec(F32) trivial = vec.withlane #5 inspect %21 inspect %22
+  %24: F32 trivial = const 6
+  %25: Vec(F32) trivial = vec.withlane #6 inspect %23 inspect %24
+  %26: F32 trivial = const 7
+  %27: Vec(F32) trivial = vec.withlane #7 inspect %25 inspect %26
+  %28: F32 trivial = convert inspect %11
+  %29: Vec(F32) trivial = vec.splat inspect %28
+  %30: Mask(F32) trivial = lt inspect %27 inspect %29
+  %31: Vec(F32) trivial = load inspect %4
+  %32: Vec(F32) trivial = load inspect %3
+  %33: Vec(F32) trivial = call Vec(a, n).Mask(a, n).select(F32, 8) borrow %30 borrow %31 borrow %32
+  %34: Mask(F32) trivial = gt inspect %10 inspect %33
+  %35: Vec(F32) trivial = select inspect %34 inspect %10 inspect %33
+  store inspect %3 consume %35
+  %36: I32 trivial = const 0
+  return consume %36
+}
+
+entry main

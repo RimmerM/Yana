@@ -182,7 +182,7 @@ block #1:
   select uses=[rdx, rcx, -] creates=[rdx] pre=[remat:2->rdx]  => ba00000000480f4bd1
   imm uses=[] creates=[remat:3]  => 
   x86_addr [rip + $f064$43e0000000000000] uses=[] creates=[-]  => 
-  cmp_ge uses=[xmm1, -] creates=[-]  => 660f2e0de1010000
+  cmp_ge uses=[xmm1, -] creates=[-]  => 660f2e0dd1010000
   select uses=[rcx, rdx, -] creates=[rcx] pre=[remat:3->rcx]  => 48b9ffffffffffffff7f480f42ca
   sext uses=[rax] creates=[rax]  => 4863c0
   add uses=[rax, rcx] creates=[rax]  => 4801c8
@@ -203,7 +203,7 @@ block #1:
   select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rsi]  => be000000000f42c6
   imm uses=[] creates=[remat:1]  => 
   x86_addr [rip + $f064$41f0000000000000] uses=[] creates=[-]  => 
-  cmp_ge uses=[xmm1, -] creates=[-]  => 660f2e0da6010000
+  cmp_ge uses=[xmm1, -] creates=[-]  => 660f2e0d96010000
   select uses=[rcx, rax, -] creates=[rcx] pre=[remat:1->rcx]  => b9ffffffff0f42c8
   ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
 
@@ -216,28 +216,28 @@ block #1:
   and uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcf4883e101
   or uses=[rax, rcx] creates=[rax]  => 4809c8
   itof uses=[rax] creates=[xmm1]  => 0f57c9f2480f2ac8
-  add uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d1f20f58d1
-  itof uses=[rdi] creates=[xmm1]  => 0f57c9f2480f2acf
+  add uses=[xmm1, xmm1] creates=[xmm1]  => f20f58c9
+  itof uses=[rdi] creates=[xmm2]  => 0f57d2f2480f2ad7
   imm uses=[] creates=[-]  => 
   cmp_ilt uses=[rdi, -] creates=[-]  => 4885ff
-  select uses=[xmm2, xmm1, -] creates=[xmm2]  => 7c030f28d1
-  add uses=[xmm2, xmm0] creates=[xmm2]  => f20f58d0
+  select uses=[xmm1, xmm2, -] creates=[xmm1]  => 7c030f28ca
+  add uses=[xmm1, xmm0] creates=[xmm1]  => f20f58c8
   imm uses=[] creates=[xmm0]  => 0f57c0
-  cmp_ge uses=[xmm2, xmm0] creates=[rax]  => 31c0660f2ed00f93c0
+  cmp_ge uses=[xmm1, xmm0] creates=[rax]  => 31c0660f2ec80f93c0
   global uses=[] creates=[-]  => 
-  load uses=[-] creates=[xmm0]  => f20f100539010000
-  sub uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm2->xmm1]  => 0f28caf20f5cc8
-  ftoi uses=[xmm1] creates=[rcx]  => f2480f2cc9
+  load uses=[-] creates=[xmm0]  => f20f10052c010000
+  sub uses=[xmm2, xmm0] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d1f20f5cd0
+  ftoi uses=[xmm2] creates=[rcx]  => f2480f2cca
   imm uses=[] creates=[remat:0]  => 
   xor uses=[rcx, rsi] creates=[rcx] pre=[remat:0->rsi]  => 48be00000000000000804831f1
-  ftoi uses=[xmm2] creates=[rdx]  => f2480f2cd2
-  cmp_ge uses=[xmm2, xmm0] creates=[-]  => 660f2ed0
+  ftoi uses=[xmm1] creates=[rdx]  => f2480f2cd1
+  cmp_ge uses=[xmm1, xmm0] creates=[-]  => 660f2ec8
   select uses=[rcx, rdx, -] creates=[rcx]  => 480f42ca
   imm uses=[] creates=[remat:1]  => 
   select uses=[rcx, rsi, rax] creates=[rcx] pre=[remat:1->rsi]  => be0000000085c0480f44ce
   imm uses=[] creates=[remat:2]  => 
   x86_addr [rip + $f064$43f0000000000000] uses=[] creates=[-]  => 
-  cmp_ge uses=[xmm2, -] creates=[-]  => 660f2e1520010000
+  cmp_ge uses=[xmm1, -] creates=[-]  => 660f2e0d13010000
   select uses=[rax, rcx, -] creates=[rax] pre=[remat:2->rax]  => 48c7c0ffffffff480f42c1
   ret uses=[rax] creates=[]  => c3
 
@@ -250,27 +250,27 @@ block #1:
   and uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcf4883e101
   or uses=[rax, rcx] creates=[rax]  => 4809c8
   itof uses=[rax] creates=[xmm1]  => 0f57c9f3480f2ac8
-  add uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d1f30f58d1
-  itof uses=[rdi] creates=[xmm1]  => 0f57c9f3480f2acf
+  add uses=[xmm1, xmm1] creates=[xmm1]  => f30f58c9
+  itof uses=[rdi] creates=[xmm2]  => 0f57d2f3480f2ad7
   imm uses=[] creates=[-]  => 
   cmp_ilt uses=[rdi, -] creates=[-]  => 4885ff
-  select uses=[xmm2, xmm1, -] creates=[xmm2]  => 7c030f28d1
-  mul uses=[xmm2, xmm0] creates=[xmm2]  => f30f59d0
+  select uses=[xmm1, xmm2, -] creates=[xmm1]  => 7c030f28ca
+  mul uses=[xmm1, xmm0] creates=[xmm1]  => f30f59c8
   imm uses=[] creates=[xmm0]  => 0f57c0
-  cmp_ge uses=[xmm2, xmm0] creates=[rax]  => 31c00f2ed00f93c0
+  cmp_ge uses=[xmm1, xmm0] creates=[rax]  => 31c00f2ec80f93c0
   imm uses=[] creates=[xmm0]  => 41bb0000005f66410f6ec3
-  sub uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm2->xmm1]  => 0f28caf30f5cc8
-  ftoi uses=[xmm1] creates=[rcx]  => f3480f2cc9
+  sub uses=[xmm2, xmm0] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d1f30f5cd0
+  ftoi uses=[xmm2] creates=[rcx]  => f3480f2cca
   imm uses=[] creates=[remat:0]  => 
   xor uses=[rcx, rsi] creates=[rcx] pre=[remat:0->rsi]  => 48be00000000000000804831f1
-  ftoi uses=[xmm2] creates=[rdx]  => f3480f2cd2
-  cmp_ge uses=[xmm2, xmm0] creates=[-]  => 0f2ed0
+  ftoi uses=[xmm1] creates=[rdx]  => f3480f2cd1
+  cmp_ge uses=[xmm1, xmm0] creates=[-]  => 0f2ec8
   select uses=[rcx, rdx, -] creates=[rcx]  => 480f42ca
   imm uses=[] creates=[remat:1]  => 
   select uses=[rcx, rsi, rax] creates=[rcx] pre=[remat:1->rsi]  => be0000000085c0480f44ce
   imm uses=[] creates=[xmm0]  => 41bb0000805f66410f6ec3
   imm uses=[] creates=[remat:2]  => 
-  cmp_ge uses=[xmm2, xmm0] creates=[-]  => 0f2ed0
+  cmp_ge uses=[xmm1, xmm0] creates=[-]  => 0f2ec8
   select uses=[rax, rcx, -] creates=[rax] pre=[remat:2->rax]  => 48c7c0ffffffff480f42c1
   ret uses=[rax] creates=[]  => c3
 

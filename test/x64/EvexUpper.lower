@@ -1,0 +1,551 @@
+# The upper sixteen vector registers, and the rule for when a vector instruction is EVEX-encoded.
+#
+# extensions: avx512
+#
+# Analysis-Avx512.md §1.1 and §1.2's stage 1. **An instruction is EVEX-encoded where its operands need
+# it and VEX-encoded everywhere else**: the choice is made once the bytes exist, because only placement
+# knows whether xmm17 was used. What forces EVEX is a register at or above sixteen in any of the three
+# fields, a form with no VEX spelling, or the compressed displacement - disp8*N - being shorter than
+# the four bytes VEX would write.
+#
+# Every function below keeps more vector values live at once than the lower sixteen registers hold, so
+# the allocator has to reach the upper half, and every family that reaches it is here: the scalar and
+# packed arithmetic, the transfers (whose EVEX.W is the element's and not VEX's), a shift by an
+# immediate (whose destination is `vvvv`, and whose fifth bit is V'), and the copies and spills
+# `genMoves` writes.
+#
+# Extracting the `=>` bytes and running `objdump -b binary -m i386:x86-64 -D` over them is the check
+# that `evexSpellingOf` reads as the instructions it claims - the golden records bytes and nothing else
+# can say what they mean.
+
+# Twenty-four doubles live at once. The first sixteen go where they always went and the last eight are
+# xmm16-23; every operation reading one of those is EVEX, and every one that reads none stays VEX.
+# The loads are `movsd` at an offset that is a multiple of eight, so the ones in the upper registers
+# carry the displacement as one byte scaled by eight.
+floats24(%p: Ptr): F64 {
+    {
+        %l0 = load %p, 8: F64
+        %o1 = add %p, 8L: Ptr
+        %l1 = load %o1, 8: F64
+        %o2 = add %p, 16L: Ptr
+        %l2 = load %o2, 8: F64
+        %o3 = add %p, 24L: Ptr
+        %l3 = load %o3, 8: F64
+        %o4 = add %p, 32L: Ptr
+        %l4 = load %o4, 8: F64
+        %o5 = add %p, 40L: Ptr
+        %l5 = load %o5, 8: F64
+        %o6 = add %p, 48L: Ptr
+        %l6 = load %o6, 8: F64
+        %o7 = add %p, 56L: Ptr
+        %l7 = load %o7, 8: F64
+        %o8 = add %p, 64L: Ptr
+        %l8 = load %o8, 8: F64
+        %o9 = add %p, 72L: Ptr
+        %l9 = load %o9, 8: F64
+        %o10 = add %p, 80L: Ptr
+        %l10 = load %o10, 8: F64
+        %o11 = add %p, 88L: Ptr
+        %l11 = load %o11, 8: F64
+        %o12 = add %p, 96L: Ptr
+        %l12 = load %o12, 8: F64
+        %o13 = add %p, 104L: Ptr
+        %l13 = load %o13, 8: F64
+        %o14 = add %p, 112L: Ptr
+        %l14 = load %o14, 8: F64
+        %o15 = add %p, 120L: Ptr
+        %l15 = load %o15, 8: F64
+        %o16 = add %p, 128L: Ptr
+        %l16 = load %o16, 8: F64
+        %o17 = add %p, 136L: Ptr
+        %l17 = load %o17, 8: F64
+        %o18 = add %p, 144L: Ptr
+        %l18 = load %o18, 8: F64
+        %o19 = add %p, 152L: Ptr
+        %l19 = load %o19, 8: F64
+        %o20 = add %p, 160L: Ptr
+        %l20 = load %o20, 8: F64
+        %o21 = add %p, 168L: Ptr
+        %l21 = load %o21, 8: F64
+        %o22 = add %p, 176L: Ptr
+        %l22 = load %o22, 8: F64
+        %o23 = add %p, 184L: Ptr
+        %l23 = load %o23, 8: F64
+        %t0 = add %l0, %l1: F64
+        %t1 = sub %l2, %l3: F64
+        %t2 = mul %l4, %l5: F64
+        %t3 = div %l6, %l7: F64
+        %t4 = add %l8, %l9: F64
+        %t5 = sub %l10, %l11: F64
+        %t6 = mul %l12, %l13: F64
+        %t7 = div %l14, %l15: F64
+        %t8 = add %l16, %l17: F64
+        %t9 = sub %l18, %l19: F64
+        %t10 = mul %l20, %l21: F64
+        %t11 = div %l22, %l23: F64
+        %t12 = add %t0, %t1: F64
+        %t13 = sub %t2, %t3: F64
+        %t14 = mul %t4, %t5: F64
+        %t15 = div %t6, %t7: F64
+        %t16 = add %t8, %t9: F64
+        %t17 = sub %t10, %t11: F64
+        %t18 = mul %t12, %t13: F64
+        %t19 = div %t14, %t15: F64
+        %t20 = add %t16, %t17: F64
+        %t21 = sub %t18, %t19: F64
+        %t22 = mul %t21, %t20: F64
+        ret %t22
+    }
+}
+
+# The same at single precision, where every instruction is W0 whether VEX or EVEX.
+floats24Single(%p: Ptr): F32 {
+    {
+        %l0 = load %p, 4: F32
+        %o1 = add %p, 4L: Ptr
+        %l1 = load %o1, 4: F32
+        %o2 = add %p, 8L: Ptr
+        %l2 = load %o2, 4: F32
+        %o3 = add %p, 12L: Ptr
+        %l3 = load %o3, 4: F32
+        %o4 = add %p, 16L: Ptr
+        %l4 = load %o4, 4: F32
+        %o5 = add %p, 20L: Ptr
+        %l5 = load %o5, 4: F32
+        %o6 = add %p, 24L: Ptr
+        %l6 = load %o6, 4: F32
+        %o7 = add %p, 28L: Ptr
+        %l7 = load %o7, 4: F32
+        %o8 = add %p, 32L: Ptr
+        %l8 = load %o8, 4: F32
+        %o9 = add %p, 36L: Ptr
+        %l9 = load %o9, 4: F32
+        %o10 = add %p, 40L: Ptr
+        %l10 = load %o10, 4: F32
+        %o11 = add %p, 44L: Ptr
+        %l11 = load %o11, 4: F32
+        %o12 = add %p, 48L: Ptr
+        %l12 = load %o12, 4: F32
+        %o13 = add %p, 52L: Ptr
+        %l13 = load %o13, 4: F32
+        %o14 = add %p, 56L: Ptr
+        %l14 = load %o14, 4: F32
+        %o15 = add %p, 60L: Ptr
+        %l15 = load %o15, 4: F32
+        %o16 = add %p, 64L: Ptr
+        %l16 = load %o16, 4: F32
+        %o17 = add %p, 68L: Ptr
+        %l17 = load %o17, 4: F32
+        %o18 = add %p, 72L: Ptr
+        %l18 = load %o18, 4: F32
+        %o19 = add %p, 76L: Ptr
+        %l19 = load %o19, 4: F32
+        %o20 = add %p, 80L: Ptr
+        %l20 = load %o20, 4: F32
+        %o21 = add %p, 84L: Ptr
+        %l21 = load %o21, 4: F32
+        %o22 = add %p, 88L: Ptr
+        %l22 = load %o22, 4: F32
+        %o23 = add %p, 92L: Ptr
+        %l23 = load %o23, 4: F32
+        %t0 = add %l0, %l1: F32
+        %t1 = sub %l2, %l3: F32
+        %t2 = mul %l4, %l5: F32
+        %t3 = div %l6, %l7: F32
+        %t4 = add %l8, %l9: F32
+        %t5 = sub %l10, %l11: F32
+        %t6 = mul %l12, %l13: F32
+        %t7 = div %l14, %l15: F32
+        %t8 = add %l16, %l17: F32
+        %t9 = sub %l18, %l19: F32
+        %t10 = mul %l20, %l21: F32
+        %t11 = div %l22, %l23: F32
+        %t12 = add %t0, %t1: F32
+        %t13 = sub %t2, %t3: F32
+        %t14 = mul %t4, %t5: F32
+        %t15 = div %t6, %t7: F32
+        %t16 = add %t8, %t9: F32
+        %t17 = sub %t10, %t11: F32
+        %t18 = mul %t12, %t13: F32
+        %t19 = div %t14, %t15: F32
+        %t20 = add %t16, %t17: F32
+        %t21 = sub %t18, %t19: F32
+        %t22 = mul %t21, %t20: F32
+        ret %t22
+    }
+}
+
+# Twenty-four integer vectors. `vmovdqu` is `vmovdqu32` under EVEX, the lane width in the name being a
+# statement about masking; the arithmetic mixes the dword rows (W0) with a shift by an immediate, whose
+# destination is `vvvv` rather than ModRM.reg - so a result in xmm20 is V' and not R'.
+vectors24(%p: Ptr): i32x4 {
+    {
+        %l0 = load %p, 16: i32x4
+        %o1 = add %p, 16L: Ptr
+        %l1 = load %o1, 16: i32x4
+        %o2 = add %p, 32L: Ptr
+        %l2 = load %o2, 16: i32x4
+        %o3 = add %p, 48L: Ptr
+        %l3 = load %o3, 16: i32x4
+        %o4 = add %p, 64L: Ptr
+        %l4 = load %o4, 16: i32x4
+        %o5 = add %p, 80L: Ptr
+        %l5 = load %o5, 16: i32x4
+        %o6 = add %p, 96L: Ptr
+        %l6 = load %o6, 16: i32x4
+        %o7 = add %p, 112L: Ptr
+        %l7 = load %o7, 16: i32x4
+        %o8 = add %p, 128L: Ptr
+        %l8 = load %o8, 16: i32x4
+        %o9 = add %p, 144L: Ptr
+        %l9 = load %o9, 16: i32x4
+        %o10 = add %p, 160L: Ptr
+        %l10 = load %o10, 16: i32x4
+        %o11 = add %p, 176L: Ptr
+        %l11 = load %o11, 16: i32x4
+        %o12 = add %p, 192L: Ptr
+        %l12 = load %o12, 16: i32x4
+        %o13 = add %p, 208L: Ptr
+        %l13 = load %o13, 16: i32x4
+        %o14 = add %p, 224L: Ptr
+        %l14 = load %o14, 16: i32x4
+        %o15 = add %p, 240L: Ptr
+        %l15 = load %o15, 16: i32x4
+        %o16 = add %p, 256L: Ptr
+        %l16 = load %o16, 16: i32x4
+        %o17 = add %p, 272L: Ptr
+        %l17 = load %o17, 16: i32x4
+        %o18 = add %p, 288L: Ptr
+        %l18 = load %o18, 16: i32x4
+        %o19 = add %p, 304L: Ptr
+        %l19 = load %o19, 16: i32x4
+        %o20 = add %p, 320L: Ptr
+        %l20 = load %o20, 16: i32x4
+        %o21 = add %p, 336L: Ptr
+        %l21 = load %o21, 16: i32x4
+        %o22 = add %p, 352L: Ptr
+        %l22 = load %o22, 16: i32x4
+        %o23 = add %p, 368L: Ptr
+        %l23 = load %o23, 16: i32x4
+        %t0 = add %l0, %l1: i32x4
+        %s0 = shl %t0, 3: i32x4
+        %t1 = sub %l2, %l3: i32x4
+        %s1 = shl %t1, 3: i32x4
+        %t2 = mul %l4, %l5: i32x4
+        %s2 = shl %t2, 3: i32x4
+        %t3 = and %l6, %l7: i32x4
+        %s3 = shl %t3, 3: i32x4
+        %t4 = or %l8, %l9: i32x4
+        %s4 = shl %t4, 3: i32x4
+        %t5 = xor %l10, %l11: i32x4
+        %s5 = shl %t5, 3: i32x4
+        %t6 = add %l12, %l13: i32x4
+        %s6 = shl %t6, 3: i32x4
+        %t7 = sub %l14, %l15: i32x4
+        %s7 = shl %t7, 3: i32x4
+        %t8 = mul %l16, %l17: i32x4
+        %s8 = shl %t8, 3: i32x4
+        %t9 = and %l18, %l19: i32x4
+        %s9 = shl %t9, 3: i32x4
+        %t10 = or %l20, %l21: i32x4
+        %s10 = shl %t10, 3: i32x4
+        %t11 = xor %l22, %l23: i32x4
+        %s11 = shl %t11, 3: i32x4
+        %t12 = add %s0, %s1: i32x4
+        %s12 = shl %t12, 3: i32x4
+        %t13 = sub %s2, %s3: i32x4
+        %s13 = shl %t13, 3: i32x4
+        %t14 = mul %s4, %s5: i32x4
+        %s14 = shl %t14, 3: i32x4
+        %t15 = and %s6, %s7: i32x4
+        %s15 = shl %t15, 3: i32x4
+        %t16 = or %s8, %s9: i32x4
+        %s16 = shl %t16, 3: i32x4
+        %t17 = xor %s10, %s11: i32x4
+        %s17 = shl %t17, 3: i32x4
+        %t18 = add %s12, %s13: i32x4
+        %s18 = shl %t18, 3: i32x4
+        %t19 = sub %s14, %s15: i32x4
+        %s19 = shl %t19, 3: i32x4
+        %t20 = mul %s16, %s17: i32x4
+        %s20 = shl %t20, 3: i32x4
+        %t21 = and %s18, %s19: i32x4
+        %s21 = shl %t21, 3: i32x4
+        %t22 = or %s21, %s20: i32x4
+        %s22 = shl %t22, 3: i32x4
+        ret %s22
+    }
+}
+
+# The quadword and double lanes, which are where EVEX.W stops being VEX.W: `vpaddq` and `vmulpd` are
+# W1 under EVEX and WIG under VEX, and written with the other W they are different instructions.
+wideLanes24(%p: Ptr): i64x2 {
+    {
+        %l0 = load %p, 16: i64x2
+        %o1 = add %p, 16L: Ptr
+        %l1 = load %o1, 16: i64x2
+        %o2 = add %p, 32L: Ptr
+        %l2 = load %o2, 16: i64x2
+        %o3 = add %p, 48L: Ptr
+        %l3 = load %o3, 16: i64x2
+        %o4 = add %p, 64L: Ptr
+        %l4 = load %o4, 16: i64x2
+        %o5 = add %p, 80L: Ptr
+        %l5 = load %o5, 16: i64x2
+        %o6 = add %p, 96L: Ptr
+        %l6 = load %o6, 16: i64x2
+        %o7 = add %p, 112L: Ptr
+        %l7 = load %o7, 16: i64x2
+        %o8 = add %p, 128L: Ptr
+        %l8 = load %o8, 16: i64x2
+        %o9 = add %p, 144L: Ptr
+        %l9 = load %o9, 16: i64x2
+        %o10 = add %p, 160L: Ptr
+        %l10 = load %o10, 16: i64x2
+        %o11 = add %p, 176L: Ptr
+        %l11 = load %o11, 16: i64x2
+        %o12 = add %p, 192L: Ptr
+        %l12 = load %o12, 16: i64x2
+        %o13 = add %p, 208L: Ptr
+        %l13 = load %o13, 16: i64x2
+        %o14 = add %p, 224L: Ptr
+        %l14 = load %o14, 16: i64x2
+        %o15 = add %p, 240L: Ptr
+        %l15 = load %o15, 16: i64x2
+        %o16 = add %p, 256L: Ptr
+        %l16 = load %o16, 16: i64x2
+        %o17 = add %p, 272L: Ptr
+        %l17 = load %o17, 16: i64x2
+        %o18 = add %p, 288L: Ptr
+        %l18 = load %o18, 16: i64x2
+        %o19 = add %p, 304L: Ptr
+        %l19 = load %o19, 16: i64x2
+        %o20 = add %p, 320L: Ptr
+        %l20 = load %o20, 16: i64x2
+        %o21 = add %p, 336L: Ptr
+        %l21 = load %o21, 16: i64x2
+        %o22 = add %p, 352L: Ptr
+        %l22 = load %o22, 16: i64x2
+        %o23 = add %p, 368L: Ptr
+        %l23 = load %o23, 16: i64x2
+        %t0 = add %l0, %l1: i64x2
+        %s0 = shr %t0, 5: i64x2
+        %t1 = sub %l2, %l3: i64x2
+        %s1 = shr %t1, 5: i64x2
+        %t2 = add %l4, %l5: i64x2
+        %s2 = shr %t2, 5: i64x2
+        %t3 = sub %l6, %l7: i64x2
+        %s3 = shr %t3, 5: i64x2
+        %t4 = add %l8, %l9: i64x2
+        %s4 = shr %t4, 5: i64x2
+        %t5 = sub %l10, %l11: i64x2
+        %s5 = shr %t5, 5: i64x2
+        %t6 = add %l12, %l13: i64x2
+        %s6 = shr %t6, 5: i64x2
+        %t7 = sub %l14, %l15: i64x2
+        %s7 = shr %t7, 5: i64x2
+        %t8 = add %l16, %l17: i64x2
+        %s8 = shr %t8, 5: i64x2
+        %t9 = sub %l18, %l19: i64x2
+        %s9 = shr %t9, 5: i64x2
+        %t10 = add %l20, %l21: i64x2
+        %s10 = shr %t10, 5: i64x2
+        %t11 = sub %l22, %l23: i64x2
+        %s11 = shr %t11, 5: i64x2
+        %t12 = add %s0, %s1: i64x2
+        %s12 = shr %t12, 5: i64x2
+        %t13 = sub %s2, %s3: i64x2
+        %s13 = shr %t13, 5: i64x2
+        %t14 = add %s4, %s5: i64x2
+        %s14 = shr %t14, 5: i64x2
+        %t15 = sub %s6, %s7: i64x2
+        %s15 = shr %t15, 5: i64x2
+        %t16 = add %s8, %s9: i64x2
+        %s16 = shr %t16, 5: i64x2
+        %t17 = sub %s10, %s11: i64x2
+        %s17 = shr %t17, 5: i64x2
+        %t18 = add %s12, %s13: i64x2
+        %s18 = shr %t18, 5: i64x2
+        %t19 = sub %s14, %s15: i64x2
+        %s19 = shr %t19, 5: i64x2
+        %t20 = add %s16, %s17: i64x2
+        %s20 = shr %t20, 5: i64x2
+        %t21 = sub %s18, %s19: i64x2
+        %s21 = shr %t21, 5: i64x2
+        %t22 = add %s21, %s20: i64x2
+        %s22 = shr %t22, 5: i64x2
+        ret %s22
+    }
+}
+
+doubles24(%p: Ptr): f64x2 {
+    {
+        %l0 = load %p, 16: f64x2
+        %o1 = add %p, 16L: Ptr
+        %l1 = load %o1, 16: f64x2
+        %o2 = add %p, 32L: Ptr
+        %l2 = load %o2, 16: f64x2
+        %o3 = add %p, 48L: Ptr
+        %l3 = load %o3, 16: f64x2
+        %o4 = add %p, 64L: Ptr
+        %l4 = load %o4, 16: f64x2
+        %o5 = add %p, 80L: Ptr
+        %l5 = load %o5, 16: f64x2
+        %o6 = add %p, 96L: Ptr
+        %l6 = load %o6, 16: f64x2
+        %o7 = add %p, 112L: Ptr
+        %l7 = load %o7, 16: f64x2
+        %o8 = add %p, 128L: Ptr
+        %l8 = load %o8, 16: f64x2
+        %o9 = add %p, 144L: Ptr
+        %l9 = load %o9, 16: f64x2
+        %o10 = add %p, 160L: Ptr
+        %l10 = load %o10, 16: f64x2
+        %o11 = add %p, 176L: Ptr
+        %l11 = load %o11, 16: f64x2
+        %o12 = add %p, 192L: Ptr
+        %l12 = load %o12, 16: f64x2
+        %o13 = add %p, 208L: Ptr
+        %l13 = load %o13, 16: f64x2
+        %o14 = add %p, 224L: Ptr
+        %l14 = load %o14, 16: f64x2
+        %o15 = add %p, 240L: Ptr
+        %l15 = load %o15, 16: f64x2
+        %o16 = add %p, 256L: Ptr
+        %l16 = load %o16, 16: f64x2
+        %o17 = add %p, 272L: Ptr
+        %l17 = load %o17, 16: f64x2
+        %o18 = add %p, 288L: Ptr
+        %l18 = load %o18, 16: f64x2
+        %o19 = add %p, 304L: Ptr
+        %l19 = load %o19, 16: f64x2
+        %o20 = add %p, 320L: Ptr
+        %l20 = load %o20, 16: f64x2
+        %o21 = add %p, 336L: Ptr
+        %l21 = load %o21, 16: f64x2
+        %o22 = add %p, 352L: Ptr
+        %l22 = load %o22, 16: f64x2
+        %o23 = add %p, 368L: Ptr
+        %l23 = load %o23, 16: f64x2
+        %t0 = mul %l0, %l1: f64x2
+        %t1 = add %l2, %l3: f64x2
+        %t2 = div %l4, %l5: f64x2
+        %t3 = sub %l6, %l7: f64x2
+        %t4 = mul %l8, %l9: f64x2
+        %t5 = add %l10, %l11: f64x2
+        %t6 = div %l12, %l13: f64x2
+        %t7 = sub %l14, %l15: f64x2
+        %t8 = mul %l16, %l17: f64x2
+        %t9 = add %l18, %l19: f64x2
+        %t10 = div %l20, %l21: f64x2
+        %t11 = sub %l22, %l23: f64x2
+        %t12 = mul %t0, %t1: f64x2
+        %t13 = add %t2, %t3: f64x2
+        %t14 = div %t4, %t5: f64x2
+        %t15 = sub %t6, %t7: f64x2
+        %t16 = mul %t8, %t9: f64x2
+        %t17 = add %t10, %t11: f64x2
+        %t18 = div %t12, %t13: f64x2
+        %t19 = sub %t14, %t15: f64x2
+        %t20 = mul %t16, %t17: f64x2
+        %t21 = add %t18, %t19: f64x2
+        %t22 = div %t21, %t20: f64x2
+        ret %t22
+    }
+}
+
+# A negation is a pseudo - `vpxor` and `vpsubd` through a scratch register, written by its own emitter
+# with no table to ask whether it may be spelled in EVEX - so its operand and its result stay in the
+# lower sixteen however many other vectors are live, and the twenty others take the upper half. What
+# is asserted is the placement rule (`MachineForm::namesUpperVectors`) as much as the bytes: the
+# verifier refuses an instruction reading a register its form cannot name.
+lowOnly(%p: Ptr): i32x4 {
+    {
+        %l0 = load %p, 16: i32x4
+        %o1 = add %p, 16L: Ptr
+        %l1 = load %o1, 16: i32x4
+        %o2 = add %p, 32L: Ptr
+        %l2 = load %o2, 16: i32x4
+        %o3 = add %p, 48L: Ptr
+        %l3 = load %o3, 16: i32x4
+        %o4 = add %p, 64L: Ptr
+        %l4 = load %o4, 16: i32x4
+        %o5 = add %p, 80L: Ptr
+        %l5 = load %o5, 16: i32x4
+        %o6 = add %p, 96L: Ptr
+        %l6 = load %o6, 16: i32x4
+        %o7 = add %p, 112L: Ptr
+        %l7 = load %o7, 16: i32x4
+        %o8 = add %p, 128L: Ptr
+        %l8 = load %o8, 16: i32x4
+        %o9 = add %p, 144L: Ptr
+        %l9 = load %o9, 16: i32x4
+        %o10 = add %p, 160L: Ptr
+        %l10 = load %o10, 16: i32x4
+        %o11 = add %p, 176L: Ptr
+        %l11 = load %o11, 16: i32x4
+        %o12 = add %p, 192L: Ptr
+        %l12 = load %o12, 16: i32x4
+        %o13 = add %p, 208L: Ptr
+        %l13 = load %o13, 16: i32x4
+        %o14 = add %p, 224L: Ptr
+        %l14 = load %o14, 16: i32x4
+        %o15 = add %p, 240L: Ptr
+        %l15 = load %o15, 16: i32x4
+        %o16 = add %p, 256L: Ptr
+        %l16 = load %o16, 16: i32x4
+        %o17 = add %p, 272L: Ptr
+        %l17 = load %o17, 16: i32x4
+        %o18 = add %p, 288L: Ptr
+        %l18 = load %o18, 16: i32x4
+        %o19 = add %p, 304L: Ptr
+        %l19 = load %o19, 16: i32x4
+        %o20 = add %p, 320L: Ptr
+        %l20 = load %o20, 16: i32x4
+        %o21 = add %p, 336L: Ptr
+        %l21 = load %o21, 16: i32x4
+        %sel = neg %l21: i32x4
+        %t0 = add %sel, %l1: i32x4
+        %t1 = add %l2, %l3: i32x4
+        %t2 = add %l4, %l5: i32x4
+        %t3 = add %l6, %l7: i32x4
+        %t4 = add %l8, %l9: i32x4
+        %t5 = add %l10, %l11: i32x4
+        %t6 = add %l12, %l13: i32x4
+        %t7 = add %l14, %l15: i32x4
+        %t8 = add %l16, %l17: i32x4
+        %t9 = add %l18, %l19: i32x4
+        %t10 = add %t0, %t1: i32x4
+        %t11 = add %t2, %t3: i32x4
+        %t12 = add %t4, %t5: i32x4
+        %t13 = add %t6, %t7: i32x4
+        %t14 = add %t8, %t9: i32x4
+        %t15 = add %t10, %t11: i32x4
+        %t16 = add %t12, %t13: i32x4
+        %t17 = add %t14, %l20: i32x4
+        %t18 = add %t15, %t16: i32x4
+        %t19 = add %t18, %t17: i32x4
+        ret %t19
+    }
+}
+
+# The fifth thing that forces EVEX, with no register past fifteen anywhere: a displacement that needs
+# four bytes under VEX and divides into one under EVEX's scale. `[rdi + 800]` read as a double is eight
+# bytes as `vmovsd` and seven as the EVEX one with a displacement of 100; `[rdi + 1600]` as a vector of
+# sixteen bytes is the same trade. `[rdi + 804]` divides by nothing and stays VEX.
+farLoads(%p: Ptr): F64 {
+    {
+        %a = add %p, 800L: Ptr
+        %x = load %a, 8: F64
+        %b = add %p, 804L: Ptr
+        %y = load %b, 8: F64
+        %s = add %x, %y: F64
+        %c = add %p, 1600L: Ptr
+        %v = load %c, 16: f64x2
+        %d = add %p, 96L: Ptr
+        %w = load %d, 16: f64x2
+        %u = add %v, %w: f64x2
+        store %p, %u, 16
+        ret %s
+    }
+}

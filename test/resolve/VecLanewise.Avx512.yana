@@ -1,0 +1,116 @@
+{-
+   # extensions: avx512
+
+   `VecLanewise.yana` at the third level - Analysis-Avx512.md's order of work, which gives every
+   runtime fixture a rewritten expansion reaches an `avx512` twin beside its `sse4` and `avx2` ones.
+   Two tiers are two expansions of one source, and only running both says they agree.
+
+   A mask lives in a mask register here, and every consumer of one is the mask-register spelling -
+   `kmovd`, a masked move, `kortestd` - or one of the fusions of Analysis-Avx512.md §2.2. What the
+   program asserts is written in `VecLanewise.yana`.
+-}
+
+-- Read rather than written, but mutable, which is what stops the folder from answering the whole
+-- program: a mutable global's value is not a constant at any point.
+let &seed = 3 :: Int
+
+-- The six comparisons, and the two the lane count cannot change: every lane holds the same value, so
+-- each of these is all-true or all-false whatever the width.
+fn comparisons(a: Vec(Int), b: Vec(Int)) -> Int:
+    if !all(a .< b) then return -1
+    if !all(a .<= b) then return -2
+    if !all(b .> a) then return -3
+    if !all(b .>= a) then return -4
+    if !all(a .!= b) then return -5
+    if any(a .== b) then return -6
+
+    -- And the same read the other way, which is what `none` is for.
+    if !none(a .> b) then return -7
+
+    return 0
+
+-- `select`, which is the one operation relating a mask back to the vector it came from - and the
+-- reason it is a member of the class rather than a function beside it.
+fn selection(a: Vec(Int), b: Vec(Int)) -> Int:
+    let smaller = select(a .< b, a, b)
+    let larger = select(a .< b, b, a)
+
+    if lane(smaller, 0) != 3 then return -1
+    if lane(larger, 1) != 4 then return -2
+
+    return 0
+
+{-
+   Combining two masks, which is `Logic` - Design-Vector §3.2's "masks themselves get `and`/`or`/`not`
+   through Logic". `&&`, `||` and `!` are the class's own defaults over those three, so a mask joins
+   the class by supplying four functions and reads the way a condition does.
+-}
+fn combining(a: Vec(Int), b: Vec(Int)) -> Int:
+    let below = a .< b
+    let equal = a .== b
+
+    if !all(below `or` equal) then return -1
+    if any(below `and` equal) then return -2
+    if !all(below `xor` equal) then return -3
+    if !all(not(equal)) then return -4
+
+    return 0
+
+{-
+   The two answers that count lanes, and the one that finds one.
+
+   `iota()` is `0, 1, 2, ...`, so `iota() .>= splat(1)` is every lane but the first - which makes the
+   count one less than the width and the first set lane exactly 1 at every width. That is the whole
+   reason this is written over `iota` rather than over a mask built by hand.
+-}
+fn counting() -> Int:
+    let indices = iota() :: Vec(Int)
+    let past = indices .>= splat(1)
+
+    if count(past) != lanes(indices) - 1 then return -1
+    if firstSet(past) != 1 then return -2
+
+    {-
+       Nothing set at all, which is the case `firstSet` answers the lane count for - and the reason a
+       search loop needs no `any` in front of it.
+
+       `zero()` is bound before it is compared rather than written inside the comparison, and that is
+       a limitation worth recording rather than a style: a nullary generic takes its type from what
+       the result is asked to be, and an operand of a class function is not a position that asks. So
+       `indices .< zero()` reports that it cannot infer the lane type, where a `let` with an
+       ascription supplies it.
+    -}
+    let empty = zero() :: Vec(Int)
+    let never = indices .< empty
+    if firstSet(never) != lanes(indices) then return -3
+    if count(never) != 0 then return -4
+
+    -- Everything set, which is the other end of the same rule.
+    let always = indices .>= empty
+    if firstSet(always) != 0 then return -5
+    if count(always) != lanes(indices) then return -6
+
+    return 0
+
+-- Float lanes, where the comparison is the other instruction family and the mask is the same type -
+-- Design-Vector §2.4's normalization, which is what lets one mask shape serve both.
+fn floats() -> Int:
+    let a = splat(1.5) :: Vec(Float)
+    let b = splat(2.5) :: Vec(Float)
+
+    if !all(a .< b) then return -1
+    if lane(select(a .< b, a, b), 0) != 1.5 then return -2
+
+    return 0
+
+fn main() -> Int:
+    let a = splat(seed) :: Vec(Int)
+    let b = splat(seed + 1) :: Vec(Int)
+
+    if comparisons(a, b) != 0 then return comparisons(a, b)
+    if selection(a, b) != 0 then return selection(a, b) * 10
+    if combining(a, b) != 0 then return combining(a, b) * 100
+    if counting() != 0 then return counting() * 1000
+    if floats() != 0 then return floats() * 10000
+
+    return 4839

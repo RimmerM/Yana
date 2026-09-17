@@ -1,0 +1,530 @@
+module ResolveTest
+
+let & seed: I32 = 3
+
+fn comparisons(a: Vec(I32) [shared call], b: Vec(I32) [shared call]) -> I32 {
+bb0:
+  %0: Vec(I32) = read copy.trivial (a)
+  %1: Vec(I32) = read copy.trivial (b)
+  %2: Mask(I32) = lt inspect %0 inspect %1
+  %3: Bool = vec.reduce and inspect %2
+  %4: Bool = not inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: Vec(I32) = read copy.trivial (a)
+  %10: Vec(I32) = read copy.trivial (b)
+  %11: Mask(I32) = le inspect %9 inspect %10
+  %12: Bool = vec.reduce and inspect %11
+  %13: Bool = not inspect %12
+  branch inspect %13 -> bb6 -> bb4
+
+bb3:
+  %6: I32 = const -1
+  return take %6
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %18: Vec(I32) = read copy.trivial (b)
+  %19: Vec(I32) = read copy.trivial (a)
+  %20: Mask(I32) = gt inspect %18 inspect %19
+  %21: Bool = vec.reduce and inspect %20
+  %22: Bool = not inspect %21
+  branch inspect %22 -> bb9 -> bb7
+
+bb6:
+  %15: I32 = const -2
+  return take %15
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %27: Vec(I32) = read copy.trivial (b)
+  %28: Vec(I32) = read copy.trivial (a)
+  %29: Mask(I32) = ge inspect %27 inspect %28
+  %30: Bool = vec.reduce and inspect %29
+  %31: Bool = not inspect %30
+  branch inspect %31 -> bb12 -> bb10
+
+bb9:
+  %24: I32 = const -3
+  return take %24
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %36: Vec(I32) = read copy.trivial (a)
+  %37: Vec(I32) = read copy.trivial (b)
+  %38: Mask(I32) = ne inspect %36 inspect %37
+  %39: Bool = vec.reduce and inspect %38
+  %40: Bool = not inspect %39
+  branch inspect %40 -> bb15 -> bb13
+
+bb12:
+  %33: I32 = const -4
+  return take %33
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %45: Vec(I32) = read copy.trivial (a)
+  %46: Vec(I32) = read copy.trivial (b)
+  %47: Mask(I32) = eq inspect %45 inspect %46
+  %48: Bool = vec.reduce or inspect %47
+  branch inspect %48 -> bb18 -> bb16
+
+bb15:
+  %42: I32 = const -5
+  return take %42
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %53: Vec(I32) = read copy.trivial (a)
+  %54: Vec(I32) = read copy.trivial (b)
+  %55: Mask(I32) = gt inspect %53 inspect %54
+  %56: Bool = vec.reduce or inspect %55
+  %57: Bool = not inspect %56
+  %58: Bool = not inspect %57
+  branch inspect %58 -> bb21 -> bb19
+
+bb18:
+  %50: I32 = const -6
+  return take %50
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %63: I32 = const 0
+  return take %63
+
+bb21:
+  %60: I32 = const -7
+  return take %60
+}
+
+fn selection(a: Vec(I32) [shared call], b: Vec(I32) [shared call]) -> I32 {
+  local smaller: Vec(I32)
+  local larger: Vec(I32)
+
+bb0:
+  %0: Vec(I32) = read copy.trivial (a)
+  %1: Vec(I32) = read copy.trivial (b)
+  %2: Mask(I32) = lt inspect %0 inspect %1
+  %3: Vec(I32) = read copy.trivial (a)
+  %4: Vec(I32) = read copy.trivial (b)
+  %5: Vec(I32) = select inspect %2 inspect %3 inspect %4
+  write.init borrow.unique (smaller) take %5
+  %7: Vec(I32) = read copy.trivial (a)
+  %8: Vec(I32) = read copy.trivial (b)
+  %9: Mask(I32) = lt inspect %7 inspect %8
+  %10: Vec(I32) = read copy.trivial (b)
+  %11: Vec(I32) = read copy.trivial (a)
+  %12: Vec(I32) = select inspect %9 inspect %10 inspect %11
+  write.init borrow.unique (larger) take %12
+  %14: Vec(I32) = read copy.trivial (smaller)
+  %15: I32 = const 0
+  %16: I32 = vec.lane #0 inspect %14
+  %17: I32 = const 3
+  %18: Bool = ne inspect %16 inspect %17
+  branch inspect %18 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %23: Vec(I32) = read copy.trivial (larger)
+  %24: I32 = const 1
+  %25: I32 = vec.lane #1 inspect %23
+  %26: I32 = const 4
+  %27: Bool = ne inspect %25 inspect %26
+  branch inspect %27 -> bb6 -> bb4
+
+bb3:
+  %20: I32 = const -1
+  return take %20
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %32: I32 = const 0
+  return take %32
+
+bb6:
+  %29: I32 = const -2
+  return take %29
+}
+
+fn combining(a: Vec(I32) [shared call], b: Vec(I32) [shared call]) -> I32 {
+  local below: Mask(I32)
+  local equal: Mask(I32)
+
+bb0:
+  %0: Vec(I32) = read copy.trivial (a)
+  %1: Vec(I32) = read copy.trivial (b)
+  %2: Mask(I32) = lt inspect %0 inspect %1
+  write.init borrow.unique (below) take %2
+  %4: Vec(I32) = read copy.trivial (a)
+  %5: Vec(I32) = read copy.trivial (b)
+  %6: Mask(I32) = eq inspect %4 inspect %5
+  write.init borrow.unique (equal) take %6
+  %8: Mask(I32) = read copy.trivial (below)
+  %9: Mask(I32) = read copy.trivial (equal)
+  %10: Mask(I32) = or inspect %8 inspect %9
+  %11: Bool = vec.reduce and inspect %10
+  %12: Bool = not inspect %11
+  branch inspect %12 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %17: Mask(I32) = read copy.trivial (below)
+  %18: Mask(I32) = read copy.trivial (equal)
+  %19: Mask(I32) = and inspect %17 inspect %18
+  %20: Bool = vec.reduce or inspect %19
+  branch inspect %20 -> bb6 -> bb4
+
+bb3:
+  %14: I32 = const -1
+  return take %14
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %25: Mask(I32) = read copy.trivial (below)
+  %26: Mask(I32) = read copy.trivial (equal)
+  %27: Mask(I32) = xor inspect %25 inspect %26
+  %28: Bool = vec.reduce and inspect %27
+  %29: Bool = not inspect %28
+  branch inspect %29 -> bb9 -> bb7
+
+bb6:
+  %22: I32 = const -2
+  return take %22
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %34: Mask(I32) = read copy.trivial (equal)
+  %35: Mask(I32) = not inspect %34
+  %36: Bool = vec.reduce and inspect %35
+  %37: Bool = not inspect %36
+  branch inspect %37 -> bb12 -> bb10
+
+bb9:
+  %31: I32 = const -3
+  return take %31
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %42: I32 = const 0
+  return take %42
+
+bb12:
+  %39: I32 = const -4
+  return take %39
+}
+
+fn counting() -> I32 {
+  local indices: Vec(I32)
+  local past: Mask(I32)
+  local empty: Vec(I32)
+  local never: Mask(I32)
+  local always: Mask(I32)
+
+bb0:
+  %0: I32 = const 0
+  %1: Vec(I32) = vec.splat inspect %0
+  %2: I32 = const 1
+  %3: Vec(I32) = vec.withlane #1 inspect %1 inspect %2
+  %4: I32 = const 2
+  %5: Vec(I32) = vec.withlane #2 inspect %3 inspect %4
+  %6: I32 = const 3
+  %7: Vec(I32) = vec.withlane #3 inspect %5 inspect %6
+  %8: I32 = const 4
+  %9: Vec(I32) = vec.withlane #4 inspect %7 inspect %8
+  %10: I32 = const 5
+  %11: Vec(I32) = vec.withlane #5 inspect %9 inspect %10
+  %12: I32 = const 6
+  %13: Vec(I32) = vec.withlane #6 inspect %11 inspect %12
+  %14: I32 = const 7
+  %15: Vec(I32) = vec.withlane #7 inspect %13 inspect %14
+  write.init borrow.unique (indices) take %15
+  %17: Vec(I32) = read copy.trivial (indices)
+  %18: I32 = const 1
+  %19: Vec(I32) = vec.splat inspect %18
+  %20: Mask(I32) = ge inspect %17 inspect %19
+  write.init borrow.unique (past) take %20
+  %22: Mask(I32) = read copy.trivial (past)
+  %23: I32 = vec.reduce add inspect %22
+  %24: Vec(I32) = read copy.trivial (indices)
+  %25: I32 = const 8
+  %26: I32 = const 1
+  %27: I32 = sub inspect %25 inspect %26
+  %28: Bool = ne inspect %23 inspect %27
+  branch inspect %28 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %33: Mask(I32) = read copy.trivial (past)
+  %34: I32 = vec.reduce firstset inspect %33
+  %35: I32 = const 1
+  %36: Bool = ne inspect %34 inspect %35
+  branch inspect %36 -> bb6 -> bb4
+
+bb3:
+  %30: I32 = const -1
+  return take %30
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %41: I32 = const 0
+  %42: Vec(I32) = vec.splat inspect %41
+  write.init borrow.unique (empty) take %42
+  %44: Vec(I32) = read copy.trivial (indices)
+  %45: Vec(I32) = read copy.trivial (empty)
+  %46: Mask(I32) = lt inspect %44 inspect %45
+  write.init borrow.unique (never) take %46
+  %48: Mask(I32) = read copy.trivial (never)
+  %49: I32 = vec.reduce firstset inspect %48
+  %50: Vec(I32) = read copy.trivial (indices)
+  %51: I32 = const 8
+  %52: Bool = ne inspect %49 inspect %51
+  branch inspect %52 -> bb9 -> bb7
+
+bb6:
+  %38: I32 = const -2
+  return take %38
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %57: Mask(I32) = read copy.trivial (never)
+  %58: I32 = vec.reduce add inspect %57
+  %59: I32 = const 0
+  %60: Bool = ne inspect %58 inspect %59
+  branch inspect %60 -> bb12 -> bb10
+
+bb9:
+  %54: I32 = const -3
+  return take %54
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %65: Vec(I32) = read copy.trivial (indices)
+  %66: Vec(I32) = read copy.trivial (empty)
+  %67: Mask(I32) = ge inspect %65 inspect %66
+  write.init borrow.unique (always) take %67
+  %69: Mask(I32) = read copy.trivial (always)
+  %70: I32 = vec.reduce firstset inspect %69
+  %71: I32 = const 0
+  %72: Bool = ne inspect %70 inspect %71
+  branch inspect %72 -> bb15 -> bb13
+
+bb12:
+  %62: I32 = const -4
+  return take %62
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %77: Mask(I32) = read copy.trivial (always)
+  %78: I32 = vec.reduce add inspect %77
+  %79: Vec(I32) = read copy.trivial (indices)
+  %80: I32 = const 8
+  %81: Bool = ne inspect %78 inspect %80
+  branch inspect %81 -> bb18 -> bb16
+
+bb15:
+  %74: I32 = const -5
+  return take %74
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %86: I32 = const 0
+  return take %86
+
+bb18:
+  %83: I32 = const -6
+  return take %83
+}
+
+fn floats() -> I32 {
+  local a: Vec(F32)
+  local b: Vec(F32)
+
+bb0:
+  %0: F32 = const 1.5
+  %1: Vec(F32) = vec.splat inspect %0
+  write.init borrow.unique (a) take %1
+  %3: F32 = const 2.5
+  %4: Vec(F32) = vec.splat inspect %3
+  write.init borrow.unique (b) take %4
+  %6: Vec(F32) = read copy.trivial (a)
+  %7: Vec(F32) = read copy.trivial (b)
+  %8: Mask(F32) = lt inspect %6 inspect %7
+  %9: Bool = vec.reduce and inspect %8
+  %10: Bool = not inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %15: Vec(F32) = read copy.trivial (a)
+  %16: Vec(F32) = read copy.trivial (b)
+  %17: Mask(F32) = lt inspect %15 inspect %16
+  %18: Vec(F32) = read copy.trivial (a)
+  %19: Vec(F32) = read copy.trivial (b)
+  %20: Vec(F32) = select inspect %17 inspect %18 inspect %19
+  %21: I32 = const 0
+  %22: F32 = vec.lane #0 inspect %20
+  %23: F32 = const 1.5
+  %24: Bool = ne inspect %22 inspect %23
+  branch inspect %24 -> bb6 -> bb4
+
+bb3:
+  %12: I32 = const -1
+  return take %12
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %29: I32 = const 0
+  return take %29
+
+bb6:
+  %26: I32 = const -2
+  return take %26
+}
+
+fn main() -> I32 {
+  local a: Vec(I32)
+  local b: Vec(I32)
+
+bb0:
+  %0: I32 = read copy.trivial (global seed)
+  %1: Vec(I32) = vec.splat inspect %0
+  write.init borrow.unique (a) take %1
+  %3: I32 = read copy.trivial (global seed)
+  %4: I32 = const 1
+  %5: I32 = add inspect %3 inspect %4
+  %6: Vec(I32) = vec.splat inspect %5
+  write.init borrow.unique (b) take %6
+  %8: Vec(I32) = read copy.trivial (a)
+  %9: Vec(I32) = read copy.trivial (b)
+  %10: I32 = call comparisons borrow.shared %8 borrow.shared %9
+  %11: I32 = const 0
+  %12: Bool = ne inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %19: Vec(I32) = read copy.trivial (a)
+  %20: Vec(I32) = read copy.trivial (b)
+  %21: I32 = call selection borrow.shared %19 borrow.shared %20
+  %22: I32 = const 0
+  %23: Bool = ne inspect %21 inspect %22
+  branch inspect %23 -> bb6 -> bb4
+
+bb3:
+  %14: Vec(I32) = read copy.trivial (a)
+  %15: Vec(I32) = read copy.trivial (b)
+  %16: I32 = call comparisons borrow.shared %14 borrow.shared %15
+  return take %16
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %32: Vec(I32) = read copy.trivial (a)
+  %33: Vec(I32) = read copy.trivial (b)
+  %34: I32 = call combining borrow.shared %32 borrow.shared %33
+  %35: I32 = const 0
+  %36: Bool = ne inspect %34 inspect %35
+  branch inspect %36 -> bb9 -> bb7
+
+bb6:
+  %25: Vec(I32) = read copy.trivial (a)
+  %26: Vec(I32) = read copy.trivial (b)
+  %27: I32 = call selection borrow.shared %25 borrow.shared %26
+  %28: I32 = const 10
+  %29: I32 = mul inspect %27 inspect %28
+  return take %29
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %45: I32 = call counting
+  %46: I32 = const 0
+  %47: Bool = ne inspect %45 inspect %46
+  branch inspect %47 -> bb12 -> bb10
+
+bb9:
+  %38: Vec(I32) = read copy.trivial (a)
+  %39: Vec(I32) = read copy.trivial (b)
+  %40: I32 = call combining borrow.shared %38 borrow.shared %39
+  %41: I32 = const 100
+  %42: I32 = mul inspect %40 inspect %41
+  return take %42
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %54: I32 = call floats
+  %55: I32 = const 0
+  %56: Bool = ne inspect %54 inspect %55
+  branch inspect %56 -> bb15 -> bb13
+
+bb12:
+  %49: I32 = call counting
+  %50: I32 = const 1000
+  %51: I32 = mul inspect %49 inspect %50
+  return take %51
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %63: I32 = const 4839
+  return take %63
+
+bb15:
+  %58: I32 = call floats
+  %59: I32 = const 10000
+  %60: I32 = mul inspect %58 inspect %59
+  return take %60
+}
+
+entry main

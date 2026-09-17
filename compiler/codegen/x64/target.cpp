@@ -34,13 +34,9 @@ void setLegacyVectorEncodings(bool legacy) {
 }
 
 void setTargetFeatures(FeatureSet features) {
-    // The register description is built once and never rebuilt, so a feature change that would give
-    // the machine a different number of registers has to be refused rather than ignored - a bank
-    // whose size disagrees with the masks already handed out is an allocator writing outside them.
-    // Nothing does this today; the check is what keeps it that way as feature levels are added.
-    assertTrue(vectorRegisterCount() == vectorRegisterCountFor(features));
-    assertTrue(maskRegisterCount() == maskRegisterCountFor(features));
-
+    // Nothing to check against the register description any more: there are two of them, and which
+    // one `targetRegisters` answers follows the features - see there. A change between functions is
+    // what the test drivers do all day, compiling one fixture at `sse4` and the next at `avx512`.
     gTargetFeatures = features;
 }
 
@@ -129,30 +125,28 @@ BlockExpansion x64BlockExpansionFor(const CompileSettings& settings, bool legacy
  */
 FeatureSet x64FeaturesFor(const CompileSettings& settings) {
     auto features = kBaselineFeatures;
+    auto& extensions = settings.extensions;
 
-    if(settings.extensions.level >= TargetExtensions::V3) {
+    if(extensions.level >= TargetExtensions::Avx2) {
         features |= kFeatureAvx | kFeatureAvx2 | kFeatureBmi1 | kFeatureBmi2 | kFeatureFma3
                   | kFeatureMovbe | kFeatureLzcnt;
     }
 
-    /*
-     * AVX-512 is claimed for its *encoding* and not for its register file.
-     *
-     * EVEX is two things at once: a longer prefix, and sixteen more vector registers plus the mask
-     * bank that only that prefix can name. The encoder below writes it, so the first half is here;
-     * the second half is not, because a register the allocator may hand out has to be nameable by
-     * every form that could receive a value in it, and the legacy and VEX forms cannot name xmm16.
-     * Handing out xmm16 while any form is still legacy is an encoding that silently means xmm0.
-     *
-     * So `vectorRegisterCountFor` holds the bank at sixteen whatever the features say, and lifting
-     * it is what makes v4 a width rather than a prefix - it comes with the EVEX forms that make the
-     * upper half reachable, and with `targetVectorBytes` answering 64.
-     */
-    if(settings.extensions.level >= TargetExtensions::V4) features |= kFeatureAvx512f;
+    // The whole of the top level, which is Analysis-Avx512.md §1.2's stage 1: every instruction set
+    // the level brings, at the width `avx2` already has. See `vectorRegisterCountFor` for what that
+    // makes of the register file.
+    if(extensions.level >= TargetExtensions::Avx512) features |= kFeatureAvx512;
 
-    // And the one extension that is not a level, read straight from the flag beside it - see
-    // kFeatureSha, and TargetExtensions::sha for why it is not inside one.
-    if(settings.extensions.sha) features |= kFeatureSha;
+    // And the flags, asked through `has` so that a flag the level implies and a flag the build named
+    // are one bit - see TargetExtensions::flags.
+    static const struct { InstructionSets set; FeatureSet feature; } flags[] = {
+        { kSetSha, kFeatureSha }, { kSetAes, kFeatureAes }, { kSetPclmul, kFeaturePclmul },
+        { kSetVaes, kFeatureVaes }, { kSetVpclmul, kFeatureVpclmul }, { kSetGfni, kFeatureGfni },
+    };
+
+    for(auto& flag: flags) {
+        if(extensions.has(flag.set)) features |= flag.feature;
+    }
 
     return features;
 }
@@ -188,19 +182,21 @@ RegSet allocatableRegs() {
  * the upper half of the vector bank and the whole of the mask bank are registers this machine does
  * not have - not registers it merely cannot encode.
  *
- * Both are capped below what the feature bit allows, and the cap is not about the encoder. It is
- * that a register the allocator hands out has to be nameable by *every* form a value in it can
- * reach, and the legacy and VEX forms this backend still selects cannot name xmm16 or a k-register
- * at all. Lifting the cap is stage 5's, together with the EVEX forms that make the upper half
- * reachable; see x64FeaturesFor.
+ * **With it, both are the machine's whole file** - Analysis-Avx512.md §1.2's stage 1. The cap this
+ * replaced held them at sixteen and zero because a register the allocator hands out has to be
+ * nameable by every form a value in it reaches, and most forms were legacy or VEX. That is still true,
+ * and is now answered per *web* rather than per bank: a form that cannot name xmm16 says so
+ * (`MachineForm::namesUpperVectors`), and the webs it reads and writes stay in the lower sixteen,
+ * while everything else is encoded with whichever prefix its operands turn out to need (§1.1, see
+ * `writeVectorPrefix` in gen.cpp).
  */
 
-Size vectorRegisterCountFor(FeatureSet) {
-    return 16;
+Size vectorRegisterCountFor(FeatureSet features) {
+    return (features & kFeatureAvx512f) ? 32 : 16;
 }
 
-Size maskRegisterCountFor(FeatureSet) {
-    return 0;
+Size maskRegisterCountFor(FeatureSet features) {
+    return (features & kFeatureAvx512f) ? 8 : 0;
 }
 
 Size vectorRegisterCount() {
@@ -211,7 +207,31 @@ Size maskRegisterCount() {
     return maskRegisterCountFor(targetFeatures());
 }
 
-TargetRegisters::TargetRegisters() {
+RegSet upperVectorRegisters() {
+    RegSet set;
+    for(Size i = 16; i < vectorRegisterCount(); i++) set.add(vectorReg(i));
+    return set;
+}
+
+/*
+ * Whether a mask lives in the mask bank on this target, or in the vector bank as the vector of all-ones
+ * lanes a comparison without AVX-512 produces.
+ *
+ * **Not the same question as whether the mask bank exists**, which is what this used to be read off:
+ * the registers arrive with the level, and whether a function's masks may live in them is a question
+ * about the function as well - one encoded without a vector prefix cannot name a mask register at
+ * all. Analysis-Avx512.md §2.1 is the design: a mask's *memory* form is the vector at every level,
+ * and where a live one is held is this backend's business alone.
+ */
+bool maskInMaskBank() {
+    // The mask registers are EVEX's, the 32-bit operations on them are BW and the crossings to and
+    // from a vector are DQ - every one of which the level has. A function encoded without a vector
+    // prefix has none of it, which is `@x86_legacy_sse`'s promise (see legacyVectorEncodings).
+    auto needed = kFeatureAvx512f | kFeatureAvx512bw | kFeatureAvx512dq | kFeatureAvx512vl;
+    return (targetFeatures() & needed) == needed && !legacyVectorEncodings();
+}
+
+TargetRegisters::TargetRegisters(FeatureSet features) {
     auto& gprBank = banks[BankGpr];
     gprBank.id = BankGpr;
     gprBank.name = "gpr"_v;
@@ -221,12 +241,12 @@ TargetRegisters::TargetRegisters() {
     auto& vectorBank = banks[BankVector];
     vectorBank.id = BankVector;
     vectorBank.name = "vector"_v;
-    vectorBank.physicalCount = U16(vectorRegisterCount());
+    vectorBank.physicalCount = U16(vectorRegisterCountFor(features));
 
     auto& maskBank = banks[BankMask];
     maskBank.id = BankMask;
     maskBank.name = "mask"_v;
-    maskBank.physicalCount = U16(maskRegisterCount());
+    maskBank.physicalCount = U16(maskRegisterCountFor(features));
 
     // k0 is never handed out. It exists and can be written, but every masked encoding reads the
     // field naming it as "no mask at all" - so a value living there could not be used as the mask it
@@ -300,9 +320,24 @@ TargetRegisters::TargetRegisters() {
     }
 }
 
+/*
+ * The register file of the target in force - one of two, built once each.
+ *
+ * Two descriptions rather than one rebuilt, because what differs between them is not a rule but a
+ * count: every mask, every class's `allowedPhysical` and every convention's clobber set is sized by
+ * how many registers the banks have, and a function compiled at `avx2` after one compiled at `avx512`
+ * must not see a single one of the upper sixteen. Choosing by the features at the point of asking is
+ * what `setTargetFeatures` being called once per function makes safe: nothing in this backend holds a
+ * description across that call.
+ */
 const TargetRegisters& targetRegisters() {
-    static TargetRegisters registers;
-    return registers;
+    if(targetFeatures() & kFeatureAvx512f) {
+        static TargetRegisters evex { kFeatureAvx512f };
+        return evex;
+    }
+
+    static TargetRegisters plain { kFeatureBaseline };
+    return plain;
 }
 
 /*
@@ -312,7 +347,11 @@ const TargetRegisters& targetRegisters() {
 // Position `index` counted down from the top of a bank's register file, which is where every
 // temporary comes from and the only arithmetic either pool does.
 static PhysicalReg topOfBank(RegisterBankId bank, Size index) {
-    auto count = targetRegisters().bank(bank).physicalCount;
+    // The top of the lower sixteen in the vector bank, whatever the level: a temporary is what a form
+    // whose operand was left in the frame is handed, and the forms that cannot name xmm16 are exactly
+    // the ones a temporary has to serve - see `upperVectorRegisters`.
+    auto count = bank == BankVector ? min(Size(16), Size(targetRegisters().bank(bank).physicalCount))
+                                    : Size(targetRegisters().bank(bank).physicalCount);
     assertTrue(index < count); // a reserve larger than the register file it is taken from
     return PhysicalReg { bank, U16(count - 1 - index) };
 }
@@ -325,6 +364,7 @@ TemporaryReserve TemporaryReserve::widestLike(const TemporaryReserve& like) {
         // registers without EVEX - can be asked for no scratch at all, because nothing can be
         // placed in it to need one.
         auto count = Size(targetRegisters().bank(RegisterBankId(bank)).physicalCount);
+        if(bank == BankVector && count > 16) count = 16; // see topOfBank
         auto operands = count < kMaxOperandTemps ? count : Size(kMaxOperandTemps);
 
         out.operandTemps[bank] = U8(operands);

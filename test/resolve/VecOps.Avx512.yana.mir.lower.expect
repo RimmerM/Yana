@@ -1,0 +1,201 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = vsplat 1: i32x8
+    %v_2 = vreduce_add %v_1: I32
+    %v_3 = cmp_ilt %v_2, 2: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_6 {
+    %v_7 = vsplat 1.5: f32x8
+    %v_8 = vsplat 2: f32x8
+    %v_9 = mul %v_7, %v_8: f32x8
+    %v_10 = vlane %v_9, 0: F32
+    %v_11 = cmp_neq %v_10, 3: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_4 {
+    %v_14 = cmp_ilt %v_2, 2: I32
+    je %v_14, b_15, b_16
+  }
+
+  b_17 {
+    %v_18 = vsplat 3: i32x8
+    %v_19 = vsplat 4: i32x8
+    %v_20 = add %v_18, %v_19: i32x8
+    %v_21 = vsplat 2: i32x8
+    %v_22 = shl %v_18, %v_21: i32x8
+    %v_23 = sub %v_19, %v_18: i32x8
+    %v_24 = vlane %v_20, 0: I32
+    %v_25 = imul %v_24, 100: I32
+    %v_26 = vlane %v_22, 0: I32
+    %v_27 = add %v_25, %v_26: I32
+    %v_28 = vlane %v_23, 1: I32
+    %v_29 = add %v_27, %v_28: I32
+    %v_30 = vsplat 12: i32x8
+    %v_31 = vsplat 10: i32x8
+    %v_32 = and %v_30, %v_31: i32x8
+    %v_33 = vlane %v_32, 0: I32
+    %v_34 = imul %v_33, 100: I32
+    %v_35 = or %v_30, %v_31: i32x8
+    %v_36 = vlane %v_35, 0: I32
+    %v_37 = add %v_34, %v_36: I32
+    %v_38 = xor %v_30, %v_31: i32x8
+    %v_39 = vlane %v_38, 1: I32
+    %v_40 = add %v_37, %v_39: I32
+    %v_41 = add %v_29, %v_40: I32
+    %v_42 = vsplat 5: i32x8
+    %v_43 = vwithlane %v_42, 9, 1: i32x8
+    %v_44 = vlane %v_43, 0: I32
+    %v_45 = imul %v_44, 100: I32
+    %v_46 = vlane %v_43, 1: I32
+    %v_47 = add %v_45, %v_46: I32
+    %v_48 = add %v_41, %v_47: I32
+    ret %v_48
+  }
+
+  b_12 {
+    %v_49 = cmp_neq %v_10, 3: I32
+    je %v_49, b_50, b_51
+  }
+
+  b_5 {
+    %v_52 = vreduce_mul %v_1: I32
+    %v_53 = cmp_neq %v_52, 1: I32
+    je %v_53, b_4, b_54
+  }
+
+  b_54 {
+    %v_55 = vsplat 7: i32x8
+    %v_56 = vreduce_add %v_55: I32
+    %v_57 = imul %v_2, 7: I32
+    %v_58 = cmp_neq %v_56, %v_57: I32
+    je %v_58, b_4, b_59
+  }
+
+  b_59 {
+    %v_60 = vreduce_imin %v_55: I32
+    %v_61 = cmp_neq %v_60, 7: I32
+    je %v_61, b_4, b_62
+  }
+
+  b_62 {
+    %v_63 = vwithlane %v_55, 9, 0: i32x8
+    %v_64 = vreduce_imax %v_63: I32
+    %v_65 = cmp_neq %v_64, 9: I32
+    je %v_65, b_4, b_66
+  }
+
+  b_66 {
+    %v_67 = vwithlane %v_55, 2, 1: i32x8
+    %v_68 = vreduce_imin %v_67: I32
+    %v_69 = cmp_neq %v_68, 2: I32
+    je %v_69, b_4, b_6
+  }
+
+  b_13 {
+    %v_70 = add %v_7, %v_8: f32x8
+    %v_71 = vlane %v_70, 1: F32
+    %v_72 = cmp_neq %v_71, 3.5: I32
+    je %v_72, b_12, b_73
+  }
+
+  b_73 {
+    %v_74 = neg %v_7: f32x8
+    %v_75 = vlane %v_74, 0: F32
+    %v_76 = cmp_neq %v_75, -1.5: I32
+    je %v_76, b_12, b_17
+  }
+
+  b_77 {
+    %v_78 = phi [b_79, %v_80], [b_81, 18446744073709551611], [b_82, 18446744073709551612], [b_83, 18446744073709551613], [b_84, 18446744073709551614], [b_15, 18446744073709551615]: I32
+    ret %v_78
+  }
+
+  b_16 {
+    %v_85 = vreduce_mul %v_1: I32
+    %v_86 = cmp_neq %v_85, 1: I32
+    je %v_86, b_84, b_87
+  }
+
+  b_87 {
+    %v_88 = vsplat 7: i32x8
+    %v_89 = vreduce_add %v_88: I32
+    %v_90 = imul %v_2, 7: I32
+    %v_91 = cmp_neq %v_89, %v_90: I32
+    je %v_91, b_83, b_92
+  }
+
+  b_92 {
+    %v_93 = vreduce_imin %v_88: I32
+    %v_94 = cmp_neq %v_93, 7: I32
+    je %v_94, b_82, b_95
+  }
+
+  b_95 {
+    %v_96 = vwithlane %v_88, 9, 0: i32x8
+    %v_97 = vreduce_imax %v_96: I32
+    %v_98 = cmp_neq %v_97, 9: I32
+    je %v_98, b_81, b_79
+  }
+
+  b_79 {
+    %v_99 = vwithlane %v_88, 2, 1: i32x8
+    %v_100 = vreduce_imin %v_99: I32
+    %v_101 = cmp_neq %v_100, 2: I32
+    %v_80 = select %v_101, 18446744073709551610, 0: I32
+    jmp b_77
+  }
+
+  b_81 {
+    jmp b_77
+  }
+
+  b_82 {
+    jmp b_77
+  }
+
+  b_83 {
+    jmp b_77
+  }
+
+  b_84 {
+    jmp b_77
+  }
+
+  b_15 {
+    jmp b_77
+  }
+
+  b_102 {
+    %v_103 = phi [b_104, %v_105], [b_106, 18446744073709551614], [b_50, 18446744073709551615]: I32
+    %v_107 = imul %v_103, 10: I32
+    ret %v_107
+  }
+
+  b_51 {
+    %v_108 = add %v_7, %v_8: f32x8
+    %v_109 = vlane %v_108, 1: F32
+    %v_110 = cmp_neq %v_109, 3.5: I32
+    je %v_110, b_106, b_104
+  }
+
+  b_104 {
+    %v_111 = neg %v_7: f32x8
+    %v_112 = vlane %v_111, 0: F32
+    %v_113 = cmp_neq %v_112, -1.5: I32
+    %v_105 = select %v_113, 18446744073709551613, 0: I32
+    jmp b_102
+  }
+
+  b_106 {
+    jmp b_102
+  }
+
+  b_50 {
+    jmp b_102
+  }
+}
+

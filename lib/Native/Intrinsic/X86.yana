@@ -35,8 +35,8 @@ module Native
    Why availability is an attribute per declaration and not a selector on the file name
 
    Every declaration below carries the target it needs, and there are three different answers in one
-   file: `@platform(x64)` for what an x86-64 build always has, `@platform(v3)` for what the AVX tier
-   supplies, and `@platform(sha)` for what an extension no level implies answers for. **A declaration
+   file: `@platform(x64)` for what an x86-64 build always has, `@platform(avx2)` for what the AVX tier
+   supplies, and `@platform(sha)` for what an extension beside the level answers for. **A declaration
    an attribute excluded is never resolved**, which is the whole of what the gating owes: a build
    without the instruction must not resolve a body naming it, and it cannot, because there is no
    declaration for such a body to name.
@@ -103,7 +103,7 @@ module Native
 
 {-
    ==========================================================================================
-   `@platform(v3)` - the AVX tier.
+   `@platform(avx2)` - the AVX tier.
    ==========================================================================================
 
    `vzeroupper` - the vector state reset.
@@ -134,7 +134,7 @@ module Native
    On LLVM this is dropped - that backend chooses its own encodings and places its own resets. See
    Analysis-Warts.md §7 and `legacyVectorEncodings` in compiler/codegen/x64/target.h.
 -}
-@builtin(x86VZeroUpper) @platform(v3) pub fn X86.vzeroupper() -> {}
+@builtin(x86VZeroUpper) @platform(avx2) pub fn X86.vzeroupper() -> {}
 
 {-
    ==========================================================================================

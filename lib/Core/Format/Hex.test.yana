@@ -75,9 +75,12 @@ fn hexReference(bytes: [U8]) -> String:
 
     checkEqual(hexOf(elements([0 :: U8, 15, 240, 26, 161, 255])), "000ff01aa1ff")
 
-    -- Every length from nothing to two blocks and a tail, against the scalar answer.
+    -- Every length from nothing to two blocks and a tail, against the scalar answer. Eighty rather
+    -- than forty because a block is sixteen bytes at `sse4` and `avx2` and thirty-two at `avx512`,
+    -- where `Hex.native.avx512.yana` takes the natural width - so the sweep has to reach two blocks
+    -- and a tail of the widest one.
     let &bytes = [] :: [U8]
-    for n in 0 .. 40:
+    for n in 0 .. 80:
         checkEqual(hexOf(elements(bytes)), hexReference(elements(bytes)))
         push(bytes, truncate(n * 37 + 11) :: U8)
 

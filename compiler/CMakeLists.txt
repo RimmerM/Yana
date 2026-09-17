@@ -499,9 +499,11 @@ set(X64_SOURCE_FILES
     codegen/x64/machine.h
     codegen/x64/machine_internal.h
     codegen/x64/machine.cpp
+    codegen/x64/evex.cpp
     codegen/x64/machine_forms_scalar.cpp
     codegen/x64/machine_forms_packed.cpp
     codegen/x64/machine_forms_tiers.cpp
+    codegen/x64/machine_forms_evex.cpp
     codegen/x64/machine_forms_memory.cpp
     codegen/x64/machine_validate.cpp
     codegen/x64/machine_select.cpp

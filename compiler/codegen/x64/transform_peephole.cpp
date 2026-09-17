@@ -1283,7 +1283,9 @@ Size tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
      * destination, which its encoding writes over its own first operand. Taking its location away
      * leaves an instruction that clobbers a live value.
      */
-    if(isVectorLike(base[cmp->lhs]->type)) return 0;
+    // Asked of the result rather than of the operands: a mask register tested for emptiness reads a
+    // mask and answers a condition in the flags, which is exactly what this is about.
+    if(isVectorLike(cmp->result.type)) return 0;
 
     auto& uses = cmp->result.uses;
 

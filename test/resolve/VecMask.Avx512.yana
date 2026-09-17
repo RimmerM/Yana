@@ -1,0 +1,52 @@
+{-
+   # extensions: avx512
+
+   `VecMask.yana` at the third level - Analysis-Avx512.md's order of work, which gives every runtime
+   fixture a rewritten expansion reaches an `avx512` twin beside its `sse4` and `avx2` ones. Two
+   tiers are two expansions of one source, and only running both says they agree.
+
+   A mask lives in a mask register here: a comparison writes one, a select is a masked move, and a
+   mask stored and loaded crosses through a scratch vector on the way. What the program asserts is
+   written in `VecMask.yana`.
+-}
+
+-- The case the normalization existed for, written out: a mask made by comparing floats, applied to
+-- a vector of integers of the same shape. One `bitcast`, and it is a no-op in the emitted code.
+fn pickByFloat(a: Vec(Float), b: Vec(Float), x: Vec(Int), y: Vec(Int)) -> Vec(Int) =
+    select(bitcast(a .< b) :: Mask(Int), x, y)
+
+-- And the reverse direction, so the rung is exercised both ways.
+fn pickByInt(a: Vec(Int), b: Vec(Int), x: Vec(Float), y: Vec(Float)) -> Vec(Float) =
+    select(bitcast(a .< b) :: Mask(Float), x, y)
+
+{-
+   A mask through memory, which the lower-IR validator used to refuse outright.
+
+   `Repr` has always given a mask a layout and §2 has always said the memory form is the vector form;
+   what was missing was that the *load* said otherwise while the store said nothing, so a mask local
+   could be written and never read. A mutable local is the shortest thing that reaches it: it is
+   storage on both targets, and `promoteStackSlots` only turns one back into a value below the fork.
+-}
+fn maskedTotal(v: Vec(Int), limit: Int) -> Int:
+    let &live = v .< splat(limit)
+
+    let kept = select(live, v, splat(0))
+    if !any(live) then return -1
+
+    return horizontalSum(kept) * 10 + count(live)
+
+fn main() -> Int:
+    let a = splat(1.0) :: Vec(Float)
+    let b = splat(2.0) :: Vec(Float)
+    let ints = splat(7) :: Vec(Int)
+    let others = splat(3) :: Vec(Int)
+
+    let picked = pickByFloat(a, b, ints, others)
+    let floats = pickByInt(others, ints, a, b)
+
+    -- iota is 0, 1, 2, 3 at four lanes; under a limit of 3 the first three lanes are live.
+    let counted = maskedTotal(iota(), 3)
+
+    return lane(picked, 0) * 100000 +
+           (if lane(floats, 0) == 1.0 then 1 else 0) * 10000 +
+           counted

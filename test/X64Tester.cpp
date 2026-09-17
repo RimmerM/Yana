@@ -27,7 +27,7 @@ using namespace Tritium;
 // Codegen settings a test file selects for itself, written as a comment on any line:
 //
 //     # frame-pointer: all
-//     # extensions: avx
+//     # extensions: avx2
 //     # switch-form: search
 //
 // Two test files with the same functions and different directives is how the settings are compared,

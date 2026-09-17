@@ -352,6 +352,10 @@ struct MachineAddress {
     U8 scale = 1; // 1, 2, 4 or 8 - the only scalings the SIB byte encodes
     I32 displacement = 0;
 
+    // The element an EVEX instruction repeats across the vector, four bytes or eight, where the
+    // address holds one element rather than a vector - see LowerInstX86Address::broadcast.
+    U8 broadcast = 0;
+
     // Set instead of `displacement` when the address names something whose offset is not known yet.
     // Exactly one of the two may be set, and only on a RIP-relative address.
     LowerFunction* relocFunction = nullptr;
@@ -1620,7 +1624,10 @@ struct AsmModule {
     // keeping executable and non-executable bytes from interleaving. Offsets are 16-byte aligned
     // so that a global is never split across a cache line by whatever preceded it.
     void addGlobal(LowerBase base, LowerGlobal* global) {
-        while(buffer.offset() & 15) buffer.writeByte(0);
+        // A broadcast element is read only by an EVEX instruction, which has no alignment requirement
+        // of its own, so it is placed at its own width rather than padded out to a vector's.
+        auto mask = U32(global->alignment ? global->alignment - 1 : 15);
+        while(buffer.offset() & mask) buffer.writeByte(0);
         emitData(base, global);
     }
 

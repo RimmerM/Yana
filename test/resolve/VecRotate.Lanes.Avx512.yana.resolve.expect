@@ -1,0 +1,116 @@
+let image$base: () = <none>
+
+let &counter: I32 = 0
+
+fn opaque(%n: I32) -> I32 {
+  b0:
+    %v1 = load counter : I32
+    %v4 = add %v1, 1 : I32
+    assign counter, %v4
+    %v6 = load counter : I32
+    %v9 = cmp_gt %v6, 1000 : Bool
+    je %v9, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    ret %n
+}
+
+fn check(%v: Vec(I32), %expected: I32) -> I32 {
+  b0:
+    %v4 = vlane %v, 0 : I32
+    %v5 = cmp_eq %v4, %expected : Bool
+    je %v5, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b1, 1], [b2, 0] : I32
+    ret %v11
+}
+
+fn checkLong(%v: Vec(I64), %expected: I64) -> I32 {
+  b0:
+    %v4 = vlane %v, 0 : I64
+    %v5 = cmp_eq %v4, %expected : Bool
+    je %v5, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b1, 1], [b2, 0] : I32
+    ret %v11
+}
+
+fn main() -> I32 {
+  b0:
+    %words = vsplat 305419896 : Vec(I32)
+    %longs = vsplat 81985529216486895 : Vec(I64)
+    %n = alloc : I32
+    init %n, 0
+    %v8 = load %n : I32
+    %v11 = vsplat 4 : Vec(I32)
+    %v12 = rol %words, %v11 : Vec(I32)
+    %v14 = call check, %v12, 591751041 : I32
+    %v15 = add %v8, %v14 : I32
+    assign %n, %v15
+    %v17 = load %n : I32
+    %v20 = vsplat 4 : Vec(I32)
+    %v21 = ror %words, %v20 : Vec(I32)
+    %v26 = sub 0, 2128394905 : I32
+    %v27 = call check, %v21, %v26 : I32
+    %v28 = add %v17, %v27 : I32
+    assign %n, %v28
+    %v30 = load %n : I32
+    %v33 = vsplat 0 : Vec(I32)
+    %v34 = rol %words, %v33 : Vec(I32)
+    %v36 = call check, %v34, 305419896 : I32
+    %v37 = add %v30, %v36 : I32
+    assign %n, %v37
+    %v39 = load %n : I32
+    %v42 = vsplat 32 : Vec(I32)
+    %v43 = rol %words, %v42 : Vec(I32)
+    %v45 = call check, %v43, 305419896 : I32
+    %v46 = add %v39, %v45 : I32
+    assign %n, %v46
+    %v48 = load %n : I32
+    %v51 = vsplat 36 : Vec(I32)
+    %v52 = rol %words, %v51 : Vec(I32)
+    %v54 = call check, %v52, 591751041 : I32
+    %v55 = add %v48, %v54 : I32
+    assign %n, %v55
+    %v57 = load %n : I32
+    %v59 = vsplat 8 : Vec(I64)
+    %v60 = rol %longs, %v59 : Vec(I64)
+    %v62 = call checkLong, %v60, 2541551405711093505 : I32
+    %v63 = add %v57, %v62 : I32
+    assign %n, %v63
+    %v65 = load %n : I32
+    %v67 = vsplat 64 : Vec(I64)
+    %v68 = rol %longs, %v67 : Vec(I64)
+    %v70 = call checkLong, %v68, 81985529216486895 : I32
+    %v71 = add %v65, %v70 : I32
+    assign %n, %v71
+    %v73 = load %n : I32
+    %v75 = call opaque, 2 : I32
+    %v76 = vsplat %v75 : Vec(I32)
+    %v77 = rol %words, %v76 : Vec(I32)
+    %v79 = call check, %v77, 1221679584 : I32
+    %v80 = add %v73, %v79 : I32
+    assign %n, %v80
+    %v82 = load %n : I32
+    ret %v82
+}

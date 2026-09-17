@@ -1,5 +1,5 @@
 {-
-   # extensions: v3
+   # extensions: avx2
 
    **A zero vector accumulator recreated where it is read, and the upper lanes it left behind.**
 
@@ -22,7 +22,7 @@
    `@noinline` on `folds` state exactly that, and a version relying on the inliner's ordinary
    judgement was written first and answered the same number either way - the recipe was never taken.
 
-   `# extensions: v3` is the other half: below it there is no 256-bit register for a 128-bit `pxor`
+   `# extensions: avx2` is the other half: below it there is no 256-bit register for a 128-bit `pxor`
    to half-clear, so at the corpus's default v2 this fixture cannot fail.
 
    The count alone does not say which lane was wrong. Dump the assembly and look at how the

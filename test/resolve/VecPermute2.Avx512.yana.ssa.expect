@@ -1,0 +1,3754 @@
+module ResolveTest
+
+let & seed: I32 = 7
+
+let & seed64: U64 = 7
+
+let & seedDouble: F64 = 0.75
+
+fn bytes'2() -> Vec(U8) {
+bb0:
+  %0: U8 trivial = const 0
+  %1: Vec(U8) trivial = vec.splat inspect %0
+  %2: U8 trivial = const 1
+  %3: Vec(U8) trivial = vec.withlane #1 inspect %1 inspect %2
+  %4: U8 trivial = const 2
+  %5: Vec(U8) trivial = vec.withlane #2 inspect %3 inspect %4
+  %6: U8 trivial = const 3
+  %7: Vec(U8) trivial = vec.withlane #3 inspect %5 inspect %6
+  %8: U8 trivial = const 4
+  %9: Vec(U8) trivial = vec.withlane #4 inspect %7 inspect %8
+  %10: U8 trivial = const 5
+  %11: Vec(U8) trivial = vec.withlane #5 inspect %9 inspect %10
+  %12: U8 trivial = const 6
+  %13: Vec(U8) trivial = vec.withlane #6 inspect %11 inspect %12
+  %14: U8 trivial = const 7
+  %15: Vec(U8) trivial = vec.withlane #7 inspect %13 inspect %14
+  %16: U8 trivial = const 8
+  %17: Vec(U8) trivial = vec.withlane #8 inspect %15 inspect %16
+  %18: U8 trivial = const 9
+  %19: Vec(U8) trivial = vec.withlane #9 inspect %17 inspect %18
+  %20: U8 trivial = const 10
+  %21: Vec(U8) trivial = vec.withlane #10 inspect %19 inspect %20
+  %22: U8 trivial = const 11
+  %23: Vec(U8) trivial = vec.withlane #11 inspect %21 inspect %22
+  %24: U8 trivial = const 12
+  %25: Vec(U8) trivial = vec.withlane #12 inspect %23 inspect %24
+  %26: U8 trivial = const 13
+  %27: Vec(U8) trivial = vec.withlane #13 inspect %25 inspect %26
+  %28: U8 trivial = const 14
+  %29: Vec(U8) trivial = vec.withlane #14 inspect %27 inspect %28
+  %30: U8 trivial = const 15
+  %31: Vec(U8) trivial = vec.withlane #15 inspect %29 inspect %30
+  %32: U8 trivial = const 16
+  %33: Vec(U8) trivial = vec.withlane #16 inspect %31 inspect %32
+  %34: U8 trivial = const 17
+  %35: Vec(U8) trivial = vec.withlane #17 inspect %33 inspect %34
+  %36: U8 trivial = const 18
+  %37: Vec(U8) trivial = vec.withlane #18 inspect %35 inspect %36
+  %38: U8 trivial = const 19
+  %39: Vec(U8) trivial = vec.withlane #19 inspect %37 inspect %38
+  %40: U8 trivial = const 20
+  %41: Vec(U8) trivial = vec.withlane #20 inspect %39 inspect %40
+  %42: U8 trivial = const 21
+  %43: Vec(U8) trivial = vec.withlane #21 inspect %41 inspect %42
+  %44: U8 trivial = const 22
+  %45: Vec(U8) trivial = vec.withlane #22 inspect %43 inspect %44
+  %46: U8 trivial = const 23
+  %47: Vec(U8) trivial = vec.withlane #23 inspect %45 inspect %46
+  %48: U8 trivial = const 24
+  %49: Vec(U8) trivial = vec.withlane #24 inspect %47 inspect %48
+  %50: U8 trivial = const 25
+  %51: Vec(U8) trivial = vec.withlane #25 inspect %49 inspect %50
+  %52: U8 trivial = const 26
+  %53: Vec(U8) trivial = vec.withlane #26 inspect %51 inspect %52
+  %54: U8 trivial = const 27
+  %55: Vec(U8) trivial = vec.withlane #27 inspect %53 inspect %54
+  %56: U8 trivial = const 28
+  %57: Vec(U8) trivial = vec.withlane #28 inspect %55 inspect %56
+  %58: U8 trivial = const 29
+  %59: Vec(U8) trivial = vec.withlane #29 inspect %57 inspect %58
+  %60: U8 trivial = const 30
+  %61: Vec(U8) trivial = vec.withlane #30 inspect %59 inspect %60
+  %62: U8 trivial = const 31
+  %63: Vec(U8) trivial = vec.withlane #31 inspect %61 inspect %62
+  %64: %I32 address = global.addr seed
+  %65: I32 trivial = load inspect %64
+  %66: U8 trivial = convert inspect %65
+  %67: Vec(U8) trivial = vec.splat inspect %66
+  %68: Vec(U8) trivial = add inspect %63 inspect %67
+  return consume %68
+}
+
+fn words() -> Vec(U16) {
+bb0:
+  %0: U16 trivial = const 0
+  %1: Vec(U16) trivial = vec.splat inspect %0
+  %2: U16 trivial = const 1
+  %3: Vec(U16) trivial = vec.withlane #1 inspect %1 inspect %2
+  %4: U16 trivial = const 2
+  %5: Vec(U16) trivial = vec.withlane #2 inspect %3 inspect %4
+  %6: U16 trivial = const 3
+  %7: Vec(U16) trivial = vec.withlane #3 inspect %5 inspect %6
+  %8: U16 trivial = const 4
+  %9: Vec(U16) trivial = vec.withlane #4 inspect %7 inspect %8
+  %10: U16 trivial = const 5
+  %11: Vec(U16) trivial = vec.withlane #5 inspect %9 inspect %10
+  %12: U16 trivial = const 6
+  %13: Vec(U16) trivial = vec.withlane #6 inspect %11 inspect %12
+  %14: U16 trivial = const 7
+  %15: Vec(U16) trivial = vec.withlane #7 inspect %13 inspect %14
+  %16: U16 trivial = const 8
+  %17: Vec(U16) trivial = vec.withlane #8 inspect %15 inspect %16
+  %18: U16 trivial = const 9
+  %19: Vec(U16) trivial = vec.withlane #9 inspect %17 inspect %18
+  %20: U16 trivial = const 10
+  %21: Vec(U16) trivial = vec.withlane #10 inspect %19 inspect %20
+  %22: U16 trivial = const 11
+  %23: Vec(U16) trivial = vec.withlane #11 inspect %21 inspect %22
+  %24: U16 trivial = const 12
+  %25: Vec(U16) trivial = vec.withlane #12 inspect %23 inspect %24
+  %26: U16 trivial = const 13
+  %27: Vec(U16) trivial = vec.withlane #13 inspect %25 inspect %26
+  %28: U16 trivial = const 14
+  %29: Vec(U16) trivial = vec.withlane #14 inspect %27 inspect %28
+  %30: U16 trivial = const 15
+  %31: Vec(U16) trivial = vec.withlane #15 inspect %29 inspect %30
+  %32: U16 trivial = const 3
+  %33: Vec(U16) trivial = vec.splat inspect %32
+  %34: Vec(U16) trivial = mul inspect %31 inspect %33
+  %35: %I32 address = global.addr seed
+  %36: I32 trivial = load inspect %35
+  %37: U16 trivial = convert inspect %36
+  %38: Vec(U16) trivial = vec.splat inspect %37
+  %39: Vec(U16) trivial = add inspect %34 inspect %38
+  return consume %39
+}
+
+fn doublewords() -> Vec(U32) {
+bb0:
+  %0: U32 trivial = const 0
+  %1: Vec(U32) trivial = vec.splat inspect %0
+  %2: U32 trivial = const 1
+  %3: Vec(U32) trivial = vec.withlane #1 inspect %1 inspect %2
+  %4: U32 trivial = const 2
+  %5: Vec(U32) trivial = vec.withlane #2 inspect %3 inspect %4
+  %6: U32 trivial = const 3
+  %7: Vec(U32) trivial = vec.withlane #3 inspect %5 inspect %6
+  %8: U32 trivial = const 4
+  %9: Vec(U32) trivial = vec.withlane #4 inspect %7 inspect %8
+  %10: U32 trivial = const 5
+  %11: Vec(U32) trivial = vec.withlane #5 inspect %9 inspect %10
+  %12: U32 trivial = const 6
+  %13: Vec(U32) trivial = vec.withlane #6 inspect %11 inspect %12
+  %14: U32 trivial = const 7
+  %15: Vec(U32) trivial = vec.withlane #7 inspect %13 inspect %14
+  %16: U32 trivial = const 1001
+  %17: Vec(U32) trivial = vec.splat inspect %16
+  %18: Vec(U32) trivial = mul inspect %15 inspect %17
+  %19: %I32 address = global.addr seed
+  %20: I32 trivial = load inspect %19
+  %21: U32 trivial = convert inspect %20
+  %22: Vec(U32) trivial = vec.splat inspect %21
+  %23: Vec(U32) trivial = add inspect %18 inspect %22
+  return consume %23
+}
+
+fn quadwords() -> Vec(U64) {
+bb0:
+  %0: U64 trivial = const 0
+  %1: Vec(U64) trivial = vec.splat inspect %0
+  %2: U64 trivial = const 1
+  %3: Vec(U64) trivial = vec.withlane #1 inspect %1 inspect %2
+  %4: U64 trivial = const 2
+  %5: Vec(U64) trivial = vec.withlane #2 inspect %3 inspect %4
+  %6: U64 trivial = const 3
+  %7: Vec(U64) trivial = vec.withlane #3 inspect %5 inspect %6
+  %8: U64 trivial = const 100003
+  %9: Vec(U64) trivial = vec.splat inspect %8
+  %10: Vec(U64) trivial = mul inspect %7 inspect %9
+  %11: %U64 address = global.addr seed64
+  %12: U64 trivial = load inspect %11
+  %13: Vec(U64) trivial = vec.splat inspect %12
+  %14: Vec(U64) trivial = add inspect %10 inspect %13
+  return consume %14
+}
+
+fn doubles(base: F64 [shared call]) -> Vec(F64) {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64 [shared call]
+  %2: %Vec(F64) address = alloc frame Vec(F64)
+  store inspect %1 borrow %0
+  %3: F64 trivial = load inspect %1
+  %4: Vec(F64) trivial = vec.splat inspect %3
+  store inspect %2 consume %4
+  %5: Vec(F64) trivial = load inspect %2
+  %6: I32 trivial = const 1
+  %7: F64 trivial = load inspect %1
+  %8: F64 trivial = const 3
+  %9: F64 trivial = mul inspect %7 inspect %8
+  %10: Vec(F64) trivial = vec.withlane #1 inspect %5 inspect %9
+  %11: I32 trivial = const 2
+  %12: F64 trivial = load inspect %1
+  %13: F64 trivial = const 5
+  %14: F64 trivial = mul inspect %12 inspect %13
+  %15: Vec(F64) trivial = vec.withlane #2 inspect %10 inspect %14
+  %16: I32 trivial = const 3
+  %17: F64 trivial = load inspect %1
+  %18: F64 trivial = const 7
+  %19: F64 trivial = mul inspect %17 inspect %18
+  %20: Vec(F64) trivial = vec.withlane #3 inspect %15 inspect %19
+  return consume %20
+}
+
+fn floats() -> Vec(F32) {
+bb0:
+  %0: F32 trivial = const 0
+  %1: Vec(F32) trivial = vec.splat inspect %0
+  %2: F32 trivial = const 1
+  %3: Vec(F32) trivial = vec.withlane #1 inspect %1 inspect %2
+  %4: F32 trivial = const 2
+  %5: Vec(F32) trivial = vec.withlane #2 inspect %3 inspect %4
+  %6: F32 trivial = const 3
+  %7: Vec(F32) trivial = vec.withlane #3 inspect %5 inspect %6
+  %8: F32 trivial = const 4
+  %9: Vec(F32) trivial = vec.withlane #4 inspect %7 inspect %8
+  %10: F32 trivial = const 5
+  %11: Vec(F32) trivial = vec.withlane #5 inspect %9 inspect %10
+  %12: F32 trivial = const 6
+  %13: Vec(F32) trivial = vec.withlane #6 inspect %11 inspect %12
+  %14: F32 trivial = const 7
+  %15: Vec(F32) trivial = vec.withlane #7 inspect %13 inspect %14
+  %16: F32 trivial = const 2.5
+  %17: Vec(F32) trivial = vec.splat inspect %16
+  %18: Vec(F32) trivial = mul inspect %15 inspect %17
+  %19: F32 trivial = const 0.25
+  %20: Vec(F32) trivial = vec.splat inspect %19
+  %21: Vec(F32) trivial = add inspect %18 inspect %20
+  return consume %21
+}
+
+fn interleavedU8() -> I32 {
+bb0:
+  %0: %Vec(U8) address = alloc frame Vec(U8)
+  %1: %Vec(U8) address = alloc frame Vec(U8)
+  %2: %[U8 *32] address = alloc frame [U8 *32]
+  %3: %[U8 *32] address = alloc frame [U8 *32]
+  %4: %[U8 *32] address = alloc frame [U8 *32]
+  %5: %[U8 *32] address = alloc frame [U8 *32]
+  %6: %I32 address = alloc frame I32
+  %7: %Size address = alloc frame Size
+  %8: Vec(U8) trivial = call bytes'2
+  store inspect %0 consume %8
+  %9: Vec(U8) trivial = load inspect %0
+  %10: U8 trivial = const 100
+  %11: Vec(U8) trivial = vec.splat inspect %10
+  %12: Vec(U8) trivial = add inspect %9 inspect %11
+  store inspect %1 consume %12
+  %13: Vec(U8) trivial = load inspect %0
+  %14: I32 trivial = const 32
+  %15: I32 trivial = const 32
+  %16: Bool trivial = ne inspect %14 inspect %15
+  branch inspect %16 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %17: U8 trivial = const 0
+  %18: U8 trivial = const 0
+  %19: U8 trivial = const 0
+  %20: U8 trivial = const 0
+  %21: U8 trivial = const 0
+  %22: U8 trivial = const 0
+  %23: U8 trivial = const 0
+  %24: U8 trivial = const 0
+  %25: U8 trivial = const 0
+  %26: U8 trivial = const 0
+  %27: U8 trivial = const 0
+  %28: U8 trivial = const 0
+  %29: U8 trivial = const 0
+  %30: U8 trivial = const 0
+  %31: U8 trivial = const 0
+  %32: U8 trivial = const 0
+  %33: U8 trivial = const 0
+  %34: U8 trivial = const 0
+  %35: U8 trivial = const 0
+  %36: U8 trivial = const 0
+  %37: U8 trivial = const 0
+  %38: U8 trivial = const 0
+  %39: U8 trivial = const 0
+  %40: U8 trivial = const 0
+  %41: U8 trivial = const 0
+  %42: U8 trivial = const 0
+  %43: U8 trivial = const 0
+  %44: U8 trivial = const 0
+  %45: U8 trivial = const 0
+  %46: U8 trivial = const 0
+  %47: U8 trivial = const 0
+  %48: U8 trivial = const 0
+  %49: [U8 *32] trivial = aggregate.0 consume %17 consume %18 consume %19 consume %20 consume %21 consume %22 consume %23 consume %24 consume %25 consume %26 consume %27 consume %28 consume %29 consume %30 consume %31 consume %32 consume %33 consume %34 consume %35 consume %36 consume %37 consume %38 consume %39 consume %40 consume %41 consume %42 consume %43 consume %44 consume %45 consume %46 consume %47 consume %48
+  store inspect %2 consume %49
+  %50: Size trivial = const 0
+  %51: %U8 address = element.addr inspect %2 inspect %50
+  %52: U8 [shared slot 0] guaranteed from{%2} = load inspect %51
+  %53: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %52
+  %54: Vec(U8) trivial = load inspect %0
+  %55: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %53
+  store inspect %55 consume %54
+  %56: U8 trivial = const 0
+  %57: U8 trivial = const 0
+  %58: U8 trivial = const 0
+  %59: U8 trivial = const 0
+  %60: U8 trivial = const 0
+  %61: U8 trivial = const 0
+  %62: U8 trivial = const 0
+  %63: U8 trivial = const 0
+  %64: U8 trivial = const 0
+  %65: U8 trivial = const 0
+  %66: U8 trivial = const 0
+  %67: U8 trivial = const 0
+  %68: U8 trivial = const 0
+  %69: U8 trivial = const 0
+  %70: U8 trivial = const 0
+  %71: U8 trivial = const 0
+  %72: U8 trivial = const 0
+  %73: U8 trivial = const 0
+  %74: U8 trivial = const 0
+  %75: U8 trivial = const 0
+  %76: U8 trivial = const 0
+  %77: U8 trivial = const 0
+  %78: U8 trivial = const 0
+  %79: U8 trivial = const 0
+  %80: U8 trivial = const 0
+  %81: U8 trivial = const 0
+  %82: U8 trivial = const 0
+  %83: U8 trivial = const 0
+  %84: U8 trivial = const 0
+  %85: U8 trivial = const 0
+  %86: U8 trivial = const 0
+  %87: U8 trivial = const 0
+  %88: [U8 *32] trivial = aggregate.0 consume %56 consume %57 consume %58 consume %59 consume %60 consume %61 consume %62 consume %63 consume %64 consume %65 consume %66 consume %67 consume %68 consume %69 consume %70 consume %71 consume %72 consume %73 consume %74 consume %75 consume %76 consume %77 consume %78 consume %79 consume %80 consume %81 consume %82 consume %83 consume %84 consume %85 consume %86 consume %87
+  store inspect %3 consume %88
+  %89: Size trivial = const 0
+  %90: %U8 address = element.addr inspect %3 inspect %89
+  %91: U8 [shared slot 0] guaranteed from{%3} = load inspect %90
+  %92: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %91
+  %93: Vec(U8) trivial = load inspect %1
+  %94: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %92
+  store inspect %94 consume %93
+  %95: U8 trivial = const 0
+  %96: U8 trivial = const 0
+  %97: U8 trivial = const 0
+  %98: U8 trivial = const 0
+  %99: U8 trivial = const 0
+  %100: U8 trivial = const 0
+  %101: U8 trivial = const 0
+  %102: U8 trivial = const 0
+  %103: U8 trivial = const 0
+  %104: U8 trivial = const 0
+  %105: U8 trivial = const 0
+  %106: U8 trivial = const 0
+  %107: U8 trivial = const 0
+  %108: U8 trivial = const 0
+  %109: U8 trivial = const 0
+  %110: U8 trivial = const 0
+  %111: U8 trivial = const 0
+  %112: U8 trivial = const 0
+  %113: U8 trivial = const 0
+  %114: U8 trivial = const 0
+  %115: U8 trivial = const 0
+  %116: U8 trivial = const 0
+  %117: U8 trivial = const 0
+  %118: U8 trivial = const 0
+  %119: U8 trivial = const 0
+  %120: U8 trivial = const 0
+  %121: U8 trivial = const 0
+  %122: U8 trivial = const 0
+  %123: U8 trivial = const 0
+  %124: U8 trivial = const 0
+  %125: U8 trivial = const 0
+  %126: U8 trivial = const 0
+  %127: [U8 *32] trivial = aggregate.0 consume %95 consume %96 consume %97 consume %98 consume %99 consume %100 consume %101 consume %102 consume %103 consume %104 consume %105 consume %106 consume %107 consume %108 consume %109 consume %110 consume %111 consume %112 consume %113 consume %114 consume %115 consume %116 consume %117 consume %118 consume %119 consume %120 consume %121 consume %122 consume %123 consume %124 consume %125 consume %126
+  store inspect %4 consume %127
+  %128: Size trivial = const 0
+  %129: %U8 address = element.addr inspect %4 inspect %128
+  %130: U8 [shared slot 0] guaranteed from{%4} = load inspect %129
+  %131: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %130
+  %132: Vec(U8) trivial = load inspect %0
+  %133: Vec(U8) trivial = load inspect %1
+  %134: Vec(U8) trivial = vec.shuffle [0, 32, 1, 33, 2, 34, 3, 35, 4, 36, 5, 37, 6, 38, 7, 39, 8, 40, 9, 41, 10, 42, 11, 43, 12, 44, 13, 45, 14, 46, 15, 47] inspect %132 inspect %133
+  %135: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %131
+  store inspect %135 consume %134
+  %136: U8 trivial = const 0
+  %137: U8 trivial = const 0
+  %138: U8 trivial = const 0
+  %139: U8 trivial = const 0
+  %140: U8 trivial = const 0
+  %141: U8 trivial = const 0
+  %142: U8 trivial = const 0
+  %143: U8 trivial = const 0
+  %144: U8 trivial = const 0
+  %145: U8 trivial = const 0
+  %146: U8 trivial = const 0
+  %147: U8 trivial = const 0
+  %148: U8 trivial = const 0
+  %149: U8 trivial = const 0
+  %150: U8 trivial = const 0
+  %151: U8 trivial = const 0
+  %152: U8 trivial = const 0
+  %153: U8 trivial = const 0
+  %154: U8 trivial = const 0
+  %155: U8 trivial = const 0
+  %156: U8 trivial = const 0
+  %157: U8 trivial = const 0
+  %158: U8 trivial = const 0
+  %159: U8 trivial = const 0
+  %160: U8 trivial = const 0
+  %161: U8 trivial = const 0
+  %162: U8 trivial = const 0
+  %163: U8 trivial = const 0
+  %164: U8 trivial = const 0
+  %165: U8 trivial = const 0
+  %166: U8 trivial = const 0
+  %167: U8 trivial = const 0
+  %168: [U8 *32] trivial = aggregate.0 consume %136 consume %137 consume %138 consume %139 consume %140 consume %141 consume %142 consume %143 consume %144 consume %145 consume %146 consume %147 consume %148 consume %149 consume %150 consume %151 consume %152 consume %153 consume %154 consume %155 consume %156 consume %157 consume %158 consume %159 consume %160 consume %161 consume %162 consume %163 consume %164 consume %165 consume %166 consume %167
+  store inspect %5 consume %168
+  %169: Size trivial = const 0
+  %170: %U8 address = element.addr inspect %5 inspect %169
+  %171: U8 [shared slot 0] guaranteed from{%5} = load inspect %170
+  %172: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %171
+  %173: Vec(U8) trivial = load inspect %0
+  %174: Vec(U8) trivial = load inspect %1
+  %175: Vec(U8) trivial = vec.shuffle [16, 48, 17, 49, 18, 50, 19, 51, 20, 52, 21, 53, 22, 54, 23, 55, 24, 56, 25, 57, 26, 58, 27, 59, 28, 60, 29, 61, 30, 62, 31, 63] inspect %173 inspect %174
+  %176: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %172
+  store inspect %176 consume %175
+  %177: I32 trivial = const 0
+  store inspect %6 consume %177
+  %178: Size trivial = const 0
+  store inspect %7 consume %178
+  jump -> bb4
+
+bb3:
+  %179: I32 trivial = const 100
+  return consume %179
+
+bb4:
+  %180: Size trivial = load inspect %7
+  %181: Size trivial = const 16
+  %182: Bool trivial = lt inspect %180 inspect %181
+  branch inspect %182 -> bb6 -> bb5
+
+bb5:
+  %183: I32 trivial = load inspect %6
+  return consume %183
+
+bb6:
+  %184: Size trivial = const 2
+  %185: Size trivial = load inspect %7
+  %186: Size trivial = mul inspect %184 inspect %185
+  %187: USize trivial = const 32
+  %188: USize trivial = bitcast inspect %186
+  %189: Bool trivial = ge inspect %188 inspect %187
+  call checkCondition borrow %189
+  %190: %U8 address = element.addr inspect %4 inspect %186
+  %191: U8 trivial = load inspect %190
+  %192: Size trivial = load inspect %7
+  %193: USize trivial = const 32
+  %194: USize trivial = bitcast inspect %192
+  %195: Bool trivial = ge inspect %194 inspect %193
+  call checkCondition borrow %195
+  %196: %U8 address = element.addr inspect %2 inspect %192
+  %197: U8 trivial = load inspect %196
+  %198: Bool trivial = ne inspect %191 inspect %197
+  branch inspect %198 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %199: Size trivial = load inspect %7
+  %200: Size trivial = const 2
+  %201: Size trivial = mul inspect %200 inspect %199
+  %202: Size trivial = const 1
+  %203: Size trivial = add inspect %201 inspect %202
+  %204: USize trivial = const 32
+  %205: USize trivial = bitcast inspect %203
+  %206: Bool trivial = ge inspect %205 inspect %204
+  call checkCondition borrow %206
+  %207: %U8 address = element.addr inspect %4 inspect %203
+  %208: U8 trivial = load inspect %207
+  %209: Size trivial = load inspect %7
+  %210: USize trivial = const 32
+  %211: USize trivial = bitcast inspect %209
+  %212: Bool trivial = ge inspect %211 inspect %210
+  call checkCondition borrow %212
+  %213: %U8 address = element.addr inspect %3 inspect %209
+  %214: U8 trivial = load inspect %213
+  %215: Bool trivial = ne inspect %208 inspect %214
+  branch inspect %215 -> bb12 -> bb10
+
+bb9:
+  %216: I32 trivial = load inspect %6
+  %217: I32 trivial = const 1
+  %218: I32 trivial = add inspect %216 inspect %217
+  store inspect %6 consume %218
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %219: Size trivial = const 2
+  %220: Size trivial = load inspect %7
+  %221: Size trivial = mul inspect %219 inspect %220
+  %222: USize trivial = const 32
+  %223: USize trivial = bitcast inspect %221
+  %224: Bool trivial = ge inspect %223 inspect %222
+  call checkCondition borrow %224
+  %225: %U8 address = element.addr inspect %5 inspect %221
+  %226: U8 trivial = load inspect %225
+  %227: Size trivial = const 16
+  %228: Size trivial = load inspect %7
+  %229: Size trivial = add inspect %227 inspect %228
+  %230: USize trivial = const 32
+  %231: USize trivial = bitcast inspect %229
+  %232: Bool trivial = ge inspect %231 inspect %230
+  call checkCondition borrow %232
+  %233: %U8 address = element.addr inspect %2 inspect %229
+  %234: U8 trivial = load inspect %233
+  %235: Bool trivial = ne inspect %226 inspect %234
+  branch inspect %235 -> bb15 -> bb13
+
+bb12:
+  %236: I32 trivial = load inspect %6
+  %237: I32 trivial = const 1
+  %238: I32 trivial = add inspect %236 inspect %237
+  store inspect %6 consume %238
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %239: Size trivial = load inspect %7
+  %240: Size trivial = const 2
+  %241: Size trivial = mul inspect %240 inspect %239
+  %242: Size trivial = const 1
+  %243: Size trivial = add inspect %241 inspect %242
+  %244: USize trivial = const 32
+  %245: USize trivial = bitcast inspect %243
+  %246: Bool trivial = ge inspect %245 inspect %244
+  call checkCondition borrow %246
+  %247: %U8 address = element.addr inspect %5 inspect %243
+  %248: U8 trivial = load inspect %247
+  %249: Size trivial = const 16
+  %250: Size trivial = load inspect %7
+  %251: Size trivial = add inspect %249 inspect %250
+  %252: USize trivial = const 32
+  %253: USize trivial = bitcast inspect %251
+  %254: Bool trivial = ge inspect %253 inspect %252
+  call checkCondition borrow %254
+  %255: %U8 address = element.addr inspect %3 inspect %251
+  %256: U8 trivial = load inspect %255
+  %257: Bool trivial = ne inspect %248 inspect %256
+  branch inspect %257 -> bb18 -> bb16
+
+bb15:
+  %258: I32 trivial = load inspect %6
+  %259: I32 trivial = const 1
+  %260: I32 trivial = add inspect %258 inspect %259
+  store inspect %6 consume %260
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %261: Size trivial = load inspect %7
+  %262: Size trivial = const 1
+  %263: Size trivial = add inspect %261 inspect %262
+  store inspect %7 consume %263
+  jump -> bb4
+
+bb18:
+  %264: I32 trivial = load inspect %6
+  %265: I32 trivial = const 1
+  %266: I32 trivial = add inspect %264 inspect %265
+  store inspect %6 consume %266
+  jump -> bb17
+}
+
+fn interleavedU16() -> I32 {
+bb0:
+  %0: %Vec(U16) address = alloc frame Vec(U16)
+  %1: %Vec(U16) address = alloc frame Vec(U16)
+  %2: %[U16 *16] address = alloc frame [U16 *16]
+  %3: %[U16 *16] address = alloc frame [U16 *16]
+  %4: %[U16 *16] address = alloc frame [U16 *16]
+  %5: %[U16 *16] address = alloc frame [U16 *16]
+  %6: %I32 address = alloc frame I32
+  %7: %Size address = alloc frame Size
+  %8: Vec(U16) trivial = call words
+  store inspect %0 consume %8
+  %9: Vec(U16) trivial = load inspect %0
+  %10: U16 trivial = const 1000
+  %11: Vec(U16) trivial = vec.splat inspect %10
+  %12: Vec(U16) trivial = add inspect %9 inspect %11
+  store inspect %1 consume %12
+  %13: Vec(U16) trivial = load inspect %0
+  %14: I32 trivial = const 16
+  %15: I32 trivial = const 16
+  %16: Bool trivial = ne inspect %14 inspect %15
+  branch inspect %16 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %17: U16 trivial = const 0
+  %18: U16 trivial = const 0
+  %19: U16 trivial = const 0
+  %20: U16 trivial = const 0
+  %21: U16 trivial = const 0
+  %22: U16 trivial = const 0
+  %23: U16 trivial = const 0
+  %24: U16 trivial = const 0
+  %25: U16 trivial = const 0
+  %26: U16 trivial = const 0
+  %27: U16 trivial = const 0
+  %28: U16 trivial = const 0
+  %29: U16 trivial = const 0
+  %30: U16 trivial = const 0
+  %31: U16 trivial = const 0
+  %32: U16 trivial = const 0
+  %33: [U16 *16] trivial = aggregate.0 consume %17 consume %18 consume %19 consume %20 consume %21 consume %22 consume %23 consume %24 consume %25 consume %26 consume %27 consume %28 consume %29 consume %30 consume %31 consume %32
+  store inspect %2 consume %33
+  %34: Size trivial = const 0
+  %35: %U16 address = element.addr inspect %2 inspect %34
+  %36: U16 [shared slot 0] guaranteed from{%2} = load inspect %35
+  %37: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %36
+  %38: Vec(U16) trivial = load inspect %0
+  %39: %Vec(U16) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %37
+  store inspect %39 consume %38
+  %40: U16 trivial = const 0
+  %41: U16 trivial = const 0
+  %42: U16 trivial = const 0
+  %43: U16 trivial = const 0
+  %44: U16 trivial = const 0
+  %45: U16 trivial = const 0
+  %46: U16 trivial = const 0
+  %47: U16 trivial = const 0
+  %48: U16 trivial = const 0
+  %49: U16 trivial = const 0
+  %50: U16 trivial = const 0
+  %51: U16 trivial = const 0
+  %52: U16 trivial = const 0
+  %53: U16 trivial = const 0
+  %54: U16 trivial = const 0
+  %55: U16 trivial = const 0
+  %56: [U16 *16] trivial = aggregate.0 consume %40 consume %41 consume %42 consume %43 consume %44 consume %45 consume %46 consume %47 consume %48 consume %49 consume %50 consume %51 consume %52 consume %53 consume %54 consume %55
+  store inspect %3 consume %56
+  %57: Size trivial = const 0
+  %58: %U16 address = element.addr inspect %3 inspect %57
+  %59: U16 [shared slot 0] guaranteed from{%3} = load inspect %58
+  %60: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %59
+  %61: Vec(U16) trivial = load inspect %1
+  %62: %Vec(U16) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %60
+  store inspect %62 consume %61
+  %63: U16 trivial = const 0
+  %64: U16 trivial = const 0
+  %65: U16 trivial = const 0
+  %66: U16 trivial = const 0
+  %67: U16 trivial = const 0
+  %68: U16 trivial = const 0
+  %69: U16 trivial = const 0
+  %70: U16 trivial = const 0
+  %71: U16 trivial = const 0
+  %72: U16 trivial = const 0
+  %73: U16 trivial = const 0
+  %74: U16 trivial = const 0
+  %75: U16 trivial = const 0
+  %76: U16 trivial = const 0
+  %77: U16 trivial = const 0
+  %78: U16 trivial = const 0
+  %79: [U16 *16] trivial = aggregate.0 consume %63 consume %64 consume %65 consume %66 consume %67 consume %68 consume %69 consume %70 consume %71 consume %72 consume %73 consume %74 consume %75 consume %76 consume %77 consume %78
+  store inspect %4 consume %79
+  %80: Size trivial = const 0
+  %81: %U16 address = element.addr inspect %4 inspect %80
+  %82: U16 [shared slot 0] guaranteed from{%4} = load inspect %81
+  %83: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %82
+  %84: Vec(U16) trivial = load inspect %0
+  %85: Vec(U16) trivial = load inspect %1
+  %86: Vec(U16) trivial = vec.shuffle [0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23] inspect %84 inspect %85
+  %87: %Vec(U16) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %83
+  store inspect %87 consume %86
+  %88: U16 trivial = const 0
+  %89: U16 trivial = const 0
+  %90: U16 trivial = const 0
+  %91: U16 trivial = const 0
+  %92: U16 trivial = const 0
+  %93: U16 trivial = const 0
+  %94: U16 trivial = const 0
+  %95: U16 trivial = const 0
+  %96: U16 trivial = const 0
+  %97: U16 trivial = const 0
+  %98: U16 trivial = const 0
+  %99: U16 trivial = const 0
+  %100: U16 trivial = const 0
+  %101: U16 trivial = const 0
+  %102: U16 trivial = const 0
+  %103: U16 trivial = const 0
+  %104: [U16 *16] trivial = aggregate.0 consume %88 consume %89 consume %90 consume %91 consume %92 consume %93 consume %94 consume %95 consume %96 consume %97 consume %98 consume %99 consume %100 consume %101 consume %102 consume %103
+  store inspect %5 consume %104
+  %105: Size trivial = const 0
+  %106: %U16 address = element.addr inspect %5 inspect %105
+  %107: U16 [shared slot 0] guaranteed from{%5} = load inspect %106
+  %108: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %107
+  %109: Vec(U16) trivial = load inspect %0
+  %110: Vec(U16) trivial = load inspect %1
+  %111: Vec(U16) trivial = vec.shuffle [8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31] inspect %109 inspect %110
+  %112: %Vec(U16) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %108
+  store inspect %112 consume %111
+  %113: I32 trivial = const 0
+  store inspect %6 consume %113
+  %114: Size trivial = const 0
+  store inspect %7 consume %114
+  jump -> bb4
+
+bb3:
+  %115: I32 trivial = const 100
+  return consume %115
+
+bb4:
+  %116: Size trivial = load inspect %7
+  %117: Size trivial = const 8
+  %118: Bool trivial = lt inspect %116 inspect %117
+  branch inspect %118 -> bb6 -> bb5
+
+bb5:
+  %119: I32 trivial = load inspect %6
+  return consume %119
+
+bb6:
+  %120: Size trivial = const 2
+  %121: Size trivial = load inspect %7
+  %122: Size trivial = mul inspect %120 inspect %121
+  %123: USize trivial = const 16
+  %124: USize trivial = bitcast inspect %122
+  %125: Bool trivial = ge inspect %124 inspect %123
+  call checkCondition borrow %125
+  %126: %U16 address = element.addr inspect %4 inspect %122
+  %127: U16 trivial = load inspect %126
+  %128: Size trivial = load inspect %7
+  %129: USize trivial = const 16
+  %130: USize trivial = bitcast inspect %128
+  %131: Bool trivial = ge inspect %130 inspect %129
+  call checkCondition borrow %131
+  %132: %U16 address = element.addr inspect %2 inspect %128
+  %133: U16 trivial = load inspect %132
+  %134: Bool trivial = ne inspect %127 inspect %133
+  branch inspect %134 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %135: Size trivial = load inspect %7
+  %136: Size trivial = const 2
+  %137: Size trivial = mul inspect %136 inspect %135
+  %138: Size trivial = const 1
+  %139: Size trivial = add inspect %137 inspect %138
+  %140: USize trivial = const 16
+  %141: USize trivial = bitcast inspect %139
+  %142: Bool trivial = ge inspect %141 inspect %140
+  call checkCondition borrow %142
+  %143: %U16 address = element.addr inspect %4 inspect %139
+  %144: U16 trivial = load inspect %143
+  %145: Size trivial = load inspect %7
+  %146: USize trivial = const 16
+  %147: USize trivial = bitcast inspect %145
+  %148: Bool trivial = ge inspect %147 inspect %146
+  call checkCondition borrow %148
+  %149: %U16 address = element.addr inspect %3 inspect %145
+  %150: U16 trivial = load inspect %149
+  %151: Bool trivial = ne inspect %144 inspect %150
+  branch inspect %151 -> bb12 -> bb10
+
+bb9:
+  %152: I32 trivial = load inspect %6
+  %153: I32 trivial = const 1
+  %154: I32 trivial = add inspect %152 inspect %153
+  store inspect %6 consume %154
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %155: Size trivial = const 2
+  %156: Size trivial = load inspect %7
+  %157: Size trivial = mul inspect %155 inspect %156
+  %158: USize trivial = const 16
+  %159: USize trivial = bitcast inspect %157
+  %160: Bool trivial = ge inspect %159 inspect %158
+  call checkCondition borrow %160
+  %161: %U16 address = element.addr inspect %5 inspect %157
+  %162: U16 trivial = load inspect %161
+  %163: Size trivial = const 8
+  %164: Size trivial = load inspect %7
+  %165: Size trivial = add inspect %163 inspect %164
+  %166: USize trivial = const 16
+  %167: USize trivial = bitcast inspect %165
+  %168: Bool trivial = ge inspect %167 inspect %166
+  call checkCondition borrow %168
+  %169: %U16 address = element.addr inspect %2 inspect %165
+  %170: U16 trivial = load inspect %169
+  %171: Bool trivial = ne inspect %162 inspect %170
+  branch inspect %171 -> bb15 -> bb13
+
+bb12:
+  %172: I32 trivial = load inspect %6
+  %173: I32 trivial = const 1
+  %174: I32 trivial = add inspect %172 inspect %173
+  store inspect %6 consume %174
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %175: Size trivial = load inspect %7
+  %176: Size trivial = const 2
+  %177: Size trivial = mul inspect %176 inspect %175
+  %178: Size trivial = const 1
+  %179: Size trivial = add inspect %177 inspect %178
+  %180: USize trivial = const 16
+  %181: USize trivial = bitcast inspect %179
+  %182: Bool trivial = ge inspect %181 inspect %180
+  call checkCondition borrow %182
+  %183: %U16 address = element.addr inspect %5 inspect %179
+  %184: U16 trivial = load inspect %183
+  %185: Size trivial = const 8
+  %186: Size trivial = load inspect %7
+  %187: Size trivial = add inspect %185 inspect %186
+  %188: USize trivial = const 16
+  %189: USize trivial = bitcast inspect %187
+  %190: Bool trivial = ge inspect %189 inspect %188
+  call checkCondition borrow %190
+  %191: %U16 address = element.addr inspect %3 inspect %187
+  %192: U16 trivial = load inspect %191
+  %193: Bool trivial = ne inspect %184 inspect %192
+  branch inspect %193 -> bb18 -> bb16
+
+bb15:
+  %194: I32 trivial = load inspect %6
+  %195: I32 trivial = const 1
+  %196: I32 trivial = add inspect %194 inspect %195
+  store inspect %6 consume %196
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %197: Size trivial = load inspect %7
+  %198: Size trivial = const 1
+  %199: Size trivial = add inspect %197 inspect %198
+  store inspect %7 consume %199
+  jump -> bb4
+
+bb18:
+  %200: I32 trivial = load inspect %6
+  %201: I32 trivial = const 1
+  %202: I32 trivial = add inspect %200 inspect %201
+  store inspect %6 consume %202
+  jump -> bb17
+}
+
+fn interleavedU32() -> I32 {
+bb0:
+  %0: %Vec(U32) address = alloc frame Vec(U32)
+  %1: %Vec(U32) address = alloc frame Vec(U32)
+  %2: %[U32 *8] address = alloc frame [U32 *8]
+  %3: %[U32 *8] address = alloc frame [U32 *8]
+  %4: %[U32 *8] address = alloc frame [U32 *8]
+  %5: %[U32 *8] address = alloc frame [U32 *8]
+  %6: %I32 address = alloc frame I32
+  %7: %Size address = alloc frame Size
+  %8: Vec(U32) trivial = call doublewords
+  store inspect %0 consume %8
+  %9: Vec(U32) trivial = load inspect %0
+  %10: U32 trivial = const 50000
+  %11: Vec(U32) trivial = vec.splat inspect %10
+  %12: Vec(U32) trivial = add inspect %9 inspect %11
+  store inspect %1 consume %12
+  %13: Vec(U32) trivial = load inspect %0
+  %14: I32 trivial = const 8
+  %15: I32 trivial = const 8
+  %16: Bool trivial = ne inspect %14 inspect %15
+  branch inspect %16 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %17: U32 trivial = const 0
+  %18: U32 trivial = const 0
+  %19: U32 trivial = const 0
+  %20: U32 trivial = const 0
+  %21: U32 trivial = const 0
+  %22: U32 trivial = const 0
+  %23: U32 trivial = const 0
+  %24: U32 trivial = const 0
+  %25: [U32 *8] trivial = aggregate.0 consume %17 consume %18 consume %19 consume %20 consume %21 consume %22 consume %23 consume %24
+  store inspect %2 consume %25
+  %26: Size trivial = const 0
+  %27: %U32 address = element.addr inspect %2 inspect %26
+  %28: U32 [shared slot 0] guaranteed from{%2} = load inspect %27
+  %29: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %28
+  %30: Vec(U32) trivial = load inspect %0
+  %31: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %29
+  store inspect %31 consume %30
+  %32: U32 trivial = const 0
+  %33: U32 trivial = const 0
+  %34: U32 trivial = const 0
+  %35: U32 trivial = const 0
+  %36: U32 trivial = const 0
+  %37: U32 trivial = const 0
+  %38: U32 trivial = const 0
+  %39: U32 trivial = const 0
+  %40: [U32 *8] trivial = aggregate.0 consume %32 consume %33 consume %34 consume %35 consume %36 consume %37 consume %38 consume %39
+  store inspect %3 consume %40
+  %41: Size trivial = const 0
+  %42: %U32 address = element.addr inspect %3 inspect %41
+  %43: U32 [shared slot 0] guaranteed from{%3} = load inspect %42
+  %44: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %43
+  %45: Vec(U32) trivial = load inspect %1
+  %46: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %44
+  store inspect %46 consume %45
+  %47: U32 trivial = const 0
+  %48: U32 trivial = const 0
+  %49: U32 trivial = const 0
+  %50: U32 trivial = const 0
+  %51: U32 trivial = const 0
+  %52: U32 trivial = const 0
+  %53: U32 trivial = const 0
+  %54: U32 trivial = const 0
+  %55: [U32 *8] trivial = aggregate.0 consume %47 consume %48 consume %49 consume %50 consume %51 consume %52 consume %53 consume %54
+  store inspect %4 consume %55
+  %56: Size trivial = const 0
+  %57: %U32 address = element.addr inspect %4 inspect %56
+  %58: U32 [shared slot 0] guaranteed from{%4} = load inspect %57
+  %59: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %58
+  %60: Vec(U32) trivial = load inspect %0
+  %61: Vec(U32) trivial = load inspect %1
+  %62: Vec(U32) trivial = vec.shuffle [0, 8, 1, 9, 2, 10, 3, 11] inspect %60 inspect %61
+  %63: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %59
+  store inspect %63 consume %62
+  %64: U32 trivial = const 0
+  %65: U32 trivial = const 0
+  %66: U32 trivial = const 0
+  %67: U32 trivial = const 0
+  %68: U32 trivial = const 0
+  %69: U32 trivial = const 0
+  %70: U32 trivial = const 0
+  %71: U32 trivial = const 0
+  %72: [U32 *8] trivial = aggregate.0 consume %64 consume %65 consume %66 consume %67 consume %68 consume %69 consume %70 consume %71
+  store inspect %5 consume %72
+  %73: Size trivial = const 0
+  %74: %U32 address = element.addr inspect %5 inspect %73
+  %75: U32 [shared slot 0] guaranteed from{%5} = load inspect %74
+  %76: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %75
+  %77: Vec(U32) trivial = load inspect %0
+  %78: Vec(U32) trivial = load inspect %1
+  %79: Vec(U32) trivial = vec.shuffle [4, 12, 5, 13, 6, 14, 7, 15] inspect %77 inspect %78
+  %80: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %76
+  store inspect %80 consume %79
+  %81: I32 trivial = const 0
+  store inspect %6 consume %81
+  %82: Size trivial = const 0
+  store inspect %7 consume %82
+  jump -> bb4
+
+bb3:
+  %83: I32 trivial = const 100
+  return consume %83
+
+bb4:
+  %84: Size trivial = load inspect %7
+  %85: Size trivial = const 4
+  %86: Bool trivial = lt inspect %84 inspect %85
+  branch inspect %86 -> bb6 -> bb5
+
+bb5:
+  %87: I32 trivial = load inspect %6
+  return consume %87
+
+bb6:
+  %88: Size trivial = const 2
+  %89: Size trivial = load inspect %7
+  %90: Size trivial = mul inspect %88 inspect %89
+  %91: USize trivial = const 8
+  %92: USize trivial = bitcast inspect %90
+  %93: Bool trivial = ge inspect %92 inspect %91
+  call checkCondition borrow %93
+  %94: %U32 address = element.addr inspect %4 inspect %90
+  %95: U32 trivial = load inspect %94
+  %96: Size trivial = load inspect %7
+  %97: USize trivial = const 8
+  %98: USize trivial = bitcast inspect %96
+  %99: Bool trivial = ge inspect %98 inspect %97
+  call checkCondition borrow %99
+  %100: %U32 address = element.addr inspect %2 inspect %96
+  %101: U32 trivial = load inspect %100
+  %102: Bool trivial = ne inspect %95 inspect %101
+  branch inspect %102 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %103: Size trivial = load inspect %7
+  %104: Size trivial = const 2
+  %105: Size trivial = mul inspect %104 inspect %103
+  %106: Size trivial = const 1
+  %107: Size trivial = add inspect %105 inspect %106
+  %108: USize trivial = const 8
+  %109: USize trivial = bitcast inspect %107
+  %110: Bool trivial = ge inspect %109 inspect %108
+  call checkCondition borrow %110
+  %111: %U32 address = element.addr inspect %4 inspect %107
+  %112: U32 trivial = load inspect %111
+  %113: Size trivial = load inspect %7
+  %114: USize trivial = const 8
+  %115: USize trivial = bitcast inspect %113
+  %116: Bool trivial = ge inspect %115 inspect %114
+  call checkCondition borrow %116
+  %117: %U32 address = element.addr inspect %3 inspect %113
+  %118: U32 trivial = load inspect %117
+  %119: Bool trivial = ne inspect %112 inspect %118
+  branch inspect %119 -> bb12 -> bb10
+
+bb9:
+  %120: I32 trivial = load inspect %6
+  %121: I32 trivial = const 1
+  %122: I32 trivial = add inspect %120 inspect %121
+  store inspect %6 consume %122
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %123: Size trivial = const 2
+  %124: Size trivial = load inspect %7
+  %125: Size trivial = mul inspect %123 inspect %124
+  %126: USize trivial = const 8
+  %127: USize trivial = bitcast inspect %125
+  %128: Bool trivial = ge inspect %127 inspect %126
+  call checkCondition borrow %128
+  %129: %U32 address = element.addr inspect %5 inspect %125
+  %130: U32 trivial = load inspect %129
+  %131: Size trivial = const 4
+  %132: Size trivial = load inspect %7
+  %133: Size trivial = add inspect %131 inspect %132
+  %134: USize trivial = const 8
+  %135: USize trivial = bitcast inspect %133
+  %136: Bool trivial = ge inspect %135 inspect %134
+  call checkCondition borrow %136
+  %137: %U32 address = element.addr inspect %2 inspect %133
+  %138: U32 trivial = load inspect %137
+  %139: Bool trivial = ne inspect %130 inspect %138
+  branch inspect %139 -> bb15 -> bb13
+
+bb12:
+  %140: I32 trivial = load inspect %6
+  %141: I32 trivial = const 1
+  %142: I32 trivial = add inspect %140 inspect %141
+  store inspect %6 consume %142
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %143: Size trivial = load inspect %7
+  %144: Size trivial = const 2
+  %145: Size trivial = mul inspect %144 inspect %143
+  %146: Size trivial = const 1
+  %147: Size trivial = add inspect %145 inspect %146
+  %148: USize trivial = const 8
+  %149: USize trivial = bitcast inspect %147
+  %150: Bool trivial = ge inspect %149 inspect %148
+  call checkCondition borrow %150
+  %151: %U32 address = element.addr inspect %5 inspect %147
+  %152: U32 trivial = load inspect %151
+  %153: Size trivial = const 4
+  %154: Size trivial = load inspect %7
+  %155: Size trivial = add inspect %153 inspect %154
+  %156: USize trivial = const 8
+  %157: USize trivial = bitcast inspect %155
+  %158: Bool trivial = ge inspect %157 inspect %156
+  call checkCondition borrow %158
+  %159: %U32 address = element.addr inspect %3 inspect %155
+  %160: U32 trivial = load inspect %159
+  %161: Bool trivial = ne inspect %152 inspect %160
+  branch inspect %161 -> bb18 -> bb16
+
+bb15:
+  %162: I32 trivial = load inspect %6
+  %163: I32 trivial = const 1
+  %164: I32 trivial = add inspect %162 inspect %163
+  store inspect %6 consume %164
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %165: Size trivial = load inspect %7
+  %166: Size trivial = const 1
+  %167: Size trivial = add inspect %165 inspect %166
+  store inspect %7 consume %167
+  jump -> bb4
+
+bb18:
+  %168: I32 trivial = load inspect %6
+  %169: I32 trivial = const 1
+  %170: I32 trivial = add inspect %168 inspect %169
+  store inspect %6 consume %170
+  jump -> bb17
+}
+
+fn interleavedU64() -> I32 {
+bb0:
+  %0: %Vec(U64) address = alloc frame Vec(U64)
+  %1: %Vec(U64) address = alloc frame Vec(U64)
+  %2: %[U64 *4] address = alloc frame [U64 *4]
+  %3: %[U64 *4] address = alloc frame [U64 *4]
+  %4: %[U64 *4] address = alloc frame [U64 *4]
+  %5: %[U64 *4] address = alloc frame [U64 *4]
+  %6: %I32 address = alloc frame I32
+  %7: %Size address = alloc frame Size
+  %8: Vec(U64) trivial = call quadwords
+  store inspect %0 consume %8
+  %9: Vec(U64) trivial = load inspect %0
+  %10: U64 trivial = const 77
+  %11: Vec(U64) trivial = vec.splat inspect %10
+  %12: Vec(U64) trivial = add inspect %9 inspect %11
+  store inspect %1 consume %12
+  %13: Vec(U64) trivial = load inspect %0
+  %14: I32 trivial = const 4
+  %15: I32 trivial = const 4
+  %16: Bool trivial = ne inspect %14 inspect %15
+  branch inspect %16 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %17: U64 trivial = const 0
+  %18: U64 trivial = const 0
+  %19: U64 trivial = const 0
+  %20: U64 trivial = const 0
+  %21: [U64 *4] trivial = aggregate.0 consume %17 consume %18 consume %19 consume %20
+  store inspect %2 consume %21
+  %22: Size trivial = const 0
+  %23: %U64 address = element.addr inspect %2 inspect %22
+  %24: U64 [shared slot 0] guaranteed from{%2} = load inspect %23
+  %25: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %24
+  %26: Vec(U64) trivial = load inspect %0
+  %27: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %25
+  store inspect %27 consume %26
+  %28: U64 trivial = const 0
+  %29: U64 trivial = const 0
+  %30: U64 trivial = const 0
+  %31: U64 trivial = const 0
+  %32: [U64 *4] trivial = aggregate.0 consume %28 consume %29 consume %30 consume %31
+  store inspect %3 consume %32
+  %33: Size trivial = const 0
+  %34: %U64 address = element.addr inspect %3 inspect %33
+  %35: U64 [shared slot 0] guaranteed from{%3} = load inspect %34
+  %36: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %35
+  %37: Vec(U64) trivial = load inspect %1
+  %38: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %36
+  store inspect %38 consume %37
+  %39: U64 trivial = const 0
+  %40: U64 trivial = const 0
+  %41: U64 trivial = const 0
+  %42: U64 trivial = const 0
+  %43: [U64 *4] trivial = aggregate.0 consume %39 consume %40 consume %41 consume %42
+  store inspect %4 consume %43
+  %44: Size trivial = const 0
+  %45: %U64 address = element.addr inspect %4 inspect %44
+  %46: U64 [shared slot 0] guaranteed from{%4} = load inspect %45
+  %47: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %46
+  %48: Vec(U64) trivial = load inspect %0
+  %49: Vec(U64) trivial = load inspect %1
+  %50: Vec(U64) trivial = vec.shuffle [0, 4, 1, 5] inspect %48 inspect %49
+  %51: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %47
+  store inspect %51 consume %50
+  %52: U64 trivial = const 0
+  %53: U64 trivial = const 0
+  %54: U64 trivial = const 0
+  %55: U64 trivial = const 0
+  %56: [U64 *4] trivial = aggregate.0 consume %52 consume %53 consume %54 consume %55
+  store inspect %5 consume %56
+  %57: Size trivial = const 0
+  %58: %U64 address = element.addr inspect %5 inspect %57
+  %59: U64 [shared slot 0] guaranteed from{%5} = load inspect %58
+  %60: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %59
+  %61: Vec(U64) trivial = load inspect %0
+  %62: Vec(U64) trivial = load inspect %1
+  %63: Vec(U64) trivial = vec.shuffle [2, 6, 3, 7] inspect %61 inspect %62
+  %64: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %60
+  store inspect %64 consume %63
+  %65: I32 trivial = const 0
+  store inspect %6 consume %65
+  %66: Size trivial = const 0
+  store inspect %7 consume %66
+  jump -> bb4
+
+bb3:
+  %67: I32 trivial = const 100
+  return consume %67
+
+bb4:
+  %68: Size trivial = load inspect %7
+  %69: Size trivial = const 2
+  %70: Bool trivial = lt inspect %68 inspect %69
+  branch inspect %70 -> bb6 -> bb5
+
+bb5:
+  %71: I32 trivial = load inspect %6
+  return consume %71
+
+bb6:
+  %72: Size trivial = const 2
+  %73: Size trivial = load inspect %7
+  %74: Size trivial = mul inspect %72 inspect %73
+  %75: USize trivial = const 4
+  %76: USize trivial = bitcast inspect %74
+  %77: Bool trivial = ge inspect %76 inspect %75
+  call checkCondition borrow %77
+  %78: %U64 address = element.addr inspect %4 inspect %74
+  %79: U64 trivial = load inspect %78
+  %80: Size trivial = load inspect %7
+  %81: USize trivial = const 4
+  %82: USize trivial = bitcast inspect %80
+  %83: Bool trivial = ge inspect %82 inspect %81
+  call checkCondition borrow %83
+  %84: %U64 address = element.addr inspect %2 inspect %80
+  %85: U64 trivial = load inspect %84
+  %86: Bool trivial = ne inspect %79 inspect %85
+  branch inspect %86 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %87: Size trivial = load inspect %7
+  %88: Size trivial = const 2
+  %89: Size trivial = mul inspect %88 inspect %87
+  %90: Size trivial = const 1
+  %91: Size trivial = add inspect %89 inspect %90
+  %92: USize trivial = const 4
+  %93: USize trivial = bitcast inspect %91
+  %94: Bool trivial = ge inspect %93 inspect %92
+  call checkCondition borrow %94
+  %95: %U64 address = element.addr inspect %4 inspect %91
+  %96: U64 trivial = load inspect %95
+  %97: Size trivial = load inspect %7
+  %98: USize trivial = const 4
+  %99: USize trivial = bitcast inspect %97
+  %100: Bool trivial = ge inspect %99 inspect %98
+  call checkCondition borrow %100
+  %101: %U64 address = element.addr inspect %3 inspect %97
+  %102: U64 trivial = load inspect %101
+  %103: Bool trivial = ne inspect %96 inspect %102
+  branch inspect %103 -> bb12 -> bb10
+
+bb9:
+  %104: I32 trivial = load inspect %6
+  %105: I32 trivial = const 1
+  %106: I32 trivial = add inspect %104 inspect %105
+  store inspect %6 consume %106
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %107: Size trivial = const 2
+  %108: Size trivial = load inspect %7
+  %109: Size trivial = mul inspect %107 inspect %108
+  %110: USize trivial = const 4
+  %111: USize trivial = bitcast inspect %109
+  %112: Bool trivial = ge inspect %111 inspect %110
+  call checkCondition borrow %112
+  %113: %U64 address = element.addr inspect %5 inspect %109
+  %114: U64 trivial = load inspect %113
+  %115: Size trivial = const 2
+  %116: Size trivial = load inspect %7
+  %117: Size trivial = add inspect %115 inspect %116
+  %118: USize trivial = const 4
+  %119: USize trivial = bitcast inspect %117
+  %120: Bool trivial = ge inspect %119 inspect %118
+  call checkCondition borrow %120
+  %121: %U64 address = element.addr inspect %2 inspect %117
+  %122: U64 trivial = load inspect %121
+  %123: Bool trivial = ne inspect %114 inspect %122
+  branch inspect %123 -> bb15 -> bb13
+
+bb12:
+  %124: I32 trivial = load inspect %6
+  %125: I32 trivial = const 1
+  %126: I32 trivial = add inspect %124 inspect %125
+  store inspect %6 consume %126
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %127: Size trivial = load inspect %7
+  %128: Size trivial = const 2
+  %129: Size trivial = mul inspect %128 inspect %127
+  %130: Size trivial = const 1
+  %131: Size trivial = add inspect %129 inspect %130
+  %132: USize trivial = const 4
+  %133: USize trivial = bitcast inspect %131
+  %134: Bool trivial = ge inspect %133 inspect %132
+  call checkCondition borrow %134
+  %135: %U64 address = element.addr inspect %5 inspect %131
+  %136: U64 trivial = load inspect %135
+  %137: Size trivial = const 2
+  %138: Size trivial = load inspect %7
+  %139: Size trivial = add inspect %137 inspect %138
+  %140: USize trivial = const 4
+  %141: USize trivial = bitcast inspect %139
+  %142: Bool trivial = ge inspect %141 inspect %140
+  call checkCondition borrow %142
+  %143: %U64 address = element.addr inspect %3 inspect %139
+  %144: U64 trivial = load inspect %143
+  %145: Bool trivial = ne inspect %136 inspect %144
+  branch inspect %145 -> bb18 -> bb16
+
+bb15:
+  %146: I32 trivial = load inspect %6
+  %147: I32 trivial = const 1
+  %148: I32 trivial = add inspect %146 inspect %147
+  store inspect %6 consume %148
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %149: Size trivial = load inspect %7
+  %150: Size trivial = const 1
+  %151: Size trivial = add inspect %149 inspect %150
+  store inspect %7 consume %151
+  jump -> bb4
+
+bb18:
+  %152: I32 trivial = load inspect %6
+  %153: I32 trivial = const 1
+  %154: I32 trivial = add inspect %152 inspect %153
+  store inspect %6 consume %154
+  jump -> bb17
+}
+
+fn interleavedDouble() -> I32 {
+bb0:
+  %0: %Vec(F64) address = alloc frame Vec(F64)
+  %1: %Vec(F64) address = alloc frame Vec(F64)
+  %2: %[F64 *4] address = alloc frame [F64 *4]
+  %3: %[F64 *4] address = alloc frame [F64 *4]
+  %4: %[F64 *4] address = alloc frame [F64 *4]
+  %5: %[F64 *4] address = alloc frame [F64 *4]
+  %6: %I32 address = alloc frame I32
+  %7: %Size address = alloc frame Size
+  %8: %F64 address = global.addr seedDouble
+  %9: F64 trivial = load inspect %8
+  %10: Vec(F64) trivial = call doubles borrow %9
+  store inspect %0 consume %10
+  %11: %F64 address = global.addr seedDouble
+  %12: F64 trivial = load inspect %11
+  %13: F64 trivial = const -2
+  %14: F64 trivial = mul inspect %12 inspect %13
+  %15: Vec(F64) trivial = call doubles borrow %14
+  store inspect %1 consume %15
+  %16: Vec(F64) trivial = load inspect %0
+  %17: I32 trivial = const 4
+  %18: I32 trivial = const 4
+  %19: Bool trivial = ne inspect %17 inspect %18
+  branch inspect %19 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %20: F64 trivial = const 0
+  %21: F64 trivial = const 0
+  %22: F64 trivial = const 0
+  %23: F64 trivial = const 0
+  %24: [F64 *4] trivial = aggregate.0 consume %20 consume %21 consume %22 consume %23
+  store inspect %2 consume %24
+  %25: Size trivial = const 0
+  %26: %F64 address = element.addr inspect %2 inspect %25
+  %27: F64 [shared slot 0] guaranteed from{%2} = load inspect %26
+  %28: %F64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %27
+  %29: Vec(F64) trivial = load inspect %0
+  %30: %Vec(F64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %28
+  store inspect %30 consume %29
+  %31: F64 trivial = const 0
+  %32: F64 trivial = const 0
+  %33: F64 trivial = const 0
+  %34: F64 trivial = const 0
+  %35: [F64 *4] trivial = aggregate.0 consume %31 consume %32 consume %33 consume %34
+  store inspect %3 consume %35
+  %36: Size trivial = const 0
+  %37: %F64 address = element.addr inspect %3 inspect %36
+  %38: F64 [shared slot 0] guaranteed from{%3} = load inspect %37
+  %39: %F64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %38
+  %40: Vec(F64) trivial = load inspect %1
+  %41: %Vec(F64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %39
+  store inspect %41 consume %40
+  %42: F64 trivial = const 0
+  %43: F64 trivial = const 0
+  %44: F64 trivial = const 0
+  %45: F64 trivial = const 0
+  %46: [F64 *4] trivial = aggregate.0 consume %42 consume %43 consume %44 consume %45
+  store inspect %4 consume %46
+  %47: Size trivial = const 0
+  %48: %F64 address = element.addr inspect %4 inspect %47
+  %49: F64 [shared slot 0] guaranteed from{%4} = load inspect %48
+  %50: %F64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %49
+  %51: Vec(F64) trivial = load inspect %0
+  %52: Vec(F64) trivial = load inspect %1
+  %53: Vec(F64) trivial = vec.shuffle [0, 4, 1, 5] inspect %51 inspect %52
+  %54: %Vec(F64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %50
+  store inspect %54 consume %53
+  %55: F64 trivial = const 0
+  %56: F64 trivial = const 0
+  %57: F64 trivial = const 0
+  %58: F64 trivial = const 0
+  %59: [F64 *4] trivial = aggregate.0 consume %55 consume %56 consume %57 consume %58
+  store inspect %5 consume %59
+  %60: Size trivial = const 0
+  %61: %F64 address = element.addr inspect %5 inspect %60
+  %62: F64 [shared slot 0] guaranteed from{%5} = load inspect %61
+  %63: %F64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %62
+  %64: Vec(F64) trivial = load inspect %0
+  %65: Vec(F64) trivial = load inspect %1
+  %66: Vec(F64) trivial = vec.shuffle [2, 6, 3, 7] inspect %64 inspect %65
+  %67: %Vec(F64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %63
+  store inspect %67 consume %66
+  %68: I32 trivial = const 0
+  store inspect %6 consume %68
+  %69: Size trivial = const 0
+  store inspect %7 consume %69
+  jump -> bb4
+
+bb3:
+  %70: I32 trivial = const 100
+  return consume %70
+
+bb4:
+  %71: Size trivial = load inspect %7
+  %72: Size trivial = const 2
+  %73: Bool trivial = lt inspect %71 inspect %72
+  branch inspect %73 -> bb6 -> bb5
+
+bb5:
+  %74: I32 trivial = load inspect %6
+  return consume %74
+
+bb6:
+  %75: Size trivial = const 2
+  %76: Size trivial = load inspect %7
+  %77: Size trivial = mul inspect %75 inspect %76
+  %78: USize trivial = const 4
+  %79: USize trivial = bitcast inspect %77
+  %80: Bool trivial = ge inspect %79 inspect %78
+  call checkCondition borrow %80
+  %81: %F64 address = element.addr inspect %4 inspect %77
+  %82: F64 trivial = load inspect %81
+  %83: Size trivial = load inspect %7
+  %84: USize trivial = const 4
+  %85: USize trivial = bitcast inspect %83
+  %86: Bool trivial = ge inspect %85 inspect %84
+  call checkCondition borrow %86
+  %87: %F64 address = element.addr inspect %2 inspect %83
+  %88: F64 trivial = load inspect %87
+  %89: Bool trivial = ne inspect %82 inspect %88
+  branch inspect %89 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %90: Size trivial = load inspect %7
+  %91: Size trivial = const 2
+  %92: Size trivial = mul inspect %91 inspect %90
+  %93: Size trivial = const 1
+  %94: Size trivial = add inspect %92 inspect %93
+  %95: USize trivial = const 4
+  %96: USize trivial = bitcast inspect %94
+  %97: Bool trivial = ge inspect %96 inspect %95
+  call checkCondition borrow %97
+  %98: %F64 address = element.addr inspect %4 inspect %94
+  %99: F64 trivial = load inspect %98
+  %100: Size trivial = load inspect %7
+  %101: USize trivial = const 4
+  %102: USize trivial = bitcast inspect %100
+  %103: Bool trivial = ge inspect %102 inspect %101
+  call checkCondition borrow %103
+  %104: %F64 address = element.addr inspect %3 inspect %100
+  %105: F64 trivial = load inspect %104
+  %106: Bool trivial = ne inspect %99 inspect %105
+  branch inspect %106 -> bb12 -> bb10
+
+bb9:
+  %107: I32 trivial = load inspect %6
+  %108: I32 trivial = const 1
+  %109: I32 trivial = add inspect %107 inspect %108
+  store inspect %6 consume %109
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %110: Size trivial = const 2
+  %111: Size trivial = load inspect %7
+  %112: Size trivial = mul inspect %110 inspect %111
+  %113: USize trivial = const 4
+  %114: USize trivial = bitcast inspect %112
+  %115: Bool trivial = ge inspect %114 inspect %113
+  call checkCondition borrow %115
+  %116: %F64 address = element.addr inspect %5 inspect %112
+  %117: F64 trivial = load inspect %116
+  %118: Size trivial = const 2
+  %119: Size trivial = load inspect %7
+  %120: Size trivial = add inspect %118 inspect %119
+  %121: USize trivial = const 4
+  %122: USize trivial = bitcast inspect %120
+  %123: Bool trivial = ge inspect %122 inspect %121
+  call checkCondition borrow %123
+  %124: %F64 address = element.addr inspect %2 inspect %120
+  %125: F64 trivial = load inspect %124
+  %126: Bool trivial = ne inspect %117 inspect %125
+  branch inspect %126 -> bb15 -> bb13
+
+bb12:
+  %127: I32 trivial = load inspect %6
+  %128: I32 trivial = const 1
+  %129: I32 trivial = add inspect %127 inspect %128
+  store inspect %6 consume %129
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %130: Size trivial = load inspect %7
+  %131: Size trivial = const 2
+  %132: Size trivial = mul inspect %131 inspect %130
+  %133: Size trivial = const 1
+  %134: Size trivial = add inspect %132 inspect %133
+  %135: USize trivial = const 4
+  %136: USize trivial = bitcast inspect %134
+  %137: Bool trivial = ge inspect %136 inspect %135
+  call checkCondition borrow %137
+  %138: %F64 address = element.addr inspect %5 inspect %134
+  %139: F64 trivial = load inspect %138
+  %140: Size trivial = const 2
+  %141: Size trivial = load inspect %7
+  %142: Size trivial = add inspect %140 inspect %141
+  %143: USize trivial = const 4
+  %144: USize trivial = bitcast inspect %142
+  %145: Bool trivial = ge inspect %144 inspect %143
+  call checkCondition borrow %145
+  %146: %F64 address = element.addr inspect %3 inspect %142
+  %147: F64 trivial = load inspect %146
+  %148: Bool trivial = ne inspect %139 inspect %147
+  branch inspect %148 -> bb18 -> bb16
+
+bb15:
+  %149: I32 trivial = load inspect %6
+  %150: I32 trivial = const 1
+  %151: I32 trivial = add inspect %149 inspect %150
+  store inspect %6 consume %151
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %152: Size trivial = load inspect %7
+  %153: Size trivial = const 1
+  %154: Size trivial = add inspect %152 inspect %153
+  store inspect %7 consume %154
+  jump -> bb4
+
+bb18:
+  %155: I32 trivial = load inspect %6
+  %156: I32 trivial = const 1
+  %157: I32 trivial = add inspect %155 inspect %156
+  store inspect %6 consume %157
+  jump -> bb17
+}
+
+fn interleavedFloat() -> I32 {
+bb0:
+  %0: %Vec(F32) address = alloc frame Vec(F32)
+  %1: %Vec(F32) address = alloc frame Vec(F32)
+  %2: %[F32 *8] address = alloc frame [F32 *8]
+  %3: %[F32 *8] address = alloc frame [F32 *8]
+  %4: %[F32 *8] address = alloc frame [F32 *8]
+  %5: %[F32 *8] address = alloc frame [F32 *8]
+  %6: %I32 address = alloc frame I32
+  %7: %Size address = alloc frame Size
+  %8: Vec(F32) trivial = call floats
+  store inspect %0 consume %8
+  %9: Vec(F32) trivial = load inspect %0
+  %10: F32 trivial = const -8
+  %11: Vec(F32) trivial = vec.splat inspect %10
+  %12: Vec(F32) trivial = add inspect %9 inspect %11
+  store inspect %1 consume %12
+  %13: Vec(F32) trivial = load inspect %0
+  %14: I32 trivial = const 8
+  %15: I32 trivial = const 8
+  %16: Bool trivial = ne inspect %14 inspect %15
+  branch inspect %16 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %17: F32 trivial = const 0
+  %18: F32 trivial = const 0
+  %19: F32 trivial = const 0
+  %20: F32 trivial = const 0
+  %21: F32 trivial = const 0
+  %22: F32 trivial = const 0
+  %23: F32 trivial = const 0
+  %24: F32 trivial = const 0
+  %25: [F32 *8] trivial = aggregate.0 consume %17 consume %18 consume %19 consume %20 consume %21 consume %22 consume %23 consume %24
+  store inspect %2 consume %25
+  %26: Size trivial = const 0
+  %27: %F32 address = element.addr inspect %2 inspect %26
+  %28: F32 [shared slot 0] guaranteed from{%2} = load inspect %27
+  %29: %F32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %28
+  %30: Vec(F32) trivial = load inspect %0
+  %31: %Vec(F32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %29
+  store inspect %31 consume %30
+  %32: F32 trivial = const 0
+  %33: F32 trivial = const 0
+  %34: F32 trivial = const 0
+  %35: F32 trivial = const 0
+  %36: F32 trivial = const 0
+  %37: F32 trivial = const 0
+  %38: F32 trivial = const 0
+  %39: F32 trivial = const 0
+  %40: [F32 *8] trivial = aggregate.0 consume %32 consume %33 consume %34 consume %35 consume %36 consume %37 consume %38 consume %39
+  store inspect %3 consume %40
+  %41: Size trivial = const 0
+  %42: %F32 address = element.addr inspect %3 inspect %41
+  %43: F32 [shared slot 0] guaranteed from{%3} = load inspect %42
+  %44: %F32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %43
+  %45: Vec(F32) trivial = load inspect %1
+  %46: %Vec(F32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %44
+  store inspect %46 consume %45
+  %47: F32 trivial = const 0
+  %48: F32 trivial = const 0
+  %49: F32 trivial = const 0
+  %50: F32 trivial = const 0
+  %51: F32 trivial = const 0
+  %52: F32 trivial = const 0
+  %53: F32 trivial = const 0
+  %54: F32 trivial = const 0
+  %55: [F32 *8] trivial = aggregate.0 consume %47 consume %48 consume %49 consume %50 consume %51 consume %52 consume %53 consume %54
+  store inspect %4 consume %55
+  %56: Size trivial = const 0
+  %57: %F32 address = element.addr inspect %4 inspect %56
+  %58: F32 [shared slot 0] guaranteed from{%4} = load inspect %57
+  %59: %F32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %58
+  %60: Vec(F32) trivial = load inspect %0
+  %61: Vec(F32) trivial = load inspect %1
+  %62: Vec(F32) trivial = vec.shuffle [0, 8, 1, 9, 2, 10, 3, 11] inspect %60 inspect %61
+  %63: %Vec(F32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %59
+  store inspect %63 consume %62
+  %64: F32 trivial = const 0
+  %65: F32 trivial = const 0
+  %66: F32 trivial = const 0
+  %67: F32 trivial = const 0
+  %68: F32 trivial = const 0
+  %69: F32 trivial = const 0
+  %70: F32 trivial = const 0
+  %71: F32 trivial = const 0
+  %72: [F32 *8] trivial = aggregate.0 consume %64 consume %65 consume %66 consume %67 consume %68 consume %69 consume %70 consume %71
+  store inspect %5 consume %72
+  %73: Size trivial = const 0
+  %74: %F32 address = element.addr inspect %5 inspect %73
+  %75: F32 [shared slot 0] guaranteed from{%5} = load inspect %74
+  %76: %F32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %75
+  %77: Vec(F32) trivial = load inspect %0
+  %78: Vec(F32) trivial = load inspect %1
+  %79: Vec(F32) trivial = vec.shuffle [4, 12, 5, 13, 6, 14, 7, 15] inspect %77 inspect %78
+  %80: %Vec(F32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %76
+  store inspect %80 consume %79
+  %81: I32 trivial = const 0
+  store inspect %6 consume %81
+  %82: Size trivial = const 0
+  store inspect %7 consume %82
+  jump -> bb4
+
+bb3:
+  %83: I32 trivial = const 100
+  return consume %83
+
+bb4:
+  %84: Size trivial = load inspect %7
+  %85: Size trivial = const 4
+  %86: Bool trivial = lt inspect %84 inspect %85
+  branch inspect %86 -> bb6 -> bb5
+
+bb5:
+  %87: I32 trivial = load inspect %6
+  return consume %87
+
+bb6:
+  %88: Size trivial = const 2
+  %89: Size trivial = load inspect %7
+  %90: Size trivial = mul inspect %88 inspect %89
+  %91: USize trivial = const 8
+  %92: USize trivial = bitcast inspect %90
+  %93: Bool trivial = ge inspect %92 inspect %91
+  call checkCondition borrow %93
+  %94: %F32 address = element.addr inspect %4 inspect %90
+  %95: F32 trivial = load inspect %94
+  %96: Size trivial = load inspect %7
+  %97: USize trivial = const 8
+  %98: USize trivial = bitcast inspect %96
+  %99: Bool trivial = ge inspect %98 inspect %97
+  call checkCondition borrow %99
+  %100: %F32 address = element.addr inspect %2 inspect %96
+  %101: F32 trivial = load inspect %100
+  %102: Bool trivial = ne inspect %95 inspect %101
+  branch inspect %102 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %103: Size trivial = load inspect %7
+  %104: Size trivial = const 2
+  %105: Size trivial = mul inspect %104 inspect %103
+  %106: Size trivial = const 1
+  %107: Size trivial = add inspect %105 inspect %106
+  %108: USize trivial = const 8
+  %109: USize trivial = bitcast inspect %107
+  %110: Bool trivial = ge inspect %109 inspect %108
+  call checkCondition borrow %110
+  %111: %F32 address = element.addr inspect %4 inspect %107
+  %112: F32 trivial = load inspect %111
+  %113: Size trivial = load inspect %7
+  %114: USize trivial = const 8
+  %115: USize trivial = bitcast inspect %113
+  %116: Bool trivial = ge inspect %115 inspect %114
+  call checkCondition borrow %116
+  %117: %F32 address = element.addr inspect %3 inspect %113
+  %118: F32 trivial = load inspect %117
+  %119: Bool trivial = ne inspect %112 inspect %118
+  branch inspect %119 -> bb12 -> bb10
+
+bb9:
+  %120: I32 trivial = load inspect %6
+  %121: I32 trivial = const 1
+  %122: I32 trivial = add inspect %120 inspect %121
+  store inspect %6 consume %122
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %123: Size trivial = const 2
+  %124: Size trivial = load inspect %7
+  %125: Size trivial = mul inspect %123 inspect %124
+  %126: USize trivial = const 8
+  %127: USize trivial = bitcast inspect %125
+  %128: Bool trivial = ge inspect %127 inspect %126
+  call checkCondition borrow %128
+  %129: %F32 address = element.addr inspect %5 inspect %125
+  %130: F32 trivial = load inspect %129
+  %131: Size trivial = const 4
+  %132: Size trivial = load inspect %7
+  %133: Size trivial = add inspect %131 inspect %132
+  %134: USize trivial = const 8
+  %135: USize trivial = bitcast inspect %133
+  %136: Bool trivial = ge inspect %135 inspect %134
+  call checkCondition borrow %136
+  %137: %F32 address = element.addr inspect %2 inspect %133
+  %138: F32 trivial = load inspect %137
+  %139: Bool trivial = ne inspect %130 inspect %138
+  branch inspect %139 -> bb15 -> bb13
+
+bb12:
+  %140: I32 trivial = load inspect %6
+  %141: I32 trivial = const 1
+  %142: I32 trivial = add inspect %140 inspect %141
+  store inspect %6 consume %142
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %143: Size trivial = load inspect %7
+  %144: Size trivial = const 2
+  %145: Size trivial = mul inspect %144 inspect %143
+  %146: Size trivial = const 1
+  %147: Size trivial = add inspect %145 inspect %146
+  %148: USize trivial = const 8
+  %149: USize trivial = bitcast inspect %147
+  %150: Bool trivial = ge inspect %149 inspect %148
+  call checkCondition borrow %150
+  %151: %F32 address = element.addr inspect %5 inspect %147
+  %152: F32 trivial = load inspect %151
+  %153: Size trivial = const 4
+  %154: Size trivial = load inspect %7
+  %155: Size trivial = add inspect %153 inspect %154
+  %156: USize trivial = const 8
+  %157: USize trivial = bitcast inspect %155
+  %158: Bool trivial = ge inspect %157 inspect %156
+  call checkCondition borrow %158
+  %159: %F32 address = element.addr inspect %3 inspect %155
+  %160: F32 trivial = load inspect %159
+  %161: Bool trivial = ne inspect %152 inspect %160
+  branch inspect %161 -> bb18 -> bb16
+
+bb15:
+  %162: I32 trivial = load inspect %6
+  %163: I32 trivial = const 1
+  %164: I32 trivial = add inspect %162 inspect %163
+  store inspect %6 consume %164
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %165: Size trivial = load inspect %7
+  %166: Size trivial = const 1
+  %167: Size trivial = add inspect %165 inspect %166
+  store inspect %7 consume %167
+  jump -> bb4
+
+bb18:
+  %168: I32 trivial = load inspect %6
+  %169: I32 trivial = const 1
+  %170: I32 trivial = add inspect %168 inspect %169
+  store inspect %6 consume %170
+  jump -> bb17
+}
+
+fn rearrangedU8() -> I32 {
+bb0:
+  %0: %Vec(U8) address = alloc frame Vec(U8)
+  %1: %[U8 *32] address = alloc frame [U8 *32]
+  %2: %[U8 *32] address = alloc frame [U8 *32]
+  %3: %[U8 *32] address = alloc frame [U8 *32]
+  %4: %I32 address = alloc frame I32
+  %5: %Size address = alloc frame Size
+  %6: Vec(U8) trivial = call bytes'2
+  store inspect %0 consume %6
+  %7: Vec(U8) trivial = load inspect %0
+  %8: I32 trivial = const 32
+  %9: I32 trivial = const 32
+  %10: Bool trivial = ne inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: U8 trivial = const 0
+  %12: U8 trivial = const 0
+  %13: U8 trivial = const 0
+  %14: U8 trivial = const 0
+  %15: U8 trivial = const 0
+  %16: U8 trivial = const 0
+  %17: U8 trivial = const 0
+  %18: U8 trivial = const 0
+  %19: U8 trivial = const 0
+  %20: U8 trivial = const 0
+  %21: U8 trivial = const 0
+  %22: U8 trivial = const 0
+  %23: U8 trivial = const 0
+  %24: U8 trivial = const 0
+  %25: U8 trivial = const 0
+  %26: U8 trivial = const 0
+  %27: U8 trivial = const 0
+  %28: U8 trivial = const 0
+  %29: U8 trivial = const 0
+  %30: U8 trivial = const 0
+  %31: U8 trivial = const 0
+  %32: U8 trivial = const 0
+  %33: U8 trivial = const 0
+  %34: U8 trivial = const 0
+  %35: U8 trivial = const 0
+  %36: U8 trivial = const 0
+  %37: U8 trivial = const 0
+  %38: U8 trivial = const 0
+  %39: U8 trivial = const 0
+  %40: U8 trivial = const 0
+  %41: U8 trivial = const 0
+  %42: U8 trivial = const 0
+  %43: [U8 *32] trivial = aggregate.0 consume %11 consume %12 consume %13 consume %14 consume %15 consume %16 consume %17 consume %18 consume %19 consume %20 consume %21 consume %22 consume %23 consume %24 consume %25 consume %26 consume %27 consume %28 consume %29 consume %30 consume %31 consume %32 consume %33 consume %34 consume %35 consume %36 consume %37 consume %38 consume %39 consume %40 consume %41 consume %42
+  store inspect %1 consume %43
+  %44: Size trivial = const 0
+  %45: %U8 address = element.addr inspect %1 inspect %44
+  %46: U8 [shared slot 0] guaranteed from{%1} = load inspect %45
+  %47: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %46
+  %48: Vec(U8) trivial = load inspect %0
+  %49: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %47
+  store inspect %49 consume %48
+  %50: U8 trivial = const 0
+  %51: U8 trivial = const 0
+  %52: U8 trivial = const 0
+  %53: U8 trivial = const 0
+  %54: U8 trivial = const 0
+  %55: U8 trivial = const 0
+  %56: U8 trivial = const 0
+  %57: U8 trivial = const 0
+  %58: U8 trivial = const 0
+  %59: U8 trivial = const 0
+  %60: U8 trivial = const 0
+  %61: U8 trivial = const 0
+  %62: U8 trivial = const 0
+  %63: U8 trivial = const 0
+  %64: U8 trivial = const 0
+  %65: U8 trivial = const 0
+  %66: U8 trivial = const 0
+  %67: U8 trivial = const 0
+  %68: U8 trivial = const 0
+  %69: U8 trivial = const 0
+  %70: U8 trivial = const 0
+  %71: U8 trivial = const 0
+  %72: U8 trivial = const 0
+  %73: U8 trivial = const 0
+  %74: U8 trivial = const 0
+  %75: U8 trivial = const 0
+  %76: U8 trivial = const 0
+  %77: U8 trivial = const 0
+  %78: U8 trivial = const 0
+  %79: U8 trivial = const 0
+  %80: U8 trivial = const 0
+  %81: U8 trivial = const 0
+  %82: [U8 *32] trivial = aggregate.0 consume %50 consume %51 consume %52 consume %53 consume %54 consume %55 consume %56 consume %57 consume %58 consume %59 consume %60 consume %61 consume %62 consume %63 consume %64 consume %65 consume %66 consume %67 consume %68 consume %69 consume %70 consume %71 consume %72 consume %73 consume %74 consume %75 consume %76 consume %77 consume %78 consume %79 consume %80 consume %81
+  store inspect %2 consume %82
+  %83: Size trivial = const 0
+  %84: %U8 address = element.addr inspect %2 inspect %83
+  %85: U8 [shared slot 0] guaranteed from{%2} = load inspect %84
+  %86: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %85
+  %87: Vec(U8) trivial = load inspect %0
+  %88: Vec(U8) trivial = vec.shuffle [31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] inspect %87 inspect %87
+  %89: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %86
+  store inspect %89 consume %88
+  %90: U8 trivial = const 0
+  %91: U8 trivial = const 0
+  %92: U8 trivial = const 0
+  %93: U8 trivial = const 0
+  %94: U8 trivial = const 0
+  %95: U8 trivial = const 0
+  %96: U8 trivial = const 0
+  %97: U8 trivial = const 0
+  %98: U8 trivial = const 0
+  %99: U8 trivial = const 0
+  %100: U8 trivial = const 0
+  %101: U8 trivial = const 0
+  %102: U8 trivial = const 0
+  %103: U8 trivial = const 0
+  %104: U8 trivial = const 0
+  %105: U8 trivial = const 0
+  %106: U8 trivial = const 0
+  %107: U8 trivial = const 0
+  %108: U8 trivial = const 0
+  %109: U8 trivial = const 0
+  %110: U8 trivial = const 0
+  %111: U8 trivial = const 0
+  %112: U8 trivial = const 0
+  %113: U8 trivial = const 0
+  %114: U8 trivial = const 0
+  %115: U8 trivial = const 0
+  %116: U8 trivial = const 0
+  %117: U8 trivial = const 0
+  %118: U8 trivial = const 0
+  %119: U8 trivial = const 0
+  %120: U8 trivial = const 0
+  %121: U8 trivial = const 0
+  %122: [U8 *32] trivial = aggregate.0 consume %90 consume %91 consume %92 consume %93 consume %94 consume %95 consume %96 consume %97 consume %98 consume %99 consume %100 consume %101 consume %102 consume %103 consume %104 consume %105 consume %106 consume %107 consume %108 consume %109 consume %110 consume %111 consume %112 consume %113 consume %114 consume %115 consume %116 consume %117 consume %118 consume %119 consume %120 consume %121
+  store inspect %3 consume %122
+  %123: Size trivial = const 0
+  %124: %U8 address = element.addr inspect %3 inspect %123
+  %125: U8 [shared slot 0] guaranteed from{%3} = load inspect %124
+  %126: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %125
+  %127: Vec(U8) trivial = load inspect %0
+  %128: I32 trivial = const 5
+  %129: Vec(U8) trivial = vec.shuffle [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 1, 2, 3, 4] inspect %127 inspect %127
+  %130: %Vec(U8) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %126
+  store inspect %130 consume %129
+  %131: I32 trivial = const 0
+  store inspect %4 consume %131
+  %132: Size trivial = const 0
+  store inspect %5 consume %132
+  jump -> bb4
+
+bb3:
+  %133: I32 trivial = const 100
+  return consume %133
+
+bb4:
+  %134: Size trivial = load inspect %5
+  %135: Size trivial = const 32
+  %136: Bool trivial = lt inspect %134 inspect %135
+  branch inspect %136 -> bb6 -> bb5
+
+bb5:
+  %137: I32 trivial = load inspect %4
+  return consume %137
+
+bb6:
+  %138: Size trivial = load inspect %5
+  %139: USize trivial = const 32
+  %140: USize trivial = bitcast inspect %138
+  %141: Bool trivial = ge inspect %140 inspect %139
+  call checkCondition borrow %141
+  %142: %U8 address = element.addr inspect %2 inspect %138
+  %143: U8 trivial = load inspect %142
+  %144: Size trivial = const 31
+  %145: Size trivial = load inspect %5
+  %146: Size trivial = sub inspect %144 inspect %145
+  %147: USize trivial = const 32
+  %148: USize trivial = bitcast inspect %146
+  %149: Bool trivial = ge inspect %148 inspect %147
+  call checkCondition borrow %149
+  %150: %U8 address = element.addr inspect %1 inspect %146
+  %151: U8 trivial = load inspect %150
+  %152: Bool trivial = ne inspect %143 inspect %151
+  branch inspect %152 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %153: Size trivial = load inspect %5
+  %154: USize trivial = const 32
+  %155: USize trivial = bitcast inspect %153
+  %156: Bool trivial = ge inspect %155 inspect %154
+  call checkCondition borrow %156
+  %157: %U8 address = element.addr inspect %3 inspect %153
+  %158: U8 trivial = load inspect %157
+  %159: Size trivial = load inspect %5
+  %160: Size trivial = const 5
+  %161: Size trivial = add inspect %159 inspect %160
+  %162: Size trivial = const 32
+  %163: Size trivial = rem inspect %161 inspect %162
+  %164: USize trivial = const 32
+  %165: USize trivial = bitcast inspect %163
+  %166: Bool trivial = ge inspect %165 inspect %164
+  call checkCondition borrow %166
+  %167: %U8 address = element.addr inspect %1 inspect %163
+  %168: U8 trivial = load inspect %167
+  %169: Bool trivial = ne inspect %158 inspect %168
+  branch inspect %169 -> bb12 -> bb10
+
+bb9:
+  %170: I32 trivial = load inspect %4
+  %171: I32 trivial = const 1
+  %172: I32 trivial = add inspect %170 inspect %171
+  store inspect %4 consume %172
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %173: Size trivial = load inspect %5
+  %174: Size trivial = const 1
+  %175: Size trivial = add inspect %173 inspect %174
+  store inspect %5 consume %175
+  jump -> bb4
+
+bb12:
+  %176: I32 trivial = load inspect %4
+  %177: I32 trivial = const 1
+  %178: I32 trivial = add inspect %176 inspect %177
+  store inspect %4 consume %178
+  jump -> bb11
+}
+
+fn rearrangedU16() -> I32 {
+bb0:
+  %0: %Vec(U16) address = alloc frame Vec(U16)
+  %1: %[U16 *16] address = alloc frame [U16 *16]
+  %2: %[U16 *16] address = alloc frame [U16 *16]
+  %3: %[U16 *16] address = alloc frame [U16 *16]
+  %4: %I32 address = alloc frame I32
+  %5: %Size address = alloc frame Size
+  %6: Vec(U16) trivial = call words
+  store inspect %0 consume %6
+  %7: Vec(U16) trivial = load inspect %0
+  %8: I32 trivial = const 16
+  %9: I32 trivial = const 16
+  %10: Bool trivial = ne inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: U16 trivial = const 0
+  %12: U16 trivial = const 0
+  %13: U16 trivial = const 0
+  %14: U16 trivial = const 0
+  %15: U16 trivial = const 0
+  %16: U16 trivial = const 0
+  %17: U16 trivial = const 0
+  %18: U16 trivial = const 0
+  %19: U16 trivial = const 0
+  %20: U16 trivial = const 0
+  %21: U16 trivial = const 0
+  %22: U16 trivial = const 0
+  %23: U16 trivial = const 0
+  %24: U16 trivial = const 0
+  %25: U16 trivial = const 0
+  %26: U16 trivial = const 0
+  %27: [U16 *16] trivial = aggregate.0 consume %11 consume %12 consume %13 consume %14 consume %15 consume %16 consume %17 consume %18 consume %19 consume %20 consume %21 consume %22 consume %23 consume %24 consume %25 consume %26
+  store inspect %1 consume %27
+  %28: Size trivial = const 0
+  %29: %U16 address = element.addr inspect %1 inspect %28
+  %30: U16 [shared slot 0] guaranteed from{%1} = load inspect %29
+  %31: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %30
+  %32: Vec(U16) trivial = load inspect %0
+  %33: %Vec(U16) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %31
+  store inspect %33 consume %32
+  %34: U16 trivial = const 0
+  %35: U16 trivial = const 0
+  %36: U16 trivial = const 0
+  %37: U16 trivial = const 0
+  %38: U16 trivial = const 0
+  %39: U16 trivial = const 0
+  %40: U16 trivial = const 0
+  %41: U16 trivial = const 0
+  %42: U16 trivial = const 0
+  %43: U16 trivial = const 0
+  %44: U16 trivial = const 0
+  %45: U16 trivial = const 0
+  %46: U16 trivial = const 0
+  %47: U16 trivial = const 0
+  %48: U16 trivial = const 0
+  %49: U16 trivial = const 0
+  %50: [U16 *16] trivial = aggregate.0 consume %34 consume %35 consume %36 consume %37 consume %38 consume %39 consume %40 consume %41 consume %42 consume %43 consume %44 consume %45 consume %46 consume %47 consume %48 consume %49
+  store inspect %2 consume %50
+  %51: Size trivial = const 0
+  %52: %U16 address = element.addr inspect %2 inspect %51
+  %53: U16 [shared slot 0] guaranteed from{%2} = load inspect %52
+  %54: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %53
+  %55: Vec(U16) trivial = load inspect %0
+  %56: Vec(U16) trivial = vec.shuffle [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] inspect %55 inspect %55
+  %57: %Vec(U16) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %54
+  store inspect %57 consume %56
+  %58: U16 trivial = const 0
+  %59: U16 trivial = const 0
+  %60: U16 trivial = const 0
+  %61: U16 trivial = const 0
+  %62: U16 trivial = const 0
+  %63: U16 trivial = const 0
+  %64: U16 trivial = const 0
+  %65: U16 trivial = const 0
+  %66: U16 trivial = const 0
+  %67: U16 trivial = const 0
+  %68: U16 trivial = const 0
+  %69: U16 trivial = const 0
+  %70: U16 trivial = const 0
+  %71: U16 trivial = const 0
+  %72: U16 trivial = const 0
+  %73: U16 trivial = const 0
+  %74: [U16 *16] trivial = aggregate.0 consume %58 consume %59 consume %60 consume %61 consume %62 consume %63 consume %64 consume %65 consume %66 consume %67 consume %68 consume %69 consume %70 consume %71 consume %72 consume %73
+  store inspect %3 consume %74
+  %75: Size trivial = const 0
+  %76: %U16 address = element.addr inspect %3 inspect %75
+  %77: U16 [shared slot 0] guaranteed from{%3} = load inspect %76
+  %78: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %77
+  %79: Vec(U16) trivial = load inspect %0
+  %80: I32 trivial = const 3
+  %81: Vec(U16) trivial = vec.shuffle [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2] inspect %79 inspect %79
+  %82: %Vec(U16) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %78
+  store inspect %82 consume %81
+  %83: I32 trivial = const 0
+  store inspect %4 consume %83
+  %84: Size trivial = const 0
+  store inspect %5 consume %84
+  jump -> bb4
+
+bb3:
+  %85: I32 trivial = const 100
+  return consume %85
+
+bb4:
+  %86: Size trivial = load inspect %5
+  %87: Size trivial = const 16
+  %88: Bool trivial = lt inspect %86 inspect %87
+  branch inspect %88 -> bb6 -> bb5
+
+bb5:
+  %89: I32 trivial = load inspect %4
+  return consume %89
+
+bb6:
+  %90: Size trivial = load inspect %5
+  %91: USize trivial = const 16
+  %92: USize trivial = bitcast inspect %90
+  %93: Bool trivial = ge inspect %92 inspect %91
+  call checkCondition borrow %93
+  %94: %U16 address = element.addr inspect %2 inspect %90
+  %95: U16 trivial = load inspect %94
+  %96: Size trivial = const 15
+  %97: Size trivial = load inspect %5
+  %98: Size trivial = sub inspect %96 inspect %97
+  %99: USize trivial = const 16
+  %100: USize trivial = bitcast inspect %98
+  %101: Bool trivial = ge inspect %100 inspect %99
+  call checkCondition borrow %101
+  %102: %U16 address = element.addr inspect %1 inspect %98
+  %103: U16 trivial = load inspect %102
+  %104: Bool trivial = ne inspect %95 inspect %103
+  branch inspect %104 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %105: Size trivial = load inspect %5
+  %106: USize trivial = const 16
+  %107: USize trivial = bitcast inspect %105
+  %108: Bool trivial = ge inspect %107 inspect %106
+  call checkCondition borrow %108
+  %109: %U16 address = element.addr inspect %3 inspect %105
+  %110: U16 trivial = load inspect %109
+  %111: Size trivial = load inspect %5
+  %112: Size trivial = const 3
+  %113: Size trivial = add inspect %111 inspect %112
+  %114: Size trivial = const 16
+  %115: Size trivial = rem inspect %113 inspect %114
+  %116: USize trivial = const 16
+  %117: USize trivial = bitcast inspect %115
+  %118: Bool trivial = ge inspect %117 inspect %116
+  call checkCondition borrow %118
+  %119: %U16 address = element.addr inspect %1 inspect %115
+  %120: U16 trivial = load inspect %119
+  %121: Bool trivial = ne inspect %110 inspect %120
+  branch inspect %121 -> bb12 -> bb10
+
+bb9:
+  %122: I32 trivial = load inspect %4
+  %123: I32 trivial = const 1
+  %124: I32 trivial = add inspect %122 inspect %123
+  store inspect %4 consume %124
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %125: Size trivial = load inspect %5
+  %126: Size trivial = const 1
+  %127: Size trivial = add inspect %125 inspect %126
+  store inspect %5 consume %127
+  jump -> bb4
+
+bb12:
+  %128: I32 trivial = load inspect %4
+  %129: I32 trivial = const 1
+  %130: I32 trivial = add inspect %128 inspect %129
+  store inspect %4 consume %130
+  jump -> bb11
+}
+
+fn rearrangedU32() -> I32 {
+bb0:
+  %0: %Vec(U32) address = alloc frame Vec(U32)
+  %1: %[U32 *8] address = alloc frame [U32 *8]
+  %2: %[U32 *8] address = alloc frame [U32 *8]
+  %3: %[U32 *8] address = alloc frame [U32 *8]
+  %4: %I32 address = alloc frame I32
+  %5: %Size address = alloc frame Size
+  %6: Vec(U32) trivial = call doublewords
+  store inspect %0 consume %6
+  %7: Vec(U32) trivial = load inspect %0
+  %8: I32 trivial = const 8
+  %9: I32 trivial = const 8
+  %10: Bool trivial = ne inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: U32 trivial = const 0
+  %12: U32 trivial = const 0
+  %13: U32 trivial = const 0
+  %14: U32 trivial = const 0
+  %15: U32 trivial = const 0
+  %16: U32 trivial = const 0
+  %17: U32 trivial = const 0
+  %18: U32 trivial = const 0
+  %19: [U32 *8] trivial = aggregate.0 consume %11 consume %12 consume %13 consume %14 consume %15 consume %16 consume %17 consume %18
+  store inspect %1 consume %19
+  %20: Size trivial = const 0
+  %21: %U32 address = element.addr inspect %1 inspect %20
+  %22: U32 [shared slot 0] guaranteed from{%1} = load inspect %21
+  %23: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %22
+  %24: Vec(U32) trivial = load inspect %0
+  %25: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %23
+  store inspect %25 consume %24
+  %26: U32 trivial = const 0
+  %27: U32 trivial = const 0
+  %28: U32 trivial = const 0
+  %29: U32 trivial = const 0
+  %30: U32 trivial = const 0
+  %31: U32 trivial = const 0
+  %32: U32 trivial = const 0
+  %33: U32 trivial = const 0
+  %34: [U32 *8] trivial = aggregate.0 consume %26 consume %27 consume %28 consume %29 consume %30 consume %31 consume %32 consume %33
+  store inspect %2 consume %34
+  %35: Size trivial = const 0
+  %36: %U32 address = element.addr inspect %2 inspect %35
+  %37: U32 [shared slot 0] guaranteed from{%2} = load inspect %36
+  %38: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %37
+  %39: Vec(U32) trivial = load inspect %0
+  %40: Vec(U32) trivial = vec.shuffle [7, 6, 5, 4, 3, 2, 1, 0] inspect %39 inspect %39
+  %41: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %38
+  store inspect %41 consume %40
+  %42: U32 trivial = const 0
+  %43: U32 trivial = const 0
+  %44: U32 trivial = const 0
+  %45: U32 trivial = const 0
+  %46: U32 trivial = const 0
+  %47: U32 trivial = const 0
+  %48: U32 trivial = const 0
+  %49: U32 trivial = const 0
+  %50: [U32 *8] trivial = aggregate.0 consume %42 consume %43 consume %44 consume %45 consume %46 consume %47 consume %48 consume %49
+  store inspect %3 consume %50
+  %51: Size trivial = const 0
+  %52: %U32 address = element.addr inspect %3 inspect %51
+  %53: U32 [shared slot 0] guaranteed from{%3} = load inspect %52
+  %54: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %53
+  %55: Vec(U32) trivial = load inspect %0
+  %56: I32 trivial = const 3
+  %57: Vec(U32) trivial = vec.shuffle [3, 4, 5, 6, 7, 0, 1, 2] inspect %55 inspect %55
+  %58: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %54
+  store inspect %58 consume %57
+  %59: I32 trivial = const 0
+  store inspect %4 consume %59
+  %60: Size trivial = const 0
+  store inspect %5 consume %60
+  jump -> bb4
+
+bb3:
+  %61: I32 trivial = const 100
+  return consume %61
+
+bb4:
+  %62: Size trivial = load inspect %5
+  %63: Size trivial = const 8
+  %64: Bool trivial = lt inspect %62 inspect %63
+  branch inspect %64 -> bb6 -> bb5
+
+bb5:
+  %65: I32 trivial = load inspect %4
+  return consume %65
+
+bb6:
+  %66: Size trivial = load inspect %5
+  %67: USize trivial = const 8
+  %68: USize trivial = bitcast inspect %66
+  %69: Bool trivial = ge inspect %68 inspect %67
+  call checkCondition borrow %69
+  %70: %U32 address = element.addr inspect %2 inspect %66
+  %71: U32 trivial = load inspect %70
+  %72: Size trivial = const 7
+  %73: Size trivial = load inspect %5
+  %74: Size trivial = sub inspect %72 inspect %73
+  %75: USize trivial = const 8
+  %76: USize trivial = bitcast inspect %74
+  %77: Bool trivial = ge inspect %76 inspect %75
+  call checkCondition borrow %77
+  %78: %U32 address = element.addr inspect %1 inspect %74
+  %79: U32 trivial = load inspect %78
+  %80: Bool trivial = ne inspect %71 inspect %79
+  branch inspect %80 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %81: Size trivial = load inspect %5
+  %82: USize trivial = const 8
+  %83: USize trivial = bitcast inspect %81
+  %84: Bool trivial = ge inspect %83 inspect %82
+  call checkCondition borrow %84
+  %85: %U32 address = element.addr inspect %3 inspect %81
+  %86: U32 trivial = load inspect %85
+  %87: Size trivial = load inspect %5
+  %88: Size trivial = const 3
+  %89: Size trivial = add inspect %87 inspect %88
+  %90: Size trivial = const 8
+  %91: Size trivial = rem inspect %89 inspect %90
+  %92: USize trivial = const 8
+  %93: USize trivial = bitcast inspect %91
+  %94: Bool trivial = ge inspect %93 inspect %92
+  call checkCondition borrow %94
+  %95: %U32 address = element.addr inspect %1 inspect %91
+  %96: U32 trivial = load inspect %95
+  %97: Bool trivial = ne inspect %86 inspect %96
+  branch inspect %97 -> bb12 -> bb10
+
+bb9:
+  %98: I32 trivial = load inspect %4
+  %99: I32 trivial = const 1
+  %100: I32 trivial = add inspect %98 inspect %99
+  store inspect %4 consume %100
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %101: Size trivial = load inspect %5
+  %102: Size trivial = const 1
+  %103: Size trivial = add inspect %101 inspect %102
+  store inspect %5 consume %103
+  jump -> bb4
+
+bb12:
+  %104: I32 trivial = load inspect %4
+  %105: I32 trivial = const 1
+  %106: I32 trivial = add inspect %104 inspect %105
+  store inspect %4 consume %106
+  jump -> bb11
+}
+
+fn rearrangedU64() -> I32 {
+bb0:
+  %0: %Vec(U64) address = alloc frame Vec(U64)
+  %1: %[U64 *4] address = alloc frame [U64 *4]
+  %2: %[U64 *4] address = alloc frame [U64 *4]
+  %3: %[U64 *4] address = alloc frame [U64 *4]
+  %4: %I32 address = alloc frame I32
+  %5: %Size address = alloc frame Size
+  %6: Vec(U64) trivial = call quadwords
+  store inspect %0 consume %6
+  %7: Vec(U64) trivial = load inspect %0
+  %8: I32 trivial = const 4
+  %9: I32 trivial = const 4
+  %10: Bool trivial = ne inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: U64 trivial = const 0
+  %12: U64 trivial = const 0
+  %13: U64 trivial = const 0
+  %14: U64 trivial = const 0
+  %15: [U64 *4] trivial = aggregate.0 consume %11 consume %12 consume %13 consume %14
+  store inspect %1 consume %15
+  %16: Size trivial = const 0
+  %17: %U64 address = element.addr inspect %1 inspect %16
+  %18: U64 [shared slot 0] guaranteed from{%1} = load inspect %17
+  %19: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %18
+  %20: Vec(U64) trivial = load inspect %0
+  %21: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %19
+  store inspect %21 consume %20
+  %22: U64 trivial = const 0
+  %23: U64 trivial = const 0
+  %24: U64 trivial = const 0
+  %25: U64 trivial = const 0
+  %26: [U64 *4] trivial = aggregate.0 consume %22 consume %23 consume %24 consume %25
+  store inspect %2 consume %26
+  %27: Size trivial = const 0
+  %28: %U64 address = element.addr inspect %2 inspect %27
+  %29: U64 [shared slot 0] guaranteed from{%2} = load inspect %28
+  %30: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %29
+  %31: Vec(U64) trivial = load inspect %0
+  %32: Vec(U64) trivial = vec.shuffle [3, 2, 1, 0] inspect %31 inspect %31
+  %33: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %30
+  store inspect %33 consume %32
+  %34: U64 trivial = const 0
+  %35: U64 trivial = const 0
+  %36: U64 trivial = const 0
+  %37: U64 trivial = const 0
+  %38: [U64 *4] trivial = aggregate.0 consume %34 consume %35 consume %36 consume %37
+  store inspect %3 consume %38
+  %39: Size trivial = const 0
+  %40: %U64 address = element.addr inspect %3 inspect %39
+  %41: U64 [shared slot 0] guaranteed from{%3} = load inspect %40
+  %42: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %41
+  %43: Vec(U64) trivial = load inspect %0
+  %44: I32 trivial = const 1
+  %45: Vec(U64) trivial = vec.shuffle [1, 2, 3, 0] inspect %43 inspect %43
+  %46: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %42
+  store inspect %46 consume %45
+  %47: I32 trivial = const 0
+  store inspect %4 consume %47
+  %48: Size trivial = const 0
+  store inspect %5 consume %48
+  jump -> bb4
+
+bb3:
+  %49: I32 trivial = const 100
+  return consume %49
+
+bb4:
+  %50: Size trivial = load inspect %5
+  %51: Size trivial = const 4
+  %52: Bool trivial = lt inspect %50 inspect %51
+  branch inspect %52 -> bb6 -> bb5
+
+bb5:
+  %53: I32 trivial = load inspect %4
+  return consume %53
+
+bb6:
+  %54: Size trivial = load inspect %5
+  %55: USize trivial = const 4
+  %56: USize trivial = bitcast inspect %54
+  %57: Bool trivial = ge inspect %56 inspect %55
+  call checkCondition borrow %57
+  %58: %U64 address = element.addr inspect %2 inspect %54
+  %59: U64 trivial = load inspect %58
+  %60: Size trivial = const 3
+  %61: Size trivial = load inspect %5
+  %62: Size trivial = sub inspect %60 inspect %61
+  %63: USize trivial = const 4
+  %64: USize trivial = bitcast inspect %62
+  %65: Bool trivial = ge inspect %64 inspect %63
+  call checkCondition borrow %65
+  %66: %U64 address = element.addr inspect %1 inspect %62
+  %67: U64 trivial = load inspect %66
+  %68: Bool trivial = ne inspect %59 inspect %67
+  branch inspect %68 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %69: Size trivial = load inspect %5
+  %70: USize trivial = const 4
+  %71: USize trivial = bitcast inspect %69
+  %72: Bool trivial = ge inspect %71 inspect %70
+  call checkCondition borrow %72
+  %73: %U64 address = element.addr inspect %3 inspect %69
+  %74: U64 trivial = load inspect %73
+  %75: Size trivial = load inspect %5
+  %76: Size trivial = const 1
+  %77: Size trivial = add inspect %75 inspect %76
+  %78: Size trivial = const 4
+  %79: Size trivial = rem inspect %77 inspect %78
+  %80: USize trivial = const 4
+  %81: USize trivial = bitcast inspect %79
+  %82: Bool trivial = ge inspect %81 inspect %80
+  call checkCondition borrow %82
+  %83: %U64 address = element.addr inspect %1 inspect %79
+  %84: U64 trivial = load inspect %83
+  %85: Bool trivial = ne inspect %74 inspect %84
+  branch inspect %85 -> bb12 -> bb10
+
+bb9:
+  %86: I32 trivial = load inspect %4
+  %87: I32 trivial = const 1
+  %88: I32 trivial = add inspect %86 inspect %87
+  store inspect %4 consume %88
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %89: Size trivial = load inspect %5
+  %90: Size trivial = const 1
+  %91: Size trivial = add inspect %89 inspect %90
+  store inspect %5 consume %91
+  jump -> bb4
+
+bb12:
+  %92: I32 trivial = load inspect %4
+  %93: I32 trivial = const 1
+  %94: I32 trivial = add inspect %92 inspect %93
+  store inspect %4 consume %94
+  jump -> bb11
+}
+
+fn windowU64() -> I32 {
+bb0:
+  %1: %Vec(U64) address = alloc frame Vec(U64)
+  %2: %Vec(U64) address = alloc frame Vec(U64)
+  %3: %[U64 *4] address = alloc frame [U64 *4]
+  %4: %[U64 *4] address = alloc frame [U64 *4]
+  %5: %[U64 *4] address = alloc frame [U64 *4]
+  %6: %I32 address = alloc frame I32
+  %7: %Size address = alloc frame Size
+  %8: %Size address = alloc frame Size
+  %9: %U64 address = alloc frame U64
+  %10: Vec(U64) trivial = call quadwords
+  store inspect %1 consume %10
+  %11: Vec(U64) trivial = load inspect %1
+  %12: U64 trivial = const 5
+  %13: Vec(U64) trivial = vec.splat inspect %12
+  %14: Vec(U64) trivial = mul inspect %11 inspect %13
+  %15: U64 trivial = const 77
+  %16: Vec(U64) trivial = vec.splat inspect %15
+  %17: Vec(U64) trivial = add inspect %14 inspect %16
+  store inspect %2 consume %17
+  %18: Vec(U64) trivial = load inspect %1
+  %19: I32 trivial = const 4
+  %20: I32 trivial = const 4
+  %21: Bool trivial = ne inspect %19 inspect %20
+  branch inspect %21 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %22: U64 trivial = const 0
+  %23: U64 trivial = const 0
+  %24: U64 trivial = const 0
+  %25: U64 trivial = const 0
+  %26: [U64 *4] trivial = aggregate.0 consume %22 consume %23 consume %24 consume %25
+  store inspect %3 consume %26
+  %27: Size trivial = const 0
+  %28: %U64 address = element.addr inspect %3 inspect %27
+  %29: U64 [shared slot 0] guaranteed from{%3} = load inspect %28
+  %30: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %29
+  %31: Vec(U64) trivial = load inspect %1
+  %32: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %30
+  store inspect %32 consume %31
+  %33: U64 trivial = const 0
+  %34: U64 trivial = const 0
+  %35: U64 trivial = const 0
+  %36: U64 trivial = const 0
+  %37: [U64 *4] trivial = aggregate.0 consume %33 consume %34 consume %35 consume %36
+  store inspect %4 consume %37
+  %38: Size trivial = const 0
+  %39: %U64 address = element.addr inspect %4 inspect %38
+  %40: U64 [shared slot 0] guaranteed from{%4} = load inspect %39
+  %41: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %40
+  %42: Vec(U64) trivial = load inspect %2
+  %43: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %41
+  store inspect %43 consume %42
+  %44: U64 trivial = const 0
+  %45: U64 trivial = const 0
+  %46: U64 trivial = const 0
+  %47: U64 trivial = const 0
+  %48: [U64 *4] trivial = aggregate.0 consume %44 consume %45 consume %46 consume %47
+  store inspect %5 consume %48
+  %49: Size trivial = const 0
+  %50: %U64 address = element.addr inspect %5 inspect %49
+  %51: U64 [shared slot 0] guaranteed from{%5} = load inspect %50
+  %52: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %51
+  %53: Vec(U64) trivial = load inspect %2
+  %54: Vec(U64) trivial = load inspect %1
+  %55: I32 trivial = const 3
+  %56: Vec(U64) trivial = vec.shuffle [7, 0, 1, 2] inspect %53 inspect %54
+  %57: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %52
+  store inspect %57 consume %56
+  %58: I32 trivial = const 0
+  store inspect %6 consume %58
+  %59: Size trivial = const 0
+  store inspect %7 consume %59
+  jump -> bb4
+
+bb3:
+  %60: I32 trivial = const 100
+  return consume %60
+
+bb4:
+  %61: Size trivial = load inspect %7
+  %62: Size trivial = const 4
+  %63: Bool trivial = lt inspect %61 inspect %62
+  branch inspect %63 -> bb6 -> bb5
+
+bb5:
+  %64: I32 trivial = load inspect %6
+  return consume %64
+
+bb6:
+  %65: Size trivial = load inspect %7
+  %66: Size trivial = const 3
+  %67: Size trivial = add inspect %66 inspect %65
+  store inspect %8 consume %67
+  %68: Size trivial = load inspect %8
+  %69: Size trivial = const 4
+  %70: Bool trivial = lt inspect %68 inspect %69
+  branch inspect %70 -> bb9 -> bb7
+
+bb7:
+  %71: Size trivial = load inspect %8
+  %72: Size trivial = const 4
+  %73: Size trivial = sub inspect %71 inspect %72
+  %74: USize trivial = const 4
+  %75: USize trivial = bitcast inspect %73
+  %76: Bool trivial = ge inspect %75 inspect %74
+  call checkCondition borrow %76
+  %77: %U64 address = element.addr inspect %4 inspect %73
+  %78: U64 trivial = load inspect %77
+  jump -> bb8(consume %78)
+
+bb8(%0: U64 trivial):
+  store inspect %9 consume %0
+  %79: Size trivial = load inspect %7
+  %80: USize trivial = const 4
+  %81: USize trivial = bitcast inspect %79
+  %82: Bool trivial = ge inspect %81 inspect %80
+  call checkCondition borrow %82
+  %83: %U64 address = element.addr inspect %5 inspect %79
+  %84: U64 trivial = load inspect %83
+  %85: U64 trivial = load inspect %9
+  %86: Bool trivial = ne inspect %84 inspect %85
+  branch inspect %86 -> bb12 -> bb10
+
+bb9:
+  %87: Size trivial = load inspect %8
+  %88: USize trivial = const 4
+  %89: USize trivial = bitcast inspect %87
+  %90: Bool trivial = ge inspect %89 inspect %88
+  call checkCondition borrow %90
+  %91: %U64 address = element.addr inspect %3 inspect %87
+  %92: U64 trivial = load inspect %91
+  jump -> bb8(consume %92)
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %93: Size trivial = load inspect %7
+  %94: Size trivial = const 1
+  %95: Size trivial = add inspect %93 inspect %94
+  store inspect %7 consume %95
+  jump -> bb4
+
+bb12:
+  %96: I32 trivial = load inspect %6
+  %97: I32 trivial = const 1
+  %98: I32 trivial = add inspect %96 inspect %97
+  store inspect %6 consume %98
+  jump -> bb11
+}
+
+fn windowU32() -> I32 {
+bb0:
+  %1: %Vec(U32) address = alloc frame Vec(U32)
+  %2: %Vec(U32) address = alloc frame Vec(U32)
+  %3: %[U32 *8] address = alloc frame [U32 *8]
+  %4: %[U32 *8] address = alloc frame [U32 *8]
+  %5: %[U32 *8] address = alloc frame [U32 *8]
+  %6: %I32 address = alloc frame I32
+  %7: %Size address = alloc frame Size
+  %8: %Size address = alloc frame Size
+  %9: %U32 address = alloc frame U32
+  %10: Vec(U32) trivial = call doublewords
+  store inspect %1 consume %10
+  %11: Vec(U32) trivial = load inspect %1
+  %12: U32 trivial = const 5
+  %13: Vec(U32) trivial = vec.splat inspect %12
+  %14: Vec(U32) trivial = mul inspect %11 inspect %13
+  %15: U32 trivial = const 50000
+  %16: Vec(U32) trivial = vec.splat inspect %15
+  %17: Vec(U32) trivial = add inspect %14 inspect %16
+  store inspect %2 consume %17
+  %18: Vec(U32) trivial = load inspect %1
+  %19: I32 trivial = const 8
+  %20: I32 trivial = const 8
+  %21: Bool trivial = ne inspect %19 inspect %20
+  branch inspect %21 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %22: U32 trivial = const 0
+  %23: U32 trivial = const 0
+  %24: U32 trivial = const 0
+  %25: U32 trivial = const 0
+  %26: U32 trivial = const 0
+  %27: U32 trivial = const 0
+  %28: U32 trivial = const 0
+  %29: U32 trivial = const 0
+  %30: [U32 *8] trivial = aggregate.0 consume %22 consume %23 consume %24 consume %25 consume %26 consume %27 consume %28 consume %29
+  store inspect %3 consume %30
+  %31: Size trivial = const 0
+  %32: %U32 address = element.addr inspect %3 inspect %31
+  %33: U32 [shared slot 0] guaranteed from{%3} = load inspect %32
+  %34: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %33
+  %35: Vec(U32) trivial = load inspect %1
+  %36: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %34
+  store inspect %36 consume %35
+  %37: U32 trivial = const 0
+  %38: U32 trivial = const 0
+  %39: U32 trivial = const 0
+  %40: U32 trivial = const 0
+  %41: U32 trivial = const 0
+  %42: U32 trivial = const 0
+  %43: U32 trivial = const 0
+  %44: U32 trivial = const 0
+  %45: [U32 *8] trivial = aggregate.0 consume %37 consume %38 consume %39 consume %40 consume %41 consume %42 consume %43 consume %44
+  store inspect %4 consume %45
+  %46: Size trivial = const 0
+  %47: %U32 address = element.addr inspect %4 inspect %46
+  %48: U32 [shared slot 0] guaranteed from{%4} = load inspect %47
+  %49: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %48
+  %50: Vec(U32) trivial = load inspect %2
+  %51: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %49
+  store inspect %51 consume %50
+  %52: U32 trivial = const 0
+  %53: U32 trivial = const 0
+  %54: U32 trivial = const 0
+  %55: U32 trivial = const 0
+  %56: U32 trivial = const 0
+  %57: U32 trivial = const 0
+  %58: U32 trivial = const 0
+  %59: U32 trivial = const 0
+  %60: [U32 *8] trivial = aggregate.0 consume %52 consume %53 consume %54 consume %55 consume %56 consume %57 consume %58 consume %59
+  store inspect %5 consume %60
+  %61: Size trivial = const 0
+  %62: %U32 address = element.addr inspect %5 inspect %61
+  %63: U32 [shared slot 0] guaranteed from{%5} = load inspect %62
+  %64: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %63
+  %65: Vec(U32) trivial = load inspect %2
+  %66: Vec(U32) trivial = load inspect %1
+  %67: I32 trivial = const 6
+  %68: Vec(U32) trivial = vec.shuffle [14, 15, 0, 1, 2, 3, 4, 5] inspect %65 inspect %66
+  %69: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %64
+  store inspect %69 consume %68
+  %70: I32 trivial = const 0
+  store inspect %6 consume %70
+  %71: Size trivial = const 0
+  store inspect %7 consume %71
+  jump -> bb4
+
+bb3:
+  %72: I32 trivial = const 100
+  return consume %72
+
+bb4:
+  %73: Size trivial = load inspect %7
+  %74: Size trivial = const 8
+  %75: Bool trivial = lt inspect %73 inspect %74
+  branch inspect %75 -> bb6 -> bb5
+
+bb5:
+  %76: I32 trivial = load inspect %6
+  return consume %76
+
+bb6:
+  %77: Size trivial = load inspect %7
+  %78: Size trivial = const 6
+  %79: Size trivial = add inspect %78 inspect %77
+  store inspect %8 consume %79
+  %80: Size trivial = load inspect %8
+  %81: Size trivial = const 8
+  %82: Bool trivial = lt inspect %80 inspect %81
+  branch inspect %82 -> bb9 -> bb7
+
+bb7:
+  %83: Size trivial = load inspect %8
+  %84: Size trivial = const 8
+  %85: Size trivial = sub inspect %83 inspect %84
+  %86: USize trivial = const 8
+  %87: USize trivial = bitcast inspect %85
+  %88: Bool trivial = ge inspect %87 inspect %86
+  call checkCondition borrow %88
+  %89: %U32 address = element.addr inspect %4 inspect %85
+  %90: U32 trivial = load inspect %89
+  jump -> bb8(consume %90)
+
+bb8(%0: U32 trivial):
+  store inspect %9 consume %0
+  %91: Size trivial = load inspect %7
+  %92: USize trivial = const 8
+  %93: USize trivial = bitcast inspect %91
+  %94: Bool trivial = ge inspect %93 inspect %92
+  call checkCondition borrow %94
+  %95: %U32 address = element.addr inspect %5 inspect %91
+  %96: U32 trivial = load inspect %95
+  %97: U32 trivial = load inspect %9
+  %98: Bool trivial = ne inspect %96 inspect %97
+  branch inspect %98 -> bb12 -> bb10
+
+bb9:
+  %99: Size trivial = load inspect %8
+  %100: USize trivial = const 8
+  %101: USize trivial = bitcast inspect %99
+  %102: Bool trivial = ge inspect %101 inspect %100
+  call checkCondition borrow %102
+  %103: %U32 address = element.addr inspect %3 inspect %99
+  %104: U32 trivial = load inspect %103
+  jump -> bb8(consume %104)
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %105: Size trivial = load inspect %7
+  %106: Size trivial = const 1
+  %107: Size trivial = add inspect %105 inspect %106
+  store inspect %7 consume %107
+  jump -> bb4
+
+bb12:
+  %108: I32 trivial = load inspect %6
+  %109: I32 trivial = const 1
+  %110: I32 trivial = add inspect %108 inspect %109
+  store inspect %6 consume %110
+  jump -> bb11
+}
+
+fn written() -> I32 {
+bb0:
+  %1: %Vec(U16) address = alloc frame Vec(U16)
+  %2: %Vec(U16) address = alloc frame Vec(U16)
+  %3: %Vec(U64) address = alloc frame Vec(U64)
+  %4: %Vec(U64) address = alloc frame Vec(U64)
+  %5: %[U16 *16] address = alloc frame [U16 *16]
+  %6: %[U16 *16] address = alloc frame [U16 *16]
+  %7: %[U16 *16] address = alloc frame [U16 *16]
+  %8: %[U64 *4] address = alloc frame [U64 *4]
+  %9: %[U64 *4] address = alloc frame [U64 *4]
+  %10: %[U64 *4] address = alloc frame [U64 *4]
+  %11: %[Size *16] address = alloc frame [Size *16]
+  %12: %I32 address = alloc frame I32
+  %13: %Size address = alloc frame Size
+  %14: %Size address = alloc frame Size
+  %15: %U16 address = alloc frame U16
+  %16: Vec(U16) trivial = call words
+  store inspect %1 consume %16
+  %17: Vec(U16) trivial = load inspect %1
+  %18: U16 trivial = const 500
+  %19: Vec(U16) trivial = vec.splat inspect %18
+  %20: Vec(U16) trivial = add inspect %17 inspect %19
+  store inspect %2 consume %20
+  %21: Vec(U64) trivial = call quadwords
+  store inspect %3 consume %21
+  %22: Vec(U64) trivial = load inspect %3
+  %23: U64 trivial = const 3
+  %24: Vec(U64) trivial = vec.splat inspect %23
+  %25: Vec(U64) trivial = mul inspect %22 inspect %24
+  store inspect %4 consume %25
+  %26: Vec(U16) trivial = load inspect %1
+  %27: I32 trivial = const 16
+  %28: I32 trivial = const 16
+  %29: Bool trivial = ne inspect %27 inspect %28
+  branch inspect %29 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %30: U16 trivial = const 0
+  %31: U16 trivial = const 0
+  %32: U16 trivial = const 0
+  %33: U16 trivial = const 0
+  %34: U16 trivial = const 0
+  %35: U16 trivial = const 0
+  %36: U16 trivial = const 0
+  %37: U16 trivial = const 0
+  %38: U16 trivial = const 0
+  %39: U16 trivial = const 0
+  %40: U16 trivial = const 0
+  %41: U16 trivial = const 0
+  %42: U16 trivial = const 0
+  %43: U16 trivial = const 0
+  %44: U16 trivial = const 0
+  %45: U16 trivial = const 0
+  %46: [U16 *16] trivial = aggregate.0 consume %30 consume %31 consume %32 consume %33 consume %34 consume %35 consume %36 consume %37 consume %38 consume %39 consume %40 consume %41 consume %42 consume %43 consume %44 consume %45
+  store inspect %5 consume %46
+  %47: Size trivial = const 0
+  %48: %U16 address = element.addr inspect %5 inspect %47
+  %49: U16 [shared slot 0] guaranteed from{%5} = load inspect %48
+  %50: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %49
+  %51: Vec(U16) trivial = load inspect %1
+  %52: %Vec(U16) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %50
+  store inspect %52 consume %51
+  %53: U16 trivial = const 0
+  %54: U16 trivial = const 0
+  %55: U16 trivial = const 0
+  %56: U16 trivial = const 0
+  %57: U16 trivial = const 0
+  %58: U16 trivial = const 0
+  %59: U16 trivial = const 0
+  %60: U16 trivial = const 0
+  %61: U16 trivial = const 0
+  %62: U16 trivial = const 0
+  %63: U16 trivial = const 0
+  %64: U16 trivial = const 0
+  %65: U16 trivial = const 0
+  %66: U16 trivial = const 0
+  %67: U16 trivial = const 0
+  %68: U16 trivial = const 0
+  %69: [U16 *16] trivial = aggregate.0 consume %53 consume %54 consume %55 consume %56 consume %57 consume %58 consume %59 consume %60 consume %61 consume %62 consume %63 consume %64 consume %65 consume %66 consume %67 consume %68
+  store inspect %6 consume %69
+  %70: Size trivial = const 0
+  %71: %U16 address = element.addr inspect %6 inspect %70
+  %72: U16 [shared slot 0] guaranteed from{%6} = load inspect %71
+  %73: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %72
+  %74: Vec(U16) trivial = load inspect %2
+  %75: %Vec(U16) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %73
+  store inspect %75 consume %74
+  %76: U16 trivial = const 0
+  %77: U16 trivial = const 0
+  %78: U16 trivial = const 0
+  %79: U16 trivial = const 0
+  %80: U16 trivial = const 0
+  %81: U16 trivial = const 0
+  %82: U16 trivial = const 0
+  %83: U16 trivial = const 0
+  %84: U16 trivial = const 0
+  %85: U16 trivial = const 0
+  %86: U16 trivial = const 0
+  %87: U16 trivial = const 0
+  %88: U16 trivial = const 0
+  %89: U16 trivial = const 0
+  %90: U16 trivial = const 0
+  %91: U16 trivial = const 0
+  %92: [U16 *16] trivial = aggregate.0 consume %76 consume %77 consume %78 consume %79 consume %80 consume %81 consume %82 consume %83 consume %84 consume %85 consume %86 consume %87 consume %88 consume %89 consume %90 consume %91
+  store inspect %7 consume %92
+  %93: Size trivial = const 0
+  %94: %U16 address = element.addr inspect %7 inspect %93
+  %95: U16 [shared slot 0] guaranteed from{%7} = load inspect %94
+  %96: %U16 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %95
+  %97: Vec(U16) trivial = load inspect %1
+  %98: Vec(U16) trivial = load inspect %2
+  %99: I32 trivial = const 15
+  %100: I32 trivial = const 0
+  %101: I32 trivial = const 17
+  %102: I32 trivial = const 3
+  %103: I32 trivial = const 31
+  %104: I32 trivial = const 30
+  %105: I32 trivial = const 8
+  %106: I32 trivial = const 9
+  %107: I32 trivial = const 16
+  %108: I32 trivial = const 1
+  %109: I32 trivial = const 2
+  %110: I32 trivial = const 18
+  %111: I32 trivial = const 4
+  %112: I32 trivial = const 5
+  %113: I32 trivial = const 6
+  %114: I32 trivial = const 7
+  %115: [I32 *16] trivial = aggregate.0 consume %99 consume %100 consume %101 consume %102 consume %103 consume %104 consume %105 consume %106 consume %107 consume %108 consume %109 consume %110 consume %111 consume %112 consume %113 consume %114
+  %116: Vec(U16) trivial = vec.shuffle [15, 0, 17, 3, 31, 30, 8, 9, 16, 1, 2, 18, 4, 5, 6, 7] inspect %97 inspect %98
+  %117: %Vec(U16) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %96
+  store inspect %117 consume %116
+  %118: U64 trivial = const 0
+  %119: U64 trivial = const 0
+  %120: U64 trivial = const 0
+  %121: U64 trivial = const 0
+  %122: [U64 *4] trivial = aggregate.0 consume %118 consume %119 consume %120 consume %121
+  store inspect %8 consume %122
+  %123: Size trivial = const 0
+  %124: %U64 address = element.addr inspect %8 inspect %123
+  %125: U64 [shared slot 0] guaranteed from{%8} = load inspect %124
+  %126: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %125
+  %127: Vec(U64) trivial = load inspect %3
+  %128: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %126
+  store inspect %128 consume %127
+  %129: U64 trivial = const 0
+  %130: U64 trivial = const 0
+  %131: U64 trivial = const 0
+  %132: U64 trivial = const 0
+  %133: [U64 *4] trivial = aggregate.0 consume %129 consume %130 consume %131 consume %132
+  store inspect %9 consume %133
+  %134: Size trivial = const 0
+  %135: %U64 address = element.addr inspect %9 inspect %134
+  %136: U64 [shared slot 0] guaranteed from{%9} = load inspect %135
+  %137: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %136
+  %138: Vec(U64) trivial = load inspect %4
+  %139: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %137
+  store inspect %139 consume %138
+  %140: U64 trivial = const 0
+  %141: U64 trivial = const 0
+  %142: U64 trivial = const 0
+  %143: U64 trivial = const 0
+  %144: [U64 *4] trivial = aggregate.0 consume %140 consume %141 consume %142 consume %143
+  store inspect %10 consume %144
+  %145: Size trivial = const 0
+  %146: %U64 address = element.addr inspect %10 inspect %145
+  %147: U64 [shared slot 0] guaranteed from{%10} = load inspect %146
+  %148: %U64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %147
+  %149: Vec(U64) trivial = load inspect %3
+  %150: Vec(U64) trivial = load inspect %4
+  %151: I32 trivial = const 3
+  %152: I32 trivial = const 4
+  %153: I32 trivial = const 1
+  %154: I32 trivial = const 6
+  %155: [I32 *4] trivial = aggregate.0 consume %151 consume %152 consume %153 consume %154
+  %156: Vec(U64) trivial = vec.shuffle [3, 4, 1, 6] inspect %149 inspect %150
+  %157: %Vec(U64) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %148
+  store inspect %157 consume %156
+  %158: Size trivial = const 15
+  %159: Size trivial = const 0
+  %160: Size trivial = const 17
+  %161: Size trivial = const 3
+  %162: Size trivial = const 31
+  %163: Size trivial = const 30
+  %164: Size trivial = const 8
+  %165: Size trivial = const 9
+  %166: Size trivial = const 16
+  %167: Size trivial = const 1
+  %168: Size trivial = const 2
+  %169: Size trivial = const 18
+  %170: Size trivial = const 4
+  %171: Size trivial = const 5
+  %172: Size trivial = const 6
+  %173: Size trivial = const 7
+  %174: [Size *16] trivial = aggregate.0 consume %158 consume %159 consume %160 consume %161 consume %162 consume %163 consume %164 consume %165 consume %166 consume %167 consume %168 consume %169 consume %170 consume %171 consume %172 consume %173
+  store inspect %11 consume %174
+  %175: I32 trivial = const 0
+  store inspect %12 consume %175
+  %176: Size trivial = const 0
+  store inspect %13 consume %176
+  jump -> bb4
+
+bb3:
+  %177: I32 trivial = const 100
+  return consume %177
+
+bb4:
+  %178: Size trivial = load inspect %13
+  %179: Size trivial = const 16
+  %180: Bool trivial = lt inspect %178 inspect %179
+  branch inspect %180 -> bb6 -> bb5
+
+bb5:
+  %181: Size trivial = const 0
+  %182: %U64 address = element.addr inspect %10 inspect %181
+  %183: U64 trivial = load inspect %182
+  %184: Size trivial = const 3
+  %185: %U64 address = element.addr inspect %8 inspect %184
+  %186: U64 trivial = load inspect %185
+  %187: Bool trivial = ne inspect %183 inspect %186
+  branch inspect %187 -> bb15 -> bb13
+
+bb6:
+  %188: Size trivial = load inspect %13
+  %189: USize trivial = const 16
+  %190: USize trivial = bitcast inspect %188
+  %191: Bool trivial = ge inspect %190 inspect %189
+  call checkCondition borrow %191
+  %192: %Size address = element.addr inspect %11 inspect %188
+  %193: Size trivial = load inspect %192
+  store inspect %14 consume %193
+  %194: Size trivial = load inspect %14
+  %195: Size trivial = const 16
+  %196: Bool trivial = lt inspect %194 inspect %195
+  branch inspect %196 -> bb9 -> bb7
+
+bb7:
+  %197: Size trivial = load inspect %14
+  %198: Size trivial = const 16
+  %199: Size trivial = sub inspect %197 inspect %198
+  %200: USize trivial = const 16
+  %201: USize trivial = bitcast inspect %199
+  %202: Bool trivial = ge inspect %201 inspect %200
+  call checkCondition borrow %202
+  %203: %U16 address = element.addr inspect %6 inspect %199
+  %204: U16 trivial = load inspect %203
+  jump -> bb8(consume %204)
+
+bb8(%0: U16 trivial):
+  store inspect %15 consume %0
+  %205: Size trivial = load inspect %13
+  %206: USize trivial = const 16
+  %207: USize trivial = bitcast inspect %205
+  %208: Bool trivial = ge inspect %207 inspect %206
+  call checkCondition borrow %208
+  %209: %U16 address = element.addr inspect %7 inspect %205
+  %210: U16 trivial = load inspect %209
+  %211: U16 trivial = load inspect %15
+  %212: Bool trivial = ne inspect %210 inspect %211
+  branch inspect %212 -> bb12 -> bb10
+
+bb9:
+  %213: Size trivial = load inspect %14
+  %214: USize trivial = const 16
+  %215: USize trivial = bitcast inspect %213
+  %216: Bool trivial = ge inspect %215 inspect %214
+  call checkCondition borrow %216
+  %217: %U16 address = element.addr inspect %5 inspect %213
+  %218: U16 trivial = load inspect %217
+  jump -> bb8(consume %218)
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %219: Size trivial = load inspect %13
+  %220: Size trivial = const 1
+  %221: Size trivial = add inspect %219 inspect %220
+  store inspect %13 consume %221
+  jump -> bb4
+
+bb12:
+  %222: I32 trivial = load inspect %12
+  %223: I32 trivial = const 1
+  %224: I32 trivial = add inspect %222 inspect %223
+  store inspect %12 consume %224
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %225: Size trivial = const 1
+  %226: %U64 address = element.addr inspect %10 inspect %225
+  %227: U64 trivial = load inspect %226
+  %228: Size trivial = const 0
+  %229: %U64 address = element.addr inspect %9 inspect %228
+  %230: U64 trivial = load inspect %229
+  %231: Bool trivial = ne inspect %227 inspect %230
+  branch inspect %231 -> bb18 -> bb16
+
+bb15:
+  %232: I32 trivial = load inspect %12
+  %233: I32 trivial = const 1
+  %234: I32 trivial = add inspect %232 inspect %233
+  store inspect %12 consume %234
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %235: Size trivial = const 2
+  %236: %U64 address = element.addr inspect %10 inspect %235
+  %237: U64 trivial = load inspect %236
+  %238: Size trivial = const 1
+  %239: %U64 address = element.addr inspect %8 inspect %238
+  %240: U64 trivial = load inspect %239
+  %241: Bool trivial = ne inspect %237 inspect %240
+  branch inspect %241 -> bb21 -> bb19
+
+bb18:
+  %242: I32 trivial = load inspect %12
+  %243: I32 trivial = const 1
+  %244: I32 trivial = add inspect %242 inspect %243
+  store inspect %12 consume %244
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %245: Size trivial = const 3
+  %246: %U64 address = element.addr inspect %10 inspect %245
+  %247: U64 trivial = load inspect %246
+  %248: Size trivial = const 2
+  %249: %U64 address = element.addr inspect %9 inspect %248
+  %250: U64 trivial = load inspect %249
+  %251: Bool trivial = ne inspect %247 inspect %250
+  branch inspect %251 -> bb24 -> bb22
+
+bb21:
+  %252: I32 trivial = load inspect %12
+  %253: I32 trivial = const 1
+  %254: I32 trivial = add inspect %252 inspect %253
+  store inspect %12 consume %254
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %255: I32 trivial = load inspect %12
+  return consume %255
+
+bb24:
+  %256: I32 trivial = load inspect %12
+  %257: I32 trivial = const 1
+  %258: I32 trivial = add inspect %256 inspect %257
+  store inspect %12 consume %258
+  jump -> bb23
+}
+
+fn trees() -> I32 {
+bb0:
+  %0: %Vec(U32) address = alloc frame Vec(U32)
+  %1: %Vec(U32) address = alloc frame Vec(U32)
+  %2: %Vec(U32) address = alloc frame Vec(U32)
+  %3: %[U32 *8] address = alloc frame [U32 *8]
+  %4: %[U32 *8] address = alloc frame [U32 *8]
+  %5: %[U32 *8] address = alloc frame [U32 *8]
+  %6: %[U32 *8] address = alloc frame [U32 *8]
+  %7: %[U32 *8] address = alloc frame [U32 *8]
+  %8: %[U32 *8] address = alloc frame [U32 *8]
+  %9: %[U32 *8] address = alloc frame [U32 *8]
+  %10: %[U32 *8] address = alloc frame [U32 *8]
+  %11: %[U32 *8] address = alloc frame [U32 *8]
+  %12: %I32 address = alloc frame I32
+  %13: %Size address = alloc frame Size
+  %14: %U32 address = alloc frame U32
+  %15: %U32 address = alloc frame U32
+  %16: %U32 address = alloc frame U32
+  %17: Vec(U32) trivial = call doublewords
+  store inspect %0 consume %17
+  %18: Vec(U32) trivial = load inspect %0
+  %19: U32 trivial = const 7
+  %20: Vec(U32) trivial = vec.splat inspect %19
+  %21: Vec(U32) trivial = mul inspect %18 inspect %20
+  store inspect %1 consume %21
+  %22: Vec(U32) trivial = load inspect %0
+  %23: U32 trivial = const 1515870810
+  %24: Vec(U32) trivial = vec.splat inspect %23
+  %25: Vec(U32) trivial = xor inspect %22 inspect %24
+  store inspect %2 consume %25
+  %26: Vec(U32) trivial = load inspect %0
+  %27: I32 trivial = const 8
+  %28: I32 trivial = const 8
+  %29: Bool trivial = ne inspect %27 inspect %28
+  branch inspect %29 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %30: U32 trivial = const 0
+  %31: U32 trivial = const 0
+  %32: U32 trivial = const 0
+  %33: U32 trivial = const 0
+  %34: U32 trivial = const 0
+  %35: U32 trivial = const 0
+  %36: U32 trivial = const 0
+  %37: U32 trivial = const 0
+  %38: [U32 *8] trivial = aggregate.0 consume %30 consume %31 consume %32 consume %33 consume %34 consume %35 consume %36 consume %37
+  store inspect %3 consume %38
+  %39: Size trivial = const 0
+  %40: %U32 address = element.addr inspect %3 inspect %39
+  %41: U32 [shared slot 0] guaranteed from{%3} = load inspect %40
+  %42: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %41
+  %43: Vec(U32) trivial = load inspect %0
+  %44: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %42
+  store inspect %44 consume %43
+  %45: U32 trivial = const 0
+  %46: U32 trivial = const 0
+  %47: U32 trivial = const 0
+  %48: U32 trivial = const 0
+  %49: U32 trivial = const 0
+  %50: U32 trivial = const 0
+  %51: U32 trivial = const 0
+  %52: U32 trivial = const 0
+  %53: [U32 *8] trivial = aggregate.0 consume %45 consume %46 consume %47 consume %48 consume %49 consume %50 consume %51 consume %52
+  store inspect %4 consume %53
+  %54: Size trivial = const 0
+  %55: %U32 address = element.addr inspect %4 inspect %54
+  %56: U32 [shared slot 0] guaranteed from{%4} = load inspect %55
+  %57: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %56
+  %58: Vec(U32) trivial = load inspect %1
+  %59: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %57
+  store inspect %59 consume %58
+  %60: U32 trivial = const 0
+  %61: U32 trivial = const 0
+  %62: U32 trivial = const 0
+  %63: U32 trivial = const 0
+  %64: U32 trivial = const 0
+  %65: U32 trivial = const 0
+  %66: U32 trivial = const 0
+  %67: U32 trivial = const 0
+  %68: [U32 *8] trivial = aggregate.0 consume %60 consume %61 consume %62 consume %63 consume %64 consume %65 consume %66 consume %67
+  store inspect %5 consume %68
+  %69: Size trivial = const 0
+  %70: %U32 address = element.addr inspect %5 inspect %69
+  %71: U32 [shared slot 0] guaranteed from{%5} = load inspect %70
+  %72: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %71
+  %73: Vec(U32) trivial = load inspect %2
+  %74: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %72
+  store inspect %74 consume %73
+  %75: U32 trivial = const 0
+  %76: U32 trivial = const 0
+  %77: U32 trivial = const 0
+  %78: U32 trivial = const 0
+  %79: U32 trivial = const 0
+  %80: U32 trivial = const 0
+  %81: U32 trivial = const 0
+  %82: U32 trivial = const 0
+  %83: [U32 *8] trivial = aggregate.0 consume %75 consume %76 consume %77 consume %78 consume %79 consume %80 consume %81 consume %82
+  store inspect %6 consume %83
+  %84: Size trivial = const 0
+  %85: %U32 address = element.addr inspect %6 inspect %84
+  %86: U32 [shared slot 0] guaranteed from{%6} = load inspect %85
+  %87: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %86
+  %88: Vec(U32) trivial = load inspect %2
+  %89: Vec(U32) trivial = load inspect %0
+  %90: Vec(U32) trivial = and inspect %88 inspect %89
+  %91: Vec(U32) trivial = load inspect %2
+  %92: Vec(U32) trivial = not inspect %91
+  %93: Vec(U32) trivial = load inspect %1
+  %94: Vec(U32) trivial = and inspect %92 inspect %93
+  %95: Vec(U32) trivial = or inspect %90 inspect %94
+  %96: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %87
+  store inspect %96 consume %95
+  %97: U32 trivial = const 0
+  %98: U32 trivial = const 0
+  %99: U32 trivial = const 0
+  %100: U32 trivial = const 0
+  %101: U32 trivial = const 0
+  %102: U32 trivial = const 0
+  %103: U32 trivial = const 0
+  %104: U32 trivial = const 0
+  %105: [U32 *8] trivial = aggregate.0 consume %97 consume %98 consume %99 consume %100 consume %101 consume %102 consume %103 consume %104
+  store inspect %7 consume %105
+  %106: Size trivial = const 0
+  %107: %U32 address = element.addr inspect %7 inspect %106
+  %108: U32 [shared slot 0] guaranteed from{%7} = load inspect %107
+  %109: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %108
+  %110: Vec(U32) trivial = load inspect %0
+  %111: Vec(U32) trivial = load inspect %1
+  %112: Vec(U32) trivial = and inspect %110 inspect %111
+  %113: Vec(U32) trivial = load inspect %2
+  %114: Vec(U32) trivial = load inspect %0
+  %115: Vec(U32) trivial = load inspect %1
+  %116: Vec(U32) trivial = or inspect %114 inspect %115
+  %117: Vec(U32) trivial = and inspect %113 inspect %116
+  %118: Vec(U32) trivial = or inspect %112 inspect %117
+  %119: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %109
+  store inspect %119 consume %118
+  %120: U32 trivial = const 0
+  %121: U32 trivial = const 0
+  %122: U32 trivial = const 0
+  %123: U32 trivial = const 0
+  %124: U32 trivial = const 0
+  %125: U32 trivial = const 0
+  %126: U32 trivial = const 0
+  %127: U32 trivial = const 0
+  %128: [U32 *8] trivial = aggregate.0 consume %120 consume %121 consume %122 consume %123 consume %124 consume %125 consume %126 consume %127
+  store inspect %8 consume %128
+  %129: Size trivial = const 0
+  %130: %U32 address = element.addr inspect %8 inspect %129
+  %131: U32 [shared slot 0] guaranteed from{%8} = load inspect %130
+  %132: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %131
+  %133: Vec(U32) trivial = load inspect %0
+  %134: Vec(U32) trivial = load inspect %1
+  %135: Vec(U32) trivial = xor inspect %133 inspect %134
+  %136: Vec(U32) trivial = load inspect %2
+  %137: Vec(U32) trivial = xor inspect %135 inspect %136
+  %138: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %132
+  store inspect %138 consume %137
+  %139: U32 trivial = const 0
+  %140: U32 trivial = const 0
+  %141: U32 trivial = const 0
+  %142: U32 trivial = const 0
+  %143: U32 trivial = const 0
+  %144: U32 trivial = const 0
+  %145: U32 trivial = const 0
+  %146: U32 trivial = const 0
+  %147: [U32 *8] trivial = aggregate.0 consume %139 consume %140 consume %141 consume %142 consume %143 consume %144 consume %145 consume %146
+  store inspect %9 consume %147
+  %148: Size trivial = const 0
+  %149: %U32 address = element.addr inspect %9 inspect %148
+  %150: U32 [shared slot 0] guaranteed from{%9} = load inspect %149
+  %151: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %150
+  %152: Vec(U32) trivial = load inspect %0
+  %153: Vec(U32) trivial = not inspect %152
+  %154: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %151
+  store inspect %154 consume %153
+  %155: U32 trivial = const 0
+  %156: U32 trivial = const 0
+  %157: U32 trivial = const 0
+  %158: U32 trivial = const 0
+  %159: U32 trivial = const 0
+  %160: U32 trivial = const 0
+  %161: U32 trivial = const 0
+  %162: U32 trivial = const 0
+  %163: [U32 *8] trivial = aggregate.0 consume %155 consume %156 consume %157 consume %158 consume %159 consume %160 consume %161 consume %162
+  store inspect %10 consume %163
+  %164: Size trivial = const 0
+  %165: %U32 address = element.addr inspect %10 inspect %164
+  %166: U32 [shared slot 0] guaranteed from{%10} = load inspect %165
+  %167: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %166
+  %168: Vec(U32) trivial = load inspect %0
+  %169: Vec(U32) trivial = load inspect %1
+  %170: Vec(U32) trivial = xor inspect %168 inspect %169
+  %171: U32 trivial = const 252645135
+  %172: Vec(U32) trivial = vec.splat inspect %171
+  %173: Vec(U32) trivial = and inspect %170 inspect %172
+  %174: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %167
+  store inspect %174 consume %173
+  %175: U32 trivial = const 0
+  %176: U32 trivial = const 0
+  %177: U32 trivial = const 0
+  %178: U32 trivial = const 0
+  %179: U32 trivial = const 0
+  %180: U32 trivial = const 0
+  %181: U32 trivial = const 0
+  %182: U32 trivial = const 0
+  %183: [U32 *8] trivial = aggregate.0 consume %175 consume %176 consume %177 consume %178 consume %179 consume %180 consume %181 consume %182
+  store inspect %11 consume %183
+  %184: Size trivial = const 0
+  %185: %U32 address = element.addr inspect %11 inspect %184
+  %186: U32 [shared slot 0] guaranteed from{%11} = load inspect %185
+  %187: %U32 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %186
+  %188: Vec(U32) trivial = load inspect %0
+  %189: U32 trivial = const 123456
+  %190: Vec(U32) trivial = vec.splat inspect %189
+  %191: Vec(U32) trivial = add inspect %188 inspect %190
+  %192: %Vec(U32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %187
+  store inspect %192 consume %191
+  %193: I32 trivial = const 0
+  store inspect %12 consume %193
+  %194: Size trivial = const 0
+  store inspect %13 consume %194
+  jump -> bb4
+
+bb3:
+  %195: I32 trivial = const 100
+  return consume %195
+
+bb4:
+  %196: Size trivial = load inspect %13
+  %197: Size trivial = const 8
+  %198: Bool trivial = lt inspect %196 inspect %197
+  branch inspect %198 -> bb6 -> bb5
+
+bb5:
+  %199: I32 trivial = load inspect %12
+  return consume %199
+
+bb6:
+  %200: Size trivial = load inspect %13
+  %201: USize trivial = const 8
+  %202: USize trivial = bitcast inspect %200
+  %203: Bool trivial = ge inspect %202 inspect %201
+  call checkCondition borrow %203
+  %204: %U32 address = element.addr inspect %3 inspect %200
+  %205: U32 trivial = load inspect %204
+  store inspect %14 consume %205
+  %206: Size trivial = load inspect %13
+  %207: USize trivial = const 8
+  %208: USize trivial = bitcast inspect %206
+  %209: Bool trivial = ge inspect %208 inspect %207
+  call checkCondition borrow %209
+  %210: %U32 address = element.addr inspect %4 inspect %206
+  %211: U32 trivial = load inspect %210
+  store inspect %15 consume %211
+  %212: Size trivial = load inspect %13
+  %213: USize trivial = const 8
+  %214: USize trivial = bitcast inspect %212
+  %215: Bool trivial = ge inspect %214 inspect %213
+  call checkCondition borrow %215
+  %216: %U32 address = element.addr inspect %5 inspect %212
+  %217: U32 trivial = load inspect %216
+  store inspect %16 consume %217
+  %218: Size trivial = load inspect %13
+  %219: USize trivial = const 8
+  %220: USize trivial = bitcast inspect %218
+  %221: Bool trivial = ge inspect %220 inspect %219
+  call checkCondition borrow %221
+  %222: %U32 address = element.addr inspect %6 inspect %218
+  %223: U32 trivial = load inspect %222
+  %224: U32 trivial = load inspect %16
+  %225: U32 trivial = load inspect %14
+  %226: U32 trivial = and inspect %224 inspect %225
+  %227: U32 trivial = load inspect %16
+  %228: U32 trivial = not inspect %227
+  %229: U32 trivial = load inspect %15
+  %230: U32 trivial = and inspect %228 inspect %229
+  %231: U32 trivial = or inspect %226 inspect %230
+  %232: Bool trivial = ne inspect %223 inspect %231
+  branch inspect %232 -> bb9 -> bb7
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %233: Size trivial = load inspect %13
+  %234: USize trivial = const 8
+  %235: USize trivial = bitcast inspect %233
+  %236: Bool trivial = ge inspect %235 inspect %234
+  call checkCondition borrow %236
+  %237: %U32 address = element.addr inspect %7 inspect %233
+  %238: U32 trivial = load inspect %237
+  %239: U32 trivial = load inspect %14
+  %240: U32 trivial = load inspect %15
+  %241: U32 trivial = and inspect %239 inspect %240
+  %242: U32 trivial = load inspect %16
+  %243: U32 trivial = load inspect %14
+  %244: U32 trivial = load inspect %15
+  %245: U32 trivial = or inspect %243 inspect %244
+  %246: U32 trivial = and inspect %242 inspect %245
+  %247: U32 trivial = or inspect %241 inspect %246
+  %248: Bool trivial = ne inspect %238 inspect %247
+  branch inspect %248 -> bb12 -> bb10
+
+bb9:
+  %249: I32 trivial = load inspect %12
+  %250: I32 trivial = const 1
+  %251: I32 trivial = add inspect %249 inspect %250
+  store inspect %12 consume %251
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %252: Size trivial = load inspect %13
+  %253: USize trivial = const 8
+  %254: USize trivial = bitcast inspect %252
+  %255: Bool trivial = ge inspect %254 inspect %253
+  call checkCondition borrow %255
+  %256: %U32 address = element.addr inspect %8 inspect %252
+  %257: U32 trivial = load inspect %256
+  %258: U32 trivial = load inspect %14
+  %259: U32 trivial = load inspect %15
+  %260: U32 trivial = xor inspect %258 inspect %259
+  %261: U32 trivial = load inspect %16
+  %262: U32 trivial = xor inspect %260 inspect %261
+  %263: Bool trivial = ne inspect %257 inspect %262
+  branch inspect %263 -> bb15 -> bb13
+
+bb12:
+  %264: I32 trivial = load inspect %12
+  %265: I32 trivial = const 1
+  %266: I32 trivial = add inspect %264 inspect %265
+  store inspect %12 consume %266
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %267: Size trivial = load inspect %13
+  %268: USize trivial = const 8
+  %269: USize trivial = bitcast inspect %267
+  %270: Bool trivial = ge inspect %269 inspect %268
+  call checkCondition borrow %270
+  %271: %U32 address = element.addr inspect %9 inspect %267
+  %272: U32 trivial = load inspect %271
+  %273: U32 trivial = load inspect %14
+  %274: U32 trivial = not inspect %273
+  %275: Bool trivial = ne inspect %272 inspect %274
+  branch inspect %275 -> bb18 -> bb16
+
+bb15:
+  %276: I32 trivial = load inspect %12
+  %277: I32 trivial = const 1
+  %278: I32 trivial = add inspect %276 inspect %277
+  store inspect %12 consume %278
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %279: Size trivial = load inspect %13
+  %280: USize trivial = const 8
+  %281: USize trivial = bitcast inspect %279
+  %282: Bool trivial = ge inspect %281 inspect %280
+  call checkCondition borrow %282
+  %283: %U32 address = element.addr inspect %10 inspect %279
+  %284: U32 trivial = load inspect %283
+  %285: U32 trivial = load inspect %14
+  %286: U32 trivial = load inspect %15
+  %287: U32 trivial = xor inspect %285 inspect %286
+  %288: U32 trivial = const 252645135
+  %289: U32 trivial = and inspect %287 inspect %288
+  %290: Bool trivial = ne inspect %284 inspect %289
+  branch inspect %290 -> bb21 -> bb19
+
+bb18:
+  %291: I32 trivial = load inspect %12
+  %292: I32 trivial = const 1
+  %293: I32 trivial = add inspect %291 inspect %292
+  store inspect %12 consume %293
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %294: Size trivial = load inspect %13
+  %295: USize trivial = const 8
+  %296: USize trivial = bitcast inspect %294
+  %297: Bool trivial = ge inspect %296 inspect %295
+  call checkCondition borrow %297
+  %298: %U32 address = element.addr inspect %11 inspect %294
+  %299: U32 trivial = load inspect %298
+  %300: U32 trivial = load inspect %14
+  %301: U32 trivial = const 123456
+  %302: U32 trivial = add inspect %300 inspect %301
+  %303: Bool trivial = ne inspect %299 inspect %302
+  branch inspect %303 -> bb24 -> bb22
+
+bb21:
+  %304: I32 trivial = load inspect %12
+  %305: I32 trivial = const 1
+  %306: I32 trivial = add inspect %304 inspect %305
+  store inspect %12 consume %306
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %307: Size trivial = load inspect %13
+  %308: Size trivial = const 1
+  %309: Size trivial = add inspect %307 inspect %308
+  store inspect %13 consume %309
+  jump -> bb4
+
+bb24:
+  %310: I32 trivial = load inspect %12
+  %311: I32 trivial = const 1
+  %312: I32 trivial = add inspect %310 inspect %311
+  store inspect %12 consume %312
+  jump -> bb23
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call interleavedU8
+  %1: I32 trivial = call interleavedU16
+  %2: I32 trivial = add inspect %0 inspect %1
+  %3: I32 trivial = call interleavedU32
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: I32 trivial = call interleavedU64
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: I32 trivial = call interleavedDouble
+  %8: I32 trivial = add inspect %6 inspect %7
+  %9: I32 trivial = call interleavedFloat
+  %10: I32 trivial = add inspect %8 inspect %9
+  %11: I32 trivial = call rearrangedU8
+  %12: I32 trivial = add inspect %10 inspect %11
+  %13: I32 trivial = call rearrangedU16
+  %14: I32 trivial = add inspect %12 inspect %13
+  %15: I32 trivial = call rearrangedU32
+  %16: I32 trivial = add inspect %14 inspect %15
+  %17: I32 trivial = call rearrangedU64
+  %18: I32 trivial = add inspect %16 inspect %17
+  %19: I32 trivial = call windowU64
+  %20: I32 trivial = add inspect %18 inspect %19
+  %21: I32 trivial = call windowU32
+  %22: I32 trivial = add inspect %20 inspect %21
+  %23: I32 trivial = call written
+  %24: I32 trivial = add inspect %22 inspect %23
+  %25: I32 trivial = call trees
+  %26: I32 trivial = add inspect %24 inspect %25
+  return consume %26
+}
+
+entry main

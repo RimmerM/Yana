@@ -230,25 +230,184 @@ StringView archName(TargetArch arch) {
 }
 
 /*
- * The three levels, and the three older spellings that name the same machines.
+ * The three levels - Analysis-Avx512.md §0.2 - as the instruction sets each adds to the one below it
+ * and the flags every part of it has.
  *
- * The aliases are kept because they read better at a call site that is about one instruction set -
- * `-enable-inst avx2` says why a benchmark row exists more clearly than `v3` does - and because
- * every script and fixture already writes them. What is *not* kept is a spelling for a machine no
- * level describes: `avx` alone was Sandy Bridge, which is a v2 part everywhere else, and `sse4.1`
- * alone was Penryn, which is below the floor. Both now name the level that contains them.
+ * **One table**, and it is the only statement of what a level is: `TargetExtensions::sets` reads it for
+ * both backends, the LLVM attribute list is derived from the sets it yields, and the selectors and the
+ * command line spell a level by its first column. A second table beside it is how the LLVM half of the
+ * v3 description came to be written from memory and wrong once.
+ *
+ * **Each implication is a claim about every part of the level**, and each was checked before it was
+ * written here rather than after: every Haswell and later, Excavator and every Zen has AES-NI and
+ * PCLMULQDQ; every Ice Lake, Tiger Lake, Rocket Lake, Sapphire Rapids and Zen 4 has VAES, VPCLMULQDQ,
+ * GFNI and SHA. A hypervisor may still hide AES from a guest, which is why host detection asks for the
+ * implied flags as well before it answers a level - see `applyHostExtensions`.
  */
-struct LevelName { StringView name; TargetExtensions::Level level; };
-
-static const LevelName levelTable[] = {
-    { "v2"_v, TargetExtensions::V2 },
-    { "v3"_v, TargetExtensions::V3 },
-    { "v4"_v, TargetExtensions::V4 },
-
-    { "sse4.2"_v, TargetExtensions::V2 },
-    { "avx2"_v, TargetExtensions::V3 },
-    { "avx512"_v, TargetExtensions::V4 },
+struct LevelDesc {
+    StringView name;
+    TargetExtensions::Level level;
+    InstructionSets own;
+    InstructionSets implied;
 };
+
+static const LevelDesc kLevelTable[] = {
+    { "sse4"_v, TargetExtensions::Sse4,
+      kSetSse3 | kSetSsse3 | kSetSse41 | kSetSse42 | kSetPopcnt | kSetCx16,
+      0 },
+
+    { "avx2"_v, TargetExtensions::Avx2,
+      kSetAvx | kSetAvx2 | kSetBmi1 | kSetBmi2 | kSetF16c | kSetFma | kSetLzcnt | kSetMovbe | kSetXsave,
+      kSetAes | kSetPclmul },
+
+    { "avx512"_v, TargetExtensions::Avx512,
+      kSetAvx512f | kSetAvx512cd | kSetAvx512bw | kSetAvx512dq | kSetAvx512vl | kSetAvx512ifma
+        | kSetAvx512vbmi | kSetAvx512vbmi2 | kSetAvx512bitalg | kSetAvx512vpopcntdq | kSetAvx512vnni,
+      kSetVaes | kSetVpclmul | kSetGfni | kSetSha },
+};
+
+/*
+ * The flags - §0.3 - and the lowest level each may be named at.
+ *
+ * A flag below its level is refused, naming the level: `vaes` is VEX- or EVEX-only, so `sse4` with
+ * `vaes` has no instruction to emit and a build that asked for one should hear so rather than get
+ * nothing. The width a flag's instructions reach follows the level rather than the flag, which is the
+ * backend's to read - `vaes` at `avx2` is the 256-bit VEX forms, at `avx512` the 512-bit ones too.
+ */
+struct FlagDesc {
+    StringView name;
+    InstructionSets set;
+    TargetExtensions::Level lowest;
+};
+
+static const FlagDesc kFlagTable[] = {
+    { "aes"_v,          kSetAes,          TargetExtensions::Sse4 },
+    { "pclmul"_v,       kSetPclmul,       TargetExtensions::Sse4 },
+    { "vaes"_v,         kSetVaes,         TargetExtensions::Avx2 },
+    { "vpclmul"_v,      kSetVpclmul,      TargetExtensions::Avx2 },
+    { "gfni"_v,         kSetGfni,         TargetExtensions::Sse4 },
+    { "sha"_v,          kSetSha,          TargetExtensions::Sse4 },
+    { "vp2intersect"_v, kSetVp2intersect, TargetExtensions::Avx512 },
+    { "fp16"_v,         kSetFp16,         TargetExtensions::Avx512 },
+    { "bf16"_v,         kSetBf16,         TargetExtensions::Avx512 },
+    { "sha512"_v,       kSetSha512,       TargetExtensions::Avx2 },
+    { "sm3"_v,          kSetSm3,          TargetExtensions::Avx2 },
+    { "sm4"_v,          kSetSm4,          TargetExtensions::Avx2 },
+};
+
+/*
+ * The spellings this compiler used to accept and now refuses, and what each became.
+ *
+ * Refused rather than aliased, which is §0.4's argument: `x86-64-v4` is a machine other tools read in
+ * the psABI's sense, and neither answer an alias could give is safe - mapping it up to `avx512` claims
+ * VBMI on Cascade Lake, and mapping it down to `avx2` silently throws away what was asked for. The
+ * lower two could have stayed, and do not, so that there is one vocabulary.
+ */
+static const struct { StringView name; StringView replacement; } kRefusedLevels[] = {
+    { "v2"_v, "sse4"_v }, { "x86-64-v2"_v, "sse4"_v }, { "sse4.2"_v, "sse4"_v },
+    { "v3"_v, "avx2"_v }, { "x86-64-v3"_v, "avx2"_v },
+    { "v4"_v, "avx512"_v }, { "x86-64-v4"_v, "avx512"_v },
+};
+
+/*
+ * The LLVM attribute each instruction set is, in the order the target machine is told them. A set
+ * with two names is SSE4.2: `crc32` is a feature of its own in LLVM even though every part with either
+ * has both, and without it `llvm.x86.sse42.crc32.*` fails instruction selection outright rather than
+ * expanding into anything, which is how that was found.
+ */
+static const struct { InstructionSets set; const char* first; const char* second; } kLlvmAttributes[] = {
+    { kSetSse3, "sse3", nullptr }, { kSetSsse3, "ssse3", nullptr }, { kSetSse41, "sse4.1", nullptr },
+    { kSetSse42, "sse4.2", "crc32" }, { kSetPopcnt, "popcnt", nullptr }, { kSetCx16, "cx16", nullptr },
+
+    { kSetAvx, "avx", nullptr }, { kSetAvx2, "avx2", nullptr }, { kSetBmi1, "bmi", nullptr },
+    { kSetBmi2, "bmi2", nullptr }, { kSetFma, "fma", nullptr }, { kSetF16c, "f16c", nullptr },
+    { kSetLzcnt, "lzcnt", nullptr }, { kSetMovbe, "movbe", nullptr }, { kSetXsave, "xsave", nullptr },
+
+    { kSetAvx512f, "avx512f", nullptr }, { kSetAvx512bw, "avx512bw", nullptr },
+    { kSetAvx512cd, "avx512cd", nullptr }, { kSetAvx512dq, "avx512dq", nullptr },
+    { kSetAvx512vl, "avx512vl", nullptr }, { kSetAvx512ifma, "avx512ifma", nullptr },
+    { kSetAvx512vbmi, "avx512vbmi", nullptr }, { kSetAvx512vbmi2, "avx512vbmi2", nullptr },
+    { kSetAvx512bitalg, "avx512bitalg", nullptr }, { kSetAvx512vpopcntdq, "avx512vpopcntdq", nullptr },
+    { kSetAvx512vnni, "avx512vnni", nullptr },
+
+    { kSetAes, "aes", nullptr }, { kSetPclmul, "pclmul", nullptr }, { kSetVaes, "vaes", nullptr },
+    { kSetVpclmul, "vpclmulqdq", nullptr }, { kSetGfni, "gfni", nullptr }, { kSetSha, "sha", nullptr },
+    { kSetVp2intersect, "avx512vp2intersect", nullptr }, { kSetFp16, "avx512fp16", nullptr },
+    { kSetBf16, "avx512bf16", nullptr }, { kSetSha512, "sha512", nullptr }, { kSetSm3, "sm3", nullptr },
+    { kSetSm4, "sm4", nullptr },
+};
+
+InstructionSets TargetExtensions::sets() const {
+    InstructionSets all = flags;
+
+    for(auto& entry: kLevelTable) {
+        if(entry.level > level) break;
+        all |= entry.own | entry.implied;
+    }
+
+    return all;
+}
+
+// The other direction, searched rather than indexed: a row states its own level, so the two agreeing
+// with the array's order is a coincidence a reordering would take away.
+static StringView nameOfLevel(TargetExtensions::Level level) {
+    for(auto& entry: kLevelTable) {
+        if(entry.level == level) return entry.name;
+    }
+
+    assertTrue(false); // a level with no row in kLevelTable
+    return ""_v;
+}
+
+Maybe<TargetExtensions::Level> matchLevel(StringView name) {
+    for(auto& entry: kLevelTable) {
+        if(entry.name == name) return Just(TargetExtensions::Level(entry.level));
+    }
+
+    return Nothing();
+}
+
+InstructionSets matchExtensionFlag(StringView name) {
+    for(auto& entry: kFlagTable) {
+        if(entry.name == name) return entry.set;
+    }
+
+    return 0;
+}
+
+Maybe<StringView> replacedLevelSpelling(StringView name) {
+    for(auto& entry: kRefusedLevels) {
+        if(entry.name == name) return Just(StringView(entry.replacement));
+    }
+
+    return Nothing();
+}
+
+Array<const char*> llvmAttributesOf(const TargetExtensions& extensions) {
+    Array<const char*> names;
+    auto sets = extensions.sets();
+
+    for(auto& entry: kLlvmAttributes) {
+        if(!(sets & entry.set)) continue;
+        names.push(entry.first);
+        if(entry.second) names.push(entry.second);
+    }
+
+    return names;
+}
+
+Maybe<String> checkExtensionFlags(const TargetExtensions& extensions) {
+    for(auto& flag: kFlagTable) {
+        if(!(extensions.flags & flag.set) || extensions.level >= flag.lowest) continue;
+
+        // A flag the level implies is never below it, so the only question left is which level to name.
+        return Just(Tritium::format("The extension `%@` needs at least the `%@` level, which this build does "
+                                    "not name - add `-enable-inst %@`.",
+                                    flag.name, nameOfLevel(flag.lowest), nameOfLevel(flag.lowest)));
+    }
+
+    return Nothing();
+}
 
 /*
  * One dotted segment of a file name, answered against this compilation.
@@ -336,52 +495,51 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name, 
     }
 
     /*
-     * The x86-64 levels, answered as **at least**: `v3` matches a v3 or a v4 build, exactly as
-     * `-enable-inst v3` means "you may use this and everything below it".
+     * The x86-64 levels, answered as **at least**: `avx2` matches an `avx2` or an `avx512` build,
+     * exactly as `-enable-inst avx2` means "you may use this and everything below it".
      *
      * A level is a selector because a *declaration naming an instruction* has to be able to say
-     * which machines have it, and that is the same question `sha` answers below. It may also select
+     * which machines have it, and that is the same question a flag answers below. It may also select
      * a **replacement** - Design-Replacements.md - which is a second body of one portable function,
      * held to being observationally identical to the first. What a level must not select is a
-     * second *meaning*: a `@platform(v3)` pair of two functions under one name is a source-level
+     * second *meaning*: a `@platform(avx2)` pair of two functions under one name is a source-level
      * fork of something the compiler already decides by level, with nothing keeping the two in
      * step, and a replacement is what keeps them in step - its baseline is resolved on every build
      * and `-no-replacements` runs the program without it.
      *
-     * The aliases come from the same table `-enable-inst` reads, so a selector is spelled the way
-     * the command line spells it. `avx` is deliberately not among them - it alone was Sandy Bridge,
-     * which is a v2 part everywhere in this compiler.
+     * The names come from the same table `-enable-inst` reads, so a selector is spelled the way the
+     * command line spells it. A psABI spelling (`v3`) is not among them and is reported as the
+     * unknown name it now is.
      */
-    if(!isJs && settings.arch == TargetArch::X64) {
-        for(auto& entry: levelTable) {
-            if(name == entry.name) return answer(settings.extensions.level >= entry.level);
-        }
-    } else {
-        for(auto& entry: levelTable) {
-            if(name == entry.name) return TargetSelector::Excluded;
-        }
+    auto onX64 = !isJs && settings.arch == TargetArch::X64;
+
+    if(auto level = matchLevel(name)) {
+        return onX64 ? answer(settings.extensions.level >= level.unwrap()) : TargetSelector::Excluded;
     }
 
     /*
-     * The instruction-set extensions that are not a level - `sha` today, and see
-     * `TargetExtensions::sha` for why it is not inside one.
+     * The instruction-set extensions that are not a level - Analysis-Avx512.md §0.3 - answered from
+     * the same `has` both backends read, so a flag the level *implies* selects exactly as one that was
+     * named: `aes` holds on every `avx2` build, and `sha` on every `avx512` one.
      *
-     * **One name and no negation.** There used to be a `nosha` beside it, because a selector has no
+     * **One name and no negation.** There used to be a `nosha` beside `sha`, because a selector has no
      * negation and the portable compression needed a file that only a build without the extension
      * read. That is a replacement's job now - Design-Replacements.md: the portable body is the
-     * baseline every build resolves, and the hardware one replaces it where `sha` holds - so no
+     * baseline every build resolves, and the hardware one replaces it where the flag holds - so no
      * extension needs a twin, and the portable half is compiled on the machines that have the
      * instructions as well as on the ones that do not.
      *
-     * A JS build and a non-x86-64 one do not have it, on the same argument an operating system name
-     * makes above: what `sha` selects is written in terms of an x86 instruction, and a target with
-     * no such instruction has no business compiling it.
+     * A JS build and a non-x86-64 one have none of them, on the same argument an operating system name
+     * makes above: what a flag selects is written in terms of an x86 instruction, and a target with no
+     * such instruction has no business compiling it.
      *
-     * **The level is no longer folded in.** `lib/Digest/ShaBlock.sha.avx2.yana` needs AVX as well,
-     * for `X86.vzeroupper()`, and it says so in its own name; a declaration that needs only the
-     * extension is free to say only that. Goldmont shipped SHA-NI with no AVX at all.
+     * **The level is not folded in.** `lib/Digest/ShaBlock.sha.avx2.yana` needs AVX as well, for
+     * `X86.vzeroupper()`, and it says so in its own name; a declaration that needs only the extension
+     * is free to say only that. Goldmont shipped SHA-NI with no AVX at all.
      */
-    if(name == "sha"_v) return answer(!isJs && settings.arch == TargetArch::X64 && settings.extensions.sha);
+    if(auto flag = matchExtensionFlag(name)) {
+        return answer(onX64 && settings.extensions.has(flag));
+    }
 
     return TargetSelector::Unknown;
 }
@@ -396,8 +554,8 @@ enum class SelectorKind: U8 {
     Platform,  // `js`, `native`
     System,    // `linux`, `mac`, `win32`
     Arch,      // `x64`, `x86`, `arm`, `arm64`
-    Level,     // `v2`..`v4` and their aliases
-    Extension, // `sha`
+    Level,     // `sse4`, `avx2`, `avx512`
+    Extension, // `sha`, `aes` and the rest of the flags
     Other,     // `test`, and anything no table names
 };
 
@@ -408,13 +566,12 @@ static SelectorKind selectorKind(StringView name, U8& rank) {
     for(auto entry: targetTable) if(name == entry) return SelectorKind::System;
     for(auto entry: archTable) if(name == entry) return SelectorKind::Arch;
 
-    for(auto& entry: levelTable) {
-        if(name != entry.name) continue;
-        rank = U8(entry.level);
+    if(auto level = matchLevel(name)) {
+        rank = U8(level.unwrap());
         return SelectorKind::Level;
     }
 
-    if(name == "sha"_v) return SelectorKind::Extension;
+    if(matchExtensionFlag(name)) return SelectorKind::Extension;
     return SelectorKind::Other;
 }
 
@@ -423,8 +580,9 @@ static SelectorKind selectorKind(StringView name, U8& rank) {
  *
  * The table §3.5 lists, and nothing it does not: an operating system, an architecture, a level and an
  * extension each imply `native`; a level implies the levels below it and `x64`; an extension implies
- * `x64`, which is the architecture its instructions are. An alias is its level, so `avx2` and `v3`
- * imply each other.
+ * `x64`, which is the architecture its instructions are. And a level implies every flag it implies -
+ * `avx512` implies `sha` - since those are claims about every part of the level (Analysis-Avx512.md
+ * §0.2), and a selector holding on every build of one is exactly what implication means here.
  */
 static bool literalImplies(const SelectorLiteral& p, const SelectorLiteral& q) {
     if(p.axis != q.axis) return false;
@@ -442,6 +600,13 @@ static bool literalImplies(const SelectorLiteral& p, const SelectorLiteral& q) {
             return q.name == "x64"_v && (pKind == SelectorKind::Level || pKind == SelectorKind::Extension);
         case SelectorKind::Level:
             return pKind == SelectorKind::Level && pRank >= qRank;
+        case SelectorKind::Extension: {
+            if(pKind != SelectorKind::Level) return false;
+
+            TargetExtensions level;
+            level.level = TargetExtensions::Level(pRank);
+            return level.has(matchExtensionFlag(q.name));
+        }
         default:
             return false;
     }
@@ -616,14 +781,6 @@ bool selectsFileName(const CompileSettings& settings, StringView stem, SelectorS
     return selected;
 }
 
-Maybe<TargetExtensions::Level> matchLevel(const String& arg) {
-    for(auto& entry: levelTable) {
-        if(Tritium::toString(entry.name) == arg) return Just(TargetExtensions::Level(entry.level));
-    }
-
-    return Nothing();
-}
-
 static Maybe<U32> matchString(StringView* table, Size count, const String& arg) {
     for(U32 i = 0; i < count; i++) {
         if(Tritium::toString(table[i]) == arg) {
@@ -639,6 +796,8 @@ static void applyHostExtensions(CompileSettings& settings) {
     int info_edx = 0;
     int info7_ebx = 0;
     int info7_ecx = 0;
+    int info7_edx = 0;
+    int info7s1_eax = 0;
     int infoex_ecx = 0;
     int infoex_edx = 0;
 
@@ -659,9 +818,16 @@ static void applyHostExtensions(CompileSettings& settings) {
     }
 
     if(level >= 7) {
-        __cpuid(info, 7);
+        __cpuidex(info, 7, 0);
+        int subleaves = info[0];
         info7_ebx = info[1];
         info7_ecx = info[2];
+        info7_edx = info[3];
+
+        if(subleaves >= 1) {
+            __cpuidex(info, 7, 1);
+            info7s1_eax = info[0];
+        }
     }
 
     if(extendedLevel >= 0x80000001) {
@@ -687,8 +853,16 @@ static void applyHostExtensions(CompileSettings& settings) {
 
     if(level >= 7) {
         __cpuid_count(7, 0, eax, ebx, ecx, edx);
+        int subleaves = eax;
         info7_ebx = ebx;
         info7_ecx = ecx;
+        info7_edx = edx;
+
+        // Subleaf 1 is where the extensions newer than AVX-512 went - SHA-512, SM3, SM4 and BF16.
+        if(subleaves >= 1) {
+            __cpuid_count(7, 1, eax, ebx, ecx, edx);
+            info7s1_eax = eax;
+        }
     }
 
     if(extendedLevel >= 0x80000001) {
@@ -700,18 +874,19 @@ static void applyHostExtensions(CompileSettings& settings) {
 
     /*
      * The bits each level is defined by, and the whole level is required rather than the part this
-     * backend happens to use today. The name is the psABI's, so what it promises has to be the
-     * psABI's too: a build that called a machine v3 because it had AVX2 would be lying about
-     * `movbe` and `f16c` to whatever asks next, and on the LLVM path something does - `-mattr=+...`
-     * is written straight from this.
+     * backend happens to use today: a build that called a machine `avx2` because it had AVX2 would be
+     * lying about `movbe` and `f16c` to whatever asks next, and on the LLVM path something does -
+     * `-mattr=+...` is written straight from the level table.
      */
     bool hasSSE3    = !!(info_ecx & (1 << 0 ));
+    bool hasPCLMUL  = !!(info_ecx & (1 << 1 ));
     bool hasSSSE3   = !!(info_ecx & (1 << 9 ));
     bool hasCx16    = !!(info_ecx & (1 << 13));
     bool hasSSE4_1  = !!(info_ecx & (1 << 19));
     bool hasSSE4_2  = !!(info_ecx & (1 << 20));
     bool hasPOPCNT  = !!(info_ecx & (1 << 23));
     bool hasMOVBE   = !!(info_ecx & (1 << 22));
+    bool hasAES     = !!(info_ecx & (1 << 25));
     bool hasFMA3    = !!(info_ecx & (1 << 12));
     bool hasF16C    = !!(info_ecx & (1 << 29));
     bool hasAVX     = !!(info_ecx & (1 << 28));
@@ -723,15 +898,33 @@ static void applyHostExtensions(CompileSettings& settings) {
     bool hasBMI2    = !!(info7_ebx & (1 << 8 ));
     bool hasAVX512F = !!(info7_ebx & (1 << 16));
     bool hasAVX512DQ= !!(info7_ebx & (1 << 17));
+    bool hasIFMA    = !!(info7_ebx & (1 << 21));
     bool hasAVX512CD= !!(info7_ebx & (1 << 28));
     bool hasAVX512BW= !!(info7_ebx & (1 << 30));
     bool hasAVX512VL= !!(info7_ebx & (1 << 31));
 
+    bool hasVBMI      = !!(info7_ecx & (1 << 1 ));
+    bool hasVBMI2     = !!(info7_ecx & (1 << 6 ));
+    bool hasGFNI      = !!(info7_ecx & (1 << 8 ));
+    bool hasVAES      = !!(info7_ecx & (1 << 9 ));
+    bool hasVPCLMUL   = !!(info7_ecx & (1 << 10));
+    bool hasVNNI      = !!(info7_ecx & (1 << 11));
+    bool hasBITALG    = !!(info7_ecx & (1 << 12));
+    bool hasVPOPCNTDQ = !!(info7_ecx & (1 << 14));
+
+    bool hasVP2INTERSECT = !!(info7_edx & (1 << 8 ));
+    bool hasFP16         = !!(info7_edx & (1 << 23));
+
+    bool hasSHA512  = !!(info7s1_eax & (1 << 0));
+    bool hasSM3     = !!(info7s1_eax & (1 << 1));
+    bool hasSM4     = !!(info7s1_eax & (1 << 2));
+    bool hasBF16    = !!(info7s1_eax & (1 << 5));
+
     bool hasABM     = !!(infoex_ecx & (1 << 5));
 
-    // The SHA extension, which is in no level - see TargetExtensions::sha. Leaf 7's EBX bit 29, and
-    // it needs no `xgetbv` question beside it: the seven instructions are `xmm` operations, so what
-    // has to be enabled for them is the SSE state every part meeting the v2 floor already saves.
+    // The SHA extension. Leaf 7's EBX bit 29, and it needs no `xgetbv` question beside it: the seven
+    // instructions are `xmm` operations, so what has to be enabled for them is the SSE state every
+    // part meeting the floor already saves. AES-NI, PCLMULQDQ and GFNI are the same kind of claim.
     bool hasSHA     = !!(info7_ebx & (1 << 29));
 
     /*
@@ -757,26 +950,59 @@ static void applyHostExtensions(CompileSettings& settings) {
     auto savesAvx = savesSse && (xcr0 & 0x4) != 0;      // and the upper half of each YMM
     auto savesAvx512 = savesAvx && (xcr0 & 0xe0) == 0xe0; // opmask, ZMM_hi256, hi16_ZMM
 
-    auto meetsV2 = hasSSE3 && hasSSSE3 && hasSSE4_1 && hasSSE4_2 && hasCx16 && (hasPOPCNT || hasABM);
-    auto meetsV3 = meetsV2 && hasAVX && hasAVX2 && hasBMI1 && hasBMI2 && hasFMA3 && hasF16C
-                          && hasMOVBE && hasABM && savesAvx;
-    auto meetsV4 = meetsV3 && hasAVX512F && hasAVX512BW && hasAVX512CD && hasAVX512DQ && hasAVX512VL
-                          && savesAvx512;
+    /*
+     * **A level is met only with the flags it implies**, because the implication is what the build will
+     * claim: an `avx2` build uses AES-NI without being told. Every part of the level has them, so on
+     * bare metal this asks nothing extra - but a hypervisor may hide AES from a guest that has AVX2, and
+     * answering `avx2` there would be a `#UD` in the first cipher the program ran. Such a guest is
+     * `sse4`, which is the honest answer to the question this is.
+     */
+    auto meetsSse4 = hasSSE3 && hasSSSE3 && hasSSE4_1 && hasSSE4_2 && hasCx16 && (hasPOPCNT || hasABM);
+    auto meetsAvx2 = meetsSse4 && hasAVX && hasAVX2 && hasBMI1 && hasBMI2 && hasFMA3 && hasF16C
+                            && hasMOVBE && hasABM && savesAvx && hasAES && hasPCLMUL;
+    auto meetsAvx512 = meetsAvx2 && hasAVX512F && hasAVX512BW && hasAVX512CD && hasAVX512DQ && hasAVX512VL
+                            && hasIFMA && hasVBMI && hasVBMI2 && hasBITALG && hasVPOPCNTDQ && hasVNNI
+                            && hasVAES && hasVPCLMUL && hasGFNI && hasSHA && savesAvx512;
 
     /*
      * A machine below the floor still gets the floor, because the floor is a requirement rather than
-     * an observation: there is no code generator here for a part without SSE4.2, and answering "v1"
-     * would only move the failure to a form table that has no row to select. Compiling *on* such a
-     * machine is fine - what is produced is code for a machine one level up, which is what a cross
-     * build always is.
+     * an observation: there is no code generator here for a part without SSE4.2, and answering
+     * anything lower would only move the failure to a form table that has no row to select. Compiling
+     * *on* such a machine is fine - what is produced is code for a machine one level up, which is
+     * what a cross build always is.
      */
-    settings.extensions.level = meetsV4 ? TargetExtensions::V4
-                              : meetsV3 ? TargetExtensions::V3
-                                        : TargetExtensions::V2;
+    auto hostLevel = meetsAvx512 ? TargetExtensions::Avx512
+                   : meetsAvx2 ? TargetExtensions::Avx2
+                               : TargetExtensions::Sse4;
+    settings.extensions.level = hostLevel;
 
-    // And the extension beside the level, taken from the host on the same terms: an unnamed build is
-    // `-march=native`'s bargain, and this is one more thing the host either has or has not.
-    settings.extensions.sha = hasSHA;
+    /*
+     * And the flags beside the level, taken from the host on the same terms: an unnamed build is
+     * `-march=native`'s bargain, and each of these is one more thing the host either has or has not.
+     *
+     * Only a flag the level may carry is kept - a VEX-only extension on an `sse4` host (a part whose
+     * OS never enabled AVX state) has nothing to be emitted as - which is the same rule
+     * `checkExtensionFlags` holds a named flag to, applied here by dropping rather than by refusing.
+     * The wide ones also need the state the level saves, which the level having been met says.
+     */
+    const struct { bool has; InstructionSets set; } detected[] = {
+        { hasAES, kSetAes }, { hasPCLMUL, kSetPclmul }, { hasVAES, kSetVaes }, { hasVPCLMUL, kSetVpclmul },
+        { hasGFNI, kSetGfni }, { hasSHA, kSetSha }, { hasVP2INTERSECT, kSetVp2intersect },
+        { hasFP16, kSetFp16 }, { hasBF16, kSetBf16 }, { hasSHA512, kSetSha512 }, { hasSM3, kSetSm3 },
+        { hasSM4, kSetSm4 },
+    };
+
+    InstructionSets flags = 0;
+    for(auto& entry: detected) {
+        if(!entry.has) continue;
+
+        TargetExtensions candidate;
+        candidate.level = hostLevel;
+        candidate.flags = entry.set;
+        if(checkExtensionFlags(candidate).isNothing()) flags |= entry.set;
+    }
+
+    settings.extensions.flags = flags;
 #endif // __X86__
 }
 
@@ -1063,7 +1289,11 @@ What to build:
 Which machine:
   -target <os>          linux, mac or win32          -arch <a>       x64, x86, arm, arm64
   -format <f>           elf, mach or pe              -backend <b>    llvm or local
-  -enable-inst <level>  v2, v3, v4, or sha / neon beside one
+  -enable-inst <set>    sse4 (the floor), avx2 or avx512 - avx2 implies aes and pclmul, and
+                        avx512 is Ice Lake/Zen 4 and implies vaes, vpclmul, gfni and sha as
+                        well. Or an extension beside a level: aes, pclmul, gfni, sha (sse4);
+                        vaes, vpclmul, sha512, sm3, sm4 (avx2); vp2intersect, fp16, bf16
+                        (avx512); neon on ARM. With no level named, the host's
   -tune <t>             generic (default), intel or amd - whose recent cores to favour
 
 How hard to try:
@@ -1168,28 +1398,40 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
             case Flag::mainModule:
                 settings.mainModules.push(move(value));
                 return true;
-            case Flag::enableInst:
+            case Flag::enableInst: {
                 hasExtensions = true;
-                if(auto level = matchLevel(value)) {
+                auto name = StringView { value.text(), value.size() };
+
+                if(auto level = matchLevel(name)) {
                     // The highest of everything named, so that two flags do not undo each other.
                     if(settings.extensions.level < level.unwrap()) settings.extensions.level = level.unwrap();
                     return true;
-                } else if(value == "neon") {
+                }
+
+                // Beside a level rather than one of them - see TargetExtensions::flags. Whether the level
+                // is high enough is asked once every flag has been read, since a level may come later.
+                if(auto flag = matchExtensionFlag(name)) {
+                    settings.extensions.flags |= flag;
+                    return true;
+                }
+
+                if(value == "neon") {
                     settings.extensions.neon = true;
                     return true;
-                } else if(value == "sha") {
-                    // Beside a level rather than one of them - see TargetExtensions::sha. Written as
-                    // a second `-enable-inst`, since naming it does not say which level the rest of
-                    // the machine meets.
-                    settings.extensions.sha = true;
-                    return true;
-                } else {
-                    error = "Unrecognized instruction set level. Valid levels are: "
-                            "v2|v3|v4 (or sse4.2|avx2|avx512, which name the same three), plus the "
-                            "extensions `sha` and `neon`, which are named beside a level rather than "
-                            "instead of one.";
+                }
+
+                if(auto replacement = replacedLevelSpelling(name)) {
+                    error = Tritium::format("The instruction set level \"%@\" is spelled `%@` in this compiler - see "
+                                            "`-help`. The psABI names are not accepted, because `x86-64-v4` does not "
+                                            "mean what `avx512` does.", value, replacement.unwrap());
                     return false;
                 }
+
+                error = Tritium::format("Unrecognized instruction set \"%@\". Valid levels are sse4|avx2|avx512, and "
+                                        "the extensions named beside one are aes|pclmul|vaes|vpclmul|gfni|sha|"
+                                        "vp2intersect|fp16|bf16|sha512|sm3|sm4, plus neon on ARM.", value);
+                return false;
+            }
             case Flag::to:
                 settings.outputDir = move(value);
                 settings.explicitOutput = true;
@@ -1408,6 +1650,10 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
 
     if(error != "") {
         return Err(error);
+    }
+
+    if(auto refused = checkExtensionFlags(settings.extensions)) {
+        return Err(refused.unwrap());
     }
 
     settings.explicitExtensions = hasExtensions;

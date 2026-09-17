@@ -18,10 +18,11 @@ import Native
 
    **Sixteen lanes, written down, for `interleaveLow`'s reason** - the same one `Core/Read.yana`'s
    digit scan states: the interleave is one instruction at sixteen lanes on every x86 back to SSE2
-   and there is none at all at thirty-two, because every 256-bit shuffle works inside its own
-   128-bit half. So a build at v3, where `Vec(U8)` means thirty-two lanes, would not compile this.
-   Sixteen is also all it needs: two `punpck`s turn the high and low nibble vectors into the
-   thirty-two output units in their final order, and nothing here scales with the register.
+   and there is none at thirty-two below `avx512`, because every AVX2 shuffle works inside its own
+   128-bit half. So a build at `avx2`, where `Vec(U8)` means thirty-two lanes, would not compile this.
+   Two `punpck`s turn the high and low nibble vectors into the thirty-two output units in their final
+   order. At `avx512` the interleave at thirty-two lanes is `vpermi2b`, and `Hex.native.avx512.yana`
+   replaces this body with the same loop at that width - 1.7x, test/bench/avx512/findings.md §5.
 
    The write goes into the string's own run rather than through `pushUnit`, which is what the
    reservation is for: the units are provably in range once the capacity has been checked, so the

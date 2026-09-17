@@ -26,10 +26,10 @@ fn noTarget() -> Int = 2
 @platform("js")
 fn quoted() -> Int = 3
 
--- Two controls, and neither is rejected: a level (`v3`, spelled `avx2` here) and an extension no
--- level implies (`sha`) are both target names, because both answer "does this machine have this
+-- Two controls, and neither is rejected: a level (`avx2`) and an extension named beside one
+-- (`sha`) are both target names, because both answer "does this machine have this
 -- instruction" - which is the question a declaration in `Native/Intrinsic/X86.yana` is asking. A
--- level is answered as "at least", so `avx2` holds on a v3 or a v4 build.
+-- level is answered as "at least", so `avx2` holds on an `avx2` or an `avx512` build.
 --
 -- What a level name must *not* be used for is choosing between two implementations of a portable
 -- operation: the compiler already selects instructions by level, and a source-level fork would be a

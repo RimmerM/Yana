@@ -42,22 +42,22 @@ run_row() {
     # It goes to the row's own log rather than to the terminal - see `start_row`.
     echo "== $name: building"
 
-    # **v2, explicitly.** The command line takes the *host's* instruction level when it is told
+    # **sse4, explicitly.** The command line takes the *host's* instruction level when it is told
     # nothing, and the C++ drivers take the floor - so a suite pinned to neither would assert
     # different things on different machines. See test/directives.h's note: a golden that changed
     # with the machine that ran it would assert nothing, and the same argument applies to a run.
     #
     # A row that names a higher level still gets it: `-enable-inst` takes the **highest** of
-    # everything named, so `v2` here is the floor rather than a ceiling, and the rows below add to
+    # everything named, so `sse4` here is the floor rather than a ceiling, and the rows below add to
     # it rather than fighting it.
     #
     # Not a formality, and what it cost is worth remembering: this pin is what hid the two v3
     # miscompiles of findings.md §70 - `Random.reals` drawing outside its own bounds was the symptom,
-    # and the floor is why the rest of the suite said nothing. Both are fixed and the `v3` row below
+    # and the floor is why the rest of the suite said nothing. Both are fixed and the `avx2` row below
     # is what stands over them now, so the floor is here for reproducibility alone: what a run
     # asserts must not depend on the machine that ran it, which is test/directives.h's argument for
     # the goldens applied to a run.
-    if ! "$yana" -add base -main Base -package base -test -enable-inst v2 -to "$dir" "$@" > "$out/$name.build" 2>&1; then
+    if ! "$yana" -add base -main Base -package base -test -enable-inst sse4 -to "$dir" "$@" > "$out/$name.build" 2>&1; then
         echo "== $name: the build failed"
         cat "$out/$name.build"
         return 1
@@ -84,7 +84,7 @@ run_row() {
     fi
 }
 
-# The rows above v2 **execute** the instructions they compile - nothing here detects anything and
+# The rows above sse4 **execute** the instructions they compile - nothing here detects anything and
 # nothing here dispatches - so a machine without them cannot run one. This is the same bargain
 # `test/directives.h` describes for the fixtures these rows replaced, and the same shape as the
 # `node` guard in run_row: a row that cannot run says so rather than being skipped in silence.
@@ -146,8 +146,8 @@ start_row no-replacements -mode exe -backend local -no-replacements
 # **The rows above the floor.** Every boundary in `moveMemory`/`copyMemory` is stated in widths -
 # the ladder's rungs are `n` transfers of `w` bytes covering `[nw, 2nw)`, the four-register group is
 # `4w`, and the length above which the copy is handed to `blockCopy` is `48w`, so the sweeps cross a
-# different one of them in each row. At v2 the vector rung starts at sixteen and meets the word rung
-# below it exactly; at v3 it starts at thirty-two and leaves `[16, 32)` to a rung that exists only on
+# different one of them in each row. At sse4 the vector rung starts at sixteen and meets the word rung
+# below it exactly; at avx2 it starts at thirty-two and leaves `[16, 32)` to a rung that exists only on
 # a target whose register is wider than it is. See §"The rungs between sixteen bytes and the
 # register" in Native.yana, which these rows are the only cover for.
 #
@@ -157,18 +157,38 @@ start_row no-replacements -mode exe -backend local -no-replacements
 # portable rounds. Nothing else in `Digest` changes, and all of it is asserted in both rows because
 # the two bodies have to agree about all of it.
 #
-# v4 would want the same again for `[32, 64)`, and the rung is written; it needs a host with
-# AVX-512 to run it.
-if hostHas avx2; then
-    start_row v3 -mode exe -backend local -enable-inst v3
+# `avx512` is the third level, and a row of its own for a different reason than the widths: at 32
+# bytes a vector is what it is at `avx2`, but every instruction under it may be EVEX-encoded, name one
+# of the upper sixteen vector registers, or be a mask register - Analysis-Avx512.md §1.2's stage 1 -
+# so every case is an assertion that the second set of expansions agrees with the first. The level is
+# the Ice Lake and Zen 4 intersection, so the host has to have every extension of it and every flag
+# it implies; `/proc/cpuinfo` spells two of them with underscores.
+#
+# `[32, 64)` wants a row of its own again once the width is 64, and the rung is written.
+avx512Flags="avx512f avx512cd avx512bw avx512dq avx512vl avx512ifma avx512vbmi avx512_vbmi2 avx512_bitalg
+             avx512_vpopcntdq avx512_vnni vaes vpclmulqdq gfni sha_ni"
+
+hostHasAll() {
+    for flag in "$@"; do hostHas "$flag" || return 1; done
+}
+
+if hostHasAll avx2 aes pclmulqdq; then
+    start_row avx2 -mode exe -backend local -enable-inst avx2
 
     if hostHas sha_ni; then
-        start_row sha -mode exe -backend local -enable-inst v3 -enable-inst sha
+        start_row sha -mode exe -backend local -enable-inst avx2 -enable-inst sha
     else
         note sha "== sha: this machine has no SHA-NI, so that row is not being run."
     fi
+
+    # shellcheck disable=SC2086 # the list is words on purpose
+    if hostHasAll $avx512Flags; then
+        start_row avx512 -mode exe -backend local -enable-inst avx512
+    else
+        note avx512 "== avx512: this machine is not an Ice Lake or Zen 4 or later, so that row is not being run."
+    fi
 else
-    note v3 "== v3, sha: this machine has no AVX2, so neither row is being run."
+    note avx2 "== avx2, sha, avx512: this machine has no AVX2 with AES-NI, so none of those rows is being run."
 fi
 
 start_row js             -mode js

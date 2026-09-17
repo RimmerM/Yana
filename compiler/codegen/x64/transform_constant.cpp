@@ -254,7 +254,7 @@ LowerGlobal* pooledConstant(Context& ctx, LowerModule& module, U64 bits, Size si
  * still exact: two entries collide only if every byte agrees, and a 16-byte constant's name cannot be
  * a prefix of a 32-byte one's because the width is in the name ahead of the bytes.
  */
-static LowerGlobal* pooledBytes(Context& ctx, LowerModule& module, const U8* bytes, Size size) {
+LowerGlobal* pooledBytes(Context& ctx, LowerModule& module, const U8* bytes, Size size) {
     static const char digits[] = "0123456789abcdef";
 
     // `$v128$<2 * size hex digits>`. Sized for the widest constant this language admits.
@@ -290,6 +290,8 @@ static LowerGlobal* pooledBytes(Context& ctx, LowerModule& module, const U8* byt
     copyMem(bytes, contents, size);
 
     global->initialContents = { contents, size };
+    global->pooled = true;
+    if(size < 16) global->alignment = U8(size);
     *entry.value = global - *module.arena;
     module.globalOrder.push(global - *module.arena);
 
@@ -1348,6 +1350,75 @@ void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun) {
             auto source = second ? shuffle->right : shuffle->left;
             auto permute = new (fun.arena) LowerInstX86Permute(
                 shuffle->result.name, type, &load->result - base, source
+            );
+
+            insertInstAt(base, block, i, address);
+            insertInstAt(base, block, i + 1, load);
+            insertInstAt(base, block, i + 2, permute);
+
+            replaceAllUses(base, &shuffle->result, &permute->result);
+            removeInst(base, inst);
+
+            i += 2;
+        }
+    }
+}
+
+/*
+ * Any shuffle still standing, as `vpermi2*` over its two sources - Analysis-Avx512.md §2.5.
+ *
+ * The last resort, and below the two passes above for that reason: a pattern one instruction with an
+ * immediate expresses has been taken by selection's own choice, one `vpermd` or `pshufb` expresses over
+ * one source has been taken by those passes, and what reaches here is what nothing else at the level
+ * can say - the interleave at 256 bits, a word pattern, a quadword pattern that crosses the halves, a
+ * pattern over both sources at any width. `vpermi2*` takes all of them, because its index names the
+ * source as well as the lane: below the lane count it is a lane of the first, at or above it a lane of
+ * the second, which is `VecShuffle`'s numbering exactly. So the pattern *is* the index vector, written
+ * at the lane's own width.
+ *
+ * The index is the destination, so the pooled load it comes from is the register the answer is written
+ * into and nothing has to be copied to keep it.
+ */
+void lowerTwoSourcePermutes(Context& ctx, LowerBase base, LowerFunction& fun) {
+    if(!hasEvexRow(EvexRow::Permute2)) return;
+
+    auto& module = *fun.module;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::VecShuffle) continue;
+            if(packedShuffleChoice(inst) || !twoSourcePermuteExpresses(base, inst)) continue;
+
+            auto shuffle = (LowerInstVecShuffle*)inst;
+            auto type = shuffle->result.type;
+            auto lanes = type.lanes();
+            auto width = laneBytes(type.lane);
+            auto pattern = shuffle->pattern();
+
+            U8 bytes[kMaxVectorBytes] = {};
+            auto size = Size(type.byteWidth());
+
+            for(U32 k = 0; k < lanes; k++) {
+                bytes[k * width] = pattern[k];
+            }
+
+            // An integer vector at the lane's own width, whatever the lanes hold - an index is a
+            // number, as it is for `vpermps`.
+            static const LowerLane kIndexLane[4] = { LowerLane::Int8, LowerLane::Int16, LowerLane::Int32, LowerLane::Int64 };
+            auto column = width == 1 ? 0 : width == 2 ? 1 : width == 4 ? 2 : 3;
+            auto indexType = LowerType { kIndexLane[column], type.laneShift, false };
+
+            auto global = pooledBytes(ctx, module, bytes, size);
+            auto address = new (fun.arena) LowerInstGlobal(StringId(), global - *module.arena);
+            auto load = new (fun.arena) LowerInstLoad(
+                &address->result - base, StringId(), indexType, U32(size), false
+            );
+
+            auto permute = new (fun.arena) LowerInstX86Permute2(
+                shuffle->result.name, type, &load->result - base, shuffle->left, shuffle->right
             );
 
             insertInstAt(base, block, i, address);

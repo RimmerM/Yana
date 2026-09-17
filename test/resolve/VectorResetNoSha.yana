@@ -1,11 +1,11 @@
 {-
    The three legacy-SSE markers on a target with AVX and **no** SHA extension.
 
-   # extensions: v3
+   # extensions: avx2
 
    `VectorReset.yana` is the same three markers around a SHA instruction and claims `sha v3`, because
    its *bodies* need the extension. None of the three markers does, and this is the fixture that says
-   so: `X86.vzeroupper()` is `@platform(v3)` in `lib/Native/Intrinsic/X86.yana` - the state it clears
+   so: `X86.vzeroupper()` is `@platform(avx2)` in `lib/Native/Intrinsic/X86.yana` - the state it clears
    is AVX's - so it is reachable from every build with AVX whether or not that build claims anything
    else.
 

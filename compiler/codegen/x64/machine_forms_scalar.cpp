@@ -4,7 +4,7 @@
  * Everything that happens in a general register or in one scalar float.
  *
  * The reading order is the form ids in machine_internal.h: this fills in the run of them from
- * FormNop through the scalar VEX and EVEX twins, and each section below is one group of that run.
+ * FormNop through the scalar VEX twins, and each section below is one group of that run.
  */
 
 void MachineFormBuilder::registerScalarForms() {
@@ -1110,18 +1110,25 @@ void MachineFormBuilder::registerScalarForms() {
      * rather than the list that was wrong: a legacy encoding is not merely a longer spelling, it is
      * a *partial write* of a register whose upper half something else may have dirtied. So every one
      * of them has a twin now, built by the sweep at the end of this constructor rather than listed
-     * here - what is written out by hand is the forms that also need an EVEX tier above them, which
-     * is what these are.
+     * here - what is written out by hand is the forms whose memory twins are linked by hand as well,
+     * which is what these are.
      */
 
-    // One operation, both tiers, at both widths, with and without a folded address: sixteen forms
-    // from one call, and the only thing stated sixteen times is a name.
+    /*
+     * One operation at both widths, with and without a folded address: four forms from one call, and
+     * the only thing stated four times is a name.
+     *
+     * **There is no EVEX tier above these any more**, and there used to be - built out of the VEX
+     * forms and selected wherever the target had AVX-512, so every scalar float add at `v4` was
+     * written with the four-byte `62` prefix and bought nothing for it. Whether an instruction needs
+     * EVEX is a question about the registers the allocator chose, which no selection can answer; the
+     * prefix writer answers it once the operands exist, and spells a VEX form in EVEX only where one
+     * of them is xmm16 or above (Analysis-Avx512.md §1.1, and `writeVectorPrefix` in gen.cpp).
+     */
     auto vexArith = [&](MachineFormId f32, MachineFormId f64, MachineFormId f32Mem, MachineFormId f64Mem,
-                        MachineFormId e32, MachineFormId e64, MachineFormId e32Mem, MachineFormId e64Mem,
                         MachineFormId source32, MachineFormId source64, MachineFormId sourceMem32,
                         MachineFormId sourceMem64, StringView name32, StringView name64,
-                        StringView memName32, StringView memName64,
-                        StringView eName32, StringView eName64, StringView eMemName32, StringView eMemName64)
+                        StringView memName32, StringView memName64)
     {
         vexTwin(f32, source32, name32, true);
         vexTwin(f64, source64, name64, true);
@@ -1135,49 +1142,27 @@ void MachineFormBuilder::registerScalarForms() {
 
         forms[sourceMem32].alternative = f32Mem;
         forms[sourceMem64].alternative = f64Mem;
-
-        // And the same again one tier up, out of the VEX forms.
-        evexTwin(e32, f32, eName32, true);
-        evexTwin(e64, f64, eName64, true);
-
-        memoryTwin(e32Mem, e32, eMemName32).alternativeOf = f32Mem;
-        memoryTwin(e64Mem, e64, eMemName64).alternativeOf = f64Mem;
-
-        forms[f32Mem].alternative = e32Mem;
-        forms[f64Mem].alternative = e64Mem;
     };
 
     vexArith(FormFAdd32Vex, FormFAdd64Vex, FormFAdd32VexMem, FormFAdd64VexMem,
-        FormFAdd32Evex, FormFAdd64Evex, FormFAdd32EvexMem, FormFAdd64EvexMem,
         FormFAdd32, FormFAdd64, FormFAdd32Mem, FormFAdd64Mem,
         "vaddss xmm, xmm, xmm/m"_v, "vaddsd xmm, xmm, xmm/m"_v,
-        "vaddss xmm, xmm, [address]"_v, "vaddsd xmm, xmm, [address]"_v,
-        "vaddss (evex) xmm, xmm, xmm/m"_v, "vaddsd (evex) xmm, xmm, xmm/m"_v,
-        "vaddss (evex) xmm, xmm, [address]"_v, "vaddsd (evex) xmm, xmm, [address]"_v);
+        "vaddss xmm, xmm, [address]"_v, "vaddsd xmm, xmm, [address]"_v);
 
     vexArith(FormFSub32Vex, FormFSub64Vex, FormFSub32VexMem, FormFSub64VexMem,
-        FormFSub32Evex, FormFSub64Evex, FormFSub32EvexMem, FormFSub64EvexMem,
         FormFSub32, FormFSub64, FormFSub32Mem, FormFSub64Mem,
         "vsubss xmm, xmm, xmm/m"_v, "vsubsd xmm, xmm, xmm/m"_v,
-        "vsubss xmm, xmm, [address]"_v, "vsubsd xmm, xmm, [address]"_v,
-        "vsubss (evex) xmm, xmm, xmm/m"_v, "vsubsd (evex) xmm, xmm, xmm/m"_v,
-        "vsubss (evex) xmm, xmm, [address]"_v, "vsubsd (evex) xmm, xmm, [address]"_v);
+        "vsubss xmm, xmm, [address]"_v, "vsubsd xmm, xmm, [address]"_v);
 
     vexArith(FormFMul32Vex, FormFMul64Vex, FormFMul32VexMem, FormFMul64VexMem,
-        FormFMul32Evex, FormFMul64Evex, FormFMul32EvexMem, FormFMul64EvexMem,
         FormFMul32, FormFMul64, FormFMul32Mem, FormFMul64Mem,
         "vmulss xmm, xmm, xmm/m"_v, "vmulsd xmm, xmm, xmm/m"_v,
-        "vmulss xmm, xmm, [address]"_v, "vmulsd xmm, xmm, [address]"_v,
-        "vmulss (evex) xmm, xmm, xmm/m"_v, "vmulsd (evex) xmm, xmm, xmm/m"_v,
-        "vmulss (evex) xmm, xmm, [address]"_v, "vmulsd (evex) xmm, xmm, [address]"_v);
+        "vmulss xmm, xmm, [address]"_v, "vmulsd xmm, xmm, [address]"_v);
 
     vexArith(FormFDiv32Vex, FormFDiv64Vex, FormFDiv32VexMem, FormFDiv64VexMem,
-        FormFDiv32Evex, FormFDiv64Evex, FormFDiv32EvexMem, FormFDiv64EvexMem,
         FormFDiv32, FormFDiv64, FormFDiv32Mem, FormFDiv64Mem,
         "vdivss xmm, xmm, xmm/m"_v, "vdivsd xmm, xmm, xmm/m"_v,
-        "vdivss xmm, xmm, [address]"_v, "vdivsd xmm, xmm, [address]"_v,
-        "vdivss (evex) xmm, xmm, xmm/m"_v, "vdivsd (evex) xmm, xmm, xmm/m"_v,
-        "vdivss (evex) xmm, xmm, [address]"_v, "vdivsd (evex) xmm, xmm, [address]"_v);
+        "vdivss xmm, xmm, [address]"_v, "vdivsd xmm, xmm, [address]"_v);
 
     vexTwin(FormFNeg32Vex, FormFNeg32, "vxorps xmm, xmm, [rip + signmask]"_v, true);
     vexTwin(FormFNeg64Vex, FormFNeg64, "vxorpd xmm, xmm, [rip + signmask]"_v, true);

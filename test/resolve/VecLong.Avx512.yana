@@ -1,0 +1,60 @@
+{-
+   # extensions: avx512
+
+   `VecLong.yana` at the third level - Analysis-Avx512.md's order of work, which gives every runtime
+   fixture a rewritten expansion reaches an `avx512` twin beside its `sse4` and `avx2` ones. Two
+   tiers are two expansions of one source, and only running both says they agree.
+
+   The quadword magnitude is `vpabsq` here, the arithmetic shift `vpsraq`, the product `vpmullq` and
+   the minimum and maximum `vpminsq` and its siblings - each one instruction where the level below
+   spends a comparison and a blend, a bias, three widening products or a comparison and a select.
+   What the program asserts is written in `VecLong.yana`. The answer is 148 rather than 134 because
+   a `Vec(Long)` is four lanes at this width and two at `sse4`, and `horizontalSum(a)` counts them.
+-}
+
+fn main() -> Int:
+    let a = splat(7 :: Long) :: Vec(Long)
+    let b = splat(3 :: Long) :: Vec(Long)
+    let c = splat(0 - 9 :: Long) :: Vec(Long)
+    let &n = 0 :: Long
+
+    n = n + lane(a + b, 0)
+    n = n + lane(a - b, 0)
+    n = n + lane(a `and` b, 0)
+    n = n + lane(a `or` b, 0)
+    n = n + lane(a `xor` b, 0)
+    n = n + lane(a `shl` b, 0)
+
+    -- The logical shift, which is the one `>>>` cannot spell over a bigint.
+    n = n + lane(a `shr` b, 0)
+
+    -- The magnitude, which both targets now have at this width and reach by different routes: a
+    -- comparison and a blend natively, a conditional over a bigint on JS.
+    n = n + lane(abs(c), 0)
+
+    -- The arithmetic shift, which is the other one x64 used to refuse here. `c` is negative, which
+    -- is the whole of what tells it apart from the logical shift above.
+    n = n + lane(c `sar` splat(2 :: Long), 0)
+
+    -- The product, which is eight instructions natively and one `*` over two bigints on JS.
+    n = n + lane(a * b, 0)
+
+    -- And the division, whose two special divisors are the language's rule rather than the machine's
+    -- - `x / 0` is 0 and `x % 0` is `x` on both targets, reached through a lane-wise guard natively
+    -- and through the `$div`/`$rem` helpers on JS.
+    n = n + lane(a / b, 0)
+    n = n + lane(a % b, 0)
+    n = n + lane(a / splat(0 :: Long), 0)
+    n = n + lane(a % splat(0 :: Long), 0)
+
+    -- The three reductions, whose extremum is a comparison here rather than a `Math` call.
+    n = n + horizontalSum(a)
+    n = n + horizontalMax(a)
+    n = n + horizontalMin(c)
+
+    -- A value past 2^32, which is the whole reason the lane is 64 bits: it survives every one of
+    -- the operations above as itself rather than as its low half.
+    let wide = splat(4294967296 :: Long) :: Vec(Long)
+    n = n + lane(wide `shr` splat(32 :: Long), 0)
+
+    return truncate(n) :: Int

@@ -41,9 +41,12 @@ static Size laneColumn(LowerType type) {
  * the same work the lane extract needs.
  */
 bool isWholePackedRegister(LowerType type) {
+    // Asked of the bytes rather than of the class, because a mask at `avx512` is in a mask register
+    // (`maskInMaskBank`) and is still the vector of one register's width everywhere it is not - in
+    // memory, across a crossing, and to every rule here about which widths a vector may have.
     auto bytes = type.byteWidth();
-    if(bytes == 16) return classForType(type) == ClassXmm128;
-    if(bytes == 32) return classForType(type) == ClassYmm256 && (targetFeatures() & kFeatureAvx2) != 0;
+    if(bytes == 16) return vectorClassForBytes(bytes) == ClassXmm128;
+    if(bytes == 32) return vectorClassForBytes(bytes) == ClassYmm256 && (targetFeatures() & kFeatureAvx2) != 0;
     return false;
 }
 
@@ -121,6 +124,58 @@ static bool isInterleave(Buffer<U8> pattern, U32 lanes, bool high) {
 static Maybe<PackedShuffleChoice> narrowShuffleChoice(LowerType type, Buffer<U8> pattern, U32 lanes);
 
 /*
+ * `valignd`/`valignq` - Analysis-Avx512.md §2.5. The two sources end to end with the *second* below,
+ * `lanes` of them read from lane `from`: the numbering `narrowShuffleChoice`'s `palignr` reads, with the
+ * immediate counting lanes. A pattern over one source is the same instruction with that source as both
+ * halves, which is a rotation.
+ */
+static Maybe<PackedShuffleChoice> wideAlignChoice(LowerType type, Buffer<U8> pattern, U32 lanes) {
+    auto width = laneBytes(type.lane);
+    if(width != 4 && width != 8) return {};
+    if(!hasEvexRow(EvexRow::Align)) return {};
+
+    auto quad = width == 8;
+    auto readsFirst = false;
+    auto readsSecond = false;
+
+    for(U32 i = 0; i < lanes; i++) {
+        (pattern[i] < lanes ? readsFirst : readsSecond) = true;
+    }
+
+    // One source, rotated: entry `i` is `(k + i) mod lanes` of it. `k = 0` is the identity, which
+    // the in-lane question has already answered.
+    if(readsFirst != readsSecond) {
+        auto bias = U8(readsSecond ? lanes : 0);
+        auto k = U32(pattern[0] - bias);
+        if(k == 0) return {};
+
+        for(U32 i = 0; i < lanes; i++) {
+            if(pattern[i] != bias + (k + i) % lanes) return {};
+        }
+
+        auto form = readsSecond ? (quad ? FormVWideAlignSecond64 : FormVWideAlignSecond32)
+                                : (quad ? FormVWideAlignOne64 : FormVWideAlignOne32);
+        return Just(PackedShuffleChoice { form, U8(k), true });
+    }
+
+    // Two sources: a window of the second below the first, from lane `start`, which fits exactly
+    // when `start <= lanes` - see `narrowShuffleChoice`'s window for the wrapping pattern this bound
+    // refuses.
+    // `start == lanes` would be the identity over the first source, which cannot reach this branch -
+    // it reads one source, and the branch above took those. Refused anyway rather than relied on: the
+    // immediate is three bits at a 32-bit lane, so `lanes` would be written as the zero it is not.
+    U32 start = pattern[0] >= lanes ? pattern[0] - lanes : pattern[0] + lanes;
+    if(start >= lanes) return {};
+
+    for(U32 i = 0; i < lanes; i++) {
+        auto k = start + i;
+        if(pattern[i] != U8(k < lanes ? k + lanes : k - lanes)) return {};
+    }
+
+    return Just(PackedShuffleChoice { quad ? FormVWideAlign64 : FormVWideAlign32, U8(start), true });
+}
+
+/*
  * A pattern at 256 bits, which is a different question from the same pattern at 128.
  *
  * **Every shuffle AVX2 has works inside each 128-bit half.** `vpshufd ymm` applies one control byte
@@ -129,11 +184,15 @@ static Maybe<PackedShuffleChoice> narrowShuffleChoice(LowerType type, Buffer<U8>
  * 10, 3, 11]` - which reads as an interleave and *is* one at four lanes - is not an instruction here
  * at all, and a tier that answered `vpunpckldq` for it would have produced a plausible wrong vector.
  *
- * That gives two questions rather than one, asked in this order:
+ * That gives three questions rather than one, asked in this order:
  *
  * - **Is it in-lane?** Every result lane takes a source lane from its own half. If so, the pattern
  *   reduces to a 128-bit one - the same one in both halves, since there is one control byte - and
  *   the answer is the narrow family's form widened. This is where the ordinary shuffles live.
+ * - **Is it a window or a rotation?** At `avx512` `valignd`/`valignq` read `lanes` lanes out of the two
+ *   sources placed end to end, from any starting lane, so both are one instruction with no pooled
+ *   constant - see `wideAlignChoice` above. Nothing below that level has it: `vpalignr` shifts each
+ *   128-bit half on its own.
  * - **Is it a permutation of whole halves?** `vperm2f128` builds its result out of two of the four
  *   halves its two sources hold. This is the *only* cross-half rearrangement in the tier, and it is
  *   what the top level of a reduction butterfly over eight lanes is - lane `j` paired with lane
@@ -143,9 +202,10 @@ static Maybe<PackedShuffleChoice> narrowShuffleChoice(LowerType type, Buffer<U8>
  * that is also an in-lane shuffle - is cheaper as the in-lane one: `vperm2f128` crosses the halves
  * and is the slower of the two on every part that has both.
  *
- * Anything else is refused, and the refusal is real rather than a gap waiting to be filled. AVX2's
- * `vpermd` would express a general 32-bit lane permutation, but it takes its pattern out of a
- * *vector* register - which needs the constant pool this backend has not opened to vectors.
+ * Anything else is refused *here*, and what becomes of it is the two passes below this file:
+ * `lowerWideLanePermutes` makes a one-source 32-bit pattern `vpermd` and a pooled index vector, and at
+ * `avx512` `lowerTwoSourcePermutes` makes anything left `vpermi2*` over one. Both need an operand a
+ * form cannot create, which is why neither is a row here.
  */
 static Maybe<PackedShuffleChoice> wideShuffleChoice(LowerType type, Buffer<U8> pattern, U32 lanes) {
     auto half = lanes / 2;
@@ -191,6 +251,14 @@ static Maybe<PackedShuffleChoice> wideShuffleChoice(LowerType type, Buffer<U8> p
     }
 
     /*
+     * A window or a rotation, which is `valignd`/`valignq` at `avx512` - one instruction at a 32- or
+     * 64-bit lane, where `vpalignr` shifts each 128-bit half on its own. Before the half exchange,
+     * which it also expresses and which crosses the halves more slowly: a rotation by half the lanes
+     * is both.
+     */
+    if(auto aligned = wideAlignChoice(type, pattern, lanes)) return aligned;
+
+    /*
      * Whole halves, which is `vperm2f128`: each half of the result is one of the four the sources
      * hold, taken entire and in order. Its byte names the low half's source in bits 1:0 and the high
      * half's in bits 5:4 - the same numbering `halfOf` answers in, which is why that helper is
@@ -211,6 +279,18 @@ static Maybe<PackedShuffleChoice> wideShuffleChoice(LowerType type, Buffer<U8> p
     }
 
     return Just(PackedShuffleChoice { FormVPerm2, control, true });
+}
+
+bool twoSourcePermuteExpresses(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::VecShuffle) return false;
+
+    auto shuffle = (LowerInstVecShuffle*)inst;
+    auto type = shuffle->result.type;
+
+    if(!isWholePackedRegister(type)) return false;
+    if(base[shuffle->left]->type != type || base[shuffle->right]->type != type) return false;
+
+    return hasEvexRow(laneBytes(type.lane) == 1 ? EvexRow::BytePermute2 : EvexRow::Permute2);
 }
 
 /*
@@ -556,6 +636,10 @@ U8 packedTrailingByte(LowerInst* inst) {
             return U8((U8)op - (U8)LowerSha::Sha1Rounds0);
         }
 
+        // The truth table, which is the instruction's own field.
+        case LowerInst::X86TernaryLogic:
+            return ((LowerInstX86TernaryLogic*)inst)->getTable();
+
         case LowerInst::VecShuffle: {
             // `unwrap` rather than a check: the form was selected *because* this answered, so one
             // that does not now is a pattern something rewrote behind the selection. And a form
@@ -632,6 +716,9 @@ LowerCmp packedCompareRelation(LowerCmp cmp) {
  * the complement is a different byte and not a different instruction.
  */
 bool packedCompareIsInverted(LowerType type, LowerCmp cmp) {
+    // Every relation is an instruction of its own into a mask register - see the `Cmp` arm above.
+    if(maskInMaskBank()) return false;
+
     if(isFloatVector(type)) return false;
     return cmp == LowerCmp::neq || cmp == LowerCmp::ile;
 }
@@ -703,9 +790,9 @@ bool packedMinMaxSupported(LowerType type) {
     if(!isVectorLike(type) || !isWholePackedRegister(type)) return false;
     if(isFloatVector(type)) return true;
 
-    // Every integer width but the quadword, which has no `pminsq` outside AVX-512 - the same gap the
-    // form table's rows leave empty at that column.
-    return isIntVector(type) && laneBytes(type.lane) < 8;
+    // Every integer width, the quadword where the target has `vpminsq` - the column the form table
+    // fills from machine_forms_evex.cpp.
+    return isIntVector(type) && (laneBytes(type.lane) < 8 || hasEvexRow(EvexRow::QuadwordMinMax));
 }
 
 /*
@@ -740,6 +827,74 @@ LowerImm* packedShiftConstantCount(LowerBase base, LowerInst* inst) {
     if(count->kind == LowerInst::VecSplat) count = base[((LowerInstVecSplat*)count)->from]->inst();
 
     return count->kind == LowerInst::Imm ? (LowerImm*)count : nullptr;
+}
+
+/*
+ * The minimum or the maximum of a lane type at a signedness - the row `X86MinMax` selects, stated once
+ * for it and for the masked operation that performs the same instruction under a mask register.
+ *
+ * The four unsigned float entries are the signed ones repeated rather than left empty: a float lane has
+ * one ordering, so `isSignedLanes` is false for every `minps` this reaches and reading the row at the
+ * unsigned column has to find it there. The quadword column is AVX-512's, and `packedMinMaxSupported`
+ * is what keeps a target without it from building an instruction that would read it.
+ */
+static MachineFormId packedMinMaxForm(LowerType type, bool max, bool signedLanes) {
+    static const MachineFormId kMinSigned[6] = {
+        FormVMinI8, FormVMinI16, FormVMinI32, FormVMinI64, FormVMinF32, FormVMinF64,
+    };
+    static const MachineFormId kMinUnsigned[6] = {
+        FormVMinU8, FormVMinU16, FormVMinU32, FormVMinU64, FormVMinF32, FormVMinF64,
+    };
+    static const MachineFormId kMaxSigned[6] = {
+        FormVMaxI8, FormVMaxI16, FormVMaxI32, FormVMaxI64, FormVMaxF32, FormVMaxF64,
+    };
+    static const MachineFormId kMaxUnsigned[6] = {
+        FormVMaxU8, FormVMaxU16, FormVMaxU32, FormVMaxU64, FormVMaxF32, FormVMaxF64,
+    };
+
+    if(max) return packedForm(signedLanes ? kMaxSigned : kMaxUnsigned, type);
+    return packedForm(signedLanes ? kMinSigned : kMinUnsigned, type);
+}
+
+/*
+ * The comparison into a mask register an `X86MaskCompare` or a vector `Cmp` is - by relation and lane
+ * for a comparison, by lane for the two tests. Unmasked: the masked twin is `selectForm`'s step, taken
+ * after the alternative the way every other swap there is.
+ */
+static MachineFormId maskCompareForm(LowerType type, LowerCmp relation, LowerX86MaskTest test) {
+    static const MachineFormId kEq[4] = { FormKCmpEq8, FormKCmpEq16, FormKCmpEq32, FormKCmpEq64 };
+    static const MachineFormId kGt[4] = { FormKCmpGt8, FormKCmpGt16, FormKCmpGt32, FormKCmpGt64 };
+    static const MachineFormId kSigned[4] = { FormKCmp8, FormKCmp16, FormKCmp32, FormKCmp64 };
+    static const MachineFormId kUnsigned[4] = { FormKCmpU8, FormKCmpU16, FormKCmpU32, FormKCmpU64 };
+    static const MachineFormId kTest[4] = { FormKTest8, FormKTest16, FormKTest32, FormKTest64 };
+    static const MachineFormId kTestNot[4] = { FormKTestNot8, FormKTestNot16, FormKTestNot32, FormKTestNot64 };
+
+    if(isFloatVector(type)) {
+        assertTrue(test == LowerX86MaskTest::Compare); // a bit test of a float vector
+        return widthForm(laneBytes(type.lane) == 4 ? FormKCmpF32 : FormKCmpF64, type);
+    }
+
+    auto column = laneColumn(type);
+    assertTrue(column < 4);
+
+    if(test == LowerX86MaskTest::Test) return widthForm(kTest[column], type);
+    if(test == LowerX86MaskTest::TestNot) return widthForm(kTestNot[column], type);
+
+    switch(relation) {
+        case LowerCmp::eq:  return widthForm(kEq[column], type);
+        case LowerCmp::igt: return widthForm(kGt[column], type);
+        case LowerCmp::ilt:
+        case LowerCmp::ile:
+        case LowerCmp::ige:
+        case LowerCmp::neq: return widthForm(kSigned[column], type);
+        case LowerCmp::lt:
+        case LowerCmp::le:
+        case LowerCmp::gt:
+        case LowerCmp::ge:  return widthForm(kUnsigned[column], type);
+        default:
+            assertTrue("no mask comparison for this relation" == nullptr);
+            return 0;
+    }
 }
 
 MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
@@ -815,6 +970,10 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
                     // product is the same bits either way, which is why `IMul` reaches this row.
                     if(laneColumn(type) == 2) return widthForm(FormVMul32, type);
 
+                    // And a quadword's is `vpmullq` where the target has it, `expandQuadwordMul`
+                    // having left the product standing for exactly that.
+                    if(laneColumn(type) == 3) return widthForm(FormVMul64, type);
+
                     return packedForm(kMul, type);
                 default:              return packedForm(kDiv, type);
             }
@@ -827,6 +986,11 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
         case LowerInst::Xor: {
             auto type = ((LowerInstBinary*)inst)->result.type;
             if(!isVectorLike(type)) return 0;
+
+            // Two masks in mask registers - `kandd`, `kord`, `kxord`.
+            if(type.isMask() && maskInMaskBank()) {
+                return inst->kind == LowerInst::And ? FormKAnd : inst->kind == LowerInst::Or ? FormKOr : FormKXor;
+            }
 
             assertTrue(isWholePackedRegister(type)); // no forms for a vector of any other width
 
@@ -877,6 +1041,13 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
                  * than answered around, a zero here reading as "not a packed operation".
                  */
                 if(isVectorLike(base[((LowerInstBinary*)inst)->rhs]->type)) {
+                    // The two rows AVX-512 adds to the family - the word lane at every direction, and
+                    // the quadword's arithmetic one - which `scalarizeVectorLanes` and
+                    // `expandQuadwordSar` leave standing only where the target has them.
+                    static const MachineFormId kShiftVar16[3] = { FormVShlVar16, FormVShrVar16, FormVSarVar16 };
+                    if(laneBytes(type.lane) == 2) return widthForm(kShiftVar16[direction], type);
+                    if(direction == 2 && laneBytes(type.lane) == 8) return widthForm(FormVSarVar64, type);
+
                     auto row = kShiftVar[direction][laneBytes(type.lane) == 8 ? 1 : 0];
                     assertTrue(row != 0 && laneBytes(type.lane) >= 4);
 
@@ -890,8 +1061,43 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             switch(inst->kind) {
                 case LowerInst::Shl: return packedForm(kShlImm, type);
                 case LowerInst::Shr: return packedForm(kShrImm, type);
-                default:             return packedForm(kSarImm, type);
+                default:
+                    // `vpsraq`, which `expandQuadwordSar` leaves standing where the target has it.
+                    if(laneColumn(type) == 3) return widthForm(FormVSar64Imm, type);
+                    return packedForm(kSarImm, type);
             }
+        }
+
+        /*
+         * The rotations, which reach selection only where the target has the instruction - see
+         * `expandVectorRotate`, which rewrites every other one into shifts. A count that is a
+         * constant is the immediate row, which that pass has already reduced to a scalar and turned
+         * into a left rotation at a word lane; one that is a vector is the per-lane row, a shared
+         * count being the splat it arrived as.
+         */
+        case LowerInst::Rol:
+        case LowerInst::Ror: {
+            auto type = ((LowerInstBinary*)inst)->result.type;
+            if(!isVectorLike(type)) return 0;
+
+            auto left = inst->kind == LowerInst::Rol;
+            auto quad = laneBytes(type.lane) == 8;
+            auto count = base[((LowerInstBinary*)inst)->rhs];
+
+            if(!isVectorLike(count->type)) {
+                if(laneBytes(type.lane) == 2) {
+                    assertTrue(left); // a word rotation `expandVectorRotate` did not turn left
+                    return widthForm(FormVRol16Imm, type);
+                }
+
+                assertTrue(laneBytes(type.lane) >= 4);
+                if(left) return widthForm(quad ? FormVRol64Imm : FormVRol32Imm, type);
+                return widthForm(quad ? FormVRor64Imm : FormVRor32Imm, type);
+            }
+
+            assertTrue(laneBytes(type.lane) >= 4);
+            if(left) return widthForm(quad ? FormVRolVar64 : FormVRolVar32, type);
+            return widthForm(quad ? FormVRorVar64 : FormVRorVar32, type);
         }
 
         /*
@@ -907,6 +1113,19 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
         case LowerInst::Cmp: {
             auto type = base[((LowerInstBinary*)inst)->lhs]->type;
             if(!isVectorLike(type)) return 0;
+
+            /*
+             * Into a mask register, where every relation is an instruction of its own - equality and
+             * signed greater with an opcode each, and the other six a predicate on `vpcmp` or
+             * `vpcmpu` - so there is nothing to invert and nothing to bias (Analysis-Avx512.md §2.1).
+             */
+            if(maskInMaskBank()) {
+                // A mask tested for emptiness is a scalar comparison of it - `kortestd`, which the
+                // scalar selection answers - rather than a comparison between vectors.
+                if(type.isMask()) return 0;
+
+                return maskCompareForm(type, ((LowerInstCmp*)inst)->getCmp(), LowerX86MaskTest::Compare);
+            }
 
             // The three the machine has only the complement of are one pseudo whatever the lane
             // width, since what the widths differ in is a byte the expansion reads rather than
@@ -943,24 +1162,39 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
          * and reading the row at the unsigned column has to find it there.
          */
         case LowerInst::X86MinMax: {
-            static const MachineFormId kMinSigned[6] = {
-                FormVMinI8, FormVMinI16, FormVMinI32, 0, FormVMinF32, FormVMinF64,
-            };
-            static const MachineFormId kMinUnsigned[6] = {
-                FormVMinU8, FormVMinU16, FormVMinU32, 0, FormVMinF32, FormVMinF64,
-            };
-            static const MachineFormId kMaxSigned[6] = {
-                FormVMaxI8, FormVMaxI16, FormVMaxI32, 0, FormVMaxF32, FormVMaxF64,
-            };
-            static const MachineFormId kMaxUnsigned[6] = {
-                FormVMaxU8, FormVMaxU16, FormVMaxU32, 0, FormVMaxF32, FormVMaxF64,
-            };
-
             auto minMax = (LowerInstX86MinMax*)inst;
-            auto type = minMax->result.type;
+            return packedMinMaxForm(minMax->result.type, minMax->isMax(), minMax->isSignedLanes());
+        }
 
-            if(minMax->isMax()) return packedForm(minMax->isSignedLanes() ? kMaxSigned : kMaxUnsigned, type);
-            return packedForm(minMax->isSignedLanes() ? kMinSigned : kMinUnsigned, type);
+        /*
+         * The two fused mask-register instructions - see `fuseMaskRegisters`. Each selects the unmasked
+         * row it is an instance of, and `selectForm` takes the masked twin of whichever tier that
+         * lands on - which for an arithmetic row is its VEX alternative, and the twin is there.
+         */
+        case LowerInst::X86MaskCompare: {
+            auto compare = (LowerInstX86MaskCompare*)inst;
+            return maskCompareForm(base[compare->lhs]->type, compare->getCmp(), compare->getTest());
+        }
+
+        case LowerInst::X86MaskedOp: {
+            auto masked = (LowerInstX86MaskedOp*)inst;
+            auto type = masked->result.type;
+
+            switch(masked->op) {
+                case LowerInst::Add: return packedForm(kAdd, type);
+                case LowerInst::Sub: return packedForm(kSub, type);
+                case LowerInst::Div: return packedForm(kDiv, type);
+
+                case LowerInst::Mul:
+                case LowerInst::IMul:
+                    if(laneColumn(type) == 2) return widthForm(FormVMul32, type);
+                    if(laneColumn(type) == 3) return widthForm(FormVMul64, type);
+                    return packedForm(kMul, type);
+
+                default:
+                    assertTrue(masked->op == LowerInst::X86MinMax);
+                    return packedMinMaxForm(type, masked->isMax(), masked->isSignedLanes());
+            }
         }
 
         /*
@@ -995,6 +1229,24 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             auto type = masked->result.type;
 
             assertTrue(isWholePackedRegister(type)); // no forms for a vector of any other width
+
+            /*
+             * With the mask in a mask register: a mask value is `kandd` or `kandnd`, and a vector is
+             * the zero-masking move where the mask is kept and the value subtracted from itself under
+             * the mask where it is dropped - see the rows in machine_forms_evex.cpp.
+             */
+            if(maskInMaskBank()) {
+                if(type.isMask()) return masked->isComplemented() ? FormKAndNot : FormKAnd;
+
+                static const MachineFormId kKeep[6] = {
+                    FormKKeep8, FormKKeep16, FormKKeep32, FormKKeep64, FormKKeepF32, FormKKeepF64,
+                };
+                static const MachineFormId kDrop[6] = {
+                    FormKDrop8, FormKDrop16, FormKDrop32, FormKDrop64, FormKDropF32, FormKDropF64,
+                };
+
+                return widthForm((masked->isComplemented() ? kDrop : kKeep)[laneColumn(type)], type);
+            }
 
             if(isFloatVector(type)) {
                 auto single = laneBytes(type.lane) == 4;
@@ -1036,6 +1288,26 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             return isFloatVector(type) ? FormVPermuteF32 : FormVPermute32;
         }
 
+        // Two sources and an index vector - `lowerTwoSourcePermutes` builds one only where the row
+        // for its lane is there.
+        case LowerInst::X86Permute2: {
+            static const MachineFormId kPermute2[6] = {
+                FormVPermute2x8, FormVPermute2x16, FormVPermute2x32, FormVPermute2x64,
+                FormVPermute2F32, FormVPermute2F64,
+            };
+
+            auto type = ((LowerInstX86Permute2*)inst)->result.type;
+            assertTrue(isWholePackedRegister(type));
+            return widthForm(kPermute2[laneColumn(type)], type);
+        }
+
+        // Any bitwise function of three vectors, which has no lane width - see `fuseTernaryLogic`.
+        case LowerInst::X86TernaryLogic: {
+            auto type = ((LowerInstX86TernaryLogic*)inst)->result.type;
+            assertTrue(isWholePackedRegister(type));
+            return widthForm(FormVTernaryLogic, type);
+        }
+
         /*
          * A lane-wise select, which is one form for every lane type and for a mask: the three
          * bitwise instructions it expands into have no lane width, so nothing here indexes a row.
@@ -1043,6 +1315,17 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
         case LowerInst::Select: {
             auto type = ((LowerInstSelect*)inst)->result.type;
             if(!isVectorLike(type)) return 0;
+
+            // A masked move over the arm the tie keeps. A select *of* masks has been carried into
+            // the vector domain by `lowerMaskRegisters` and is a vector select here like any other.
+            if(maskInMaskBank()) {
+                static const MachineFormId kSelect[6] = {
+                    FormKSelect8, FormKSelect16, FormKSelect32, FormKSelect64, FormKSelectF32, FormKSelectF64,
+                };
+
+                assertTrue(!type.isMask()); // a select of masks that did not cross
+                return widthForm(kSelect[laneColumn(type)], type);
+            }
 
             /*
              * `pblendvb` at 128 bits without VEX, and the expansion everywhere else.
@@ -1061,6 +1344,7 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
         case LowerInst::Not: {
             auto type = ((LowerInstUnary*)inst)->result.type;
             if(!isVectorLike(type)) return 0;
+            if(type.isMask() && maskInMaskBank()) return FormKNot;
             return widthForm(FormVNot, type);
         }
 
@@ -1078,7 +1362,9 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
 
         // The magnitude of an integer lane, at the three widths SSSE3 gives one.
         case LowerInst::Abs: {
-            static const MachineFormId kAbsolute[6] = { FormVAbs8, FormVAbs16, FormVAbs32, 0, 0, 0 };
+            // The quadword is `vpabsq`, which `expandVectorAbs` leaves standing only where the target
+            // has it.
+            static const MachineFormId kAbsolute[6] = { FormVAbs8, FormVAbs16, FormVAbs32, FormVAbs64, 0, 0 };
 
             auto type = ((LowerInstUnary*)inst)->result.type;
             if(!isVectorLike(type)) return 0;
@@ -1148,6 +1434,7 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
         case LowerInst::Set: {
             auto type = ((LowerInstUnary*)inst)->result.type;
             if(!isVectorLike(type)) return 0;
+            if(type.isMask() && maskInMaskBank()) return FormKMove;
             return widthForm(FormVMove, type);
         }
 
@@ -1156,8 +1443,23 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             auto from = base[((LowerInstCast*)inst)->from]->type;
             if(!isVectorLike(to) && !isVectorLike(from)) return 0;
 
+            /*
+             * The AVX-512 pair first: a truncating narrowing, which changes the register width with
+             * the lane width, and the quadword conversion to a double. `unsupportedVectorReason`
+             * admits either only where the target has the row.
+             */
+            if(isIntVector(from) && isIntVector(to) && laneBytes(to.lane) * 2 == laneBytes(from.lane)) {
+                switch(laneBytes(from.lane)) {
+                    case 2: return FormVNarrow16To8;
+                    case 4: return FormVNarrow32To16;
+                    default: return FormVNarrow64To32;
+                }
+            }
+
+            if(isFloatVector(to) && laneBytes(to.lane) == 8) return widthForm(FormVCastI64ToF64, to);
+
             // The lane count is preserved by the IR's own rule, so the register width is preserved
-            // exactly when the lane width is - and the only pair this tier has at one width is the
+            // exactly when the lane width is - and the only pair below AVX-512 at one width is the
             // 32-bit one. `unsupportedVectorReason` refuses the rest.
             return widthForm(isFloatVector(to) ? FormVCastIToF32 : FormVCastFToI32, to);
         }
@@ -1209,6 +1511,20 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
 
                 if(pattern.unwrap() == SplatPattern::Zero) return wide ? FormVWideZero : FormVZero;
                 return wide ? FormVWideOnes : FormVOnes;
+            }
+
+            /*
+             * The scalar read straight out of the general register it is in - one instruction, where
+             * every tier below has to move it into a vector register first (Analysis-Avx512.md §2.5).
+             * A float lane's scalar is already in a vector register and keeps the shuffle it always
+             * was, so this is the four integer columns.
+             */
+            if(!isFloatVector(type) && hasEvexRow(EvexRow::GprBroadcast)) {
+                static const MachineFormId kFromGpr[4] = {
+                    FormVBroadcastGpr8, FormVBroadcastGpr16, FormVBroadcastGpr32, FormVBroadcastGpr64,
+                };
+
+                return widthForm(kFromGpr[laneColumn(type)], type);
             }
 
             // The baseline's byte and word broadcasts, which are sequences rather than instructions
@@ -1368,10 +1684,37 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
          * choice is made for the arithmetic above the instruction, and the two have to agree - the
          * shift a consumer applies is exactly what this row decides.
          */
+        // A mask carried into or out of a mask register - see LowerInst::X86MaskConvert. The row is
+        // the lane width's, at the width of the vector end.
+        case LowerInst::X86MaskConvert: {
+            static const MachineFormId kToVector[4] = { FormKToVector8, FormKToVector16, FormKToVector32, FormKToVector64 };
+            static const MachineFormId kToMask[4] = { FormVectorToK8, FormVectorToK16, FormVectorToK32, FormVectorToK64 };
+
+            auto convert = (LowerInstX86MaskConvert*)inst;
+
+            // A mask register written from a general register's bits, which is the one crossing that
+            // has no vector end - `kmovd k, r32`.
+            if(!convert->isToVector() && !isVectorLike(base[convert->from]->type)) return FormKFromBits;
+
+            auto vector = convert->isToVector() ? convert->result.type : base[convert->from]->type;
+            auto column = laneColumn(vector);
+
+            // Never a float column, because a mask's lane is never a float one: `maskType` is the only
+            // thing that builds a mask and it normalizes `Float32` and `Float64` to the integer lane of
+            // the same width. So `vpmovm2d` serves a comparison of floats as well, which is what it is.
+            assertTrue(column < 4);
+
+            return widthForm((convert->isToVector() ? kToVector : kToMask)[column], vector);
+        }
+
         case LowerInst::VecReduce: {
             if(((LowerInstVecReduce*)inst)->getReduce() != LowerReduce::Bits) return 0;
 
             auto type = base[((LowerInstVecReduce*)inst)->from]->type;
+
+            // A mask in a mask register is its own movemask - `kmovd`, a bit per lane.
+            if(type.isMask() && maskInMaskBank()) return FormKBits;
+
             auto width = laneBytes(type.lane);
             auto id = width == 4 ? FormVMaskBitsF32 : width == 8 ? FormVMaskBitsF64 : FormVMaskBits;
 
@@ -1579,6 +1922,11 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
 
         case LowerInst::VecShuffle:
             if(!packedShuffleChoice(inst)) {
+                // Any pattern over two sources of the result's own shape, at `avx512` - one `vpermi2*`
+                // and a pooled index vector, built by `lowerTwoSourcePermutes`. What is refused below
+                // is refused at `sse4` and `avx2` only.
+                if(twoSourcePermuteExpresses(base, inst)) return {};
+
                 if(isWideVector(type)) {
                     /*
                      * The refusal that is specific to this tier: every shuffle AVX2 has works
@@ -1730,7 +2078,7 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
          *
          * A separate arm rather than a label on the shifts, because what makes them supported is not
          * the same fact: a shift is a form or an expansion of one, and a rotation never reaches a
-         * form at all below v4. This check runs at the top of `transformFunction` and so sees the
+         * form at all below `avx512`. This check runs at the top of `transformFunction` and so sees the
          * rotation the expansion is about to remove, which is why the arm has to exist.
          */
         case LowerInst::Rol:
@@ -1752,6 +2100,20 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
             if(!isVectorLike(to) || !isVectorLike(from) || !isWholePackedRegister(from)) {
                 return Just("a conversion between a vector and something that is not one has no meaning here"_v);
             }
+
+            /*
+             * The two AVX-512 adds: a truncating narrowing of a 256-bit integer vector into a 128-bit
+             * one of half the lane width (`vpmovdw` and its two siblings), and a quadword integer
+             * lane converted to a double (`vcvtqq2pd`). Neither exists below the level, where both
+             * are refused on the grounds below.
+             */
+            auto narrowing = isIntVector(from) && isIntVector(to) && isWideVector(from) && !isWideVector(to)
+                          && laneBytes(to.lane) * 2 == laneBytes(from.lane) && isWholePackedRegister(to);
+            if(narrowing && hasEvexRow(EvexRow::Narrowing)) return {};
+
+            auto quadToDouble = isIntVector(from) && isFloatVector(to) && laneBytes(from.lane) == 8
+                             && laneBytes(to.lane) == 8 && ((LowerInstCast*)inst)->isSignedSource();
+            if(quadToDouble && hasEvexRow(EvexRow::QuadwordToDouble)) return {};
 
             if(laneBytes(to.lane) != 4 || laneBytes(from.lane) != 4 || isFloatVector(to) == isFloatVector(from)) {
                 return Just("the only packed conversion that keeps one register width is between 32-bit integer lanes and float ones - any other lane width would need a register twice as wide on one side"_v);

@@ -1,0 +1,57 @@
+module Core
+
+import Native
+
+{-
+   `pushHex` at thirty-two bytes a turn - the `avx512` body of the function `Hex.native.yana` declares
+   (Design-Replacements.md). What the operation is, and why the digit is arithmetic, is stated there.
+
+   **The width the baseline could not have.** That body pins sixteen lanes because the two interleaves
+   that put the digits in their final order were no instruction at all at 256 bits: every AVX2 shuffle
+   works inside a 128-bit half. At `avx512` each is one `vpermi2b` over a pooled index vector
+   (Analysis-Avx512.md §2.5), so the loop can take the natural width and read thirty-two bytes and
+   write sixty-four units a turn. Everything else is the baseline's loop with the count changed; the
+   comparison and the `select` are a mask register and a masked move at this level.
+
+   Measured in `test/bench/avx512/findings.md` against the baseline built at the same level.
+-}
+@replaces
+fn pushHex(bytes: [U8], &to: String):
+    let n = length(bytes)
+    if n <= 0 then return
+
+    String.reserve(to, n + n)
+
+    let start = to.units.length :: Size
+    let wanted = start + n + n
+    checkCondition((to.units.run.capacity :: Size) < wanted)
+    to.units.length = truncate(wanted) :: Count
+
+    let source = bytes.items
+    let target = to.units.run.items + start
+
+    let nibble = splat(15) :: Vec(U8)
+    let nine = splat(9) :: Vec(U8)
+    let digit = splat("0" :: U8) :: Vec(U8)
+    let letter = splat(("a" - 10) :: U8) :: Vec(U8)
+
+    let &i = 0 :: Size
+    while i + 32 <= n:
+        let block = vectorAt(source + i) :: Vec(U8)
+        let high = (block `shr` (splat(4) :: Vec(U8))) `and` nibble
+        let low = block `and` nibble
+        let highText = high + select(high .> nine, letter, digit)
+        let lowText = low + select(low .> nine, letter, digit)
+
+        let low32 = bitcast(interleaveLow(highText, lowText)) :: Vec(CodeUnit)
+        let high32 = bitcast(interleaveHigh(highText, lowText)) :: Vec(CodeUnit)
+        setVectorAt(target + i + i, low32)
+        setVectorAt(target + i + i + 32, high32)
+        i = i + 32
+
+    -- The ragged end, one byte at a time - see the baseline for why there is no overreading store.
+    while i < n:
+        let byte = bytes[i] :: Int
+        store(target + i + i, hexUnit(byte `shr` 4))
+        store(target + i + i + 1, hexUnit(byte `and` 15))
+        i = i + 1

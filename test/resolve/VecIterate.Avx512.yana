@@ -1,0 +1,59 @@
+{-
+   # extensions: avx512
+
+   `VecIterate.yana` at the third level - Analysis-Avx512.md's order of work, which gives every
+   runtime fixture a rewritten expansion reaches an `avx512` twin beside its `sse4` and `avx2` ones.
+   Two tiers are two expansions of one source, and only running both says they agree.
+
+   A mask lives in a mask register here, and the chunked tails read theirs through a masked move or
+   a masked load rather than a blend. What the program asserts is written in `VecIterate.yana`.
+-}
+
+fn sumInts(xs: [Int]) -> Int:
+    let &acc = zero() :: Vec(Int)
+
+    for v in vectors(xs):
+        acc = acc + v
+
+    return horizontalSum(acc)
+
+fn largest(xs: [Int], floor: Int) -> Int:
+    let &acc = splat(floor)
+
+    for {v, live} in vectorsMasked(xs):
+        acc = max(acc, select(maskUpTo(live) :: Mask(Int), v, acc))
+
+    return horizontalMax(acc)
+
+fn (Chunked(c, a), Num(Vec(a))) total(xs: c) -> a:
+    let &acc = zero() :: Vec(a)
+
+    for v in vectors(xs):
+        acc = acc + v
+
+    return horizontalSum(acc)
+
+fn (Chunked(c, a), Ord(a)) biggest(xs: c, floor: a) -> a:
+    let &acc = splat(floor)
+
+    for {v, live} in vectorsMasked(xs):
+        acc = max(acc, select(maskUpTo(live) :: Mask(a), v, acc))
+
+    return horizontalMax(acc)
+
+-- Eleven elements, so every lane count this compiles at leaves a tail: three past two vectors of
+-- four, and three past one of eight.
+fn main() -> Int:
+    let xs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    let ys = [3.0, 1.0, 4.0, 1.0, 5.0]
+
+    let &result = 0
+
+    if sumInts(xs) == 66 then result = result + 1
+    if largest(xs, 0) == 11 then result = result + 2
+    if total(xs) == 66 then result = result + 4
+    if biggest(xs, 0) == 11 then result = result + 8
+    if total(ys) == 14.0 then result = result + 16
+    if biggest(ys, 0.0) == 5.0 then result = result + 32
+
+    return result

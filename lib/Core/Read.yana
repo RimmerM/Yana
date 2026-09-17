@@ -125,12 +125,14 @@ fn digitValue(unit: Int, radix: Int) -> Int:
    that is not obvious and is not negotiable.
 
    `interleaveLow` is a *portable* whole-vector operation: at sixteen lanes it is one instruction on
-   every x86 back to SSE2, and at thirty-two there is no instruction for it at all - every shuffle at
+   every x86 back to SSE2, and at thirty-two there is no instruction for it at `avx2` - every shuffle at
    256 bits works inside each 128-bit half and the only crossing is an exchange of whole halves. So a
-   build at `v3`, where `Vec(U8)` means thirty-two lanes, does not compile this at all; the backend
-   refuses it by name rather than emitting something else, which is how it was found. Sixteen is also
-   all this needs - the tree below reads eight digits and nothing here scales with the width - so the
-   count is stated and the same code runs at every tier.
+   build at `avx2`, where `Vec(U8)` means thirty-two lanes, does not compile this at all; the backend
+   refuses it by name rather than emitting something else, which is how it was found. At `avx512` it
+   is `vpermi2b` and an index vector (Analysis-Avx512.md §2.5), which is what unpinned `pushHex` -
+   but sixteen is all *this* needs: the tree below reads eight digits and nothing here scales with the
+   width, so a wider load would buy nothing and cost the index vector. The count is stated and the same
+   code runs at every tier (test/bench/avx512/findings.md §5).
 
    `vectorPast` rather than `loadVectorTail` for the same reason: the load has to be sixteen units
    wide whatever the natural width is. It takes a raw address and promises nothing, and what makes it

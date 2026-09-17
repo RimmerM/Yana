@@ -601,6 +601,25 @@ static bool hasFixedOperands(const MachineForm& form) {
     return false;
 }
 
+// The element a pooled vector constant is read as, where it can be: see the broadcast note in
+// `tryFoldLoadOperand`. Zero where the whole vector stays in memory.
+static U8 broadcastElementFor(LowerGlobal* global, const MachineForm& twin, LowerType type) {
+    if(!global->pooled || legacyVectorEncodings()) return 0;
+    if((targetFeatures() & (kFeatureAvx512f | kFeatureAvx512vl)) != (kFeatureAvx512f | kFeatureAvx512vl)) return 0;
+
+    auto element = evexBroadcastBytes(twin.encoding);
+    auto size = global->initialContents.size();
+    if(element == 0 || size != type.byteWidth() || size <= element) return 0;
+    if(size < 32 && twin.encoding.prefixEncoding != PrefixEncoding::Evex) return 0;
+
+    auto bytes = global->initialContents.data();
+    for(Size i = element; i < size; i++) {
+        if(bytes[i] != bytes[i % element]) return 0;
+    }
+
+    return U8(element);
+}
+
 /*
  * Folds the load feeding operand `at` of the instruction at `index` into it. Answers where that
  * instruction ended up, or Nothing where it was left alone - in which case nothing has been changed
@@ -608,7 +627,7 @@ static bool hasFixedOperands(const MachineForm& form) {
  * question already answered, so that a fold which does not happen leaves no trace of having been
  * considered. That is what lets the caller try one operand and then the other.
  */
-static Maybe<Size> tryFoldLoadOperand(LowerBase base, LowerFunction& fun, LowerBlock* block,
+static Maybe<Size> tryFoldLoadOperand(Context& ctx, LowerBase base, LowerFunction& fun, LowerBlock* block,
     Size index, const MachineForm& twin, Size memory, Size at)
 {
     auto inst = base[block->instructions.get(base, index)];
@@ -735,7 +754,28 @@ static Maybe<Size> tryFoldLoadOperand(LowerBase base, LowerFunction& fun, LowerB
             LowerInst::X86Address, StringId(), nullptr, nullptr, 1, 0
         );
 
-        computed->symbol = pooledSymbol;
+        /*
+         * A vector that is one element repeated, read by an instruction EVEX can broadcast into -
+         * Analysis-Avx512.md §2.3. The operand becomes `m32bcst`/`m64bcst` over a four- or eight-byte
+         * entry, and the whole-vector entry is left to the emitter, which writes it only where
+         * something still reads it (LowerGlobal::pooled).
+         *
+         * **At 256 bits, or where the instruction is EVEX already**, which is the trade this is: the
+         * broadcast is written in EVEX's four-byte prefix where VEX's two or three would have done, so
+         * each reader is up to two bytes longer, against sixteen bytes of image at 128 bits (all of
+         * them padding a four-byte entry back to sixteen would give back) and twenty-eight at 256.
+         * Only a pooled constant: the program's own globals are its own business.
+         */
+        auto global = base[pooledSymbol];
+        auto element = broadcastElementFor(global, twin, value->type);
+
+        if(element) {
+            auto entry = pooledBytes(ctx, *fun.module, global->initialContents.data(), element);
+            computed->symbol = entry - *fun.module->arena;
+            computed->broadcast = element;
+        } else {
+            computed->symbol = pooledSymbol;
+        }
 
         replaceUse(base, value, inst, &computed->result);
         inst->used()[memory] = &computed->result - base;
@@ -795,7 +835,7 @@ static Maybe<Size> tryFoldLoadOperand(LowerBase base, LowerFunction& fun, LowerB
  * loop, the mask is in the r/m position, and stopping at the first operand that *looks* like a
  * candidate refused the whole fold and left the element's load in the loop.
  */
-static Maybe<Size> tryFoldLoad(LowerBase base, LowerFunction& fun, LowerBlock* block, Size index) {
+static Maybe<Size> tryFoldLoad(Context& ctx, LowerBase base, LowerFunction& fun, LowerBlock* block, Size index) {
     if(index == 0) return Nothing();
 
     auto inst = base[block->instructions.get(base, index)];
@@ -839,19 +879,19 @@ static Maybe<Size> tryFoldLoad(LowerBase base, LowerFunction& fun, LowerBlock* b
     };
 
     if(memory < used.size() && candidate(memory)) {
-        if(auto folded = tryFoldLoadOperand(base, fun, block, index, twin, memory, memory)) return folded;
+        if(auto folded = tryFoldLoadOperand(ctx, base, fun, block, index, twin, memory, memory)) return folded;
     }
 
     for(Size i = 0; i < used.size(); i++) {
         if(i == memory || !candidate(i)) continue;
 
-        if(auto folded = tryFoldLoadOperand(base, fun, block, index, twin, memory, i)) return folded;
+        if(auto folded = tryFoldLoadOperand(ctx, base, fun, block, index, twin, memory, i)) return folded;
     }
 
     return Nothing();
 }
 
-void foldLoads(LowerBase base, LowerFunction& fun) {
+void foldLoads(Context& ctx, LowerBase base, LowerFunction& fun) {
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
 
@@ -859,7 +899,7 @@ void foldLoads(LowerBase base, LowerFunction& fun) {
             // A fold removes the load above the instruction and may insert an address in its place,
             // so the instruction just examined does not stay where the walk left it. Nothing above
             // it changed shape, so carrying on from wherever it ended up skips nothing.
-            if(auto folded = tryFoldLoad(base, fun, block, i)) i = folded.unwrap();
+            if(auto folded = tryFoldLoad(ctx, base, fun, block, i)) i = folded.unwrap();
         }
     }
 }

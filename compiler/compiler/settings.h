@@ -121,64 +121,126 @@ enum class TargetArch {
 };
 
 /*
- * Which machine the generated code is for, as one of the three levels the x86-64 psABI names.
+ * The x86-64 instruction sets this compiler can be told a machine has, one bit each.
  *
- * **Three levels rather than a ladder of extensions**, and they are not this compiler's invention:
- * `x86-64-v2`, `v3` and `v4` are what the psABI defines, what `gcc -march=` and `clang -march=`
- * spell, and what distributions build against. Every extension this backend cares about arrives as
- * part of one of them, so a level says everything a list of flags used to say and cannot say it
- * inconsistently - `AVX2` without `BMI1`, or `SSE4.2` without `POPCNT`, are not machines.
+ * **Named sets rather than levels**, because the two things that read them want sets: a backend's
+ * form requires the extension its encoding actually needs, and the LLVM target machine is handed a
+ * list of attributes. A level is a *table* over these bits - `kLevelTable` in settings.cpp - and so is
+ * every flag, so a set a level contains and the same set named on the command line are the same bit.
  *
- * **v2 is the floor and not a choice.** POPCNT, RDTSCP and XSAVE were claimed unconditionally by the
- * x64 backend long before this enum existed, and those three are present on every part that meets v2
- * and on nothing below it - so the compiler already required v2 and merely did not say so. What it
- * did instead was carry fallbacks *below* its own floor: a population count expanded as a reduction
- * tree, a lane read through `pshufd` because `pextrd` might be missing. Neither could ever run, and
- * neither could be tested. Naming the floor is what let them go.
+ * The first three groups are what the levels contain and are never named one at a time; the last is
+ * the flags of Analysis-Avx512.md §0.3, each of which may be named beside a level and some of which a
+ * level also implies. Appending is free; the numbering means nothing outside this process.
+ */
+using InstructionSets = U64;
+
+enum : InstructionSets {
+    // The floor - exactly x86-64-v2.
+    kSetSse3      = InstructionSets(1) << 0,
+    kSetSsse3     = InstructionSets(1) << 1,
+    kSetSse41     = InstructionSets(1) << 2,
+    kSetSse42     = InstructionSets(1) << 3,
+    kSetPopcnt    = InstructionSets(1) << 4,
+    kSetCx16      = InstructionSets(1) << 5,
+
+    // `avx2` - exactly x86-64-v3 on top of the floor.
+    kSetAvx       = InstructionSets(1) << 6,
+    kSetAvx2      = InstructionSets(1) << 7,
+    kSetBmi1      = InstructionSets(1) << 8,
+    kSetBmi2      = InstructionSets(1) << 9,
+    kSetF16c      = InstructionSets(1) << 10,
+    kSetFma       = InstructionSets(1) << 11,
+    kSetLzcnt     = InstructionSets(1) << 12,
+    kSetMovbe     = InstructionSets(1) << 13,
+    kSetXsave     = InstructionSets(1) << 14,
+
+    // `avx512` - the Ice Lake and Zen 4 intersection, which is x86-64-v4 and six more.
+    kSetAvx512f         = InstructionSets(1) << 15,
+    kSetAvx512cd        = InstructionSets(1) << 16,
+    kSetAvx512bw        = InstructionSets(1) << 17,
+    kSetAvx512dq        = InstructionSets(1) << 18,
+    kSetAvx512vl        = InstructionSets(1) << 19,
+    kSetAvx512ifma      = InstructionSets(1) << 20,
+    kSetAvx512vbmi      = InstructionSets(1) << 21,
+    kSetAvx512vbmi2     = InstructionSets(1) << 22,
+    kSetAvx512bitalg    = InstructionSets(1) << 23,
+    kSetAvx512vpopcntdq = InstructionSets(1) << 24,
+    kSetAvx512vnni      = InstructionSets(1) << 25,
+
+    // The flags - in no level's own list, named or implied. See kFlagTable in settings.cpp.
+    kSetAes          = InstructionSets(1) << 32,
+    kSetPclmul       = InstructionSets(1) << 33,
+    kSetVaes         = InstructionSets(1) << 34,
+    kSetVpclmul      = InstructionSets(1) << 35,
+    kSetGfni         = InstructionSets(1) << 36,
+    kSetSha          = InstructionSets(1) << 37,
+    kSetVp2intersect = InstructionSets(1) << 38,
+    kSetFp16         = InstructionSets(1) << 39,
+    kSetBf16         = InstructionSets(1) << 40,
+    kSetSha512       = InstructionSets(1) << 41,
+    kSetSm3          = InstructionSets(1) << 42,
+    kSetSm4          = InstructionSets(1) << 43,
+};
+
+/*
+ * Which machine the generated code is for: one of three levels, and the flags beside it.
  *
- * What each level is, in the terms this compiler uses them in:
+ * **Three levels rather than a ladder of extensions**, so that a machine is described by something
+ * that cannot be inconsistent - `AVX2` without `BMI1`, or `SSE4.2` without `POPCNT`, are not machines.
+ * They are this compiler's names rather than the psABI's, for the reasons Analysis-Avx512.md §0.4
+ * gives: the lower two are exactly x86-64-v2 and -v3 in what they *contain*, but `avx2` also implies
+ * AES-NI and PCLMULQDQ, which the psABI does not, and x86-64-v4 is a set nothing since Cooper Lake has
+ * been - so `v4` could not keep its meaning and a ladder of `v2`, `v3` and `avx512` would read as an
+ * accident. The psABI spellings are refused rather than aliased, naming the replacement.
  *
- *   v2  SSE3 through SSE4.2, POPCNT, CMPXCHG16B - Nehalem and Bulldozer. A vector is 16 bytes.
- *   v3  AVX, AVX2, BMI1, BMI2, F16C, FMA, LZCNT, MOVBE - Haswell, Excavator, every Zen. A vector is
- *       32 bytes, which is why this level changes what a `Vec(a)` *is* rather than only how it is
- *       encoded.
- *   v4  AVX-512 F/BW/CD/DQ/VL - Skylake-X and Zen 4. Named, and only partly built: this backend
- *       still holds a vector in at most 32 bytes, so today the level buys the EVEX encodings and not
- *       the width.
+ *   sse4    SSSE3, SSE4.1, SSE4.2, POPCNT, CMPXCHG16B - Nehalem and Bulldozer. A vector is 16 bytes.
+ *           **The floor and not a choice**: POPCNT, RDTSCP and XSAVE were claimed unconditionally by
+ *           the x64 backend long before any of this was named, so the compiler already required it.
+ *   avx2    AVX, AVX2, BMI1, BMI2, F16C, FMA, LZCNT, MOVBE, and `aes` and `pclmul` implied - Haswell,
+ *           Excavator, every Zen, and every Intel hybrid client part. A vector is 32 bytes.
+ *   avx512  AVX-512 F, CD, BW, DQ, VL, IFMA, VBMI, VBMI2, BITALG, VPOPCNTDQ and VNNI, with `vaes`,
+ *           `vpclmul`, `gfni` and `sha` implied as well - Ice Lake, Tiger Lake, Rocket Lake, Sapphire
+ *           Rapids, Zen 4 and Zen 5. **Not** Skylake-SP/X, Cascade Lake or Cooper Lake, whose
+ *           frequency licensing is what made heavy 512-bit code a loss; those parts are `avx2`.
  *
  * The one machine that stops being describable is AVX without AVX2 - Sandy and Ivy Bridge - which
- * the psABI also declines to name. Those parts are v2 here, as they are everywhere else.
+ * the psABI also declines to name. Those parts are `sse4` here, as they are everywhere else.
  */
 struct TargetExtensions {
     enum Level: U8 {
-        V2,
-        V3,
-        V4,
+        Sse4,
+        Avx2,
+        Avx512,
     };
 
-    /// The x86-64 level the generated code may use. See above; v2 is the floor.
-    Level level = V2;
+    /// The x86-64 level the generated code may use. See above; `sse4` is the floor.
+    Level level = Sse4;
 
     /*
-     * The SHA extension - `sha1rnds4` and the six instructions beside it.
+     * The flags named beside the level - `-enable-inst sha` - or detected on the host.
      *
-     * **A flag of its own and not part of a level**, which is the one place this description departs
-     * from the psABI's shape, and it is the psABI's doing rather than a preference: SHA-NI is in no
-     * level. Intel shipped it on Goldmont and then on Ice Lake, four generations after Haswell made
-     * v3; AMD has had it since Zen 1. So a v3 machine may or may not have it and a v2 one may, which
-     * is exactly the shape `neon` below has - an extension beside the level rather than inside it.
+     * **Only what was named.** A flag the level implies is not written here, and asking `has` is what
+     * adds the implication: a build that names `aes` at `sse4` and is later raised to `avx2` by a second
+     * `-enable-inst` holds the same bit either way, which is §0.3's "a flag the level already implies is
+     * accepted silently" and is also what lets the check that refuses a flag below its lowest level run
+     * once, after every flag has been read.
      *
-     * The hazard of claiming it wrongly is the loud kind: `0f 38 cb` decodes as nothing at all on a
-     * part without the extension, so a wrong claim faults rather than answering differently. That is
-     * what makes host detection safe to default to here.
-     *
-     * What it buys is `lib/Digest/Sha1.native.yana` and `Sha256.native.yana`, which is 3-6x on the
-     * two digests - see `test/bench/hash/findings.md`. A build without it takes the portable
-     * compression beside them, which is a decision made in source through `hasShaExtension` rather
-     * than by any expansion in a backend: there is no sequence of ordinary instructions that stands
-     * for one of these, and a backend that tried to write one would be writing SHA-256 twice.
+     * The hazard of claiming one wrongly is the loud kind for every flag here: each is an opcode that
+     * decodes as nothing at all on a part without it, so a wrong claim faults rather than answering
+     * differently. That is what makes host detection safe to default to.
      */
-    bool sha = false;
+    InstructionSets flags = 0;
+
+    /*
+     * Every instruction set this target has: the level's own, the flags it implies, and the flags
+     * that were named. The one question everything past the command line asks - see `kLevelTable`,
+     * which is what answers it.
+     */
+    InstructionSets sets() const;
+
+    bool has(InstructionSets wanted) const {
+        return (sets() & wanted) == wanted;
+    }
 
     /*
      * ARM extensions.
@@ -186,6 +248,31 @@ struct TargetExtensions {
 
     bool neon = false;   /// Enabled ARM NEON SIMD instructions.
 };
+
+/*
+ * The names the command line, a file selector and a fixture directive all spell the x86-64 machine
+ * with - one table for the three of them, so that a spelling one accepts is a spelling all accept.
+ */
+
+// A level by its name, or nothing.
+Maybe<TargetExtensions::Level> matchLevel(StringView name);
+
+// A flag by its name, or zero.
+InstructionSets matchExtensionFlag(StringView name);
+
+// The level a psABI spelling (`v2`, `x86-64-v3`, `sse4.2`...) would have been, for the message that
+// refuses it; nothing for a name that is not one.
+Maybe<StringView> replacedLevelSpelling(StringView name);
+
+// The LLVM target attributes a target's instruction sets come to, one name each - read from the same
+// table the levels are, so the attribute list cannot come to describe a different machine from the
+// one the local backend is told about. `test/bench/findings.md` records the v3 list once being written
+// from memory, and wrong.
+Array<const char*> llvmAttributesOf(const TargetExtensions& extensions);
+
+// Whether every flag that was named is legal at the level, and the message naming the lowest level a
+// flag needs where one is not - §0.3's first rule. Asked once the whole command line has been read.
+Maybe<Tritium::String> checkExtensionFlags(const TargetExtensions& extensions);
 
 /*
  * Which code generator a native build goes through.
@@ -746,13 +833,14 @@ inline U32 targetVectorBytes(const CompileSettings& settings) {
      * That guard is gone because the *default* is no longer "assume nothing": a build that names no
      * level gets the one the host meets, which is `-march=native`'s bargain - the code fits the
      * machine in front of you, and a build that has to be reproducible says which machine it is for.
-     * `-enable-inst v2` is that statement, and every fixture in the test suite makes it.
+     * `-enable-inst sse4` is that statement, and every fixture in the test suite makes it.
      *
-     * v4 answers 32 and not 64: this backend holds a vector in a register and has none wider than a
-     * `ymm` yet, so the level buys the EVEX encodings of the widths it already has. When the mask
-     * bank and the 512-bit moves land, this is the line that lets a `Vec(a)` grow.
+     * `avx512` answers 32 and not 64, which is Analysis-Avx512.md §1.2's stage 1: every instruction
+     * the level brings, at the width `avx2` already has - EVEX twins of the packed forms, the upper
+     * sixteen vector registers and the mask bank - and no 64-byte alignment or overread guarantee yet.
+     * Stage 2 is this line answering 64 there.
      */
-    if(settings.arch == TargetArch::X64 && settings.extensions.level >= TargetExtensions::V3) {
+    if(settings.arch == TargetArch::X64 && settings.extensions.level >= TargetExtensions::Avx2) {
         return 32;
     }
 

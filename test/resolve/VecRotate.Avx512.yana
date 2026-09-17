@@ -1,0 +1,58 @@
+{-
+   # extensions: avx512
+
+   `VecRotate.yana` at the third level - Analysis-Avx512.md's order of work, which gives every
+   runtime fixture a rewritten expansion reaches an `avx512` twin beside its `sse4` and `avx2` ones.
+   Two tiers are two expansions of one source, and only running both says they agree.
+
+   A rotation of a dword or quadword lane is `vprold` or `vprolvd` here, and of a word lane by a
+   constant `vpshldw`, where every level below writes two shifts and an `or`. What the program
+   asserts is written in `VecRotate.yana`, and the numbers are the same ones.
+-}
+
+let &counter = 0 :: Int
+
+-- Opaque: the global is written as well as read, so no pass can fold the count into a constant.
+@noinline
+fn opaque(n: Int) -> Int:
+    counter = counter + 1
+    if counter > 1000:
+        return 1
+    return n
+
+-- 0x8f73ff01: the bytes 0x01, 0xff, 0x73, 0x8f from lane zero up, two of them negative.
+fn pattern() -> Vec(I8) = bitcast(splat(0 - 1888223487) :: Vec(Int))
+
+fn checkBytes(v: Vec(I8), expected: Int) -> Int =
+    if lane(bitcast(v) :: Vec(Int), 0) == expected then 1 else 0
+
+fn checkWords(v: Vec(Int), expected: Int) -> Int = if lane(v, 0) == expected then 1 else 0
+
+fn main() -> Int:
+    let bytes = pattern()
+    let words = splat(305419896) :: Vec(Int)
+    let &n = 0 :: Int
+
+    -- A 32-bit lane, which is the width the machine has both shifts for.
+    n = n + checkWords(words `rol` splat(4), 591751041)
+    n = n + checkWords(words `ror` splat(4), 0 - 2128394905)
+
+    -- The modulus, at both ends. A count of zero and a count of the width are the identity, and the
+    -- second shift of the expansion wants the whole lane width at each of them.
+    n = n + checkWords(words `rol` splat(0), 305419896)
+    n = n + checkWords(words `rol` splat(32), 305419896)
+    n = n + checkWords(words `ror` splat(0), 305419896)
+    n = n + checkWords(words `rol` splat(36), 591751041)
+
+    -- The same at a byte lane, where each shift of the expansion is itself expanded.
+    n = n + checkBytes(bytes `rol` splat(1 :: I8), 535232258)
+    n = n + checkBytes(bytes `rol` splat(3 :: I8), 2090598152)
+    n = n + checkBytes(bytes `ror` splat(3 :: I8), 0 - 244383968)
+    n = n + checkBytes(bytes `rol` splat(8 :: I8), 0 - 1888223487)
+
+    -- And a count only known at run time, where neither the mask nor the subtraction folds.
+    let k = opaque(2)
+    n = n + checkWords(words `rol` splat(k), 1221679584)
+    n = n + checkBytes(bytes `rol` splat(truncate(k) :: I8), 1053687556)
+
+    return n

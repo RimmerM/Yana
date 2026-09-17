@@ -115,12 +115,11 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
                 fail("%@: %@ is placed in the frame pointer", funName, name(id));
             }
 
-            // The register model still describes one bank whose moves and encodings do not exist:
-            // every mask instruction is VEX-encoded. A location in it would be written out with a
-            // register number no legacy encoding can name, which nothing downstream can notice.
-            if(reg.bank == BankMask) {
-                fail("%@: %@ is placed in %@, which no encoder implements",
-                    funName, name(id), locationName(at));
+            // k0 reads as "no mask" in every masked encoding, so a value there could not be the mask
+            // it was allocated to be - the bank reserves it, and a placement that used it anyway is
+            // an allocator reading its own register file wrongly.
+            if(reg.bank == BankMask && reg.index == 0) {
+                fail("%@: %@ is placed in k0, which no mask can be read out of", funName, name(id));
             }
 
             // And the same statement about a *class* rather than a bank: a 256- or 512-bit vector
@@ -877,6 +876,27 @@ struct Verifier {
 
         applyMoves(state, instRegs.moves, inst);
         checkFoldedAddress(state, inst, instRegs);
+
+        /*
+         * A form that cannot name xmm16 handed one - `MachineForm::namesUpperVectors`, and the web
+         * rule in place.cpp that is meant to have made it impossible. Asked of the locations the
+         * encoder will read rather than of the webs, so that a segment, a region or a temporary that
+         * slipped past the rule is caught as well as a home. The prefix writer asserts the same thing
+         * one stage later, where all it can say is that the bytes cannot be written.
+         */
+        if(!machine.formOf(inst).namesUpperVectors) {
+            auto upper = [](MachineLocation at) {
+                return at.isPhysical() && at.bank == BankVector && at.index >= 16;
+            };
+
+            for(auto& operand: instRegs.uses) {
+                if(upper(operand.at)) fail("%@: %@ reads %@, which its form cannot name", funName, name, locationName(operand.at));
+            }
+
+            for(auto& result: instRegs.creates) {
+                if(upper(result.at)) fail("%@: %@ writes %@, which its form cannot name", funName, name, locationName(result.at));
+            }
+        }
 
         for(Size i = 0; i < used.size(); i++) {
             auto v = base[used[i]];

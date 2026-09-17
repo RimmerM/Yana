@@ -989,6 +989,17 @@ struct LowerGlobal {
 
     // The addresses inside `initialContents` that are not known until the module is placed.
     LowerList<LowerDataRelocation, false> relocations;
+
+    /*
+     * A constant the x64 backend interned for its own instructions to read, rather than one the
+     * program declared. Such an entry is emitted only where an instruction still names it, since a
+     * rewrite below the pool can leave one unread - an operand read as one broadcast element names a
+     * narrower entry than the one it was pooled as.
+     */
+    bool pooled = false;
+
+    // The alignment the entry is placed at, or zero for sixteen bytes - see AsmModule::addGlobal.
+    U8 alignment = 0;
 };
 
 struct LowerModule {

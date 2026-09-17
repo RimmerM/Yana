@@ -497,7 +497,11 @@ static MachineAddress computedAddress(LowerBase base, LowerInstX86Address& addr,
     // A symbol is the whole address rather than a part of one: `[rip + g]` has no base, index or
     // scale field to combine it with, which is why the fold that builds one requires the other two
     // to be absent.
-    if(addr.symbol) return MachineAddress::atSymbol(nullptr, base[addr.symbol]);
+    if(addr.symbol) {
+        auto out = MachineAddress::atSymbol(nullptr, base[addr.symbol]);
+        out.broadcast = addr.broadcast;
+        return out;
+    }
 
     MachineAddress out;
     Size operand = 0;

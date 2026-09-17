@@ -289,11 +289,11 @@ static void genUnary(FunGen& f, LowerInstUnary& inst) {
  * answer it. That was a link error naming a symbol nothing in the language asked for.
  */
 static bool hasFusedMultiplyAdd(const CompileSettings& settings) {
-    // Every AArch64 has `fmadd`; on x86-64 the instruction arrives with v3, which is exactly when
+    // Every AArch64 has `fmadd`; on x86-64 the instruction arrives with `avx2`, which is exactly when
     // `featuresOf` names `fma` to the target machine.
     if(settings.arch == TargetArch::ARM64) return true;
 
-    return settings.extensions.level >= TargetExtensions::V3;
+    return settings.extensions.has(kSetFma);
 }
 
 static void genFma(FunGen& f, LowerInstFma& inst) {
@@ -442,12 +442,12 @@ static BitOpWidth bitOpWidthOf(FunGen& f, LowerType type) {
     return BitOpWidth { llvm::IntegerType::get(f.gen.llvm, bits), bits };
 }
 
-// Whether this module's target has `pext` and `pdep` - which is x86-64 at v3 and nothing else. The
+// Whether this module's target has `pext` and `pdep` - which is x86-64 at `avx2` and nothing else. The
 // level is the *build's* rather than the host's, exactly as `featuresOf` reads it when the target
 // machine is created, so an `-arch arm64` build never reaches the x86 intrinsic.
 static bool hasBitPermute(FunGen& f) {
     auto& settings = f.context.settings;
-    return settings.arch == TargetArch::X64 && settings.extensions.level >= TargetExtensions::V3;
+    return settings.arch == TargetArch::X64 && settings.extensions.has(kSetBmi2);
 }
 
 /*
@@ -1551,6 +1551,11 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::X86Sext:
         case LowerInst::X86MaskAnd:
         case LowerInst::X86Permute:
+        case LowerInst::X86MaskConvert:
+        case LowerInst::X86MaskCompare:
+        case LowerInst::X86MaskedOp:
+        case LowerInst::X86TernaryLogic:
+        case LowerInst::X86Permute2:
         case LowerInst::X86StoreOp:
         case LowerInst::X86MovbeLoad:
         case LowerInst::X86MovbeStore:

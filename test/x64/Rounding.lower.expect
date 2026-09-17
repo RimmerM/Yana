@@ -104,11 +104,11 @@ block #0:
 block #1:
   trunc uses=[xmm0] creates=[xmm1]  => 0f57c9660f3a0bc80b
   sub uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d0f20f5cd1
-  add uses=[xmm3, xmm2] creates=[xmm3] pre=[xmm2->xmm3]  => 0f28daf20f58da
-  trunc uses=[xmm3] creates=[xmm3]  => 660f3a0bdb0b
-  add uses=[xmm2, xmm3] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d1f20f58d3
+  add uses=[xmm2, xmm2] creates=[xmm2]  => f20f58d2
+  trunc uses=[xmm2] creates=[xmm2]  => 660f3a0bd20b
+  add uses=[xmm3, xmm2] creates=[xmm3] pre=[xmm1->xmm3]  => 0f28d9f20f58da
   cmp_eq uses=[xmm1, xmm0] creates=[rax]  => 31c0660f2ec80f94c07b0231c0
-  select uses=[xmm0, xmm2, rax] creates=[xmm0]  => 85c075030f28c2
+  select uses=[xmm0, xmm3, rax] creates=[xmm0]  => 85c075030f28c3
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: roundF32x4 ---
@@ -117,9 +117,9 @@ block #0:
 block #1:
   trunc uses=[xmm1] creates=[xmm0]  => 660f3a08c10b
   sub uses=[xmm2, xmm0] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d10f5cd0
-  add uses=[xmm3, xmm2] creates=[xmm3] pre=[xmm2->xmm3]  => 0f28da0f58da
-  trunc uses=[xmm3] creates=[xmm3]  => 660f3a08db0b
-  add uses=[xmm2, xmm3] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d00f58d3
-  cmp_eq uses=[xmm3, xmm1] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d80fc2d900
-  select uses=[xmm1, xmm2, xmm3] creates=[xmm2]  => 0f28c3660f3810d1
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
+  add uses=[xmm2, xmm2] creates=[xmm2]  => 0f58d2
+  trunc uses=[xmm2] creates=[xmm2]  => 660f3a08d20b
+  add uses=[xmm3, xmm2] creates=[xmm3] pre=[xmm0->xmm3]  => 0f28d80f58da
+  cmp_eq uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d00fc2d100
+  select uses=[xmm1, xmm3, xmm2] creates=[xmm3]  => 0f28c2660f3810d9
+  ret uses=[xmm0] creates=[] pre=[xmm3->xmm0]  => 0f28c3c3

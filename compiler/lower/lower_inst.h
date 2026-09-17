@@ -1653,6 +1653,99 @@ struct LowerInstX86Permute: LowerInstSingle {
     LowerPtr<LowerValue> indices, from;
 };
 
+// A mask moved into or out of a mask register - see LowerInst::X86MaskConvert.
+struct LowerInstX86MaskConvert: LowerInstSingle {
+    LowerInstX86MaskConvert(StringId name, LowerType type, LowerPtr<LowerValue> from, bool toVector):
+        LowerInstSingle(X86MaskConvert, name, type), from(from)
+    {
+        usedCount = 1;
+        flags = toVector ? 1 : 0;
+    }
+
+    // Whether the result is the vector end rather than the mask one.
+    bool isToVector() const { return flags != 0; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> from;
+};
+
+// Which of the three a mask-register comparison is - see LowerInst::X86MaskCompare.
+enum class LowerX86MaskTest: U8 {
+    Compare, // `lhs REL rhs` - `vpcmp`, `vpcmpu`, `vcmpps`
+    Test,    // `(lhs & rhs) != 0` per lane - `vptestm`
+    TestNot, // `(lhs & rhs) == 0` per lane - `vptestnm`
+};
+
+struct LowerInstX86MaskCompare: LowerInstSingle {
+    LowerInstX86MaskCompare(StringId name, LowerType type, LowerPtr<LowerValue> lhs, LowerPtr<LowerValue> rhs,
+                            LowerCmp cmp, LowerX86MaskTest test, LowerPtr<LowerValue> mask):
+        LowerInstSingle(X86MaskCompare, name, type), lhs(lhs), rhs(rhs), mask(mask)
+    {
+        usedCount = mask ? 3 : 2;
+        flags = U8(U8(cmp) | (U8(test) << 4));
+    }
+
+    LowerCmp getCmp() const { return LowerCmp(flags & 0xf); }
+    LowerX86MaskTest getTest() const { return LowerX86MaskTest(flags >> 4); }
+    bool isMasked() const { return usedCount == 3; }
+
+    // Used values must be first after embedded values. `mask` is past the end of the list where the
+    // comparison is not masked.
+    LowerPtr<LowerValue> lhs, rhs, mask;
+};
+
+// An operation masked by a mask register - see LowerInst::X86MaskedOp.
+struct LowerInstX86MaskedOp: LowerInstSingle {
+    LowerInstX86MaskedOp(StringId name, LowerType type, LowerPtr<LowerValue> lhs, LowerPtr<LowerValue> rhs,
+                         LowerPtr<LowerValue> mask, LowerInst::Kind op, bool signedLanes, bool max):
+        LowerInstSingle(X86MaskedOp, name, type), lhs(lhs), rhs(rhs), mask(mask), op(op)
+    {
+        usedCount = 3;
+        flags = U8((signedLanes ? 1 : 0) | (max ? 2 : 0));
+    }
+
+    // The signedness a minimum or a maximum reads its lanes at, which is `X86MinMax`'s own field, and
+    // which of the two it is.
+    bool isSignedLanes() const { return (flags & 1) != 0; }
+    bool isMax() const { return (flags & 2) != 0; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> lhs, rhs, mask;
+
+    // The operation - `Add`, `Sub`, `Mul`, `IMul`, `Div`, or `X86MinMax`.
+    LowerInst::Kind op;
+};
+
+// Any bitwise function of three vectors, by its truth table - see LowerInst::X86TernaryLogic.
+struct LowerInstX86TernaryLogic: LowerInstSingle {
+    LowerInstX86TernaryLogic(StringId name, LowerType type, LowerPtr<LowerValue> a, LowerPtr<LowerValue> b,
+                             LowerPtr<LowerValue> c, U8 table):
+        LowerInstSingle(X86TernaryLogic, name, type), a(a), b(b), c(c)
+    {
+        usedCount = 3;
+        flags = table;
+    }
+
+    // The immediate: bit `a << 2 | b << 1 | c` is the result bit for those three operand bits.
+    U8 getTable() const { return U8(flags); }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> a, b, c;
+};
+
+// Lanes taken from two vectors by an index vector - see LowerInst::X86Permute2.
+struct LowerInstX86Permute2: LowerInstSingle {
+    LowerInstX86Permute2(StringId name, LowerType type, LowerPtr<LowerValue> indices,
+                         LowerPtr<LowerValue> left, LowerPtr<LowerValue> right):
+        LowerInstSingle(X86Permute2, name, type), indices(indices), left(left), right(right)
+    {
+        usedCount = 3;
+    }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> indices, left, right;
+};
+
 // A vector masked by a mask of its own shape - see LowerInst::X86MaskAnd, which states why the
 // operand order is the machine's and why the complemented form takes them the other way round.
 struct LowerInstX86MaskAnd: LowerInstSingle {
@@ -1713,6 +1806,13 @@ struct LowerInstX86Address: LowerInstSingle {
      * `addsd xmm, [rip + k]` rather than a load into a register and an add of it.
      */
     LowerPtr<LowerGlobal> symbol = nullptr;
+
+    /*
+     * Where `symbol` holds one element of a vector rather than the whole of it - four bytes or eight -
+     * and the instruction reads it as that element repeated: EVEX's embedded broadcast, `m32bcst`.
+     * Zero for an ordinary address. See `foldLoads`, which is the one place that sets it.
+     */
+    U8 broadcast = 0;
 
     U32 displacement;
     U8 scale;

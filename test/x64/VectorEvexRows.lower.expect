@@ -1,0 +1,218 @@
+
+abs<complex>(%q: i64x2, %w: i64x4): i64x2 {
+  b_0 {
+    %r = abs %q: i64x2
+    %s = abs %w: i64x4
+    ret %r
+  }
+}
+
+sar<complex>(%q: i64x2, %w: i64x4, %n: I64, %c: i64x2): i64x2 {
+  b_0 {
+    %k = vsplat 13: i64x2
+    %a = sar %q, %k: i64x2
+    %m = vsplat %n: i64x4
+    %b = sar %w, %m: i64x4
+    %d = sar %a, %c: i64x2
+    ret %d
+  }
+}
+
+wordShifts<complex>(%v: i16x8, %c: i16x8, %w: i16x16, %d: i16x16): i16x8 {
+  b_0 {
+    %a = shl %v, %c: i16x8
+    %b = shr %a, %c: i16x8
+    %s = sar %b, %c: i16x8
+    %t = sar %w, %d: i16x16
+    ret %s
+  }
+}
+
+minMax<complex>(%a: i64x2, %b: i64x2, %c: i64x4, %d: i64x4): i64x2 {
+  b_0 {
+    %lt = cmp_ilt %a, %b: m64x2
+    %lo = select %lt, %a, %b: i64x2
+    %gt = cmp_gt %a, %b: m64x2
+    %hi = select %gt, %a, %b: i64x2
+    %wl = cmp_ilt %c, %d: m64x4
+    %wm = select %wl, %c, %d: i64x4
+    %r = add %lo, %hi: i64x2
+    ret %r
+  }
+}
+
+multiply<complex>(%a: i64x2, %b: i64x2, %c: i64x4, %d: i64x4): i64x2 {
+  b_0 {
+    %r = mul %a, %b: i64x2
+    %s = mul %c, %d: i64x4
+    ret %r
+  }
+}
+
+rotations<complex>(%d: i32x4, %q: i64x4, %c: i32x4, %w: i16x8, %b: i8x16): i32x4 {
+  b_0 {
+    %seven = vsplat 7: i32x4
+    %a = rol %d, %seven: i32x4
+    %e = ror %a, %c: i32x4
+    %five = vsplat 5: i64x4
+    %f = ror %q, %five: i64x4
+    %three = vsplat 3: i16x8
+    %g = ror %w, %three: i16x8
+    %one = vsplat 1: i8x16
+    %h = rol %b, %one: i8x16
+    ret %e
+  }
+}
+
+quadToDouble<complex>(%q: i64x2, %w: i64x4): f64x2 {
+  b_0 {
+    %r = cast %q: f64x2
+    %s = cast %w: f64x4
+    ret %r
+  }
+}
+
+narrow<complex>(%w: i16x16, %d: i32x8, %q: i64x4): i32x4 {
+  b_0 {
+    %b = cast %w: i8x16
+    %s = cast %d: i16x8
+    %r = cast %q: i32x4
+    ret %r
+  }
+}
+
+unsignedToFloat<complex>(%u: I32, %l: I64): F64 {
+  b_0 {
+    %a = cast %u: F64
+    %b = cast %l: F64
+    %f = cast %l: F32
+    %g = cast %f: F64
+    %r = add %a, %b: F64
+    %s = add %r, %g: F64
+    ret %s
+  }
+}
+
+splats<complex>(%b: I32, %w: I32, %d: I32, %q: I64, %f: F32): i8x16 {
+  b_0 {
+    %sb = vsplat %b: i8x16
+    %sw = vsplat %w: i16x16
+    %sd = vsplat %d: i32x4
+    %sq = vsplat %q: i64x4
+    %sf = vsplat %f: f32x8
+    ret %sb
+  }
+}
+
+
+--- codegen: abs ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  abs uses=[xmm0] creates=[xmm0]  => 62f2fd081fc0
+  abs uses=[xmm1] creates=[xmm1]  => 62f2fd281fc9
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: sar ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  sar uses=[xmm0, -] creates=[xmm0]  => 62f1fd0872e00d
+  sar uses=[xmm1, rdi] creates=[xmm1]  => c461f96edf62d1f528e2cb
+  sar uses=[xmm0, xmm2] creates=[xmm0]  => 62f2fd0846c2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: wordShifts ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  shl uses=[xmm0, xmm1] creates=[xmm0]  => 62f2fd0812c1
+  shr uses=[xmm0, xmm1] creates=[xmm0]  => 62f2fd0810c1
+  sar uses=[xmm0, xmm1] creates=[xmm0]  => 62f2fd0811c1
+  sar uses=[xmm2, xmm3] creates=[xmm2]  => 62f2ed2811d3
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: minMax ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vimin uses=[xmm0, xmm1] creates=[xmm4]  => 62f2fd0839e1
+  x86_vmax uses=[xmm0, xmm1] creates=[xmm0]  => 62f2fd083fc1
+  x86_vimin uses=[xmm2, xmm3] creates=[xmm2]  => 62f2ed2839d3
+  add uses=[xmm4, xmm0] creates=[xmm0]  => c5d9d4c0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: multiply ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  mul uses=[xmm0, xmm1] creates=[xmm0]  => 62f2fd0840c1
+  mul uses=[xmm2, xmm3] creates=[xmm2]  => 62f2ed2840d3
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: rotations ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm5]  => c5fa6f2dc8000000
+  imm uses=[] creates=[-]  => 
+  rol uses=[xmm0, -] creates=[xmm0]  => 62f17d0872c807
+  ror uses=[xmm0, xmm2] creates=[xmm0]  => 62f27d0814c2
+  imm uses=[] creates=[-]  => 
+  ror uses=[xmm1, -] creates=[xmm1]  => 62f1f52872c105
+  imm uses=[] creates=[-]  => 
+  rol uses=[xmm3, -] creates=[xmm3]  => 62f3e50870db0d
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm4] creates=[xmm4]  => 
+  shl uses=[xmm4, -] creates=[xmm1]  => c5f171f401
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  bitcast uses=[xmm4] creates=[xmm4]  => 
+  shr uses=[xmm4, -] creates=[xmm4]  => c5d971d407
+  bitcast uses=[xmm4] creates=[xmm4]  => 
+  and uses=[xmm4, xmm5] creates=[xmm4]  => c5d9dbe5
+  x86_addr [rip + $v032$fefefefe] uses=[] creates=[-]  => 
+  x86_ternarylogic uses=[xmm1, xmm4, -] creates=[xmm1]  => 62f35d18250db4000000ec
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: quadToDouble ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[xmm0] creates=[xmm0]  => 62f1fe08e6c0
+  cast uses=[xmm1] creates=[xmm1]  => 62f1fe28e6c9
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: narrow ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[xmm0] creates=[xmm0]  => 62f27e2830c0
+  cast uses=[xmm1] creates=[xmm1]  => 62f27e2833c9
+  cast uses=[xmm2] creates=[xmm0]  => 62f27e2835d0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: unsignedToFloat ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[rdi] creates=[xmm0]  => c5f857c062f17f087bc7
+  cast uses=[rsi] creates=[xmm1]  => c5f057c962f1f7087bce
+  cast uses=[rsi] creates=[xmm2]  => c5e857d262f1ee087bd6
+  cast uses=[xmm2] creates=[xmm2]  => c5ea5ad2
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5fb58c1
+  add uses=[xmm0, xmm2] creates=[xmm0]  => c5fb58c2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: splats ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vsplat uses=[rdi] creates=[xmm1]  => 62f27d087acf
+  vsplat uses=[rsi] creates=[xmm2]  => 62f27d287bd6
+  vsplat uses=[rdx] creates=[xmm2]  => 62f27d087cd2
+  vsplat uses=[rcx] creates=[xmm2]  => 62f2fd287cd1
+  vsplat uses=[xmm0] creates=[xmm0]  => c4e27d58c0
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => c5f828c1c3

@@ -100,45 +100,45 @@ transfer<complex>(%p: Ptr, %q: Ptr): F32 {
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[xmm0, xmm1] creates=[xmm2]  => 62f1ff0858d1
-  sub uses=[xmm2, xmm1] creates=[xmm2]  => 62f1ef085cd1
-  mul uses=[xmm2, xmm0] creates=[xmm2]  => 62f1ef0859d0
-  div uses=[xmm2, xmm1] creates=[xmm0]  => 62f1ef085ec1
+  add uses=[xmm0, xmm1] creates=[xmm2]  => c5fb58d1
+  sub uses=[xmm2, xmm1] creates=[xmm2]  => c5eb5cd1
+  mul uses=[xmm2, xmm0] creates=[xmm2]  => c5eb59d0
+  div uses=[xmm2, xmm1] creates=[xmm0]  => c5eb5ec1
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: arith32 ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[xmm0, xmm1] creates=[xmm2]  => 62f17e0858d1
-  sub uses=[xmm2, xmm1] creates=[xmm2]  => 62f16e085cd1
-  mul uses=[xmm2, xmm0] creates=[xmm2]  => 62f16e0859d0
-  div uses=[xmm2, xmm1] creates=[xmm0]  => 62f16e085ec1
+  add uses=[xmm0, xmm1] creates=[xmm2]  => c5fa58d1
+  sub uses=[xmm2, xmm1] creates=[xmm2]  => c5ea5cd1
+  mul uses=[xmm2, xmm0] creates=[xmm2]  => c5ea59d0
+  div uses=[xmm2, xmm1] creates=[xmm0]  => c5ea5ec1
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: noReuse ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[xmm0, xmm1] creates=[xmm2]  => 62f1ff0858d1
-  sub uses=[xmm0, xmm1] creates=[xmm1]  => 62f1ff085cc9
-  mul uses=[xmm2, xmm1] creates=[xmm2]  => 62f1ef0859d1
-  div uses=[xmm2, xmm0] creates=[xmm0]  => 62f1ef085ec0
+  add uses=[xmm0, xmm1] creates=[xmm2]  => c5fb58d1
+  sub uses=[xmm0, xmm1] creates=[xmm1]  => c5fb5cc9
+  mul uses=[xmm2, xmm1] creates=[xmm2]  => c5eb59d1
+  div uses=[xmm2, xmm0] creates=[xmm0]  => c5eb5ec0
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: manyLive ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[xmm0, xmm1] creates=[xmm0]  => 62f1ff0858c1
-  add uses=[xmm2, xmm3] creates=[xmm2]  => 62f1ef0858d3
-  add uses=[xmm4, xmm5] creates=[xmm4]  => 62f1df0858e5
-  add uses=[xmm6, xmm7] creates=[xmm6]  => 62f1cf0858f7
-  add uses=[xmm8, xmm9] creates=[xmm8]  => 6251bf0858c1
-  mul uses=[xmm0, xmm2] creates=[xmm0]  => 62f1ff0859c2
-  mul uses=[xmm4, xmm6] creates=[xmm4]  => 62f1df0859e6
-  mul uses=[xmm0, xmm4] creates=[xmm0]  => 62f1ff0859c4
-  div uses=[xmm0, xmm8] creates=[xmm0]  => 62d1ff085ec0
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5fb58c1
+  add uses=[xmm2, xmm3] creates=[xmm2]  => c5eb58d3
+  add uses=[xmm4, xmm5] creates=[xmm4]  => c5db58e5
+  add uses=[xmm6, xmm7] creates=[xmm6]  => c5cb58f7
+  add uses=[xmm8, xmm9] creates=[xmm8]  => c4413b58c1
+  mul uses=[xmm0, xmm2] creates=[xmm0]  => c5fb59c2
+  mul uses=[xmm4, xmm6] creates=[xmm4]  => c5db59e6
+  mul uses=[xmm0, xmm4] creates=[xmm0]  => c5fb59c4
+  div uses=[xmm0, xmm8] creates=[xmm0]  => c4c17b5ec0
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: negate ---
@@ -148,7 +148,7 @@ block #1:
   neg uses=[xmm0] creates=[xmm0]  => c5f9570568000000
   neg uses=[xmm1] creates=[xmm1]  => c5f0570d70000000
   cast uses=[xmm1] creates=[xmm1]  => c5f25ac9
-  add uses=[xmm0, xmm1] creates=[xmm0]  => 62f1ff0858c1
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5fb58c1
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: compare ---
@@ -169,17 +169,17 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   cmp_gt uses=[xmm1, xmm0] creates=[rax]  => 31c0c5f82ec80f97c0
-  add uses=[rcx, rax] creates=[rcx] pre=[rax->rcx]  => 8d0c00
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
+  add uses=[rax, rax] creates=[rax]  => 01c0
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: loadFold ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
-  add uses=[xmm0, -] creates=[xmm0]  => 62f1ff085807
+  add uses=[xmm0, -] creates=[xmm0]  => c5fb5807
   x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
-  mul uses=[xmm0, -] creates=[xmm0]  => 62f1ff085907
+  mul uses=[xmm0, -] creates=[xmm0]  => c5fb5907
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: transfer ---

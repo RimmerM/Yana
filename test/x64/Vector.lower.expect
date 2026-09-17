@@ -262,12 +262,12 @@ regroup<complex>(%w: i32x4): i32x4 {
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  add uses=[xmm6, xmm0] creates=[xmm6] pre=[xmm0->xmm6]  => 0f28f0660ffcf0
-  add uses=[xmm0, xmm1] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660ffdc1
+  add uses=[xmm0, xmm0] creates=[xmm0]  => 660ffcc0
+  add uses=[xmm1, xmm1] creates=[xmm1]  => 660ffdc9
   add uses=[xmm0, xmm2] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2660ffec2
-  add uses=[xmm1, xmm3] creates=[xmm1] pre=[xmm3->xmm1]  => 0f28cb660fd4cb
-  add uses=[xmm1, xmm4] creates=[xmm1] pre=[xmm4->xmm1]  => 0f28cc0f58cc
-  add uses=[xmm1, xmm5] creates=[xmm1] pre=[xmm5->xmm1]  => 0f28cd660f58cd
+  add uses=[xmm3, xmm3] creates=[xmm3]  => 660fd4db
+  add uses=[xmm4, xmm4] creates=[xmm4]  => 0f58e4
+  add uses=[xmm5, xmm5] creates=[xmm5]  => 660f58ed
   ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: float ---
@@ -359,48 +359,48 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vsplat uses=[rdi] creates=[xmm0]  => 660f6ec7660f70c000
-  add uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660ffec8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+  add uses=[xmm0, xmm0] creates=[xmm0]  => 660ffec0
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: broadcastWide ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vsplat uses=[rdi] creates=[xmm0]  => 66480f6ec7660f70c044
-  add uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660fd4c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+  add uses=[xmm0, xmm0] creates=[xmm0]  => 660fd4c0
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: broadcastFloat ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vsplat uses=[xmm0] creates=[xmm0]  => 660f70c000
-  add uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c80f58c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+  add uses=[xmm0, xmm0] creates=[xmm0]  => 0f58c0
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: broadcastDouble ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vsplat uses=[xmm0] creates=[xmm0]  => 660f70c044
-  add uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660f58c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+  add uses=[xmm0, xmm0] creates=[xmm0]  => 660f58c0
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: extract ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vlane uses=[xmm0] creates=[rax]  => 660f7ec0
-  add uses=[rcx, rax] creates=[rcx] pre=[rax->rcx]  => 8d0c00
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
+  add uses=[rax, rax] creates=[rax]  => 01c0
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: extractWide ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vlane uses=[xmm0] creates=[rax]  => 66480f7ec0
-  add uses=[rcx, rax] creates=[rcx] pre=[rax->rcx]  => 488d0c00
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+  add uses=[rax, rax] creates=[rax]  => 4801c0
+  ret uses=[rax] creates=[]  => c3
 
 --- codegen: extractHigh ---
 block #0:
@@ -426,8 +426,8 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   vlane uses=[xmm0] creates=[xmm0]  => 660f70c0ee
-  add uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8f20f58c8
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+  add uses=[xmm0, xmm0] creates=[xmm0]  => f20f58c0
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: memory ---
 block #0:
@@ -435,11 +435,11 @@ block #0:
 block #1:
   load uses=[rdi] creates=[xmm0]  => 0f1007
   load uses=[rsi] creates=[xmm1]  => f30f6f0e
-  add uses=[xmm2, xmm0] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d00f58d0
-  add uses=[xmm0, xmm1] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660ffec1
-  store uses=[rdi, xmm2] creates=[]  => 0f1117
-  store uses=[rsi, xmm0] creates=[]  => f30f7f06
-  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
+  add uses=[xmm0, xmm0] creates=[xmm0]  => 0f58c0
+  add uses=[xmm1, xmm1] creates=[xmm1]  => 660ffec9
+  store uses=[rdi, xmm0] creates=[]  => 0f1107
+  store uses=[rsi, xmm1] creates=[]  => f30f7f0e
+  ret uses=[xmm0] creates=[]  => c3
 
 --- codegen: spill ---
   prologue  => 55488bec4883e4f04883ec60440f11642420440f116c2430440f11742440440f117c2450
@@ -518,6 +518,6 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   bitcast uses=[xmm0] creates=[xmm0]  => 
-  add uses=[xmm1, xmm0] creates=[xmm1] pre=[xmm0->xmm1]  => 0f28c8660ffdc8
-  bitcast uses=[xmm1] creates=[xmm1]  => 
-  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+  add uses=[xmm0, xmm0] creates=[xmm0]  => 660ffdc0
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  ret uses=[xmm0] creates=[]  => c3

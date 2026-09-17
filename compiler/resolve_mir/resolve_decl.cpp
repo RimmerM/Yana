@@ -123,7 +123,7 @@ void Resolver::checkPlatform(ast::Module& file) {
                     continue;
                 }
 
-                context.diagnostics.error("unknown target %@ - expected `js`, `native`, an operating system (`linux`, `mac`, `win32`), an architecture (`x64`, `x86`, `arm`, `arm64`), an x86-64 level (`v2`, `v3`, `v4`) or an instruction-set extension (`sha`)"_v,
+                context.diagnostics.error("unknown target %@ - expected `js`, `native`, an operating system (`linux`, `mac`, `win32`), an architecture (`x64`, `x86`, `arm`, `arm64`), an x86-64 level (`sse4`, `avx2`, `avx512`) or an instruction-set extension (`aes`, `sha`, `gfni`, ...)"_v,
                                           argument.value.source, name);
             }
         }

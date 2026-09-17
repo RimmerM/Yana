@@ -1,0 +1,61 @@
+# A frame deep enough that a spilled vector needs a four-byte displacement, at `avx2`.
+#
+# extensions: avx2
+#
+# **Not one `62` byte in the golden**, which is the whole of what this asserts. EVEX reads a one-byte
+# displacement as a multiple of the operand's width, so `[rsp + 160]` is one byte there and four under
+# VEX - and the encoder takes that trade wherever it is offered (`settleEvexDisplacement` in gen.cpp).
+# It is the one reason to write an EVEX prefix that is a *size* choice rather than an operand the
+# level supplies, so it is the one that has to ask whether the machine can decode one: `62` is not an
+# instruction below AVX-512, and a build at this level that wrote one would fault on the part it was
+# built for.
+#
+# Twenty live vectors is what it takes to reach the offsets, and the spills are the point - the
+# arithmetic between them is filler. `EvexUpper.lower` is where the same displacement is written in
+# EVEX, at the level that has it.
+
+spill(%a: f32x8, %b: f32x8): f32x8 {
+    {
+        %v0 = add %a, %b: f32x8
+        %v1 = add %v0, %b: f32x8
+        %v2 = add %v1, %b: f32x8
+        %v3 = add %v2, %b: f32x8
+        %v4 = add %v3, %b: f32x8
+        %v5 = add %v4, %b: f32x8
+        %v6 = add %v5, %b: f32x8
+        %v7 = add %v6, %b: f32x8
+        %v8 = add %v7, %b: f32x8
+        %v9 = add %v8, %b: f32x8
+        %v10 = add %v9, %b: f32x8
+        %v11 = add %v10, %b: f32x8
+        %v12 = add %v11, %b: f32x8
+        %v13 = add %v12, %b: f32x8
+        %v14 = add %v13, %b: f32x8
+        %v15 = add %v14, %b: f32x8
+        %v16 = add %v15, %b: f32x8
+        %v17 = add %v16, %b: f32x8
+        %v18 = add %v17, %b: f32x8
+        %v19 = add %v18, %b: f32x8
+
+        %s0 = add %v0, %v1: f32x8
+        %s1 = add %s0, %v2: f32x8
+        %s2 = add %s1, %v3: f32x8
+        %s3 = add %s2, %v4: f32x8
+        %s4 = add %s3, %v5: f32x8
+        %s5 = add %s4, %v6: f32x8
+        %s6 = add %s5, %v7: f32x8
+        %s7 = add %s6, %v8: f32x8
+        %s8 = add %s7, %v9: f32x8
+        %s9 = add %s8, %v10: f32x8
+        %s10 = add %s9, %v11: f32x8
+        %s11 = add %s10, %v12: f32x8
+        %s12 = add %s11, %v13: f32x8
+        %s13 = add %s12, %v14: f32x8
+        %s14 = add %s13, %v15: f32x8
+        %s15 = add %s14, %v16: f32x8
+        %s16 = add %s15, %v17: f32x8
+        %s17 = add %s16, %v18: f32x8
+        %s18 = add %s17, %v19: f32x8
+        ret %s18
+    }
+}

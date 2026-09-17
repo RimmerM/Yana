@@ -175,6 +175,11 @@ void expandBankConversions(Context&, LowerBase base, LowerFunction& fun) {
             auto toFloat = isFloat(to) && !isFloat(value->type);
             auto fromFloat = isFloat(value->type) && !isFloat(to);
 
+            // An unsigned integer into a float is `vcvtusi2sd` where the target has it - one
+            // instruction at either width, and exact - so there is nothing to expand. The other
+            // direction still is: saturating is what it means and the instruction does not.
+            if(toFloat && hasEvexRow(EvexRow::UnsignedToFloat)) { i++; continue; }
+
             // **Every** float-to-integer conversion is expanded, not only the unsigned ones, because
             // saturating is what one means and `cvttsd2si` alone does not saturate - see
             // `saturationRange`. The other direction still only needs the unsigned case, which is
@@ -335,6 +340,10 @@ void unwrapVectorShiftCounts(Context&, LowerBase base, LowerFunction& fun) {
  * reason: there is no answer to be faithful to.
  */
 void expandQuadwordSar(Context&, LowerBase base, LowerFunction& fun) {
+    // `vpsraq` and `vpsravq`, which is every shape this pass would build - see machine_forms_evex.cpp.
+    // The shared runtime count is `FormVSarReg`'s, whose expansion writes the EVEX spelling itself.
+    if(hasEvexRow(EvexRow::QuadwordSar)) return;
+
     auto home = constantHome(base, fun);
     if(!home) return;
 
@@ -691,6 +700,9 @@ void expandByteMul(Context&, LowerBase base, LowerFunction& fun) {
  * cost of the transfers stops being amortized against the same eight instructions.
  */
 void expandQuadwordMul(Context&, LowerBase base, LowerFunction& fun) {
+    // `vpmullq`, which is one instruction where this is eight - see machine_forms_evex.cpp.
+    if(hasEvexRow(EvexRow::QuadwordMul)) return;
+
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
 
@@ -1126,6 +1138,10 @@ void scalarizeVectorLanes(Context&, LowerBase base, LowerFunction& fun) {
             if(shifts) {
                 if(!isVectorLike(b->type)) continue;
                 if((targetFeatures() & kFeatureAvx2) && laneBytes(type.lane) >= 4) continue;
+
+                // And the word lane at AVX-512, whose `vpsllvw` family is the row - see
+                // machine_forms_evex.cpp. A byte lane has no per-lane shift at any level.
+                if(laneBytes(type.lane) == 2 && hasEvexRow(EvexRow::WordShiftPerLane)) continue;
             }
 
             auto scalar = scalarFormOf(type);
@@ -1245,6 +1261,10 @@ void expandFusedMultiplyAdd(Context&, LowerBase base, LowerFunction& fun) {
  * any loop it stands in.
  */
 void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun) {
+    // A comparison into a mask register has every unsigned relation as a predicate of its own
+    // (`vpcmpud` and siblings), so there is nothing to bias - see the `Cmp` arm of selectPackedForm.
+    if(maskInMaskBank()) return;
+
     auto signedForm = [](LowerCmp cmp) {
         switch(cmp) {
             case LowerCmp::lt: return LowerCmp::ilt;
@@ -1513,9 +1533,13 @@ void expandVectorAbs(Context&, LowerBase base, LowerFunction& fun) {
 
             /*
              * The integer quadword, which is the comparison and the select above rather than a mask
-             * and an `and`. Every narrower integer lane has `pabs` and never arrives here.
+             * and an `and`. Every narrower integer lane has `pabs` and never arrives here - and nor
+             * does this one where the target has `vpabsq`, which is one instruction and the row
+             * `selectPackedForm` finds (Analysis-Avx512.md §2.4).
              */
             if(isIntVector(type) && laneBytes(type.lane) == 8) {
+                if(hasEvexRow(EvexRow::QuadwordAbs)) continue;
+
                 if(!zeros) {
                     Expansion at { base, fun, home, 0 };
                     auto scalar = at.integer(scalarFormOf(type), 0);
@@ -1732,6 +1756,59 @@ void expandVectorRotate(Context&, LowerBase base, LowerFunction& fun) {
             auto shared = splat ? base[((LowerInstVecSplat*)splat->inst())->from] : nullptr;
             auto written = shared && shared->inst()->kind == LowerInst::Imm
                          ? (LowerImm*)shared->inst() : nullptr;
+
+            /*
+             * **Where the target has the instruction, the rotation stands** - Analysis-Avx512.md §2.4.
+             *
+             * `vprold` and `vprolq` take a constant count, `vprolvd` and `vprolvq` a vector of them,
+             * and all four take it modulo the lane width, so a dword or quadword rotation needs
+             * nothing but its constant brought down to the scalar the immediate row reads. A word lane
+             * has `vpshldw`, which is a left rotation by a constant and nothing else, so a right one is
+             * turned into the left rotation by the complementary distance and a runtime count keeps
+             * the shifts below. A byte lane has no rotation at any level.
+             */
+            // A hand-written lower IR may state the count as the scalar itself, which the rows read
+            // the same way a splat of it is read.
+            auto scalarCount = !isVectorLike(count->type);
+            auto constant = written ? written
+                          : scalarCount && count->inst()->kind == LowerInst::Imm ? (LowerImm*)count->inst() : nullptr;
+
+            auto rotates = hasEvexRow(EvexRow::Rotate) && laneBytes(type.lane) >= 4 && (constant || !scalarCount);
+            auto wordRotates = hasEvexRow(EvexRow::WordRotate) && laneBytes(type.lane) == 2 && constant;
+
+            if(rotates || wordRotates) {
+                if(!constant) continue;
+                written = constant;
+
+                auto n = written->i & (width - 1);
+                if(wordRotates && !left) n = (width - n) & (width - 1);
+
+                Expansion at { base, fun, block, i };
+                auto distance = at.integer(scalarFormOf(type), n);
+                auto kind = wordRotates ? LowerInst::Rol : inst->kind;
+                auto replaced = at.binary(kind, type, value, distance, rotate->result.name);
+
+                replaceAllUses(base, &rotate->result, replaced);
+                removeInst(base, inst);
+                i = at.at - 1;
+
+                // The splat this read through, on the terms the expansion below states for its own -
+                // or the scalar constant itself, where that was the count.
+                if(splat && splat->uses.isEmpty()) {
+                    if(base[splat->inst()->block] == block) i--;
+                    removeInst(base, splat->inst());
+
+                    if(shared->uses.isEmpty()) {
+                        if(base[shared->inst()->block] == block) i--;
+                        removeInst(base, shared->inst());
+                    }
+                } else if(!splat && count->uses.isEmpty()) {
+                    if(base[count->inst()->block] == block) i--;
+                    removeInst(base, count->inst());
+                }
+
+                continue;
+            }
 
             Expansion e { base, fun, block, i };
 
@@ -2441,6 +2518,143 @@ void expandLaneCountConversions(Context&, LowerBase base, LowerFunction& fun) {
                 if(p.right != p.left) removeInst(base, (LowerInst*)p.right);
 
                 i = positionOf(base, block, result->inst()).unwrap();
+            }
+        }
+    }
+}
+
+/*
+ * A mask carried into and out of a mask register where it meets an operation that has no mask-register
+ * spelling - Analysis-Avx512.md §2.1.
+ *
+ * At `avx512` a mask lives in a `k` register (`maskInMaskBank`), which is a register-allocation choice
+ * and nothing above this backend: a mask means the same lanes it meant, and in memory it is the same
+ * vector of all-ones and all-zeros it is at every level. Almost everything a program does to one is an
+ * instruction on the register itself - a comparison writes it, `and`/`or`/`xor`/`not` combine it, a
+ * select and a masked vector read it as their mask, `kmovd` is its movemask, and a load, a store, a
+ * copy, a phi and a call carry it where it is. What is left is a short list of operations that
+ * rearrange or read a mask *as the vector it is* - a shuffle of one, a lane of one, a splat into one,
+ * and a select between two - and those have no mask-register instruction at all.
+ *
+ * So each of those is carried into the vector domain for the one instruction: its mask operands are
+ * crossed out with `X86MaskConvert` beside it, it works on the vector of the same lanes, and a mask it
+ * produces is crossed back. `vpmovm2d` and `vpmovd2m` are one instruction each, so a crossing is never
+ * worse than the vector-domain spelling it stands for by more than that; what the rest of a mask's
+ * life saves is the reason to live in the register.
+ *
+ * **A whitelist, and the direction of the default is the point.** An operation not named here is
+ * crossed, which costs a register transfer where it was not needed; one named here wrongly would reach
+ * selection with a mask-register operand no form of it can take, which is an assertion at best.
+ *
+ * Above every pass that lowers a shuffle into something with a pattern operand, so that a shuffle of a
+ * mask has become a shuffle of a vector by the time `lowerWideLanePermutes` and `lowerByteLaneShuffles`
+ * read it, and below the reduction and every pass that reads a mask's constant chain.
+ */
+void lowerMaskRegisters(Context&, LowerBase base, LowerFunction& fun) {
+    if(!maskInMaskBank()) return;
+
+    // Whether an instruction reads and writes masks in mask registers - see the note above.
+    auto lives = [&](LowerInst* inst) {
+        switch(inst->kind) {
+            case LowerInst::Cmp:
+            case LowerInst::And:
+            case LowerInst::Or:
+            case LowerInst::Xor:
+            case LowerInst::Not:
+            case LowerInst::X86MaskAnd:
+            case LowerInst::VecReduce:
+            case LowerInst::Load:
+            case LowerInst::Store:
+            case LowerInst::Set:
+            case LowerInst::Phi:
+            case LowerInst::Arg:
+            case LowerInst::Call:
+            case LowerInst::Ret:
+            case LowerInst::X86MaskConvert:
+                return true;
+
+            // A select reads its condition out of a mask register and nothing else: one whose arms
+            // are masks is carried across whole, the condition excepted.
+            case LowerInst::Select:
+                return !((LowerInstSelect*)inst)->result.type.isMask();
+
+            default:
+                return false;
+        }
+    };
+
+    auto vectorOf = [](LowerType mask) { return vectorType(mask.lane, mask.lanes()); };
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(lives(inst)) continue;
+
+            // Every mask operand out of its register, in front of the instruction. A select keeps
+            // its condition, which is the third operand and is read as a mask. One crossing per
+            // mask rather than per operand, so `vshuffle %m, %m` reads a single vector twice.
+            auto used = inst->used();
+            for(Size k = 0; k < used.size(); k++) {
+                auto value = base[used[k]];
+                if(!value->type.isMask()) continue;
+                if(inst->kind == LowerInst::Select && k == 2) continue;
+
+                /*
+                 * A mask that was itself just crossed in from a vector of the same lanes has that
+                 * vector standing already, which is the chain a shuffle of a mask read by a lane
+                 * access makes - so it is read rather than crossed back out a second time.
+                 */
+                LowerValue* vector = nullptr;
+                auto producer = value->inst();
+
+                if(producer->kind == LowerInst::X86MaskConvert && !((LowerInstX86MaskConvert*)producer)->isToVector()) {
+                    auto source = base[((LowerInstX86MaskConvert*)producer)->from];
+                    if(source->type == vectorOf(value->type)) vector = source;
+                }
+
+                if(!vector) {
+                    auto convert = new (fun.arena) LowerInstX86MaskConvert(StringId(), vectorOf(value->type), value - base, true);
+                    insertInstAt(base, block, i, convert);
+                    i++;
+                    vector = &convert->result;
+                }
+
+                for(Size same = k; same < used.size(); same++) {
+                    if(base[used[same]] != value) continue;
+                    if(inst->kind == LowerInst::Select && same == 2) continue;
+
+                    replaceUse(base, value, inst, vector);
+                    used[same] = vector - base;
+                }
+            }
+
+            // And a mask result back into one, behind it. The instruction is retyped to the vector of
+            // the same lanes and every reader of the mask reads the crossing instead.
+            if(inst->createdCount == 1 && inst->created()[0].type.isMask()) {
+                auto& result = inst->created()[0];
+                auto mask = result.type;
+
+                InstChain readers;
+                for(auto user: result.uses.contents(base)) readers.push(base[user]);
+
+                result.type = vectorOf(mask);
+
+                auto convert = new (fun.arena) LowerInstX86MaskConvert(result.name, mask, &result - base, false);
+                insertInstAt(base, block, i + 1, convert);
+
+                for(auto reader: readers) {
+                    replaceUse(base, &result, reader, &convert->result);
+
+                    auto operands = reader->used();
+                    for(Size k = 0; k < operands.size(); k++) {
+                        if(base[operands[k]] == &result) operands[k] = &convert->result - base;
+                    }
+                }
+
+                // Past the crossing, which reads nothing that needs carrying.
+                i++;
             }
         }
     }

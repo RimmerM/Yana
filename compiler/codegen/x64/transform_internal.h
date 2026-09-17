@@ -269,7 +269,7 @@ void selectSignExtends(Context&, LowerBase base, LowerFunction& fun);
  */
 void foldAddresses(LowerBase base, LowerFunction& fun);
 void foldLeas(LowerBase base, LowerFunction& fun);
-void foldLoads(LowerBase base, LowerFunction& fun);
+void foldLoads(Context& ctx, LowerBase base, LowerFunction& fun);
 void foldStoreUpdates(LowerBase base, LowerFunction& fun, bool inLoops);
 
 // Folds a load into the byte reversal that reads it, and a reversal into the store that writes it -
@@ -300,6 +300,8 @@ void expandVectorMulHi(Context&, LowerBase base, LowerFunction& fun);
 void scalarizeVectorLanes(Context&, LowerBase base, LowerFunction& fun);
 void expandFusedMultiplyAdd(Context&, LowerBase base, LowerFunction& fun);
 void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun);
+void lowerMaskRegisters(Context&, LowerBase base, LowerFunction& fun);
+void fuseMaskRegisters(Context&, LowerBase base, LowerFunction& fun);
 void expandRoundAway(Context&, LowerBase base, LowerFunction& fun);
 
 // `X86.vzeroupper()` where the target has no AVX, which is a machine with nothing to reset - see the
@@ -336,6 +338,8 @@ void selectPackedMinMax(Context&, LowerBase base, LowerFunction& fun);
 void foldConstantMasks(Context&, LowerBase base, LowerFunction& fun);
 void selectMaskedVectors(Context&, LowerBase base, LowerFunction& fun);
 void poolVectorConstants(Context& ctx, LowerBase base, LowerFunction& fun);
+void lowerTwoSourcePermutes(Context& ctx, LowerBase base, LowerFunction& fun);
+void fuseTernaryLogic(Context& ctx, LowerBase base, LowerFunction& fun);
 void lowerWideLanePermutes(Context& ctx, LowerBase base, LowerFunction& fun);
 void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun);
 void sinkVectorConstants(Context&, LowerBase base, LowerFunction& fun);
@@ -352,4 +356,7 @@ LowerGlobal* pooledConstant(Context& ctx, LowerModule& module, U64 bits, Size si
  * chain comes to, and the sweep that takes such a chain back out once nothing reads it.
  */
 bool constantVectorBytes(LowerBase base, LowerValue* value, U8* bytes, Size size, InstChain& chain);
+
+// The `.rodata` entry holding these bytes, interned by content - see transform_constant.cpp.
+LowerGlobal* pooledBytes(Context& ctx, LowerModule& module, const U8* bytes, Size size);
 void removeDeadChain(LowerBase base, InstChain& chain);

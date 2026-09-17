@@ -1,0 +1,43 @@
+{-
+   # extensions: avx512
+
+   `VecWide.Lanes.yana` at the third level - Analysis-Avx512.md's order of work, which gives every
+   runtime fixture a rewritten expansion reaches an `avx512` twin beside its `sse4` and `avx2` ones.
+   Two tiers are two expansions of one source, and only running both says they agree.
+
+   Every instruction here may be EVEX-encoded, name one of the upper sixteen vector registers or be
+   one of the rows only this level has, which is a second set of expansions of one source that has
+   to answer the same numbers. What the program asserts is written in `VecWide.Lanes.yana`, and the
+   numbers are the same ones.
+-}
+
+-- Mutable, so the folder cannot see through it and the lanes are built at run time.
+let &seed = 3 :: Int
+
+fn main() -> Int:
+    let base = splat(seed) :: Vec(Int)
+
+    -- A write into the upper half, read back beside the lanes around it.
+    let high = withLane(base, 5, 40)
+    if lane(high, 5) != 40 then return -1
+    if lane(high, 4) != 3 then return -2
+    if lane(high, 7) != 3 then return -3
+    if lane(high, 0) != 3 then return -4
+
+    -- And one into the lower half, which needs the same round trip for the opposite reason: the
+    -- insert would zero the upper half if the half were not put back.
+    let low = withLane(high, 1, 20)
+    if lane(low, 1) != 20 then return -5
+    if lane(low, 5) != 40 then return -6
+    if lane(low, 6) != 3 then return -7
+
+    -- The reductions over a vector whose lanes are genuinely different, which is what makes the
+    -- butterfly's cross-half level answer rather than merely run: 40 is in the upper half and 20 in
+    -- the lower, so a tree that never crossed would answer one of them.
+    if horizontalMax(low) != 40 then return -8
+    if horizontalMin(low) != 3 then return -9
+
+    -- 3*6 + 20 + 40, which reads every lane exactly once.
+    if horizontalSum(low) != 78 then return -10
+
+    return lane(low, 5) * 10 + lane(low, 1)

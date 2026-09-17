@@ -1,0 +1,126 @@
+# Bitwise trees as one `vpternlogd`, and constants read as one broadcast element - Analysis-Avx512.md
+# §2.3, at both register widths.
+#
+# extensions: avx512
+#
+# `fuseTernaryLogic` takes a tree of `and`, `or`, `xor` and `not` over at most three values and writes
+# its truth table as the instruction's immediate: EVEX.66.0F3A.W0 25 /r ib, the table the last byte.
+# An all-ones or all-zeros constant is a row of the table rather than an operand. What to look for:
+#
+#   - **`not` is one instruction** with the same register in all three fields and table 0x55 - no
+#     all-ones register and no scratch.
+#   - **a lone `and` is not fused**: `vpand` is already one instruction.
+#   - **a select written out is one instruction** (table 0xca or a relabelling of it), where it was
+#     `vpand`, `vpandn` and `vpor`.
+#   - **a subtree read twice stays itself**, and the tree above reads it as a leaf.
+#   - **a constant leaf is read out of memory**, and at `avx512` as one broadcast element: the EVEX
+#     prefix's `b` bit (0x10 in its fourth byte) set and a four-byte pool entry.
+
+complement(%a: i32x4, %b: i8x32): i32x4 {
+    {
+        %r = not %a: i32x4
+        %s = not %b: i8x32
+        ret %r
+    }
+}
+
+onesXor(%a: i64x4): i64x4 {
+    {
+        %ones = vsplat -1L: i64x4
+        %r = xor %a, %ones: i64x4
+        ret %r
+    }
+}
+
+loneAnd(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %r = and %a, %b: i32x4
+        ret %r
+    }
+}
+
+select(%m: i32x8, %a: i32x8, %b: i32x8): i32x8 {
+    {
+        %t = and %m, %a: i32x8
+        %n = not %m: i32x8
+        %f = and %n, %b: i32x8
+        %r = or %t, %f: i32x8
+        ret %r
+    }
+}
+
+threeXor(%a: i16x8, %b: i16x8, %c: i16x8): i16x8 {
+    {
+        %t = xor %a, %b: i16x8
+        %r = xor %t, %c: i16x8
+        ret %r
+    }
+}
+
+majority(%a: i64x2, %b: i64x2, %c: i64x2): i64x2 {
+    {
+        %ab = and %a, %b: i64x2
+        %o = or %a, %b: i64x2
+        %co = and %c, %o: i64x2
+        %r = or %ab, %co: i64x2
+        ret %r
+    }
+}
+
+# `%t` is read twice, so it is computed once and both trees above it read it.
+shared(%a: i32x4, %b: i32x4, %c: i32x4): i32x4 {
+    {
+        %t = and %a, %b: i32x4
+        %x = xor %t, %c: i32x4
+        %y = or %t, %c: i32x4
+        %n = not %x: i32x4
+        %r = and %n, %y: i32x4
+        ret %r
+    }
+}
+
+# Four leaves, which is one too many: the tree splits at a node whose leaves fit.
+fourLeaves(%a: i32x4, %b: i32x4, %c: i32x4, %d: i32x4): i32x4 {
+    {
+        %ab = xor %a, %b: i32x4
+        %cd = xor %c, %d: i32x4
+        %n = not %cd: i32x4
+        %r = and %ab, %n: i32x4
+        ret %r
+    }
+}
+
+# A constant leaf, read as `m32bcst`.
+constantLeaf(%a: i32x8, %b: i32x8): i32x8 {
+    {
+        %k = vsplat 252645135: i32x8
+        %t = xor %a, %b: i32x8
+        %r = and %t, %k: i32x8
+        ret %r
+    }
+}
+
+# And the broadcast on its own: a constant read by an addition, a comparison and a bitwise `and`.
+broadcast(%a: i32x8, %b: i64x4, %f: f64x4): i32x8 {
+    {
+        %k = vsplat 1000: i32x8
+        %r = add %a, %k: i32x8
+        %q = vsplat 3L: i64x4
+        %s = add %b, %q: i64x4
+        %h = vsplat 0.5: f64x4
+        %g = mul %f, %h: f64x4
+        %m = vsplat 16711935: i32x8
+        %x = and %r, %m: i32x8
+        ret %x
+    }
+}
+
+# A byte constant repeats every four bytes too, but `vpaddb` has no broadcast form: it stays a whole
+# vector in memory.
+byteConstant(%a: i8x32): i8x32 {
+    {
+        %k = vsplat 7: i8x32
+        %r = add %a, %k: i8x32
+        ret %r
+    }
+}

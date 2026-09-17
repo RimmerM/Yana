@@ -1,0 +1,50 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = vsplat 1: f32x8
+    %v_2 = vsplat 2: f32x8
+    %v_3 = vsplat 7: i32x8
+    %v_4 = vsplat 3: i32x8
+    %v_5 = cmp_lt %v_1, %v_2: m32x8
+    %v_6 = select %v_5, %v_3, %v_4: i32x8
+    %v_7 = cmp_ilt %v_4, %v_3: m32x8
+    %v_8 = select %v_7, %v_1, %v_2: f32x8
+    %v_9 = vsplat 0: i32x8
+    %v_10 = vwithlane %v_9, 1, 1: i32x8
+    %v_11 = vwithlane %v_10, 2, 2: i32x8
+    %v_12 = vwithlane %v_11, 3, 3: i32x8
+    %v_13 = vwithlane %v_12, 4, 4: i32x8
+    %v_14 = vwithlane %v_13, 5, 5: i32x8
+    %v_15 = vwithlane %v_14, 6, 6: i32x8
+    %v_16 = vwithlane %v_15, 7, 7: i32x8
+    %v_17 = cmp_ilt %v_16, %v_4: m32x8
+    %v_18 = select %v_17, %v_16, %v_9: i32x8
+    %v_19 = vreduce_or %v_17: I32
+    je %v_19, b_20, b_21
+  }
+
+  b_22 {
+    %v_23 = phi [b_20, %v_24], [b_21, 18446744073709551615]: I32
+    %v_25 = vlane %v_6, 0: I32
+    %v_26 = imul %v_25, 100000: I32
+    %v_27 = vlane %v_8, 0: F32
+    %v_28 = cmp_eq %v_27, 1: I32
+    %v_29 = imul %v_28, 10000: I32
+    %v_30 = add %v_26, %v_29: I32
+    %v_31 = add %v_30, %v_23: I32
+    ret %v_31
+  }
+
+  b_20 {
+    %v_32 = vreduce_add %v_18: I32
+    %v_33 = imul %v_32, 10: I32
+    %v_34 = vreduce_add %v_17: I32
+    %v_24 = add %v_33, %v_34: I32
+    jmp b_22
+  }
+
+  b_21 {
+    jmp b_22
+  }
+}
+

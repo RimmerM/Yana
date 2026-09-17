@@ -20,6 +20,7 @@
  *                               which is what every wider and every prefixed tier is derived from.
  *   machine_forms_tiers.cpp     those two derived tiers - the 256-bit forms, and the sweep that
  *                               gives every legacy vector form a VEX twin.
+ *   machine_forms_evex.cpp      the rows only AVX-512 has an instruction for, at 128 and 256 bits.
  *   machine_forms_memory.cpp    the rest of the machine: select, alloca, load and store, the
  *                               in-place memory updates, the block operations, calls, terminators.
  *   machine_validate.cpp        what a form is required to be, checked over the whole table once at
@@ -162,13 +163,9 @@ enum: MachineFormId {
      * transfers have nothing to drop and differ from their originals in the prefix alone.
      */
     FormFAdd32Vex, FormFAdd64Vex, FormFAdd32VexMem, FormFAdd64VexMem,
-    FormFAdd32Evex, FormFAdd64Evex, FormFAdd32EvexMem, FormFAdd64EvexMem,
     FormFSub32Vex, FormFSub64Vex, FormFSub32VexMem, FormFSub64VexMem,
-    FormFSub32Evex, FormFSub64Evex, FormFSub32EvexMem, FormFSub64EvexMem,
     FormFMul32Vex, FormFMul64Vex, FormFMul32VexMem, FormFMul64VexMem,
-    FormFMul32Evex, FormFMul64Evex, FormFMul32EvexMem, FormFMul64EvexMem,
     FormFDiv32Vex, FormFDiv64Vex, FormFDiv32VexMem, FormFDiv64VexMem,
-    FormFDiv32Evex, FormFDiv64Evex, FormFDiv32EvexMem, FormFDiv64EvexMem,
 
     FormFNeg32Vex, FormFNeg64Vex,
 
@@ -520,6 +517,127 @@ enum: MachineFormId {
     FormVWideExtract32, FormVWideExtract64, FormVWideExtractF32, FormVWideExtractF64,
     FormVWideMaskBits, FormVWideMaskBitsF32, FormVWideMaskBitsF64,
     FormVWideInsert32, FormVWideInsert64, FormVWideInsertF32, FormVWideInsertF64,
+
+    /*
+     * The operations x86 had no instruction for below AVX-512 - Analysis-Avx512.md §2.4.
+     *
+     * EVEX by construction, and one row each at 128 and 256 bits with the pair linked the way every
+     * wide twin is (`MachineForm::wide`). Every one of them has an expansion standing in for it at
+     * `sse4` and `avx2`, and the expansion is what declines itself where the target has the row: the
+     * table only says the instruction exists. See `registerEvexForms` in machine_forms_evex.cpp.
+     */
+    FormVAbs64, FormVWideAbs64,
+    FormVSar64Imm, FormVWideSar64Imm,
+    FormVSarVar64, FormVWideSarVar64,
+    FormVShlVar16, FormVWideShlVar16,
+    FormVShrVar16, FormVWideShrVar16,
+    FormVSarVar16, FormVWideSarVar16,
+    FormVMinI64, FormVWideMinI64,
+    FormVMinU64, FormVWideMinU64,
+    FormVMaxI64, FormVWideMaxI64,
+    FormVMaxU64, FormVWideMaxU64,
+    FormVMul64, FormVWideMul64,
+    FormVRol32Imm, FormVWideRol32Imm,
+    FormVRol64Imm, FormVWideRol64Imm,
+    FormVRor32Imm, FormVWideRor32Imm,
+    FormVRor64Imm, FormVWideRor64Imm,
+    FormVRolVar32, FormVWideRolVar32,
+    FormVRolVar64, FormVWideRolVar64,
+    FormVRorVar32, FormVWideRorVar32,
+    FormVRorVar64, FormVWideRorVar64,
+    FormVRol16Imm, FormVWideRol16Imm,
+    FormVCastI64ToF64, FormVWideCastI64ToF64,
+
+    // The truncating narrowings, which exist only where the narrow result is still a whole register:
+    // a 256-bit vector of one lane width becoming a 128-bit vector of half that width.
+    FormVNarrow16To8, FormVNarrow32To16, FormVNarrow64To32,
+
+    // `vcvtusi2ss`/`vcvtusi2sd`, at either integer width - the one scalar row of the set.
+    FormCastUToF32, FormCastUToF64,
+
+    /*
+     * A mask in a mask register - Analysis-Avx512.md §2.1, and step 4 of its order of work.
+     *
+     * What a comparison writes, what the bitwise operations over one read and write, what a
+     * lane-wise select and a masked vector read, and the two crossings to and from the vector a mask
+     * is everywhere else. Every one of them has a vector-domain row beside it that `sse4` and `avx2`
+     * take; which of the two a function takes is `maskInMaskBank`'s answer, and `classForType` is
+     * what that answer changes.
+     */
+    FormKCmpEq8, FormVWideKCmpEq8, FormKCmpEq16, FormVWideKCmpEq16,
+    FormKCmpEq32, FormVWideKCmpEq32, FormKCmpEq64, FormVWideKCmpEq64,
+    FormKCmpGt8, FormVWideKCmpGt8, FormKCmpGt16, FormVWideKCmpGt16,
+    FormKCmpGt32, FormVWideKCmpGt32, FormKCmpGt64, FormVWideKCmpGt64,
+    FormKCmp8, FormVWideKCmp8, FormKCmp16, FormVWideKCmp16,
+    FormKCmp32, FormVWideKCmp32, FormKCmp64, FormVWideKCmp64,
+    FormKCmpU8, FormVWideKCmpU8, FormKCmpU16, FormVWideKCmpU16,
+    FormKCmpU32, FormVWideKCmpU32, FormKCmpU64, FormVWideKCmpU64,
+    FormKCmpF32, FormVWideKCmpF32, FormKCmpF64, FormVWideKCmpF64,
+
+    FormKAnd, FormKOr, FormKXor, FormKAndNot, FormKNot, FormKMove, FormKBits,
+    FormKLoad, FormKStore,
+
+    FormKToVector8, FormVWideKToVector8, FormKToVector16, FormVWideKToVector16,
+    FormKToVector32, FormVWideKToVector32, FormKToVector64, FormVWideKToVector64,
+    FormVectorToK8, FormVWideVectorToK8, FormVectorToK16, FormVWideVectorToK16,
+    FormVectorToK32, FormVWideVectorToK32, FormVectorToK64, FormVWideVectorToK64,
+
+    // The select, as a masked move over the operand the tie already put in the destination.
+    FormKSelect8, FormVWideKSelect8, FormKSelect16, FormVWideKSelect16,
+    FormKSelect32, FormVWideKSelect32, FormKSelect64, FormVWideKSelect64,
+    FormKSelectF32, FormVWideKSelectF32, FormKSelectF64, FormVWideKSelectF64,
+
+    // The masked vector: kept where the mask is set by a zero-masking move, and dropped where it is
+    // set by an element subtracted from itself under the mask.
+    FormKKeep8, FormVWideKKeep8, FormKKeep16, FormVWideKKeep16,
+    FormKKeep32, FormVWideKKeep32, FormKKeep64, FormVWideKKeep64,
+    FormKKeepF32, FormVWideKKeepF32, FormKKeepF64, FormVWideKKeepF64,
+
+    // The masked vector reading its value straight out of memory - the zero-masking load, whose masked
+    // lanes are not read at all (Analysis-Avx512.md §2.6).
+    FormKKeep8Mem, FormVWideKKeep8Mem, FormKKeep16Mem, FormVWideKKeep16Mem,
+    FormKKeep32Mem, FormVWideKKeep32Mem, FormKKeep64Mem, FormVWideKKeep64Mem,
+    FormKKeepF32Mem, FormVWideKKeepF32Mem, FormKKeepF64Mem, FormVWideKKeepF64Mem,
+    FormKDrop8, FormVWideKDrop8, FormKDrop16, FormVWideKDrop16,
+    FormKDrop32, FormVWideKDrop32, FormKDrop64, FormVWideKDrop64,
+    FormKDropF32, FormVWideKDropF32, FormKDropF64, FormVWideKDropF64,
+
+    // `vptestm` and `vptestnm` - see LowerInst::X86MaskCompare.
+    FormKTest8, FormVWideKTest8, FormKTest16, FormVWideKTest16,
+    FormKTest32, FormVWideKTest32, FormKTest64, FormVWideKTest64,
+    FormKTestNot8, FormVWideKTestNot8, FormKTestNot16, FormVWideKTestNot16,
+    FormKTestNot32, FormVWideKTestNot32, FormKTestNot64, FormVWideKTestNot64,
+
+    // A mask tested for being empty straight out of its register - `kortestd` - with the answer left in
+    // the flags or materialized, as the comparison it replaces was.
+    FormKZeroTest, FormKZeroTestSet,
+
+    // A mask register written from a general register's bits - `kmovd k, r32`.
+    FormKFromBits,
+
+    // `vpternlogd` - any bitwise function of three vectors - and the same reading its third operand
+    // out of memory. See LowerInst::X86TernaryLogic.
+    FormVTernaryLogic, FormVWideTernaryLogic, FormVTernaryLogicMem, FormVWideTernaryLogicMem,
+
+    /*
+     * `valignd` and `valignq` at 256 bits, which is the window `vpalignr` can no longer state there -
+     * it shifts inside each 128-bit half. Over two sources, and over one source read as both, in
+     * whichever operand holds it: a rotation of one vector is a window of it against itself.
+     */
+    FormVWideAlign32, FormVWideAlign64,
+    FormVWideAlignOne32, FormVWideAlignOne64,
+    FormVWideAlignSecond32, FormVWideAlignSecond64,
+
+    // `vpbroadcast{b,w,d,q} xmm, r32/r64` - a splat straight out of a general register, where every
+    // tier below needs `movd` first.
+    FormVBroadcastGpr8, FormVWideBroadcastGpr8, FormVBroadcastGpr16, FormVWideBroadcastGpr16,
+    FormVBroadcastGpr32, FormVWideBroadcastGpr32, FormVBroadcastGpr64, FormVWideBroadcastGpr64,
+
+    // `vpermi2b`/`w`/`d`/`q`/`ps`/`pd` - lanes taken from two vectors by an index vector. See
+    // LowerInst::X86Permute2.
+    FormVPermute2x8, FormVWidePermute2x8, FormVPermute2x16, FormVWidePermute2x16,
+    FormVPermute2x32, FormVWidePermute2x32, FormVPermute2x64, FormVWidePermute2x64,
+    FormVPermute2F32, FormVWidePermute2F32, FormVPermute2F64, FormVWidePermute2F64,
 
     FormSelectFlags,
     FormSelectReg,
@@ -891,19 +1009,6 @@ struct MachineFormBuilder {
         return prefixedTwin(id, sourceId, formName, threeOperand, PrefixEncoding::Vex, kFeatureAvx);
     }
 
-    /*
-     * And the EVEX tier, built out of the VEX one rather than out of the legacy form.
-     *
-     * Not because EVEX is better for a scalar operation - it is a byte longer than VEX and does
-     * nothing extra here - but because it is what a target with thirty-two vector registers needs.
-     * A value the allocator puts in xmm16 can only be named by an EVEX-encoded instruction, so every
-     * form a scalar can reach has to have one before `vectorRegisterCountFor` can return more than
-     * sixteen. Building them now, behind a feature nothing selects by default, is what makes the
-     * EVEX writer something the test suite covers rather than something stage 5 discovers.
-     */
-    MachineForm& evexTwin(MachineFormId id, MachineFormId sourceId, StringView formName, bool threeOperand) {
-        return prefixedTwin(id, sourceId, formName, threeOperand, PrefixEncoding::Evex, kFeatureAvx512f);
-    }
 
     /*
      * The registrations, in the order the constructor runs them - which is the order the form ids
@@ -913,8 +1018,11 @@ struct MachineFormBuilder {
     void registerScalarForms();
     void registerPackedForms();
     void registerWideForms();
+    void registerEvexForms();
+    void registerEvexShuffleForms();
     void registerMemoryAndControlForms();
     void registerVexTier();
+    void registerMaskedForms();
 };
 
 /*

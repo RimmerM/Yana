@@ -220,8 +220,8 @@ static void selectByteSwapAccesses(Context&, LowerBase base, LowerFunction& fun)
 // Expects: addresses selected.  Establishes: no load reaches allocation whose only reader could have
 // read it out of memory itself. Mutates: the instruction lists, the operand order of a commutative
 // operation, and the affected use lists. Invalidates: instruction positions within a block.
-static void selectMemorySources(Context&, LowerBase base, LowerFunction& fun) {
-    foldLoads(base, fun);
+static void selectMemorySources(Context& ctx, LowerBase base, LowerFunction& fun) {
+    foldLoads(ctx, base, fun);
 }
 
 // Folds a load, an operation on it and the store of the result back to the same place into one
@@ -572,6 +572,19 @@ static const TransformPass kTransformPipeline[] = {
     // before canonicalizeOperands, which is what exchanges the signed relations it produces.
     { "biasUnsignedPackedCompares"_v,  biasUnsignedPackedCompares,  0, true },
 
+    /*
+     * Directly behind it and above every pass that lowers a shuffle: what it crosses into the vector
+     * domain has to arrive there as a vector before `lowerWideLanePermutes` and
+     * `lowerByteLaneShuffles` read it. Below every pass that reads a mask's constant chain, which
+     * this would otherwise hide behind a crossing - see `lowerMaskRegisters`.
+     */
+    { "lowerMaskRegisters"_v,          lowerMaskRegisters,          0, true },
+
+    // Directly behind it: what it fuses is comparisons, selects and operations over masks that live
+    // in mask registers, and the constants it reads are still the chains `poolVectorConstants` below
+    // turns into loads - see `fuseMaskRegisters`.
+    { "fuseMaskRegisters"_v,           fuseMaskRegisters,           0, true },
+
     // Above `poolVectorConstants`, which is the whole of where this may sit - the count it reads is
     // a `vsplat` of a constant, and that pass turns one into a `.rodata` load.
     /*
@@ -627,6 +640,13 @@ static const TransformPass kTransformPipeline[] = {
      * chain into a shift and a `pinsrw` pair and so hid the chain from this pass - `iota` came out
      * one instruction longer. That pass is gone: `pinsrd` is v2.
      */
+    /*
+     * Below every expansion that writes a bitwise operation, so that the trees it fuses are whole, and
+     * **above `poolVectorConstants`**, which is what reads the all-ones and all-zeros leaves this folds
+     * into the truth table: that pass leaves them as splats, and a load would hide one.
+     */
+    { "fuseTernaryLogic"_v,            fuseTernaryLogic,            0, true },
+
     { "poolVectorConstants"_v,         poolVectorConstants,         0, true },
 
     // Below `poolVectorConstants` and not above it: what this builds is already a `.rodata` load, so
@@ -638,6 +658,10 @@ static const TransformPass kTransformPipeline[] = {
     // The narrow twin, in the same slot and for the same two reasons: it builds a `.rodata` load, so
     // it stands below the pool and above `selectMemorySources`.
     { "lowerByteLaneShuffles"_v,       lowerByteLaneShuffles,       0, true },
+
+    // Behind both, as the last resort they are not: at `avx512` any shuffle neither of them nor an
+    // instruction with an immediate took is `vpermi2*` over a pooled index vector, which this builds.
+    { "lowerTwoSourcePermutes"_v,      lowerTwoSourcePermutes,      0, true },
 
     // Directly behind it, so that what is left standing as an instruction is the set this can move:
     // everything with more than one distinct lane became a `.rodata` load one line up, and a load

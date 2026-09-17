@@ -82,11 +82,11 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Shr:        return isPackedOp() ? OpVShr : OpShr;
         case LowerInst::Sar:        return isPackedOp() ? OpVSar : OpSar;
 
-        // The rotations, which have no packed opcode at all: `expandVectorRotate` has rewritten a
-        // vector one into shifts and an `or` long before selection, so only the scalar pair can
-        // reach here. Asserted rather than answered, for `expandRoundAway`'s reason.
-        case LowerInst::Rol:        assertTrue(!isPackedOp()); return OpRol;
-        case LowerInst::Ror:        assertTrue(!isPackedOp()); return OpRor;
+        // The rotations, whose packed opcodes exist at AVX-512 alone: below it `expandVectorRotate`
+        // has rewritten a vector one into shifts and an `or` long before selection, and at it the
+        // rotation stands and is `vprold` or `vpshldw` - see machine_forms_evex.cpp.
+        case LowerInst::Rol:        return isPackedOp() ? OpVRol : OpRol;
+        case LowerInst::Ror:        return isPackedOp() ? OpVRor : OpRor;
         case LowerInst::And:        return isPackedOp() ? OpVAnd : OpAnd;
         case LowerInst::Or:         return isPackedOp() ? OpVOr : OpOr;
         case LowerInst::Xor:        return isPackedOp() ? OpVXor : OpXor;
@@ -94,7 +94,11 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Sub:        return isPackedOp() ? OpVSub : isFloatOp() ? OpFSub : OpSub;
         case LowerInst::Mul:        return isPackedOp() ? OpVMul : isFloatOp() ? OpFMul : OpMul;
         case LowerInst::Div:        return isPackedOp() ? OpVDiv : isFloatOp() ? OpFDiv : OpDiv;
-        case LowerInst::Cmp:        return isPackedOp() ? OpVCmp : isFloatOp() ? OpFCmp : OpCmp;
+        // A mask tested for emptiness - `kortestd`, see `fuseMaskRegisters` - reads a mask and
+        // answers a condition, which is the scalar comparison's business rather than a packed one.
+        case LowerInst::Cmp:
+            if(base[inst->used()[0]]->type.isMask()) return OpCmp;
+            return isPackedOp() ? OpVCmp : isFloatOp() ? OpFCmp : OpCmp;
 
         // Both are a constant this machine has no packed immediate for, and both can build the
         // constant they need out of a scratch register - all ones is a register compared with
@@ -246,6 +250,28 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::X86Permute:
             return OpVPermute;
 
+        case LowerInst::X86MaskConvert:
+            return ((LowerInstX86MaskConvert*)inst)->isToVector() ? OpMaskToVector : OpVectorToMask;
+
+        case LowerInst::X86MaskCompare: return OpVCmp;
+
+        // Its own opcode for `X86Permute`'s reason: what selects between the rows is the lane, and the
+        // index vector is the destination, which no other shuffle's operands look like.
+        case LowerInst::X86Permute2: return OpVPermute2;
+
+        // One opcode and one row per width: a bitwise function of three vectors has no lane at all.
+        case LowerInst::X86TernaryLogic: return OpVTernaryLogic;
+
+        case LowerInst::X86MaskedOp:
+            switch(((LowerInstX86MaskedOp*)inst)->op) {
+                case LowerInst::Add: return OpVAdd;
+                case LowerInst::Sub: return OpVSub;
+                case LowerInst::Div: return OpVDiv;
+                case LowerInst::Mul:
+                case LowerInst::IMul: return OpVMul;
+                default: return ((LowerInstX86MaskedOp*)inst)->isMax() ? OpVMax : OpVMin;
+            }
+
         case LowerInst::Intrinsic:
             return machineTarget().intrinsic(((LowerInstIntrinsic*)inst)->getIntrinsic()).opcode;
         case LowerInst::X86PushArg: return OpPushArg;
@@ -349,6 +375,9 @@ Maybe<LowerCmp> selectCondition(LowerInst* inst) {
         case LowerInst::Cmp:
             return Just(((LowerInstCmp*)inst)->getCmp());
 
+        case LowerInst::X86MaskCompare:
+            return Just(((LowerInstX86MaskCompare*)inst)->getCmp());
+
         // A condition that arrived in a register rather than in the flags is turned into flags by
         // the `test` the form declares as its prelude, and `test r, r` sets ZF exactly when the
         // register is zero - so "the condition holds" is the not-equal case.
@@ -446,6 +475,20 @@ MachineFormId selectForm(LowerBase base, LowerInst* inst) {
     // that the fold had already removed the definition of.
     auto id = selectMemorySourceForm(base, selectAlternativeForm(selectFormForTarget(base, inst)), inst);
 
+    /*
+     * And the masked twin, for an instruction that is masked by a mask register - after the
+     * alternative, because the twin of an arithmetic row belongs to its VEX spelling, which is the
+     * tier that has one (see MachineForm::masked). Nothing folds a load into a masked operation, so
+     * the memory twin above has had nothing to do for it.
+     */
+    auto masked = inst->kind == LowerInst::X86MaskedOp
+               || (inst->kind == LowerInst::X86MaskCompare && ((LowerInstX86MaskCompare*)inst)->isMasked());
+
+    if(masked) {
+        id = machineTarget().form(id).masked;
+        assertTrue(id != 0); // an instruction masked where its row has no masked twin
+    }
+
     // A form whose encoding needs an extension this build does not have is not selectable, and the
     // rejection belongs here rather than in the encoder: by then the operands have been allocated
     // against the form's constraints and there is nothing left to choose instead. Checked for every
@@ -526,6 +569,11 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::X86MulWide:
         case LowerInst::X86MaskAnd:
         case LowerInst::X86Permute:
+        case LowerInst::X86MaskConvert:
+        case LowerInst::X86MaskCompare:
+        case LowerInst::X86MaskedOp:
+        case LowerInst::X86Permute2:
+        case LowerInst::X86TernaryLogic:
         case LowerInst::Abs:
         case LowerInst::Sqrt:
         case LowerInst::Fma:
@@ -599,7 +647,13 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             // values that motivated asking for unsigned in the first place.
             if(isFloat(from) != isFloat(to)) {
                 if(isFloat(to)) {
-                    assertTrue(cast->isSignedSource()); // an unsigned conversion the expansion missed
+                    // `vcvtusi2sd` where the target has it, which is the one unsigned conversion the
+                    // expansion leaves standing - see `expandBankConversions`.
+                    if(!cast->isSignedSource()) {
+                        assertTrue(hasEvexRow(EvexRow::UnsignedToFloat)); // an unsigned conversion the expansion missed
+                        return byFloatWidth(to, FormCastUToF32, FormCastUToF64);
+                    }
+
                     return byFloatWidth(to, FormCastIToF32, FormCastIToF64);
                 }
 
@@ -726,6 +780,9 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
                     ? byFloatWidth(type, FormFCmp32Set, FormFCmp64Set)
                     : byFloatWidth(type, FormFCmp32, FormFCmp64);
             }
+
+            // A mask register tested for being empty - see `fuseMaskRegisters`.
+            if(type.isMask()) return materialize ? FormKZeroTestSet : FormKZeroTest;
 
             requireIntLike(type);
 
@@ -859,6 +916,9 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             // thing and differ in a forwarding penalty for a value produced in one and consumed in
             // the other. The width is the vector's own - validateLoad has already required it - so
             // there is nothing here to choose from it.
+            // A mask in a mask register, which is the vector in memory and crosses on the way in.
+            if(load->result.type.isMask() && maskInMaskBank()) return FormKLoad;
+
             if(isVectorLike(load->result.type)) {
                 // A whole register, at whichever of the two widths this backend holds one at.
                 assertTrue(isWholePackedRegister(load->result.type));
@@ -884,6 +944,8 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::Store: {
             auto store = (LowerInstStore*)inst;
             auto type = base[store->value]->type;
+
+            if(type.isMask() && maskInMaskBank()) return FormKStore;
 
             if(isVectorLike(type)) {
                 assertTrue(isWholePackedRegister(type)); // a whole register, at either width

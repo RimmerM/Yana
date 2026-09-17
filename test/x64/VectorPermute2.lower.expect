@@ -1,0 +1,139 @@
+
+interleave<complex>(%a: i32x8, %b: i32x8): i32x8 {
+  b_0 {
+    %r = vshuffle %a, %b, 0, 8, 1, 9, 2, 10, 3, 11: i32x8
+    ret %r
+  }
+}
+
+interleaveHighBytes<complex>(%a: i8x32, %b: i8x32): i8x32 {
+  b_0 {
+    %r = vshuffle %a, %b, 16, 48, 17, 49, 18, 50, 19, 51, 20, 52, 21, 53, 22, 54, 23, 55, 24, 56, 25, 57, 26, 58, 27, 59, 28, 60, 29, 61, 30, 62, 31, 63: i8x32
+    ret %r
+  }
+}
+
+words<complex>(%a: i16x8, %b: i16x8): i16x8 {
+  b_0 {
+    %r = vshuffle %a, %b, 7, 15, 6, 14, 0, 1, 8, 9: i16x8
+    ret %r
+  }
+}
+
+quadCrossing<complex>(%a: f64x4, %b: f64x4): f64x4 {
+  b_0 {
+    %r = vshuffle %a, %b, 3, 4, 1, 6: f64x4
+    ret %r
+  }
+}
+
+rotate<complex>(%a: i32x8, %b: i64x4): i32x8 {
+  b_0 {
+    %r = vshuffle %a, %a, 3, 4, 5, 6, 7, 0, 1, 2: i32x8
+    %q = vshuffle %b, %b, 1, 2, 3, 0: i64x4
+    ret %r
+  }
+}
+
+rotateSecond<complex>(%a: i32x8, %b: i32x8): i32x8 {
+  b_0 {
+    %r = vshuffle %a, %b, 13, 14, 15, 8, 9, 10, 11, 12: i32x8
+    ret %r
+  }
+}
+
+window<complex>(%a: i64x4, %b: i64x4): i64x4 {
+  b_0 {
+    %r = vshuffle %a, %b, 6, 7, 0, 1: i64x4
+    ret %r
+  }
+}
+
+inLane<complex>(%a: i32x8): i32x8 {
+  b_0 {
+    %r = vshuffle %a, %a, 1, 0, 3, 2, 5, 4, 7, 6: i32x8
+    ret %r
+  }
+}
+
+reverseOneSource<complex>(%a: i32x8): i32x8 {
+  b_0 {
+    %r = vshuffle %a, %a, 7, 6, 5, 4, 3, 2, 1, 0: i32x8
+    ret %r
+  }
+}
+
+
+--- codegen: interleave ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fe6f15c8000000
+  x86_permute2 uses=[xmm2, xmm0, xmm1] creates=[xmm2]  => 62f27d2876d1
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => c5fc28c2c3
+
+--- codegen: interleaveHighBytes ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fe6f15c8000000
+  x86_permute2 uses=[xmm2, xmm0, xmm1] creates=[xmm2]  => 62f27d2875d1
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => c5fc28c2c3
+
+--- codegen: words ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fa6f15c8000000
+  x86_permute2 uses=[xmm2, xmm0, xmm1] creates=[xmm2]  => 62f2fd0875d1
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => c5f828c2c3
+
+--- codegen: quadCrossing ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fe6f15b8000000
+  x86_permute2 uses=[xmm2, xmm0, xmm1] creates=[xmm2]  => 62f2fd2877d1
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => c5fc28c2c3
+
+--- codegen: rotate ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => 62f37d2803c003
+  vshuffle uses=[xmm1, xmm1] creates=[xmm1]  => 62f3f52803c901
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: rotateSecond ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => 62f3752803c105
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: window ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => 62f3fd2803c102
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: inLane ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c5fd70c0b1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: reverseOneSource ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fe6f0d78000000
+  x86_permute uses=[xmm1, xmm0] creates=[xmm0]  => c4e27536c0
+  ret uses=[xmm0] creates=[]  => c3

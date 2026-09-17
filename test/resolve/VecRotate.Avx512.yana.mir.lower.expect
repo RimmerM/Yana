@@ -1,0 +1,88 @@
+mut @counter = [0, 0, 0, 0]
+
+opaque<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = loads @counter, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @counter, %v_2, 4
+    %v_3 = loads @counter, 4: I32
+    %v_4 = cmp_igt %v_3, 1000: I32
+    %v_5 = select %v_4, 1, %n: I32
+    ret %v_5
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = vsplat 18446744071821328129: i32x8
+    %v_2 = bitcast %v_1: i8x32
+    %v_3 = vsplat 305419896: i32x8
+    %v_4 = vsplat 4: i32x8
+    %v_5 = rol %v_3, %v_4: i32x8
+    %v_6 = vlane %v_5, 0: I32
+    %v_7 = cmp_eq %v_6, 591751041: I32
+    %v_8 = ror %v_3, %v_4: i32x8
+    %v_9 = vlane %v_8, 0: I32
+    %v_10 = cmp_eq %v_9, 18446744071581156711: I32
+    %v_11 = add %v_7, %v_10: I32
+    %v_12 = vsplat 0: i32x8
+    %v_13 = rol %v_3, %v_12: i32x8
+    %v_14 = vlane %v_13, 0: I32
+    %v_15 = cmp_eq %v_14, 305419896: I32
+    %v_16 = add %v_11, %v_15: I32
+    %v_17 = vsplat 32: i32x8
+    %v_18 = rol %v_3, %v_17: i32x8
+    %v_19 = vlane %v_18, 0: I32
+    %v_20 = cmp_eq %v_19, 305419896: I32
+    %v_21 = add %v_16, %v_20: I32
+    %v_22 = ror %v_3, %v_12: i32x8
+    %v_23 = vlane %v_22, 0: I32
+    %v_24 = cmp_eq %v_23, 305419896: I32
+    %v_25 = add %v_21, %v_24: I32
+    %v_26 = vsplat 36: i32x8
+    %v_27 = rol %v_3, %v_26: i32x8
+    %v_28 = vlane %v_27, 0: I32
+    %v_29 = cmp_eq %v_28, 591751041: I32
+    %v_30 = add %v_25, %v_29: I32
+    %v_31 = vsplat 1: i8x32
+    %v_32 = rol %v_2, %v_31: i8x32
+    %v_33 = bitcast %v_32: i32x8
+    %v_34 = vlane %v_33, 0: I32
+    %v_35 = cmp_eq %v_34, 535232258: I32
+    %v_36 = add %v_30, %v_35: I32
+    %v_37 = vsplat 3: i8x32
+    %v_38 = rol %v_2, %v_37: i8x32
+    %v_39 = bitcast %v_38: i32x8
+    %v_40 = vlane %v_39, 0: I32
+    %v_41 = cmp_eq %v_40, 2090598152: I32
+    %v_42 = add %v_36, %v_41: I32
+    %v_43 = ror %v_2, %v_37: i8x32
+    %v_44 = bitcast %v_43: i32x8
+    %v_45 = vlane %v_44, 0: I32
+    %v_46 = cmp_eq %v_45, 18446744073465167648: I32
+    %v_47 = add %v_42, %v_46: I32
+    %v_48 = vsplat 8: i8x32
+    %v_49 = rol %v_2, %v_48: i8x32
+    %v_50 = bitcast %v_49: i32x8
+    %v_51 = vlane %v_50, 0: I32
+    %v_52 = cmp_eq %v_51, 18446744071821328129: I32
+    %v_53 = add %v_47, %v_52: I32
+    %v_54 = call_complex opaque, 2: I32
+    %v_55 = vsplat %v_54: i32x8
+    %v_56 = rol %v_3, %v_55: i32x8
+    %v_57 = vlane %v_56, 0: I32
+    %v_58 = cmp_eq %v_57, 1221679584: I32
+    %v_59 = add %v_53, %v_58: I32
+    %v_60 = imm 24: I32
+    %v_61 = shl %v_54, %v_60: I32
+    %v_62 = sar %v_61, %v_60: I32
+    %v_63 = vsplat %v_62: i8x32
+    %v_64 = rol %v_2, %v_63: i8x32
+    %v_65 = bitcast %v_64: i32x8
+    %v_66 = vlane %v_65, 0: I32
+    %v_67 = cmp_eq %v_66, 1053687556: I32
+    %v_68 = add %v_59, %v_67: I32
+    ret %v_68
+  }
+}
+

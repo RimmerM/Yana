@@ -1,0 +1,169 @@
+module ResolveTest
+
+fn main() -> I32 {
+bb0:
+  %0: %Vec(I64) address = alloc frame Vec(I64)
+  %1: %Vec(I64) address = alloc frame Vec(I64)
+  %2: %Vec(I64) address = alloc frame Vec(I64)
+  %3: %I64 address = alloc frame I64
+  %4: %Vec(I64) address = alloc frame Vec(I64)
+  %5: I64 trivial = const 7
+  %6: Vec(I64) trivial = vec.splat inspect %5
+  store inspect %0 consume %6
+  %7: I64 trivial = const 3
+  %8: Vec(I64) trivial = vec.splat inspect %7
+  store inspect %1 consume %8
+  %9: I64 trivial = const 0
+  %10: I64 trivial = const 9
+  %11: I64 trivial = sub inspect %9 inspect %10
+  %12: Vec(I64) trivial = vec.splat inspect %11
+  store inspect %2 consume %12
+  %13: I64 trivial = const 0
+  store inspect %3 consume %13
+  %14: I64 trivial = load inspect %3
+  %15: Vec(I64) trivial = load inspect %0
+  %16: Vec(I64) trivial = load inspect %1
+  %17: Vec(I64) trivial = add inspect %15 inspect %16
+  %18: I32 trivial = const 0
+  %19: I64 trivial = vec.lane #0 inspect %17
+  %20: I64 trivial = add inspect %14 inspect %19
+  store inspect %3 consume %20
+  %21: I64 trivial = load inspect %3
+  %22: Vec(I64) trivial = load inspect %0
+  %23: Vec(I64) trivial = load inspect %1
+  %24: Vec(I64) trivial = sub inspect %22 inspect %23
+  %25: I32 trivial = const 0
+  %26: I64 trivial = vec.lane #0 inspect %24
+  %27: I64 trivial = add inspect %21 inspect %26
+  store inspect %3 consume %27
+  %28: I64 trivial = load inspect %3
+  %29: Vec(I64) trivial = load inspect %0
+  %30: Vec(I64) trivial = load inspect %1
+  %31: Vec(I64) trivial = and inspect %29 inspect %30
+  %32: I32 trivial = const 0
+  %33: I64 trivial = vec.lane #0 inspect %31
+  %34: I64 trivial = add inspect %28 inspect %33
+  store inspect %3 consume %34
+  %35: I64 trivial = load inspect %3
+  %36: Vec(I64) trivial = load inspect %0
+  %37: Vec(I64) trivial = load inspect %1
+  %38: Vec(I64) trivial = or inspect %36 inspect %37
+  %39: I32 trivial = const 0
+  %40: I64 trivial = vec.lane #0 inspect %38
+  %41: I64 trivial = add inspect %35 inspect %40
+  store inspect %3 consume %41
+  %42: I64 trivial = load inspect %3
+  %43: Vec(I64) trivial = load inspect %0
+  %44: Vec(I64) trivial = load inspect %1
+  %45: Vec(I64) trivial = xor inspect %43 inspect %44
+  %46: I32 trivial = const 0
+  %47: I64 trivial = vec.lane #0 inspect %45
+  %48: I64 trivial = add inspect %42 inspect %47
+  store inspect %3 consume %48
+  %49: I64 trivial = load inspect %3
+  %50: Vec(I64) trivial = load inspect %0
+  %51: Vec(I64) trivial = load inspect %1
+  %52: Vec(I64) trivial = shl inspect %50 inspect %51
+  %53: I32 trivial = const 0
+  %54: I64 trivial = vec.lane #0 inspect %52
+  %55: I64 trivial = add inspect %49 inspect %54
+  store inspect %3 consume %55
+  %56: I64 trivial = load inspect %3
+  %57: Vec(I64) trivial = load inspect %0
+  %58: Vec(I64) trivial = load inspect %1
+  %59: Vec(I64) trivial = shr inspect %57 inspect %58
+  %60: I32 trivial = const 0
+  %61: I64 trivial = vec.lane #0 inspect %59
+  %62: I64 trivial = add inspect %56 inspect %61
+  store inspect %3 consume %62
+  %63: I64 trivial = load inspect %3
+  %64: Vec(I64) trivial = load inspect %2
+  %65: Vec(I64) trivial = abs inspect %64
+  %66: I32 trivial = const 0
+  %67: I64 trivial = vec.lane #0 inspect %65
+  %68: I64 trivial = add inspect %63 inspect %67
+  store inspect %3 consume %68
+  %69: I64 trivial = load inspect %3
+  %70: Vec(I64) trivial = load inspect %2
+  %71: I64 trivial = const 2
+  %72: Vec(I64) trivial = vec.splat inspect %71
+  %73: Vec(I64) trivial = sar inspect %70 inspect %72
+  %74: I32 trivial = const 0
+  %75: I64 trivial = vec.lane #0 inspect %73
+  %76: I64 trivial = add inspect %69 inspect %75
+  store inspect %3 consume %76
+  %77: I64 trivial = load inspect %3
+  %78: Vec(I64) trivial = load inspect %0
+  %79: Vec(I64) trivial = load inspect %1
+  %80: Vec(I64) trivial = mul inspect %78 inspect %79
+  %81: I32 trivial = const 0
+  %82: I64 trivial = vec.lane #0 inspect %80
+  %83: I64 trivial = add inspect %77 inspect %82
+  store inspect %3 consume %83
+  %84: I64 trivial = load inspect %3
+  %85: Vec(I64) trivial = load inspect %0
+  %86: Vec(I64) trivial = load inspect %1
+  %87: Vec(I64) trivial = div inspect %85 inspect %86
+  %88: I32 trivial = const 0
+  %89: I64 trivial = vec.lane #0 inspect %87
+  %90: I64 trivial = add inspect %84 inspect %89
+  store inspect %3 consume %90
+  %91: I64 trivial = load inspect %3
+  %92: Vec(I64) trivial = load inspect %0
+  %93: Vec(I64) trivial = load inspect %1
+  %94: Vec(I64) trivial = rem inspect %92 inspect %93
+  %95: I32 trivial = const 0
+  %96: I64 trivial = vec.lane #0 inspect %94
+  %97: I64 trivial = add inspect %91 inspect %96
+  store inspect %3 consume %97
+  %98: I64 trivial = load inspect %3
+  %99: Vec(I64) trivial = load inspect %0
+  %100: I64 trivial = const 0
+  %101: Vec(I64) trivial = vec.splat inspect %100
+  %102: Vec(I64) trivial = div inspect %99 inspect %101
+  %103: I32 trivial = const 0
+  %104: I64 trivial = vec.lane #0 inspect %102
+  %105: I64 trivial = add inspect %98 inspect %104
+  store inspect %3 consume %105
+  %106: I64 trivial = load inspect %3
+  %107: Vec(I64) trivial = load inspect %0
+  %108: I64 trivial = const 0
+  %109: Vec(I64) trivial = vec.splat inspect %108
+  %110: Vec(I64) trivial = rem inspect %107 inspect %109
+  %111: I32 trivial = const 0
+  %112: I64 trivial = vec.lane #0 inspect %110
+  %113: I64 trivial = add inspect %106 inspect %112
+  store inspect %3 consume %113
+  %114: I64 trivial = load inspect %3
+  %115: Vec(I64) trivial = load inspect %0
+  %116: I64 trivial = vec.reduce add inspect %115
+  %117: I64 trivial = add inspect %114 inspect %116
+  store inspect %3 consume %117
+  %118: I64 trivial = load inspect %3
+  %119: Vec(I64) trivial = load inspect %0
+  %120: I64 trivial = vec.reduce max inspect %119
+  %121: I64 trivial = add inspect %118 inspect %120
+  store inspect %3 consume %121
+  %122: I64 trivial = load inspect %3
+  %123: Vec(I64) trivial = load inspect %2
+  %124: I64 trivial = vec.reduce min inspect %123
+  %125: I64 trivial = add inspect %122 inspect %124
+  store inspect %3 consume %125
+  %126: I64 trivial = const 4294967296
+  %127: Vec(I64) trivial = vec.splat inspect %126
+  store inspect %4 consume %127
+  %128: I64 trivial = load inspect %3
+  %129: Vec(I64) trivial = load inspect %4
+  %130: I64 trivial = const 32
+  %131: Vec(I64) trivial = vec.splat inspect %130
+  %132: Vec(I64) trivial = shr inspect %129 inspect %131
+  %133: I32 trivial = const 0
+  %134: I64 trivial = vec.lane #0 inspect %132
+  %135: I64 trivial = add inspect %128 inspect %134
+  store inspect %3 consume %135
+  %136: I64 trivial = load inspect %3
+  %137: I32 trivial = convert inspect %136
+  return consume %137
+}
+
+entry main

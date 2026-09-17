@@ -227,6 +227,10 @@ static void chooseTemporaryPool(LowerBase base, LowerFunction& fun, const Machin
 
                 if(!allocatable.has(reg)) continue;
                 if((i < 8) != low) continue;
+
+                // Never one of the upper sixteen vector registers: a temporary serves a form whose
+                // operand was left in the frame, and the forms that cannot name xmm16 are among them.
+                if(id == BankVector && i >= 16) continue;
                 if(convention.clobber.has(reg) != clobbered) continue;
                 if(fixed.has(reg) == unfixed) continue;
 

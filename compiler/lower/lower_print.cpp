@@ -189,6 +189,31 @@ static StringView nameForStoreOp(LowerInst::Kind op) {
     return ""_v;
 }
 
+/*
+ * And for the masked operation, whose `op` is a field of the same kind - see LowerInst::X86MaskedOp.
+ *
+ * In the name for `nameForStoreOp`'s reason, and for one more: `op` is the one thing about this
+ * instruction that is not in `flags`, so a dump that left it out would print a masked add and a
+ * masked multiply over the same three values identically - which is also why the row does not claim
+ * `kLowerPlain`.
+ */
+static StringView nameForMaskedOp(LowerInst::Kind op, bool signedLanes, bool max) {
+    switch(op) {
+        case LowerInst::Add:  return "x86_maskedadd"_v;
+        case LowerInst::Sub:  return "x86_maskedsub"_v;
+        case LowerInst::Mul:  return "x86_maskedmul"_v;
+        case LowerInst::IMul: return "x86_maskedimul"_v;
+        case LowerInst::Div:  return "x86_maskeddiv"_v;
+        case LowerInst::X86MinMax:
+            if(max) return signedLanes ? "x86_maskedimax"_v : "x86_maskedmax"_v;
+            return signedLanes ? "x86_maskedimin"_v : "x86_maskedmin"_v;
+        default: break;
+    }
+
+    assertTrue(false);
+    return ""_v;
+}
+
 static StringView nameForCast(LowerBase base, const LowerInstCast& inst) {
     auto to = inst.result.type;
     auto from = base[inst.from]->type;
@@ -282,6 +307,18 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             }
         case LowerInst::X86MaskAnd:
             return ((LowerInstX86MaskAnd&)inst).isComplemented() ? "x86_maskandn"_v : "x86_maskand"_v;
+        case LowerInst::X86MaskConvert:
+            return ((LowerInstX86MaskConvert&)inst).isToVector() ? "x86_masktovector"_v : "x86_vectortomask"_v;
+        case LowerInst::X86MaskCompare:
+            switch(((LowerInstX86MaskCompare&)inst).getTest()) {
+                case LowerX86MaskTest::Compare: return "x86_maskcompare"_v;
+                case LowerX86MaskTest::Test:    return "x86_masktest"_v;
+                default:                        return "x86_masktestnot"_v;
+            }
+        case LowerInst::X86MaskedOp: {
+            auto& masked = (LowerInstX86MaskedOp&)inst;
+            return nameForMaskedOp(masked.op, masked.isSignedLanes(), masked.isMax());
+        }
 
         // Named for the answer, the way the enum is - see LowerX86LowBit.
         case LowerInst::X86LowBit:
@@ -692,6 +729,22 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
             // pattern below, which is why both read as a trailing run of numbers.
             writer.writeString(", "_v);
             printInt(writer, ((LowerInstVecLane&)inst).getLane());
+        } else if(inst.kind == LowerInst::X86MaskCompare) {
+            // The relation, which the name carries for an ordinary `cmp` and cannot here - the three
+            // shapes of this instruction are what its name already says. Only where there is one: the
+            // two bit tests hold a relation the instruction does not read.
+            auto& compare = (LowerInstX86MaskCompare&)inst;
+
+            if(compare.getTest() == LowerX86MaskTest::Compare) {
+                writer.writeString(", "_v);
+                writer.writeString(nameForCmp(compare.getCmp()));
+            }
+        } else if(inst.kind == LowerInst::X86TernaryLogic) {
+            // The truth table, which is a field and not an operand - and the whole of what the
+            // instruction computes, so a dump that left it out would read as three vectors combined
+            // in some way it did not say.
+            writer.writeString(", "_v);
+            printInt(writer, ((LowerInstX86TernaryLogic&)inst).getTable());
         } else if(inst.kind == LowerInst::VecShuffle) {
             auto pattern = ((LowerInstVecShuffle&)inst).pattern();
 

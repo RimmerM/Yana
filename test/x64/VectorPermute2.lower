@@ -1,0 +1,78 @@
+# Every lane pattern at `avx512` - `valignd`/`valignq` and `vpermi2*` - Analysis-Avx512.md §2.5.
+#
+# extensions: avx512
+#
+# `VectorPermute.lower` is the `avx2` half: there a 256-bit pattern that crosses the halves is `vpermd`
+# over one source or it is refused. Here nothing is refused. What to look for:
+#
+#   - **a window or a rotation at 256 bits is `valignd`/`valignq`** (EVEX.66.0F3A 03 /r ib), the
+#     immediate counting lanes, and no pooled constant.
+#   - **the interleave at 256 bits is `vpermi2d`** (EVEX.66.0F38.W0 76), with the index vector loaded
+#     first - its bytes are the pattern, one lane per index.
+#   - **a word and a byte pattern are `vpermi2w` and `vpermi2b`** (75, W1 and W0).
+#   - **what an instruction with an immediate already says is not permuted**: the in-lane shuffle is
+#     `vpshufd`, and one-source 32-bit crossings keep `vpermd`.
+
+interleave(%a: i32x8, %b: i32x8): i32x8 {
+    {
+        %r = vshuffle %a, %b, 0, 8, 1, 9, 2, 10, 3, 11: i32x8
+        ret %r
+    }
+}
+
+interleaveHighBytes(%a: i8x32, %b: i8x32): i8x32 {
+    {
+        %r = vshuffle %a, %b, 16, 48, 17, 49, 18, 50, 19, 51, 20, 52, 21, 53, 22, 54, 23, 55, 24, 56, 25, 57, 26, 58, 27, 59, 28, 60, 29, 61, 30, 62, 31, 63: i8x32
+        ret %r
+    }
+}
+
+words(%a: i16x8, %b: i16x8): i16x8 {
+    {
+        %r = vshuffle %a, %b, 7, 15, 6, 14, 0, 1, 8, 9: i16x8
+        ret %r
+    }
+}
+
+quadCrossing(%a: f64x4, %b: f64x4): f64x4 {
+    {
+        %r = vshuffle %a, %b, 3, 4, 1, 6: f64x4
+        ret %r
+    }
+}
+
+rotate(%a: i32x8, %b: i64x4): i32x8 {
+    {
+        %r = vshuffle %a, %a, 3, 4, 5, 6, 7, 0, 1, 2: i32x8
+        %q = vshuffle %b, %b, 1, 2, 3, 0: i64x4
+        ret %r
+    }
+}
+
+rotateSecond(%a: i32x8, %b: i32x8): i32x8 {
+    {
+        %r = vshuffle %a, %b, 13, 14, 15, 8, 9, 10, 11, 12: i32x8
+        ret %r
+    }
+}
+
+window(%a: i64x4, %b: i64x4): i64x4 {
+    {
+        %r = vshuffle %a, %b, 6, 7, 0, 1: i64x4
+        ret %r
+    }
+}
+
+inLane(%a: i32x8): i32x8 {
+    {
+        %r = vshuffle %a, %a, 1, 0, 3, 2, 5, 4, 7, 6: i32x8
+        ret %r
+    }
+}
+
+reverseOneSource(%a: i32x8): i32x8 {
+    {
+        %r = vshuffle %a, %a, 7, 6, 5, 4, 3, 2, 1, 0: i32x8
+        ret %r
+    }
+}

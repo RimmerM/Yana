@@ -1,0 +1,186 @@
+# Masks in mask registers - Analysis-Avx512.md §2.1.
+#
+# extensions: avx512
+#
+# At `avx512` a mask is held in `k1`-`k7` rather than in a vector register: a comparison writes one,
+# `kandd` and its siblings combine two, a select is a masked move and a masked vector a zero-masking
+# one, and the movemask is `kmovd`. What the rows buy is written beside each function; the goldens one
+# level down (`VectorMaskBits.lower`, `VectorVex.lower`) are the same operations in the vector domain.
+#
+# A mask in memory is the vector it always is, so a store and a load cross through a scratch register,
+# and the handful of operations with no mask-register spelling - a shuffle of a mask, a lane read out
+# of one, a splat into one - are carried across by `lowerMaskRegisters` for the one instruction.
+
+# Every relation of every lane width, and no inversion or bias anywhere: `vpcmpeq*` and `vpcmpgt*` for
+# the two with an opcode of their own and a predicate on `vpcmp*`/`vpcmpu*` for the rest.
+relations(%a: i32x4, %b: i32x4, %c: i8x16, %d: i8x16, %e: i16x8, %f: i16x8, %g: i64x4, %h: i64x4): I32 {
+    {
+        %eq = cmp_eq %a, %b: m32x4
+        %ne = cmp_neq %a, %b: m32x4
+        %lt = cmp_ilt %a, %b: m32x4
+        %le = cmp_ile %a, %b: m32x4
+        %ult = cmp_lt %c, %d: m8x16
+        %uge = cmp_ge %e, %f: m16x8
+        %qgt = cmp_igt %g, %h: m64x4
+        %qle = cmp_le %g, %h: m64x4
+        %x = and %eq, %ne: m32x4
+        %y = or %lt, %le: m32x4
+        %z = xor %x, %y: m32x4
+        %n = not %z: m32x4
+        %r0 = vreduce_add %n: I32
+        %r1 = vreduce_bits %ult: I32
+        %r2 = vreduce_bits %uge: I32
+        %r3 = vreduce_or %qgt: I32
+        %r4 = vreduce_and %qle: I32
+        %s0 = add %r0, %r1: I32
+        %s1 = add %s0, %r2: I32
+        %s2 = add %s1, %r3: I32
+        %s3 = add %s2, %r4: I32
+        ret %s3
+    }
+}
+
+# The float relations, which are `vcmpps` with the predicate `cmpps` already has.
+floats(%a: f32x4, %b: f32x4, %c: f64x4, %d: f64x4): I32 {
+    {
+        %lt = cmp_lt %a, %b: m32x4
+        %ne = cmp_neq %c, %d: m64x4
+        %x = vreduce_first %lt: I32
+        %y = vreduce_add %ne: I32
+        %r = add %x, %y: I32
+        ret %r
+    }
+}
+
+# A select is a masked move over the arm the tie keeps, and a masked vector the zero-masking move - or,
+# where the mask is the arm dropped, the value subtracted from itself under the mask.
+selects(%m: m32x4, %a: i32x4, %b: i32x4, %f: f64x4, %g: f64x4, %n: m64x4, %w: i8x16, %k: m8x16): i32x4 {
+    {
+        %s = select %m, %a, %b: i32x4
+        %zero = vsplat 0: i32x4
+        %kept = select %m, %s, %zero: i32x4
+        %dropped = select %m, %zero, %kept: i32x4
+        %fs = select %n, %f, %g: f64x4
+        %wz = vsplat 0: i8x16
+        %wk = select %k, %w, %wz: i8x16
+        ret %dropped
+    }
+}
+
+# A mask stored and loaded, which is the vector in memory - `vpmovm2d` before the store and `vpmovd2m`
+# after the load, through the scratch register.
+memory(%p: Ptr, %a: i16x16, %b: i16x16): I32 {
+    {
+        %m = cmp_igt %a, %b: m16x16
+        store %p, %m, 32
+        %l = load %p, 32: m16x16
+        %r = vreduce_add %l: I32
+        ret %r
+    }
+}
+
+# The three carried across: a shuffle of a mask, a lane read out of one, and a splat into one.
+crossings(%a: i32x4, %b: i32x4, %t: I32): I32 {
+    {
+        %m = cmp_eq %a, %b: m32x4
+        %s = vshuffle %m, %m, 3, 2, 1, 0: m32x4
+        %l = vlane %s, 1: I32
+        %v = vsplat %t: m32x4
+        %j = and %s, %v: m32x4
+        %c = vreduce_add %j: I32
+        %r = add %l, %c: I32
+        ret %r
+    }
+}
+
+# A mask handed to a function and handed back, which travels in `k1`.
+passMask(%m: m32x4): m32x4 {
+    {
+        %n = not %m: m32x4
+        ret %n
+    }
+}
+
+callsWithMask(%a: i32x4, %b: i32x4): I32 {
+    {
+        %m = cmp_ile %a, %b: m32x4
+        %n = call_complex passMask, %m: m32x4
+        %r = vreduce_add %n: I32
+        ret %r
+    }
+}
+
+# A mask across a phi and read twice below it, which is a `kmovd` once.
+phiMask(%a: i8x16, %b: i8x16, %c: I32): I32 {
+    start {
+        %p = cmp_eq %a, %b: m8x16
+        %q = cmp_gt %a, %b: m8x16
+        je %c, left, right
+    }
+
+    left { jmp join }
+    right { jmp join }
+
+    join {
+        %m = phi [left, %p], [right, %q]: m8x16
+        %any = vreduce_or %m: I32
+        %first = vreduce_first %m: I32
+        %r = add %first, %any: I32
+        ret %r
+    }
+}
+
+# The fusions - Analysis-Avx512.md §2.2. A comparison against zero is a test, `vptestnmd k, v, v`, and
+# of an `and` nothing else reads a test of its two operands; a comparison of a sign bit is the move
+# that reads it; and two comparisons `and`ed are the second with the first as its write mask.
+fusedCompares(%a: i32x4, %b: i32x4, %c: i8x16, %d: i8x16): I32 {
+    {
+        %zero = vsplat 0: i32x4
+        %z = cmp_eq %a, %zero: m32x4
+        %both = and %a, %b: i32x4
+        %nz = cmp_neq %both, %zero: m32x4
+        %neg = cmp_ilt %b, %zero: m32x4
+        %high = vsplat 127: i8x16
+        %wide = cmp_gt %c, %high: m8x16
+        %eqa = cmp_eq %a, %b: m32x4
+        %gtc = cmp_igt %c, %d: m8x16
+        %joint = and %wide, %gtc: m8x16
+        %zz = and %z, %nz: m32x4
+        %n1 = and %zz, %neg: m32x4
+        %n2 = and %n1, %eqa: m32x4
+        %r0 = vreduce_add %n2: I32
+        %r1 = vreduce_add %joint: I32
+        %r = add %r0, %r1: I32
+        ret %r
+    }
+}
+
+# An operation under a mask: `select(m, v + c, v)` is `vpaddd v{k}, v, c`, and a reduction's tail
+# `acc * select(m, v, ones)` is `vpmulld acc{k}, acc, v` - no blend and no identity register.
+maskedOps(%m: m32x4, %v: i32x4, %c: i32x4, %acc: i32x4, %f: f64x4, %g: f64x4, %n: m64x4): i32x4 {
+    {
+        %sum = add %v, %c: i32x4
+        %s = select %m, %sum, %v: i32x4
+        %ones = vsplat 1: i32x4
+        %picked = select %m, %s, %ones: i32x4
+        %product = mul %acc, %picked: i32x4
+        %lt = cmp_ilt %acc, %product: m32x4
+        %kept = select %lt, %acc, %product: i32x4
+        %fz = vsplat 0.0: f64x4
+        %fpick = select %n, %f, %fz: f64x4
+        %fsum = add %g, %fpick: f64x4
+        ret %kept
+    }
+}
+
+# A mask tested for being empty, which is `kortestd` with nothing between it and the branch.
+emptyBranch(%a: i16x8, %b: i16x8, %x: I32): I32 {
+    start {
+        %m = cmp_igt %a, %b: m16x8
+        %any = vreduce_or %m: I32
+        je %any, hit, miss
+    }
+
+    hit { ret %x }
+    miss { ret %any }
+}

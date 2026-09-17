@@ -45,6 +45,38 @@ static void addXmmClobber(RegSet& set, Size first, Size count) {
 }
 
 /*
+ * The registers only EVEX names - xmm16-31 and k1-7 - which every convention here destroys.
+ *
+ * Analysis-Avx512.md §2.7: caller-saved everywhere, so a leaf never pays a save for one, and none of
+ * them joins the preserved sets `Simple` and `Complex` state in the lower sixteen. That is the psABI's
+ * answer for System V and Microsoft's for Win64 as well, and for the compiler's own conventions it is
+ * the choice that costs nothing - the registers arrive with a level that has no callers expecting them
+ * back. Nothing is added on a target without the extension, where both sets are empty.
+ */
+static void addEvexClobber(RegSet& set) {
+    set |= upperVectorRegisters();
+
+    auto& masks = targetRegisters().bank(BankMask).allocatable;
+    set |= masks;
+}
+
+/*
+ * The mask registers a convention passes masks in and returns them in: k1-k7, in order, for both.
+ *
+ * No ABI this compiler calls into has a mask argument - a mask is a type of this language and a
+ * foreign function cannot name one - so these are for Yana functions calling each other, and the
+ * one requirement on them is that both sides classify the same way, which asking this table from
+ * `classifyArgs` gives. Every one of them is caller-saved (`addEvexClobber`), as a result register
+ * has to be. Empty on a target without the mask bank.
+ */
+static void addMaskRegs(CallConvention& convention) {
+    targetRegisters().bank(BankMask).allocatable.iterate([&](PhysicalReg reg) {
+        convention.args[BankMask].add(reg);
+        convention.results[BankMask].add(reg);
+    });
+}
+
+/*
  * The register lists each convention hands out, at file scope so that a convention built from
  * another's lists (Clobber, which passes arguments exactly as Complex does and simply keeps
  * nothing) states them once.
@@ -169,6 +201,8 @@ Constraints::Constraints() {
 
         addGenClobber(sysv.clobber, kSysvClobber);
         addXmmClobber(sysv.clobber, 0, 16); // every vector register is caller-saved
+        addEvexClobber(sysv.clobber);
+        addMaskRegs(sysv);
 
         // Required by the ABI, and not negotiable: a SysV callee is entitled to use aligned vector
         // stores against its own frame, which are only aligned if rsp was.
@@ -188,6 +222,8 @@ Constraints::Constraints() {
 
         addGenClobber(win.clobber, kWin64Clobber);
         addXmmClobber(win.clobber, 0, 6); // xmm6-15 are callee-saved here, unlike SysV
+        addEvexClobber(win.clobber);
+        addMaskRegs(win);
 
         // The two things that make Win64 differ in kind rather than in register names, and the
         // reason both are fields on CallConvention rather than code: an argument takes the slot of
@@ -232,6 +268,8 @@ Constraints::Constraints() {
         addGenClobber(complex.clobber, kComplexArgs);
         addGenClobber(complex.clobber, kComplexResults);
         addXmmClobber(complex.clobber, 0, budget.args.vector);
+        addEvexClobber(complex.clobber);
+        addMaskRegs(complex);
         checkBudget(complex, budget);
 
         // The compiler is on both sides of this one and nothing it generates yet needs a
@@ -251,6 +289,8 @@ Constraints::Constraints() {
         addGenClobber(simple.clobber, kSimpleArgs);
         addGenClobber(simple.clobber, kSimpleResults);
         addXmmClobber(simple.clobber, 0, 3);
+        addEvexClobber(simple.clobber);
+        addMaskRegs(simple);
         finish(simple);
     }
 
@@ -270,6 +310,7 @@ Constraints::Constraints() {
         // whole point is that it preserves nothing.
         clobber.clobber = allocatableRegs();
         clobber.clobber.remove(framePointerReg());
+        addMaskRegs(clobber);
         finish(clobber);
     }
 
@@ -338,9 +379,16 @@ Constraints::Constraints() {
     }
 }
 
+// One per register description, for the reason `targetRegisters` has two: every preserved set here is
+// stated relative to the allocatable registers, and those are a different set at `avx512`.
 const Constraints& targetConstraints() {
-    static Constraints constraints;
-    return constraints;
+    if(targetFeatures() & kFeatureAvx512f) {
+        static Constraints evex;
+        return evex;
+    }
+
+    static Constraints plain;
+    return plain;
 }
 
 const CallConvention& Constraints::getConvention(LowerCallType type) const {

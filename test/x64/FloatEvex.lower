@@ -1,15 +1,16 @@
 # The scalar float arithmetic once more, at the AVX-512 level.
 #
-# extensions: v4
+# extensions: avx512
 #
-# The tier above FloatVex.lower, and it exists for the encoder rather than for the code: an EVEX
-# prefix is four bytes where the VEX one is two or three, and for a scalar operation it buys nothing
-# at all. What it buys later is the upper sixteen vector registers, which no other prefix can name -
-# so every form a scalar value can reach needs an EVEX spelling before `vectorRegisterCountFor` can
-# hand out xmm16, and this is where those spellings are checked.
+# FloatVex.lower's functions at the level above it, and **not one `62` in the golden**, which is the
+# whole assertion: an EVEX prefix is four bytes where the VEX one is two or three and buys a scalar
+# operation nothing at all, so the level on its own does not change a single spelling. The choice is
+# made once the operands have registers - `writeVectorPrefix` in gen.cpp, Analysis-Avx512.md §1.1 -
+# and every value here stays in xmm0-15. There used to be an EVEX tier of forms selected instead,
+# which wrote `62` over all of this and is gone.
 #
-# Only the arithmetic has one so far. The comparisons and transfers here still take their VEX forms,
-# which is why they are in this file too: the mixture is what a target at this level actually emits.
+# What the prefix does buy is the upper sixteen registers, and EvexUpper.lower is where one of those
+# is reached for. This file is the other half of that pair: the level without the registers.
 
 arith64(%a: F64, %b: F64): F64 {
     {

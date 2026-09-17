@@ -7,6 +7,49 @@
  * the machine_forms_*.cpp files - see machine_internal.h, which is the map.
  */
 
+/*
+ * Whether a form can be written with any of its vector registers above fifteen.
+ *
+ * Asked of the encoding as the prefix writer will see it, which is the only way the answer can match
+ * what that writer does. A pseudo's bytes are its own emitter's and are written without a table to ask
+ * - so every pseudo that touches a vector register answers no, which is conservative and costs only the
+ * choice of register for the webs it reads. A legacy encoding has no field that could name one.
+ */
+static bool formNamesUpperVectors(const MachineForm& form) {
+    auto occupiesVector = [](const MachineOperandConstraint& c) {
+        switch(c.kind) {
+            case OperandConstraintKind::Register:
+            case OperandConstraintKind::FixedRegister:
+            case OperandConstraintKind::RegisterSubset:
+            case OperandConstraintKind::RegisterOrMemory:
+            case OperandConstraintKind::ReuseOperand:
+                return targetRegisters().regClass(c.regClass).bank == BankVector;
+            default:
+                return false;
+        }
+    };
+
+    auto touches = false;
+    for(auto& c: form.uses) touches = touches || occupiesVector(c);
+    for(auto& c: form.defs) touches = touches || occupiesVector(c);
+
+    // A call's operands are the convention's, and the convention passes nothing above xmm15.
+    if(!touches || form.conventionOperands) return true;
+
+    auto& e = form.encoding;
+    if(e.family == EncodingFamily::None) return true;
+    if(e.family == EncodingFamily::Pseudo) return false;
+
+    switch(e.prefixEncoding) {
+        case PrefixEncoding::Legacy: return false;
+        case PrefixEncoding::Evex:   return true;
+        case PrefixEncoding::Vex:    break;
+    }
+
+    if(!evexSpellingOf(e.prefix, e.opcodeMap, e.opcode, e.extension).exists) return false;
+    return e.opcodeAlt == 0 || evexSpellingOf(e.prefix, e.opcodeMap, e.opcodeAlt, e.extension).exists;
+}
+
 MachineTarget::MachineTarget() {
     for(Size i = 0; i < kMachineOpcodeCount; i++) opcodes[i].id = MachineOpcodeId(i);
 
@@ -121,8 +164,14 @@ MachineTarget::MachineTarget() {
     name(OpVAbs, "vabs"_v);
     name(OpVMin, "vmin"_v);
     name(OpVMax, "vmax"_v);
+    name(OpVRol, "vrol"_v);
+    name(OpVRor, "vror"_v);
+    name(OpMaskToVector, "masktovector"_v);
+    name(OpVectorToMask, "vectortomask"_v);
     name(OpVShuffle, "vshuffle"_v);
     name(OpVPermute, "vpermute"_v);
+    name(OpVPermute2, "vpermute2"_v);
+    name(OpVTernaryLogic, "vternlog"_v);
     name(OpVBroadcast, "vbroadcast"_v);
     name(OpVExtract, "vextract"_v);
     name(OpVMaskBits, "vmaskbits"_v);
@@ -201,12 +250,20 @@ MachineTarget::MachineTarget() {
     b.registerScalarForms();
     b.registerPackedForms();
     b.registerWideForms();
+    b.registerEvexForms();
+    b.registerEvexShuffleForms();
     b.registerMemoryAndControlForms();
     b.registerVexTier();
+    b.registerMaskedForms();
 
     // The intrinsics' forms go into the same table, after the described ones, so that everything
     // downstream asks an intrinsic the same questions it asks an `add` - see intrinsic.cpp.
     addIntrinsics(*this);
+
+    // Which forms can name the upper sixteen vector registers, derived from what each one is rather
+    // than stated per row - see MachineForm::namesUpperVectors. Last, so that the intrinsics' rows and
+    // every derived tier are answered by the same rule.
+    for(auto& form: forms) form.namesUpperVectors = formNamesUpperVectors(form);
 
     assertTrue(validateMachineForms(*this));
     assertTrue(validateIntrinsics(*this));

@@ -89,6 +89,47 @@ static constexpr FeatureSet kFeatureAvx2 = 1 << 7;
 static constexpr FeatureSet kFeatureAvx512f = 1 << 3;
 
 /*
+ * The rest of the `avx512` level, one bit per extension - Analysis-Avx512.md §0.2.
+ *
+ * Every one of them is set and cleared with the level, since the level is the Ice Lake and Zen 4
+ * intersection and has all eleven; they are separate bits on the argument this file opens with. A form
+ * requires the one its instruction is defined by - `vpmovb2m` is BW, `vpminsq` is F, `vpmullq` is DQ,
+ * `vplzcntd` is CD, `vpermb` is VBMI, `vpshldw` is VBMI2 - so a level that ever splits them finds the
+ * table already saying which is which. VL is on every 128- and 256-bit EVEX form, which is every EVEX
+ * form this backend writes while `targetVectorBytes` holds the width at 32.
+ */
+static constexpr FeatureSet kFeatureAvx512cd        = 1 << 13;
+static constexpr FeatureSet kFeatureAvx512bw        = 1 << 14;
+static constexpr FeatureSet kFeatureAvx512dq        = 1 << 15;
+static constexpr FeatureSet kFeatureAvx512vl        = 1 << 16;
+static constexpr FeatureSet kFeatureAvx512ifma      = 1 << 17;
+static constexpr FeatureSet kFeatureAvx512vbmi      = 1 << 18;
+static constexpr FeatureSet kFeatureAvx512vbmi2     = 1 << 19;
+static constexpr FeatureSet kFeatureAvx512bitalg    = 1 << 20;
+static constexpr FeatureSet kFeatureAvx512vpopcntdq = 1 << 21;
+static constexpr FeatureSet kFeatureAvx512vnni      = 1 << 22;
+
+/*
+ * The flags of §0.3 the x86-64 backend has a use for: AES-NI, PCLMULQDQ, their wide spellings, and
+ * GFNI. Each is the same bit whether the build named it or the level implied it - `x64FeaturesFor`
+ * asks `TargetExtensions::has`, which already folds the implication in - so a form requiring `aes`
+ * is selectable at `avx2` without anyone having written the flag.
+ *
+ * Like `kFeatureSha`, the hazard of claiming one wrongly is the loud kind: each is an opcode that
+ * decodes as nothing at all without the extension.
+ */
+static constexpr FeatureSet kFeatureAes     = 1 << 23;
+static constexpr FeatureSet kFeaturePclmul  = 1 << 24;
+static constexpr FeatureSet kFeatureVaes    = 1 << 25;
+static constexpr FeatureSet kFeatureVpclmul = 1 << 26;
+static constexpr FeatureSet kFeatureGfni    = 1 << 27;
+
+// Every bit the `avx512` level sets, for a form that needs the level rather than one extension of it.
+static constexpr FeatureSet kFeatureAvx512 = kFeatureAvx512f | kFeatureAvx512cd | kFeatureAvx512bw
+    | kFeatureAvx512dq | kFeatureAvx512vl | kFeatureAvx512ifma | kFeatureAvx512vbmi | kFeatureAvx512vbmi2
+    | kFeatureAvx512bitalg | kFeatureAvx512vpopcntdq | kFeatureAvx512vnni;
+
+/*
  * BMI1, which here is `tzcnt` and nothing else yet - and which is v3, like everything beside it.
  *
  * It was claimed with AVX2 before the levels were named, on the grounds that no part has one without
@@ -184,14 +225,12 @@ static constexpr FeatureSet kFeatureLzcnt = 1 << 11;
 static constexpr FeatureSet kFeatureFma3 = 1 << 6;
 
 /*
- * The SHA extension - the seven instructions that compute SHA-1 and SHA-256 rounds, and the one
- * feature here that no psABI level implies.
+ * The SHA extension - the seven instructions that compute SHA-1 and SHA-256 rounds.
  *
- * Every other bit in this file is set and cleared with the rest of its level, because the levels are
- * what the target description is (see TargetExtensions). This one is not in any of them: Intel
- * shipped it four generations after the part that defines v3 and AMD shipped it with Zen 1, so a v3
- * machine may have it or not. `TargetExtensions::sha` is therefore a flag beside the level and this
- * bit is read from it directly.
+ * Not in any level's own list: Intel shipped it four generations after Haswell and AMD shipped it
+ * with Zen 1, so an `avx2` machine may have it or not. It is a flag beside the level - named, or
+ * implied by `avx512`, every part of which has it - and this bit is read from
+ * `TargetExtensions::has(kSetSha)`.
  *
  * What it buys is a hash rather than an instruction count: `sha256rnds2` performs two full rounds of
  * SHA-256 over four state words, which is about twenty-five ordinary operations, and the whole of
@@ -345,14 +384,12 @@ static constexpr Size kGprCount = 16;
 
 // The vector and mask files are the *ISA level's* rather than the target's, which is the whole
 // reason bank sizes are per bank: sixteen vector registers without AVX-512 and thirty-two with it,
-// and no mask registers at all until there are. Both are read from targetFeatures() once, when the
-// register description is built - and both are held below what the feature bit allows until every
-// form can name the registers they would add. See the comment in target.cpp.
+// and no mask registers at all until there are. Both are read from targetFeatures(), which chooses
+// between the two register descriptions this backend builds - see targetRegisters in target.cpp.
 Size vectorRegisterCount();
 Size maskRegisterCount();
 
-// The same, for a feature set other than the one in force. Read by setTargetFeatures, which refuses
-// a change that would need a register description that has already been built to be a different one.
+// The same, for a feature set other than the one in force.
 Size vectorRegisterCountFor(FeatureSet features);
 Size maskRegisterCountFor(FeatureSet features);
 
@@ -475,6 +512,19 @@ struct RegSet {
 };
 
 /*
+ * The sixteen vector registers only EVEX can name - xmm16-31 - and nothing where the level has none.
+ *
+ * **A register the allocator hands out has to be nameable by every form a value in it reaches**, and
+ * that is not a property of the target alone: a legacy SSE instruction, a VEX instruction with no EVEX
+ * spelling (`vpblendvb`, `vpmovmskb`, a `vpcmpeqd` that writes a vector rather than a mask) and every
+ * pseudo whose emitter writes its own bytes can name the lower sixteen and nothing else. So the upper
+ * sixteen are allocatable wherever the level has them, and a web read or written by such a form is
+ * kept out of them for its whole life - `MachineForm::namesUpperVectors`, and `computeAvoidSets` in
+ * place.cpp, which is where the rule is spent.
+ */
+RegSet upperVectorRegisters();
+
+/*
  * Stack slots.
  *
  * Spill slots are grouped by width so that a slot is reused only by values that fit it exactly,
@@ -566,7 +616,7 @@ struct RegisterBankDesc {
 
 // The target description, built once and shared. Constant for every function.
 struct TargetRegisters {
-    TargetRegisters();
+    explicit TargetRegisters(FeatureSet features);
 
     RegisterBankDesc banks[kRegisterBankCount];
     RegisterClassDesc classes[kRegisterClassCount];
@@ -594,9 +644,7 @@ const TargetRegisters& targetRegisters();
  * A mask's representation in memory is the vector at both feature levels, so `Maybe(Mask(Float))`
  * means one thing everywhere; what changes here is only where a live one is held.
  */
-inline bool maskInMaskBank() {
-    return maskRegisterCount() > 0;
-}
+bool maskInMaskBank();
 
 // Whether this type occupies the wide tier's register rather than the narrow one's. Asked of the
 // *byte width* rather than of the class, because a mask's class is the vector class it is held in

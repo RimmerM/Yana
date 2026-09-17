@@ -5,7 +5,7 @@
 /*
  * Settings a fixture selects for itself, written as a comment on any line of its source:
  *
- *     # extensions: v3
+ *     # extensions: avx2
  *     # checks: off
  *
  * Read by three drivers - the resolve suite, the ELF suite and the x64 byte listings - which is why
@@ -27,23 +27,12 @@
  * the way a program that has decided to live with it would be. The rest of the rule - the pair the
  * machine would trap on - needs no directive and is asserted in the checked build beside it.
  *
- * **A fixture with no directive is compiled for v2**, which is the floor and the struct's own
+ * **A fixture with no directive is compiled for `sse4`**, which is the floor and the struct's own
  * default - not the host's level, which is what the command line takes when it is told nothing. A
  * golden that changed with the machine that ran it would assert nothing, so no driver here ever
  * calls `applyDefaults` and no driver here ever detects anything.
  */
 inline void applyExtensionDirective(CompileSettings& settings, StringView content) {
-    // Longest first, so that "avx512" is not read as "avx" with trailing text - the two share every
-    // character up to the last.
-    static const struct { StringView name; TargetExtensions::Level level; } levels[] = {
-        { "avx512"_v, TargetExtensions::V4 },
-        { "avx2"_v, TargetExtensions::V3 },
-        { "v4"_v, TargetExtensions::V4 },
-        { "v3"_v, TargetExtensions::V3 },
-        { "v2"_v, TargetExtensions::V2 },
-        { "sse4.2"_v, TargetExtensions::V2 },
-    };
-
     auto directive = "# extensions: "_v;
 
     for(Size i = 0; i + directive.length <= content.length; i++) {
@@ -53,12 +42,12 @@ inline void applyExtensionDirective(CompileSettings& settings, StringView conten
         auto left = content.length - i - directive.length;
 
         /*
-         * **Every name on the line, not just the first.** `# extensions: sha v3` is two facts about
+         * **Every name on the line, not just the first.** `# extensions: sha avx2` is two facts about
          * one target and the two are independent - a level says which instructions the compiler may
          * choose and `sha` says whether an extension beside it is claimed, exactly as they are on the
          * command line where `-enable-inst sha` is a second flag rather than a replacement for the
          * first. Reading only the leading token made the second name a comment: `sha v3` claimed the
-         * extension and quietly compiled for v2.
+         * extension and quietly compiled for the floor.
          *
          * The scan stops at the end of the line, so a directive says nothing about the prose under
          * it. Several `# extensions:` lines in one file still accumulate, which is what the outer
@@ -67,29 +56,41 @@ inline void applyExtensionDirective(CompileSettings& settings, StringView conten
          * **A fixture that names one will fault on a machine without it**, which is
          * `CopyMemory.Avx2.yana`'s bargain: these drivers execute what they compile, so a fixture
          * asking for an instruction set is asking for one the machine running it has. Nothing here
-         * detects; a fixture that names nothing is compiled for v2 without any extension, which is
+         * detects; a fixture that names nothing is compiled for `sse4` without any extension, which is
          * what keeps the rest of the corpus reproducible.
          */
         for(Size at = 0; at < left && rest[at] != '\n' && rest[at] != '\r';) {
             if(rest[at] == ' ' || rest[at] == '\t' || rest[at] == ',') { at++; continue; }
 
-            auto remaining = left - at;
+            // One word, read to the next separator, and then asked of the tables the command line
+            // reads - so a directive is spelled exactly the way `-enable-inst` is, and a spelling the
+            // compiler refuses (`v3`) is one a fixture cannot use either.
+            auto end = at;
+            while(end < left && rest[end] != ' ' && rest[end] != '\t' && rest[end] != ','
+                  && rest[end] != '\n' && rest[end] != '\r') end++;
+
+            auto word = StringView { rest + at, end - at };
             auto matched = Size(0);
 
-            for(auto& level: levels) {
-                if(level.name.length > remaining) continue;
-                if(compareMem(rest + at, level.name.ptr, level.name.length) != 0) continue;
-
-                settings.extensions.level = level.level;
+            if(auto level = matchLevel(word)) {
+                // The highest of everything named, as `-enable-inst` takes it: two names on one line
+                // are two facts about one target, and the second must not undo the first.
+                if(settings.extensions.level < level.unwrap()) settings.extensions.level = level.unwrap();
                 settings.explicitExtensions = true;
-                matched = level.name.length;
-                break;
+                matched = word.length;
+            } else if(auto flag = matchExtensionFlag(word)) {
+                settings.extensions.flags |= flag;
+                settings.explicitExtensions = true;
+                matched = word.length;
             }
 
-            if(!matched && "sha"_v.length <= remaining && compareMem(rest + at, "sha"_v.ptr, 3) == 0) {
-                settings.extensions.sha = true;
-                settings.explicitExtensions = true;
-                matched = "sha"_v.length;
+            // A spelling the compiler used to take and now refuses is a fixture compiled for the
+            // floor behind its author's back, which is the one failure here that would be silent -
+            // so it stops the driver rather than ending the line.
+            if(!matched && replacedLevelSpelling(word)) {
+                println("A fixture names the instruction set level `%@`, which is spelled `%@` now.",
+                        word, replacedLevelSpelling(word).unwrap());
+                abort();
             }
 
             // An unrecognized word ends the line's meaning rather than being skipped over, so a typo
@@ -98,6 +99,14 @@ inline void applyExtensionDirective(CompileSettings& settings, StringView conten
             if(!matched) break;
             at += matched;
         }
+    }
+
+    // And the one check the command line makes of the pair - a flag below the lowest level it has an
+    // encoding at, which is `-enable-inst`'s refusal (see checkExtensionFlags). A fixture that asked
+    // for `vaes` at `sse4` would otherwise be compiled with a set the compiler refuses to be told.
+    if(auto refused = checkExtensionFlags(settings.extensions)) {
+        println("%@", refused.unwrap());
+        abort();
     }
 }
 

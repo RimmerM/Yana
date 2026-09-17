@@ -278,6 +278,10 @@ static LowerValue* expandReduce(Expansion& e, LowerReduce reduce, LowerValue* so
  * never multiplied. See selectPackedForm's `VecReduce` arm.
  */
 static U64 maskBitsPerLane(LowerType type) {
+    // A mask register's movemask is itself, and it is a bit per lane whatever the lane - `kmovd`,
+    // see FormKBits. So there is no shift to divide at a word lane there either.
+    if(type.isMask() && maskInMaskBank()) return 1;
+
     auto width = laneBytes(type.lane);
     return width == 4 || width == 8 ? 1 : width;
 }
@@ -1701,4 +1705,713 @@ void fuseMaskScanIntoGuard(LowerBase base, LowerBlock* block) {
 
     auto constant = base[found.compare->rhs];
     if(constant->uses.isEmpty()) removeInst(base, constant->inst());
+}
+
+/*
+ * The fusions only a mask register can express - Analysis-Avx512.md §2.1 and §2.2.
+ *
+ * Each of these removes an instruction the source *wrote*, and none of them has a spelling below
+ * `avx512`, where a mask is a vector and a comparison writes all of one:
+ *
+ *   - **a comparison against zero is a test.** `v .== zero()` is `vptestnmd k, v, v`, with no zero
+ *     register and no comparison, and `(a and b) .!= zero()` is `vptestmd k, a, b`.
+ *   - **a sign-bit comparison is a move.** `v .< zero()` at a signed lane - and `v .> 127` or
+ *     `v .>= 0x80` at an unsigned byte - is `vpmov*2m`, reading the bit the comparison was about.
+ *   - **a comparison masked by another is their `and`.** `and(a .== x, b .== y)` is the second
+ *     comparison with the first as its write mask: no `kandd` and no second register.
+ *   - **an operation performed only where a mask is set.** `select(m, v OP c, v)` is `v OP{k} c`, and
+ *     so is `acc OP select(m, v, identity)` over `acc` - the shape `Reduce.yana`'s tails are written in.
+ *   - **a mask tested for being empty is `kortestd`**, with the movemask and the `test` gone.
+ *
+ * One forward walk, which is what lets them compose: a definition is always above its reader, so by
+ * the time an `and` is looked at, the comparisons under it have become whatever they were going to
+ * become. Everything is asked of use counts and of the IR alone; nothing moves an instruction except
+ * the one it replaces, which stands where the reader it fused into stood - below every definition it
+ * reads, since each of those was below the instruction that read it first.
+ */
+
+// The bytes of a constant vector, all of them equal to `value` - or whether they are not.
+static bool constantLanesEqual(LowerBase base, LowerValue* vector, U8 value, InstChain& chain) {
+    auto size = Size(vector->type.byteWidth());
+    if(!isVectorLike(vector->type) || vector->type.isMask() || size > kMaxVectorBytes) return false;
+
+    U8 bytes[kMaxVectorBytes] = {};
+    if(!constantVectorBytes(base, vector, bytes, size, chain)) return false;
+
+    for(Size i = 0; i < size; i++) {
+        if(bytes[i] != value) return false;
+    }
+
+    return true;
+}
+
+// Whether a vector's lanes are all one: the multiplicative identity at an integer lane, and 1.0 at a
+// float one.
+static bool constantLanesAreOne(LowerBase base, LowerValue* vector, InstChain& chain) {
+    auto type = vector->type;
+    auto size = Size(type.byteWidth());
+    if(!isVectorLike(type) || type.isMask() || size > kMaxVectorBytes) return false;
+
+    U8 bytes[kMaxVectorBytes] = {};
+    if(!constantVectorBytes(base, vector, bytes, size, chain)) return false;
+
+    auto width = laneBytes(type.lane);
+    U8 one[8] = {};
+
+    if(type.lane == LowerLane::Float32) {
+        auto value = 1.0f;
+        copyMem(&value, one, 4);
+    } else if(type.lane == LowerLane::Float64) {
+        auto value = 1.0;
+        copyMem(&value, one, 8);
+    } else {
+        one[0] = 1;
+    }
+
+    for(Size lane = 0; lane < type.lanes(); lane++) {
+        if(compareMem(bytes + lane * width, one, width) != 0) return false;
+    }
+
+    return true;
+}
+
+void fuseMaskRegisters(Context&, LowerBase base, LowerFunction& fun) {
+    if(!maskInMaskBank()) return;
+
+    // Constant chains that lost their last reader, swept once at the end for the reason
+    // `lowerVectorReductions` sweeps its own: a chain may be shared with a block below.
+    InstChain dead;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        // An instruction replaced by another at the same position, with every reader moved across.
+        auto replace = [&](Size& i, LowerInst* old, LowerInstSingle* with) {
+            insertInstAt(base, block, i, with);
+            replaceAllUses(base, &((LowerInstSingle*)old)->result, &with->result);
+            removeInst(base, old);
+        };
+
+        // An instruction nothing reads any more, taken out of wherever it is - and the walk's position
+        // moved back one where it stood above it in this block.
+        auto discard = [&](Size& i, LowerInst* inst) {
+            if(inst->createdCount == 1 && !((LowerInstSingle*)inst)->result.uses.isEmpty()) return;
+
+            if(base[inst->block] == block) {
+                for(Size k = 0; k < i; k++) {
+                    if(base[block->instructions.get(base, k)] == inst) { i--; break; }
+                }
+            }
+
+            removeInst(base, inst);
+        };
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+
+            /*
+             * A comparison between vectors: a test against zero, or a move of the sign bit.
+             */
+            if(inst->kind == LowerInst::Cmp && ((LowerInstCmp*)inst)->result.type.isMask()) {
+                auto cmp = (LowerInstCmp*)inst;
+                auto lhs = base[cmp->lhs];
+                auto rhs = base[cmp->rhs];
+                auto type = lhs->type;
+                auto relation = cmp->getCmp();
+
+                if(!isIntVector(type)) continue;
+
+                /*
+                 * `maskUpTo(n)` - `iota .< splat(n)` - as `bzhi` of all ones and `kmovd`: two
+                 * instructions and no constant where a splat, a pooled `iota` and a comparison were
+                 * three and a `.rodata` entry (§2.1). A mask register holds nothing above its lanes,
+                 * so the index may not pass the lane count; it is taken only where the count's known
+                 * bits already say so, and left to the comparison everywhere else, which is the rule
+                 * §4.12 found for tails: the dedicated mask where it removes work, and not a clamp to
+                 * make it apply. A 32-lane mask fills its register, so there the index has only to fit
+                 * the byte `bzhi` reads.
+                 */
+                if(relation == LowerCmp::lt || relation == LowerCmp::ilt) {
+                    InstChain iota;
+                    auto size = Size(type.byteWidth());
+                    U8 bytes[kMaxVectorBytes] = {};
+
+                    auto isRange = rhs->inst()->kind == LowerInst::VecSplat && size <= kMaxVectorBytes
+                                && constantVectorBytes(base, lhs, bytes, size, iota) && bytesAreIota(bytes, type);
+
+                    if(isRange) {
+                        auto count = base[((LowerInstVecSplat*)rhs->inst())->from];
+                        auto lanes = U64(type.lanes());
+                        auto limit = lanes >= 32 ? U64(256) : lanes;
+                        auto above = U64(0xffffffff) & ~(limit - 1);
+
+                        if(count->inst()->kind != LowerInst::Imm && (knownZeroBits(base, count) & above) == above) {
+                            Expansion e { base, fun, block, i };
+                            auto ones = e.integer(LowerType::Int32, 0xffffffff);
+                            auto bits = e.intrinsic2(LowerIntrinsic::Bzhi, LowerType::Int32, ones, count);
+                            auto live = e.emit(new (fun.arena) LowerInstX86MaskConvert(cmp->result.name, cmp->result.type,
+                                                                                      bits - base, false));
+                            i = e.at;
+
+                            auto splat = rhs->inst();
+                            replaceAllUses(base, &cmp->result, live);
+                            removeInst(base, cmp);
+                            i--;
+
+                            if(splat->createdCount == 1 && ((LowerInstSingle*)splat)->result.uses.isEmpty()) discard(i, splat);
+                            for(auto link: iota) dead.push(link);
+                            continue;
+                        }
+                    }
+                }
+
+                InstChain chain;
+                auto lhsZero = constantLanesEqual(base, lhs, 0, chain);
+                auto rhsZero = !lhsZero && constantLanesEqual(base, rhs, 0, chain);
+
+                // `v .== 0` and `v .!= 0`, either way round - and `(a and b)` in `v`'s place, where
+                // nothing else reads the `and`.
+                if((lhsZero || rhsZero) && (relation == LowerCmp::eq || relation == LowerCmp::neq)) {
+                    auto value = lhsZero ? rhs : lhs;
+                    auto a = value, b = value;
+
+                    if(value->inst()->kind == LowerInst::And && value->uses.size() == 1) {
+                        a = base[((LowerInstBinary*)value->inst())->lhs];
+                        b = base[((LowerInstBinary*)value->inst())->rhs];
+                    }
+
+                    auto test = relation == LowerCmp::eq ? LowerX86MaskTest::TestNot : LowerX86MaskTest::Test;
+                    auto fused = new (fun.arena) LowerInstX86MaskCompare(
+                        cmp->result.name, cmp->result.type, a - base, b - base, relation, test, nullptr);
+
+                    auto conjunction = a != value ? value->inst() : nullptr;
+                    replace(i, cmp, fused);
+                    if(conjunction) discard(i, conjunction);
+                    for(auto link: chain) dead.push(link);
+                    continue;
+                }
+
+                /*
+                 * The sign bit: `v .< 0` and `0 .> v` at a signed lane, and at an unsigned byte
+                 * `v .> 127` and `v .>= 128` (or those the other way round). The relation has not
+                 * been canonicalized yet, so both orders arrive.
+                 */
+                // Each attempt starts the chain over, so that what is swept afterwards is the walk that
+                // answered and not the links a refused one happened to reach on its way.
+                auto lanesAre = [&](LowerValue* vector, U8 byte) {
+                    chain.clear();
+                    return constantLanesEqual(base, vector, byte, chain);
+                };
+
+                auto signedBelowZero = (relation == LowerCmp::ilt && lanesAre(rhs, 0))
+                                    || (relation == LowerCmp::igt && lanesAre(lhs, 0));
+                auto value = relation == LowerCmp::ilt ? lhs : rhs;
+
+                if(!signedBelowZero && laneBytes(type.lane) == 1) {
+                    if(relation == LowerCmp::gt && lanesAre(rhs, 0x7f)) {
+                        signedBelowZero = true; value = lhs;
+                    } else if(relation == LowerCmp::ge && lanesAre(rhs, 0x80)) {
+                        signedBelowZero = true; value = lhs;
+                    } else if(relation == LowerCmp::lt && lanesAre(lhs, 0x7f)) {
+                        signedBelowZero = true; value = rhs;
+                    } else if(relation == LowerCmp::le && lanesAre(lhs, 0x80)) {
+                        signedBelowZero = true; value = rhs;
+                    }
+                }
+
+                if(signedBelowZero) {
+                    auto moved = new (fun.arena) LowerInstX86MaskConvert(cmp->result.name, cmp->result.type,
+                                                                         value - base, false);
+                    replace(i, cmp, moved);
+                    for(auto link: chain) dead.push(link);
+                }
+
+                continue;
+            }
+
+            /*
+             * Two masks `and`ed, where one is a comparison nothing else reads: that comparison with the
+             * other as its write mask. The right-hand side is tried first, so a conjunction of two
+             * comparisons keeps the earlier one as a register and fuses the later.
+             */
+            if(inst->kind == LowerInst::And && ((LowerInstBinary*)inst)->result.type.isMask()) {
+                auto conjunction = (LowerInstBinary*)inst;
+
+                for(Size side = 0; side < 2; side++) {
+                    auto compared = base[side ? conjunction->lhs : conjunction->rhs];
+                    auto other = base[side ? conjunction->rhs : conjunction->lhs];
+                    if(compared->uses.size() != 1 || compared == other) continue;
+
+                    auto source = compared->inst();
+                    LowerInstX86MaskCompare* fused = nullptr;
+
+                    if(source->kind == LowerInst::Cmp) {
+                        auto cmp = (LowerInstCmp*)source;
+                        if(!isVectorLike(base[cmp->lhs]->type)) continue;
+
+                        fused = new (fun.arena) LowerInstX86MaskCompare(
+                            conjunction->result.name, conjunction->result.type, cmp->lhs, cmp->rhs,
+                            cmp->getCmp(), LowerX86MaskTest::Compare, other - base);
+                    } else if(source->kind == LowerInst::X86MaskCompare) {
+                        auto compare = (LowerInstX86MaskCompare*)source;
+                        if(compare->isMasked()) continue;
+
+                        fused = new (fun.arena) LowerInstX86MaskCompare(
+                            conjunction->result.name, conjunction->result.type, compare->lhs, compare->rhs,
+                            compare->getCmp(), compare->getTest(), other - base);
+                    } else {
+                        continue;
+                    }
+
+                    replace(i, conjunction, fused);
+                    discard(i, source);
+                    break;
+                }
+
+                continue;
+            }
+
+            /*
+             * `select(m, v OP c, v)`, which is `v OP{m} c` - the operation's result where the mask is
+             * set and `v` untouched where it is clear.
+             */
+            if(inst->kind == LowerInst::Select) {
+                auto select = (LowerInstSelect*)inst;
+                auto type = select->result.type;
+                auto mask = base[select->cmp];
+                if(!isVectorLike(type) || type.isMask() || !mask->type.isMask()) continue;
+
+                auto taken = base[select->lhs];
+                auto kept = base[select->rhs];
+                if(taken->uses.size() != 1) continue;
+
+                auto operation = taken->inst();
+                auto op = operation->kind;
+                auto signedLanes = false, max = false;
+                LowerValue* first = nullptr;
+                LowerValue* second = nullptr;
+
+                auto binary = [&](bool commutative) {
+                    auto b = (LowerInstBinary*)operation;
+                    if(base[b->lhs] == kept) { first = kept; second = base[b->rhs]; }
+                    else if(commutative && base[b->rhs] == kept) { first = kept; second = base[b->lhs]; }
+                };
+
+                switch(op) {
+                    case LowerInst::Add: binary(true); break;
+                    case LowerInst::Sub: binary(false); break;
+                    case LowerInst::Mul:
+                    case LowerInst::IMul:
+                        if(laneBytes(type.lane) != 1) binary(true);
+                        break;
+                    case LowerInst::Div:
+                        if(isFloatVector(type)) binary(false);
+                        break;
+                    case LowerInst::X86MinMax: {
+                        auto minMax = (LowerInstX86MinMax*)operation;
+                        signedLanes = minMax->isSignedLanes();
+                        max = minMax->isMax();
+                        if(base[minMax->lhs] == kept) { first = kept; second = base[minMax->rhs]; }
+                        else if(base[minMax->rhs] == kept) { first = kept; second = base[minMax->lhs]; }
+                        break;
+                    }
+                    default:
+                        break;
+                }
+
+                if(!first) continue;
+
+                auto fused = new (fun.arena) LowerInstX86MaskedOp(select->result.name, type, first - base,
+                                                                  second - base, mask - base, op, signedLanes, max);
+                replace(i, select, fused);
+                discard(i, operation);
+                continue;
+            }
+
+            /*
+             * `acc OP select(m, v, identity)` - and, at a minimum or a maximum, `select(m, v, acc)` -
+             * which is `acc OP{m} v`: where the mask is clear the identity leaves `acc` as it was, which
+             * is what a masked operation does without being told.
+             */
+            auto isArithmetic = inst->kind == LowerInst::Add || inst->kind == LowerInst::Sub
+                             || inst->kind == LowerInst::Mul || inst->kind == LowerInst::IMul
+                             || inst->kind == LowerInst::Div || inst->kind == LowerInst::X86MinMax;
+
+            if(isArithmetic) {
+                auto binary = (LowerInstBinary*)inst;
+                auto type = binary->result.type;
+                if(!isVectorLike(type) || type.isMask()) continue;
+
+                auto isMinMax = inst->kind == LowerInst::X86MinMax;
+                auto isMul = inst->kind == LowerInst::Mul || inst->kind == LowerInst::IMul;
+                if(isMul && laneBytes(type.lane) == 1) continue;
+                if(inst->kind == LowerInst::Div && !isFloatVector(type)) continue;
+
+                auto commutative = inst->kind != LowerInst::Sub && inst->kind != LowerInst::Div;
+                auto lhs = isMinMax ? base[((LowerInstX86MinMax*)inst)->lhs] : base[binary->lhs];
+                auto rhs = isMinMax ? base[((LowerInstX86MinMax*)inst)->rhs] : base[binary->rhs];
+
+                for(Size side = 0; side < (commutative ? 2 : 1); side++) {
+                    auto accumulator = side ? rhs : lhs;
+                    auto selected = side ? lhs : rhs;
+
+                    if(selected->uses.size() != 1) continue;
+
+                    /*
+                     * The select, or the masked vector `selectMaskedVectors` has already made of one
+                     * whose other arm was zero - which is the identity of an addition and a
+                     * subtraction and of nothing else here, so only those two read it.
+                     */
+                    LowerValue* mask = nullptr;
+                    LowerValue* value = nullptr;
+                    LowerValue* other = nullptr;
+                    auto zeroArm = false;
+
+                    if(selected->inst()->kind == LowerInst::Select) {
+                        auto select = (LowerInstSelect*)selected->inst();
+                        mask = base[select->cmp];
+                        value = base[select->lhs];
+                        other = base[select->rhs];
+                    } else if(selected->inst()->kind == LowerInst::X86MaskAnd) {
+                        auto masked = (LowerInstX86MaskAnd*)selected->inst();
+                        if(masked->isComplemented()) continue;
+                        if(inst->kind != LowerInst::Add && inst->kind != LowerInst::Sub) continue;
+
+                        value = base[masked->lhs];
+                        mask = base[masked->rhs];
+                        zeroArm = true;
+                    } else {
+                        continue;
+                    }
+
+                    if(!mask->type.isMask()) continue;
+
+                    InstChain chain;
+                    auto identity = zeroArm ? true
+                                  : isMinMax ? other == accumulator
+                                  : isMul || inst->kind == LowerInst::Div ? constantLanesAreOne(base, other, chain)
+                                  : constantLanesEqual(base, other, 0, chain);
+
+                    if(!identity) continue;
+
+                    auto signedLanes = isMinMax && ((LowerInstX86MinMax*)inst)->isSignedLanes();
+                    auto max = isMinMax && ((LowerInstX86MinMax*)inst)->isMax();
+
+                    auto fused = new (fun.arena) LowerInstX86MaskedOp(binary->result.name, type, accumulator - base,
+                                                                      value - base, mask - base, inst->kind,
+                                                                      signedLanes, max);
+                    replace(i, inst, fused);
+                    discard(i, selected->inst());
+                    for(auto link: chain) dead.push(link);
+                    break;
+                }
+
+                continue;
+            }
+
+            /*
+             * `bits(m) == 0` and `!= 0`, which is `kortestd` - see FormKZeroTest. Only where nothing
+             * else reads the movemask: one several reductions share has to exist anyway.
+             */
+            if(inst->kind == LowerInst::Cmp) {
+                auto cmp = (LowerInstCmp*)inst;
+                auto relation = cmp->getCmp();
+                if(relation != LowerCmp::eq && relation != LowerCmp::neq) continue;
+
+                auto bits = base[cmp->lhs];
+                auto zero = base[cmp->rhs];
+                if(bits->inst()->kind != LowerInst::VecReduce || bits->uses.size() != 1) continue;
+                if(((LowerInstVecReduce*)bits->inst())->getReduce() != LowerReduce::Bits) continue;
+                if(zero->inst()->kind != LowerInst::Imm || ((LowerImm*)zero->inst())->i != 0) continue;
+
+                auto mask = base[((LowerInstVecReduce*)bits->inst())->from];
+                if(!mask->type.isMask()) continue;
+
+                // A zero of its own, so that it is embedded whatever else the old one is read by.
+                Expansion e { base, fun, block, i };
+                auto fresh = e.integer(LowerType::Int32, 0);
+                i = e.at;
+
+                replaceUse(base, bits, cmp, mask);
+                cmp->lhs = mask - base;
+                replaceUse(base, zero, cmp, fresh);
+                cmp->rhs = fresh - base;
+
+                discard(i, bits->inst());
+                if(zero->uses.isEmpty()) discard(i, zero->inst());
+            }
+        }
+    }
+
+    removeDeadChain(base, dead);
+}
+
+/*
+ * A tree of `and`, `or`, `xor` and `not` over at most three values, as one `vpternlogd` - Analysis-Avx512.md
+ * §2.3, step 5 of its order of work.
+ *
+ * The instruction computes any bitwise function of three vectors, with the function's eight-bit truth
+ * table as its immediate, so a tree's shape stops mattering once its leaves fit: `not(v)` is one
+ * instruction with no all-ones register, a select written out as `(m and a) or (not(m) and b)` is one
+ * where it was three, and `a xor b xor c` is one where it was two. An all-ones or all-zeros constant is
+ * not a leaf at all - it is a constant row or column of the table - so `xor(v, ones)` has one leaf.
+ *
+ * **What is a node.** An integer vector's bitwise operation in this block whose one reader is another
+ * node of the tree: a value read anywhere else has to exist as itself, and computing it inside the
+ * table as well would be the same work twice. Grown greedily from each root, and a subtree whose
+ * leaves would take the count past three is a leaf instead.
+ *
+ * **When it pays.** Where the tree was at least two instructions - a `not` counts two, being a
+ * complement against a scratch all-ones, and so does an operation against a constant that goes with
+ * it. A lone `and` is `vpand` and stays one.
+ *
+ * **Which leaf is where.** The answer is written over the first operand, so a leaf no instruction reads
+ * after the tree goes there and no copy keeps it; the third operand is the one the encoding can read out
+ * of memory, so a load or a constant with this tree as its only reader goes there, where `foldLoads` and
+ * the pool can put it into the addressing mode. The table is computed after the assignment, so either
+ * choice is only a question of which bits of it are which.
+ *
+ * Integer vectors only. A float vector's bitwise operations are `andps` and its siblings, and moving
+ * one through `vpternlogd` crosses the domain twice - **measure**, and not done. A mask at this level is
+ * in a mask register and has `kandd` and its siblings.
+ */
+namespace {
+
+struct TernaryTree {
+    static constexpr Size kMaxNodes = 16;
+
+    LowerBase base;
+    LowerBlock* block;
+    LowerType type;
+
+    LowerValue* leaves[3] = {};
+    Size leafCount = 0;
+
+    LowerInst* nodes[kMaxNodes] = {};
+    Size nodeCount = 0;
+
+    // The instructions the rewrite removes, counted the way they were emitted: see the header.
+    Size cost = 0;
+
+    // The all-ones or all-zeros bytes of a value, if it is one.
+    Maybe<U8> uniformConstant(LowerValue* value) {
+        U8 bytes[kMaxVectorBytes] = {};
+        auto size = Size(value->type.byteWidth());
+        if(size > kMaxVectorBytes) return Nothing();
+
+        InstChain chain;
+        if(!constantVectorBytes(base, value, bytes, size, chain)) return Nothing();
+
+        for(Size i = 1; i < size; i++) {
+            if(bytes[i] != bytes[0]) return Nothing();
+        }
+
+        if(bytes[0] != 0x00 && bytes[0] != 0xff) return Nothing();
+        return Just(bytes[0]);
+    }
+
+    bool isNode(LowerInst* inst) {
+        for(Size i = 0; i < nodeCount; i++) if(nodes[i] == inst) return true;
+        return false;
+    }
+
+    static bool isBitwise(LowerInst* inst) {
+        return inst->kind == LowerInst::And || inst->kind == LowerInst::Or
+            || inst->kind == LowerInst::Xor || inst->kind == LowerInst::Not;
+    }
+
+    void addLeaf(LowerValue* value) {
+        if(uniformConstant(value)) {
+            // Gone with the tree where nothing else reads it, which is the instruction it was.
+            if(value->uses.size() == 1) cost++;
+            return;
+        }
+
+        for(Size i = 0; i < leafCount && i < 3; i++) if(leaves[i] == value) return;
+
+        // One past the limit is recorded as a count and nothing else, so that the caller can see the
+        // tree no longer fits and undo back to where it did.
+        if(leafCount < 3) leaves[leafCount] = value;
+        leafCount++;
+    }
+
+    // Grows the tree under `value`, which is read by a node of it.
+    void grow(LowerValue* value) {
+        auto inst = value->inst();
+
+        auto candidate = isBitwise(inst) && value->type == type && base[inst->block] == block
+            && !isImplicit(value) && value->uses.size() == 1 && nodeCount < kMaxNodes;
+
+        if(!candidate) {
+            addLeaf(value);
+            return;
+        }
+
+        auto savedLeaves = leafCount;
+        auto savedNodes = nodeCount;
+        auto savedCost = cost;
+
+        take(inst);
+
+        if(leafCount > 3) {
+            leafCount = savedLeaves;
+            nodeCount = savedNodes;
+            cost = savedCost;
+            addLeaf(value);
+        }
+    }
+
+    void take(LowerInst* inst) {
+        nodes[nodeCount++] = inst;
+        cost += inst->kind == LowerInst::Not ? 2 : 1;
+
+        for(auto operand: inst->used()) grow(base[operand]);
+    }
+
+    // The truth table of `value` under the slot each leaf was given.
+    U8 evaluate(LowerValue* value, LowerValue* slots[3]) {
+        static const U8 kSlotBits[3] = { 0xf0, 0xcc, 0xaa };
+        auto inst = value->inst();
+
+        if(isNode(inst)) {
+            auto used = inst->used();
+            auto lhs = evaluate(base[used[0]], slots);
+
+            switch(inst->kind) {
+                case LowerInst::Not: return U8(~lhs);
+                case LowerInst::And: return U8(lhs & evaluate(base[used[1]], slots));
+                case LowerInst::Or:  return U8(lhs | evaluate(base[used[1]], slots));
+                default:             return U8(lhs ^ evaluate(base[used[1]], slots));
+            }
+        }
+
+        for(Size s = 0; s < 3; s++) {
+            if(slots[s] == value) return kSlotBits[s];
+        }
+
+        auto constant = uniformConstant(value);
+        assertTrue(constant.isJust()); // a leaf the slot assignment left out
+        return constant.unwrap();
+    }
+};
+
+}
+
+// Whether a leaf can be read out of memory by the instruction: a load, or a constant the pool is about
+// to make one, with the tree as its only reader.
+static bool foldableLeaf(LowerValue* value) {
+    if(value->uses.size() != 1) return false;
+
+    auto kind = value->inst()->kind;
+    return kind == LowerInst::Load || kind == LowerInst::VecSplat || kind == LowerInst::VecWithLane;
+}
+
+// Whether every reader of a leaf is a node of the tree, so that writing the answer over it loses nothing.
+static bool leafDiesInTree(LowerBase base, TernaryTree& tree, LowerValue* value) {
+    for(auto use: value->uses.contents(base)) {
+        if(!tree.isNode(base[use])) return false;
+    }
+
+    return true;
+}
+
+void fuseTernaryLogic(Context&, LowerBase base, LowerFunction& fun) {
+    if(!hasEvexRow(EvexRow::TernaryLogic)) return;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        // Backwards, so that a tree is met at its root before any of its nodes is taken for one.
+        for(Size i = block->instructions.size(); i > 0; i--) {
+            auto inst = base[block->instructions.get(base, i - 1)];
+            if(!TernaryTree::isBitwise(inst)) continue;
+
+            auto root = &((LowerInstSingle*)inst)->result;
+            auto type = root->type;
+            if(!isIntVector(type) || type.isMask() || !isWholePackedRegister(type)) continue;
+
+            TernaryTree tree { .base = base, .block = block, .type = type };
+            tree.take(inst);
+
+            if(tree.leafCount == 0 || tree.leafCount > 3 || tree.cost < 2) continue;
+
+            // The slots - see the header for why each leaf goes where it does.
+            LowerValue* slots[3] = {};
+            LowerValue* leaves[3] = {};
+            auto count = tree.leafCount;
+            for(Size k = 0; k < count; k++) leaves[k] = tree.leaves[k];
+
+            auto takeLeaf = [&](auto&& wanted) -> LowerValue* {
+                for(Size k = 0; k < count; k++) {
+                    if(leaves[k] && wanted(leaves[k])) {
+                        auto leaf = leaves[k];
+                        leaves[k] = nullptr;
+                        return leaf;
+                    }
+                }
+
+                return nullptr;
+            };
+
+            auto any = [](LowerValue*) { return true; };
+            auto foldable = [](LowerValue* v) { return foldableLeaf(v); };
+            auto dies = [&](LowerValue* v) { return leafDiesInTree(base, tree, v); };
+
+            if(count == 3) {
+                slots[2] = takeLeaf(foldable);
+                slots[0] = takeLeaf(dies);
+                if(!slots[0]) slots[0] = takeLeaf(any);
+                slots[1] = takeLeaf(any);
+                if(!slots[2]) slots[2] = takeLeaf(any);
+            } else if(count == 2) {
+                slots[2] = takeLeaf(foldable);
+
+                if(slots[2]) {
+                    slots[0] = slots[1] = takeLeaf(any);
+                } else {
+                    slots[0] = takeLeaf(dies);
+                    if(!slots[0]) slots[0] = takeLeaf(any);
+                    slots[1] = slots[2] = takeLeaf(any);
+                }
+            } else {
+                slots[0] = slots[1] = slots[2] = leaves[0];
+            }
+
+            // The table reads each leaf from the first slot it is in; a value standing in two slots is
+            // the same bits in both, so the entries where the two differ are never read.
+            LowerValue* distinct[3] = { slots[0], slots[1] != slots[0] ? slots[1] : nullptr, nullptr };
+            distinct[2] = slots[2] != slots[0] && slots[2] != slots[1] ? slots[2] : nullptr;
+
+            auto table = tree.evaluate(root, distinct);
+
+            auto fused = new (fun.arena) LowerInstX86TernaryLogic(
+                root->name, type, slots[0] - base, slots[1] - base, slots[2] - base, table
+            );
+
+            // The constants the table absorbed, found before the nodes that read them go.
+            InstChain chain;
+            for(Size n = 0; n < tree.nodeCount; n++) {
+                for(auto operand: tree.nodes[n]->used()) {
+                    auto value = base[operand];
+                    if(tree.isNode(value->inst()) || value == slots[0] || value == slots[1] || value == slots[2]) continue;
+
+                    auto size = Size(value->type.byteWidth());
+                    if(size > kMaxVectorBytes) continue; // the tree's own type is a register's, but ask
+
+                    U8 bytes[kMaxVectorBytes] = {};
+                    constantVectorBytes(base, value, bytes, size, chain);
+                }
+            }
+
+            insertInstAt(base, block, positionOf(base, block, inst).unwrap(), fused);
+            replaceAllUses(base, root, &fused->result);
+
+            // Root first, then down: each node's one reader is gone by the time it is removed.
+            for(Size n = 0; n < tree.nodeCount; n++) removeInst(base, tree.nodes[n]);
+            removeDeadChain(base, chain);
+
+            // The walk carries on above the fused instruction, which is where every node stood.
+            i = positionOf(base, block, fused).unwrap() + 1;
+        }
+    }
 }

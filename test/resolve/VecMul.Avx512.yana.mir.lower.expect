@@ -1,0 +1,42 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = vsplat 18446744071821328129: i32x8
+    %v_2 = bitcast %v_1: i8x32
+    %v_3 = vsplat 100532999: i32x8
+    %v_4 = bitcast %v_3: i8x32
+    %v_5 = imul %v_2, %v_2: i8x32
+    %v_6 = bitcast %v_5: i32x8
+    %v_7 = vlane %v_6, 0: I32
+    %v_8 = cmp_eq %v_7, 18446744073200533761: I32
+    %v_9 = imul %v_2, %v_4: i8x32
+    %v_10 = bitcast %v_9: i32x8
+    %v_11 = vlane %v_10, 0: I32
+    %v_12 = cmp_eq %v_11, 18446744072822127879: I32
+    %v_13 = add %v_8, %v_12: I32
+    %v_14 = vsplat 1: i8x32
+    %v_15 = imul %v_2, %v_14: i8x32
+    %v_16 = bitcast %v_15: i32x8
+    %v_17 = vlane %v_16, 0: I32
+    %v_18 = cmp_eq %v_17, 18446744071821328129: I32
+    %v_19 = add %v_13, %v_18: I32
+    %v_20 = vsplat 12884901893: i64x4
+    %v_21 = vsplat 30064771083: i64x4
+    %v_22 = imul %v_20, %v_21: i64x4
+    %v_23 = vlane %v_22, 0: I64
+    %v_24 = cmp_eq %v_23, 292057776183: I32
+    %v_25 = add %v_19, %v_24: I32
+    %v_26 = vsplat 18446744073709551613: i64x4
+    %v_27 = imul %v_20, %v_26: i64x4
+    %v_28 = vlane %v_27, 0: I64
+    %v_29 = cmp_eq %v_28, 18446744035054845937: I32
+    %v_30 = add %v_25, %v_29: I32
+    %v_31 = vsplat 1: i64x4
+    %v_32 = imul %v_20, %v_31: i64x4
+    %v_33 = vlane %v_32, 0: I64
+    %v_34 = cmp_eq %v_33, 12884901893: I32
+    %v_35 = add %v_30, %v_34: I32
+    ret %v_35
+  }
+}
+

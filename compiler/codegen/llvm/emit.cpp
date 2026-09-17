@@ -370,47 +370,27 @@ static void initializeTargets() {
 }
 
 /*
- * The level the settings name, as the feature list LLVM spells it with.
+ * The level and flags the settings name, as the feature list LLVM spells it with.
  *
- * One list per level and not a ladder, because that is what a level *is*: the psABI defines v2 and
- * v3 as sets, LLVM has no name for either set, and writing them out is how the two sides come to be
- * compiling for one machine. Getting this wrong is not a missed optimization - `llc` told less than
- * the local backend claims produces a slower program the benchmark then reads as a difference of
- * code generation, which is precisely what §37.2 had to correct once already.
+ * Read from the one level table in compiler/settings.cpp (`llvmAttributesOf`) rather than written out
+ * here, which is Analysis-Avx512.md §0.4's rule: a second list is how the v3 description came to be
+ * written from memory and wrong once. Getting this wrong is not a missed optimization - `llc` told
+ * less than the local backend claims produces a slower program the benchmark then reads as a
+ * difference of code generation, which is precisely what §37.2 had to correct once already.
  *
- * `x86-64-v2` and `-v3` are LLVM feature names in recent versions, but not in every version this is
- * built against, so the members are listed instead. A member LLVM does not know is ignored with a
- * warning rather than refused, which is the failure mode to prefer here.
+ * The psABI level names are LLVM feature names in recent versions, but not in every version this is
+ * built against - and this compiler's levels are not exactly them anyway - so the members are listed.
+ * A member LLVM does not know is ignored with a warning rather than refused, which is the failure
+ * mode to prefer here.
  */
 static std::string featuresOf(const CompileSettings& settings) {
-    std::string features;
+    // SSE2, which every x86-64 part has and no level lists.
+    std::string features = "+sse2";
 
-    auto add = [&](const char* name) {
-        if(!features.empty()) features += ",";
-        features += "+";
+    for(auto name: llvmAttributesOf(settings.extensions)) {
+        features += ",+";
         features += name;
-    };
-
-    // v2, which is the floor: everything this compiler emits assumes it.
-    //
-    // `crc32` is a feature of its own in LLVM even though it is part of SSE4.2 on every part that
-    // has either - the two were split so that a target description could name the instruction
-    // without the string comparisons. Without it `llvm.x86.sse42.crc32.*` fails instruction
-    // selection outright rather than expanding into anything, which is how this was found.
-    add("sse2"); add("sse3"); add("ssse3"); add("sse4.1"); add("sse4.2"); add("crc32");
-    add("popcnt"); add("cx16");
-
-    if(settings.extensions.level >= TargetExtensions::V3) {
-        add("avx"); add("avx2"); add("bmi"); add("bmi2"); add("fma"); add("f16c");
-        add("lzcnt"); add("movbe"); add("xsave");
     }
-
-    if(settings.extensions.level >= TargetExtensions::V4) {
-        add("avx512f"); add("avx512bw"); add("avx512cd"); add("avx512dq"); add("avx512vl");
-    }
-
-    // The extension that is in no level, named beside one - see TargetExtensions::sha.
-    if(settings.extensions.sha) add("sha");
 
     return features;
 }

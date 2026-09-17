@@ -147,6 +147,19 @@ struct WebInfo {
     // a window carries it past. See planSplit.
     RegSet avoidFixed;
 
+    /*
+     * The registers this web may never be in, anywhere - not merely at an instruction a split could
+     * step around. Today that is the upper sixteen vector registers, for a web some instruction reads
+     * or writes through a form that cannot name them (`MachineForm::namesUpperVectors`): a register
+     * past xmm15 is not one such a form can be pointed at wherever the web happens to be, so it is not
+     * one a segment or a region of the web may take either.
+     *
+     * Held apart from `avoidFixed` - which it is also added to - because the segment and region
+     * searches below build their own blocked sets from the clobbers they cross, and this is the one
+     * part of the answer that is not about a clobber.
+     */
+    RegSet forbidden;
+
     // What this web costs if it does not get a register, by either of the two ways of not having
     // one - see computeSpillCosts. Both are in the same units, so they can be compared with each
     // other and with another web's.
@@ -186,6 +199,7 @@ struct WebInfo {
         ranges.clear();
         avoid = RegSet();
         avoidFixed = RegSet();
+        forbidden = RegSet();
         spillCost = 0;
         rematCost = 0;
         canRemat = false;
@@ -548,6 +562,9 @@ struct Placer {
 
     // The registers a value can be handed, held once rather than rebuilt at every assignment.
     RegSet allocatable = allocatableRegs();
+
+    // xmm16-31 where the target has them, and nothing where it does not - see `WebInfo::forbidden`.
+    RegSet upperVectors = upperVectorRegisters();
 
     // The order to try them in, per bank - see buildOrder. Registers this function's own
     // convention lets it destroy come first, since taking one of those costs nothing at all.
@@ -1567,6 +1584,28 @@ static void computeAvoidSets(Placer& a) {
             auto mask = writtenRegisters(shape);
             a.written |= mask;
 
+            /*
+             * A form that cannot name xmm16 keeps every web it reads and writes out of the upper
+             * sixteen - see `WebInfo::forbidden`. For the web's whole life rather than at this
+             * instruction, which is what makes it `forbidden` and not a clobber: a value is in one
+             * register between the instructions that touch it, and the cheapest way to have it in a
+             * low one here is for it to be in a low one everywhere. The price is only the choice of
+             * register, and only on a target that has the upper sixteen at all.
+             */
+            if(!a.upperVectors.isEmpty() && !a.machine.formOf(inst).namesUpperVectors) {
+                auto forbid = [&](LowerValue* v) {
+                    if(isImplicit(v)) return;
+
+                    auto& web = a.webFor(v);
+                    web.forbidden |= a.upperVectors;
+                    web.avoid |= a.upperVectors;
+                    web.avoidFixed |= a.upperVectors;
+                };
+
+                for(auto u: inst->used()) forbid(a.base[u]);
+                for(auto& created: inst->created()) forbid(&created);
+            }
+
             if(!mask.isEmpty()) {
                 /*
                  * An operand that the parallel copy in front of this instruction does *not* place
@@ -1729,6 +1768,10 @@ static bool recipeFor(Placer& a, LowerValue* v, Remat& out) {
             if(global->mut) return false;
             if(load->getWidth() != accessWidthOf(v->type)) return false;
 
+            // A mask in a mask register is a vector in memory, so what reproduces it is a load and a
+            // crossing through a scratch register - `FormKLoad` - and not the class's own `kmovd`.
+            if(v->type.isMask() && maskInMaskBank()) return false;
+
             /*
              * A vector is included, and used not to be.
              *
@@ -1754,6 +1797,7 @@ static bool recipeFor(Placer& a, LowerValue* v, Remat& out) {
          */
         case LowerInst::VecSplat: {
             if(!isVectorLike(v->type)) return false;
+            if(v->type.isMask() && maskInMaskBank()) return false;
 
             auto from = a.base[((LowerInstVecSplat*)inst)->from];
             auto scalar = from->inst();
@@ -1991,7 +2035,10 @@ static void placeInst(Placer& a, LowerInst* inst, U32 index) {
         RegSet blocked = a.machine.formOf(inst).clobbers;
 
         for(Size i = 0; i < used.size(); i++) {
-            if(I32(i) == tied) continue;
+            // An operand that *is* the tied one reads the same value whether the copy has happened or
+            // not - `collectTieConflicts` skips it for the same reason. `vpternlogd v, v, v` is where
+            // that matters: kept out of its own register, the complement copied `v` somewhere else first.
+            if(I32(i) == tied || used[i] == used[tied]) continue;
 
             auto site = useSiteOf(a.base, a.machine, a.out, inst, shape, i,
                 index, MachineLocation::invalid(), false);
@@ -2833,7 +2880,7 @@ static void promoteIntoRegions(Placer& a, const Array<LiveId>& candidates, const
 
             for(Size k = 0; k < a.orderCount[bank]; k++) {
                 auto reg = PhysicalReg { bank, U16(a.order[bank][k]) };
-                if(!a.allocatable.has(reg) || blocked.has(reg)) continue;
+                if(!a.allocatable.has(reg) || blocked.has(reg) || a.webs[webId].forbidden.has(reg)) continue;
                 if(!targetRegisters().regClass(cls).allowedPhysical.has(reg)) continue;
                 if(!a.isFree(webId, cls, reg, want)) continue;
 
@@ -2988,7 +3035,7 @@ static void splitAroundClusters(Placer& a, const Array<LiveId>& candidates) {
 
                 for(Size k = 0; k < a.orderCount[bank]; k++) {
                     auto reg = PhysicalReg { bank, U16(a.order[bank][k]) };
-                    if(!a.allocatable.has(reg) || blocked.has(reg)) continue;
+                    if(!a.allocatable.has(reg) || blocked.has(reg) || a.webs[webId].forbidden.has(reg)) continue;
                     if(!targetRegisters().regClass(cls).allowedPhysical.has(reg)) continue;
                     if(!a.isFree(webId, cls, reg, want)) continue;
 

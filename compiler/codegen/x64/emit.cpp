@@ -277,8 +277,17 @@ bool genX64Executable(Context& context, LowerModule& module, const String& path)
 
     auto dataOffset = U32(assembly.buffer.offset());
 
+    // The pooled constants an instruction still names. The rest were pooled and then read some other
+    // way - see LowerGlobal::pooled - and are not written at all.
+    HashMap<LowerGlobal*, bool> referenced;
+    for(auto& relocation: assembly.relocations) {
+        if(relocation.global) referenced.add(relocation.global, true);
+    }
+
     for(auto globalPointer: module.globalOrder) {
         auto global = base[globalPointer];
+        if(global->pooled && referenced.getValue(global).isNothing()) continue;
+
         assembly.addGlobal(base, global);
 
         auto at = assembly.globalOffsets.getValue(global);

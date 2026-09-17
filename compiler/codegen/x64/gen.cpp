@@ -88,16 +88,12 @@ static bool checkFormOperands(const MachineForm& form, const InstRegs& regs) {
 // cover the location's bank, where an index read straight out of the location is the same number
 // whichever register file it came from.
 //
-// The general and vector banks have encoders; the mask bank does not, since every `kmov` is
-// VEX-encoded. A mask location reaching here is a legalization that produced a location this backend
-// cannot emit, and failing loudly is the point: the register model describes banks the encoders do
-// not implement, and silently writing an instruction with an unnameable register number in it is the
-// one way that can go wrong quietly.
+// All three banks have encoders: a mask register is a ModRM field like any other in `kandd` and
+// `kmovd`, and EVEX.aaa in a masked instruction (Analysis-Avx512.md §2.1).
 static U8 reg(MachineLocation at, RegisterClassId regClass) {
     assertTrue(!at.isStack());            // an encoder was handed a frame slot
     assertTrue(!at.isRemat());            // an encoder was handed a rematerialization recipe
     assertTrue(at.isPhysical());          // an encoder was handed no location at all
-    assertTrue(at.bank != BankMask);      // no encoder emits the mask bank yet
     return targetRegisters().viewOf(regClass, at.physicalReg()).encoding;
 }
 
@@ -253,6 +249,37 @@ struct InstPrefix {
     bool w = false;     // REX.W, VEX.W, EVEX.W - one bit in three places
     bool forceRex = false; // an 8-bit operand that would otherwise name ah/ch/dh/bh
 
+    /*
+     * What only a vector prefix needs, and only to decide whether it is VEX or EVEX - §1.1 of
+     * Analysis-Avx512.md, and `writeVectorPrefix` below.
+     *
+     * `opcode` and `extension` are how `evexSpellingOf` finds the instruction; the writers that know
+     * them fill them in (`genRegRegPrefixed` and `genMemory`, which every described family goes
+     * through), and the extension is whatever ModRM.reg holds - an opcode extension or a register,
+     * which the table only reads for the opcodes where it is the former. `regHigh` and `rmHigh` are
+     * bit 4 of the two register fields, which no prefix but EVEX has anywhere to put; `vvvv` carries
+     * its own fifth bit.
+     *
+     * `tuple` is an EVEX form's disp8*N scale where the form is EVEX by construction; a VEX form being
+     * re-spelled takes it from the table instead. `forceEvex` is `genMemory` having found the
+     * compressed displacement shorter than VEX's four-byte one.
+     */
+    U8 opcode = 0;
+    U8 extension = 0;
+    bool regHigh = false;
+    bool rmHigh = false;
+    EvexTuple tuple = EvexTuple::None;
+    bool forceEvex = false;
+
+    // EVEX.aaa and EVEX.z - the mask register an instruction is masked by, or zero for none, and
+    // whether what it masks out is zeroed. See EncodingDescriptor::maskField.
+    U8 maskReg = 0;
+    bool zeroing = false;
+
+    // EVEX.b with a memory operand: the element read and repeated, four bytes or eight, or zero for a
+    // whole vector read. See MachineAddress::broadcast.
+    U8 broadcast = 0;
+
     static InstPrefix legacy(bool w, U8 escape = 0, U8 mandatory = 0, bool forceRex = false) {
         return InstPrefix { .mandatory = mandatory, .escape = escape, .w = w, .forceRex = forceRex };
     }
@@ -267,6 +294,82 @@ static U8 mandatoryPrefixBits(U8 mandatory) {
         case 0xf2: return 3;
         default: assertTrue("no vector prefix encodes this mandatory prefix" == nullptr); return 0;
     }
+}
+
+/*
+ * The EVEX spelling a vector prefix would be written in, and whether one is *needed*.
+ *
+ * §1.1 of Analysis-Avx512.md: **the shortest form that can encode the operands**. A form's prefix is
+ * chosen at selection, before anything has a register; whether the allocator then put an operand in
+ * xmm16 is placement's answer, so the choice between VEX and EVEX is made here, once the bytes exist -
+ * the same shape a jump's length is decided in (§7.1). What forces EVEX:
+ *
+ *   - a register at or above sixteen, in any of the three fields;
+ *   - a vector length of 512 bits;
+ *   - a form that is EVEX by construction, which has no VEX spelling at all;
+ *   - the compressed displacement, where it makes the memory operand shorter than VEX's four bytes -
+ *     which `genMemory` decides, having the address, and says with `forceEvex`.
+ *
+ * Everything else is VEX, and that includes the scalar arithmetic the `v4` level used to write with a
+ * `62` prefix whatever its operands were.
+ */
+struct EvexChoice {
+    bool evex = false;
+    bool w = false;
+    U8 tupleBytes = 0; // disp8*N, or zero where no scale is stated and a displacement has to go long
+};
+
+static U8 evexTupleBytes(EvexTuple tuple, U8 length, bool w) {
+    switch(tuple) {
+        case EvexTuple::None:     return 0;
+        case EvexTuple::Vector:   return U8(16 << length);
+        case EvexTuple::Element4: return 4;
+        case EvexTuple::Element8: return 8;
+        case EvexTuple::FromVex:  return w ? 8 : 4;
+        case EvexTuple::Half16:   return 16;
+    }
+
+    return 0;
+}
+
+static bool evexRequired(const InstPrefix& p) {
+    return p.kind == PrefixEncoding::Evex || p.regHigh || p.rmHigh || p.vvvv >= 16 || p.length >= 2
+        || p.forceEvex || p.maskReg != 0 || p.zeroing || p.broadcast != 0;
+}
+
+/*
+ * Whether this build may write a `62` prefix **at all**.
+ *
+ * Every other reason to write one is a fact about the operands, and every one of those can only arise
+ * on a target that has the registers, the masks or the width. The compressed displacement is not: it
+ * is a *size* choice over an ordinary VEX instruction with an ordinary frame slot in it, and it was
+ * promoting `vmovups ymm, [rsp + 160]` to EVEX on `avx2` builds, where `62` decodes as `bound` in
+ * 32-bit mode and faults in 64-bit - so the question has to be asked here rather than assumed.
+ *
+ * VL as well as F, because every form this backend writes is 128 or 256 bits wide; and not in a
+ * function that asked for legacy spellings, whose whole promise is that it names no VEX or EVEX
+ * encoding (see `legacyVectorEncodings`).
+ */
+static bool targetWritesEvex() {
+    auto needed = kFeatureAvx512f | kFeatureAvx512vl;
+    return (targetFeatures() & needed) == needed && !legacyVectorEncodings();
+}
+
+// The spelling this prefix *could* be written in, whether or not it is needed: an EVEX form's own, or
+// the table's for a VEX one. Nothing for a legacy prefix, and nothing for a VEX instruction EVEX has no
+// identical spelling of.
+static Maybe<EvexChoice> evexSpellingFor(const InstPrefix& p) {
+    if(p.kind == PrefixEncoding::Legacy) return Nothing();
+
+    if(p.kind == PrefixEncoding::Evex) {
+        return Just(EvexChoice { .evex = true, .w = p.w, .tupleBytes = evexTupleBytes(p.tuple, p.length, p.w) });
+    }
+
+    auto spelling = evexSpellingOf(p.mandatory, p.map, p.opcode, p.extension);
+    if(!spelling.exists) return Nothing();
+
+    auto w = spelling.width == EvexWidth::W1 || (spelling.width == EvexWidth::FromVex && p.w);
+    return Just(EvexChoice { .evex = true, .w = w, .tupleBytes = evexTupleBytes(spelling.tuple, p.length, p.w) });
 }
 
 /*
@@ -286,24 +389,48 @@ static void writeVectorPrefix(AsmModule& to, const InstPrefix& p, bool r, bool x
     auto pp = mandatoryPrefixBits(p.mandatory);
     auto vvvv = U8(~p.vvvv & 0xf);
     assertTrue(p.map >= kOpcodeMap0F && p.map <= kOpcodeMap0F3A); // an opcode map no prefix names
-    assertTrue(p.vvvv < 16); // a second source in the upper sixteen registers, which needs EVEX.V'
 
-    if(p.kind == PrefixEncoding::Evex) {
-        // Four bytes: 0x62, then three payload bytes. R' and V' extend ModRM.reg and vvvv into the
-        // upper sixteen vector registers and are both zero here - the bank has sixteen registers
-        // until every form can name more, see vectorRegisterCountFor - so both are written as the
-        // inverted ones the encoding expects.
+    if(evexRequired(p)) {
+        auto spelling = evexSpellingFor(p);
+
+        // A VEX instruction EVEX has no identical spelling of, handed a register only EVEX can name.
+        // The allocator is what promised this cannot happen - `MachineForm::namesUpperVectors` - so
+        // this is a form or an emitter the table and the placement disagree about.
+        assertTrue(spelling.isJust());
+
+        // And an instruction this machine cannot decode. Every other reason above is an operand the
+        // level is what supplies, so this catches the one that is a choice - see `targetWritesEvex`,
+        // which is the assertion the compressed displacement went without.
+        assertTrue(targetWritesEvex());
+
+        /*
+         * Four bytes: 0x62, then three payload bytes.
+         *
+         *   P0  R X B R' 0 m m m  - the three REX bits and R', the fifth bit of ModRM.reg, inverted.
+         *                           With both operands registers, X is the fifth bit of r/m instead
+         *                           of an index bit, which is how r/m reaches xmm16 at all.
+         *   P1  W v v v v 1 p p   - vvvv's low four bits inverted, as under VEX.
+         *   P2  z L'L b V' a a a  - V' is vvvv's fifth bit, inverted, and `aaa` the mask register
+         *                           with `z` its zeroing - both zero for an instruction masked by
+         *                           nothing. `b` is a memory operand read as one element repeated.
+         */
+        auto xBit = x || p.rmHigh;
+        assertTrue(p.maskReg < 8); // a mask register that is not one of k0-k7
+
+        // The element a broadcast reads is the one W names, so a spelling of the other width would read
+        // half an element or two.
+        assertTrue(p.broadcast == 0 || p.broadcast == (spelling.unwrap().w ? 8 : 4));
+
         to.buffer.writeByte(0x62);
-        to.buffer.writeByte(U8((r ? 0 : 0x80) | (x ? 0 : 0x40) | (b ? 0 : 0x20) | 0x10 | p.map));
-        to.buffer.writeByte(U8((p.w ? 0x80 : 0) | (vvvv << 3) | 0x04 | pp));
-
-        // z, L'L, broadcast, V', and the mask register: no masking, no broadcast and no zeroing,
-        // which is every EVEX form this backend writes. Only the length is not fixed.
-        to.buffer.writeByte(U8(((p.length & 3) << 5) | 0x08));
+        to.buffer.writeByte(U8((r ? 0 : 0x80) | (xBit ? 0 : 0x40) | (b ? 0 : 0x20) | (p.regHigh ? 0 : 0x10) | p.map));
+        to.buffer.writeByte(U8((spelling.unwrap().w ? 0x80 : 0) | (vvvv << 3) | 0x04 | pp));
+        to.buffer.writeByte(U8((p.zeroing ? 0x80 : 0) | ((p.length & 3) << 5) | (p.broadcast ? 0x10 : 0)
+                               | (p.vvvv >= 16 ? 0 : 0x08) | p.maskReg));
         return;
     }
 
-    assertTrue(p.length < 2); // VEX has one length bit; 512 is EVEX only
+    // A register or a length only EVEX can say, handed to the two-byte or three-byte form.
+    assertTrue(!p.regHigh && !p.rmHigh && p.vvvv < 16 && p.length < 2);
 
     // Two bytes wherever the fields the short form drops are all zero, which is the common case for
     // a scalar operation: it names no index, its r/m operand is one of the low eight registers, and
@@ -383,20 +510,88 @@ struct MemForm {
     U8 length = 0;
     U8 vvvv = 0;
 
+    // An EVEX form's disp8*N scale - see InstPrefix::tuple.
+    EvexTuple tuple = EvexTuple::None;
+
+    // The element this form may read its memory operand as, repeated - see `evexBroadcastBytes`. Zero
+    // for a form that reads the whole vector, which is what an address asking to be broadcast is
+    // checked against: the narrowed pool entry was chosen at the fold, and the form has to still be
+    // one that reads it that way.
+    U8 broadcastElement = 0;
+
+    // The mask register and its zeroing - see InstPrefix::maskReg.
+    U8 maskReg = 0;
+    bool zeroing = false;
+
     InstPrefix prefixOf(U8 regField) const {
         return InstPrefix {
             .kind = kind, .mandatory = prefix, .escape = escape, .map = map,
             .length = length, .vvvv = vvvv, .w = is64,
             .forceRex = byteRegField && (regField & 7) >= 4,
+            .opcode = opCode, .extension = regField,
+            .regHigh = kind != PrefixEncoding::Legacy && regField >= 16,
+            .tuple = tuple,
+            .maskReg = maskReg, .zeroing = zeroing,
         };
     }
 };
 
+/*
+ * The displacement an EVEX prefix will actually carry, and whether EVEX is worth choosing for it.
+ *
+ * EVEX reads a one-byte displacement as a multiple of the operand's element or vector size - disp8*N -
+ * so the byte the address encoder chose for VEX means something else once the prefix is EVEX. Where
+ * the displacement is a multiple of N that fits in a byte once divided, it stays one byte; where it is
+ * not, it goes to four, which is exactly what VEX would have written. A form with no stated scale
+ * takes the second branch at every nonzero displacement and is still correct.
+ *
+ * And the other direction, which is the fifth case §1.1 lists: a VEX operand whose displacement needs
+ * four bytes but divides by N into one is a byte shorter written in EVEX, even with nothing else asking
+ * for it - four bytes of prefix and one of displacement against two or three and four.
+ */
+static void settleEvexDisplacement(InstPrefix& p, EncodedAddress& a, I32 displacement) {
+    auto spelling = evexSpellingFor(p);
+    if(spelling.isNothing()) return;
+
+    // Only a base-relative displacement is ever compressed: the RIP-relative and base-less forms are
+    // `mod = 00` with four bytes by definition.
+    auto scalable = a.hasDisp && a.mod != 0;
+    if(!scalable) return;
+
+    // A broadcast reads one element, and the displacement is scaled by that.
+    auto n = I32(p.broadcast ? p.broadcast : spelling.unwrap().tupleBytes);
+    auto compressible = n != 0 && displacement % n == 0 && displacement / n >= -128 && displacement / n <= 127;
+
+    if(!evexRequired(p)) {
+        if(!a.disp32 || !compressible || !targetWritesEvex()) return;
+        p.forceEvex = true;
+    }
+
+    if(compressible) {
+        a.mod = 1;
+        a.disp32 = false;
+        a.disp = U32(displacement / n);
+    } else {
+        a.mod = 2;
+        a.disp32 = true;
+        a.disp = U32(displacement);
+    }
+}
+
 // The whole tail of a memory-operand instruction: prefixes, opcode, ModRM, SIB, displacement.
 static void genMemory(AsmModule& to, const MachineAddress& address, U8 regField, const MemForm& form) {
     auto a = encodeAddress(address);
+    auto prefix = form.prefixOf(regField);
 
-    writePrefix(to, form.prefixOf(regField), needsRex(regField), a.rexX, a.rexB);
+    if(address.broadcast) {
+        assertTrue(prefix.kind != PrefixEncoding::Legacy); // a broadcast operand of an instruction EVEX cannot spell
+        assertTrue(address.broadcast == form.broadcastElement); // an entry narrowed for a form that does not read it so
+        prefix.broadcast = address.broadcast;
+    }
+
+    if(prefix.kind != PrefixEncoding::Legacy) settleEvexDisplacement(prefix, a, address.displacement);
+
+    writePrefix(to, prefix, needsRex(regField), a.rexX, a.rexB);
     to.buffer.writeByte(form.opCode);
     writeAddressOperand(to, regField, a, form.trailing);
 }
@@ -410,7 +605,17 @@ static void genMemory(AsmModule& to, const MachineAddress& address, U8 regField,
 
 // `op rm, reg` or `op reg, rm` with both operands in registers: the direction is entirely the
 // caller's choice of opcode, since ModRM does not encode one.
-static void genRegRegPrefixed(AsmModule& to, const InstPrefix& p, U8 rm, U8 regField, U8 opCode) {
+static void genRegRegPrefixed(AsmModule& to, const InstPrefix& given, U8 rm, U8 regField, U8 opCode) {
+    // What the EVEX choice reads - see InstPrefix. A legacy prefix is untouched, since none of it
+    // means anything there and a register past fifteen cannot reach one.
+    auto p = given;
+    if(p.kind != PrefixEncoding::Legacy) {
+        p.opcode = opCode;
+        p.extension = regField;
+        p.regHigh = regField >= 16;
+        p.rmHigh = rm >= 16;
+    }
+
     writePrefix(to, p, needsRex(regField), false, needsRex(rm));
     to.buffer.writeByte(opCode);
     to.buffer.writeByte(makeMod(3, rm, regField));
@@ -457,6 +662,28 @@ static U8 packedComparePredicate(LowerCmp cmp) {
     }
 
     assertTrue("no packed compare predicate for this condition" == nullptr);
+    return 0;
+}
+
+/*
+ * The predicate byte `vpcmpd` and `vpcmpud` end in - and their byte and word and quadword siblings.
+ *
+ * All eight relations in one numbering, which is not `cmpps`'s: 0 is equal, 1 less, 2 less or equal,
+ * 4 not equal, 5 not less and 6 not less or equal. The *instruction* says whether the lanes are read
+ * signed or unsigned, so both readings of a relation are the same byte and the form carries the rest.
+ */
+static U8 maskComparePredicate(LowerCmp cmp) {
+    switch(cmp) {
+        case LowerCmp::eq:                     return 0;
+        case LowerCmp::ilt: case LowerCmp::lt: return 1;
+        case LowerCmp::ile: case LowerCmp::le: return 2;
+        case LowerCmp::neq:                    return 4;
+        case LowerCmp::ige: case LowerCmp::ge: return 5;
+        case LowerCmp::igt: case LowerCmp::gt: return 6;
+        default: break;
+    }
+
+    assertTrue("no mask compare predicate for this condition" == nullptr);
     return 0;
 }
 
@@ -800,11 +1027,14 @@ struct ClassMoveEncoding {
     PrefixEncoding kind = PrefixEncoding::Legacy;
     U8 length = 0;
 
+    // A prefixed W that is part of which instruction this is rather than a width - the mask moves'.
+    bool w1 = false;
+
     bool defined = false;
 
     InstPrefix prefixOf(bool wide, U8 mandatory) const {
         if(kind == PrefixEncoding::Legacy) return InstPrefix::legacy(wide, escape, mandatory);
-        return InstPrefix { .kind = kind, .mandatory = mandatory, .escape = escape, .length = length, .w = wide };
+        return InstPrefix { .kind = kind, .mandatory = mandatory, .escape = escape, .length = length, .w = wide || w1 };
     }
 };
 
@@ -865,12 +1095,30 @@ static const ClassMoveEncoding kClassMoves[kRegisterClassCount] = {
         .kind = PrefixEncoding::Vex, .length = 1, .defined = true,
     },
 
-    // ClassZmm512, ClassMask32, ClassMask64. Each of these moves with an EVEX-encoded instruction,
-    // which this backend does not select any form of - so a location in one reaches genMoves as a
-    // loud failure rather than as a legacy encoding with an unnameable register number in it. No IR
-    // type produces one: `targetVectorBytes` answers 64 only under AVX-512, which
-    // `unsupportedVectorReason` refuses before anything is placed.
-    {}, {}, {},
+    // ClassZmm512, which moves with an EVEX-encoded instruction this backend selects no form of yet:
+    // `targetVectorBytes` answers 32 at `avx512` (Analysis-Avx512.md §1.2's stage 1), so no IR type
+    // produces a value of it, and a location in one reaches genMoves as a loud failure.
+    {},
+
+    /*
+     * ClassMask32 and ClassMask64: a mask register, which is `kmovd` and `kmovq` - VEX.L0.66.0F.W1 and
+     * VEX.L0.0F.W1, 90 from a register or memory and 91 into memory.
+     *
+     * W1 at both, which is not a width: `kmovw` and `kmovb` are the same opcodes at W0 and without
+     * the prefix. So the rows state it in `w1` rather than leaving it to the slot, whose width is the
+     * class's either way. No exchange - a cycle through two mask registers goes through a third, the
+     * move pool's.
+     */
+    {
+        .regToReg = 0x90, .load = 0x90, .store = 0x91,
+        .escape = 0x0f, .copyPrefix = 0x66, .memPrefix = 0x66, .widthInPrefix = true,
+        .kind = PrefixEncoding::Vex, .w1 = true, .defined = true,
+    },
+    {
+        .regToReg = 0x90, .load = 0x90, .store = 0x91,
+        .escape = 0x0f, .widthInPrefix = true,
+        .kind = PrefixEncoding::Vex, .w1 = true, .defined = true,
+    },
 };
 
 /*
@@ -970,7 +1218,7 @@ static void genMoves(AsmModule& to, const FrameLayout& frame, const FrameObjects
         auto memoryForm = [&](U8 opCode, bool wide) {
             return MemForm {
                 .opCode = opCode, .escape = encoding.escape, .prefix = encoding.memPrefix,
-                .is64 = wide, .kind = encoding.kind, .length = encoding.length,
+                .is64 = wide || encoding.w1, .kind = encoding.kind, .length = encoding.length,
             };
         };
 
@@ -1211,11 +1459,22 @@ static void genLoadConstant(AsmModule& to, MachineLocation dest, RegisterClassId
         return;
     }
 
+    /*
+     * A float in one of the upper sixteen registers is read with the VEX spelling, which the prefix
+     * writer then spells in EVEX - a legacy `movsd` has no field that names xmm16. Everywhere else the
+     * legacy spelling stays, which is what every golden below `avx512` records.
+     */
+    auto destination = reg(dest, regClass);
+    auto upper = isFloat(type) && destination >= 16;
+
     auto form = isFloat(type)
-        ? MemForm { .opCode = 0x10, .escape = 0x0f, .prefix = U8(type == LowerType::Float64 ? 0xf2 : 0xf3) }
+        ? MemForm {
+              .opCode = 0x10, .escape = 0x0f, .prefix = U8(type == LowerType::Float64 ? 0xf2 : 0xf3),
+              .kind = upper ? PrefixEncoding::Vex : PrefixEncoding::Legacy,
+          }
         : MemForm { .opCode = 0x8b, .is64 = is64Bit(type) };
 
-    genMemory(to, MachineAddress::atSymbol(nullptr, global), reg(dest, regClass), form);
+    genMemory(to, MachineAddress::atSymbol(nullptr, global), destination, form);
 }
 
 /*
@@ -1533,8 +1792,24 @@ struct Emitter {
      * double and packed double - and F3 and none are the single ones.
      */
     static bool evexWideElement(const EncodingDescriptor& e) {
-        if(e.prefixEncoding != PrefixEncoding::Evex || !e.widthInPrefix) return false;
-        return e.prefix == 0xf2 || e.prefix == 0x66;
+        return e.prefixEncoding == PrefixEncoding::Evex && e.evexW;
+    }
+
+    /*
+     * The mask register a masked form is masked by, or zero for none.
+     *
+     * A form may name a mask operand the instruction does not have: the comparisons into a mask
+     * register serve a plain comparison with two operands and a masked one with three, and the field
+     * means "the third, where there is one" - so an operand past the end of the list is no mask at all,
+     * which EVEX spells as k0.
+     */
+    static U8 maskOf(const EncodingDescriptor& e, const InstRegs& regs) {
+        if(e.maskField.isNone()) return 0;
+
+        auto& list = e.maskField.result ? regs.creates : regs.uses;
+        if(Size(e.maskField.index) >= list.size()) return 0;
+
+        return reg(list[e.maskField.index]);
     }
 
     // Everything the encoders below need to know about how this form's bytes are written, gathered
@@ -1558,9 +1833,14 @@ struct Emitter {
              * inherits it. `emitLoadStore` overrides it where the form carries a real immediate
              * *operand* instead, which validateMachineForms guarantees is never both.
              */
-            .trailing = U8(e.conditionImmediate || e.patternImmediate || e.immediateByte ? 1 : 0),
+            .trailing = U8(e.conditionImmediate || e.patternImmediate || e.immediateByte
+                           || e.maskPredicateImmediate ? 1 : 0),
             .kind = e.prefixEncoding, .map = e.opcodeMap,
             .length = e.vectorLength, .vvvv = vvvvOf(e, regs),
+            .tuple = e.evexTuple,
+            .broadcastElement = evexBroadcastBytes(e),
+            .maskReg = maskOf(e, regs),
+            .zeroing = e.zeroMasking,
         };
     }
 
@@ -1656,6 +1936,8 @@ struct Emitter {
             writePrefix(to, InstPrefix {
                 .kind = e.prefixEncoding, .mandatory = e.prefix, .escape = e.escape,
                 .map = e.opcodeMap, .length = e.vectorLength, .vvvv = vvvvOf(e, regs),
+                .w = e.evexW,
+                .opcode = opcode, .extension = e.extension, .rmHigh = reg(rmOp) >= 16,
             }, false, false, needsRex(reg(rmOp)));
 
             to.buffer.writeByte(opcode);
@@ -2319,6 +2601,23 @@ struct Emitter {
         // everything above what it wrote, so the quadword the shift reads is the count and nothing
         // else.
         emitMoveAcrossBanks(scratch, count, laneBytes(type.lane) == 8, true);
+
+        /*
+         * `vpsraq` by a count in an xmm, which is the quadword arithmetic shift at AVX-512 and at
+         * nothing below it - `E2` at W1 is that instruction and `E2` at W0 is `psrad`. It is the one
+         * row of this expansion that has no VEX spelling, so it is written as EVEX here rather than
+         * through the helper; `expandQuadwordSar` builds the bias identity instead everywhere else.
+         */
+        if(inst->kind == LowerInst::Sar && laneBytes(type.lane) == 8) {
+            assertTrue(hasEvexRow(EvexRow::QuadwordSar));
+
+            genRegRegPrefixed(to, InstPrefix {
+                .kind = PrefixEncoding::Evex, .mandatory = 0x66, .escape = 0x0f, .map = kOpcodeMap0F,
+                .length = wide ? U8(1) : U8(0), .vvvv = destination, .w = true,
+            }, scratch, destination, 0xe2);
+            return;
+        }
+
         genPackedTwoAddress(wide, scratch, destination, U8(opBase + width), 0x0f, 0x66);
     }
 
@@ -2622,6 +2921,77 @@ struct Emitter {
         }
 
         emitInsert128(destination, vector, scratch, high ? 1 : 0);
+    }
+
+    /*
+     * A mask register complemented - see PseudoKind::MaskNot.
+     *
+     * `knotd` sets every bit above the lanes along with flipping the lanes, and a mask register holds
+     * zeros there: `kmovd` into a general register is the movemask with nothing masked after it, and
+     * `count` and `all` are built on that. So a mask of fewer than thirty-two lanes shifts the bits
+     * above them out and back in, which is two instructions and no constant; a mask filling the
+     * register has nothing above its lanes and is the one instruction.
+     */
+    void emitMaskNot(LowerInst* inst, const InstRegs& regs) {
+        auto lanes = ((LowerInstUnary*)inst)->result.type.lanes();
+        auto destination = reg(regs.creates[0]);
+        auto source = reg(regs.uses[0]);
+
+        // `knotd k1, k2` - VEX.L0.66.0F.W1 44.
+        genRegRegPrefixed(to, InstPrefix {
+            .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f, .map = kOpcodeMap0F, .w = true,
+        }, source, destination, 0x44);
+
+        if(lanes >= 32) return;
+        auto distance = U8(32 - lanes);
+
+        // `kshiftld` and `kshiftrd` - VEX.L0.66.0F3A.W0 33 and 31, each shifting its register by an
+        // immediate and writing the answer over the destination.
+        for(auto opcode: { U8(0x33), U8(0x31) }) {
+            genRegRegPrefixed(to, InstPrefix {
+                .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f, .map = kOpcodeMap0F3A,
+            }, destination, destination, opcode);
+            to.buffer.writeByte(distance);
+        }
+    }
+
+    /*
+     * A mask read from or written to memory - see PseudoKind::MaskLoad.
+     *
+     * In memory a mask is the vector of all-ones and all-zeros lanes it is at every level, so the
+     * transfer is the vector's own `vmovdqu` through the declared scratch register and a crossing
+     * beside it: `vpmovd2m` after a load, reading each lane's sign bit, and `vpmovm2d` before a store,
+     * writing each lane whole. The lane width decides which of the four crossings and the register
+     * width decides `L`, as for every other vector transfer here.
+     */
+    void emitMaskTransfer(LowerType type, const InstRegs& regs, bool load) {
+        assertTrue(regs.hasAddress); // a mask transfer with no address resolved for it
+
+        auto wide = isWideVector(type);
+        auto width = laneBytes(type.lane);
+        auto quadOrWord = width == 2 || width == 8;
+        auto scratch = kVectorScratch;
+        auto mask = reg(load ? regs.creates[0] : regs.uses[1]);
+
+        // `vpmovb2m`/`w2m` are 0F38 29 and `d2m`/`q2m` are 39; the other direction is 28 and 38.
+        auto crossing = U8((width <= 2 ? 0x28 : 0x38) + (load ? 1 : 0));
+        auto prefix = InstPrefix {
+            .kind = PrefixEncoding::Evex, .mandatory = 0xf3, .escape = 0x0f, .map = kOpcodeMap0F38,
+            .length = wide ? U8(1) : U8(0), .w = quadOrWord,
+        };
+
+        auto transfer = MemForm {
+            .opCode = U8(load ? 0x6f : 0x7f), .escape = 0x0f, .prefix = 0xf3,
+            .kind = PrefixEncoding::Vex, .length = wide ? U8(1) : U8(0),
+        };
+
+        if(load) {
+            genMemory(to, regs.address, scratch, transfer);
+            genRegRegPrefixed(to, prefix, scratch, mask, crossing);
+        } else {
+            genRegRegPrefixed(to, prefix, mask, scratch, crossing);
+            genMemory(to, regs.address, scratch, transfer);
+        }
     }
 
     // A floating-point constant. No SSE encoding carries one and there is no constant pool to load
@@ -3215,6 +3585,18 @@ struct Emitter {
                 emitVecWideWithLane(inst, regs);
                 break;
 
+            case PseudoKind::MaskNot:
+                emitMaskNot(inst, regs);
+                break;
+
+            case PseudoKind::MaskLoad:
+                emitMaskTransfer(((LowerInstLoad*)inst)->result.type, regs, true);
+                break;
+
+            case PseudoKind::MaskStore:
+                emitMaskTransfer(base[((LowerInstStore*)inst)->value]->type, regs, false);
+                break;
+
             case PseudoKind::RdTsc:
                 emitRdTsc();
                 break;
@@ -3512,6 +3894,12 @@ struct Emitter {
         // after the whole encoding, address bytes included, which is where an `ib` always goes.
         if(e.conditionImmediate) {
             to.buffer.writeByte(packedComparePredicate(selected.condition.unwrap()));
+        }
+
+        // The predicate of an integer comparison into a mask register, from the same selected
+        // condition and in the same position - see maskComparePredicate.
+        if(e.maskPredicateImmediate) {
+            to.buffer.writeByte(maskComparePredicate(selected.condition.unwrap()));
         }
 
         // And the trailing byte an instruction supplies - a shuffle's lane pattern or a lane

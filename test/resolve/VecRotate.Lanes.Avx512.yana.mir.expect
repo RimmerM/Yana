@@ -1,0 +1,163 @@
+module ResolveTest
+
+let & counter: I32 = 0
+
+fn opaque(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (global counter)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global counter) take %2
+  %4: I32 = read copy.trivial (global counter)
+  %5: I32 = const 1000
+  %6: Bool = gt inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: I32 = read copy.trivial (n)
+  return take %11
+
+bb3:
+  %8: I32 = const 1
+  return take %8
+}
+
+fn check(v: Vec(I32) [shared call], expected: I32 [shared call]) -> I32 {
+bb0:
+  %0: Vec(I32) = read copy.trivial (v)
+  %1: I32 = const 0
+  %2: I32 = vec.lane #0 inspect %0
+  %3: I32 = read copy.trivial (expected)
+  %4: Bool = eq inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = const 0
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %6: I32 = const 1
+  jump -> bb2(take %6)
+}
+
+fn checkLong(v: Vec(I64) [shared call], expected: I64 [shared call]) -> I32 {
+bb0:
+  %0: Vec(I64) = read copy.trivial (v)
+  %1: I32 = const 0
+  %2: I64 = vec.lane #0 inspect %0
+  %3: I64 = read copy.trivial (expected)
+  %4: Bool = eq inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = const 0
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %6: I32 = const 1
+  jump -> bb2(take %6)
+}
+
+fn main() -> I32 {
+  local words: Vec(I32)
+  local longs: Vec(I64)
+  local & n: I32
+
+bb0:
+  %0: I32 = const 305419896
+  %1: Vec(I32) = vec.splat inspect %0
+  write.init borrow.unique (words) take %1
+  %3: I64 = const 81985529216486895
+  %4: Vec(I64) = vec.splat inspect %3
+  write.init borrow.unique (longs) take %4
+  %6: I32 = const 0
+  write.init borrow.unique (n) take %6
+  %8: I32 = read copy.trivial (n)
+  %9: Vec(I32) = read copy.trivial (words)
+  %10: I32 = const 4
+  %11: Vec(I32) = vec.splat inspect %10
+  %12: Vec(I32) = rol inspect %9 inspect %11
+  %13: I32 = const 591751041
+  %14: I32 = call check borrow.shared %12 borrow.shared %13
+  %15: I32 = add inspect %8 inspect %14
+  write.assign borrow.unique (n) take %15
+  %17: I32 = read copy.trivial (n)
+  %18: Vec(I32) = read copy.trivial (words)
+  %19: I32 = const 4
+  %20: Vec(I32) = vec.splat inspect %19
+  %21: Vec(I32) = ror inspect %18 inspect %20
+  %22: I32 = const 0
+  %23: I32 = const 2128394905
+  %24: I32 = sub inspect %22 inspect %23
+  %25: I32 = call check borrow.shared %21 borrow.shared %24
+  %26: I32 = add inspect %17 inspect %25
+  write.assign borrow.unique (n) take %26
+  %28: I32 = read copy.trivial (n)
+  %29: Vec(I32) = read copy.trivial (words)
+  %30: I32 = const 0
+  %31: Vec(I32) = vec.splat inspect %30
+  %32: Vec(I32) = rol inspect %29 inspect %31
+  %33: I32 = const 305419896
+  %34: I32 = call check borrow.shared %32 borrow.shared %33
+  %35: I32 = add inspect %28 inspect %34
+  write.assign borrow.unique (n) take %35
+  %37: I32 = read copy.trivial (n)
+  %38: Vec(I32) = read copy.trivial (words)
+  %39: I32 = const 32
+  %40: Vec(I32) = vec.splat inspect %39
+  %41: Vec(I32) = rol inspect %38 inspect %40
+  %42: I32 = const 305419896
+  %43: I32 = call check borrow.shared %41 borrow.shared %42
+  %44: I32 = add inspect %37 inspect %43
+  write.assign borrow.unique (n) take %44
+  %46: I32 = read copy.trivial (n)
+  %47: Vec(I32) = read copy.trivial (words)
+  %48: I32 = const 36
+  %49: Vec(I32) = vec.splat inspect %48
+  %50: Vec(I32) = rol inspect %47 inspect %49
+  %51: I32 = const 591751041
+  %52: I32 = call check borrow.shared %50 borrow.shared %51
+  %53: I32 = add inspect %46 inspect %52
+  write.assign borrow.unique (n) take %53
+  %55: I32 = read copy.trivial (n)
+  %56: Vec(I64) = read copy.trivial (longs)
+  %57: I64 = const 8
+  %58: Vec(I64) = vec.splat inspect %57
+  %59: Vec(I64) = rol inspect %56 inspect %58
+  %60: I64 = const 2541551405711093505
+  %61: I32 = call checkLong borrow.shared %59 borrow.shared %60
+  %62: I32 = add inspect %55 inspect %61
+  write.assign borrow.unique (n) take %62
+  %64: I32 = read copy.trivial (n)
+  %65: Vec(I64) = read copy.trivial (longs)
+  %66: I64 = const 64
+  %67: Vec(I64) = vec.splat inspect %66
+  %68: Vec(I64) = rol inspect %65 inspect %67
+  %69: I64 = const 81985529216486895
+  %70: I32 = call checkLong borrow.shared %68 borrow.shared %69
+  %71: I32 = add inspect %64 inspect %70
+  write.assign borrow.unique (n) take %71
+  %73: I32 = read copy.trivial (n)
+  %74: Vec(I32) = read copy.trivial (words)
+  %75: I32 = const 2
+  %76: I32 = call opaque borrow.shared %75
+  %77: Vec(I32) = vec.splat inspect %76
+  %78: Vec(I32) = rol inspect %74 inspect %77
+  %79: I32 = const 1221679584
+  %80: I32 = call check borrow.shared %78 borrow.shared %79
+  %81: I32 = add inspect %73 inspect %80
+  write.assign borrow.unique (n) take %81
+  %83: I32 = read copy.trivial (n)
+  return take %83
+}
+
+entry main
