@@ -15,7 +15,7 @@ bb0:
   %8: Size trivial = const 0
   %9: Size trivial = const 8
   %10: Array(I32) [shared slot 0 view] guaranteed from{%1} = call slice(I32) borrow %7 borrow %8 borrow %9
-  %11: I32 trivial = call sumVectors(Array(I32), I32) borrow %10
+  %11: I32 trivial = call replaces$sum(Array(I32), I32) borrow %10
   drop Array(I32) inspect %1
   return consume %11
 }
@@ -36,7 +36,7 @@ bb0:
   %9: Size trivial = const 8
   %10: Array(I32) [shared slot 0 view] guaranteed from{%1} = call slice(I32) borrow %7 borrow %8 borrow %9
   %11: Array(I32) [shared slot 0 view] guaranteed from{%1} = load inspect %10
-  %12: I32 trivial = call sumVectors(Array(I32), I32) borrow %11
+  %12: I32 trivial = call replaces$sum(Array(I32), I32) borrow %11
   drop Array(I32) inspect %1
   return consume %12
 }
@@ -57,7 +57,7 @@ bb0:
   %9: Size trivial = const 5
   %10: Array(I32) [shared slot 0 view] guaranteed from{%1} = call slice(I32) borrow %7 borrow %8 borrow %9
   %11: I32 trivial = const 0
-  %12: I32 trivial = call maximumVectors(Array(I32), I32) borrow %10 borrow %11
+  %12: I32 trivial = call replaces$maximum(Array(I32), I32) borrow %10 borrow %11
   drop Array(I32) inspect %1
   return consume %12
 }
@@ -102,10 +102,10 @@ bb0:
   %7: Size trivial = const 0
   %8: Size trivial = const 4
   %9: Array(I32) [shared slot 0 view] guaranteed from{%1} = call window borrow %6 borrow %7 borrow %8
-  %10: I32 trivial = call sumVectors(Array(I32), I32) borrow %9
+  %10: I32 trivial = call replaces$sum(Array(I32), I32) borrow %9
   %11: Array(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
   %12: Array(I32) [shared slot 0 view] guaranteed from{%1} = call deeper borrow %11
-  %13: I32 trivial = call sumVectors(Array(I32), I32) borrow %12
+  %13: I32 trivial = call replaces$sum(Array(I32), I32) borrow %12
   drop Array(I32) inspect %1
   %14: I32 trivial = add inspect %10 inspect %13
   return consume %14

@@ -2756,8 +2756,9 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
     }
 
     // No environment: a named function captures nothing, so the pair's second word is null and the
-    // value refers to no storage at all.
-    return builder.addFunValue(source, found, type, nullptr);
+    // value refers to no storage at all. The body is the one decided for the whole program - a value
+    // has no type arguments to ask a replacement's constraints with.
+    return builder.addFunValue(source, replacementForValue(found), type, nullptr);
 }
 
 /*
@@ -4022,6 +4023,13 @@ Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*,
     // out, and checked at run time through the class. See `refuseNextOnResuming`.
     if(!refuseNextOnResuming(callee, typeArguments.with(), source)) return nullptr;
 
+    // Another body of this function, where one was read and its condition holds - bound and checked
+    // against the baseline's signature above, which the replacement's is the same as. See
+    // `chooseReplacement`.
+    if(auto chosen = chooseReplacement(builder, callee, arguments, typeArguments, source)) {
+        return chosen;
+    }
+
     // A member of an instance the compiler generated, at a concrete call - the node it computes,
     // in place of the call. See `expandProvidedCall`.
     if(auto expanded = expandProvidedCall(builder, callee, arguments, typeArguments, source)) {
@@ -4050,13 +4058,6 @@ Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*,
         if(form == intrinsic::OpForm::Node && opExpands(callee.intrinsic)) {
             return expandIntrinsic(builder, context, callee.intrinsic, callee, arguments.pointer(),
                                    arguments.size(), typeArguments.with(), source);
-        }
-
-        // A bulk operation, whose expansion is a choice between two library bodies rather than a
-        // node - so it is the same call with a different callee. Null where the element has no
-        // vector here, which is the declaration's own body and the loop the operation always was.
-        if(auto chosen = selectBulkBody(builder, callee, arguments, typeArguments, source)) {
-            return chosen;
         }
 
         // A `Branch` role is the same last step laid out here instead, because what it expands to
@@ -4134,84 +4135,6 @@ Node* Resolver::expandProvidedCall(Builder& builder, Function& callee,
      */
     return expandProvided(builder, function.provided, function.providedMember, with.arguments,
                           with.count, arguments.pointer(), arguments.size(), source);
-}
-
-/*
- * Which of a bulk operation's two bodies this call reaches - `lib/Core/Reduce.yana`, and `op.def`'s
- * seven `bulk*` rows read as the choice they are.
- *
- * The rule: **the vector body where the element has a vector on this target, and the declaration's
- * own body where it does not.** That question is about the lane's stride and the register width, so
- * it is not a constraint the library could have written - `Vec(U8)` exists everywhere, `Vec(Long)`
- * natively and not on JS, `Vec(String)` nowhere - which is the whole reason these are roles. The
- * shipping stage's `expandBulk` makes the same choice on the same rule; the two must agree, or one
- * source compiles to two different programs.
- *
- * **Where the element comes from is the one thing here that needed deciding.** It is not a position:
- * `sum(xs) -> a` answers one, `occurrences(xs, wanted: a)` takes one, and `itemsEqual(left: [a],
- * right: [a])` neither. What is common to all seven is that the declaration's *variables* are a
- * container and an element and nothing else, and a container is a record - so at most one of the
- * bound arguments can be a machine lane, and asking which of them has a vector is asking about the
- * element without having to name `Chunked` to find it. A library whose `Chunked` instance made a
- * lane type into a container would defeat that, and would be a container of itself.
- *
- * The bindings are rebuilt against the chosen body rather than reused: it has the same signature the
- * declaration does, so matching the same arguments recovers the same answers, and its *context* is a
- * different one - `indexOfVectors` requires `Bitwise(Mask(a))` where `indexOf` requires nothing of
- * the kind, and that instance is what has to exist here. Nothing is re-prepared: the arguments were
- * read under the declared contracts, which the two bodies share.
- *
- * Null wherever the choice does not apply - not a bulk role, no library body claiming the role, an
- * element with no vector - so the caller carries on to the call it would have built anyway.
- */
-Node* Resolver::selectBulkBody(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
-                               TypeArguments& typeArguments, LocationId source) {
-    auto role = bulkVectorRole(callee.intrinsic);
-    if(role == intrinsic::Known::Count) return nullptr;
-
-    // A library that declares no vector half - the rows are `Optional`, and its bulk operations are
-    // the loops they always were.
-    auto declared = program.roles.function(role);
-    if(!declared) return nullptr;
-
-    auto with = typeArguments.with();
-    auto vectorized = false;
-
-    for(Size i = 0; i < with.count; i++) {
-        vectorized = vectorized || hasNaturalVector(context, program, with.arguments[i]);
-    }
-
-    if(!vectorized) return nullptr;
-
-    auto& body = *decl()[declared];
-    if(body.writtenArity() != arguments.size()) return nullptr;
-
-    TypeArguments bindings(*this, body.gen);
-
-    for(Size i = 0; i < arguments.size(); i++) {
-        if(!arguments[i]) return nullptr;
-
-        auto& parameter = *decl()[body.args.get(decl(), U32(i))];
-        bindings.bind(parameter.occurrence.type, valueType(*arguments[i]));
-    }
-
-    bindings.fillDetermined(source);
-
-    // A position the same arguments left open here but decided at the declaration is a vector half
-    // whose signature has drifted from the one it stands beside; the element walk is still a correct
-    // program, so this takes it rather than reporting a call the author did not write.
-    if(bindings.undecided()) return nullptr;
-
-    /*
-     * The context, which is the one thing the two bodies do not share - and the one place here that
-     * *does* report. A missing `Bitwise(Mask(a))` for an element that has a vector is a library
-     * whose vector half asks for something the lane does not have, which is not a fact this call
-     * could work around: taking the element walk instead would hide a broken pair behind a slower
-     * program on whichever target the instance is missing from.
-     */
-    if(!dischargeRequirements(body, bindings, source)) return nullptr;
-
-    return builder.addCall(source, body, arguments.pointer(), arguments.size(), bindings.with());
 }
 
 Node* Resolver::applyMember(Builder& builder, intrinsic::Known klass, U16 member,

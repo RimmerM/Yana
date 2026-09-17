@@ -4,11 +4,20 @@ import Native
    SHA-1 and SHA-256 over the SHA extension instructions - `Native/Intrinsic/X86.yana`'s seven, and the
    reason they were added.
 
-   **The whole file exists only where the target has them.** `sha` and `nosha` are a partition of
-   every target this compiler describes, `Hardware.nosha.yana` is the other half, and each defines
-   the same two names - so a caller writes `sha256CompressBlocks` and never asks which. See
-   `targetSelector`, and the note at the top of `Native/Intrinsic/X86.yana` for why this is a file rather
-   than a compile-time `if`.
+   **Two replacements and the helpers they need** - Design-Replacements.md. `sha1CompressBlocks` and
+   `sha256CompressBlocks` are declared in `Sha1.yana` and `Sha2.yana` as the portable loops, which
+   every build resolves; the two `@replaces` declarations below are other bodies of those functions,
+   and the file they are in is read only where its name's selectors hold. `sha` is the extension and
+   `avx2` is the level, because the region is legacy-encoded and written in terms of
+   `X86.vzeroupper()`, an AVX instruction - which is a fact about this file and is now said by this
+   file's name rather than folded into what `sha` means. A caller writes `sha256CompressBlocks` and
+   never asks which body it gets. See `Native/Intrinsic/X86.yana` for why this is a file rather than a
+   compile-time `if`.
+
+   There used to be a `ShaBlock.nosha.yana` beside this, holding the portable loops, because a selector
+   has no negation and the other half of a partition needed a name. A baseline is that other half
+   without one, and it is compiled on the machines that have the extension as well - which is where a
+   fallback that nobody runs goes stale.
 
    What it buys, measured: `test/bench/hash/findings.md`. The instruction sequence is Intel's own,
    by way of Jeffrey Walton's public-domain reference implementations, which is also what
@@ -65,7 +74,7 @@ fn loadReversedWords(from: [U8], at: Size) -> Vec(U32, 4) =
 -- `Vec(U32, 4)` are one register, but only one of them has the lanes the callers above want.
 @x86_legacy_sse
 fn loadWords(from: [U8], at: Size) -> Vec(U32, 4) =
-    vectorAt(bitcast(from.items + at) :: %U32) :: Vec(U32, 4)
+    vectorAt(bitcast(values(from) + at) :: %U32) :: Vec(U32, 4)
 
 {-
    Each word's bytes reversed, which is the whole of reading a big-endian message on a little-endian
@@ -96,12 +105,12 @@ fn constantsAt(group: Size) -> Vec(U32, 4) = wordsAt(roundConstants, group * 4)
 -- `[U32 *64]` and only a *call* converts one to a slice - `Contiguous` has no instance for a fixed
 -- array, and the note beside `Length([a *n])` in `Core/Container.yana` is why.
 @x86_legacy_sse
-fn wordsAt(from: [U32], at: Size) -> Vec(U32, 4) = vectorAt(from.items + at) :: Vec(U32, 4)
+fn wordsAt(from: [U32], at: Size) -> Vec(U32, 4) = vectorAt(values(from) + at) :: Vec(U32, 4)
 
 -- And back. `setVectorAt` for `vectorAt`'s reason: the count is four and not the target's natural
 -- one, and only the raw-address form takes a written count.
 @x86_legacy_sse
-fn setWordsAt(to: [U32], at: Size, value: Vec(U32, 4)): setVectorAt(to.items + at, value)
+fn setWordsAt(&to: [U32], at: Size, value: Vec(U32, 4)): setVectorAt(valuesMut(to) + at, value)
 
 -- Four zero words, which SHA-1's `E` and its carry are built out of by `withLane` - the state
 -- vectors that come whole out of memory are shuffles now, and this is what is left. A function
@@ -155,10 +164,11 @@ fn zeroWords() -> Vec(U32, 4) = zero() :: Vec(U32, 4)
    instructions again, and the ~160 ns per call that this arrangement removes comes straight back.
    `test/bench/shamix/` measures exactly that, and is what catches it if any of the three is dropped.
 -}
+@replaces
 @noinline
 @convention(sysv)
 @x86_legacy_sse
-pub fn sha256CompressBlocks(&h: [U32 *8], from: [U8], at: Size, blocks: Size):
+fn sha256CompressBlocks(&h: [U32 *8], from: [U8], at: Size, blocks: Size):
     -- Before anything else, and only here rather than in the helpers below: this function takes no
     -- vector argument, so there is nothing arriving for the reset to destroy. A helper does take
     -- one, which is why the state change is a call the author places and not something the attribute
@@ -330,10 +340,11 @@ fn scheduleGroup(&state0: Vec(U32, 4), &state1: Vec(U32, 4), constants: Vec(U32,
    instructions again, and the ~160 ns per call that this arrangement removes comes straight back.
    `test/bench/shamix/` measures exactly that, and is what catches it if any of the three is dropped.
 -}
+@replaces
 @noinline
 @convention(sysv)
 @x86_legacy_sse
-pub fn sha1CompressBlocks(&h: [U32 *5], from: [U8], at: Size, blocks: Size):
+fn sha1CompressBlocks(&h: [U32 *5], from: [U8], at: Size, blocks: Size):
     -- Before anything else, and only here rather than in the helpers below: this function takes no
     -- vector argument, so there is nothing arriving for the reset to destroy. A helper does take
     -- one, which is why the state change is a call the author places and not something the attribute

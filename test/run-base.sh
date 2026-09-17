@@ -133,6 +133,16 @@ status=0
 start_row amd64          -mode exe -backend local
 start_row generic        -mode exe -backend local -specialize never
 start_row unoptimized    -mode exe -backend local -no-ir-opt
+
+# **Every baseline and no replacement** - Design-Replacements.md §7. A replacement is held to answering
+# exactly what its baseline answers, and nothing can prove that; what checks it is the same cases
+# passing on both bodies. The rows above choose every replacement their target admits - the vector
+# bodies of `Core/Reduce.yana` in every one of them, and the SHA instructions in `sha` - and this row
+# chooses none, so a replacement that disagrees with its baseline fails one of the two. One row is
+# enough whatever the host: a baseline does not depend on the level, and the replacements it is
+# compared with are the other rows'.
+start_row no-replacements -mode exe -backend local -no-replacements
+
 # **The rows above the floor.** Every boundary in `moveMemory`/`copyMemory` is stated in widths -
 # the ladder's rungs are `n` transfers of `w` bytes covering `[nw, 2nw)`, the four-register group is
 # `4w`, and the length above which the copy is handed to `blockCopy` is `48w`, so the sweeps cross a
@@ -142,10 +152,10 @@ start_row unoptimized    -mode exe -backend local -no-ir-opt
 # register" in Native.yana, which these rows are the only cover for.
 #
 # `sha` is beside the level rather than one of them, and it decides *file selection*: with it the
-# selector reads `Digest/Hardware.sha.yana` instead of `Hardware.nosha.yana`, so every SHA-1 and
-# SHA-256 answer comes from `sha1rnds4`/`sha256rnds2` rather than from the portable rounds. Nothing
-# else in `Digest` changes, and all of it is asserted in both rows because the two files have to
-# agree about all of it.
+# selector reads `Digest/ShaBlock.sha.avx2.yana`, whose replacements are chosen over the portable
+# loops, so every SHA-1 and SHA-256 answer comes from `sha1rnds4`/`sha256rnds2` rather than from the
+# portable rounds. Nothing else in `Digest` changes, and all of it is asserted in both rows because
+# the two bodies have to agree about all of it.
 #
 # v4 would want the same again for `[32, 64)`, and the rung is written; it needs a host with
 # AVX-512 to run it.

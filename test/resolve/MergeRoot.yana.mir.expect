@@ -69,7 +69,7 @@ bb1:
 bb2(%33: Array(I32) [shared slot 0 view]):
   write.init borrow.unique (window) borrow.shared %33
   %37: Array(I32) [shared slot 0 view] = read borrow.shared (window) loan2 roots{0, 1}
-  %38: I32 = call sumVectors(Array(I32), I32) borrow.shared %37
+  %38: I32 = call replaces$sum(Array(I32), I32) borrow.shared %37
   drop (frame)
   drop (xs)
   return take %38
@@ -149,7 +149,7 @@ bb0:
 bb1(%1: Array(I32) [shared call view]) handover(Array(I32) [shared call view]):
   write.init borrow.unique (window) borrow.shared %1
   %4: Array(I32) [shared call view] = read borrow.shared (window) loan0
-  %5: I32 = call sumVectors(Array(I32), I32) borrow.shared %4
+  %5: I32 = call replaces$sum(Array(I32), I32) borrow.shared %4
   return take %5
 }
 

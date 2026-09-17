@@ -866,40 +866,6 @@ YANA_KNOWN_ROLE( stringPush,       Entity::Function, 2,    0,      0,      false
 YANA_KNOWN_ROLE( formatBound,      Entity::Function, 1,    0,      0,      false,   Presence::Optional )
 
 /*
- * The seven vector halves of `lib/Core/Reduce.yana`'s bulk operations - `op.def`'s `bulk*` rows read
- * from the other end.
- *
- * Each bulk operation is one declaration and two bodies, and the declaration carries the element
- * walk (`roleMayWriteBody`). The *choice* between the two is the `op.def` role's expansion and is
- * made where the call is, because whether the element has a vector on this target is a question
- * about the lane's stride and the register width rather than about anything a constraint could
- * carry. What a stage making that choice needs is a handle on the body it is choosing, and these are
- * those handles - the one thing the ownership stage's intrinsic framework did not hold, which is why
- * the seven `bulk*` rows sat in `opExpands` answering with the element walk on every target.
- *
- * A role per body rather than a lookup by name in Core, on this file's own terms: the shipping stage
- * finds them with `collectionsFunction(module, "indexOfVectors"_v)`, which is exactly the spelling
- * outside this directory that a row replaces. The names coincide because a role's enumerator *is*
- * the attribute's spelling, so the library reads the same either way and only the compiler's
- * dependency on it moved.
- *
- * `Optional`, and it is what makes the choice safe rather than what makes it possible: a library
- * that declares no vector half is one whose bulk operations are the loops they always were, which is
- * the same answer a target with no vector for the element gets. Nothing reports.
- *
- * `itemsEqualVectors` is claimed twice, `@platform`-split, exactly as `checkFailed` is - one
- * declaration survives platform selection, so one claim reaches the table.
- */
-//              role                entity            arity members payload teardown presence
-YANA_KNOWN_ROLE( sumVectors,         Entity::Function, 1,   0,      0,      false,   Presence::Optional )
-YANA_KNOWN_ROLE( productVectors,     Entity::Function, 1,   0,      0,      false,   Presence::Optional )
-YANA_KNOWN_ROLE( maximumVectors,     Entity::Function, 2,   0,      0,      false,   Presence::Optional )
-YANA_KNOWN_ROLE( minimumVectors,     Entity::Function, 2,   0,      0,      false,   Presence::Optional )
-YANA_KNOWN_ROLE( occurrencesVectors, Entity::Function, 2,   0,      0,      false,   Presence::Optional )
-YANA_KNOWN_ROLE( indexOfVectors,     Entity::Function, 2,   0,      0,      false,   Presence::Optional )
-YANA_KNOWN_ROLE( itemsEqualVectors,  Entity::Function, 2,   0,      0,      false,   Presence::Optional )
-
-/*
  * What joins these when the new stage reads `lib/Core` - Analysis-IR.md §11.4's milestone 8.
  *
  * The classes the language's syntax is written in terms of that are not yet here (`Enum`,

@@ -1000,10 +1000,6 @@ void definePreludeContainers(Program& program, Module& core) {
     // After `arrayType` above, and before this module's own bodies below - several of which
     // subscript, and would reach an instance that does not exist yet.
     defineContainerInstances(*module);
-
-    // The bulk operations, whose declarations above have no body: which of the two implementations
-    // beside each one a call takes is decided where the call is - see simd.cpp.
-    defineBulkOperations(*module);
 }
 
 /*

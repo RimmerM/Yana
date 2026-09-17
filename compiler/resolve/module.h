@@ -1014,6 +1014,16 @@ struct Module {
      */
     SmallArray<ast::Module*, 8> files;
 
+    // The `@replaces fn` declarations the signature pass read, waiting for `linkReplacements` to
+    // attach them to their baselines once every signature of the module is in.
+    struct PendingReplacement {
+        ModulePtr<Function> function;
+        ast::ParsePtr<ast::Decl> declaration;
+        U16 file;
+    };
+
+    Array<PendingReplacement> pendingReplacements;
+
     /*
      * What this module can see, with each entry tagged by the file that wrote it - see Import::file.
      * One array rather than one per file because the traversal in search() is over all of them at
@@ -1452,6 +1462,29 @@ struct Program {
     // The glue that lets a plain function be a function value, interned per function: one word of
     // adapter that drops the environment every callable is handed. See expr_fun.cpp.
     HashMap<U32, ModulePtr<Function>> functionThunks;
+
+    /*
+     * The bodies that may run in a baseline's place - Design-Replacements.md §3.4, and
+     * `module_replace.cpp`, where the whole of it is argued.
+     *
+     * Keyed by the baseline, filled once per module by `linkReplacements` with the replacements this
+     * compilation read, most specific first - the order `orderReplacements` gives both stages.
+     */
+    struct Replacement {
+        ModulePtr<Function> body = nullptr;
+
+        // For each of the body's own variables, the baseline's variable of the same name.
+        SmallArray<U8, 4> variables;
+
+        // Whether it states constraints beyond the baseline's, and so is asked at each concrete call.
+        bool conditioned = false;
+    };
+
+    struct ReplacementSet {
+        SmallArray<Replacement, 2> candidates;
+    };
+
+    HashMap<U32, ReplacementSet> replacements;
 
     // Numbers the lifted lambda bodies of the whole program, so that two of them are never printed
     // or linked under one name.

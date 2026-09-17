@@ -45,17 +45,6 @@ void defineVectorIntrinsics(Module& core);
 void defineCpuIntrinsics(Module& native);
 
 /*
- * The bulk operations' hooks - §9 items 6 and 7.
- *
- * Each of `sum`, `product`, `maximum`, `minimum`, `occurrences` and `indexOf` is declared in
- * Collections with no body and two implementations beside it, one written over `vectors` and one
- * over the elements. What is attached here chooses between them at the call site, by asking whether
- * the container's element has a vector *on this target* - which is a question about a lane stride
- * and a register width, and so is not one a class constraint could carry.
- */
-void defineBulkOperations(Module& collections);
-
-/*
  * The instance of `typeClass` over these vector types, generated if it does not exist yet.
  *
  * Null for every head this does not cover, which is the ordinary answer: a class that is not one of

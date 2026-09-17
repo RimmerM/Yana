@@ -124,3 +124,22 @@ void deriveNewtypeInstances(Module& module, ast::Decl& decl);
 // and an exported declaration whose interface names a private type. Runs once the module's
 // signatures exist, since what it checks is what they resolved to.
 void checkModuleExports(Module& module);
+
+/*
+ * `@replaces fn` - Design-Replacements.md, and module_replace.cpp.
+ *
+ * `passFunctionSignatures` declares a replacement as an anonymous function under
+ * `replacementName` and queues it; `linkReplacements` attaches the queue to the module's baselines
+ * once every signature is in. A call reaches one through `unconditionedReplacement` - where it
+ * has no concrete bindings to ask a condition with - or `chooseReplacement`, where it does.
+ */
+bool writesReplaces(Module& module, ast::Decl& decl);
+
+// A member written `@replaces`, which §3.1 refuses - asked where each kind of member is read.
+void refuseMemberReplacement(Module& module, ast::Decl& member);
+StringId replacementName(Module& module, StringId baseline);
+void declareReplacement(Module& module, Function& function, ast::ParsePtr<ast::Decl> declaration);
+void linkReplacements(Module& module);
+ModulePtr<Function> unconditionedReplacement(Module& module, ModulePtr<Function> baseline);
+ModulePtr<Function> chooseReplacement(Module& from, ModulePtr<Function> baseline, TypeList& bindings,
+                                      LocationId source);

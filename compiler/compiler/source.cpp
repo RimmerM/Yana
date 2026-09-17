@@ -214,6 +214,9 @@ ast::Module* FileProvider::parse(SourceEntry& entry) {
     Parser parser(*context, lexer, entry.name);
     entry.ast = Ptr(new ast::Module(parser.parseModule()));
     entry.ast->test = entry.test;
+    if(entry.selectors.length) {
+        entry.ast->selectors = context->addQualifiedName(entry.selectors.ptr, entry.selectors.length);
+    }
 
     return entry.ast.get();
 }
@@ -313,6 +316,10 @@ static void mapFile(ModuleMap& map, U32 rootIndex, const String& file) {
      */
     auto isTest = false;
 
+    // Where the selector segments sit in `file` - after the base name's first dot and before the
+    // extension - as offsets, because what outlives this function is the copy of the path below.
+    Size selectorsFrom = 0, selectorsLength = 0;
+
     if(map.settings) {
         auto base = findLast(file, '/');
         if(!base) base = findLast(file, '\\');
@@ -320,6 +327,14 @@ static void mapFile(ModuleMap& map, U32 rootIndex, const String& file) {
 
         auto stem = file.text() + file.size() - extensionLength - 1;
         if(stem > base && !selectsFile(*map.settings, base, Size(stem - base), isTest)) return;
+
+        for(auto p = base; p < stem; p++) {
+            if(*p != '.') continue;
+
+            selectorsFrom = Size(p + 1 - file.text());
+            selectorsLength = Size(stem - p - 1);
+            break;
+        }
     }
 
     // Only compile files that are actually inside the root directory.
@@ -436,6 +451,7 @@ static void mapFile(ModuleMap& map, U32 rootIndex, const String& file) {
     });
 
     map.entries[map.entries.size() - 1].test = isTest;
+    map.entries[map.entries.size() - 1].selectors = StringView { pathBuffer + selectorsFrom, selectorsLength };
 }
 
 /*

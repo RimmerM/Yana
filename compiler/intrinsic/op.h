@@ -103,23 +103,6 @@ inline const OpDef& opDef(Op role) { return opTable[Size(role)]; }
 inline bool roleMayWriteBody(Op role) {
     switch(role) {
         case Op::newRun:
-
-        /*
-         * And the seven bulk operations, whose role *is* a choice between two library bodies: the
-         * shipping stage asks whether the element has a vector on this target - a question about a
-         * lane's stride and a register's width, which no constraint can carry, since the vector half
-         * needs a `Num(Vec(a))` the declaration cannot state - and instantiates the one that pays.
-         * The body written on the declaration is the element walk, which is the answer where the
-         * question comes out no, so a stage that does not make the choice runs the correct loop and
-         * loses only the vectorization.
-         */
-        case Op::bulkSum:
-        case Op::bulkProduct:
-        case Op::bulkMaximum:
-        case Op::bulkMinimum:
-        case Op::bulkOccurrences:
-        case Op::bulkIndexOf:
-        case Op::bulkItemsEqual:
             return true;
 
         default:

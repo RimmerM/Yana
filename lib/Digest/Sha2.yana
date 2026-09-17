@@ -143,6 +143,11 @@ fn smallSigma1(x: U32) -> U32 = ((x `ror` 17) `xor` (x `ror` 19)) `xor` (x `shr`
 fn sha2Choose(e: U32, f: U32, g: U32) -> U32 = g `xor` (e `and` (f `xor` g))
 fn sha2Majority(a: U32, b: U32, c: U32) -> U32 = (a `and` b) `or` (c `and` (a `or` b))
 
+-- A run of blocks, one compression each - the portable body every build resolves, which
+-- `ShaBlock.sha.avx2.yana` replaces where the instructions exist. See `sha1CompressBlocks`.
+pub fn sha256CompressBlocks(&h: [U32 *8], from: [U8], at: Size, blocks: Size):
+    for i in 0 .. blocks:
+        sha256Compress(h, from, at + i * 64)
 
 instance Block(Sha256State):
   fn compressBlocks(&self: Sha256State, from: [U8], at: Size, blocks: Size):

@@ -69,6 +69,7 @@ ModuleGroup* LibraryModules::find(Context& context, StringId name) {
         if(!ast) continue;
 
         ast->test = file.test;
+        ast->selectors = file.selectors;
 
         asts.push(ast);
         if(joinsModule(name, file, *ast)) group->files.push(ast);

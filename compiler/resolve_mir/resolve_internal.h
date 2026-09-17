@@ -2373,6 +2373,40 @@ struct Resolver {
     void declareFunction(ast::Decl& declaration, Size slot = kNoSignatureSlot);
 
     /*
+     * `@replaces fn` - Design-Replacements.md, and `resolve_replace.cpp`, where all of it is argued.
+     *
+     * A replacement is declared like any function and filed under no name: `declareReplacement`
+     * queues it, and `linkReplacements` attaches the queue to the baselines once every signature is
+     * in - so a replacement may be written above its baseline, or in another file of the module.
+     */
+    struct PendingReplacement {
+        DeclPtr<Function> function;
+        ast::Decl* declaration;
+        DeclPtr<Module> module;
+        U16 file;
+    };
+
+    Array<PendingReplacement> pendingReplacements;
+
+    void declareReplacement(DeclPtr<Function> function, ast::Decl& declaration);
+    void linkReplacements();
+    bool checkReplacementSignature(Function& baseline, Function& replacement, ast::Decl& written,
+                                   SmallArray<U8, 4>& variables, SmallArray<GenRequirement, 2>& extra);
+
+    // The body a call reaches in place of `callee`, or null where the baseline runs - see the
+    // definition. Asked by `finishCall` once the call is bound and checked against the baseline.
+    Node* chooseReplacement(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
+                            TypeArguments& typeArguments, LocationId source);
+
+    // The body a function *value* of `baseline` names - its unconditioned replacement, or itself.
+    DeclPtr<Function> replacementForValue(DeclPtr<Function> baseline);
+
+    // The group of files a module was read from, and which of them holds a written declaration -
+    // what a replacement's file selectors are read off.
+    ast::ModuleGroup* groupOf(DeclPtr<Module> module);
+    U16 fileHolding(DeclPtr<Module> module, const ast::Decl* declaration);
+
+    /*
      * The headers that name a **declaration path** - `f.Iter`, `f.Result` - and therefore have to
      * wait for every other declaration, Design-Iterator-Objects.md §2.4.
      *
@@ -2780,13 +2814,6 @@ struct Resolver {
     // the instance is the compiler's, null where it is anything else. See the definition.
     Node* expandProvidedCall(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
                              TypeArguments& typeArguments, LocationId source);
-
-    // The bulk-operation half of `finishCall`: the call of `lib/Core/Reduce.yana`'s *vector* body
-    // where this element has a vector on this target, null where it does not - and then the
-    // declaration's own body, which is the element walk, is what the call reaches. See the
-    // definition, where the choice and where the element comes from are argued.
-    Node* selectBulkBody(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
-                         TypeArguments& typeArguments, LocationId source);
 
     /*
      * A call of one class member the compiler reaches without a name - `Truth.truthy` for a

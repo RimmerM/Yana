@@ -65,16 +65,6 @@ Node* expandIntrinsic(Builder& builder, Context& context, intrinsic::Op op, Func
 bool opExpands(intrinsic::Op op);
 
 /*
- * Which library body the vector half of a bulk operation is - `known.def`'s `sumVectors` and its six
- * neighbours, keyed by the `op.def` row that chooses it.
- *
- * `intrinsic::Known::Count` for every role that is not one of the seven. The choice itself is
- * `Resolver::selectBulkBody`, which is at the call site because the question it asks - does this
- * element have a vector on this target - is about the target and the lane and not about the role.
- */
-intrinsic::Known bulkVectorRole(intrinsic::Op op);
-
-/*
  * expand_provided.cpp - the members of the instances the compiler generates, `provided.def`.
  *
  * Not `Op` roles: a provided member is reached through instance selection rather than through a

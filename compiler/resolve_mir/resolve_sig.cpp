@@ -1969,8 +1969,29 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      * declarations of one name, and everything below the resolver keys a function by a single name.
      * So the symbol is claimed once, at the moment the declaration exists, rather than worked out
      * later by whoever needed one - which is where two answers would come from.
+     *
+     * A replacement's symbol says what it is - `replaces$sum` - rather than taking the next number
+     * after its baseline's, so a dump reads the same whichever of the two was written first. The
+     * shipping stage names one the same way.
      */
-    function->symbol = program.uniqueSymbol(here(), context, stringView(context.findName(name)));
+    auto symbolText = String(context.findName(name));
+    for(auto attribute: declaration.attributes.contents(parse)) {
+        if(findAttribute(stringView(context.findName(attribute.name))) != DeclAttribute::Replaces) continue;
+
+        // A member is chosen by instance selection, and a second body of one would be a second
+        // answer to a question selection already answers - Design-Replacements.md §3.1. A member that
+        // wants one delegates to a plain function, which is what `Eq([a])` does through `itemsEqual`.
+        if(classContext || inherited) {
+            context.diagnostics.error("`@replaces` is for a plain function - a class or instance member is chosen by selection, so give it a body that calls a function, and replace that"_v,
+                                      attribute.source);
+            break;
+        }
+
+        symbolText = String("replaces$") + symbolText;
+        break;
+    }
+
+    function->symbol = program.uniqueSymbol(here(), context, StringView(symbolText.text(), symbolText.size()));
 
     /*
      * The signature's generic context - `gen.h`.
@@ -2694,6 +2715,26 @@ void Resolver::declareFunction(ast::Decl& declaration, Size slot) {
     // `Resolver::demandBody`, which is what an iterator object's payload needs of its producer.
     record(pointer, &declaration);
     recordDefinition(context, functionSymbol(decl(), pointer));
+
+    /*
+     * `@replaces fn` - another body of a function rather than a function, so it takes no name.
+     *
+     * Everything above is what any function gets, which is the point: its body is resolved in the
+     * same walk, against the same kind of signature. What it does not get is R1's key - a second plain
+     * function of one name and arity is what that key refuses, and a replacement is not a second
+     * function. `linkReplacements` attaches it to the one it replaces once every signature is in.
+     */
+    for(auto attribute: declaration.attributes.contents(parse)) {
+        if(findAttribute(stringView(context.findName(attribute.name))) != DeclAttribute::Replaces) continue;
+
+        if(attribute.args.isNotEmpty()) {
+            context.diagnostics.error("`@replaces` takes no arguments - what it replaces is the function of the same name"_v,
+                                      attribute.source);
+        }
+
+        declareReplacement(pointer, declaration);
+        return;
+    }
 
     // `@test`, which adds this declaration to the suite rather than setting a flag on it - see
     // resolve_test.cpp. Here rather than in `declareSignature`, for the reason the inferring result

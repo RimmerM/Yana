@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "module_internal.h"
 #include "inline.h"
 #include "caller.h"
 #include "solve.h"
@@ -2080,6 +2081,10 @@ ModulePtr<Value> ExprResolver::emitKnownFunction(ModulePtr<Function> callee, Buf
 // backend would have to inline again later.
 ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
                                               LocationId source, TypePtr, StringId resultName) {
+    // The body decided for the whole program, where this function has one - a direct call has no
+    // type arguments, so only a replacement with no extra constraint can stand in. It shares the
+    // signature, so everything below reads the same parameters either way.
+    callee = unconditionedReplacement(module, callee);
     auto function_ = local[callee];
 
     // An `=` callee whose result type its body decides has to have decided it before this call can
@@ -3338,6 +3343,12 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
     }
 
     if(!undecided) {
+        // Another body of this function, where one was read and its condition holds at these types -
+        // the arguments were converted against the baseline's signature, which is the replacement's
+        // too. See `chooseReplacement`.
+        callee = chooseReplacement(module, callee, bindings, source);
+        generic = local[callee];
+
         // A generic intrinsic has nothing to specialize: what it means is generated here from the
         // types the call decided, so there is no body to clone and no function to call. This is
         // what keeps a pointer dereference one load rather than a call per element access.

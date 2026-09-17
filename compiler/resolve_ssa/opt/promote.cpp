@@ -77,7 +77,7 @@
  * **This is the shape a grafted continuation leaves and it is most of what this pass is worth.** An
  * `iter fn`'s `for` keeps its outcome signal, its accumulator and its result in slots the
  * continuation was handed a borrow of; the inliner puts the body back but leaves the borrow, so
- * before this every one of those stayed in storage - `indexOfVectors` re-loaded and re-stored its
+ * before this every one of those stayed in storage - the vector `indexOf` re-loaded and re-stored its
  * flag, its running position and its `Maybe(Size)` on every iteration, which is also what kept
  * `lower_licm` from hoisting a loop-invariant load out of a loop that "writes storage" and
  * `threadBranches` from seeing a join that holds its branch and nothing else.

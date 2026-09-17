@@ -61,7 +61,7 @@ bb1:
 
 bb2(%1: Array(I32) [shared slot 0 view] guaranteed):
   %32: Array(I32) [shared slot 0 view] guaranteed from{%1, %4, %5} = load inspect %1
-  %33: I32 trivial = call sumVectors(Array(I32), I32) borrow %32
+  %33: I32 trivial = call replaces$sum(Array(I32), I32) borrow %32
   drop Array(I32) inspect %4
   drop Array(I32) inspect %5
   return consume %33
@@ -283,7 +283,7 @@ bb0(%0: throughALens.cont.env [unique call] guaranteed, %1: Array(I32) [shared c
   %2: %I32 address = field.addr .$leaving inspect %0
   %3: %I32 address = load inspect %2
   %4: Array(I32) [shared call view] guaranteed from{%1} = load inspect %1
-  %5: I32 trivial = call sumVectors(Array(I32), I32) borrow %4
+  %5: I32 trivial = call replaces$sum(Array(I32), I32) borrow %4
   store inspect %3 consume %5
   %6: I32 trivial = const 1
   return consume %6

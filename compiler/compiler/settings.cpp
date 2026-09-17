@@ -50,6 +50,7 @@ struct Flag {
         noIrOptimize,
         noChecks,
         checkLocations,
+        noReplacements,
         explainAll,
         noProject,
         test,
@@ -115,6 +116,7 @@ Flag flagTable[] = {
     { "no-ir-opt"_v, 0, Flag::noIrOptimize },
     { "no-checks"_v, 0, Flag::noChecks },
     { "check-locations"_v, 0, Flag::checkLocations },
+    { "no-replacements"_v, 0, Flag::noReplacements },
     { "explain-all"_v, 0, Flag::explainAll },
     { "no-project"_v, 0, Flag::noProject },
     { "test"_v, 0, Flag::test },
@@ -338,13 +340,13 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name, 
      * `-enable-inst v3` means "you may use this and everything below it".
      *
      * A level is a selector because a *declaration naming an instruction* has to be able to say
-     * which machines have it, and that is the same question `sha` answers below. What a level name
-     * must not be used for is choosing between two implementations of a portable operation: the
-     * compiler already selects instructions by level, and a source-level fork would be a second
-     * answer to that question with nothing keeping the two in step. The distinction is between
-     * "this name *is* an instruction" and "this name has a faster spelling on a better machine";
-     * only the first belongs here, and `lib/Native/Intrinsic/X86.yana` is the only file that has
-     * one.
+     * which machines have it, and that is the same question `sha` answers below. It may also select
+     * a **replacement** - Design-Replacements.md - which is a second body of one portable function,
+     * held to being observationally identical to the first. What a level must not select is a
+     * second *meaning*: a `@platform(v3)` pair of two functions under one name is a source-level
+     * fork of something the compiler already decides by level, with nothing keeping the two in
+     * step, and a replacement is what keeps them in step - its baseline is resolved on every build
+     * and `-no-replacements` runs the program without it.
      *
      * The aliases come from the same table `-enable-inst` reads, so a selector is spelled the way
      * the command line spells it. `avx` is deliberately not among them - it alone was Sandy Bridge,
@@ -364,32 +366,202 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name, 
      * The instruction-set extensions that are not a level - `sha` today, and see
      * `TargetExtensions::sha` for why it is not inside one.
      *
-     * **Two names per extension and not one, because a selector has no negation.** `sha` selects the
-     * declaration written over the instructions and `nosha` the one that stands in for it, and every
-     * target satisfies exactly one of the two - which makes them a partition of the same shape
-     * `js`/`native` is, and is what lets a *file* hold the hardware implementation. That matters
-     * more here than the spelling does: a build without the extension must not *resolve* a body
-     * naming instructions it cannot encode, and a body kept behind a compile-time `if` would still
-     * be resolved and would still reach a backend in a build with the IR optimizer off.
+     * **One name and no negation.** There used to be a `nosha` beside it, because a selector has no
+     * negation and the portable compression needed a file that only a build without the extension
+     * read. That is a replacement's job now - Design-Replacements.md: the portable body is the
+     * baseline every build resolves, and the hardware one replaces it where `sha` holds - so no
+     * extension needs a twin, and the portable half is compiled on the machines that have the
+     * instructions as well as on the ones that do not.
      *
-     * A JS build and a non-x86-64 one are `nosha`, on the same argument an operating system name
+     * A JS build and a non-x86-64 one do not have it, on the same argument an operating system name
      * makes above: what `sha` selects is written in terms of an x86 instruction, and a target with
      * no such instruction has no business compiling it.
      *
-     * **`sha` requires v3 as well as the extension**, which is not a claim about the hardware -
-     * Goldmont shipped SHA-NI with no AVX at all. It is a claim about `lib/Digest/Hardware.sha.yana`,
-     * which is a legacy-encoded region and therefore written in terms of `X86.vzeroupper()`: the
-     * reset is an AVX instruction, so the file needs both, and the part of the partition that says
-     * so is this line. A SHA-without-AVX target is `nosha` and takes the portable compression, which
-     * is the whole of what those parts give up.
+     * **The level is no longer folded in.** `lib/Digest/ShaBlock.sha.avx2.yana` needs AVX as well,
+     * for `X86.vzeroupper()`, and it says so in its own name; a declaration that needs only the
+     * extension is free to say only that. Goldmont shipped SHA-NI with no AVX at all.
      */
-    auto hasSha = !isJs && settings.arch == TargetArch::X64 && settings.extensions.sha
-               && settings.extensions.level >= TargetExtensions::V3;
-
-    if(name == "sha"_v) return answer(hasSha);
-    if(name == "nosha"_v) return answer(!hasSha);
+    if(name == "sha"_v) return answer(!isJs && settings.arch == TargetArch::X64 && settings.extensions.sha);
 
     return TargetSelector::Unknown;
+}
+
+/*
+ * What one name *is*, for the implication table below - the vocabulary's own facts, sorted.
+ *
+ * Each kind is read off the table `targetSelector` reads, so a selector added there is a selector
+ * this knows the kind of. `Level` carries its rank; every other kind is compared by name.
+ */
+enum class SelectorKind: U8 {
+    Platform,  // `js`, `native`
+    System,    // `linux`, `mac`, `win32`
+    Arch,      // `x64`, `x86`, `arm`, `arm64`
+    Level,     // `v2`..`v4` and their aliases
+    Extension, // `sha`
+    Other,     // `test`, and anything no table names
+};
+
+static SelectorKind selectorKind(StringView name, U8& rank) {
+    rank = 0;
+    if(name == "js"_v || name == "native"_v) return SelectorKind::Platform;
+
+    for(auto entry: targetTable) if(name == entry) return SelectorKind::System;
+    for(auto entry: archTable) if(name == entry) return SelectorKind::Arch;
+
+    for(auto& entry: levelTable) {
+        if(name != entry.name) continue;
+        rank = U8(entry.level);
+        return SelectorKind::Level;
+    }
+
+    if(name == "sha"_v) return SelectorKind::Extension;
+    return SelectorKind::Other;
+}
+
+/*
+ * Whether a build satisfying `p` always satisfies `q` - one written name against another.
+ *
+ * The table §3.5 lists, and nothing it does not: an operating system, an architecture, a level and an
+ * extension each imply `native`; a level implies the levels below it and `x64`; an extension implies
+ * `x64`, which is the architecture its instructions are. An alias is its level, so `avx2` and `v3`
+ * imply each other.
+ */
+static bool literalImplies(const SelectorLiteral& p, const SelectorLiteral& q) {
+    if(p.axis != q.axis) return false;
+    if(p.name == q.name) return true;
+    if(p.axis != SelectorAxis::Target) return false;
+
+    U8 pRank = 0, qRank = 0;
+    auto pKind = selectorKind(p.name, pRank);
+    auto qKind = selectorKind(q.name, qRank);
+
+    switch(qKind) {
+        case SelectorKind::Platform:
+            return q.name == "native"_v && pKind != SelectorKind::Platform && pKind != SelectorKind::Other;
+        case SelectorKind::Arch:
+            return q.name == "x64"_v && (pKind == SelectorKind::Level || pKind == SelectorKind::Extension);
+        case SelectorKind::Level:
+            return pKind == SelectorKind::Level && pRank >= qRank;
+        default:
+            return false;
+    }
+}
+
+/*
+ * Whether no build satisfies both - one written name against another.
+ *
+ * `js` against anything that implies `native`; two operating systems, two architectures, and a level
+ * or an extension against an architecture that is not `x64`; two allocator providers; the two resolve
+ * stages. Two different names on the allocator and resolve-stage axes are always disjoint, because
+ * each of those axes has exactly one answer per compilation.
+ */
+static bool literalsDisjoint(const SelectorLiteral& p, const SelectorLiteral& q) {
+    if(p.axis != q.axis) return false;
+    if(p.name == q.name) return false;
+    if(p.axis != SelectorAxis::Target) return true;
+
+    U8 pRank = 0, qRank = 0;
+    auto pKind = selectorKind(p.name, pRank);
+    auto qKind = selectorKind(q.name, qRank);
+
+    auto impliesNative = [](SelectorKind kind, StringView name) {
+        return kind == SelectorKind::System || kind == SelectorKind::Arch || kind == SelectorKind::Level
+            || kind == SelectorKind::Extension || name == "native"_v;
+    };
+
+    if(p.name == "js"_v) return impliesNative(qKind, q.name);
+    if(q.name == "js"_v) return impliesNative(pKind, p.name);
+
+    if(pKind == SelectorKind::System && qKind == SelectorKind::System) return true;
+    if(pKind == SelectorKind::Arch && qKind == SelectorKind::Arch) return true;
+
+    auto onX64 = [](SelectorKind kind) { return kind == SelectorKind::Level || kind == SelectorKind::Extension; };
+    if(onX64(pKind) && qKind == SelectorKind::Arch) return q.name != "x64"_v;
+    if(onX64(qKind) && pKind == SelectorKind::Arch) return p.name != "x64"_v;
+
+    return false;
+}
+
+void appendFileSelectors(SelectorCondition& into, StringView stem) {
+    auto provider = false;
+
+    for(Size i = 0, from = 0; i <= stem.length; i++) {
+        if(i < stem.length && stem.ptr[i] != '.') continue;
+
+        auto selector = StringView { stem.ptr + from, i - from };
+        from = i + 1;
+        if(!selector.length) continue;
+
+        // The walk `selectsFileName` makes, and the same routing: the segment after the marker is the
+        // allocator's, the two stage names are the resolve stage's, and everything else is a machine.
+        if(provider) {
+            into.add(into.addClause(), selector, SelectorAxis::Allocator);
+            provider = false;
+        } else if(selector == kAllocatorMarker) {
+            provider = true;
+        } else if(selector == "legacy"_v || selector == "ownership"_v) {
+            into.add(into.addClause(), selector, SelectorAxis::Resolver);
+        } else if(selector != "test"_v) {
+            into.add(into.addClause(), selector, SelectorAxis::Target);
+        }
+    }
+}
+
+/*
+ * Every clause of `q` is implied by some clause of `p`, where a clause implies another when each of
+ * its alternatives implies one of the other's. That is implication between conjunctions of
+ * disjunctions, decided clause by clause - sound, and complete for every condition the library
+ * writes, which is one name per clause.
+ */
+bool selectorsImply(const SelectorCondition& p, const SelectorCondition& q) {
+    for(U16 qc = 0; qc < q.clauses; qc++) {
+        auto implied = false;
+
+        for(U16 pc = 0; pc < p.clauses && !implied; pc++) {
+            auto every = false;
+
+            for(auto& a: p.literals) {
+                if(a.clause != pc) continue;
+
+                auto some = false;
+                for(auto& b: q.literals) some = some || (b.clause == qc && literalImplies(a, b));
+
+                every = some;
+                if(!some) break;
+            }
+
+            implied = every;
+        }
+
+        if(!implied) return false;
+    }
+
+    return true;
+}
+
+// Some clause of `p` and some clause of `q` whose every pair of alternatives is disjoint.
+bool selectorsDisjoint(const SelectorCondition& p, const SelectorCondition& q) {
+    for(U16 pc = 0; pc < p.clauses; pc++) {
+        for(U16 qc = 0; qc < q.clauses; qc++) {
+            auto every = true;
+            auto any = false;
+
+            for(auto& a: p.literals) {
+                if(a.clause != pc) continue;
+
+                for(auto& b: q.literals) {
+                    if(b.clause != qc) continue;
+
+                    any = true;
+                    every = every && literalsDisjoint(a, b);
+                }
+            }
+
+            if(any && every) return true;
+        }
+    }
+
+    return false;
 }
 
 /*
@@ -900,6 +1072,7 @@ How hard to try:
   -switch-form <f>      auto (default), chain, search or table - how a `match` dispatches
   -no-ir-opt            switch off the IR optimizer      -no-checks    emit no bounds checks
   -check-locations      inserted checks report their source location
+  -no-replacements      run every function's baseline body, never an @replaces one
 
 Which resolve stage:
   -resolver <r>         legacy (default), or ownership - the rewrite in compiler/resolve_mir
@@ -1214,6 +1387,9 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 return true;
             case Flag::checkLocations:
                 settings.checkLocations = true;
+                return true;
+            case Flag::noReplacements:
+                settings.noReplacements = true;
                 return true;
             case Flag::noChecks:
                 settings.checks = false;

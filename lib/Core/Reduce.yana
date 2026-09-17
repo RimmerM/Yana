@@ -5,36 +5,26 @@ import Native
    Design-Vector §4.3.
 
    Apart from `Container.yana`, which declares what a container *is*: nothing here is part of that
-   interface, and a container author writes none of it. Six operations, each one declaration and two
-   implementations, and the same shape six times over - which is what makes it worth reading on its
-   own and worth not reading at all while looking at the classes.
+   interface, and a container author writes none of it. Seven operations, each one declaration and
+   one replacement, and the same shape seven times over - which is what makes it worth reading on
+   its own and worth not reading at all while looking at the classes.
 
    This is where "idiomatic code is fast code" is delivered. `sum(xs)` over a container of a lane
    type is a vector loop; over a container of anything else it is the loop it always was; and the
    program that wrote it said neither. Every one of them is over `Chunked`, so every container in the
    language has them, and none of them mentions a vector in its signature.
 
-   **Each is one declaration and two implementations, and the declaration carries the scalar one.**
-   The declaration is the intrinsic: `expandBulk` in the shipping compiler picks the pair by asking
-   whether the element has a vector *on this target*, which is a question about the lane's stride and
-   the target's register width and so is not a question a constraint could carry - the vector half
-   needs a `Num(Vec(a))` or a `Bitwise(Mask(a))` no signature here can state. The two implementations
-   below are ordinary source and are the whole of what runs.
+   **Each is a baseline and an `@replaces` over it** - Design-Replacements.md. The baseline is the
+   element walk, and it is the whole of what the operation *means*: it is resolved on every build,
+   and `-no-replacements` runs every program on it. The replacement is the vector walk, and its
+   condition is the one constraint its signature adds - `Num(Vec(a))`, `Lanewise(Vec(a), Mask(a))`
+   or `Bitwise(Mask(a))`. Where the element has a vector on this target that constraint holds and the
+   vector body is chosen; where it does not - `[String]`, or `[Long]` on JavaScript, where `Vec(a)`
+   cannot be formed at all - the constraint fails, which is not an error but the answer, and the
+   baseline runs. That is the question the compiler used to answer with a role per operation and a
+   copy of the rule in each resolve stage; a constraint states it once.
 
-   The one-line body on each declaration is the element half - `roleMayWriteBody` in
-   `compiler/intrinsic/op.h`, where the rule that a role may carry the fallback beside it is written
-   down. It is what a stage that makes no choice runs, and it is also what the *ownership* stage's
-   "no vector for this element" answer **is**: that stage picks the vector half or leaves the call
-   alone, so the body is reached rather than dead there. In the shipping stage it is dead, because
-   that one names `...Elements` explicitly. Either way "no vector on this target" and "no compiler
-   that picks" are the same answer, said once.
-
-   **The vector half of each carries a `@builtin` role too**, and that is the ownership stage's half
-   of the same link: the shipping stage finds these seven bodies by name in Core, and a name outside
-   `compiler/intrinsic` is what a `known.def` row exists to replace. The rows are `Optional`, so a
-   library that deletes a vector half is one whose operation is the loop it always was.
-
-   The vector halves are written over `vectors` and `vectorsMasked` rather than over `loadVector`,
+   The vector bodies are written over `vectors` and `vectorsMasked` rather than over `loadVector`,
    which is what makes them four lines each: the protocol already walks the chunks, reads the tail
    under a mask and folds to one loop for a contiguous container. Which of the two an operation takes
    is decided by its identity - `+` and the counting ones take `vectors`, because the lanes past the
@@ -43,41 +33,10 @@ import Native
 
    `maximum` and `minimum` take the answer for an empty container as an argument rather than
    answering a `Maybe`. It is what a fold over a container of borrows can promise without copying an
-   element out of one, and it is what the vector half wants anyway: the seed is what the accumulator
+   element out of one, and it is what the vector body wants anyway: the seed is what the accumulator
    is splatted from and what the masked-off lanes hold.
 -}
-@builtin(bulkSum)
-pub fn (Chunked(c, a), Num(a)) sum(xs: c) -> a = sumElements(xs)
-
-@builtin(bulkProduct)
-pub fn (Chunked(c, a), Num(a)) product(xs: c) -> a = productElements(xs)
-
-@builtin(bulkMaximum)
-pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximum(xs: c, ifEmpty: a) -> a = maximumElements(xs, ifEmpty)
-
-@builtin(bulkMinimum)
-pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimum(xs: c, ifEmpty: a) -> a = minimumElements(xs, ifEmpty)
-
-@builtin(bulkOccurrences)
-pub fn (Chunked(c, a), Eq(a)) occurrences(xs: c, wanted: a) -> Int = occurrencesElements(xs, wanted)
-
-@builtin(bulkIndexOf)
-pub fn (Chunked(c, a), Eq(a)) indexOf(xs: c, wanted: a) -> Maybe(Size) = indexOfElements(xs, wanted)
-
--- Reached through `indexOf`, so it is one function rather than a seventh pair. A search that stops
--- at the first hit is what both halves of that one already are.
-pub fn (Chunked(c, a), Eq(a)) contains(xs: c, wanted: a) -> Bool = indexOf(xs, wanted) is Just(_)
-
-@builtin(sumVectors)
-fn (Chunked(c, a), Num(a), Num(Vec(a))) sumVectors(xs: c) -> a:
-    let &acc = zero() :: Vec(a)
-
-    for v in vectors(xs):
-        acc = acc + v
-
-    return horizontalSum(acc)
-
-fn (Chunked(c, a), Num(a)) sumElements(xs: c) -> a:
+pub fn (Chunked(c, a), Num(a)) sum(xs: c) -> a:
     let &acc = 0 :: a
 
     for v in items(xs):
@@ -85,8 +44,25 @@ fn (Chunked(c, a), Num(a)) sumElements(xs: c) -> a:
 
     return acc
 
-@builtin(productVectors)
-fn (Chunked(c, a), Num(a), Num(Vec(a))) productVectors(xs: c) -> a:
+@replaces
+fn (Chunked(c, a), Num(a), Num(Vec(a))) sum(xs: c) -> a:
+    let &acc = zero() :: Vec(a)
+
+    for v in vectors(xs):
+        acc = acc + v
+
+    return horizontalSum(acc)
+
+pub fn (Chunked(c, a), Num(a)) product(xs: c) -> a:
+    let &acc = 1 :: a
+
+    for v in items(xs):
+        acc = acc * v
+
+    return acc
+
+@replaces
+fn (Chunked(c, a), Num(a), Num(Vec(a))) product(xs: c) -> a:
     let ones = splat(1 :: a)
     let &acc = ones
 
@@ -95,24 +71,7 @@ fn (Chunked(c, a), Num(a), Num(Vec(a))) productVectors(xs: c) -> a:
 
     return horizontalProduct(acc)
 
-fn (Chunked(c, a), Num(a)) productElements(xs: c) -> a:
-    let &acc = 1 :: a
-
-    for v in items(xs):
-        acc = acc * v
-
-    return acc
-
-@builtin(maximumVectors)
-fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximumVectors(xs: c, ifEmpty: a) -> a:
-    let &acc = splat(ifEmpty)
-
-    for {v, live} in vectorsMasked(xs):
-        acc = max(acc, select(maskUpTo(live) :: Mask(a), v, acc))
-
-    return horizontalMax(acc)
-
-fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximumElements(xs: c, ifEmpty: a) -> a:
+pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximum(xs: c, ifEmpty: a) -> a:
     let &acc = ifEmpty
 
     for v in items(xs):
@@ -120,22 +79,31 @@ fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximumElements(xs: c, ifEmpty: a) ->
 
     return acc
 
-@builtin(minimumVectors)
-fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimumVectors(xs: c, ifEmpty: a) -> a:
+@replaces
+fn (Chunked(c, a), Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a))) maximum(xs: c, ifEmpty: a) -> a:
     let &acc = splat(ifEmpty)
 
     for {v, live} in vectorsMasked(xs):
-        acc = min(acc, select(maskUpTo(live) :: Mask(a), v, acc))
+        acc = max(acc, select(maskUpTo(live) :: Mask(a), v, acc))
 
-    return horizontalMin(acc)
+    return horizontalMax(acc)
 
-fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimumElements(xs: c, ifEmpty: a) -> a:
+pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimum(xs: c, ifEmpty: a) -> a:
     let &acc = ifEmpty
 
     for v in items(xs):
         if v < acc then acc = v
 
     return acc
+
+@replaces
+fn (Chunked(c, a), Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a))) minimum(xs: c, ifEmpty: a) -> a:
+    let &acc = splat(ifEmpty)
+
+    for {v, live} in vectorsMasked(xs):
+        acc = min(acc, select(maskUpTo(live) :: Mask(a), v, acc))
+
+    return horizontalMin(acc)
 
 {-
    Counting, where the mask is the answer rather than something applied to one: `count` on a mask is
@@ -144,8 +112,16 @@ fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimumElements(xs: c, ifEmpty: a) ->
    whatever `wanted` is not. That is not something this can rely on, so the masked form is what it
    takes and the live mask is what it counts against.
 -}
-@builtin(occurrencesVectors)
-fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) occurrencesVectors(xs: c, wanted: a) -> Int:
+pub fn (Chunked(c, a), Eq(a)) occurrences(xs: c, wanted: a) -> Int:
+    let &total = 0
+
+    for v in items(xs):
+        if v == wanted then total = total + 1
+
+    return total
+
+@replaces
+fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) occurrences(xs: c, wanted: a) -> Int:
     let sought = splat(wanted)
     let &total = 0
 
@@ -154,18 +130,10 @@ fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) occurrencesVectors(xs: c, wanted: a)
 
     return total
 
-fn (Chunked(c, a), Eq(a)) occurrencesElements(xs: c, wanted: a) -> Int:
-    let &total = 0
-
-    for v in items(xs):
-        if v == wanted then total = total + 1
-
-    return total
-
 {-
    The search, and the one operation here that leaves its loop early.
 
-   `firstSet` is what makes the vector half a search rather than a scan: it answers the lowest set
+   `firstSet` is what makes the vector body a search rather than a scan: it answers the lowest set
    lane of a mask in three instructions and with no branch, so the iteration that found the element
    is also the one that says where in it - and the running count of live lanes is the position of the
    vector, which is exactly what `vectorsMasked` hands over beside it.
@@ -176,30 +144,15 @@ fn (Chunked(c, a), Eq(a)) occurrencesElements(xs: c, wanted: a) -> Int:
    carried two counters and a second `add`, and every answer went through a `movslq` on the way out.
    At the same type they are one register. Measured on `test/bench/text`'s single-unit scan, which is
    this function under `String.findAscii`.
+
+   **The baseline is the one scalar walk in this file that is still an index loop.** Every other one
+   became `for v in items(xs)`, which is what the iteration protocol is for. This one answers *where*
+   rather than *what*, so the position is half the result - and `items` yields elements and not
+   positions. A counter beside the loop would work and would be the same two variables this already
+   has, spelled twice. `at` is what the vector body returns as well, so the two answer the same thing
+   in the same units.
 -}
-@builtin(indexOfVectors)
-fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) indexOfVectors(xs: c, wanted: a) -> Maybe(Size):
-    let sought = splat(wanted)
-    let &at = 0 :: Size
-
-    for {v, live} in vectorsMasked(xs):
-        let hits = and(v .== sought, maskUpTo(live) :: Mask(a))
-        if any(hits) then return Just(at + (firstSet(hits) :: Size))
-        at = at + (live :: Size)
-
-    return Nothing
-
-{-
-   The one scalar walk in this file that is still an index loop.
-
-   Every other one became `for v in items(xs)`, which is what the iteration protocol is for. This
-   one answers *where* rather than *what*, so the position is half the result - and `items` yields
-   elements and not positions. A counter beside the loop would work and would be the same two
-   variables this already has, spelled twice.
-
-   `at` is what the vector half returns as well, so the two answer the same thing in the same units.
--}
-fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
+pub fn (Chunked(c, a), Eq(a)) indexOf(xs: c, wanted: a) -> Maybe(Size):
     let &at = 0 :: Size
 
     for chunk in chunks(xs):
@@ -210,6 +163,22 @@ fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
         at = at + n
 
     return Nothing
+
+@replaces
+fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) indexOf(xs: c, wanted: a) -> Maybe(Size):
+    let sought = splat(wanted)
+    let &at = 0 :: Size
+
+    for {v, live} in vectorsMasked(xs):
+        let hits = and(v .== sought, maskUpTo(live) :: Mask(a))
+        if any(hits) then return Just(at + (firstSet(hits) :: Size))
+        at = at + (live :: Size)
+
+    return Nothing
+
+-- Reached through `indexOf`, so it is one function rather than an eighth pair. A search that stops
+-- at the first hit is what both bodies of that one already are.
+pub fn (Chunked(c, a), Eq(a)) contains(xs: c, wanted: a) -> Bool = indexOf(xs, wanted) is Just(_)
 
 {-
    ------------------------------------------------------------------------------------------
@@ -222,42 +191,35 @@ fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
    iterators to write; a contiguous window is what both sides of a comparison have to be reduced to
    before any of this can be a vector loop at all, and `elements` is what reduces them.
 
-   The two implementations are chosen the same way every other pair here is, by whether the element
-   has a vector on this target - so a `[U8]`, a `[I32]` or a `[Double]` is a register a turn and a
-   container of records is the loop it always was.
-
    **Equal lengths are the caller's**, not this function's: the `Eq` instances below it test that
    first, and what is compared here is `left`'s length in both windows. A comparison of two windows
    of different lengths is a question this has no answer for and does not ask.
 -}
-@builtin(bulkItemsEqual)
-pub fn (Eq(a)) itemsEqual(left: [a], right: [a]) -> Bool = itemsEqualElements(left, right)
+pub fn (Eq(a)) itemsEqual(left: [a], right: [a]) -> Bool:
+    let count = length(left)
+    for at in 0 .. count:
+        if left[at] != right[at] then return False
+
+    return True
 
 {-
    Natively this is `Native.compareMemory`, which is the vector walk with the element type taken out
    of it: whole registers under `all`, and one overreading compare for everything below a register.
    Both windows are storage the language allocated, so the tail read is Design-Vector §8's and is
    exactly what that guarantee is for. The `Ordering` it answers costs nothing here - the equal
-   answer is the path with no differing lane on it.
+   answer is the path with no differing lane on it. Its condition is the constraints that say the
+   element is a lane - a `[U8]`, a `[I32]` or a `[Double]` is a register a turn, and a container of
+   records is the loop it always was.
 
-   **On JS the vector half is the element walk**, and this is the one bulk operation where that is
-   the right answer rather than a missing implementation. A host vector is `lanes` values
-   (Design-Vector §7.2), so `loadVector` there builds a sixteen-element array per iteration and
-   `loadVectorTail` does sixteen clamped reads - work every one of the operations above has to do
-   anyway, because each of them visits the whole container. This one **stops at the first
-   difference**, so reading a register's worth ahead of the test is strictly more work than the walk
-   it would replace, and it allocates to do it.
+   **On JS there is no replacement**, and this is the one bulk operation where that is the right
+   answer rather than a missing implementation. A host vector is `lanes` values (Design-Vector
+   §7.2), so `loadVector` there builds a sixteen-element array per iteration and `loadVectorTail`
+   does sixteen clamped reads - work every one of the operations above has to do anyway, because each
+   of them visits the whole container. This one **stops at the first difference**, so reading a
+   register's worth ahead of the test is strictly more work than the walk it would replace, and it
+   allocates to do it. There used to be a JS declaration here whose whole body was a call of the
+   element walk; the baseline is that walk, so a JS build simply has nothing to choose.
 -}
-@builtin(itemsEqualVectors) @platform(native)
-fn (Eq(a), Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a))) itemsEqualVectors(left: [a], right: [a]) -> Bool =
+@replaces @platform(native)
+fn (Eq(a), Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a))) itemsEqual(left: [a], right: [a]) -> Bool =
     compareMemory(left.items, right.items, length(left)) == EQ
-
-@builtin(itemsEqualVectors) @platform(js)
-fn (Eq(a)) itemsEqualVectors(left: [a], right: [a]) -> Bool = itemsEqualElements(left, right)
-
-fn (Eq(a)) itemsEqualElements(left: [a], right: [a]) -> Bool:
-    let count = length(left)
-    for at in 0 .. count:
-        if left[at] != right[at] then return False
-
-    return True

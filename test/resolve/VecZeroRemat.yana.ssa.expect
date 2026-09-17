@@ -8,17 +8,17 @@ bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
   %5: %I32 address = alloc frame I32
   store inspect %2 borrow %1
   %6: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
-  %7: I32 trivial = call sumVectors(Array(I32), I32) borrow %6
+  %7: I32 trivial = call replaces$sum(Array(I32), I32) borrow %6
   store inspect %3 consume %7
   %8: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
   %9: I32 trivial = const 0
-  %10: I32 trivial = call maximumVectors(Array(I32), I32) borrow %8 borrow %9
+  %10: I32 trivial = call replaces$maximum(Array(I32), I32) borrow %8 borrow %9
   store inspect %4 consume %10
   %11: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
   %12: I32 trivial = load inspect %2
   %13: I32 trivial = const 255
   %14: I32 trivial = and inspect %12 inspect %13
-  %15: I32 trivial = call occurrencesVectors(Array(I32), I32) borrow %11 borrow %14
+  %15: I32 trivial = call replaces$occurrences(Array(I32), I32) borrow %11 borrow %14
   store inspect %5 consume %15
   %16: I32 trivial = load inspect %3
   %17: I32 trivial = load inspect %4

@@ -1275,8 +1275,8 @@ static void eachBuiltinRole(Module& module, const ast::Decl& decl, F&& body) {
  * silently.
  *
  * A role that may write a **body** is left alone, and that is the line: a body is the library
- * defining the operation, so its parameters mean to that body what they say. `newRun`, the seven
- * bulk walks and every `OpForm::Flow` operator are on that side.
+ * defining the operation, so its parameters mean to that body what they say. `newRun` and every
+ * `OpForm::Flow` operator are on that side.
  */
 static void takeRolePositionsPlain(Module& module, Function& function, intrinsic::Op role) {
     if(intrinsic::roleMayWriteBody(role)) return;

@@ -143,6 +143,15 @@ static bool pathFragment(Context& context, StringId name, char* buffer, Size siz
     return true;
 }
 
+// Where a file name's first selector segment begins - its base name's first dot, or the length.
+static Size findFirstDot(StringView stem) {
+    for(Size i = 0; i < stem.length; i++) {
+        if(stem.ptr[i] == '.') return i;
+    }
+
+    return stem.length;
+}
+
 /*
  * One directory of the library, and everything under it that could be a file of this module.
  *
@@ -234,7 +243,13 @@ static void walkModuleFiles(Context& context, LibrarySource& library, const Stri
         auto id = walk.context.addQualifiedName(name.text(), name.size());
 
         walk.library.record(id, formatPath("%@/%@"_v, walk.path, fileName));
-        walk.result.push(LibraryFile { id, walk.inDirectory, isTest });
+        // Copied by the interning, which matters here: `stem` is a view of `listDirectory`'s own
+        // buffer, and a name that borrowed it would read freed stack - see the note above.
+        auto dot = findFirstDot(stem);
+        auto selectors = dot < stem.length
+            ? walk.context.addQualifiedName(stem.ptr + dot + 1, stem.length - dot - 1) : StringId {};
+
+        walk.result.push(LibraryFile { id, walk.inDirectory, isTest, selectors });
     }, &walk);
 
     // After the listing rather than during it, since the callback is inside the directory handle.

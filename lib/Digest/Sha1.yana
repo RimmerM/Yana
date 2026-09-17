@@ -124,6 +124,18 @@ fn sha1Select(x: U32, y: U32, z: U32) -> U32 = z `xor` (x `and` (y `xor` z))
 fn sha1Parity(x: U32, y: U32, z: U32) -> U32 = (x `xor` y) `xor` z
 fn sha1Majority(x: U32, y: U32, z: U32) -> U32 = (x `and` y) `or` (z `and` (x `or` y))
 
+{-
+   A run of blocks, one compression each - the portable body, and the one every build resolves.
+
+   `ShaBlock.sha.avx2.yana` replaces it where the target has the SHA instructions and AVX, and that is
+   Design-Replacements.md's whole shape: this loop is not a fallback that only a build without the
+   extension reads, it is what the function *is*, and the hardware body is held to answering the same
+   digest. `-no-replacements` is what checks it.
+-}
+pub fn sha1CompressBlocks(&h: [U32 *5], from: [U8], at: Size, blocks: Size):
+    for i in 0 .. blocks:
+        sha1Compress(h, from, at + i * 64)
+
 instance Block(Sha1State):
   fn compressBlocks(&self: Sha1State, from: [U8], at: Size, blocks: Size):
       sha1CompressBlocks(self.h, from, at, blocks)

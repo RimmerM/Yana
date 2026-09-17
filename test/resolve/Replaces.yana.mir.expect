@@ -1,0 +1,288 @@
+module ResolveTest
+
+data Cents {Cents: I64}
+
+instance FromInt(Cents): Cents.fromInt
+
+instance Num(Cents): Cents.+, Cents.-, Cents.*, Cents./, Num.-
+
+fn Cents.fromInt(value: I64 [shared call]) -> Cents {
+bb0:
+  %0: I64 = read copy.trivial (value)
+  %1: I64 = convert inspect %0
+  %2: Cents = aggregate.Cents take %1
+  return take %2
+}
+
+fn Cents.+(lhs: Cents [shared call], rhs: Cents [shared call]) -> Cents {
+bb0:
+  %0: I64 = read copy.trivial (lhs.Cents)
+  %1: I64 = read copy.trivial (rhs.Cents)
+  %2: I64 = add inspect %0 inspect %1
+  %3: Cents = aggregate.Cents take %2
+  return take %3
+}
+
+fn Cents.-(lhs: Cents [shared call], rhs: Cents [shared call]) -> Cents {
+bb0:
+  %0: I64 = read copy.trivial (lhs.Cents)
+  %1: I64 = read copy.trivial (rhs.Cents)
+  %2: I64 = sub inspect %0 inspect %1
+  %3: Cents = aggregate.Cents take %2
+  return take %3
+}
+
+fn Cents.*(lhs: Cents [shared call], rhs: Cents [shared call]) -> Cents {
+bb0:
+  %0: I64 = read copy.trivial (lhs.Cents)
+  %1: I64 = read copy.trivial (rhs.Cents)
+  %2: I64 = mul inspect %0 inspect %1
+  %3: Cents = aggregate.Cents take %2
+  return take %3
+}
+
+fn Cents./(lhs: Cents [shared call], rhs: Cents [shared call]) -> Cents {
+bb0:
+  %0: I64 = read copy.trivial (lhs.Cents)
+  %1: I64 = read copy.trivial (rhs.Cents)
+  %2: I64 = div inspect %0 inspect %1
+  %3: Cents = aggregate.Cents take %2
+  return take %3
+}
+
+fn centsValue(c: Cents [shared call]) -> I64 {
+bb0:
+  %0: I64 = read copy.trivial (c.Cents)
+  return take %0
+}
+
+fn total(xs: Array(a) [shared call view]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+  local & acc: a
+  local v: a [shared call]
+
+bb0:
+  %0: I64 = const 0
+  %1: a = call fromInt(a) borrow.shared %0
+  write.init borrow.unique (acc) take %1
+  %3: Array(a) [shared call view] = read borrow.shared (xs) loan0
+  lens.call items(Array(a), a) borrow.shared %3 -> bb2
+
+bb1:
+  %12: a = read take (acc)
+  return take %12
+
+bb2(%4: a [shared call]) handover(a [shared call]) many -> bb1:
+  write.init borrow.unique (v) borrow.shared %4
+  %7: a [shared call] = read borrow.shared (acc) loan1
+  %8: a [shared call] = read borrow.shared (v) loan2 roots{0}
+  %9: a = call +(a) borrow.shared %7 borrow.shared %8
+  drop (acc)
+  write.reinit borrow.unique (acc) take %9
+  jump -> bb1
+}
+
+fn replaces$total(xs: Array(a) [shared call view]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+  slot #2 class Num(Vec(a))
+  local & acc: a
+  local v: a [shared call]
+
+bb0:
+  %0: I64 = const 1000
+  %1: a = call fromInt(a) borrow.shared %0
+  write.init borrow.unique (acc) take %1
+  %3: Array(a) [shared call view] = read borrow.shared (xs) loan0
+  lens.call items(Array(a), a) borrow.shared %3 -> bb2
+
+bb1:
+  %12: a = read take (acc)
+  return take %12
+
+bb2(%4: a [shared call]) handover(a [shared call]) many -> bb1:
+  write.init borrow.unique (v) borrow.shared %4
+  %7: a [shared call] = read borrow.shared (acc) loan1
+  %8: a [shared call] = read borrow.shared (v) loan2 roots{0}
+  %9: a = call +(a) borrow.shared %7 borrow.shared %8
+  drop (acc)
+  write.reinit borrow.unique (acc) take %9
+  jump -> bb1
+}
+
+fn which() -> I64 {
+bb0:
+  %0: I64 = const 1
+  return take %0
+}
+
+fn replaces$which() -> I64 {
+bb0:
+  %0: I64 = const 2
+  return take %0
+}
+
+fn replaces$which'2() -> I64 {
+bb0:
+  %0: I64 = const 3
+  return take %0
+}
+
+fn second(x: a [shared call], y: b [shared call]) -> b {
+  form specialized
+  slot #0 type b
+  slot #1 type a
+  slot #2 class Num(b)
+  local local2: b
+
+bb0:
+  %0: b [shared call] = read borrow.shared (y) loan0
+  %1: I64 = const 0
+  %2: b = call fromInt(b) borrow.shared %1
+  write.init borrow.unique (local2) take %2
+  %4: b [shared call] = read borrow.shared (local2) loan1
+  %5: b = call +(b) borrow.shared %0 borrow.shared %4
+  drop (local2)
+  return take %5
+}
+
+fn replaces$second(x: a [shared call], y: b [shared call]) -> b {
+  form specialized
+  slot #0 type b
+  slot #1 type a
+  slot #2 class Num(Vec(b))
+  slot #3 class Num(b)
+  local local2: b
+
+bb0:
+  %0: b [shared call] = read borrow.shared (y) loan0
+  %1: I64 = const 20
+  %2: b = call fromInt(b) borrow.shared %1
+  write.init borrow.unique (local2) take %2
+  %4: b [shared call] = read borrow.shared (local2) loan1
+  %5: b = call +(b) borrow.shared %0 borrow.shared %4
+  drop (local2)
+  return take %5
+}
+
+fn replaces$late(n: I64 [shared call]) -> I64 {
+bb0:
+  %0: I64 = read copy.trivial (n)
+  %1: I64 = const 2
+  %2: I64 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn late(n: I64 [shared call]) -> I64 {
+bb0:
+  %0: I64 = read copy.trivial (n)
+  return take %0
+}
+
+fn main() -> I64 {
+  local & local0: Array(I32) object1
+  local local1: Array(I32) object1
+  local wide: I32
+  local narrow: I64
+  local named: I64
+  local value: () -> I64 [owned here shape8 .0=unique call]
+  local called: I64
+  local swapped: I64
+  local unswapped: I64
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: I32 = const 3
+  %3: %I32 = run.slots I32 *3
+  %4: Size = bitcast inspect %3
+  %5: Size = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  %7: {} = call checkCondition borrow.shared %6
+  %8: @bits(30) U32 = const 3
+  %9: @bits(2) U32 = const 1
+  %10: Run(I32) = aggregate.Run take %3 take %8 take %9
+  %11: @bits(30) U32 = const 3
+  %12: Array(I32) = aggregate.Array take %10 take %11
+  write.init borrow.unique (local0) take %12
+  %14: Size = const 0
+  write.init borrow.unique ([%%3][0]) take %0
+  %16: Size = const 1
+  write.init borrow.unique ([%%3][1]) take %1
+  %18: Size = const 2
+  write.init borrow.unique ([%%3][2]) take %2
+  %20: Array(I32) = read take (local0)
+  write.init borrow.unique (local1) take %20
+  %22: Array(I32) [shared slot 0] = read borrow.shared (local1) loan0
+  %23: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %22 roots{0}
+  %24: I32 = call replaces$total(I32) borrow.shared %23
+  drop (local1)
+  write.init borrow.unique (wide) take %24
+  %26: I64 = const 4
+  %27: Cents = aggregate.Cents take %26
+  %28: I64 = const 5
+  %29: Cents = aggregate.Cents take %28
+  %30: [Cents *2] = aggregate.0 take %27 take %29
+  %31: Array(Cents) [shared slot 0 view] = call.derivation elements([Cents *2], Cents) borrow.shared %30
+  %32: Cents = call total(Cents) borrow.shared %31
+  %33: I64 = call centsValue borrow.shared %32
+  write.init borrow.unique (narrow) take %33
+  %35: I64 = call replaces$which'2
+  write.init borrow.unique (named) take %35
+  %37: () -> I64 [owned here shape8 .0=unique call] = fun.value replaces$which'2
+  write.init borrow.unique (value) take %37
+  %39: () -> I64 [shared call shape8 .0=unique call] = read borrow.shared (value) loan1
+  %40: I64 = call inspect %39
+  write.init borrow.unique (called) take %40
+  %42: Bool = const True
+  %43: I64 = const 5
+  %44: I64 = call replaces$second(I64, Bool) borrow.shared %42 borrow.shared %43
+  write.init borrow.unique (swapped) take %44
+  %46: Bool = const True
+  %47: I64 = const 7
+  %48: Cents = aggregate.Cents take %47
+  %49: Cents = call second(Cents, Bool) borrow.shared %46 borrow.shared %48
+  %50: I64 = call centsValue borrow.shared %49
+  write.init borrow.unique (unswapped) take %50
+  %52: I32 = read copy.trivial (wide)
+  %53: I64 = read copy.trivial (narrow)
+  %54: I64 = const 10
+  %55: I64 = mul inspect %53 inspect %54
+  %56: I64 = convert inspect %52
+  %57: I64 = add inspect %56 inspect %55
+  %58: I64 = read copy.trivial (named)
+  %59: I64 = const 100
+  %60: I64 = mul inspect %58 inspect %59
+  %61: I64 = add inspect %57 inspect %60
+  %62: I64 = read copy.trivial (called)
+  %63: I64 = const 1000
+  %64: I64 = mul inspect %62 inspect %63
+  %65: I64 = add inspect %61 inspect %64
+  %66: I64 = read copy.trivial (swapped)
+  %67: I64 = const 10000
+  %68: I64 = mul inspect %66 inspect %67
+  %69: I64 = add inspect %65 inspect %68
+  %70: I64 = read copy.trivial (unswapped)
+  %71: I64 = const 1000000
+  %72: I64 = mul inspect %70 inspect %71
+  %73: I64 = add inspect %69 inspect %72
+  %74: I64 = const 1
+  %75: I64 = call replaces$late borrow.shared %74
+  %76: I64 = const 100000000
+  %77: I64 = mul inspect %75 inspect %76
+  %78: I64 = add inspect %73 inspect %77
+  return take %78
+}
+
+fn replaces$total(I32)(xs: Array(I32) [shared call view]) -> I32 = <total at I32>
+
+fn total(Cents)(xs: Array(Cents) [shared call view]) -> Cents = <total at Cents>
+
+fn replaces$second(I64, Bool)(x: Bool [shared call], y: I64 [shared call]) -> I64 = <second at I64, Bool>
+
+fn second(Cents, Bool)(x: Bool [shared call], y: Cents [shared call]) -> Cents = <second at Cents, Bool>
+
+entry main

@@ -2118,7 +2118,7 @@ bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction&
              * nothing reads is exactly as dead as an addition nothing reads - and until this was
              * here, nothing removed one: the sweep below walks `instructions`, and a phi is not in
              * that list (see LowerBlock::addInst). What that cost is the *operands*, which stay
-             * alive as long as the phi naming them does. `indexOfVectors` in Core is the shape - the
+             * alive as long as the phi naming them does. the vector `indexOf` in Core is the shape - the
              * position an early `return Just(..)` would have handed back is joined with the one the
              * exhausted-scan path computes, and on the path that returns `Nothing` the join is read
              * by nobody, so the addition feeding it was written out on every no-match tail.

@@ -46,7 +46,7 @@ growArray(I32)<complex>(%self: Ptr, %wanted: I64) {
   }
 }
 
-sumVectors(ArrayView(I32), I32)<complex>(%xs$items: Ptr, %xs$length: I64): I32 {
+replaces$sum(ArrayView(I32), I32)<complex>(%xs$items: Ptr, %xs$length: I64): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
     %v_2 = imm 4: I64
@@ -728,7 +728,7 @@ chosen<complex>(%fromFrame: I32): I32 {
     %xs$items = load %window, 8: Ptr
     %v_15 = add %window, 8: Ptr
     %xs$length = loads %v_15, 8: I64
-    %v_16 = call_complex sumVectors(ArrayView(I32), I32), %xs$items, %xs$length: I32
+    %v_16 = call_complex replaces$sum(ArrayView(I32), I32), %xs$items, %xs$length: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %xs
     ret %v_16
   }
@@ -847,7 +847,7 @@ ResolveTest.continuation$23<complex>(%env: Ptr, %value$: Ptr): I32 {
     %xs$items = load %value$, 8: Ptr
     %v_1 = add %value$, 8: Ptr
     %xs$length = loads %v_1, 8: I64
-    %v_2 = call_complex sumVectors(ArrayView(I32), I32), %xs$items, %xs$length: I32
+    %v_2 = call_complex replaces$sum(ArrayView(I32), I32), %xs$items, %xs$length: I32
     ret %v_2
   }
 }

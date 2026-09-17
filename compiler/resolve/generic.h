@@ -120,6 +120,12 @@ void fillDetermined(Module& module, GenEnv& env, TypeList& bindings, LocationId 
 // needs, and `class (FromInt(a)) Num(a)` is what connects them.
 bool provesClass(Module& module, const GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
 
+// The same question of one requirement rather than of a context: whether holding `have(haveArgs)`
+// gives `want(wantArgs)`, directly or through superclasses. What orders two replacements whose extra
+// constraints differ - see module_replace.cpp.
+bool classEntails(Module& module, GlobalPtr<TypeClass> have, Buffer<TypePtr> haveArgs,
+                  GlobalPtr<TypeClass> want, Buffer<TypePtr> wantArgs);
+
 /*
  * Where a body finds the witness for one class requirement, as emitted code reaches it: the
  * environment slot holding a witness, and the superclasses to step through from there.

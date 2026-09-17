@@ -279,6 +279,7 @@ void resolveClassSignatures(Module& module, TypeClass& typeClass) {
             module.context.diagnostics.error("a class function requires an explicit return type"_v, member.source);
         }
 
+        refuseMemberReplacement(module, member);
         auto signature = resolveSignature(module, member, env, member.fun.name, true, true);
         signature->instanceOf = (TypeClass*)&typeClass - *module.types;
         signature->signature = true;
@@ -1173,6 +1174,7 @@ void resolveInstance(Module& module, ast::Decl& decl) {
         }
 
         function->ast = memberPointer;
+        refuseMemberReplacement(module, member);
         readInlineAttribute(module, member, *function);
         readFrequencyAttributes(module, member, *function);
         instance->functions.set(*module.arena, index, function - *module.arena);

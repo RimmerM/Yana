@@ -551,7 +551,7 @@ fn Eq(Array(a)).==(I32)(%self: ArrayView(I32), %other: ArrayView(I32)) -> Bool {
     je %v5, b1, b2
 
   b1:
-    %v7 = call itemsEqualVectors(I32), %self, %other : Bool
+    %v7 = call replaces$itemsEqual(I32), %self, %other : Bool
     jmp b3
 
   b2:
@@ -562,7 +562,7 @@ fn Eq(Array(a)).==(I32)(%self: ArrayView(I32), %other: ArrayView(I32)) -> Bool {
     ret %v2
 }
 
-fn itemsEqualVectors(I32)(%left: ArrayView(I32), %right: ArrayView(I32)) -> Bool {
+fn replaces$itemsEqual(I32)(%left: ArrayView(I32), %right: ArrayView(I32)) -> Bool {
   b0:
     %v2 = load %left@ArrayView.items : %I32
     %v3 = load %right@ArrayView.items : %I32

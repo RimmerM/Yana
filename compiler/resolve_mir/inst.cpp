@@ -1070,6 +1070,7 @@ StringView attributeName(DeclAttribute attribute) {
         case DeclAttribute::Heap:         return "heap"_v;
         case DeclAttribute::Cold:         return "cold"_v;
         case DeclAttribute::Hot:          return "hot"_v;
+        case DeclAttribute::Replaces:     return "replaces"_v;
         case DeclAttribute::Count:        break;
     }
 

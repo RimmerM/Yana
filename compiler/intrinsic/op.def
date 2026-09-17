@@ -590,33 +590,6 @@ YANA_INTRINSIC_OP( maskFirstSet, OpForm::Node, integerAt(), anyAt()     )
 YANA_INTRINSIC_OP( maskUpTo,     OpForm::Node, anyAt(),     integerAt() )
 
 /*
- * The bulk operations - `lib/Core/Reduce.yana`, Implementation-Vector.md §9 items 6 and 7.
- *
- * The one group here whose expansion is neither an instruction nor a node: each of these is a
- * *choice between two ordinary library functions*, made where the call is, because whether the
- * element has a vector on this target is a question about the target's vector configuration and the
- * lane's stride rather than about anything a constraint could carry. `Vec(U8)` exists everywhere,
- * `Vec(Long)` natively and not on JS, `Vec(String)` nowhere - so a class would have to be
- * instantiated per target, which `@platform` does for declarations and cannot do for this.
- *
- * The shape therefore says almost nothing, and correctly: what the emitter depends on is the two
- * bodies existing, which is a fact about `Reduce.yana` and not about a position. The container is a
- * `Chunked(c, a)` and what that admits is the constraint's business.
- *
- * **Each declaration carries the element half as a body** - `roleMayWriteBody`, `newRun` above for
- * the same relationship. A choice is what the expansion is, so a stage that does not make one still
- * has an answer, and it is the answer this call would have got on a target with no vector for the
- * element. Dead in any stage that expands.
- */
-YANA_INTRINSIC_OP( bulkSum,         OpForm::Node, anyAt(),     valueAt()            )
-YANA_INTRINSIC_OP( bulkProduct,     OpForm::Node, anyAt(),     valueAt()            )
-YANA_INTRINSIC_OP( bulkMaximum,     OpForm::Node, anyAt(),     valueAt(), valueAt() )
-YANA_INTRINSIC_OP( bulkMinimum,     OpForm::Node, anyAt(),     valueAt(), valueAt() )
-YANA_INTRINSIC_OP( bulkOccurrences, OpForm::Node, integerAt(), valueAt(), valueAt() )
-YANA_INTRINSIC_OP( bulkIndexOf,     OpForm::Node, anyAt(),     valueAt(), valueAt() )
-YANA_INTRINSIC_OP( bulkItemsEqual,  OpForm::Node, boolAt(),    valueAt(), valueAt() )
-
-/*
  * The CPU instructions this architecture has and nothing synthesizes -
  * `lib/Native/Intrinsic/X86.yana`, Implementation-Vector.md's CPU intrinsics file.
  *

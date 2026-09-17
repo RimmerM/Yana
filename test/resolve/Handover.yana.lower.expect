@@ -7,7 +7,7 @@ teardown$none<complex>(%value: Ptr) {
   }
 }
 
-sumVectors(ArrayView(I32), I32)<complex>(%xs$items: Ptr, %xs$length: I64): I32 {
+replaces$sum(ArrayView(I32), I32)<complex>(%xs$items: Ptr, %xs$length: I64): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
     %v_2 = imm 4: I64
@@ -230,7 +230,7 @@ ResolveTest.continuation$22<complex>(%env: Ptr, %value$: Ptr): I32 {
     store %v_6, 10, 4
     %xs$items = load %value$, 8: Ptr
     %xs$length = loads %v_1, 8: I64
-    %v_7 = call_complex sumVectors(ArrayView(I32), I32), %xs$items, %xs$length: I32
+    %v_7 = call_complex replaces$sum(ArrayView(I32), I32), %xs$items, %xs$length: I32
     ret %v_7
   }
 
@@ -245,7 +245,7 @@ ResolveTest.continuation$23<complex>(%env: Ptr, %value$: Ptr): I32 {
     %xs$items = load %value$, 8: Ptr
     %v_1 = add %value$, 8: Ptr
     %xs$length = loads %v_1, 8: I64
-    %v_2 = call_complex sumVectors(ArrayView(I32), I32), %xs$items, %xs$length: I32
+    %v_2 = call_complex replaces$sum(ArrayView(I32), I32), %xs$items, %xs$length: I32
     ret %v_2
   }
 }

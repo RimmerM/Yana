@@ -130,6 +130,9 @@ static void completeInstance(Module& module, RecordType& instance) {
     auto declaration = (RecordType*)global[instance.instanceOf];
     if(!declaration->definitionReady || instance.definitionReady) return;
 
+    // Kept and reused, so its mistakes are reported even under a silent question - see `Heard`.
+    Diagnostics::Heard heard(module.context.diagnostics);
+
     TypeList args;
     for(auto arg: instance.instanceArgs.contents(global)) args.push(arg);
 

@@ -13,7 +13,7 @@ main<complex>(): I32 {
     store %v_5, 3, 4
     %v_6 = add %v_2, 12: Ptr
     store %v_6, 4, 4
-    %v_7 = call_complex sumVectors(Array(I32), I32), %v_2, 4: I32
+    %v_7 = call_complex replaces$sum(Array(I32), I32), %v_2, 4: I32
     %v_8 = load %v_1, 4: I32
     call_complex Array(a).reclaim(I32), %v_3, %v_8, 4
     %v_9 = alloca 4, 8: Ptr
@@ -29,7 +29,7 @@ main<complex>(): I32 {
     store %v_14, 4, 4
     %v_15 = imm 4: I64
     store %v_10, 10, 4
-    %v_16 = call_complex sumVectors(Array(I32), I32), %v_10, %v_15: I32
+    %v_16 = call_complex replaces$sum(Array(I32), I32), %v_10, %v_15: I32
     %v_17 = vsplat 0: i32x4
     jmp b_18
   }
@@ -79,7 +79,7 @@ main<complex>(): I32 {
     %v_49 = loads %v_45, 4: I32
     %v_50 = add %v_49, 1: I32
     store %v_45, %v_50, 4
-    %v_51 = call_complex sumVectors(Array(I32), I32), %v_45, 3: I32
+    %v_51 = call_complex replaces$sum(Array(I32), I32), %v_45, 3: I32
     %v_52 = load %v_44, 4: I32
     call_complex Array(a).reclaim(I32), %v_46, %v_52, 3
     %v_53 = add %v_43, %v_51: I32
@@ -118,7 +118,7 @@ Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
   }
 }
 
-sumVectors(Array(I32), I32)<complex>(%xs$items: Ptr, %xs$length: I64): I32 {
+replaces$sum(Array(I32), I32)<complex>(%xs$items: Ptr, %xs$length: I64): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
     %v_2 = imm 4: I64

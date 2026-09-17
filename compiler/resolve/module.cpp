@@ -70,7 +70,7 @@ ast::ParsePtr<ast::Decl> declAt(ast::DeclList decls, Size index) {
  * **The vocabulary is the file selector's**, which is the same question asked of a declaration
  * instead of a file - Analysis-Modules.md §2.5. `js` and `native` are the platform axis, an
  * operating system (`linux`, `mac`, `win32`) or an architecture (`x64`, `x86`, `arm`, `arm64`) name
- * the other two, spelled the way `-target` and `-arch` spell them, and the `sha`/`nosha` pair names
+ * the other two, spelled the way `-target` and `-arch` spell them, and `sha` names
  * an extension no level implies. `targetSelector` is the one place any of that is decided, so an
  * attribute and a file name can never disagree about what a target is called, and `Linux.x64.yana`'s
  * statement can be made about a single declaration in a file that is otherwise portable.
@@ -171,7 +171,7 @@ static bool platformEnabled(Module& module, const ast::Decl& decl, bool report =
 
             if(answer == TargetSelector::Unknown) {
                 if(report) {
-                    context.diagnostics.error("unknown target %@ - expected `js`, `native`, an operating system (`linux`, `mac`, `win32`), an architecture (`x64`, `x86`, `arm`, `arm64`), an x86-64 level (`v2`, `v3`, `v4`) or an instruction-set extension (`sha`, `nosha`)"_v,
+                    context.diagnostics.error("unknown target %@ - expected `js`, `native`, an operating system (`linux`, `mac`, `win32`), an architecture (`x64`, `x86`, `arm`, `arm64`), an x86-64 level (`v2`, `v3`, `v4`) or an instruction-set extension (`sha`)"_v,
                                               arg.value.source, name);
                 }
 
@@ -520,7 +520,14 @@ static void passFunctionSignatures(Module& module, ast::Module& ast) {
         // body does not have to prove. The context is dropped again when nothing used it.
         auto env = prepareGenEnv(module, GenEnv::Function, {}, decl.fun.constraints, true);
 
-        auto function = resolveSignature(module, decl, (*module.types)[env], decl.fun.name, false);
+        /*
+         * `@replaces fn` - another body of a function, so an anonymous function with a name of its
+         * own that nothing looks up. See module_replace.cpp.
+         */
+        auto replaces = writesReplaces(module, decl);
+        auto name = replaces ? replacementName(module, decl.fun.name) : decl.fun.name;
+
+        auto function = resolveSignature(module, decl, (*module.types)[env], name, replaces);
         function->ast = pointer;
         function->exported = decl.exported;
         readInlineAttribute(module, decl, *function);
@@ -534,19 +541,23 @@ static void passFunctionSignatures(Module& module, ast::Module& ast) {
         readConventionAttribute(module, decl, *function);
         readLegacySseAttribute(module, decl, *function);
 
+        // A replacement claims no role, joins no suite and names no namespace - its baseline does
+        // all three, and `linkReplacements` refuses the attributes that would say otherwise.
+        if(replaces) declareReplacement(module, *function, pointer);
+
         // The role this signature claims, if any - `Program::operations`. Here rather than in the
         // declare pass because a function has no `Function` until its signature is resolved, and
         // here rather than at the attach sites because what a role binds is a *declaration* and the
         // attribute is written on one.
-        readIntrinsicRole(module, decl, *function);
+        if(!replaces) readIntrinsicRole(module, decl, *function);
 
         // Plain declarations only, on the same terms: what a class member is called through is the
         // class signature, and a runner has nothing to select an instance with.
-        readTestAttribute(module, decl, *function);
+        if(!replaces) readTestAttribute(module, decl, *function);
 
         // Here rather than in the declare pass, because a prefix that names a type is only
         // answerable once every type of the module exists - see registerNamespace.
-        registerNamespace(module, decl.fun.name, decl.source);
+        if(!replaces) registerNamespace(module, decl.fun.name, decl.source);
 
         auto& context = *(*module.types)[env];
 
@@ -820,6 +831,7 @@ void definePrelude(Program& program) {
     for(auto module: prelude) passClassSignatures(*module);
 
     for(auto module: prelude) eachFile(*module, passFunctionSignatures);
+    for(auto module: prelude) linkReplacements(*module);
 
     // The third hook, in the dependency order the six modules used to stand in. Before
     // `passInstances` rather than after it, because `deriving` forwards to an instance: the
@@ -1052,6 +1064,7 @@ void resolveProgramDecls(Program& program, ModuleProvider* provider) {
     for(auto module: order) passClassSignatures(*module);
 
     for(auto module: order) eachFile(*module, passFunctionSignatures);
+    for(auto module: order) linkReplacements(*module);
     for(auto module: order) eachFile(*module, passInstances);
 
     for(auto module: order) checkModuleTopLevel(*module);

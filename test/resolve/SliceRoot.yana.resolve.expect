@@ -1,16 +1,16 @@
-table closure$Core.continuation$10(ArrayView(I32), I32) before Core.continuation$10(ArrayView(I32), I32) {
+table closure$Core.continuation$5(ArrayView(I32), I32) before Core.continuation$5(ArrayView(I32), I32) {
   .0 teardown$none
 }
 
-table closure$Core.continuation$11(ArrayView(I32), I32, ()) before Core.continuation$11(ArrayView(I32), I32, ()) {
+table closure$Core.continuation$6(ArrayView(I32), I32, ()) before Core.continuation$6(ArrayView(I32), I32, ()) {
   .0 teardown$none
 }
 
-table closure$Core.continuation$14(ArrayView(I32), I32) before Core.continuation$14(ArrayView(I32), I32) {
+table closure$Core.continuation$11(ArrayView(I32), I32) before Core.continuation$11(ArrayView(I32), I32) {
   .0 teardown$none
 }
 
-table closure$Core.continuation$13(ArrayView(I32), I32, ()) before Core.continuation$13(ArrayView(I32), I32, ()) {
+table closure$Core.continuation$9(ArrayView(I32), I32, ()) before Core.continuation$9(ArrayView(I32), I32, ()) {
   .0 teardown$none
 }
 
@@ -270,7 +270,7 @@ fn slice(I32)(%self: ArrayView(I32), %from: Size, %to: Size) -> ArrayView(I32) {
     ret %v39
 }
 
-fn sumVectors(ArrayView(I32), I32)(%xs: ArrayView(I32)) -> I32 {
+fn replaces$sum(ArrayView(I32), I32)(%xs: ArrayView(I32)) -> I32 {
   b0:
     %v2 = vsplat 0 : Vec(I32)
     %acc = alloc : Vec(I32)
@@ -280,7 +280,7 @@ fn sumVectors(ArrayView(I32), I32)(%xs: ArrayView(I32)) -> I32 {
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: Vec(I32)) -> Outcome((), ())
-    %v10 = symbol Core.continuation$10(ArrayView(I32), I32) : %()
+    %v10 = symbol Core.continuation$5(ArrayView(I32), I32) : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = call vectors(ArrayView(I32), I32, ()), %xs, %v9 : Outcome((), ())
@@ -289,7 +289,7 @@ fn sumVectors(ArrayView(I32), I32)(%xs: ArrayView(I32)) -> I32 {
     ret %v15
 }
 
-fn Core.continuation$10(ArrayView(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: Vec(I32)) -> Outcome((), ()) {
+fn Core.continuation$5(ArrayView(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: Vec(I32)) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].acc : &Vec(I32)
     %v3 = load [%env].acc : &Vec(I32)
@@ -312,7 +312,7 @@ fn vectors(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: Vec(I
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
     %v12 = alloc : (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))
-    %v13 = symbol Core.continuation$11(ArrayView(I32), I32, ()) : %()
+    %v13 = symbol Core.continuation$6(ArrayView(I32), I32, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = call Chunked(Array(a), a).chunks(I32, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
@@ -330,7 +330,7 @@ fn vectors(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: Vec(I
     ret %v23
 }
 
-fn Core.continuation$11(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$6(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@ArrayView.length : Size
     %v3 = load [%env].width : Size
@@ -448,7 +448,7 @@ fn Chunked(Array(a), a).chunks(I32, Outcome((), ()))(%self: ArrayView(I32), %bod
     ret %v8
 }
 
-fn maximumVectors(ArrayView(I32), I32)(%xs: ArrayView(I32), %ifEmpty: I32) -> I32 {
+fn replaces$maximum(ArrayView(I32), I32)(%xs: ArrayView(I32), %ifEmpty: I32) -> I32 {
   b0:
     %v2 = vsplat %ifEmpty : Vec(I32)
     %acc = alloc : Vec(I32)
@@ -458,7 +458,7 @@ fn maximumVectors(ArrayView(I32), I32)(%xs: ArrayView(I32), %ifEmpty: I32) -> I3
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: {Vec(I32), I32}) -> Outcome((), ())
-    %v10 = symbol Core.continuation$14(ArrayView(I32), I32) : %()
+    %v10 = symbol Core.continuation$11(ArrayView(I32), I32) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call vectorsMasked(ArrayView(I32), I32, ()), %xs, %v9 : Outcome((), ())
@@ -467,7 +467,7 @@ fn maximumVectors(ArrayView(I32), I32)(%xs: ArrayView(I32), %ifEmpty: I32) -> I3
     ret %v15
 }
 
-fn Core.continuation$14(ArrayView(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}) -> Outcome((), ()) {
+fn Core.continuation$11(ArrayView(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}) -> Outcome((), ()) {
   b0:
     %v = load %value$.0 : Vec(I32)
     %live = load %value$.1 : I32
@@ -502,7 +502,7 @@ fn vectorsMasked(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$:
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))
-    %v12 = symbol Core.continuation$13(ArrayView(I32), I32, ()) : %()
+    %v12 = symbol Core.continuation$9(ArrayView(I32), I32, ()) : %()
     init %local3.code, %v12
     init %local3.env, %v10
     %v15 = call Chunked(Array(a), a).chunks(I32, Outcome((), ())), %self, %v11 : Outcome((), Outcome((), ()))
@@ -520,7 +520,7 @@ fn vectorsMasked(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$:
     ret %v22
 }
 
-fn Core.continuation$13(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(value$: {Vec(I32), I32}) -> Outcome((), ())}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$9(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(value$: {Vec(I32), I32}) -> Outcome((), ())}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@ArrayView.length : Size
     %v3 = load [%env].width : Size
@@ -1606,7 +1606,7 @@ fn viaTwoCalls() -> I32 {
     %v10 = call Contiguous(Array(a), a).elements(I32), %v9 : 2'ArrayView(I32)
     %v15 = borrow %local2 : 'ArrayView(I32)
     %v16 = call slice(I32), %v15, 0, 8 : ArrayView(I32)
-    %v17 = call sumVectors(ArrayView(I32), I32), %v16 : I32
+    %v17 = call replaces$sum(ArrayView(I32), I32), %v16 : I32
     drop %local1 via Reclaim(Array(a)).reclaim(I32)
     ret %v17
 }
@@ -1623,7 +1623,7 @@ fn viaLocal() -> I32 {
     %v10 = call Contiguous(Array(a), a).elements(I32), %v9 : 2'ArrayView(I32)
     %v15 = borrow %local2 : 'ArrayView(I32)
     %window = call slice(I32), %v15, 0, 8 : ArrayView(I32)
-    %v17 = call sumVectors(ArrayView(I32), I32), %window : I32
+    %v17 = call replaces$sum(ArrayView(I32), I32), %window : I32
     drop %local1 via Reclaim(Array(a)).reclaim(I32)
     ret %v17
 }
@@ -1640,7 +1640,7 @@ fn partial() -> I32 {
     %v10 = call Contiguous(Array(a), a).elements(I32), %v9 : 2'ArrayView(I32)
     %v15 = borrow %local2 : 'ArrayView(I32)
     %v16 = call slice(I32), %v15, 2, 5 : ArrayView(I32)
-    %v19 = call maximumVectors(ArrayView(I32), I32), %v16, 0 : I32
+    %v19 = call replaces$maximum(ArrayView(I32), I32), %v16, 0 : I32
     drop %local1 via Reclaim(Array(a)).reclaim(I32)
     ret %v19
 }
@@ -1678,7 +1678,7 @@ fn viaReturn() -> I32 {
     init %xs@ArrayView.length, %v14
     %v18 = borrow %xs : 'ArrayView(I32)
     %v19 = call window, %v18, 0, 4 : ArrayView(I32)
-    %v20 = call sumVectors(ArrayView(I32), I32), %v19 : I32
+    %v20 = call replaces$sum(ArrayView(I32), I32), %v19 : I32
     %v21 = borrow %local1 : 'Array(I32)
     %xs = alloc : ArrayView(I32)
     %v23 = load [%v21]@Array.run@Run.items : %I32
@@ -1688,7 +1688,7 @@ fn viaReturn() -> I32 {
     init %xs@ArrayView.length, %v26
     %v28 = borrow %xs : 'ArrayView(I32)
     %v29 = call deeper, %v28 : ArrayView(I32)
-    %v30 = call sumVectors(ArrayView(I32), I32), %v29 : I32
+    %v30 = call replaces$sum(ArrayView(I32), I32), %v29 : I32
     drop %local1 via Reclaim(Array(a)).reclaim(I32)
     %v31 = add %v20, %v30 : I32
     ret %v31

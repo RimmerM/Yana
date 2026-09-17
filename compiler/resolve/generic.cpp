@@ -1,4 +1,5 @@
 #include "generic.h"
+#include "module_internal.h"
 #include "clone.h"
 #include "expr.h"
 #include "witness.h"
@@ -273,6 +274,12 @@ static bool superclassPath(Module& module, GlobalPtr<TypeClass> have, Buffer<Typ
     }
 
     return false;
+}
+
+bool classEntails(Module& module, GlobalPtr<TypeClass> have, Buffer<TypePtr> haveArgs,
+                  GlobalPtr<TypeClass> want, Buffer<TypePtr> wantArgs) {
+    SuperclassSteps steps;
+    return superclassPath(module, have, haveArgs, want, wantArgs, steps, 8);
 }
 
 bool provesClass(Module& module, const GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
@@ -806,7 +813,10 @@ static void cloneGenCall(Clone& clone, InstGenCall& call) {
 
         return;
     } else {
-        callee = instantiateFunction(clone.site, call.callee, toBuffer(typeArgs), call.source);
+        // Concrete now, which is where a deferred call meets a replacement's condition - see
+        // `chooseReplacement`.
+        auto chosen = chooseReplacement(clone.site, call.callee, typeArgs, call.source);
+        callee = instantiateFunction(clone.site, chosen, toBuffer(typeArgs), call.source);
     }
 
     if(!callee) {
@@ -1698,11 +1708,12 @@ ModulePtr<Function> instantiateFunction(Module& from, ModulePtr<Function> pointe
      * The arguments with no group on them - `withoutLoanGroup`, applied where the specializations
      * are interned rather than only where a variable is bound.
      *
-     * Because a call site is not the only thing that asks for one. `sum` is `@builtin(bulkSum)`: it
-     * picks `sumVectors` and hands it the type it was given, so a window in a group reached this key
-     * without any binding rule having seen it, and `sumVectors` was compiled twice - once for what
-     * `elements` hands back and once for the plain window every other caller has - with identical
-     * bodies and identical machine code. One place, and every route in goes through it.
+     * Because a call site is not the only thing that asks for one. `sum` was `@builtin(bulkSum)`: it
+     * picked its vector body and handed it the type it was given, so a window in a group reached this
+     * key without any binding rule having seen it, and the vector body was compiled twice - once for
+     * what `elements` hands back and once for the plain window every other caller has - with identical
+     * bodies and identical machine code. That body is a replacement now (`chooseReplacement`), which
+     * hands over bindings the same way. One place, and every route in goes through it.
      */
     SmallArray<TypePtr, 8> ungrouped;
     for(auto arg: args) ungrouped.push(withoutLoanGroup(from, arg));

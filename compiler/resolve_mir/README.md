@@ -1832,7 +1832,11 @@ this stage has not got; the library writes what the answer is when the compiler 
 `roleMayWriteBody` in `compiler/intrinsic/op.h`, which is `Flow`'s existing rule widened - and this
 stage calls it. What is lost is a placement decision rather than an operation.
 
-**The seven bulk operations were on that list and are not any more** (J34). Their expansion is a
+**The seven bulk operations were on that list and are not any more** (J34), and since
+Design-Replacements.md they are not roles at all: each is a baseline and an `@replaces` whose extra
+constraint is the vector condition, chosen by `Resolver::chooseReplacement` (`resolve_replace.cpp`)
+at the call where the roles below used to be. What follows is the account of the roles, kept for
+the measurement at its end. Their expansion is a
 *selection between two library bodies* - `lib/Core/Reduce.yana` writes each of them twice, and which
 one runs is a question about a lane's stride and the target's register width rather than about
 anything a constraint could carry. What kept them on the list was that this stage had no handle on

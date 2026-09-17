@@ -23,7 +23,7 @@ module Native
    `X86.` is a namespace and not a module - doc/spec/modules.md. A module would give these a `pub`
    boundary they have no interface behind, a second import every user of them would write, and a
    coherence unit; what a prefix is wanted for here is naming and nothing else. It has to be there
-   because a reader of `Digest/Hardware.sha.yana` must be able to tell an instruction from a
+   because a reader of `Digest/ShaBlock.sha.avx2.yana` must be able to tell an instruction from a
    function: `sha1Rounds(abcd, e, 0)` reads as a library call and is a single opcode with a trailing
    byte, and `X86.sha1Rounds(abcd, e, 0)` says which manual to open.
 
@@ -47,9 +47,9 @@ module Native
    that does not claim it. One attribute per declaration says which instruction needs what, and
    adding a second extension adds a declaration rather than a file.
 
-   What is still a *file* is code written **in terms of** these - `Digest/Hardware.sha.yana` and its
-   `nosha` half, two implementations of the same two names. That is a body rather than a
-   declaration, and the distinction is load-bearing: a body kept behind a compile-time
+   What is still a *file* is code written **in terms of** these - `Digest/ShaBlock.sha.avx2.yana`,
+   which holds replacements of two portable functions (Design-Replacements.md). That is a body rather
+   than a declaration, and the distinction is load-bearing: a body kept behind a compile-time
    `if hasShaExtension()` leaves the untaken arm **resolved**. It is IR, it reaches lowering in any
    build with the IR optimizer off (`-no-opt`, which every fixture in this tree is also compiled
    with), and the backend then refuses instructions the target cannot encode. See `targetSelector`
@@ -65,8 +65,9 @@ module Native
    named polynomial, so a backend that expanded either would hold a second implementation of a
    published algorithm inside the compiler, tested by nothing and free to drift from the library's.
    There is therefore no expansion behind any of these at any tier, and what stands in for them is a
-   different implementation of the same function selected the same way: `Digest/Hardware.nosha.yana`
-   for the hashes, and the byte table in `Digest/Crc.yana` for the checksum.
+   different implementation of the same function: the portable loops in `Digest/Sha1.yana` and
+   `Digest/Sha2.yana`, which the hardware bodies replace, and the byte table in `Digest/Crc.yana` for
+   the checksum.
 -}
 
 {-
@@ -141,14 +142,14 @@ module Native
    ==========================================================================================
 
    Not inside any level: a v3 or v4 machine may or may not have these, so `sha` is a selector of its
-   own and `-enable-inst sha` or a host that reports it is what turns them on. `nosha` is the other
-   half of that partition and is what `Digest/Hardware.nosha.yana` is selected by; see
-   `targetSelector`, where the pair is argued.
+   own and `-enable-inst sha` or a host that reports it is what turns them on. There is no negation
+   of it: a build without the extension runs the portable body these replace; see `targetSelector`.
 
-   **`sha` also requires v3**, which is a fact about the library rather than about the silicon:
-   `Digest/Hardware.sha.yana` is a legacy-encoded region and is therefore written in terms of
-   `X86.vzeroupper()` above. Goldmont shipped these instructions with no AVX at all; such a part is
-   `nosha` here and takes the portable compression, which is the whole of what it gives up.
+   **The digests also need v3**, which is a fact about the library rather than about the silicon:
+   `Digest/ShaBlock.sha.avx2.yana` is a legacy-encoded region and is therefore written in terms of
+   `X86.vzeroupper()` above, and its name says so. Goldmont shipped these instructions with no AVX at
+   all; such a part has the declarations here and takes the portable compression, which is the whole
+   of what it gives up.
 
    **Why the operands say `Vec(U32, 4)`.** Not `Vec(U32)`, whose lane count is the target's, and not
    a const parameter: these instructions read 128 bits as the four words a SHA state or message

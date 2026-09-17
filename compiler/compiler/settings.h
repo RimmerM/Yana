@@ -513,6 +513,18 @@ struct CompileSettings {
     bool checkLocations = false;
 
     /*
+     * Whether a call may reach a **replacement** at all - `-no-replacements`, Design-Replacements.md
+     * §7.
+     *
+     * Every replacement is still read and resolved wherever its selectors admit it; this only chooses
+     * none, so every call runs its baseline. It exists because a replacement is held to being
+     * observationally identical to its baseline and no compiler can prove that: running one suite
+     * both ways and asking the answers to agree is the check, and it is cheaper than a build per
+     * target because it compares the two bodies on the machine the suite runs on.
+     */
+    bool noReplacements = false;
+
+    /*
      * Whether this is a test build - Design-Test.md §11.2's F1.
      *
      * A flag and not a mode, because `-mode` already answers *which output* and a test build needs
@@ -930,3 +942,66 @@ static constexpr StringView kAllocatorMarker = "allocator"_v;
  */
 bool selectsFileName(const CompileSettings& settings, StringView stem, SelectorScope scope,
                      bool& isTest, StringView& unknown);
+
+/*
+ * What a declaration's selectors say, as a formula - Design-Replacements.md §3.5.
+ *
+ * `targetSelector` answers one name for *this* compilation. A replacement needs a different question
+ * answered, and needs it answered for every compilation at once: does one declaration's condition
+ * imply another's, and can two ever hold together. Both are facts about the vocabulary rather than
+ * about a machine - `avx2` is `v3`, a level implies `x64`, `js` and `native` never meet - so they are
+ * decided here, beside the one place the vocabulary is written, and neither resolve stage keeps a
+ * table of its own that could come to disagree.
+ *
+ * The shape is the one the spellings already have. One `@platform(a, b)` is a clause read as **or**;
+ * the attribute written twice, and every dotted segment of the file name, are further clauses read
+ * as **and**. So a condition is a conjunction of disjunctions, and each literal is one written name
+ * on one axis - the machine axis `targetSelector` answers, the allocator axis `@allocator` and
+ * `allocator.<provider>` name, or the resolve-stage axis `legacy`/`ownership` name.
+ *
+ * The names are views of interned text, which lives as long as the compilation does.
+ */
+enum class SelectorAxis: U8 {
+    Target,
+    Allocator,
+    Resolver,
+};
+
+struct SelectorLiteral {
+    StringView name;
+    SelectorAxis axis = SelectorAxis::Target;
+    U16 clause = 0;
+};
+
+struct SelectorCondition {
+    // Every literal of every clause, in clause order. Flat rather than a list of lists: a condition
+    // is a handful of names and is built once per replacement.
+    Array<SelectorLiteral> literals;
+    U16 clauses = 0;
+
+    // Opens a clause - one `@platform(...)`, or one file-name segment - and answers its index.
+    U16 addClause() { return clauses++; }
+    void add(U16 clause, StringView name, SelectorAxis axis) {
+        literals.push(SelectorLiteral { name, axis, clause });
+    }
+
+    bool isEmpty() const { return clauses == 0; }
+};
+
+/*
+ * The selectors of one file name, appended to `into` as one clause per segment - `selectsFileName`'s
+ * walk, read as a formula rather than answered. `stem` is the dotted part after the base name
+ * (`sha.avx2` for `ShaBlock.sha.avx2.yana`); the `test` segment is left out, because what it selects
+ * is a *mode* and says nothing about which of two bodies is faster.
+ */
+void appendFileSelectors(SelectorCondition& into, StringView stem);
+
+/*
+ * Whether every compilation that satisfies `p` also satisfies `q`, and whether no compilation
+ * satisfies both - checked against the vocabulary, for every target at once.
+ *
+ * Sound and deliberately not complete: a pair this cannot prove ordered or disjoint is reported as
+ * ambiguous, and the fix it names - add one condition to the other - always makes it provable.
+ */
+bool selectorsImply(const SelectorCondition& p, const SelectorCondition& q);
+bool selectorsDisjoint(const SelectorCondition& p, const SelectorCondition& q);

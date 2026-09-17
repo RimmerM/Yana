@@ -5,6 +5,7 @@ set(CORE_SOURCE_FILES
     compiler/context.cpp
     compiler/settings.h
     compiler/settings.cpp
+    compiler/replace.h
     compiler/library.h
     compiler/library.cpp
     compiler/project.h
@@ -82,6 +83,7 @@ set(RESOLVE_SOURCE_FILES
     resolve/module_default.cpp
     resolve/module_import.cpp
     resolve/module_reach.cpp
+    resolve/module_replace.cpp
     resolve/module_derive.cpp
     resolve/module_export.cpp
     resolve/caller.h
@@ -341,6 +343,7 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/convert.cpp
     resolve_mir/resolve_class.cpp
     resolve_mir/resolve_derive.cpp
+    resolve_mir/resolve_replace.cpp
     resolve_mir/resolve_expr.cpp
     resolve_mir/resolve_overload.cpp
     resolve_mir/resolve_stmt.cpp

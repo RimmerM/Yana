@@ -175,6 +175,7 @@ enum class ExplainTopic: U8 {
     Returns,
     Object,
     Calls,
+    Bodies,
 };
 
 struct ExplainNote {

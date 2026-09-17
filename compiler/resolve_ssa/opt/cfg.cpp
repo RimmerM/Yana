@@ -1223,7 +1223,7 @@ struct CfgCleaner {
  * has. The desugaring hands a plain integer over - `0` where the body ran on, `1` where it left -
  * and the join compares it: `%c = eq %arg, 0` and `branch %c`. So the join holds two instructions,
  * the branch reads neither of the edges' values directly, and every predecessor still knows outright
- * which arm it selects. Reading the comparison here is what reaches `indexOfVectors`, whose loop
+ * which arm it selects. Reading the comparison here is what reaches the vector `indexOf`, whose loop
  * carries that integer round the header and re-tests it every iteration - `decideBranchConditions`
  * cannot, because the value is decided at a *merge* rather than under the arm that decided it.
  *

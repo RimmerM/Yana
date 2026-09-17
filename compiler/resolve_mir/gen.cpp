@@ -1364,6 +1364,9 @@ static void fillInstantiation(Context& context, Program& program, RecordType& re
     auto base = *program.decl;
     auto& written = *base[record.instanceOf];
 
+    // Kept and reused, so its mistakes are reported even under a silent question - see `Heard`.
+    Diagnostics::Heard heard(context.diagnostics);
+
     // Copied out because a `DeclList` embeds its first few elements and has no contiguous buffer to
     // point at - the same reason every other caller of `Substitution` builds one of these.
     SmallArray<DeclPtr<Type>, 4> arguments;

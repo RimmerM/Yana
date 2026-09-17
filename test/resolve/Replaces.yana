@@ -1,0 +1,61 @@
+-- Replacements - Design-Replacements.md, and `doc/spec/declarations.md`'s Replacement section.
+--
+-- Every replacement here breaks the rule it is held to - it answers something different from its
+-- baseline - so that the answer says which body ran. A library replacement answers the same thing
+-- faster, and `-no-replacements` is what checks that; a compiler fixture needs the difference to be
+-- visible.
+
+alias qualified Cents = I64 deriving (FromInt, Num)
+
+fn centsValue(c: Cents) -> I64 = c.0
+
+-- A constraint-conditioned replacement: chosen where `Vec(a)` exists on this target, and nowhere
+-- else. `Cents` is a record rather than a lane, so no vector of it can be formed and the baseline
+-- runs - which is a condition that failed, not an error.
+fn (Num(a)) total(xs: [a]) -> a:
+    let &acc = 0 :: a
+    for v in items(xs):
+        acc = acc + v
+    return acc
+
+@replaces
+fn (Num(a), Num(Vec(a))) total(xs: [a]) -> a:
+    let &acc = 1000 :: a
+    for v in items(xs):
+        acc = acc + v
+    return acc
+
+-- Selector-only replacements, ordered: `x64` implies `native`, so on an x86-64 build the second is
+-- more specific and wins, and neither is asked anything at a call. A function value takes the same
+-- body a call does.
+fn which() -> I64 = 1
+
+@replaces @platform(native)
+fn which() -> I64 = 2
+
+@replaces @platform(x64)
+fn which() -> I64 = 3
+
+-- The variables bind by name: the extra constraint written first numbers `b` before `a` here, and
+-- the call still reaches the body with `a` and `b` where the baseline had them.
+fn (Num(b)) second(x: a, y: b) -> b = y + 0
+
+@replaces
+fn (Num(Vec(b)), Num(b)) second(x: a, y: b) -> b = y + 20
+
+-- Written above its baseline and in the same module, which is all a replacement needs.
+@replaces @platform(native)
+fn late(n: I64) -> I64 = n * 2
+
+fn late(n: I64) -> I64 = n
+
+fn main() -> I64:
+    let wide = total([1, 2, 3])                               -- 1006
+    let narrow = centsValue(total([Cents(4), Cents(5)]))      -- 9
+    let named = which()                                       -- 3
+    let value = which :: () -> I64
+    let called = value()                                      -- 3
+    let swapped = second(True, 5 :: I64)                      -- 25
+    let unswapped = centsValue(second(True, Cents(7)))        -- 7
+
+    return wide + narrow * 10 + named * 100 + called * 1000 + swapped * 10000 + unswapped * 1000000 + late(1) * 100000000

@@ -685,7 +685,7 @@ void Lowering::run() {
              * The two declaration-level backend facts this stage carries - `@x86_legacy_sse` and
              * `@convention`, and `DeclAttribute::LegacySse` for why a resolver carries one at all.
              * The x64 backend refuses a SHA-extension body without the first, so
-             * `lib/Digest/Hardware.sha.yana` does not compile at all if that line is missing.
+             * `lib/Digest/ShaBlock.sha.avx2.yana` does not compile at all if that line is missing.
              *
              * A convention left unwritten leaves `callType` at the backend's own default rather than
              * writing one, which is what `Function::convention` being a `Maybe` is for.

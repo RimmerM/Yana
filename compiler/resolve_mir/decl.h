@@ -785,6 +785,17 @@ enum class DeclAttribute: U8 {
     Cold,
     Hot,
 
+    /*
+     * `@replaces` on a function - Design-Replacements.md, and `doc/spec/declarations.md`'s
+     * replacements.
+     *
+     * Another body of the plain function of the same name and arity in the same module, chosen where
+     * its condition holds. A row here for the spelling and the placement message; `declareFunction`
+     * is where it is read, because what it changes is whether the declaration takes a name at all -
+     * a replacement files nothing under R1's key and is reached only through its baseline.
+     */
+    Replaces,
+
     Count,
 };
 
@@ -2333,6 +2344,47 @@ struct Program {
      * Nothing is written unless the whole range is admissible, for the reason it always was: a
      * half-registered declaration is reachable at the arities that happened to be checked first.
      */
+    /*
+     * The bodies that may run in a baseline's place - Design-Replacements.md §3.4.
+     *
+     * Keyed by the baseline and filled once, by `Resolver::linkReplacements`, with the replacements
+     * this compilation *read* - a replacement whose selectors failed was never declared - ordered
+     * most specific first. That order is what makes choosing a walk: every pair of replacements that
+     * can both be read is ordered by specificity (§3.5 refuses the rest), so the first candidate
+     * whose condition holds is the most specific one that does.
+     *
+     * A side table rather than fields of `Function`, because almost no function has one and every
+     * function would carry them.
+     */
+    struct Replacement {
+        DeclPtr<Function> body = nullptr;
+
+        // For each of the body's own variables, in its own numbering, the baseline's variable of the
+        // same name. A replacement declares exactly the baseline's variables, and binds them by name
+        // rather than by position, because the numbering is the order of first occurrence and an
+        // extra constraint written first moves it.
+        SmallArray<U8, 4> variables;
+
+        // Whether it states constraints beyond the baseline's. An unconditioned one holds wherever
+        // it was read; a conditioned one is asked at each call whose bindings are concrete.
+        bool conditioned = false;
+
+        // Its selectors as written - `x64`, `sha and avx2` - or none. Only `explain` reads it: the
+        // choice was made when the file or the declaration was read, and nothing after that asks.
+        StringId selectors {};
+    };
+
+    struct ReplacementSet {
+        SmallArray<Replacement, 2> candidates;
+    };
+
+    HashMap<U32, ReplacementSet> replacements;
+
+    const ReplacementSet* replacementsOf(DeclPtr<Function> baseline) const {
+        auto found = replacements.get(U32(baseline.offset));
+        return found ? &found.unwrap() : nullptr;
+    }
+
     bool addFunctionName(DeclPtr<Module> module, DeclPtr<Function> function,
                          U32* conflict = nullptr);
     bool addGlobalName(DeclPtr<Module> module, StringId name, DeclPtr<Global> global);

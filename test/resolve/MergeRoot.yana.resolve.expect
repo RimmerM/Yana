@@ -1,8 +1,8 @@
-table closure$Core.continuation$10(ArrayView(I32), I32) before Core.continuation$10(ArrayView(I32), I32) {
+table closure$Core.continuation$5(ArrayView(I32), I32) before Core.continuation$5(ArrayView(I32), I32) {
   .0 teardown$none
 }
 
-table closure$Core.continuation$11(ArrayView(I32), I32, ()) before Core.continuation$11(ArrayView(I32), I32, ()) {
+table closure$Core.continuation$6(ArrayView(I32), I32, ()) before Core.continuation$6(ArrayView(I32), I32, ()) {
   .0 teardown$none
 }
 
@@ -199,7 +199,7 @@ fn Contiguous(Array(a), a).elements(I32)(%self: Array(I32)) -> 2'ArrayView(I32) 
     ret %v1
 }
 
-fn sumVectors(ArrayView(I32), I32)(%xs: ArrayView(I32)) -> I32 {
+fn replaces$sum(ArrayView(I32), I32)(%xs: ArrayView(I32)) -> I32 {
   b0:
     %v2 = vsplat 0 : Vec(I32)
     %acc = alloc : Vec(I32)
@@ -209,7 +209,7 @@ fn sumVectors(ArrayView(I32), I32)(%xs: ArrayView(I32)) -> I32 {
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: Vec(I32)) -> Outcome((), ())
-    %v10 = symbol Core.continuation$10(ArrayView(I32), I32) : %()
+    %v10 = symbol Core.continuation$5(ArrayView(I32), I32) : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = call vectors(ArrayView(I32), I32, ()), %xs, %v9 : Outcome((), ())
@@ -218,7 +218,7 @@ fn sumVectors(ArrayView(I32), I32)(%xs: ArrayView(I32)) -> I32 {
     ret %v15
 }
 
-fn Core.continuation$10(ArrayView(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: Vec(I32)) -> Outcome((), ()) {
+fn Core.continuation$5(ArrayView(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: Vec(I32)) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].acc : &Vec(I32)
     %v3 = load [%env].acc : &Vec(I32)
@@ -241,7 +241,7 @@ fn vectors(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: Vec(I
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
     %v12 = alloc : (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))
-    %v13 = symbol Core.continuation$11(ArrayView(I32), I32, ()) : %()
+    %v13 = symbol Core.continuation$6(ArrayView(I32), I32, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = call Chunked(Array(a), a).chunks(I32, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
@@ -259,7 +259,7 @@ fn vectors(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: Vec(I
     ret %v23
 }
 
-fn Core.continuation$11(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$6(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@ArrayView.length : Size
     %v3 = load [%env].width : Size
@@ -1415,7 +1415,7 @@ fn chosen(%fromFrame: Bool) -> I32 {
 
   b3:
     %window = phi [b1, %v27], [b2, %v29] : 2'ArrayView(I32)
-    %v33 = call sumVectors(ArrayView(I32), I32), %window : I32
+    %v33 = call replaces$sum(ArrayView(I32), I32), %window : I32
     drop %local1 via Reclaim(Array(a)).reclaim(I32)
     ret %v33
 
@@ -1541,7 +1541,7 @@ fn ResolveTest.lambda$22(%env: %{}, %i: Size) -> I32 {
 
 fn ResolveTest.continuation$23(%env: %{}, %value$: ArrayView(I32)) -> I32 {
   b0:
-    %v2 = call sumVectors(ArrayView(I32), I32), %value$ : I32
+    %v2 = call replaces$sum(ArrayView(I32), I32), %value$ : I32
     ret %v2
 }
 

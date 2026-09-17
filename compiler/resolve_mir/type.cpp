@@ -663,15 +663,6 @@ U32 laneBytes(DeclBase base, IntWidths widths, DeclPtr<Type> type) {
     return storage == 1 || storage == 2 || storage == 4 || storage == 8 ? storage : 0;
 }
 
-bool hasNaturalVector(Context& context, Program& program, DeclPtr<Type> type) {
-    auto base = *program.decl;
-    if(!type || !isConcreteType(base, type)) return false;
-
-    // The natural form, asked for with reporting off: `makeVectorType` already states every refusal
-    // a lane can meet, and asking it silently is what keeps this one rule instead of two.
-    return makeVectorType(context, program, type, U64(0), false, kNullLocation, false) != nullptr;
-}
-
 DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> lane, U64 lanes,
                              bool isMask, LocationId source, bool report) {
     return makeVectorType(context, program, lane, nullptr, lanes, isMask, source, report);

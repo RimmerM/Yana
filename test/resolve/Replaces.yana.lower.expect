@@ -1,0 +1,95 @@
+@image$base = []
+
+main<complex>(): I64 {
+  b_0 {
+    %v_1 = alloca 12, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 2, 4
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 3, 4
+    jmp b_4
+  }
+
+  b_5 {
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, 4, 8
+    %v_7 = add %v_6, 8: Ptr
+    store %v_7, 5, 8
+    jmp b_8
+  }
+
+  b_9 {
+    %v_10 = cmp_ge %v_11, 3: I32
+    je %v_10, b_12, b_4
+  }
+
+  b_4 {
+    %v_13 = phi [b_9, %v_14], [b_0, 1000]: I32
+    %v_15 = phi [b_9, %v_11], [b_0, 0]: I64
+    %v_16 = shl %v_15, 2: I64
+    %v_17 = add %v_1, %v_16: Ptr
+    %v_18 = loads %v_17, 4: I32
+    %v_14 = add %v_13, %v_18: I32
+    %v_11 = add %v_15, 1: I64
+    %v_19 = cmp_ilt %v_11, 3: I32
+    je %v_19, b_9, b_5
+  }
+
+  b_20 {
+    jmp b_21
+  }
+
+  b_22 {
+    %v_23 = cmp_ge %v_24, 2: I32
+    je %v_23, b_12, b_8
+  }
+
+  b_8 {
+    %v_25 = phi [b_22, %v_26], [b_5, 0]: I64
+    %v_27 = phi [b_22, %v_24], [b_5, 0]: I64
+    %v_28 = shl %v_27, 3: I64
+    %v_29 = add %v_6, %v_28: Ptr
+    %rhs$ = loads %v_29, 8: I64
+    %v_26 = add %v_25, %rhs$: I64
+    %v_24 = add %v_27, 1: I64
+    %v_30 = cmp_ilt %v_24, 2: I32
+    je %v_30, b_22, b_20
+  }
+
+  b_31 {
+    %v_32 = cmp_ilt %v_33, 2: I32
+    je %v_32, b_21, b_34
+  }
+
+  b_34 {
+    %v_35 = bitcast 0: Ptr
+    %called = call_complex funvalue$which, %v_35: I64
+    %v_36 = imul %v_26, 10: I64
+    %v_37 = sext %v_14: I64
+    %v_38 = add %v_37, %v_36: I64
+    %v_39 = add %v_38, 300: I64
+    %v_40 = imul %called, 1000: I64
+    %v_41 = add %v_39, %v_40: I64
+    %v_42 = add %v_41, 207250000: I64
+    ret %v_42
+  }
+
+  b_21 {
+    %v_43 = phi [b_31, %v_33], [b_20, 0]: I32
+    %v_33 = add %v_43, 1: I32
+    jmp b_31
+  }
+
+  b_12 {
+    %v_44 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+
+funvalue$which<complex>(%env: Ptr): I64 {
+  b_0 {
+    ret 3
+  }
+}
+

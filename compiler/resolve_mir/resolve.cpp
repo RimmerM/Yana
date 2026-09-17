@@ -2741,6 +2741,14 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      */
     resolver.resolveSiteSignatures();
 
+    /*
+     * Every `@replaces fn`, attached to what it replaces - `resolve_replace.cpp`.
+     *
+     * Here because it compares signatures, so it needs all of them including the deferred ones above,
+     * and because nothing before the bodies may reach a replacement: a call is where one is chosen.
+     */
+    resolver.linkReplacements();
+
     settleDeclarations();
 
     /*

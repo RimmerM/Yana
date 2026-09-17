@@ -47,6 +47,9 @@ struct LibraryFile {
     // Whether a `test` segment was among the selectors - Design-Test.md §3.1. Carried from the walk
     // to `ast::Module::test`, which is where everything else asks.
     bool test = false;
+
+    // The selector segments of the file's name, as written - see ast::Module::selectors.
+    StringId selectors {};
 };
 
 struct LibrarySource {

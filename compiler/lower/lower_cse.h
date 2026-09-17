@@ -84,7 +84,7 @@ bool eliminateCommonValues(LowerBase base, LowerModule& module, LowerFunction& f
  * computations neither of which came first. So a loop advancing two values in step keeps both, one
  * add each, one register each, for the whole of the loop.
  *
- * `indexOfVectors` in Core - compiler/resolve/core.cpp - is the shape, and it is not an accident of
+ * `indexOf`'s vector replacement in lib/Core/Reduce.yana is the shape, and it is not an accident of
  * that function. The iteration protocol hands the body a chunk and the offset it came from, and the
  * body keeps a running position of its own; at a byte lane on AVX2 both advance by 32, so the vector
  * search's inner loop is

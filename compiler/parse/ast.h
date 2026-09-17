@@ -1162,6 +1162,18 @@ struct Module {
      */
     bool test = false;
 
+    /*
+     * The file name's selector segments as written - `sha.avx2` for `ShaBlock.sha.avx2.yana` - or
+     * none.
+     *
+     * Kept for the same reason `test` is: the walk that selected the file is the only thing that saw
+     * the lower-case base name. What reads it is a **replacement** (Design-Replacements.md §3.3),
+     * whose condition is its `@platform` attributes *and* the selectors of the file it is written
+     * in - so that two replacements in two files can be ordered without either being read on a
+     * build that selects neither.
+     */
+    StringId selectors {};
+
     // The name written in `module M`, or none. Checked against the file's path by whoever built the
     // module map, since it is the only thing that knows where the file is.
     StringId joins {};

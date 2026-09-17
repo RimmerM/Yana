@@ -318,6 +318,7 @@ StringView explainTopicLabel(ExplainTopic topic) {
         case ExplainTopic::Returns:  return "returns"_v;
         case ExplainTopic::Object:   return "object"_v;
         case ExplainTopic::Calls:    return "calls"_v;
+        case ExplainTopic::Bodies:   return "bodies"_v;
     }
 
     return ""_v;
@@ -679,6 +680,103 @@ static void explainObject(Context& context, Program& program, const Explanation&
     addNote(notes, ExplainTopic::Object, false, text);
 }
 
+/*
+ * Which bodies a call of this function may run - Design-Replacements.md §7.
+ *
+ * On a baseline, one row per replacement this build read, in the order a call asks them, with the
+ * condition that decides it: its selectors, which held or it would not have been read, and the
+ * constraints it adds, which each call with concrete types asks. A replacement whose selectors do not
+ * hold on this build was never read, so it cannot be listed - which is said, because a reader looking
+ * for the AVX-512 body on a v3 build would otherwise read its absence as its nonexistence.
+ *
+ * On a replacement, the baseline it replaces. Nothing is printed for a function that is neither.
+ *
+ * An unconditioned replacement is the surprising row: it runs in place of the baseline everywhere, so
+ * the body a reader is looking at is not the one that runs.
+ */
+static void explainBodies(Context& context, Program& program, const Explanation& explanation,
+                          Array<ExplainNote>& notes) {
+    auto decl = *program.decl;
+    StringBuilder text;
+
+    auto constraintsBeyond = [&](Function& replacement, Function& baseline) {
+        Array<String> own;
+        Array<String> base;
+
+        auto render = [&](Function& function, Array<String>& into) {
+            if(!isGeneric(decl, function.gen)) return;
+
+            for(auto requirement: decl[function.gen]->classes.contents(decl)) {
+                StringBuilder one;
+                one.append(context.findName(decl[requirement.klass]->name));
+                one.append("("_v);
+
+                for(U32 i = 0; i < requirement.args.size(); i++) {
+                    if(i) one.append(", "_v);
+                    appendText(one, typeText(context, decl, requirement.args.get(decl, i)));
+                }
+
+                one.append(")"_v);
+                into.push(one.string());
+            }
+        };
+
+        render(replacement, own);
+        render(baseline, base);
+
+        auto listed = 0;
+        for(auto& written: own) {
+            auto inherited = false;
+            for(auto& held: base) inherited = inherited || held == written;
+            if(inherited) continue;
+
+            text.append(listed++ ? ", "_v : " where "_v);
+            appendText(text, written);
+        }
+
+        if(listed) text.append(" holds at a call's concrete types"_v);
+    };
+
+    if(auto set = program.replacementsOf(explanation.function)) {
+        for(auto& candidate: set->candidates) {
+            auto& body = *decl[candidate.body];
+
+            text.append(context.findName(body.symbol));
+            if(candidate.selectors) {
+                text.append(" on "_v);
+                text.append(context.findName(candidate.selectors));
+            }
+
+            if(candidate.conditioned) constraintsBeyond(body, *decl[explanation.function]);
+            else text.append(", in place of this one wherever this build reads it"_v);
+
+            addNote(notes, ExplainTopic::Bodies, !candidate.conditioned, text);
+        }
+
+        text.append("and this one otherwise, or under -no-replacements; a replacement whose selectors do not hold on this build is not read, so it is not listed"_v);
+        addNote(notes, ExplainTopic::Bodies, false, text);
+        return;
+    }
+
+    for(auto entry: program.replacements.entries()) {
+        for(auto& candidate: entry.value.candidates) {
+            if(candidate.body != explanation.function) continue;
+
+            auto& baseline = *decl[DeclPtr<Function>(entry.key)];
+            text.append("replaces "_v);
+            text.append(context.findName(baseline.symbol));
+            if(candidate.selectors) {
+                text.append(" on "_v);
+                text.append(context.findName(candidate.selectors));
+            }
+
+            if(candidate.conditioned) constraintsBeyond(*decl[explanation.function], baseline);
+            addNote(notes, ExplainTopic::Bodies, false, text);
+            return;
+        }
+    }
+}
+
 void explainNotes(Context& context, Program& program, const Explanation& explanation,
                   Array<ExplainNote>& notes) {
     // §7.3's row order, and it is deliberate: the property with no analysis behind it comes early so
@@ -691,6 +789,7 @@ void explainNotes(Context& context, Program& program, const Explanation& explana
     explainResult(context, explanation, notes);
     explainObject(context, program, explanation, notes);
     explainCalls(explanation, notes);
+    explainBodies(context, program, explanation, notes);
 }
 
 /*

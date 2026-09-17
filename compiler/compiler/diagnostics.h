@@ -121,6 +121,8 @@ struct Diagnostics {
 
     template<class... T>
     void message(Level level, StringView text, LocationId where, T&&... format) {
+        if(swallowed(level)) return;
+
         char buffer[4000];
         text = {buffer, Tritium::format(toBuffer(buffer), toString(text), forward<T>(format)...)};
         message(level, text, where);
@@ -128,14 +130,66 @@ struct Diagnostics {
 
     template<class... T>
     void message(Level level, StringView text, const Location* where, T&&... format) {
+        if(swallowed(level)) return;
+
         char buffer[4000];
         text = {buffer, Tritium::format(toBuffer(buffer), toString(text), forward<T>(format)...)};
         message(level, text, where);
     }
 
     void message(Level level, StringView text, LocationId where) {
+        if(swallowed(level)) return;
         message(level, text, provider.getNode(where));
     }
+
+    /*
+     * A question asked by trying - Design-Replacements.md §3.3.
+     *
+     * A replacement's extra constraints are a *condition*: `Num(Vec(String))` failing means the
+     * baseline runs, not that the program is wrong. The rules that decide whether one holds are the
+     * ones that report when a program writes the same thing, and a second, silent copy of each of
+     * them is a second rule that can come to disagree. So the question is asked of the reporting
+     * code with the reports swallowed, and what is read back is whether any were: a condition holds
+     * when proving it both succeeded and said nothing.
+     *
+     * Nested, because a condition may be asked while another is. Only the three entry points above
+     * look at it; the virtual sink below is what a report reaches *after* passing them.
+     */
+    struct Silence {
+        explicit Silence(Diagnostics& diagnostics):
+            diagnostics(diagnostics), before(diagnostics.swallowedErrors) {
+            diagnostics.silenced++;
+        }
+
+        ~Silence() { diagnostics.silenced--; }
+
+        // Whether an error was swallowed since this was opened.
+        bool reported() const { return diagnostics.swallowedErrors != before; }
+
+        Diagnostics& diagnostics;
+        U32 before;
+    };
+
+    /*
+     * The reports of work whose result **outlives the question** - heard even inside a `Silence`.
+     *
+     * A silent question may build things that are kept: a record instantiated while a condition's
+     * types are substituted is interned and handed to the next use of the same type. Its fields are
+     * checked once, when it is built, so an error swallowed there would be swallowed for the program
+     * too - `Maybe(Box(Bool))` written later finds the record already made and nothing reports it.
+     * So the building is heard: a condition that forms an ill-formed record is an error in the
+     * program rather than a condition that failed.
+     */
+    struct Heard {
+        explicit Heard(Diagnostics& diagnostics): diagnostics(diagnostics), before(diagnostics.silenced) {
+            diagnostics.silenced = 0;
+        }
+
+        ~Heard() { diagnostics.silenced = before; }
+
+        Diagnostics& diagnostics;
+        U32 before;
+    };
 
     virtual void message(Level level, StringView text, const Location* where) {
         if(level == WarningLevel) warnings++;
@@ -186,6 +240,16 @@ protected:
     SourceProvider& provider;
     U32 warnings = 0;
     U32 errors = 0;
+
+    // See `Silence`.
+    U32 silenced = 0;
+    U32 swallowedErrors = 0;
+
+    bool swallowed(Level level) {
+        if(!silenced) return false;
+        if(level == ErrorLevel) swallowedErrors++;
+        return true;
+    }
 };
 
 struct PrintDiagnostics: Diagnostics {

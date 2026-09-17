@@ -25,52 +25,10 @@ bool opExpands(Op op) {
          * does not cover - see `known.def`'s note above `runSlots`.
          */
         case Op::newRun:
-
-        /*
-         * And the bulk operations - `lib/Core/Reduce.yana`, where each declaration carries the
-         * element walk and a second body beside it is the vector one.
-         *
-         * Neither half is a node this file builds: the expansion is a *selection between two
-         * ordinary library functions*, so it is `selectBulkBody` at the call rather than an emitter
-         * here, and the answer it settles on is still a call. What used to be on this list as "the
-         * fourteen bodies by name, which this stage's intrinsic framework does not hold" is
-         * `bulkVectorRole` below - a `known.def` row per vector half, which is the row-per-body
-         * answer that note named as one of the two ways out.
-         */
-        case Op::bulkSum:
-        case Op::bulkProduct:
-        case Op::bulkMaximum:
-        case Op::bulkMinimum:
-        case Op::bulkOccurrences:
-        case Op::bulkIndexOf:
-        case Op::bulkItemsEqual:
             return false;
 
         default:
             return true;
-    }
-}
-
-/*
- * The vector half of a bulk operation, as a role - `known.def`'s seven `*Vectors` rows.
- *
- * The table is here rather than in `known.def` because it is a statement about the *pair*: which
- * `op.def` row chooses which `known.def` body. Neither file can hold it alone, and a switch is what
- * makes a `bulk*` row added without a body a `-Wswitch` warning at the one place that has to pair
- * them.
- *
- * `Known::Count` for every other role, which is what `selectBulkBody` reads as "not a choice".
- */
-Known bulkVectorRole(Op op) {
-    switch(op) {
-        case Op::bulkSum:         return Known::sumVectors;
-        case Op::bulkProduct:     return Known::productVectors;
-        case Op::bulkMaximum:     return Known::maximumVectors;
-        case Op::bulkMinimum:     return Known::minimumVectors;
-        case Op::bulkOccurrences: return Known::occurrencesVectors;
-        case Op::bulkIndexOf:     return Known::indexOfVectors;
-        case Op::bulkItemsEqual:  return Known::itemsEqualVectors;
-        default:                  return Known::Count;
     }
 }
 
@@ -351,13 +309,6 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
          * `-Wswitch`, and the assertion is what says the dispatch above already took it.
          */
         case Op::newRun:
-        case Op::bulkSum:
-        case Op::bulkProduct:
-        case Op::bulkMaximum:
-        case Op::bulkMinimum:
-        case Op::bulkOccurrences:
-        case Op::bulkIndexOf:
-        case Op::bulkItemsEqual:
             assertTrue(false);
             break;
 

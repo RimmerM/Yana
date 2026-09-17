@@ -24,7 +24,7 @@ bb0:
   %8: Size = const 0
   %9: Size = const 8
   %10: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %7 borrow.shared %8 borrow.shared %9 roots{1}
-  %11: I32 = call sumVectors(Array(I32), I32) borrow.shared %10
+  %11: I32 = call replaces$sum(Array(I32), I32) borrow.shared %10
   drop (local1)
   return take %11
 }
@@ -48,7 +48,7 @@ bb0:
   %10: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %7 borrow.shared %8 borrow.shared %9 roots{1}
   write.init borrow.unique (window) borrow.shared %10
   %12: Array(I32) [shared slot 0 view] = read borrow.shared (window) loan2 roots{1}
-  %13: I32 = call sumVectors(Array(I32), I32) borrow.shared %12
+  %13: I32 = call replaces$sum(Array(I32), I32) borrow.shared %12
   drop (xs)
   return take %13
 }
@@ -70,7 +70,7 @@ bb0:
   %9: Size = const 5
   %10: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %7 borrow.shared %8 borrow.shared %9 roots{1}
   %11: I32 = const 0
-  %12: I32 = call maximumVectors(Array(I32), I32) borrow.shared %10 borrow.shared %11
+  %12: I32 = call replaces$maximum(Array(I32), I32) borrow.shared %10 borrow.shared %11
   drop (local1)
   return take %12
 }
@@ -112,10 +112,10 @@ bb0:
   %7: Size = const 0
   %8: Size = const 4
   %9: Array(I32) [shared slot 0 view] = call window borrow.shared %6 borrow.shared %7 borrow.shared %8 roots{1}
-  %10: I32 = call sumVectors(Array(I32), I32) borrow.shared %9
+  %10: I32 = call replaces$sum(Array(I32), I32) borrow.shared %9
   %11: Array(I32) [shared slot 0] = read borrow.shared (xs) loan2
   %12: Array(I32) [shared slot 0 view] = call deeper borrow.shared %11 roots{2}
-  %13: I32 = call sumVectors(Array(I32), I32) borrow.shared %12
+  %13: I32 = call replaces$sum(Array(I32), I32) borrow.shared %12
   drop (xs)
   %14: I32 = add inspect %10 inspect %13
   return take %14

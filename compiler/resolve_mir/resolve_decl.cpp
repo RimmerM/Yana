@@ -123,7 +123,7 @@ void Resolver::checkPlatform(ast::Module& file) {
                     continue;
                 }
 
-                context.diagnostics.error("unknown target %@ - expected `js`, `native`, an operating system (`linux`, `mac`, `win32`), an architecture (`x64`, `x86`, `arm`, `arm64`), an x86-64 level (`v2`, `v3`, `v4`) or an instruction-set extension (`sha`, `nosha`)"_v,
+                context.diagnostics.error("unknown target %@ - expected `js`, `native`, an operating system (`linux`, `mac`, `win32`), an architecture (`x64`, `x86`, `arm`, `arm64`), an x86-64 level (`v2`, `v3`, `v4`) or an instruction-set extension (`sha`)"_v,
                                           argument.value.source, name);
             }
         }
@@ -226,6 +226,10 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
             // and this walk has none.
             case DeclAttribute::Cold:
             case DeclAttribute::Hot:          break;
+
+            // `@replaces` belongs to a function and `declareFunction` reads it there, for the same
+            // reason: a type or an instance has no body to be another one of.
+            case DeclAttribute::Replaces:     break;
 
             case DeclAttribute::Count:        break;
         }

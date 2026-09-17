@@ -1,0 +1,106 @@
+{-
+   What `@replaces` rejects - the rewritten stage's copy.
+
+   # resolver: ownership
+
+   The same claims in the same words as `resolve/Reject.Replaces.yana`, which asserts them for the
+   shipping stage.
+-}
+
+-- Replaces nothing: there is no plain `nothing` in this module.
+@replaces @platform(native)
+fn nothing() -> Int = 1
+
+-- A replacement has no name of its own, so nothing about it can be exported.
+pub fn shown() -> Int = 1
+
+@replaces @platform(native)
+pub fn shown() -> Int = 2
+
+-- No condition: no selector beyond the baseline's and no constraint beyond its signature's, so the
+-- baseline could never run.
+fn plain() -> Int = 1
+
+@replaces
+fn plain() -> Int = 2
+
+-- The same condition twice.
+fn twice() -> Int = 1
+
+@replaces @platform(x64)
+fn twice() -> Int = 2
+
+@replaces @platform(x64)
+fn twice() -> Int = 3
+
+-- Two that can both hold and neither implies the other: a Linux build on x86-64 satisfies both.
+fn either() -> Int = 1
+
+@replaces @platform(linux)
+fn either() -> Int = 2
+
+@replaces @platform(x64)
+fn either() -> Int = 3
+
+-- But these are ordered - `x64` implies `native` - and disjoint pairs need no order at all.
+fn ordered() -> Int = 1
+
+@replaces @platform(native)
+fn ordered() -> Int = 2
+
+@replaces @platform(x64)
+fn ordered() -> Int = 3
+
+@replaces @platform(arm64)
+fn ordered() -> Int = 4
+
+-- The signature, which a replacement declares exactly: a parameter type, a parameter name, a
+-- constraint left out, a variable of its own, and a default.
+fn typed(x: I32) -> I32 = x
+
+@replaces @platform(native)
+fn typed(x: I64) -> I32 = 2
+
+fn named(x: I32) -> I32 = x
+
+@replaces @platform(native)
+fn named(y: I32) -> I32 = y
+
+fn (Eq(a)) same(x: a, y: a) -> Bool = x == y
+
+@replaces @platform(native)
+fn (Ord(a)) same(x: a, y: a) -> Bool = x == y
+
+fn (Num(a)) own(x: a) -> a = x + 0
+
+@replaces
+fn (Num(b), Num(Vec(b))) own(x: b) -> b = x + 0
+
+fn defaulted(x: I32 = 1) -> I32 = x
+
+@replaces @platform(native)
+fn defaulted(x: I32 = 2) -> I32 = x
+
+-- A baseline whose result its body decides has no stated signature to compare with.
+fn inferred() = 1
+
+@replaces @platform(native)
+fn inferred() -> I32 = 2
+
+-- And a replacement whose result its body would decide, for the same reason.
+fn stated() -> I32 = 1
+
+@replaces @platform(native)
+fn stated() = 2
+
+-- A member is chosen by selection rather than by condition, so it has no bodies to choose between.
+data Boxed {v: I32}
+
+class Measured(a):
+  fn measure(self: a) -> I32
+
+instance Measured(Boxed):
+  @replaces @platform(native)
+  fn measure(self: Boxed) -> I32 = self.v
+
+fn main() -> Int = 0

@@ -43,6 +43,10 @@ struct SourceEntry {
     // copied onto the AST by `FileProvider::parse` - see ast::Module::test.
     bool test = false;
 
+    // The selector segments of the file's name, as written - a view of `path`. Interned onto the AST
+    // by `FileProvider::parse`, see ast::Module::selectors.
+    StringView selectors {};
+
     // How much of `id` names the file's directory: the text up to its last segment. Zero for a file
     // sitting directly in a compile root, whose directory is the root and is named by `root`.
     U32 directoryLength = 0;

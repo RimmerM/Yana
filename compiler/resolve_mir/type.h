@@ -1689,21 +1689,6 @@ inline bool sameType(DeclPtr<Type> a, DeclPtr<Type> b) { return a == b; }
 U32 laneBytes(DeclBase base, IntWidths widths, DeclPtr<Type> type);
 
 /*
- * Whether a **natural** vector of this type exists on this target - `makeVectorType`'s four refusals
- * asked as a question instead of applied as a rule.
- *
- * The one caller is the bulk operations' choice of body (`Resolver::selectBulkBody`), and it is a
- * question rather than an attempt because the answer "no" is an ordinary one there: a container of
- * records takes the element walk and nothing is wrong. `makeVectorType` reports every refusal, which
- * is right where a program wrote `Vec(String)` and wrong where the compiler is deciding which of two
- * library bodies to call.
- *
- * Answered by calling `makeVectorType` itself, with reporting off, and reading whether the result is
- * null - so the two cannot drift, because there is only the one rule.
- */
-bool hasNaturalVector(Context& context, Program& program, DeclPtr<Type> type);
-
-/*
  * `Vec(a, n)` and `Mask(a, n)` - the one place the rules about them are applied.
  *
  * `lanes` of zero asks for the **natural** form, `targetVectorBytes / laneBytes`. Over a lane this
@@ -1717,9 +1702,9 @@ bool hasNaturalVector(Context& context, Program& program, DeclPtr<Type> type);
  * for. `source` is what all four are reported at.
  *
  * Null on refusal, which every caller propagates - there is no error type in this stage. `report`
- * is false only for `hasNaturalVector`, which wants the same refusals asked as a question rather
- * than raised as an error - a program never wrote the type being asked about, so there is nothing to
- * name a diagnostic against.
+ * false asks the same refusals as a question rather than raising them. A replacement's condition
+ * (Design-Replacements.md §3.3) asks by silencing the diagnostics instead, because what it asks is a
+ * whole class requirement and this is one of the many rules proving one can reach.
  */
 DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> lane, U64 lanes,
                              bool isMask, LocationId source, bool report = true);
