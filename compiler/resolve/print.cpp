@@ -224,6 +224,8 @@ static StringView instructionName(Value& value, GlobalBase global) {
             // thing about a load that changes what three passes may conclude from it, and the lower
             // IR draws the same distinction with the same name.
             return ((InstLoadPlace&)value).overread ? "loadx"_v : "load"_v;
+        case Value::VecMove:
+            return nameOfLaneMove(((InstVecMove&)value).move);
         case Value::VecReduce:
             switch(((InstVecReduce&)value).reduce) {
                 case ReduceOp::Add: return "vreduce_add"_v;
@@ -678,6 +680,14 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
         case Value::VecReduce: {
             print.writer.writeByte(' ');
             printValue(print, *print.local[((InstVecReduce&)inst).from]);
+            break;
+        }
+        case Value::VecMove: {
+            auto& move = (InstVecMove&)inst;
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[move.from]);
+            print.writer.writeString(", "_v);
+            printValue(print, *print.local[move.control]);
             break;
         }
         case Value::Symbol: {

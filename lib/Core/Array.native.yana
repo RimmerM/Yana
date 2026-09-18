@@ -292,6 +292,95 @@ pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
     return Just(doomed)
 
 {-
+   Every element a test rejects taken out, the rest kept in their order, and how many went -
+   `removeAll` against one value and `retain` against a predicate. Analysis-Avx512.md §3.1's first
+   user: a filter that runs in place.
+
+   **One pass and no second run.** `kept` is where the next survivor goes and `i` where it is read
+   from, so `kept <= i` throughout: a survivor is relocated down over a slot that is already dead or
+   is its own, and each element is read once before anything is written at or above it. The rejected
+   one is taken out with `let ->doomed`, which is its teardown and nothing else - `remove`'s line.
+   The relocation is the element's bytes for `joinedArrays`' reason, and `copyMemory` is enough for
+   one element because `kept < i` makes the two slots distinct.
+
+   `removeAll` over a lane type has a vector body beside it. `retain` has none: what a predicate
+   answers about one element is not something a lane can be asked.
+-}
+pub fn (Eq(a)) removeAll(&self: Array(a), wanted: a) -> Int:
+    let count = self.length :: Size
+    let items = self.run.items
+    let &kept = 0 :: Size
+
+    for i in 0 .. count:
+        if self[i] == wanted:
+            let ->doomed = *(items + i)
+        else:
+            if kept != i:
+                copyMemory(bitcast(items + kept) :: %U8, bitcast(items + i) :: %U8, byteSpan(items, 1))
+            kept = kept + 1
+
+    self.length = truncate(kept) :: Count
+    return truncate(count - kept) :: Int
+
+{-
+   The same filter a register at a time - `compress` keeps the lanes that are not `wanted`, and the
+   whole register is stored where the survivors so far end.
+
+   The store writes a full vector at `kept`, past the survivors it holds, and that is safe for the
+   loop's own reason: `kept <= i`, so everything it covers lies below `i + width` and inside the block
+   just read. The next store starts at the new `kept` and rewrites the lanes past the count before
+   anything reads them - which is why `compress` may leave them unspecified. The tail is the baseline's
+   walk, since a whole-register store there could reach past the run.
+
+   `Bitwise(Mask(a))` is the condition, as in Reduce.yana: it holds exactly where `a` is a lane type,
+   and a lane type is its bytes, so a survivor is a plain load and store and the rejected ones need no
+   teardown.
+-}
+@replaces
+fn (Eq(a), Bitwise(Mask(a))) removeAll(&self: Array(a), wanted: a) -> Int:
+    let sought = splat(wanted) :: Vec(a)
+    let width = lanes(sought) :: Size
+    let count = self.length :: Size
+    let items = self.run.items
+    let last = count - width
+
+    let &i = 0 :: Size
+    let &kept = 0 :: Size
+
+    while i <= last:
+        let block = vectorAt(items + i) :: Vec(a)
+        let {packed, survivors} = compress(block, block .!= sought)
+        setVectorAt(items + kept, packed)
+        kept = kept + (survivors :: Size)
+        i = i + width
+
+    while i < count:
+        let item = *(items + i)
+        if item != wanted:
+            store(items + kept, item)
+            kept = kept + 1
+        i = i + 1
+
+    self.length = truncate(kept) :: Count
+    return truncate(count - kept) :: Int
+
+pub fn retain(&self: Array(a), keep: (a) -> Bool) -> Int:
+    let count = self.length :: Size
+    let items = self.run.items
+    let &kept = 0 :: Size
+
+    for i in 0 .. count:
+        if keep(self[i]):
+            if kept != i:
+                copyMemory(bitcast(items + kept) :: %U8, bitcast(items + i) :: %U8, byteSpan(items, 1))
+            kept = kept + 1
+        else:
+            let ->doomed = *(items + i)
+
+    self.length = truncate(kept) :: Count
+    return truncate(count - kept) :: Int
+
+{-
    The teardown - Implementation-Containers.md §13.
 
    One traversal over the live elements, and the release of the run. That is the whole of what a

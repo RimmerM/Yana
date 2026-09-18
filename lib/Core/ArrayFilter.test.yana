@@ -1,0 +1,94 @@
+{-
+   `removeAll` and `retain` - the in-place filter, Analysis-Avx512.md §3.1's first user.
+
+   Both bodies of `removeAll` are asserted: an element type with a vector (`Int`, `U8`, `Double`) takes
+   the `compress` loop, and `String` takes the element walk, whose rejected elements have a teardown
+   that has to run exactly once. Every length from 0 to 70 is tried against the obvious answer, which
+   leaves a tail after the vector loop at every lane count a target has, and puts runs of rejected and
+   kept elements across the block edges.
+-}
+
+import Test
+
+-- The survivors, built without `removeAll`, to compare against.
+fn withoutInts(xs: [Int], wanted: Int) -> [Int]:
+    let &out = [] :: [Int]
+    for x in items(xs):
+        if x != wanted then out.push(x)
+    return out
+
+fn sameInts(left: [Int], right: [Int]) -> Bool:
+    if length(left) != length(right) then return False
+    for i in 0 .. length(left):
+        if left[i] != right[i] then return False
+    return True
+
+@test fn removeAllInts():
+    let &bad = 0
+
+    for n in 0 .. 71:
+        let &xs = newArray(n :: Size, (i: Size) -> truncate((i * 7) % 5) :: Int)
+        let want = withoutInts(xs, 3)
+        let removed = removeAll(xs, 3)
+
+        if !sameInts(xs, want) then bad = bad + 1
+        if removed != n - length(want) then bad = bad + 1
+
+    checkEqual(bad, 0)
+
+    -- Everything, and nothing.
+    let &all = newArray(40, (i: Size) -> 9 :: Int)
+    checkEqual(removeAll(all, 9), 40)
+    checkEqual(length(all), 0)
+
+    let &none = newArray(40, (i: Size) -> truncate(i) :: Int)
+    checkEqual(removeAll(none, 99), 0)
+    checkEqual(length(none), 40)
+    checkEqual(none[39], 39)
+
+@test fn removeAllBytes():
+    let &bad = 0
+
+    for n in 0 .. 71:
+        let &xs = newArray(n :: Size, (i: Size) -> truncate((i * 13) % 4) :: U8)
+        let &survivors = 0
+        for i in 0 .. n:
+            if xs[i] != 2 then survivors = survivors + 1
+
+        checkEqual(removeAll(xs, 2 :: U8), n - survivors)
+        if length(xs) != survivors then bad = bad + 1
+
+        -- In order: the pattern is periodic, so the survivors are too.
+        for i in 0 .. length(xs):
+            if xs[i] == 2 then bad = bad + 1
+            if i > 0 && xs[i] == xs[i - 1] && xs[i] != 0 then bad = bad + 1
+
+    checkEqual(bad, 0)
+
+@test fn removeAllDoubles():
+    let &xs = newArray(37, (i: Size) -> ((truncate(i % 3) :: Int) :: Double) * 0.5)
+    checkEqual(removeAll(xs, 0.5), 12)
+    checkEqual(length(xs), 25)
+    checkEqual(xs[0], 0.0)
+    checkEqual(xs[1], 1.0)
+    checkEqual(xs[24], 0.0)
+
+@test fn removeAllStrings():
+    let &words = ["a", "bb", "a", "ccc", "a", "a", "dddd"]
+    checkEqual(removeAll(words, "a"), 4)
+    checkEqual(length(words), 3)
+    checkEqual(words[0], "bb")
+    checkEqual(words[1], "ccc")
+    checkEqual(words[2], "dddd")
+
+@test fn retainKeeps():
+    let &xs = newArray(50, (i: Size) -> truncate(i) :: Int)
+    checkEqual(retain(xs, (x: Int) -> x % 3 == 0), 33)
+    checkEqual(length(xs), 17)
+    checkEqual(xs[0], 0)
+    checkEqual(xs[16], 48)
+
+    let &words = ["keep", "drop", "keep", "keep", "drop"]
+    checkEqual(retain(words, (w: String) -> w == "keep"), 2)
+    checkEqual(length(words), 3)
+    checkEqual(words[2], "keep")

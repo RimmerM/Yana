@@ -229,6 +229,7 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::VecWithLane:
         case Value::VecShuffle:
         case Value::VecReduce:
+        case Value::VecMove:
         case Value::Symbol:
             return InstGroup::Compute;
 

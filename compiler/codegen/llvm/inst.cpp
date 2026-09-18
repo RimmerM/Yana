@@ -964,6 +964,98 @@ static llvm::Value* genReduceTree(FunGen& f, llvm::Value* value, bool isMul) {
     return f.builder.CreateExtractElement(value, uint64_t(0));
 }
 
+/*
+ * The three lane movements whose control is a value - `LowerInst::VecMove`.
+ *
+ * `compress` is LLVM's own `llvm.experimental.vector.compress`, whose pass-through is zero, so the
+ * lanes past the count are zero here as they are at the other two backends. `expand` and `lookup`
+ * have no generic intrinsic and are written a lane at a time: an index read per lane and a lane
+ * extracted at it, which LLVM's own lowering turns into what the target has. Correct at every
+ * feature level, and the x64 backend is where each level's instruction is chosen.
+ */
+static void genVecMove(FunGen& f, LowerInstVecMove& inst) {
+    auto source = use(f, inst, inst.source);
+    auto control = use(f, inst, inst.control);
+    auto type = llvm::cast<llvm::FixedVectorType>(typeOf(f.gen, inst.result.type));
+    auto zero = llvm::Constant::getNullValue(type);
+    auto i32 = llvm::Type::getInt32Ty(f.gen.llvm);
+
+    if(inst.getMove() == LowerLaneMove::Compress) {
+        auto compressed = f.builder.CreateIntrinsic(llvm::Intrinsic::experimental_vector_compress,
+                                                    { type }, { source, control, zero });
+        nameResult(f, compressed, inst.result);
+        f.define(inst.result, compressed);
+        return;
+    }
+
+    auto lanes = type->getNumElements();
+    llvm::Value* answer = zero;
+
+    if(inst.getMove() == LowerLaneMove::Lookup) {
+        auto tableType = f.base[inst.source]->type;
+        auto table = tableType.lanes();
+
+        /*
+         * Except the sixteen-byte table read at bytes, which is what the library's lookups are (the
+         * hex digits, Base64's offsets): `pshufb` on x86, over the table placed in both halves at 32
+         * bytes, since `vpshufb` reads each half of its table on its own. Left a lane at a time, LLVM
+         * lowers the extracts one by one and never finds the instruction - thirty-two of them where
+         * the x64 backend writes two.
+         */
+        auto& settings = f.context.settings;
+        auto bytes = tableType.lane == LowerLane::Int8 && table == 16;
+        auto narrow = lanes == 16 && settings.extensions.has(kSetSsse3);
+        auto wide = lanes == 32 && settings.extensions.has(kSetAvx2);
+
+        if(settings.arch == TargetArch::X64 && bytes && (narrow || wide)) {
+            auto wrapped = f.builder.CreateAnd(control, llvm::ConstantInt::get(type, 15));
+            llvm::Value* from = source;
+
+            if(wide) {
+                llvm::SmallVector<int, 32> twice;
+                for(int i = 0; i < 32; i++) twice.push_back(i % 16);
+                from = f.builder.CreateShuffleVector(source, source, twice);
+            }
+
+            auto which = wide ? llvm::Intrinsic::x86_avx2_pshuf_b : llvm::Intrinsic::x86_ssse3_pshuf_b_128;
+            answer = f.builder.CreateIntrinsic(which, {}, { from, wrapped });
+
+            nameResult(f, answer, inst.result);
+            f.define(inst.result, answer);
+            return;
+        }
+
+        for(unsigned i = 0; i < lanes; i++) {
+            auto index = f.builder.CreateExtractElement(control, uint64_t(i));
+            auto wrapped = f.builder.CreateAnd(f.builder.CreateZExtOrTrunc(index, i32),
+                                               llvm::ConstantInt::get(i32, table - 1));
+            answer = f.builder.CreateInsertElement(answer, f.builder.CreateExtractElement(source, wrapped),
+                                                   uint64_t(i));
+        }
+
+        nameResult(f, answer, inst.result);
+        f.define(inst.result, answer);
+        return;
+    }
+
+    // An expansion reads, for each lane its mask sets, the source lane numbered by how many set
+    // lanes lie below it - the population of the mask's bits under the lane's own.
+    auto bitsType = llvm::Type::getIntNTy(f.gen.llvm, lanes);
+    auto bits = f.builder.CreateBitCast(control, bitsType);
+    auto laneZero = llvm::Constant::getNullValue(type->getElementType());
+
+    for(unsigned i = 0; i < lanes; i++) {
+        auto below = f.builder.CreateAnd(bits, llvm::ConstantInt::get(bitsType, (llvm::APInt::getOneBitSet(lanes, i) - 1)));
+        auto count = f.builder.CreateUnaryIntrinsic(llvm::Intrinsic::ctpop, below);
+        auto read = f.builder.CreateExtractElement(source, f.builder.CreateZExtOrTrunc(count, i32));
+        auto keep = f.builder.CreateExtractElement(control, uint64_t(i));
+        answer = f.builder.CreateInsertElement(answer, f.builder.CreateSelect(keep, read, laneZero), uint64_t(i));
+    }
+
+    nameResult(f, answer, inst.result);
+    f.define(inst.result, answer);
+}
+
 static llvm::Intrinsic::ID reduceIntrinsic(LowerReduce reduce, bool isFloat) {
     switch(reduce) {
         case LowerReduce::Add:  return llvm::Intrinsic::vector_reduce_add;
@@ -1550,6 +1642,9 @@ void genInst(FunGen& f, LowerInst& inst) {
             break;
         case LowerInst::VecReduce:
             genVecReduce(f, (LowerInstVecReduce&)inst);
+            break;
+        case LowerInst::VecMove:
+            genVecMove(f, (LowerInstVecMove&)inst);
             break;
         case LowerInst::Alloca:
             genAlloca(f, (LowerInstAlloca&)inst);

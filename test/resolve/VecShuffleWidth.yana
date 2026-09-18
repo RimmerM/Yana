@@ -1,0 +1,56 @@
+{-
+   A shuffle whose result is not its source's width, at `avx2` - where each half of a 256-bit register
+   is its own lane space and selection reads a pattern against the result's count.
+
+   # extensions: avx2
+
+   `shuffle(v, [16 .. 31])` over a `Vec(U8, 32)` answered the *low* half, and joining two `Vec(U8, 16)`
+   into one `Vec(U8, 32)` read the first source twice - silently, in both resolvers, until
+   `lowerWidthChangingShuffles` (codegen/x64/transform_move.cpp) sent every shape selection misreads
+   through a frame slot. The shapes it reads correctly - a widening that names only its left source,
+   a narrowing that names only the lanes below the result's count - are here too, so that one of them
+   going the slow way would still answer right and one going wrong would show. The program answers
+   the number of lanes that disagree with the pattern's meaning.
+-}
+import Native
+
+@noinline
+fn high(v: Vec(U8, 32)) -> Vec(U8, 16) = shuffle(v, [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])
+
+@noinline
+fn low(v: Vec(U8, 32)) -> Vec(U8, 16) = shuffle(v, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+
+@noinline
+fn scattered(v: Vec(U8, 32)) -> Vec(U8, 16) = shuffle(v, [31, 0, 17, 2, 19, 4, 21, 6, 23, 8, 25, 10, 27, 12, 29, 14])
+
+@noinline
+fn doubled(v: Vec(U8, 16)) -> Vec(U8, 32) = shuffle(v, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+
+@noinline
+fn words(v: Vec(U16, 16)) -> Vec(U16, 8) = shuffle(v, [8, 9, 10, 11, 12, 13, 14, 15])
+
+fn wrongIn16(got: Vec(U8, 16), want: [U8 *16]) -> Int:
+    let &out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] :: [U8 *16]
+    setVectorAt(addressOf(out[0 :: Size]), got)
+    let &wrong = 0
+    for i in 0 .. 16:
+        if out[i :: Size] != want[i :: Size] then wrong = wrong + 1
+    return wrong
+
+fn main() -> Int:
+    let v = (iota() :: Vec(U8, 32)) + (splat(100 :: U8) :: Vec(U8, 32))
+    let &wrong = 0
+
+    wrong = wrong + wrongIn16(high(v), [116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131])
+    wrong = wrong + wrongIn16(low(v), [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115])
+    wrong = wrong + wrongIn16(scattered(v), [131, 100, 117, 102, 119, 104, 121, 106, 123, 108, 125, 110, 127, 112, 129, 114])
+
+    let twice = doubled(high(v))
+    wrong = wrong + wrongIn16(low(twice), [116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131])
+    wrong = wrong + wrongIn16(high(twice), [116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131])
+
+    let w = words((iota() :: Vec(U16, 16)) * (splat(3 :: U16) :: Vec(U16, 16)))
+    if lane(w, 0) != 24 then wrong = wrong + 1
+    if lane(w, 7) != 45 then wrong = wrong + 1
+
+    return wrong

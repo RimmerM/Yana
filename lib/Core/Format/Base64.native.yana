@@ -1,0 +1,100 @@
+module Core
+
+import Native
+
+{-
+   The block form of `pushBase64Groups` - twelve bytes read, sixteen units written a turn. What the
+   encoding is, and the scalar loop this replaces, are in `Base64.yana`.
+
+   **The windows.** One constant shuffle places each group's three bytes big-end-first in the low
+   three bytes of a 32-bit lane, so the lane holds the group's twenty-four-bit word `w`. The four
+   six-bit windows are then `w >> 18`, `w >> 12`, `w >> 6` and `w`, each wanted in its own byte of the
+   lane, low to high - which is four shifts that land each window where it goes and four masks that
+   keep it there, `or`ed together. The published encoders fold that into two multiply-high steps; this
+   language has no multiply-high, and the shifts are the same answer.
+
+   **The alphabet is one lookup** (Analysis-Avx512.md §3.3), not a table of sixty-four: a window's unit
+   is the window plus an offset that is the same across each run of the alphabet - `A`-`Z`, `a`-`z`,
+   `0`-`9`, then the two symbols. `max(d, 51) - 51` is zero for the letters and one to twelve for the
+   rest, the capitals are moved to thirteen, and that number reads the offset out of a sixteen-entry
+   table: one `pshufb`. The two alphabets differ only in the last two offsets.
+
+   Sixteen lanes, written down, for `pushHex`'s reason: the spread shuffle is one `pshufb` within a
+   128-bit half, and at thirty-two lanes the groups would straddle the halves. The read is a whole
+   register of which the last four bytes are not used, so the loop stops sixteen bytes before the end
+   and the scalar groups finish the run - stores into the reserved run, as `pushHex` writes.
+-}
+@replaces
+fn pushBase64Groups(bytes: [U8], url: Bool, &to: String) -> Size:
+    let count = length(bytes)
+    let groups = count / 3
+    if groups <= 0 then return 0
+
+    String.reserve(to, groups * 4)
+
+    let start = to.units.length :: Size
+    let wanted = start + groups * 4
+    checkCondition((to.units.run.capacity :: Size) < wanted)
+    to.units.length = truncate(wanted) :: Count
+
+    let source = bytes.items
+    let target = to.units.run.items + start
+
+    -- Six bits in each byte of a lane, one mask per byte.
+    let byte0 = splat(0x3f) :: Vec(U32, 4)
+    let byte1 = splat(0x3f00) :: Vec(U32, 4)
+    let byte2 = splat(0x3f0000) :: Vec(U32, 4)
+    let byte3 = splat(0x3f000000) :: Vec(U32, 4)
+
+    let letters = splat(51) :: Vec(U8, 16)
+    let capitals = splat(26) :: Vec(U8, 16)
+    let capitalSlot = splat(13) :: Vec(U8, 16)
+    let offsets = base64Offsets(url)
+
+    let &i = 0 :: Size
+    let &o = 0 :: Size
+
+    while i + 16 <= count:
+        let block = vectorAt(source + i) :: Vec(U8, 16)
+        let word = bitcast(shuffle(block, [2, 1, 0, 0, 5, 4, 3, 3, 8, 7, 6, 6, 11, 10, 9, 9])) :: Vec(U32, 4)
+
+        let w0 = (word `shr` (splat(18) :: Vec(U32, 4))) `and` byte0
+        let w1 = (word `shr` (splat(4) :: Vec(U32, 4))) `and` byte1
+        let w2 = (word `shl` (splat(10) :: Vec(U32, 4))) `and` byte2
+        let w3 = (word `shl` (splat(24) :: Vec(U32, 4))) `and` byte3
+        let windows = bitcast(w0 `or` w1 `or` w2 `or` w3) :: Vec(U8, 16)
+
+        let run = select(windows .< capitals, capitalSlot, max(windows, letters) - letters)
+        let text = windows + lookup(offsets, run)
+        setVectorAt(target + o, bitcast(text) :: Vec(CodeUnit, 16))
+
+        i = i + 12
+        o = o + 16
+
+    let alphabet = base64Alphabet(url)
+
+    while i + 3 <= count:
+        let word = ((bytes[i] :: Int) `shl` 16) `or` ((bytes[i + 1] :: Int) `shl` 8) `or` (bytes[i + 2] :: Int)
+
+        store(target + o, String.unit(alphabet, ((word `shr` 18) `and` 63) :: Size))
+        store(target + o + 1, String.unit(alphabet, ((word `shr` 12) `and` 63) :: Size))
+        store(target + o + 2, String.unit(alphabet, ((word `shr` 6) `and` 63) :: Size))
+        store(target + o + 3, String.unit(alphabet, (word `and` 63) :: Size))
+
+        i = i + 3
+        o = o + 4
+
+    return i
+
+{-
+   What each run of the alphabet adds to its windows, as bytes that wrap: entry 0 is the small letters
+   (`a` - 26), 1 to 10 the digits (`0` - 52), 11 and 12 the two symbols, 13 the capitals (`A`).
+-}
+fn base64Offsets(url: Bool) -> Vec(U8, 16):
+    let digits = splat(252 :: U8) :: Vec(U8, 16)            -- 48 - 52, `0` at window 52
+    let plus = if url then 239 :: U8 else 237 :: U8         -- `-` 45 or `+` 43, at window 62
+    let slash = if url then 32 :: U8 else 240 :: U8         -- `_` 95 or `/` 47, at window 63
+
+    let small = withLane(digits, 0, 71 :: U8)               -- 97 - 26, `a` at window 26
+    let symbols = withLane(withLane(small, 11, plus), 12, slash)
+    return withLane(symbols, 13, 65 :: U8)                  -- `A` at window 0

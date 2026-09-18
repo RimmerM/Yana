@@ -505,6 +505,23 @@ static const TransformPass kTransformPipeline[] = {
     { "expandLaneCountConversions"_v,  expandLaneCountConversions,  0, true },
 
     /*
+     * Directly behind it, for the same reasons in the other direction: what it builds is byte
+     * shuffles with constant patterns, constant splats and comparisons, which the permute lowerings,
+     * the pool and the mask-domain choice below all have to see, and a movemask - which is why it
+     * stands below `lowerVectorReductions`, the pass that would otherwise have expanded one. At
+     * `avx512` a compress or an expand is left standing, and its mask is one `chooseMaskDomain`
+     * keeps in a mask register because nothing tells it otherwise.
+     */
+    { "lowerVectorMoves"_v,            lowerVectorMoves,            0, true },
+
+    /*
+     * Directly behind it, which builds the halves and the joins this legalizes, and above every pass
+     * that lowers a shuffle or reads one's pattern: what reaches them has its sources' width, or is a
+     * shape selection reads correctly.
+     */
+    { "lowerWidthChangingShuffles"_v,  lowerWidthChangingShuffles,  0, true },
+
+    /*
      * After the reduction, which is the other producer of a defined-at-zero bit scan - `firstSet`
      * off a movemask that fills its word. That one emits `CttzWidth` only where it has asserted
      * BMI1, so this finds nothing of its there and everything of `Value::TrailingZeros`' and

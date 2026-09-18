@@ -11,7 +11,8 @@ import Native
    works inside a 128-bit half. At `avx512` each is one `vpermi2b` over a pooled index vector
    (Analysis-Avx512.md §2.5), so the loop can take the natural width and read thirty-two bytes and
    write sixty-four units a turn. Everything else is the baseline's loop with the count changed; the
-   comparison and the `select` are a mask register and a masked move at this level.
+   sixteen-entry digit table is read at thirty-two indices, which is `vpermi2b` over the table
+   doubled (Analysis-Avx512.md §3.3).
 
    Measured in `test/bench/avx512/findings.md` against the baseline built at the same level.
 -}
@@ -30,18 +31,13 @@ fn pushHex(bytes: [U8], &to: String):
     let source = bytes.items
     let target = to.units.run.items + start
 
-    let nibble = splat(15) :: Vec(U8)
-    let nine = splat(9) :: Vec(U8)
-    let digit = splat("0" :: U8) :: Vec(U8)
-    let letter = splat(("a" - 10) :: U8) :: Vec(U8)
+    let digits = hexDigitVector()
 
     let &i = 0 :: Size
     while i + 32 <= n:
         let block = vectorAt(source + i) :: Vec(U8)
-        let high = (block `shr` (splat(4) :: Vec(U8))) `and` nibble
-        let low = block `and` nibble
-        let highText = high + select(high .> nine, letter, digit)
-        let lowText = low + select(low .> nine, letter, digit)
+        let highText = lookup(digits, block `shr` (splat(4) :: Vec(U8)))
+        let lowText = lookup(digits, block)
 
         let low32 = bitcast(interleaveLow(highText, lowText)) :: Vec(CodeUnit)
         let high32 = bitcast(interleaveHigh(highText, lowText)) :: Vec(CodeUnit)

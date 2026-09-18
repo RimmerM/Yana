@@ -647,6 +647,15 @@ enum: MachineFormId {
     FormVPermute2x32, FormVWidePermute2x32, FormVPermute2x64, FormVWidePermute2x64,
     FormVPermute2F32, FormVWidePermute2F32, FormVPermute2F64, FormVWidePermute2F64,
 
+    // `vpcompress*` and `vpexpand*` with the lanes past the answer zeroed - LowerInst::VecMove's two
+    // masked movements, one row per lane at each width.
+    FormVCompress8, FormVWideCompress8, FormVCompress16, FormVWideCompress16,
+    FormVCompress32, FormVWideCompress32, FormVCompress64, FormVWideCompress64,
+    FormVCompressF32, FormVWideCompressF32, FormVCompressF64, FormVWideCompressF64,
+    FormVExpand8, FormVWideExpand8, FormVExpand16, FormVWideExpand16,
+    FormVExpand32, FormVWideExpand32, FormVExpand64, FormVWideExpand64,
+    FormVExpandF32, FormVWideExpandF32, FormVExpandF64, FormVWideExpandF64,
+
     FormSelectFlags,
     FormSelectReg,
     FormSelectFloat32Flags, FormSelectFloat64Flags,

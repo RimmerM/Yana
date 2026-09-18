@@ -315,6 +315,16 @@ void expandBitScans(Context&, LowerBase base, LowerFunction& fun);
 void expandAtomics(Context&, LowerBase base, LowerFunction& fun);
 
 /*
+ * transform_move.cpp - `compress`, `expand` and `lookup` below the level that has an instruction for
+ * each, and `lookup` at that level too. See the header of the file.
+ */
+void lowerVectorMoves(Context& ctx, LowerBase base, LowerFunction& fun);
+
+// A shuffle whose result is not its sources' width, where selection would misread it - see the
+// definition, beside the pass above because it is the one that builds most of them.
+void lowerWidthChangingShuffles(Context& ctx, LowerBase base, LowerFunction& fun);
+
+/*
  * transform_switch.cpp - the multi-way branch.
  */
 

@@ -2392,7 +2392,19 @@ struct Emitter {
          * A **word** needs no scratch and no constant. `pshuflw` puts word zero into all four words
          * of the low quadword, and `pshufd` then broadcasts the dword those four make - two shuffles
          * of the value itself, which is the same count as the byte's route without the register.
+         *
+         * Unless the destination *is* the scratch. A clobber is not an early-clobber here: the
+         * allocator may give the result the register the form declares written, and this route
+         * writes the result before the zeros (`OperandTiming`, which nothing reads yet). Found by a
+         * compress round trip whose popcount splat landed in xmm11 and zeroed itself. There the byte
+         * is interleaved with itself into a word - `punpcklbw`, 66 0F 60 /r - and the word's route
+         * below finishes it: one instruction more and no scratch.
          */
+        if(lane == 1 && destination == kVectorScratch) {
+            genRegReg(to, false, destination, destination, 0x60, 0x0f, 0x66);
+            lane = 2;
+        }
+
         if(lane == 1) {
             auto zeros = kVectorScratch; // the form's declared clobber - see FormVBroadcast8Sse
 

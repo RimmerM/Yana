@@ -121,3 +121,17 @@ YANA_MIR_NATIVE( AesDecryptLast,    "aesdeclast"_v      )
 YANA_MIR_NATIVE( AesInverseMix,     "aesimc"_v          )
 YANA_MIR_NATIVE( AesKeygenAssist,   "aeskeygenassist"_v )
 YANA_MIR_NATIVE( CarrylessMultiply, "pclmulqdq"_v       )
+
+/*
+ * The lane movements whose control is a value - `compressLanes(v, keep)`, `expand(v, into)` and
+ * `lookup(table, indices)`, Analysis-Avx512.md §3.1 and §3.3.
+ *
+ * Portable rather than a target's, which is where these depart from the x86 rows above: each is one
+ * instruction at `avx512` and a sequence below it, and the sequence is the backend's to write because
+ * the backend that has the instruction should see the operation rather than have to recognize one.
+ * They are rows here on this file's own terms all the same - a fixed operation over a flat argument
+ * list - and `LowerInst::VecMove` is the one kind all three become.
+ */
+YANA_MIR_NATIVE( VecCompress, "vcompress"_v )
+YANA_MIR_NATIVE( VecExpand,   "vexpand"_v   )
+YANA_MIR_NATIVE( VecLookup,   "vlookup"_v   )

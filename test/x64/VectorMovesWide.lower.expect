@@ -1,0 +1,499 @@
+
+compress8x32<complex>(%v: i8x32, %k: i8x32): i8x32 {
+  b_0 {
+    %m = cmp_neq %k, %v: m8x32
+    %r = vcompress %v, %m: i8x32
+    ret %r
+  }
+}
+
+expand8x32<complex>(%v: i8x32, %k: i8x32): i8x32 {
+  b_0 {
+    %m = cmp_neq %k, %v: m8x32
+    %r = vexpand %v, %m: i8x32
+    ret %r
+  }
+}
+
+lookup8x32<complex>(%table: i8x32, %indices: i8x32): i8x32 {
+  b_0 {
+    %r = vlookup %table, %indices: i8x32
+    ret %r
+  }
+}
+
+compress16x16<complex>(%v: i16x16, %k: i16x16): i16x16 {
+  b_0 {
+    %m = cmp_neq %k, %v: m16x16
+    %r = vcompress %v, %m: i16x16
+    ret %r
+  }
+}
+
+expand16x16<complex>(%v: i16x16, %k: i16x16): i16x16 {
+  b_0 {
+    %m = cmp_neq %k, %v: m16x16
+    %r = vexpand %v, %m: i16x16
+    ret %r
+  }
+}
+
+lookup16x16<complex>(%table: i16x16, %indices: i16x16): i16x16 {
+  b_0 {
+    %r = vlookup %table, %indices: i16x16
+    ret %r
+  }
+}
+
+compress32x8<complex>(%v: i32x8, %k: i32x8): i32x8 {
+  b_0 {
+    %m = cmp_neq %k, %v: m32x8
+    %r = vcompress %v, %m: i32x8
+    ret %r
+  }
+}
+
+expand32x8<complex>(%v: i32x8, %k: i32x8): i32x8 {
+  b_0 {
+    %m = cmp_neq %k, %v: m32x8
+    %r = vexpand %v, %m: i32x8
+    ret %r
+  }
+}
+
+lookup32x8<complex>(%table: i32x8, %indices: i32x8): i32x8 {
+  b_0 {
+    %r = vlookup %table, %indices: i32x8
+    ret %r
+  }
+}
+
+compress64x4<complex>(%v: i64x4, %k: i64x4): i64x4 {
+  b_0 {
+    %m = cmp_neq %k, %v: m64x4
+    %r = vcompress %v, %m: i64x4
+    ret %r
+  }
+}
+
+expand64x4<complex>(%v: i64x4, %k: i64x4): i64x4 {
+  b_0 {
+    %m = cmp_neq %k, %v: m64x4
+    %r = vexpand %v, %m: i64x4
+    ret %r
+  }
+}
+
+lookup64x4<complex>(%table: i64x4, %indices: i64x4): i64x4 {
+  b_0 {
+    %r = vlookup %table, %indices: i64x4
+    ret %r
+  }
+}
+
+lookupDoubled8<complex>(%table: i8x16, %indices: i8x32): i8x32 {
+  b_0 {
+    %r = vlookup %table, %indices: i8x32
+    ret %r
+  }
+}
+
+
+--- codegen: compress8x32 ---
+  prologue  => 4883ec60
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_neq uses=[xmm1, xmm0] creates=[xmm1]  => c5f574c8c4412576dbc4c175efcb
+  vreduce_bits uses=[xmm1] creates=[rax]  => c5fdd7c1
+  imm uses=[] creates=[-]  => 
+  and uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8bc881e1ffff0000
+  imm uses=[] creates=[-]  => 
+  shr uses=[rax, -] creates=[rax]  => c1e810
+  popcnt uses=[rcx] creates=[rdx]  => f30fb8d1
+  cast uses=[rdx] creates=[rdx]  => 
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rsi]  => 488d3424
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c5f970c8e4
+  imm uses=[] creates=[-]  => 
+  and uses=[r8, -] creates=[r8] pre=[rcx->r8]  => 448bc14181e0ff000000
+  imm uses=[] creates=[-]  => 
+  shr uses=[rcx, -] creates=[rcx]  => c1e908
+  popcnt uses=[r8] creates=[r9]  => f3450fb8c8
+  cast uses=[r8] creates=[r8]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[r8, -] creates=[r8]  => 49c1e004
+  global uses=[] creates=[remat:0]  => 
+  cast uses=[rcx] creates=[rcx]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rcx, -] creates=[rcx]  => 48c1e104
+  global uses=[] creates=[remat:1]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-] pre=[remat:1->rdi]  => 488d3d21140000
+  load uses=[-] creates=[xmm2]  => c5fa6f140f
+  cast uses=[r9] creates=[r9]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[r9, -] creates=[r9]  => 49c1e104
+  global uses=[] creates=[remat:2]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, r9] creates=[-] pre=[remat:2->rdi]  => 488d3d11240000
+  x86_permute uses=[-, xmm2] creates=[xmm2]  => c4a26900140f
+  x86_addr scale=1 disp=0 uses=[rdi, r8] creates=[-] pre=[remat:0->rdi]  => 488d3d04040000
+  or uses=[xmm2, -] creates=[xmm2]  => c4a169eb1407
+  x86_permute uses=[xmm2, xmm1] creates=[xmm2]  => c4e27100d2
+  store uses=[rsi, xmm2] creates=[]  => c5fa7f16
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d4c2420
+  store uses=[rcx, xmm0] creates=[]  => c5fe7f01
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=32 uses=[rcx] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => c5fe7f4120
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rcx] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => c5fa6f4110
+  imm uses=[] creates=[-]  => 
+  and uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8bc881e1ff000000
+  imm uses=[] creates=[-]  => 
+  shr uses=[rax, -] creates=[rax]  => c1e808
+  popcnt uses=[rcx] creates=[r8]  => f3440fb8c1
+  cast uses=[rcx] creates=[rcx]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rcx, -] creates=[rcx]  => 48c1e104
+  global uses=[] creates=[remat:3]  => 
+  cast uses=[rax] creates=[rax]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax]  => 48c1e004
+  global uses=[] creates=[remat:4]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-] pre=[remat:4->rdi]  => 488d3dc3130000
+  load uses=[-] creates=[xmm1]  => c5fa6f0c07
+  cast uses=[r8] creates=[r8]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[r8, -] creates=[r8]  => 49c1e004
+  global uses=[] creates=[remat:5]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, r8] creates=[-] pre=[remat:5->rdi]  => 488d3db3230000
+  x86_permute uses=[-, xmm1] creates=[xmm1]  => c4a271000c07
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-] pre=[remat:3->rdi]  => 488d3da6030000
+  or uses=[xmm1, -] creates=[xmm1]  => c5f1eb0c0f
+  x86_permute uses=[xmm1, xmm0] creates=[xmm1]  => c4e27900c9
+  x86_addr scale=1 disp=0 uses=[rsi, rdx] creates=[-]  => 
+  store uses=[-, xmm1] creates=[]  => c5fa7f0c16
+  load uses=[rsi] creates=[xmm0]  => c5fe6f06
+  ret uses=[xmm0] creates=[]  => 4883c460c3
+
+--- codegen: expand8x32 ---
+  prologue  => 4883ec40
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_neq uses=[xmm1, xmm0] creates=[xmm1]  => c5f574c8c4412576dbc4c175efcb
+  vreduce_bits uses=[xmm1] creates=[rax]  => c5fdd7c1
+  imm uses=[] creates=[-]  => 
+  and uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8bc881e1ffff0000
+  imm uses=[] creates=[-]  => 
+  shr uses=[rax, -] creates=[rax]  => c1e810
+  popcnt uses=[rcx] creates=[rdx]  => f30fb8d1
+  cast uses=[rdx] creates=[rdx]  => 
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rsi]  => 488d3424
+  store uses=[rsi, xmm0] creates=[]  => c5fe7f06
+  x86_addr scale=1 disp=0 uses=[rsi, rdx] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fa6f0c16
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c5f970c0e4
+  imm uses=[] creates=[-]  => 
+  and uses=[rdx, -] creates=[rdx] pre=[rcx->rdx]  => 8bd181e2ff000000
+  imm uses=[] creates=[-]  => 
+  shr uses=[rcx, -] creates=[rcx]  => c1e908
+  popcnt uses=[rdx] creates=[rsi]  => f30fb8f2
+  cast uses=[rdx] creates=[rdx]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rdx, -] creates=[rdx]  => 48c1e204
+  global uses=[] creates=[remat:0]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rdx] creates=[-] pre=[remat:0->rdi]  => 488d3dbf230000
+  load uses=[-] creates=[xmm2]  => c5fa6f1417
+  cast uses=[rcx] creates=[rcx]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rcx, -] creates=[rcx]  => 48c1e104
+  global uses=[] creates=[remat:1]  => 
+  vsplat uses=[rsi] creates=[xmm3]  => c5f96edec4e27978db
+  x86_addr [rip + $v128$0000000000000000ffffffffffffffff] uses=[] creates=[-]  => 
+  and uses=[xmm3, -] creates=[xmm3]  => c5e1db1da5430000
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-] pre=[remat:1->rdi]  => 488d3d9e330000
+  or uses=[xmm2, -] creates=[xmm2]  => c5e9eb140f
+  add uses=[xmm2, xmm3] creates=[xmm2]  => c5e9fcd3
+  x86_permute uses=[xmm2, xmm0] creates=[xmm2]  => c4e27900d2
+  imm uses=[] creates=[-]  => 
+  and uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8bc881e1ff000000
+  imm uses=[] creates=[-]  => 
+  shr uses=[rax, -] creates=[rax]  => c1e808
+  popcnt uses=[rcx] creates=[rdx]  => f30fb8d1
+  cast uses=[rcx] creates=[rcx]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rcx, -] creates=[rcx]  => 48c1e104
+  global uses=[] creates=[remat:2]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-] pre=[remat:2->rdi]  => 488d3d76230000
+  load uses=[-] creates=[xmm0]  => c5fa6f040f
+  cast uses=[rax] creates=[rax]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax]  => 48c1e004
+  global uses=[] creates=[remat:3]  => 
+  vsplat uses=[rdx] creates=[xmm3]  => c5f96edac4e27978db
+  x86_addr [rip + $v128$0000000000000000ffffffffffffffff] uses=[] creates=[-]  => 
+  and uses=[xmm3, -] creates=[xmm3]  => c5e1db1d5c430000
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-] pre=[remat:3->rdi]  => 488d3d55330000
+  or uses=[xmm0, -] creates=[xmm0]  => c5f9eb0407
+  add uses=[xmm0, xmm3] creates=[xmm0]  => c5f9fcc3
+  x86_permute uses=[xmm0, xmm1] creates=[xmm0]  => c4e27100c0
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rax]  => 488d442420
+  store uses=[rax, xmm2] creates=[]  => c5fa7f10
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rax] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => c5fa7f4010
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=0 uses=[rax] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => c5fe6f00
+  ret uses=[xmm0] creates=[]  => 4883c440c3
+
+--- codegen: lookup8x32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr [rip + $v256$1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f] uses=[] creates=[-]  => 
+  and uses=[xmm1, -] creates=[xmm1]  => c5f5db0d38430000
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm2]  => c4e37d06d000
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c4e37d06c011
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  x86_permute uses=[xmm1, xmm2] creates=[xmm2]  => c4e26d00d1
+  x86_permute uses=[xmm1, xmm0] creates=[xmm0]  => c4e27d00c1
+  x86_addr [rip + $v256$0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f] uses=[] creates=[-]  => 
+  cmp_igt uses=[xmm1, -] creates=[xmm1]  => c5f5640d3a430000
+  select uses=[xmm0, xmm2, xmm1] creates=[xmm0]  => c4e36d4cc010
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: compress16x16 ---
+  prologue  => 4883ec60
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_neq uses=[xmm1, xmm0] creates=[xmm1]  => c5f575c8c4412576dbc4c175efcb
+  vreduce_bits uses=[xmm1] creates=[rax]  => c5fdd7c1
+  imm uses=[] creates=[remat:0]  => 
+  pext uses=[rax, rdi] creates=[rax] pre=[remat:0->rdi]  => bf55555555c4e27af5c7
+  imm uses=[] creates=[-]  => 
+  and uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8bc881e1ff000000
+  imm uses=[] creates=[-]  => 
+  shr uses=[rax, -] creates=[rax]  => c1e808
+  popcnt uses=[rcx] creates=[rdx]  => f30fb8d1
+  cast uses=[rdx] creates=[rdx]  => 
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rsi]  => 488d3424
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c5f970c8e4
+  cast uses=[rcx] creates=[rcx]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rcx, -] creates=[rcx]  => 48c1e104
+  global uses=[] creates=[remat:1]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-] pre=[remat:1->rdi]  => 488d3d0d430000
+  x86_permute uses=[-, xmm1] creates=[xmm1]  => c4e271000c0f
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  store uses=[rsi, xmm1] creates=[]  => c5fa7f0e
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d4c2420
+  store uses=[rcx, xmm0] creates=[]  => c5fe7f01
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=32 uses=[rcx] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => c5fe7f4120
+  imm uses=[] creates=[remat:2]  => 
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=2 disp=0 uses=[rcx, rdi] creates=[-] pre=[remat:2->rdi]  => bf08000000
+  load uses=[-] creates=[xmm0]  => c5fa6f0479
+  cast uses=[rax] creates=[rax]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax]  => 48c1e004
+  global uses=[] creates=[remat:3]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-] pre=[remat:3->rdi]  => 488d3de0420000
+  x86_permute uses=[-, xmm0] creates=[xmm0]  => c4e279000407
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=2 disp=0 uses=[rsi, rdx] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => c5fa7f0456
+  load uses=[rsi] creates=[xmm0]  => c5fe6f06
+  ret uses=[xmm0] creates=[]  => 4883c460c3
+
+--- codegen: expand16x16 ---
+  prologue  => 4883ec40
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_neq uses=[xmm1, xmm0] creates=[xmm1]  => c5f575c8c4412576dbc4c175efcb
+  vreduce_bits uses=[xmm1] creates=[rax]  => c5fdd7c1
+  imm uses=[] creates=[remat:0]  => 
+  pext uses=[rax, rdi] creates=[rax] pre=[remat:0->rdi]  => bf55555555c4e27af5c7
+  imm uses=[] creates=[-]  => 
+  and uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 8bc881e1ff000000
+  imm uses=[] creates=[-]  => 
+  shr uses=[rax, -] creates=[rax]  => c1e808
+  popcnt uses=[rcx] creates=[rdx]  => f30fb8d1
+  cast uses=[rdx] creates=[rdx]  => 
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rsi]  => 488d3424
+  store uses=[rsi, xmm0] creates=[]  => c5fe7f06
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=2 disp=0 uses=[rsi, rdx] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fa6f0c56
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c5f970c0e4
+  cast uses=[rcx] creates=[rcx]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rcx, -] creates=[rcx]  => 48c1e104
+  global uses=[] creates=[remat:1]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-] pre=[remat:1->rdi]  => 488d3d74520000
+  x86_permute uses=[-, xmm0] creates=[xmm0]  => c4e27900040f
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  cast uses=[rax] creates=[rax]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax]  => 48c1e004
+  global uses=[] creates=[remat:2]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-] pre=[remat:2->rdi]  => 488d3d63520000
+  x86_permute uses=[-, xmm1] creates=[xmm1]  => c4e271000c07
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rax]  => 488d442420
+  store uses=[rax, xmm0] creates=[]  => c5fa7f00
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rax] creates=[-]  => 
+  store uses=[-, xmm1] creates=[]  => c5fa7f4810
+  imm uses=[] creates=[remat:3]  => 
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=2 disp=0 uses=[rax, rdi] creates=[-] pre=[remat:3->rdi]  => bf00000000
+  load uses=[-] creates=[xmm0]  => c5fe6f0478
+  ret uses=[xmm0] creates=[]  => 4883c440c3
+
+--- codegen: lookup16x16 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr [rip + $v256$0f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f00] uses=[] creates=[-]  => 
+  and uses=[xmm1, -] creates=[xmm1]  => c5f5db0d58620000
+  imm uses=[] creates=[-]  => 
+  shl uses=[xmm1, -] creates=[xmm1]  => c5f571f101
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  x86_addr [rip + $v256$000002020404060608080a0a0c0c0e0e000002020404060608080a0a0c0c0e0e] uses=[] creates=[-]  => 
+  x86_permute uses=[-, xmm1] creates=[xmm1]  => c4e275000d6a620000
+  x86_addr [rip + $v256$0001000100010001000100010001000100010001000100010001000100010001] uses=[] creates=[-]  => 
+  add uses=[xmm1, -] creates=[xmm1]  => c5f5fc0d22620000
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm2]  => c4e37d06d000
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c4e37d06c011
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  x86_permute uses=[xmm1, xmm2] creates=[xmm2]  => c4e26d00d1
+  x86_permute uses=[xmm1, xmm0] creates=[xmm0]  => c4e27d00c1
+  x86_addr [rip + $v256$0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f] uses=[] creates=[-]  => 
+  cmp_igt uses=[xmm1, -] creates=[xmm1]  => c5f5640de4410000
+  select uses=[xmm0, xmm2, xmm1] creates=[xmm0]  => c4e36d4cc010
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: compress32x8 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_neq uses=[xmm1, xmm0] creates=[xmm1]  => c5f576c8c4412576dbc4c175efcb
+  vreduce_bits uses=[xmm1] creates=[rax]  => c5fc50c1
+  cast uses=[rax] creates=[rax]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax]  => 48c1e005
+  global uses=[] creates=[remat:0]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-] pre=[remat:0->rdi]  => 488d3d43620000
+  load uses=[-] creates=[xmm1]  => c5fe6f0c07
+  x86_permute uses=[xmm1, xmm0] creates=[xmm0]  => c4e27536c0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: expand32x8 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_neq uses=[xmm1, xmm0] creates=[xmm1]  => c5f576c8c4412576dbc4c175efcb
+  vreduce_bits uses=[xmm1] creates=[rax]  => c5fc50c1
+  cast uses=[rax] creates=[rax]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax]  => 48c1e005
+  global uses=[] creates=[remat:0]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-] pre=[remat:0->rdi]  => 488d3d13820000
+  load uses=[-] creates=[xmm2]  => c5fe6f1407
+  x86_permute uses=[xmm2, xmm0] creates=[xmm2]  => c4e26d36d0
+  x86_maskand uses=[xmm2, xmm1] creates=[xmm0]  => c5eddbc1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: lookup32x8 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_permute uses=[xmm1, xmm0] creates=[xmm0]  => c4e27536c0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: compress64x4 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_neq uses=[xmm1, xmm0] creates=[xmm1]  => c4e27529c8c4412576dbc4c175efcb
+  vreduce_bits uses=[xmm1] creates=[rax]  => c5fd50c1
+  cast uses=[rax] creates=[rax]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax]  => 48c1e005
+  global uses=[] creates=[remat:0]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-] pre=[remat:0->rdi]  => 488d3dd2a10000
+  load uses=[-] creates=[xmm1]  => c5fe6f0c07
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  x86_permute uses=[xmm1, xmm0] creates=[xmm0]  => c4e27536c0
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: expand64x4 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_neq uses=[xmm1, xmm0] creates=[xmm1]  => c4e27529c8c4412576dbc4c175efcb
+  vreduce_bits uses=[xmm1] creates=[rax]  => c5fd50c1
+  cast uses=[rax] creates=[rax]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax]  => 48c1e005
+  global uses=[] creates=[remat:0]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-] pre=[remat:0->rdi]  => 488d3da2a30000
+  load uses=[-] creates=[xmm2]  => c5fe6f1407
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  x86_permute uses=[xmm2, xmm0] creates=[xmm2]  => c4e26d36d0
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  x86_maskand uses=[xmm2, xmm1] creates=[xmm0]  => c5eddbc1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: lookup64x4 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr [rip + $v256$0300000000000000030000000000000003000000000000000300000000000000] uses=[] creates=[-]  => 
+  and uses=[xmm1, -] creates=[xmm1]  => c5f5db0da8a50000
+  imm uses=[] creates=[-]  => 
+  shl uses=[xmm1, -] creates=[xmm1]  => c5f573f101
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  vshuffle uses=[xmm1, xmm1] creates=[xmm1]  => c5fd70c9a0
+  x86_addr [rip + $v256$0000000001000000000000000100000000000000010000000000000001000000] uses=[] creates=[-]  => 
+  add uses=[xmm1, -] creates=[xmm1]  => c5f5fe0d76a50000
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  x86_permute uses=[xmm1, xmm0] creates=[xmm0]  => c4e27536c0
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: lookupDoubled8 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c4e37d06c000
+  x86_addr [rip + $v256$0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f] uses=[] creates=[-]  => 
+  and uses=[xmm1, -] creates=[xmm1]  => c5f5db0dd2400000
+  x86_permute uses=[xmm1, xmm0] creates=[xmm0]  => c4e27d00c1
+  ret uses=[xmm0] creates=[]  => c3

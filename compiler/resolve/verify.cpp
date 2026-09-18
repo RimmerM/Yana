@@ -1315,6 +1315,41 @@ void Verifier::verifyInstruction(Value& instruction) {
             break;
         }
 
+        /*
+         * The two masked movements keep their vector's type and read a mask over its lanes; a lookup
+         * reads an integer vector and answers the table's lane at that vector's count. The index's
+         * *width* is the emitter's to hold, where the target's integer widths are in hand.
+         */
+        case Value::VecMove: {
+            auto& move = (InstVecMove&)instruction;
+            auto source = move.from ? local[move.from]->type : nullptr;
+            auto control = move.control ? local[move.control]->type : nullptr;
+
+            if(!isVectorType(global, source) || !vectorLanes(global, source)) {
+                fail(instruction.source, "%%@ moves the lanes of something that is not a vector"_v,
+                     instruction.id);
+                break;
+            }
+
+            if(move.move != LaneMove::Lookup) {
+                if(!isMaskType(global, control) || vectorLanes(global, control) != vectorLanes(global, source)
+                   || instruction.type != source) {
+                    fail(instruction.source, "%%@ is a compress or an expand whose mask is not over its vector's lanes, or whose type is not its vector's"_v,
+                         instruction.id);
+                }
+                break;
+            }
+
+            auto index = vectorLane(global, control);
+            if(!isVectorType(global, control) || !index || global[index]->kind != Type::Int
+               || vectorLanes(global, instruction.type) != vectorLanes(global, control)
+               || vectorLane(global, instruction.type) != vectorLane(global, source)) {
+                fail(instruction.source, "%%@ is a lookup whose indices are not an integer vector of its answer's lane count, or whose answer is not its table's lane"_v,
+                     instruction.id);
+            }
+            break;
+        }
+
         default:
             break;
     }

@@ -1166,6 +1166,17 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                                       instruction.name);
             break;
         }
+        case Value::VecMove: {
+            auto& move = (InstVecMove&)instruction;
+            auto op = move.move == LaneMove::Compress ? LowerLaneMove::Compress
+                    : move.move == LaneMove::Expand   ? LowerLaneMove::Expand
+                                                      : LowerLaneMove::Lookup;
+
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecMove(
+                instruction.name, lowerType(lower, instruction.type), mappedValue(lower, move.from),
+                mappedValue(lower, move.control), op));
+            break;
+        }
         case Value::Symbol: {
             // An address the loader supplies. The lower IR already has both forms, because a call
             // names its callee this way and a global load names its storage this way; what is new

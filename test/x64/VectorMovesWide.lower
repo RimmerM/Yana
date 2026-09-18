@@ -1,0 +1,114 @@
+# `VectorMoves.lower` at 32 bytes, `avx2` - Analysis-Avx512.md §3.1 and §3.3.
+#
+#   - **8 dword lanes are one `vpermd`** over a 256-entry table of 32-byte controls, and a quadword
+#     compress is the same instruction over dword pairs.
+#   - **a byte lookup at 32 bytes is two `vpshufb`s**, one per 16-byte half of the table broadcast
+#     across the register (`vpermq` [0,1,0,1] and [2,3,2,3]), and a blend on the index's fifth bit.
+#   - **32 byte lanes and 16 word lanes go a 128-bit half at a time** - no table is small enough for
+#     the whole mask. Each half is the 16-byte route, and one frame slot joins them: a compress stores
+#     the high half's answer at the low half's count, and an expand reads its high half's source from
+#     there.
+#   - **a sixteen-entry table read at 32 byte indices** is the table doubled with `vperm2f128` and one
+#     `vpshufb` (`lookupDoubled`).
+#
+# extensions: avx2
+
+compress8x32(%v: i8x32, %k: i8x32): i8x32 {
+    {
+        %m = cmp_neq %k, %v: m8x32
+        %r = vcompress %v, %m: i8x32
+        ret %r
+    }
+}
+
+expand8x32(%v: i8x32, %k: i8x32): i8x32 {
+    {
+        %m = cmp_neq %k, %v: m8x32
+        %r = vexpand %v, %m: i8x32
+        ret %r
+    }
+}
+
+lookup8x32(%table: i8x32, %indices: i8x32): i8x32 {
+    {
+        %r = vlookup %table, %indices: i8x32
+        ret %r
+    }
+}
+
+compress16x16(%v: i16x16, %k: i16x16): i16x16 {
+    {
+        %m = cmp_neq %k, %v: m16x16
+        %r = vcompress %v, %m: i16x16
+        ret %r
+    }
+}
+
+expand16x16(%v: i16x16, %k: i16x16): i16x16 {
+    {
+        %m = cmp_neq %k, %v: m16x16
+        %r = vexpand %v, %m: i16x16
+        ret %r
+    }
+}
+
+lookup16x16(%table: i16x16, %indices: i16x16): i16x16 {
+    {
+        %r = vlookup %table, %indices: i16x16
+        ret %r
+    }
+}
+
+compress32x8(%v: i32x8, %k: i32x8): i32x8 {
+    {
+        %m = cmp_neq %k, %v: m32x8
+        %r = vcompress %v, %m: i32x8
+        ret %r
+    }
+}
+
+expand32x8(%v: i32x8, %k: i32x8): i32x8 {
+    {
+        %m = cmp_neq %k, %v: m32x8
+        %r = vexpand %v, %m: i32x8
+        ret %r
+    }
+}
+
+lookup32x8(%table: i32x8, %indices: i32x8): i32x8 {
+    {
+        %r = vlookup %table, %indices: i32x8
+        ret %r
+    }
+}
+
+compress64x4(%v: i64x4, %k: i64x4): i64x4 {
+    {
+        %m = cmp_neq %k, %v: m64x4
+        %r = vcompress %v, %m: i64x4
+        ret %r
+    }
+}
+
+expand64x4(%v: i64x4, %k: i64x4): i64x4 {
+    {
+        %m = cmp_neq %k, %v: m64x4
+        %r = vexpand %v, %m: i64x4
+        ret %r
+    }
+}
+
+lookup64x4(%table: i64x4, %indices: i64x4): i64x4 {
+    {
+        %r = vlookup %table, %indices: i64x4
+        ret %r
+    }
+}
+
+
+lookupDoubled8(%table: i8x16, %indices: i8x32): i8x32 {
+    {
+        %r = vlookup %table, %indices: i8x32
+        ret %r
+    }
+}

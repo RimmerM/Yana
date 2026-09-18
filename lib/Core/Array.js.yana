@@ -179,6 +179,42 @@ pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
     return Just(doomed)
 
 {-
+   `removeAll` and `retain` on JS - the native file states what they are and why one pass is enough.
+
+   A survivor moves down with a one-slot `copyWithin`, and a rejected element comes out through
+   `hostRead` into a `->` binding, as `remove` takes its one. The slots past the new count still hold
+   duplicates of survivors, and assigning the count is what drops them - the same truncation `remove`
+   relies on.
+-}
+pub fn (Eq(a)) removeAll(&self: Array(a), wanted: a) -> Int:
+    let count = self.length :: Size
+    let &kept = 0 :: Size
+
+    for i in 0 .. count:
+        if self[i] == wanted:
+            let ->doomed = hostRead(self.items, i)
+        else:
+            if kept != i then hostCopyWithin(self.items, kept, i, i + 1)
+            kept = kept + 1
+
+    self.length = truncate(kept) :: Count
+    return truncate(count - kept) :: Int
+
+pub fn retain(&self: Array(a), keep: (a) -> Bool) -> Int:
+    let count = self.length :: Size
+    let &kept = 0 :: Size
+
+    for i in 0 .. count:
+        if keep(self[i]):
+            if kept != i then hostCopyWithin(self.items, kept, i, i + 1)
+            kept = kept + 1
+        else:
+            let ->doomed = hostRead(self.items, i)
+
+    self.length = truncate(kept) :: Count
+    return truncate(count - kept) :: Int
+
+{-
    The same traversal, and no release - Implementation-Containers.md §14's "release: nothing".
 
    Which is the whole of what a collector target changes, and it is worth saying that it changes

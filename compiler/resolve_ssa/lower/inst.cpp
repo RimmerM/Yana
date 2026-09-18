@@ -2575,6 +2575,22 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
                     break;
                 }
+
+                // The three lane movements, one lower kind with the row as its `LowerLaneMove`.
+                case mir::NativeOp::VecCompress:
+                case mir::NativeOp::VecExpand:
+                case mir::NativeOp::VecLookup: {
+                    auto move = written.op == mir::NativeOp::VecCompress ? LowerLaneMove::Compress
+                              : written.op == mir::NativeOp::VecExpand   ? LowerLaneMove::Expand
+                                                                         : LowerLaneMove::Lookup;
+
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto value = block.addInst(lower, new (to.arena) LowerInstVecMove(
+                        StringId(), manifestOf(*result).type, args[0], args[1], move));
+
+                    values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
+                    break;
+                }
             }
 
             break;

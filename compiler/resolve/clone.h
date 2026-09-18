@@ -229,6 +229,11 @@ Inst* cloneComputation(Policy& policy, Value& from) {
             return make(build(CloneTag<InstVecReduce>(), value(reduce.from), reduce.reduce));
         }
 
+        case Value::VecMove: {
+            auto& move = (InstVecMove&)from;
+            return make(build(CloneTag<InstVecMove>(), value(move.from), value(move.control), move.move));
+        }
+
         // The measured type goes through the policy like the result type does, which is what turns
         // `sizeOf(x)` in a generic body from a load out of a descriptor into a constant in the
         // specialization, and leaves it exactly as it was in a graft.

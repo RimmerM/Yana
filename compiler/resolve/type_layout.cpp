@@ -557,7 +557,13 @@ static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth, IntWidt
              * with a wider pack budget raises kMaxPackBits.
              */
             auto vector = (VectorType*)value;
-            auto bits = U32(laneStride(base, vector->content, widths) * 8 * constValue(base, vector->count));
+
+            // A count a generic body has not settled - `{Vec(a, n), Int}` in `Core.compress` - has no
+            // number to multiply by, and needs none: the answer is "not narrow" at every count.
+            auto lanes = writtenCount(base, vector->count);
+            if(!lanes) return {};
+
+            auto bits = U32(laneStride(base, vector->content, widths) * 8 * lanes.unwrap());
             return ValueWidth { bits, bits };
         }
         case Type::Atomic:

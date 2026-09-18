@@ -1242,7 +1242,10 @@ struct Verifier {
             case NativeOp::AesEncryptLast:
             case NativeOp::AesDecrypt:
             case NativeOp::AesDecryptLast:
-            case NativeOp::CarrylessMultiply: return 2;
+            case NativeOp::CarrylessMultiply:
+            case NativeOp::VecCompress:
+            case NativeOp::VecExpand:
+            case NativeOp::VecLookup: return 2;
 
             // The round constant of the second is `immediate`, not an operand.
             case NativeOp::AesInverseMix:

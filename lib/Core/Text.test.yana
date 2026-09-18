@@ -533,3 +533,43 @@ fn wordParts(text: String) -> String:
     -- Past the first vector block, so the whole-block loop is what answers rather than the tail.
     check(isAllAscii(repeated("abcd", 12)))
     check(!isAllAscii(repeated("abcd", 12) ++ "\xc3\xa9"))
+
+{-
+   ==========================================================================================
+   Stripping one unit, or the six spaces
+   ==========================================================================================
+
+   Short cases, and then long ones built so that every length from 0 to 99 is tried: the native body
+   compresses a vector at a time and walks the tail, so the edges worth trying are wherever a removed
+   unit sits against a block boundary, which a run of every length reaches at every lane count. The
+   multi-byte characters check that the bytes of a longer UTF-8 sequence survive untouched.
+-}
+@test fn stripping():
+    checkEqual(removeAscii("a,b,,c,", ","), "abc")
+    checkEqual(removeAscii(",,,", ","), "")
+    checkEqual(removeAscii("", ","), "")
+    checkEqual(removeAscii("näive, café", ","), "näive café")
+
+    checkEqual(removeAsciiSpace(" a\tb\nc\x0bg\x0ch\ri "), "abcghi")
+    checkEqual(removeAsciiSpace("\t\n "), "")
+    checkEqual(removeAsciiSpace("déjà vu 😀 ok"), "déjàvu😀ok")
+
+    -- `\x08` and `\x0e` are either side of the tab-to-return run and are not spaces.
+    checkEqual(removeAsciiSpace("\x08\x0e!"), "\x08\x0e!")
+
+    let &bad = 0
+    for n in 0 .. 100:
+        let &text = String.ofCapacity(n :: Size)
+        let &want = String.ofCapacity(n :: Size)
+        let &bare = String.ofCapacity(n :: Size)
+
+        for i in 0 .. n:
+            let unit = (if i % 5 == 0 then "," else if i % 7 == 3 then " " else if i % 11 == 4 then "\n" else "x") :: CodeUnit
+            text.pushUnit(unit)
+            if unit != "," then want.pushUnit(unit)
+            if !isSpace(unit) then bare.pushUnit(unit)
+
+        if removeAscii(text, ",") != want then bad = bad + 1
+        if removeAsciiSpace(text) != bare then bad = bad + 1
+
+    checkEqual(bad, 0)

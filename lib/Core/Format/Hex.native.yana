@@ -3,18 +3,17 @@ module Core
 import Native
 
 {-
-   The block form of `pushHex` - sixteen bytes read, thirty-two units written, and no table anywhere.
+   The block form of `pushHex` - sixteen bytes read, thirty-two units written, one sixteen-byte table.
 
    `Format/Hex.yana` beside this states what the operation is and why it is lower case; what is here
    is the half the target decides.
 
-   **The digit is arithmetic and not a lookup, and that is forced rather than chosen.** A nibble to
-   its digit is the classic `pshufb` of a sixteen-entry table, and `shuffle` in this language takes
-   a *compile-time* pattern (Design-Vector §3.3) - the pattern is a field of the instruction and is
-   read back out of the IR, so there is no operation here whose index vector is computed at run time
-   and a nibble lookup is not expressible. What replaces it is `d + 48` with a further `7` where `d`
-   is above nine, which is one compare and one blend per vector - the same expression `hexUnit`
-   writes as a branch, and cheaper than the load a table would have been anyway.
+   **The digit is a lookup** - the classic `pshufb` of a sixteen-entry table, which is `lookup` since
+   Analysis-Avx512.md §3.3. It used to be arithmetic, `d + 48` with a further `39` above nine, because
+   `shuffle` takes a compile-time pattern and there was no operation whose index vector was computed
+   at run time; that was a compare, a blend and an add per vector where this is one `pshufb`. The
+   table is built once, in front of the loop, and the lookup takes each index modulo sixteen - which
+   is what lets the low nibble be the byte itself, with no `and` in front of it.
 
    **Sixteen lanes, written down, for `interleaveLow`'s reason** - the same one `Core/Read.yana`'s
    digit scan states: the interleave is one instruction at sixteen lanes on every x86 back to SSE2
@@ -22,7 +21,8 @@ import Native
    128-bit half. So a build at `avx2`, where `Vec(U8)` means thirty-two lanes, would not compile this.
    Two `punpck`s turn the high and low nibble vectors into the thirty-two output units in their final
    order. At `avx512` the interleave at thirty-two lanes is `vpermi2b`, and `Hex.native.avx512.yana`
-   replaces this body with the same loop at that width - 1.7x, test/bench/avx512/findings.md §5.
+   replaces this body with the same loop at that width - 1.7x when the digit was arithmetic
+   (test/bench/avx512/findings.md §5), 1.12x since the lookup made this body 1.4-1.6x faster (§8).
 
    The write goes into the string's own run rather than through `pushUnit`, which is what the
    reservation is for: the units are provably in range once the capacity has been checked, so the
@@ -43,18 +43,13 @@ pub fn pushHex(bytes: [U8], &to: String):
     let source = bytes.items
     let target = to.units.run.items + start
 
-    let nibble = splat(15) :: Vec(U8, 16)
-    let nine = splat(9) :: Vec(U8, 16)
-    let digit = splat("0" :: U8) :: Vec(U8, 16)
-    let letter = splat(("a" - 10) :: U8) :: Vec(U8, 16)
+    let digits = hexDigitVector()
 
     let &i = 0 :: Size
     while i + 16 <= n:
         let block = vectorAt(source + i) :: Vec(U8, 16)
-        let high = (block `shr` (splat(4) :: Vec(U8, 16))) `and` nibble
-        let low = block `and` nibble
-        let highText = high + select(high .> nine, letter, digit)
-        let lowText = low + select(low .> nine, letter, digit)
+        let highText = lookup(digits, block `shr` (splat(4) :: Vec(U8, 16)))
+        let lowText = lookup(digits, block)
 
         let low16 = bitcast(interleaveLow(highText, lowText)) :: Vec(CodeUnit, 16)
         let high16 = bitcast(interleaveHigh(highText, lowText)) :: Vec(CodeUnit, 16)
@@ -69,3 +64,10 @@ pub fn pushHex(bytes: [U8], &to: String):
         store(target + i + i, hexUnit(byte `shr` 4))
         store(target + i + i + 1, hexUnit(byte `and` 15))
         i = i + 1
+
+-- "0123456789abcdef" as a vector, for `lookup`: the digits past nine are `a` onwards.
+fn hexDigitVector() -> Vec(U8, 16):
+    let at = iota() :: Vec(U8, 16)
+    let letter = splat(("a" - 10) :: U8) :: Vec(U8, 16)
+    let digit = splat("0" :: U8) :: Vec(U8, 16)
+    return at + select(at .> (splat(9) :: Vec(U8, 16)), letter, digit)

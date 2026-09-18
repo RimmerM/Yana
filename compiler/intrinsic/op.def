@@ -590,6 +590,23 @@ YANA_INTRINSIC_OP( maskFirstSet, OpForm::Node, integerAt(), anyAt()     )
 YANA_INTRINSIC_OP( maskUpTo,     OpForm::Node, anyAt(),     integerAt() )
 
 /*
+ * The lane movements whose pattern is a *value* - Analysis-Avx512.md §3.1 and §3.3.
+ *
+ * `shuffle`'s pattern is a constant by rule, and these three are the operations that rule left out:
+ * `compressLanes` packs the lanes a mask keeps to the bottom, `expand` spreads the bottom lanes out
+ * to the ones a mask names, and `lookup` reads a table vector at an index vector's lanes. Each is one
+ * instruction at `avx512` and a sequence, a table or a loop below it, and none of them is something
+ * a program could write that a backend would then recognize - which is the section's criterion.
+ *
+ * `compress`, the declaration a program calls, is `compressLanes` and a `count` - a body in Core
+ * rather than a role, because the pair it answers is two ordinary values and building a record is
+ * not something an emitter here does. `permute` is `lookup` over a table of its own lane count.
+ */
+YANA_INTRINSIC_OP( vecCompress, OpForm::Node, sameAs(0), valueAt(), anyAt() )
+YANA_INTRINSIC_OP( vecExpand,   OpForm::Node, sameAs(0), valueAt(), anyAt() )
+YANA_INTRINSIC_OP( vecLookup,   OpForm::Node, anyAt(),   anyAt(),   anyAt() )
+
+/*
  * The CPU instructions this architecture has and nothing synthesizes -
  * `lib/Native/Intrinsic/X86.yana`, Implementation-Vector.md's CPU intrinsics file.
  *

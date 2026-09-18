@@ -639,4 +639,30 @@ Node* expandMaskUpTo(Builder& builder, Function& callee, Node* const* arguments,
     return sameType(answered, type) ? compared : builder.addBitcast(source, *compared, type);
 }
 
+/*
+ * `lookup(table, indices)` - native.def's `VecLookup`, and the one of the three lane movements with
+ * something to check: the index *width*, which the signature leaves free. Index lane `i` is paired
+ * with answer lane `i`, so an index of any other width than the table's lane would be a conversion
+ * nobody wrote. A lane this body cannot measure is asked again where the substitution has settled it,
+ * which is the lower verifier's rule stated a tier down.
+ */
+Node* expandVecLookup(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source) {
+    auto base = builder.declBase();
+    auto lane = laneTypeOf(base, valueOccurrence(*arguments[0]).type);
+    auto index = laneTypeOf(base, valueOccurrence(*arguments[1]).type);
+
+    if(lane && index && base[lane]->kind != Type::Variable && base[index]->kind != Type::Variable) {
+        auto widths = targetIntWidths(builder.context.settings);
+
+        if(base[index]->kind != Type::Int || laneBytes(base, widths, index) != laneBytes(base, widths, lane)) {
+            builder.context.diagnostics.error("a lookup's indices are integers of its table's lane width - index lane i is paired with answer lane i, so an index of any other width would be a conversion nobody wrote"_v,
+                                              source);
+            return nullptr;
+        }
+    }
+
+    return expandX86Native(builder, callee, arguments, 2, with, source, NativeOp::VecLookup);
+}
+
 } // namespace mir

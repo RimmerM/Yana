@@ -179,6 +179,27 @@ pub fn toUpperAscii(text: String) -> String:
 
     return out
 
+-- The two strippings, the same walk with a test where the case change was. `Text.native.yana` states
+-- what they are; a UTF-16 unit below 128 is the ASCII character on this target too, so neither can
+-- split a surrogate pair.
+pub fn removeAscii(text: String, unit: CodeUnit) -> String:
+    let count = length(text)
+    let &out = String.ofCapacity(count)
+    for i in 0 .. count:
+        let at = text.unit(i)
+        if at != unit then out.pushUnit(at)
+
+    return out
+
+pub fn removeAsciiSpace(text: String) -> String:
+    let count = length(text)
+    let &out = String.ofCapacity(count)
+    for i in 0 .. count:
+        let at = text.unit(i)
+        if !isSpace(at) then out.pushUnit(at)
+
+    return out
+
 pub fn equalsAsciiCase(left: String, right: String) -> Bool:
     let count = length(left)
     if count != length(right) then return False

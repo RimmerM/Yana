@@ -1,0 +1,84 @@
+{-
+   `VecMove.yana` at `avx512`, where a compress is `vpcompressb/w/d/q` and an expand is
+
+   # extensions: avx512
+   `vpexpandb/w/d/q` into a register under a mask register, and a lookup is `vpermi2*` with the
+   table as both sources. The source is the same; see that file.
+
+   This program is what found the mask of a compress crossed out of its mask register in front of
+   the instruction that reads it there (`lowerMaskRegisters` did not know `VecMove`), which left
+   the EVEX mask field naming `k0` - an invalid-opcode fault with zero-masking.
+-}
+-- lookup of a linear table is the linear function of the index modulo the table's lanes.
+fn lookupU8(s: U8) -> Int:
+    let table = (iota() :: Vec(U8)) * splat(3 :: U8) + splat(s)
+    let indices = (iota() :: Vec(U8)) * splat(7 :: U8) + splat(s)
+    let got = lookup(table, indices)
+    let wrap = truncate(lanes(table) - 1) :: U8
+    let want = (indices `and` splat(wrap)) * splat(3 :: U8) + splat(s)
+    return count(got .!= want)
+
+fn lookupU16(s: U16) -> Int:
+    let table = (iota() :: Vec(U16)) * splat(3 :: U16) + splat(s)
+    let indices = (iota() :: Vec(U16)) * splat(7 :: U16) + splat(s)
+    let got = lookup(table, indices)
+    let wrap = truncate(lanes(table) - 1) :: U16
+    let want = (indices `and` splat(wrap)) * splat(3 :: U16) + splat(s)
+    return count(got .!= want)
+
+fn lookupU32(s: U32) -> Int:
+    let table = (iota() :: Vec(U32)) * splat(1001 :: U32) + splat(s)
+    let indices = (iota() :: Vec(U32)) * splat(3 :: U32) + splat(s)
+    let got = lookup(table, indices)
+    let wrap = bitcast(lanes(table) - 1) :: U32
+    let want = (indices `and` splat(wrap)) * splat(1001 :: U32) + splat(s)
+    return count(got .!= want)
+
+fn lookupU64(s: U64) -> Int:
+    let table = (iota() :: Vec(U64)) * splat(100003 :: U64) + splat(s)
+    let indices = (iota() :: Vec(U64)) * splat(3 :: U64) + splat(s)
+    let got = lookup(table, indices)
+    let wrap = widen(bitcast(lanes(table) - 1) :: U32) :: U64
+    let want = (indices `and` splat(wrap)) * splat(100003 :: U64) + splat(s)
+    return count(got .!= want)
+
+-- compress(iota, keep) is the kept lanes' numbers, in order; expand(compress(v)) puts v back.
+fn movesU8(s: U8) -> Int:
+    let v = iota() :: Vec(U8)
+    let hashed = (v + splat(s)) * splat(0x9d :: U8)
+    let keep = (hashed `and` splat(0x10 :: U8)) .!= (zero() :: Vec(U8))
+    let {packed, n} = compress(v, keep)
+    let live = maskUpTo(n) :: Mask(U8)
+    let flags = select(keep, splat(1 :: U8), splat(0 :: U8))
+    let &wrong = count(and(lookup(flags, packed) .== splat(0 :: U8), live))
+    let next = lookup(packed, (iota() :: Vec(U8)) + splat(1 :: U8))
+    if n > 1 then wrong = wrong + count(and(packed .>= next, maskUpTo(n - 1) :: Mask(U8)))
+    let payload = v * splat(5 :: U8) + splat(s)
+    let back = expand(compress(payload, keep).0, keep)
+    wrong = wrong + count(back .!= select(keep, payload, payload - payload))
+    return wrong
+
+fn movesU32(s: U32) -> Int:
+    let v = iota() :: Vec(U32)
+    let hashed = (v + splat(s)) * splat(0x9d :: U32)
+    let keep = (hashed `and` splat(0x10 :: U32)) .!= (zero() :: Vec(U32))
+    let {packed, n} = compress(v, keep)
+    let live = maskUpTo(n) :: Mask(U32)
+    let flags = select(keep, splat(1 :: U32), splat(0 :: U32))
+    let &wrong = count(and(lookup(flags, packed) .== splat(0 :: U32), live))
+    let next = lookup(packed, (iota() :: Vec(U32)) + splat(1 :: U32))
+    if n > 1 then wrong = wrong + count(and(packed .>= next, maskUpTo(n - 1) :: Mask(U32)))
+    let payload = v * splat(5 :: U32) + splat(s)
+    let back = expand(compress(payload, keep).0, keep)
+    wrong = wrong + count(back .!= select(keep, payload, payload - payload))
+    return wrong
+
+fn main() -> Int:
+    let &wrong = 0
+    let &s = 0 :: U32
+    while s < 256:
+        wrong = wrong + lookupU8(truncate(s) :: U8) + lookupU16(truncate(s) :: U16)
+        wrong = wrong + lookupU32(s) + lookupU64(widen(s) :: U64)
+        wrong = wrong + movesU8(truncate(s) :: U8) + movesU32(s)
+        s = s + 1
+    return wrong

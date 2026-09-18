@@ -1997,6 +1997,40 @@ struct InstVecReduce: Inst {
     bool sameExtra(const InstVecReduce& other) const { return reduce == other.reduce; }
 };
 
+// Which of the three a `VecMove` is - see the row in inst.def.
+enum class LaneMove: U8 {
+    Compress,
+    Expand,
+    Lookup,
+};
+
+inline StringView nameOfLaneMove(LaneMove move) {
+    switch(move) {
+        case LaneMove::Compress: return "vcompress"_v;
+        case LaneMove::Expand:   return "vexpand"_v;
+        default:                 return "vlookup"_v;
+    }
+}
+
+// A vector's lanes moved by a mask or an index vector. `from` is the vector - the table, for a
+// lookup - and `control` the mask or the indices.
+struct InstVecMove: Inst {
+    InstVecMove(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> from, ModulePtr<Value> control,
+                LaneMove move):
+        Inst(Value::VecMove, block, type), from(from), control(control), move(move) {}
+
+    ModulePtr<Value> from;
+    ModulePtr<Value> control;
+    LaneMove move;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        from = f(from);
+        control = f(control);
+    }
+
+    bool sameExtra(const InstVecMove& other) const { return move == other.move; }
+};
+
 /*
  * The address of something the linker names - a function's entry point, or a compiler-built
  * constant table - as a raw pointer.

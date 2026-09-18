@@ -1,0 +1,168 @@
+{-
+   `compress`, `expand`, `lookup` and `permute` - Analysis-Avx512.md §3.1 and §3.3.
+
+   Each is one instruction at `avx512` (`vpcompress*`, `vpexpand*`, `vpermi2*`) and a table or a lane
+   walk below it (`lowerVectorMoves` in codegen/x64/transform_move.cpp), so every wrong answer here is
+   a plausible vector rather than a fault. What is checked is the meaning, over 256 seeds per lane
+   type:
+
+   - a lookup of a linear table answers the linear function of the index *modulo the table's lanes*,
+     which is `vperm*`'s rule rather than `pshufb`'s "high bit answers zero";
+   - `compress(iota, keep)` is the kept lanes' numbers, in order, each one a lane `keep` names - and
+     its count is `count(keep)`;
+   - `expand(compress(v, keep).0, keep)` is `v` where `keep` is set and zero elsewhere.
+
+   The lanes of a compress past its count are unspecified and nothing here reads one. A table of 16
+   lanes looked up by the natural width's indices is the same shape at `sse4` and a table narrower
+   than its indices above it, which is the frame-slot route rather than the permute.
+-}
+
+import Test
+
+-- How many lanes of a linear-table lookup disagree with the index modulo the table.
+fn lookupU8(s: U8) -> Int:
+    let table = (iota() :: Vec(U8)) * splat(3 :: U8) + splat(s)
+    let indices = (iota() :: Vec(U8)) * splat(7 :: U8) + splat(s)
+    let wrap = truncate(lanes(table) - 1) :: U8
+    let want = (indices `and` splat(wrap)) * splat(3 :: U8) + splat(s)
+    return count(lookup(table, indices) .!= want)
+
+fn lookupU16(s: U16) -> Int:
+    let table = (iota() :: Vec(U16)) * splat(3 :: U16) + splat(s)
+    let indices = (iota() :: Vec(U16)) * splat(7 :: U16) + splat(s)
+    let wrap = truncate(lanes(table) - 1) :: U16
+    let want = (indices `and` splat(wrap)) * splat(3 :: U16) + splat(s)
+    return count(lookup(table, indices) .!= want)
+
+fn lookupU32(s: U32) -> Int:
+    let table = (iota() :: Vec(U32)) * splat(1001 :: U32) + splat(s)
+    let indices = (iota() :: Vec(U32)) * splat(3 :: U32) + splat(s)
+    let wrap = bitcast(lanes(table) - 1) :: U32
+    let want = (indices `and` splat(wrap)) * splat(1001 :: U32) + splat(s)
+    return count(lookup(table, indices) .!= want)
+
+fn lookupU64(s: U64) -> Int:
+    let table = (iota() :: Vec(U64)) * splat(100003 :: U64) + splat(s)
+    let indices = (iota() :: Vec(U64)) * splat(3 :: U64) + splat(s)
+    let wrap = widen(bitcast(lanes(table) - 1) :: U32) :: U64
+    let want = (indices `and` splat(wrap)) * splat(100003 :: U64) + splat(s)
+    return count(lookup(table, indices) .!= want)
+
+-- A table of sixteen bytes read by indices of the natural width, which is wider above `sse4`.
+fn lookupNarrowTable(s: U8) -> Int:
+    let table = (iota() :: Vec(U8, 16)) * (splat(11 :: U8) :: Vec(U8, 16)) + (splat(s) :: Vec(U8, 16))
+    let indices = (iota() :: Vec(U8)) * splat(5 :: U8) + splat(s)
+    let want = (indices `and` splat(15 :: U8)) * splat(11 :: U8) + splat(s)
+    return count(lookup(table, indices) .!= want)
+
+-- `permute` is a lookup whose table is as wide as its indices: a reversal, read back through itself.
+fn permuteReverse(s: U32) -> Int:
+    let v = (iota() :: Vec(U32)) * splat(7 :: U32) + splat(s)
+    let last = bitcast(lanes(v) - 1) :: U32
+    let backwards = splat(last) - (iota() :: Vec(U32))
+    return count(permute(permute(v, backwards), backwards) .!= v)
+
+fn movesU8(s: U8) -> Int:
+    let v = iota() :: Vec(U8)
+    let hashed = (v + splat(s)) * splat(0x9d :: U8)
+    let keep = (hashed `and` splat(0x10 :: U8)) .!= (zero() :: Vec(U8))
+    let {packed, n} = compress(v, keep)
+    let live = maskUpTo(n) :: Mask(U8)
+    let flags = select(keep, splat(1 :: U8), splat(0 :: U8))
+    let &wrong = count(and(lookup(flags, packed) .== splat(0 :: U8), live))
+    let next = lookup(packed, (iota() :: Vec(U8)) + splat(1 :: U8))
+    if n > 1 then wrong = wrong + count(and(packed .>= next, maskUpTo(n - 1) :: Mask(U8)))
+    if n != count(keep) then wrong = wrong + 1
+    let payload = v * splat(5 :: U8) + splat(s)
+    let back = expand(compress(payload, keep).0, keep)
+    return wrong + count(back .!= select(keep, payload, payload - payload))
+
+fn movesU16(s: U16) -> Int:
+    let v = iota() :: Vec(U16)
+    let hashed = (v + splat(s)) * splat(0x9d :: U16)
+    let keep = (hashed `and` splat(0x10 :: U16)) .!= (zero() :: Vec(U16))
+    let {packed, n} = compress(v, keep)
+    let live = maskUpTo(n) :: Mask(U16)
+    let flags = select(keep, splat(1 :: U16), splat(0 :: U16))
+    let &wrong = count(and(lookup(flags, packed) .== splat(0 :: U16), live))
+    let next = lookup(packed, (iota() :: Vec(U16)) + splat(1 :: U16))
+    if n > 1 then wrong = wrong + count(and(packed .>= next, maskUpTo(n - 1) :: Mask(U16)))
+    let payload = v * splat(5 :: U16) + splat(s)
+    let back = expand(compress(payload, keep).0, keep)
+    return wrong + count(back .!= select(keep, payload, payload - payload))
+
+fn movesU32(s: U32) -> Int:
+    let v = iota() :: Vec(U32)
+    let hashed = (v + splat(s)) * splat(0x9d :: U32)
+    let keep = (hashed `and` splat(0x10 :: U32)) .!= (zero() :: Vec(U32))
+    let {packed, n} = compress(v, keep)
+    let live = maskUpTo(n) :: Mask(U32)
+    let flags = select(keep, splat(1 :: U32), splat(0 :: U32))
+    let &wrong = count(and(lookup(flags, packed) .== splat(0 :: U32), live))
+    let next = lookup(packed, (iota() :: Vec(U32)) + splat(1 :: U32))
+    if n > 1 then wrong = wrong + count(and(packed .>= next, maskUpTo(n - 1) :: Mask(U32)))
+    let payload = v * splat(5 :: U32) + splat(s)
+    let back = expand(compress(payload, keep).0, keep)
+    return wrong + count(back .!= select(keep, payload, payload - payload))
+
+fn movesU64(s: U64) -> Int:
+    let v = iota() :: Vec(U64)
+    let hashed = (v + splat(s)) * splat(0x9d :: U64)
+    let keep = (hashed `and` splat(0x10 :: U64)) .!= (zero() :: Vec(U64))
+    let {packed, n} = compress(v, keep)
+    let live = maskUpTo(n) :: Mask(U64)
+    let flags = select(keep, splat(1 :: U64), splat(0 :: U64))
+    let &wrong = count(and(lookup(flags, packed) .== splat(0 :: U64), live))
+    let next = lookup(packed, (iota() :: Vec(U64)) + splat(1 :: U64))
+    if n > 1 then wrong = wrong + count(and(packed .>= next, maskUpTo(n - 1) :: Mask(U64)))
+    let payload = v * splat(5 :: U64) + splat(s)
+    let back = expand(compress(payload, keep).0, keep)
+    return wrong + count(back .!= select(keep, payload, payload - payload))
+
+@test fn vecLookupCases():
+    let &wrong = [0, 0, 0, 0, 0, 0] :: [Int *6]
+    let &s = 0 :: U32
+    while s < 256:
+        wrong[0] = wrong[0] + lookupU8(truncate(s) :: U8)
+        wrong[1] = wrong[1] + lookupU16(truncate(s) :: U16)
+        wrong[2] = wrong[2] + lookupU32(s)
+        wrong[3] = wrong[3] + lookupU64(widen(s) :: U64)
+        wrong[4] = wrong[4] + lookupNarrowTable(truncate(s) :: U8)
+        wrong[5] = wrong[5] + permuteReverse(s)
+        s = s + 1
+
+    checkEqual(wrong[0], 0)
+    checkEqual(wrong[1], 0)
+    checkEqual(wrong[2], 0)
+    checkEqual(wrong[3], 0)
+    checkEqual(wrong[4], 0)
+    checkEqual(wrong[5], 0)
+
+@test fn vecCompressExpandCases():
+    let &wrong = [0, 0, 0, 0] :: [Int *4]
+    let &s = 0 :: U32
+    while s < 256:
+        wrong[0] = wrong[0] + movesU8(truncate(s) :: U8)
+        wrong[1] = wrong[1] + movesU16(truncate(s) :: U16)
+        wrong[2] = wrong[2] + movesU32(s)
+        wrong[3] = wrong[3] + movesU64(widen(s) :: U64)
+        s = s + 1
+
+    checkEqual(wrong[0], 0)
+    checkEqual(wrong[1], 0)
+    checkEqual(wrong[2], 0)
+    checkEqual(wrong[3], 0)
+
+    -- Written out once, at four lanes, which every target has: the odd lanes of 0..3, packed and spread.
+    let v = iota() :: Vec(U32, 4)
+    let odd = (v `and` (splat(1 :: U32) :: Vec(U32, 4))) .!= (zero() :: Vec(U32, 4))
+    let {packed, n} = compress(v, odd)
+    checkEqual(n, 2)
+    checkEqual(lane(packed, 0), 1 :: U32)
+    checkEqual(lane(packed, 1), 3 :: U32)
+
+    let spread = expand(v + (splat(10 :: U32) :: Vec(U32, 4)), odd)
+    checkEqual(lane(spread, 0), 0 :: U32)
+    checkEqual(lane(spread, 1), 10 :: U32)
+    checkEqual(lane(spread, 2), 0 :: U32)
+    checkEqual(lane(spread, 3), 11 :: U32)

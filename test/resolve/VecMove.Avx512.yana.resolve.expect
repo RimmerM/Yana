@@ -1,0 +1,582 @@
+let image$base: () = <none>
+
+fn compress(32, U8)(%vector: Vec(U8), %keep: Mask(U8)) -> {Vec(U8), I32} {
+  b0:
+    %v2 = alloc : {Vec(U8), I32}
+    %v3 = vcompress %vector, %keep : Vec(U8)
+    %v4 = vreduce_add %keep : I32
+    aggregate %local0.0 = %v3, %local0.1 = %v4
+    ret %v2
+}
+
+fn compress(8, U32)(%vector: Vec(U32), %keep: Mask(U32)) -> {Vec(U32), I32} {
+  b0:
+    %v2 = alloc : {Vec(U32), I32}
+    %v3 = vcompress %vector, %keep : Vec(U32)
+    %v4 = vreduce_add %keep : I32
+    aggregate %local0.0 = %v3, %local0.1 = %v4
+    ret %v2
+}
+
+fn lookupU8(%s: U8) -> I32 {
+  b0:
+    %v2 = vsplat 0 : Vec(U8)
+    %v4 = vwithlane %v2, 1, 1 : Vec(U8)
+    %v6 = vwithlane %v4, 2, 2 : Vec(U8)
+    %v8 = vwithlane %v6, 3, 3 : Vec(U8)
+    %v10 = vwithlane %v8, 4, 4 : Vec(U8)
+    %v12 = vwithlane %v10, 5, 5 : Vec(U8)
+    %v14 = vwithlane %v12, 6, 6 : Vec(U8)
+    %v16 = vwithlane %v14, 7, 7 : Vec(U8)
+    %v18 = vwithlane %v16, 8, 8 : Vec(U8)
+    %v20 = vwithlane %v18, 9, 9 : Vec(U8)
+    %v22 = vwithlane %v20, 10, 10 : Vec(U8)
+    %v24 = vwithlane %v22, 11, 11 : Vec(U8)
+    %v26 = vwithlane %v24, 12, 12 : Vec(U8)
+    %v28 = vwithlane %v26, 13, 13 : Vec(U8)
+    %v30 = vwithlane %v28, 14, 14 : Vec(U8)
+    %v32 = vwithlane %v30, 15, 15 : Vec(U8)
+    %v34 = vwithlane %v32, 16, 16 : Vec(U8)
+    %v36 = vwithlane %v34, 17, 17 : Vec(U8)
+    %v38 = vwithlane %v36, 18, 18 : Vec(U8)
+    %v40 = vwithlane %v38, 19, 19 : Vec(U8)
+    %v42 = vwithlane %v40, 20, 20 : Vec(U8)
+    %v44 = vwithlane %v42, 21, 21 : Vec(U8)
+    %v46 = vwithlane %v44, 22, 22 : Vec(U8)
+    %v48 = vwithlane %v46, 23, 23 : Vec(U8)
+    %v50 = vwithlane %v48, 24, 24 : Vec(U8)
+    %v52 = vwithlane %v50, 25, 25 : Vec(U8)
+    %v54 = vwithlane %v52, 26, 26 : Vec(U8)
+    %v56 = vwithlane %v54, 27, 27 : Vec(U8)
+    %v58 = vwithlane %v56, 28, 28 : Vec(U8)
+    %v60 = vwithlane %v58, 29, 29 : Vec(U8)
+    %v62 = vwithlane %v60, 30, 30 : Vec(U8)
+    %v64 = vwithlane %v62, 31, 31 : Vec(U8)
+    %v66 = vsplat 3 : Vec(U8)
+    %v67 = mul %v64, %v66 : Vec(U8)
+    %v68 = vsplat %s : Vec(U8)
+    %table = add %v67, %v68 : Vec(U8)
+    %v71 = vsplat 0 : Vec(U8)
+    %v73 = vwithlane %v71, 1, 1 : Vec(U8)
+    %v75 = vwithlane %v73, 2, 2 : Vec(U8)
+    %v77 = vwithlane %v75, 3, 3 : Vec(U8)
+    %v79 = vwithlane %v77, 4, 4 : Vec(U8)
+    %v81 = vwithlane %v79, 5, 5 : Vec(U8)
+    %v83 = vwithlane %v81, 6, 6 : Vec(U8)
+    %v85 = vwithlane %v83, 7, 7 : Vec(U8)
+    %v87 = vwithlane %v85, 8, 8 : Vec(U8)
+    %v89 = vwithlane %v87, 9, 9 : Vec(U8)
+    %v91 = vwithlane %v89, 10, 10 : Vec(U8)
+    %v93 = vwithlane %v91, 11, 11 : Vec(U8)
+    %v95 = vwithlane %v93, 12, 12 : Vec(U8)
+    %v97 = vwithlane %v95, 13, 13 : Vec(U8)
+    %v99 = vwithlane %v97, 14, 14 : Vec(U8)
+    %v101 = vwithlane %v99, 15, 15 : Vec(U8)
+    %v103 = vwithlane %v101, 16, 16 : Vec(U8)
+    %v105 = vwithlane %v103, 17, 17 : Vec(U8)
+    %v107 = vwithlane %v105, 18, 18 : Vec(U8)
+    %v109 = vwithlane %v107, 19, 19 : Vec(U8)
+    %v111 = vwithlane %v109, 20, 20 : Vec(U8)
+    %v113 = vwithlane %v111, 21, 21 : Vec(U8)
+    %v115 = vwithlane %v113, 22, 22 : Vec(U8)
+    %v117 = vwithlane %v115, 23, 23 : Vec(U8)
+    %v119 = vwithlane %v117, 24, 24 : Vec(U8)
+    %v121 = vwithlane %v119, 25, 25 : Vec(U8)
+    %v123 = vwithlane %v121, 26, 26 : Vec(U8)
+    %v125 = vwithlane %v123, 27, 27 : Vec(U8)
+    %v127 = vwithlane %v125, 28, 28 : Vec(U8)
+    %v129 = vwithlane %v127, 29, 29 : Vec(U8)
+    %v131 = vwithlane %v129, 30, 30 : Vec(U8)
+    %v133 = vwithlane %v131, 31, 31 : Vec(U8)
+    %v135 = vsplat 7 : Vec(U8)
+    %v136 = mul %v133, %v135 : Vec(U8)
+    %v137 = vsplat %s : Vec(U8)
+    %indices = add %v136, %v137 : Vec(U8)
+    %got = vlookup %table, %indices : Vec(U8)
+    %v143 = sub 32, 1 : I32
+    %wrap = cast %v143 : U8
+    %v145 = vsplat %wrap : Vec(U8)
+    %v146 = and %indices, %v145 : Vec(U8)
+    %v148 = vsplat 3 : Vec(U8)
+    %v149 = mul %v146, %v148 : Vec(U8)
+    %v150 = vsplat %s : Vec(U8)
+    %want = add %v149, %v150 : Vec(U8)
+    %v152 = cmp_ne %got, %want : Mask(U8)
+    %v153 = vreduce_add %v152 : I32
+    ret %v153
+}
+
+fn lookupU16(%s: U16) -> I32 {
+  b0:
+    %v2 = vsplat 0 : Vec(U16)
+    %v4 = vwithlane %v2, 1, 1 : Vec(U16)
+    %v6 = vwithlane %v4, 2, 2 : Vec(U16)
+    %v8 = vwithlane %v6, 3, 3 : Vec(U16)
+    %v10 = vwithlane %v8, 4, 4 : Vec(U16)
+    %v12 = vwithlane %v10, 5, 5 : Vec(U16)
+    %v14 = vwithlane %v12, 6, 6 : Vec(U16)
+    %v16 = vwithlane %v14, 7, 7 : Vec(U16)
+    %v18 = vwithlane %v16, 8, 8 : Vec(U16)
+    %v20 = vwithlane %v18, 9, 9 : Vec(U16)
+    %v22 = vwithlane %v20, 10, 10 : Vec(U16)
+    %v24 = vwithlane %v22, 11, 11 : Vec(U16)
+    %v26 = vwithlane %v24, 12, 12 : Vec(U16)
+    %v28 = vwithlane %v26, 13, 13 : Vec(U16)
+    %v30 = vwithlane %v28, 14, 14 : Vec(U16)
+    %v32 = vwithlane %v30, 15, 15 : Vec(U16)
+    %v34 = vsplat 3 : Vec(U16)
+    %v35 = mul %v32, %v34 : Vec(U16)
+    %v36 = vsplat %s : Vec(U16)
+    %table = add %v35, %v36 : Vec(U16)
+    %v39 = vsplat 0 : Vec(U16)
+    %v41 = vwithlane %v39, 1, 1 : Vec(U16)
+    %v43 = vwithlane %v41, 2, 2 : Vec(U16)
+    %v45 = vwithlane %v43, 3, 3 : Vec(U16)
+    %v47 = vwithlane %v45, 4, 4 : Vec(U16)
+    %v49 = vwithlane %v47, 5, 5 : Vec(U16)
+    %v51 = vwithlane %v49, 6, 6 : Vec(U16)
+    %v53 = vwithlane %v51, 7, 7 : Vec(U16)
+    %v55 = vwithlane %v53, 8, 8 : Vec(U16)
+    %v57 = vwithlane %v55, 9, 9 : Vec(U16)
+    %v59 = vwithlane %v57, 10, 10 : Vec(U16)
+    %v61 = vwithlane %v59, 11, 11 : Vec(U16)
+    %v63 = vwithlane %v61, 12, 12 : Vec(U16)
+    %v65 = vwithlane %v63, 13, 13 : Vec(U16)
+    %v67 = vwithlane %v65, 14, 14 : Vec(U16)
+    %v69 = vwithlane %v67, 15, 15 : Vec(U16)
+    %v71 = vsplat 7 : Vec(U16)
+    %v72 = mul %v69, %v71 : Vec(U16)
+    %v73 = vsplat %s : Vec(U16)
+    %indices = add %v72, %v73 : Vec(U16)
+    %got = vlookup %table, %indices : Vec(U16)
+    %v79 = sub 16, 1 : I32
+    %wrap = cast %v79 : U16
+    %v81 = vsplat %wrap : Vec(U16)
+    %v82 = and %indices, %v81 : Vec(U16)
+    %v84 = vsplat 3 : Vec(U16)
+    %v85 = mul %v82, %v84 : Vec(U16)
+    %v86 = vsplat %s : Vec(U16)
+    %want = add %v85, %v86 : Vec(U16)
+    %v88 = cmp_ne %got, %want : Mask(U16)
+    %v89 = vreduce_add %v88 : I32
+    ret %v89
+}
+
+fn lookupU32(%s: U32) -> I32 {
+  b0:
+    %v2 = vsplat 0 : Vec(U32)
+    %v4 = vwithlane %v2, 1, 1 : Vec(U32)
+    %v6 = vwithlane %v4, 2, 2 : Vec(U32)
+    %v8 = vwithlane %v6, 3, 3 : Vec(U32)
+    %v10 = vwithlane %v8, 4, 4 : Vec(U32)
+    %v12 = vwithlane %v10, 5, 5 : Vec(U32)
+    %v14 = vwithlane %v12, 6, 6 : Vec(U32)
+    %v16 = vwithlane %v14, 7, 7 : Vec(U32)
+    %v18 = vsplat 1001 : Vec(U32)
+    %v19 = mul %v16, %v18 : Vec(U32)
+    %v20 = vsplat %s : Vec(U32)
+    %table = add %v19, %v20 : Vec(U32)
+    %v23 = vsplat 0 : Vec(U32)
+    %v25 = vwithlane %v23, 1, 1 : Vec(U32)
+    %v27 = vwithlane %v25, 2, 2 : Vec(U32)
+    %v29 = vwithlane %v27, 3, 3 : Vec(U32)
+    %v31 = vwithlane %v29, 4, 4 : Vec(U32)
+    %v33 = vwithlane %v31, 5, 5 : Vec(U32)
+    %v35 = vwithlane %v33, 6, 6 : Vec(U32)
+    %v37 = vwithlane %v35, 7, 7 : Vec(U32)
+    %v39 = vsplat 3 : Vec(U32)
+    %v40 = mul %v37, %v39 : Vec(U32)
+    %v41 = vsplat %s : Vec(U32)
+    %indices = add %v40, %v41 : Vec(U32)
+    %got = vlookup %table, %indices : Vec(U32)
+    %v47 = sub 8, 1 : I32
+    %wrap = bitcast %v47 : U32
+    %v49 = vsplat %wrap : Vec(U32)
+    %v50 = and %indices, %v49 : Vec(U32)
+    %v52 = vsplat 1001 : Vec(U32)
+    %v53 = mul %v50, %v52 : Vec(U32)
+    %v54 = vsplat %s : Vec(U32)
+    %want = add %v53, %v54 : Vec(U32)
+    %v56 = cmp_ne %got, %want : Mask(U32)
+    %v57 = vreduce_add %v56 : I32
+    ret %v57
+}
+
+fn lookupU64(%s: U64) -> I32 {
+  b0:
+    %v2 = vsplat 0 : Vec(U64)
+    %v4 = vwithlane %v2, 1, 1 : Vec(U64)
+    %v6 = vwithlane %v4, 2, 2 : Vec(U64)
+    %v8 = vwithlane %v6, 3, 3 : Vec(U64)
+    %v10 = vsplat 100003 : Vec(U64)
+    %v11 = mul %v8, %v10 : Vec(U64)
+    %v12 = vsplat %s : Vec(U64)
+    %table = add %v11, %v12 : Vec(U64)
+    %v15 = vsplat 0 : Vec(U64)
+    %v17 = vwithlane %v15, 1, 1 : Vec(U64)
+    %v19 = vwithlane %v17, 2, 2 : Vec(U64)
+    %v21 = vwithlane %v19, 3, 3 : Vec(U64)
+    %v23 = vsplat 3 : Vec(U64)
+    %v24 = mul %v21, %v23 : Vec(U64)
+    %v25 = vsplat %s : Vec(U64)
+    %indices = add %v24, %v25 : Vec(U64)
+    %got = vlookup %table, %indices : Vec(U64)
+    %v31 = sub 4, 1 : I32
+    %v32 = bitcast %v31 : U32
+    %wrap = cast %v32 : U64
+    %v34 = vsplat %wrap : Vec(U64)
+    %v35 = and %indices, %v34 : Vec(U64)
+    %v37 = vsplat 100003 : Vec(U64)
+    %v38 = mul %v35, %v37 : Vec(U64)
+    %v39 = vsplat %s : Vec(U64)
+    %want = add %v38, %v39 : Vec(U64)
+    %v41 = cmp_ne %got, %want : Mask(U64)
+    %v42 = vreduce_add %v41 : I32
+    ret %v42
+}
+
+fn movesU8(%s: U8) -> I32 {
+  b0:
+    %v2 = vsplat 0 : Vec(U8)
+    %v4 = vwithlane %v2, 1, 1 : Vec(U8)
+    %v6 = vwithlane %v4, 2, 2 : Vec(U8)
+    %v8 = vwithlane %v6, 3, 3 : Vec(U8)
+    %v10 = vwithlane %v8, 4, 4 : Vec(U8)
+    %v12 = vwithlane %v10, 5, 5 : Vec(U8)
+    %v14 = vwithlane %v12, 6, 6 : Vec(U8)
+    %v16 = vwithlane %v14, 7, 7 : Vec(U8)
+    %v18 = vwithlane %v16, 8, 8 : Vec(U8)
+    %v20 = vwithlane %v18, 9, 9 : Vec(U8)
+    %v22 = vwithlane %v20, 10, 10 : Vec(U8)
+    %v24 = vwithlane %v22, 11, 11 : Vec(U8)
+    %v26 = vwithlane %v24, 12, 12 : Vec(U8)
+    %v28 = vwithlane %v26, 13, 13 : Vec(U8)
+    %v30 = vwithlane %v28, 14, 14 : Vec(U8)
+    %v32 = vwithlane %v30, 15, 15 : Vec(U8)
+    %v34 = vwithlane %v32, 16, 16 : Vec(U8)
+    %v36 = vwithlane %v34, 17, 17 : Vec(U8)
+    %v38 = vwithlane %v36, 18, 18 : Vec(U8)
+    %v40 = vwithlane %v38, 19, 19 : Vec(U8)
+    %v42 = vwithlane %v40, 20, 20 : Vec(U8)
+    %v44 = vwithlane %v42, 21, 21 : Vec(U8)
+    %v46 = vwithlane %v44, 22, 22 : Vec(U8)
+    %v48 = vwithlane %v46, 23, 23 : Vec(U8)
+    %v50 = vwithlane %v48, 24, 24 : Vec(U8)
+    %v52 = vwithlane %v50, 25, 25 : Vec(U8)
+    %v54 = vwithlane %v52, 26, 26 : Vec(U8)
+    %v56 = vwithlane %v54, 27, 27 : Vec(U8)
+    %v58 = vwithlane %v56, 28, 28 : Vec(U8)
+    %v60 = vwithlane %v58, 29, 29 : Vec(U8)
+    %v62 = vwithlane %v60, 30, 30 : Vec(U8)
+    %v = vwithlane %v62, 31, 31 : Vec(U8)
+    %v65 = vsplat %s : Vec(U8)
+    %v66 = add %v, %v65 : Vec(U8)
+    %v68 = vsplat 157 : Vec(U8)
+    %hashed = mul %v66, %v68 : Vec(U8)
+    %v71 = vsplat 16 : Vec(U8)
+    %v72 = and %hashed, %v71 : Vec(U8)
+    %v74 = vsplat 0 : Vec(U8)
+    %keep = cmp_ne %v72, %v74 : Mask(U8)
+    %v76 = call compress(32, U8), %v, %keep : {Vec(U8), I32}
+    %packed = load %local0.0 : Vec(U8)
+    %n = load %local0.1 : I32
+    %v80 = vsplat 0 : Vec(U8)
+    %v82 = vwithlane %v80, 1, 1 : Vec(U8)
+    %v84 = vwithlane %v82, 2, 2 : Vec(U8)
+    %v86 = vwithlane %v84, 3, 3 : Vec(U8)
+    %v88 = vwithlane %v86, 4, 4 : Vec(U8)
+    %v90 = vwithlane %v88, 5, 5 : Vec(U8)
+    %v92 = vwithlane %v90, 6, 6 : Vec(U8)
+    %v94 = vwithlane %v92, 7, 7 : Vec(U8)
+    %v96 = vwithlane %v94, 8, 8 : Vec(U8)
+    %v98 = vwithlane %v96, 9, 9 : Vec(U8)
+    %v100 = vwithlane %v98, 10, 10 : Vec(U8)
+    %v102 = vwithlane %v100, 11, 11 : Vec(U8)
+    %v104 = vwithlane %v102, 12, 12 : Vec(U8)
+    %v106 = vwithlane %v104, 13, 13 : Vec(U8)
+    %v108 = vwithlane %v106, 14, 14 : Vec(U8)
+    %v110 = vwithlane %v108, 15, 15 : Vec(U8)
+    %v112 = vwithlane %v110, 16, 16 : Vec(U8)
+    %v114 = vwithlane %v112, 17, 17 : Vec(U8)
+    %v116 = vwithlane %v114, 18, 18 : Vec(U8)
+    %v118 = vwithlane %v116, 19, 19 : Vec(U8)
+    %v120 = vwithlane %v118, 20, 20 : Vec(U8)
+    %v122 = vwithlane %v120, 21, 21 : Vec(U8)
+    %v124 = vwithlane %v122, 22, 22 : Vec(U8)
+    %v126 = vwithlane %v124, 23, 23 : Vec(U8)
+    %v128 = vwithlane %v126, 24, 24 : Vec(U8)
+    %v130 = vwithlane %v128, 25, 25 : Vec(U8)
+    %v132 = vwithlane %v130, 26, 26 : Vec(U8)
+    %v134 = vwithlane %v132, 27, 27 : Vec(U8)
+    %v136 = vwithlane %v134, 28, 28 : Vec(U8)
+    %v138 = vwithlane %v136, 29, 29 : Vec(U8)
+    %v140 = vwithlane %v138, 30, 30 : Vec(U8)
+    %v142 = vwithlane %v140, 31, 31 : Vec(U8)
+    %v143 = cast %n : U8
+    %v144 = vsplat %v143 : Vec(U8)
+    %live = cmp_lt %v142, %v144 : Mask(U8)
+    %v147 = vsplat 1 : Vec(U8)
+    %v149 = vsplat 0 : Vec(U8)
+    %flags = select %keep ? %v147 : %v149 : Vec(U8)
+    %v151 = vlookup %flags, %packed : Vec(U8)
+    %v153 = vsplat 0 : Vec(U8)
+    %v154 = cmp_eq %v151, %v153 : Mask(U8)
+    %v155 = and %v154, %live : Mask(U8)
+    %v156 = vreduce_add %v155 : I32
+    %wrong = alloc : I32
+    init %wrong, %v156
+    %v160 = vsplat 0 : Vec(U8)
+    %v162 = vwithlane %v160, 1, 1 : Vec(U8)
+    %v164 = vwithlane %v162, 2, 2 : Vec(U8)
+    %v166 = vwithlane %v164, 3, 3 : Vec(U8)
+    %v168 = vwithlane %v166, 4, 4 : Vec(U8)
+    %v170 = vwithlane %v168, 5, 5 : Vec(U8)
+    %v172 = vwithlane %v170, 6, 6 : Vec(U8)
+    %v174 = vwithlane %v172, 7, 7 : Vec(U8)
+    %v176 = vwithlane %v174, 8, 8 : Vec(U8)
+    %v178 = vwithlane %v176, 9, 9 : Vec(U8)
+    %v180 = vwithlane %v178, 10, 10 : Vec(U8)
+    %v182 = vwithlane %v180, 11, 11 : Vec(U8)
+    %v184 = vwithlane %v182, 12, 12 : Vec(U8)
+    %v186 = vwithlane %v184, 13, 13 : Vec(U8)
+    %v188 = vwithlane %v186, 14, 14 : Vec(U8)
+    %v190 = vwithlane %v188, 15, 15 : Vec(U8)
+    %v192 = vwithlane %v190, 16, 16 : Vec(U8)
+    %v194 = vwithlane %v192, 17, 17 : Vec(U8)
+    %v196 = vwithlane %v194, 18, 18 : Vec(U8)
+    %v198 = vwithlane %v196, 19, 19 : Vec(U8)
+    %v200 = vwithlane %v198, 20, 20 : Vec(U8)
+    %v202 = vwithlane %v200, 21, 21 : Vec(U8)
+    %v204 = vwithlane %v202, 22, 22 : Vec(U8)
+    %v206 = vwithlane %v204, 23, 23 : Vec(U8)
+    %v208 = vwithlane %v206, 24, 24 : Vec(U8)
+    %v210 = vwithlane %v208, 25, 25 : Vec(U8)
+    %v212 = vwithlane %v210, 26, 26 : Vec(U8)
+    %v214 = vwithlane %v212, 27, 27 : Vec(U8)
+    %v216 = vwithlane %v214, 28, 28 : Vec(U8)
+    %v218 = vwithlane %v216, 29, 29 : Vec(U8)
+    %v220 = vwithlane %v218, 30, 30 : Vec(U8)
+    %v222 = vwithlane %v220, 31, 31 : Vec(U8)
+    %v224 = vsplat 1 : Vec(U8)
+    %v225 = add %v222, %v224 : Vec(U8)
+    %next = vlookup %packed, %v225 : Vec(U8)
+    %v229 = cmp_gt %n, 1 : Bool
+    je %v229, b1, b2
+
+  b1:
+    %v231 = load %wrong : I32
+    %v232 = cmp_ge %packed, %next : Mask(U8)
+    %v235 = sub %n, 1 : I32
+    %v237 = vsplat 0 : Vec(U8)
+    %v239 = vwithlane %v237, 1, 1 : Vec(U8)
+    %v241 = vwithlane %v239, 2, 2 : Vec(U8)
+    %v243 = vwithlane %v241, 3, 3 : Vec(U8)
+    %v245 = vwithlane %v243, 4, 4 : Vec(U8)
+    %v247 = vwithlane %v245, 5, 5 : Vec(U8)
+    %v249 = vwithlane %v247, 6, 6 : Vec(U8)
+    %v251 = vwithlane %v249, 7, 7 : Vec(U8)
+    %v253 = vwithlane %v251, 8, 8 : Vec(U8)
+    %v255 = vwithlane %v253, 9, 9 : Vec(U8)
+    %v257 = vwithlane %v255, 10, 10 : Vec(U8)
+    %v259 = vwithlane %v257, 11, 11 : Vec(U8)
+    %v261 = vwithlane %v259, 12, 12 : Vec(U8)
+    %v263 = vwithlane %v261, 13, 13 : Vec(U8)
+    %v265 = vwithlane %v263, 14, 14 : Vec(U8)
+    %v267 = vwithlane %v265, 15, 15 : Vec(U8)
+    %v269 = vwithlane %v267, 16, 16 : Vec(U8)
+    %v271 = vwithlane %v269, 17, 17 : Vec(U8)
+    %v273 = vwithlane %v271, 18, 18 : Vec(U8)
+    %v275 = vwithlane %v273, 19, 19 : Vec(U8)
+    %v277 = vwithlane %v275, 20, 20 : Vec(U8)
+    %v279 = vwithlane %v277, 21, 21 : Vec(U8)
+    %v281 = vwithlane %v279, 22, 22 : Vec(U8)
+    %v283 = vwithlane %v281, 23, 23 : Vec(U8)
+    %v285 = vwithlane %v283, 24, 24 : Vec(U8)
+    %v287 = vwithlane %v285, 25, 25 : Vec(U8)
+    %v289 = vwithlane %v287, 26, 26 : Vec(U8)
+    %v291 = vwithlane %v289, 27, 27 : Vec(U8)
+    %v293 = vwithlane %v291, 28, 28 : Vec(U8)
+    %v295 = vwithlane %v293, 29, 29 : Vec(U8)
+    %v297 = vwithlane %v295, 30, 30 : Vec(U8)
+    %v299 = vwithlane %v297, 31, 31 : Vec(U8)
+    %v300 = cast %v235 : U8
+    %v301 = vsplat %v300 : Vec(U8)
+    %v302 = cmp_lt %v299, %v301 : Mask(U8)
+    %v303 = and %v232, %v302 : Mask(U8)
+    %v304 = vreduce_add %v303 : I32
+    %v305 = add %v231, %v304 : I32
+    assign %wrong, %v305
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v310 = vsplat 5 : Vec(U8)
+    %v311 = mul %v, %v310 : Vec(U8)
+    %v312 = vsplat %s : Vec(U8)
+    %payload = add %v311, %v312 : Vec(U8)
+    %v314 = call compress(32, U8), %payload, %keep : {Vec(U8), I32}
+    %v315 = load %local2.0 : Vec(U8)
+    %back = vexpand %v315, %keep : Vec(U8)
+    %v317 = load %wrong : I32
+    %v318 = sub %payload, %payload : Vec(U8)
+    %v319 = select %keep ? %payload : %v318 : Vec(U8)
+    %v320 = cmp_ne %back, %v319 : Mask(U8)
+    %v321 = vreduce_add %v320 : I32
+    %v322 = add %v317, %v321 : I32
+    assign %wrong, %v322
+    %v324 = load %wrong : I32
+    ret %v324
+}
+
+fn movesU32(%s: U32) -> I32 {
+  b0:
+    %v2 = vsplat 0 : Vec(U32)
+    %v4 = vwithlane %v2, 1, 1 : Vec(U32)
+    %v6 = vwithlane %v4, 2, 2 : Vec(U32)
+    %v8 = vwithlane %v6, 3, 3 : Vec(U32)
+    %v10 = vwithlane %v8, 4, 4 : Vec(U32)
+    %v12 = vwithlane %v10, 5, 5 : Vec(U32)
+    %v14 = vwithlane %v12, 6, 6 : Vec(U32)
+    %v = vwithlane %v14, 7, 7 : Vec(U32)
+    %v17 = vsplat %s : Vec(U32)
+    %v18 = add %v, %v17 : Vec(U32)
+    %v20 = vsplat 157 : Vec(U32)
+    %hashed = mul %v18, %v20 : Vec(U32)
+    %v23 = vsplat 16 : Vec(U32)
+    %v24 = and %hashed, %v23 : Vec(U32)
+    %v26 = vsplat 0 : Vec(U32)
+    %keep = cmp_ne %v24, %v26 : Mask(U32)
+    %v28 = call compress(8, U32), %v, %keep : {Vec(U32), I32}
+    %packed = load %local0.0 : Vec(U32)
+    %n = load %local0.1 : I32
+    %v32 = vsplat 0 : Vec(U32)
+    %v34 = vwithlane %v32, 1, 1 : Vec(U32)
+    %v36 = vwithlane %v34, 2, 2 : Vec(U32)
+    %v38 = vwithlane %v36, 3, 3 : Vec(U32)
+    %v40 = vwithlane %v38, 4, 4 : Vec(U32)
+    %v42 = vwithlane %v40, 5, 5 : Vec(U32)
+    %v44 = vwithlane %v42, 6, 6 : Vec(U32)
+    %v46 = vwithlane %v44, 7, 7 : Vec(U32)
+    %v47 = cast %n : U32
+    %v48 = vsplat %v47 : Vec(U32)
+    %live = cmp_lt %v46, %v48 : Mask(U32)
+    %v51 = vsplat 1 : Vec(U32)
+    %v53 = vsplat 0 : Vec(U32)
+    %flags = select %keep ? %v51 : %v53 : Vec(U32)
+    %v55 = vlookup %flags, %packed : Vec(U32)
+    %v57 = vsplat 0 : Vec(U32)
+    %v58 = cmp_eq %v55, %v57 : Mask(U32)
+    %v59 = and %v58, %live : Mask(U32)
+    %v60 = vreduce_add %v59 : I32
+    %wrong = alloc : I32
+    init %wrong, %v60
+    %v64 = vsplat 0 : Vec(U32)
+    %v66 = vwithlane %v64, 1, 1 : Vec(U32)
+    %v68 = vwithlane %v66, 2, 2 : Vec(U32)
+    %v70 = vwithlane %v68, 3, 3 : Vec(U32)
+    %v72 = vwithlane %v70, 4, 4 : Vec(U32)
+    %v74 = vwithlane %v72, 5, 5 : Vec(U32)
+    %v76 = vwithlane %v74, 6, 6 : Vec(U32)
+    %v78 = vwithlane %v76, 7, 7 : Vec(U32)
+    %v80 = vsplat 1 : Vec(U32)
+    %v81 = add %v78, %v80 : Vec(U32)
+    %next = vlookup %packed, %v81 : Vec(U32)
+    %v85 = cmp_gt %n, 1 : Bool
+    je %v85, b1, b2
+
+  b1:
+    %v87 = load %wrong : I32
+    %v88 = cmp_ge %packed, %next : Mask(U32)
+    %v91 = sub %n, 1 : I32
+    %v93 = vsplat 0 : Vec(U32)
+    %v95 = vwithlane %v93, 1, 1 : Vec(U32)
+    %v97 = vwithlane %v95, 2, 2 : Vec(U32)
+    %v99 = vwithlane %v97, 3, 3 : Vec(U32)
+    %v101 = vwithlane %v99, 4, 4 : Vec(U32)
+    %v103 = vwithlane %v101, 5, 5 : Vec(U32)
+    %v105 = vwithlane %v103, 6, 6 : Vec(U32)
+    %v107 = vwithlane %v105, 7, 7 : Vec(U32)
+    %v108 = cast %v91 : U32
+    %v109 = vsplat %v108 : Vec(U32)
+    %v110 = cmp_lt %v107, %v109 : Mask(U32)
+    %v111 = and %v88, %v110 : Mask(U32)
+    %v112 = vreduce_add %v111 : I32
+    %v113 = add %v87, %v112 : I32
+    assign %wrong, %v113
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v118 = vsplat 5 : Vec(U32)
+    %v119 = mul %v, %v118 : Vec(U32)
+    %v120 = vsplat %s : Vec(U32)
+    %payload = add %v119, %v120 : Vec(U32)
+    %v122 = call compress(8, U32), %payload, %keep : {Vec(U32), I32}
+    %v123 = load %local2.0 : Vec(U32)
+    %back = vexpand %v123, %keep : Vec(U32)
+    %v125 = load %wrong : I32
+    %v126 = sub %payload, %payload : Vec(U32)
+    %v127 = select %keep ? %payload : %v126 : Vec(U32)
+    %v128 = cmp_ne %back, %v127 : Mask(U32)
+    %v129 = vreduce_add %v128 : I32
+    %v130 = add %v125, %v129 : I32
+    assign %wrong, %v130
+    %v132 = load %wrong : I32
+    ret %v132
+}
+
+fn main() -> I32 {
+  b0:
+    %wrong = alloc : I32
+    init %wrong, 0
+    %s = alloc : U32
+    init %s, 0
+    jmp b1
+
+  b1:
+    %v8 = load %s : U32
+    %v11 = cmp_lt %v8, 256 : Bool
+    je %v11, b3, b2
+
+  b2:
+    %v47 = load %wrong : I32
+    ret %v47
+
+  b3:
+    %v13 = load %wrong : I32
+    %v14 = load %s : U32
+    %v15 = cast %v14 : U8
+    %v16 = call lookupU8, %v15 : I32
+    %v17 = add %v13, %v16 : I32
+    %v18 = load %s : U32
+    %v19 = cast %v18 : U16
+    %v20 = call lookupU16, %v19 : I32
+    %v21 = add %v17, %v20 : I32
+    assign %wrong, %v21
+    %v23 = load %wrong : I32
+    %v24 = load %s : U32
+    %v25 = call lookupU32, %v24 : I32
+    %v26 = add %v23, %v25 : I32
+    %v27 = load %s : U32
+    %v28 = cast %v27 : U64
+    %v29 = call lookupU64, %v28 : I32
+    %v30 = add %v26, %v29 : I32
+    assign %wrong, %v30
+    %v32 = load %wrong : I32
+    %v33 = load %s : U32
+    %v34 = cast %v33 : U8
+    %v35 = call movesU8, %v34 : I32
+    %v36 = add %v32, %v35 : I32
+    %v37 = load %s : U32
+    %v38 = call movesU32, %v37 : I32
+    %v39 = add %v36, %v38 : I32
+    assign %wrong, %v39
+    %v41 = load %s : U32
+    %v44 = add %v41, 1 : U32
+    assign %s, %v44
+    jmp b1
+}

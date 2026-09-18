@@ -200,6 +200,12 @@ void IrEditor::recordUses(Inst* inst) {
         case Value::VecReduce:
             addUse(((InstVecReduce*)inst)->from, inst);
             break;
+        case Value::VecMove: {
+            auto move = (InstVecMove*)inst;
+            addUse(move->from, inst);
+            addUse(move->control, inst);
+            break;
+        }
         case Value::Call:
             for(auto arg: ((InstCall*)inst)->args.contents(base)) addUse(arg, inst);
             break;

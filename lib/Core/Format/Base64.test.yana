@@ -123,3 +123,47 @@ fn textOfBytes(bytes: [U8]) -> String:
 @test fn base64Bounds():
     checkAtMost(length("{base64(bytesOfText("foob"))}"), bound(base64(bytesOfText("foob"))))
     checkAtMost(length("{base64Url(bytesOfText("fooba"))}"), bound(base64Url(bytesOfText("fooba"))))
+
+{-
+   Every length from 0 to 100 against an encoder written a bit at a time, in both alphabets.
+
+   Natively the whole groups are encoded twelve bytes a turn by a vector body (`Base64.native.yana`)
+   that stops sixteen bytes short of the end and hands the rest to the scalar groups, so the lengths
+   worth trying are every one around each multiple of twelve - and the byte pattern walks every
+   six-bit window through all of its sixty-four values, which is where an offset table would be wrong.
+-}
+fn referenceBase64(bytes: [U8], url: Bool) -> String:
+    let alphabet = if url then "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+                   else "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    let &out = String.ofCapacity(length(bytes) * 2)
+    let bits = length(bytes) * 8
+    let &at = 0 :: Size
+
+    while at < bits:
+        let &window = 0
+        for k in 0 .. 6:
+            let bit = at + (k :: Size)
+            let set = bit < bits && ((bytes[bit / 8] :: Int) `shr` (7 - (truncate(bit % 8) :: Int))) `and` 1 == 1
+            window = window * 2 + (if set then 1 else 0)
+
+        String.pushUnit(out, String.unit(alphabet, window :: Size))
+        at = at + 6
+
+    if !url:
+        while length(out) % 4 != 0:
+            String.pushUnit(out, "=")
+
+    return out
+
+@test fn base64EveryLength():
+    let &bad = 0
+
+    for n in 0 .. 101:
+        let &bytes = emptyArray() :: Array(U8)
+        for k in 0 .. n:
+            push(bytes, truncate(k * 37 + 11 + (k / 7) * 64) :: U8)
+
+        if base64Of(bytes) != referenceBase64(bytes, False) then bad = bad + 1
+        if base64Of(bytes, url: True, pad: False) != referenceBase64(bytes, True) then bad = bad + 1
+
+    checkEqual(bad, 0)

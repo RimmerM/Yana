@@ -334,6 +334,26 @@ YANA_LOWER_INST(VecWithLane,   LowerInstVecLane,        "vwithlane"_v,       2, 
 YANA_LOWER_INST(VecShuffle,    LowerInstVecShuffle,     "vshuffle"_v,        2,         1,        kLowerPure | kLowerRepeatable | kLowerVariadic)  // lanes selected from two vectors by a constant pattern
 YANA_LOWER_INST(VecReduce,     LowerInstVecReduce,      "vreduce"_v,         1,         1,        kLowerArith)  // every lane combined into one scalar
 
+/*
+ * The three lane movements whose pattern is a value rather than a field - Analysis-Avx512.md §3.1
+ * and §3.3, written in source as `compress`, `expand` and `lookup`.
+ *
+ * One kind, with which of the three in `flags` (`LowerLaneMove`), so that all three are plain and
+ * every pass that compares vector instructions by `flags` and operands already tells them apart.
+ * Each is one instruction on some targets and a sequence on the rest, and the backend that has the
+ * instruction is the one that should see the operation rather than a sequence it would have to
+ * recognize.
+ *
+ *  - `Compress(vector, keep)` - the lanes `keep` sets, packed to the bottom in lane order. What is
+ *    past the count is unspecified.
+ *  - `Expand(vector, into)` - the bottom lanes of `vector` in order, placed at the lanes `into`
+ *    sets, and zero wherever it is clear.
+ *  - `Lookup(table, indices)` - lane `indices[i] mod lanes(table)` of `table`, in lane `i`. The
+ *    indices are an integer vector of the table's lane width and the answer's lane count; the
+ *    table's count may differ from theirs.
+ */
+YANA_LOWER_INST(VecMove,       LowerInstVecMove,        "vmove"_v,           2,         1,        kLowerArith)
+
 // No flags at all, and each absence is a decision. Not pure: it reserves frame space, and a second
 // copy is a second piece of storage rather than the same answer computed twice. Not touching memory:
 // it produces an address and reads nothing through it. Not plain: the alignment is a field past its

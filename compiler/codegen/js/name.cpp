@@ -13,6 +13,21 @@
 namespace js {
 
 /*
+ * Whether `text` hashes to an id the context already holds for some *other* text.
+ *
+ * A StringId is the text's 32-bit hash and nothing else (`Context::addIdentifier`), and registering a
+ * second text under one replaces the first's - so every name that id stood for, a string literal
+ * included, is printed as the newcomer from then on. This backend makes a name for every lane of
+ * every vector, which is enough of them for a collision to be a matter of time: the lane `v67$10`
+ * of a byte lookup and the literal `"′′′"` in NormalizationTables are one id, and a program that
+ * held both answered U+2034's case fold as the text `v67$10`.
+ */
+static bool collides(Gen& g, StringView text) {
+    auto& known = g.context.find(Context::nameHash(text));
+    return known.textLength && !(StringView { known.text, known.textLength } == text);
+}
+
+/*
  * Interning a name the generator built rather than one the source contained.
  *
  * Context::addUnqualifiedName keeps the pointer it is given instead of copying: every other caller
@@ -23,6 +38,11 @@ namespace js {
 StringId internText(Gen& g, StringView text) {
     auto id = Context::nameHash(text);
     if(g.interned.contains(id)) return id;
+
+    // A name a caller could have chosen differently is steered off a collision in uniqueName; the
+    // two that cannot - a property and a literal, which are the text they print - stop here rather
+    // than rewriting whatever the colliding id already names.
+    assertTrue(!collides(g, text));
 
     auto storage = (char*)g.context.stringArena.alloc(text.length);
     copy(text.ptr, storage, text.length);
@@ -125,22 +145,26 @@ Name uniqueName(Gen& g, StringView text, bool local) {
 
     // A name already handed out gets a numeric tail. The counter is kept per base name rather than
     // globally, so an identifier that never collides never grows one.
-    auto candidate = internText(g, StringView { buffer, length });
-    auto taken = [&](StringId id) {
+    // One whose hash already belongs to other text counts as handed out too - see `collides`.
+    auto taken = [&](StringView text) {
+        if(collides(g, text)) return true;
+
+        auto id = Context::nameHash(text);
         return g.moduleNames.contains(id) || (local && g.localNames.contains(id));
     };
 
-    if(taken(candidate)) {
+    if(taken(StringView { buffer, length })) {
         auto base = length;
         for(U32 counter = 1;; counter++) {
             length = base;
             buffer[length++] = '$';
             length += show(U64(counter), buffer + length, sizeof(buffer) - length);
 
-            candidate = internText(g, StringView { buffer, length });
-            if(!taken(candidate)) break;
+            if(!taken(StringView { buffer, length })) break;
         }
     }
+
+    auto candidate = internText(g, StringView { buffer, length });
 
     if(local) {
         g.localNames.add(candidate);

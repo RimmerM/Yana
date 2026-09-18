@@ -257,6 +257,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return nameForCmp(((LowerInstCmp&)inst).getCmp());
         case LowerInst::VecReduce:
             return nameForReduce(((LowerInstVecReduce&)inst).getReduce());
+        case LowerInst::VecMove:
+            return nameOfLaneMove(((LowerInstVecMove&)inst).getMove());
         case LowerInst::Load:
             if(((LowerInstLoad&)inst).isOverread()) return "loadx"_v;
             return ((LowerInstLoad&)inst).isSigned() ? "loads"_v : "load"_v;

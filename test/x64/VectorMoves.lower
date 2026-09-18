@@ -1,0 +1,108 @@
+# `compress`, `expand` and `lookup` below `avx512`, at 16 bytes - Analysis-Avx512.md §3.1 and §3.3.
+#
+# `lowerVectorMoves` (codegen/x64/transform_move.cpp) takes all three apart before selection. What to
+# look for:
+#
+#   - **a compress or an expand of 4 or 8 lanes is one table load and a `pshufb`**: the movemask
+#     (folded to a bit per lane for words - `pext` is BMI2, so a shift-fold here) indexes a `.rodata`
+#     table of 16-byte controls, `$vcompress$...`/`$vexpand$...`, and the control is the shuffle.
+#   - **16 byte lanes go a half at a time**: two 256-entry tables of 8-byte halves, `popcnt` of the
+#     low half, and a shift table moving the high half's control behind it (compress) or a splat of
+#     the count added to it (expand).
+#   - **two quadword lanes are a frame-slot walk**, which is shorter than any table for two lanes.
+#   - **a lookup is `pshufb` over a byte control** built from the indices modulo the lane count.
+#
+# extensions: sse4
+
+compress8x16(%v: i8x16, %k: i8x16): i8x16 {
+    {
+        %m = cmp_neq %k, %v: m8x16
+        %r = vcompress %v, %m: i8x16
+        ret %r
+    }
+}
+
+expand8x16(%v: i8x16, %k: i8x16): i8x16 {
+    {
+        %m = cmp_neq %k, %v: m8x16
+        %r = vexpand %v, %m: i8x16
+        ret %r
+    }
+}
+
+lookup8x16(%table: i8x16, %indices: i8x16): i8x16 {
+    {
+        %r = vlookup %table, %indices: i8x16
+        ret %r
+    }
+}
+
+compress16x8(%v: i16x8, %k: i16x8): i16x8 {
+    {
+        %m = cmp_neq %k, %v: m16x8
+        %r = vcompress %v, %m: i16x8
+        ret %r
+    }
+}
+
+expand16x8(%v: i16x8, %k: i16x8): i16x8 {
+    {
+        %m = cmp_neq %k, %v: m16x8
+        %r = vexpand %v, %m: i16x8
+        ret %r
+    }
+}
+
+lookup16x8(%table: i16x8, %indices: i16x8): i16x8 {
+    {
+        %r = vlookup %table, %indices: i16x8
+        ret %r
+    }
+}
+
+compress32x4(%v: i32x4, %k: i32x4): i32x4 {
+    {
+        %m = cmp_neq %k, %v: m32x4
+        %r = vcompress %v, %m: i32x4
+        ret %r
+    }
+}
+
+expand32x4(%v: i32x4, %k: i32x4): i32x4 {
+    {
+        %m = cmp_neq %k, %v: m32x4
+        %r = vexpand %v, %m: i32x4
+        ret %r
+    }
+}
+
+lookup32x4(%table: i32x4, %indices: i32x4): i32x4 {
+    {
+        %r = vlookup %table, %indices: i32x4
+        ret %r
+    }
+}
+
+compress64x2(%v: i64x2, %k: i64x2): i64x2 {
+    {
+        %m = cmp_neq %k, %v: m64x2
+        %r = vcompress %v, %m: i64x2
+        ret %r
+    }
+}
+
+expand64x2(%v: i64x2, %k: i64x2): i64x2 {
+    {
+        %m = cmp_neq %k, %v: m64x2
+        %r = vexpand %v, %m: i64x2
+        ret %r
+    }
+}
+
+lookup64x2(%table: i64x2, %indices: i64x2): i64x2 {
+    {
+        %r = vlookup %table, %indices: i64x2
+        ret %r
+    }
+}
+

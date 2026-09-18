@@ -21,8 +21,9 @@
    there is nothing to generate until a call says which, and `expandIntrinsic` generates it where it
    is called. None of them is ever a call in the IR.
 
-   `index` is a compile-time constant and the expansion says so - Design-Vector §3.3, and the reason
-   is that a runtime lane index is `pshufb` on x86 and does not exist at all on some targets.
+   `index` is a compile-time constant and the expansion says so - Design-Vector §3.3. A lane chosen at
+   run time is a different operation with a different cost at every level, and it is `lookup` below:
+   a vector of indices, read modulo the table's lanes.
 
    The count is a const parameter wherever an *argument* supplies it - Implementation-Const-Generics.md
    §5's first row, and Implementation-Vector.md §9.3's gap closed. `Vec(a)` in a parameter is the
@@ -66,9 +67,10 @@
    per lane.
 
    The rearrangements take their pattern from the *declaration* and not from an argument, which is
-   what keeps them portable: a runtime shuffle is `pshufb` on x86 and does not exist at all on some
-   targets, so a pattern this resolver cannot read is not expressible rather than slow. `rotate`'s
-   distance is therefore a constant, checked where it is written.
+   what makes each one a fixed instruction or none: a pattern this resolver can read is lowered once,
+   for the shape it is. A pattern computed at run time is `lookup`'s job (Analysis-Avx512.md §3.3),
+   which is one instruction at `avx512` and a `pshufb` or a sequence below it. `rotate`'s distance is
+   therefore a constant, checked where it is written.
 -}
 @builtin(vecZero) pub fn (n: Int = 0) zero() -> Vec(a, n)
 @builtin(vecIota) pub fn (n: Int = 0) iota() -> Vec(a, n)
@@ -292,3 +294,48 @@ pub class Lanewise(v -> m):
    the comparison today; the table is a change behind this name and nothing that calls it moves.
 -}
 @builtin(maskUpTo) pub fn maskUpTo(count: Int) -> Mask(a)
+
+{-
+   The lanes a mask keeps, packed to the bottom - Analysis-Avx512.md §3.1.
+
+   `compress(v, keep)` answers the kept lanes in lane order starting at lane 0, and how many there
+   were. **The lanes past that count are unspecified**, which is the promise worth reading twice: the
+   store a caller writes next is a whole register at the destination, rewriting nothing it has not
+   yet passed, and a lowering that had to zero the tail would pay for a guarantee that store never
+   reads.
+
+   `expand` is the inverse: the bottom lanes of `vector`, in order, placed at the lanes `into` sets,
+   and **zero** wherever it is clear. That one is specified, because the lanes it leaves are the
+   answer's own rather than past the end of it.
+
+   One instruction each at `avx512` (`vpcompress*`, `vpexpand*`), and a table or a lane walk below it -
+   the table being the compiler's `.rodata`, which is what makes these declarations rather than
+   library code: the source spelling of the `avx2` lowering is not something anyone would write or
+   anything could recognize.
+-}
+@builtin(vecCompress) fn (n: Int) compressLanes(vector: Vec(a, n), keep: Mask(a, n)) -> Vec(a, n)
+
+@inline(always)
+pub fn (n: Int) compress(vector: Vec(a, n), keep: Mask(a, n)) -> {Vec(a, n), Int} =
+    {compressLanes(vector, keep), count(keep)}
+
+@builtin(vecExpand) pub fn (n: Int) expand(vector: Vec(a, n), into: Mask(a, n)) -> Vec(a, n)
+
+{-
+   A table read at a vector of indices - Analysis-Avx512.md §3.3, and the runtime shuffle `shuffle`'s
+   constant pattern left to "a platform module's business".
+
+   `lookup(table, indices)` answers lane `indices[i]` of `table` in lane `i`, and **the index is taken
+   modulo the table's lane count**. That is what `vperm*` does, and it is not `pshufb`'s "a high bit
+   answers zero": a portable definition has to pick one, and the one every lowering can reach for the
+   price of an `and` is the modulus. The table's count need not be the answer's - a sixteen-entry
+   byte table read at thirty-two indices is one lookup - and `permute` is the case where it is.
+
+   The indices are an integer vector of the table's lane *width*: lane `i` of the answer is read at
+   lane `i` of the indices, and a narrower or a wider index would make that pairing a conversion
+   nobody wrote. A float table is read at the signed or unsigned integer of its width.
+-}
+@builtin(vecLookup) pub fn (n: Int, m: Int) lookup(table: Vec(a, m), indices: Vec(b, n)) -> Vec(a, n)
+
+@inline(always)
+pub fn (n: Int) permute(vector: Vec(a, n), indices: Vec(b, n)) -> Vec(a, n) = lookup(vector, indices)

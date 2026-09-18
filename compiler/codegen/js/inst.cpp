@@ -3788,6 +3788,86 @@ static void genVecReduce(Gen& g, ModulePtr<Value> pointer, InstVecReduce& instru
 }
 
 /*
+ * The three lane movements whose control is a value - `compress`, `expand` and `lookup`.
+ *
+ * The one place in this section that builds an array rather than naming parts, because a lane chosen
+ * by a *value* is a computed index and the array form is the only thing here a computed index reads.
+ * Each array is declared once and every lane of the answer is one read of it, so the cost is the
+ * array and `lanes` reads - against the `lanes`-squared ternaries a chain of comparisons would be.
+ *
+ * `lookup`'s index is taken modulo the table's lane count with an `&`, which is the language's rule
+ * and is exact for a negative index too: a lane here is a 32-bit or narrower number, and `&` reads
+ * its two's complement bits the way the machine's instruction reads its low ones.
+ *
+ * `compress` and `expand` count the mask's set lanes as they go, one declared prefix per lane. A
+ * compressed lane `i` is written at its prefix where the mask keeps it and into a spare slot past the
+ * end where it does not, so the writes are unconditional and the tail keeps the zero it started with.
+ */
+static void genVecMove(Gen& g, ModulePtr<Value> pointer, InstVecMove& instruction) {
+    auto lanes = laneCount(g, instruction.type);
+    auto from = vecPartsOf(g, instruction.from);
+    auto control = vecPartsOf(g, instruction.control);
+    auto zero = zeroValue(g, laneType(g, instruction.type));
+    auto parts = newVecParts(g, lanes);
+
+    if(instruction.move == LaneMove::Lookup) {
+        auto table = declare(g, uniqueName(g, "table"_v, true), materializeVec(g, from));
+
+        // A 64-bit index is a `bigint`, which `&` will not mix with a number and an array will not
+        // take as an index - so its modulus is taken in its own domain and the answer made a number.
+        auto wide = isLong(g, laneType(g, g.local[instruction.control]->type));
+        auto wrap = wide ? bigInt(g, from.count - 1, false) : number(g, F64(from.count - 1));
+
+        for(U32 i = 0; i < lanes; i++) {
+            auto index = binary(g, BinaryOp::And, control.lanes[i], wrap);
+            if(wide) index = globalCall(g, "Number"_v, index);
+
+            parts.lanes[i] = elementAt(g, table, index);
+        }
+
+        defineVec(g, pointer, parts);
+        return;
+    }
+
+    // How many lanes the mask sets below lane `i`, for every `i` - each a name of its own, so that
+    // nothing reads one that a later statement changes.
+    auto prefix = newVecParts(g, lanes);
+    auto running = number(g, 0);
+
+    for(U32 i = 0; i < lanes; i++) {
+        prefix.lanes[i] = running;
+        if(i + 1 == lanes) break;
+
+        running = declare(g, uniqueName(g, "at"_v, true),
+                          binary(g, BinaryOp::Add, running,
+                                 ternary(g, control.lanes[i], number(g, 1), number(g, 0))));
+    }
+
+    if(instruction.move == LaneMove::Expand) {
+        auto source = declare(g, uniqueName(g, "packed"_v, true), materializeVec(g, from));
+
+        for(U32 i = 0; i < lanes; i++) {
+            parts.lanes[i] = ternary(g, control.lanes[i], elementAt(g, source, prefix.lanes[i]), zero);
+        }
+
+        defineVec(g, pointer, parts);
+        return;
+    }
+
+    auto blank = newVecParts(g, lanes + 1);
+    for(U32 i = 0; i <= lanes; i++) blank.lanes[i] = zero;
+    auto packed = declare(g, uniqueName(g, "packed"_v, true), materializeVec(g, blank));
+
+    for(U32 i = 0; i < lanes; i++) {
+        auto slot = ternary(g, control.lanes[i], prefix.lanes[i], number(g, F64(lanes)));
+        emitExpr(g, assign(g, elementAt(g, packed, slot), from.lanes[i]));
+    }
+
+    for(U32 i = 0; i < lanes; i++) parts.lanes[i] = index(g, packed, i);
+    defineVec(g, pointer, parts);
+}
+
+/*
  * A conversion between two vectors is the conversion between their lanes, lane by lane - which is
  * what the lane count being preserved across a `Cast` is *for*.
  *
@@ -3855,6 +3935,9 @@ bool genVectorInst(Gen& g, ModulePtr<Value> pointer, Inst& instruction) {
             return true;
         case Value::VecReduce:
             genVecReduce(g, pointer, (InstVecReduce&)instruction);
+            return true;
+        case Value::VecMove:
+            genVecMove(g, pointer, (InstVecMove&)instruction);
             return true;
 
         case Value::Cmp:

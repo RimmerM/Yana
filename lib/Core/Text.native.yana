@@ -475,6 +475,90 @@ pub fn toUpperAscii(text: String) -> String:
     return out
 
 {-
+   ------------------------------------------------------------------------------------------
+   A text with one ASCII unit, or the six ASCII spaces, taken out - delimiter and whitespace
+   stripping, Analysis-Avx512.md §3.1.
+   ------------------------------------------------------------------------------------------
+
+   `toLowerAscii`'s loop with `compress` where the case change was: a block is read, the units that
+   stay are packed to the bottom, and the whole register is stored where the text written so far
+   ends. The lanes past the count are the next store's to overwrite, so nothing zeroes them.
+
+   Removing an ASCII unit cannot break a code point, because no byte of a multi-byte UTF-8 sequence
+   is below 128 - so the answer is valid UTF-8 whenever the text was, and the loop reads bytes without
+   caring which is which. The spaces are `isSpace`'s six, compared as signed bytes so that every
+   byte of a longer sequence is negative and outside `\t`..`\r` without a third comparison.
+
+   The store at `kept` writes a register's width, and `kept <= i` keeps it inside the capacity the
+   answer was made with; the tail is a unit at a time, for `toLowerAscii`'s reason.
+-}
+pub fn removeAscii(text: String, unit: CodeUnit) -> String:
+    let count = length(text)
+    let &out = String.ofCapacity(count)
+    if count <= 0 then return out
+
+    let source = units(text)
+    let target = out.units.run.items
+    let width = vectorBytes
+    let last = count - width
+
+    let sought = splat(unit) :: Vec(CodeUnit)
+    let &i = 0 :: Size
+    let &kept = 0 :: Size
+
+    while i <= last:
+        let block = vectorAt(source + i) :: Vec(CodeUnit)
+        let {packed, survivors} = compress(block, block .!= sought)
+        setVectorAt(target + kept, packed)
+        kept = kept + (survivors :: Size)
+        i = i + width
+
+    while i < count:
+        let at = text.unit(i)
+        if at != unit:
+            store(target + kept, at)
+            kept = kept + 1
+        i = i + 1
+
+    out.units.length = truncate(kept) :: Count
+    return out
+
+pub fn removeAsciiSpace(text: String) -> String:
+    let count = length(text)
+    let &out = String.ofCapacity(count)
+    if count <= 0 then return out
+
+    let source = units(text)
+    let target = out.units.run.items
+    let width = vectorBytes
+    let last = count - width
+
+    let space = splat(32) :: Vec(I8)
+    let belowTab = splat(8) :: Vec(I8)
+    let aboveReturn = splat(14) :: Vec(I8)
+    let &i = 0 :: Size
+    let &kept = 0 :: Size
+
+    while i <= last:
+        let block = vectorAt(source + i) :: Vec(CodeUnit)
+        let signed = bitcast(block) :: Vec(I8)
+        let spaces = or(signed .== space, and(signed .> belowTab, signed .< aboveReturn))
+        let {packed, survivors} = compress(signed, not(spaces))
+        setVectorAt(target + kept, bitcast(packed) :: Vec(CodeUnit))
+        kept = kept + (survivors :: Size)
+        i = i + width
+
+    while i < count:
+        let at = text.unit(i)
+        if !isSpace(at):
+            store(target + kept, at)
+            kept = kept + 1
+        i = i + 1
+
+    out.units.length = truncate(kept) :: Count
+    return out
+
+{-
    Case-insensitive equality, which is the fold above applied to both operands before the compare -
    `Text.h`'s `equalsCaseString`, and the reason it is worth having as one function is that the
    alternative is two whole-string allocations at every call site that wanted to ask.

@@ -197,6 +197,10 @@ Node* expandVecUnpack(Builder& builder, Function& callee, bool high, Node* const
 Node* expandVecPackLanes(Builder& builder, Function& callee, Node* const* arguments,
                          const Substitution& with, LocationId source);
 
+// `lookup`'s index width is checked here; `compress` and `expand` go straight to `expandX86Native`.
+Node* expandVecLookup(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+
 Node* expandMaskNone(Builder& builder, Function& callee, Node* const* arguments,
                      const Substitution& with, LocationId source);
 Node* expandMaskUpTo(Builder& builder, Function& callee, Node* const* arguments,

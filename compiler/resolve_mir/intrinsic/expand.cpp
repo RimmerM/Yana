@@ -278,6 +278,13 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::vecInterleaveHigh:
             return expandVecInterleave(builder, callee, true, arguments, with, source);
 
+        // The lane movements whose control is a value - native.def's three portable rows.
+        case Op::vecCompress:
+            return expandX86Native(builder, callee, arguments, 2, with, source, NativeOp::VecCompress);
+        case Op::vecExpand:
+            return expandX86Native(builder, callee, arguments, 2, with, source, NativeOp::VecExpand);
+        case Op::vecLookup: return expandVecLookup(builder, callee, arguments, with, source);
+
         // The mask readings, which are `expandVecReduce` again: what tells `count` from `any` is the
         // result type the declaration named, so a second emitter would be one that decides nothing.
         case Op::maskAny:

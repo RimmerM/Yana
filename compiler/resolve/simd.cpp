@@ -666,6 +666,43 @@ static ModulePtr<Value> emitMaskUpTo(ExprResolver& resolver, Buffer<ModulePtr<Va
 }
 
 /*
+ * `compressLanes`, `expand` and `lookup` - the lane movements whose control is a value,
+ * Analysis-Avx512.md §3.1 and §3.3. One instruction each, and what each computes is `VecMove`'s row.
+ *
+ * The one thing checked here is the lookup's index *width*, which the signature cannot say: `b` is
+ * any lane, and a lookup pairs index lane `i` with answer lane `i`, so an index narrower or wider
+ * than the table's lane would make that pairing a conversion nobody wrote. It is checked here
+ * because this is the last place that can name the argument, and because the target's integer
+ * widths are in hand - a `Size` index is as wide as the word it is on this target.
+ */
+template<LaneMove move>
+static ModulePtr<Value> emitMaskedMove(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                       LocationId source, StringId name) {
+    return resolver.ref(resolver.emit<InstVecMove>(source, name, type, args[0], args[1], move));
+}
+
+static ModulePtr<Value> emitLookup(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                   LocationId source, StringId name) {
+    auto global = resolver.global;
+    auto lane = vectorLane(global, resolver.valueType(args[0]));
+    auto index = vectorLane(global, resolver.valueType(args[1]));
+    if(!lane || !index) return nullptr;
+
+    // A lane a body compiled once has not settled is asked again where it has been.
+    auto settled = !global[lane]->generic && !global[index]->generic;
+    auto widths = targetIntWidths(resolver.context.settings);
+
+    if(settled && (global[index]->kind != Type::Int
+                   || laneStride(global, index, widths) != laneStride(global, lane, widths))) {
+        resolver.context.diagnostics.error("a lookup's indices are integers of its table's lane width - index lane i is paired with answer lane i, so an index of any other width would be a conversion nobody wrote"_v,
+                                           source);
+        return nullptr;
+    }
+
+    return resolver.ref(resolver.emit<InstVecMove>(source, name, type, args[0], args[1], LaneMove::Lookup));
+}
+
+/*
  * `sqrt` and `fma`, which are the two in the portable set that needed an instruction rather than an
  * arrangement of the ones that were already there - Implementation-Vector.md §9.4.
  *
@@ -909,6 +946,10 @@ void defineVectorIntrinsics(Module& core) {
     attachIntrinsic(core, Op::maskCount, emitMaskReduce<ReduceOp::Add>);
     attachIntrinsic(core, Op::maskFirstSet, emitFirstSet);
     attachIntrinsic(core, Op::maskUpTo, emitMaskUpTo);
+
+    attachIntrinsic(core, Op::vecCompress, emitMaskedMove<LaneMove::Compress>);
+    attachIntrinsic(core, Op::vecExpand, emitMaskedMove<LaneMove::Expand>);
+    attachIntrinsic(core, Op::vecLookup, emitLookup);
 }
 
 /*

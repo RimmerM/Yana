@@ -402,7 +402,7 @@ struct LowerInst {
     static constexpr Kind FirstBinary = Add;
     static constexpr Kind LastBinary = Cmp;
     static constexpr Kind FirstVector = VecSplat;
-    static constexpr Kind LastVector = VecReduce;
+    static constexpr Kind LastVector = VecMove;
     static constexpr Kind FirstAtomic = AtomicLoad;
     static constexpr Kind LastAtomic = SpinHint;
     static constexpr Kind FirstTerminator = Je;
@@ -600,7 +600,7 @@ inline bool isCall(LowerInst* inst) {
     return inst->kind == LowerInst::Call;
 }
 
-// One of the five that only a vector value can be an operand or a result of. Everything else a
+// One of the six that only a vector value can be an operand or a result of. Everything else a
 // vector does is one of the instructions above, with vector operands.
 inline bool isVectorInst(LowerInst* inst) {
     return inst->kind >= LowerInst::FirstVector && inst->kind <= LowerInst::LastVector;
@@ -1212,6 +1212,43 @@ struct LowerInstVecReduce: LowerInstSingle {
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> from;
+};
+
+// Which of the three a `VecMove` is - see the row in inst.def.
+enum class LowerLaneMove: U8 {
+    Compress,
+    Expand,
+    Lookup,
+};
+
+inline StringView nameOfLaneMove(LowerLaneMove move) {
+    switch(move) {
+        case LowerLaneMove::Compress: return "vcompress"_v;
+        case LowerLaneMove::Expand:   return "vexpand"_v;
+        default:                      return "vlookup"_v;
+    }
+}
+
+/*
+ * A vector's lanes moved by a mask or by an index vector - `LowerInst::VecMove`.
+ *
+ * `source` is the vector the lanes come from - the table, for a lookup - and `control` the mask or
+ * the indices. The result has the source's lane type and the control's lane count, which for the two
+ * masked movements is the source's own.
+ */
+struct LowerInstVecMove: LowerInstSingle {
+    LowerInstVecMove(StringId name, LowerType type, LowerPtr<LowerValue> source,
+                     LowerPtr<LowerValue> control, LowerLaneMove move):
+        LowerInstSingle(VecMove, name, type), source(source), control(control)
+    {
+        usedCount = 2;
+        flags = (U8)move;
+    }
+
+    LowerLaneMove getMove() const { return (LowerLaneMove)flags; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> source, control;
 };
 
 /*

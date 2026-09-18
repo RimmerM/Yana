@@ -1177,6 +1177,43 @@ static bool validateVectorInst(Diagnostics* diagnostics, LowerBase base, LowerIn
             return true;
         }
 
+        case LowerInst::VecMove: {
+            auto move = (LowerInstVecMove*)inst;
+            auto source = base[move->source]->type;
+            auto control = base[move->control]->type;
+            auto result = move->result.type;
+
+            if(!source.isVector()) {
+                diagnostics->error("a lane movement reads the lanes of a vector"_v, inst->source);
+                return false;
+            }
+
+            // The two masked movements keep the shape: a mask over the source's own lanes in, the
+            // source's type out.
+            if(move->getMove() != LowerLaneMove::Lookup) {
+                if(!control.isMask() || !sameLaneShape(control, source) || result != source) {
+                    diagnostics->error("a compress or an expand takes a mask over its vector's own lanes and answers that vector's type"_v, inst->source);
+                    return false;
+                }
+
+                return true;
+            }
+
+            // A lookup reads one index per lane of its answer, at the table's lane width - so the
+            // answer is the table's lane at the indices' count.
+            if(!isIntVector(control) || laneBytes(control.lane) != laneBytes(source.lane)) {
+                diagnostics->error("a lookup's indices are an integer vector of its table's lane width"_v, inst->source);
+                return false;
+            }
+
+            if(result != vectorType(source.lane, control.lanes())) {
+                diagnostics->error("a lookup answers its table's lane at its indices' lane count"_v, inst->source);
+                return false;
+            }
+
+            return true;
+        }
+
         default:
             assertTrue("not a vector instruction" == nullptr);
             return false;
@@ -1370,6 +1407,7 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::VecWithLane:
         case LowerInst::VecShuffle:
         case LowerInst::VecReduce:
+        case LowerInst::VecMove:
             return validateVectorInst(diagnostics, base, inst);
         case LowerInst::Alloca:
             return validateAlloca(diagnostics, base, (LowerInstAlloca*)inst);

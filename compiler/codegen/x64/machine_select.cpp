@@ -264,6 +264,17 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         // index vector is the destination, which no other shuffle's operands look like.
         case LowerInst::X86Permute2: return OpVPermute2;
 
+        // A compress or an expand, which `lowerVectorMoves` leaves standing only where the target has
+        // the instruction - and never a lookup, which it always rewrites into a permute.
+        case LowerInst::VecMove:
+            switch(((LowerInstVecMove*)inst)->getMove()) {
+                case LowerLaneMove::Compress: return OpVCompress;
+                case LowerLaneMove::Expand:   return OpVExpand;
+                default:
+                    assertTrue("a lookup lowerVectorMoves did not rewrite" == nullptr);
+                    return OpNone;
+            }
+
         // One opcode and one row per width: a bitwise function of three vectors has no lane at all.
         case LowerInst::X86TernaryLogic: return OpVTernaryLogic;
 
@@ -579,6 +590,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::X86MaskedOp:
         case LowerInst::X86Permute2:
         case LowerInst::X86TernaryLogic:
+        case LowerInst::VecMove:
         case LowerInst::Abs:
         case LowerInst::Sqrt:
         case LowerInst::Fma:

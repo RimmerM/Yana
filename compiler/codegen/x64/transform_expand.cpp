@@ -2860,6 +2860,12 @@ void lowerMaskRegisters(Context&, LowerBase base, LowerFunction& fun) {
             case LowerInst::X86MaskConvert:
                 return true;
 
+            // A compress or an expand still standing is `vpcompress`/`vpexpand`, whose mask is the
+            // write mask - `lowerVectorMoves` has taken every other one apart by now. A lookup reads
+            // no mask at all.
+            case LowerInst::VecMove:
+                return true;
+
             // `Ret` is deliberately absent, and is not an omission: a terminator is not one of the
             // block's instructions, so this is never asked about one. It is crossed below.
 

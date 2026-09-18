@@ -22,10 +22,10 @@ import Native
 
    **Three bytes at a time, and the tail written out.** The body of the loop is one twenty-four-bit
    word built from three loads and four table lookups, which is what makes this worth writing rather
-   than expressing as a bit-at-a-time shift register. It is not vectorized: a native block form is
-   possible and is the shape `pushHex` has, and it needs a shuffle and two multiply-high steps per
-   sixteen bytes to be worth anything. That is a streaming encoder's job, and there will be one for
-   inputs where it matters; this is the one that is one body on both targets.
+   than expressing as a bit-at-a-time shift register. That loop is `pushBase64Groups`, the one body
+   both targets share; natively `Base64.native.yana` replaces it with the block form `pushHex` has -
+   twelve bytes spread into four lanes by one shuffle, the four windows cut out with shifts, and the
+   alphabet one `lookup` of a sixteen-entry offset table (Analysis-Avx512.md §3.3).
 
    **The reader accepts either alphabet whichever the style names**, exactly as `hexValue` accepts
    either letter case: a reader that refused `-` because its style said `+` would be describing the
@@ -87,25 +87,38 @@ pub fn base64Of(bytes: [U8], url: Bool = False, pad: Bool = True) -> String:
     showWith(Formatted {value: bytes, style: base64Style(url, pad)} :: Base64Format, text)
     return text
 
+{-
+   The whole three-byte groups, written as four units each, and where they stopped - every byte but
+   the last one or two, which `showWith` pads.
+
+   One twenty-four-bit word, four six-bit windows out of it, and no test inside the body: the tail is
+   what the loop stops in front of. This is the baseline, and the meaning; `Base64.native.yana` replaces
+   it with a body that does twelve bytes a turn.
+-}
+fn pushBase64Groups(bytes: [U8], url: Bool, &to: String) -> Size:
+    let alphabet = base64Alphabet(url)
+    let count = length(bytes)
+    let &i = 0 :: Size
+
+    while i + 3 <= count:
+        let word = ((bytes[i] :: Int) `shl` 16) `or` ((bytes[i + 1] :: Int) `shl` 8) `or` (bytes[i + 2] :: Int)
+
+        String.pushUnit(to, String.unit(alphabet, ((word `shr` 18) `and` 63) :: Size))
+        String.pushUnit(to, String.unit(alphabet, ((word `shr` 12) `and` 63) :: Size))
+        String.pushUnit(to, String.unit(alphabet, ((word `shr` 6) `and` 63) :: Size))
+        String.pushUnit(to, String.unit(alphabet, (word `and` 63) :: Size))
+
+        i = i + 3
+
+    return i
+
 instance ShowWith(Base64Style, [U8]):
     fn showWith(subject: Base64Format, &to: String):
         let alphabet = base64Alphabet(subject.style.url)
         let bytes = subject.value
         let count = length(bytes)
 
-        let &i = 0 :: Size
-
-        -- The whole groups. One twenty-four-bit word, four six-bit windows out of it, and no test
-        -- inside the body: the tail is what the loop stops in front of.
-        while i + 3 <= count:
-            let word = ((bytes[i] :: Int) `shl` 16) `or` ((bytes[i + 1] :: Int) `shl` 8) `or` (bytes[i + 2] :: Int)
-
-            String.pushUnit(to, String.unit(alphabet, ((word `shr` 18) `and` 63) :: Size))
-            String.pushUnit(to, String.unit(alphabet, ((word `shr` 12) `and` 63) :: Size))
-            String.pushUnit(to, String.unit(alphabet, ((word `shr` 6) `and` 63) :: Size))
-            String.pushUnit(to, String.unit(alphabet, (word `and` 63) :: Size))
-
-            i = i + 3
+        let i = pushBase64Groups(bytes, subject.style.url, to)
 
         let left = count - i
         if left == 0 then return

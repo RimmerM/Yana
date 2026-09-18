@@ -906,7 +906,24 @@ bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
 
             auto& variable = *(VariableType*)base[expected.count];
             if(variable.owner != owner || !variable.isConst()) return false;
-            if(!actual.hasFixedCount()) return false;
+
+            /*
+             * A quantified count opposite a quantified pattern - the array's case above, one type
+             * over: `fn (n: Int) permute(v: Vec(a, n), ...)` calling `lookup(v, indices)`, whose own
+             * `n` meets the caller's. The pattern's variable binds the other's, and every
+             * specialization of the caller settles both at once. Refused until `Core.compress` and
+             * `Core.permute` were the first bodies in the library to make such a call.
+             */
+            if(!actual.hasFixedCount()) {
+                auto& other = *base[actual.count];
+                if(other.kind != Type::Variable) return false;
+
+                auto& quantified = (VariableType&)other;
+                if(!quantified.isConst() || !sameType(quantified.constType, variable.constType)) return false;
+
+                if(!into[variable.index]) into[variable.index] = actual.count;
+                return sameType(into[variable.index], actual.count);
+            }
 
             auto bound = actual.lanes ? types.constType(actual.lanes, variable.constType)
                                       : types.naturalLanesType(actual.lane, variable.constType);

@@ -510,6 +510,14 @@ YANA_INST(VecLane,      InstVecLane,     "vlane"_v,       kInstResult | kInstPur
 YANA_INST(VecWithLane,  InstVecLane,     "vwithlane"_v,   kInstResult | kInstPure)
 YANA_INST(VecShuffle,   InstVecShuffle,  "vshuffle"_v,    kInstResult | kInstPure)
 YANA_INST(VecReduce,    InstVecReduce,   "vreduce"_v,     kInstResult | kInstPure)
+/*
+ * The lane movements whose pattern is a value - `compress`, `expand` and `lookup`,
+ * Analysis-Avx512.md §3.1 and §3.3. The one vector kind whose control is an *operand*: a mask for
+ * the first two and an index vector for the third, which is exactly what the five above rule out
+ * for themselves and why these are a kind apart rather than a shuffle with a flag. Pure, on the
+ * five's terms. See `LowerInst::VecMove` for what each computes.
+ */
+YANA_INST(VecMove,      InstVecMove,     "vmove"_v,       kInstResult | kInstPure)
 YANA_INST(Symbol,       InstSymbol,      "symbol"_v,      kInstResult | kInstPure)
 YANA_INST(Call,         InstCall,        "call"_v,        kInstResult | kInstCall)
 YANA_INST(CallDyn,      InstCallDyn,     "calldyn"_v,     kInstResult | kInstCall)

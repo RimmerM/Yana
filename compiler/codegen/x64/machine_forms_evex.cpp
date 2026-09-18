@@ -893,6 +893,53 @@ void MachineFormBuilder::registerEvexShuffleForms() {
     permute(FormVPermute2x64, FormVWidePermute2x64, "vpermi2q xmm, xmm, xmm"_v,  "vpermi2q ymm, ymm, ymm"_v,  0x76, true,  0);
     permute(FormVPermute2F32, FormVWidePermute2F32, "vpermi2ps xmm, xmm, xmm"_v, "vpermi2ps ymm, ymm, ymm"_v, 0x77, false, 0);
     permute(FormVPermute2F64, FormVWidePermute2F64, "vpermi2pd xmm, xmm, xmm"_v, "vpermi2pd ymm, ymm, ymm"_v, 0x77, true,  0);
+
+    /*
+     * `vpcompress*` and `vpexpand*` - the lanes a mask register sets, packed to the bottom or spread
+     * out to them, with every other lane zeroed (`{z}`). EVEX.66.0F38: 63 and 62 for the byte and word
+     * rows (VBMI2, W the lane), 8B and 89 for the doubleword and quadword ones, 8A and 88 for the float
+     * pair.
+     *
+     * Register to register, and the *compress* is the one that reads backwards: it is a store-shaped
+     * instruction, so the source is ModRM.reg and the destination the r/m operand - the shape `vpmovwb`
+     * above has. The memory destination is the form Analysis-Avx512.md §3.1 declines on purpose: the
+     * Zen 4 guide has it microcoded, and `compress` promises nothing about the lanes past its count so
+     * that the whole register may be stored instead.
+     */
+    auto lanesMove = [&](MachineFormId id, MachineFormId wideId, MachineOpcodeId opcode, StringView name128,
+                         StringView name256, U8 op, bool w, FeatureSet extension) {
+        auto& form = add(id, opcode, name128);
+        form.uses.push(anyReg(ClassXmm128));
+        form.uses.push(anyReg(ClassMask32));
+        form.defs.push(def(ClassXmm128));
+        form.requiredFeatures = features(extension);
+        form.encoding = evex(kOpcodeMap0F38, op, w);
+        form.encoding.maskField = useRef(1);
+        form.encoding.zeroMasking = true;
+
+        if(opcode == OpVCompress) {
+            form.encoding.regField = useRef(0);
+            form.encoding.rmField = defRef(0);
+        }
+
+        widen(wideId, id, name256);
+    };
+
+    auto vbmi2 = kFeatureAvx512vbmi2;
+
+    lanesMove(FormVCompress8,   FormVWideCompress8,   OpVCompress, "vpcompressb xmm {k}{z}, xmm"_v, "vpcompressb ymm {k}{z}, ymm"_v, 0x63, false, vbmi2);
+    lanesMove(FormVCompress16,  FormVWideCompress16,  OpVCompress, "vpcompressw xmm {k}{z}, xmm"_v, "vpcompressw ymm {k}{z}, ymm"_v, 0x63, true,  vbmi2);
+    lanesMove(FormVCompress32,  FormVWideCompress32,  OpVCompress, "vpcompressd xmm {k}{z}, xmm"_v, "vpcompressd ymm {k}{z}, ymm"_v, 0x8b, false, 0);
+    lanesMove(FormVCompress64,  FormVWideCompress64,  OpVCompress, "vpcompressq xmm {k}{z}, xmm"_v, "vpcompressq ymm {k}{z}, ymm"_v, 0x8b, true,  0);
+    lanesMove(FormVCompressF32, FormVWideCompressF32, OpVCompress, "vcompressps xmm {k}{z}, xmm"_v, "vcompressps ymm {k}{z}, ymm"_v, 0x8a, false, 0);
+    lanesMove(FormVCompressF64, FormVWideCompressF64, OpVCompress, "vcompresspd xmm {k}{z}, xmm"_v, "vcompresspd ymm {k}{z}, ymm"_v, 0x8a, true,  0);
+
+    lanesMove(FormVExpand8,   FormVWideExpand8,   OpVExpand, "vpexpandb xmm {k}{z}, xmm"_v, "vpexpandb ymm {k}{z}, ymm"_v, 0x62, false, vbmi2);
+    lanesMove(FormVExpand16,  FormVWideExpand16,  OpVExpand, "vpexpandw xmm {k}{z}, xmm"_v, "vpexpandw ymm {k}{z}, ymm"_v, 0x62, true,  vbmi2);
+    lanesMove(FormVExpand32,  FormVWideExpand32,  OpVExpand, "vpexpandd xmm {k}{z}, xmm"_v, "vpexpandd ymm {k}{z}, ymm"_v, 0x89, false, 0);
+    lanesMove(FormVExpand64,  FormVWideExpand64,  OpVExpand, "vpexpandq xmm {k}{z}, xmm"_v, "vpexpandq ymm {k}{z}, ymm"_v, 0x89, true,  0);
+    lanesMove(FormVExpandF32, FormVWideExpandF32, OpVExpand, "vexpandps xmm {k}{z}, xmm"_v, "vexpandps ymm {k}{z}, ymm"_v, 0x88, false, 0);
+    lanesMove(FormVExpandF64, FormVWideExpandF64, OpVExpand, "vexpandpd xmm {k}{z}, xmm"_v, "vexpandpd ymm {k}{z}, ymm"_v, 0x88, true,  0);
 }
 
 /*
@@ -1013,6 +1060,7 @@ bool hasEvexRow(EvexRow row) {
             case EvexRow::Align:            return FormVWideAlign32;
             case EvexRow::Permute2:         return FormVPermute2x16;
             case EvexRow::BytePermute2:     return FormVPermute2x8;
+            case EvexRow::Compress:         return FormVCompress8;
         }
 
         return FormNop;

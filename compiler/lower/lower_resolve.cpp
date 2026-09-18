@@ -532,6 +532,32 @@ InstResolver handleReduce() {
     };
 }
 
+/*
+ * `vcompress %v, %m`, `vexpand %v, %m` and `vlookup %table, %indices`. The result is the source's
+ * type for the two masked movements, and for a lookup the table's lane at the indices' count - which
+ * is what the text would otherwise have to say every time.
+ */
+template<LowerLaneMove move>
+InstResolver handleLaneMove() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 2);
+
+        auto source = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto control = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto result = ast.results[0];
+        auto provided = getResultType(result);
+
+        auto derived = move == LowerLaneMove::Lookup
+                     ? vectorType(source->type.lane, control->type.lanes())
+                     : source->type;
+        auto type = provided ? provided.unwrap() : derived;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstVecMove(
+            getResultName(result), type, source - base, control - base, move)));
+    };
+}
+
 static void addVectorInstructions(HashMap<StringId, InstResolver>& instructionSet) {
     addKind<LowerInst::VecSplat>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
@@ -631,6 +657,10 @@ static void addVectorInstructions(HashMap<StringId, InstResolver>& instructionSe
     instructionSet.add(Context::nameHash("vreduce_bits"_v), handleReduce<LowerReduce::Bits>());
     instructionSet.add(Context::nameHash("vreduce_first"_v), handleReduce<LowerReduce::FirstSet>());
     instructionSet.add(Context::nameHash("vreduce_or"_v), handleReduce<LowerReduce::Or>());
+
+    instructionSet.add(Context::nameHash("vcompress"_v), handleLaneMove<LowerLaneMove::Compress>());
+    instructionSet.add(Context::nameHash("vexpand"_v), handleLaneMove<LowerLaneMove::Expand>());
+    instructionSet.add(Context::nameHash("vlookup"_v), handleLaneMove<LowerLaneMove::Lookup>());
 }
 
 static Maybe<LowerInst*> handleIntrinsic(LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) {

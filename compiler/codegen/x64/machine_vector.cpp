@@ -408,6 +408,16 @@ Maybe<LanePack> lanePackAt(LowerBase base, LowerInst* inst) {
     return Just(LanePack { join, left, right });
 }
 
+bool isWidthChangingShuffle(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::VecShuffle) return false;
+
+    auto shuffle = (LowerInstVecShuffle*)inst;
+    auto type = shuffle->result.type;
+    if(type.isMask() || type.byteWidth() == base[shuffle->left]->type.byteWidth()) return false;
+
+    return !isLaneCountConversionStep(base, inst);
+}
+
 bool isLaneCountConversionStep(LowerBase base, LowerInst* inst) {
     if(laneUnpackAt(base, inst) || lanePackAt(base, inst)) return true;
     if(inst->createdCount != 1) return false;
@@ -1333,6 +1343,26 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             return widthForm(kPermute2[laneColumn(type)], type);
         }
 
+        // A compress or an expand into a mask register's lanes - `lowerVectorMoves` leaves one standing
+        // only at `avx512`, where every lane has a row.
+        case LowerInst::VecMove: {
+            static const MachineFormId kCompress[6] = {
+                FormVCompress8, FormVCompress16, FormVCompress32, FormVCompress64,
+                FormVCompressF32, FormVCompressF64,
+            };
+            static const MachineFormId kExpand[6] = {
+                FormVExpand8, FormVExpand16, FormVExpand32, FormVExpand64,
+                FormVExpandF32, FormVExpandF64,
+            };
+
+            auto move = (LowerInstVecMove*)inst;
+            auto type = move->result.type;
+            assertTrue(move->getMove() != LowerLaneMove::Lookup && isWholePackedRegister(type));
+
+            auto rows = move->getMove() == LowerLaneMove::Compress ? kCompress : kExpand;
+            return widthForm(rows[laneColumn(type)], type);
+        }
+
         // Any bitwise function of three vectors, which has no lane width - see `fuseTernaryLogic`.
         case LowerInst::X86TernaryLogic: {
             auto type = ((LowerInstX86TernaryLogic*)inst)->result.type;
@@ -1980,6 +2010,10 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
             return {};
 
         case LowerInst::VecShuffle:
+            // One whose result is not its sources' width is `lowerWidthChangingShuffles`' to legalize,
+            // whatever its pattern: it leaves only a shape selection reads, or a slot and loads.
+            if(isWidthChangingShuffle(base, inst)) return {};
+
             if(!packedShuffleChoice(inst)) {
                 // Any pattern over two sources of the result's own shape, at `avx512` - one `vpermi2*`
                 // and a pooled index vector, built by `lowerTwoSourcePermutes`. What is refused below
@@ -2346,6 +2380,11 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
 
             return {};
         }
+
+        // The three lane movements, which have a route at every level and every whole-register shape
+        // - an instruction at `avx512`, and `lowerVectorMoves`' tables and lane walks below it.
+        case LowerInst::VecMove:
+            return {};
 
         default:
             return Just("this backend has no packed form for this operation"_v);

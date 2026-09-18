@@ -248,6 +248,12 @@ enum : MachineOpcodeId {
     // See LowerInst::X86Permute2.
     OpVPermute2,
 
+    // `vpcompress*` and `vpexpand*` - the lanes a mask register names, packed down or spread out.
+    // See LowerInst::VecMove. Two opcodes because the two move lanes in opposite directions and a
+    // form of one is never a form of the other.
+    OpVCompress,
+    OpVExpand,
+
     // `vpternlogd` - any bitwise function of three vectors, by its truth table. See
     // LowerInst::X86TernaryLogic.
     OpVTernaryLogic,
@@ -1789,6 +1795,10 @@ Maybe<LanePack> lanePackAt(LowerBase base, LowerInst* join);
 // Whether the instruction is either half of either shape, which is what the support check asks.
 bool isLaneCountConversionStep(LowerBase base, LowerInst* inst);
 
+// A shuffle whose result is a different width from its sources and is not one of those steps - see
+// `lowerWidthChangingShuffles`, which legalizes every one.
+bool isWidthChangingShuffle(LowerBase base, LowerInst* inst);
+
 /*
  * The relation a packed comparison is actually emitted at, which is not always the one it names.
  *
@@ -1845,6 +1855,7 @@ enum class EvexRow: U8 {
     Align,             // valignd, valignq
     Permute2,          // vpermi2d/q/ps/pd, vpermi2w (BW)
     BytePermute2,      // vpermi2b (VBMI)
+    Compress,          // vpcompressb/w/d/q/ps/pd and vpexpand*, the byte and word rows VBMI2
 };
 
 bool hasEvexRow(EvexRow row);
