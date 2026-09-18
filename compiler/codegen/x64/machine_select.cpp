@@ -278,6 +278,18 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         // One opcode and one row per width: a bitwise function of three vectors has no lane at all.
         case LowerInst::X86TernaryLogic: return OpVTernaryLogic;
 
+        // The masked transfers, each shaped like the access it restricts - the address is operand
+        // zero, which is what `opcodeAddressOperand` answers for both and what folds it.
+        case LowerInst::X86MaskedLoad:  return OpVMaskedLoad;
+        case LowerInst::X86MaskedStore: return OpVMaskedStore;
+
+        // The portable pair, which `lowerMaskedTransfers` takes apart at every level before
+        // anything here is asked about one.
+        case LowerInst::VecLoadUpTo:
+        case LowerInst::VecStoreUpTo:
+            assertTrue("a transfer up to a count lowerMaskedTransfers did not rewrite" == nullptr);
+            return OpNone;
+
         case LowerInst::X86MaskedOp:
             switch(((LowerInstX86MaskedOp*)inst)->op) {
                 case LowerInst::Add: return OpVAdd;
@@ -588,9 +600,13 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::X86MaskConvert:
         case LowerInst::X86MaskCompare:
         case LowerInst::X86MaskedOp:
+        case LowerInst::X86MaskedLoad:
+        case LowerInst::X86MaskedStore:
         case LowerInst::X86Permute2:
         case LowerInst::X86TernaryLogic:
         case LowerInst::VecMove:
+        case LowerInst::VecLoadUpTo:
+        case LowerInst::VecStoreUpTo:
         case LowerInst::Abs:
         case LowerInst::Sqrt:
         case LowerInst::Fma:

@@ -1,0 +1,157 @@
+# `VectorTransfers.lower` at `avx2`.
+#
+#   - **four- and eight-byte lanes are `vpmaskmovd`/`q`** (VEX.66.0F38.W0/W1 8C to load, 8E to
+#     store), the mask a vector of whole lanes built as `iota .< splat(count)` at the lane's width -
+#     after a clamp into 0..lanes where the lane is four bytes and the count has to be truncated;
+#   - bytes and words are still the ladder, with a sixteen-byte rung at thirty-two bytes.
+#
+# extensions: avx2
+
+loadUpTo8x16(%p: Ptr, %n: I64): i8x16 {
+    {
+        %r = vloadupto %p, %n: i8x16
+        ret %r
+    }
+}
+
+storeUpTo8x16(%p: Ptr, %n: I64, %v: i8x16) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTo16x8(%p: Ptr, %n: I64): i16x8 {
+    {
+        %r = vloadupto %p, %n: i16x8
+        ret %r
+    }
+}
+
+storeUpTo16x8(%p: Ptr, %n: I64, %v: i16x8) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTo32x4(%p: Ptr, %n: I64): i32x4 {
+    {
+        %r = vloadupto %p, %n: i32x4
+        ret %r
+    }
+}
+
+storeUpTo32x4(%p: Ptr, %n: I64, %v: i32x4) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTo64x2(%p: Ptr, %n: I64): i64x2 {
+    {
+        %r = vloadupto %p, %n: i64x2
+        ret %r
+    }
+}
+
+storeUpTo64x2(%p: Ptr, %n: I64, %v: i64x2) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTof32x4(%p: Ptr, %n: I64): f32x4 {
+    {
+        %r = vloadupto %p, %n: f32x4
+        ret %r
+    }
+}
+
+storeUpTof32x4(%p: Ptr, %n: I64, %v: f32x4) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTof64x2(%p: Ptr, %n: I64): f64x2 {
+    {
+        %r = vloadupto %p, %n: f64x2
+        ret %r
+    }
+}
+
+storeUpTof64x2(%p: Ptr, %n: I64, %v: f64x2) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTo8x32(%p: Ptr, %n: I64): i8x32 {
+    {
+        %r = vloadupto %p, %n: i8x32
+        ret %r
+    }
+}
+
+storeUpTo8x32(%p: Ptr, %n: I64, %v: i8x32) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTo32x8(%p: Ptr, %n: I64): i32x8 {
+    {
+        %r = vloadupto %p, %n: i32x8
+        ret %r
+    }
+}
+
+storeUpTo32x8(%p: Ptr, %n: I64, %v: i32x8) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTof64x4(%p: Ptr, %n: I64): f64x4 {
+    {
+        %r = vloadupto %p, %n: f64x4
+        ret %r
+    }
+}
+
+storeUpTof64x4(%p: Ptr, %n: I64, %v: f64x4) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+# A count whose known bits keep it inside a byte needs no clamp in front of `bzhi`, and a constant
+# one is decided outright: nothing at zero, the plain transfer at the lanes, a constant mask between.
+loadUpToMasked8x32(%p: Ptr, %n: I64): i8x32 {
+    {
+        %m = imm 31L: I64
+        %c = and %n, %m: I64
+        %r = vloadupto %p, %c: i8x32
+        ret %r
+    }
+}
+
+storeUpToConstants8x16(%p: Ptr, %v: i8x16) {
+    {
+        %none = imm 0L: I64
+        vstoreupto %p, %none, %v
+        %all = imm 16L: I64
+        vstoreupto %p, %all, %v
+        %some = imm 5L: I64
+        vstoreupto %p, %some, %v
+        ret
+    }
+}

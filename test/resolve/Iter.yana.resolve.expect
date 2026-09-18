@@ -4,6 +4,10 @@ let &log: I32 = 0
 
 let &visited: I32 = 0
 
+table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
+  .0 teardown$none
+}
+
 table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
 }
@@ -20,15 +24,15 @@ table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
   .0 teardown$none
 }
 
+table closure$ResolveTest.continuation$27 before ResolveTest.continuation$27 {
+  .0 teardown$none
+}
+
 table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
   .0 teardown$none
 }
 
 table closure$ResolveTest.continuation$28 before ResolveTest.continuation$28 {
-  .0 teardown$none
-}
-
-table closure$ResolveTest.continuation$27 before ResolveTest.continuation$27 {
   .0 teardown$none
 }
 
@@ -48,23 +52,19 @@ table closure$ResolveTest.continuation$32 before ResolveTest.continuation$32 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$33 before ResolveTest.continuation$33 {
-  .0 teardown$none
-}
-
-table closure$ResolveTest.continuation$35 before ResolveTest.continuation$35 {
-  .0 teardown$none
-}
-
 table closure$ResolveTest.continuation$34 before ResolveTest.continuation$34 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$37 before ResolveTest.continuation$37 {
+table closure$ResolveTest.continuation$33 before ResolveTest.continuation$33 {
   .0 teardown$none
 }
 
 table closure$ResolveTest.continuation$36 before ResolveTest.continuation$36 {
+  .0 teardown$none
+}
+
+table closure$ResolveTest.continuation$35 before ResolveTest.continuation$35 {
   .0 teardown$none
 }
 
@@ -193,7 +193,7 @@ fn sum(%n: I32) -> I32 {
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (value$: I32) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$22 : %()
+    %v9 = symbol ResolveTest.continuation$21 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call upTo(()), %n, %v8 : Outcome((), ())
@@ -210,7 +210,7 @@ fn odds(%n: I32) -> I32 {
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (value$: I32) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$23 : %()
+    %v9 = symbol ResolveTest.continuation$22 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call upTo(()), %n, %v8 : Outcome((), ())
@@ -227,7 +227,7 @@ fn upToFive(%n: I32) -> I32 {
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (value$: I32) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$24 : %()
+    %v9 = symbol ResolveTest.continuation$23 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call upTo(()), %n, %v8 : Outcome((), ())
@@ -241,7 +241,7 @@ fn firstOver(%n: I32, %bound: I32) -> I32 {
     init %local0.bound, %bound
     %v4 = addressof %local0 : %()
     %v5 = alloc : (value$: I32) -> Outcome((), I32)
-    %v6 = symbol ResolveTest.continuation$25 : %()
+    %v6 = symbol ResolveTest.continuation$24 : %()
     init %local1.code, %v6
     init %local1.env, %v4
     %v9 = call upTo(I32), %n, %v5 : Outcome((), I32)
@@ -267,7 +267,7 @@ fn firstOverOrCount(%n: I32, %bound: I32) -> I32 {
     init %local1.seen, %v7
     %v9 = addressof %local1 : %()
     %v10 = alloc : (value$: I32) -> Outcome((), Outcome((), I32))
-    %v11 = symbol ResolveTest.continuation$26 : %()
+    %v11 = symbol ResolveTest.continuation$25 : %()
     init %local2.code, %v11
     init %local2.env, %v9
     %v14 = call upTo(Outcome((), I32)), %n, %v10 : Outcome((), Outcome((), I32))
@@ -306,7 +306,7 @@ fn grid(%rows: I32, %columns: I32) -> I32 {
     init %local1.total, %v7
     %v9 = addressof %local1 : %()
     %v10 = alloc : (value$: I32) -> Outcome((), ())
-    %v11 = symbol ResolveTest.continuation$27 : %()
+    %v11 = symbol ResolveTest.continuation$26 : %()
     init %local2.code, %v11
     init %local2.env, %v9
     %v14 = call upTo(()), %rows, %v10 : Outcome((), ())
@@ -323,7 +323,7 @@ fn corners_(%n: I32) -> I32 {
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (value$: {x: I32, y: I32}) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$29 : %()
+    %v9 = symbol ResolveTest.continuation$28 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call corners(()), %n, %v8 : Outcome((), ())
@@ -340,7 +340,7 @@ fn generic() -> I32 {
     init %local1.total, %v6
     %v8 = addressof %local1 : %()
     %v9 = alloc : (value$: I32) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$30 : %()
+    %v10 = symbol ResolveTest.continuation$29 : %()
     init %local2.code, %v10
     init %local2.env, %v8
     %v13 = call twice(I32, ()), 7, %v9 : Outcome((), ())
@@ -349,7 +349,7 @@ fn generic() -> I32 {
     init %local4.total, %v16
     %v18 = addressof %local4 : %()
     %v19 = alloc : (value$: Bool) -> Outcome((), ())
-    %v20 = symbol ResolveTest.continuation$31 : %()
+    %v20 = symbol ResolveTest.continuation$30 : %()
     init %local5.code, %v20
     init %local5.env, %v18
     %v23 = call twice(Bool, ()), True, %v19 : Outcome((), ())
@@ -363,7 +363,7 @@ fn firstOddOver(%n: I32, %bound: I32) -> I32 {
     init %local0.bound, %bound
     %v4 = addressof %local0 : %()
     %v5 = alloc : (value$: I32) -> Outcome((), I32)
-    %v6 = symbol ResolveTest.continuation$32 : %()
+    %v6 = symbol ResolveTest.continuation$31 : %()
     init %local1.code, %v6
     init %local1.env, %v4
     %v9 = call upTo(I32), %n, %v5 : Outcome((), I32)
@@ -385,7 +385,7 @@ fn firstPairOver(%n: I32, %bound: I32) -> Pair {
     init %local0.bound, %bound
     %v4 = addressof %local0 : %()
     %v5 = alloc : (value$: I32) -> Outcome((), Pair)
-    %v6 = symbol ResolveTest.continuation$33 : %()
+    %v6 = symbol ResolveTest.continuation$32 : %()
     init %local1.code, %v6
     init %local1.env, %v4
     %v9 = call upTo(Pair), %n, %v5 : Outcome((), Pair)
@@ -429,7 +429,7 @@ fn withLens(%n: I32) -> I32 {
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (value$: I32) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$34 : %()
+    %v9 = symbol ResolveTest.continuation$33 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call upTo(()), %n, %v8 : Outcome((), ())
@@ -443,7 +443,7 @@ fn loopInLens(%n: I32) -> I32 {
     init %local0.n, %n
     %v3 = addressof %local0 : %()
     %v4 = alloc : (value$: I32) -> I32
-    %v5 = symbol ResolveTest.continuation$36 : %()
+    %v5 = symbol ResolveTest.continuation$35 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     %v8 = call counted(I32), %v4 : I32
@@ -453,7 +453,7 @@ fn loopInLens(%n: I32) -> I32 {
 fn stopAt(%n: I32) -> () {
   b0:
     %v1 = alloc : (value$: I32) -> Outcome((), ())
-    %v2 = symbol ResolveTest.continuation$38 : %()
+    %v2 = symbol ResolveTest.continuation$37 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -508,7 +508,7 @@ fn stopped() -> I32 {
     ret %v4
 }
 
-fn ResolveTest.continuation$22(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$21(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &I32
     %v3 = load [%env].total : &I32
@@ -553,7 +553,7 @@ fn upTo(())(%limit: I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((),
     jmp b1
 }
 
-fn ResolveTest.continuation$23(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v4 = rem %value$, 2 : I32
     %v7 = cmp_eq %v4, 0 : Bool
@@ -578,7 +578,7 @@ fn ResolveTest.continuation$23(%env: %{total: &I32}, %value$: I32) -> Outcome(()
     ret %v15
 }
 
-fn ResolveTest.continuation$24(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v4 = cmp_gt %value$, 5 : Bool
     je %v4, b1, b2
@@ -602,7 +602,7 @@ fn ResolveTest.continuation$24(%env: %{total: &I32}, %value$: I32) -> Outcome(()
     ret %v12
 }
 
-fn ResolveTest.continuation$25(%env: %{bound: I32}, %value$: I32) -> Outcome((), I32) {
+fn ResolveTest.continuation$24(%env: %{bound: I32}, %value$: I32) -> Outcome((), I32) {
   b0:
     %v2 = load [%env].bound : I32
     %v3 = cmp_gt %value$, %v2 : Bool
@@ -655,7 +655,7 @@ fn upTo(I32)(%limit: I32, %body: (value$: I32) -> Outcome((), I32)) -> Outcome((
     jmp b1
 }
 
-fn ResolveTest.continuation$26(%env: %{bound: I32, seen: &I32}, %value$: I32) -> Outcome((), Outcome((), I32)) {
+fn ResolveTest.continuation$25(%env: %{bound: I32, seen: &I32}, %value$: I32) -> Outcome((), Outcome((), I32)) {
   b0:
     %v2 = load [%env].bound : I32
     %v3 = cmp_gt %value$, %v2 : Bool
@@ -730,7 +730,7 @@ fn upTo(Outcome((), I32))(%limit: I32, %body: (value$: I32) -> Outcome((), Outco
     jmp b1
 }
 
-fn ResolveTest.continuation$27(%env: %{columns: I32, total: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$26(%env: %{columns: I32, total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].columns : I32
     %v3 = alloc : {total: &I32, r: I32}
@@ -740,7 +740,7 @@ fn ResolveTest.continuation$27(%env: %{columns: I32, total: &I32}, %value$: I32)
     init %local0.r, %value$
     %v8 = addressof %local0 : %()
     %v9 = alloc : (value$: I32) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$28 : %()
+    %v10 = symbol ResolveTest.continuation$27 : %()
     init %local1.code, %v10
     init %local1.env, %v8
     %v13 = call upTo(()), %v2, %v9 : Outcome((), ())
@@ -749,7 +749,7 @@ fn ResolveTest.continuation$27(%env: %{columns: I32, total: &I32}, %value$: I32)
     ret %v14
 }
 
-fn ResolveTest.continuation$28(%env: %{total: &I32, r: I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$27(%env: %{total: &I32, r: I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &I32
     %v3 = load [%env].total : &I32
@@ -764,7 +764,7 @@ fn ResolveTest.continuation$28(%env: %{total: &I32, r: I32}, %value$: I32) -> Ou
     ret %v12
 }
 
-fn ResolveTest.continuation$29(%env: %{total: &I32}, %value$: {x: I32, y: I32}) -> Outcome((), ()) {
+fn ResolveTest.continuation$28(%env: %{total: &I32}, %value$: {x: I32, y: I32}) -> Outcome((), ()) {
   b0:
     %x = load %value$.x : I32
     %y = load %value$.y : I32
@@ -816,7 +816,7 @@ fn corners(())(%n: I32, %body: (value$: {x: I32, y: I32}) -> Outcome((), ())) ->
     jmp b1
 }
 
-fn ResolveTest.continuation$30(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$29(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &I32
     %v3 = load [%env].total : &I32
@@ -853,7 +853,7 @@ fn twice(I32, ())(%value: I32, %body: (value$: I32) -> Outcome((), ())) -> Outco
     ret %v14
 }
 
-fn ResolveTest.continuation$31(%env: %{total: &I32}, %value$: Bool) -> Outcome((), ()) {
+fn ResolveTest.continuation$30(%env: %{total: &I32}, %value$: Bool) -> Outcome((), ()) {
   b0:
     je %value$, b1, b2
 
@@ -899,7 +899,7 @@ fn twice(Bool, ())(%value: Bool, %body: (value$: Bool) -> Outcome((), ())) -> Ou
     ret %v14
 }
 
-fn ResolveTest.continuation$32(%env: %{bound: I32}, %value$: I32) -> Outcome((), I32) {
+fn ResolveTest.continuation$31(%env: %{bound: I32}, %value$: I32) -> Outcome((), I32) {
   b0:
     %v4 = rem %value$, 2 : I32
     %v7 = cmp_eq %v4, 0 : Bool
@@ -932,7 +932,7 @@ fn ResolveTest.continuation$32(%env: %{bound: I32}, %value$: I32) -> Outcome((),
     ret %v14
 }
 
-fn ResolveTest.continuation$33(%env: %{bound: I32}, %value$: I32) -> Outcome((), Pair) {
+fn ResolveTest.continuation$32(%env: %{bound: I32}, %value$: I32) -> Outcome((), Pair) {
   b0:
     %v2 = load [%env].bound : I32
     %v3 = cmp_gt %value$, %v2 : Bool
@@ -988,7 +988,7 @@ fn upTo(Pair)(%limit: I32, %body: (value$: I32) -> Outcome((), Pair)) -> Outcome
     jmp b1
 }
 
-fn ResolveTest.continuation$34(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$33(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = alloc : {total: &I32, x: I32}
     %v3 = load [%env].total : &I32
@@ -997,7 +997,7 @@ fn ResolveTest.continuation$34(%env: %{total: &I32}, %value$: I32) -> Outcome(()
     init %local0.x, %value$
     %v7 = addressof %local0 : %()
     %v8 = alloc : (value$: I32) -> ()
-    %v9 = symbol ResolveTest.continuation$35 : %()
+    %v9 = symbol ResolveTest.continuation$34 : %()
     init %local1.code, %v9
     init %local1.env, %v7
     call counted(()), %v8
@@ -1006,7 +1006,7 @@ fn ResolveTest.continuation$34(%env: %{total: &I32}, %value$: I32) -> Outcome(()
     ret %v13
 }
 
-fn ResolveTest.continuation$35(%env: %{total: &I32, x: I32}, %value$: I32) -> () {
+fn ResolveTest.continuation$34(%env: %{total: &I32, x: I32}, %value$: I32) -> () {
   b0:
     %v2 = load [%env].total : &I32
     %v3 = load [%env].total : &I32
@@ -1031,14 +1031,14 @@ fn counted(())(%body: (value$: I32) -> ()) -> () {
     ret %v6
 }
 
-fn ResolveTest.continuation$36(%env: %{n: I32}, %value$: I32) -> I32 {
+fn ResolveTest.continuation$35(%env: %{n: I32}, %value$: I32) -> I32 {
   b0:
     %v2 = load [%env].n : I32
     %v3 = alloc : {base: I32}
     init %local0.base, %value$
     %v5 = addressof %local0 : %()
     %v6 = alloc : (value$: I32) -> Outcome((), I32)
-    %v7 = symbol ResolveTest.continuation$37 : %()
+    %v7 = symbol ResolveTest.continuation$36 : %()
     init %local1.code, %v7
     init %local1.env, %v5
     %v10 = call upTo(I32), %v2, %v6 : Outcome((), I32)
@@ -1054,7 +1054,7 @@ fn ResolveTest.continuation$36(%env: %{n: I32}, %value$: I32) -> I32 {
     ret %value$
 }
 
-fn ResolveTest.continuation$37(%env: %{base: I32}, %value$: I32) -> Outcome((), I32) {
+fn ResolveTest.continuation$36(%env: %{base: I32}, %value$: I32) -> Outcome((), I32) {
   b0:
     %v4 = cmp_eq %value$, 2 : Bool
     je %v4, b1, b2
@@ -1089,7 +1089,7 @@ fn counted(I32)(%body: (value$: I32) -> I32) -> I32 {
     ret %v6
 }
 
-fn ResolveTest.continuation$38(%env: %{}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$37(%env: %{}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v4 = cmp_eq %value$, 3 : Bool
     je %v4, b1, b2

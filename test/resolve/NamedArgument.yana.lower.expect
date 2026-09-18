@@ -3,10 +3,10 @@
 main<complex>(): I32 {
   b_0 {
     %v_1 = bitcast 0: Ptr
-    %v_2 = call_complex ResolveTest.continuation$26, %v_1, 103: I32
+    %v_2 = call_complex ResolveTest.continuation$25, %v_1, 103: I32
     %v_3 = add %v_2, 906: I32
     %v_4 = bitcast 0: Ptr
-    %v_5 = call_complex ResolveTest.continuation$27, %v_4, 201: I32
+    %v_5 = call_complex ResolveTest.continuation$26, %v_4, 201: I32
     %v_6 = add %v_3, %v_5: I32
     jmp b_7
   }
@@ -28,13 +28,13 @@ main<complex>(): I32 {
   b_16 {
     %v_17 = add %v_6, %v_18: I32
     %v_19 = add %v_17, 37: I32
-    %v_20 = fun ResolveTest.deferred$23: Ptr
+    %v_20 = fun ResolveTest.deferred$22: Ptr
     %v_21 = bitcast 0: Ptr
     %v_22 = call_complex %v_20, %v_21: I32
     %v_23 = bitcast 0: Ptr
-    %v_24 = call_complex ResolveTest.deferred$24, %v_23: I32
+    %v_24 = call_complex ResolveTest.deferred$23, %v_23: I32
     %v_25 = bitcast 0: Ptr
-    %v_26 = call_complex ResolveTest.deferred$25, %v_25: I32
+    %v_26 = call_complex ResolveTest.deferred$24, %v_25: I32
     %v_27 = add %v_22, %v_24: I32
     %v_28 = add %v_27, %v_26: I32
     %v_29 = add %v_19, %v_28: I32
@@ -44,14 +44,14 @@ main<complex>(): I32 {
     %v_33 = add %v_29, %v_32: I32
     %v_34 = add %v_33, 9: I32
     %v_35 = bitcast 0: Ptr
-    %v_36 = call_complex ResolveTest.deferred$30, %v_35: I32
+    %v_36 = call_complex ResolveTest.deferred$29, %v_35: I32
     %v_37 = add %v_34, %v_36: I32
     %v_38 = bitcast 0: Ptr
-    %v_39 = call_complex ResolveTest.deferred$31, %v_38: I32
+    %v_39 = call_complex ResolveTest.deferred$30, %v_38: I32
     %v_40 = imul %v_39, 3: I32
     %v_41 = add %v_37, %v_40: I32
     %v_42 = bitcast 0: Ptr
-    %v_43 = call_complex ResolveTest.deferred$32, %v_42: I32
+    %v_43 = call_complex ResolveTest.deferred$31, %v_42: I32
     %v_44 = imul %v_43, 3: I32
     %v_45 = add %v_41, %v_44: I32
     %v_46 = add %v_45, 27: I32
@@ -75,21 +75,27 @@ main<complex>(): I32 {
   }
 }
 
-ResolveTest.deferred$23<complex>(%env: Ptr): I32 {
+ResolveTest.deferred$22<complex>(%env: Ptr): I32 {
   b_0 {
     ret 9
   }
 }
 
-ResolveTest.deferred$24<complex>(%env: Ptr): I32 {
+ResolveTest.deferred$23<complex>(%env: Ptr): I32 {
   b_0 {
     ret 4
   }
 }
 
-ResolveTest.deferred$25<complex>(%env: Ptr): I32 {
+ResolveTest.deferred$24<complex>(%env: Ptr): I32 {
   b_0 {
     ret 5
+  }
+}
+
+ResolveTest.continuation$25<complex>(%env: Ptr, %value$: I32): I32 {
+  b_0 {
+    ret %value$
   }
 }
 
@@ -99,25 +105,19 @@ ResolveTest.continuation$26<complex>(%env: Ptr, %value$: I32): I32 {
   }
 }
 
-ResolveTest.continuation$27<complex>(%env: Ptr, %value$: I32): I32 {
-  b_0 {
-    ret %value$
-  }
-}
-
-ResolveTest.deferred$30<complex>(%env: Ptr): I32 {
+ResolveTest.deferred$29<complex>(%env: Ptr): I32 {
   b_0 {
     ret 6
   }
 }
 
-ResolveTest.deferred$31<complex>(%env: Ptr): I32 {
+ResolveTest.deferred$30<complex>(%env: Ptr): I32 {
   b_0 {
     ret 8
   }
 }
 
-ResolveTest.deferred$32<complex>(%env: Ptr): I32 {
+ResolveTest.deferred$31<complex>(%env: Ptr): I32 {
   b_0 {
     ret 4
   }

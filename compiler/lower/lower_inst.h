@@ -1444,6 +1444,34 @@ struct LowerInstSetPattern: LowerInst {
 };
 
 /*
+ * The first `count` lanes of a vector read at `from`, and zero in the rest - `LowerInst::VecLoadUpTo`.
+ * The vector type is the result's. No access is declared; the row in inst.def says why.
+ */
+struct LowerInstVecLoadUpTo: LowerInstSingle {
+    LowerInstVecLoadUpTo(StringId name, LowerType type, LowerPtr<LowerValue> from, LowerPtr<LowerValue> count):
+        LowerInstSingle(VecLoadUpTo, name, type), from(from), count(count)
+    {
+        usedCount = 2;
+    }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> from, count;
+};
+
+// The first `count` lanes of `value` written at `to`, and nothing past them - `LowerInst::VecStoreUpTo`.
+struct LowerInstVecStoreUpTo: LowerInst {
+    LowerInstVecStoreUpTo(LowerPtr<LowerValue> to, LowerPtr<LowerValue> count, LowerPtr<LowerValue> value):
+        LowerInst(VecStoreUpTo), to(to), count(count), value(value)
+    {
+        usedCount = 3;
+    }
+
+    // Used values must be first after embedded values, in the order the printed form writes them:
+    // `vstoreupto to, count, value`.
+    LowerPtr<LowerValue> to, count, value;
+};
+
+/*
  * Atomics - Analysis-Atomics.md §5.1. See LowerInst::FirstAtomic for why they are kinds.
  *
  * All four location operations carry their width in `flags` through `makeMemoryFlags`, which is the
@@ -1855,6 +1883,30 @@ struct LowerInstX86MaskedOp: LowerInstSingle {
 
     // The operation - `Add`, `Sub`, `Mul`, `IMul`, `Div`, or `X86MinMax`.
     LowerInst::Kind op;
+};
+
+// A vector read under a mask, zero where it is clear - see LowerInst::X86MaskedLoad.
+struct LowerInstX86MaskedLoad: LowerInstSingle {
+    LowerInstX86MaskedLoad(StringId name, LowerType type, LowerPtr<LowerValue> from, LowerPtr<LowerValue> mask):
+        LowerInstSingle(X86MaskedLoad, name, type), from(from), mask(mask)
+    {
+        usedCount = 2;
+    }
+
+    // Used values must be first after embedded values. The address first, which is where the forms
+    // name it.
+    LowerPtr<LowerValue> from, mask;
+};
+
+// A vector written under a mask, and nothing where it is clear - see LowerInst::X86MaskedStore.
+struct LowerInstX86MaskedStore: LowerInst {
+    LowerInstX86MaskedStore(LowerPtr<LowerValue> to, LowerPtr<LowerValue> mask, LowerPtr<LowerValue> value):
+        LowerInst(X86MaskedStore), to(to), mask(mask), value(value)
+    {
+        usedCount = 3;
+    }
+
+    LowerPtr<LowerValue> to, mask, value;
 };
 
 // Any bitwise function of three vectors, by its truth table - see LowerInst::X86TernaryLogic.

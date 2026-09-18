@@ -325,6 +325,12 @@ void lowerVectorMoves(Context& ctx, LowerBase base, LowerFunction& fun);
 void lowerWidthChangingShuffles(Context& ctx, LowerBase base, LowerFunction& fun);
 
 /*
+ * transform_transfer.cpp - `loadUpTo` and `storeUpTo`: a masked move where the level has one, and a
+ * ladder of transfers through a frame slot where it does not. See the header of the file.
+ */
+void lowerMaskedTransfers(Context& ctx, LowerBase base, LowerFunction& fun);
+
+/*
  * transform_switch.cpp - the multi-way branch.
  */
 

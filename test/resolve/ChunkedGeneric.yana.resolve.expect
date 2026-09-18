@@ -2,15 +2,11 @@ let image$base: () = <none>
 
 let &heapFree: %%U8 = 0
 
-table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
-  .0 teardown$none
-}
-
 table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
+table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
 }
 
@@ -18,7 +14,7 @@ table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$27 before ResolveTest.continuation$27 {
+table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
 }
 
@@ -26,7 +22,7 @@ table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$23(Chunks, I32) before ResolveTest.continuation$23(Chunks, I32) {
+table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
   .0 teardown$none
 }
 
@@ -34,7 +30,7 @@ table closure$ResolveTest.continuation$22(Chunks, I32) before ResolveTest.contin
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$25(Chunks, I32) before ResolveTest.continuation$25(Chunks, I32) {
+table closure$ResolveTest.continuation$21(Chunks, I32) before ResolveTest.continuation$21(Chunks, I32) {
   .0 teardown$none
 }
 
@@ -42,7 +38,7 @@ table closure$ResolveTest.continuation$24(Chunks, I32) before ResolveTest.contin
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$27(Chunks, I32) before ResolveTest.continuation$27(Chunks, I32) {
+table closure$ResolveTest.continuation$23(Chunks, I32) before ResolveTest.continuation$23(Chunks, I32) {
   .0 teardown$none
 }
 
@@ -50,7 +46,7 @@ table closure$ResolveTest.continuation$26(Chunks, I32) before ResolveTest.contin
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$23(Array(I32), I32) before ResolveTest.continuation$23(Array(I32), I32) {
+table closure$ResolveTest.continuation$25(Chunks, I32) before ResolveTest.continuation$25(Chunks, I32) {
   .0 teardown$none
 }
 
@@ -58,7 +54,7 @@ table closure$ResolveTest.continuation$22(Array(I32), I32) before ResolveTest.co
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$25(Array(I32), I32) before ResolveTest.continuation$25(Array(I32), I32) {
+table closure$ResolveTest.continuation$21(Array(I32), I32) before ResolveTest.continuation$21(Array(I32), I32) {
   .0 teardown$none
 }
 
@@ -66,11 +62,15 @@ table closure$ResolveTest.continuation$24(Array(I32), I32) before ResolveTest.co
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$27(Array(I32), I32) before ResolveTest.continuation$27(Array(I32), I32) {
+table closure$ResolveTest.continuation$23(Array(I32), I32) before ResolveTest.continuation$23(Array(I32), I32) {
   .0 teardown$none
 }
 
 table closure$ResolveTest.continuation$26(Array(I32), I32) before ResolveTest.continuation$26(Array(I32), I32) {
+  .0 teardown$none
+}
+
+table closure$ResolveTest.continuation$25(Array(I32), I32) before ResolveTest.continuation$25(Array(I32), I32) {
   .0 teardown$none
 }
 
@@ -326,7 +326,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     init %local2.n, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: ArrayView(a)) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$22 : %()
+    %v9 = symbol ResolveTest.continuation$21 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = gencall Chunked(c, a).chunks, %xs, %v8 : Outcome((), ())
@@ -356,7 +356,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     init %local2.bound, %bound
     %v9 = addressof %local2 : %()
     %v10 = alloc : (value$: ArrayView(a)) -> Outcome((), I32)
-    %v11 = symbol ResolveTest.continuation$24 : %()
+    %v11 = symbol ResolveTest.continuation$23 : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = gencall Chunked(c, a).chunks, %xs, %v10 : Outcome((), I32)
@@ -395,7 +395,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     init %local2.bound, %bound
     %v9 = addressof %local2 : %()
     %v10 = alloc : (value$: ArrayView(a)) -> Outcome((), I32)
-    %v11 = symbol ResolveTest.continuation$26 : %()
+    %v11 = symbol ResolveTest.continuation$25 : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = gencall Chunked(c, a).chunks, %xs, %v10 : Outcome((), I32)
@@ -531,7 +531,7 @@ fn Chunked(Chunks, I32).chunks(%self: Chunks, %body: (value$: ArrayView(I32)) ->
     ret %v37
 }
 
-(Chunked(c, a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$22(%env: %{n: &I32}, %value$: ArrayView(a)) -> Outcome((), ()) {
+(Chunked(c, a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$21(%env: %{n: &I32}, %value$: ArrayView(a)) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type a
@@ -551,7 +551,7 @@ fn Chunked(Chunks, I32).chunks(%self: Chunks, %body: (value$: ArrayView(I32)) ->
     init %local1.n, %v4
     %v6 = addressof %local1 : %()
     %v7 = alloc : (value$: a) -> Outcome((), ())
-    %v8 = symbol ResolveTest.continuation$23 : %()
+    %v8 = symbol ResolveTest.continuation$22 : %()
     init %local2.code, %v8
     init %local2.env, %v6
     %v11 = gencall each(a, ()), %value$, %v7 : Outcome((), ())
@@ -560,7 +560,7 @@ fn Chunked(Chunks, I32).chunks(%self: Chunks, %body: (value$: ArrayView(I32)) ->
     ret %v12
 }
 
-(Chunked(c, a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$23(%env: %{n: &I32}, %value$: a) -> Outcome((), ()) {
+(Chunked(c, a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$22(%env: %{n: &I32}, %value$: a) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type a
@@ -584,7 +584,7 @@ fn Chunked(Chunks, I32).chunks(%self: Chunks, %body: (value$: ArrayView(I32)) ->
     ret %v9
 }
 
-(Chunked(c, a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$24(%env: %{n: &I32, bound: I32}, %value$: ArrayView(a)) -> Outcome((), I32) {
+(Chunked(c, a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$23(%env: %{n: &I32, bound: I32}, %value$: ArrayView(a)) -> Outcome((), I32) {
   schema {
     #0 type c
     #1 type a
@@ -606,7 +606,7 @@ fn Chunked(Chunks, I32).chunks(%self: Chunks, %body: (value$: ArrayView(I32)) ->
     init %local1.bound, %v6
     %v8 = addressof %local1 : %()
     %v9 = alloc : (value$: a) -> Outcome((), I32)
-    %v10 = symbol ResolveTest.continuation$25 : %()
+    %v10 = symbol ResolveTest.continuation$24 : %()
     init %local2.code, %v10
     init %local2.env, %v8
     %v13 = gencall each(a, I32), %value$, %v9 : Outcome((), I32)
@@ -626,7 +626,7 @@ fn Chunked(Chunks, I32).chunks(%self: Chunks, %body: (value$: ArrayView(I32)) ->
     ret %v19
 }
 
-(Chunked(c, a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$25(%env: %{n: &I32, bound: I32}, %value$: a) -> Outcome((), I32) {
+(Chunked(c, a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$24(%env: %{n: &I32, bound: I32}, %value$: a) -> Outcome((), I32) {
   schema {
     #0 type c
     #1 type a
@@ -668,7 +668,7 @@ fn Chunked(Chunks, I32).chunks(%self: Chunks, %body: (value$: ArrayView(I32)) ->
     ret %v18
 }
 
-(Chunked(c, a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$26(%env: %{n: &I32, bound: I32}, %value$: ArrayView(a)) -> Outcome((), I32) {
+(Chunked(c, a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$25(%env: %{n: &I32, bound: I32}, %value$: ArrayView(a)) -> Outcome((), I32) {
   schema {
     #0 type c
     #1 type a
@@ -690,7 +690,7 @@ fn Chunked(Chunks, I32).chunks(%self: Chunks, %body: (value$: ArrayView(I32)) ->
     init %local1.bound, %v6
     %v8 = addressof %local1 : %()
     %v9 = alloc : (value$: a) -> Outcome((), Outcome((), I32))
-    %v10 = symbol ResolveTest.continuation$27 : %()
+    %v10 = symbol ResolveTest.continuation$26 : %()
     init %local2.code, %v10
     init %local2.env, %v8
     %v13 = gencall each(a, Outcome((), I32)), %value$, %v9 : Outcome((), Outcome((), I32))
@@ -722,7 +722,7 @@ fn Chunked(Chunks, I32).chunks(%self: Chunks, %body: (value$: ArrayView(I32)) ->
     ret %v26
 }
 
-(Chunked(c, a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$27(%env: %{n: &I32, bound: I32}, %value$: a) -> Outcome((), Outcome((), I32)) {
+(Chunked(c, a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$26(%env: %{n: &I32, bound: I32}, %value$: a) -> Outcome((), Outcome((), I32)) {
   schema {
     #0 type c
     #1 type a
@@ -777,7 +777,7 @@ fn countAll(Chunks, I32)(%xs: Chunks) -> I32 {
     init %local2.n, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: ArrayView(I32)) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$22(Chunks, I32) : %()
+    %v9 = symbol ResolveTest.continuation$21(Chunks, I32) : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call Chunked(Chunks, I32).chunks(()), %xs, %v8 : Outcome((), ())
@@ -785,7 +785,7 @@ fn countAll(Chunks, I32)(%xs: Chunks) -> I32 {
     ret %v13
 }
 
-fn ResolveTest.continuation$22(Chunks, I32)(%env: %{n: &I32}, %value$: ArrayView(I32)) -> Outcome((), ()) {
+fn ResolveTest.continuation$21(Chunks, I32)(%env: %{n: &I32}, %value$: ArrayView(I32)) -> Outcome((), ()) {
   b0:
     %v2 = alloc : {n: &I32}
     %v3 = load [%env].n : &I32
@@ -793,7 +793,7 @@ fn ResolveTest.continuation$22(Chunks, I32)(%env: %{n: &I32}, %value$: ArrayView
     init %local1.n, %v4
     %v6 = addressof %local1 : %()
     %v7 = alloc : (value$: I32) -> Outcome((), ())
-    %v8 = symbol ResolveTest.continuation$23(Chunks, I32) : %()
+    %v8 = symbol ResolveTest.continuation$22(Chunks, I32) : %()
     init %local2.code, %v8
     init %local2.env, %v6
     %v11 = call each(I32, ()), %value$, %v7 : Outcome((), ())
@@ -802,7 +802,7 @@ fn ResolveTest.continuation$22(Chunks, I32)(%env: %{n: &I32}, %value$: ArrayView
     ret %v12
 }
 
-fn ResolveTest.continuation$23(Chunks, I32)(%env: %{n: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(Chunks, I32)(%env: %{n: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].n : &I32
     %v3 = load [%env].n : &I32
@@ -924,7 +924,7 @@ fn countUntil(Chunks, I32)(%xs: Chunks, %bound: I32) -> I32 {
     init %local2.bound, %bound
     %v9 = addressof %local2 : %()
     %v10 = alloc : (value$: ArrayView(I32)) -> Outcome((), I32)
-    %v11 = symbol ResolveTest.continuation$24(Chunks, I32) : %()
+    %v11 = symbol ResolveTest.continuation$23(Chunks, I32) : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = call Chunked(Chunks, I32).chunks(I32), %xs, %v10 : Outcome((), I32)
@@ -941,7 +941,7 @@ fn countUntil(Chunks, I32)(%xs: Chunks, %bound: I32) -> I32 {
     ret %v21
 }
 
-fn ResolveTest.continuation$24(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value$: ArrayView(I32)) -> Outcome((), I32) {
+fn ResolveTest.continuation$23(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value$: ArrayView(I32)) -> Outcome((), I32) {
   b0:
     %v2 = alloc : {n: &I32, bound: I32}
     %v3 = load [%env].n : &I32
@@ -951,7 +951,7 @@ fn ResolveTest.continuation$24(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value
     init %local1.bound, %v6
     %v8 = addressof %local1 : %()
     %v9 = alloc : (value$: I32) -> Outcome((), I32)
-    %v10 = symbol ResolveTest.continuation$25(Chunks, I32) : %()
+    %v10 = symbol ResolveTest.continuation$24(Chunks, I32) : %()
     init %local2.code, %v10
     init %local2.env, %v8
     %v13 = call each(I32, I32), %value$, %v9 : Outcome((), I32)
@@ -971,7 +971,7 @@ fn ResolveTest.continuation$24(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value
     ret %v23
 }
 
-fn ResolveTest.continuation$25(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value$: I32) -> Outcome((), I32) {
+fn ResolveTest.continuation$24(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value$: I32) -> Outcome((), I32) {
   b0:
     %v2 = load [%env].n : &I32
     %v3 = load [%v2] : I32
@@ -1111,7 +1111,7 @@ fn countChunks(Chunks, I32)(%xs: Chunks, %bound: I32) -> I32 {
     init %local2.bound, %bound
     %v9 = addressof %local2 : %()
     %v10 = alloc : (value$: ArrayView(I32)) -> Outcome((), I32)
-    %v11 = symbol ResolveTest.continuation$26(Chunks, I32) : %()
+    %v11 = symbol ResolveTest.continuation$25(Chunks, I32) : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = call Chunked(Chunks, I32).chunks(I32), %xs, %v10 : Outcome((), I32)
@@ -1128,7 +1128,7 @@ fn countChunks(Chunks, I32)(%xs: Chunks, %bound: I32) -> I32 {
     ret %v21
 }
 
-fn ResolveTest.continuation$26(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value$: ArrayView(I32)) -> Outcome((), I32) {
+fn ResolveTest.continuation$25(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value$: ArrayView(I32)) -> Outcome((), I32) {
   b0:
     %v2 = alloc : {n: &I32, bound: I32}
     %v3 = load [%env].n : &I32
@@ -1138,7 +1138,7 @@ fn ResolveTest.continuation$26(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value
     init %local1.bound, %v6
     %v8 = addressof %local1 : %()
     %v9 = alloc : (value$: I32) -> Outcome((), Outcome((), I32))
-    %v10 = symbol ResolveTest.continuation$27(Chunks, I32) : %()
+    %v10 = symbol ResolveTest.continuation$26(Chunks, I32) : %()
     init %local2.code, %v10
     init %local2.env, %v8
     %v13 = call each(I32, Outcome((), I32)), %value$, %v9 : Outcome((), Outcome((), I32))
@@ -1170,7 +1170,7 @@ fn ResolveTest.continuation$26(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value
     ret %v30
 }
 
-fn ResolveTest.continuation$27(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value$: I32) -> Outcome((), Outcome((), I32)) {
+fn ResolveTest.continuation$26(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value$: I32) -> Outcome((), Outcome((), I32)) {
   b0:
     %v2 = load [%env].n : &I32
     %v3 = load [%v2] : I32
@@ -1261,7 +1261,7 @@ fn countAll(Array(I32), I32)(%xs: Array(I32)) -> I32 {
     init %local2.n, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: ArrayView(I32)) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$22(Array(I32), I32) : %()
+    %v9 = symbol ResolveTest.continuation$21(Array(I32), I32) : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = borrow %xs : 'Array(I32)
@@ -1276,7 +1276,7 @@ fn countAll(Array(I32), I32)(%xs: Array(I32)) -> I32 {
     ret %v20
 }
 
-fn ResolveTest.continuation$22(Array(I32), I32)(%env: %{n: &I32}, %value$: ArrayView(I32)) -> Outcome((), ()) {
+fn ResolveTest.continuation$21(Array(I32), I32)(%env: %{n: &I32}, %value$: ArrayView(I32)) -> Outcome((), ()) {
   b0:
     %v2 = alloc : {n: &I32}
     %v3 = load [%env].n : &I32
@@ -1284,7 +1284,7 @@ fn ResolveTest.continuation$22(Array(I32), I32)(%env: %{n: &I32}, %value$: Array
     init %local1.n, %v4
     %v6 = addressof %local1 : %()
     %v7 = alloc : (value$: I32) -> Outcome((), ())
-    %v8 = symbol ResolveTest.continuation$23(Array(I32), I32) : %()
+    %v8 = symbol ResolveTest.continuation$22(Array(I32), I32) : %()
     init %local2.code, %v8
     init %local2.env, %v6
     %v11 = call each(I32, ()), %value$, %v7 : Outcome((), ())
@@ -1293,7 +1293,7 @@ fn ResolveTest.continuation$22(Array(I32), I32)(%env: %{n: &I32}, %value$: Array
     ret %v12
 }
 
-fn ResolveTest.continuation$23(Array(I32), I32)(%env: %{n: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(Array(I32), I32)(%env: %{n: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].n : &I32
     %v3 = load [%env].n : &I32
@@ -1315,7 +1315,7 @@ fn countUntil(Array(I32), I32)(%xs: Array(I32), %bound: I32) -> I32 {
     init %local2.bound, %bound
     %v9 = addressof %local2 : %()
     %v10 = alloc : (value$: ArrayView(I32)) -> Outcome((), I32)
-    %v11 = symbol ResolveTest.continuation$24(Array(I32), I32) : %()
+    %v11 = symbol ResolveTest.continuation$23(Array(I32), I32) : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = borrow %xs : 'Array(I32)
@@ -1339,7 +1339,7 @@ fn countUntil(Array(I32), I32)(%xs: Array(I32), %bound: I32) -> I32 {
     ret %v28
 }
 
-fn ResolveTest.continuation$24(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %value$: ArrayView(I32)) -> Outcome((), I32) {
+fn ResolveTest.continuation$23(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %value$: ArrayView(I32)) -> Outcome((), I32) {
   b0:
     %v2 = alloc : {n: &I32, bound: I32}
     %v3 = load [%env].n : &I32
@@ -1349,7 +1349,7 @@ fn ResolveTest.continuation$24(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %v
     init %local1.bound, %v6
     %v8 = addressof %local1 : %()
     %v9 = alloc : (value$: I32) -> Outcome((), I32)
-    %v10 = symbol ResolveTest.continuation$25(Array(I32), I32) : %()
+    %v10 = symbol ResolveTest.continuation$24(Array(I32), I32) : %()
     init %local2.code, %v10
     init %local2.env, %v8
     %v13 = call each(I32, I32), %value$, %v9 : Outcome((), I32)
@@ -1369,7 +1369,7 @@ fn ResolveTest.continuation$24(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %v
     ret %v23
 }
 
-fn ResolveTest.continuation$25(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %value$: I32) -> Outcome((), I32) {
+fn ResolveTest.continuation$24(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %value$: I32) -> Outcome((), I32) {
   b0:
     %v2 = load [%env].n : &I32
     %v3 = load [%v2] : I32
@@ -1409,7 +1409,7 @@ fn countChunks(Array(I32), I32)(%xs: Array(I32), %bound: I32) -> I32 {
     init %local2.bound, %bound
     %v9 = addressof %local2 : %()
     %v10 = alloc : (value$: ArrayView(I32)) -> Outcome((), I32)
-    %v11 = symbol ResolveTest.continuation$26(Array(I32), I32) : %()
+    %v11 = symbol ResolveTest.continuation$25(Array(I32), I32) : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = borrow %xs : 'Array(I32)
@@ -1433,7 +1433,7 @@ fn countChunks(Array(I32), I32)(%xs: Array(I32), %bound: I32) -> I32 {
     ret %v28
 }
 
-fn ResolveTest.continuation$26(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %value$: ArrayView(I32)) -> Outcome((), I32) {
+fn ResolveTest.continuation$25(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %value$: ArrayView(I32)) -> Outcome((), I32) {
   b0:
     %v2 = alloc : {n: &I32, bound: I32}
     %v3 = load [%env].n : &I32
@@ -1443,7 +1443,7 @@ fn ResolveTest.continuation$26(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %v
     init %local1.bound, %v6
     %v8 = addressof %local1 : %()
     %v9 = alloc : (value$: I32) -> Outcome((), Outcome((), I32))
-    %v10 = symbol ResolveTest.continuation$27(Array(I32), I32) : %()
+    %v10 = symbol ResolveTest.continuation$26(Array(I32), I32) : %()
     init %local2.code, %v10
     init %local2.env, %v8
     %v13 = call each(I32, Outcome((), I32)), %value$, %v9 : Outcome((), Outcome((), I32))
@@ -1475,7 +1475,7 @@ fn ResolveTest.continuation$26(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %v
     ret %v30
 }
 
-fn ResolveTest.continuation$27(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %value$: I32) -> Outcome((), Outcome((), I32)) {
+fn ResolveTest.continuation$26(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %value$: I32) -> Outcome((), Outcome((), I32)) {
   b0:
     %v2 = load [%env].n : &I32
     %v3 = load [%v2] : I32

@@ -2329,6 +2329,21 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                                                                             args[1]));
                     break;
 
+                // The transfers that stop at a lane count, one lower kind each - see
+                // LowerInst::VecLoadUpTo.
+                case mir::NativeOp::VecLoadUpTo: {
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto value = block.addInst(lower, new (to.arena) LowerInstVecLoadUpTo(
+                        StringId(), manifestOf(*result).type, args[0], args[1]));
+
+                    values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
+                    break;
+                }
+
+                case mir::NativeOp::VecStoreUpTo:
+                    block.addInst(lower, new (to.arena) LowerInstVecStoreUpTo(args[0], args[1], args[2]));
+                    break;
+
                 case mir::NativeOp::Syscall: {
                     // The kernel is the callee, so there is no function operand: the number is
                     // operand zero, exactly as the lower IR's own syscall form has it.

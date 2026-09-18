@@ -280,6 +280,8 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case NativeOp::CopyMemory: return "copymemory"_v;
                 case NativeOp::SetMemory: return "setmemory"_v;
                 case NativeOp::Syscall: return "syscall"_v;
+                case NativeOp::VecLoadUpTo: return "vloadupto"_v;
+                case NativeOp::VecStoreUpTo: return "vstoreupto"_v;
                 case NativeOp::HostCall: return "hostcall"_v;
                 case NativeOp::HostField: return "hostfield"_v;
                 case NativeOp::HostArray: return "hostarray"_v;

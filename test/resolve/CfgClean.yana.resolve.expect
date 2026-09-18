@@ -4,7 +4,7 @@ let &live: I32 = 0
 
 let &trace: I32 = 0
 
-table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
+table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
 }
 
@@ -143,7 +143,7 @@ fn nested(%n: I32) -> I32 {
     init %local1.sum, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (value$: I32) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$22 : %()
+    %v9 = symbol ResolveTest.continuation$21 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call steps(()), %n, %v8 : Outcome((), ())
@@ -313,7 +313,7 @@ fn Drop(Held).drop(%self: Held) -> () {
     ret
 }
 
-fn ResolveTest.continuation$22(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$21(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v4 = cmp_gt %value$, 4 : Bool
     je %v4, b1, b2

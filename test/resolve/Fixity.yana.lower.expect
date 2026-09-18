@@ -13,9 +13,9 @@ mut @counter = [0, 0, 0, 0]
 main<complex>(): I32 {
   b_0 {
     %v_1 = bitcast 0: Ptr
-    %v_2 = call_complex ResolveTest.deferred$24, %v_1: I32
+    %v_2 = call_complex ResolveTest.deferred$23, %v_1: I32
     %v_3 = bitcast 0: Ptr
-    %v_4 = call_complex ResolveTest.deferred$28, %v_3: I32
+    %v_4 = call_complex ResolveTest.deferred$27, %v_3: I32
     %v_5 = add %v_4, 1: I32
     %v_6 = loads @counter, 4: I32
     %effects = add %v_5, %v_6: I32
@@ -26,30 +26,30 @@ main<complex>(): I32 {
   }
 }
 
-ResolveTest.deferred$24<complex>(%env: Ptr): I32 {
+ResolveTest.deferred$23<complex>(%env: Ptr): I32 {
   b_0 {
     %v_1 = bitcast 0: Ptr
-    %v_2 = call_complex ResolveTest.deferred$25, %v_1: I32
+    %v_2 = call_complex ResolveTest.deferred$24, %v_1: I32
     ret %v_2
   }
 }
 
-ResolveTest.deferred$25<complex>(%env: Ptr): I32 {
+ResolveTest.deferred$24<complex>(%env: Ptr): I32 {
   b_0 {
     ret 3
   }
 }
 
-ResolveTest.deferred$28<complex>(%env: Ptr): I32 {
+ResolveTest.deferred$27<complex>(%env: Ptr): I32 {
   b_0 {
     call_complex +=(I32), @counter, 1
     %v_1 = bitcast 0: Ptr
-    %v_2 = call_complex ResolveTest.deferred$29, %v_1: I32
+    %v_2 = call_complex ResolveTest.deferred$28, %v_1: I32
     ret %v_2
   }
 }
 
-ResolveTest.deferred$29<complex>(%env: Ptr): I32 {
+ResolveTest.deferred$28<complex>(%env: Ptr): I32 {
   b_0 {
     call_complex +=(I32), @counter, 1
     ret 20

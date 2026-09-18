@@ -611,6 +611,15 @@ static const TransformPass kTransformPipeline[] = {
     // turns into loads - see `fuseMaskRegisters`.
     { "fuseMaskRegisters"_v,           fuseMaskRegisters,           0, true },
 
+    /*
+     * Directly behind it, and below every pass that chooses or moves a mask's bank: the masks this
+     * builds are made in the bank they stay in - a mask register at `avx512`, a vector at `avx2` - so
+     * nothing after it has a reason to move one. Above `poolVectorConstants`, which turns the ladder's
+     * zero into a `pxor`, and above `selectAddressesAndLeas`, which folds each transfer's address. The
+     * ladder makes blocks, which every pass from here down already sees `expandAtomics` do.
+     */
+    { "lowerMaskedTransfers"_v,        lowerMaskedTransfers,        0, true },
+
     // Above `poolVectorConstants`, which is the whole of where this may sit - the count it reads is
     // a `vsplat` of a constant, and that pass turns one into a `.rodata` load.
     /*

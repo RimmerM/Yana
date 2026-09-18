@@ -85,6 +85,38 @@ Node* expandStackSwitch(Builder& builder, Function& callee, Node* const* argumen
 }
 
 /*
+ * `loadUpTo(from, count)` and `storeUpTo(to, count, value)` - native.def's two transfers that stop at
+ * a lane count, Analysis-Avx512.md §3.5.
+ *
+ * Operations rather than a read and a write of a place, because a place is a whole value's bytes and
+ * the bytes past the count are the ones these never touch. The pointer stays the element pointer the
+ * caller handed over; the vector is the result's type for the load and the value's for the store, and
+ * a type that is not one is refused in `asVectorAddress`'s words.
+ */
+static bool isVectorOperand(Builder& builder, DeclPtr<Type> vector, LocationId source) {
+    if(vector && builder.declBase()[vector]->kind == Type::Vector) return true;
+
+    builder.context.diagnostics.error("a vector transfer needs a vector type, and %@ is not one"_v,
+                                      source, typeText(builder.context, builder.declBase(), vector));
+    return false;
+}
+
+Node* expandVecLoadUpTo(Builder& builder, Function& callee, Node* const* arguments,
+                        const Substitution& with, LocationId source) {
+    auto result = substituteType(builder.context, builder.program, callee.result.type, with);
+    if(!isVectorOperand(builder, result, source)) return nullptr;
+
+    return builder.addNative(source, NativeOp::VecLoadUpTo, arguments, 2, result);
+}
+
+Node* expandVecStoreUpTo(Builder& builder, Function& callee, Node* const* arguments,
+                         const Substitution& with, LocationId source) {
+    if(!isVectorOperand(builder, valueOccurrence(*arguments[2]).type, source)) return nullptr;
+
+    return nativeOperation(builder, callee, arguments, 3, with, source, NativeOp::VecStoreUpTo);
+}
+
+/*
  * The x86 instructions a program reaches by name - native.def's twelve rows.
  *
  * The same two lines every emitter in this file is, with the row passed in: what an

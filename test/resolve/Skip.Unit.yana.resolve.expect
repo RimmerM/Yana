@@ -4,11 +4,11 @@ let &log: I32 = 0
 
 let &sideEffect: I32 = 0
 
-table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
+table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
+table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
 }
 
@@ -100,7 +100,7 @@ fn loopingOut(%n: I32) -> I32 {
     init %local2.seen, %v21
     %v23 = addressof %local2 : %()
     %v24 = alloc : (found: I32) -> ()
-    %v25 = symbol ResolveTest.continuation$22 : %()
+    %v25 = symbol ResolveTest.continuation$21 : %()
     init %local3.code, %v25
     init %local3.env, %v23
     %v28 = call findFirst(()), %v19, %v24 : Maybe(())
@@ -133,7 +133,7 @@ fn statementTail(%n: I32) -> I32 {
     init %local1.seen, %v9
     %v11 = addressof %local1 : %()
     %v12 = alloc : (found: I32) -> ()
-    %v13 = symbol ResolveTest.continuation$23 : %()
+    %v13 = symbol ResolveTest.continuation$22 : %()
     init %local2.code, %v13
     init %local2.env, %v11
     %v16 = call findFirst(()), %n, %v12 : Maybe(())
@@ -164,7 +164,7 @@ fn statementTail(%n: I32) -> I32 {
 fn returningNothing(%n: I32) -> () {
   b0:
     %v1 = alloc : (found: I32) -> ()
-    %v2 = symbol ResolveTest.continuation$24 : %()
+    %v2 = symbol ResolveTest.continuation$23 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -188,7 +188,7 @@ fn returningNothing(%n: I32) -> () {
 fn leavingWithNothing(%n: I32) -> () {
   b0:
     %v1 = alloc : (found: I32) -> ()
-    %v2 = symbol ResolveTest.continuation$25 : %()
+    %v2 = symbol ResolveTest.continuation$24 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -226,7 +226,7 @@ fn main() -> I32 {
     ret %v23
 }
 
-fn ResolveTest.continuation$22(%env: %{seen: &I32}, %found: I32) -> () {
+fn ResolveTest.continuation$21(%env: %{seen: &I32}, %found: I32) -> () {
   b0:
     %v2 = load [%env].seen : &I32
     %v3 = load [%env].seen : &I32
@@ -263,7 +263,7 @@ fn findFirst(())(%n: I32, %body: (found: I32) -> ()) -> Maybe(()) {
     ret %v21
 }
 
-fn ResolveTest.continuation$23(%env: %{seen: &I32}, %found: I32) -> () {
+fn ResolveTest.continuation$22(%env: %{seen: &I32}, %found: I32) -> () {
   b0:
     %v2 = load [%env].seen : &I32
     %v3 = load [%env].seen : &I32
@@ -273,7 +273,7 @@ fn ResolveTest.continuation$23(%env: %{seen: &I32}, %found: I32) -> () {
     ret
 }
 
-fn ResolveTest.continuation$24(%env: %{}, %found: I32) -> () {
+fn ResolveTest.continuation$23(%env: %{}, %found: I32) -> () {
   b0:
     %v2 = load sideEffect : I32
     %v3 = add %v2, %found : I32
@@ -281,7 +281,7 @@ fn ResolveTest.continuation$24(%env: %{}, %found: I32) -> () {
     ret
 }
 
-fn ResolveTest.continuation$25(%env: %{}, %found: I32) -> () {
+fn ResolveTest.continuation$24(%env: %{}, %found: I32) -> () {
   b0:
     %v2 = load sideEffect : I32
     %v5 = mul %found, 10 : I32

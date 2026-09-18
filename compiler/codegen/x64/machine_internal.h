@@ -656,6 +656,17 @@ enum: MachineFormId {
     FormVExpand32, FormVWideExpand32, FormVExpand64, FormVWideExpand64,
     FormVExpandF32, FormVWideExpandF32, FormVExpandF64, FormVWideExpandF64,
 
+    // A vector read and written under a mask - LowerInst::X86MaskedLoad and X86MaskedStore. Every lane
+    // under a mask register at `avx512`, and the two wide lanes under a vector at `avx2`.
+    FormVMaskedLoad8, FormVWideMaskedLoad8, FormVMaskedLoad16, FormVWideMaskedLoad16,
+    FormVMaskedLoad32, FormVWideMaskedLoad32, FormVMaskedLoad64, FormVWideMaskedLoad64,
+    FormVMaskedLoadF32, FormVWideMaskedLoadF32, FormVMaskedLoadF64, FormVWideMaskedLoadF64,
+    FormVMaskedStore8, FormVWideMaskedStore8, FormVMaskedStore16, FormVWideMaskedStore16,
+    FormVMaskedStore32, FormVWideMaskedStore32, FormVMaskedStore64, FormVWideMaskedStore64,
+    FormVMaskedStoreF32, FormVWideMaskedStoreF32, FormVMaskedStoreF64, FormVWideMaskedStoreF64,
+    FormVMaskMoveLoad32, FormVWideMaskMoveLoad32, FormVMaskMoveLoad64, FormVWideMaskMoveLoad64,
+    FormVMaskMoveStore32, FormVWideMaskMoveStore32, FormVMaskMoveStore64, FormVWideMaskMoveStore64,
+
     FormSelectFlags,
     FormSelectReg,
     FormSelectFloat32Flags, FormSelectFloat64Flags,

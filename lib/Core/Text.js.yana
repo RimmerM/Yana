@@ -79,13 +79,15 @@ pub fn findLastAscii(self: String, unit: CodeUnit) -> Maybe(Size):
    set is two or three units - because the engine's scan is a memchr-class loop and the emitted one is
    an interpreted property read per unit. It is `O(k*n)` in the worst case and the loop is `O(n)`, so
    a large set would want the other one; nothing in the library builds one.
+
+   A unit at or above 128 in the set is ignored, as the native half's `ByteSet` ignores it.
 -}
 pub fn findAsciiAny(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(Size):
     let &best = length(self) + 1
     let &found = False
 
     for candidate in items(units):
-        let at = hostIndexOf(self, unitText(candidate), from)
+        let at = if candidate < 128 then hostIndexOf(self, unitText(candidate), from) else -1
         if at >= 0 && at < best:
             best = at
             found = True
@@ -103,7 +105,8 @@ pub fn findAsciiNone(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(S
     if length(units) == 0 then return if i < count then Just(i) else Nothing
 
     while i < count:
-        if !contains(units, self.unit(i)) then return Just(i)
+        let unit = self.unit(i)
+        if unit >= 128 || !contains(units, unit) then return Just(i)
         i = i + 1
 
     return Nothing

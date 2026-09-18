@@ -1343,6 +1343,37 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             return widthForm(kPermute2[laneColumn(type)], type);
         }
 
+        /*
+         * A load or a store under a mask - `lowerMaskedTransfers` builds one only where a row answers:
+         * every lane under a mask register at `avx512`, and the four- and eight-byte lanes under a
+         * vector at `avx2`, a float lane taking the integer row of its width there.
+         */
+        case LowerInst::X86MaskedLoad:
+        case LowerInst::X86MaskedStore: {
+            static const MachineFormId kLoad[6] = {
+                FormVMaskedLoad8, FormVMaskedLoad16, FormVMaskedLoad32, FormVMaskedLoad64,
+                FormVMaskedLoadF32, FormVMaskedLoadF64,
+            };
+            static const MachineFormId kStore[6] = {
+                FormVMaskedStore8, FormVMaskedStore16, FormVMaskedStore32, FormVMaskedStore64,
+                FormVMaskedStoreF32, FormVMaskedStoreF64,
+            };
+
+            auto load = inst->kind == LowerInst::X86MaskedLoad;
+            auto type = load ? ((LowerInstX86MaskedLoad*)inst)->result.type
+                             : base[((LowerInstX86MaskedStore*)inst)->value]->type;
+            auto mask = base[load ? ((LowerInstX86MaskedLoad*)inst)->mask : ((LowerInstX86MaskedStore*)inst)->mask]->type;
+            assertTrue(isWholePackedRegister(type));
+
+            if(maskInMaskBank() && mask.isMask()) return widthForm((load ? kLoad : kStore)[laneColumn(type)], type);
+
+            auto quad = laneBytes(type.lane) == 8;
+            assertTrue(quad || laneBytes(type.lane) == 4); // a lane `vpmaskmov` has no row for
+            auto row = load ? (quad ? FormVMaskMoveLoad64 : FormVMaskMoveLoad32)
+                            : (quad ? FormVMaskMoveStore64 : FormVMaskMoveStore32);
+            return widthForm(row, type);
+        }
+
         // A compress or an expand into a mask register's lanes - `lowerVectorMoves` leaves one standing
         // only at `avx512`, where every lane has a row.
         case LowerInst::VecMove: {
@@ -2327,6 +2358,14 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
         case LowerInst::Phi:
         case LowerInst::Load:
         case LowerInst::Store:
+
+        // The transfers that stop at a count have a route at every whole-register shape - a masked
+        // move where the level has one, and the ladder of `lowerMaskedTransfers` where it does not -
+        // and what they become is built only where its row exists.
+        case LowerInst::VecLoadUpTo:
+        case LowerInst::VecStoreUpTo:
+        case LowerInst::X86MaskedLoad:
+        case LowerInst::X86MaskedStore:
         case LowerInst::Ret:
         case LowerInst::Call:
         case LowerInst::Select:

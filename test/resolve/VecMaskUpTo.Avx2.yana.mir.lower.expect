@@ -1,0 +1,187 @@
+
+wrongAt<complex>(%c: I32): I32 {
+  b_0 {
+    %v_1 = cmp_ilt %c, 0: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = cmp_igt %c, 16: I32
+    %v_5 = select %v_4, 16, %c: I32
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_3, %v_5], [b_2, 0]: I32
+    %v_8 = vsplat 0: i8x16
+    %v_9 = vwithlane %v_8, 1, 1: i8x16
+    %v_10 = vwithlane %v_9, 2, 2: i8x16
+    %v_11 = vwithlane %v_10, 3, 3: i8x16
+    %v_12 = vwithlane %v_11, 4, 4: i8x16
+    %v_13 = vwithlane %v_12, 5, 5: i8x16
+    %v_14 = vwithlane %v_13, 6, 6: i8x16
+    %v_15 = vwithlane %v_14, 7, 7: i8x16
+    %v_16 = vwithlane %v_15, 8, 8: i8x16
+    %v_17 = vwithlane %v_16, 9, 9: i8x16
+    %v_18 = vwithlane %v_17, 10, 10: i8x16
+    %v_19 = vwithlane %v_18, 11, 11: i8x16
+    %v_20 = vwithlane %v_19, 12, 12: i8x16
+    %v_21 = vwithlane %v_20, 13, 13: i8x16
+    %v_22 = vwithlane %v_21, 14, 14: i8x16
+    %v_23 = vwithlane %v_22, 15, 15: i8x16
+    %v_24 = and %c, 255: I32
+    %v_25 = vsplat %v_24: i8x16
+    %v_26 = cmp_lt %v_23, %v_25: m8x16
+    %v_27 = vreduce_add %v_26: I32
+    %v_28 = cmp_neq %v_27, %v_7: I32
+    %v_29 = and %v_7, 255: I32
+    %v_30 = vsplat %v_29: i8x16
+    %v_31 = cmp_ge %v_23, %v_30: m8x16
+    %v_32 = and %v_26, %v_31: m8x16
+    %v_33 = vreduce_add %v_32: I32
+    %v_34 = cmp_neq %v_33, 0: I32
+    %v_35 = add %v_28, 1: I32
+    %v_36 = select %v_34, %v_35, %v_28: I32
+    %v_37 = cmp_ilt %c, 0: I32
+    je %v_37, b_38, b_39
+  }
+
+  b_2 {
+    jmp b_6
+  }
+
+  b_39 {
+    %v_40 = cmp_igt %c, 8: I32
+    %v_41 = select %v_40, 8, %c: I32
+    jmp b_42
+  }
+
+  b_42 {
+    %v_43 = phi [b_39, %v_41], [b_38, 0]: I32
+    %v_44 = vsplat 0: i16x8
+    %v_45 = vwithlane %v_44, 1, 1: i16x8
+    %v_46 = vwithlane %v_45, 2, 2: i16x8
+    %v_47 = vwithlane %v_46, 3, 3: i16x8
+    %v_48 = vwithlane %v_47, 4, 4: i16x8
+    %v_49 = vwithlane %v_48, 5, 5: i16x8
+    %v_50 = vwithlane %v_49, 6, 6: i16x8
+    %v_51 = vwithlane %v_50, 7, 7: i16x8
+    %v_52 = and %c, 65535: I32
+    %v_53 = vsplat %v_52: i16x8
+    %v_54 = cmp_lt %v_51, %v_53: m16x8
+    %v_55 = vreduce_add %v_54: I32
+    %v_56 = cmp_neq %v_55, %v_43: I32
+    %v_57 = add %v_36, 1: I32
+    %v_58 = select %v_56, %v_57, %v_36: I32
+    %v_59 = cmp_ilt %c, 0: I32
+    je %v_59, b_60, b_61
+  }
+
+  b_38 {
+    jmp b_42
+  }
+
+  b_61 {
+    %v_62 = cmp_igt %c, 4: I32
+    %v_63 = select %v_62, 4, %c: I32
+    jmp b_64
+  }
+
+  b_64 {
+    %v_65 = phi [b_61, %v_63], [b_60, 0]: I32
+    %v_66 = vsplat 0: i32x4
+    %v_67 = vwithlane %v_66, 1, 1: i32x4
+    %v_68 = vwithlane %v_67, 2, 2: i32x4
+    %v_69 = vwithlane %v_68, 3, 3: i32x4
+    %v_70 = vsplat %c: i32x4
+    %v_71 = cmp_lt %v_69, %v_70: m32x4
+    %v_72 = vreduce_add %v_71: I32
+    %v_73 = cmp_neq %v_72, %v_65: I32
+    %v_74 = add %v_58, 1: I32
+    %v_75 = select %v_73, %v_74, %v_58: I32
+    %v_76 = cmp_ilt %c, 0: I32
+    je %v_76, b_77, b_78
+  }
+
+  b_60 {
+    jmp b_64
+  }
+
+  b_78 {
+    %v_79 = cmp_igt %c, 32: I32
+    %v_80 = select %v_79, 32, %c: I32
+    jmp b_81
+  }
+
+  b_81 {
+    %v_82 = phi [b_78, %v_80], [b_77, 0]: I32
+    %v_83 = vsplat 0: i8x32
+    %v_84 = vwithlane %v_83, 1, 1: i8x32
+    %v_85 = vwithlane %v_84, 2, 2: i8x32
+    %v_86 = vwithlane %v_85, 3, 3: i8x32
+    %v_87 = vwithlane %v_86, 4, 4: i8x32
+    %v_88 = vwithlane %v_87, 5, 5: i8x32
+    %v_89 = vwithlane %v_88, 6, 6: i8x32
+    %v_90 = vwithlane %v_89, 7, 7: i8x32
+    %v_91 = vwithlane %v_90, 8, 8: i8x32
+    %v_92 = vwithlane %v_91, 9, 9: i8x32
+    %v_93 = vwithlane %v_92, 10, 10: i8x32
+    %v_94 = vwithlane %v_93, 11, 11: i8x32
+    %v_95 = vwithlane %v_94, 12, 12: i8x32
+    %v_96 = vwithlane %v_95, 13, 13: i8x32
+    %v_97 = vwithlane %v_96, 14, 14: i8x32
+    %v_98 = vwithlane %v_97, 15, 15: i8x32
+    %v_99 = vwithlane %v_98, 16, 16: i8x32
+    %v_100 = vwithlane %v_99, 17, 17: i8x32
+    %v_101 = vwithlane %v_100, 18, 18: i8x32
+    %v_102 = vwithlane %v_101, 19, 19: i8x32
+    %v_103 = vwithlane %v_102, 20, 20: i8x32
+    %v_104 = vwithlane %v_103, 21, 21: i8x32
+    %v_105 = vwithlane %v_104, 22, 22: i8x32
+    %v_106 = vwithlane %v_105, 23, 23: i8x32
+    %v_107 = vwithlane %v_106, 24, 24: i8x32
+    %v_108 = vwithlane %v_107, 25, 25: i8x32
+    %v_109 = vwithlane %v_108, 26, 26: i8x32
+    %v_110 = vwithlane %v_109, 27, 27: i8x32
+    %v_111 = vwithlane %v_110, 28, 28: i8x32
+    %v_112 = vwithlane %v_111, 29, 29: i8x32
+    %v_113 = vwithlane %v_112, 30, 30: i8x32
+    %v_114 = vwithlane %v_113, 31, 31: i8x32
+    %v_115 = vsplat %v_24: i8x32
+    %v_116 = cmp_lt %v_114, %v_115: m8x32
+    %v_117 = vreduce_add %v_116: I32
+    %v_118 = cmp_neq %v_117, %v_82: I32
+    %v_119 = add %v_75, 1: I32
+    %v_120 = select %v_118, %v_119, %v_75: I32
+    ret %v_120
+  }
+
+  b_77 {
+    jmp b_81
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    jmp b_1
+  }
+
+  b_2 {
+    %v_3 = cmp_ile %v_4, 34: I32
+    je %v_3, b_1, b_5
+  }
+
+  b_5 {
+    ret %v_6
+  }
+
+  b_1 {
+    %v_7 = phi [b_2, %v_6], [b_0, 0]: I32
+    %v_8 = phi [b_2, %v_4], [b_0, 0]: I32
+    %v_9 = call_complex wrongAt, %v_8: I32
+    %v_6 = add %v_7, %v_9: I32
+    %v_4 = add %v_8, 1: I32
+    jmp b_2
+  }
+}
+

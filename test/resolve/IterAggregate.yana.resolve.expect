@@ -2,6 +2,10 @@ let image$base: () = <none>
 
 let &heapFree: %%U8 = 0
 
+table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
+  .0 teardown$none
+}
+
 table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
 }
@@ -14,27 +18,23 @@ table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
   .0 teardown$none
 }
 
+table closure$ResolveTest.continuation$21(Point, ()) before ResolveTest.continuation$21(Point, ()) {
+  .0 teardown$none
+}
+
 table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$22(Point, ()) before ResolveTest.continuation$22(Point, ()) {
+table closure$ResolveTest.continuation$22(Point, I32, ()) before ResolveTest.continuation$22(Point, I32, ()) {
+  .0 teardown$none
+}
+
+table closure$ResolveTest.continuation$21(Point, Outcome((), ())) before ResolveTest.continuation$21(Point, Outcome((), ())) {
   .0 teardown$none
 }
 
 table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
-  .0 teardown$none
-}
-
-table closure$ResolveTest.continuation$23(Point, I32, ()) before ResolveTest.continuation$23(Point, I32, ()) {
-  .0 teardown$none
-}
-
-table closure$ResolveTest.continuation$22(Point, Outcome((), ())) before ResolveTest.continuation$22(Point, Outcome((), ())) {
-  .0 teardown$none
-}
-
-table closure$ResolveTest.continuation$27 before ResolveTest.continuation$27 {
   .0 teardown$none
 }
 
@@ -321,7 +321,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     init %local3.body, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: a) -> Outcome((), Outcome((), $r))
-    %v10 = symbol ResolveTest.continuation$22 : %()
+    %v10 = symbol ResolveTest.continuation$21 : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = gencall each(a, Outcome((), $r)), %xs, %v9 : Outcome((), Outcome((), $r))
@@ -361,7 +361,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     init %local4.f, %v7
     %v9 = addressof %local4 : %()
     %v10 = alloc : (value$: a) -> Outcome((), Outcome((), $r))
-    %v11 = symbol ResolveTest.continuation$23 : %()
+    %v11 = symbol ResolveTest.continuation$22 : %()
     init %local5.code, %v11
     init %local5.env, %v9
     %v14 = gencall filtered(a, Outcome((), $r)), %xs, %keep, %v10 : Outcome((), Outcome((), $r))
@@ -401,7 +401,7 @@ fn direct(%ps: ArrayView(Point)) -> I32 {
     init %local2.sum, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Point) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$24 : %()
+    %v9 = symbol ResolveTest.continuation$23 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call each(Point, ()), %ps, %v8 : Outcome((), ())
@@ -423,7 +423,7 @@ fn oneLift(%ps: ArrayView(Point)) -> I32 {
     init %local3.sum, %v11
     %v13 = addressof %local3 : %()
     %v14 = alloc : (value$: Point) -> Outcome((), ())
-    %v15 = symbol ResolveTest.continuation$25 : %()
+    %v15 = symbol ResolveTest.continuation$24 : %()
     init %local4.code, %v15
     init %local4.env, %v13
     %v18 = call filtered(Point, ()), %ps, %v4, %v14 : Outcome((), ())
@@ -450,7 +450,7 @@ fn twoLifts(%ps: ArrayView(Point)) -> I32 {
     init %local4.sum, %v17
     %v19 = addressof %local4 : %()
     %v20 = alloc : (value$: I32) -> Outcome((), ())
-    %v21 = symbol ResolveTest.continuation$26 : %()
+    %v21 = symbol ResolveTest.continuation$25 : %()
     init %local5.code, %v21
     init %local5.env, %v19
     %v24 = call mapFiltered(Point, I32, ()), %ps, %v4, %v10, %v20 : Outcome((), ())
@@ -467,7 +467,7 @@ fn scalar(%ns: ArrayView(I32)) -> I32 {
     init %local2.sum, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: I32) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$27 : %()
+    %v9 = symbol ResolveTest.continuation$26 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call each(I32, ()), %ns, %v8 : Outcome((), ())
@@ -543,7 +543,7 @@ fn main() -> I32 {
     ret %v84
 }
 
-(TrivialCopy(a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$22(%env: %{keep: '(a) -> Bool, body: '(value$: a) -> Outcome((), $r)}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$21(%env: %{keep: '(a) -> Bool, body: '(value$: a) -> Outcome((), $r)}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type $r
@@ -587,7 +587,7 @@ fn main() -> I32 {
     ret %v15
 }
 
-(TrivialCopy(a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$23(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$22(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type b
@@ -623,7 +623,7 @@ fn main() -> I32 {
     ret %v12
 }
 
-fn ResolveTest.continuation$24(%env: %{sum: &I32}, %value$: Point) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(%env: %{sum: &I32}, %value$: Point) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &I32
     %v3 = load [%env].sum : &I32
@@ -690,7 +690,7 @@ fn funvalue$positiveX(%env: %(), %v: Point) -> Bool {
     ret %v2
 }
 
-fn ResolveTest.continuation$25(%env: %{sum: &I32}, %value$: Point) -> Outcome((), ()) {
+fn ResolveTest.continuation$24(%env: %{sum: &I32}, %value$: Point) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &I32
     %v3 = load [%env].sum : &I32
@@ -712,7 +712,7 @@ fn filtered(Point, ())(%xs: ArrayView(Point), %keep: (v: Point) -> Bool, %body: 
     init %local3.body, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: Point) -> Outcome((), Outcome((), ()))
-    %v10 = symbol ResolveTest.continuation$22(Point, ()) : %()
+    %v10 = symbol ResolveTest.continuation$21(Point, ()) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call each(Point, Outcome((), ())), %xs, %v9 : Outcome((), Outcome((), ()))
@@ -730,7 +730,7 @@ fn filtered(Point, ())(%xs: ArrayView(Point), %keep: (v: Point) -> Bool, %body: 
     ret %v20
 }
 
-fn ResolveTest.continuation$22(Point, ())(%env: %{keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), ())}, %value$: Point) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$21(Point, ())(%env: %{keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), ())}, %value$: Point) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load [%env].keep : '(v: Point) -> Bool
     %v3 = load [%v2] : (v: Point) -> Bool
@@ -816,7 +816,7 @@ fn funvalue$yOf(%env: %(), %v: Point) -> I32 {
     ret %v2
 }
 
-fn ResolveTest.continuation$26(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$25(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &I32
     %v3 = load [%env].sum : &I32
@@ -837,7 +837,7 @@ fn mapFiltered(Point, I32, ())(%xs: ArrayView(Point), %keep: (v: Point) -> Bool,
     init %local4.f, %v7
     %v9 = addressof %local4 : %()
     %v10 = alloc : (value$: Point) -> Outcome((), Outcome((), ()))
-    %v11 = symbol ResolveTest.continuation$23(Point, I32, ()) : %()
+    %v11 = symbol ResolveTest.continuation$22(Point, I32, ()) : %()
     init %local5.code, %v11
     init %local5.env, %v9
     %v14 = call filtered(Point, Outcome((), ())), %xs, %keep, %v10 : Outcome((), Outcome((), ()))
@@ -855,7 +855,7 @@ fn mapFiltered(Point, I32, ())(%xs: ArrayView(Point), %keep: (v: Point) -> Bool,
     ret %v21
 }
 
-fn ResolveTest.continuation$23(Point, I32, ())(%env: %{body: '(value$: I32) -> Outcome((), ()), f: '(v: Point) -> I32}, %value$: Point) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$22(Point, I32, ())(%env: %{body: '(value$: I32) -> Outcome((), ()), f: '(v: Point) -> I32}, %value$: Point) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load [%env].body : '(value$: I32) -> Outcome((), ())
     %v3 = load [%v2] : (value$: I32) -> Outcome((), ())
@@ -887,7 +887,7 @@ fn filtered(Point, Outcome((), ()))(%xs: ArrayView(Point), %keep: (v: Point) -> 
     init %local3.body, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: Point) -> Outcome((), Outcome((), Outcome((), ())))
-    %v10 = symbol ResolveTest.continuation$22(Point, Outcome((), ())) : %()
+    %v10 = symbol ResolveTest.continuation$21(Point, Outcome((), ())) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call each(Point, Outcome((), Outcome((), ()))), %xs, %v9 : Outcome((), Outcome((), Outcome((), ())))
@@ -905,7 +905,7 @@ fn filtered(Point, Outcome((), ()))(%xs: ArrayView(Point), %keep: (v: Point) -> 
     ret %v20
 }
 
-fn ResolveTest.continuation$22(Point, Outcome((), ()))(%env: %{keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), Outcome((), ()))}, %value$: Point) -> Outcome((), Outcome((), Outcome((), ()))) {
+fn ResolveTest.continuation$21(Point, Outcome((), ()))(%env: %{keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), Outcome((), ()))}, %value$: Point) -> Outcome((), Outcome((), Outcome((), ()))) {
   b0:
     %v2 = load [%env].keep : '(v: Point) -> Bool
     %v3 = load [%v2] : (v: Point) -> Bool
@@ -985,7 +985,7 @@ fn each(Point, Outcome((), Outcome((), ())))(%xs: ArrayView(Point), %body: (valu
     jmp b1
 }
 
-fn ResolveTest.continuation$27(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$26(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &I32
     %v3 = load [%env].sum : &I32

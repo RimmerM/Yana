@@ -31,7 +31,7 @@ function bareArm(n) {
   if (n > 9) {
     v18 = { $tag: 0, $p: n };
   } else {
-    v18 = { $tag: 1, $p: ResolveTest_continuation$21(null, Math.imul(n, 2)) };
+    v18 = { $tag: 1, $p: ResolveTest_continuation$22(null, Math.imul(n, 2)) };
   }
   var v9 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v18.$tag, $p: v18.$p });
   var v12 = v9.$tag === 1 ? 1 : 0;
@@ -45,7 +45,7 @@ function blockArm(n) {
   if (n > 9) {
     v26 = { $tag: 0, $p: n };
   } else {
-    v26 = { $tag: 1, $p: ResolveTest_continuation$22(null, Math.imul(n, 2)) };
+    v26 = { $tag: 1, $p: ResolveTest_continuation$23(null, Math.imul(n, 2)) };
   }
   var v9 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v26.$tag, $p: v26.$p });
   if (v9.$tag === 1) {
@@ -64,7 +64,7 @@ function scopedArm(n) {
   if (n > 9) {
     v27 = n;
   } else {
-    ResolveTest_continuation$23(v4, Math.imul(n, 2));
+    ResolveTest_continuation$24(v4, Math.imul(n, 2));
     v27 = null;
   }
   var v14 = Try_Result_e_a_a_e_toOutcome_I32(v27);
@@ -81,7 +81,7 @@ function trailingArm(n) {
   if (n > 9) {
     v30 = n;
   } else {
-    ResolveTest_continuation$24(v4, Math.imul(n, 2));
+    ResolveTest_continuation$25(v4, Math.imul(n, 2));
     v30 = null;
   }
   var v14 = Try_Result_e_a_a_e_toOutcome_I32(v30);
@@ -98,7 +98,7 @@ function trailingElse(n) {
   if (n > 9) {
     v29 = n;
   } else {
-    ResolveTest_continuation$25(v4, Math.imul(n, 2));
+    ResolveTest_continuation$26(v4, Math.imul(n, 2));
     v29 = null;
   }
   if (!(Try_Result_e_a_a_e_toOutcome_I32(v29) === null)) {
@@ -112,7 +112,7 @@ function keptSpellings(n) {
   if (n > 9) {
     v18 = { $tag: 0, $p: n };
   } else {
-    v18 = { $tag: 1, $p: ResolveTest_continuation$27(null, Math.imul(n, 2)) };
+    v18 = { $tag: 1, $p: ResolveTest_continuation$28(null, Math.imul(n, 2)) };
   }
   var v9 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v18.$tag, $p: v18.$p });
   var v12 = v9.$tag === 1 ? 1 : 0;
@@ -137,17 +137,12 @@ function main() {
   return ((((((((((((a + b | 0) + c | 0) + d | 0) + e | 0) + f | 0) + g | 0) + h | 0) + i | 0) + j | 0) + 9 | 0) + keptSpellings(3) | 0) + keptSpellings(20) | 0) + log | 0;
 }
 
-function ResolveTest_continuation$21(env, value) {
-  return value + 1 | 0;
-}
-
 function ResolveTest_continuation$22(env, value) {
   return value + 1 | 0;
 }
 
 function ResolveTest_continuation$23(env, value) {
-  var v2 = env.$v;
-  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+  return value + 1 | 0;
 }
 
 function ResolveTest_continuation$24(env, value) {
@@ -160,12 +155,17 @@ function ResolveTest_continuation$25(env, value) {
   v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
 }
 
-function ResolveTest_continuation$27(env, value) {
+function ResolveTest_continuation$26(env, value) {
+  var v2 = env.$v;
+  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+}
+
+function ResolveTest_continuation$28(env, value) {
   var v22 = { $tag: 0, $p: 0 };
   if (value > 9) {
     v22 = { $tag: 0, $p: value };
   } else {
-    v22 = { $tag: 1, $p: ResolveTest_continuation$28(null, Math.imul(value, 2)) };
+    v22 = { $tag: 1, $p: ResolveTest_continuation$29(null, Math.imul(value, 2)) };
   }
   var v10 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v22.$tag, $p: v22.$p });
   var v13 = v10.$tag === 1 ? 1 : 0;
@@ -173,7 +173,7 @@ function ResolveTest_continuation$27(env, value) {
   return v13 ? 0 : v17;
 }
 
-function ResolveTest_continuation$28(env, value) {
+function ResolveTest_continuation$29(env, value) {
   return value;
 }
 main();

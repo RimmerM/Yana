@@ -211,6 +211,29 @@ fn wordParts(text: String) -> String:
     -- An empty set finds nothing, which is what "any of these" has to mean when there are none.
     checkEqual(found(findAsciiAny(line, [] :: [CodeUnit])), 0 - 1)
 
+-- Every length a block and its tail can split into, with the one member at every position - the
+-- tail is one block read past the end with the lanes beyond it masked off, and a lane past the end is
+-- neither a hit nor a miss.
+@test fn unitSetSearchAtEveryPosition():
+    let set = ["," :: CodeUnit, ";"] :: [CodeUnit *2]
+    let &wrong = 0
+
+    for n in 0 .. 70:
+        if found(findAsciiAny(repeated("a", n), set)) != 0 - 1 then wrong += 1
+        if found(findAsciiNone(repeated(",", n), set)) != 0 - 1 then wrong += 1
+
+        for p in 0 .. n:
+            if found(findAsciiAny(repeated("a", p) ++ ";" ++ repeated("a", n - p - 1), set)) != p then wrong += 1
+            if found(findAsciiNone(repeated(",", p) ++ "a" ++ repeated(";", n - p - 1), set)) != p then wrong += 1
+
+    checkEqual(wrong, 0)
+
+-- A unit at or above 128 in the set is ignored on both targets, so a search for one finds nothing and
+-- the first unit that is not ASCII is never a member.
+@test fn unitSetIgnoresUnitsAboveAscii():
+    checkEqual(found(findAsciiAny("aÈb", [200 :: CodeUnit])), 0 - 1)
+    checkEqual(found(findAsciiNone("aÈb", [200 :: CodeUnit, "a"])), 1)
+
 @test fn unitSetInverse():
     let spaceAndTab = [" " :: CodeUnit, "\t"] :: [CodeUnit *2]
 
@@ -483,6 +506,21 @@ fn wordParts(text: String) -> String:
     let mixed = repeated("aB", 24) ++ "cD"
     checkEqual(toLowerAscii(mixed), repeated("ab", 24) ++ "cd")
     checkEqual(toUpperAscii(mixed), repeated("AB", 24) ++ "CD")
+
+    -- Every length the vector loop and its one masked block can split into, against the unit maps.
+    let alphabet = "aZ 9.Qb-x@[`\{Y,m"
+    let &wrongLengths = 0
+    for n in 0 .. 70:
+        let &text = ""
+        let &lower = ""
+        let &upper = ""
+        for i in 0 .. n:
+            let unit = alphabet.unit((i * 7 % length(alphabet)) :: Size)
+            text.pushUnit(unit)
+            lower.pushUnit(toLowerUnit(unit))
+            upper.pushUnit(toUpperUnit(unit))
+        if toLowerAscii(text) != lower || toUpperAscii(text) != upper then wrongLengths += 1
+    checkEqual(wrongLengths, 0)
 
     -- The conversions are inverses over the letters and idempotent everywhere.
     checkEqual(toLowerAscii(toUpperAscii(mixed)), toLowerAscii(mixed))

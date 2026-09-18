@@ -57,13 +57,18 @@ pub fn pushHex(bytes: [U8], &to: String):
         setVectorAt(target + i + i + 16, high16)
         i = i + 16
 
-    -- The ragged end, one byte at a time, because there is no overreading *store*: a write past the
-    -- run is the destruction of whatever follows it, where a read past it is §5.2's padding.
-    while i < n:
-        let byte = bytes[i] :: Int
-        store(target + i + i, hexUnit(byte `shr` 4))
-        store(target + i + i + 1, hexUnit(byte `and` 15))
-        i = i + 1
+    -- The ragged end is one more block, read past the end on §5.2's padding, and its units written
+    -- up to their count with `storeUpTo` - a write past the run would be the destruction of whatever
+    -- follows it. Its `r` bytes are `2r` units: the first sixteen in the low interleave and the rest,
+    -- if any, in the high one, whose count is then at or below zero and writes nothing.
+    if i < n:
+        let block = vectorPast(source + i) :: Vec(U8, 16)
+        let highText = lookup(digits, block `shr` (splat(4) :: Vec(U8, 16)))
+        let lowText = lookup(digits, block)
+        let units = truncate((n - i) + (n - i)) :: Int
+
+        storeUpTo(target + i + i, units `and` 31, bitcast(interleaveLow(highText, lowText)) :: Vec(CodeUnit, 16))
+        storeUpTo(target + i + i + 16, units - 16, bitcast(interleaveHigh(highText, lowText)) :: Vec(CodeUnit, 16))
 
 -- "0123456789abcdef" as a vector, for `lookup`: the digits past nine are `a` onwards.
 fn hexDigitVector() -> Vec(U8, 16):

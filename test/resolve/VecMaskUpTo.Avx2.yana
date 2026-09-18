@@ -1,0 +1,37 @@
+{-
+   `maskUpTo` at a written lane count - `maskUpTo(n) :: Mask(U8, 16)` - at `avx2`, where the natural
+
+   # extensions: avx2
+   byte mask is thirty-two lanes and so a sixteen-lane one is not the default. The count is a const
+   parameter with a default, as `zero`'s and `iota`'s are; both resolvers build `iota .< splat(n)` at
+   the result's own lanes. Every count from zero to two past the widest shape's lanes at four shapes -
+   a count past a shape's lanes sets all of them - checked through `count`, and the sixteen-lane one
+   also for a lane set at or above the count.
+-}
+-- How many lanes of each shape's mask disagree with "the first `c` lanes, clamped".
+fn wrongAt(c: Int) -> Int:
+    let &wrong = 0
+
+    let clamp16 = if c < 0 then 0 else if c > 16 then 16 else c
+    let bytes = maskUpTo(c) :: Mask(U8, 16)
+    if count(bytes) != clamp16 then wrong = wrong + 1
+    if count(and(bytes, (iota() :: Vec(U8, 16)) .>= (splat(truncate(clamp16) :: U8) :: Vec(U8, 16)))) != 0 then wrong = wrong + 1
+
+    let clamp8 = if c < 0 then 0 else if c > 8 then 8 else c
+    if count(maskUpTo(c) :: Mask(U16, 8)) != clamp8 then wrong = wrong + 1
+
+    let clamp4 = if c < 0 then 0 else if c > 4 then 4 else c
+    if count(maskUpTo(c) :: Mask(U32, 4)) != clamp4 then wrong = wrong + 1
+
+    let clamp32 = if c < 0 then 0 else if c > 32 then 32 else c
+    if count(maskUpTo(c) :: Mask(U8)) != clamp32 then wrong = wrong + 1
+
+    return wrong
+
+fn main() -> Int:
+    let &wrong = 0
+    let &c = 0
+    while c <= 34:
+        wrong = wrong + wrongAt(c)
+        c = c + 1
+    return wrong

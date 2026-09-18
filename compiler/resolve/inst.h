@@ -1327,6 +1327,18 @@ enum class NativeOp: U8 {
     StackSwitch,
 
     /*
+     * loadUpTo(from, count) and storeUpTo(to, count, value) - the vector transfers that stop at a
+     * lane count, Analysis-Avx512.md §3.5. See `LowerInst::VecLoadUpTo` for what each does with a
+     * count out of range.
+     *
+     * Here rather than as a load and a store of a place, because neither is one: the bytes past the
+     * count are not read or written at all, and a place is a whole value's bytes. The result is the
+     * vector for the load and `{}` for the store; the lane is the pointer's pointee either way.
+     */
+    VecLoadUpTo,
+    VecStoreUpTo,
+
+    /*
      * The host - Implementation-Containers.md §14.1.
      *
      * The back half of an FFI without its front half: an operation whose meaning belongs to the

@@ -329,8 +329,9 @@ pub fn (Eq(a)) removeAll(&self: Array(a), wanted: a) -> Int:
    The store writes a full vector at `kept`, past the survivors it holds, and that is safe for the
    loop's own reason: `kept <= i`, so everything it covers lies below `i + width` and inside the block
    just read. The next store starts at the new `kept` and rewrites the lanes past the count before
-   anything reads them - which is why `compress` may leave them unspecified. The tail is the baseline's
-   walk, since a whole-register store there could reach past the run.
+   anything reads them - which is why `compress` may leave them unspecified. The tail is one more
+   block, read past the end on the run's padding with its live lanes the only ones kept, and its
+   survivors written with `storeUpTo`: a whole-register store there could reach past the run.
 
    `Bitwise(Mask(a))` is the condition, as in Reduce.yana: it holds exactly where `a` is a lane type,
    and a lane type is its bytes, so a survivor is a plain load and store and the rejected ones need no
@@ -354,12 +355,12 @@ fn (Eq(a), Bitwise(Mask(a))) removeAll(&self: Array(a), wanted: a) -> Int:
         kept = kept + (survivors :: Size)
         i = i + width
 
-    while i < count:
-        let item = *(items + i)
-        if item != wanted:
-            store(items + kept, item)
-            kept = kept + 1
-        i = i + 1
+    if i < count:
+        let block = vectorPast(items + i) :: Vec(a)
+        let live = maskUpTo(truncate(count - i) :: Int) :: Mask(a)
+        let {packed, survivors} = compress(block, and(block .!= sought, live))
+        storeUpTo(items + kept, survivors `and` (lanes(block) - 1), packed)
+        kept = kept + (survivors :: Size)
 
     self.length = truncate(kept) :: Count
     return truncate(count - kept) :: Int

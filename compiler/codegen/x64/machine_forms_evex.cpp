@@ -940,6 +940,114 @@ void MachineFormBuilder::registerEvexShuffleForms() {
     lanesMove(FormVExpand64,  FormVWideExpand64,  OpVExpand, "vpexpandq xmm {k}{z}, xmm"_v, "vpexpandq ymm {k}{z}, ymm"_v, 0x89, true,  0);
     lanesMove(FormVExpandF32, FormVWideExpandF32, OpVExpand, "vexpandps xmm {k}{z}, xmm"_v, "vexpandps ymm {k}{z}, ymm"_v, 0x88, false, 0);
     lanesMove(FormVExpandF64, FormVWideExpandF64, OpVExpand, "vexpandpd xmm {k}{z}, xmm"_v, "vexpandpd ymm {k}{z}, ymm"_v, 0x88, true,  0);
+
+    /*
+     * A vector read and written under a mask register - `vmovdqu8`/`16`/`32`/`64`, `vmovups`,
+     * `vmovupd` with `{k}` - which is `loadUpTo` and `storeUpTo` at `avx512` (LowerInst::X86MaskedLoad).
+     * The load zeroes the lanes it leaves (`{z}`); the store merges, which to memory means it leaves
+     * them as they were, and EVEX has no zeroing store to choose instead. Neither faults on a lane the
+     * mask clears, which is the whole of the reason to have them.
+     *
+     * The same six rows as the masked select's (EVEX.F2.0F 6F/7F for the byte and word lanes, F3 for the
+     * doubleword and quadword ones, 0F 10/11 and 66.0F 10/11 for the floats), shaped as a load and a
+     * store: an address in r/m, scaled as a whole vector for a one-byte displacement.
+     */
+    static const struct { U8 prefix, load, store; bool w; } kMoves[6] = {
+        { 0xf2, 0x6f, 0x7f, false }, { 0xf2, 0x6f, 0x7f, true }, { 0xf3, 0x6f, 0x7f, false },
+        { 0xf3, 0x6f, 0x7f, true },  { 0x00, 0x10, 0x11, false }, { 0x66, 0x10, 0x11, true },
+    };
+
+    auto transfer = [&](U8 lane, U8 opcode, OperandRef reg) {
+        auto e = EncodingDescriptor {
+            .family = EncodingFamily::LoadStore,
+            .opcode = opcode,
+            .escape = 0x0f, .prefix = kMoves[lane].prefix,
+            .regField = reg, .rmField = useRef(0),
+            .width = OperationWidth::Fixed32,
+            .widthInPrefix = true,
+            .prefixEncoding = PrefixEncoding::Evex,
+            .opcodeMap = kOpcodeMap0F,
+        };
+
+        e.evexW = kMoves[lane].w;
+        e.evexTuple = EvexTuple::Vector;
+        e.maskField = useRef(1);
+        return e;
+    };
+
+    auto maskedLoad = [&](MachineFormId id, MachineFormId wideId, StringView name128, StringView name256, U8 lane) {
+        auto& form = add(id, OpVMaskedLoad, name128);
+        form.uses.push(address());
+        form.uses.push(anyReg(ClassMask32));
+        form.defs.push(def(ClassXmm128));
+        form.requiredFeatures = features(lane < 2 ? kFeatureAvx512bw : 0);
+        form.encoding = transfer(lane, kMoves[lane].load, defRef(0));
+        form.encoding.zeroMasking = true;
+
+        widen(wideId, id, name256);
+    };
+
+    auto maskedStore = [&](MachineFormId id, MachineFormId wideId, StringView name128, StringView name256, U8 lane) {
+        auto& form = add(id, OpVMaskedStore, name128);
+        form.uses.push(address());
+        form.uses.push(anyReg(ClassMask32));
+        form.uses.push(anyReg(ClassXmm128));
+        form.requiredFeatures = features(lane < 2 ? kFeatureAvx512bw : 0);
+        form.encoding = transfer(lane, kMoves[lane].store, useRef(2));
+
+        widen(wideId, id, name256);
+    };
+
+    maskedLoad(FormVMaskedLoad8,   FormVWideMaskedLoad8,   "vmovdqu8 xmm {k}{z}, [address] (upto)"_v,  "vmovdqu8 ymm {k}{z}, [address] (upto)"_v,  0);
+    maskedLoad(FormVMaskedLoad16,  FormVWideMaskedLoad16,  "vmovdqu16 xmm {k}{z}, [address] (upto)"_v, "vmovdqu16 ymm {k}{z}, [address] (upto)"_v, 1);
+    maskedLoad(FormVMaskedLoad32,  FormVWideMaskedLoad32,  "vmovdqu32 xmm {k}{z}, [address] (upto)"_v, "vmovdqu32 ymm {k}{z}, [address] (upto)"_v, 2);
+    maskedLoad(FormVMaskedLoad64,  FormVWideMaskedLoad64,  "vmovdqu64 xmm {k}{z}, [address] (upto)"_v, "vmovdqu64 ymm {k}{z}, [address] (upto)"_v, 3);
+    maskedLoad(FormVMaskedLoadF32, FormVWideMaskedLoadF32, "vmovups xmm {k}{z}, [address] (upto)"_v,   "vmovups ymm {k}{z}, [address] (upto)"_v,   4);
+    maskedLoad(FormVMaskedLoadF64, FormVWideMaskedLoadF64, "vmovupd xmm {k}{z}, [address] (upto)"_v,   "vmovupd ymm {k}{z}, [address] (upto)"_v,   5);
+
+    maskedStore(FormVMaskedStore8,   FormVWideMaskedStore8,   "vmovdqu8 [address] {k}, xmm"_v,  "vmovdqu8 [address] {k}, ymm"_v,  0);
+    maskedStore(FormVMaskedStore16,  FormVWideMaskedStore16,  "vmovdqu16 [address] {k}, xmm"_v, "vmovdqu16 [address] {k}, ymm"_v, 1);
+    maskedStore(FormVMaskedStore32,  FormVWideMaskedStore32,  "vmovdqu32 [address] {k}, xmm"_v, "vmovdqu32 [address] {k}, ymm"_v, 2);
+    maskedStore(FormVMaskedStore64,  FormVWideMaskedStore64,  "vmovdqu64 [address] {k}, xmm"_v, "vmovdqu64 [address] {k}, ymm"_v, 3);
+    maskedStore(FormVMaskedStoreF32, FormVWideMaskedStoreF32, "vmovups [address] {k}, xmm"_v,   "vmovups [address] {k}, ymm"_v,   4);
+    maskedStore(FormVMaskedStoreF64, FormVWideMaskedStoreF64, "vmovupd [address] {k}, xmm"_v,   "vmovupd [address] {k}, ymm"_v,   5);
+
+    /*
+     * And the `avx2` pair, `vpmaskmovd`/`q`: VEX.66.0F38 8C to load and 8E to store, the mask a vector
+     * whose lanes' sign bits choose - which a whole-lane mask's are. Here beside the EVEX rows because
+     * they are the same two operations; they state AVX2 and nothing of AVX-512, and have no EVEX
+     * spelling, so what reaches them is never an upper register. Only four- and eight-byte lanes have
+     * the instruction, a float lane taking the integer row of its width.
+     *
+     * The element width is VEX.W, which the load/store family writes from the operation's width rather
+     * than from the prefix - hence a fixed width on each row instead of `widthInPrefix`.
+     */
+    auto maskMove = [&](MachineFormId id, MachineFormId wideId, MachineOpcodeId opcode, StringView name128,
+                        StringView name256, bool store, bool quad) {
+        auto& form = add(id, opcode, name128);
+        form.uses.push(address());
+        form.uses.push(anyReg(ClassXmm128));
+        if(store) form.uses.push(anyReg(ClassXmm128));
+        else form.defs.push(def(ClassXmm128));
+        form.requiredFeatures = kFeatureAvx | kFeatureAvx2;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::LoadStore,
+            .opcode = U8(store ? 0x8e : 0x8c),
+            .escape = 0x0f, .prefix = 0x66,
+            .regField = store ? useRef(2) : defRef(0), .rmField = useRef(0),
+            .width = quad ? OperationWidth::Fixed64 : OperationWidth::Fixed32,
+            .prefixEncoding = PrefixEncoding::Vex,
+            .opcodeMap = kOpcodeMap0F38,
+        };
+        form.encoding.vvvvField = useRef(1);
+
+        widen(wideId, id, name256);
+    };
+
+    maskMove(FormVMaskMoveLoad32,  FormVWideMaskMoveLoad32,  OpVMaskedLoad,  "vpmaskmovd xmm, xmm, [address]"_v, "vpmaskmovd ymm, ymm, [address]"_v, false, false);
+    maskMove(FormVMaskMoveLoad64,  FormVWideMaskMoveLoad64,  OpVMaskedLoad,  "vpmaskmovq xmm, xmm, [address]"_v, "vpmaskmovq ymm, ymm, [address]"_v, false, true);
+    maskMove(FormVMaskMoveStore32, FormVWideMaskMoveStore32, OpVMaskedStore, "vpmaskmovd [address], xmm, xmm"_v, "vpmaskmovd [address], ymm, ymm"_v, true,  false);
+    maskMove(FormVMaskMoveStore64, FormVWideMaskMoveStore64, OpVMaskedStore, "vpmaskmovq [address], xmm, xmm"_v, "vpmaskmovq [address], ymm, ymm"_v, true,  true);
 }
 
 /*
@@ -1061,6 +1169,7 @@ bool hasEvexRow(EvexRow row) {
             case EvexRow::Permute2:         return FormVPermute2x16;
             case EvexRow::BytePermute2:     return FormVPermute2x8;
             case EvexRow::Compress:         return FormVCompress8;
+            case EvexRow::MaskedMove:       return FormVMaskedLoad8;
         }
 
         return FormNop;

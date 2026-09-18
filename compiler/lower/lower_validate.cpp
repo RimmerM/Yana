@@ -1023,6 +1023,24 @@ static bool validateSetPattern(Diagnostics* diagnostics, LowerBase base, LowerIn
     return true;
 }
 
+// The transfers that stop at a lane count: a pointer, an integer count of lanes, and a whole vector
+// - which is the result of the load and the value of the store. A mask has no memory form of its own
+// to transfer a part of.
+static bool validateTransferUpTo(Diagnostics* diagnostics, LowerBase base, LowerInst* inst,
+                                 LowerPtr<LowerValue> address, LowerPtr<LowerValue> count, LowerType vector) {
+    if(base[address]->type != LowerType::Pointer || !isInt(base[count]->type)) {
+        diagnostics->error("a transfer up to a count takes a pointer and an integer count of lanes"_v, inst->source);
+        return false;
+    }
+
+    if(!vector.isVector() || vector.isMask()) {
+        diagnostics->error("a transfer up to a count moves the lanes of a vector"_v, inst->source);
+        return false;
+    }
+
+    return true;
+}
+
 /*
  * The five that only a vector can be an operand or a result of.
  *
@@ -1419,6 +1437,14 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateCopy(diagnostics, base, (LowerInstCopy*)inst);
         case LowerInst::SetPattern:
             return validateSetPattern(diagnostics, base, (LowerInstSetPattern*)inst);
+        case LowerInst::VecLoadUpTo: {
+            auto load = (LowerInstVecLoadUpTo*)inst;
+            return validateTransferUpTo(diagnostics, base, inst, load->from, load->count, load->result.type);
+        }
+        case LowerInst::VecStoreUpTo: {
+            auto store = (LowerInstVecStoreUpTo*)inst;
+            return validateTransferUpTo(diagnostics, base, inst, store->to, store->count, base[store->value]->type);
+        }
         case LowerInst::AtomicLoad:
             return validateAtomicLoad(diagnostics, base, (LowerInstAtomicLoad*)inst);
         case LowerInst::AtomicStore:
@@ -1465,6 +1491,8 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::X86MaskConvert:
         case LowerInst::X86MaskCompare:
         case LowerInst::X86MaskedOp:
+        case LowerInst::X86MaskedLoad:
+        case LowerInst::X86MaskedStore:
         case LowerInst::X86TernaryLogic:
         case LowerInst::X86Permute2:
         case LowerInst::X86StoreOp:

@@ -6,11 +6,11 @@ let ResolveTest.string$0: String = "abc"
 
 let ResolveTest.literal$1: String = "abc" {String(Array(Run(&ResolveTest.string$0, 3, 0), 3))}
 
-table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
+table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
+table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
 }
 
@@ -186,7 +186,7 @@ fn main() -> I32 {
     init %local1.total, %v6
     %v8 = addressof %local1 : %()
     %v9 = alloc : (value$: I32) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$22 : %()
+    %v10 = symbol ResolveTest.continuation$21 : %()
     init %local2.code, %v10
     init %local2.env, %v8
     %v13 = call ticks(()), 3, %v9 : Outcome((), ())
@@ -195,7 +195,7 @@ fn main() -> I32 {
     init %local4.total, %v16
     %v18 = addressof %local4 : %()
     %v19 = alloc : (value$: I32) -> Outcome((), ())
-    %v20 = symbol ResolveTest.continuation$23 : %()
+    %v20 = symbol ResolveTest.continuation$22 : %()
     init %local5.code, %v20
     init %local5.env, %v18
     %v23 = call ticks(()), -3, %v19 : Outcome((), ())
@@ -203,7 +203,7 @@ fn main() -> I32 {
     ret %v24
 }
 
-fn ResolveTest.continuation$22(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$21(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &I32
     %v3 = load [%env].total : &I32
@@ -274,7 +274,7 @@ fn ticks(())(%n: I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()
     jmp b4
 }
 
-fn ResolveTest.continuation$23(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &I32
     %v3 = load [%env].total : &I32

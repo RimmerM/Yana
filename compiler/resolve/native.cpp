@@ -160,6 +160,47 @@ static ModulePtr<Value> emitSetVectorAt(ExprResolver& resolver, Buffer<ModulePtr
 }
 
 /*
+ * `loadUpTo` and `storeUpTo` - the two transfers above stopped at a lane count, Analysis-Avx512.md
+ * §3.5.
+ *
+ * Operations rather than a load and a store of a place, because a place is a whole value's bytes and
+ * the bytes past the count are exactly the ones these do not touch. The pointer stays the element
+ * pointer the caller handed over - there is no whole vector at it to name - and the vector type is
+ * the result's for the load and the value's for the store, checked the way `pointerAsVector` checks
+ * it.
+ */
+static ModulePtr<Value> emitLoadUpTo(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                     LocationId source, StringId name) {
+    if(!isVectorType(resolver.global, type)) {
+        resolver.context.diagnostics.error("a vector transfer needs a vector type, and %@ is not one"_v,
+                                           source, describeType(resolver.context, resolver.global, type));
+        return nullptr;
+    }
+
+    auto instruction = resolver.create<InstNative>(source, name, type, NativeOp::VecLoadUpTo);
+    for(auto arg: args) instruction->args.push(resolver.module.arena, arg);
+
+    resolver.append(instruction);
+    return resolver.ref(instruction);
+}
+
+static ModulePtr<Value> emitStoreUpTo(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                      LocationId source, StringId name) {
+    auto vector = resolver.valueType(args[2]);
+    if(!isVectorType(resolver.global, vector)) {
+        resolver.context.diagnostics.error("a vector transfer needs a vector type, and %@ is not one"_v,
+                                           source, describeType(resolver.context, resolver.global, vector));
+        return nullptr;
+    }
+
+    auto instruction = resolver.create<InstNative>(source, name, type, NativeOp::VecStoreUpTo);
+    for(auto arg: args) instruction->args.push(resolver.module.arena, arg);
+
+    resolver.append(instruction);
+    return nullptr;
+}
+
+/*
  * `null` and `isNull` had emitters here, and they are gone.
  *
  * Both are ordinary library bodies now - `bitcast(0 :: Size)` and a comparison against zero, over
@@ -544,6 +585,8 @@ static void attachPointerIntrinsics(Module& module) {
     attachIntrinsic(module, Op::vectorAt, emitVectorAt);
     attachIntrinsic(module, Op::vectorPast, emitVectorPast);
     attachIntrinsic(module, Op::setVectorAt, emitSetVectorAt);
+    attachIntrinsic(module, Op::vecLoadUpTo, emitLoadUpTo);
+    attachIntrinsic(module, Op::vecStoreUpTo, emitStoreUpTo);
     attachIntrinsic(module, Op::maskBits, emitMaskBits);
     attachIntrinsic(module, Op::mulHigh, emitMulHigh);
 

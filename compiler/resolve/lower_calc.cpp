@@ -231,6 +231,16 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     break;
                 }
 
+                // The transfers that stop at a count, one lower kind each - see LowerInst::VecLoadUpTo.
+                case NativeOp::VecLoadUpTo:
+                    result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecLoadUpTo(
+                        instruction.name, lowerType(lower, instruction.type), args[0], args[1]));
+                    break;
+                case NativeOp::VecStoreUpTo:
+                    result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecStoreUpTo(
+                        args[0], args[1], args[2]));
+                    break;
+
                 case NativeOp::HostCall:
                 case NativeOp::HostField:
                 case NativeOp::HostArray:

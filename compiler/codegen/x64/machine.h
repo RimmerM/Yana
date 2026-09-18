@@ -254,6 +254,12 @@ enum : MachineOpcodeId {
     OpVCompress,
     OpVExpand,
 
+    // A vector load and store under a mask - `vmovdqu8`..`64` under `{k}` at `avx512`, `vpmaskmovd`/`q`
+    // at `avx2`. See LowerInst::X86MaskedLoad. Their own opcodes rather than `OpLoad` and `OpStore`,
+    // because the mask is an operand no plain access has and a form of one is never a form of the other.
+    OpVMaskedLoad,
+    OpVMaskedStore,
+
     // `vpternlogd` - any bitwise function of three vectors, by its truth table. See
     // LowerInst::X86TernaryLogic.
     OpVTernaryLogic,
@@ -1856,6 +1862,7 @@ enum class EvexRow: U8 {
     Permute2,          // vpermi2d/q/ps/pd, vpermi2w (BW)
     BytePermute2,      // vpermi2b (VBMI)
     Compress,          // vpcompressb/w/d/q/ps/pd and vpexpand*, the byte and word rows VBMI2
+    MaskedMove,        // vmovdqu8/16/32/64, vmovups/pd under {k} to and from memory, the byte and word rows BW
 };
 
 bool hasEvexRow(EvexRow row);

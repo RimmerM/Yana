@@ -1,0 +1,512 @@
+
+loadUpTo8x16<complex>(%p: Ptr, %n: I64): i8x16 {
+  b_0 {
+    %r = vloadupto %p, %n: i8x16
+    ret %r
+  }
+}
+
+storeUpTo8x16<complex>(%p: Ptr, %n: I64, %v: i8x16) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTo16x8<complex>(%p: Ptr, %n: I64): i16x8 {
+  b_0 {
+    %r = vloadupto %p, %n: i16x8
+    ret %r
+  }
+}
+
+storeUpTo16x8<complex>(%p: Ptr, %n: I64, %v: i16x8) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTo32x4<complex>(%p: Ptr, %n: I64): i32x4 {
+  b_0 {
+    %r = vloadupto %p, %n: i32x4
+    ret %r
+  }
+}
+
+storeUpTo32x4<complex>(%p: Ptr, %n: I64, %v: i32x4) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTo64x2<complex>(%p: Ptr, %n: I64): i64x2 {
+  b_0 {
+    %r = vloadupto %p, %n: i64x2
+    ret %r
+  }
+}
+
+storeUpTo64x2<complex>(%p: Ptr, %n: I64, %v: i64x2) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTof32x4<complex>(%p: Ptr, %n: I64): f32x4 {
+  b_0 {
+    %r = vloadupto %p, %n: f32x4
+    ret %r
+  }
+}
+
+storeUpTof32x4<complex>(%p: Ptr, %n: I64, %v: f32x4) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTof64x2<complex>(%p: Ptr, %n: I64): f64x2 {
+  b_0 {
+    %r = vloadupto %p, %n: f64x2
+    ret %r
+  }
+}
+
+storeUpTof64x2<complex>(%p: Ptr, %n: I64, %v: f64x2) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTo8x32<complex>(%p: Ptr, %n: I64): i8x32 {
+  b_0 {
+    %r = vloadupto %p, %n: i8x32
+    ret %r
+  }
+}
+
+storeUpTo8x32<complex>(%p: Ptr, %n: I64, %v: i8x32) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTo32x8<complex>(%p: Ptr, %n: I64): i32x8 {
+  b_0 {
+    %r = vloadupto %p, %n: i32x8
+    ret %r
+  }
+}
+
+storeUpTo32x8<complex>(%p: Ptr, %n: I64, %v: i32x8) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTof64x4<complex>(%p: Ptr, %n: I64): f64x4 {
+  b_0 {
+    %r = vloadupto %p, %n: f64x4
+    ret %r
+  }
+}
+
+storeUpTof64x4<complex>(%p: Ptr, %n: I64, %v: f64x4) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpToMasked8x32<complex>(%p: Ptr, %n: I64): i8x32 {
+  b_0 {
+    %c = and %n, 31: I64
+    %r = vloadupto %p, %c: i8x32
+    ret %r
+  }
+}
+
+storeUpToConstants8x16<complex>(%p: Ptr, %v: i8x16) {
+  b_0 {
+    vstoreupto %p, 0, %v
+    vstoreupto %p, 16, %v
+    vstoreupto %p, 5, %v
+    ret 
+  }
+}
+
+
+--- codegen: loadUpTo8x16 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f810
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba10000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedload uses=[rdi, k1] creates=[xmm0]  => 62f17f896f07
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: storeUpTo8x16 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f810
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba10000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedstore uses=[rdi, k1, xmm0] creates=[]  => 62f17f097f07
+  ret uses=[] creates=[]  => c3
+
+--- codegen: loadUpTo16x8 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f808
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba08000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedload uses=[rdi, k1] creates=[xmm0]  => 62f1ff896f07
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: storeUpTo16x8 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f808
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba08000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedstore uses=[rdi, k1, xmm0] creates=[]  => 62f1ff097f07
+  ret uses=[] creates=[]  => c3
+
+--- codegen: loadUpTo32x4 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f804
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba04000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedload uses=[rdi, k1] creates=[xmm0]  => 62f17e896f07
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: storeUpTo32x4 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f804
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba04000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedstore uses=[rdi, k1, xmm0] creates=[]  => 62f17e097f07
+  ret uses=[] creates=[]  => c3
+
+--- codegen: loadUpTo64x2 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f802
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba02000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedload uses=[rdi, k1] creates=[xmm0]  => 62f1fe896f07
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: storeUpTo64x2 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f802
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba02000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedstore uses=[rdi, k1, xmm0] creates=[]  => 62f1fe097f07
+  ret uses=[] creates=[]  => c3
+
+--- codegen: loadUpTof32x4 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f804
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba04000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedload uses=[rdi, k1] creates=[xmm0]  => 62f17c891007
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: storeUpTof32x4 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f804
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba04000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedstore uses=[rdi, k1, xmm0] creates=[]  => 62f17c091107
+  ret uses=[] creates=[]  => c3
+
+--- codegen: loadUpTof64x2 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f802
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba02000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedload uses=[rdi, k1] creates=[xmm0]  => 62f1fd891007
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: storeUpTof64x2 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f802
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba02000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedstore uses=[rdi, k1, xmm0] creates=[]  => 62f1fd091107
+  ret uses=[] creates=[]  => c3
+
+--- codegen: loadUpTo8x32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f820
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba20000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedload uses=[rdi, k1] creates=[xmm0]  => 62f17fa96f07
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: storeUpTo8x32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f820
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba20000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedstore uses=[rdi, k1, xmm0] creates=[]  => 62f17f297f07
+  ret uses=[] creates=[]  => c3
+
+--- codegen: loadUpTo32x8 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f808
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba08000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedload uses=[rdi, k1] creates=[xmm0]  => 62f17ea96f07
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: storeUpTo32x8 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f808
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba08000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedstore uses=[rdi, k1, xmm0] creates=[]  => 62f17e297f07
+  ret uses=[] creates=[]  => c3
+
+--- codegen: loadUpTof64x4 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f804
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba04000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedload uses=[rdi, k1] creates=[xmm0]  => 62f1fda91007
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: storeUpTof64x4 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4885f6
+  select uses=[rax, rsi, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc6
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f804
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:1->rdx]  => ba04000000480f43c2
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rdx, rax] creates=[rax] pre=[remat:2->rdx]  => baffffffffc4e278f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedstore uses=[rdi, k1, xmm0] creates=[]  => 62f1fd291107
+  ret uses=[] creates=[]  => c3
+
+--- codegen: loadUpToMasked8x32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  and uses=[rsi, -] creates=[rsi]  => 4883e61f
+  cast uses=[rsi] creates=[rsi]  => 
+  imm uses=[] creates=[remat:0]  => 
+  bzhi uses=[rdx, rsi] creates=[rax] pre=[remat:0->rdx]  => baffffffffc4e248f5c2
+  x86_vectortomask uses=[rax] creates=[k1]  => c5fb92c8
+  x86_maskedload uses=[rdi, k1] creates=[xmm0]  => 62f17fa96f07
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: storeUpToConstants8x16 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  store uses=[rdi, xmm0] creates=[]  => c5fa7f07
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  x86_vectortomask uses=[rsi] creates=[k1] pre=[remat:0->rsi]  => be1f000000c5fb92ce
+  x86_maskedstore uses=[rdi, k1, xmm0] creates=[]  => 62f17f097f07
+  ret uses=[] creates=[]  => c3

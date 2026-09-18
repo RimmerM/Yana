@@ -1,0 +1,771 @@
+
+loadUpTo8x16<complex>(%p: Ptr, %n: I64): i8x16 {
+  b_0 {
+    %r = vloadupto %p, %n: i8x16
+    ret %r
+  }
+}
+
+storeUpTo8x16<complex>(%p: Ptr, %n: I64, %v: i8x16) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTo16x8<complex>(%p: Ptr, %n: I64): i16x8 {
+  b_0 {
+    %r = vloadupto %p, %n: i16x8
+    ret %r
+  }
+}
+
+storeUpTo16x8<complex>(%p: Ptr, %n: I64, %v: i16x8) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTo32x4<complex>(%p: Ptr, %n: I64): i32x4 {
+  b_0 {
+    %r = vloadupto %p, %n: i32x4
+    ret %r
+  }
+}
+
+storeUpTo32x4<complex>(%p: Ptr, %n: I64, %v: i32x4) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTo64x2<complex>(%p: Ptr, %n: I64): i64x2 {
+  b_0 {
+    %r = vloadupto %p, %n: i64x2
+    ret %r
+  }
+}
+
+storeUpTo64x2<complex>(%p: Ptr, %n: I64, %v: i64x2) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTof32x4<complex>(%p: Ptr, %n: I64): f32x4 {
+  b_0 {
+    %r = vloadupto %p, %n: f32x4
+    ret %r
+  }
+}
+
+storeUpTof32x4<complex>(%p: Ptr, %n: I64, %v: f32x4) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+loadUpTof64x2<complex>(%p: Ptr, %n: I64): f64x2 {
+  b_0 {
+    %r = vloadupto %p, %n: f64x2
+    ret %r
+  }
+}
+
+storeUpTof64x2<complex>(%p: Ptr, %n: I64, %v: f64x2) {
+  b_0 {
+    vstoreupto %p, %n, %v
+    ret 
+  }
+}
+
+storeUpToConstants8x16<complex>(%p: Ptr, %v: i8x16) {
+  b_0 {
+    vstoreupto %p, 0, %v
+    vstoreupto %p, 16, %v
+    vstoreupto %p, 5, %v
+    ret 
+  }
+}
+
+
+--- codegen: loadUpTo8x16 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe10
+  je uses=[-] creates=[]  => 7d67
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rax]  => 488d0424
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm0]  => 660fefc0
+  store uses=[rax, xmm0] creates=[]  => f30f7f00
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe04
+  je uses=[-] creates=[]  => 7d27
+block #3:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe02
+  je uses=[-] creates=[]  => 7d0d
+block #4:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe01
+  je uses=[-] creates=[]  => 7c43
+block #6:
+  load uses=[rdi] creates=[rcx]  => 0fb60f
+  store uses=[rax, rcx] creates=[]  => 8808
+  jmp uses=[] creates=[]  => eb3c
+block #7:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rcx, -] creates=[rcx] pre=[rsi->rcx]  => 488d4efe
+  load uses=[rdi] creates=[rdx]  => 0fb717
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-]  => 
+  load uses=[-] creates=[rsi]  => 0fb7340f
+  store uses=[rax, rdx] creates=[]  => 668910
+  x86_addr scale=1 disp=0 uses=[rax, rcx] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 66893408
+  jmp uses=[] creates=[]  => eb28
+block #8:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe08
+  je uses=[-] creates=[]  => 7d10
+block #9:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rcx, -] creates=[rcx] pre=[rsi->rcx]  => 488d4efc
+  load uses=[rdi] creates=[rdx]  => 8b17
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-]  => 
+  load uses=[-] creates=[rsi]  => 8b340f
+  store uses=[rax, rdx] creates=[]  => 8910
+  x86_addr scale=1 disp=0 uses=[rax, rcx] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 893408
+  jmp uses=[] creates=[]  => eb12
+block #10:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rsi, -] creates=[rsi]  => 4883ee08
+  load uses=[rdi] creates=[rcx]  => 488b0f
+  x86_addr scale=1 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  load uses=[-] creates=[rdx]  => 488b1437
+  store uses=[rax, rcx] creates=[]  => 488908
+  x86_addr scale=1 disp=0 uses=[rax, rsi] creates=[-]  => 
+  store uses=[-, rdx] creates=[]  => 48891430
+  jmp uses=[] creates=[]  => 
+block #11:
+  load uses=[rax] creates=[xmm0]  => f30f6f00
+  jmp uses=[] creates=[]  => eb04
+block #12:
+  load uses=[rdi] creates=[xmm0]  => f30f6f07
+  jmp uses=[] creates=[]  => 
+block #13:
+  ret uses=[xmm0] creates=[]  => 4883c410c3
+
+--- codegen: storeUpTo8x16 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe10
+  je uses=[-] creates=[]  => 7d5f
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rax]  => 488d0424
+  store uses=[rax, xmm0] creates=[]  => f30f7f00
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe04
+  je uses=[-] creates=[]  => 7d27
+block #3:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe02
+  je uses=[-] creates=[]  => 7d0d
+block #4:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe01
+  je uses=[-] creates=[]  => 7c49
+block #6:
+  load uses=[rax] creates=[rax]  => 0fb600
+  store uses=[rdi, rax] creates=[]  => 8807
+  jmp uses=[] creates=[]  => eb42
+block #7:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rcx, -] creates=[rcx] pre=[rsi->rcx]  => 488d4efe
+  load uses=[rax] creates=[rdx]  => 0fb710
+  x86_addr scale=1 disp=0 uses=[rax, rcx] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 0fb70408
+  store uses=[rdi, rdx] creates=[]  => 668917
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-]  => 
+  store uses=[-, rax] creates=[]  => 6689040f
+  jmp uses=[] creates=[]  => eb2e
+block #8:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe08
+  je uses=[-] creates=[]  => 7d10
+block #9:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rcx, -] creates=[rcx] pre=[rsi->rcx]  => 488d4efc
+  load uses=[rax] creates=[rdx]  => 8b10
+  x86_addr scale=1 disp=0 uses=[rax, rcx] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 8b0408
+  store uses=[rdi, rdx] creates=[]  => 8917
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-]  => 
+  store uses=[-, rax] creates=[]  => 89040f
+  jmp uses=[] creates=[]  => eb18
+block #10:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rsi, -] creates=[rsi]  => 4883ee08
+  load uses=[rax] creates=[rcx]  => 488b08
+  x86_addr scale=1 disp=0 uses=[rax, rsi] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 488b0430
+  store uses=[rdi, rcx] creates=[]  => 48890f
+  x86_addr scale=1 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  store uses=[-, rax] creates=[]  => 48890437
+  jmp uses=[] creates=[]  => eb04
+block #11:
+  store uses=[rdi, xmm0] creates=[]  => f30f7f07
+  jmp uses=[] creates=[]  => 
+block #12:
+  ret uses=[] creates=[]  => 4883c410c3
+
+--- codegen: loadUpTo16x8 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488d0436
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe08
+  je uses=[-] creates=[]  => 7d5a
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d0c24
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm0]  => 660fefc0
+  store uses=[rcx, xmm0] creates=[]  => f30f7f01
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f804
+  je uses=[-] creates=[]  => 7d1a
+block #3:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f802
+  je uses=[-] creates=[]  => 7c3c
+block #5:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e802
+  load uses=[rdi] creates=[rdx]  => 0fb717
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  load uses=[-] creates=[rsi]  => 0fb73407
+  store uses=[rcx, rdx] creates=[]  => 668911
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 66893401
+  jmp uses=[] creates=[]  => eb28
+block #6:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f808
+  je uses=[-] creates=[]  => 7d10
+block #7:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e804
+  load uses=[rdi] creates=[rdx]  => 8b17
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  load uses=[-] creates=[rsi]  => 8b3407
+  store uses=[rcx, rdx] creates=[]  => 8911
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 893401
+  jmp uses=[] creates=[]  => eb12
+block #8:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e808
+  load uses=[rdi] creates=[rdx]  => 488b17
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  load uses=[-] creates=[rsi]  => 488b3407
+  store uses=[rcx, rdx] creates=[]  => 488911
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 48893401
+  jmp uses=[] creates=[]  => 
+block #9:
+  load uses=[rcx] creates=[xmm0]  => f30f6f01
+  jmp uses=[] creates=[]  => eb04
+block #10:
+  load uses=[rdi] creates=[xmm0]  => f30f6f07
+  jmp uses=[] creates=[]  => 
+block #11:
+  ret uses=[xmm0] creates=[]  => 4883c410c3
+
+--- codegen: storeUpTo16x8 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488d0436
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe08
+  je uses=[-] creates=[]  => 7d52
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d0c24
+  store uses=[rcx, xmm0] creates=[]  => f30f7f01
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f804
+  je uses=[-] creates=[]  => 7d1a
+block #3:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f802
+  je uses=[-] creates=[]  => 7c42
+block #5:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e802
+  load uses=[rcx] creates=[rdx]  => 0fb711
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 0fb70c01
+  store uses=[rdi, rdx] creates=[]  => 668917
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 66890c07
+  jmp uses=[] creates=[]  => eb2e
+block #6:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f808
+  je uses=[-] creates=[]  => 7d10
+block #7:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e804
+  load uses=[rcx] creates=[rdx]  => 8b11
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 8b0c01
+  store uses=[rdi, rdx] creates=[]  => 8917
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 890c07
+  jmp uses=[] creates=[]  => eb18
+block #8:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e808
+  load uses=[rcx] creates=[rdx]  => 488b11
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 488b0c01
+  store uses=[rdi, rdx] creates=[]  => 488917
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 48890c07
+  jmp uses=[] creates=[]  => eb04
+block #9:
+  store uses=[rdi, xmm0] creates=[]  => f30f7f07
+  jmp uses=[] creates=[]  => 
+block #10:
+  ret uses=[] creates=[]  => 4883c410c3
+
+--- codegen: loadUpTo32x4 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc648c1e002
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe04
+  je uses=[-] creates=[]  => 7d40
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d0c24
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm0]  => 660fefc0
+  store uses=[rcx, xmm0] creates=[]  => f30f7f01
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f808
+  je uses=[-] creates=[]  => 7d16
+block #3:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f804
+  je uses=[-] creates=[]  => 7c22
+block #5:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e804
+  load uses=[rdi] creates=[rdx]  => 8b17
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  load uses=[-] creates=[rsi]  => 8b3407
+  store uses=[rcx, rdx] creates=[]  => 8911
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 893401
+  jmp uses=[] creates=[]  => eb12
+block #6:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e808
+  load uses=[rdi] creates=[rdx]  => 488b17
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  load uses=[-] creates=[rsi]  => 488b3407
+  store uses=[rcx, rdx] creates=[]  => 488911
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 48893401
+  jmp uses=[] creates=[]  => 
+block #7:
+  load uses=[rcx] creates=[xmm0]  => f30f6f01
+  jmp uses=[] creates=[]  => eb04
+block #8:
+  load uses=[rdi] creates=[xmm0]  => f30f6f07
+  jmp uses=[] creates=[]  => 
+block #9:
+  ret uses=[xmm0] creates=[]  => 4883c410c3
+
+--- codegen: storeUpTo32x4 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc648c1e002
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe04
+  je uses=[-] creates=[]  => 7d38
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d0c24
+  store uses=[rcx, xmm0] creates=[]  => f30f7f01
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f808
+  je uses=[-] creates=[]  => 7d16
+block #3:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f804
+  je uses=[-] creates=[]  => 7c28
+block #5:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e804
+  load uses=[rcx] creates=[rdx]  => 8b11
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 8b0c01
+  store uses=[rdi, rdx] creates=[]  => 8917
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 890c07
+  jmp uses=[] creates=[]  => eb18
+block #6:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e808
+  load uses=[rcx] creates=[rdx]  => 488b11
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 488b0c01
+  store uses=[rdi, rdx] creates=[]  => 488917
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 48890c07
+  jmp uses=[] creates=[]  => eb04
+block #7:
+  store uses=[rdi, xmm0] creates=[]  => f30f7f07
+  jmp uses=[] creates=[]  => 
+block #8:
+  ret uses=[] creates=[]  => 4883c410c3
+
+--- codegen: loadUpTo64x2 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc648c1e003
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe02
+  je uses=[-] creates=[]  => 7d2a
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d0c24
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm0]  => 660fefc0
+  store uses=[rcx, xmm0] creates=[]  => f30f7f01
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f808
+  je uses=[-] creates=[]  => 7c12
+block #4:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e808
+  load uses=[rdi] creates=[rdx]  => 488b17
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  load uses=[-] creates=[rsi]  => 488b3407
+  store uses=[rcx, rdx] creates=[]  => 488911
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 48893401
+  jmp uses=[] creates=[]  => 
+block #5:
+  load uses=[rcx] creates=[xmm0]  => f30f6f01
+  jmp uses=[] creates=[]  => eb04
+block #6:
+  load uses=[rdi] creates=[xmm0]  => f30f6f07
+  jmp uses=[] creates=[]  => 
+block #7:
+  ret uses=[xmm0] creates=[]  => 4883c410c3
+
+--- codegen: storeUpTo64x2 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc648c1e003
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe02
+  je uses=[-] creates=[]  => 7d22
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d0c24
+  store uses=[rcx, xmm0] creates=[]  => f30f7f01
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f808
+  je uses=[-] creates=[]  => 7c18
+block #4:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e808
+  load uses=[rcx] creates=[rdx]  => 488b11
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 488b0c01
+  store uses=[rdi, rdx] creates=[]  => 488917
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 48890c07
+  jmp uses=[] creates=[]  => eb04
+block #5:
+  store uses=[rdi, xmm0] creates=[]  => f30f7f07
+  jmp uses=[] creates=[]  => 
+block #6:
+  ret uses=[] creates=[]  => 4883c410c3
+
+--- codegen: loadUpTof32x4 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc648c1e002
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe04
+  je uses=[-] creates=[]  => 7d3f
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d0c24
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm0]  => 660fefc0
+  store uses=[rcx, xmm0] creates=[]  => f30f7f01
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f808
+  je uses=[-] creates=[]  => 7d16
+block #3:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f804
+  je uses=[-] creates=[]  => 7c22
+block #5:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e804
+  load uses=[rdi] creates=[rdx]  => 8b17
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  load uses=[-] creates=[rsi]  => 8b3407
+  store uses=[rcx, rdx] creates=[]  => 8911
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 893401
+  jmp uses=[] creates=[]  => eb12
+block #6:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e808
+  load uses=[rdi] creates=[rdx]  => 488b17
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  load uses=[-] creates=[rsi]  => 488b3407
+  store uses=[rcx, rdx] creates=[]  => 488911
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 48893401
+  jmp uses=[] creates=[]  => 
+block #7:
+  load uses=[rcx] creates=[xmm0]  => 0f1001
+  jmp uses=[] creates=[]  => eb03
+block #8:
+  load uses=[rdi] creates=[xmm0]  => 0f1007
+  jmp uses=[] creates=[]  => 
+block #9:
+  ret uses=[xmm0] creates=[]  => 4883c410c3
+
+--- codegen: storeUpTof32x4 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc648c1e002
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe04
+  je uses=[-] creates=[]  => 7d37
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d0c24
+  store uses=[rcx, xmm0] creates=[]  => 0f1101
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f808
+  je uses=[-] creates=[]  => 7d16
+block #3:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f804
+  je uses=[-] creates=[]  => 7c27
+block #5:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e804
+  load uses=[rcx] creates=[rdx]  => 8b11
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 8b0c01
+  store uses=[rdi, rdx] creates=[]  => 8917
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 890c07
+  jmp uses=[] creates=[]  => eb17
+block #6:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e808
+  load uses=[rcx] creates=[rdx]  => 488b11
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 488b0c01
+  store uses=[rdi, rdx] creates=[]  => 488917
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 48890c07
+  jmp uses=[] creates=[]  => eb03
+block #7:
+  store uses=[rdi, xmm0] creates=[]  => 0f1107
+  jmp uses=[] creates=[]  => 
+block #8:
+  ret uses=[] creates=[]  => 4883c410c3
+
+--- codegen: loadUpTof64x2 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc648c1e003
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe02
+  je uses=[-] creates=[]  => 7d29
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d0c24
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm0]  => 660fefc0
+  store uses=[rcx, xmm0] creates=[]  => f30f7f01
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f808
+  je uses=[-] creates=[]  => 7c12
+block #4:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e808
+  load uses=[rdi] creates=[rdx]  => 488b17
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  load uses=[-] creates=[rsi]  => 488b3407
+  store uses=[rcx, rdx] creates=[]  => 488911
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 48893401
+  jmp uses=[] creates=[]  => 
+block #5:
+  load uses=[rcx] creates=[xmm0]  => 0f1001
+  jmp uses=[] creates=[]  => eb03
+block #6:
+  load uses=[rdi] creates=[xmm0]  => 0f1007
+  jmp uses=[] creates=[]  => 
+block #7:
+  ret uses=[xmm0] creates=[]  => 4883c410c3
+
+--- codegen: storeUpTof64x2 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc648c1e003
+  cmp_ige uses=[rsi, -] creates=[-]  => 4883fe02
+  je uses=[-] creates=[]  => 7d21
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d0c24
+  store uses=[rcx, xmm0] creates=[]  => 0f1101
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f808
+  je uses=[-] creates=[]  => 7c17
+block #4:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e808
+  load uses=[rcx] creates=[rdx]  => 488b11
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 488b0c01
+  store uses=[rdi, rdx] creates=[]  => 488917
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 48890c07
+  jmp uses=[] creates=[]  => eb03
+block #5:
+  store uses=[rdi, xmm0] creates=[]  => 0f1107
+  jmp uses=[] creates=[]  => 
+block #6:
+  ret uses=[] creates=[]  => 4883c410c3
+
+--- codegen: storeUpToConstants8x16 ---
+  prologue  => 4883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  store uses=[rdi, xmm0] creates=[]  => f30f7f07
+  imm uses=[] creates=[rax]  => b805000000
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f810
+  je uses=[-] creates=[]  => 7d5f
+block #2:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d0c24
+  store uses=[rcx, xmm0] creates=[]  => f30f7f01
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f804
+  je uses=[-] creates=[]  => 7d27
+block #3:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f802
+  je uses=[-] creates=[]  => 7d0d
+block #4:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f801
+  je uses=[-] creates=[]  => 7c49
+block #6:
+  load uses=[rcx] creates=[rax]  => 0fb601
+  store uses=[rdi, rax] creates=[]  => 8807
+  jmp uses=[] creates=[]  => eb42
+block #7:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e802
+  load uses=[rcx] creates=[rdx]  => 0fb711
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 0fb70c01
+  store uses=[rdi, rdx] creates=[]  => 668917
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 66890c07
+  jmp uses=[] creates=[]  => eb2e
+block #8:
+  imm uses=[] creates=[-]  => 
+  cmp_ige uses=[rax, -] creates=[-]  => 4883f808
+  je uses=[-] creates=[]  => 7d10
+block #9:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e804
+  load uses=[rcx] creates=[rdx]  => 8b11
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 8b0c01
+  store uses=[rdi, rdx] creates=[]  => 8917
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 890c07
+  jmp uses=[] creates=[]  => eb18
+block #10:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax]  => 4883e808
+  load uses=[rcx] creates=[rdx]  => 488b11
+  x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 488b0c01
+  store uses=[rdi, rdx] creates=[]  => 488917
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 48890c07
+  jmp uses=[] creates=[]  => eb04
+block #11:
+  store uses=[rdi, xmm0] creates=[]  => f30f7f07
+  jmp uses=[] creates=[]  => 
+block #12:
+  ret uses=[] creates=[]  => 4883c410c3

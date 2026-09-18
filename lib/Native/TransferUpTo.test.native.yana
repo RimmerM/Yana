@@ -1,0 +1,111 @@
+{-
+   `loadUpTo` and `storeUpTo` - Analysis-Avx512.md §3.5 - on every row the suite builds.
+
+   Each transfer ends exactly at a page the test has taken every access away from, so a byte touched
+   past the count is a fault rather than a wrong answer. What is checked is the rest: a load answers
+   the memory's lanes below the count and zero above it, and a store leaves every byte outside its
+   lanes as it was. Every count from one below zero to one past the lanes, at the natural byte and
+   doubleword vectors and at sixteen bytes. `test/resolve/VecUpTo.yana` holds every lane type.
+-}
+
+import Test
+
+fn guardedPage() -> %U8:
+    let page = mapMemory(8192)
+    checkEqual(protectNone(page + (4096 :: Size), 4096), 0)
+    return page
+
+-- Odd bytes where `pattern` holds, so that no lane of it is the zero a load answers past its count,
+-- and the sentinel a store must leave where it does not.
+fn fill(page: %U8, pattern: Bool):
+    for i in 0 .. 4096:
+        let unit = if pattern then truncate(i * 14 + 3) :: U8 else 0xab :: U8
+        store(page + (i :: Size), unit)
+
+-- The bytes of `page` from `start` to its end that are not `lanes` of `written`, and every byte
+-- below `start` that is not the sentinel.
+fn storedWrong(page: %U8, start: Int, written: %U8) -> Int:
+    let &wrong = 0
+    for b in 0 .. 4096:
+        let want = if b < start then 0xab :: U8 else *(written + ((b - start) :: Size))
+        if *(page + (b :: Size)) != want then wrong += 1
+    return wrong
+
+-- The first `total` bytes at `got` against `live` bytes at `want` and zeros after them.
+fn loadedWrong(got: %U8, want: %U8, live: Int, total: Int) -> Int:
+    let &wrong = 0
+    for b in 0 .. total:
+        let expected = if b < live then *(want + (b :: Size)) else 0 :: U8
+        if *(got + (b :: Size)) != expected then wrong += 1
+    return wrong
+
+@test fn bytesStopAtTheCount():
+    let page = guardedPage()
+    let scratch = mapMemory(4096)
+    let lanesOf = lanes(zero() :: Vec(U8))
+    let values = (iota() :: Vec(U8)) + splat(1 :: U8)
+    setVectorAt(scratch + (2048 :: Size), values)
+    let &wrong = 0
+
+    let &c = 0 - 1
+    while c < lanesOf + 2:
+        let live = if c < 0 then 0 else if c > lanesOf then lanesOf else c
+        let at = page + ((4096 - live) :: Size)
+
+        fill(page, True)
+        setVectorAt(scratch, loadUpTo(at, c) :: Vec(U8))
+        wrong += loadedWrong(scratch, at, live, lanesOf)
+
+        fill(page, False)
+        storeUpTo(at, c, values)
+        wrong += storedWrong(page, 4096 - live, scratch + (2048 :: Size))
+        c += 1
+
+    checkEqual(wrong, 0)
+
+@test fn sixteenBytesStopAtTheCount():
+    let page = guardedPage()
+    let scratch = mapMemory(4096)
+    let values = (iota() :: Vec(U8, 16)) * (splat(3 :: U8) :: Vec(U8, 16)) + (splat(1 :: U8) :: Vec(U8, 16))
+    setVectorAt(scratch + (2048 :: Size), values)
+    let &wrong = 0
+
+    let &c = 0 - 1
+    while c < 18:
+        let live = if c < 0 then 0 else if c > 16 then 16 else c
+        let at = page + ((4096 - live) :: Size)
+
+        fill(page, True)
+        setVectorAt(scratch, loadUpTo(at, c) :: Vec(U8, 16))
+        wrong += loadedWrong(scratch, at, live, 16)
+
+        fill(page, False)
+        storeUpTo(at, c, values)
+        wrong += storedWrong(page, 4096 - live, scratch + (2048 :: Size))
+        c += 1
+
+    checkEqual(wrong, 0)
+
+@test fn doublewordsStopAtTheCount():
+    let page = guardedPage()
+    let scratch = mapMemory(4096)
+    let lanesOf = lanes(zero() :: Vec(U32))
+    let values = (iota() :: Vec(U32)) * splat(0x01010101 :: U32) + splat(0x10203040 :: U32)
+    setVectorAt(bitcast(scratch + (2048 :: Size)) :: %U32, values)
+    let &wrong = 0
+
+    let &c = 0 - 1
+    while c < lanesOf + 2:
+        let live = if c < 0 then 0 else if c > lanesOf then lanesOf else c
+        let at = page + ((4096 - live * 4) :: Size)
+
+        fill(page, True)
+        setVectorAt(bitcast(scratch) :: %U32, loadUpTo(bitcast(at) :: %U32, c) :: Vec(U32))
+        wrong += loadedWrong(scratch, at, live * 4, lanesOf * 4)
+
+        fill(page, False)
+        storeUpTo(bitcast(at) :: %U32, c, values)
+        wrong += storedWrong(page, 4096 - live * 4, scratch + (2048 :: Size))
+        c += 1
+
+    checkEqual(wrong, 0)

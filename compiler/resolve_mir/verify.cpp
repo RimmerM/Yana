@@ -1245,7 +1245,8 @@ struct Verifier {
             case NativeOp::CarrylessMultiply:
             case NativeOp::VecCompress:
             case NativeOp::VecExpand:
-            case NativeOp::VecLookup: return 2;
+            case NativeOp::VecLookup:
+            case NativeOp::VecLoadUpTo: return 2;
 
             // The round constant of the second is `immediate`, not an operand.
             case NativeOp::AesInverseMix:
@@ -1253,7 +1254,8 @@ struct Verifier {
 
             case NativeOp::CopyMemory:
             case NativeOp::SetMemory:
-            case NativeOp::Sha256Rounds:   return 3;
+            case NativeOp::Sha256Rounds:
+            case NativeOp::VecStoreUpTo:   return 3;
 
             case NativeOp::CloneThread:    return 5;
 

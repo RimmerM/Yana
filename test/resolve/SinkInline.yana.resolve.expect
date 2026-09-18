@@ -2,7 +2,7 @@ let image$base: () = <none>
 
 let &dropped: I32 = 0
 
-table closure$ResolveTest.lambda$22 before ResolveTest.lambda$22 {
+table closure$ResolveTest.lambda$21 before ResolveTest.lambda$21 {
   .0 teardown$none
 }
 
@@ -17,7 +17,7 @@ fn offsetBy(%value: Maybe(I32), %by: I32) -> Maybe(I32) {
     init %local1.by, %by
     %v4 = addressof %local1 : %()
     %v5 = alloc : (at: I32) -> I32
-    %v6 = symbol ResolveTest.lambda$22 : %()
+    %v6 = symbol ResolveTest.lambda$21 : %()
     init %local2.code, %v6
     init %local2.env, %v4
     %value = copy %value : Maybe(I32)
@@ -28,7 +28,7 @@ fn offsetBy(%value: Maybe(I32), %by: I32) -> Maybe(I32) {
 fn identify(%value: Maybe(Token)) -> Maybe(I32) {
   b0:
     %v1 = alloc : (t: Token) -> I32
-    %v2 = symbol ResolveTest.lambda$23 : %()
+    %v2 = symbol ResolveTest.lambda$22 : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -170,7 +170,7 @@ fn Functor(Maybe(x), b, Maybe(b), x).map(%value: Maybe(x), %f: (x) -> b) -> Mayb
     ret %v19
 }
 
-fn ResolveTest.lambda$22(%env: %{by: I32}, %at: I32) -> I32 {
+fn ResolveTest.lambda$21(%env: %{by: I32}, %at: I32) -> I32 {
   b0:
     %v2 = load [%env].by : I32
     %v3 = add %at, %v2 : I32
@@ -204,7 +204,7 @@ fn Functor(Maybe(x), b, Maybe(b), x).map(I32, I32)(%value: Maybe(I32), %f: (at: 
     ret %v2
 }
 
-fn ResolveTest.lambda$23(%env: %{}, %t: Token) -> I32 {
+fn ResolveTest.lambda$22(%env: %{}, %t: Token) -> I32 {
   b0:
     %v2 = load %t@Token.id : I32
     ret %v2

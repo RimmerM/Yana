@@ -8,19 +8,19 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-table closure$ResolveTest.lambda$22 before ResolveTest.lambda$22 {
+table closure$ResolveTest.lambda$21 before ResolveTest.lambda$21 {
   .0 closureRelease${amount: I32}
 }
 
-table closure$ResolveTest.lambda$23 before ResolveTest.lambda$23 {
+table closure$ResolveTest.lambda$22 before ResolveTest.lambda$22 {
   .0 closureRelease${scale: I32, offset: I32}
 }
 
-table closure$ResolveTest.lambda$26 before ResolveTest.lambda$26 {
+table closure$ResolveTest.lambda$25 before ResolveTest.lambda$25 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.lambda$27 before ResolveTest.lambda$27 {
+table closure$ResolveTest.lambda$26 before ResolveTest.lambda$26 {
   .0 teardown$none
 }
 
@@ -372,7 +372,7 @@ fn makeAdder(%amount: I32) -> (I32) -> I32 {
     init %local0.amount, %amount
     %v3 = addressof %local0 : %()
     %v4 = alloc : (I32) -> I32
-    %v5 = symbol ResolveTest.lambda$22 : %()
+    %v5 = symbol ResolveTest.lambda$21 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     ret %v4
@@ -385,7 +385,7 @@ fn makeScaler(%scale: I32, %offset: I32) -> (I32) -> I32 {
     init %local0.offset, %offset
     %v5 = addressof %local0 : %()
     %v6 = alloc : (I32) -> I32
-    %v7 = symbol ResolveTest.lambda$23 : %()
+    %v7 = symbol ResolveTest.lambda$22 : %()
     init %local1.code, %v7
     init %local1.env, %v5
     ret %v6
@@ -400,12 +400,12 @@ fn named(%f: (I32) -> I32, %x: I32) -> I32 {
 fn colonBodies(%x: I32) -> I32 {
   b0:
     %inferred = alloc : (I32) -> I32
-    %v2 = symbol ResolveTest.lambda$24 : %()
+    %v2 = symbol ResolveTest.lambda$23 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
     %v7 = alloc : (I32) -> I32
-    %v8 = symbol ResolveTest.lambda$25 : %()
+    %v8 = symbol ResolveTest.lambda$24 : %()
     init %local1.code, %v8
     %v11 = cast 0 : %()
     init %local1.env, %v11
@@ -421,7 +421,7 @@ fn main() -> I32 {
     init %local0.base, %base
     %v4 = addressof %local0 : %()
     %v5 = alloc : (I32) -> I32
-    %v6 = symbol ResolveTest.lambda$26 : %()
+    %v6 = symbol ResolveTest.lambda$25 : %()
     init %local1.code, %v6
     init %local1.env, %v4
     %a = call apply, %v5, 1 : I32
@@ -432,7 +432,7 @@ fn main() -> I32 {
     init %local3.total, %v15
     %v17 = addressof %local3 : %()
     %v18 = alloc : () -> ()
-    %v19 = symbol ResolveTest.lambda$27 : %()
+    %v19 = symbol ResolveTest.lambda$26 : %()
     init %local4.code, %v19
     init %local4.env, %v17
     call applyUnit, %v18
@@ -451,14 +451,14 @@ fn main() -> I32 {
     ret %v38
 }
 
-fn ResolveTest.lambda$22(%env: %{amount: I32}, %x: I32) -> I32 {
+fn ResolveTest.lambda$21(%env: %{amount: I32}, %x: I32) -> I32 {
   b0:
     %v2 = load [%env].amount : I32
     %v3 = add %x, %v2 : I32
     ret %v3
 }
 
-fn ResolveTest.lambda$23(%env: %{scale: I32, offset: I32}, %x: I32) -> I32 {
+fn ResolveTest.lambda$22(%env: %{scale: I32, offset: I32}, %x: I32) -> I32 {
   b0:
     %v2 = load [%env].scale : I32
     %v3 = mul %x, %v2 : I32
@@ -467,26 +467,26 @@ fn ResolveTest.lambda$23(%env: %{scale: I32, offset: I32}, %x: I32) -> I32 {
     ret %v5
 }
 
-fn ResolveTest.lambda$24(%env: %{}, %n: I32) -> I32 {
+fn ResolveTest.lambda$23(%env: %{}, %n: I32) -> I32 {
   b0:
     %v4 = mul %n, 2 : I32
     ret %v4
 }
 
-fn ResolveTest.lambda$25(%env: %{}, %n: I32) -> I32 {
+fn ResolveTest.lambda$24(%env: %{}, %n: I32) -> I32 {
   b0:
     %v4 = add %n, 1 : I32
     ret %v4
 }
 
-fn ResolveTest.lambda$26(%env: %{base: I32}, %x: I32) -> I32 {
+fn ResolveTest.lambda$25(%env: %{base: I32}, %x: I32) -> I32 {
   b0:
     %v2 = load [%env].base : I32
     %v3 = add %x, %v2 : I32
     ret %v3
 }
 
-fn ResolveTest.lambda$27(%env: %{total: &I32}) -> () {
+fn ResolveTest.lambda$26(%env: %{total: &I32}) -> () {
   b0:
     %v1 = load [%env].total : &I32
     %v2 = load [%env].total : &I32

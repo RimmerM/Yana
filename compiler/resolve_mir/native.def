@@ -135,3 +135,12 @@ YANA_MIR_NATIVE( CarrylessMultiply, "pclmulqdq"_v       )
 YANA_MIR_NATIVE( VecCompress, "vcompress"_v )
 YANA_MIR_NATIVE( VecExpand,   "vexpand"_v   )
 YANA_MIR_NATIVE( VecLookup,   "vlookup"_v   )
+
+/*
+ * The vector transfers that stop at a lane count - `loadUpTo(from, count)` and
+ * `storeUpTo(to, count, value)`, Analysis-Avx512.md §3.5. Portable on the three rows' terms above:
+ * one masked instruction where a target has it and a ladder of transfers where it does not, which is
+ * the backend's to choose. `LowerInst::VecLoadUpTo` and `VecStoreUpTo` are what they become.
+ */
+YANA_MIR_NATIVE( VecLoadUpTo,  "vloadupto"_v  )
+YANA_MIR_NATIVE( VecStoreUpTo, "vstoreupto"_v )

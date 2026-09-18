@@ -995,6 +995,37 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstSetPattern(to - base, count - base, pattern - base)));
     });
 
+    // `%v:<vector> = vloadupto %p, %count` and `vstoreupto %p, %count, %v`. The load's vector type is
+    // written on its result, as a load's is; the store's is its value's.
+    addKind<LowerInst::VecLoadUpTo>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 2);
+
+        auto from = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto count = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto result = ast.results[0];
+        auto type = getResultType(result);
+
+        if(!type) {
+            resolve.diag.error("unknown result type for vloadupto"_v, ast.source);
+            return Nothing();
+        }
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstVecLoadUpTo(
+            getResultName(result), type.unwrap(), from - base, count - base)));
+    });
+
+    addKind<LowerInst::VecStoreUpTo>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 0);
+        assertArgCount(ast.args, 3);
+
+        auto to = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto count = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto value = tryMaybe(findValue(resolve, base, block, ast.args[2], ast.source), return Nothing());
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstVecStoreUpTo(to - base, count - base, value - base)));
+    });
+
     // There is deliberately no `push`: which arguments travel on the stack is the calling
     // convention's answer, not the author's, and transformFunction derives the stores from it (see
     // insertStackArgs in codegen/x64/transform.cpp). A hand-written one could disagree with the

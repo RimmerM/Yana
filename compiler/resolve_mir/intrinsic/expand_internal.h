@@ -65,6 +65,12 @@ Node* expandBlockCopy(Builder& builder, Function& callee, Node* const* arguments
 Node* expandSetMemory(Builder& builder, Function& callee, Node* const* arguments,
                       const Substitution& with, LocationId source);
 
+// The two vector transfers that stop at a lane count - `native.def`'s `VecLoadUpTo` and `VecStoreUpTo`.
+Node* expandVecLoadUpTo(Builder& builder, Function& callee, Node* const* arguments,
+                        const Substitution& with, LocationId source);
+Node* expandVecStoreUpTo(Builder& builder, Function& callee, Node* const* arguments,
+                         const Substitution& with, LocationId source);
+
 // The one emitter with an arity, because there are seven declarations and one operation.
 Node* expandSyscall(Builder& builder, Function& callee, Node* const* arguments, Size count,
                     const Substitution& with, LocationId source);

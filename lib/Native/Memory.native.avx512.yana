@@ -1,0 +1,38 @@
+{-
+   The short rung of `copyMemory` and `moveMemory` at `avx512` - the body of `blockShort`
+   (Memory.native.yana) with the ladder below one register replaced by one masked load and one masked
+   store (Design-Replacements.md, Analysis-Avx512.md §3.5).
+
+   **Branch-free below the register, and that is the whole of what it buys.** The ladder is four
+   comparisons deep, and every one of them is a branch on the count: where a program copies one
+   length over and over they are predicted and the ladder is as fast as anything, but where the length
+   moves they are not, and a mispredicted rung costs more than the copy. `storeUpTo(to, n,
+   loadUpTo(from, n))` is `bzhi`, `kmovd` and two masked moves at every count, and neither touches a
+   byte past it. Measured on Zen 5 (test/bench/avx512/findings.md §9), a hundred thousand copies of
+   random lengths below the register were 2.8x faster; a fixed length of three, eight or fifteen bytes
+   was 1-5% slower, where the ladder's branches are all predicted, and one of twenty-four was 15%
+   faster. Below `avx512` the same two calls are a ladder of their own through a frame slot and were
+   3.6x slower than `blockShort`, which is why this is a replacement at this level only.
+
+   **Still correct for any two addresses.** The load is issued before the store, so a move whose
+   regions overlap reads every byte before any is written - the ladder's own argument, with one rung.
+
+   The count is at least one and below the width by the time it is used, so `and (width - 1)` changes
+   nothing about it and tells the backend so: the mask needs no clamp in front of `bzhi`.
+-}
+@replaces
+fn blockShort(to: %U8, from: %U8, count: Size):
+    let width = vectorBytes
+
+    if count >= width:
+        let low = vectorAt(from)
+        let high = vectorAt(from + (count - width))
+        setVectorAt(to, low)
+        setVectorAt(to + (count - width), high)
+        return
+
+    if count <= 0 then return
+
+    let lanesUsed = truncate(count `and` (width - 1)) :: Int
+    storeUpTo(to, lanesUsed, loadUpTo(from, lanesUsed) :: Vec(U8))
+    return

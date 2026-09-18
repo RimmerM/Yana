@@ -365,6 +365,32 @@ YANA_LOWER_INST(Copy,          LowerInstCopy,           "copy"_v,            3, 
 YANA_LOWER_INST(SetPattern,    LowerInstSetPattern,     "setpattern"_v,      3,         0,        kLowerPlain | kLowerWrites)
 
 /*
+ * The vector transfers that stop at a lane count - `loadUpTo` and `storeUpTo`, Analysis-Avx512.md
+ * §3.5.
+ *
+ *  - `VecLoadUpTo(from, count)` reads the first `count` lanes of its vector type at `from` and
+ *    answers zero in the rest.
+ *  - `VecStoreUpTo(to, count, value)` writes the first `count` lanes of `value` at `to`, and nothing
+ *    past them.
+ *
+ * The count is an integer number of *lanes*, and every value of it means something: at or below
+ * zero nothing is transferred, and at or above the lane count the whole vector is. Neither touches a
+ * byte past the count, which is the point of both - the load cannot fault where a whole-vector read
+ * could, and the store is the one vector store that can end anywhere.
+ *
+ * **Neither declares an access**, and that is deliberate rather than an omission. An access is an
+ * address and an extent, and the extent here is `count` lanes clamped to the vector - which no pass
+ * that reads `LowerAccess` can express: stated as the whole vector it would let a store forward
+ * lanes it never wrote and let a hoisted load vouch for bytes it never read. With none declared,
+ * every pass reads each as an instruction that touches storage through an address it cannot follow,
+ * which is what a call is, and gives the address up as escaped.
+ *
+ * Plain, like `Load` and `Store`: everything either computes is its operands.
+ */
+YANA_LOWER_INST(VecLoadUpTo,   LowerInstVecLoadUpTo,    "vloadupto"_v,       2,         1,        kLowerPlain | kLowerReads)
+YANA_LOWER_INST(VecStoreUpTo,  LowerInstVecStoreUpTo,   "vstoreupto"_v,      3,         0,        kLowerPlain | kLowerWrites)
+
+/*
  * The atomics - Analysis-Atomics.md §5.1.
  *
  * Instruction kinds rather than intrinsics, and that is the whole of the decision. An
@@ -622,6 +648,23 @@ YANA_LOWER_INST(X86MaskCompare, LowerInstX86MaskCompare, "x86_maskcompare"_v, kA
  * does not fit in eight bits.
  */
 YANA_LOWER_INST(X86MaskedOp,   LowerInstX86MaskedOp,    "x86_maskedop"_v,    3,         1,        kLowerPure | kLowerRepeatable)
+
+/*
+ * A vector load and store under a mask - what `VecLoadUpTo` and `VecStoreUpTo` become where the
+ * target has the instruction (`lowerMaskedTransfers` in codegen/x64/transform_transfer.cpp).
+ *
+ * `X86MaskedLoad(address, mask)` reads the lanes the mask sets and answers zero in the rest;
+ * `X86MaskedStore(address, mask, value)` writes the lanes the mask sets and leaves the rest of memory
+ * as it was. Neither faults on a lane its mask clears, which is the property the portable pair is
+ * built on. The mask is a mask register at `avx512` (`vmovdqu8`..`64`, `vmovups`/`vmovupd` under
+ * `{k}`) and a vector of whole-lane masks at `avx2`, where only four- and eight-byte lanes have the
+ * instruction (`vpmaskmovd`/`q`).
+ *
+ * Backend-private on `X86MaskedOp`'s terms, and plain and addressless on the portable pair's: the
+ * address is operand zero, which is what lets `selectAddressesAndLeas` fold it as it folds a load's.
+ */
+YANA_LOWER_INST(X86MaskedLoad,  LowerInstX86MaskedLoad,  "x86_maskedload"_v,  2,        1,        kLowerPlain | kLowerReads)
+YANA_LOWER_INST(X86MaskedStore, LowerInstX86MaskedStore, "x86_maskedstore"_v, 3,        0,        kLowerPlain | kLowerWrites)
 
 /*
  * Any bitwise function of three vectors, lane-wise - `vpternlogd` (Analysis-Avx512.md §2.3).

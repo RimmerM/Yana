@@ -1,0 +1,108 @@
+# `loadUpTo` and `storeUpTo` at `sse4` - Analysis-Avx512.md §3.5, `lowerMaskedTransfers` in
+# codegen/x64/transform_transfer.cpp.
+#
+#   - **no instruction at any lane**, so each is `blockShort`'s ladder through a frame slot: a signed
+#     test of the count against the lanes takes the whole vector, and below it a tree of signed tests
+#     on the byte count picks one rung - two overlapping transfers of 8, 4, 2 bytes, or one byte -
+#     with no rung at all for a count at or below zero;
+#   - the load zeroes its slot with one store and reads it back; the store spills the vector and
+#     copies out of it;
+#   - a constant count needs no test: nothing at zero, the whole vector at the lane count.
+#
+# extensions: sse4
+
+loadUpTo8x16(%p: Ptr, %n: I64): i8x16 {
+    {
+        %r = vloadupto %p, %n: i8x16
+        ret %r
+    }
+}
+
+storeUpTo8x16(%p: Ptr, %n: I64, %v: i8x16) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTo16x8(%p: Ptr, %n: I64): i16x8 {
+    {
+        %r = vloadupto %p, %n: i16x8
+        ret %r
+    }
+}
+
+storeUpTo16x8(%p: Ptr, %n: I64, %v: i16x8) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTo32x4(%p: Ptr, %n: I64): i32x4 {
+    {
+        %r = vloadupto %p, %n: i32x4
+        ret %r
+    }
+}
+
+storeUpTo32x4(%p: Ptr, %n: I64, %v: i32x4) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTo64x2(%p: Ptr, %n: I64): i64x2 {
+    {
+        %r = vloadupto %p, %n: i64x2
+        ret %r
+    }
+}
+
+storeUpTo64x2(%p: Ptr, %n: I64, %v: i64x2) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTof32x4(%p: Ptr, %n: I64): f32x4 {
+    {
+        %r = vloadupto %p, %n: f32x4
+        ret %r
+    }
+}
+
+storeUpTof32x4(%p: Ptr, %n: I64, %v: f32x4) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+loadUpTof64x2(%p: Ptr, %n: I64): f64x2 {
+    {
+        %r = vloadupto %p, %n: f64x2
+        ret %r
+    }
+}
+
+storeUpTof64x2(%p: Ptr, %n: I64, %v: f64x2) {
+    {
+        vstoreupto %p, %n, %v
+        ret
+    }
+}
+
+storeUpToConstants8x16(%p: Ptr, %v: i8x16) {
+    {
+        %none = imm 0L: I64
+        vstoreupto %p, %none, %v
+        %all = imm 16L: I64
+        vstoreupto %p, %all, %v
+        %some = imm 5L: I64
+        vstoreupto %p, %some, %v
+        ret
+    }
+}

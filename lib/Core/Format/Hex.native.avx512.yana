@@ -45,9 +45,13 @@ fn pushHex(bytes: [U8], &to: String):
         setVectorAt(target + i + i + 32, high32)
         i = i + 32
 
-    -- The ragged end, one byte at a time - see the baseline for why there is no overreading store.
-    while i < n:
-        let byte = bytes[i] :: Int
-        store(target + i + i, hexUnit(byte `shr` 4))
-        store(target + i + i + 1, hexUnit(byte `and` 15))
-        i = i + 1
+    -- The ragged end, as the baseline writes it at thirty-two bytes: `2r` units, the first thirty-two
+    -- in the low interleave.
+    if i < n:
+        let block = vectorPast(source + i) :: Vec(U8)
+        let highText = lookup(digits, block `shr` (splat(4) :: Vec(U8)))
+        let lowText = lookup(digits, block)
+        let units = truncate((n - i) + (n - i)) :: Int
+
+        storeUpTo(target + i + i, units `and` 63, bitcast(interleaveLow(highText, lowText)) :: Vec(CodeUnit))
+        storeUpTo(target + i + i + 32, units - 32, bitcast(interleaveHigh(highText, lowText)) :: Vec(CodeUnit))

@@ -1406,6 +1406,42 @@ static void genSetPattern(FunGen& f, LowerInstSetPattern& inst) {
 }
 
 /*
+ * The transfers that stop at a lane count - `LowerInst::VecLoadUpTo` and `VecStoreUpTo`.
+ *
+ * LLVM's own masked load and store, whose masked-off lanes are exactly the ones the instructions do
+ * not touch: a lane the mask clears is neither read nor written, and the load's pass-through is zero.
+ * The mask is lane `i < count` compared at 64 bits, so that every count means what the row says - at
+ * or below zero no lane, at or above the lane count every lane - without a clamp. What LLVM makes of
+ * the pair is its target's business: one masked move at AVX-512, `vpmaskmov` at AVX2's wide lanes,
+ * and a lane-by-lane branch sequence where there is neither.
+ */
+static llvm::Value* lanesUpTo(FunGen& f, llvm::Value* count, unsigned lanes) {
+    auto i64 = llvm::Type::getInt64Ty(f.gen.llvm);
+    llvm::SmallVector<llvm::Constant*, 64> steps;
+    for(unsigned i = 0; i < lanes; i++) steps.push_back(llvm::ConstantInt::get(i64, i));
+
+    auto bound = f.builder.CreateVectorSplat(lanes, f.builder.CreateSExtOrTrunc(count, i64));
+    return f.builder.CreateICmpSLT(llvm::ConstantVector::get(steps), bound);
+}
+
+static void genVecLoadUpTo(FunGen& f, LowerInstVecLoadUpTo& inst) {
+    auto type = llvm::cast<llvm::FixedVectorType>(typeOf(f.gen, inst.result.type));
+    auto mask = lanesUpTo(f, use(f, inst, inst.count), type->getNumElements());
+
+    auto value = f.builder.CreateMaskedLoad(type, use(f, inst, inst.from), llvm::Align(1), mask,
+                                            llvm::Constant::getNullValue(type), nameOf(f, inst.result));
+    f.define(inst.result, value);
+}
+
+static void genVecStoreUpTo(FunGen& f, LowerInstVecStoreUpTo& inst) {
+    auto value = use(f, inst, inst.value);
+    auto type = llvm::cast<llvm::FixedVectorType>(value->getType());
+    auto mask = lanesUpTo(f, use(f, inst, inst.count), type->getNumElements());
+
+    f.builder.CreateMaskedStore(value, use(f, inst, inst.to), llvm::Align(1), mask);
+}
+
+/*
  * Calls.
  */
 
@@ -1661,6 +1697,12 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::SetPattern:
             genSetPattern(f, (LowerInstSetPattern&)inst);
             break;
+        case LowerInst::VecLoadUpTo:
+            genVecLoadUpTo(f, (LowerInstVecLoadUpTo&)inst);
+            break;
+        case LowerInst::VecStoreUpTo:
+            genVecStoreUpTo(f, (LowerInstVecStoreUpTo&)inst);
+            break;
         case LowerInst::AtomicLoad:
             genAtomicLoad(f, (LowerInstAtomicLoad&)inst);
             break;
@@ -1715,6 +1757,8 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::X86MaskConvert:
         case LowerInst::X86MaskCompare:
         case LowerInst::X86MaskedOp:
+        case LowerInst::X86MaskedLoad:
+        case LowerInst::X86MaskedStore:
         case LowerInst::X86TernaryLogic:
         case LowerInst::X86Permute2:
         case LowerInst::X86StoreOp:

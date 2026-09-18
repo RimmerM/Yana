@@ -292,8 +292,12 @@ pub class Lanewise(v -> m):
    Design-Vector §4.4 asks for this to be a load from a `.rodata` table indexed by the count, on the
    grounds that a short chunk has no full-width iterations to amortize a computed mask against. It is
    the comparison today; the table is a change behind this name and nothing that calls it moves.
+
+   The lane count is a const parameter with a default, as `zero`'s and `iota`'s are: the natural
+   width where nothing says otherwise, and `maskUpTo(n) :: Mask(U8, 16)` where a sixteen-lane block
+   wants its own tail mask.
 -}
-@builtin(maskUpTo) pub fn maskUpTo(count: Int) -> Mask(a)
+@builtin(maskUpTo) pub fn (n: Int = 0) maskUpTo(count: Int) -> Mask(a, n)
 
 {-
    The lanes a mask keeps, packed to the bottom - Analysis-Avx512.md §3.1.
@@ -339,3 +343,50 @@ pub fn (n: Int) compress(vector: Vec(a, n), keep: Mask(a, n)) -> {Vec(a, n), Int
 
 @inline(always)
 pub fn (n: Int) permute(vector: Vec(a, n), indices: Vec(b, n)) -> Vec(a, n) = lookup(vector, indices)
+
+{-
+   Byte-set membership - Analysis-Avx512.md §3.4: which lanes of a byte vector are one of a set of
+   ASCII units, at a cost that does not depend on how many units the set has.
+
+   **A bitmap read by two lookups**, which is the "shufti" classification with the buckets taken out.
+   `rows` has one byte per low nibble, and bit `h` of the byte at `lo` says whether the unit `h * 16 +
+   lo` is a member - so every ASCII unit has its own bit, and there is no set this cannot hold. A
+   lane is a member when its row, `lookup(rows, lane)` - the index is taken modulo sixteen, which is
+   the low nibble - has the bit its high nibble names; that bit is a second lookup, into a table of
+   `1 << h` for the eight ASCII high nibbles and zero for the rest, which is what keeps a unit at or
+   above 128 out of every set. Two `pshufb`, a shift, two `and` and a comparison below `avx512`; the
+   tables are loop invariants.
+
+   **Library code rather than the builtin §3.4 proposed.** The proposal was a compile-time set and
+   `vpshufbitqmb` at `avx512` - one instruction fewer per block than this there, and a set nothing
+   could build while a program runs. `lookup` is what makes the rest of the sequence expressible, and
+   a set built at run time is what `findAsciiAny` is handed.
+
+   `byteSet` is the set of `units`, which may be bytes or code units - anything that widens to an
+   `Int`; a unit at or above 128 is ignored, being a member of no set.
+-}
+pub data ByteSet {rows: Vec(U8, 16)}
+
+pub fn (Widen(a, Int)) byteSet(units: [a]) -> ByteSet:
+    let lowNibbles = iota() :: Vec(U8, 16)
+    let &rows = zero() :: Vec(U8, 16)
+
+    for written in items(units):
+        let unit = widen(written) :: Int
+        if unit is 0..128:
+            let bit = truncate(1 `shl` (unit `shr` 4)) :: U8
+            let row = lowNibbles .== (splat(truncate(unit `and` 15) :: U8) :: Vec(U8, 16))
+            rows = or(rows, select(row, splat(bit) :: Vec(U8, 16), zero() :: Vec(U8, 16)))
+
+    return ByteSet {rows: rows}
+
+-- Whether each lane of `bytes` is a member of `set`.
+pub fn (n: Int) memberOf(bytes: Vec(U8, n), set: ByteSet) -> Mask(U8, n):
+    let row = lookup(set.rows, bytes)
+    let column = lookup(highNibbleBits(), bytes `shr` (splat(4 :: U8) :: Vec(U8, n)))
+    return and(row, column) .!= (zero() :: Vec(U8, n))
+
+-- `1 << h` at the eight ASCII high nibbles and zero at the other eight.
+fn highNibbleBits() -> Vec(U8, 16):
+    let low = withLane(withLane(withLane(withLane(zero() :: Vec(U8, 16), 0, 1), 1, 2), 2, 4), 3, 8)
+    return withLane(withLane(withLane(withLane(low, 4, 16), 5, 32), 6, 64), 7, 128)

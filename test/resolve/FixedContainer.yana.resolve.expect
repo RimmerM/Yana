@@ -4,11 +4,11 @@ table closure$Core.continuation$1([I32 *3], I32, ()) before Core.continuation$1(
 
 let image$base: () = <none>
 
-table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
+table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$22([I32 *3]) before ResolveTest.continuation$22([I32 *3]) {
+table closure$ResolveTest.continuation$21([I32 *3]) before ResolveTest.continuation$21([I32 *3]) {
   .0 teardown$none
 }
 
@@ -1047,7 +1047,7 @@ fn abortProcess() -> () {
     init %local2.sum, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: I32) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$22 : %()
+    %v10 = symbol ResolveTest.continuation$21 : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = gencall items(c, I32, ()), %xs, %v9 : Outcome((), ())
@@ -1155,7 +1155,7 @@ fn main() -> I64 {
     ret %v110
 }
 
-(Chunked(c, I32), Length(ArrayView(I32)), Index(ArrayView(I32), Size, I32)) fn ResolveTest.continuation$22(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
+(Chunked(c, I32), Length(ArrayView(I32)), Index(ArrayView(I32), Size, I32)) fn ResolveTest.continuation$21(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type {sum: &I32}
@@ -1184,7 +1184,7 @@ fn total([I32 *3])(%xs: [I32 *3]) -> I32 {
     init %local2.sum, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: I32) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$22([I32 *3]) : %()
+    %v9 = symbol ResolveTest.continuation$21([I32 *3]) : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call items([I32 *3], I32, ()), %xs, %v8 : Outcome((), ())
@@ -1192,7 +1192,7 @@ fn total([I32 *3])(%xs: [I32 *3]) -> I32 {
     ret %v13
 }
 
-fn ResolveTest.continuation$22([I32 *3])(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$21([I32 *3])(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &I32
     %v3 = load [%env].sum : &I32

@@ -10,39 +10,39 @@ let &heapRegionNext: Size = 0
 
 let &trace: I32 = 0
 
+table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
+  .0 teardown$none
+}
+
 table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
+table closure$ResolveTest.lambda$23 before ResolveTest.lambda$23 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.lambda$24 before ResolveTest.lambda$24 {
+table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
+table closure$ResolveTest.continuation$22(()) before ResolveTest.continuation$22(()) {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$23(()) before ResolveTest.continuation$23(()) {
+table closure$ResolveTest.continuation$21(Outcome((), ())) before ResolveTest.continuation$21(Outcome((), ())) {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$22(Outcome((), ())) before ResolveTest.continuation$22(Outcome((), ())) {
+table closure$ResolveTest.lambda$25 before ResolveTest.lambda$25 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.lambda$26 before ResolveTest.lambda$26 {
+table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
   .0 teardown$none
 }
 
 table closure$ResolveTest.continuation$27 before ResolveTest.continuation$27 {
-  .0 teardown$none
-}
-
-table closure$ResolveTest.continuation$28 before ResolveTest.continuation$28 {
   .0 teardown$none
 }
 
@@ -1235,7 +1235,7 @@ fn doubled(%xs: ArrayView(I32), %by: (I32) -> I32, %body: (value$: I32) -> Outco
     init %local3.by, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: I32) -> Outcome((), Outcome((), $r))
-    %v10 = symbol ResolveTest.continuation$22 : %()
+    %v10 = symbol ResolveTest.continuation$21 : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = gencall each(Outcome((), $r)), %xs, %v9 : Outcome((), Outcome((), $r))
@@ -1268,7 +1268,7 @@ fn keptOdd(%xs: ArrayView(I32), %by: (I32) -> I32, %body: (value$: I32) -> Outco
     init %local3.body, %v4
     %v6 = addressof %local3 : %()
     %v7 = alloc : (value$: I32) -> Outcome((), Outcome((), $r))
-    %v8 = symbol ResolveTest.continuation$23 : %()
+    %v8 = symbol ResolveTest.continuation$22 : %()
     init %local4.code, %v8
     init %local4.env, %v6
     %v11 = gencall doubled(Outcome((), $r)), %xs, %by, %v7 : Outcome((), Outcome((), $r))
@@ -1332,7 +1332,7 @@ fn chain(%xs: ArrayView(I32), %scale: I32) -> I32 {
     init %local2.scale, %scale
     %v7 = addressof %local2 : %()
     %v8 = alloc : (I32) -> I32
-    %v9 = symbol ResolveTest.lambda$24 : %()
+    %v9 = symbol ResolveTest.lambda$23 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = alloc : {total: &I32}
@@ -1340,7 +1340,7 @@ fn chain(%xs: ArrayView(I32), %scale: I32) -> I32 {
     init %local4.total, %v13
     %v15 = addressof %local4 : %()
     %v16 = alloc : (value$: I32) -> Outcome((), ())
-    %v17 = symbol ResolveTest.continuation$25 : %()
+    %v17 = symbol ResolveTest.continuation$24 : %()
     init %local5.code, %v17
     init %local5.env, %v15
     %v20 = call keptOdd(()), %xs, %v8, %v16 : Outcome((), ())
@@ -1356,7 +1356,7 @@ fn chainBreak(%xs: ArrayView(I32), %scale: I32, %stop: I32) -> I32 {
     init %local2.scale, %scale
     %v8 = addressof %local2 : %()
     %v9 = alloc : (I32) -> I32
-    %v10 = symbol ResolveTest.lambda$26 : %()
+    %v10 = symbol ResolveTest.lambda$25 : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = alloc : {total: &I32, stop: I32}
@@ -1365,7 +1365,7 @@ fn chainBreak(%xs: ArrayView(I32), %scale: I32, %stop: I32) -> I32 {
     init %local4.stop, %stop
     %v17 = addressof %local4 : %()
     %v18 = alloc : (value$: I32) -> Outcome((), ())
-    %v19 = symbol ResolveTest.continuation$27 : %()
+    %v19 = symbol ResolveTest.continuation$26 : %()
     init %local5.code, %v19
     init %local5.env, %v17
     %v22 = call keptOdd(()), %xs, %v9, %v18 : Outcome((), ())
@@ -1383,7 +1383,7 @@ fn nested(%depth: I32) -> I32 {
     init %local1.total, %v7
     %v9 = addressof %local1 : %()
     %v10 = alloc : (value$: I32) -> Outcome((), ())
-    %v11 = symbol ResolveTest.continuation$28 : %()
+    %v11 = symbol ResolveTest.continuation$27 : %()
     init %local2.code, %v11
     init %local2.env, %v9
     %v14 = call upTo(()), 3, %v10 : Outcome((), ())
@@ -1450,7 +1450,7 @@ fn main() -> I32 {
     jmp b1
 }
 
-fn ResolveTest.continuation$22(%env: %{body: '(value$: I32) -> Outcome((), $r), by: '(I32) -> I32}, %value$: I32) -> Outcome((), Outcome((), $r)) {
+fn ResolveTest.continuation$21(%env: %{body: '(value$: I32) -> Outcome((), $r), by: '(I32) -> I32}, %value$: I32) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type $r
     #1 type Outcome((), Outcome((), $r))
@@ -1481,7 +1481,7 @@ fn ResolveTest.continuation$22(%env: %{body: '(value$: I32) -> Outcome((), $r), 
     ret %v12
 }
 
-fn ResolveTest.continuation$23(%env: %{body: '(value$: I32) -> Outcome((), $r)}, %value$: I32) -> Outcome((), Outcome((), $r)) {
+fn ResolveTest.continuation$22(%env: %{body: '(value$: I32) -> Outcome((), $r)}, %value$: I32) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type $r
     #1 type Outcome((), Outcome((), $r))
@@ -1520,7 +1520,7 @@ fn ResolveTest.continuation$23(%env: %{body: '(value$: I32) -> Outcome((), $r)},
     ret %v18
 }
 
-fn ResolveTest.lambda$24(%env: %{scale: I32}, %v: I32) -> I32 {
+fn ResolveTest.lambda$23(%env: %{scale: I32}, %v: I32) -> I32 {
   b0:
     %v2 = load [%env].scale : I32
     %v3 = mul %v, %v2 : I32
@@ -1528,7 +1528,7 @@ fn ResolveTest.lambda$24(%env: %{scale: I32}, %v: I32) -> I32 {
     ret %v6
 }
 
-fn ResolveTest.continuation$25(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$24(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &I32
     %v3 = load [%env].total : &I32
@@ -1547,7 +1547,7 @@ fn keptOdd(())(%xs: ArrayView(I32), %by: (I32) -> I32, %body: (value$: I32) -> O
     init %local3.body, %v4
     %v6 = addressof %local3 : %()
     %v7 = alloc : (value$: I32) -> Outcome((), Outcome((), ()))
-    %v8 = symbol ResolveTest.continuation$23(()) : %()
+    %v8 = symbol ResolveTest.continuation$22(()) : %()
     init %local4.code, %v8
     init %local4.env, %v6
     %v11 = call doubled(Outcome((), ())), %xs, %by, %v7 : Outcome((), Outcome((), ()))
@@ -1565,7 +1565,7 @@ fn keptOdd(())(%xs: ArrayView(I32), %by: (I32) -> I32, %body: (value$: I32) -> O
     ret %v18
 }
 
-fn ResolveTest.continuation$23(())(%env: %{body: '(value$: I32) -> Outcome((), ())}, %value$: I32) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$22(())(%env: %{body: '(value$: I32) -> Outcome((), ())}, %value$: I32) -> Outcome((), Outcome((), ())) {
   b0:
     %v3 = and %value$, 1 : I32
     %v5 = cmp_ne %v3, 0 : Bool
@@ -1605,7 +1605,7 @@ fn doubled(Outcome((), ()))(%xs: ArrayView(I32), %by: (I32) -> I32, %body: (valu
     init %local3.by, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: I32) -> Outcome((), Outcome((), Outcome((), ())))
-    %v10 = symbol ResolveTest.continuation$22(Outcome((), ())) : %()
+    %v10 = symbol ResolveTest.continuation$21(Outcome((), ())) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call each(Outcome((), Outcome((), ()))), %xs, %v9 : Outcome((), Outcome((), Outcome((), ())))
@@ -1623,7 +1623,7 @@ fn doubled(Outcome((), ()))(%xs: ArrayView(I32), %by: (I32) -> I32, %body: (valu
     ret %v20
 }
 
-fn ResolveTest.continuation$22(Outcome((), ()))(%env: %{body: '(value$: I32) -> Outcome((), Outcome((), ())), by: '(I32) -> I32}, %value$: I32) -> Outcome((), Outcome((), Outcome((), ()))) {
+fn ResolveTest.continuation$21(Outcome((), ()))(%env: %{body: '(value$: I32) -> Outcome((), Outcome((), ())), by: '(I32) -> I32}, %value$: I32) -> Outcome((), Outcome((), Outcome((), ()))) {
   b0:
     %v2 = load [%env].body : '(value$: I32) -> Outcome((), Outcome((), ()))
     %v3 = load [%v2] : (value$: I32) -> Outcome((), Outcome((), ()))
@@ -1697,7 +1697,7 @@ fn each(Outcome((), Outcome((), ())))(%xs: ArrayView(I32), %body: (value$: I32) 
     jmp b1
 }
 
-fn ResolveTest.lambda$26(%env: %{scale: I32}, %v: I32) -> I32 {
+fn ResolveTest.lambda$25(%env: %{scale: I32}, %v: I32) -> I32 {
   b0:
     %v2 = load [%env].scale : I32
     %v3 = mul %v, %v2 : I32
@@ -1705,7 +1705,7 @@ fn ResolveTest.lambda$26(%env: %{scale: I32}, %v: I32) -> I32 {
     ret %v6
 }
 
-fn ResolveTest.continuation$27(%env: %{total: &I32, stop: I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$26(%env: %{total: &I32, stop: I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &I32
     %v3 = load [%env].total : &I32
@@ -1732,7 +1732,7 @@ fn ResolveTest.continuation$27(%env: %{total: &I32, stop: I32}, %value$: I32) ->
     ret %v13
 }
 
-fn ResolveTest.continuation$28(%env: %{depth: I32, total: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$27(%env: %{depth: I32, total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].depth : I32
     %v5 = cmp_gt %v2, 0 : Bool

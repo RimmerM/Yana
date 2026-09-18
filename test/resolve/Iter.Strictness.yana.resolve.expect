@@ -1,10 +1,10 @@
 let image$base: () = <none>
 
-table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
+table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
+table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
 }
 
@@ -46,7 +46,7 @@ fn main() -> I32 {
     init %local2.total, %v7
     %v9 = addressof %local2 : %()
     %v10 = alloc : (value$: I32) -> Outcome((), ())
-    %v11 = symbol ResolveTest.continuation$22 : %()
+    %v11 = symbol ResolveTest.continuation$21 : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = call walk(()), %v3, %v10 : Outcome((), ())
@@ -57,7 +57,7 @@ fn main() -> I32 {
     init %local6.total, %v19
     %v21 = addressof %local6 : %()
     %v22 = alloc : (value$: I32) -> Outcome((), ())
-    %v23 = symbol ResolveTest.continuation$23 : %()
+    %v23 = symbol ResolveTest.continuation$22 : %()
     init %local7.code, %v23
     init %local7.env, %v21
     %v26 = call Streamed(Bag).walk(()), %v15, %v22 : Outcome((), ())
@@ -87,7 +87,7 @@ fn Streamed(Bag).walk(%self: Bag, %body: (value$: I32) -> Outcome((), $r)) -> Ou
     ret %v9
 }
 
-fn ResolveTest.continuation$22(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$21(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &I32
     %v3 = load [%env].total : &I32
@@ -116,7 +116,7 @@ fn walk(())(%b: Box, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ())
     ret %v9
 }
 
-fn ResolveTest.continuation$23(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &I32
     %v3 = load [%env].total : &I32

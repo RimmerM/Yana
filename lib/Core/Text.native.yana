@@ -136,21 +136,21 @@ pub fn findLastAscii(self: String, unit: CodeUnit) -> Maybe(Size):
    candidate count from one to five, because the splats have to be in registers and a count known at
    compile time is what puts them there.
 
-   Here it is one loop with the candidates walked inside it, and the trade is explicit: each candidate
-   costs a splat, a compare and an `or` per block instead of a compare and an `or`, so a two-candidate
-   scan does six vector operations per block where the hand-unrolled C++ does four. That is a constant
-   factor on a loop that is still reading a whole vector per iteration, against five copies of a
-   function - and the copies could not take a set decided at run time at all.
+   **One membership test per block, whatever the set** - `memberOf` over a `ByteSet` built once in
+   front of the loop (Analysis-Avx512.md §3.4): two `pshufb`, a shift, two `and` and a comparison
+   per block, where the loop this replaced did a splat, a compare and an `or` for each candidate.
+   Measured over a megabyte at every level, the set costs the same at one unit as at six and beats the
+   candidate walk at every count from one - 1.3x at one unit and 3.7x at six at `sse4`, 1.1x and
+   2.9x at `avx2`, 1.2x and 4.4x at `avx512` (test/bench/avx512/findings.md §9). The copies of the C++
+   loop per candidate count that this was written to avoid are not needed either.
 
-   The mask starts empty rather than at the first candidate's compare, which is what `maskUpTo(0)` is:
-   the tail mask at a count of zero is the all-clear mask, and it folds to a constant.
+   **A unit at or above 128 in the set is ignored**, which is the set's own rule and what the name
+   says: no unit of a multi-unit UTF-8 sequence is ASCII, so a search for one could only ever find
+   the middle of a code point. `Text.js.yana` states the same.
 
-   The tail past the last whole block is currently walked one unit at a time against the same set,
-   which is `contains` over the candidates - a container operation, and the same one the vector
-   half spells with `or`. This is not required for memory safety: `loadVectorTail` plus
-   `and(hits, maskUpTo(truncate(span - i) :: Int))` can keep padding matches out of the answer. It
-   remains scalar until that tail is measured against the setup cost, as Analysis-Avx512.md §4.13
-   records.
+   **The tail is one more block** read past the end on the window's padding, with the lanes past the
+   end masked off before `any` - where it used to be a unit at a time against the set, which
+   Analysis-Avx512.md §4.13 found to be a policy rather than a requirement.
 -}
 pub fn findAsciiAny(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(Size):
     let count = length(self)
@@ -161,33 +161,26 @@ pub fn findAsciiAny(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(Si
     let window = slice(allUnits(self), begin, count)
     let span = length(window)
     let width = vectorBytes
-    let last = span - width
+    let set = byteSet(units)
     let &i = 0 :: Size
 
-    while i <= last:
-        let block = loadVector(window, i)
-        let &hits = maskUpTo(0) :: Mask(CodeUnit)
-
-        for candidate in items(units):
-            hits = or(hits, block .== (splat(candidate) :: Vec(CodeUnit)))
-
+    while i + width <= span:
+        let hits = memberOf(bitcast(loadVector(window, i)) :: Vec(U8), set)
         if any(hits) then return Just(begin + i + (firstSet(hits) :: Size))
         i = i + width
 
-    while i < span:
-        if contains(units, window[i]) then return Just(begin + i)
-        i = i + 1
+    if i < span:
+        let live = maskUpTo(truncate(span - i) :: Int) :: Mask(U8)
+        let hits = and(memberOf(bitcast(loadVectorTail(window, i)) :: Vec(U8), set), live)
+        if any(hits) then return Just(begin + i + (firstSet(hits) :: Size))
 
     return Nothing
 
 {-
    And the inverse - the first unit that is *not* one of them, which is `findCharInverse`.
 
-   The same mask, negated. The current loop runs over whole blocks and hands the remainder to the
-   scalar walk, so it never admits padding lanes. That is a policy rather than a requirement: an
-   overreading tail can compute `and(not(hits), maskUpTo(truncate(span - i) :: Int))`, applying the
-   live mask *after* the inversion so padding cannot report a miss. It remains scalar pending the
-   measurement in Analysis-Avx512.md §4.13.
+   The same mask, negated - and in the tail the live mask is applied *after* the negation, so that a
+   lane past the end, which is no member of anything, cannot report itself as the miss.
 -}
 pub fn findAsciiNone(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(Size):
     let count = length(self)
@@ -199,23 +192,18 @@ pub fn findAsciiNone(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(S
     let window = slice(allUnits(self), begin, count)
     let span = length(window)
     let width = vectorBytes
-    let last = span - width
+    let set = byteSet(units)
     let &i = 0 :: Size
 
-    while i <= last:
-        let block = loadVector(window, i)
-        let &hits = maskUpTo(0) :: Mask(CodeUnit)
-
-        for candidate in items(units):
-            hits = or(hits, block .== (splat(candidate) :: Vec(CodeUnit)))
-
-        let misses = not(hits)
+    while i + width <= span:
+        let misses = not(memberOf(bitcast(loadVector(window, i)) :: Vec(U8), set))
         if any(misses) then return Just(begin + i + (firstSet(misses) :: Size))
         i = i + width
 
-    while i < span:
-        if !contains(units, window[i]) then return Just(begin + i)
-        i = i + 1
+    if i < span:
+        let live = maskUpTo(truncate(span - i) :: Int) :: Mask(U8)
+        let misses = and(not(memberOf(bitcast(loadVectorTail(window, i)) :: Vec(U8), set)), live)
+        if any(misses) then return Just(begin + i + (firstSet(misses) :: Size))
 
     return Nothing
 
@@ -412,9 +400,14 @@ pub fn String.findLast(haystack: String, needle: String) -> Maybe(Size):
    a run and no units, and the store loop needs a destination whose length is already what it will
    be. Nothing reads the string in between.
 
-   The store loop stops a whole vector short of the end and the remainder goes one unit at a time,
-   because there is no overreading *store*: a write past the end of the run is the destruction of
-   whatever follows it, not a read of unspecified bytes.
+   **The remainder is one more block**, read past the end on the run's padding (Design-Vector §5.2)
+   and written with `storeUpTo`, which stops at the count: a write past the end of the run would be
+   the destruction of whatever follows it, where a read past it is only unspecified bytes. It used to
+   be a unit at a time, and one masked block is faster at every length from three units up at every
+   level - 2.1x at three and 7-11x from fifteen at `avx512`, where `storeUpTo` is one instruction,
+   and 1.7-11x through the ladder below it (test/bench/avx512/findings.md §9). The count is taken
+   `and (width - 1)`, which changes nothing - it is below the width - and says so to the backend,
+   which then needs no clamp in front of the mask.
 -}
 pub fn toLowerAscii(text: String) -> String:
     let count = length(text)
@@ -439,9 +432,11 @@ pub fn toLowerAscii(text: String) -> String:
         setVectorAt(target + i, bitcast(select(letters, block + bias, block)) :: Vec(CodeUnit))
         i = i + width
 
-    while i < count:
-        store(target + i, toLowerUnit(text.unit(i)))
-        i = i + 1
+    if i < count:
+        let block = bitcast(vectorPast(source + i) :: Vec(CodeUnit)) :: Vec(I8)
+        let letters = and(block .> low, block .< high)
+        storeUpTo(target + i, truncate((count - i) `and` (width - 1)) :: Int,
+                  bitcast(select(letters, block + bias, block)) :: Vec(CodeUnit))
 
     return out
 
@@ -468,9 +463,11 @@ pub fn toUpperAscii(text: String) -> String:
         setVectorAt(target + i, bitcast(select(letters, block - bias, block)) :: Vec(CodeUnit))
         i = i + width
 
-    while i < count:
-        store(target + i, toUpperUnit(text.unit(i)))
-        i = i + 1
+    if i < count:
+        let block = bitcast(vectorPast(source + i) :: Vec(CodeUnit)) :: Vec(I8)
+        let letters = and(block .> low, block .< high)
+        storeUpTo(target + i, truncate((count - i) `and` (width - 1)) :: Int,
+                  bitcast(select(letters, block - bias, block)) :: Vec(CodeUnit))
 
     return out
 
@@ -490,7 +487,9 @@ pub fn toUpperAscii(text: String) -> String:
    byte of a longer sequence is negative and outside `\t`..`\r` without a third comparison.
 
    The store at `kept` writes a register's width, and `kept <= i` keeps it inside the capacity the
-   answer was made with; the tail is a unit at a time, for `toLowerAscii`'s reason.
+   answer was made with. The tail is `toLowerAscii`'s: one block read past the end, its live lanes
+   the only ones kept, and the survivors written with `storeUpTo`, which stops at their count - and
+   since that count is below the width, `and (width - 1)` says so for nothing.
 -}
 pub fn removeAscii(text: String, unit: CodeUnit) -> String:
     let count = length(text)
@@ -513,12 +512,12 @@ pub fn removeAscii(text: String, unit: CodeUnit) -> String:
         kept = kept + (survivors :: Size)
         i = i + width
 
-    while i < count:
-        let at = text.unit(i)
-        if at != unit:
-            store(target + kept, at)
-            kept = kept + 1
-        i = i + 1
+    if i < count:
+        let block = vectorPast(source + i) :: Vec(CodeUnit)
+        let live = maskUpTo(truncate(count - i) :: Int) :: Mask(CodeUnit)
+        let {packed, survivors} = compress(block, and(block .!= sought, live))
+        storeUpTo(target + kept, survivors `and` (lanes(block) - 1), packed)
+        kept = kept + (survivors :: Size)
 
     out.units.length = truncate(kept) :: Count
     return out
@@ -548,12 +547,13 @@ pub fn removeAsciiSpace(text: String) -> String:
         kept = kept + (survivors :: Size)
         i = i + width
 
-    while i < count:
-        let at = text.unit(i)
-        if !isSpace(at):
-            store(target + kept, at)
-            kept = kept + 1
-        i = i + 1
+    if i < count:
+        let signed = bitcast(vectorPast(source + i) :: Vec(CodeUnit)) :: Vec(I8)
+        let spaces = or(signed .== space, and(signed .> belowTab, signed .< aboveReturn))
+        let live = maskUpTo(truncate(count - i) :: Int) :: Mask(I8)
+        let {packed, survivors} = compress(signed, and(not(spaces), live))
+        storeUpTo(target + kept, survivors `and` (lanes(signed) - 1), bitcast(packed) :: Vec(CodeUnit))
+        kept = kept + (survivors :: Size)
 
     out.units.length = truncate(kept) :: Count
     return out

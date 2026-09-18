@@ -171,6 +171,8 @@ MachineTarget::MachineTarget() {
     name(OpVShuffle, "vshuffle"_v);
     name(OpVPermute, "vpermute"_v);
     name(OpVPermute2, "vpermute2"_v);
+    name(OpVMaskedLoad, "vmaskedload"_v);
+    name(OpVMaskedStore, "vmaskedstore"_v);
     name(OpVTernaryLogic, "vternlog"_v);
     name(OpVBroadcast, "vbroadcast"_v);
     name(OpVExtract, "vextract"_v);

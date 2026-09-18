@@ -105,6 +105,18 @@ fn hexReference(bytes: [U8]) -> String:
     pushHex(elements(bytes), wide)
     checkEqual(wide, "0x" ++ hexReference(elements(bytes)))
 
+    -- Every length the block loop and its masked tail can split into, at both widths a body has.
+    let &wrong = 0
+    for n in 0 .. 70:
+        let &some = [] :: [U8]
+        for k in 0 .. n:
+            push(some, truncate(k * 29 + n) :: U8)
+
+        let &out = "#"
+        pushHex(elements(some), out)
+        if out != "#" ++ hexReference(elements(some)) then wrong += 1
+    checkEqual(wrong, 0)
+
 
 {-
    ==========================================================================================

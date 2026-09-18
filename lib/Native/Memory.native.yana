@@ -150,6 +150,10 @@ pub fn blockCopy(to: %U8, from: %U8, count: Size) -> {}
    branch more expensively. Measured at v3, taking that test and the two pointer tests off the short
    path is worth about 0.25ns on every call, which on a copy that costs one is most of the distance
    to glibc.
+
+   **At `avx512` the rungs below one register are one masked load and one masked store** -
+   `Memory.native.avx512.yana` replaces this body, because every rung here is a branch on the count
+   and a count that moves is a branch that is mispredicted.
 -}
 fn blockShort(to: %U8, from: %U8, count: Size):
     let width = vectorBytes

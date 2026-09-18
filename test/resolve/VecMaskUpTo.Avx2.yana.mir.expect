@@ -1,0 +1,420 @@
+module ResolveTest
+
+fn wrongAt(c: I32 [shared call]) -> I32 {
+  local & wrong: I32
+  local clamp16: I32
+  local bytes: Mask(U8, 16)
+  local clamp8: I32
+  local clamp4: I32
+  local clamp32: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: I32 = read copy.trivial (c)
+  %3: I32 = const 0
+  %4: Bool = lt inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (c)
+  %8: I32 = const 16
+  %9: Bool = gt inspect %7 inspect %8
+  branch inspect %9 -> bb6 -> bb4
+
+bb2(%16: I32):
+  write.init borrow.unique (clamp16) take %16
+  %20: I32 = read copy.trivial (c)
+  %21: U8 = const 0
+  %22: Vec(U8, 16) = vec.splat inspect %21
+  %23: U8 = const 1
+  %24: Vec(U8, 16) = vec.withlane #1 inspect %22 inspect %23
+  %25: U8 = const 2
+  %26: Vec(U8, 16) = vec.withlane #2 inspect %24 inspect %25
+  %27: U8 = const 3
+  %28: Vec(U8, 16) = vec.withlane #3 inspect %26 inspect %27
+  %29: U8 = const 4
+  %30: Vec(U8, 16) = vec.withlane #4 inspect %28 inspect %29
+  %31: U8 = const 5
+  %32: Vec(U8, 16) = vec.withlane #5 inspect %30 inspect %31
+  %33: U8 = const 6
+  %34: Vec(U8, 16) = vec.withlane #6 inspect %32 inspect %33
+  %35: U8 = const 7
+  %36: Vec(U8, 16) = vec.withlane #7 inspect %34 inspect %35
+  %37: U8 = const 8
+  %38: Vec(U8, 16) = vec.withlane #8 inspect %36 inspect %37
+  %39: U8 = const 9
+  %40: Vec(U8, 16) = vec.withlane #9 inspect %38 inspect %39
+  %41: U8 = const 10
+  %42: Vec(U8, 16) = vec.withlane #10 inspect %40 inspect %41
+  %43: U8 = const 11
+  %44: Vec(U8, 16) = vec.withlane #11 inspect %42 inspect %43
+  %45: U8 = const 12
+  %46: Vec(U8, 16) = vec.withlane #12 inspect %44 inspect %45
+  %47: U8 = const 13
+  %48: Vec(U8, 16) = vec.withlane #13 inspect %46 inspect %47
+  %49: U8 = const 14
+  %50: Vec(U8, 16) = vec.withlane #14 inspect %48 inspect %49
+  %51: U8 = const 15
+  %52: Vec(U8, 16) = vec.withlane #15 inspect %50 inspect %51
+  %53: U8 = convert inspect %20
+  %54: Vec(U8, 16) = vec.splat inspect %53
+  %55: Mask(U8, 16) = lt inspect %52 inspect %54
+  write.init borrow.unique (bytes) take %55
+  %57: Mask(U8, 16) = read copy.trivial (bytes)
+  %58: I32 = vec.reduce add inspect %57
+  %59: I32 = read copy.trivial (clamp16)
+  %60: Bool = ne inspect %58 inspect %59
+  branch inspect %60 -> bb9 -> bb7
+
+bb3:
+  %6: I32 = const 0
+  jump -> bb2(take %6)
+
+bb4:
+  %12: I32 = read copy.trivial (c)
+  jump -> bb5(take %12)
+
+bb5(%13: I32):
+  jump -> bb2(take %13)
+
+bb6:
+  %11: I32 = const 16
+  jump -> bb5(take %11)
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %68: Mask(U8, 16) = read copy.trivial (bytes)
+  %69: U8 = const 0
+  %70: Vec(U8, 16) = vec.splat inspect %69
+  %71: U8 = const 1
+  %72: Vec(U8, 16) = vec.withlane #1 inspect %70 inspect %71
+  %73: U8 = const 2
+  %74: Vec(U8, 16) = vec.withlane #2 inspect %72 inspect %73
+  %75: U8 = const 3
+  %76: Vec(U8, 16) = vec.withlane #3 inspect %74 inspect %75
+  %77: U8 = const 4
+  %78: Vec(U8, 16) = vec.withlane #4 inspect %76 inspect %77
+  %79: U8 = const 5
+  %80: Vec(U8, 16) = vec.withlane #5 inspect %78 inspect %79
+  %81: U8 = const 6
+  %82: Vec(U8, 16) = vec.withlane #6 inspect %80 inspect %81
+  %83: U8 = const 7
+  %84: Vec(U8, 16) = vec.withlane #7 inspect %82 inspect %83
+  %85: U8 = const 8
+  %86: Vec(U8, 16) = vec.withlane #8 inspect %84 inspect %85
+  %87: U8 = const 9
+  %88: Vec(U8, 16) = vec.withlane #9 inspect %86 inspect %87
+  %89: U8 = const 10
+  %90: Vec(U8, 16) = vec.withlane #10 inspect %88 inspect %89
+  %91: U8 = const 11
+  %92: Vec(U8, 16) = vec.withlane #11 inspect %90 inspect %91
+  %93: U8 = const 12
+  %94: Vec(U8, 16) = vec.withlane #12 inspect %92 inspect %93
+  %95: U8 = const 13
+  %96: Vec(U8, 16) = vec.withlane #13 inspect %94 inspect %95
+  %97: U8 = const 14
+  %98: Vec(U8, 16) = vec.withlane #14 inspect %96 inspect %97
+  %99: U8 = const 15
+  %100: Vec(U8, 16) = vec.withlane #15 inspect %98 inspect %99
+  %101: I32 = read copy.trivial (clamp16)
+  %102: U8 = convert inspect %101
+  %103: Vec(U8, 16) = vec.splat inspect %102
+  %104: Mask(U8, 16) = ge inspect %100 inspect %103
+  %105: Mask(U8, 16) = and inspect %68 inspect %104
+  %106: I32 = vec.reduce add inspect %105
+  %107: I32 = const 0
+  %108: Bool = ne inspect %106 inspect %107
+  branch inspect %108 -> bb12 -> bb10
+
+bb9:
+  %62: I32 = read copy.trivial (wrong)
+  %63: I32 = const 1
+  %64: I32 = add inspect %62 inspect %63
+  write.assign borrow.unique (wrong) take %64
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %116: I32 = read copy.trivial (c)
+  %117: I32 = const 0
+  %118: Bool = lt inspect %116 inspect %117
+  branch inspect %118 -> bb15 -> bb13
+
+bb12:
+  %110: I32 = read copy.trivial (wrong)
+  %111: I32 = const 1
+  %112: I32 = add inspect %110 inspect %111
+  write.assign borrow.unique (wrong) take %112
+  jump -> bb11
+
+bb13:
+  %121: I32 = read copy.trivial (c)
+  %122: I32 = const 8
+  %123: Bool = gt inspect %121 inspect %122
+  branch inspect %123 -> bb18 -> bb16
+
+bb14(%130: I32):
+  write.init borrow.unique (clamp8) take %130
+  %134: I32 = read copy.trivial (c)
+  %135: U16 = const 0
+  %136: Vec(U16, 8) = vec.splat inspect %135
+  %137: U16 = const 1
+  %138: Vec(U16, 8) = vec.withlane #1 inspect %136 inspect %137
+  %139: U16 = const 2
+  %140: Vec(U16, 8) = vec.withlane #2 inspect %138 inspect %139
+  %141: U16 = const 3
+  %142: Vec(U16, 8) = vec.withlane #3 inspect %140 inspect %141
+  %143: U16 = const 4
+  %144: Vec(U16, 8) = vec.withlane #4 inspect %142 inspect %143
+  %145: U16 = const 5
+  %146: Vec(U16, 8) = vec.withlane #5 inspect %144 inspect %145
+  %147: U16 = const 6
+  %148: Vec(U16, 8) = vec.withlane #6 inspect %146 inspect %147
+  %149: U16 = const 7
+  %150: Vec(U16, 8) = vec.withlane #7 inspect %148 inspect %149
+  %151: U16 = convert inspect %134
+  %152: Vec(U16, 8) = vec.splat inspect %151
+  %153: Mask(U16, 8) = lt inspect %150 inspect %152
+  %154: I32 = vec.reduce add inspect %153
+  %155: I32 = read copy.trivial (clamp8)
+  %156: Bool = ne inspect %154 inspect %155
+  branch inspect %156 -> bb21 -> bb19
+
+bb15:
+  %120: I32 = const 0
+  jump -> bb14(take %120)
+
+bb16:
+  %126: I32 = read copy.trivial (c)
+  jump -> bb17(take %126)
+
+bb17(%127: I32):
+  jump -> bb14(take %127)
+
+bb18:
+  %125: I32 = const 8
+  jump -> bb17(take %125)
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %164: I32 = read copy.trivial (c)
+  %165: I32 = const 0
+  %166: Bool = lt inspect %164 inspect %165
+  branch inspect %166 -> bb24 -> bb22
+
+bb21:
+  %158: I32 = read copy.trivial (wrong)
+  %159: I32 = const 1
+  %160: I32 = add inspect %158 inspect %159
+  write.assign borrow.unique (wrong) take %160
+  jump -> bb20
+
+bb22:
+  %169: I32 = read copy.trivial (c)
+  %170: I32 = const 4
+  %171: Bool = gt inspect %169 inspect %170
+  branch inspect %171 -> bb27 -> bb25
+
+bb23(%178: I32):
+  write.init borrow.unique (clamp4) take %178
+  %182: I32 = read copy.trivial (c)
+  %183: U32 = const 0
+  %184: Vec(U32, 4) = vec.splat inspect %183
+  %185: U32 = const 1
+  %186: Vec(U32, 4) = vec.withlane #1 inspect %184 inspect %185
+  %187: U32 = const 2
+  %188: Vec(U32, 4) = vec.withlane #2 inspect %186 inspect %187
+  %189: U32 = const 3
+  %190: Vec(U32, 4) = vec.withlane #3 inspect %188 inspect %189
+  %191: U32 = convert inspect %182
+  %192: Vec(U32, 4) = vec.splat inspect %191
+  %193: Mask(U32, 4) = lt inspect %190 inspect %192
+  %194: I32 = vec.reduce add inspect %193
+  %195: I32 = read copy.trivial (clamp4)
+  %196: Bool = ne inspect %194 inspect %195
+  branch inspect %196 -> bb30 -> bb28
+
+bb24:
+  %168: I32 = const 0
+  jump -> bb23(take %168)
+
+bb25:
+  %174: I32 = read copy.trivial (c)
+  jump -> bb26(take %174)
+
+bb26(%175: I32):
+  jump -> bb23(take %175)
+
+bb27:
+  %173: I32 = const 4
+  jump -> bb26(take %173)
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %204: I32 = read copy.trivial (c)
+  %205: I32 = const 0
+  %206: Bool = lt inspect %204 inspect %205
+  branch inspect %206 -> bb33 -> bb31
+
+bb30:
+  %198: I32 = read copy.trivial (wrong)
+  %199: I32 = const 1
+  %200: I32 = add inspect %198 inspect %199
+  write.assign borrow.unique (wrong) take %200
+  jump -> bb29
+
+bb31:
+  %209: I32 = read copy.trivial (c)
+  %210: I32 = const 32
+  %211: Bool = gt inspect %209 inspect %210
+  branch inspect %211 -> bb36 -> bb34
+
+bb32(%218: I32):
+  write.init borrow.unique (clamp32) take %218
+  %222: I32 = read copy.trivial (c)
+  %223: U8 = const 0
+  %224: Vec(U8) = vec.splat inspect %223
+  %225: U8 = const 1
+  %226: Vec(U8) = vec.withlane #1 inspect %224 inspect %225
+  %227: U8 = const 2
+  %228: Vec(U8) = vec.withlane #2 inspect %226 inspect %227
+  %229: U8 = const 3
+  %230: Vec(U8) = vec.withlane #3 inspect %228 inspect %229
+  %231: U8 = const 4
+  %232: Vec(U8) = vec.withlane #4 inspect %230 inspect %231
+  %233: U8 = const 5
+  %234: Vec(U8) = vec.withlane #5 inspect %232 inspect %233
+  %235: U8 = const 6
+  %236: Vec(U8) = vec.withlane #6 inspect %234 inspect %235
+  %237: U8 = const 7
+  %238: Vec(U8) = vec.withlane #7 inspect %236 inspect %237
+  %239: U8 = const 8
+  %240: Vec(U8) = vec.withlane #8 inspect %238 inspect %239
+  %241: U8 = const 9
+  %242: Vec(U8) = vec.withlane #9 inspect %240 inspect %241
+  %243: U8 = const 10
+  %244: Vec(U8) = vec.withlane #10 inspect %242 inspect %243
+  %245: U8 = const 11
+  %246: Vec(U8) = vec.withlane #11 inspect %244 inspect %245
+  %247: U8 = const 12
+  %248: Vec(U8) = vec.withlane #12 inspect %246 inspect %247
+  %249: U8 = const 13
+  %250: Vec(U8) = vec.withlane #13 inspect %248 inspect %249
+  %251: U8 = const 14
+  %252: Vec(U8) = vec.withlane #14 inspect %250 inspect %251
+  %253: U8 = const 15
+  %254: Vec(U8) = vec.withlane #15 inspect %252 inspect %253
+  %255: U8 = const 16
+  %256: Vec(U8) = vec.withlane #16 inspect %254 inspect %255
+  %257: U8 = const 17
+  %258: Vec(U8) = vec.withlane #17 inspect %256 inspect %257
+  %259: U8 = const 18
+  %260: Vec(U8) = vec.withlane #18 inspect %258 inspect %259
+  %261: U8 = const 19
+  %262: Vec(U8) = vec.withlane #19 inspect %260 inspect %261
+  %263: U8 = const 20
+  %264: Vec(U8) = vec.withlane #20 inspect %262 inspect %263
+  %265: U8 = const 21
+  %266: Vec(U8) = vec.withlane #21 inspect %264 inspect %265
+  %267: U8 = const 22
+  %268: Vec(U8) = vec.withlane #22 inspect %266 inspect %267
+  %269: U8 = const 23
+  %270: Vec(U8) = vec.withlane #23 inspect %268 inspect %269
+  %271: U8 = const 24
+  %272: Vec(U8) = vec.withlane #24 inspect %270 inspect %271
+  %273: U8 = const 25
+  %274: Vec(U8) = vec.withlane #25 inspect %272 inspect %273
+  %275: U8 = const 26
+  %276: Vec(U8) = vec.withlane #26 inspect %274 inspect %275
+  %277: U8 = const 27
+  %278: Vec(U8) = vec.withlane #27 inspect %276 inspect %277
+  %279: U8 = const 28
+  %280: Vec(U8) = vec.withlane #28 inspect %278 inspect %279
+  %281: U8 = const 29
+  %282: Vec(U8) = vec.withlane #29 inspect %280 inspect %281
+  %283: U8 = const 30
+  %284: Vec(U8) = vec.withlane #30 inspect %282 inspect %283
+  %285: U8 = const 31
+  %286: Vec(U8) = vec.withlane #31 inspect %284 inspect %285
+  %287: U8 = convert inspect %222
+  %288: Vec(U8) = vec.splat inspect %287
+  %289: Mask(U8) = lt inspect %286 inspect %288
+  %290: I32 = vec.reduce add inspect %289
+  %291: I32 = read copy.trivial (clamp32)
+  %292: Bool = ne inspect %290 inspect %291
+  branch inspect %292 -> bb39 -> bb37
+
+bb33:
+  %208: I32 = const 0
+  jump -> bb32(take %208)
+
+bb34:
+  %214: I32 = read copy.trivial (c)
+  jump -> bb35(take %214)
+
+bb35(%215: I32):
+  jump -> bb32(take %215)
+
+bb36:
+  %213: I32 = const 32
+  jump -> bb35(take %213)
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %300: I32 = read copy.trivial (wrong)
+  return take %300
+
+bb39:
+  %294: I32 = read copy.trivial (wrong)
+  %295: I32 = const 1
+  %296: I32 = add inspect %294 inspect %295
+  write.assign borrow.unique (wrong) take %296
+  jump -> bb38
+}
+
+fn main() -> I32 {
+  local & wrong: I32
+  local & c: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (c) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (c)
+  %6: I32 = const 34
+  %7: Bool = le inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %19: I32 = read copy.trivial (wrong)
+  return take %19
+
+bb3:
+  %9: I32 = read copy.trivial (wrong)
+  %10: I32 = read copy.trivial (c)
+  %11: I32 = call wrongAt borrow.shared %10
+  %12: I32 = add inspect %9 inspect %11
+  write.assign borrow.unique (wrong) take %12
+  %14: I32 = read copy.trivial (c)
+  %15: I32 = const 1
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (c) take %16
+  jump -> bb1
+}
+
+entry main

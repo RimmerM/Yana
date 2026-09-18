@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-table closure$ResolveTest.lambda$22 before ResolveTest.lambda$22 {
+table closure$ResolveTest.lambda$21 before ResolveTest.lambda$21 {
   .0 teardown$none
 }
 
@@ -118,7 +118,7 @@ fn capturing(%x: (), %n: I32) -> I32 {
     %v2 = alloc : {x: ()}
     %v3 = addressof %local0 : %()
     %f = alloc : (extra: I32) -> I32
-    %v5 = symbol ResolveTest.lambda$22 : %()
+    %v5 = symbol ResolveTest.lambda$21 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     %v8 = calldyn %f, %n : I32
@@ -209,14 +209,14 @@ fn main() -> I32 {
     %g = call firstOf(()), %v29 : I32
     call identity(()), %d
     %v33 = alloc : (()) -> I32
-    %v34 = symbol ResolveTest.lambda$23 : %()
+    %v34 = symbol ResolveTest.lambda$22 : %()
     init %local4.code, %v34
     %v37 = cast 0 : %()
     init %local4.env, %v37
     call unitValue
     %i = call applyTo, %v33, %v39 : I32
     %v41 = alloc : (()) -> I32
-    %v42 = symbol ResolveTest.lambda$24 : %()
+    %v42 = symbol ResolveTest.lambda$23 : %()
     init %local5.code, %v42
     %v45 = cast 0 : %()
     init %local5.env, %v45
@@ -260,7 +260,7 @@ fn main() -> I32 {
     ret %v90
 }
 
-fn ResolveTest.lambda$22(%env: %{x: ()}, %extra: I32) -> I32 {
+fn ResolveTest.lambda$21(%env: %{x: ()}, %extra: I32) -> I32 {
   b0:
     alloc
     %v3 = call takesUnit, %v2 : I32
@@ -303,12 +303,12 @@ fn firstOf(())(%pair: {slot: (), index: I32}) -> I32 {
     ret %v1
 }
 
-fn ResolveTest.lambda$23(%env: %{}, %x: ()) -> I32 {
+fn ResolveTest.lambda$22(%env: %{}, %x: ()) -> I32 {
   b0:
     ret 6
 }
 
-fn ResolveTest.lambda$24(%env: %{}, %x: ()) -> I32 {
+fn ResolveTest.lambda$23(%env: %{}, %x: ()) -> I32 {
   b0:
     ret 7
 }

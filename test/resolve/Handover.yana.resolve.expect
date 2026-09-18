@@ -26,7 +26,7 @@ let image$base: () = <none>
 
 let &heapFree: %%U8 = 0
 
-table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
+table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
 }
 
@@ -694,7 +694,7 @@ fn writeThrough(%xs: ArrayView(I32)) -> I32 {
   b0:
     %v1 = load %xs : ArrayView(I32)
     %v2 = alloc : (&value$: ArrayView(I32)) -> I32
-    %v3 = symbol ResolveTest.continuation$22 : %()
+    %v3 = symbol ResolveTest.continuation$21 : %()
     init %local1.code, %v3
     %v6 = cast 0 : %()
     init %local1.env, %v6
@@ -706,7 +706,7 @@ fn writeThrough(%xs: ArrayView(I32)) -> I32 {
 fn readOnly(%xs: ArrayView(I32)) -> I32 {
   b0:
     %v1 = alloc : (value$: ArrayView(I32)) -> I32
-    %v2 = symbol ResolveTest.continuation$23 : %()
+    %v2 = symbol ResolveTest.continuation$22 : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -764,7 +764,7 @@ fn subscriptArgument() -> I32 {
     init %local2.xs, %v32
     %v34 = addressof %local2 : %()
     %v35 = alloc : (value$: I32) -> I32
-    %v36 = symbol ResolveTest.continuation$24 : %()
+    %v36 = symbol ResolveTest.continuation$23 : %()
     init %local3.code, %v36
     init %local3.env, %v34
     %v39 = call bumpOne(I32), %v30, %v35 : I32
@@ -794,7 +794,7 @@ fn main() -> I32 {
     ret %v24
 }
 
-fn ResolveTest.continuation$22(%env: %{}, %value$: ArrayView(I32)) -> I32 {
+fn ResolveTest.continuation$21(%env: %{}, %value$: ArrayView(I32)) -> I32 {
   b0:
     %v4 = borrow_mut %value$ : &ArrayView(I32)
     %v5 = load [%v4]@ArrayView.length : Size
@@ -820,7 +820,7 @@ fn window(I32)(%xs: ArrayView(I32), %body: (&value$: ArrayView(I32)) -> I32) -> 
     ret %v4
 }
 
-fn ResolveTest.continuation$23(%env: %{}, %value$: ArrayView(I32)) -> I32 {
+fn ResolveTest.continuation$22(%env: %{}, %value$: ArrayView(I32)) -> I32 {
   b0:
     %v2 = call replaces$sum(ArrayView(I32), I32), %value$ : I32
     ret %v2
@@ -832,7 +832,7 @@ fn shared(I32)(%xs: ArrayView(I32), %body: (value$: ArrayView(I32)) -> I32) -> I
     ret %v2
 }
 
-fn ResolveTest.continuation$24(%env: %{xs: &Array(I32)}, %value$: I32) -> I32 {
+fn ResolveTest.continuation$23(%env: %{xs: &Array(I32)}, %value$: I32) -> I32 {
   b0:
     %v2 = load [%env].xs : &Array(I32)
     %v3 = load [%v2] : Array(I32)

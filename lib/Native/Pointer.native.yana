@@ -1,9 +1,10 @@
 {-
    The pointer operations only a machine has - Analysis-Modules.md §2.5.
 
-   Three vector transfers, a mask's bits and the top half of a widening multiply. They were five
-   `@platform(native)` attributes in `Pointer.yana`, which is the same sentence written five times
-   about one property of the declarations that carry it; the file's name says it once.
+   Five vector transfers, a mask's bits and the top half of a widening multiply. The first three
+   transfers and the other two were `@platform(native)` attributes in `Pointer.yana`, which is the same
+   sentence written five times about one property of the declarations that carry it; the file's name
+   says it once.
 
    What they have in common with each other, and not with the rest of that file, is that each names
    something the target's *instruction set* has: a whole-register load at an address, a movemask, a
@@ -39,6 +40,32 @@ pub fn (n: Int = 0) vectorAt(from: %a) -> Vec(a, n)
 pub fn (n: Int = 0) vectorPast(from: %a) -> Vec(a, n)
 @builtin(setVectorAt)
 pub fn (n: Int) setVectorAt(to: %a, value: Vec(a, n)) -> {}
+
+{-
+   The same two transfers stopped at a lane count - Analysis-Avx512.md §3.5.
+
+   `loadUpTo(from, count)` reads the first `count` lanes at `from` and answers **zero** in the rest;
+   `storeUpTo(to, count, value)` writes the first `count` lanes of `value` and **nothing past them**.
+   A count at or below zero transfers nothing, and one at or above the lane count the whole vector.
+
+   **Neither touches a byte past the count, and that is the reason they exist.** `vectorPast` reads
+   past the end on the strength of §8's padding, which only storage the language allocated has; these
+   need no promise from anybody, so a scan over a foreign pointer can read its last block with one of
+   them. And a store has never had a tail guarantee at all - which is why a vector loop that wrote
+   used to end in a scalar remainder or an overlapping store.
+
+   One masked instruction at `avx512` whatever the lane, and `vpmaskmovd`/`q` at `avx2` for four- and
+   eight-byte lanes. Everywhere else the backend writes `blockShort`'s ladder through a slot in the
+   frame, which is several branches rather than one instruction. That still finishes a vector loop's
+   last block faster than a unit at a time at every length measured, so every store tail in the
+   library is one of these at every level; what it loses to is `copyMemory`'s own ladder for a whole
+   short copy, which is why that is a replacement at `avx512` alone (`Memory.native.avx512.yana`).
+   `test/bench/avx512/findings.md` §9 has what each costs.
+-}
+@builtin(vecLoadUpTo)
+pub fn (n: Int = 0) loadUpTo(from: %a, count: Int) -> Vec(a, n)
+@builtin(vecStoreUpTo)
+pub fn (n: Int) storeUpTo(to: %a, count: Int, value: Vec(a, n)) -> {}
 
 {-
    The three operations a Swiss probe is written in, at a width the target did not choose -

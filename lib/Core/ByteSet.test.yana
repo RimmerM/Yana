@@ -1,0 +1,58 @@
+{-
+   `byteSet` and `memberOf` - Analysis-Avx512.md §3.4, written over two `lookup`s.
+
+   Every byte value, a block at a time, against the definition the per-candidate scan spells: a lane
+   is a member when it equals one of the set's units. Sets of one unit, of the whitespace and of the
+   punctuation a delimiter scan asks about, of every ASCII unit, and of none - and one written with
+   units at and above 128, which are members of no set, so that the high nibbles past seven stay out
+   of every answer.
+-}
+
+import Test
+
+-- The lanes where `memberOf` and the per-candidate definition disagree, over all 256 byte values in
+-- sixteen-lane blocks and at the natural width.
+fn disagreements(units: [U8]) -> Int:
+    let set = byteSet(units)
+    let &wrong = 0
+    let &start = 0
+
+    while start < 256:
+        let block = (iota() :: Vec(U8, 16)) + (splat(truncate(start) :: U8) :: Vec(U8, 16))
+        let &want = maskUpTo(0) :: Mask(U8, 16)
+        for unit in items(units):
+            if unit < 128 then want = or(want, block .== (splat(unit) :: Vec(U8, 16)))
+
+        let got = memberOf(block, set)
+        wrong = wrong + count(and(got, not(want))) + count(and(want, not(got)))
+        start = start + 16
+
+    let width = lanes(zero() :: Vec(U8))
+    let &base = 0
+    while base < 256:
+        let block = (iota() :: Vec(U8)) + splat(truncate(base) :: U8)
+        let &want = maskUpTo(0) :: Mask(U8)
+        for unit in items(units):
+            if unit < 128 then want = or(want, block .== splat(unit))
+
+        let got = memberOf(block, set)
+        wrong = wrong + count(and(got, not(want))) + count(and(want, not(got)))
+        base = base + width
+
+    return wrong
+
+@test fn memberOfIsTheUnitsOfTheSet():
+    checkEqual(disagreements([] :: [U8]), 0)
+    checkEqual(disagreements(["a" :: U8]), 0)
+    checkEqual(disagreements([0 :: U8]), 0)
+    checkEqual(disagreements([127 :: U8]), 0)
+    checkEqual(disagreements([" " :: U8, "\t", "\n", "\r", 11, 12]), 0)
+    checkEqual(disagreements(["," :: U8, ";", ":", "=", "[", "]", "(", ")"]), 0)
+    checkEqual(disagreements(newArray(128, (i: Size) -> truncate(i) :: U8)), 0)
+
+@test fn aUnitAboveAsciiIsNoMember():
+    checkEqual(disagreements([128 :: U8, 200, 255, "x"]), 0)
+
+    let set = byteSet([128 :: U8, 255])
+    checkEqual(count(memberOf((iota() :: Vec(U8, 16)) + (splat(128 :: U8) :: Vec(U8, 16)), set)), 0)
+    checkEqual(count(memberOf((iota() :: Vec(U8, 16)) + (splat(240 :: U8) :: Vec(U8, 16)), set)), 0)

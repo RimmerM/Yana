@@ -75,6 +75,8 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::vectorAt:    return expandVectorAt(builder, callee, arguments, with, source);
         case Op::vectorPast:  return expandVectorPast(builder, callee, arguments, with, source);
         case Op::setVectorAt: return expandSetVectorAt(builder, callee, arguments, with, source);
+        case Op::vecLoadUpTo: return expandVecLoadUpTo(builder, callee, arguments, with, source);
+        case Op::vecStoreUpTo: return expandVecStoreUpTo(builder, callee, arguments, with, source);
 
         // The two relocations through a place - `expand_exchange.cpp`, and `analyze_loan.cpp` for
         // the one exemption they are granted.

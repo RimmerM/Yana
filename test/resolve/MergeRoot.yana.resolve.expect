@@ -18,11 +18,11 @@ let &heapRegionNext: Size = 0
 
 let &dropCalls: I32 = 0
 
-table closure$ResolveTest.lambda$24 before ResolveTest.lambda$24 {
+table closure$ResolveTest.lambda$23 before ResolveTest.lambda$23 {
   .0 drop${g: Guard}
 }
 
-table closure$ResolveTest.lambda$25 before ResolveTest.lambda$25 {
+table closure$ResolveTest.lambda$24 before ResolveTest.lambda$24 {
   .0 drop${g: Guard}
 }
 
@@ -1377,7 +1377,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
 fn owned() -> Array(I32) {
   b0:
     %v1 = alloc : (i: Size) -> I32
-    %v2 = symbol ResolveTest.lambda$22 : %()
+    %v2 = symbol ResolveTest.lambda$21 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -1464,7 +1464,7 @@ fn borrowed(%fromFrame: Bool, %body: (value$: ArrayView(I32)) -> $r) -> $r {
 fn throughALens(%fromFrame: Bool) -> I32 {
   b0:
     %v1 = alloc : (value$: ArrayView(I32)) -> I32
-    %v2 = symbol ResolveTest.continuation$23 : %()
+    %v2 = symbol ResolveTest.continuation$22 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -1485,7 +1485,7 @@ fn ownedStaysAtItsEdges(%pick: I32) -> I32 {
     init %local1.g, %g
     %v11 = addressof %local1 : %()
     %v12 = alloc : (x: I32) -> I32
-    %v13 = symbol ResolveTest.lambda$24 : %()
+    %v13 = symbol ResolveTest.lambda$23 : %()
     init %local2.code, %v13
     init %local2.env, %v11
     jmp b3
@@ -1496,7 +1496,7 @@ fn ownedStaysAtItsEdges(%pick: I32) -> I32 {
     init %local3.g, %g
     %v19 = addressof %local3 : %()
     %v20 = alloc : (x: I32) -> I32
-    %v21 = symbol ResolveTest.lambda$25 : %()
+    %v21 = symbol ResolveTest.lambda$24 : %()
     init %local4.code, %v21
     init %local4.env, %v19
     jmp b3
@@ -1532,14 +1532,14 @@ fn Drop(Guard).drop(%self: Guard) -> () {
     ret
 }
 
-fn ResolveTest.lambda$22(%env: %{}, %i: Size) -> I32 {
+fn ResolveTest.lambda$21(%env: %{}, %i: Size) -> I32 {
   b0:
     %v4 = add %i, 1 : Size
     %v5 = cast %v4 : I32
     ret %v5
 }
 
-fn ResolveTest.continuation$23(%env: %{}, %value$: ArrayView(I32)) -> I32 {
+fn ResolveTest.continuation$22(%env: %{}, %value$: ArrayView(I32)) -> I32 {
   b0:
     %v2 = call replaces$sum(ArrayView(I32), I32), %value$ : I32
     ret %v2
@@ -1588,7 +1588,7 @@ fn borrowed(I32)(%fromFrame: Bool, %body: (value$: ArrayView(I32)) -> I32) -> I3
     jmp b2
 }
 
-fn ResolveTest.lambda$24(%env: %{g: Guard}, %x: I32) -> I32 {
+fn ResolveTest.lambda$23(%env: %{g: Guard}, %x: I32) -> I32 {
   b0:
     %v2 = load [%env].g : Guard
     %v3 = load [%env].g@Guard.id : I32
@@ -1602,7 +1602,7 @@ fn drop${g: Guard}(%value: {g: Guard}) -> () {
     ret
 }
 
-fn ResolveTest.lambda$25(%env: %{g: Guard}, %x: I32) -> I32 {
+fn ResolveTest.lambda$24(%env: %{g: Guard}, %x: I32) -> I32 {
   b0:
     %v2 = load [%env].g : Guard
     %v3 = load [%env].g@Guard.id : I32

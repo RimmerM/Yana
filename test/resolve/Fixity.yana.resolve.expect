@@ -115,7 +115,7 @@ fn firstWins() -> I32 {
     %v1 = call some, 7 : Maybe(I32)
     %v2 = copy %local0 : Maybe(I32)
     %v3 = alloc : () -> I32
-    %v4 = symbol ResolveTest.deferred$22 : %()
+    %v4 = symbol ResolveTest.deferred$21 : %()
     init %local2.code, %v4
     %v7 = cast 0 : %()
     init %local2.env, %v7
@@ -128,7 +128,7 @@ fn lastWins() -> I32 {
     %v0 = call none : Maybe(I32)
     %v1 = copy %local0 : Maybe(I32)
     %v2 = alloc : () -> I32
-    %v3 = symbol ResolveTest.deferred$24 : %()
+    %v3 = symbol ResolveTest.deferred$23 : %()
     init %local2.code, %v3
     %v6 = cast 0 : %()
     init %local2.env, %v6
@@ -159,7 +159,7 @@ fn noneEvaluated() -> I32 {
     %v1 = call some, 1 : Maybe(I32)
     %v2 = copy %local0 : Maybe(I32)
     %v3 = alloc : () -> I32
-    %v4 = symbol ResolveTest.deferred$26 : %()
+    %v4 = symbol ResolveTest.deferred$25 : %()
     init %local2.code, %v4
     %v7 = cast 0 : %()
     init %local2.env, %v7
@@ -172,7 +172,7 @@ fn allEvaluated() -> I32 {
     %v0 = call none : Maybe(I32)
     %v1 = copy %local0 : Maybe(I32)
     %v2 = alloc : () -> I32
-    %v3 = symbol ResolveTest.deferred$28 : %()
+    %v3 = symbol ResolveTest.deferred$27 : %()
     init %local2.code, %v3
     %v6 = cast 0 : %()
     init %local2.env, %v6
@@ -218,48 +218,48 @@ fn main() -> I32 {
     ret %v30
 }
 
-fn ResolveTest.deferred$22(%env: %{}) -> I32 {
+fn ResolveTest.deferred$21(%env: %{}) -> I32 {
   b0:
     %v1 = call none : Maybe(I32)
     %v2 = copy %local0 : Maybe(I32)
     %v3 = alloc : () -> I32
-    %v4 = symbol ResolveTest.deferred$23 : %()
+    %v4 = symbol ResolveTest.deferred$22 : %()
     init %local2.code, %v4
     %v7 = cast 0 : %()
     init %local2.env, %v7
     %v9 = call ?:, %v2, %v3 : I32
     ret %v9
+}
+
+fn ResolveTest.deferred$22(%env: %{}) -> I32 {
+  b0:
+    ret 3
 }
 
 fn ResolveTest.deferred$23(%env: %{}) -> I32 {
   b0:
-    ret 3
+    %v1 = call none : Maybe(I32)
+    %v2 = copy %local0 : Maybe(I32)
+    %v3 = alloc : () -> I32
+    %v4 = symbol ResolveTest.deferred$24 : %()
+    init %local2.code, %v4
+    %v7 = cast 0 : %()
+    init %local2.env, %v7
+    %v9 = call ?:, %v2, %v3 : I32
+    ret %v9
 }
 
 fn ResolveTest.deferred$24(%env: %{}) -> I32 {
   b0:
-    %v1 = call none : Maybe(I32)
-    %v2 = copy %local0 : Maybe(I32)
-    %v3 = alloc : () -> I32
-    %v4 = symbol ResolveTest.deferred$25 : %()
-    init %local2.code, %v4
-    %v7 = cast 0 : %()
-    init %local2.env, %v7
-    %v9 = call ?:, %v2, %v3 : I32
-    ret %v9
+    ret 3
 }
 
 fn ResolveTest.deferred$25(%env: %{}) -> I32 {
   b0:
-    ret 3
-}
-
-fn ResolveTest.deferred$26(%env: %{}) -> I32 {
-  b0:
     %v1 = call bumpNone : Maybe(I32)
     %v2 = copy %local0 : Maybe(I32)
     %v3 = alloc : () -> I32
-    %v4 = symbol ResolveTest.deferred$27 : %()
+    %v4 = symbol ResolveTest.deferred$26 : %()
     init %local2.code, %v4
     %v7 = cast 0 : %()
     init %local2.env, %v7
@@ -267,18 +267,18 @@ fn ResolveTest.deferred$26(%env: %{}) -> I32 {
     ret %v9
 }
 
-fn ResolveTest.deferred$27(%env: %{}) -> I32 {
+fn ResolveTest.deferred$26(%env: %{}) -> I32 {
   b0:
     %v2 = call bumpValue, 20 : I32
     ret %v2
 }
 
-fn ResolveTest.deferred$28(%env: %{}) -> I32 {
+fn ResolveTest.deferred$27(%env: %{}) -> I32 {
   b0:
     %v1 = call bumpNone : Maybe(I32)
     %v2 = copy %local0 : Maybe(I32)
     %v3 = alloc : () -> I32
-    %v4 = symbol ResolveTest.deferred$29 : %()
+    %v4 = symbol ResolveTest.deferred$28 : %()
     init %local2.code, %v4
     %v7 = cast 0 : %()
     init %local2.env, %v7
@@ -286,7 +286,7 @@ fn ResolveTest.deferred$28(%env: %{}) -> I32 {
     ret %v9
 }
 
-fn ResolveTest.deferred$29(%env: %{}) -> I32 {
+fn ResolveTest.deferred$28(%env: %{}) -> I32 {
   b0:
     %v2 = call bumpValue, 20 : I32
     ret %v2

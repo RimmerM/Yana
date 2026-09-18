@@ -172,6 +172,26 @@ YANA_INTRINSIC_OP( setVectorAt, OpForm::Node, unitAt(),    pointerAt(), valueAt(
 YANA_INTRINSIC_OP( maskBits,    OpForm::Node, integerAt(), valueAt()                )
 
 /*
+ * The transfers that stop at a count - `loadUpTo` and `storeUpTo`, Analysis-Avx512.md §3.5.
+ *
+ * `vectorAt` and `setVectorAt` with a lane count beside the address: the load reads the first
+ * `count` lanes and answers zero in the rest, and the store writes the first `count` lanes and
+ * nothing past them. Neither touches a byte past the count, which is the whole of what they add - a
+ * load that cannot fault needs no tail-read guarantee, and a store that stops is the one store the
+ * guarantee never covered. A count at or below zero transfers nothing and one at or above the lane
+ * count the whole vector.
+ *
+ * Roles and not library bodies because the lowering is one masked instruction where a target has
+ * one (`avx512` at every lane, `vpmaskmov` at `avx2`'s wide ones) and a ladder of transfers
+ * everywhere else, and the backend that has the instruction should see the operation rather than a
+ * ladder it would have to recognize. The shapes are `vectorAt`'s and `setVectorAt`'s, and so is the
+ * reason the vector positions are `anyAt()`.
+ */
+//                 role            form          result       parameters
+YANA_INTRINSIC_OP( vecLoadUpTo,    OpForm::Node, anyAt(),     pointerAt(), integerAt()            )
+YANA_INTRINSIC_OP( vecStoreUpTo,   OpForm::Node, unitAt(),    pointerAt(), integerAt(), valueAt() )
+
+/*
  * The top half of a widening multiply - Implementation-Map.md §3.1's one new primitive.
  *
  * `a * b` is the low half and this is the high one, so the two together are the whole 128-bit

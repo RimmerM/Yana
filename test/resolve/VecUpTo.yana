@@ -1,0 +1,255 @@
+{-
+   `loadUpTo` and `storeUpTo` at the driver's floor, `sse4` - Analysis-Avx512.md §3.5.
+
+   Below `avx512` both are `blockShort`'s ladder through a frame slot (`lowerMaskedTransfers` in
+   codegen/x64/transform_transfer.cpp), and what can go wrong is a byte too many - so every transfer
+   here ends exactly at a page the program has taken every access away from, and a transfer that
+   touched one byte past its count stops the program with a fault rather than answering. What is
+   counted is the rest, a byte at a time through a scratch page the answer is stored into:
+
+   - a load answers the memory's lanes below the count and zero at and above it;
+   - a store writes the vector's lanes below the count, and leaves every other byte of the page as
+     it was.
+
+   Every count from two below zero to two past the lanes, at every lane type, and three constant
+   counts, which `lowerMaskedTransfers` decides without a test. `VecUpTo.Avx2.yana` and
+   `VecUpTo.Avx512.yana` are the same source at the two levels above.
+-}
+import Native
+
+-- Two pages, the second one a guard: a byte at `page + 4096` or past it is a fault.
+fn guardedPage() -> %U8:
+    let page = mapMemory(8192)
+    protectNone(page + (4096 :: Size), 4096)
+    return page
+
+-- Odd bytes, so that no lane of the pattern is zero and a lane read past the count could not pass
+-- for the zero it should have been.
+fn fillPattern(page: %U8):
+    let &i = 0 :: Size
+    while i < 4096:
+        store(page + i, truncate(i * 14 + 3) :: U8)
+        i = i + 1
+
+fn fillSentinel(page: %U8):
+    let &i = 0 :: Size
+    while i < 4096:
+        store(page + i, 0xab :: U8)
+        i = i + 1
+
+-- How many of the first `total` bytes at `got` differ from those at `want`, where `want` is null for
+-- zeros.
+fn differing(got: %U8, want: %U8, live: Int, total: Int) -> Int:
+    let &wrong = 0
+    let &b = 0
+    while b < total:
+        let expected = if b < live then *(want + (b :: Size)) else 0 :: U8
+        if *(got + (b :: Size)) != expected then wrong = wrong + 1
+        b = b + 1
+    return wrong
+
+-- How many bytes of the page differ from the sentinel below `start` and from `values` above it.
+fn storedWrong(page: %U8, start: Int, values: %U8) -> Int:
+    let &wrong = 0
+    let &b = 0
+    while b < 4096:
+        let expected = if b < start then 0xab :: U8 else *(values + ((b - start) :: Size))
+        if *(page + (b :: Size)) != expected then wrong = wrong + 1
+        b = b + 1
+    return wrong
+
+-- U8: every count, the load and the store each ending at the guard.
+fn upToU8(page: %U8, scratch: %U8) -> Int:
+    let lanesOf = lanes(zero() :: Vec(U8))
+    let width = 1
+    let total = lanesOf * width
+    let values = (iota() :: Vec(U8)) * splat(2 :: U8) + splat(1 :: U8)
+    let &wrong = 0
+    let &c = 0 - 2
+
+    while c <= lanesOf + 2:
+        let live = if c < 0 then 0 else if c > lanesOf then lanesOf else c
+        let start = 4096 - live * width
+        let at = page + (start :: Size)
+
+        fillPattern(page)
+        setVectorAt(bitcast(scratch) :: %U8, loadUpTo(bitcast(at) :: %U8, c) :: Vec(U8))
+        wrong = wrong + differing(scratch, at, live * width, total)
+
+        fillSentinel(page)
+        storeUpTo(bitcast(at) :: %U8, c, values)
+        setVectorAt(bitcast(scratch) :: %U8, values)
+        wrong = wrong + storedWrong(page, start, scratch)
+
+        c = c + 1
+
+    return wrong
+
+-- U16: every count, the load and the store each ending at the guard.
+fn upToU16(page: %U8, scratch: %U8) -> Int:
+    let lanesOf = lanes(zero() :: Vec(U16))
+    let width = 2
+    let total = lanesOf * width
+    let values = (iota() :: Vec(U16)) * splat(2 :: U16) + splat(1 :: U16)
+    let &wrong = 0
+    let &c = 0 - 2
+
+    while c <= lanesOf + 2:
+        let live = if c < 0 then 0 else if c > lanesOf then lanesOf else c
+        let start = 4096 - live * width
+        let at = page + (start :: Size)
+
+        fillPattern(page)
+        setVectorAt(bitcast(scratch) :: %U16, loadUpTo(bitcast(at) :: %U16, c) :: Vec(U16))
+        wrong = wrong + differing(scratch, at, live * width, total)
+
+        fillSentinel(page)
+        storeUpTo(bitcast(at) :: %U16, c, values)
+        setVectorAt(bitcast(scratch) :: %U16, values)
+        wrong = wrong + storedWrong(page, start, scratch)
+
+        c = c + 1
+
+    return wrong
+
+-- U32: every count, the load and the store each ending at the guard.
+fn upToU32(page: %U8, scratch: %U8) -> Int:
+    let lanesOf = lanes(zero() :: Vec(U32))
+    let width = 4
+    let total = lanesOf * width
+    let values = (iota() :: Vec(U32)) * splat(2 :: U32) + splat(1 :: U32)
+    let &wrong = 0
+    let &c = 0 - 2
+
+    while c <= lanesOf + 2:
+        let live = if c < 0 then 0 else if c > lanesOf then lanesOf else c
+        let start = 4096 - live * width
+        let at = page + (start :: Size)
+
+        fillPattern(page)
+        setVectorAt(bitcast(scratch) :: %U32, loadUpTo(bitcast(at) :: %U32, c) :: Vec(U32))
+        wrong = wrong + differing(scratch, at, live * width, total)
+
+        fillSentinel(page)
+        storeUpTo(bitcast(at) :: %U32, c, values)
+        setVectorAt(bitcast(scratch) :: %U32, values)
+        wrong = wrong + storedWrong(page, start, scratch)
+
+        c = c + 1
+
+    return wrong
+
+-- U64: every count, the load and the store each ending at the guard.
+fn upToU64(page: %U8, scratch: %U8) -> Int:
+    let lanesOf = lanes(zero() :: Vec(U64))
+    let width = 8
+    let total = lanesOf * width
+    let values = (iota() :: Vec(U64)) * splat(2 :: U64) + splat(1 :: U64)
+    let &wrong = 0
+    let &c = 0 - 2
+
+    while c <= lanesOf + 2:
+        let live = if c < 0 then 0 else if c > lanesOf then lanesOf else c
+        let start = 4096 - live * width
+        let at = page + (start :: Size)
+
+        fillPattern(page)
+        setVectorAt(bitcast(scratch) :: %U64, loadUpTo(bitcast(at) :: %U64, c) :: Vec(U64))
+        wrong = wrong + differing(scratch, at, live * width, total)
+
+        fillSentinel(page)
+        storeUpTo(bitcast(at) :: %U64, c, values)
+        setVectorAt(bitcast(scratch) :: %U64, values)
+        wrong = wrong + storedWrong(page, start, scratch)
+
+        c = c + 1
+
+    return wrong
+
+-- F32: every count, the load and the store each ending at the guard.
+fn upToF32(page: %U8, scratch: %U8) -> Int:
+    let lanesOf = lanes(zero() :: Vec(F32))
+    let width = 4
+    let total = lanesOf * width
+    let values = bitcast((iota() :: Vec(U32)) * splat(2 :: U32) + splat(1 :: U32)) :: Vec(F32)
+    let &wrong = 0
+    let &c = 0 - 2
+
+    while c <= lanesOf + 2:
+        let live = if c < 0 then 0 else if c > lanesOf then lanesOf else c
+        let start = 4096 - live * width
+        let at = page + (start :: Size)
+
+        fillPattern(page)
+        setVectorAt(bitcast(scratch) :: %F32, loadUpTo(bitcast(at) :: %F32, c) :: Vec(F32))
+        wrong = wrong + differing(scratch, at, live * width, total)
+
+        fillSentinel(page)
+        storeUpTo(bitcast(at) :: %F32, c, values)
+        setVectorAt(bitcast(scratch) :: %F32, values)
+        wrong = wrong + storedWrong(page, start, scratch)
+
+        c = c + 1
+
+    return wrong
+
+-- F64: every count, the load and the store each ending at the guard.
+fn upToF64(page: %U8, scratch: %U8) -> Int:
+    let lanesOf = lanes(zero() :: Vec(F64))
+    let width = 8
+    let total = lanesOf * width
+    let values = bitcast((iota() :: Vec(U64)) * splat(2 :: U64) + splat(1 :: U64)) :: Vec(F64)
+    let &wrong = 0
+    let &c = 0 - 2
+
+    while c <= lanesOf + 2:
+        let live = if c < 0 then 0 else if c > lanesOf then lanesOf else c
+        let start = 4096 - live * width
+        let at = page + (start :: Size)
+
+        fillPattern(page)
+        setVectorAt(bitcast(scratch) :: %F64, loadUpTo(bitcast(at) :: %F64, c) :: Vec(F64))
+        wrong = wrong + differing(scratch, at, live * width, total)
+
+        fillSentinel(page)
+        storeUpTo(bitcast(at) :: %F64, c, values)
+        setVectorAt(bitcast(scratch) :: %F64, values)
+        wrong = wrong + storedWrong(page, start, scratch)
+
+        c = c + 1
+
+    return wrong
+
+-- The three counts a constant decides: none, some and all, at the natural byte vector.
+fn constants(page: %U8, scratch: %U8) -> Int:
+    let lanesOf = lanes(zero() :: Vec(U8))
+    let whole = 4096 - lanesOf
+    let &wrong = 0
+
+    fillPattern(page)
+    setVectorAt(scratch, loadUpTo(page + (whole :: Size), 0) :: Vec(U8))
+    wrong = wrong + differing(scratch, page, 0, lanesOf)
+    setVectorAt(scratch, loadUpTo(page + (whole :: Size), lanesOf) :: Vec(U8))
+    wrong = wrong + differing(scratch, page + (whole :: Size), lanesOf, lanesOf)
+    setVectorAt(scratch, loadUpTo(page + (4093 :: Size), 3) :: Vec(U8))
+    wrong = wrong + differing(scratch, page + (4093 :: Size), 3, lanesOf)
+
+    fillSentinel(page)
+    storeUpTo(page + (whole :: Size), 0, splat(1 :: U8) :: Vec(U8))
+    storeUpTo(page + (4093 :: Size), 3, splat(7 :: U8) :: Vec(U8))
+    setVectorAt(scratch, splat(7 :: U8) :: Vec(U8))
+    wrong = wrong + storedWrong(page, 4093, scratch)
+
+    return wrong
+
+fn main() -> Int:
+    let page = guardedPage()
+    let scratch = mapMemory(4096)
+    let &wrong = constants(page, scratch)
+    wrong = wrong + upToU8(page, scratch)
+    wrong = wrong + upToU16(page, scratch)
+    wrong = wrong + upToU32(page, scratch)
+    wrong = wrong + upToU64(page, scratch)
+    wrong = wrong + upToF32(page, scratch)
+    wrong = wrong + upToF64(page, scratch)
+    return wrong
