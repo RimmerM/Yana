@@ -251,6 +251,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
         // field, so that a `.lower` fixture reads the way the disassembly does.
         case LowerInst::ShaBinary:
             return nameOfLowerSha(((LowerInstShaBinary*)&inst)->getSha());
+        case LowerInst::CryptoBinary:
+            return nameOfLowerCrypto(((LowerInstCryptoBinary*)&inst)->getCrypto());
         case LowerInst::Cmp:
             return nameForCmp(((LowerInstCmp&)inst).getCmp());
         case LowerInst::VecReduce:
@@ -745,6 +747,10 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
             // in some way it did not say.
             writer.writeString(", "_v);
             printInt(writer, ((LowerInstX86TernaryLogic&)inst).getTable());
+        } else if(inst.kind == LowerInst::AesKeygenAssist) {
+            // The round constant, which is the instruction's trailing byte: `aeskeygenassist %k, 1`.
+            writer.writeString(", "_v);
+            printInt(writer, ((LowerInstAesKeygenAssist&)inst).roundConstant());
         } else if(inst.kind == LowerInst::VecShuffle) {
             auto pattern = ((LowerInstVecShuffle&)inst).pattern();
 

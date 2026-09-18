@@ -99,6 +99,12 @@ inline StringView nativeOpName(NativeOp op) {
     return "?"_v;
 }
 
+// Whether a native operation reads `NodeNative::immediate` - the two with a trailing byte a program
+// chooses. See native.def.
+inline bool nativeHasImmediate(NativeOp op) {
+    return op == NativeOp::AesKeygenAssist || op == NativeOp::CarrylessMultiply;
+}
+
 /*
  * What an operation does to a value **narrower than the register it is held in** - the width column
  * of `op.def`, and the whole of what the seam in `resolve_ssa/lower/width.cpp` reads.

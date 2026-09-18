@@ -751,6 +751,15 @@ struct NodeNative: NodeResult {
     NodeNative(LocationId source, NativeOp op): NodeResult(Native, source), op(op) {}
 
     NativeOp op;
+
+    /*
+     * The instruction's trailing byte, for the two rows that have one a program chooses:
+     * `aeskeygenassist`'s round constant and `pclmulqdq`'s quadword selector. Zero on every other
+     * row. A field rather than an operand for the reason `sha1rnds4`'s group is a row - a computed
+     * one is not an instruction - and a field rather than rows because there are 256 of the first.
+     * The expansion holds the argument to being a literal, which is the only place that can.
+     */
+    U8 immediate = 0;
     OperandList arguments;
 
     // By reference, for the reason `NodeCall::eachOperand` gives: a `Forward` in an argument is

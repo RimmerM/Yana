@@ -550,6 +550,12 @@ struct Printer {
                 // only thing about one of these this tier knows.
                 writer.writeString(" "_v);
                 writer.writeString(nativeOpName(((NodeNative&)value).op));
+
+                // And the trailing byte, for the two rows that carry one.
+                if(nativeHasImmediate(((NodeNative&)value).op)) {
+                    writer.writeString(" #"_v);
+                    writeUInt(writer, ((NodeNative&)value).immediate);
+                }
                 break;
             case Node::VecLane:
             case Node::VecWithLane:

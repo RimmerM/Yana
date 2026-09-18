@@ -636,6 +636,17 @@ U8 packedTrailingByte(LowerInst* inst) {
             return U8((U8)op - (U8)LowerSha::Sha1Rounds0);
         }
 
+        // `pclmulqdq`'s quadword selector, which the kind carries as one of four members; and
+        // `aeskeygenassist`'s round constant, which is its `flags`. Only `FormClmul`, its wide twin
+        // and `FormAesKeygenAssist` declare `patternImmediate`, so the four rounds never reach here.
+        case LowerInst::CryptoBinary: {
+            auto op = ((LowerInstCryptoBinary*)inst)->getCrypto();
+            assertTrue(isCarrylessMultiply(op));
+            return carrylessSelector(op);
+        }
+        case LowerInst::AesKeygenAssist:
+            return ((LowerInstAesKeygenAssist*)inst)->roundConstant();
+
         // The truth table, which is the instruction's own field.
         case LowerInst::X86TernaryLogic:
             return ((LowerInstX86TernaryLogic*)inst)->getTable();
@@ -1438,6 +1449,30 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
 
         case LowerInst::Sha256Rounds:
             return FormSha256Rounds;
+
+        /*
+         * AES-NI and PCLMULQDQ. Through `widthForm` for the four the VAES and VPCLMULQDQ rows widen,
+         * which `unsupportedVectorReason` has already held to the feature a 256-bit one needs; the
+         * two key-schedule instructions are 128 bits by the resolve verifier.
+         */
+        case LowerInst::CryptoBinary: {
+            auto crypto = (LowerInstCryptoBinary*)inst;
+            auto narrow = FormClmul;
+
+            switch(crypto->getCrypto()) {
+                case LowerCrypto::AesEnc:     narrow = FormAesEnc; break;
+                case LowerCrypto::AesEncLast: narrow = FormAesEncLast; break;
+                case LowerCrypto::AesDec:     narrow = FormAesDec; break;
+                case LowerCrypto::AesDecLast: narrow = FormAesDecLast; break;
+                default:                      break;
+            }
+
+            return widthForm(narrow, crypto->result.type);
+        }
+        case LowerInst::AesInverseMix:
+            return FormAesInverseMix;
+        case LowerInst::AesKeygenAssist:
+            return FormAesKeygenAssist;
 
         // The three directed roundings, answered here at every width for `Sqrt`'s reason: `roundss`
         // and `roundps` are one instruction family, so one switch answers for the whole of it. Which
@@ -2289,6 +2324,28 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
             }
 
             return {};
+
+        /*
+         * AES-NI and PCLMULQDQ, on the SHA rows' terms: the declarations are `@platform`-gated on
+         * the same flags, so a program should not reach this, and the refusal is a diagnostic for
+         * `checkVectorSupported`'s reason. What is new is the width - a 256-bit round or multiply is
+         * VAES or VPCLMULQDQ, which `avx2` does not imply.
+         */
+        case LowerInst::CryptoBinary:
+        case LowerInst::AesInverseMix:
+        case LowerInst::AesKeygenAssist: {
+            auto clmul = inst->kind == LowerInst::CryptoBinary
+                      && isCarrylessMultiply(((LowerInstCryptoBinary*)inst)->getCrypto());
+            auto wide = isWideVector(((LowerInstSingle*)inst)->result.type);
+            auto needs = clmul ? (wide ? kFeatureVpclmul : kFeaturePclmul) : (wide ? kFeatureVaes : kFeatureAes);
+
+            if((targetFeatures() & needs) == 0) {
+                return Just(clmul ? "a carryless multiply needs a target that claims `pclmul` - or `vpclmul` for the 256-bit form - named beside the level or implied by it"_v
+                                  : "an AES round needs a target that claims `aes` - or `vaes` for the 256-bit form - named beside the level or implied by it"_v);
+            }
+
+            return {};
+        }
 
         default:
             return Just("this backend has no packed form for this operation"_v);

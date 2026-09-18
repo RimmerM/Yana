@@ -952,6 +952,110 @@ struct LowerInstSha256Rounds: LowerInstSingle {
 };
 
 /*
+ * Which two-operand AES-NI or PCLMULQDQ instruction a `CryptoBinary` is.
+ *
+ * `pclmulqdq`'s immediate reads bit 0 (which quadword of the first source) and bit 4 (which of the
+ * second) and nothing else, so its four meaningful values are four members here - the same move as
+ * `sha1rnds4`'s four round groups, and what keeps the whole instruction in `flags`. The names are
+ * the assembler's own for the four: `pclmullqhqdq` multiplies the low quadword of the first source
+ * by the high one of the second.
+ *
+ * The mirror of `CryptoOp` in resolve/inst.h, on `LowerSha`'s terms.
+ */
+enum class LowerCrypto: U8 {
+    AesEnc,
+    AesEncLast,
+    AesDec,
+    AesDecLast,
+    ClmulLowLow,
+    ClmulHighLow,
+    ClmulLowHigh,
+    ClmulHighHigh,
+};
+
+inline StringView nameOfLowerCrypto(LowerCrypto op) {
+    switch(op) {
+        case LowerCrypto::AesEnc:        return "aesenc"_v;
+        case LowerCrypto::AesEncLast:    return "aesenclast"_v;
+        case LowerCrypto::AesDec:        return "aesdec"_v;
+        case LowerCrypto::AesDecLast:    return "aesdeclast"_v;
+        case LowerCrypto::ClmulLowLow:   return "pclmullqlqdq"_v;
+        case LowerCrypto::ClmulHighLow:  return "pclmulhqlqdq"_v;
+        case LowerCrypto::ClmulLowHigh:  return "pclmullqhqdq"_v;
+        default:                         return "pclmulhqhqdq"_v;
+    }
+}
+
+inline bool isCarrylessMultiply(LowerCrypto op) {
+    return op >= LowerCrypto::ClmulLowLow;
+}
+
+// `pclmulqdq`'s immediate for one of the four: bit 0 selects the first source's quadword, bit 4 the
+// second's. `ClmulHighLow` is 0x01 - the *first* source's high half - which is the assembler's
+// `pclmulhqlqdq`.
+inline U8 carrylessSelector(LowerCrypto op) {
+    auto index = U8(op) - U8(LowerCrypto::ClmulLowLow);
+    return U8((index & 1) | ((index & 2) << 3));
+}
+
+// The inverse: which of the four a selector names. Only 0x00, 0x01, 0x10 and 0x11 reach here - the
+// resolvers refuse the rest.
+inline LowerCrypto carrylessOfSelector(U8 selector) {
+    return LowerCrypto(U8(LowerCrypto::ClmulLowLow) + U8((selector & 1) | ((selector >> 3) & 2)));
+}
+
+/*
+ * One of AES-NI's four rounds or one carryless multiply - `LowerInst::CryptoBinary`.
+ *
+ * Two used values of the result's type: sixteen or thirty-two bytes, a lane or two of 128-bit
+ * blocks, which the resolve verifier has already held them to. The instruction is `flags`, on
+ * `LowerInstShaBinary`'s terms.
+ */
+struct LowerInstCryptoBinary: LowerInstSingle {
+    LowerInstCryptoBinary(StringId name, LowerType type, LowerPtr<LowerValue> lhs, LowerPtr<LowerValue> rhs,
+                          LowerCrypto op):
+        LowerInstSingle(CryptoBinary, name, type), lhs(lhs), rhs(rhs)
+    {
+        usedCount = 2;
+        flags = (U8)op;
+    }
+
+    LowerCrypto getCrypto() const { return (LowerCrypto)flags; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> lhs, rhs;
+};
+
+// `aesimc` - InvMixColumns of one round key, which is what turns an encryption key schedule into the
+// one the equivalent inverse cipher reads.
+struct LowerInstAesInverseMix: LowerInstSingle {
+    LowerInstAesInverseMix(StringId name, LowerType type, LowerPtr<LowerValue> from):
+        LowerInstSingle(AesInverseMix, name, type), from(from)
+    {
+        usedCount = 1;
+    }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> from;
+};
+
+// `aeskeygenassist` - the key schedule's substitution and rotation, with the round constant as the
+// instruction's trailing byte and therefore as `flags`.
+struct LowerInstAesKeygenAssist: LowerInstSingle {
+    LowerInstAesKeygenAssist(StringId name, LowerType type, LowerPtr<LowerValue> from, U8 roundConstant):
+        LowerInstSingle(AesKeygenAssist, name, type), from(from)
+    {
+        usedCount = 1;
+        flags = roundConstant;
+    }
+
+    U8 roundConstant() const { return flags; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> from;
+};
+
+/*
  * Vectors.
  */
 

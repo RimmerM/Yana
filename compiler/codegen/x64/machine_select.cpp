@@ -150,6 +150,11 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::ShaBinary:    return OpSha;
         case LowerInst::Sha256Rounds: return OpSha256Rounds;
 
+        // AES-NI and PCLMULQDQ, one opcode for all seven on `OpSha`'s terms.
+        case LowerInst::CryptoBinary:
+        case LowerInst::AesInverseMix:
+        case LowerInst::AesKeygenAssist: return OpCrypto;
+
         // The three directed roundings, which are one instruction with the mode in a trailing byte -
         // so one op here, exactly as the four square roots are one. `Round` is absent because
         // `expandRoundAway` has already replaced it; reaching this with one is the bug that assert
@@ -583,6 +588,9 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::Round:
         case LowerInst::ShaBinary:
         case LowerInst::Sha256Rounds:
+        case LowerInst::CryptoBinary:
+        case LowerInst::AesInverseMix:
+        case LowerInst::AesKeygenAssist:
             assertTrue("a packed instruction selectPackedForm did not answer for" == nullptr);
             return FormNop;
 

@@ -279,6 +279,27 @@ YANA_LOWER_INST(ShaBinary,     LowerInstShaBinary,      "sha"_v,             2, 
 YANA_LOWER_INST(Sha256Rounds,  LowerInstSha256Rounds,   "sha256rnds2"_v,     3,         1,        kLowerArith)
 
 /*
+ * AES-NI and PCLMULQDQ - Analysis-Avx512.md §4.1-4.2, written in source as `X86.aesEncrypt` and
+ * its siblings and `X86.carrylessMultiply`. See `Value::CryptoBinary` in resolve/inst.def, where
+ * what each computes is argued.
+ *
+ * Three kinds, and everything each carries is in `flags` so that all three are plain: which of
+ * the four rounds or which pair of quadwords a `CryptoBinary` is (`LowerCrypto`), and the round
+ * constant of an `AesKeygenAssist`. `aesimc` carries nothing, and is a kind of its own because it
+ * and `aeskeygenassist` cannot share a `flags` byte that one of them fills entirely.
+ *
+ * Out of the unary and binary ranges for `ShaBinary`'s reason, and without an expansion for the
+ * SHA instructions' one: what stands in for them on a target without the extension is a different
+ * implementation of the cipher, chosen in the library.
+ *
+ * A `CryptoBinary` is 128 or 256 bits wide - two blocks per instruction at the second, which is
+ * VAES and VPCLMULQDQ. The two unary kinds exist at 128 bits only, as on the machine.
+ */
+YANA_LOWER_INST(CryptoBinary,    LowerInstCryptoBinary,    "crypto"_v,          2,         1,        kLowerArith)
+YANA_LOWER_INST(AesInverseMix,   LowerInstAesInverseMix,   "aesimc"_v,          1,         1,        kLowerArith)
+YANA_LOWER_INST(AesKeygenAssist, LowerInstAesKeygenAssist, "aeskeygenassist"_v, 1,         1,        kLowerArith)
+
+/*
  * `vzeroupper` - the vector state reset, written in source as `X86.vzeroupper()`.
  *
  * No operands and no result: what it changes is processor state nothing in this IR names.

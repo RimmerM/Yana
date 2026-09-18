@@ -1,0 +1,656 @@
+module ResolveTest
+
+let & keyLow: U64 = 506097522914230528
+
+let & keyHigh: U64 = 1084818905618843912
+
+let & plainLow: U64 = 8603657889541918976
+
+let & plainHigh: U64 = 18441921395520346504
+
+fn block(low: U64 [shared call], high: U64 [shared call]) -> Vec(U8) {
+bb0(%0: U64 trivial, %1: U64 trivial):
+  %2: %U64 address = alloc frame U64 [shared call]
+  %3: %U64 address = alloc frame U64 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: U64 trivial = const 0
+  %5: Vec(U64) trivial = vec.splat inspect %4
+  %6: I32 trivial = const 0
+  %7: U64 trivial = load inspect %2
+  %8: Vec(U64) trivial = vec.withlane #0 inspect %5 inspect %7
+  %9: I32 trivial = const 1
+  %10: U64 trivial = load inspect %3
+  %11: Vec(U64) trivial = vec.withlane #1 inspect %8 inspect %10
+  %12: Vec(U8) trivial = bitcast inspect %11
+  return consume %12
+}
+
+fn lowOf(v: Vec(U8) [shared call]) -> U64 {
+bb0(%0: Vec(U8) trivial):
+  %1: %Vec(U8) address = alloc frame Vec(U8) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(U8) trivial = load inspect %1
+  %3: Vec(U64) trivial = bitcast inspect %2
+  %4: I32 trivial = const 0
+  %5: U64 trivial = vec.lane #0 inspect %3
+  return consume %5
+}
+
+fn highOf(v: Vec(U8) [shared call]) -> U64 {
+bb0(%0: Vec(U8) trivial):
+  %1: %Vec(U8) address = alloc frame Vec(U8) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(U8) trivial = load inspect %1
+  %3: Vec(U64) trivial = bitcast inspect %2
+  %4: I32 trivial = const 1
+  %5: U64 trivial = vec.lane #1 inspect %3
+  return consume %5
+}
+
+fn nextKey(key: Vec(U8) [shared call], assist: Vec(U8) [shared call]) -> Vec(U8) {
+bb0(%0: Vec(U8) trivial, %1: Vec(U8) trivial):
+  %2: %Vec(U8) address = alloc frame Vec(U8) [shared call]
+  %3: %Vec(U8) address = alloc frame Vec(U8) [shared call]
+  %4: %Vec(U32) address = alloc frame Vec(U32)
+  %5: %Vec(U32) address = alloc frame Vec(U32)
+  %6: %Vec(U32) address = alloc frame Vec(U32)
+  %7: %Vec(U32) address = alloc frame Vec(U32)
+  %8: %Vec(U32) address = alloc frame Vec(U32)
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %9: Vec(U8) trivial = load inspect %3
+  %10: Vec(U32) trivial = bitcast inspect %9
+  %11: I32 trivial = const 3
+  %12: I32 trivial = const 3
+  %13: I32 trivial = const 3
+  %14: I32 trivial = const 3
+  %15: [I32 *4] trivial = aggregate.0 consume %11 consume %12 consume %13 consume %14
+  %16: Vec(U32) trivial = vec.shuffle [3, 3, 3, 3] inspect %10 inspect %10
+  store inspect %4 consume %16
+  %17: U32 trivial = const 0
+  %18: Vec(U32) trivial = vec.splat inspect %17
+  store inspect %5 consume %18
+  %19: Vec(U8) trivial = load inspect %2
+  %20: Vec(U32) trivial = bitcast inspect %19
+  store inspect %6 consume %20
+  %21: Vec(U32) trivial = load inspect %6
+  %22: Vec(U32) trivial = load inspect %6
+  %23: Vec(U32) trivial = load inspect %5
+  %24: I32 trivial = const 3
+  %25: Vec(U32) trivial = vec.shuffle [7, 0, 1, 2] inspect %22 inspect %23
+  %26: Vec(U32) trivial = xor inspect %21 inspect %25
+  store inspect %7 consume %26
+  %27: Vec(U32) trivial = load inspect %7
+  %28: Vec(U32) trivial = load inspect %7
+  %29: Vec(U32) trivial = load inspect %5
+  %30: I32 trivial = const 2
+  %31: Vec(U32) trivial = vec.shuffle [6, 7, 0, 1] inspect %28 inspect %29
+  %32: Vec(U32) trivial = xor inspect %27 inspect %31
+  store inspect %8 consume %32
+  %33: Vec(U32) trivial = load inspect %8
+  %34: Vec(U32) trivial = load inspect %4
+  %35: Vec(U32) trivial = xor inspect %33 inspect %34
+  %36: Vec(U8) trivial = bitcast inspect %35
+  return consume %36
+}
+
+fn aes128() -> I32 {
+bb0:
+  %0: %Vec(U8) address = alloc frame Vec(U8)
+  %1: %Vec(U8) address = alloc frame Vec(U8)
+  %2: %Vec(U8) address = alloc frame Vec(U8)
+  %3: %Vec(U8) address = alloc frame Vec(U8)
+  %4: %Vec(U8) address = alloc frame Vec(U8)
+  %5: %Vec(U8) address = alloc frame Vec(U8)
+  %6: %Vec(U8) address = alloc frame Vec(U8)
+  %7: %Vec(U8) address = alloc frame Vec(U8)
+  %8: %Vec(U8) address = alloc frame Vec(U8)
+  %9: %Vec(U8) address = alloc frame Vec(U8)
+  %10: %Vec(U8) address = alloc frame Vec(U8)
+  %11: %I32 address = alloc frame I32
+  %12: %Vec(U8) address = alloc frame Vec(U8)
+  %13: %Vec(U8) address = alloc frame Vec(U8)
+  %14: %Vec(U8) address = alloc frame Vec(U8)
+  %15: %Vec(U8) address = alloc frame Vec(U8)
+  %16: %Vec(U8) address = alloc frame Vec(U8)
+  %17: %U64 address = global.addr keyLow
+  %18: U64 trivial = load inspect %17
+  %19: %U64 address = global.addr keyHigh
+  %20: U64 trivial = load inspect %19
+  %21: Vec(U8) trivial = call block borrow %18 borrow %20
+  store inspect %0 consume %21
+  %22: Vec(U8) trivial = load inspect %0
+  %23: Vec(U8) trivial = load inspect %0
+  %24: I32 trivial = const 1
+  %25: Vec(U8) trivial = native aeskeygenassist #1 inspect %23
+  %26: Vec(U8) trivial = call nextKey borrow %22 borrow %25
+  store inspect %1 consume %26
+  %27: Vec(U8) trivial = load inspect %1
+  %28: Vec(U8) trivial = load inspect %1
+  %29: I32 trivial = const 2
+  %30: Vec(U8) trivial = native aeskeygenassist #2 inspect %28
+  %31: Vec(U8) trivial = call nextKey borrow %27 borrow %30
+  store inspect %2 consume %31
+  %32: Vec(U8) trivial = load inspect %2
+  %33: Vec(U8) trivial = load inspect %2
+  %34: I32 trivial = const 4
+  %35: Vec(U8) trivial = native aeskeygenassist #4 inspect %33
+  %36: Vec(U8) trivial = call nextKey borrow %32 borrow %35
+  store inspect %3 consume %36
+  %37: Vec(U8) trivial = load inspect %3
+  %38: Vec(U8) trivial = load inspect %3
+  %39: I32 trivial = const 8
+  %40: Vec(U8) trivial = native aeskeygenassist #8 inspect %38
+  %41: Vec(U8) trivial = call nextKey borrow %37 borrow %40
+  store inspect %4 consume %41
+  %42: Vec(U8) trivial = load inspect %4
+  %43: Vec(U8) trivial = load inspect %4
+  %44: I32 trivial = const 16
+  %45: Vec(U8) trivial = native aeskeygenassist #16 inspect %43
+  %46: Vec(U8) trivial = call nextKey borrow %42 borrow %45
+  store inspect %5 consume %46
+  %47: Vec(U8) trivial = load inspect %5
+  %48: Vec(U8) trivial = load inspect %5
+  %49: I32 trivial = const 32
+  %50: Vec(U8) trivial = native aeskeygenassist #32 inspect %48
+  %51: Vec(U8) trivial = call nextKey borrow %47 borrow %50
+  store inspect %6 consume %51
+  %52: Vec(U8) trivial = load inspect %6
+  %53: Vec(U8) trivial = load inspect %6
+  %54: I32 trivial = const 64
+  %55: Vec(U8) trivial = native aeskeygenassist #64 inspect %53
+  %56: Vec(U8) trivial = call nextKey borrow %52 borrow %55
+  store inspect %7 consume %56
+  %57: Vec(U8) trivial = load inspect %7
+  %58: Vec(U8) trivial = load inspect %7
+  %59: I32 trivial = const 128
+  %60: Vec(U8) trivial = native aeskeygenassist #128 inspect %58
+  %61: Vec(U8) trivial = call nextKey borrow %57 borrow %60
+  store inspect %8 consume %61
+  %62: Vec(U8) trivial = load inspect %8
+  %63: Vec(U8) trivial = load inspect %8
+  %64: I32 trivial = const 27
+  %65: Vec(U8) trivial = native aeskeygenassist #27 inspect %63
+  %66: Vec(U8) trivial = call nextKey borrow %62 borrow %65
+  store inspect %9 consume %66
+  %67: Vec(U8) trivial = load inspect %9
+  %68: Vec(U8) trivial = load inspect %9
+  %69: I32 trivial = const 54
+  %70: Vec(U8) trivial = native aeskeygenassist #54 inspect %68
+  %71: Vec(U8) trivial = call nextKey borrow %67 borrow %70
+  store inspect %10 consume %71
+  %72: I32 trivial = const 0
+  store inspect %11 consume %72
+  %73: Vec(U8) trivial = load inspect %10
+  %74: U64 trivial = call lowOf borrow %73
+  %75: U64 trivial = const 1678317515960029459
+  %76: Bool trivial = ne inspect %74 inspect %75
+  branch inspect %76 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %77: Vec(U8) trivial = load inspect %10
+  %78: U64 trivial = call highOf borrow %77
+  %79: U64 trivial = const 14208904436409370611
+  %80: Bool trivial = ne inspect %78 inspect %79
+  branch inspect %80 -> bb6 -> bb4
+
+bb3:
+  %81: I32 trivial = load inspect %11
+  %82: I32 trivial = const 1
+  %83: I32 trivial = add inspect %81 inspect %82
+  store inspect %11 consume %83
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %84: %U64 address = global.addr plainLow
+  %85: U64 trivial = load inspect %84
+  %86: %U64 address = global.addr plainHigh
+  %87: U64 trivial = load inspect %86
+  %88: Vec(U8) trivial = call block borrow %85 borrow %87
+  store inspect %12 consume %88
+  %89: Vec(U8) trivial = load inspect %12
+  %90: Vec(U8) trivial = load inspect %0
+  %91: Vec(U8) trivial = xor inspect %89 inspect %90
+  store inspect %13 consume %91
+  %92: Vec(U8) trivial = load inspect %13
+  %93: Vec(U8) trivial = load inspect %1
+  %94: Vec(U8) trivial = native aesenc inspect %92 inspect %93
+  store inspect %13 consume %94
+  %95: Vec(U8) trivial = load inspect %13
+  %96: Vec(U8) trivial = load inspect %2
+  %97: Vec(U8) trivial = native aesenc inspect %95 inspect %96
+  store inspect %13 consume %97
+  %98: Vec(U8) trivial = load inspect %13
+  %99: Vec(U8) trivial = load inspect %3
+  %100: Vec(U8) trivial = native aesenc inspect %98 inspect %99
+  store inspect %13 consume %100
+  %101: Vec(U8) trivial = load inspect %13
+  %102: Vec(U8) trivial = load inspect %4
+  %103: Vec(U8) trivial = native aesenc inspect %101 inspect %102
+  store inspect %13 consume %103
+  %104: Vec(U8) trivial = load inspect %13
+  %105: Vec(U8) trivial = load inspect %5
+  %106: Vec(U8) trivial = native aesenc inspect %104 inspect %105
+  store inspect %13 consume %106
+  %107: Vec(U8) trivial = load inspect %13
+  %108: Vec(U8) trivial = load inspect %6
+  %109: Vec(U8) trivial = native aesenc inspect %107 inspect %108
+  store inspect %13 consume %109
+  %110: Vec(U8) trivial = load inspect %13
+  %111: Vec(U8) trivial = load inspect %7
+  %112: Vec(U8) trivial = native aesenc inspect %110 inspect %111
+  store inspect %13 consume %112
+  %113: Vec(U8) trivial = load inspect %13
+  %114: Vec(U8) trivial = load inspect %8
+  %115: Vec(U8) trivial = native aesenc inspect %113 inspect %114
+  store inspect %13 consume %115
+  %116: Vec(U8) trivial = load inspect %13
+  %117: Vec(U8) trivial = load inspect %9
+  %118: Vec(U8) trivial = native aesenc inspect %116 inspect %117
+  store inspect %13 consume %118
+  %119: Vec(U8) trivial = load inspect %13
+  %120: Vec(U8) trivial = load inspect %10
+  %121: Vec(U8) trivial = native aesenclast inspect %119 inspect %120
+  store inspect %14 consume %121
+  %122: Vec(U8) trivial = load inspect %14
+  %123: U64 trivial = call lowOf borrow %122
+  %124: U64 trivial = const 3460026112562742377
+  %125: Bool trivial = ne inspect %123 inspect %124
+  branch inspect %125 -> bb9 -> bb7
+
+bb6:
+  %126: I32 trivial = load inspect %11
+  %127: I32 trivial = const 1
+  %128: I32 trivial = add inspect %126 inspect %127
+  store inspect %11 consume %128
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %129: Vec(U8) trivial = load inspect %14
+  %130: U64 trivial = call highOf borrow %129
+  %131: U64 trivial = const 6540832429114379736
+  %132: Bool trivial = ne inspect %130 inspect %131
+  branch inspect %132 -> bb12 -> bb10
+
+bb9:
+  %133: I32 trivial = load inspect %11
+  %134: I32 trivial = const 1
+  %135: I32 trivial = add inspect %133 inspect %134
+  store inspect %11 consume %135
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %136: Vec(U8) trivial = load inspect %14
+  %137: Vec(U8) trivial = load inspect %10
+  %138: Vec(U8) trivial = xor inspect %136 inspect %137
+  store inspect %15 consume %138
+  %139: Vec(U8) trivial = load inspect %15
+  %140: Vec(U8) trivial = load inspect %9
+  %141: Vec(U8) trivial = native aesimc inspect %140
+  %142: Vec(U8) trivial = native aesdec inspect %139 inspect %141
+  store inspect %15 consume %142
+  %143: Vec(U8) trivial = load inspect %15
+  %144: Vec(U8) trivial = load inspect %8
+  %145: Vec(U8) trivial = native aesimc inspect %144
+  %146: Vec(U8) trivial = native aesdec inspect %143 inspect %145
+  store inspect %15 consume %146
+  %147: Vec(U8) trivial = load inspect %15
+  %148: Vec(U8) trivial = load inspect %7
+  %149: Vec(U8) trivial = native aesimc inspect %148
+  %150: Vec(U8) trivial = native aesdec inspect %147 inspect %149
+  store inspect %15 consume %150
+  %151: Vec(U8) trivial = load inspect %15
+  %152: Vec(U8) trivial = load inspect %6
+  %153: Vec(U8) trivial = native aesimc inspect %152
+  %154: Vec(U8) trivial = native aesdec inspect %151 inspect %153
+  store inspect %15 consume %154
+  %155: Vec(U8) trivial = load inspect %15
+  %156: Vec(U8) trivial = load inspect %5
+  %157: Vec(U8) trivial = native aesimc inspect %156
+  %158: Vec(U8) trivial = native aesdec inspect %155 inspect %157
+  store inspect %15 consume %158
+  %159: Vec(U8) trivial = load inspect %15
+  %160: Vec(U8) trivial = load inspect %4
+  %161: Vec(U8) trivial = native aesimc inspect %160
+  %162: Vec(U8) trivial = native aesdec inspect %159 inspect %161
+  store inspect %15 consume %162
+  %163: Vec(U8) trivial = load inspect %15
+  %164: Vec(U8) trivial = load inspect %3
+  %165: Vec(U8) trivial = native aesimc inspect %164
+  %166: Vec(U8) trivial = native aesdec inspect %163 inspect %165
+  store inspect %15 consume %166
+  %167: Vec(U8) trivial = load inspect %15
+  %168: Vec(U8) trivial = load inspect %2
+  %169: Vec(U8) trivial = native aesimc inspect %168
+  %170: Vec(U8) trivial = native aesdec inspect %167 inspect %169
+  store inspect %15 consume %170
+  %171: Vec(U8) trivial = load inspect %15
+  %172: Vec(U8) trivial = load inspect %1
+  %173: Vec(U8) trivial = native aesimc inspect %172
+  %174: Vec(U8) trivial = native aesdec inspect %171 inspect %173
+  store inspect %15 consume %174
+  %175: Vec(U8) trivial = load inspect %15
+  %176: Vec(U8) trivial = load inspect %0
+  %177: Vec(U8) trivial = native aesdeclast inspect %175 inspect %176
+  store inspect %16 consume %177
+  %178: Vec(U8) trivial = load inspect %16
+  %179: U64 trivial = call lowOf borrow %178
+  %180: %U64 address = global.addr plainLow
+  %181: U64 trivial = load inspect %180
+  %182: Bool trivial = ne inspect %179 inspect %181
+  branch inspect %182 -> bb15 -> bb13
+
+bb12:
+  %183: I32 trivial = load inspect %11
+  %184: I32 trivial = const 1
+  %185: I32 trivial = add inspect %183 inspect %184
+  store inspect %11 consume %185
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %186: Vec(U8) trivial = load inspect %16
+  %187: U64 trivial = call highOf borrow %186
+  %188: %U64 address = global.addr plainHigh
+  %189: U64 trivial = load inspect %188
+  %190: Bool trivial = ne inspect %187 inspect %189
+  branch inspect %190 -> bb18 -> bb16
+
+bb15:
+  %191: I32 trivial = load inspect %11
+  %192: I32 trivial = const 1
+  %193: I32 trivial = add inspect %191 inspect %192
+  store inspect %11 consume %193
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %194: I32 trivial = load inspect %11
+  return consume %194
+
+bb18:
+  %195: I32 trivial = load inspect %11
+  %196: I32 trivial = const 1
+  %197: I32 trivial = add inspect %195 inspect %196
+  store inspect %11 consume %197
+  jump -> bb17
+}
+
+fn productLow(a: U64 [shared call], b: U64 [shared call]) -> U64 {
+bb0(%0: U64 trivial, %1: U64 trivial):
+  %2: %U64 address = alloc frame U64 [shared call]
+  %3: %U64 address = alloc frame U64 [shared call]
+  %4: %U64 address = alloc frame U64
+  %5: %U64 address = alloc frame U64
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %6: U64 trivial = const 0
+  store inspect %4 consume %6
+  %7: U64 trivial = const 0
+  store inspect %5 consume %7
+  jump -> bb1
+
+bb1:
+  %8: U64 trivial = load inspect %5
+  %9: U64 trivial = const 64
+  %10: Bool trivial = lt inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb2
+
+bb2:
+  %11: U64 trivial = load inspect %4
+  return consume %11
+
+bb3:
+  %12: U64 trivial = load inspect %3
+  %13: U64 trivial = load inspect %5
+  %14: U64 trivial = shr inspect %12 inspect %13
+  %15: U64 trivial = const 1
+  %16: U64 trivial = and inspect %14 inspect %15
+  %17: U64 trivial = const 0
+  %18: Bool trivial = ne inspect %16 inspect %17
+  branch inspect %18 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %19: U64 trivial = load inspect %5
+  %20: U64 trivial = const 1
+  %21: U64 trivial = add inspect %19 inspect %20
+  store inspect %5 consume %21
+  jump -> bb1
+
+bb6:
+  %22: U64 trivial = load inspect %4
+  %23: U64 trivial = load inspect %2
+  %24: U64 trivial = load inspect %5
+  %25: U64 trivial = shl inspect %23 inspect %24
+  %26: U64 trivial = xor inspect %22 inspect %25
+  store inspect %4 consume %26
+  jump -> bb5
+}
+
+fn productHigh(a: U64 [shared call], b: U64 [shared call]) -> U64 {
+bb0(%0: U64 trivial, %1: U64 trivial):
+  %2: %U64 address = alloc frame U64 [shared call]
+  %3: %U64 address = alloc frame U64 [shared call]
+  %4: %U64 address = alloc frame U64
+  %5: %U64 address = alloc frame U64
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %6: U64 trivial = const 0
+  store inspect %4 consume %6
+  %7: U64 trivial = const 1
+  store inspect %5 consume %7
+  jump -> bb1
+
+bb1:
+  %8: U64 trivial = load inspect %5
+  %9: U64 trivial = const 64
+  %10: Bool trivial = lt inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb2
+
+bb2:
+  %11: U64 trivial = load inspect %4
+  return consume %11
+
+bb3:
+  %12: U64 trivial = load inspect %3
+  %13: U64 trivial = load inspect %5
+  %14: U64 trivial = shr inspect %12 inspect %13
+  %15: U64 trivial = const 1
+  %16: U64 trivial = and inspect %14 inspect %15
+  %17: U64 trivial = const 0
+  %18: Bool trivial = ne inspect %16 inspect %17
+  branch inspect %18 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %19: U64 trivial = load inspect %5
+  %20: U64 trivial = const 1
+  %21: U64 trivial = add inspect %19 inspect %20
+  store inspect %5 consume %21
+  jump -> bb1
+
+bb6:
+  %22: U64 trivial = load inspect %4
+  %23: U64 trivial = load inspect %2
+  %24: U64 trivial = const 64
+  %25: U64 trivial = load inspect %5
+  %26: U64 trivial = sub inspect %24 inspect %25
+  %27: U64 trivial = shr inspect %23 inspect %26
+  %28: U64 trivial = xor inspect %22 inspect %27
+  store inspect %4 consume %28
+  jump -> bb5
+}
+
+fn quads(low: U64 [shared call], high: U64 [shared call]) -> Vec(U64) {
+bb0(%0: U64 trivial, %1: U64 trivial):
+  %2: %U64 address = alloc frame U64 [shared call]
+  %3: %U64 address = alloc frame U64 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: U64 trivial = const 0
+  %5: Vec(U64) trivial = vec.splat inspect %4
+  %6: I32 trivial = const 0
+  %7: U64 trivial = load inspect %2
+  %8: Vec(U64) trivial = vec.withlane #0 inspect %5 inspect %7
+  %9: I32 trivial = const 1
+  %10: U64 trivial = load inspect %3
+  %11: Vec(U64) trivial = vec.withlane #1 inspect %8 inspect %10
+  return consume %11
+}
+
+fn checkProduct(v: Vec(U64) [shared call], a: U64 [shared call], b: U64 [shared call]) -> I32 {
+bb0(%0: Vec(U64) trivial, %1: U64 trivial, %2: U64 trivial):
+  %3: %Vec(U64) address = alloc frame Vec(U64) [shared call]
+  %4: %U64 address = alloc frame U64 [shared call]
+  %5: %U64 address = alloc frame U64 [shared call]
+  %6: %I32 address = alloc frame I32
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  store inspect %5 borrow %2
+  %7: I32 trivial = const 0
+  store inspect %6 consume %7
+  %8: Vec(U64) trivial = load inspect %3
+  %9: I32 trivial = const 0
+  %10: U64 trivial = vec.lane #0 inspect %8
+  %11: U64 trivial = load inspect %4
+  %12: U64 trivial = load inspect %5
+  %13: U64 trivial = call productLow borrow %11 borrow %12
+  %14: Bool trivial = ne inspect %10 inspect %13
+  branch inspect %14 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %15: Vec(U64) trivial = load inspect %3
+  %16: I32 trivial = const 1
+  %17: U64 trivial = vec.lane #1 inspect %15
+  %18: U64 trivial = load inspect %4
+  %19: U64 trivial = load inspect %5
+  %20: U64 trivial = call productHigh borrow %18 borrow %19
+  %21: Bool trivial = ne inspect %17 inspect %20
+  branch inspect %21 -> bb6 -> bb4
+
+bb3:
+  %22: I32 trivial = load inspect %6
+  %23: I32 trivial = const 1
+  %24: I32 trivial = add inspect %22 inspect %23
+  store inspect %6 consume %24
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %25: I32 trivial = load inspect %6
+  return consume %25
+
+bb6:
+  %26: I32 trivial = load inspect %6
+  %27: I32 trivial = const 1
+  %28: I32 trivial = add inspect %26 inspect %27
+  store inspect %6 consume %28
+  jump -> bb5
+}
+
+fn carryless() -> I32 {
+bb0:
+  %0: %U64 address = alloc frame U64
+  %1: %U64 address = alloc frame U64
+  %2: %U64 address = alloc frame U64
+  %3: %U64 address = alloc frame U64
+  %4: %Vec(U64) address = alloc frame Vec(U64)
+  %5: %Vec(U64) address = alloc frame Vec(U64)
+  %6: %U64 address = global.addr keyLow
+  %7: U64 trivial = load inspect %6
+  %8: U64 trivial = const 11400714819323198485
+  %9: U64 trivial = mul inspect %7 inspect %8
+  store inspect %0 consume %9
+  %10: %U64 address = global.addr plainHigh
+  %11: U64 trivial = load inspect %10
+  %12: U64 trivial = const 14029467366897019727
+  %13: U64 trivial = mul inspect %11 inspect %12
+  store inspect %1 consume %13
+  %14: %U64 address = global.addr plainLow
+  %15: U64 trivial = load inspect %14
+  %16: U64 trivial = const 17
+  %17: U64 trivial = rol inspect %15 inspect %16
+  store inspect %2 consume %17
+  %18: %U64 address = global.addr keyHigh
+  %19: U64 trivial = load inspect %18
+  %20: U64 trivial = const 1609587929392839161
+  %21: U64 trivial = mul inspect %19 inspect %20
+  store inspect %3 consume %21
+  %22: U64 trivial = load inspect %0
+  %23: U64 trivial = load inspect %1
+  %24: Vec(U64) trivial = call quads borrow %22 borrow %23
+  store inspect %4 consume %24
+  %25: U64 trivial = load inspect %2
+  %26: U64 trivial = load inspect %3
+  %27: Vec(U64) trivial = call quads borrow %25 borrow %26
+  store inspect %5 consume %27
+  %28: Vec(U64) trivial = load inspect %4
+  %29: Vec(U64) trivial = load inspect %5
+  %30: I32 trivial = const 0
+  %31: Vec(U64) trivial = native pclmulqdq #0 inspect %28 inspect %29
+  %32: U64 trivial = load inspect %0
+  %33: U64 trivial = load inspect %2
+  %34: I32 trivial = call checkProduct borrow %31 borrow %32 borrow %33
+  %35: Vec(U64) trivial = load inspect %4
+  %36: Vec(U64) trivial = load inspect %5
+  %37: I32 trivial = const 1
+  %38: Vec(U64) trivial = native pclmulqdq #1 inspect %35 inspect %36
+  %39: U64 trivial = load inspect %1
+  %40: U64 trivial = load inspect %2
+  %41: I32 trivial = call checkProduct borrow %38 borrow %39 borrow %40
+  %42: I32 trivial = add inspect %34 inspect %41
+  %43: Vec(U64) trivial = load inspect %4
+  %44: Vec(U64) trivial = load inspect %5
+  %45: I32 trivial = const 16
+  %46: Vec(U64) trivial = native pclmulqdq #16 inspect %43 inspect %44
+  %47: U64 trivial = load inspect %0
+  %48: U64 trivial = load inspect %3
+  %49: I32 trivial = call checkProduct borrow %46 borrow %47 borrow %48
+  %50: I32 trivial = add inspect %42 inspect %49
+  %51: Vec(U64) trivial = load inspect %4
+  %52: Vec(U64) trivial = load inspect %5
+  %53: I32 trivial = const 17
+  %54: Vec(U64) trivial = native pclmulqdq #17 inspect %51 inspect %52
+  %55: U64 trivial = load inspect %1
+  %56: U64 trivial = load inspect %3
+  %57: I32 trivial = call checkProduct borrow %54 borrow %55 borrow %56
+  %58: I32 trivial = add inspect %50 inspect %57
+  return consume %58
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call aes128
+  %1: I32 trivial = call carryless
+  %2: I32 trivial = add inspect %0 inspect %1
+  return consume %2
+}
+
+entry main

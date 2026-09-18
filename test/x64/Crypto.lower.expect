@@ -1,0 +1,61 @@
+
+rounds<complex>(%s: i8x16, %k: i8x16): i8x16 {
+  b_0 {
+    %a = aesenc %s, %k: i8x16
+    %b = aesenclast %a, %k: i8x16
+    %c = aesdec %b, %k: i8x16
+    %d = aesdeclast %c, %k: i8x16
+    ret %d
+  }
+}
+
+keys<complex>(%k: i8x16): i8x16 {
+  b_0 {
+    %a = aeskeygenassist %k, 1: i8x16
+    %b = aeskeygenassist %a, 54: i8x16
+    %c = aeskeygenassist %b, 255: i8x16
+    %d = aesimc %c: i8x16
+    ret %d
+  }
+}
+
+multiplies<complex>(%a: i64x2, %b: i64x2): i64x2 {
+  b_0 {
+    %ll = pclmullqlqdq %a, %b: i64x2
+    %hl = pclmulhqlqdq %ll, %b: i64x2
+    %lh = pclmullqhqdq %hl, %b: i64x2
+    %hh = pclmulhqhqdq %lh, %b: i64x2
+    ret %hh
+  }
+}
+
+
+--- codegen: rounds ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  aesenc uses=[xmm0, xmm1] creates=[xmm0]  => 660f38dcc1
+  aesenclast uses=[xmm0, xmm1] creates=[xmm0]  => 660f38ddc1
+  aesdec uses=[xmm0, xmm1] creates=[xmm0]  => 660f38dec1
+  aesdeclast uses=[xmm0, xmm1] creates=[xmm0]  => 660f38dfc1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: keys ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  aeskeygenassist uses=[xmm0] creates=[xmm0]  => 660f3adfc001
+  aeskeygenassist uses=[xmm0] creates=[xmm0]  => 660f3adfc036
+  aeskeygenassist uses=[xmm0] creates=[xmm0]  => 660f3adfc0ff
+  aesimc uses=[xmm0] creates=[xmm0]  => 660f38dbc0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: multiplies ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  pclmullqlqdq uses=[xmm0, xmm1] creates=[xmm0]  => 660f3a44c100
+  pclmulhqlqdq uses=[xmm0, xmm1] creates=[xmm0]  => 660f3a44c101
+  pclmullqhqdq uses=[xmm0, xmm1] creates=[xmm0]  => 660f3a44c110
+  pclmulhqhqdq uses=[xmm0, xmm1] creates=[xmm0]  => 660f3a44c111
+  ret uses=[xmm0] creates=[]  => c3

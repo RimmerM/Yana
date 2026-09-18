@@ -217,6 +217,11 @@ struct Printer {
                 // Which operation, before the operands the shared walk prints.
                 writer.writeString(" "_v);
                 writer.writeString(mir::nativeOpName(((InstNative&)value).op));
+
+                if(mir::nativeHasImmediate(((InstNative&)value).op)) {
+                    writer.writeString(" #"_v);
+                    uint(((InstNative&)value).immediate);
+                }
                 break;
             case Inst::VecLane:
             case Inst::VecWithLane:

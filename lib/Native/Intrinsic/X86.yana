@@ -196,3 +196,85 @@ module Native
 @builtin(x86Sha256Message1) @platform(sha) pub fn X86.sha256Message1(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
 @builtin(x86Sha256Message2) @platform(sha) pub fn X86.sha256Message2(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
 @builtin(x86Sha256Rounds) @platform(sha) pub fn X86.sha256Rounds(state: Vec(U32, 4), feed: Vec(U32, 4), keys: Vec(U32, 4)) -> Vec(U32, 4)
+
+{-
+   ==========================================================================================
+   AES-NI - `@platform(aes)`, six instructions, and VAES's four two-block forms beside them.
+   ==========================================================================================
+
+   A flag beside the level rather than inside one (Analysis-Avx512.md §0.3): nameable at `sse4`,
+   where Nehalem and the low-end Westmere-to-Ivy-Bridge parts do not have it, and implied from
+   `avx2` up. A build without it has no declarations here, and what a cipher runs there is the
+   library's portable body rather than any expansion.
+
+   **Unlike the SHA extension, every one of these has a VEX spelling** (`vaesenc`), so a function
+   using them is an ordinary function: no `@x86_legacy_sse`, no `X86.vzeroupper()`, and at `sse4`
+   the whole program is legacy-encoded anyway.
+
+   **Why the operands say `Vec(U8, 16)`.** A block of AES is sixteen bytes and the state is those
+   bytes in column order, which is exactly the order a block is loaded in - so a block read out of a
+   message is the operand without a shuffle. There is no other width at this flag.
+
+   `aesEncrypt(state, key)` is one full round of the cipher - ShiftRows, SubBytes, MixColumns and
+   the exclusive-or with `key` - and `aesEncryptLast(state, key)` the last round, which has no
+   MixColumns. An AES-128 encryption is the whitening `xor` with round key 0, nine `aesEncrypt`s and
+   one `aesEncryptLast`.
+
+   `aesDecrypt(state, key)` and `aesDecryptLast(state, key)` are the same two rounds of the
+   *equivalent* inverse cipher (FIPS-197 §5.3.5), whose round keys are the encryption schedule
+   reversed with `aesInverseMix` applied to every key but the first and the last.
+
+   `aesInverseMix(key)` is InvMixColumns of one round key - that conversion, and nothing else.
+
+   `aesKeygenAssist(key, roundConstant)` is the key schedule's step: SubWord of words 1 and 3 of
+   `key` in words 0 and 2 of the answer, and RotWord of each with `roundConstant` exclusive-ored into
+   the low byte in words 1 and 3. `roundConstant` **must be a literal** from 0 to 255 - it is the
+   instruction's trailing byte - and what an AES key schedule writes is the ten of FIPS-197's `Rcon`.
+-}
+@builtin(x86AesEncrypt) @platform(aes) pub fn X86.aesEncrypt(state: Vec(U8, 16), key: Vec(U8, 16)) -> Vec(U8, 16)
+@builtin(x86AesEncryptLast) @platform(aes) pub fn X86.aesEncryptLast(state: Vec(U8, 16), key: Vec(U8, 16)) -> Vec(U8, 16)
+@builtin(x86AesDecrypt) @platform(aes) pub fn X86.aesDecrypt(state: Vec(U8, 16), key: Vec(U8, 16)) -> Vec(U8, 16)
+@builtin(x86AesDecryptLast) @platform(aes) pub fn X86.aesDecryptLast(state: Vec(U8, 16), key: Vec(U8, 16)) -> Vec(U8, 16)
+@builtin(x86AesInverseMix) @platform(aes) pub fn X86.aesInverseMix(key: Vec(U8, 16)) -> Vec(U8, 16)
+@builtin(x86AesKeygenAssist) @platform(aes) pub fn X86.aesKeygenAssist(key: Vec(U8, 16), roundConstant: Int) -> Vec(U8, 16)
+
+{-
+   VAES - `@platform(vaes)`: the four rounds over **two blocks at once**, each 128-bit half of the
+   operands an independent block with its own round key. Named `vaes` beside `avx2` (Zen 3, Alder
+   Lake and later have it without AVX-512) and implied at `avx512`.
+
+   What these are for is the block-parallel modes - CTR, the counter half of GCM, XTS - where
+   consecutive blocks do not depend on each other and two of them go through each instruction. A
+   `2` rather than a generic width because a declaration is what an attribute gates: the 128-bit
+   rounds exist wherever `aes` does, and these only where `vaes` does. The 512-bit forms, four
+   blocks at once, wait for the 64-byte natural width (Analysis-Avx512.md §1.2).
+
+   The key schedule has no wide form on the machine; a caller splats each round key into both halves.
+-}
+@builtin(x86AesEncrypt2) @platform(vaes) pub fn X86.aesEncrypt2(state: Vec(U8, 32), key: Vec(U8, 32)) -> Vec(U8, 32)
+@builtin(x86AesEncryptLast2) @platform(vaes) pub fn X86.aesEncryptLast2(state: Vec(U8, 32), key: Vec(U8, 32)) -> Vec(U8, 32)
+@builtin(x86AesDecrypt2) @platform(vaes) pub fn X86.aesDecrypt2(state: Vec(U8, 32), key: Vec(U8, 32)) -> Vec(U8, 32)
+@builtin(x86AesDecryptLast2) @platform(vaes) pub fn X86.aesDecryptLast2(state: Vec(U8, 32), key: Vec(U8, 32)) -> Vec(U8, 32)
+
+{-
+   ==========================================================================================
+   PCLMULQDQ - `@platform(pclmul)`, and VPCLMULQDQ's two-block form beside it.
+   ==========================================================================================
+
+   The carryless multiply: one 64 x 64 product of polynomials over GF(2), 127 bits in a 128-bit
+   answer. What it completes is CRC folding - CRC32 (IEEE), CRC64 and CRC32C past the one-stream
+   `crc32` chain - and GHASH/POLYVAL for AES-GCM (Analysis-Avx512.md §4.2). The same flag rules as
+   `aes`: nameable at `sse4`, implied from `avx2` up.
+
+   `carrylessMultiply(a, b, selector)` multiplies one quadword of `a` by one of `b`. `selector` is the
+   machine's own trailing byte and **must be a literal**, one of four: bit 0 picks `a`'s quadword and
+   bit 4 picks `b`'s, so `0x00` is low by low, `0x11` high by high, `0x01` the high quadword of `a` by
+   the low one of `b`, and `0x10` the other way round. Anything else is refused rather than masked,
+   since the instruction ignores the other six bits and a program that set one meant something else.
+
+   `carrylessMultiply2` is VPCLMULQDQ (`@platform(vpclmul)`, named beside `avx2` or implied at
+   `avx512`): the same selector applied to each 128-bit half independently, which is two products per
+   instruction - the folding step of a two-stream CRC.
+-}
+@builtin(x86CarrylessMultiply) @platform(pclmul) pub fn X86.carrylessMultiply(a: Vec(U64, 2), b: Vec(U64, 2), selector: Int) -> Vec(U64, 2)
+@builtin(x86CarrylessMultiply2) @platform(vpclmul) pub fn X86.carrylessMultiply2(a: Vec(U64, 4), b: Vec(U64, 4), selector: Int) -> Vec(U64, 4)

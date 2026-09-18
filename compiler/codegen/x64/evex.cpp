@@ -245,6 +245,12 @@ static EvexSpelling map0F38(U8 mandatory, U8 opcode) {
         case 0x45: case 0x47: return spell(WV, TVec);
         case 0x46: return spellBroadcast(W0);
 
+        // vaesenc/vaesenclast/vaesdec/vaesdeclast - VEX.WIG and EVEX.WIG, VAES with VL at 128 and
+        // 256 bits, both of which the level implies. No broadcast: a block is not an element.
+        // `vaesimc` (DB) has no EVEX spelling and is not listed.
+        case 0xdc: case 0xdd: case 0xde: case 0xdf:
+            return spell(W0, TVec);
+
         // vpbroadcastd and vpbroadcastq - VEX.W0 both, EVEX.W0 and EVEX.W1 - and the byte and word
         // broadcasts, whose one-element tuples are narrower than any stated here.
         case 0x58: return spell(W0, TE4);
@@ -281,6 +287,10 @@ static EvexSpelling map0F3A(U8 mandatory, U8 opcode) {
 
         // palignr.
         case 0x0f: return spell(W0, TVec);
+
+        // vpclmulqdq - WIG under both prefixes, VPCLMULQDQ with VL, which the level implies.
+        // `vaeskeygenassist` (DF) has no EVEX spelling and is not listed.
+        case 0x44: return spell(W0, TVec);
 
         // pextrb, pextrw, pinsrb - one narrow element through a general register.
         case 0x14: case 0x15: case 0x20: return spell(W0, TNone);

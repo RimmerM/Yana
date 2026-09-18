@@ -937,8 +937,9 @@ Node* Builder::addRunSlots(LocationId source, DeclPtr<Type> element, U64 capacit
 
 // The argument is in build.h, beside the declaration.
 Node* Builder::addNative(LocationId source, NativeOp op, Node* const* arguments, Size count,
-                         DeclPtr<Type> result) {
+                         DeclPtr<Type> result, U8 immediate) {
     auto node = new (arena()) NodeNative(source, op);
+    node->immediate = immediate;
     node->occurrence = owned(result);
     node->arguments.reserve(arena(), count);
 

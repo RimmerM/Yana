@@ -1237,7 +1237,16 @@ struct Verifier {
             case NativeOp::Sha1Rounds2:
             case NativeOp::Sha1Rounds3:
             case NativeOp::Sha256Message1:
-            case NativeOp::Sha256Message2: return 2;
+            case NativeOp::Sha256Message2:
+            case NativeOp::AesEncrypt:
+            case NativeOp::AesEncryptLast:
+            case NativeOp::AesDecrypt:
+            case NativeOp::AesDecryptLast:
+            case NativeOp::CarrylessMultiply: return 2;
+
+            // The round constant of the second is `immediate`, not an operand.
+            case NativeOp::AesInverseMix:
+            case NativeOp::AesKeygenAssist: return 1;
 
             case NativeOp::CopyMemory:
             case NativeOp::SetMemory:

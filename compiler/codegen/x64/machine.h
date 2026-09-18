@@ -128,6 +128,13 @@ enum : MachineOpcodeId {
     OpSha,
     OpSha256Rounds,
 
+    /*
+     * AES-NI and PCLMULQDQ - one opcode for the seven instructions, on `OpSha`'s terms: which of them
+     * a form is is the form's answer. Nothing here touches the flags or is arithmetic a peephole may
+     * reach into.
+     */
+    OpCrypto,
+
     OpCmp,
 
     // Floating point. Opcodes of their own rather than forms of the integer ones, because a float

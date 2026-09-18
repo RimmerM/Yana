@@ -614,3 +614,26 @@ YANA_INTRINSIC_OP( x86Sha1Rounds,    OpForm::Node, sameAs(0), anyAt(), sameAs(0)
 YANA_INTRINSIC_OP( x86Sha256Message1, OpForm::Node, sameAs(0), anyAt(), sameAs(0)             )
 YANA_INTRINSIC_OP( x86Sha256Message2, OpForm::Node, sameAs(0), anyAt(), sameAs(0)             )
 YANA_INTRINSIC_OP( x86Sha256Rounds,   OpForm::Node, sameAs(0), anyAt(), sameAs(0), sameAs(0)  )
+
+/*
+ * AES-NI and PCLMULQDQ, and the two-block forms VAES and VPCLMULQDQ add - Analysis-Avx512.md
+ * §4.1-4.2. A wide form is a role of its own rather than a second claimant of the narrow one's,
+ * because both are declared in one build (`vaes` is only nameable where `aes` is implied) and a
+ * role has one claimant at a time.
+ *
+ * `aesKeygenAssist`'s round constant and `carrylessMultiply`'s quadword selector are constants for
+ * `sha1Rounds`' reason: each is the instruction's trailing byte.
+ */
+YANA_INTRINSIC_OP( x86AesEncrypt,        OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
+YANA_INTRINSIC_OP( x86AesEncryptLast,    OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
+YANA_INTRINSIC_OP( x86AesDecrypt,        OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
+YANA_INTRINSIC_OP( x86AesDecryptLast,    OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
+YANA_INTRINSIC_OP( x86AesInverseMix,     OpForm::Node, sameAs(0), anyAt()                         )
+YANA_INTRINSIC_OP( x86AesKeygenAssist,   OpForm::Node, sameAs(0), anyAt(), integerAt()            )
+YANA_INTRINSIC_OP( x86CarrylessMultiply, OpForm::Node, sameAs(0), anyAt(), sameAs(0), integerAt() )
+
+YANA_INTRINSIC_OP( x86AesEncrypt2,        OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
+YANA_INTRINSIC_OP( x86AesEncryptLast2,    OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
+YANA_INTRINSIC_OP( x86AesDecrypt2,        OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
+YANA_INTRINSIC_OP( x86AesDecryptLast2,    OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
+YANA_INTRINSIC_OP( x86CarrylessMultiply2, OpForm::Node, sameAs(0), anyAt(), sameAs(0), integerAt() )

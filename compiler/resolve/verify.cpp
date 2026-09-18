@@ -1141,6 +1141,32 @@ void Verifier::verifyInstruction(Value& instruction) {
             break;
         }
 
+        /*
+         * AES-NI and PCLMULQDQ, on the SHA instructions' terms: the operands are the result's type,
+         * and that type is the register the instruction reads. The AES rows take bytes and the
+         * carryless multiply quadwords, sixteen bytes of them or - for the four instructions VAES and
+         * VPCLMULQDQ widen - thirty-two. The two key-schedule instructions have no wide form.
+         */
+        case Value::CryptoBinary:
+        case Value::CryptoUnary: {
+            auto lanes = vectorLanes(global, instruction.type);
+            auto lane = vectorLane(global, instruction.type);
+            auto clmul = instruction.kind == Value::CryptoBinary
+                      && ((InstCryptoBinary&)instruction).op >= CryptoOp::ClmulLowLow;
+            auto bits = clmul ? 64u : 8u;
+            auto widens = instruction.kind == Value::CryptoBinary;
+
+            auto ok = lane && global[lane]->kind == Type::Int && ((IntType*)global[lane])->bits == bits
+                   && (lanes * bits == 128 || (widens && lanes * bits == 256));
+
+            if(!ok) {
+                fail(instruction.source, "%%@ is an AES or carryless-multiply instruction over something that is not a 128-bit block (or two, where the instruction has a wide form) of the lanes it reads"_v,
+                     instruction.id);
+            }
+
+            break;
+        }
+
         case Value::Sqrt:
         case Value::Trunc:
         case Value::Floor:

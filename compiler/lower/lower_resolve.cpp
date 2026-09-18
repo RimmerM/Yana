@@ -264,6 +264,65 @@ InstResolver handleSha256Rounds() {
     };
 }
 
+/*
+ * AES-NI and PCLMULQDQ, under the names the printer writes - see nameOfLowerCrypto. The round
+ * constant of `aeskeygenassist` is a trailing number, for `laneArgument`'s reason: it is a field
+ * rather than an operand.
+ */
+template<LowerCrypto op>
+InstResolver handleCrypto() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 2);
+
+        auto lhs = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto rhs = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto result = ast.results[0];
+        auto providedType = getResultType(result);
+        auto type = providedType ? providedType.unwrap() : lhs->type;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstCryptoBinary(
+            getResultName(result), type, lhs - base, rhs - base, op)));
+    };
+}
+
+InstResolver handleAesInverseMix() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 1);
+
+        auto from = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto result = ast.results[0];
+        auto providedType = getResultType(result);
+        auto type = providedType ? providedType.unwrap() : from->type;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstAesInverseMix(
+            getResultName(result), type, from - base)));
+    };
+}
+
+InstResolver handleAesKeygenAssist() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 2);
+
+        auto from = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto constant = ast.args[1];
+
+        if(!constant.isInt() || constant.i < 0 || constant.i > 255) {
+            resolve.diag.error("expected a round constant from 0 to 255 for aeskeygenassist"_v, ast.source);
+            return Nothing();
+        }
+
+        auto result = ast.results[0];
+        auto providedType = getResultType(result);
+        auto type = providedType ? providedType.unwrap() : from->type;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstAesKeygenAssist(
+            getResultName(result), type, from - base, U8(constant.i))));
+    };
+}
+
 template<LowerCmp cmp>
 InstResolver handleCmp() {
     return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
@@ -746,6 +805,18 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     instructionSet.add(Context::nameHash("sha256msg1"_v), handleSha<LowerSha::Sha256Msg1>());
     instructionSet.add(Context::nameHash("sha256msg2"_v), handleSha<LowerSha::Sha256Msg2>());
     instructionSet.add(Context::nameHash("sha256rnds2"_v), handleSha256Rounds());
+
+    // AES-NI and PCLMULQDQ, under the names the printer writes - see nameOfLowerCrypto.
+    instructionSet.add(Context::nameHash("aesenc"_v), handleCrypto<LowerCrypto::AesEnc>());
+    instructionSet.add(Context::nameHash("aesenclast"_v), handleCrypto<LowerCrypto::AesEncLast>());
+    instructionSet.add(Context::nameHash("aesdec"_v), handleCrypto<LowerCrypto::AesDec>());
+    instructionSet.add(Context::nameHash("aesdeclast"_v), handleCrypto<LowerCrypto::AesDecLast>());
+    instructionSet.add(Context::nameHash("pclmullqlqdq"_v), handleCrypto<LowerCrypto::ClmulLowLow>());
+    instructionSet.add(Context::nameHash("pclmulhqlqdq"_v), handleCrypto<LowerCrypto::ClmulHighLow>());
+    instructionSet.add(Context::nameHash("pclmullqhqdq"_v), handleCrypto<LowerCrypto::ClmulLowHigh>());
+    instructionSet.add(Context::nameHash("pclmulhqhqdq"_v), handleCrypto<LowerCrypto::ClmulHighHigh>());
+    addKind<LowerInst::AesInverseMix>(instructionSet, handleAesInverseMix());
+    addKind<LowerInst::AesKeygenAssist>(instructionSet, handleAesKeygenAssist());
 
     instructionSet.add(Context::nameHash("cmp_eq"_v), handleCmp<LowerCmp::eq>());
     instructionSet.add(Context::nameHash("cmp_neq"_v), handleCmp<LowerCmp::neq>());

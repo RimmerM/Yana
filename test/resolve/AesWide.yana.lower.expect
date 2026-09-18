@@ -1,0 +1,409 @@
+@image$base = []
+mut @keyLow = [0, 1, 2, 3, 4, 5, 6, 7]
+mut @keyHigh = [8, 9, 10, 11, 12, 13, 14, 15]
+mut @plainLow = [0, 17, 34, 51, 68, 85, 102, 119]
+mut @plainHigh = [136, 153, 170, 187, 204, 221, 238, 255]
+
+pair<complex>(%first: i8x16, %second: i8x16): i8x32 {
+  b_0 {
+    %v_1 = bitcast %first: i64x2
+    %v_2 = vlane %v_1, 0: I64
+    %v_3 = vlane %v_1, 1: I64
+    %v_4 = bitcast %second: i64x2
+    %v_5 = vlane %v_4, 0: I64
+    %v_6 = vlane %v_4, 1: I64
+    %v_7 = vsplat 0: i64x4
+    %v_8 = vwithlane %v_7, %v_2, 0: i64x4
+    %v_9 = vwithlane %v_8, %v_3, 1: i64x4
+    %v_10 = vwithlane %v_9, %v_5, 2: i64x4
+    %v_11 = vwithlane %v_10, %v_6, 3: i64x4
+    %v_12 = bitcast %v_11: i8x32
+    ret %v_12
+  }
+}
+
+wideKey<complex>(%key: i8x16): i8x32 {
+  b_0 {
+    %v_1 = bitcast %key: i64x2
+    %v_2 = vlane %v_1, 0: I64
+    %v_3 = vlane %v_1, 1: I64
+    %v_4 = vsplat 0: i64x4
+    %v_5 = vwithlane %v_4, %v_2, 0: i64x4
+    %v_6 = vwithlane %v_5, %v_3, 1: i64x4
+    %v_7 = vwithlane %v_6, %v_2, 2: i64x4
+    %v_8 = vwithlane %v_7, %v_3, 3: i64x4
+    %v_9 = bitcast %v_8: i8x32
+    ret %v_9
+  }
+}
+
+differs<complex>(%wide: i8x32, %first: i8x16, %second: i8x16): I32 {
+  b_0 {
+    %v = bitcast %wide: i64x4
+    %v_1 = vlane %v, 0: I64
+    %v_2 = bitcast %first: i64x2
+    %v_3 = vlane %v_2, 0: I64
+    %v_4 = cmp_neq %v_1, %v_3: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    jmp b_7
+  }
+
+  b_6 {
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = phi [b_5, 1], [b_6, 0]: I32
+    %v_9 = vlane %v, 1: I64
+    %v_10 = vlane %v_2, 1: I64
+    %v_11 = cmp_neq %v_9, %v_10: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_12 {
+    %v_14 = add %v_8, 1: I32
+    jmp b_15
+  }
+
+  b_13 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = phi [b_12, %v_14], [b_13, %v_8]: I32
+    %v_17 = vlane %v, 2: I64
+    %v_18 = bitcast %second: i64x2
+    %v_19 = vlane %v_18, 0: I64
+    %v_20 = cmp_neq %v_17, %v_19: I32
+    je %v_20, b_21, b_22
+  }
+
+  b_21 {
+    %v_23 = add %v_16, 1: I32
+    jmp b_24
+  }
+
+  b_22 {
+    jmp b_24
+  }
+
+  b_24 {
+    %v_25 = phi [b_21, %v_23], [b_22, %v_16]: I32
+    %v_26 = vlane %v, 3: I64
+    %v_27 = vlane %v_18, 1: I64
+    %v_28 = cmp_neq %v_26, %v_27: I32
+    je %v_28, b_29, b_30
+  }
+
+  b_29 {
+    %v_31 = add %v_25, 1: I32
+    jmp b_32
+  }
+
+  b_30 {
+    jmp b_32
+  }
+
+  b_32 {
+    %v_33 = phi [b_29, %v_31], [b_30, %v_25]: I32
+    ret %v_33
+  }
+}
+
+nextKey<complex>(%key: i8x16, %assist: i8x16): i8x16 {
+  b_0 {
+    %v_1 = bitcast %assist: i32x4
+    %t = vshuffle %v_1, %v_1, 3, 3, 3, 3: i32x4
+    %z = vsplat 0: i32x4
+    %k0 = bitcast %key: i32x4
+    %v_2 = vshuffle %k0, %z, 7, 0, 1, 2: i32x4
+    %k1 = xor %k0, %v_2: i32x4
+    %v_3 = vshuffle %k1, %z, 6, 7, 0, 1: i32x4
+    %k2 = xor %k1, %v_3: i32x4
+    %v_4 = xor %k2, %t: i32x4
+    %v_5 = bitcast %v_4: i8x16
+    ret %v_5
+  }
+}
+
+encryptOne<complex>(%plain: i8x16, %k0: i8x16, %k1: i8x16, %k2: i8x16, %k3: i8x16, %k4: i8x16, %k5: i8x16, %k6: i8x16, %k7: i8x16, %k8: i8x16, %k9: i8x16, %k10: i8x16): i8x16 {
+  b_0 {
+    %v_1 = xor %plain, %k0: i8x16
+    %v_2 = aesenc %v_1, %k1: i8x16
+    %v_3 = aesenc %v_2, %k2: i8x16
+    %v_4 = aesenc %v_3, %k3: i8x16
+    %v_5 = aesenc %v_4, %k4: i8x16
+    %v_6 = aesenc %v_5, %k5: i8x16
+    %v_7 = aesenc %v_6, %k6: i8x16
+    %v_8 = aesenc %v_7, %k7: i8x16
+    %v_9 = aesenc %v_8, %k8: i8x16
+    %v_10 = aesenc %v_9, %k9: i8x16
+    %v_11 = aesenclast %v_10, %k10: i8x16
+    ret %v_11
+  }
+}
+
+aes128Pair<complex>(): I32 {
+  b_0 {
+    %v_1 = load @keyLow, 8: I64
+    %v_2 = load @keyHigh, 8: I64
+    %v_3 = vsplat 0: i64x2
+    %v_4 = vwithlane %v_3, %v_1, 0: i64x2
+    %v_5 = vwithlane %v_4, %v_2, 1: i64x2
+    %v_6 = bitcast %v_5: i8x16
+    %v_7 = aeskeygenassist %v_6, 1: i8x16
+    %k1 = call_complex nextKey, %v_6, %v_7: i8x16
+    %v_8 = aeskeygenassist %k1, 2: i8x16
+    %k2 = call_complex nextKey, %k1, %v_8: i8x16
+    %v_9 = aeskeygenassist %k2, 4: i8x16
+    %k3 = call_complex nextKey, %k2, %v_9: i8x16
+    %v_10 = aeskeygenassist %k3, 8: i8x16
+    %k4 = call_complex nextKey, %k3, %v_10: i8x16
+    %v_11 = aeskeygenassist %k4, 16: i8x16
+    %k5 = call_complex nextKey, %k4, %v_11: i8x16
+    %v_12 = aeskeygenassist %k5, 32: i8x16
+    %k6 = call_complex nextKey, %k5, %v_12: i8x16
+    %v_13 = aeskeygenassist %k6, 64: i8x16
+    %k7 = call_complex nextKey, %k6, %v_13: i8x16
+    %v_14 = aeskeygenassist %k7, 128: i8x16
+    %k8 = call_complex nextKey, %k7, %v_14: i8x16
+    %v_15 = aeskeygenassist %k8, 27: i8x16
+    %k9 = call_complex nextKey, %k8, %v_15: i8x16
+    %v_16 = aeskeygenassist %k9, 54: i8x16
+    %k10 = call_complex nextKey, %k9, %v_16: i8x16
+    %v_17 = load @plainLow, 8: I64
+    %v_18 = load @plainHigh, 8: I64
+    %v_19 = vsplat 0: i64x2
+    %v_20 = vwithlane %v_19, %v_17, 0: i64x2
+    %v_21 = vwithlane %v_20, %v_18, 1: i64x2
+    %v_22 = bitcast %v_21: i8x16
+    %v_23 = rol %v_18, 9: I64
+    %v_24 = mul %v_17, 11400714819323198485: I64
+    %v_25 = vwithlane %v_19, %v_23, 0: i64x2
+    %v_26 = vwithlane %v_25, %v_24, 1: i64x2
+    %v_27 = bitcast %v_26: i8x16
+    %v_28 = call_complex pair, %v_22, %v_27: i8x32
+    %v_29 = call_complex wideKey, %v_6: i8x32
+    %v_30 = xor %v_28, %v_29: i8x32
+    %v_31 = call_complex wideKey, %k1: i8x32
+    %v_32 = aesenc %v_30, %v_31: i8x32
+    %v_33 = call_complex wideKey, %k2: i8x32
+    %v_34 = aesenc %v_32, %v_33: i8x32
+    %v_35 = call_complex wideKey, %k3: i8x32
+    %v_36 = aesenc %v_34, %v_35: i8x32
+    %v_37 = call_complex wideKey, %k4: i8x32
+    %v_38 = aesenc %v_36, %v_37: i8x32
+    %v_39 = call_complex wideKey, %k5: i8x32
+    %v_40 = aesenc %v_38, %v_39: i8x32
+    %v_41 = call_complex wideKey, %k6: i8x32
+    %v_42 = aesenc %v_40, %v_41: i8x32
+    %v_43 = call_complex wideKey, %k7: i8x32
+    %v_44 = aesenc %v_42, %v_43: i8x32
+    %v_45 = call_complex wideKey, %k8: i8x32
+    %v_46 = aesenc %v_44, %v_45: i8x32
+    %v_47 = call_complex wideKey, %k9: i8x32
+    %v_48 = aesenc %v_46, %v_47: i8x32
+    %v_49 = call_complex wideKey, %k10: i8x32
+    %cipher = aesenclast %v_48, %v_49: i8x32
+    %v_50 = call_complex encryptOne, %v_22, %v_6, %k1, %k2, %k3, %k4, %k5, %k6, %k7, %k8, %k9, %k10: i8x16
+    %v_51 = call_complex encryptOne, %v_27, %v_6, %k1, %k2, %k3, %k4, %k5, %k6, %k7, %k8, %k9, %k10: i8x16
+    %v_52 = call_complex differs, %cipher, %v_50, %v_51: I32
+    %v_53 = call_complex wideKey, %k10: i8x32
+    %v_54 = xor %cipher, %v_53: i8x32
+    %v_55 = aesimc %k9: i8x16
+    %v_56 = call_complex wideKey, %v_55: i8x32
+    %v_57 = aesdec %v_54, %v_56: i8x32
+    %v_58 = aesimc %k8: i8x16
+    %v_59 = call_complex wideKey, %v_58: i8x32
+    %v_60 = aesdec %v_57, %v_59: i8x32
+    %v_61 = aesimc %k7: i8x16
+    %v_62 = call_complex wideKey, %v_61: i8x32
+    %v_63 = aesdec %v_60, %v_62: i8x32
+    %v_64 = aesimc %k6: i8x16
+    %v_65 = call_complex wideKey, %v_64: i8x32
+    %v_66 = aesdec %v_63, %v_65: i8x32
+    %v_67 = aesimc %k5: i8x16
+    %v_68 = call_complex wideKey, %v_67: i8x32
+    %v_69 = aesdec %v_66, %v_68: i8x32
+    %v_70 = aesimc %k4: i8x16
+    %v_71 = call_complex wideKey, %v_70: i8x32
+    %v_72 = aesdec %v_69, %v_71: i8x32
+    %v_73 = aesimc %k3: i8x16
+    %v_74 = call_complex wideKey, %v_73: i8x32
+    %v_75 = aesdec %v_72, %v_74: i8x32
+    %v_76 = aesimc %k2: i8x16
+    %v_77 = call_complex wideKey, %v_76: i8x32
+    %v_78 = aesdec %v_75, %v_77: i8x32
+    %v_79 = aesimc %k1: i8x16
+    %v_80 = call_complex wideKey, %v_79: i8x32
+    %v_81 = aesdec %v_78, %v_80: i8x32
+    %v_82 = call_complex wideKey, %v_6: i8x32
+    %v_83 = aesdeclast %v_81, %v_82: i8x32
+    %v_84 = call_complex differs, %v_83, %v_22, %v_27: I32
+    %v_85 = add %v_52, %v_84: I32
+    %state = call_complex pair, %v_22, %v_27: i8x32
+    %keys = call_complex pair, %k3, %k7: i8x32
+    %v_86 = aesenc %state, %keys: i8x32
+    %v_87 = aesenc %v_22, %k3: i8x16
+    %v_88 = aesenc %v_27, %k7: i8x16
+    %v_89 = call_complex differs, %v_86, %v_87, %v_88: I32
+    %v_90 = add %v_85, %v_89: I32
+    %v_91 = aesenclast %state, %keys: i8x32
+    %v_92 = aesenclast %v_22, %k3: i8x16
+    %v_93 = aesenclast %v_27, %k7: i8x16
+    %v_94 = call_complex differs, %v_91, %v_92, %v_93: I32
+    %v_95 = add %v_90, %v_94: I32
+    %v_96 = aesdec %state, %keys: i8x32
+    %v_97 = aesdec %v_22, %k3: i8x16
+    %v_98 = aesdec %v_27, %k7: i8x16
+    %v_99 = call_complex differs, %v_96, %v_97, %v_98: I32
+    %v_100 = add %v_95, %v_99: I32
+    %v_101 = aesdeclast %state, %keys: i8x32
+    %v_102 = aesdeclast %v_22, %k3: i8x16
+    %v_103 = aesdeclast %v_27, %k7: i8x16
+    %v_104 = call_complex differs, %v_101, %v_102, %v_103: I32
+    %v_105 = add %v_100, %v_104: I32
+    ret %v_105
+  }
+}
+
+halves<complex>(%v: i64x4, %low: i64x2, %high: i64x2): I32 {
+  b_0 {
+    %v_1 = vlane %v, 0: I64
+    %v_2 = vlane %low, 0: I64
+    %v_3 = cmp_neq %v_1, %v_2: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    jmp b_6
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_4, 1], [b_5, 0]: I32
+    %v_8 = vlane %v, 1: I64
+    %v_9 = vlane %low, 1: I64
+    %v_10 = cmp_neq %v_8, %v_9: I32
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = add %v_7, 1: I32
+    jmp b_14
+  }
+
+  b_12 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_11, %v_13], [b_12, %v_7]: I32
+    %v_16 = vlane %v, 2: I64
+    %v_17 = vlane %high, 0: I64
+    %v_18 = cmp_neq %v_16, %v_17: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    %v_21 = add %v_15, 1: I32
+    jmp b_22
+  }
+
+  b_20 {
+    jmp b_22
+  }
+
+  b_22 {
+    %v_23 = phi [b_19, %v_21], [b_20, %v_15]: I32
+    %v_24 = vlane %v, 3: I64
+    %v_25 = vlane %high, 1: I64
+    %v_26 = cmp_neq %v_24, %v_25: I32
+    je %v_26, b_27, b_28
+  }
+
+  b_27 {
+    %v_29 = add %v_23, 1: I32
+    jmp b_30
+  }
+
+  b_28 {
+    jmp b_30
+  }
+
+  b_30 {
+    %v_31 = phi [b_27, %v_29], [b_28, %v_23]: I32
+    ret %v_31
+  }
+}
+
+carrylessPair<complex>(): I32 {
+  b_0 {
+    %v_1 = load @keyLow, 8: I64
+    %a0 = mul %v_1, 11400714819323198485: I64
+    %v_2 = load @plainHigh, 8: I64
+    %a1 = mul %v_2, 14029467366897019727: I64
+    %v_3 = load @plainLow, 8: I64
+    %a2 = rol %v_3, 17: I64
+    %v_4 = load @keyHigh, 8: I64
+    %a3 = mul %v_4, 1609587929392839161: I64
+    %b0 = rol %a3, 29: I64
+    %b1 = mul %v_1, 11160912187634741033: I64
+    %b2 = rol %a1, 41: I64
+    %b3 = mul %a2, 9650029242287828579: I64
+    %v_5 = vsplat 0: i64x4
+    %v_6 = vwithlane %v_5, %a0, 0: i64x4
+    %v_7 = vwithlane %v_6, %a1, 1: i64x4
+    %v_8 = vwithlane %v_7, %a2, 2: i64x4
+    %v_9 = vwithlane %v_8, %a3, 3: i64x4
+    %v_10 = vwithlane %v_5, %b0, 0: i64x4
+    %v_11 = vwithlane %v_10, %b1, 1: i64x4
+    %v_12 = vwithlane %v_11, %b2, 2: i64x4
+    %v_13 = vwithlane %v_12, %b3, 3: i64x4
+    %v_14 = vsplat 0: i64x2
+    %v_15 = vwithlane %v_14, %a0, 0: i64x2
+    %aLow = vwithlane %v_15, %a1, 1: i64x2
+    %v_16 = vwithlane %v_14, %a2, 0: i64x2
+    %aHigh = vwithlane %v_16, %a3, 1: i64x2
+    %v_17 = vwithlane %v_14, %b0, 0: i64x2
+    %bLow = vwithlane %v_17, %b1, 1: i64x2
+    %v_18 = vwithlane %v_14, %b2, 0: i64x2
+    %bHigh = vwithlane %v_18, %b3, 1: i64x2
+    %v_19 = pclmullqlqdq %v_9, %v_13: i64x4
+    %v_20 = pclmullqlqdq %aLow, %bLow: i64x2
+    %v_21 = pclmullqlqdq %aHigh, %bHigh: i64x2
+    %v_22 = call_complex halves, %v_19, %v_20, %v_21: I32
+    %v_23 = pclmulhqlqdq %v_9, %v_13: i64x4
+    %v_24 = pclmulhqlqdq %aLow, %bLow: i64x2
+    %v_25 = pclmulhqlqdq %aHigh, %bHigh: i64x2
+    %v_26 = call_complex halves, %v_23, %v_24, %v_25: I32
+    %v_27 = add %v_22, %v_26: I32
+    %v_28 = pclmullqhqdq %v_9, %v_13: i64x4
+    %v_29 = pclmullqhqdq %aLow, %bLow: i64x2
+    %v_30 = pclmullqhqdq %aHigh, %bHigh: i64x2
+    %v_31 = call_complex halves, %v_28, %v_29, %v_30: I32
+    %v_32 = add %v_27, %v_31: I32
+    %v_33 = pclmulhqhqdq %v_9, %v_13: i64x4
+    %v_34 = pclmulhqhqdq %aLow, %bLow: i64x2
+    %v_35 = pclmulhqhqdq %aHigh, %bHigh: i64x2
+    %v_36 = call_complex halves, %v_33, %v_34, %v_35: I32
+    %v_37 = add %v_32, %v_36: I32
+    ret %v_37
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex aes128Pair: I32
+    %v_2 = call_complex carrylessPair: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+

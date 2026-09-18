@@ -762,6 +762,54 @@ static ModulePtr<Value> emitSha1Rounds(ExprResolver& resolver, Buffer<ModulePtr<
     return resolver.ref(resolver.emit<InstShaBinary>(source, name, type, args[0], args[1], op));
 }
 
+/*
+ * AES-NI and PCLMULQDQ - see `lib/Native/Intrinsic/X86.yana`. The same two lines as the SHA
+ * emitters, and the same literal rule where the instruction has a trailing byte: `aesKeygenAssist`'s
+ * round constant is any byte, and `carrylessMultiply`'s selector is one of the four values
+ * `pclmulqdq` reads (bit 0 for the first source's quadword, bit 4 for the second's).
+ */
+template<CryptoOp op>
+static ModulePtr<Value> emitCryptoBinary(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                         LocationId source, StringId name) {
+    return resolver.ref(resolver.emit<InstCryptoBinary>(source, name, type, args[0], args[1], op));
+}
+
+static ModulePtr<Value> emitAesInverseMix(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                          LocationId source, StringId name) {
+    return resolver.ref(resolver.emit<InstCryptoUnary>(source, name, type, args[0],
+                                                       CryptoUnaryOp::AesInverseMix, U8(0)));
+}
+
+static ModulePtr<Value> emitAesKeygenAssist(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                            LocationId source, StringId name) {
+    auto value = resolver.local[args[1]];
+
+    if(value->kind != Value::ConstInt || ((ConstInt&)*value).value < 0 || ((ConstInt&)*value).value > 255) {
+        resolver.context.diagnostics.error("the round constant of `aesKeygenAssist` must be a constant from 0 to 255 - it is the instruction's trailing byte, and a computed one is not an instruction"_v,
+                                           source);
+        return nullptr;
+    }
+
+    auto constant = U8(((ConstInt&)*value).value);
+    return resolver.ref(resolver.emit<InstCryptoUnary>(source, name, type, args[0],
+                                                       CryptoUnaryOp::AesKeygenAssist, constant));
+}
+
+static ModulePtr<Value> emitCarrylessMultiply(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                              LocationId source, StringId name) {
+    auto value = resolver.local[args[2]];
+    auto selector = value->kind == Value::ConstInt ? ((ConstInt&)*value).value : -1;
+
+    if(selector != 0x00 && selector != 0x01 && selector != 0x10 && selector != 0x11) {
+        resolver.context.diagnostics.error("the selector of `carrylessMultiply` must be a constant 0x00, 0x01, 0x10 or 0x11 - bit 0 picks the first operand's quadword and bit 4 the second's, and it is the instruction's trailing byte"_v,
+                                           source);
+        return nullptr;
+    }
+
+    auto op = CryptoOp(U8(CryptoOp::ClmulLowLow) + U8((selector & 1) | ((selector >> 3) & 2)));
+    return resolver.ref(resolver.emit<InstCryptoBinary>(source, name, type, args[0], args[1], op));
+}
+
 static ModulePtr<Value> emitSha256Rounds(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                          LocationId source, StringId name) {
     return resolver.ref(resolver.emit<InstSha256Rounds>(source, name, type, args[0], args[1], args[2]));
@@ -802,6 +850,20 @@ void defineCpuIntrinsics(Module& native) {
     attachIntrinsic(native, Op::x86Sha256Message1, emitShaBinary<ShaOp::Sha256Msg1>);
     attachIntrinsic(native, Op::x86Sha256Message2, emitShaBinary<ShaOp::Sha256Msg2>);
     attachIntrinsic(native, Op::x86Sha256Rounds, emitSha256Rounds);
+
+    attachIntrinsic(native, Op::x86AesEncrypt, emitCryptoBinary<CryptoOp::AesEnc>);
+    attachIntrinsic(native, Op::x86AesEncryptLast, emitCryptoBinary<CryptoOp::AesEncLast>);
+    attachIntrinsic(native, Op::x86AesDecrypt, emitCryptoBinary<CryptoOp::AesDec>);
+    attachIntrinsic(native, Op::x86AesDecryptLast, emitCryptoBinary<CryptoOp::AesDecLast>);
+    attachIntrinsic(native, Op::x86AesInverseMix, emitAesInverseMix);
+    attachIntrinsic(native, Op::x86AesKeygenAssist, emitAesKeygenAssist);
+    attachIntrinsic(native, Op::x86CarrylessMultiply, emitCarrylessMultiply);
+
+    attachIntrinsic(native, Op::x86AesEncrypt2, emitCryptoBinary<CryptoOp::AesEnc>);
+    attachIntrinsic(native, Op::x86AesEncryptLast2, emitCryptoBinary<CryptoOp::AesEncLast>);
+    attachIntrinsic(native, Op::x86AesDecrypt2, emitCryptoBinary<CryptoOp::AesDec>);
+    attachIntrinsic(native, Op::x86AesDecryptLast2, emitCryptoBinary<CryptoOp::AesDecLast>);
+    attachIntrinsic(native, Op::x86CarrylessMultiply2, emitCarrylessMultiply);
 }
 
 void defineVectorIntrinsics(Module& core) {

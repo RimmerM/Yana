@@ -771,6 +771,41 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 mappedValue(lower, rounds.keys)));
             break;
         }
+        case Value::CryptoBinary: {
+            auto& crypto = (InstCryptoBinary&)instruction;
+            auto op = LowerCrypto::AesEnc;
+
+            switch(crypto.op) {
+                case CryptoOp::AesEnc:        op = LowerCrypto::AesEnc; break;
+                case CryptoOp::AesEncLast:    op = LowerCrypto::AesEncLast; break;
+                case CryptoOp::AesDec:        op = LowerCrypto::AesDec; break;
+                case CryptoOp::AesDecLast:    op = LowerCrypto::AesDecLast; break;
+                case CryptoOp::ClmulLowLow:   op = LowerCrypto::ClmulLowLow; break;
+                case CryptoOp::ClmulHighLow:  op = LowerCrypto::ClmulHighLow; break;
+                case CryptoOp::ClmulLowHigh:  op = LowerCrypto::ClmulLowHigh; break;
+                case CryptoOp::ClmulHighHigh: op = LowerCrypto::ClmulHighHigh; break;
+            }
+
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstCryptoBinary(
+                instruction.name, lowerType(lower, instruction.type),
+                mappedValue(lower, crypto.lhs), mappedValue(lower, crypto.rhs), op));
+            break;
+        }
+        case Value::CryptoUnary: {
+            auto& crypto = (InstCryptoUnary&)instruction;
+            auto type = lowerType(lower, instruction.type);
+            auto from = mappedValue(lower, crypto.from);
+
+            if(crypto.op == CryptoUnaryOp::AesKeygenAssist) {
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAesKeygenAssist(
+                    instruction.name, type, from, crypto.roundConstant));
+            } else {
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAesInverseMix(
+                    instruction.name, type, from));
+            }
+
+            break;
+        }
         /*
          * The two rotations, and the widths that do not survive this seam.
          *

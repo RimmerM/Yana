@@ -255,7 +255,7 @@ struct Builder {
      * checked at its declaration, and the arguments arrived through the ordinary call path.
      */
     Node* addNative(LocationId source, NativeOp op, Node* const* arguments, Size count,
-                    DeclPtr<Type> result);
+                    DeclPtr<Type> result, U8 immediate = 0);
 
     /*
      * One atomic operation - see `NodeAtomic`, and op.def's atomic block for the rows.

@@ -209,6 +209,10 @@ enum: MachineFormId {
     FormSha256Msg1, FormSha256Msg2,
     FormSha1Rounds, FormSha256Rounds,
 
+    // AES-NI and PCLMULQDQ - see their rows in machine_forms_packed.cpp.
+    FormAesEnc, FormAesEncLast, FormAesDec, FormAesDecLast, FormClmul,
+    FormAesInverseMix, FormAesKeygenAssist,
+
     FormVAdd8, FormVAdd16, FormVAdd32, FormVAdd64, FormVAddF32, FormVAddF64,
     FormVSub8, FormVSub16, FormVSub32, FormVSub64, FormVSubF32, FormVSubF64,
     // The 32-bit lane is two rows because the machine changed its mind about it: `pmulld` is one
@@ -517,6 +521,10 @@ enum: MachineFormId {
     FormVWideExtract32, FormVWideExtract64, FormVWideExtractF32, FormVWideExtractF64,
     FormVWideMaskBits, FormVWideMaskBitsF32, FormVWideMaskBitsF64,
     FormVWideInsert32, FormVWideInsert64, FormVWideInsertF32, FormVWideInsertF64,
+
+    // VAES and VPCLMULQDQ - two blocks per instruction. `aesimc` and `aeskeygenassist` have no wide
+    // form on the machine.
+    FormVWideAesEnc, FormVWideAesEncLast, FormVWideAesDec, FormVWideAesDecLast, FormVWideClmul,
 
     /*
      * The operations x86 had no instruction for below AVX-512 - Analysis-Avx512.md §2.4.

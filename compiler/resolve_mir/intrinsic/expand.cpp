@@ -137,6 +137,32 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
             return expandX86Native(builder, callee, arguments, 3, with, source,
                                    NativeOp::Sha256Rounds);
 
+        // AES-NI and PCLMULQDQ, the two-block forms on the same rows: the width is the operand
+        // type's, which the declaration fixed. The two with a trailing byte have emitters of their
+        // own, for `sha1rnds4`'s reason.
+        case Op::x86AesEncrypt:
+        case Op::x86AesEncrypt2:
+            return expandX86Native(builder, callee, arguments, 2, with, source, NativeOp::AesEncrypt);
+        case Op::x86AesEncryptLast:
+        case Op::x86AesEncryptLast2:
+            return expandX86Native(builder, callee, arguments, 2, with, source,
+                                   NativeOp::AesEncryptLast);
+        case Op::x86AesDecrypt:
+        case Op::x86AesDecrypt2:
+            return expandX86Native(builder, callee, arguments, 2, with, source, NativeOp::AesDecrypt);
+        case Op::x86AesDecryptLast:
+        case Op::x86AesDecryptLast2:
+            return expandX86Native(builder, callee, arguments, 2, with, source,
+                                   NativeOp::AesDecryptLast);
+        case Op::x86AesInverseMix:
+            return expandX86Native(builder, callee, arguments, 1, with, source,
+                                   NativeOp::AesInverseMix);
+        case Op::x86AesKeygenAssist:
+            return expandX86AesKeygenAssist(builder, callee, arguments, with, source);
+        case Op::x86CarrylessMultiply:
+        case Op::x86CarrylessMultiply2:
+            return expandX86CarrylessMultiply(builder, callee, arguments, with, source);
+
         /*
          * The atomics - `lib/Atomic/Atomic.native.yana`, and `expand_atomic.cpp` for the family.
          *

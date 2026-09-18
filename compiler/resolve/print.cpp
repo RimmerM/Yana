@@ -573,6 +573,35 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
 
             break;
         }
+        // On `ShaBinary`'s pattern: `crypto aesenc %1 %2`, and `crypto aeskeygenassist %1 1` with
+        // the round constant after the operand.
+        case Value::CryptoBinary: {
+            auto& crypto = (InstCryptoBinary&)inst;
+
+            print.writer.writeByte(' ');
+            print.writer.writeString(nameOfCryptoOp(crypto.op));
+
+            for(auto operand: { crypto.lhs, crypto.rhs }) {
+                print.writer.writeByte(' ');
+                printValue(print, *print.local[operand]);
+            }
+
+            break;
+        }
+        case Value::CryptoUnary: {
+            auto& crypto = (InstCryptoUnary&)inst;
+            auto keygen = crypto.op == CryptoUnaryOp::AesKeygenAssist;
+
+            print.writer.writeString(keygen ? " aeskeygenassist "_v : " aesimc "_v);
+            printValue(print, *print.local[crypto.from]);
+
+            if(keygen) {
+                print.writer.writeByte(' ');
+                writeUInt(print.writer, crypto.roundConstant);
+            }
+
+            break;
+        }
         case Value::Add:
         case Value::Sub:
         case Value::Mul:

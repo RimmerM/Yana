@@ -606,6 +606,67 @@ static void genSha(FunGen& f, LowerInst& inst) {
                                                    nullptr, name));
 }
 
+/*
+ * AES-NI and PCLMULQDQ, as LLVM's own x86 intrinsics - `genSha`'s terms, with one difference: LLVM
+ * states every one of them over quadword vectors (`<2 x i64>`, and `<4 x i64>` for the VAES and
+ * VPCLMULQDQ forms), where the AES rows here are byte vectors. The bits are the same register either
+ * way, so the operands are bitcast in and the answer is bitcast back, and LLVM folds all of it.
+ */
+static void genCrypto(FunGen& f, LowerInst& inst) {
+    auto& single = (LowerInstSingle&)inst;
+    auto name = nameOf(f, single.result);
+    auto resultType = typeOf(f.gen, single.result.type);
+    auto wide = single.result.type.byteWidth() == 32;
+    auto quads = llvm::FixedVectorType::get(llvm::Type::getInt64Ty(f.gen.llvm), wide ? 4 : 2);
+    auto asQuads = [&](LowerPtr<LowerValue> value) {
+        return f.builder.CreateBitCast(use(f, inst, value), quads);
+    };
+
+    llvm::Value* args[3] = {};
+    Size count = 1;
+    llvm::Intrinsic::ID which;
+
+    if(inst.kind == LowerInst::AesInverseMix) {
+        args[0] = asQuads(((LowerInstAesInverseMix&)inst).from);
+        which = llvm::Intrinsic::x86_aesni_aesimc;
+    } else if(inst.kind == LowerInst::AesKeygenAssist) {
+        auto& keygen = (LowerInstAesKeygenAssist&)inst;
+        args[0] = asQuads(keygen.from);
+        args[1] = llvm::ConstantInt::get(llvm::Type::getInt8Ty(f.gen.llvm), keygen.roundConstant());
+        count = 2;
+        which = llvm::Intrinsic::x86_aesni_aeskeygenassist;
+    } else {
+        auto& crypto = (LowerInstCryptoBinary&)inst;
+        args[0] = asQuads(crypto.lhs);
+        args[1] = asQuads(crypto.rhs);
+        count = 2;
+
+        switch(crypto.getCrypto()) {
+            case LowerCrypto::AesEnc:
+                which = wide ? llvm::Intrinsic::x86_aesni_aesenc_256 : llvm::Intrinsic::x86_aesni_aesenc;
+                break;
+            case LowerCrypto::AesEncLast:
+                which = wide ? llvm::Intrinsic::x86_aesni_aesenclast_256 : llvm::Intrinsic::x86_aesni_aesenclast;
+                break;
+            case LowerCrypto::AesDec:
+                which = wide ? llvm::Intrinsic::x86_aesni_aesdec_256 : llvm::Intrinsic::x86_aesni_aesdec;
+                break;
+            case LowerCrypto::AesDecLast:
+                which = wide ? llvm::Intrinsic::x86_aesni_aesdeclast_256 : llvm::Intrinsic::x86_aesni_aesdeclast;
+                break;
+            default:
+                which = wide ? llvm::Intrinsic::x86_pclmulqdq_256 : llvm::Intrinsic::x86_pclmulqdq;
+                args[2] = llvm::ConstantInt::get(llvm::Type::getInt8Ty(f.gen.llvm),
+                                                 carrylessSelector(crypto.getCrypto()));
+                count = 3;
+                break;
+        }
+    }
+
+    auto value = f.builder.CreateIntrinsic(which, {}, llvm::ArrayRef<llvm::Value*>(args, count));
+    f.define(single.result, f.builder.CreateBitCast(value, resultType, name));
+}
+
 static void genBitOperation(FunGen& f, LowerInstBinary& inst) {
     auto lhs = use(f, inst, inst.lhs);
     auto rhs = use(f, inst, inst.rhs);
@@ -1448,6 +1509,11 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::ShaBinary:
         case LowerInst::Sha256Rounds:
             genSha(f, inst);
+            break;
+        case LowerInst::CryptoBinary:
+        case LowerInst::AesInverseMix:
+        case LowerInst::AesKeygenAssist:
+            genCrypto(f, inst);
             break;
 
         /*

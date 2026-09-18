@@ -201,6 +201,8 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Fma:
         case Value::ShaBinary:
         case Value::Sha256Rounds:
+        case Value::CryptoBinary:
+        case Value::CryptoUnary:
         case Value::VZeroUpper:
         case Value::Add:
         case Value::Sub:

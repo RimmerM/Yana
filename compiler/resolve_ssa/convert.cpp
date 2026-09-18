@@ -3846,7 +3846,7 @@ struct Conversion {
 
                 auto inst = editor.addNative(node.source, written.op, arguments.pointer(),
                                              arguments.size(), result, conventionFor(result),
-                                             hasResult);
+                                             hasResult, written.immediate);
 
                 if(hasResult) produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;

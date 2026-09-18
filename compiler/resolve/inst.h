@@ -1910,6 +1910,79 @@ struct InstSha256Rounds: Inst {
     bool sameExtra(const InstSha256Rounds&) const { return true; }
 };
 
+/*
+ * Which AES-NI round or carryless multiply a `CryptoBinary` is - see `Value::CryptoBinary`.
+ *
+ * `pclmulqdq`'s immediate reads bit 0 and bit 4 and nothing else, so its four meaningful values are
+ * four members, on `sha1rnds4`'s terms. The names say which quadword of each source is multiplied:
+ * `ClmulHighLow` is the high half of the first by the low half of the second.
+ */
+enum class CryptoOp: U8 {
+    AesEnc,
+    AesEncLast,
+    AesDec,
+    AesDecLast,
+    ClmulLowLow,
+    ClmulHighLow,
+    ClmulLowHigh,
+    ClmulHighHigh,
+};
+
+inline StringView nameOfCryptoOp(CryptoOp op) {
+    switch(op) {
+        case CryptoOp::AesEnc:       return "aesenc"_v;
+        case CryptoOp::AesEncLast:   return "aesenclast"_v;
+        case CryptoOp::AesDec:       return "aesdec"_v;
+        case CryptoOp::AesDecLast:   return "aesdeclast"_v;
+        case CryptoOp::ClmulLowLow:  return "pclmullqlqdq"_v;
+        case CryptoOp::ClmulHighLow: return "pclmulhqlqdq"_v;
+        case CryptoOp::ClmulLowHigh: return "pclmullqhqdq"_v;
+        default:                     return "pclmulhqhqdq"_v;
+    }
+}
+
+// One AES round or one carryless multiply - see `Value::CryptoBinary` in inst.def.
+struct InstCryptoBinary: Inst {
+    InstCryptoBinary(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> lhs, ModulePtr<Value> rhs,
+                     CryptoOp op):
+        Inst(Value::CryptoBinary, block, type), lhs(lhs), rhs(rhs), op(op) {}
+
+    ModulePtr<Value> lhs;
+    ModulePtr<Value> rhs;
+    CryptoOp op;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        lhs = f(lhs);
+        rhs = f(rhs);
+    }
+
+    bool sameExtra(const InstCryptoBinary& other) const { return op == other.op; }
+};
+
+// `aesimc` or `aeskeygenassist` - see `Value::CryptoUnary`. `roundConstant` is read only by the second.
+enum class CryptoUnaryOp: U8 {
+    AesInverseMix,
+    AesKeygenAssist,
+};
+
+struct InstCryptoUnary: Inst {
+    InstCryptoUnary(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> from, CryptoUnaryOp op,
+                    U8 roundConstant):
+        Inst(Value::CryptoUnary, block, type), from(from), op(op), roundConstant(roundConstant) {}
+
+    ModulePtr<Value> from;
+    CryptoUnaryOp op;
+    U8 roundConstant;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        from = f(from);
+    }
+
+    bool sameExtra(const InstCryptoUnary& other) const {
+        return op == other.op && roundConstant == other.roundConstant;
+    }
+};
+
 // Every lane combined into one scalar, in the pairwise order Design-Vector §4.5 states. `type` is
 // the lane's; for a mask it is `Int`, so `any` is Or, `all` is And and `count` is Add.
 struct InstVecReduce: Inst {

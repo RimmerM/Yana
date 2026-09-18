@@ -184,6 +184,17 @@ Inst* cloneComputation(Policy& policy, Value& from) {
             return make(build(CloneTag<InstShaBinary>(), value(sha.lhs), value(sha.rhs), sha.op));
         }
 
+        case Value::CryptoBinary: {
+            auto& crypto = (InstCryptoBinary&)from;
+            return make(build(CloneTag<InstCryptoBinary>(), value(crypto.lhs), value(crypto.rhs), crypto.op));
+        }
+
+        case Value::CryptoUnary: {
+            auto& crypto = (InstCryptoUnary&)from;
+            return make(build(CloneTag<InstCryptoUnary>(), value(crypto.from), crypto.op,
+                              crypto.roundConstant));
+        }
+
         /*
          * The vector kinds. `type` is the policy's answer, which is what carries the natural form's
          * deferral through a specialization: a `Vec(a)` in a generic body has no lane count, and the

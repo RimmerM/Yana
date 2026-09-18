@@ -2528,6 +2528,53 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
                     break;
                 }
+
+                /*
+                 * AES-NI and PCLMULQDQ. The four rounds and the multiply are one lower kind, whose
+                 * `LowerCrypto` member is the row - or, for the multiply, the selector the node
+                 * carries as its `immediate`, which is one of the four values the expansion allowed.
+                 */
+                case mir::NativeOp::AesEncrypt:
+                case mir::NativeOp::AesEncryptLast:
+                case mir::NativeOp::AesDecrypt:
+                case mir::NativeOp::AesDecryptLast:
+                case mir::NativeOp::CarrylessMultiply: {
+                    auto op = LowerCrypto::AesEnc;
+                    switch(written.op) {
+                        case mir::NativeOp::AesEncryptLast: op = LowerCrypto::AesEncLast; break;
+                        case mir::NativeOp::AesDecrypt:     op = LowerCrypto::AesDec; break;
+                        case mir::NativeOp::AesDecryptLast: op = LowerCrypto::AesDecLast; break;
+                        case mir::NativeOp::CarrylessMultiply:
+                            op = carrylessOfSelector(written.immediate);
+                            break;
+                        default: break;
+                    }
+
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto value = block.addInst(lower, new (to.arena) LowerInstCryptoBinary(
+                        StringId(), manifestOf(*result).type, args[0], args[1], op));
+
+                    values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
+                    break;
+                }
+
+                case mir::NativeOp::AesInverseMix: {
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto value = block.addInst(lower, new (to.arena) LowerInstAesInverseMix(
+                        StringId(), manifestOf(*result).type, args[0]));
+
+                    values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
+                    break;
+                }
+
+                case mir::NativeOp::AesKeygenAssist: {
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto value = block.addInst(lower, new (to.arena) LowerInstAesKeygenAssist(
+                        StringId(), manifestOf(*result).type, args[0], written.immediate));
+
+                    values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
+                    break;
+                }
             }
 
             break;

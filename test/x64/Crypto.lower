@@ -1,0 +1,43 @@
+# AES-NI and PCLMULQDQ at the floor, as the bytes they encode to - Analysis-Avx512.md §4.1-4.2.
+#
+# extensions: sse4 aes pclmul
+#
+# The two flags named beside `sse4`, which is Westmere through Ivy Bridge: no VEX, so every row is
+# the legacy `66 0f 38` or `66 0f 3a` encoding. The four rounds and the multiply are destructive
+# two-address; `aesimc` and `aeskeygenassist` are the one-source shape and write a register of their
+# own. The trailing byte of `pclmulqdq` is the selector the instruction's name carries, and that of
+# `aeskeygenassist` its round constant - both read off the instruction rather than an operand (see
+# `packedTrailingByte`). `CryptoVex.lower` and `CryptoEvex.lower` are the same instructions above.
+
+# A whitening `xor` and the four rounds, each over the state the one before wrote.
+rounds(%s: i8x16, %k: i8x16): i8x16 {
+    {
+        %a = aesenc %s, %k: i8x16
+        %b = aesenclast %a, %k: i8x16
+        %c = aesdec %b, %k: i8x16
+        %d = aesdeclast %c, %k: i8x16
+        ret %d
+    }
+}
+
+# The key schedule's two, with round constants either side of what a signed byte holds.
+keys(%k: i8x16): i8x16 {
+    {
+        %a = aeskeygenassist %k, 1: i8x16
+        %b = aeskeygenassist %a, 54: i8x16
+        %c = aeskeygenassist %b, 255: i8x16
+        %d = aesimc %c: i8x16
+        ret %d
+    }
+}
+
+# The carryless multiply at all four selectors: 0x00, 0x01, 0x10 and 0x11.
+multiplies(%a: i64x2, %b: i64x2): i64x2 {
+    {
+        %ll = pclmullqlqdq %a, %b: i64x2
+        %hl = pclmulhqlqdq %ll, %b: i64x2
+        %lh = pclmullqhqdq %hl, %b: i64x2
+        %hh = pclmulhqhqdq %lh, %b: i64x2
+        ret %hh
+    }
+}

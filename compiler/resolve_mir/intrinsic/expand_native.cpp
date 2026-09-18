@@ -132,4 +132,49 @@ Node* expandX86Sha1Rounds(Builder& builder, Function& callee, Node* const* argum
     return nativeOperation(builder, callee, arguments, 2, with, source, rows[round.unwrap()]);
 }
 
+/*
+ * The literal an AES-NI or PCLMULQDQ trailing byte is written as - `constantRound`'s rule above,
+ * and `immediate` on the node rather than a row for the reason native.def gives.
+ */
+static Maybe<U64> literalArgument(Builder& builder, Node& argument) {
+    if(argument.kind != Node::Const) return Nothing();
+
+    auto constant = builder.body.constant(builder.base(), ((NodeConst&)argument).constant);
+    if(constant.kind != Constant::Int) return Nothing();
+    return Just(constant.asInt());
+}
+
+// `aeskeygenassist(key, roundConstant)` - any byte, since the instruction reads all eight bits.
+Node* expandX86AesKeygenAssist(Builder& builder, Function& callee, Node* const* arguments,
+                               const Substitution& with, LocationId source) {
+    auto constant = literalArgument(builder, *arguments[1]);
+
+    if(!constant || constant.unwrap() > 255) {
+        builder.context.diagnostics.error("an aeskeygenassist round constant must be a constant from 0 to 255 - it is the instruction's trailing byte, and a computed one is not an instruction"_v,
+                                          source);
+        return nullptr;
+    }
+
+    auto result = substituteType(builder.context, builder.program, callee.result.type, with);
+    return builder.addNative(source, NativeOp::AesKeygenAssist, arguments, 1, result,
+                             U8(constant.unwrap()));
+}
+
+// `pclmulqdq(a, b, selector)` - one of the four values the instruction reads: bit 0 picks the first
+// operand's quadword, bit 4 the second's.
+Node* expandX86CarrylessMultiply(Builder& builder, Function& callee, Node* const* arguments,
+                                 const Substitution& with, LocationId source) {
+    auto selector = literalArgument(builder, *arguments[2]);
+    auto value = selector ? selector.unwrap() : ~U64(0);
+
+    if(value != 0x00 && value != 0x01 && value != 0x10 && value != 0x11) {
+        builder.context.diagnostics.error("a pclmulqdq selector must be a constant 0x00, 0x01, 0x10 or 0x11 - bit 0 picks the first operand's quadword and bit 4 the second's, and it is the instruction's trailing byte"_v,
+                                          source);
+        return nullptr;
+    }
+
+    auto result = substituteType(builder.context, builder.program, callee.result.type, with);
+    return builder.addNative(source, NativeOp::CarrylessMultiply, arguments, 2, result, U8(value));
+}
+
 } // namespace mir

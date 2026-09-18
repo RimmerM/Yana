@@ -207,6 +207,54 @@ void MachineFormBuilder::registerPackedForms() {
         form.encoding.opcodeMap = kOpcodeMap0F38;
     }
 
+    /*
+     * AES-NI and PCLMULQDQ - Analysis-Avx512.md §4.1-4.2, seven instructions.
+     *
+     * The four rounds are `66 0F 38 DC-DF /r`, destructive two-address, the state in ModRM.reg and
+     * the round key in r/m. `pclmulqdq` is `66 0F 3A 44 /r ib` of the same shape, its trailing byte
+     * the quadword selector read off the kind by `packedTrailingByte`. `aesimc` (`66 0F 38 DB`) and
+     * `aeskeygenassist` (`66 0F 3A DF ib`) are the non-destructive one-source shape `pabsd` has.
+     *
+     * **Unlike the SHA rows, each of these has a VEX spelling**, so they are ordinary rows the VEX
+     * sweep derives a twin of - `vaesenc xmm, xmm, xmm/m` requires AVX and AES both, which
+     * `prefixedTwin` states by adding AVX to what the row requires - and a function holding one
+     * needs no `@x86_legacy_sse`. The four that VAES and VPCLMULQDQ widen get their 256-bit twins in
+     * `registerWideForms`. The r/m operand is `regOrMem` as `packed`'s is - a frame slot, which is
+     * aligned - and the VEX twin is where a fold of a program's own address opens.
+     *
+     * `requiredFeatures` is the flag and not a level, because neither extension is in one: `aes` and
+     * `pclmul` are named beside `sse4` or implied from `avx2` up (settings.cpp's `kLevelTable`).
+     */
+    auto crypto = [&](MachineFormId id, StringView formName, U8 op, U8 map, FeatureSet feature, bool immediate) {
+        auto& form = add(id, OpCrypto, formName);
+        form.uses.push(anyReg(ClassXmm128));
+        form.uses.push(regOrMem(MemoryAccessKind::Read, ClassXmm128));
+        form.defs.push(tiedDef(0, ClassXmm128));
+        form.requiredFeatures = feature;
+        form.encoding = sseRegRm(0x66, op, useRef(0), useRef(1), OperationWidth::FromResult);
+        form.encoding.opcodeMap = map;
+        form.encoding.patternImmediate = immediate;
+    };
+
+    crypto(FormAesEnc,     "aesenc xmm, xmm/m"_v,                0xdc, kOpcodeMap0F38, kFeatureAes,    false);
+    crypto(FormAesEncLast, "aesenclast xmm, xmm/m"_v,            0xdd, kOpcodeMap0F38, kFeatureAes,    false);
+    crypto(FormAesDec,     "aesdec xmm, xmm/m"_v,                0xde, kOpcodeMap0F38, kFeatureAes,    false);
+    crypto(FormAesDecLast, "aesdeclast xmm, xmm/m"_v,            0xdf, kOpcodeMap0F38, kFeatureAes,    false);
+    crypto(FormClmul,      "pclmulqdq xmm, xmm/m, selector"_v,   0x44, kOpcodeMap0F3A, kFeaturePclmul, true);
+
+    auto cryptoUnary = [&](MachineFormId id, StringView formName, U8 op, U8 map, bool immediate) {
+        auto& form = add(id, OpCrypto, formName);
+        form.uses.push(regOrMem(MemoryAccessKind::Read, ClassXmm128));
+        form.defs.push(def(ClassXmm128));
+        form.requiredFeatures = kFeatureAes;
+        form.encoding = sseRegRm(0x66, op, defRef(0), useRef(0), OperationWidth::FromResult);
+        form.encoding.opcodeMap = map;
+        form.encoding.patternImmediate = immediate;
+    };
+
+    cryptoUnary(FormAesInverseMix,   "aesimc xmm, xmm/m"_v,                          0xdb, kOpcodeMap0F38, false);
+    cryptoUnary(FormAesKeygenAssist, "aeskeygenassist xmm, xmm/m, round constant"_v, 0xdf, kOpcodeMap0F3A, true);
+
     // The integer widths of one operation, in lane order, and the two float ones. `0` for a lane
     // type the machine has no instruction for, which is a form this table does not build.
     packed(FormVAdd8,   OpVAdd, "paddb xmm, xmm/m"_v, 0x66, 0xfc);

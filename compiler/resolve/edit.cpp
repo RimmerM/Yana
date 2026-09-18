@@ -134,6 +134,15 @@ void IrEditor::recordUses(Inst* inst) {
             addUse(sha->rhs, inst);
             break;
         }
+        case Value::CryptoBinary: {
+            auto crypto = (InstCryptoBinary*)inst;
+            addUse(crypto->lhs, inst);
+            addUse(crypto->rhs, inst);
+            break;
+        }
+        case Value::CryptoUnary:
+            addUse(((InstCryptoUnary*)inst)->from, inst);
+            break;
         // The table the slot is read out of. A TypeMetric has no operand at all - it names a type -
         // which is why the two are not one case despite being the same kind of question.
         case Value::TableSlot:

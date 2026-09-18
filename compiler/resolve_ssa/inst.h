@@ -520,6 +520,7 @@ struct InstNative: Inst {
     InstNative(LocationId source, mir::NativeOp op): Inst(Native, source), op(op) {}
 
     mir::NativeOp op;
+    U8 immediate = 0; // `mir::NodeNative::immediate`, carried down unchanged.
     UseList arguments;
 
     template<class F> void eachUse(SsaBase base, F&& f) {

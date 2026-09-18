@@ -606,8 +606,10 @@ Inst* Editor::addCall(LocationId source, const mir::CallSite& site, Use target, 
 }
 
 Inst* Editor::addNative(LocationId source, mir::NativeOp op, const Use* arguments, Size count,
-                        const Occurrence& result, Convention convention, bool hasResult) {
+                        const Occurrence& result, Convention convention, bool hasResult,
+                        U8 immediate) {
     auto inst = new (arena) InstNative(source, op);
+    inst->immediate = immediate;
     inst->arguments.reserve(arena, count);
     for(Size i = 0; i < count; i++) inst->arguments.push(arena, arguments[i]);
 

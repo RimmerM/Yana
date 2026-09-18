@@ -1,0 +1,135 @@
+{-
+   AES-NI and PCLMULQDQ through `lib/Native/Intrinsic/X86.yana` - Analysis-Avx512.md §4.1-4.2.
+
+   # extensions: avx2
+
+   `avx2` implies `aes` and `pclmul`, so every declaration this reads exists here and nowhere below
+   it without a flag. What is asserted is the half a byte listing cannot say (`x64/Crypto.lower` is
+   the listing): that the instructions compute what the manual says, in the operand order the
+   declarations state.
+
+   AES is FIPS-197 Appendix C.1 - the key schedule built with `aesKeygenAssist` from the cipher key
+   `000102...0f`, `00112233...ff` encrypted to `69c4e0d8...c55a`, and decrypted back through the
+   equivalent inverse cipher, whose round keys are `aesInverseMix` of the encryption ones. The
+   carryless multiply is checked at every selector against a shift-and-xor reference written here.
+
+   The program answers the number of checks that failed.
+-}
+import Native
+
+-- Mutable, so that nothing here is a constant the folder could answer by itself.
+let &keyLow = 0x0706050403020100 :: U64
+let &keyHigh = 0x0f0e0d0c0b0a0908 :: U64
+let &plainLow = 0x7766554433221100 :: U64
+let &plainHigh = 0xffeeddccbbaa9988 :: U64
+
+fn block(low: U64, high: U64) -> Vec(U8, 16) =
+    bitcast(withLane(withLane(zero() :: Vec(U64, 2), 0, low), 1, high)) :: Vec(U8, 16)
+
+fn lowOf(v: Vec(U8, 16)) -> U64 = lane(bitcast(v) :: Vec(U64, 2), 0)
+fn highOf(v: Vec(U8, 16)) -> U64 = lane(bitcast(v) :: Vec(U64, 2), 1)
+
+-- One step of the AES-128 key schedule: word 3 of the assist broadcast, exclusive-ored into the
+-- running prefix xor of the previous key's words. `alignLanes` against zero is the shift up by one
+-- and by two words that prefix is built from.
+fn nextKey(key: Vec(U8, 16), assist: Vec(U8, 16)) -> Vec(U8, 16):
+    let t = shuffle(bitcast(assist) :: Vec(U32, 4), [3, 3, 3, 3])
+    let z = zero() :: Vec(U32, 4)
+    let k0 = bitcast(key) :: Vec(U32, 4)
+    let k1 = xor(k0, alignLanes(k0, z, 3))
+    let k2 = xor(k1, alignLanes(k1, z, 2))
+    return bitcast(xor(k2, t)) :: Vec(U8, 16)
+
+@noinline
+fn aes128() -> Int:
+    let k0 = block(keyLow, keyHigh)
+    let k1 = nextKey(k0, X86.aesKeygenAssist(k0, 0x01))
+    let k2 = nextKey(k1, X86.aesKeygenAssist(k1, 0x02))
+    let k3 = nextKey(k2, X86.aesKeygenAssist(k2, 0x04))
+    let k4 = nextKey(k3, X86.aesKeygenAssist(k3, 0x08))
+    let k5 = nextKey(k4, X86.aesKeygenAssist(k4, 0x10))
+    let k6 = nextKey(k5, X86.aesKeygenAssist(k5, 0x20))
+    let k7 = nextKey(k6, X86.aesKeygenAssist(k6, 0x40))
+    let k8 = nextKey(k7, X86.aesKeygenAssist(k7, 0x80))
+    let k9 = nextKey(k8, X86.aesKeygenAssist(k8, 0x1b))
+    let k10 = nextKey(k9, X86.aesKeygenAssist(k9, 0x36))
+
+    let &wrong = 0
+
+    -- The last round key, FIPS-197 C.1: `13111d7fe3944a17f307a78b4d2b30c5`.
+    if lowOf(k10) != 0x174a94e37f1d1113 then wrong = wrong + 1
+    if highOf(k10) != 0xc5302b4d8ba707f3 then wrong = wrong + 1
+
+    let plain = block(plainLow, plainHigh)
+    let &s = xor(plain, k0)
+    s = X86.aesEncrypt(s, k1)
+    s = X86.aesEncrypt(s, k2)
+    s = X86.aesEncrypt(s, k3)
+    s = X86.aesEncrypt(s, k4)
+    s = X86.aesEncrypt(s, k5)
+    s = X86.aesEncrypt(s, k6)
+    s = X86.aesEncrypt(s, k7)
+    s = X86.aesEncrypt(s, k8)
+    s = X86.aesEncrypt(s, k9)
+    let cipher = X86.aesEncryptLast(s, k10)
+
+    -- `69c4e0d86a7b0430d8cdb78070b4c55a`.
+    if lowOf(cipher) != 0x30047b6ad8e0c469 then wrong = wrong + 1
+    if highOf(cipher) != 0x5ac5b47080b7cdd8 then wrong = wrong + 1
+
+    let &d = xor(cipher, k10)
+    d = X86.aesDecrypt(d, X86.aesInverseMix(k9))
+    d = X86.aesDecrypt(d, X86.aesInverseMix(k8))
+    d = X86.aesDecrypt(d, X86.aesInverseMix(k7))
+    d = X86.aesDecrypt(d, X86.aesInverseMix(k6))
+    d = X86.aesDecrypt(d, X86.aesInverseMix(k5))
+    d = X86.aesDecrypt(d, X86.aesInverseMix(k4))
+    d = X86.aesDecrypt(d, X86.aesInverseMix(k3))
+    d = X86.aesDecrypt(d, X86.aesInverseMix(k2))
+    d = X86.aesDecrypt(d, X86.aesInverseMix(k1))
+    let back = X86.aesDecryptLast(d, k0)
+
+    if lowOf(back) != plainLow then wrong = wrong + 1
+    if highOf(back) != plainHigh then wrong = wrong + 1
+    return wrong
+
+-- The 128-bit carryless product of two quadwords, a bit at a time: the low half and the high half.
+fn productLow(a: U64, b: U64) -> U64:
+    let &r = 0 :: U64
+    let &i = 0 :: U64
+    while i < 64:
+        if (b `shr` i) `and` 1 != 0 then r = xor(r, a `shl` i)
+        i = i + 1
+    return r
+
+fn productHigh(a: U64, b: U64) -> U64:
+    let &r = 0 :: U64
+    let &i = 1 :: U64
+    while i < 64:
+        if (b `shr` i) `and` 1 != 0 then r = xor(r, a `shr` (64 - i))
+        i = i + 1
+    return r
+
+fn quads(low: U64, high: U64) -> Vec(U64, 2) = withLane(withLane(zero() :: Vec(U64, 2), 0, low), 1, high)
+
+fn checkProduct(v: Vec(U64, 2), a: U64, b: U64) -> Int:
+    let &wrong = 0
+    if lane(v, 0) != productLow(a, b) then wrong = wrong + 1
+    if lane(v, 1) != productHigh(a, b) then wrong = wrong + 1
+    return wrong
+
+@noinline
+fn carryless() -> Int:
+    let a0 = keyLow * 0x9e3779b97f4a7c15
+    let a1 = plainHigh * 0xc2b2ae3d27d4eb4f
+    let b0 = plainLow `rol` 17
+    let b1 = keyHigh * 0x165667b19e3779f9
+    let a = quads(a0, a1)
+    let b = quads(b0, b1)
+
+    return checkProduct(X86.carrylessMultiply(a, b, 0x00), a0, b0)
+         + checkProduct(X86.carrylessMultiply(a, b, 0x01), a1, b0)
+         + checkProduct(X86.carrylessMultiply(a, b, 0x10), a0, b1)
+         + checkProduct(X86.carrylessMultiply(a, b, 0x11), a1, b1)
+
+fn main() -> Int = aes128() + carryless()

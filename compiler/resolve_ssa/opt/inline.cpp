@@ -1507,7 +1507,8 @@ struct Inliner {
 
                 made = editor.addNative(at, written.op, arguments.pointer(), arguments.size(),
                                         results ? occurrence() : Occurrence(),
-                                        results ? convention() : Convention::Trivial, results != 0);
+                                        results ? convention() : Convention::Trivial, results != 0,
+                                        written.immediate);
                 break;
             }
 

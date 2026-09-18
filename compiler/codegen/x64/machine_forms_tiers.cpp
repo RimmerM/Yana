@@ -507,6 +507,22 @@ void MachineFormBuilder::registerWideForms() {
     wideInsert(FormVWideInsert64,  "vpinsrq; vinserti128 (vextracti128 for the upper half)"_v,  ClassGpr64);
     wideInsert(FormVWideInsertF32, "vinsertps; vinserti128 (vextracti128 for the upper half)"_v, ClassFloat32);
     wideInsert(FormVWideInsertF64, "vmovsd/vunpcklpd; vinserti128 (vextracti128 for the upper half)"_v, ClassFloat64);
+
+    /*
+     * VAES and VPCLMULQDQ: the round and the multiply over each 128-bit half of a ymm register.
+     * The VEX.256 spelling is the extension's own - AVX2 is not what defines it, and a part with
+     * AVX2 and no VAES (every Zen before 3, Haswell to Comet Lake) has no such instruction - so the
+     * twin requires the flag on top of what `wideTwin` states.
+     */
+    auto wideCrypto = [&](MachineFormId id, MachineFormId sourceId, StringView formName, FeatureSet feature) {
+        wideTwin(id, sourceId, formName).requiredFeatures |= feature;
+    };
+
+    wideCrypto(FormVWideAesEnc,     FormAesEnc,     "vaesenc ymm, ymm, ymm/m"_v,               kFeatureVaes);
+    wideCrypto(FormVWideAesEncLast, FormAesEncLast, "vaesenclast ymm, ymm, ymm/m"_v,           kFeatureVaes);
+    wideCrypto(FormVWideAesDec,     FormAesDec,     "vaesdec ymm, ymm, ymm/m"_v,               kFeatureVaes);
+    wideCrypto(FormVWideAesDecLast, FormAesDecLast, "vaesdeclast ymm, ymm, ymm/m"_v,           kFeatureVaes);
+    wideCrypto(FormVWideClmul,      FormClmul,      "vpclmulqdq ymm, ymm, ymm/m, selector"_v,  kFeatureVpclmul);
 }
 
 void MachineFormBuilder::registerVexTier() {

@@ -137,7 +137,8 @@ struct Editor {
      * `{}` and a value of no bits is not a value this tier names.
      */
     Inst* addNative(LocationId source, mir::NativeOp op, const Use* arguments, Size count,
-                    const Occurrence& result, Convention convention, bool hasResult);
+                    const Occurrence& result, Convention convention, bool hasResult,
+                    U8 immediate = 0);
 
     /*
      * One atomic operation - the location first, then the shape `mir::AtomicForm` states.

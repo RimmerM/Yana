@@ -435,6 +435,31 @@ YANA_INST(ShaBinary,    InstShaBinary,   "sha"_v,         kInstResult | kInstPur
 YANA_INST(Sha256Rounds, InstSha256Rounds, "sha256rnds2"_v, kInstResult | kInstPure)
 
 /*
+ * AES-NI and PCLMULQDQ - Analysis-Avx512.md §4.1-4.2, reached through the `@platform(aes)`,
+ * `@platform(pclmul)`, `@platform(vaes)` and `@platform(vpclmul)` declarations in
+ * `lib/Native/Intrinsic/X86.yana`.
+ *
+ * The SHA instructions' terms exactly: each is a named step of a named algorithm, **no backend
+ * expands one**, and what stands in for them where the extension is absent is a different
+ * implementation of the cipher or the checksum, chosen in the library.
+ *
+ * `CryptoBinary` is the four AES rounds (`aesenc`, `aesenclast`, `aesdec`, `aesdeclast` - one round
+ * of the cipher or its equivalent inverse over the state in the first operand, with the round key in
+ * the second) and the carryless multiply (`pclmulqdq` - one 64 x 64 product in GF(2)[x], of the
+ * quadwords `CryptoOp` names). Over sixteen bytes that is one block; over thirty-two it is VAES and
+ * VPCLMULQDQ, which perform the same operation on each 128-bit half independently.
+ *
+ * `CryptoUnary` is the two key-schedule instructions, which exist at 128 bits only: `aesimc` (the
+ * InvMixColumns step that turns an encryption round key into one the inverse cipher reads) and
+ * `aeskeygenassist` (SubWord and RotWord of words 1 and 3, the round constant exclusive-ored into
+ * each rotated one). The round constant is the instruction's trailing byte and is a field here.
+ *
+ * All pure, for the SHA instructions' reason: a round key read in a loop is loop-invariant.
+ */
+YANA_INST(CryptoBinary, InstCryptoBinary, "crypto"_v,     kInstResult | kInstPure)
+YANA_INST(CryptoUnary,  InstCryptoUnary,  "crypto"_v,     kInstResult | kInstPure)
+
+/*
  * `vzeroupper` - the vector state reset, as an ordinary call a program writes.
  *
  * Reachable only through `X86.vzeroupper()` in `lib/Native/Intrinsic/X86.yana`, beside the seven above and

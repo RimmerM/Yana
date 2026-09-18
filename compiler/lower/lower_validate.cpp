@@ -1322,6 +1322,10 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateFma(diagnostics, base, (LowerInstFma*)inst);
         case LowerInst::ShaBinary:
         case LowerInst::Sha256Rounds:
+        // AES-NI and PCLMULQDQ hold the same rule: every operand is the result's type.
+        case LowerInst::CryptoBinary:
+        case LowerInst::AesInverseMix:
+        case LowerInst::AesKeygenAssist:
             return validateSha(diagnostics, base, (LowerInstSingle*)inst);
         case LowerInst::Add:
             return validateAdd(diagnostics, base, (LowerInstBinary*)inst);

@@ -104,3 +104,20 @@ YANA_MIR_NATIVE( Sha1Rounds3,    "sha1rnds4_3"_v )
 YANA_MIR_NATIVE( Sha256Message1, "sha256msg1"_v  )
 YANA_MIR_NATIVE( Sha256Message2, "sha256msg2"_v  )
 YANA_MIR_NATIVE( Sha256Rounds,   "sha256rnds2"_v )
+
+/*
+ * AES-NI and PCLMULQDQ - Analysis-Avx512.md §4.1-4.2. The four AES rounds and the carryless
+ * multiply take two operands of one type, sixteen bytes or thirty-two (VAES, VPCLMULQDQ); the two
+ * key-schedule instructions take one, of sixteen.
+ *
+ * **`aeskeygenassist` and `pclmulqdq` carry `NodeNative::immediate`**, which is where this departs
+ * from `sha1rnds4`: the round constant is any of 256 bytes, which is not a row count, and the
+ * selector travels the same way for symmetry with it. `nativeHasImmediate` names the two.
+ */
+YANA_MIR_NATIVE( AesEncrypt,        "aesenc"_v          )
+YANA_MIR_NATIVE( AesEncryptLast,    "aesenclast"_v      )
+YANA_MIR_NATIVE( AesDecrypt,        "aesdec"_v          )
+YANA_MIR_NATIVE( AesDecryptLast,    "aesdeclast"_v      )
+YANA_MIR_NATIVE( AesInverseMix,     "aesimc"_v          )
+YANA_MIR_NATIVE( AesKeygenAssist,   "aeskeygenassist"_v )
+YANA_MIR_NATIVE( CarrylessMultiply, "pclmulqdq"_v       )

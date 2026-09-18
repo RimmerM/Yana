@@ -1,0 +1,881 @@
+
+rounds24<complex>(%p: Ptr): i8x16 {
+  b_0 {
+    %l0 = load %p, 16: i8x16
+    %o1 = add %p, 16: Ptr
+    %l1 = load %o1, 16: i8x16
+    %o2 = add %p, 32: Ptr
+    %l2 = load %o2, 16: i8x16
+    %o3 = add %p, 48: Ptr
+    %l3 = load %o3, 16: i8x16
+    %o4 = add %p, 64: Ptr
+    %l4 = load %o4, 16: i8x16
+    %o5 = add %p, 80: Ptr
+    %l5 = load %o5, 16: i8x16
+    %o6 = add %p, 96: Ptr
+    %l6 = load %o6, 16: i8x16
+    %o7 = add %p, 112: Ptr
+    %l7 = load %o7, 16: i8x16
+    %o8 = add %p, 128: Ptr
+    %l8 = load %o8, 16: i8x16
+    %o9 = add %p, 144: Ptr
+    %l9 = load %o9, 16: i8x16
+    %o10 = add %p, 160: Ptr
+    %l10 = load %o10, 16: i8x16
+    %o11 = add %p, 176: Ptr
+    %l11 = load %o11, 16: i8x16
+    %o12 = add %p, 192: Ptr
+    %l12 = load %o12, 16: i8x16
+    %o13 = add %p, 208: Ptr
+    %l13 = load %o13, 16: i8x16
+    %o14 = add %p, 224: Ptr
+    %l14 = load %o14, 16: i8x16
+    %o15 = add %p, 240: Ptr
+    %l15 = load %o15, 16: i8x16
+    %o16 = add %p, 256: Ptr
+    %l16 = load %o16, 16: i8x16
+    %o17 = add %p, 272: Ptr
+    %l17 = load %o17, 16: i8x16
+    %o18 = add %p, 288: Ptr
+    %l18 = load %o18, 16: i8x16
+    %o19 = add %p, 304: Ptr
+    %l19 = load %o19, 16: i8x16
+    %o20 = add %p, 320: Ptr
+    %l20 = load %o20, 16: i8x16
+    %o21 = add %p, 336: Ptr
+    %l21 = load %o21, 16: i8x16
+    %o22 = add %p, 352: Ptr
+    %l22 = load %o22, 16: i8x16
+    %o23 = add %p, 368: Ptr
+    %l23 = load %o23, 16: i8x16
+    %t0 = aesenc %l0, %l23: i8x16
+    %t1 = aesenclast %l1, %l22: i8x16
+    %t2 = aesdec %l2, %l21: i8x16
+    %t3 = aesdeclast %l3, %l20: i8x16
+    %t4 = aesenc %l4, %l19: i8x16
+    %t5 = aesenclast %l5, %l18: i8x16
+    %t6 = aesdec %l6, %l17: i8x16
+    %t7 = aesdeclast %l7, %l16: i8x16
+    %t8 = aesenc %l8, %l15: i8x16
+    %t9 = aesenclast %l9, %l14: i8x16
+    %t10 = aesdec %l10, %l13: i8x16
+    %t11 = aesdeclast %l11, %l12: i8x16
+    %t12 = aesenc %l12, %l11: i8x16
+    %t13 = aesenclast %l13, %l10: i8x16
+    %t14 = aesdec %l14, %l9: i8x16
+    %t15 = aesdeclast %l15, %l8: i8x16
+    %t16 = aesenc %l16, %l7: i8x16
+    %t17 = aesenclast %l17, %l6: i8x16
+    %t18 = aesdec %l18, %l5: i8x16
+    %t19 = aesdeclast %l19, %l4: i8x16
+    %t20 = aesenc %l20, %l3: i8x16
+    %t21 = aesenclast %l21, %l2: i8x16
+    %t22 = aesdec %l22, %l1: i8x16
+    %t23 = aesdeclast %l23, %l0: i8x16
+    %a1 = xor %t0, %t1: i8x16
+    %a2 = xor %a1, %t2: i8x16
+    %a3 = xor %a2, %t3: i8x16
+    %a4 = xor %a3, %t4: i8x16
+    %a5 = xor %a4, %t5: i8x16
+    %a6 = xor %a5, %t6: i8x16
+    %a7 = xor %a6, %t7: i8x16
+    %a8 = xor %a7, %t8: i8x16
+    %a9 = xor %a8, %t9: i8x16
+    %a10 = xor %a9, %t10: i8x16
+    %a11 = xor %a10, %t11: i8x16
+    %a12 = xor %a11, %t12: i8x16
+    %a13 = xor %a12, %t13: i8x16
+    %a14 = xor %a13, %t14: i8x16
+    %a15 = xor %a14, %t15: i8x16
+    %a16 = xor %a15, %t16: i8x16
+    %a17 = xor %a16, %t17: i8x16
+    %a18 = xor %a17, %t18: i8x16
+    %a19 = xor %a18, %t19: i8x16
+    %a20 = xor %a19, %t20: i8x16
+    %a21 = xor %a20, %t21: i8x16
+    %a22 = xor %a21, %t22: i8x16
+    %a23 = xor %a22, %t23: i8x16
+    %m = aesimc %a23: i8x16
+    %x = aeskeygenassist %m, 1: i8x16
+    ret %x
+  }
+}
+
+rounds24Wide<complex>(%p: Ptr): i8x32 {
+  b_0 {
+    %l0 = load %p, 32: i8x32
+    %o1 = add %p, 32: Ptr
+    %l1 = load %o1, 32: i8x32
+    %o2 = add %p, 64: Ptr
+    %l2 = load %o2, 32: i8x32
+    %o3 = add %p, 96: Ptr
+    %l3 = load %o3, 32: i8x32
+    %o4 = add %p, 128: Ptr
+    %l4 = load %o4, 32: i8x32
+    %o5 = add %p, 160: Ptr
+    %l5 = load %o5, 32: i8x32
+    %o6 = add %p, 192: Ptr
+    %l6 = load %o6, 32: i8x32
+    %o7 = add %p, 224: Ptr
+    %l7 = load %o7, 32: i8x32
+    %o8 = add %p, 256: Ptr
+    %l8 = load %o8, 32: i8x32
+    %o9 = add %p, 288: Ptr
+    %l9 = load %o9, 32: i8x32
+    %o10 = add %p, 320: Ptr
+    %l10 = load %o10, 32: i8x32
+    %o11 = add %p, 352: Ptr
+    %l11 = load %o11, 32: i8x32
+    %o12 = add %p, 384: Ptr
+    %l12 = load %o12, 32: i8x32
+    %o13 = add %p, 416: Ptr
+    %l13 = load %o13, 32: i8x32
+    %o14 = add %p, 448: Ptr
+    %l14 = load %o14, 32: i8x32
+    %o15 = add %p, 480: Ptr
+    %l15 = load %o15, 32: i8x32
+    %o16 = add %p, 512: Ptr
+    %l16 = load %o16, 32: i8x32
+    %o17 = add %p, 544: Ptr
+    %l17 = load %o17, 32: i8x32
+    %o18 = add %p, 576: Ptr
+    %l18 = load %o18, 32: i8x32
+    %o19 = add %p, 608: Ptr
+    %l19 = load %o19, 32: i8x32
+    %o20 = add %p, 640: Ptr
+    %l20 = load %o20, 32: i8x32
+    %o21 = add %p, 672: Ptr
+    %l21 = load %o21, 32: i8x32
+    %o22 = add %p, 704: Ptr
+    %l22 = load %o22, 32: i8x32
+    %o23 = add %p, 736: Ptr
+    %l23 = load %o23, 32: i8x32
+    %t0 = aesenc %l0, %l23: i8x32
+    %t1 = aesenclast %l1, %l22: i8x32
+    %t2 = aesdec %l2, %l21: i8x32
+    %t3 = aesdeclast %l3, %l20: i8x32
+    %t4 = aesenc %l4, %l19: i8x32
+    %t5 = aesenclast %l5, %l18: i8x32
+    %t6 = aesdec %l6, %l17: i8x32
+    %t7 = aesdeclast %l7, %l16: i8x32
+    %t8 = aesenc %l8, %l15: i8x32
+    %t9 = aesenclast %l9, %l14: i8x32
+    %t10 = aesdec %l10, %l13: i8x32
+    %t11 = aesdeclast %l11, %l12: i8x32
+    %t12 = aesenc %l12, %l11: i8x32
+    %t13 = aesenclast %l13, %l10: i8x32
+    %t14 = aesdec %l14, %l9: i8x32
+    %t15 = aesdeclast %l15, %l8: i8x32
+    %t16 = aesenc %l16, %l7: i8x32
+    %t17 = aesenclast %l17, %l6: i8x32
+    %t18 = aesdec %l18, %l5: i8x32
+    %t19 = aesdeclast %l19, %l4: i8x32
+    %t20 = aesenc %l20, %l3: i8x32
+    %t21 = aesenclast %l21, %l2: i8x32
+    %t22 = aesdec %l22, %l1: i8x32
+    %t23 = aesdeclast %l23, %l0: i8x32
+    %a1 = xor %t0, %t1: i8x32
+    %a2 = xor %a1, %t2: i8x32
+    %a3 = xor %a2, %t3: i8x32
+    %a4 = xor %a3, %t4: i8x32
+    %a5 = xor %a4, %t5: i8x32
+    %a6 = xor %a5, %t6: i8x32
+    %a7 = xor %a6, %t7: i8x32
+    %a8 = xor %a7, %t8: i8x32
+    %a9 = xor %a8, %t9: i8x32
+    %a10 = xor %a9, %t10: i8x32
+    %a11 = xor %a10, %t11: i8x32
+    %a12 = xor %a11, %t12: i8x32
+    %a13 = xor %a12, %t13: i8x32
+    %a14 = xor %a13, %t14: i8x32
+    %a15 = xor %a14, %t15: i8x32
+    %a16 = xor %a15, %t16: i8x32
+    %a17 = xor %a16, %t17: i8x32
+    %a18 = xor %a17, %t18: i8x32
+    %a19 = xor %a18, %t19: i8x32
+    %a20 = xor %a19, %t20: i8x32
+    %a21 = xor %a20, %t21: i8x32
+    %a22 = xor %a21, %t22: i8x32
+    %a23 = xor %a22, %t23: i8x32
+    ret %a23
+  }
+}
+
+multiplies24<complex>(%p: Ptr): i64x2 {
+  b_0 {
+    %l0 = load %p, 16: i64x2
+    %o1 = add %p, 16: Ptr
+    %l1 = load %o1, 16: i64x2
+    %o2 = add %p, 32: Ptr
+    %l2 = load %o2, 16: i64x2
+    %o3 = add %p, 48: Ptr
+    %l3 = load %o3, 16: i64x2
+    %o4 = add %p, 64: Ptr
+    %l4 = load %o4, 16: i64x2
+    %o5 = add %p, 80: Ptr
+    %l5 = load %o5, 16: i64x2
+    %o6 = add %p, 96: Ptr
+    %l6 = load %o6, 16: i64x2
+    %o7 = add %p, 112: Ptr
+    %l7 = load %o7, 16: i64x2
+    %o8 = add %p, 128: Ptr
+    %l8 = load %o8, 16: i64x2
+    %o9 = add %p, 144: Ptr
+    %l9 = load %o9, 16: i64x2
+    %o10 = add %p, 160: Ptr
+    %l10 = load %o10, 16: i64x2
+    %o11 = add %p, 176: Ptr
+    %l11 = load %o11, 16: i64x2
+    %o12 = add %p, 192: Ptr
+    %l12 = load %o12, 16: i64x2
+    %o13 = add %p, 208: Ptr
+    %l13 = load %o13, 16: i64x2
+    %o14 = add %p, 224: Ptr
+    %l14 = load %o14, 16: i64x2
+    %o15 = add %p, 240: Ptr
+    %l15 = load %o15, 16: i64x2
+    %o16 = add %p, 256: Ptr
+    %l16 = load %o16, 16: i64x2
+    %o17 = add %p, 272: Ptr
+    %l17 = load %o17, 16: i64x2
+    %o18 = add %p, 288: Ptr
+    %l18 = load %o18, 16: i64x2
+    %o19 = add %p, 304: Ptr
+    %l19 = load %o19, 16: i64x2
+    %o20 = add %p, 320: Ptr
+    %l20 = load %o20, 16: i64x2
+    %o21 = add %p, 336: Ptr
+    %l21 = load %o21, 16: i64x2
+    %o22 = add %p, 352: Ptr
+    %l22 = load %o22, 16: i64x2
+    %o23 = add %p, 368: Ptr
+    %l23 = load %o23, 16: i64x2
+    %t0 = pclmullqlqdq %l0, %l23: i64x2
+    %t1 = pclmulhqlqdq %l1, %l22: i64x2
+    %t2 = pclmullqhqdq %l2, %l21: i64x2
+    %t3 = pclmulhqhqdq %l3, %l20: i64x2
+    %t4 = pclmullqlqdq %l4, %l19: i64x2
+    %t5 = pclmulhqlqdq %l5, %l18: i64x2
+    %t6 = pclmullqhqdq %l6, %l17: i64x2
+    %t7 = pclmulhqhqdq %l7, %l16: i64x2
+    %t8 = pclmullqlqdq %l8, %l15: i64x2
+    %t9 = pclmulhqlqdq %l9, %l14: i64x2
+    %t10 = pclmullqhqdq %l10, %l13: i64x2
+    %t11 = pclmulhqhqdq %l11, %l12: i64x2
+    %t12 = pclmullqlqdq %l12, %l11: i64x2
+    %t13 = pclmulhqlqdq %l13, %l10: i64x2
+    %t14 = pclmullqhqdq %l14, %l9: i64x2
+    %t15 = pclmulhqhqdq %l15, %l8: i64x2
+    %t16 = pclmullqlqdq %l16, %l7: i64x2
+    %t17 = pclmulhqlqdq %l17, %l6: i64x2
+    %t18 = pclmullqhqdq %l18, %l5: i64x2
+    %t19 = pclmulhqhqdq %l19, %l4: i64x2
+    %t20 = pclmullqlqdq %l20, %l3: i64x2
+    %t21 = pclmulhqlqdq %l21, %l2: i64x2
+    %t22 = pclmullqhqdq %l22, %l1: i64x2
+    %t23 = pclmulhqhqdq %l23, %l0: i64x2
+    %a1 = xor %t0, %t1: i64x2
+    %a2 = xor %a1, %t2: i64x2
+    %a3 = xor %a2, %t3: i64x2
+    %a4 = xor %a3, %t4: i64x2
+    %a5 = xor %a4, %t5: i64x2
+    %a6 = xor %a5, %t6: i64x2
+    %a7 = xor %a6, %t7: i64x2
+    %a8 = xor %a7, %t8: i64x2
+    %a9 = xor %a8, %t9: i64x2
+    %a10 = xor %a9, %t10: i64x2
+    %a11 = xor %a10, %t11: i64x2
+    %a12 = xor %a11, %t12: i64x2
+    %a13 = xor %a12, %t13: i64x2
+    %a14 = xor %a13, %t14: i64x2
+    %a15 = xor %a14, %t15: i64x2
+    %a16 = xor %a15, %t16: i64x2
+    %a17 = xor %a16, %t17: i64x2
+    %a18 = xor %a17, %t18: i64x2
+    %a19 = xor %a18, %t19: i64x2
+    %a20 = xor %a19, %t20: i64x2
+    %a21 = xor %a20, %t21: i64x2
+    %a22 = xor %a21, %t22: i64x2
+    %a23 = xor %a22, %t23: i64x2
+    ret %a23
+  }
+}
+
+multiplies24Wide<complex>(%p: Ptr): i64x4 {
+  b_0 {
+    %l0 = load %p, 32: i64x4
+    %o1 = add %p, 32: Ptr
+    %l1 = load %o1, 32: i64x4
+    %o2 = add %p, 64: Ptr
+    %l2 = load %o2, 32: i64x4
+    %o3 = add %p, 96: Ptr
+    %l3 = load %o3, 32: i64x4
+    %o4 = add %p, 128: Ptr
+    %l4 = load %o4, 32: i64x4
+    %o5 = add %p, 160: Ptr
+    %l5 = load %o5, 32: i64x4
+    %o6 = add %p, 192: Ptr
+    %l6 = load %o6, 32: i64x4
+    %o7 = add %p, 224: Ptr
+    %l7 = load %o7, 32: i64x4
+    %o8 = add %p, 256: Ptr
+    %l8 = load %o8, 32: i64x4
+    %o9 = add %p, 288: Ptr
+    %l9 = load %o9, 32: i64x4
+    %o10 = add %p, 320: Ptr
+    %l10 = load %o10, 32: i64x4
+    %o11 = add %p, 352: Ptr
+    %l11 = load %o11, 32: i64x4
+    %o12 = add %p, 384: Ptr
+    %l12 = load %o12, 32: i64x4
+    %o13 = add %p, 416: Ptr
+    %l13 = load %o13, 32: i64x4
+    %o14 = add %p, 448: Ptr
+    %l14 = load %o14, 32: i64x4
+    %o15 = add %p, 480: Ptr
+    %l15 = load %o15, 32: i64x4
+    %o16 = add %p, 512: Ptr
+    %l16 = load %o16, 32: i64x4
+    %o17 = add %p, 544: Ptr
+    %l17 = load %o17, 32: i64x4
+    %o18 = add %p, 576: Ptr
+    %l18 = load %o18, 32: i64x4
+    %o19 = add %p, 608: Ptr
+    %l19 = load %o19, 32: i64x4
+    %o20 = add %p, 640: Ptr
+    %l20 = load %o20, 32: i64x4
+    %o21 = add %p, 672: Ptr
+    %l21 = load %o21, 32: i64x4
+    %o22 = add %p, 704: Ptr
+    %l22 = load %o22, 32: i64x4
+    %o23 = add %p, 736: Ptr
+    %l23 = load %o23, 32: i64x4
+    %t0 = pclmullqlqdq %l0, %l23: i64x4
+    %t1 = pclmulhqlqdq %l1, %l22: i64x4
+    %t2 = pclmullqhqdq %l2, %l21: i64x4
+    %t3 = pclmulhqhqdq %l3, %l20: i64x4
+    %t4 = pclmullqlqdq %l4, %l19: i64x4
+    %t5 = pclmulhqlqdq %l5, %l18: i64x4
+    %t6 = pclmullqhqdq %l6, %l17: i64x4
+    %t7 = pclmulhqhqdq %l7, %l16: i64x4
+    %t8 = pclmullqlqdq %l8, %l15: i64x4
+    %t9 = pclmulhqlqdq %l9, %l14: i64x4
+    %t10 = pclmullqhqdq %l10, %l13: i64x4
+    %t11 = pclmulhqhqdq %l11, %l12: i64x4
+    %t12 = pclmullqlqdq %l12, %l11: i64x4
+    %t13 = pclmulhqlqdq %l13, %l10: i64x4
+    %t14 = pclmullqhqdq %l14, %l9: i64x4
+    %t15 = pclmulhqhqdq %l15, %l8: i64x4
+    %t16 = pclmullqlqdq %l16, %l7: i64x4
+    %t17 = pclmulhqlqdq %l17, %l6: i64x4
+    %t18 = pclmullqhqdq %l18, %l5: i64x4
+    %t19 = pclmulhqhqdq %l19, %l4: i64x4
+    %t20 = pclmullqlqdq %l20, %l3: i64x4
+    %t21 = pclmulhqlqdq %l21, %l2: i64x4
+    %t22 = pclmullqhqdq %l22, %l1: i64x4
+    %t23 = pclmulhqhqdq %l23, %l0: i64x4
+    %a1 = xor %t0, %t1: i64x4
+    %a2 = xor %a1, %t2: i64x4
+    %a3 = xor %a2, %t3: i64x4
+    %a4 = xor %a3, %t4: i64x4
+    %a5 = xor %a4, %t5: i64x4
+    %a6 = xor %a5, %t6: i64x4
+    %a7 = xor %a6, %t7: i64x4
+    %a8 = xor %a7, %t8: i64x4
+    %a9 = xor %a8, %t9: i64x4
+    %a10 = xor %a9, %t10: i64x4
+    %a11 = xor %a10, %t11: i64x4
+    %a12 = xor %a11, %t12: i64x4
+    %a13 = xor %a12, %t13: i64x4
+    %a14 = xor %a13, %t14: i64x4
+    %a15 = xor %a14, %t15: i64x4
+    %a16 = xor %a15, %t16: i64x4
+    %a17 = xor %a16, %t17: i64x4
+    %a18 = xor %a17, %t18: i64x4
+    %a19 = xor %a18, %t19: i64x4
+    %a20 = xor %a19, %t20: i64x4
+    %a21 = xor %a20, %t21: i64x4
+    %a22 = xor %a21, %t22: i64x4
+    %a23 = xor %a22, %t23: i64x4
+    ret %a23
+  }
+}
+
+
+--- codegen: rounds24 ---
+  prologue  => 4881ecd0000000c57c11642450c57c116c2470c57c11b42490000000c57c11bc24b0000000
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[xmm0]  => c5fa6f07
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fa6f4f10
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=32 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fa6f5720
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=48 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => c5fa6f5f30
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=64 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm4]  => c5fa6f6740
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=80 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm5]  => c5fa6f6f50
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=96 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm6]  => c5fa6f7760
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=112 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm8]  => c57a6f4770
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=128 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm9]  => 62717e086f4f08
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=144 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm10]  => 62717e086f5709
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=160 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm11]  => 62717e086f5f0a
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=176 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm16]  => 62e17e086f470b
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=192 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm17]  => 62e17e086f4f0c
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=208 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm18]  => 62e17e086f570d
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=224 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm19]  => 62e17e086f5f0e
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=240 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm20]  => 62e17e086f670f
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=256 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm21]  => 62e17e086f6f10
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=272 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm22]  => 62e17e086f7711
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=288 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm23]  => 62e17e086f7f12
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=304 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm24]  => 62617e086f4713
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=320 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm25]  => 62617e086f4f14
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=336 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm26]  => 62617e086f5715
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=352 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm27]  => 62617e086f5f16
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=368 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm28]  => 62617e086f6717
+  aesenc uses=[xmm0, xmm28] creates=[xmm29]  => 62027d08dcec
+  aesenclast uses=[xmm1, xmm27] creates=[xmm30]  => 62027508ddf3
+  aesdec uses=[xmm2, xmm26] creates=[xmm7] post=[xmm7->stack:0]  => 62926d08defac5f8113c24
+  aesdeclast uses=[xmm3, xmm25] creates=[xmm7] post=[xmm7->stack:1]  => 62926508dff9c5f8117c2410
+  aesenc uses=[xmm4, xmm24] creates=[xmm31]  => 62025d08dcf8
+  aesenclast uses=[xmm5, xmm23] creates=[xmm7] post=[xmm7->stack:2]  => 62b25508ddffc5f8117c2420
+  aesdec uses=[xmm6, xmm22] creates=[xmm7] post=[xmm7->stack:3]  => 62b24d08defec5f8117c2430
+  aesdeclast uses=[xmm8, xmm21] creates=[xmm12]  => 62323d08dfe5
+  aesenc uses=[xmm9, xmm20] creates=[xmm13]  => 62323508dcec
+  aesenclast uses=[xmm10, xmm19] creates=[xmm14]  => 62322d08ddf3
+  aesdec uses=[xmm11, xmm18] creates=[xmm15]  => 62322508defa
+  aesdeclast uses=[xmm16, xmm17] creates=[xmm7] post=[xmm7->stack:4]  => 62b27d00dff9c5f8117c2440
+  aesenc uses=[xmm17, xmm16] creates=[xmm17]  => 62a27500dcc8
+  aesenclast uses=[xmm18, xmm11] creates=[xmm18]  => 62c26d00ddd3
+  aesdec uses=[xmm19, xmm10] creates=[xmm19]  => 62c26500deda
+  aesdeclast uses=[xmm20, xmm9] creates=[xmm20]  => 62c25d00dfe1
+  aesenc uses=[xmm21, xmm8] creates=[xmm21]  => 62c25500dce8
+  aesenclast uses=[xmm22, xmm6] creates=[xmm22]  => 62e24d00ddf6
+  aesdec uses=[xmm23, xmm5] creates=[xmm23]  => 62e24500defd
+  aesdeclast uses=[xmm24, xmm4] creates=[xmm24]  => 62623d00dfc4
+  aesenc uses=[xmm25, xmm3] creates=[xmm25]  => 62623500dccb
+  aesenclast uses=[xmm26, xmm2] creates=[xmm26]  => 62622d00ddd2
+  aesdec uses=[xmm27, xmm1] creates=[xmm27]  => 62622500ded9
+  aesdeclast uses=[xmm28, xmm0] creates=[xmm28]  => 62621d00dfe0
+  x86_ternarylogic uses=[xmm29, xmm30, stack:0] creates=[xmm29]  => 62630d00252c2496
+  xor uses=[xmm29, stack:1] creates=[xmm29]  => 62611500ef6c2401
+  x86_ternarylogic uses=[xmm29, xmm31, stack:2] creates=[xmm29]  => 62630500256c240296
+  xor uses=[xmm29, stack:3] creates=[xmm29]  => 62611500ef6c2403
+  x86_ternarylogic uses=[xmm29, xmm12, xmm13] creates=[xmm29]  => 62431d0825ed96
+  xor uses=[xmm29, xmm14] creates=[xmm29]  => 62411500efee
+  x86_ternarylogic uses=[xmm29, xmm15, stack:4] creates=[xmm29]  => 62630508256c240496
+  xor uses=[xmm29, xmm17] creates=[xmm29]  => 62211500efe9
+  x86_ternarylogic uses=[xmm29, xmm18, xmm19] creates=[xmm29]  => 62236d0025eb96
+  xor uses=[xmm29, xmm20] creates=[xmm29]  => 62211500efec
+  xor uses=[xmm29, xmm21] creates=[xmm29]  => 62211500efed
+  xor uses=[xmm29, xmm22] creates=[xmm29]  => 62211500efee
+  xor uses=[xmm29, xmm23] creates=[xmm29]  => 62211500efef
+  xor uses=[xmm29, xmm24] creates=[xmm29]  => 62011500efe8
+  xor uses=[xmm29, xmm25] creates=[xmm29]  => 62011500efe9
+  xor uses=[xmm29, xmm26] creates=[xmm29]  => 62011500efea
+  xor uses=[xmm29, xmm27] creates=[xmm29]  => 62011500efeb
+  xor uses=[xmm29, xmm28] creates=[xmm0]  => 62911500efc4
+  aesimc uses=[xmm0] creates=[xmm0]  => c4e279dbc0
+  aeskeygenassist uses=[xmm0] creates=[xmm0]  => c4e379dfc001
+  ret uses=[xmm0] creates=[]  => c57c10642450c57c106c2470c57c10b42490000000c57c10bc24b00000004881c4d0000000c3
+
+--- codegen: rounds24Wide ---
+  prologue  => 4881ec2001000062717c281164240562717c28116c240662717c281174240762717c28117c2408
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[xmm0]  => c5fe6f07
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=32 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fe6f4f20
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=64 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fe6f5740
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=96 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => c5fe6f5f60
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=128 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm4]  => 62f17e286f6704
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=160 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm5]  => 62f17e286f6f05
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=192 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm6]  => 62f17e286f7706
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=224 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm8]  => 62717e286f4707
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=256 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm9]  => 62717e286f4f08
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=288 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm10]  => 62717e286f5709
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=320 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm11]  => 62717e286f5f0a
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=352 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm16]  => 62e17e286f470b
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=384 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm17]  => 62e17e286f4f0c
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=416 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm18]  => 62e17e286f570d
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=448 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm19]  => 62e17e286f5f0e
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=480 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm20]  => 62e17e286f670f
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=512 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm21]  => 62e17e286f6f10
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=544 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm22]  => 62e17e286f7711
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=576 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm23]  => 62e17e286f7f12
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=608 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm24]  => 62617e286f4713
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=640 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm25]  => 62617e286f4f14
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=672 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm26]  => 62617e286f5715
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=704 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm27]  => 62617e286f5f16
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=736 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm28]  => 62617e286f6717
+  aesenc uses=[xmm0, xmm28] creates=[xmm29]  => 62027d28dcec
+  aesenclast uses=[xmm1, xmm27] creates=[xmm30]  => 62027528ddf3
+  aesdec uses=[xmm2, xmm26] creates=[xmm7] post=[xmm7->stack:0]  => 62926d28defac5fc113c24
+  aesdeclast uses=[xmm3, xmm25] creates=[xmm7] post=[xmm7->stack:1]  => 62926528dff9c5fc117c2420
+  aesenc uses=[xmm4, xmm24] creates=[xmm31]  => 62025d28dcf8
+  aesenclast uses=[xmm5, xmm23] creates=[xmm7] post=[xmm7->stack:2]  => 62b25528ddffc5fc117c2440
+  aesdec uses=[xmm6, xmm22] creates=[xmm7] post=[xmm7->stack:3]  => 62b24d28defec5fc117c2460
+  aesdeclast uses=[xmm8, xmm21] creates=[xmm12]  => 62323d28dfe5
+  aesenc uses=[xmm9, xmm20] creates=[xmm13]  => 62323528dcec
+  aesenclast uses=[xmm10, xmm19] creates=[xmm14]  => 62322d28ddf3
+  aesdec uses=[xmm11, xmm18] creates=[xmm15]  => 62322528defa
+  aesdeclast uses=[xmm16, xmm17] creates=[xmm7] post=[xmm7->stack:4]  => 62b27d20dff962f17c28117c2404
+  aesenc uses=[xmm17, xmm16] creates=[xmm17]  => 62a27520dcc8
+  aesenclast uses=[xmm18, xmm11] creates=[xmm18]  => 62c26d20ddd3
+  aesdec uses=[xmm19, xmm10] creates=[xmm19]  => 62c26520deda
+  aesdeclast uses=[xmm20, xmm9] creates=[xmm20]  => 62c25d20dfe1
+  aesenc uses=[xmm21, xmm8] creates=[xmm21]  => 62c25520dce8
+  aesenclast uses=[xmm22, xmm6] creates=[xmm22]  => 62e24d20ddf6
+  aesdec uses=[xmm23, xmm5] creates=[xmm23]  => 62e24520defd
+  aesdeclast uses=[xmm24, xmm4] creates=[xmm24]  => 62623d20dfc4
+  aesenc uses=[xmm25, xmm3] creates=[xmm25]  => 62623520dccb
+  aesenclast uses=[xmm26, xmm2] creates=[xmm26]  => 62622d20ddd2
+  aesdec uses=[xmm27, xmm1] creates=[xmm27]  => 62622520ded9
+  aesdeclast uses=[xmm28, xmm0] creates=[xmm28]  => 62621d20dfe0
+  x86_ternarylogic uses=[xmm29, xmm30, stack:0] creates=[xmm29]  => 62630d20252c2496
+  xor uses=[xmm29, stack:1] creates=[xmm29]  => 62611520ef6c2401
+  x86_ternarylogic uses=[xmm29, xmm31, stack:2] creates=[xmm29]  => 62630520256c240296
+  xor uses=[xmm29, stack:3] creates=[xmm29]  => 62611520ef6c2403
+  x86_ternarylogic uses=[xmm29, xmm12, xmm13] creates=[xmm29]  => 62431d2825ed96
+  xor uses=[xmm29, xmm14] creates=[xmm29]  => 62411520efee
+  x86_ternarylogic uses=[xmm29, xmm15, stack:4] creates=[xmm29]  => 62630528256c240496
+  xor uses=[xmm29, xmm17] creates=[xmm29]  => 62211520efe9
+  x86_ternarylogic uses=[xmm29, xmm18, xmm19] creates=[xmm29]  => 62236d2025eb96
+  xor uses=[xmm29, xmm20] creates=[xmm29]  => 62211520efec
+  xor uses=[xmm29, xmm21] creates=[xmm29]  => 62211520efed
+  xor uses=[xmm29, xmm22] creates=[xmm29]  => 62211520efee
+  xor uses=[xmm29, xmm23] creates=[xmm29]  => 62211520efef
+  xor uses=[xmm29, xmm24] creates=[xmm29]  => 62011520efe8
+  xor uses=[xmm29, xmm25] creates=[xmm29]  => 62011520efe9
+  xor uses=[xmm29, xmm26] creates=[xmm29]  => 62011520efea
+  xor uses=[xmm29, xmm27] creates=[xmm29]  => 62011520efeb
+  xor uses=[xmm29, xmm28] creates=[xmm0]  => 62911520efc4
+  ret uses=[xmm0] creates=[]  => 62717c281064240562717c28106c240662717c281074240762717c28107c24084881c420010000c3
+
+--- codegen: multiplies24 ---
+  prologue  => 4881ecd0000000c57c11642450c57c116c2470c57c11b42490000000c57c11bc24b0000000
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[xmm0]  => c5fa6f07
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fa6f4f10
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=32 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fa6f5720
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=48 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => c5fa6f5f30
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=64 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm4]  => c5fa6f6740
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=80 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm5]  => c5fa6f6f50
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=96 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm6]  => c5fa6f7760
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=112 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm8]  => c57a6f4770
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=128 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm9]  => 62717e086f4f08
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=144 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm10]  => 62717e086f5709
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=160 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm11]  => 62717e086f5f0a
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=176 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm16]  => 62e17e086f470b
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=192 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm17]  => 62e17e086f4f0c
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=208 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm18]  => 62e17e086f570d
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=224 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm19]  => 62e17e086f5f0e
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=240 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm20]  => 62e17e086f670f
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=256 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm21]  => 62e17e086f6f10
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=272 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm22]  => 62e17e086f7711
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=288 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm23]  => 62e17e086f7f12
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=304 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm24]  => 62617e086f4713
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=320 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm25]  => 62617e086f4f14
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=336 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm26]  => 62617e086f5715
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=352 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm27]  => 62617e086f5f16
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=368 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm28]  => 62617e086f6717
+  pclmullqlqdq uses=[xmm0, xmm28] creates=[xmm29]  => 62037d0844ec00
+  pclmulhqlqdq uses=[xmm1, xmm27] creates=[xmm30]  => 6203750844f301
+  pclmullqhqdq uses=[xmm2, xmm26] creates=[xmm7] post=[xmm7->stack:0]  => 62936d0844fa10c5f8113c24
+  pclmulhqhqdq uses=[xmm3, xmm25] creates=[xmm7] post=[xmm7->stack:1]  => 6293650844f911c5f8117c2410
+  pclmullqlqdq uses=[xmm4, xmm24] creates=[xmm31]  => 62035d0844f800
+  pclmulhqlqdq uses=[xmm5, xmm23] creates=[xmm7] post=[xmm7->stack:2]  => 62b3550844ff01c5f8117c2420
+  pclmullqhqdq uses=[xmm6, xmm22] creates=[xmm7] post=[xmm7->stack:3]  => 62b34d0844fe10c5f8117c2430
+  pclmulhqhqdq uses=[xmm8, xmm21] creates=[xmm12]  => 62333d0844e511
+  pclmullqlqdq uses=[xmm9, xmm20] creates=[xmm13]  => 6233350844ec00
+  pclmulhqlqdq uses=[xmm10, xmm19] creates=[xmm14]  => 62332d0844f301
+  pclmullqhqdq uses=[xmm11, xmm18] creates=[xmm15]  => 6233250844fa10
+  pclmulhqhqdq uses=[xmm16, xmm17] creates=[xmm7] post=[xmm7->stack:4]  => 62b37d0044f911c5f8117c2440
+  pclmullqlqdq uses=[xmm17, xmm16] creates=[xmm17]  => 62a3750044c800
+  pclmulhqlqdq uses=[xmm18, xmm11] creates=[xmm18]  => 62c36d0044d301
+  pclmullqhqdq uses=[xmm19, xmm10] creates=[xmm19]  => 62c3650044da10
+  pclmulhqhqdq uses=[xmm20, xmm9] creates=[xmm20]  => 62c35d0044e111
+  pclmullqlqdq uses=[xmm21, xmm8] creates=[xmm21]  => 62c3550044e800
+  pclmulhqlqdq uses=[xmm22, xmm6] creates=[xmm22]  => 62e34d0044f601
+  pclmullqhqdq uses=[xmm23, xmm5] creates=[xmm23]  => 62e3450044fd10
+  pclmulhqhqdq uses=[xmm24, xmm4] creates=[xmm24]  => 62633d0044c411
+  pclmullqlqdq uses=[xmm25, xmm3] creates=[xmm25]  => 6263350044cb00
+  pclmulhqlqdq uses=[xmm26, xmm2] creates=[xmm26]  => 62632d0044d201
+  pclmullqhqdq uses=[xmm27, xmm1] creates=[xmm27]  => 6263250044d910
+  pclmulhqhqdq uses=[xmm28, xmm0] creates=[xmm28]  => 62631d0044e011
+  x86_ternarylogic uses=[xmm29, xmm30, stack:0] creates=[xmm29]  => 62630d00252c2496
+  xor uses=[xmm29, stack:1] creates=[xmm29]  => 62611500ef6c2401
+  x86_ternarylogic uses=[xmm29, xmm31, stack:2] creates=[xmm29]  => 62630500256c240296
+  xor uses=[xmm29, stack:3] creates=[xmm29]  => 62611500ef6c2403
+  x86_ternarylogic uses=[xmm29, xmm12, xmm13] creates=[xmm29]  => 62431d0825ed96
+  xor uses=[xmm29, xmm14] creates=[xmm29]  => 62411500efee
+  x86_ternarylogic uses=[xmm29, xmm15, stack:4] creates=[xmm29]  => 62630508256c240496
+  xor uses=[xmm29, xmm17] creates=[xmm29]  => 62211500efe9
+  x86_ternarylogic uses=[xmm29, xmm18, xmm19] creates=[xmm29]  => 62236d0025eb96
+  xor uses=[xmm29, xmm20] creates=[xmm29]  => 62211500efec
+  xor uses=[xmm29, xmm21] creates=[xmm29]  => 62211500efed
+  xor uses=[xmm29, xmm22] creates=[xmm29]  => 62211500efee
+  xor uses=[xmm29, xmm23] creates=[xmm29]  => 62211500efef
+  xor uses=[xmm29, xmm24] creates=[xmm29]  => 62011500efe8
+  xor uses=[xmm29, xmm25] creates=[xmm29]  => 62011500efe9
+  xor uses=[xmm29, xmm26] creates=[xmm29]  => 62011500efea
+  xor uses=[xmm29, xmm27] creates=[xmm29]  => 62011500efeb
+  xor uses=[xmm29, xmm28] creates=[xmm0]  => 62911500efc4
+  ret uses=[xmm0] creates=[]  => c57c10642450c57c106c2470c57c10b42490000000c57c10bc24b00000004881c4d0000000c3
+
+--- codegen: multiplies24Wide ---
+  prologue  => 4881ec2001000062717c281164240562717c28116c240662717c281174240762717c28117c2408
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[xmm0]  => c5fe6f07
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=32 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fe6f4f20
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=64 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fe6f5740
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=96 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => c5fe6f5f60
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=128 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm4]  => 62f17e286f6704
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=160 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm5]  => 62f17e286f6f05
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=192 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm6]  => 62f17e286f7706
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=224 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm8]  => 62717e286f4707
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=256 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm9]  => 62717e286f4f08
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=288 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm10]  => 62717e286f5709
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=320 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm11]  => 62717e286f5f0a
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=352 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm16]  => 62e17e286f470b
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=384 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm17]  => 62e17e286f4f0c
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=416 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm18]  => 62e17e286f570d
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=448 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm19]  => 62e17e286f5f0e
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=480 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm20]  => 62e17e286f670f
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=512 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm21]  => 62e17e286f6f10
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=544 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm22]  => 62e17e286f7711
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=576 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm23]  => 62e17e286f7f12
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=608 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm24]  => 62617e286f4713
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=640 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm25]  => 62617e286f4f14
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=672 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm26]  => 62617e286f5715
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=704 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm27]  => 62617e286f5f16
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=736 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[xmm28]  => 62617e286f6717
+  pclmullqlqdq uses=[xmm0, xmm28] creates=[xmm29]  => 62037d2844ec00
+  pclmulhqlqdq uses=[xmm1, xmm27] creates=[xmm30]  => 6203752844f301
+  pclmullqhqdq uses=[xmm2, xmm26] creates=[xmm7] post=[xmm7->stack:0]  => 62936d2844fa10c5fc113c24
+  pclmulhqhqdq uses=[xmm3, xmm25] creates=[xmm7] post=[xmm7->stack:1]  => 6293652844f911c5fc117c2420
+  pclmullqlqdq uses=[xmm4, xmm24] creates=[xmm31]  => 62035d2844f800
+  pclmulhqlqdq uses=[xmm5, xmm23] creates=[xmm7] post=[xmm7->stack:2]  => 62b3552844ff01c5fc117c2440
+  pclmullqhqdq uses=[xmm6, xmm22] creates=[xmm7] post=[xmm7->stack:3]  => 62b34d2844fe10c5fc117c2460
+  pclmulhqhqdq uses=[xmm8, xmm21] creates=[xmm12]  => 62333d2844e511
+  pclmullqlqdq uses=[xmm9, xmm20] creates=[xmm13]  => 6233352844ec00
+  pclmulhqlqdq uses=[xmm10, xmm19] creates=[xmm14]  => 62332d2844f301
+  pclmullqhqdq uses=[xmm11, xmm18] creates=[xmm15]  => 6233252844fa10
+  pclmulhqhqdq uses=[xmm16, xmm17] creates=[xmm7] post=[xmm7->stack:4]  => 62b37d2044f91162f17c28117c2404
+  pclmullqlqdq uses=[xmm17, xmm16] creates=[xmm17]  => 62a3752044c800
+  pclmulhqlqdq uses=[xmm18, xmm11] creates=[xmm18]  => 62c36d2044d301
+  pclmullqhqdq uses=[xmm19, xmm10] creates=[xmm19]  => 62c3652044da10
+  pclmulhqhqdq uses=[xmm20, xmm9] creates=[xmm20]  => 62c35d2044e111
+  pclmullqlqdq uses=[xmm21, xmm8] creates=[xmm21]  => 62c3552044e800
+  pclmulhqlqdq uses=[xmm22, xmm6] creates=[xmm22]  => 62e34d2044f601
+  pclmullqhqdq uses=[xmm23, xmm5] creates=[xmm23]  => 62e3452044fd10
+  pclmulhqhqdq uses=[xmm24, xmm4] creates=[xmm24]  => 62633d2044c411
+  pclmullqlqdq uses=[xmm25, xmm3] creates=[xmm25]  => 6263352044cb00
+  pclmulhqlqdq uses=[xmm26, xmm2] creates=[xmm26]  => 62632d2044d201
+  pclmullqhqdq uses=[xmm27, xmm1] creates=[xmm27]  => 6263252044d910
+  pclmulhqhqdq uses=[xmm28, xmm0] creates=[xmm28]  => 62631d2044e011
+  x86_ternarylogic uses=[xmm29, xmm30, stack:0] creates=[xmm29]  => 62630d20252c2496
+  xor uses=[xmm29, stack:1] creates=[xmm29]  => 62611520ef6c2401
+  x86_ternarylogic uses=[xmm29, xmm31, stack:2] creates=[xmm29]  => 62630520256c240296
+  xor uses=[xmm29, stack:3] creates=[xmm29]  => 62611520ef6c2403
+  x86_ternarylogic uses=[xmm29, xmm12, xmm13] creates=[xmm29]  => 62431d2825ed96
+  xor uses=[xmm29, xmm14] creates=[xmm29]  => 62411520efee
+  x86_ternarylogic uses=[xmm29, xmm15, stack:4] creates=[xmm29]  => 62630528256c240496
+  xor uses=[xmm29, xmm17] creates=[xmm29]  => 62211520efe9
+  x86_ternarylogic uses=[xmm29, xmm18, xmm19] creates=[xmm29]  => 62236d2025eb96
+  xor uses=[xmm29, xmm20] creates=[xmm29]  => 62211520efec
+  xor uses=[xmm29, xmm21] creates=[xmm29]  => 62211520efed
+  xor uses=[xmm29, xmm22] creates=[xmm29]  => 62211520efee
+  xor uses=[xmm29, xmm23] creates=[xmm29]  => 62211520efef
+  xor uses=[xmm29, xmm24] creates=[xmm29]  => 62011520efe8
+  xor uses=[xmm29, xmm25] creates=[xmm29]  => 62011520efe9
+  xor uses=[xmm29, xmm26] creates=[xmm29]  => 62011520efea
+  xor uses=[xmm29, xmm27] creates=[xmm29]  => 62011520efeb
+  xor uses=[xmm29, xmm28] creates=[xmm0]  => 62911520efc4
+  ret uses=[xmm0] creates=[]  => 62717c281064240562717c28106c240662717c281074240762717c28107c24084881c420010000c3

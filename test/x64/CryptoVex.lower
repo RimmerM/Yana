@@ -1,0 +1,59 @@
+# AES-NI and PCLMULQDQ under VEX, and the VAES and VPCLMULQDQ rows at 256 bits.
+#
+# extensions: avx2 vaes vpclmul
+#
+# `avx2` implies `aes` and `pclmul`; the two wide flags are named beside it, which is Zen 3 or Alder
+# Lake. Every row is VEX: the 128-bit ones are the sweep's twins of `Crypto.lower`'s (three-operand,
+# so a round no longer destroys its state), and the 256-bit ones are `registerWideForms`' - `L` set,
+# two blocks per instruction. The key-schedule instructions have no wide form on the machine and are
+# not here at 256 bits.
+#
+# Under VEX a packed operand has no alignment requirement, so a round key read out of memory folds
+# into the round - which is what a cipher's key schedule is, read once per block.
+
+rounds(%s: i8x16, %k: i8x16): i8x16 {
+    {
+        %a = aesenc %s, %k: i8x16
+        %b = aesenclast %a, %k: i8x16
+        %c = aesdec %b, %k: i8x16
+        %d = aesdeclast %c, %k: i8x16
+        %e = aesimc %d: i8x16
+        %f = aeskeygenassist %e, 27: i8x16
+        ret %f
+    }
+}
+
+roundsWide(%s: i8x32, %k: i8x32): i8x32 {
+    {
+        %a = aesenc %s, %k: i8x32
+        %b = aesenclast %a, %k: i8x32
+        %c = aesdec %b, %k: i8x32
+        %d = aesdeclast %c, %k: i8x32
+        ret %d
+    }
+}
+
+multipliesWide(%a: i64x4, %b: i64x4): i64x4 {
+    {
+        %ll = pclmullqlqdq %a, %b: i64x4
+        %hh = pclmulhqhqdq %ll, %b: i64x4
+        ret %hh
+    }
+}
+
+# The round key loaded from memory, at both widths: the load becomes the instruction's r/m operand.
+keyFromMemory(%s: i8x16, %p: Ptr): i8x16 {
+    {
+        %k = load %p, 16: i8x16
+        %r = aesenc %s, %k: i8x16
+        ret %r
+    }
+}
+
+keyFromMemoryWide(%s: i8x32, %p: Ptr): i8x32 {
+    {
+        %k = load %p, 32: i8x32
+        %r = aesenc %s, %k: i8x32
+        ret %r
+    }
+}

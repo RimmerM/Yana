@@ -1,0 +1,284 @@
+mut @keyLow = [0, 1, 2, 3, 4, 5, 6, 7]
+mut @keyHigh = [8, 9, 10, 11, 12, 13, 14, 15]
+mut @plainLow = [0, 17, 34, 51, 68, 85, 102, 119]
+mut @plainHigh = [136, 153, 170, 187, 204, 221, 238, 255]
+
+aes128<complex>(): I32 {
+  b_0 {
+    %v_1 = load @keyLow, 8: I64
+    %v_2 = load @keyHigh, 8: I64
+    %v_3 = vsplat 0: i64x2
+    %v_4 = vwithlane %v_3, %v_1, 0: i64x2
+    %v_5 = vwithlane %v_4, %v_2, 1: i64x2
+    %v_6 = bitcast %v_5: i8x16
+    %v_7 = aeskeygenassist %v_6, 1: i8x16
+    %v_8 = bitcast %v_7: i32x4
+    %v_9 = vshuffle %v_8, %v_8, 3, 3, 3, 3: i32x4
+    %v_10 = vsplat 0: i32x4
+    %v_11 = bitcast %v_6: i32x4
+    %v_12 = vshuffle %v_11, %v_10, 7, 0, 1, 2: i32x4
+    %v_13 = xor %v_11, %v_12: i32x4
+    %v_14 = vshuffle %v_13, %v_10, 6, 7, 0, 1: i32x4
+    %v_15 = xor %v_13, %v_14: i32x4
+    %v_16 = xor %v_15, %v_9: i32x4
+    %v_17 = bitcast %v_16: i8x16
+    %v_18 = aeskeygenassist %v_17, 2: i8x16
+    %v_19 = bitcast %v_18: i32x4
+    %v_20 = vshuffle %v_19, %v_19, 3, 3, 3, 3: i32x4
+    %v_21 = vshuffle %v_16, %v_10, 7, 0, 1, 2: i32x4
+    %v_22 = xor %v_16, %v_21: i32x4
+    %v_23 = vshuffle %v_22, %v_10, 6, 7, 0, 1: i32x4
+    %v_24 = xor %v_22, %v_23: i32x4
+    %v_25 = xor %v_24, %v_20: i32x4
+    %v_26 = bitcast %v_25: i8x16
+    %v_27 = aeskeygenassist %v_26, 4: i8x16
+    %v_28 = bitcast %v_27: i32x4
+    %v_29 = vshuffle %v_28, %v_28, 3, 3, 3, 3: i32x4
+    %v_30 = vshuffle %v_25, %v_10, 7, 0, 1, 2: i32x4
+    %v_31 = xor %v_25, %v_30: i32x4
+    %v_32 = vshuffle %v_31, %v_10, 6, 7, 0, 1: i32x4
+    %v_33 = xor %v_31, %v_32: i32x4
+    %v_34 = xor %v_33, %v_29: i32x4
+    %v_35 = bitcast %v_34: i8x16
+    %v_36 = aeskeygenassist %v_35, 8: i8x16
+    %v_37 = bitcast %v_36: i32x4
+    %v_38 = vshuffle %v_37, %v_37, 3, 3, 3, 3: i32x4
+    %v_39 = vshuffle %v_34, %v_10, 7, 0, 1, 2: i32x4
+    %v_40 = xor %v_34, %v_39: i32x4
+    %v_41 = vshuffle %v_40, %v_10, 6, 7, 0, 1: i32x4
+    %v_42 = xor %v_40, %v_41: i32x4
+    %v_43 = xor %v_42, %v_38: i32x4
+    %v_44 = bitcast %v_43: i8x16
+    %v_45 = aeskeygenassist %v_44, 16: i8x16
+    %v_46 = bitcast %v_45: i32x4
+    %v_47 = vshuffle %v_46, %v_46, 3, 3, 3, 3: i32x4
+    %v_48 = vshuffle %v_43, %v_10, 7, 0, 1, 2: i32x4
+    %v_49 = xor %v_43, %v_48: i32x4
+    %v_50 = vshuffle %v_49, %v_10, 6, 7, 0, 1: i32x4
+    %v_51 = xor %v_49, %v_50: i32x4
+    %v_52 = xor %v_51, %v_47: i32x4
+    %v_53 = bitcast %v_52: i8x16
+    %v_54 = aeskeygenassist %v_53, 32: i8x16
+    %v_55 = bitcast %v_54: i32x4
+    %v_56 = vshuffle %v_55, %v_55, 3, 3, 3, 3: i32x4
+    %v_57 = vshuffle %v_52, %v_10, 7, 0, 1, 2: i32x4
+    %v_58 = xor %v_52, %v_57: i32x4
+    %v_59 = vshuffle %v_58, %v_10, 6, 7, 0, 1: i32x4
+    %v_60 = xor %v_58, %v_59: i32x4
+    %v_61 = xor %v_60, %v_56: i32x4
+    %v_62 = bitcast %v_61: i8x16
+    %v_63 = aeskeygenassist %v_62, 64: i8x16
+    %v_64 = bitcast %v_63: i32x4
+    %v_65 = vshuffle %v_64, %v_64, 3, 3, 3, 3: i32x4
+    %v_66 = vshuffle %v_61, %v_10, 7, 0, 1, 2: i32x4
+    %v_67 = xor %v_61, %v_66: i32x4
+    %v_68 = vshuffle %v_67, %v_10, 6, 7, 0, 1: i32x4
+    %v_69 = xor %v_67, %v_68: i32x4
+    %v_70 = xor %v_69, %v_65: i32x4
+    %v_71 = bitcast %v_70: i8x16
+    %v_72 = aeskeygenassist %v_71, 128: i8x16
+    %v_73 = bitcast %v_72: i32x4
+    %v_74 = vshuffle %v_73, %v_73, 3, 3, 3, 3: i32x4
+    %v_75 = vshuffle %v_70, %v_10, 7, 0, 1, 2: i32x4
+    %v_76 = xor %v_70, %v_75: i32x4
+    %v_77 = vshuffle %v_76, %v_10, 6, 7, 0, 1: i32x4
+    %v_78 = xor %v_76, %v_77: i32x4
+    %v_79 = xor %v_78, %v_74: i32x4
+    %v_80 = bitcast %v_79: i8x16
+    %v_81 = aeskeygenassist %v_80, 27: i8x16
+    %v_82 = bitcast %v_81: i32x4
+    %v_83 = vshuffle %v_82, %v_82, 3, 3, 3, 3: i32x4
+    %v_84 = vshuffle %v_79, %v_10, 7, 0, 1, 2: i32x4
+    %v_85 = xor %v_79, %v_84: i32x4
+    %v_86 = vshuffle %v_85, %v_10, 6, 7, 0, 1: i32x4
+    %v_87 = xor %v_85, %v_86: i32x4
+    %v_88 = xor %v_87, %v_83: i32x4
+    %v_89 = bitcast %v_88: i8x16
+    %v_90 = aeskeygenassist %v_89, 54: i8x16
+    %v_91 = bitcast %v_90: i32x4
+    %v_92 = vshuffle %v_91, %v_91, 3, 3, 3, 3: i32x4
+    %v_93 = vshuffle %v_88, %v_10, 7, 0, 1, 2: i32x4
+    %v_94 = xor %v_88, %v_93: i32x4
+    %v_95 = vshuffle %v_94, %v_10, 6, 7, 0, 1: i32x4
+    %v_96 = xor %v_94, %v_95: i32x4
+    %v_97 = xor %v_96, %v_92: i32x4
+    %v_98 = bitcast %v_97: i8x16
+    %v_99 = bitcast %v_98: i64x2
+    %v_100 = vlane %v_99, 0: I64
+    %v_101 = cmp_neq %v_100, 1678317515960029459: I32
+    %v_102 = vlane %v_99, 1: I64
+    %v_103 = cmp_neq %v_102, 14208904436409370611: I32
+    %v_104 = add %v_101, 1: I32
+    %v_105 = select %v_103, %v_104, %v_101: I32
+    %v_106 = load @plainLow, 8: I64
+    %v_107 = load @plainHigh, 8: I64
+    %v_108 = vwithlane %v_3, %v_106, 0: i64x2
+    %v_109 = vwithlane %v_108, %v_107, 1: i64x2
+    %v_110 = bitcast %v_109: i8x16
+    %v_111 = xor %v_110, %v_6: i8x16
+    %v_112 = aesenc %v_111, %v_17: i8x16
+    %v_113 = aesenc %v_112, %v_26: i8x16
+    %v_114 = aesenc %v_113, %v_35: i8x16
+    %v_115 = aesenc %v_114, %v_44: i8x16
+    %v_116 = aesenc %v_115, %v_53: i8x16
+    %v_117 = aesenc %v_116, %v_62: i8x16
+    %v_118 = aesenc %v_117, %v_71: i8x16
+    %v_119 = aesenc %v_118, %v_80: i8x16
+    %v_120 = aesenc %v_119, %v_89: i8x16
+    %v_121 = aesenclast %v_120, %v_98: i8x16
+    %v_122 = bitcast %v_121: i64x2
+    %v_123 = vlane %v_122, 0: I64
+    %v_124 = cmp_neq %v_123, 3460026112562742377: I32
+    %v_125 = add %v_105, 1: I32
+    %v_126 = select %v_124, %v_125, %v_105: I32
+    %v_127 = vlane %v_122, 1: I64
+    %v_128 = cmp_neq %v_127, 6540832429114379736: I32
+    %v_129 = add %v_126, 1: I32
+    %v_130 = select %v_128, %v_129, %v_126: I32
+    %v_131 = xor %v_121, %v_98: i8x16
+    %v_132 = aesimc %v_89: i8x16
+    %v_133 = aesdec %v_131, %v_132: i8x16
+    %v_134 = aesimc %v_80: i8x16
+    %v_135 = aesdec %v_133, %v_134: i8x16
+    %v_136 = aesimc %v_71: i8x16
+    %v_137 = aesdec %v_135, %v_136: i8x16
+    %v_138 = aesimc %v_62: i8x16
+    %v_139 = aesdec %v_137, %v_138: i8x16
+    %v_140 = aesimc %v_53: i8x16
+    %v_141 = aesdec %v_139, %v_140: i8x16
+    %v_142 = aesimc %v_44: i8x16
+    %v_143 = aesdec %v_141, %v_142: i8x16
+    %v_144 = aesimc %v_35: i8x16
+    %v_145 = aesdec %v_143, %v_144: i8x16
+    %v_146 = aesimc %v_26: i8x16
+    %v_147 = aesdec %v_145, %v_146: i8x16
+    %v_148 = aesimc %v_17: i8x16
+    %v_149 = aesdec %v_147, %v_148: i8x16
+    %v_150 = aesdeclast %v_149, %v_6: i8x16
+    %v_151 = bitcast %v_150: i64x2
+    %v_152 = vlane %v_151, 0: I64
+    %v_153 = load @plainLow, 8: I64
+    %v_154 = cmp_neq %v_152, %v_153: I32
+    %v_155 = add %v_130, 1: I32
+    %v_156 = select %v_154, %v_155, %v_130: I32
+    %v_157 = vlane %v_151, 1: I64
+    %v_158 = load @plainHigh, 8: I64
+    %v_159 = cmp_neq %v_157, %v_158: I32
+    %v_160 = add %v_156, 1: I32
+    %v_161 = select %v_159, %v_160, %v_156: I32
+    ret %v_161
+  }
+}
+
+checkProduct<complex>(%v: i64x2, %a: I64, %b: I64): I32 {
+  b_0 {
+    %v_1 = vlane %v, 0: I64
+    jmp b_2
+  }
+
+  b_3 {
+    %v_4 = cmp_neq %v_1, %v_5: I32
+    %v_6 = vlane %v, 1: I64
+    jmp b_7
+  }
+
+  b_2 {
+    %v_8 = phi [b_9, %v_5], [b_0, 0]: I64
+    %v_10 = phi [b_9, %v_11], [b_0, 0]: I64
+    %v_12 = shr %b, %v_10: I64
+    %v_13 = and %v_12, 1: I64
+    %v_14 = cmp_neq %v_13, 0: I32
+    je %v_14, b_15, b_16
+  }
+
+  b_16 {
+    jmp b_9
+  }
+
+  b_15 {
+    %v_17 = shl %a, %v_10: I64
+    %v_18 = xor %v_8, %v_17: I64
+    jmp b_9
+  }
+
+  b_9 {
+    %v_5 = phi [b_16, %v_8], [b_15, %v_18]: I64
+    %v_11 = add %v_10, 1: I64
+    %v_19 = cmp_lt %v_11, 64: I32
+    je %v_19, b_2, b_3
+  }
+
+  b_20 {
+    %v_21 = cmp_neq %v_6, %v_22: I32
+    %v_23 = add %v_4, 1: I32
+    %v_24 = select %v_21, %v_23, %v_4: I32
+    ret %v_24
+  }
+
+  b_7 {
+    %v_25 = phi [b_26, %v_22], [b_3, 0]: I64
+    %v_27 = phi [b_26, %v_28], [b_3, 1]: I64
+    %v_29 = shr %b, %v_27: I64
+    %v_30 = and %v_29, 1: I64
+    %v_31 = cmp_neq %v_30, 0: I32
+    je %v_31, b_32, b_33
+  }
+
+  b_33 {
+    jmp b_26
+  }
+
+  b_32 {
+    %v_34 = sub 64, %v_27: I64
+    %v_35 = shr %a, %v_34: I64
+    %v_36 = xor %v_25, %v_35: I64
+    jmp b_26
+  }
+
+  b_26 {
+    %v_22 = phi [b_33, %v_25], [b_32, %v_36]: I64
+    %v_28 = add %v_27, 1: I64
+    %v_37 = cmp_lt %v_28, 64: I32
+    je %v_37, b_7, b_20
+  }
+}
+
+carryless<complex>(): I32 {
+  b_0 {
+    %v_1 = load @keyLow, 8: I64
+    %v_2 = mul %v_1, 11400714819323198485: I64
+    %v_3 = load @plainHigh, 8: I64
+    %v_4 = mul %v_3, 14029467366897019727: I64
+    %v_5 = load @plainLow, 8: I64
+    %v_6 = rol %v_5, 17: I64
+    %v_7 = load @keyHigh, 8: I64
+    %v_8 = mul %v_7, 1609587929392839161: I64
+    %v_9 = vsplat 0: i64x2
+    %v_10 = vwithlane %v_9, %v_2, 0: i64x2
+    %v_11 = vwithlane %v_10, %v_4, 1: i64x2
+    %v_12 = vwithlane %v_9, %v_6, 0: i64x2
+    %v_13 = vwithlane %v_12, %v_8, 1: i64x2
+    %v_14 = pclmullqlqdq %v_11, %v_13: i64x2
+    %v_15 = call_complex checkProduct, %v_14, %v_2, %v_6: I32
+    %v_16 = pclmulhqlqdq %v_11, %v_13: i64x2
+    %v_17 = call_complex checkProduct, %v_16, %v_4, %v_6: I32
+    %v_18 = add %v_15, %v_17: I32
+    %v_19 = pclmullqhqdq %v_11, %v_13: i64x2
+    %v_20 = call_complex checkProduct, %v_19, %v_2, %v_8: I32
+    %v_21 = add %v_18, %v_20: I32
+    %v_22 = pclmulhqhqdq %v_11, %v_13: i64x2
+    %v_23 = call_complex checkProduct, %v_22, %v_4, %v_8: I32
+    %v_24 = add %v_21, %v_23: I32
+    ret %v_24
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex aes128: I32
+    %v_2 = call_complex carryless: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+

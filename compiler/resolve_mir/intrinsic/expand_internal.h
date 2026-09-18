@@ -88,6 +88,10 @@ Node* expandStackSwitch(Builder& builder, Function& callee, Node* const* argumen
  */
 Node* expandX86Native(Builder& builder, Function& callee, Node* const* arguments, Size count,
                       const Substitution& with, LocationId source, NativeOp op);
+Node* expandX86AesKeygenAssist(Builder& builder, Function& callee, Node* const* arguments,
+                               const Substitution& with, LocationId source);
+Node* expandX86CarrylessMultiply(Builder& builder, Function& callee, Node* const* arguments,
+                                 const Substitution& with, LocationId source);
 Node* expandX86Sha1Rounds(Builder& builder, Function& callee, Node* const* arguments,
                           const Substitution& with, LocationId source);
 

@@ -1,0 +1,164 @@
+{-
+   VAES and VPCLMULQDQ - the two-block forms in `lib/Native/Intrinsic/X86.yana`, Analysis-Avx512.md
+   §4.1-4.2.
+
+   # extensions: avx512
+
+   `AesWide.yana` at the level that implies both flags, where a wide round may be re-spelled as EVEX
+   to reach ymm16-31. The source is the same.
+
+   Each 256-bit instruction is two independent 128-bit ones, so every answer here is compared half
+   by half against the one-block instruction over that half: two different blocks through a whole
+   AES-128 encryption and back, one round with a different key in each half, and the carryless
+   multiply at every selector. `Aes.yana` is what says the one-block instructions are right.
+
+   The program answers the number of checks that failed.
+-}
+import Native
+
+let &keyLow = 0x0706050403020100 :: U64
+let &keyHigh = 0x0f0e0d0c0b0a0908 :: U64
+let &plainLow = 0x7766554433221100 :: U64
+let &plainHigh = 0xffeeddccbbaa9988 :: U64
+
+fn block(low: U64, high: U64) -> Vec(U8, 16) =
+    bitcast(withLane(withLane(zero() :: Vec(U64, 2), 0, low), 1, high)) :: Vec(U8, 16)
+
+fn lowOf(v: Vec(U8, 16)) -> U64 = lane(bitcast(v) :: Vec(U64, 2), 0)
+fn highOf(v: Vec(U8, 16)) -> U64 = lane(bitcast(v) :: Vec(U64, 2), 1)
+
+-- Two blocks side by side, the first in the low half.
+fn quads(a: U64, b: U64, c: U64, d: U64) -> Vec(U64, 4) =
+    withLane(withLane(withLane(withLane(zero() :: Vec(U64, 4), 0, a), 1, b), 2, c), 3, d)
+
+fn pair(first: Vec(U8, 16), second: Vec(U8, 16)) -> Vec(U8, 32) =
+    bitcast(quads(lowOf(first), highOf(first), lowOf(second), highOf(second))) :: Vec(U8, 32)
+
+fn wideKey(key: Vec(U8, 16)) -> Vec(U8, 32) = pair(key, key)
+
+-- How many of the four quadwords of `wide` differ from the two blocks it should hold.
+fn differs(wide: Vec(U8, 32), first: Vec(U8, 16), second: Vec(U8, 16)) -> Int:
+    let v = bitcast(wide) :: Vec(U64, 4)
+    let &wrong = 0
+    if lane(v, 0) != lowOf(first) then wrong = wrong + 1
+    if lane(v, 1) != highOf(first) then wrong = wrong + 1
+    if lane(v, 2) != lowOf(second) then wrong = wrong + 1
+    if lane(v, 3) != highOf(second) then wrong = wrong + 1
+    return wrong
+
+fn nextKey(key: Vec(U8, 16), assist: Vec(U8, 16)) -> Vec(U8, 16):
+    let t = shuffle(bitcast(assist) :: Vec(U32, 4), [3, 3, 3, 3])
+    let z = zero() :: Vec(U32, 4)
+    let k0 = bitcast(key) :: Vec(U32, 4)
+    let k1 = xor(k0, alignLanes(k0, z, 3))
+    let k2 = xor(k1, alignLanes(k1, z, 2))
+    return bitcast(xor(k2, t)) :: Vec(U8, 16)
+
+-- One AES-128 encryption of each block, with the one-block instructions.
+fn encryptOne(plain: Vec(U8, 16), k0: Vec(U8, 16), k1: Vec(U8, 16), k2: Vec(U8, 16), k3: Vec(U8, 16),
+              k4: Vec(U8, 16), k5: Vec(U8, 16), k6: Vec(U8, 16), k7: Vec(U8, 16), k8: Vec(U8, 16),
+              k9: Vec(U8, 16), k10: Vec(U8, 16)) -> Vec(U8, 16):
+    let &s = xor(plain, k0)
+    s = X86.aesEncrypt(s, k1)
+    s = X86.aesEncrypt(s, k2)
+    s = X86.aesEncrypt(s, k3)
+    s = X86.aesEncrypt(s, k4)
+    s = X86.aesEncrypt(s, k5)
+    s = X86.aesEncrypt(s, k6)
+    s = X86.aesEncrypt(s, k7)
+    s = X86.aesEncrypt(s, k8)
+    s = X86.aesEncrypt(s, k9)
+    return X86.aesEncryptLast(s, k10)
+
+@noinline
+fn aes128Pair() -> Int:
+    let k0 = block(keyLow, keyHigh)
+    let k1 = nextKey(k0, X86.aesKeygenAssist(k0, 0x01))
+    let k2 = nextKey(k1, X86.aesKeygenAssist(k1, 0x02))
+    let k3 = nextKey(k2, X86.aesKeygenAssist(k2, 0x04))
+    let k4 = nextKey(k3, X86.aesKeygenAssist(k3, 0x08))
+    let k5 = nextKey(k4, X86.aesKeygenAssist(k4, 0x10))
+    let k6 = nextKey(k5, X86.aesKeygenAssist(k5, 0x20))
+    let k7 = nextKey(k6, X86.aesKeygenAssist(k6, 0x40))
+    let k8 = nextKey(k7, X86.aesKeygenAssist(k7, 0x80))
+    let k9 = nextKey(k8, X86.aesKeygenAssist(k8, 0x1b))
+    let k10 = nextKey(k9, X86.aesKeygenAssist(k9, 0x36))
+
+    let first = block(plainLow, plainHigh)
+    let second = block(plainHigh `rol` 9, plainLow * 0x9e3779b97f4a7c15)
+
+    let &s = xor(pair(first, second), wideKey(k0))
+    s = X86.aesEncrypt2(s, wideKey(k1))
+    s = X86.aesEncrypt2(s, wideKey(k2))
+    s = X86.aesEncrypt2(s, wideKey(k3))
+    s = X86.aesEncrypt2(s, wideKey(k4))
+    s = X86.aesEncrypt2(s, wideKey(k5))
+    s = X86.aesEncrypt2(s, wideKey(k6))
+    s = X86.aesEncrypt2(s, wideKey(k7))
+    s = X86.aesEncrypt2(s, wideKey(k8))
+    s = X86.aesEncrypt2(s, wideKey(k9))
+    let cipher = X86.aesEncryptLast2(s, wideKey(k10))
+
+    let &wrong = differs(cipher, encryptOne(first, k0, k1, k2, k3, k4, k5, k6, k7, k8, k9, k10),
+                         encryptOne(second, k0, k1, k2, k3, k4, k5, k6, k7, k8, k9, k10))
+
+    let &d = xor(cipher, wideKey(k10))
+    d = X86.aesDecrypt2(d, wideKey(X86.aesInverseMix(k9)))
+    d = X86.aesDecrypt2(d, wideKey(X86.aesInverseMix(k8)))
+    d = X86.aesDecrypt2(d, wideKey(X86.aesInverseMix(k7)))
+    d = X86.aesDecrypt2(d, wideKey(X86.aesInverseMix(k6)))
+    d = X86.aesDecrypt2(d, wideKey(X86.aesInverseMix(k5)))
+    d = X86.aesDecrypt2(d, wideKey(X86.aesInverseMix(k4)))
+    d = X86.aesDecrypt2(d, wideKey(X86.aesInverseMix(k3)))
+    d = X86.aesDecrypt2(d, wideKey(X86.aesInverseMix(k2)))
+    d = X86.aesDecrypt2(d, wideKey(X86.aesInverseMix(k1)))
+    wrong = wrong + differs(X86.aesDecryptLast2(d, wideKey(k0)), first, second)
+
+    -- A different round key in each half, which is what says the halves are independent rather than
+    -- one key read twice.
+    let state = pair(first, second)
+    let keys = pair(k3, k7)
+    wrong = wrong + differs(X86.aesEncrypt2(state, keys), X86.aesEncrypt(first, k3), X86.aesEncrypt(second, k7))
+    wrong = wrong + differs(X86.aesEncryptLast2(state, keys), X86.aesEncryptLast(first, k3),
+                            X86.aesEncryptLast(second, k7))
+    wrong = wrong + differs(X86.aesDecrypt2(state, keys), X86.aesDecrypt(first, k3), X86.aesDecrypt(second, k7))
+    wrong = wrong + differs(X86.aesDecryptLast2(state, keys), X86.aesDecryptLast(first, k3),
+                            X86.aesDecryptLast(second, k7))
+    return wrong
+
+fn halves(v: Vec(U64, 4), low: Vec(U64, 2), high: Vec(U64, 2)) -> Int:
+    let &wrong = 0
+    if lane(v, 0) != lane(low, 0) then wrong = wrong + 1
+    if lane(v, 1) != lane(low, 1) then wrong = wrong + 1
+    if lane(v, 2) != lane(high, 0) then wrong = wrong + 1
+    if lane(v, 3) != lane(high, 1) then wrong = wrong + 1
+    return wrong
+
+@noinline
+fn carrylessPair() -> Int:
+    let a0 = keyLow * 0x9e3779b97f4a7c15
+    let a1 = plainHigh * 0xc2b2ae3d27d4eb4f
+    let a2 = plainLow `rol` 17
+    let a3 = keyHigh * 0x165667b19e3779f9
+    let b0 = a3 `rol` 29
+    let b1 = a0 * 0x27d4eb2f165667c5
+    let b2 = a1 `rol` 41
+    let b3 = a2 * 0x85ebca77c2b2ae63
+
+    let a = quads(a0, a1, a2, a3)
+    let b = quads(b0, b1, b2, b3)
+    let aLow = withLane(withLane(zero() :: Vec(U64, 2), 0, a0), 1, a1)
+    let aHigh = withLane(withLane(zero() :: Vec(U64, 2), 0, a2), 1, a3)
+    let bLow = withLane(withLane(zero() :: Vec(U64, 2), 0, b0), 1, b1)
+    let bHigh = withLane(withLane(zero() :: Vec(U64, 2), 0, b2), 1, b3)
+
+    return halves(X86.carrylessMultiply2(a, b, 0x00), X86.carrylessMultiply(aLow, bLow, 0x00),
+                  X86.carrylessMultiply(aHigh, bHigh, 0x00))
+         + halves(X86.carrylessMultiply2(a, b, 0x01), X86.carrylessMultiply(aLow, bLow, 0x01),
+                  X86.carrylessMultiply(aHigh, bHigh, 0x01))
+         + halves(X86.carrylessMultiply2(a, b, 0x10), X86.carrylessMultiply(aLow, bLow, 0x10),
+                  X86.carrylessMultiply(aHigh, bHigh, 0x10))
+         + halves(X86.carrylessMultiply2(a, b, 0x11), X86.carrylessMultiply(aLow, bLow, 0x11),
+                  X86.carrylessMultiply(aHigh, bHigh, 0x11))
+
+fn main() -> Int = aes128Pair() + carrylessPair()
