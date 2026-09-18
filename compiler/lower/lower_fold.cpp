@@ -847,24 +847,6 @@ Folded foldBooleanValue(LowerBase base, LowerInst* inst) {
     return Folded::forward(test.value);
 }
 
-// The same relation with its operands the other way round, for a comparison written with its
-// constant on the left. `a < b` is `b > a`; the equalities read the same either way. Sound here
-// because every comparison this file looks at is over integers - the exchange is the one the float
-// ordering in the x64 transform has to be careful about, and no float reaches this.
-LowerCmp swappedCmp(LowerCmp cmp) {
-    switch(cmp) {
-        case LowerCmp::gt:  return LowerCmp::lt;
-        case LowerCmp::ge:  return LowerCmp::le;
-        case LowerCmp::lt:  return LowerCmp::gt;
-        case LowerCmp::le:  return LowerCmp::ge;
-        case LowerCmp::igt: return LowerCmp::ilt;
-        case LowerCmp::ige: return LowerCmp::ile;
-        case LowerCmp::ilt: return LowerCmp::igt;
-        case LowerCmp::ile: return LowerCmp::ige;
-        default: return cmp;
-    }
-}
-
 // What a comparison against a constant is rewritten into: the same relation over a different operand
 // and a different immediate. Only ever `eq` or `neq`, because narrowing is the whole point.
 struct Narrowed {
@@ -919,7 +901,7 @@ bool narrowComparison(LowerBase base, LowerInst* inst, Narrowed& into) {
         if(!lowerConstantOf(base, lhs, constant)) return false;
 
         value = rhs;
-        cmp = swappedCmp(cmp);
+        cmp = mirroredCmp(cmp);
     } else if(lowerConstantOf(base, lhs, other)) {
         // Both constant. Not this function's business, and answering it would be a rewrite that is
         // not a fixpoint - the loop below runs until nothing changes.
@@ -1020,7 +1002,7 @@ static bool boundOf(LowerBase base, LowerInst* inst, bool lower, LowerValue*& va
         value = lhs;
     } else if(lowerConstantOf(base, lhs, constant)) {
         value = rhs;
-        cmp = swappedCmp(cmp);
+        cmp = mirroredCmp(cmp);
     } else {
         return false;
     }

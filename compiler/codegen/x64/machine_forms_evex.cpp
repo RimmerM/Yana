@@ -15,8 +15,9 @@
  *
  * **EVEX by construction.** None of these has a VEX spelling, so each states its own EVEX.W and needs
  * the prefix whatever register it lands in - `writeVectorPrefix` in gen.cpp takes an EVEX form as
- * given. The register-only shape is deliberate for now: each has a memory form, and a folded load is a
- * question of `disp8*N` tuples this file would be the first to have to state.
+ * given. The §2.4 rows are register-only for now: each has a memory form, and none sits where a load
+ * feeds it. The comparisons into a mask register, the zero-masking move and `vpternlogd` below do read
+ * an address, each stating its `disp8*N` tuple.
  *
  * Each 128-bit row has a 256-bit twin linked through `MachineForm::wide`, for the reason every packed
  * row has one: selection asks for a width by the type, and never falls back.
@@ -348,13 +349,16 @@ void MachineFormBuilder::registerEvexForms() {
      * all-ones complement the vector-domain comparison needs for five of the ten. The float pair is
      * `vcmpps`/`vcmppd` with the predicate `cmpps` already has.
      *
-     * The mask register is ModRM.reg, the first operand `vvvv` and the second r/m.
+     * The mask register is ModRM.reg, the first operand `vvvv` and the second r/m - which may be an
+     * address, so a comparison reads its second vector straight out of memory as the vector-domain
+     * one does. The doubleword, quadword and float rows may read that operand as one element repeated;
+     * the byte and word rows have no broadcast form.
      */
     auto compare = [&](MachineFormId id, MachineFormId wideId, StringView name128, StringView name256,
                        U8 prefix, U8 map, U8 opcode, bool w, FeatureSet extension, bool predicate, bool floating) {
         auto& form = add(id, OpVCmp, name128);
         form.uses.push(anyReg(ClassXmm128));
-        form.uses.push(anyReg(ClassXmm128));
+        form.uses.push(regOrMem(MemoryAccessKind::Read, ClassXmm128));
         form.defs.push(def(ClassMask32));
         form.requiredFeatures = features(extension);
         form.encoding = evexRegRm(prefix, map, opcode, w);
@@ -362,6 +366,12 @@ void MachineFormBuilder::registerEvexForms() {
         form.encoding.vvvvField = useRef(0);
         form.encoding.maskPredicateImmediate = predicate && !floating;
         form.encoding.conditionImmediate = predicate && floating;
+        form.encoding.evexTuple = EvexTuple::Vector;
+        form.encoding.evexBroadcast = extension != kFeatureAvx512bw;
+
+        // The width the operand is read at is the vectors', not the mask's: what asks is whether a
+        // load or a frame slot is the right size to stand in for the second operand.
+        form.encoding.width = OperationWidth::FromUse0;
 
         widen(wideId, id, name256);
     };
@@ -386,6 +396,44 @@ void MachineFormBuilder::registerEvexForms() {
     compare(FormKCmpU64,  FormVWideKCmpU64,  "vpcmpuq k, xmm, xmm, predicate"_v, "vpcmpuq k, ymm, ymm, predicate"_v, 0x66, kOpcodeMap0F3A, 0x1e, true,  0,  true, false);
     compare(FormKCmpF32,  FormVWideKCmpF32,  "vcmpps k, xmm, xmm, predicate"_v, "vcmpps k, ymm, ymm, predicate"_v, 0x00, kOpcodeMap0F, 0xc2, false, 0, true, true);
     compare(FormKCmpF64,  FormVWideKCmpF64,  "vcmppd k, xmm, xmm, predicate"_v, "vcmppd k, ymm, ymm, predicate"_v, 0x66, kOpcodeMap0F, 0xc2, true,  0, true, true);
+
+    {
+        static const MachineFormId kCompares[36] = {
+            FormKCmpEq8, FormVWideKCmpEq8, FormKCmpEq16, FormVWideKCmpEq16,
+            FormKCmpEq32, FormVWideKCmpEq32, FormKCmpEq64, FormVWideKCmpEq64,
+            FormKCmpGt8, FormVWideKCmpGt8, FormKCmpGt16, FormVWideKCmpGt16,
+            FormKCmpGt32, FormVWideKCmpGt32, FormKCmpGt64, FormVWideKCmpGt64,
+            FormKCmp8, FormVWideKCmp8, FormKCmp16, FormVWideKCmp16,
+            FormKCmp32, FormVWideKCmp32, FormKCmp64, FormVWideKCmp64,
+            FormKCmpU8, FormVWideKCmpU8, FormKCmpU16, FormVWideKCmpU16,
+            FormKCmpU32, FormVWideKCmpU32, FormKCmpU64, FormVWideKCmpU64,
+            FormKCmpF32, FormVWideKCmpF32, FormKCmpF64, FormVWideKCmpF64,
+        };
+        static const StringView kNames[36] = {
+            "vpcmpeqb k, xmm, [address]"_v, "vpcmpeqb k, ymm, [address]"_v,
+            "vpcmpeqw k, xmm, [address]"_v, "vpcmpeqw k, ymm, [address]"_v,
+            "vpcmpeqd k, xmm, [address]"_v, "vpcmpeqd k, ymm, [address]"_v,
+            "vpcmpeqq k, xmm, [address]"_v, "vpcmpeqq k, ymm, [address]"_v,
+            "vpcmpgtb k, xmm, [address]"_v, "vpcmpgtb k, ymm, [address]"_v,
+            "vpcmpgtw k, xmm, [address]"_v, "vpcmpgtw k, ymm, [address]"_v,
+            "vpcmpgtd k, xmm, [address]"_v, "vpcmpgtd k, ymm, [address]"_v,
+            "vpcmpgtq k, xmm, [address]"_v, "vpcmpgtq k, ymm, [address]"_v,
+            "vpcmpb k, xmm, [address], predicate"_v, "vpcmpb k, ymm, [address], predicate"_v,
+            "vpcmpw k, xmm, [address], predicate"_v, "vpcmpw k, ymm, [address], predicate"_v,
+            "vpcmpd k, xmm, [address], predicate"_v, "vpcmpd k, ymm, [address], predicate"_v,
+            "vpcmpq k, xmm, [address], predicate"_v, "vpcmpq k, ymm, [address], predicate"_v,
+            "vpcmpub k, xmm, [address], predicate"_v, "vpcmpub k, ymm, [address], predicate"_v,
+            "vpcmpuw k, xmm, [address], predicate"_v, "vpcmpuw k, ymm, [address], predicate"_v,
+            "vpcmpud k, xmm, [address], predicate"_v, "vpcmpud k, ymm, [address], predicate"_v,
+            "vpcmpuq k, xmm, [address], predicate"_v, "vpcmpuq k, ymm, [address], predicate"_v,
+            "vcmpps k, xmm, [address], predicate"_v, "vcmpps k, ymm, [address], predicate"_v,
+            "vcmppd k, xmm, [address], predicate"_v, "vcmppd k, ymm, [address], predicate"_v,
+        };
+
+        for(Size i = 0; i < 36; i++) {
+            memoryTwin(MachineFormId(FormKCmpEq8Mem + i), kCompares[i], kNames[i]);
+        }
+    }
 
     /*
      * Two masks combined - `kandd`, `kord`, `kxord`, `kandnd`, VEX.L1.66.0F.W1 41/45/47/42.

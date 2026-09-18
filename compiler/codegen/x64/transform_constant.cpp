@@ -45,22 +45,6 @@
  * instruction added rather than two replaced.
  */
 
-// The same comparison with its operands exchanged: `a < b` is `b > a`. Equality and the unordered
-// tests are their own mirrors and are not relations this recognizes anyway.
-static LowerCmp mirroredCmp(LowerCmp cmp) {
-    switch(cmp) {
-        case LowerCmp::lt:  return LowerCmp::gt;
-        case LowerCmp::le:  return LowerCmp::ge;
-        case LowerCmp::gt:  return LowerCmp::lt;
-        case LowerCmp::ge:  return LowerCmp::le;
-        case LowerCmp::ilt: return LowerCmp::igt;
-        case LowerCmp::ile: return LowerCmp::ige;
-        case LowerCmp::igt: return LowerCmp::ilt;
-        case LowerCmp::ige: return LowerCmp::ile;
-        default:            return cmp;
-    }
-}
-
 // Which minimum or maximum `select(a REL b, a, b)` is, or nothing where the relation is not an
 // ordering this machine has an instruction for at this lane kind.
 static Maybe<LowerMinMax> minMaxForRelation(LowerCmp cmp, bool isFloat) {

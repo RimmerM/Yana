@@ -582,6 +582,17 @@ enum: MachineFormId {
     FormKCmpU32, FormVWideKCmpU32, FormKCmpU64, FormVWideKCmpU64,
     FormKCmpF32, FormVWideKCmpF32, FormKCmpF64, FormVWideKCmpF64,
 
+    // The same thirty-six reading their second vector out of memory.
+    FormKCmpEq8Mem, FormVWideKCmpEq8Mem, FormKCmpEq16Mem, FormVWideKCmpEq16Mem,
+    FormKCmpEq32Mem, FormVWideKCmpEq32Mem, FormKCmpEq64Mem, FormVWideKCmpEq64Mem,
+    FormKCmpGt8Mem, FormVWideKCmpGt8Mem, FormKCmpGt16Mem, FormVWideKCmpGt16Mem,
+    FormKCmpGt32Mem, FormVWideKCmpGt32Mem, FormKCmpGt64Mem, FormVWideKCmpGt64Mem,
+    FormKCmp8Mem, FormVWideKCmp8Mem, FormKCmp16Mem, FormVWideKCmp16Mem,
+    FormKCmp32Mem, FormVWideKCmp32Mem, FormKCmp64Mem, FormVWideKCmp64Mem,
+    FormKCmpU8Mem, FormVWideKCmpU8Mem, FormKCmpU16Mem, FormVWideKCmpU16Mem,
+    FormKCmpU32Mem, FormVWideKCmpU32Mem, FormKCmpU64Mem, FormVWideKCmpU64Mem,
+    FormKCmpF32Mem, FormVWideKCmpF32Mem, FormKCmpF64Mem, FormVWideKCmpF64Mem,
+
     FormKAnd, FormKOr, FormKXor, FormKAndNot, FormKNot, FormKMove, FormKBits,
     FormKLoad, FormKStore,
 

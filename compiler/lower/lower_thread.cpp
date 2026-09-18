@@ -907,21 +907,6 @@ bool intervalOf(LowerCmp cmp, U64 constant, U32 bits, Interval& into) {
     }
 }
 
-// The same relation with its operands exchanged: `5 < x` is `x > 5`.
-LowerCmp mirroredCmp(LowerCmp cmp) {
-    switch(cmp) {
-        case LowerCmp::gt:  return LowerCmp::lt;
-        case LowerCmp::ge:  return LowerCmp::le;
-        case LowerCmp::lt:  return LowerCmp::gt;
-        case LowerCmp::le:  return LowerCmp::ge;
-        case LowerCmp::igt: return LowerCmp::ilt;
-        case LowerCmp::ige: return LowerCmp::ile;
-        case LowerCmp::ilt: return LowerCmp::igt;
-        case LowerCmp::ile: return LowerCmp::ige;
-        default:            return cmp;
-    }
-}
-
 /*
  * A branch condition read back as "this value lies in this interval".
  *

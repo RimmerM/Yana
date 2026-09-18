@@ -591,6 +591,22 @@ static bool isCommutativeInt(LowerInst* inst) {
     return isIntLike(type) || isIntVector(type);
 }
 
+/*
+ * Whether this is a comparison whose operands may be exchanged by mirroring its relation instead -
+ * `a < [m]` for `[m] > a`, which puts the load where the encoding reads an address.
+ *
+ * Into a mask register only, where every relation of either family is one instruction and so is its
+ * mirror. Not in the vector domain, which has equality and signed-greater and nothing else, and not
+ * over floats, whose predicates `orderPackedCompare` has already turned into the `lt` and `le` the
+ * encoder spells - a `gt` put back would be one it has no byte for.
+ */
+static bool mirrorsIntoMaskRegister(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::Cmp || !maskInMaskBank()) return false;
+
+    auto cmp = (LowerInstCmp*)inst;
+    return cmp->result.type.isMask() && isIntVector(base[cmp->lhs]->type);
+}
+
 // Whether this form requires an operand in a particular register, which is the copy a folded address
 // cannot survive - see the third bound above.
 static bool hasFixedOperands(const MachineForm& form) {
@@ -660,9 +676,11 @@ static Maybe<Size> tryFoldLoadOperand(Context& ctx, LowerBase base, LowerFunctio
     auto sunk = loadAt != index - 1;
 
     // Which operand holds it has to be the one the encoding can dereference, or an operand a
-    // commutative operation can exchange into it - which is the shape `arr[i] + sum` arrives in.
+    // commutative operation can exchange into it - which is the shape `arr[i] + sum` arrives in - or
+    // one a comparison into a mask register can, by mirroring its relation.
     auto exchange = at != memory;
-    if(exchange && !(isCommutativeInt(inst) && used.size() == 2 && at < used.size())) return Nothing();
+    auto mirror = exchange && mirrorsIntoMaskRegister(base, inst);
+    if(exchange && !mirror && !(isCommutativeInt(inst) && used.size() == 2 && at < used.size())) return Nothing();
 
     /*
      * An operand the encoding was carrying as an immediate has nowhere to go.
@@ -746,6 +764,8 @@ static Maybe<Size> tryFoldLoadOperand(Context& ctx, LowerBase base, LowerFunctio
 
         operands[0] = operands[1];
         operands[1] = first;
+
+        if(mirror) ((LowerInstCmp*)inst)->setCmp(mirroredCmp(((LowerInstCmp*)inst)->getCmp()));
     }
 
     if(pooledSymbol) {

@@ -1,0 +1,112 @@
+
+equalLeft<complex>(%p: Ptr, %b: i8x64): I64 {
+  b_0 {
+    %a = load %p, 64: i8x64
+    %eq = cmp_eq %a, %b: m8x64
+    %bits = vreduce_bits %eq: I64
+    ret %bits
+  }
+}
+
+lessRight<complex>(%p: Ptr, %a: i32x16): I32 {
+  b_0 {
+    %b = load %p, 64: i32x16
+    %lt = cmp_ilt %a, %b: m32x16
+    %bits = vreduce_bits %lt: I32
+    ret %bits
+  }
+}
+
+unsignedNarrow<complex>(%p: Ptr, %a: i16x16): I32 {
+  b_0 {
+    %b = load %p, 32: i16x16
+    %lt = cmp_lt %a, %b: m16x16
+    %bits = vreduce_bits %lt: I32
+    ret %bits
+  }
+}
+
+floatRight<complex>(%p: Ptr, %a: f64x8): I32 {
+  b_0 {
+    %b = load %p, 64: f64x8
+    %le = cmp_le %a, %b: m64x8
+    %bits = vreduce_bits %le: I32
+    ret %bits
+  }
+}
+
+againstConstant<complex>(%a: i32x16): I32 {
+  b_0 {
+    %c = vsplat 1000: i32x16
+    %gt = cmp_igt %a, %c: m32x16
+    %bits = vreduce_bits %gt: I32
+    ret %bits
+  }
+}
+
+underMask<complex>(%p: Ptr, %a: i8x64, %c: i8x64): I64 {
+  b_0 {
+    %b = load %p, 64: i8x64
+    %first = cmp_eq %a, %c: m8x64
+    %second = cmp_eq %a, %b: m8x64
+    %both = and %first, %second: m8x64
+    %bits = vreduce_bits %both: I64
+    ret %bits
+  }
+}
+
+
+--- codegen: equalLeft ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  cmp_eq uses=[xmm0, -] creates=[k1]  => 62f17d48740f
+  vreduce_bits uses=[k1] creates=[rax]  => c4e1fb93c1
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: lessRight ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  cmp_ilt uses=[xmm0, -] creates=[k1]  => 62f37d481f0f01
+  vreduce_bits uses=[k1] creates=[rax]  => c5fb93c1
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: unsignedNarrow ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  cmp_lt uses=[xmm0, -] creates=[k1]  => 62f3fd283e0f01
+  vreduce_bits uses=[k1] creates=[rax]  => c5fb93c1
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: floatRight ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi] creates=[-]  => 
+  cmp_le uses=[xmm0, -] creates=[k1]  => 62f1fd48c20f02
+  vreduce_bits uses=[k1] creates=[rax]  => c5fb93c1
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: againstConstant ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr [rip + $v032$e8030000] uses=[] creates=[-]  => 
+  cmp_igt uses=[xmm0, -] creates=[k1]  => 62f17d58660d76000000
+  vreduce_bits uses=[k1] creates=[rax]  => c5fb93c1
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: underMask ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[xmm2]  => 62f17e486f17
+  cmp_eq uses=[xmm0, xmm1] creates=[k1]  => 62f17d4874c9
+  x86_maskcompare uses=[xmm0, xmm2, k1] creates=[k1]  => 62f17d4974ca
+  vreduce_bits uses=[k1] creates=[rax]  => c4e1fb93c1
+  ret uses=[rax] creates=[]  => c3

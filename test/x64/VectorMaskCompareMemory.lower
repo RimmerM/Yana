@@ -1,0 +1,69 @@
+# A comparison into a mask register reading its second vector straight out of memory - the memory
+# twins of the `k` comparisons in registerEvexForms, and the 512-bit ones `registerFullForms` derives
+# from them. At `avx512`'s natural width every comparison writes a mask register, so this is the fold
+# the vector-domain `vpcmpeqb ymm, ymm, [address]` used to be.
+#
+#   - an integer relation folds a load on either side: on the right it is the operand the encoding
+#     dereferences, and on the left the operands are exchanged and the relation mirrored
+#     (`mirrorsIntoMaskRegister`) - `lessRight` arrives as `[p] > a` and leaves as `a < [p]`;
+#   - a float relation folds a load on the right;
+#   - a doubleword comparison against a pooled constant of one repeated element reads `{1to16}`;
+#   - a comparison under a mask takes no load: its masked row has no memory twin.
+#
+# extensions: avx512
+
+equalLeft(%p: Ptr, %b: i8x64): I64 {
+    {
+        %a = load %p, 64: i8x64
+        %eq = cmp_eq %a, %b: m8x64
+        %bits = vreduce_bits %eq: I64
+        ret %bits
+    }
+}
+
+lessRight(%p: Ptr, %a: i32x16): I32 {
+    {
+        %b = load %p, 64: i32x16
+        %lt = cmp_ilt %a, %b: m32x16
+        %bits = vreduce_bits %lt: I32
+        ret %bits
+    }
+}
+
+unsignedNarrow(%p: Ptr, %a: i16x16): I32 {
+    {
+        %b = load %p, 32: i16x16
+        %lt = cmp_lt %a, %b: m16x16
+        %bits = vreduce_bits %lt: I32
+        ret %bits
+    }
+}
+
+floatRight(%p: Ptr, %a: f64x8): I32 {
+    {
+        %b = load %p, 64: f64x8
+        %le = cmp_le %a, %b: m64x8
+        %bits = vreduce_bits %le: I32
+        ret %bits
+    }
+}
+
+againstConstant(%a: i32x16): I32 {
+    {
+        %c = vsplat 1000: i32x16
+        %gt = cmp_igt %a, %c: m32x16
+        %bits = vreduce_bits %gt: I32
+        ret %bits
+    }
+}
+
+underMask(%p: Ptr, %a: i8x64, %c: i8x64): I64 {
+    {
+        %b = load %p, 64: i8x64
+        %first = cmp_eq %a, %c: m8x64
+        %second = cmp_eq %a, %b: m8x64
+        %both = and %first, %second: m8x64
+        %bits = vreduce_bits %both: I64
+        ret %bits
+    }
+}

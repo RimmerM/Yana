@@ -54,6 +54,25 @@ inline LowerCmp negatedCmp(LowerCmp cmp) {
 }
 
 /*
+ * The same relation with its operands exchanged: `a < b` is `b > a`, in both families. Equality and
+ * the two unordered tests read the same either way round, float operands included - a NaN makes an
+ * ordered relation false whichever side it is on.
+ */
+inline LowerCmp mirroredCmp(LowerCmp cmp) {
+    switch(cmp) {
+        case LowerCmp::gt:  return LowerCmp::lt;
+        case LowerCmp::ge:  return LowerCmp::le;
+        case LowerCmp::lt:  return LowerCmp::gt;
+        case LowerCmp::le:  return LowerCmp::ge;
+        case LowerCmp::igt: return LowerCmp::ilt;
+        case LowerCmp::ige: return LowerCmp::ile;
+        case LowerCmp::ilt: return LowerCmp::igt;
+        case LowerCmp::ile: return LowerCmp::ige;
+        default:            return cmp;
+    }
+}
+
+/*
  * How much of the rest of memory an atomic operation orders - Analysis-Atomics.md §3.3.
  *
  * One enum here where the library has four types. `LoadOrder`, `StoreOrder`, `UpdateOrder` and
