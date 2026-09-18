@@ -218,6 +218,19 @@ static bool compileLlvm(Context& context, Program& program, const String& output
     return llvmgen::writeIrFile(context, *module, joinPath(outputDir, name, ".ll"_v));
 }
 
+static bool finishNativeObject(Context& context, const String& objectPath, const String& outputPath) {
+    if(context.settings.format == ExecutableFormat::Raw) {
+        // Raw output is flattened in-process from LLVM's object. Keep the object as an
+        // implementation detail rather than leaving a second artifact beside the requested image.
+        auto built = llvmgen::writeRawObjectFile(context, objectPath, outputPath,
+                                                 context.settings.imageBase);
+        File::remove(objectPath);
+        return built;
+    }
+
+    return llvmgen::linkExecutable(context, objectPath, outputPath);
+}
+
 static bool compileNative(Context& context, Program& program, const String& outputDir, StringView name) {
     llvm::LLVMContext llvm;
     auto module = genNative(llvm, context, program);
@@ -226,7 +239,7 @@ static bool compileNative(Context& context, Program& program, const String& outp
     auto objectPath = joinPath(outputDir, name, ".o"_v);
     if(!llvmgen::writeObjectFile(context, *module, objectPath)) return false;
 
-    return llvmgen::linkExecutable(context, objectPath, joinPath(outputDir, name, ""_v));
+    return finishNativeObject(context, objectPath, joinPath(outputDir, name, ""_v));
 }
 
 /*
@@ -366,7 +379,7 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
     auto objectPath = joinPath(outputDir, name, ".o"_v);
     if(!llvmgen::writeObjectFile(context, *module, objectPath)) return false;
 
-    return llvmgen::linkExecutable(context, objectPath, joinPath(outputDir, name, ""_v));
+    return finishNativeObject(context, objectPath, joinPath(outputDir, name, ""_v));
 }
 
 /*

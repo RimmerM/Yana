@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "../util/lexer_util.h"
 
 #ifdef __GNUC__
 #include <cpuid.h>
@@ -27,6 +28,7 @@ struct Flag {
         target,
         arch,
         format,
+        imageBase,
         backend,
         framePointer,
         inlining,
@@ -85,6 +87,7 @@ Flag flagTable[] = {
     { "target"_v, 1, Flag::target },
     { "arch"_v, 1, Flag::arch },
     { "format"_v, 1, Flag::format },
+    { "image-base"_v, 1, Flag::imageBase },
     { "backend"_v, 1, Flag::backend },
     { "frame-pointer"_v, 1, Flag::framePointer },
     { "opt"_v, 1, Flag::optimization },
@@ -193,7 +196,8 @@ static const ModeAlias modeAliasTable[] = {
 StringView formatTable[] = {
     "elf"_v,   // ELF
     "mach"_v,  // MachO
-    "pe"_v,  // PE
+    "pe"_v,    // PE
+    "raw"_v,   // Raw
 };
 
 // NativeBackend, in declaration order. "local" rather than "x64", because what it selects is the
@@ -208,7 +212,29 @@ StringView targetTable[] = {
     "linux"_v, // Linux
     "mac"_v,   // MacOS
     "win32"_v, // Win32
+    "bare"_v,  // Bare
 };
+
+// `-image-base` is a command-line number rather than a Yana integer literal, so accept the same
+// decimal and 0x-prefixed hexadecimal spellings without making the driver depend on a host-sized
+// integer parser. The image base is deliberately unsigned: it is an address, not a displacement.
+static Maybe<U64> parseImageBase(StringView value) {
+    if(value.length == 0) return Nothing();
+
+    const char* first = value.ptr;
+    const char* last = first + value.length;
+    auto hexadecimal = value.length > 2 && first[0] == '0' && (first[1] == 'x' || first[1] == 'X');
+    const char* number = hexadecimal ? first + 2 : first;
+    if(number == last) return Nothing();
+
+    bool overflowed = false;
+    auto parsed = hexadecimal
+        ? parseIntLiteral<16>(number, last, parseHexit, overflowed)
+        : parseIntLiteral<10>(number, last, parseDigit, overflowed);
+
+    if(overflowed || number != last) return Nothing();
+    return Just(parsed);
+}
 
 StringView framePointerTable[] = {
     "all"_v,      // All
@@ -419,7 +445,7 @@ Maybe<String> checkExtensionFlags(const TargetExtensions& extensions) {
  * in step. `js` and `native` are the platform axis and are not in a table because `mode` holds more
  * than a platform.
  *
- * **An operating system or an architecture excludes a JS build**, rather than being ignored on one:
+ * **A system environment or an architecture excludes a JS build**, rather than being ignored on one:
  * `Linux.x64.yana` is a syscall table, and a target with no syscalls has no business compiling it.
  * That is the same answer `@platform(native)` would give, which is what makes the file form a
  * replacement for the attribute rather than a second mechanism beside it.
@@ -531,7 +557,7 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name, 
      * extension needs a twin, and the portable half is compiled on the machines that have the
      * instructions as well as on the ones that do not.
      *
-     * A JS build and a non-x86-64 one have none of them, on the same argument an operating system name
+     * A JS build and a non-x86-64 one have none of them, on the same argument a system environment name
      * makes above: what a flag selects is written in terms of an x86 instruction, and a target with no
      * such instruction has no business compiling it.
      *
@@ -554,7 +580,7 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name, 
  */
 enum class SelectorKind: U8 {
     Platform,  // `js`, `native`
-    System,    // `linux`, `mac`, `win32`
+    System,    // `linux`, `mac`, `win32`, `bare`
     Arch,      // `x64`, `x86`, `arm`, `arm64`
     Level,     // `sse4`, `avx2`, `avx512`
     Extension, // `sha`, `aes` and the rest of the flags
@@ -580,7 +606,7 @@ static SelectorKind selectorKind(StringView name, U8& rank) {
 /*
  * Whether a build satisfying `p` always satisfies `q` - one written name against another.
  *
- * The table §3.5 lists, and nothing it does not: an operating system, an architecture, a level and an
+ * The table §3.5 lists, and nothing it does not: a system environment, an architecture, a level and an
  * extension each imply `native`; a level implies the levels below it and `x64`; an extension implies
  * `x64`, which is the architecture its instructions are. And a level implies every flag it implies -
  * `avx512` implies `sha` - since those are claims about every part of the level (Analysis-Avx512.md
@@ -617,7 +643,7 @@ static bool literalImplies(const SelectorLiteral& p, const SelectorLiteral& q) {
 /*
  * Whether no build satisfies both - one written name against another.
  *
- * `js` against anything that implies `native`; two operating systems, two architectures, and a level
+ * `js` against anything that implies `native`; two system environments, two architectures, and a level
  * or an extension against an architecture that is not `x64`; two allocator providers; the two resolve
  * stages. Two different names on the allocator and resolve-stage axes are always disjoint, because
  * each of those axes has exactly one answer per compilation.
@@ -1067,6 +1093,12 @@ static void applyDefaults(CompileSettings& settings, bool hasArch, bool hasTarge
             case ExecutableFormat::PE:
                 settings.target = TargetType::Win32;
                 break;
+            case ExecutableFormat::Raw:
+                // Raw has no operating-system ABI of its own. Keep Linux as the default so that
+                // `-format raw` is a raw spelling of the ordinary native target, while
+                // `-target bare -format raw` explicitly selects freestanding source files.
+                settings.target = TargetType::Linux;
+                break;
         }
     } else if(!hasFormat && hasTarget) {
         switch(settings.target) {
@@ -1078,6 +1110,11 @@ static void applyDefaults(CompileSettings& settings, bool hasArch, bool hasTarge
                 break;
             case TargetType::Win32:
                 settings.format = ExecutableFormat::PE;
+                break;
+            case TargetType::Bare:
+                // Bare is intentionally independent from the container. ELF remains the default
+                // here; `-format raw` is the separate choice for a flat image.
+                settings.format = ExecutableFormat::ELF;
                 break;
         }
     }
@@ -1289,8 +1326,10 @@ What to build:
   -test                 build the @test declarations into a test program
 
 Which machine:
-  -target <os>          linux, mac or win32          -arch <a>       x64, x86, arm, arm64
-  -format <f>           elf, mach or pe              -backend <b>    llvm or local
+  -target <t>           linux, mac, win32 or bare   -arch <a>       x64, x86, arm, arm64
+  -format <f>           elf, mach, pe or raw        -image-base <n> raw image load address
+                                                        (default: 0x400000)
+  -backend <b>          llvm or local
   -enable-inst <set>    sse4 (the floor), avx2 or avx512 - avx2 implies aes and pclmul, and
                         avx512 is Ice Lake/Zen 4 and implies vaes, vpclmul, gfni and sha as
                         well. Or an extension beside a level: aes, pclmul, gfni, sha (sse4);
@@ -1547,7 +1586,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     settings.target = (TargetType)target.unwrap();
                     return true;
                 } else {
-                    error = Tritium::format("Unrecognized operating system \"%@\". Valid targets are: linux|mac|win32.", value);
+                    error = Tritium::format("Unrecognized target \"%@\". Valid targets are: linux|mac|win32|bare.", value);
                     return false;
                 }
             case Flag::arch:
@@ -1565,9 +1604,18 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     settings.format = (ExecutableFormat)format.unwrap();
                     return true;
                 } else {
-                    error = Tritium::format("Unrecognized executable format \"%@\". Valid formats are: elf|mach|pe.", value);
+                    error = Tritium::format("Unrecognized executable format \"%@\". Valid formats are: elf|mach|pe|raw.", value);
                     return false;
                 }
+            case Flag::imageBase:
+                if(auto base = parseImageBase(StringView { value.text(), value.size() })) {
+                    settings.imageBase = base.unwrap();
+                    settings.explicitImageBase = true;
+                    return true;
+                }
+
+                error = Tritium::format("Unrecognized image base \"%@\". Use a decimal or 0x-prefixed hexadecimal address.", value);
+                return false;
             case Flag::backend:
                 settings.explicitBackend = true;
                 if(auto backend = matchString(backendTable, sizeof(backendTable) / sizeof(StringView), value)) {
@@ -1757,10 +1805,22 @@ Result<void, String> checkSettings(const CompileSettings& settings) {
                               "Use -arch x64, or -backend llvm."));
         }
 
-        if(settings.format != ExecutableFormat::ELF || settings.target != TargetType::Linux) {
-            return Err(String("The local backend only generates ELF executables for Linux. "
-                              "Use -target linux -format elf, or -backend llvm."));
+        if(!localBackendSupported(settings)) {
+            return Err(String("The local backend currently generates x64 ELF images for Linux or bare "
+                              "targets, and raw images for those targets. Use -backend llvm or choose "
+                              "-target linux -format elf, -target linux -format raw, or "
+                              "-target bare -format elf or raw."));
         }
+    }
+
+    if(settings.explicitImageBase && settings.format != ExecutableFormat::Raw) {
+        return Err(String("-image-base only applies to -format raw."));
+    }
+
+    if(settings.format == ExecutableFormat::Raw &&
+       (settings.arch != TargetArch::X64 ||
+        (settings.target != TargetType::Linux && settings.target != TargetType::Bare))) {
+        return Err(String("-format raw currently supports x64 Linux and bare targets only."));
     }
 
     return Ok();

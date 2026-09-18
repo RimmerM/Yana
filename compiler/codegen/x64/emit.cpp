@@ -1,5 +1,6 @@
 #include "emit.h"
 #include "../elf/elf.h"
+#include "../raw/raw.h"
 #include "../entry.h"
 
 /*
@@ -161,12 +162,14 @@ static U32 genProcessEntry(AsmModule& to, LowerBase base, LowerModule& module, L
 }
 
 /*
- * The module's own entry, checked for the two things this path cannot express.
+ * The module's own entry, checked for the two things a hosted process entry cannot express.
  *
  * Reported here rather than asserted, because both are properties of the program being compiled: a
  * `main` taking arguments is something a user can write, and the entry sequence above has nothing to
  * pass it. The same two questions are asked by the LLVM path in addNativeEntry, and for the same
- * reasons - the answers have to agree, since it is the same program either way.
+ * reasons - the answers have to agree, since it is the same program either way. A bare target has
+ * no process ABI here: its entry remains an ordinary function, and a raw image puts that function
+ * first so a loader can transfer control to the image base without a format-specific entry field.
  */
 static LowerFunction* findEntry(Context& context, LowerBase base, LowerModule& module) {
     if(!module.entry) {
@@ -184,7 +187,9 @@ static LowerFunction* findEntry(Context& context, LowerBase base, LowerModule& m
 
     auto entry = base[found.unwrap()];
 
-    if(entry->args.size()) {
+    auto processEntry = context.settings.target == TargetType::Linux;
+
+    if(processEntry && entry->args.size()) {
         context.diagnostics.error("amd64: the entry point %@ cannot take arguments yet"_v, nullptr,
                                   context.findName(module.entry));
         return nullptr;
@@ -192,8 +197,8 @@ static LowerFunction* findEntry(Context& context, LowerBase base, LowerModule& m
 
     // One result, in a register the process exit status can be read out of. More than one is a
     // shape no `main` has, and a floating one is a status nothing could mean.
-    if(entry->returnTypes.size() > 1 || (entry->returnTypes.size() == 1 &&
-                                         !isIntLike((LowerType)entry->returnTypes.get(base, 0)))) {
+    if(processEntry && (entry->returnTypes.size() > 1 || (entry->returnTypes.size() == 1 &&
+                                         !isIntLike((LowerType)entry->returnTypes.get(base, 0))))) {
         context.diagnostics.error("amd64: the entry point must return an integer"_v, nullptr);
         return nullptr;
     }
@@ -224,15 +229,14 @@ bool genX64Executable(Context& context, LowerModule& module, const String& path)
     FunctionRegs registers;
     MachineFunction machine;
 
-    for(auto functionPointer: module.functionOrder) {
-        auto function = base[functionPointer];
+    auto emitFunction = [&](LowerFunction* function) -> bool {
 
         machine.reset();
 
         // Refused, and already reported - see `transformFunction`. The loop carries on so that a
         // second function's gap is named in the same run rather than on the next one; the error
         // count below is what stops a file being written.
-        if(!transformFunction(context, base, *function, machine)) continue;
+        if(!transformFunction(context, base, *function, machine)) return false;
 
         scratch.resetRecords();
         allocateRegisters(context, base, *function, machine, scratch, registers);
@@ -250,6 +254,32 @@ bool genX64Executable(Context& context, LowerModule& module, const String& path)
             .size = U32(assembly.buffer.offset()) - start.unwrap(),
             .function = true,
         });
+
+        return true;
+    };
+
+    auto processEntry = context.settings.target == TargetType::Linux;
+    U32 startOffset = 0;
+
+    // A raw file has no header to carry an entry offset. Put the transfer point at byte zero: the
+    // Linux form is the same process entry used by ELF, while a bare target starts with the user's
+    // ordinary entry function and adds no compiler-owned stub.
+    if(context.settings.format == ExecutableFormat::Raw) {
+        if(processEntry) {
+            startOffset = genProcessEntry(assembly, base, module, *entry);
+            image.symbols.push(ElfSymbol { .name = String("_start"), .offset = startOffset,
+                                           .size = U32(assembly.buffer.offset()) - startOffset,
+                                           .function = true });
+        } else {
+            if(!emitFunction(entry)) return false;
+            startOffset = assembly.functionOffsets.getValue(entry).unwrap();
+        }
+    }
+
+    for(auto functionPointer: module.functionOrder) {
+        auto function = base[functionPointer];
+        if(context.settings.format == ExecutableFormat::Raw && !processEntry && function == entry) continue;
+        if(!emitFunction(function)) return false;
     }
 
     // Before anything is laid out, because a function that could not be generated has left the
@@ -257,9 +287,16 @@ bool genX64Executable(Context& context, LowerModule& module, const String& path)
     // rather than a diagnostic. transformFunction reports the cases it cannot build a frame for.
     if(context.diagnostics.errorCount()) return false;
 
-    auto startOffset = genProcessEntry(assembly, base, module, *entry);
-    image.symbols.push(ElfSymbol { .name = String("_start"), .offset = startOffset,
-                                   .size = U32(assembly.buffer.offset()) - startOffset, .function = true });
+    if(context.settings.format != ExecutableFormat::Raw && processEntry) {
+        startOffset = genProcessEntry(assembly, base, module, *entry);
+        image.symbols.push(ElfSymbol { .name = String("_start"), .offset = startOffset,
+                                       .size = U32(assembly.buffer.offset()) - startOffset,
+                                       .function = true });
+    } else if(context.settings.format != ExecutableFormat::Raw) {
+        auto entryAt = assembly.functionOffsets.getValue(entry);
+        assertTrue(entryAt.isJust());
+        startOffset = entryAt.unwrap();
+    }
 
     auto codeSize = U32(assembly.buffer.offset());
 
@@ -270,7 +307,7 @@ bool genX64Executable(Context& context, LowerModule& module, const String& path)
      * would add a page to the file to describe nothing. The bytes are the same trap the alignment
      * padding above uses, since they are still inside the executable segment.
      */
-    if(module.globalOrder.size()) {
+    if(module.globalOrder.size() && context.settings.format != ExecutableFormat::Raw) {
         auto padding = elfDataPadding(codeSize);
         for(U32 i = 0; i < padding; i++) assembly.buffer.writeByte(0xcc);
     }
@@ -307,13 +344,19 @@ bool genX64Executable(Context& context, LowerModule& module, const String& path)
     // holding a function pointer - are only knowable once the image has an address, and this image
     // has one because it is not position-independent. A dynamically linked program would emit these
     // as loader relocations instead; there is no loader here to emit them to.
-    assembly.applyDataRelocations((Byte*)elfCodeAddress());
+    auto loadAddress = context.settings.format == ExecutableFormat::Raw
+        ? context.settings.imageBase : elfCodeAddress();
+    assembly.applyDataRelocations((Byte*)loadAddress);
 
     image.bytes = assembly.buffer.buffer;
     image.size = assembly.buffer.offset();
     image.codeSize = codeSize;
     image.dataOffset = dataOffset;
     image.entryOffset = startOffset;
+
+    if(context.settings.format == ExecutableFormat::Raw) {
+        return writeRawImage(context, image.bytes, image.size, path);
+    }
 
     return writeElfExecutable(context, image, context.settings.arch, path);
 }

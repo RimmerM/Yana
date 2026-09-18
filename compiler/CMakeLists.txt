@@ -438,6 +438,14 @@ target_link_libraries(YanaResolveMir PUBLIC YanaCore YanaParse YanaIntrinsic)
 add_library(YanaResolveSsa ${RESOLVE_SSA_SOURCE_FILES})
 target_link_libraries(YanaResolveSsa PUBLIC YanaResolveMir YanaLower)
 
+set(RAW_SOURCE_FILES
+    codegen/raw/raw.h
+    codegen/raw/raw.cpp
+)
+
+add_library(YanaRaw ${RAW_SOURCE_FILES})
+target_link_libraries(YanaRaw PUBLIC YanaCore)
+
 set(LLVM_SOURCE_FILES
     codegen/entry.h
     codegen/llvm/gen.h
@@ -449,7 +457,7 @@ set(LLVM_SOURCE_FILES
 )
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES
-    core support analysis passes target codegen mc linker
+    core support analysis passes target codegen mc linker object
     x86codegen x86asmparser x86desc x86info
 )
 
@@ -462,7 +470,7 @@ add_library(YanaLLVM ${LLVM_SOURCE_FILES})
 target_include_directories(YanaLLVM PUBLIC ${LLVM_INCLUDE_DIRS})
 separate_arguments(LLVM_DEFINITION_LIST NATIVE_COMMAND "${LLVM_DEFINITIONS}")
 target_compile_definitions(YanaLLVM PUBLIC ${LLVM_DEFINITION_LIST})
-target_link_libraries(YanaLLVM PUBLIC YanaCore YanaLower ${LLVM_LIBRARIES})
+target_link_libraries(YanaLLVM PUBLIC YanaCore YanaLower YanaRaw ${LLVM_LIBRARIES})
 
 # The pre-migration JS backend is retained, unchanged, in codegen/js_old/ and intentionally has no
 # build target: it consumes the aggregate/Value IR the old resolver produced and predates places,
@@ -485,6 +493,7 @@ set(JS_SOURCE_FILES
 
 add_library(YanaJS ${JS_SOURCE_FILES})
 target_link_libraries(YanaJS PUBLIC YanaCore YanaResolve)
+
 set(ELF_SOURCE_FILES
     codegen/elf/elf.h
     codegen/elf/elf.cpp
@@ -538,7 +547,7 @@ set(X64_SOURCE_FILES
 )
 
 add_library(YanaX64 ${X64_SOURCE_FILES})
-target_link_libraries(YanaX64 PUBLIC YanaCore YanaLower YanaElf)
+target_link_libraries(YanaX64 PUBLIC YanaCore YanaLower YanaElf YanaRaw)
 
 set(PROJECT_SOURCE_FILES
     compiler/source.h
@@ -549,6 +558,7 @@ set(PROJECT_SOURCE_FILES
 
 add_library(YanaProject ${PROJECT_SOURCE_FILES})
 target_link_libraries(YanaProject PUBLIC YanaCore YanaParse)
+
 set(DRIVER_SOURCE_FILES
     compiler/driver.cpp
 )
@@ -574,6 +584,7 @@ set(LSP_SOURCE_FILES
     lsp/server.h
     lsp/server.cpp
 )
+
 add_library(YanaLspCore ${LSP_SOURCE_FILES})
 target_link_libraries(YanaLspCore PUBLIC YanaCore YanaParse YanaResolveMir YanaProject)
 

@@ -17,7 +17,7 @@
  * share a resolved program. See Analysis-JS.md §2.4.
  */
 enum class TargetPlatform: U8 {
-    Native, /// Machine code for the operating system and architecture the other flags name.
+    Native, /// Machine code for the target and architecture the other flags name.
     Js,     /// JavaScript, which has one target and reads none of `-target`, `-arch` or `-format`.
 };
 
@@ -97,16 +97,19 @@ enum class ExecutableFormat {
     ELF,   /// Compiles to ELF files (.so for shared libraries) compatible with operating systems such as Linux.
     MachO, /// Compiles to Mach-O files (.dylib for shared libraries) compatible with macOS.
     PE,    /// Compiles to PE/COFF files (.exe, .dll for shared libraries) compatible with Windows.
+    Raw,   /// Writes the flat image bytes without an executable-file container.
 };
 
-/// Operating system that can be targeted.
-/// This defines what implementation of the runtime and standard library will be chosen,
-/// as well as the platform libraries to link to.
+/// System environment that can be targeted.
+/// This defines what implementation of the runtime and standard library will be chosen, as well as
+/// the platform libraries to link to. `Bare` deliberately names no operating-system ABI: it is the
+/// freestanding selection used with a bootloader or another caller that supplies the entry context.
 /// Not applicable on TargetPlatform::Js, which has one target and reads none of this.
 enum class TargetType {
     Linux,
     MacOS,
     Win32,
+    Bare,
 };
 
 /// The instruction set to generate code for.
@@ -287,7 +290,8 @@ Maybe<Tritium::String> checkExtensionFlags(const TargetExtensions& extensions);
  * local backend generates and lays out the machine code itself and writes the executable directly,
  * so it needs nothing on the machine and is much faster to run.
  *
- * **The local one is the default where it exists**, which is ELF/Linux/amd64 and nowhere else - see
+ * **The local one is the default where it exists**, which is x64 ELF for Linux or bare targets and
+ * nowhere else - see
  * localBackendSupported. That trades the faster program for the faster build and for a compiler that
  * needs nothing installed beside it, which is the trade a build being run wants far more often than
  * a build being shipped: `-backend llvm` is one flag, and it is the flag a release build passes.
@@ -440,6 +444,7 @@ struct CompileSettings {
     bool explicitMode = false;
     bool explicitPlatform = false;
     bool explicitOutput = false;
+    bool explicitImageBase = false;
 
     /// Whether `-backend` was named. Not for a project file's sake - one cannot set a backend - but
     /// for the difference between a backend that was *chosen* and one that was *defaulted*: naming
@@ -487,6 +492,10 @@ struct CompileSettings {
     ExecutableFormat format = ExecutableFormat::ELF;
     TargetType target = TargetType::Linux;
     TargetArch arch = TargetArch::X64;
+    // The address the first byte of a raw image is loaded at. Raw images are not relocatable;
+    // keep the existing native-image default, while allowing a freestanding loader to choose its
+    // own address with -image-base.
+    U64 imageBase = 0x400000;
     TargetExtensions extensions;
 
     /*
@@ -911,9 +920,14 @@ inline U32 targetPageBytes(const CompileSettings& settings) {
  * file can still change after this has been asked.
  */
 inline bool localBackendSupported(const CompileSettings& settings) {
-    return settings.arch == TargetArch::X64 &&
-           settings.target == TargetType::Linux &&
-           settings.format == ExecutableFormat::ELF;
+    if(settings.arch != TargetArch::X64) return false;
+
+    if(settings.format == ExecutableFormat::Raw) {
+        return settings.target == TargetType::Linux || settings.target == TargetType::Bare;
+    }
+
+    return settings.format == ExecutableFormat::ELF &&
+           (settings.target == TargetType::Linux || settings.target == TargetType::Bare);
 }
 
 /// Parses the provided command line into a set of compiler options.
@@ -945,7 +959,7 @@ StringView archName(TargetArch arch);
  *
  * **Three axes and not one**, which §4.2.1 is the argument for: `lib/Native/Linux.yana` is the
  * x86-64 syscall table and has no way to say so today, because architecture is expressed only by
- * being imported or not. Platform, operating system and architecture are all selectors here, drawn
+ * being imported or not. Platform, system environment and architecture are all selectors here, drawn
  * from the spellings `-target`, `-arch` and `@platform` already use, so nothing has a second name.
  *
  * `Unknown` is a name that is not a selector at all, and it is reported rather than ignored: a file

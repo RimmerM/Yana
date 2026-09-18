@@ -143,6 +143,8 @@ static TargetDescription targetDescriptionOf(Context& context) {
             switch(context.settings.target) {
                 case TargetType::MacOS:
                     return { "arm64-apple-darwin"_v, "e-m:o-i64:64-i128:128-n32:64-S128"_v };
+                case TargetType::Bare:
+                    return { "aarch64-unknown-none"_v, "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"_v };
                 default:
                     return { "aarch64-unknown-linux-gnu"_v, "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"_v };
             }
@@ -162,6 +164,8 @@ static TargetDescription targetDescriptionOf(Context& context) {
                     return { "x86_64-apple-darwin"_v, "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"_v };
                 case TargetType::Win32:
                     return { "x86_64-pc-windows-msvc"_v, "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"_v };
+                case TargetType::Bare:
+                    return { "x86_64-unknown-none"_v, kX64Layout };
                 default:
                     return { "x86_64-unknown-linux-gnu"_v, kX64Layout };
             }
@@ -305,16 +309,28 @@ static llvm::Constant* initializerOf(Gen& gen, LowerGlobal& global, bool resolve
  * cannot join `.text` (an explicit section on read-only data gets its own `.text` variant instead).
  *
  * So on ELF the anchor is *defined here, at absolute zero*, and a slot is the target's own address
- * with nothing subtracted - one relocation, of the ordinary kind. Which makes the reader's `add`
- * onto the anchor an add of zero, and leaves both halves saying exactly what repr/table.h says they
- * say. It is correct for the same reason the rest of this backend's addressing is: an executable
- * built statically and not position-independent (see createMachine), whose every address fits in the
- * 32 bits a slot has. A shared library needs relative tables, which is a change to the lowering.
+ * with nothing subtracted - one relocation, of the ordinary kind. Raw output does the same with its
+ * selected image base as the absolute anchor, so a slot remains the target's offset from the start
+ * of the image. Which makes the reader's `add` onto the anchor agree with the local backend in both
+ * cases, and leaves both halves saying exactly what repr/table.h says they say. It is correct for
+ * the same reason the rest of this backend's addressing is: an executable built statically and not
+ * position-independent (see createMachine), whose every address difference fits in the 32 bits a
+ * slot has. A shared library needs relative tables, which is a change to the lowering.
+ *
+ * Raw output uses the same absolute-anchor form, but the anchor is the selected image base rather
+ * than zero. That keeps the table's 32-bit value position-independent within the flat image while
+ * allowing the object emitter to express it as one symbol relocation with a constant addend.
  *
  * Not on Mach-O, which has `X86_64_RELOC_SUBTRACTOR` and states the difference directly.
  */
-static bool anchorAtZero(Gen& gen) {
-    return gen.context.settings.format == ExecutableFormat::ELF;
+static bool anchorIsAbsolute(Gen& gen) {
+    return gen.context.settings.format == ExecutableFormat::ELF ||
+           gen.context.settings.format == ExecutableFormat::Raw;
+}
+
+static U64 anchorAddress(Gen& gen) {
+    return gen.context.settings.format == ExecutableFormat::Raw
+        ? gen.context.settings.imageBase : 0;
 }
 
 /*
@@ -494,12 +510,12 @@ static llvm::Constant* withTail(Gen& gen, llvm::Constant* initializer, U32 tail)
 
 static llvm::GlobalVariable* declareGlobal(Gen& gen, LowerGlobal& global, U32 tail) {
     auto here = &global - gen.base;
-    auto zeroAnchor = here == gen.lower.imageAnchor && anchorAtZero(gen);
+    auto absoluteAnchor = here == gen.lower.imageAnchor && anchorIsAbsolute(gen);
 
     // Declared and not defined: what stands where this names is an absolute symbol the assembler is
     // told about below, and a definition here would be a second one, in a section, at an address.
-    auto initializer = zeroAnchor ? nullptr : withTail(gen, initializerOf(gen, global, false), tail);
-    auto type = zeroAnchor ? (llvm::Type*)llvm::ArrayType::get(llvm::Type::getInt8Ty(gen.llvm), 0)
+    auto initializer = absoluteAnchor ? nullptr : withTail(gen, initializerOf(gen, global, false), tail);
+    auto type = absoluteAnchor ? (llvm::Type*)llvm::ArrayType::get(llvm::Type::getInt8Ty(gen.llvm), 0)
                            : initializer->getType();
 
     auto variable = new llvm::GlobalVariable(
@@ -512,9 +528,10 @@ static llvm::GlobalVariable* declareGlobal(Gen& gen, LowerGlobal& global, U32 ta
     // and nothing in the lower IR asks for more than a word.
     variable->setAlignment(llvm::Align(8));
 
-    if(zeroAnchor) {
+    if(absoluteAnchor) {
         char line[256];
-        auto length = format(toBuffer(line), String("\t.set \"%@\", 0\n"), gen.context.findName(global.name));
+        auto length = format(toBuffer(line), String("\t.set \"%@\", %@\n"),
+                             gen.context.findName(global.name), anchorAddress(gen));
         gen.module.appendModuleInlineAsm(llvm::StringRef(line, length));
     }
 
@@ -700,7 +717,7 @@ Ptr<llvm::Module> genModule(llvm::LLVMContext& llvm, Context& context, LowerModu
     for(auto f: module.functionOrder) declareFunction(gen, *base[f]);
 
     // Now that everything has a name, what the constant tables hold can be filled in. The anchor is
-    // skipped where it is a declaration rather than a definition - see anchorAtZero.
+    // skipped where it is a declaration rather than a definition - see anchorIsAbsolute.
     for(auto g: module.globalOrder) {
         auto variable = llvm::cast<llvm::GlobalVariable>(gen.globalOf(g));
         if(variable->isDeclaration()) continue;

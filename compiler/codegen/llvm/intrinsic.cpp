@@ -155,7 +155,11 @@ static bool stackRuntimeOf(Gen& gen, LocationId source) {
     // The symbols as the assembler sees them: Mach-O prefixes an underscore, and the data layout is
     // what says so. `.type` and `.size` only mean something to ELF.
     auto prefix = gen.module.getDataLayout().getGlobalPrefix();
-    auto elf = gen.context.settings.format == ExecutableFormat::ELF;
+    // Raw output is flattened from an ELF object as well, so its module assembly still needs the
+    // ELF-only type and size directives. The output format is raw; the intermediate object format
+    // is what matters to the assembler here.
+    auto elf = gen.context.settings.format == ExecutableFormat::ELF ||
+               gen.context.settings.format == ExecutableFormat::Raw;
 
     auto routine = [&](const char* name, const char* body) {
         std::string symbol;

@@ -106,14 +106,14 @@ void Resolver::checkPlatform(ast::Module& file) {
             if(which != DeclAttribute::Platform) continue;
 
             if(attribute.args.isEmpty()) {
-                context.diagnostics.error("`@platform` needs at least one target - a platform (`js`, `native`), an operating system, an architecture, an x86-64 level or an instruction-set extension"_v,
+                context.diagnostics.error("`@platform` needs at least one target - a platform (`js`, `native`), a system environment (`linux`, `mac`, `win32`, `bare`), an architecture, an x86-64 level or an instruction-set extension"_v,
                                           attribute.source);
                 continue;
             }
 
             for(auto argument: attribute.args.contents(parse)) {
                 if(argument.value.kind != ast::Expr::Var) {
-                    context.diagnostics.error("a `@platform` target is a bare name - `js`, `native`, an operating system, an architecture, an x86-64 level or an instruction-set extension"_v,
+                    context.diagnostics.error("a `@platform` target is a bare name - `js`, `native`, a system environment (`linux`, `mac`, `win32`, `bare`), an architecture, an x86-64 level or an instruction-set extension"_v,
                                               argument.value.source);
                     continue;
                 }
@@ -123,7 +123,7 @@ void Resolver::checkPlatform(ast::Module& file) {
                     continue;
                 }
 
-                context.diagnostics.error("unknown target %@ - expected `js`, `native`, an operating system (`linux`, `mac`, `win32`), an architecture (`x64`, `x86`, `arm`, `arm64`), an x86-64 level (`sse4`, `avx2`, `avx512`) or an instruction-set extension (`aes`, `sha`, `gfni`, ...)"_v,
+                context.diagnostics.error("unknown target %@ - expected `js`, `native`, a system environment (`linux`, `mac`, `win32`, `bare`), an architecture (`x64`, `x86`, `arm`, `arm64`), an x86-64 level (`sse4`, `avx2`, `avx512`) or an instruction-set extension (`aes`, `sha`, `gfni`, ...)"_v,
                                           argument.value.source, name);
             }
         }

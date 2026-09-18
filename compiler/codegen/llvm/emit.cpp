@@ -1,26 +1,36 @@
 #include "build.h"
 #include "../entry.h"
+#include "../raw/raw.h"
 
+#include <llvm/ADT/APInt.h>
+#include <llvm/BinaryFormat/ELF.h>
 #include <llvm/Config/llvm-config.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/MC/TargetRegistry.h>
+#include <llvm/Object/ELFObjectFile.h>
+#include <llvm/Object/ObjectFile.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/Support/Error.h>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 
 #include <cstdlib>
+#include <cstring>
+#include <limits>
+#include <unordered_map>
 #include <string>
+#include <vector>
 
 /*
  * Getting the module out.
  *
- * Everything above this file works from the lower IR alone. Everything here needs a target machine,
- * a file system and a linker, which is why it is separated: a fixture that asserts what the backend
- * generates has no business initializing a code generator, and `-mode llvm` has no business needing
- * one either.
+ * Everything above this file works from the lower IR alone. Everything here needs a target machine
+ * and a file system, which is why it is separated: a fixture that asserts what the backend generates
+ * has no business initializing a code generator, and `-mode llvm` has no business needing one either.
  */
 namespace llvmgen {
 
@@ -30,6 +40,10 @@ static llvm::StringRef toRef(const String& string) {
 
 static llvm::StringRef toRef(StringView view) {
     return { view.ptr, view.length };
+}
+
+static StringView diagnosticText(const std::string& text) {
+    return StringView { text.data(), Size(text.size()) };
 }
 
 /*
@@ -76,14 +90,15 @@ static void storeCommandLine(Context& context, llvm::Module& module, LowerModule
 /*
  * Whether this target starts itself.
  *
- * An amd64 ELF program does: the entry sequence below is eleven instructions of the architecture's
- * own assembly, and everything under it - the allocator, the file system, the clock - is already
- * written over raw system calls. Everything else keeps the C handshake, which is a real fallback
- * rather than a hypothetical one: a Mach-O or PE object is linked by a toolchain whose startup code
- * is the platform's, and this backend has no `_start` for either.
+ * A Linux x86-64 ELF or raw image does: the entry sequence below is eleven instructions of the
+ * architecture's own assembly, and everything under it - the allocator, the file system, the clock
+ * - is already written over raw system calls. Everything else keeps the C handshake, which is a real
+ * fallback rather than a hypothetical one: a Mach-O or PE object is linked by a toolchain whose
+ * startup code is the platform's, and this backend has no `_start` for either.
  */
 static bool startsItself(const CompileSettings& settings) {
-    return settings.format == ExecutableFormat::ELF && settings.arch == TargetArch::X64;
+    return settings.target == TargetType::Linux && settings.arch == TargetArch::X64 &&
+           (settings.format == ExecutableFormat::ELF || settings.format == ExecutableFormat::Raw);
 }
 
 /*
@@ -127,10 +142,10 @@ static bool startsItself(const CompileSettings& settings) {
  * loop, and did not once in the corpus - is deliberately absent: a link error naming it is a better
  * outcome than a slow one nobody measured.
  */
-static void addProcessEntry(llvm::Module& module) {
+static void addProcessEntry(llvm::Module& module, bool raw) {
     char text[4096];
     auto length = format(toBuffer(text), String(
-        "\t.text\n"
+        "%@"
         "\t.globl _start\n"
         "\t.type _start,@function\n"
         "_start:\n"
@@ -186,7 +201,8 @@ static void addProcessEntry(llvm::Module& module) {
         // Without it the linker marks the stack executable and says so, because an object with
         // assembly in it and no such note is one it cannot prove otherwise about.
         "\t.section .note.GNU-stack,\"\",@progbits\n"
-    ), kEntryStackAlignment, kSysExitGroup);
+    ), raw ? String("\t.section .text.entry,\"ax\",@progbits\n") : String("\t.text\n"),
+       kEntryStackAlignment, kSysExitGroup);
 
     module.appendModuleInlineAsm(llvm::StringRef(text, length));
 }
@@ -206,6 +222,30 @@ bool addNativeEntry(Context& context, llvm::Module& module, LowerModule& lowered
     if(!entry) {
         context.diagnostics.error("llvm: the program has no entry point %@"_v, nullptr, name);
         return false;
+    }
+
+    // A bare target deliberately has no process ABI. Its entry is an ordinary Yana function: do
+    // not manufacture argc/argv, rename it behind a C wrapper, or impose a return type. Keeping the
+    // symbol external gives a future container writer (and a debugger) a stable entry symbol; the
+    // raw writer still places its bytes first because a flat image has no symbol table.
+    if(context.settings.target == TargetType::Bare) {
+        // A raw image has no entry field. Give the ordinary entry its own first text section so the
+        // in-process object flattener can place it at byte zero even if LLVM changes the surrounding
+        // function order. ELF/PE writers may ignore this section name; the symbol remains the entry
+        // point for those containers.
+        if(context.settings.format == ExecutableFormat::Raw) entry->setSection(".text.entry");
+
+        for(auto& function: module) {
+            if(function.isDeclaration() || &function == entry) continue;
+            function.setLinkage(llvm::GlobalValue::InternalLinkage);
+        }
+
+        for(auto& global: module.globals()) {
+            if(global.isDeclaration()) continue;
+            global.setLinkage(llvm::GlobalValue::InternalLinkage);
+        }
+
+        return true;
     }
 
     if(entry->arg_size() != 0) {
@@ -311,7 +351,9 @@ bool addNativeEntry(Context& context, llvm::Module& module, LowerModule& lowered
 
     // And `main` stops being the C runtime's business, where this target has no C runtime. The
     // wrapper above is unchanged and still external - what changes is who calls it.
-    if(startsItself(context.settings)) addProcessEntry(module);
+    if(startsItself(context.settings)) {
+        addProcessEntry(module, context.settings.format == ExecutableFormat::Raw);
+    }
 
     return true;
 }
@@ -446,11 +488,11 @@ static Ptr<llvm::TargetMachine> createMachine(Context& context, llvm::Module& mo
      * An executable is placed at a known address and a shared library is not, and the difference is
      * not only about how code addresses itself: a compiler-built table holds the address of a
      * function, and a closure header holds one in front of the entry point as prefix data (see
-     * ClosureHeaderLayout). A slot is a 32-bit offset from the image anchor, which this backend
-     * places at zero - see anchorAtZero, and the reason it has to - so what an object file carries
-     * is an absolute 32-bit address. In a position-independent executable that is a relocation the
-     * loader applies at run time, and for the one in prefix data it is a write into a page of code,
-     * and so a text relocation.
+     * ClosureHeaderLayout). A slot is a 32-bit offset from the image anchor. ELF uses zero as that
+     * anchor, while raw output uses its selected image base (see anchorIsAbsolute), so the object
+     * file carries one ordinary absolute relocation rather than a difference across sections. In a
+     * position-independent executable that is a relocation the loader applies at run time, and for
+     * the one in prefix data it is a write into a page of code, and so a text relocation.
      *
      * So an executable is built the way its own tables are written: statically placed, with every
      * address resolved by the linker. A shared library has no such option and will need the tables
@@ -556,6 +598,268 @@ bool writeObjectFile(Context& context, llvm::Module& module, const String& path)
     passes.run(module);
     file.flush();
     return true;
+}
+
+/*
+ * LLVM has an object-file emitter, not a flat-binary emitter. A raw image is small enough that the
+ * missing link step can be explicit and deterministic here: copy allocatable sections with the raw
+ * entry section first, then the remaining text and data, and apply the x86-64 static relocations
+ * LLVM left for us. No undefined symbol can be meaningful in a freestanding image, and refusing
+ * one is preferable to writing a binary whose loader will discover it much later.
+ */
+bool writeRawObjectFile(Context& context, const String& objectPath, const String& outputPath,
+                        U64 imageBase) {
+    auto loaded = llvm::MemoryBuffer::getFile(toRef(objectPath));
+    if(!loaded) {
+        context.diagnostics.error("llvm: cannot read %@: %@"_v, nullptr, objectPath,
+                                  StringView { loaded.getError().message().data(),
+                                               loaded.getError().message().size() });
+        return false;
+    }
+
+    auto buffer = std::move(*loaded);
+    auto binary = llvm::object::createBinary(buffer->getMemBufferRef());
+    if(!binary) {
+        auto message = llvm::toString(binary.takeError());
+        context.diagnostics.error("llvm: cannot read raw object %@: %@"_v, nullptr, objectPath,
+                                  diagnosticText(message));
+        return false;
+    }
+
+    auto* object = llvm::dyn_cast<llvm::object::ObjectFile>(binary->get());
+    if(!object || !llvm::dyn_cast<llvm::object::ELFObjectFileBase>(object)) {
+        context.diagnostics.error("llvm: raw output currently requires an x86-64 ELF object"_v,
+                                  nullptr);
+        return false;
+    }
+
+    struct Section {
+        llvm::object::SectionRef source;
+        U64 offset = 0;
+    };
+
+    std::vector<Section> sections;
+    std::unordered_map<U64, U64> sectionOffsets;
+    std::vector<Byte> image;
+
+    auto alignUp = [](U64 value, U64 alignment, U64& result) {
+        if(alignment <= 1) {
+            result = value;
+            return true;
+        }
+
+        auto padding = alignment - 1;
+        if(value > std::numeric_limits<U64>::max() - padding) return false;
+        result = (value + padding) & ~padding;
+        return true;
+    };
+
+    // Text and read-only data come first, followed by writable data and BSS. This is a flat-image
+    // policy rather than a claim that raw output has ELF-like protections; it keeps the usual code
+    // and data separation while making the resulting bytes independent of section-header order.
+    for(U32 pass = 0; pass < 3; pass++) {
+        for(auto source: object->sections()) {
+            auto text = source.isBerkeleyText();
+            auto data = source.isBerkeleyData() || source.isBSS();
+            auto name = source.getName();
+            if(!name) {
+                auto message = llvm::toString(name.takeError());
+                context.diagnostics.error("llvm: cannot inspect raw section: %@"_v, nullptr,
+                                          diagnosticText(message));
+                return false;
+            }
+
+            auto entryText = text && *name == ".text.entry";
+            if((pass == 0 && !entryText) ||
+               (pass == 1 && (!text || entryText)) ||
+               (pass == 2 && (!data || text))) continue;
+
+            auto alignment = U64(source.getAlignment().value());
+            if(alignment == 0) alignment = 1;
+
+            U64 offset = 0;
+            if(!alignUp(U64(image.size()), alignment, offset) ||
+               offset > std::numeric_limits<size_t>::max() ||
+               source.getSize() > std::numeric_limits<size_t>::max() - size_t(offset)) {
+                context.diagnostics.error("llvm: raw image is too large"_v, nullptr);
+                return false;
+            }
+
+            image.resize(size_t(offset) + size_t(source.getSize()), 0);
+            sections.push_back(Section { source, offset });
+            sectionOffsets.emplace(source.getIndex(), offset);
+
+            if(source.isBSS() || source.getSize() == 0) continue;
+            auto contents = source.getContents();
+            if(!contents) {
+                auto message = llvm::toString(contents.takeError());
+                context.diagnostics.error("llvm: cannot read raw section: %@"_v, nullptr,
+                                          diagnosticText(message));
+                return false;
+            }
+
+            std::memcpy(image.data() + offset, contents->data(), contents->size());
+        }
+    }
+
+    if(imageBase > std::numeric_limits<U64>::max() - U64(image.size())) {
+        context.diagnostics.error("llvm: raw image does not fit at the selected image base"_v, nullptr);
+        return false;
+    }
+
+    auto writeLittle = [&](U64 site, U64 value, U32 width) -> bool {
+        if(site > image.size() || width > image.size() - size_t(site)) return false;
+        for(U32 i = 0; i < width; i++) image[size_t(site) + i] = Byte(value >> (i * 8));
+        return true;
+    };
+
+    for(auto& section: sections) {
+        for(auto relocation: section.source.relocations()) {
+            auto type = relocation.getType();
+            U32 width = 0;
+            bool pcRelative = false;
+            bool signed32 = false;
+
+            switch(type) {
+                case llvm::ELF::R_X86_64_NONE:
+                    continue;
+                case llvm::ELF::R_X86_64_64:
+                    width = 8;
+                    break;
+                case llvm::ELF::R_X86_64_PC32:
+                case llvm::ELF::R_X86_64_PLT32:
+                    width = 4;
+                    pcRelative = true;
+                    signed32 = true;
+                    break;
+                case llvm::ELF::R_X86_64_32:
+                    width = 4;
+                    break;
+                case llvm::ELF::R_X86_64_32S:
+                    width = 4;
+                    signed32 = true;
+                    break;
+                case llvm::ELF::R_X86_64_PC64:
+                    width = 8;
+                    pcRelative = true;
+                    break;
+                default: {
+                    llvm::SmallVector<char, 32> typeName;
+                    relocation.getTypeName(typeName);
+                    context.diagnostics.error("llvm: raw output cannot apply x86 relocation %@"_v,
+                                              nullptr, StringView { typeName.data(), typeName.size() });
+                    return false;
+                }
+            }
+
+            auto relocationOffset = relocation.getOffset();
+            if(relocationOffset > section.source.getSize() ||
+               width > section.source.getSize() - size_t(relocationOffset)) {
+                context.diagnostics.error("llvm: raw relocation is outside its section"_v, nullptr);
+                return false;
+            }
+
+            auto site = section.offset + relocationOffset;
+            if(site > image.size() || width > image.size() - size_t(site)) {
+                context.diagnostics.error("llvm: raw relocation is outside the image"_v, nullptr);
+                return false;
+            }
+
+            auto symbolIterator = relocation.getSymbol();
+            auto symbol = *symbolIterator;
+            auto symbolName = symbol.getName();
+            if(!symbolName) {
+                auto message = llvm::toString(symbolName.takeError());
+                context.diagnostics.error("llvm: raw relocation has no symbol: %@"_v, nullptr,
+                                          diagnosticText(message));
+                return false;
+            }
+
+            auto flags = symbol.getFlags();
+            if(!flags) {
+                auto message = llvm::toString(flags.takeError());
+                context.diagnostics.error("llvm: cannot inspect raw relocation symbol %@: %@"_v,
+                                          nullptr, StringView { symbolName->data(), symbolName->size() },
+                                          diagnosticText(message));
+                return false;
+            }
+
+            auto value = symbol.getValue();
+            if(!value) {
+                auto message = llvm::toString(value.takeError());
+                context.diagnostics.error("llvm: cannot read raw relocation symbol %@: %@"_v,
+                                          nullptr, StringView { symbolName->data(), symbolName->size() },
+                                          diagnosticText(message));
+                return false;
+            }
+
+            U64 target = 0;
+            auto targetSection = symbol.getSection();
+            if(!targetSection) {
+                auto message = llvm::toString(targetSection.takeError());
+                context.diagnostics.error("llvm: cannot locate raw relocation symbol %@: %@"_v,
+                                          nullptr, StringView { symbolName->data(), symbolName->size() },
+                                          diagnosticText(message));
+                return false;
+            }
+
+            if((*flags) & llvm::object::SymbolRef::SF_Undefined) {
+                context.diagnostics.error("llvm: raw image has undefined symbol %@"_v, nullptr,
+                                          StringView { symbolName->data(), symbolName->size() });
+                return false;
+            } else if((*flags) & llvm::object::SymbolRef::SF_Absolute) {
+                target = *value;
+            } else if(*targetSection != object->section_end()) {
+                auto found = sectionOffsets.find((*targetSection)->getIndex());
+                if(found == sectionOffsets.end()) {
+                    context.diagnostics.error("llvm: raw relocation symbol %@ is in a non-loadable section"_v,
+                                              nullptr, StringView { symbolName->data(), symbolName->size() });
+                    return false;
+                }
+
+                target = imageBase + found->second + *value;
+            } else {
+                context.diagnostics.error("llvm: raw relocation symbol %@ has no definition"_v,
+                                          nullptr, StringView { symbolName->data(), symbolName->size() });
+                return false;
+            }
+
+            auto addend = llvm::object::ELFRelocationRef(relocation).getAddend();
+            if(!addend) {
+                auto message = llvm::toString(addend.takeError());
+                context.diagnostics.error("llvm: cannot read raw relocation addend: %@"_v, nullptr,
+                                          diagnosticText(message));
+                return false;
+            }
+
+            constexpr unsigned kRelocationBits = 66;
+            auto result = llvm::APInt(kRelocationBits, target);
+            auto addendValue = llvm::APInt(64, U64(*addend));
+            result += *addend < 0 ? addendValue.sext(kRelocationBits)
+                                  : addendValue.zext(kRelocationBits);
+            if(pcRelative) result -= llvm::APInt(kRelocationBits, imageBase + site);
+
+            if(signed32 && !result.isSignedIntN(32)) {
+                context.diagnostics.error("llvm: raw relocation for %@ does not fit a signed 32-bit field"_v,
+                                          nullptr, StringView { symbolName->data(), symbolName->size() });
+                return false;
+            }
+
+            if(width == 4 && !signed32 && !result.isIntN(32)) {
+                context.diagnostics.error("llvm: raw relocation for %@ does not fit a 32-bit field"_v,
+                                          nullptr, StringView { symbolName->data(), symbolName->size() });
+                return false;
+            }
+
+            if(!writeLittle(site, result.trunc(width * 8).getZExtValue(), width)) {
+                context.diagnostics.error("llvm: cannot write raw relocation for %@"_v, nullptr,
+                                          StringView { symbolName->data(), symbolName->size() });
+                return false;
+            }
+        }
+    }
+
+    return writeRawImage(context, image.data(), image.size(), outputPath);
 }
 
 /*

@@ -42,7 +42,8 @@ void printModule(Net::Writer& writer, llvm::Module& module);
  * Native emission.
  *
  * Separated from the generation above because they need different things: everything above works
- * from the IR alone, and everything below needs a target machine, a file system and a linker.
+ * from the IR alone, and everything below needs a target machine and a file system. Executable
+ * output either links the object through the platform toolchain or flattens it for raw output.
  */
 
 // Gives the module a C-callable `main` that calls the lowered entry point and returns its result as
@@ -59,6 +60,12 @@ void optimizeModule(Context& context, llvm::Module& module, U32 level);
 
 bool writeIrFile(Context& context, llvm::Module& module, const String& path);
 bool writeObjectFile(Context& context, llvm::Module& module, const String& path);
+
+// Converts the self-contained x86-64 ELF object LLVM emitted into a flat image in-process. This is
+// intentionally not a linker invocation: raw output has no symbol or section metadata for one to
+// consume, so the small relocation set is applied against the selected image base here.
+bool writeRawObjectFile(Context& context, const String& objectPath, const String& outputPath,
+                        U64 imageBase);
 
 // Links one object file into an executable through the platform's C toolchain driver, which is what
 // supplies the startup code and the C library the runtime's syscalls stand beside.

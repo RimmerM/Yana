@@ -68,8 +68,8 @@ ast::ParsePtr<ast::Decl> declAt(ast::DeclList decls, Size index) {
  * `Storage.reserve` would have two implementations of one name and would pick by accident.
  *
  * **The vocabulary is the file selector's**, which is the same question asked of a declaration
- * instead of a file - Analysis-Modules.md §2.5. `js` and `native` are the platform axis, an
- * operating system (`linux`, `mac`, `win32`) or an architecture (`x64`, `x86`, `arm`, `arm64`) name
+ * instead of a file - Analysis-Modules.md §2.5. `js` and `native` are the platform axis, a system
+ * environment (`linux`, `mac`, `win32`, `bare`) or an architecture (`x64`, `x86`, `arm`, `arm64`) name
  * the other two, spelled the way `-target` and `-arch` spell them, and `sha` names
  * an extension no level implies. `targetSelector` is the one place any of that is decided, so an
  * attribute and a file name can never disagree about what a target is called, and `Linux.x64.yana`'s
@@ -148,7 +148,7 @@ static bool platformEnabled(Module& module, const ast::Decl& decl, bool report =
 
         if(attribute.args.isEmpty()) {
             if(report) {
-                context.diagnostics.error("`@platform` needs at least one target - a platform (`js`, `native`), an operating system, an architecture, an x86-64 level or an instruction-set extension"_v,
+                    context.diagnostics.error("`@platform` needs at least one target - a platform (`js`, `native`), a system environment (`linux`, `mac`, `win32`, `bare`), an architecture, an x86-64 level or an instruction-set extension"_v,
                                           attribute.source);
             }
 
@@ -159,7 +159,7 @@ static bool platformEnabled(Module& module, const ast::Decl& decl, bool report =
         for(auto arg: attribute.args.contents(module.parse)) {
             if(arg.value.kind != ast::Expr::Var) {
                 if(report) {
-                    context.diagnostics.error("a `@platform` target is a bare name - `js`, `native`, an operating system, an architecture, an x86-64 level or an instruction-set extension"_v,
+                    context.diagnostics.error("a `@platform` target is a bare name - `js`, `native`, a system environment (`linux`, `mac`, `win32`, `bare`), an architecture, an x86-64 level or an instruction-set extension"_v,
                                               arg.value.source);
                 }
 
@@ -171,7 +171,7 @@ static bool platformEnabled(Module& module, const ast::Decl& decl, bool report =
 
             if(answer == TargetSelector::Unknown) {
                 if(report) {
-                    context.diagnostics.error("unknown target %@ - expected `js`, `native`, an operating system (`linux`, `mac`, `win32`), an architecture (`x64`, `x86`, `arm`, `arm64`), an x86-64 level (`sse4`, `avx2`, `avx512`) or an instruction-set extension (`aes`, `sha`, `gfni`, ...)"_v,
+                    context.diagnostics.error("unknown target %@ - expected `js`, `native`, a system environment (`linux`, `mac`, `win32`, `bare`), an architecture (`x64`, `x86`, `arm`, `arm64`), an x86-64 level (`sse4`, `avx2`, `avx512`) or an instruction-set extension (`aes`, `sha`, `gfni`, ...)"_v,
                                               arg.value.source, name);
                 }
 
