@@ -157,6 +157,9 @@ fusedCompares(%a: i32x4, %b: i32x4, %c: i8x16, %d: i8x16): I32 {
 
 # An operation under a mask: `select(m, v + c, v)` is `vpaddd v{k}, v, c`, and a reduction's tail
 # `acc * select(m, v, ones)` is `vpmulld acc{k}, acc, v` - no blend and no identity register.
+#
+# The float pair at the end is the zero identity, whose merge is taken here because `%g` dies at it:
+# where it does not, the zeroing spelling stands instead - see `maskedAccumulate` below.
 maskedOps(%m: m32x4, %v: i32x4, %c: i32x4, %acc: i32x4, %f: f64x4, %g: f64x4, %n: m64x4): i32x4 {
     {
         %sum = add %v, %c: i32x4
@@ -183,4 +186,97 @@ emptyBranch(%a: i16x8, %b: i16x8, %x: I32): I32 {
 
     hit { ret %x }
     miss { ret %any }
+}
+
+# And the zero identity in the shape it is usually written in - a loop's accumulator - where the merge
+# is exactly what is *not* wanted: `vaddps acc{k}, acc, v` puts the comparison on the loop-carried
+# chain, which measured 1.39x the blend it replaced (test/bench/avx512/findings.md §6). So the masked
+# vector stays a masked vector, `vmovups v{k}{z}, v`, and the accumulate is a plain `vaddps` whose
+# chain is as long as it ever was - one instruction more than the merge and faster than either it or
+# the vector domain. See `mergeIsFree`.
+maskedAccumulate(%count: I32, %v: f32x8, %limit: f32x8): f32x8 {
+    start {
+        %f = imm 0.0f: F32
+        %zero = vsplat %f: f32x8
+        jmp head
+    }
+
+    head {
+        %acc = phi [start, %zero], [body, %next]: f32x8
+        %n = phi [start, %count], [body, %n1]: I32
+        je (cmp_le %n, 0), body, end
+    }
+
+    body {
+        %n1 = sub %n, 1: I32
+        %m = cmp_lt %v, %limit: m32x8
+        %kept = select %m, %v, %zero: f32x8
+        %next = add %acc, %kept: f32x8
+        jmp head
+    }
+
+    end {
+        ret %acc
+    }
+}
+
+# The relation that decides the bank has to be the one that will be *selected*, not the one that was
+# written: `chooseMaskDomain` runs above the operand exchange, and signed `ige` becomes `ile`, which
+# the vector domain has only the complement of. Written it looks free and is not - so this web stays
+# in `k1` and is one `vpcmpd`, where demoting it would have been `vpcmpgtd`, an all-ones vector and a
+# `vpxor`. See `wantsMaskBank`.
+selectedRelation(%a: i32x4, %b: i32x4, %c: i32x4, %d: i32x4): I32 {
+    {
+        %ge = cmp_ige %a, %b: m32x4
+        %lt = cmp_ilt %c, %d: m32x4
+        %x = vreduce_bits %ge: I32
+        %y = vreduce_bits %lt: I32
+        %r = add %x, %y: I32
+        ret %r
+    }
+}
+
+# The same accumulator as `maskedAccumulate`, one step further from its phi - the loop-carried value
+# the phi names is `%next2` and the masked operation would write `%next`. `mergeIsFree` asks only
+# whether the destination *is* a phi, which is what makes this behave like the direct shape rather
+# than walking past it into the merge.
+maskedAccumulateIndirect(%count: I32, %v: f32x8, %limit: f32x8, %w: f32x8): f32x8 {
+    start {
+        %f = imm 0.0f: F32
+        %zero = vsplat %f: f32x8
+        jmp head
+    }
+
+    head {
+        %acc = phi [start, %zero], [body, %next2]: f32x8
+        %n = phi [start, %count], [body, %n1]: I32
+        je (cmp_le %n, 0), body, end
+    }
+
+    body {
+        %n1 = sub %n, 1: I32
+        %m = cmp_lt %v, %limit: m32x8
+        %kept = select %m, %v, %zero: f32x8
+        %next = add %acc, %kept: f32x8
+        %next2 = add %next, %w: f32x8
+        jmp head
+    }
+
+    end {
+        ret %acc
+    }
+}
+
+# A mask a call answered, read by something that has to see the vector. The crossing `lowerMaskRegisters`
+# puts behind the call is read *through* by the shuffle, so nothing names it - and an unread crossing
+# still holds a `k` register and still encodes, which is why the pass sweeps them. `%m` is returned as
+# well, and reaches the `ret` as the vector the convention wants without a second round trip.
+crossedCallResult(%a: i32x4, %b: i32x4): m32x4, I32 {
+    {
+        %c = cmp_eq %a, %b: m32x4
+        %m = call_complex passMask, %c: m32x4
+        %s = vshuffle %m, %m, 3, 2, 1, 0: m32x4
+        %r = vreduce_bits %s: I32
+        ret %m, %r
+    }
 }

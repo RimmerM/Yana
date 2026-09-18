@@ -716,9 +716,10 @@ LowerCmp packedCompareRelation(LowerCmp cmp) {
  * the complement is a different byte and not a different instruction.
  */
 bool packedCompareIsInverted(LowerType type, LowerCmp cmp) {
-    // Every relation is an instruction of its own into a mask register - see the `Cmp` arm above.
-    if(maskInMaskBank()) return false;
-
+    // Asked of the operands, and therefore of the vector domain alone: a comparison that writes a mask
+    // register has every relation as an instruction of its own and inverts nothing (see the `Cmp` arm
+    // above), so it is the *result's* type that excuses a caller from asking - `chooseMaskDomain` is
+    // what makes that a question rather than a property of the target.
     if(isFloatVector(type)) return false;
     return cmp == LowerCmp::neq || cmp == LowerCmp::ile;
 }
@@ -1121,10 +1122,16 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
              */
             if(maskInMaskBank()) {
                 // A mask tested for emptiness is a scalar comparison of it - `kortestd`, which the
-                // scalar selection answers - rather than a comparison between vectors.
+                // scalar selection answers - rather than a comparison between vectors. Asked of the
+                // operand, and so before the result: this comparison answers an `I32`.
                 if(type.isMask()) return 0;
 
-                return maskCompareForm(type, ((LowerInstCmp*)inst)->getCmp(), LowerX86MaskTest::Compare);
+                // And a comparison whose mask `chooseMaskDomain` left in a mask register, which is
+                // where the eight relations are eight instructions. One it demoted has a vector for
+                // its result and takes the rows below, bias, inversion and all.
+                if(((LowerInstCmp*)inst)->result.type.isMask()) {
+                    return maskCompareForm(type, ((LowerInstCmp*)inst)->getCmp(), LowerX86MaskTest::Compare);
+                }
             }
 
             // The three the machine has only the complement of are one pseudo whatever the lane
@@ -1234,8 +1241,12 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
              * With the mask in a mask register: a mask value is `kandd` or `kandnd`, and a vector is
              * the zero-masking move where the mask is kept and the value subtracted from itself under
              * the mask where it is dropped - see the rows in machine_forms_evex.cpp.
+             *
+             * Asked of the mask operand, which is the second where the mask is kept and the first
+             * where it is dropped (see LowerInst::X86MaskAnd): one `chooseMaskDomain` demoted is a
+             * vector and takes the `pand` below with it.
              */
-            if(maskInMaskBank()) {
+            if(maskInMaskBank() && base[masked->isComplemented() ? masked->lhs : masked->rhs]->type.isMask()) {
                 if(type.isMask()) return masked->isComplemented() ? FormKAndNot : FormKAnd;
 
                 static const MachineFormId kKeep[6] = {
@@ -1247,6 +1258,16 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
 
                 return widthForm((masked->isComplemented() ? kDrop : kKeep)[laneColumn(type)], type);
             }
+
+            /*
+             * A mask result whose mask operand is a *vector* would fall through to the row below,
+             * which writes a vector where the result wants a mask register - and nothing downstream
+             * would say so, since `verifySelection` compares an instruction's locations against its
+             * form rather than a form's classes against the value types. `chooseMaskDomain` cannot
+             * build that combination (an `X86MaskAnd` pins its own web and its operand's alike), and
+             * this is what holds it to that.
+             */
+            assertTrue(!(maskInMaskBank() && type.isMask()));
 
             if(isFloatVector(type)) {
                 auto single = laneBytes(type.lane) == 4;
@@ -1316,9 +1337,12 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             auto type = ((LowerInstSelect*)inst)->result.type;
             if(!isVectorLike(type)) return 0;
 
-            // A masked move over the arm the tie keeps. A select *of* masks has been carried into
-            // the vector domain by `lowerMaskRegisters` and is a vector select here like any other.
-            if(maskInMaskBank()) {
+            // A masked move over the arm the tie keeps, where the condition is in a mask register.
+            // `chooseMaskDomain` may have put it in a vector instead - a mask that crossed a call
+            // boundary, say - and a select over one of those is the blend below, which is what every
+            // level under this one uses. A select *of* masks has been carried into the vector domain
+            // by `lowerMaskRegisters` and is a vector select here like any other.
+            if(maskInMaskBank() && base[((LowerInstSelect*)inst)->cmp]->type.isMask()) {
                 static const MachineFormId kSelect[6] = {
                     FormKSelect8, FormKSelect16, FormKSelect32, FormKSelect64, FormKSelectF32, FormKSelectF64,
                 };

@@ -300,6 +300,7 @@ void expandVectorMulHi(Context&, LowerBase base, LowerFunction& fun);
 void scalarizeVectorLanes(Context&, LowerBase base, LowerFunction& fun);
 void expandFusedMultiplyAdd(Context&, LowerBase base, LowerFunction& fun);
 void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun);
+void chooseMaskDomain(Context&, LowerBase base, LowerFunction& fun);
 void lowerMaskRegisters(Context&, LowerBase base, LowerFunction& fun);
 void fuseMaskRegisters(Context&, LowerBase base, LowerFunction& fun);
 void expandRoundAway(Context&, LowerBase base, LowerFunction& fun);

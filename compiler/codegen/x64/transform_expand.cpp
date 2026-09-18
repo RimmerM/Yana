@@ -1261,10 +1261,10 @@ void expandFusedMultiplyAdd(Context&, LowerBase base, LowerFunction& fun) {
  * any loop it stands in.
  */
 void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun) {
-    // A comparison into a mask register has every unsigned relation as a predicate of its own
+    // A comparison *into a mask register* has every unsigned relation as a predicate of its own
     // (`vpcmpud` and siblings), so there is nothing to bias - see the `Cmp` arm of selectPackedForm.
-    if(maskInMaskBank()) return;
-
+    // Which comparisons those are is `chooseMaskDomain`'s answer and is asked of each below, rather
+    // than of the target here: a web it demoted is in the vector domain and pays the bias like any.
     auto signedForm = [](LowerCmp cmp) {
         switch(cmp) {
             case LowerCmp::lt: return LowerCmp::ilt;
@@ -1287,6 +1287,7 @@ void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun) {
             auto relation = signedForm(cmp->getCmp());
 
             if(relation == cmp->getCmp() || !isIntVector(type)) { i++; continue; }
+            if(maskInMaskBank() && cmp->result.type.isMask()) { i++; continue; }
 
             /*
              * The two non-strict relations, as a minimum or a maximum against one of the operands -
@@ -2523,6 +2524,278 @@ void expandLaneCountConversions(Context&, LowerBase base, LowerFunction& fun) {
     }
 }
 
+// Whether a mask flows through this instruction unchanged, so that its result and the masks it reads
+// are one web and take one bank between them. A select is here for its *arms*; its condition is a use
+// like any other, and is asked about where the uses are.
+static bool maskFlowsThrough(LowerInst* inst) {
+    switch(inst->kind) {
+        case LowerInst::And:
+        case LowerInst::Or:
+        case LowerInst::Xor:
+        case LowerInst::Not:
+        case LowerInst::Phi:
+        case LowerInst::Select:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+// Which operand of a select is the condition it reads as a mask, rather than one of the two arms it
+// chooses between. Named because two passes here have to agree about it.
+static const Size kSelectCondition = 2;
+
+// Whether this use of `value` is the select's condition - the one use of a mask that wants a mask
+// register, everything else a select reads being a value it copies.
+static bool isSelectCondition(LowerBase base, LowerInst* inst, LowerValue* value) {
+    return inst->kind == LowerInst::Select && base[((LowerInstSelect*)inst)->cmp] == value;
+}
+
+/*
+ * Which bank each mask lives in, decided per web by what reads it - Analysis-Avx512.md §2.1.
+ *
+ * `maskInMaskBank` says the target *has* mask registers; it does not say that every mask belongs in
+ * one. A `k` register is worth having where something reads it as one - a select's condition, and
+ * behind it the masked operations `fuseMaskRegisters` builds - and where the comparison that fills it
+ * is a relation the vector domain can only reach by biasing or inverting it. Where nothing does, it
+ * costs a transfer at each end and buys an instruction count that is not what the time is made of.
+ *
+ * §2.1 named that trade when the level was designed and left it to be measured. It was, in
+ * test/bench/avx512/findings.md §6: holding every mask in `k` cost 1.50-1.61x on `countChars` and
+ * `isValidUtf8`, whose masks are two comparisons joined by an `or` and then reduced to bits. Four
+ * instructions there against the vector domain's six, and half again the time - what the two extra
+ * instructions buy is that nothing crosses banks.
+ *
+ * So a web that has no reason to be in the mask bank is given the vector registers a mask gets at
+ * every level below this one. **The demotion is the type**: `m8x32` becomes `i8x32`, and `bankForType`,
+ * `classForType`, the form tables and the movemask's shift all read the type and need no further
+ * telling. Nothing is inserted and nothing crosses, because a web is closed under the instructions a
+ * mask flows through - so it moves whole or not at all.
+ *
+ * **A whitelist of consumers, and the direction of its default is the point.** `lowerMaskRegisters`
+ * below makes the same choice the other way round and for the same reason: a consumer not named here
+ * leaves its web where the level put it, which is where it is known to work, while one named here
+ * wrongly would reach selection with a vector operand whose form reads a mask register.
+ *
+ * **Below `lowerVectorReductions`, which is the ordering that matters.** A reduction of a mask asks
+ * how many of its lanes are set; a reduction of a vector adds the lanes up. They are the same
+ * instruction and not the same question, so a bank chosen while `vreduce_or` still stood would have
+ * been answering the second where the program asked the first. Under that pass every mask is reduced
+ * through its movemask and nothing is left that reads a mask lane as a number - which is why the only
+ * reduction named below is `Bits`.
+ *
+ * The same pass writes the shift a movemask's consumers pay, out of `maskBitsPerLane` and this same
+ * type, and it has already run: a mask register's movemask is a bit per lane at every width, where
+ * `vpmovmskb` is a bit per *byte* and a 16-bit lane is worth two of them. So a web of word lanes is
+ * left where it is - demoting it would divide a bitmap that was never multiplied, and the shift it
+ * would have to pay is the instruction the bank was going to save.
+ *
+ * A mask built by a pass below this one is not offered the choice and keeps its mask register, which
+ * is the safe direction again.
+ *
+ * **A returned mask is a vector, and that one is not a choice.** The bank a result arrives in comes
+ * from its type (`classifyArgs`, `bankForType`), so a caller and a callee that decided differently
+ * would not be speaking the same convention - and neither can see the other's webs. So it is fixed
+ * in every function, by `lowerMaskRegisters` below, which crosses a `ret` and a call's result the
+ * way it crosses a shuffle. It is the rule the design already states for a mask in *memory* - "the
+ * vector at every level", §2.1 - said of the other place a mask sits where nothing reads it as a
+ * mask register.
+ *
+ * Which makes a returned mask free to this pass rather than a verdict on the web behind it: a web
+ * that demotes meets the `ret` already in a vector and crosses nothing, and one that stays pays a
+ * single crossing there and keeps every fusion §2.2 gives it. An *argument* is not crossed and is
+ * still a reason to stay, which is the asymmetry `lowerMaskRegisters` explains.
+ *
+ * It is also where the measurement points. `utf8BlockErrors` returns a mask, which used to hold its
+ * whole web - fourteen byte comparisons and the `kand`/`kor` tree over them - in mask registers,
+ * four instructions *fewer* than the vector domain and 1.54x the time
+ * (test/bench/avx512/compares.cc). Writing a mask register is not what a vector comparison is
+ * fastest at, and a tree of them is where that shows.
+ */
+void chooseMaskDomain(Context&, LowerBase base, LowerFunction& fun) {
+    if(!maskInMaskBank()) return;
+
+    using ValueChain = SmallArray<LowerValue*, 8>;
+
+    // Every mask already placed, so that each web is walked once however many of its values a block
+    // walk reaches first.
+    ValueChain decided;
+    ValueChain web;
+
+    auto contains = [](ValueChain& chain, LowerValue* value) {
+        for(auto seen: chain) {
+            if(seen == value) return true;
+        }
+
+        return false;
+    };
+
+    // The whole web `start` belongs to, flooded in both directions: two masks joined by an `or` take
+    // one bank whichever of them this reaches first.
+    auto collect = [&](LowerValue* start) {
+        web.clear();
+        web.push(start);
+
+        for(Size i = 0; i < web.size(); i++) {
+            auto value = web[i];
+
+            auto join = [&](LowerValue* other) {
+                if(other->type.isMask() && !contains(web, other)) web.push(other);
+            };
+
+            // Up, into what the instruction that produced it read.
+            auto producer = value->inst();
+
+            if(maskFlowsThrough(producer)) {
+                auto used = producer->used();
+
+                for(Size k = 0; k < used.size(); k++) {
+                    if(producer->kind == LowerInst::Select && k == kSelectCondition) continue;
+                    join(base[used[k]]);
+                }
+            }
+
+            // And down, into what reads it - where that is an instruction it flows through rather
+            // than one that consumes it.
+            for(auto user: value->uses.contents(base)) {
+                auto inst = base[user];
+                if(!maskFlowsThrough(inst) || inst->createdCount != 1) continue;
+                if(isSelectCondition(base, inst, value)) continue;
+
+                join(&((LowerInstSingle*)inst)->result);
+            }
+        }
+    };
+
+    // The four relations the vector domain reaches only through the sign bias, which is two pooled
+    // exclusive-ors in front of the comparison - see `biasUnsignedPackedCompares`.
+    auto isBiasedRelation = [](LowerType operands, LowerCmp relation) {
+        if(!isIntVector(operands)) return false;
+
+        return relation == LowerCmp::lt || relation == LowerCmp::le
+            || relation == LowerCmp::gt || relation == LowerCmp::ge;
+    };
+
+    // Whether anything in the web wants it in a mask register - see the note above.
+    auto wantsMaskBank = [&]() {
+        for(auto value: web) {
+            auto producer = value->inst();
+
+            /*
+             * What made it. A comparison between vectors is the ordinary answer and is here for its
+             * relation: six of the eight are one `vpcmp` in this bank and three instructions and a
+             * pooled constant in the other, which is most of what §2.1's table counts.
+             *
+             * A load and a call's result are crossings wherever they land, so neither is a reason
+             * either way and both fall through to the consumers. Everything else - an argument, a
+             * lane read, a splat - keeps its web where the level put it. Nothing is skipped here:
+             * the uses of every value are asked whatever made it.
+             */
+            auto crosses = producer->kind == LowerInst::Load || producer->kind == LowerInst::Call;
+
+            if(!maskFlowsThrough(producer) && !crosses) {
+                if(producer->kind != LowerInst::Cmp) return true;
+
+                auto compare = (LowerInstCmp*)producer;
+                auto operands = base[compare->lhs]->type;
+                auto relation = compare->getCmp();
+
+                /*
+                 * Asked of the relation as it will be *selected*, not as it was written: this pass
+                 * runs well above `canonicalizeOperands`, and `packedCompareRelation` exchanges the
+                 * operands of four of the eight on the way down. `ige` is the one that matters -
+                 * written it looks free, selected it is `ile`, which the vector domain has only the
+                 * complement of. `foldComplementedCompare` asks the same question the same way.
+                 */
+                auto selected = packedCompareRelation(relation);
+
+                if(!isWholePackedRegister(operands)) return true;
+                if(packedCompareIsInverted(operands, selected)) return true;
+                if(isBiasedRelation(operands, selected)) return true;
+            }
+
+            // A complement, which is one `knot` against an exclusive-or and the all-ones vector that
+            // has to be held live for it.
+            if(producer->kind == LowerInst::Not) return true;
+
+            for(auto user: value->uses.contents(base)) {
+                auto inst = base[user];
+
+                /*
+                 * The movemask, which is one instruction in either bank - `kmovd` against `vpmovmskb`
+                 * - and is therefore no reason to be in one. Only that one: every other reduction has
+                 * been lowered into it by now, and a `VecReduce` still standing over a mask here is
+                 * one this pass does not know the shape of.
+                 */
+                if(inst->kind == LowerInst::VecReduce
+                && ((LowerInstVecReduce*)inst)->getReduce() == LowerReduce::Bits) {
+                    // Except at a word lane, where the two banks do not agree about what one lane
+                    // is worth and the shift that divides them out has already been written - see
+                    // the note above.
+                    if(laneBytes(value->type.lane) == 2) return true;
+                    continue;
+                }
+
+                /*
+                 * A mask in memory is the vector it is at every level, so a store of one crosses
+                 * through a scratch register in this bank (`vpmovm2b` and `vmovdqu`, two instructions)
+                 * and is a plain vector store in the other. Demoting is what takes the crossing out,
+                 * so this asks for it rather than against it. The matching *load* is asked about with
+                 * the producers - a load's own operand is its address and is never a mask.
+                 */
+                if(inst->kind == LowerInst::Store) continue;
+
+                // And a `ret`, where a mask is a vector whatever this web decides, so that a web
+                // demoted to one crosses nothing at all. A call's *arguments* are not here: those
+                // still travel in mask registers - see `lowerMaskRegisters` on the asymmetry.
+                if(inst->kind == LowerInst::Ret) continue;
+
+                // A mask that flows on is the web's own business, its use as a select's condition
+                // excepted: that one is read as a mask register, and is the reason to be in one.
+                if(maskFlowsThrough(inst) && inst->createdCount == 1 && !isSelectCondition(base, inst, value)) {
+                    continue;
+                }
+
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    // One web, from whichever of its values was reached first.
+    auto decide = [&](LowerValue* value) {
+        if(!value->type.isMask() || contains(decided, value)) return;
+
+        collect(value);
+
+        for(auto member: web) decided.push(member);
+        if(wantsMaskBank()) return;
+
+        for(auto member: web) member->type = vectorType(member->type.lane, member->type.lanes());
+    };
+
+    /*
+     * The arguments first, and separately: an argument is an instruction of no block (`LowerFunction::
+     * args` holds them), so the walk below never reaches one. Seeding from them is what makes the
+     * boundary rule symmetric - a callee that never looked at its own argument would keep the mask
+     * register its caller had already decided to pass in a vector, which is two conventions.
+     */
+    for(auto argument: fun.args.contents(base)) decide(&base[argument]->result);
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->createdCount != 1) continue;
+
+            decide(&((LowerInstSingle*)inst)->result);
+        }
+    }
+}
+
 /*
  * A mask carried into and out of a mask register where it meets an operation that has no mask-register
  * spelling - Analysis-Avx512.md §2.1.
@@ -2541,6 +2814,21 @@ void expandLaneCountConversions(Context&, LowerBase base, LowerFunction& fun) {
  * produces is crossed back. `vpmovm2d` and `vpmovd2m` are one instruction each, so a crossing is never
  * worse than the vector-domain spelling it stands for by more than that; what the rest of a mask's
  * life saves is the reason to live in the register.
+ *
+ * **A returned mask is crossed too, and for a different reason.** A result is not an operation that
+ * cannot take a mask - the convention could return one perfectly well - but the bank it arrives in
+ * comes from its *type* (`classifyArgs`, `bankForType`), which a caller and a callee read separately
+ * and cannot negotiate. So the two sides agree by there being nothing to agree about: a returned mask
+ * is the vector it is in memory, and each side crosses it for itself - the callee at its `ret`, the
+ * caller at the call's result. `chooseMaskDomain` above is what makes that cheap, since a web it
+ * demoted arrives in a vector already and crosses nothing here.
+ *
+ * **The argument half of the convention is left alone, and the asymmetry is deliberate.** It buys
+ * much less - a mask argument is usually a mask *because* the callee selects or masks with it, which
+ * is what §2.2's fusions need - and it cannot be spelled here anyway: an argument is defined outside
+ * every block, so a crossing at the top of the entry block is a use with no definition reaching it
+ * (`buildRanges` says why). The two halves stay consistent because each is decided by one rule that
+ * both sides apply.
  *
  * **A whitelist, and the direction of the default is the point.** An operation not named here is
  * crossed, which costs a register transfer where it was not needed; one named here wrongly would reach
@@ -2569,9 +2857,12 @@ void lowerMaskRegisters(Context&, LowerBase base, LowerFunction& fun) {
             case LowerInst::Phi:
             case LowerInst::Arg:
             case LowerInst::Call:
-            case LowerInst::Ret:
             case LowerInst::X86MaskConvert:
                 return true;
+
+            // `Ret` is deliberately absent, and is not an omission: a terminator is not one of the
+            // block's instructions, so this is never asked about one. It is crossed below.
+
 
             // A select reads its condition out of a mask register and nothing else: one whose arms
             // are masks is carried across whole, the condition excepted.
@@ -2585,11 +2876,79 @@ void lowerMaskRegisters(Context&, LowerBase base, LowerFunction& fun) {
 
     auto vectorOf = [](LowerType mask) { return vectorType(mask.lane, mask.lanes()); };
 
+    /*
+     * The vector a mask was just crossed in from, where there is one - the chain a shuffle of a mask
+     * read by a lane access makes, and the one a call's crossed result makes when every reader of it
+     * is crossed too. Reading it is what stops a value going back out the way it came in.
+     */
+    auto vectorBehind = [&](LowerValue* value) -> LowerValue* {
+        auto producer = value->inst();
+        if(producer->kind != LowerInst::X86MaskConvert) return nullptr;
+        if(((LowerInstX86MaskConvert*)producer)->isToVector()) return nullptr;
+
+        auto source = base[((LowerInstX86MaskConvert*)producer)->from];
+        return source->type == vectorOf(value->type) ? source : nullptr;
+    };
+
+    // Every reader of `result` reading `with` instead, the use lists and the operand arrays both.
+    auto handOver = [&](LowerValue& result, LowerValue* with) {
+        InstChain readers;
+        for(auto user: result.uses.contents(base)) readers.push(base[user]);
+
+        for(auto reader: readers) {
+            if(reader == with->inst()) continue;
+
+            replaceUse(base, &result, reader, with);
+
+            auto operands = reader->used();
+            for(Size k = 0; k < operands.size(); k++) {
+                if(base[operands[k]] == &result) operands[k] = with - base;
+            }
+        }
+    };
+
+    /*
+     * A mask result carried back into a mask register, behind the instruction that produced it as a
+     * vector - the instruction retyped to the vector of the same lanes, and every reader of it
+     * reading the crossing instead. Answers how many instructions went in, so the walk can step past
+     * them.
+     *
+     * Each result rather than a lone one, because a call may answer several and a mask among them is
+     * the convention's question: one left as a mask here would be read out of a mask register by a
+     * caller whose callee had returned it in a vector.
+     */
+    auto crossResults = [&](LowerBlock* block, Size at, LowerInst* inst) {
+        Size inserted = 0;
+
+        for(Size r = 0; r < inst->createdCount; r++) {
+            auto& result = inst->created()[r];
+            auto mask = result.type;
+            if(!mask.isMask()) continue;
+
+            result.type = vectorOf(mask);
+
+            auto convert = new (fun.arena) LowerInstX86MaskConvert(result.name, mask, &result - base, false);
+            insertInstAt(base, block, at + 1 + inserted, convert);
+            handOver(result, &convert->result);
+            inserted++;
+        }
+
+        return inserted;
+    };
+
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
 
         for(Size i = 0; i < block->instructions.size(); i++) {
             auto inst = base[block->instructions.get(base, i)];
+
+            // A call, whose *result* is a boundary although its arguments are not - see the note
+            // above on why the two halves of the convention are answered separately.
+            if(inst->kind == LowerInst::Call) {
+                i += crossResults(block, i, inst);
+                continue;
+            }
+
             if(lives(inst)) continue;
 
             // Every mask operand out of its register, in front of the instruction. A select keeps
@@ -2601,18 +2960,9 @@ void lowerMaskRegisters(Context&, LowerBase base, LowerFunction& fun) {
                 if(!value->type.isMask()) continue;
                 if(inst->kind == LowerInst::Select && k == 2) continue;
 
-                /*
-                 * A mask that was itself just crossed in from a vector of the same lanes has that
-                 * vector standing already, which is the chain a shuffle of a mask read by a lane
-                 * access makes - so it is read rather than crossed back out a second time.
-                 */
-                LowerValue* vector = nullptr;
-                auto producer = value->inst();
-
-                if(producer->kind == LowerInst::X86MaskConvert && !((LowerInstX86MaskConvert*)producer)->isToVector()) {
-                    auto source = base[((LowerInstX86MaskConvert*)producer)->from];
-                    if(source->type == vectorOf(value->type)) vector = source;
-                }
+                // A mask that was itself just crossed in from a vector of the same lanes is read
+                // rather than crossed back out a second time - see `vectorBehind`.
+                auto vector = vectorBehind(value);
 
                 if(!vector) {
                     auto convert = new (fun.arena) LowerInstX86MaskConvert(StringId(), vectorOf(value->type), value - base, true);
@@ -2630,32 +2980,68 @@ void lowerMaskRegisters(Context&, LowerBase base, LowerFunction& fun) {
                 }
             }
 
-            // And a mask result back into one, behind it. The instruction is retyped to the vector of
-            // the same lanes and every reader of the mask reads the crossing instead.
-            if(inst->createdCount == 1 && inst->created()[0].type.isMask()) {
-                auto& result = inst->created()[0];
-                auto mask = result.type;
+            // And past whatever crossing its results needed, which read nothing that needs carrying.
+            i += crossResults(block, i, inst);
+        }
 
-                InstChain readers;
-                for(auto user: result.uses.contents(base)) readers.push(base[user]);
+        /*
+         * And the return, which is the block's terminator rather than one of its instructions - so
+         * the walk above never reaches it, and the whitelist never speaks about it. Its mask operands
+         * cross into vectors at the end of the block, in front of it, because the bank a result is
+         * read out of is the convention's and not this function's: see the note above.
+         */
+        auto terminator = base[block->terminator];
+        if(terminator->kind != LowerInst::Ret) continue;
 
-                result.type = vectorOf(mask);
+        auto results = terminator->used();
 
-                auto convert = new (fun.arena) LowerInstX86MaskConvert(result.name, mask, &result - base, false);
-                insertInstAt(base, block, i + 1, convert);
+        for(Size k = 0; k < results.size(); k++) {
+            auto value = base[results[k]];
+            if(!value->type.isMask()) continue;
 
-                for(auto reader: readers) {
-                    replaceUse(base, &result, reader, &convert->result);
+            // The vector it was crossed in from, where there is one, rather than a second crossing
+            // straight back to it - a mask a call answered and this `ret` hands on would otherwise
+            // make the round trip for nothing.
+            auto vector = vectorBehind(value);
 
-                    auto operands = reader->used();
-                    for(Size k = 0; k < operands.size(); k++) {
-                        if(base[operands[k]] == &result) operands[k] = &convert->result - base;
-                    }
-                }
-
-                // Past the crossing, which reads nothing that needs carrying.
-                i++;
+            if(!vector) {
+                auto convert = new (fun.arena) LowerInstX86MaskConvert(StringId(), vectorOf(value->type), value - base, true);
+                insertInstAt(base, block, block->instructions.size(), convert);
+                vector = &convert->result;
             }
+
+            // One crossing per mask rather than per operand, as above: a `ret` naming the same mask
+            // twice reads a single vector twice.
+            for(Size same = k; same < results.size(); same++) {
+                if(base[results[same]] != value) continue;
+
+                replaceUse(base, value, terminator, vector);
+                results[same] = vector - base;
+            }
+        }
+    }
+
+    /*
+     * And the crossings that ended up with no readers, which the read-through above is what creates:
+     * a call's mask result is crossed on the way out and then every reader of it reads the vector
+     * behind the crossing instead, leaving one nothing names. Nothing below this pass sweeps a mask
+     * register instruction, so an unread `vpmovd2m` would be allocated a `k` register and encoded.
+     *
+     * Swept at the end rather than as each reader moves, because the last reader of one crossing may
+     * be an instruction two blocks further on.
+     */
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); ) {
+            auto inst = base[block->instructions.get(base, i)];
+
+            if(inst->kind != LowerInst::X86MaskConvert || !((LowerInstSingle*)inst)->result.uses.isEmpty()) {
+                i++;
+                continue;
+            }
+
+            removeInst(base, inst);
         }
     }
 }

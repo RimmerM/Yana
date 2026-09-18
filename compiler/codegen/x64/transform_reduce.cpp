@@ -1051,6 +1051,11 @@ static bool foldComplementedCompare(LowerBase base, LowerValue* source) {
     auto inst = source->inst();
     if(inst->kind != LowerInst::Cmp) return false;
 
+    // Nothing to complement in a mask register, where every relation has an instruction - and the
+    // two questions below would answer for the vector domain whatever bank this mask is in, since
+    // `packedCompareIsInverted` reads the operands. See `chooseMaskDomain`.
+    if(source->type.isMask() && maskInMaskBank()) return false;
+
     auto cmp = (LowerInstCmp*)inst;
     auto type = base[cmp->lhs]->type;
     if(!isIntVector(type)) return false;
@@ -1775,6 +1780,46 @@ static bool constantLanesAreOne(LowerBase base, LowerValue* vector, InstChain& c
     return true;
 }
 
+/*
+ * Whether merging into `destination` is free, or whether the zero-masking spelling beside it is the
+ * cheaper one - Analysis-Avx512.md §2.2, measured in test/bench/avx512/findings.md §6.
+ *
+ * A masked operation keeps the lanes its mask clears, so the destination is one of its inputs and the
+ * mask stands on the path to every lane it writes: `vaddps acc{k}, acc, v` cannot begin before `k` is
+ * known. Where `acc` is a loop's accumulator that is the loop-carried chain, and the comparison joins
+ * it once per iteration - 3.09 cycles an iteration against the 2.23 of the `vandps`/`vaddps` pair it
+ * replaced, which is the one shape the level was measured losing on.
+ *
+ * The spelling that is not a merge zeroes the *addend* instead - `vmovups v{k}{z}, v` and then a plain
+ * add - which is one instruction more and leaves the accumulator's chain exactly as long as it was:
+ * 2.09 cycles, under the vector domain's own. Nothing here has to build it, because it is what the
+ * `X86MaskAnd` being folded in already selects (FormKKeep, and a memory twin with it). So declining
+ * the fusion *is* emitting it, and only the zero arm has one to decline in favour of - an identity of
+ * ones or of the accumulator itself is the merge or it is nothing.
+ *
+ * Which leaves the merge the case it is free in: straight-line code whose destination dies here, so
+ * the tie copies nothing and there is no cycle for the mask to lengthen.
+ */
+static bool mergeIsFree(LowerBase base, LowerValue* destination) {
+    // Live past this instruction: the tie has to copy it first, which is the instruction the zeroing
+    // move would have been - and the mask joins the chain on top of that.
+    if(destination->uses.size() != 1) return false;
+
+    /*
+     * And a phi, which is what a loop's accumulator is. Its one use is this instruction, so the count
+     * above cannot see it: what the merge costs there is not a copy but the cycle, every turn of which
+     * now waits for the mask.
+     *
+     * Any phi, without asking whether this instruction's result is the value that flows back into it.
+     * That test was here and was wrong by one step - `next = acc OP{m} v` followed by `next2 = next +
+     * w`, with the phi naming `next2`, walked straight past it, and so does a copy or a second phi in
+     * a jump-only latch. Telling a loop phi from an `if`/`else` one needs the loop analysis, which
+     * this pass does not build, and the two mistakes are not the same size: declining a free merge
+     * costs one instruction once, while taking one on a loop-carried chain costs a cycle an iteration.
+     */
+    return destination->inst()->kind != LowerInst::Phi;
+}
+
 void fuseMaskRegisters(Context&, LowerBase base, LowerFunction& fun) {
     if(!maskInMaskBank()) return;
 
@@ -2093,6 +2138,11 @@ void fuseMaskRegisters(Context&, LowerBase base, LowerFunction& fun) {
                                   : constantLanesEqual(base, other, 0, chain);
 
                     if(!identity) continue;
+
+                    // And the zeroing spelling wherever the merge would cost more than the
+                    // instruction it saves - see `mergeIsFree`, which is also why only the zero arm
+                    // asks.
+                    if(zeroArm && !mergeIsFree(base, accumulator)) continue;
 
                     auto signedLanes = isMinMax && ((LowerInstX86MinMax*)inst)->isSignedLanes();
                     auto max = isMinMax && ((LowerInstX86MinMax*)inst)->isMax();

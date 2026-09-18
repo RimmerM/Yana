@@ -570,6 +570,15 @@ static const TransformPass kTransformPipeline[] = {
 
     // After the reduction, whose unsigned minimum and maximum are comparisons this then biases, and
     // before canonicalizeOperands, which is what exchanges the signed relations it produces.
+    /*
+     * Above the three passes that read the bank - the bias here, and the two mask-register passes
+     * below - and below every pass that changes what a mask *is*. `lowerVectorReductions` is the one
+     * that has to be above it rather than the one it has to be above: a reduction of a mask asks how
+     * many lanes are set and a reduction of a vector adds them up, so a bank chosen while the two are
+     * still one instruction would be choosing between two different questions. Under it every mask is
+     * reduced through the movemask and nothing is left that reads a mask lane as a number.
+     */
+    { "chooseMaskDomain"_v,            chooseMaskDomain,            0, true },
     { "biasUnsignedPackedCompares"_v,  biasUnsignedPackedCompares,  0, true },
 
     /*
