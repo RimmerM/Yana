@@ -51,6 +51,7 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Imm:        return OpImm;
         case LowerInst::Nop:        return OpNop;
         case LowerInst::VZeroUpper: return OpVZeroUpper;
+        case LowerInst::VZeroAll:   return OpVZeroAll;
         case LowerInst::Set:        return OpMove;
         case LowerInst::Cast:       return OpCast;
         case LowerInst::Bitcast:    return OpBitcast;
@@ -535,6 +536,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         // One form, and the only one this kind ever has: it is a whole instruction with no operands,
         // so there is nothing for `selectPackedForm` above to have chosen between.
         case LowerInst::VZeroUpper: return FormVZeroUpper;
+        case LowerInst::VZeroAll:   return FormVZeroAll;
         case LowerInst::Arg:        return FormArg;
         case LowerInst::Phi:        return FormPhi;
         case LowerInst::X86Address: return FormAddress;

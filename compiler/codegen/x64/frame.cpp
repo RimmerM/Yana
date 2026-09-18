@@ -389,7 +389,9 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
         // Everything the prologue moves rsp by, including the return address the call pushed, has to
         // add up to a multiple of the alignment - that is what turns "rsp was aligned when we were
         // called" into "rsp is aligned when we call".
-        auto prologueBytes = 8 + (layout.framePointer ? 8 : 0) + 8 * savedCount + localBase + size;
+        auto returnAddress = fun.callType == LowerCallType::X86Interrupt ? 0 : 8;
+        auto prologueBytes = returnAddress + (layout.framePointer ? 8 : 0) + 8 * savedCount
+            + localBase + size;
         padding = alignUp(prologueBytes, alignment) - prologueBytes;
     }
 
@@ -410,7 +412,10 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
     // An incoming argument sits in the caller's frame, above the return address the call pushed.
     // With a frame pointer that is a fixed distance from rbp; without one it is measured from where
     // rsp came to rest, so it moves with everything the prologue did.
-    auto incomingBase = layout.framePointer ? I32(16) : I32(8 + 8 * savedCount + layout.fixedSize);
+    auto incomingBase = layout.framePointer
+        ? I32(fun.callType == LowerCallType::X86Interrupt ? 8 : 16)
+        : I32((fun.callType == LowerCallType::X86Interrupt ? 0 : 8)
+              + 8 * savedCount + layout.fixedSize);
 
     for(Size i = 0; i < frame.slots.size(); i++) {
         auto& slot = frame.slots[i];

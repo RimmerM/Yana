@@ -423,6 +423,7 @@ enum: MachineFormId {
     FormVStore, FormVStoreInt,
 
     FormVZeroUpper,
+    FormVZeroAll,
 
     /*
      * The 256-bit tier - see `MachineForm::wide`.

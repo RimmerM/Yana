@@ -200,6 +200,7 @@ MachineTarget::MachineTarget() {
     name(OpRound, "round"_v);
     name(OpFma, "fma"_v);
     name(OpVZeroUpper, "vzeroupper"_v);
+    name(OpVZeroAll, "vzeroall"_v);
 
     name(OpFAdd, "fadd"_v);
     name(OpFSub, "fsub"_v);

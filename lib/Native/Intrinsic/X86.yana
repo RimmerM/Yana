@@ -100,6 +100,58 @@ module Native
    that caller and is where it shows.
 -}
 @builtin(x86Crc32) @platform(x64) pub fn X86.crc32(remainder: U64, chunk: U64) -> U64
+@builtin(x86Nop) @platform(x64) pub fn X86.nop() -> {}
+@builtin(x86Lretq) @platform(x64) pub fn X86.lretq(codeSegment: U16) -> {}
+
+{-
+   The x86 system and machine-state instructions. These are exposed as raw operations because their
+   meaning is the processor's rather than the language's. The fixed-register instructions that
+   return more than one scalar write through caller-provided pointers so one source call still
+   emits exactly one instruction. `lretq` is the deliberate exception: its backend constructs a
+   same-privilege far-return frame for the supplied code selector and resumes after that frame, so
+   a source call changes CS without requiring a naked function or exposing the temporary stack use.
+-}
+@builtin(x86Cpuid) @platform(x64) pub fn X86.cpuid(leaf: U32, subleaf: U32, eax: %U32, ebx: %U32, ecx: %U32, edx: %U32) -> {}
+@builtin(x86Rdtscp) @platform(x64) pub fn X86.rdtscp(low: %U32, high: %U32) -> {}
+@builtin(x86Rdtsc) @platform(x64) pub fn X86.rdtsc() -> U64
+@builtin(x86MFence) @platform(x64) pub fn X86.mfence() -> {}
+@builtin(x86LFence) @platform(x64) pub fn X86.lfence() -> {}
+@builtin(x86SFence) @platform(x64) pub fn X86.sfence() -> {}
+@builtin(x86Pause) @platform(x64) pub fn X86.pause() -> {}
+@builtin(x86Prefetch) @platform(x64) pub fn X86.prefetch(address: %U8) -> {}
+@builtin(x86PrefetchNta) @platform(x64) pub fn X86.prefetchnta(address: %U8) -> {}
+@builtin(x86Clflush) @platform(x64) pub fn X86.clflush(address: %U8) -> {}
+@builtin(x86Invlpg) @platform(x64) pub fn X86.invlpg(address: %U8) -> {}
+@builtin(x86Hlt) @platform(x64) pub fn X86.hlt() -> {}
+@builtin(x86Cli) @platform(x64) pub fn X86.cli() -> {}
+@builtin(x86Sti) @platform(x64) pub fn X86.sti() -> {}
+@builtin(x86Swapgs) @platform(x64) pub fn X86.swapgs() -> {}
+@builtin(x86Rdmsr) @platform(x64) pub fn X86.rdmsr(msr: U32, low: %U32, high: %U32) -> {}
+@builtin(x86Wrmsr) @platform(x64) pub fn X86.wrmsr(msr: U32, low: U32, high: U32) -> {}
+@builtin(x86Xgetbv) @platform(x64) pub fn X86.xgetbv(index: U32, low: %U32, high: %U32) -> {}
+@builtin(x86In8) @platform(x64) pub fn X86.in8(port: U16) -> U8
+@builtin(x86In16) @platform(x64) pub fn X86.in16(port: U16) -> U16
+@builtin(x86In32) @platform(x64) pub fn X86.in32(port: U16) -> U32
+@builtin(x86Out8) @platform(x64) pub fn X86.out8(port: U16, value: U8) -> {}
+@builtin(x86Out16) @platform(x64) pub fn X86.out16(port: U16, value: U16) -> {}
+@builtin(x86Out32) @platform(x64) pub fn X86.out32(port: U16, value: U32) -> {}
+@builtin(x86Ins32) @platform(x64) pub fn X86.ins32(port: U16, address: %U32, count: U32) -> {}
+@builtin(x86Outs32) @platform(x64) pub fn X86.outs32(port: U16, address: %U32, count: U32) -> {}
+@builtin(x86Interrupt) @platform(x64) pub fn X86.int(vector: Int) -> {}
+@builtin(x86Lidt) @platform(x64) pub fn X86.lidt(address: %U8) -> {}
+@builtin(x86Lgdt) @platform(x64) pub fn X86.lgdt(address: %U8) -> {}
+@builtin(x86MovDs) @platform(x64) pub fn X86.mov_ds(value: U16) -> {}
+@builtin(x86MovEs) @platform(x64) pub fn X86.mov_es(value: U16) -> {}
+@builtin(x86MovFs) @platform(x64) pub fn X86.mov_fs(value: U16) -> {}
+@builtin(x86MovGs) @platform(x64) pub fn X86.mov_gs(value: U16) -> {}
+@builtin(x86MovSs) @platform(x64) pub fn X86.mov_ss(value: U16) -> {}
+@builtin(x86ReadCr0) @platform(x64) pub fn X86.readcr0() -> U64
+@builtin(x86ReadCr2) @platform(x64) pub fn X86.readcr2() -> U64
+@builtin(x86ReadCr3) @platform(x64) pub fn X86.readcr3() -> U64
+@builtin(x86ReadCr4) @platform(x64) pub fn X86.readcr4() -> U64
+@builtin(x86WriteCr0) @platform(x64) pub fn X86.writecr0(value: U64) -> {}
+@builtin(x86WriteCr3) @platform(x64) pub fn X86.writecr3(value: U64) -> {}
+@builtin(x86WriteCr4) @platform(x64) pub fn X86.writecr4(value: U64) -> {}
 
 {-
    ==========================================================================================
@@ -135,6 +187,14 @@ module Native
    Analysis-Warts.md §7 and `legacyVectorEncodings` in compiler/codegen/x64/target.h.
 -}
 @builtin(x86VZeroUpper) @platform(avx2) pub fn X86.vzeroupper() -> {}
+
+{-
+   `vzeroall` - the stronger vector state reset. It clears every vector register, including the low
+   halves that `vzeroupper` leaves intact. Unlike `vzeroupper`, this is a security/state-transition
+   primitive rather than an ABI optimization: every backend must preserve the operation, and only the
+   caller knows that no vector value is live across the reset. The x64 backend checks that promise.
+-}
+@builtin(x86VZeroAll) @platform(avx2) pub fn X86.vzeroall() -> {}
 
 {-
    ==========================================================================================

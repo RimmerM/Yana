@@ -204,6 +204,7 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::CryptoBinary:
         case Value::CryptoUnary:
         case Value::VZeroUpper:
+        case Value::VZeroAll:
         case Value::Add:
         case Value::Sub:
         case Value::Mul:

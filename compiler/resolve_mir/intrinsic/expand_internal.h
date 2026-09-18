@@ -87,13 +87,15 @@ Node* expandStackSwitch(Builder& builder, Function& callee, Node* const* argumen
 /*
  * The x86 family - `lib/Native/Intrinsic/X86.yana`, one `native.def` row apiece.
  *
- * Three emitters for nine roles, because what differs between them is which row and how many
- * operands: a two-operand SHA step is one function with the row passed in, `sha1rnds4` is the one
- * that has an argument to check, and everything else is the shared two-liner. `op` at the call site
- * rather than a switch inside is the same arrangement `expandAtomicUpdate` has.
+ * One shared emitter covers the fixed-operand rows, while the software interrupt has a small
+ * literal check of its own because its vector is encoded in the instruction rather than read from
+ * a register. `op` at the call site rather than a switch inside is the same arrangement
+ * `expandAtomicUpdate` has.
  */
 Node* expandX86Native(Builder& builder, Function& callee, Node* const* arguments, Size count,
                       const Substitution& with, LocationId source, NativeOp op);
+Node* expandX86Interrupt(Builder& builder, Function& callee, Node* const* arguments,
+                         const Substitution& with, LocationId source);
 Node* expandX86AesKeygenAssist(Builder& builder, Function& callee, Node* const* arguments,
                                const Substitution& with, LocationId source);
 Node* expandX86CarrylessMultiply(Builder& builder, Function& callee, Node* const* arguments,

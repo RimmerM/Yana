@@ -859,6 +859,36 @@ static ModulePtr<Value> emitVZeroUpper(ExprResolver& resolver, Buffer<ModulePtr<
     return resolver.ref(resolver.emit<InstVZeroUpper>(source, name, type));
 }
 
+// `X86.vzeroall()` has the same source shape, but the backend checks it against every vector value
+// rather than only the wide ones because it clears the low halves too.
+static ModulePtr<Value> emitVZeroAll(ExprResolver& resolver, Buffer<ModulePtr<Value>>, TypePtr type,
+                                     LocationId source, StringId name) {
+    return resolver.ref(resolver.emit<InstVZeroAll>(source, name, type));
+}
+
+template<NativeOp op>
+static ModulePtr<Value> emitX86Native(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                      LocationId source, StringId name) {
+    auto instruction = resolver.create<InstNative>(source, name, type, op);
+    for(auto arg: args) instruction->args.push(resolver.module.arena, arg);
+
+    resolver.append(instruction);
+    return isUnit(resolver.global, type) ? nullptr : resolver.ref(instruction);
+}
+
+static ModulePtr<Value> emitX86Interrupt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
+                                          TypePtr type, LocationId source, StringId name) {
+    auto value = resolver.local[args[0]];
+    if(value->kind != Value::ConstInt || ((ConstInt&)*value).value < 0 ||
+       ((ConstInt&)*value).value > 255) {
+        resolver.context.diagnostics.error("the vector of `int` must be a constant from 0 to 255 - it is the instruction's embedded byte, and a computed one is not an instruction"_v,
+                                           source);
+        return nullptr;
+    }
+
+    return emitX86Native<NativeOp::X86Interrupt>(resolver, args, type, source, name);
+}
+
 /*
  * The hooks for `lib/Native/Intrinsic/X86.yana`.
  *
@@ -878,6 +908,51 @@ void defineCpuIntrinsics(Module& native) {
 
     attachIntrinsic(native, Op::x86Crc32, emitBinary<Value::Crc32>);
     attachIntrinsic(native, Op::x86VZeroUpper, emitVZeroUpper);
+    attachIntrinsic(native, Op::x86VZeroAll, emitVZeroAll);
+    attachIntrinsic(native, Op::x86Nop, emitX86Native<NativeOp::X86Nop>);
+    attachIntrinsic(native, Op::x86Lretq, emitX86Native<NativeOp::X86Lretq>);
+
+    attachIntrinsic(native, Op::x86Cpuid, emitX86Native<NativeOp::X86Cpuid>);
+    attachIntrinsic(native, Op::x86Rdtscp, emitX86Native<NativeOp::X86Rdtscp>);
+    attachIntrinsic(native, Op::x86Rdtsc, emitX86Native<NativeOp::X86Rdtsc>);
+    attachIntrinsic(native, Op::x86MFence, emitX86Native<NativeOp::X86MFence>);
+    attachIntrinsic(native, Op::x86LFence, emitX86Native<NativeOp::X86LFence>);
+    attachIntrinsic(native, Op::x86SFence, emitX86Native<NativeOp::X86SFence>);
+    attachIntrinsic(native, Op::x86Pause, emitX86Native<NativeOp::X86Pause>);
+    attachIntrinsic(native, Op::x86Prefetch, emitX86Native<NativeOp::X86Prefetch>);
+    attachIntrinsic(native, Op::x86PrefetchNta, emitX86Native<NativeOp::X86PrefetchNta>);
+    attachIntrinsic(native, Op::x86Clflush, emitX86Native<NativeOp::X86Clflush>);
+    attachIntrinsic(native, Op::x86Invlpg, emitX86Native<NativeOp::X86Invlpg>);
+    attachIntrinsic(native, Op::x86Hlt, emitX86Native<NativeOp::X86Hlt>);
+    attachIntrinsic(native, Op::x86Cli, emitX86Native<NativeOp::X86Cli>);
+    attachIntrinsic(native, Op::x86Sti, emitX86Native<NativeOp::X86Sti>);
+    attachIntrinsic(native, Op::x86Swapgs, emitX86Native<NativeOp::X86Swapgs>);
+    attachIntrinsic(native, Op::x86Rdmsr, emitX86Native<NativeOp::X86Rdmsr>);
+    attachIntrinsic(native, Op::x86Wrmsr, emitX86Native<NativeOp::X86Wrmsr>);
+    attachIntrinsic(native, Op::x86Xgetbv, emitX86Native<NativeOp::X86Xgetbv>);
+    attachIntrinsic(native, Op::x86In8, emitX86Native<NativeOp::X86In8>);
+    attachIntrinsic(native, Op::x86In16, emitX86Native<NativeOp::X86In16>);
+    attachIntrinsic(native, Op::x86In32, emitX86Native<NativeOp::X86In32>);
+    attachIntrinsic(native, Op::x86Out8, emitX86Native<NativeOp::X86Out8>);
+    attachIntrinsic(native, Op::x86Out16, emitX86Native<NativeOp::X86Out16>);
+    attachIntrinsic(native, Op::x86Out32, emitX86Native<NativeOp::X86Out32>);
+    attachIntrinsic(native, Op::x86Ins32, emitX86Native<NativeOp::X86Ins32>);
+    attachIntrinsic(native, Op::x86Outs32, emitX86Native<NativeOp::X86Outs32>);
+    attachIntrinsic(native, Op::x86Interrupt, emitX86Interrupt);
+    attachIntrinsic(native, Op::x86Lidt, emitX86Native<NativeOp::X86Lidt>);
+    attachIntrinsic(native, Op::x86Lgdt, emitX86Native<NativeOp::X86Lgdt>);
+    attachIntrinsic(native, Op::x86MovDs, emitX86Native<NativeOp::X86MovDs>);
+    attachIntrinsic(native, Op::x86MovEs, emitX86Native<NativeOp::X86MovEs>);
+    attachIntrinsic(native, Op::x86MovFs, emitX86Native<NativeOp::X86MovFs>);
+    attachIntrinsic(native, Op::x86MovGs, emitX86Native<NativeOp::X86MovGs>);
+    attachIntrinsic(native, Op::x86MovSs, emitX86Native<NativeOp::X86MovSs>);
+    attachIntrinsic(native, Op::x86ReadCr0, emitX86Native<NativeOp::X86ReadCr0>);
+    attachIntrinsic(native, Op::x86ReadCr2, emitX86Native<NativeOp::X86ReadCr2>);
+    attachIntrinsic(native, Op::x86ReadCr3, emitX86Native<NativeOp::X86ReadCr3>);
+    attachIntrinsic(native, Op::x86ReadCr4, emitX86Native<NativeOp::X86ReadCr4>);
+    attachIntrinsic(native, Op::x86WriteCr0, emitX86Native<NativeOp::X86WriteCr0>);
+    attachIntrinsic(native, Op::x86WriteCr3, emitX86Native<NativeOp::X86WriteCr3>);
+    attachIntrinsic(native, Op::x86WriteCr4, emitX86Native<NativeOp::X86WriteCr4>);
 
     attachIntrinsic(native, Op::x86Sha1Message1, emitShaBinary<ShaOp::Sha1Msg1>);
     attachIntrinsic(native, Op::x86Sha1Message2, emitShaBinary<ShaOp::Sha1Msg2>);

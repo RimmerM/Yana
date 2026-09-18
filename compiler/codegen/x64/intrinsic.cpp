@@ -83,6 +83,25 @@ void addIntrinsics(MachineTarget& target) {
     };
 
     {
+        auto b = add(LowerIntrinsic::Nop, "nop"_v, kFeatureBaseline);
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::Nop,
+        };
+    }
+
+    {
+        auto b = add(LowerIntrinsic::Lretq, "lretq"_v, kFeatureBaseline);
+        // The pseudo builds a same-privilege far-return frame around the operation. The selector
+        // is carried in a GPR because the source argument is dynamic; the emitter narrows it to
+        // the 32-bit register view before pushing the 64-bit stack word.
+        b.form.uses.push(anyReg(ClassGpr32));
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::Lretq,
+        };
+        b.desc.operands.push(integer32Rule());
+    }
+
+    {
         // POPCNT r, r/m (f3 0f b8) counts the set bits of its operand into a register that need not
         // be the operand's. The r/m side is the ordinary memory alternative: a source the allocator
         // left in the frame is read there, with no reload, because this row says so in the same
@@ -639,7 +658,7 @@ void addIntrinsics(MachineTarget& target) {
      */
 
     {
-        auto portOp = [&](LowerIntrinsic id, StringView formName, U8 opcode, bool in) {
+        auto portOp = [&](LowerIntrinsic id, StringView formName, U8 opcode, U8 prefix, bool in) {
             auto b = add(id, formName, kFeatureBaseline);
             b.form.uses.push(fixedReg(IntRegister::rdx));
 
@@ -648,7 +667,7 @@ void addIntrinsics(MachineTarget& target) {
 
             b.form.encoding = EncodingDescriptor {
                 .family = EncodingFamily::Opcode,
-                .opcode = opcode,
+                .opcode = opcode, .prefix = prefix,
                 .width = OperationWidth::Fixed32,
             };
 
@@ -659,12 +678,17 @@ void addIntrinsics(MachineTarget& target) {
         };
 
         // IN eax, dx (ed) and OUT dx, eax (ef), at the width the IR's own integers are.
-        portOp(LowerIntrinsic::In32, "in eax, dx"_v, 0xed, true);
-        portOp(LowerIntrinsic::Out32, "out dx, eax"_v, 0xef, false);
+        portOp(LowerIntrinsic::In32, "in eax, dx"_v, 0xed, 0, true);
+        portOp(LowerIntrinsic::Out32, "out dx, eax"_v, 0xef, 0, false);
+
+        // IN ax, dx (66 ed) and OUT dx, ax (66 ef). The lower IR has no 16-bit scalar class, so
+        // these use the 32-bit integer rule while the operand-size prefix selects the low word.
+        portOp(LowerIntrinsic::In16, "in ax, dx"_v, 0xed, 0x66, true);
+        portOp(LowerIntrinsic::Out16, "out dx, ax"_v, 0xef, 0x66, false);
 
         // OUT dx, al (ee) writes the low byte of the value and ignores the rest, so a byte port
         // needs nothing said about the register beyond which one it is.
-        portOp(LowerIntrinsic::Out8, "out dx, al"_v, 0xee, false);
+        portOp(LowerIntrinsic::Out8, "out dx, al"_v, 0xee, 0, false);
 
         // IN al, dx (ec) is the one direction that cannot be a single instruction here: it writes
         // *only* al and leaves the rest of eax holding whatever it held, where the result is a whole
@@ -679,6 +703,112 @@ void addIntrinsics(MachineTarget& target) {
 
         b.desc.operands.push(integer32Rule());
         b.desc.results.push(integer32Rule());
+
+        // INS dword and OUTS dword, repeated by RCX. The source-level argument order is
+        // (port, address, count), while the instructions consume RDX, RDI/RSI and RCX. REP
+        // advances the address and count registers, so both are clobbers even though the values
+        // are not returned by the intrinsic.
+        auto stringPortOp = [&](LowerIntrinsic id, StringView formName, IntRegister addressReg, U8 opcode) {
+            auto b = add(id, formName, kFeatureBaseline);
+            b.form.uses.push(fixedReg(IntRegister::rdx));
+            b.form.uses.push(fixedReg(addressReg));
+            b.form.uses.push(fixedReg(IntRegister::rcx));
+            b.form.clobbers.add(gpr(addressReg));
+            b.form.clobbers.add(gpr(IntRegister::rcx));
+            b.form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::Opcode,
+                .opcode = opcode, .prefix = 0xf3,
+                .width = OperationWidth::Fixed32,
+            };
+
+            b.desc.operands.push(integer32Rule());
+            b.desc.operands.push(integer64Rule());
+            b.desc.operands.push(integer32Rule());
+        };
+
+        stringPortOp(LowerIntrinsic::Ins32, "rep insd"_v, IntRegister::rdi, 0x6d);
+        stringPortOp(LowerIntrinsic::Outs32, "rep outsd"_v, IntRegister::rsi, 0x6f);
+    }
+
+    /*
+     * Software interrupts.
+     *
+     * INT carries its vector in the instruction rather than in a register. It is consequently a
+     * literal-only intrinsic, like the other trailing-byte operations, and uses a small pseudo only
+     * because the regular opcode family has no immediate-only form.
+     */
+
+    {
+        auto b = add(LowerIntrinsic::Interrupt, "int imm8"_v, kFeatureBaseline);
+        // Unlike an arithmetic imm8, INT's vector is an unsigned byte: vectors 128..255 are
+        // valid and must not be rejected because they are not sign-extended values.
+        b.form.uses.push(immediate(ImmediateWidth::Imm8Unsigned));
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::Interrupt,
+            .immField = useRef(0),
+        };
+        b.desc.operands.push(IntrinsicOperandRule { IntrinsicOperandClass::Immediate, 0, 0xff });
+    }
+
+    /*
+     * Descriptor tables.
+     *
+     * LGDT (0f 01 /2) and LIDT (0f 01 /3) read the six- or ten-byte descriptor through a ModRM
+     * memory operand. The address machinery used by INVLPG already describes that shape, including
+     * folded base/index addressing, so these are ordinary LoadStore forms rather than pseudos.
+     */
+
+    {
+        auto descriptorTable = [&](LowerIntrinsic id, StringView formName, U8 extension) {
+            auto b = add(id, formName, kFeatureBaseline);
+            b.form.uses.push(address());
+            b.form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::LoadStore,
+                .opcode = 0x01, .escape = 0x0f, .extension = extension,
+                .width = OperationWidth::Fixed32,
+            };
+            b.desc.operands.push(pointerRule());
+        };
+
+        descriptorTable(LowerIntrinsic::Lidt, "lidt [address]"_v, 3);
+        descriptorTable(LowerIntrinsic::Lgdt, "lgdt [address]"_v, 2);
+    }
+
+    /*
+     * Segment-register loads.
+     *
+     * MOV Sreg, r/m16 is 8e /r, with the segment number in ModRM.reg. The lower IR has no 16-bit
+     * scalar lane, so the operand is a 32-bit integer whose low word is consumed by the encoding.
+     * These rows intentionally name the destination in the intrinsic, matching `mov_ds`, `mov_gs`,
+     * and the other source spellings used by a kernel's GDT setup.
+     */
+
+    {
+        struct SegmentRegister {
+            LowerIntrinsic id;
+            U8 number;
+            StringView name;
+        };
+
+        static const SegmentRegister kSegmentRegisters[] = {
+            { LowerIntrinsic::MovDs, 3, "mov ds, r/m16"_v },
+            { LowerIntrinsic::MovEs, 0, "mov es, r/m16"_v },
+            { LowerIntrinsic::MovFs, 4, "mov fs, r/m16"_v },
+            { LowerIntrinsic::MovGs, 5, "mov gs, r/m16"_v },
+            { LowerIntrinsic::MovSs, 2, "mov ss, r/m16"_v },
+        };
+
+        for(auto& segment: kSegmentRegisters) {
+            auto b = add(segment.id, segment.name, kFeatureBaseline);
+            b.form.uses.push(anyReg(ClassGpr32));
+            b.form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::RmExt,
+                .opcode = 0x8e, .extension = segment.number,
+                .rmField = useRef(0),
+                .width = OperationWidth::Fixed32,
+            };
+            b.desc.operands.push(integer32Rule());
+        }
     }
 
     /*

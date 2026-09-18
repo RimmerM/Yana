@@ -1363,4 +1363,17 @@ void MachineFormBuilder::registerPackedForms() {
         .prefixEncoding = PrefixEncoding::Vex,
     };
 
+    // `vzeroall` is the VEX.256 form of opcode 77: C5 FC 77. It is deliberately a separate
+    // operation rather than a form of `vzeroupper`, because its architectural effect includes the
+    // low halves of the vector registers and the validator must apply the stronger liveness rule.
+    auto& all = add(FormVZeroAll, OpVZeroAll, "vzeroall"_v);
+    all.requiredFeatures = kFeatureAvx;
+    all.encoding = EncodingDescriptor {
+        .family = EncodingFamily::Pseudo,
+        .pseudo = PseudoKind::VZeroAll,
+        .opcode = 0x77,
+        .width = OperationWidth::Fixed32,
+        .prefixEncoding = PrefixEncoding::Vex,
+    };
+
 }

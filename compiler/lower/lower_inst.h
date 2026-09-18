@@ -1445,6 +1445,12 @@ struct LowerInstVZeroUpper: LowerInst {
     LowerInstVZeroUpper(): LowerInst(VZeroUpper) {}
 };
 
+// `vzeroall` - see `LowerInst::VZeroAll`. It has no operands or result and is kept as a distinct
+// kind because its vector-state effect is stronger than `vzeroupper`'s.
+struct LowerInstVZeroAll: LowerInst {
+    LowerInstVZeroAll(): LowerInst(VZeroAll) {}
+};
+
 struct LowerInstSetPattern: LowerInst {
     LowerInstSetPattern(LowerPtr<LowerValue> to, LowerPtr<LowerValue> count, LowerPtr<LowerValue> pattern):
         LowerInst(SetPattern), to(to), count(count), pattern(pattern)
@@ -2134,6 +2140,8 @@ enum class LowerIntrinsic: U16 {
      */
     Pext,
     Pdep,
+    Nop,     // an explicit processor no-op requested by source
+    Lretq,   // change CS through a compiler-built same-privilege far-return frame
     Cpuid,   // query the processor's feature information
     Rdtscp,  // read the processor's timestamp counter and its id
     Rdtsc,   // read the processor's timestamp counter
@@ -2166,9 +2174,29 @@ enum class LowerIntrinsic: U16 {
     // Port I/O, at the two widths a port is addressed at. The port number is a value rather than a
     // constant here; see the registry for why that is not the shorter encoding's fault.
     In8,
+    In16,
     In32,
     Out8,
+    Out16,
     Out32,
+
+    // The string forms of 32-bit port I/O. The pointer and count are fixed-register operands and
+    // are consumed by REP, so the target registry also declares those registers clobbered.
+    Ins32,
+    Outs32,
+
+    // A software interrupt. The vector is an embedded byte, so the argument must be a constant.
+    Interrupt,
+
+    // Descriptor-table and segment-register operations. The former read their descriptor from
+    // memory; the latter load the named segment register from the low word of their operand.
+    Lidt,
+    Lgdt,
+    MovDs,
+    MovEs,
+    MovFs,
+    MovGs,
+    MovSs,
 
     // Control registers. One intrinsic per register rather than one taking a number, because the
     // number is part of the encoding rather than an operand of it.

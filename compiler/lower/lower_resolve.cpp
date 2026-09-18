@@ -765,6 +765,13 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstVZeroUpper()));
     });
 
+    addKind<LowerInst::VZeroAll>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 0);
+        assertArgCount(ast.args, 0);
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstVZeroAll()));
+    });
+
     instructionSet.add(Context::nameHash("cast"_v), handleCast<false, false>());
     instructionSet.add(Context::nameHash("sext"_v), handleCast<true, true>());
     instructionSet.add(Context::nameHash("ftoi"_v), handleCast<false, true>());
@@ -1037,6 +1044,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     instructionSet.add(Context::nameHash("call_complex"_v), handleCall<LowerCallType::Complex>());
     instructionSet.add(Context::nameHash("call_clobber"_v), handleCall<LowerCallType::Clobber>());
     instructionSet.add(Context::nameHash("syscall"_v), handleCall<LowerCallType::Syscall>());
+    instructionSet.add(Context::nameHash("call_x86_interrupt"_v), handleCall<LowerCallType::X86Interrupt>());
 
     // Every intrinsic the IR names, without a line of its own: the table in lower.cpp is the one
     // statement of which exist, and this loop is what makes adding one there enough.

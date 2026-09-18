@@ -1645,21 +1645,24 @@ void genInst(FunGen& f, LowerInst& inst) {
             break;
 
         /*
-         * `vzeroupper`, dropped.
-         *
-         * Deliberately not `llvm.x86.avx.vzeroupper`, and not an omission. LLVM decides for itself
-         * which vector instructions carry a prefix and runs `X86VZeroUpper` to place the resets that
-         * choice implies, so on this backend both halves of the source-level mechanism belong to
-         * LLVM: `@x86_legacy_sse` says nothing here either. Emitting the intrinsic as well would be
-         * a second opinion about state LLVM is already tracking, at best redundant and at worst a
-         * reset in a place its own pass had proved unnecessary.
-         *
-         * So a program that writes `X86.vzeroupper()` gets it honoured by the x64 backend and
-         * subsumed by this one, which is the same relationship the two have over every other
-         * encoding decision.
+         * `vzeroupper` is an ABI/encoding detail, so LLVM remains free to place or omit its own
+         * equivalent. `vzeroall` is different: callers use it to erase vector state at a security
+         * boundary, and dropping it would make that boundary ineffective. Inline assembly states
+         * both the side effect and the registers it destroys, keeping LLVM from carrying a vector
+         * value across the reset.
          */
         case LowerInst::VZeroUpper:
             break;
+        case LowerInst::VZeroAll: {
+            auto type = llvm::FunctionType::get(llvm::Type::getVoidTy(f.gen.llvm), false);
+            auto assembly = llvm::InlineAsm::get(
+                type, "vzeroall",
+                "~{ymm0},~{ymm1},~{ymm2},~{ymm3},~{ymm4},~{ymm5},~{ymm6},~{ymm7},"
+                "~{ymm8},~{ymm9},~{ymm10},~{ymm11},~{ymm12},~{ymm13},~{ymm14},~{ymm15},~{memory}",
+                true);
+            f.builder.CreateCall(assembly);
+            break;
+        }
         case LowerInst::Cmp:
             genCmp(f, (LowerInstCmp&)inst);
             break;

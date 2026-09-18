@@ -7,7 +7,7 @@
  *
  * Split out of `lower.h` so that the *resolver* can hold one: `@convention(clobber)` is read off a
  * declaration long before there is a lower IR, and `resolve/module.h` including the whole lower IR
- * to name a seven-valued enum would be a dependency out of all proportion to the fact.
+ * to name an eight-valued enum would be a dependency out of all proportion to the fact.
  *
  * There is one name table and every reader shares it, which is the point of the split rather than a
  * tidiness argument. The names appear in three places that have to agree: the `@convention`
@@ -58,8 +58,15 @@ enum class LowerCallType {
      */
     StackSwitch,
 
+    /*
+     * An x86 interrupt handler. The processor supplies its frame on the entry stack rather than
+     * through a normal call argument list; the native backend therefore gives the handler a pointer
+     * to that frame and, for exception handlers, the error-code word. Its return is `iretq`.
+     */
+    X86Interrupt,
+
     // Must always be last.
-    LastType = StackSwitch,
+    LastType = X86Interrupt,
 };
 
 static constexpr LowerCallType kDefaultCallType = LowerCallType::Complex;
@@ -109,6 +116,7 @@ inline StringView nameForCallType(LowerCallType type) {
         case LowerCallType::Clobber:     return "clobber"_v;
         case LowerCallType::Syscall:     return "system"_v;
         case LowerCallType::StackSwitch: return "stackswitch"_v;
+        case LowerCallType::X86Interrupt:return "x86_interrupt"_v;
     }
 
     return ""_v;
@@ -164,17 +172,19 @@ inline bool callTypeHasCallee(LowerCallType type) {
 /*
  * Whether this convention names an ABI defined outside this compiler.
  *
- * True of the two real ABIs and of nothing else, which is a question about the *table* and is all
+ * True of the three real ABIs and of nothing else, which is a question about the *table* and is all
  * this answers. It is emphatically not "the other side of this boundary is a stranger" - see
  * `LowerFunction::foreignBoundary`, which is that question and is a separate fact, because a Yana
  * function may name System V for reasons that have nothing to do with being reachable from outside.
  */
 inline bool conventionIsForeignAbi(LowerCallType type) {
-    return type == LowerCallType::Sysv || type == LowerCallType::Win64;
+    return type == LowerCallType::Sysv
+        || type == LowerCallType::Win64
+        || type == LowerCallType::X86Interrupt;
 }
 
 /*
- * Whether a *program* may name this convention, which is a smaller set than the six.
+ * Whether a *program* may name this convention, which is a smaller set than the eight.
  *
  * `system` is never a function's own convention - the kernel is the callee, and the convention
  * describes what a syscall leaves alone rather than how anything this compiler emits is entered.
@@ -187,12 +197,13 @@ inline bool conventionIsForeignAbi(LowerCallType type) {
  * already say.
  *
  * So what is left is the one convention with a *semantic* promise the program can rely on -
- * `clobber` keeps nothing, which is what makes a vector-state reset at entry legal - and the two
+ * `clobber` keeps nothing, which is what makes a vector-state reset at entry legal - and the three
  * foreign ABIs, which a `foreign` declaration will need in order to say which one it is. See
  * doc/spec/targets.md, where the absence of that is currently recorded as an open question.
  */
 inline bool conventionWritableInSource(LowerCallType type) {
     return type == LowerCallType::Clobber
         || type == LowerCallType::Sysv
-        || type == LowerCallType::Win64;
+        || type == LowerCallType::Win64
+        || type == LowerCallType::X86Interrupt;
 }

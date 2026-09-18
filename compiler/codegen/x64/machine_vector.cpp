@@ -2560,6 +2560,7 @@ bool checkLegacyVectorEncoding(Context& ctx, LowerBase base, LowerFunction& fun)
      * selection has run.
      */
     auto holdsReset = false;
+    auto clearsWholeVector = false;
 
     if(!fun.legacyVectors) {
         for(auto offset: fun.blocks.contents(base)) {
@@ -2567,7 +2568,10 @@ bool checkLegacyVectorEncoding(Context& ctx, LowerBase base, LowerFunction& fun)
 
             for(auto i: block->instructions.contents(base)) {
                 auto inst = base[i];
-                if(inst->kind == LowerInst::VZeroUpper) holdsReset = true;
+                if(inst->kind == LowerInst::VZeroUpper || inst->kind == LowerInst::VZeroAll) {
+                    holdsReset = true;
+                    clearsWholeVector = clearsWholeVector || inst->kind == LowerInst::VZeroAll;
+                }
                 if(inst->kind != LowerInst::ShaBinary && inst->kind != LowerInst::Sha256Rounds) continue;
 
                 ctx.diagnostics.error("x64: %@ holds a SHA-extension instruction but is not marked `@x86_legacy_sse` - that instruction has no VEX spelling, so this body would cross between prefixed and unprefixed encodings. Mark this function, or give the one it was inlined from `@noinline`"_v,
@@ -2586,7 +2590,10 @@ bool checkLegacyVectorEncoding(Context& ctx, LowerBase base, LowerFunction& fun)
             auto block = base[offset];
 
             for(auto i: block->instructions.contents(base)) {
-                if(base[i]->kind == LowerInst::VZeroUpper) holdsReset = true;
+                if(base[i]->kind == LowerInst::VZeroUpper || base[i]->kind == LowerInst::VZeroAll) {
+                    holdsReset = true;
+                    clearsWholeVector = clearsWholeVector || base[i]->kind == LowerInst::VZeroAll;
+                }
             }
         }
     }
@@ -2609,24 +2616,33 @@ bool checkLegacyVectorEncoding(Context& ctx, LowerBase base, LowerFunction& fun)
         auto& convention = targetConstraints().getConvention(fun.callType);
 
         if(convention.calleeSaved.banks[BankVector] != 0) {
-            ctx.diagnostics.error("x64: %@ calls `X86.vzeroupper()` under the `%@` convention, which preserves vector registers - the instruction would clear the upper half of one this function never named and never saved. Write `@convention(sysv)`, whose vector file is caller-saved by the ABI"_v,
+            ctx.diagnostics.error("x64: %@ calls an explicit vector reset under the `%@` convention, which preserves vector registers - the instruction would clear a register this function never named and never saved. Write `@convention(sysv)`, whose vector file is caller-saved by the ABI"_v,
                                   fun.source, ctx.findName(fun.name), nameForCallType(fun.callType));
             ok = false;
         }
     }
 
     auto report = [&](LocationId source, StringView why) {
-        ctx.diagnostics.error("x64: %@ holds a vector wider than 128 bits, and %@"_v,
+        ctx.diagnostics.error("x64: %@ holds a vector that crosses an explicit vector reset, and %@"_v,
                               source, ctx.findName(fun.name), why);
         ok = false;
     };
 
-    auto why = fun.legacyVectors
+    auto why = clearsWholeVector
+        ? "calls `X86.vzeroall()` - that instruction zeroes every vector register, so a vector value live across it is silently truncated. Narrow the type, or move the call"_v
+        : fun.legacyVectors
         ? "is marked `@x86_legacy_sse` - a wide vector has no unprefixed encoding, so this body would mix VEX and legacy instructions, which is what the attribute is there to prevent. Narrow the type, or drop the attribute"_v
         : "calls `X86.vzeroupper()` - that instruction zeroes bits 128 and up of every vector register, so a wide value live across it is silently truncated. Narrow the type, or move the call"_v;
 
+    auto resetDestroys = [&](LowerType type) {
+        if(!clearsWholeVector) return isWideVector(type);
+        // AVX-512 masks live in the mask bank and VZEROALL does not touch them. Before AVX-512 a
+        // mask is represented in a vector register, so it is destroyed along with other vectors.
+        return type.isVector() || (type.isMask() && !maskInMaskBank());
+    };
+
     for(auto type: fun.returnTypes.contents(base)) {
-        if(isWideVector(LowerType(type))) report(fun.source, why);
+        if(resetDestroys(LowerType(type))) report(fun.source, why);
     }
 
     for(auto offset: fun.blocks.contents(base)) {
@@ -2635,7 +2651,7 @@ bool checkLegacyVectorEncoding(Context& ctx, LowerBase base, LowerFunction& fun)
         for(auto i: block->instructions.contents(base)) {
             auto inst = base[i];
             for(auto& value: inst->created()) {
-                if(isWideVector(value.type)) report(inst->source, why);
+                if(resetDestroys(value.type)) report(inst->source, why);
             }
         }
     }

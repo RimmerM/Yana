@@ -377,6 +377,20 @@ Constraints::Constraints() {
         switching.clobber.remove(framePointerReg());
         finish(switching);
     }
+
+    /*
+     * CPU-entered interrupt handlers. There is no ordinary argument or result register table:
+     * classifyArgs describes the hardware frame and error-code words instead. Leaving the clobber
+     * set empty is intentional - `finish` derives every allocatable register as callee-saved, so
+     * the normal prologue saves exactly the registers the handler actually uses.
+     */
+    {
+        auto& interrupt = convention[(Size)LowerCallType::X86Interrupt];
+        interrupt.interrupt = true;
+        interrupt.preservesArgs = true;
+        interrupt.stackAlignment = 8;
+        finish(interrupt);
+    }
 }
 
 // One per register description, for the reason `targetRegisters` has two: every preserved set here is

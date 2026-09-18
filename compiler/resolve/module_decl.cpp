@@ -678,7 +678,7 @@ void readInlineAttribute(Module& module, const ast::Decl& decl, Function& functi
  *
  * **Not every convention in that table may be written**, and `conventionWritableInSource` is where
  * the set is argued. What a program may name is `clobber`, whose promise is semantic rather than an
- * implementation detail, and the two foreign ABIs a `foreign` declaration will need. `simple` and
+ * implementation detail, and the three foreign ABIs a `foreign` declaration will need. `simple` and
  * `complex` are the backend's own choice between two internal shapes and are reported here, because
  * pinning one would write down as an interface something the backend is entitled to change.
  *
@@ -713,13 +713,13 @@ void readConventionAttribute(Module& module, const ast::Decl& decl, Function& fu
 
         auto found = callTypeForName(argument.var);
         if(!found) {
-            context.diagnostics.error("unknown calling convention %@ - the ones a declaration may name are `clobber`, `sysv` and `win64`"_v,
+            context.diagnostics.error("unknown calling convention %@ - the ones a declaration may name are `clobber`, `sysv`, `win64` and `x86_interrupt`"_v,
                                       attribute.source, context.findName(argument.var));
             continue;
         }
 
         if(!conventionWritableInSource(found.unwrap())) {
-            context.diagnostics.error("%@ is not a convention a declaration may name - `simple` and `complex` are the compiler's own choice between two internal shapes, and `system` describes what a syscall leaves alone rather than how anything is entered. Write `clobber`, `sysv` or `win64`"_v,
+            context.diagnostics.error("%@ is not a convention a declaration may name - `simple` and `complex` are the compiler's own choice between two internal shapes, and `system` describes what a syscall leaves alone rather than how anything is entered. Write `clobber`, `sysv`, `win64` or `x86_interrupt`"_v,
                                       attribute.source, context.findName(argument.var));
             continue;
         }

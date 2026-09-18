@@ -418,6 +418,8 @@ StringView nameForCall(LowerCallType type) {
             return "syscall"_v;
         case LowerCallType::StackSwitch:
             return "stackswitch"_v;
+        case LowerCallType::X86Interrupt:
+            return "call_x86_interrupt"_v;
     }
 
     assertTrue(false);

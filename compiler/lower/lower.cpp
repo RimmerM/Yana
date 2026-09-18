@@ -22,6 +22,8 @@ static constexpr LowerIntrinsicDesc kIntrinsics[kLowerIntrinsicCount] = {
     [Size(LowerIntrinsic::Bzhi)] = { "bzhi"_v, 1, 2, kLowerPure | kLowerRepeatable },
     [Size(LowerIntrinsic::Pext)] = { "pext"_v, 1, 2, kLowerPure | kLowerRepeatable },
     [Size(LowerIntrinsic::Pdep)] = { "pdep"_v, 1, 2, kLowerPure | kLowerRepeatable },
+    [Size(LowerIntrinsic::Nop)] = { "nop"_v, 0, 0, kLowerOrdered },
+    [Size(LowerIntrinsic::Lretq)] = { "lretq"_v, 0, 1, kLowerOrdered | kLowerPrivileged },
 
     // Takes the leaf and subleaf, and returns the four information registers in their usual order.
     [Size(LowerIntrinsic::Cpuid)] = { "cpuid"_v, 4, 2, kLowerOrdered },
@@ -58,9 +60,23 @@ static constexpr LowerIntrinsicDesc kIntrinsics[kLowerIntrinsicCount] = {
     [Size(LowerIntrinsic::Xgetbv)] = { "xgetbv"_v, 2, 1, kLowerOrdered },
 
     [Size(LowerIntrinsic::In8)] = { "in8"_v, 1, 1, kLowerOrdered | kLowerPrivileged },
+    [Size(LowerIntrinsic::In16)] = { "in16"_v, 1, 1, kLowerOrdered | kLowerPrivileged },
     [Size(LowerIntrinsic::In32)] = { "in32"_v, 1, 1, kLowerOrdered | kLowerPrivileged },
     [Size(LowerIntrinsic::Out8)] = { "out8"_v, 0, 2, kLowerOrdered | kLowerPrivileged },
+    [Size(LowerIntrinsic::Out16)] = { "out16"_v, 0, 2, kLowerOrdered | kLowerPrivileged },
     [Size(LowerIntrinsic::Out32)] = { "out32"_v, 0, 2, kLowerOrdered | kLowerPrivileged },
+
+    [Size(LowerIntrinsic::Ins32)] = { "ins32"_v, 0, 3, kLowerWrites | kLowerOrdered | kLowerPrivileged },
+    [Size(LowerIntrinsic::Outs32)] = { "outs32"_v, 0, 3, kLowerReads | kLowerOrdered | kLowerPrivileged },
+
+    [Size(LowerIntrinsic::Interrupt)] = { "int"_v, 0, 1, kLowerOrdered },
+    [Size(LowerIntrinsic::Lidt)] = { "lidt"_v, 0, 1, kLowerReads | kLowerOrdered | kLowerPrivileged },
+    [Size(LowerIntrinsic::Lgdt)] = { "lgdt"_v, 0, 1, kLowerReads | kLowerOrdered | kLowerPrivileged },
+    [Size(LowerIntrinsic::MovDs)] = { "mov_ds"_v, 0, 1, kLowerOrdered | kLowerPrivileged },
+    [Size(LowerIntrinsic::MovEs)] = { "mov_es"_v, 0, 1, kLowerOrdered | kLowerPrivileged },
+    [Size(LowerIntrinsic::MovFs)] = { "mov_fs"_v, 0, 1, kLowerOrdered | kLowerPrivileged },
+    [Size(LowerIntrinsic::MovGs)] = { "mov_gs"_v, 0, 1, kLowerOrdered | kLowerPrivileged },
+    [Size(LowerIntrinsic::MovSs)] = { "mov_ss"_v, 0, 1, kLowerOrdered | kLowerPrivileged },
 
     [Size(LowerIntrinsic::ReadCr0)] = { "readcr0"_v, 1, 0, kLowerOrdered | kLowerPrivileged },
     [Size(LowerIntrinsic::ReadCr2)] = { "readcr2"_v, 1, 0, kLowerOrdered | kLowerPrivileged },

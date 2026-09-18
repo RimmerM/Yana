@@ -2317,6 +2317,136 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 args.push(value - lower);
             }
 
+            auto lowerX86 = [&](mir::NativeOp op) -> LowerInst* {
+                auto addIntrinsic = [&](LowerIntrinsic which, Size created, Size used,
+                                        bool sourceResult) {
+                    auto built = new (allocTrailing<LowerInstIntrinsic, LowerValue, LowerPtr<LowerValue>>(
+                        to.arena, sizeof(LowerValue) * created + sizeof(LowerPtr<LowerValue>) * used))
+                        LowerInstIntrinsic(which, created, used);
+                    for(Size i = 0; i < used; i++) built->used().ptr[i] = args[i];
+                    if(created && sourceResult) {
+                        auto result = ssa[inst.results.get(ssa, 0)];
+                        new (built->created().ptr) LowerValue(built, manifestOf(*result).type,
+                                                              StringId());
+                    }
+                    return built;
+                };
+
+                auto storeResults = [&](LowerInstIntrinsic* built, Size first, Size count) {
+                    for(Size i = 0; i < count; i++) {
+                        block.addInst(lower, new (to.arena) LowerInstStore(
+                            args[first + i], built->created().ptr + i - lower, 4));
+                    }
+                };
+
+                switch(op) {
+                    case mir::NativeOp::X86Nop: {
+                        auto built = addIntrinsic(LowerIntrinsic::Nop, 0, 0, false);
+                        block.addInst(lower, (LowerInst*)built);
+                        return built;
+                    }
+                    case mir::NativeOp::X86Lretq: {
+                        auto built = addIntrinsic(LowerIntrinsic::Lretq, 0, 1, false);
+                        block.addInst(lower, (LowerInst*)built);
+                        return built;
+                    }
+                    case mir::NativeOp::X86Cpuid: {
+                        auto built = addIntrinsic(LowerIntrinsic::Cpuid, 4, 2, false);
+                        for(Size i = 0; i < 4; i++) {
+                            new (built->created().ptr + i) LowerValue(built, LowerType::Int32,
+                                                                       StringId());
+                        }
+                        block.addInst(lower, (LowerInst*)built);
+                        storeResults(built, 2, 4);
+                        return nullptr;
+                    }
+                    case mir::NativeOp::X86Rdtscp: {
+                        auto built = addIntrinsic(LowerIntrinsic::Rdtscp, 2, 0, false);
+                        for(Size i = 0; i < 2; i++) {
+                            new (built->created().ptr + i) LowerValue(built, LowerType::Int32,
+                                                                       StringId());
+                        }
+                        block.addInst(lower, (LowerInst*)built);
+                        storeResults(built, 0, 2);
+                        return nullptr;
+                    }
+                    case mir::NativeOp::X86Rdmsr: {
+                        auto built = addIntrinsic(LowerIntrinsic::Rdmsr, 2, 1, false);
+                        for(Size i = 0; i < 2; i++) {
+                            new (built->created().ptr + i) LowerValue(built, LowerType::Int32,
+                                                                       StringId());
+                        }
+                        block.addInst(lower, (LowerInst*)built);
+                        storeResults(built, 1, 2);
+                        return nullptr;
+                    }
+                    case mir::NativeOp::X86Xgetbv: {
+                        auto built = addIntrinsic(LowerIntrinsic::Xgetbv, 2, 1, false);
+                        for(Size i = 0; i < 2; i++) {
+                            new (built->created().ptr + i) LowerValue(built, LowerType::Int32,
+                                                                       StringId());
+                        }
+                        block.addInst(lower, (LowerInst*)built);
+                        storeResults(built, 1, 2);
+                        return nullptr;
+                    }
+                    default:
+                        break;
+                }
+
+                LowerIntrinsic which = LowerIntrinsic::Rdtsc;
+                switch(op) {
+                    case mir::NativeOp::X86Rdtsc:       which = LowerIntrinsic::Rdtsc; break;
+                    case mir::NativeOp::X86MFence:      which = LowerIntrinsic::MFence; break;
+                    case mir::NativeOp::X86LFence:      which = LowerIntrinsic::LFence; break;
+                    case mir::NativeOp::X86SFence:      which = LowerIntrinsic::SFence; break;
+                    case mir::NativeOp::X86Pause:       which = LowerIntrinsic::Pause; break;
+                    case mir::NativeOp::X86Prefetch:    which = LowerIntrinsic::Prefetch; break;
+                    case mir::NativeOp::X86PrefetchNta: which = LowerIntrinsic::PrefetchNta; break;
+                    case mir::NativeOp::X86Clflush:     which = LowerIntrinsic::Clflush; break;
+                    case mir::NativeOp::X86Invlpg:      which = LowerIntrinsic::Invlpg; break;
+                    case mir::NativeOp::X86Hlt:         which = LowerIntrinsic::Hlt; break;
+                    case mir::NativeOp::X86Cli:         which = LowerIntrinsic::Cli; break;
+                    case mir::NativeOp::X86Sti:         which = LowerIntrinsic::Sti; break;
+                    case mir::NativeOp::X86Swapgs:      which = LowerIntrinsic::Swapgs; break;
+                    case mir::NativeOp::X86Wrmsr:       which = LowerIntrinsic::Wrmsr; break;
+                    case mir::NativeOp::X86In8:         which = LowerIntrinsic::In8; break;
+                    case mir::NativeOp::X86In16:        which = LowerIntrinsic::In16; break;
+                    case mir::NativeOp::X86In32:        which = LowerIntrinsic::In32; break;
+                    case mir::NativeOp::X86Out8:        which = LowerIntrinsic::Out8; break;
+                    case mir::NativeOp::X86Out16:       which = LowerIntrinsic::Out16; break;
+                    case mir::NativeOp::X86Out32:       which = LowerIntrinsic::Out32; break;
+                    case mir::NativeOp::X86Ins32:       which = LowerIntrinsic::Ins32; break;
+                    case mir::NativeOp::X86Outs32:      which = LowerIntrinsic::Outs32; break;
+                    case mir::NativeOp::X86Interrupt:   which = LowerIntrinsic::Interrupt; break;
+                    case mir::NativeOp::X86Lidt:        which = LowerIntrinsic::Lidt; break;
+                    case mir::NativeOp::X86Lgdt:        which = LowerIntrinsic::Lgdt; break;
+                    case mir::NativeOp::X86MovDs:       which = LowerIntrinsic::MovDs; break;
+                    case mir::NativeOp::X86MovEs:       which = LowerIntrinsic::MovEs; break;
+                    case mir::NativeOp::X86MovFs:       which = LowerIntrinsic::MovFs; break;
+                    case mir::NativeOp::X86MovGs:       which = LowerIntrinsic::MovGs; break;
+                    case mir::NativeOp::X86MovSs:       which = LowerIntrinsic::MovSs; break;
+                    case mir::NativeOp::X86ReadCr0:     which = LowerIntrinsic::ReadCr0; break;
+                    case mir::NativeOp::X86ReadCr2:     which = LowerIntrinsic::ReadCr2; break;
+                    case mir::NativeOp::X86ReadCr3:     which = LowerIntrinsic::ReadCr3; break;
+                    case mir::NativeOp::X86ReadCr4:     which = LowerIntrinsic::ReadCr4; break;
+                    case mir::NativeOp::X86WriteCr0:    which = LowerIntrinsic::WriteCr0; break;
+                    case mir::NativeOp::X86WriteCr3:    which = LowerIntrinsic::WriteCr3; break;
+                    case mir::NativeOp::X86WriteCr4:    which = LowerIntrinsic::WriteCr4; break;
+                    default:
+                        assertTrue("not an x86 native operation" == nullptr);
+                        return nullptr;
+                }
+
+                auto created = Size(inst.results.size());
+                auto used = lowerIntrinsicDesc(which).args;
+                auto built = addIntrinsic(which, created, used, created != 0);
+                auto value = block.addInst(lower, (LowerInst*)built);
+                if(created) values.add(ssa[inst.results.get(ssa, 0)]->id.index,
+                                       built->created().ptr - lower);
+                return value;
+            };
+
             switch(written.op) {
                 case mir::NativeOp::CopyMemory:
                     block.addInst(lower, new (to.arena) LowerInstCopy(args[0], args[1], args[2]));
@@ -2478,8 +2608,54 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     break;
                 }
 
+                case mir::NativeOp::X86Nop:
+                case mir::NativeOp::X86Lretq:
+                case mir::NativeOp::X86Cpuid:
+                case mir::NativeOp::X86Rdtscp:
+                case mir::NativeOp::X86Rdtsc:
+                case mir::NativeOp::X86MFence:
+                case mir::NativeOp::X86LFence:
+                case mir::NativeOp::X86SFence:
+                case mir::NativeOp::X86Pause:
+                case mir::NativeOp::X86Prefetch:
+                case mir::NativeOp::X86PrefetchNta:
+                case mir::NativeOp::X86Clflush:
+                case mir::NativeOp::X86Invlpg:
+                case mir::NativeOp::X86Hlt:
+                case mir::NativeOp::X86Cli:
+                case mir::NativeOp::X86Sti:
+                case mir::NativeOp::X86Swapgs:
+                case mir::NativeOp::X86Rdmsr:
+                case mir::NativeOp::X86Wrmsr:
+                case mir::NativeOp::X86Xgetbv:
+                case mir::NativeOp::X86In8:
+                case mir::NativeOp::X86In16:
+                case mir::NativeOp::X86In32:
+                case mir::NativeOp::X86Out8:
+                case mir::NativeOp::X86Out16:
+                case mir::NativeOp::X86Out32:
+                case mir::NativeOp::X86Ins32:
+                case mir::NativeOp::X86Outs32:
+                case mir::NativeOp::X86Interrupt:
+                case mir::NativeOp::X86Lidt:
+                case mir::NativeOp::X86Lgdt:
+                case mir::NativeOp::X86MovDs:
+                case mir::NativeOp::X86MovEs:
+                case mir::NativeOp::X86MovFs:
+                case mir::NativeOp::X86MovGs:
+                case mir::NativeOp::X86MovSs:
+                case mir::NativeOp::X86ReadCr0:
+                case mir::NativeOp::X86ReadCr2:
+                case mir::NativeOp::X86ReadCr3:
+                case mir::NativeOp::X86ReadCr4:
+                case mir::NativeOp::X86WriteCr0:
+                case mir::NativeOp::X86WriteCr3:
+                case mir::NativeOp::X86WriteCr4:
+                    lowerX86(written.op);
+                    break;
+
                 /*
-                 * The x86 family - native.def's twelve rows, and a mapping and nothing else.
+                 * The x86 family - native.def's system rows, and a mapping and nothing else.
                  *
                  * Each is an instruction the lower IR already has, so there is no expansion here
                  * and no width to mask: `crc32` is declared at 32 and 64 bits only and the SHA
@@ -2501,6 +2677,10 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 // names, which is why the row answers `{}` and nothing is recorded for it.
                 case mir::NativeOp::VZeroUpper:
                     block.addInst(lower, new (to.arena) LowerInstVZeroUpper());
+                    break;
+
+                case mir::NativeOp::VZeroAll:
+                    block.addInst(lower, new (to.arena) LowerInstVZeroAll());
                     break;
 
                 case mir::NativeOp::Sha1Message1:

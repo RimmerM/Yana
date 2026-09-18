@@ -117,7 +117,7 @@ Node* expandVecStoreUpTo(Builder& builder, Function& callee, Node* const* argume
 }
 
 /*
- * The x86 instructions a program reaches by name - native.def's twelve rows.
+ * The x86 instructions a program reaches by name - native.def's system rows.
  *
  * The same two lines every emitter in this file is, with the row passed in: what an
  * `@platform(sha)` declaration promises about its operands was checked by `checkRoles` against
@@ -127,6 +127,20 @@ Node* expandVecStoreUpTo(Builder& builder, Function& callee, Node* const* argume
 Node* expandX86Native(Builder& builder, Function& callee, Node* const* arguments, Size count,
                       const Substitution& with, LocationId source, NativeOp op) {
     return nativeOperation(builder, callee, arguments, count, with, source, op);
+}
+
+static Maybe<U64> literalArgument(Builder& builder, Node& argument);
+
+Node* expandX86Interrupt(Builder& builder, Function& callee, Node* const* arguments,
+                         const Substitution& with, LocationId source) {
+    auto vector = literalArgument(builder, *arguments[0]);
+    if(!vector || vector.unwrap() > 255) {
+        builder.context.diagnostics.error("an int vector must be a constant from 0 to 255 - it is the instruction's embedded byte, and a computed one is not an instruction"_v,
+                                          source);
+        return nullptr;
+    }
+
+    return nativeOperation(builder, callee, arguments, 1, with, source, NativeOp::X86Interrupt);
 }
 
 /*

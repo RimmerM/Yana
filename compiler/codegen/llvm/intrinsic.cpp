@@ -209,6 +209,30 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
     auto created = inst.created();
 
     switch(inst.getIntrinsic()) {
+        case LowerIntrinsic::Nop:
+            genAsm(f, inst, "nop", "~{memory}", {});
+            return true;
+
+        case LowerIntrinsic::Lretq:
+            {
+                // The native emitter uses MOVZX EAX, r/m16. Keep the input 16-bit here too, so
+                // LLVM names the source register's low word in the inline assembly and the
+                // zero-extension is explicit rather than relying on the source type's lowering.
+                auto selector = asInt16(f, argOf(f, inst, 0));
+                llvm::Value* args[] = { selector };
+                genAsm(f, inst,
+                       "pushq %rax\n\t"
+                       "movzwl $0, %eax\n\t"
+                       "pushq %rax\n\t"
+                       "leaq 3f(%rip), %rax\n\t"
+                       "pushq %rax\n\t"
+                       "lretq\n"
+                       "3:\n\t"
+                       "popq %rax",
+                       "r,~{memory}", args);
+            }
+            return true;
+
         case LowerIntrinsic::Popcnt:
             defineResults(f, inst, f.builder.CreateUnaryIntrinsic(llvm::Intrinsic::ctpop, argOf(f, inst, 0)));
             return true;
@@ -387,6 +411,15 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
             return true;
         }
 
+        case LowerIntrinsic::In16: {
+            llvm::Value* args[] = { asInt16(f, argOf(f, inst, 0)) };
+            auto type = llvm::FunctionType::get(f.builder.getInt16Ty(), { args[0]->getType() }, false);
+            auto assembly = llvm::InlineAsm::get(type, "inw %dx, %ax", "={ax},{dx}", true);
+            f.define(created[0], f.builder.CreateZExt(f.builder.CreateCall(assembly, args),
+                                                      typeOf(f.gen, created[0].type)));
+            return true;
+        }
+
         case LowerIntrinsic::Out8: {
             // The port first and the value second, as the IR states them.
             llvm::Value* args[] = {
@@ -403,6 +436,72 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
             genAsm(f, inst, "outl %eax, %dx", "{dx},{ax}", args);
             return true;
         }
+
+        case LowerIntrinsic::Out16: {
+            llvm::Value* args[] = { asInt16(f, argOf(f, inst, 0)), asInt16(f, argOf(f, inst, 1)) };
+            genAsm(f, inst, "outw %ax, %dx", "{dx},{ax}", args);
+            return true;
+        }
+
+        case LowerIntrinsic::Ins32: {
+            llvm::Value* args[] = {
+                asInt32(f, argOf(f, inst, 0)), argOf(f, inst, 1), asInt32(f, argOf(f, inst, 2)),
+            };
+            genAsm(f, inst, "rep insl", "{edx},{rdi},{ecx},~{rdi},~{rcx},~{memory},~{dirflag}", args);
+            return true;
+        }
+
+        case LowerIntrinsic::Outs32: {
+            llvm::Value* args[] = {
+                asInt32(f, argOf(f, inst, 0)), argOf(f, inst, 1), asInt32(f, argOf(f, inst, 2)),
+            };
+            genAsm(f, inst, "rep outsl", "{edx},{rsi},{ecx},~{rsi},~{rcx},~{memory},~{dirflag}", args);
+            return true;
+        }
+
+        case LowerIntrinsic::Interrupt: {
+            llvm::Value* args[] = { argOf(f, inst, 0) };
+            genAsm(f, inst, "int $0", "i", args);
+            return true;
+        }
+
+        case LowerIntrinsic::Lidt:
+            genSingleOperand(f, inst, "lidt ($0)", "r,~{memory}");
+            return true;
+        case LowerIntrinsic::Lgdt:
+            genSingleOperand(f, inst, "lgdt ($0)", "r,~{memory}");
+            return true;
+
+        case LowerIntrinsic::MovDs:
+            {
+                llvm::Value* args[] = { asInt16(f, argOf(f, inst, 0)) };
+                genAsm(f, inst, "mov $0, %ds", "r,~{memory}", args);
+            }
+            return true;
+        case LowerIntrinsic::MovEs:
+            {
+                llvm::Value* args[] = { asInt16(f, argOf(f, inst, 0)) };
+                genAsm(f, inst, "mov $0, %es", "r,~{memory}", args);
+            }
+            return true;
+        case LowerIntrinsic::MovFs:
+            {
+                llvm::Value* args[] = { asInt16(f, argOf(f, inst, 0)) };
+                genAsm(f, inst, "mov $0, %fs", "r,~{memory}", args);
+            }
+            return true;
+        case LowerIntrinsic::MovGs:
+            {
+                llvm::Value* args[] = { asInt16(f, argOf(f, inst, 0)) };
+                genAsm(f, inst, "mov $0, %gs", "r,~{memory}", args);
+            }
+            return true;
+        case LowerIntrinsic::MovSs:
+            {
+                llvm::Value* args[] = { asInt16(f, argOf(f, inst, 0)) };
+                genAsm(f, inst, "mov $0, %ss", "r,~{memory}", args);
+            }
+            return true;
 
         /*
          * Control registers. One intrinsic per register because the number is part of the encoding,

@@ -114,6 +114,8 @@ llvm::CallingConv::ID conventionOf(LowerCallType type) {
             // switch routine carries itself - see genStackSwitch. The lower IR has no callee operand
             // for a switch, so the call is to that routine rather than to anything the IR names.
             return llvm::CallingConv::PreserveNone;
+        case LowerCallType::X86Interrupt:
+            return llvm::CallingConv::X86_INTR;
     }
 
     assertTrue("unknown calling convention" == nullptr);
@@ -531,6 +533,21 @@ static llvm::Function* declareFunction(Gen& gen, LowerFunction& fun) {
     );
 
     target->setCallingConv(conventionOf(fun.callType));
+
+    // LLVM's x86 interrupt ABI models the CPU frame as a byval parameter. The source-level handler
+    // receives the resulting pointer, while LLVM's prologue materializes the copy at the hardware
+    // frame address and its return lowers to iretq. A five-word long-mode frame covers both
+    // same-privilege and privilege-changing entries; an optional error-code parameter is a normal
+    // second i64 value.
+    if(fun.callType == LowerCallType::X86Interrupt && !fun.args.isEmpty()) {
+        auto frameType = llvm::StructType::get(
+            gen.llvm,
+            { llvm::Type::getInt64Ty(gen.llvm), llvm::Type::getInt64Ty(gen.llvm),
+              llvm::Type::getInt64Ty(gen.llvm), llvm::Type::getInt64Ty(gen.llvm),
+              llvm::Type::getInt64Ty(gen.llvm) }
+        );
+        target->addParamAttr(0, llvm::Attribute::getWithByValType(gen.llvm, frameType));
+    }
 
     // Probed, as the x64 backend's prologue and dynamic allocation are: a frame larger than a page
     // could otherwise step over the guard page under a fiber's stack and write into whatever is

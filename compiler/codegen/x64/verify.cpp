@@ -737,6 +737,31 @@ struct Verifier {
 
             rematOwner[index] = LiveId(i);
         }
+
+        // An interrupt frame pointer is an incoming rematerialized argument rather than a value
+        // whose definition was made rematerializable by placement. It still recreates the argument's
+        // value, so give the verifier the same owner it gives an ordinary remat home.
+        auto args = fun.args.contents(base);
+        for(Size i = 0; i < args.size(); i++) {
+            auto incoming = regs.placement.incomingArgs[i];
+            if(!incoming.isRemat()) continue;
+
+            auto index = incoming.rematId();
+            if(index >= rematOwner.size()) {
+                fail("%@: incoming argument names recipe %@, of which there are %@",
+                    funName, U32(index), U32(rematOwner.size()));
+                continue;
+            }
+
+            auto id = base[args[i]]->result.liveId();
+            if(id == kNullLive) continue;
+            if(rematOwner[index] != kNullLive && rematOwner[index] != id) {
+                fail("%@: incoming argument and %@ share recipe %@",
+                    funName, nameOf(rematOwner[index]), U32(index));
+                continue;
+            }
+            rematOwner[index] = id;
+        }
     }
 
     template<Size length, class... Args>
@@ -1094,6 +1119,15 @@ struct Verifier {
 
             auto incoming = MachineLocation::physical(locations[i].reg);
 
+            if(locations[i].kind == ArgLocation::StackAddress) {
+                incoming = regs.placement.incomingArgs[i];
+                if(!incoming.isValid()) {
+                    fail("%@: argument %@ has no CPU-frame address recipe",
+                        funName, nameOf(&result));
+                    continue;
+                }
+            }
+
             if(locations[i].kind == ArgLocation::Stack) {
                 incoming = incomingArgSlot(locations[i].stackOffset);
 
@@ -1243,7 +1277,9 @@ bool verifyFrameLayout(Context& ctx, LowerFunction& fun, const FrameObjects& obj
     } else {
         // Nothing realigns, so rsp at every call is the entry value less everything the prologue
         // moved it by - the return address included, since the call pushed it.
-        auto moved = 8 + (layout.framePointer ? 8u : 0u) + 8 * savedCount + layout.fixedSize;
+        auto returnAddress = fun.callType == LowerCallType::X86Interrupt ? 0u : 8u;
+        auto moved = returnAddress + (layout.framePointer ? 8u : 0u) + 8 * savedCount
+            + layout.fixedSize;
 
         if(moved % required != 0) {
             logError("%@: the prologue moves rsp by %@ bytes, which does not leave it on the %@ its body needs",
@@ -1263,9 +1299,10 @@ bool verifyFrameLayout(Context& ctx, LowerFunction& fun, const FrameObjects& obj
         }
 
         if(slot.kind == StackSlotKind::IncomingArg) {
-            // In the caller's frame, above the return address - never in the region this function
-            // reserved for itself.
-            if(offset < 8) {
+            // In an ordinary call this is above the return address. An interrupt entry has no
+            // return address: its hardware frame begins at the entry stack pointer itself.
+            auto minimum = fun.callType == LowerCallType::X86Interrupt ? 0 : 8;
+            if(offset < minimum) {
                 logError("%@: incoming argument at %@ resolves to %@, inside this function's own frame",
                     funName, slot.argOffset, offset);
                 ok = false;

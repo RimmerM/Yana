@@ -20,6 +20,7 @@ struct ArgLocation {
         None,     // unconstrained: the operand stays wherever the allocator put it
         Register, // a fixed register
         Stack,    // the argument area, at `stackOffset` bytes from its base
+        StackAddress, // the address of an incoming CPU-provided stack word
     };
 
     Kind kind = None;
@@ -28,6 +29,9 @@ struct ArgLocation {
 
     static ArgLocation inRegister(PhysicalReg reg) { return ArgLocation { Register, reg, 0 }; }
     static ArgLocation onStack(U32 offset) { return ArgLocation { Stack, PhysicalReg {}, offset }; }
+    static ArgLocation stackAddress(U32 offset) {
+        return ArgLocation { StackAddress, PhysicalReg {}, offset };
+    }
 };
 
 // A calling convention, stated once and used from both sides.
@@ -88,6 +92,9 @@ struct CallConvention {
     // writtenRegisters adds them to the site's mask from the shape.
     bool preservesArgs = false;
 
+    // CPU-entered interrupt handlers receive their frame on the entry stack, not in call registers.
+    bool interrupt = false;
+
     // Set once the convention has tables to work from. A function or call using one that does not
     // has to be rejected: with empty tables every argument would silently be classified onto the
     // stack, which is a working compile of the wrong program.
@@ -112,6 +119,16 @@ using ArgLocationList = SmallArray<ArgLocation, 8>;
 template<class F>
 void classifyArgs(const CallConvention& convention, Size count, F&& typeOf, ArgLocationList& out) {
     assertTrue(convention.defined); // a call using an undescribed convention
+
+    if(convention.interrupt) {
+        // With no error code the CPU frame starts at entry rsp. With one, the error code is the
+        // first word and the hardware frame begins one word above it. The source signature is
+        // therefore `(frame)` or `(frame, error)`, never a normal register argument list.
+        assertTrue(count <= 2);
+        if(count > 0) out.push(ArgLocation::stackAddress(count == 2 ? 8 : 0));
+        if(count > 1) out.push(ArgLocation::onStack(0));
+        return;
+    }
 
     Size taken[kRegisterBankCount] = {};
     auto stack = convention.shadowSpace;
@@ -140,6 +157,11 @@ void classifyArgs(const CallConvention& convention, Size count, F&& typeOf, ArgL
 template<class F>
 void classifyResults(const CallConvention& convention, Size count, F&& typeOf, ArgLocationList& out) {
     assertTrue(convention.defined); // a call using an undescribed convention
+
+    if(convention.interrupt) {
+        assertTrue(count == 0); // interrupt handlers return through the CPU frame
+        return;
+    }
 
     Size taken[kRegisterBankCount] = {};
 

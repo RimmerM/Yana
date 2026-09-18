@@ -118,6 +118,95 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::x86VZeroUpper:
             return expandX86Native(builder, callee, arguments, 0, with, source,
                                    NativeOp::VZeroUpper);
+        case Op::x86VZeroAll:
+            return expandX86Native(builder, callee, arguments, 0, with, source,
+                                   NativeOp::VZeroAll);
+        case Op::x86Nop:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86Nop);
+        case Op::x86Lretq:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86Lretq);
+        case Op::x86Cpuid:
+            return expandX86Native(builder, callee, arguments, 6, with, source, NativeOp::X86Cpuid);
+        case Op::x86Rdtscp:
+            return expandX86Native(builder, callee, arguments, 2, with, source, NativeOp::X86Rdtscp);
+        case Op::x86Rdtsc:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86Rdtsc);
+        case Op::x86MFence:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86MFence);
+        case Op::x86LFence:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86LFence);
+        case Op::x86SFence:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86SFence);
+        case Op::x86Pause:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86Pause);
+        case Op::x86Prefetch:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86Prefetch);
+        case Op::x86PrefetchNta:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86PrefetchNta);
+        case Op::x86Clflush:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86Clflush);
+        case Op::x86Invlpg:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86Invlpg);
+        case Op::x86Hlt:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86Hlt);
+        case Op::x86Cli:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86Cli);
+        case Op::x86Sti:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86Sti);
+        case Op::x86Swapgs:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86Swapgs);
+        case Op::x86Rdmsr:
+            return expandX86Native(builder, callee, arguments, 3, with, source, NativeOp::X86Rdmsr);
+        case Op::x86Wrmsr:
+            return expandX86Native(builder, callee, arguments, 3, with, source, NativeOp::X86Wrmsr);
+        case Op::x86Xgetbv:
+            return expandX86Native(builder, callee, arguments, 3, with, source, NativeOp::X86Xgetbv);
+        case Op::x86In8:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86In8);
+        case Op::x86In16:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86In16);
+        case Op::x86In32:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86In32);
+        case Op::x86Out8:
+            return expandX86Native(builder, callee, arguments, 2, with, source, NativeOp::X86Out8);
+        case Op::x86Out16:
+            return expandX86Native(builder, callee, arguments, 2, with, source, NativeOp::X86Out16);
+        case Op::x86Out32:
+            return expandX86Native(builder, callee, arguments, 2, with, source, NativeOp::X86Out32);
+        case Op::x86Ins32:
+            return expandX86Native(builder, callee, arguments, 3, with, source, NativeOp::X86Ins32);
+        case Op::x86Outs32:
+            return expandX86Native(builder, callee, arguments, 3, with, source, NativeOp::X86Outs32);
+        case Op::x86Interrupt:
+            return expandX86Interrupt(builder, callee, arguments, with, source);
+        case Op::x86Lidt:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86Lidt);
+        case Op::x86Lgdt:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86Lgdt);
+        case Op::x86MovDs:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86MovDs);
+        case Op::x86MovEs:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86MovEs);
+        case Op::x86MovFs:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86MovFs);
+        case Op::x86MovGs:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86MovGs);
+        case Op::x86MovSs:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86MovSs);
+        case Op::x86ReadCr0:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86ReadCr0);
+        case Op::x86ReadCr2:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86ReadCr2);
+        case Op::x86ReadCr3:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86ReadCr3);
+        case Op::x86ReadCr4:
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86ReadCr4);
+        case Op::x86WriteCr0:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86WriteCr0);
+        case Op::x86WriteCr3:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86WriteCr3);
+        case Op::x86WriteCr4:
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86WriteCr4);
         case Op::x86Sha1Message1:
             return expandX86Native(builder, callee, arguments, 2, with, source,
                                    NativeOp::Sha1Message1);

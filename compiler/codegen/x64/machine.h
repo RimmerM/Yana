@@ -380,10 +380,10 @@ enum : MachineOpcodeId {
     OpRound,
     OpFma,
 
-    // `vzeroupper`, which a function that wrote a ymm or zmm register owes before every call to one
-    // that might not have and before returning - see §5.4 of Implementation-Vector.md. It takes no
-    // operands and produces no value; what it does is to the upper halves of the register file.
+    // The explicit vector-state resets. `vzeroupper` clears upper halves and `vzeroall` clears the
+    // whole vector file; both take no operands and produce no value.
     OpVZeroUpper,
+    OpVZeroAll,
 
     OpSelect,
     OpAlloca,
@@ -594,7 +594,8 @@ enum class MemoryAccessKind: U8 {
 // the encoder asks it to choose the byte width.
 enum class ImmediateWidth: U8 {
     None,
-    Imm8,
+    Imm8,             // signed, as used by an instruction encoding that sign-extends it
+    Imm8Unsigned,     // an embedded byte whose full 0..255 range is meaningful
     Imm8OrImm32, // the shorter encoding where the value fits, otherwise the longer one
     Imm32,
     Imm64,
@@ -623,6 +624,7 @@ inline bool fitsImmediate(ImmediateWidth width, U64 value) {
     switch(width) {
         case ImmediateWidth::None:        return false;
         case ImmediateWidth::Imm8:        return fitsImm8(value);
+        case ImmediateWidth::Imm8Unsigned: return value <= 0xff;
         case ImmediateWidth::Imm8OrImm32: return fitsImm32(value);
         case ImmediateWidth::Imm32:       return fitsImm32(value);
         case ImmediateWidth::Imm64:       return true;
@@ -843,6 +845,7 @@ enum class EncodingPrelude: U8 {
 enum class PseudoKind: U8 {
     None,
     Nop,
+    Lretq,
     CallDirect,
     CallIndirect,
     Syscall,
@@ -899,6 +902,7 @@ enum class PseudoKind: U8 {
     // escape, and this instruction's prefix is a VEX one - and because the bytes are already written
     // in exactly one place, `Emitter::emitVectorZeroUpper`, which this calls rather than repeats.
     VZeroUpper,
+    VZeroAll,
 
     Jump,
 
@@ -1002,6 +1006,7 @@ enum class PseudoKind: U8 {
     // expansion does can surprise a placement that has already happened.
     RdTsc,   // the counter's two halves joined into the one value the intrinsic returns
     PortIn8, // a byte read from a port, zero-extended into the whole result
+    Interrupt, // `int imm8`, whose vector is an immediate operand
 };
 
 /*

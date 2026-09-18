@@ -1,0 +1,131 @@
+
+portWidths<complex>(%port: I32, %value: I32, %address: Ptr, %count: I32) {
+  b_0 {
+    out16 %port, %value
+    %word = in16 %port: I32
+    ins32 %port, %address, %count
+    outs32 %port, %address, %count
+    ret 
+  }
+}
+
+interrupt<complex>(%vector: I32) {
+  b_0 {
+    int 3
+    int 255
+    ret 
+  }
+}
+
+interruptHandler<x86_interrupt>(%frame: Ptr) {
+  b_0 {
+    ret 
+  }
+}
+
+interruptHandlerError<x86_interrupt>(%frame: Ptr, %error: I64) {
+  b_0 {
+    ret 
+  }
+}
+
+lretq<complex>(%codeSegment: I32) {
+  b_0 {
+    lretq %codeSegment
+    ret 
+  }
+}
+
+descriptorTables<complex>(%address: Ptr) {
+  b_0 {
+    lidt %address
+    lgdt %address
+    ret 
+  }
+}
+
+segments<complex>(%value: I32) {
+  b_0 {
+    mov_ds %value
+    mov_es %value
+    mov_fs %value
+    mov_gs %value
+    mov_ss %value
+    ret 
+  }
+}
+
+vectorResets<sysv>() {
+  b_0 {
+    vzeroupper 
+    vzeroall 
+    ret 
+  }
+}
+
+
+--- codegen: portWidths ---
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rax, rdx->r8, rcx->r9, rdi->rsi]  => 8bc64c8bc2448bc98bf7
+block #1:
+  out16 uses=[rdx, rax] creates=[] pre=[rsi->rdx]  => 8bd666ef
+  in16 uses=[rdx] creates=[rax] pre=[rsi->rdx]  => 8bd666ed
+  ins32 uses=[rdx, rdi, rcx] creates=[] pre=[rsi->rdx, r8->rdi, r9->rcx]  => 8bd6498bf8418bc9f36d
+  outs32 uses=[rdx, rsi, rcx] creates=[] pre=[rsi->rdx, r8->rsi, r9->rcx]  => 8bd6498bf0418bc9f36f
+  ret uses=[] creates=[]  => c3
+
+--- codegen: interrupt ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  int uses=[-] creates=[]  => cd03
+  imm uses=[] creates=[-]  => 
+  int uses=[-] creates=[]  => cdff
+  ret uses=[] creates=[]  => c3
+
+--- codegen: interruptHandler ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[] creates=[]  => cf
+
+--- codegen: interruptHandlerError ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[] creates=[]  => 4883c408cf
+
+--- codegen: lretq ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  lretq uses=[rdi] creates=[]  => 500fb7c750488d05030000005048cb58
+  ret uses=[] creates=[]  => c3
+
+--- codegen: descriptorTables ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  lidt uses=[rdi] creates=[]  => 0f011f
+  lgdt uses=[rdi] creates=[]  => 0f0117
+  ret uses=[] creates=[]  => c3
+
+--- codegen: segments ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  mov_ds uses=[rdi] creates=[]  => 8edf
+  mov_es uses=[rdi] creates=[]  => 8ec7
+  mov_fs uses=[rdi] creates=[]  => 8ee7
+  mov_gs uses=[rdi] creates=[]  => 8eef
+  mov_ss uses=[rdi] creates=[]  => 8ed7
+  ret uses=[] creates=[]  => c3
+
+--- codegen: vectorResets ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vzeroupper uses=[] creates=[]  => c5f877
+  vzeroall uses=[] creates=[]  => c5fc77
+  ret uses=[] creates=[]  => c3

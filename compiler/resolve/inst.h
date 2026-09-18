@@ -1338,6 +1338,53 @@ enum class NativeOp: U8 {
     VecLoadUpTo,
     VecStoreUpTo,
 
+    // The x86 instruction surface. These rows mirror `lib/Native/Intrinsic/X86.yana` and are
+    // deliberately kept as Native operations until lowering, where they become the shared lower
+    // intrinsic forms used by both source resolvers.
+    X86Nop,
+    X86Lretq,
+    X86Cpuid,
+    X86Rdtscp,
+    X86Rdtsc,
+    X86MFence,
+    X86LFence,
+    X86SFence,
+    X86Pause,
+    X86Prefetch,
+    X86PrefetchNta,
+    X86Clflush,
+    X86Invlpg,
+    X86Hlt,
+    X86Cli,
+    X86Sti,
+    X86Swapgs,
+    X86Rdmsr,
+    X86Wrmsr,
+    X86Xgetbv,
+    X86In8,
+    X86In16,
+    X86In32,
+    X86Out8,
+    X86Out16,
+    X86Out32,
+    X86Ins32,
+    X86Outs32,
+    X86Interrupt,
+    X86Lidt,
+    X86Lgdt,
+    X86MovDs,
+    X86MovEs,
+    X86MovFs,
+    X86MovGs,
+    X86MovSs,
+    X86ReadCr0,
+    X86ReadCr2,
+    X86ReadCr3,
+    X86ReadCr4,
+    X86WriteCr0,
+    X86WriteCr3,
+    X86WriteCr4,
+
     /*
      * The host - Implementation-Containers.md §14.1.
      *
@@ -1879,6 +1926,15 @@ inline StringView nameOfShaOp(ShaOp op) {
 // processor state that nothing in this IR names, which is why it is a statement rather than a value.
 struct InstVZeroUpper: Inst {
     InstVZeroUpper(ModulePtr<Block> block, TypePtr unit): Inst(Value::VZeroUpper, block, unit) {}
+
+    template<class F> void mapOperandFields(ModuleBase, F&&) {}
+};
+
+// `vzeroall` - the same anchored, operand-free reset as `vzeroupper`, but it clears the low halves
+// as well as the upper halves of every vector register. The x64 validator therefore applies the
+// stricter rule that no vector value may cross it.
+struct InstVZeroAll: Inst {
+    InstVZeroAll(ModulePtr<Block> block, TypePtr unit): Inst(Value::VZeroAll, block, unit) {}
 
     template<class F> void mapOperandFields(ModuleBase, F&&) {}
 };

@@ -66,6 +66,113 @@ static LowerAtomicOp lowerAtomicOpOf(AtomicKind kind) {
     }
 }
 
+static LowerInst* lowerX86Native(LowerContext& lower, LowerBlock& block, Inst& instruction,
+                                  SmallArray<LowerPtr<LowerValue>, 8> args, NativeOp op) {
+    auto emit = [&](LowerIntrinsic which, Size created, Size used, LowerType createdType,
+                    bool sourceResult) {
+        auto inst = new (allocTrailing<LowerInstIntrinsic, LowerValue, LowerPtr<LowerValue>>(
+            lower.to.arena, sizeof(LowerValue) * created + sizeof(LowerPtr<LowerValue>) * used))
+            LowerInstIntrinsic(which, created, used);
+
+        for(Size i = 0; i < used; i++) inst->used().ptr[i] = args[i];
+        if(created) new (inst->created().ptr) LowerValue(
+            inst, sourceResult ? lowerType(lower, instruction.type) : createdType, instruction.name);
+        return block.addInst(lower.lower, (LowerInst*)inst);
+    };
+
+    auto storeResults = [&](LowerInstIntrinsic* inst, Size first, Size count) {
+        for(Size i = 0; i < count; i++) {
+            block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
+                args[first + i], inst->created().ptr + i - lower.lower, 4));
+        }
+    };
+
+    switch(op) {
+        case NativeOp::X86Nop:
+            return emit(LowerIntrinsic::Nop, 0, 0, LowerType::Int32, false);
+        case NativeOp::X86Lretq:
+            return emit(LowerIntrinsic::Lretq, 0, 1, LowerType::Int32, false);
+        case NativeOp::X86Cpuid: {
+            auto* inst = (LowerInstIntrinsic*)emit(LowerIntrinsic::Cpuid, 4, 2,
+                                                   LowerType::Int32, false);
+            for(Size i = 1; i < 4; i++) new (inst->created().ptr + i)
+                LowerValue(inst, LowerType::Int32, StringId());
+            storeResults(inst, 2, 4);
+            return nullptr;
+        }
+        case NativeOp::X86Rdtscp: {
+            auto* inst = (LowerInstIntrinsic*)emit(LowerIntrinsic::Rdtscp, 2, 0,
+                                                   LowerType::Int32, false);
+            new (inst->created().ptr + 1) LowerValue(inst, LowerType::Int32, StringId());
+            storeResults(inst, 0, 2);
+            return nullptr;
+        }
+        case NativeOp::X86Rdmsr: {
+            auto* inst = (LowerInstIntrinsic*)emit(LowerIntrinsic::Rdmsr, 2, 1,
+                                                   LowerType::Int32, false);
+            new (inst->created().ptr + 1) LowerValue(inst, LowerType::Int32, StringId());
+            storeResults(inst, 1, 2);
+            return nullptr;
+        }
+        case NativeOp::X86Xgetbv: {
+            auto* inst = (LowerInstIntrinsic*)emit(LowerIntrinsic::Xgetbv, 2, 1,
+                                                   LowerType::Int32, false);
+            new (inst->created().ptr + 1) LowerValue(inst, LowerType::Int32, StringId());
+            storeResults(inst, 1, 2);
+            return nullptr;
+        }
+        default:
+            break;
+    }
+
+    LowerIntrinsic which = LowerIntrinsic::Rdtsc;
+    switch(op) {
+        case NativeOp::X86Rdtsc:       which = LowerIntrinsic::Rdtsc; break;
+        case NativeOp::X86MFence:      which = LowerIntrinsic::MFence; break;
+        case NativeOp::X86LFence:      which = LowerIntrinsic::LFence; break;
+        case NativeOp::X86SFence:      which = LowerIntrinsic::SFence; break;
+        case NativeOp::X86Pause:       which = LowerIntrinsic::Pause; break;
+        case NativeOp::X86Prefetch:    which = LowerIntrinsic::Prefetch; break;
+        case NativeOp::X86PrefetchNta: which = LowerIntrinsic::PrefetchNta; break;
+        case NativeOp::X86Clflush:     which = LowerIntrinsic::Clflush; break;
+        case NativeOp::X86Invlpg:      which = LowerIntrinsic::Invlpg; break;
+        case NativeOp::X86Hlt:         which = LowerIntrinsic::Hlt; break;
+        case NativeOp::X86Cli:         which = LowerIntrinsic::Cli; break;
+        case NativeOp::X86Sti:         which = LowerIntrinsic::Sti; break;
+        case NativeOp::X86Swapgs:      which = LowerIntrinsic::Swapgs; break;
+        case NativeOp::X86Wrmsr:       which = LowerIntrinsic::Wrmsr; break;
+        case NativeOp::X86In8:         which = LowerIntrinsic::In8; break;
+        case NativeOp::X86In16:        which = LowerIntrinsic::In16; break;
+        case NativeOp::X86In32:        which = LowerIntrinsic::In32; break;
+        case NativeOp::X86Out8:        which = LowerIntrinsic::Out8; break;
+        case NativeOp::X86Out16:       which = LowerIntrinsic::Out16; break;
+        case NativeOp::X86Out32:       which = LowerIntrinsic::Out32; break;
+        case NativeOp::X86Ins32:       which = LowerIntrinsic::Ins32; break;
+        case NativeOp::X86Outs32:      which = LowerIntrinsic::Outs32; break;
+        case NativeOp::X86Interrupt:   which = LowerIntrinsic::Interrupt; break;
+        case NativeOp::X86Lidt:        which = LowerIntrinsic::Lidt; break;
+        case NativeOp::X86Lgdt:        which = LowerIntrinsic::Lgdt; break;
+        case NativeOp::X86MovDs:       which = LowerIntrinsic::MovDs; break;
+        case NativeOp::X86MovEs:       which = LowerIntrinsic::MovEs; break;
+        case NativeOp::X86MovFs:       which = LowerIntrinsic::MovFs; break;
+        case NativeOp::X86MovGs:       which = LowerIntrinsic::MovGs; break;
+        case NativeOp::X86MovSs:       which = LowerIntrinsic::MovSs; break;
+        case NativeOp::X86ReadCr0:     which = LowerIntrinsic::ReadCr0; break;
+        case NativeOp::X86ReadCr2:     which = LowerIntrinsic::ReadCr2; break;
+        case NativeOp::X86ReadCr3:     which = LowerIntrinsic::ReadCr3; break;
+        case NativeOp::X86ReadCr4:     which = LowerIntrinsic::ReadCr4; break;
+        case NativeOp::X86WriteCr0:    which = LowerIntrinsic::WriteCr0; break;
+        case NativeOp::X86WriteCr3:    which = LowerIntrinsic::WriteCr3; break;
+        case NativeOp::X86WriteCr4:    which = LowerIntrinsic::WriteCr4; break;
+        default:
+            assertTrue("not an x86 native operation" == nullptr);
+            return nullptr;
+    }
+
+    auto created = isUnit(lower.global, instruction.type) ? 0 : 1;
+    return emit(which, created, lowerIntrinsicDesc(which).args, LowerType::Int32, true);
+}
+
 // See lowerStorageInst for what a null return means.
 LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instruction,
                             ModulePtr<Value> instValue, Function* function) {
@@ -239,6 +346,52 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 case NativeOp::VecStoreUpTo:
                     result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecStoreUpTo(
                         args[0], args[1], args[2]));
+                    break;
+
+                case NativeOp::X86Nop:
+                case NativeOp::X86Lretq:
+                case NativeOp::X86Cpuid:
+                case NativeOp::X86Rdtscp:
+                case NativeOp::X86Rdtsc:
+                case NativeOp::X86MFence:
+                case NativeOp::X86LFence:
+                case NativeOp::X86SFence:
+                case NativeOp::X86Pause:
+                case NativeOp::X86Prefetch:
+                case NativeOp::X86PrefetchNta:
+                case NativeOp::X86Clflush:
+                case NativeOp::X86Invlpg:
+                case NativeOp::X86Hlt:
+                case NativeOp::X86Cli:
+                case NativeOp::X86Sti:
+                case NativeOp::X86Swapgs:
+                case NativeOp::X86Rdmsr:
+                case NativeOp::X86Wrmsr:
+                case NativeOp::X86Xgetbv:
+                case NativeOp::X86In8:
+                case NativeOp::X86In16:
+                case NativeOp::X86In32:
+                case NativeOp::X86Out8:
+                case NativeOp::X86Out16:
+                case NativeOp::X86Out32:
+                case NativeOp::X86Ins32:
+                case NativeOp::X86Outs32:
+                case NativeOp::X86Interrupt:
+                case NativeOp::X86Lidt:
+                case NativeOp::X86Lgdt:
+                case NativeOp::X86MovDs:
+                case NativeOp::X86MovEs:
+                case NativeOp::X86MovFs:
+                case NativeOp::X86MovGs:
+                case NativeOp::X86MovSs:
+                case NativeOp::X86ReadCr0:
+                case NativeOp::X86ReadCr2:
+                case NativeOp::X86ReadCr3:
+                case NativeOp::X86ReadCr4:
+                case NativeOp::X86WriteCr0:
+                case NativeOp::X86WriteCr3:
+                case NativeOp::X86WriteCr4:
+                    result = lowerX86Native(lower, block, instruction, args, native.op);
                     break;
 
                 case NativeOp::HostCall:
@@ -750,6 +903,10 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
         // `@platform(x64)` declaration it comes from.
         case Value::VZeroUpper:
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVZeroUpper());
+            break;
+
+        case Value::VZeroAll:
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVZeroAll());
             break;
 
         case Value::ShaBinary: {

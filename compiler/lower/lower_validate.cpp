@@ -1355,6 +1355,7 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::Nop:
         // Nothing to check: no operands to type, no result to name, no fields to be out of range.
         case LowerInst::VZeroUpper:
+        case LowerInst::VZeroAll:
             return true;
         case LowerInst::Cast:
             return validateCast(diagnostics, base, (LowerInstCast*)inst);
@@ -1582,6 +1583,40 @@ bool validateLowerFunction(Diagnostics* diagnostics, LowerBase base, LowerFuncti
         return false;
     }
 
+    if(function->callType == LowerCallType::X86Interrupt) {
+        // LLVM's x86_intrcc and the native frame classifier agree on this deliberately small
+        // source ABI: no result, an optional pointer to the five-word hardware frame, and an
+        // optional i64 error code. More arguments would have no CPU-provided location to read.
+        if(function->returnTypes.isNotEmpty()) {
+            diagnostics->error("an x86 interrupt handler must return no value"_v, function->source);
+            return false;
+        }
+
+        if(function->args.size() < 1 || function->args.size() > 2) {
+            diagnostics->error("an x86 interrupt handler must take a frame pointer and may take an error code"_v,
+                               function->source);
+            return false;
+        }
+
+        if(function->args.size() > 0) {
+            auto frame = base[function->args.get(base, 0)]->result.type;
+            if(!isPtr(frame)) {
+                diagnostics->error("the first x86 interrupt-handler argument must be a pointer to the CPU frame"_v,
+                                   function->source);
+                return false;
+            }
+        }
+
+        if(function->args.size() > 1) {
+            auto error = base[function->args.get(base, 1)]->result.type;
+            if(error != LowerType::Int64) {
+                diagnostics->error("the second x86 interrupt-handler argument must be a 64-bit error code"_v,
+                                   function->source);
+                return false;
+            }
+        }
+    }
+
     auto dominators = function->buildDominatorTree(base);
     auto entryPoint = base[function->blocks.get(base, 0)];
 
@@ -1642,6 +1677,19 @@ bool validateLowerModule(Diagnostics* diagnostics, LowerModule* module) {
     for(auto f: module->functionOrder) {
         if(!validateLowerFunction(diagnostics, base, base[f])) return false;
         if(!validateGlobalWrites(diagnostics, base, base[f])) return false;
+
+        for(auto block: base[f]->blocks.contents(base)) {
+            for(auto inst: base[block]->instructions.contents(base)) {
+                auto instruction = base[inst];
+                if(instruction->kind == LowerInst::Call
+                   && ((LowerInstCall*)instruction)->getCallType() == LowerCallType::X86Interrupt)
+                {
+                    diagnostics->error("an x86 interrupt handler cannot be called as an ordinary function"_v,
+                                       instruction->source);
+                    return false;
+                }
+            }
+        }
     }
 
     return true;

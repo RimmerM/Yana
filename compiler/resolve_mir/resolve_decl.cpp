@@ -678,13 +678,13 @@ void Resolver::readConventionAttribute(ast::Decl& declaration, Function& functio
 
         auto found = callTypeForName(argument.var);
         if(!found) {
-            context.diagnostics.error("unknown calling convention %@ - the ones a declaration may name are `clobber`, `sysv` and `win64`"_v,
+            context.diagnostics.error("unknown calling convention %@ - the ones a declaration may name are `clobber`, `sysv`, `win64` and `x86_interrupt`"_v,
                                       attribute.source, context.findName(argument.var));
             continue;
         }
 
         if(!conventionWritableInSource(found.unwrap())) {
-            context.diagnostics.error("%@ is not a convention a declaration may name - `simple` and `complex` are the compiler's own choice between two internal shapes, and `system` describes what a syscall leaves alone rather than how anything is entered. Write `clobber`, `sysv` or `win64`"_v,
+            context.diagnostics.error("%@ is not a convention a declaration may name - `simple` and `complex` are the compiler's own choice between two internal shapes, and `system` describes what a syscall leaves alone rather than how anything is entered. Write `clobber`, `sysv`, `win64` or `x86_interrupt`"_v,
                                       attribute.source, context.findName(argument.var));
             continue;
         }

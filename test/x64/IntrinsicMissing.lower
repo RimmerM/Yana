@@ -1,0 +1,69 @@
+# The x64-only system instructions that are not part of the older intrinsic fixture.
+#
+# These are deliberately a byte-level fixture: the important contracts are the fixed registers,
+# ModRM extensions and immediate/address encodings, not executing the privileged instructions.
+# extensions: avx2
+
+portWidths(%port: I32, %value: I32, %address: Ptr, %count: I32) {
+    {
+        out16 %port, %value
+        %word = in16 %port
+        ins32 %port, %address, %count
+        outs32 %port, %address, %count
+        ret
+    }
+}
+
+interrupt(%vector: I32) {
+    {
+        int 3
+        int 255
+        ret
+    }
+}
+
+interruptHandler<x86_interrupt>(%frame: Ptr) {
+    {
+        ret
+    }
+}
+
+interruptHandlerError<x86_interrupt>(%frame: Ptr, %error: I64) {
+    {
+        ret
+    }
+}
+
+lretq(%codeSegment: I32) {
+    {
+        lretq %codeSegment
+        ret
+    }
+}
+
+descriptorTables(%address: Ptr) {
+    {
+        lidt %address
+        lgdt %address
+        ret
+    }
+}
+
+segments(%value: I32) {
+    {
+        mov_ds %value
+        mov_es %value
+        mov_fs %value
+        mov_gs %value
+        mov_ss %value
+        ret
+    }
+}
+
+vectorResets<sysv>() {
+    {
+        vzeroupper
+        vzeroall
+        ret
+    }
+}

@@ -842,6 +842,45 @@ static void genPopReg(AsmModule& to, U8 r) {
     to.buffer.writeByte(0x58 + (r & 7));
 }
 
+/*
+ * Change CS without making the source operation consume the surrounding function's return
+ * address. `lretq` pops a far-return frame, so the pseudo makes one containing the address of its
+ * own resume trampoline and the requested selector:
+ *
+ *     push rax                         save the scratch register
+ *     movzx eax, segment               zero-extend the selector
+ *     push rax                         far-return CS
+ *     lea rax, [rip + 3]               address of the trampoline below
+ *     push rax                         far-return RIP
+ *     lretq
+ *     resume: pop rax                  finish with the register file and stack unchanged
+ *
+ * The displacement is three bytes because the trampoline is after `push rax; lretq`. LEA does not
+ * modify flags, and the save/restore makes the temporary use of rax invisible to the surrounding
+ * Yana program. The selector is a 32-bit lower value, so the register move also clears the upper
+ * half before the 64-bit PUSH writes the stack word.
+ */
+static void genLretq(AsmModule& to, U8 segmentReg) {
+    auto rax = U8(IntRegister::rax);
+    genPushReg(to, rax);
+    genRegReg(to, false, segmentReg, rax, 0xb7, 0x0f); // movzx eax, segmentReg
+    genPushReg(to, rax);
+
+    // LEA rax, [rip + 3], targeting the pop below the LRETQ.
+    to.buffer.writeByte(0x48);
+    to.buffer.writeByte(0x8d);
+    to.buffer.writeByte(0x05);
+    to.buffer.writeByte(0x03);
+    to.buffer.writeByte(0x00);
+    to.buffer.writeByte(0x00);
+    to.buffer.writeByte(0x00);
+
+    genPushReg(to, rax);
+    to.buffer.writeByte(0x48);
+    to.buffer.writeByte(0xcb);
+    genPopReg(to, rax);
+}
+
 // TEST r/m, reg (0x85): computes rm & reg and discards the result, only setting flags.
 static void genTestReg(AsmModule& to, bool is64, U8 a, U8 b) {
     genRegReg(to, is64, a, b, 0x85);
@@ -1437,6 +1476,13 @@ static void genEpilogue(AsmModule& to, const FrameLayout& frame) {
     if(frame.framePointer) genPopReg(to, rbp);
 }
 
+// An interrupt entry has no call return address. An exception entry additionally has an error code
+// below the hardware frame, which must be discarded immediately before IRETQ restores the CPU frame.
+static void genInterruptReturn(AsmModule& to, bool hasErrorCode) {
+    if(hasErrorCode) genAddImm(to, U8(IntRegister::rsp), I32(8), false);
+    to.buffer.writeByte(0xcf); // IRETQ in 64-bit mode
+}
+
 // RIP-relative LEA (0x8d, mod=00 rm=101) + a relocation against the target's eventual offset. The
 // relocation is written by the shared address encoder in place of the disp32, which is what keeps
 // this from being another handwritten ModRM byte.
@@ -1607,6 +1653,9 @@ struct Emitter {
     // about one return path rather than about the function.
     bool ownEpilogue = false;
 
+    bool interrupt = false;
+    bool interruptErrorCode = false;
+
     /*
      * §5.4 Whether this function can leave the upper half of a `ymm` register dirty.
      *
@@ -1678,6 +1727,13 @@ struct Emitter {
         // because this is inserted after everything the form table describes has been selected.
         to.buffer.writeByte(0xc5);
         to.buffer.writeByte(0xf8);
+        to.buffer.writeByte(0x77);
+    }
+
+    void emitVectorZeroAll() {
+        // VEX.256.0F.WIG 77, which is `c5 fc 77`.
+        to.buffer.writeByte(0xc5);
+        to.buffer.writeByte(0xfc);
         to.buffer.writeByte(0x77);
     }
 
@@ -3314,11 +3370,19 @@ struct Emitter {
                 to.buffer.writeByte(0x90);
                 break;
 
+            case PseudoKind::Lretq:
+                genLretq(to, reg(regs.uses[0]));
+                break;
+
             // The one place a program can ask for this rather than the emitter deciding it is owed -
             // `X86.vzeroupper()`. Same three bytes, written by the same function, so the explicit
             // form and the boundary ones cannot disagree about what the instruction is.
             case PseudoKind::VZeroUpper:
                 emitVectorZeroUpper();
+                break;
+
+            case PseudoKind::VZeroAll:
+                emitVectorZeroAll();
                 break;
 
             case PseudoKind::CallDirect: {
@@ -3543,7 +3607,8 @@ struct Emitter {
                 // would be undone by them, and doing either under an internal convention would take
                 // the caller's own upper halves with it - see emitVectorZeroUpper.
                 zeroUpperBeforeReturn();
-                to.buffer.writeByte(0xc3);
+                if(interrupt) genInterruptReturn(to, interruptErrorCode);
+                else to.buffer.writeByte(0xc3);
                 break;
 
             // Nothing at all - see FormNoReturn. The parallel copies in front of this terminator
@@ -3668,6 +3733,15 @@ struct Emitter {
             case PseudoKind::PortIn8:
                 emitPortIn8();
                 break;
+
+            case PseudoKind::Interrupt: {
+                auto& vector = field(regs, form.encoding.immField);
+                assertTrue(vector.isImmediate);
+                assertTrue(fitsImmediate(ImmediateWidth::Imm8Unsigned, vector.immediate));
+                to.buffer.writeByte(0xcd); // INT imm8
+                to.buffer.writeByte(U8(vector.immediate));
+                break;
+            }
         }
     }
 
@@ -4829,7 +4903,10 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
     // which is the other half of the same question - see functionEnteredFromOutside. Asked once here
     // rather than at each return, and read by the shared epilogue's size below as well, which has to
     // answer exactly what zeroUpperBeforeReturn answers.
-    auto foreignEntered = fun.foreignBoundary;
+    // An interrupt return is an `iretq` boundary, not an ordinary ABI return. In particular, an
+    // automatic `vzeroupper` would destroy upper vector state belonging to the interrupted context;
+    // vector cleanup there must be an explicit operation whose surrounding code has saved the state.
+    auto foreignEntered = fun.foreignBoundary && fun.callType != LowerCallType::X86Interrupt;
 
     FunctionExtent extent {
         .codeStart = U32(to.buffer.offset()),
@@ -4866,7 +4943,12 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         // step. Nothing is written past here yet, so rewinding over it leaves the buffer as it was.
         auto at = U32(to.buffer.offset());
         genEpilogue(to, frame);
-        auto size = U32(to.buffer.offset()) - at + 1; // with the `ret` it is followed by
+        if(fun.callType == LowerCallType::X86Interrupt) {
+            genInterruptReturn(to, fun.args.size() == 2);
+        } else {
+            to.buffer.writeByte(0xc3);
+        }
+        auto size = U32(to.buffer.offset()) - at;
         to.buffer.offset(at);
 
         // And the `vzeroupper` a foreign-entered function's return owes, which is part of what a
@@ -4939,6 +5021,8 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
     }
 
     Emitter emitter { to, base, machine, frame, objects };
+    emitter.interrupt = fun.callType == LowerCallType::X86Interrupt;
+    emitter.interruptErrorCode = emitter.interrupt && fun.args.size() == 2;
     emitter.bypass = Buffer<LowerBlock*> { bypass.pointer(), bypass.size() };
     emitter.sharedEpilogue = sharedEpilogue;
     emitter.dirtiesUpperHalves = dirtiesUpperHalves;
@@ -5177,7 +5261,8 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
             extent.epilogue = U32(to.buffer.offset());
             genEpilogue(to, frame);
             emitter.zeroUpperBeforeReturn();
-            to.buffer.writeByte(0xc3);
+            if(emitter.interrupt) genInterruptReturn(to, emitter.interruptErrorCode);
+            else to.buffer.writeByte(0xc3);
 
             if(onInst) ranges.push(EmittedRange { nullptr, &none, extent.epilogue, U32(to.buffer.offset()) });
         }

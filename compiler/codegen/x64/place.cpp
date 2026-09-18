@@ -2119,7 +2119,29 @@ static void placeArgs(Placer& a, const CallConvention& convention) {
             continue;
         }
 
-        auto incoming = MachineLocation::physical(locations[i].reg);
+        MachineLocation incoming;
+
+        if(locations[i].kind == ArgLocation::StackAddress) {
+            // The CPU did not pass a pointer value: it left the hardware frame at this offset from
+            // the entry stack. Materialize its address after the prologue through the same frame
+            // reference machinery used by every other fixed address in the backend.
+            auto slot = a.frame.add(StackSlot {
+                .kind = StackSlotKind::IncomingArg,
+                .slotClass = StackSlotClass::Slot64,
+                .size = 8,
+                .alignment = 8,
+                .argOffset = locations[i].stackOffset,
+            });
+
+            a.remats.push(Remat {
+                .kind = Remat::FrameAddress,
+                .type = result.type,
+                .frame = FrameReference { .slot = slot },
+            });
+            incoming = MachineLocation::remat(RematId(a.remats.size() - 1));
+        } else {
+            incoming = MachineLocation::physical(locations[i].reg);
+        }
 
         if(locations[i].kind == ArgLocation::Stack) {
             // The caller left this one in the argument area, at the offset the convention gave it -
