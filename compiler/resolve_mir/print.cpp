@@ -104,6 +104,11 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
             // The shape, which is the whole of a structural type's spelling - `typeText` prints the
             // same thing for the same reason, so a dump and a message name one type one way.
             auto& fun = (FunType&)value;
+            if(fun.convention) {
+                writer.writeString("@convention("_v);
+                writer.writeString(nameForCallType(fun.convention.unwrap()));
+                writer.writeString(") "_v);
+            }
             writer.writeString("("_v);
             auto first = true;
 
@@ -293,6 +298,10 @@ void printConstant(Net::Writer& writer, Context& context, DeclBase base,
             // what the value is - the address of that storage and not what is in it.
             writer.writeString("&"_v);
             writer.writeString(stringView(context.findName(base[value.asGlobal()]->name)));
+            break;
+        case Constant::Function:
+            writer.writeString("@"_v);
+            writer.writeString(stringView(context.findName(base[value.asFunction()]->name)));
             break;
         case Constant::Aggregate: {
             // A fixed array, as the literal it reduced from - the bytes of a string literal are one.

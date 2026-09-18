@@ -1370,9 +1370,23 @@ Repr reprOf(Layout layout, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipSchema
             return repr;
         }
 
-        // A function value is `{code, env}` - two words, stated at `NativeTarget::funSize` and
-        // derived from the pointer width there rather than written as a number here.
-        case mir::Type::Fun:
+        // A raw function pointer is one code word; an unconventioned function value is `{code, env}`.
+        case mir::Type::Fun: {
+            if(((mir::FunType&)logical).convention) {
+                Repr repr;
+                repr.size = layout.target.pointerSize;
+                repr.align = layout.target.pointerAlign;
+                repr.stride = repr.size;
+                return repr;
+            }
+
+            Repr repr;
+            repr.size = layout.target.funSize();
+            repr.align = layout.target.pointerAlign;
+            repr.stride = repr.size;
+            return repr;
+        }
+
         case mir::Type::Iter: {
             Repr repr;
             repr.size = layout.target.funSize();

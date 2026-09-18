@@ -1,0 +1,7 @@
+-- Raw function-pointer lambdas cannot capture enclosing state.
+-- # resolver: ownership
+
+fn make(offset: U64) -> @convention(sysv) (U64) -> U64 =
+    ((value: U64) -> value + offset) :: @convention(sysv) (U64) -> U64
+
+fn main() -> Int = 0

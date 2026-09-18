@@ -1,0 +1,35 @@
+
+add<sysv>(%lhs: I64, %rhs: I64): I64 {
+  b_0 {
+    %v_1 = add %lhs, %rhs: I64
+    ret %v_1
+  }
+}
+
+interruptHandler<x86_interrupt>(%frame: Ptr) {
+  b_0 {
+    ret 
+  }
+}
+
+invoke<complex>(%callback: Ptr, %lhs: I64, %rhs: I64): I64 {
+  b_0 {
+    %v_1 = call_sysv %callback, %lhs, %rhs: I64
+    ret %v_1
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_sysv add, 1, 2: I64
+    %v_2 = call_sysv add, 3, 4: I64
+    %v_3 = add %v_1, %v_2: I64
+    %v_4 = call_sysv add, 5, 6: I64
+    %v_5 = add %v_3, %v_4: I64
+    %v_6 = call_complex invoke, add, 7, 8: I64
+    %v_7 = add %v_5, %v_6: I64
+    %v_8 = cast %v_7: I32
+    ret %v_8
+  }
+}
+

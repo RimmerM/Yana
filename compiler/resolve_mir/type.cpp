@@ -147,7 +147,7 @@ DeclPtr<Type> Types::naturalLanesType(DeclPtr<Type> lane, DeclPtr<Type> of) {
  * the whole of the work.
  */
 DeclPtr<Type> Types::funType(DeclBase base, const FunParam* params, Size count,
-                             const Occurrence& result) {
+                             const Occurrence& result, Maybe<LowerCallType> convention) {
     InternKey key;
     for(Size i = 0; i < count; i++) {
         auto& occurrence = params[i].occurrence;
@@ -156,11 +156,17 @@ DeclPtr<Type> Types::funType(DeclBase base, const FunParam* params, Size count,
     }
 
     key.mix(result.type.offset).mix(result.contract.packed).mix(result.shape.offset);
+    key.mix(convention ? U32(convention.unwrap()) + 1 : 0);
 
     auto created = false;
     auto entry = internSlot(functions, key, created, [&](DeclPtr<Type> existing) {
         auto& held = *(FunType*)base[existing];
-        if(held.params.size() != count || held.result != result) return false;
+        if(held.params.size() != count || held.result != result ||
+           held.convention.isJust() != convention.isJust() ||
+           (held.convention && convention &&
+            held.convention.unwrap() != convention.unwrap())) {
+            return false;
+        }
 
         for(Size i = 0; i < count; i++) {
             if(held.params.get(base, i).occurrence != params[i].occurrence) return false;
@@ -171,6 +177,7 @@ DeclPtr<Type> Types::funType(DeclBase base, const FunParam* params, Size count,
 
     if(created) {
         auto type = new (arena) FunType();
+        type->convention = convention;
         for(Size i = 0; i < count; i++) type->params.push(arena, params[i]);
         type->result = result;
         *entry = asBase<Type>(type - *arena);
@@ -549,6 +556,10 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
          * exclusive capability over one object.
          */
         case Type::Fun:
+            // A conventioned function value is one raw code address. It does not own an
+            // environment and therefore has the same trivial-copy/no-teardown ownership as a raw
+            // data pointer; only an unconventioned function type is a closure pair.
+            if(((FunType*)base[type])->convention) return Ownership {};
 
         // An erased iterator object is the same two words a closure is - the step and the block it
         // steps - so what it owes is what a closure owes: the block, where the value owns one, which
@@ -1006,7 +1017,13 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
             // spelling. The conventions are printed because they are part of the identity: two
             // shapes that differ only in one of them accept different calls.
             auto& fun = (FunType&)logical;
-            auto result = String("(");
+            auto result = String();
+            if(fun.convention) {
+                auto convention = nameForCallType(fun.convention.unwrap());
+                result = String("@convention(") + String(convention.ptr, convention.size()) +
+                         String(") ");
+            }
+            result = result + String("(");
             auto first = true;
 
             for(auto param: fun.params.contents(base)) {

@@ -6,25 +6,31 @@ namespace mir {
 /*
  * Lambdas and closures - `doc/spec/functions.md`'s Closures, and Analysis-IR.md §11.4's G7b.
  *
- * A lambda is **lifted**: it becomes an ordinary function of this module with one parameter in front
- * of the ones the author wrote, and the expression becomes the **environment record** that parameter
- * holds - its *site type*, `doc/inflight/Design-Iterator-Objects.md` §4, with the lifted function
- * written onto the record so that a call through a value of one is a direct call. The `{code, env}`
- * pair is what a position stating `(A) -> B` asks for, and `adaptSiteValue` is where it is built.
+ * An ordinary lambda is **lifted**: it becomes an ordinary function of this module with one
+ * parameter in front of the ones the author wrote, and the expression becomes the **environment
+ * record** that parameter holds - its *site type*, `doc/inflight/Design-Iterator-Objects.md` §4,
+ * with the lifted function written onto the record so that a call through a value of one is a
+ * direct call. The `{code, env}` pair is what a position stating `(A) -> B` asks for, and
+ * `adaptSiteValue` is where it is built.
+ *
+ * A lambda converted at an address-taking operation to a conventioned function type is the small
+ * exception. It is emitted as a direct entry point with the convention supplied by that type: no
+ * environment parameter, no record, and no closure lifetime. Such a lambda must be captureless.
  *
  * That is the whole of the construct, and everything below answers one of two questions about it -
  * what the extra parameter holds, and how long the storage behind it lives. Both are the same
  * questions they were before the value stopped being the pair: where the position *does* ask, the
  * adaptation stands at the lambda and what is emitted is unchanged.
  *
- * **What it holds.** The captures, as a record synthesized while the body is walked. A capture is
+ * **What an ordinary lambda holds.** The captures, as a record synthesized while the body is
+ * walked. A capture is
  * not found by a scan: it is a name the body says that the *enclosing* function bound, so the body
  * walk is what finds it and the environment's field list is appended to as it goes. That is possible
  * because a capture is a **place** rather than an instruction - the body reads a field of the
  * environment parameter, and a place is interned rather than emitted - so a field that does not
  * exist when the lambda's first statement is resolved can exist by the time its last one is.
  *
- * **How long the storage lives**, which is the harder half. The environment is a local of the
+ * **How long ordinary closure storage lives**, which is the harder half. The environment is a local of the
  * *enclosing* frame and the value refers to it, so a closure is a value that refers to somebody
  * else's storage - which this stage has had a vocabulary for since milestone 3. It is spelled as an
  * owned pair with one **interior** position (`Shapes::closure`), and from there every existing rule
@@ -137,13 +143,14 @@ Place* Resolver::findCapture(Builder& builder, StringId name) {
     if(lambdaFrames.size() <= lambdaFloor) return nullptr;
 
     auto& frame = lambdaFrames[lambdaFrames.size() - 1];
-    auto& environment = *(RecordType*)decl()[frame.lifted->environment];
 
     // Already captured, and therefore already a field. The place is re-interned rather than stored,
     // because interning is what makes two projections of one path one record - see `Place`.
-    for(U32 i = frame.captureFloor; i < captures.size(); i++) {
-        if(captures[i].name != name) continue;
-        return builder.fieldPlace(*builder.localPlace(*frame.parameter), captures[i].field);
+    if(!frame.raw) {
+        for(U32 i = frame.captureFloor; i < captures.size(); i++) {
+            if(captures[i].name != name) continue;
+            return builder.fieldPlace(*builder.localPlace(*frame.parameter), captures[i].field);
+        }
     }
 
     /*
@@ -161,6 +168,19 @@ Place* Resolver::findCapture(Builder& builder, StringId name) {
     }
 
     if(!outer) return nullptr;
+
+    if(frame.raw) {
+        if(!frame.captureRejected) {
+            context.diagnostics.error(
+                "a lambda converted to a raw function pointer cannot capture %@ - pass the state as an explicit parameter"_v,
+                frame.lifted->source, context.findName(name));
+            frame.captureRejected = true;
+        }
+
+        return nullptr;
+    }
+
+    auto& environment = *(RecordType*)decl()[frame.lifted->environment];
 
     auto kind = captureKindOf(decl(), *outer, frame.owns);
 
@@ -217,6 +237,12 @@ Place* Resolver::findCapture(Builder& builder, StringId name) {
     captures.push(Capture { name, outer, field.index, kind });
 
     return builder.fieldPlace(*builder.localPlace(*frame.parameter), field.index);
+}
+
+bool Resolver::rawLambdaCaptureRejected() const {
+    if(lambdaFrames.size() <= lambdaFloor) return false;
+    auto& frame = lambdaFrames[lambdaFrames.size() - 1];
+    return frame.raw && frame.captureRejected;
 }
 
 /*
@@ -462,6 +488,7 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
     LambdaFrame frame;
     frame.lifted = &lifted;
     frame.thunk = thunk;
+    frame.raw = lifted.convention.isJust() && !lifted.environment;
     frame.owns = owns;
     frame.outerFloor = bindingFloor;
     frame.floor = U32(bindings.size());
@@ -505,7 +532,9 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
 
         // The environment is argument zero and is not a name: the author wrote no such parameter,
         // and binding its synthesized symbol would put a name in scope that no source can say.
-        if(local->parameter == 0) {
+        // Raw function-pointer lambdas have no hidden parameter, so their first written argument
+        // remains an ordinary source parameter.
+        if(!frame.raw && local->parameter == 0) {
             frame.parameter = local;
             continue;
         }
@@ -882,21 +911,33 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
                                 lambda ? "lambda"_v : "thunk"_v);
     auto name = program.uniqueSymbol(here(), context, StringView(text.text(), text.size()));
 
-    auto envText = Tritium::format("%@.env", context.findName(name));
-    auto envName = program.uniqueSymbol(here(), context,
-                                        StringView(envText.text(), envText.size()));
+    // A raw lambda is a direct entry point. It gets the convention from the expected raw function
+    // type and deliberately has neither the hidden environment parameter nor a synthesized record.
+    auto raw = lambda && shape.convention.isJust();
 
-    auto environment = program.types.recordType(envName, here(), source);
-    auto environmentPointer = asBase<Type>(DeclPtr<RecordType>(environment - *program.decl));
+    RecordType* environment = nullptr;
+    DeclPtr<Type> environmentPointer = nullptr;
+    StringId envName;
 
-    // `pub` on the function the lambda was written in - the same rule an `iter fn`'s state record is
-    // under, and for the same reason: `f.Result` is the only spelling this record has, so what may
-    // name it is what may name `f`. See `mintIterSite`, where the argument is written out.
-    environment->exported = currentFunction->exported;
+    if(!raw) {
+        auto envText = Tritium::format("%@.env", context.findName(name));
+        envName = program.uniqueSymbol(here(), context,
+                                       StringView(envText.text(), envText.size()));
+
+        environment = program.types.recordType(envName, here(), source);
+        environmentPointer = asBase<Type>(DeclPtr<RecordType>(environment - *program.decl));
+
+        // `pub` on the function the lambda was written in - the same rule an `iter fn`'s state
+        // record is under, and for the same reason: `f.Result` is the only spelling this record
+        // has, so what may name it is what may name `f`. See `mintIterSite`, where the argument is
+        // written out.
+        environment->exported = currentFunction->exported;
+    }
 
     auto lifted = new (program.decl) Function(name, here());
     lifted->source = source;
     lifted->environment = environmentPointer;
+    if(raw) lifted->convention = shape.convention;
     lifted->result = shape.result;
     lifted->summary.bodyKnown = true;
 
@@ -918,17 +959,20 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
      * captured. Merging the two is what the split undoes: `funEnvironmentBias` biases the entry
      * block of a heap-placed lambda, and a direct call hands it the record's own address.
      */
-    Placement asked;
-    asked.outlivesFrame = owningPosition && erase;
-    lifted->environmentStorage = selectStorage(asked);
+    if(!raw) {
+        Placement asked;
+        asked.outlivesFrame = owningPosition && erase;
+        lifted->environmentStorage = selectStorage(asked);
 
-    // What tells the *MIR* reachability walk the allocator is needed - `usesHeapPlacement`, the
-    // same producer a heap-placed local is and for the same reason: the environment is an object
-    // whose placement left the frame, and `resolve_ssa/opt/reach.cpp` asks again per `fun.value`.
-    if(lifted->environmentStorage != StorageClass::Frame) program.usesHeapPlacement = true;
+        // What tells the *MIR* reachability walk the allocator is needed - `usesHeapPlacement`, the
+        // same producer a heap-placed local is and for the same reason: the environment is an object
+        // whose placement left the frame, and `resolve_ssa/opt/reach.cpp` asks again per `fun.value`.
+        if(lifted->environmentStorage != StorageClass::Frame) program.usesHeapPlacement = true;
+    }
 
     /*
-     * The environment parameter, first and **exclusive**.
+     * The environment parameter of an ordinary closure, first and **exclusive**. Raw lambdas skip
+     * this entirely: their first argument is the first source-written argument.
      *
      * Exclusive because a `&` capture is written through it: `fieldPlace` narrows a unique external
      * field to a shared view when the record was reached sharedly, so an environment reached as
@@ -936,12 +980,14 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
      * that sound is not this parameter but the loan the *capture* took, which is exclusive for as
      * long as the closure is live.
      */
-    auto envArg = new (program.decl) Arg();
-    envArg->name = envName;
-    envArg->occurrence = borrowed(environmentPointer, Access::Unique);
-    envArg->source = source;
-    envArg->index = 0;
-    lifted->args.push(program.decl, envArg - *program.decl);
+    if(!raw) {
+        auto envArg = new (program.decl) Arg();
+        envArg->name = envName;
+        envArg->occurrence = borrowed(environmentPointer, Access::Unique);
+        envArg->source = source;
+        envArg->index = 0;
+        lifted->args.push(program.decl, envArg - *program.decl);
+    }
 
     // A thunk writes none, which is what makes it one: `args` is null and the loop below is the
     // whole of what a written parameter list adds. Copied out first because `contents` is not const.
@@ -949,7 +995,8 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
     if(args) writtenArgs = *args;
 
     for(auto argument: writtenArgs.contents(parse)) {
-        auto declared = shape.params.get(decl(), U32(lifted->args.size() - 1)).occurrence;
+        auto declared = shape.params.get(decl(),
+                                         U32(lifted->args.size() - (raw ? 0 : 1))).occurrence;
 
         if(argument.type) {
             auto type = resolveType(*parse[argument.type]);
@@ -995,7 +1042,7 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
      * lambda there is no body for, and the record it would have captured into was never classified.
      * Everything above this line is arena memory nothing names.
      */
-    current->records.push(program.decl, DeclPtr<RecordType>(environment - *program.decl));
+    if(!raw) current->records.push(program.decl, DeclPtr<RecordType>(environment - *program.decl));
     current->functions.push(program.decl, DeclPtr<Function>(lifted - *program.decl));
 
     resolveLiftedBody(*lifted, body, implicitReturn, !lambda, owningPosition, source);
@@ -1011,6 +1058,18 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
     auto& frame = lambdaFrames[lambdaFrames.size() - 1];
     auto capturing = captures.size() > frame.captureFloor;
     Node* held = nullptr;
+
+    if(raw) {
+        auto rejected = frame.captureRejected;
+        captures.resize(frame.captureFloor);
+        lambdaFrames.resize(U32(lambdaFrames.size() - 1));
+
+        if(rejected) return nullptr;
+
+        auto type = closeFunPosition(context, program, hint, lifted->result.type);
+        return builder.addFunValue(source, DeclPtr<Function>(lifted - *program.decl), type,
+                                   nullptr, false);
+    }
 
     /*
      * A lambda that captured nothing has no environment to place, whatever the position asked for.

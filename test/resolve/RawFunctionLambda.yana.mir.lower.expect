@@ -1,0 +1,30 @@
+
+apply<sysv>(%callback: Ptr, %value: I64): I64 {
+  b_0 {
+    %v_1 = call_sysv %callback, %value: I64
+    ret %v_1
+  }
+}
+
+make<complex>(): Ptr {
+  b_0 {
+    ret make.lambda
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex make: Ptr
+    %v_2 = call_sysv apply, %v_1, 7: I64
+    %v_3 = cast %v_2: I32
+    ret %v_3
+  }
+}
+
+make.lambda<sysv>(%value: I64): I64 {
+  b_0 {
+    %v_1 = add %value, 5: I64
+    ret %v_1
+  }
+}
+

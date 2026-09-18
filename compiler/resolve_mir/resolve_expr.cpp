@@ -191,6 +191,8 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain, 
                 return captured;
             }
 
+            if(rawLambdaCaptureRejected()) return nullptr;
+
             auto found = findGlobal(context, program, here(), expr.var, expr.source);
             if(found) {
                 recordReference(context, expr.source, globalSymbol(program, found),
@@ -2260,10 +2262,14 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
              * reports rather than guessing an arity, which is the same refusal a call with the wrong
              * number of arguments gets and for the same reason.
              */
-            if(!local && !findCapture(builder, expr.var) &&
-               !findGlobal(context, program, here(), expr.var, expr.source) &&
-               hasFunctionName(context, program, here(), expr.var)) {
-                return resolveFunValue(builder, expr.var, hint, expr.source);
+            if(!local) {
+                auto captured = findCapture(builder, expr.var);
+                if(rawLambdaCaptureRejected()) return nullptr;
+
+                if(!captured && !findGlobal(context, program, here(), expr.var, expr.source) &&
+                   hasFunctionName(context, program, here(), expr.var)) {
+                    return resolveFunValue(builder, expr.var, hint, expr.source);
+                }
             }
 
             return resolveField(builder, expr, wanted);
@@ -2724,6 +2730,14 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
     auto& callee = *decl()[found];
     recordCallee(source, found);
 
+    if(wanted.convention && (!callee.convention ||
+                             callee.convention.unwrap() != wanted.convention.unwrap())) {
+        context.diagnostics.error("%@ has calling convention %@, and this position takes %@"_v,
+                                  source, context.findName(callee.name),
+                                  nameForCallType(wanted.convention.unwrap()));
+        return nullptr;
+    }
+
     // What the signature says it answers, which for an `=` form with no result type is what its body
     // says - and `funTypeOf` below is about to read it. The other position that reads a signature
     // without calling it; `checkCallable` is the one every call goes through.
@@ -2755,9 +2769,9 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
         return nullptr;
     }
 
-    // No environment: a named function captures nothing, so the pair's second word is null and the
-    // value refers to no storage at all. The body is the one decided for the whole program - a value
-    // has no type arguments to ask a replacement's constraints with.
+    // No environment: a named function either becomes a direct raw code address or the ordinary
+    // closure pair. The body is the one decided for the whole program - a value has no type
+    // arguments to ask a replacement's constraints with.
     return builder.addFunValue(source, replacementForValue(found), type, nullptr);
 }
 
@@ -3531,8 +3545,18 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
     // `findCapture` appends the field on the first name it answers for, which is what makes it the
     // test as well as the lookup: where it says yes the walk below reads the name through the very
     // capture it just made, and where it says no it made nothing.
+    auto globalCallee = written.callee.kind == ast::Expr::Var
+        ? findGlobal(context, program, here(), written.callee.var, kNullLocation)
+        : DeclPtr<Global>(nullptr);
+    if(globalCallee && decl()[globalCallee]->occurrence.type &&
+       decl()[decl()[globalCallee]->occurrence.type]->kind != Type::Fun) {
+        globalCallee = nullptr;
+    }
     auto storage = written.callee.kind == ast::Expr::Var &&
-                   (findLocal(written.callee.var) || findCapture(builder, written.callee.var));
+                   (findLocal(written.callee.var) || findCapture(builder, written.callee.var) ||
+                    globalCallee);
+
+    if(rawLambdaCaptureRejected()) return nullptr;
 
     if(written.callee.kind != ast::Expr::Var || storage) {
         auto target = resolveValue(builder, written.callee, nullptr, bindingRequest(Access::Shared));

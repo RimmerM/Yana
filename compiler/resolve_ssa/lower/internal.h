@@ -177,6 +177,15 @@ struct Lowering {
     HashMap<U32, LowerPtr<LowerGlobal>> globals;
     HashMap<U32, LowerPtr<LowerFunction>> functions;
 
+    // Global initializers are filled before function symbols are declared. Function-address
+    // relocations are recorded here and completed after that declaration pass.
+    struct PendingFunctionRelocation {
+        LowerPtr<LowerGlobal> global;
+        U32 relocation;
+        U32 function;
+    };
+    Array<PendingFunctionRelocation> pendingFunctionRelocations;
+
     /*
      * The hidden result pointer each memory-returning function receives.
      *

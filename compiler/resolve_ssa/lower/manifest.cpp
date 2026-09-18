@@ -205,6 +205,12 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
         // ... and an erased iterator object, which is the same pair: the step, and the block it
         // steps. See `mir::IterType`, where the representation is argued.
         case mir::Type::Fun:
+            if(((mir::FunType&)logical).convention) {
+                return Manifestation { LowerType(LowerLane::Pointer, 0, false),
+                                       layout.target.pointerSize, layout.target.pointerAlign,
+                                       false, false };
+            }
+            [[fallthrough]];
         case mir::Type::Iter:
             return Manifestation { LowerType(LowerLane::Pointer, 0, false), layout.target.funSize(),
                                    layout.target.pointerAlign, false, true };

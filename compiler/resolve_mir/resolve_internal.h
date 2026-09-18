@@ -355,7 +355,8 @@ struct Capture {
 struct LambdaFrame {
     Function* lifted = nullptr;
 
-    // The environment parameter's storage, in the lifted body. Every capture is a field of it.
+    // The environment parameter's storage in an ordinary lifted closure. Raw lambdas have no
+    // parameter here; their body still has a frame so lookup can stop at the lambda boundary.
     Local* parameter = nullptr;
 
     // Where the lambda's own names begin, and the floor the enclosing walk was under. The range
@@ -371,6 +372,15 @@ struct LambdaFrame {
     // *outside* rather than what is being built. A thunk is a lifted body like a lambda, and an
     // author who wrote neither of the words "lambda" would not recognize the message otherwise.
     bool thunk = false;
+
+    // A raw function-pointer lambda has no environment parameter or record. Its body still uses
+    // this frame to stop name lookup at the lambda boundary, but an enclosing binding is an error
+    // rather than a field to append.
+    bool raw = false;
+
+    // Set by raw capture lookup so the caller can stop the fallback lookup from reporting the same
+    // name as unknown after the more useful capture diagnostic has already been emitted.
+    bool captureRejected = false;
 
     /*
      * Whether this lambda's environment **owns what it captured** - D17's consumed capture, and the
@@ -1454,6 +1464,8 @@ struct Resolver {
     // functions because the reader has no type in hand and the refiner has no attribute: see
     // `resolveBitsType`, where the range is checked against what is being refined.
     Maybe<U64> readBitsAttribute(ast::Type& type);
+    // `@convention(name)` on a function type - the type-level half of the declaration attribute.
+    Maybe<LowerCallType> readFunctionConvention(ast::Type& type);
     bool readContainerRefinement(ast::Type& type, U64& into);
 
     // `@box` on a field's type - `RecordField::boxed`. Called only where a field is declared, and
@@ -2909,6 +2921,9 @@ struct Resolver {
     // rungs at an address. See the definition, where why they are not rows of `provided.def` is
     // argued.
     void providePointerInstances();
+    // Reinterpretation from a raw function pointer to a machine word, after function declarations
+    // have made their conventioned function types available.
+    void provideRawFunctionPointerInstances();
 
     // The instances whose head is a vector - `provide.cpp`, where the argument for their not being
     // rows of `provided.def` is the same one the pointer instances make.
@@ -2989,6 +3004,9 @@ struct Resolver {
     // lambda reads it through. Null where the name is not one, which is what lets `resolvePlace`
     // carry on to the globals and to its one report.
     Place* findCapture(Builder& builder, StringId name);
+
+    // Whether the current lifted raw lambda rejected an enclosing binding as captured state.
+    bool rawLambdaCaptureRejected() const;
 
     // Whether a place is reached through the innermost lambda's environment - for the message at a
     // position that consumes, and for nothing else.

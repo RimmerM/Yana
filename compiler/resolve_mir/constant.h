@@ -16,6 +16,7 @@ struct AggregateConstant;
 // Named by `Constant::Address` and by nothing else here - a constant may *point at* a global and
 // never asks it anything, which is `contract.h`'s own argument for the forward declaration above.
 struct Global;
+struct Function;
 
 /*
  * A compile-time value: a logical type and up to eight bytes.
@@ -124,6 +125,10 @@ struct Constant {
          * day `&someGlobal` becomes a constant expression this is the kind it produces.
          */
         Address,
+
+        // The direct entry address of an explicitly conventioned function. Like Address, its bits
+        // are filled by image placement rather than known during resolution.
+        Function,
     };
 
     DeclPtr<Type> type = nullptr;
@@ -136,6 +141,7 @@ struct Constant {
     U64 asInt() const { return bits; }
     StringId asText() const { return StringId(U32(bits)); }
     DeclPtr<Global> asGlobal() const { return DeclPtr<Global>(U32(bits)); }
+    DeclPtr<::mir::Function> asFunction() const { return DeclPtr<::mir::Function>(U32(bits)); }
     DeclPtr<AggregateConstant> aggregate() const { return DeclPtr<AggregateConstant>(U32(bits)); }
 
     double asFloat() const {
@@ -187,6 +193,10 @@ inline Constant textConstant(DeclPtr<Type> type, StringId text) {
 
 inline Constant addressConstant(DeclPtr<Type> type, DeclPtr<Global> global) {
     return Constant { type, Constant::Address, U64(global.offset) };
+}
+
+inline Constant functionConstant(DeclPtr<Type> type, DeclPtr<::mir::Function> function) {
+    return Constant { type, Constant::Function, U64(function.offset) };
 }
 
 /*

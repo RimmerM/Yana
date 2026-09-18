@@ -1,0 +1,103 @@
+module ResolveTest
+
+let globalCallback: @convention(sysv) (U64, U64) -> U64 = @add
+
+let callbacks: [@convention(sysv) (U64, U64) -> U64 *2] = [@add, @add]
+
+let interrupt: @convention(x86_interrupt) (%InterruptFrame) -> {} = @interruptHandler
+
+fn add(lhs: U64 [shared call], rhs: U64 [shared call]) -> U64 {
+bb0(%0: U64 trivial, %1: U64 trivial):
+  %2: %U64 address = alloc frame U64 [shared call]
+  %3: %U64 address = alloc frame U64 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: U64 trivial = load inspect %2
+  %5: U64 trivial = load inspect %3
+  %6: U64 trivial = add inspect %4 inspect %5
+  return consume %6
+}
+
+fn interruptHandler(frame: %InterruptFrame [shared call]) -> {} {
+bb0(%0: %InterruptFrame trivial):
+  %1: %%InterruptFrame address = alloc frame %InterruptFrame [shared call]
+  store inspect %1 borrow %0
+  return
+}
+
+fn invoke(callback: @convention(sysv) (U64, U64) -> U64 [shared call], lhs: U64 [shared call], rhs: U64 [shared call]) -> U64 {
+bb0(%0: @convention(sysv) (U64, U64) -> U64 trivial, %1: U64 trivial, %2: U64 trivial):
+  %3: %@convention(sysv) (U64, U64) -> U64 address = alloc frame @convention(sysv) (U64, U64) -> U64 [shared call]
+  %4: %U64 address = alloc frame U64 [shared call]
+  %5: %U64 address = alloc frame U64 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  store inspect %5 borrow %2
+  %6: @convention(sysv) (U64, U64) -> U64 trivial = load inspect %3
+  %7: U64 trivial = load inspect %4
+  %8: U64 trivial = load inspect %5
+  %9: U64 trivial = call [value #0] inspect %6 borrow %7 borrow %8
+  return consume %9
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Holder address = alloc frame Holder
+  %1: %U64 address = alloc frame U64
+  %2: %U64 address = alloc frame U64
+  %3: %U64 address = alloc frame U64
+  %4: @convention(sysv) (U64, U64) -> U64 trivial = fun.value add
+  %5: Holder trivial = aggregate.Holder consume %4
+  store inspect %0 consume %5
+  %6: %@convention(sysv) (U64, U64) -> U64 address = global.addr globalCallback
+  %7: @convention(sysv) (U64, U64) -> U64 trivial = load inspect %6
+  %8: U64 trivial = const 1
+  %9: U64 trivial = const 2
+  %10: U64 trivial = call [value #0] inspect %7 borrow %8 borrow %9
+  %11: %@convention(sysv) (U64, U64) -> U64 address = field.addr .callback inspect %0
+  %12: @convention(sysv) (U64, U64) -> U64 trivial = load inspect %11
+  %13: U64 trivial = const 3
+  %14: U64 trivial = const 4
+  %15: U64 trivial = call [value #0] inspect %12 borrow %13 borrow %14
+  %16: U64 trivial = add inspect %10 inspect %15
+  %17: Size trivial = const 0
+  %18: %[@convention(sysv) (U64, U64) -> U64 *2] address = global.addr callbacks
+  %19: %@convention(sysv) (U64, U64) -> U64 address = element.addr inspect %18 inspect %17
+  %20: @convention(sysv) (U64, U64) -> U64 trivial = load inspect %19
+  %21: U64 trivial = const 5
+  %22: U64 trivial = const 6
+  %23: U64 trivial = call [value #0] inspect %20 borrow %21 borrow %22
+  %24: U64 trivial = add inspect %16 inspect %23
+  %25: @convention(sysv) (U64, U64) -> U64 trivial = fun.value add
+  %26: U64 trivial = const 7
+  %27: U64 trivial = const 8
+  %28: U64 trivial = call invoke borrow %25 borrow %26 borrow %27
+  %29: U64 trivial = add inspect %24 inspect %28
+  store inspect %1 consume %29
+  %30: @convention(sysv) (U64, U64) -> U64 trivial = fun.value add
+  %31: U64 trivial = bitcast inspect %30
+  store inspect %2 consume %31
+  %32: %@convention(x86_interrupt) (%InterruptFrame) -> {} address = global.addr interrupt
+  %33: @convention(x86_interrupt) (%InterruptFrame) -> {} trivial = load inspect %32
+  %34: U64 trivial = bitcast inspect %33
+  store inspect %3 consume %34
+  %35: U64 trivial = load inspect %2
+  %36: U64 trivial = load inspect %3
+  %37: Bool trivial = eq inspect %35 inspect %36
+  branch inspect %37 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %38: U64 trivial = load inspect %1
+  %39: I32 trivial = convert inspect %38
+  return consume %39
+
+bb3:
+  %40: U64 trivial = load inspect %1
+  %41: I32 trivial = convert inspect %40
+  return consume %41
+}
+
+entry main

@@ -327,6 +327,16 @@ struct Interprocedural {
         auto root = [&](DeclPtr<Function> function) { return mark(function, true); };
         auto rootBody = [&](DeclPtr<Function> function) { return mark(function, false); };
 
+        auto reachConstantFunctions = [&](const Constant& constant, auto&& again) -> void {
+            if(constant.kind == Constant::Function) {
+                root(constant.asFunction());
+                return;
+            }
+
+            if(constant.kind != Constant::Aggregate) return;
+            for(auto value: decl[constant.aggregate()]->values.contents(decl)) again(value, again);
+        };
+
         /*
          * The allocator, where the program has a `@box` anywhere - `Program::usesBoxes` - or asks
          * for a run's slots anywhere, which is `Program::usesRuns`.
@@ -655,7 +665,9 @@ struct Interprocedural {
                  * reason neither is found by the place walk below is written there.
                  */
                 if(node->kind == Node::Const) {
-                    reachConstantAddresses(body.constant(mir, ((NodeConst*)node)->constant));
+                    auto constant = body.constant(mir, ((NodeConst*)node)->constant);
+                    reachConstantAddresses(constant);
+                    reachConstantFunctions(constant, reachConstantFunctions);
                 }
 
                 if(node->kind == Node::Map) {
@@ -663,9 +675,13 @@ struct Interprocedural {
 
                     for(auto entry: map.entries.contents(mir)) {
                         reachConstantAddresses(entry.value);
+                        reachConstantFunctions(entry.value, reachConstantFunctions);
                     }
 
-                    if(map.fallback.isSet()) reachConstantAddresses(map.fallback);
+                    if(map.fallback.isSet()) {
+                        reachConstantAddresses(map.fallback);
+                        reachConstantFunctions(map.fallback, reachConstantFunctions);
+                    }
                     continue;
                 }
 
@@ -863,6 +879,15 @@ struct Interprocedural {
 
         program.discoveringFrom = nullptr;
         reachGlobalAddresses();
+
+        // A reachable global may hold a function address in a record or fixed array. It is a code
+        // root just like a NodeFunValue, while its global reachability is handled by the pass above.
+        for(auto modulePointer: program.modules) {
+            for(auto pointer: decl[modulePointer]->globals.contents(decl)) {
+                if(!decl[pointer]->reachable) continue;
+                reachConstantFunctions(decl[pointer]->initial, reachConstantFunctions);
+            }
+        }
 
         /*
          * The edges that needed the whole walk - see `edges`. Everything they name was rooted as it

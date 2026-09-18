@@ -4,6 +4,7 @@
 #include "../intrinsic/convert.h"
 #include "../intrinsic/primitive.h"
 #include "../intrinsic/constructor.h"
+#include "../lower/convention.h"
 
 namespace mir {
 
@@ -1145,6 +1146,10 @@ struct FunParam {
 struct FunType: Type {
     FunType(): Type(Fun) {}
 
+    // A convention makes this a raw code pointer rather than a closure pair.  It is part of the
+    // type's identity because an indirect call must use the convention the pointer promises.
+    Maybe<LowerCallType> convention = Nothing();
+
     // Non-embedding, because every reader wants the positions as a buffer - matching, substitution
     // and the interning key each walk them by index against a second list of the same length.
     DeclList<FunParam, false> params;
@@ -1447,7 +1452,8 @@ struct Types {
      * rather than its length: a key mixing several handles has room to collide, and a collision here
      * would be two different signatures sharing a type.
      */
-    DeclPtr<Type> funType(DeclBase base, const FunParam* params, Size count, const Occurrence& result);
+    DeclPtr<Type> funType(DeclBase base, const FunParam* params, Size count, const Occurrence& result,
+                          Maybe<LowerCallType> convention = Nothing());
 
     /*
      * `iter(T)` - interned on the whole protocol, for `funType`'s reason: nothing declares one, so

@@ -1,0 +1,93 @@
+module ResolveTest
+
+data Holder {callback: @convention(sysv) (U64, U64) -> U64}
+
+data InterruptFrame {rip: U64}
+
+data InterruptSlot {handler: @convention(x86_interrupt) (%InterruptFrame) -> {}}
+
+let globalCallback: @convention(sysv) (U64, U64) -> U64 = @add
+
+let callbacks: [@convention(sysv) (U64, U64) -> U64 *2] = [@add, @add]
+
+let interrupt: @convention(x86_interrupt) (%InterruptFrame) -> {} = @interruptHandler
+
+fn add(lhs: U64 [shared call], rhs: U64 [shared call]) -> U64 {
+bb0:
+  %0: U64 = read copy.trivial (lhs)
+  %1: U64 = read copy.trivial (rhs)
+  %2: U64 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn interruptHandler(frame: %InterruptFrame [shared call]) -> {} {
+bb0:
+  return
+}
+
+fn invoke(callback: @convention(sysv) (U64, U64) -> U64 [shared call], lhs: U64 [shared call], rhs: U64 [shared call]) -> U64 {
+bb0:
+  %0: @convention(sysv) (U64, U64) -> U64 = read copy.trivial (callback)
+  %1: U64 = read copy.trivial (lhs)
+  %2: U64 = read copy.trivial (rhs)
+  %3: U64 = call inspect %0 borrow.shared %1 borrow.shared %2
+  return take %3
+}
+
+fn main() -> I32 {
+  local holder: Holder
+  local result: U64
+  local address: U64
+  local interruptAddress: U64
+
+bb0:
+  %0: @convention(sysv) (U64, U64) -> U64 = fun.value add
+  %1: Holder = aggregate.Holder take %0
+  write.init borrow.unique (holder) take %1
+  %3: @convention(sysv) (U64, U64) -> U64 = read copy.trivial (global globalCallback)
+  %4: U64 = const 1
+  %5: U64 = const 2
+  %6: U64 = call inspect %3 borrow.shared %4 borrow.shared %5
+  %7: @convention(sysv) (U64, U64) -> U64 = read copy.trivial (holder.callback)
+  %8: U64 = const 3
+  %9: U64 = const 4
+  %10: U64 = call inspect %7 borrow.shared %8 borrow.shared %9
+  %11: U64 = add inspect %6 inspect %10
+  %12: Size = const 0
+  %13: @convention(sysv) (U64, U64) -> U64 = read copy.trivial (global callbacks[0])
+  %14: U64 = const 5
+  %15: U64 = const 6
+  %16: U64 = call inspect %13 borrow.shared %14 borrow.shared %15
+  %17: U64 = add inspect %11 inspect %16
+  %18: @convention(sysv) (U64, U64) -> U64 = fun.value add
+  %19: U64 = const 7
+  %20: U64 = const 8
+  %21: U64 = call invoke borrow.shared %18 borrow.shared %19 borrow.shared %20
+  %22: U64 = add inspect %17 inspect %21
+  write.init borrow.unique (result) take %22
+  %24: @convention(sysv) (U64, U64) -> U64 = fun.value add
+  %25: U64 = bitcast inspect %24
+  write.init borrow.unique (address) take %25
+  %27: @convention(x86_interrupt) (%InterruptFrame) -> {} = read copy.trivial (global interrupt)
+  %28: U64 = bitcast inspect %27
+  write.init borrow.unique (interruptAddress) take %28
+  %30: U64 = read copy.trivial (address)
+  %31: U64 = read copy.trivial (interruptAddress)
+  %32: Bool = eq inspect %30 inspect %31
+  branch inspect %32 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %38: U64 = read copy.trivial (result)
+  %39: I32 = convert inspect %38
+  return take %39
+
+bb3:
+  %34: U64 = read copy.trivial (result)
+  %35: I32 = convert inspect %34
+  return take %35
+}
+
+entry main

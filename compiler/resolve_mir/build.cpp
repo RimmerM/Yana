@@ -776,6 +776,38 @@ static bool retypeEnd(Program& program, UnaryCategory category, DeclPtr<Type> ty
 }
 
 /*
+ * A raw function pointer is the one non-integer value that may cross the integer bitcast boundary.
+ * The generated `Bitcast` instance already restricts the other end to a machine word; keep that
+ * restriction here too, because `addRetype` is also used by compiler-generated nodes and must not
+ * turn an arbitrary function or closure into a number. The physical width check is what lets the
+ * x64-only `U64` spelling share the same row as `Size` without making the operation valid on a
+ * 32-bit target.
+ */
+static bool rawFunctionWordBitcast(Context& context, DeclBase base, DeclPtr<Type> from,
+                                   DeclPtr<Type> to) {
+    auto rawFunction = [&](DeclPtr<Type> type) {
+        return base[type]->kind == Type::Fun && ((FunType*)base[type])->convention.isJust();
+    };
+    auto integer = [&](DeclPtr<Type> type) -> const IntType* {
+        return base[type]->kind == Type::Int ? (const IntType*)base[type] : nullptr;
+    };
+
+    auto left = integer(from);
+    auto right = integer(to);
+    auto functionToInteger = rawFunction(from) && right;
+    auto integerToFunction = left && rawFunction(to);
+    if(!functionToInteger && !integerToFunction) return false;
+
+    auto width = targetIntWidths(context.settings).word;
+    auto integerBits = [&](const IntType& value) {
+        if(value.target == intrinsic::TargetWidth::Word) return width;
+        return U16(value.bits);
+    };
+
+    return functionToInteger ? integerBits(*right) == width : integerBits(*left) == width;
+}
+
+/*
  * The two retyping unary nodes - one body, since the difference between them is the enumerator and
  * what the manifestation makes of it. Both take their result type from the position rather than
  * from the operand, which is the whole reason neither goes through `addUnary`.
@@ -792,15 +824,18 @@ static bool retypeEnd(Program& program, UnaryCategory category, DeclPtr<Type> ty
  * new value, it does not rebind the one that was read.
  */
 Node* Builder::addRetype(LocationId source, UnaryOp op, Node& value, DeclPtr<Type> to) {
-    assertTrue(retypeEnd(program, unaryCategory(op), valueType(value)));
+    auto from = valueType(value);
+    auto rawFunctionBitcast = op == UnaryOp::Bitcast &&
+                              rawFunctionWordBitcast(context, declBase(), from, to);
+    assertTrue(rawFunctionBitcast || retypeEnd(program, unaryCategory(op), from));
     assertTrue(retypeEnd(program, unaryCategory(op), to));
 
     auto node = new (arena()) NodeUnary(source, op, resultOf(value, UseMode::Inspect));
     node->occurrence = owned(to);
 
-    auto from = valueOccurrence(value);
-    if(declBase()[to]->kind == Type::Pointer && declBase()[from.type]->kind == Type::Pointer) {
-        node->occurrence.shape = from.shape;
+    auto fromOccurrence = valueOccurrence(value);
+    if(declBase()[to]->kind == Type::Pointer && declBase()[fromOccurrence.type]->kind == Type::Pointer) {
+        node->occurrence.shape = fromOccurrence.shape;
     }
 
     return append(node);
@@ -842,6 +877,18 @@ Node* Builder::addBitcast(LocationId source, Node& value, DeclPtr<Type> to) {
 Node* Builder::addFunValue(LocationId source, DeclPtr<Function> callee, DeclPtr<Type> type,
                            Node* environment, bool owned) {
     auto node = new (arena()) NodeFunValue(source, callee);
+
+    auto raw = declBase()[type]->kind == Type::Fun &&
+               ((FunType*)declBase()[type])->convention.isJust();
+    if(raw) {
+        // Raw function pointers are direct code addresses. They have no environment and their
+        // logical type has no teardown, so the ordinary closure shape would be actively wrong.
+        assertTrue(!environment);
+        node->occurrence = Occurrence { type, ownedContract(), nullptr };
+        append(node);
+        body.nodeObject.set(base(), node->id.index, mintObject(type, source).index);
+        return node;
+    }
 
     /*
      * Owned at the root, and external at the one position inside it - `Shapes::closure`.

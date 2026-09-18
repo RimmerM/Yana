@@ -56,6 +56,48 @@ Maybe<U64> Resolver::readBitsAttribute(ast::Type& type) {
     return Nothing();
 }
 
+Maybe<LowerCallType> Resolver::readFunctionConvention(ast::Type& type) {
+    if(!type.attributes) return Nothing();
+
+    Maybe<LowerCallType> found = Nothing();
+    for(auto attribute: parse[type.attributes]->contents(parse)) {
+        if(findAttribute(stringView(context.findName(attribute.name))) !=
+           DeclAttribute::Convention) {
+            continue;
+        }
+
+        if(attribute.args.size() != 1) {
+            context.diagnostics.error("`@convention` takes one argument - the name of a calling convention, as in `@convention(sysv)`"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        auto argument = attribute.args.get(parse, 0).value;
+        if(argument.kind != ast::Expr::Var) {
+            context.diagnostics.error("`@convention` takes the name of a calling convention, written as an identifier"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        auto convention = callTypeForName(argument.var);
+        if(!convention || !conventionWritableInSource(convention.unwrap())) {
+            context.diagnostics.error("unknown or unavailable calling convention %@ - write `clobber`, `sysv`, `win64` or `x86_interrupt`"_v,
+                                      attribute.source, context.findName(argument.var));
+            continue;
+        }
+
+        if(found) {
+            context.diagnostics.error("this function type already names a calling convention"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        found = convention;
+    }
+
+    return found;
+}
+
 /*
  * `@inline(n) @capacity(n)` on a container type - Implementation-Containers.md §7, as far as this
  * stage can carry it.
@@ -284,6 +326,16 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
     auto atField = readingFieldType;
     readingFieldType = false;
 
+    if(type.kind != ast::Type::Fun && type.attributes) {
+        for(auto attribute: parse[type.attributes]->contents(parse)) {
+            if(findAttribute(stringView(context.findName(attribute.name))) ==
+               DeclAttribute::Convention) {
+                context.diagnostics.error("`@convention` can only be written on a function type"_v,
+                                          attribute.source);
+            }
+        }
+    }
+
     if(!atField && readBoxAttribute(type)) {
         context.diagnostics.error("`@box` can only be written on a field of a record or tuple - it is a statement about where a field's storage lives, not a type"_v,
                                   type.source);
@@ -458,7 +510,8 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
                 return nullptr;
             }
 
-            return program.types.funType(decl(), params.pointer(), params.size(), result);
+            auto convention = readFunctionConvention(type);
+            return program.types.funType(decl(), params.pointer(), params.size(), result, convention);
         }
         case ast::Type::Arr: {
             /*
@@ -1029,6 +1082,51 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint, bool* no
          * initializers, and are useless in the positions a program wants them in without this.
          */
         case ast::Expr::Var: {
+            // A named function in a raw function-pointer position is a static code address. It is
+            // resolved here rather than through a body node so module globals and constant tables
+            // can carry the same direct relocation as any other address constant.
+            if(hint && decl()[hint]->kind == Type::Fun &&
+               ((FunType*)decl()[hint])->convention &&
+               !findGlobal(context, program, here(), expr.var, kNullLocation) &&
+               hasFunctionName(context, program, here(), expr.var)) {
+                auto& wanted = *(FunType*)decl()[hint];
+                OverloadSet set;
+                findOverloads(context, program, here(), expr.var,
+                              U32(wanted.params.size()), expr.source, set);
+                auto found = set.plain ? set.plain : set.sole();
+                if(!found) return notOne();
+
+                auto& callee = *decl()[found];
+                if(!requireResult(callee, expr.source)) return Constant();
+                if(!callee.summary.bodyKnown) {
+                    unsupported(expr.source, "a function pointer to a function with no body"_v);
+                    return Constant();
+                }
+
+                auto type = funTypeOf(context, program, found);
+                if(!type) {
+                    unsupported(expr.source, "a function pointer to a generic, lens or iterator function"_v);
+                    return Constant();
+                }
+
+                if(!callee.convention || callee.convention.unwrap() != wanted.convention.unwrap()) {
+                    context.diagnostics.error("the function's calling convention must match the function-pointer type"_v,
+                                              expr.source);
+                    return Constant();
+                }
+
+                auto closed = closeFunPosition(context, program, hint,
+                                               ((FunType*)decl()[type])->result.type);
+                if(type != closed) {
+                    context.diagnostics.error("%@ is %@, and this position takes %@"_v,
+                                              expr.source, context.findName(expr.var),
+                                              typeText(context, decl(), hint));
+                    return Constant();
+                }
+
+                return functionConstant(hint, found);
+            }
+
             auto global = findGlobal(context, program, here(), expr.var, expr.source);
             if(global) {
                 recordReference(context, expr.source, globalSymbol(program, global),
@@ -2556,6 +2654,7 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     resolver.provideInstances();
 
     resolver.eachFile([&](ast::Module& file) { resolver.declare(file); });
+    resolver.provideRawFunctionPointerInstances();
 
     /*
      * The passes between the declarations and the bodies, wrapped so that a program which wrote a

@@ -1,0 +1,30 @@
+-- Raw function pointers are direct code addresses, not closure pairs.
+-- # resolver: ownership
+
+@convention(sysv)
+fn add(lhs: U64, rhs: U64) -> U64 = lhs + rhs
+
+data Holder { callback: @convention(sysv) (U64, U64) -> U64 }
+data InterruptFrame { rip: U64 }
+data InterruptSlot { handler: @convention(x86_interrupt) (%InterruptFrame) -> {} }
+
+let globalCallback = add :: @convention(sysv) (U64, U64) -> U64
+let callbacks = [add, add] :: [@convention(sysv) (U64, U64) -> U64 *2]
+
+@convention(x86_interrupt)
+fn interruptHandler(frame: %InterruptFrame):
+    return
+
+let interrupt = interruptHandler :: @convention(x86_interrupt) (%InterruptFrame) -> {}
+
+@noinline
+fn invoke(callback: @convention(sysv) (U64, U64) -> U64, lhs: U64, rhs: U64) -> U64 =
+    callback(lhs, rhs)
+
+fn main() -> Int:
+    let holder = Holder {callback: add}
+    let result = globalCallback(1, 2) + holder.callback(3, 4) + callbacks[0](5, 6) + invoke(add, 7, 8)
+    let address = bitcast(add :: @convention(sysv) (U64, U64) -> U64) :: U64
+    let interruptAddress = bitcast(interrupt :: @convention(x86_interrupt) (%InterruptFrame) -> {}) :: U64
+    if address == interruptAddress then return truncate(result) :: Int
+    return truncate(result) :: Int

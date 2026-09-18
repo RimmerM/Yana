@@ -1210,6 +1210,19 @@ LowerPtr<LowerValue> Lowering::emitConstant(LowerBlock& block, const mir::Consta
         return &((LowerInstSingle*)address)->result - lower;
     }
 
+    if(constant.kind == mir::Constant::Function) {
+        auto found = functions.getValue(constant.asFunction().offset);
+        if(!found) {
+            context.diagnostics.error("internal: a function was reached before it was lowered"_v,
+                                      LocationId());
+            return LowerPtr<LowerValue>();
+        }
+
+        auto address = block.addInst(lower, new (to.arena) LowerInstFun(
+            lower[found.unwrap()]->name, found.unwrap()));
+        return &((LowerInstSingle*)address)->result - lower;
+    }
+
     LowerInst* value;
     if(constant.kind == mir::Constant::Float) {
         value = block.addInst(lower, new (to.arena) LowerImm(
@@ -2286,6 +2299,23 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
         case Inst::FunValue: {
             auto& written = (InstFunValue&)inst;
 
+            auto result = ssa[inst.results.get(ssa, 0)];
+            auto raw = decl[result->occurrence.type]->kind == mir::Type::Fun &&
+                       ((mir::FunType*)decl[result->occurrence.type])->convention;
+            if(raw) {
+                auto found = functions.getValue(written.callee.offset);
+                if(!found) {
+                    context.diagnostics.error("internal: a raw function pointer names a function that was not lowered"_v,
+                                              inst.source);
+                    return;
+                }
+
+                auto value = block.addInst(lower, new (to.arena) LowerInstFun(
+                    decl[written.callee]->name, found.unwrap()));
+                values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
+                break;
+            }
+
             LowerPtr<LowerValue> environment = nullptr;
             if(written.capturing) {
                 auto held = mapped(written.environment.value());
@@ -3281,10 +3311,17 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     auto pair = mapped(written.target.value());
                     if(!pair) return;
 
-                    callee = wordAt(block, pair - lower, layout.target.funCodeOffset(),
-                                    LowerType::Pointer, layout.target.pointerSize);
-                    environment = wordAt(block, pair - lower, layout.target.funEnvOffset(),
-                                         LowerType::Pointer, layout.target.pointerSize);
+                    auto targetType = ssa[written.target.value()]->occurrence.type;
+                    auto raw = decl[targetType]->kind == mir::Type::Fun &&
+                               ((mir::FunType*)decl[targetType])->convention;
+                    if(raw) {
+                        callee = pair - lower;
+                    } else {
+                        callee = wordAt(block, pair - lower, layout.target.funCodeOffset(),
+                                        LowerType::Pointer, layout.target.pointerSize);
+                        environment = wordAt(block, pair - lower, layout.target.funEnvOffset(),
+                                             LowerType::Pointer, layout.target.pointerSize);
+                    }
                     break;
                 }
             }
@@ -3433,9 +3470,16 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * two ends agree is that there is a single convention on this side of the boundary.
              */
             auto direct = written.through == mir::CallThrough::Declaration;
+            Maybe<LowerCallType> rawConvention = Nothing();
+            if(written.through == mir::CallThrough::Value) {
+                auto targetType = ssa[written.target.value()]->occurrence.type;
+                if(decl[targetType]->kind == mir::Type::Fun) {
+                    rawConvention = ((mir::FunType*)decl[targetType])->convention;
+                }
+            }
             auto convention = direct
                 ? lower[functions.getValue(target.offset).unwrap()]->callType
-                : kDefaultCallType;
+                : rawConvention ? rawConvention.unwrap() : kDefaultCallType;
 
             auto leading = 1u + (environment ? 1u : 0u) + (returnPlace ? 1u : 0u);
 

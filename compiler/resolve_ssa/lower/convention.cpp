@@ -103,6 +103,11 @@ struct CellWalk {
 
         switch(logical.kind) {
             case mir::Type::Fun:
+                if(((mir::FunType*)decl[occurrence.type])->convention) {
+                    cell(at, layout.target.pointerSize, LowerType::Pointer);
+                    return;
+                }
+                [[fallthrough]];
             case mir::Type::Iter:
                 cell(at + layout.target.funCodeOffset(), layout.target.pointerSize, LowerType::Pointer);
                 cell(at + layout.target.funEnvOffset(), layout.target.pointerSize, LowerType::Pointer);

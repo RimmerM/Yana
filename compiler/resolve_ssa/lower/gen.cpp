@@ -35,6 +35,10 @@ U64 constantBits(DeclBase decl, const mir::Constant& constant) {
             // writes a relocation for one and this - which answers a *number* - is not asked.
             assertTrue(false);
             return 0;
+        case mir::Constant::Function:
+            // A function entry address is also resolved by placement, never as an immediate.
+            assertTrue(false);
+            return 0;
         case mir::Constant::Float: {
             // The constant holds the `double` pattern whatever the declared width, because the width
             // is the target's answer and this is the first place that has it.
@@ -123,14 +127,29 @@ void Lowering::materialize(const mir::Occurrence& occurrence, const mir::Constan
      * a word with its neighbours has no such offset to name. Nothing produces one - a `@bits(n)`
      * refinement is an integer - so this is an internal invariant rather than a diagnostic.
      */
-    if(constant.kind == mir::Constant::Address) {
+    if(constant.kind == mir::Constant::Address || constant.kind == mir::Constant::Function) {
         assertTrue(owner != nullptr);
 
-        auto found = globals.getValue(constant.asGlobal().offset);
-        assertTrue(found.isJust());
+        LowerPtr<LowerGlobal> global = nullptr;
+        LowerPtr<LowerFunction> function = nullptr;
+        auto relocation = U32(owner->relocations.size());
+        if(constant.kind == mir::Constant::Address) {
+            auto found = globals.getValue(constant.asGlobal().offset);
+            assertTrue(found.isJust());
+            global = found.unwrap();
+        } else {
+            auto found = functions.getValue(constant.asFunction().offset);
+            if(found) {
+                function = found.unwrap();
+            } else {
+                pendingFunctionRelocations.push(PendingFunctionRelocation {
+                    owner - lower, relocation, constant.asFunction().offset
+                });
+            }
+        }
 
         owner->relocations.push(to.arena, LowerDataRelocation {
-            U32(into - owner->initialContents.ptr), false, nullptr, found.unwrap()
+            U32(into - owner->initialContents.ptr), false, function, global
         });
 
         return;
@@ -816,6 +835,15 @@ void Lowering::run() {
             functions.add(functionPointer.offset, target - lower);
         }
     }
+
+    for(auto& pending: pendingFunctionRelocations) {
+        auto found = functions.getValue(pending.function);
+        assertTrue(found);
+        auto relocation = lower[pending.global]->relocations.get(lower, pending.relocation);
+        relocation.function = found.unwrap();
+        lower[pending.global]->relocations.set(lower, pending.relocation, relocation);
+    }
+    pendingFunctionRelocations.clear();
 
     /*
      * Every function the loop above declared, which is every function that has a `mir::Function`

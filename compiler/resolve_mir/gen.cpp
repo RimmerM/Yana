@@ -525,7 +525,7 @@ DeclPtr<Type> closeFunPosition(Context& context, Program& program, DeclPtr<Type>
 
     auto closed = shape.result;
     closed.type = result;
-    return program.types.funType(base, params.pointer(), params.size(), closed);
+    return program.types.funType(base, params.pointer(), params.size(), closed, shape.convention);
 }
 
 /*
@@ -565,7 +565,8 @@ DeclPtr<Type> funTypeOf(Context& context, Program& program, DeclPtr<Function> fu
         params.push(FunParam { base[declared.args.get(base, i)]->occurrence });
     }
 
-    return program.types.funType(base, params.pointer(), params.size(), declared.result);
+    return program.types.funType(base, params.pointer(), params.size(), declared.result,
+                                 declared.convention);
 }
 
 DeclPtr<Type> countType(DeclBase base, DeclPtr<Type> type) {
@@ -809,6 +810,10 @@ bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
              */
             auto& expected = (FunType&)written;
             auto& actual = (FunType&)supplied;
+
+            if(expected.convention.isJust() != actual.convention.isJust() ||
+               (expected.convention && actual.convention &&
+                expected.convention.unwrap() != actual.convention.unwrap())) return false;
 
             if(expected.params.size() != actual.params.size()) return false;
             if(expected.result.contract != actual.result.contract) return false;
@@ -1121,7 +1126,7 @@ DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> t
             auto result = substituteOccurrence(context, program, fun.result, with);
             if(!moved && result == fun.result) return type;
 
-            return program.types.funType(base, params.pointer(), params.size(), result);
+            return program.types.funType(base, params.pointer(), params.size(), result, fun.convention);
         }
         case Type::Array: {
             // Both halves, and the count goes through `arrayType`'s `DeclPtr` entry point, which

@@ -36,7 +36,10 @@
  *    `erase.cpp`'s `witnessFor` and `thunkFor` look each of them up in the lowered function map, so
  *    dropping one is a table pointing at a function that was never emitted.
  *  - **`InstFunValue::callee`** - a function named as a value, which the lowering turns into a thunk
- *    over it. `fun.cpp` looks it up the same way.
+ *    over it. `fun.cpp` looks it up the same way;
+ *  - **a function constant in a reachable global** - a raw function pointer is a direct address, so
+ *    there is no `InstFunValue` or call instruction to name its target. The initial global
+ *    reachability answer is available before this final function sweep and supplies that edge.
  *
  * A root is one of:
  *
@@ -152,6 +155,20 @@ struct Reachability {
 
         for(auto witness: opt.decl[environment]->slots.contents(opt.decl)) {
             for(auto member: witness.functions.contents(opt.decl)) root(member);
+        }
+    }
+
+    // A raw function pointer in a global is a constant address rather than an SSA function-value
+    // instruction. Walk aggregate initializers so fixed callback tables root every entry they hold.
+    void rootConstant(const mir::Constant& constant) {
+        if(constant.kind == mir::Constant::Function) {
+            root(constant.asFunction());
+            return;
+        }
+
+        if(constant.kind != mir::Constant::Aggregate) return;
+        for(auto part: opt.decl[constant.aggregate()]->values.contents(opt.decl)) {
+            rootConstant(part);
         }
     }
 
@@ -272,6 +289,18 @@ struct Reachability {
 
             for(auto pointer: module->functions.contents(opt.decl)) {
                 if(opt.decl[pointer]->teardown) root(pointer);
+            }
+        }
+
+        // A raw function pointer in a reachable global has no SSA value naming the function. Root
+        // those constants before draining the ordinary call/value edges. The global flag is the
+        // same pre-optimization reachability answer this pass already relies on when it clears the
+        // functions it did not find.
+        for(auto modulePointer: program.modules) {
+            auto module = opt.decl[modulePointer];
+            for(auto pointer: module->globals.contents(opt.decl)) {
+                auto global = opt.decl[pointer];
+                if(global->reachable) rootConstant(global->initial);
             }
         }
 
