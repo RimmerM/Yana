@@ -273,10 +273,13 @@ pub fn endsWith(text: String, suffix: String) -> Bool:
    one in two hundred and fifty-six rather than one in sixteen. Measured on `bench/text`, it is the
    difference between 2.2 GB/s and the rest of this file's throughput.
 
-   A block that survives the filter is re-walked one position at a time, because there is no
-   operation that clears a mask's lowest set lane and so no way to visit a block's candidates in the
-   vector domain. That walk is `width` comparisons and it runs on one block in `A²/width`, so it
-   costs less per unit than the scan it sits inside.
+   A block that survives the filter visits its candidates and nothing else: `bits` of the candidate
+   mask, a trailing-zero count for the next one and `hits and (hits - 1)` to clear it, so each is
+   one `unitsEqual` and there is no re-reading of the block. ~~The block used to be re-walked one
+   position at a time~~, when there was no way to clear a mask's lowest set lane - `width`
+   comparisons on one block in `A²/width`, which is a constant per unit only while the width is. At
+   `avx512`'s sixty-four bytes it doubled, and was the whole of this function running 1.19x slower
+   at 512 bits than at 256 (test/bench/avx512/findings.md §10).
 
    Boyer-Moore or a two-way search would beat this on a long needle against adversarial text, and
    the tables they need cost more than the scan they save on the strings this is actually asked
@@ -328,15 +331,12 @@ pub fn String.find(haystack: String, needle: String, from: Size = 0) -> Maybe(Si
         let heads = loadVector(window, i) .== firstLane
         let tails = loadVector(window, i + inner - 1) .== lastLane
 
-        if any(and(heads, tails)):
-            let stop = i + width
-            let &j = i
+        let &hits = bits(and(heads, tails))
 
-            while j < stop:
-                if window[j] == firstUnit && window[j + inner - 1] == lastUnit:
-                    if unitsEqual(slice(window, j, j + inner), sought) then return Just(at + j)
-
-                j = j + 1
+        while hits != 0:
+            let j = i + (trailingZeros(hits) :: Size)
+            if unitsEqual(slice(window, j, j + inner), sought) then return Just(at + j)
+            hits = hits `and` (hits - 1)
 
         i = i + width
 

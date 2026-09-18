@@ -40,26 +40,26 @@ bb0:
   return take %3
 }
 
-fn quads(a: U64 [shared call], b: U64 [shared call], c: U64 [shared call], d: U64 [shared call]) -> Vec(U64) {
+fn quads(a: U64 [shared call], b: U64 [shared call], c: U64 [shared call], d: U64 [shared call]) -> Vec(U64, 4) {
 bb0:
   %0: U64 = const 0
-  %1: Vec(U64) = vec.splat inspect %0
+  %1: Vec(U64, 4) = vec.splat inspect %0
   %2: I32 = const 0
   %3: U64 = read copy.trivial (a)
-  %4: Vec(U64) = vec.withlane #0 inspect %1 inspect %3
+  %4: Vec(U64, 4) = vec.withlane #0 inspect %1 inspect %3
   %5: I32 = const 1
   %6: U64 = read copy.trivial (b)
-  %7: Vec(U64) = vec.withlane #1 inspect %4 inspect %6
+  %7: Vec(U64, 4) = vec.withlane #1 inspect %4 inspect %6
   %8: I32 = const 2
   %9: U64 = read copy.trivial (c)
-  %10: Vec(U64) = vec.withlane #2 inspect %7 inspect %9
+  %10: Vec(U64, 4) = vec.withlane #2 inspect %7 inspect %9
   %11: I32 = const 3
   %12: U64 = read copy.trivial (d)
-  %13: Vec(U64) = vec.withlane #3 inspect %10 inspect %12
+  %13: Vec(U64, 4) = vec.withlane #3 inspect %10 inspect %12
   return take %13
 }
 
-fn pair(first: Vec(U8, 16) [shared call], second: Vec(U8, 16) [shared call]) -> Vec(U8) {
+fn pair(first: Vec(U8, 16) [shared call], second: Vec(U8, 16) [shared call]) -> Vec(U8, 32) {
 bb0:
   %0: Vec(U8, 16) = read copy.trivial (first)
   %1: U64 = call lowOf borrow.shared %0
@@ -69,30 +69,30 @@ bb0:
   %5: U64 = call lowOf borrow.shared %4
   %6: Vec(U8, 16) = read copy.trivial (second)
   %7: U64 = call highOf borrow.shared %6
-  %8: Vec(U64) = call quads borrow.shared %1 borrow.shared %3 borrow.shared %5 borrow.shared %7
-  %9: Vec(U8) = bitcast inspect %8
+  %8: Vec(U64, 4) = call quads borrow.shared %1 borrow.shared %3 borrow.shared %5 borrow.shared %7
+  %9: Vec(U8, 32) = bitcast inspect %8
   return take %9
 }
 
-fn wideKey(key: Vec(U8, 16) [shared call]) -> Vec(U8) {
+fn wideKey(key: Vec(U8, 16) [shared call]) -> Vec(U8, 32) {
 bb0:
   %0: Vec(U8, 16) = read copy.trivial (key)
   %1: Vec(U8, 16) = read copy.trivial (key)
-  %2: Vec(U8) = call pair borrow.shared %0 borrow.shared %1
+  %2: Vec(U8, 32) = call pair borrow.shared %0 borrow.shared %1
   return take %2
 }
 
-fn differs(wide: Vec(U8) [shared call], first: Vec(U8, 16) [shared call], second: Vec(U8, 16) [shared call]) -> I32 {
-  local v: Vec(U64)
+fn differs(wide: Vec(U8, 32) [shared call], first: Vec(U8, 16) [shared call], second: Vec(U8, 16) [shared call]) -> I32 {
+  local v: Vec(U64, 4)
   local & wrong: I32
 
 bb0:
-  %0: Vec(U8) = read copy.trivial (wide)
-  %1: Vec(U64) = bitcast inspect %0
+  %0: Vec(U8, 32) = read copy.trivial (wide)
+  %1: Vec(U64, 4) = bitcast inspect %0
   write.init borrow.unique (v) take %1
   %3: I32 = const 0
   write.init borrow.unique (wrong) take %3
-  %5: Vec(U64) = read copy.trivial (v)
+  %5: Vec(U64, 4) = read copy.trivial (v)
   %6: I32 = const 0
   %7: U64 = vec.lane #0 inspect %5
   %8: Vec(U8, 16) = read copy.trivial (first)
@@ -104,7 +104,7 @@ bb1:
   jump -> bb2
 
 bb2:
-  %18: Vec(U64) = read copy.trivial (v)
+  %18: Vec(U64, 4) = read copy.trivial (v)
   %19: I32 = const 1
   %20: U64 = vec.lane #1 inspect %18
   %21: Vec(U8, 16) = read copy.trivial (first)
@@ -123,7 +123,7 @@ bb4:
   jump -> bb5
 
 bb5:
-  %31: Vec(U64) = read copy.trivial (v)
+  %31: Vec(U64, 4) = read copy.trivial (v)
   %32: I32 = const 2
   %33: U64 = vec.lane #2 inspect %31
   %34: Vec(U8, 16) = read copy.trivial (second)
@@ -142,7 +142,7 @@ bb7:
   jump -> bb8
 
 bb8:
-  %44: Vec(U64) = read copy.trivial (v)
+  %44: Vec(U64, 4) = read copy.trivial (v)
   %45: I32 = const 3
   %46: U64 = vec.lane #3 inspect %44
   %47: Vec(U8, 16) = read copy.trivial (second)
@@ -280,12 +280,12 @@ fn aes128Pair() -> I32 {
   local k10: Vec(U8, 16)
   local first: Vec(U8, 16)
   local second: Vec(U8, 16)
-  local & s: Vec(U8)
-  local cipher: Vec(U8)
+  local & s: Vec(U8, 32)
+  local cipher: Vec(U8, 32)
   local & wrong: I32
-  local & d: Vec(U8)
-  local state: Vec(U8)
-  local keys: Vec(U8)
+  local & d: Vec(U8, 32)
+  local state: Vec(U8, 32)
+  local keys: Vec(U8, 32)
 
 bb0:
   %0: U64 = read copy.trivial (global keyLow)
@@ -366,62 +366,62 @@ bb0:
   write.init borrow.unique (second) take %74
   %76: Vec(U8, 16) = read copy.trivial (first)
   %77: Vec(U8, 16) = read copy.trivial (second)
-  %78: Vec(U8) = call pair borrow.shared %76 borrow.shared %77
+  %78: Vec(U8, 32) = call pair borrow.shared %76 borrow.shared %77
   %79: Vec(U8, 16) = read copy.trivial (k0)
-  %80: Vec(U8) = call wideKey borrow.shared %79
-  %81: Vec(U8) = xor inspect %78 inspect %80
+  %80: Vec(U8, 32) = call wideKey borrow.shared %79
+  %81: Vec(U8, 32) = xor inspect %78 inspect %80
   write.init borrow.unique (s) take %81
-  %83: Vec(U8) = read copy.trivial (s)
+  %83: Vec(U8, 32) = read copy.trivial (s)
   %84: Vec(U8, 16) = read copy.trivial (k1)
-  %85: Vec(U8) = call wideKey borrow.shared %84
-  %86: Vec(U8) = native aesenc inspect %83 inspect %85
+  %85: Vec(U8, 32) = call wideKey borrow.shared %84
+  %86: Vec(U8, 32) = native aesenc inspect %83 inspect %85
   write.assign borrow.unique (s) take %86
-  %88: Vec(U8) = read copy.trivial (s)
+  %88: Vec(U8, 32) = read copy.trivial (s)
   %89: Vec(U8, 16) = read copy.trivial (k2)
-  %90: Vec(U8) = call wideKey borrow.shared %89
-  %91: Vec(U8) = native aesenc inspect %88 inspect %90
+  %90: Vec(U8, 32) = call wideKey borrow.shared %89
+  %91: Vec(U8, 32) = native aesenc inspect %88 inspect %90
   write.assign borrow.unique (s) take %91
-  %93: Vec(U8) = read copy.trivial (s)
+  %93: Vec(U8, 32) = read copy.trivial (s)
   %94: Vec(U8, 16) = read copy.trivial (k3)
-  %95: Vec(U8) = call wideKey borrow.shared %94
-  %96: Vec(U8) = native aesenc inspect %93 inspect %95
+  %95: Vec(U8, 32) = call wideKey borrow.shared %94
+  %96: Vec(U8, 32) = native aesenc inspect %93 inspect %95
   write.assign borrow.unique (s) take %96
-  %98: Vec(U8) = read copy.trivial (s)
+  %98: Vec(U8, 32) = read copy.trivial (s)
   %99: Vec(U8, 16) = read copy.trivial (k4)
-  %100: Vec(U8) = call wideKey borrow.shared %99
-  %101: Vec(U8) = native aesenc inspect %98 inspect %100
+  %100: Vec(U8, 32) = call wideKey borrow.shared %99
+  %101: Vec(U8, 32) = native aesenc inspect %98 inspect %100
   write.assign borrow.unique (s) take %101
-  %103: Vec(U8) = read copy.trivial (s)
+  %103: Vec(U8, 32) = read copy.trivial (s)
   %104: Vec(U8, 16) = read copy.trivial (k5)
-  %105: Vec(U8) = call wideKey borrow.shared %104
-  %106: Vec(U8) = native aesenc inspect %103 inspect %105
+  %105: Vec(U8, 32) = call wideKey borrow.shared %104
+  %106: Vec(U8, 32) = native aesenc inspect %103 inspect %105
   write.assign borrow.unique (s) take %106
-  %108: Vec(U8) = read copy.trivial (s)
+  %108: Vec(U8, 32) = read copy.trivial (s)
   %109: Vec(U8, 16) = read copy.trivial (k6)
-  %110: Vec(U8) = call wideKey borrow.shared %109
-  %111: Vec(U8) = native aesenc inspect %108 inspect %110
+  %110: Vec(U8, 32) = call wideKey borrow.shared %109
+  %111: Vec(U8, 32) = native aesenc inspect %108 inspect %110
   write.assign borrow.unique (s) take %111
-  %113: Vec(U8) = read copy.trivial (s)
+  %113: Vec(U8, 32) = read copy.trivial (s)
   %114: Vec(U8, 16) = read copy.trivial (k7)
-  %115: Vec(U8) = call wideKey borrow.shared %114
-  %116: Vec(U8) = native aesenc inspect %113 inspect %115
+  %115: Vec(U8, 32) = call wideKey borrow.shared %114
+  %116: Vec(U8, 32) = native aesenc inspect %113 inspect %115
   write.assign borrow.unique (s) take %116
-  %118: Vec(U8) = read copy.trivial (s)
+  %118: Vec(U8, 32) = read copy.trivial (s)
   %119: Vec(U8, 16) = read copy.trivial (k8)
-  %120: Vec(U8) = call wideKey borrow.shared %119
-  %121: Vec(U8) = native aesenc inspect %118 inspect %120
+  %120: Vec(U8, 32) = call wideKey borrow.shared %119
+  %121: Vec(U8, 32) = native aesenc inspect %118 inspect %120
   write.assign borrow.unique (s) take %121
-  %123: Vec(U8) = read copy.trivial (s)
+  %123: Vec(U8, 32) = read copy.trivial (s)
   %124: Vec(U8, 16) = read copy.trivial (k9)
-  %125: Vec(U8) = call wideKey borrow.shared %124
-  %126: Vec(U8) = native aesenc inspect %123 inspect %125
+  %125: Vec(U8, 32) = call wideKey borrow.shared %124
+  %126: Vec(U8, 32) = native aesenc inspect %123 inspect %125
   write.assign borrow.unique (s) take %126
-  %128: Vec(U8) = read copy.trivial (s)
+  %128: Vec(U8, 32) = read copy.trivial (s)
   %129: Vec(U8, 16) = read copy.trivial (k10)
-  %130: Vec(U8) = call wideKey borrow.shared %129
-  %131: Vec(U8) = native aesenclast inspect %128 inspect %130
+  %130: Vec(U8, 32) = call wideKey borrow.shared %129
+  %131: Vec(U8, 32) = native aesenclast inspect %128 inspect %130
   write.init borrow.unique (cipher) take %131
-  %133: Vec(U8) = read copy.trivial (cipher)
+  %133: Vec(U8, 32) = read copy.trivial (cipher)
   %134: Vec(U8, 16) = read copy.trivial (first)
   %135: Vec(U8, 16) = read copy.trivial (k0)
   %136: Vec(U8, 16) = read copy.trivial (k1)
@@ -450,70 +450,70 @@ bb0:
   %159: Vec(U8, 16) = call encryptOne borrow.shared %147 borrow.shared %148 borrow.shared %149 borrow.shared %150 borrow.shared %151 borrow.shared %152 borrow.shared %153 borrow.shared %154 borrow.shared %155 borrow.shared %156 borrow.shared %157 borrow.shared %158
   %160: I32 = call differs borrow.shared %133 borrow.shared %146 borrow.shared %159
   write.init borrow.unique (wrong) take %160
-  %162: Vec(U8) = read copy.trivial (cipher)
+  %162: Vec(U8, 32) = read copy.trivial (cipher)
   %163: Vec(U8, 16) = read copy.trivial (k10)
-  %164: Vec(U8) = call wideKey borrow.shared %163
-  %165: Vec(U8) = xor inspect %162 inspect %164
+  %164: Vec(U8, 32) = call wideKey borrow.shared %163
+  %165: Vec(U8, 32) = xor inspect %162 inspect %164
   write.init borrow.unique (d) take %165
-  %167: Vec(U8) = read copy.trivial (d)
+  %167: Vec(U8, 32) = read copy.trivial (d)
   %168: Vec(U8, 16) = read copy.trivial (k9)
   %169: Vec(U8, 16) = native aesimc inspect %168
-  %170: Vec(U8) = call wideKey borrow.shared %169
-  %171: Vec(U8) = native aesdec inspect %167 inspect %170
+  %170: Vec(U8, 32) = call wideKey borrow.shared %169
+  %171: Vec(U8, 32) = native aesdec inspect %167 inspect %170
   write.assign borrow.unique (d) take %171
-  %173: Vec(U8) = read copy.trivial (d)
+  %173: Vec(U8, 32) = read copy.trivial (d)
   %174: Vec(U8, 16) = read copy.trivial (k8)
   %175: Vec(U8, 16) = native aesimc inspect %174
-  %176: Vec(U8) = call wideKey borrow.shared %175
-  %177: Vec(U8) = native aesdec inspect %173 inspect %176
+  %176: Vec(U8, 32) = call wideKey borrow.shared %175
+  %177: Vec(U8, 32) = native aesdec inspect %173 inspect %176
   write.assign borrow.unique (d) take %177
-  %179: Vec(U8) = read copy.trivial (d)
+  %179: Vec(U8, 32) = read copy.trivial (d)
   %180: Vec(U8, 16) = read copy.trivial (k7)
   %181: Vec(U8, 16) = native aesimc inspect %180
-  %182: Vec(U8) = call wideKey borrow.shared %181
-  %183: Vec(U8) = native aesdec inspect %179 inspect %182
+  %182: Vec(U8, 32) = call wideKey borrow.shared %181
+  %183: Vec(U8, 32) = native aesdec inspect %179 inspect %182
   write.assign borrow.unique (d) take %183
-  %185: Vec(U8) = read copy.trivial (d)
+  %185: Vec(U8, 32) = read copy.trivial (d)
   %186: Vec(U8, 16) = read copy.trivial (k6)
   %187: Vec(U8, 16) = native aesimc inspect %186
-  %188: Vec(U8) = call wideKey borrow.shared %187
-  %189: Vec(U8) = native aesdec inspect %185 inspect %188
+  %188: Vec(U8, 32) = call wideKey borrow.shared %187
+  %189: Vec(U8, 32) = native aesdec inspect %185 inspect %188
   write.assign borrow.unique (d) take %189
-  %191: Vec(U8) = read copy.trivial (d)
+  %191: Vec(U8, 32) = read copy.trivial (d)
   %192: Vec(U8, 16) = read copy.trivial (k5)
   %193: Vec(U8, 16) = native aesimc inspect %192
-  %194: Vec(U8) = call wideKey borrow.shared %193
-  %195: Vec(U8) = native aesdec inspect %191 inspect %194
+  %194: Vec(U8, 32) = call wideKey borrow.shared %193
+  %195: Vec(U8, 32) = native aesdec inspect %191 inspect %194
   write.assign borrow.unique (d) take %195
-  %197: Vec(U8) = read copy.trivial (d)
+  %197: Vec(U8, 32) = read copy.trivial (d)
   %198: Vec(U8, 16) = read copy.trivial (k4)
   %199: Vec(U8, 16) = native aesimc inspect %198
-  %200: Vec(U8) = call wideKey borrow.shared %199
-  %201: Vec(U8) = native aesdec inspect %197 inspect %200
+  %200: Vec(U8, 32) = call wideKey borrow.shared %199
+  %201: Vec(U8, 32) = native aesdec inspect %197 inspect %200
   write.assign borrow.unique (d) take %201
-  %203: Vec(U8) = read copy.trivial (d)
+  %203: Vec(U8, 32) = read copy.trivial (d)
   %204: Vec(U8, 16) = read copy.trivial (k3)
   %205: Vec(U8, 16) = native aesimc inspect %204
-  %206: Vec(U8) = call wideKey borrow.shared %205
-  %207: Vec(U8) = native aesdec inspect %203 inspect %206
+  %206: Vec(U8, 32) = call wideKey borrow.shared %205
+  %207: Vec(U8, 32) = native aesdec inspect %203 inspect %206
   write.assign borrow.unique (d) take %207
-  %209: Vec(U8) = read copy.trivial (d)
+  %209: Vec(U8, 32) = read copy.trivial (d)
   %210: Vec(U8, 16) = read copy.trivial (k2)
   %211: Vec(U8, 16) = native aesimc inspect %210
-  %212: Vec(U8) = call wideKey borrow.shared %211
-  %213: Vec(U8) = native aesdec inspect %209 inspect %212
+  %212: Vec(U8, 32) = call wideKey borrow.shared %211
+  %213: Vec(U8, 32) = native aesdec inspect %209 inspect %212
   write.assign borrow.unique (d) take %213
-  %215: Vec(U8) = read copy.trivial (d)
+  %215: Vec(U8, 32) = read copy.trivial (d)
   %216: Vec(U8, 16) = read copy.trivial (k1)
   %217: Vec(U8, 16) = native aesimc inspect %216
-  %218: Vec(U8) = call wideKey borrow.shared %217
-  %219: Vec(U8) = native aesdec inspect %215 inspect %218
+  %218: Vec(U8, 32) = call wideKey borrow.shared %217
+  %219: Vec(U8, 32) = native aesdec inspect %215 inspect %218
   write.assign borrow.unique (d) take %219
   %221: I32 = read copy.trivial (wrong)
-  %222: Vec(U8) = read copy.trivial (d)
+  %222: Vec(U8, 32) = read copy.trivial (d)
   %223: Vec(U8, 16) = read copy.trivial (k0)
-  %224: Vec(U8) = call wideKey borrow.shared %223
-  %225: Vec(U8) = native aesdeclast inspect %222 inspect %224
+  %224: Vec(U8, 32) = call wideKey borrow.shared %223
+  %225: Vec(U8, 32) = native aesdeclast inspect %222 inspect %224
   %226: Vec(U8, 16) = read copy.trivial (first)
   %227: Vec(U8, 16) = read copy.trivial (second)
   %228: I32 = call differs borrow.shared %225 borrow.shared %226 borrow.shared %227
@@ -521,16 +521,16 @@ bb0:
   write.assign borrow.unique (wrong) take %229
   %231: Vec(U8, 16) = read copy.trivial (first)
   %232: Vec(U8, 16) = read copy.trivial (second)
-  %233: Vec(U8) = call pair borrow.shared %231 borrow.shared %232
+  %233: Vec(U8, 32) = call pair borrow.shared %231 borrow.shared %232
   write.init borrow.unique (state) take %233
   %235: Vec(U8, 16) = read copy.trivial (k3)
   %236: Vec(U8, 16) = read copy.trivial (k7)
-  %237: Vec(U8) = call pair borrow.shared %235 borrow.shared %236
+  %237: Vec(U8, 32) = call pair borrow.shared %235 borrow.shared %236
   write.init borrow.unique (keys) take %237
   %239: I32 = read copy.trivial (wrong)
-  %240: Vec(U8) = read copy.trivial (state)
-  %241: Vec(U8) = read copy.trivial (keys)
-  %242: Vec(U8) = native aesenc inspect %240 inspect %241
+  %240: Vec(U8, 32) = read copy.trivial (state)
+  %241: Vec(U8, 32) = read copy.trivial (keys)
+  %242: Vec(U8, 32) = native aesenc inspect %240 inspect %241
   %243: Vec(U8, 16) = read copy.trivial (first)
   %244: Vec(U8, 16) = read copy.trivial (k3)
   %245: Vec(U8, 16) = native aesenc inspect %243 inspect %244
@@ -541,9 +541,9 @@ bb0:
   %250: I32 = add inspect %239 inspect %249
   write.assign borrow.unique (wrong) take %250
   %252: I32 = read copy.trivial (wrong)
-  %253: Vec(U8) = read copy.trivial (state)
-  %254: Vec(U8) = read copy.trivial (keys)
-  %255: Vec(U8) = native aesenclast inspect %253 inspect %254
+  %253: Vec(U8, 32) = read copy.trivial (state)
+  %254: Vec(U8, 32) = read copy.trivial (keys)
+  %255: Vec(U8, 32) = native aesenclast inspect %253 inspect %254
   %256: Vec(U8, 16) = read copy.trivial (first)
   %257: Vec(U8, 16) = read copy.trivial (k3)
   %258: Vec(U8, 16) = native aesenclast inspect %256 inspect %257
@@ -554,9 +554,9 @@ bb0:
   %263: I32 = add inspect %252 inspect %262
   write.assign borrow.unique (wrong) take %263
   %265: I32 = read copy.trivial (wrong)
-  %266: Vec(U8) = read copy.trivial (state)
-  %267: Vec(U8) = read copy.trivial (keys)
-  %268: Vec(U8) = native aesdec inspect %266 inspect %267
+  %266: Vec(U8, 32) = read copy.trivial (state)
+  %267: Vec(U8, 32) = read copy.trivial (keys)
+  %268: Vec(U8, 32) = native aesdec inspect %266 inspect %267
   %269: Vec(U8, 16) = read copy.trivial (first)
   %270: Vec(U8, 16) = read copy.trivial (k3)
   %271: Vec(U8, 16) = native aesdec inspect %269 inspect %270
@@ -567,9 +567,9 @@ bb0:
   %276: I32 = add inspect %265 inspect %275
   write.assign borrow.unique (wrong) take %276
   %278: I32 = read copy.trivial (wrong)
-  %279: Vec(U8) = read copy.trivial (state)
-  %280: Vec(U8) = read copy.trivial (keys)
-  %281: Vec(U8) = native aesdeclast inspect %279 inspect %280
+  %279: Vec(U8, 32) = read copy.trivial (state)
+  %280: Vec(U8, 32) = read copy.trivial (keys)
+  %281: Vec(U8, 32) = native aesdeclast inspect %279 inspect %280
   %282: Vec(U8, 16) = read copy.trivial (first)
   %283: Vec(U8, 16) = read copy.trivial (k3)
   %284: Vec(U8, 16) = native aesdeclast inspect %282 inspect %283
@@ -583,13 +583,13 @@ bb0:
   return take %291
 }
 
-fn halves(v: Vec(U64) [shared call], low: Vec(U64, 2) [shared call], high: Vec(U64, 2) [shared call]) -> I32 {
+fn halves(v: Vec(U64, 4) [shared call], low: Vec(U64, 2) [shared call], high: Vec(U64, 2) [shared call]) -> I32 {
   local & wrong: I32
 
 bb0:
   %0: I32 = const 0
   write.init borrow.unique (wrong) take %0
-  %2: Vec(U64) = read copy.trivial (v)
+  %2: Vec(U64, 4) = read copy.trivial (v)
   %3: I32 = const 0
   %4: U64 = vec.lane #0 inspect %2
   %5: Vec(U64, 2) = read copy.trivial (low)
@@ -602,7 +602,7 @@ bb1:
   jump -> bb2
 
 bb2:
-  %16: Vec(U64) = read copy.trivial (v)
+  %16: Vec(U64, 4) = read copy.trivial (v)
   %17: I32 = const 1
   %18: U64 = vec.lane #1 inspect %16
   %19: Vec(U64, 2) = read copy.trivial (low)
@@ -622,7 +622,7 @@ bb4:
   jump -> bb5
 
 bb5:
-  %30: Vec(U64) = read copy.trivial (v)
+  %30: Vec(U64, 4) = read copy.trivial (v)
   %31: I32 = const 2
   %32: U64 = vec.lane #2 inspect %30
   %33: Vec(U64, 2) = read copy.trivial (high)
@@ -642,7 +642,7 @@ bb7:
   jump -> bb8
 
 bb8:
-  %44: Vec(U64) = read copy.trivial (v)
+  %44: Vec(U64, 4) = read copy.trivial (v)
   %45: I32 = const 3
   %46: U64 = vec.lane #3 inspect %44
   %47: Vec(U64, 2) = read copy.trivial (high)
@@ -682,8 +682,8 @@ fn carrylessPair() -> I32 {
   local b1: U64
   local b2: U64
   local b3: U64
-  local a: Vec(U64)
-  local b: Vec(U64)
+  local a: Vec(U64, 4)
+  local b: Vec(U64, 4)
   local aLow: Vec(U64, 2)
   local aHigh: Vec(U64, 2)
   local bLow: Vec(U64, 2)
@@ -726,13 +726,13 @@ bb0:
   %33: U64 = read copy.trivial (a1)
   %34: U64 = read copy.trivial (a2)
   %35: U64 = read copy.trivial (a3)
-  %36: Vec(U64) = call quads borrow.shared %32 borrow.shared %33 borrow.shared %34 borrow.shared %35
+  %36: Vec(U64, 4) = call quads borrow.shared %32 borrow.shared %33 borrow.shared %34 borrow.shared %35
   write.init borrow.unique (a) take %36
   %38: U64 = read copy.trivial (b0)
   %39: U64 = read copy.trivial (b1)
   %40: U64 = read copy.trivial (b2)
   %41: U64 = read copy.trivial (b3)
-  %42: Vec(U64) = call quads borrow.shared %38 borrow.shared %39 borrow.shared %40 borrow.shared %41
+  %42: Vec(U64, 4) = call quads borrow.shared %38 borrow.shared %39 borrow.shared %40 borrow.shared %41
   write.init borrow.unique (b) take %42
   %44: U64 = const 0
   %45: Vec(U64, 2) = vec.splat inspect %44
@@ -770,10 +770,10 @@ bb0:
   %77: U64 = read copy.trivial (b3)
   %78: Vec(U64, 2) = vec.withlane #1 inspect %75 inspect %77
   write.init borrow.unique (bHigh) take %78
-  %80: Vec(U64) = read copy.trivial (a)
-  %81: Vec(U64) = read copy.trivial (b)
+  %80: Vec(U64, 4) = read copy.trivial (a)
+  %81: Vec(U64, 4) = read copy.trivial (b)
   %82: I32 = const 0
-  %83: Vec(U64) = native pclmulqdq #0 inspect %80 inspect %81
+  %83: Vec(U64, 4) = native pclmulqdq #0 inspect %80 inspect %81
   %84: Vec(U64, 2) = read copy.trivial (aLow)
   %85: Vec(U64, 2) = read copy.trivial (bLow)
   %86: I32 = const 0
@@ -783,10 +783,10 @@ bb0:
   %90: I32 = const 0
   %91: Vec(U64, 2) = native pclmulqdq #0 inspect %88 inspect %89
   %92: I32 = call halves borrow.shared %83 borrow.shared %87 borrow.shared %91
-  %93: Vec(U64) = read copy.trivial (a)
-  %94: Vec(U64) = read copy.trivial (b)
+  %93: Vec(U64, 4) = read copy.trivial (a)
+  %94: Vec(U64, 4) = read copy.trivial (b)
   %95: I32 = const 1
-  %96: Vec(U64) = native pclmulqdq #1 inspect %93 inspect %94
+  %96: Vec(U64, 4) = native pclmulqdq #1 inspect %93 inspect %94
   %97: Vec(U64, 2) = read copy.trivial (aLow)
   %98: Vec(U64, 2) = read copy.trivial (bLow)
   %99: I32 = const 1
@@ -797,10 +797,10 @@ bb0:
   %104: Vec(U64, 2) = native pclmulqdq #1 inspect %101 inspect %102
   %105: I32 = call halves borrow.shared %96 borrow.shared %100 borrow.shared %104
   %106: I32 = add inspect %92 inspect %105
-  %107: Vec(U64) = read copy.trivial (a)
-  %108: Vec(U64) = read copy.trivial (b)
+  %107: Vec(U64, 4) = read copy.trivial (a)
+  %108: Vec(U64, 4) = read copy.trivial (b)
   %109: I32 = const 16
-  %110: Vec(U64) = native pclmulqdq #16 inspect %107 inspect %108
+  %110: Vec(U64, 4) = native pclmulqdq #16 inspect %107 inspect %108
   %111: Vec(U64, 2) = read copy.trivial (aLow)
   %112: Vec(U64, 2) = read copy.trivial (bLow)
   %113: I32 = const 16
@@ -811,10 +811,10 @@ bb0:
   %118: Vec(U64, 2) = native pclmulqdq #16 inspect %115 inspect %116
   %119: I32 = call halves borrow.shared %110 borrow.shared %114 borrow.shared %118
   %120: I32 = add inspect %106 inspect %119
-  %121: Vec(U64) = read copy.trivial (a)
-  %122: Vec(U64) = read copy.trivial (b)
+  %121: Vec(U64, 4) = read copy.trivial (a)
+  %122: Vec(U64, 4) = read copy.trivial (b)
   %123: I32 = const 17
-  %124: Vec(U64) = native pclmulqdq #17 inspect %121 inspect %122
+  %124: Vec(U64, 4) = native pclmulqdq #17 inspect %121 inspect %122
   %125: Vec(U64, 2) = read copy.trivial (aLow)
   %126: Vec(U64, 2) = read copy.trivial (bLow)
   %127: I32 = const 17

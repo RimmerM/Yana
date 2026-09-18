@@ -332,8 +332,10 @@ void MachineFormBuilder::registerEvexForms() {
      * one place the invariant costs anything is the complement (`PseudoKind::MaskNot`). That is what
      * lets `kmovd` into a general register be the movemask outright, with nothing masked after it.
      *
-     * Every mask here is `ClassMask32`: at a natural width of 32 bytes no mask has more than thirty-two
-     * lanes, and a register of that width is `kmovd`'s.
+     * Every mask here is `ClassMask32`, which is every mask of a 128- or 256-bit register. The one
+     * mask with more lanes - bytes at 512 bits - reads these rows as they are, each instruction reading
+     * the register at its own opcode's width, and has `q` rows of its own for the few whose width *is*
+     * the opcode (see the end of this function, and `registerFullForms`).
      * ---------------------------------------------------------------------------------------------
      */
 
@@ -396,16 +398,17 @@ void MachineFormBuilder::registerEvexForms() {
      * `kandnd k1, k2, k3` is `~k2 & k3`, so the complemented operand is `vvvv` - the first one, which
      * is `X86MaskAnd`'s order when the mask is the arm dropped.
      */
-    auto maskBitwise = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName, U8 op) {
+    auto maskBitwise = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName, U8 op, bool quad = false) {
+        auto regClass = quad ? ClassMask64 : ClassMask32;
         auto& form = add(id, opcode, formName);
-        form.uses.push(anyReg(ClassMask32));
-        form.uses.push(anyReg(ClassMask32));
-        form.defs.push(def(ClassMask32));
+        form.uses.push(anyReg(regClass));
+        form.uses.push(anyReg(regClass));
+        form.defs.push(def(regClass));
         form.requiredFeatures = kFeatureAvx512f | kFeatureAvx512bw;
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::RegRm,
             .opcode = op,
-            .escape = 0x0f, .prefix = 0x66,
+            .escape = 0x0f, .prefix = U8(quad ? 0x00 : 0x66),
             .regField = defRef(0), .rmField = useRef(1),
             .width = OperationWidth::Fixed64,
             .prefixEncoding = PrefixEncoding::Vex,
@@ -723,20 +726,96 @@ void MachineFormBuilder::registerEvexForms() {
     zeroTest(FormKZeroTestSet, "kortestd k, k; setcc r"_v, true);
 
     // `kmovd k, r32` - VEX.L0.F2.0F.W0 92 - a mask register written from a general register's bits.
-    {
-        auto& form = add(FormKFromBits, OpVectorToMask, "kmovd k, r32"_v);
-        form.uses.push(anyReg(ClassGpr32));
-        form.defs.push(def(ClassMask32));
+    auto fromBits = [&](MachineFormId id, StringView formName, bool quad) {
+        auto& form = add(id, OpVectorToMask, formName);
+        form.uses.push(anyReg(quad ? ClassGpr64 : ClassGpr32));
+        form.defs.push(def(quad ? ClassMask64 : ClassMask32));
         form.requiredFeatures = kFeatureAvx512f | kFeatureAvx512bw;
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::RegRm,
             .opcode = 0x92,
             .escape = 0x0f, .prefix = 0xf2,
             .regField = defRef(0), .rmField = useRef(0),
-            .width = OperationWidth::Fixed32,
+            .width = quad ? OperationWidth::Fixed64 : OperationWidth::Fixed32,
+            .prefixEncoding = PrefixEncoding::Vex,
+        };
+    };
+
+    fromBits(FormKFromBits, "kmovd k, r32"_v, false);
+
+    /*
+     * ---------------------------------------------------------------------------------------------
+     * Sixty-four lanes - Analysis-Avx512.md §1.2's stage 2.
+     *
+     * A byte vector at 512 bits is the one mask with more lanes than `kmovd` moves, so what reads or
+     * writes a whole mask register as a number has a `q` row beside its `d` one: the bitwise four, the
+     * copy, the movemask both ways and `kortest`. The `d` spelling of each would drop the upper half
+     * silently. Every other row reads a `k` register at the width its own opcode does - a byte
+     * comparison at 512 bits writes all sixty-four bits whatever its operand class says - and the
+     * complement and the two transfers through memory are pseudos that read the lane count.
+     *
+     * Where a `d` row writes the 66 prefix a `q` one writes none: `kandq` is VEX.L1.0F.W1 41, `kmovq`
+     * VEX.L0.0F.W1 90, `kortestq` VEX.L0.0F.W1 98, and the general-register moves F2 at W1.
+     * ---------------------------------------------------------------------------------------------
+     */
+    maskBitwise(FormKAndQ,    OpVAnd,    "kandq k, k, k"_v,  0x41, true);
+    maskBitwise(FormKOrQ,     OpVOr,     "korq k, k, k"_v,   0x45, true);
+    maskBitwise(FormKXorQ,    OpVXor,    "kxorq k, k, k"_v,  0x47, true);
+    maskBitwise(FormKAndNotQ, OpVAndNot, "kandnq k, k, k"_v, 0x42, true);
+
+    {
+        auto& form = add(FormKMoveQ, OpMove, "kmovq k, k"_v);
+        form.uses.push(anyReg(ClassMask64));
+        form.defs.push(def(ClassMask64));
+        form.requiredFeatures = kFeatureAvx512f | kFeatureAvx512bw;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0x90,
+            .escape = 0x0f,
+            .regField = defRef(0), .rmField = useRef(0),
+            .width = OperationWidth::Fixed64,
+            .prefixEncoding = PrefixEncoding::Vex,
+            .omitWhenSame = true,
+        };
+    }
+
+    {
+        auto& form = add(FormKBitsQ, OpVMaskBits, "kmovq r64, k"_v);
+        form.uses.push(anyReg(ClassMask64));
+        form.defs.push(def(ClassGpr64));
+        form.requiredFeatures = kFeatureAvx512f | kFeatureAvx512bw;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0x93,
+            .escape = 0x0f, .prefix = 0xf2,
+            .regField = defRef(0), .rmField = useRef(0),
+            .width = OperationWidth::Fixed64,
             .prefixEncoding = PrefixEncoding::Vex,
         };
     }
+
+    auto zeroTestQ = [&](MachineFormId id, StringView formName, bool materialize) {
+        auto& form = add(id, OpCmp, formName);
+        form.uses.push(anyReg(ClassMask64));
+        form.uses.push(immediate(ImmediateWidth::Imm8));
+        form.defs.push(materialize ? def(ClassGpr32) : noDef());
+        form.flagsEffect = FlagsEffect::Def;
+        form.requiredFeatures = kFeatureAvx512f | kFeatureAvx512bw;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0x98,
+            .escape = 0x0f,
+            .regField = useRef(0), .rmField = useRef(0),
+            .width = OperationWidth::Fixed64,
+            .prefixEncoding = PrefixEncoding::Vex,
+        };
+        form.encoding.materializeFlags = materialize;
+    };
+
+    zeroTestQ(FormKZeroTestQ, "kortestq k, k"_v, false);
+    zeroTestQ(FormKZeroTestSetQ, "kortestq k, k; setcc r"_v, true);
+
+    fromBits(FormKFromBitsQ, "kmovq k, r64"_v, true);
 }
 
 /*
@@ -1048,6 +1127,103 @@ void MachineFormBuilder::registerEvexShuffleForms() {
     maskMove(FormVMaskMoveLoad64,  FormVWideMaskMoveLoad64,  OpVMaskedLoad,  "vpmaskmovq xmm, xmm, [address]"_v, "vpmaskmovq ymm, ymm, [address]"_v, false, true);
     maskMove(FormVMaskMoveStore32, FormVWideMaskMoveStore32, OpVMaskedStore, "vpmaskmovd [address], xmm, xmm"_v, "vpmaskmovd [address], ymm, ymm"_v, true,  false);
     maskMove(FormVMaskMoveStore64, FormVWideMaskMoveStore64, OpVMaskedStore, "vpmaskmovq [address], xmm, xmm"_v, "vpmaskmovq [address], ymm, ymm"_v, true,  true);
+
+    /*
+     * The halves of a 512-bit register, and a register made of two - Analysis-Avx512.md §1.2's stage
+     * 2. `splitFullVectors` writes an operation that has no 512-bit form as two 256-bit ones between
+     * these, which are three width-changing shuffles `packedShuffleChoice` reads by their sources'
+     * width.
+     *
+     * The low half is the register itself read at 256 bits, so it is a copy and nothing where the
+     * allocator lands both ends in one register; the high one is `vextracti64x4 ymm, zmm, 1`
+     * (EVEX.512.66.0F3A.W1 3B /r ib), and the join `vinserti64x4 zmm, zmm, ymm, 1` (3A), whose first
+     * operand is the low half read as the 512-bit register it sits in - a 256-bit value's register
+     * holds zeros above it, every write of one being VEX or EVEX, and the insert replaces them.
+     */
+    {
+        auto& form = add(FormVFullLow, OpVShuffle, "vmovaps ymm, ymm (low half of zmm)"_v);
+        form.uses.push(anyReg(ClassZmm512));
+        form.defs.push(def(ClassYmm256));
+        form.requiredFeatures = kFeatureAvx512f;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0x28,
+            .escape = 0x0f,
+            .regField = defRef(0), .rmField = useRef(0),
+            .widthInPrefix = true,
+            .prefixEncoding = PrefixEncoding::Vex,
+            .vectorLength = 1,
+            .omitWhenSame = true,
+        };
+    }
+
+    {
+        auto& form = add(FormVFullHigh, OpVShuffle, "vextracti64x4 ymm, zmm, 1"_v);
+        form.uses.push(anyReg(ClassZmm512));
+        form.defs.push(def(ClassYmm256));
+        form.requiredFeatures = kFeatureAvx512f;
+        form.encoding = evex(kOpcodeMap0F3A, 0x3b, true);
+        form.encoding.regField = useRef(0);
+        form.encoding.rmField = defRef(0);
+        form.encoding.vectorLength = 2;
+        form.encoding.patternImmediate = true;
+    }
+
+    {
+        auto& form = add(FormVFullJoin, OpVShuffle, "vinserti64x4 zmm, zmm, ymm, 1"_v);
+        form.uses.push(anyReg(ClassYmm256));
+        form.uses.push(anyReg(ClassYmm256));
+        form.defs.push(def(ClassZmm512));
+        form.requiredFeatures = kFeatureAvx512f;
+        form.encoding = evex(kOpcodeMap0F3A, 0x3a, true);
+        form.encoding.vvvvField = useRef(0);
+        form.encoding.rmField = useRef(1);
+        form.encoding.vectorLength = 2;
+        form.encoding.patternImmediate = true;
+    }
+
+    /*
+     * The lane-count conversions at 512 bits, each one instruction - where the 256-bit tier builds the
+     * same thing out of two in-lane interleaves and an exchange of halves (`expandLaneCountConversions`),
+     * because AVX2 has no widening move into a `ymm` that reads a whole `ymm`.
+     *
+     * Widening is `vpmovzxbw`/`wd`/`dq` and `vpmovsx*` - EVEX.512.66.0F38 30/33/35 and 20/23/25, the
+     * quadword pair at W0 - with the 512-bit destination in ModRM.reg and the 256-bit source in r/m.
+     * Narrowing is the truncating `vpmovwb`/`dw`/`qd` of `FormVNarrow16To8` one width up: the source in
+     * ModRM.reg, the destination r/m.
+     */
+    auto extend = [&](MachineFormId id, StringView formName, U8 op) {
+        auto& form = add(id, OpCast, formName);
+        form.uses.push(anyReg(ClassYmm256));
+        form.defs.push(def(ClassZmm512));
+        form.requiredFeatures = kFeatureAvx512f | kFeatureAvx512bw;
+        form.encoding = evex(kOpcodeMap0F38, op, false);
+        form.encoding.vectorLength = 2;
+    };
+
+    extend(FormVFullZeroExtend8,  "vpmovzxbw zmm, ymm"_v, 0x30);
+    extend(FormVFullZeroExtend16, "vpmovzxwd zmm, ymm"_v, 0x33);
+    extend(FormVFullZeroExtend32, "vpmovzxdq zmm, ymm"_v, 0x35);
+    extend(FormVFullSignExtend8,  "vpmovsxbw zmm, ymm"_v, 0x20);
+    extend(FormVFullSignExtend16, "vpmovsxwd zmm, ymm"_v, 0x23);
+    extend(FormVFullSignExtend32, "vpmovsxdq zmm, ymm"_v, 0x25);
+
+    auto narrowFull = [&](MachineFormId id, StringView formName, U8 op) {
+        auto& form = add(id, OpCast, formName);
+        form.uses.push(anyReg(ClassZmm512));
+        form.defs.push(def(ClassYmm256));
+        form.requiredFeatures = kFeatureAvx512f | kFeatureAvx512bw;
+        form.encoding = evex(kOpcodeMap0F38, op, false);
+        form.encoding.prefix = 0xf3;
+        form.encoding.regField = useRef(0);
+        form.encoding.rmField = defRef(0);
+        form.encoding.width = OperationWidth::FromUse0;
+        form.encoding.vectorLength = 2;
+    };
+
+    narrowFull(FormVFullNarrow16To8,  "vpmovwb ymm, zmm"_v, 0x30);
+    narrowFull(FormVFullNarrow32To16, "vpmovdw ymm, zmm"_v, 0x33);
+    narrowFull(FormVFullNarrow64To32, "vpmovqd ymm, zmm"_v, 0x35);
 }
 
 /*

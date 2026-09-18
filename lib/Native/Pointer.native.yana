@@ -109,9 +109,14 @@ pub fn (n: Int) storeUpTo(to: %a, count: Int, value: Vec(a, n)) -> {}
 
    Const-generic in the lane count, because a mask's width is the width of whatever produced it and
    a probe's is not the target's natural one.
+
+   **A `Size` and not an `Int`**, because `Int` is thirty-two bits and a mask at `avx512`'s natural
+   width has up to sixty-four lanes - `Vec(U8)` is sixty-four bytes there. A narrower mask's answer
+   is the same number widened, which costs nothing: `kmovd` and `vpmovmskb` already clear the upper
+   half of the register they write.
 -}
 @builtin(maskBits)
-pub fn (n: Int) bits(mask: Mask(a, n)) -> Int
+pub fn (n: Int) bits(mask: Mask(a, n)) -> Size
 
 {-
    The top half of a 64x64 product - Implementation-Map.md §3.1.

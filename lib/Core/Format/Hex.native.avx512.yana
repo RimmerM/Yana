@@ -3,16 +3,17 @@ module Core
 import Native
 
 {-
-   `pushHex` at thirty-two bytes a turn - the `avx512` body of the function `Hex.native.yana` declares
+   `pushHex` at the natural width - the `avx512` body of the function `Hex.native.yana` declares
    (Design-Replacements.md). What the operation is, and why the digit is arithmetic, is stated there.
 
    **The width the baseline could not have.** That body pins sixteen lanes because the two interleaves
    that put the digits in their final order were no instruction at all at 256 bits: every AVX2 shuffle
    works inside a 128-bit half. At `avx512` each is one `vpermi2b` over a pooled index vector
-   (Analysis-Avx512.md §2.5), so the loop can take the natural width and read thirty-two bytes and
-   write sixty-four units a turn. Everything else is the baseline's loop with the count changed; the
-   sixteen-entry digit table is read at thirty-two indices, which is `vpermi2b` over the table
-   doubled (Analysis-Avx512.md §3.3).
+   (Analysis-Avx512.md §2.5), so the loop can take the natural width - sixty-four bytes a turn since
+   step 10, thirty-two before it - and write twice that in units. Everything else is the baseline's
+   loop with the count changed, and the count is `vectorBytes` rather than a number, which is what
+   let the width change under it; the sixteen-entry digit table is read at the natural width's
+   indices, which is `vpermi2b` over the table repeated to fill the register (Analysis-Avx512.md §3.3).
 
    Measured in `test/bench/avx512/findings.md` against the baseline built at the same level.
 -}
@@ -32,26 +33,28 @@ fn pushHex(bytes: [U8], &to: String):
     let target = to.units.run.items + start
 
     let digits = hexDigitVector()
+    let width = vectorBytes
 
     let &i = 0 :: Size
-    while i + 32 <= n:
+    while i + width <= n:
         let block = vectorAt(source + i) :: Vec(U8)
         let highText = lookup(digits, block `shr` (splat(4) :: Vec(U8)))
         let lowText = lookup(digits, block)
 
-        let low32 = bitcast(interleaveLow(highText, lowText)) :: Vec(CodeUnit)
-        let high32 = bitcast(interleaveHigh(highText, lowText)) :: Vec(CodeUnit)
-        setVectorAt(target + i + i, low32)
-        setVectorAt(target + i + i + 32, high32)
-        i = i + 32
+        let low = bitcast(interleaveLow(highText, lowText)) :: Vec(CodeUnit)
+        let high = bitcast(interleaveHigh(highText, lowText)) :: Vec(CodeUnit)
+        setVectorAt(target + i + i, low)
+        setVectorAt(target + i + i + width, high)
+        i = i + width
 
-    -- The ragged end, as the baseline writes it at thirty-two bytes: `2r` units, the first thirty-two
-    -- in the low interleave.
+    -- The ragged end, as the baseline writes it at the register's width: `2r` units, the first
+    -- `width` of them in the low interleave.
     if i < n:
         let block = vectorPast(source + i) :: Vec(U8)
         let highText = lookup(digits, block `shr` (splat(4) :: Vec(U8)))
         let lowText = lookup(digits, block)
         let units = truncate((n - i) + (n - i)) :: Int
+        let lanes = truncate(width) :: Int
 
-        storeUpTo(target + i + i, units `and` 63, bitcast(interleaveLow(highText, lowText)) :: Vec(CodeUnit))
-        storeUpTo(target + i + i + 32, units - 32, bitcast(interleaveHigh(highText, lowText)) :: Vec(CodeUnit))
+        storeUpTo(target + i + i, units `and` (lanes + lanes - 1), bitcast(interleaveLow(highText, lowText)) :: Vec(CodeUnit))
+        storeUpTo(target + i + i + width, units - lanes, bitcast(interleaveHigh(highText, lowText)) :: Vec(CodeUnit))

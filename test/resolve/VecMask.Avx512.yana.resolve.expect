@@ -61,12 +61,20 @@ fn main() -> I32 {
     %v25 = vwithlane %v23, 5, 5 : Vec(I32)
     %v27 = vwithlane %v25, 6, 6 : Vec(I32)
     %v29 = vwithlane %v27, 7, 7 : Vec(I32)
-    %counted = call maskedTotal, %v29, 3 : I32
-    %v34 = vlane %picked, 0 : I32
-    %v37 = mul %v34, 100000 : I32
-    %v40 = vlane %floats, 0 : F32
-    %v43 = cmp_eq %v40, 1 : Bool
-    je %v43, b1, b2
+    %v31 = vwithlane %v29, 8, 8 : Vec(I32)
+    %v33 = vwithlane %v31, 9, 9 : Vec(I32)
+    %v35 = vwithlane %v33, 10, 10 : Vec(I32)
+    %v37 = vwithlane %v35, 11, 11 : Vec(I32)
+    %v39 = vwithlane %v37, 12, 12 : Vec(I32)
+    %v41 = vwithlane %v39, 13, 13 : Vec(I32)
+    %v43 = vwithlane %v41, 14, 14 : Vec(I32)
+    %v45 = vwithlane %v43, 15, 15 : Vec(I32)
+    %counted = call maskedTotal, %v45, 3 : I32
+    %v50 = vlane %picked, 0 : I32
+    %v53 = mul %v50, 100000 : I32
+    %v56 = vlane %floats, 0 : F32
+    %v59 = cmp_eq %v56, 1 : Bool
+    je %v59, b1, b2
 
   b1:
     jmp b3
@@ -75,9 +83,9 @@ fn main() -> I32 {
     jmp b3
 
   b3:
-    %v51 = phi [b1, 1], [b2, 0] : I32
-    %v54 = mul %v51, 10000 : I32
-    %v55 = add %v37, %v54 : I32
-    %v56 = add %v55, %counted : I32
-    ret %v56
+    %v67 = phi [b1, 1], [b2, 0] : I32
+    %v70 = mul %v67, 10000 : I32
+    %v71 = add %v53, %v70 : I32
+    %v72 = add %v71, %counted : I32
+    ret %v72
 }

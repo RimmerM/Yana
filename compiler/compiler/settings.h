@@ -548,6 +548,18 @@ struct CompileSettings {
     TargetTuning tuning = TargetTuning::Generic;
 
     /*
+     * The widest natural vector the build may hand out, in bytes - `-vector-width`, and zero for the
+     * level's own. A cap and never a raise: `targetVectorBytes` takes the smaller of the two, so it can
+     * hold `avx512` at 256 bits and cannot ask `sse4` for more than it has.
+     *
+     * **Speed only, like `-tune`**, and for the same reason it exists: Analysis-Avx512.md §1.2 leaves
+     * the 512-bit width a measurement rather than a certainty, and a program written against `Vec(a)`
+     * means the same thing at every width - so this is two builds of one program that both run, and
+     * the pair is how test/bench/avx512/findings.md §10 measured one against the other.
+     */
+    U32 vectorWidthLimit = 0;
+
+    /*
      * The checks a program stops on - a subscript's bounds test, and the range test on a store
      * through a `@bits` refinement.
      *
@@ -835,17 +847,24 @@ inline U32 targetVectorBytes(const CompileSettings& settings) {
      * machine in front of you, and a build that has to be reproducible says which machine it is for.
      * `-enable-inst sse4` is that statement, and every fixture in the test suite makes it.
      *
-     * `avx512` answers 32 and not 64, which is Analysis-Avx512.md §1.2's stage 1: every instruction
-     * the level brings, at the width `avx2` already has - EVEX twins of the packed forms, the upper
-     * sixteen vector registers and the mask bank - and no 64-byte alignment or overread guarantee yet.
-     * Stage 2 is this line answering 64 there.
+     * `avx512` answers 64, which is Analysis-Avx512.md §1.2's stage 2: its stage 1 held it at 32 while
+     * every instruction the level brings was built at the width `avx2` already has. The overread
+     * guarantee was always stated at `kMaxVectorBytes`, so nothing about storage changed with it.
      */
-    if(settings.arch == TargetArch::X64 && settings.extensions.level >= TargetExtensions::Avx2) {
-        return 32;
+    auto natural = U32(16);
+
+    if(settings.arch == TargetArch::X64 && settings.extensions.level >= TargetExtensions::Avx512) {
+        natural = 64;
+    } else if(settings.arch == TargetArch::X64 && settings.extensions.level >= TargetExtensions::Avx2) {
+        natural = 32;
     }
 
+    // `-vector-width`, which only ever narrows - see CompileSettings::vectorWidthLimit. It is never
+    // below sixteen, which the flag has no spelling for.
+    if(settings.vectorWidthLimit && settings.vectorWidthLimit < natural) natural = settings.vectorWidthLimit;
+
     // SSE2 on amd64, NEON on ARM, and the width every target this compiler emits for has at least.
-    return 16;
+    return natural;
 }
 
 /*

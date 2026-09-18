@@ -2780,10 +2780,20 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 case mir::ReduceOp::Count: assertTrue(false); break;
             }
 
+            // The movemask answers the lanes at the width they fit in, which is the only width the
+            // lower kind has for it, and is widened to the `Size` the declaration states after.
+            auto answered = reduce == LowerReduce::Bits ? maskBitsType(from->type) : manifest.type;
+
             auto folded = block.addInst(lower, new (to.arena) LowerInstVecReduce(
-                StringId(), manifest.type, from - lower, reduce));
+                StringId(), answered, from - lower, reduce));
 
             auto value = &((LowerInstSingle*)folded)->result - lower;
+
+            if(answered != manifest.type) {
+                auto widened = block.addInst(lower, new (to.arena) LowerInstCast(
+                    StringId(), manifest.type, value, false, false));
+                value = &((LowerInstSingle*)widened)->result - lower;
+            }
 
             // A reduction of a narrow lane answers that lane zero-extended, on the same terms a lane
             // read does - so it gets its sign back the same way. `firstset` answers an integer and

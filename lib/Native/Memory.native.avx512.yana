@@ -7,7 +7,7 @@
    comparisons deep, and every one of them is a branch on the count: where a program copies one
    length over and over they are predicted and the ladder is as fast as anything, but where the length
    moves they are not, and a mispredicted rung costs more than the copy. `storeUpTo(to, n,
-   loadUpTo(from, n))` is `bzhi`, `kmovd` and two masked moves at every count, and neither touches a
+   loadUpTo(from, n))` is `bzhi`, a `kmov` and two masked moves at every count, and neither touches a
    byte past it. Measured on Zen 5 (test/bench/avx512/findings.md §9), a hundred thousand copies of
    random lengths below the register were 2.8x faster; a fixed length of three, eight or fifteen bytes
    was 1-5% slower, where the ladder's branches are all predicted, and one of twenty-four was 15%
@@ -19,10 +19,51 @@
 
    The count is at least one and below the width by the time it is used, so `and (width - 1)` changes
    nothing about it and tells the backend so: the mask needs no clamp in front of `bzhi`.
+
+   **At a 512-bit natural width the whole rung is the 256-bit one** - a masked 32-byte transfer below
+   thirty-two bytes, the two overlapping 32-byte transfers the ladder uses below one register, and the
+   four `blockPair` would be at 256 bits from 64 to 127 bytes - which is exactly what this function
+   does in a build held at 256 bits, where the last is `blockPair`'s. Measured on Zen 5 against the
+   same level at 256 bits (test/bench/avx512/findings.md §10), each of the 512-bit spellings lost:
+   two `zmm` transfers from 64 to 127 bytes, each crossing a cache line, were 1.4-1.6x the time of
+   the four; and a masked `zmm` store below 64 bytes covers a whole cache line's worth of addresses
+   whatever its count, so a load anywhere in the lanes it masked off waits for it rather than
+   forwarding past it - a short move 64 bytes before the next one was 2.7-3.3x the time. The
+   masked transfer stays at 32 bytes so that what it covers past the count is what it was.
+
+   **`@inline(always)`**: the body is small enough to stand where it is called, which the ladder it
+   replaces is not, and the call was most of what the 64-byte pair cost. The plain hint was declined
+   by the inliner's budget and left the call where it was.
 -}
 @replaces
+@inline(always)
 fn blockShort(to: %U8, from: %U8, count: Size):
     let width = vectorBytes
+
+    if width > 32:
+        if count >= 64:
+            let a = vectorAt(from) :: Vec(U8, 32)
+            let b = vectorAt(from + 32) :: Vec(U8, 32)
+            let c = vectorAt(from + (count - 64)) :: Vec(U8, 32)
+            let d = vectorAt(from + (count - 32)) :: Vec(U8, 32)
+            setVectorAt(to, a)
+            setVectorAt(to + 32, b)
+            setVectorAt(to + (count - 64), c)
+            setVectorAt(to + (count - 32), d)
+            return
+
+        if count >= 32:
+            let low = vectorAt(from) :: Vec(U8, 32)
+            let high = vectorAt(from + (count - 32)) :: Vec(U8, 32)
+            setVectorAt(to, low)
+            setVectorAt(to + (count - 32), high)
+            return
+
+        if count <= 0 then return
+
+        let shortLanes = truncate(count `and` 31) :: Int
+        storeUpTo(to, shortLanes, loadUpTo(from, shortLanes) :: Vec(U8, 32))
+        return
 
     if count >= width:
         let low = vectorAt(from)

@@ -149,8 +149,9 @@ bb0:
   %14: I32 trivial = const 9
   %15: Vec(I32) trivial = vec.splat inspect %14
   %16: Mask(I32) trivial = eq inspect %13 inspect %15
-  %17: I32 trivial = vec.reduce bits inspect %16
-  return consume %17
+  %17: Size trivial = vec.reduce bits inspect %16
+  %18: I32 trivial = convert inspect %17
+  return consume %18
 }
 
 fn main() -> I32 {

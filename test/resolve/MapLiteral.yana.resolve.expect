@@ -655,33 +655,32 @@ fn indexFreeSlot(I32, I32)(%self: Map(I32, I32), %h: U32) -> Size {
     %v28 = bitcast %v27 : %Vec(U8)
     %group = load [%v28] : Vec(U8)
     %v30 = cmp_ge %group, %empty : Mask(U8)
-    %free = vreduce_bits %v30 : I32
+    %free = vreduce_bits %v30 : Size
     %v33 = cmp_ne %free, 0 : Bool
     je %v33, b4, b5
 
   b4:
     %v35 = load %pos : Size
-    %v36 = ctz %free : I32
-    %v37 = cast %v36 : Size
-    %v38 = add %v35, %v37 : Size
-    %v39 = and %v38, %mask : Size
-    ret %v39
+    %v36 = ctz %free : Size
+    %v37 = add %v35, %v36 : Size
+    %v38 = and %v37, %mask : Size
+    ret %v38
 
   b5:
     jmp b6
 
   b6:
-    %v42 = load %step : Size
-    %v44 = add %v42, 16 : Size
-    assign %step, %v44
-    %v46 = load %pos : Size
-    %v47 = load %step : Size
-    %v48 = add %v46, %v47 : Size
-    %v49 = and %v48, %mask : Size
-    assign %pos, %v49
-    %v51 = load %visited : Size
-    %v53 = add %v51, 16 : Size
-    assign %visited, %v53
+    %v41 = load %step : Size
+    %v43 = add %v41, 16 : Size
+    assign %step, %v43
+    %v45 = load %pos : Size
+    %v46 = load %step : Size
+    %v47 = add %v45, %v46 : Size
+    %v48 = and %v47, %mask : Size
+    assign %pos, %v48
+    %v50 = load %visited : Size
+    %v52 = add %v50, 16 : Size
+    assign %visited, %v52
     jmp b1
 }
 
@@ -870,32 +869,31 @@ fn indexFind(I32, I32)(%self: Map(I32, I32), %key: I32, %h: U32) -> Size {
     %v31 = bitcast %v30 : %Vec(U8)
     %group = load [%v31] : Vec(U8)
     %v33 = cmp_eq %group, %tag : Mask(U8)
-    %v34 = vreduce_bits %v33 : I32
-    %hits = alloc : I32
+    %v34 = vreduce_bits %v33 : Size
+    %hits = alloc : Size
     init %hits, %v34
     jmp b4
 
   b4:
-    %v38 = load %hits : I32
+    %v38 = load %hits : Size
     %v40 = cmp_ne %v38, 0 : Bool
     je %v40, b6, b5
 
   b5:
     %v42 = cmp_eq %group, %empty : Mask(U8)
-    %v43 = vreduce_bits %v42 : I32
+    %v43 = vreduce_bits %v42 : Size
     %v45 = cmp_ne %v43, 0 : Bool
     je %v45, b10, b11
 
   b6:
     %v47 = load %pos : Size
-    %v48 = load %hits : I32
-    %v49 = ctz %v48 : I32
-    %v50 = cast %v49 : Size
-    %v51 = add %v47, %v50 : Size
-    %slot = and %v51, %mask : Size
+    %v48 = load %hits : Size
+    %v49 = ctz %v48 : Size
+    %v50 = add %v47, %v49 : Size
+    %slot = and %v50, %mask : Size
     %at = call entryNumber(I32, I32), %self, %slot : Size
-    %v54 = call keyEquals(I32, I32), %self, %at, %key : Bool
-    je %v54, b7, b8
+    %v53 = call keyEquals(I32, I32), %self, %at, %key : Bool
+    je %v53, b7, b8
 
   b7:
     ret %at
@@ -904,11 +902,11 @@ fn indexFind(I32, I32)(%self: Map(I32, I32), %key: I32, %h: U32) -> Size {
     jmp b9
 
   b9:
-    %v58 = load %hits : I32
-    %v59 = load %hits : I32
-    %v61 = sub %v59, 1 : I32
-    %v62 = and %v58, %v61 : I32
-    assign %hits, %v62
+    %v57 = load %hits : Size
+    %v58 = load %hits : Size
+    %v60 = sub %v58, 1 : Size
+    %v61 = and %v57, %v60 : Size
+    assign %hits, %v61
     jmp b4
 
   b10:
@@ -918,17 +916,17 @@ fn indexFind(I32, I32)(%self: Map(I32, I32), %key: I32, %h: U32) -> Size {
     jmp b12
 
   b12:
-    %v68 = load %step : Size
-    %v70 = add %v68, 16 : Size
-    assign %step, %v70
-    %v72 = load %pos : Size
-    %v73 = load %step : Size
-    %v74 = add %v72, %v73 : Size
-    %v75 = and %v74, %mask : Size
-    assign %pos, %v75
-    %v77 = load %visited : Size
-    %v79 = add %v77, 16 : Size
-    assign %visited, %v79
+    %v67 = load %step : Size
+    %v69 = add %v67, 16 : Size
+    assign %step, %v69
+    %v71 = load %pos : Size
+    %v72 = load %step : Size
+    %v73 = add %v71, %v72 : Size
+    %v74 = and %v73, %mask : Size
+    assign %pos, %v74
+    %v76 = load %visited : Size
+    %v78 = add %v76, 16 : Size
+    assign %visited, %v78
     jmp b1
 }
 
@@ -1528,33 +1526,32 @@ fn indexFreeSlot(String, I32)(%self: Map(String, I32), %h: U32) -> Size {
     %v28 = bitcast %v27 : %Vec(U8)
     %group = load [%v28] : Vec(U8)
     %v30 = cmp_ge %group, %empty : Mask(U8)
-    %free = vreduce_bits %v30 : I32
+    %free = vreduce_bits %v30 : Size
     %v33 = cmp_ne %free, 0 : Bool
     je %v33, b4, b5
 
   b4:
     %v35 = load %pos : Size
-    %v36 = ctz %free : I32
-    %v37 = cast %v36 : Size
-    %v38 = add %v35, %v37 : Size
-    %v39 = and %v38, %mask : Size
-    ret %v39
+    %v36 = ctz %free : Size
+    %v37 = add %v35, %v36 : Size
+    %v38 = and %v37, %mask : Size
+    ret %v38
 
   b5:
     jmp b6
 
   b6:
-    %v42 = load %step : Size
-    %v44 = add %v42, 16 : Size
-    assign %step, %v44
-    %v46 = load %pos : Size
-    %v47 = load %step : Size
-    %v48 = add %v46, %v47 : Size
-    %v49 = and %v48, %mask : Size
-    assign %pos, %v49
-    %v51 = load %visited : Size
-    %v53 = add %v51, 16 : Size
-    assign %visited, %v53
+    %v41 = load %step : Size
+    %v43 = add %v41, 16 : Size
+    assign %step, %v43
+    %v45 = load %pos : Size
+    %v46 = load %step : Size
+    %v47 = add %v45, %v46 : Size
+    %v48 = and %v47, %mask : Size
+    assign %pos, %v48
+    %v50 = load %visited : Size
+    %v52 = add %v50, 16 : Size
+    assign %visited, %v52
     jmp b1
 }
 
@@ -1749,32 +1746,31 @@ fn indexFind(String, I32)(%self: Map(String, I32), %key: String, %h: U32) -> Siz
     %v31 = bitcast %v30 : %Vec(U8)
     %group = load [%v31] : Vec(U8)
     %v33 = cmp_eq %group, %tag : Mask(U8)
-    %v34 = vreduce_bits %v33 : I32
-    %hits = alloc : I32
+    %v34 = vreduce_bits %v33 : Size
+    %hits = alloc : Size
     init %hits, %v34
     jmp b4
 
   b4:
-    %v38 = load %hits : I32
+    %v38 = load %hits : Size
     %v40 = cmp_ne %v38, 0 : Bool
     je %v40, b6, b5
 
   b5:
     %v42 = cmp_eq %group, %empty : Mask(U8)
-    %v43 = vreduce_bits %v42 : I32
+    %v43 = vreduce_bits %v42 : Size
     %v45 = cmp_ne %v43, 0 : Bool
     je %v45, b10, b11
 
   b6:
     %v47 = load %pos : Size
-    %v48 = load %hits : I32
-    %v49 = ctz %v48 : I32
-    %v50 = cast %v49 : Size
-    %v51 = add %v47, %v50 : Size
-    %slot = and %v51, %mask : Size
+    %v48 = load %hits : Size
+    %v49 = ctz %v48 : Size
+    %v50 = add %v47, %v49 : Size
+    %slot = and %v50, %mask : Size
     %at = call entryNumber(String, I32), %self, %slot : Size
-    %v54 = call keyEquals(String, I32), %self, %at, %key : Bool
-    je %v54, b7, b8
+    %v53 = call keyEquals(String, I32), %self, %at, %key : Bool
+    je %v53, b7, b8
 
   b7:
     ret %at
@@ -1783,11 +1779,11 @@ fn indexFind(String, I32)(%self: Map(String, I32), %key: String, %h: U32) -> Siz
     jmp b9
 
   b9:
-    %v58 = load %hits : I32
-    %v59 = load %hits : I32
-    %v61 = sub %v59, 1 : I32
-    %v62 = and %v58, %v61 : I32
-    assign %hits, %v62
+    %v57 = load %hits : Size
+    %v58 = load %hits : Size
+    %v60 = sub %v58, 1 : Size
+    %v61 = and %v57, %v60 : Size
+    assign %hits, %v61
     jmp b4
 
   b10:
@@ -1797,17 +1793,17 @@ fn indexFind(String, I32)(%self: Map(String, I32), %key: String, %h: U32) -> Siz
     jmp b12
 
   b12:
-    %v68 = load %step : Size
-    %v70 = add %v68, 16 : Size
-    assign %step, %v70
-    %v72 = load %pos : Size
-    %v73 = load %step : Size
-    %v74 = add %v72, %v73 : Size
-    %v75 = and %v74, %mask : Size
-    assign %pos, %v75
-    %v77 = load %visited : Size
-    %v79 = add %v77, 16 : Size
-    assign %visited, %v79
+    %v67 = load %step : Size
+    %v69 = add %v67, 16 : Size
+    assign %step, %v69
+    %v71 = load %pos : Size
+    %v72 = load %step : Size
+    %v73 = add %v71, %v72 : Size
+    %v74 = and %v73, %mask : Size
+    assign %pos, %v74
+    %v76 = load %visited : Size
+    %v78 = add %v76, 16 : Size
+    assign %visited, %v78
     jmp b1
 }
 
@@ -2339,33 +2335,32 @@ fn indexFreeSlot(I32, Array(I32))(%self: Map(I32, Array(I32)), %h: U32) -> Size 
     %v28 = bitcast %v27 : %Vec(U8)
     %group = load [%v28] : Vec(U8)
     %v30 = cmp_ge %group, %empty : Mask(U8)
-    %free = vreduce_bits %v30 : I32
+    %free = vreduce_bits %v30 : Size
     %v33 = cmp_ne %free, 0 : Bool
     je %v33, b4, b5
 
   b4:
     %v35 = load %pos : Size
-    %v36 = ctz %free : I32
-    %v37 = cast %v36 : Size
-    %v38 = add %v35, %v37 : Size
-    %v39 = and %v38, %mask : Size
-    ret %v39
+    %v36 = ctz %free : Size
+    %v37 = add %v35, %v36 : Size
+    %v38 = and %v37, %mask : Size
+    ret %v38
 
   b5:
     jmp b6
 
   b6:
-    %v42 = load %step : Size
-    %v44 = add %v42, 16 : Size
-    assign %step, %v44
-    %v46 = load %pos : Size
-    %v47 = load %step : Size
-    %v48 = add %v46, %v47 : Size
-    %v49 = and %v48, %mask : Size
-    assign %pos, %v49
-    %v51 = load %visited : Size
-    %v53 = add %v51, 16 : Size
-    assign %visited, %v53
+    %v41 = load %step : Size
+    %v43 = add %v41, 16 : Size
+    assign %step, %v43
+    %v45 = load %pos : Size
+    %v46 = load %step : Size
+    %v47 = add %v45, %v46 : Size
+    %v48 = and %v47, %mask : Size
+    assign %pos, %v48
+    %v50 = load %visited : Size
+    %v52 = add %v50, 16 : Size
+    assign %visited, %v52
     jmp b1
 }
 
@@ -2558,32 +2553,31 @@ fn indexFind(I32, Array(I32))(%self: Map(I32, Array(I32)), %key: I32, %h: U32) -
     %v31 = bitcast %v30 : %Vec(U8)
     %group = load [%v31] : Vec(U8)
     %v33 = cmp_eq %group, %tag : Mask(U8)
-    %v34 = vreduce_bits %v33 : I32
-    %hits = alloc : I32
+    %v34 = vreduce_bits %v33 : Size
+    %hits = alloc : Size
     init %hits, %v34
     jmp b4
 
   b4:
-    %v38 = load %hits : I32
+    %v38 = load %hits : Size
     %v40 = cmp_ne %v38, 0 : Bool
     je %v40, b6, b5
 
   b5:
     %v42 = cmp_eq %group, %empty : Mask(U8)
-    %v43 = vreduce_bits %v42 : I32
+    %v43 = vreduce_bits %v42 : Size
     %v45 = cmp_ne %v43, 0 : Bool
     je %v45, b10, b11
 
   b6:
     %v47 = load %pos : Size
-    %v48 = load %hits : I32
-    %v49 = ctz %v48 : I32
-    %v50 = cast %v49 : Size
-    %v51 = add %v47, %v50 : Size
-    %slot = and %v51, %mask : Size
+    %v48 = load %hits : Size
+    %v49 = ctz %v48 : Size
+    %v50 = add %v47, %v49 : Size
+    %slot = and %v50, %mask : Size
     %at = call entryNumber(I32, Array(I32)), %self, %slot : Size
-    %v54 = call keyEquals(I32, Array(I32)), %self, %at, %key : Bool
-    je %v54, b7, b8
+    %v53 = call keyEquals(I32, Array(I32)), %self, %at, %key : Bool
+    je %v53, b7, b8
 
   b7:
     ret %at
@@ -2592,11 +2586,11 @@ fn indexFind(I32, Array(I32))(%self: Map(I32, Array(I32)), %key: I32, %h: U32) -
     jmp b9
 
   b9:
-    %v58 = load %hits : I32
-    %v59 = load %hits : I32
-    %v61 = sub %v59, 1 : I32
-    %v62 = and %v58, %v61 : I32
-    assign %hits, %v62
+    %v57 = load %hits : Size
+    %v58 = load %hits : Size
+    %v60 = sub %v58, 1 : Size
+    %v61 = and %v57, %v60 : Size
+    assign %hits, %v61
     jmp b4
 
   b10:
@@ -2606,17 +2600,17 @@ fn indexFind(I32, Array(I32))(%self: Map(I32, Array(I32)), %key: I32, %h: U32) -
     jmp b12
 
   b12:
-    %v68 = load %step : Size
-    %v70 = add %v68, 16 : Size
-    assign %step, %v70
-    %v72 = load %pos : Size
-    %v73 = load %step : Size
-    %v74 = add %v72, %v73 : Size
-    %v75 = and %v74, %mask : Size
-    assign %pos, %v75
-    %v77 = load %visited : Size
-    %v79 = add %v77, 16 : Size
-    assign %visited, %v79
+    %v67 = load %step : Size
+    %v69 = add %v67, 16 : Size
+    assign %step, %v69
+    %v71 = load %pos : Size
+    %v72 = load %step : Size
+    %v73 = add %v71, %v72 : Size
+    %v74 = and %v73, %mask : Size
+    assign %pos, %v74
+    %v76 = load %visited : Size
+    %v78 = add %v76, 16 : Size
+    assign %visited, %v78
     jmp b1
 }
 
@@ -3188,33 +3182,32 @@ fn indexFreeSlot(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32)), %h: U32) ->
     %v28 = bitcast %v27 : %Vec(U8)
     %group = load [%v28] : Vec(U8)
     %v30 = cmp_ge %group, %empty : Mask(U8)
-    %free = vreduce_bits %v30 : I32
+    %free = vreduce_bits %v30 : Size
     %v33 = cmp_ne %free, 0 : Bool
     je %v33, b4, b5
 
   b4:
     %v35 = load %pos : Size
-    %v36 = ctz %free : I32
-    %v37 = cast %v36 : Size
-    %v38 = add %v35, %v37 : Size
-    %v39 = and %v38, %mask : Size
-    ret %v39
+    %v36 = ctz %free : Size
+    %v37 = add %v35, %v36 : Size
+    %v38 = and %v37, %mask : Size
+    ret %v38
 
   b5:
     jmp b6
 
   b6:
-    %v42 = load %step : Size
-    %v44 = add %v42, 16 : Size
-    assign %step, %v44
-    %v46 = load %pos : Size
-    %v47 = load %step : Size
-    %v48 = add %v46, %v47 : Size
-    %v49 = and %v48, %mask : Size
-    assign %pos, %v49
-    %v51 = load %visited : Size
-    %v53 = add %v51, 16 : Size
-    assign %visited, %v53
+    %v41 = load %step : Size
+    %v43 = add %v41, 16 : Size
+    assign %step, %v43
+    %v45 = load %pos : Size
+    %v46 = load %step : Size
+    %v47 = add %v45, %v46 : Size
+    %v48 = and %v47, %mask : Size
+    assign %pos, %v48
+    %v50 = load %visited : Size
+    %v52 = add %v50, 16 : Size
+    assign %visited, %v52
     jmp b1
 }
 
@@ -3407,32 +3400,31 @@ fn indexFind(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32)), %key: I32, %h: 
     %v31 = bitcast %v30 : %Vec(U8)
     %group = load [%v31] : Vec(U8)
     %v33 = cmp_eq %group, %tag : Mask(U8)
-    %v34 = vreduce_bits %v33 : I32
-    %hits = alloc : I32
+    %v34 = vreduce_bits %v33 : Size
+    %hits = alloc : Size
     init %hits, %v34
     jmp b4
 
   b4:
-    %v38 = load %hits : I32
+    %v38 = load %hits : Size
     %v40 = cmp_ne %v38, 0 : Bool
     je %v40, b6, b5
 
   b5:
     %v42 = cmp_eq %group, %empty : Mask(U8)
-    %v43 = vreduce_bits %v42 : I32
+    %v43 = vreduce_bits %v42 : Size
     %v45 = cmp_ne %v43, 0 : Bool
     je %v45, b10, b11
 
   b6:
     %v47 = load %pos : Size
-    %v48 = load %hits : I32
-    %v49 = ctz %v48 : I32
-    %v50 = cast %v49 : Size
-    %v51 = add %v47, %v50 : Size
-    %slot = and %v51, %mask : Size
+    %v48 = load %hits : Size
+    %v49 = ctz %v48 : Size
+    %v50 = add %v47, %v49 : Size
+    %slot = and %v50, %mask : Size
     %at = call entryNumber(I32, Map(I32, I32)), %self, %slot : Size
-    %v54 = call keyEquals(I32, Map(I32, I32)), %self, %at, %key : Bool
-    je %v54, b7, b8
+    %v53 = call keyEquals(I32, Map(I32, I32)), %self, %at, %key : Bool
+    je %v53, b7, b8
 
   b7:
     ret %at
@@ -3441,11 +3433,11 @@ fn indexFind(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32)), %key: I32, %h: 
     jmp b9
 
   b9:
-    %v58 = load %hits : I32
-    %v59 = load %hits : I32
-    %v61 = sub %v59, 1 : I32
-    %v62 = and %v58, %v61 : I32
-    assign %hits, %v62
+    %v57 = load %hits : Size
+    %v58 = load %hits : Size
+    %v60 = sub %v58, 1 : Size
+    %v61 = and %v57, %v60 : Size
+    assign %hits, %v61
     jmp b4
 
   b10:
@@ -3455,17 +3447,17 @@ fn indexFind(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32)), %key: I32, %h: 
     jmp b12
 
   b12:
-    %v68 = load %step : Size
-    %v70 = add %v68, 16 : Size
-    assign %step, %v70
-    %v72 = load %pos : Size
-    %v73 = load %step : Size
-    %v74 = add %v72, %v73 : Size
-    %v75 = and %v74, %mask : Size
-    assign %pos, %v75
-    %v77 = load %visited : Size
-    %v79 = add %v77, 16 : Size
-    assign %visited, %v79
+    %v67 = load %step : Size
+    %v69 = add %v67, 16 : Size
+    assign %step, %v69
+    %v71 = load %pos : Size
+    %v72 = load %step : Size
+    %v73 = add %v71, %v72 : Size
+    %v74 = and %v73, %mask : Size
+    assign %pos, %v74
+    %v76 = load %visited : Size
+    %v78 = add %v76, 16 : Size
+    assign %visited, %v78
     jmp b1
 }
 

@@ -50,10 +50,25 @@ static bool formNamesUpperVectors(const MachineForm& form) {
     return e.opcodeAlt == 0 || evexSpellingOf(e.prefix, e.opcodeMap, e.opcodeAlt, e.extension).exists;
 }
 
+// What every derived tier's names come to together, with room to spare - see the note in the
+// constructor. The constructor asserts the buffer never outgrew it.
+static constexpr U32 kDerivedNameBytes = 64 * 1024;
+
 MachineTarget::MachineTarget() {
     for(Size i = 0; i < kMachineOpcodeCount; i++) opcodes[i].id = MachineOpcodeId(i);
 
     MachineFormBuilder b(*this);
+
+    /*
+     * Every derived form's name is a view into this one buffer, so it must never move once a view
+     * exists. Each tier reserves what it needs as it goes, and one whose reserve grew the buffer left
+     * every name an earlier tier had built pointing at the block it used to occupy - found when the
+     * 512-bit tier's memory twins, named from the 256-bit ones, came out empty. So one reservation up
+     * front, larger than every tier's names together, which makes theirs no-ops, and the check below
+     * that nothing outgrew it.
+     */
+    derivedNames.reserve(kDerivedNameBytes);
+    auto namesAt = derivedNames.begin();
 
     // The opcode names, which are what a form table dump and a verifier message say.
     auto name = [&](MachineOpcodeId id, StringView text, bool flagsSelective = false) {
@@ -257,6 +272,7 @@ MachineTarget::MachineTarget() {
     b.registerMemoryAndControlForms();
     b.registerVexTier();
     b.registerMaskedForms();
+    b.registerFullForms();
 
     // The intrinsics' forms go into the same table, after the described ones, so that everything
     // downstream asks an intrinsic the same questions it asks an `add` - see intrinsic.cpp.
@@ -267,6 +283,7 @@ MachineTarget::MachineTarget() {
     // every derived tier are answered by the same rule.
     for(auto& form: forms) form.namesUpperVectors = formNamesUpperVectors(form);
 
+    assertTrue(derivedNames.begin() == namesAt); // a derived name was built into a buffer that later moved
     assertTrue(validateMachineForms(*this));
     assertTrue(validateIntrinsics(*this));
 }

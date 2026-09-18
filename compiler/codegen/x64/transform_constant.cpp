@@ -292,6 +292,11 @@ LowerGlobal* pooledBytes(Context& ctx, LowerModule& module, const U8* bytes, Siz
     global->initialContents = { contents, size };
     global->pooled = true;
     if(size < 16) global->alignment = U8(size);
+
+    // A 512-bit entry at its own width. At the default sixteen a 64-byte load crosses a cache line
+    // three times in four, and a pooled constant is read on every call of a function short enough
+    // not to have hoisted it out of a loop - `equalsAsciiCase` reads three.
+    if(size == 64) global->alignment = 64;
     *entry.value = global - *module.arena;
     module.globalOrder.push(global - *module.arena);
 
@@ -432,14 +437,24 @@ bool constantVectorBytes(LowerBase base, LowerValue* value, U8* bytes, Size size
         auto left = base[shuffle->left];
         auto right = base[shuffle->right];
 
-        if(left->type != type || right->type != type) return false;
-        if(size > kMaxVectorBytes) return false;
+        /*
+         * The sources are one type between them and need not be the result's: a shuffle may change
+         * the register's width, and the ones that do over a constant are exactly the ones worth
+         * reading through - a sixteen-byte table doubled or repeated to be read at wider indices
+         * (`lookupDoubled`, `lookupRepeated`), and the halves `splitFullVectors` takes of a 512-bit
+         * constant. Read against the result's width alone, a table built lane by lane was rebuilt
+         * with a `pinsrb` per lane on every call instead of becoming one load.
+         */
+        if(left->type != right->type || laneBytes(left->type.lane) != lane) return false;
+
+        auto sourceSize = Size(left->type.byteWidth());
+        if(size > kMaxVectorBytes || sourceSize > kMaxVectorBytes) return false;
 
         U8 sources[2 * kMaxVectorBytes] = {};
-        if(!constantVectorBytes(base, left, sources, size, chain)) return false;
+        if(!constantVectorBytes(base, left, sources, sourceSize, chain)) return false;
 
-        if(left == right) copyMem(sources, sources + size, size);
-        else if(!constantVectorBytes(base, right, sources + size, size, chain)) return false;
+        if(left == right) copyMem(sources, sources + sourceSize, sourceSize);
+        else if(!constantVectorBytes(base, right, sources + sourceSize, sourceSize, chain)) return false;
 
         auto pattern = shuffle->pattern();
         for(Size j = 0; j < pattern.length; j++) {
@@ -1196,7 +1211,7 @@ void lowerWideLanePermutes(Context& ctx, LowerBase base, LowerFunction& fun) {
             // An instruction already expresses it, which is cheaper by a pooled constant and a
             // register - so this asks the same function the form selection will ask, rather than a
             // restatement of it that could drift.
-            if(packedShuffleChoice(inst)) continue;
+            if(packedShuffleChoice(base, inst)) continue;
 
             auto lanes = type.lanes();
             auto pattern = shuffle->pattern();
@@ -1305,7 +1320,7 @@ void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun) {
             // An instruction already expresses it, which is cheaper by a pooled constant and a
             // register - so this asks the same function the form selection will ask, rather than a
             // restatement of it that could drift.
-            if(packedShuffleChoice(inst)) continue;
+            if(packedShuffleChoice(base, inst)) continue;
 
             auto lanes = type.lanes();
             auto pattern = shuffle->pattern();
@@ -1390,7 +1405,7 @@ void lowerTwoSourcePermutes(Context& ctx, LowerBase base, LowerFunction& fun) {
         for(Size i = 0; i < block->instructions.size(); i++) {
             auto inst = base[block->instructions.get(base, i)];
             if(inst->kind != LowerInst::VecShuffle) continue;
-            if(packedShuffleChoice(inst) || !twoSourcePermuteExpresses(base, inst)) continue;
+            if(packedShuffleChoice(base, inst) || !twoSourcePermuteExpresses(base, inst)) continue;
 
             auto shuffle = (LowerInstVecShuffle*)inst;
             auto type = shuffle->result.type;

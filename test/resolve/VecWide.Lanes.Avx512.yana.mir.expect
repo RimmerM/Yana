@@ -152,9 +152,16 @@ bb25:
 bb26:
   %92: Vec(I32) = read copy.trivial (low)
   %93: I32 = vec.reduce add inspect %92
-  %94: I32 = const 78
-  %95: Bool = ne inspect %93 inspect %94
-  branch inspect %95 -> bb30 -> bb28
+  %94: I32 = const 3
+  %95: Vec(I32) = read copy.trivial (low)
+  %96: I32 = const 16
+  %97: I32 = const 2
+  %98: I32 = sub inspect %96 inspect %97
+  %99: I32 = mul inspect %94 inspect %98
+  %100: I32 = const 60
+  %101: I32 = add inspect %99 inspect %100
+  %102: Bool = ne inspect %93 inspect %101
+  branch inspect %102 -> bb30 -> bb28
 
 bb27:
   %89: I32 = const -9
@@ -164,20 +171,20 @@ bb28:
   jump -> bb29
 
 bb29:
-  %100: Vec(I32) = read copy.trivial (low)
-  %101: I32 = const 5
-  %102: I32 = vec.lane #5 inspect %100
-  %103: I32 = const 10
-  %104: I32 = mul inspect %102 inspect %103
-  %105: Vec(I32) = read copy.trivial (low)
-  %106: I32 = const 1
-  %107: I32 = vec.lane #1 inspect %105
-  %108: I32 = add inspect %104 inspect %107
-  return take %108
+  %107: Vec(I32) = read copy.trivial (low)
+  %108: I32 = const 5
+  %109: I32 = vec.lane #5 inspect %107
+  %110: I32 = const 10
+  %111: I32 = mul inspect %109 inspect %110
+  %112: Vec(I32) = read copy.trivial (low)
+  %113: I32 = const 1
+  %114: I32 = vec.lane #1 inspect %112
+  %115: I32 = add inspect %111 inspect %114
+  return take %115
 
 bb30:
-  %97: I32 = const -10
-  return take %97
+  %104: I32 = const -10
+  return take %104
 }
 
 entry main

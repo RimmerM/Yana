@@ -1,0 +1,165 @@
+{-
+   # extensions: avx512
+
+   `Vec(a)` at 512 bits - the width `avx512` hands out since Analysis-Avx512.md step 10 - checked
+   element by element against what each operation means.
+
+   Two routes are under test and both have to be. What has a 512-bit form is one instruction or one
+   expansion: the arithmetic, a byte product or shift, a comparison into a mask register, the widening
+   and narrowing moves, a lookup over a table repeated to 512 bits. What has none is written by
+   `splitFullVectors` as two 256-bit halves: a lane read or written by index, a reduction of a vector. Each is a
+   plausible wrong vector when it is wrong - halves joined the wrong way round, a narrower source
+   handed whole to each half, a lane read from the wrong quarter - so every answer is stored and
+   compared a lane at a time.
+
+   The program answers the number of elements that disagree, and 100 for a lane count other than
+   the one this level gives, which is what says the file tests the width it is about.
+-}
+import Native
+
+-- Mutable, so that no answer here is a constant the folder could compute on its own.
+let &seed = 7 :: Int
+
+fn bytes() -> Vec(U8) = (iota() :: Vec(U8)) + (splat(truncate(seed) :: U8) :: Vec(U8))
+
+-- A byte product and both byte shifts, which have no instruction at any width and are expansions
+-- over word lanes - `expandByteMul` and `expandByteShifts`, at 512 bits as they stand.
+@noinline
+fn byteArithmetic() -> Int:
+    let a = bytes()
+    if lanes(a) != 64 then return 100
+
+    let into = allocateHeap(256)
+    setVectorAt(into, a * (splat(3 :: U8) :: Vec(U8)))
+    setVectorAt(into + 64, a `shr` (splat(2 :: U8) :: Vec(U8)))
+    setVectorAt(into + 128, a `shl` (splat(3 :: U8) :: Vec(U8)))
+
+    let &wrong = 0
+    for i in 0 .. 64:
+        let at = i :: Size
+        let x = i + seed
+        if (*(into + at) :: Int) != (x * 3) `and` 255 then wrong = wrong + 1
+        if (*(into + 64 + at) :: Int) != x `shr` 2 then wrong = wrong + 1
+        if (*(into + 128 + at) :: Int) != (x `shl` 3) `and` 255 then wrong = wrong + 1
+
+    return wrong
+
+-- Lanes written and read by index, one in each quarter of the register, and the reductions over the
+-- result - each of which crosses a half the 256-bit tree never sees.
+@noinline
+fn lanesByIndex() -> Int:
+    let base = splat(seed) :: Vec(Int)
+    if lanes(base) != 16 then return 100
+
+    let written = withLane(withLane(withLane(withLane(base, 2, 20), 6, 30), 9, 40), 14, 50)
+    let &wrong = 0
+
+    if lane(written, 2) != 20 then wrong = wrong + 1
+    if lane(written, 6) != 30 then wrong = wrong + 1
+    if lane(written, 9) != 40 then wrong = wrong + 1
+    if lane(written, 14) != 50 then wrong = wrong + 1
+    if lane(written, 0) != seed then wrong = wrong + 1
+    if lane(written, 8) != seed then wrong = wrong + 1
+    if lane(written, 15) != seed then wrong = wrong + 1
+
+    if horizontalSum(written) != 12 * seed + 140 then wrong = wrong + 1
+    if horizontalMax(written) != 50 then wrong = wrong + 1
+    if horizontalMin(written) != seed then wrong = wrong + 1
+
+    -- Sixty-four byte lanes summed, which wraps in the lane: 7 + ... + 70 is 2464, and 2464 mod 256.
+    if (horizontalSum(bytes()) :: Int) != 2464 `and` 255 then wrong = wrong + 1
+    if (horizontalMax(bytes()) :: Int) != 63 + seed then wrong = wrong + 1
+
+    return wrong
+
+-- Lanes widened to twice their width and narrowed back - one `vpmovzxbw` and one `vpmovwb` each,
+-- beside a half or a join of the register.
+@noinline
+fn widenedAndNarrowed() -> Int:
+    let a = bytes()
+    let low = unpackLow(a) :: Vec(U16)
+    let high = unpackHigh(a) :: Vec(U16)
+    if lanes(low) != 32 then return 100
+
+    let into = bitcast(allocateHeap(256)) :: %U16
+    setVectorAt(into, low)
+    setVectorAt(into + 32, high)
+
+    let narrowed = allocateHeap(64)
+    setVectorAt(narrowed, packLanes(low * (splat(257 :: U16) :: Vec(U16)), high) :: Vec(U8))
+
+    let &wrong = 0
+    for i in 0 .. 64:
+        let at = i :: Size
+        if (*(into + at) :: Int) != i + seed then wrong = wrong + 1
+
+        -- `packLanes` keeps each word's low byte: `x * 257` is `x` in both bytes, so the low half's
+        -- answer is `x` again and the high half's is the byte it was widened from.
+        if (*(narrowed + at) :: Int) != i + seed then wrong = wrong + 1
+
+    return wrong
+
+-- A sixteen-byte table read at sixty-four indices, which is the table repeated to 512 bits and one
+-- `vpermi2b` - each index taken modulo the table's sixteen lanes.
+@noinline
+fn narrowTable() -> Int:
+    let table = (iota() :: Vec(U8, 16)) * (splat(5 :: U8) :: Vec(U8, 16))
+    let indices = bytes() * (splat(3 :: U8) :: Vec(U8))
+
+    let into = allocateHeap(64)
+    setVectorAt(into, lookup(table, indices) :: Vec(U8))
+
+    let &wrong = 0
+    for i in 0 .. 64:
+        let index = ((i + seed) * 3) `and` 255
+        if (*(into + (i :: Size)) :: Int) != ((index `and` 15) * 5) `and` 255 then wrong = wrong + 1
+
+    return wrong
+
+-- Masks of sixty-four lanes, whose bits are a `Size`: every question a mask answers, over a mask with
+-- a lane set in each quarter.
+@noinline
+fn wideMasks() -> Int:
+    let a = bytes()
+    let picked = (a .== (splat(truncate(seed + 3) :: U8) :: Vec(U8))) `or`
+                 (a .== (splat(truncate(seed + 21) :: U8) :: Vec(U8))) `or`
+                 (a .== (splat(truncate(seed + 40) :: U8) :: Vec(U8))) `or`
+                 (a .== (splat(truncate(seed + 63) :: U8) :: Vec(U8)))
+
+    let &wrong = 0
+    if count(picked) != 4 then wrong = wrong + 1
+    if firstSet(picked) != 3 then wrong = wrong + 1
+    if !any(picked) || all(picked) then wrong = wrong + 1
+    if bits(picked) != ((1 :: Size) `shl` 3) + ((1 :: Size) `shl` 21) + ((1 :: Size) `shl` 40) + ((1 :: Size) `shl` 63) then wrong = wrong + 1
+    if count(not(picked)) != 60 then wrong = wrong + 1
+    if firstSet(maskUpTo(seed + 50) :: Mask(U8)) != 0 || count(maskUpTo(seed + 50) :: Mask(U8)) != 57 then wrong = wrong + 1
+
+    -- Kept and dropped by the mask, and the lanes past the kept ones zero.
+    let into = allocateHeap(64)
+    let {kept, taken} = compress(a, picked)
+    setVectorAt(into, kept)
+    if taken != 4 then wrong = wrong + 1
+    if (*(into + 0) :: Int) != 3 + seed || (*(into + 3) :: Int) != 63 + seed then wrong = wrong + 1
+
+    return wrong
+
+-- Transfers stopped at a count, at every count of a byte vector.
+@noinline
+fn transfersUpTo() -> Int:
+    let source = allocateHeap(128)
+    let target = allocateHeap(128)
+    for i in 0 .. 64: store(source + (i :: Size), truncate(i + 100) :: U8)
+
+    let &wrong = 0
+    for n in 0 .. 66:
+        setMemory(target, 0, 128)
+        storeUpTo(target, n, loadUpTo(source, n) :: Vec(U8))
+
+        for i in 0 .. 64:
+            let expected = if i < n then i + 100 else 0
+            if (*(target + (i :: Size)) :: Int) != expected then wrong = wrong + 1
+
+    return wrong
+
+fn main() -> Int:
+    return byteArithmetic() + lanesByIndex() + widenedAndNarrowed() + narrowTable() + wideMasks() + transfersUpTo()

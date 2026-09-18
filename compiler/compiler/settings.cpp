@@ -32,6 +32,7 @@ struct Flag {
         inlining,
         switchForm,
         tune,
+        vectorWidth,
         optimization,
         explain,
         project,
@@ -94,6 +95,7 @@ Flag flagTable[] = {
 
     // Which vendor's recent cores the build favours where they disagree - see TargetTuning.
     { "tune"_v, 1, Flag::tune },
+    { "vector-width"_v, 1, Flag::vectorWidth },
     { "explain"_v, 1, Flag::explain },
     { "project"_v, 1, Flag::project },
     { "lib"_v, 1, Flag::library },
@@ -1295,6 +1297,7 @@ Which machine:
                         vaes, vpclmul, sha512, sm3, sm4 (avx2); vp2intersect, fp16, bf16
                         (avx512); neon on ARM. With no level named, the host's
   -tune <t>             generic (default), intel or amd - whose recent cores to favour
+  -vector-width <w>     128, 256 or 512 - the widest Vec(a) the level may use, never wider than it
 
 How hard to try:
   -opt <0-3>            the LLVM pipeline's level, on -backend llvm
@@ -1606,6 +1609,14 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     error = Tritium::format("Unrecognized tuning \"%@\". Valid tunings are: generic|intel|amd.", value);
                     return false;
                 }
+            case Flag::vectorWidth:
+                if(value == "128" || value == "256" || value == "512") {
+                    settings.vectorWidthLimit = value == "128" ? 16 : value == "256" ? 32 : 64;
+                    return true;
+                }
+
+                error = Tritium::format("Unrecognized vector width \"%@\". Valid widths are 128, 256 and 512 bits.", value);
+                return false;
             case Flag::optimization: {
                 // 0 to 3, as every compiler spells it. What it selects is LLVM's own pipeline; the
                 // local amd64 backend has one setting and is it.

@@ -1195,12 +1195,13 @@ struct FunctionRegs {
  * describes, one register width up. `widestVectorClass` is the same answer said as a class, and the
  * save is emitted with that class's move so the two cannot disagree about the width.
  */
-inline U32 vectorSaveSize() {
-    return (targetFeatures() & kFeatureAvx2) ? 32u : 16u;
+inline RegisterClassId widestVectorClass() {
+    if(targetFeatures() & kFeatureAvx512f) return ClassZmm512;
+    return (targetFeatures() & kFeatureAvx2) ? ClassYmm256 : ClassXmm128;
 }
 
-inline RegisterClassId widestVectorClass() {
-    return (targetFeatures() & kFeatureAvx2) ? ClassYmm256 : ClassXmm128;
+inline U32 vectorSaveSize() {
+    return stackSlotSize(targetRegisters().regClass(widestVectorClass()).spillClass);
 }
 
 /*

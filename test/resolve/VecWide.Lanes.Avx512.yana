@@ -37,7 +37,8 @@ fn main() -> Int:
     if horizontalMax(low) != 40 then return -8
     if horizontalMin(low) != 3 then return -9
 
-    -- 3*6 + 20 + 40, which reads every lane exactly once.
-    if horizontalSum(low) != 78 then return -10
+    -- 3 in every lane but the two written, plus 20 and 40, which reads every lane exactly once -
+    -- sixteen lanes at this level's natural width, where the file it twins has eight.
+    if horizontalSum(low) != 3 * (lanes(low) - 2) + 60 then return -10
 
     return lane(low, 5) * 10 + lane(low, 1)

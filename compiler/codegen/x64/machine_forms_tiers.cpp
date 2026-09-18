@@ -773,3 +773,199 @@ void MachineFormBuilder::registerVexTier() {
     }
 
 }
+
+/*
+ * The 512-bit tier - Analysis-Avx512.md §1.2's stage 2, and step 10 of its order of work.
+ *
+ * Every 256-bit form with an EVEX spelling, one tier up: `L'L` = 2 and every ymm operand a zmm, and
+ * nothing else. Derived for the reason `wideTwin` is - one statement of what `vpaddd` is, so the
+ * widths cannot disagree - and from the 256-bit form rather than the 128-bit one because that is the
+ * form already three-operand, with its tie gone and its fold built. `writeVectorPrefix` writes EVEX
+ * for the length alone, re-spelling a VEX form through `evexSpellingOf` as it does one naming xmm16.
+ *
+ * Linked as `full` from the 256-bit form, and so reached by `widthForm` from the 128-bit row every
+ * selection names. What has no twin is left to `splitFullVectors`, which runs the operation as two
+ * halves before selection could look for one:
+ *
+ *  - a pseudo, whose bytes are its emitter's rather than the descriptor's - each is taken up by hand
+ *    where it is worth a 512-bit spelling, and split where it is not;
+ *  - a VEX instruction EVEX has no identical spelling of: `vpblendvb`, `vpmovmskb`, a comparison into
+ *    a vector, `vptest`. None has a place at this width, where every mask is in a mask register;
+ *  - an instruction whose meaning is the 128-bit lanes of a 256-bit register rather than an operation
+ *    on it - `vpermq` by an immediate permutes within each 256-bit half at 512 bits, `vinserti128`
+ *    names one of two lanes where there are now four - and a conversion between lane counts, whose
+ *    narrower operand would have to widen as well, which is a different instruction and not this one.
+ *
+ * Mask operands keep `ClassMask32`. The two mask classes differ in how a register is moved and
+ * spilled, which is the *value's* class and `classForType`'s answer; an instruction reads a `k`
+ * register at its opcode's own width, so a byte comparison at 512 bits writes all sixty-four bits
+ * whatever its operand is called here. The k-register operations whose width *is* the opcode -
+ * `kandq`, `knotq`, `kortestq`, `kmovq` - are rows of their own (registerEvexForms).
+ */
+void MachineFormBuilder::registerFullForms() {
+    auto structural = [](const EncodingDescriptor& e) {
+        if(e.opcodeMap == kOpcodeMap0F3A) {
+            switch(e.opcode) {
+                case 0x00: case 0x01:                   // vpermq/vpermpd by an immediate
+                case 0x06: case 0x46:                   // vperm2f128/vperm2i128
+                case 0x18: case 0x19: case 0x38: case 0x39: // the 128-bit inserts and extracts
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        if(e.opcodeMap == kOpcodeMap0F38) {
+            // The 128-bit broadcasts, and the zero and sign extensions between lane counts.
+            if(e.opcode == 0x1a || e.opcode == 0x5a) return true;
+            if((e.opcode >= 0x20 && e.opcode <= 0x25) || (e.opcode >= 0x30 && e.opcode <= 0x35)) return true;
+        }
+
+        return false;
+    };
+
+    // The broadcasts read an element out of an xmm at every width, which is the one shape where a
+    // narrow vector operand beside a wide one is the same instruction one tier up.
+    auto broadcast = [](const EncodingDescriptor& e) {
+        if(e.opcodeMap != kOpcodeMap0F38) return false;
+        return e.opcode == 0x18 || e.opcode == 0x19 || e.opcode == 0x58 || e.opcode == 0x59
+            || e.opcode == 0x78 || e.opcode == 0x79;
+    };
+
+    auto spelled = [&](const MachineForm& form) {
+        auto& e = form.encoding;
+        if(e.family == EncodingFamily::None || e.family == EncodingFamily::Pseudo) return false;
+        if(e.prefixEncoding == PrefixEncoding::Legacy) return false;
+        if(structural(e)) return false;
+
+        auto narrow = false;
+        auto wide = false;
+        for(auto& c: form.uses) { narrow = narrow || c.regClass == ClassXmm128; wide = wide || c.regClass == ClassYmm256; }
+        for(auto& c: form.defs) { narrow = narrow || c.regClass == ClassXmm128; wide = wide || c.regClass == ClassYmm256; }
+        if(!wide || (narrow && !broadcast(e))) return false;
+
+        if(e.prefixEncoding == PrefixEncoding::Evex) return true;
+        if(!evexSpellingOf(e.prefix, e.opcodeMap, e.opcode, e.extension).exists) return false;
+        return e.opcodeAlt == 0 || evexSpellingOf(e.prefix, e.opcodeMap, e.opcodeAlt, e.extension).exists;
+    };
+
+    // The 256-bit register forms, and their masked twins - a memory twin is derived from its own
+    // register form's twin below, so the two swaps `selectForm` makes still commute.
+    auto eligible = [&](Size i) {
+        auto& form = forms[i];
+        return form.wideOf != 0 && form.memorySourceOf == 0 && spelled(form);
+    };
+
+    /*
+     * The pseudos taken up by hand - each emitter reads its width from the type (`vectorLengthOf`)
+     * and has a 512-bit spelling of its sequence: the two constants with no pool, the complement and
+     * the negation (`vpternlogd` stands in for the all-ones `vpcmpeqd` that no longer answers a
+     * vector), a shift by a count in a general register, and the broadcast out of a lane.
+     */
+    static const MachineFormId kPseudos[] = {
+        FormVWideZero, FormVWideOnes, FormVWideNot,
+        FormVWideNeg8, FormVWideNeg16, FormVWideNeg32, FormVWideNeg64, FormVWideNegF32, FormVWideNegF64,
+        FormVWideShlReg, FormVWideShrReg, FormVWideSarReg,
+        FormVWideBroadcast8, FormVWideBroadcast16, FormVWideBroadcast32, FormVWideBroadcast64,
+        FormVWideBroadcastF32, FormVWideBroadcastF64,
+    };
+
+    auto pseudo = [&](Size i) {
+        for(auto id: kPseudos) if(id == i) return true;
+        return false;
+    };
+
+    auto described = forms.size();
+    Size count = 0;
+    Size nameBytes = 0;
+
+    auto reserveFor = [&](MachineFormId id) {
+        count++;
+        nameBytes += forms[id].name.length;
+    };
+
+    for(auto id: kPseudos) reserveFor(id);
+
+    for(Size i = 0; i < described; i++) {
+        if(!eligible(i)) continue;
+
+        reserveFor(MachineFormId(i));
+        if(auto memory = forms[i].memorySource) reserveFor(memory);
+        if(auto masked = forms[i].masked) reserveFor(masked);
+    }
+
+    forms.reserve(U32(forms.size() + count));
+    derivedNames.reserve(U32(derivedNames.size() + nameBytes));
+
+    // The source's name with every `ymm` a `zmm`, which is the whole of what the twin changes.
+    auto fullName = [&](StringView source) {
+        auto at = derivedNames.size();
+
+        for(Size k = 0; k < source.length; k++) {
+            auto c = source.ptr[k];
+            if(c == 'y' && k + 2 < source.length && source.ptr[k + 1] == 'm' && source.ptr[k + 2] == 'm') c = 'z';
+            derivedNames.push(c);
+        }
+
+        return StringView { &derivedNames[at], source.length };
+    };
+
+    auto twin = [&](MachineFormId sourceId) -> MachineFormId {
+        auto copy = forms[sourceId];
+        auto name = fullName(copy.name);
+
+        for(auto& c: copy.uses) if(c.regClass == ClassYmm256) c.regClass = ClassZmm512;
+        for(auto& c: copy.defs) if(c.regClass == ClassYmm256) c.regClass = ClassZmm512;
+
+        // A pseudo's bytes are its emitter's, which reads the width from the type; its descriptor
+        // states no length at any width.
+        if(copy.encoding.family != EncodingFamily::Pseudo) copy.encoding.vectorLength = 2;
+
+        // Every extension of the level, for `hasEvexRow`'s reason: they move together, and asking for
+        // the most is the direction that cannot admit an instruction the build would not decode.
+        copy.requiredFeatures |= kFeatureAvx512f | kFeatureAvx512bw | kFeatureAvx512dq;
+
+        auto id = MachineFormId(forms.size());
+        copy.id = id;
+        copy.name = name;
+        copy.alternative = 0;
+        copy.alternativeOf = 0;
+        copy.memorySource = 0;
+        copy.memorySourceOf = 0;
+        copy.wide = 0;
+        copy.wideOf = 0;
+        copy.full = 0;
+        copy.fullOf = sourceId;
+        copy.masked = 0;
+
+        auto& form = add(id, copy.opcode, name);
+        form = copy;
+        forms[sourceId].full = id;
+        return id;
+    };
+
+    for(auto id: kPseudos) {
+        assertTrue(forms[id].encoding.family == EncodingFamily::Pseudo && !eligible(id));
+        twin(id);
+    }
+
+    for(Size i = 0; i < described; i++) {
+        if(!eligible(i)) continue;
+        assertTrue(!pseudo(i));
+
+        auto sourceId = MachineFormId(i);
+        auto memory = forms[i].memorySource;
+        auto masked = forms[i].masked;
+
+        auto full = twin(sourceId);
+
+        if(memory) {
+            auto memoryName = fullName(forms[memory].name);
+            memoryTwin(MachineFormId(forms.size()), full, memoryName);
+        }
+
+        if(masked) forms[full].masked = twin(masked);
+    }
+
+    assertTrue(forms.size() == described + count); // a twin reserved for and not built, or the reverse
+}

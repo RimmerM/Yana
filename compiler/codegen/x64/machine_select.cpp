@@ -818,7 +818,10 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             }
 
             // A mask register tested for being empty - see `fuseMaskRegisters`.
-            if(type.isMask()) return materialize ? FormKZeroTestSet : FormKZeroTest;
+            if(type.isMask()) {
+                if(isQuadMask(type)) return materialize ? FormKZeroTestSetQ : FormKZeroTestQ;
+                return materialize ? FormKZeroTestSet : FormKZeroTest;
+            }
 
             requireIntLike(type);
 

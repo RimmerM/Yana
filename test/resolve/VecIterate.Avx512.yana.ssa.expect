@@ -384,17 +384,33 @@ bb0(%0: largest.cont.env [unique call] guaranteed, %1: {Vec(I32), I32} [shared c
   %25: Vec(I32) trivial = vec.withlane #6 inspect %23 inspect %24
   %26: I32 trivial = const 7
   %27: Vec(I32) trivial = vec.withlane #7 inspect %25 inspect %26
-  %28: I32 trivial = convert inspect %11
-  %29: Vec(I32) trivial = vec.splat inspect %28
-  %30: Mask(I32) trivial = lt inspect %27 inspect %29
-  %31: Vec(I32) trivial = load inspect %4
-  %32: Vec(I32) trivial = load inspect %3
-  %33: Vec(I32) trivial = select inspect %30 inspect %31 inspect %32
-  %34: Mask(I32) trivial = gt inspect %10 inspect %33
-  %35: Vec(I32) trivial = select inspect %34 inspect %10 inspect %33
-  store inspect %3 consume %35
-  %36: I32 trivial = const 0
-  return consume %36
+  %28: I32 trivial = const 8
+  %29: Vec(I32) trivial = vec.withlane #8 inspect %27 inspect %28
+  %30: I32 trivial = const 9
+  %31: Vec(I32) trivial = vec.withlane #9 inspect %29 inspect %30
+  %32: I32 trivial = const 10
+  %33: Vec(I32) trivial = vec.withlane #10 inspect %31 inspect %32
+  %34: I32 trivial = const 11
+  %35: Vec(I32) trivial = vec.withlane #11 inspect %33 inspect %34
+  %36: I32 trivial = const 12
+  %37: Vec(I32) trivial = vec.withlane #12 inspect %35 inspect %36
+  %38: I32 trivial = const 13
+  %39: Vec(I32) trivial = vec.withlane #13 inspect %37 inspect %38
+  %40: I32 trivial = const 14
+  %41: Vec(I32) trivial = vec.withlane #14 inspect %39 inspect %40
+  %42: I32 trivial = const 15
+  %43: Vec(I32) trivial = vec.withlane #15 inspect %41 inspect %42
+  %44: I32 trivial = convert inspect %11
+  %45: Vec(I32) trivial = vec.splat inspect %44
+  %46: Mask(I32) trivial = lt inspect %43 inspect %45
+  %47: Vec(I32) trivial = load inspect %4
+  %48: Vec(I32) trivial = load inspect %3
+  %49: Vec(I32) trivial = select inspect %46 inspect %47 inspect %48
+  %50: Mask(I32) trivial = gt inspect %10 inspect %49
+  %51: Vec(I32) trivial = select inspect %50 inspect %10 inspect %49
+  store inspect %3 consume %51
+  %52: I32 trivial = const 0
+  return consume %52
 }
 
 fn total(Array(I32), I32).cont(total(Array(I32), I32).cont.env: total(Array(I32), I32).cont.env [unique call], $handed: Vec(I32) [shared call]) -> I32 {
@@ -405,7 +421,7 @@ bb0(%0: total(Array(I32), I32).cont.env [unique call] guaranteed, %1: Vec(I32) t
   store inspect %4 borrow %1
   %5: Vec(I32) trivial = load inspect %3
   %6: Vec(I32) trivial = load inspect %4
-  %7: Vec(I32) trivial = call Vec(a, n).+(I32, 8) borrow %5 borrow %6
+  %7: Vec(I32) trivial = call Vec(a, n).+(I32, 16) borrow %5 borrow %6
   store inspect %3 consume %7
   %8: I32 trivial = const 0
   return consume %8
@@ -441,17 +457,33 @@ bb0(%0: biggest(Array(I32), I32).cont.env [unique call] guaranteed, %1: {Vec(I32
   %25: Vec(I32) trivial = vec.withlane #6 inspect %23 inspect %24
   %26: I32 trivial = const 7
   %27: Vec(I32) trivial = vec.withlane #7 inspect %25 inspect %26
-  %28: I32 trivial = convert inspect %11
-  %29: Vec(I32) trivial = vec.splat inspect %28
-  %30: Mask(I32) trivial = lt inspect %27 inspect %29
-  %31: Vec(I32) trivial = load inspect %4
-  %32: Vec(I32) trivial = load inspect %3
-  %33: Vec(I32) trivial = call Vec(a, n).Mask(a, n).select(I32, 8) borrow %30 borrow %31 borrow %32
-  %34: Mask(I32) trivial = gt inspect %10 inspect %33
-  %35: Vec(I32) trivial = select inspect %34 inspect %10 inspect %33
-  store inspect %3 consume %35
-  %36: I32 trivial = const 0
-  return consume %36
+  %28: I32 trivial = const 8
+  %29: Vec(I32) trivial = vec.withlane #8 inspect %27 inspect %28
+  %30: I32 trivial = const 9
+  %31: Vec(I32) trivial = vec.withlane #9 inspect %29 inspect %30
+  %32: I32 trivial = const 10
+  %33: Vec(I32) trivial = vec.withlane #10 inspect %31 inspect %32
+  %34: I32 trivial = const 11
+  %35: Vec(I32) trivial = vec.withlane #11 inspect %33 inspect %34
+  %36: I32 trivial = const 12
+  %37: Vec(I32) trivial = vec.withlane #12 inspect %35 inspect %36
+  %38: I32 trivial = const 13
+  %39: Vec(I32) trivial = vec.withlane #13 inspect %37 inspect %38
+  %40: I32 trivial = const 14
+  %41: Vec(I32) trivial = vec.withlane #14 inspect %39 inspect %40
+  %42: I32 trivial = const 15
+  %43: Vec(I32) trivial = vec.withlane #15 inspect %41 inspect %42
+  %44: I32 trivial = convert inspect %11
+  %45: Vec(I32) trivial = vec.splat inspect %44
+  %46: Mask(I32) trivial = lt inspect %43 inspect %45
+  %47: Vec(I32) trivial = load inspect %4
+  %48: Vec(I32) trivial = load inspect %3
+  %49: Vec(I32) trivial = call Vec(a, n).Mask(a, n).select(I32, 16) borrow %46 borrow %47 borrow %48
+  %50: Mask(I32) trivial = gt inspect %10 inspect %49
+  %51: Vec(I32) trivial = select inspect %50 inspect %10 inspect %49
+  store inspect %3 consume %51
+  %52: I32 trivial = const 0
+  return consume %52
 }
 
 fn total(Array(F32), F32).cont(total(Array(F32), F32).cont.env: total(Array(F32), F32).cont.env [unique call], $handed: Vec(F32) [shared call]) -> I32 {
@@ -462,7 +494,7 @@ bb0(%0: total(Array(F32), F32).cont.env [unique call] guaranteed, %1: Vec(F32) t
   store inspect %4 borrow %1
   %5: Vec(F32) trivial = load inspect %3
   %6: Vec(F32) trivial = load inspect %4
-  %7: Vec(F32) trivial = call Vec(a, n).+(F32, 8) borrow %5 borrow %6
+  %7: Vec(F32) trivial = call Vec(a, n).+(F32, 16) borrow %5 borrow %6
   store inspect %3 consume %7
   %8: I32 trivial = const 0
   return consume %8
@@ -498,17 +530,33 @@ bb0(%0: biggest(Array(F32), F32).cont.env [unique call] guaranteed, %1: {Vec(F32
   %25: Vec(F32) trivial = vec.withlane #6 inspect %23 inspect %24
   %26: F32 trivial = const 7
   %27: Vec(F32) trivial = vec.withlane #7 inspect %25 inspect %26
-  %28: F32 trivial = convert inspect %11
-  %29: Vec(F32) trivial = vec.splat inspect %28
-  %30: Mask(F32) trivial = lt inspect %27 inspect %29
-  %31: Vec(F32) trivial = load inspect %4
-  %32: Vec(F32) trivial = load inspect %3
-  %33: Vec(F32) trivial = call Vec(a, n).Mask(a, n).select(F32, 8) borrow %30 borrow %31 borrow %32
-  %34: Mask(F32) trivial = gt inspect %10 inspect %33
-  %35: Vec(F32) trivial = select inspect %34 inspect %10 inspect %33
-  store inspect %3 consume %35
-  %36: I32 trivial = const 0
-  return consume %36
+  %28: F32 trivial = const 8
+  %29: Vec(F32) trivial = vec.withlane #8 inspect %27 inspect %28
+  %30: F32 trivial = const 9
+  %31: Vec(F32) trivial = vec.withlane #9 inspect %29 inspect %30
+  %32: F32 trivial = const 10
+  %33: Vec(F32) trivial = vec.withlane #10 inspect %31 inspect %32
+  %34: F32 trivial = const 11
+  %35: Vec(F32) trivial = vec.withlane #11 inspect %33 inspect %34
+  %36: F32 trivial = const 12
+  %37: Vec(F32) trivial = vec.withlane #12 inspect %35 inspect %36
+  %38: F32 trivial = const 13
+  %39: Vec(F32) trivial = vec.withlane #13 inspect %37 inspect %38
+  %40: F32 trivial = const 14
+  %41: Vec(F32) trivial = vec.withlane #14 inspect %39 inspect %40
+  %42: F32 trivial = const 15
+  %43: Vec(F32) trivial = vec.withlane #15 inspect %41 inspect %42
+  %44: F32 trivial = convert inspect %11
+  %45: Vec(F32) trivial = vec.splat inspect %44
+  %46: Mask(F32) trivial = lt inspect %43 inspect %45
+  %47: Vec(F32) trivial = load inspect %4
+  %48: Vec(F32) trivial = load inspect %3
+  %49: Vec(F32) trivial = call Vec(a, n).Mask(a, n).select(F32, 16) borrow %46 borrow %47 borrow %48
+  %50: Mask(F32) trivial = gt inspect %10 inspect %49
+  %51: Vec(F32) trivial = select inspect %50 inspect %10 inspect %49
+  store inspect %3 consume %51
+  %52: I32 trivial = const 0
+  return consume %52
 }
 
 entry main

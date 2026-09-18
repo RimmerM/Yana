@@ -558,20 +558,20 @@ indexFreeSlot<complex>(%v_0: Ptr, %self: Ptr, %h: I32): I64 {
     %v_23 = load %v_22, 16: i8x16
     %v_24 = cmp_ge %v_23, %v_8: m8x16
     %v_25 = vreduce_bits %v_24: I32
-    %v_26 = cmp_neq %v_25, 0: I32
-    je %v_26, b_27, b_15
+    %v_26 = cast %v_25: I64
+    %v_27 = cmp_neq %v_26, 0: I32
+    je %v_27, b_28, b_15
   }
 
   b_15 {
     %v_18 = add %v_17, 16: I64
-    %v_28 = add %v_14, %v_18: I64
-    %v_16 = and %v_28, %v_7: I64
+    %v_29 = add %v_14, %v_18: I64
+    %v_16 = and %v_29, %v_7: I64
     jmp b_13
   }
 
-  b_27 {
-    %v_29 = cttz_width %v_25: I32
-    %v_30 = sext %v_29: I64
+  b_28 {
+    %v_30 = cttz_width %v_26: I64
     %v_31 = add %v_14, %v_30: I64
     %v_32 = and %v_31, %v_7: I64
     ret %v_32
@@ -699,28 +699,30 @@ findEntry(I32, I32)<complex>(%self: Ptr, %key: I32, %h: I32): I64 {
     %v_42 = load %v_41, 16: i8x16
     %v_43 = cmp_eq %v_42, %v_11: m8x16
     %v_44 = vreduce_bits %v_43: I32
-    %v_45 = add %v_9, 1: I64
-    %v_46 = add %v_45, 16: I64
-    jmp b_47
+    %v_45 = cast %v_44: I64
+    %v_46 = add %v_9, 1: I64
+    %v_47 = add %v_46, 16: I64
+    jmp b_48
   }
 
-  b_47 {
-    %v_48 = phi [b_40, %v_44], [b_49, %v_50]: I32
-    %v_51 = cmp_neq %v_48, 0: I32
-    je %v_51, b_52, b_53
+  b_48 {
+    %v_49 = phi [b_40, %v_45], [b_50, %v_51]: I64
+    %v_52 = cmp_neq %v_49, 0: I32
+    je %v_52, b_53, b_54
   }
 
-  b_53 {
-    %v_54 = cmp_eq %v_42, %v_12: m8x16
-    %v_55 = vreduce_bits %v_54: I32
-    %v_56 = cmp_neq %v_55, 0: I32
-    je %v_56, b_31, b_35
+  b_54 {
+    %v_55 = cmp_eq %v_42, %v_12: m8x16
+    %v_56 = vreduce_bits %v_55: I32
+    %v_57 = cast %v_56: I64
+    %v_58 = cmp_neq %v_57, 0: I32
+    je %v_58, b_31, b_35
   }
 
   b_35 {
     %v_38 = add %v_37, 16: I64
-    %v_57 = add %v_34, %v_38: I64
-    %v_36 = and %v_57, %v_9: I64
+    %v_59 = add %v_34, %v_38: I64
+    %v_36 = and %v_59, %v_9: I64
     jmp b_18
   }
 
@@ -728,27 +730,26 @@ findEntry(I32, I32)<complex>(%self: Ptr, %key: I32, %h: I32): I64 {
     jmp b_21
   }
 
-  b_52 {
-    %v_58 = cttz_width %v_48: I32
-    %v_59 = sext %v_58: I64
-    %v_60 = add %v_34, %v_59: I64
-    %v_61 = and %v_60, %v_9: I64
-    %v_62 = add %v_16, %v_46: Ptr
-    %v_63 = shl %v_61, 2: I64
-    %v_64 = add %v_62, %v_63: Ptr
-    %v_65 = load %v_64, 4: I32
-    %v_33 = cast %v_65: I64
-    %v_66 = shl %v_33, 3: I64
-    %v_67 = add %v_17, %v_66: Ptr
-    %v_68 = loads %v_67, 4: I32
-    %v_69 = cmp_eq %v_68, %key: I32
-    je %v_69, b_32, b_49
+  b_53 {
+    %v_60 = cttz_width %v_49: I64
+    %v_61 = add %v_34, %v_60: I64
+    %v_62 = and %v_61, %v_9: I64
+    %v_63 = add %v_16, %v_47: Ptr
+    %v_64 = shl %v_62, 2: I64
+    %v_65 = add %v_63, %v_64: Ptr
+    %v_66 = load %v_65, 4: I32
+    %v_33 = cast %v_66: I64
+    %v_67 = shl %v_33, 3: I64
+    %v_68 = add %v_17, %v_67: Ptr
+    %v_69 = loads %v_68, 4: I32
+    %v_70 = cmp_eq %v_69, %key: I32
+    je %v_70, b_32, b_50
   }
 
-  b_49 {
-    %v_70 = sub %v_48, 1: I32
-    %v_50 = and %v_48, %v_70: I32
-    jmp b_47
+  b_50 {
+    %v_71 = sub %v_49, 1: I64
+    %v_51 = and %v_49, %v_71: I64
+    jmp b_48
   }
 
   b_32 {
@@ -756,34 +757,34 @@ findEntry(I32, I32)<complex>(%self: Ptr, %key: I32, %h: I32): I64 {
   }
 
   b_23 {
-    %v_24 = phi [b_71, 18446744073709551615], [b_72, %v_73]: I64
+    %v_24 = phi [b_72, 18446744073709551615], [b_73, %v_74]: I64
     jmp b_19
   }
 
   b_29 {
-    %v_73 = phi [b_7, 0], [b_74, %v_75]: I64
-    %v_76 = cmp_ilt %v_73, %v_27: I32
-    je %v_76, b_77, b_71
-  }
-
-  b_71 {
-    jmp b_23
-  }
-
-  b_77 {
-    %v_78 = shl %v_73, 3: I64
-    %v_79 = add %v_28, %v_78: Ptr
-    %v_80 = loads %v_79, 4: I32
-    %v_81 = cmp_eq %v_80, %key: I32
-    je %v_81, b_72, b_74
-  }
-
-  b_74 {
-    %v_75 = add %v_73, 1: I64
-    jmp b_29
+    %v_74 = phi [b_7, 0], [b_75, %v_76]: I64
+    %v_77 = cmp_ilt %v_74, %v_27: I32
+    je %v_77, b_78, b_72
   }
 
   b_72 {
+    jmp b_23
+  }
+
+  b_78 {
+    %v_79 = shl %v_74, 3: I64
+    %v_80 = add %v_28, %v_79: Ptr
+    %v_81 = loads %v_80, 4: I32
+    %v_82 = cmp_eq %v_81, %key: I32
+    je %v_82, b_73, b_75
+  }
+
+  b_75 {
+    %v_76 = add %v_74, 1: I64
+    jmp b_29
+  }
+
+  b_73 {
     jmp b_23
   }
 }
@@ -889,26 +890,28 @@ findEntry(String, I32)<complex>(%self: Ptr, %key$units: Ptr, %key$length: I64, %
     %v_40 = load %v_39, 16: i8x16
     %v_41 = cmp_eq %v_40, %v_11: m8x16
     %v_42 = vreduce_bits %v_41: I32
-    jmp b_43
+    %v_43 = cast %v_42: I64
+    jmp b_44
   }
 
-  b_43 {
-    %v_44 = phi [b_36, %v_42], [b_45, %v_46]: I32
-    %v_47 = cmp_neq %v_44, 0: I32
-    je %v_47, b_48, b_49
+  b_44 {
+    %v_45 = phi [b_36, %v_43], [b_46, %v_47]: I64
+    %v_48 = cmp_neq %v_45, 0: I32
+    je %v_48, b_49, b_50
   }
 
-  b_49 {
-    %v_50 = cmp_eq %v_40, %v_12: m8x16
-    %v_51 = vreduce_bits %v_50: I32
-    %v_52 = cmp_neq %v_51, 0: I32
-    je %v_52, b_27, b_31
+  b_50 {
+    %v_51 = cmp_eq %v_40, %v_12: m8x16
+    %v_52 = vreduce_bits %v_51: I32
+    %v_53 = cast %v_52: I64
+    %v_54 = cmp_neq %v_53, 0: I32
+    je %v_54, b_27, b_31
   }
 
   b_31 {
     %v_34 = add %v_33, 16: I64
-    %v_53 = add %v_30, %v_34: I64
-    %v_32 = and %v_53, %v_9: I64
+    %v_55 = add %v_30, %v_34: I64
+    %v_32 = and %v_55, %v_9: I64
     jmp b_15
   }
 
@@ -916,34 +919,33 @@ findEntry(String, I32)<complex>(%self: Ptr, %key$units: Ptr, %key$length: I64, %
     jmp b_18
   }
 
-  b_48 {
-    %v_54 = cttz_width %v_44: I32
-    %v_55 = sext %v_54: I64
-    %v_56 = add %v_30, %v_55: I64
-    %v_57 = and %v_56, %v_9: I64
-    %v_58 = add %self, 16: Ptr
-    %v_59 = load %v_58, 8: Ptr
-    %v_60 = add %self, 32: Ptr
-    %v_61 = load %v_60, 8: I64
-    %v_62 = shr %v_61, 32: I64
-    %v_63 = and %v_62, 1073741823: I64
-    %v_64 = cast %v_63: I32
-    %v_65 = cast %v_64: I64
-    %v_66 = add %v_65, 1: I64
-    %v_67 = add %v_66, 16: I64
-    %v_68 = add %v_59, %v_67: Ptr
-    %v_69 = shl %v_57, 2: I64
-    %v_70 = add %v_68, %v_69: Ptr
-    %v_71 = load %v_70, 4: I32
-    %v_29 = cast %v_71: I64
-    %v_72 = call_complex keyEquals(String, I32), %self, %v_29, %key$units, %key$length: I32
-    je %v_72, b_28, b_45
+  b_49 {
+    %v_56 = cttz_width %v_45: I64
+    %v_57 = add %v_30, %v_56: I64
+    %v_58 = and %v_57, %v_9: I64
+    %v_59 = add %self, 16: Ptr
+    %v_60 = load %v_59, 8: Ptr
+    %v_61 = add %self, 32: Ptr
+    %v_62 = load %v_61, 8: I64
+    %v_63 = shr %v_62, 32: I64
+    %v_64 = and %v_63, 1073741823: I64
+    %v_65 = cast %v_64: I32
+    %v_66 = cast %v_65: I64
+    %v_67 = add %v_66, 1: I64
+    %v_68 = add %v_67, 16: I64
+    %v_69 = add %v_60, %v_68: Ptr
+    %v_70 = shl %v_58, 2: I64
+    %v_71 = add %v_69, %v_70: Ptr
+    %v_72 = load %v_71, 4: I32
+    %v_29 = cast %v_72: I64
+    %v_73 = call_complex keyEquals(String, I32), %self, %v_29, %key$units, %key$length: I32
+    je %v_73, b_28, b_46
   }
 
-  b_45 {
-    %v_73 = sub %v_44, 1: I32
-    %v_46 = and %v_44, %v_73: I32
-    jmp b_43
+  b_46 {
+    %v_74 = sub %v_45, 1: I64
+    %v_47 = and %v_45, %v_74: I64
+    jmp b_44
   }
 
   b_28 {
@@ -951,31 +953,31 @@ findEntry(String, I32)<complex>(%self: Ptr, %key$units: Ptr, %key$length: I64, %
   }
 
   b_20 {
-    %v_21 = phi [b_74, 18446744073709551615], [b_75, %v_76]: I64
+    %v_21 = phi [b_75, 18446744073709551615], [b_76, %v_77]: I64
     jmp b_16
   }
 
   b_25 {
-    %v_76 = phi [b_7, 0], [b_77, %v_78]: I64
-    %v_79 = cmp_ilt %v_76, %v_24: I32
-    je %v_79, b_80, b_74
-  }
-
-  b_74 {
-    jmp b_20
-  }
-
-  b_80 {
-    %v_81 = call_complex keyEquals(String, I32), %self, %v_76, %key$units, %key$length: I32
-    je %v_81, b_75, b_77
-  }
-
-  b_77 {
-    %v_78 = add %v_76, 1: I64
-    jmp b_25
+    %v_77 = phi [b_7, 0], [b_78, %v_79]: I64
+    %v_80 = cmp_ilt %v_77, %v_24: I32
+    je %v_80, b_81, b_75
   }
 
   b_75 {
+    jmp b_20
+  }
+
+  b_81 {
+    %v_82 = call_complex keyEquals(String, I32), %self, %v_77, %key$units, %key$length: I32
+    je %v_82, b_76, b_78
+  }
+
+  b_78 {
+    %v_79 = add %v_77, 1: I64
+    jmp b_25
+  }
+
+  b_76 {
     jmp b_20
   }
 }

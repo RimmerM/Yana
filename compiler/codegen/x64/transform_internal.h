@@ -346,6 +346,18 @@ void expandVectorAbs(Context&, LowerBase base, LowerFunction& fun);
  * transform_reduce.cpp - a vector answered as a scalar.
  */
 void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun);
+
+// One level of a reduction's tree: two vectors of the same shape combined lane by lane with the
+// operation the reduction folds by. Read by `splitFullVectors` too, which folds a 512-bit vector's
+// halves together with it before the 256-bit reduction of what that leaves.
+LowerValue* reduceStep(Expansion& e, LowerReduce reduce, LowerType type, LowerValue* lhs, LowerValue* rhs);
+
+/*
+ * transform_split.cpp - an operation on a 512-bit vector that has no 512-bit form, as two 256-bit
+ * halves. Above everything that reads a vector's shape, so that below it every instruction is one
+ * the 512-bit tier has a form for or one of 256 bits.
+ */
+void splitFullVectors(Context& ctx, LowerBase base, LowerFunction& fun);
 void fuseMaskScanIntoGuard(LowerBase base, LowerBlock* block);
 
 /*

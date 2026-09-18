@@ -1,0 +1,126 @@
+# The 512-bit tier - Analysis-Avx512.md §1.2's stage 2, where `avx512`'s natural width is 64 bytes.
+#
+#   - an operation with a 256-bit EVEX spelling is the same opcode at `L'L` = 2 (`registerFullForms`),
+#     and a register or a frame slot of the class is a `vmovups zmm`;
+#   - a comparison writes a mask register at every lane width - there is no vector-domain one at this
+#     width to demote a mask to - and a byte mask is sixty-four lanes, which is the `q` spelling of
+#     every instruction that reads the register as a number: `kmovq`, `kortestq`, `korq`, `knotq`;
+#   - what has no 512-bit form is two 256-bit halves joined (`splitFullVectors`): the high half is
+#     `vextracti64x4`, the low one the register read at 256 bits, and the join `vinserti64x4`;
+#   - a lane count doubled or halved is `vpmovzxbw` or `vpmovwb` beside a half or a join;
+#   - a sixteen-byte table read at sixty-four indices is the table repeated to 512 bits and `vpermi2b`;
+#   - a masked transfer builds its mask with `bzhi r64` and `kmovq`.
+#
+# extensions: avx512
+
+arithmetic(%a: i32x16, %b: i32x16, %f: f32x16, %g: f32x16): i32x16 {
+    {
+        %s = add %a, %b: i32x16
+        %p = mul %s, %b: i32x16
+        %x = xor %p, %a: i32x16
+        %h = add %f, %g: f32x16
+        %q = mul %h, %g: f32x16
+        %c = cast %q: i32x16
+        %r = sub %x, %c: i32x16
+        ret %r
+    }
+}
+
+wideMask(%a: i8x64, %b: i8x64, %c: i8x64): I64 {
+    {
+        %eq = cmp_eq %a, %b: m8x64
+        %lt = cmp_lt %a, %c: m8x64
+        %either = or %eq, %lt: m8x64
+        %none = not %either: m8x64
+        %bits = vreduce_bits %none: I64
+        ret %bits
+    }
+}
+
+anyAndFirst(%a: i8x64, %b: i8x64): I32 {
+    {
+        %eq = cmp_eq %a, %b: m8x64
+        %any = vreduce_or %eq: I32
+        %first = vreduce_first %eq: I32
+        %count = vreduce_add %eq: I32
+        %s = add %any, %first: I32
+        %t = add %s, %count: I32
+        ret %t
+    }
+}
+
+selected(%m: m32x16, %a: i32x16, %b: i32x16): i32x16 {
+    {
+        %s = select %m, %a, %b: i32x16
+        ret %s
+    }
+}
+
+splats(%x: I32, %y: I64): i64x8 {
+    {
+        %a = vsplat %x: i32x16
+        %b = vsplat %y: i64x8
+        %c = bitcast %a: i64x8
+        %d = add %b, %c: i64x8
+        ret %d
+    }
+}
+
+constants(%a: i32x16): i32x16 {
+    {
+        %zero = vsplat 0: i32x16
+        %ones = vsplat -1: i32x16
+        %x = add %a, %ones: i32x16
+        %y = xor %x, %zero: i32x16
+        %n = not %y: i32x16
+        ret %n
+    }
+}
+
+byteProduct(%a: i8x64, %b: i8x64): i8x64 {
+    {
+        %p = mul %a, %b: i8x64
+        ret %p
+    }
+}
+
+laneRead(%a: i32x16): I32 {
+    {
+        %x = vlane %a, 13: I32
+        %y = vlane %a, 2: I32
+        %s = add %x, %y: I32
+        ret %s
+    }
+}
+
+widened(%a: i8x64): i16x32 {
+    {
+        %half = vshuffle %a, %a, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63: i8x32
+        %w = cast %half: i16x32
+        ret %w
+    }
+}
+
+narrowed(%a: i16x32, %b: i16x32): i8x64 {
+    {
+        %x = cast %a: i8x32
+        %y = cast %b: i8x32
+        %j = vshuffle %x, %y, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63: i8x64
+        ret %j
+    }
+}
+
+table(%t: i8x16, %i: i8x64): i8x64 {
+    {
+        %r = vlookup %t, %i: i8x64
+        ret %r
+    }
+}
+
+transfers(%p: Ptr, %q: Ptr, %n: I64) {
+    {
+        %v = vloadupto %p, %n: i8x64
+        vstoreupto %q, %n, %v
+        ret
+    }
+}

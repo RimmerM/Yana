@@ -108,8 +108,11 @@ fn main() -> I32 {
 
   b27:
     %v98 = vreduce_add %low : I32
-    %v101 = cmp_ne %v98, 78 : Bool
-    je %v101, b28, b29
+    %v103 = sub 16, 2 : I32
+    %v105 = mul 3, %v103 : I32
+    %v108 = add %v105, 60 : I32
+    %v109 = cmp_ne %v98, %v108 : Bool
+    je %v109, b28, b29
 
   b28:
     ret -10
@@ -118,9 +121,9 @@ fn main() -> I32 {
     jmp b30
 
   b30:
-    %v108 = vlane %low, 5 : I32
-    %v111 = mul %v108, 10 : I32
-    %v114 = vlane %low, 1 : I32
-    %v115 = add %v111, %v114 : I32
-    ret %v115
+    %v116 = vlane %low, 5 : I32
+    %v119 = mul %v116, 10 : I32
+    %v122 = vlane %low, 1 : I32
+    %v123 = add %v119, %v122 : I32
+    ret %v123
 }

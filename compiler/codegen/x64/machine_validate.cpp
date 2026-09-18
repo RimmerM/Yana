@@ -264,9 +264,17 @@ bool validateMachineForms(const MachineTarget& target) {
                 fail(form, "states a vector length, which only a VEX or EVEX prefix can carry"_v);
             }
         } else {
-            // 512-bit is EVEX's alone: VEX has one length bit and cannot say it.
+            /*
+             * 512-bit is EVEX's alone: VEX has one length bit and cannot say it. A VEX form at that
+             * length is one `writeVectorPrefix` re-spells in EVEX for the length alone, which it can
+             * do exactly where the table has an identical spelling of the opcode - so that is the
+             * rule, and a VEX-only instruction at 512 bits is still the mistake it always was.
+             */
             if(encoding.prefixEncoding == PrefixEncoding::Vex && encoding.vectorLength > 1) {
-                fail(form, "asks for a 512-bit operation under a VEX prefix, which has no length for it"_v);
+                auto spelled = evexSpellingOf(encoding.prefix, encoding.opcodeMap, encoding.opcode, encoding.extension).exists;
+                if(!spelled || (form.requiredFeatures & kFeatureAvx512f) == 0) {
+                    fail(form, "asks for a 512-bit operation under a VEX prefix, which has no length for it and no EVEX spelling to be written in"_v);
+                }
             }
 
             if(encoding.opcodeMap < kOpcodeMap0F || encoding.opcodeMap > kOpcodeMap0F3A) {

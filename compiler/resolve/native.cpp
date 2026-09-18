@@ -106,8 +106,9 @@ static ModulePtr<Value> pointerAsVector(ExprResolver& resolver, ModulePtr<Value>
  * `bits` - the movemask, and the one reduction kind that is a machine's rather than the language's.
  *
  * `ReduceOp::Bits` and nothing else; the width comes from the mask the caller handed over and the
- * result is the `Int` the signature states, for the reason `firstSet`'s is one - sixteen or
- * thirty-two bits of answer are not a value the lane type holds.
+ * result is the `Size` the signature states - up to sixty-four bits of answer, which is not a value
+ * the lane type holds, and more than an `Int` does. Lowering reads the lanes at `maskBitsType` and
+ * widens after.
  */
 static ModulePtr<Value> emitMaskBits(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                      LocationId source, StringId name) {

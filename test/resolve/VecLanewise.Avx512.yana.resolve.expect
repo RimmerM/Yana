@@ -185,13 +185,21 @@ fn counting() -> I32 {
     %v9 = vwithlane %v7, 4, 4 : Vec(I32)
     %v11 = vwithlane %v9, 5, 5 : Vec(I32)
     %v13 = vwithlane %v11, 6, 6 : Vec(I32)
-    %indices = vwithlane %v13, 7, 7 : Vec(I32)
-    %v18 = vsplat 1 : Vec(I32)
-    %past = cmp_ge %indices, %v18 : Mask(I32)
-    %v20 = vreduce_add %past : I32
-    %v24 = sub 8, 1 : I32
-    %v25 = cmp_ne %v20, %v24 : Bool
-    je %v25, b1, b2
+    %v15 = vwithlane %v13, 7, 7 : Vec(I32)
+    %v17 = vwithlane %v15, 8, 8 : Vec(I32)
+    %v19 = vwithlane %v17, 9, 9 : Vec(I32)
+    %v21 = vwithlane %v19, 10, 10 : Vec(I32)
+    %v23 = vwithlane %v21, 11, 11 : Vec(I32)
+    %v25 = vwithlane %v23, 12, 12 : Vec(I32)
+    %v27 = vwithlane %v25, 13, 13 : Vec(I32)
+    %v29 = vwithlane %v27, 14, 14 : Vec(I32)
+    %indices = vwithlane %v29, 15, 15 : Vec(I32)
+    %v34 = vsplat 1 : Vec(I32)
+    %past = cmp_ge %indices, %v34 : Mask(I32)
+    %v36 = vreduce_add %past : I32
+    %v40 = sub 16, 1 : I32
+    %v41 = cmp_ne %v36, %v40 : Bool
+    je %v41, b1, b2
 
   b1:
     ret -1
@@ -200,9 +208,9 @@ fn counting() -> I32 {
     jmp b3
 
   b3:
-    %v30 = vreduce_first %past : I32
-    %v33 = cmp_ne %v30, 1 : Bool
-    je %v33, b4, b5
+    %v46 = vreduce_first %past : I32
+    %v49 = cmp_ne %v46, 1 : Bool
+    je %v49, b4, b5
 
   b4:
     ret -2
@@ -213,9 +221,9 @@ fn counting() -> I32 {
   b6:
     %empty = vsplat 0 : Vec(I32)
     %never = cmp_lt %indices, %empty : Mask(I32)
-    %v41 = vreduce_first %never : I32
-    %v43 = cmp_ne %v41, 8 : Bool
-    je %v43, b7, b8
+    %v57 = vreduce_first %never : I32
+    %v59 = cmp_ne %v57, 16 : Bool
+    je %v59, b7, b8
 
   b7:
     ret -3
@@ -224,9 +232,9 @@ fn counting() -> I32 {
     jmp b9
 
   b9:
-    %v48 = vreduce_add %never : I32
-    %v51 = cmp_ne %v48, 0 : Bool
-    je %v51, b10, b11
+    %v64 = vreduce_add %never : I32
+    %v67 = cmp_ne %v64, 0 : Bool
+    je %v67, b10, b11
 
   b10:
     ret -4
@@ -236,9 +244,9 @@ fn counting() -> I32 {
 
   b12:
     %always = cmp_ge %indices, %empty : Mask(I32)
-    %v57 = vreduce_first %always : I32
-    %v60 = cmp_ne %v57, 0 : Bool
-    je %v60, b13, b14
+    %v73 = vreduce_first %always : I32
+    %v76 = cmp_ne %v73, 0 : Bool
+    je %v76, b13, b14
 
   b13:
     ret -5
@@ -247,9 +255,9 @@ fn counting() -> I32 {
     jmp b15
 
   b15:
-    %v65 = vreduce_add %always : I32
-    %v67 = cmp_ne %v65, 8 : Bool
-    je %v67, b16, b17
+    %v81 = vreduce_add %always : I32
+    %v83 = cmp_ne %v81, 16 : Bool
+    je %v83, b16, b17
 
   b16:
     ret -6

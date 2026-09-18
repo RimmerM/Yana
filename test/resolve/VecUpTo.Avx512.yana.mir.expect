@@ -251,11 +251,11 @@ fn upToU8(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
 bb0:
   %0: U8 = const 0
   %1: Vec(U8) = vec.splat inspect %0
-  %2: I32 = const 32
+  %2: I32 = const 64
   write.init borrow.unique (lanesOf) take %2
   %4: I32 = const 1
   write.init borrow.unique (width) take %4
-  %6: I32 = const 32
+  %6: I32 = const 64
   %7: I32 = const 1
   %8: I32 = mul inspect %6 inspect %7
   write.init borrow.unique (total) take %8
@@ -323,12 +323,279 @@ bb0:
   %71: Vec(U8) = vec.withlane #30 inspect %69 inspect %70
   %72: U8 = const 31
   %73: Vec(U8) = vec.withlane #31 inspect %71 inspect %72
-  %74: U8 = const 2
-  %75: Vec(U8) = vec.splat inspect %74
-  %76: Vec(U8) = mul inspect %73 inspect %75
-  %77: U8 = const 1
-  %78: Vec(U8) = vec.splat inspect %77
-  %79: Vec(U8) = add inspect %76 inspect %78
+  %74: U8 = const 32
+  %75: Vec(U8) = vec.withlane #32 inspect %73 inspect %74
+  %76: U8 = const 33
+  %77: Vec(U8) = vec.withlane #33 inspect %75 inspect %76
+  %78: U8 = const 34
+  %79: Vec(U8) = vec.withlane #34 inspect %77 inspect %78
+  %80: U8 = const 35
+  %81: Vec(U8) = vec.withlane #35 inspect %79 inspect %80
+  %82: U8 = const 36
+  %83: Vec(U8) = vec.withlane #36 inspect %81 inspect %82
+  %84: U8 = const 37
+  %85: Vec(U8) = vec.withlane #37 inspect %83 inspect %84
+  %86: U8 = const 38
+  %87: Vec(U8) = vec.withlane #38 inspect %85 inspect %86
+  %88: U8 = const 39
+  %89: Vec(U8) = vec.withlane #39 inspect %87 inspect %88
+  %90: U8 = const 40
+  %91: Vec(U8) = vec.withlane #40 inspect %89 inspect %90
+  %92: U8 = const 41
+  %93: Vec(U8) = vec.withlane #41 inspect %91 inspect %92
+  %94: U8 = const 42
+  %95: Vec(U8) = vec.withlane #42 inspect %93 inspect %94
+  %96: U8 = const 43
+  %97: Vec(U8) = vec.withlane #43 inspect %95 inspect %96
+  %98: U8 = const 44
+  %99: Vec(U8) = vec.withlane #44 inspect %97 inspect %98
+  %100: U8 = const 45
+  %101: Vec(U8) = vec.withlane #45 inspect %99 inspect %100
+  %102: U8 = const 46
+  %103: Vec(U8) = vec.withlane #46 inspect %101 inspect %102
+  %104: U8 = const 47
+  %105: Vec(U8) = vec.withlane #47 inspect %103 inspect %104
+  %106: U8 = const 48
+  %107: Vec(U8) = vec.withlane #48 inspect %105 inspect %106
+  %108: U8 = const 49
+  %109: Vec(U8) = vec.withlane #49 inspect %107 inspect %108
+  %110: U8 = const 50
+  %111: Vec(U8) = vec.withlane #50 inspect %109 inspect %110
+  %112: U8 = const 51
+  %113: Vec(U8) = vec.withlane #51 inspect %111 inspect %112
+  %114: U8 = const 52
+  %115: Vec(U8) = vec.withlane #52 inspect %113 inspect %114
+  %116: U8 = const 53
+  %117: Vec(U8) = vec.withlane #53 inspect %115 inspect %116
+  %118: U8 = const 54
+  %119: Vec(U8) = vec.withlane #54 inspect %117 inspect %118
+  %120: U8 = const 55
+  %121: Vec(U8) = vec.withlane #55 inspect %119 inspect %120
+  %122: U8 = const 56
+  %123: Vec(U8) = vec.withlane #56 inspect %121 inspect %122
+  %124: U8 = const 57
+  %125: Vec(U8) = vec.withlane #57 inspect %123 inspect %124
+  %126: U8 = const 58
+  %127: Vec(U8) = vec.withlane #58 inspect %125 inspect %126
+  %128: U8 = const 59
+  %129: Vec(U8) = vec.withlane #59 inspect %127 inspect %128
+  %130: U8 = const 60
+  %131: Vec(U8) = vec.withlane #60 inspect %129 inspect %130
+  %132: U8 = const 61
+  %133: Vec(U8) = vec.withlane #61 inspect %131 inspect %132
+  %134: U8 = const 62
+  %135: Vec(U8) = vec.withlane #62 inspect %133 inspect %134
+  %136: U8 = const 63
+  %137: Vec(U8) = vec.withlane #63 inspect %135 inspect %136
+  %138: U8 = const 2
+  %139: Vec(U8) = vec.splat inspect %138
+  %140: Vec(U8) = mul inspect %137 inspect %139
+  %141: U8 = const 1
+  %142: Vec(U8) = vec.splat inspect %141
+  %143: Vec(U8) = add inspect %140 inspect %142
+  write.init borrow.unique (values) take %143
+  %145: I32 = const 0
+  write.init borrow.unique (wrong) take %145
+  %147: I32 = const 0
+  %148: I32 = const 2
+  %149: I32 = sub inspect %147 inspect %148
+  write.init borrow.unique (c) take %149
+  jump -> bb1
+
+bb1:
+  %152: I32 = read copy.trivial (c)
+  %153: I32 = const 64
+  %154: I32 = const 2
+  %155: I32 = add inspect %153 inspect %154
+  %156: Bool = le inspect %152 inspect %155
+  branch inspect %156 -> bb3 -> bb2
+
+bb2:
+  %235: I32 = read copy.trivial (wrong)
+  return take %235
+
+bb3:
+  %158: I32 = read copy.trivial (c)
+  %159: I32 = const 0
+  %160: Bool = lt inspect %158 inspect %159
+  branch inspect %160 -> bb6 -> bb4
+
+bb4:
+  %163: I32 = read copy.trivial (c)
+  %164: I32 = const 64
+  %165: Bool = gt inspect %163 inspect %164
+  branch inspect %165 -> bb9 -> bb7
+
+bb5(%172: I32):
+  write.init borrow.unique (live) take %172
+  %176: I32 = read copy.trivial (live)
+  %177: I32 = const 1
+  %178: I32 = mul inspect %176 inspect %177
+  %179: I32 = const 4096
+  %180: I32 = sub inspect %179 inspect %178
+  write.init borrow.unique (start) take %180
+  %182: %U8 = read copy.trivial (page)
+  %183: I32 = read copy.trivial (start)
+  %184: Size = convert inspect %183
+  %185: Size = metric stride U8
+  %186: Size = mul inspect %184 inspect %185
+  %187: %U8 [owned here shape6 .*=shared slot 0] = add inspect %182 inspect %186
+  write.init borrow.unique (at) take %187
+  %189: %U8 = read copy.trivial (page)
+  %190: {} = call fillPattern borrow.shared %189
+  %191: %U8 = read copy.trivial (scratch)
+  %192: %U8 = bitcast inspect %191
+  %193: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
+  %194: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %193
+  %195: I32 = read copy.trivial (c)
+  %196: Vec(U8) = native vloadupto inspect %194 inspect %195
+  %197: %Vec(U8) = bitcast inspect %192
+  write.assign borrow.unique ([%%197]) take %196
+  %199: {} = const {}
+  %200: I32 = read copy.trivial (wrong)
+  %201: %U8 = read copy.trivial (scratch)
+  %202: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
+  %203: I32 = read copy.trivial (live)
+  %204: I32 = const 1
+  %205: I32 = mul inspect %203 inspect %204
+  %206: I32 = read copy.trivial (total)
+  %207: I32 = call differing borrow.shared %201 borrow.shared %202 borrow.shared %205 borrow.shared %206
+  %208: I32 = add inspect %200 inspect %207
+  write.assign borrow.unique (wrong) take %208
+  %210: %U8 = read copy.trivial (page)
+  %211: {} = call fillSentinel borrow.shared %210
+  %212: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
+  %213: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %212
+  %214: I32 = read copy.trivial (c)
+  %215: Vec(U8) = read copy.trivial (values)
+  %216: {} = native vstoreupto inspect %213 inspect %214 inspect %215
+  %217: %U8 = read copy.trivial (scratch)
+  %218: %U8 = bitcast inspect %217
+  %219: Vec(U8) = read copy.trivial (values)
+  %220: %Vec(U8) = bitcast inspect %218
+  write.assign borrow.unique ([%%220]) take %219
+  %222: {} = const {}
+  %223: I32 = read copy.trivial (wrong)
+  %224: %U8 = read copy.trivial (page)
+  %225: I32 = read copy.trivial (start)
+  %226: %U8 = read copy.trivial (scratch)
+  %227: I32 = call storedWrong borrow.shared %224 borrow.shared %225 borrow.shared %226
+  %228: I32 = add inspect %223 inspect %227
+  write.assign borrow.unique (wrong) take %228
+  %230: I32 = read copy.trivial (c)
+  %231: I32 = const 1
+  %232: I32 = add inspect %230 inspect %231
+  write.assign borrow.unique (c) take %232
+  jump -> bb1
+
+bb6:
+  %162: I32 = const 0
+  jump -> bb5(take %162)
+
+bb7:
+  %168: I32 = read copy.trivial (c)
+  jump -> bb8(take %168)
+
+bb8(%169: I32):
+  jump -> bb5(take %169)
+
+bb9:
+  %167: I32 = const 64
+  jump -> bb8(take %167)
+}
+
+fn upToU16(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
+  local lanesOf: I32
+  local width: I32
+  local total: I32
+  local values: Vec(U16)
+  local & wrong: I32
+  local & c: I32
+  local live: I32
+  local start: I32
+  local at: %U8 [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: U16 = const 0
+  %1: Vec(U16) = vec.splat inspect %0
+  %2: I32 = const 32
+  write.init borrow.unique (lanesOf) take %2
+  %4: I32 = const 2
+  write.init borrow.unique (width) take %4
+  %6: I32 = const 32
+  %7: I32 = const 2
+  %8: I32 = mul inspect %6 inspect %7
+  write.init borrow.unique (total) take %8
+  %10: U16 = const 0
+  %11: Vec(U16) = vec.splat inspect %10
+  %12: U16 = const 1
+  %13: Vec(U16) = vec.withlane #1 inspect %11 inspect %12
+  %14: U16 = const 2
+  %15: Vec(U16) = vec.withlane #2 inspect %13 inspect %14
+  %16: U16 = const 3
+  %17: Vec(U16) = vec.withlane #3 inspect %15 inspect %16
+  %18: U16 = const 4
+  %19: Vec(U16) = vec.withlane #4 inspect %17 inspect %18
+  %20: U16 = const 5
+  %21: Vec(U16) = vec.withlane #5 inspect %19 inspect %20
+  %22: U16 = const 6
+  %23: Vec(U16) = vec.withlane #6 inspect %21 inspect %22
+  %24: U16 = const 7
+  %25: Vec(U16) = vec.withlane #7 inspect %23 inspect %24
+  %26: U16 = const 8
+  %27: Vec(U16) = vec.withlane #8 inspect %25 inspect %26
+  %28: U16 = const 9
+  %29: Vec(U16) = vec.withlane #9 inspect %27 inspect %28
+  %30: U16 = const 10
+  %31: Vec(U16) = vec.withlane #10 inspect %29 inspect %30
+  %32: U16 = const 11
+  %33: Vec(U16) = vec.withlane #11 inspect %31 inspect %32
+  %34: U16 = const 12
+  %35: Vec(U16) = vec.withlane #12 inspect %33 inspect %34
+  %36: U16 = const 13
+  %37: Vec(U16) = vec.withlane #13 inspect %35 inspect %36
+  %38: U16 = const 14
+  %39: Vec(U16) = vec.withlane #14 inspect %37 inspect %38
+  %40: U16 = const 15
+  %41: Vec(U16) = vec.withlane #15 inspect %39 inspect %40
+  %42: U16 = const 16
+  %43: Vec(U16) = vec.withlane #16 inspect %41 inspect %42
+  %44: U16 = const 17
+  %45: Vec(U16) = vec.withlane #17 inspect %43 inspect %44
+  %46: U16 = const 18
+  %47: Vec(U16) = vec.withlane #18 inspect %45 inspect %46
+  %48: U16 = const 19
+  %49: Vec(U16) = vec.withlane #19 inspect %47 inspect %48
+  %50: U16 = const 20
+  %51: Vec(U16) = vec.withlane #20 inspect %49 inspect %50
+  %52: U16 = const 21
+  %53: Vec(U16) = vec.withlane #21 inspect %51 inspect %52
+  %54: U16 = const 22
+  %55: Vec(U16) = vec.withlane #22 inspect %53 inspect %54
+  %56: U16 = const 23
+  %57: Vec(U16) = vec.withlane #23 inspect %55 inspect %56
+  %58: U16 = const 24
+  %59: Vec(U16) = vec.withlane #24 inspect %57 inspect %58
+  %60: U16 = const 25
+  %61: Vec(U16) = vec.withlane #25 inspect %59 inspect %60
+  %62: U16 = const 26
+  %63: Vec(U16) = vec.withlane #26 inspect %61 inspect %62
+  %64: U16 = const 27
+  %65: Vec(U16) = vec.withlane #27 inspect %63 inspect %64
+  %66: U16 = const 28
+  %67: Vec(U16) = vec.withlane #28 inspect %65 inspect %66
+  %68: U16 = const 29
+  %69: Vec(U16) = vec.withlane #29 inspect %67 inspect %68
+  %70: U16 = const 30
+  %71: Vec(U16) = vec.withlane #30 inspect %69 inspect %70
+  %72: U16 = const 31
+  %73: Vec(U16) = vec.withlane #31 inspect %71 inspect %72
+  %74: U16 = const 2
+  %75: Vec(U16) = vec.splat inspect %74
+  %76: Vec(U16) = mul inspect %73 inspect %75
+  %77: U16 = const 1
+  %78: Vec(U16) = vec.splat inspect %77
+  %79: Vec(U16) = add inspect %76 inspect %78
   write.init borrow.unique (values) take %79
   %81: I32 = const 0
   write.init borrow.unique (wrong) take %81
@@ -365,7 +632,7 @@ bb4:
 bb5(%108: I32):
   write.init borrow.unique (live) take %108
   %112: I32 = read copy.trivial (live)
-  %113: I32 = const 1
+  %113: I32 = const 2
   %114: I32 = mul inspect %112 inspect %113
   %115: I32 = const 4096
   %116: I32 = sub inspect %115 inspect %114
@@ -380,19 +647,19 @@ bb5(%108: I32):
   %125: %U8 = read copy.trivial (page)
   %126: {} = call fillPattern borrow.shared %125
   %127: %U8 = read copy.trivial (scratch)
-  %128: %U8 = bitcast inspect %127
+  %128: %U16 = bitcast inspect %127
   %129: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %130: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %129
+  %130: %U16 [owned here shape6 .*=shared slot 0] = bitcast inspect %129
   %131: I32 = read copy.trivial (c)
-  %132: Vec(U8) = native vloadupto inspect %130 inspect %131
-  %133: %Vec(U8) = bitcast inspect %128
+  %132: Vec(U16) = native vloadupto inspect %130 inspect %131
+  %133: %Vec(U16) = bitcast inspect %128
   write.assign borrow.unique ([%%133]) take %132
   %135: {} = const {}
   %136: I32 = read copy.trivial (wrong)
   %137: %U8 = read copy.trivial (scratch)
   %138: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
   %139: I32 = read copy.trivial (live)
-  %140: I32 = const 1
+  %140: I32 = const 2
   %141: I32 = mul inspect %139 inspect %140
   %142: I32 = read copy.trivial (total)
   %143: I32 = call differing borrow.shared %137 borrow.shared %138 borrow.shared %141 borrow.shared %142
@@ -401,14 +668,14 @@ bb5(%108: I32):
   %146: %U8 = read copy.trivial (page)
   %147: {} = call fillSentinel borrow.shared %146
   %148: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %149: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %148
+  %149: %U16 [owned here shape6 .*=shared slot 0] = bitcast inspect %148
   %150: I32 = read copy.trivial (c)
-  %151: Vec(U8) = read copy.trivial (values)
+  %151: Vec(U16) = read copy.trivial (values)
   %152: {} = native vstoreupto inspect %149 inspect %150 inspect %151
   %153: %U8 = read copy.trivial (scratch)
-  %154: %U8 = bitcast inspect %153
-  %155: Vec(U8) = read copy.trivial (values)
-  %156: %Vec(U8) = bitcast inspect %154
+  %154: %U16 = bitcast inspect %153
+  %155: Vec(U16) = read copy.trivial (values)
+  %156: %Vec(U16) = bitcast inspect %154
   write.assign borrow.unique ([%%156]) take %155
   %158: {} = const {}
   %159: I32 = read copy.trivial (wrong)
@@ -440,11 +707,11 @@ bb9:
   jump -> bb8(take %103)
 }
 
-fn upToU16(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
+fn upToU32(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
   local lanesOf: I32
   local width: I32
   local total: I32
-  local values: Vec(U16)
+  local values: Vec(U32)
   local & wrong: I32
   local & c: I32
   local live: I32
@@ -452,54 +719,54 @@ fn upToU16(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
   local at: %U8 [owned here shape6 .*=shared slot 0]
 
 bb0:
-  %0: U16 = const 0
-  %1: Vec(U16) = vec.splat inspect %0
+  %0: U32 = const 0
+  %1: Vec(U32) = vec.splat inspect %0
   %2: I32 = const 16
   write.init borrow.unique (lanesOf) take %2
-  %4: I32 = const 2
+  %4: I32 = const 4
   write.init borrow.unique (width) take %4
   %6: I32 = const 16
-  %7: I32 = const 2
+  %7: I32 = const 4
   %8: I32 = mul inspect %6 inspect %7
   write.init borrow.unique (total) take %8
-  %10: U16 = const 0
-  %11: Vec(U16) = vec.splat inspect %10
-  %12: U16 = const 1
-  %13: Vec(U16) = vec.withlane #1 inspect %11 inspect %12
-  %14: U16 = const 2
-  %15: Vec(U16) = vec.withlane #2 inspect %13 inspect %14
-  %16: U16 = const 3
-  %17: Vec(U16) = vec.withlane #3 inspect %15 inspect %16
-  %18: U16 = const 4
-  %19: Vec(U16) = vec.withlane #4 inspect %17 inspect %18
-  %20: U16 = const 5
-  %21: Vec(U16) = vec.withlane #5 inspect %19 inspect %20
-  %22: U16 = const 6
-  %23: Vec(U16) = vec.withlane #6 inspect %21 inspect %22
-  %24: U16 = const 7
-  %25: Vec(U16) = vec.withlane #7 inspect %23 inspect %24
-  %26: U16 = const 8
-  %27: Vec(U16) = vec.withlane #8 inspect %25 inspect %26
-  %28: U16 = const 9
-  %29: Vec(U16) = vec.withlane #9 inspect %27 inspect %28
-  %30: U16 = const 10
-  %31: Vec(U16) = vec.withlane #10 inspect %29 inspect %30
-  %32: U16 = const 11
-  %33: Vec(U16) = vec.withlane #11 inspect %31 inspect %32
-  %34: U16 = const 12
-  %35: Vec(U16) = vec.withlane #12 inspect %33 inspect %34
-  %36: U16 = const 13
-  %37: Vec(U16) = vec.withlane #13 inspect %35 inspect %36
-  %38: U16 = const 14
-  %39: Vec(U16) = vec.withlane #14 inspect %37 inspect %38
-  %40: U16 = const 15
-  %41: Vec(U16) = vec.withlane #15 inspect %39 inspect %40
-  %42: U16 = const 2
-  %43: Vec(U16) = vec.splat inspect %42
-  %44: Vec(U16) = mul inspect %41 inspect %43
-  %45: U16 = const 1
-  %46: Vec(U16) = vec.splat inspect %45
-  %47: Vec(U16) = add inspect %44 inspect %46
+  %10: U32 = const 0
+  %11: Vec(U32) = vec.splat inspect %10
+  %12: U32 = const 1
+  %13: Vec(U32) = vec.withlane #1 inspect %11 inspect %12
+  %14: U32 = const 2
+  %15: Vec(U32) = vec.withlane #2 inspect %13 inspect %14
+  %16: U32 = const 3
+  %17: Vec(U32) = vec.withlane #3 inspect %15 inspect %16
+  %18: U32 = const 4
+  %19: Vec(U32) = vec.withlane #4 inspect %17 inspect %18
+  %20: U32 = const 5
+  %21: Vec(U32) = vec.withlane #5 inspect %19 inspect %20
+  %22: U32 = const 6
+  %23: Vec(U32) = vec.withlane #6 inspect %21 inspect %22
+  %24: U32 = const 7
+  %25: Vec(U32) = vec.withlane #7 inspect %23 inspect %24
+  %26: U32 = const 8
+  %27: Vec(U32) = vec.withlane #8 inspect %25 inspect %26
+  %28: U32 = const 9
+  %29: Vec(U32) = vec.withlane #9 inspect %27 inspect %28
+  %30: U32 = const 10
+  %31: Vec(U32) = vec.withlane #10 inspect %29 inspect %30
+  %32: U32 = const 11
+  %33: Vec(U32) = vec.withlane #11 inspect %31 inspect %32
+  %34: U32 = const 12
+  %35: Vec(U32) = vec.withlane #12 inspect %33 inspect %34
+  %36: U32 = const 13
+  %37: Vec(U32) = vec.withlane #13 inspect %35 inspect %36
+  %38: U32 = const 14
+  %39: Vec(U32) = vec.withlane #14 inspect %37 inspect %38
+  %40: U32 = const 15
+  %41: Vec(U32) = vec.withlane #15 inspect %39 inspect %40
+  %42: U32 = const 2
+  %43: Vec(U32) = vec.splat inspect %42
+  %44: Vec(U32) = mul inspect %41 inspect %43
+  %45: U32 = const 1
+  %46: Vec(U32) = vec.splat inspect %45
+  %47: Vec(U32) = add inspect %44 inspect %46
   write.init borrow.unique (values) take %47
   %49: I32 = const 0
   write.init borrow.unique (wrong) take %49
@@ -536,7 +803,7 @@ bb4:
 bb5(%76: I32):
   write.init borrow.unique (live) take %76
   %80: I32 = read copy.trivial (live)
-  %81: I32 = const 2
+  %81: I32 = const 4
   %82: I32 = mul inspect %80 inspect %81
   %83: I32 = const 4096
   %84: I32 = sub inspect %83 inspect %82
@@ -551,19 +818,19 @@ bb5(%76: I32):
   %93: %U8 = read copy.trivial (page)
   %94: {} = call fillPattern borrow.shared %93
   %95: %U8 = read copy.trivial (scratch)
-  %96: %U16 = bitcast inspect %95
+  %96: %U32 = bitcast inspect %95
   %97: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %98: %U16 [owned here shape6 .*=shared slot 0] = bitcast inspect %97
+  %98: %U32 [owned here shape6 .*=shared slot 0] = bitcast inspect %97
   %99: I32 = read copy.trivial (c)
-  %100: Vec(U16) = native vloadupto inspect %98 inspect %99
-  %101: %Vec(U16) = bitcast inspect %96
+  %100: Vec(U32) = native vloadupto inspect %98 inspect %99
+  %101: %Vec(U32) = bitcast inspect %96
   write.assign borrow.unique ([%%101]) take %100
   %103: {} = const {}
   %104: I32 = read copy.trivial (wrong)
   %105: %U8 = read copy.trivial (scratch)
   %106: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
   %107: I32 = read copy.trivial (live)
-  %108: I32 = const 2
+  %108: I32 = const 4
   %109: I32 = mul inspect %107 inspect %108
   %110: I32 = read copy.trivial (total)
   %111: I32 = call differing borrow.shared %105 borrow.shared %106 borrow.shared %109 borrow.shared %110
@@ -572,14 +839,14 @@ bb5(%76: I32):
   %114: %U8 = read copy.trivial (page)
   %115: {} = call fillSentinel borrow.shared %114
   %116: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %117: %U16 [owned here shape6 .*=shared slot 0] = bitcast inspect %116
+  %117: %U32 [owned here shape6 .*=shared slot 0] = bitcast inspect %116
   %118: I32 = read copy.trivial (c)
-  %119: Vec(U16) = read copy.trivial (values)
+  %119: Vec(U32) = read copy.trivial (values)
   %120: {} = native vstoreupto inspect %117 inspect %118 inspect %119
   %121: %U8 = read copy.trivial (scratch)
-  %122: %U16 = bitcast inspect %121
-  %123: Vec(U16) = read copy.trivial (values)
-  %124: %Vec(U16) = bitcast inspect %122
+  %122: %U32 = bitcast inspect %121
+  %123: Vec(U32) = read copy.trivial (values)
+  %124: %Vec(U32) = bitcast inspect %122
   write.assign borrow.unique ([%%124]) take %123
   %126: {} = const {}
   %127: I32 = read copy.trivial (wrong)
@@ -611,11 +878,11 @@ bb9:
   jump -> bb8(take %71)
 }
 
-fn upToU32(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
+fn upToU64(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
   local lanesOf: I32
   local width: I32
   local total: I32
-  local values: Vec(U32)
+  local values: Vec(U64)
   local & wrong: I32
   local & c: I32
   local live: I32
@@ -623,38 +890,38 @@ fn upToU32(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
   local at: %U8 [owned here shape6 .*=shared slot 0]
 
 bb0:
-  %0: U32 = const 0
-  %1: Vec(U32) = vec.splat inspect %0
+  %0: U64 = const 0
+  %1: Vec(U64) = vec.splat inspect %0
   %2: I32 = const 8
   write.init borrow.unique (lanesOf) take %2
-  %4: I32 = const 4
+  %4: I32 = const 8
   write.init borrow.unique (width) take %4
   %6: I32 = const 8
-  %7: I32 = const 4
+  %7: I32 = const 8
   %8: I32 = mul inspect %6 inspect %7
   write.init borrow.unique (total) take %8
-  %10: U32 = const 0
-  %11: Vec(U32) = vec.splat inspect %10
-  %12: U32 = const 1
-  %13: Vec(U32) = vec.withlane #1 inspect %11 inspect %12
-  %14: U32 = const 2
-  %15: Vec(U32) = vec.withlane #2 inspect %13 inspect %14
-  %16: U32 = const 3
-  %17: Vec(U32) = vec.withlane #3 inspect %15 inspect %16
-  %18: U32 = const 4
-  %19: Vec(U32) = vec.withlane #4 inspect %17 inspect %18
-  %20: U32 = const 5
-  %21: Vec(U32) = vec.withlane #5 inspect %19 inspect %20
-  %22: U32 = const 6
-  %23: Vec(U32) = vec.withlane #6 inspect %21 inspect %22
-  %24: U32 = const 7
-  %25: Vec(U32) = vec.withlane #7 inspect %23 inspect %24
-  %26: U32 = const 2
-  %27: Vec(U32) = vec.splat inspect %26
-  %28: Vec(U32) = mul inspect %25 inspect %27
-  %29: U32 = const 1
-  %30: Vec(U32) = vec.splat inspect %29
-  %31: Vec(U32) = add inspect %28 inspect %30
+  %10: U64 = const 0
+  %11: Vec(U64) = vec.splat inspect %10
+  %12: U64 = const 1
+  %13: Vec(U64) = vec.withlane #1 inspect %11 inspect %12
+  %14: U64 = const 2
+  %15: Vec(U64) = vec.withlane #2 inspect %13 inspect %14
+  %16: U64 = const 3
+  %17: Vec(U64) = vec.withlane #3 inspect %15 inspect %16
+  %18: U64 = const 4
+  %19: Vec(U64) = vec.withlane #4 inspect %17 inspect %18
+  %20: U64 = const 5
+  %21: Vec(U64) = vec.withlane #5 inspect %19 inspect %20
+  %22: U64 = const 6
+  %23: Vec(U64) = vec.withlane #6 inspect %21 inspect %22
+  %24: U64 = const 7
+  %25: Vec(U64) = vec.withlane #7 inspect %23 inspect %24
+  %26: U64 = const 2
+  %27: Vec(U64) = vec.splat inspect %26
+  %28: Vec(U64) = mul inspect %25 inspect %27
+  %29: U64 = const 1
+  %30: Vec(U64) = vec.splat inspect %29
+  %31: Vec(U64) = add inspect %28 inspect %30
   write.init borrow.unique (values) take %31
   %33: I32 = const 0
   write.init borrow.unique (wrong) take %33
@@ -691,7 +958,7 @@ bb4:
 bb5(%60: I32):
   write.init borrow.unique (live) take %60
   %64: I32 = read copy.trivial (live)
-  %65: I32 = const 4
+  %65: I32 = const 8
   %66: I32 = mul inspect %64 inspect %65
   %67: I32 = const 4096
   %68: I32 = sub inspect %67 inspect %66
@@ -706,19 +973,19 @@ bb5(%60: I32):
   %77: %U8 = read copy.trivial (page)
   %78: {} = call fillPattern borrow.shared %77
   %79: %U8 = read copy.trivial (scratch)
-  %80: %U32 = bitcast inspect %79
+  %80: %U64 = bitcast inspect %79
   %81: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %82: %U32 [owned here shape6 .*=shared slot 0] = bitcast inspect %81
+  %82: %U64 [owned here shape6 .*=shared slot 0] = bitcast inspect %81
   %83: I32 = read copy.trivial (c)
-  %84: Vec(U32) = native vloadupto inspect %82 inspect %83
-  %85: %Vec(U32) = bitcast inspect %80
+  %84: Vec(U64) = native vloadupto inspect %82 inspect %83
+  %85: %Vec(U64) = bitcast inspect %80
   write.assign borrow.unique ([%%85]) take %84
   %87: {} = const {}
   %88: I32 = read copy.trivial (wrong)
   %89: %U8 = read copy.trivial (scratch)
   %90: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
   %91: I32 = read copy.trivial (live)
-  %92: I32 = const 4
+  %92: I32 = const 8
   %93: I32 = mul inspect %91 inspect %92
   %94: I32 = read copy.trivial (total)
   %95: I32 = call differing borrow.shared %89 borrow.shared %90 borrow.shared %93 borrow.shared %94
@@ -727,14 +994,14 @@ bb5(%60: I32):
   %98: %U8 = read copy.trivial (page)
   %99: {} = call fillSentinel borrow.shared %98
   %100: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %101: %U32 [owned here shape6 .*=shared slot 0] = bitcast inspect %100
+  %101: %U64 [owned here shape6 .*=shared slot 0] = bitcast inspect %100
   %102: I32 = read copy.trivial (c)
-  %103: Vec(U32) = read copy.trivial (values)
+  %103: Vec(U64) = read copy.trivial (values)
   %104: {} = native vstoreupto inspect %101 inspect %102 inspect %103
   %105: %U8 = read copy.trivial (scratch)
-  %106: %U32 = bitcast inspect %105
-  %107: Vec(U32) = read copy.trivial (values)
-  %108: %Vec(U32) = bitcast inspect %106
+  %106: %U64 = bitcast inspect %105
+  %107: Vec(U64) = read copy.trivial (values)
+  %108: %Vec(U64) = bitcast inspect %106
   write.assign borrow.unique ([%%108]) take %107
   %110: {} = const {}
   %111: I32 = read copy.trivial (wrong)
@@ -766,153 +1033,6 @@ bb9:
   jump -> bb8(take %55)
 }
 
-fn upToU64(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
-  local lanesOf: I32
-  local width: I32
-  local total: I32
-  local values: Vec(U64)
-  local & wrong: I32
-  local & c: I32
-  local live: I32
-  local start: I32
-  local at: %U8 [owned here shape6 .*=shared slot 0]
-
-bb0:
-  %0: U64 = const 0
-  %1: Vec(U64) = vec.splat inspect %0
-  %2: I32 = const 4
-  write.init borrow.unique (lanesOf) take %2
-  %4: I32 = const 8
-  write.init borrow.unique (width) take %4
-  %6: I32 = const 4
-  %7: I32 = const 8
-  %8: I32 = mul inspect %6 inspect %7
-  write.init borrow.unique (total) take %8
-  %10: U64 = const 0
-  %11: Vec(U64) = vec.splat inspect %10
-  %12: U64 = const 1
-  %13: Vec(U64) = vec.withlane #1 inspect %11 inspect %12
-  %14: U64 = const 2
-  %15: Vec(U64) = vec.withlane #2 inspect %13 inspect %14
-  %16: U64 = const 3
-  %17: Vec(U64) = vec.withlane #3 inspect %15 inspect %16
-  %18: U64 = const 2
-  %19: Vec(U64) = vec.splat inspect %18
-  %20: Vec(U64) = mul inspect %17 inspect %19
-  %21: U64 = const 1
-  %22: Vec(U64) = vec.splat inspect %21
-  %23: Vec(U64) = add inspect %20 inspect %22
-  write.init borrow.unique (values) take %23
-  %25: I32 = const 0
-  write.init borrow.unique (wrong) take %25
-  %27: I32 = const 0
-  %28: I32 = const 2
-  %29: I32 = sub inspect %27 inspect %28
-  write.init borrow.unique (c) take %29
-  jump -> bb1
-
-bb1:
-  %32: I32 = read copy.trivial (c)
-  %33: I32 = const 4
-  %34: I32 = const 2
-  %35: I32 = add inspect %33 inspect %34
-  %36: Bool = le inspect %32 inspect %35
-  branch inspect %36 -> bb3 -> bb2
-
-bb2:
-  %115: I32 = read copy.trivial (wrong)
-  return take %115
-
-bb3:
-  %38: I32 = read copy.trivial (c)
-  %39: I32 = const 0
-  %40: Bool = lt inspect %38 inspect %39
-  branch inspect %40 -> bb6 -> bb4
-
-bb4:
-  %43: I32 = read copy.trivial (c)
-  %44: I32 = const 4
-  %45: Bool = gt inspect %43 inspect %44
-  branch inspect %45 -> bb9 -> bb7
-
-bb5(%52: I32):
-  write.init borrow.unique (live) take %52
-  %56: I32 = read copy.trivial (live)
-  %57: I32 = const 8
-  %58: I32 = mul inspect %56 inspect %57
-  %59: I32 = const 4096
-  %60: I32 = sub inspect %59 inspect %58
-  write.init borrow.unique (start) take %60
-  %62: %U8 = read copy.trivial (page)
-  %63: I32 = read copy.trivial (start)
-  %64: Size = convert inspect %63
-  %65: Size = metric stride U8
-  %66: Size = mul inspect %64 inspect %65
-  %67: %U8 [owned here shape6 .*=shared slot 0] = add inspect %62 inspect %66
-  write.init borrow.unique (at) take %67
-  %69: %U8 = read copy.trivial (page)
-  %70: {} = call fillPattern borrow.shared %69
-  %71: %U8 = read copy.trivial (scratch)
-  %72: %U64 = bitcast inspect %71
-  %73: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %74: %U64 [owned here shape6 .*=shared slot 0] = bitcast inspect %73
-  %75: I32 = read copy.trivial (c)
-  %76: Vec(U64) = native vloadupto inspect %74 inspect %75
-  %77: %Vec(U64) = bitcast inspect %72
-  write.assign borrow.unique ([%%77]) take %76
-  %79: {} = const {}
-  %80: I32 = read copy.trivial (wrong)
-  %81: %U8 = read copy.trivial (scratch)
-  %82: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %83: I32 = read copy.trivial (live)
-  %84: I32 = const 8
-  %85: I32 = mul inspect %83 inspect %84
-  %86: I32 = read copy.trivial (total)
-  %87: I32 = call differing borrow.shared %81 borrow.shared %82 borrow.shared %85 borrow.shared %86
-  %88: I32 = add inspect %80 inspect %87
-  write.assign borrow.unique (wrong) take %88
-  %90: %U8 = read copy.trivial (page)
-  %91: {} = call fillSentinel borrow.shared %90
-  %92: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %93: %U64 [owned here shape6 .*=shared slot 0] = bitcast inspect %92
-  %94: I32 = read copy.trivial (c)
-  %95: Vec(U64) = read copy.trivial (values)
-  %96: {} = native vstoreupto inspect %93 inspect %94 inspect %95
-  %97: %U8 = read copy.trivial (scratch)
-  %98: %U64 = bitcast inspect %97
-  %99: Vec(U64) = read copy.trivial (values)
-  %100: %Vec(U64) = bitcast inspect %98
-  write.assign borrow.unique ([%%100]) take %99
-  %102: {} = const {}
-  %103: I32 = read copy.trivial (wrong)
-  %104: %U8 = read copy.trivial (page)
-  %105: I32 = read copy.trivial (start)
-  %106: %U8 = read copy.trivial (scratch)
-  %107: I32 = call storedWrong borrow.shared %104 borrow.shared %105 borrow.shared %106
-  %108: I32 = add inspect %103 inspect %107
-  write.assign borrow.unique (wrong) take %108
-  %110: I32 = read copy.trivial (c)
-  %111: I32 = const 1
-  %112: I32 = add inspect %110 inspect %111
-  write.assign borrow.unique (c) take %112
-  jump -> bb1
-
-bb6:
-  %42: I32 = const 0
-  jump -> bb5(take %42)
-
-bb7:
-  %48: I32 = read copy.trivial (c)
-  jump -> bb8(take %48)
-
-bb8(%49: I32):
-  jump -> bb5(take %49)
-
-bb9:
-  %47: I32 = const 4
-  jump -> bb8(take %47)
-}
-
 fn upToF32(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
   local lanesOf: I32
   local width: I32
@@ -927,11 +1047,11 @@ fn upToF32(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
 bb0:
   %0: F32 = const 0
   %1: Vec(F32) = vec.splat inspect %0
-  %2: I32 = const 8
+  %2: I32 = const 16
   write.init borrow.unique (lanesOf) take %2
   %4: I32 = const 4
   write.init borrow.unique (width) take %4
-  %6: I32 = const 8
+  %6: I32 = const 16
   %7: I32 = const 4
   %8: I32 = mul inspect %6 inspect %7
   write.init borrow.unique (total) take %8
@@ -951,13 +1071,185 @@ bb0:
   %23: Vec(U32) = vec.withlane #6 inspect %21 inspect %22
   %24: U32 = const 7
   %25: Vec(U32) = vec.withlane #7 inspect %23 inspect %24
-  %26: U32 = const 2
-  %27: Vec(U32) = vec.splat inspect %26
-  %28: Vec(U32) = mul inspect %25 inspect %27
-  %29: U32 = const 1
-  %30: Vec(U32) = vec.splat inspect %29
-  %31: Vec(U32) = add inspect %28 inspect %30
-  %32: Vec(F32) = bitcast inspect %31
+  %26: U32 = const 8
+  %27: Vec(U32) = vec.withlane #8 inspect %25 inspect %26
+  %28: U32 = const 9
+  %29: Vec(U32) = vec.withlane #9 inspect %27 inspect %28
+  %30: U32 = const 10
+  %31: Vec(U32) = vec.withlane #10 inspect %29 inspect %30
+  %32: U32 = const 11
+  %33: Vec(U32) = vec.withlane #11 inspect %31 inspect %32
+  %34: U32 = const 12
+  %35: Vec(U32) = vec.withlane #12 inspect %33 inspect %34
+  %36: U32 = const 13
+  %37: Vec(U32) = vec.withlane #13 inspect %35 inspect %36
+  %38: U32 = const 14
+  %39: Vec(U32) = vec.withlane #14 inspect %37 inspect %38
+  %40: U32 = const 15
+  %41: Vec(U32) = vec.withlane #15 inspect %39 inspect %40
+  %42: U32 = const 2
+  %43: Vec(U32) = vec.splat inspect %42
+  %44: Vec(U32) = mul inspect %41 inspect %43
+  %45: U32 = const 1
+  %46: Vec(U32) = vec.splat inspect %45
+  %47: Vec(U32) = add inspect %44 inspect %46
+  %48: Vec(F32) = bitcast inspect %47
+  write.init borrow.unique (values) take %48
+  %50: I32 = const 0
+  write.init borrow.unique (wrong) take %50
+  %52: I32 = const 0
+  %53: I32 = const 2
+  %54: I32 = sub inspect %52 inspect %53
+  write.init borrow.unique (c) take %54
+  jump -> bb1
+
+bb1:
+  %57: I32 = read copy.trivial (c)
+  %58: I32 = const 16
+  %59: I32 = const 2
+  %60: I32 = add inspect %58 inspect %59
+  %61: Bool = le inspect %57 inspect %60
+  branch inspect %61 -> bb3 -> bb2
+
+bb2:
+  %140: I32 = read copy.trivial (wrong)
+  return take %140
+
+bb3:
+  %63: I32 = read copy.trivial (c)
+  %64: I32 = const 0
+  %65: Bool = lt inspect %63 inspect %64
+  branch inspect %65 -> bb6 -> bb4
+
+bb4:
+  %68: I32 = read copy.trivial (c)
+  %69: I32 = const 16
+  %70: Bool = gt inspect %68 inspect %69
+  branch inspect %70 -> bb9 -> bb7
+
+bb5(%77: I32):
+  write.init borrow.unique (live) take %77
+  %81: I32 = read copy.trivial (live)
+  %82: I32 = const 4
+  %83: I32 = mul inspect %81 inspect %82
+  %84: I32 = const 4096
+  %85: I32 = sub inspect %84 inspect %83
+  write.init borrow.unique (start) take %85
+  %87: %U8 = read copy.trivial (page)
+  %88: I32 = read copy.trivial (start)
+  %89: Size = convert inspect %88
+  %90: Size = metric stride U8
+  %91: Size = mul inspect %89 inspect %90
+  %92: %U8 [owned here shape6 .*=shared slot 0] = add inspect %87 inspect %91
+  write.init borrow.unique (at) take %92
+  %94: %U8 = read copy.trivial (page)
+  %95: {} = call fillPattern borrow.shared %94
+  %96: %U8 = read copy.trivial (scratch)
+  %97: %F32 = bitcast inspect %96
+  %98: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
+  %99: %F32 [owned here shape6 .*=shared slot 0] = bitcast inspect %98
+  %100: I32 = read copy.trivial (c)
+  %101: Vec(F32) = native vloadupto inspect %99 inspect %100
+  %102: %Vec(F32) = bitcast inspect %97
+  write.assign borrow.unique ([%%102]) take %101
+  %104: {} = const {}
+  %105: I32 = read copy.trivial (wrong)
+  %106: %U8 = read copy.trivial (scratch)
+  %107: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
+  %108: I32 = read copy.trivial (live)
+  %109: I32 = const 4
+  %110: I32 = mul inspect %108 inspect %109
+  %111: I32 = read copy.trivial (total)
+  %112: I32 = call differing borrow.shared %106 borrow.shared %107 borrow.shared %110 borrow.shared %111
+  %113: I32 = add inspect %105 inspect %112
+  write.assign borrow.unique (wrong) take %113
+  %115: %U8 = read copy.trivial (page)
+  %116: {} = call fillSentinel borrow.shared %115
+  %117: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
+  %118: %F32 [owned here shape6 .*=shared slot 0] = bitcast inspect %117
+  %119: I32 = read copy.trivial (c)
+  %120: Vec(F32) = read copy.trivial (values)
+  %121: {} = native vstoreupto inspect %118 inspect %119 inspect %120
+  %122: %U8 = read copy.trivial (scratch)
+  %123: %F32 = bitcast inspect %122
+  %124: Vec(F32) = read copy.trivial (values)
+  %125: %Vec(F32) = bitcast inspect %123
+  write.assign borrow.unique ([%%125]) take %124
+  %127: {} = const {}
+  %128: I32 = read copy.trivial (wrong)
+  %129: %U8 = read copy.trivial (page)
+  %130: I32 = read copy.trivial (start)
+  %131: %U8 = read copy.trivial (scratch)
+  %132: I32 = call storedWrong borrow.shared %129 borrow.shared %130 borrow.shared %131
+  %133: I32 = add inspect %128 inspect %132
+  write.assign borrow.unique (wrong) take %133
+  %135: I32 = read copy.trivial (c)
+  %136: I32 = const 1
+  %137: I32 = add inspect %135 inspect %136
+  write.assign borrow.unique (c) take %137
+  jump -> bb1
+
+bb6:
+  %67: I32 = const 0
+  jump -> bb5(take %67)
+
+bb7:
+  %73: I32 = read copy.trivial (c)
+  jump -> bb8(take %73)
+
+bb8(%74: I32):
+  jump -> bb5(take %74)
+
+bb9:
+  %72: I32 = const 16
+  jump -> bb8(take %72)
+}
+
+fn upToF64(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
+  local lanesOf: I32
+  local width: I32
+  local total: I32
+  local values: Vec(F64)
+  local & wrong: I32
+  local & c: I32
+  local live: I32
+  local start: I32
+  local at: %U8 [owned here shape6 .*=shared slot 0]
+
+bb0:
+  %0: F64 = const 0
+  %1: Vec(F64) = vec.splat inspect %0
+  %2: I32 = const 8
+  write.init borrow.unique (lanesOf) take %2
+  %4: I32 = const 8
+  write.init borrow.unique (width) take %4
+  %6: I32 = const 8
+  %7: I32 = const 8
+  %8: I32 = mul inspect %6 inspect %7
+  write.init borrow.unique (total) take %8
+  %10: U64 = const 0
+  %11: Vec(U64) = vec.splat inspect %10
+  %12: U64 = const 1
+  %13: Vec(U64) = vec.withlane #1 inspect %11 inspect %12
+  %14: U64 = const 2
+  %15: Vec(U64) = vec.withlane #2 inspect %13 inspect %14
+  %16: U64 = const 3
+  %17: Vec(U64) = vec.withlane #3 inspect %15 inspect %16
+  %18: U64 = const 4
+  %19: Vec(U64) = vec.withlane #4 inspect %17 inspect %18
+  %20: U64 = const 5
+  %21: Vec(U64) = vec.withlane #5 inspect %19 inspect %20
+  %22: U64 = const 6
+  %23: Vec(U64) = vec.withlane #6 inspect %21 inspect %22
+  %24: U64 = const 7
+  %25: Vec(U64) = vec.withlane #7 inspect %23 inspect %24
+  %26: U64 = const 2
+  %27: Vec(U64) = vec.splat inspect %26
+  %28: Vec(U64) = mul inspect %25 inspect %27
+  %29: U64 = const 1
+  %30: Vec(U64) = vec.splat inspect %29
+  %31: Vec(U64) = add inspect %28 inspect %30
+  %32: Vec(F64) = bitcast inspect %31
   write.init borrow.unique (values) take %32
   %34: I32 = const 0
   write.init borrow.unique (wrong) take %34
@@ -994,7 +1286,7 @@ bb4:
 bb5(%61: I32):
   write.init borrow.unique (live) take %61
   %65: I32 = read copy.trivial (live)
-  %66: I32 = const 4
+  %66: I32 = const 8
   %67: I32 = mul inspect %65 inspect %66
   %68: I32 = const 4096
   %69: I32 = sub inspect %68 inspect %67
@@ -1009,19 +1301,19 @@ bb5(%61: I32):
   %78: %U8 = read copy.trivial (page)
   %79: {} = call fillPattern borrow.shared %78
   %80: %U8 = read copy.trivial (scratch)
-  %81: %F32 = bitcast inspect %80
+  %81: %F64 = bitcast inspect %80
   %82: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %83: %F32 [owned here shape6 .*=shared slot 0] = bitcast inspect %82
+  %83: %F64 [owned here shape6 .*=shared slot 0] = bitcast inspect %82
   %84: I32 = read copy.trivial (c)
-  %85: Vec(F32) = native vloadupto inspect %83 inspect %84
-  %86: %Vec(F32) = bitcast inspect %81
+  %85: Vec(F64) = native vloadupto inspect %83 inspect %84
+  %86: %Vec(F64) = bitcast inspect %81
   write.assign borrow.unique ([%%86]) take %85
   %88: {} = const {}
   %89: I32 = read copy.trivial (wrong)
   %90: %U8 = read copy.trivial (scratch)
   %91: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
   %92: I32 = read copy.trivial (live)
-  %93: I32 = const 4
+  %93: I32 = const 8
   %94: I32 = mul inspect %92 inspect %93
   %95: I32 = read copy.trivial (total)
   %96: I32 = call differing borrow.shared %90 borrow.shared %91 borrow.shared %94 borrow.shared %95
@@ -1030,14 +1322,14 @@ bb5(%61: I32):
   %99: %U8 = read copy.trivial (page)
   %100: {} = call fillSentinel borrow.shared %99
   %101: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %102: %F32 [owned here shape6 .*=shared slot 0] = bitcast inspect %101
+  %102: %F64 [owned here shape6 .*=shared slot 0] = bitcast inspect %101
   %103: I32 = read copy.trivial (c)
-  %104: Vec(F32) = read copy.trivial (values)
+  %104: Vec(F64) = read copy.trivial (values)
   %105: {} = native vstoreupto inspect %102 inspect %103 inspect %104
   %106: %U8 = read copy.trivial (scratch)
-  %107: %F32 = bitcast inspect %106
-  %108: Vec(F32) = read copy.trivial (values)
-  %109: %Vec(F32) = bitcast inspect %107
+  %107: %F64 = bitcast inspect %106
+  %108: Vec(F64) = read copy.trivial (values)
+  %109: %Vec(F64) = bitcast inspect %107
   write.assign borrow.unique ([%%109]) take %108
   %111: {} = const {}
   %112: I32 = read copy.trivial (wrong)
@@ -1069,154 +1361,6 @@ bb9:
   jump -> bb8(take %56)
 }
 
-fn upToF64(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
-  local lanesOf: I32
-  local width: I32
-  local total: I32
-  local values: Vec(F64)
-  local & wrong: I32
-  local & c: I32
-  local live: I32
-  local start: I32
-  local at: %U8 [owned here shape6 .*=shared slot 0]
-
-bb0:
-  %0: F64 = const 0
-  %1: Vec(F64) = vec.splat inspect %0
-  %2: I32 = const 4
-  write.init borrow.unique (lanesOf) take %2
-  %4: I32 = const 8
-  write.init borrow.unique (width) take %4
-  %6: I32 = const 4
-  %7: I32 = const 8
-  %8: I32 = mul inspect %6 inspect %7
-  write.init borrow.unique (total) take %8
-  %10: U64 = const 0
-  %11: Vec(U64) = vec.splat inspect %10
-  %12: U64 = const 1
-  %13: Vec(U64) = vec.withlane #1 inspect %11 inspect %12
-  %14: U64 = const 2
-  %15: Vec(U64) = vec.withlane #2 inspect %13 inspect %14
-  %16: U64 = const 3
-  %17: Vec(U64) = vec.withlane #3 inspect %15 inspect %16
-  %18: U64 = const 2
-  %19: Vec(U64) = vec.splat inspect %18
-  %20: Vec(U64) = mul inspect %17 inspect %19
-  %21: U64 = const 1
-  %22: Vec(U64) = vec.splat inspect %21
-  %23: Vec(U64) = add inspect %20 inspect %22
-  %24: Vec(F64) = bitcast inspect %23
-  write.init borrow.unique (values) take %24
-  %26: I32 = const 0
-  write.init borrow.unique (wrong) take %26
-  %28: I32 = const 0
-  %29: I32 = const 2
-  %30: I32 = sub inspect %28 inspect %29
-  write.init borrow.unique (c) take %30
-  jump -> bb1
-
-bb1:
-  %33: I32 = read copy.trivial (c)
-  %34: I32 = const 4
-  %35: I32 = const 2
-  %36: I32 = add inspect %34 inspect %35
-  %37: Bool = le inspect %33 inspect %36
-  branch inspect %37 -> bb3 -> bb2
-
-bb2:
-  %116: I32 = read copy.trivial (wrong)
-  return take %116
-
-bb3:
-  %39: I32 = read copy.trivial (c)
-  %40: I32 = const 0
-  %41: Bool = lt inspect %39 inspect %40
-  branch inspect %41 -> bb6 -> bb4
-
-bb4:
-  %44: I32 = read copy.trivial (c)
-  %45: I32 = const 4
-  %46: Bool = gt inspect %44 inspect %45
-  branch inspect %46 -> bb9 -> bb7
-
-bb5(%53: I32):
-  write.init borrow.unique (live) take %53
-  %57: I32 = read copy.trivial (live)
-  %58: I32 = const 8
-  %59: I32 = mul inspect %57 inspect %58
-  %60: I32 = const 4096
-  %61: I32 = sub inspect %60 inspect %59
-  write.init borrow.unique (start) take %61
-  %63: %U8 = read copy.trivial (page)
-  %64: I32 = read copy.trivial (start)
-  %65: Size = convert inspect %64
-  %66: Size = metric stride U8
-  %67: Size = mul inspect %65 inspect %66
-  %68: %U8 [owned here shape6 .*=shared slot 0] = add inspect %63 inspect %67
-  write.init borrow.unique (at) take %68
-  %70: %U8 = read copy.trivial (page)
-  %71: {} = call fillPattern borrow.shared %70
-  %72: %U8 = read copy.trivial (scratch)
-  %73: %F64 = bitcast inspect %72
-  %74: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %75: %F64 [owned here shape6 .*=shared slot 0] = bitcast inspect %74
-  %76: I32 = read copy.trivial (c)
-  %77: Vec(F64) = native vloadupto inspect %75 inspect %76
-  %78: %Vec(F64) = bitcast inspect %73
-  write.assign borrow.unique ([%%78]) take %77
-  %80: {} = const {}
-  %81: I32 = read copy.trivial (wrong)
-  %82: %U8 = read copy.trivial (scratch)
-  %83: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %84: I32 = read copy.trivial (live)
-  %85: I32 = const 8
-  %86: I32 = mul inspect %84 inspect %85
-  %87: I32 = read copy.trivial (total)
-  %88: I32 = call differing borrow.shared %82 borrow.shared %83 borrow.shared %86 borrow.shared %87
-  %89: I32 = add inspect %81 inspect %88
-  write.assign borrow.unique (wrong) take %89
-  %91: %U8 = read copy.trivial (page)
-  %92: {} = call fillSentinel borrow.shared %91
-  %93: %U8 [owned here shape6 .*=shared slot 0] = read copy.trivial (at)
-  %94: %F64 [owned here shape6 .*=shared slot 0] = bitcast inspect %93
-  %95: I32 = read copy.trivial (c)
-  %96: Vec(F64) = read copy.trivial (values)
-  %97: {} = native vstoreupto inspect %94 inspect %95 inspect %96
-  %98: %U8 = read copy.trivial (scratch)
-  %99: %F64 = bitcast inspect %98
-  %100: Vec(F64) = read copy.trivial (values)
-  %101: %Vec(F64) = bitcast inspect %99
-  write.assign borrow.unique ([%%101]) take %100
-  %103: {} = const {}
-  %104: I32 = read copy.trivial (wrong)
-  %105: %U8 = read copy.trivial (page)
-  %106: I32 = read copy.trivial (start)
-  %107: %U8 = read copy.trivial (scratch)
-  %108: I32 = call storedWrong borrow.shared %105 borrow.shared %106 borrow.shared %107
-  %109: I32 = add inspect %104 inspect %108
-  write.assign borrow.unique (wrong) take %109
-  %111: I32 = read copy.trivial (c)
-  %112: I32 = const 1
-  %113: I32 = add inspect %111 inspect %112
-  write.assign borrow.unique (c) take %113
-  jump -> bb1
-
-bb6:
-  %43: I32 = const 0
-  jump -> bb5(take %43)
-
-bb7:
-  %49: I32 = read copy.trivial (c)
-  jump -> bb8(take %49)
-
-bb8(%50: I32):
-  jump -> bb5(take %50)
-
-bb9:
-  %48: I32 = const 4
-  jump -> bb8(take %48)
-}
-
 fn constants(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
   local lanesOf: I32
   local whole: I32
@@ -1225,9 +1369,9 @@ fn constants(page: %U8 [shared call], scratch: %U8 [shared call]) -> I32 {
 bb0:
   %0: U8 = const 0
   %1: Vec(U8) = vec.splat inspect %0
-  %2: I32 = const 32
+  %2: I32 = const 64
   write.init borrow.unique (lanesOf) take %2
-  %4: I32 = const 32
+  %4: I32 = const 64
   %5: I32 = const 4096
   %6: I32 = sub inspect %5 inspect %4
   write.init borrow.unique (whole) take %6
@@ -1251,7 +1395,7 @@ bb0:
   %25: %U8 = read copy.trivial (scratch)
   %26: %U8 = read copy.trivial (page)
   %27: I32 = const 0
-  %28: I32 = const 32
+  %28: I32 = const 64
   %29: I32 = call differing borrow.shared %25 borrow.shared %26 borrow.shared %27 borrow.shared %28
   %30: I32 = add inspect %24 inspect %29
   write.assign borrow.unique (wrong) take %30
@@ -1262,7 +1406,7 @@ bb0:
   %36: Size = metric stride U8
   %37: Size = mul inspect %35 inspect %36
   %38: %U8 [owned here shape6 .*=shared slot 0] = add inspect %33 inspect %37
-  %39: I32 = const 32
+  %39: I32 = const 64
   %40: Vec(U8) = native vloadupto inspect %38 inspect %39
   %41: %Vec(U8) = bitcast inspect %32
   write.assign borrow.unique ([%%41]) take %40
@@ -1275,8 +1419,8 @@ bb0:
   %49: Size = metric stride U8
   %50: Size = mul inspect %48 inspect %49
   %51: %U8 [owned here shape6 .*=shared slot 0] = add inspect %46 inspect %50
-  %52: I32 = const 32
-  %53: I32 = const 32
+  %52: I32 = const 64
+  %53: I32 = const 64
   %54: I32 = call differing borrow.shared %45 borrow.shared %51 borrow.shared %52 borrow.shared %53
   %55: I32 = add inspect %44 inspect %54
   write.assign borrow.unique (wrong) take %55
@@ -1299,7 +1443,7 @@ bb0:
   %73: Size = mul inspect %71 inspect %72
   %74: %U8 [owned here shape6 .*=shared slot 0] = add inspect %70 inspect %73
   %75: I32 = const 3
-  %76: I32 = const 32
+  %76: I32 = const 64
   %77: I32 = call differing borrow.shared %69 borrow.shared %74 borrow.shared %75 borrow.shared %76
   %78: I32 = add inspect %68 inspect %77
   write.assign borrow.unique (wrong) take %78

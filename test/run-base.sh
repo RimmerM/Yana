@@ -157,14 +157,15 @@ start_row no-replacements -mode exe -backend local -no-replacements
 # portable rounds. Nothing else in `Digest` changes, and all of it is asserted in both rows because
 # the two bodies have to agree about all of it.
 #
-# `avx512` is the third level, and a row of its own for a different reason than the widths: at 32
-# bytes a vector is what it is at `avx2`, but every instruction under it may be EVEX-encoded, name one
-# of the upper sixteen vector registers, or be a mask register - Analysis-Avx512.md §1.2's stage 1 -
-# so every case is an assertion that the second set of expansions agrees with the first. The level is
-# the Ice Lake and Zen 4 intersection, so the host has to have every extension of it and every flag
-# it implies; `/proc/cpuinfo` spells two of them with underscores.
-#
-# `[32, 64)` wants a row of its own again once the width is 64, and the rung is written.
+# `avx512` is the third level, and two rows. At its own natural width a vector is 64 bytes -
+# Analysis-Avx512.md §1.2's stage 2 - which is the third set of widths for the ladder above and the
+# first build in which `splitFullVectors` runs anything as two halves, and where the rungs in
+# `[32, 64)` are reached. Held at 256 bits by `-vector-width` it is stage 1 again: a vector is what it
+# is at `avx2`, but every instruction under it may be EVEX-encoded, name one of the upper sixteen
+# vector registers, or be a mask register, so every case there asserts that the second set of
+# expansions agrees with the first. The level is the Ice Lake and Zen 4 intersection, so the host has
+# to have every extension of it and every flag it implies; `/proc/cpuinfo` spells two of them with
+# underscores.
 avx512Flags="avx512f avx512cd avx512bw avx512dq avx512vl avx512ifma avx512vbmi avx512_vbmi2 avx512_bitalg
              avx512_vpopcntdq avx512_vnni vaes vpclmulqdq gfni sha_ni"
 
@@ -184,8 +185,9 @@ if hostHasAll avx2 aes pclmulqdq; then
     # shellcheck disable=SC2086 # the list is words on purpose
     if hostHasAll $avx512Flags; then
         start_row avx512 -mode exe -backend local -enable-inst avx512
+        start_row avx512-256 -mode exe -backend local -enable-inst avx512 -vector-width 256
     else
-        note avx512 "== avx512: this machine is not an Ice Lake or Zen 4 or later, so that row is not being run."
+        note avx512 "== avx512, avx512-256: this machine is not an Ice Lake or Zen 4 or later, so neither row is being run."
     fi
 else
     note avx2 "== avx2, sha, avx512: this machine has no AVX2 with AES-NI, so none of those rows is being run."

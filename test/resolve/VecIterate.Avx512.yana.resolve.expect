@@ -66,7 +66,7 @@ fn teardown$none(%value: %()) -> () {
 fn vectors(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: Vec(I32)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %empty = vsplat 0 : Vec(I32)
-    %width = cast 8 : Size
+    %width = cast 16 : Size
     %v6 = alloc : {width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}
     init %local2.width, %width
     %v8 = borrow %body : '(value$: Vec(I32)) -> Outcome((), ())
@@ -145,35 +145,43 @@ fn Core.continuation$6(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(val
     %v47 = vwithlane %v45, 5, 5 : Vec(I32)
     %v49 = vwithlane %v47, 6, 6 : Vec(I32)
     %v51 = vwithlane %v49, 7, 7 : Vec(I32)
-    %v52 = cast %v35 : I32
-    %v53 = vsplat %v52 : Vec(I32)
-    %live = cmp_lt %v51, %v53 : Mask(I32)
-    %v55 = load [%env].body : '(value$: Vec(I32)) -> Outcome((), ())
-    %v56 = load [%v55] : (value$: Vec(I32)) -> Outcome((), ())
-    %v57 = load %i : Size
-    %v58 = call loadVectorTail(I32), %value$, %v57 : Vec(I32)
-    %v59 = load [%env].empty : Vec(I32)
-    %v60 = select %live ? %v58 : %v59 : Vec(I32)
-    %v61 = calldyn %v56, %v60 : Outcome((), ())
-    %v62 = load %local3.discriminant : I32
-    %v64 = cmp_eq %v62, 1 : Bool
-    je %v64, b8, b9
+    %v53 = vwithlane %v51, 8, 8 : Vec(I32)
+    %v55 = vwithlane %v53, 9, 9 : Vec(I32)
+    %v57 = vwithlane %v55, 10, 10 : Vec(I32)
+    %v59 = vwithlane %v57, 11, 11 : Vec(I32)
+    %v61 = vwithlane %v59, 12, 12 : Vec(I32)
+    %v63 = vwithlane %v61, 13, 13 : Vec(I32)
+    %v65 = vwithlane %v63, 14, 14 : Vec(I32)
+    %v67 = vwithlane %v65, 15, 15 : Vec(I32)
+    %v68 = cast %v35 : I32
+    %v69 = vsplat %v68 : Vec(I32)
+    %live = cmp_lt %v67, %v69 : Mask(I32)
+    %v71 = load [%env].body : '(value$: Vec(I32)) -> Outcome((), ())
+    %v72 = load [%v71] : (value$: Vec(I32)) -> Outcome((), ())
+    %v73 = load %i : Size
+    %v74 = call loadVectorTail(I32), %value$, %v73 : Vec(I32)
+    %v75 = load [%env].empty : Vec(I32)
+    %v76 = select %live ? %v74 : %v75 : Vec(I32)
+    %v77 = calldyn %v72, %v76 : Outcome((), ())
+    %v78 = load %local3.discriminant : I32
+    %v80 = cmp_eq %v78, 1 : Bool
+    je %v80, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v67 = alloc : Outcome((), Outcome((), ()))
-    aggregate %local6.discriminant = 1, %local6@Exit = %v61
-    ret %v67
+    %v83 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local6.discriminant = 1, %local6@Exit = %v77
+    ret %v83
 
   b9:
     jmp b10
 
   b10:
-    %v72 = alloc : Outcome((), Outcome((), ()))
+    %v88 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v72
+    ret %v88
 }
 
 fn loadVector(I32)(%from: ArrayView(I32), %at: Size) -> Vec(I32) {
@@ -217,7 +225,7 @@ fn Chunked(Array(a), a).chunks(I32, Outcome((), ()))(%self: ArrayView(I32), %bod
 fn vectorsMasked(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: {Vec(I32), I32}) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v3 = vsplat 0 : Vec(I32)
-    %width = cast 8 : Size
+    %width = cast 16 : Size
     %v6 = alloc : {width: Size, body: '(value$: {Vec(I32), I32}) -> Outcome((), ())}
     init %local2.width, %width
     %v8 = borrow %body : '(value$: {Vec(I32), I32}) -> Outcome((), ())
@@ -322,7 +330,7 @@ fn Core.continuation$9(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(val
 fn vectors(Array(I32), I32, ())(%self: Array(I32), %body: (value$: Vec(I32)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %empty = vsplat 0 : Vec(I32)
-    %width = cast 8 : Size
+    %width = cast 16 : Size
     %v6 = alloc : {width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}
     init %local2.width, %width
     %v8 = borrow %body : '(value$: Vec(I32)) -> Outcome((), ())
@@ -408,41 +416,49 @@ fn Core.continuation$6(Array(I32), I32, ())(%env: %{width: Size, body: '(value$:
     %v47 = vwithlane %v45, 5, 5 : Vec(I32)
     %v49 = vwithlane %v47, 6, 6 : Vec(I32)
     %v51 = vwithlane %v49, 7, 7 : Vec(I32)
-    %v52 = cast %v35 : I32
-    %v53 = vsplat %v52 : Vec(I32)
-    %live = cmp_lt %v51, %v53 : Mask(I32)
-    %v55 = load [%env].body : '(value$: Vec(I32)) -> Outcome((), ())
-    %v56 = load [%v55] : (value$: Vec(I32)) -> Outcome((), ())
-    %v57 = load %i : Size
-    %v58 = call loadVectorTail(I32), %value$, %v57 : Vec(I32)
-    %v59 = load [%env].empty : Vec(I32)
-    %v60 = select %live ? %v58 : %v59 : Vec(I32)
-    %v61 = calldyn %v56, %v60 : Outcome((), ())
-    %v62 = load %local3.discriminant : I32
-    %v64 = cmp_eq %v62, 1 : Bool
-    je %v64, b8, b9
+    %v53 = vwithlane %v51, 8, 8 : Vec(I32)
+    %v55 = vwithlane %v53, 9, 9 : Vec(I32)
+    %v57 = vwithlane %v55, 10, 10 : Vec(I32)
+    %v59 = vwithlane %v57, 11, 11 : Vec(I32)
+    %v61 = vwithlane %v59, 12, 12 : Vec(I32)
+    %v63 = vwithlane %v61, 13, 13 : Vec(I32)
+    %v65 = vwithlane %v63, 14, 14 : Vec(I32)
+    %v67 = vwithlane %v65, 15, 15 : Vec(I32)
+    %v68 = cast %v35 : I32
+    %v69 = vsplat %v68 : Vec(I32)
+    %live = cmp_lt %v67, %v69 : Mask(I32)
+    %v71 = load [%env].body : '(value$: Vec(I32)) -> Outcome((), ())
+    %v72 = load [%v71] : (value$: Vec(I32)) -> Outcome((), ())
+    %v73 = load %i : Size
+    %v74 = call loadVectorTail(I32), %value$, %v73 : Vec(I32)
+    %v75 = load [%env].empty : Vec(I32)
+    %v76 = select %live ? %v74 : %v75 : Vec(I32)
+    %v77 = calldyn %v72, %v76 : Outcome((), ())
+    %v78 = load %local3.discriminant : I32
+    %v80 = cmp_eq %v78, 1 : Bool
+    je %v80, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v67 = alloc : Outcome((), Outcome((), ()))
-    aggregate %local6.discriminant = 1, %local6@Exit = %v61
-    ret %v67
+    %v83 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local6.discriminant = 1, %local6@Exit = %v77
+    ret %v83
 
   b9:
     jmp b10
 
   b10:
-    %v72 = alloc : Outcome((), Outcome((), ()))
+    %v88 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v72
+    ret %v88
 }
 
 fn vectorsMasked(Array(I32), I32, ())(%self: Array(I32), %body: (value$: {Vec(I32), I32}) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v3 = vsplat 0 : Vec(I32)
-    %width = cast 8 : Size
+    %width = cast 16 : Size
     %v6 = alloc : {width: Size, body: '(value$: {Vec(I32), I32}) -> Outcome((), ())}
     init %local2.width, %width
     %v8 = borrow %body : '(value$: {Vec(I32), I32}) -> Outcome((), ())
@@ -554,7 +570,7 @@ fn Core.continuation$9(Array(I32), I32, ())(%env: %{width: Size, body: '(value$:
 fn vectors(Array(F32), F32, ())(%self: Array(F32), %body: (value$: Vec(F32)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %empty = vsplat 0 : Vec(F32)
-    %width = cast 8 : Size
+    %width = cast 16 : Size
     %v6 = alloc : {width: Size, body: '(value$: Vec(F32)) -> Outcome((), ()), empty: Vec(F32)}
     init %local2.width, %width
     %v8 = borrow %body : '(value$: Vec(F32)) -> Outcome((), ())
@@ -640,36 +656,44 @@ fn Core.continuation$6(Array(F32), F32, ())(%env: %{width: Size, body: '(value$:
     %v47 = vwithlane %v45, 5, 5 : Vec(I32)
     %v49 = vwithlane %v47, 6, 6 : Vec(I32)
     %v51 = vwithlane %v49, 7, 7 : Vec(I32)
-    %v52 = cast %v35 : I32
-    %v53 = vsplat %v52 : Vec(I32)
-    %v54 = cmp_lt %v51, %v53 : Mask(I32)
-    %live = bitcast %v54 : Mask(F32)
-    %v56 = load [%env].body : '(value$: Vec(F32)) -> Outcome((), ())
-    %v57 = load [%v56] : (value$: Vec(F32)) -> Outcome((), ())
-    %v58 = load %i : Size
-    %v59 = call loadVectorTail(F32), %value$, %v58 : Vec(F32)
-    %v60 = load [%env].empty : Vec(F32)
-    %v61 = select %live ? %v59 : %v60 : Vec(F32)
-    %v62 = calldyn %v57, %v61 : Outcome((), ())
-    %v63 = load %local3.discriminant : I32
-    %v65 = cmp_eq %v63, 1 : Bool
-    je %v65, b8, b9
+    %v53 = vwithlane %v51, 8, 8 : Vec(I32)
+    %v55 = vwithlane %v53, 9, 9 : Vec(I32)
+    %v57 = vwithlane %v55, 10, 10 : Vec(I32)
+    %v59 = vwithlane %v57, 11, 11 : Vec(I32)
+    %v61 = vwithlane %v59, 12, 12 : Vec(I32)
+    %v63 = vwithlane %v61, 13, 13 : Vec(I32)
+    %v65 = vwithlane %v63, 14, 14 : Vec(I32)
+    %v67 = vwithlane %v65, 15, 15 : Vec(I32)
+    %v68 = cast %v35 : I32
+    %v69 = vsplat %v68 : Vec(I32)
+    %v70 = cmp_lt %v67, %v69 : Mask(I32)
+    %live = bitcast %v70 : Mask(F32)
+    %v72 = load [%env].body : '(value$: Vec(F32)) -> Outcome((), ())
+    %v73 = load [%v72] : (value$: Vec(F32)) -> Outcome((), ())
+    %v74 = load %i : Size
+    %v75 = call loadVectorTail(F32), %value$, %v74 : Vec(F32)
+    %v76 = load [%env].empty : Vec(F32)
+    %v77 = select %live ? %v75 : %v76 : Vec(F32)
+    %v78 = calldyn %v73, %v77 : Outcome((), ())
+    %v79 = load %local3.discriminant : I32
+    %v81 = cmp_eq %v79, 1 : Bool
+    je %v81, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v68 = alloc : Outcome((), Outcome((), ()))
-    aggregate %local6.discriminant = 1, %local6@Exit = %v62
-    ret %v68
+    %v84 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local6.discriminant = 1, %local6@Exit = %v78
+    ret %v84
 
   b9:
     jmp b10
 
   b10:
-    %v73 = alloc : Outcome((), Outcome((), ()))
+    %v89 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v73
+    ret %v89
 }
 
 fn loadVector(F32)(%from: ArrayView(F32), %at: Size) -> Vec(F32) {
@@ -713,7 +737,7 @@ fn Chunked(Array(a), a).chunks(F32, Outcome((), ()))(%self: ArrayView(F32), %bod
 fn vectorsMasked(Array(F32), F32, ())(%self: Array(F32), %body: (value$: {Vec(F32), I32}) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v3 = vsplat 0 : Vec(F32)
-    %width = cast 8 : Size
+    %width = cast 16 : Size
     %v6 = alloc : {width: Size, body: '(value$: {Vec(F32), I32}) -> Outcome((), ())}
     init %local2.width, %width
     %v8 = borrow %body : '(value$: {Vec(F32), I32}) -> Outcome((), ())
@@ -1240,18 +1264,26 @@ fn ResolveTest.continuation$22(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}
     %v18 = vwithlane %v16, 5, 5 : Vec(I32)
     %v20 = vwithlane %v18, 6, 6 : Vec(I32)
     %v22 = vwithlane %v20, 7, 7 : Vec(I32)
-    %v23 = cast %live : I32
-    %v24 = vsplat %v23 : Vec(I32)
-    %v25 = cmp_lt %v22, %v24 : Mask(I32)
-    %v26 = load [%env].acc : &Vec(I32)
-    %v27 = load [%v26] : Vec(I32)
-    %v28 = select %v25 ? %v : %v27 : Vec(I32)
-    %v29 = cmp_gt %v6, %v28 : Mask(I32)
-    %v30 = select %v29 ? %v6 : %v28 : Vec(I32)
-    assign [%v4], %v30
-    %v32 = alloc : Outcome((), ())
+    %v24 = vwithlane %v22, 8, 8 : Vec(I32)
+    %v26 = vwithlane %v24, 9, 9 : Vec(I32)
+    %v28 = vwithlane %v26, 10, 10 : Vec(I32)
+    %v30 = vwithlane %v28, 11, 11 : Vec(I32)
+    %v32 = vwithlane %v30, 12, 12 : Vec(I32)
+    %v34 = vwithlane %v32, 13, 13 : Vec(I32)
+    %v36 = vwithlane %v34, 14, 14 : Vec(I32)
+    %v38 = vwithlane %v36, 15, 15 : Vec(I32)
+    %v39 = cast %live : I32
+    %v40 = vsplat %v39 : Vec(I32)
+    %v41 = cmp_lt %v38, %v40 : Mask(I32)
+    %v42 = load [%env].acc : &Vec(I32)
+    %v43 = load [%v42] : Vec(I32)
+    %v44 = select %v41 ? %v : %v43 : Vec(I32)
+    %v45 = cmp_gt %v6, %v44 : Mask(I32)
+    %v46 = select %v45 ? %v6 : %v44 : Vec(I32)
+    assign [%v4], %v46
+    %v48 = alloc : Outcome((), ())
     init %local1.discriminant, 0
-    ret %v32
+    ret %v48
 }
 
 (Chunked(c, a), Num(Vec(a)), Length(ArrayView(a)), Lanewise(Vec(a), Mask(a))) fn ResolveTest.continuation$23(%env: %{acc: &Vec(a)}, %value$: Vec(a)) -> Outcome((), ()) {
@@ -1373,18 +1405,26 @@ fn ResolveTest.continuation$24(Array(I32), I32)(%env: %{acc: &Vec(I32)}, %value$
     %v18 = vwithlane %v16, 5, 5 : Vec(I32)
     %v20 = vwithlane %v18, 6, 6 : Vec(I32)
     %v22 = vwithlane %v20, 7, 7 : Vec(I32)
-    %v23 = cast %live : I32
-    %v24 = vsplat %v23 : Vec(I32)
-    %v25 = cmp_lt %v22, %v24 : Mask(I32)
-    %v26 = load [%env].acc : &Vec(I32)
-    %v27 = load [%v26] : Vec(I32)
-    %v28 = select %v25 ? %v : %v27 : Vec(I32)
-    %v29 = cmp_gt %v6, %v28 : Mask(I32)
-    %v30 = select %v29 ? %v6 : %v28 : Vec(I32)
-    assign [%v4], %v30
-    %v32 = alloc : Outcome((), ())
+    %v24 = vwithlane %v22, 8, 8 : Vec(I32)
+    %v26 = vwithlane %v24, 9, 9 : Vec(I32)
+    %v28 = vwithlane %v26, 10, 10 : Vec(I32)
+    %v30 = vwithlane %v28, 11, 11 : Vec(I32)
+    %v32 = vwithlane %v30, 12, 12 : Vec(I32)
+    %v34 = vwithlane %v32, 13, 13 : Vec(I32)
+    %v36 = vwithlane %v34, 14, 14 : Vec(I32)
+    %v38 = vwithlane %v36, 15, 15 : Vec(I32)
+    %v39 = cast %live : I32
+    %v40 = vsplat %v39 : Vec(I32)
+    %v41 = cmp_lt %v38, %v40 : Mask(I32)
+    %v42 = load [%env].acc : &Vec(I32)
+    %v43 = load [%v42] : Vec(I32)
+    %v44 = select %v41 ? %v : %v43 : Vec(I32)
+    %v45 = cmp_gt %v6, %v44 : Mask(I32)
+    %v46 = select %v45 ? %v6 : %v44 : Vec(I32)
+    assign [%v4], %v46
+    %v48 = alloc : Outcome((), ())
     init %local1.discriminant, 0
-    ret %v32
+    ret %v48
 }
 
 fn total(Array(F32), F32)(%xs: Array(F32)) -> F32 {
@@ -1452,17 +1492,25 @@ fn ResolveTest.continuation$24(Array(F32), F32)(%env: %{acc: &Vec(F32)}, %value$
     %v18 = vwithlane %v16, 5, 5 : Vec(I32)
     %v20 = vwithlane %v18, 6, 6 : Vec(I32)
     %v22 = vwithlane %v20, 7, 7 : Vec(I32)
-    %v23 = cast %live : I32
-    %v24 = vsplat %v23 : Vec(I32)
-    %v25 = cmp_lt %v22, %v24 : Mask(I32)
-    %v26 = bitcast %v25 : Mask(F32)
-    %v27 = load [%env].acc : &Vec(F32)
-    %v28 = load [%v27] : Vec(F32)
-    %v29 = select %v26 ? %v : %v28 : Vec(F32)
-    %v30 = cmp_gt %v6, %v29 : Mask(F32)
-    %v31 = select %v30 ? %v6 : %v29 : Vec(F32)
-    assign [%v4], %v31
-    %v33 = alloc : Outcome((), ())
+    %v24 = vwithlane %v22, 8, 8 : Vec(I32)
+    %v26 = vwithlane %v24, 9, 9 : Vec(I32)
+    %v28 = vwithlane %v26, 10, 10 : Vec(I32)
+    %v30 = vwithlane %v28, 11, 11 : Vec(I32)
+    %v32 = vwithlane %v30, 12, 12 : Vec(I32)
+    %v34 = vwithlane %v32, 13, 13 : Vec(I32)
+    %v36 = vwithlane %v34, 14, 14 : Vec(I32)
+    %v38 = vwithlane %v36, 15, 15 : Vec(I32)
+    %v39 = cast %live : I32
+    %v40 = vsplat %v39 : Vec(I32)
+    %v41 = cmp_lt %v38, %v40 : Mask(I32)
+    %v42 = bitcast %v41 : Mask(F32)
+    %v43 = load [%env].acc : &Vec(F32)
+    %v44 = load [%v43] : Vec(F32)
+    %v45 = select %v42 ? %v : %v44 : Vec(F32)
+    %v46 = cmp_gt %v6, %v45 : Mask(F32)
+    %v47 = select %v46 ? %v6 : %v45 : Vec(F32)
+    assign [%v4], %v47
+    %v49 = alloc : Outcome((), ())
     init %local1.discriminant, 0
-    ret %v33
+    ret %v49
 }

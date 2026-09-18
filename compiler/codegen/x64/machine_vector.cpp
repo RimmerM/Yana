@@ -29,10 +29,10 @@ static Size laneColumn(LowerType type) {
 /*
  * Whether this backend has any packed form for a vector at all.
  *
- * A whole register, at one of the two widths this backend can hold one at. Sixteen bytes always;
+ * A whole register, at one of the three widths this backend can hold one at. Sixteen bytes always;
  * thirty-two where the target has AVX2, which is the level at which `targetVectorBytes` starts
- * handing out a natural width of 32 - so the two answers move together and a wide value is never
- * built for a target with no form to spend it on.
+ * handing out a natural width of 32; and sixty-four at AVX-512, where it hands out 64 - so the two
+ * answers move together and a wide value is never built for a target with no form to spend it on.
  *
  * What stays refused is a vector narrower than a register, and it is the more surprising half:
  * `i32x2` is eight bytes and occupies an xmm quite happily, but the transfers this backend has are
@@ -47,6 +47,7 @@ bool isWholePackedRegister(LowerType type) {
     auto bytes = type.byteWidth();
     if(bytes == 16) return vectorClassForBytes(bytes) == ClassXmm128;
     if(bytes == 32) return vectorClassForBytes(bytes) == ClassYmm256 && (targetFeatures() & kFeatureAvx2) != 0;
+    if(bytes == 64) return vectorClassForBytes(bytes) == ClassZmm512 && (targetFeatures() & kFeatureAvx512f) != 0;
     return false;
 }
 
@@ -65,7 +66,11 @@ MachineFormId widthForm(MachineFormId narrow, LowerType type) {
 
     auto wide = machineTarget().form(narrow).wide;
     assertTrue(wide != 0); // no 256-bit form of an operation unsupportedVectorReason let through
-    return wide;
+    if(!isFullVector(type)) return wide;
+
+    auto full = machineTarget().form(wide).full;
+    assertTrue(full != 0); // no 512-bit form of an operation `fullWidthNative` kept whole
+    return full;
 }
 
 /*
@@ -433,7 +438,42 @@ bool isLaneCountConversionStep(LowerBase base, LowerInst* inst) {
     return false;
 }
 
-Maybe<PackedShuffleChoice> packedShuffleChoice(LowerInst* inst) {
+/*
+ * The three width-changing shuffles `splitFullVectors` writes: one source of 512 bits read as its low
+ * or its high 256, and two sources of 256 read end to end into one of 512. Any other shape across
+ * that width is not one of them, and is `lowerWidthChangingShuffles`' to legalize as it always was.
+ */
+static Maybe<PackedShuffleChoice> fullHalvesChoice(LowerType sources, LowerType type, Buffer<U8> pattern) {
+    if(!(targetFeatures() & kFeatureAvx512f)) return {};
+
+    auto run = [&](U32 from) {
+        for(U32 i = 0; i < pattern.size(); i++) {
+            if(pattern[i] != from + i) return false;
+        }
+        return true;
+    };
+
+    if(isFullVector(sources) && type.byteWidth() == 32) {
+        if(run(0)) return Just(PackedShuffleChoice { FormVFullLow, 0, false });
+        if(run(type.lanes())) return Just(PackedShuffleChoice { FormVFullHigh, 1, true });
+        return {};
+    }
+
+    if(sources.byteWidth() == 32 && isFullVector(type) && run(0)) {
+        return Just(PackedShuffleChoice { FormVFullJoin, 1, true });
+    }
+
+    return {};
+}
+
+bool isFullHalvesShuffle(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::VecShuffle) return false;
+
+    auto shuffle = (LowerInstVecShuffle*)inst;
+    return (bool)fullHalvesChoice(base[shuffle->left]->type, shuffle->result.type, shuffle->pattern());
+}
+
+Maybe<PackedShuffleChoice> packedShuffleChoice(LowerBase base, LowerInst* inst) {
     if(inst->kind != LowerInst::VecShuffle) return {};
 
     auto shuffle = (LowerInstVecShuffle*)inst;
@@ -442,6 +482,10 @@ Maybe<PackedShuffleChoice> packedShuffleChoice(LowerInst* inst) {
 
     auto lanes = type.lanes();
     auto pattern = shuffle->pattern();
+
+    // The halves of a 512-bit register and the join of two - see FormVFullLow. Asked first, and of
+    // the sources' width, which is the one thing the rest of this function never reads.
+    if(auto halves = fullHalvesChoice(base[shuffle->left]->type, type, pattern)) return halves;
 
     /*
      * A shuffle whose result holds a different number of lanes than its sources - which the lower IR
@@ -614,7 +658,7 @@ U8 broadcastLaneByte(LowerType type, U8 index) {
     return U8(half | ((half + 1) << 2) | (half << 4) | ((half + 1) << 6));
 }
 
-U8 packedTrailingByte(LowerInst* inst) {
+U8 packedTrailingByte(LowerBase base, LowerInst* inst) {
     switch(inst->kind) {
         /*
          * The rounding mode `roundsd` and its three siblings take - bits 1:0 name the direction and
@@ -665,7 +709,7 @@ U8 packedTrailingByte(LowerInst* inst) {
             // `unwrap` rather than a check: the form was selected *because* this answered, so one
             // that does not now is a pattern something rewrote behind the selection. And a form
             // that carries no byte never reaches here, since only `patternImmediate` asks.
-            auto choice = packedShuffleChoice(inst).unwrap();
+            auto choice = packedShuffleChoice(base, inst).unwrap();
             assertTrue(choice.hasByte); // a shuffle form with a trailing byte its pattern has none for
             return choice.byte;
         }
@@ -1011,6 +1055,7 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
 
             // Two masks in mask registers - `kandd`, `kord`, `kxord`.
             if(type.isMask() && maskInMaskBank()) {
+                if(isQuadMask(type)) return inst->kind == LowerInst::And ? FormKAndQ : inst->kind == LowerInst::Or ? FormKOrQ : FormKXorQ;
                 return inst->kind == LowerInst::And ? FormKAnd : inst->kind == LowerInst::Or ? FormKOr : FormKXor;
             }
 
@@ -1268,6 +1313,7 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
              * vector and takes the `pand` below with it.
              */
             if(maskInMaskBank() && base[masked->isComplemented() ? masked->lhs : masked->rhs]->type.isMask()) {
+                if(type.isMask() && isQuadMask(type)) return masked->isComplemented() ? FormKAndNotQ : FormKAndQ;
                 if(type.isMask()) return masked->isComplemented() ? FormKAndNot : FormKAnd;
 
                 static const MachineFormId kKeep[6] = {
@@ -1554,7 +1600,7 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
         case LowerInst::Set: {
             auto type = ((LowerInstUnary*)inst)->result.type;
             if(!isVectorLike(type)) return 0;
-            if(type.isMask() && maskInMaskBank()) return FormKMove;
+            if(type.isMask() && maskInMaskBank()) return isQuadMask(type) ? FormKMoveQ : FormKMove;
             return widthForm(FormVMove, type);
         }
 
@@ -1568,6 +1614,25 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
              * the lane width, and the quadword conversion to a double. `unsupportedVectorReason`
              * admits either only where the target has the row.
              */
+            // The 512-bit pair - see FormVFullZeroExtend8 - which `expandLaneCountConversions` leaves
+            // standing at that width beside the half or the join it came with.
+            if(isIntVector(from) && isIntVector(to) && isFullVector(to) && laneBytes(to.lane) == 2 * laneBytes(from.lane)) {
+                auto signedSource = ((LowerInstCast*)inst)->isSignedSource();
+                switch(laneBytes(from.lane)) {
+                    case 1: return signedSource ? FormVFullSignExtend8 : FormVFullZeroExtend8;
+                    case 2: return signedSource ? FormVFullSignExtend16 : FormVFullZeroExtend16;
+                    default: return signedSource ? FormVFullSignExtend32 : FormVFullZeroExtend32;
+                }
+            }
+
+            if(isIntVector(from) && isIntVector(to) && isFullVector(from) && laneBytes(to.lane) * 2 == laneBytes(from.lane)) {
+                switch(laneBytes(from.lane)) {
+                    case 2: return FormVFullNarrow16To8;
+                    case 4: return FormVFullNarrow32To16;
+                    default: return FormVFullNarrow64To32;
+                }
+            }
+
             if(isIntVector(from) && isIntVector(to) && laneBytes(to.lane) * 2 == laneBytes(from.lane)) {
                 switch(laneBytes(from.lane)) {
                     case 2: return FormVNarrow16To8;
@@ -1594,7 +1659,7 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
          * have placed operands for an instruction that cannot be written.
          */
         case LowerInst::VecShuffle: {
-            auto choice = packedShuffleChoice(inst);
+            auto choice = packedShuffleChoice(base, inst);
 
             if(!choice) {
                 assertTrue("no single packed shuffle expresses this pattern yet" == nullptr);
@@ -1628,9 +1693,13 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
              */
             if(auto pattern = splatConstantPattern(base, inst)) {
                 auto wide = isWideVector(type);
+                auto chosen = pattern.unwrap() == SplatPattern::Zero ? (wide ? FormVWideZero : FormVZero)
+                                                                     : (wide ? FormVWideOnes : FormVOnes);
 
-                if(pattern.unwrap() == SplatPattern::Zero) return wide ? FormVWideZero : FormVZero;
-                return wide ? FormVWideOnes : FormVOnes;
+                // The two are written out rather than derived, so the 512-bit pair is reached by its
+                // link from the 256-bit one rather than through `widthForm`.
+                if(isFullVector(type)) return machineTarget().form(chosen).full;
+                return chosen;
             }
 
             /*
@@ -1814,7 +1883,9 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
 
             // A mask register written from a general register's bits, which is the one crossing that
             // has no vector end - `kmovd k, r32`.
-            if(!convert->isToVector() && !isVectorLike(base[convert->from]->type)) return FormKFromBits;
+            if(!convert->isToVector() && !isVectorLike(base[convert->from]->type)) {
+                return isQuadMask(convert->result.type) ? FormKFromBitsQ : FormKFromBits;
+            }
 
             auto vector = convert->isToVector() ? convert->result.type : base[convert->from]->type;
             auto column = laneColumn(vector);
@@ -1833,7 +1904,7 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             auto type = base[((LowerInstVecReduce*)inst)->from]->type;
 
             // A mask in a mask register is its own movemask - `kmovd`, a bit per lane.
-            if(type.isMask() && maskInMaskBank()) return FormKBits;
+            if(type.isMask() && maskInMaskBank()) return isQuadMask(type) ? FormKBitsQ : FormKBits;
 
             auto width = laneBytes(type.lane);
             auto id = width == 4 ? FormVMaskBitsF32 : width == 8 ? FormVMaskBitsF64 : FormVMaskBits;
@@ -1898,17 +1969,25 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
     if(!packedType || !isVectorLike(packedType.unwrap())) return {};
     auto type = packedType.unwrap();
 
+    /*
+     * A 512-bit vector at `avx512`, which is either an instruction `registerFullForms` has a form for
+     * or one `splitFullVectors` writes as two 256-bit halves - and the halves are the 256-bit tier's,
+     * which has every route `avx2` has and the level's own beside them. So nothing is refused here at
+     * that width: what the split cannot take apart it reports itself, by name.
+     */
+    if(isFullVector(type) && isWholePackedRegister(type)) return {};
+
     // A lane-count conversion, whose middle value is half a register and is never held - see
     // `expandLaneCountConversions`, which rewrites the pair before anything below would read it.
     if(isLaneCountConversionStep(base, inst)) return {};
 
     /*
-     * A whole register, at one of the two widths this backend holds one at.
+     * A whole register, at one of the three widths this backend holds one at.
      *
      * Two refusals wearing one message before the wide tier landed, and they are worth telling
-     * apart now that one of them has moved. **Wider** is 512 bits, which needs the EVEX move row and
-     * the mask bank - `targetVectorBytes` answers 64 only under AVX-512, so a program reaches this
-     * by naming that level. **Narrower** is the more surprising one and has not moved at all:
+     * apart now that one of them has moved twice. **Wider** than the target's registers is a
+     * 512-bit value below AVX-512 - a width a program can still write out, `Vec(U8, 64)`, on a level
+     * whose natural width is less. **Narrower** is the more surprising one and has not moved at all:
      * `i32x2` is eight bytes and sits in an xmm quite happily, but every transfer here reads and
      * writes the whole register whatever the type says, so a *store* of one would write eight bytes
      * past its object.
@@ -1919,7 +1998,7 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
         }
 
         if(type.byteWidth() > 32) {
-            return Just("this backend holds a vector in a 128- or a 256-bit register, and has no way to move one wider than that - a 512-bit value needs the EVEX move row and the mask bank"_v);
+            return Just("a 512-bit vector needs AVX-512, which this target does not claim - below it this backend holds a vector in a 128- or a 256-bit register"_v);
         }
 
         return Just("this backend holds a vector in a whole register, and has no way to move one narrower than that - a transfer reads and writes the register's own width whatever the type says"_v);
@@ -2045,7 +2124,7 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
             // whatever its pattern: it leaves only a shape selection reads, or a slot and loads.
             if(isWidthChangingShuffle(base, inst)) return {};
 
-            if(!packedShuffleChoice(inst)) {
+            if(!packedShuffleChoice(base, inst)) {
                 // Any pattern over two sources of the result's own shape, at `avx512` - one `vpermi2*`
                 // and a pooled index vector, built by `lowerTwoSourcePermutes`. What is refused below
                 // is refused at `sse4` and `avx2` only.

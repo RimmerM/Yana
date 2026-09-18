@@ -1,51 +1,135 @@
 
 lookupU8<complex>(%s: I32): I32 {
   b_0 {
-    %v_1 = vsplat 0: i8x32
-    %v_2 = vwithlane %v_1, 1, 1: i8x32
-    %v_3 = vwithlane %v_2, 2, 2: i8x32
-    %v_4 = vwithlane %v_3, 3, 3: i8x32
-    %v_5 = vwithlane %v_4, 4, 4: i8x32
-    %v_6 = vwithlane %v_5, 5, 5: i8x32
-    %v_7 = vwithlane %v_6, 6, 6: i8x32
-    %v_8 = vwithlane %v_7, 7, 7: i8x32
-    %v_9 = vwithlane %v_8, 8, 8: i8x32
-    %v_10 = vwithlane %v_9, 9, 9: i8x32
-    %v_11 = vwithlane %v_10, 10, 10: i8x32
-    %v_12 = vwithlane %v_11, 11, 11: i8x32
-    %v_13 = vwithlane %v_12, 12, 12: i8x32
-    %v_14 = vwithlane %v_13, 13, 13: i8x32
-    %v_15 = vwithlane %v_14, 14, 14: i8x32
-    %v_16 = vwithlane %v_15, 15, 15: i8x32
-    %v_17 = vwithlane %v_16, 16, 16: i8x32
-    %v_18 = vwithlane %v_17, 17, 17: i8x32
-    %v_19 = vwithlane %v_18, 18, 18: i8x32
-    %v_20 = vwithlane %v_19, 19, 19: i8x32
-    %v_21 = vwithlane %v_20, 20, 20: i8x32
-    %v_22 = vwithlane %v_21, 21, 21: i8x32
-    %v_23 = vwithlane %v_22, 22, 22: i8x32
-    %v_24 = vwithlane %v_23, 23, 23: i8x32
-    %v_25 = vwithlane %v_24, 24, 24: i8x32
-    %v_26 = vwithlane %v_25, 25, 25: i8x32
-    %v_27 = vwithlane %v_26, 26, 26: i8x32
-    %v_28 = vwithlane %v_27, 27, 27: i8x32
-    %v_29 = vwithlane %v_28, 28, 28: i8x32
-    %v_30 = vwithlane %v_29, 29, 29: i8x32
-    %v_31 = vwithlane %v_30, 30, 30: i8x32
-    %v_32 = vwithlane %v_31, 31, 31: i8x32
-    %v_33 = vsplat 3: i8x32
-    %v_34 = mul %v_32, %v_33: i8x32
-    %v_35 = vsplat %s: i8x32
-    %v_36 = add %v_34, %v_35: i8x32
-    %v_37 = vsplat 7: i8x32
-    %v_38 = mul %v_32, %v_37: i8x32
-    %v_39 = add %v_38, %v_35: i8x32
-    %v_40 = vlookup %v_36, %v_39: i8x32
-    %v_41 = vsplat 31: i8x32
-    %v_42 = and %v_39, %v_41: i8x32
-    %v_43 = mul %v_42, %v_33: i8x32
-    %v_44 = add %v_43, %v_35: i8x32
-    %v_45 = cmp_neq %v_40, %v_44: m8x32
+    %v_1 = vsplat 0: i8x64
+    %v_2 = vwithlane %v_1, 1, 1: i8x64
+    %v_3 = vwithlane %v_2, 2, 2: i8x64
+    %v_4 = vwithlane %v_3, 3, 3: i8x64
+    %v_5 = vwithlane %v_4, 4, 4: i8x64
+    %v_6 = vwithlane %v_5, 5, 5: i8x64
+    %v_7 = vwithlane %v_6, 6, 6: i8x64
+    %v_8 = vwithlane %v_7, 7, 7: i8x64
+    %v_9 = vwithlane %v_8, 8, 8: i8x64
+    %v_10 = vwithlane %v_9, 9, 9: i8x64
+    %v_11 = vwithlane %v_10, 10, 10: i8x64
+    %v_12 = vwithlane %v_11, 11, 11: i8x64
+    %v_13 = vwithlane %v_12, 12, 12: i8x64
+    %v_14 = vwithlane %v_13, 13, 13: i8x64
+    %v_15 = vwithlane %v_14, 14, 14: i8x64
+    %v_16 = vwithlane %v_15, 15, 15: i8x64
+    %v_17 = vwithlane %v_16, 16, 16: i8x64
+    %v_18 = vwithlane %v_17, 17, 17: i8x64
+    %v_19 = vwithlane %v_18, 18, 18: i8x64
+    %v_20 = vwithlane %v_19, 19, 19: i8x64
+    %v_21 = vwithlane %v_20, 20, 20: i8x64
+    %v_22 = vwithlane %v_21, 21, 21: i8x64
+    %v_23 = vwithlane %v_22, 22, 22: i8x64
+    %v_24 = vwithlane %v_23, 23, 23: i8x64
+    %v_25 = vwithlane %v_24, 24, 24: i8x64
+    %v_26 = vwithlane %v_25, 25, 25: i8x64
+    %v_27 = vwithlane %v_26, 26, 26: i8x64
+    %v_28 = vwithlane %v_27, 27, 27: i8x64
+    %v_29 = vwithlane %v_28, 28, 28: i8x64
+    %v_30 = vwithlane %v_29, 29, 29: i8x64
+    %v_31 = vwithlane %v_30, 30, 30: i8x64
+    %v_32 = vwithlane %v_31, 31, 31: i8x64
+    %v_33 = vwithlane %v_32, 32, 32: i8x64
+    %v_34 = vwithlane %v_33, 33, 33: i8x64
+    %v_35 = vwithlane %v_34, 34, 34: i8x64
+    %v_36 = vwithlane %v_35, 35, 35: i8x64
+    %v_37 = vwithlane %v_36, 36, 36: i8x64
+    %v_38 = vwithlane %v_37, 37, 37: i8x64
+    %v_39 = vwithlane %v_38, 38, 38: i8x64
+    %v_40 = vwithlane %v_39, 39, 39: i8x64
+    %v_41 = vwithlane %v_40, 40, 40: i8x64
+    %v_42 = vwithlane %v_41, 41, 41: i8x64
+    %v_43 = vwithlane %v_42, 42, 42: i8x64
+    %v_44 = vwithlane %v_43, 43, 43: i8x64
+    %v_45 = vwithlane %v_44, 44, 44: i8x64
+    %v_46 = vwithlane %v_45, 45, 45: i8x64
+    %v_47 = vwithlane %v_46, 46, 46: i8x64
+    %v_48 = vwithlane %v_47, 47, 47: i8x64
+    %v_49 = vwithlane %v_48, 48, 48: i8x64
+    %v_50 = vwithlane %v_49, 49, 49: i8x64
+    %v_51 = vwithlane %v_50, 50, 50: i8x64
+    %v_52 = vwithlane %v_51, 51, 51: i8x64
+    %v_53 = vwithlane %v_52, 52, 52: i8x64
+    %v_54 = vwithlane %v_53, 53, 53: i8x64
+    %v_55 = vwithlane %v_54, 54, 54: i8x64
+    %v_56 = vwithlane %v_55, 55, 55: i8x64
+    %v_57 = vwithlane %v_56, 56, 56: i8x64
+    %v_58 = vwithlane %v_57, 57, 57: i8x64
+    %v_59 = vwithlane %v_58, 58, 58: i8x64
+    %v_60 = vwithlane %v_59, 59, 59: i8x64
+    %v_61 = vwithlane %v_60, 60, 60: i8x64
+    %v_62 = vwithlane %v_61, 61, 61: i8x64
+    %v_63 = vwithlane %v_62, 62, 62: i8x64
+    %v_64 = vwithlane %v_63, 63, 63: i8x64
+    %v_65 = vsplat 3: i8x64
+    %v_66 = mul %v_64, %v_65: i8x64
+    %v_67 = vsplat %s: i8x64
+    %v_68 = add %v_66, %v_67: i8x64
+    %v_69 = vsplat 7: i8x64
+    %v_70 = mul %v_64, %v_69: i8x64
+    %v_71 = add %v_70, %v_67: i8x64
+    %v_72 = vlookup %v_68, %v_71: i8x64
+    %v_73 = vsplat 63: i8x64
+    %v_74 = and %v_71, %v_73: i8x64
+    %v_75 = mul %v_74, %v_65: i8x64
+    %v_76 = add %v_75, %v_67: i8x64
+    %v_77 = cmp_neq %v_72, %v_76: m8x64
+    %v_78 = vreduce_add %v_77: I32
+    ret %v_78
+  }
+}
+
+lookupU16<complex>(%s: I32): I32 {
+  b_0 {
+    %v_1 = vsplat 0: i16x32
+    %v_2 = vwithlane %v_1, 1, 1: i16x32
+    %v_3 = vwithlane %v_2, 2, 2: i16x32
+    %v_4 = vwithlane %v_3, 3, 3: i16x32
+    %v_5 = vwithlane %v_4, 4, 4: i16x32
+    %v_6 = vwithlane %v_5, 5, 5: i16x32
+    %v_7 = vwithlane %v_6, 6, 6: i16x32
+    %v_8 = vwithlane %v_7, 7, 7: i16x32
+    %v_9 = vwithlane %v_8, 8, 8: i16x32
+    %v_10 = vwithlane %v_9, 9, 9: i16x32
+    %v_11 = vwithlane %v_10, 10, 10: i16x32
+    %v_12 = vwithlane %v_11, 11, 11: i16x32
+    %v_13 = vwithlane %v_12, 12, 12: i16x32
+    %v_14 = vwithlane %v_13, 13, 13: i16x32
+    %v_15 = vwithlane %v_14, 14, 14: i16x32
+    %v_16 = vwithlane %v_15, 15, 15: i16x32
+    %v_17 = vwithlane %v_16, 16, 16: i16x32
+    %v_18 = vwithlane %v_17, 17, 17: i16x32
+    %v_19 = vwithlane %v_18, 18, 18: i16x32
+    %v_20 = vwithlane %v_19, 19, 19: i16x32
+    %v_21 = vwithlane %v_20, 20, 20: i16x32
+    %v_22 = vwithlane %v_21, 21, 21: i16x32
+    %v_23 = vwithlane %v_22, 22, 22: i16x32
+    %v_24 = vwithlane %v_23, 23, 23: i16x32
+    %v_25 = vwithlane %v_24, 24, 24: i16x32
+    %v_26 = vwithlane %v_25, 25, 25: i16x32
+    %v_27 = vwithlane %v_26, 26, 26: i16x32
+    %v_28 = vwithlane %v_27, 27, 27: i16x32
+    %v_29 = vwithlane %v_28, 28, 28: i16x32
+    %v_30 = vwithlane %v_29, 29, 29: i16x32
+    %v_31 = vwithlane %v_30, 30, 30: i16x32
+    %v_32 = vwithlane %v_31, 31, 31: i16x32
+    %v_33 = vsplat 3: i16x32
+    %v_34 = mul %v_32, %v_33: i16x32
+    %v_35 = vsplat %s: i16x32
+    %v_36 = add %v_34, %v_35: i16x32
+    %v_37 = vsplat 7: i16x32
+    %v_38 = mul %v_32, %v_37: i16x32
+    %v_39 = add %v_38, %v_35: i16x32
+    %v_40 = vlookup %v_36, %v_39: i16x32
+    %v_41 = vsplat 31: i16x32
+    %v_42 = and %v_39, %v_41: i16x32
+    %v_43 = mul %v_42, %v_33: i16x32
+    %v_44 = add %v_43, %v_35: i16x32
+    %v_45 = cmp_neq %v_40, %v_44: m16x32
     %v_46 = vreduce_add %v_45: I32
     ret %v_46
   }
@@ -53,258 +137,282 @@ lookupU8<complex>(%s: I32): I32 {
 
 movesU8<complex>(%s: I32): I32 {
   b_0 {
-    %v_1 = vsplat 0: i8x32
-    %v_2 = vwithlane %v_1, 1, 1: i8x32
-    %v_3 = vwithlane %v_2, 2, 2: i8x32
-    %v_4 = vwithlane %v_3, 3, 3: i8x32
-    %v_5 = vwithlane %v_4, 4, 4: i8x32
-    %v_6 = vwithlane %v_5, 5, 5: i8x32
-    %v_7 = vwithlane %v_6, 6, 6: i8x32
-    %v_8 = vwithlane %v_7, 7, 7: i8x32
-    %v_9 = vwithlane %v_8, 8, 8: i8x32
-    %v_10 = vwithlane %v_9, 9, 9: i8x32
-    %v_11 = vwithlane %v_10, 10, 10: i8x32
-    %v_12 = vwithlane %v_11, 11, 11: i8x32
-    %v_13 = vwithlane %v_12, 12, 12: i8x32
-    %v_14 = vwithlane %v_13, 13, 13: i8x32
-    %v_15 = vwithlane %v_14, 14, 14: i8x32
-    %v_16 = vwithlane %v_15, 15, 15: i8x32
-    %v_17 = vwithlane %v_16, 16, 16: i8x32
-    %v_18 = vwithlane %v_17, 17, 17: i8x32
-    %v_19 = vwithlane %v_18, 18, 18: i8x32
-    %v_20 = vwithlane %v_19, 19, 19: i8x32
-    %v_21 = vwithlane %v_20, 20, 20: i8x32
-    %v_22 = vwithlane %v_21, 21, 21: i8x32
-    %v_23 = vwithlane %v_22, 22, 22: i8x32
-    %v_24 = vwithlane %v_23, 23, 23: i8x32
-    %v_25 = vwithlane %v_24, 24, 24: i8x32
-    %v_26 = vwithlane %v_25, 25, 25: i8x32
-    %v_27 = vwithlane %v_26, 26, 26: i8x32
-    %v_28 = vwithlane %v_27, 27, 27: i8x32
-    %v_29 = vwithlane %v_28, 28, 28: i8x32
-    %v_30 = vwithlane %v_29, 29, 29: i8x32
-    %v_31 = vwithlane %v_30, 30, 30: i8x32
-    %v_32 = vwithlane %v_31, 31, 31: i8x32
-    %v_33 = vsplat %s: i8x32
-    %v_34 = add %v_32, %v_33: i8x32
-    %v_35 = vsplat 157: i8x32
-    %v_36 = mul %v_34, %v_35: i8x32
-    %v_37 = vsplat 16: i8x32
-    %v_38 = and %v_36, %v_37: i8x32
-    %v_39 = cmp_neq %v_38, %v_1: m8x32
-    %v_40 = vcompress %v_32, %v_39: i8x32
-    %v_41 = vreduce_add %v_39: I32
-    %v_42 = and %v_41, 255: I32
-    %v_43 = vsplat %v_42: i8x32
-    %v_44 = cmp_lt %v_32, %v_43: m8x32
-    %v_45 = vsplat 1: i8x32
-    %v_46 = select %v_39, %v_45, %v_1: i8x32
-    %v_47 = vlookup %v_46, %v_40: i8x32
-    %v_48 = cmp_eq %v_47, %v_1: m8x32
-    %v_49 = and %v_48, %v_44: m8x32
-    %v_50 = vreduce_add %v_49: I32
-    %v_51 = add %v_32, %v_45: i8x32
-    %v_52 = vlookup %v_40, %v_51: i8x32
-    %v_53 = cmp_igt %v_41, 1: I32
-    je %v_53, b_54, b_55
+    %v_1 = vsplat 0: i8x64
+    %v_2 = vwithlane %v_1, 1, 1: i8x64
+    %v_3 = vwithlane %v_2, 2, 2: i8x64
+    %v_4 = vwithlane %v_3, 3, 3: i8x64
+    %v_5 = vwithlane %v_4, 4, 4: i8x64
+    %v_6 = vwithlane %v_5, 5, 5: i8x64
+    %v_7 = vwithlane %v_6, 6, 6: i8x64
+    %v_8 = vwithlane %v_7, 7, 7: i8x64
+    %v_9 = vwithlane %v_8, 8, 8: i8x64
+    %v_10 = vwithlane %v_9, 9, 9: i8x64
+    %v_11 = vwithlane %v_10, 10, 10: i8x64
+    %v_12 = vwithlane %v_11, 11, 11: i8x64
+    %v_13 = vwithlane %v_12, 12, 12: i8x64
+    %v_14 = vwithlane %v_13, 13, 13: i8x64
+    %v_15 = vwithlane %v_14, 14, 14: i8x64
+    %v_16 = vwithlane %v_15, 15, 15: i8x64
+    %v_17 = vwithlane %v_16, 16, 16: i8x64
+    %v_18 = vwithlane %v_17, 17, 17: i8x64
+    %v_19 = vwithlane %v_18, 18, 18: i8x64
+    %v_20 = vwithlane %v_19, 19, 19: i8x64
+    %v_21 = vwithlane %v_20, 20, 20: i8x64
+    %v_22 = vwithlane %v_21, 21, 21: i8x64
+    %v_23 = vwithlane %v_22, 22, 22: i8x64
+    %v_24 = vwithlane %v_23, 23, 23: i8x64
+    %v_25 = vwithlane %v_24, 24, 24: i8x64
+    %v_26 = vwithlane %v_25, 25, 25: i8x64
+    %v_27 = vwithlane %v_26, 26, 26: i8x64
+    %v_28 = vwithlane %v_27, 27, 27: i8x64
+    %v_29 = vwithlane %v_28, 28, 28: i8x64
+    %v_30 = vwithlane %v_29, 29, 29: i8x64
+    %v_31 = vwithlane %v_30, 30, 30: i8x64
+    %v_32 = vwithlane %v_31, 31, 31: i8x64
+    %v_33 = vwithlane %v_32, 32, 32: i8x64
+    %v_34 = vwithlane %v_33, 33, 33: i8x64
+    %v_35 = vwithlane %v_34, 34, 34: i8x64
+    %v_36 = vwithlane %v_35, 35, 35: i8x64
+    %v_37 = vwithlane %v_36, 36, 36: i8x64
+    %v_38 = vwithlane %v_37, 37, 37: i8x64
+    %v_39 = vwithlane %v_38, 38, 38: i8x64
+    %v_40 = vwithlane %v_39, 39, 39: i8x64
+    %v_41 = vwithlane %v_40, 40, 40: i8x64
+    %v_42 = vwithlane %v_41, 41, 41: i8x64
+    %v_43 = vwithlane %v_42, 42, 42: i8x64
+    %v_44 = vwithlane %v_43, 43, 43: i8x64
+    %v_45 = vwithlane %v_44, 44, 44: i8x64
+    %v_46 = vwithlane %v_45, 45, 45: i8x64
+    %v_47 = vwithlane %v_46, 46, 46: i8x64
+    %v_48 = vwithlane %v_47, 47, 47: i8x64
+    %v_49 = vwithlane %v_48, 48, 48: i8x64
+    %v_50 = vwithlane %v_49, 49, 49: i8x64
+    %v_51 = vwithlane %v_50, 50, 50: i8x64
+    %v_52 = vwithlane %v_51, 51, 51: i8x64
+    %v_53 = vwithlane %v_52, 52, 52: i8x64
+    %v_54 = vwithlane %v_53, 53, 53: i8x64
+    %v_55 = vwithlane %v_54, 54, 54: i8x64
+    %v_56 = vwithlane %v_55, 55, 55: i8x64
+    %v_57 = vwithlane %v_56, 56, 56: i8x64
+    %v_58 = vwithlane %v_57, 57, 57: i8x64
+    %v_59 = vwithlane %v_58, 58, 58: i8x64
+    %v_60 = vwithlane %v_59, 59, 59: i8x64
+    %v_61 = vwithlane %v_60, 60, 60: i8x64
+    %v_62 = vwithlane %v_61, 61, 61: i8x64
+    %v_63 = vwithlane %v_62, 62, 62: i8x64
+    %v_64 = vwithlane %v_63, 63, 63: i8x64
+    %v_65 = vsplat %s: i8x64
+    %v_66 = add %v_64, %v_65: i8x64
+    %v_67 = vsplat 157: i8x64
+    %v_68 = mul %v_66, %v_67: i8x64
+    %v_69 = vsplat 16: i8x64
+    %v_70 = and %v_68, %v_69: i8x64
+    %v_71 = cmp_neq %v_70, %v_1: m8x64
+    %v_72 = vcompress %v_64, %v_71: i8x64
+    %v_73 = vreduce_add %v_71: I32
+    %v_74 = and %v_73, 255: I32
+    %v_75 = vsplat %v_74: i8x64
+    %v_76 = cmp_lt %v_64, %v_75: m8x64
+    %v_77 = vsplat 1: i8x64
+    %v_78 = select %v_71, %v_77, %v_1: i8x64
+    %v_79 = vlookup %v_78, %v_72: i8x64
+    %v_80 = cmp_eq %v_79, %v_1: m8x64
+    %v_81 = and %v_80, %v_76: m8x64
+    %v_82 = vreduce_add %v_81: I32
+    %v_83 = add %v_64, %v_77: i8x64
+    %v_84 = vlookup %v_72, %v_83: i8x64
+    %v_85 = cmp_igt %v_73, 1: I32
+    je %v_85, b_86, b_87
   }
 
-  b_55 {
-    jmp b_56
+  b_87 {
+    jmp b_88
   }
 
-  b_56 {
-    %v_57 = phi [b_55, %v_50], [b_54, %v_58]: I32
-    %v_59 = vsplat 5: i8x32
-    %v_60 = mul %v_32, %v_59: i8x32
-    %v_61 = add %v_60, %v_33: i8x32
-    %v_62 = vcompress %v_61, %v_39: i8x32
-    %v_63 = vexpand %v_62, %v_39: i8x32
-    %v_64 = sub %v_61, %v_61: i8x32
-    %v_65 = select %v_39, %v_61, %v_64: i8x32
-    %v_66 = cmp_neq %v_63, %v_65: m8x32
-    %v_67 = vreduce_add %v_66: I32
-    %v_68 = add %v_57, %v_67: I32
-    ret %v_68
+  b_88 {
+    %v_89 = phi [b_87, %v_82], [b_86, %v_90]: I32
+    %v_91 = vsplat 5: i8x64
+    %v_92 = mul %v_64, %v_91: i8x64
+    %v_93 = add %v_92, %v_65: i8x64
+    %v_94 = vcompress %v_93, %v_71: i8x64
+    %v_95 = vexpand %v_94, %v_71: i8x64
+    %v_96 = sub %v_93, %v_93: i8x64
+    %v_97 = select %v_71, %v_93, %v_96: i8x64
+    %v_98 = cmp_neq %v_95, %v_97: m8x64
+    %v_99 = vreduce_add %v_98: I32
+    %v_100 = add %v_89, %v_99: I32
+    ret %v_100
   }
 
-  b_54 {
-    %v_69 = cmp_ge %v_40, %v_52: m8x32
-    %v_70 = sub %v_41, 1: I32
-    %v_71 = and %v_70, 255: I32
-    %v_72 = vsplat %v_71: i8x32
-    %v_73 = cmp_lt %v_32, %v_72: m8x32
-    %v_74 = and %v_69, %v_73: m8x32
-    %v_75 = vreduce_add %v_74: I32
-    %v_58 = add %v_50, %v_75: I32
-    jmp b_56
+  b_86 {
+    %v_101 = cmp_ge %v_72, %v_84: m8x64
+    %v_102 = sub %v_73, 1: I32
+    %v_103 = and %v_102, 255: I32
+    %v_104 = vsplat %v_103: i8x64
+    %v_105 = cmp_lt %v_64, %v_104: m8x64
+    %v_106 = and %v_101, %v_105: m8x64
+    %v_107 = vreduce_add %v_106: I32
+    %v_90 = add %v_82, %v_107: I32
+    jmp b_88
   }
 }
 
 movesU32<complex>(%s: I32): I32 {
   b_0 {
-    %v_1 = vsplat 0: i32x8
-    %v_2 = vwithlane %v_1, 1, 1: i32x8
-    %v_3 = vwithlane %v_2, 2, 2: i32x8
-    %v_4 = vwithlane %v_3, 3, 3: i32x8
-    %v_5 = vwithlane %v_4, 4, 4: i32x8
-    %v_6 = vwithlane %v_5, 5, 5: i32x8
-    %v_7 = vwithlane %v_6, 6, 6: i32x8
-    %v_8 = vwithlane %v_7, 7, 7: i32x8
-    %v_9 = vsplat %s: i32x8
-    %v_10 = add %v_8, %v_9: i32x8
-    %v_11 = vsplat 157: i32x8
-    %v_12 = mul %v_10, %v_11: i32x8
-    %v_13 = vsplat 16: i32x8
-    %v_14 = and %v_12, %v_13: i32x8
-    %v_15 = cmp_neq %v_14, %v_1: m32x8
-    %v_16 = vcompress %v_8, %v_15: i32x8
-    %v_17 = vreduce_add %v_15: I32
-    %v_18 = vsplat %v_17: i32x8
-    %v_19 = cmp_lt %v_8, %v_18: m32x8
-    %v_20 = vsplat 1: i32x8
-    %v_21 = select %v_15, %v_20, %v_1: i32x8
-    %v_22 = vlookup %v_21, %v_16: i32x8
-    %v_23 = cmp_eq %v_22, %v_1: m32x8
-    %v_24 = and %v_23, %v_19: m32x8
-    %v_25 = vreduce_add %v_24: I32
-    %v_26 = add %v_8, %v_20: i32x8
-    %v_27 = vlookup %v_16, %v_26: i32x8
-    %v_28 = cmp_igt %v_17, 1: I32
-    je %v_28, b_29, b_30
+    %v_1 = vsplat 0: i32x16
+    %v_2 = vwithlane %v_1, 1, 1: i32x16
+    %v_3 = vwithlane %v_2, 2, 2: i32x16
+    %v_4 = vwithlane %v_3, 3, 3: i32x16
+    %v_5 = vwithlane %v_4, 4, 4: i32x16
+    %v_6 = vwithlane %v_5, 5, 5: i32x16
+    %v_7 = vwithlane %v_6, 6, 6: i32x16
+    %v_8 = vwithlane %v_7, 7, 7: i32x16
+    %v_9 = vwithlane %v_8, 8, 8: i32x16
+    %v_10 = vwithlane %v_9, 9, 9: i32x16
+    %v_11 = vwithlane %v_10, 10, 10: i32x16
+    %v_12 = vwithlane %v_11, 11, 11: i32x16
+    %v_13 = vwithlane %v_12, 12, 12: i32x16
+    %v_14 = vwithlane %v_13, 13, 13: i32x16
+    %v_15 = vwithlane %v_14, 14, 14: i32x16
+    %v_16 = vwithlane %v_15, 15, 15: i32x16
+    %v_17 = vsplat %s: i32x16
+    %v_18 = add %v_16, %v_17: i32x16
+    %v_19 = vsplat 157: i32x16
+    %v_20 = mul %v_18, %v_19: i32x16
+    %v_21 = vsplat 16: i32x16
+    %v_22 = and %v_20, %v_21: i32x16
+    %v_23 = cmp_neq %v_22, %v_1: m32x16
+    %v_24 = vcompress %v_16, %v_23: i32x16
+    %v_25 = vreduce_add %v_23: I32
+    %v_26 = vsplat %v_25: i32x16
+    %v_27 = cmp_lt %v_16, %v_26: m32x16
+    %v_28 = vsplat 1: i32x16
+    %v_29 = select %v_23, %v_28, %v_1: i32x16
+    %v_30 = vlookup %v_29, %v_24: i32x16
+    %v_31 = cmp_eq %v_30, %v_1: m32x16
+    %v_32 = and %v_31, %v_27: m32x16
+    %v_33 = vreduce_add %v_32: I32
+    %v_34 = add %v_16, %v_28: i32x16
+    %v_35 = vlookup %v_24, %v_34: i32x16
+    %v_36 = cmp_igt %v_25, 1: I32
+    je %v_36, b_37, b_38
   }
 
-  b_30 {
-    jmp b_31
+  b_38 {
+    jmp b_39
   }
 
-  b_31 {
-    %v_32 = phi [b_30, %v_25], [b_29, %v_33]: I32
-    %v_34 = vsplat 5: i32x8
-    %v_35 = mul %v_8, %v_34: i32x8
-    %v_36 = add %v_35, %v_9: i32x8
-    %v_37 = vcompress %v_36, %v_15: i32x8
-    %v_38 = vexpand %v_37, %v_15: i32x8
-    %v_39 = sub %v_36, %v_36: i32x8
-    %v_40 = select %v_15, %v_36, %v_39: i32x8
-    %v_41 = cmp_neq %v_38, %v_40: m32x8
-    %v_42 = vreduce_add %v_41: I32
-    %v_43 = add %v_32, %v_42: I32
-    ret %v_43
+  b_39 {
+    %v_40 = phi [b_38, %v_33], [b_37, %v_41]: I32
+    %v_42 = vsplat 5: i32x16
+    %v_43 = mul %v_16, %v_42: i32x16
+    %v_44 = add %v_43, %v_17: i32x16
+    %v_45 = vcompress %v_44, %v_23: i32x16
+    %v_46 = vexpand %v_45, %v_23: i32x16
+    %v_47 = sub %v_44, %v_44: i32x16
+    %v_48 = select %v_23, %v_44, %v_47: i32x16
+    %v_49 = cmp_neq %v_46, %v_48: m32x16
+    %v_50 = vreduce_add %v_49: I32
+    %v_51 = add %v_40, %v_50: I32
+    ret %v_51
   }
 
-  b_29 {
-    %v_44 = cmp_ge %v_16, %v_27: m32x8
-    %v_45 = sub %v_17, 1: I32
-    %v_46 = vsplat %v_45: i32x8
-    %v_47 = cmp_lt %v_8, %v_46: m32x8
-    %v_48 = and %v_44, %v_47: m32x8
-    %v_49 = vreduce_add %v_48: I32
-    %v_33 = add %v_25, %v_49: I32
-    jmp b_31
+  b_37 {
+    %v_52 = cmp_ge %v_24, %v_35: m32x16
+    %v_53 = sub %v_25, 1: I32
+    %v_54 = vsplat %v_53: i32x16
+    %v_55 = cmp_lt %v_16, %v_54: m32x16
+    %v_56 = and %v_52, %v_55: m32x16
+    %v_57 = vreduce_add %v_56: I32
+    %v_41 = add %v_33, %v_57: I32
+    jmp b_39
   }
 }
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = vsplat 0: i16x16
-    %v_2 = vwithlane %v_1, 1, 1: i16x16
-    %v_3 = vwithlane %v_2, 2, 2: i16x16
-    %v_4 = vwithlane %v_3, 3, 3: i16x16
-    %v_5 = vwithlane %v_4, 4, 4: i16x16
-    %v_6 = vwithlane %v_5, 5, 5: i16x16
-    %v_7 = vwithlane %v_6, 6, 6: i16x16
-    %v_8 = vwithlane %v_7, 7, 7: i16x16
-    %v_9 = vwithlane %v_8, 8, 8: i16x16
-    %v_10 = vwithlane %v_9, 9, 9: i16x16
-    %v_11 = vwithlane %v_10, 10, 10: i16x16
-    %v_12 = vwithlane %v_11, 11, 11: i16x16
-    %v_13 = vwithlane %v_12, 12, 12: i16x16
-    %v_14 = vwithlane %v_13, 13, 13: i16x16
-    %v_15 = vwithlane %v_14, 14, 14: i16x16
-    %v_16 = vwithlane %v_15, 15, 15: i16x16
-    %v_17 = vsplat 3: i16x16
-    %v_18 = mul %v_16, %v_17: i16x16
-    %v_19 = vsplat 7: i16x16
-    %v_20 = mul %v_16, %v_19: i16x16
-    %v_21 = vsplat 15: i16x16
-    %v_22 = vsplat 0: i32x8
-    %v_23 = vwithlane %v_22, 1, 1: i32x8
-    %v_24 = vwithlane %v_23, 2, 2: i32x8
-    %v_25 = vwithlane %v_24, 3, 3: i32x8
-    %v_26 = vwithlane %v_25, 4, 4: i32x8
-    %v_27 = vwithlane %v_26, 5, 5: i32x8
-    %v_28 = vwithlane %v_27, 6, 6: i32x8
-    %v_29 = vwithlane %v_28, 7, 7: i32x8
-    %v_30 = vsplat 1001: i32x8
-    %v_31 = mul %v_29, %v_30: i32x8
-    %v_32 = vsplat 3: i32x8
-    %v_33 = mul %v_29, %v_32: i32x8
-    %v_34 = vsplat 7: i32x8
-    %v_35 = vsplat 0: i64x4
-    %v_36 = vwithlane %v_35, 1, 1: i64x4
-    %v_37 = vwithlane %v_36, 2, 2: i64x4
-    %v_38 = vwithlane %v_37, 3, 3: i64x4
-    %v_39 = vsplat 100003: i64x4
-    %v_40 = mul %v_38, %v_39: i64x4
-    %v_41 = vsplat 3: i64x4
-    %v_42 = mul %v_38, %v_41: i64x4
-    jmp b_43
+    %v_1 = vsplat 0: i32x16
+    %v_2 = vwithlane %v_1, 1, 1: i32x16
+    %v_3 = vwithlane %v_2, 2, 2: i32x16
+    %v_4 = vwithlane %v_3, 3, 3: i32x16
+    %v_5 = vwithlane %v_4, 4, 4: i32x16
+    %v_6 = vwithlane %v_5, 5, 5: i32x16
+    %v_7 = vwithlane %v_6, 6, 6: i32x16
+    %v_8 = vwithlane %v_7, 7, 7: i32x16
+    %v_9 = vwithlane %v_8, 8, 8: i32x16
+    %v_10 = vwithlane %v_9, 9, 9: i32x16
+    %v_11 = vwithlane %v_10, 10, 10: i32x16
+    %v_12 = vwithlane %v_11, 11, 11: i32x16
+    %v_13 = vwithlane %v_12, 12, 12: i32x16
+    %v_14 = vwithlane %v_13, 13, 13: i32x16
+    %v_15 = vwithlane %v_14, 14, 14: i32x16
+    %v_16 = vwithlane %v_15, 15, 15: i32x16
+    %v_17 = vsplat 1001: i32x16
+    %v_18 = mul %v_16, %v_17: i32x16
+    %v_19 = vsplat 3: i32x16
+    %v_20 = mul %v_16, %v_19: i32x16
+    %v_21 = vsplat 15: i32x16
+    %v_22 = vsplat 0: i64x8
+    %v_23 = vwithlane %v_22, 1, 1: i64x8
+    %v_24 = vwithlane %v_23, 2, 2: i64x8
+    %v_25 = vwithlane %v_24, 3, 3: i64x8
+    %v_26 = vwithlane %v_25, 4, 4: i64x8
+    %v_27 = vwithlane %v_26, 5, 5: i64x8
+    %v_28 = vwithlane %v_27, 6, 6: i64x8
+    %v_29 = vwithlane %v_28, 7, 7: i64x8
+    %v_30 = vsplat 100003: i64x8
+    %v_31 = mul %v_29, %v_30: i64x8
+    %v_32 = vsplat 3: i64x8
+    %v_33 = mul %v_29, %v_32: i64x8
+    %v_34 = vsplat 7: i64x8
+    jmp b_35
   }
 
-  b_44 {
-    %v_45 = cmp_lt %v_46, 256: I32
-    je %v_45, b_43, b_47
+  b_36 {
+    %v_37 = cmp_lt %v_38, 256: I32
+    je %v_37, b_35, b_39
   }
 
-  b_47 {
-    ret %v_48
+  b_39 {
+    ret %v_40
   }
 
-  b_43 {
-    %v_49 = phi [b_44, %v_48], [b_0, 0]: I32
-    %v_50 = phi [b_44, %v_46], [b_0, 0]: I32
-    %v_51 = and %v_50, 255: I32
-    %v_52 = call_complex lookupU8, %v_51: I32
-    %v_53 = add %v_49, %v_52: I32
-    %v_54 = and %v_50, 65535: I32
-    %v_55 = vsplat %v_54: i16x16
-    %v_56 = add %v_18, %v_55: i16x16
-    %v_57 = add %v_20, %v_55: i16x16
-    %v_58 = vlookup %v_56, %v_57: i16x16
-    %v_59 = and %v_57, %v_21: i16x16
-    %v_60 = mul %v_59, %v_17: i16x16
-    %v_61 = add %v_60, %v_55: i16x16
-    %v_62 = cmp_neq %v_58, %v_61: m16x16
-    %v_63 = vreduce_add %v_62: I32
-    %v_64 = add %v_53, %v_63: I32
-    %v_65 = vsplat %v_50: i32x8
-    %v_66 = add %v_31, %v_65: i32x8
-    %v_67 = add %v_33, %v_65: i32x8
-    %v_68 = vlookup %v_66, %v_67: i32x8
-    %v_69 = and %v_67, %v_34: i32x8
-    %v_70 = mul %v_69, %v_30: i32x8
-    %v_71 = add %v_70, %v_65: i32x8
-    %v_72 = cmp_neq %v_68, %v_71: m32x8
-    %v_73 = vreduce_add %v_72: I32
-    %v_74 = add %v_64, %v_73: I32
-    %v_75 = cast %v_50: I64
-    %v_76 = vsplat %v_75: i64x4
-    %v_77 = add %v_40, %v_76: i64x4
-    %v_78 = add %v_42, %v_76: i64x4
-    %v_79 = vlookup %v_77, %v_78: i64x4
-    %v_80 = and %v_78, %v_41: i64x4
-    %v_81 = mul %v_80, %v_39: i64x4
-    %v_82 = add %v_81, %v_76: i64x4
-    %v_83 = cmp_neq %v_79, %v_82: m64x4
-    %v_84 = vreduce_add %v_83: I32
-    %v_85 = add %v_74, %v_84: I32
-    %v_86 = call_complex movesU8, %v_51: I32
-    %v_87 = add %v_85, %v_86: I32
-    %v_88 = call_complex movesU32, %v_50: I32
-    %v_48 = add %v_87, %v_88: I32
-    %v_46 = add %v_50, 1: I32
-    jmp b_44
+  b_35 {
+    %v_41 = phi [b_36, %v_40], [b_0, 0]: I32
+    %v_42 = phi [b_36, %v_38], [b_0, 0]: I32
+    %v_43 = and %v_42, 255: I32
+    %v_44 = call_complex lookupU8, %v_43: I32
+    %v_45 = add %v_41, %v_44: I32
+    %v_46 = and %v_42, 65535: I32
+    %v_47 = call_complex lookupU16, %v_46: I32
+    %v_48 = add %v_45, %v_47: I32
+    %v_49 = vsplat %v_42: i32x16
+    %v_50 = add %v_18, %v_49: i32x16
+    %v_51 = add %v_20, %v_49: i32x16
+    %v_52 = vlookup %v_50, %v_51: i32x16
+    %v_53 = and %v_51, %v_21: i32x16
+    %v_54 = mul %v_53, %v_17: i32x16
+    %v_55 = add %v_54, %v_49: i32x16
+    %v_56 = cmp_neq %v_52, %v_55: m32x16
+    %v_57 = vreduce_add %v_56: I32
+    %v_58 = add %v_48, %v_57: I32
+    %v_59 = cast %v_42: I64
+    %v_60 = vsplat %v_59: i64x8
+    %v_61 = add %v_31, %v_60: i64x8
+    %v_62 = add %v_33, %v_60: i64x8
+    %v_63 = vlookup %v_61, %v_62: i64x8
+    %v_64 = and %v_62, %v_34: i64x8
+    %v_65 = mul %v_64, %v_30: i64x8
+    %v_66 = add %v_65, %v_60: i64x8
+    %v_67 = cmp_neq %v_63, %v_66: m64x8
+    %v_68 = vreduce_add %v_67: I32
+    %v_69 = add %v_58, %v_68: I32
+    %v_70 = call_complex movesU8, %v_43: I32
+    %v_71 = add %v_69, %v_70: I32
+    %v_72 = call_complex movesU32, %v_42: I32
+    %v_40 = add %v_71, %v_72: I32
+    %v_38 = add %v_42, 1: I32
+    jmp b_36
   }
 }
 

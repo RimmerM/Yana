@@ -3,8 +3,8 @@ mut @seed = [3, 0, 0, 0]
 main<complex>(): I32 {
   b_0 {
     %v_1 = loads @seed, 4: I32
-    %v_2 = vsplat %v_1: i32x8
-    %v_3 = vwithlane %v_2, 40, 5: i32x8
+    %v_2 = vsplat %v_1: i32x16
+    %v_3 = vwithlane %v_2, 40, 5: i32x16
     %v_4 = vlane %v_3, 5: I32
     %v_5 = cmp_neq %v_4, 40: I32
     je %v_5, b_6, b_7
@@ -41,7 +41,7 @@ main<complex>(): I32 {
   }
 
   b_19 {
-    %v_20 = vwithlane %v_3, 20, 1: i32x8
+    %v_20 = vwithlane %v_3, 20, 1: i32x16
     %v_21 = vlane %v_20, 1: I32
     %v_22 = cmp_neq %v_21, 20: I32
     je %v_22, b_23, b_24
@@ -93,7 +93,7 @@ main<complex>(): I32 {
 
   b_40 {
     %v_41 = vreduce_add %v_20: I32
-    %v_42 = cmp_neq %v_41, 78: I32
+    %v_42 = cmp_neq %v_41, 102: I32
     je %v_42, b_43, b_44
   }
 

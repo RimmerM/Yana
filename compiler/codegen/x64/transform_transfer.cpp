@@ -82,15 +82,16 @@ LowerValue* maskRegisterUpTo(Expansion& e, LowerValue* count, LowerType type) {
     auto scalar = LowerType::Int64;
     auto mask = maskType(type.lane, type.lanes());
 
-    // Thirty-two bits of `bzhi` and `kmovd` cover every mask a whole register has until the 512-bit
-    // forms exist (Analysis-Avx512.md step 10), where a byte vector has sixty-four lanes.
-    assertTrue(lanes <= 32);
+    // The bits are read into the mask register at the width its lanes need - thirty-two up to
+    // thirty-two lanes, and sixty-four for a byte vector at 512 bits, which is `bzhi r64` and `kmovq`.
+    auto bitsType = maskBitsType(mask);
+    auto allOnes = bitsType == LowerType::Int64 ? ~U64(0) : U64(0xffffffff);
 
     // A constant count between none and all - the two ends never reach here - is a constant mask.
     if(count->inst()->kind == LowerInst::Imm) {
         auto bits = (U64(1) << immValue(count)) - 1;
         return e.emit(new (e.fun.arena) LowerInstX86MaskConvert(StringId(), mask,
-                                                                  e.integer(LowerType::Int32, bits) - e.base, false));
+                                                                  e.integer(bitsType, bits) - e.base, false));
     }
 
     auto known = knownZeroBits(e.base, count);
@@ -107,8 +108,8 @@ LowerValue* maskRegisterUpTo(Expansion& e, LowerValue* count, LowerType type) {
         index = e.select(scalar, within, index, e.integer(scalar, lanes));
     }
 
-    auto narrow = e.convert(LowerType::Int32, index, false, false);
-    auto bits = e.intrinsic2(LowerIntrinsic::Bzhi, LowerType::Int32, e.integer(LowerType::Int32, 0xffffffff), narrow);
+    auto narrow = bitsType == scalar ? index : e.convert(bitsType, index, false, false);
+    auto bits = e.intrinsic2(LowerIntrinsic::Bzhi, bitsType, e.integer(bitsType, allOnes), narrow);
 
     return e.emit(new (e.fun.arena) LowerInstX86MaskConvert(StringId(), mask, bits - e.base, false));
 }

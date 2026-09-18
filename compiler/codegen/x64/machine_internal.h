@@ -623,6 +623,11 @@ enum: MachineFormId {
     // A mask register written from a general register's bits - `kmovd k, r32`.
     FormKFromBits,
 
+    // The same operations over a mask of more than thirty-two lanes, which only a byte vector at 512
+    // bits has - `kandq`, `korq`, `kxorq`, `kandnq`, `kmovq` both ways and `kortestq`.
+    FormKAndQ, FormKOrQ, FormKXorQ, FormKAndNotQ, FormKMoveQ, FormKBitsQ,
+    FormKZeroTestQ, FormKZeroTestSetQ, FormKFromBitsQ,
+
     // `vpternlogd` - any bitwise function of three vectors - and the same reading its third operand
     // out of memory. See LowerInst::X86TernaryLogic.
     FormVTernaryLogic, FormVWideTernaryLogic, FormVTernaryLogicMem, FormVWideTernaryLogicMem,
@@ -666,6 +671,18 @@ enum: MachineFormId {
     FormVMaskedStoreF32, FormVWideMaskedStoreF32, FormVMaskedStoreF64, FormVWideMaskedStoreF64,
     FormVMaskMoveLoad32, FormVWideMaskMoveLoad32, FormVMaskMoveLoad64, FormVWideMaskMoveLoad64,
     FormVMaskMoveStore32, FormVWideMaskMoveStore32, FormVMaskMoveStore64, FormVWideMaskMoveStore64,
+
+    // The two halves of a 512-bit vector and the one built out of two - `vmovaps ymm, ymm` over the
+    // low half, `vextracti64x4` for the high one and `vinserti64x4` to join them. What
+    // `splitFullVectors` writes an operation with no 512-bit form as, and never anything else.
+    FormVFullLow, FormVFullHigh, FormVFullJoin,
+
+    // A 256-bit vector's lanes widened to twice their width into a 512-bit one - `vpmovzx*`/`vpmovsx*`
+    // - and a 512-bit vector's narrowed to half theirs - `vpmov{wb,dw,qd}`. `unpackLow`, `unpackHigh`
+    // and `packLanes` at `avx512`'s natural width, each one instruction beside a half or a join.
+    FormVFullZeroExtend8, FormVFullZeroExtend16, FormVFullZeroExtend32,
+    FormVFullSignExtend8, FormVFullSignExtend16, FormVFullSignExtend32,
+    FormVFullNarrow16To8, FormVFullNarrow32To16, FormVFullNarrow64To32,
 
     FormSelectFlags,
     FormSelectReg,
@@ -1051,6 +1068,7 @@ struct MachineFormBuilder {
     void registerMemoryAndControlForms();
     void registerVexTier();
     void registerMaskedForms();
+    void registerFullForms();
 };
 
 /*

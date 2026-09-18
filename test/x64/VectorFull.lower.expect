@@ -1,0 +1,264 @@
+
+arithmetic<complex>(%a: i32x16, %b: i32x16, %f: f32x16, %g: f32x16): i32x16 {
+  b_0 {
+    %s = add %a, %b: i32x16
+    %p = mul %s, %b: i32x16
+    %x = xor %p, %a: i32x16
+    %h = add %f, %g: f32x16
+    %q = mul %h, %g: f32x16
+    %c = cast %q: i32x16
+    %r = sub %x, %c: i32x16
+    ret %r
+  }
+}
+
+wideMask<complex>(%a: i8x64, %b: i8x64, %c: i8x64): I64 {
+  b_0 {
+    %eq = cmp_eq %a, %b: m8x64
+    %lt = cmp_lt %a, %c: m8x64
+    %either = or %eq, %lt: m8x64
+    %none = not %either: m8x64
+    %bits = vreduce_bits %none: I64
+    ret %bits
+  }
+}
+
+anyAndFirst<complex>(%a: i8x64, %b: i8x64): I32 {
+  b_0 {
+    %eq = cmp_eq %a, %b: m8x64
+    %any = vreduce_or %eq: I32
+    %first = vreduce_first %eq: I32
+    %count = vreduce_add %eq: I32
+    %s = add %any, %first: I32
+    %t = add %s, %count: I32
+    ret %t
+  }
+}
+
+selected<complex>(%m: m32x16, %a: i32x16, %b: i32x16): i32x16 {
+  b_0 {
+    %s = select %m, %a, %b: i32x16
+    ret %s
+  }
+}
+
+splats<complex>(%x: I32, %y: I64): i64x8 {
+  b_0 {
+    %a = vsplat %x: i32x16
+    %b = vsplat %y: i64x8
+    %c = bitcast %a: i64x8
+    %d = add %b, %c: i64x8
+    ret %d
+  }
+}
+
+constants<complex>(%a: i32x16): i32x16 {
+  b_0 {
+    %zero = vsplat 0: i32x16
+    %ones = vsplat 18446744073709551615: i32x16
+    %x = add %a, %ones: i32x16
+    %y = xor %x, %zero: i32x16
+    %n = not %y: i32x16
+    ret %n
+  }
+}
+
+byteProduct<complex>(%a: i8x64, %b: i8x64): i8x64 {
+  b_0 {
+    %p = mul %a, %b: i8x64
+    ret %p
+  }
+}
+
+laneRead<complex>(%a: i32x16): I32 {
+  b_0 {
+    %x = vlane %a, 13: I32
+    %y = vlane %a, 2: I32
+    %s = add %x, %y: I32
+    ret %s
+  }
+}
+
+widened<complex>(%a: i8x64): i16x32 {
+  b_0 {
+    %half = vshuffle %a, %a, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63: i8x32
+    %w = cast %half: i16x32
+    ret %w
+  }
+}
+
+narrowed<complex>(%a: i16x32, %b: i16x32): i8x64 {
+  b_0 {
+    %x = cast %a: i8x32
+    %y = cast %b: i8x32
+    %j = vshuffle %x, %y, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63: i8x64
+    ret %j
+  }
+}
+
+table<complex>(%t: i8x16, %i: i8x64): i8x64 {
+  b_0 {
+    %r = vlookup %t, %i: i8x64
+    ret %r
+  }
+}
+
+transfers<complex>(%p: Ptr, %q: Ptr, %n: I64) {
+  b_0 {
+    %v = vloadupto %p, %n: i8x64
+    vstoreupto %q, %n, %v
+    ret 
+  }
+}
+
+
+--- codegen: arithmetic ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm0, xmm1] creates=[xmm4]  => 62f17d48fee1
+  mul uses=[xmm4, xmm1] creates=[xmm4]  => 62f25d4840e1
+  xor uses=[xmm4, xmm0] creates=[xmm4]  => 62f15d48efe0
+  add uses=[xmm2, xmm3] creates=[xmm2]  => 62f16c4858d3
+  mul uses=[xmm2, xmm3] creates=[xmm2]  => 62f16c4859d3
+  cast uses=[xmm2] creates=[xmm2]  => 62f17e485bd2
+  sub uses=[xmm4, xmm2] creates=[xmm0]  => 62f15d48fac2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: wideMask ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[k1]  => 62f17d4874c9
+  cmp_lt uses=[xmm0, xmm2] creates=[k2]  => 62f37d483ed201
+  or uses=[k1, k2] creates=[k1]  => c4e1f445ca
+  not uses=[k1] creates=[k1]  => c4e1f844c9
+  vreduce_bits uses=[k1] creates=[rax]  => c4e1fb93c1
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: anyAndFirst ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cmp_eq uses=[xmm0, xmm1] creates=[k1]  => 62f17d4874c9
+  vreduce_bits uses=[k1] creates=[rax]  => c4e1fb93c1
+  imm uses=[] creates=[-]  => 
+  cmp_neq uses=[rax, -] creates=[rcx]  => 31c94885c00f95c1
+  cttz_width uses=[rax] creates=[rdx]  => f3480fbcd0
+  cast uses=[rdx] creates=[rdx]  => 
+  popcnt uses=[rax] creates=[rax]  => f3480fb8c0
+  cast uses=[rax] creates=[rax]  => 
+  add uses=[rcx, rdx] creates=[rcx]  => 01d1
+  add uses=[rcx, rax] creates=[rcx]  => 01c1
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
+
+--- codegen: selected ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  select uses=[xmm0, xmm1, k1] creates=[xmm1]  => 62f17e496fc8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 62f17c4828c1c3
+
+--- codegen: splats ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vsplat uses=[rdi] creates=[xmm0]  => 62f27d487cc7
+  vsplat uses=[rsi] creates=[xmm1]  => 62f2fd487cce
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  add uses=[xmm1, xmm0] creates=[xmm0]  => 62f1f548d4c0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: constants ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm1]  => 62f3754825c9ff
+  add uses=[xmm0, xmm1] creates=[xmm0]  => 62f17d48fec1
+  x86_ternarylogic uses=[xmm0, xmm0, xmm0] creates=[xmm0]  => 62f37d4825c00f
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: byteProduct ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  mul uses=[xmm0, xmm1] creates=[xmm2]  => 62f17d48d5d1
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm1, -] creates=[xmm1]  => 62f1754871d108
+  x86_addr [rip + $v032$00ff00ff] uses=[] creates=[-]  => 
+  and uses=[xmm0, -] creates=[xmm0]  => 62f17d58db0599010000
+  mul uses=[xmm0, xmm1] creates=[xmm0]  => 62f17d48d5c1
+  x86_addr [rip + $v032$ff00ff00] uses=[] creates=[-]  => 
+  x86_ternarylogic uses=[xmm2, xmm0, -] creates=[xmm2]  => 62f37d5825158c010000ec
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 62f17c4828c2c3
+
+--- codegen: laneRead ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm1]  => c5fc28c8
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => 62f3fd483bc001
+  vlane uses=[xmm0] creates=[rax]  => c4c37d39c301c4637916d801
+  vlane uses=[xmm1] creates=[rcx]  => c4e37916c902
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: widened ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => 62f3fd483bc001
+  cast uses=[xmm0] creates=[xmm0]  => 62f27d4830c0
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: narrowed ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[xmm0] creates=[xmm0]  => 62f27e4830c0
+  cast uses=[xmm1] creates=[xmm1]  => 62f27e4830c9
+  vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => 62f3fd483ac101
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: table ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c4e37d06c000
+  vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => 62f3fd483ac001
+  x86_permute2 uses=[xmm1, xmm0, xmm0] creates=[xmm1]  => 62f27d4875c8
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 62f17c4828c1c3
+
+--- codegen: transfers ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:0]  => 
+  cmp_ilt uses=[rdx, -] creates=[-]  => 4885d2
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:0->rax]  => b800000000480f4dc2
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f840
+  imm uses=[] creates=[remat:1]  => 
+  select uses=[rax, rcx, -] creates=[rax] pre=[remat:1->rcx]  => b940000000480f43c1
+  imm uses=[] creates=[remat:2]  => 
+  bzhi uses=[rcx, rax] creates=[rax] pre=[remat:2->rcx]  => 48c7c1ffffffffc4e2f8f5c1
+  x86_vectortomask uses=[rax] creates=[k1]  => c4e1fb92c8
+  x86_maskedload uses=[rdi, k1] creates=[xmm0]  => 62f17fc96f07
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[remat:3]  => 
+  cmp_ilt uses=[rdx, -] creates=[-]  => 4885d2
+  select uses=[rax, rdx, -] creates=[rax] pre=[remat:3->rax]  => b800000000480f4dc2
+  imm uses=[] creates=[-]  => 
+  cmp_lt uses=[rax, -] creates=[-]  => 4883f840
+  imm uses=[] creates=[remat:4]  => 
+  select uses=[rax, rcx, -] creates=[rax] pre=[remat:4->rcx]  => b940000000480f43c1
+  imm uses=[] creates=[remat:5]  => 
+  bzhi uses=[rcx, rax] creates=[rax] pre=[remat:5->rcx]  => 48c7c1ffffffffc4e2f8f5c1
+  x86_vectortomask uses=[rax] creates=[k1]  => c4e1fb92c8
+  x86_maskedstore uses=[rsi, k1, xmm0] creates=[]  => 62f17f497f06
+  ret uses=[] creates=[]  => c3

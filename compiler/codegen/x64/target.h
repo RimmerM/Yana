@@ -95,8 +95,8 @@ static constexpr FeatureSet kFeatureAvx512f = 1 << 3;
  * intersection and has all eleven; they are separate bits on the argument this file opens with. A form
  * requires the one its instruction is defined by - `vpmovb2m` is BW, `vpminsq` is F, `vpmullq` is DQ,
  * `vplzcntd` is CD, `vpermb` is VBMI, `vpshldw` is VBMI2 - so a level that ever splits them finds the
- * table already saying which is which. VL is on every 128- and 256-bit EVEX form, which is every EVEX
- * form this backend writes while `targetVectorBytes` holds the width at 32.
+ * table already saying which is which. VL is on every 128- and 256-bit EVEX form; a 512-bit one asks
+ * for F, BW and DQ together (`registerFullForms`), which the level moves as one.
  */
 static constexpr FeatureSet kFeatureAvx512cd        = 1 << 13;
 static constexpr FeatureSet kFeatureAvx512bw        = 1 << 14;
@@ -654,6 +654,18 @@ inline bool isWideVector(LowerType type) {
     return type.byteWidth() > 16;
 }
 
+// And whether it occupies the whole of a 512-bit register - the third tier, which only `avx512`'s
+// natural width reaches (Analysis-Avx512.md §1.2). Every full vector is also a wide one: a form's
+// 512-bit twin is linked from its 256-bit one, so both questions are asked on the way to it.
+inline bool isFullVector(LowerType type) {
+    return type.byteWidth() > 32;
+}
+
+// VEX.L and EVEX.L'L for a vector of this type: 0 at 128 bits, 1 at 256 and 2 at 512.
+inline U8 vectorLengthOf(LowerType type) {
+    return isFullVector(type) ? U8(2) : isWideVector(type) ? U8(1) : U8(0);
+}
+
 // Which of the three packed classes a vector of this many bytes occupies. A vector narrower than a
 // register - `i32x2` is eight bytes - occupies the smallest one that holds it, which is the same
 // thing the machine does with it.
@@ -669,6 +681,13 @@ inline RegisterBankId bankForType(LowerType type) {
     return isIntLike(type) ? BankGpr : BankVector;
 }
 
+// Whether a mask has more lanes than a 32-bit mask register operation reads - a byte mask at 512
+// bits, and nothing else. Such a mask is `ClassMask64`, and what reads or writes the register as a
+// number takes the `q` spelling of its instruction (`kandq`, `kmovq`, `kortestq`).
+inline bool isQuadMask(LowerType type) {
+    return type.lanes() > 32;
+}
+
 // The class a value of this type occupies. Every scalar the lowering produces is at most eight bytes
 // wide, so a float takes the scalar view of a vector register rather than the whole of one; a vector
 // takes the whole of one, at the width its lanes come to.
@@ -676,7 +695,7 @@ inline RegisterClassId classForType(LowerType type) {
     if(type.isMask()) {
         // A mask register holds one bit per lane, so which of the two mask classes it is depends on
         // how many lanes there are and not on how wide they are: 32 lanes fit `k` at 32 bits.
-        if(maskInMaskBank()) return type.lanes() > 32 ? ClassMask64 : ClassMask32;
+        if(maskInMaskBank()) return isQuadMask(type) ? ClassMask64 : ClassMask32;
         return vectorClassForBytes(type.byteWidth());
     }
 

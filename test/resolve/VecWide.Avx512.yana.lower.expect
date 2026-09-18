@@ -4,10 +4,10 @@ mut @seed = [3, 0, 0, 0]
 main<complex>(): I32 {
   b_0 {
     %v_1 = loads @seed, 4: I32
-    %base = vsplat %v_1: i32x8
-    %v_2 = add %base, %base: i32x8
-    %v_3 = vsplat 1: i32x8
-    %v_4 = shl %base, %v_3: i32x8
+    %base = vsplat %v_1: i32x16
+    %v_2 = add %base, %base: i32x16
+    %v_3 = vsplat 1: i32x16
+    %v_4 = shl %base, %v_3: i32x16
     %v_5 = vlane %v_2, 0: I32
     %v_6 = cmp_neq %v_5, 6: I32
     je %v_6, b_7, b_8
@@ -29,7 +29,7 @@ main<complex>(): I32 {
 
   b_12 {
     %lanes = vreduce_add %v_3: I32
-    %mixed = vwithlane %base, 10, 0: i32x8
+    %mixed = vwithlane %base, 10, 0: i32x16
     %v_13 = vreduce_imax %mixed: I32
     %v_14 = cmp_neq %v_13, 10: I32
     je %v_14, b_15, b_16
@@ -65,9 +65,9 @@ main<complex>(): I32 {
   }
 
   b_21 {
-    %v_31 = phi [b_22, %v_27], [b_20, %base]: i32x8
+    %v_31 = phi [b_22, %v_27], [b_20, %base]: i32x16
     %v_32 = phi [b_22, %v_24], [b_20, 0]: I32
-    %v_27 = add %v_31, %base: i32x8
+    %v_27 = add %v_31, %base: i32x16
     %v_24 = add %v_32, 1: I32
     jmp b_22
   }
@@ -98,9 +98,9 @@ main<complex>(): I32 {
   }
 
   b_41 {
-    %v_42 = add %base, %v_2: i32x8
+    %v_42 = add %base, %v_2: i32x16
     %v_43 = vlane %v_42, 0: I32
-    %v_44 = add %v_4, %v_27: i32x8
+    %v_44 = add %v_4, %v_27: i32x16
     %v_45 = vlane %v_44, 0: I32
     %v_46 = add %v_43, %v_45: I32
     %v_47 = cmp_neq %v_46, 30: I32
@@ -112,7 +112,7 @@ main<complex>(): I32 {
   }
 
   b_49 {
-    %above = cmp_igt %mixed, %base: m32x8
+    %above = cmp_igt %mixed, %base: m32x16
     %v_50 = vreduce_add %above: I32
     %v_51 = cmp_neq %v_50, 1: I32
     je %v_51, b_52, b_53
@@ -141,9 +141,9 @@ main<complex>(): I32 {
   }
 
   b_59 {
-    %v_60 = vsplat 7: i32x8
-    %v_61 = vsplat 2: i32x8
-    %picked = select %above, %v_60, %v_61: i32x8
+    %v_60 = vsplat 7: i32x16
+    %v_61 = vsplat 2: i32x16
+    %picked = select %above, %v_60, %v_61: i32x16
     %v_62 = vlane %picked, 0: I32
     %v_63 = cmp_neq %v_62, 7: I32
     je %v_63, b_64, b_65
@@ -164,8 +164,8 @@ main<complex>(): I32 {
   }
 
   b_69 {
-    %v_70 = vwithlane %base, 10, 1: i32x8
-    %v_71 = cmp_igt %v_70, %base: m32x8
+    %v_70 = vwithlane %base, 10, 1: i32x16
+    %v_71 = cmp_igt %v_70, %base: m32x16
     %v_72 = vreduce_first %v_71: I32
     %v_73 = cmp_neq %v_72, 1: I32
     je %v_73, b_74, b_75
@@ -176,7 +176,7 @@ main<complex>(): I32 {
   }
 
   b_75 {
-    %v_76 = cmp_ilt %mixed, %base: m32x8
+    %v_76 = cmp_ilt %mixed, %base: m32x16
     %v_77 = vreduce_first %v_76: I32
     %v_78 = cmp_neq %v_77, %lanes: I32
     je %v_78, b_79, b_80
@@ -187,7 +187,7 @@ main<complex>(): I32 {
   }
 
   b_80 {
-    %v_81 = cmp_ige %mixed, %base: m32x8
+    %v_81 = cmp_ige %mixed, %base: m32x16
     %v_82 = vreduce_first %v_81: I32
     %v_83 = cmp_neq %v_82, 0: I32
     je %v_83, b_84, b_85

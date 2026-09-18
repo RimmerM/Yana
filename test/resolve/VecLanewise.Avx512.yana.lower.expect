@@ -1,9 +1,9 @@
 @image$base = []
 mut @seed = [3, 0, 0, 0]
 
-comparisons<complex>(%a: i32x8, %b: i32x8): I32 {
+comparisons<complex>(%a: i32x16, %b: i32x16): I32 {
   b_0 {
-    %v_1 = cmp_ilt %a, %b: m32x8
+    %v_1 = cmp_ilt %a, %b: m32x16
     %v_2 = vreduce_and %v_1: I32
     je %v_2, b_3, b_4
   }
@@ -13,7 +13,7 @@ comparisons<complex>(%a: i32x8, %b: i32x8): I32 {
   }
 
   b_3 {
-    %v_5 = cmp_ile %a, %b: m32x8
+    %v_5 = cmp_ile %a, %b: m32x16
     %v_6 = vreduce_and %v_5: I32
     je %v_6, b_7, b_8
   }
@@ -23,7 +23,7 @@ comparisons<complex>(%a: i32x8, %b: i32x8): I32 {
   }
 
   b_7 {
-    %v_9 = cmp_igt %b, %a: m32x8
+    %v_9 = cmp_igt %b, %a: m32x16
     %v_10 = vreduce_and %v_9: I32
     je %v_10, b_11, b_12
   }
@@ -33,7 +33,7 @@ comparisons<complex>(%a: i32x8, %b: i32x8): I32 {
   }
 
   b_11 {
-    %v_13 = cmp_ige %b, %a: m32x8
+    %v_13 = cmp_ige %b, %a: m32x16
     %v_14 = vreduce_and %v_13: I32
     je %v_14, b_15, b_16
   }
@@ -43,7 +43,7 @@ comparisons<complex>(%a: i32x8, %b: i32x8): I32 {
   }
 
   b_15 {
-    %v_17 = cmp_neq %a, %b: m32x8
+    %v_17 = cmp_neq %a, %b: m32x16
     %v_18 = vreduce_and %v_17: I32
     je %v_18, b_19, b_20
   }
@@ -53,7 +53,7 @@ comparisons<complex>(%a: i32x8, %b: i32x8): I32 {
   }
 
   b_19 {
-    %v_21 = cmp_eq %a, %b: m32x8
+    %v_21 = cmp_eq %a, %b: m32x16
     %v_22 = vreduce_or %v_21: I32
     je %v_22, b_23, b_24
   }
@@ -63,7 +63,7 @@ comparisons<complex>(%a: i32x8, %b: i32x8): I32 {
   }
 
   b_24 {
-    %v_25 = cmp_igt %a, %b: m32x8
+    %v_25 = cmp_igt %a, %b: m32x16
     %v_26 = vreduce_or %v_25: I32
     je %v_26, b_27, b_28
   }
@@ -77,11 +77,11 @@ comparisons<complex>(%a: i32x8, %b: i32x8): I32 {
   }
 }
 
-selection<complex>(%a: i32x8, %b: i32x8): I32 {
+selection<complex>(%a: i32x16, %b: i32x16): I32 {
   b_0 {
-    %v_1 = cmp_ilt %a, %b: m32x8
-    %smaller = select %v_1, %a, %b: i32x8
-    %larger = select %v_1, %b, %a: i32x8
+    %v_1 = cmp_ilt %a, %b: m32x16
+    %smaller = select %v_1, %a, %b: i32x16
+    %larger = select %v_1, %b, %a: i32x16
     %v_2 = vlane %smaller, 0: I32
     %v_3 = cmp_neq %v_2, 3: I32
     je %v_3, b_4, b_5
@@ -106,11 +106,11 @@ selection<complex>(%a: i32x8, %b: i32x8): I32 {
   }
 }
 
-combining<complex>(%a: i32x8, %b: i32x8): I32 {
+combining<complex>(%a: i32x16, %b: i32x16): I32 {
   b_0 {
-    %below = cmp_ilt %a, %b: m32x8
-    %equal = cmp_eq %a, %b: m32x8
-    %v_1 = or %below, %equal: m32x8
+    %below = cmp_ilt %a, %b: m32x16
+    %equal = cmp_eq %a, %b: m32x16
+    %v_1 = or %below, %equal: m32x16
     %v_2 = vreduce_and %v_1: I32
     je %v_2, b_3, b_4
   }
@@ -120,7 +120,7 @@ combining<complex>(%a: i32x8, %b: i32x8): I32 {
   }
 
   b_3 {
-    %v_5 = and %below, %equal: m32x8
+    %v_5 = and %below, %equal: m32x16
     %v_6 = vreduce_or %v_5: I32
     je %v_6, b_7, b_8
   }
@@ -130,7 +130,7 @@ combining<complex>(%a: i32x8, %b: i32x8): I32 {
   }
 
   b_8 {
-    %v_9 = xor %below, %equal: m32x8
+    %v_9 = xor %below, %equal: m32x16
     %v_10 = vreduce_and %v_9: I32
     je %v_10, b_11, b_12
   }
@@ -140,7 +140,7 @@ combining<complex>(%a: i32x8, %b: i32x8): I32 {
   }
 
   b_11 {
-    %v_13 = not %equal: m32x8
+    %v_13 = not %equal: m32x16
     %v_14 = vreduce_and %v_13: I32
     je %v_14, b_15, b_16
   }
@@ -156,87 +156,95 @@ combining<complex>(%a: i32x8, %b: i32x8): I32 {
 
 counting<complex>(): I32 {
   b_0 {
-    %v_1 = vsplat 0: i32x8
-    %v_2 = vwithlane %v_1, 1, 1: i32x8
-    %v_3 = vwithlane %v_2, 2, 2: i32x8
-    %v_4 = vwithlane %v_3, 3, 3: i32x8
-    %v_5 = vwithlane %v_4, 4, 4: i32x8
-    %v_6 = vwithlane %v_5, 5, 5: i32x8
-    %v_7 = vwithlane %v_6, 6, 6: i32x8
-    %indices = vwithlane %v_7, 7, 7: i32x8
-    %v_8 = vsplat 1: i32x8
-    %past = cmp_ige %indices, %v_8: m32x8
-    %v_9 = vreduce_add %past: I32
-    %v_10 = cmp_neq %v_9, 7: I32
-    je %v_10, b_11, b_12
-  }
-
-  b_11 {
-    ret 18446744073709551615
-  }
-
-  b_12 {
-    %v_13 = vreduce_first %past: I32
-    %v_14 = cmp_neq %v_13, 1: I32
-    je %v_14, b_15, b_16
-  }
-
-  b_15 {
-    ret 18446744073709551614
-  }
-
-  b_16 {
-    %never = cmp_ilt %indices, %v_1: m32x8
-    %v_17 = vreduce_first %never: I32
-    %v_18 = cmp_neq %v_17, 8: I32
+    %v_1 = vsplat 0: i32x16
+    %v_2 = vwithlane %v_1, 1, 1: i32x16
+    %v_3 = vwithlane %v_2, 2, 2: i32x16
+    %v_4 = vwithlane %v_3, 3, 3: i32x16
+    %v_5 = vwithlane %v_4, 4, 4: i32x16
+    %v_6 = vwithlane %v_5, 5, 5: i32x16
+    %v_7 = vwithlane %v_6, 6, 6: i32x16
+    %v_8 = vwithlane %v_7, 7, 7: i32x16
+    %v_9 = vwithlane %v_8, 8, 8: i32x16
+    %v_10 = vwithlane %v_9, 9, 9: i32x16
+    %v_11 = vwithlane %v_10, 10, 10: i32x16
+    %v_12 = vwithlane %v_11, 11, 11: i32x16
+    %v_13 = vwithlane %v_12, 12, 12: i32x16
+    %v_14 = vwithlane %v_13, 13, 13: i32x16
+    %v_15 = vwithlane %v_14, 14, 14: i32x16
+    %indices = vwithlane %v_15, 15, 15: i32x16
+    %v_16 = vsplat 1: i32x16
+    %past = cmp_ige %indices, %v_16: m32x16
+    %v_17 = vreduce_add %past: I32
+    %v_18 = cmp_neq %v_17, 15: I32
     je %v_18, b_19, b_20
   }
 
   b_19 {
-    ret 18446744073709551613
+    ret 18446744073709551615
   }
 
   b_20 {
-    %v_21 = vreduce_add %never: I32
-    %v_22 = cmp_neq %v_21, 0: I32
+    %v_21 = vreduce_first %past: I32
+    %v_22 = cmp_neq %v_21, 1: I32
     je %v_22, b_23, b_24
   }
 
   b_23 {
-    ret 18446744073709551612
+    ret 18446744073709551614
   }
 
   b_24 {
-    %always = cmp_ige %indices, %v_1: m32x8
-    %v_25 = vreduce_first %always: I32
-    %v_26 = cmp_neq %v_25, 0: I32
+    %never = cmp_ilt %indices, %v_1: m32x16
+    %v_25 = vreduce_first %never: I32
+    %v_26 = cmp_neq %v_25, 16: I32
     je %v_26, b_27, b_28
   }
 
   b_27 {
-    ret 18446744073709551611
+    ret 18446744073709551613
   }
 
   b_28 {
-    %v_29 = vreduce_add %always: I32
-    %v_30 = cmp_neq %v_29, 8: I32
+    %v_29 = vreduce_add %never: I32
+    %v_30 = cmp_neq %v_29, 0: I32
     je %v_30, b_31, b_32
   }
 
   b_31 {
-    ret 18446744073709551610
+    ret 18446744073709551612
   }
 
   b_32 {
+    %always = cmp_ige %indices, %v_1: m32x16
+    %v_33 = vreduce_first %always: I32
+    %v_34 = cmp_neq %v_33, 0: I32
+    je %v_34, b_35, b_36
+  }
+
+  b_35 {
+    ret 18446744073709551611
+  }
+
+  b_36 {
+    %v_37 = vreduce_add %always: I32
+    %v_38 = cmp_neq %v_37, 16: I32
+    je %v_38, b_39, b_40
+  }
+
+  b_39 {
+    ret 18446744073709551610
+  }
+
+  b_40 {
     ret 0
   }
 }
 
 floats<complex>(): I32 {
   b_0 {
-    %a = vsplat 1.5: f32x8
-    %b = vsplat 2.5: f32x8
-    %v_1 = cmp_lt %a, %b: m32x8
+    %a = vsplat 1.5: f32x16
+    %b = vsplat 2.5: f32x16
+    %v_1 = cmp_lt %a, %b: m32x16
     %v_2 = vreduce_and %v_1: I32
     je %v_2, b_3, b_4
   }
@@ -246,8 +254,8 @@ floats<complex>(): I32 {
   }
 
   b_3 {
-    %v_5 = cmp_lt %a, %b: m32x8
-    %v_6 = select %v_5, %a, %b: f32x8
+    %v_5 = cmp_lt %a, %b: m32x16
+    %v_6 = select %v_5, %a, %b: f32x16
     %v_7 = vlane %v_6, 0: F32
     %v_8 = cmp_neq %v_7, 1.5: I32
     je %v_8, b_9, b_10
@@ -265,9 +273,9 @@ floats<complex>(): I32 {
 main<complex>(): I32 {
   b_0 {
     %v_1 = loads @seed, 4: I32
-    %a = vsplat %v_1: i32x8
+    %a = vsplat %v_1: i32x16
     %v_2 = add %v_1, 1: I32
-    %b = vsplat %v_2: i32x8
+    %b = vsplat %v_2: i32x16
     %v_3 = call_complex comparisons, %a, %b: I32
     %v_4 = cmp_neq %v_3, 0: I32
     je %v_4, b_5, b_6

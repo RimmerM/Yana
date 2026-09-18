@@ -237,6 +237,12 @@ inline bool isFloatVector(LowerType type) {
     return type.isVector() && (type.lane == LowerLane::Float32 || type.lane == LowerLane::Float64);
 }
 
+// The integer a mask's lanes are read into by `LowerReduce::Bits`: one bit per lane, so thirty-two
+// bits up to thirty-two lanes and sixty-four above, which is a byte mask at 512 bits.
+inline LowerType maskBitsType(LowerType mask) {
+    return mask.lanes() > 32 ? LowerType::Int64 : LowerType::Int32;
+}
+
 // Whether two types have the same lane width and lane count, which is what a comparison and its mask
 // have to agree about, and what a lane-count-preserving conversion may not change.
 inline bool sameLaneShape(LowerType a, LowerType b) {

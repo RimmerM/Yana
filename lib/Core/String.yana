@@ -231,6 +231,12 @@ instance Monoid(String):
    the lanes past it are cut off by `limit` rather than by a branch on the length, which measured 60%
    slower on this backend. The rest is a `@noinline` call so that this body saves no register for it.
    `String.test.native.yana` checks every length and difference position around the register edge.
+
+   **Thirty-two units and not the whole register at `avx512`**, whose natural width is 64 bytes.
+   This is one compare per call and latency is all it is: two 64-byte loads that each cross a cache
+   line where a 32-byte one does half the time, and a comparison into a mask register, measured 1.2x
+   the time of the 256-bit head on every corpus in `test/bench/unicode` (test/bench/avx512/findings.md
+   §10). What a longer shared prefix costs is `compareMemory`'s, which is faster at 512 bits.
 -}
 @platform(native) instance Ord(String):
     fn compare(self: String, other: String) -> Ordering:
@@ -240,19 +246,24 @@ instance Monoid(String):
         if rightLength < shared then shared = rightLength
 
         if shared > 0:
-            let same = bits(vectorPast(units(self)) .== (vectorPast(units(other)) :: Vec(CodeUnit)))
+            -- At most 32 units at once, which is the whole register below `avx512` and half of it
+            -- there - see the note above. A test of a constant, so only one arm is ever compiled in.
+            let head = if vectorBytes > 32 then 32 :: Size else vectorBytes
+            let same = if vectorBytes > 32
+                then bits((vectorPast(units(self)) :: Vec(CodeUnit, 32)) .== (vectorPast(units(other)) :: Vec(CodeUnit, 32)))
+                else bits(vectorPast(units(self)) .== (vectorPast(units(other)) :: Vec(CodeUnit)))
             let differs = trailingZeros(not(same)) :: Size
-            let limit = if shared < vectorBytes then shared else vectorBytes
+            let limit = if shared < head then shared else head
             if differs < limit then return if *(units(self) + differs) < *(units(other) + differs) then LT else GT
 
-            if shared > vectorBytes then return compareAfterRegister(self, other, shared)
+            if shared > head then return compareAfterRegister(self, other, shared, head)
 
         return compare(leftLength, rightLength)
 
--- `compare` past the first register, which every unit of agreed.
+-- `compare` past the first block, which every unit of agreed.
 @platform(native) @noinline
-fn compareAfterRegister(self: String, other: String, shared: Size) -> Ordering:
-    let order = compareMemory(units(self) + vectorBytes, units(other) + vectorBytes, shared - vectorBytes)
+fn compareAfterRegister(self: String, other: String, shared: Size, head: Size) -> Ordering:
+    let order = compareMemory(units(self) + head, units(other) + head, shared - head)
     return if order != EQ then order else compare(length(self), length(other))
 
 @platform(js) instance Ord(String):

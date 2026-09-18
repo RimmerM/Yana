@@ -523,6 +523,7 @@ set(X64_SOURCE_FILES
     codegen/x64/transform_reduce.cpp
     codegen/x64/transform_constant.cpp
     codegen/x64/transform_move.cpp
+    codegen/x64/transform_split.cpp
     codegen/x64/transform_transfer.cpp
     codegen/x64/place.cpp
     codegen/x64/legalize.cpp

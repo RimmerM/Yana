@@ -32,8 +32,8 @@
 // One level of the tree: the two vectors combined the way this reduction says. `min` and `max` are a
 // comparison and a select rather than an instruction, which is the same shape `emitMinMax` gives
 // them in the library - the machine has `minps` and this backend has no form for it yet.
-static LowerValue* reduceStep(Expansion& e, LowerReduce reduce, LowerType type,
-                              LowerValue* lhs, LowerValue* rhs)
+LowerValue* reduceStep(Expansion& e, LowerReduce reduce, LowerType type,
+                       LowerValue* lhs, LowerValue* rhs)
 {
     auto compareAndSelect = [&](LowerCmp cmp) {
         // The comparison answers a mask of the operands' shape, which is the one thing about a
@@ -304,8 +304,14 @@ static Size maskBitCount(LowerType type) {
 // The movemask itself. One instruction, and the one instruction every consumer below starts from -
 // which is why `lowerVectorReductions` may place it once for a mask several of them read.
 static LowerValue* emitMaskBits(Expansion& e, LowerValue* source) {
-    return e.emit(new (e.fun.arena) LowerInstVecReduce(StringId(), LowerType::Int32, source - e.base,
+    return e.emit(new (e.fun.arena) LowerInstVecReduce(StringId(), maskBitsType(source->type), source - e.base,
                                                        LowerReduce::Bits));
+}
+
+// The integer a mask's movemask is read at, and every consumer's arithmetic on it: thirty-two bits,
+// and sixty-four for the one mask with more bits than that - a byte mask at 512 bits.
+static LowerType maskBitsScalar(LowerType type) {
+    return maskBitCount(type) > 32 ? LowerType::Int64 : LowerType::Int32;
 }
 
 /*
@@ -338,6 +344,16 @@ static LowerValue* expandMaskFirstSet(Expansion& e, LowerValue* bits, LowerType 
     auto scalar = LowerType::Int32;
     auto width = maskBitCount(type);
     auto shift = maskBitShift(type);
+
+    // Sixty-four byte lanes in a `k` register, a bit each - the shape the note above anticipates.
+    // `tzcnt` at sixty-four bits answers 64 for nothing set, which is the lane count, and the answer
+    // is narrowed into the `i32` a lane index is.
+    if(width == 64) {
+        assertTrue(shift == 0 && (targetFeatures() & kFeatureBmi1));
+
+        auto first = e.intrinsic(LowerIntrinsic::CttzWidth, LowerType::Int64, bits);
+        return e.convert(scalar, first, false, false);
+    }
 
     /*
      * A movemask that fills its word comes from a register wider than 128 bits, and a vector that
@@ -385,7 +401,7 @@ static LowerValue* expandMaskFirstSet(Expansion& e, LowerValue* bits, LowerType 
 static LowerValue* expandMaskBitsReduce(Expansion& e, LowerReduce reduce, LowerValue* source,
                                         LowerValue* bits, bool& truth, bool complemented = false) {
     auto type = source->type;
-    auto scalar = LowerType::Int32;
+    auto scalar = maskBitsScalar(type);
     auto width = maskBitCount(type);
     auto full = width < 32 ? (U64(1) << width) - 1 : ~U64(0);
 
@@ -403,12 +419,15 @@ static LowerValue* expandMaskBitsReduce(Expansion& e, LowerReduce reduce, LowerV
     if(reduce == LowerReduce::Add) {
         auto counted = e.intrinsic(LowerIntrinsic::Popcnt, scalar, bits);
 
+        // A population of sixty-four bits answers at most 64, which the `i32` a count is holds.
+        if(scalar != LowerType::Int32) counted = e.convert(LowerType::Int32, counted, false, false);
+
         // Every lane contributed `maskBitsPerLane` equal bits, so the population is the lane count
         // times that - and it is a power of two, so the division is a shift. Three of the four lane
         // widths contribute one bit and need no shift at all; the 16-bit lane is the one that does.
         auto shift = maskBitShift(type);
 
-        return shift ? e.binary(LowerInst::Shr, scalar, counted, e.integer(scalar, shift)) : counted;
+        return shift ? e.binary(LowerInst::Shr, LowerType::Int32, counted, e.integer(LowerType::Int32, shift)) : counted;
     }
 
     /*
@@ -685,7 +704,7 @@ static LowerValue* placeJoinedMaskBits(LowerBase base, LowerFunction& fun, Lower
         shared.push(SharedMaskBits { incoming, alternatives[i], false });
     }
 
-    auto joined = makePhi(fun.arena, LowerType::Int32, U32(count));
+    auto joined = makePhi(fun.arena, maskBitsScalar(source->type), U32(count));
     auto used = joined->used();
     auto sources = joined->sources();
 
@@ -957,7 +976,7 @@ static bool isNonNegativeIn(LowerBase base, LowerBlock* block, LowerValue* value
  * of the four lane widths and needs no scaling at all.
  */
 static LowerValue* laneRangeIndex(Expansion& e, const LaneRange& range, LowerType type) {
-    auto scalar = LowerType::Int32;
+    auto scalar = range.count->type;
     auto count = range.count;
     auto shift = maskBitShift(type);
     auto lanes = U64(type.lanes());
@@ -986,7 +1005,12 @@ static LowerValue* laneRangeIndex(Expansion& e, const LaneRange& range, LowerTyp
         count = e.select(scalar, within, count, limit);
     }
 
-    return shift ? e.binary(LowerInst::Shl, scalar, count, e.integer(scalar, shift)) : count;
+    count = shift ? e.binary(LowerInst::Shl, scalar, count, e.integer(scalar, shift)) : count;
+
+    // `bzhi` at the movemask's own width, which is sixty-four bits for a byte mask at 512 - and the
+    // index read at that width too, since only its low byte is anything to the instruction.
+    auto bits = maskBitsScalar(type);
+    return count->type == bits ? count : e.convert(bits, count, false, false);
 }
 
 /*
@@ -1012,7 +1036,7 @@ static LowerValue* placeFusedRangeBits(LowerBase base, LowerFunction& fun, Lower
     auto index = laneRangeIndex(e, range, source->type);
     if(!index) return nullptr;
 
-    return e.intrinsic2(LowerIntrinsic::Bzhi, LowerType::Int32, emitMaskBits(e, range.mask), index);
+    return e.intrinsic2(LowerIntrinsic::Bzhi, maskBitsScalar(range.mask->type), emitMaskBits(e, range.mask), index);
 }
 
 // What a fused range leaves behind: the `and`, the comparison that built it, the splat under that
@@ -1335,7 +1359,7 @@ void lowerVectorReductions(Context&, LowerBase base, LowerFunction& fun) {
              */
             if(fused) {
                 if(auto index = laneRangeIndex(e, range, source->type)) {
-                    bits = e.intrinsic2(LowerIntrinsic::Bzhi, LowerType::Int32,
+                    bits = e.intrinsic2(LowerIntrinsic::Bzhi, maskBitsScalar(range.mask->type),
                                         emitMaskBits(e, range.mask), index);
 
                     pushFusedRange(dead, range);
@@ -1892,8 +1916,10 @@ void fuseMaskRegisters(Context&, LowerBase base, LowerFunction& fun) {
 
                         if(count->inst()->kind != LowerInst::Imm && (knownZeroBits(base, count) & above) == above) {
                             Expansion e { base, fun, block, i };
-                            auto ones = e.integer(LowerType::Int32, 0xffffffff);
-                            auto bits = e.intrinsic2(LowerIntrinsic::Bzhi, LowerType::Int32, ones, count);
+                            auto bitsType = maskBitsType(cmp->result.type);
+                            auto ones = e.integer(bitsType, bitsType == LowerType::Int64 ? ~U64(0) : U64(0xffffffff));
+                            auto index = count->type == bitsType ? count : e.convert(bitsType, count, false, false);
+                            auto bits = e.intrinsic2(LowerIntrinsic::Bzhi, bitsType, ones, index);
                             auto live = e.emit(new (fun.arena) LowerInstX86MaskConvert(cmp->result.name, cmp->result.type,
                                                                                       bits - base, false));
                             i = e.at;

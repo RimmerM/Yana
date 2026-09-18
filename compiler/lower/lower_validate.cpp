@@ -1151,8 +1151,12 @@ static bool validateVectorInst(Diagnostics* diagnostics, LowerBase base, LowerIn
                     return false;
                 }
 
-                if(reduce->result.type != LowerType::Int32) {
-                    diagnostics->error("a reduction to bits or to a lane index produces an i32"_v, inst->source);
+                // A lane index is an `i32` at every width; the bits are one per lane, so a mask of
+                // more than thirty-two lanes is read into an `i64` - see `maskBitsType`.
+                auto answer = reduce->getReduce() == LowerReduce::Bits ? maskBitsType(source) : LowerType::Int32;
+
+                if(reduce->result.type != answer) {
+                    diagnostics->error("a reduction to bits produces the integer its lanes fit in, and one to a lane index an i32"_v, inst->source);
                     return false;
                 }
 

@@ -1,12 +1,12 @@
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = vsplat 0: i32x8
-    %v_2 = vwithlane %v_1, 1, 1: i32x8
-    %v_3 = vwithlane %v_2, 4, 2: i32x8
-    %v_4 = vwithlane %v_3, 31, 3: i32x8
-    %v_5 = vsplat 256: i32x8
-    %v_6 = shl %v_5, %v_4: i32x8
+    %v_1 = vsplat 0: i32x16
+    %v_2 = vwithlane %v_1, 1, 1: i32x16
+    %v_3 = vwithlane %v_2, 4, 2: i32x16
+    %v_4 = vwithlane %v_3, 31, 3: i32x16
+    %v_5 = vsplat 256: i32x16
+    %v_6 = shl %v_5, %v_4: i32x16
     %v_7 = vlane %v_6, 0: I32
     %v_8 = cmp_eq %v_7, 256: I32
     %v_9 = vlane %v_6, 1: I32
@@ -18,9 +18,9 @@ main<complex>(): I32 {
     %v_15 = vlane %v_6, 3: I32
     %v_16 = cmp_eq %v_15, 0: I32
     %v_17 = add %v_14, %v_16: I32
-    %v_18 = vsplat 18446744073709551360: i32x8
-    %v_19 = shr %v_18, %v_4: i32x8
-    %v_20 = sar %v_18, %v_4: i32x8
+    %v_18 = vsplat 18446744073709551360: i32x16
+    %v_19 = shr %v_18, %v_4: i32x16
+    %v_20 = sar %v_18, %v_4: i32x16
     %v_21 = vlane %v_19, 0: I32
     %v_22 = cmp_eq %v_21, 18446744073709551360: I32
     %v_23 = add %v_17, %v_22: I32
@@ -45,21 +45,21 @@ main<complex>(): I32 {
     %v_42 = vlane %v_20, 3: I32
     %v_43 = cmp_eq %v_42, 18446744073709551615: I32
     %v_44 = add %v_41, %v_43: I32
-    %v_45 = vsplat 18446744073709486080: i64x4
-    %v_46 = vsplat 0: i64x4
-    %v_47 = vwithlane %v_46, 8, 1: i64x4
-    %v_48 = sar %v_45, %v_47: i64x4
+    %v_45 = vsplat 18446744073709486080: i64x8
+    %v_46 = vsplat 0: i64x8
+    %v_47 = vwithlane %v_46, 8, 1: i64x8
+    %v_48 = sar %v_45, %v_47: i64x8
     %v_49 = vlane %v_48, 0: I64
     %v_50 = cmp_eq %v_49, 18446744073709486080: I32
     %v_51 = add %v_44, %v_50: I32
     %v_52 = vlane %v_48, 1: I64
     %v_53 = cmp_eq %v_52, 18446744073709551360: I32
     %v_54 = add %v_51, %v_53: I32
-    %v_55 = vsplat 18446744071821328129: i32x8
-    %v_56 = bitcast %v_55: i8x32
-    %v_57 = vsplat 33686018: i32x8
-    %v_58 = bitcast %v_57: i8x32
-    %v_59 = sar %v_56, %v_58: i8x32
+    %v_55 = vsplat 18446744071821328129: i32x16
+    %v_56 = bitcast %v_55: i8x64
+    %v_57 = vsplat 33686018: i32x16
+    %v_58 = bitcast %v_57: i8x64
+    %v_59 = sar %v_56, %v_58: i8x64
     %v_60 = vlane %v_59, 3: I32
     %v_61 = imm 24: I32
     %v_62 = shl %v_60, %v_61: I32

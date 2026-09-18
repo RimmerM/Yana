@@ -1095,10 +1095,19 @@ static const ClassMoveEncoding kClassMoves[kRegisterClassCount] = {
         .kind = PrefixEncoding::Vex, .length = 1, .defined = true,
     },
 
-    // ClassZmm512, which moves with an EVEX-encoded instruction this backend selects no form of yet:
-    // `targetVectorBytes` answers 32 at `avx512` (Analysis-Avx512.md §1.2's stage 1), so no IR type
-    // produces a value of it, and a location in one reaches genMoves as a loud failure.
-    {},
+    /*
+     * ClassZmm512: the whole of a 512-bit register - Analysis-Avx512.md §1.2's stage 2.
+     *
+     * The same three opcodes again at `L'L` = 2, which only EVEX can say: the row states VEX and the
+     * length, and `writeVectorPrefix` re-spells it through `evexSpellingOf` - `vmovaps` and `vmovups`
+     * are W0 there - exactly as it does a ymm move whose register is one of the upper sixteen. So the
+     * one statement of which instruction moves a vector still covers every width.
+     */
+    {
+        .regToReg = 0x28, .load = 0x10, .store = 0x11,
+        .escape = 0x0f, .widthInPrefix = true,
+        .kind = PrefixEncoding::Vex, .length = 2, .defined = true,
+    },
 
     /*
      * ClassMask32 and ClassMask64: a mask register, which is `kmovd` and `kmovq` - VEX.L0.66.0F.W1 and
@@ -2240,14 +2249,18 @@ struct Emitter {
     // exception is the quadword comparison - `pcmpeqq` and `pcmpgtq` are the only members of their
     // families in the three-byte 0F38 map - and it is a parameter rather than a second copy of the
     // expansion for the reason the paragraph above gives about the width.
-    void genPacked(bool wide, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix, U8 vvvv,
+    //
+    // `length` is VEX.L - and EVEX.L'L, where a 512-bit expansion states 2 and `writeVectorPrefix`
+    // re-spells the same opcode through `evexSpellingOf`. A `bool` passed for it is the old width
+    // flag and means what it always did.
+    void genPacked(U8 length, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix, U8 vvvv,
                    U8 map = kOpcodeMap0F)
     {
         // Two questions, and reading them as one is what this used to do: `L` is set by the *width*,
         // and the prefix is chosen by what the *target* can encode. A 128-bit expansion on a target
         // with AVX is VEX with L clear - the same instruction, spelled so that it zeroes the upper
         // half of the register it writes rather than leaving it dirty. See vectorClassNeedsVex.
-        if(!wide && !packedNeedsVex()) {
+        if(length == 0 && !packedNeedsVex()) {
             genRegRegPrefixed(to, InstPrefix {
                 .mandatory = prefix, .escape = escape, .map = map,
             }, rm, regField, opCode);
@@ -2256,35 +2269,36 @@ struct Emitter {
 
         genRegRegPrefixed(to, InstPrefix {
             .kind = PrefixEncoding::Vex, .mandatory = prefix, .escape = escape,
-            .map = map, .length = wide ? U8(1) : U8(0), .vvvv = vvvv,
+            .map = map, .length = length, .vvvv = vvvv,
         }, rm, regField, opCode);
     }
 
     // The two-address shape: `op dst, src` reads and writes `dst`, so VEX.vvvv is `dst` itself.
-    void genPackedTwoAddress(bool wide, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix,
+    void genPackedTwoAddress(U8 length, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix,
                              U8 map = kOpcodeMap0F)
     {
-        genPacked(wide, rm, regField, opCode, escape, prefix, regField, map);
+        genPacked(length, rm, regField, opCode, escape, prefix, regField, map);
     }
 
     // And the non-destructive shape - a copy, a shuffle - whose VEX form names no second source at
     // all. `vvvv` of zero is the all-ones field an unused one encodes as; see writeVectorPrefix.
-    void genPackedCopy(bool wide, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix) {
-        genPacked(wide, rm, regField, opCode, escape, prefix, 0);
+    void genPackedCopy(U8 length, U8 rm, U8 regField, U8 opCode, U8 escape, U8 prefix) {
+        genPacked(length, rm, regField, opCode, escape, prefix, 0);
     }
 
     // A shift by an immediate, whose count is in ModRM.reg as an opcode extension and whose operand
     // is therefore the r/m one. VEX names the destination in `vvvv` here rather than in ModRM.reg,
     // which is the one place the wide spelling moves a register between fields.
-    void genPackedShiftImm(bool wide, U8 rm, U8 opCode, U8 extension, U8 count) {
-        if(!wide && !packedNeedsVex()) {
+    void genPackedShiftImm(U8 length, U8 rm, U8 opCode, U8 extension, U8 count) {
+        if(length == 0 && !packedNeedsVex()) {
             genRegExt(to, false, rm, opCode, extension, 0x0f, 0x66);
         } else {
             // `vvvv` is the destination here rather than a second source, the extension having taken
             // ModRM.reg - and these expansions are two-address, so the destination is `rm` itself.
+            // The opcode and extension are what a 512-bit length is re-spelled in EVEX by.
             writePrefix(to, InstPrefix {
                 .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
-                .map = kOpcodeMap0F, .length = wide ? U8(1) : U8(0), .vvvv = rm,
+                .map = kOpcodeMap0F, .length = length, .vvvv = rm, .opcode = opCode, .extension = extension,
             }, false, false, needsRex(rm));
             to.buffer.writeByte(opCode);
             to.buffer.writeByte(makeMod(3, rm, extension));
@@ -2373,7 +2387,7 @@ struct Emitter {
 
             genRegRegPrefixed(to, InstPrefix {
                 .kind = PrefixEncoding::Vex, .mandatory = 0x66, .escape = 0x0f,
-                .map = kOpcodeMap0F38, .length = U8(isWideVector(type) ? 1 : 0),
+                .map = kOpcodeMap0F38, .length = vectorLengthOf(type),
             }, source, destination, opcode);
             return;
         }
@@ -2508,6 +2522,24 @@ struct Emitter {
     }
 
     /*
+     * An all-zero vector, which is the other constant this machine makes out of nothing - §5.7.
+     *
+     * `pxor r, r` rather than a load: one instruction, no `.rodata` entry, no general register on the
+     * way in, and every processor that runs this recognizes it as a zeroing idiom and breaks the
+     * dependency on whatever the register held. It is why `poolVectorConstants` declines an all-zero
+     * pattern, and the reason the *float* pool declines `0.0` for `xorps` is the same one.
+     *
+     * A 512-bit register is zeroed by the 256-bit spelling: every VEX write clears the register above
+     * what it names, so `vpxor ymm, ymm, ymm` is the whole of `zmm` and a byte shorter than EVEX.
+     */
+    void emitVecZero(LowerInst* inst, const InstRegs& regs) {
+        auto length = min(vectorLengthOf(((LowerInstVecSplat*)inst)->result.type), U8(1));
+        auto into = reg(regs.creates[0]);
+
+        genPacked(length, into, into, 0xef, 0x0f, 0x66, into); // pxor into, into
+    }
+
+    /*
      * An all-ones vector, out of nothing.
      *
      * `pcmpeqd r, r` compares a register with itself, and every lane of a register is equal to
@@ -2515,35 +2547,44 @@ struct Emitter {
      * pool, and it is the reason the complement and the three inverted comparisons are expansions
      * rather than refusals. The lane width is irrelevant: all ones at 32 bits is all ones at any
      * other, which is why `pcmpeqd` serves a byte lane and a mask alike.
-     */
-    /*
-     * An all-zero vector, which is the other constant this machine makes out of nothing - §5.7.
      *
-     * `pxor r, r` rather than a load: one instruction, no `.rodata` entry, no general register on the
-     * way in, and every processor that runs this recognizes it as a zeroing idiom and breaks the
-     * dependency on whatever the register held. It is why `poolVectorConstants` declines an all-zero
-     * pattern, and the reason the *float* pool declines `0.0` for `xorps` is the same one.
+     * At 512 bits a comparison writes a mask register instead, and the constant is `vpternlogd r, r,
+     * r, 0xff`: the truth table that is one in every row, whatever the three operands hold.
      */
-    void emitVecZero(LowerInst* inst, const InstRegs& regs) {
-        auto wide = isWideVector(((LowerInstVecSplat*)inst)->result.type);
-        auto into = reg(regs.creates[0]);
+    void emitAllOnes(U8 length, U8 into) {
+        if(length == 2) {
+            emitTernaryTable(into, into, 0xff);
+            return;
+        }
 
-        genPacked(wide, into, into, 0xef, 0x0f, 0x66, into); // pxor into, into
+        genPacked(length, into, into, 0x76, 0x0f, 0x66, into);
     }
 
-    void emitAllOnes(bool wide, U8 into) {
-        genPacked(wide, into, into, 0x76, 0x0f, 0x66, into);
+    // `vpternlogd zmm, zmm, zmm, table` over one register in all three places - EVEX.512.66.0F3A.W0 25
+    // /r ib - which is how a 512-bit expansion writes a constant or a complement with no scratch.
+    void emitTernaryTable(U8 source, U8 destination, U8 table) {
+        genRegRegPrefixed(to, InstPrefix {
+            .kind = PrefixEncoding::Evex, .mandatory = 0x66, .escape = 0x0f, .map = kOpcodeMap0F3A,
+            .length = 2, .vvvv = destination,
+        }, source, destination, 0x25);
+        to.buffer.writeByte(table);
     }
 
     // A vector or a mask complemented: an exclusive-or against the above. The destination is the
-    // operand by the form's tie, and `kVectorScratch` is its declared clobber.
+    // operand by the form's tie, and `kVectorScratch` is its declared clobber. At 512 bits it is the
+    // one instruction, `vpternlogd` with the table that is the complement of its first operand.
     void emitVecNot(LowerInst* inst, const InstRegs& regs) {
-        auto wide = isWideVector(((LowerInstUnary*)inst)->result.type);
+        auto length = vectorLengthOf(((LowerInstUnary*)inst)->result.type);
         auto destination = reg(regs.creates[0]);
         auto scratch = kVectorScratch;
 
-        emitAllOnes(wide, scratch);
-        genPackedTwoAddress(wide, scratch, destination, 0xef, 0x0f, 0x66); // pxor dst, scratch
+        if(length == 2) {
+            emitTernaryTable(destination, destination, 0x55);
+            return;
+        }
+
+        emitAllOnes(length, scratch);
+        genPackedTwoAddress(length, scratch, destination, 0xef, 0x0f, 0x66); // pxor dst, scratch
     }
 
     /*
@@ -2603,7 +2644,7 @@ struct Emitter {
         auto opBase = U8(inst->kind == LowerInst::Shl ? 0xf0 : inst->kind == LowerInst::Shr ? 0xd0 : 0xe0);
         auto width = laneBytes(type.lane) == 2 ? 1 : laneBytes(type.lane) == 4 ? 2 : 3;
 
-        auto wide = isWideVector(type);
+        auto length = vectorLengthOf(type);
         auto destination = reg(regs.creates[0]);
         auto count = reg(regs.uses[1]);
         auto scratch = kVectorScratch;
@@ -2625,12 +2666,12 @@ struct Emitter {
 
             genRegRegPrefixed(to, InstPrefix {
                 .kind = PrefixEncoding::Evex, .mandatory = 0x66, .escape = 0x0f, .map = kOpcodeMap0F,
-                .length = wide ? U8(1) : U8(0), .vvvv = destination, .w = true,
+                .length = length, .vvvv = destination, .w = true,
             }, scratch, destination, 0xe2);
             return;
         }
 
-        genPackedTwoAddress(wide, scratch, destination, U8(opBase + width), 0x0f, 0x66);
+        genPackedTwoAddress(length, scratch, destination, U8(opBase + width), 0x0f, 0x66);
     }
 
     /*
@@ -2693,7 +2734,7 @@ struct Emitter {
      */
     void emitVecNegate(LowerInst* inst, const InstRegs& regs) {
         auto type = ((LowerInstUnary*)inst)->result.type;
-        auto wide = isWideVector(type);
+        auto length = vectorLengthOf(type);
         auto destination = reg(regs.creates[0]);
         auto source = reg(regs.uses[0]);
         auto scratch = kVectorScratch;
@@ -2701,18 +2742,18 @@ struct Emitter {
         if(isFloatVector(type)) {
             auto quad = laneBytes(type.lane) == 8;
 
-            emitAllOnes(wide, scratch);
+            emitAllOnes(length, scratch);
 
             // `psllq`/`pslld` by the lane's width minus one, which leaves the sign bit and nothing
             // else. The shift's opcode carries its direction in ModRM.reg, exactly as the packed
             // shift forms do.
-            genPackedShiftImm(wide, scratch, quad ? 0x73 : 0x72, 6, quad ? 63 : 31);
+            genPackedShiftImm(length, scratch, quad ? 0x73 : 0x72, 6, quad ? 63 : 31);
 
             // `xorps`/`xorpd`, in the domain the lanes are already in. The copy is `movaps` and is
             // written unconditionally: `genRegReg` costs three bytes and the alternative is a branch
             // on whether the allocator happened to land both ends in one register.
-            if(destination != source) genPackedCopy(wide, source, destination, 0x28, 0x0f, 0x00);
-            genPackedTwoAddress(wide, scratch, destination, 0x57, 0x0f, quad ? 0x66 : 0x00);
+            if(destination != source) genPackedCopy(length, source, destination, 0x28, 0x0f, 0x00);
+            genPackedTwoAddress(length, scratch, destination, 0x57, 0x0f, quad ? 0x66 : 0x00);
             return;
         }
 
@@ -2721,9 +2762,9 @@ struct Emitter {
         auto width = laneBytes(type.lane);
         auto opcode = U8(width == 1 ? 0xf8 : width == 2 ? 0xf9 : width == 4 ? 0xfa : 0xfb);
 
-        genPacked(wide, scratch, scratch, 0xef, 0x0f, 0x66, scratch); // pxor scratch, scratch
-        genPackedTwoAddress(wide, source, scratch, opcode, 0x0f, 0x66); // psub scratch, v
-        genPackedCopy(wide, scratch, destination, 0x28, 0x0f, 0x00); // movaps dst, scratch
+        genPacked(length, scratch, scratch, 0xef, 0x0f, 0x66, scratch); // pxor scratch, scratch
+        genPackedTwoAddress(length, source, scratch, opcode, 0x0f, 0x66); // psub scratch, v
+        genPackedCopy(length, scratch, destination, 0x28, 0x0f, 0x00); // movaps dst, scratch
     }
 
     /*
@@ -2945,9 +2986,20 @@ struct Emitter {
      * register has nothing above its lanes and is the one instruction.
      */
     void emitMaskNot(LowerInst* inst, const InstRegs& regs) {
-        auto lanes = ((LowerInstUnary*)inst)->result.type.lanes();
+        auto type = ((LowerInstUnary*)inst)->result.type;
+        auto lanes = type.lanes();
         auto destination = reg(regs.creates[0]);
         auto source = reg(regs.uses[0]);
+
+        // `knotq k1, k2` - VEX.L0.0F.W1 44 - for the one mask with sixty-four lanes, which fills the
+        // register and has nothing above them to clear.
+        if(isQuadMask(type)) {
+            assertTrue(lanes == 64); // a quadword mask the register is wider than
+            genRegRegPrefixed(to, InstPrefix {
+                .kind = PrefixEncoding::Vex, .escape = 0x0f, .map = kOpcodeMap0F, .w = true,
+            }, source, destination, 0x44);
+            return;
+        }
 
         // `knotd k1, k2` - VEX.L0.66.0F.W1 44.
         genRegRegPrefixed(to, InstPrefix {
@@ -2979,7 +3031,7 @@ struct Emitter {
     void emitMaskTransfer(LowerType type, const InstRegs& regs, bool load) {
         assertTrue(regs.hasAddress); // a mask transfer with no address resolved for it
 
-        auto wide = isWideVector(type);
+        auto length = vectorLengthOf(type);
         auto width = laneBytes(type.lane);
         auto quadOrWord = width == 2 || width == 8;
         auto scratch = kVectorScratch;
@@ -2989,12 +3041,12 @@ struct Emitter {
         auto crossing = U8((width <= 2 ? 0x28 : 0x38) + (load ? 1 : 0));
         auto prefix = InstPrefix {
             .kind = PrefixEncoding::Evex, .mandatory = 0xf3, .escape = 0x0f, .map = kOpcodeMap0F38,
-            .length = wide ? U8(1) : U8(0), .w = quadOrWord,
+            .length = length, .w = quadOrWord,
         };
 
         auto transfer = MemForm {
             .opCode = U8(load ? 0x6f : 0x7f), .escape = 0x0f, .prefix = 0xf3,
-            .kind = PrefixEncoding::Vex, .length = wide ? U8(1) : U8(0),
+            .kind = PrefixEncoding::Vex, .length = length,
         };
 
         if(load) {
@@ -3558,7 +3610,7 @@ struct Emitter {
                 break;
 
             case PseudoKind::VecOnes:
-                emitAllOnes(isWideVector(((LowerInstVecSplat*)inst)->result.type), reg(regs.creates[0]));
+                emitAllOnes(vectorLengthOf(((LowerInstVecSplat*)inst)->result.type), reg(regs.creates[0]));
                 break;
 
             case PseudoKind::VecSelect:
@@ -3917,7 +3969,7 @@ struct Emitter {
         // And the trailing byte an instruction supplies - a shuffle's lane pattern or a lane
         // access's index - in the same position and for the same reason.
         if(e.patternImmediate) {
-            to.buffer.writeByte(packedTrailingByte(inst));
+            to.buffer.writeByte(packedTrailingByte(base, inst));
         }
 
         // And the one an *operand* supplies, which is `rorx`'s rotation distance and nothing else

@@ -1,16 +1,16 @@
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = vsplat 1: i32x8
+    %v_1 = vsplat 1: i32x16
     %v_2 = vreduce_add %v_1: I32
     %v_3 = cmp_ilt %v_2, 2: I32
     je %v_3, b_4, b_5
   }
 
   b_6 {
-    %v_7 = vsplat 1.5: f32x8
-    %v_8 = vsplat 2: f32x8
-    %v_9 = mul %v_7, %v_8: f32x8
+    %v_7 = vsplat 1.5: f32x16
+    %v_8 = vsplat 2: f32x16
+    %v_9 = mul %v_7, %v_8: f32x16
     %v_10 = vlane %v_9, 0: F32
     %v_11 = cmp_neq %v_10, 3: I32
     je %v_11, b_12, b_13
@@ -22,32 +22,32 @@ main<complex>(): I32 {
   }
 
   b_17 {
-    %v_18 = vsplat 3: i32x8
-    %v_19 = vsplat 4: i32x8
-    %v_20 = add %v_18, %v_19: i32x8
-    %v_21 = vsplat 2: i32x8
-    %v_22 = shl %v_18, %v_21: i32x8
-    %v_23 = sub %v_19, %v_18: i32x8
+    %v_18 = vsplat 3: i32x16
+    %v_19 = vsplat 4: i32x16
+    %v_20 = add %v_18, %v_19: i32x16
+    %v_21 = vsplat 2: i32x16
+    %v_22 = shl %v_18, %v_21: i32x16
+    %v_23 = sub %v_19, %v_18: i32x16
     %v_24 = vlane %v_20, 0: I32
     %v_25 = imul %v_24, 100: I32
     %v_26 = vlane %v_22, 0: I32
     %v_27 = add %v_25, %v_26: I32
     %v_28 = vlane %v_23, 1: I32
     %v_29 = add %v_27, %v_28: I32
-    %v_30 = vsplat 12: i32x8
-    %v_31 = vsplat 10: i32x8
-    %v_32 = and %v_30, %v_31: i32x8
+    %v_30 = vsplat 12: i32x16
+    %v_31 = vsplat 10: i32x16
+    %v_32 = and %v_30, %v_31: i32x16
     %v_33 = vlane %v_32, 0: I32
     %v_34 = imul %v_33, 100: I32
-    %v_35 = or %v_30, %v_31: i32x8
+    %v_35 = or %v_30, %v_31: i32x16
     %v_36 = vlane %v_35, 0: I32
     %v_37 = add %v_34, %v_36: I32
-    %v_38 = xor %v_30, %v_31: i32x8
+    %v_38 = xor %v_30, %v_31: i32x16
     %v_39 = vlane %v_38, 1: I32
     %v_40 = add %v_37, %v_39: I32
     %v_41 = add %v_29, %v_40: I32
-    %v_42 = vsplat 5: i32x8
-    %v_43 = vwithlane %v_42, 9, 1: i32x8
+    %v_42 = vsplat 5: i32x16
+    %v_43 = vwithlane %v_42, 9, 1: i32x16
     %v_44 = vlane %v_43, 0: I32
     %v_45 = imul %v_44, 100: I32
     %v_46 = vlane %v_43, 1: I32
@@ -68,7 +68,7 @@ main<complex>(): I32 {
   }
 
   b_54 {
-    %v_55 = vsplat 7: i32x8
+    %v_55 = vsplat 7: i32x16
     %v_56 = vreduce_add %v_55: I32
     %v_57 = imul %v_2, 7: I32
     %v_58 = cmp_neq %v_56, %v_57: I32
@@ -82,28 +82,28 @@ main<complex>(): I32 {
   }
 
   b_62 {
-    %v_63 = vwithlane %v_55, 9, 0: i32x8
+    %v_63 = vwithlane %v_55, 9, 0: i32x16
     %v_64 = vreduce_imax %v_63: I32
     %v_65 = cmp_neq %v_64, 9: I32
     je %v_65, b_4, b_66
   }
 
   b_66 {
-    %v_67 = vwithlane %v_55, 2, 1: i32x8
+    %v_67 = vwithlane %v_55, 2, 1: i32x16
     %v_68 = vreduce_imin %v_67: I32
     %v_69 = cmp_neq %v_68, 2: I32
     je %v_69, b_4, b_6
   }
 
   b_13 {
-    %v_70 = add %v_7, %v_8: f32x8
+    %v_70 = add %v_7, %v_8: f32x16
     %v_71 = vlane %v_70, 1: F32
     %v_72 = cmp_neq %v_71, 3.5: I32
     je %v_72, b_12, b_73
   }
 
   b_73 {
-    %v_74 = neg %v_7: f32x8
+    %v_74 = neg %v_7: f32x16
     %v_75 = vlane %v_74, 0: F32
     %v_76 = cmp_neq %v_75, -1.5: I32
     je %v_76, b_12, b_17
@@ -121,7 +121,7 @@ main<complex>(): I32 {
   }
 
   b_87 {
-    %v_88 = vsplat 7: i32x8
+    %v_88 = vsplat 7: i32x16
     %v_89 = vreduce_add %v_88: I32
     %v_90 = imul %v_2, 7: I32
     %v_91 = cmp_neq %v_89, %v_90: I32
@@ -135,14 +135,14 @@ main<complex>(): I32 {
   }
 
   b_95 {
-    %v_96 = vwithlane %v_88, 9, 0: i32x8
+    %v_96 = vwithlane %v_88, 9, 0: i32x16
     %v_97 = vreduce_imax %v_96: I32
     %v_98 = cmp_neq %v_97, 9: I32
     je %v_98, b_81, b_79
   }
 
   b_79 {
-    %v_99 = vwithlane %v_88, 2, 1: i32x8
+    %v_99 = vwithlane %v_88, 2, 1: i32x16
     %v_100 = vreduce_imin %v_99: I32
     %v_101 = cmp_neq %v_100, 2: I32
     %v_80 = select %v_101, 18446744073709551610, 0: I32
@@ -176,14 +176,14 @@ main<complex>(): I32 {
   }
 
   b_51 {
-    %v_108 = add %v_7, %v_8: f32x8
+    %v_108 = add %v_7, %v_8: f32x16
     %v_109 = vlane %v_108, 1: F32
     %v_110 = cmp_neq %v_109, 3.5: I32
     je %v_110, b_106, b_104
   }
 
   b_104 {
-    %v_111 = neg %v_7: f32x8
+    %v_111 = neg %v_7: f32x16
     %v_112 = vlane %v_111, 0: F32
     %v_113 = cmp_neq %v_112, -1.5: I32
     %v_105 = select %v_113, 18446744073709551613, 0: I32

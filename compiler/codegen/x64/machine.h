@@ -1469,6 +1469,15 @@ struct MachineForm {
     MachineFormId wideOf = 0;
 
     /*
+     * The same operation over a 512-bit register, linked from the 256-bit form - Analysis-Avx512.md
+     * §1.2's stage 2. Everything said of `wide` above holds one tier up: selection reaches it by the
+     * type's width through `widthForm` and never falls back, and a zero here is a refusal that
+     * `splitFullVectors` turns into two 256-bit halves before anything could select one.
+     */
+    MachineFormId full = 0;
+    MachineFormId fullOf = 0;
+
+    /*
      * The same operation performed only where a mask register is set, over the operand it writes -
      * `vpaddd acc{k}, acc, v` - which is what `LowerInst::X86MaskedOp` selects (Analysis-Avx512.md
      * §2.2). Derived when the table is built for every three-operand arithmetic form whose EVEX element
@@ -1757,7 +1766,11 @@ struct PackedShuffleChoice {
     bool hasByte = false;
 };
 
-Maybe<PackedShuffleChoice> packedShuffleChoice(LowerInst* inst);
+Maybe<PackedShuffleChoice> packedShuffleChoice(LowerBase base, LowerInst* inst);
+
+// Whether a shuffle is one of the three `splitFullVectors` writes - a half of a 512-bit vector, or two
+// 256-bit ones joined into one - which have forms of their own at `avx512` (see FormVFullLow).
+bool isFullHalvesShuffle(LowerBase base, LowerInst* inst);
 
 // Whether `vpermi2*` can express this shuffle whatever its pattern: two sources of the result's own
 // shape, at a level with the row for its lane - see `lowerTwoSourcePermutes`.
@@ -1896,7 +1909,7 @@ bool isWholePackedRegister(LowerType type);
  * byte goes after the encoding - and because a form declaring `patternImmediate` for a kind that has
  * no answer should fail here rather than write a stale byte.
  */
-U8 packedTrailingByte(LowerInst* inst);
+U8 packedTrailingByte(LowerBase base, LowerInst* inst);
 
 // The `pshufd` control byte that puts lane `index` of a vector of this lane width into every lane of
 // the result. The splat's byte with the index generalized, and the one a float lane extract needs:

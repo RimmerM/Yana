@@ -1165,9 +1165,24 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             }
 
             auto lowered = lowerType(lower, instruction.type);
+            auto from = mappedValue(lower, reduce.from);
+
+            // The movemask answers the lanes at the width they fit in, which is the only width the
+            // lower kind has for it, and is widened to the `Size` the declaration states after.
+            if(op == LowerReduce::Bits) {
+                auto bits = maskBitsType(lower.lower[from]->type);
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecReduce(
+                    instruction.name, bits, from, op));
+
+                if(bits != lowered) {
+                    result = block.addInst(lower.lower, new (lower.to.arena) LowerInstCast(
+                        instruction.name, lowered, result->created().ptr - lower.lower, false, false));
+                }
+                break;
+            }
 
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecReduce(
-                instruction.name, lowered, mappedValue(lower, reduce.from), op));
+                instruction.name, lowered, from, op));
 
             // A reduction of a narrow lane answers that lane, zero-extended, on the same terms a
             // lane read does - so it gets its sign back the same way. `count` and `firstSet` answer

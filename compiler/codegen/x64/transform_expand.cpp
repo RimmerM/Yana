@@ -350,8 +350,10 @@ void expandQuadwordSar(Context&, LowerBase base, LowerFunction& fun) {
     // The splat of the sign bit, which the runtime count shifts into its bias, and one bias per
     // written-down count. Interned here rather than left to CSE, which does not run below this point;
     // the array is indexed by the count itself, which is why it is 64 wide and needs no search.
-    LowerValue* signBits = nullptr;
-    LowerValue* biases[64] = {};
+    // Per register width as well, since a function may shift quadwords at both of the widths this
+    // pass runs at - see `expandByteMul`.
+    LowerValue* signBitsAt[3] = {};
+    LowerValue* biasesAt[3][64] = {};
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
@@ -363,6 +365,9 @@ void expandQuadwordSar(Context&, LowerBase base, LowerFunction& fun) {
             auto shift = (LowerInstBinary*)inst;
             auto type = shift->result.type;
             if(!isIntVector(type) || laneBytes(type.lane) != 8) continue;
+
+            auto& signBits = signBitsAt[vectorLengthOf(type)];
+            auto& biases = biasesAt[vectorLengthOf(type)];
 
             auto value = base[shift->lhs];
             auto count = base[shift->rhs];
@@ -488,9 +493,11 @@ void expandByteShifts(Context&, LowerBase base, LowerFunction& fun) {
 
     // Interned per count: the byte mask for a left shift, the one for a right shift - which the
     // arithmetic shift borrows, its logical half being exactly that - and the arithmetic one's bias.
-    LowerValue* leftMasks[8] = {};
-    LowerValue* rightMasks[8] = {};
-    LowerValue* biases[8] = {};
+    // And per register width, for the reason `expandByteMul` gives: a byte shift at 128 bits and one
+    // of a 512-bit vector's halves can stand in one function, and each wants its own width of mask.
+    LowerValue* leftMasks[3][8] = {};
+    LowerValue* rightMasks[3][8] = {};
+    LowerValue* biases[3][8] = {};
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
@@ -544,8 +551,9 @@ void expandByteShifts(Context&, LowerBase base, LowerFunction& fun) {
                 auto clamped = arithmetic ? (n > 7 ? U64(7) : n) : n;
                 auto byte = n > 7 ? U64(0) : (left ? (0xffu << n) & 0xffu : 0xffu >> n);
 
-                mask = splatConstant(left ? leftMasks[clamped] : rightMasks[clamped], byte);
-                if(arithmetic) bias = splatConstant(biases[clamped], U64(1) << (7 - clamped));
+                auto width = vectorLengthOf(type);
+                mask = splatConstant(left ? leftMasks[width][clamped] : rightMasks[width][clamped], byte);
+                if(arithmetic) bias = splatConstant(biases[width][clamped], U64(1) << (7 - clamped));
             }
 
             Expansion e { base, fun, block, i };
@@ -623,8 +631,11 @@ void expandByteMul(Context&, LowerBase base, LowerFunction& fun) {
     auto home = constantHome(base, fun);
     if(!home) return;
 
-    LowerValue* lowBytes = nullptr;
-    LowerValue* highBytes = nullptr;
+    // One pair per register width. A function can hold byte products at two - a 128-bit table
+    // beside the 256-bit halves `splitFullVectors` makes of a 512-bit one - and a mask of the wrong
+    // width is an operand of the wrong type, which the selection reads as some other instruction.
+    LowerValue* lowBytes[3] = {};
+    LowerValue* highBytes[3] = {};
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
@@ -653,8 +664,8 @@ void expandByteMul(Context&, LowerBase base, LowerFunction& fun) {
                 return slot;
             };
 
-            auto low = splatConstant(lowBytes, 0x00ff);
-            auto high = splatConstant(highBytes, 0xff00);
+            auto low = splatConstant(lowBytes[vectorLengthOf(type)], 0x00ff);
+            auto high = splatConstant(highBytes[vectorLengthOf(type)], 0xff00);
 
             Expansion e { base, fun, block, i };
 
@@ -796,7 +807,7 @@ void expandVectorMulHi(Context&, LowerBase base, LowerFunction& fun) {
     // The low half of each quadword, for the 64-bit sequence's carry - one per function, and pooled
     // by the pass below this one.
     auto home = constantHome(base, fun);
-    LowerValue* lowHalves = nullptr;
+    LowerValue* lowHalvesAt[3] = {};
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
@@ -860,6 +871,7 @@ void expandVectorMulHi(Context&, LowerBase base, LowerFunction& fun) {
 
                 // Built before the expansion below is positioned, since placing it in this block
                 // moves everything in it - including the instruction being rewritten - down by two.
+                auto& lowHalves = lowHalvesAt[vectorLengthOf(type)];
                 if(!lowHalves) {
                     Expansion at { base, fun, home, 0 };
                     auto scalar = at.integer(scalarFormOf(type), 0xffffffff);
@@ -1517,11 +1529,11 @@ void expandVectorAbs(Context&, LowerBase base, LowerFunction& fun) {
     if(!home) return;
 
     // One mask per lane width, built on demand and shared by every absolute value in the function -
-    // interning it here rather than leaving it to CSE, which does not run below this point. The
-    // third slot is the integer quadword's zero vector, which is interned for the same reason and
-    // needs no width of its own: one lane shape reaches it.
-    LowerValue* masks[2] = { nullptr, nullptr };
-    LowerValue* zeros = nullptr;
+    // interning it here rather than leaving it to CSE, which does not run below this point - and the
+    // integer quadword's zero vector beside them, interned for the same reason. Each per register
+    // width as well, for the reason `expandByteMul` gives.
+    LowerValue* masksAt[3][2] = {};
+    LowerValue* zerosAt[3] = {};
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
@@ -1538,6 +1550,10 @@ void expandVectorAbs(Context&, LowerBase base, LowerFunction& fun) {
              * does this one where the target has `vpabsq`, which is one instruction and the row
              * `selectPackedForm` finds (Analysis-Avx512.md §2.4).
              */
+            // Each constant at the register width it is read at - a function may take magnitudes at two.
+            auto& masks = masksAt[vectorLengthOf(type)];
+            auto& zeros = zerosAt[vectorLengthOf(type)];
+
             if(isIntVector(type) && laneBytes(type.lane) == 8) {
                 if(hasEvexRow(EvexRow::QuadwordAbs)) continue;
 
@@ -2409,6 +2425,10 @@ void expandLaneCountConversions(Context&, LowerBase base, LowerFunction& fun) {
             if(auto unpack = laneUnpackAt(base, inst)) {
                 auto u = unpack.unwrap();
                 auto wide = u.widen->result.type;
+
+                // At 512 bits the pair is two instructions as it stands - a half of the source and
+                // `vpmovzx`/`vpmovsx` of it (FormVFullZeroExtend8) - so there is nothing to expand.
+                if(isFullVector(wide)) continue;
                 auto from = u.source->type;
                 auto lanes = from.lanes();
                 auto wideTier = isWideVector(wide);
@@ -2468,6 +2488,9 @@ void expandLaneCountConversions(Context&, LowerBase base, LowerFunction& fun) {
 
             if(auto pack = lanePackAt(base, inst)) {
                 auto p = pack.unwrap();
+
+                // And the narrowing pair likewise: `vpmovwb`/`dw`/`qd` of each source and the join.
+                if(isFullVector(p.join->result.type)) continue;
                 auto type = p.join->result.type;
                 auto bytes = type.byteWidth();
                 auto byteType = vectorType(LowerLane::Int8, bytes);
@@ -2681,6 +2704,11 @@ void chooseMaskDomain(Context&, LowerBase base, LowerFunction& fun) {
     auto wantsMaskBank = [&]() {
         for(auto value: web) {
             auto producer = value->inst();
+
+            // A mask over a 512-bit register, whose vector domain has no comparison and no select to
+            // demote to - every instruction that writes or reads one at that width is EVEX, and a
+            // `k` register is what EVEX compares into.
+            if(isFullVector(value->type)) return true;
 
             /*
              * What made it. A comparison between vectors is the ordinary answer and is here for its

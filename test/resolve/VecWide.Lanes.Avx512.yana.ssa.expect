@@ -152,32 +152,39 @@ bb25:
 bb26:
   %65: Vec(I32) trivial = load inspect %2
   %66: I32 trivial = vec.reduce add inspect %65
-  %67: I32 trivial = const 78
-  %68: Bool trivial = ne inspect %66 inspect %67
-  branch inspect %68 -> bb30 -> bb28
+  %67: I32 trivial = const 3
+  %68: Vec(I32) trivial = load inspect %2
+  %69: I32 trivial = const 16
+  %70: I32 trivial = const 2
+  %71: I32 trivial = sub inspect %69 inspect %70
+  %72: I32 trivial = mul inspect %67 inspect %71
+  %73: I32 trivial = const 60
+  %74: I32 trivial = add inspect %72 inspect %73
+  %75: Bool trivial = ne inspect %66 inspect %74
+  branch inspect %75 -> bb30 -> bb28
 
 bb27:
-  %69: I32 trivial = const -9
-  return consume %69
+  %76: I32 trivial = const -9
+  return consume %76
 
 bb28:
   jump -> bb29
 
 bb29:
-  %70: Vec(I32) trivial = load inspect %2
-  %71: I32 trivial = const 5
-  %72: I32 trivial = vec.lane #5 inspect %70
-  %73: I32 trivial = const 10
-  %74: I32 trivial = mul inspect %72 inspect %73
-  %75: Vec(I32) trivial = load inspect %2
-  %76: I32 trivial = const 1
-  %77: I32 trivial = vec.lane #1 inspect %75
-  %78: I32 trivial = add inspect %74 inspect %77
-  return consume %78
+  %77: Vec(I32) trivial = load inspect %2
+  %78: I32 trivial = const 5
+  %79: I32 trivial = vec.lane #5 inspect %77
+  %80: I32 trivial = const 10
+  %81: I32 trivial = mul inspect %79 inspect %80
+  %82: Vec(I32) trivial = load inspect %2
+  %83: I32 trivial = const 1
+  %84: I32 trivial = vec.lane #1 inspect %82
+  %85: I32 trivial = add inspect %81 inspect %84
+  return consume %85
 
 bb30:
-  %79: I32 trivial = const -10
-  return consume %79
+  %86: I32 trivial = const -10
+  return consume %86
 }
 
 entry main

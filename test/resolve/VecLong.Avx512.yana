@@ -8,8 +8,9 @@
    The quadword magnitude is `vpabsq` here, the arithmetic shift `vpsraq`, the product `vpmullq` and
    the minimum and maximum `vpminsq` and its siblings - each one instruction where the level below
    spends a comparison and a blend, a bias, three widening products or a comparison and a select.
-   What the program asserts is written in `VecLong.yana`. The answer is 148 rather than 134 because
-   a `Vec(Long)` is four lanes at this width and two at `sse4`, and `horizontalSum(a)` counts them.
+   What the program asserts is written in `VecLong.yana`. The answer is 176 rather than 134 because
+   a `Vec(Long)` is eight lanes at this level's natural width of 512 bits and two at `sse4`, and
+   `horizontalSum(a)` counts them - it was 148 while the level held the width at 256 bits.
 -}
 
 fn main() -> Int:

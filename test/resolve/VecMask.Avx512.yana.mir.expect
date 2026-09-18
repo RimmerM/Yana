@@ -113,36 +113,52 @@ bb0:
   %37: Vec(I32) = vec.withlane #6 inspect %35 inspect %36
   %38: I32 = const 7
   %39: Vec(I32) = vec.withlane #7 inspect %37 inspect %38
-  %40: I32 = const 3
-  %41: I32 = call maskedTotal borrow.shared %39 borrow.shared %40
-  write.init borrow.unique (counted) take %41
-  %43: Vec(I32) = read copy.trivial (picked)
-  %44: I32 = const 0
-  %45: I32 = vec.lane #0 inspect %43
-  %46: I32 = const 100000
-  %47: I32 = mul inspect %45 inspect %46
-  %48: Vec(F32) = read copy.trivial (floats)
-  %49: I32 = const 0
-  %50: F32 = vec.lane #0 inspect %48
-  %51: F32 = const 1
-  %52: Bool = eq inspect %50 inspect %51
-  branch inspect %52 -> bb3(take %47) -> bb1(take %47)
+  %40: I32 = const 8
+  %41: Vec(I32) = vec.withlane #8 inspect %39 inspect %40
+  %42: I32 = const 9
+  %43: Vec(I32) = vec.withlane #9 inspect %41 inspect %42
+  %44: I32 = const 10
+  %45: Vec(I32) = vec.withlane #10 inspect %43 inspect %44
+  %46: I32 = const 11
+  %47: Vec(I32) = vec.withlane #11 inspect %45 inspect %46
+  %48: I32 = const 12
+  %49: Vec(I32) = vec.withlane #12 inspect %47 inspect %48
+  %50: I32 = const 13
+  %51: Vec(I32) = vec.withlane #13 inspect %49 inspect %50
+  %52: I32 = const 14
+  %53: Vec(I32) = vec.withlane #14 inspect %51 inspect %52
+  %54: I32 = const 15
+  %55: Vec(I32) = vec.withlane #15 inspect %53 inspect %54
+  %56: I32 = const 3
+  %57: I32 = call maskedTotal borrow.shared %55 borrow.shared %56
+  write.init borrow.unique (counted) take %57
+  %59: Vec(I32) = read copy.trivial (picked)
+  %60: I32 = const 0
+  %61: I32 = vec.lane #0 inspect %59
+  %62: I32 = const 100000
+  %63: I32 = mul inspect %61 inspect %62
+  %64: Vec(F32) = read copy.trivial (floats)
+  %65: I32 = const 0
+  %66: F32 = vec.lane #0 inspect %64
+  %67: F32 = const 1
+  %68: Bool = eq inspect %66 inspect %67
+  branch inspect %68 -> bb3(take %63) -> bb1(take %63)
 
-bb1(%53: I32):
-  %57: I32 = const 0
-  jump -> bb2(take %57, take %53)
+bb1(%69: I32):
+  %73: I32 = const 0
+  jump -> bb2(take %73, take %69)
 
-bb2(%58: I32, %59: I32):
-  %62: I32 = const 10000
-  %63: I32 = mul inspect %58 inspect %62
-  %64: I32 = add inspect %59 inspect %63
-  %65: I32 = read copy.trivial (counted)
-  %66: I32 = add inspect %64 inspect %65
-  return take %66
+bb2(%74: I32, %75: I32):
+  %78: I32 = const 10000
+  %79: I32 = mul inspect %74 inspect %78
+  %80: I32 = add inspect %75 inspect %79
+  %81: I32 = read copy.trivial (counted)
+  %82: I32 = add inspect %80 inspect %81
+  return take %82
 
-bb3(%54: I32):
-  %56: I32 = const 1
-  jump -> bb2(take %56, take %54)
+bb3(%70: I32):
+  %72: I32 = const 1
+  jump -> bb2(take %72, take %70)
 }
 
 entry main

@@ -240,8 +240,9 @@ fn matchingLanes() -> I32 {
     %block = load [%v31] : Vec(I32)
     %v35 = vsplat 9 : Vec(I32)
     %v36 = cmp_eq %block, %v35 : Mask(I32)
-    %v37 = vreduce_bits %v36 : I32
-    ret %v37
+    %v37 = vreduce_bits %v36 : Size
+    %v38 = cast %v37 : I32
+    ret %v38
 }
 
 fn main() -> I32 {

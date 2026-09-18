@@ -495,6 +495,14 @@ static const TransformPass kTransformPipeline[] = {
     // here so that no later pass has to consider a kind that this build cannot emit. Not
     // vectors-only: `functionHasVectors` asks about values, and this instruction has none.
     { "dropUnsupportedVectorResets"_v, dropUnsupportedVectorResets, 0 },
+
+    /*
+     * First of the vector passes: what it leaves is 512-bit instructions `registerFullForms` has a
+     * form for and 256-bit ones, so nothing below it has to know that an operation at `avx512`'s
+     * natural width may have no instruction. Below the three expansions above, whose output at 512
+     * bits is split along with everything else.
+     */
+    { "splitFullVectors"_v,            splitFullVectors,            0, true },
     { "lowerVectorReductions"_v,       lowerVectorReductions,       0, true },
 
     /*

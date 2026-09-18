@@ -30,6 +30,10 @@ import Test
     checkEqual(bits(odd .== (splat(1) :: Vec(U16, 8))), 0b10101010)
     checkEqual(bits(odd .< (splat(2) :: Vec(U16, 8))), 0xFF)
 
-    -- At the natural width too, which is sixteen lanes and a 32-bit movemask at v3.
+    -- At the natural width too, which is sixteen word lanes at `avx2` and thirty-two at `avx512` -
+    -- and in bytes, which is sixty-four lanes there and every bit of the `Size` the answer is.
     let natural = iota() :: Vec(U16)
-    checkEqual(bits(natural .== natural), (1 `shl` lanes(natural)) - 1)
+    checkEqual(bits(natural .== natural), bitsUpTo(-1 :: Size, lanes(natural) :: Size))
+
+    let bytes = iota() :: Vec(U8)
+    checkEqual(bits(bytes .== bytes), bitsUpTo(-1 :: Size, lanes(bytes) :: Size))

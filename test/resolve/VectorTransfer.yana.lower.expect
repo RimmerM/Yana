@@ -86,8 +86,10 @@ main<complex>(): I32 {
     %v_50 = vsplat 9: i32x4
     %v_51 = cmp_eq %block, %v_50: m32x4
     %v_52 = vreduce_bits %v_51: I32
-    %v_53 = add %v_45, %v_52: I32
-    ret %v_53
+    %v_53 = cast %v_52: I64
+    %v_54 = cast %v_53: I32
+    %v_55 = add %v_45, %v_54: I32
+    ret %v_55
   }
 }
 

@@ -132,9 +132,9 @@ FeatureSet x64FeaturesFor(const CompileSettings& settings) {
                   | kFeatureMovbe | kFeatureLzcnt;
     }
 
-    // The whole of the top level, which is Analysis-Avx512.md §1.2's stage 1: every instruction set
-    // the level brings, at the width `avx2` already has. See `vectorRegisterCountFor` for what that
-    // makes of the register file.
+    // The whole of the top level - every instruction set the level brings, which Analysis-Avx512.md
+    // §1.2's stage 1 built at the width `avx2` has and its stage 2 at 512 bits. See
+    // `vectorRegisterCountFor` for what that makes of the register file.
     if(extensions.level >= TargetExtensions::Avx512) features |= kFeatureAvx512;
 
     // And the flags, asked through `has` so that a flag the level implies and a flag the build named

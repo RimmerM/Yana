@@ -12,7 +12,11 @@
    read by an instruction is one broadcast element. Each of those is a plausible wrong vector when it is
    wrong rather than a fault - so every answer is stored and compared, element by element, against the
    scalar reading of what the operation means. The program answers the number of elements that
-   disagreed, and a lane count other than the one `avx512` gives as 100.
+   disagreed, and a lane count other than the one written as 100.
+
+   **Every vector is pinned to 256 bits**, which is what this file is about: the 256-bit rows the
+   level added. `Vec(a)` is 512 bits at `avx512` since step 10 of that order of work, and the same
+   patterns at that width are `VecPermute2.Full.Avx512.yana`'s.
 
    A lane index has to be a constant, so the vectors are read back through memory: `setVectorAt` into
    an array of the lane count, and the array indexed.
@@ -24,32 +28,32 @@ let &seed = 7 :: Int
 let &seed64 = 7 :: U64
 let &seedDouble = 0.75 :: Double
 
-fn bytes() -> Vec(U8):
-    return (iota() :: Vec(U8)) + splat(truncate(seed) :: U8)
+fn bytes() -> Vec(U8, 32):
+    return (iota() :: Vec(U8, 32)) + (splat(truncate(seed) :: U8) :: Vec(U8, 32))
 
-fn words() -> Vec(U16):
-    return (iota() :: Vec(U16)) * splat(3 :: U16) + splat(truncate(seed) :: U16)
+fn words() -> Vec(U16, 16):
+    return (iota() :: Vec(U16, 16)) * (splat(3 :: U16) :: Vec(U16, 16)) + (splat(truncate(seed) :: U16) :: Vec(U16, 16))
 
-fn doublewords() -> Vec(U32):
-    return (iota() :: Vec(U32)) * splat(1001 :: U32) + splat(truncate(seed) :: U32)
+fn doublewords() -> Vec(U32, 8):
+    return (iota() :: Vec(U32, 8)) * (splat(1001 :: U32) :: Vec(U32, 8)) + (splat(truncate(seed) :: U32) :: Vec(U32, 8))
 
-fn quadwords() -> Vec(U64):
-    return (iota() :: Vec(U64)) * splat(100003 :: U64) + splat(seed64)
+fn quadwords() -> Vec(U64, 4):
+    return (iota() :: Vec(U64, 4)) * (splat(100003 :: U64) :: Vec(U64, 4)) + (splat(seed64) :: Vec(U64, 4))
 
--- Built lane by lane: a `Vec(Double)` has no arithmetic to build one with.
-fn doubles(base: Double) -> Vec(Double):
-    let v = splat(base) :: Vec(Double)
+-- Built lane by lane: a `Vec(Double, 4)` has no arithmetic to build one with.
+fn doubles(base: Double) -> Vec(Double, 4):
+    let v = splat(base) :: Vec(Double, 4)
     return withLane(withLane(withLane(v, 1, base * 3.0), 2, base * 5.0), 3, base * 7.0)
 
-fn floats() -> Vec(Float):
-    return (iota() :: Vec(Float)) * splat(2.5 :: Float) + splat(0.25 :: Float)
+fn floats() -> Vec(Float, 8):
+    return (iota() :: Vec(Float, 8)) * (splat(2.5 :: Float) :: Vec(Float, 8)) + (splat(0.25 :: Float) :: Vec(Float, 8))
 
 -- The interleaves at 32 lanes: element `2k` is lane `k` of the half being read, and `2k + 1` the same
 -- lane of the other vector.
 @noinline
 fn interleavedU8() -> Int:
     let a = bytes()
-    let b = a + splat(100 :: U8)
+    let b = a + (splat(100 :: U8) :: Vec(U8, 32))
     if lanes(a) != 32 then return 100
 
     let &la = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] :: [U8 *32]
@@ -77,7 +81,7 @@ fn interleavedU8() -> Int:
 @noinline
 fn interleavedU16() -> Int:
     let a = words()
-    let b = a + splat(1000 :: U16)
+    let b = a + (splat(1000 :: U16) :: Vec(U16, 16))
     if lanes(a) != 16 then return 100
 
     let &la = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] :: [U16 *16]
@@ -105,7 +109,7 @@ fn interleavedU16() -> Int:
 @noinline
 fn interleavedU32() -> Int:
     let a = doublewords()
-    let b = a + splat(50000 :: U32)
+    let b = a + (splat(50000 :: U32) :: Vec(U32, 8))
     if lanes(a) != 8 then return 100
 
     let &la = [0, 0, 0, 0, 0, 0, 0, 0] :: [U32 *8]
@@ -133,7 +137,7 @@ fn interleavedU32() -> Int:
 @noinline
 fn interleavedU64() -> Int:
     let a = quadwords()
-    let b = a + splat(77 :: U64)
+    let b = a + (splat(77 :: U64) :: Vec(U64, 4))
     if lanes(a) != 4 then return 100
 
     let &la = [0, 0, 0, 0] :: [U64 *4]
@@ -189,7 +193,7 @@ fn interleavedDouble() -> Int:
 @noinline
 fn interleavedFloat() -> Int:
     let a = floats()
-    let b = a + splat(-8.0 :: Float)
+    let b = a + (splat(-8.0 :: Float) :: Vec(Float, 8))
     if lanes(a) != 8 then return 100
 
     let &la = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] :: [Float *8]
@@ -304,7 +308,7 @@ fn rearrangedU64() -> Int:
 @noinline
 fn windowU64() -> Int:
     let below = quadwords()
-    let above = below * splat(5 :: U64) + splat(77 :: U64)
+    let above = below * (splat(5 :: U64) :: Vec(U64, 4)) + (splat(77 :: U64) :: Vec(U64, 4))
     if lanes(below) != 4 then return 100
 
     let &lo = [0, 0, 0, 0] :: [U64 *4]
@@ -328,7 +332,7 @@ fn windowU64() -> Int:
 @noinline
 fn windowU32() -> Int:
     let below = doublewords()
-    let above = below * splat(5 :: U32) + splat(50000 :: U32)
+    let above = below * (splat(5 :: U32) :: Vec(U32, 8)) + (splat(50000 :: U32) :: Vec(U32, 8))
     if lanes(below) != 8 then return 100
 
     let &lo = [0, 0, 0, 0, 0, 0, 0, 0] :: [U32 *8]
@@ -352,9 +356,9 @@ fn windowU32() -> Int:
 @noinline
 fn written() -> Int:
     let w = words()
-    let v = w + splat(500 :: U16)
+    let v = w + (splat(500 :: U16) :: Vec(U16, 16))
     let q = quadwords()
-    let p = q * splat(3 :: U64)
+    let p = q * (splat(3 :: U64) :: Vec(U64, 4))
     if lanes(w) != 16 then return 100
 
     let &lw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] :: [U16 *16]
@@ -391,8 +395,8 @@ fn written() -> Int:
 @noinline
 fn trees() -> Int:
     let a = doublewords()
-    let b = a * splat(7 :: U32)
-    let m = a `xor` splat(1515870810 :: U32)
+    let b = a * (splat(7 :: U32) :: Vec(U32, 8))
+    let m = a `xor` (splat(1515870810 :: U32) :: Vec(U32, 8))
     if lanes(a) != 8 then return 100
 
     let &la = [0, 0, 0, 0, 0, 0, 0, 0] :: [U32 *8]
@@ -410,9 +414,9 @@ fn trees() -> Int:
     let &complement = [0, 0, 0, 0, 0, 0, 0, 0] :: [U32 *8]
     setVectorAt(addressOf(complement[0 :: Size]), not(a))
     let &masked = [0, 0, 0, 0, 0, 0, 0, 0] :: [U32 *8]
-    setVectorAt(addressOf(masked[0 :: Size]), (a `xor` b) `and` splat(252645135 :: U32))
+    setVectorAt(addressOf(masked[0 :: Size]), (a `xor` b) `and` (splat(252645135 :: U32) :: Vec(U32, 8)))
     let &offset = [0, 0, 0, 0, 0, 0, 0, 0] :: [U32 *8]
-    setVectorAt(addressOf(offset[0 :: Size]), a + splat(123456 :: U32))
+    setVectorAt(addressOf(offset[0 :: Size]), a + (splat(123456 :: U32) :: Vec(U32, 8)))
 
     let &wrong = 0
     let &i = 0 :: Size

@@ -39,9 +39,9 @@ bb0:
   lens.call vectorsMasked(Array(I32), I32) borrow.shared %3 -> bb2
 
 bb1:
-  %39: Vec(I32) = read copy.trivial (acc)
-  %40: I32 = vec.reduce max inspect %39
-  return take %40
+  %55: Vec(I32) = read copy.trivial (acc)
+  %56: I32 = vec.reduce max inspect %55
+  return take %56
 
 bb2(%4: {Vec(I32), I32} [shared call]) handover({Vec(I32), I32} [shared call]) many -> bb1:
   write.init borrow.unique (local3) borrow.shared %4
@@ -67,15 +67,31 @@ bb2(%4: {Vec(I32), I32} [shared call]) handover({Vec(I32), I32} [shared call]) m
   %26: Vec(I32) = vec.withlane #6 inspect %24 inspect %25
   %27: I32 = const 7
   %28: Vec(I32) = vec.withlane #7 inspect %26 inspect %27
-  %29: I32 = convert inspect %12
-  %30: Vec(I32) = vec.splat inspect %29
-  %31: Mask(I32) = lt inspect %28 inspect %30
-  %32: Vec(I32) = read copy.trivial (v)
-  %33: Vec(I32) = read copy.trivial (acc)
-  %34: Vec(I32) = select inspect %31 inspect %32 inspect %33
-  %35: Mask(I32) = gt inspect %11 inspect %34
-  %36: Vec(I32) = select inspect %35 inspect %11 inspect %34
-  write.assign borrow.unique (acc) take %36
+  %29: I32 = const 8
+  %30: Vec(I32) = vec.withlane #8 inspect %28 inspect %29
+  %31: I32 = const 9
+  %32: Vec(I32) = vec.withlane #9 inspect %30 inspect %31
+  %33: I32 = const 10
+  %34: Vec(I32) = vec.withlane #10 inspect %32 inspect %33
+  %35: I32 = const 11
+  %36: Vec(I32) = vec.withlane #11 inspect %34 inspect %35
+  %37: I32 = const 12
+  %38: Vec(I32) = vec.withlane #12 inspect %36 inspect %37
+  %39: I32 = const 13
+  %40: Vec(I32) = vec.withlane #13 inspect %38 inspect %39
+  %41: I32 = const 14
+  %42: Vec(I32) = vec.withlane #14 inspect %40 inspect %41
+  %43: I32 = const 15
+  %44: Vec(I32) = vec.withlane #15 inspect %42 inspect %43
+  %45: I32 = convert inspect %12
+  %46: Vec(I32) = vec.splat inspect %45
+  %47: Mask(I32) = lt inspect %44 inspect %46
+  %48: Vec(I32) = read copy.trivial (v)
+  %49: Vec(I32) = read copy.trivial (acc)
+  %50: Vec(I32) = select inspect %47 inspect %48 inspect %49
+  %51: Mask(I32) = gt inspect %11 inspect %50
+  %52: Vec(I32) = select inspect %51 inspect %11 inspect %50
+  write.assign borrow.unique (acc) take %52
   jump -> bb1
 }
 

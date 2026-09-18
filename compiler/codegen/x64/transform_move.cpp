@@ -257,6 +257,32 @@ struct MoveExpansion {
     }
 
     /*
+     * A table of 128 or 256 bits read at 512-bit indices - the same sixteen-byte tables at `avx512`'s
+     * natural width, where `pushHex`'s digits and `memberOf`'s bitmap are read at sixty-four bytes.
+     *
+     * The table is repeated until it fills a `zmm` - doubled into a `ymm` as above where it is one
+     * register of 128 bits, and that joined with itself (`vinserti64x4`, FormVFullJoin) - and read by
+     * one `vpermi2b` over two copies of the result, which takes each index modulo 128 and so modulo the
+     * table's own lane count, the lookup's definition. The repetition depends on the table alone, so a
+     * loop reading a constant table hoists it with the table.
+     */
+    LowerValue* lookupRepeated(LowerValue* table, LowerValue* indices) {
+        auto type = table->type;
+        auto lanes = type.lanes();
+
+        if(type.byteWidth() == 16) {
+            auto doubledType = vectorType(type.lane, lanes * 2);
+            table = e.shuffle(doubledType, table, table, [&](Size j) { return U8(j % lanes); });
+            type = doubledType;
+            lanes = type.lanes();
+        }
+
+        auto fullType = vectorType(type.lane, lanes * 2);
+        auto full = e.shuffle(fullType, table, table, [](Size j) { return U8(j); });
+        return permute(full, indices);
+    }
+
+    /*
      * A frame slot of `size` bytes. A fixed allocation is a frame object wherever it stands (see
      * `collectFrameObjects`), so one inside a loop is one slot rather than one per iteration. Eight
      * bytes' alignment and no more: every access here is an unaligned one, and asking for sixteen
@@ -558,6 +584,9 @@ void lowerVectorMoves(Context& ctx, LowerBase base, LowerFunction& fun) {
             if(kind == LowerLaneMove::Lookup) {
                 if(source->type.lanes() == control->type.lanes()) {
                     answer = m.permute(source, control);
+                } else if(isFullVector(control->type) && source->type.byteWidth() < 64
+                          && hasEvexRow(laneBytes(source->type.lane) == 1 ? EvexRow::BytePermute2 : EvexRow::Permute2)) {
+                    answer = m.lookupRepeated(source, control);
                 } else if(source->type.byteWidth() == 16 && control->type.byteWidth() == 32) {
                     answer = m.lookupDoubled(source, control);
                 } else {
@@ -614,7 +643,11 @@ void lowerWidthChangingShuffles(Context& ctx, LowerBase base, LowerFunction& fun
                 if(entry >= readable) harmless = false;
             }
 
-            if(harmless && packedShuffleChoice(inst)) continue;
+            // And the halves and joins of a 512-bit register, which `packedShuffleChoice` reads by
+            // their sources' width and so reads correctly whatever their pattern says - see
+            // FormVFullLow.
+            if(isFullHalvesShuffle(base, inst)) continue;
+            if(harmless && packedShuffleChoice(base, inst)) continue;
 
             Expansion e { base, fun, block, i };
             MoveExpansion m { ctx, e };
