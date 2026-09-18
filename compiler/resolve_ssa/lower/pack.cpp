@@ -45,6 +45,140 @@ LowerPtr<LowerValue> Lowering::placeShift(LowerBlock& block, const VirtualPlace&
 }
 
 /*
+ * The widest exact load that fits in the remaining byte range. The range is the record's, not the
+ * field's logical width: an access may include the field's leading or trailing partial byte, but it
+ * must never reach a byte outside the record. Keeping this choice here makes the byte-wise read and
+ * write paths agree about which bytes they own and gives both backends a chance to use their native
+ * 32- and 64-bit memory operations.
+ */
+static U32 packedByteAccessWidth(U32 remaining) {
+    if(remaining >= 8) return 8;
+    if(remaining >= 4) return 4;
+    if(remaining >= 2) return 2;
+    return 1;
+}
+
+/*
+ * A packed field whose access word could not cover it without leaving the record.
+ *
+ * The old fallback loaded every byte separately. That was correct but made a forty-bit field six
+ * loads and five ORs in the common case. Read the exact range in the widest chunks available, then
+ * place each chunk at its bit offset in the result. The final mask removes the unrelated bits in
+ * the first and last chunks; no load overreads and no shift reaches 64.
+ */
+LowerPtr<LowerValue> Lowering::decodePackedBytes(LowerBlock& block, const VirtualPlace& place,
+                                                 LowerType type) {
+    auto span = place.spanBytes();
+    LowerPtr<LowerValue> bits = nullptr;
+
+    for(U32 byte = 0; byte < span;) {
+        auto width = packedByteAccessWidth(span - byte);
+        auto address = offsetAddress(block, place.word, byte);
+        auto value = load(lower, to, block, lower[address], width, false, LowerType::Int64,
+                          StringId())->created().ptr - lower;
+        auto byteBits = byte * 8;
+
+        if(byteBits < place.bitOffset) {
+            auto shift = immediate(block, LowerType::Int64,
+                                   U64(place.bitOffset - byteBits));
+            value = binary<LowerInst::Shr>(lower, to, block, lower[value], lower[shift],
+                                           LowerType::Int64, StringId())->created().ptr - lower;
+        } else if(byteBits > place.bitOffset) {
+            auto shift = immediate(block, LowerType::Int64,
+                                   U64(byteBits - place.bitOffset));
+            value = binary<LowerInst::Shl>(lower, to, block, lower[value], lower[shift],
+                                           LowerType::Int64, StringId())->created().ptr - lower;
+        }
+
+        if(bits) {
+            bits = binary<LowerInst::Or>(lower, to, block, lower[bits], lower[value],
+                                         LowerType::Int64, StringId())->created().ptr - lower;
+        } else {
+            bits = value;
+        }
+
+        byte += width;
+    }
+
+    if(place.bitWidth < 64) {
+        auto mask = immediate(block, LowerType::Int64, lowMask(place.bitWidth));
+        bits = binary<LowerInst::And>(lower, to, block, lower[bits], lower[mask],
+                                      LowerType::Int64, StringId())->created().ptr - lower;
+    }
+
+    if(place.isSigned && place.bitWidth < 64) {
+        auto shift = immediate(block, LowerType::Int64, U64(64 - place.bitWidth));
+        auto high = binary<LowerInst::Shl>(lower, to, block, lower[bits], lower[shift],
+                                           LowerType::Int64, StringId())->created().ptr - lower;
+        bits = binary<LowerInst::Sar>(lower, to, block, lower[high], lower[shift],
+                                      LowerType::Int64, StringId())->created().ptr - lower;
+    }
+
+    return place.isSigned
+        ? cast<true, true>(lower, to, block, lower[bits], type, StringId())->created().ptr - lower
+        : cast<false, false>(lower, to, block, lower[bits], type, StringId())->created().ptr - lower;
+}
+
+/*
+ * The write twin of `decodePackedBytes`. Each exact chunk gets one load and one store, with the
+ * field's contribution shifted into that chunk before the surrounding bits are preserved. A
+ * forty-bit value therefore becomes one four-byte read-modify-write and one byte read-modify-write,
+ * rather than one pair for every byte.
+ */
+void Lowering::encodePackedBytes(LowerBlock& block, const VirtualPlace& place,
+                                 LowerPtr<LowerValue> value) {
+    auto widened = cast<false, false>(lower, to, block, lower[value], LowerType::Int64,
+                                      StringId())->created().ptr - lower;
+    auto span = place.spanBytes();
+    auto fieldStart = U32(place.bitOffset);
+    auto fieldEnd = fieldStart + place.bitWidth;
+
+    for(U32 byte = 0; byte < span;) {
+        auto width = packedByteAccessWidth(span - byte);
+        auto byteStart = byte * 8;
+        auto byteEnd = (byte + width) * 8;
+        auto overlapStart = byteStart > fieldStart ? byteStart : fieldStart;
+        auto overlapEnd = byteEnd < fieldEnd ? byteEnd : fieldEnd;
+        auto overlapWidth = overlapEnd - overlapStart;
+        auto valueShift = overlapStart - fieldStart;
+        auto fieldMask = lowMask(overlapWidth);
+        auto part = widened;
+
+        if(valueShift) {
+            auto shift = immediate(block, LowerType::Int64, U64(valueShift));
+            part = binary<LowerInst::Shr>(lower, to, block, lower[part], lower[shift],
+                                          LowerType::Int64, StringId())->created().ptr - lower;
+        }
+
+        if(overlapWidth < 64) {
+            auto mask = immediate(block, LowerType::Int64, fieldMask);
+            part = binary<LowerInst::And>(lower, to, block, lower[part], lower[mask],
+                                          LowerType::Int64, StringId())->created().ptr - lower;
+        }
+
+        auto localOffset = overlapStart - byteStart;
+        if(localOffset) {
+            auto shift = immediate(block, LowerType::Int64, U64(localOffset));
+            part = binary<LowerInst::Shl>(lower, to, block, lower[part], lower[shift],
+                                          LowerType::Int64, StringId())->created().ptr - lower;
+            fieldMask <<= localOffset;
+        }
+
+        auto address = offsetAddress(block, place.word, byte);
+        auto old = load(lower, to, block, lower[address], width, false, LowerType::Int64,
+                        StringId())->created().ptr - lower;
+        auto clear = immediate(block, LowerType::Int64, ~fieldMask);
+        auto cleared = binary<LowerInst::And>(lower, to, block, lower[old], lower[clear],
+                                              LowerType::Int64, StringId())->created().ptr - lower;
+        auto merged = binary<LowerInst::Or>(lower, to, block, lower[cleared], lower[part],
+                                            LowerType::Int64, StringId())->created().ptr - lower;
+        block.addInst(lower, new (to.arena) LowerInstStore(address, merged, width));
+
+        byte += width;
+    }
+}
+
+/*
  * Reading a packed field: load the word, move the field to the bottom, discard everything else.
  *
  * Two shapes rather than one. An unsigned field shifts down and masks; a signed one shifts *up*
@@ -62,6 +196,15 @@ LowerPtr<LowerValue> Lowering::placeShift(LowerBlock& block, const VirtualPlace&
  */
 LowerPtr<LowerValue> Lowering::decodePacked(LowerBlock& block, const VirtualPlace& place,
                                             LowerType type) {
+    /*
+     * A packed field can occupy an unusual number of bytes, such as five bytes for `@bits(40)`.
+     * Lower loads have the machine's 1/2/4/8-byte widths only, so do not round the access up: the
+     * extra bytes might belong to the next field or might not exist at all. Assemble the exact
+     * span from the widest legal chunks. This path is uncommon; the normal path below remains one
+     * load and the same shift/mask sequence used by every other packed component.
+     */
+    if(place.isBytewise()) return decodePackedBytes(block, place, type);
+
     auto word = load(lower, to, block, lower[place.word], place.wordBytes, false, LowerType::Int64,
                      StringId())->created().ptr - lower;
 
@@ -126,6 +269,11 @@ LowerPtr<LowerValue> Lowering::decodePacked(LowerBlock& block, const VirtualPlac
  */
 void Lowering::encodePacked(LowerBlock& block, const VirtualPlace& place,
                             LowerPtr<LowerValue> value) {
+    if(place.isBytewise()) {
+        encodePackedBytes(block, place, value);
+        return;
+    }
+
     auto word = load(lower, to, block, lower[place.word], place.wordBytes, false, LowerType::Int64,
                      StringId())->created().ptr - lower;
 
@@ -506,6 +654,13 @@ Lowering::VirtualPlace Lowering::unpackNarrowRef(LowerBlock& block, LowerPtr<Low
  */
 LowerPtr<LowerValue> Lowering::borrowNarrow(LowerBlock& block, Value& result,
                                             const VirtualPlace& place, LocationId source) {
+    if(place.isBytewise()) {
+        context.diagnostics.error(
+            "cannot borrow this field - its packed representation has no addressable storage unit"_v,
+            source);
+        return place.word;
+    }
+
     auto pointee = result.occurrence.type;
     auto unitBits = U32(mir::storageBitsFor(U8(reprOf(layout, pointee).scalarBits)));
 
@@ -682,6 +837,9 @@ void Lowering::spendPlace(LowerBlock& block, Value& result, const VirtualPlace& 
  */
 bool Lowering::checkAddressable(Value& result, DeclPtr<mir::Type> record, U16 field,
                                 LocationId source) {
+    auto& declared = *(mir::RecordType*)decl[record];
+    auto placed = reprOf(layout, record).fields.get(decl, field);
+
     for(auto used: result.uses(ssa)) {
         switch(ssa[used]->kind) {
             case Inst::Load:
@@ -693,10 +851,15 @@ bool Lowering::checkAddressable(Value& result, DeclPtr<mir::Type> record, U16 fi
                 break;
         }
 
-        auto& declared = *(mir::RecordType*)decl[record];
-        context.diagnostics.error(
-            "cannot take the address of %@ - it shares a machine word with its neighbours, so it has no address of its own"_v,
-            source, context.findName(declared.fields.get(decl, field).name));
+        if(placed.isBytewise()) {
+            context.diagnostics.error(
+                "cannot borrow %@ - its packed field spans a byte range that cannot be represented by the field type's address"_v,
+                source, context.findName(declared.fields.get(decl, field).name));
+        } else {
+            context.diagnostics.error(
+                "cannot take the address of %@ - it shares a machine word with its neighbours, so it has no address of its own"_v,
+                source, context.findName(declared.fields.get(decl, field).name));
+        }
 
         return false;
     }

@@ -53,6 +53,48 @@ U64 constantBits(DeclBase decl, const mir::Constant& constant) {
     return 0;
 }
 
+static void writePackedBytes(Byte* at, U32 bytes, U64 value) {
+    for(U32 i = 0; i < bytes; i++) at[i] = Byte((value >> (i * 8)) & 0xff);
+}
+
+/*
+ * Merge a constant packed field without reading beyond its exact byte range. This mirrors the
+ * instruction-level byte helper in `pack.cpp`; keeping the static and dynamic forms together makes
+ * the unusual-width case impossible to fix in one path and forget in the other.
+ */
+static void mergePackedConstant(Byte* at, U32 wordBytes, U32 bitOffset, U32 bitWidth, U64 value) {
+    if(!wordBytes) {
+        auto span = (bitOffset + bitWidth + 7) / 8;
+        auto fieldStart = bitOffset;
+        auto fieldEnd = fieldStart + bitWidth;
+
+        for(U32 byte = 0; byte < span; byte++) {
+            auto byteStart = byte * 8;
+            auto overlapStart = byteStart > fieldStart ? byteStart : fieldStart;
+            auto overlapEnd = (byteStart + 8) < fieldEnd ? byteStart + 8 : fieldEnd;
+            if(overlapStart >= overlapEnd) continue;
+
+            auto width = overlapEnd - overlapStart;
+            auto mask = lowMask(width);
+            auto part = (value >> (overlapStart - fieldStart)) & mask;
+            auto local = overlapStart - byteStart;
+            auto byteMask = mask << local;
+            at[byte] = Byte((U8(at[byte]) & ~byteMask) | (part << local));
+        }
+
+        return;
+    }
+
+    U64 word = 0;
+    for(U32 byte = 0; byte < wordBytes; byte++) {
+        word |= U64(U8(at[byte])) << (byte * 8);
+    }
+
+    auto mask = lowMask(bitWidth);
+    word = (word & ~(mask << bitOffset)) | ((value & mask) << bitOffset);
+    writePackedBytes(at, wordBytes, word);
+}
+
 /*
  * One constant's bytes, written where the manifestation says they go.
  *
@@ -159,25 +201,6 @@ void Lowering::materialize(const mir::Occurrence& occurrence, const mir::Constan
     auto arm = record.cons.get(decl, parts.constructor);
     auto repr = reprOf(layout, constant.type);
 
-    // A number into bytes at this target's order, which is what a constant *is* once it is in
-    // storage rather than in a register.
-    auto writeBytes = [&](Byte* at, U32 bytes, U64 value) {
-        for(U32 i = 0; i < bytes; i++) at[i] = Byte((value >> (i * 8)) & 0xff);
-    };
-
-    // A component that shares a word, merged into it - `encodePacked`'s read-modify-write over bytes
-    // instead of over instructions. One lambda because a bit tag and a co-packed field are the same
-    // arithmetic against different numbers, and this is the tier where writing it twice would let
-    // the two disagree about which end a word starts at.
-    auto mergeBits = [&](Byte* at, U32 wordBytes, U32 bitOffset, U32 bitWidth, U64 value) {
-        U64 word = 0;
-        for(U32 b = 0; b < wordBytes; b++) word |= U64(U8(at[b])) << (b * 8);
-
-        auto mask = lowMask(bitWidth);
-        word = (word & ~(mask << bitOffset)) | ((value & mask) << bitOffset);
-        writeBytes(at, wordBytes, word);
-    };
-
     /*
      * The discriminant, in whichever form this record spells it.
      *
@@ -190,16 +213,18 @@ void Lowering::materialize(const mir::Occurrence& occurrence, const mir::Constan
         case Discriminant::None:
             break;
         case Discriminant::Word:
-            writeBytes(into + repr.discriminantOffset, repr.discriminantBytes, U64(arm.value));
+            writePackedBytes(into + repr.discriminantOffset, repr.discriminantBytes,
+                             U64(arm.value));
             break;
         case Discriminant::Bits:
-            mergeBits(into + repr.discriminantOffset, repr.discriminantBytes,
-                      repr.discriminantBitOffset, repr.discriminantBits, U64(arm.value));
+            mergePackedConstant(into + repr.discriminantOffset, repr.discriminantBytes,
+                                repr.discriminantBitOffset, repr.discriminantBits,
+                                U64(arm.value));
             break;
         case Discriminant::Niche:
             if(parts.constructor != repr.encoding.payloadConstructor) {
-                writeBytes(into + repr.encoding.niche.offset, repr.encoding.niche.bytes,
-                           repr.encoding.patternOf(parts.constructor));
+                writePackedBytes(into + repr.encoding.niche.offset, repr.encoding.niche.bytes,
+                                 repr.encoding.patternOf(parts.constructor));
             }
             break;
     }
@@ -225,7 +250,8 @@ void Lowering::materialize(const mir::Occurrence& occurrence, const mir::Constan
             U64 held64 = 0;
             for(U32 b = 0; b < 8; b++) held64 |= U64(U8(bits[b])) << (b * 8);
 
-            mergeBits(into + held.offset, held.wordBytes, held.bitOffset, held.bitWidth, held64);
+            mergePackedConstant(into + held.offset, held.wordBytes, held.bitOffset, held.bitWidth,
+                                held64);
             continue;
         }
 

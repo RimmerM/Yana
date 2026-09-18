@@ -136,7 +136,16 @@ struct CellWalk {
                     auto field = repr.fields.get(decl, i);
 
                     if(field.isPacked()) {
-                        cell(at + field.offset, field.wordBytes, packLane(field.wordBytes));
+                        if(field.isBytewise()) {
+                            // A packed field that does not fit one legal access word is lowered as
+                            // byte-wise read-modify-writes. Name those bytes individually so call
+                            // carrying and alias analysis still sees the complete storage.
+                            for(U32 byte = 0; byte < field.spanBytes(); byte++) {
+                                cell(at + field.offset + byte, 1, LowerType::Int64);
+                            }
+                        } else {
+                            cell(at + field.offset, field.wordBytes, packLane(field.wordBytes));
+                        }
                     } else if(mir::indirectField(decl, record.field(decl, i))) {
                         cell(at + field.offset, layout.target.pointerSize, LowerType::Pointer);
                     } else {

@@ -1,0 +1,292 @@
+
+readWide<complex>(%wide: Ptr): I64 {
+  b_0 {
+    %v_1 = load %wide, 4: I64
+    %v_2 = add %wide, 4: Ptr
+    %v_3 = load %v_2, 1: I64
+    %v_4 = shl %v_3, 32: I64
+    %v_5 = or %v_1, %v_4: I64
+    ret %v_5
+  }
+}
+
+writeWide<complex>(%wide: Ptr, %value: I64) {
+  b_0 {
+    %v_1 = and %value, 1099511627775: I64
+    %v_2 = and %v_1, 4294967295: I64
+    store %wide, %v_2, 4
+    %v_3 = shr %v_1, 32: I64
+    %v_4 = add %wide, 4: Ptr
+    store %v_4, %v_3, 1
+    ret 
+  }
+}
+
+wideRoundTrip<complex>(%value: I64): I64 {
+  b_0 {
+    %v_1 = alloca 6, 1: Ptr
+    %v_2 = and %value, 1099511627775: I64
+    %v_3 = and %v_2, 4294967295: I64
+    store %v_1, %v_3, 4
+    %v_4 = shr %v_2, 32: I64
+    %v_5 = add %v_1, 4: Ptr
+    store %v_5, %v_4, 1
+    %v_6 = add %v_1, 5: Ptr
+    store %v_6, 90, 1
+    call_complex writeWide, %v_1, %value
+    %v_7 = call_complex readWide, %v_1: I64
+    ret %v_7
+  }
+}
+
+readOffsetWide<complex>(%wide: Ptr): I64 {
+  b_0 {
+    %v_1 = load %wide, 4: I64
+    %v_2 = shr %v_1, 4: I64
+    %v_3 = add %wide, 4: Ptr
+    %v_4 = load %v_3, 2: I64
+    %v_5 = shl %v_4, 28: I64
+    %v_6 = or %v_2, %v_5: I64
+    %v_7 = and %v_6, 1099511627775: I64
+    ret %v_7
+  }
+}
+
+writeOffsetWide<complex>(%wide: Ptr, %value: I64) {
+  b_0 {
+    %v_1 = and %value, 1099511627775: I64
+    %v_2 = and %v_1, 268435455: I64
+    %v_3 = shl %v_2, 4: I64
+    %v_4 = load %wide, 4: I64
+    %v_5 = and %v_4, 15: I64
+    %v_6 = or %v_5, %v_3: I64
+    store %wide, %v_6, 4
+    %v_7 = shr %v_1, 28: I64
+    %v_8 = add %wide, 4: Ptr
+    %v_9 = load %v_8, 2: I64
+    %v_10 = and %v_9, 18446744073709547520: I64
+    %v_11 = or %v_10, %v_7: I64
+    store %v_8, %v_11, 2
+    ret 
+  }
+}
+
+offsetWideRoundTrip<complex>(%value: I64): I64 {
+  b_0 {
+    %v_1 = alloca 6, 1: Ptr
+    %v_2 = and %value, 1099511627775: I64
+    %v_3 = load %v_1, 1: I64
+    %v_4 = and %v_3, 18446744073709551600: I64
+    %v_5 = or %v_4, 10: I64
+    store %v_1, %v_5, 1
+    %v_6 = and %v_2, 268435455: I64
+    %v_7 = shl %v_6, 4: I64
+    %v_8 = load %v_1, 4: I64
+    %v_9 = and %v_8, 15: I64
+    %v_10 = or %v_9, %v_7: I64
+    store %v_1, %v_10, 4
+    %v_11 = shr %v_2, 28: I64
+    %v_12 = add %v_1, 4: Ptr
+    %v_13 = load %v_12, 2: I64
+    %v_14 = and %v_13, 18446744073709547520: I64
+    %v_15 = or %v_14, %v_11: I64
+    store %v_12, %v_15, 2
+    %v_16 = add %v_1, 5: Ptr
+    %v_17 = load %v_16, 1: I64
+    %v_18 = and %v_17, 15: I64
+    %v_19 = or %v_18, 80: I64
+    store %v_16, %v_19, 1
+    call_complex writeOffsetWide, %v_1, %value
+    %v_20 = call_complex readOffsetWide, %v_1: I64
+    ret %v_20
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 1: Ptr
+    %v_2 = alloca 8, 1: Ptr
+    %v_3 = alloca 1, 1: Ptr
+    %v_4 = load %v_3, 1: I64
+    %v_5 = and %v_4, 18446744073709551600: I64
+    %v_6 = or %v_5, 3: I64
+    %v_7 = and %v_6, 18446744073709551503: I64
+    %v_8 = or %v_7, 80: I64
+    %v_9 = and %v_8, 83: I64
+    %v_10 = or %v_9, 128: I64
+    store %v_3, %v_10, 1
+    %v_11 = alloca 2, 1: Ptr
+    %v_12 = load %v_11, 1: I64
+    %v_13 = and %v_12, 18446744073709551488: I64
+    %v_14 = or %v_13, 7: I64
+    store %v_11, %v_14, 1
+    %v_15 = load %v_11, 2: I64
+    %v_16 = and %v_15, 18446744073709551231: I64
+    %v_17 = or %v_16, 256: I64
+    store %v_11, %v_17, 2
+    %v_18 = add %v_11, 1: Ptr
+    %v_19 = load %v_18, 1: I64
+    %v_20 = and %v_19, 1: I64
+    %v_21 = or %v_20, 14: I64
+    store %v_18, %v_21, 1
+    %v_22 = call_complex wideRoundTrip, 78187493530: I64
+    %v_23 = call_complex offsetWideRoundTrip, 151488268715: I64
+    %v_24 = load %v_1, 1: I64
+    %v_25 = and %v_24, 18446744073709551614: I64
+    %v_26 = or %v_25, 1: I64
+    %v_27 = and %v_26, 18446744073709551613: I64
+    %v_28 = or %v_27, 2: I64
+    %v_29 = and %v_28, 18446744073709551611: I64
+    %v_30 = and %v_29, 18446744073709551607: I64
+    store %v_1, %v_30, 1
+    %v_31 = load %v_1, 1: I64
+    %v_32 = and %v_31, 18446744073709551599: I64
+    %v_33 = and %v_32, 18446744073709551583: I64
+    %v_34 = or %v_33, 32: I64
+    %v_35 = and %v_34, 18446744073709551551: I64
+    %v_36 = and %v_35, 47: I64
+    store %v_1, %v_36, 1
+    %v_37 = add %v_1, 1: Ptr
+    %v_38 = load %v_37, 1: I64
+    %v_39 = and %v_38, 18446744073709551614: I64
+    %v_40 = or %v_39, 1: I64
+    %v_41 = and %v_40, 18446744073709551601: I64
+    store %v_37, %v_41, 1
+    %v_42 = load %v_1, 8: I64
+    %v_43 = and %v_42, 18442240474082185215: I64
+    %v_44 = or %v_43, 320255973498880: I64
+    store %v_1, %v_44, 8
+    %v_45 = add %v_1, 6: Ptr
+    %v_46 = load %v_45, 2: I64
+    %v_47 = and %v_46, 18446744073709518863: I64
+    store %v_45, %v_47, 2
+    %v_48 = add %v_1, 7: Ptr
+    %v_49 = load %v_48, 1: I64
+    %v_50 = and %v_49, 127: I64
+    %v_51 = or %v_50, 128: I64
+    store %v_48, %v_51, 1
+    %v_52 = load %v_1, 1: I64
+    %v_53 = and %v_52, 18446744073709551614: I64
+    %v_54 = or %v_53, 1: I64
+    store %v_1, %v_54, 1
+    %v_55 = load %v_1, 8: I64
+    %v_56 = and %v_55, 18442240474082185215: I64
+    %v_57 = or %v_56, 320255973498880: I64
+    store %v_1, %v_57, 8
+    %v_58 = load %v_48, 1: I64
+    %v_59 = and %v_58, 127: I64
+    %v_60 = or %v_59, 128: I64
+    store %v_48, %v_60, 1
+    %v_61 = load %v_2, 1: I64
+    %v_62 = and %v_61, 18446744073709551614: I64
+    %v_63 = or %v_62, 1: I64
+    %v_64 = and %v_63, 18446744073709551613: I64
+    %v_65 = or %v_64, 2: I64
+    %v_66 = and %v_65, 18446744073709551611: I64
+    %v_67 = and %v_66, 18446744073709551607: I64
+    store %v_2, %v_67, 1
+    %v_68 = load %v_2, 1: I64
+    %v_69 = and %v_68, 18446744073709551599: I64
+    %v_70 = and %v_69, 18446744073709551583: I64
+    %v_71 = or %v_70, 32: I64
+    %v_72 = and %v_71, 18446744073709551551: I64
+    %v_73 = and %v_72, 47: I64
+    %v_74 = or %v_73, 128: I64
+    store %v_2, %v_74, 1
+    %v_75 = add %v_2, 1: Ptr
+    %v_76 = load %v_75, 1: I64
+    %v_77 = and %v_76, 18446744073709551614: I64
+    %v_78 = or %v_77, 1: I64
+    %v_79 = and %v_78, 18446744073709551601: I64
+    store %v_75, %v_79, 1
+    %v_80 = load %v_2, 8: I64
+    %v_81 = and %v_80, 18442240474082185215: I64
+    %v_82 = or %v_81, 320255973498880: I64
+    store %v_2, %v_82, 8
+    %v_83 = add %v_2, 6: Ptr
+    %v_84 = load %v_83, 2: I64
+    %v_85 = and %v_84, 18446744073709518863: I64
+    store %v_83, %v_85, 2
+    %v_86 = add %v_2, 7: Ptr
+    %v_87 = load %v_86, 1: I64
+    %v_88 = and %v_87, 127: I64
+    %v_89 = or %v_88, 128: I64
+    store %v_86, %v_89, 1
+    %v_90 = load %v_2, 1: I64
+    %v_91 = and %v_90, 18446744073709551614: I64
+    %v_92 = or %v_91, 1: I64
+    %v_93 = and %v_92, 127: I64
+    %v_94 = or %v_93, 128: I64
+    store %v_2, %v_94, 1
+    %v_95 = load %v_75, 1: I64
+    %v_96 = and %v_95, 18446744073709551601: I64
+    store %v_75, %v_96, 1
+    %v_97 = load %v_2, 8: I64
+    %v_98 = and %v_97, 18442240474082185215: I64
+    %v_99 = or %v_98, 320255973498880: I64
+    store %v_2, %v_99, 8
+    %v_100 = load %v_86, 1: I64
+    %v_101 = and %v_100, 127: I64
+    %v_102 = or %v_101, 128: I64
+    store %v_86, %v_102, 1
+    %v_103 = cmp_eq %v_22, 78187493530: I32
+    %v_104 = add 155, %v_103: I32
+    %v_105 = cmp_eq %v_23, 151488268715: I32
+    %v_106 = add %v_104, %v_105: I32
+    %v_107 = shr %v_60, 7: I64
+    %v_108 = cast %v_107: I32
+    %v_109 = cast %v_108: I64
+    %v_110 = cmp_eq %v_109, 1: I32
+    %v_111 = select %v_110, 2, 0: I32
+    %v_112 = add %v_106, %v_111: I32
+    %v_113 = load %v_2, 1: I64
+    %v_114 = and %v_113, 1: I64
+    %v_115 = cast %v_114: I32
+    je %v_115, b_116, b_117
+  }
+
+  b_117 {
+    jmp b_118
+  }
+
+  b_118 {
+    %v_119 = phi [b_117, 0], [b_120, 2]: I32
+    %v_121 = add %v_112, %v_119: I32
+    ret %v_121
+  }
+
+  b_116 {
+    %v_122 = shr %v_113, 7: I64
+    %v_123 = cast %v_122: I32
+    je %v_123, b_124, b_117
+  }
+
+  b_124 {
+    %v_125 = load %v_75, 1: I64
+    %v_126 = shr %v_125, 1: I64
+    %v_127 = and %v_126, 7: I64
+    %v_128 = cast %v_127: I32
+    %v_129 = cmp_eq %v_128, 0: I32
+    je %v_129, b_130, b_117
+  }
+
+  b_130 {
+    %v_131 = load %v_2, 8: I64
+    %v_132 = shr %v_131, 12: I64
+    %v_133 = and %v_132, 1099511627775: I64
+    %v_134 = cmp_eq %v_133, 78187493530: I32
+    je %v_134, b_135, b_117
+  }
+
+  b_135 {
+    %v_136 = load %v_86, 1: I64
+    %v_137 = shr %v_136, 7: I64
+    %v_138 = cast %v_137: I32
+    je %v_138, b_120, b_117
+  }
+
+  b_120 {
+    jmp b_118
+  }
+}
+

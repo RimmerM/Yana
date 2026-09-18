@@ -225,14 +225,15 @@ it was told. So the shift travels in the sixteen bits of a pointer no user addre
 anything the target left alone. Whether a pointee carries one is `Repr::isNarrow` and nothing else,
 which is what makes it an ABI rather than a per-site decision.
 
-The split against the callee's unit is where the straddle rule is spent, and it is the only thing
-that rule is for: `packBits` guarantees a field lies inside one `storageBitsFor(bits)` block of its
-word, and that composes through a nested packed record because a record of more than eight bits is
-only ever placed at a multiple of its own storage unit - the fields go widest first, and a record of
-`n > 8` bits has `n > storageBitsFor(n)/2`, so nothing narrower fits in front of it inside one unit.
-The exception is a `C` pin, where the unit is the *declared* type's and a four-bit field may sit at
-bit six of an `int`; a `&` of one is refused, which is what C does about the address of a bit-field
-too.
+The split against the callee's unit is where the natural-unit rule is spent, and it is the only
+thing that rule is for: `packBits` guarantees a field lies inside one `storageBitsFor(bits)` block
+of its word, and that composes through a nested packed record because a record of more than eight
+bits is only ever placed at a multiple of its own storage unit - the fields go widest first, and a
+record of `n > 8` bits has `n > storageBitsFor(n)/2`, so nothing narrower fits in front of it inside
+one unit. The exception is a `C` pin, where the unit is the *declared* type's and a four-bit field
+may sit at bit six of an `int`; a `&` of one is refused, which is what C does about the address of a
+bit-field too. `@layout(packed)` direct accesses are separate: its fields form one contiguous
+bitstream and may cross these boundaries, using exact byte accesses where no single word fits.
 
 **Design.md's tier 1 is still here, for the one boundary a shift cannot cross.** A body compiled once
 reaches a value of a type parameter through a plain address and sizes it out of a descriptor, so a

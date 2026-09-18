@@ -196,6 +196,18 @@ static bool packableValue(Layout layout, DeclPtr<mir::Type> type) {
     return ownership.trivialCopy && !ownership.isLinear();
 }
 
+/*
+ * The source-level narrow fields of `@layout(packed)` - the pin is a wire format, so it must not
+ * make the outer layout depend on whether an unpinned nested record happened to scalarize on this
+ * target. Nested records remain ordinary fields; their own declaration decides whether they pack.
+ */
+static bool packedNarrowType(Layout layout, DeclPtr<mir::Type> type) {
+    auto declared = layout.base[type];
+    if(declared->kind == mir::Type::Int) return mir::isRefinedInt(layout.base, type);
+    return declared->kind == mir::Type::Record &&
+           ((mir::RecordType*)declared)->layout == mir::RecordLayout::Enum;
+}
+
 namespace {
 
 /*
@@ -217,6 +229,7 @@ struct Member {
     U32 unitBits = 0;
 
     // Narrow, and a value this target may move in and out of a shared word.
+    bool narrow = false;
     bool packable = false;
 
     Niche niche;
@@ -322,11 +335,16 @@ static Members membersOf(Layout layout, mir::RecordType& record,
             auto content = reprOf(layout, held.type);
             member.niche = content.niche;
 
-            if(content.isNarrow() && packableValue(layout, held.type)) {
+            member.narrow = content.isNarrow() &&
+                            (record.pin != mir::TypeLayout::Packed ||
+                             packedNarrowType(layout, held.type));
+            if(member.narrow && packableValue(layout, held.type)) {
                 member.valueBits = content.scalarBits;
                 member.unitBits = record.pin == mir::TypeLayout::C
                                 ? declaredUnitBits(layout, held.type) : 0;
-                if(!member.unitBits) member.unitBits = mir::storageBitsFor(U8(member.valueBits));
+                if(record.pin != mir::TypeLayout::Packed && !member.unitBits) {
+                    member.unitBits = mir::storageBitsFor(U8(member.valueBits));
+                }
                 member.packable = true;
             }
         }
@@ -606,6 +624,106 @@ static ArmLayout placeArm(Layout layout, mir::RecordType& record, const Members&
     arm.size = size;
     arm.align = align;
     return arm;
+}
+
+/*
+ * One `@layout(packed)` record, in declaration order.
+ *
+ * The cursor is in bits, but ordinary fields may only begin at a byte boundary. A narrow field is
+ * the exception: it spends exactly its logical value bits, and the next field continues immediately
+ * after it. That makes a partial byte an error rather than an opportunity for the compiler to add
+ * padding. Narrow fields may cross both byte boundaries and the natural units of their source type;
+ * the access is chosen after the record size is known, so it can use one legal load/store word or
+ * exact byte-wise read-modify-writes when no single word covers the field. `Bool` and a payload-free
+ * enum arrive here as narrow values too, so they can deliberately complete a byte beside written
+ * `@bits` fields.
+ *
+ * The existing packed access path loads one 1/2/4/8-byte word where possible. A zero `wordBytes`
+ * records the fallback; `pack.cpp` then touches exactly the bytes in the field's range, which keeps
+ * a five-byte field from overreading or overwriting a six-byte record merely to obtain an eight-byte
+ * machine access.
+ */
+static bool layoutPackedRecord(Layout layout, mir::RecordType& record, const Members& members,
+                               FieldRepr* placed, Repr& into) {
+    auto base = layout.base;
+    U32 bitCursor = 0;
+
+    auto report = [&](StringView message, LocationId source) {
+        layout.context->diagnostics.error(message, source);
+    };
+
+    for(U16 index = 0; index < record.fields.size(); index++) {
+        auto& member = members[index];
+
+        if(member.narrow) {
+            if(!member.packable) {
+                report("a narrow field in a `@layout(packed)` record cannot be represented without an addressable storage unit"_v,
+                       record.fields.get(base, index).source);
+                return false;
+            }
+
+            auto width = member.valueBits;
+            placed[index] = FieldRepr { member.held, bitCursor / 8, 0, U8(bitCursor % 8),
+                                        U8(width) };
+            bitCursor += width;
+            continue;
+        }
+
+        if(bitCursor % 8) {
+            report("a `@layout(packed)` record cannot leave a partial byte before an ordinary field"_v,
+                   record.fields.get(base, index).source);
+            return false;
+        }
+
+        auto offset = bitCursor / 8;
+        placed[index] = FieldRepr { member.held, offset,
+                                    U8(member.size > 255 ? 0 : member.size), 0, 0 };
+        bitCursor += member.size * 8;
+    }
+
+    if(bitCursor % 8) {
+        report("a `@layout(packed)` record must fill its final byte with bit-fields"_v, record.source);
+        return false;
+    }
+
+    /*
+     * Pick a single access word where one exists. It may begin in an earlier byte than the field;
+     * that is useful for a field such as forty bits at bit twelve in an eight-byte page-table entry,
+     * where an eight-byte access from byte zero is exact but an access from byte one would overread.
+     * The fallback leaves the field at its first byte and lets `pack.cpp` split it into byte accesses.
+     */
+    auto size = bitCursor / 8;
+    static constexpr U32 kAccessBytes[] = { 1, 2, 4, 8 };
+    for(U16 index = 0; index < record.fields.size(); index++) {
+        auto& field = placed[index];
+        if(!field.isPacked()) continue;
+
+        auto firstByte = field.offset;
+        auto firstBit = U32(field.bitOffset);
+        bool found = false;
+
+        for(auto wordBytes: kAccessBytes) {
+            auto earliest = firstByte >= wordBytes - 1 ? firstByte - (wordBytes - 1) : 0;
+            for(auto wordOffset = firstByte;; wordOffset--) {
+                auto bitOffset = firstBit + (firstByte - wordOffset) * 8;
+                if(bitOffset + field.bitWidth <= wordBytes * 8 &&
+                   wordOffset + wordBytes <= size) {
+                    field.offset = wordOffset;
+                    field.wordBytes = U8(wordBytes);
+                    field.bitOffset = U8(bitOffset);
+                    found = true;
+                    break;
+                }
+                if(wordOffset == earliest) break;
+            }
+            if(found) break;
+        }
+    }
+
+    into.size = bitCursor / 8;
+    into.align = 1;
+    into.stride = into.size;
+    return true;
 }
 
 /*
@@ -964,6 +1082,29 @@ static void layoutRecord(Layout layout, mir::RecordType& record, Repr& into,
     SmallArray<FieldRepr, 8> placed;
     for(U16 i = 0; i < count; i++) placed.push(FieldRepr { members[i].held, 0, 0, 0, 0 });
 
+    if(record.pin == mir::TypeLayout::Packed) {
+        if(record.layout == mir::RecordLayout::Multi) {
+            // Resolution reports this with the declaration's source. Keep this guard for a record
+            // reached through an incomplete/error path, so a data-bearing sum never gets the ordinary
+            // tag-and-payload layout by accident.
+            layout.context->diagnostics.error(
+                "`@layout(packed)` cannot be used on a sum type whose constructors carry data"_v,
+                record.source);
+            into.opaque = true;
+            return;
+        }
+
+        if(!layoutPackedRecord(layout, record, members, placed.pointer(), into)) {
+            into.opaque = true;
+            return;
+        }
+
+        placeBoxFlags(layout, record, into, placed.pointer(), count);
+        into.fields.reserve(arena, count);
+        for(U16 i = 0; i < count; i++) into.fields.push(arena, placed[i]);
+        return;
+    }
+
     auto tagBytes = U32(mir::tagBitsOf(base, record) / 8);
 
     if(!tagBytes) {
@@ -1131,6 +1272,14 @@ bool hasPaddedWord(Layout layout, DeclPtr<mir::Type> type, U32 depth) {
 
     for(auto field: repr.fields.contents(base)) {
         if(field.isPacked()) {
+            if(((mir::RecordType*)base[type])->pin == mir::TypeLayout::Packed) {
+                // A `@layout(packed)` declaration has already proved that every byte in its bit
+                // stream is assigned by a field. The access word may be wider than one field, or
+                // may be split byte-wise, so its unused access bits are not representation padding
+                // and must not make us zero an otherwise complete record.
+                continue;
+            }
+
             // How far up the word anything reaches, over every field sharing it. A word whose run
             // stops short has spare bits, and they are exactly the ones nothing writes.
             U32 used = 0;

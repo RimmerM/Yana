@@ -775,13 +775,21 @@ struct Lowering {
 
         Kind kind = Packed;
 
+        bool isBytewise() const { return kind == Packed && !wordBytes; }
+
+        // The exact byte range used by the fallback. A normal packed place has one legal access
+        // word; a bytewise place derives its range from the field's bits instead.
+        U32 spanBytes() const {
+            return isBytewise() ? (bitOffset + bitWidth + 7) / 8 : wordBytes;
+        }
+
         // The storage the bits live in: the containing word for a packed field, and the payload
         // itself for a folded tag, whose niche offset is part of the record's encoding.
         LowerPtr<LowerValue> word = nullptr;
 
-        // `Packed`: how wide the word is, how far up it the field sits, how many bits it owns, and
-        // whether its value reaches below zero - which decides between a shift-and-mask and a pair
-        // of shifts that sign-extend.
+        // `Packed`: how wide the access word is (zero means exact byte-wise access), how far up it
+        // the field sits, how many bits it owns, and whether its value reaches below zero - which
+        // decides between a shift-and-mask and a pair of shifts that sign-extend.
         U32 wordBytes = 0;
         U32 bitOffset = 0;
         U32 bitWidth = 0;
@@ -896,6 +904,10 @@ struct Lowering {
      */
     LowerPtr<LowerValue> decodePacked(LowerBlock& block, const VirtualPlace& place, LowerType type);
     void encodePacked(LowerBlock& block, const VirtualPlace& place, LowerPtr<LowerValue> value);
+    LowerPtr<LowerValue> decodePackedBytes(LowerBlock& block, const VirtualPlace& place,
+                                           LowerType type);
+    void encodePackedBytes(LowerBlock& block, const VirtualPlace& place,
+                           LowerPtr<LowerValue> value);
 
     // How far up the word the component starts - the constant this body knows plus the shift it was
     // handed. Shared by the pair above, because two answers to it is a write into the wrong bits.

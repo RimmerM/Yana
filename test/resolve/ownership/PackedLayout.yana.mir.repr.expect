@@ -1,0 +1,62 @@
+Bool: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 1 bits, niche at 0 width 1, valid 0..1, free 0 below / 254 above
+
+Mode: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 3 bits, niche at 0 width 1, valid 0..4, free 0 below / 251 above
+
+PageSize: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 1 bits, niche at 0 width 1, valid 0..1, free 0 below / 254 above
+
+PageAvailable: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 3 bits, niche at 0 width 1, valid 0..7, free 0 below / 248 above
+
+Header: size 7, align 1, stride 7, niche none
+  .0 at 0 bits 0..3 of 1 bytes: @bits(4) U32
+  .1 at 0 bits 4..6 of 1 bytes: @bits(3) U32
+  .2 at 0 bits 7..7 of 1 bytes: Bool
+  .3 at 1: U16
+  .4 at 3: U32
+
+WithMode: size 1, align 1, stride 1, niche none
+  .0 at 0 bits 0..2 of 1 bytes: Mode
+  .1 at 0 bits 3..7 of 1 bytes: @bits(5) U32
+
+Crosses: size 2, align 1, stride 2, niche none
+  .0 at 0 bits 0..6 of 1 bytes: @bits(7) U64
+  .1 at 0 bits 7..8 of 2 bytes: @bits(2) U64
+  .2 at 1 bits 1..7 of 1 bytes: @bits(7) U64
+
+WideBits: size 6, align 1, stride 6, niche none
+  .0 at 0 bits 0..39 of byte-wise: @bits(40) U64
+  .1 at 5: @bits(8) U64
+
+OffsetWide: size 6, align 1, stride 6, niche none
+  .0 at 0 bits 0..3 of 1 bytes: @bits(4) U64
+  .1 at 0 bits 4..43 of byte-wise: @bits(40) U64
+  .2 at 5 bits 4..7 of 1 bytes: @bits(4) U64
+
+PageTableEntry: size 8, align 1, stride 8, niche none
+  .0 at 0 bits 0..0 of 1 bytes: @bits(1) U64
+  .1 at 0 bits 1..1 of 1 bytes: @bits(1) U64
+  .2 at 0 bits 2..2 of 1 bytes: @bits(1) U64
+  .3 at 0 bits 3..3 of 1 bytes: @bits(1) U64
+  .4 at 0 bits 4..4 of 1 bytes: @bits(1) U64
+  .5 at 0 bits 5..5 of 1 bytes: @bits(1) U64
+  .6 at 0 bits 6..6 of 1 bytes: @bits(1) U64
+  .7 at 0 bits 7..7 of 1 bytes: @bits(1) U64
+  .8 at 1 bits 0..0 of 1 bytes: @bits(1) U64
+  .9 at 1 bits 1..3 of 1 bytes: @bits(3) U64
+  .10 at 0 bits 12..51 of 8 bytes: @bits(40) U64
+  .11 at 6 bits 4..14 of 2 bytes: @bits(11) U64
+  .12 at 7 bits 7..7 of 1 bytes: @bits(1) U64
+
+TypedPageTableEntry: size 8, align 1, stride 8, niche none
+  .0 at 0 bits 0..0 of 1 bytes: Bool
+  .1 at 0 bits 1..1 of 1 bytes: Bool
+  .2 at 0 bits 2..2 of 1 bytes: Bool
+  .3 at 0 bits 3..3 of 1 bytes: Bool
+  .4 at 0 bits 4..4 of 1 bytes: Bool
+  .5 at 0 bits 5..5 of 1 bytes: Bool
+  .6 at 0 bits 6..6 of 1 bytes: Bool
+  .7 at 0 bits 7..7 of 1 bytes: PageSize
+  .8 at 1 bits 0..0 of 1 bytes: Bool
+  .9 at 1 bits 1..3 of 1 bytes: PageAvailable
+  .10 at 0 bits 12..51 of 8 bytes: @bits(40) U64
+  .11 at 6 bits 4..14 of 2 bytes: @bits(11) U16
+  .12 at 7 bits 7..7 of 1 bytes: Bool

@@ -515,23 +515,28 @@ enum class RecordLayout: U8 {
 };
 
 /*
- * A **declared pin** on a record's physical layout - `@layout(c)`, `@layout(js)`, and the default.
+ * A **declared pin** on a record's physical layout - `@layout(c)`, `@layout(js)`,
+ * `@layout(packed)`, and the default.
  *
  * `doc/spec/repr.md` puts this in a tier of its own: a pin is uniform across every instance of the
  * type, it is visible in the declaration, and changing one is an API change. `Auto` is the target's
  * to decide - it may reorder fields, co-pack narrow ones, scalarize the whole record and fold a
  * discriminant into a niche. `C` and `Js` each freeze that: fields stay in declaration order, only a
  * written `@bits` refinement is a bit-field, and no target may improve on either.
+ * `Packed` keeps declaration order too, but makes the record a byte stream: ordinary fields have no
+ * alignment padding and narrow fields must fill every bit of the bytes they occupy.
  *
- * **A statement about the type and never about which target is emitting.** Both names mean something
- * on both targets - `@layout(js)` natively is declaration order with no packing, `@layout(c)` on a
- * host target the same from the other side - which is why this lives on the logical type here, above
- * every family's layout table, rather than being a switch one of them reads.
+ * **A statement about the type and never about which target is emitting.** All three names mean
+ * something on every native target - `@layout(js)` natively is declaration order with no packing,
+ * `@layout(c)` on a host target is the same from the other side, and `packed` is the same byte stream
+ * wherever the native representation can serve it - which is why this lives on the logical type
+ * here, above every family's layout table, rather than being a switch one of them reads.
  */
 enum class TypeLayout: U8 {
     Auto,
     C,
     Js,
+    Packed,
 
     // A name `@layout` did not recognize, which is a reading of the attribute and never a type's
     // answer. A row here rather than a `Maybe` at the one caller, so that the reader has one return
@@ -627,14 +632,13 @@ struct RecordType: Type {
     RecordLayout layout = RecordLayout::Single;
 
     /*
-     * `@layout(c)` as it was written - `TypeLayout`, and the one thing a declaration says about its
-     * own *physical* form.
+     * `@layout(c)` or `@layout(packed)` as it was written - `TypeLayout`, and the one thing a
+     * declaration says about its own *physical* form.
      *
      * Here rather than in a layout table because it is the declaration's statement and not a
      * target's answer: every family's table reads it, and a pin that lived in one of them would be a
-     * pin the other did not honour. `pinned()` is what a table asks, since what both non-`Auto`
-     * values have in common - no reordering, no packing, no scalarization, no niche folding - is the
-     * whole of what a layout walk does differently.
+     * pin the other did not honour. `pinned()` is what a table asks for `C` and `Js`; `Packed` has
+     * its own no-padding walk below the same declaration-level choice.
      *
      * An **instantiation** carries its declaration's pin, because a pin is part of the type: it is
      * copied in `instantiate` beside the fields, on `exported`'s reasoning inverted - nobody wrote

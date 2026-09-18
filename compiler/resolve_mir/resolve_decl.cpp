@@ -582,7 +582,7 @@ static bool isNewtype(ast::Decl& declaration) {
 }
 
 /*
- * `@layout(c)` on a `data` - `doc/spec/repr.md`'s pinned layouts.
+ * `@layout(c)` and `@layout(packed)` on a `data` - `doc/spec/repr.md`'s pinned layouts.
  *
  * A reader of its own for `@value`'s reason: the argument is a word rather than nothing, so
  * `readAttributes` - which fills flags - is not where it can land. What it produces is a
@@ -592,7 +592,7 @@ static bool isNewtype(ast::Decl& declaration) {
  * `auto` is admitted and means the default, which is not the same as writing nothing: it is how a
  * declaration says out loud that its layout is the compiler's, and it composes with a second
  * attribute the way an unwritten one does. Two pins that disagree are refused rather than resolved
- * by order - `@layout(c) @layout(js)` names two representations and neither is more written than
+ * by order - two different `@layout` names name two representations and neither is more written than
  * the other.
  */
 TypeLayout Resolver::readLayoutAttribute(ast::Decl& declaration) {
@@ -604,7 +604,7 @@ TypeLayout Resolver::readLayoutAttribute(ast::Decl& declaration) {
         }
 
         if(attribute.args.size() != 1) {
-            context.diagnostics.error("`@layout` takes one name - `@layout(c)`, `@layout(js)` or `@layout(auto)`"_v,
+            context.diagnostics.error("`@layout` takes one name - `@layout(c)`, `@layout(js)`, `@layout(packed)` or `@layout(auto)`"_v,
                                       attribute.source);
             continue;
         }
@@ -615,11 +615,12 @@ TypeLayout Resolver::readLayoutAttribute(ast::Decl& declaration) {
 
         auto requested = named == "c"_v ? TypeLayout::C
                        : named == "js"_v ? TypeLayout::Js
+                       : named == "packed"_v ? TypeLayout::Packed
                        : named == "auto"_v ? TypeLayout::Auto
                        : TypeLayout::Unknown;
 
         if(requested == TypeLayout::Unknown) {
-            context.diagnostics.error("`@layout` takes `c`, `js` or `auto` - a representation this declaration pins, or the compiler's own"_v,
+            context.diagnostics.error("`@layout` takes `c`, `js`, `packed` or `auto` - a representation this declaration pins, or the compiler's own"_v,
                                       argument.source);
             continue;
         }
@@ -627,7 +628,7 @@ TypeLayout Resolver::readLayoutAttribute(ast::Decl& declaration) {
         if(requested == TypeLayout::Auto) continue;
 
         if(pin != TypeLayout::Auto && pin != requested) {
-            context.diagnostics.error("`@layout(c)` and `@layout(js)` name different representations and cannot both apply to one declaration"_v,
+            context.diagnostics.error("`@layout` names different representations and cannot apply more than one pin to a declaration"_v,
                                       argument.source);
             continue;
         }
@@ -1251,6 +1252,74 @@ void Resolver::resolveFieldDefaults() {
     pendingDefaults.clear();
 }
 
+namespace {
+
+/*
+ * The logical bits a packed field spends, or zero when the field owns whole bytes.
+ *
+ * This is deliberately the resolver's small structural check rather than a second native layout
+ * walk. `@bits` has a fixed width by the time fields are declared, and a payload-free enum's values
+ * are known from its constructors. The comparison is against the refined integer's *base* storage,
+ * not the logical width: `@bits(8) U64` is an eight-bit packed field, not an eight-byte ordinary
+ * field. Everything else is already byte-sized at this layer; the native representation remains
+ * responsible for the exact byte count and the access word it uses.
+ */
+static U32 packedNarrowBits(DeclBase base, DeclPtr<Type> type) {
+    if(!type) return 0;
+
+    auto declared = base[type];
+    if(declared->kind == Type::Int && isRefinedInt(base, type)) {
+        auto bits = U32(((IntType*)declared)->bits);
+        auto canonical = canonicalInt(base, type);
+        auto natural = U32(storageBitsFor(U8(((IntType*)base[canonical])->bits)));
+        return bits < natural ? bits : 0;
+    }
+
+    if(declared->kind != Type::Record) return 0;
+
+    auto& record = *(RecordType*)declared;
+    if(record.layout != RecordLayout::Enum) return 0;
+
+    auto range = tagRangeOf(base, record);
+    if(range.isSigned || range.highest < 0) return 0;
+
+    U32 bits = 1;
+    while(bits < 64 && (U64(1) << bits) <= U64(range.highest)) bits++;
+    return bits < U32(range.bits) ? bits : 0;
+}
+
+static void checkPackedFields(Context& context, Program& program, RecordType& record) {
+    auto base = *program.decl;
+    U32 bits = 0;
+
+    for(U16 i = 0; i < record.fields.size(); i++) {
+        auto field = record.fields.get(base, i);
+        auto narrow = packedNarrowBits(base, field.occurrence.type);
+        if(narrow) {
+            bits += narrow;
+            continue;
+        }
+
+        if(bits % 8) {
+            context.diagnostics.error(
+                "a `@layout(packed)` record cannot leave a partial byte before an ordinary field"_v,
+                field.source);
+            return;
+        }
+
+        // The exact number of whole bytes is a native representation question. For this check only
+        // the byte boundary matters, and an ordinary field always leaves the cursor on one.
+        bits = 0;
+    }
+
+    if(bits % 8) {
+        context.diagnostics.error(
+            "a `@layout(packed)` record must fill its final byte with bit-fields"_v, record.source);
+    }
+}
+
+} // namespace
+
 void Resolver::declareFields(ast::Decl& declaration, Size& next) {
     if(next >= writtenRecords.size()) return;
 
@@ -1482,6 +1551,14 @@ void Resolver::declareFieldsOf(ast::Decl& declaration, DeclPtr<RecordType> point
 
     record->layout = recordLayoutOf(decl(), *record);
     record->originSlots = slots.count();
+
+    if(record->pin == TypeLayout::Packed && record->layout == RecordLayout::Multi) {
+        context.diagnostics.error(
+            "`@layout(packed)` cannot be used on a sum type whose constructors carry data - the tag and payload have no padding-free representation"_v,
+            declaration.source);
+    } else if(record->pin == TypeLayout::Packed) {
+        checkPackedFields(context, program, *record);
+    }
 
     /*
      * There is no refusal here any more, and what used to be one is worth keeping written down.

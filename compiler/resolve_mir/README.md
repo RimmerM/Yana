@@ -5187,7 +5187,7 @@ steps a written call takes around selection:
   lens and find out much later - as a continuation type nothing decided, or as an argument count the
   builder asserted on. It is also where an **inferred result** is demanded - see below.
 
-## `@layout(c)`, and where a layout is answered
+## `@layout`, and where a layout is answered
 
 `readLayoutAttribute` reads the pin, `RecordType::pin` holds it, and `Types::recordType` copies it
 into every instantiation. Beyond that this directory has nothing to say about bytes: a pin is a
@@ -5205,13 +5205,18 @@ is why:
   re-deriving one;
 - **what a value costs** is not a layout question and has no field on a layout target.
 
-What a pin *does* is decline all four of the things `Auto` licenses: reordering, co-packing,
-whole-record scalarization and niche folding. Each of those is one test of `RecordType::pinned()` in
-`resolve_ssa/lower/repr.cpp`, and they read the pin rather than the two names apart because what `C`
-and `Js` have in common is exactly "the compiler does not choose". Where they differ is the one
+What a pin *does* is decline the target's freedom to choose a representation. `C` and `Js` decline
+reordering, co-packing, whole-record scalarization and niche folding; where they differ is the one
 place a pinned record still packs: under `C` a written `@bits(n)` refinement *is* a bit-field,
 allocated in its declared type's unit and sharing that unit only with a bit-field written next to
 it, which is what a C compiler does with `int x: 4`.
+
+`Packed` has a separate walk in `resolve_ssa/lower/repr.cpp`: fields remain in declaration order,
+ordinary fields have no alignment padding, and narrow fields consume a contiguous bit stream,
+including across byte boundaries. The resolver rejects partial bytes and data-bearing sums before
+lowering. The access itself reuses the same packed-field shifts and read-modify-writes as the
+ordinary representation, falling back to exact byte accesses when a field does not fit one
+lower-IR word.
 
 Analysis-Manifestations.md part 10 is the argument, and `test/resolve/LayoutPin.yana` is the
 assertion: its two `.repr.expect` goldens - the shipping stage's and this one's - are byte-identical,

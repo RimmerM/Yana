@@ -1931,7 +1931,7 @@ struct Resolver {
     void readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* local, StringView on,
                         bool pinned = false);
 
-    // `@layout(c)` on a `data` - `RecordType::pin`, and `resolve_decl.cpp` for what the pin means.
+    // `@layout(...)` on a `data` - `RecordType::pin`, and `resolve_decl.cpp` for what each pin means.
     TypeLayout readLayoutAttribute(ast::Decl& declaration);
 
     // `@cold` and `@hot` - how often a function runs, which is not a statement about inlining.

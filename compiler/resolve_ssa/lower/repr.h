@@ -42,7 +42,8 @@ namespace ssa {
  *  - **the key.** A manifestation is selected from a whole `mir::Occurrence` - logical type,
  *    contract, interior shape - on every target. A planner keyed on less can select an owner where
  *    the contract said view, which `manifestNative` has already made and fixed once.
- *  - **what the language decides.** `RecordType::pin` is `@layout(c)`; `RecordType::layout` is
+ *  - **what the language decides.** `RecordType::pin` is `@layout(c)`, `@layout(js)` or
+ *    `@layout(packed)`; `RecordType::layout` is
  *    whether a record is an enum, a single constructor or a sum; the view table pairs an owner with
  *    its window; the containment cut is one diagnostic against source. All of them live on the
  *    logical type in `resolve_mir`, so that every family reads one statement.
@@ -121,7 +122,9 @@ struct Niche {
  * `bitWidth == 0` is the ordinary case: the field owns its storage from `offset` and is read and
  * written whole. A non-zero `bitWidth` is a **co-packed** field - two booleans sharing a byte, a
  * `@bits(n)` integer beside its neighbour - and then an access is a load of the `wordBytes`-wide
- * word at `offset`, a shift by `bitOffset` and a mask, rather than a load of the field itself.
+ * word at `offset`, a shift by `bitOffset` and a mask, rather than a load of the field itself. A
+ * zero `wordBytes` means the field is accessed byte-wise because no legal lower-IR word covers its
+ * range without leaving the record.
  */
 struct FieldRepr {
     /*
@@ -149,7 +152,14 @@ struct FieldRepr {
     U8 boxFlagBit = kNoBoxFlag;
 
     bool isPacked() const { return bitWidth != 0; }
+    bool isBytewise() const { return isPacked() && !wordBytes; }
     bool hasBoxFlag() const { return boxFlagBit != kNoBoxFlag; }
+
+    // A zero `wordBytes` means no one lower-IR load/store covers the field inside the record. The
+    // exact byte span is still derivable from the bit range, and the lowering uses byte-wise updates.
+    U32 spanBytes() const {
+        return isPacked() ? (U32(bitOffset) + bitWidth + 7) / 8 : wordBytes;
+    }
 };
 
 /*

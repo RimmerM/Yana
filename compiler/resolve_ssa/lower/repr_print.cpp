@@ -124,8 +124,12 @@ void printRepr(ReprPrint& print, DeclPtr<mir::Type> type) {
             print.writer.writeString(".."_v);
             printNumber(print, U32(field.bitOffset) + field.bitWidth - 1);
             print.writer.writeString(" of "_v);
-            printNumber(print, field.wordBytes);
-            print.writer.writeString(" bytes"_v);
+            if(!field.isBytewise()) {
+                printNumber(print, field.wordBytes);
+                print.writer.writeString(" bytes"_v);
+            } else {
+                print.writer.writeString("byte-wise"_v);
+            }
         }
 
         print.writer.writeString(": "_v);

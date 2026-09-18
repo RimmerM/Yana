@@ -628,7 +628,8 @@ void Lowering::zeroFieldRuns(LowerBlock& block, LowerPtr<LowerValue> storage, In
 
         auto held = repr.fields.get(decl, field);
         if(held.isPacked()) {
-            spans.push(Span { held.offset, held.offset + held.wordBytes, false, component });
+            auto bytes = held.isBytewise() ? held.spanBytes() : held.wordBytes;
+            spans.push(Span { held.offset, held.offset + bytes, false, component });
             continue;
         }
 

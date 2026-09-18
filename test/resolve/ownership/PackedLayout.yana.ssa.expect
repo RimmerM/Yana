@@ -1,0 +1,342 @@
+module ResolveTest
+
+fn readWide(wide: WideBits [unique call]) -> U64 {
+bb0(%0: WideBits [unique call] guaranteed):
+  %1: %@bits(40) U64 address = field.addr .value inspect %0
+  %2: @bits(40) U64 trivial = load inspect %1
+  %3: U64 trivial = convert inspect %2
+  return consume %3
+}
+
+fn writeWide(wide: WideBits [unique call], value: U64 [shared call]) -> {} {
+bb0(%0: WideBits [unique call] guaranteed, %1: U64 trivial):
+  %2: %U64 address = alloc frame U64 [shared call]
+  store inspect %2 borrow %1
+  %3: U64 trivial = load inspect %2
+  %4: @bits(40) U64 trivial = convert inspect %3
+  %5: %@bits(40) U64 address = field.addr .value inspect %0
+  store inspect %5 consume %4
+  return
+}
+
+fn wideRoundTrip(value: U64 [shared call]) -> U64 {
+bb0(%0: U64 trivial):
+  %1: %U64 address = alloc frame U64 [shared call]
+  %2: %WideBits address = alloc frame WideBits
+  store inspect %1 borrow %0
+  %3: U64 trivial = load inspect %1
+  %4: @bits(40) U64 trivial = convert inspect %3
+  %5: @bits(8) U64 trivial = const 90
+  %6: WideBits trivial = aggregate.WideBits consume %4 consume %5
+  store inspect %2 consume %6
+  %7: WideBits [unique call] guaranteed from{%2} = load inspect %2
+  %8: U64 trivial = load inspect %1
+  call writeWide borrow %7 borrow %8
+  %9: WideBits [unique call] guaranteed from{%2} = load inspect %2
+  %10: U64 trivial = call readWide borrow %9
+  return consume %10
+}
+
+fn readOffsetWide(wide: OffsetWide [unique call]) -> U64 {
+bb0(%0: OffsetWide [unique call] guaranteed):
+  %1: %@bits(40) U64 address = field.addr .value inspect %0
+  %2: @bits(40) U64 trivial = load inspect %1
+  %3: U64 trivial = convert inspect %2
+  return consume %3
+}
+
+fn writeOffsetWide(wide: OffsetWide [unique call], value: U64 [shared call]) -> {} {
+bb0(%0: OffsetWide [unique call] guaranteed, %1: U64 trivial):
+  %2: %U64 address = alloc frame U64 [shared call]
+  store inspect %2 borrow %1
+  %3: U64 trivial = load inspect %2
+  %4: @bits(40) U64 trivial = convert inspect %3
+  %5: %@bits(40) U64 address = field.addr .value inspect %0
+  store inspect %5 consume %4
+  return
+}
+
+fn offsetWideRoundTrip(value: U64 [shared call]) -> U64 {
+bb0(%0: U64 trivial):
+  %1: %U64 address = alloc frame U64 [shared call]
+  %2: %OffsetWide address = alloc frame OffsetWide
+  store inspect %1 borrow %0
+  %3: @bits(4) U64 trivial = const 10
+  %4: U64 trivial = load inspect %1
+  %5: @bits(40) U64 trivial = convert inspect %4
+  %6: @bits(4) U64 trivial = const 5
+  %7: OffsetWide trivial = aggregate.OffsetWide consume %3 consume %5 consume %6
+  store inspect %2 consume %7
+  %8: OffsetWide [unique call] guaranteed from{%2} = load inspect %2
+  %9: U64 trivial = load inspect %1
+  call writeOffsetWide borrow %8 borrow %9
+  %10: OffsetWide [unique call] guaranteed from{%2} = load inspect %2
+  %11: U64 trivial = call readOffsetWide borrow %10
+  return consume %11
+}
+
+fn main() -> I32 {
+bb0:
+  %33: %Header address = alloc frame Header
+  %34: %WithMode address = alloc frame WithMode
+  %35: %Crosses address = alloc frame Crosses
+  %36: %U64 address = alloc frame U64
+  %37: %U64 address = alloc frame U64
+  %38: %PageTableEntry address = alloc frame PageTableEntry
+  %39: %TypedPageTableEntry address = alloc frame TypedPageTableEntry
+  %40: @bits(4) U32 trivial = const 3
+  %41: @bits(3) U32 trivial = const 5
+  %42: Bool trivial = const True
+  %43: U16 trivial = const 4660
+  %44: U32 trivial = const 1450744508
+  %45: Header trivial = aggregate.Header consume %40 consume %41 consume %42 consume %43 consume %44
+  store inspect %33 consume %45
+  %46: Mode trivial = const Execute
+  %47: @bits(5) U32 trivial = const 0
+  %48: WithMode trivial = aggregate.WithMode consume %46 consume %47
+  store inspect %34 consume %48
+  %49: @bits(7) U64 trivial = const 7
+  %50: @bits(2) U64 trivial = const 2
+  %51: @bits(7) U64 trivial = const 7
+  %52: Crosses trivial = aggregate.Crosses consume %49 consume %50 consume %51
+  store inspect %35 consume %52
+  %53: U64 trivial = const 78187493530
+  %54: U64 trivial = call wideRoundTrip borrow %53
+  store inspect %36 consume %54
+  %55: U64 trivial = const 151488268715
+  %56: U64 trivial = call offsetWideRoundTrip borrow %55
+  store inspect %37 consume %56
+  %57: @bits(1) U64 trivial = const 1
+  %58: @bits(1) U64 trivial = const 1
+  %59: @bits(1) U64 trivial = const 0
+  %60: @bits(1) U64 trivial = const 0
+  %61: @bits(1) U64 trivial = const 0
+  %62: @bits(1) U64 trivial = const 1
+  %63: @bits(1) U64 trivial = const 0
+  %64: @bits(1) U64 trivial = const 0
+  %65: @bits(1) U64 trivial = const 1
+  %66: @bits(3) U64 trivial = const 0
+  %67: @bits(40) U64 trivial = const 78187493530
+  %68: @bits(11) U64 trivial = const 0
+  %69: @bits(1) U64 trivial = const 1
+  %70: PageTableEntry trivial = aggregate.PageTableEntry consume %57 consume %58 consume %59 consume %60 consume %61 consume %62 consume %63 consume %64 consume %65 consume %66 consume %67 consume %68 consume %69
+  store inspect %38 consume %70
+  %71: @bits(1) U64 trivial = const 0
+  %72: %@bits(1) U64 address = field.addr .present inspect %38
+  store inspect %72 consume %71
+  %73: @bits(1) U64 trivial = const 1
+  %74: %@bits(1) U64 address = field.addr .present inspect %38
+  store inspect %74 consume %73
+  %75: @bits(40) U64 trivial = const 151488268715
+  %76: %@bits(40) U64 address = field.addr .address inspect %38
+  store inspect %76 consume %75
+  %77: @bits(40) U64 trivial = const 78187493530
+  %78: %@bits(40) U64 address = field.addr .address inspect %38
+  store inspect %78 consume %77
+  %79: @bits(1) U64 trivial = const 0
+  %80: %@bits(1) U64 address = field.addr .executeDisable inspect %38
+  store inspect %80 consume %79
+  %81: @bits(1) U64 trivial = const 1
+  %82: %@bits(1) U64 address = field.addr .executeDisable inspect %38
+  store inspect %82 consume %81
+  %83: Bool trivial = const True
+  %84: Bool trivial = const True
+  %85: Bool trivial = const False
+  %86: Bool trivial = const False
+  %87: Bool trivial = const False
+  %88: Bool trivial = const True
+  %89: Bool trivial = const False
+  %90: PageSize trivial = const PageSizeHuge
+  %91: Bool trivial = const True
+  %92: PageAvailable trivial = const Available0
+  %93: @bits(40) U64 trivial = const 78187493530
+  %94: @bits(11) U16 trivial = const 0
+  %95: Bool trivial = const True
+  %96: TypedPageTableEntry trivial = aggregate.TypedPageTableEntry consume %83 consume %84 consume %85 consume %86 consume %87 consume %88 consume %89 consume %90 consume %91 consume %92 consume %93 consume %94 consume %95
+  store inspect %39 consume %96
+  %97: Bool trivial = const False
+  %98: %Bool address = field.addr .present inspect %39
+  store inspect %98 consume %97
+  %99: Bool trivial = const True
+  %100: %Bool address = field.addr .present inspect %39
+  store inspect %100 consume %99
+  %101: PageSize trivial = const PageSizeNormal
+  %102: %PageSize address = field.addr .huge inspect %39
+  store inspect %102 consume %101
+  %103: PageSize trivial = const PageSizeHuge
+  %104: %PageSize address = field.addr .huge inspect %39
+  store inspect %104 consume %103
+  %105: PageAvailable trivial = const Available3
+  %106: %PageAvailable address = field.addr .available inspect %39
+  store inspect %106 consume %105
+  %107: PageAvailable trivial = const Available0
+  %108: %PageAvailable address = field.addr .available inspect %39
+  store inspect %108 consume %107
+  %109: @bits(40) U64 trivial = const 151488268715
+  %110: %@bits(40) U64 address = field.addr .address inspect %39
+  store inspect %110 consume %109
+  %111: @bits(40) U64 trivial = const 78187493530
+  %112: %@bits(40) U64 address = field.addr .address inspect %39
+  store inspect %112 consume %111
+  %113: Bool trivial = const False
+  %114: %Bool address = field.addr .executeDisable inspect %39
+  store inspect %114 consume %113
+  %115: Bool trivial = const True
+  %116: %Bool address = field.addr .executeDisable inspect %39
+  store inspect %116 consume %115
+  %117: %@bits(4) U32 address = field.addr .a inspect %33
+  %118: @bits(4) U32 trivial = load inspect %117
+  %119: I32 trivial = convert inspect %118
+  %120: %@bits(3) U32 address = field.addr .b inspect %33
+  %121: @bits(3) U32 trivial = load inspect %120
+  %122: I32 trivial = convert inspect %121
+  %123: I32 trivial = const 10
+  %124: I32 trivial = mul inspect %122 inspect %123
+  %125: I32 trivial = add inspect %119 inspect %124
+  %126: %Bool address = field.addr .c inspect %33
+  %127: Bool trivial = load inspect %126
+  branch inspect %127 -> bb3(consume %125) -> bb1(consume %125)
+
+bb1(%0: I32 trivial):
+  %128: I32 trivial = const 0
+  jump -> bb2(consume %128, consume %0)
+
+bb2(%1: I32 trivial, %2: I32 trivial):
+  %129: I32 trivial = add inspect %2 inspect %1
+  %130: %Mode address = field.addr .mode inspect %34
+  %131: Mode trivial = load inspect %130
+  %132: Mode trivial = const Execute
+  %133: Bool trivial = eq inspect %131 inspect %132
+  branch inspect %133 -> bb6(consume %129) -> bb4(consume %129)
+
+bb3(%3: I32 trivial):
+  %134: I32 trivial = const 100
+  jump -> bb2(consume %134, consume %3)
+
+bb4(%4: I32 trivial):
+  %135: I32 trivial = const 0
+  jump -> bb5(consume %135, consume %4)
+
+bb5(%5: I32 trivial, %6: I32 trivial):
+  %136: I32 trivial = add inspect %6 inspect %5
+  %137: %@bits(2) U64 address = field.addr .second inspect %35
+  %138: @bits(2) U64 trivial = load inspect %137
+  %139: U64 trivial = convert inspect %138
+  %140: U64 trivial = const 2
+  %141: Bool trivial = eq inspect %139 inspect %140
+  branch inspect %141 -> bb9(consume %136) -> bb7(consume %136)
+
+bb6(%7: I32 trivial):
+  %142: I32 trivial = const 1
+  jump -> bb5(consume %142, consume %7)
+
+bb7(%8: I32 trivial):
+  %143: I32 trivial = const 0
+  jump -> bb8(consume %143, consume %8)
+
+bb8(%9: I32 trivial, %10: I32 trivial):
+  %144: I32 trivial = add inspect %10 inspect %9
+  %145: U64 trivial = load inspect %36
+  %146: U64 trivial = const 78187493530
+  %147: Bool trivial = eq inspect %145 inspect %146
+  branch inspect %147 -> bb12(consume %144) -> bb10(consume %144)
+
+bb9(%11: I32 trivial):
+  %148: I32 trivial = const 1
+  jump -> bb8(consume %148, consume %11)
+
+bb10(%12: I32 trivial):
+  %149: I32 trivial = const 0
+  jump -> bb11(consume %149, consume %12)
+
+bb11(%13: I32 trivial, %14: I32 trivial):
+  %150: I32 trivial = add inspect %14 inspect %13
+  %151: U64 trivial = load inspect %37
+  %152: U64 trivial = const 151488268715
+  %153: Bool trivial = eq inspect %151 inspect %152
+  branch inspect %153 -> bb15(consume %150) -> bb13(consume %150)
+
+bb12(%15: I32 trivial):
+  %154: I32 trivial = const 1
+  jump -> bb11(consume %154, consume %15)
+
+bb13(%16: I32 trivial):
+  %155: I32 trivial = const 0
+  jump -> bb14(consume %155, consume %16)
+
+bb14(%17: I32 trivial, %18: I32 trivial):
+  %156: I32 trivial = add inspect %18 inspect %17
+  %157: %@bits(40) U64 address = field.addr .address inspect %38
+  %158: @bits(40) U64 trivial = load inspect %157
+  %159: U64 trivial = convert inspect %158
+  %160: U64 trivial = const 78187493530
+  %161: Bool trivial = eq inspect %159 inspect %160
+  branch inspect %161 -> bb18(consume %156) -> bb16(consume %156)
+
+bb15(%19: I32 trivial):
+  %162: I32 trivial = const 1
+  jump -> bb14(consume %162, consume %19)
+
+bb16(%20: I32 trivial):
+  %163: I32 trivial = const 0
+  jump -> bb17(consume %163, consume %20)
+
+bb17(%21: I32 trivial, %22: I32 trivial):
+  %164: I32 trivial = add inspect %22 inspect %21
+  %165: %Bool address = field.addr .present inspect %39
+  %166: Bool trivial = load inspect %165
+  branch inspect %166 -> bb22(consume %164) -> bb20(consume %164)
+
+bb18(%23: I32 trivial):
+  %167: %@bits(1) U64 address = field.addr .executeDisable inspect %38
+  %168: @bits(1) U64 trivial = load inspect %167
+  %169: U64 trivial = convert inspect %168
+  %170: U64 trivial = const 1
+  %171: Bool trivial = eq inspect %169 inspect %170
+  branch inspect %171 -> bb19(consume %23) -> bb16(consume %23)
+
+bb19(%24: I32 trivial):
+  %172: I32 trivial = const 2
+  jump -> bb17(consume %172, consume %24)
+
+bb20(%25: I32 trivial):
+  %173: I32 trivial = const 0
+  jump -> bb21(consume %173, consume %25)
+
+bb21(%26: I32 trivial, %27: I32 trivial):
+  %174: I32 trivial = add inspect %27 inspect %26
+  return consume %174
+
+bb22(%28: I32 trivial):
+  %175: %PageSize address = field.addr .huge inspect %39
+  %176: PageSize trivial = load inspect %175
+  %177: PageSize trivial = const PageSizeHuge
+  %178: Bool trivial = eq inspect %176 inspect %177
+  branch inspect %178 -> bb23(consume %28) -> bb20(consume %28)
+
+bb23(%29: I32 trivial):
+  %179: %PageAvailable address = field.addr .available inspect %39
+  %180: PageAvailable trivial = load inspect %179
+  %181: PageAvailable trivial = const Available0
+  %182: Bool trivial = eq inspect %180 inspect %181
+  branch inspect %182 -> bb24(consume %29) -> bb20(consume %29)
+
+bb24(%30: I32 trivial):
+  %183: %@bits(40) U64 address = field.addr .address inspect %39
+  %184: @bits(40) U64 trivial = load inspect %183
+  %185: U64 trivial = convert inspect %184
+  %186: U64 trivial = const 78187493530
+  %187: Bool trivial = eq inspect %185 inspect %186
+  branch inspect %187 -> bb25(consume %30) -> bb20(consume %30)
+
+bb25(%31: I32 trivial):
+  %188: %Bool address = field.addr .executeDisable inspect %39
+  %189: Bool trivial = load inspect %188
+  branch inspect %189 -> bb26(consume %31) -> bb20(consume %31)
+
+bb26(%32: I32 trivial):
+  %190: I32 trivial = const 2
+  jump -> bb21(consume %190, consume %32)
+}
+
+entry main

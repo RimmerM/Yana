@@ -697,7 +697,8 @@ enum class DeclAttribute: U8 {
     Allocator,
 
     /*
-     * `@layout(c)`, `@layout(js)`, `@layout(auto)` - `doc/spec/repr.md`'s pinned layouts.
+     * `@layout(c)`, `@layout(js)`, `@layout(packed)`, `@layout(auto)` - `doc/spec/repr.md`'s
+     * pinned layouts.
      *
      * A **declared pin**: the layout is the declaration's to decide and no target may improve on it.
      * That is what makes it an attribute on the `data` rather than a target's choice - a record whose

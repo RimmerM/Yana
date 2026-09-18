@@ -1,0 +1,177 @@
+{-
+   `@layout(packed)` keeps declaration order and makes every byte explicit.
+
+   # resolver: ownership
+-}
+
+import Native
+
+data Mode = Read | Write | Execute | Sleep | Halt
+
+data PageSize = PageSizeNormal | PageSizeHuge
+data PageAvailable = Available0 | Available1 | Available2 | Available3 |
+                     Available4 | Available5 | Available6 | Available7
+
+@layout(packed)
+data Header {
+    a: @bits(4) UInt,
+    b: @bits(3) UInt,
+    c: Bool,
+    d: U16,
+    e: U32
+}
+
+@layout(packed)
+data WithMode {
+    mode: Mode,
+    padding: @bits(5) UInt
+}
+
+@layout(packed)
+data Crosses {
+    first: @bits(7) U64,
+    second: @bits(2) U64,
+    padding: @bits(7) U64
+}
+
+@layout(packed)
+data WideBits {
+    value: @bits(40) U64,
+    tail: @bits(8) U64
+}
+
+@layout(packed)
+data OffsetWide {
+    prefix: @bits(4) U64,
+    value: @bits(40) U64,
+    suffix: @bits(4) U64
+}
+
+-- The fields add up to one x64 page-table entry. Several fields cross byte boundaries, and the
+-- address field is still read and written as an ordinary record field.
+@layout(packed)
+data PageTableEntry {
+    present: @bits(1) U64,
+    writable: @bits(1) U64,
+    user: @bits(1) U64,
+    writeThrough: @bits(1) U64,
+    cacheDisable: @bits(1) U64,
+    accessed: @bits(1) U64,
+    dirty: @bits(1) U64,
+    huge: @bits(1) U64,
+    globalPage: @bits(1) U64,
+    available: @bits(3) U64,
+    address: @bits(40) U64,
+    reserved: @bits(11) U64,
+    executeDisable: @bits(1) U64
+}
+
+-- The same entry with source-level types for the one-bit flags and the three-bit available value.
+-- The representation must still be exactly the same 64-bit x64 entry.
+@layout(packed)
+data TypedPageTableEntry {
+    present: Bool,
+    writable: Bool,
+    user: Bool,
+    writeThrough: Bool,
+    cacheDisable: Bool,
+    accessed: Bool,
+    dirty: Bool,
+    huge: PageSize,
+    globalPage: Bool,
+    available: PageAvailable,
+    address: @bits(40) U64,
+    reserved: @bits(11) U16,
+    executeDisable: Bool
+}
+
+@noinline fn readWide(&wide: WideBits) -> U64 = wide.value
+
+@noinline
+fn writeWide(&wide: WideBits, value: U64):
+    wide.value = value
+
+@noinline
+fn wideRoundTrip(value: U64) -> U64:
+    let &wide = WideBits {value: value, tail: 0x5A}
+    writeWide(wide, value)
+    return readWide(wide)
+
+@noinline fn readOffsetWide(&wide: OffsetWide) -> U64 = wide.value
+
+@noinline
+fn writeOffsetWide(&wide: OffsetWide, value: U64):
+    wide.value = value
+
+@noinline
+fn offsetWideRoundTrip(value: U64) -> U64:
+    let &wide = OffsetWide {prefix: 0xA, value: value, suffix: 0x5}
+    writeOffsetWide(wide, value)
+    return readOffsetWide(wide)
+
+fn main() -> Int:
+    let header = Header {a: 3, b: 5, c: True, d: 0x1234, e: 0x56789ABC}
+    let packed = WithMode {mode: Execute, padding: 0}
+    let crosses = Crosses {first: 0x7, second: 0x2, padding: 0x7}
+    let wideValue = wideRoundTrip(0x123456789A)
+    let offsetWideValue = offsetWideRoundTrip(0x23456789AB)
+    let &entry = PageTableEntry {
+        present: 1,
+        writable: 1,
+        user: 0,
+        writeThrough: 0,
+        cacheDisable: 0,
+        accessed: 1,
+        dirty: 0,
+        huge: 0,
+        globalPage: 1,
+        available: 0,
+        address: 0x123456789A,
+        reserved: 0,
+        executeDisable: 1
+    }
+
+    -- These assignments exercise the ordinary one-word path.
+    entry.present = 0
+    entry.present = 1
+    entry.address = 0x23456789AB
+    entry.address = 0x123456789A
+    entry.executeDisable = 0
+    entry.executeDisable = 1
+
+    let &typedEntry = TypedPageTableEntry {
+        present: True,
+        writable: True,
+        user: False,
+        writeThrough: False,
+        cacheDisable: False,
+        accessed: True,
+        dirty: False,
+        huge: PageSizeHuge,
+        globalPage: True,
+        available: Available0,
+        address: 0x123456789A,
+        reserved: 0,
+        executeDisable: True
+    }
+
+    typedEntry.present = False
+    typedEntry.present = True
+    typedEntry.huge = PageSizeNormal
+    typedEntry.huge = PageSizeHuge
+    typedEntry.available = Available3
+    typedEntry.available = Available0
+    typedEntry.address = 0x23456789AB
+    typedEntry.address = 0x123456789A
+    typedEntry.executeDisable = False
+    typedEntry.executeDisable = True
+
+    return (header.a :: Int) + (header.b :: Int) * 10 + (if header.c then 100 else 0) +
+           (if packed.mode == Execute then 1 else 0) +
+           (if crosses.second == 2 then 1 else 0) +
+           (if wideValue == 0x123456789A then 1 else 0) +
+           (if offsetWideValue == 0x23456789AB then 1 else 0) +
+           (if entry.address == 0x123456789A && entry.executeDisable == 1 then 2 else 0) +
+           (if typedEntry.present && typedEntry.huge == PageSizeHuge &&
+               typedEntry.available == Available0 &&
+               typedEntry.address == 0x123456789A && typedEntry.executeDisable then 2 else 0)

@@ -1,0 +1,325 @@
+module ResolveTest
+
+data Mode = Read | Write | Execute | Sleep | Halt
+
+data PageSize = PageSizeNormal | PageSizeHuge
+
+data PageAvailable = Available0 | Available1 | Available2 | Available3 | Available4 | Available5 | Available6 | Available7
+
+data Header {a: @bits(4) U32, b: @bits(3) U32, c: Bool, d: U16, e: U32}
+
+data WithMode {mode: Mode, padding: @bits(5) U32}
+
+data Crosses {first: @bits(7) U64, second: @bits(2) U64, padding: @bits(7) U64}
+
+data WideBits {value: @bits(40) U64, tail: @bits(8) U64}
+
+data OffsetWide {prefix: @bits(4) U64, value: @bits(40) U64, suffix: @bits(4) U64}
+
+data PageTableEntry {present: @bits(1) U64, writable: @bits(1) U64, user: @bits(1) U64, writeThrough: @bits(1) U64, cacheDisable: @bits(1) U64, accessed: @bits(1) U64, dirty: @bits(1) U64, huge: @bits(1) U64, globalPage: @bits(1) U64, available: @bits(3) U64, address: @bits(40) U64, reserved: @bits(11) U64, executeDisable: @bits(1) U64}
+
+data TypedPageTableEntry {present: Bool, writable: Bool, user: Bool, writeThrough: Bool, cacheDisable: Bool, accessed: Bool, dirty: Bool, huge: PageSize, globalPage: Bool, available: PageAvailable, address: @bits(40) U64, reserved: @bits(11) U16, executeDisable: Bool}
+
+fn readWide(wide: WideBits [unique call]) -> U64 {
+bb0:
+  %0: @bits(40) U64 = read copy.trivial (wide.value)
+  %1: U64 = convert inspect %0
+  return take %1
+}
+
+fn writeWide(wide: WideBits [unique call], value: U64 [shared call]) -> {} {
+bb0:
+  %0: U64 = read copy.trivial (value)
+  %1: @bits(40) U64 = convert inspect %0
+  write.assign borrow.unique (wide.value) take %1
+  return
+}
+
+fn wideRoundTrip(value: U64 [shared call]) -> U64 {
+  local & wide: WideBits
+
+bb0:
+  %0: U64 = read copy.trivial (value)
+  %1: @bits(40) U64 = convert inspect %0
+  %2: @bits(8) U64 = const 90
+  %3: WideBits = aggregate.WideBits take %1 take %2
+  write.init borrow.unique (wide) take %3
+  %5: WideBits [unique call] = read borrow.unique (wide) loan0
+  %6: U64 = read copy.trivial (value)
+  %7: {} = call writeWide borrow.unique %5 borrow.shared %6
+  %8: WideBits [unique call] = read borrow.unique (wide) loan1
+  %9: U64 = call readWide borrow.unique %8
+  return take %9
+}
+
+fn readOffsetWide(wide: OffsetWide [unique call]) -> U64 {
+bb0:
+  %0: @bits(40) U64 = read copy.trivial (wide.value)
+  %1: U64 = convert inspect %0
+  return take %1
+}
+
+fn writeOffsetWide(wide: OffsetWide [unique call], value: U64 [shared call]) -> {} {
+bb0:
+  %0: U64 = read copy.trivial (value)
+  %1: @bits(40) U64 = convert inspect %0
+  write.assign borrow.unique (wide.value) take %1
+  return
+}
+
+fn offsetWideRoundTrip(value: U64 [shared call]) -> U64 {
+  local & wide: OffsetWide
+
+bb0:
+  %0: @bits(4) U64 = const 10
+  %1: U64 = read copy.trivial (value)
+  %2: @bits(40) U64 = convert inspect %1
+  %3: @bits(4) U64 = const 5
+  %4: OffsetWide = aggregate.OffsetWide take %0 take %2 take %3
+  write.init borrow.unique (wide) take %4
+  %6: OffsetWide [unique call] = read borrow.unique (wide) loan0
+  %7: U64 = read copy.trivial (value)
+  %8: {} = call writeOffsetWide borrow.unique %6 borrow.shared %7
+  %9: OffsetWide [unique call] = read borrow.unique (wide) loan1
+  %10: U64 = call readOffsetWide borrow.unique %9
+  return take %10
+}
+
+fn main() -> I32 {
+  local header: Header
+  local packed: WithMode
+  local crosses: Crosses
+  local wideValue: U64
+  local offsetWideValue: U64
+  local & entry: PageTableEntry
+  local & typedEntry: TypedPageTableEntry
+
+bb0:
+  %0: @bits(4) U32 = const 3
+  %1: @bits(3) U32 = const 5
+  %2: Bool = const True
+  %3: U16 = const 4660
+  %4: U32 = const 1450744508
+  %5: Header = aggregate.Header take %0 take %1 take %2 take %3 take %4
+  write.init borrow.unique (header) take %5
+  %7: Mode = const Execute
+  %8: @bits(5) U32 = const 0
+  %9: WithMode = aggregate.WithMode take %7 take %8
+  write.init borrow.unique (packed) take %9
+  %11: @bits(7) U64 = const 7
+  %12: @bits(2) U64 = const 2
+  %13: @bits(7) U64 = const 7
+  %14: Crosses = aggregate.Crosses take %11 take %12 take %13
+  write.init borrow.unique (crosses) take %14
+  %16: U64 = const 78187493530
+  %17: U64 = call wideRoundTrip borrow.shared %16
+  write.init borrow.unique (wideValue) take %17
+  %19: U64 = const 151488268715
+  %20: U64 = call offsetWideRoundTrip borrow.shared %19
+  write.init borrow.unique (offsetWideValue) take %20
+  %22: @bits(1) U64 = const 1
+  %23: @bits(1) U64 = const 1
+  %24: @bits(1) U64 = const 0
+  %25: @bits(1) U64 = const 0
+  %26: @bits(1) U64 = const 0
+  %27: @bits(1) U64 = const 1
+  %28: @bits(1) U64 = const 0
+  %29: @bits(1) U64 = const 0
+  %30: @bits(1) U64 = const 1
+  %31: @bits(3) U64 = const 0
+  %32: @bits(40) U64 = const 78187493530
+  %33: @bits(11) U64 = const 0
+  %34: @bits(1) U64 = const 1
+  %35: PageTableEntry = aggregate.PageTableEntry take %22 take %23 take %24 take %25 take %26 take %27 take %28 take %29 take %30 take %31 take %32 take %33 take %34
+  write.init borrow.unique (entry) take %35
+  %37: @bits(1) U64 = const 0
+  write.assign borrow.unique (entry.present) take %37
+  %39: @bits(1) U64 = const 1
+  write.assign borrow.unique (entry.present) take %39
+  %41: @bits(40) U64 = const 151488268715
+  write.assign borrow.unique (entry.address) take %41
+  %43: @bits(40) U64 = const 78187493530
+  write.assign borrow.unique (entry.address) take %43
+  %45: @bits(1) U64 = const 0
+  write.assign borrow.unique (entry.executeDisable) take %45
+  %47: @bits(1) U64 = const 1
+  write.assign borrow.unique (entry.executeDisable) take %47
+  %49: Bool = const True
+  %50: Bool = const True
+  %51: Bool = const False
+  %52: Bool = const False
+  %53: Bool = const False
+  %54: Bool = const True
+  %55: Bool = const False
+  %56: PageSize = const PageSizeHuge
+  %57: Bool = const True
+  %58: PageAvailable = const Available0
+  %59: @bits(40) U64 = const 78187493530
+  %60: @bits(11) U16 = const 0
+  %61: Bool = const True
+  %62: TypedPageTableEntry = aggregate.TypedPageTableEntry take %49 take %50 take %51 take %52 take %53 take %54 take %55 take %56 take %57 take %58 take %59 take %60 take %61
+  write.init borrow.unique (typedEntry) take %62
+  %64: Bool = const False
+  write.assign borrow.unique (typedEntry.present) take %64
+  %66: Bool = const True
+  write.assign borrow.unique (typedEntry.present) take %66
+  %68: PageSize = const PageSizeNormal
+  write.assign borrow.unique (typedEntry.huge) take %68
+  %70: PageSize = const PageSizeHuge
+  write.assign borrow.unique (typedEntry.huge) take %70
+  %72: PageAvailable = const Available3
+  write.assign borrow.unique (typedEntry.available) take %72
+  %74: PageAvailable = const Available0
+  write.assign borrow.unique (typedEntry.available) take %74
+  %76: @bits(40) U64 = const 151488268715
+  write.assign borrow.unique (typedEntry.address) take %76
+  %78: @bits(40) U64 = const 78187493530
+  write.assign borrow.unique (typedEntry.address) take %78
+  %80: Bool = const False
+  write.assign borrow.unique (typedEntry.executeDisable) take %80
+  %82: Bool = const True
+  write.assign borrow.unique (typedEntry.executeDisable) take %82
+  %84: @bits(4) U32 = read copy.trivial (header.a)
+  %85: I32 = convert inspect %84
+  %86: @bits(3) U32 = read copy.trivial (header.b)
+  %87: I32 = convert inspect %86
+  %88: I32 = const 10
+  %89: I32 = mul inspect %87 inspect %88
+  %90: I32 = add inspect %85 inspect %89
+  %91: Bool = read copy.trivial (header.c)
+  branch inspect %91 -> bb3(take %90) -> bb1(take %90)
+
+bb1(%92: I32):
+  %96: I32 = const 0
+  jump -> bb2(take %96, take %92)
+
+bb2(%97: I32, %98: I32):
+  %101: I32 = add inspect %98 inspect %97
+  %102: Mode = read copy.trivial (packed.mode)
+  %103: Mode = const Execute
+  %104: Bool = eq inspect %102 inspect %103
+  branch inspect %104 -> bb6(take %101) -> bb4(take %101)
+
+bb3(%93: I32):
+  %95: I32 = const 100
+  jump -> bb2(take %95, take %93)
+
+bb4(%105: I32):
+  %109: I32 = const 0
+  jump -> bb5(take %109, take %105)
+
+bb5(%110: I32, %111: I32):
+  %114: I32 = add inspect %111 inspect %110
+  %115: @bits(2) U64 = read copy.trivial (crosses.second)
+  %116: U64 = convert inspect %115
+  %117: U64 = const 2
+  %118: Bool = eq inspect %116 inspect %117
+  branch inspect %118 -> bb9(take %114) -> bb7(take %114)
+
+bb6(%106: I32):
+  %108: I32 = const 1
+  jump -> bb5(take %108, take %106)
+
+bb7(%119: I32):
+  %123: I32 = const 0
+  jump -> bb8(take %123, take %119)
+
+bb8(%124: I32, %125: I32):
+  %128: I32 = add inspect %125 inspect %124
+  %129: U64 = read copy.trivial (wideValue)
+  %130: U64 = const 78187493530
+  %131: Bool = eq inspect %129 inspect %130
+  branch inspect %131 -> bb12(take %128) -> bb10(take %128)
+
+bb9(%120: I32):
+  %122: I32 = const 1
+  jump -> bb8(take %122, take %120)
+
+bb10(%132: I32):
+  %136: I32 = const 0
+  jump -> bb11(take %136, take %132)
+
+bb11(%137: I32, %138: I32):
+  %141: I32 = add inspect %138 inspect %137
+  %142: U64 = read copy.trivial (offsetWideValue)
+  %143: U64 = const 151488268715
+  %144: Bool = eq inspect %142 inspect %143
+  branch inspect %144 -> bb15(take %141) -> bb13(take %141)
+
+bb12(%133: I32):
+  %135: I32 = const 1
+  jump -> bb11(take %135, take %133)
+
+bb13(%145: I32):
+  %149: I32 = const 0
+  jump -> bb14(take %149, take %145)
+
+bb14(%150: I32, %151: I32):
+  %154: I32 = add inspect %151 inspect %150
+  %155: @bits(40) U64 = read copy.trivial (entry.address)
+  %156: U64 = convert inspect %155
+  %157: U64 = const 78187493530
+  %158: Bool = eq inspect %156 inspect %157
+  branch inspect %158 -> bb18(take %154) -> bb16(take %154)
+
+bb15(%146: I32):
+  %148: I32 = const 1
+  jump -> bb14(take %148, take %146)
+
+bb16(%159: I32):
+  %169: I32 = const 0
+  jump -> bb17(take %169, take %159)
+
+bb17(%170: I32, %171: I32):
+  %174: I32 = add inspect %171 inspect %170
+  %175: Bool = read copy.trivial (typedEntry.present)
+  branch inspect %175 -> bb22(take %174) -> bb20(take %174)
+
+bb18(%160: I32):
+  %162: @bits(1) U64 = read copy.trivial (entry.executeDisable)
+  %163: U64 = convert inspect %162
+  %164: U64 = const 1
+  %165: Bool = eq inspect %163 inspect %164
+  branch inspect %165 -> bb19(take %160) -> bb16(take %160)
+
+bb19(%166: I32):
+  %168: I32 = const 2
+  jump -> bb17(take %168, take %166)
+
+bb20(%176: I32):
+  %199: I32 = const 0
+  jump -> bb21(take %199, take %176)
+
+bb21(%200: I32, %201: I32):
+  %204: I32 = add inspect %201 inspect %200
+  return take %204
+
+bb22(%177: I32):
+  %179: PageSize = read copy.trivial (typedEntry.huge)
+  %180: PageSize = const PageSizeHuge
+  %181: Bool = eq inspect %179 inspect %180
+  branch inspect %181 -> bb23(take %177) -> bb20(take %177)
+
+bb23(%182: I32):
+  %184: PageAvailable = read copy.trivial (typedEntry.available)
+  %185: PageAvailable = const Available0
+  %186: Bool = eq inspect %184 inspect %185
+  branch inspect %186 -> bb24(take %182) -> bb20(take %182)
+
+bb24(%187: I32):
+  %189: @bits(40) U64 = read copy.trivial (typedEntry.address)
+  %190: U64 = convert inspect %189
+  %191: U64 = const 78187493530
+  %192: Bool = eq inspect %190 inspect %191
+  branch inspect %192 -> bb25(take %187) -> bb20(take %187)
+
+bb25(%193: I32):
+  %195: Bool = read copy.trivial (typedEntry.executeDisable)
+  branch inspect %195 -> bb26(take %193) -> bb20(take %193)
+
+bb26(%196: I32):
+  %198: I32 = const 2
+  jump -> bb21(take %198, take %196)
+}
+
+entry main
