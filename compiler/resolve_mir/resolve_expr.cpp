@@ -274,6 +274,17 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain, 
         }
 
         case ast::Expr::Field: {
+            auto& written = *parse[expr.field];
+            if(written.target.kind == ast::Expr::Con && written.field.kind == ast::Expr::Var &&
+               isCursorSentinel(context, written.field.var)) {
+                // `X86.` is a namespace selection, not a value projection. The namespace's
+                // declarations are ordinary qualified names in the module, so collect the visible
+                // set and let the LSP layer filter it to the `X86` segment.
+                captureCompletion(nullptr);
+                context.completion->qualified = true;
+                return nullptr;
+            }
+
             auto target = projectionTarget(builder, parse[expr.field]->target, access);
             if(!target) return nullptr;
 
@@ -3765,6 +3776,14 @@ Node* Resolver::resolveDotCall(Builder& builder, ast::AppExpr& written, ast::Fie
         if(!target) return nullptr;
 
         return resolveValueCall(builder, written, *target, source);
+    }
+
+    if(field.target.kind == ast::Expr::Con && isCursorSentinel(context, field.field.var)) {
+        // Keep the call form (`X86.foo(...)`) on the same namespace-completion path as the value
+        // form. There is no receiver to resolve until a field name has been chosen.
+        captureCompletion(hint);
+        context.completion->qualified = true;
+        return nullptr;
     }
 
     /*

@@ -31,7 +31,7 @@ class YanaLspServerSupportProvider : LspServerSupportProvider {
         file: VirtualFile,
         serverStarter: LspServerSupportProvider.LspServerStarter,
     ) {
-        if (file.fileType != YanaFileType) return
+        if (file.fileType != YanaFileType && file.name != "yana.toml") return
         if (!YanaSettings.getInstance().serverEnabled) return
 
         val executable = YanaServerLocator.find(project)
@@ -74,10 +74,14 @@ class YanaLspServerSupportProvider : LspServerSupportProvider {
 class YanaLspServerDescriptor(project: Project, private val executable: File) :
     ProjectWideLspServerDescriptor(project, "Yana") {
 
-    override fun isSupportedFile(file: VirtualFile) = file.fileType == YanaFileType
+    // The manifest is not a source file, but a saved change to it changes which source roots and
+    // main module the already-running session resolves. Sending its document lifecycle lets the
+    // server reload the same project without making the user restart CLion's language server.
+    override fun isSupportedFile(file: VirtualFile) =
+        file.fileType == YanaFileType || file.name == "yana.toml"
 
     /*
-     * The one thing the plugin customizes about the protocol - Implementation-Tooling.md §11.
+     * The small set of protocol customizations the plugin needs - Implementation-Tooling.md §11.
      *
      * Through `lspCustomization` rather than the `lspSemanticTokensSupport` property beside it,
      * which is deprecated. Everything else on the customization is the platform's own default, and
@@ -101,5 +105,6 @@ class YanaLspServerDescriptor(project: Project, private val executable: File) :
 }
 
 private object YanaCustomization : LspCustomization() {
+    override val completionCustomizer = YanaCompletion()
     override val semanticTokensCustomizer: LspSemanticTokensCustomizer = YanaSemanticTokens()
 }

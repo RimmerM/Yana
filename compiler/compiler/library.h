@@ -102,6 +102,16 @@ struct LibrarySource {
      */
     StringView loaded(StringId file) const;
 
+    /// The path of a library file that was discovered while resolving this program, or empty.
+    /// Unlike the file identifier, this cannot be reconstructed from the name: selectors and
+    /// directory separators are both dots in the identifier. The language server uses it to make
+    /// a declaration in `lib/` a real editor location rather than a compiler-only one.
+    StringView pathOf(StringId file) const;
+
+    /// The file identifier for a discovered library path, or null. This is what lets the language
+    /// server answer a request after the editor has opened a standard-library target.
+    StringId moduleAtPath(StringView path) const;
+
     /*
      * Where a file is, remembered by the walk that found it.
      *

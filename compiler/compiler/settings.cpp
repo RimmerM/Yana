@@ -1514,6 +1514,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
             case Flag::resolver:
                 if(auto stage = matchString(resolverTable, sizeof(resolverTable) / sizeof(StringView), value)) {
                     settings.resolver = (ResolverStage)stage.unwrap();
+                    settings.explicitResolver = true;
                     return true;
                 }
 
@@ -1533,6 +1534,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     // should set it, not leave one that can be forgotten.
                     if(settings.mode == CompileMode::Mir || settings.mode == CompileMode::Ssa) {
                         settings.resolver = ResolverStage::Ownership;
+                        settings.explicitResolver = true;
                     }
 
                     return true;

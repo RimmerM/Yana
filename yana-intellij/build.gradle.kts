@@ -58,6 +58,12 @@ tasks.test {
     systemProperty("java.awt.headless", "true")
 }
 
+// Gradle's Java `build` assembles only the JAR. The installable JetBrains plugin is the ZIP made
+// by `buildPlugin`, so the ordinary build command must run that task as well.
+tasks.named("build") {
+    dependsOn("buildPlugin")
+}
+
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {

@@ -1,6 +1,7 @@
 package se.rimmer.yana
 
 import com.intellij.openapi.actionSystem.IdeActions
+import com.intellij.codeInsight.CodeInsightSettings
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
 /*
@@ -64,6 +65,27 @@ class YanaIndentTest : BasePlatformTestCase() {
     fun testEnterAfterArrowOpensLevel() =
         enter("fn f(s: Shape) -> Int = match s:\n    Circle(c) -><caret>",
               "fn f(s: Shape) -> Int = match s:\n    Circle(c) ->\n        <caret>")
+
+    /// Record fields are layout-sensitive too, even though their opener is a brace rather than a
+    /// colon. Leaving the new field at the margin makes the declaration fail to parse.
+    fun testEnterAfterRecordBraceOpensLevel() =
+        enter("data X {<caret>}", "data X {\n    <caret>\n}")
+
+    /// A record whose first field is already on the opening line still has an open layout level.
+    fun testEnterInsideOneLineRecordOpensLevel() =
+        enter("data X { field: A<caret> }", "data X { field: A\n    <caret>}")
+
+    /// Yana forces this even when the IDE-wide smart-indent preference is disabled.
+    fun testEnterRecordBraceForcesIndentWhenSmartIndentIsDisabled() {
+        val settings = CodeInsightSettings.getInstance()
+        val previous = settings.SMART_INDENT_ON_ENTER
+        settings.SMART_INDENT_ON_ENTER = false
+        try {
+            enter("data X {<caret>}", "data X {\n    <caret>\n}")
+        } finally {
+            settings.SMART_INDENT_ON_ENTER = previous
+        }
+    }
 
     /// A line inside a block keeps its level: only a header opens one.
     fun testEnterInsideBlockKeepsLevel() =

@@ -248,7 +248,7 @@ static void writeSymbolLocation(Net::Writer& writer, lsp::Session& session, Loca
 
     auto path = session.pathOf(location->sourceModule);
     if(path.length == 0) {
-        // Core and Native, which are compiled into the compiler and have no file to point at.
+        // A compiler-generated declaration has no source file to point at.
         writer.writeString("<builtin>"_v);
         return;
     }
@@ -927,6 +927,60 @@ static bool runSemanticFixture(const String& root, const String& expectPath, boo
     return true;
 }
 
+/*
+ * A definition whose target is in `lib/`, rather than in the project map. The semantic fixture
+ * deliberately prints file names only, so it cannot assert the URI the protocol gives an editor;
+ * this small check does. `Native/Intrinsic/X86.yana` is a real library source file and its
+ * declaration is reached through the namespace completion fixture.
+ */
+static bool checkLibraryDefinitionLocation() {
+    lsp::Session session;
+    auto opened = session.open("lsp/qualified"_v);
+    if(opened.isErr()) {
+        println("cannot open lsp/qualified: %@", opened.unwrapErr());
+        return false;
+    }
+
+    session.compile();
+
+    SourceEntry* source = nullptr;
+    for(auto& entry: session.moduleMap.entries) {
+        if(findString(entry.path, "lsp/qualified/src/Main.yana"_v)) {
+            source = &entry;
+            break;
+        }
+    }
+
+    if(!source || !source->name) {
+        println("cannot find the qualified LSP fixture source");
+        return false;
+    }
+
+    auto text = session.provider.getSource(source->name);
+    auto occurrence = findString(text, "X86.crc32"_v);
+    if(!occurrence) {
+        println("cannot find the library call in the qualified LSP fixture");
+        return false;
+    }
+
+    Net::Writer body(1024);
+    Net::JsonWriter out(body);
+    lsp::LocationWriter locations(session, true);
+    lsp::writeDefinition(out, session, locations, source->name,
+                         U32(occurrence - text.ptr) + 9);
+    body.flush();
+
+    auto answer = body.getBuffered();
+    StringView written { (const char*)answer.ptr, answer.length };
+    if(findString(written, "originSelectionRange"_v) &&
+       findString(written, "targetUri"_v) &&
+       findString(written, "Native/Intrinsic/X86.yana"_v) &&
+       !findString(written, "/../"_v)) return true;
+
+    println("library definition did not produce a canonical source URI: %@", written);
+    return false;
+}
+
 int main(int argc, const char** argv) {
     auto generate = false;
     auto sweep = false;
@@ -978,9 +1032,11 @@ int main(int argc, const char** argv) {
     // asserts is that the first's answers survive a broken declaration above them.
     pass = runSemanticFixture(String("lsp/semantic"), String("lsp/semantic.expect"), generate) && pass;
     pass = runSemanticFixture(String("lsp/recover"), String("lsp/recover.expect"), generate) && pass;
+    pass = checkLibraryDefinitionLocation() && pass;
 
     // Completion, which is a pass of its own because every marker is a compile of its own - §8.
     pass = runCompletionFixture(String("lsp/complete"), String("lsp/complete.expect"), generate) && pass;
+    pass = runCompletionFixture(String("lsp/qualified"), String("lsp/qualified.expect"), generate) && pass;
 
     for(auto& test: tests) {
         auto result = File::openFile(test, readAccess());

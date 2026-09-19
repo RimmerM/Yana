@@ -27,7 +27,7 @@ LocationWriter::FileLines* LocationWriter::linesOf(StringId module) {
     auto built = Ptr(new FileLines());
     built->module = module;
     built->uri = pathToUri(path);
-    built->text = session.provider.getSource(module);
+    built->text = session.sourceOf(module);
     built->lines.build(built->text);
 
     auto result = built.get();
@@ -81,21 +81,71 @@ bool LocationWriter::writeLocation(Net::JsonWriter& json, LocationId id) {
     return true;
 }
 
-bool LocationWriter::writeModuleLocation(Net::JsonWriter& json, StringId module) {
-    auto file = linesOf(module);
-    if(!file) return false;
+bool LocationWriter::writeLocationLink(Net::JsonWriter& json, LocationId origin, LocationId target) {
+    if(!session.context) return false;
 
-    // A module is a file, not a declaration, so what an `import` jumps to is its first character.
+    auto originLocation = session.context->getLocation(origin);
+    auto targetLocation = session.context->getLocation(target);
+    if(!originLocation || !targetLocation) return false;
+
+    auto originFile = linesOf(originLocation->sourceModule);
+    auto targetFile = linesOf(targetLocation->sourceModule);
+    if(!originFile || !targetFile) return false;
+
+    // LocationLink is the one definition shape that preserves both halves of navigation. In
+    // particular, IntelliJ uses originSelectionRange to decide whether a result belongs to the
+    // caret; returning a plain Location makes it mistake the declaration range for the origin and
+    // discard declarations that occur earlier in the file.
     json.startObject();
-    json.field("uri"_v).value(stringView(file->uri));
-    json.field("range"_v).startObject();
-    json.field("start"_v).startObject();
-    json.field("line"_v).value(U32(0));
-    json.field("character"_v).value(U32(0));
+    json.field("originSelectionRange"_v);
+    writeRange(json, origin);
+    json.field("targetUri"_v).value(stringView(targetFile->uri));
+    json.field("targetRange");
+    writeRange(json, target);
+    json.field("targetSelectionRange");
+    writeRange(json, target);
     json.endObject();
-    json.field("end"_v).startObject();
-    json.field("line"_v).value(U32(0));
-    json.field("character"_v).value(U32(0));
+    return true;
+}
+
+bool LocationWriter::writeModuleLocationLink(Net::JsonWriter& json, LocationId origin,
+                                             StringId module) {
+    if(!session.context) return false;
+
+    auto originLocation = session.context->getLocation(origin);
+    if(!originLocation) return false;
+
+    auto originFile = linesOf(originLocation->sourceModule);
+    auto targetFile = linesOf(module);
+    if(!originFile || !targetFile) return false;
+
+    auto targetText = targetFile->text;
+    auto targetEnd = targetText.length;
+    auto targetLastLine = targetFile->lines.lineOf(targetEnd);
+
+    json.startObject();
+    json.field("originSelectionRange"_v);
+    writeRange(json, origin);
+    json.field("targetUri"_v).value(stringView(targetFile->uri));
+    json.field("targetRange").startObject();
+    json.field("start").startObject();
+    json.field("line").value(U32(0));
+    json.field("character").value(U32(0));
+    json.endObject();
+    json.field("end").startObject();
+    json.field("line").value(targetLastLine);
+    json.field("character").value(utf16 ? targetFile->lines.utf16Column(targetText, targetEnd)
+                                         : targetEnd - targetFile->lines.lineStart(targetLastLine));
+    json.endObject();
+    json.endObject();
+    json.field("targetSelectionRange").startObject();
+    json.field("start").startObject();
+    json.field("line").value(U32(0));
+    json.field("character").value(U32(0));
+    json.endObject();
+    json.field("end").startObject();
+    json.field("line").value(U32(0));
+    json.field("character").value(U32(0));
     json.endObject();
     json.endObject();
     json.endObject();
@@ -110,29 +160,44 @@ void writeDefinition(Net::JsonWriter& json, Session& session, LocationWriter& lo
                      StringId module, U32 offset) {
     auto reference = session.referenceAt(module, offset);
 
+    // IntelliJ reports the caret offset, which is often the right edge of the identifier when the
+    // user invokes navigation immediately after typing it. Source ranges are end-exclusive, so
+    // check the preceding byte as the editor's natural inclusive interpretation of that position.
+    if(!reference && offset > 0) reference = session.referenceAt(module, offset - 1);
+
     // A cursor on the declaration itself answers with the declaration - which is what a client does
     // when "go to definition" is pressed twice, and is better than nothing happening.
     auto symbol = reference ? &reference->target : session.definitionAt(module, offset);
+    if(!symbol && offset > 0) symbol = session.definitionAt(module, offset - 1);
     if(!symbol) {
         json.null();
         return;
     }
 
+    auto origin = reference ? reference->source : symbol->definition;
+    json.startArray();
+
     if(symbol->kind == Symbol::Kind::Module) {
         if(symbol->module && session.program &&
-           locations.writeModuleLocation(json, (*session.program->decl)[symbol->module]->name)) {
+           locations.writeModuleLocationLink(json, origin,
+                                             (*session.program->decl)[symbol->module]->name)) {
+            json.endArray();
             return;
         }
 
-        json.null();
+        json.endArray();
         return;
     }
 
-    if(symbol->definition == kNullLocation || !locations.writeLocation(json, symbol->definition)) {
+    if(symbol->definition == kNullLocation ||
+       !locations.writeLocationLink(json, origin, symbol->definition)) {
         // A declaration the compiler made rather than read. Answering null says "there is nowhere to
         // go", which is true, rather than pointing at an unrelated file.
-        json.null();
+        json.endArray();
+        return;
     }
+
+    json.endArray();
 }
 
 /*
@@ -149,15 +214,20 @@ void writeDefinition(Net::JsonWriter& json, Session& session, LocationWriter& lo
 void writeTypeDefinition(Net::JsonWriter& json, Session& session, LocationWriter& locations,
                          StringId module, U32 offset) {
     auto reference = session.referenceAt(module, offset);
+    if(!reference && offset > 0) reference = session.referenceAt(module, offset - 1);
     if(!reference || !reference->type || !session.program) {
         json.null();
         return;
     }
 
     auto symbol = mir::typeSymbol(*session.program->decl, reference->type);
-    if(symbol.definition == kNullLocation || !locations.writeLocation(json, symbol.definition)) {
-        json.null();
+    json.startArray();
+    if(symbol.definition == kNullLocation ||
+       !locations.writeLocationLink(json, reference->source, symbol.definition)) {
+        json.endArray();
+        return;
     }
+    json.endArray();
 }
 
 /*
@@ -720,6 +790,24 @@ static bool startsWith(StringView name, StringView prefix) {
     return true;
 }
 
+static bool sameName(StringView left, StringView right) {
+    return left.length == right.length && startsWith(left, right);
+}
+
+// A declaration namespace is part of the symbol name (`X86.crc32`), while a qualified import is
+// carried separately (`U` plus `qualOnly`). Completion needs the same two pieces for both forms.
+static void splitName(StringView name, StringView& qualifier, StringView& leaf) {
+    for(Size i = name.length; i > 0; i--) {
+        if(name.ptr[i - 1] != '.') continue;
+        qualifier = StringView { name.ptr, i - 1 };
+        leaf = StringView { name.ptr + i, name.length - i };
+        return;
+    }
+
+    qualifier = {};
+    leaf = name;
+}
+
 /*
  * What the document around the caret says about what may be inserted.
  *
@@ -951,14 +1039,30 @@ void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U
      * definition will replace; and the label is the bare name rather than the qualified one, because
      * inserting the qualifier a second time is what would otherwise happen.
      */
+    StringView typedQualifier;
     auto qualifierTyped = false;
     for(Size i = prefix.length; i > 0; i--) {
         if(prefix.ptr[i - 1] != '.') continue;
 
+        typedQualifier = StringView { prefix.ptr, i - 1 };
         prefix = StringView { prefix.ptr + i, prefix.length - i };
         prefixStart += U32(i);
         qualifierTyped = true;
         break;
+    }
+
+    // At `X86.|` there is no token after the dot, so the parser quite correctly reports the cursor
+    // as a zero-width name starting at the caret. Recover the qualifier from the text immediately
+    // before that gap; otherwise the namespace capture is indistinguishable from a plain empty
+    // completion request.
+    if(request.qualified && !qualifierTyped && prefix.length == 0 && prefixStart > 0 &&
+       text.ptr[prefixStart - 1] == '.') {
+        auto end = prefixStart - 1;
+        auto start = end;
+        while(start > 0 && isIdentifier(text.ptr[start - 1])) start--;
+
+        typedQualifier = StringView { text.ptr + start, end - start };
+        qualifierTyped = typedQualifier.length != 0;
     }
 
     /*
@@ -979,9 +1083,10 @@ void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U
      *
      * `insertText` alone leaves the *range* to the client's own idea of a word, and the two do not
      * always agree - a qualified name is one token here and three words to an editor, and a caret in
-     * the middle of a name is a word whose tail the client may or may not take. A `textEdit` says
-     * exactly what is being replaced, and it is what the IntelliJ client reads the completion prefix
-     * out of, so the two cannot disagree about which characters the answer was filtered against.
+     * the middle of a name is a word whose tail the client may or may not take. Non-snippet items
+     * therefore carry a `textEdit` that says exactly what is being replaced. Snippets have only
+     * `insertText`: the CLion adapter must read the snippet from there, while IntelliJ otherwise
+     * prefers `textEdit.newText` as the provisional lookup string and can insert `${1:name}` raw.
      *
      * From the start of the segment being typed to the end of the name the caret is in, which is why
      * this reads past the caret: completing `sca` in `scaled` must replace the whole word rather
@@ -1027,14 +1132,30 @@ void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U
     for(auto& item: request.items) {
         auto& identifier = context.find(item.symbol.name);
         StringView name { identifier.text, identifier.textLength };
-        if(!startsWith(name, prefix)) continue;
+
+        StringView itemQualifier;
+        StringView itemName;
+        String qualifierStorage;
+        if(item.qualifier) {
+            qualifierStorage = context.findName(item.qualifier);
+            itemQualifier = StringView { qualifierStorage.text(), qualifierStorage.size() };
+            itemName = name;
+        } else {
+            splitName(name, itemQualifier, itemName);
+        }
+
+        if(qualifierTyped) {
+            if(!sameName(itemQualifier, typedQualifier) || !startsWith(itemName, prefix)) continue;
+        } else if(!startsWith(name, prefix)) {
+            continue;
+        }
 
         // The name as it has to be *written* here, which for a qualified import is not the name the
         // symbol has. Offering `length` for something only reachable as `C.length` would complete
         // to a program that does not resolve.
         StringBuilder label;
-        if(item.qualifier && !qualifierTyped) label << context.findName(item.qualifier) << ".";
-        label << name;
+        if(!qualifierTyped && item.qualifier) label << context.findName(item.qualifier) << ".";
+        label << (qualifierTyped ? itemName : name);
 
         StringBuilder detail;
         mir::describeSymbol(context, program, item.symbol, item.type, detail);
@@ -1061,10 +1182,10 @@ void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U
             json.field("insertTextFormat"_v).value(U32(isSnippet ? 2 : 1));
         }
 
-        // The same text as an edit, for a client that reads one - which is most of them, and all of
-        // the ones that do anything about the range. `insertText` stays for the rest: the two say
-        // the same thing and the protocol lets a client choose.
-        if(editable) {
+        // Keep the exact range on plain items. The CLion plugin owns snippet insertion from
+        // insertText and makes an editable template from it; a textEdit here would make the
+        // platform's provisional lookup text the raw `${1:name}` representation.
+        if(editable && !isSnippet) {
             json.field("textEdit"_v).startObject();
             json.field("range"_v);
             writeEditRange(json);

@@ -443,6 +443,7 @@ struct CompileSettings {
      */
     bool explicitMode = false;
     bool explicitPlatform = false;
+    bool explicitResolver = false;
     bool explicitOutput = false;
     bool explicitImageBase = false;
 

@@ -32,16 +32,21 @@ struct LocationWriter {
     explicit LocationWriter(Session& session, bool utf16): session(session), utf16(utf16) {}
 
     /// Writes `{"uri":..,"range":{..}}` for one location, or nothing at all when the location is in
-    /// a module with no file - Core and Native, which are compiled into the compiler. False then,
-    /// so the caller can leave the entry out rather than emit a broken one.
+    /// a module with no file. Project files and standard-library files that were loaded for the
+    /// program are both real editor locations.
     bool writeLocation(Net::JsonWriter& json, LocationId id);
+
+    /// Writes one LSP LocationLink. The origin is the occurrence the client asked about, rather
+    /// than the declaration target. IntelliJ uses this distinction to keep a definition result
+    /// attached to the editor position when it adapts LocationLink to its navigation model.
+    bool writeLocationLink(Net::JsonWriter& json, LocationId origin, LocationId target);
 
     /// The range half alone, for the requests that carry a URI of their own.
     bool writeRange(Net::JsonWriter& json, LocationId id);
 
-    /// The whole file as one range, for a symbol whose "definition" is a module rather than a
-    /// declaration - which is what an `import` names.
-    bool writeModuleLocation(Net::JsonWriter& json, StringId module);
+    /// The LocationLink form for an import occurrence, whose target is a module rather than a
+    /// declaration.
+    bool writeModuleLocationLink(Net::JsonWriter& json, LocationId origin, StringId module);
 
     Session& session;
     bool utf16 = true;
@@ -168,7 +173,7 @@ void writeFoldingRanges(Net::JsonWriter& json, StringView text, const LineTable&
  *
  * `snippets` is the client's own `snippetSupport`, which decides whether an item that takes
  * arguments can insert them with the caret in the first one, and `utf16` the negotiated position
- * encoding - an item carries the range it replaces, so it counts characters the way the client does.
+ * encoding used by the replacement ranges on non-snippet items.
  */
 void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U32 offset,
                      StringView text, bool snippets, bool utf16);

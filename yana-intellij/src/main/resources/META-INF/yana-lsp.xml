@@ -7,5 +7,12 @@
     <extensions defaultExtensionNs="com.intellij">
         <platform.lsp.serverSupportProvider
             implementation="se.rimmer.yana.lsp.YanaLspServerSupportProvider"/>
+
+        <!--
+          The compiler is the reference resolver. The flat PSI file intentionally has no native
+          declaration tree, so Ctrl+B needs this small adapter to the LSP definition response,
+          including definitions in lib/ outside the project root.
+        -->
+        <gotoDeclarationHandler order="first" implementation="se.rimmer.yana.lsp.YanaGotoDeclarationHandler"/>
     </extensions>
 </idea-plugin>

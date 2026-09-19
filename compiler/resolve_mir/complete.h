@@ -80,6 +80,11 @@ struct CompletionRequest {
     DeclPtr<Type> constructed = nullptr;
     bool construct = false;
 
+    // A namespace selection such as `X86.`. Unlike a member selection it has no receiver occurrence;
+    // the LSP layer uses this bit to recover the qualifier when the cursor is in the empty gap after
+    // the dot.
+    bool qualified = false;
+
     // A cursor in a pattern, where the items are constructors and nothing else - §8.1's fifth kind.
     bool pattern = false;
 

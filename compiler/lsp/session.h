@@ -44,6 +44,11 @@ struct Session {
     /// does not know is opened, since that is a file that was created since the map was built.
     Result<void, String> rescan();
 
+    /// Re-reads `yana.toml` and rebuilds the module map. The editor may change the selected main
+    /// module or the source roots while the server is alive, so a session cannot treat the manifest
+    /// read during `open` as immutable.
+    Result<void, String> reloadProject();
+
     /// Re-resolves the whole program. Everything reported lands in `diagnostics.messages`, and the
     /// previous compile's results are dropped first - a program owns arenas that the next one cannot
     /// share.
@@ -91,8 +96,16 @@ struct Session {
     /// use. `find references` on a definition is the request this exists for.
     const Symbol* definitionAt(StringId module, U32 offset);
 
-    /// The file one module's source is in, or an empty view for a module with no file.
+    /// The file one module's source is in, including a loaded standard-library file, or empty for
+    /// a module with no source file.
     StringView pathOf(StringId module);
+
+    /// The text of one project or loaded standard-library file. A location writer needs this for a
+    /// definition in a file the editor has not opened yet.
+    StringView sourceOf(StringId module);
+
+    /// The file identifier at a project or loaded standard-library path, or null.
+    StringId moduleAtPath(StringView path);
 
     /*
      * The module a file belongs to - Analysis-Modules.md §2.1.

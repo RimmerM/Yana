@@ -1,0 +1,17 @@
+module
+
+import Native
+
+-- A namespace is represented by the qualified names in Native, not by a value named X86. The
+-- resolver still has to preserve the cursor after the dot so the editor can offer those names.
+fn namespace() -> Int:
+    X86.
+--      ^namespace
+    return 0
+
+-- The same filtering must work once the namespace has a completed member name. The source itself
+-- is complete here; the marker asks for the completion list at the end of the qualified name.
+fn qualified() -> U64 = X86.crc32(0, 0)
+--                             ^qualified
+
+fn main() -> Int = namespace()

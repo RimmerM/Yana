@@ -447,6 +447,19 @@ Result<ProjectFile, String> readProjectFile(const String& path) {
                 reader.fail("unknown mode: valid modes are exe|shared|lib|ast|ir|lower|llvm"_v);
                 break;
             }
+        } else if(key == "resolver"_v) {
+            if(values.size() != 1) {
+                reader.fail("resolver names one resolve stage"_v);
+                break;
+            }
+
+            auto& value = values[0];
+            if(value == "legacy") project.resolver = Just(ResolverStage::Legacy);
+            else if(value == "ownership") project.resolver = Just(ResolverStage::Ownership);
+            else {
+                reader.fail("unknown resolver: valid resolvers are legacy|ownership"_v);
+                break;
+            }
         } else if(key == "library"_v) {
             if(values.size() != 1) {
                 reader.fail("library names one directory"_v);
@@ -514,6 +527,10 @@ void applyProjectFile(CompileSettings& settings, const ProjectFile& project) {
     if(!settings.explicitPlatform && project.platform) {
         settings.platform = project.platform.unwrap();
         settings.explicitPlatform = true;
+    }
+
+    if(!settings.explicitResolver && project.resolver) {
+        settings.resolver = project.resolver.unwrap();
     }
 
     // The standard library this project builds against - `-lib` still wins, as every flag does.

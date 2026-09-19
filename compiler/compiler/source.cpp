@@ -632,8 +632,31 @@ ModuleGroup* findRootModule(ModuleMap& map, const CompileSettings& settings, Str
 
     if(settings.mainModules.size() == 1) {
         auto root = map.findGroup(settings.mainModules[0]);
-        if(!root) error = formatError("cannot find main module %@. This compilation has %@"_v,
-                                      settings.mainModules[0], describeGroups(map));
+        if(!root) {
+            /*
+             * The most common mistake here is naming `src/Main.yana` rather than the module its
+             * directory forms. The file identifier is still in the map, so use it to turn the
+             * otherwise correct but surprising "cannot find" into the edit the author needs. A
+             * bare `module` declaration makes the file its own module, which is why the same
+             * spelling becomes valid after opting out of directory membership.
+             */
+            auto file = map.find(settings.mainModules[0]);
+            if(file && file->module) {
+                if(auto group = map.findGroup(file->module)) {
+                    error = formatError(
+                        "cannot find main module %@. It is the source file %@, which belongs to "
+                        "module %@. `main` names modules, not files: remove it for this single "
+                        "source-root module, use `main = \"%@\"`, or put bare `module` in the "
+                        "file. This compilation has %@"_v,
+                        settings.mainModules[0], file->path, group->text, group->text,
+                        describeGroups(map));
+                    return nullptr;
+                }
+            }
+
+            error = formatError("cannot find main module %@. This compilation has %@"_v,
+                                settings.mainModules[0], describeGroups(map));
+        }
         return root;
     }
 

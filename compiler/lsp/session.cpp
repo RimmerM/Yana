@@ -19,9 +19,19 @@ Result<void, String> Session::open(StringView rootPathText) {
     }
 
     projectPath = found.unwrap();
+    auto reloaded = reloadProject();
+    if(reloaded.isErr()) return reloaded;
+
+    opened = true;
+    return Ok();
+}
+
+Result<void, String> Session::reloadProject() {
     auto project = readProjectFile(projectPath);
     if(project.isErr()) return Err(project.moveUnwrapErr());
 
+    settings = CompileSettings();
+    settings.projectFile = rootPath;
     applyProjectFile(settings, project.unwrapOk());
 
     // A platform the file did not name still has to be one, because `@platform` selects which
@@ -37,11 +47,7 @@ Result<void, String> Session::open(StringView rootPathText) {
         settings.explicitMode = true;
     }
 
-    auto scanned = rescan();
-    if(scanned.isErr()) return scanned;
-
-    opened = true;
-    return Ok();
+    return rescan();
 }
 
 Result<void, String> Session::rescan() {
@@ -72,6 +78,14 @@ void Session::compile(CompletionRequest* completion, Cursor cursor) {
 
     diagnostics.reset();
     provider.reset();
+
+    // `yana.toml` is part of the editor's project, not a one-time server setting. Re-read it before
+    // every compile so changing `main` or `sources` takes effect without restarting CLion's server.
+    auto reloaded = reloadProject();
+    if(reloaded.isErr()) {
+        diagnostics.error("%@"_v, nullptr, reloaded.unwrapErr());
+        return;
+    }
 
     context = Ptr(new Context(diagnostics));
     context->settings = settings;
@@ -204,7 +218,21 @@ StringId Session::moduleOf(StringId file) {
 
 StringView Session::pathOf(StringId module) {
     auto entry = moduleMap.find(module);
-    return entry ? entry->path : StringView {};
+    if(entry) return entry->path;
+
+    return context ? context->library.pathOf(module) : StringView {};
+}
+
+StringView Session::sourceOf(StringId module) {
+    auto source = provider.getSource(module);
+    if(source.length) return source;
+
+    return context ? context->library.loaded(module) : StringView {};
+}
+
+StringId Session::moduleAtPath(StringView path) {
+    if(auto entry = findEntry(path)) return entry->name;
+    return context ? context->library.moduleAtPath(path) : StringId();
 }
 
 } // namespace lsp

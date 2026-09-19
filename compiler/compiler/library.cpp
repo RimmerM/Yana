@@ -4,6 +4,8 @@
 #include <File.h>
 
 #if defined(__linux__) || defined(__APPLE__)
+#include <limits.h>
+#include <stdlib.h>
 #include <unistd.h>
 #endif
 
@@ -12,6 +14,7 @@
 #endif
 
 #if defined(_WIN32)
+#include <stdlib.h>
 #include <windows.h>
 #endif
 
@@ -30,6 +33,34 @@ static String formatPath(StringView pattern, T&&... args) {
     char buffer[4000];
     auto length = Tritium::format(toBuffer(buffer), toString(pattern), forward<T>(args)...);
     return ownedString(buffer, length);
+}
+
+// Library candidates are often found through `compiler/../../lib`. The compiler can read that
+// spelling, but an editor compares the returned URI with the canonical path of the file it opens.
+// Resolve existing files when the platform provides it; retaining the original is the portable
+// fallback for a user-supplied library path that does not exist.
+static String canonicalPath(const String& path) {
+#if defined(__linux__) || defined(__APPLE__)
+    if(path.size() >= PATH_MAX) return ownedString(path.text(), path.size());
+
+    char input[PATH_MAX];
+    copy(path.text(), input, path.size());
+    input[path.size()] = 0;
+
+    char resolved[PATH_MAX];
+    if(realpath(input, resolved)) return ownedString(resolved);
+#elif defined(_WIN32)
+    if(path.size() >= MAX_PATH) return ownedString(path.text(), path.size());
+
+    char input[MAX_PATH];
+    copy(path.text(), input, path.size());
+    input[path.size()] = 0;
+
+    char resolved[MAX_PATH];
+    if(_fullpath(resolved, input, sizeof(resolved))) return ownedString(resolved);
+#endif
+
+    return ownedString(path.text(), path.size());
 }
 
 // The one file every candidate is judged by. A directory that does not hold Core is not a library,
@@ -115,14 +146,14 @@ const String& LibrarySource::directory(Context& context) {
         for(auto& pattern: relative) {
             auto candidate = formatPath(pattern, binary, leaf);
             if(holdsLibrary(candidate)) {
-                root = candidate;
+                root = canonicalPath(candidate);
                 return root;
             }
         }
     }
 
     auto built = String(YANA_LIBRARY_DIR);
-    if(holdsLibrary(built)) root = built;
+    if(holdsLibrary(built)) root = canonicalPath(built);
 
     return root;
 }
@@ -318,7 +349,7 @@ void LibrarySource::record(StringId file, String path) {
 
     auto& entry = *entries.push();
     entry.name = file;
-    entry.path = ::move(path);
+    entry.path = canonicalPath(path);
 }
 
 StringView LibrarySource::source(Context& context, StringId file) {
@@ -379,6 +410,24 @@ StringView LibrarySource::loaded(StringId file) const {
     }
 
     return {};
+}
+
+StringView LibrarySource::pathOf(StringId file) const {
+    for(auto& entry: entries) {
+        if(entry.name == file) return StringView { entry.path.text(), entry.path.size() };
+    }
+
+    return {};
+}
+
+StringId LibrarySource::moduleAtPath(StringView path) const {
+    for(auto& entry: entries) {
+        if(entry.path.size() == path.length && compareMem(entry.path.text(), path.ptr, path.length) == 0) {
+            return entry.name;
+        }
+    }
+
+    return StringId();
 }
 
 /*

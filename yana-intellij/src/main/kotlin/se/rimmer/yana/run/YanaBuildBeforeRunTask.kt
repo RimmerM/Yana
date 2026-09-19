@@ -97,7 +97,7 @@ class YanaBuildBeforeRunTaskProvider : BeforeRunTaskProvider<YanaBuildBeforeRunT
         // to know, which `checkConfiguration` has already refused to launch.
         configuration.resolveExecutableName()?.let { command.withParameters("-output", it) }
 
-        // Left out when the configuration does not set one, so that the project file's `target`
+        // Left out when the configuration does not set one, so that the project file's `mode`
         // decides - which matters for more than the output format: `@platform` selects which
         // declarations exist, so the mode is part of what the program *is*.
         configuration.mode.trim().takeIf { it.isNotEmpty() }?.let { command.withParameters("-mode", it) }
@@ -108,7 +108,13 @@ class YanaBuildBeforeRunTaskProvider : BeforeRunTaskProvider<YanaBuildBeforeRunT
         // spelling of that platform and is honoured the same way.
         val javascript = configuration.mode.trim() == "js" ||
             configuration.readProjectFile()?.platform == "js"
-        if (!javascript) command.withParameters("-resolver", "ownership")
+        if (!javascript) {
+            val resolver = configuration.readProjectFile()?.resolver
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: "ownership"
+            command.withParameters("-resolver", resolver)
+        }
 
         command.withWorkDirectory(configuration.buildWorkingDirectory())
         command.withCharset(Charsets.UTF_8)

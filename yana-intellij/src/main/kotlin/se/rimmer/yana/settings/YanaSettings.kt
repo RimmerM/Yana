@@ -55,10 +55,10 @@ class YanaSettings : PersistentStateComponent<YanaSettings.State> {
 /*
  * Finding `yana-lsp` - Implementation-Tooling.md §10.
  *
- * In order: the setting, then a `yana-lsp` beside the `yana` binary on PATH, then one on PATH
- * itself. When none is found the caller says so with an actionable notification rather than
- * failing quietly, because half of all "the plugin does not work" reports for an LSP-backed plugin
- * are a server nobody could find.
+ * In order: the setting, then a server beside the configured compiler, then a `yana-lsp` on PATH,
+ * then one beside a `yana` on PATH. When none is found the caller says so with an actionable
+ * notification rather than failing quietly, because half of all "the plugin does not work" reports
+ * for an LSP-backed plugin are a server nobody could find.
  */
 // The directories of `PATH`, which is where both of the locators below look.
 private fun pathEntries(): List<File> {
@@ -77,6 +77,17 @@ object YanaServerLocator {
         if (configured.isNotEmpty()) {
             val file = File(configured)
             return if (file.canExecute()) file else null
+        }
+
+        // The compiler setting is the natural thing to fill in while developing Yana from CLion.
+        // Its sibling server is the same build, so prefer it before a possibly older server on PATH.
+        val configuredCompiler = YanaSettings.getInstance().compilerPath.trim()
+        if (configuredCompiler.isNotEmpty()) {
+            val compiler = File(configuredCompiler)
+            if (compiler.canExecute()) {
+                val sibling = File(compiler.parentFile, executableName)
+                if (sibling.canExecute()) return sibling
+            }
         }
 
         val entries = pathEntries()
@@ -103,10 +114,11 @@ object YanaServerLocator {
 /*
  * Finding the `yana` driver, which a run configuration builds with - Implementation-Tooling.md §16.
  *
- * The same search as the server's, run the other way round: the setting, then `PATH`, then a `yana`
- * beside a `yana-lsp` on it. The two are built into the same directory, so whichever of them the
- * user put on `PATH` locates both - and a run configuration that cannot find the compiler says so
- * in `checkConfiguration`, before the run rather than during it.
+ * The same search as the server's, run the other way round: the setting, then a compiler beside the
+ * configured server, then `PATH`, then a `yana` beside a `yana-lsp` on it. The two are built into the
+ * same directory, so whichever of them the user selects or puts on `PATH` locates both - and a run
+ * configuration that cannot find the compiler says so in `checkConfiguration`, before the run rather
+ * than during it.
  */
 object YanaCompilerLocator {
     private val serverName = if (SystemInfo.isWindows) "yana-lsp.exe" else "yana-lsp"
@@ -116,6 +128,17 @@ object YanaCompilerLocator {
         if (configured.isNotEmpty()) {
             val file = File(configured)
             return if (file.canExecute()) file else null
+        }
+
+        // Mirror YanaServerLocator: an explicitly selected server also identifies the compiler built
+        // beside it, and should win over an unrelated executable on PATH.
+        val configuredServer = YanaSettings.getInstance().serverPath.trim()
+        if (configuredServer.isNotEmpty()) {
+            val server = File(configuredServer)
+            if (server.canExecute()) {
+                val sibling = File(server.parentFile, compilerExecutable)
+                if (sibling.canExecute()) return sibling
+            }
         }
 
         val entries = pathEntries()

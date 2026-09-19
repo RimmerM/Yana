@@ -19,8 +19,8 @@ import com.intellij.psi.codeStyle.lineIndent.LineIndentProvider
  * The rule is the language's own, read off the line above:
  *
  *   - a line that *opens* a block indents one level further. What opens one is the `:` a `fn`, an
- *     `if`, a `match`, an `instance` or a `class` ends its header with, and the `->` an alternative
- *     or a lambda ends with;
+ *     `if`, a `match`, an `instance` or a `class` ends its header with, the `->` an alternative or
+ *     a lambda ends with, or the `{` that starts a record's fields;
  *   - anything else keeps the previous line's indent;
  *   - a blank line looks further up, since the indent to continue is the last one anything was
  *     written at rather than the nothing on the line between.
@@ -74,12 +74,40 @@ class YanaLineIndentProvider : LineIndentProvider {
     }
 
     private companion object {
-        // Whether a line ends with something that opens an indentation block. The trailing token is
-        // the whole of the rule - `fn f():`, `match s:`, `Circle(c) ->`, `(x) ->` - and it is the
-        // same one the parser reads before calling `withLevel`.
+        // Whether the text before the caret still has an open block. The trailing token is the
+        // usual case - `fn f():`, `match s:`, `Circle(c) ->`, `(x) ->`, `data X {` - but a record
+        // can be written on one line first, so `data X { field: A` must behave the same way.
         fun opensBlock(content: String): Boolean {
             val line = content.trimEnd()
-            return line.endsWith(":") || line.endsWith("->") || line.endsWith("=")
+            return line.endsWith(":") || line.endsWith("->") || line.endsWith("=") ||
+                hasUnclosedBrace(line)
+        }
+
+        // Braces in strings are data, not layout. Comments have already been removed by the caller,
+        // so the remaining unmatched brace is the record/tuple opener the parser is still inside.
+        fun hasUnclosedBrace(content: String): Boolean {
+            var quote: Char? = null
+            var depth = 0
+            var i = 0
+
+            while (i < content.length) {
+                val c = content[i]
+
+                if (quote != null) {
+                    if (c == '\\') i++
+                    else if (c == quote) quote = null
+                } else if (c == '"' || c == '\'') {
+                    quote = c
+                } else if (c == '{') {
+                    depth++
+                } else if (c == '}') {
+                    depth = maxOf(0, depth - 1)
+                }
+
+                i++
+            }
+
+            return depth > 0
         }
 
         /*

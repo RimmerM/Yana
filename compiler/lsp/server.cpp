@@ -446,6 +446,21 @@ void Server::onDidOpen(const JsonValue& params) {
 
     auto& opened = documents.open(uri->asString(), path, ownedString(text->string.ptr, text->string.length), version);
 
+    // The manifest is not a Yana source file, but it is part of the editor project. Keep its
+    // lifecycle visible to the worker so a saved change to `main` or `sources` causes the next
+    // compile to reload it instead of leaving the server on the settings from initialization.
+    if(path == session.projectPath) {
+        dirty = true;
+        return;
+    }
+
+    // A definition may point into a loaded standard-library file. It is not a project overlay, but
+    // it is still a valid document for position requests once the editor opens it.
+    if(!session.findEntry(stringView(path)) && session.moduleAtPath(stringView(path))) {
+        dirty = true;
+        return;
+    }
+
     // A file the map has never heard of is one that was created since the map was built. Rescanning
     // is cheap next to resolving, and the alternative is an editor that shows nothing for a new
     // file until the server is restarted.
@@ -494,6 +509,17 @@ void Server::onDidChange(const JsonValue& params) {
         }
     }
 
+    if(document->path == session.projectPath) {
+        dirty = true;
+        return;
+    }
+
+    if(!session.findEntry(stringView(document->path)) &&
+       session.moduleAtPath(stringView(document->path))) {
+        dirty = true;
+        return;
+    }
+
     session.provider.setDocument(stringView(document->path), document->text, document->version);
     dirty = true;
 }
@@ -530,10 +556,8 @@ bool Server::resolvePosition(const JsonValue& params, StringId& module, U32& off
     if(uri.length == 0) return false;
 
     auto path = uriToPath(uri);
-    auto entry = session.findEntry(stringView(path));
-    if(!entry || !entry->name) return false;
-
-    module = entry->name;
+    module = session.moduleAtPath(stringView(path));
+    if(!module) return false;
 
     auto position = params.find("position"_v);
     if(!position) return false;
@@ -690,17 +714,15 @@ Server::FileRequest Server::resolveFile(const JsonValue& params) {
 
     auto uri = documentUri(params);
     auto path = uriToPath(uri);
-    auto entry = session.isOpen() ? session.findEntry(stringView(path)) : nullptr;
-    if(!entry || !entry->name) return request;
-
-    request.module = entry->name;
+    request.module = session.isOpen() ? session.moduleAtPath(stringView(path)) : StringId();
+    if(!request.module) return request;
     request.found = true;
 
     if(auto document = documents.find(uri)) {
         request.text = stringView(document->text);
         request.lines.build(request.text);
     } else {
-        request.text = session.provider.getSource(entry->name);
+        request.text = session.sourceOf(request.module);
         request.lines.build(request.text);
     }
 
@@ -884,9 +906,10 @@ void Server::publishDiagnostics() {
 
         auto entry = session.moduleMap.find(message.where.sourceModule);
         if(!entry) {
-            // A location in Core or Native, which are compiled into the compiler and have no file
-            // to point at. A diagnostic there is a compiler bug rather than a program error, and
-            // attaching it to one of the user's files would say the opposite.
+            // There is no project source entry for this location. That includes compiler-generated
+            // declarations, which have no file to point at; attaching such a diagnostic to one of
+            // the user's files would say the opposite. Library diagnostics are likewise kept out of
+            // project-file publication until they have a library-specific diagnostic path.
             unplaceable.push(&message);
             continue;
         }
@@ -977,8 +1000,19 @@ void Server::publishDiagnostics() {
         publishedUris.push(file.uri);
     }
 
+    StringBuilder unplaceableText;
     for(auto message: unplaceable) {
-        showMessage(message->level == Diagnostics::ErrorLevel ? 1 : 2, stringView(message->text));
+        if(unplaceableText.size()) unplaceableText.append("\n"_v);
+        unplaceableText.append(stringView(message->text));
+    }
+
+    auto currentUnplaceable = unplaceableText.string();
+    if(currentUnplaceable != lastUnplaceable) {
+        for(auto message: unplaceable) {
+            showMessage(message->level == Diagnostics::ErrorLevel ? 1 : 2,
+                        stringView(message->text));
+        }
+        lastUnplaceable = ::move(currentUnplaceable);
     }
 }
 

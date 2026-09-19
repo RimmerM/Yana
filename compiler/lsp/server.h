@@ -110,6 +110,10 @@ struct Server {
     /// cleared. A client keeps what it was last told about a URI until it is told otherwise.
     Array<String> publishedUris;
 
+    /// Root and manifest errors have no source range. Keep their last text so a client that asks
+    /// for a compile on every keystroke does not receive the same window notification repeatedly.
+    String lastUnplaceable;
+
     /*
      * Writing. Both threads write, so every frame goes out under this.
      */
