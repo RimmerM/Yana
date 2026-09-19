@@ -1508,6 +1508,7 @@ U64 knownZeroBits(LowerBase base, LowerValue* value, U32 depth) {
         // answer this analysis gives starts: a bitfield is a four-byte load into a `Long`.
         case LowerInst::Load: {
             auto load = (LowerInstLoad*)inst;
+            if(load->isVolatile()) return outside;
             if(load->isSigned()) return outside;
 
             auto width = load->getWidth() * 8;
@@ -2163,4 +2164,3 @@ bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction&
 
     return dropped;
 }
-

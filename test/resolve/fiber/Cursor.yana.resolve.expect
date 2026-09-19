@@ -2122,7 +2122,7 @@ fn resume(%self: Fiber, %value: Size) -> Size {
     %v14 = load %self : Fiber
     %v15 = load %self@Fiber.parent : %U8
     %v16 = addressof %self@Fiber.parent : %%U8
-    %v17 = native %v13, %v16, %value : Size
+    %v17 = stackswitch %v13, %v16, %value : Size
     ret %v17
 }
 
@@ -2134,7 +2134,7 @@ fn suspendOn(%self: %Fiber, %value: Size) -> Size {
     %v5 = load [%v2] : Fiber
     %v6 = load [%v2]@Fiber.child : %U8
     %v7 = addressof [%v2]@Fiber.child : %%U8
-    %v8 = native %v4, %v7, %value : Size
+    %v8 = stackswitch %v4, %v7, %value : Size
     ret %v8
 }
 
@@ -2156,7 +2156,7 @@ fn finishOn(%self: %Fiber, %value: Size) -> () {
     %v10 = load [%v2] : Fiber
     %v11 = load [%v2]@Fiber.child : %U8
     %v12 = addressof [%v2]@Fiber.child : %%U8
-    %v13 = native %v9, %v12, %value : Size
+    %v13 = stackswitch %v9, %v12, %value : Size
     jmp b1
 }
 
@@ -2269,7 +2269,7 @@ fn newFiber(Cursor(Size))(%stack: %U8, %stackBytes: Size, %context: %Cursor(Size
     %v12 = alloc : Fiber
     %v13 = load %entry.code : %()
     %v14 = load %entry.env : %()
-    %v15 = native %top, %v13, %v14, %context : %U8
+    %v15 = stackinit %top, %v13, %v14, %context : %U8
     %v17 = bitcast 0 : %U8
     aggregate %local1@Fiber.child = %v15, %local1@Fiber.parent = %v17, %local1@Fiber.status = Ready
     ret %v12
@@ -2399,7 +2399,7 @@ fn newFiber(Cursor(String))(%stack: %U8, %stackBytes: Size, %context: %Cursor(St
     %v12 = alloc : Fiber
     %v13 = load %entry.code : %()
     %v14 = load %entry.env : %()
-    %v15 = native %top, %v13, %v14, %context : %U8
+    %v15 = stackinit %top, %v13, %v14, %context : %U8
     %v17 = bitcast 0 : %U8
     aggregate %local1@Fiber.child = %v15, %local1@Fiber.parent = %v17, %local1@Fiber.status = Ready
     ret %v12

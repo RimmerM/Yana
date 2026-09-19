@@ -128,6 +128,12 @@ pub data ExchangeResult(a) = Exchanged | Unchanged(a)
 -}
 @builtin(atomicLoad) pub fn (AtomicValue(a)) load(self: Atomic(a), order: LoadOrder) -> a
 @builtin(atomicStore) pub fn (AtomicValue(a)) store(self: Atomic(a), desired: a, order: StoreOrder) -> {}
+
+-- Atomic accesses may also be volatile. The ordering argument keeps the atomic memory-model edge;
+-- the volatile bit separately makes the access observable to device memory and prevents it from
+-- being removed or merged. Neither property implies the other.
+@builtin(atomicVolatileLoad) pub fn (AtomicValue(a)) volatileLoad(self: Atomic(a), order: LoadOrder) -> a
+@builtin(atomicVolatileStore) pub fn (AtomicValue(a)) volatileStore(self: Atomic(a), desired: a, order: StoreOrder) -> {}
 @builtin(atomicExchange) pub fn (AtomicValue(a)) exchange(self: Atomic(a), desired: a, order: UpdateOrder) -> a
 
 {-

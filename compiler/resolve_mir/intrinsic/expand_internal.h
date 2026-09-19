@@ -34,6 +34,10 @@ Node* expandPointerLoad(Builder& builder, Function& callee, Node* const* argumen
                         const Substitution& with, LocationId source);
 Node* expandPointerStore(Builder& builder, Function& callee, Node* const* arguments,
                          const Substitution& with, LocationId source);
+Node* expandVolatilePointerLoad(Builder& builder, Function& callee, Node* const* arguments,
+                                const Substitution& with, LocationId source);
+Node* expandVolatilePointerStore(Builder& builder, Function& callee, Node* const* arguments,
+                                 const Substitution& with, LocationId source);
 
 // `traits()` - the one emitter with no arguments at all: its type comes from the result position.
 Node* expandTypeTraits(Builder& builder, Function& callee, Node* const* arguments,
@@ -113,6 +117,10 @@ Node* expandAtomicLoad(Builder& builder, Function& callee, Node* const* argument
                        const Substitution& with, LocationId source);
 Node* expandAtomicStore(Builder& builder, Function& callee, Node* const* arguments,
                         const Substitution& with, LocationId source);
+Node* expandAtomicVolatileLoad(Builder& builder, Function& callee, Node* const* arguments,
+                               const Substitution& with, LocationId source);
+Node* expandAtomicVolatileStore(Builder& builder, Function& callee, Node* const* arguments,
+                                const Substitution& with, LocationId source);
 
 // The exchange and the five fetch operations, which are one shape told apart by the `op` - see the
 // definition, which is where the argument for that being a parameter rather than six emitters is.

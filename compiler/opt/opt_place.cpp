@@ -1478,6 +1478,11 @@ struct Forwarder {
                 case Value::LoadPlace: {
                     auto& load = (InstLoadPlace&)*instruction;
 
+                    if(load.volatileAccess) {
+                        markRead(load.place);
+                        break;
+                    }
+
                     // A load that is answered from a value already in hand is not a read of
                     // anything: it stops being an access at all, so the store it would have read
                     // stays removable. That is the case every read-modify-write chain is made of.

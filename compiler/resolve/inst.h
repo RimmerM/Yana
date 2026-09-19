@@ -725,6 +725,9 @@ struct InstLoadPlace: Inst {
      */
     bool overread = false;
 
+    // Volatile device accesses are observable and cannot be folded or removed.
+    bool volatileAccess = false;
+
     static constexpr Size kPlaceCount = 1;
     Place* placeAt(Size) { return &place; }
 };
@@ -748,6 +751,9 @@ struct InstInit: Inst {
 
     Place place;
     ModulePtr<Value> value;
+
+    // Volatile device writes are observable and cannot be removed or merged.
+    bool volatileAccess = false;
 
     static constexpr Size kPlaceCount = 1;
     Place* placeAt(Size) { return &place; }
@@ -1616,6 +1622,9 @@ struct InstAtomic: Inst {
     // no reader has to ask which kind it is holding before reading it. The library's plain form
     // derives this through §3.5's projection and `Advanced`'s states it.
     AtomicOrder failure;
+
+    // Atomic ordering and volatile device observability are independent properties.
+    bool volatileAccess = false;
 
     // Whether a spurious failure is permitted - the `compareExchangeWeak` of §3.4. Only meaningful
     // on `Compare`.

@@ -517,6 +517,7 @@ struct Expander {
     bool rewriteLoad(Block& block, Size index, ModulePtr<Inst> pointer) {
         auto& load = (InstLoadPlace&)*opt.local[pointer];
 
+        if(load.volatileAccess) return false;
         if(!rootedHere(load.place)) return false;
 
         auto access = packedAccessOf(opt, load.place);
@@ -543,6 +544,7 @@ struct Expander {
     bool rewriteStore(Block& block, Size index, ModulePtr<Inst> pointer) {
         auto& store = (InstInit&)*opt.local[pointer];
 
+        if(store.volatileAccess) return false;
         if(!rootedHere(store.place)) return false;
 
         auto access = packedAccessOf(opt, store.place);

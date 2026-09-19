@@ -3653,7 +3653,7 @@ struct Conversion {
                 auto inst = copies
                     ? editor.addCopy(node.source, used, result, conventionFor(result))
                     : editor.addLoad(node.source, used, result, conventionFor(result),
-                                     written.overread);
+                                     written.overread, written.isVolatile);
 
                 auto answer = editor.resultOf(*inst);
 
@@ -4062,7 +4062,8 @@ struct Conversion {
 
                 auto inst = editor.addAtomic(node.source, written.op, written.order, written.failure,
                                              written.weak, arguments.pointer(), arguments.size(),
-                                             result, conventionFor(result), hasResult);
+                                             result, conventionFor(result), hasResult,
+                                             written.isVolatile);
 
                 if(hasResult) produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;
@@ -4353,7 +4354,8 @@ struct Conversion {
                 Use value;
                 if(!useOf(written.value, node.source, value)) return;
 
-                editor.addStore(node.source, editor.use(*address, UseKind::Inspect), value);
+                editor.addStore(node.source, editor.use(*address, UseKind::Inspect), value,
+                                written.isVolatile);
                 break;
             }
             case mir::Node::Return: {

@@ -552,6 +552,9 @@ struct InstAtomic: Inst {
     mir::AtomicOrder failure;
     bool weak;
 
+    // Atomic ordering and volatile device observability are separate properties.
+    bool isVolatile = false;
+
     UseList arguments;
 
     template<class F> void eachUse(SsaBase base, F&& f) {
@@ -765,6 +768,10 @@ struct InstLoad: Inst {
     // from another, which is the whole reason the flag exists.
     bool overread = false;
 
+    // A volatile access is observable even when its result is unused and may not be merged with
+    // another access. It is independent of the ordinary load's tail-read promise.
+    bool isVolatile = false;
+
     template<class F> void eachUse(SsaBase, F&& f) { f(address); }
     template<class F> void eachEdge(SsaBase, F&&) {}
 };
@@ -784,6 +791,9 @@ struct InstStore: Inst {
 
     Use address;
     Use value;
+
+    // A volatile write must reach the device exactly as written.
+    bool isVolatile = false;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(address); f(value); }
     template<class F> void eachEdge(SsaBase, F&&) {}

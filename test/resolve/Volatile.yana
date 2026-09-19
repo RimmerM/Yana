@@ -1,0 +1,36 @@
+import Atomic
+import Native
+
+-- Volatile pointer accesses are observable even when they are repeated or the result is discarded.
+fn pointer(p: %U32) -> U32:
+    let first = Native.volatileLoad(p)
+    Native.volatileStore(p, first + 1)
+    return Native.volatileLoad(p)
+
+-- A volatile read remains an operation when its value is otherwise dead, including through a branch.
+fn discarded(p: %U32, flag: Bool) -> U32:
+    if flag:
+        let ignored = Native.volatileLoad(p)
+    Native.volatileStore(p, 1)
+    return 0
+
+-- The loop makes a dead read tempting to remove or hoist out of the loop when it is not volatile.
+fn looped(p: %U32, count: U32) -> U32:
+    let &i = 0 :: U32
+    while i < count:
+        let ignored = Native.volatileLoad(p)
+        i = i + 1
+    return i
+
+-- Atomic ordering remains an explicit argument when the same access is also volatile.
+fn atomic(p: %U8) -> U32:
+    let cell = Native.atomicAt(p) :: 'Atomic(U32)
+    let first = cell.volatileLoad(LoadAcquire)
+    cell.volatileStore(first + 1, StoreRelease)
+    return cell.volatileLoad(LoadRelaxed)
+
+-- Sequential atomic stores remain atomic when the local backend expands them into an exchange.
+fn atomicSequential(p: %U8) -> U32:
+    let cell = Native.atomicAt(p) :: 'Atomic(U32)
+    cell.volatileStore(1, StoreSequential)
+    return cell.volatileLoad(LoadSequential)

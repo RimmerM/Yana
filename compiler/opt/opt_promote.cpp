@@ -240,6 +240,7 @@ void collectCandidates(OptContext& opt, const IndexSet& contained, Array<Candida
             if(instruction->kind != Value::LoadPlace) continue;
 
             auto& load = (InstLoadPlace&)*instruction;
+            if(load.volatileAccess) continue;
             if(load.place.projections.isEmpty()) continue;
             if(!holdsLoadableValue(opt, load.type)) continue;
             if(!staysInFrame(opt, contained, load.place)) continue;

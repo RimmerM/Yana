@@ -738,7 +738,7 @@ LowerPtr<LowerValue> Lowering::fieldAddress(LowerBlock& block, LowerPtr<LowerVal
     return boxTarget(block, slot);
 }
 
-void Lowering::install(LowerBlock& block, LowerPtr<LowerValue> address, Value& value) {
+void Lowering::install(LowerBlock& block, LowerPtr<LowerValue> address, Value& value, bool isVolatile) {
     auto manifest = manifestOf(value);
 
     // A size of zero is `{}` and there is nothing to install. Not the same test as "no bytes": a
@@ -750,7 +750,7 @@ void Lowering::install(LowerBlock& block, LowerPtr<LowerValue> address, Value& v
     if(!source) return;
 
     if(!manifest.inMemory) {
-        block.addInst(lower, new (to.arena) LowerInstStore(address, source - lower, manifest.size));
+        block.addInst(lower, new (to.arena) LowerInstStore(address, source - lower, manifest.size, isVolatile));
         return;
     }
 
@@ -1637,7 +1637,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 break;
             }
 
-            install(block, address - lower, *ssa[written.value.value()]);
+            install(block, address - lower, *ssa[written.value.value()], written.isVolatile);
 
             // A write through a field requirement that was *copied* out lands in the temporary, and
             // the commit is what makes it the subject's - see `readProperty`.
@@ -2039,7 +2039,8 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * where the enum-layout record that made it one is argued.
              */
             auto value = block.addInst(lower, new (to.arena) LowerInstLoad(
-                address - lower, StringId(), manifest.type, manifest.size, manifest.isSigned));
+                address - lower, StringId(), manifest.type, manifest.size, manifest.isSigned,
+                written.isVolatile));
 
             // The tail-read guarantee, spent - `LowerInstLoad::isOverread`, where the three passes
             // that must not read "past the end" as a bug are named. Set here rather than in the
@@ -3091,7 +3092,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
 
                     auto value = block.addInst(lower, new (to.arena) LowerInstAtomicLoad(
                         args[0], StringId(), manifest.type, manifest.size, manifest.isSigned,
-                        lowerOrder(written.order)));
+                        lowerOrder(written.order), written.isVolatile));
 
                     values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
                     break;
@@ -3101,7 +3102,8 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     auto manifest = accessOf(*ssa[written.arguments.get(ssa, 1).value()]);
 
                     block.addInst(lower, new (to.arena) LowerInstAtomicStore(
-                        args[0], args[1], manifest.size, lowerOrder(written.order)));
+                        args[0], args[1], manifest.size, lowerOrder(written.order),
+                        written.isVolatile));
                     break;
                 }
 

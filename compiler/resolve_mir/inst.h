@@ -265,6 +265,10 @@ struct NodeAtomic: NodeResult {
     // false everywhere else.
     bool weak = false;
 
+    // Volatile is independent of the atomic order: it makes this location access observable to
+    // device memory, while `order` remains the inter-thread ordering edge.
+    bool isVolatile = false;
+
     OperandList arguments;
 
     // By reference, for `NodeNative::eachOperand`'s reason.
@@ -533,6 +537,10 @@ struct NodeRead: NodeResult {
      * of whatever follows.
      */
     bool overread = false;
+
+    // A volatile access is observable even when its value is unused and may not be merged with
+    // another access. It is deliberately separate from `overread`.
+    bool isVolatile = false;
 
     template<class F> void eachOperand(MirBase, F&& f) { f(place, OperandRole::ReadSource); }
     template<class F> void eachEdge(MirBase, F&&) {}
@@ -937,6 +945,9 @@ struct NodeWrite: Node {
     Operand destination;
     Operand value;
     Destination mode;
+
+    // A volatile write must reach the device exactly as written.
+    bool isVolatile = false;
 
     template<class F> void eachOperand(MirBase, F&& f) {
         f(destination, OperandRole::WriteTarget);

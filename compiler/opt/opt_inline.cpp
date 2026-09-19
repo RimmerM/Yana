@@ -2380,14 +2380,17 @@ struct Inliner {
                 // is inside `loadVectorTail`, which is small enough that the inliner always takes
                 // it - so dropping it here dropped it everywhere.
                 cloned->overread = ((InstLoadPlace&)instruction).overread;
+                cloned->volatileAccess = ((InstLoadPlace&)instruction).volatileAccess;
                 return (Inst*)cloned;
             }
             case Value::Init:
             case Value::Assign: {
                 auto& write = (InstInit&)instruction;
-                return (Inst*)createInst<InstInit>(module, function, into, source, name, type,
+                auto cloned = createInst<InstInit>(module, function, into, source, name, type,
                                                    place(write.place), value(write.value),
                                                    instruction.kind);
+                cloned->volatileAccess = write.volatileAccess;
+                return (Inst*)cloned;
             }
             case Value::Aggregate: {
                 auto& aggregate = (InstAggregate&)instruction;

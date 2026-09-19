@@ -1,0 +1,70 @@
+module ResolveTest
+
+fn pointer(p: %U32 [shared call]) -> U32 {
+bb0(%0: %U32 trivial):
+  %4: U32 trivial = load.volatile inspect %0
+  %7: U32 trivial = const 1
+  %8: U32 trivial = add inspect %4 inspect %7
+  store inspect %0 consume %8
+  %10: U32 trivial = load.volatile inspect %0
+  return consume %10
+}
+
+fn discarded(p: %U32 [shared call], flag: Bool [shared call]) -> U32 {
+bb0(%0: %U32 trivial, %1: Bool trivial):
+  branch inspect %1 -> bb3 -> bb2
+
+bb2:
+  %7: U32 trivial = const 1
+  store inspect %0 consume %7
+  %8: U32 trivial = const 0
+  return consume %8
+
+bb3:
+  %10: U32 trivial = load.volatile inspect %0
+  jump -> bb2
+}
+
+fn looped(p: %U32 [shared call], count: U32 [shared call]) -> U32 {
+bb0(%0: %U32 trivial, %1: U32 trivial):
+  %6: U32 trivial = const 0
+  %14: U32 trivial = const 1
+  jump -> bb1(inspect %6)
+
+bb1(%18: U32 trivial):
+  %9: Bool trivial = lt inspect %18 inspect %1
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  return consume %18
+
+bb3:
+  %12: U32 trivial = load.volatile inspect %0
+  %15: U32 trivial = add inspect %18 inspect %14
+  jump -> bb1(inspect %15)
+}
+
+fn atomic'2(p: %U8 [shared call]) -> U32 {
+bb0(%0: %U8 trivial):
+  %4: Atomic(U32) [shared slot 0] guaranteed = load inspect %0
+  %5: Atomic(U32) [shared slot 0] guaranteed from{%4} = load inspect %4
+  %7: U32 trivial = atomic.load acquire volatile inspect %5
+  %8: Atomic(U32) [shared slot 0] guaranteed from{%4} = load inspect %4
+  %10: U32 trivial = const 1
+  %11: U32 trivial = add inspect %7 inspect %10
+  atomic.store release volatile inspect %8 inspect %11
+  %13: Atomic(U32) [shared slot 0] guaranteed from{%4} = load inspect %4
+  %15: U32 trivial = atomic.load relaxed volatile inspect %13
+  return consume %15
+}
+
+fn atomicSequential(p: %U8 [shared call]) -> U32 {
+bb0(%0: %U8 trivial):
+  %3: Atomic(U32) [shared slot 0] guaranteed = load inspect %0
+  %4: Atomic(U32) [shared slot 0] guaranteed from{%3} = load inspect %3
+  %5: U32 trivial = const 1
+  atomic.store seqcst volatile inspect %4 inspect %5
+  %7: Atomic(U32) [shared slot 0] guaranteed from{%3} = load inspect %3
+  %9: U32 trivial = atomic.load seqcst volatile inspect %7
+  return consume %9
+}

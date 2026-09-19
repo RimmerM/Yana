@@ -232,6 +232,7 @@ struct Promoter {
     // neither and every other kind is one or the other or nothing.
     U32 readSlot(Inst& inst) {
         if(inst.kind != Inst::Load) return kNoSlot;
+        if(((InstLoad&)inst).isVolatile) return kNoSlot;
 
         // A borrow of the slot is a second *name* for it and not a read of what is in it - `scan`
         // followed it and `run` erases it with the storage, so neither the survey nor the rewrite
@@ -340,6 +341,7 @@ struct Promoter {
     bool scanUses(Survey& survey, Value& named) {
         for(auto userPointer: named.uses(opt.base)) {
             auto& user = *opt.base[userPointer];
+            if(isVolatileMemory(user)) return false;
             auto names = [&](Use used) { return addressOf(used) == &named; };
 
             switch(user.kind) {

@@ -1235,8 +1235,10 @@ static void genLoad(FunGen& f, LowerInstLoad& inst) {
     // from anything here, and an `alloca` is exactly such an object.
     if(isVectorLike(result) || isFloat(result) || (isPtr(result) && width == 8)) {
         value = f.builder.CreateAlignedLoad(type, from, kUnknownAlign, name);
+        llvm::cast<llvm::LoadInst>(value)->setVolatile(inst.isVolatile());
     } else {
         auto loaded = f.builder.CreateAlignedLoad(intTypeOfWidth(f.gen, width), from, kUnknownAlign);
+        loaded->setVolatile(inst.isVolatile());
 
         // A narrow load is widened into its result the way the access says it should be: `loads`
         // carries the sign bit up, `load` fills with zeroes.
@@ -1263,7 +1265,8 @@ static void genStore(FunGen& f, LowerInstStore& inst) {
         }
     }
 
-    f.builder.CreateAlignedStore(value, to, kUnknownAlign);
+    auto store = f.builder.CreateAlignedStore(value, to, kUnknownAlign);
+    store->setVolatile(inst.isVolatile());
 }
 
 /*
@@ -1329,6 +1332,7 @@ static void genAtomicLoad(FunGen& f, LowerInstAtomicLoad& inst) {
 
     auto load = f.builder.CreateAlignedLoad(type, use(f, inst, inst.from), llvm::Align(width));
     load->setAtomic(orderingOf(inst.order));
+    load->setVolatile(inst.isVolatile());
 
     f.define(inst.result, atomicResult(f, load, result, inst.isSigned(), nameOf(f, inst.result)));
 }
@@ -1339,6 +1343,7 @@ static void genAtomicStore(FunGen& f, LowerInstAtomicStore& inst) {
 
     auto store = f.builder.CreateAlignedStore(value, use(f, inst, inst.to), llvm::Align(width));
     store->setAtomic(orderingOf(inst.order));
+    store->setVolatile(inst.isVolatile());
 }
 
 static void genAtomicRmw(FunGen& f, LowerInstAtomicRmw& inst) {
@@ -1358,6 +1363,7 @@ static void genAtomicRmw(FunGen& f, LowerInstAtomicRmw& inst) {
 
     auto rmw = f.builder.CreateAtomicRMW(op, use(f, inst, inst.to), value,
                                          llvm::MaybeAlign(width), orderingOf(inst.order));
+    rmw->setVolatile(inst.isVolatile());
 
     f.define(inst.result, atomicResult(f, rmw, result, false, nameOf(f, inst.result)));
 }

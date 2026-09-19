@@ -1,0 +1,159 @@
+
+reads<complex>(%p: Ptr): I32 {
+  b_0 {
+    %a = loadv %p, 4: I32
+    %b = loadv %p, 4: I32
+    %c = add %a, %b: I32
+    ret %c
+  }
+}
+
+writes<complex>(%p: Ptr, %v: I32): I32 {
+  b_0 {
+    storev %p, %v, 4
+    %a = loadv %p, 4: I32
+    ret %a
+  }
+}
+
+atomicReads<complex>(%p: Ptr): I32 {
+  b_0 {
+    %a = atomic_loadv %p, 4, acquire: I32
+    %b = atomic_loadv %p, 4, relaxed: I32
+    %c = add %a, %b: I32
+    ret %c
+  }
+}
+
+atomicWrites<complex>(%p: Ptr, %v: I32): I32 {
+  b_0 {
+    atomic_storev %p, %v, 4, release
+    %a = atomic_loadv %p, 4, relaxed: I32
+    ret %a
+  }
+}
+
+deadBranch<complex>(%p: Ptr, %flag: I32): I32 {
+  entry {
+    je %flag, yes, no
+  }
+
+  yes {
+    %ignored = loadv %p, 4: I32
+    jmp join
+  }
+
+  no {
+    jmp join
+  }
+
+  join {
+    storev %p, 1, 4
+    ret 0
+  }
+}
+
+poll<complex>(%p: Ptr, %count: I32): I32 {
+  entry {
+    jmp head
+  }
+
+  head {
+    %i = phi [entry, 0], [body, %next]: I32
+    %v_0 = cmp_ilt %i, %count: I32
+    je %v_0, body, exit
+  }
+
+  body {
+    %ignored = loadv %p, 4: I32
+    %next = add %i, 1: I32
+    jmp head
+  }
+
+  exit {
+    ret %i
+  }
+}
+
+atomicSequential<complex>(%p: Ptr): I32 {
+  b_0 {
+    atomic_storev %p, 1, 4, seq_cst
+    %a = atomic_loadv %p, 4, seq_cst: I32
+    ret %a
+  }
+}
+
+
+--- codegen: reads ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  loadv uses=[rdi] creates=[rax]  => 8b07
+  loadv uses=[rdi] creates=[rdi]  => 8b3f
+  add uses=[rax, rdi] creates=[rax]  => 01f8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: writes ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  storev uses=[rdi, rsi] creates=[]  => 8937
+  loadv uses=[rdi] creates=[rax]  => 8b07
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: atomicReads ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_loadv uses=[rdi] creates=[rax]  => 8b07
+  atomic_loadv uses=[rdi] creates=[rdi]  => 8b3f
+  add uses=[rax, rdi] creates=[rax]  => 01f8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: atomicWrites ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_storev uses=[rdi, rsi] creates=[]  => 8937
+  atomic_loadv uses=[rdi] creates=[rax]  => 8b07
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: deadBranch ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block entry:
+  je uses=[rsi] creates=[]  => 85f67402
+block yes:
+  loadv uses=[rdi] creates=[rax]  => 8b07
+  jmp uses=[] creates=[]  => 
+block join:
+  imm uses=[] creates=[-]  => 
+  storev uses=[rdi, -] creates=[]  => c70701000000
+  imm uses=[] creates=[remat:0]  => 
+  ret uses=[rax] creates=[] pre=[remat:0->rax]  => b800000000c3
+
+--- codegen: poll ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block entry:
+  imm uses=[] creates=[rax]  => 31c0
+  cmp_ilt uses=[rax, rsi] creates=[-]  => 39f0
+  je uses=[-] creates=[]  => 7d12
+  align  => 66660f1f840000000000
+block body:
+  loadv uses=[rdi] creates=[rcx]  => 8b0f
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => ffc0
+  cmp_ilt uses=[rax, rsi] creates=[-]  => 39f0
+  je uses=[-] creates=[]  => 7cf8
+block exit:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: atomicSequential ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[remat:0]  => 
+  atomic_xchg uses=[rdi, rax] creates=[rax] pre=[remat:0->rax]  => b8010000008707
+  atomic_loadv uses=[rdi] creates=[rax]  => 8b07
+  ret uses=[rax] creates=[]  => c3

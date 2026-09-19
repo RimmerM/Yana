@@ -388,6 +388,7 @@ bool constantVectorBytes(LowerBase base, LowerValue* value, U8* bytes, Size size
      */
     if(inst->kind == LowerInst::Load) {
         auto load = (LowerInstLoad*)inst;
+        if(load->isVolatile()) return false;
         if(load->getWidth() != size) return false;
 
         auto address = base[load->from]->inst();

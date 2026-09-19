@@ -538,20 +538,24 @@ TypePtr ExprResolver::placeType(const Place& place) {
     return ::placeType(module, function, place);
 }
 
-ModulePtr<Value> ExprResolver::load(Place place, LocationId source, StringId valueName) {
+ModulePtr<Value> ExprResolver::load(Place place, LocationId source, StringId valueName, bool volatileAccess) {
     auto type = placeType(place);
     if(isUnit(global, type)) return nullptr;
 
     // A read of part of an immutable global's constant, which is that part rather than a load - see
     // foldConstantRead. The one choke point every read goes through, which is what makes `origin`,
     // `origin.x` and `table[2]` one rule instead of three.
-    if(auto folded = foldConstantRead(place, source)) return folded;
+    if(!volatileAccess) {
+        if(auto folded = foldConstantRead(place, source)) return folded;
+    }
 
     // Storage is read, so the global is part of the program. `markProgramReachable` rebuilds this
     // for an executable and this is what a library compile has instead - see that pass.
     if(place.root == PlaceRoot::Global && place.global) local[place.global]->used = true;
 
-    return ref(emit<InstLoadPlace>(source, valueName, type, place));
+    auto load = emit<InstLoadPlace>(source, valueName, type, place);
+    load->volatileAccess = volatileAccess;
+    return ref(load);
 }
 
 /*
@@ -588,14 +592,14 @@ void ExprResolver::dropUnusedRead(ModulePtr<Value> value) {
     IrEditor(module, function).eraseInstruction((ModulePtr<Inst>)value);
 }
 
-void ExprResolver::initialize(Place place, ModulePtr<Value> value, LocationId source) {
-    write(place, value, source, Value::Init);
+void ExprResolver::initialize(Place place, ModulePtr<Value> value, LocationId source, bool volatileAccess) {
+    write(place, value, source, Value::Init, volatileAccess);
 }
 
 // Overwriting storage that already held a live value. The difference from initialize() is entirely
 // about what the old value was owed - see InstInit - so the two share everything else.
-void ExprResolver::assign(Place place, ModulePtr<Value> value, LocationId source) {
-    write(place, value, source, Value::Assign);
+void ExprResolver::assign(Place place, ModulePtr<Value> value, LocationId source, bool volatileAccess) {
+    write(place, value, source, Value::Assign, volatileAccess);
 }
 
 /*
@@ -786,7 +790,7 @@ void ExprResolver::recordTransfer(ModulePtr<Value> value) {
 }
 #endif
 
-void ExprResolver::write(Place place, ModulePtr<Value> value, LocationId source, Value::Kind kind) {
+void ExprResolver::write(Place place, ModulePtr<Value> value, LocationId source, Value::Kind kind, bool volatileAccess) {
     if(isUnit(global, placeType(place))) return;
 
     if(!value) {
@@ -811,7 +815,8 @@ void ExprResolver::write(Place place, ModulePtr<Value> value, LocationId source,
     // where analyzeEffects reads it from, so that the two cannot drift apart silently.
     recordTransfer(value);
 
-    emit<InstInit>(source, StringId(), module.scalar.unit, place, value, kind);
+    auto instruction = emit<InstInit>(source, StringId(), module.scalar.unit, place, value, kind);
+    instruction->volatileAccess = volatileAccess;
 }
 
 /*

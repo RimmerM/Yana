@@ -452,13 +452,12 @@ struct Lowering {
     // Installing a value into storage: a store where it is a register value and a block copy where
     // it lives in memory. One function, because "install this here" is one operation and the
     // manifestation is what decides its machine form.
-    void install(LowerBlock& block, LowerPtr<LowerValue> address, Value& value);
+    void install(LowerBlock& block, LowerPtr<LowerValue> address, Value& value, bool isVolatile = false);
 
     // A fixed array's components as one `setpattern`, where every one of them is the same byte -
     // the block fill, and false where they are not. See the definition for the four things that
     // have to hold.
-    bool uniformFill(LowerBlock& block, LowerPtr<LowerValue> storage, InstAggregate& written,
-                     U32 stride);
+    bool uniformFill(LowerBlock& block, LowerPtr<LowerValue> storage, InstAggregate& written, U32 stride);
 
     // A record's runs of zero fields as `setpattern`s, with the fields each run covers marked in
     // `filled` so that the field walk skips them. See the definition for what bounds a run.

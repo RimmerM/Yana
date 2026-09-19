@@ -158,6 +158,7 @@ bool speculatable(OptContext& opt, ModulePtr<Block> head, Value& value) {
     if(isPureValue(value)) return true;
 
     if(value.kind != Value::LoadPlace || !selectableType(opt, value.type)) return false;
+    if(((InstLoadPlace&)value).volatileAccess) return false;
 
     auto& place = ((InstLoadPlace&)value).place;
     if(place.root != PlaceRoot::Local) return false;

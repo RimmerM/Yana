@@ -1520,7 +1520,8 @@ struct Inliner {
                 made = editor.addAtomic(at, written.op, written.order, written.failure, written.weak,
                                         arguments.pointer(), arguments.size(),
                                         results ? occurrence() : Occurrence(),
-                                        results ? convention() : Convention::Trivial, results != 0);
+                                        results ? convention() : Convention::Trivial, results != 0,
+                                        written.isVolatile);
                 break;
             }
 
@@ -1620,7 +1621,8 @@ struct Inliner {
             // one.
             case Inst::Load:
                 made = editor.addLoad(at, mapUse(clone, ((InstLoad&)from).address), occurrence(),
-                                      convention(), ((InstLoad&)from).overread);
+                                      convention(), ((InstLoad&)from).overread,
+                                      ((InstLoad&)from).isVolatile);
                 break;
 
             case Inst::Copy:
@@ -1631,7 +1633,7 @@ struct Inliner {
             case Inst::Store: {
                 auto& written = (InstStore&)from;
                 made = editor.addStore(at, mapUse(clone, written.address),
-                                       mapUse(clone, written.value));
+                                       mapUse(clone, written.value), written.isVolatile);
                 break;
             }
 

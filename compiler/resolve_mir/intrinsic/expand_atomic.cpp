@@ -165,6 +165,18 @@ Node* expandAtomicLoad(Builder& builder, Function&, Node* const* arguments, cons
                              arguments, 1, content);
 }
 
+Node* expandAtomicVolatileLoad(Builder& builder, Function&, Node* const* arguments,
+                               const Substitution&, LocationId source) {
+    auto content = contentOf(builder, *arguments[0]);
+    if(!content) return nullptr;
+
+    auto order = orderArgument(builder, *arguments[1], kLoadOrders, "order"_v, source);
+    if(!order) return nullptr;
+
+    return builder.addAtomic(source, AtomicOp::Load, order.unwrap(), order.unwrap(), false,
+                             arguments, 1, content, true);
+}
+
 Node* expandAtomicStore(Builder& builder, Function& callee, Node* const* arguments,
                         const Substitution& with, LocationId source) {
     auto order = orderArgument(builder, *arguments[2], kStoreOrders, "order"_v, source);
@@ -174,6 +186,16 @@ Node* expandAtomicStore(Builder& builder, Function& callee, Node* const* argumen
 
     return builder.addAtomic(source, AtomicOp::Store, order.unwrap(), order.unwrap(), false,
                              arguments, 2, result);
+}
+
+Node* expandAtomicVolatileStore(Builder& builder, Function& callee, Node* const* arguments,
+                                const Substitution& with, LocationId source) {
+    auto order = orderArgument(builder, *arguments[2], kStoreOrders, "order"_v, source);
+    if(!order) return nullptr;
+
+    auto result = substituteType(builder.context, builder.program, callee.result.type, with);
+    return builder.addAtomic(source, AtomicOp::Store, order.unwrap(), order.unwrap(), false,
+                             arguments, 2, result, true);
 }
 
 /*

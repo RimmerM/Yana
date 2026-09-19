@@ -66,7 +66,7 @@ LowerInst* relocateWith(LowerContext& lower, LowerBlock& block, LowerPtr<LowerVa
  * caller records it as the instruction's result.
  */
 LowerInst* lowerStore(LowerContext& lower, LowerBlock& block, Function* function,
-                             Place place, ModulePtr<Value> value) {
+                             Place place, ModulePtr<Value> value, bool volatileAccess) {
 
         /*
          * Writing a value that carries nothing writes nothing.
@@ -90,7 +90,7 @@ LowerInst* lowerStore(LowerContext& lower, LowerBlock& block, Function* function
         if(auto bits = unitBits(lower, place)) {
             auto address = lowerPlace(lower, block, *function, place);
             block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
-                address, mappedValue(lower, value), bits / 8));
+                address, mappedValue(lower, value), bits / 8, volatileAccess));
             return nullptr;
         }
 
@@ -142,7 +142,7 @@ LowerInst* lowerStore(LowerContext& lower, LowerBlock& block, Function* function
                 relocateWith(lower, block, staging, staged, written);
             } else {
                 block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
-                    staging, staged, memoryWidth(lower, written)));
+                    staging, staged, memoryWidth(lower, written), volatileAccess));
             }
 
             callPropertyOp(lower, block, propertyOp(lower, block, slot, PropertyWitnessFields::kSet),
@@ -183,7 +183,8 @@ LowerInst* lowerStore(LowerContext& lower, LowerBlock& block, Function* function
             auto tagWidth = discriminantWidth(lower, *function, place);
             auto width = tagWidth ? tagWidth : memoryWidth(lower, lower.local[value]->type);
 
-            return block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, stored, width));
+            return block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
+                address, stored, width, volatileAccess));
         }
 
 }
@@ -413,7 +414,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 auto address = lowerPlace(lower, block, *function, loadInst.place);
                 lower.values.add(instValue, load(
                     lower.lower, lower.to, block, lower.lower[address], bits / 8, false,
-                    lowerType(lower, instruction.type), instruction.name
+                    lowerType(lower, instruction.type), instruction.name, loadInst.volatileAccess
                 )->created().ptr - lower.lower);
                 return nullptr;
             }
@@ -462,7 +463,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     memoryWidth(lower, instruction.type),
                     signedType(lower.global, instruction.type),
                     lowerType(lower, instruction.type),
-                    instruction.name
+                    instruction.name, loadInst.volatileAccess
                 )->created().ptr - lower.lower);
                 return nullptr;
             }
@@ -524,7 +525,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 tagWidth ? tagWidth : memoryWidth(lower, instruction.type),
                 signedType(lower.global, instruction.type),
                 lowerType(lower, instruction.type),
-                instruction.name
+                instruction.name, loadInst.volatileAccess
             );
 
             /*
@@ -548,7 +549,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
             // Null where the write was performed by one of `lowerStore`'s own paths - a scalarized
             // local, a packed field, a witness call. Those produced no instruction to map a result
             // to, which is what the early returns here used to say.
-            result = lowerStore(lower, block, function, init.place, init.value);
+            result = lowerStore(lower, block, function, init.place, init.value, init.volatileAccess);
             if(!result) return nullptr;
             break;
         }

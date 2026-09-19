@@ -260,8 +260,13 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
         case LowerInst::VecMove:
             return nameOfLaneMove(((LowerInstVecMove&)inst).getMove());
         case LowerInst::Load:
+            if(((LowerInstLoad&)inst).isVolatile()) {
+                return ((LowerInstLoad&)inst).isSigned() ? "loadsv"_v : "loadv"_v;
+            }
             if(((LowerInstLoad&)inst).isOverread()) return "loadx"_v;
             return ((LowerInstLoad&)inst).isSigned() ? "loads"_v : "load"_v;
+        case LowerInst::Store:
+            return ((LowerInstStore&)inst).isVolatile() ? "storev"_v : "store"_v;
 
         /*
          * The atomics, whose order is written out in full beside the instruction rather than encoded
@@ -274,7 +279,12 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
          * are two operations, where `acquire` and `release` are one operation twice.
          */
         case LowerInst::AtomicLoad:
+            if(((LowerInstAtomicLoad&)inst).isVolatile()) {
+                return ((LowerInstAtomicLoad&)inst).isSigned() ? "atomic_loadsv"_v : "atomic_loadv"_v;
+            }
             return ((LowerInstAtomicLoad&)inst).isSigned() ? "atomic_loads"_v : "atomic_load"_v;
+        case LowerInst::AtomicStore:
+            return ((LowerInstAtomicStore&)inst).isVolatile() ? "atomic_storev"_v : "atomic_store"_v;
         case LowerInst::AtomicRmw:
             switch(((LowerInstAtomicRmw&)inst).op) {
                 case LowerAtomicOp::Exchange: return "atomic_xchg"_v;

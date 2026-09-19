@@ -472,6 +472,7 @@ struct Eliminator {
     // The read in scope that answers this one, if any. The newest first, so a place written and read
     // again inside one block answers with the read below the write rather than the one above it.
     ModulePtr<Value> availableLoad(Value& read) {
+        if(read.kind == Value::LoadPlace && ((InstLoadPlace&)read).volatileAccess) return nullptr;
         auto host = isHostFieldRead(read);
 
         for(Size i = loads.size(); i-- > 0;) {
@@ -497,6 +498,7 @@ struct Eliminator {
     // A read remembered, and the one already in hand where there is one. Answers whether the
     // instruction was replaced, so the caller knows whether it is still there to walk past.
     bool forwardRead(ModulePtr<Inst> pointer, Value& read) {
+        if(read.kind == Value::LoadPlace && ((InstLoadPlace&)read).volatileAccess) return false;
         if(auto value = availableLoad(read)) {
             opt.ir().replaceValue((ModulePtr<Value>)pointer, value);
             return true;
@@ -742,11 +744,12 @@ static bool isDeadRead(OptContext& opt, Value& instruction) {
     if(instruction.kind == Value::Native) return isReadOnlyHostOp(opt, (InstNative&)instruction);
 
     if(instruction.kind != Value::LoadPlace) return false;
+    if(((InstLoadPlace&)instruction).volatileAccess) return false;
 
     /*
      * Every root, and the two that were missing are the ones a loop body reads through.
      *
-     * A read performs nothing. What the two roots above have that these do not is a *writer this
+     * An ordinary read performs nothing. What the two roots above have that these do not is a *writer this
      * pass can see*, and that is the question for forwarding a read rather than for removing one:
      * nothing observes what a dead load produced, so what it read and who else writes there cannot
      * matter. A borrow names storage that exists by construction, so removing one cannot even

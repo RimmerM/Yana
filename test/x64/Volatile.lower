@@ -1,0 +1,86 @@
+# Volatile accesses use the ordinary x64 load/store encodings, but each access remains observable.
+# The repeated loads and the store/load pair are intentionally adjacent so a backend optimization
+# must not merge them or remove the first one.
+
+reads(%p: Ptr): I32 {
+    {
+        %a = loadv %p, 4: I32
+        %b = loadv %p, 4: I32
+        %c = add %a, %b: I32
+        ret %c
+    }
+}
+
+writes(%p: Ptr, %v: I32): I32 {
+    {
+        storev %p, %v, 4
+        %a = loadv %p, 4: I32
+        ret %a
+    }
+}
+
+atomicReads(%p: Ptr): I32 {
+    {
+        %a = atomic_loadv %p, 4, acquire: I32
+        %b = atomic_loadv %p, 4, relaxed: I32
+        %c = add %a, %b: I32
+        ret %c
+    }
+}
+
+atomicWrites(%p: Ptr, %v: I32): I32 {
+    {
+        atomic_storev %p, %v, 4, release
+        %a = atomic_loadv %p, 4, relaxed: I32
+        ret %a
+    }
+}
+
+deadBranch(%p: Ptr, %flag: I32): I32 {
+    entry {
+        je %flag, yes, no
+    }
+
+    yes {
+        %ignored = loadv %p, 4: I32
+        jmp join
+    }
+
+    no {
+        jmp join
+    }
+
+    join {
+        storev %p, 1, 4
+        ret 0
+    }
+}
+
+poll(%p: Ptr, %count: I32): I32 {
+    entry {
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, 0], [body, %next]: I32
+        je (cmp_ilt %i, %count), body, exit
+    }
+
+    body {
+        %ignored = loadv %p, 4: I32
+        %next = add %i, 1: I32
+        jmp head
+    }
+
+    exit {
+        ret %i
+    }
+}
+
+atomicSequential(%p: Ptr): I32 {
+    {
+        atomic_storev %p, 1, 4, seq_cst
+        %a = atomic_loadv %p, 4, seq_cst: I32
+        ret %a
+    }
+}

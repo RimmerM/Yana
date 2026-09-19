@@ -251,6 +251,7 @@ struct Hoister {
      * anything at all the storage has to be a local no callee can name.
      */
     bool invariantRead(Loop& loop, InstLoadPlace& load) {
+        if(load.volatileAccess) return false;
         if(!readsMayLeave) return false;
         if(load.place.root != PlaceRoot::Local && load.place.root != PlaceRoot::Global) return false;
 
@@ -556,7 +557,11 @@ struct LoopKiller {
                 auto& instruction = *opt.local[pointer];
 
                 if(usedOutside(loop, (ModulePtr<Value>)pointer)) return false;
-                if(isPureValue(instruction) || instruction.kind == Value::LoadPlace) continue;
+                if(instruction.kind == Value::LoadPlace) {
+                    if(((InstLoadPlace&)instruction).volatileAccess) return false;
+                    continue;
+                }
+                if(isPureValue(instruction)) continue;
 
                 if(instruction.kind == Value::Assign && !step) {
                     step = pointer;

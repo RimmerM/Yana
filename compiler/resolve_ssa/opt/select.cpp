@@ -262,6 +262,7 @@ struct SelectConverter {
         if(inst.kind != Inst::Load) return false;
 
         auto& load = (InstLoad&)inst;
+        if(load.isVolatile) return false;
         if(!load.address.isSet()) return false;
 
         auto address = opt.base[load.address.value()];

@@ -1,0 +1,75 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+define fastcc i32 @pointer(ptr %p) #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = load volatile i32, ptr %p, align 1
+  %3 = add i32 %2, 1
+  store volatile i32 %3, ptr %p, align 1
+  %4 = load volatile i32, ptr %p, align 1
+  ret i32 %4
+}
+
+define fastcc i32 @discarded(ptr %p, i32 %flag) #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = icmp ne i32 %flag, 0
+  br i1 %2, label %3, label %5
+
+3:                                                ; preds = %1
+  %4 = load volatile i32, ptr %p, align 1
+  br label %6
+
+5:                                                ; preds = %1
+  br label %6
+
+6:                                                ; preds = %3, %5
+  store volatile i32 1, ptr %p, align 1
+  ret i32 0
+}
+
+define fastcc i32 @looped(ptr %p, i32 %count) #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  br label %2
+
+2:                                                ; preds = %7, %1
+  %3 = phi i32 [ 0, %1 ], [ %9, %7 ]
+  %4 = icmp ult i32 %3, %count
+  %5 = zext i1 %4 to i32
+  br i1 %4, label %7, label %6
+
+6:                                                ; preds = %2
+  ret i32 %3
+
+7:                                                ; preds = %2
+  %8 = load volatile i32, ptr %p, align 1
+  %9 = add i32 %3, 1
+  br label %2
+}
+
+define fastcc i32 @atomic(ptr %p) #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %first = load atomic volatile i32, ptr %p acquire, align 4
+  %2 = add i32 %first, 1
+  store atomic volatile i32 %2, ptr %p release, align 4
+  %3 = load atomic volatile i32, ptr %p monotonic, align 4
+  ret i32 %3
+}
+
+define fastcc i32 @atomicSequential(ptr %p) #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  store atomic volatile i32 1, ptr %p seq_cst, align 4
+  %2 = load atomic volatile i32, ptr %p seq_cst, align 4
+  ret i32 %2
+}
+
+attributes #0 = { "probe-stack"="inline-asm" }

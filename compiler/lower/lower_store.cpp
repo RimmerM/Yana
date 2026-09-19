@@ -35,6 +35,7 @@ U32 typeBits(LowerType type) {
  *    zeroes bits 32 to 63, so it is the stored value only where that value has them zero.
  */
 LowerValue* forwardedValue(LowerBase base, LowerInstStore* store, LowerInstLoad* load) {
+    if(store->isVolatile() || load->isVolatile()) return nullptr;
     if(store->to != load->from) return nullptr;
     if(store->getWidth() != load->getWidth()) return nullptr;
 
@@ -299,7 +300,7 @@ void forwardStoredValues(LowerBase base, LowerModule& module, LowerFunction& fun
                  * the one register whose zero is a literal of its own type.
                  */
                 auto type = load->result.type;
-                if(!forwarded && isInt(type) && !load->isOverread()) {
+                if(!load->isVolatile() && !forwarded && isInt(type) && !load->isOverread()) {
                     auto place = placeOf(base, contained, load->from, load->getWidth());
 
                     for(Size i = 0; i < recordCount; i++) {

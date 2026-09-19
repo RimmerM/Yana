@@ -1003,6 +1003,7 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             // walk. `loadVectorTail` is a generic function, so *every* overreading load in a real
             // program arrives through a specialization of one.
             ((InstLoadPlace*)result)->overread = ((InstLoadPlace&)inst).overread;
+            ((InstLoadPlace*)result)->volatileAccess = ((InstLoadPlace&)inst).volatileAccess;
             break;
         case Value::Init:
         case Value::Assign: {
@@ -1015,6 +1016,7 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
 
             result = resolver.emit<InstInit>(inst.source, inst.name, type, clonePlace(clone, init.place),
                                              value, inst.kind);
+            ((InstInit*)result)->volatileAccess = init.volatileAccess;
             break;
         }
         /*

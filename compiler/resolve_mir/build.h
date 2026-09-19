@@ -274,7 +274,8 @@ struct Builder {
      * so that a caller states the whole node rather than filling two fields afterwards.
      */
     Node* addAtomic(LocationId source, AtomicOp op, AtomicOrder order, AtomicOrder failure,
-                    bool weak, Node* const* arguments, Size count, DeclPtr<Type> result);
+                    bool weak, Node* const* arguments, Size count, DeclPtr<Type> result,
+                    bool isVolatile = false);
 
     // Whether the compare-exchange `cas` names actually stored - a `Bool`, read `Inspect`: a
     // projection of an answer already computed neither consumes nor borrows anything.
@@ -372,7 +373,7 @@ struct Builder {
      * option exists.
      */
     Node* addRead(LocationId source, Place& place, UseMode mode, Request wanted,
-                  bool overread = false);
+                  bool overread = false, bool isVolatile = false);
 
     /*
      * A scalar operation. The result type follows from the operation and the operand type through
@@ -444,7 +445,8 @@ struct Builder {
      * that could express writing an immutable binding would be an IR the loan checker has to have an
      * opinion about.
      */
-    Node* addWrite(LocationId source, Place& place, Node& value, Destination mode);
+    Node* addWrite(LocationId source, Place& place, Node& value, Destination mode,
+                   bool isVolatile = false);
 
     /*
      * Handing a value back, under the mode the *result declaration* asks for.

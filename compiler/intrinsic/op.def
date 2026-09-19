@@ -46,6 +46,8 @@
 //                 role           form          result        parameters
 YANA_INTRINSIC_OP( pointerLoad,   OpForm::Node, pointeeOf(0), pointerAt()                )
 YANA_INTRINSIC_OP( pointerStore,  OpForm::Node, unitAt(),     pointerAt(), handoverOf(0) )
+YANA_INTRINSIC_OP( volatileLoad,  OpForm::Node, pointeeOf(0), pointerAt()                )
+YANA_INTRINSIC_OP( volatileStore, OpForm::Node, unitAt(),     pointerAt(), handoverOf(0) )
 
 /*
  * `!`, `&&` and `||` - `lib/Core/Core.yana`'s three plain functions over `Truth`.
@@ -480,6 +482,8 @@ YANA_INTRINSIC_OP( atomicIntoValue,      OpForm::Node, anyAt(),   handoverAt()  
 
 YANA_INTRINSIC_OP( atomicLoad,           OpForm::Node, anyAt(),   valueAt(), valueAt()            )
 YANA_INTRINSIC_OP( atomicStore,          OpForm::Node, unitAt(),  valueAt(), valueAt(), valueAt() )
+YANA_INTRINSIC_OP( atomicVolatileLoad,   OpForm::Node, anyAt(),   valueAt(), valueAt()            )
+YANA_INTRINSIC_OP( atomicVolatileStore,  OpForm::Node, unitAt(),  valueAt(), valueAt(), valueAt() )
 YANA_INTRINSIC_OP( atomicExchange,       OpForm::Node, anyAt(),   valueAt(), valueAt(), valueAt() )
 
 YANA_INTRINSIC_OP( atomicFetchAdd,       OpForm::Node, anyAt(),   valueAt(), valueAt(), valueAt() )

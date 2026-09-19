@@ -1318,13 +1318,21 @@ inline bool isOverreadLoad(U8 memFlags) {
     return memFlags & 16;
 }
 
+// A volatile memory access is observable even when its result is unused. Keep it in the same
+// compact flag byte as width and signedness so the local backend can use the ordinary load/store
+// instruction forms while every lower pass can still recognize the ordering property.
+inline bool isVolatileMemory(U8 memFlags) {
+    return memFlags & 32;
+}
+
 inline U32 getMemoryWidth(U8 memFlags) {
     return 1 << (memFlags & 7);
 }
 
-inline U8 makeMemoryFlags(U32 width, bool isSigned) {
+inline U8 makeMemoryFlags(U32 width, bool isSigned, bool isVolatile = false) {
     auto flags = width ? Math::findFirstBit(width) : 0;
     if(isSigned) flags |= 8;
+    if(isVolatile) flags |= 32;
     return flags;
 }
 
@@ -1332,11 +1340,11 @@ inline U8 makeMemoryFlags(U32 width, bool isSigned) {
 // The source must be a pointer type.
 // The target type determines the number of bytes loaded from memory.
 struct LowerInstLoad: LowerInstSingle {
-    LowerInstLoad(LowerPtr<LowerValue> from, StringId name, LowerType type, U32 width, bool isSigned):
+    LowerInstLoad(LowerPtr<LowerValue> from, StringId name, LowerType type, U32 width, bool isSigned, bool isVolatile = false):
         LowerInstSingle(Load, name, type), from(from)
     {
         usedCount = 1;
-        flags = makeMemoryFlags(width, isSigned);
+        flags = makeMemoryFlags(width, isSigned, isVolatile);
     }
 
     U32 getWidth() const {
@@ -1349,6 +1357,10 @@ struct LowerInstLoad: LowerInstSingle {
 
     bool isOverread() const {
         return isOverreadLoad(flags);
+    }
+
+    bool isVolatile() const {
+        return isVolatileMemory(flags);
     }
 
     void setOverread() {
@@ -1366,15 +1378,19 @@ struct LowerInstLoad: LowerInstSingle {
 // Stores a value from a register into memory.
 // The value stored into must be a pointer.
 struct LowerInstStore: LowerInst {
-    LowerInstStore(LowerPtr<LowerValue> to, LowerPtr<LowerValue> value, U32 width):
+    LowerInstStore(LowerPtr<LowerValue> to, LowerPtr<LowerValue> value, U32 width, bool isVolatile = false):
         LowerInst(Store), to(to), value(value)
     {
         usedCount = 2;
-        flags = makeMemoryFlags(width, false);
+        flags = makeMemoryFlags(width, false, isVolatile);
     }
 
     U32 getWidth() const {
         return getMemoryWidth(flags);
+    }
+
+    bool isVolatile() const {
+        return isVolatileMemory(flags);
     }
 
     // Used values must be first after embedded values.
@@ -1513,15 +1529,16 @@ struct LowerInstVecStoreUpTo: LowerInst {
 // An indivisible read of `getWidth()` bytes - `load atomic`, `mov`, `ldar`.
 struct LowerInstAtomicLoad: LowerInstSingle {
     LowerInstAtomicLoad(LowerPtr<LowerValue> from, StringId name, LowerType type, U32 width,
-                        bool isSigned, LowerOrder order):
+                        bool isSigned, LowerOrder order, bool isVolatile = false):
         LowerInstSingle(AtomicLoad, name, type), from(from), order(order)
     {
         usedCount = 1;
-        flags = makeMemoryFlags(width, isSigned);
+        flags = makeMemoryFlags(width, isSigned, isVolatile);
     }
 
     U32 getWidth() const { return getMemoryWidth(flags); }
     bool isSigned() const { return isSignedLoad(flags); }
+    bool isVolatile() const { return isVolatileMemory(flags); }
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> from;
@@ -1536,14 +1553,15 @@ struct LowerInstAtomicLoad: LowerInstSingle {
 
 // An indivisible write of `getWidth()` bytes - `store atomic`, `mov` or `xchg`, `stlr`.
 struct LowerInstAtomicStore: LowerInst {
-    LowerInstAtomicStore(LowerPtr<LowerValue> to, LowerPtr<LowerValue> value, U32 width, LowerOrder order):
+    LowerInstAtomicStore(LowerPtr<LowerValue> to, LowerPtr<LowerValue> value, U32 width, LowerOrder order, bool isVolatile = false):
         LowerInst(AtomicStore), to(to), value(value), order(order)
     {
         usedCount = 2;
-        flags = makeMemoryFlags(width, false);
+        flags = makeMemoryFlags(width, false, isVolatile);
     }
 
     U32 getWidth() const { return getMemoryWidth(flags); }
+    bool isVolatile() const { return isVolatileMemory(flags); }
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> to, value;
@@ -1577,14 +1595,16 @@ struct LowerInstAtomicStore: LowerInst {
  */
 struct LowerInstAtomicRmw: LowerInstSingle {
     LowerInstAtomicRmw(LowerPtr<LowerValue> to, LowerPtr<LowerValue> value, StringId name,
-                       LowerType type, U32 width, LowerAtomicOp op, LowerOrder order):
+                       LowerType type, U32 width, LowerAtomicOp op, LowerOrder order,
+                       bool isVolatile = false):
         LowerInstSingle(AtomicRmw, name, type), to(to), value(value), op(op), order(order)
     {
         usedCount = 2;
-        flags = makeMemoryFlags(width, false);
+        flags = makeMemoryFlags(width, false, isVolatile);
     }
 
     U32 getWidth() const { return getMemoryWidth(flags); }
+    bool isVolatile() const { return isVolatileMemory(flags); }
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> to, value;
@@ -2641,14 +2661,33 @@ inline Size lowerInstAccesses(LowerInst* inst, LowerAccess* target) {
     });
 }
 
+// Volatile accesses share the ordinary Load/Store kinds so the local backend does not need a
+// second instruction family. Their dynamic flag still has to strengthen the generic row traits:
+// an observable device read is neither removable nor movable, and a device write retires earlier
+// load facts just like an ordered operation.
+inline bool isVolatileMemoryAccess(LowerInst* inst) {
+    switch(inst->kind) {
+        case LowerInst::Load:        return ((LowerInstLoad*)inst)->isVolatile();
+        case LowerInst::Store:       return ((LowerInstStore*)inst)->isVolatile();
+        case LowerInst::AtomicLoad:  return ((LowerInstAtomicLoad*)inst)->isVolatile();
+        case LowerInst::AtomicStore: return ((LowerInstAtomicStore*)inst)->isVolatile();
+        case LowerInst::AtomicRmw:   return ((LowerInstAtomicRmw*)inst)->isVolatile();
+        default: return false;
+    }
+}
+
 // The definition promised beside `hasLowerTrait` - see there for why an intrinsic answers from its
 // own row.
 inline U16 lowerInstFlags(LowerInst* inst) {
+    U16 flags;
     if(inst->kind == LowerInst::Intrinsic) {
-        return lowerIntrinsicDesc(((LowerInstIntrinsic*)inst)->getIntrinsic()).flags;
+        flags = lowerIntrinsicDesc(((LowerInstIntrinsic*)inst)->getIntrinsic()).flags;
+    } else {
+        flags = lowerInstTraits(inst).flags;
     }
 
-    return lowerInstTraits(inst).flags;
+    if(isVolatileMemoryAccess(inst)) flags |= kLowerOrdered;
+    return flags;
 }
 
 inline LiveSet* Liveness::getBlock(LowerBlock* b) {

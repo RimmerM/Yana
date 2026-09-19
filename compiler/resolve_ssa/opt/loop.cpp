@@ -440,7 +440,10 @@ struct LoopKiller {
                 // addition since `promote`, so the only store that could stand here is a write to a
                 // slot promotion declined, which is a write this pass has no account of.
                 if(isPure(inst.kind) || isTerminator(inst.kind)) continue;
-                if(inst.kind == Inst::Load) continue;
+                if(inst.kind == Inst::Load) {
+                    if(((InstLoad&)inst).isVolatile) { ok = false; return; }
+                    continue;
+                }
 
                 ok = false;
             }
@@ -706,6 +709,7 @@ struct Hoister {
 
     bool invariantRead(Loop& loop, Inst& inst, SmallArray<Inst*, 4>& chain) {
         if(inst.kind != Inst::Load) return false;
+        if(((InstLoad&)inst).isVolatile) return false;
 
         auto result = soleResult(opt, inst);
         if(!result || result->convention != Convention::Trivial) return false;

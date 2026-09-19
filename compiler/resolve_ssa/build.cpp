@@ -546,8 +546,10 @@ Inst* Editor::addFree(LocationId source, Use address) {
     return append(new (arena) InstFree(source, address));
 }
 
-Inst* Editor::addStore(LocationId source, Use address, Use value) {
-    return append(new (arena) InstStore(source, address, value));
+Inst* Editor::addStore(LocationId source, Use address, Use value, bool isVolatile) {
+    auto inst = new (arena) InstStore(source, address, value);
+    inst->isVolatile = isVolatile;
+    return append(inst);
 }
 
 Inst* Editor::addBinary(LocationId source, BinaryOp op, Use lhs, Use rhs,
@@ -567,9 +569,10 @@ Inst* Editor::addUnary(LocationId source, UnaryOp op, Use value,
 }
 
 Inst* Editor::addLoad(LocationId source, Use address, const Occurrence& result,
-                      Convention convention, bool overread) {
+                      Convention convention, bool overread, bool isVolatile) {
     auto inst = new (arena) InstLoad(source, address);
     inst->overread = overread;
+    inst->isVolatile = isVolatile;
     append(inst);
     addResult(*inst, result, convention);
     return inst;
@@ -620,8 +623,10 @@ Inst* Editor::addNative(LocationId source, mir::NativeOp op, const Use* argument
 
 Inst* Editor::addAtomic(LocationId source, mir::AtomicOp op, mir::AtomicOrder order,
                         mir::AtomicOrder failure, bool weak, const Use* arguments, Size count,
-                        const Occurrence& result, Convention convention, bool hasResult) {
+                        const Occurrence& result, Convention convention, bool hasResult,
+                        bool isVolatile) {
     auto inst = new (arena) InstAtomic(source, op, order, failure, weak);
+    inst->isVolatile = isVolatile;
     inst->arguments.reserve(arena, count);
     for(Size i = 0; i < count; i++) inst->arguments.push(arena, arguments[i]);
 

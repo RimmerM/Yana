@@ -191,7 +191,7 @@ struct Simplifier {
      *    is what says so, and it is the same restatement the inliner makes at a graft's two ends.
      */
     bool tryAggregateField(Inst& inst) {
-        if(inst.kind != Inst::Load || ((InstLoad&)inst).overread) return false;
+        if(inst.kind != Inst::Load || ((InstLoad&)inst).overread || ((InstLoad&)inst).isVolatile) return false;
 
         auto result = soleResult(inst);
         if(!result) return false;

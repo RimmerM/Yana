@@ -216,8 +216,9 @@ ModulePtr<Value> emitIntoValue(ExprResolver& resolver, Buffer<ModulePtr<Value>> 
 // One atomic instruction with its operands already in hand. Every emitter below ends in this.
 ModulePtr<Value> emitAtomicInst(ExprResolver& resolver, AtomicKind kind, AtomicOrder order,
                                 TypePtr type, Buffer<ModulePtr<Value>> operands,
-                                LocationId source, StringId name) {
+                                LocationId source, StringId name, bool volatileAccess = false) {
     auto instruction = resolver.create<InstAtomic>(source, name, type, kind, order);
+    instruction->volatileAccess = volatileAccess;
     for(auto operand: operands) instruction->args.push(resolver.module.arena, operand);
 
     resolver.append(instruction);
@@ -240,6 +241,18 @@ ModulePtr<Value> emitStore(ExprResolver& resolver, Buffer<ModulePtr<Value>> args
 
     ModulePtr<Value> operands[] = { atomicAddress(resolver, args[0], source), args[1] };
     return emitAtomicInst(resolver, AtomicKind::Store, order, type, { operands, 2 }, source, name);
+}
+
+ModulePtr<Value> emitVolatileLoad(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type, LocationId source, StringId name) {
+    auto order = tryMaybe(orderArgument(resolver, args[1], { kLoadOrders, 3 }, "order"_v, source), return nullptr);
+    ModulePtr<Value> operands[] = { atomicAddress(resolver, args[0], source) };
+    return emitAtomicInst(resolver, AtomicKind::Load, order, type, { operands, 1 }, source, name, true);
+}
+
+ModulePtr<Value> emitVolatileStore(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type, LocationId source, StringId name) {
+    auto order = tryMaybe(orderArgument(resolver, args[2], { kStoreOrders, 3 }, "order"_v, source), return nullptr);
+    ModulePtr<Value> operands[] = { atomicAddress(resolver, args[0], source), args[1] };
+    return emitAtomicInst(resolver, AtomicKind::Store, order, type, { operands, 2 }, source, name, true);
 }
 
 // The exchange and the five fetch operations, which are one shape: a location, a value, an order,
@@ -420,6 +433,8 @@ void definePreludeAtomic(Program& program, Module& atomic) {
 
     attachIntrinsic(atomic, Op::atomicLoad, emitLoad);
     attachIntrinsic(atomic, Op::atomicStore, emitStore);
+    attachIntrinsic(atomic, Op::atomicVolatileLoad, emitVolatileLoad);
+    attachIntrinsic(atomic, Op::atomicVolatileStore, emitVolatileStore);
     attachIntrinsic(atomic, Op::atomicExchange, emitUpdate<AtomicKind::Exchange>);
 
     attachIntrinsic(atomic, Op::atomicCompareExchange, emitCompareExchange<false>);

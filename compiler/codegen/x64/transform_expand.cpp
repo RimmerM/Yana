@@ -2297,7 +2297,7 @@ void expandAtomics(Context&, LowerBase base, LowerFunction& fun) {
             auto value = base[store->value];
             auto exchange = new (fun.arena) LowerInstAtomicRmw(
                 store->to, store->value, StringId(), value->type, store->getWidth(),
-                LowerAtomicOp::Exchange, LowerOrder::Sequential);
+                LowerAtomicOp::Exchange, LowerOrder::Sequential, store->isVolatile());
 
             insertInstAt(base, block, i, exchange);
             removeInst(base, inst);

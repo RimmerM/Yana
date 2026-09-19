@@ -344,7 +344,7 @@ InstResolver handleCmp() {
     };
 }
 
-template<bool signExtend, bool overread>
+template<bool signExtend, bool overread, bool volatileAccess = false>
 InstResolver handleLoad() {
     return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
@@ -366,7 +366,9 @@ InstResolver handleLoad() {
             type = justType(LowerType::Int32);
         }
 
-        auto load = new (resolve.moduleArena) LowerInstLoad(from - base, getResultName(result), type.unwrap(), size.i, signExtend);
+        auto load = new (resolve.moduleArena) LowerInstLoad(from - base, getResultName(result),
+                                                             type.unwrap(), size.i, signExtend,
+                                                             volatileAccess);
         if(overread) load->setOverread();
 
         return Just(block.addInst(base, load));
@@ -414,7 +416,7 @@ static U32 atomicWidthArgument(LowerResolve& resolve, LowerInstAst& ast, const L
     return U32(arg.i);
 }
 
-template<bool signExtend>
+template<bool signExtend, bool volatileAccess = false>
 InstResolver handleAtomicLoad() {
     return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
@@ -433,7 +435,8 @@ InstResolver handleAtomicLoad() {
         }
 
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstAtomicLoad(
-            from - base, getResultName(result), type.unwrap(), width, signExtend, order)));
+            from - base, getResultName(result), type.unwrap(), width, signExtend, order,
+            volatileAccess)));
     };
 }
 
@@ -910,6 +913,8 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
 
     addKind<LowerInst::Load>(instructionSet, handleLoad<false, false>());
     instructionSet.add(Context::nameHash("loads"_v), handleLoad<true, false>());
+    instructionSet.add(Context::nameHash("loadv"_v), handleLoad<false, false, true>());
+    instructionSet.add(Context::nameHash("loadsv"_v), handleLoad<true, false, true>());
 
     // A load that deliberately reads past the end of what it names - see isOverreadLoad. Unsigned
     // only: it is what a vector loop's last iteration does, and a vector load has no sign.
@@ -928,7 +933,23 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
             size.i = 4;
         }
 
-        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstStore(to - base, from - base, size.i)));
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstStore(to - base, from - base, size.i, false)));
+    });
+
+    instructionSet.add(Context::nameHash("storev"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 0);
+        assertArgCount(ast.args, 3);
+
+        auto to = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto from = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto size = ast.args[2];
+
+        if(!size.isInt()) {
+            resolve.diag.error("expected byte count for store"_v, ast.source);
+            size.i = 4;
+        }
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstStore(to - base, from - base, size.i, true)));
     });
 
     /*
@@ -941,6 +962,8 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
      */
     addKind<LowerInst::AtomicLoad>(instructionSet, handleAtomicLoad<false>());
     instructionSet.add(Context::nameHash("atomic_loads"_v), handleAtomicLoad<true>());
+    instructionSet.add(Context::nameHash("atomic_loadv"_v), handleAtomicLoad<false, true>());
+    instructionSet.add(Context::nameHash("atomic_loadsv"_v), handleAtomicLoad<true, true>());
 
     addKind<LowerInst::AtomicStore>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
@@ -952,7 +975,19 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         auto order = tryMaybe(orderArgument(resolve, ast, ast.args[3]), return Nothing());
 
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstAtomicStore(
-            to - base, value - base, width, order)));
+            to - base, value - base, width, order, false)));
+    });
+
+    instructionSet.add(Context::nameHash("atomic_storev"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 0);
+        assertArgCount(ast.args, 4);
+
+        auto to = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto value = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto width = atomicWidthArgument(resolve, ast, ast.args[2]);
+        auto order = tryMaybe(orderArgument(resolve, ast, ast.args[3]), return Nothing());
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstAtomicStore(to - base, value - base, width, order, true)));
     });
 
     instructionSet.add(Context::nameHash("atomic_xchg"_v), handleAtomicRmw<LowerAtomicOp::Exchange>());

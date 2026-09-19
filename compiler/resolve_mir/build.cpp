@@ -614,7 +614,7 @@ Node* Builder::addGenValue(LocationId source, DeclPtr<Type> variable) {
  * beyond the expression. §5.3 is the source-form half of the same table.
  */
 Node* Builder::addRead(LocationId source, Place& place, UseMode mode, Request wanted,
-                       bool overread) {
+                       bool overread, bool isVolatile) {
     // The mode *is* the request read against this place - `readMode`, which is the one place the
     // four answers are decided. Both travel because the resolver needs the mode in hand to report
     // the two positions it refuses, and this is the assertion that says they cannot disagree.
@@ -679,6 +679,7 @@ Node* Builder::addRead(LocationId source, Place& place, UseMode mode, Request wa
     auto node = new (arena()) NodeRead(source, placeOperand(place, mode));
     node->occurrence = requalified(place.occurrence, contract);
     node->overread = overread;
+    node->isVolatile = isVolatile;
 
     /*
      * The loan, where the read took one.
@@ -1000,12 +1001,14 @@ Node* Builder::addNative(LocationId source, NativeOp op, Node* const* arguments,
 
 // The argument is in build.h, beside the declaration.
 Node* Builder::addAtomic(LocationId source, AtomicOp op, AtomicOrder order, AtomicOrder failure,
-                         bool weak, Node* const* arguments, Size count, DeclPtr<Type> result) {
+                         bool weak, Node* const* arguments, Size count, DeclPtr<Type> result,
+                         bool isVolatile) {
     assertTrue(count == atomicOperandCount(atomicForm(op)));
 
     auto node = new (arena()) NodeAtomic(source, op, order);
     node->failure = failure;
     node->weak = weak;
+    node->isVolatile = isVolatile;
     node->occurrence = owned(result);
     node->arguments.reserve(arena(), count);
 
@@ -1387,7 +1390,8 @@ Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constru
     return node;
 }
 
-Node* Builder::addWrite(LocationId source, Place& place, Node& value, Destination mode) {
+Node* Builder::addWrite(LocationId source, Place& place, Node& value, Destination mode,
+                        bool isVolatile) {
     // What the current resolver cannot say and this one is built to: an assignment is not an
     // initialization. The place's own permission answers only the first of the two - a `let x` place
     // is written once, by the `Init` that establishes it, and never again.
@@ -1442,7 +1446,9 @@ Node* Builder::addWrite(LocationId source, Place& place, Node& value, Destinatio
 
     auto stored = resultOf(value, argumentMode(position, SourceKind::Result));
     auto destination = placeOperand(place, UseMode::BorrowUnique);
-    auto node = append(new (arena()) NodeWrite(source, destination, stored, mode));
+    auto node = new (arena()) NodeWrite(source, destination, stored, mode);
+    node->isVolatile = isVolatile;
+    append(node);
 
     /*
      * **Moving preserves a lineage** - this is the line that says so.

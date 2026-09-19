@@ -285,7 +285,7 @@ LowerInst* lowerCallInst(LowerContext& lower, LowerBlock& block, Inst& instructi
 // Storing a value into a place, which the two initializing instructions and several of the
 // ownership ones share. In lower_mem.cpp.
 LowerInst* lowerStore(LowerContext& lower, LowerBlock& block, Function* function, Place place,
-                      ModulePtr<Value> value);
+                      ModulePtr<Value> value, bool volatileAccess = false);
 LowerInst* relocateWith(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> target,
                         LowerPtr<LowerValue> source, TypePtr type);
 

@@ -443,6 +443,7 @@ struct Printer {
             case Node::Write:
                 writer.writeString("write."_v);
                 writer.writeString(destinationName(((NodeWrite&)value).mode));
+                if(((NodeWrite&)value).isVolatile) writer.writeString(".volatile"_v);
                 return;
             /*
              * The **constructor**, which is the one thing an operand list cannot show: two arms of a
@@ -484,7 +485,8 @@ struct Printer {
             // The tail-read guarantee, spent. Printed because a golden about `vectorPast` is about
             // exactly this bit - the place, the mode and the type are `vectorAt`'s.
             case Node::Read:
-                writer.writeString(((NodeRead&)value).overread ? "read.past"_v : "read"_v);
+                if(((NodeRead&)value).isVolatile) writer.writeString("read.volatile"_v);
+                else writer.writeString(((NodeRead&)value).overread ? "read.past"_v : "read"_v);
                 return;
             // The two bits the loan checker's element exemption reads, because a dump that hid them
             // would show two `swap`s a reader could not tell apart from two ordinary borrows.
@@ -613,6 +615,8 @@ struct Printer {
                     writer.writeString(atomicOrderName(atomic.failure));
                     if(atomic.weak) writer.writeString(" weak"_v);
                 }
+
+                if(atomic.isVolatile) writer.writeString(" volatile"_v);
 
                 break;
             }

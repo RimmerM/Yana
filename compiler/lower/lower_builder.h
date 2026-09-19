@@ -269,8 +269,8 @@ inline LowerInst* cmp(LowerBase base, LowerModule& module, LowerBlock& block, Lo
     return block.addInst(base, new (module.arena) LowerInstCmp(name, lhs - base, rhs - base, c, type));
 }
 
-inline LowerInst* load(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* from, U32 width, bool signExtend, LowerType type, StringId name) {
-    return block.addInst(base, new (module.arena) LowerInstLoad(from - base, name, type, width, signExtend));
+inline LowerInst* load(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* from, U32 width, bool signExtend, LowerType type, StringId name, bool isVolatile = false) {
+    return block.addInst(base, new (module.arena) LowerInstLoad(from - base, name, type, width, signExtend, isVolatile));
 }
 
 /*

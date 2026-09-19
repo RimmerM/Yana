@@ -65,12 +65,25 @@ static ModulePtr<Value> emitDeref(ExprResolver& resolver, Buffer<ModulePtr<Value
     return resolver.load(Place::atPointer(args[0]), source, name);
 }
 
+static ModulePtr<Value> emitVolatileDeref(ExprResolver& resolver,
+                                          Buffer<ModulePtr<Value>> args, TypePtr,
+                                          LocationId source, StringId name) {
+    return resolver.load(Place::atPointer(args[0]), source, name, true);
+}
+
 // An assignment rather than an initialization: what a raw pointer names is memory the program
 // manages itself, so whatever was there is being overwritten. Nothing is dropped either way - a
 // pointer root is outside the ownership graph entirely, which is what makes this the unsafe module.
 static ModulePtr<Value> emitStore(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr,
                                   LocationId source, StringId) {
     resolver.assign(Place::atPointer(args[0]), args[1], source);
+    return nullptr;
+}
+
+static ModulePtr<Value> emitVolatileStore(ExprResolver& resolver,
+                                          Buffer<ModulePtr<Value>> args, TypePtr,
+                                          LocationId source, StringId) {
+    resolver.assign(Place::atPointer(args[0]), args[1], source, true);
     return nullptr;
 }
 
@@ -566,6 +579,8 @@ static void attachPointerIntrinsics(Module& module) {
     // the checked world from the unchecked one.
     attachIntrinsic(module, Op::pointerLoad, emitDeref);
     attachIntrinsic(module, Op::pointerStore, emitStore);
+    attachIntrinsic(module, Op::volatileLoad, emitVolatileDeref);
+    attachIntrinsic(module, Op::volatileStore, emitVolatileStore);
     attachIntrinsic(module, Op::addressOf, emitAddressOf);
     attachIntrinsic(module, Op::pointerBorrow, emitBorrowAt<false>);
     attachIntrinsic(module, Op::pointerBorrowMut, emitBorrowAt<true>);

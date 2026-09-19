@@ -176,7 +176,8 @@ bool isRemovable(OptContext& opt, Inst& inst) {
  * those is what this asks. Deleting a read whose result has no readers moves nothing and duplicates
  * nothing - it removes a memory access whose value the program does not have a use for - and that is
  * a question the trait column does not answer, because everything else in this directory reaches a
- * dead load through `forwardMemory` and `removeDeadStorage` instead.
+ * dead load through `forwardMemory` and `removeDeadStorage` instead. A volatile read is excluded
+ * below because its access, not only its result, is observable.
  *
  * `dischargeChecks` is the caller that cannot: it runs above the `optimizeIr` gate, where neither of
  * those passes exists, and the `self.length` read a discharged bounds test leaves behind is exactly
@@ -185,6 +186,7 @@ bool isRemovable(OptContext& opt, Inst& inst) {
  */
 bool isRemovableIfUnread(OptContext& opt, Inst& inst) {
     if(!isPure(inst.kind) && inst.kind != Inst::Load) return false;
+    if(inst.kind == Inst::Load && ((InstLoad&)inst).isVolatile) return false;
     return ownershipAdmitsRemoval(opt, inst);
 }
 
@@ -229,6 +231,7 @@ bool isDiscardableIfUnread(OptContext& opt, Inst& inst) {
        inst.kind != Inst::FunValue && inst.kind != Inst::Copy) {
         return false;
     }
+    if(inst.kind == Inst::Load && ((InstLoad&)inst).isVolatile) return false;
 
     auto ok = true;
 
@@ -511,7 +514,7 @@ struct Eliminator {
      * a borrowed parameter have no root here, and a write anywhere might be a write of them.
      */
     Value* readAllocation(Inst& inst) {
-        if(inst.kind != Inst::Load) return nullptr;
+        if(inst.kind != Inst::Load || ((InstLoad&)inst).isVolatile) return nullptr;
 
         auto result = soleResult(opt, inst);
         if(!result || result->convention != Convention::Trivial) return nullptr;

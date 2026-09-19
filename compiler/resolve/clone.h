@@ -289,6 +289,7 @@ Inst* cloneComputation(Policy& policy, Value& from) {
 
             cloned->failure = atomic.failure;
             cloned->weak = atomic.weak;
+            cloned->volatileAccess = atomic.volatileAccess;
 
             for(auto argument: atomic.args.contents(*policy.module.arena)) {
                 cloned->args.push(policy.module.arena, value(argument));

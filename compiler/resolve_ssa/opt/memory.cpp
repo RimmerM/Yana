@@ -598,6 +598,7 @@ struct Forwarder {
 
     bool tryForward(Inst& inst) {
         auto& load = (InstLoad&)inst;
+        if(load.isVolatile) return false;
         if(!inst.results.size()) return false;
 
         auto result = opt.base[inst.results.get(opt.base, 0)];
@@ -638,6 +639,7 @@ struct Forwarder {
      */
     bool tryRedundantStore(Inst& inst) {
         auto& store = (InstStore&)inst;
+        if(store.isVolatile) return false;
         auto address = opt.base[store.address.value()];
         auto value = opt.base[store.value.value()];
 
@@ -665,6 +667,7 @@ struct Forwarder {
      */
     bool tryDeadStore(Inst& inst) {
         auto& store = (InstStore&)inst;
+        if(store.isVolatile) return false;
         auto address = opt.base[store.address.value()];
         auto value = opt.base[store.value.value()];
 
@@ -700,6 +703,12 @@ struct Forwarder {
             if(!inst.block) continue;
 
             if(inst.kind == Inst::Load) {
+                if(((InstLoad&)inst).isVolatile) {
+                    // It is an observable read, not a fact from which later ordinary reads may be
+                    // answered. Retire all forwarding facts while retaining the instruction.
+                    known.clear();
+                    continue;
+                }
                 if(tryForward(inst)) continue;
 
                 auto address = opt.base[((InstLoad&)inst).address.value()];
@@ -717,6 +726,11 @@ struct Forwarder {
             }
 
             if(inst.kind == Inst::Store) {
+                if(((InstStore&)inst).isVolatile) {
+                    // A device write may change any location visible through the raw address.
+                    known.clear();
+                    continue;
+                }
                 if(tryRedundantStore(inst)) continue;
                 tryDeadStore(inst);
 
@@ -1163,13 +1177,14 @@ struct MoveElider {
 
     bool tryElide(Inst& store) {
         auto& written = (InstStore&)store;
+        if(written.isVolatile) return false;
         auto moved = opt.base[written.value.value()];
 
         if(!isTracked(moved->convention) || moved->useCount() != 1) return false;
         if(!moved->definer) return false;
 
         auto load = opt.base[moved->definer];
-        if(load->kind != Inst::Load || !load->block) return false;
+        if(load->kind != Inst::Load || !load->block || ((InstLoad*)load)->isVolatile) return false;
 
         auto from = allocationOf(((InstLoad*)load)->address.value());
         auto into = allocationOf(written.address.value());

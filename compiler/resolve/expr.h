@@ -2100,7 +2100,7 @@ struct ExprResolver {
     void createBox(Place pointer, TypePtr target, LocationId source);
     TypePtr placeRootType(const Place& place);
     TypePtr placeType(const Place& place);
-    ModulePtr<Value> load(Place place, LocationId source, StringId name = StringId());
+    ModulePtr<Value> load(Place place, LocationId source, StringId name = StringId(), bool volatileAccess = false);
 
     // A read of a whole global that only existed for a projection to be taken off it - see
     // expr_construct.cpp, and why it is removed here rather than left to the optimizer.
@@ -2112,9 +2112,9 @@ struct ExprResolver {
                              ModulePtr<Value> tag = nullptr);
     bool buildSumAggregate(Place root, TypePtr recordType, U16 constructor, ModulePtr<Value> tag,
                            ModulePtr<Value> payload, LocationId source);
-    void initialize(Place place, ModulePtr<Value> value, LocationId source);
-    void assign(Place place, ModulePtr<Value> value, LocationId source);
-    void write(Place place, ModulePtr<Value> value, LocationId source, Value::Kind kind);
+    void initialize(Place place, ModulePtr<Value> value, LocationId source, bool volatileAccess = false);
+    void assign(Place place, ModulePtr<Value> value, LocationId source, bool volatileAccess = false);
+    void write(Place place, ModulePtr<Value> value, LocationId source, Value::Kind kind, bool volatileAccess = false);
     ModulePtr<Value> addressOf(Place place, LocationId source, StringId name = StringId());
 
     // `[1, 2, 3]`, and `xs[i]` in either a reading or an assigning position. Both build calls into

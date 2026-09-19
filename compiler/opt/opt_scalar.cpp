@@ -208,6 +208,7 @@ bool splittableSource(OptContext& opt, const Place& destination, ModulePtr<Value
  * being walked are the fields of the storage being written either way.
  */
 bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& write) {
+    if(write.volatileAccess) return false;
     if(!splittableSource(opt, write.place, write.value)) return false;
 
     auto source = allocatedLocal(opt, write.value).unwrap();
@@ -364,6 +365,7 @@ bool splitPhiOfLocals(OptContext& opt, const IndexSet& contained, Block& block,
         if(read.kind != Value::LoadPlace || read.block != here) return false;
 
         auto& load = (InstLoadPlace&)read;
+        if(load.volatileAccess) return false;
         if(!staysInFrame(opt, contained, load.place)) return false;
         if(load.place.local != destination) return false;
         if(!holdsLoadableValue(opt, load.type)) return false;

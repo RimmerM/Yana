@@ -49,6 +49,8 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
     switch(op) {
         case Op::pointerLoad:  return expandPointerLoad(builder, callee, arguments, with, source);
         case Op::pointerStore: return expandPointerStore(builder, callee, arguments, with, source);
+        case Op::volatileLoad: return expandVolatilePointerLoad(builder, callee, arguments, with, source);
+        case Op::volatileStore: return expandVolatilePointerStore(builder, callee, arguments, with, source);
         case Op::addressOf:    return expandAddressOf(builder, callee, arguments, with, source);
         case Op::pointerAdd:   return expandPointerAdd(builder, callee, arguments, with, source);
         case Op::pointerSub:   return expandPointerSub(builder, callee, arguments, with, source);
@@ -270,6 +272,10 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
             return expandAtomicLoad(builder, callee, arguments, with, source);
         case Op::atomicStore:
             return expandAtomicStore(builder, callee, arguments, with, source);
+        case Op::atomicVolatileLoad:
+            return expandAtomicVolatileLoad(builder, callee, arguments, with, source);
+        case Op::atomicVolatileStore:
+            return expandAtomicVolatileStore(builder, callee, arguments, with, source);
 
         case Op::atomicExchange:
             return expandAtomicUpdate(builder, AtomicOp::Exchange, arguments, source);

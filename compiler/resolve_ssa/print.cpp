@@ -133,7 +133,8 @@ struct Printer {
             // The tail-read guarantee, spent - `mir::NodeRead::overread`, and a golden about
             // `vectorPast` is about exactly this bit.
             case Inst::Load:
-                writer.writeString(((InstLoad&)value).overread ? "load.past"_v : "load"_v);
+                if(((InstLoad&)value).isVolatile) writer.writeString("load.volatile"_v);
+                else writer.writeString(((InstLoad&)value).overread ? "load.past"_v : "load"_v);
                 break;
             // Which operation, from op.def's atomic block - `instMnemonic` says `atomic` for
             // eleven of them, which is the base name a dump has no use for.
@@ -259,6 +260,8 @@ struct Printer {
                     writer.writeString(mir::atomicOrderName(atomic.failure));
                     if(atomic.weak) writer.writeString(" weak"_v);
                 }
+
+                if(atomic.isVolatile) writer.writeString(" volatile"_v);
 
                 break;
             }

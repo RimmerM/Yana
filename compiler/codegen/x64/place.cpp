@@ -1761,6 +1761,7 @@ static bool recipeFor(Placer& a, LowerValue* v, Remat& out) {
              * and the recipe emits a plain move of the value's own width.
              */
             auto load = (LowerInstLoad*)inst;
+            if(load->isVolatile()) return false;
             auto address = a.base[load->from];
             if(address->inst()->kind != LowerInst::Global) return false;
 

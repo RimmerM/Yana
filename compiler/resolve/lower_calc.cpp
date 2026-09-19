@@ -483,12 +483,12 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 case AtomicKind::Load:
                     result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAtomicLoad(
                         args[0], instruction.name, lowerType(lower, instruction.type), width,
-                        signedType(lower.global, instruction.type), order));
+                        signedType(lower.global, instruction.type), order, atomic.volatileAccess));
                     break;
 
                 case AtomicKind::Store:
                     result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAtomicStore(
-                        args[0], args[1], width, order));
+                        args[0], args[1], width, order, atomic.volatileAccess));
                     break;
 
                 case AtomicKind::Compare: {

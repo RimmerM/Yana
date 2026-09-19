@@ -6,6 +6,18 @@
 
 namespace ssa {
 
+// Volatile memory operations are observable compiler effects. They remain ordinary Load/Store
+// instructions so the backends can select their normal machine forms, but every optimization that
+// forwards, removes, duplicates or promotes memory must decline them.
+inline bool isVolatileMemory(Inst& inst) {
+    switch(inst.kind) {
+        case Inst::Load:  return ((InstLoad&)inst).isVolatile;
+        case Inst::Store: return ((InstStore&)inst).isVolatile;
+        case Inst::Atomic: return ((InstAtomic&)inst).isVolatile;
+        default: return false;
+    }
+}
+
 /*
  * What the passes share: the state one body is optimized against, and the handful of questions
  * about types and instructions that every one of them asks.

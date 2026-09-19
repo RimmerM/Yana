@@ -136,11 +136,12 @@ Size loadFloorOf(LowerBase base, LowerBlock* guard) {
  * comparison is the same argument one register further on, its readers being branches that carry it
  * in the flags.
  *
- * A *load* is admitted whatever it produces, the data pointer of a container being a load of pointer
- * type and exactly what this is for, and it is the only kind admitted with a floor.
+ * An ordinary *load* is admitted whatever it produces, the data pointer of a container being a
+ * load of pointer type and exactly what this is for, and it is the only kind admitted with a floor.
+ * A volatile load is an observable access rather than a value that may move through a join.
  */
 bool isMovable(LowerInst* inst) {
-    if(inst->kind == LowerInst::Load) return true;
+    if(inst->kind == LowerInst::Load) return !((LowerInstLoad*)inst)->isVolatile();
     if(!isRepeatable(inst)) return false;
     if(inst->createdCount != 1) return false;
     if(inst->kind == LowerInst::Set || inst->kind == LowerInst::Cmp) return false;

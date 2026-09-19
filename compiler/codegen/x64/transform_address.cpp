@@ -651,6 +651,11 @@ static Maybe<Size> tryFoldLoadOperand(Context& ctx, LowerBase base, LowerFunctio
     auto value = base[used[at]];
     auto load = (LowerInstLoad*)value->inst();
 
+    // A volatile read is an observable operation in its own right. Folding it into a consumer would
+    // erase that operation from the lower stream and would also let a device access inherit the
+    // consumer's memory form, so only ordinary loads may become memory operands.
+    if(load->isVolatile()) return Nothing();
+
     /*
      * Where the load stands, and whether the stretch between it and here leaves memory alone.
      *
@@ -1042,6 +1047,7 @@ static Maybe<Size> tryFoldStoreUpdate(LowerBase base, LowerFunction& fun, LowerB
     if(inst->kind != LowerInst::Store) return Nothing();
 
     auto store = (LowerInstStore*)inst;
+    if(store->isVolatile()) return Nothing();
     auto stored = base[store->value];
     auto op = stored->inst();
 
@@ -1074,6 +1080,7 @@ static Maybe<Size> tryFoldStoreUpdate(LowerBase base, LowerFunction& fun, LowerB
     if(from->uses.size() != 1) return Nothing();
 
     auto load = (LowerInstLoad*)from->inst();
+    if(load->isVolatile()) return Nothing();
 
     // The same location, and the same bytes of it. An overread is a load of more than it says and
     // has no in-place operation to be: what would be written back is the width, and what was read
@@ -1166,6 +1173,7 @@ static Maybe<Size> tryFoldByteSwapLoad(LowerBase base, LowerFunction& fun, Lower
     if(source->uses.size() != 1) return Nothing();
 
     auto load = (LowerInstLoad*)source->inst();
+    if(load->isVolatile()) return Nothing();
     auto width = is64Bit(reversal->result.type) ? 8u : 4u;
 
     // In this block, since that is where the access is put - see the header. A load in a block above
@@ -1201,6 +1209,7 @@ static Maybe<Size> tryFoldByteSwapStore(LowerBase base, LowerFunction& fun, Lowe
     if(inst->kind != LowerInst::Store) return Nothing();
 
     auto store = (LowerInstStore*)inst;
+    if(store->isVolatile()) return Nothing();
     auto stored = base[store->value];
     auto reversal = stored->inst();
 

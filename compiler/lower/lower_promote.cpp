@@ -202,10 +202,12 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
 
                 if(user->kind == LowerInst::Load) {
                     auto loadInst = (LowerInstLoad*)user;
+                    if(loadInst->isVolatile()) { usable = false; break; }
                     if(loadInst->getWidth() != width) { usable = false; break; }
                     type = loadInst->created().ptr->type;
                 } else if(user->kind == LowerInst::Store) {
                     auto storeInst = (LowerInstStore*)user;
+                    if(storeInst->isVolatile()) { usable = false; break; }
 
                     // Storing the address *into* the slot is the address escaping into memory, and
                     // is not the same thing as writing the slot.

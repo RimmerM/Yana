@@ -64,6 +64,7 @@ Address addressOf(LowerBase base, LowerValue* value) {
  * can, so hoisting one moves a copy rather than removing it.
  */
 bool worthHoisting(LowerInst* inst) {
+    if(inst->kind == LowerInst::Load && ((LowerInstLoad*)inst)->isVolatile()) return false;
     if(inst->kind == LowerInst::Set || inst->kind == LowerInst::Cmp) return false;
     return ((LowerInstSingle*)inst)->result.type != LowerType::Pointer;
 }

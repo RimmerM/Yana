@@ -148,7 +148,8 @@ struct Editor {
      */
     Inst* addAtomic(LocationId source, mir::AtomicOp op, mir::AtomicOrder order,
                     mir::AtomicOrder failure, bool weak, const Use* arguments, Size count,
-                    const Occurrence& result, Convention convention, bool hasResult);
+                    const Occurrence& result, Convention convention, bool hasResult,
+                    bool isVolatile = false);
 
     // Whether the compare-exchange named by `cas` stored - a projection of an instruction that has
     // already run, so it takes the `Bool` the library declared as its result type.
@@ -209,9 +210,9 @@ struct Editor {
     // `overread` is `InstLoad::overread` and defaults off - one MIR read in the language sets it,
     // and it travels from there to `LowerInstLoad::isOverread` unchanged.
     Inst* addLoad(LocationId source, Use address, const Occurrence& result, Convention convention,
-                  bool overread = false);
+                  bool overread = false, bool isVolatile = false);
     Inst* addCopy(LocationId source, Use address, const Occurrence& result, Convention convention);
-    Inst* addStore(LocationId source, Use address, Use value);
+    Inst* addStore(LocationId source, Use address, Use value, bool isVolatile = false);
 
     // A record from one value per field, in field order. The occurrence is the record's, and the
     // convention is `conventionFor`'s answer for it - the same function every other result goes

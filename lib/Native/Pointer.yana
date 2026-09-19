@@ -25,6 +25,12 @@
 @builtin(pointerLoad)
 pub fn *(it: %a) -> a
 
+-- Reads what a device pointer points at. The access is observable and is never folded, merged or
+-- removed by the compiler. Volatile is deliberately an operation rather than a pointer type: the
+-- same address may be ordinary memory in one access and device memory in another.
+@builtin(volatileLoad)
+pub fn volatileLoad(it: %a) -> a
+
 -- Writes through a pointer. There is no assignment form for this because `*p = v` is already one:
 -- a dereference in assignment position names storage rather than producing a value.
 --
@@ -33,6 +39,11 @@ pub fn *(it: %a) -> a
 -- body for the ownership pass to read, so a hand-over it does not write down is one nothing sees.
 @builtin(pointerStore)
 pub fn store(to: %a, ->value: a) -> {}
+
+-- Writes device memory. This is volatile, but not atomic; use the Atomic operations when the
+-- location also needs indivisible access and an explicit memory ordering.
+@builtin(volatileStore)
+pub fn volatileStore(to: %a, ->value: a) -> {}
 
 {-
    The address of a value. A value this is applied to cannot stay in a register, so it is what

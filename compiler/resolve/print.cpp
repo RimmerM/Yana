@@ -223,7 +223,12 @@ static StringView instructionName(Value& value, GlobalBase global) {
             // InstLoadPlace::overread. Spelled apart from an ordinary load because it is the one
             // thing about a load that changes what three passes may conclude from it, and the lower
             // IR draws the same distinction with the same name.
+            if(((InstLoadPlace&)value).volatileAccess) return "load.volatile"_v;
             return ((InstLoadPlace&)value).overread ? "loadx"_v : "load"_v;
+        case Value::Init:
+            return ((InstInit&)value).volatileAccess ? "init.volatile"_v : "init"_v;
+        case Value::Assign:
+            return ((InstInit&)value).volatileAccess ? "assign.volatile"_v : "assign"_v;
         case Value::VecMove:
             return nameOfLaneMove(((InstVecMove&)value).move);
         case Value::VecReduce:
@@ -262,8 +267,8 @@ static StringView instructionName(Value& value, GlobalBase global) {
         // instructions. See nameForInst in lower_print.cpp, which draws the same line.
         case Value::Atomic:
             switch(((InstAtomic&)value).kind) {
-                case AtomicKind::Load:     return "atomicload"_v;
-                case AtomicKind::Store:    return "atomicstore"_v;
+                case AtomicKind::Load:     return ((InstAtomic&)value).volatileAccess ? "atomicload.volatile"_v : "atomicload"_v;
+                case AtomicKind::Store:    return ((InstAtomic&)value).volatileAccess ? "atomicstore.volatile"_v : "atomicstore"_v;
                 case AtomicKind::Exchange: return "atomicxchg"_v;
                 case AtomicKind::Add:      return "atomicadd"_v;
                 case AtomicKind::Sub:      return "atomicsub"_v;

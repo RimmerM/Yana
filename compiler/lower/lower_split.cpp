@@ -163,6 +163,9 @@ bool collectUses(LowerBase base, Slot& slot, Size which, HashMap<U32, U64>& loca
         if(user->kind == LowerInst::Load) {
             auto loadInst = (LowerInstLoad*)user;
 
+            // Device reads must remain memory accesses in their original order.
+            if(loadInst->isVolatile()) return false;
+
             // A load that reads past what it names, deliberately, is the one thing a cell-sized
             // allocation cannot promise - see LowerInstLoad::isOverread.
             if(loadInst->isOverread()) return false;
@@ -177,6 +180,9 @@ bool collectUses(LowerBase base, Slot& slot, Size which, HashMap<U32, U64>& loca
 
         if(user->kind == LowerInst::Store) {
             auto storeInst = (LowerInstStore*)user;
+
+            // Device writes must remain memory accesses in their original order.
+            if(storeInst->isVolatile()) return false;
 
             // Storing the address *into* the slot is the address escaping into memory, and is not
             // the same thing as writing the slot.

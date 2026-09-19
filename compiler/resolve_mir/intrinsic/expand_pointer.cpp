@@ -359,21 +359,21 @@ Node* expandTypeTraits(Builder& builder, Function& callee, Node* const*, const S
  * carry a vector concern it does not have.
  */
 static Node* readThroughAddress(Builder& builder, Node& address, const Occurrence& result,
-                                LocationId source, bool overread) {
+                                LocationId source, bool overread, bool isVolatile = false) {
     auto place = builder.addressPlace(address, result, false);
 
     auto wanted = bindingRequest(Access::Owned);
     return builder.addRead(source, *place, readMode(*builder.program.decl, builder.base(), builder.body, *place, wanted), wanted,
-                           overread);
+                           overread, isVolatile);
 }
 
 // The place-level middle of every address `Write` - `expandPointerStore`'s comment on
 // `Destination::Assign` is what this still does not do (release, track) and why: an address root
 // has no move path, so neither call above nor below this point may claim one.
 static void writeThroughAddress(Builder& builder, Node& address, const Occurrence& held, Node& value,
-                                LocationId source) {
+                                LocationId source, bool isVolatile = false) {
     auto place = builder.addressPlace(address, requalified(held, ownedContract()), true);
-    builder.addWrite(source, *place, value, Destination::Assign);
+    builder.addWrite(source, *place, value, Destination::Assign, isVolatile);
 }
 
 Node* expandPointerLoad(Builder& builder, Function& callee, Node* const* arguments,
@@ -407,6 +407,21 @@ Node* expandPointerStore(Builder& builder, Function& callee, Node* const* argume
                          const Substitution& with, LocationId source) {
     auto pointee = valueOccurrence(*arguments[1]);
     writeThroughAddress(builder, *arguments[0], pointee, *arguments[1], source);
+
+    auto result = substituteOccurrence(builder.context, builder.program, callee.result, with);
+    return builder.addConst(source, unitConstant(result.type));
+}
+
+Node* expandVolatilePointerLoad(Builder& builder, Function& callee, Node* const* arguments,
+                                const Substitution& with, LocationId source) {
+    auto result = substituteOccurrence(builder.context, builder.program, callee.result, with);
+    return readThroughAddress(builder, *arguments[0], result, source, false, true);
+}
+
+Node* expandVolatilePointerStore(Builder& builder, Function& callee, Node* const* arguments,
+                                 const Substitution& with, LocationId source) {
+    auto pointee = valueOccurrence(*arguments[1]);
+    writeThroughAddress(builder, *arguments[0], pointee, *arguments[1], source, true);
 
     auto result = substituteOccurrence(builder.context, builder.program, callee.result, with);
     return builder.addConst(source, unitConstant(result.type));

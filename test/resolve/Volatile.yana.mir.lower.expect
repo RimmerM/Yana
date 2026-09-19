@@ -1,0 +1,67 @@
+
+pointer<complex>(%p: Ptr): I32 {
+  b_0 {
+    %v_1 = loadv %p, 4: I32
+    %v_2 = add %v_1, 1: I32
+    storev %p, %v_2, 4
+    %v_3 = loadv %p, 4: I32
+    ret %v_3
+  }
+}
+
+discarded<complex>(%p: Ptr, %flag: I32): I32 {
+  b_0 {
+    je %flag, b_1, b_2
+  }
+
+  b_2 {
+    storev %p, 1, 4
+    ret 0
+  }
+
+  b_1 {
+    %v_3 = loadv %p, 4: I32
+    jmp b_2
+  }
+}
+
+looped<complex>(%p: Ptr, %count: I32): I32 {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I32
+    %v_5 = cmp_lt %v_2, %count: I32
+    je %v_5, b_3, b_6
+  }
+
+  b_6 {
+    ret %v_2
+  }
+
+  b_3 {
+    %v_7 = loadv %p, 4: I32
+    %v_4 = add %v_2, 1: I32
+    jmp b_1
+  }
+}
+
+atomic'2<complex>(%p: Ptr): I32 {
+  b_0 {
+    %v_1 = atomic_loadv %p, 4, acquire: I32
+    %v_2 = add %v_1, 1: I32
+    atomic_storev %p, %v_2, 4, release
+    %v_3 = atomic_loadv %p, 4, relaxed: I32
+    ret %v_3
+  }
+}
+
+atomicSequential<complex>(%p: Ptr): I32 {
+  b_0 {
+    atomic_storev %p, 1, 4, seq_cst
+    %v_1 = atomic_loadv %p, 4, seq_cst: I32
+    ret %v_1
+  }
+}
+

@@ -159,6 +159,9 @@ bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b,
         auto loadA = (LowerInstLoad*)a;
         auto loadB = (LowerInstLoad*)b;
 
+        // Volatile reads are observable individually, even when they name the same address.
+        if(loadA->isVolatile() || loadB->isVolatile()) return false;
+
         if(loadA->getWidth() != loadB->getWidth()) return false;
         if(loadA->isSigned() != loadB->isSigned()) return false;
 
