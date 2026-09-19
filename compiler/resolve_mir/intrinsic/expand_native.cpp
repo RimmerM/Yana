@@ -12,9 +12,9 @@ using namespace intrinsic;
  * operation *is* at this tier - a fixed operation over a flat argument list whose meaning belongs to
  * the backend, checked before it arrives by the declaration that claimed the role.
  *
- * The result type is the declared one, substituted, exactly as the pointer family reads its own:
- * `op.def` says a system call answers an integer and the two block forms answer `{}`, and which
- * integer is the declaration's business rather than this file's.
+ * The result type is the declared one, substituted. For the fixed-register x86 operations this may
+ * be a source record even though lowering keeps the machine results as separate scalar values; the
+ * declaration owns that grouping rather than this file.
  */
 static Node* nativeOperation(Builder& builder, Function& callee, Node* const* arguments, Size count,
                              const Substitution& with, LocationId source, NativeOp op) {

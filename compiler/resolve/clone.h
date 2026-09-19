@@ -255,8 +255,9 @@ Inst* cloneComputation(Policy& policy, Value& from) {
         }
 
         /*
-         * A host node, which owns nothing: `op` and `method` are what to emit and the argument list
-         * is uses, so there is no state here that means anything about the function it sits in.
+         * A native node: `op` and `method` are what to emit and the argument list is uses. Most
+         * native results are scalars or unit, but the fixed-register x86 results are aggregate
+         * records and carry a result slot that must be recreated in a graft as well.
          *
          * `relocates` included, and it is the field this file was worth writing for: it says the
          * source of a block copy is dead the moment the copy returns, only `moveInit$` glue carries
@@ -270,6 +271,11 @@ Inst* cloneComputation(Policy& policy, Value& from) {
 
             for(auto argument: native.args.contents(*policy.module.arena)) {
                 cloned->args.push(policy.module.arena, value(argument));
+            }
+
+            if(native.local != maxLimit<U32>) {
+                auto result = (ModulePtr<Value>)(cloned - *policy.module.arena);
+                cloned->local = policy.function.addLocal(policy.module, type, name, result);
             }
 
             return make(cloned);

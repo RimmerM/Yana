@@ -650,12 +650,11 @@ YANA_INTRINSIC_OP( x86VZeroAll,      OpForm::Node, unitAt()                     
 YANA_INTRINSIC_OP( x86Nop,           OpForm::Node, unitAt()                            )
 YANA_INTRINSIC_OP( x86Lretq,         OpForm::Node, unitAt(), integerAt()             )
 
-// The x86 system instructions. Multiple-register results use caller-provided raw pointers because
-// the source language's aggregate result convention is storage-based, while these instructions
-// answer fixed scalar registers directly. The resolver stores each result immediately after the
-// intrinsic, so the instruction itself still runs once.
-YANA_INTRINSIC_OP( x86Cpuid,       OpForm::Node, unitAt(), integerAt(), integerAt(), pointerAt(), pointerAt(), pointerAt(), pointerAt() )
-YANA_INTRINSIC_OP( x86Rdtscp,      OpForm::Node, unitAt(), pointerAt(), pointerAt() )
+// The x86 system instructions. Multiple-register results are grouped by the source-level record,
+// while the lower intrinsic keeps one scalar result per fixed output register. Lowering fills the
+// record's storage, and scalarization removes that storage when a later consumer reads a field.
+YANA_INTRINSIC_OP( x86Cpuid,       OpForm::Node, anyAt(), integerAt(), integerAt() )
+YANA_INTRINSIC_OP( x86Rdtscp,      OpForm::Node, anyAt() )
 YANA_INTRINSIC_OP( x86Rdtsc,       OpForm::Node, integerAt() )
 YANA_INTRINSIC_OP( x86MFence,      OpForm::Node, unitAt() )
 YANA_INTRINSIC_OP( x86LFence,      OpForm::Node, unitAt() )
@@ -669,9 +668,9 @@ YANA_INTRINSIC_OP( x86Hlt,         OpForm::Node, unitAt() )
 YANA_INTRINSIC_OP( x86Cli,         OpForm::Node, unitAt() )
 YANA_INTRINSIC_OP( x86Sti,         OpForm::Node, unitAt() )
 YANA_INTRINSIC_OP( x86Swapgs,      OpForm::Node, unitAt() )
-YANA_INTRINSIC_OP( x86Rdmsr,       OpForm::Node, unitAt(), integerAt(), pointerAt(), pointerAt() )
+YANA_INTRINSIC_OP( x86Rdmsr,       OpForm::Node, anyAt(), integerAt() )
 YANA_INTRINSIC_OP( x86Wrmsr,       OpForm::Node, unitAt(), integerAt(), integerAt(), integerAt() )
-YANA_INTRINSIC_OP( x86Xgetbv,      OpForm::Node, unitAt(), integerAt(), pointerAt(), pointerAt() )
+YANA_INTRINSIC_OP( x86Xgetbv,      OpForm::Node, anyAt(), integerAt() )
 YANA_INTRINSIC_OP( x86In8,         OpForm::Node, integerAt(), integerAt() )
 YANA_INTRINSIC_OP( x86In16,        OpForm::Node, integerAt(), integerAt() )
 YANA_INTRINSIC_OP( x86In32,        OpForm::Node, integerAt(), integerAt() )

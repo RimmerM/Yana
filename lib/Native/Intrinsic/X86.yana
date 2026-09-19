@@ -106,13 +106,19 @@ module Native
 {-
    The x86 system and machine-state instructions. These are exposed as raw operations because their
    meaning is the processor's rather than the language's. The fixed-register instructions that
-   return more than one scalar write through caller-provided pointers so one source call still
-   emits exactly one instruction. `lretq` is the deliberate exception: its backend constructs a
-   same-privilege far-return frame for the supplied code selector and resumes after that frame, so
-   a source call changes CS without requiring a naked function or exposing the temporary stack use.
+   return more than one scalar group those registers in a record; lowering writes the fields from
+   the intrinsic's register results, and scalarization can remove that storage when a caller reads a
+   field directly. `lretq` is the deliberate exception: its backend constructs a same-privilege
+   far-return frame for the supplied code selector and resumes after that frame, so a source call
+   changes CS without requiring a naked function or exposing the temporary stack use.
 -}
-@builtin(x86Cpuid) @platform(x64) pub fn X86.cpuid(leaf: U32, subleaf: U32, eax: %U32, ebx: %U32, ecx: %U32, edx: %U32) -> {}
-@builtin(x86Rdtscp) @platform(x64) pub fn X86.rdtscp(low: %U32, high: %U32) -> {}
+pub data CpuidResult {eax: U32, ebx: U32, ecx: U32, edx: U32}
+pub data RdtscpResult {low: U32, high: U32}
+pub data RdmsrResult {low: U32, high: U32}
+pub data XgetbvResult {low: U32, high: U32}
+
+@builtin(x86Cpuid) @platform(x64) pub fn X86.cpuid(leaf: U32, subleaf: U32) -> CpuidResult
+@builtin(x86Rdtscp) @platform(x64) pub fn X86.rdtscp() -> RdtscpResult
 @builtin(x86Rdtsc) @platform(x64) pub fn X86.rdtsc() -> U64
 @builtin(x86MFence) @platform(x64) pub fn X86.mfence() -> {}
 @builtin(x86LFence) @platform(x64) pub fn X86.lfence() -> {}
@@ -126,9 +132,9 @@ module Native
 @builtin(x86Cli) @platform(x64) pub fn X86.cli() -> {}
 @builtin(x86Sti) @platform(x64) pub fn X86.sti() -> {}
 @builtin(x86Swapgs) @platform(x64) pub fn X86.swapgs() -> {}
-@builtin(x86Rdmsr) @platform(x64) pub fn X86.rdmsr(msr: U32, low: %U32, high: %U32) -> {}
+@builtin(x86Rdmsr) @platform(x64) pub fn X86.rdmsr(msr: U32) -> RdmsrResult
 @builtin(x86Wrmsr) @platform(x64) pub fn X86.wrmsr(msr: U32, low: U32, high: U32) -> {}
-@builtin(x86Xgetbv) @platform(x64) pub fn X86.xgetbv(index: U32, low: %U32, high: %U32) -> {}
+@builtin(x86Xgetbv) @platform(x64) pub fn X86.xgetbv(index: U32) -> XgetbvResult
 @builtin(x86In8) @platform(x64) pub fn X86.in8(port: U16) -> U8
 @builtin(x86In16) @platform(x64) pub fn X86.in16(port: U16) -> U16
 @builtin(x86In32) @platform(x64) pub fn X86.in32(port: U16) -> U32

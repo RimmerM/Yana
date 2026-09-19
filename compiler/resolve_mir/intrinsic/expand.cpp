@@ -128,9 +128,9 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::x86Lretq:
             return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86Lretq);
         case Op::x86Cpuid:
-            return expandX86Native(builder, callee, arguments, 6, with, source, NativeOp::X86Cpuid);
+            return expandX86Native(builder, callee, arguments, 2, with, source, NativeOp::X86Cpuid);
         case Op::x86Rdtscp:
-            return expandX86Native(builder, callee, arguments, 2, with, source, NativeOp::X86Rdtscp);
+            return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86Rdtscp);
         case Op::x86Rdtsc:
             return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86Rdtsc);
         case Op::x86MFence:
@@ -158,11 +158,11 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::x86Swapgs:
             return expandX86Native(builder, callee, arguments, 0, with, source, NativeOp::X86Swapgs);
         case Op::x86Rdmsr:
-            return expandX86Native(builder, callee, arguments, 3, with, source, NativeOp::X86Rdmsr);
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86Rdmsr);
         case Op::x86Wrmsr:
             return expandX86Native(builder, callee, arguments, 3, with, source, NativeOp::X86Wrmsr);
         case Op::x86Xgetbv:
-            return expandX86Native(builder, callee, arguments, 3, with, source, NativeOp::X86Xgetbv);
+            return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86Xgetbv);
         case Op::x86In8:
             return expandX86Native(builder, callee, arguments, 1, with, source, NativeOp::X86In8);
         case Op::x86In16:

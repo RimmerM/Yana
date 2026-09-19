@@ -1,0 +1,45 @@
+module ResolveTest
+
+fn cpuidEax(leaf: U32 [shared call], subleaf: U32 [shared call]) -> U32 {
+  local result: CpuidResult
+
+bb0:
+  %0: U32 = read copy.trivial (leaf)
+  %1: U32 = read copy.trivial (subleaf)
+  %2: CpuidResult = native cpuid inspect %0 inspect %1
+  write.init borrow.unique (result) take %2
+  %4: U32 = read copy.trivial (result.eax)
+  return take %4
+}
+
+fn rdtscpLow() -> U32 {
+  local result: RdtscpResult
+
+bb0:
+  %0: RdtscpResult = native rdtscp
+  write.init borrow.unique (result) take %0
+  %2: U32 = read copy.trivial (result.low)
+  return take %2
+}
+
+fn rdmsrLow(msr: U32 [shared call]) -> U32 {
+  local result: RdmsrResult
+
+bb0:
+  %0: U32 = read copy.trivial (msr)
+  %1: RdmsrResult = native rdmsr inspect %0
+  write.init borrow.unique (result) take %1
+  %3: U32 = read copy.trivial (result.low)
+  return take %3
+}
+
+fn xgetbvLow(index: U32 [shared call]) -> U32 {
+  local result: XgetbvResult
+
+bb0:
+  %0: U32 = read copy.trivial (index)
+  %1: XgetbvResult = native xgetbv inspect %0
+  write.init borrow.unique (result) take %1
+  %3: U32 = read copy.trivial (result.low)
+  return take %3
+}

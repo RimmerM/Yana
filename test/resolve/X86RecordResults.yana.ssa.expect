@@ -1,0 +1,53 @@
+module ResolveTest
+
+fn cpuidEax(leaf: U32 [shared call], subleaf: U32 [shared call]) -> U32 {
+bb0(%0: U32 trivial, %1: U32 trivial):
+  %2: %U32 address = alloc frame U32 [shared call]
+  %3: %U32 address = alloc frame U32 [shared call]
+  %4: %CpuidResult address = alloc frame CpuidResult
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %5: U32 trivial = load inspect %2
+  %6: U32 trivial = load inspect %3
+  %7: CpuidResult trivial = native cpuid inspect %5 inspect %6
+  store inspect %4 consume %7
+  %8: %U32 address = field.addr .eax inspect %4
+  %9: U32 trivial = load inspect %8
+  return consume %9
+}
+
+fn rdtscpLow() -> U32 {
+bb0:
+  %0: %RdtscpResult address = alloc frame RdtscpResult
+  %1: RdtscpResult trivial = native rdtscp
+  store inspect %0 consume %1
+  %2: %U32 address = field.addr .low inspect %0
+  %3: U32 trivial = load inspect %2
+  return consume %3
+}
+
+fn rdmsrLow(msr: U32 [shared call]) -> U32 {
+bb0(%0: U32 trivial):
+  %1: %U32 address = alloc frame U32 [shared call]
+  %2: %RdmsrResult address = alloc frame RdmsrResult
+  store inspect %1 borrow %0
+  %3: U32 trivial = load inspect %1
+  %4: RdmsrResult trivial = native rdmsr inspect %3
+  store inspect %2 consume %4
+  %5: %U32 address = field.addr .low inspect %2
+  %6: U32 trivial = load inspect %5
+  return consume %6
+}
+
+fn xgetbvLow(index: U32 [shared call]) -> U32 {
+bb0(%0: U32 trivial):
+  %1: %U32 address = alloc frame U32 [shared call]
+  %2: %XgetbvResult address = alloc frame XgetbvResult
+  store inspect %1 borrow %0
+  %3: U32 trivial = load inspect %1
+  %4: XgetbvResult trivial = native xgetbv inspect %3
+  store inspect %2 consume %4
+  %5: %U32 address = field.addr .low inspect %2
+  %6: U32 trivial = load inspect %5
+  return consume %6
+}

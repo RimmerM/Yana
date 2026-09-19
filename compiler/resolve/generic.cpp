@@ -457,7 +457,7 @@ struct Clone {
  * the call keeps writing into the one it was given. What is specific to these two fixups is that
  * they are correcting a pairing the emitter got wrong, so the instruction's copy is wrong with it.
  *
- * A switch over the six rather than a virtual, on `inst.def`'s terms: the list is closed, and a kind
+ * A switch over the seven rather than a virtual, on `inst.def`'s terms: the list is closed, and a kind
  * that grows a slot of its own later fails to compile here rather than keeping a stale one.
  */
 static void setResultLocal(Value& value, U32 slot) {
@@ -468,6 +468,7 @@ static void setResultLocal(Value& value, U32 slot) {
         case Value::Call:     ((InstCall&)value).local = slot; break;
         case Value::CallDyn:  ((InstCallDyn&)value).local = slot; break;
         case Value::GenCall:  ((InstGenCall&)value).local = slot; break;
+        case Value::Native:   ((InstNative&)value).local = slot; break;
         default: break;
     }
 }
@@ -1173,6 +1174,24 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             result = resolver.emit<InstAddress>(inst.source, inst.name, type,
                                                 clonePlace(clone, ((InstAddress&)inst).place));
             break;
+        case Value::Native: {
+            auto& source = (InstNative&)inst;
+            auto cloned = resolver.create<InstNative>(inst.source, inst.name, type, source.op,
+                                                      source.method);
+            cloned->relocates = source.relocates;
+            for(auto arg: source.args.contents(clone.local)) {
+                cloned->args.push(clone.module.arena, cloneValue(clone, arg));
+            }
+
+            resolver.append(cloned);
+            if(source.local != maxLimit<U32>) {
+                cloned->local = resolver.function.addLocal(clone.module, type, inst.name,
+                                                            resolver.ref(cloned));
+            }
+
+            result = cloned;
+            break;
+        }
         case Value::Call: {
             auto& call = (InstCall&)inst;
             ArgList args;

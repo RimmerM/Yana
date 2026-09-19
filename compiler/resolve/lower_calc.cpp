@@ -67,6 +67,7 @@ static LowerAtomicOp lowerAtomicOpOf(AtomicKind kind) {
 }
 
 static LowerInst* lowerX86Native(LowerContext& lower, LowerBlock& block, Inst& instruction,
+                                  ModulePtr<Value> instValue,
                                   SmallArray<LowerPtr<LowerValue>, 8> args, NativeOp op) {
     auto emit = [&](LowerIntrinsic which, Size created, Size used, LowerType createdType,
                     bool sourceResult) {
@@ -80,10 +81,24 @@ static LowerInst* lowerX86Native(LowerContext& lower, LowerBlock& block, Inst& i
         return block.addInst(lower.lower, (LowerInst*)inst);
     };
 
-    auto storeResults = [&](LowerInstIntrinsic* inst, Size first, Size count) {
+    auto recordResult = [&]() {
+        auto bytes = storageSize(lower, block, instruction.type);
+        auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
+            instruction.name, bytes, typeAlign(lower, instruction.type)));
+        auto address = allocation->created().ptr - lower.lower;
+        lower.values.add(instValue, address);
+        return address;
+    };
+
+    auto storeRecordResults = [&](LowerInstIntrinsic* inst, LowerPtr<LowerValue> record,
+                                  Size count) {
         for(Size i = 0; i < count; i++) {
+            auto field = lower.repr.fieldOf(instruction.type, U16(i));
+            assertTrue(field && !field->isPacked() && !field->boxed);
+            auto address = addOffset(lower, block, record, field->offset);
             block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
-                args[first + i], inst->created().ptr + i - lower.lower, 4));
+                address, inst->created().ptr + i - lower.lower,
+                memoryWidth(lower, field->type)));
         }
     };
 
@@ -93,32 +108,36 @@ static LowerInst* lowerX86Native(LowerContext& lower, LowerBlock& block, Inst& i
         case NativeOp::X86Lretq:
             return emit(LowerIntrinsic::Lretq, 0, 1, LowerType::Int32, false);
         case NativeOp::X86Cpuid: {
+            auto record = recordResult();
             auto* inst = (LowerInstIntrinsic*)emit(LowerIntrinsic::Cpuid, 4, 2,
                                                    LowerType::Int32, false);
             for(Size i = 1; i < 4; i++) new (inst->created().ptr + i)
                 LowerValue(inst, LowerType::Int32, StringId());
-            storeResults(inst, 2, 4);
+            storeRecordResults(inst, record, 4);
             return nullptr;
         }
         case NativeOp::X86Rdtscp: {
+            auto record = recordResult();
             auto* inst = (LowerInstIntrinsic*)emit(LowerIntrinsic::Rdtscp, 2, 0,
                                                    LowerType::Int32, false);
             new (inst->created().ptr + 1) LowerValue(inst, LowerType::Int32, StringId());
-            storeResults(inst, 0, 2);
+            storeRecordResults(inst, record, 2);
             return nullptr;
         }
         case NativeOp::X86Rdmsr: {
+            auto record = recordResult();
             auto* inst = (LowerInstIntrinsic*)emit(LowerIntrinsic::Rdmsr, 2, 1,
                                                    LowerType::Int32, false);
             new (inst->created().ptr + 1) LowerValue(inst, LowerType::Int32, StringId());
-            storeResults(inst, 1, 2);
+            storeRecordResults(inst, record, 2);
             return nullptr;
         }
         case NativeOp::X86Xgetbv: {
+            auto record = recordResult();
             auto* inst = (LowerInstIntrinsic*)emit(LowerIntrinsic::Xgetbv, 2, 1,
                                                    LowerType::Int32, false);
             new (inst->created().ptr + 1) LowerValue(inst, LowerType::Int32, StringId());
-            storeResults(inst, 1, 2);
+            storeRecordResults(inst, record, 2);
             return nullptr;
         }
         default:
@@ -391,7 +410,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 case NativeOp::X86WriteCr0:
                 case NativeOp::X86WriteCr3:
                 case NativeOp::X86WriteCr4:
-                    result = lowerX86Native(lower, block, instruction, args, native.op);
+                    result = lowerX86Native(lower, block, instruction, instValue, args, native.op);
                     break;
 
                 case NativeOp::HostCall:

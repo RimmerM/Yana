@@ -1,0 +1,27 @@
+fn cpuidEax(%leaf: U32, %subleaf: U32) -> U32 {
+  b0:
+    %result = cpuid %leaf, %subleaf : CpuidResult
+    %v3 = load %local0@CpuidResult.eax : U32
+    ret %v3
+}
+
+fn rdtscpLow() -> U32 {
+  b0:
+    %result = rdtscp : RdtscpResult
+    %v1 = load %local0@RdtscpResult.low : U32
+    ret %v1
+}
+
+fn rdmsrLow(%msr: U32) -> U32 {
+  b0:
+    %result = rdmsr %msr : RdmsrResult
+    %v2 = load %local0@RdmsrResult.low : U32
+    ret %v2
+}
+
+fn xgetbvLow(%index: U32) -> U32 {
+  b0:
+    %result = xgetbv %index : XgetbvResult
+    %v2 = load %local0@XgetbvResult.low : U32
+    ret %v2
+}

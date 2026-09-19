@@ -1,0 +1,24 @@
+{-
+   The fixed-register x86 results are source records, while each field read still lowers to the
+   intrinsic's corresponding register result. This fixture does not run the privileged operations;
+   its lower goldens are the assertion about their representation.
+-}
+
+import Native
+
+fn cpuidEax(leaf: U32, subleaf: U32) -> U32:
+    let result = X86.cpuid(leaf, subleaf)
+    return result.eax
+
+fn rdtscpLow() -> U32:
+    let result = X86.rdtscp()
+    return result.low
+
+fn rdmsrLow(msr: U32) -> U32:
+    let result = X86.rdmsr(msr)
+    return result.low
+
+fn xgetbvLow(index: U32) -> U32:
+    let result = X86.xgetbv(index)
+    return result.low
+

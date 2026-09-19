@@ -1516,6 +1516,10 @@ struct InstNative: Inst {
 
     ModuleList<ModulePtr<Value>, false> args;
 
+    // The storage a non-unit aggregate result fills. Native operations historically returned only
+    // scalars or unit, so this was unnecessary until fixed-register results became source records.
+    U32 local = maxLimit<U32>;
+
     // The host member or constructor this names, for the four host operations and for nothing else.
     // Unqualified, and the text of it is what the emitter prints - see hostMethodName.
     StringId method;

@@ -873,7 +873,17 @@ static ModulePtr<Value> emitX86Native(ExprResolver& resolver, Buffer<ModulePtr<V
     for(auto arg: args) instruction->args.push(resolver.module.arena, arg);
 
     resolver.append(instruction);
-    return isUnit(resolver.global, type) ? nullptr : resolver.ref(instruction);
+    if(isUnit(resolver.global, type)) return nullptr;
+
+    auto result = resolver.ref(instruction);
+    if(isMemoryType(resolver.global, type)) {
+        // An aggregate native result is a place just like an aggregate call result. Keeping the
+        // pairing here lets a field projection name the result's storage, while lowering can still
+        // scalarize the record back into the intrinsic's register results.
+        instruction->local = resolver.function.addLocal(resolver.module, type, name, result);
+    }
+
+    return result;
 }
 
 static ModulePtr<Value> emitX86Interrupt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,

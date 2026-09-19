@@ -2364,10 +2364,27 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     return built;
                 };
 
-                auto storeResults = [&](LowerInstIntrinsic* built, Size first, Size count) {
+                auto recordResult = [&]() {
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto manifest = manifestOf(*result);
+                    auto size = immediate(block, LowerType::Int64, U64(manifest.size));
+                    auto allocation = block.addInst(lower, new (to.arena) LowerInstAlloca(
+                        StringId(), size, manifest.align));
+                    auto address = ((LowerInstSingle*)allocation)->created().ptr - lower;
+                    values.add(result->id.index, address);
+                    return address;
+                };
+
+                auto storeRecordResults = [&](LowerInstIntrinsic* built,
+                                              LowerPtr<LowerValue> record, Size count) {
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto repr = reprOf(layout, result->occurrence.type, result->occurrence.shape);
                     for(Size i = 0; i < count; i++) {
+                        auto field = repr.fields.get(decl, U16(i));
+                        assertTrue(!field.isPacked());
                         block.addInst(lower, new (to.arena) LowerInstStore(
-                            args[first + i], built->created().ptr + i - lower, 4));
+                            offsetAddress(block, record, field.offset),
+                            built->created().ptr + i - lower, field.wordBytes));
                     }
                 };
 
@@ -2383,43 +2400,47 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                         return built;
                     }
                     case mir::NativeOp::X86Cpuid: {
+                        auto record = recordResult();
                         auto built = addIntrinsic(LowerIntrinsic::Cpuid, 4, 2, false);
                         for(Size i = 0; i < 4; i++) {
                             new (built->created().ptr + i) LowerValue(built, LowerType::Int32,
                                                                        StringId());
                         }
                         block.addInst(lower, (LowerInst*)built);
-                        storeResults(built, 2, 4);
+                        storeRecordResults(built, record, 4);
                         return nullptr;
                     }
                     case mir::NativeOp::X86Rdtscp: {
+                        auto record = recordResult();
                         auto built = addIntrinsic(LowerIntrinsic::Rdtscp, 2, 0, false);
                         for(Size i = 0; i < 2; i++) {
                             new (built->created().ptr + i) LowerValue(built, LowerType::Int32,
                                                                        StringId());
                         }
                         block.addInst(lower, (LowerInst*)built);
-                        storeResults(built, 0, 2);
+                        storeRecordResults(built, record, 2);
                         return nullptr;
                     }
                     case mir::NativeOp::X86Rdmsr: {
+                        auto record = recordResult();
                         auto built = addIntrinsic(LowerIntrinsic::Rdmsr, 2, 1, false);
                         for(Size i = 0; i < 2; i++) {
                             new (built->created().ptr + i) LowerValue(built, LowerType::Int32,
                                                                        StringId());
                         }
                         block.addInst(lower, (LowerInst*)built);
-                        storeResults(built, 1, 2);
+                        storeRecordResults(built, record, 2);
                         return nullptr;
                     }
                     case mir::NativeOp::X86Xgetbv: {
+                        auto record = recordResult();
                         auto built = addIntrinsic(LowerIntrinsic::Xgetbv, 2, 1, false);
                         for(Size i = 0; i < 2; i++) {
                             new (built->created().ptr + i) LowerValue(built, LowerType::Int32,
                                                                        StringId());
                         }
                         block.addInst(lower, (LowerInst*)built);
-                        storeResults(built, 1, 2);
+                        storeRecordResults(built, record, 2);
                         return nullptr;
                     }
                     default:

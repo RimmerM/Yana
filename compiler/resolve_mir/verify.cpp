@@ -1231,8 +1231,8 @@ struct Verifier {
             case NativeOp::X86Nop:         return 0;
             case NativeOp::X86Lretq:       return 1;
 
-            case NativeOp::X86Cpuid:       return 6;
-            case NativeOp::X86Rdtscp:      return 2;
+            case NativeOp::X86Cpuid:       return 2;
+            case NativeOp::X86Rdtscp:      return 0;
             case NativeOp::X86Rdtsc:       return 0;
             case NativeOp::X86MFence:
             case NativeOp::X86LFence:
@@ -1264,9 +1264,9 @@ struct Verifier {
             case NativeOp::X86WriteCr0:
             case NativeOp::X86WriteCr3:
             case NativeOp::X86WriteCr4:      return 1;
-            case NativeOp::X86Rdmsr:
-            case NativeOp::X86Wrmsr:
-            case NativeOp::X86Xgetbv:        return 3;
+            case NativeOp::X86Rdmsr:         return 1;
+            case NativeOp::X86Wrmsr:         return 3;
+            case NativeOp::X86Xgetbv:        return 1;
             case NativeOp::X86Out8:
             case NativeOp::X86Out16:
             case NativeOp::X86Out32:         return 2;
