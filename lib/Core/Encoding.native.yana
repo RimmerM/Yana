@@ -217,6 +217,16 @@ pub fn String.fromUtf16(units: [U16]) -> String:
             store(target + written + 1, continuationUnit(unit, 0))
             written = written + 2
             at = at + 1
+
+            -- **The run only where the next unit begins one.** The helper is a call with six vector
+            -- constants in front of its first load, and western prose is an accent between ASCII
+            -- letters - so the test that pays for itself over a run of one script has to be made
+            -- before the call rather than inside it. Measured over 64 KiB of such text, the call
+            -- made unconditionally cost more than the runs it found were worth.
+            if at < count && units[at] >= 0x80 && units[at] < 0x800:
+                let taken = narrowTwoByteRun(units, at, target + written)
+                written = written + 2 * taken
+                at = at + taken
         else if unit is 0xD800..=0xDBFF && at + 1 < count && units[at + 1] is 0xDC00..=0xDFFF:
             let value = 0x10000 + ((unit - 0xD800) `shl` 10) + ((units[at + 1] :: U32) - 0xDC00)
             store(target + written, leadUnit(value))
@@ -233,12 +243,73 @@ pub fn String.fromUtf16(units: [U16]) -> String:
             written = written + 3
             at = at + 1
 
-            let taken = narrowThreeByteRun(units, at, target + written)
-            written = written + 3 * taken
-            at = at + taken
+            -- The same test at this length, for the reason above.
+            if at < count && units[at] >= 0x800 && !(units[at] is 0xD800..=0xDFFF):
+                let taken = narrowThreeByteRun(units, at, target + written)
+                written = written + 3 * taken
+                at = at + taken
 
     out.units.length = truncate(written) :: Count
     return out
+
+{-
+   The run of units at `from` that take two bytes each - U+0080 to U+07FF - written from `target`,
+   and how many there were: Latin-1, Greek, Cyrillic, Hebrew and Arabic text, reached from
+   `String.fromUtf16` after one such unit, exactly as the three-byte run is reached after one of
+   those.
+
+   **This is the cheapest of the three runs and was the last to be written**, which is worth saying
+   because the shape is what makes it cheap: two bytes per unit is *one* output byte per input byte,
+   so a register of eight units is a register of sixteen bytes and there is no shuffle at all. The
+   lead and the continuation are the two halves of the unit's own lane - `0xC0 | (u >> 6)` in the low
+   byte and `0x80 | (u & 0x3F)` in the high one - and a little-endian store puts them in that order,
+   which is the order UTF-8 wants them in. Six operations for eight characters, against the twelve
+   and two shuffles the three-byte run spends for five.
+
+   Eight units a step where all eight qualify and four where the first four do, on
+   `narrowThreeByteRun`'s measurement and for its reason: a run of one script between two spaces is
+   about seven characters, so a step that took only whole registers would leave most of them to the
+   walk. The store is the whole register either way and the reservation - three bytes a unit plus a
+   register - is what makes the eight bytes past a short step harmless.
+-}
+@noinline fn narrowTwoByteRun(units: [U16], from: Size, target: %CodeUnit) -> Size:
+    let count = length(units)
+    let low = splat(0x0080) :: Vec(U16, 8)
+    let above = splat(0x0800) :: Vec(U16, 8)
+    let six = splat(0x003F) :: Vec(U16, 8)
+    let lead = splat(0x00C0) :: Vec(U16, 8)
+    let continuation = splat(0x0080) :: Vec(U16, 8)
+    let eight = splat(8) :: Vec(U16, 8)
+
+    let &at = from
+    let &written = 0 :: Size
+
+    while at + 8 <= count:
+        let block = vectorAt(units.items + at) :: Vec(U16, 8)
+        let stop = firstSet(not(and(block .>= low, block .< above))) :: Size
+        if stop < 4 then break
+
+        let leads = (block `shr` (splat(6) :: Vec(U16, 8))) `or` lead
+        let lasts = (block `and` six) `or` continuation
+
+        setVectorAt(target + written, bitcast(leads `or` (lasts `shl` eight)) :: Vec(CodeUnit, 16))
+
+        if stop < 8:
+            written = written + 8
+            at = at + 4
+            break
+
+        written = written + 16
+        at = at + 8
+
+    while at < count && units[at] >= 0x80 && units[at] < 0x800:
+        let next = units[at] :: U32
+        store(target + written, leadUnit(next))
+        store(target + written + 1, continuationUnit(next, 0))
+        written = written + 2
+        at = at + 1
+
+    return at - from
 
 {-
    The run of units at `from` that take three bytes each - U+0800 to U+FFFF but the surrogates - written
@@ -296,6 +367,98 @@ pub fn String.fromUtf16(units: [U16]) -> String:
         at = at + 1
 
     return at - from
+
+{-
+   Registers of well-formed two-byte characters from `from`, each written as its unit from `target`,
+   and how many characters that was - `widenThreeByteRegisters`' counterpart at the other length, and
+   the direction Latin-1, Greek, Cyrillic, Hebrew and Arabic text goes through.
+
+   **A register is taken when its sixteen bytes are eight characters led by `C2` to `DF`, or its
+   first eight are four**, which two masks settle exactly as they settle the three-byte case: which
+   lanes are such a lead and which are a continuation, against the alternating pattern. `C0` and `C1`
+   are outside the lead range because they are the overlong forms, and every value a lead from `C2`
+   up with one continuation can make is between U+0080 and U+07FF - so the pattern *is* the whole of
+   table 3-7 here, with no second-byte rule to check.
+
+   **And there is no shuffle**, which is what makes this the cheapest of the two runs: a character is
+   two bytes and its unit is one lane, so the pair already sits in a 16-bit lane with the lead in the
+   low byte. The unit is `(lead & 0x1F) << 6 | (continuation & 0x3F)`, which is four operations over
+   the register the load produced.
+
+   Eight units are written and eight or four kept. The reservation is a unit per byte and the loop is
+   entered only with sixteen bytes left, so the eight units written past a short step are inside it.
+-}
+@inline(always) fn widenTwoByteRegisters(text: String, from: Size, target: %U16) -> Size:
+    let belowLead = splat(-63 :: I8) :: Vec(I8, 16)
+    let aboveLead = splat(-32 :: I8) :: Vec(I8, 16)
+    let continuations = splat(-64 :: I8) :: Vec(I8, 16)
+    let five = splat(0x001F) :: Vec(U16, 8)
+    let six = splat(0x003F) :: Vec(U16, 8)
+
+    let count = length(text)
+    let &at = from
+    let &taken = 0 :: Size
+
+    while at + 16 <= count:
+        let block = vectorAt(units(text) + at) :: Vec(CodeUnit, 16)
+        let signed = bitcast(block) :: Vec(I8, 16)
+        let leads = bits(and(signed .> belowLead, signed .< aboveLead))
+        let follows = bits(signed .< continuations)
+        let whole = leads == 0x5555 && follows == 0xAAAA
+        if !whole && ((leads `and` 0xFF) != 0x55 || (follows `and` 0xFF) != 0xAA) then break
+
+        let pairs = bitcast(block) :: Vec(U16, 8)
+        let value = ((pairs `and` five) `shl` (splat(6) :: Vec(U16, 8))) `or`
+                    ((pairs `shr` (splat(8) :: Vec(U16, 8))) `and` six)
+        setVectorAt(target + taken, value)
+
+        if !whole:
+            taken = taken + 4
+            break
+
+        taken = taken + 8
+        at = at + 16
+
+    return taken
+
+{-
+   The run of well-formed two-byte characters at `from`, each written as its unit from `target`, and
+   how many there were - `widenThreeUnitRun` at the other length, reached from `String.appendUtf16`
+   after one such character and for the same reason: the loop's per-character ASCII register test is
+   what this run exists to skip.
+
+   Registers first, then a character at a time over any two-byte lead, since `wellFormedTwo` is the
+   whole check - which is what still takes a `C2`-led character the registers stopped in front of.
+-}
+@noinline fn widenTwoUnitRun(text: String, from: Size, target: %U16) -> Size:
+    let count = length(text)
+    let &taken = widenTwoByteRegisters(text, from, target)
+    let &at = from + 2 * taken
+
+    while at + 2 <= count && String.unit(text, at) is 0xC2..=0xDF:
+        let value = wellFormedTwo(text, at, unitNumber(text, at))
+        if value == notWellFormed then break
+        store(target + taken, truncate(value) :: U16)
+        taken = taken + 1
+        at = at + 2
+
+    return taken
+
+-- `widenTwoUnitRun` trusting each lead, for `String.appendUtf16Unchecked` - the same arrangement the
+-- three-byte pair has: the registers validate because the pattern test costs nothing there, and the
+-- walk behind them assembles any lead from `C0` to `DF` as the two bytes it announces.
+@noinline fn widenTwoUnitRunUnchecked(text: String, from: Size, target: %U16) -> Size:
+    let count = length(text)
+    let &taken = widenTwoByteRegisters(text, from, target)
+    let &at = from + 2 * taken
+
+    while at + 2 <= count && String.unit(text, at) is 0xC0..=0xDF:
+        let value = ((unitNumber(text, at) `and` 0x1F) `shl` 6) `or` (unitNumber(text, at + 1) `and` 0x3F)
+        store(target + taken, truncate(value) :: U16)
+        taken = taken + 1
+        at = at + 2
+
+    return taken
 
 {-
    Registers of well-formed three-byte characters from `from`, each written as its unit from `target`,
@@ -444,10 +607,16 @@ pub fn String.appendUtf16(text: String, &to: Array(U16)):
                 out = out + 1
                 at = next
 
-                if size == 3:
+                -- The run only where the next character begins one - `String.fromUtf16` above has
+                -- why the test is here and not inside the call.
+                if size == 3 && at + 3 <= count && bytes[at] is 0xE0..=0xEF:
                     let taken = widenThreeUnitRun(text, at, to.run.items + out)
                     out = out + taken
                     at = at + 3 * taken
+                else if size == 2 && at + 2 <= count && bytes[at] is 0xC2..=0xDF:
+                    let taken = widenTwoUnitRun(text, at, to.run.items + out)
+                    out = out + taken
+                    at = at + 2 * taken
             else:
                 let offset = value - 0x10000
                 store(to.run.items + out, truncate(0xD800 + (offset `shr` 10)) :: U16)
@@ -505,10 +674,15 @@ pub fn String.appendUtf16Unchecked(text: String, &to: Array(U16)):
                 out = out + 1
                 at = end
 
-                if lead >= 0xE0:
+                -- And the same test, over the leads this form takes.
+                if lead >= 0xE0 && at + 3 <= count && bytes[at] is 0xE0..=0xEF:
                     let taken = widenThreeUnitRunUnchecked(text, at, to.run.items + out)
                     out = out + taken
                     at = at + 3 * taken
+                else if lead >= 0xC0 && at + 2 <= count && bytes[at] is 0xC0..=0xDF:
+                    let taken = widenTwoUnitRunUnchecked(text, at, to.run.items + out)
+                    out = out + taken
+                    at = at + 2 * taken
             else:
                 let offset = value - 0x10000
                 store(to.run.items + out, truncate(0xD800 + (offset `shr` 10)) :: U16)

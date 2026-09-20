@@ -872,33 +872,33 @@ main<complex>(): I32 {
     %v_1 = bitcast 0: Ptr
     %v_2 = imm 1: I32
     store @log, %v_2, 4
-    %v_3 = call_complex ResolveTest.continuation$21, %v_1, %v_2: I32
+    %v_3 = call_complex ResolveTest.continuation$23, %v_1, %v_2: I32
     %v_4 = loads @log, 4: I32
     %v_5 = add %v_4, 10: I32
     %v_6 = add %v_3, %v_5: I32
     %v_7 = bitcast 0: Ptr
     store @log, 6, 4
-    %v_8 = call_complex ResolveTest.continuation$22, %v_7: I32
+    %v_8 = call_complex ResolveTest.continuation$24, %v_7: I32
     %v_9 = loads @log, 4: I32
     %v_10 = add %v_9, 100: I32
     store @log, %v_10, 4
     %v_11 = bitcast 0: Ptr
-    %v_12 = call_complex ResolveTest.continuation$23, %v_11, 10: I32
+    %v_12 = call_complex ResolveTest.continuation$25, %v_11, 10: I32
     %v_13 = bitcast 0: Ptr
-    %v_14 = call_complex ResolveTest.continuation$24, %v_13, 7, 3: I32
+    %v_14 = call_complex ResolveTest.continuation$26, %v_13, 7, 3: I32
     %v_15 = bitcast 0: Ptr
-    %v_16 = call_complex ResolveTest.continuation$27, %v_15, 6: I32
+    %v_16 = call_complex ResolveTest.continuation$29, %v_15, 6: I32
     %v_17 = bitcast 0: Ptr
     %v_18 = loads @log, 4: I32
     %v_19 = add %v_18, 1: I32
     store @log, %v_19, 4
-    %v_20 = call_complex ResolveTest.continuation$25, %v_17, 4: I32
+    %v_20 = call_complex ResolveTest.continuation$27, %v_17, 4: I32
     %v_21 = bitcast 0: Ptr
-    %v_22 = call_complex ResolveTest.lambda$28, %v_21, 5: I32
+    %v_22 = call_complex ResolveTest.lambda$30, %v_21, 5: I32
     %v_23 = bitcast 0: Ptr
     %v_24 = imm 1: I32
     store @log, %v_24, 4
-    %v_25 = call_complex ResolveTest.continuation$29, %v_23, %v_24: I32
+    %v_25 = call_complex ResolveTest.continuation$31, %v_23, %v_24: I32
     store @log, 0, 4
     jmp b_26
   }
@@ -953,13 +953,13 @@ main<complex>(): I32 {
   }
 }
 
-ResolveTest.continuation$21<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$23<complex>(%env: Ptr, %value$: I32): I32 {
   b_0 {
     ret %value$
   }
 }
 
-ResolveTest.continuation$22<complex>(%env: Ptr): I32 {
+ResolveTest.continuation$24<complex>(%env: Ptr): I32 {
   b_0 {
     %v_1 = loads @log, 4: I32
     %v_2 = add %v_1, 1: I32
@@ -968,14 +968,14 @@ ResolveTest.continuation$22<complex>(%env: Ptr): I32 {
   }
 }
 
-ResolveTest.continuation$23<complex>(%env: Ptr, %n: I32): I32 {
+ResolveTest.continuation$25<complex>(%env: Ptr, %n: I32): I32 {
   b_0 {
     %v_1 = shl %n, 1: I32
     ret %v_1
   }
 }
 
-ResolveTest.continuation$24<complex>(%env: Ptr, %low: I32, %high: I32): I32 {
+ResolveTest.continuation$26<complex>(%env: Ptr, %low: I32, %high: I32): I32 {
   b_0 {
     %v_1 = imul %low, 100: I32
     %v_2 = add %v_1, %high: I32
@@ -983,7 +983,7 @@ ResolveTest.continuation$24<complex>(%env: Ptr, %low: I32, %high: I32): I32 {
   }
 }
 
-ResolveTest.continuation$25<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$27<complex>(%env: Ptr, %value$: I32): I32 {
   b_0 {
     %v_1 = loads @log, 4: I32
     %v_2 = add %v_1, 1: I32
@@ -993,29 +993,29 @@ ResolveTest.continuation$25<complex>(%env: Ptr, %value$: I32): I32 {
   }
 }
 
-ResolveTest.continuation$27<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$29<complex>(%env: Ptr, %value$: I32): I32 {
   b_0 {
     ret %value$
   }
 }
 
-ResolveTest.lambda$28<complex>(%env: Ptr, %n: I32): I32 {
+ResolveTest.lambda$30<complex>(%env: Ptr, %n: I32): I32 {
   b_0 {
     %v_1 = imul %n, 3: I32
     ret %v_1
   }
 }
 
-ResolveTest.continuation$29<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$31<complex>(%env: Ptr, %value$: I32): I32 {
   b_0 {
     %v_1 = bitcast 0: Ptr
     %v_2 = add %value$, 1: I32
-    %v_3 = call_complex ResolveTest.continuation$30, %v_1, %v_2: I32
+    %v_3 = call_complex ResolveTest.continuation$32, %v_1, %v_2: I32
     ret %v_3
   }
 }
 
-ResolveTest.continuation$30<complex>(%env: Ptr, %b: I32): I32 {
+ResolveTest.continuation$32<complex>(%env: Ptr, %b: I32): I32 {
   b_0 {
     ret %b
   }

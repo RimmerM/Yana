@@ -312,3 +312,107 @@ fn killer() -> Array(Int):
     checkEqual(xs[3], 7)
     checkEqual(xs[4], 8)
     checkEqual(xs[5], 4)
+
+{-
+   ==========================================================================================
+   The vector partition
+   ==========================================================================================
+
+   Every length from nothing to two hundred, over six distributions, natively against the same
+   three claims the cases above make: the answer ascends, it holds the same multiset, and the
+   argument of `sorted` is untouched.
+
+   `SortLanes.native.yana` replaces `sort` for a lane element, and the lengths and the
+   distributions are chosen for what that body switches on:
+
+   - **Under two registers** the whole range goes back to `sortRange`, which is what the first
+     handful of lengths are. Above it, the odd elements at the front are placed one at a time
+     until a whole number of registers is left, so every length modulo the register's lane count
+     reaches a different prologue.
+   - **All equal** is the range that makes no progress at all under a `< pivot` split, and is the
+     one the retry exists for; **two values** is the same trap reached by a median of three that
+     lands on the smaller of them.
+   - **Sorted and reversed** are the inputs that defeat a first-element pivot, and are what says
+     the median of three survived being taken by value rather than parked at `low`.
+   - **A few values** is the shape where a range becomes all-equal a level or two down rather than
+     at the top, which is where the tracked extremes are what stops the budget being spent.
+-}
+fn distributed(count: Int, kind: Int, seed: I64) -> Array(Int):
+    let &out = [] :: [Int]
+    let &state = seed
+
+    for i in 0 .. count:
+        state = state `xor` (state `shl` 13)
+        state = state `xor` (state `shr` 7)
+        state = state `xor` (state `shl` 17)
+        let draw = truncate(state `shr` 40) :: Int
+
+        push(out, match kind:
+            0 -> draw
+            1 -> 42
+            2 -> if draw % 2 == 0 then 3 else 9
+            3 -> draw % 5
+            4 -> i
+            _ -> count - i)
+
+    return out
+
+@test fn sortLaneElementsAtEveryLength():
+    let &bad = 0
+
+    for kind in 0 .. 6:
+        for n in 0 .. 200:
+            let &xs = distributed(n, kind, 88172645463325252 + (kind :: I64))
+            let before = total(elements(xs))
+            let fingerprint = mixed(elements(xs))
+
+            sort(xs)
+
+            if !ascends(elements(xs)) then bad = bad + 1
+            if total(elements(xs)) != before then bad = bad + 1
+            if mixed(elements(xs)) != fingerprint then bad = bad + 1
+
+    checkEqual(bad, 0)
+
+-- Long enough that the partition is entered many times and the recursion runs several levels deep,
+-- over the two distributions that stress it in opposite directions.
+@test fn sortLaneElementsOverALongRun():
+    let &bad = 0
+
+    for kind in 0 .. 6:
+        let &xs = distributed(5000, kind, 2463534242)
+        let before = total(elements(xs))
+        let fingerprint = mixed(elements(xs))
+
+        sort(xs)
+
+        if !ascends(elements(xs)) then bad = bad + 1
+        if total(elements(xs)) != before then bad = bad + 1
+        if mixed(elements(xs)) != fingerprint then bad = bad + 1
+
+    checkEqual(bad, 0)
+
+-- The same over a byte element, whose register holds four times as many lanes - so the prologue,
+-- the two held registers and the floor all fall at different lengths from `Int`'s.
+@test fn sortByteElementsAtEveryLength():
+    let &bad = 0
+
+    for n in 0 .. 200:
+        let &bytes = emptyArray() :: Array(U8)
+        for i in 0 .. n:
+            push(bytes, truncate(i * 37 + 11) :: U8)
+
+        let &sum = 0
+        for i in 0 .. n:
+            sum = sum + (bytes[i :: Size] :: Int)
+
+        sort(bytes)
+
+        let &after = 0
+        for i in 0 .. n:
+            after = after + (bytes[i :: Size] :: Int)
+            if i > 0 && bytes[i :: Size] < bytes[(i - 1) :: Size] then bad = bad + 1
+
+        if after != sum then bad = bad + 1
+
+    checkEqual(bad, 0)

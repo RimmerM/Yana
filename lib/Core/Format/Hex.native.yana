@@ -76,3 +76,73 @@ fn hexDigitVector() -> Vec(U8, 16):
     let letter = splat(("a" - 10) :: U8) :: Vec(U8, 16)
     let digit = splat("0" :: U8) :: Vec(U8, 16)
     return at + select(at .> (splat(9) :: Vec(U8, 16)), letter, digit)
+
+{-
+   The block form of the reader - sixteen units read, eight bytes written a turn. `pushHex` above is
+   the other direction and `Hex.yana` states what the notation is.
+
+   This is `Base64.native.yana`'s decoder at a smaller scale, which is what Analysis-Avx512.md §4.6
+   calls it, and the two share their shape: each of the three runs a digit can fall in is subtracted
+   before it is tested, so one operation says both *whether* a unit is in the run and what it is
+   worth there - `v - '0'` read as an unsigned byte is at or below nine exactly for the digits, and
+   is also their value. A block that is not sixteen digits is abandoned whole and the walk behind
+   this one finishes the run, which is why an odd trailing digit, a separator and a unit that is not
+   hexadecimal at all all need no case here.
+
+   **A pair is a little-endian word and the first unit is its low byte**, so the shift that makes the
+   first unit the *high* nibble is what puts the two in the order they were written. The bytes are
+   then every other lane, which is one `pshufb`, and the eight of them are one quadword store - the
+   register's upper half holds nothing this run owns, and a whole-register store would be a write
+   past the end of the array that a reservation would have to be padded for.
+-}
+@replaces
+fn pushHexBlocks(text: String, from: Size, &bytes: Array(U8)) -> Size:
+    let units = length(text)
+    if from + 16 > units then return from
+
+    let held = bytes.length :: Size
+    reserve(bytes, held + ((units - from) / 2))
+
+    let window = String.bytes(text)
+    let source = window.items
+    let target = bytes.run.items
+
+    let digit = splat("0" :: U8) :: Vec(U8, 16)
+    let lower = splat("a" :: U8) :: Vec(U8, 16)
+    let upper = splat("A" :: U8) :: Vec(U8, 16)
+    let lastDigit = splat(9 :: U8) :: Vec(U8, 16)
+    let lastLetter = splat(5 :: U8) :: Vec(U8, 16)
+    let ten = splat(10 :: U8) :: Vec(U8, 16)
+
+    let &at = from
+    let &out = held
+
+    while at + 16 <= units:
+        let block = vectorAt(source + at) :: Vec(U8, 16)
+
+        let fromDigit = block - digit
+        let fromLower = block - lower
+        let fromUpper = block - upper
+
+        let isDigit = fromDigit .<= lastDigit
+        let isLower = fromLower .<= lastLetter
+        let isUpper = fromUpper .<= lastLetter
+
+        if !all(or(isDigit, or(isLower, isUpper))) then break
+
+        let &nibble = fromDigit
+        nibble = select(isLower, fromLower + ten, nibble)
+        nibble = select(isUpper, fromUpper + ten, nibble)
+
+        let pairs = bitcast(nibble) :: Vec(U16, 8)
+        let joined = ((pairs `and` (splat(0x00ff :: U16) :: Vec(U16, 8))) `shl` (splat(4 :: U16) :: Vec(U16, 8)))
+                     `or` (pairs `shr` (splat(8 :: U16) :: Vec(U16, 8)))
+
+        let packed = shuffle(bitcast(joined) :: Vec(U8, 16), [0, 2, 4, 6, 8, 10, 12, 14, 15, 15, 15, 15, 15, 15, 15, 15])
+        store(bitcast(target + out) :: %U64, lane(bitcast(packed) :: Vec(U64, 2), 0))
+
+        at = at + 16
+        out = out + 8
+
+    bytes.length = truncate(out) :: Count
+    return at

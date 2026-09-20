@@ -1597,7 +1597,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
 fn viaTwoCalls() -> I32 {
   b0:
     %v1 = alloc : (i: Size) -> I32
-    %v2 = symbol ResolveTest.lambda$21 : %()
+    %v2 = symbol ResolveTest.lambda$23 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -1614,7 +1614,7 @@ fn viaTwoCalls() -> I32 {
 fn viaLocal() -> I32 {
   b0:
     %v1 = alloc : (i: Size) -> I32
-    %v2 = symbol ResolveTest.lambda$22 : %()
+    %v2 = symbol ResolveTest.lambda$24 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -1631,7 +1631,7 @@ fn viaLocal() -> I32 {
 fn partial() -> I32 {
   b0:
     %v1 = alloc : (i: Size) -> I32
-    %v2 = symbol ResolveTest.lambda$23 : %()
+    %v2 = symbol ResolveTest.lambda$25 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -1664,7 +1664,7 @@ fn deeper(%xs: ArrayView(I32)) -> ArrayView(I32) {
 fn viaReturn() -> I32 {
   b0:
     %v1 = alloc : (i: Size) -> I32
-    %v2 = symbol ResolveTest.lambda$24 : %()
+    %v2 = symbol ResolveTest.lambda$26 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -1706,20 +1706,6 @@ fn main() -> I32 {
     ret %v6
 }
 
-fn ResolveTest.lambda$21(%env: %{}, %i: Size) -> I32 {
-  b0:
-    %v4 = add %i, 1 : Size
-    %v5 = cast %v4 : I32
-    ret %v5
-}
-
-fn ResolveTest.lambda$22(%env: %{}, %i: Size) -> I32 {
-  b0:
-    %v4 = add %i, 1 : Size
-    %v5 = cast %v4 : I32
-    ret %v5
-}
-
 fn ResolveTest.lambda$23(%env: %{}, %i: Size) -> I32 {
   b0:
     %v4 = add %i, 1 : Size
@@ -1728,6 +1714,20 @@ fn ResolveTest.lambda$23(%env: %{}, %i: Size) -> I32 {
 }
 
 fn ResolveTest.lambda$24(%env: %{}, %i: Size) -> I32 {
+  b0:
+    %v4 = add %i, 1 : Size
+    %v5 = cast %v4 : I32
+    ret %v5
+}
+
+fn ResolveTest.lambda$25(%env: %{}, %i: Size) -> I32 {
+  b0:
+    %v4 = add %i, 1 : Size
+    %v5 = cast %v4 : I32
+    ret %v5
+}
+
+fn ResolveTest.lambda$26(%env: %{}, %i: Size) -> I32 {
   b0:
     %v4 = add %i, 1 : Size
     %v5 = cast %v4 : I32

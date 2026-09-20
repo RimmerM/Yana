@@ -81,7 +81,7 @@ bareArm<complex>(%n: I32): I32 {
 
   b_4 {
     %v_5 = shl %n, 1: I32
-    %v_6 = call_complex ResolveTest.continuation$21, %v_1, %v_5: I32
+    %v_6 = call_complex ResolveTest.continuation$23, %v_1, %v_5: I32
     jmp b_7
   }
 
@@ -113,7 +113,7 @@ blockArm<complex>(%n: I32): I32 {
 
   b_4 {
     %v_5 = shl %n, 1: I32
-    %v_6 = call_complex ResolveTest.continuation$22, %v_1, %v_5: I32
+    %v_6 = call_complex ResolveTest.continuation$24, %v_1, %v_5: I32
     jmp b_7
   }
 
@@ -164,7 +164,7 @@ scopedArm<complex>(%n: I32): I32 {
 
   b_4 {
     %v_5 = shl %n, 1: I32
-    call_complex ResolveTest.continuation$23, %v_1, %v_5
+    call_complex ResolveTest.continuation$25, %v_1, %v_5
     jmp b_6
   }
 
@@ -217,7 +217,7 @@ trailingArm<complex>(%n: I32): I32 {
 
   b_4 {
     %v_5 = shl %n, 1: I32
-    call_complex ResolveTest.continuation$24, %v_1, %v_5
+    call_complex ResolveTest.continuation$26, %v_1, %v_5
     jmp b_6
   }
 
@@ -271,7 +271,7 @@ trailingElse<complex>(%n: I32): I32 {
 
   b_4 {
     %v_5 = shl %n, 1: I32
-    call_complex ResolveTest.continuation$25, %v_1, %v_5
+    call_complex ResolveTest.continuation$27, %v_1, %v_5
     jmp b_6
   }
 
@@ -319,7 +319,7 @@ keptSpellings<complex>(%n: I32): I32 {
 
   b_4 {
     %v_5 = shl %n, 1: I32
-    %v_6 = call_complex ResolveTest.continuation$27, %v_1, %v_5: I32
+    %v_6 = call_complex ResolveTest.continuation$29, %v_1, %v_5: I32
     jmp b_7
   }
 
@@ -378,39 +378,17 @@ main<complex>(): I32 {
   }
 }
 
-ResolveTest.continuation$21<complex>(%env: Ptr, %value: I32): I32 {
+ResolveTest.continuation$23<complex>(%env: Ptr, %value: I32): I32 {
   b_0 {
     %v_1 = add %value, 1: I32
     ret %v_1
   }
 }
 
-ResolveTest.continuation$22<complex>(%env: Ptr, %value: I32): I32 {
+ResolveTest.continuation$24<complex>(%env: Ptr, %value: I32): I32 {
   b_0 {
     %v_1 = add %value, 1: I32
     ret %v_1
-  }
-}
-
-@closure$ResolveTest.continuation$23 = [0, 0, 0, 0]
-ResolveTest.continuation$23<complex>(%env: Ptr, %value: I32) {
-  b_0 {
-    %v_1 = load %env, 8: Ptr
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = add %v_2, %value: I32
-    store %v_1, %v_3, 4
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$24 = [0, 0, 0, 0]
-ResolveTest.continuation$24<complex>(%env: Ptr, %value: I32) {
-  b_0 {
-    %v_1 = load %env, 8: Ptr
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = add %v_2, %value: I32
-    store %v_1, %v_3, 4
-    ret 
   }
 }
 
@@ -425,7 +403,29 @@ ResolveTest.continuation$25<complex>(%env: Ptr, %value: I32) {
   }
 }
 
-ResolveTest.continuation$27<complex>(%env: Ptr, %value: I32): I32 {
+@closure$ResolveTest.continuation$26 = [0, 0, 0, 0]
+ResolveTest.continuation$26<complex>(%env: Ptr, %value: I32) {
+  b_0 {
+    %v_1 = load %env, 8: Ptr
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = add %v_2, %value: I32
+    store %v_1, %v_3, 4
+    ret 
+  }
+}
+
+@closure$ResolveTest.continuation$27 = [0, 0, 0, 0]
+ResolveTest.continuation$27<complex>(%env: Ptr, %value: I32) {
+  b_0 {
+    %v_1 = load %env, 8: Ptr
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = add %v_2, %value: I32
+    store %v_1, %v_3, 4
+    ret 
+  }
+}
+
+ResolveTest.continuation$29<complex>(%env: Ptr, %value: I32): I32 {
   b_0 {
     %v_1 = bitcast 0: Ptr
     %v_2 = cmp_igt %value, 9: I32
@@ -434,7 +434,7 @@ ResolveTest.continuation$27<complex>(%env: Ptr, %value: I32): I32 {
 
   b_4 {
     %v_5 = shl %value, 1: I32
-    %v_6 = call_complex ResolveTest.continuation$28, %v_1, %v_5: I32
+    %v_6 = call_complex ResolveTest.continuation$30, %v_1, %v_5: I32
     jmp b_7
   }
 
@@ -460,7 +460,7 @@ ResolveTest.continuation$27<complex>(%env: Ptr, %value: I32): I32 {
   }
 }
 
-ResolveTest.continuation$28<complex>(%env: Ptr, %value: I32): I32 {
+ResolveTest.continuation$30<complex>(%env: Ptr, %value: I32): I32 {
   b_0 {
     ret %value
   }

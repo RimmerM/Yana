@@ -16,11 +16,11 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
+table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
+table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
   .0 teardown$none
 }
 
@@ -2200,7 +2200,7 @@ fn traversed() -> I32 {
     init %local3.sum, %v41
     %v43 = addressof %local3 : %()
     %v44 = alloc : (value$: I32) -> Outcome((), ())
-    %v45 = symbol ResolveTest.continuation$21 : %()
+    %v45 = symbol ResolveTest.continuation$23 : %()
     init %local4.code, %v45
     init %local4.env, %v43
     %v48 = call items(Array(I32), I32, ()), %v39, %v44 : Outcome((), ())
@@ -2222,7 +2222,7 @@ fn traversedFixed() -> I32 {
     init %local2.sum, %v14
     %v16 = addressof %local2 : %()
     %v17 = alloc : (value$: I32) -> Outcome((), ())
-    %v18 = symbol ResolveTest.continuation$22 : %()
+    %v18 = symbol ResolveTest.continuation$24 : %()
     init %local3.code, %v18
     init %local3.env, %v16
     %v21 = call items([I32 *3], I32, ()), %v12, %v17 : Outcome((), ())
@@ -2260,7 +2260,7 @@ fn main() -> I32 {
     ret %v40
 }
 
-fn ResolveTest.continuation$21(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &I32
     %v3 = load [%env].sum : &I32
@@ -2272,7 +2272,7 @@ fn ResolveTest.continuation$21(%env: %{sum: &I32}, %value$: I32) -> Outcome((), 
     ret %v7
 }
 
-fn ResolveTest.continuation$22(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$24(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &I32
     %v3 = load [%env].sum : &I32

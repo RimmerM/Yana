@@ -176,7 +176,7 @@ fn fallbackSkipped(%m: Maybe(I32)) -> I32 {
   b0:
     %m = copy %m : Maybe(I32)
     %v2 = alloc : () -> I32
-    %v3 = symbol ResolveTest.deferred$21 : %()
+    %v3 = symbol ResolveTest.deferred$23 : %()
     init %local2.code, %v3
     %v6 = cast 0 : %()
     init %local2.env, %v6
@@ -218,7 +218,7 @@ fn maskSkips() -> I32 {
     %v0 = alloc : Mask
     aggregate %local0@Mask.bits = 0
     %v3 = alloc : () -> Mask
-    %v4 = symbol ResolveTest.deferred$22 : %()
+    %v4 = symbol ResolveTest.deferred$24 : %()
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
@@ -232,7 +232,7 @@ fn maskRuns() -> I32 {
     %v0 = alloc : Mask
     aggregate %local0@Mask.bits = 7
     %v3 = alloc : () -> Mask
-    %v4 = symbol ResolveTest.deferred$23 : %()
+    %v4 = symbol ResolveTest.deferred$25 : %()
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
@@ -424,7 +424,7 @@ fn main() -> I32 {
 
   b27:
     %v113 = alloc : () -> I32
-    %v114 = symbol ResolveTest.deferred$24 : %()
+    %v114 = symbol ResolveTest.deferred$26 : %()
     init %local5.code, %v114
     %v117 = cast 0 : %()
     init %local5.env, %v117
@@ -443,7 +443,7 @@ fn main() -> I32 {
 
   b30:
     %v132 = alloc : () -> I32
-    %v133 = symbol ResolveTest.deferred$25 : %()
+    %v133 = symbol ResolveTest.deferred$27 : %()
     init %local6.code, %v133
     %v136 = cast 0 : %()
     init %local6.env, %v136
@@ -490,7 +490,7 @@ fn main() -> I32 {
 
   b39:
     %v175 = alloc : () -> I32
-    %v176 = symbol ResolveTest.deferred$26 : %()
+    %v176 = symbol ResolveTest.deferred$28 : %()
     init %local7.code, %v176
     %v179 = cast 0 : %()
     init %local7.env, %v179
@@ -509,7 +509,7 @@ fn main() -> I32 {
 
   b42:
     %v194 = alloc : () -> I32
-    %v195 = symbol ResolveTest.deferred$26 : %()
+    %v195 = symbol ResolveTest.deferred$28 : %()
     init %local8.code, %v195
     %v198 = cast 0 : %()
     init %local8.env, %v198
@@ -528,7 +528,7 @@ fn main() -> I32 {
 
   b45:
     %v213 = alloc : () -> I32
-    %v214 = symbol ResolveTest.deferred$27 : %()
+    %v214 = symbol ResolveTest.deferred$29 : %()
     init %local9.code, %v214
     %v217 = cast 0 : %()
     init %local9.env, %v217
@@ -547,7 +547,7 @@ fn main() -> I32 {
 
   b48:
     %v232 = alloc : () -> I32
-    %v233 = symbol ResolveTest.deferred$28 : %()
+    %v233 = symbol ResolveTest.deferred$30 : %()
     init %local10.code, %v233
     %v236 = cast 0 : %()
     init %local10.env, %v236
@@ -566,7 +566,7 @@ fn main() -> I32 {
 
   b51:
     %v251 = alloc : () -> I32
-    %v252 = symbol ResolveTest.deferred$29 : %()
+    %v252 = symbol ResolveTest.deferred$31 : %()
     init %local11.code, %v252
     %v255 = cast 0 : %()
     init %local11.env, %v255
@@ -585,7 +585,7 @@ fn main() -> I32 {
 
   b54:
     %v270 = alloc : () -> I32
-    %v271 = symbol ResolveTest.deferred$30 : %()
+    %v271 = symbol ResolveTest.deferred$32 : %()
     init %local12.code, %v271
     %v274 = cast 0 : %()
     init %local12.env, %v274
@@ -649,39 +649,28 @@ fn Bitwise(Mask).not(%value: Mask) -> Mask {
     ret %v1
 }
 
-fn ResolveTest.deferred$21(%env: %{}) -> I32 {
+fn ResolveTest.deferred$23(%env: %{}) -> I32 {
   b0:
     %v1 = call bumpValue : I32
     ret %v1
 }
 
-fn ResolveTest.deferred$22(%env: %{}) -> Mask {
+fn ResolveTest.deferred$24(%env: %{}) -> Mask {
   b0:
     %v1 = call bumpMask : Mask
     ret %v1
 }
 
-fn ResolveTest.deferred$23(%env: %{}) -> Mask {
+fn ResolveTest.deferred$25(%env: %{}) -> Mask {
   b0:
     %v1 = call bumpMask : Mask
-    ret %v1
-}
-
-fn ResolveTest.deferred$24(%env: %{}) -> I32 {
-  b0:
-    %v1 = call bumpValue : I32
-    ret %v1
-}
-
-fn ResolveTest.deferred$25(%env: %{}) -> I32 {
-  b0:
-    %v1 = call bumpValue : I32
     ret %v1
 }
 
 fn ResolveTest.deferred$26(%env: %{}) -> I32 {
   b0:
-    ret 2
+    %v1 = call bumpValue : I32
+    ret %v1
 }
 
 fn ResolveTest.deferred$27(%env: %{}) -> I32 {
@@ -692,8 +681,7 @@ fn ResolveTest.deferred$27(%env: %{}) -> I32 {
 
 fn ResolveTest.deferred$28(%env: %{}) -> I32 {
   b0:
-    %v1 = call bumpValue : I32
-    ret %v1
+    ret 2
 }
 
 fn ResolveTest.deferred$29(%env: %{}) -> I32 {
@@ -703,6 +691,18 @@ fn ResolveTest.deferred$29(%env: %{}) -> I32 {
 }
 
 fn ResolveTest.deferred$30(%env: %{}) -> I32 {
+  b0:
+    %v1 = call bumpValue : I32
+    ret %v1
+}
+
+fn ResolveTest.deferred$31(%env: %{}) -> I32 {
+  b0:
+    %v1 = call bumpValue : I32
+    ret %v1
+}
+
+fn ResolveTest.deferred$32(%env: %{}) -> I32 {
   b0:
     %v1 = call bumpValue : I32
     ret %v1

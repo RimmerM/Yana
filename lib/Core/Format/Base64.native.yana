@@ -71,7 +71,22 @@ fn pushBase64Groups(bytes: [U8], url: Bool, &to: String) -> Size:
         i = i + 12
         o = o + 16
 
+    return pushBase64GroupsTail(bytes, url, target, i, o)
+
+{-
+   The groups the block loop above did not reach, written into the run the caller already reserved
+   and counted - four units a group, as `Base64.yana`'s own loop writes them, but stored rather than
+   pushed because the length is set before either loop runs.
+
+   A function because there are two block bodies and this is the same tail for both:
+   `Base64.native.avx512.yana` is the other one, and its loop differs only in how many groups it
+   takes at once.
+-}
+@inline fn pushBase64GroupsTail(bytes: [U8], url: Bool, target: %CodeUnit, from: Size, at: Size) -> Size:
     let alphabet = base64Alphabet(url)
+    let count = length(bytes)
+    let &i = from
+    let &o = at
 
     while i + 3 <= count:
         let word = ((bytes[i] :: Int) `shl` 16) `or` ((bytes[i + 1] :: Int) `shl` 8) `or` (bytes[i + 2] :: Int)
@@ -98,3 +113,110 @@ fn base64Offsets(url: Bool) -> Vec(U8, 16):
     let small = withLane(digits, 0, 71 :: U8)               -- 97 - 26, `a` at window 26
     let symbols = withLane(withLane(small, 11, plus), 12, slash)
     return withLane(symbols, 13, 65 :: U8)                  -- `A` at window 0
+
+{-
+   The block form of the reader - sixteen units read, twelve bytes written a turn. What the notation
+   is, and the group walk this runs in front of, are in `Base64.yana`.
+
+   **Every unit is classified by where it falls, not by a nibble table.** The published SSE decoders
+   (Muła's, and the ones every library copies from it) get the six-bit value in about nine
+   instructions: two `pshufb` of bit-pattern tables say whether a unit is legal, and a third, indexed
+   by the high nibble corrected for `/`, says what to add. That route is written for **one**
+   alphabet, and this reader takes either - RFC 4648 §4 and §5 differ in two units, and those two
+   (`-` at high nibble 2 with `+`, `_` at high nibble 5 with the capitals) are exactly the two a
+   high-nibble table cannot separate. Correcting them afterwards costs the compares this body spends
+   anyway, so the ranges are written out and say what they mean. The table route is the thing to
+   measure this against if it is ever worth the second alphabet's special cases.
+
+   The ranges are subtracted before they are tested, which is one operation and not two: `v - 'A'`
+   read as an unsigned byte is at or below 25 exactly for the capitals, and it is also the value they
+   decode to. The three runs each answer their own difference that way and the two symbols are
+   selected in afterwards.
+
+   **A block that is not sixteen legal units is not taken at all.** `=` ends a run, a newline ends a
+   run and so does anything else, and all three are the same answer here: the block is abandoned and
+   the group walk in `Base64.yana` continues from where this stopped, which is a group boundary. That
+   is why there is no partial block - the walk is already the code for "the rest of it".
+
+   **Twelve bytes are written with a sixteen-byte store**, so the reservation carries a register of
+   slack past the count. The next block's store rewrites the four bytes past the twelve before
+   anything reads them, and the last block's are inside the run because the slack is there - the same
+   trade `removeAll` makes in `Array.native.yana`, with the slack taking the place of a masked store
+   because this loop, unlike that one, knows its count is a multiple of twelve.
+-}
+@replaces
+fn pushBase64Blocks(text: String, from: Size, &bytes: Array(U8)) -> Size:
+    let units = length(text)
+    if from + 16 > units then return from
+
+    -- Three bytes per four units of what is left, and a register of slack for the last store.
+    let held = bytes.length :: Size
+    reserve(bytes, held + (((units - from) / 4) * 3) + 16)
+
+    let window = String.bytes(text)
+    let source = window.items
+    let target = bytes.run.items
+
+    let upper = splat("A" :: U8) :: Vec(U8, 16)
+    let lower = splat("a" :: U8) :: Vec(U8, 16)
+    let digit = splat("0" :: U8) :: Vec(U8, 16)
+    let lastLetter = splat(25 :: U8) :: Vec(U8, 16)
+    let lastDigit = splat(9 :: U8) :: Vec(U8, 16)
+    let lowerValue = splat(26 :: U8) :: Vec(U8, 16)
+    let digitValue = splat(52 :: U8) :: Vec(U8, 16)
+
+    let plus = splat("+" :: U8) :: Vec(U8, 16)
+    let minus = splat("-" :: U8) :: Vec(U8, 16)
+    let slash = splat("/" :: U8) :: Vec(U8, 16)
+    let under = splat("_" :: U8) :: Vec(U8, 16)
+    let value62 = splat(62 :: U8) :: Vec(U8, 16)
+    let value63 = splat(63 :: U8) :: Vec(U8, 16)
+
+    let &at = from
+    let &out = held
+
+    while at + 16 <= units:
+        let block = vectorAt(source + at) :: Vec(U8, 16)
+
+        -- Each run's difference from its first unit is both the test and the value.
+        let fromUpper = block - upper
+        let fromLower = block - lower
+        let fromDigit = block - digit
+
+        let isUpper = fromUpper .<= lastLetter
+        let isLower = fromLower .<= lastLetter
+        let isDigit = fromDigit .<= lastDigit
+        let is62 = or(block .== plus, block .== minus)
+        let is63 = or(block .== slash, block .== under)
+
+        if !all(or(or(isUpper, isLower), or(isDigit, or(is62, is63)))) then break
+
+        let &value = fromUpper
+        value = select(isLower, fromLower + lowerValue, value)
+        value = select(isDigit, fromDigit + digitValue, value)
+        value = select(is62, value62, value)
+        value = select(is63, value63, value)
+
+        -- Two six-bit values into twelve bits, then two of those into the group's twenty-four.
+        -- A unit pair is a little-endian word, so the *first* unit is its low byte and the shift
+        -- that makes it the high half of the pair is what puts the two in the order they were
+        -- written in.
+        let pairs = bitcast(value) :: Vec(U16, 8)
+        let twelve = ((pairs `and` (splat(0x003f :: U16) :: Vec(U16, 8))) `shl` (splat(6 :: U16) :: Vec(U16, 8)))
+                     `or` (pairs `shr` (splat(8 :: U16) :: Vec(U16, 8)))
+
+        let halves = bitcast(twelve) :: Vec(U32, 4)
+        let word = ((halves `and` (splat(0x00000fff :: U32) :: Vec(U32, 4))) `shl` (splat(12 :: U32) :: Vec(U32, 4)))
+                   `or` (halves `shr` (splat(16 :: U32) :: Vec(U32, 4)))
+
+        -- The word's three bytes, big end first, which is the order they were encoded from: a lane
+        -- holds them little-endian, so the shuffle reverses each lane's low three and drops the
+        -- fourth. The last four lanes are past the twelve bytes this writes and are not read.
+        let packed = shuffle(bitcast(word) :: Vec(U8, 16), [2, 1, 0, 6, 5, 4, 10, 9, 8, 14, 13, 12, 15, 15, 15, 15])
+
+        setVectorAt(target + out, packed)
+        at = at + 16
+        out = out + 12
+
+    bytes.length = truncate(out) :: Count
+    return at

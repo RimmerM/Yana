@@ -167,3 +167,77 @@ fn referenceBase64(bytes: [U8], url: Bool) -> String:
         if base64Of(bytes, url: True, pad: False) != referenceBase64(bytes, True) then bad = bad + 1
 
     checkEqual(bad, 0)
+
+{-
+   And the reading direction at every length, which is where the block form of the reader lives.
+
+   `pushBase64Blocks` takes sixteen units - four groups, twelve bytes - at a time and abandons a
+   block holding anything that is not a unit of either alphabet, so the lengths worth walking are
+   every one around each multiple of sixteen units, and the two endings worth having are a padded
+   text (where `=` is what stops the block) and an unpadded one (where running out is). Both are
+   here, in both alphabets, against the bytes that were encoded.
+
+   The byte pattern is the encoder sweep's, which walks every six-bit window through all sixty-four
+   of its values - so a body that got one run of the alphabet's arithmetic wrong is wrong at some
+   length here rather than only on text nobody wrote.
+-}
+@test fn base64ReadingEveryLength():
+    let &bad = 0
+
+    -- From one, because a text of no groups is `NoDigits` rather than no bytes - which is the
+    -- reader's own answer and is asserted where it is stated, in `base64Partial`.
+    for n in 1 .. 101:
+        let &bytes = emptyArray() :: Array(U8)
+        for k in 0 .. n:
+            push(bytes, truncate(k * 37 + 11 + (k / 7) * 64) :: U8)
+
+        match readAll(base64Style(), base64Of(bytes)) :: Result(ReadError, Array(U8)):
+            Ok(back) -> (if !itemsEqual(elements(back), elements(bytes)) then bad = bad + 1)
+            Err(_) -> bad = bad + 1
+
+        match readAll(base64UrlStyle(), base64Of(bytes, url: True, pad: False)) :: Result(ReadError, Array(U8)):
+            Ok(back) -> (if !itemsEqual(elements(back), elements(bytes)) then bad = bad + 1)
+            Err(_) -> bad = bad + 1
+
+    checkEqual(bad, 0)
+
+{-
+   A unit that is not base64 in the middle of a long run, at every position of the first block.
+
+   The block form either takes sixteen units or none, so the position of the first illegal unit
+   decides how much of the text the group walk behind it is handed - and the cursor and the bytes
+   have to come out the same wherever it falls. A run long enough for several blocks with the stop
+   moved through the first of them is what says the two bodies agree about where a run ends.
+-}
+@test fn base64StopsAtTheFirstIllegalUnit():
+    let &bad = 0
+
+    for stop in 1 .. 40:
+        let &text = String.ofCapacity(80)
+        for k in 0 .. 80:
+            text.pushUnit((if k == stop then "!" else "A") :: CodeUnit)
+
+        {-
+           The whole groups before the stop, and then whatever the group the stop is in still
+           carries: four units are three bytes, three are two and two are one, and a lone unit is
+           six bits of nothing and is not taken at all. That last case is also the only way this run
+           ends with no bytes, which is `NoDigits`.
+        -}
+        let groups = stop / 4
+        let held = stop % 4
+        let partial = if held < 2 then 0 else held - 1
+
+        let wantBytes = (groups :: Size) * 3 + (partial :: Size)
+        let wantAt = (groups :: Size) * 4 + (if held < 2 then 0 else held :: Size)
+
+        let &at = 0 :: Size
+
+        match readBase64(text, at):
+            Ok(back):
+                if length(back) != wantBytes then bad = bad + 1
+                if at != wantAt then bad = bad + 1
+                for b in 0 .. length(back):
+                    if (back[b] :: Int) != 0 then bad = bad + 1
+            Err(_) -> (if wantBytes > 0 then bad = bad + 1)
+
+    checkEqual(bad, 0)

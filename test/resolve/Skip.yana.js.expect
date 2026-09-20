@@ -17,7 +17,7 @@ function always(n) {
   var v18 = null;
   log = log + 1 | 0;
   if (n > 0) {
-    var carried = ResolveTest_continuation$22(null, Math.imul(n, 2));
+    var carried = ResolveTest_continuation$23(null, Math.imul(n, 2));
     log = log + 100 | 0;
     v18 = carried;
   } else {
@@ -33,7 +33,7 @@ function valued(n) {
     var v29 = null;
     log = log + 1 | 0;
     if (n > 0) {
-      var carried = ResolveTest_continuation$23(null, Math.imul(n, 2));
+      var carried = ResolveTest_continuation$24(null, Math.imul(n, 2));
       log = log + 100 | 0;
       v29 = carried;
     } else {
@@ -97,7 +97,7 @@ function reasoned(n) {
     if (n < 0) {
       v21 = { $tag: 0, $p: 2 };
     } else {
-      v21 = { $tag: 1, $p: ResolveTest_continuation$25(null, n) };
+      v21 = { $tag: 1, $p: ResolveTest_continuation$26(null, n) };
     }
   }
   var v8 = { $tag: v21.$tag, $p: v21.$p };
@@ -122,7 +122,7 @@ function guarded(open) {
     v18 = null;
   } else {
     log = log + 1000 | 0;
-    v18 = ResolveTest_continuation$26(null);
+    v18 = ResolveTest_continuation$27(null);
   }
   var v9 = Try_Maybe_a_a_toOutcome_I32(v18);
   return v9 === null ? 0 : v9;
@@ -130,7 +130,7 @@ function guarded(open) {
 
 function nested(n) {
   log = log + 1 | 0;
-  var v15 = ResolveTest_continuation$27(null, Math.imul(n, 2));
+  var v15 = ResolveTest_continuation$28(null, Math.imul(n, 2));
   log = log + 10 | 0;
   return v15;
 }
@@ -149,28 +149,28 @@ function main() {
   var j = guarded(1);
   var k = guarded(0);
   log = log + 1 | 0;
-  var carried = ResolveTest_lambda$29(null, 12);
+  var carried = ResolveTest_lambda$30(null, 12);
   log = log + 100 | 0;
   return (((((((((((((a + b | 0) + c | 0) + d | 0) + e | 0) + f | 0) + g | 0) + h | 0) + i | 0) + j | 0) + k | 0) + carried | 0) + nested(3) | 0) + nested(-1) | 0) + log | 0;
 }
 
-function ResolveTest_continuation$22(env, found) {
+function ResolveTest_continuation$23(env, found) {
   return found + 1 | 0;
 }
 
-function ResolveTest_continuation$23(env, found) {
+function ResolveTest_continuation$24(env, found) {
   return Math.imul(found, 3);
 }
 
-function ResolveTest_continuation$25(env, value) {
+function ResolveTest_continuation$26(env, value) {
   return value + 1 | 0;
 }
 
-function ResolveTest_continuation$26(env) {
+function ResolveTest_continuation$27(env) {
   return 3;
 }
 
-function ResolveTest_continuation$27(env, value$) {
+function ResolveTest_continuation$28(env, value$) {
   var v22 = null;
   log = log + 1 | 0;
   if (value$ > 0) {
@@ -184,7 +184,7 @@ function ResolveTest_continuation$27(env, value$) {
   return v11 === null ? 0 : v11;
 }
 
-function ResolveTest_lambda$29(env, found) {
+function ResolveTest_lambda$30(env, found) {
   return Math.imul(found, 5);
 }
 main();

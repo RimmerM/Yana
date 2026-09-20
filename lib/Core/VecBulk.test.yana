@@ -114,3 +114,45 @@ import Test
     -- And the scalar half: a `String` has no vector on any target, so this is the element loop.
     check(["ann", "bob"] == ["ann", "bob"])
     check(["ann", "bob"] != ["ann", "cid"])
+
+{-
+   The eighth pair, over a bitmap.
+
+   The lengths run past a whole register at every lane count so that the vector body's own tail is
+   reached, and the reference is the element walk written out here rather than `totalBits`'s
+   baseline - two bodies asserted against a third thing is what keeps a replacement honest when the
+   baseline is what it replaced.
+
+   The pattern is `i * 0x0123456789abcdef`, which has a different number of set bits in nearly every
+   word and is not a pattern any lane split could flatter: the count is taken at sixty-four lanes
+   whatever the words are, so a body that read the wrong width would still have to agree here.
+-}
+fn wordAt(i: Int) -> U64 = (truncate(i) :: U64) * 0x0123456789abcdef
+
+fn bitsWalked(words: [U64]) -> Size:
+    let &total = 0 :: Size
+
+    for at in 0 .. length(words):
+        total = total + (truncate(countBits(words[at])) :: Size)
+
+    return total
+
+@test fn totalBitsCases():
+    checkEqual(totalBits([] :: [U64]), 0 :: Size)
+    checkEqual(totalBits([0 :: U64]), 0 :: Size)
+    checkEqual(totalBits([1 :: U64, 3, 7]), 6 :: Size)
+
+    -- Every bit of a word, and every bit of several.
+    checkEqual(totalBits([0xffffffffffffffff :: U64]), 64 :: Size)
+    checkEqual(totalBits([0xffffffffffffffff :: U64, 0xffffffffffffffff]), 128 :: Size)
+
+    let &bad = 0
+
+    for n in 0 .. 40:
+        let &words = [] :: [U64]
+        for i in 0 .. n:
+            push(words, wordAt(i))
+
+        if totalBits(words) != bitsWalked(words) then bad = bad + 1
+
+    checkEqual(bad, 0)

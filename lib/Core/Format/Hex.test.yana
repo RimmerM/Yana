@@ -208,3 +208,63 @@ fn readShownBytes(text: String, separator: CodeUnit = 0) -> String:
     match readAll(hexBytesStyle(), hexOf(elements(bytes))) :: Result(ReadError, Array(U8)):
         Ok(back) -> checkEqual("{hexBytes(elements(back))}", "{hexBytes(elements(bytes))}")
         Err(_) -> check(False)
+
+{-
+   Every length from nothing to a hundred bytes, read back from what the writer wrote, in both
+   letter cases.
+
+   Natively the digit pairs are decoded sixteen units - eight bytes - at a time by a block form
+   (`pushHexBlocks` in `Hex.native.yana`) that abandons a block holding anything that is not a
+   digit, so the lengths worth walking are every one around each multiple of eight bytes, and the
+   two cases worth having are the one the writer emits and the one it does not. The byte pattern
+   reaches every value, which is where a run's arithmetic would be wrong if it were.
+-}
+@test fn hexReadingEveryLength():
+    let &bad = 0
+
+    for n in 1 .. 101:
+        let &bytes = emptyArray() :: Array(U8)
+        for k in 0 .. n:
+            push(bytes, truncate(k * 37 + 11) :: U8)
+
+        let lowerText = hexOf(elements(bytes))
+        let upperText = toUpperAscii(lowerText)
+
+        match readAll(hexBytesStyle(), lowerText) :: Result(ReadError, Array(U8)):
+            Ok(back) -> (if !itemsEqual(elements(back), elements(bytes)) then bad = bad + 1)
+            Err(_) -> bad = bad + 1
+
+        match readAll(hexBytesStyle(), upperText) :: Result(ReadError, Array(U8)):
+            Ok(back) -> (if !itemsEqual(elements(back), elements(bytes)) then bad = bad + 1)
+            Err(_) -> bad = bad + 1
+
+    checkEqual(bad, 0)
+
+{-
+   A unit that is not a digit at every position of a long run.
+
+   The block form takes sixteen units or none, so where the first non-digit falls decides how much
+   of the text the walk behind it is handed - and the bytes and the cursor have to come out the same
+   wherever that is. An odd position stops in the middle of a pair, which is the case that leaves a
+   digit unread.
+-}
+@test fn hexStopsAtTheFirstNonDigit():
+    let &bad = 0
+
+    for stop in 1 .. 40:
+        let &text = String.ofCapacity(80)
+        for k in 0 .. 80:
+            text.pushUnit((if k == stop then "z" else "1") :: CodeUnit)
+
+        let pairs = stop / 2
+        let &at = 0 :: Size
+
+        match readHexBytes(text, at):
+            Ok(back):
+                if length(back) != (pairs :: Size) then bad = bad + 1
+                if at != (pairs :: Size) * 2 then bad = bad + 1
+                for b in 0 .. length(back):
+                    if (back[b] :: Int) != 0x11 then bad = bad + 1
+            Err(_) -> (if pairs > 0 then bad = bad + 1)
+
+    checkEqual(bad, 0)

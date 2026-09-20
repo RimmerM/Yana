@@ -345,10 +345,19 @@ pub fn newCrc32C() -> Crc32C = Crc32C {value: 4294967295}
    The table is one flat array of 2048 rather than eight of 256, so a slice index is `k * 256 + byte`
    and the eight base offsets are constants. Nothing else about it differs.
 -}
-pub fn crc32Update(value: U32, from: [U8], at: Size, count: Size) -> U32:
+pub fn crc32Update(value: U32, from: [U8], at: Size, count: Size) -> U32 =
+    crc32From(value, from, at, at + count)
+
+{-
+   The same fold written as "from here to there" rather than "from here, this many".
+
+   It is a function of its own because it is what the folding body in `Crc.native.pclmul.yana`
+   finishes with: that one takes whole sixteen-byte blocks out of the front of the run and hands
+   the rest back here, and "the rest" is a pair of positions. Nothing else about the walk changed.
+-}
+fn crc32From(value: U32, from: [U8], at: Size, stop: Size) -> U32:
     let &crc = value
     let &i = at
-    let stop = at + count
     let bulk = stop - 8
 
     while i <= bulk:

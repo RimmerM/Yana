@@ -1,14 +1,14 @@
 let image$base: () = <none>
 
-table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
+table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
+table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$21(()) before ResolveTest.continuation$21(()) {
+table closure$ResolveTest.continuation$23(()) before ResolveTest.continuation$23(()) {
   .0 teardown$none
 }
 
@@ -151,7 +151,7 @@ fn evens(%limit: I32, %body: (value$: I32) -> Outcome((), $r)) -> Outcome((), $r
     init %local1.body, %v3
     %v5 = addressof %local1 : %()
     %v6 = alloc : (value$: I32) -> Outcome((), Outcome((), $r))
-    %v7 = symbol ResolveTest.continuation$21 : %()
+    %v7 = symbol ResolveTest.continuation$23 : %()
     init %local2.code, %v7
     init %local2.env, %v5
     %v10 = gencall upTo(Outcome((), $r)), %limit, %v6 : Outcome((), Outcome((), $r))
@@ -178,7 +178,7 @@ fn main() -> I32 {
     %c = call offset, %p, 1, 7 : I32
     %v13 = call scaled, %p, 2 : I32
     %v14 = alloc : (I32) -> I32
-    %v15 = symbol ResolveTest.lambda$22 : %()
+    %v15 = symbol ResolveTest.lambda$24 : %()
     init %local1.code, %v15
     %v18 = cast 0 : %()
     init %local1.env, %v18
@@ -190,7 +190,7 @@ fn main() -> I32 {
     call bump, %v27, 5
     %step = alloc : Step
     %v31 = alloc : (I32) -> I32
-    %v32 = symbol ResolveTest.lambda$23 : %()
+    %v32 = symbol ResolveTest.lambda$25 : %()
     init %local4.code, %v32
     %v35 = cast 0 : %()
     init %local4.env, %v35
@@ -216,7 +216,7 @@ fn main() -> I32 {
     init %local9.sum, %v61
     %v63 = addressof %local9 : %()
     %v64 = alloc : (value$: I32) -> Outcome((), ())
-    %v65 = symbol ResolveTest.continuation$24 : %()
+    %v65 = symbol ResolveTest.continuation$26 : %()
     init %local10.code, %v65
     init %local10.env, %v63
     %v69 = call evens(()), 10, %v64 : Outcome((), ())
@@ -245,7 +245,7 @@ fn Describe(Point).describe(%v: Point) -> I32 {
     ret %v6
 }
 
-fn ResolveTest.continuation$21(%env: %{body: '(value$: I32) -> Outcome((), $r)}, %value$: I32) -> Outcome((), Outcome((), $r)) {
+fn ResolveTest.continuation$23(%env: %{body: '(value$: I32) -> Outcome((), $r)}, %value$: I32) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type $r
     #1 type Outcome((), Outcome((), $r))
@@ -284,7 +284,7 @@ fn ResolveTest.continuation$21(%env: %{body: '(value$: I32) -> Outcome((), $r)},
     ret %v18
 }
 
-fn ResolveTest.lambda$22(%env: %{}, %v: I32) -> I32 {
+fn ResolveTest.lambda$24(%env: %{}, %v: I32) -> I32 {
   b0:
     %v4 = add %v, 1 : I32
     ret %v4
@@ -297,13 +297,13 @@ fn applyTwice(I32)(%v: I32, %f: (I32) -> I32) -> I32 {
     ret %v3
 }
 
-fn ResolveTest.lambda$23(%env: %{}, %x: I32) -> I32 {
+fn ResolveTest.lambda$25(%env: %{}, %x: I32) -> I32 {
   b0:
     %v4 = sub %x, 1 : I32
     ret %v4
 }
 
-fn ResolveTest.continuation$24(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$26(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &I32
     %v3 = load [%env].sum : &I32
@@ -322,7 +322,7 @@ fn evens(())(%limit: I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome(()
     init %local1.body, %v3
     %v5 = addressof %local1 : %()
     %v6 = alloc : (value$: I32) -> Outcome((), Outcome((), ()))
-    %v7 = symbol ResolveTest.continuation$21(()) : %()
+    %v7 = symbol ResolveTest.continuation$23(()) : %()
     init %local2.code, %v7
     init %local2.env, %v5
     %v10 = call upTo(Outcome((), ())), %limit, %v6 : Outcome((), Outcome((), ()))
@@ -340,7 +340,7 @@ fn evens(())(%limit: I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome(()
     ret %v17
 }
 
-fn ResolveTest.continuation$21(())(%env: %{body: '(value$: I32) -> Outcome((), ())}, %value$: I32) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$23(())(%env: %{body: '(value$: I32) -> Outcome((), ())}, %value$: I32) -> Outcome((), Outcome((), ())) {
   b0:
     %v3 = rem %value$, 2 : I32
     %v5 = cmp_eq %v3, 0 : Bool

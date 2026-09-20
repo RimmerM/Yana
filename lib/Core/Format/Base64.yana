@@ -194,6 +194,24 @@ fn base64Padding(text: String, from: Size, held: Int) -> Size:
 
     return at
 
+{-
+   The whole four-unit groups at the head of a run, decoded a block at a time - the dual of
+   `pushBase64Groups`, split the same way and for the same reason.
+
+   What it promises is narrow on purpose: **a position at or after `from`, with exactly the bytes of
+   the groups between the two appended**. Every unit it consumes is a unit of one of the alphabets
+   and every group it consumes is a whole four, so what is left for the loop below is a run that
+   starts at a group boundary - which is the state that loop already begins in.
+
+   **The baseline decodes nothing, and that is a body rather than a stub.** "No groups" satisfies the
+   promise above, the loop below finishes the run whichever body ran, and the bytes and the cursor
+   are therefore the same either way - which is the property the suite's `no-replacements` row
+   checks. A JavaScript build has nothing to choose, as it has nothing to choose for `itemsEqual`,
+   and for the same reason: a host vector is `lanes` values and the block form would be the walk with
+   an array allocated per iteration.
+-}
+fn pushBase64Blocks(text: String, from: Size, &bytes: Array(U8)) -> Size = from
+
 instance ReadWith(Base64Style, [U8]):
   fn readWith(style: Base64Style, from: String, &at: Size) -> Result(ReadError, [U8]):
     let units = length(from)
@@ -205,6 +223,14 @@ instance ReadWith(Base64Style, [U8]):
 
     let &start = at
     let &any = False
+
+    -- The blocks first, where there is a body for them: what comes back is a group boundary, and
+    -- what is left is whatever the block form would not take - a short group, a padded one, or the
+    -- first unit that is not base64 at all.
+    let blocked = pushBase64Blocks(from, start, bytes)
+    if blocked > start:
+        any = True
+        start = blocked
 
     while start < units:
         let &held = 0 :: Int

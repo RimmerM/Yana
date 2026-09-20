@@ -1,0 +1,100 @@
+{-
+   xxHash32 against a reference written out here, at every length from nothing to two hundred bytes.
+
+   `Digest.test.yana`'s known answers pin five lengths against the reference implementation's own
+   numbers, which is what says this digest is xxHash32 at all. What this adds is the shape the
+   vector body (`xxCompress`'s replacement in `XxHash.yana`) can get wrong and those five cannot
+   catch: a stripe boundary. The block loop compresses four sixteen-byte stripes at a time and the
+   accumulators leave the register between calls, so the lengths worth walking are all of them -
+   every count of whole blocks, every count of leftover stripes, and every tail under four bytes.
+
+   **The reference is a second implementation rather than the same one called twice**, which is the
+   only kind of comparison that means anything here: the baseline and the replacement are asserted
+   against each other by the suite's `no-replacements` row, and a case that compared a digest with
+   itself would pass on both while agreeing about the wrong number.
+-}
+
+import Test
+
+let refPrime1 = 2654435761 :: U32
+let refPrime2 = 2246822519 :: U32
+let refPrime3 = 3266489917 :: U32
+let refPrime4 = 668265263 :: U32
+let refPrime5 = 374761393 :: U32
+
+fn refRound(accumulator: U32, lane: U32) -> U32 =
+    ((accumulator + lane * refPrime2) `rol` 13) * refPrime1
+
+-- Yann Collet's xxHash32 with a zero seed, written as the specification states it and not as
+-- `XxHash.yana` arranges it: one pass, no buffer, no streaming state.
+fn referenceXxHash32(input: [U8]) -> U32:
+    let count = length(input)
+    let &i = 0 :: Size
+
+    let &h = 0 :: U32
+
+    if count >= 16:
+        let &v1 = refPrime1 + refPrime2
+        let &v2 = refPrime2
+        let &v3 = 0 :: U32
+        let &v4 = 0 - refPrime1
+
+        while i + 16 <= count:
+            v1 = refRound(v1, readLittleU32(input, i))
+            v2 = refRound(v2, readLittleU32(input, i + 4))
+            v3 = refRound(v3, readLittleU32(input, i + 8))
+            v4 = refRound(v4, readLittleU32(input, i + 12))
+            i = i + 16
+
+        h = (v1 `rol` 1) + (v2 `rol` 7) + (v3 `rol` 12) + (v4 `rol` 18)
+    else:
+        h = refPrime5
+
+    h = h + (truncate(count) :: U32)
+
+    while i + 4 <= count:
+        h = ((h + readLittleU32(input, i) * refPrime3) `rol` 17) * refPrime4
+        i = i + 4
+
+    while i < count:
+        h = ((h + (input[i] :: U32) * refPrime5) `rol` 11) * refPrime1
+        i = i + 1
+
+    h = (h `xor` (h `shr` 15)) * refPrime2
+    h = (h `xor` (h `shr` 13)) * refPrime3
+    return h `xor` (h `shr` 16)
+
+{-
+   Two hundred and one lengths, which crosses every boundary this digest has: sixteen bytes is a
+   stripe, sixty-four is a block, and the buffer holds up to three stripes when `finish` is reached.
+
+   The bytes are `i * 37 + 11`, which is `Digest.test.yana`'s own filler: every byte value appears
+   and no word is a repeat of the one before it, so a body that read a stripe's four words in the
+   wrong order would answer differently at the first stripe rather than at some length.
+-}
+@test fn xxHash32AtEveryLength():
+    let &input = emptyArray() :: Array(U8)
+    let &bad = 0
+
+    for n in 0 .. 201:
+        if xxHash32ValueOf(input) != referenceXxHash32(input) then bad = bad + 1
+
+        push(input, truncate(n * 37 + 11) :: U8)
+
+    checkEqual(bad, 0)
+
+-- And the same digest reached a byte at a time, so that the block buffer is what feeds the
+-- compression rather than the caller's window. The two answers are the same number by construction;
+-- what this asserts is that they are also the same *as the reference*, at a length with whole
+-- blocks, leftover stripes and a ragged tail all at once.
+@test fn xxHash32Streamed():
+    let &input = emptyArray() :: Array(U8)
+    for n in 0 .. 150:
+        push(input, truncate(n * 37 + 11) :: U8)
+
+    let &piecemeal = newDigest() :: XxHash
+    for j in 0 .. 150:
+        update(piecemeal, elements(input)[j..j + 1])
+
+    checkEqual(valueOfBytes(finish(piecemeal)), referenceXxHash32(input))
+    checkEqual(xxHash32ValueOf(input), referenceXxHash32(input))

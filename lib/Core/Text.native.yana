@@ -294,11 +294,12 @@ pub fn endsWith(text: String, suffix: String) -> Bool:
    Every whole-block load is inside the haystack: the last block the loop reads starts `inner - 1`
    units after the last candidate position, which is `length - width`, so the read ends exactly at
    the end. That is why the loop is bounded by the number of *candidate positions* rather than by
-   the length. The scalar candidate tail is not needed for safety: both corresponding vector loads
-   start at live units and may use `loadVectorTail`, with
-   `maskUpTo(truncate(starts - i) :: Int)` excluding candidate lanes past the last valid start. It
-   remains a measured optimization candidate because every hit still needs the scalar `unitsEqual`
-   verification; Analysis-Avx512.md §4.13 records the audit.
+   the length. **The remaining candidates are one more block on the same terms**, which is what the
+   scalar walk that used to be here has become: both loads start at live units, so `loadVectorTail`
+   covers them, and `maskUpTo(truncate(starts - i) :: Int)` excludes the lanes whose start is past
+   the last candidate. A hit still needs its scalar `unitsEqual`, which is why this is a filter and
+   not an answer - but so does a hit in a whole block, and the filter is the same two compares
+   either way.
 -}
 pub fn String.find(haystack: String, needle: String, from: Size = 0) -> Maybe(Size):
     let outer = length(haystack)
@@ -340,11 +341,23 @@ pub fn String.find(haystack: String, needle: String, from: Size = 0) -> Maybe(Si
 
         i = i + width
 
-    while i < starts:
-        if window[i] == firstUnit && window[i + inner - 1] == lastUnit:
-            if unitsEqual(slice(window, i, i + inner), sought) then return Just(at + i)
+    -- The remaining candidates are one more block of each end, read past the window on the run's
+    -- padding and masked to the positions that can really start a match - §4.13's fourth row. Both
+    -- loads begin at a live unit: the last candidate is `starts - 1` and its last unit is the last
+    -- unit of the window, so `i + inner - 1` is inside it for every `i` below `starts`. What the
+    -- live mask excludes is a lane whose *start* is past the last candidate, which is the only way
+    -- a padding byte could name one.
+    if i < starts:
+        let live = maskUpTo(truncate(starts - i) :: Int) :: Mask(CodeUnit)
+        let heads = loadVectorTail(window, i) .== firstLane
+        let tails = loadVectorTail(window, i + inner - 1) .== lastLane
 
-        i = i + 1
+        let &hits = bits(and(and(heads, tails), live))
+
+        while hits != 0:
+            let j = i + (trailingZeros(hits) :: Size)
+            if unitsEqual(slice(window, j, j + inner), sought) then return Just(at + j)
+            hits = hits `and` (hits - 1)
 
     return Nothing
 
@@ -607,11 +620,14 @@ pub fn equalsAsciiCase(left: String, right: String) -> Bool:
         if !all(loweredUnits(signedUnits(a, i)) .== loweredUnits(signedUnits(b, i))) then return False
         i = i + width
 
-    -- This scalar tail predates `compareAsciiCase`'s measured overreading tail below. It can use
-    -- the same first-difference position check; Analysis-Avx512.md §4.13 records the missed path.
-    while i < count:
-        if toLowerUnit(left.unit(i)) != toLowerUnit(right.unit(i)) then return False
-        i = i + 1
+    -- The remainder is `compareAsciiCase`'s tail arm asked for a `Bool` - one overreading load of
+    -- each operand, one fold of each, and the *position* of the first disagreement tested against
+    -- the length rather than a live mask built to suppress it. §4.13's second row, and the reason
+    -- it is the position and not a mask is measured below: a `maskUpTo` here is a general register
+    -- moved into a vector, a broadcast, a pooled `iota` and an unsigned bias, where this is a `cmp`.
+    if i < count:
+        let differ = not(loweredUnits(signedUnitsTail(a, i)) .== loweredUnits(signedUnitsTail(b, i)))
+        if any(differ) && i + (firstSet(differ) :: Size) < count then return False
 
     return True
 
@@ -723,9 +739,13 @@ pub fn isAllAscii(text: String) -> Bool:
         if any(loadVector(window, i) .> limit) then return False
         i = i + width
 
-    -- `loadVectorTail` plus a live-lane mask is already faster at AVX2; see §4.12-§4.13.
-    while i < count:
-        if !isAscii(text.unit(i)) then return False
-        i = i + 1
+    -- The remainder is one more block, read past the end on the run's padding and masked to the
+    -- units that are really there - Analysis-Avx512.md §4.13's first row, and the one it measured
+    -- before it was written: 4.64x at thirty-one bytes on AVX2 against the walk that was here.
+    -- A one-byte remainder is the case that still favours the walk, and it is not worth a branch
+    -- that would be mispredicted on every string whose length is not a multiple of the width.
+    if i < count:
+        let live = maskUpTo(truncate(count - i) :: Int) :: Mask(CodeUnit)
+        if any(and(loadVectorTail(window, i) .> limit, live)) then return False
 
     return True

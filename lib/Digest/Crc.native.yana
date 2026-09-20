@@ -28,10 +28,15 @@ import Native
    A latency-bound loop is exactly where a safe read is free, and a hand-written `*(bitcast(...))`
    would be a second copy of `Core/Container.yana`'s reader with the check taken out of it.
 -}
-pub fn crc32cUpdate(value: U32, from: [U8], at: Size, count: Size) -> U32:
+pub fn crc32cUpdate(value: U32, from: [U8], at: Size, count: Size) -> U32 =
+    crc32cFrom(value, from, at, at + count)
+
+-- The same walk between two positions, which is what the folding body in `Crc.native.pclmul.yana`
+-- finishes a run with - `crc32From` in `Crc.yana` is the other polynomial's, split for the same
+-- reason.
+fn crc32cFrom(value: U32, from: [U8], at: Size, stop: Size) -> U32:
     let &crc = value
     let &i = at
-    let stop = at + count
     let bulk = stop - 8
 
     while i <= bulk:

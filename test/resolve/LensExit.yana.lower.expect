@@ -14,7 +14,7 @@ sometimesLeaves<complex>(%x: I32): I32 {
     %v_2 = loads @log, 4: I32
     %v_3 = add %v_2, 1: I32
     store @log, %v_3, 4
-    %v_4 = call_complex ResolveTest.continuation$22, %v_1: I32
+    %v_4 = call_complex ResolveTest.continuation$24, %v_1: I32
     %v_5 = loads @log, 4: I32
     %v_6 = add %v_5, 100: I32
     store @log, %v_6, 4
@@ -79,7 +79,7 @@ leavesWithValue<complex>(%x: I32): I32 {
     %v_3 = add %v_2, 1: I32
     store @log, %v_3, 4
     %v_4 = shl %x, 1: I32
-    %v_5 = call_complex ResolveTest.continuation$24, %v_1, %v_4: I32
+    %v_5 = call_complex ResolveTest.continuation$26, %v_1, %v_4: I32
     %v_6 = loads @log, 4: I32
     %v_7 = add %v_6, 100: I32
     store @log, %v_7, 4
@@ -111,8 +111,8 @@ main<complex>(): I32 {
   }
 }
 
-@closure$ResolveTest.continuation$22 = [0, 0, 0, 0]
-ResolveTest.continuation$22<complex>(%env: Ptr): I32 {
+@closure$ResolveTest.continuation$24 = [0, 0, 0, 0]
+ResolveTest.continuation$24<complex>(%env: Ptr): I32 {
   b_0 {
     %v_1 = loads %env, 4: I32
     %v_2 = cmp_igt %v_1, 100: I32
@@ -129,7 +129,7 @@ ResolveTest.continuation$22<complex>(%env: Ptr): I32 {
   }
 }
 
-ResolveTest.continuation$24<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$26<complex>(%env: Ptr, %value$: I32): I32 {
   b_0 {
     %v_1 = cmp_igt %value$, 10: I32
     je %v_1, b_2, b_3

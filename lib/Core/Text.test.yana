@@ -323,6 +323,33 @@ fn wordParts(text: String) -> String:
     checkEqual(found(String.find(text, "ba")), 2)
 
 {-
+   Every length from two to a hundred, with the only match at the *last* candidate position.
+
+   The remaining candidates are now one masked block rather than a walk (Analysis-Avx512.md §4.13),
+   and the last candidate is the lane that mask has to keep: its first unit is the second-to-last of
+   the text and its last unit is the last, so a mask built over `starts - i` off by one loses the
+   answer and no mask at all invents one out of the padding. The two near misses are the same
+   candidate failing on each end, which is what the filter is supposed to reject without a
+   verification.
+-}
+@test fn needleSearchAtEveryLength():
+    let &bad = 0
+
+    for n in 2 .. 100:
+        let &text = String.ofCapacity(n :: Size)
+        for i in 0 .. (n - 2):
+            text.pushUnit("-" :: CodeUnit)
+        text.pushUnit("x" :: CodeUnit)
+        text.pushUnit("y" :: CodeUnit)
+
+        if found(String.find(text, "xy")) != n - 2 then bad = bad + 1
+        if found(String.find(text, "xz")) != 0 - 1 then bad = bad + 1
+        if found(String.find(text, "yx")) != 0 - 1 then bad = bad + 1
+        if found(String.findLast(text, "xy")) != n - 2 then bad = bad + 1
+
+    checkEqual(bad, 0)
+
+{-
    ==========================================================================================
    Slicing
    ==========================================================================================
@@ -552,6 +579,40 @@ fn wordParts(text: String) -> String:
     checkEqual(compareAsciiCase("", "a"), LT)
 
 {-
+   The same fold at every length from zero to a hundred, with the disagreement at the *last* unit.
+
+   `equalsAsciiCase`'s remainder is `compareAsciiCase`'s: one overreading block of each operand and
+   the position of the first differing lane tested against the length (Analysis-Avx512.md §4.13).
+   So the two mistakes that shape can make are a difference in the last live lane reported as
+   agreement, and a padding lane past the end reported as a difference - and a length sweep with the
+   difference planted at the end is what separates them from the walk that used to answer here.
+-}
+@test fn caseFoldAtEveryLength():
+    let &bad = 0
+
+    for n in 0 .. 100:
+        let &left = String.ofCapacity(n :: Size)
+        let &right = String.ofCapacity(n :: Size)
+
+        for i in 0 .. n:
+            left.pushUnit((if i % 2 == 0 then "A" else "b") :: CodeUnit)
+            right.pushUnit((if i % 2 == 0 then "a" else "B") :: CodeUnit)
+
+        if !equalsAsciiCase(left, right) then bad = bad + 1
+        if compareAsciiCase(left, right) != EQ then bad = bad + 1
+
+        if n > 0:
+            let &parted = String.ofCapacity(n :: Size)
+            for i in 0 .. (n - 1):
+                parted.pushUnit((if i % 2 == 0 then "a" else "B") :: CodeUnit)
+            parted.pushUnit("z" :: CodeUnit)
+
+            if equalsAsciiCase(left, parted) then bad = bad + 1
+            if compareAsciiCase(left, parted) == EQ then bad = bad + 1
+
+    checkEqual(bad, 0)
+
+{-
    ==========================================================================================
    Whether every unit is ASCII
    ==========================================================================================
@@ -571,6 +632,34 @@ fn wordParts(text: String) -> String:
     -- Past the first vector block, so the whole-block loop is what answers rather than the tail.
     check(isAllAscii(repeated("abcd", 12)))
     check(!isAllAscii(repeated("abcd", 12) ++ "\xc3\xa9"))
+
+{-
+   Every length from zero to a hundred, with the one non-ASCII unit at the *last* position.
+
+   That position is what the remainder is now: one overreading block with the lanes past the end
+   masked off (Analysis-Avx512.md §4.13), so the last live lane is the one a mask built one short
+   would drop, and the lanes past it are the ones a missing mask would answer for. A walk over the
+   remainder could get neither wrong, which is why this case arrives with the block that replaced it.
+-}
+@test fn asciiAtEveryLength():
+    let &bad = 0
+
+    for n in 0 .. 100:
+        let &plain = String.ofCapacity(n :: Size)
+        for i in 0 .. n:
+            plain.pushUnit("a" :: CodeUnit)
+
+        if !isAllAscii(plain) then bad = bad + 1
+
+        if n > 0:
+            let &planted = String.ofCapacity(n :: Size)
+            for i in 0 .. (n - 1):
+                planted.pushUnit("a" :: CodeUnit)
+            planted.pushUnit(0x80 :: CodeUnit)
+
+            if isAllAscii(planted) then bad = bad + 1
+
+    checkEqual(bad, 0)
 
 {-
    ==========================================================================================

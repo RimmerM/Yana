@@ -158,3 +158,60 @@ fn referenceUtf8(units: [U16]) -> String:
         if String.fromUtf16(elements(units)) != referenceUtf8(elements(units)) then wrong = wrong + 1
 
     checkEqual(wrong, 0)
+
+{-
+   The same agreement over text that is mostly two-byte characters, which is what
+   `widenTwoByteRegisters` and `narrowTwoByteRun` are for and what `generatedText` rarely puts eight
+   of in a row.
+
+   The register steps take eight characters or four, and sixteen bytes or eight, so a run has to be
+   that long and has to end at every lane: at ASCII, at a three- or four-byte character, at a broken
+   sequence, or - on the UTF-16 side - at a surrogate. `C0` and `C1` are in the broken set on
+   purpose: they are leads the *pattern* has to reject, being the overlong forms of ASCII, and they
+   are the one rule of table 3-7 at this length that is not "a lead and then a continuation".
+-}
+let twoByteChars = [0x80 :: U32, 0xA9, 0xE9, 0xFF, 0x100, 0x1FF, 0x3A9, 0x400, 0x41F, 0x5D0, 0x627, 0x7FE, 0x7FF]
+let twoByteRunEnds = [0x20 :: U32, 0x7F, 0x4E2D, 0x1F600, 0x800]
+
+@test fn twoByteRunsAgreeWithWalk():
+    let &state = 90210 :: U32
+    let &wrong = 0
+
+    for round in 0 .. 6000:
+        let broken = round % 3 == 0
+        let size = below(state, 100)
+        state = nextState(state)
+
+        let &text = String.ofCapacity(3 * size)
+        let &units = [] :: [U16]
+        for _ in 0 .. size:
+            let pick = below(state, 100)
+            state = nextState(state)
+
+            if pick < 8:
+                String.pushChar(text, Char(twoByteRunEnds[below(state, 5)]))
+            else if broken && pick < 14:
+                -- An overlong lead, a lead cut short, or a continuation where a lead should be.
+                String.pushUnit(text, if pick < 10 then 0xC0 else if pick < 12 then 0xC3 else 0x80)
+                if pick == 10 || pick == 11 then String.pushUnit(text, 0x41)
+            else:
+                String.pushChar(text, Char(twoByteChars[below(state, 13)]))
+            state = nextState(state)
+
+        String.appendUtf16(text, units)
+        let expected = referenceUtf16(text)
+        if !sameUnits(elements(units), elements(expected)) then wrong = wrong + 1
+
+        let &trusted = [] :: [U16]
+        String.appendUtf16Unchecked(text, trusted)
+        if !broken && !sameUnits(elements(trusted), elements(expected)) then wrong = wrong + 1
+        if length(trusted) > length(text) then wrong = wrong + 1
+
+        -- A lone surrogate at one unit in four rounds, anywhere in a register.
+        if round % 4 == 1 && length(units) > 0:
+            units[below(state, truncate(length(units)) :: U32)] = if round % 8 == 1 then 0xD800 else 0xDC00
+            state = nextState(state)
+
+        if String.fromUtf16(elements(units)) != referenceUtf8(elements(units)) then wrong = wrong + 1
+
+    checkEqual(wrong, 0)

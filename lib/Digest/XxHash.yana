@@ -31,26 +31,94 @@ pub fn seededXxHash32(seed: U32) -> XxHash32 =
 
 fn xxRound(accumulator: U32, lane: U32) -> U32 = ((accumulator + lane * xxPrime2) `rol` 13) * xxPrime1
 
+{-
+   The stripe walk, as a plain function so that it can have a second body.
+
+   `compressBlocks` is a class member and a `@replaces` replaces a *function*, so the instance
+   delegates and the replacement is written over this - the same move `Math.yana`'s vector `Real`
+   instances make for the same reason.
+
+   The walk itself is unchanged: four accumulators, one per word of a sixteen-byte stripe, each
+   advanced by `xxRound`. It is also what the big-endian arm of the vector body below calls, which is
+   why it is a third function rather than two.
+-}
+fn xxStripeWalk(&self: XxHash32, from: [U8], at: Size, stop: Size):
+    let &v1 = self.v1
+    let &v2 = self.v2
+    let &v3 = self.v3
+    let &v4 = self.v4
+    let &i = at
+
+    while i < stop:
+        v1 = xxRound(v1, readLittleU32(from, i))
+        v2 = xxRound(v2, readLittleU32(from, i + 4))
+        v3 = xxRound(v3, readLittleU32(from, i + 8))
+        v4 = xxRound(v4, readLittleU32(from, i + 12))
+        i = i + 16
+
+    self.v1 = v1
+    self.v2 = v2
+    self.v3 = v3
+    self.v4 = v4
+
+fn xxCompress(&self: XxHash32, from: [U8], at: Size, blocks: Size):
+    xxStripeWalk(self, from, at, at + blocks * 64)
+
+{-
+   The same four accumulators as one four-lane register - Analysis-Avx512.md §4.4's first row.
+
+   **The lanes are the algorithm's and not the machine's**, which is why the width is written:
+   xxHash32 has exactly four accumulators and each one's next value depends on its own last, so
+   there is no wider vector to grow into and `Vec(U32, 4)` at every level is the whole of the
+   parallelism this digest has. What a wider register would be good for is several *messages* at
+   once, which is a different interface (§4.4's multi-buffer row) and not this one.
+
+   So the win, where there is one, is instruction count rather than width: `vpmulld`, `vpaddd` and
+   §2.4's `vprold` are one instruction each against four, and the rotate is the one of the three
+   that is three instructions below `avx512`. Whether that pays against four scalar chains the
+   processor was already issuing together is a question about multiply latency on the part - which
+   is why this is a replacement rather than the body, and why the baseline above is what
+   `-no-replacements` and every non-native target run.
+
+   **The stripe is read as one load and not as four.** `readLittleU32` is a load and a fold per word
+   where the four together are sixteen contiguous bytes; on a little-endian target those bytes
+   already *are* the four words in order, so the load is the whole conversion. On a big-endian one
+   they are not, and rather than reach for a per-lane byte swap this hands the walk back - a target
+   this library has never been compiled for should not be carrying an untested vector body. The
+   comparison folds against `Target.byteOrder`, so nothing is tested at run time.
+-}
+@replaces @platform(native)
+fn xxCompress(&self: XxHash32, from: [U8], at: Size, blocks: Size):
+    let stop = at + blocks * 64
+
+    if Target.byteOrder == Big:
+        xxStripeWalk(self, from, at, stop)
+        return
+
+    let p1 = splat(xxPrime1) :: Vec(U32, 4)
+    let p2 = splat(xxPrime2) :: Vec(U32, 4)
+    let turn = splat(13 :: U32) :: Vec(U32, 4)
+
+    let &acc = splat(self.v1) :: Vec(U32, 4)
+    acc = withLane(acc, 1, self.v2)
+    acc = withLane(acc, 2, self.v3)
+    acc = withLane(acc, 3, self.v4)
+
+    let &i = at
+
+    while i < stop:
+        let stripe = bitcast(loadVectorAt(from, i) :: Vec(U8, 16)) :: Vec(U32, 4)
+        acc = ((acc + stripe * p2) `rol` turn) * p1
+        i = i + 16
+
+    self.v1 = lane(acc, 0)
+    self.v2 = lane(acc, 1)
+    self.v3 = lane(acc, 2)
+    self.v4 = lane(acc, 3)
+
 instance Block(XxHash32):
   fn compressBlocks(&self: XxHash32, from: [U8], at: Size, blocks: Size):
-      let &v1 = self.v1
-      let &v2 = self.v2
-      let &v3 = self.v3
-      let &v4 = self.v4
-      let &i = at
-      let stop = at + blocks * 64
-
-      while i < stop:
-          v1 = xxRound(v1, readLittleU32(from, i))
-          v2 = xxRound(v2, readLittleU32(from, i + 4))
-          v3 = xxRound(v3, readLittleU32(from, i + 8))
-          v4 = xxRound(v4, readLittleU32(from, i + 12))
-          i = i + 16
-
-      self.v1 = v1
-      self.v2 = v2
-      self.v3 = v3
-      self.v4 = v4
+      xxCompress(self, from, at, blocks)
 
 pub alias XxHash = Blocks(XxHash32)
 

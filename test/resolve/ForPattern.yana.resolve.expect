@@ -1,18 +1,18 @@
 let image$base: () = <none>
 
-table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
-  .0 teardown$none
-}
-
-table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
-  .0 teardown$none
-}
-
 table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
 }
 
 table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
+  .0 teardown$none
+}
+
+table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
+  .0 teardown$none
+}
+
+table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
   .0 teardown$none
 }
 
@@ -217,7 +217,7 @@ fn main() -> I32 {
     init %local1.total, %v6
     %v8 = addressof %local1 : %()
     %v9 = alloc : (value$: Pair) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$21 : %()
+    %v10 = symbol ResolveTest.continuation$23 : %()
     init %local2.code, %v10
     init %local2.env, %v8
     %v13 = call steps(()), 3, %v9 : Outcome((), ())
@@ -226,7 +226,7 @@ fn main() -> I32 {
     init %local4.total, %v16
     %v18 = addressof %local4 : %()
     %v19 = alloc : (value$: {I32, I32}) -> Outcome((), ())
-    %v20 = symbol ResolveTest.continuation$22 : %()
+    %v20 = symbol ResolveTest.continuation$24 : %()
     init %local5.code, %v20
     init %local5.env, %v18
     %v23 = call tuples(()), 3, %v19 : Outcome((), ())
@@ -235,7 +235,7 @@ fn main() -> I32 {
     init %local7.total, %v26
     %v28 = addressof %local7 : %()
     %v29 = alloc : (value$: {first: I32, second: I32}) -> Outcome((), ())
-    %v30 = symbol ResolveTest.continuation$23 : %()
+    %v30 = symbol ResolveTest.continuation$25 : %()
     init %local8.code, %v30
     init %local8.env, %v28
     %v33 = call labelled(()), 3, %v29 : Outcome((), ())
@@ -244,7 +244,7 @@ fn main() -> I32 {
     init %local10.total, %v36
     %v38 = addressof %local10 : %()
     %v39 = alloc : (value$: Nested) -> Outcome((), ())
-    %v40 = symbol ResolveTest.continuation$24 : %()
+    %v40 = symbol ResolveTest.continuation$26 : %()
     init %local11.code, %v40
     init %local11.env, %v38
     %v43 = call deep(()), 3, %v39 : Outcome((), ())
@@ -252,7 +252,7 @@ fn main() -> I32 {
     ret %v44
 }
 
-fn ResolveTest.continuation$21(%env: %{total: &I32}, %value$: Pair) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(%env: %{total: &I32}, %value$: Pair) -> Outcome((), ()) {
   b0:
     %v2 = load %value$@Pair : {left: I32, right: I32}
     %left = load %value$@Pair.left : I32
@@ -309,7 +309,7 @@ fn steps(())(%to: I32, %body: (value$: Pair) -> Outcome((), ())) -> Outcome((), 
     ret %v26
 }
 
-fn ResolveTest.continuation$22(%env: %{total: &I32}, %value$: {I32, I32}) -> Outcome((), ()) {
+fn ResolveTest.continuation$24(%env: %{total: &I32}, %value$: {I32, I32}) -> Outcome((), ()) {
   b0:
     %a = load %value$.0 : I32
     %b = load %value$.1 : I32
@@ -365,7 +365,7 @@ fn tuples(())(%to: I32, %body: (value$: {I32, I32}) -> Outcome((), ())) -> Outco
     ret %v26
 }
 
-fn ResolveTest.continuation$23(%env: %{total: &I32}, %value$: {first: I32, second: I32}) -> Outcome((), ()) {
+fn ResolveTest.continuation$25(%env: %{total: &I32}, %value$: {first: I32, second: I32}) -> Outcome((), ()) {
   b0:
     %first = load %value$.first : I32
     %second = load %value$.second : I32
@@ -421,7 +421,7 @@ fn labelled(())(%to: I32, %body: (value$: {first: I32, second: I32}) -> Outcome(
     ret %v26
 }
 
-fn ResolveTest.continuation$24(%env: %{total: &I32}, %value$: Nested) -> Outcome((), ()) {
+fn ResolveTest.continuation$26(%env: %{total: &I32}, %value$: Nested) -> Outcome((), ()) {
   b0:
     %v2 = load %value$@Nested : {head: Pair, tail: I32}
     %v3 = load %value$@Nested.head : Pair

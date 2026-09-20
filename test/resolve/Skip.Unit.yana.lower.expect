@@ -65,7 +65,7 @@ statementTail<complex>(%n: I32): I32 {
 
   b_10 {
     %v_13 = shl %n, 1: I32
-    call_complex ResolveTest.continuation$22, %v_5, %v_13
+    call_complex ResolveTest.continuation$24, %v_5, %v_13
     %v_14 = loads @log, 4: I32
     %v_15 = add %v_14, 100: I32
     store @log, %v_15, 4
@@ -120,7 +120,7 @@ returningNothing<complex>(%n: I32) {
 
   b_6 {
     %v_9 = shl %n, 1: I32
-    call_complex ResolveTest.continuation$23, %v_1, %v_9
+    call_complex ResolveTest.continuation$25, %v_1, %v_9
     %v_10 = loads @log, 4: I32
     %v_11 = add %v_10, 100: I32
     store @log, %v_11, 4
@@ -155,7 +155,7 @@ leavingWithNothing<complex>(%n: I32) {
 
   b_6 {
     %v_9 = shl %n, 1: I32
-    call_complex ResolveTest.continuation$24, %v_1, %v_9
+    call_complex ResolveTest.continuation$26, %v_1, %v_9
     %v_10 = loads @log, 4: I32
     %v_11 = add %v_10, 100: I32
     store @log, %v_11, 4
@@ -207,7 +207,7 @@ main<complex>(): I32 {
 
   b_14 {
     %v_17 = shl %v_8, 1: I32
-    call_complex ResolveTest.continuation$21, %v_9, %v_17
+    call_complex ResolveTest.continuation$23, %v_9, %v_17
     %v_18 = loads @log, 4: I32
     %v_19 = add %v_18, 100: I32
     store @log, %v_19, 4
@@ -251,29 +251,29 @@ main<complex>(): I32 {
   }
 }
 
-@closure$ResolveTest.continuation$21 = [0, 0, 0, 0]
-ResolveTest.continuation$21<complex>(%env: Ptr, %found: I32) {
-  b_0 {
-    %v_1 = load %env, 8: Ptr
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = add %v_2, %found: I32
-    store %v_1, %v_3, 4
-    ret 
-  }
-}
-
-@closure$ResolveTest.continuation$22 = [0, 0, 0, 0]
-ResolveTest.continuation$22<complex>(%env: Ptr, %found: I32) {
-  b_0 {
-    %v_1 = load %env, 8: Ptr
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = add %v_2, %found: I32
-    store %v_1, %v_3, 4
-    ret 
-  }
-}
-
+@closure$ResolveTest.continuation$23 = [0, 0, 0, 0]
 ResolveTest.continuation$23<complex>(%env: Ptr, %found: I32) {
+  b_0 {
+    %v_1 = load %env, 8: Ptr
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = add %v_2, %found: I32
+    store %v_1, %v_3, 4
+    ret 
+  }
+}
+
+@closure$ResolveTest.continuation$24 = [0, 0, 0, 0]
+ResolveTest.continuation$24<complex>(%env: Ptr, %found: I32) {
+  b_0 {
+    %v_1 = load %env, 8: Ptr
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = add %v_2, %found: I32
+    store %v_1, %v_3, 4
+    ret 
+  }
+}
+
+ResolveTest.continuation$25<complex>(%env: Ptr, %found: I32) {
   b_0 {
     %v_1 = loads @sideEffect, 4: I32
     %v_2 = add %v_1, %found: I32
@@ -282,7 +282,7 @@ ResolveTest.continuation$23<complex>(%env: Ptr, %found: I32) {
   }
 }
 
-ResolveTest.continuation$24<complex>(%env: Ptr, %found: I32) {
+ResolveTest.continuation$26<complex>(%env: Ptr, %found: I32) {
   b_0 {
     %v_1 = loads @sideEffect, 4: I32
     %v_2 = imul %found, 10: I32

@@ -10,19 +10,19 @@ let image$base: () = <none>
 
 let &heapFree: %%U8 = 0
 
-table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
+table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
+table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$22(I32) before ResolveTest.continuation$22(I32) {
+table closure$ResolveTest.continuation$24(I32) before ResolveTest.continuation$24(I32) {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$21(Cents) before ResolveTest.continuation$21(Cents) {
+table closure$ResolveTest.continuation$23(Cents) before ResolveTest.continuation$23(Cents) {
   .0 teardown$none
 }
 
@@ -459,7 +459,7 @@ fn centsValue(%c: Cents) -> I64 {
     init %local3.acc, %v7
     %v9 = addressof %local3 : %()
     %v10 = alloc : (value$: a) -> Outcome((), ())
-    %v11 = symbol ResolveTest.continuation$21 : %()
+    %v11 = symbol ResolveTest.continuation$23 : %()
     init %local4.code, %v11
     init %local4.env, %v9
     %v14 = gencall items(ArrayView(a), a, ()), %xs, %v10 : Outcome((), ())
@@ -489,7 +489,7 @@ fn centsValue(%c: Cents) -> I64 {
     init %local3.acc, %v7
     %v9 = addressof %local3 : %()
     %v10 = alloc : (value$: a) -> Outcome((), ())
-    %v11 = symbol ResolveTest.continuation$22 : %()
+    %v11 = symbol ResolveTest.continuation$24 : %()
     init %local4.code, %v11
     init %local4.env, %v9
     %v14 = gencall items(ArrayView(a), a, ()), %xs, %v10 : Outcome((), ())
@@ -695,7 +695,7 @@ fn Num(Cents)./(%lhs: Cents, %rhs: Cents) -> Cents {
     ret %v4
 }
 
-(Num(a), Chunked(ArrayView(a), a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$21(%env: %{acc: &a}, %value$: a) -> Outcome((), ()) {
+(Num(a), Chunked(ArrayView(a), a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$23(%env: %{acc: &a}, %value$: a) -> Outcome((), ()) {
   schema {
     #0 type a
     #1 type {acc: &a}
@@ -717,7 +717,7 @@ fn Num(Cents)./(%lhs: Cents, %rhs: Cents) -> Cents {
     ret %v7
 }
 
-(Num(a), Num(Vec(a)), Chunked(ArrayView(a), a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$22(%env: %{acc: &a}, %value$: a) -> Outcome((), ()) {
+(Num(a), Num(Vec(a)), Chunked(ArrayView(a), a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$24(%env: %{acc: &a}, %value$: a) -> Outcome((), ()) {
   schema {
     #0 type a
     #1 type {acc: &a}
@@ -749,7 +749,7 @@ fn replaces$total(I32)(%xs: ArrayView(I32)) -> I32 {
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: I32) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$22(I32) : %()
+    %v10 = symbol ResolveTest.continuation$24(I32) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call items(ArrayView(I32), I32, ()), %xs, %v9 : Outcome((), ())
@@ -758,7 +758,7 @@ fn replaces$total(I32)(%xs: ArrayView(I32)) -> I32 {
     ret %v15
 }
 
-fn ResolveTest.continuation$22(I32)(%env: %{acc: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$24(I32)(%env: %{acc: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].acc : &I32
     %v3 = load [%env].acc : &I32
@@ -780,7 +780,7 @@ fn total(Cents)(%xs: ArrayView(Cents)) -> Cents {
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: Cents) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$21(Cents) : %()
+    %v10 = symbol ResolveTest.continuation$23(Cents) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call items(ArrayView(Cents), Cents, ()), %xs, %v9 : Outcome((), ())
@@ -789,7 +789,7 @@ fn total(Cents)(%xs: ArrayView(Cents)) -> Cents {
     ret %v15
 }
 
-fn ResolveTest.continuation$21(Cents)(%env: %{acc: &Cents}, %value$: Cents) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(Cents)(%env: %{acc: &Cents}, %value$: Cents) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].acc : &Cents
     %v3 = load [%env].acc : &Cents

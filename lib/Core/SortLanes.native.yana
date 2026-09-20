@@ -1,0 +1,272 @@
+import Native
+
+{-
+   ==========================================================================================
+   The vector partition - Analysis-Avx512.md §4.7
+   ==========================================================================================
+
+   `Sort.yana` is the sort; this is one step of it written for a container whose element is a lane.
+   Everything else is that file's and is deliberately untouched: the insertion sort for a short
+   range, the heap fallback, and the recursion budget that decides when the fallback is due. §4.7
+   is explicit that the budget is a worst-case argument which does not care how a partition is
+   computed, and this file is the demonstration of that.
+
+   ## What a vector partition is
+
+   A block is compared with the pivot once, and `compress` then packs the lanes that belong on each
+   side into the bottom of a register - so one register's worth of elements is placed with two
+   comparisons' worth of work and two stores, where Hoare's scan is a comparison and a branch per
+   element. The stores are `storeUpTo`, which writes exactly the lanes that were kept (§3.5): a
+   whole-register store would reach past the free region into elements nobody has read yet.
+
+   ## Why it can run in place
+
+   The free region is `[lStore, rStore + width)`, and it never shrinks below a register: the loop
+   reads its next block from whichever end has *less* room behind it, so the block it is about to
+   overwrite has already been loaded. The first and last registers of the range are held in
+   registers for the whole walk for the same reason - their slots are the first the loop writes -
+   and are partitioned at the end. That is the published in-place scheme (Intel's `x86-simd-sort`,
+   and Highway's `vqsort` under a different name); what is written here is its structure, not its
+   code.
+
+   ## Equal elements, which is where a partition of this shape goes wrong
+
+   The split is `< pivot` against `>= pivot`, so a range whose every element equals the pivot puts
+   nothing on the left and makes no progress at all. Two things answer that, and both are cheap:
+
+   - **The smallest and the biggest of the range are tracked while it is partitioned**, as a vector
+     minimum and maximum that cost one instruction each per block. A pivot equal to the biggest
+     means everything at or above it *is* it, so that side is already sorted and is not recursed
+     into; a pivot equal to the smallest means the left side is empty.
+   - **A range that made no progress is partitioned again as `<= pivot`**, which puts every element
+     equal to the pivot on the left and leaves a strictly smaller range on the right. The pivot is
+     one of the range's own elements, so that side always shrinks.
+
+   Together those turn the all-equal range - and the two-distinct-value array, which median-of-three
+   walks straight into - from a budget burn into one pass.
+-}
+
+{-
+   One register partitioned into the two ends of the free region `[left, right)`.
+
+   The lanes that stay below go to the bottom of it and the rest to the top, each with a
+   `storeUpTo` of exactly its own count, so the region shrinks by a whole register from both ends
+   at once. The answer is how many went up, which is what the caller moves `rStore` by.
+-}
+@inline fn (Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a)))
+    placeOneBlock(&xs: [a], left: Size, right: Size, curr: Vec(a), pivot: Vec(a), orEqual: Bool,
+                  &small: Vec(a), &big: Vec(a)) -> Int:
+    let below = if orEqual then not(pivot .< curr) else curr .< pivot
+
+    let {down, stays} = compress(curr, below)
+    let {up, moves} = compress(curr, not(below))
+
+    storeUpTo(xs.items + left, stays, down)
+    storeUpTo(xs.items + (right - (moves :: Size)), moves, up)
+
+    small = min(small, curr)
+    big = max(big, curr)
+    return moves
+
+{-
+   The range `[first, last]` partitioned about `pivot` - where the upper side begins, and the
+   smallest and biggest elements the walk saw.
+
+   `orEqual` picks which side an element equal to the pivot goes to, and the two uses of it are the
+   note above: `False` is the ordinary split and `True` is the retry that guarantees progress.
+
+   The odd elements at the front are placed one at a time first, so that what is left is a whole
+   number of registers - which is what lets every step below be a register with no tail.
+-}
+fn (Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a)))
+   partitionLanes(&xs: [a], first: Size, last: Size, pivot: a, orEqual: Bool) -> {Size, a, a}:
+    let width = lanes(zero() :: Vec(a)) :: Size
+
+    let &left = first
+    let &right = last + 1
+    let &smallest = xs[first]
+    let &biggest = xs[first]
+
+    let &extra = (right - left) % width
+    while extra > 0:
+        let value = xs[left]
+        if value < smallest then smallest = value
+        if biggest < value then biggest = value
+
+        if (if orEqual then !(pivot < value) else value < pivot):
+            left = left + 1
+        else:
+            right = right - 1
+            swap(xs[left], xs[right])
+
+        extra = extra - 1
+
+    if left == right then return {left, smallest, biggest}
+
+    let pivots = splat(pivot) :: Vec(a)
+    let &small = splat(smallest) :: Vec(a)
+    let &big = splat(biggest) :: Vec(a)
+
+    if right - left == width:
+        let only = loadVector(xs, left)
+        let moves = placeOneBlock(xs, left, left + width, only, pivots, orEqual, small, big)
+        return {left + width - (moves :: Size), horizontalMin(small), horizontalMax(big)}
+
+    -- The two registers whose slots the walk writes first, held for the whole of it.
+    let held = loadVector(xs, left)
+    let heldLast = loadVector(xs, right - width)
+
+    let &lStore = left
+    let &rStore = right - width
+    left = left + width
+    right = right - width
+
+    while right != left:
+        -- From whichever end has less room behind it, so the block read is one the stores have not
+        -- reached yet.
+        let fromTop = (rStore + width) - right < left - lStore
+        if fromTop then right = right - width
+
+        let curr = loadVector(xs, if fromTop then right else left)
+        if !fromTop then left = left + width
+
+        let moves = placeOneBlock(xs, lStore, rStore + width, curr, pivots, orEqual, small, big)
+        rStore = rStore - (moves :: Size)
+        lStore = lStore + width - (moves :: Size)
+
+    let fromHead = placeOneBlock(xs, lStore, rStore + width, held, pivots, orEqual, small, big)
+    lStore = lStore + width - (fromHead :: Size)
+
+    let fromTail = placeOneBlock(xs, lStore, lStore + width, heldLast, pivots, orEqual, small, big)
+    lStore = lStore + width - (fromTail :: Size)
+
+    return {lStore, horizontalMin(small), horizontalMax(big)}
+
+{-
+   Whether the range is already in order, and whether it is exactly against it.
+
+   **This is the one thing the vector partition needs that the scalar one does not.** Hoare's scan
+   over a range that is already sorted does no swaps at all and takes the same branch every time, so
+   a processor runs it at close to a comparison a cycle; the partition here does its full work
+   whatever the data, because that is what "branch-free" means. Measured over 200,000 `Int`s, the
+   vector sort is 2.3x the scalar one on random input and 5x on an input of five distinct values -
+   and was **seven times slower** on an input that arrived sorted, which is not a rare shape: a list
+   re-sorted after one append, a merge of two ordered runs, a key column already in order.
+
+   A scan answers it. Both tests read a register against the register one element behind it, so a
+   range that is out of order at its first pair costs one comparison and a range that is in order
+   costs a pass with no branch in it - which is a fraction of what the partition it replaces would
+   have cost. `sorted` returns outright and `descending` reverses and returns, so either answer
+   settles the whole range rather than one level of it.
+
+   The test is made at every level and not once at the top, which is what makes a *partly* ordered
+   input cheap too: the ordered halves are found as the recursion reaches them. What it costs in
+   return is one failed scan in front of each partition, and a failed scan stops at the first pair
+   that is out of order.
+-}
+fn (Ord(a), Lanewise(Vec(a), Mask(a))) ascendingRange(xs: [a], low: Size, high: Size) -> Bool:
+    let width = lanes(zero() :: Vec(a)) :: Size
+    let &i = low + 1
+
+    while i + width <= high + 1:
+        if any(loadVector(xs, i) .< loadVector(xs, i - 1)) then return False
+        i = i + width
+
+    while i <= high:
+        if xs[i] < xs[i - 1] then return False
+        i = i + 1
+
+    return True
+
+fn (Ord(a), Lanewise(Vec(a), Mask(a))) descendingRange(xs: [a], low: Size, high: Size) -> Bool:
+    let width = lanes(zero() :: Vec(a)) :: Size
+    let &i = low + 1
+
+    while i + width <= high + 1:
+        if any(loadVector(xs, i - 1) .< loadVector(xs, i)) then return False
+        i = i + width
+
+    while i <= high:
+        if xs[i - 1] < xs[i] then return False
+        i = i + 1
+
+    return True
+
+-- A range turned end for end, which is what a non-increasing one has to be to be sorted. Element by
+-- element and by swapping, as everything in `Sort.yana` is: a vector reversal would have to be a
+-- shuffle per register and a pair of stores, and this runs once per range rather than per level.
+fn (Ord(a)) reverseRange(&xs: [a], low: Size, high: Size):
+    let &i = low
+    let &j = high
+
+    while i < j:
+        swap(xs[i], xs[j])
+        i = i + 1
+        j = j - 1
+
+-- The median of the range's two ends and its middle, as a value: `partitionRange` parks the same
+-- three at `low` because its scan reads the pivot out of the container, and this one does not.
+fn (Ord(a), TrivialCopy(a)) pivotOf(xs: [a], low: Size, high: Size) -> a:
+    let mid = low + (high - low) / 2
+    let head = xs[low]
+    let middle = xs[mid]
+    let tail = xs[high]
+
+    if head < middle:
+        if middle < tail then return middle
+        return if head < tail then tail else head
+
+    if head < tail then return head
+    return if middle < tail then tail else middle
+
+{-
+   `sortRange` with the vector partition in it.
+
+   The shape is that function's, down to the tail call on the larger side and the recursion on the
+   smaller: what is different is the partition, the two skips the tracked extremes allow, and the
+   floor - every range shorter than two registers goes to `sortRange`, which is where the insertion
+   sort and the scalar partition still live.
+-}
+fn (Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a)))
+   sortRangeLanes(&xs: [a], first: Size, last: Size, depth: Int):
+    let width = lanes(zero() :: Vec(a)) :: Size
+    let &low = first
+    let &high = last
+    let &budget = depth
+
+    while high - low + 1 >= width + width:
+        -- A range that is already in order, or exactly against it, is what a branch-free partition
+        -- is worst at and what a scan is best at - see `ascendingRange`.
+        if ascendingRange(xs, low, high) then return
+        if descendingRange(xs, low, high):
+            reverseRange(xs, low, high)
+            return
+
+        if budget <= 0:
+            heapRange(xs, low, high)
+            return
+
+        budget = budget - 1
+
+        let pivot = pivotOf(xs, low, high)
+        let {at, smallest, biggest} = partitionLanes(xs, low, high, pivot, False)
+
+        if pivot == smallest:
+            -- Nothing is below the pivot. If nothing is above it either the range is one value and
+            -- is already in order; otherwise the equals are moved to the front so that what is left
+            -- is strictly smaller.
+            if pivot == biggest then return
+
+            let {again, _, _} = partitionLanes(xs, low, high, pivot, True)
+            low = again
+        else if pivot == biggest:
+            -- Everything at or above the pivot is the pivot, so only the lower side is left.
+            high = at - 1
+        else if at - low < high - at:
+            sortRangeLanes(xs, low, at - 1, budget)
+            low = at
+        else:
+            sortRangeLanes(xs, at, high, budget)
+            high = at - 1
+
+    sortRange(xs, low, high, budget)

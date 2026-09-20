@@ -1,26 +1,26 @@
 let image$base: () = <none>
 
-table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
+table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
+table closure$ResolveTest.continuation$28 before ResolveTest.continuation$28 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$30 before ResolveTest.continuation$30 {
+table closure$ResolveTest.continuation$32 before ResolveTest.continuation$32 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$31 before ResolveTest.continuation$31 {
+table closure$ResolveTest.continuation$33 before ResolveTest.continuation$33 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$26(Gate) before ResolveTest.continuation$26(Gate) {
+table closure$ResolveTest.continuation$28(Gate) before ResolveTest.continuation$28(Gate) {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$31(Gate) before ResolveTest.continuation$31(Gate) {
+table closure$ResolveTest.continuation$33(Gate) before ResolveTest.continuation$33(Gate) {
   .0 teardown$none
 }
 
@@ -89,7 +89,7 @@ fn concrete() -> I32 {
     %g = alloc : Gate
     aggregate %local0@Gate.depth = 3
     %v3 = alloc : (value$: I32) -> I32
-    %v4 = symbol ResolveTest.continuation$21 : %()
+    %v4 = symbol ResolveTest.continuation$23 : %()
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
@@ -102,7 +102,7 @@ fn dotted() -> I32 {
     %g = alloc : Gate
     aggregate %local0@Gate.depth = 5
     %v3 = alloc : (value$: I32) -> I32
-    %v4 = symbol ResolveTest.continuation$22 : %()
+    %v4 = symbol ResolveTest.continuation$24 : %()
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
@@ -123,7 +123,7 @@ fn unitHandover() -> I32 {
     init %local2.g, %v9
     %v11 = addressof %local2 : %()
     %v12 = alloc : () -> I32
-    %v13 = symbol ResolveTest.continuation$23 : %()
+    %v13 = symbol ResolveTest.continuation$25 : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = call Guard(Gate).hold(I32), %g, %v12 : I32
@@ -138,7 +138,7 @@ fn unitHandover() -> I32 {
 
   b0:
     %v1 = alloc : (value$: I32) -> I32
-    %v2 = symbol ResolveTest.continuation$24 : %()
+    %v2 = symbol ResolveTest.continuation$26 : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -154,7 +154,7 @@ fn unitHandover() -> I32 {
 
   b0:
     %v1 = alloc : (value$: I32) -> I32
-    %v2 = symbol ResolveTest.continuation$25 : %()
+    %v2 = symbol ResolveTest.continuation$27 : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -178,7 +178,7 @@ fn unitHandover() -> I32 {
     init %local2.bump, %bump
     %v9 = addressof %local2 : %()
     %v10 = alloc : () -> I32
-    %v11 = symbol ResolveTest.continuation$26 : %()
+    %v11 = symbol ResolveTest.continuation$28 : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = gencall Guard(a).hold, %x, %v10 : I32
@@ -193,7 +193,7 @@ fn unitHandover() -> I32 {
 
   b0:
     %v1 = alloc : (value$: I32) -> I32
-    %v2 = symbol ResolveTest.continuation$27 : %()
+    %v2 = symbol ResolveTest.continuation$29 : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -206,7 +206,7 @@ fn inherited() -> I32 {
     %g = alloc : Gate
     aggregate %local0@Gate.depth = 6
     %v3 = alloc : (value$: I32) -> I32
-    %v4 = symbol ResolveTest.continuation$28 : %()
+    %v4 = symbol ResolveTest.continuation$30 : %()
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
@@ -222,7 +222,7 @@ fn inherited() -> I32 {
 
   b0:
     %v1 = alloc : (value$: I32) -> I32
-    %v2 = symbol ResolveTest.continuation$29 : %()
+    %v2 = symbol ResolveTest.continuation$31 : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -241,7 +241,7 @@ fn iterated() -> I32 {
     init %local2.t, %v7
     %v9 = addressof %local2 : %()
     %v10 = alloc : (value$: I32) -> Outcome((), ())
-    %v11 = symbol ResolveTest.continuation$30 : %()
+    %v11 = symbol ResolveTest.continuation$32 : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = call Guard.steps(Gate, ()), %g, %v10 : Outcome((), ())
@@ -264,7 +264,7 @@ fn iterated() -> I32 {
     init %local2.t, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: I32) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$31 : %()
+    %v9 = symbol ResolveTest.continuation$33 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = gencall Guard(a).steps, %x, %v8 : Outcome((), ())
@@ -327,7 +327,7 @@ fn Guard(Gate).depthOf(%self: Gate, %body: (value$: I32) -> $r) -> $r {
     ret %v3
 }
 
-fn ResolveTest.continuation$21(%env: %{}, %value$: I32) -> I32 {
+fn ResolveTest.continuation$23(%env: %{}, %value$: I32) -> I32 {
   b0:
     %v4 = add %value$, 1 : I32
     ret %v4
@@ -340,13 +340,13 @@ fn Guard(Gate).depthOf(I32)(%self: Gate, %body: (value$: I32) -> I32) -> I32 {
     ret %v3
 }
 
-fn ResolveTest.continuation$22(%env: %{}, %value$: I32) -> I32 {
+fn ResolveTest.continuation$24(%env: %{}, %value$: I32) -> I32 {
   b0:
     %v4 = add %value$, 1 : I32
     ret %v4
 }
 
-fn ResolveTest.continuation$23(%env: %{n: &I32, g: 'Gate}) -> I32 {
+fn ResolveTest.continuation$25(%env: %{n: &I32, g: 'Gate}) -> I32 {
   b0:
     %v1 = load [%env].n : &I32
     %v2 = load [%env].n : &I32
@@ -367,7 +367,7 @@ fn Guard(Gate).hold(I32)(%self: Gate, %body: () -> I32) -> I32 {
     ret %v2
 }
 
-(Guard(a)) fn ResolveTest.continuation$24(%env: %{}, %value$: I32) -> I32 {
+(Guard(a)) fn ResolveTest.continuation$26(%env: %{}, %value$: I32) -> I32 {
   schema {
     #0 type a
     #1 class Guard(a)
@@ -378,7 +378,7 @@ fn Guard(Gate).hold(I32)(%self: Gate, %body: () -> I32) -> I32 {
     ret %v4
 }
 
-(Guard(a)) fn ResolveTest.continuation$25(%env: %{}, %value$: I32) -> I32 {
+(Guard(a)) fn ResolveTest.continuation$27(%env: %{}, %value$: I32) -> I32 {
   schema {
     #0 type a
     #1 class Guard(a)
@@ -389,7 +389,7 @@ fn Guard(Gate).hold(I32)(%self: Gate, %body: () -> I32) -> I32 {
     ret %v4
 }
 
-(Guard(a)) fn ResolveTest.continuation$26(%env: %{n: &I32, bump: I32}) -> I32 {
+(Guard(a)) fn ResolveTest.continuation$28(%env: %{n: &I32, bump: I32}) -> I32 {
   schema {
     #0 type a
     #1 type {n: &I32, bump: I32}
@@ -408,7 +408,7 @@ fn Guard(Gate).hold(I32)(%self: Gate, %body: () -> I32) -> I32 {
     ret %v8
 }
 
-(Guard(a)) fn ResolveTest.continuation$27(%env: %{}, %value$: I32) -> I32 {
+(Guard(a)) fn ResolveTest.continuation$29(%env: %{}, %value$: I32) -> I32 {
   schema {
     #0 type a
     #1 class Guard(a)
@@ -428,7 +428,7 @@ fn Guard(Gate).hold(I32)(%self: Gate, %body: () -> I32) -> I32 {
     ret %value$
 }
 
-fn ResolveTest.continuation$28(%env: %{}, %value$: I32) -> I32 {
+fn ResolveTest.continuation$30(%env: %{}, %value$: I32) -> I32 {
   b0:
     ret %value$
 }
@@ -441,7 +441,7 @@ fn Guard.twiceDeep(Gate, I32)(%self: Gate, %body: (value$: I32) -> I32) -> I32 {
     ret %v5
 }
 
-(Guard(a)) fn ResolveTest.continuation$29(%env: %{}, %value$: I32) -> I32 {
+(Guard(a)) fn ResolveTest.continuation$31(%env: %{}, %value$: I32) -> I32 {
   schema {
     #0 type a
     #1 class Guard(a)
@@ -452,7 +452,7 @@ fn Guard.twiceDeep(Gate, I32)(%self: Gate, %body: (value$: I32) -> I32) -> I32 {
     ret %v4
 }
 
-fn ResolveTest.continuation$30(%env: %{t: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$32(%env: %{t: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].t : &I32
     %v3 = load [%env].t : &I32
@@ -498,7 +498,7 @@ fn Guard.steps(Gate, ())(%self: Gate, %body: (value$: I32) -> Outcome((), ())) -
     jmp b1
 }
 
-(Guard(a)) fn ResolveTest.continuation$31(%env: %{t: &I32}, %value$: I32) -> Outcome((), ()) {
+(Guard(a)) fn ResolveTest.continuation$33(%env: %{t: &I32}, %value$: I32) -> Outcome((), ()) {
   schema {
     #0 type a
     #1 type {t: &I32}
@@ -520,7 +520,7 @@ fn Guard.steps(Gate, ())(%self: Gate, %body: (value$: I32) -> Outcome((), ())) -
 fn deferred(Gate)(%x: Gate) -> I32 {
   b0:
     %v1 = alloc : (value$: I32) -> I32
-    %v2 = symbol ResolveTest.continuation$24(Gate) : %()
+    %v2 = symbol ResolveTest.continuation$26(Gate) : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -528,7 +528,7 @@ fn deferred(Gate)(%x: Gate) -> I32 {
     ret %v7
 }
 
-fn ResolveTest.continuation$24(Gate)(%env: %{}, %value$: I32) -> I32 {
+fn ResolveTest.continuation$26(Gate)(%env: %{}, %value$: I32) -> I32 {
   b0:
     %v3 = mul %value$, 2 : I32
     ret %v3
@@ -537,7 +537,7 @@ fn ResolveTest.continuation$24(Gate)(%env: %{}, %value$: I32) -> I32 {
 fn deferredDot(Gate)(%x: Gate) -> I32 {
   b0:
     %v1 = alloc : (value$: I32) -> I32
-    %v2 = symbol ResolveTest.continuation$25(Gate) : %()
+    %v2 = symbol ResolveTest.continuation$27(Gate) : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -545,7 +545,7 @@ fn deferredDot(Gate)(%x: Gate) -> I32 {
     ret %v7
 }
 
-fn ResolveTest.continuation$25(Gate)(%env: %{}, %value$: I32) -> I32 {
+fn ResolveTest.continuation$27(Gate)(%env: %{}, %value$: I32) -> I32 {
   b0:
     %v3 = mul %value$, 3 : I32
     ret %v3
@@ -561,14 +561,14 @@ fn deferredUnit(Gate)(%x: Gate, %bump: I32) -> I32 {
     init %local2.bump, %bump
     %v9 = addressof %local2 : %()
     %v10 = alloc : () -> I32
-    %v11 = symbol ResolveTest.continuation$26(Gate) : %()
+    %v11 = symbol ResolveTest.continuation$28(Gate) : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = call Guard(Gate).hold(I32), %x, %v10 : I32
     ret %v14
 }
 
-fn ResolveTest.continuation$26(Gate)(%env: %{n: &I32, bump: I32}) -> I32 {
+fn ResolveTest.continuation$28(Gate)(%env: %{n: &I32, bump: I32}) -> I32 {
   b0:
     %v1 = load [%env].n : &I32
     %v2 = load [%env].n : &I32
@@ -584,7 +584,7 @@ fn ResolveTest.continuation$26(Gate)(%env: %{n: &I32, bump: I32}) -> I32 {
 fn deferredExit(Gate)(%x: Gate) -> I32 {
   b0:
     %v1 = alloc : (value$: I32) -> I32
-    %v2 = symbol ResolveTest.continuation$27(Gate) : %()
+    %v2 = symbol ResolveTest.continuation$29(Gate) : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -592,7 +592,7 @@ fn deferredExit(Gate)(%x: Gate) -> I32 {
     ret %v7
 }
 
-fn ResolveTest.continuation$27(Gate)(%env: %{}, %value$: I32) -> I32 {
+fn ResolveTest.continuation$29(Gate)(%env: %{}, %value$: I32) -> I32 {
   b0:
     %v3 = cmp_gt %value$, 100 : Bool
     je %v3, b1, b2
@@ -610,7 +610,7 @@ fn ResolveTest.continuation$27(Gate)(%env: %{}, %value$: I32) -> I32 {
 fn deferredDefault(Gate)(%x: Gate) -> I32 {
   b0:
     %v1 = alloc : (value$: I32) -> I32
-    %v2 = symbol ResolveTest.continuation$29(Gate) : %()
+    %v2 = symbol ResolveTest.continuation$31(Gate) : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -618,7 +618,7 @@ fn deferredDefault(Gate)(%x: Gate) -> I32 {
     ret %v7
 }
 
-fn ResolveTest.continuation$29(Gate)(%env: %{}, %value$: I32) -> I32 {
+fn ResolveTest.continuation$31(Gate)(%env: %{}, %value$: I32) -> I32 {
   b0:
     %v3 = add %value$, 1 : I32
     ret %v3
@@ -633,7 +633,7 @@ fn deferredIter(Gate)(%x: Gate) -> I32 {
     init %local2.t, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: I32) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$31(Gate) : %()
+    %v9 = symbol ResolveTest.continuation$33(Gate) : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call Guard.steps(Gate, ()), %x, %v8 : Outcome((), ())
@@ -641,7 +641,7 @@ fn deferredIter(Gate)(%x: Gate) -> I32 {
     ret %v13
 }
 
-fn ResolveTest.continuation$31(Gate)(%env: %{t: &I32}, %value$: I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$33(Gate)(%env: %{t: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].t : &I32
     %v3 = load [%env].t : &I32

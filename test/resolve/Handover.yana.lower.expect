@@ -122,7 +122,7 @@ main<complex>(): I32 {
     store %xs, %xs, 8
     %v_6 = add %xs, 8: Ptr
     store %v_6, 4, 8
-    %v_7 = call_complex ResolveTest.continuation$22, %v_5, %xs: I32
+    %v_7 = call_complex ResolveTest.continuation$24, %v_5, %xs: I32
     call_complex teardown$@inline(4) @capacity(4) Array(I32), %xs
     %v_8 = alloca 20, 4: Ptr
     store %v_8, 1, 4
@@ -139,7 +139,7 @@ main<complex>(): I32 {
     %v_14 = add %v_13, 8: Ptr
     store %v_14, 4, 8
     %v_15 = bitcast 0: Ptr
-    %v_16 = call_complex ResolveTest.continuation$21, %v_15, %v_13: I32
+    %v_16 = call_complex ResolveTest.continuation$23, %v_15, %v_13: I32
     %v_17 = vsplat 0: i32x4
     %v_18 = add %v_8, 16: Ptr
     %v_19 = load %v_18, 4: I32
@@ -198,7 +198,7 @@ main<complex>(): I32 {
     %v_54 = alloca 8, 8: Ptr
     store %v_54, %v_48, 8
     %v_55 = alloca 16, 8: Ptr
-    store %v_55, ResolveTest.continuation$23, 8
+    store %v_55, ResolveTest.continuation$25, 8
     %v_56 = add %v_55, 8: Ptr
     store %v_56, %v_54, 8
     %v_57 = call_complex bumpOne(I32), %v_49, %v_55: I32
@@ -217,7 +217,7 @@ main<complex>(): I32 {
   }
 }
 
-ResolveTest.continuation$21<complex>(%env: Ptr, %value$: Ptr): I32 {
+ResolveTest.continuation$23<complex>(%env: Ptr, %value$: Ptr): I32 {
   b_0 {
     %v_1 = add %value$, 8: Ptr
     %v_2 = loads %v_1, 8: I64
@@ -240,7 +240,7 @@ ResolveTest.continuation$21<complex>(%env: Ptr, %value$: Ptr): I32 {
   }
 }
 
-ResolveTest.continuation$22<complex>(%env: Ptr, %value$: Ptr): I32 {
+ResolveTest.continuation$24<complex>(%env: Ptr, %value$: Ptr): I32 {
   b_0 {
     %xs$items = load %value$, 8: Ptr
     %v_1 = add %value$, 8: Ptr
@@ -250,8 +250,8 @@ ResolveTest.continuation$22<complex>(%env: Ptr, %value$: Ptr): I32 {
   }
 }
 
-@closure$ResolveTest.continuation$23 = [0, 0, 0, 0]
-ResolveTest.continuation$23<complex>(%env: Ptr, %value$: I32): I32 {
+@closure$ResolveTest.continuation$25 = [0, 0, 0, 0]
+ResolveTest.continuation$25<complex>(%env: Ptr, %value$: I32): I32 {
   b_0 {
     %v_1 = load %env, 8: Ptr
     %v_2 = vsplat 0: i32x4

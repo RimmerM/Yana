@@ -26,14 +26,6 @@ let image$base: () = <none>
 
 let &heapFree: %%U8 = 0
 
-table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
-  .0 teardown$none
-}
-
-table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
-  .0 teardown$none
-}
-
 table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
 }
@@ -42,19 +34,27 @@ table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$23(Array(I32), I32) before ResolveTest.continuation$23(Array(I32), I32) {
+table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$24(Array(I32), I32) before ResolveTest.continuation$24(Array(I32), I32) {
+table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$23(Array(F32), F32) before ResolveTest.continuation$23(Array(F32), F32) {
+table closure$ResolveTest.continuation$25(Array(I32), I32) before ResolveTest.continuation$25(Array(I32), I32) {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$24(Array(F32), F32) before ResolveTest.continuation$24(Array(F32), F32) {
+table closure$ResolveTest.continuation$26(Array(I32), I32) before ResolveTest.continuation$26(Array(I32), I32) {
+  .0 teardown$none
+}
+
+table closure$ResolveTest.continuation$25(Array(F32), F32) before ResolveTest.continuation$25(Array(F32), F32) {
+  .0 teardown$none
+}
+
+table closure$ResolveTest.continuation$26(Array(F32), F32) before ResolveTest.continuation$26(Array(F32), F32) {
   .0 teardown$none
 }
 
@@ -1023,7 +1023,7 @@ fn sumInts(%xs: ArrayView(I32)) -> I32 {
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: Vec(I32)) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$21 : %()
+    %v10 = symbol ResolveTest.continuation$23 : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = call vectors(ArrayView(I32), I32, ()), %xs, %v9 : Outcome((), ())
@@ -1042,7 +1042,7 @@ fn largest(%xs: ArrayView(I32), %floor: I32) -> I32 {
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: {Vec(I32), I32}) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$22 : %()
+    %v10 = symbol ResolveTest.continuation$24 : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = call vectorsMasked(ArrayView(I32), I32, ()), %xs, %v9 : Outcome((), ())
@@ -1073,7 +1073,7 @@ fn largest(%xs: ArrayView(I32), %floor: I32) -> I32 {
     init %local2.acc, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Vec(a)) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$23 : %()
+    %v9 = symbol ResolveTest.continuation$25 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = gencall vectors(c, a, ()), %xs, %v8 : Outcome((), ())
@@ -1104,7 +1104,7 @@ fn largest(%xs: ArrayView(I32), %floor: I32) -> I32 {
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: {Vec(a), I32}) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$24 : %()
+    %v10 = symbol ResolveTest.continuation$26 : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = gencall vectorsMasked(c, a, ()), %xs, %v9 : Outcome((), ())
@@ -1237,7 +1237,7 @@ fn main() -> I32 {
     ret %v151
 }
 
-fn ResolveTest.continuation$21(%env: %{acc: &Vec(I32)}, %value$: Vec(I32)) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(%env: %{acc: &Vec(I32)}, %value$: Vec(I32)) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].acc : &Vec(I32)
     %v3 = load [%env].acc : &Vec(I32)
@@ -1249,7 +1249,7 @@ fn ResolveTest.continuation$21(%env: %{acc: &Vec(I32)}, %value$: Vec(I32)) -> Ou
     ret %v7
 }
 
-fn ResolveTest.continuation$22(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}) -> Outcome((), ()) {
+fn ResolveTest.continuation$24(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}) -> Outcome((), ()) {
   b0:
     %v = load %value$.0 : Vec(I32)
     %live = load %value$.1 : I32
@@ -1286,7 +1286,7 @@ fn ResolveTest.continuation$22(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}
     ret %v48
 }
 
-(Chunked(c, a), Num(Vec(a)), Length(ArrayView(a)), Lanewise(Vec(a), Mask(a))) fn ResolveTest.continuation$23(%env: %{acc: &Vec(a)}, %value$: Vec(a)) -> Outcome((), ()) {
+(Chunked(c, a), Num(Vec(a)), Length(ArrayView(a)), Lanewise(Vec(a), Mask(a))) fn ResolveTest.continuation$25(%env: %{acc: &Vec(a)}, %value$: Vec(a)) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type a
@@ -1310,7 +1310,7 @@ fn ResolveTest.continuation$22(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}
     ret %v7
 }
 
-(Chunked(c, a), Ord(a), Lanewise(Vec(a), Mask(a)), Length(ArrayView(a))) fn ResolveTest.continuation$24(%env: %{acc: &Vec(a)}, %value$: {Vec(a), I32}) -> Outcome((), ()) {
+(Chunked(c, a), Ord(a), Lanewise(Vec(a), Mask(a)), Length(ArrayView(a))) fn ResolveTest.continuation$26(%env: %{acc: &Vec(a)}, %value$: {Vec(a), I32}) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type a
@@ -1350,7 +1350,7 @@ fn total(Array(I32), I32)(%xs: Array(I32)) -> I32 {
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: Vec(I32)) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$23(Array(I32), I32) : %()
+    %v10 = symbol ResolveTest.continuation$25(Array(I32), I32) : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = call vectors(Array(I32), I32, ()), %xs, %v9 : Outcome((), ())
@@ -1359,7 +1359,7 @@ fn total(Array(I32), I32)(%xs: Array(I32)) -> I32 {
     ret %v15
 }
 
-fn ResolveTest.continuation$23(Array(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: Vec(I32)) -> Outcome((), ()) {
+fn ResolveTest.continuation$25(Array(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: Vec(I32)) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].acc : &Vec(I32)
     %v3 = load [%env].acc : &Vec(I32)
@@ -1381,7 +1381,7 @@ fn biggest(Array(I32), I32)(%xs: Array(I32), %floor: I32) -> I32 {
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: {Vec(I32), I32}) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$24(Array(I32), I32) : %()
+    %v10 = symbol ResolveTest.continuation$26(Array(I32), I32) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call vectorsMasked(Array(I32), I32, ()), %xs, %v9 : Outcome((), ())
@@ -1390,7 +1390,7 @@ fn biggest(Array(I32), I32)(%xs: Array(I32), %floor: I32) -> I32 {
     ret %v15
 }
 
-fn ResolveTest.continuation$24(Array(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}) -> Outcome((), ()) {
+fn ResolveTest.continuation$26(Array(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}) -> Outcome((), ()) {
   b0:
     %v = load %value$.0 : Vec(I32)
     %live = load %value$.1 : I32
@@ -1437,7 +1437,7 @@ fn total(Array(F32), F32)(%xs: Array(F32)) -> F32 {
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: Vec(F32)) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$23(Array(F32), F32) : %()
+    %v10 = symbol ResolveTest.continuation$25(Array(F32), F32) : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = call vectors(Array(F32), F32, ()), %xs, %v9 : Outcome((), ())
@@ -1446,7 +1446,7 @@ fn total(Array(F32), F32)(%xs: Array(F32)) -> F32 {
     ret %v15
 }
 
-fn ResolveTest.continuation$23(Array(F32), F32)(%env: %{acc: &Vec(F32)}, %value$: Vec(F32)) -> Outcome((), ()) {
+fn ResolveTest.continuation$25(Array(F32), F32)(%env: %{acc: &Vec(F32)}, %value$: Vec(F32)) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].acc : &Vec(F32)
     %v3 = load [%env].acc : &Vec(F32)
@@ -1468,7 +1468,7 @@ fn biggest(Array(F32), F32)(%xs: Array(F32), %floor: F32) -> F32 {
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: {Vec(F32), I32}) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$24(Array(F32), F32) : %()
+    %v10 = symbol ResolveTest.continuation$26(Array(F32), F32) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call vectorsMasked(Array(F32), F32, ()), %xs, %v9 : Outcome((), ())
@@ -1477,7 +1477,7 @@ fn biggest(Array(F32), F32)(%xs: Array(F32), %floor: F32) -> F32 {
     ret %v15
 }
 
-fn ResolveTest.continuation$24(Array(F32), F32)(%env: %{acc: &Vec(F32)}, %value$: {Vec(F32), I32}) -> Outcome((), ()) {
+fn ResolveTest.continuation$26(Array(F32), F32)(%env: %{acc: &Vec(F32)}, %value$: {Vec(F32), I32}) -> Outcome((), ()) {
   b0:
     %v = load %value$.0 : Vec(F32)
     %live = load %value$.1 : I32

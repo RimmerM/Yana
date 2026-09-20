@@ -250,6 +250,10 @@ instance ReadWith(HexBytesStyle, [U8]):
     let &->bytes = emptyArray() :: [U8]
     let &start = at
 
+    -- The blocks first where there are any: a separated run is a digit pair and a unit between
+    -- every two of them, which is the walk's shape and not a block's.
+    if separator == 0 then start = pushHexBlocks(from, start, bytes)
+
     while start + 1 < units:
         -- A separator is expected before every byte but the first, and its absence ends the run
         -- rather than failing it: what follows a digest in a line is the caller's to read.
@@ -273,3 +277,14 @@ instance ReadWith(HexBytesStyle, [U8]):
 
     at = start
     return Ok(bytes)
+
+{-
+   The whole digit pairs at the head of a run, decoded a block at a time - `pushBase64Blocks`'
+   counterpart at this notation's group size, and the same promise: **a position at or after `from`,
+   with exactly the bytes of the pairs between the two appended.**
+
+   The baseline decodes nothing, which satisfies that promise and leaves the walk below to do all of
+   it; `Hex.native.yana` replaces it with the block form. The separator is not a parameter because a
+   run with one in it has no blocks: the caller tests for it and does not come here.
+-}
+fn pushHexBlocks(text: String, from: Size, &bytes: Array(U8)) -> Size = from

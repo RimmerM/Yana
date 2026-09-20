@@ -1,0 +1,162 @@
+import Native
+
+{-
+   ==========================================================================================
+   CRC by carry-less multiplication - the folding scheme, for both polynomials
+   ==========================================================================================
+
+   What `Crc.native.yana` says is missing, and what `Crc.yana` says CRC32 has no instruction for:
+   Analysis-Avx512.md §4.2, and the reason `X86.carrylessMultiply` exists.
+
+   **The file is selected by its name**, as `Memory.native.avx512.yana` is: a build without `pclmul`
+   does not resolve it at all, and the table and the single `crc32` chain are what it runs. `pclmul`
+   is implied from `avx2` up and nameable at `sse4`, so the two bodies below are the `avx2` row of
+   the suite and their baselines are the `amd64` one - which is what holds them to the same answers.
+
+   ## What the fold is
+
+   A CRC is a remainder, so the CRC of a message is a linear function of it over GF(2), and
+   `pclmulqdq` is the multiply that arithmetic is written in. The whole scheme is one identity:
+   multiplying a chunk by `x^n mod P` and adding it to the chunk `n` bits later leaves the remainder
+   unchanged. So a sixteen-byte block can be *folded* into the next one with two multiplies and two
+   exclusive-ors, and sixty-four bytes can be folded into the next sixty-four with eight of each -
+   four chains that do not depend on each other, which is what a table-driven fold and a chained
+   `crc32` both lack.
+
+   Four stages, in the order the code has them:
+
+   - **Fold by four.** Four registers advance together, each multiplied by `x^576` and `x^512` -
+     the distance from a quadword to the same quadword four blocks later, and to the one after it.
+   - **Fold four into one**, by the same step at the one-block distance (`x^192`, `x^128`), and then
+     any whole blocks that are left.
+   - **Reduce 128 bits to 64 and then to 32**, which is two more multiplies by the distances that
+     remain.
+   - **Barrett reduction**, which is the division: the remainder of a 64-bit value by a 33-bit
+     polynomial, computed as two multiplies against the reciprocal `floor(x^64 / P)` and the
+     polynomial itself. This is the one step that is not a fold, and it is why the constant pair
+     carries `P` beside the reciprocal.
+
+   ## The constants
+
+   Each is `x^n mod P` written the way a reflected CRC reads its bits: the 32-bit remainder
+   reversed and shifted up one, which is a 33-bit number. They were derived rather than copied, and
+   the derivation reproduces the published CRC32 set exactly (`0x154442bd4`, `0x1c6e41596`,
+   `0x1751997d0`, `0x0ccaa009e`, `0x163cd6124`), which is what says the Castagnoli set beside it is
+   right too. The exponents are 544 and 480 for the four-block step, 160 and 96 for the one-block
+   step, 64 for the last reduction.
+
+   **A reflected CRC is why a plain little-endian load is the whole of the conversion.** The bytes
+   of the message arrive in the register in the order the polynomial wants them, so there is no
+   shuffle anywhere in this file - which is the half of the scheme that is easy to get wrong and is
+   not written here at all.
+
+   ## What is not done
+
+   The two-block and four-block `vpclmulqdq` forms (`X86.carrylessMultiply2`, and a `zmm` one that
+   does not exist yet) would fold 32 or 64 bytes per instruction instead of 16. That is the shape
+   the published AVX-512 CRCs have and it is a change inside `foldBlocks` alone; the constants are
+   the same ones at larger exponents. Nothing here measures it yet.
+-}
+
+-- One polynomial's folding constants, each pair in the two quadwords of a register because that is
+-- how `carrylessMultiply`'s selector reaches them.
+data Folding {k1k2: Vec(U64, 2), k3k4: Vec(U64, 2), k5: Vec(U64, 2), barrett: Vec(U64, 2)}
+
+fn quadwords(low: U64, high: U64) -> Vec(U64, 2) = withLane(splat(low) :: Vec(U64, 2), 1, high)
+
+-- CRC32 (IEEE), polynomial 0x04C11DB7.
+fn ieeeFolding() -> Folding = Folding {
+    k1k2: quadwords(0x154442bd4, 0x1c6e41596),
+    k3k4: quadwords(0x1751997d0, 0x0ccaa009e),
+    k5: quadwords(0x163cd6124, 0),
+    barrett: quadwords(0x1db710641, 0x1f7011641)
+}
+
+-- CRC32C (Castagnoli), polynomial 0x1EDC6F41 - the same exponents against a different modulus.
+fn castagnoliFolding() -> Folding = Folding {
+    k1k2: quadwords(0x740eef02, 0x9e4addf8),
+    k3k4: quadwords(0xf20c0dfe, 0x14cd00bd6),
+    k5: quadwords(0xdd45aab8, 0),
+    barrett: quadwords(0x105ec76f1, 0xdea713f1)
+}
+
+-- One fold step: the block multiplied by the two distances in `k` and added to the block it is
+-- being folded into. Every stage but the reduction is this line.
+@inline fn folded(block: Vec(U64, 2), k: Vec(U64, 2), into: Vec(U64, 2)) -> Vec(U64, 2) =
+    xor(xor(X86.carrylessMultiply(block, k, 0x00), X86.carrylessMultiply(block, k, 0x11)), into)
+
+-- A sixteen-byte block of the message. The caller's loop bound is what keeps it inside the window,
+-- which is the same promise `loadVector` asks for and is why this is not `loadVectorTail`.
+@inline fn block(from: [U8], at: Size) -> Vec(U64, 2) =
+    bitcast(loadVectorAt(from, at) :: Vec(U8, 16)) :: Vec(U64, 2)
+
+{-
+   The whole sixteen-byte blocks of `from` between `at` and `stop`, folded - the new remainder and
+   the position the walk reached.
+
+   Under sixty-four bytes nothing is folded and the position comes back unchanged: the four-register
+   stage needs four blocks to start with, and a run that short is what the caller's own walk is for.
+-}
+fn foldBlocks(value: U32, from: [U8], at: Size, stop: Size, folds: Folding) -> {U32, Size}:
+    if stop - at < 64 then return {value, at}
+
+    let k1k2 = folds.k1k2
+    let k3k4 = folds.k3k4
+    let k5 = folds.k5
+    let barrett = folds.barrett
+
+    let empty = zero() :: Vec(U64, 2)
+    let low32 = splat(0xffffffff :: U64) :: Vec(U64, 2)
+
+    -- The remainder enters the message as its first four bytes, which is what makes the fold a
+    -- continuation of whatever came before rather than a fresh checksum.
+    let &x1 = xor(block(from, at), quadwords(widen(value) :: U64, 0))
+    let &x2 = block(from, at + 16)
+    let &x3 = block(from, at + 32)
+    let &x4 = block(from, at + 48)
+
+    let &i = at + 64
+
+    while stop - i >= 64:
+        x1 = folded(x1, k1k2, block(from, i))
+        x2 = folded(x2, k1k2, block(from, i + 16))
+        x3 = folded(x3, k1k2, block(from, i + 32))
+        x4 = folded(x4, k1k2, block(from, i + 48))
+        i = i + 64
+
+    x1 = folded(x1, k3k4, x2)
+    x1 = folded(x1, k3k4, x3)
+    x1 = folded(x1, k3k4, x4)
+
+    while stop - i >= 16:
+        x1 = folded(x1, k3k4, block(from, i))
+        i = i + 16
+
+    -- 128 bits to 64: the high quadword multiplied by the one-quadword distance, added to itself
+    -- shifted down. `alignLanes` against a zero register is that shift.
+    let halved = xor(alignLanes(empty, x1, 1), X86.carrylessMultiply(x1, k3k4, 0x10))
+
+    -- 64 bits to 32, by the same step at half the distance.
+    let above = bitcast(alignLanes(zero() :: Vec(U32, 4), bitcast(halved) :: Vec(U32, 4), 1)) :: Vec(U64, 2)
+    let narrowed = xor(X86.carrylessMultiply(and(halved, low32), k5, 0x00), above)
+
+    -- And the division. The reciprocal first, then the polynomial, each against the low thirty-two
+    -- bits of what the last one left.
+    let quotient = X86.carrylessMultiply(and(narrowed, low32), barrett, 0x10)
+    let product = X86.carrylessMultiply(and(quotient, low32), barrett, 0x00)
+
+    return {lane(bitcast(xor(narrowed, product)) :: Vec(U32, 4), 1), i}
+
+-- The two replacements. Each folds what it can and hands the rest to the walk its baseline is,
+-- which is where a run under sixty-four bytes and every tail under sixteen is answered.
+@replaces
+fn crc32Update(value: U32, from: [U8], at: Size, count: Size) -> U32:
+    let stop = at + count
+    let {folded, after} = foldBlocks(value, from, at, stop, ieeeFolding())
+    return crc32From(folded, from, after, stop)
+
+@replaces
+fn crc32cUpdate(value: U32, from: [U8], at: Size, count: Size) -> U32:
+    let stop = at + count
+    let {folded, after} = foldBlocks(value, from, at, stop, castagnoliFolding())
+    return crc32cFrom(folded, from, after, stop)

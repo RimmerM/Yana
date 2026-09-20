@@ -47,7 +47,7 @@ always<complex>(%n: I32): I32 {
 
   b_5 {
     %v_8 = shl %n, 1: I32
-    %carried = call_complex ResolveTest.continuation$21, %v_1, %v_8: I32
+    %carried = call_complex ResolveTest.continuation$23, %v_1, %v_8: I32
     %v_9 = loads @log, 4: I32
     %v_10 = add %v_9, 100: I32
     store @log, %v_10, 4
@@ -97,7 +97,7 @@ valued<complex>(%n: I32): I32 {
 
   b_9 {
     %v_12 = shl %n, 1: I32
-    %carried = call_complex ResolveTest.continuation$22, %v_5, %v_12: I32
+    %carried = call_complex ResolveTest.continuation$24, %v_5, %v_12: I32
     %v_13 = loads @log, 4: I32
     %v_14 = add %v_13, 100: I32
     store @log, %v_14, 4
@@ -246,7 +246,7 @@ reasoned<complex>(%n: I32): I32 {
   }
 
   b_7 {
-    %v_8 = call_complex ResolveTest.continuation$24, %v_1, %n: I32
+    %v_8 = call_complex ResolveTest.continuation$26, %v_1, %n: I32
     jmp b_9
   }
 
@@ -282,7 +282,7 @@ guarded<complex>(%open: I32): I32 {
     %v_4 = loads @log, 4: I32
     %v_5 = add %v_4, 1000: I32
     store @log, %v_5, 4
-    %v_6 = call_complex ResolveTest.continuation$25, %v_1: I32
+    %v_6 = call_complex ResolveTest.continuation$27, %v_1: I32
     jmp b_7
   }
 
@@ -315,7 +315,7 @@ nested<complex>(%n: I32): I32 {
     %v_3 = add %v_2, 1: I32
     store @log, %v_3, 4
     %v_4 = shl %n, 1: I32
-    %v_5 = call_complex ResolveTest.continuation$26, %v_1, %v_4: I32
+    %v_5 = call_complex ResolveTest.continuation$28, %v_1, %v_4: I32
     %v_6 = loads @log, 4: I32
     %v_7 = add %v_6, 10: I32
     store @log, %v_7, 4
@@ -341,7 +341,7 @@ main<complex>(): I32 {
     %v_2 = loads @log, 4: I32
     %v_3 = add %v_2, 1: I32
     store @log, %v_3, 4
-    %carried = call_complex ResolveTest.lambda$28, %v_1, 12: I32
+    %carried = call_complex ResolveTest.lambda$30, %v_1, 12: I32
     %v_4 = loads @log, 4: I32
     %v_5 = add %v_4, 100: I32
     store @log, %v_5, 4
@@ -366,34 +366,34 @@ main<complex>(): I32 {
   }
 }
 
-ResolveTest.continuation$21<complex>(%env: Ptr, %found: I32): I32 {
+ResolveTest.continuation$23<complex>(%env: Ptr, %found: I32): I32 {
   b_0 {
     %v_1 = add %found, 1: I32
     ret %v_1
   }
 }
 
-ResolveTest.continuation$22<complex>(%env: Ptr, %found: I32): I32 {
+ResolveTest.continuation$24<complex>(%env: Ptr, %found: I32): I32 {
   b_0 {
     %v_1 = imul %found, 3: I32
     ret %v_1
   }
 }
 
-ResolveTest.continuation$24<complex>(%env: Ptr, %value: I32): I32 {
+ResolveTest.continuation$26<complex>(%env: Ptr, %value: I32): I32 {
   b_0 {
     %v_1 = add %value, 1: I32
     ret %v_1
   }
 }
 
-ResolveTest.continuation$25<complex>(%env: Ptr): I32 {
+ResolveTest.continuation$27<complex>(%env: Ptr): I32 {
   b_0 {
     ret 3
   }
 }
 
-ResolveTest.continuation$26<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$28<complex>(%env: Ptr, %value$: I32): I32 {
   b_0 {
     %v_1 = loads @log, 4: I32
     %v_2 = add %v_1, 1: I32
@@ -423,7 +423,7 @@ ResolveTest.continuation$26<complex>(%env: Ptr, %value$: I32): I32 {
   }
 }
 
-ResolveTest.lambda$28<complex>(%env: Ptr, %found: I32): I32 {
+ResolveTest.lambda$30<complex>(%env: Ptr, %found: I32): I32 {
   b_0 {
     %v_1 = imul %found, 5: I32
     ret %v_1

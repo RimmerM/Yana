@@ -400,6 +400,24 @@ instance (n: Int) Chunked([a *n], a):
 @platform(js) pub fn loadVectorTail(from: [a], at: Size) -> Vec(a) =
     hostVectorUpTo(from.items, from.offset + at, from.offset + from.length - 1)
 
+{-
+   The same load at a **written** lane count, which the three above deliberately do not take.
+
+   `loadVector` answers the target's natural width and that is what every loop over a whole
+   container wants: the width is the machine's business and a body that named one would be pinned to
+   it. What wants a written count is a body whose *block* is a fixed size the algorithm chose -
+   xxHash32's sixteen-byte stripe is four words because the digest says four, not because a register
+   holds four - and for those the natural width is the wrong question rather than a better answer.
+
+   **Native only**, and the reason is not a missing line: `hostVector` answers a vector of the
+   target's own lanes and is not const-generic, and a pinned width would buy nothing on a target
+   where a vector *is* `lanes` values already (Design-Vector §7.2). The callers are the
+   `@platform(native)` replacements of bodies whose baseline is the element walk, which is the shape
+   every such algorithm here already has.
+-}
+@platform(native) pub fn (n: Int = 0) loadVectorAt(from: [a], at: Size) -> Vec(a, n) =
+    vectorAt(from.items + at)
+
 @platform(native) pub fn storeVector(to: [a], at: Size, value: Vec(a)): setVectorAt(to.items + at, value)
 @platform(js) pub fn storeVector(to: [a], at: Size, value: Vec(a)):
     hostSetVector(to.items, to.offset + at, value)

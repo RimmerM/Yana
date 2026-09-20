@@ -223,3 +223,57 @@ pub fn (Eq(a)) itemsEqual(left: [a], right: [a]) -> Bool:
 @replaces @platform(native)
 fn (Eq(a), Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a))) itemsEqual(left: [a], right: [a]) -> Bool =
     compareMemory(left.items, right.items, length(left)) == EQ
+
+{-
+   ------------------------------------------------------------------------------------------
+   The set bits of a bitmap
+   ------------------------------------------------------------------------------------------
+
+   How many bits are set across a container of machine words - Analysis-Avx512.md §4.8's first row,
+   and the eighth of these pairs.
+
+   **`totalBits` and not `countBits`**, which is the name the operation has on one value: that one is
+   `Bits(a)`'s member, and a plain function may not share a name with a class member any more than
+   with another plain function. The distinction the two names draw is worth having anyway - one of
+   them answers about a value and the other about a container, and a reader seeing `countBits(xs)`
+   would have to know which.
+
+   **Over `U64` and not over every lane type**, which is the one place this family pins its element.
+   A bitmap is a run of words and `U64` is what one is made of here; the general version would have
+   to widen a per-element count into the accumulator, and there is no conversion that does so for
+   every integer - `Widen(a, Size)` relates the narrow ones and `Truncate(a, Size)` the wide ones,
+   and a constraint can only ask for one of them. Nothing wants a bit count over a `[U8]` badly
+   enough to pay for two bodies.
+
+   **The vector body counts in whatever lanes the register has and the lane width does not matter**,
+   which is the whole reason the accumulator cannot overflow: the set bits of a block are the set
+   bits of a block however it is divided, so the count is taken at sixty-four lanes and each lane
+   adds at most sixty-four per iteration. A `Vec(U8)` accumulator would wrap after thirty-one blocks
+   and is what a body written at the element's own width would have used.
+
+   `vectors` and not `vectorsMasked`, on the same identity argument `sum` makes: the lanes past the
+   end are zero, and a zero word has no bits set.
+
+   **`@platform(native)` and not a `Bits(Vec(U64))` constraint**, which is what the condition would
+   have been if the element were a variable: a constraint over types the signature does not bind is
+   refused outright by `compiler/resolve_mir` - "a constraint names types this signature binds" -
+   and the element here is written down. The platform is the honest condition anyway: a host vector
+   is `lanes` values (Design-Vector §7.2), so the block form on JS would be the walk with an array
+   allocated per iteration, which is `itemsEqual`'s argument below.
+-}
+pub fn (Chunked(c, U64)) totalBits(xs: c) -> Size:
+    let &total = 0 :: Size
+
+    for word in items(xs):
+        total = total + (truncate(countBits(word)) :: Size)
+
+    return total
+
+@replaces @platform(native)
+fn (Chunked(c, U64)) totalBits(xs: c) -> Size:
+    let &acc = zero() :: Vec(U64)
+
+    for v in vectors(xs):
+        acc = acc + countBits(v)
+
+    return truncate(horizontalSum(acc)) :: Size

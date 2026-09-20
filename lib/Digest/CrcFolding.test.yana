@@ -1,0 +1,86 @@
+{-
+   Both checksums at every length that crosses a boundary of the folding scheme, against a CRC
+   computed one bit at a time.
+
+   `Digest.test.yana` pins five lengths of each polynomial against the published vectors, which is
+   what says these are CRC32 and CRC32C at all. What this adds is the shape
+   `Crc.native.pclmul.yana` can get wrong and those five cannot catch. That body needs sixty-four
+   bytes before it folds anything, advances four blocks at a time, folds what is left one block at a
+   time, and hands a tail under sixteen bytes back to the walk - so the lengths worth having are all
+   of them around 64, and long enough to go round the four-block loop several times.
+
+   **The reference is a bit at a time**, which is the one implementation that shares nothing with
+   either of the two being checked: the table walk, the `crc32` instruction and the fold are three
+   ways of evaluating the same remainder, and a reference that was any of them would agree with
+   itself about a wrong constant.
+-}
+
+import Test
+
+fn crcBitwise(poly: U32, bytes: [U8], from: Size, stop: Size, init: U32) -> U32:
+    let &c = init
+
+    for i in from .. stop:
+        c = c `xor` (bytes[i] :: U32)
+        for _ in 0 .. 8:
+            c = (c `shr` 1) `xor` (if (c `and` 1) == 1 then poly else 0 :: U32)
+
+    return c
+
+let ieeeReflected = 0xEDB88320 :: U32
+let castagnoliReflected = 0x82F63B78 :: U32
+
+fn filled(n: Int) -> Array(U8):
+    let &bytes = emptyArray() :: Array(U8)
+    for k in 0 .. n:
+        push(bytes, truncate(k * 37 + 11 + (k / 11) * 7) :: U8)
+
+    return bytes
+
+@test fn crcFoldingAtEveryLength():
+    let &bad = 0
+
+    for n in 0 .. 300:
+        let bytes = filled(n)
+        let window = elements(bytes)
+        let count = length(window)
+
+        let wantIeee = not(crcBitwise(ieeeReflected, window, 0, count, 0xFFFFFFFF))
+        let wantCastagnoli = not(crcBitwise(castagnoliReflected, window, 0, count, 0xFFFFFFFF))
+
+        if crc32ValueOf(window) != wantIeee then bad = bad + 1
+        if crc32cValueOf(window) != wantCastagnoli then bad = bad + 1
+
+    checkEqual(bad, 0)
+
+-- Long enough to go round the four-block loop a dozen times, which is the one stage the lengths
+-- above reach only two or three times.
+@test fn crcFoldingOverALongRun():
+    let bytes = filled(1000)
+    let window = elements(bytes)
+
+    checkEqual(crc32ValueOf(window), not(crcBitwise(ieeeReflected, window, 0, 1000, 0xFFFFFFFF)))
+    checkEqual(crc32cValueOf(window), not(crcBitwise(castagnoliReflected, window, 0, 1000, 0xFFFFFFFF)))
+
+{-
+   And the same run split in two, which is what a digest fed a stream does.
+
+   The fold takes the remainder it was handed into the first block it reads, so a second call has to
+   continue the first rather than start again - and a split at a length the fold does not reach
+   (under sixty-four) is the case where one of the two calls runs entirely on the walk.
+-}
+@test fn crcFoldingContinuesAState():
+    let bytes = filled(500)
+    let window = elements(bytes)
+    let &bad = 0
+
+    for split in 0 .. 200:
+        let cut = (split :: Size)
+
+        let ieee = crc32Update(crc32Update(0xFFFFFFFF, window, 0, cut), window, cut, 500 - cut)
+        if not(ieee) != not(crcBitwise(ieeeReflected, window, 0, 500, 0xFFFFFFFF)) then bad = bad + 1
+
+        let castagnoli = crc32cUpdate(crc32cUpdate(0xFFFFFFFF, window, 0, cut), window, cut, 500 - cut)
+        if not(castagnoli) != not(crcBitwise(castagnoliReflected, window, 0, 500, 0xFFFFFFFF)) then bad = bad + 1
+
+    checkEqual(bad, 0)

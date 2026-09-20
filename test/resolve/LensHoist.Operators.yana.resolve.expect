@@ -2,7 +2,7 @@ let image$base: () = <none>
 
 let &log: I32 = 0
 
-table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
+table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
   .0 teardown$none
 }
 
@@ -50,7 +50,7 @@ fn leftOperand() -> I32 {
   b0:
     assign log, 0
     %v3 = alloc : (value$: I32) -> I32
-    %v4 = symbol ResolveTest.continuation$21 : %()
+    %v4 = symbol ResolveTest.continuation$23 : %()
     init %local0.code, %v4
     %v7 = cast 0 : %()
     init %local0.env, %v7
@@ -62,7 +62,7 @@ fn rightOperand() -> I32 {
   b0:
     assign log, 0
     %v3 = alloc : (value$: I32) -> I32
-    %v4 = symbol ResolveTest.continuation$22 : %()
+    %v4 = symbol ResolveTest.continuation$24 : %()
     init %local0.code, %v4
     %v7 = cast 0 : %()
     init %local0.env, %v7
@@ -74,7 +74,7 @@ fn inPrefix() -> I32 {
   b0:
     assign log, 0
     %v3 = alloc : (value$: Bool) -> I32
-    %v4 = symbol ResolveTest.continuation$23 : %()
+    %v4 = symbol ResolveTest.continuation$25 : %()
     init %local0.code, %v4
     %v7 = cast 0 : %()
     init %local0.env, %v7
@@ -89,7 +89,7 @@ fn beforeShortCircuit(%b: Bool) -> I32 {
     init %local0.b, %b
     %v6 = addressof %local0 : %()
     %v7 = alloc : (value$: I32) -> I32
-    %v8 = symbol ResolveTest.continuation$24 : %()
+    %v8 = symbol ResolveTest.continuation$26 : %()
     init %local1.code, %v8
     init %local1.env, %v6
     %v11 = call logged(I32), 1, %v7 : I32
@@ -114,7 +114,7 @@ fn main() -> I32 {
     ret %v22
 }
 
-fn ResolveTest.continuation$21(%env: %{}, %value$: I32) -> I32 {
+fn ResolveTest.continuation$23(%env: %{}, %value$: I32) -> I32 {
   b0:
     %seen = add %value$, 3 : I32
     %v5 = load log : I32
@@ -135,7 +135,7 @@ fn logged(I32)(%step: I32, %body: (value$: I32) -> I32) -> I32 {
     ret %v6
 }
 
-fn ResolveTest.continuation$22(%env: %{}, %value$: I32) -> I32 {
+fn ResolveTest.continuation$24(%env: %{}, %value$: I32) -> I32 {
   b0:
     %v5 = mul %value$, 2 : I32
     %seen = add 3, %v5 : I32
@@ -144,7 +144,7 @@ fn ResolveTest.continuation$22(%env: %{}, %value$: I32) -> I32 {
     ret %v9
 }
 
-fn ResolveTest.continuation$23(%env: %{}, %value$: Bool) -> I32 {
+fn ResolveTest.continuation$25(%env: %{}, %value$: Bool) -> I32 {
   b0:
     %seen = xor %value$, True : Bool
     je %seen, b1, b2
@@ -176,7 +176,7 @@ fn flagged(I32)(%step: I32, %body: (value$: Bool) -> I32) -> I32 {
     ret %v8
 }
 
-fn ResolveTest.continuation$24(%env: %{b: Bool}, %value$: I32) -> I32 {
+fn ResolveTest.continuation$26(%env: %{b: Bool}, %value$: I32) -> I32 {
   b0:
     %v4 = cmp_gt %value$, 0 : Bool
     je %v4, b1, b2

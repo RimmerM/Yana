@@ -368,6 +368,16 @@ pub fn (Writable(c, a), Ord(a)) sort(&xs: c):
 
     sortRange(window, 0, count - 1, recursionBudget(count))
 
+-- And the same over a container of a lane type, whose partition is a vector loop - `sortRangeLanes`
+-- below is the whole of the difference, and it hands every range shorter than two registers back to
+-- `sortRange`. The constraints are `Reduce.yana`'s: they hold exactly where the element is a lane.
+@replaces @platform(native)
+fn (Writable(c, a), Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a))) sort(&xs: c):
+    let &window = elementsMut(xs)
+    let count = length(window)
+
+    sortRangeLanes(window, 0, count - 1, recursionBudget(count))
+
 {-
    The same, with the order supplied at the call.
 
