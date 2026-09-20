@@ -274,6 +274,157 @@ void MachineFormBuilder::registerEvexForms() {
     widen(FormVWideCastI64ToF64, FormVCastI64ToF64, "vcvtqq2pd ymm, ymm"_v);
 
     /*
+     * The packed bit counts - Analysis-Avx512.md §3.2, and the one group here standing behind three
+     * different extension bits.
+     *
+     * `vpopcntb`/`vpopcntw` are EVEX.66.0F38.W0/W1 54 and need BITALG; `vpopcntd`/`vpopcntq` are the
+     * same shape at opcode 55 and need VPOPCNTDQ; `vplzcntd`/`vplzcntq` are EVEX.66.0F38.W0/W1 44 and
+     * need CD. Three `EvexRow` entries name the three, so that a build whose level ever splits them
+     * declines the right subset rather than all or none.
+     *
+     * **There is no packed trailing-zero count at any level and so no row for one.**
+     * `expandVectorBitCounts` writes `popcount((x & -x) - 1)`, which is four instructions here and
+     * the same four at `sse4` with a longer population count inside it.
+     */
+    auto count = [&](MachineFormId id, MachineFormId wideId, StringView formName,
+                     StringView wideName, MachineOpcodeId opcode, U8 op, bool w,
+                     FeatureSet extension) {
+        auto& form = add(id, opcode, formName);
+        form.uses.push(anyReg(ClassXmm128));
+        form.defs.push(def(ClassXmm128));
+        form.requiredFeatures = features(extension);
+        form.encoding = evexRegRm(0x66, kOpcodeMap0F38, op, w);
+
+        // Written beside the narrow row rather than in a second sweep: `add` asserts that a form's
+        // id is the position it lands at, so the two have to be built in the order they are numbered.
+        widen(wideId, id, wideName);
+    };
+
+    count(FormVPopcount8, FormVWidePopcount8, "vpopcntb xmm, xmm"_v, "vpopcntb ymm, ymm"_v,
+          OpVPopcount, 0x54, false, kFeatureAvx512bitalg);
+    count(FormVPopcount16, FormVWidePopcount16, "vpopcntw xmm, xmm"_v, "vpopcntw ymm, ymm"_v,
+          OpVPopcount, 0x54, true, kFeatureAvx512bitalg);
+    count(FormVPopcount32, FormVWidePopcount32, "vpopcntd xmm, xmm"_v, "vpopcntd ymm, ymm"_v,
+          OpVPopcount, 0x55, false, kFeatureAvx512vpopcntdq);
+    count(FormVPopcount64, FormVWidePopcount64, "vpopcntq xmm, xmm"_v, "vpopcntq ymm, ymm"_v,
+          OpVPopcount, 0x55, true, kFeatureAvx512vpopcntdq);
+    count(FormVLeadingZeros32, FormVWideLeadingZeros32, "vplzcntd xmm, xmm"_v, "vplzcntd ymm, ymm"_v,
+          OpVLeadingZeros, 0x44, false, kFeatureAvx512cd);
+    count(FormVLeadingZeros64, FormVWideLeadingZeros64, "vplzcntq xmm, xmm"_v, "vplzcntq ymm, ymm"_v,
+          OpVLeadingZeros, 0x44, true, kFeatureAvx512cd);
+
+    /*
+     * The five AVX-512 float operations - Analysis-Avx512.md §3.7, and the one group here whose
+     * portable route is *already written*: `lib/Math/Math.yana`'s `Real` members and the functions
+     * over them are what a build below this level runs, and `lib/Math/Math.avx512.yana` replaces six
+     * of those bodies with one of these each.
+     *
+     * `vgetexpps`/`pd` are EVEX.66.0F38.W0/W1 42 and `vscalefps`/`pd` EVEX.66.0F38.W0/W1 2C, both F.
+     * `vgetmantps`/`pd` are EVEX.66.0F3A.W0/W1 26 /r ib, also F. `vreduceps`/`pd` (0F3A 56) and
+     * `vrangeps`/`pd` (0F3A 50) are DQ, which `avx512` implies - the level is x86-64-v4 and more
+     * (§0.2), so there is no `EvexRow` here: a build that has these declarations has the instructions.
+     *
+     * Register-only, as the §2.4 rows above are: each has a memory form and none sits where a load
+     * feeds it, every caller holding the value in a register already.
+     */
+    auto floatAdjust = [&](MachineFormId id, MachineFormId wideId, StringView formName,
+                           StringView wideName, U8 map, U8 op, bool w, FeatureSet extension,
+                           bool immediate) {
+        auto& form = add(id, OpVFloatAdjust, formName);
+        form.uses.push(anyReg(ClassXmm128));
+        form.defs.push(def(ClassXmm128));
+        form.requiredFeatures = features(extension);
+        form.encoding = evexRegRm(0x66, map, op, w);
+        form.encoding.patternImmediate = immediate;
+
+        widen(wideId, id, wideName);
+    };
+
+    // The destination is ModRM.reg, the first operand `vvvv` and the second r/m - the three-operand
+    // shape every EVEX binary here has.
+    auto floatCombine = [&](MachineFormId id, MachineFormId wideId, StringView formName,
+                            StringView wideName, U8 map, U8 op, bool w, FeatureSet extension,
+                            bool immediate) {
+        auto& form = add(id, OpVFloatCombine, formName);
+        form.uses.push(anyReg(ClassXmm128));
+        form.uses.push(anyReg(ClassXmm128));
+        form.defs.push(def(ClassXmm128));
+        form.requiredFeatures = features(extension);
+        form.encoding = evexRegRm(0x66, map, op, w);
+        form.encoding.vvvvField = useRef(0);
+        form.encoding.rmField = useRef(1);
+        form.encoding.patternImmediate = immediate;
+
+        widen(wideId, id, wideName);
+    };
+
+    auto dq = kFeatureAvx512dq;
+
+    floatAdjust(FormVGetExpF32, FormVWideGetExpF32, "vgetexpps xmm, xmm"_v, "vgetexpps ymm, ymm"_v,
+                kOpcodeMap0F38, 0x42, false, 0, false);
+    floatAdjust(FormVGetExpF64, FormVWideGetExpF64, "vgetexppd xmm, xmm"_v, "vgetexppd ymm, ymm"_v,
+                kOpcodeMap0F38, 0x42, true, 0, false);
+    floatAdjust(FormVGetMantF32, FormVWideGetMantF32, "vgetmantps xmm, xmm, control"_v,
+                "vgetmantps ymm, ymm, control"_v, kOpcodeMap0F3A, 0x26, false, 0, true);
+    floatAdjust(FormVGetMantF64, FormVWideGetMantF64, "vgetmantpd xmm, xmm, control"_v,
+                "vgetmantpd ymm, ymm, control"_v, kOpcodeMap0F3A, 0x26, true, 0, true);
+    floatAdjust(FormVFpReduceF32, FormVWideFpReduceF32, "vreduceps xmm, xmm, control"_v,
+                "vreduceps ymm, ymm, control"_v, kOpcodeMap0F3A, 0x56, false, dq, true);
+    floatAdjust(FormVFpReduceF64, FormVWideFpReduceF64, "vreducepd xmm, xmm, control"_v,
+                "vreducepd ymm, ymm, control"_v, kOpcodeMap0F3A, 0x56, true, dq, true);
+
+    floatCombine(FormVScaleF32, FormVWideScaleF32, "vscalefps xmm, xmm, xmm"_v,
+                 "vscalefps ymm, ymm, ymm"_v, kOpcodeMap0F38, 0x2c, false, 0, false);
+    floatCombine(FormVScaleF64, FormVWideScaleF64, "vscalefpd xmm, xmm, xmm"_v,
+                 "vscalefpd ymm, ymm, ymm"_v, kOpcodeMap0F38, 0x2c, true, 0, false);
+    floatCombine(FormVRangeF32, FormVWideRangeF32, "vrangeps xmm, xmm, xmm, control"_v,
+                 "vrangeps ymm, ymm, ymm, control"_v, kOpcodeMap0F3A, 0x50, false, dq, true);
+    floatCombine(FormVRangeF64, FormVWideRangeF64, "vrangepd xmm, xmm, xmm, control"_v,
+                 "vrangepd ymm, ymm, ymm, control"_v, kOpcodeMap0F3A, 0x50, true, dq, true);
+
+    /*
+     * The four widening multiply-accumulates - Analysis-Avx512.md §3.6.
+     *
+     * `vpdpbusd` is EVEX.66.0F38.W0 50 and `vpdpwssd` is 52 (VNNI); `vpmadd52luq` is
+     * EVEX.66.0F38.W1 B4 and `vpmadd52huq` B5 (IFMA). `avx512` implies both extensions, so these
+     * carry no `EvexRow` for the float rows' reason: a build that has these declarations has the
+     * instructions.
+     *
+     * **The destination is the accumulator**, tied to operand zero - the only rows in this file with
+     * a tie, every other EVEX form here being a three-operand instruction that writes somewhere new.
+     * So ModRM.reg is the tied definition, `vvvv` is the first product operand and r/m the second,
+     * which is what `vpdpbusd`'s operand order means on the machine.
+     *
+     * **`vpdpbusd`'s operands are not interchangeable**: the first is read as unsigned bytes and the
+     * second as signed ones. Nothing here can enforce that - the lower IR has no signedness - and
+     * nothing has to: the kind arrives with the operands in the order the resolver checked.
+     */
+    auto mulAccumulate = [&](MachineFormId id, MachineFormId wideId, StringView formName,
+                             StringView wideName, U8 op, bool w, FeatureSet extension) {
+        auto& form = add(id, extension == kFeatureAvx512ifma ? OpVMulAdd52 : OpVDotProduct, formName);
+        form.uses.push(anyReg(ClassXmm128));
+        form.uses.push(anyReg(ClassXmm128));
+        form.uses.push(anyReg(ClassXmm128));
+        form.defs.push(tiedDef(0, ClassXmm128));
+        form.requiredFeatures = features(extension);
+        form.encoding = evexRegRm(0x66, kOpcodeMap0F38, op, w);
+        form.encoding.regField = defRef(0);
+        form.encoding.vvvvField = useRef(1);
+        form.encoding.rmField = useRef(2);
+
+        widen(wideId, id, wideName);
+    };
+
+    mulAccumulate(FormVDotBytes, FormVWideDotBytes, "vpdpbusd xmm, xmm, xmm"_v,
+                  "vpdpbusd ymm, ymm, ymm"_v, 0x50, false, kFeatureAvx512vnni);
+    mulAccumulate(FormVDotWords, FormVWideDotWords, "vpdpwssd xmm, xmm, xmm"_v,
+                  "vpdpwssd ymm, ymm, ymm"_v, 0x52, false, kFeatureAvx512vnni);
+    mulAccumulate(FormVMulAdd52Lo, FormVWideMulAdd52Lo, "vpmadd52luq xmm, xmm, xmm"_v,
+                  "vpmadd52luq ymm, ymm, ymm"_v, 0xb4, true, kFeatureAvx512ifma);
+    mulAccumulate(FormVMulAdd52Hi, FormVWideMulAdd52Hi, "vpmadd52huq xmm, xmm, xmm"_v,
+                  "vpmadd52huq ymm, ymm, ymm"_v, 0xb5, true, kFeatureAvx512ifma);
+
+    /*
      * The truncating narrowings - `vpmovwb`, `vpmovdw`, `vpmovqd`, EVEX.F3.0F38.W0 30/33/35.
      *
      * A 256-bit vector of one lane width into a 128-bit vector of half that width, keeping the low half
@@ -1385,6 +1536,9 @@ bool hasEvexRow(EvexRow row) {
             case EvexRow::Rotate:           return FormVRol32Imm;
             case EvexRow::WordRotate:       return FormVRol16Imm;
             case EvexRow::QuadwordToDouble: return FormVCastI64ToF64;
+            case EvexRow::PopcountNarrow:   return FormVPopcount8;
+            case EvexRow::PopcountWide:     return FormVPopcount32;
+            case EvexRow::LeadingZeros:     return FormVLeadingZeros32;
             case EvexRow::Narrowing:        return FormVNarrow16To8;
             case EvexRow::UnsignedToFloat:  return FormCastUToF64;
             case EvexRow::GprBroadcast:     return FormVBroadcastGpr16;

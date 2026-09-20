@@ -223,4 +223,47 @@ Node* expandX86CarrylessMultiply(Builder& builder, Function& callee, Node* const
     return builder.addNative(source, NativeOp::CarrylessMultiply, arguments, 2, result, U8(value));
 }
 
+/*
+ * The five AVX-512 float operations - Analysis-Avx512.md §3.7.
+ *
+ * Two checks, and both are here because this is the last place that can name the argument. The lane
+ * has to be a float, which the declaration's `Vec(a, n)` does not say; and the control byte of the
+ * three that carry one has to be a literal, which is `aeskeygenassist`'s rule at a different
+ * instruction. The whole byte is accepted rather than the subset each operation defines - every
+ * combination has a defined answer on the machine, and pruning them here would be this compiler
+ * inventing a rule Intel did not write.
+ */
+static bool isFloatVectorOperand(Builder& builder, DeclPtr<Type> vector, StringView what,
+                                 LocationId source) {
+    auto base = builder.declBase();
+
+    if(vector && base[vector]->kind == Type::Vector) {
+        auto lane = ((VectorType*)base[vector])->lane;
+        if(lane && base[lane]->kind == Type::Float) return true;
+    }
+
+    builder.context.diagnostics.error("%@ is defined on vectors of floating-point lanes, and %@ is not one"_v,
+                                      source, what, typeText(builder.context, base, vector));
+    return false;
+}
+
+Node* expandX86FloatOp(Builder& builder, Function& callee, Node* const* arguments, Size count,
+                       const Substitution& with, LocationId source, NativeOp op) {
+    auto what = nativeOpName(op);
+    auto result = substituteType(builder.context, builder.program, callee.result.type, with);
+    if(!isFloatVectorOperand(builder, result, what, source)) return nullptr;
+
+    if(!nativeHasImmediate(op)) return builder.addNative(source, op, arguments, count, result);
+
+    auto control = literalArgument(builder, *arguments[count]);
+
+    if(!control || control.unwrap() > 255) {
+        builder.context.diagnostics.error("a %@ control byte must be a constant from 0 to 255 - it is the instruction's trailing byte, and a computed one is not an instruction"_v,
+                                          source, what);
+        return nullptr;
+    }
+
+    return builder.addNative(source, op, arguments, count, result, U8(control.unwrap()));
+}
+
 } // namespace mir

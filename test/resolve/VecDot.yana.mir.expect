@@ -1,0 +1,707 @@
+module ResolveTest
+
+fn byteGrouping() -> I32 {
+  local & wrong: I32
+  local index: Vec(I32)
+  local ones: Vec(I8)
+  local want: Vec(I32)
+  local base: Vec(I32)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: I32 = const 0
+  %3: Vec(I32) = vec.splat inspect %2
+  %4: I32 = const 1
+  %5: Vec(I32) = vec.withlane #1 inspect %3 inspect %4
+  %6: I32 = const 2
+  %7: Vec(I32) = vec.withlane #2 inspect %5 inspect %6
+  %8: I32 = const 3
+  %9: Vec(I32) = vec.withlane #3 inspect %7 inspect %8
+  write.init borrow.unique (index) take %9
+  %11: I8 = const 1
+  %12: Vec(I8) = vec.splat inspect %11
+  write.init borrow.unique (ones) take %12
+  %14: Vec(I32) = read copy.trivial (index)
+  %15: I32 = const 16
+  %16: Vec(I32) = vec.splat inspect %15
+  %17: Vec(I32) = mul inspect %14 inspect %16
+  %18: I32 = const 6
+  %19: Vec(I32) = vec.splat inspect %18
+  %20: Vec(I32) = add inspect %17 inspect %19
+  write.init borrow.unique (want) take %20
+  %22: I32 = const 0
+  %23: Vec(I32) = vec.splat inspect %22
+  %24: U8 = const 0
+  %25: Vec(U8) = vec.splat inspect %24
+  %26: U8 = const 1
+  %27: Vec(U8) = vec.withlane #1 inspect %25 inspect %26
+  %28: U8 = const 2
+  %29: Vec(U8) = vec.withlane #2 inspect %27 inspect %28
+  %30: U8 = const 3
+  %31: Vec(U8) = vec.withlane #3 inspect %29 inspect %30
+  %32: U8 = const 4
+  %33: Vec(U8) = vec.withlane #4 inspect %31 inspect %32
+  %34: U8 = const 5
+  %35: Vec(U8) = vec.withlane #5 inspect %33 inspect %34
+  %36: U8 = const 6
+  %37: Vec(U8) = vec.withlane #6 inspect %35 inspect %36
+  %38: U8 = const 7
+  %39: Vec(U8) = vec.withlane #7 inspect %37 inspect %38
+  %40: U8 = const 8
+  %41: Vec(U8) = vec.withlane #8 inspect %39 inspect %40
+  %42: U8 = const 9
+  %43: Vec(U8) = vec.withlane #9 inspect %41 inspect %42
+  %44: U8 = const 10
+  %45: Vec(U8) = vec.withlane #10 inspect %43 inspect %44
+  %46: U8 = const 11
+  %47: Vec(U8) = vec.withlane #11 inspect %45 inspect %46
+  %48: U8 = const 12
+  %49: Vec(U8) = vec.withlane #12 inspect %47 inspect %48
+  %50: U8 = const 13
+  %51: Vec(U8) = vec.withlane #13 inspect %49 inspect %50
+  %52: U8 = const 14
+  %53: Vec(U8) = vec.withlane #14 inspect %51 inspect %52
+  %54: U8 = const 15
+  %55: Vec(U8) = vec.withlane #15 inspect %53 inspect %54
+  %56: Vec(I8) = read copy.trivial (ones)
+  %57: Vec(I32) = native vdotbytes inspect %23 inspect %55 inspect %56
+  %58: Vec(I32) = read copy.trivial (want)
+  %59: Mask(I32) = eq inspect %57 inspect %58
+  %60: Bool = vec.reduce and inspect %59
+  %61: Bool = not inspect %60
+  branch inspect %61 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %68: I32 = const 0
+  %69: Vec(I32) = vec.splat inspect %68
+  %70: U8 = const 1
+  %71: Vec(U8) = vec.splat inspect %70
+  %72: I8 = const 0
+  %73: Vec(I8) = vec.splat inspect %72
+  %74: I8 = const 1
+  %75: Vec(I8) = vec.withlane #1 inspect %73 inspect %74
+  %76: I8 = const 2
+  %77: Vec(I8) = vec.withlane #2 inspect %75 inspect %76
+  %78: I8 = const 3
+  %79: Vec(I8) = vec.withlane #3 inspect %77 inspect %78
+  %80: I8 = const 4
+  %81: Vec(I8) = vec.withlane #4 inspect %79 inspect %80
+  %82: I8 = const 5
+  %83: Vec(I8) = vec.withlane #5 inspect %81 inspect %82
+  %84: I8 = const 6
+  %85: Vec(I8) = vec.withlane #6 inspect %83 inspect %84
+  %86: I8 = const 7
+  %87: Vec(I8) = vec.withlane #7 inspect %85 inspect %86
+  %88: I8 = const 8
+  %89: Vec(I8) = vec.withlane #8 inspect %87 inspect %88
+  %90: I8 = const 9
+  %91: Vec(I8) = vec.withlane #9 inspect %89 inspect %90
+  %92: I8 = const 10
+  %93: Vec(I8) = vec.withlane #10 inspect %91 inspect %92
+  %94: I8 = const 11
+  %95: Vec(I8) = vec.withlane #11 inspect %93 inspect %94
+  %96: I8 = const 12
+  %97: Vec(I8) = vec.withlane #12 inspect %95 inspect %96
+  %98: I8 = const 13
+  %99: Vec(I8) = vec.withlane #13 inspect %97 inspect %98
+  %100: I8 = const 14
+  %101: Vec(I8) = vec.withlane #14 inspect %99 inspect %100
+  %102: I8 = const 15
+  %103: Vec(I8) = vec.withlane #15 inspect %101 inspect %102
+  %104: Vec(I32) = native vdotbytes inspect %69 inspect %71 inspect %103
+  %105: Vec(I32) = read copy.trivial (want)
+  %106: Mask(I32) = eq inspect %104 inspect %105
+  %107: Bool = vec.reduce and inspect %106
+  %108: Bool = not inspect %107
+  branch inspect %108 -> bb6 -> bb4
+
+bb3:
+  %63: I32 [unique call] = read borrow.unique (wrong) loan0
+  %64: I32 = const 1
+  %65: {} = call +=(I32) borrow.unique %63 borrow.shared %64
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %115: I32 = const 1000
+  %116: Vec(I32) = vec.splat inspect %115
+  write.init borrow.unique (base) take %116
+  %118: Vec(I32) = read copy.trivial (base)
+  %119: U8 = const 0
+  %120: Vec(U8) = vec.splat inspect %119
+  %121: U8 = const 1
+  %122: Vec(U8) = vec.withlane #1 inspect %120 inspect %121
+  %123: U8 = const 2
+  %124: Vec(U8) = vec.withlane #2 inspect %122 inspect %123
+  %125: U8 = const 3
+  %126: Vec(U8) = vec.withlane #3 inspect %124 inspect %125
+  %127: U8 = const 4
+  %128: Vec(U8) = vec.withlane #4 inspect %126 inspect %127
+  %129: U8 = const 5
+  %130: Vec(U8) = vec.withlane #5 inspect %128 inspect %129
+  %131: U8 = const 6
+  %132: Vec(U8) = vec.withlane #6 inspect %130 inspect %131
+  %133: U8 = const 7
+  %134: Vec(U8) = vec.withlane #7 inspect %132 inspect %133
+  %135: U8 = const 8
+  %136: Vec(U8) = vec.withlane #8 inspect %134 inspect %135
+  %137: U8 = const 9
+  %138: Vec(U8) = vec.withlane #9 inspect %136 inspect %137
+  %139: U8 = const 10
+  %140: Vec(U8) = vec.withlane #10 inspect %138 inspect %139
+  %141: U8 = const 11
+  %142: Vec(U8) = vec.withlane #11 inspect %140 inspect %141
+  %143: U8 = const 12
+  %144: Vec(U8) = vec.withlane #12 inspect %142 inspect %143
+  %145: U8 = const 13
+  %146: Vec(U8) = vec.withlane #13 inspect %144 inspect %145
+  %147: U8 = const 14
+  %148: Vec(U8) = vec.withlane #14 inspect %146 inspect %147
+  %149: U8 = const 15
+  %150: Vec(U8) = vec.withlane #15 inspect %148 inspect %149
+  %151: Vec(I8) = read copy.trivial (ones)
+  %152: Vec(I32) = native vdotbytes inspect %118 inspect %150 inspect %151
+  %153: Vec(I32) = read copy.trivial (want)
+  %154: Vec(I32) = read copy.trivial (base)
+  %155: Vec(I32) = add inspect %153 inspect %154
+  %156: Mask(I32) = eq inspect %152 inspect %155
+  %157: Bool = vec.reduce and inspect %156
+  %158: Bool = not inspect %157
+  branch inspect %158 -> bb9 -> bb7
+
+bb6:
+  %110: I32 [unique call] = read borrow.unique (wrong) loan1
+  %111: I32 = const 1
+  %112: {} = call +=(I32) borrow.unique %110 borrow.shared %111
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %165: I32 = read copy.trivial (wrong)
+  return take %165
+
+bb9:
+  %160: I32 [unique call] = read borrow.unique (wrong) loan2
+  %161: I32 = const 1
+  %162: {} = call +=(I32) borrow.unique %160 borrow.shared %161
+  jump -> bb8
+}
+
+fn byteSigns() -> I32 {
+  local & wrong: I32
+  local big: Vec(U8)
+  local low: Vec(I8)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: U8 = const 255
+  %3: Vec(U8) = vec.splat inspect %2
+  write.init borrow.unique (big) take %3
+  %5: I32 = const 0
+  %6: Vec(I32) = vec.splat inspect %5
+  %7: Vec(U8) = read copy.trivial (big)
+  %8: I8 = const 127
+  %9: Vec(I8) = vec.splat inspect %8
+  %10: Vec(I32) = native vdotbytes inspect %6 inspect %7 inspect %9
+  %11: I32 = const 129540
+  %12: Vec(I32) = vec.splat inspect %11
+  %13: Mask(I32) = eq inspect %10 inspect %12
+  %14: Bool = vec.reduce and inspect %13
+  %15: Bool = not inspect %14
+  branch inspect %15 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %22: I8 = call minValue(I8)
+  %23: Vec(I8) = vec.splat inspect %22
+  write.init borrow.unique (low) take %23
+  %25: I32 = const 0
+  %26: Vec(I32) = vec.splat inspect %25
+  %27: U8 = const 1
+  %28: Vec(U8) = vec.splat inspect %27
+  %29: Vec(I8) = read copy.trivial (low)
+  %30: Vec(I32) = native vdotbytes inspect %26 inspect %28 inspect %29
+  %31: I32 = const 0
+  %32: I32 = const 512
+  %33: I32 = sub inspect %31 inspect %32
+  %34: Vec(I32) = vec.splat inspect %33
+  %35: Mask(I32) = eq inspect %30 inspect %34
+  %36: Bool = vec.reduce and inspect %35
+  %37: Bool = not inspect %36
+  branch inspect %37 -> bb6 -> bb4
+
+bb3:
+  %17: I32 [unique call] = read borrow.unique (wrong) loan0
+  %18: I32 = const 1
+  %19: {} = call +=(I32) borrow.unique %17 borrow.shared %18
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %44: I32 = read copy.trivial (wrong)
+  return take %44
+
+bb6:
+  %39: I32 [unique call] = read borrow.unique (wrong) loan1
+  %40: I32 = const 1
+  %41: {} = call +=(I32) borrow.unique %39 borrow.shared %40
+  jump -> bb5
+}
+
+fn byteNoSaturation() -> I32 {
+  local & wrong: I32
+  local got: Vec(I32)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: I32 = const 0
+  %3: Vec(I32) = vec.splat inspect %2
+  %4: U8 = const 255
+  %5: Vec(U8) = vec.splat inspect %4
+  %6: I8 = call minValue(I8)
+  %7: Vec(I8) = vec.splat inspect %6
+  %8: Vec(I32) = native vdotbytes inspect %3 inspect %5 inspect %7
+  write.init borrow.unique (got) take %8
+  %10: Vec(I32) = read copy.trivial (got)
+  %11: I32 = const 0
+  %12: I32 = const 130560
+  %13: I32 = sub inspect %11 inspect %12
+  %14: Vec(I32) = vec.splat inspect %13
+  %15: Mask(I32) = eq inspect %10 inspect %14
+  %16: Bool = vec.reduce and inspect %15
+  %17: Bool = not inspect %16
+  branch inspect %17 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %24: I32 = read copy.trivial (wrong)
+  return take %24
+
+bb3:
+  %19: I32 [unique call] = read borrow.unique (wrong) loan0
+  %20: I32 = const 1
+  %21: {} = call +=(I32) borrow.unique %19 borrow.shared %20
+  jump -> bb2
+}
+
+fn wordGrouping() -> I32 {
+  local & wrong: I32
+  local index: Vec(I32)
+  local ones: Vec(I16)
+  local want: Vec(I32)
+  local base: Vec(I32)
+  local negated: Vec(I16)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: I32 = const 0
+  %3: Vec(I32) = vec.splat inspect %2
+  %4: I32 = const 1
+  %5: Vec(I32) = vec.withlane #1 inspect %3 inspect %4
+  %6: I32 = const 2
+  %7: Vec(I32) = vec.withlane #2 inspect %5 inspect %6
+  %8: I32 = const 3
+  %9: Vec(I32) = vec.withlane #3 inspect %7 inspect %8
+  write.init borrow.unique (index) take %9
+  %11: I16 = const 1
+  %12: Vec(I16) = vec.splat inspect %11
+  write.init borrow.unique (ones) take %12
+  %14: Vec(I32) = read copy.trivial (index)
+  %15: I32 = const 4
+  %16: Vec(I32) = vec.splat inspect %15
+  %17: Vec(I32) = mul inspect %14 inspect %16
+  %18: I32 = const 1
+  %19: Vec(I32) = vec.splat inspect %18
+  %20: Vec(I32) = add inspect %17 inspect %19
+  write.init borrow.unique (want) take %20
+  %22: I32 = const 0
+  %23: Vec(I32) = vec.splat inspect %22
+  %24: I16 = const 0
+  %25: Vec(I16) = vec.splat inspect %24
+  %26: I16 = const 1
+  %27: Vec(I16) = vec.withlane #1 inspect %25 inspect %26
+  %28: I16 = const 2
+  %29: Vec(I16) = vec.withlane #2 inspect %27 inspect %28
+  %30: I16 = const 3
+  %31: Vec(I16) = vec.withlane #3 inspect %29 inspect %30
+  %32: I16 = const 4
+  %33: Vec(I16) = vec.withlane #4 inspect %31 inspect %32
+  %34: I16 = const 5
+  %35: Vec(I16) = vec.withlane #5 inspect %33 inspect %34
+  %36: I16 = const 6
+  %37: Vec(I16) = vec.withlane #6 inspect %35 inspect %36
+  %38: I16 = const 7
+  %39: Vec(I16) = vec.withlane #7 inspect %37 inspect %38
+  %40: Vec(I16) = read copy.trivial (ones)
+  %41: Vec(I32) = native vdotwords inspect %23 inspect %39 inspect %40
+  %42: Vec(I32) = read copy.trivial (want)
+  %43: Mask(I32) = eq inspect %41 inspect %42
+  %44: Bool = vec.reduce and inspect %43
+  %45: Bool = not inspect %44
+  branch inspect %45 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %52: I32 = const 0
+  %53: I32 = const 7
+  %54: I32 = sub inspect %52 inspect %53
+  %55: Vec(I32) = vec.splat inspect %54
+  write.init borrow.unique (base) take %55
+  %57: Vec(I32) = read copy.trivial (base)
+  %58: Vec(I16) = read copy.trivial (ones)
+  %59: I16 = const 0
+  %60: Vec(I16) = vec.splat inspect %59
+  %61: I16 = const 1
+  %62: Vec(I16) = vec.withlane #1 inspect %60 inspect %61
+  %63: I16 = const 2
+  %64: Vec(I16) = vec.withlane #2 inspect %62 inspect %63
+  %65: I16 = const 3
+  %66: Vec(I16) = vec.withlane #3 inspect %64 inspect %65
+  %67: I16 = const 4
+  %68: Vec(I16) = vec.withlane #4 inspect %66 inspect %67
+  %69: I16 = const 5
+  %70: Vec(I16) = vec.withlane #5 inspect %68 inspect %69
+  %71: I16 = const 6
+  %72: Vec(I16) = vec.withlane #6 inspect %70 inspect %71
+  %73: I16 = const 7
+  %74: Vec(I16) = vec.withlane #7 inspect %72 inspect %73
+  %75: Vec(I32) = native vdotwords inspect %57 inspect %58 inspect %74
+  %76: Vec(I32) = read copy.trivial (want)
+  %77: Vec(I32) = read copy.trivial (base)
+  %78: Vec(I32) = add inspect %76 inspect %77
+  %79: Mask(I32) = eq inspect %75 inspect %78
+  %80: Bool = vec.reduce and inspect %79
+  %81: Bool = not inspect %80
+  branch inspect %81 -> bb6 -> bb4
+
+bb3:
+  %47: I32 [unique call] = read borrow.unique (wrong) loan0
+  %48: I32 = const 1
+  %49: {} = call +=(I32) borrow.unique %47 borrow.shared %48
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %88: I16 = const 0
+  %89: Vec(I16) = vec.splat inspect %88
+  %90: I16 = const 0
+  %91: Vec(I16) = vec.splat inspect %90
+  %92: I16 = const 1
+  %93: Vec(I16) = vec.withlane #1 inspect %91 inspect %92
+  %94: I16 = const 2
+  %95: Vec(I16) = vec.withlane #2 inspect %93 inspect %94
+  %96: I16 = const 3
+  %97: Vec(I16) = vec.withlane #3 inspect %95 inspect %96
+  %98: I16 = const 4
+  %99: Vec(I16) = vec.withlane #4 inspect %97 inspect %98
+  %100: I16 = const 5
+  %101: Vec(I16) = vec.withlane #5 inspect %99 inspect %100
+  %102: I16 = const 6
+  %103: Vec(I16) = vec.withlane #6 inspect %101 inspect %102
+  %104: I16 = const 7
+  %105: Vec(I16) = vec.withlane #7 inspect %103 inspect %104
+  %106: Vec(I16) = sub inspect %89 inspect %105
+  write.init borrow.unique (negated) take %106
+  %108: I32 = const 0
+  %109: Vec(I32) = vec.splat inspect %108
+  %110: Vec(I16) = read copy.trivial (negated)
+  %111: Vec(I16) = read copy.trivial (ones)
+  %112: Vec(I32) = native vdotwords inspect %109 inspect %110 inspect %111
+  %113: I32 = const 0
+  %114: Vec(I32) = vec.splat inspect %113
+  %115: Vec(I32) = read copy.trivial (want)
+  %116: Vec(I32) = sub inspect %114 inspect %115
+  %117: Mask(I32) = eq inspect %112 inspect %116
+  %118: Bool = vec.reduce and inspect %117
+  %119: Bool = not inspect %118
+  branch inspect %119 -> bb9 -> bb7
+
+bb6:
+  %83: I32 [unique call] = read borrow.unique (wrong) loan1
+  %84: I32 = const 1
+  %85: {} = call +=(I32) borrow.unique %83 borrow.shared %84
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %126: I32 = read copy.trivial (wrong)
+  return take %126
+
+bb9:
+  %121: I32 [unique call] = read borrow.unique (wrong) loan2
+  %122: I32 = const 1
+  %123: {} = call +=(I32) borrow.unique %121 borrow.shared %122
+  jump -> bb8
+}
+
+fn wordWrap() -> I32 {
+  local & wrong: I32
+  local extreme: Vec(I16)
+  local got: Vec(I32)
+  local full: Vec(I32)
+  local one: Vec(I32)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: I16 = call minValue(I16)
+  %3: Vec(I16) = vec.splat inspect %2
+  write.init borrow.unique (extreme) take %3
+  %5: I32 = const 0
+  %6: Vec(I32) = vec.splat inspect %5
+  %7: Vec(I16) = read copy.trivial (extreme)
+  %8: Vec(I16) = read copy.trivial (extreme)
+  %9: Vec(I32) = native vdotwords inspect %6 inspect %7 inspect %8
+  write.init borrow.unique (got) take %9
+  %11: Vec(I32) = read copy.trivial (got)
+  %12: I32 = call minValue(I32)
+  %13: Vec(I32) = vec.splat inspect %12
+  %14: Mask(I32) = eq inspect %11 inspect %13
+  %15: Bool = vec.reduce and inspect %14
+  %16: Bool = not inspect %15
+  branch inspect %16 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %23: I32 = call maxValue(I32)
+  %24: Vec(I32) = vec.splat inspect %23
+  write.init borrow.unique (full) take %24
+  %26: Vec(I32) = read copy.trivial (full)
+  %27: I16 = const 1
+  %28: Vec(I16) = vec.splat inspect %27
+  %29: I16 = const 1
+  %30: Vec(I16) = vec.splat inspect %29
+  %31: Vec(I32) = native vdotwords inspect %26 inspect %28 inspect %30
+  write.init borrow.unique (one) take %31
+  %33: Vec(I32) = read copy.trivial (one)
+  %34: I32 = call minValue(I32)
+  %35: I32 = const 1
+  %36: I32 = add inspect %34 inspect %35
+  %37: Vec(I32) = vec.splat inspect %36
+  %38: Mask(I32) = eq inspect %33 inspect %37
+  %39: Bool = vec.reduce and inspect %38
+  %40: Bool = not inspect %39
+  branch inspect %40 -> bb6 -> bb4
+
+bb3:
+  %18: I32 [unique call] = read borrow.unique (wrong) loan0
+  %19: I32 = const 1
+  %20: {} = call +=(I32) borrow.unique %18 borrow.shared %19
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %47: I32 = read copy.trivial (wrong)
+  return take %47
+
+bb6:
+  %42: I32 [unique call] = read borrow.unique (wrong) loan1
+  %43: I32 = const 1
+  %44: {} = call +=(I32) borrow.unique %42 borrow.shared %43
+  jump -> bb5
+}
+
+fn writtenWidths() -> I32 {
+  local & wrong: I32
+  local bytes: Vec(I32)
+  local wantBytes: Vec(I32)
+  local words: Vec(I32)
+  local wantWords: Vec(I32)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: I32 = const 0
+  %3: Vec(I32) = vec.splat inspect %2
+  %4: U8 = const 0
+  %5: Vec(U8) = vec.splat inspect %4
+  %6: U8 = const 1
+  %7: Vec(U8) = vec.withlane #1 inspect %5 inspect %6
+  %8: U8 = const 2
+  %9: Vec(U8) = vec.withlane #2 inspect %7 inspect %8
+  %10: U8 = const 3
+  %11: Vec(U8) = vec.withlane #3 inspect %9 inspect %10
+  %12: U8 = const 4
+  %13: Vec(U8) = vec.withlane #4 inspect %11 inspect %12
+  %14: U8 = const 5
+  %15: Vec(U8) = vec.withlane #5 inspect %13 inspect %14
+  %16: U8 = const 6
+  %17: Vec(U8) = vec.withlane #6 inspect %15 inspect %16
+  %18: U8 = const 7
+  %19: Vec(U8) = vec.withlane #7 inspect %17 inspect %18
+  %20: U8 = const 8
+  %21: Vec(U8) = vec.withlane #8 inspect %19 inspect %20
+  %22: U8 = const 9
+  %23: Vec(U8) = vec.withlane #9 inspect %21 inspect %22
+  %24: U8 = const 10
+  %25: Vec(U8) = vec.withlane #10 inspect %23 inspect %24
+  %26: U8 = const 11
+  %27: Vec(U8) = vec.withlane #11 inspect %25 inspect %26
+  %28: U8 = const 12
+  %29: Vec(U8) = vec.withlane #12 inspect %27 inspect %28
+  %30: U8 = const 13
+  %31: Vec(U8) = vec.withlane #13 inspect %29 inspect %30
+  %32: U8 = const 14
+  %33: Vec(U8) = vec.withlane #14 inspect %31 inspect %32
+  %34: U8 = const 15
+  %35: Vec(U8) = vec.withlane #15 inspect %33 inspect %34
+  %36: I8 = const 1
+  %37: Vec(I8) = vec.splat inspect %36
+  %38: Vec(I32) = native vdotbytes inspect %3 inspect %35 inspect %37
+  write.init borrow.unique (bytes) take %38
+  %40: I32 = const 0
+  %41: Vec(I32) = vec.splat inspect %40
+  %42: I32 = const 1
+  %43: Vec(I32) = vec.withlane #1 inspect %41 inspect %42
+  %44: I32 = const 2
+  %45: Vec(I32) = vec.withlane #2 inspect %43 inspect %44
+  %46: I32 = const 3
+  %47: Vec(I32) = vec.withlane #3 inspect %45 inspect %46
+  %48: I32 = const 16
+  %49: Vec(I32) = vec.splat inspect %48
+  %50: Vec(I32) = mul inspect %47 inspect %49
+  %51: I32 = const 6
+  %52: Vec(I32) = vec.splat inspect %51
+  %53: Vec(I32) = add inspect %50 inspect %52
+  write.init borrow.unique (wantBytes) take %53
+  %55: Vec(I32) = read copy.trivial (bytes)
+  %56: Vec(I32) = read copy.trivial (wantBytes)
+  %57: Mask(I32) = eq inspect %55 inspect %56
+  %58: Bool = vec.reduce and inspect %57
+  %59: Bool = not inspect %58
+  branch inspect %59 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %66: I32 = const 0
+  %67: Vec(I32) = vec.splat inspect %66
+  %68: I16 = const 0
+  %69: Vec(I16) = vec.splat inspect %68
+  %70: I16 = const 1
+  %71: Vec(I16) = vec.withlane #1 inspect %69 inspect %70
+  %72: I16 = const 2
+  %73: Vec(I16) = vec.withlane #2 inspect %71 inspect %72
+  %74: I16 = const 3
+  %75: Vec(I16) = vec.withlane #3 inspect %73 inspect %74
+  %76: I16 = const 4
+  %77: Vec(I16) = vec.withlane #4 inspect %75 inspect %76
+  %78: I16 = const 5
+  %79: Vec(I16) = vec.withlane #5 inspect %77 inspect %78
+  %80: I16 = const 6
+  %81: Vec(I16) = vec.withlane #6 inspect %79 inspect %80
+  %82: I16 = const 7
+  %83: Vec(I16) = vec.withlane #7 inspect %81 inspect %82
+  %84: I16 = const 1
+  %85: Vec(I16) = vec.splat inspect %84
+  %86: Vec(I32) = native vdotwords inspect %67 inspect %83 inspect %85
+  write.init borrow.unique (words) take %86
+  %88: I32 = const 0
+  %89: Vec(I32) = vec.splat inspect %88
+  %90: I32 = const 1
+  %91: Vec(I32) = vec.withlane #1 inspect %89 inspect %90
+  %92: I32 = const 2
+  %93: Vec(I32) = vec.withlane #2 inspect %91 inspect %92
+  %94: I32 = const 3
+  %95: Vec(I32) = vec.withlane #3 inspect %93 inspect %94
+  %96: I32 = const 4
+  %97: Vec(I32) = vec.splat inspect %96
+  %98: Vec(I32) = mul inspect %95 inspect %97
+  %99: I32 = const 1
+  %100: Vec(I32) = vec.splat inspect %99
+  %101: Vec(I32) = add inspect %98 inspect %100
+  write.init borrow.unique (wantWords) take %101
+  %103: Vec(I32) = read copy.trivial (words)
+  %104: Vec(I32) = read copy.trivial (wantWords)
+  %105: Mask(I32) = eq inspect %103 inspect %104
+  %106: Bool = vec.reduce and inspect %105
+  %107: Bool = not inspect %106
+  branch inspect %107 -> bb6 -> bb4
+
+bb3:
+  %61: I32 [unique call] = read borrow.unique (wrong) loan0
+  %62: I32 = const 1
+  %63: {} = call +=(I32) borrow.unique %61 borrow.shared %62
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %114: I32 = read copy.trivial (wrong)
+  return take %114
+
+bb6:
+  %109: I32 [unique call] = read borrow.unique (wrong) loan1
+  %110: I32 = const 1
+  %111: {} = call +=(I32) borrow.unique %109 borrow.shared %110
+  jump -> bb5
+}
+
+fn main() -> I32 {
+  local total: I32
+  local & local1: String object1
+  local local2: String object1
+
+bb0:
+  %0: I32 = call byteGrouping
+  %1: I32 = call byteSigns
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call byteNoSaturation
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call wordGrouping
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call wordWrap
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call writtenWidths
+  %10: I32 = add inspect %8 inspect %9
+  write.init borrow.unique (total) take %10
+  %12: Size = const 0
+  %13: I32 = read copy.trivial (total)
+  %14: Maybe(Size) = call showBound(I32) borrow.shared %13
+  %15: Size = call formatBound borrow.shared %14
+  %16: Size = add inspect %12 inspect %15
+  %17: String = call String.ofCapacity borrow.shared %16
+  write.init borrow.unique (local1) take %17
+  %19: I32 = read copy.trivial (total)
+  %20: String [unique call] = read borrow.unique (local1) loan0
+  %21: {} = call show(I32) borrow.shared %19 borrow.unique %20
+  %22: String = read take (local1)
+  write.init borrow.unique (local2) take %22
+  %24: String [shared slot 0] = read borrow.shared (local2) loan1
+  %25: String [shared slot 0 view] = call.derivation view(String) borrow.shared %24 roots{1}
+  %26: {} = call print borrow.shared %25
+  drop (local2)
+  %27: I32 = read copy.trivial (total)
+  return take %27
+}
+
+entry main

@@ -1,0 +1,62 @@
+# The five AVX-512 float operations - Analysis-Avx512.md §3.7.
+#
+# extensions: avx512
+#
+# `lib/Math/Math.avx512.yana` is the one thing that writes these: it replaces the twelve monomorphic
+# bodies behind `Real`'s two vector instances, so `exponentOf` becomes `vgetexpps`/`vgetexppd`,
+# `significandOf` `vgetmantps`/`vgetmantpd` at control 0, `scaleByExponent` `vscalefps`/`vscalefpd`,
+# `fract` `vreduceps`/`vreducepd` at control 1, and `minNumber`/`maxNumber` `vrangeps`/`vrangepd` at
+# control 4 and 5. There is no fixture for these at any other level, because there is nothing to
+# select there: the declarations are `@platform(avx512)` and what a lower build runs is the portable
+# body, not an expansion.
+#
+# Every row is EVEX by construction, so each `=>` line begins with `62`. Extracting them and running
+# `objdump -b binary -m i386:x86-64 -D` is the check that the W bits, the maps and the opcodes say
+# what the form names claim: `0F38 42` at W0 and W1 is `vgetexpps`/`vgetexppd`, `0F38 2C` is
+# `vscalefps`/`vscalefpd`, `0F3A 26` is `vgetmantps`/`vgetmantpd`, `0F3A 56` is
+# `vreduceps`/`vreducepd` and `0F3A 50` is `vrangeps`/`vrangepd`.
+
+# The one-operand three, at both the register widths below the natural one.
+adjust(%s: f32x4, %d: f64x2, %ws: f32x8, %wd: f64x4): f32x4 {
+    {
+        %a = vgetexp %s: f32x4
+        %b = vgetexp %d: f64x2
+        %c = vgetmant %s, 0: f32x4
+        %e = vgetmant %d, 0: f64x2
+        %f = vfpreduce %s, 1: f32x4
+        %g = vfpreduce %d, 1: f64x2
+        %h = vgetexp %ws: f32x8
+        %i = vgetmant %wd, 0: f64x4
+        %j = vfpreduce %ws, 3: f32x8
+        ret %a
+    }
+}
+
+# The two-operand pair, and the control byte that makes `vrange` a minimum or a maximum. The two
+# `vrange`s below name the same operands and differ only in that byte: they are here because they
+# unified into one instruction when the operation lived in `flags` and the byte in a field of its
+# own - see `LowerInstFloatAdjust`, and `lower_cse.cpp`'s fallback.
+combine(%s: f32x4, %t: f32x4, %d: f64x2, %e: f64x2, %ws: f32x8): f32x4 {
+    {
+        %a = vscalef %s, %t: f32x4
+        %b = vscalef %d, %e: f64x2
+        %c = vrange %s, %t, 4: f32x4
+        %f = vrange %s, %t, 5: f32x4
+        %g = vrange %d, %e, 4: f64x2
+        %h = vscalef %ws, %ws: f32x8
+        ret %c
+    }
+}
+
+# And at the natural width, where `registerFullForms` gives every row a `zmm` twin and
+# `fullWidthNative` keeps the instruction whole rather than running it as two halves.
+full(%s: f32x16, %d: f64x8): f32x16 {
+    {
+        %a = vgetexp %s: f32x16
+        %b = vgetmant %d, 0: f64x8
+        %c = vfpreduce %s, 1: f32x16
+        %e = vscalef %s, %s: f32x16
+        %f = vrange %d, %d, 5: f64x8
+        ret %a
+    }
+}

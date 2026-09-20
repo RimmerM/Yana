@@ -1,0 +1,860 @@
+module ResolveTest
+
+fn byteGrouping() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %Vec(I32) address = alloc frame Vec(I32)
+  %2: %Vec(I8) address = alloc frame Vec(I8)
+  %3: %Vec(I32) address = alloc frame Vec(I32)
+  %4: %Vec(I32) address = alloc frame Vec(I32)
+  %5: I32 trivial = const 0
+  store inspect %0 consume %5
+  %6: I32 trivial = const 0
+  %7: Vec(I32) trivial = vec.splat inspect %6
+  %8: I32 trivial = const 1
+  %9: Vec(I32) trivial = vec.withlane #1 inspect %7 inspect %8
+  %10: I32 trivial = const 2
+  %11: Vec(I32) trivial = vec.withlane #2 inspect %9 inspect %10
+  %12: I32 trivial = const 3
+  %13: Vec(I32) trivial = vec.withlane #3 inspect %11 inspect %12
+  %14: I32 trivial = const 4
+  %15: Vec(I32) trivial = vec.withlane #4 inspect %13 inspect %14
+  %16: I32 trivial = const 5
+  %17: Vec(I32) trivial = vec.withlane #5 inspect %15 inspect %16
+  %18: I32 trivial = const 6
+  %19: Vec(I32) trivial = vec.withlane #6 inspect %17 inspect %18
+  %20: I32 trivial = const 7
+  %21: Vec(I32) trivial = vec.withlane #7 inspect %19 inspect %20
+  store inspect %1 consume %21
+  %22: I8 trivial = const 1
+  %23: Vec(I8) trivial = vec.splat inspect %22
+  store inspect %2 consume %23
+  %24: Vec(I32) trivial = load inspect %1
+  %25: I32 trivial = const 16
+  %26: Vec(I32) trivial = vec.splat inspect %25
+  %27: Vec(I32) trivial = mul inspect %24 inspect %26
+  %28: I32 trivial = const 6
+  %29: Vec(I32) trivial = vec.splat inspect %28
+  %30: Vec(I32) trivial = add inspect %27 inspect %29
+  store inspect %3 consume %30
+  %31: I32 trivial = const 0
+  %32: Vec(I32) trivial = vec.splat inspect %31
+  %33: U8 trivial = const 0
+  %34: Vec(U8) trivial = vec.splat inspect %33
+  %35: U8 trivial = const 1
+  %36: Vec(U8) trivial = vec.withlane #1 inspect %34 inspect %35
+  %37: U8 trivial = const 2
+  %38: Vec(U8) trivial = vec.withlane #2 inspect %36 inspect %37
+  %39: U8 trivial = const 3
+  %40: Vec(U8) trivial = vec.withlane #3 inspect %38 inspect %39
+  %41: U8 trivial = const 4
+  %42: Vec(U8) trivial = vec.withlane #4 inspect %40 inspect %41
+  %43: U8 trivial = const 5
+  %44: Vec(U8) trivial = vec.withlane #5 inspect %42 inspect %43
+  %45: U8 trivial = const 6
+  %46: Vec(U8) trivial = vec.withlane #6 inspect %44 inspect %45
+  %47: U8 trivial = const 7
+  %48: Vec(U8) trivial = vec.withlane #7 inspect %46 inspect %47
+  %49: U8 trivial = const 8
+  %50: Vec(U8) trivial = vec.withlane #8 inspect %48 inspect %49
+  %51: U8 trivial = const 9
+  %52: Vec(U8) trivial = vec.withlane #9 inspect %50 inspect %51
+  %53: U8 trivial = const 10
+  %54: Vec(U8) trivial = vec.withlane #10 inspect %52 inspect %53
+  %55: U8 trivial = const 11
+  %56: Vec(U8) trivial = vec.withlane #11 inspect %54 inspect %55
+  %57: U8 trivial = const 12
+  %58: Vec(U8) trivial = vec.withlane #12 inspect %56 inspect %57
+  %59: U8 trivial = const 13
+  %60: Vec(U8) trivial = vec.withlane #13 inspect %58 inspect %59
+  %61: U8 trivial = const 14
+  %62: Vec(U8) trivial = vec.withlane #14 inspect %60 inspect %61
+  %63: U8 trivial = const 15
+  %64: Vec(U8) trivial = vec.withlane #15 inspect %62 inspect %63
+  %65: U8 trivial = const 16
+  %66: Vec(U8) trivial = vec.withlane #16 inspect %64 inspect %65
+  %67: U8 trivial = const 17
+  %68: Vec(U8) trivial = vec.withlane #17 inspect %66 inspect %67
+  %69: U8 trivial = const 18
+  %70: Vec(U8) trivial = vec.withlane #18 inspect %68 inspect %69
+  %71: U8 trivial = const 19
+  %72: Vec(U8) trivial = vec.withlane #19 inspect %70 inspect %71
+  %73: U8 trivial = const 20
+  %74: Vec(U8) trivial = vec.withlane #20 inspect %72 inspect %73
+  %75: U8 trivial = const 21
+  %76: Vec(U8) trivial = vec.withlane #21 inspect %74 inspect %75
+  %77: U8 trivial = const 22
+  %78: Vec(U8) trivial = vec.withlane #22 inspect %76 inspect %77
+  %79: U8 trivial = const 23
+  %80: Vec(U8) trivial = vec.withlane #23 inspect %78 inspect %79
+  %81: U8 trivial = const 24
+  %82: Vec(U8) trivial = vec.withlane #24 inspect %80 inspect %81
+  %83: U8 trivial = const 25
+  %84: Vec(U8) trivial = vec.withlane #25 inspect %82 inspect %83
+  %85: U8 trivial = const 26
+  %86: Vec(U8) trivial = vec.withlane #26 inspect %84 inspect %85
+  %87: U8 trivial = const 27
+  %88: Vec(U8) trivial = vec.withlane #27 inspect %86 inspect %87
+  %89: U8 trivial = const 28
+  %90: Vec(U8) trivial = vec.withlane #28 inspect %88 inspect %89
+  %91: U8 trivial = const 29
+  %92: Vec(U8) trivial = vec.withlane #29 inspect %90 inspect %91
+  %93: U8 trivial = const 30
+  %94: Vec(U8) trivial = vec.withlane #30 inspect %92 inspect %93
+  %95: U8 trivial = const 31
+  %96: Vec(U8) trivial = vec.withlane #31 inspect %94 inspect %95
+  %97: Vec(I8) trivial = load inspect %2
+  %98: Vec(I32) trivial = native vdotbytes inspect %32 inspect %96 inspect %97
+  %99: Vec(I32) trivial = load inspect %3
+  %100: Mask(I32) trivial = eq inspect %98 inspect %99
+  %101: Bool trivial = vec.reduce and inspect %100
+  %102: Bool trivial = not inspect %101
+  branch inspect %102 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %103: I32 trivial = const 0
+  %104: Vec(I32) trivial = vec.splat inspect %103
+  %105: U8 trivial = const 1
+  %106: Vec(U8) trivial = vec.splat inspect %105
+  %107: I8 trivial = const 0
+  %108: Vec(I8) trivial = vec.splat inspect %107
+  %109: I8 trivial = const 1
+  %110: Vec(I8) trivial = vec.withlane #1 inspect %108 inspect %109
+  %111: I8 trivial = const 2
+  %112: Vec(I8) trivial = vec.withlane #2 inspect %110 inspect %111
+  %113: I8 trivial = const 3
+  %114: Vec(I8) trivial = vec.withlane #3 inspect %112 inspect %113
+  %115: I8 trivial = const 4
+  %116: Vec(I8) trivial = vec.withlane #4 inspect %114 inspect %115
+  %117: I8 trivial = const 5
+  %118: Vec(I8) trivial = vec.withlane #5 inspect %116 inspect %117
+  %119: I8 trivial = const 6
+  %120: Vec(I8) trivial = vec.withlane #6 inspect %118 inspect %119
+  %121: I8 trivial = const 7
+  %122: Vec(I8) trivial = vec.withlane #7 inspect %120 inspect %121
+  %123: I8 trivial = const 8
+  %124: Vec(I8) trivial = vec.withlane #8 inspect %122 inspect %123
+  %125: I8 trivial = const 9
+  %126: Vec(I8) trivial = vec.withlane #9 inspect %124 inspect %125
+  %127: I8 trivial = const 10
+  %128: Vec(I8) trivial = vec.withlane #10 inspect %126 inspect %127
+  %129: I8 trivial = const 11
+  %130: Vec(I8) trivial = vec.withlane #11 inspect %128 inspect %129
+  %131: I8 trivial = const 12
+  %132: Vec(I8) trivial = vec.withlane #12 inspect %130 inspect %131
+  %133: I8 trivial = const 13
+  %134: Vec(I8) trivial = vec.withlane #13 inspect %132 inspect %133
+  %135: I8 trivial = const 14
+  %136: Vec(I8) trivial = vec.withlane #14 inspect %134 inspect %135
+  %137: I8 trivial = const 15
+  %138: Vec(I8) trivial = vec.withlane #15 inspect %136 inspect %137
+  %139: I8 trivial = const 16
+  %140: Vec(I8) trivial = vec.withlane #16 inspect %138 inspect %139
+  %141: I8 trivial = const 17
+  %142: Vec(I8) trivial = vec.withlane #17 inspect %140 inspect %141
+  %143: I8 trivial = const 18
+  %144: Vec(I8) trivial = vec.withlane #18 inspect %142 inspect %143
+  %145: I8 trivial = const 19
+  %146: Vec(I8) trivial = vec.withlane #19 inspect %144 inspect %145
+  %147: I8 trivial = const 20
+  %148: Vec(I8) trivial = vec.withlane #20 inspect %146 inspect %147
+  %149: I8 trivial = const 21
+  %150: Vec(I8) trivial = vec.withlane #21 inspect %148 inspect %149
+  %151: I8 trivial = const 22
+  %152: Vec(I8) trivial = vec.withlane #22 inspect %150 inspect %151
+  %153: I8 trivial = const 23
+  %154: Vec(I8) trivial = vec.withlane #23 inspect %152 inspect %153
+  %155: I8 trivial = const 24
+  %156: Vec(I8) trivial = vec.withlane #24 inspect %154 inspect %155
+  %157: I8 trivial = const 25
+  %158: Vec(I8) trivial = vec.withlane #25 inspect %156 inspect %157
+  %159: I8 trivial = const 26
+  %160: Vec(I8) trivial = vec.withlane #26 inspect %158 inspect %159
+  %161: I8 trivial = const 27
+  %162: Vec(I8) trivial = vec.withlane #27 inspect %160 inspect %161
+  %163: I8 trivial = const 28
+  %164: Vec(I8) trivial = vec.withlane #28 inspect %162 inspect %163
+  %165: I8 trivial = const 29
+  %166: Vec(I8) trivial = vec.withlane #29 inspect %164 inspect %165
+  %167: I8 trivial = const 30
+  %168: Vec(I8) trivial = vec.withlane #30 inspect %166 inspect %167
+  %169: I8 trivial = const 31
+  %170: Vec(I8) trivial = vec.withlane #31 inspect %168 inspect %169
+  %171: Vec(I32) trivial = native vdotbytes inspect %104 inspect %106 inspect %170
+  %172: Vec(I32) trivial = load inspect %3
+  %173: Mask(I32) trivial = eq inspect %171 inspect %172
+  %174: Bool trivial = vec.reduce and inspect %173
+  %175: Bool trivial = not inspect %174
+  branch inspect %175 -> bb6 -> bb4
+
+bb3:
+  %176: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %177: I32 trivial = const 1
+  call +=(I32) borrow %176 borrow %177
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %178: I32 trivial = const 1000
+  %179: Vec(I32) trivial = vec.splat inspect %178
+  store inspect %4 consume %179
+  %180: Vec(I32) trivial = load inspect %4
+  %181: U8 trivial = const 0
+  %182: Vec(U8) trivial = vec.splat inspect %181
+  %183: U8 trivial = const 1
+  %184: Vec(U8) trivial = vec.withlane #1 inspect %182 inspect %183
+  %185: U8 trivial = const 2
+  %186: Vec(U8) trivial = vec.withlane #2 inspect %184 inspect %185
+  %187: U8 trivial = const 3
+  %188: Vec(U8) trivial = vec.withlane #3 inspect %186 inspect %187
+  %189: U8 trivial = const 4
+  %190: Vec(U8) trivial = vec.withlane #4 inspect %188 inspect %189
+  %191: U8 trivial = const 5
+  %192: Vec(U8) trivial = vec.withlane #5 inspect %190 inspect %191
+  %193: U8 trivial = const 6
+  %194: Vec(U8) trivial = vec.withlane #6 inspect %192 inspect %193
+  %195: U8 trivial = const 7
+  %196: Vec(U8) trivial = vec.withlane #7 inspect %194 inspect %195
+  %197: U8 trivial = const 8
+  %198: Vec(U8) trivial = vec.withlane #8 inspect %196 inspect %197
+  %199: U8 trivial = const 9
+  %200: Vec(U8) trivial = vec.withlane #9 inspect %198 inspect %199
+  %201: U8 trivial = const 10
+  %202: Vec(U8) trivial = vec.withlane #10 inspect %200 inspect %201
+  %203: U8 trivial = const 11
+  %204: Vec(U8) trivial = vec.withlane #11 inspect %202 inspect %203
+  %205: U8 trivial = const 12
+  %206: Vec(U8) trivial = vec.withlane #12 inspect %204 inspect %205
+  %207: U8 trivial = const 13
+  %208: Vec(U8) trivial = vec.withlane #13 inspect %206 inspect %207
+  %209: U8 trivial = const 14
+  %210: Vec(U8) trivial = vec.withlane #14 inspect %208 inspect %209
+  %211: U8 trivial = const 15
+  %212: Vec(U8) trivial = vec.withlane #15 inspect %210 inspect %211
+  %213: U8 trivial = const 16
+  %214: Vec(U8) trivial = vec.withlane #16 inspect %212 inspect %213
+  %215: U8 trivial = const 17
+  %216: Vec(U8) trivial = vec.withlane #17 inspect %214 inspect %215
+  %217: U8 trivial = const 18
+  %218: Vec(U8) trivial = vec.withlane #18 inspect %216 inspect %217
+  %219: U8 trivial = const 19
+  %220: Vec(U8) trivial = vec.withlane #19 inspect %218 inspect %219
+  %221: U8 trivial = const 20
+  %222: Vec(U8) trivial = vec.withlane #20 inspect %220 inspect %221
+  %223: U8 trivial = const 21
+  %224: Vec(U8) trivial = vec.withlane #21 inspect %222 inspect %223
+  %225: U8 trivial = const 22
+  %226: Vec(U8) trivial = vec.withlane #22 inspect %224 inspect %225
+  %227: U8 trivial = const 23
+  %228: Vec(U8) trivial = vec.withlane #23 inspect %226 inspect %227
+  %229: U8 trivial = const 24
+  %230: Vec(U8) trivial = vec.withlane #24 inspect %228 inspect %229
+  %231: U8 trivial = const 25
+  %232: Vec(U8) trivial = vec.withlane #25 inspect %230 inspect %231
+  %233: U8 trivial = const 26
+  %234: Vec(U8) trivial = vec.withlane #26 inspect %232 inspect %233
+  %235: U8 trivial = const 27
+  %236: Vec(U8) trivial = vec.withlane #27 inspect %234 inspect %235
+  %237: U8 trivial = const 28
+  %238: Vec(U8) trivial = vec.withlane #28 inspect %236 inspect %237
+  %239: U8 trivial = const 29
+  %240: Vec(U8) trivial = vec.withlane #29 inspect %238 inspect %239
+  %241: U8 trivial = const 30
+  %242: Vec(U8) trivial = vec.withlane #30 inspect %240 inspect %241
+  %243: U8 trivial = const 31
+  %244: Vec(U8) trivial = vec.withlane #31 inspect %242 inspect %243
+  %245: Vec(I8) trivial = load inspect %2
+  %246: Vec(I32) trivial = native vdotbytes inspect %180 inspect %244 inspect %245
+  %247: Vec(I32) trivial = load inspect %3
+  %248: Vec(I32) trivial = load inspect %4
+  %249: Vec(I32) trivial = add inspect %247 inspect %248
+  %250: Mask(I32) trivial = eq inspect %246 inspect %249
+  %251: Bool trivial = vec.reduce and inspect %250
+  %252: Bool trivial = not inspect %251
+  branch inspect %252 -> bb9 -> bb7
+
+bb6:
+  %253: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %254: I32 trivial = const 1
+  call +=(I32) borrow %253 borrow %254
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %255: I32 trivial = load inspect %0
+  return consume %255
+
+bb9:
+  %256: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %257: I32 trivial = const 1
+  call +=(I32) borrow %256 borrow %257
+  jump -> bb8
+}
+
+fn byteSigns() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %Vec(U8) address = alloc frame Vec(U8)
+  %2: %Vec(I8) address = alloc frame Vec(I8)
+  %3: I32 trivial = const 0
+  store inspect %0 consume %3
+  %4: U8 trivial = const 255
+  %5: Vec(U8) trivial = vec.splat inspect %4
+  store inspect %1 consume %5
+  %6: I32 trivial = const 0
+  %7: Vec(I32) trivial = vec.splat inspect %6
+  %8: Vec(U8) trivial = load inspect %1
+  %9: I8 trivial = const 127
+  %10: Vec(I8) trivial = vec.splat inspect %9
+  %11: Vec(I32) trivial = native vdotbytes inspect %7 inspect %8 inspect %10
+  %12: I32 trivial = const 129540
+  %13: Vec(I32) trivial = vec.splat inspect %12
+  %14: Mask(I32) trivial = eq inspect %11 inspect %13
+  %15: Bool trivial = vec.reduce and inspect %14
+  %16: Bool trivial = not inspect %15
+  branch inspect %16 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %17: I8 trivial = call I8.minValue
+  %18: Vec(I8) trivial = vec.splat inspect %17
+  store inspect %2 consume %18
+  %19: I32 trivial = const 0
+  %20: Vec(I32) trivial = vec.splat inspect %19
+  %21: U8 trivial = const 1
+  %22: Vec(U8) trivial = vec.splat inspect %21
+  %23: Vec(I8) trivial = load inspect %2
+  %24: Vec(I32) trivial = native vdotbytes inspect %20 inspect %22 inspect %23
+  %25: I32 trivial = const 0
+  %26: I32 trivial = const 512
+  %27: I32 trivial = sub inspect %25 inspect %26
+  %28: Vec(I32) trivial = vec.splat inspect %27
+  %29: Mask(I32) trivial = eq inspect %24 inspect %28
+  %30: Bool trivial = vec.reduce and inspect %29
+  %31: Bool trivial = not inspect %30
+  branch inspect %31 -> bb6 -> bb4
+
+bb3:
+  %32: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %33: I32 trivial = const 1
+  call +=(I32) borrow %32 borrow %33
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %34: I32 trivial = load inspect %0
+  return consume %34
+
+bb6:
+  %35: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %36: I32 trivial = const 1
+  call +=(I32) borrow %35 borrow %36
+  jump -> bb5
+}
+
+fn byteNoSaturation() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %Vec(I32) address = alloc frame Vec(I32)
+  %2: I32 trivial = const 0
+  store inspect %0 consume %2
+  %3: I32 trivial = const 0
+  %4: Vec(I32) trivial = vec.splat inspect %3
+  %5: U8 trivial = const 255
+  %6: Vec(U8) trivial = vec.splat inspect %5
+  %7: I8 trivial = call I8.minValue
+  %8: Vec(I8) trivial = vec.splat inspect %7
+  %9: Vec(I32) trivial = native vdotbytes inspect %4 inspect %6 inspect %8
+  store inspect %1 consume %9
+  %10: Vec(I32) trivial = load inspect %1
+  %11: I32 trivial = const 0
+  %12: I32 trivial = const 130560
+  %13: I32 trivial = sub inspect %11 inspect %12
+  %14: Vec(I32) trivial = vec.splat inspect %13
+  %15: Mask(I32) trivial = eq inspect %10 inspect %14
+  %16: Bool trivial = vec.reduce and inspect %15
+  %17: Bool trivial = not inspect %16
+  branch inspect %17 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %18: I32 trivial = load inspect %0
+  return consume %18
+
+bb3:
+  %19: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %20: I32 trivial = const 1
+  call +=(I32) borrow %19 borrow %20
+  jump -> bb2
+}
+
+fn wordGrouping() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %Vec(I32) address = alloc frame Vec(I32)
+  %2: %Vec(I16) address = alloc frame Vec(I16)
+  %3: %Vec(I32) address = alloc frame Vec(I32)
+  %4: %Vec(I32) address = alloc frame Vec(I32)
+  %5: %Vec(I16) address = alloc frame Vec(I16)
+  %6: I32 trivial = const 0
+  store inspect %0 consume %6
+  %7: I32 trivial = const 0
+  %8: Vec(I32) trivial = vec.splat inspect %7
+  %9: I32 trivial = const 1
+  %10: Vec(I32) trivial = vec.withlane #1 inspect %8 inspect %9
+  %11: I32 trivial = const 2
+  %12: Vec(I32) trivial = vec.withlane #2 inspect %10 inspect %11
+  %13: I32 trivial = const 3
+  %14: Vec(I32) trivial = vec.withlane #3 inspect %12 inspect %13
+  %15: I32 trivial = const 4
+  %16: Vec(I32) trivial = vec.withlane #4 inspect %14 inspect %15
+  %17: I32 trivial = const 5
+  %18: Vec(I32) trivial = vec.withlane #5 inspect %16 inspect %17
+  %19: I32 trivial = const 6
+  %20: Vec(I32) trivial = vec.withlane #6 inspect %18 inspect %19
+  %21: I32 trivial = const 7
+  %22: Vec(I32) trivial = vec.withlane #7 inspect %20 inspect %21
+  store inspect %1 consume %22
+  %23: I16 trivial = const 1
+  %24: Vec(I16) trivial = vec.splat inspect %23
+  store inspect %2 consume %24
+  %25: Vec(I32) trivial = load inspect %1
+  %26: I32 trivial = const 4
+  %27: Vec(I32) trivial = vec.splat inspect %26
+  %28: Vec(I32) trivial = mul inspect %25 inspect %27
+  %29: I32 trivial = const 1
+  %30: Vec(I32) trivial = vec.splat inspect %29
+  %31: Vec(I32) trivial = add inspect %28 inspect %30
+  store inspect %3 consume %31
+  %32: I32 trivial = const 0
+  %33: Vec(I32) trivial = vec.splat inspect %32
+  %34: I16 trivial = const 0
+  %35: Vec(I16) trivial = vec.splat inspect %34
+  %36: I16 trivial = const 1
+  %37: Vec(I16) trivial = vec.withlane #1 inspect %35 inspect %36
+  %38: I16 trivial = const 2
+  %39: Vec(I16) trivial = vec.withlane #2 inspect %37 inspect %38
+  %40: I16 trivial = const 3
+  %41: Vec(I16) trivial = vec.withlane #3 inspect %39 inspect %40
+  %42: I16 trivial = const 4
+  %43: Vec(I16) trivial = vec.withlane #4 inspect %41 inspect %42
+  %44: I16 trivial = const 5
+  %45: Vec(I16) trivial = vec.withlane #5 inspect %43 inspect %44
+  %46: I16 trivial = const 6
+  %47: Vec(I16) trivial = vec.withlane #6 inspect %45 inspect %46
+  %48: I16 trivial = const 7
+  %49: Vec(I16) trivial = vec.withlane #7 inspect %47 inspect %48
+  %50: I16 trivial = const 8
+  %51: Vec(I16) trivial = vec.withlane #8 inspect %49 inspect %50
+  %52: I16 trivial = const 9
+  %53: Vec(I16) trivial = vec.withlane #9 inspect %51 inspect %52
+  %54: I16 trivial = const 10
+  %55: Vec(I16) trivial = vec.withlane #10 inspect %53 inspect %54
+  %56: I16 trivial = const 11
+  %57: Vec(I16) trivial = vec.withlane #11 inspect %55 inspect %56
+  %58: I16 trivial = const 12
+  %59: Vec(I16) trivial = vec.withlane #12 inspect %57 inspect %58
+  %60: I16 trivial = const 13
+  %61: Vec(I16) trivial = vec.withlane #13 inspect %59 inspect %60
+  %62: I16 trivial = const 14
+  %63: Vec(I16) trivial = vec.withlane #14 inspect %61 inspect %62
+  %64: I16 trivial = const 15
+  %65: Vec(I16) trivial = vec.withlane #15 inspect %63 inspect %64
+  %66: Vec(I16) trivial = load inspect %2
+  %67: Vec(I32) trivial = native vdotwords inspect %33 inspect %65 inspect %66
+  %68: Vec(I32) trivial = load inspect %3
+  %69: Mask(I32) trivial = eq inspect %67 inspect %68
+  %70: Bool trivial = vec.reduce and inspect %69
+  %71: Bool trivial = not inspect %70
+  branch inspect %71 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %72: I32 trivial = const 0
+  %73: I32 trivial = const 7
+  %74: I32 trivial = sub inspect %72 inspect %73
+  %75: Vec(I32) trivial = vec.splat inspect %74
+  store inspect %4 consume %75
+  %76: Vec(I32) trivial = load inspect %4
+  %77: Vec(I16) trivial = load inspect %2
+  %78: I16 trivial = const 0
+  %79: Vec(I16) trivial = vec.splat inspect %78
+  %80: I16 trivial = const 1
+  %81: Vec(I16) trivial = vec.withlane #1 inspect %79 inspect %80
+  %82: I16 trivial = const 2
+  %83: Vec(I16) trivial = vec.withlane #2 inspect %81 inspect %82
+  %84: I16 trivial = const 3
+  %85: Vec(I16) trivial = vec.withlane #3 inspect %83 inspect %84
+  %86: I16 trivial = const 4
+  %87: Vec(I16) trivial = vec.withlane #4 inspect %85 inspect %86
+  %88: I16 trivial = const 5
+  %89: Vec(I16) trivial = vec.withlane #5 inspect %87 inspect %88
+  %90: I16 trivial = const 6
+  %91: Vec(I16) trivial = vec.withlane #6 inspect %89 inspect %90
+  %92: I16 trivial = const 7
+  %93: Vec(I16) trivial = vec.withlane #7 inspect %91 inspect %92
+  %94: I16 trivial = const 8
+  %95: Vec(I16) trivial = vec.withlane #8 inspect %93 inspect %94
+  %96: I16 trivial = const 9
+  %97: Vec(I16) trivial = vec.withlane #9 inspect %95 inspect %96
+  %98: I16 trivial = const 10
+  %99: Vec(I16) trivial = vec.withlane #10 inspect %97 inspect %98
+  %100: I16 trivial = const 11
+  %101: Vec(I16) trivial = vec.withlane #11 inspect %99 inspect %100
+  %102: I16 trivial = const 12
+  %103: Vec(I16) trivial = vec.withlane #12 inspect %101 inspect %102
+  %104: I16 trivial = const 13
+  %105: Vec(I16) trivial = vec.withlane #13 inspect %103 inspect %104
+  %106: I16 trivial = const 14
+  %107: Vec(I16) trivial = vec.withlane #14 inspect %105 inspect %106
+  %108: I16 trivial = const 15
+  %109: Vec(I16) trivial = vec.withlane #15 inspect %107 inspect %108
+  %110: Vec(I32) trivial = native vdotwords inspect %76 inspect %77 inspect %109
+  %111: Vec(I32) trivial = load inspect %3
+  %112: Vec(I32) trivial = load inspect %4
+  %113: Vec(I32) trivial = add inspect %111 inspect %112
+  %114: Mask(I32) trivial = eq inspect %110 inspect %113
+  %115: Bool trivial = vec.reduce and inspect %114
+  %116: Bool trivial = not inspect %115
+  branch inspect %116 -> bb6 -> bb4
+
+bb3:
+  %117: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %118: I32 trivial = const 1
+  call +=(I32) borrow %117 borrow %118
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %119: I16 trivial = const 0
+  %120: Vec(I16) trivial = vec.splat inspect %119
+  %121: I16 trivial = const 0
+  %122: Vec(I16) trivial = vec.splat inspect %121
+  %123: I16 trivial = const 1
+  %124: Vec(I16) trivial = vec.withlane #1 inspect %122 inspect %123
+  %125: I16 trivial = const 2
+  %126: Vec(I16) trivial = vec.withlane #2 inspect %124 inspect %125
+  %127: I16 trivial = const 3
+  %128: Vec(I16) trivial = vec.withlane #3 inspect %126 inspect %127
+  %129: I16 trivial = const 4
+  %130: Vec(I16) trivial = vec.withlane #4 inspect %128 inspect %129
+  %131: I16 trivial = const 5
+  %132: Vec(I16) trivial = vec.withlane #5 inspect %130 inspect %131
+  %133: I16 trivial = const 6
+  %134: Vec(I16) trivial = vec.withlane #6 inspect %132 inspect %133
+  %135: I16 trivial = const 7
+  %136: Vec(I16) trivial = vec.withlane #7 inspect %134 inspect %135
+  %137: I16 trivial = const 8
+  %138: Vec(I16) trivial = vec.withlane #8 inspect %136 inspect %137
+  %139: I16 trivial = const 9
+  %140: Vec(I16) trivial = vec.withlane #9 inspect %138 inspect %139
+  %141: I16 trivial = const 10
+  %142: Vec(I16) trivial = vec.withlane #10 inspect %140 inspect %141
+  %143: I16 trivial = const 11
+  %144: Vec(I16) trivial = vec.withlane #11 inspect %142 inspect %143
+  %145: I16 trivial = const 12
+  %146: Vec(I16) trivial = vec.withlane #12 inspect %144 inspect %145
+  %147: I16 trivial = const 13
+  %148: Vec(I16) trivial = vec.withlane #13 inspect %146 inspect %147
+  %149: I16 trivial = const 14
+  %150: Vec(I16) trivial = vec.withlane #14 inspect %148 inspect %149
+  %151: I16 trivial = const 15
+  %152: Vec(I16) trivial = vec.withlane #15 inspect %150 inspect %151
+  %153: Vec(I16) trivial = sub inspect %120 inspect %152
+  store inspect %5 consume %153
+  %154: I32 trivial = const 0
+  %155: Vec(I32) trivial = vec.splat inspect %154
+  %156: Vec(I16) trivial = load inspect %5
+  %157: Vec(I16) trivial = load inspect %2
+  %158: Vec(I32) trivial = native vdotwords inspect %155 inspect %156 inspect %157
+  %159: I32 trivial = const 0
+  %160: Vec(I32) trivial = vec.splat inspect %159
+  %161: Vec(I32) trivial = load inspect %3
+  %162: Vec(I32) trivial = sub inspect %160 inspect %161
+  %163: Mask(I32) trivial = eq inspect %158 inspect %162
+  %164: Bool trivial = vec.reduce and inspect %163
+  %165: Bool trivial = not inspect %164
+  branch inspect %165 -> bb9 -> bb7
+
+bb6:
+  %166: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %167: I32 trivial = const 1
+  call +=(I32) borrow %166 borrow %167
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %168: I32 trivial = load inspect %0
+  return consume %168
+
+bb9:
+  %169: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %170: I32 trivial = const 1
+  call +=(I32) borrow %169 borrow %170
+  jump -> bb8
+}
+
+fn wordWrap() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %Vec(I16) address = alloc frame Vec(I16)
+  %2: %Vec(I32) address = alloc frame Vec(I32)
+  %3: %Vec(I32) address = alloc frame Vec(I32)
+  %4: %Vec(I32) address = alloc frame Vec(I32)
+  %5: I32 trivial = const 0
+  store inspect %0 consume %5
+  %6: I16 trivial = call I16.minValue
+  %7: Vec(I16) trivial = vec.splat inspect %6
+  store inspect %1 consume %7
+  %8: I32 trivial = const 0
+  %9: Vec(I32) trivial = vec.splat inspect %8
+  %10: Vec(I16) trivial = load inspect %1
+  %11: Vec(I16) trivial = load inspect %1
+  %12: Vec(I32) trivial = native vdotwords inspect %9 inspect %10 inspect %11
+  store inspect %2 consume %12
+  %13: Vec(I32) trivial = load inspect %2
+  %14: I32 trivial = call I32.minValue
+  %15: Vec(I32) trivial = vec.splat inspect %14
+  %16: Mask(I32) trivial = eq inspect %13 inspect %15
+  %17: Bool trivial = vec.reduce and inspect %16
+  %18: Bool trivial = not inspect %17
+  branch inspect %18 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %19: I32 trivial = call I32.maxValue
+  %20: Vec(I32) trivial = vec.splat inspect %19
+  store inspect %3 consume %20
+  %21: Vec(I32) trivial = load inspect %3
+  %22: I16 trivial = const 1
+  %23: Vec(I16) trivial = vec.splat inspect %22
+  %24: I16 trivial = const 1
+  %25: Vec(I16) trivial = vec.splat inspect %24
+  %26: Vec(I32) trivial = native vdotwords inspect %21 inspect %23 inspect %25
+  store inspect %4 consume %26
+  %27: Vec(I32) trivial = load inspect %4
+  %28: I32 trivial = call I32.minValue
+  %29: I32 trivial = const 1
+  %30: I32 trivial = add inspect %28 inspect %29
+  %31: Vec(I32) trivial = vec.splat inspect %30
+  %32: Mask(I32) trivial = eq inspect %27 inspect %31
+  %33: Bool trivial = vec.reduce and inspect %32
+  %34: Bool trivial = not inspect %33
+  branch inspect %34 -> bb6 -> bb4
+
+bb3:
+  %35: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %36: I32 trivial = const 1
+  call +=(I32) borrow %35 borrow %36
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %37: I32 trivial = load inspect %0
+  return consume %37
+
+bb6:
+  %38: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %39: I32 trivial = const 1
+  call +=(I32) borrow %38 borrow %39
+  jump -> bb5
+}
+
+fn writtenWidths() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %Vec(I32, 4) address = alloc frame Vec(I32, 4)
+  %2: %Vec(I32, 4) address = alloc frame Vec(I32, 4)
+  %3: %Vec(I32, 4) address = alloc frame Vec(I32, 4)
+  %4: %Vec(I32, 4) address = alloc frame Vec(I32, 4)
+  %5: I32 trivial = const 0
+  store inspect %0 consume %5
+  %6: I32 trivial = const 0
+  %7: Vec(I32, 4) trivial = vec.splat inspect %6
+  %8: U8 trivial = const 0
+  %9: Vec(U8, 16) trivial = vec.splat inspect %8
+  %10: U8 trivial = const 1
+  %11: Vec(U8, 16) trivial = vec.withlane #1 inspect %9 inspect %10
+  %12: U8 trivial = const 2
+  %13: Vec(U8, 16) trivial = vec.withlane #2 inspect %11 inspect %12
+  %14: U8 trivial = const 3
+  %15: Vec(U8, 16) trivial = vec.withlane #3 inspect %13 inspect %14
+  %16: U8 trivial = const 4
+  %17: Vec(U8, 16) trivial = vec.withlane #4 inspect %15 inspect %16
+  %18: U8 trivial = const 5
+  %19: Vec(U8, 16) trivial = vec.withlane #5 inspect %17 inspect %18
+  %20: U8 trivial = const 6
+  %21: Vec(U8, 16) trivial = vec.withlane #6 inspect %19 inspect %20
+  %22: U8 trivial = const 7
+  %23: Vec(U8, 16) trivial = vec.withlane #7 inspect %21 inspect %22
+  %24: U8 trivial = const 8
+  %25: Vec(U8, 16) trivial = vec.withlane #8 inspect %23 inspect %24
+  %26: U8 trivial = const 9
+  %27: Vec(U8, 16) trivial = vec.withlane #9 inspect %25 inspect %26
+  %28: U8 trivial = const 10
+  %29: Vec(U8, 16) trivial = vec.withlane #10 inspect %27 inspect %28
+  %30: U8 trivial = const 11
+  %31: Vec(U8, 16) trivial = vec.withlane #11 inspect %29 inspect %30
+  %32: U8 trivial = const 12
+  %33: Vec(U8, 16) trivial = vec.withlane #12 inspect %31 inspect %32
+  %34: U8 trivial = const 13
+  %35: Vec(U8, 16) trivial = vec.withlane #13 inspect %33 inspect %34
+  %36: U8 trivial = const 14
+  %37: Vec(U8, 16) trivial = vec.withlane #14 inspect %35 inspect %36
+  %38: U8 trivial = const 15
+  %39: Vec(U8, 16) trivial = vec.withlane #15 inspect %37 inspect %38
+  %40: I8 trivial = const 1
+  %41: Vec(I8, 16) trivial = vec.splat inspect %40
+  %42: Vec(I32, 4) trivial = native vdotbytes inspect %7 inspect %39 inspect %41
+  store inspect %1 consume %42
+  %43: I32 trivial = const 0
+  %44: Vec(I32, 4) trivial = vec.splat inspect %43
+  %45: I32 trivial = const 1
+  %46: Vec(I32, 4) trivial = vec.withlane #1 inspect %44 inspect %45
+  %47: I32 trivial = const 2
+  %48: Vec(I32, 4) trivial = vec.withlane #2 inspect %46 inspect %47
+  %49: I32 trivial = const 3
+  %50: Vec(I32, 4) trivial = vec.withlane #3 inspect %48 inspect %49
+  %51: I32 trivial = const 16
+  %52: Vec(I32, 4) trivial = vec.splat inspect %51
+  %53: Vec(I32, 4) trivial = mul inspect %50 inspect %52
+  %54: I32 trivial = const 6
+  %55: Vec(I32, 4) trivial = vec.splat inspect %54
+  %56: Vec(I32, 4) trivial = add inspect %53 inspect %55
+  store inspect %2 consume %56
+  %57: Vec(I32, 4) trivial = load inspect %1
+  %58: Vec(I32, 4) trivial = load inspect %2
+  %59: Mask(I32, 4) trivial = eq inspect %57 inspect %58
+  %60: Bool trivial = vec.reduce and inspect %59
+  %61: Bool trivial = not inspect %60
+  branch inspect %61 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %62: I32 trivial = const 0
+  %63: Vec(I32, 4) trivial = vec.splat inspect %62
+  %64: I16 trivial = const 0
+  %65: Vec(I16, 8) trivial = vec.splat inspect %64
+  %66: I16 trivial = const 1
+  %67: Vec(I16, 8) trivial = vec.withlane #1 inspect %65 inspect %66
+  %68: I16 trivial = const 2
+  %69: Vec(I16, 8) trivial = vec.withlane #2 inspect %67 inspect %68
+  %70: I16 trivial = const 3
+  %71: Vec(I16, 8) trivial = vec.withlane #3 inspect %69 inspect %70
+  %72: I16 trivial = const 4
+  %73: Vec(I16, 8) trivial = vec.withlane #4 inspect %71 inspect %72
+  %74: I16 trivial = const 5
+  %75: Vec(I16, 8) trivial = vec.withlane #5 inspect %73 inspect %74
+  %76: I16 trivial = const 6
+  %77: Vec(I16, 8) trivial = vec.withlane #6 inspect %75 inspect %76
+  %78: I16 trivial = const 7
+  %79: Vec(I16, 8) trivial = vec.withlane #7 inspect %77 inspect %78
+  %80: I16 trivial = const 1
+  %81: Vec(I16, 8) trivial = vec.splat inspect %80
+  %82: Vec(I32, 4) trivial = native vdotwords inspect %63 inspect %79 inspect %81
+  store inspect %3 consume %82
+  %83: I32 trivial = const 0
+  %84: Vec(I32, 4) trivial = vec.splat inspect %83
+  %85: I32 trivial = const 1
+  %86: Vec(I32, 4) trivial = vec.withlane #1 inspect %84 inspect %85
+  %87: I32 trivial = const 2
+  %88: Vec(I32, 4) trivial = vec.withlane #2 inspect %86 inspect %87
+  %89: I32 trivial = const 3
+  %90: Vec(I32, 4) trivial = vec.withlane #3 inspect %88 inspect %89
+  %91: I32 trivial = const 4
+  %92: Vec(I32, 4) trivial = vec.splat inspect %91
+  %93: Vec(I32, 4) trivial = mul inspect %90 inspect %92
+  %94: I32 trivial = const 1
+  %95: Vec(I32, 4) trivial = vec.splat inspect %94
+  %96: Vec(I32, 4) trivial = add inspect %93 inspect %95
+  store inspect %4 consume %96
+  %97: Vec(I32, 4) trivial = load inspect %3
+  %98: Vec(I32, 4) trivial = load inspect %4
+  %99: Mask(I32, 4) trivial = eq inspect %97 inspect %98
+  %100: Bool trivial = vec.reduce and inspect %99
+  %101: Bool trivial = not inspect %100
+  branch inspect %101 -> bb6 -> bb4
+
+bb3:
+  %102: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %103: I32 trivial = const 1
+  call +=(I32) borrow %102 borrow %103
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %104: I32 trivial = load inspect %0
+  return consume %104
+
+bb6:
+  %105: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %106: I32 trivial = const 1
+  call +=(I32) borrow %105 borrow %106
+  jump -> bb5
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %String address = alloc frame String
+  %2: %String address = alloc frame String
+  %3: I32 trivial = call byteGrouping
+  %4: I32 trivial = call byteSigns
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: I32 trivial = call byteNoSaturation
+  %7: I32 trivial = add inspect %5 inspect %6
+  %8: I32 trivial = call wordGrouping
+  %9: I32 trivial = add inspect %7 inspect %8
+  %10: I32 trivial = call wordWrap
+  %11: I32 trivial = add inspect %9 inspect %10
+  %12: I32 trivial = call writtenWidths
+  %13: I32 trivial = add inspect %11 inspect %12
+  store inspect %0 consume %13
+  %14: Size trivial = const 0
+  %15: I32 trivial = load inspect %0
+  %16: Maybe(Size) trivial = call I32.showBound borrow %15
+  %17: Size trivial = call formatBound borrow %16
+  %18: Size trivial = add inspect %14 inspect %17
+  %19: String owned = call String.ofCapacity borrow %18
+  store inspect %1 consume %19
+  %20: I32 trivial = load inspect %0
+  %21: String [unique call] guaranteed from{%1} = load inspect %1
+  call I32.show borrow %20 borrow %21
+  %22: String owned = load inspect %1
+  store inspect %2 consume %22
+  %23: String [shared slot 0] guaranteed from{%2} = load inspect %2
+  %24: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %23
+  call print borrow %24
+  drop String inspect %2
+  %25: I32 trivial = load inspect %0
+  return consume %25
+}
+
+entry main

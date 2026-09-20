@@ -1,0 +1,58 @@
+# The packed bit counts at the floor, `sse4`, where none of the four is an instruction.
+#
+# extensions: sse4
+#
+# `Bits(Vec(a, n))` is instanced at every integer lane width (Analysis-Avx512.md §3.2), and below
+# AVX-512 there is no packed count of any kind at any lane. `expandVectorBitCounts` in
+# codegen/x64/transform_expand.cpp writes all four, and this file is what each of them costs.
+#
+# What to look for:
+#
+#   - `popcounts` is the nibble table: a `pand` of `0x0f0f...`, a byte shift (which is a word shift
+#     and a mask of its own - `expandByteShifts`), two `pshufb` against a sixteen-entry table and a
+#     `paddb`. That is the whole of a byte lane; a wider one adds the halving shift-and-add fold and
+#     one `pand` at the end.
+#   - the table and the low-nibble mask are **one pooled load each per function**, hoisted into the
+#     entry block: they are read by every count in the body, and a load of a global nothing writes is
+#     rematerializable, so holding one across the function is the cheapest kind of pressure there is.
+#   - `leadingWide` is the smear - five shift-and-or pairs at a 32-bit lane - and the population
+#     count under it, subtracted from a splat of the lane's width.
+#   - `trailing` is a negation, an `and`, a decrement and the same count. The zero it negates against
+#     is `pxor`, which is the one vector constant the backend builds rather than pooling.
+#   - `upTo` has no shift instruction to reach at a byte lane and nothing wider is needed here: the
+#     count's high bits are tested against zero, the mask is a per-lane shift, and the select is a
+#     blend.
+#
+# `VectorBitCountsEvex.lower` beside this is the same functions at `avx512`, where three of them
+# become `vpopcnt{b,w,d,q}` and `vplzcnt{d,q}`.
+
+popcounts(%b: i8x16, %w: i16x8, %d: i32x4, %q: i64x2): i8x16 {
+    {
+        %rb = popcnt %b: i8x16
+        %rw = popcnt %w: i16x8
+        %rd = popcnt %d: i32x4
+        %rq = popcnt %q: i64x2
+        ret %rb
+    }
+}
+
+leadingWide(%d: i32x4): i32x4 {
+    {
+        %r = clz_width %d: i32x4
+        ret %r
+    }
+}
+
+trailing(%d: i32x4): i32x4 {
+    {
+        %r = cttz_width %d: i32x4
+        ret %r
+    }
+}
+
+upTo(%d: i32x4, %n: i32x4): i32x4 {
+    {
+        %r = bitsupto %d, %n: i32x4
+        ret %r
+    }
+}

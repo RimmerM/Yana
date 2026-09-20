@@ -300,6 +300,94 @@ YANA_LOWER_INST(AesInverseMix,   LowerInstAesInverseMix,   "aesimc"_v,          
 YANA_LOWER_INST(AesKeygenAssist, LowerInstAesKeygenAssist, "aeskeygenassist"_v, 1,         1,        kLowerArith)
 
 /*
+ * Lane-wise addition and subtraction that clamps rather than wrapping - `saturatingAdd` and
+ * `saturatingSub` in `lib/Core/Vector.yana`. See `Value::SaturatingAdd` in resolve/inst.def, where
+ * what each computes is argued.
+ *
+ * **Deliberately outside the binary range above**, which is where these depart from `Crc32` and
+ * `BitsUpTo`: every pass that asks `isBinary` is written for arithmetic that *wraps*, and a `lea`
+ * fold, a reassociation or an induction-variable step over a saturating add would be a wrong answer
+ * rather than a missed one. What being outside costs is those same rewrites, none of which this
+ * operation wants - and CSE and hoisting are `kLowerPlain` and `kLowerPure`, which it still has.
+ *
+ * **Four kinds and not two**, which is `Div`/`IDiv`'s arrangement and forced by the same thing: this
+ * IR's types carry no signedness, and which two bounds a lane clamps to is exactly that question.
+ * The signed pair clamps to the lane's own minimum and maximum, the unsigned pair to zero and its
+ * maximum.
+ *
+ * An integer lane of a vector, the resolver having refused the rest. Both additions commute and
+ * none of the four associates.
+ *
+ * x86 has `paddsb`/`paddsw`/`paddusb`/`paddusw` and their four subtracting twins, so a byte or word
+ * lane is one instruction at every level this backend targets; `expandVectorSaturating` writes the
+ * comparison and the select for a doubleword or quadword lane, which no x86 part has.
+ */
+YANA_LOWER_INST(SatAdd,          LowerInstSaturating,      "satadd"_v,          2,         1,        kLowerArith | kLowerCommutative)
+YANA_LOWER_INST(ISatAdd,         LowerInstSaturating,      "isatadd"_v,         2,         1,        kLowerArith | kLowerCommutative)
+YANA_LOWER_INST(SatSub,          LowerInstSaturating,      "satsub"_v,          2,         1,        kLowerArith)
+YANA_LOWER_INST(ISatSub,         LowerInstSaturating,      "isatsub"_v,         2,         1,        kLowerArith)
+
+/*
+ * The five AVX-512 float operations - Analysis-Avx512.md §3.7, written in source as `X86.getExponent`
+ * and its four siblings. See `Value::FloatAdjust` in resolve/inst.def, where what each computes is
+ * argued.
+ *
+ * **A kind per instruction and two structs**, which is where this departs from `CryptoBinary`: the
+ * trailing byte is `flags`, so which operation an instruction is has nowhere left to live but the
+ * kind - and `kLowerPlain` promises that those two are everything it carries. See
+ * `LowerInstFloatAdjust`, where the miscompile that promise prevents is written down.
+ *
+ * Out of the unary and binary ranges for `ShaBinary`'s reason - a pass reading one as an ordinary
+ * unary would treat `vgetexp v` and `vgetmant v, 0` as one computation.
+ *
+ * **No backend expands one**, and for a reason the crypto rows do not have: a portable sequence for
+ * each of these exists and is `lib/Math/Math.yana`, which every build below this level already runs.
+ * These instructions are reached only from that module's `@replaces` bodies, so a backend without
+ * them never sees one.
+ *
+ * A float lane, and a vector of them - the scalar spellings (`vgetexpss` and the rest) are not
+ * reached from anywhere and have no row here.
+ */
+YANA_LOWER_INST(GetExponent,     LowerInstFloatAdjust,     "vgetexp"_v,         1,         1,        kLowerArith)
+YANA_LOWER_INST(GetMantissa,     LowerInstFloatAdjust,     "vgetmant"_v,        1,         1,        kLowerArith)
+YANA_LOWER_INST(FpReduce,        LowerInstFloatAdjust,     "vfpreduce"_v,       1,         1,        kLowerArith)
+YANA_LOWER_INST(ScaleFloat,      LowerInstFloatCombine,    "vscalef"_v,         2,         1,        kLowerArith)
+YANA_LOWER_INST(RangeFloat,      LowerInstFloatCombine,    "vrange"_v,          2,         1,        kLowerArith)
+
+/*
+ * The four widening multiply-accumulates - `vpdpbusd`, `vpdpwssd`, `vpmadd52luq`, `vpmadd52huq`.
+ * See `Value::MulAccumulate` in resolve/inst.def, where what each computes is argued.
+ *
+ * Three operands and one result: the accumulator is operand zero and the result is written over it,
+ * which is what every one of these instructions does. **The narrow operands are a different type
+ * from the result** - `i8x16` and `i8x16` into `i32x4` - which is the one place in this IR an
+ * arithmetic row's operands and its answer disagree about their lanes, and is the whole of what the
+ * operation is for.
+ *
+ * **A kind per instruction rather than one kind with the operation in `flags`**, on the five float
+ * rows' terms above: `kLowerPlain` promises that `kind` and `flags` together are everything an
+ * instruction carries, and four operations over three operands sharing one kind would leave CSE
+ * nothing to tell a byte dot product from a word one. None of them carries a trailing byte, so
+ * `flags` is free here and is left at zero rather than filled with the operation.
+ *
+ * **Outside the binary range** for the reason the saturating rows are, and one more: this is not a
+ * binary at all - three operands do not fit `LowerInstBinary`, which is what `isBinary` hands every
+ * reader.
+ *
+ * `DotBytes` and `DotWords` are portable and reach every backend; `expandVectorDotProducts` writes
+ * the sequence where the machine has no VNNI. `MulAdd52Lo` and `MulAdd52Hi` are IFMA's and are
+ * reached only from `lib/Native/Intrinsic/X86.yana`, so no backend expands one.
+ *
+ * None commutes. `vpdpbusd` reads its first product operand as unsigned and its second as signed,
+ * and swapping IFMA's two would be a different program only by accident - the machine's own operand
+ * order is what the library declares.
+ */
+YANA_LOWER_INST(DotBytes,        LowerInstMulAccumulate,   "vdotbytes"_v,       3,         1,        kLowerArith)
+YANA_LOWER_INST(DotWords,        LowerInstMulAccumulate,   "vdotwords"_v,       3,         1,        kLowerArith)
+YANA_LOWER_INST(MulAdd52Lo,      LowerInstMulAccumulate,   "vmadd52lo"_v,       3,         1,        kLowerArith)
+YANA_LOWER_INST(MulAdd52Hi,      LowerInstMulAccumulate,   "vmadd52hi"_v,       3,         1,        kLowerArith)
+
+/*
  * `vzeroupper` - the vector state reset, written in source as `X86.vzeroupper()`.
  *
  * No operands and no result: what it changes is processor state nothing in this IR names.
@@ -682,6 +770,20 @@ YANA_LOWER_INST(X86MaskedStore, LowerInstX86MaskedStore, "x86_maskedstore"_v, 3,
 YANA_LOWER_INST(X86TernaryLogic, LowerInstX86TernaryLogic, "x86_ternarylogic"_v, 3,     1,        kLowerArith)
 
 /*
+ * `pmaddwd` - each pair of adjacent signed word lanes multiplied and summed into one doubleword.
+ *
+ * Backend-private on `X86TernaryLogic`'s terms, and arrived at from the same direction: the portable
+ * spelling is `DotWords` with a zero accumulator, and there is nothing wrong with that anywhere
+ * except on a machine that has had this instruction since SSE2. What it buys is the whole fallback:
+ * `expandVectorDotProducts` writes `acc + pmaddwd(a, b)` for a word dot product and two of these
+ * plus four lane extracts for a byte one, where lane arithmetic alone would be ten and fourteen.
+ *
+ * Commutative - both operands are read as signed words - and, like the rows it stands in for, its
+ * operands are `i16` where its result is `i32`.
+ */
+YANA_LOWER_INST(X86MulAddWords, LowerInstX86MulAddWords, "x86_pmaddwd"_v,     2,         1,        kLowerArith | kLowerCommutative)
+
+/*
  * A vector's lanes taken from two vectors by an index held in a third - `vpermi2b`/`w`/`d`/`q`/`ps`/`pd`
  * (Analysis-Avx512.md §2.5).
  *
@@ -737,6 +839,29 @@ YANA_LOWER_INST(X86StoreOp,    LowerInstX86StoreOp,     "x86_storeop"_v,     2, 
  * is only ever reached at a 64-bit result, there being no 32-to-32 encoding of it.
  */
 YANA_LOWER_INST(X86Sext,       LowerInstX86Sext,        "x86_sext"_v,        1,         1,        kLowerArith)
+
+/*
+ * A population count or a leading-zero count of **every lane** - AVX-512's `vpopcnt{b,w,d,q}`
+ * and `vplzcnt{d,q}`, Analysis-Avx512.md §3.2.
+ *
+ * Backend-private on `X86MulWide`'s terms, and the reason is the same one at a different
+ * operation: the portable spelling is the `Popcnt` and `ClzWidth` *intrinsics* one tier up,
+ * which is what the LLVM backend hands `llvm.ctpop` and `llvm.ctlz` over a vector type and
+ * what the JavaScript backend walks a lane at a time. An intrinsic carries one form per
+ * target, and this family is four opcodes at four lane widths behind three different
+ * extension bits - so what reaches an instruction is a kind selection can index by the lane,
+ * and what does not is the sequence `expandVectorBitCounts` writes instead.
+ *
+ * **`TrailingZeros` has no row here and cannot have one.** There is no packed trailing-zero
+ * count at any level; the machine answer is `popcount((x & -x) - 1)`, which that pass writes
+ * at every level including this one - where the population count in it becomes one of these.
+ *
+ * `leading` is which of the two, and it is the instruction's own rather than anything read
+ * off the type. `vplzcnt` exists at 32- and 64-bit lanes alone (AVX-512CD), so a byte or word
+ * leading count is the smear-and-count sequence even at `avx512`, where its population count
+ * is one instruction.
+ */
+YANA_LOWER_INST(X86VecCount,   LowerInstX86VecCount,    "x86_veccount"_v,    1,         1,        kLowerArith)
 
 /*
  * A load and a store that reverse the bytes on the way - `movbe`, which is x86-64-v3.

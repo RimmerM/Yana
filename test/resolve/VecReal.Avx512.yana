@@ -1,0 +1,218 @@
+{-
+   `VecReal.yana` at `avx512`, where all six bodies become one instruction each.
+
+   # extensions: avx512
+
+   `lib/Math/Math.avx512.yana` replaces the twelve monomorphic bodies behind the two vector `Real`
+   instances, so `exponentOf` is `vgetexpps`/`vgetexppd`, `significandOf` is `vgetmantps`/`vgetmantpd`
+   at control 0, `scaleByExponent` is `vscalefps`/`vscalefpd`, `fract` is `vreduceps`/`vreducepd` at
+   control 1, and `minNumber`/`maxNumber` are `vrangeps`/`vrangepd` at control 4 and 5. Fifteen or
+   more instructions become one in the case of `scaleByExponent`.
+
+   This is the file that caught `vrange`'s sign control: at control 0 the answer takes its sign from
+   the *first* operand, so `minNumber(nan, 3.0)` came back as `-3.0` - x86's default quiet NaN having
+   its sign bit set - where the portable body answers `3.0`. `orderCases` is what said so, and it
+   said so here and at neither level below.
+
+   See `VecReal.yana` for what each function checks.
+-}
+import Math
+
+-- The exponent and the significand of a positive normal, by halving - which is what the two mean
+-- and is not how either is computed.
+fn refExponent(value: Double) -> Double:
+    let &rest = value
+    let &exponent = 0.0 :: Double
+
+    while rest >= 2.0:
+        rest = rest * 0.5
+        exponent = exponent + 1.0
+
+    while rest < 1.0:
+        rest = rest * 2.0
+        exponent = exponent - 1.0
+
+    return exponent
+
+fn refSignificand(value: Double) -> Double:
+    let &rest = value
+
+    while rest >= 2.0:
+        rest = rest * 0.5
+
+    while rest < 1.0:
+        rest = rest * 2.0
+
+    return rest
+
+-- `value * 2 ^ exponent` for a whole exponent of either sign, by multiplication.
+fn refScale(value: Double, exponent: Int) -> Double:
+    let &scaled = value
+    let &i = 0
+
+    while i < exponent:
+        scaled = scaled * 2.0
+        i += 1
+
+    while i > exponent:
+        scaled = scaled * 0.5
+        i -= 1
+
+    return scaled
+
+{-
+   Every check below is over the **whole register**: the reference is a scalar splatted to a vector
+   and the comparison is `all`, so a body that computed lane zero and left the rest alone fails here.
+   A lane index has to be a constant in this language, which is also why the loop is over values
+   rather than over lanes.
+-}
+fn nearFloat(got: Vec(F32), want: Double) -> Bool:
+    let scale = if want < 0.0 then 0.0 - want else want
+    let bound = 1.0e-5 * (if scale > 1.0 then scale else 1.0)
+    let difference = got - splat(truncate(want) :: Float)
+    let size = select(difference .< splat(0.0 :: Float), splat(0.0 :: Float) - difference, difference)
+    return all(size .<= splat(truncate(bound) :: Float))
+
+fn nearDouble(got: Vec(F64), want: Double) -> Bool:
+    let scale = if want < 0.0 then 0.0 - want else want
+    let bound = 1.0e-12 * (if scale > 1.0 then scale else 1.0)
+    let difference = got - splat(want)
+    let size = select(difference .< splat(0.0 :: Double), splat(0.0 :: Double) - difference, difference)
+    return all(size .<= splat(bound))
+
+-- The eight values every test below walks, all positive normals, spread over four binades so that a
+-- wrong exponent field shows as a wrong number rather than as a wrong last bit.
+fn sample(index: Int) -> Double:
+    if index == 0 then return 1.0
+    if index == 1 then return 1.5
+    if index == 2 then return 2.5
+    if index == 3 then return 8.0
+    if index == 4 then return 0.75
+    if index == 5 then return 0.125
+    if index == 6 then return 1024.0
+    return 3.0e-3
+
+fn exponentCases() -> Int:
+    let &wrong = 0
+    let &i = 0
+
+    while i < 8:
+        let value = sample(i)
+        let narrow = splat(truncate(value) :: Float) :: Vec(F32)
+        let wide = splat(value) :: Vec(F64)
+
+        if !nearFloat(exponentOf(narrow), refExponent(value)) then wrong += 1
+        if !nearFloat(significandOf(narrow), refSignificand(value)) then wrong += 1
+        if !nearDouble(exponentOf(wide), refExponent(value)) then wrong += 1
+        if !nearDouble(significandOf(wide), refSignificand(value)) then wrong += 1
+        i += 1
+
+    return wrong
+
+{-
+   `scaleByExponent`, at every exponent from -8 to 8 and at the two saturating ends.
+
+   The saturating requirement is what `exp` rests on: an exponent past the type's range answers an
+   infinity rather than wrapping back into the middle of it. The two spellings reach it differently -
+   the portable body multiplies by two clamped powers of two, and `vscalef` saturates in the
+   instruction - so it is checked rather than assumed.
+-}
+fn scaleCases() -> Int:
+    let &wrong = 0
+    let &e = 0 - 8
+
+    while e <= 8:
+        let wide = splat(2.5) :: Vec(F64)
+        let narrow = splat(2.5 :: Float) :: Vec(F32)
+
+        if !nearDouble(scaleByExponent(wide, splat(e :: Double)), refScale(2.5, e)) then wrong += 1
+        if !nearFloat(scaleByExponent(narrow, splat(truncate(e :: Double) :: Float)), refScale(2.5, e)) then wrong += 1
+        e += 1
+
+    let big = scaleByExponent(splat(1.0) :: Vec(F64), splat(4000.0 :: Double))
+    let small = scaleByExponent(splat(1.0) :: Vec(F64), splat(0.0 - (4000.0 :: Double)))
+
+    if !all(isInfinite(big)) then wrong += 1
+    if !all(isZero(small)) then wrong += 1
+    return wrong
+
+-- `fract` against `value - floor(value)`, which is what it means and is not how either level
+-- computes it. The negative arguments are the point: the answer is in [0, 1) and not the
+-- sign-carrying remainder `trunc` would leave.
+fn fractionCases() -> Int:
+    let &wrong = 0
+    let &i = 0
+
+    while i < 8:
+        let value = sample(i) - 3.0
+        let want = value - floor(value)
+
+        if !nearDouble(fract(splat(value) :: Vec(F64)), want) then wrong += 1
+        if !nearFloat(fract(splat(truncate(value) :: Float) :: Vec(F32)), want) then wrong += 1
+        i += 1
+
+    return wrong
+
+{-
+   `minNumber` and `maxNumber`, in both operand orders and with a NaN in each position.
+
+   The NaN is built by dividing a zero by a zero, there being no literal for one, and it matters that
+   the one x86 builds that way has its **sign bit set**: a `vrange` whose control took the answer's
+   sign from the first operand answered `-3.0` for `minNumber(nan, 3.0)`, which is the mistake this
+   case exists to catch and did.
+-}
+fn orderCases() -> Int:
+    let &wrong = 0
+    let nan = (0.0 :: Double) / 0.0
+    let nanVec = splat(nan) :: Vec(F64)
+    let &i = 0
+
+    while i < 8:
+        let value = sample(i)
+        let other = 0.0 - sample((i + 3) % 8)
+        let a = splat(value) :: Vec(F64)
+        let b = splat(other) :: Vec(F64)
+        let low = if value < other then value else other
+        let high = if value > other then value else other
+
+        if !nearDouble(minNumber(a, b), low) then wrong += 1
+        if !nearDouble(minNumber(b, a), low) then wrong += 1
+        if !nearDouble(maxNumber(a, b), high) then wrong += 1
+        if !nearDouble(maxNumber(b, a), high) then wrong += 1
+
+        -- A NaN operand is ignored, whichever side it is on.
+        if !nearDouble(minNumber(nanVec, a), value) then wrong += 1
+        if !nearDouble(minNumber(a, nanVec), value) then wrong += 1
+        if !nearDouble(maxNumber(nanVec, a), value) then wrong += 1
+        if !nearDouble(maxNumber(a, nanVec), value) then wrong += 1
+
+        -- And two NaNs answer a NaN rather than one of the operands a comparison chain could fall
+        -- through to.
+        if !all(isNaN(minNumber(nanVec, nanVec))) then wrong += 1
+        if !all(isNaN(maxNumber(nanVec, nanVec))) then wrong += 1
+        i += 1
+
+    return wrong
+
+-- The round trip, which is the one check that reaches all three of §3.7's names at once: a positive
+-- normal taken apart and put back together is itself.
+fn roundTripCases() -> Int:
+    let &wrong = 0
+    let &i = 0
+
+    while i < 8:
+        let value = sample(i)
+        let wide = splat(value) :: Vec(F64)
+        let narrow = splat(truncate(value) :: Float) :: Vec(F32)
+
+        if !nearDouble(scaleByExponent(significandOf(wide), exponentOf(wide)), value) then wrong += 1
+        if !nearFloat(scaleByExponent(significandOf(narrow), exponentOf(narrow)), value) then wrong += 1
+        i += 1
+
+    return wrong
+
+fn main() -> Int:
+    let total = exponentCases() + scaleCases() + fractionCases() + orderCases() + roundTripCases()
+
+    print("{total}")
+    return total

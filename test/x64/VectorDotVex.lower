@@ -1,0 +1,28 @@
+# `VectorDot.lower` at `avx2`, where the same sequence is VEX-encoded and has a 256-bit row.
+#
+# extensions: avx2
+#
+# Still no VNNI - `vpdpbusd` arrives with Ice Lake - so `expandVectorDotProducts` runs here too and
+# what changes is only the encoding: `vpmaddwd` and three-operand shifts, at xmm and at ymm both.
+
+words(%acc: i32x4, %a: i16x8, %b: i16x8): i32x4 {
+    {
+        %r = vdotwords %acc, %a, %b: i32x4
+        ret %r
+    }
+}
+
+bytes(%acc: i32x4, %u: i8x16, %s: i8x16): i32x4 {
+    {
+        %r = vdotbytes %acc, %u, %s: i32x4
+        ret %r
+    }
+}
+
+wide(%acc: i32x8, %a: i16x16, %u: i8x32, %s: i8x32): i32x8 {
+    {
+        %w = vdotwords %acc, %a, %a: i32x8
+        %b = vdotbytes %acc, %u, %s: i32x8
+        ret %w
+    }
+}

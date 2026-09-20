@@ -139,6 +139,11 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         // turned it into an `and` against a pooled mask, which is `OpVAnd`.
         case LowerInst::Abs: return OpVAbs;
 
+        // The two packed bit counts, which are two opcodes because they are two instructions at two
+        // extension bits - see `LowerInst::X86VecCount`.
+        case LowerInst::X86VecCount:
+            return ((LowerInstX86VecCount*)inst)->isLeading() ? OpVLeadingZeros : OpVPopcount;
+
         // The two that are one opcode across both banks: `sqrtss` and `sqrtps` differ in a mandatory
         // prefix, so a scalar square root and a packed one are the same machine operation at two
         // widths rather than two operations. Same for `vfmadd213`.
@@ -155,6 +160,30 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::CryptoBinary:
         case LowerInst::AesInverseMix:
         case LowerInst::AesKeygenAssist: return OpCrypto;
+
+        // The four saturating lane rows, two opcodes on `OpVMin`'s terms: the signedness is the
+        // form's answer, and only a byte or a word lane reaches here at all.
+        case LowerInst::SatAdd:
+        case LowerInst::ISatAdd: return OpVSatAdd;
+        case LowerInst::SatSub:
+        case LowerInst::ISatSub: return OpVSatSub;
+
+        // The AVX-512 float operations, one opcode per operand shape on the same terms: which of the
+        // five instructions one is is the form's answer, and the lane width's.
+        case LowerInst::GetExponent:
+        case LowerInst::GetMantissa:
+        case LowerInst::FpReduce:   return OpVFloatAdjust;
+        case LowerInst::ScaleFloat:
+        case LowerInst::RangeFloat: return OpVFloatCombine;
+
+        // The widening multiply-accumulates, one opcode per group on the same terms: which of the
+        // four instructions one is is the form's answer. `X86MulAddWords` is `pmaddwd`, which has
+        // one row and one width family of its own.
+        case LowerInst::DotBytes:
+        case LowerInst::DotWords:    return OpVDotProduct;
+        case LowerInst::MulAdd52Lo:
+        case LowerInst::MulAdd52Hi:  return OpVMulAdd52;
+        case LowerInst::X86MulAddWords: return OpVMulAddWords;
 
         // The three directed roundings, which are one instruction with the mode in a trailing byte -
         // so one op here, exactly as the four square roots are one. `Round` is absent because
@@ -606,6 +635,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::X86MaskedStore:
         case LowerInst::X86Permute2:
         case LowerInst::X86TernaryLogic:
+        case LowerInst::X86VecCount:
         case LowerInst::VecMove:
         case LowerInst::VecLoadUpTo:
         case LowerInst::VecStoreUpTo:
@@ -621,6 +651,20 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::CryptoBinary:
         case LowerInst::AesInverseMix:
         case LowerInst::AesKeygenAssist:
+        case LowerInst::SatAdd:
+        case LowerInst::ISatAdd:
+        case LowerInst::SatSub:
+        case LowerInst::ISatSub:
+        case LowerInst::GetExponent:
+        case LowerInst::GetMantissa:
+        case LowerInst::FpReduce:
+        case LowerInst::ScaleFloat:
+        case LowerInst::RangeFloat:
+        case LowerInst::DotBytes:
+        case LowerInst::DotWords:
+        case LowerInst::MulAdd52Lo:
+        case LowerInst::MulAdd52Hi:
+        case LowerInst::X86MulAddWords:
             assertTrue("a packed instruction selectPackedForm did not answer for" == nullptr);
             return FormNop;
 

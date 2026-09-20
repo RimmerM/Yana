@@ -167,6 +167,36 @@ YANA_MIR_NATIVE( AesKeygenAssist,   "aeskeygenassist"_v )
 YANA_MIR_NATIVE( CarrylessMultiply, "pclmulqdq"_v       )
 
 /*
+ * The five AVX-512 float operations - Analysis-Avx512.md §3.7, and `lib/Math/Math.avx512.yana`'s
+ * `@replaces` bodies are the only callers.
+ *
+ * Three of them carry the instruction's trailing byte in `NodeNative::immediate`, on
+ * `aeskeygenassist`'s terms: the byte is one of 256 and the operation is not a row per value.
+ * `nativeHasImmediate` names all five that do.
+ */
+YANA_MIR_NATIVE( GetExponent,       "vgetexp"_v         )
+YANA_MIR_NATIVE( GetMantissa,       "vgetmant"_v        )
+YANA_MIR_NATIVE( ReduceFloat,       "vfpreduce"_v       )
+YANA_MIR_NATIVE( ScaleFloat,        "vscalef"_v         )
+YANA_MIR_NATIVE( RangeFloat,        "vrange"_v          )
+
+/*
+ * The four widening multiply-accumulates - Analysis-Avx512.md §3.6.
+ *
+ * The two dot products are **portable**, on the lane movements' terms below: one instruction at
+ * `avx512` and a short sequence below it, which is the backend's to write. The two IFMA rows are
+ * x86's, on the float operations' terms above - fifty-two is the float unit's mantissa and not a
+ * lane width any other target has.
+ *
+ * Three operands each and no immediate: which half of IFMA's product is added in is the row, because
+ * the machine spells it as two opcodes.
+ */
+YANA_MIR_NATIVE( VecDotBytes,       "vdotbytes"_v       )
+YANA_MIR_NATIVE( VecDotWords,       "vdotwords"_v       )
+YANA_MIR_NATIVE( MulAdd52Low,       "vmadd52lo"_v       )
+YANA_MIR_NATIVE( MulAdd52High,      "vmadd52hi"_v       )
+
+/*
  * The lane movements whose control is a value - `compressLanes(v, keep)`, `expand(v, into)` and
  * `lookup(table, indices)`, Analysis-Avx512.md §3.1 and §3.3.
  *

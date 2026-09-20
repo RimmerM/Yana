@@ -1053,18 +1053,32 @@ void Verifier::verifyInstruction(Value& instruction) {
          * The three bit counts, whose two rules are the byte reversal's two rules at a different
          * width set - see the note in inst.def, which is where the set is argued.
          *
-         * A scalar integer of 32 or 64 bits. A vector is refused because a per-lane population count
-         * is a nibble-table shuffle rather than this instruction widened; a narrower width is
-         * refused because the lower IR has no scalar below `Int32` to hold one, so the answer would
-         * be its storage's rather than its own; a `@bits` refinement is refused because a
-         * leading-zero count is a question about a width `WideInt` does not have.
+         * A scalar integer of 32 or 64 bits, **or a vector of integer lanes at any width**
+         * (Analysis-Avx512.md §3.2). The scalar set is narrow because a narrow scalar is some bits
+         * of a wider register, so a count of a `U8` would be a count of its storage; a *lane* is
+         * the whole of itself at every width, which is why `vpopcntb` is an instruction and
+         * `popcnt r8` is not. A `@bits` refinement stays refused, `WideInt`'s 53 bits not being the
+         * width its register has, and so does a mask - its lanes are all-ones or all-zeros, so a
+         * population count of one is `count` said expensively.
          */
         case Value::CountBits:
         case Value::LeadingZeros:
         case Value::TrailingZeros: {
             auto type = instruction.type ? global[instruction.type] : nullptr;
 
-            if(!type || type->kind != Type::Int || vectorLanes(global, instruction.type)) {
+            if(type && type->kind == Type::Vector) {
+                auto& vector = *(VectorType*)type;
+                auto lane = vector.content ? global[vector.content] : nullptr;
+
+                if(vector.isMask || !lane || lane->kind != Type::Int) {
+                    fail(instruction.source, "%%@ counts the bits of a vector whose lanes are not integers"_v,
+                         instruction.id);
+                }
+
+                break;
+            }
+
+            if(!type || type->kind != Type::Int) {
                 fail(instruction.source, "%%@ counts the bits of a value that is not a scalar integer"_v,
                      instruction.id);
             } else {
@@ -1101,6 +1115,24 @@ void Verifier::verifyInstruction(Value& instruction) {
         // had answered `Int32` for it.
         case Value::Crc32: {
             auto type = instruction.type ? global[instruction.type] : nullptr;
+
+            /*
+             * `bitsUpTo` is the one of the four with a **lane-wise** answer, and it has one for the
+             * counts' reason one arm up: the low `count` bits of a lane are the lane's own at every
+             * width. `pext` and `pdep` stay scalar because a gather over a word is what they are,
+             * and `crc32` because a polynomial over a run of bytes is.
+             */
+            if(instruction.kind == Value::BitsUpTo && type && type->kind == Type::Vector) {
+                auto& vector = *(VectorType*)type;
+                auto lane = vector.content ? global[vector.content] : nullptr;
+
+                if(vector.isMask || !lane || lane->kind != Type::Int) {
+                    fail(instruction.source, "%%@ selects bits of a vector whose lanes are not integers"_v,
+                         instruction.id);
+                }
+
+                break;
+            }
 
             if(!type || type->kind != Type::Int || vectorLanes(global, instruction.type)) {
                 fail(instruction.source, "%%@ operates on the bits of a value that is not a scalar integer"_v,
@@ -1161,6 +1193,84 @@ void Verifier::verifyInstruction(Value& instruction) {
 
             if(!ok) {
                 fail(instruction.source, "%%@ is an AES or carryless-multiply instruction over something that is not a 128-bit block (or two, where the instruction has a wide form) of the lanes it reads"_v,
+                     instruction.id);
+            }
+
+            break;
+        }
+
+        /*
+         * The two saturating lane operations - integer lanes, and a *vector* of them. The scalar
+         * shape is refused here rather than left to the backends: nothing declares one, so a scalar
+         * saturating add would be machinery no fixture reaches.
+         */
+        case Value::SaturatingAdd:
+        case Value::SaturatingSub: {
+            auto lane = vectorLane(global, instruction.type);
+
+            if(!lane || global[lane]->kind != Type::Int) {
+                fail(instruction.source, "%%@ is a saturating lane operation over something that is not a vector of integers"_v,
+                     instruction.id);
+            }
+
+            break;
+        }
+
+        /*
+         * The AVX-512 float operations. Float lanes, and a *vector* of them: each is declared over
+         * `Vec(a, n)` in `lib/Native/Intrinsic/X86.yana`, the scalar spellings of these instructions
+         * (`vgetexpss` and the rest) not being reached from anywhere and so not being carried here.
+         */
+        case Value::FloatAdjust:
+        case Value::FloatCombine: {
+            auto lane = vectorLane(global, instruction.type);
+
+            if(!lane || global[lane]->kind != Type::Float) {
+                fail(instruction.source, "%%@ is an AVX-512 float operation over something that is not a vector of floats"_v,
+                     instruction.id);
+            }
+
+            break;
+        }
+
+        /*
+         * The widening multiply-accumulates. Three vectors of integer lanes, the accumulator as wide
+         * as the result, and **as many narrow lanes as the grouping reads** - four per accumulator
+         * lane for `DotBytes`, two for `DotWords`, one for IFMA's pair.
+         *
+         * The last of those is the rule worth a verifier: it is the one thing the signature cannot
+         * state, so it is checked at the call by `emitMulAccumulate` and then again here, which is
+         * where a later pass that rewrote an operand would be caught.
+         */
+        case Value::MulAccumulate: {
+            auto& muladd = (InstMulAccumulate&)instruction;
+            auto lane = vectorLane(global, instruction.type);
+
+            if(!lane || global[lane]->kind != Type::Int) {
+                fail(instruction.source, "%%@ accumulates products into something that is not a vector of integers"_v,
+                     instruction.id);
+                break;
+            }
+
+            if(!muladd.acc || !muladd.lhs || !muladd.rhs) {
+                fail(instruction.source, "%%@ multiplies and accumulates values that are not all there"_v,
+                     instruction.id);
+                break;
+            }
+
+            auto group = muladd.op == MulAccumulateOp::DotBytes ? 4
+                       : muladd.op == MulAccumulateOp::DotWords ? 2 : 1;
+
+            // The lane *counts* rather than the types: `DotBytes` reads its first operand as
+            // unsigned bytes and its second as signed ones, so the two are deliberately not one
+            // type. Which signedness each is is the emitter's check, at the call.
+            auto narrow = local[muladd.lhs]->type;
+            auto other = local[muladd.rhs]->type;
+            auto want = vectorLanes(global, instruction.type) * U32(group);
+
+            if(local[muladd.acc]->type != instruction.type
+               || vectorLanes(global, narrow) != want || vectorLanes(global, other) != want) {
+                fail(instruction.source, "%%@ reads a number of narrow lanes its grouping does not divide"_v,
                      instruction.id);
             }
 

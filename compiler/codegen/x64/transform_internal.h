@@ -298,6 +298,18 @@ void expandByteMul(Context&, LowerBase base, LowerFunction& fun);
 void expandQuadwordMul(Context&, LowerBase base, LowerFunction& fun);
 void expandVectorMulHi(Context&, LowerBase base, LowerFunction& fun);
 void scalarizeVectorLanes(Context&, LowerBase base, LowerFunction& fun);
+
+// The three bit counts and `bitsUpTo` over a vector - Analysis-Avx512.md §3.2. Above
+// `splitFullVectors`, `lowerVectorMoves` and `expandByteShifts`; see the header above the pass.
+void expandVectorBitCounts(Context&, LowerBase base, LowerFunction& fun);
+
+// The two saturating lane operations at a width the machine has no instruction for - the doubleword
+// and quadword lanes, x86 having `paddsb` and its seven siblings at bytes and words only.
+void expandVectorSaturating(Context&, LowerBase base, LowerFunction& fun);
+
+// The two widening multiply-accumulates where the level has no VNNI - `pmaddwd` and a handful of
+// shifts. Beside `expandVectorSaturating` and above `splitFullVectors`, for its reasons.
+void expandVectorDotProducts(Context&, LowerBase base, LowerFunction& fun);
 void expandFusedMultiplyAdd(Context&, LowerBase base, LowerFunction& fun);
 void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun);
 void chooseMaskDomain(Context&, LowerBase base, LowerFunction& fun);

@@ -277,6 +277,14 @@ enum: MachineFormId {
     FormVCmpEq8, FormVCmpEq16, FormVCmpEq32, FormVCmpEq64,
     FormVCmpGt8, FormVCmpGt16, FormVCmpGt32, FormVCmpGt64,
     FormVCmpF32, FormVCmpF64,
+    // The eight saturating rows, which exist at a byte and a word lane and nowhere wider -
+    // `expandVectorSaturating` writes the sequence for a doubleword and a quadword lane.
+    FormVSatAddI8, FormVSatAddU8, FormVSatAddI16, FormVSatAddU16,
+    FormVSatSubI8, FormVSatSubU8, FormVSatSubI16, FormVSatSubU16,
+
+    // `pmaddwd`, SSE2 - what `expandVectorDotProducts` writes where the level has no VNNI.
+    FormVMulAddWords,
+
     /*
      * The lane-wise minimum and maximum, which is the one packed family with a column per
      * *signedness* as well as per lane width: `pminsb` and `pminub` are two instructions where
@@ -463,6 +471,13 @@ enum: MachineFormId {
     FormVWideCmpEq8, FormVWideCmpEq16, FormVWideCmpEq32, FormVWideCmpEq64,
     FormVWideCmpGt8, FormVWideCmpGt16, FormVWideCmpGt32, FormVWideCmpGt64,
     FormVWideCmpF32, FormVWideCmpF64,
+    // The eight saturating rows' 256-bit twins.
+    FormVWideSatAddI8, FormVWideSatAddU8, FormVWideSatAddI16, FormVWideSatAddU16,
+    FormVWideSatSubI8, FormVWideSatSubU8, FormVWideSatSubI16, FormVWideSatSubU16,
+
+    // `vpmaddwd ymm`, AVX2.
+    FormVWideMulAddWords,
+
     FormVWideMinI8, FormVWideMinU8, FormVWideMinI16, FormVWideMinU16,
     FormVWideMinI32, FormVWideMinU32, FormVWideMinF32, FormVWideMinF64,
     FormVWideMaxI8, FormVWideMaxU8, FormVWideMaxI16, FormVWideMaxU16,
@@ -556,6 +571,39 @@ enum: MachineFormId {
     FormVRorVar64, FormVWideRorVar64,
     FormVRol16Imm, FormVWideRol16Imm,
     FormVCastI64ToF64, FormVWideCastI64ToF64,
+
+    // The packed bit counts - Analysis-Avx512.md §3.2, and three extension bits rather than one:
+    // the byte and word population counts are BITALG, the doubleword and quadword ones VPOPCNTDQ,
+    // and the two leading-zero counts CD. There is no packed *trailing* count at any level; see
+    // `expandVectorBitCounts`, which writes one out of a population count at every level.
+    FormVPopcount8, FormVWidePopcount8,
+    FormVPopcount16, FormVWidePopcount16,
+    FormVPopcount32, FormVWidePopcount32,
+    FormVPopcount64, FormVWidePopcount64,
+    FormVLeadingZeros32, FormVWideLeadingZeros32,
+    FormVLeadingZeros64, FormVWideLeadingZeros64,
+
+    // The five AVX-512 float operations - Analysis-Avx512.md §3.7, `X86.getExponent` and its four
+    // siblings. Two extension bits: `vgetexp`, `vgetmant` and `vscalef` are F, and `vreduce` and
+    // `vrange` are DQ. Each is F32 and F64, and nothing below this level has a form.
+    FormVGetExpF32, FormVWideGetExpF32,
+    FormVGetExpF64, FormVWideGetExpF64,
+    FormVGetMantF32, FormVWideGetMantF32,
+    FormVGetMantF64, FormVWideGetMantF64,
+    FormVFpReduceF32, FormVWideFpReduceF32,
+    FormVFpReduceF64, FormVWideFpReduceF64,
+    FormVScaleF32, FormVWideScaleF32,
+    FormVScaleF64, FormVWideScaleF64,
+    FormVRangeF32, FormVWideRangeF32,
+    FormVRangeF64, FormVWideRangeF64,
+
+    // VNNI's two and IFMA's two - Analysis-Avx512.md §3.6. Each accumulates into its first operand,
+    // which is the tie the forms state. `avx512` implies VNNI and IFMA both (see kFeatureAvx512 in
+    // target.h), so there is no `EvexRow` here for the reason the float rows have none.
+    FormVDotBytes, FormVWideDotBytes,
+    FormVDotWords, FormVWideDotWords,
+    FormVMulAdd52Lo, FormVWideMulAdd52Lo,
+    FormVMulAdd52Hi, FormVWideMulAdd52Hi,
 
     // The truncating narrowings, which exist only where the narrow result is still a whole register:
     // a 256-bit vector of one lane width becoming a 128-bit vector of half that width.

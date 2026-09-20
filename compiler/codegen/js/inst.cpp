@@ -3510,6 +3510,9 @@ static JsPtr<Expr> maskBinary(Gen& g, Value::Kind kind, JsPtr<Expr> lhs, JsPtr<E
     }
 }
 
+static JsPtr<Expr> laneBitsUpTo(Gen& g, TypePtr lane, JsPtr<Expr> value, JsPtr<Expr> count);
+static JsPtr<Expr> laneSaturating(Gen& g, Value::Kind kind, TypePtr lane, JsPtr<Expr> lhs, JsPtr<Expr> rhs);
+
 static void genVecBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
     auto type = instruction.type;
     auto lanes = laneCount(g, type);
@@ -3520,11 +3523,121 @@ static void genVecBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instructi
     auto element = laneType(g, type);
 
     for(U32 i = 0; i < lanes; i++) {
-        parts.lanes[i] = mask ? maskBinary(g, instruction.kind, lhs.lanes[i], rhs.lanes[i])
-                              : laneBinary(g, instruction.kind, element, lhs.lanes[i], rhs.lanes[i]);
+        if(instruction.kind == Value::BitsUpTo) {
+            parts.lanes[i] = coerce(g, element,
+                                    laneBitsUpTo(g, element, lhs.lanes[i], rhs.lanes[i]));
+        } else if(instruction.kind == Value::SaturatingAdd || instruction.kind == Value::SaturatingSub) {
+            parts.lanes[i] = coerce(g, element,
+                                    laneSaturating(g, instruction.kind, element, lhs.lanes[i], rhs.lanes[i]));
+        } else {
+            parts.lanes[i] = mask ? maskBinary(g, instruction.kind, lhs.lanes[i], rhs.lanes[i])
+                                  : laneBinary(g, instruction.kind, element, lhs.lanes[i], rhs.lanes[i]);
+        }
     }
 
     defineVec(g, pointer, parts);
+}
+
+/*
+ * The three bit counts at a **lane**, which is the one place a width narrower than the two
+ * `Core.Bits` is declared at appears - Analysis-Avx512.md §3.2, where `Bits(Vec(a, n))` is instanced
+ * at every integer lane width and the scalar class stays at thirty-two and sixty-four.
+ *
+ * The helpers count a 32-bit word, so a byte or word lane is counted there and corrected. The lane
+ * arrives as a *signed* host number wherever its type is signed, so the correction starts by masking
+ * it to its own bits - otherwise `countBits` of `-1 :: I8` would be thirty-two.
+ *
+ *   countBits      $popcount32(v & mask)
+ *   leadingZeros   Math.clz32(v & mask) - (32 - bits)
+ *   trailingZeros  $ctz32((v & mask) | (1 << bits))
+ *
+ * The trailing count's extra bit is what gives the zero lane the language's answer - the lane's own
+ * width - without a test: it is the lowest set bit of every value the mask cannot hold, and it is
+ * above every bit the mask can.
+ */
+static JsPtr<Expr> laneBitCount(Gen& g, Value::Kind kind, TypePtr lane, JsPtr<Expr> value) {
+    auto bits = U32(heldBits(g, *(IntType*)g.global[canonicalType(g.global, lane)]));
+    if(bits >= 32) return bitCountCall(g, kind, lane, value);
+
+    auto masked = binary(g, BinaryOp::And, value, number(g, F64((U64(1) << bits) - 1)));
+
+    if(kind == Value::LeadingZeros) {
+        return binary(g, BinaryOp::Sub, bitCountCall(g, kind, lane, masked),
+                      number(g, F64(32 - bits)));
+    }
+
+    if(kind == Value::TrailingZeros) {
+        masked = binary(g, BinaryOp::Or, masked, number(g, F64(U64(1) << bits)));
+    }
+
+    return bitCountCall(g, kind, lane, masked);
+}
+
+/*
+ * `bitsUpTo` at a lane, on the same terms.
+ *
+ * A narrow lane masks both operands to its own width first. The value's mask is what makes a signed
+ * lane's high bits stop existing, and the *count's* is the unsigned reading the operation's ruling
+ * asks for - a count of `-1 :: I8` is 255 and saturates. `$bzhi32` then answers correctly at every
+ * count: below the lane's width it masks, and at or above it the masked value is already the whole
+ * lane, so both of its arms are the lane's own answer.
+ */
+static JsPtr<Expr> laneBitsUpTo(Gen& g, TypePtr lane, JsPtr<Expr> value, JsPtr<Expr> count) {
+    auto bits = U32(heldBits(g, *(IntType*)g.global[canonicalType(g.global, lane)]));
+    if(bits >= 32) return bitOpCall(g, Value::BitsUpTo, lane, value, count);
+
+    auto width = number(g, F64((U64(1) << bits) - 1));
+    return bitOpCall(g, Value::BitsUpTo, lane,
+                     binary(g, BinaryOp::And, value, width),
+                     binary(g, BinaryOp::And, count, width));
+}
+
+/*
+ * `saturatingAdd` and `saturatingSub` at a lane - Analysis-Avx512.md §3.8, and the two clamping
+ * operations of `Core.Vector`.
+ *
+ * **The sum is exact before it is clamped**, which is what makes one formula serve every lane width
+ * here. A lane of 32 bits or fewer is a host `number`, and the sum of two of them is below 2^33 -
+ * well inside the 2^53 a double holds exactly; a 64-bit lane is a `bigint`, whose arithmetic is
+ * exact by construction. So neither addend has wrapped by the time the comparison looks at it, which
+ * is precisely the mistake `min(a + b, maxValue())` makes in source.
+ *
+ * The bounds are built through `constantValue` at the *lane's* type, so a `bigint` lane gets `bigint`
+ * literals and the comparisons stay inside one domain - mixing the two throws on this target.
+ *
+ * The coercion the caller wraps this in is the identity for every answer, the value being inside the
+ * lane's range by construction; it is left there so that a lane leaves this function in the normal
+ * form every other one does.
+ */
+static JsPtr<Expr> laneBound(Gen& g, TypePtr lane, U64 bits) {
+    ConstInt constant(nullptr, lane, bits);
+    return constantValue(g, constant);
+}
+
+static JsPtr<Expr> laneSaturating(Gen& g, Value::Kind kind, TypePtr lane, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
+    auto integer = (IntType*)g.global[canonicalType(g.global, lane)];
+    auto width = U32(heldBits(g, *integer));
+    auto sign = U64(1) << (width - 1);
+    auto mask = width >= 64 ? ~U64(0) : (U64(1) << width) - 1;
+
+    auto low = laneBound(g, lane, integer->isSigned ? sign : 0);
+    auto high = laneBound(g, lane, integer->isSigned ? sign - 1 : mask);
+
+    auto op = kind == Value::SaturatingAdd ? BinaryOp::Add : BinaryOp::Sub;
+    auto exact = [&]() { return binary(g, op, lhs, rhs); };
+
+    // A `number` lane clamps through `Math`, where each subexpression is written once. A `bigint`
+    // lane has no such pair on this target, so the comparison chain writes the sum three times -
+    // which is three heap additions and is what a 64-bit saturating lane costs here. It is left that
+    // way rather than given a module helper because nothing in the library reaches it: a saturating
+    // operation is a fixed-range one, and a fixed range of 64 bits is not one.
+    if(!isLong(g, lane)) {
+        return hostCall(g, "Math"_v, "min"_v,
+                        hostCall(g, "Math"_v, "max"_v, exact(), low), high);
+    }
+
+    return ternary(g, binary(g, BinaryOp::Lt, exact(), low), low,
+                   ternary(g, binary(g, BinaryOp::Gt, exact(), high), high, exact()));
 }
 
 static void genVecUnary(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
@@ -3565,6 +3678,9 @@ static void genVecUnary(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction
             } else {
                 parts.lanes[i] = coerce(g, element, hostCall(g, "Math"_v, "abs"_v, lane));
             }
+        } else if(instruction.kind == Value::CountBits || instruction.kind == Value::LeadingZeros
+                  || instruction.kind == Value::TrailingZeros) {
+            parts.lanes[i] = coerce(g, element, laneBitCount(g, instruction.kind, element, lane));
         } else {
             parts.lanes[i] = coerce(g, element, unary(g, UnaryOp::BitNot, lane));
         }
@@ -3597,6 +3713,49 @@ static void genVecFma(Gen& g, ModulePtr<Value> pointer, InstFma& instruction) {
     for(U32 i = 0; i < lanes; i++) {
         auto product = coerce(g, element, binary(g, BinaryOp::Mul, a.lanes[i], b.lanes[i]));
         parts.lanes[i] = coerce(g, element, binary(g, BinaryOp::Add, product, c.lanes[i]));
+    }
+
+    defineVec(g, pointer, parts);
+}
+
+/*
+ * The two portable widening multiply-accumulates - `accumulateByteProducts` and
+ * `accumulateWordProducts`, Analysis-Avx512.md §3.6.
+ *
+ * A vector is `lanes` host values here, so this is the definition written out: each accumulator lane
+ * gets its group's products added to it one at a time, and the coercion at the end is what wraps the
+ * sum back into 32 bits the way `+` over an `I32` does.
+ *
+ * **Every product is exact before the sum wraps**, which needs no arrangement on this target: a byte
+ * product is below 2^15 in magnitude and a word product below 2^31, so the running total stays far
+ * inside the 2^53 a double holds. The lanes arrive as signed host numbers wherever the lane type is
+ * signed, which is exactly the reading `vpdpbusd` and `vpdpwssd` give them - an unsigned first
+ * product operand for the byte form and signed everything else - so nothing here has to mask.
+ *
+ * IFMA's pair has no case here: its declarations are `@platform(avx512)` and there is no such
+ * JavaScript build.
+ */
+static void genVecMulAccumulate(Gen& g, ModulePtr<Value> pointer, InstMulAccumulate& instruction) {
+    auto type = instruction.type;
+    auto lanes = laneCount(g, type);
+    auto element = laneType(g, type);
+    auto group = instruction.op == MulAccumulateOp::DotBytes ? 4u : 2u;
+
+    auto acc = vecPartsOf(g, instruction.acc);
+    auto lhs = vecPartsOf(g, instruction.lhs);
+    auto rhs = vecPartsOf(g, instruction.rhs);
+    auto parts = newVecParts(g, lanes);
+
+    for(U32 i = 0; i < lanes; i++) {
+        auto sum = acc.lanes[i];
+
+        for(U32 k = 0; k < group; k++) {
+            auto at = i * group + k;
+            auto product = binary(g, BinaryOp::Mul, lhs.lanes[at], rhs.lanes[at]);
+            sum = binary(g, BinaryOp::Add, sum, product);
+        }
+
+        parts.lanes[i] = coerce(g, element, sum);
     }
 
     defineVec(g, pointer, parts);
@@ -3966,6 +4125,12 @@ bool genVectorInst(Gen& g, ModulePtr<Value> pointer, Inst& instruction) {
         case Value::Shl: case Value::Shr: case Value::Sar:
         case Value::Rol: case Value::Ror:
         case Value::And: case Value::Or: case Value::Xor:
+        // `bitsUpTo` joins them - the one of the three bit-field operations with a lane-wise
+        // meaning, and the one `Bits(Vec(a, n))` declares. `pext` and `pdep` have none and are
+        // refused above this tier.
+        case Value::BitsUpTo:
+        case Value::SaturatingAdd:
+        case Value::SaturatingSub:
             genVecBinary(g, pointer, (InstBinary&)instruction);
             return true;
         case Value::Neg:
@@ -3976,10 +4141,18 @@ bool genVectorInst(Gen& g, ModulePtr<Value> pointer, Inst& instruction) {
         case Value::Floor:
         case Value::Ceil:
         case Value::Round:
+        // The three counts, which `Bits(Vec(a, n))` gives every integer lane width - see
+        // `laneBitCount`, which is where the narrow widths are corrected for.
+        case Value::CountBits:
+        case Value::LeadingZeros:
+        case Value::TrailingZeros:
             genVecUnary(g, pointer, (InstUnary&)instruction);
             return true;
         case Value::Fma:
             genVecFma(g, pointer, (InstFma&)instruction);
+            return true;
+        case Value::MulAccumulate:
+            genVecMulAccumulate(g, pointer, (InstMulAccumulate&)instruction);
             return true;
         case Value::Select:
             genVecSelect(g, pointer, (InstSelect&)instruction);

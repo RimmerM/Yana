@@ -1,0 +1,42 @@
+
+words<complex>(%acc: i32x4, %a: i16x8, %b: i16x8): i32x4 {
+  b_0 {
+    %r = vdotwords %acc, %a, %b: i32x4
+    ret %r
+  }
+}
+
+bytes<complex>(%acc: i32x4, %u: i8x16, %s: i8x16): i32x4 {
+  b_0 {
+    %r = vdotbytes %acc, %u, %s: i32x4
+    ret %r
+  }
+}
+
+
+--- codegen: words ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_pmaddwd uses=[xmm1, xmm2] creates=[xmm1]  => 660ff5ca
+  add uses=[xmm0, xmm1] creates=[xmm0]  => 660ffec1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: bytes ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  imm uses=[] creates=[-]  => 
+  shl uses=[xmm3, -] creates=[xmm3] pre=[xmm1->xmm3]  => 0f28d9660f71f308
+  shr uses=[xmm3, -] creates=[xmm3]  => 660f71d308
+  shr uses=[xmm1, -] creates=[xmm1]  => 660f71d108
+  shl uses=[xmm4, -] creates=[xmm4] pre=[xmm2->xmm4]  => 0f28e2660f71f408
+  sar uses=[xmm4, -] creates=[xmm4]  => 660f71e408
+  sar uses=[xmm2, -] creates=[xmm2]  => 660f71e208
+  x86_pmaddwd uses=[xmm3, xmm4] creates=[xmm3]  => 660ff5dc
+  x86_pmaddwd uses=[xmm1, xmm2] creates=[xmm1]  => 660ff5ca
+  add uses=[xmm0, xmm3] creates=[xmm0]  => 660ffec3
+  add uses=[xmm0, xmm1] creates=[xmm0]  => 660ffec1
+  ret uses=[xmm0] creates=[]  => c3

@@ -701,6 +701,14 @@ U8 packedTrailingByte(LowerBase base, LowerInst* inst) {
         case LowerInst::AesKeygenAssist:
             return ((LowerInstAesKeygenAssist*)inst)->roundConstant();
 
+        // The control byte of `vgetmant`, `vreduce` and `vrange`, which is each one's `flags`. Only
+        // those three rows declare `patternImmediate`, so `vgetexp` and `vscalef` never reach here.
+        case LowerInst::GetMantissa:
+        case LowerInst::FpReduce:
+            return ((LowerInstFloatAdjust*)inst)->control();
+        case LowerInst::RangeFloat:
+            return ((LowerInstFloatCombine*)inst)->control();
+
         // The truth table, which is the instruction's own field.
         case LowerInst::X86TernaryLogic:
             return ((LowerInstX86TernaryLogic*)inst)->getTable();
@@ -1502,6 +1510,28 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             return packedForm(kNegate, type);
         }
 
+        /*
+         * The two packed bit counts, at the lanes AVX-512 has a row for - Analysis-Avx512.md §3.2.
+         *
+         * The population count at all four, the leading-zero count at the two wide ones alone: CD
+         * has `vplzcntd` and `vplzcntq` and nothing narrower. `expandVectorBitCounts` is what asks
+         * `hasEvexRow` before building one, so a zero here would be that pass and this table
+         * disagreeing rather than a gap.
+         */
+        case LowerInst::X86VecCount: {
+            static const MachineFormId kPopcount[6] = {
+                FormVPopcount8, FormVPopcount16, FormVPopcount32, FormVPopcount64, 0, 0,
+            };
+            static const MachineFormId kLeading[6] = {
+                0, 0, FormVLeadingZeros32, FormVLeadingZeros64, 0, 0,
+            };
+
+            auto& count = *(LowerInstX86VecCount*)inst;
+            if(!isVectorLike(count.result.type)) return 0;
+
+            return packedForm(count.isLeading() ? kLeading : kPopcount, count.result.type);
+        }
+
         // The magnitude of an integer lane, at the three widths SSSE3 gives one.
         case LowerInst::Abs: {
             // The quadword is `vpabsq`, which `expandVectorAbs` leaves standing only where the target
@@ -1580,6 +1610,78 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             return FormAesInverseMix;
         case LowerInst::AesKeygenAssist:
             return FormAesKeygenAssist;
+
+        /*
+         * The four saturating lane rows, at the two lane widths the machine has an instruction for -
+         * `expandVectorSaturating` has already replaced every wider one, so a lane that reaches this
+         * with no entry in the table is that pass having missed it.
+         */
+        case LowerInst::SatAdd:
+        case LowerInst::ISatAdd:
+        case LowerInst::SatSub:
+        case LowerInst::ISatSub: {
+            static const MachineFormId kAddSigned[6]   = { FormVSatAddI8, FormVSatAddI16, 0, 0, 0, 0 };
+            static const MachineFormId kAddUnsigned[6] = { FormVSatAddU8, FormVSatAddU16, 0, 0, 0, 0 };
+            static const MachineFormId kSubSigned[6]   = { FormVSatSubI8, FormVSatSubI16, 0, 0, 0, 0 };
+            static const MachineFormId kSubUnsigned[6] = { FormVSatSubU8, FormVSatSubU16, 0, 0, 0, 0 };
+
+            auto type = ((LowerInstSaturating*)inst)->result.type;
+
+            switch(inst->kind) {
+                case LowerInst::ISatAdd: return packedForm(kAddSigned, type);
+                case LowerInst::SatAdd:  return packedForm(kAddUnsigned, type);
+                case LowerInst::ISatSub: return packedForm(kSubSigned, type);
+                default:                 return packedForm(kSubUnsigned, type);
+            }
+        }
+
+        /*
+         * The five AVX-512 float operations - Analysis-Avx512.md §3.7. Two rows each, F32 and F64,
+         * reached through `widthForm` for the 256- and 512-bit widths the twins and
+         * `registerFullForms` supply.
+         */
+        case LowerInst::GetExponent:
+        case LowerInst::GetMantissa:
+        case LowerInst::FpReduce:
+        case LowerInst::ScaleFloat:
+        case LowerInst::RangeFloat: {
+            auto type = ((LowerInstSingle*)inst)->result.type;
+            auto single = laneBytes(type.lane) == 4;
+            auto narrow = inst->kind == LowerInst::GetExponent ? (single ? FormVGetExpF32 : FormVGetExpF64)
+                        : inst->kind == LowerInst::GetMantissa ? (single ? FormVGetMantF32 : FormVGetMantF64)
+                        : inst->kind == LowerInst::FpReduce    ? (single ? FormVFpReduceF32 : FormVFpReduceF64)
+                        : inst->kind == LowerInst::ScaleFloat  ? (single ? FormVScaleF32 : FormVScaleF64)
+                                                                : (single ? FormVRangeF32 : FormVRangeF64);
+
+            return widthForm(narrow, type);
+        }
+
+        /*
+         * The four widening multiply-accumulates, and `pmaddwd` beside them. Each has one row per
+         * instruction and the twins supply the two wider registers, so `widthForm` reads the
+         * *result*'s width - which is the register's, the narrow operands being as many bytes.
+         *
+         * A `DotBytes` or a `DotWords` reaches this only where the level has VNNI;
+         * `expandVectorDotProducts` has replaced every other one with a sequence, and
+         * `unsupportedVectorReason` is what refuses one a `.lower` fixture wrote at the wrong level.
+         */
+        case LowerInst::DotBytes:
+        case LowerInst::DotWords:
+        case LowerInst::MulAdd52Lo:
+        case LowerInst::MulAdd52Hi: {
+            auto type = ((LowerInstMulAccumulate*)inst)->result.type;
+            auto narrow = inst->kind == LowerInst::DotBytes   ? FormVDotBytes
+                        : inst->kind == LowerInst::DotWords   ? FormVDotWords
+                        : inst->kind == LowerInst::MulAdd52Lo ? FormVMulAdd52Lo
+                                                               : FormVMulAdd52Hi;
+
+            return widthForm(narrow, type);
+        }
+
+        case LowerInst::X86MulAddWords: {
+            auto type = ((LowerInstX86MulAddWords*)inst)->result.type;
+            return widthForm(FormVMulAddWords, type);
+        }
 
         // The three directed roundings, answered here at every width for `Sqrt`'s reason: `roundss`
         // and `roundps` are one instruction family, so one switch answers for the whole of it. Which
@@ -2503,6 +2605,86 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
         // - an instruction at `avx512`, and `lowerVectorMoves`' tables and lane walks below it.
         case LowerInst::VecMove:
             return {};
+
+        // The two packed bit counts, which `expandVectorBitCounts` builds only where `hasEvexRow`
+        // says the row is there - everything else it has already replaced with a sequence, at every
+        // lane width and every level.
+        case LowerInst::X86VecCount:
+            return {};
+
+        // The four saturating lane rows, which have a route at every level and every lane width - an
+        // instruction at a byte and a word lane, and `expandVectorSaturating`'s sequence above them.
+        case LowerInst::SatAdd:
+        case LowerInst::ISatAdd:
+        case LowerInst::SatSub:
+        case LowerInst::ISatSub:
+            return {};
+
+        /*
+         * The AVX-512 float operations, which have no route below their level and need none: the
+         * declarations are `@platform(avx512)` and the only bodies naming them are in a file whose
+         * name carries the same selector, so what a build below this level runs is the portable
+         * `Real` member rather than an expansion. The refusal is here for `checkVectorSupported`'s
+         * reason - a `.lower` fixture can still write one at the wrong level.
+         */
+        case LowerInst::GetExponent:
+        case LowerInst::GetMantissa:
+        case LowerInst::FpReduce:
+        case LowerInst::ScaleFloat:
+        case LowerInst::RangeFloat:
+            if((targetFeatures() & kFeatureAvx512f) == 0) {
+                return Just("the AVX-512 float operations need a target at that level - `lib/Math/Math.yana`'s own bodies are what a build below it runs, and there is no expansion here"_v);
+            }
+
+            return {};
+
+        /*
+         * The two dot products have a route at every level - an instruction where the target has
+         * VNNI and `expandVectorDotProducts`' sequence below it - so neither is refused here.
+         *
+         * IFMA's two are refused below the level, on the float operations' terms: there is no
+         * 52-bit anything on a machine without the instruction, and what a caller wanting one below
+         * this level needs is a different program rather than a slower spelling of this one.
+         */
+        case LowerInst::DotBytes:
+        case LowerInst::DotWords:
+        case LowerInst::X86MulAddWords:
+            return {};
+
+        case LowerInst::MulAdd52Lo:
+        case LowerInst::MulAdd52Hi:
+            if((targetFeatures() & kFeatureAvx512ifma) == 0) {
+                return Just("the 52-bit multiply-accumulates need a target with AVX-512 IFMA - there is no 52-bit lane on a machine without the instruction, and no expansion here"_v);
+            }
+
+            return {};
+
+        /*
+         * `bitsUpTo` over a vector, and the three bit counts, which reach this check as the same
+         * `BitsUpTo` binary and the same `Popcnt`/`ClzWidth`/`CttzWidth` intrinsics a scalar
+         * produces - Analysis-Avx512.md §3.2. None of the four is refused at any lane width or any
+         * level: `expandVectorBitCounts` has a route for each, an instruction where the level has
+         * one and a sequence where it does not.
+         *
+         * `pext` and `pdep` are **not** here, and a vector one is still refused by the arm below:
+         * there is no lane-wise gather of bits on any machine, and the resolve verifier refuses one
+         * before it could be built. The named intrinsics are therefore the whole of what this admits
+         * rather than every intrinsic with a packed type.
+         */
+        case LowerInst::BitsUpTo:
+            return {};
+
+        case LowerInst::Intrinsic:
+            switch(((LowerInstIntrinsic*)inst)->getIntrinsic()) {
+                case LowerIntrinsic::Popcnt:
+                case LowerIntrinsic::ClzWidth:
+                case LowerIntrinsic::CttzWidth:
+                    return {};
+                default:
+                    break;
+            }
+
+            return Just("this backend has no packed form for this operation"_v);
 
         default:
             return Just("this backend has no packed form for this operation"_v);

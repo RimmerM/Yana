@@ -1,0 +1,64 @@
+# The saturating lane operations at `sse4`, where the byte and word rows are SSE2 and the two wider
+# lanes are a sequence.
+#
+# extensions: sse4
+#
+# Analysis-Avx512.md §3.8, which declined these as an AVX-512 item and not as a library one: every
+# row here is inside the x86-64-v2 floor, which is exactly why they are worth having in `Core` and
+# are not part of that document's own work.
+#
+# `expandVectorSaturating` in codegen/x64/transform_expand.cpp writes the doubleword and quadword
+# sequences, and writes them at every level - no x86 part has a saturating instruction at a lane
+# wider than a word, AVX-512 included. What each sequence tests is the *operands*: the sum has
+# already wrapped by the time it exists, so `min(a + b, maxValue)` is the wrong program.
+#
+# `VectorSaturateVex.lower` and `VectorSaturateEvex.lower` are the same functions at the two levels
+# above, where the eight rows become `vpaddsb ymm` and `vpaddsb zmm`.
+
+# The eight instructions, one call each, at the two lane widths the machine has them for. The signed
+# and unsigned rows are different instructions at the same lane - which is the whole reason the lower
+# IR has four kinds rather than two.
+narrow(%b: i8x16, %c: i8x16, %w: i16x8, %x: i16x8): i8x16 {
+    {
+        %a1 = isatadd %b, %c: i8x16
+        %a2 = satadd %b, %c: i8x16
+        %a3 = isatadd %w, %x: i16x8
+        %a4 = satadd %w, %x: i16x8
+        %s1 = isatsub %b, %c: i8x16
+        %s2 = satsub %b, %c: i8x16
+        %s3 = isatsub %w, %x: i16x8
+        %s4 = satsub %w, %x: i16x8
+        ret %a1
+    }
+}
+
+# The unsigned doubleword pair, which is the shortest of the four sequences: an addition wrapped
+# exactly where the sum is below one of its operands, and a subtraction exactly where the first
+# operand is below the second.
+unsignedWide(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %r = satadd %a, %b: i32x4
+        %s = satsub %a, %b: i32x4
+        ret %r
+    }
+}
+
+# The signed doubleword pair, where the saturated value is read off the first operand's sign rather
+# than chosen by a second comparison.
+signedWide(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %r = isatadd %a, %b: i32x4
+        %s = isatsub %a, %b: i32x4
+        ret %r
+    }
+}
+
+# And the quadword lanes, whose arithmetic shift is `expandQuadwordSar`'s sequence at this level -
+# `vpsraq` being AVX-512's.
+quadwords(%a: i64x2, %b: i64x2): i64x2 {
+    {
+        %r = isatadd %a, %b: i64x2
+        %s = satsub %a, %b: i64x2
+        ret %r
+    }
+}

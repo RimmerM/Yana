@@ -1,0 +1,172 @@
+
+popcounts<complex>(%b: i8x16, %w: i16x8, %d: i32x4, %q: i64x2, %wb: i8x32, %wd: i32x8): i8x16 {
+  b_0 {
+    %rb = popcnt %b: i8x16
+    %rw = popcnt %w: i16x8
+    %rd = popcnt %d: i32x4
+    %rq = popcnt %q: i64x2
+    %sb = popcnt %wb: i8x32
+    %sd = popcnt %wd: i32x8
+    ret %rb
+  }
+}
+
+popcountsFull<complex>(%b: i8x64, %w: i16x32, %d: i32x16, %q: i64x8): i8x64 {
+  b_0 {
+    %rb = popcnt %b: i8x64
+    %rw = popcnt %w: i16x32
+    %rd = popcnt %d: i32x16
+    %rq = popcnt %q: i64x8
+    %lz = clz_width %d: i32x16
+    %s = add %rd, %lz: i32x16
+    ret %rb
+  }
+}
+
+leadingWide<complex>(%d: i32x4, %q: i64x2, %wq: i64x4): i32x4 {
+  b_0 {
+    %rd = clz_width %d: i32x4
+    %rq = clz_width %q: i64x2
+    %sq = clz_width %wq: i64x4
+    ret %rd
+  }
+}
+
+leadingNarrow<complex>(%b: i8x16): i8x16 {
+  b_0 {
+    %r = clz_width %b: i8x16
+    ret %r
+  }
+}
+
+trailing<complex>(%d: i32x4, %q: i64x2): i32x4 {
+  b_0 {
+    %rd = cttz_width %d: i32x4
+    %rq = cttz_width %q: i64x2
+    ret %rd
+  }
+}
+
+upTo<complex>(%d: i32x4, %n: i32x4, %q: i64x4, %m: i64x4): i32x4 {
+  b_0 {
+    %rd = bitsupto %d, %n: i32x4
+    %rq = bitsupto %q, %m: i64x4
+    ret %rd
+  }
+}
+
+
+--- codegen: popcounts ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vpopcnt uses=[xmm0] creates=[xmm0]  => 62f27d0854c0
+  x86_vpopcnt uses=[xmm1] creates=[xmm1]  => 62f2fd0854c9
+  x86_vpopcnt uses=[xmm2] creates=[xmm2]  => 62f27d0855d2
+  x86_vpopcnt uses=[xmm3] creates=[xmm3]  => 62f2fd0855db
+  x86_vpopcnt uses=[xmm4] creates=[xmm4]  => 62f27d2854e4
+  x86_vpopcnt uses=[xmm5] creates=[xmm5]  => 62f27d2855ed
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: popcountsFull ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vpopcnt uses=[xmm0] creates=[xmm0]  => 62f27d4854c0
+  x86_vpopcnt uses=[xmm1] creates=[xmm1]  => 62f2fd4854c9
+  x86_vpopcnt uses=[xmm2] creates=[xmm1]  => 62f27d4855ca
+  x86_vpopcnt uses=[xmm3] creates=[xmm3]  => 62f2fd4855db
+  x86_vplzcnt uses=[xmm2] creates=[xmm2]  => 62f27d4844d2
+  add uses=[xmm1, xmm2] creates=[xmm1]  => 62f17548feca
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: leadingWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_vplzcnt uses=[xmm0] creates=[xmm0]  => 62f27d0844c0
+  x86_vplzcnt uses=[xmm1] creates=[xmm1]  => 62f2fd0844c9
+  x86_vplzcnt uses=[xmm2] creates=[xmm2]  => 62f2fd2844d2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: leadingNarrow ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fa6f0d08010000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fa6f1530010000
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shr uses=[xmm0, -] creates=[xmm3]  => c5e171d001
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  x86_addr [rip + $v032$7f7f7f7f] uses=[] creates=[-]  => 
+  x86_ternarylogic uses=[xmm3, xmm0, -] creates=[xmm3]  => 62f37d18251d30010000ec
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  shr uses=[xmm3, -] creates=[xmm0]  => c5f971d302
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  x86_addr [rip + $v032$3f3f3f3f] uses=[] creates=[-]  => 
+  x86_ternarylogic uses=[xmm0, xmm3, -] creates=[xmm0]  => 62f36518250524010000ec
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shr uses=[xmm0, -] creates=[xmm3]  => c5e171d004
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  x86_ternarylogic uses=[xmm3, xmm0, xmm1] creates=[xmm3]  => 62f37d0825d9ec
+  x86_vpopcnt uses=[xmm3] creates=[xmm3]  => 62f27d0854db
+  sub uses=[xmm2, xmm3] creates=[xmm0]  => c5e9f8c3
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: trailing ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm2]  => c5e9efd2
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm3]  => c5e1efdb
+  sub uses=[xmm3, xmm0] creates=[xmm3]  => c5e1fad8
+  and uses=[xmm0, xmm3] creates=[xmm0]  => c5f9dbc3
+  x86_addr [rip + $v128$01000000010000000100000001000000] uses=[] creates=[-]  => 
+  sub uses=[xmm0, -] creates=[xmm0]  => c5f9fa0508010000
+  x86_vpopcnt uses=[xmm0] creates=[xmm0]  => 62f27d0855c0
+  sub uses=[xmm2, xmm1] creates=[xmm2]  => c5e9fbd1
+  and uses=[xmm1, xmm2] creates=[xmm1]  => c5f1dbca
+  x86_addr [rip + $v128$01000000000000000100000000000000] uses=[] creates=[-]  => 
+  sub uses=[xmm1, -] creates=[xmm1]  => c5f1fb0de2000000
+  x86_vpopcnt uses=[xmm1] creates=[xmm1]  => 62f2fd0855c9
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: upTo ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm4]  => c5dd76e4
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm5]  => c5fe6f2de4000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm6]  => c5fe6f35fc000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm7]  => c5fe6f3d14010000
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm8]  => c4413976c0
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm9]  => c57a6f0db7000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm10]  => c57a6f152f010000
+  x86_masktestnot uses=[xmm1, xmm10] creates=[k1]  => 62d2760827ca
+  x86_addr [rip + $v128$1f0000001f0000001f0000001f000000] uses=[] creates=[-]  => 
+  and uses=[xmm1, -] creates=[xmm1]  => c5f1db0d11010000
+  shl uses=[xmm9, xmm1] creates=[xmm1]  => c4e23147c9
+  sub uses=[xmm1, xmm9] creates=[xmm1]  => c4c171fac9
+  select uses=[xmm1, xmm8, k1] creates=[xmm8]  => 62717e096fc1
+  and uses=[xmm0, xmm8] creates=[xmm0]  => c4c179dbc0
+  x86_masktestnot uses=[xmm3, xmm7] creates=[k1]  => 62f2e62827cf
+  and uses=[xmm3, xmm5] creates=[xmm3]  => c5e5dbdd
+  shl uses=[xmm6, xmm3] creates=[xmm1]  => c4e2cd47cb
+  sub uses=[xmm1, xmm6] creates=[xmm1]  => c5f5fbce
+  select uses=[xmm1, xmm4, k1] creates=[xmm4]  => 62f1fe296fe1
+  and uses=[xmm2, xmm4] creates=[xmm2]  => c5eddbd4
+  ret uses=[xmm0] creates=[]  => c3

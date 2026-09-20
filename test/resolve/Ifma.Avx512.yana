@@ -1,0 +1,103 @@
+{-
+   `X86.multiplyAdd52Low` and `X86.multiplyAdd52High` - IFMA, Analysis-Avx512.md §3.6.
+
+   # extensions: avx512
+
+   The one family of §3.6 with **no route below the level**, which is what this fixture's being an
+   `.Avx512` one with no siblings says: fifty-two is the float unit's mantissa, and a machine without
+   `vpmadd52luq` has no 52-bit lane to emulate one with. `unsupportedVectorReason` refuses a call
+   below the level with a diagnostic; here they are the instructions.
+
+   Each multiplies the low 52 bits of two 64-bit lanes into a 104-bit product and adds one half of it
+   into the accumulator - the low 52 bits, or bits 103:52. Four things are worth checking and all
+   four are below:
+
+   - **which half each takes.** `2^26 * 2^26` is exactly `2^52`, so its low half is zero and its high
+     half is one. A pair that got the halves the wrong way round answers those two swapped and
+     nothing else in this fixture would notice.
+   - **that the accumulator is added to rather than replaced**, and that its bits above 52 survive.
+   - **that the top twelve bits of each source lane are ignored** rather than multiplied. The machine
+     reads `a[51:0]`, so setting bit 52 of an operand must change nothing.
+   - **that the addition wraps at 64** the way `+` over a `U64` does.
+
+   Every check is over the whole register through `all`. The function answers the number of
+   disagreements and the program answers the total, which is zero.
+-}
+import Native
+
+-- `2 ^ n` as a `U64`, which is how every boundary below is written: a shift of an `Int` literal
+-- answers an `I32` and none of these fits in one.
+fn bit(n: U64) -> U64 = (1 :: U64) `shl` n
+
+fn halves() -> Int:
+    let &wrong = 0
+
+    let root = splat(bit(26)) :: Vec(U64)
+    let zero64 = zero() :: Vec(U64)
+
+    -- `2^26 * 2^26` is `2^52` exactly: nothing in the low half, and one in the high.
+    if !all(X86.multiplyAdd52Low(zero64, root, root) .== zero64) then wrong += 1
+    if !all(X86.multiplyAdd52High(zero64, root, root) .== splat(1 :: U64)) then wrong += 1
+
+    -- A product that fits entirely in the low half.
+    let three = splat(3 :: U64) :: Vec(U64)
+    let five = splat(5 :: U64) :: Vec(U64)
+    if !all(X86.multiplyAdd52Low(zero64, three, five) .== splat(15 :: U64)) then wrong += 1
+    if !all(X86.multiplyAdd52High(zero64, three, five) .== zero64) then wrong += 1
+
+    -- And the widest product two 52-bit operands have: `(2^52 - 1)^2` is `2^104 - 2^53 + 1`, whose
+    -- low 52 bits are 1 and whose bits 103:52 are `2^52 - 2`.
+    let full = splat(bit(52) - 1) :: Vec(U64)
+    if !all(X86.multiplyAdd52Low(zero64, full, full) .== splat(1 :: U64)) then wrong += 1
+    if !all(X86.multiplyAdd52High(zero64, full, full) .== splat(bit(52) - 2)) then wrong += 1
+
+    return wrong
+
+fn accumulator() -> Int:
+    let &wrong = 0
+
+    let three = splat(3 :: U64) :: Vec(U64)
+    let five = splat(5 :: U64) :: Vec(U64)
+
+    -- A bit far above the 52-bit window, which the instruction leaves alone.
+    let high = splat(bit(60)) :: Vec(U64)
+    if !all(X86.multiplyAdd52Low(high, three, five) .== splat(bit(60) + 15)) then wrong += 1
+
+    -- The same addition wrapping at 64, which is what `+` over a `U64` does.
+    let top = splat(maxValue() :: U64) :: Vec(U64)
+    if !all(X86.multiplyAdd52Low(top, splat(1 :: U64), splat(1 :: U64)) .== (zero() :: Vec(U64))) then wrong += 1
+
+    return wrong
+
+-- Bit 52 and above of a source lane are not part of the operand. Setting one must change no answer.
+fn ignoredBits() -> Int:
+    let &wrong = 0
+
+    let zero64 = zero() :: Vec(U64)
+    let five = splat(5 :: U64) :: Vec(U64)
+    let noisy = splat(bit(52) + 3) :: Vec(U64)
+    let noisier = splat((maxValue() :: U64) - (bit(52) - 1) + 3) :: Vec(U64)
+
+    if !all(X86.multiplyAdd52Low(zero64, noisy, five) .== splat(15 :: U64)) then wrong += 1
+    if !all(X86.multiplyAdd52High(zero64, noisy, five) .== zero64) then wrong += 1
+    if !all(X86.multiplyAdd52Low(zero64, noisier, five) .== splat(15 :: U64)) then wrong += 1
+
+    return wrong
+
+-- A written width rather than the target's natural one: EVEX.128, two quadword lanes.
+fn writtenWidth() -> Int:
+    let &wrong = 0
+
+    let a = splat(7 :: U64) :: Vec(U64, 2)
+    let b = splat(9 :: U64) :: Vec(U64, 2)
+    let acc = splat(100 :: U64) :: Vec(U64, 2)
+
+    if !all(X86.multiplyAdd52Low(acc, a, b) .== (splat(163 :: U64) :: Vec(U64, 2))) then wrong += 1
+    if !all(X86.multiplyAdd52High(acc, a, b) .== acc) then wrong += 1
+
+    return wrong
+
+fn main() -> Int:
+    let total = halves() + accumulator() + ignoredBits() + writtenWidth()
+    print("{total}")
+    return total

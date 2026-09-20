@@ -497,6 +497,33 @@ static const TransformPass kTransformPipeline[] = {
     { "dropUnsupportedVectorResets"_v, dropUnsupportedVectorResets, 0 },
 
     /*
+     * Above `splitFullVectors`, so that a sequence it writes at the natural width is split where no
+     * 512-bit row exists; above `lowerVectorMoves`, which is what turns its table lookups into the
+     * machine's; and above `expandByteShifts`, whose word-shift-and-mask its byte-lane shifts become.
+     * See the header above the pass - Analysis-Avx512.md §3.2.
+     */
+    { "expandVectorBitCounts"_v,       expandVectorBitCounts,       0, true },
+
+    /*
+     * The saturating lane operations x86 has no instruction for - Analysis-Avx512.md §3.8.
+     *
+     * Beside `expandVectorBitCounts` and for its reasons: above `splitFullVectors`, so a sequence it
+     * writes at the natural width is split where no 512-bit row exists; and above every pass that
+     * legalizes what it writes - `biasUnsignedPackedCompares` for its unsigned comparisons,
+     * `expandQuadwordSar` for its 64-bit arithmetic shift, and `poolVectorConstants` for its bounds.
+     */
+    { "expandVectorSaturating"_v,      expandVectorSaturating,      0, true },
+
+    /*
+     * The widening multiply-accumulates where the level has no VNNI - Analysis-Avx512.md §3.6.
+     *
+     * In the same slot and for the same reasons, with one of its own: what it writes is `pmaddwd`
+     * and word shifts, and a 512-bit `vpmaddwd` is AVX512BW - which a build running this pass at
+     * all does not have, so the sequence has to reach `splitFullVectors` intact.
+     */
+    { "expandVectorDotProducts"_v,     expandVectorDotProducts,     0, true },
+
+    /*
      * First of the vector passes: what it leaves is 512-bit instructions `registerFullForms` has a
      * form for and 256-bit ones, so nothing below it has to know that an operation at `avx512`'s
      * natural width may have no instruction. Below the three expansions above, whose output at 512

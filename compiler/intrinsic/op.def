@@ -571,6 +571,30 @@ YANA_INTRINSIC_OP( vecHorizontalMax,       OpForm::Node, anyAt(),     anyAt() )
 
 YANA_INTRINSIC_OP( vecMin,   OpForm::Node, sameAs(0), valueAt(), sameAs(0)            )
 YANA_INTRINSIC_OP( vecMax,   OpForm::Node, sameAs(0), valueAt(), sameAs(0)            )
+
+/*
+ * Lane-wise addition and subtraction that **clamps** instead of wrapping - `lib/Core/Vector.yana`.
+ *
+ * Integer lanes, and the lane type is what says which bound: a signed lane clamps to its own
+ * minimum and maximum, an unsigned one to zero and its maximum. There is no signedness column here
+ * for the reason there is none anywhere else - `I8` and `U8` are two logical types over one
+ * operation, and which instruction it becomes is the backend's reading of the operand type.
+ */
+YANA_INTRINSIC_OP( vecSaturatingAdd, OpForm::Node, sameAs(0), valueAt(), sameAs(0)    )
+YANA_INTRINSIC_OP( vecSaturatingSub, OpForm::Node, sameAs(0), valueAt(), sameAs(0)    )
+
+/*
+ * The two widening multiply-accumulates - `lib/Core/Vector.yana`.
+ *
+ * `anyAt()` on both narrow operands and `sameAs(0)` on the accumulator, because the *relationship*
+ * between the three is the one thing a shape here cannot say: four byte lanes per accumulator lane
+ * and two word lanes per accumulator lane are arithmetic over a lane count, and what a shape term
+ * can state is sameness. The emitter checks it, at the call, which is the only place that can name
+ * the arguments.
+ */
+YANA_INTRINSIC_OP( vecDotBytes, OpForm::Node, sameAs(0), valueAt(), anyAt(), anyAt() )
+YANA_INTRINSIC_OP( vecDotWords, OpForm::Node, sameAs(0), valueAt(), anyAt(), anyAt() )
+
 YANA_INTRINSIC_OP( vecAbs,   OpForm::Node, sameAs(0), valueAt()                       )
 YANA_INTRINSIC_OP( vecSqrt,  OpForm::Node, sameAs(0), valueAt()                       )
 YANA_INTRINSIC_OP( vecFma,   OpForm::Node, sameAs(0), valueAt(), sameAs(0), sameAs(0) )
@@ -726,3 +750,33 @@ YANA_INTRINSIC_OP( x86AesEncryptLast2,    OpForm::Node, sameAs(0), anyAt(), same
 YANA_INTRINSIC_OP( x86AesDecrypt2,        OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
 YANA_INTRINSIC_OP( x86AesDecryptLast2,    OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
 YANA_INTRINSIC_OP( x86CarrylessMultiply2, OpForm::Node, sameAs(0), anyAt(), sameAs(0), integerAt() )
+
+/*
+ * The five AVX-512 float operations that have no portable spelling worth writing - Analysis-Avx512.md
+ * §3.7, reached through the `@platform(avx512)` declarations in `lib/Native/Intrinsic/X86.yana`.
+ *
+ * Unlike the AES and SHA rows above, **these do have a portable route**: what each replaces is a
+ * handful of bit arithmetic written in `lib/Math/Math.yana`, which is what a build below this level
+ * runs. So there is no expansion behind them for the same reason there is none behind those - a
+ * second implementation inside the compiler - and a different reason besides: the library's is the
+ * one that is already tested against the mathematics it feeds.
+ *
+ * `x86GetMantissa`, `x86ReduceFloat` and `x86RangeFloat` take the instruction's trailing byte as a
+ * constant, on `x86AesKeygenAssist`'s terms. `x86GetExponent` and `x86ScaleFloat` have no byte.
+ */
+YANA_INTRINSIC_OP( x86GetExponent,  OpForm::Node, sameAs(0), anyAt()                            )
+YANA_INTRINSIC_OP( x86GetMantissa,  OpForm::Node, sameAs(0), anyAt(), integerAt()               )
+YANA_INTRINSIC_OP( x86ReduceFloat,  OpForm::Node, sameAs(0), anyAt(), integerAt()               )
+YANA_INTRINSIC_OP( x86ScaleFloat,   OpForm::Node, sameAs(0), anyAt(), sameAs(0)                 )
+YANA_INTRINSIC_OP( x86RangeFloat,   OpForm::Node, sameAs(0), anyAt(), sameAs(0), integerAt()    )
+
+/*
+ * IFMA's two - `lib/Native/Intrinsic/X86.yana`'s last block, Analysis-Avx512.md §3.6.
+ *
+ * Three operands of one type and no trailing byte: which half of the 104-bit product is added in is
+ * the row, not an immediate, because the machine spells it as two opcodes. They are x86 rows rather
+ * than portable ones because 52 is the float unit's mantissa and not a lane width any other target
+ * has - the declarations' own note argues it.
+ */
+YANA_INTRINSIC_OP( x86MulAdd52Low,  OpForm::Node, sameAs(0), anyAt(), sameAs(0), sameAs(0)      )
+YANA_INTRINSIC_OP( x86MulAdd52High, OpForm::Node, sameAs(0), anyAt(), sameAs(0), sameAs(0)      )

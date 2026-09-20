@@ -1,0 +1,77 @@
+
+adjust<complex>(%s: f32x4, %d: f64x2, %ws: f32x8, %wd: f64x4): f32x4 {
+  b_0 {
+    %a = vgetexp %s: f32x4
+    %b = vgetexp %d: f64x2
+    %c = vgetmant %s, 0: f32x4
+    %e = vgetmant %d, 0: f64x2
+    %f = vfpreduce %s, 1: f32x4
+    %g = vfpreduce %d, 1: f64x2
+    %h = vgetexp %ws: f32x8
+    %i = vgetmant %wd, 0: f64x4
+    %j = vfpreduce %ws, 3: f32x8
+    ret %a
+  }
+}
+
+combine<complex>(%s: f32x4, %t: f32x4, %d: f64x2, %e: f64x2, %ws: f32x8): f32x4 {
+  b_0 {
+    %a = vscalef %s, %t: f32x4
+    %b = vscalef %d, %e: f64x2
+    %c = vrange %s, %t, 4: f32x4
+    %f = vrange %s, %t, 5: f32x4
+    %g = vrange %d, %e, 4: f64x2
+    %h = vscalef %ws, %ws: f32x8
+    ret %c
+  }
+}
+
+full<complex>(%s: f32x16, %d: f64x8): f32x16 {
+  b_0 {
+    %a = vgetexp %s: f32x16
+    %b = vgetmant %d, 0: f64x8
+    %c = vfpreduce %s, 1: f32x16
+    %e = vscalef %s, %s: f32x16
+    %f = vrange %d, %d, 5: f64x8
+    ret %a
+  }
+}
+
+
+--- codegen: adjust ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vgetexp uses=[xmm0] creates=[xmm4]  => 62f27d0842e0
+  vgetexp uses=[xmm1] creates=[xmm5]  => 62f2fd0842e9
+  vgetmant uses=[xmm0] creates=[xmm5]  => 62f37d0826e800
+  vgetmant uses=[xmm1] creates=[xmm5]  => 62f3fd0826e900
+  vfpreduce uses=[xmm0] creates=[xmm0]  => 62f37d0856c001
+  vfpreduce uses=[xmm1] creates=[xmm1]  => 62f3fd0856c901
+  vgetexp uses=[xmm2] creates=[xmm0]  => 62f27d2842c2
+  vgetmant uses=[xmm3] creates=[xmm3]  => 62f3fd2826db00
+  vfpreduce uses=[xmm2] creates=[xmm2]  => 62f37d2856d203
+  ret uses=[xmm0] creates=[] pre=[xmm4->xmm0]  => c5f828c4c3
+
+--- codegen: combine ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vscalef uses=[xmm0, xmm1] creates=[xmm5]  => 62f27d082ce9
+  vscalef uses=[xmm2, xmm3] creates=[xmm5]  => 62f2ed082ceb
+  vrange uses=[xmm0, xmm1] creates=[xmm5]  => 62f37d0850e904
+  vrange uses=[xmm0, xmm1] creates=[xmm0]  => 62f37d0850c105
+  vrange uses=[xmm2, xmm3] creates=[xmm2]  => 62f3ed0850d304
+  vscalef uses=[xmm4, xmm4] creates=[xmm4]  => 62f25d282ce4
+  ret uses=[xmm0] creates=[] pre=[xmm5->xmm0]  => c5f828c5c3
+
+--- codegen: full ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vgetexp uses=[xmm0] creates=[xmm2]  => 62f27d4842d0
+  vgetmant uses=[xmm1] creates=[xmm3]  => 62f3fd4826d900
+  vfpreduce uses=[xmm0] creates=[xmm3]  => 62f37d4856d801
+  vscalef uses=[xmm0, xmm0] creates=[xmm0]  => 62f27d482cc0
+  vrange uses=[xmm1, xmm1] creates=[xmm1]  => 62f3f54850c905
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 62f17c4828c2c3

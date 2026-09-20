@@ -1,0 +1,87 @@
+# The packed bit counts at `avx512`, where three of the four are an instruction.
+#
+# extensions: avx512
+#
+# `Bits(Vec(a, n))` is instanced at every integer lane width (Analysis-Avx512.md §3.2), and what
+# reaches this backend is the same `popcnt`, `clz_width` and `cttz_width` intrinsics a scalar count
+# produces with a packed type on them, plus `bitsupto`. `expandVectorBitCounts` in
+# codegen/x64/transform_expand.cpp decides which of them the machine does in one instruction:
+#
+#   - `vpopcntb`/`vpopcntw` (BITALG) and `vpopcntd`/`vpopcntq` (VPOPCNTDQ), all four lane widths;
+#   - `vplzcntd`/`vplzcntq` (CD), the two wide ones and nothing narrower at any level;
+#   - no trailing count anywhere, so `cttz_width` is `popcount((x & -x) - 1)` here as well;
+#   - no lane-wise `bzhi` anywhere either, so `bitsupto` is the mask and the select it always is.
+#
+# `VectorBitCounts.lower` beside this is the same functions at `sse4`, where the population count is
+# the nibble table and a `pshufb` pair and the leading count is the smear above it.
+#
+# Every count row here is EVEX by construction, so each of their `=>` lines begins with `62`.
+# Extracting them and running `objdump -b binary -m i386:x86-64 -D` is the check that the W bits and
+# the opcodes say what the form names claim: `54` at W0 and W1 is `vpopcntb`/`vpopcntw`, `55` is
+# `vpopcntd`/`vpopcntq`, and `44` is `vplzcntd`/`vplzcntq`.
+
+# One instruction per lane width, at both register widths the level holds.
+popcounts(%b: i8x16, %w: i16x8, %d: i32x4, %q: i64x2, %wb: i8x32, %wd: i32x8): i8x16 {
+    {
+        %rb = popcnt %b: i8x16
+        %rw = popcnt %w: i16x8
+        %rd = popcnt %d: i32x4
+        %rq = popcnt %q: i64x2
+        %sb = popcnt %wb: i8x32
+        %sd = popcnt %wd: i32x8
+        ret %rb
+    }
+}
+
+# And at the natural width, where `registerFullForms` gives each row a `zmm` twin and
+# `fullWidthNative` keeps the instruction whole rather than running it as two halves.
+popcountsFull(%b: i8x64, %w: i16x32, %d: i32x16, %q: i64x8): i8x64 {
+    {
+        %rb = popcnt %b: i8x64
+        %rw = popcnt %w: i16x32
+        %rd = popcnt %d: i32x16
+        %rq = popcnt %q: i64x8
+        %lz = clz_width %d: i32x16
+        %s = add %rd, %lz: i32x16
+        ret %rb
+    }
+}
+
+# `vplzcntd` and `vplzcntq`, which are the only two lanes CD gives a leading count.
+leadingWide(%d: i32x4, %q: i64x2, %wq: i64x4): i32x4 {
+    {
+        %rd = clz_width %d: i32x4
+        %rq = clz_width %q: i64x2
+        %sq = clz_width %wq: i64x4
+        ret %rd
+    }
+}
+
+# A byte lane has no `vplzcntb` at any level, so it is the smear - four shift-and-or pairs - and a
+# `vpopcntb` under it, subtracted from eight.
+leadingNarrow(%b: i8x16): i8x16 {
+    {
+        %r = clz_width %b: i8x16
+        ret %r
+    }
+}
+
+# `popcount((x & -x) - 1)` at every lane, with the count itself one instruction here. The zero
+# vector it negates against is the one constant the backend builds rather than pooling.
+trailing(%d: i32x4, %q: i64x2): i32x4 {
+    {
+        %rd = cttz_width %d: i32x4
+        %rq = cttz_width %q: i64x2
+        ret %rd
+    }
+}
+
+# The mask `(1 << count) - 1` chosen against the all-ones vector by a test of the count's high bits -
+# an equality against zero rather than an unsigned comparison, the width being a power of two.
+upTo(%d: i32x4, %n: i32x4, %q: i64x4, %m: i64x4): i32x4 {
+    {
+        %rd = bitsupto %d, %n: i32x4
+        %rq = bitsupto %q, %m: i64x4
+        ret %rd
+    }
+}

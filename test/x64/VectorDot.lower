@@ -1,0 +1,30 @@
+# The two widening multiply-accumulates at `sse4`, where neither is an instruction.
+#
+# extensions: sse4
+#
+# Analysis-Avx512.md §3.6. `vpdpbusd` and `vpdpwssd` are VNNI, so what runs here is
+# `expandVectorDotProducts` in codegen/x64/transform_expand.cpp: `pmaddwd` and an addition for a word
+# dot product, and for a byte one two `pmaddwd` over the four byte halves the shifts split each word
+# lane into.
+#
+# **`pmaddubsw` is deliberately absent** and is the reason the byte route is eleven instructions
+# rather than seven: it saturates each pair's sum at a signed word, and `lib/Core/Vector.yana`
+# promises that nothing here does. A `pmaddubsw` in this dump is the promise broken.
+#
+# `VectorDotVex.lower` and `VectorDotEvex.lower` are the same functions at the two levels above,
+# where the sequence becomes `vpmaddwd ymm` and then the two instructions themselves. There is no
+# 256-bit function here: this level has no wide register to write one over.
+
+words(%acc: i32x4, %a: i16x8, %b: i16x8): i32x4 {
+    {
+        %r = vdotwords %acc, %a, %b: i32x4
+        ret %r
+    }
+}
+
+bytes(%acc: i32x4, %u: i8x16, %s: i8x16): i32x4 {
+    {
+        %r = vdotbytes %acc, %u, %s: i32x4
+        ret %r
+    }
+}

@@ -106,6 +106,62 @@ pub let vectorBytes = 0 :: Size
 @builtin(vecAbs) pub fn (n: Int) abs(vector: Vec(a, n)) -> Vec(a, n)
 
 {-
+   Addition and subtraction that **clamp** instead of wrapping - x86's `paddsb` family, ARM's
+   `sqadd`, `llvm.sadd.sat`.
+
+   A signed lane clamps to its own minimum and maximum and an unsigned one to zero and its maximum,
+   and **the lane type is the whole of what decides which**: `saturatingAdd` over `Vec(U8)` answers
+   255 where the sum is 300, and over `Vec(I8)` it answers 127. There is one name rather than two for
+   the reason there is one `+` - `I8` and `U8` are two types, not one type and a flag.
+
+   Integer lanes only. A saturating float add is a question about which infinity to stop at that no
+   machine answers, so a call at a float lane is refused where it is written.
+
+   **What they are for is anything measured in a fixed range**, which is most of what a graphics or
+   an audio kernel adds up: eight-bit colour channels, sixteen-bit samples, an accumulator that must
+   not fold a bright pixel round to black. The wrapping spelling of the same loop is
+   `min(a + b, maxValue())` and is wrong: `a + b` has already wrapped by the time the minimum sees
+   it. Writing it correctly without these costs a comparison and a select per lane, which is what
+   the backend spends at a 32- or 64-bit lane where the machine has no instruction - and nothing at
+   a byte or a word, where it has eight.
+
+   **Neither associates**, which is worth knowing before a reduction is written over one:
+   `saturatingAdd(saturatingAdd(127, 1), -1)` is 126 at a signed byte and
+   `saturatingAdd(127, saturatingAdd(1, -1))` is 127. Addition commutes; subtraction does not, and
+   `saturatingSub(a, b)` is not `saturatingAdd(a, -b)` - the negation is what overflows at the most
+   negative lane.
+-}
+@builtin(vecSaturatingAdd) pub fn (n: Int) saturatingAdd(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
+@builtin(vecSaturatingSub) pub fn (n: Int) saturatingSub(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
+
+{-
+   The two **widening multiply-accumulates** - x86's `vpdpbusd` and `vpdpwssd`, ARM's `sdot`/`udot`
+   and `smlal`. Each multiplies narrow lanes pairwise, sums a fixed group of the products, and adds
+   the group's sum into a wider accumulator lane, in one operation.
+
+   `accumulateByteProducts(acc, lhs, rhs)` reads four byte lanes per accumulator lane; `lhs`'s bytes
+   are **unsigned** and `rhs`'s are **signed**, which is the one asymmetry here and is the machine's.
+   `accumulateWordProducts(acc, lhs, rhs)` reads two signed word lanes per accumulator lane. The
+   accumulator is a 32-bit integer lane in both, and there must be exactly as many narrow lanes as
+   the grouping asks for - `Vec(I32, 4)` with `Vec(U8, 16)`, `Vec(I32, 8)` with `Vec(I16, 16)` - which
+   is checked at the call, nothing in the signature being able to say it.
+
+   **Nothing saturates, anywhere in either.** That is the whole of what these declarations have to
+   promise, and it is a promise a plausible lowering breaks: x86's `pmaddubsw` is the obvious first
+   half of a byte kernel and clamps each pair's sum at a signed word, so a build that used it would
+   answer differently from a build that had `vpdpbusd` - the same program, two answers, decided by a
+   flag. Every product here is exact, every sum wraps at 32 bits the way `+` does, and the order the
+   four products are added in is unobservable because of it.
+
+   **What they are for** is every dot product a fixed-point kernel is made of: a neural network's
+   int8 layers, Adler-32's weighted sum, the decimal-to-binary step in `Core/Read.yana` that is a
+   multiply by ten and an add per digit. The portable spelling is a widening conversion, a multiply
+   and a horizontal add, and it is four to five times the instructions at every level.
+-}
+@builtin(vecDotBytes) pub fn (n: Int, m: Int) accumulateByteProducts(acc: Vec(a, n), lhs: Vec(b, m), rhs: Vec(c, m)) -> Vec(a, n)
+@builtin(vecDotWords) pub fn (n: Int, m: Int) accumulateWordProducts(acc: Vec(a, n), lhs: Vec(b, m), rhs: Vec(c, m)) -> Vec(a, n)
+
+{-
    The square root and the fused multiply-add, which are the two operations in the portable set that
    needed an instruction of their own rather than an arrangement of the ones that were here.
 

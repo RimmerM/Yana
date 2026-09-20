@@ -1,0 +1,112 @@
+import Native
+
+{-
+   The twelve `Real` bodies that are one instruction at AVX-512 - Analysis-Avx512.md §3.7, and
+   Design-Replacements.md for what a `@replaces` is.
+
+   `Math.yana` writes each of these in bit arithmetic at the type's own width, and that is what every
+   build below this level runs. What this file does is replace the *vector* ones with the instruction
+   the machine has had since Skylake-SP, declared in `Native/Intrinsic/X86.yana`. The scalar
+   instances are untouched: `vgetexpss` and its siblings exist, but the scalar bodies they would
+   replace are two or three instructions already and the win is not worth a second pair of
+   declarations.
+
+   The file's name is the whole of the gating, on `Memory.native.avx512.yana`'s terms: a body behind
+   a compile-time `if hasAvx512()` would still be resolved, would still reach lowering in a build
+   with the IR optimizer off, and the backend would then refuse instructions the target cannot
+   encode. A file selected on the level is simply not read.
+
+   ------------------------------------------------------------------------------------------------
+   What each replacement costs today, and what it costs here
+
+   | body | `Math.yana` | here |
+   | --- | --- | --- |
+   | `exponentOf` | bitcast, shift, `and`, convert, subtract - 5, and the `F64` pair needs the whole `vecDoubleFromWholeBits` round trip, which is 6 more | `vgetexpps`/`pd` - 1 |
+   | `significandOf` | bitcast, `and`, `or`, bitcast - 2, plus two pooled constants | `vgetmantps`/`pd` at control 0 - 1 |
+   | `scaleByExponent` | two clamps, two power-of-two builds, two multiplies - 15 or more | `vscalefps`/`pd` - 1 |
+   | `fract` | `floor` and a subtraction - 2 | `vreduceps`/`pd` at control 1 - 1 |
+   | `minNumber`/`maxNumber` | two comparisons, two selects and an `or` - 5 | `vrangeps`/`pd` at control 4 or 5 - 1 |
+
+   ------------------------------------------------------------------------------------------------
+   Where the answers differ, which is only outside what `Real` defines
+
+   `exponentOf` and `significandOf` are documented for a **positive normal argument** and for nothing
+   else, and on that domain the instruction and the bit arithmetic agree bit for bit. Outside it they
+   do not, and the instruction is the better answer every time: `vgetexp` gives a subnormal its true
+   exponent where the shift gives -126 or -1023, a zero minus infinity where the shift gives the same
+   bias, an infinity infinity and a NaN a NaN. Nothing in this library reads either answer, since
+   every caller guards its own zero and its own negative (`Math.yana`'s `log` and `pow` do it in the
+   line above the call), so this is a difference an author can rely on at `avx512` and not below it -
+   which is why `Real` keeps documenting the narrow domain.
+
+   `scaleByExponent` is required to **saturate**, and both spellings do: the two clamped
+   multiplications reach an infinity or a zero by ordinary arithmetic, and `vscalef` saturates to an
+   infinity above the range and underflows gradually below it. What they do not share is the answer
+   for a NaN exponent - the clamped pair multiplies by two powers of two built from a truncated NaN,
+   and `vscalef` answers a NaN - and again nothing reads it: `exp` and `exp2` guard the argument
+   before the call.
+
+   `fract` is `x - floor(x)` in both, and `vreduce` at control 1 is that computation exactly - M is
+   zero, so the rounding is applied to the whole value, and the mode is round-down.
+
+   `minNumber` and `maxNumber` promise that a NaN operand is ignored and say nothing about which zero
+   comes back when both operands are zero. `vrange` at control 4 and 5 keeps the first promise and
+   makes its own answer to the second, and the sign it gives the answer is the chosen operand's -
+   which is what the control byte's high half has to say, and the one thing here that was wrong the
+   first time it was written. See the note above those two.
+-}
+
+@replaces
+fn exponentOfVecFloat(value: Vec(F32)) -> Vec(F32) = X86.getExponent(value)
+
+@replaces
+fn exponentOfVecDouble(value: Vec(F64)) -> Vec(F64) = X86.getExponent(value)
+
+-- Control 0: the significand normalized into [1, 2) with the source's own sign - which is what
+-- `Real` documents `significandOf` as, for the positive normal arguments it is defined on.
+@replaces
+fn significandOfVecFloat(value: Vec(F32)) -> Vec(F32) = X86.getMantissa(value, 0)
+
+@replaces
+fn significandOfVecDouble(value: Vec(F64)) -> Vec(F64) = X86.getMantissa(value, 0)
+
+@replaces
+fn scaleByExponentVecFloat(value: Vec(F32), exponent: Vec(F32)) -> Vec(F32) =
+    X86.scale(value, exponent)
+
+@replaces
+fn scaleByExponentVecDouble(value: Vec(F64), exponent: Vec(F64)) -> Vec(F64) =
+    X86.scale(value, exponent)
+
+-- Control 1: no fraction bits kept before the rounding, and the rounding is down - so the answer is
+-- `x - floor(x)`, in [0, 1) for every finite argument.
+@replaces
+fn fractVecFloat(value: Vec(F32)) -> Vec(F32) = X86.reduce(value, 1)
+
+@replaces
+fn fractVecDouble(value: Vec(F64)) -> Vec(F64) = X86.reduce(value, 1)
+
+{-
+   Control 4 and 5: the minimum and the maximum, each taking its answer's sign from **the operand the
+   comparison chose** rather than from the first one.
+
+   The sign control is the half of this byte that is easy to get wrong, and the wrong answer is not a
+   sign - it is the wrong number. `minNumber(nan, 3.0)` selects `3.0`, and with the sign taken from
+   the first operand it comes back as `-3.0`, because x86 builds its default quiet NaN with the sign
+   bit *set*: `0.0 / 0.0` is `0xffc00000`. That is what the first version of this file did and what
+   `Math.Real`'s `fractionAndOrder` case caught at this level and not below it.
+
+   Bits 1:0 are still the comparison - 0 the minimum, 1 the maximum - so the two bytes are 0b0100 and
+   0b0101.
+-}
+@replaces
+fn minNumberVecFloat(lhs: Vec(F32), rhs: Vec(F32)) -> Vec(F32) = X86.range(lhs, rhs, 4)
+
+@replaces
+fn minNumberVecDouble(lhs: Vec(F64), rhs: Vec(F64)) -> Vec(F64) = X86.range(lhs, rhs, 4)
+
+@replaces
+fn maxNumberVecFloat(lhs: Vec(F32), rhs: Vec(F32)) -> Vec(F32) = X86.range(lhs, rhs, 5)
+
+@replaces
+fn maxNumberVecDouble(lhs: Vec(F64), rhs: Vec(F64)) -> Vec(F64) = X86.range(lhs, rhs, 5)

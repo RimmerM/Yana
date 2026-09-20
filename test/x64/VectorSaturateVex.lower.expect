@@ -1,0 +1,132 @@
+
+narrow<complex>(%b: i8x32, %c: i8x32, %w: i16x16, %x: i16x16): i8x32 {
+  b_0 {
+    %a1 = isatadd %b, %c: i8x32
+    %a2 = satadd %b, %c: i8x32
+    %a3 = isatadd %w, %x: i16x16
+    %a4 = satadd %w, %x: i16x16
+    %s1 = isatsub %b, %c: i8x32
+    %s2 = satsub %b, %c: i8x32
+    %s3 = isatsub %w, %x: i16x16
+    %s4 = satsub %w, %x: i16x16
+    ret %a1
+  }
+}
+
+unsignedWide<complex>(%a: i32x8, %b: i32x8): i32x8 {
+  b_0 {
+    %r = satadd %a, %b: i32x8
+    %s = satsub %a, %b: i32x8
+    ret %r
+  }
+}
+
+signedWide<complex>(%a: i32x8, %b: i32x8): i32x8 {
+  b_0 {
+    %r = isatadd %a, %b: i32x8
+    %s = isatsub %a, %b: i32x8
+    ret %r
+  }
+}
+
+quadwords<complex>(%a: i64x4, %b: i64x4): i64x4 {
+  b_0 {
+    %r = isatadd %a, %b: i64x4
+    %s = satsub %a, %b: i64x4
+    ret %r
+  }
+}
+
+
+--- codegen: narrow ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  isatadd uses=[xmm0, xmm1] creates=[xmm4]  => c5fdece1
+  satadd uses=[xmm0, xmm1] creates=[xmm5]  => c5fddce9
+  isatadd uses=[xmm2, xmm3] creates=[xmm5]  => c5ededeb
+  satadd uses=[xmm2, xmm3] creates=[xmm5]  => c5edddeb
+  isatsub uses=[xmm0, xmm1] creates=[xmm5]  => c5fde8e9
+  satsub uses=[xmm0, xmm1] creates=[xmm0]  => c5fdd8c1
+  isatsub uses=[xmm2, xmm3] creates=[xmm0]  => c5ede9c3
+  satsub uses=[xmm2, xmm3] creates=[xmm2]  => c5edd9d3
+  ret uses=[xmm0] creates=[] pre=[xmm4->xmm0]  => c5fc28c4c3
+
+--- codegen: unsignedWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm2]  => c5ed76d2
+  add uses=[xmm0, xmm1] creates=[xmm3]  => c5fdfed9
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm4]  => c5fe6f2500010000
+  xor uses=[xmm3, xmm4] creates=[xmm5]  => c5e5efec
+  xor uses=[xmm0, xmm4] creates=[xmm4]  => c5fdefe4
+  cmp_igt uses=[xmm4, xmm5] creates=[xmm4]  => c5dd66e5
+  select uses=[xmm2, xmm3, xmm4] creates=[xmm2]  => c4e3654cd240
+  sub uses=[xmm0, xmm1] creates=[xmm3]  => c5fdfad9
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm4]  => c5fe6f25e2000000
+  xor uses=[xmm0, xmm4] creates=[xmm0]  => c5fdefc4
+  xor uses=[xmm1, xmm4] creates=[xmm1]  => c5f5efcc
+  cmp_igt uses=[xmm1, xmm0] creates=[xmm1]  => c5f566c8
+  x86_maskandn uses=[xmm1, xmm3] creates=[xmm1]  => c5f5dfcb
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => c5fc28c2c3
+
+--- codegen: signedWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fe6f15d8000000
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm3]  => c5e5efdb
+  add uses=[xmm0, xmm1] creates=[xmm4]  => c5fdfee1
+  xor uses=[xmm0, xmm4] creates=[xmm5]  => c5fdefec
+  xor uses=[xmm1, xmm4] creates=[xmm6]  => c5f5eff4
+  and uses=[xmm5, xmm6] creates=[xmm5]  => c5d5dbee
+  cmp_igt uses=[xmm3, xmm5] creates=[xmm5]  => c5e566ed
+  imm uses=[] creates=[-]  => 
+  sar uses=[xmm0, -] creates=[xmm6]  => c5cd72e01f
+  xor uses=[xmm6, xmm2] creates=[xmm6]  => c5cdeff2
+  select uses=[xmm6, xmm4, xmm5] creates=[xmm6]  => c4e35d4cf650
+  sub uses=[xmm0, xmm1] creates=[xmm4]  => c5fdfae1
+  xor uses=[xmm0, xmm1] creates=[xmm1]  => c5fdefc9
+  xor uses=[xmm0, xmm4] creates=[xmm5]  => c5fdefec
+  and uses=[xmm1, xmm5] creates=[xmm1]  => c5f5dbcd
+  cmp_igt uses=[xmm3, xmm1] creates=[xmm3]  => c5e566d9
+  imm uses=[] creates=[-]  => 
+  sar uses=[xmm0, -] creates=[xmm0]  => c5fd72e01f
+  xor uses=[xmm0, xmm2] creates=[xmm0]  => c5fdefc2
+  select uses=[xmm0, xmm4, xmm3] creates=[xmm0]  => c4e35d4cc030
+  ret uses=[xmm0] creates=[] pre=[xmm6->xmm0]  => c5fc28c6c3
+
+--- codegen: quadwords ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => c5fe6f1598000000
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm3]  => c5e5efdb
+  add uses=[xmm0, xmm1] creates=[xmm4]  => c5fdd4e1
+  xor uses=[xmm0, xmm4] creates=[xmm5]  => c5fdefec
+  xor uses=[xmm1, xmm4] creates=[xmm6]  => c5f5eff4
+  and uses=[xmm5, xmm6] creates=[xmm5]  => c5d5dbee
+  cmp_igt uses=[xmm3, xmm5] creates=[xmm3]  => c4e26537dd
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm5]  => c5d573d03f
+  xor uses=[xmm5, xmm2] creates=[xmm5]  => c5d5efea
+  sub uses=[xmm5, xmm2] creates=[xmm5]  => c5d5fbea
+  x86_addr [rip + $v256$ffffffffffffff7fffffffffffffff7fffffffffffffff7fffffffffffffff7f] uses=[] creates=[-]  => 
+  xor uses=[xmm5, -] creates=[xmm5]  => c5d5ef2d8a000000
+  select uses=[xmm5, xmm4, xmm3] creates=[xmm5]  => c4e35d4ced30
+  sub uses=[xmm0, xmm1] creates=[xmm2]  => c5fdfbd1
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => c5fe6f1d98000000
+  xor uses=[xmm0, xmm3] creates=[xmm0]  => c5fdefc3
+  xor uses=[xmm1, xmm3] creates=[xmm1]  => c5f5efcb
+  cmp_igt uses=[xmm1, xmm0] creates=[xmm1]  => c4e27537c8
+  x86_maskandn uses=[xmm1, xmm2] creates=[xmm1]  => c5f5dfca
+  ret uses=[xmm0] creates=[] pre=[xmm5->xmm0]  => c5fc28c5c3

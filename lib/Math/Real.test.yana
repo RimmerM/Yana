@@ -31,7 +31,9 @@ fn nearFloat(got: Float, want: Float) -> Bool:
     return size <= 3.0e-6 * (if scale > 1.0 then scale else 1.0)
 
 -- The five an instance supplies, checked directly: everything else in the module is written over
--- these, so a wrong one here is a wrong answer everywhere rather than in one function.
+-- these, so a wrong one here is a wrong answer everywhere rather than in one function. The two
+-- vector instances answer three of the five with one AVX-512 instruction each in a build at that
+-- level (`Math.avx512.yana`), so the vector cases below are the same claim at two implementations.
 @test fn primitives():
     check(nearDouble(trunc(2.7 :: Double), 2.0))
     check(nearDouble(trunc(0.0 - 2.7 :: Double), 0.0 - 2.0))
@@ -43,6 +45,15 @@ fn nearFloat(got: Float, want: Float) -> Bool:
     -- The saturating requirement `exp` depends on: an exponent past the type's range answers an
     -- infinity rather than wrapping back into the middle of it.
     checkGreater(scaleByExponent(1.0 :: Double, 3000.0), 1.0e308)
+
+    -- The fifth, which is a bound rather than an operation: the smallest value with an implicit
+    -- leading one. Halving it is still a number and halving it again is still smaller, which is
+    -- what says the instance named the boundary and not something above it.
+    checkGreater(smallestNormal() :: Double, 0.0)
+    checkGreater((smallestNormal() :: Double) * 0.5, 0.0)
+    check(isSubnormal((smallestNormal() :: Double) * 0.5))
+    check(!isSubnormal(smallestNormal() :: Double))
+    check(nearFloat(smallestNormal() :: Float, 1.1754943508222875e-38))
 
 @test fn rounding():
     check(nearDouble(floor(2.7 :: Double), 2.0))
@@ -193,3 +204,105 @@ fn nearFloat(got: Float, want: Float) -> Bool:
     check(nearDouble(lane(sin(oneDouble), 0), 0.84147098480789651))
     check(nearDouble(lane(pow(splat(2.0 :: Double) :: Vec(F64), splat(10.0 :: Double)), 0), 1024.0))
     check(nearDouble(lane(round(twoAndAHalf), 0), 3.0))
+
+{-
+   The five class tests, the fraction and the two NaN-aware orderings - at all four instances, which
+   is the same claim every case above makes: one body, four substitutions.
+
+   The scalar answers are `Bool` and the vector ones are `Mask`, so every vector line here is wrapped
+   in `all` - which is also what says the whole register was classified rather than lane zero. A
+   `Float` NaN and a `Double` NaN are built by dividing a zero by a zero rather than written, there
+   being no literal for one, and each is checked against the *arithmetic* it is supposed to survive:
+   a comparison with a NaN is false whichever way it is written.
+-}
+@test fn classification():
+    let nanFloat = (0.0 :: Float) / 0.0
+    let nanDouble = (0.0 :: Double) / 0.0
+    let infFloat = infinity() :: Float
+    let infDouble = infinity() :: Double
+
+    check(isNaN(nanFloat))
+    check(isNaN(nanDouble))
+    check(!isNaN(1.0 :: Float))
+    check(!isNaN(infDouble))
+
+    check(isInfinite(infFloat))
+    check(isInfinite(0.0 - infDouble))
+    check(!isInfinite(nanDouble))
+    check(!isInfinite(1.0e300 :: Double))
+
+    -- Neither is the other's negation, which is what a NaN failing both says.
+    check(isFinite(1.0e300 :: Double))
+    check(!isFinite(infDouble))
+    check(!isFinite(nanDouble))
+
+    -- Half the smallest normal is the largest power of two that is not one, at both widths.
+    check(isSubnormal((smallestNormal() :: Float) * 0.5))
+    check(isSubnormal((smallestNormal() :: Double) * 0.5))
+    check(!isSubnormal(smallestNormal() :: Double))
+    check(!isSubnormal(0.0 :: Double))
+    check(!isSubnormal(nanDouble))
+    check(!isSubnormal(infDouble))
+
+    check(isZero(0.0 :: Double))
+    check(isZero(0.0 - (0.0 :: Double)))
+    check(!isZero(nanDouble))
+
+    let nanVec = splat(nanFloat) :: Vec(F32)
+    let infVec = splat(infFloat) :: Vec(F32)
+    let smallVec = splat((smallestNormal() :: Float) * 0.5) :: Vec(F32)
+
+    check(all(isNaN(nanVec)))
+    check(none(isNaN(infVec)))
+    check(all(isInfinite(infVec)))
+    check(none(isFinite(nanVec)))
+    check(all(isSubnormal(smallVec)))
+    check(none(isSubnormal(nanVec)))
+    check(all(isZero(splat(0.0 :: Float) :: Vec(F32))))
+
+    let nanWide = splat(nanDouble) :: Vec(F64)
+    check(all(isNaN(nanWide)))
+    check(all(isInfinite(splat(infDouble) :: Vec(F64))))
+    check(all(isSubnormal(splat((smallestNormal() :: Double) * 0.5) :: Vec(F64))))
+    check(none(isZero(nanWide)))
+
+{-
+   `fract`, and `minNumber`/`maxNumber`'s NaN rule.
+
+   The negative argument is the whole point of the first: `fract(-0.25)` is `0.75` and not `-0.25`,
+   because it is `x - floor(x)` and not `x - trunc(x)`.
+
+   The second pair is checked in both operand orders, which is the property the machine's own
+   `min`/`max` do not have - `minps` answers its second operand whenever either is a NaN, so one
+   order would pass and the other would not.
+-}
+@test fn fractionAndOrder():
+    let nan = (0.0 :: Double) / 0.0
+
+    check(nearDouble(fract(2.25 :: Double), 0.25))
+    check(nearDouble(fract(0.0 - (0.25 :: Double)), 0.75))
+    check(nearDouble(fract(0.0 - (2.0 :: Double)), 0.0))
+    check(nearFloat(fract(0.0 - (0.25 :: Float)), 0.75))
+    check(nearFloat(lane(fract(splat(0.0 - (0.25 :: Float)) :: Vec(F32)), 0), 0.75))
+    check(nearDouble(lane(fract(splat(2.25 :: Double) :: Vec(F64)), 0), 0.25))
+
+    check(nearDouble(minNumber(2.0 :: Double, 3.0), 2.0))
+    check(nearDouble(maxNumber(2.0 :: Double, 3.0), 3.0))
+    check(nearDouble(minNumber(nan, 3.0), 3.0))
+    check(nearDouble(minNumber(3.0, nan), 3.0))
+    check(nearDouble(maxNumber(nan, 3.0), 3.0))
+    check(nearDouble(maxNumber(3.0, nan), 3.0))
+    check(isNaN(minNumber(nan, nan)))
+    check(isNaN(maxNumber(nan, nan)))
+
+    let three = splat(3.0 :: Float) :: Vec(F32)
+    let nanVec = splat((0.0 :: Float) / 0.0) :: Vec(F32)
+    check(all(minNumber(nanVec, three) .== three))
+    check(all(minNumber(three, nanVec) .== three))
+    check(all(maxNumber(nanVec, three) .== three))
+    check(all(minNumber(splat(2.0 :: Float) :: Vec(F32), three) .== splat(2.0 :: Float)))
+    check(all(isNaN(maxNumber(nanVec, nanVec))))
+
+    let wide = splat(3.0 :: Double) :: Vec(F64)
+    check(all(minNumber(splat(nan) :: Vec(F64), wide) .== wide))
+    check(all(maxNumber(wide, splat(2.0 :: Double) :: Vec(F64)) .== wide))

@@ -236,16 +236,50 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<
             switch(member) {
                 case 4: {
                     assertTrue(count == 1);
-                    auto& integer = *(IntType*)builder.declBase()[type];
 
-                    auto width = integer.isTargetWidth()
-                        ? builder.addBinary(source, BinaryOp::Shl,
-                              *builder.addMetric(source, TypeMetric::Size, type, type),
-                              *builder.addConst(source, intConstant(type, 3)))
-                        : builder.addConst(source, intConstant(type, integer.bits));
+                    auto base = builder.declBase();
+                    auto packed = isVectorType(base, type);
+                    auto scalar = packed ? laneTypeOf(base, type) : type;
+
+                    /*
+                     * At a **vector** the width is the *lane's*, splatted - which is the one thing
+                     * this arm has to say about the head Analysis-Avx512.md §3.2 adds, wherever the
+                     * lane is a type this stage can read.
+                     *
+                     * **It is not always.** This arm writes the generated member's *body* as well as
+                     * the expansion at a call, and the body of `Bits(Vec(a, n)).bitWidth` is written
+                     * at a lane `a` that no substitution has bound yet - where "the width" is not a
+                     * number and `intConstant` has no type to build one at. So the width is asked of
+                     * the operation itself: `leadingZeros` of zero is the lane's own width, which is
+                     * the language's ruling on the zero case (`lib/Core/Bits.yana`) rather than
+                     * anything a target decides, and `x - x` is a zero at any type at all. Two
+                     * instructions in a body compiled once, and none in a specialized one - which is
+                     * every concrete call, since those expand here at a lane this branch can read.
+                     */
+                    Node* width = nullptr;
+
+                    if(base[scalar]->kind == Type::Int) {
+                        auto& integer = *(IntType*)base[scalar];
+
+                        auto counted = integer.isTargetWidth()
+                            ? builder.addBinary(source, BinaryOp::Shl,
+                                  *builder.addMetric(source, TypeMetric::Size, scalar, scalar),
+                                  *builder.addConst(source, intConstant(scalar, 3)))
+                            : builder.addConst(source, intConstant(scalar, integer.bits));
+                        if(!counted) return nullptr;
+
+                        width = packed ? builder.addVecSplat(source, *counted, type) : counted;
+                    } else {
+                        auto empty = builder.addBinary(source, BinaryOp::Sub, *arguments[0],
+                                                       *arguments[0]);
+                        width = empty ? builder.addUnary(source, UnaryOp::LeadingZeros, *empty)
+                                      : nullptr;
+                    }
+
+                    if(!width) return nullptr;
 
                     auto zeros = builder.addUnary(source, UnaryOp::LeadingZeros, *arguments[0]);
-                    return builder.addBinary(source, BinaryOp::Sub, *width, *zeros);
+                    return zeros ? builder.addBinary(source, BinaryOp::Sub, *width, *zeros) : nullptr;
                 }
             }
             break;

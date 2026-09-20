@@ -1,0 +1,56 @@
+# The saturating lane operations at `avx512`, where the eight rows are EVEX-encoded over zmm.
+#
+# extensions: avx512
+#
+# `registerFullForms` gives every 256-bit row a 512-bit twin and `fullWidthNative` keeps the
+# saturating rows whole at a byte and a word lane. The doubleword and quadword lanes are still
+# `expandVectorSaturating`'s sequence: AVX-512 adds no saturating instruction at a lane wider than a
+# word, which is why that pass is keyed on the lane width and not on a feature.
+
+# The eight instructions, one call each, at the two lane widths the machine has them for. The signed
+# and unsigned rows are different instructions at the same lane - which is the whole reason the lower
+# IR has four kinds rather than two.
+narrow(%b: i8x64, %c: i8x64, %w: i16x32, %x: i16x32): i8x64 {
+    {
+        %a1 = isatadd %b, %c: i8x64
+        %a2 = satadd %b, %c: i8x64
+        %a3 = isatadd %w, %x: i16x32
+        %a4 = satadd %w, %x: i16x32
+        %s1 = isatsub %b, %c: i8x64
+        %s2 = satsub %b, %c: i8x64
+        %s3 = isatsub %w, %x: i16x32
+        %s4 = satsub %w, %x: i16x32
+        ret %a1
+    }
+}
+
+# The unsigned doubleword pair, which is the shortest of the four sequences: an addition wrapped
+# exactly where the sum is below one of its operands, and a subtraction exactly where the first
+# operand is below the second.
+unsignedWide(%a: i32x16, %b: i32x16): i32x16 {
+    {
+        %r = satadd %a, %b: i32x16
+        %s = satsub %a, %b: i32x16
+        ret %r
+    }
+}
+
+# The signed doubleword pair, where the saturated value is read off the first operand's sign rather
+# than chosen by a second comparison.
+signedWide(%a: i32x16, %b: i32x16): i32x16 {
+    {
+        %r = isatadd %a, %b: i32x16
+        %s = isatsub %a, %b: i32x16
+        ret %r
+    }
+}
+
+# And the quadword lanes, whose arithmetic shift is `expandQuadwordSar`'s sequence at this level -
+# `vpsraq` being AVX-512's.
+quadwords(%a: i64x8, %b: i64x8): i64x8 {
+    {
+        %r = isatadd %a, %b: i64x8
+        %s = satsub %a, %b: i64x8
+        ret %r
+    }
+}

@@ -246,6 +246,111 @@ Node* expandVecMinMax(Builder& builder, Function& callee, BinaryOp op, Node* con
 }
 
 /*
+ * `saturatingAdd` and `saturatingSub` - one binary node each, over a vector of integer lanes.
+ *
+ * The lane check is here because this is the last place that can name the argument: a float lane
+ * would be a question about rounding that no machine answers, and a mask is not a number. Below it
+ * the declaration is gone and what remains is an operand type.
+ */
+Node* expandVecSaturating(Builder& builder, Function& callee, BinaryOp op, Node* const* arguments,
+                          const Substitution& with, LocationId source) {
+    auto type = resultType(builder, callee, with);
+    auto base = builder.declBase();
+
+    auto lane = type && base[type]->kind == Type::Vector ? ((VectorType*)base[type])->lane : DeclPtr<Type>();
+    if(!lane || base[lane]->kind != Type::Int) {
+        builder.context.diagnostics.error("a saturating lane operation is defined on vectors of integer lanes, and %@ is not one"_v,
+                                          source, typeText(builder.context, base, type));
+        return nullptr;
+    }
+
+    return builder.addBinary(source, op, *arguments[0], *arguments[1]);
+}
+
+/*
+ * The four widening multiply-accumulates - `accumulateByteProducts` and `accumulateWordProducts` in
+ * `lib/Core/Vector.yana`, and IFMA's pair in `lib/Native/Intrinsic/X86.yana`. See the row group in
+ * `native.def`.
+ *
+ * Every check is here because this is the last place that can name the arguments. The signatures say
+ * that the accumulator and the result are one type and that the two product operands agree with each
+ * other; **four byte lanes per accumulator lane** is arithmetic over a lane count, which no
+ * signature in this language can state. So the relationship between the three shapes is checked at
+ * the call, and getting it wrong is a diagnostic rather than an instruction that reads past the end
+ * of a register.
+ *
+ * `vpdpbusd`'s asymmetry - an unsigned first product operand and a signed second - is the machine's
+ * and is held to here as well, being the one place a caller can get a silently wrong answer rather
+ * than a refusal.
+ */
+static bool mulAccumulateLane(Builder& builder, DeclPtr<Type> vector, U8 bits, Maybe<bool> wantSigned,
+                              bool mixed, StringView operation, StringView what, LocationId source) {
+    auto base = builder.declBase();
+    auto lane = vector && base[vector]->kind == Type::Vector ? laneTypeOf(base, vector) : DeclPtr<Type>();
+    auto type = lane ? base[lane] : nullptr;
+
+    if(!type || type->kind != Type::Int || ((IntType*)type)->bits != bits) {
+        builder.context.diagnostics.error("%@'s %@ is a vector of %@-bit integer lanes, and %@ is not one"_v,
+                                          source, operation, what, U32(bits),
+                                          typeText(builder.context, base, vector));
+        return false;
+    }
+
+    if(wantSigned && ((IntType*)type)->isSigned != wantSigned.unwrap()) {
+        auto why = mixed
+            ? "the machine reads the first as unsigned and the second as signed, and swapping them is a different answer rather than a different spelling"_v
+            : "both product operands are read as signed"_v;
+
+        builder.context.diagnostics.error("%@'s %@ has to be a vector of %@ lanes - %@"_v,
+                                          source, operation, what,
+                                          wantSigned.unwrap() ? "signed"_v : "unsigned"_v, why);
+        return false;
+    }
+
+    return true;
+}
+
+Node* expandMulAccumulate(Builder& builder, Function& callee, NativeOp op, Node* const* arguments,
+                          const Substitution& with, LocationId source) {
+    auto type = substituteType(builder.context, builder.program, callee.result.type, with);
+    auto bytes = op == NativeOp::VecDotBytes;
+    auto words = op == NativeOp::VecDotWords;
+
+    auto what = bytes ? "vpdpbusd"_v : words ? "vpdpwssd"_v
+              : op == NativeOp::MulAdd52Low ? "vpmadd52luq"_v : "vpmadd52huq"_v;
+
+    U8 accBits = bytes || words ? 32 : 64;
+    U8 narrowBits = bytes ? 8 : words ? 16 : 64;
+    U32 group = bytes ? 4 : words ? 2 : 1;
+
+    auto lhs = valueOccurrence(*arguments[1]).type;
+    auto rhs = valueOccurrence(*arguments[2]).type;
+
+    if(!mulAccumulateLane(builder, type, accBits, Nothing(), false, what, "accumulator"_v, source)) return nullptr;
+
+    auto first = bytes ? Just(false) : words ? Just(true) : Maybe<bool>(Nothing());
+    auto second = bytes ? Just(true) : first;
+
+    if(!mulAccumulateLane(builder, lhs, narrowBits, first, bytes, what, "first product operand"_v,
+                          source)) return nullptr;
+    if(!mulAccumulateLane(builder, rhs, narrowBits, second, bytes, what, "second product operand"_v,
+                          source)) return nullptr;
+
+    auto base = builder.declBase();
+    auto lanes = vectorLanes(base, type);
+    auto narrowLanes = vectorLanes(base, lhs);
+
+    if(narrowLanes != lanes * group) {
+        builder.context.diagnostics.error("%@ reads %@ lanes of %@ bits per accumulator lane, so a %@-lane accumulator needs %@ of them and these have %@"_v,
+                                          source, what, group, U32(narrowBits), lanes, lanes * group,
+                                          narrowLanes);
+        return nullptr;
+    }
+
+    return builder.addNative(source, op, arguments, 3, type);
+}
+
+/*
  * `abs` - one instruction, and an unsigned lane is already its own magnitude.
  *
  * The sign of a NaN is unspecified, which is `op.def`'s ruling and not this function's: every target

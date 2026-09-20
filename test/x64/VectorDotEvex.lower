@@ -1,0 +1,56 @@
+# `VectorDot.lower` at `avx512`, where both operations are one instruction - and IFMA's pair beside
+# them, which exists at no other level at all.
+#
+# extensions: avx512
+#
+# `vpdpbusd` is EVEX.66.0F38.W0 50 and `vpdpwssd` is 52; `vpmadd52luq` is EVEX.66.0F38.W1 B4 and
+# `vpmadd52huq` B5. All four accumulate into their first operand, so every row here is a tie: the
+# destination is the accumulator, `vvvv` is the first product operand and r/m the second.
+#
+# Every `=>` line begins with `62` by construction. Extracting them and running
+# `objdump -b binary -m i386:x86-64 -D` is the check that the maps, the W bits and the opcodes say
+# what the form names claim.
+
+words(%acc: i32x4, %a: i16x8, %b: i16x8): i32x4 {
+    {
+        %r = vdotwords %acc, %a, %b: i32x4
+        ret %r
+    }
+}
+
+bytes(%acc: i32x4, %u: i8x16, %s: i8x16): i32x4 {
+    {
+        %r = vdotbytes %acc, %u, %s: i32x4
+        ret %r
+    }
+}
+
+wide(%acc: i32x8, %a: i16x16, %u: i8x32, %s: i8x32): i32x8 {
+    {
+        %w = vdotwords %acc, %a, %a: i32x8
+        %b = vdotbytes %acc, %u, %s: i32x8
+        ret %w
+    }
+}
+
+# The natural width, where `registerFullForms` gives every row a `zmm` twin and `fullWidthNative`
+# keeps the instruction whole rather than running it as two halves.
+full(%acc: i32x16, %a: i16x32, %u: i8x64, %s: i8x64): i32x16 {
+    {
+        %w = vdotwords %acc, %a, %a: i32x16
+        %b = vdotbytes %acc, %u, %s: i32x16
+        ret %w
+    }
+}
+
+# IFMA, at all three widths. `%lo` and `%hi` name the same three operands and differ only in which
+# half of the product they add - so a lowering that lost the difference would unify them here.
+ifma(%acc: i64x2, %a: i64x2, %b: i64x2, %wacc: i64x4, %wa: i64x4, %facc: i64x8, %fa: i64x8): i64x2 {
+    {
+        %lo = vmadd52lo %acc, %a, %b: i64x2
+        %hi = vmadd52hi %acc, %a, %b: i64x2
+        %w = vmadd52lo %wacc, %wa, %wa: i64x4
+        %f = vmadd52hi %facc, %fa, %fa: i64x8
+        ret %lo
+    }
+}

@@ -406,6 +406,27 @@ YANA_INST(ScatterBits,  InstBinary,      "scatterbits"_v, kInstResult | kInstPur
  * costs a handful of lookups once per message.
  */
 YANA_INST(Crc32,        InstBinary,      "crc32"_v,       kInstResult | kInstPure)
+
+/*
+ * Lane-wise addition and subtraction that clamps rather than wrapping - `saturatingAdd` and
+ * `saturatingSub` in `lib/Core/Vector.yana`, and Analysis-Avx512.md §3.8, which declined them as an
+ * AVX-512 item and not as a library one.
+ *
+ * **Integer lanes of a vector, and the lane type decides the bounds**: a signed lane clamps to its
+ * own minimum and maximum, an unsigned one to zero and its maximum. That is the whole of the
+ * operation, and what makes it a kind rather than a shape is that x86 has `paddsb` and its seven
+ * siblings at byte and word lanes - a comparison-and-select the backend would have to recognize
+ * across four instructions to fold back, where `llvm.sadd.sat` and friends name it directly.
+ *
+ * **A vector only.** A scalar saturating add is a useful operation and this is not it: nothing
+ * declares one, so carrying it here would be untested machinery. The verifier refuses a scalar.
+ *
+ * `SaturatingAdd` is commutative and **neither is associative**, which is why only the first says
+ * so: `sat(sat(127, 1), -1)` is 126 at a signed byte and `sat(127, sat(1, -1))` is 127.
+ */
+YANA_INST(SaturatingAdd, InstBinary,     "saturatingadd"_v, kInstResult | kInstPure | kInstCommutative)
+YANA_INST(SaturatingSub, InstBinary,     "saturatingsub"_v, kInstResult | kInstPure)
+
 /*
  * The SHA extension - seven instructions that compute rounds of SHA-1 and SHA-256, as two kinds.
  *
@@ -458,6 +479,55 @@ YANA_INST(Sha256Rounds, InstSha256Rounds, "sha256rnds2"_v, kInstResult | kInstPu
  */
 YANA_INST(CryptoBinary, InstCryptoBinary, "crypto"_v,     kInstResult | kInstPure)
 YANA_INST(CryptoUnary,  InstCryptoUnary,  "crypto"_v,     kInstResult | kInstPure)
+
+/*
+ * The five AVX-512 float operations - Analysis-Avx512.md §3.7, reached through the
+ * `@platform(avx512)` declarations in `lib/Native/Intrinsic/X86.yana`.
+ *
+ * `FloatAdjust` reads one vector and answers one of the same shape: `vgetexpps`/`vgetexppd` (each
+ * lane's unbiased exponent as a float), `vgetmantps`/`vgetmantpd` (each lane's significand
+ * normalized into a chosen interval) and `vreduceps`/`vreducepd` (each lane less its own value
+ * rounded at a chosen precision and mode). `FloatCombine` reads two: `vscalefps`/`vscalefpd`
+ * (`lhs * 2 ^ trunc(rhs)`, saturating) and `vrangeps`/`vrangepd` (a minimum or a maximum with the
+ * NaN and signed-zero cases decided by the instruction).
+ *
+ * The three that carry the instruction's trailing byte hold it in `control`, which is a field for
+ * `aeskeygenassist`'s round constant's reason - the value was settled where the call was written.
+ * `FloatCombine`'s `control` is read by `Range` and ignored by `Scale`.
+ *
+ * **No backend expands one**, and unlike the AES and SHA rows that is not because no sequence
+ * stands for them. One does, `lib/Math/Math.yana` writes it, and a build below this level simply
+ * runs it: these instructions are reached only from `lib/Math/Math.avx512.yana`'s replacements. A
+ * second copy of the bit arithmetic inside the compiler is what there is nothing to gain from.
+ *
+ * Pure, as every float operation here is.
+ */
+YANA_INST(FloatAdjust,  InstFloatAdjust,  "fadjust"_v,    kInstResult | kInstPure)
+YANA_INST(FloatCombine, InstFloatCombine, "fcombine"_v,   kInstResult | kInstPure)
+
+/*
+ * The four widening multiply-accumulates, as one kind with a column - `accumulateByteProducts` and
+ * `accumulateWordProducts` in `lib/Core/Vector.yana`, and `X86.multiplyAdd52Low`/`High` in
+ * `lib/Native/Intrinsic/X86.yana`. Analysis-Avx512.md §3.6.
+ *
+ * Three vector operands and a result: `acc + f(lhs, rhs)`, where `f` multiplies narrow lanes and
+ * sums a fixed group of the products into one wide lane. `DotBytes` groups four byte products
+ * (`lhs` unsigned, `rhs` signed) into a 32-bit lane and `DotWords` two signed word products;
+ * `MulAdd52Low` and `MulAdd52High` are IFMA's halves of a 52x52 product into a 64-bit lane.
+ *
+ * **One kind and an `op` column rather than four kinds**, on `CryptoBinary`'s terms: they are one
+ * shape - three vectors in, one out, accumulate into the first - and what tells them apart is which
+ * arithmetic the middle is. The lower IR splits them into four *kinds* all the same, and for a
+ * reason that does not apply here: there `kLowerPlain` promises that the kind and the flags are
+ * everything an instruction carries, and here `sameExtra` is what CSE reads and it compares `op`.
+ *
+ * **Nothing saturates**, which is the declarations' promise and is the one thing a lowering could
+ * silently break - see `lib/Core/Vector.yana`, where the trap is named.
+ *
+ * The two dot products are portable and every backend answers them; the two IFMA rows are x86's and
+ * are reached only from a `@platform(avx512)` declaration, on the float operations' terms above.
+ */
+YANA_INST(MulAccumulate, InstMulAccumulate, "vmuladd"_v,  kInstResult | kInstPure)
 
 /*
  * `vzeroupper` - the vector state reset, as an ordinary call a program writes.

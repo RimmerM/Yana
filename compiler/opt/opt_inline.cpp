@@ -1659,8 +1659,11 @@ struct Inliner {
             case Value::Rol: case Value::Ror:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
             case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits: case Value::Crc32:
+            case Value::SaturatingAdd: case Value::SaturatingSub:
             case Value::ShaBinary: case Value::Sha256Rounds:
             case Value::CryptoBinary: case Value::CryptoUnary:
+            case Value::FloatAdjust: case Value::FloatCombine:
+            case Value::MulAccumulate:
             // A select of decided arms on a decided condition is decided, which is `foldSelect`'s
             // rule read forwards: the site knows which arm survives, so a branch below it on the
             // result is one that does not survive the call either.

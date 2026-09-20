@@ -323,6 +323,115 @@ InstResolver handleAesKeygenAssist() {
     };
 }
 
+// The four saturating lane rows, which read like an ordinary binary and are not one.
+template<LowerInst::Kind kind>
+InstResolver handleSaturating() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 2);
+
+        auto lhs = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto rhs = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto result = ast.results[0];
+        auto providedType = getResultType(result);
+        auto type = providedType ? providedType.unwrap() : lhs->type;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstSaturating(
+            kind, getResultName(result), type, lhs - base, rhs - base)));
+    };
+}
+
+/*
+ * The four widening multiply-accumulates. Three operands, and the result type is **written** rather
+ * than derived when a dump states one: the narrow operands are not the result's type, so `acc`'s is
+ * the only sensible default and a fixture that means something else has to say so.
+ */
+template<LowerInst::Kind kind>
+InstResolver handleMulAccumulate() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 3);
+
+        auto acc = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto lhs = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto rhs = tryMaybe(findValue(resolve, base, block, ast.args[2], ast.source), return Nothing());
+
+        auto result = ast.results[0];
+        auto providedType = getResultType(result);
+        auto type = providedType ? providedType.unwrap() : acc->type;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstMulAccumulate(
+            kind, getResultName(result), type, acc - base, lhs - base, rhs - base)));
+    };
+}
+
+/*
+ * The AVX-512 float operations, under the names the printer writes. The control byte is a trailing
+ * number for the round constant's reason, and the two operations that have none take no such
+ * argument at all - so a dump round-trips through the operand count rather than through a zero
+ * nothing reads.
+ */
+template<LowerInst::Kind kind>
+InstResolver handleFloatAdjust() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        auto hasControl = kind != LowerInst::GetExponent;
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, hasControl ? 2 : 1);
+
+        auto from = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        U8 control = 0;
+
+        if(hasControl) {
+            auto written = ast.args[1];
+
+            if(!written.isInt() || written.i < 0 || written.i > 255) {
+                resolve.diag.error("expected a control byte from 0 to 255"_v, ast.source);
+                return Nothing();
+            }
+
+            control = U8(written.i);
+        }
+
+        auto result = ast.results[0];
+        auto providedType = getResultType(result);
+        auto type = providedType ? providedType.unwrap() : from->type;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstFloatAdjust(
+            kind, getResultName(result), type, from - base, control)));
+    };
+}
+
+template<LowerInst::Kind kind>
+InstResolver handleFloatCombine() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        auto hasControl = kind == LowerInst::RangeFloat;
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, hasControl ? 3 : 2);
+
+        auto lhs = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto rhs = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        U8 control = 0;
+
+        if(hasControl) {
+            auto written = ast.args[2];
+
+            if(!written.isInt() || written.i < 0 || written.i > 255) {
+                resolve.diag.error("expected a control byte from 0 to 255"_v, ast.source);
+                return Nothing();
+            }
+
+            control = U8(written.i);
+        }
+
+        auto result = ast.results[0];
+        auto providedType = getResultType(result);
+        auto type = providedType ? providedType.unwrap() : lhs->type;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstFloatCombine(
+            kind, getResultName(result), type, lhs - base, rhs - base, control)));
+    };
+}
+
 template<LowerCmp cmp>
 InstResolver handleCmp() {
     return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
@@ -857,6 +966,29 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     instructionSet.add(Context::nameHash("pclmulhqhqdq"_v), handleCrypto<LowerCrypto::ClmulHighHigh>());
     addKind<LowerInst::AesInverseMix>(instructionSet, handleAesInverseMix());
     addKind<LowerInst::AesKeygenAssist>(instructionSet, handleAesKeygenAssist());
+
+    // The four saturating lane rows. Two operands like a binary, and deliberately not one - see
+    // `LowerInstSaturating`.
+    addKind<LowerInst::SatAdd>(instructionSet, handleSaturating<LowerInst::SatAdd>());
+    addKind<LowerInst::ISatAdd>(instructionSet, handleSaturating<LowerInst::ISatAdd>());
+    addKind<LowerInst::SatSub>(instructionSet, handleSaturating<LowerInst::SatSub>());
+    addKind<LowerInst::ISatSub>(instructionSet, handleSaturating<LowerInst::ISatSub>());
+
+    // The four widening multiply-accumulates, under the mnemonics their rows carry.
+    addKind<LowerInst::DotBytes>(instructionSet, handleMulAccumulate<LowerInst::DotBytes>());
+    addKind<LowerInst::DotWords>(instructionSet, handleMulAccumulate<LowerInst::DotWords>());
+    addKind<LowerInst::MulAdd52Lo>(instructionSet, handleMulAccumulate<LowerInst::MulAdd52Lo>());
+    addKind<LowerInst::MulAdd52Hi>(instructionSet, handleMulAccumulate<LowerInst::MulAdd52Hi>());
+
+    // The AVX-512 float operations, under the mnemonics their rows carry. `vfpreduce` is the one
+    // that is not quite the machine's spelling, and deliberately: the instruction is
+    // `vreduceps`/`vreducepd`, and `vreduce_add` and its eight siblings above are the lane
+    // *reduction*, which is a different operation entirely.
+    addKind<LowerInst::GetExponent>(instructionSet, handleFloatAdjust<LowerInst::GetExponent>());
+    addKind<LowerInst::GetMantissa>(instructionSet, handleFloatAdjust<LowerInst::GetMantissa>());
+    addKind<LowerInst::FpReduce>(instructionSet, handleFloatAdjust<LowerInst::FpReduce>());
+    addKind<LowerInst::ScaleFloat>(instructionSet, handleFloatCombine<LowerInst::ScaleFloat>());
+    addKind<LowerInst::RangeFloat>(instructionSet, handleFloatCombine<LowerInst::RangeFloat>());
 
     instructionSet.add(Context::nameHash("cmp_eq"_v), handleCmp<LowerCmp::eq>());
     instructionSet.add(Context::nameHash("cmp_neq"_v), handleCmp<LowerCmp::neq>());

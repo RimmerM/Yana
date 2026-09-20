@@ -1,0 +1,153 @@
+{-
+   `Bits(Vec(a, n))` - Analysis-Avx512.md §3.2, and the five members at every integer lane width.
+
+   The class is instanced over a vector at **every** lane width, where the scalar one is instanced at
+   thirty-two and sixty-four alone. The reason is what the first two cases check: a narrow scalar is
+   some bits of a wider register, so a count of a `U8` would be a count of its storage - a lane has
+   nothing above it, so `countBits(-1 :: I8)` is eight and not thirty-two.
+
+   Three of the five are one instruction at `avx512` (`vpopcnt{b,w,d,q}`, `vplzcnt{d,q}`) and a
+   sequence at every other level - the nibble table, the smear above it, `popcount((x & -x) - 1)`,
+   and a per-lane mask for `bitsUpTo`. `expandVectorBitCounts` in codegen/x64/transform_expand.cpp
+   writes all of them, and the JavaScript backend walks the lanes (`laneBitCount` in codegen/js).
+   Every wrong answer is therefore a plausible vector rather than a fault, so what is checked is the
+   meaning: each lane against the same count written out as a loop over the value's bits.
+
+   The reference is deliberately **not** `Bits(U32)`. A vector count and a scalar one agreeing would
+   pass with both wrong in the same way, and the two classes are not instanced at the same widths.
+-}
+
+import Test
+
+-- What the three counts mean, over a `U64` and a bit index, so that one reference serves every lane.
+fn refCount(value: U64, bits: U64) -> U64:
+    let &n = 0 :: U64
+    let &i = 0 :: U64
+    while i < bits:
+        if ((value `shr` i) `and` 1) == 1 then n += 1
+        i += 1
+    return n
+
+fn refLeading(value: U64, bits: U64) -> U64:
+    let &i = bits
+    while i > 0:
+        i -= 1
+        if ((value `shr` i) `and` 1) == 1 then return bits - 1 - i
+    return bits
+
+fn refTrailing(value: U64, bits: U64) -> U64:
+    let &i = 0 :: U64
+    while i < bits:
+        if ((value `shr` i) `and` 1) == 1 then return i
+        i += 1
+    return bits
+
+fn refUpTo(value: U64, bits: U64, upTo: U64) -> U64:
+    if upTo >= bits then return value
+    return value `and` ((1 `shl` upTo) - 1)
+
+-- How many lanes disagree with the reference, where every lane holds `value`.
+fn wrongU8(value: U64, upTo: U64) -> Int:
+    let v = splat(truncate(value) :: U8)
+    let &bad = count(countBits(v) .!= splat(truncate(refCount(value, 8)) :: U8))
+    bad += count(leadingZeros(v) .!= splat(truncate(refLeading(value, 8)) :: U8))
+    bad += count(trailingZeros(v) .!= splat(truncate(refTrailing(value, 8)) :: U8))
+    bad += count(bitWidth(v) .!= splat(truncate(8 - refLeading(value, 8)) :: U8))
+    bad += count(bitsUpTo(v, splat(truncate(upTo) :: U8)) .!= splat(truncate(refUpTo(value, 8, upTo)) :: U8))
+    return bad
+
+fn wrongU16(value: U64, upTo: U64) -> Int:
+    let v = splat(truncate(value) :: U16)
+    let &bad = count(countBits(v) .!= splat(truncate(refCount(value, 16)) :: U16))
+    bad += count(leadingZeros(v) .!= splat(truncate(refLeading(value, 16)) :: U16))
+    bad += count(trailingZeros(v) .!= splat(truncate(refTrailing(value, 16)) :: U16))
+    bad += count(bitWidth(v) .!= splat(truncate(16 - refLeading(value, 16)) :: U16))
+    bad += count(bitsUpTo(v, splat(truncate(upTo) :: U16)) .!= splat(truncate(refUpTo(value, 16, upTo)) :: U16))
+    return bad
+
+fn wrongU32(value: U64, upTo: U64) -> Int:
+    let v = splat(truncate(value) :: U32)
+    let &bad = count(countBits(v) .!= splat(truncate(refCount(value, 32)) :: U32))
+    bad += count(leadingZeros(v) .!= splat(truncate(refLeading(value, 32)) :: U32))
+    bad += count(trailingZeros(v) .!= splat(truncate(refTrailing(value, 32)) :: U32))
+    bad += count(bitWidth(v) .!= splat(truncate(32 - refLeading(value, 32)) :: U32))
+    bad += count(bitsUpTo(v, splat(truncate(upTo) :: U32)) .!= splat(truncate(refUpTo(value, 32, upTo)) :: U32))
+    return bad
+
+fn wrongU64(value: U64, upTo: U64) -> Int:
+    let v = splat(value)
+    let &bad = count(countBits(v) .!= splat(refCount(value, 64)))
+    bad += count(leadingZeros(v) .!= splat(refLeading(value, 64)))
+    bad += count(trailingZeros(v) .!= splat(refTrailing(value, 64)))
+    bad += count(bitWidth(v) .!= splat(64 - refLeading(value, 64)))
+    bad += count(bitsUpTo(v, splat(upTo)) .!= splat(refUpTo(value, 64, upTo)))
+    return bad
+
+-- A lane is the whole of itself, which is the difference from the scalar class and the reason this
+-- one is instanced where that one is not.
+@test fn vecBitsSignedLaneCases():
+    let ones = splat((0 :: I8) - 1)
+    checkEqual(lane(countBits(ones), 0), 8 :: I8)
+    checkEqual(lane(leadingZeros(ones), 0), 0 :: I8)
+    checkEqual(lane(trailingZeros(ones), 0), 0 :: I8)
+    checkEqual(lane(bitWidth(ones), 0), 8 :: I8)
+    checkEqual(lane(bitsUpTo(ones, splat(4 :: I8)), 0), 15 :: I8)
+
+    -- The sign bit alone, which is the lane's own top bit and not a bit of any register above it.
+    let low = splat((1 :: I16) `shl` 15)
+    checkEqual(lane(countBits(low), 0), 1 :: I16)
+    checkEqual(lane(leadingZeros(low), 0), 0 :: I16)
+    checkEqual(lane(trailingZeros(low), 0), 15 :: I16)
+    checkEqual(lane(bitWidth(low), 0), 16 :: I16)
+
+-- The zero case, which the language rules on rather than the machine: no set bits, and both counts
+-- answer the lane's own width.
+@test fn vecBitsZeroCases():
+    checkEqual(lane(countBits(zero() :: Vec(U8)), 0), 0 :: U8)
+    checkEqual(lane(leadingZeros(zero() :: Vec(U8)), 0), 8 :: U8)
+    checkEqual(lane(trailingZeros(zero() :: Vec(U8)), 0), 8 :: U8)
+    checkEqual(lane(bitWidth(zero() :: Vec(U8)), 0), 0 :: U8)
+
+    checkEqual(lane(countBits(zero() :: Vec(U32)), 0), 0 :: U32)
+    checkEqual(lane(leadingZeros(zero() :: Vec(U32)), 0), 32 :: U32)
+    checkEqual(lane(trailingZeros(zero() :: Vec(U32)), 0), 32 :: U32)
+
+    checkEqual(lane(countBits(zero() :: Vec(U64)), 0), 0 :: U64)
+    checkEqual(lane(leadingZeros(zero() :: Vec(U64)), 0), 64 :: U64)
+    checkEqual(lane(trailingZeros(zero() :: Vec(U64)), 0), 64 :: U64)
+
+@test fn vecBitsCountCases():
+    let &wrong = [0, 0, 0, 0] :: [Int *4]
+    let &value = 0 :: U64
+
+    -- Every byte pattern, spread over the wider lanes so that each of them sees a set bit in every
+    -- one of its bytes: a count is decided by where the highest and lowest set bits are.
+    while value < 256:
+        let &upTo = 0 :: U64
+        while upTo <= 72:
+            wrong[0] = wrong[0] + wrongU8(value, upTo)
+            wrong[1] = wrong[1] + wrongU16(value * 257, upTo)
+            wrong[2] = wrong[2] + wrongU32(value * 16843009, upTo)
+            wrong[3] = wrong[3] + wrongU64(value * 72340172838076673, upTo)
+            upTo += 9
+        value += 1
+
+    checkEqual(wrong[0], 0)
+    checkEqual(wrong[1], 0)
+    checkEqual(wrong[2], 0)
+    checkEqual(wrong[3], 0)
+
+-- And the one-bit and all-ones-below values at every position, so that a lane's own width is reached
+-- at each end of it.
+@test fn vecBitsRunCases():
+    let &wrong = [0, 0] :: [Int *2]
+    let &bit = 0 :: U64
+
+    while bit < 64:
+        wrong[0] = wrong[0] + wrongU64(1 `shl` bit, bit)
+        wrong[0] = wrong[0] + wrongU64((1 `shl` bit) - 1, 64 - bit)
+        if bit < 32 then wrong[1] = wrong[1] + wrongU32(1 `shl` bit, bit)
+        bit += 1
+
+    checkEqual(wrong[0], 0)
+    checkEqual(wrong[1], 0)

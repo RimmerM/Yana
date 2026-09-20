@@ -1,0 +1,122 @@
+{-
+   `VecBits.yana` at `avx2` - Analysis-Avx512.md §3.2.
+
+   # extensions: avx2
+
+   The same source at the tier above, where the sequences are the same sequences at twice the lanes:
+   there is no packed bit count of any kind below AVX-512, so what changes is the register width and
+   nothing else. See that file for what each function checks.
+-}
+-- What the three counts mean, written over a `U64` and a bit index so that one reference serves
+-- every lane width.
+fn refCount(value: U64, bits: U64) -> U64:
+    let &n = 0 :: U64
+    let &i = 0 :: U64
+    while i < bits:
+        if ((value `shr` i) `and` 1) == 1 then n += 1
+        i += 1
+    return n
+
+fn refLeading(value: U64, bits: U64) -> U64:
+    let &i = bits
+    while i > 0:
+        i -= 1
+        if ((value `shr` i) `and` 1) == 1 then return bits - 1 - i
+    return bits
+
+fn refTrailing(value: U64, bits: U64) -> U64:
+    let &i = 0 :: U64
+    while i < bits:
+        if ((value `shr` i) `and` 1) == 1 then return i
+        i += 1
+    return bits
+
+fn refUpTo(value: U64, bits: U64, upTo: U64) -> U64:
+    if upTo >= bits then return value
+    return value `and` ((1 `shl` upTo) - 1)
+
+-- The lanes of `v` that disagree with the reference, where every lane holds `value`.
+fn wrongU8(value: U64, upTo: U64) -> Int:
+    let v = splat(truncate(value) :: U8)
+    let n = splat(truncate(upTo) :: U8)
+    let &bad = count(countBits(v) .!= splat(truncate(refCount(value, 8)) :: U8))
+    bad += count(leadingZeros(v) .!= splat(truncate(refLeading(value, 8)) :: U8))
+    bad += count(trailingZeros(v) .!= splat(truncate(refTrailing(value, 8)) :: U8))
+    bad += count(bitWidth(v) .!= splat(truncate(8 - refLeading(value, 8)) :: U8))
+    bad += count(bitsUpTo(v, n) .!= splat(truncate(refUpTo(value, 8, upTo)) :: U8))
+    return bad
+
+fn wrongU16(value: U64, upTo: U64) -> Int:
+    let v = splat(truncate(value) :: U16)
+    let n = splat(truncate(upTo) :: U16)
+    let &bad = count(countBits(v) .!= splat(truncate(refCount(value, 16)) :: U16))
+    bad += count(leadingZeros(v) .!= splat(truncate(refLeading(value, 16)) :: U16))
+    bad += count(trailingZeros(v) .!= splat(truncate(refTrailing(value, 16)) :: U16))
+    bad += count(bitWidth(v) .!= splat(truncate(16 - refLeading(value, 16)) :: U16))
+    bad += count(bitsUpTo(v, n) .!= splat(truncate(refUpTo(value, 16, upTo)) :: U16))
+    return bad
+
+fn wrongU32(value: U64, upTo: U64) -> Int:
+    let v = splat(truncate(value) :: U32)
+    let n = splat(truncate(upTo) :: U32)
+    let &bad = count(countBits(v) .!= splat(truncate(refCount(value, 32)) :: U32))
+    bad += count(leadingZeros(v) .!= splat(truncate(refLeading(value, 32)) :: U32))
+    bad += count(trailingZeros(v) .!= splat(truncate(refTrailing(value, 32)) :: U32))
+    bad += count(bitWidth(v) .!= splat(truncate(32 - refLeading(value, 32)) :: U32))
+    bad += count(bitsUpTo(v, n) .!= splat(truncate(refUpTo(value, 32, upTo)) :: U32))
+    return bad
+
+fn wrongU64(value: U64, upTo: U64) -> Int:
+    let v = splat(value)
+    let n = splat(upTo)
+    let &bad = count(countBits(v) .!= splat(refCount(value, 64)))
+    bad += count(leadingZeros(v) .!= splat(refLeading(value, 64)))
+    bad += count(trailingZeros(v) .!= splat(refTrailing(value, 64)))
+    bad += count(bitWidth(v) .!= splat(64 - refLeading(value, 64)))
+    bad += count(bitsUpTo(v, n) .!= splat(refUpTo(value, 64, upTo)))
+    return bad
+
+-- A signed lane counts its own bits and not its register's, which is the whole of why this class is
+-- instanced where the scalar one is not: `countBits(-1 :: I8)` is eight, not thirty-two.
+fn wrongSigned() -> Int:
+    let ones = splat((0 :: I8) - 1)
+    let &bad = count(countBits(ones) .!= splat(8 :: I8))
+    bad += count(leadingZeros(ones) .!= splat(0 :: I8))
+    bad += count(trailingZeros(ones) .!= splat(0 :: I8))
+    bad += count(bitWidth(ones) .!= splat(8 :: I8))
+    bad += count(bitsUpTo(ones, splat(4 :: I8)) .!= splat(15 :: I8))
+
+    -- The sign bit alone, which is the lane's own top bit and not a bit of any register above it.
+    let low = splat((1 :: I16) `shl` 15)
+    bad += count(countBits(low) .!= splat(1 :: I16))
+    bad += count(leadingZeros(low) .!= splat(0 :: I16))
+    bad += count(trailingZeros(low) .!= splat(15 :: I16))
+    bad += count(bitWidth(low) .!= splat(16 :: I16))
+    return bad
+
+fn main() -> Int:
+    let &bad = wrongSigned()
+
+    -- Every value that is one run of bits, plus a scattered one per width: a count is decided by
+    -- where the highest and lowest set bits are, so a run at every position and every length is the
+    -- whole of what the three have to be right about.
+    let &value = 0 :: U64
+    while value < 256:
+        let &upTo = 0 :: U64
+        while upTo <= 72:
+            bad += wrongU8(value, upTo)
+            bad += wrongU16(value * 257, upTo)
+            bad += wrongU32(value * 16843009, upTo)
+            bad += wrongU64(value * 72340172838076673, upTo)
+            upTo += 9
+        value += 1
+
+    -- And the values the shifts themselves are, so that a lane's own width is reached at each.
+    let &bit = 0 :: U64
+    while bit < 64:
+        bad += wrongU64(1 `shl` bit, bit)
+        bad += wrongU64((1 `shl` bit) - 1, 64 - bit)
+        bad += wrongU32(1 `shl` bit, bit)
+        bit += 1
+
+    return bad

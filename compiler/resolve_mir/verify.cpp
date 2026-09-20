@@ -1297,6 +1297,20 @@ struct Verifier {
             case NativeOp::AesInverseMix:
             case NativeOp::AesKeygenAssist: return 1;
 
+            // The AVX-512 float operations. The control byte of `vgetmant`, `vfpreduce` and
+            // `vrange` is `immediate` for the round constant's reason, so it is not counted here.
+            case NativeOp::GetExponent:
+            case NativeOp::GetMantissa:
+            case NativeOp::ReduceFloat: return 1;
+            case NativeOp::ScaleFloat:
+            case NativeOp::RangeFloat:  return 2;
+
+            // The widening multiply-accumulates - an accumulator and two product operands.
+            case NativeOp::VecDotBytes:
+            case NativeOp::VecDotWords:
+            case NativeOp::MulAdd52Low:
+            case NativeOp::MulAdd52High: return 3;
+
             case NativeOp::CopyMemory:
             case NativeOp::SetMemory:
             case NativeOp::Sha256Rounds:

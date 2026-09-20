@@ -319,6 +319,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
                 case 2:  return "x86_sext16"_v;
                 default: return "x86_sext32"_v;
             }
+        case LowerInst::X86VecCount:
+            return ((LowerInstX86VecCount&)inst).isLeading() ? "x86_vplzcnt"_v : "x86_vpopcnt"_v;
         case LowerInst::X86MaskAnd:
             return ((LowerInstX86MaskAnd&)inst).isComplemented() ? "x86_maskandn"_v : "x86_maskand"_v;
         case LowerInst::X86MaskConvert:
@@ -765,6 +767,14 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
             // The round constant, which is the instruction's trailing byte: `aeskeygenassist %k, 1`.
             writer.writeString(", "_v);
             printInt(writer, ((LowerInstAesKeygenAssist&)inst).roundConstant());
+        } else if(inst.kind == LowerInst::GetMantissa || inst.kind == LowerInst::FpReduce) {
+            // The control byte, on the round constant's terms. `vgetexp` and `vscalef` have none,
+            // and writing one would put a number in the dump that the instruction does not read.
+            writer.writeString(", "_v);
+            printInt(writer, ((LowerInstFloatAdjust&)inst).control());
+        } else if(inst.kind == LowerInst::RangeFloat) {
+            writer.writeString(", "_v);
+            printInt(writer, ((LowerInstFloatCombine&)inst).control());
         } else if(inst.kind == LowerInst::VecShuffle) {
             auto pattern = ((LowerInstVecShuffle&)inst).pattern();
 

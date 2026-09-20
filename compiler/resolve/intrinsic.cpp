@@ -608,6 +608,28 @@ bool isByteSwappable(GlobalBase global, TypePtr type) {
  */
 static ModulePtr<Value> emitBitWidth(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                      LocationId source, StringId resultName) {
+    /*
+     * At a **vector** the width is the *lane's*, splatted - which is the one thing this emitter has
+     * to say about the head Analysis-Avx512.md §3.2 adds. The subtraction below is the same
+     * subtraction, and the leading-zero count under it is the one the machine has per lane.
+     */
+    if(auto lane = vectorLane(resolver.global, type)) {
+        auto& laneInteger = *(IntType*)resolver.global[lane];
+
+        auto scalar = laneInteger.isTargetWidth()
+            ? resolver.ref(resolver.emit<InstBinary>(source, StringId(), lane, Value::Shl,
+                  resolver.ref(resolver.emit<InstTypeMetric>(source, StringId(), lane, lane, TypeMetricKind::Size)),
+                  resolver.makeInt(source, lane, 3)))
+            : resolver.makeInt(source, lane, laneInteger.bits);
+        if(!scalar) return nullptr;
+
+        auto width = resolver.ref(resolver.emit<InstVecSplat>(source, StringId(), type, scalar));
+        auto zeros = resolver.ref(resolver.emit<InstUnary>(source, StringId(), type,
+                                                           Value::LeadingZeros, args[0]));
+
+        return resolver.ref(resolver.emit<InstBinary>(source, resultName, type, Value::Sub, width, zeros));
+    }
+
     auto& integer = *(IntType*)resolver.global[type];
 
     /*

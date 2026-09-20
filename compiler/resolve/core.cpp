@@ -611,6 +611,7 @@ void definePreludeLookups(Program& program, Module& core) {
     program.coreClasses.num = knownClass(program, Known::num);
     program.coreClasses.integral = knownClass(program, Known::integral);
     program.coreClasses.bitwise = knownClass(program, Known::bitwise);
+    program.coreClasses.bits = knownClass(program, Known::bits);
     program.coreClasses.bitcast = knownClass(program, Known::bitcast);
     program.coreClasses.viewed = knownClass(program, Known::viewed);
 

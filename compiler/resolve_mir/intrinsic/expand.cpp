@@ -256,6 +256,25 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::x86CarrylessMultiply2:
             return expandX86CarrylessMultiply(builder, callee, arguments, with, source);
 
+        // The AVX-512 float operations - `lib/Native/Intrinsic/X86.yana`'s last block.
+        case Op::x86GetExponent:
+            return expandX86FloatOp(builder, callee, arguments, 1, with, source, NativeOp::GetExponent);
+        case Op::x86GetMantissa:
+            return expandX86FloatOp(builder, callee, arguments, 1, with, source, NativeOp::GetMantissa);
+        case Op::x86ReduceFloat:
+            return expandX86FloatOp(builder, callee, arguments, 1, with, source, NativeOp::ReduceFloat);
+        case Op::x86ScaleFloat:
+            return expandX86FloatOp(builder, callee, arguments, 2, with, source, NativeOp::ScaleFloat);
+        case Op::x86RangeFloat:
+            return expandX86FloatOp(builder, callee, arguments, 2, with, source, NativeOp::RangeFloat);
+
+        // IFMA's two - `expandMulAccumulate` serves them and the portable dot products both, the
+        // shape it checks being the same one.
+        case Op::x86MulAdd52Low:
+            return expandMulAccumulate(builder, callee, NativeOp::MulAdd52Low, arguments, with, source);
+        case Op::x86MulAdd52High:
+            return expandMulAccumulate(builder, callee, NativeOp::MulAdd52High, arguments, with, source);
+
         /*
          * The atomics - `lib/Atomic/Atomic.native.yana`, and `expand_atomic.cpp` for the family.
          *
@@ -346,6 +365,19 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
             return expandVecMinMax(builder, callee, BinaryOp::Lt, arguments, with, source);
         case Op::vecMax:
             return expandVecMinMax(builder, callee, BinaryOp::Gt, arguments, with, source);
+
+        // The two saturating lane operations, which are an ordinary binary node apiece - the lane
+        // check is `expandVecSaturating`'s, for the reason every argument check in this file is made
+        // here: it is the last place that can name the argument.
+        case Op::vecSaturatingAdd:
+            return expandVecSaturating(builder, callee, BinaryOp::SaturatingAdd, arguments, with, source);
+        case Op::vecSaturatingSub:
+            return expandVecSaturating(builder, callee, BinaryOp::SaturatingSub, arguments, with, source);
+
+        case Op::vecDotBytes:
+            return expandMulAccumulate(builder, callee, NativeOp::VecDotBytes, arguments, with, source);
+        case Op::vecDotWords:
+            return expandMulAccumulate(builder, callee, NativeOp::VecDotWords, arguments, with, source);
         case Op::vecAbs: return expandVecAbs(builder, callee, arguments, with, source);
 
         case Op::vecSqrt:   return expandVecFloatUnary(builder, UnaryOp::Sqrt, arguments, source);

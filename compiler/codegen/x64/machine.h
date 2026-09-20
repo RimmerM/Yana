@@ -189,6 +189,42 @@ enum : MachineOpcodeId {
     OpVAbs,
 
     /*
+     * Lane-wise addition and subtraction that clamps - `paddsb` and its seven siblings, SSE2.
+     *
+     * Two opcodes rather than four, the signedness being the *form*'s answer as it is for `OpVMin`:
+     * `paddsb` and `paddusb` are one operation at two readings of the same lane. What reaches either
+     * is one of `LowerInst::SatAdd`'s four kinds, and only at a byte or a word lane -
+     * `expandVectorSaturating` has replaced every wider one with a sequence before selection looks.
+     */
+    OpVSatAdd,
+    OpVSatSub,
+
+    // The set bits of every lane and the leading zeros of every lane - `vpopcnt{b,w,d,q}` and
+    // `vplzcnt{d,q}`, AVX-512 alone. Two opcodes rather than one for `OpVMin`/`OpVMax`'s reason:
+    // they are different instructions at different extension bits and different lane sets, and
+    // what reaches either is `LowerInst::X86VecCount`, which `expandVectorBitCounts` writes where
+    // the row exists and replaces with a sequence where it does not.
+    OpVPopcount,
+    OpVLeadingZeros,
+
+    // The five AVX-512 float operations - Analysis-Avx512.md §3.7. One opcode per lower kind rather
+    // than per instruction, on `OpCrypto`'s terms: `opcodeFor` answers from the kind and
+    // `selectPackedForm` picks the row from the operation the instruction carries.
+    OpVFloatAdjust,
+    OpVFloatCombine,
+
+    /*
+     * The widening multiply-accumulates - Analysis-Avx512.md §3.6.
+     *
+     * `OpVDotProduct` is VNNI's `vpdpbusd` and `vpdpwssd` and `OpVMulAdd52` is IFMA's two, one
+     * opcode per lower-kind *group* on `OpVFloatAdjust`'s terms. `OpVMulAddWords` is `pmaddwd`,
+     * which is SSE2 and is what `expandVectorDotProducts` writes below the level that has VNNI.
+     */
+    OpVDotProduct,
+    OpVMulAdd52,
+    OpVMulAddWords,
+
+    /*
      * The lane-wise minimum and maximum, which the machine has and the portable IR does not.
      *
      * `minps`, `pminsd`, `pmaxub` and the rest: one instruction where a comparison and a blend are
@@ -1872,6 +1908,9 @@ enum class EvexRow: U8 {
     Rotate,            // vprold/q, vprord/q, vprolvd/q, vprorvd/q
     WordRotate,        // vpshldw
     QuadwordToDouble,  // vcvtqq2pd
+    PopcountNarrow,    // vpopcntb, vpopcntw (BITALG)
+    PopcountWide,      // vpopcntd, vpopcntq (VPOPCNTDQ)
+    LeadingZeros,      // vplzcntd, vplzcntq (CD)
     Narrowing,         // vpmovwb, vpmovdw, vpmovqd
     UnsignedToFloat,   // vcvtusi2ss, vcvtusi2sd
     GprBroadcast,      // vpbroadcastb/w/d/q from a general register

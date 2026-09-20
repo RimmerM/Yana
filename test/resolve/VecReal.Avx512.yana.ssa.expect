@@ -1,0 +1,1094 @@
+module ResolveTest
+
+fn refExponent(value: F64 [shared call]) -> F64 {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64 [shared call]
+  %2: %F64 address = alloc frame F64
+  %3: %F64 address = alloc frame F64
+  store inspect %1 borrow %0
+  %4: F64 trivial = load inspect %1
+  store inspect %2 consume %4
+  %5: F64 trivial = const 0
+  store inspect %3 consume %5
+  jump -> bb1
+
+bb1:
+  %6: F64 trivial = load inspect %2
+  %7: F64 trivial = const 2
+  %8: Bool trivial = ge inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb2
+
+bb2:
+  jump -> bb4
+
+bb3:
+  %9: F64 trivial = load inspect %2
+  %10: F64 trivial = const 0.5
+  %11: F64 trivial = mul inspect %9 inspect %10
+  store inspect %2 consume %11
+  %12: F64 trivial = load inspect %3
+  %13: F64 trivial = const 1
+  %14: F64 trivial = add inspect %12 inspect %13
+  store inspect %3 consume %14
+  jump -> bb1
+
+bb4:
+  %15: F64 trivial = load inspect %2
+  %16: F64 trivial = const 1
+  %17: Bool trivial = lt inspect %15 inspect %16
+  branch inspect %17 -> bb6 -> bb5
+
+bb5:
+  %18: F64 trivial = load inspect %3
+  return consume %18
+
+bb6:
+  %19: F64 trivial = load inspect %2
+  %20: F64 trivial = const 2
+  %21: F64 trivial = mul inspect %19 inspect %20
+  store inspect %2 consume %21
+  %22: F64 trivial = load inspect %3
+  %23: F64 trivial = const 1
+  %24: F64 trivial = sub inspect %22 inspect %23
+  store inspect %3 consume %24
+  jump -> bb4
+}
+
+fn refSignificand(value: F64 [shared call]) -> F64 {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64 [shared call]
+  %2: %F64 address = alloc frame F64
+  store inspect %1 borrow %0
+  %3: F64 trivial = load inspect %1
+  store inspect %2 consume %3
+  jump -> bb1
+
+bb1:
+  %4: F64 trivial = load inspect %2
+  %5: F64 trivial = const 2
+  %6: Bool trivial = ge inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb2
+
+bb2:
+  jump -> bb4
+
+bb3:
+  %7: F64 trivial = load inspect %2
+  %8: F64 trivial = const 0.5
+  %9: F64 trivial = mul inspect %7 inspect %8
+  store inspect %2 consume %9
+  jump -> bb1
+
+bb4:
+  %10: F64 trivial = load inspect %2
+  %11: F64 trivial = const 1
+  %12: Bool trivial = lt inspect %10 inspect %11
+  branch inspect %12 -> bb6 -> bb5
+
+bb5:
+  %13: F64 trivial = load inspect %2
+  return consume %13
+
+bb6:
+  %14: F64 trivial = load inspect %2
+  %15: F64 trivial = const 2
+  %16: F64 trivial = mul inspect %14 inspect %15
+  store inspect %2 consume %16
+  jump -> bb4
+}
+
+fn refScale(value: F64 [shared call], exponent: I32 [shared call]) -> F64 {
+bb0(%0: F64 trivial, %1: I32 trivial):
+  %2: %F64 address = alloc frame F64 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %F64 address = alloc frame F64
+  %5: %I32 address = alloc frame I32
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %6: F64 trivial = load inspect %2
+  store inspect %4 consume %6
+  %7: I32 trivial = const 0
+  store inspect %5 consume %7
+  jump -> bb1
+
+bb1:
+  %8: I32 trivial = load inspect %5
+  %9: I32 trivial = load inspect %3
+  %10: Bool trivial = lt inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb2
+
+bb2:
+  jump -> bb4
+
+bb3:
+  %11: F64 trivial = load inspect %4
+  %12: F64 trivial = const 2
+  %13: F64 trivial = mul inspect %11 inspect %12
+  store inspect %4 consume %13
+  %14: I32 [unique call] guaranteed from{%5} = load inspect %5
+  %15: I32 trivial = const 1
+  call +=(I32) borrow %14 borrow %15
+  jump -> bb1
+
+bb4:
+  %16: I32 trivial = load inspect %5
+  %17: I32 trivial = load inspect %3
+  %18: Bool trivial = gt inspect %16 inspect %17
+  branch inspect %18 -> bb6 -> bb5
+
+bb5:
+  %19: F64 trivial = load inspect %4
+  return consume %19
+
+bb6:
+  %20: F64 trivial = load inspect %4
+  %21: F64 trivial = const 0.5
+  %22: F64 trivial = mul inspect %20 inspect %21
+  store inspect %4 consume %22
+  %23: I32 [unique call] guaranteed from{%5} = load inspect %5
+  %24: I32 trivial = const 1
+  call -=(I32) borrow %23 borrow %24
+  jump -> bb4
+}
+
+fn nearFloat(got: Vec(F32) [shared call], want: F64 [shared call]) -> Bool {
+bb0(%0: Vec(F32) trivial, %1: F64 trivial):
+  %4: %Vec(F32) address = alloc frame Vec(F32) [shared call]
+  %5: %F64 address = alloc frame F64 [shared call]
+  %6: %F64 address = alloc frame F64
+  %7: %F64 address = alloc frame F64
+  %8: %Vec(F32) address = alloc frame Vec(F32)
+  %9: %Vec(F32) address = alloc frame Vec(F32)
+  store inspect %4 borrow %0
+  store inspect %5 borrow %1
+  %10: F64 trivial = load inspect %5
+  %11: F64 trivial = const 0
+  %12: Bool trivial = lt inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb1
+
+bb1:
+  %13: F64 trivial = load inspect %5
+  jump -> bb2(consume %13)
+
+bb2(%2: F64 trivial):
+  store inspect %6 consume %2
+  %14: F64 trivial = load inspect %6
+  %15: F64 trivial = const 1
+  %16: Bool trivial = gt inspect %14 inspect %15
+  branch inspect %16 -> bb6 -> bb4
+
+bb3:
+  %17: F64 trivial = load inspect %5
+  %18: F64 trivial = const 0
+  %19: F64 trivial = sub inspect %18 inspect %17
+  jump -> bb2(consume %19)
+
+bb4:
+  %20: F64 trivial = const 1
+  jump -> bb5(consume %20)
+
+bb5(%3: F64 trivial):
+  %21: F64 trivial = const 0.00001
+  %22: F64 trivial = mul inspect %21 inspect %3
+  store inspect %7 consume %22
+  %23: Vec(F32) trivial = load inspect %4
+  %24: F64 trivial = load inspect %5
+  %25: F32 trivial = convert inspect %24
+  %26: Vec(F32) trivial = vec.splat inspect %25
+  %27: Vec(F32) trivial = sub inspect %23 inspect %26
+  store inspect %8 consume %27
+  %28: Vec(F32) trivial = load inspect %8
+  %29: F32 trivial = const 0
+  %30: Vec(F32) trivial = vec.splat inspect %29
+  %31: Mask(F32) trivial = lt inspect %28 inspect %30
+  %32: F32 trivial = const 0
+  %33: Vec(F32) trivial = vec.splat inspect %32
+  %34: Vec(F32) trivial = load inspect %8
+  %35: Vec(F32) trivial = sub inspect %33 inspect %34
+  %36: Vec(F32) trivial = load inspect %8
+  %37: Vec(F32) trivial = select inspect %31 inspect %35 inspect %36
+  store inspect %9 consume %37
+  %38: Vec(F32) trivial = load inspect %9
+  %39: F64 trivial = load inspect %7
+  %40: F32 trivial = convert inspect %39
+  %41: Vec(F32) trivial = vec.splat inspect %40
+  %42: Mask(F32) trivial = le inspect %38 inspect %41
+  %43: Bool trivial = vec.reduce and inspect %42
+  return consume %43
+
+bb6:
+  %44: F64 trivial = load inspect %6
+  jump -> bb5(consume %44)
+}
+
+fn nearDouble(got: Vec(F64) [shared call], want: F64 [shared call]) -> Bool {
+bb0(%0: Vec(F64) trivial, %1: F64 trivial):
+  %4: %Vec(F64) address = alloc frame Vec(F64) [shared call]
+  %5: %F64 address = alloc frame F64 [shared call]
+  %6: %F64 address = alloc frame F64
+  %7: %F64 address = alloc frame F64
+  %8: %Vec(F64) address = alloc frame Vec(F64)
+  %9: %Vec(F64) address = alloc frame Vec(F64)
+  store inspect %4 borrow %0
+  store inspect %5 borrow %1
+  %10: F64 trivial = load inspect %5
+  %11: F64 trivial = const 0
+  %12: Bool trivial = lt inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb1
+
+bb1:
+  %13: F64 trivial = load inspect %5
+  jump -> bb2(consume %13)
+
+bb2(%2: F64 trivial):
+  store inspect %6 consume %2
+  %14: F64 trivial = load inspect %6
+  %15: F64 trivial = const 1
+  %16: Bool trivial = gt inspect %14 inspect %15
+  branch inspect %16 -> bb6 -> bb4
+
+bb3:
+  %17: F64 trivial = load inspect %5
+  %18: F64 trivial = const 0
+  %19: F64 trivial = sub inspect %18 inspect %17
+  jump -> bb2(consume %19)
+
+bb4:
+  %20: F64 trivial = const 1
+  jump -> bb5(consume %20)
+
+bb5(%3: F64 trivial):
+  %21: F64 trivial = const 1E-12
+  %22: F64 trivial = mul inspect %21 inspect %3
+  store inspect %7 consume %22
+  %23: Vec(F64) trivial = load inspect %4
+  %24: F64 trivial = load inspect %5
+  %25: Vec(F64) trivial = vec.splat inspect %24
+  %26: Vec(F64) trivial = sub inspect %23 inspect %25
+  store inspect %8 consume %26
+  %27: Vec(F64) trivial = load inspect %8
+  %28: F64 trivial = const 0
+  %29: Vec(F64) trivial = vec.splat inspect %28
+  %30: Mask(F64) trivial = lt inspect %27 inspect %29
+  %31: F64 trivial = const 0
+  %32: Vec(F64) trivial = vec.splat inspect %31
+  %33: Vec(F64) trivial = load inspect %8
+  %34: Vec(F64) trivial = sub inspect %32 inspect %33
+  %35: Vec(F64) trivial = load inspect %8
+  %36: Vec(F64) trivial = select inspect %30 inspect %34 inspect %35
+  store inspect %9 consume %36
+  %37: Vec(F64) trivial = load inspect %9
+  %38: F64 trivial = load inspect %7
+  %39: Vec(F64) trivial = vec.splat inspect %38
+  %40: Mask(F64) trivial = le inspect %37 inspect %39
+  %41: Bool trivial = vec.reduce and inspect %40
+  return consume %41
+
+bb6:
+  %42: F64 trivial = load inspect %6
+  jump -> bb5(consume %42)
+}
+
+fn sample(index: I32 [shared call]) -> F64 {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 0
+  %4: Bool trivial = eq inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %5: I32 trivial = load inspect %1
+  %6: I32 trivial = const 1
+  %7: Bool trivial = eq inspect %5 inspect %6
+  branch inspect %7 -> bb6 -> bb4
+
+bb3:
+  %8: F64 trivial = const 1
+  return consume %8
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %9: I32 trivial = load inspect %1
+  %10: I32 trivial = const 2
+  %11: Bool trivial = eq inspect %9 inspect %10
+  branch inspect %11 -> bb9 -> bb7
+
+bb6:
+  %12: F64 trivial = const 1.5
+  return consume %12
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %13: I32 trivial = load inspect %1
+  %14: I32 trivial = const 3
+  %15: Bool trivial = eq inspect %13 inspect %14
+  branch inspect %15 -> bb12 -> bb10
+
+bb9:
+  %16: F64 trivial = const 2.5
+  return consume %16
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %17: I32 trivial = load inspect %1
+  %18: I32 trivial = const 4
+  %19: Bool trivial = eq inspect %17 inspect %18
+  branch inspect %19 -> bb15 -> bb13
+
+bb12:
+  %20: F64 trivial = const 8
+  return consume %20
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %21: I32 trivial = load inspect %1
+  %22: I32 trivial = const 5
+  %23: Bool trivial = eq inspect %21 inspect %22
+  branch inspect %23 -> bb18 -> bb16
+
+bb15:
+  %24: F64 trivial = const 0.75
+  return consume %24
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %25: I32 trivial = load inspect %1
+  %26: I32 trivial = const 6
+  %27: Bool trivial = eq inspect %25 inspect %26
+  branch inspect %27 -> bb21 -> bb19
+
+bb18:
+  %28: F64 trivial = const 0.125
+  return consume %28
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %29: F64 trivial = const 0.003
+  return consume %29
+
+bb21:
+  %30: F64 trivial = const 1024
+  return consume %30
+}
+
+fn exponentCases() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: %F64 address = alloc frame F64
+  %3: %Vec(F32) address = alloc frame Vec(F32)
+  %4: %Vec(F64) address = alloc frame Vec(F64)
+  %5: I32 trivial = const 0
+  store inspect %0 consume %5
+  %6: I32 trivial = const 0
+  store inspect %1 consume %6
+  jump -> bb1
+
+bb1:
+  %7: I32 trivial = load inspect %1
+  %8: I32 trivial = const 8
+  %9: Bool trivial = lt inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  %10: I32 trivial = load inspect %0
+  return consume %10
+
+bb3:
+  %11: I32 trivial = load inspect %1
+  %12: F64 trivial = call sample borrow %11
+  store inspect %2 consume %12
+  %13: F64 trivial = load inspect %2
+  %14: F32 trivial = convert inspect %13
+  %15: Vec(F32) trivial = vec.splat inspect %14
+  store inspect %3 consume %15
+  %16: F64 trivial = load inspect %2
+  %17: Vec(F64) trivial = vec.splat inspect %16
+  store inspect %4 consume %17
+  %18: Vec(F32) trivial = load inspect %3
+  %19: Vec(F32) trivial = call Vec(F32).exponentOf borrow %18
+  %20: F64 trivial = load inspect %2
+  %21: F64 trivial = call refExponent borrow %20
+  %22: Bool trivial = call nearFloat borrow %19 borrow %21
+  %23: Bool trivial = not inspect %22
+  branch inspect %23 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %24: Vec(F32) trivial = load inspect %3
+  %25: Vec(F32) trivial = call Vec(F32).significandOf borrow %24
+  %26: F64 trivial = load inspect %2
+  %27: F64 trivial = call refSignificand borrow %26
+  %28: Bool trivial = call nearFloat borrow %25 borrow %27
+  %29: Bool trivial = not inspect %28
+  branch inspect %29 -> bb9 -> bb7
+
+bb6:
+  %30: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %31: I32 trivial = const 1
+  call +=(I32) borrow %30 borrow %31
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %32: Vec(F64) trivial = load inspect %4
+  %33: Vec(F64) trivial = call Vec(F64).exponentOf borrow %32
+  %34: F64 trivial = load inspect %2
+  %35: F64 trivial = call refExponent borrow %34
+  %36: Bool trivial = call nearDouble borrow %33 borrow %35
+  %37: Bool trivial = not inspect %36
+  branch inspect %37 -> bb12 -> bb10
+
+bb9:
+  %38: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %39: I32 trivial = const 1
+  call +=(I32) borrow %38 borrow %39
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %40: Vec(F64) trivial = load inspect %4
+  %41: Vec(F64) trivial = call Vec(F64).significandOf borrow %40
+  %42: F64 trivial = load inspect %2
+  %43: F64 trivial = call refSignificand borrow %42
+  %44: Bool trivial = call nearDouble borrow %41 borrow %43
+  %45: Bool trivial = not inspect %44
+  branch inspect %45 -> bb15 -> bb13
+
+bb12:
+  %46: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %47: I32 trivial = const 1
+  call +=(I32) borrow %46 borrow %47
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %48: I32 [unique call] guaranteed from{%1} = load inspect %1
+  %49: I32 trivial = const 1
+  call +=(I32) borrow %48 borrow %49
+  jump -> bb1
+
+bb15:
+  %50: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %51: I32 trivial = const 1
+  call +=(I32) borrow %50 borrow %51
+  jump -> bb14
+}
+
+fn scaleCases() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: %Vec(F64) address = alloc frame Vec(F64)
+  %3: %Vec(F32) address = alloc frame Vec(F32)
+  %4: %Vec(F64) address = alloc frame Vec(F64)
+  %5: %Vec(F64) address = alloc frame Vec(F64)
+  %6: I32 trivial = const 0
+  store inspect %0 consume %6
+  %7: I32 trivial = const 8
+  %8: I32 trivial = const 0
+  %9: I32 trivial = sub inspect %8 inspect %7
+  store inspect %1 consume %9
+  jump -> bb1
+
+bb1:
+  %10: I32 trivial = load inspect %1
+  %11: I32 trivial = const 8
+  %12: Bool trivial = le inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb2
+
+bb2:
+  %13: F64 trivial = const 1
+  %14: Vec(F64) trivial = vec.splat inspect %13
+  %15: F64 trivial = const 4000
+  %16: Vec(F64) trivial = vec.splat inspect %15
+  %17: Vec(F64) trivial = call Vec(F64).scaleByExponent borrow %14 borrow %16
+  store inspect %4 consume %17
+  %18: F64 trivial = const 1
+  %19: Vec(F64) trivial = vec.splat inspect %18
+  %20: F64 trivial = const 0
+  %21: F64 trivial = const 4000
+  %22: F64 trivial = sub inspect %20 inspect %21
+  %23: Vec(F64) trivial = vec.splat inspect %22
+  %24: Vec(F64) trivial = call Vec(F64).scaleByExponent borrow %19 borrow %23
+  store inspect %5 consume %24
+  %25: Vec(F64) trivial = load inspect %4
+  %26: Mask(F64) trivial = call isInfinite(Vec(F64), Mask(F64)) borrow %25
+  %27: Bool trivial = vec.reduce and inspect %26
+  %28: Bool trivial = not inspect %27
+  branch inspect %28 -> bb12 -> bb10
+
+bb3:
+  %29: F64 trivial = const 2.5
+  %30: Vec(F64) trivial = vec.splat inspect %29
+  store inspect %2 consume %30
+  %31: F32 trivial = const 2.5
+  %32: Vec(F32) trivial = vec.splat inspect %31
+  store inspect %3 consume %32
+  %33: Vec(F64) trivial = load inspect %2
+  %34: I32 trivial = load inspect %1
+  %35: F64 trivial = convert inspect %34
+  %36: Vec(F64) trivial = vec.splat inspect %35
+  %37: Vec(F64) trivial = call Vec(F64).scaleByExponent borrow %33 borrow %36
+  %38: F64 trivial = const 2.5
+  %39: I32 trivial = load inspect %1
+  %40: F64 trivial = call refScale borrow %38 borrow %39
+  %41: Bool trivial = call nearDouble borrow %37 borrow %40
+  %42: Bool trivial = not inspect %41
+  branch inspect %42 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %43: Vec(F32) trivial = load inspect %3
+  %44: I32 trivial = load inspect %1
+  %45: F64 trivial = convert inspect %44
+  %46: F32 trivial = convert inspect %45
+  %47: Vec(F32) trivial = vec.splat inspect %46
+  %48: Vec(F32) trivial = call Vec(F32).scaleByExponent borrow %43 borrow %47
+  %49: F64 trivial = const 2.5
+  %50: I32 trivial = load inspect %1
+  %51: F64 trivial = call refScale borrow %49 borrow %50
+  %52: Bool trivial = call nearFloat borrow %48 borrow %51
+  %53: Bool trivial = not inspect %52
+  branch inspect %53 -> bb9 -> bb7
+
+bb6:
+  %54: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %55: I32 trivial = const 1
+  call +=(I32) borrow %54 borrow %55
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %56: I32 [unique call] guaranteed from{%1} = load inspect %1
+  %57: I32 trivial = const 1
+  call +=(I32) borrow %56 borrow %57
+  jump -> bb1
+
+bb9:
+  %58: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %59: I32 trivial = const 1
+  call +=(I32) borrow %58 borrow %59
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %60: Vec(F64) trivial = load inspect %5
+  %61: Mask(F64) trivial = call isZero(Vec(F64), Mask(F64)) borrow %60
+  %62: Bool trivial = vec.reduce and inspect %61
+  %63: Bool trivial = not inspect %62
+  branch inspect %63 -> bb15 -> bb13
+
+bb12:
+  %64: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %65: I32 trivial = const 1
+  call +=(I32) borrow %64 borrow %65
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %66: I32 trivial = load inspect %0
+  return consume %66
+
+bb15:
+  %67: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %68: I32 trivial = const 1
+  call +=(I32) borrow %67 borrow %68
+  jump -> bb14
+}
+
+fn fractionCases() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: %F64 address = alloc frame F64
+  %3: %F64 address = alloc frame F64
+  %4: I32 trivial = const 0
+  store inspect %0 consume %4
+  %5: I32 trivial = const 0
+  store inspect %1 consume %5
+  jump -> bb1
+
+bb1:
+  %6: I32 trivial = load inspect %1
+  %7: I32 trivial = const 8
+  %8: Bool trivial = lt inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb2
+
+bb2:
+  %9: I32 trivial = load inspect %0
+  return consume %9
+
+bb3:
+  %10: I32 trivial = load inspect %1
+  %11: F64 trivial = call sample borrow %10
+  %12: F64 trivial = const 3
+  %13: F64 trivial = sub inspect %11 inspect %12
+  store inspect %2 consume %13
+  %14: F64 trivial = load inspect %2
+  %15: F64 trivial = load inspect %2
+  %16: F64 trivial = floor inspect %15
+  %17: F64 trivial = sub inspect %14 inspect %16
+  store inspect %3 consume %17
+  %18: F64 trivial = load inspect %2
+  %19: Vec(F64) trivial = vec.splat inspect %18
+  %20: Vec(F64) trivial = call Vec(F64).fract borrow %19
+  %21: F64 trivial = load inspect %3
+  %22: Bool trivial = call nearDouble borrow %20 borrow %21
+  %23: Bool trivial = not inspect %22
+  branch inspect %23 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %24: F64 trivial = load inspect %2
+  %25: F32 trivial = convert inspect %24
+  %26: Vec(F32) trivial = vec.splat inspect %25
+  %27: Vec(F32) trivial = call Vec(F32).fract borrow %26
+  %28: F64 trivial = load inspect %3
+  %29: Bool trivial = call nearFloat borrow %27 borrow %28
+  %30: Bool trivial = not inspect %29
+  branch inspect %30 -> bb9 -> bb7
+
+bb6:
+  %31: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %32: I32 trivial = const 1
+  call +=(I32) borrow %31 borrow %32
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %33: I32 [unique call] guaranteed from{%1} = load inspect %1
+  %34: I32 trivial = const 1
+  call +=(I32) borrow %33 borrow %34
+  jump -> bb1
+
+bb9:
+  %35: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %36: I32 trivial = const 1
+  call +=(I32) borrow %35 borrow %36
+  jump -> bb8
+}
+
+fn orderCases() -> I32 {
+bb0:
+  %2: %I32 address = alloc frame I32
+  %3: %F64 address = alloc frame F64
+  %4: %Vec(F64) address = alloc frame Vec(F64)
+  %5: %I32 address = alloc frame I32
+  %6: %F64 address = alloc frame F64
+  %7: %F64 address = alloc frame F64
+  %8: %Vec(F64) address = alloc frame Vec(F64)
+  %9: %Vec(F64) address = alloc frame Vec(F64)
+  %10: %F64 address = alloc frame F64
+  %11: %F64 address = alloc frame F64
+  %12: I32 trivial = const 0
+  store inspect %2 consume %12
+  %13: F64 trivial = const 0
+  %14: F64 trivial = const 0
+  %15: F64 trivial = div inspect %13 inspect %14
+  store inspect %3 consume %15
+  %16: F64 trivial = load inspect %3
+  %17: Vec(F64) trivial = vec.splat inspect %16
+  store inspect %4 consume %17
+  %18: I32 trivial = const 0
+  store inspect %5 consume %18
+  jump -> bb1
+
+bb1:
+  %19: I32 trivial = load inspect %5
+  %20: I32 trivial = const 8
+  %21: Bool trivial = lt inspect %19 inspect %20
+  branch inspect %21 -> bb3 -> bb2
+
+bb2:
+  %22: I32 trivial = load inspect %2
+  return consume %22
+
+bb3:
+  %23: I32 trivial = load inspect %5
+  %24: F64 trivial = call sample borrow %23
+  store inspect %6 consume %24
+  %25: I32 trivial = load inspect %5
+  %26: I32 trivial = const 3
+  %27: I32 trivial = add inspect %25 inspect %26
+  %28: I32 trivial = const 8
+  %29: I32 trivial = rem inspect %27 inspect %28
+  %30: F64 trivial = call sample borrow %29
+  %31: F64 trivial = const 0
+  %32: F64 trivial = sub inspect %31 inspect %30
+  store inspect %7 consume %32
+  %33: F64 trivial = load inspect %6
+  %34: Vec(F64) trivial = vec.splat inspect %33
+  store inspect %8 consume %34
+  %35: F64 trivial = load inspect %7
+  %36: Vec(F64) trivial = vec.splat inspect %35
+  store inspect %9 consume %36
+  %37: F64 trivial = load inspect %6
+  %38: F64 trivial = load inspect %7
+  %39: Bool trivial = lt inspect %37 inspect %38
+  branch inspect %39 -> bb6 -> bb4
+
+bb4:
+  %40: F64 trivial = load inspect %7
+  jump -> bb5(consume %40)
+
+bb5(%0: F64 trivial):
+  store inspect %10 consume %0
+  %41: F64 trivial = load inspect %6
+  %42: F64 trivial = load inspect %7
+  %43: Bool trivial = gt inspect %41 inspect %42
+  branch inspect %43 -> bb9 -> bb7
+
+bb6:
+  %44: F64 trivial = load inspect %6
+  jump -> bb5(consume %44)
+
+bb7:
+  %45: F64 trivial = load inspect %7
+  jump -> bb8(consume %45)
+
+bb8(%1: F64 trivial):
+  store inspect %11 consume %1
+  %46: Vec(F64) trivial = load inspect %8
+  %47: Vec(F64) trivial = load inspect %9
+  %48: Vec(F64) trivial = call Vec(F64).minNumber borrow %46 borrow %47
+  %49: F64 trivial = load inspect %10
+  %50: Bool trivial = call nearDouble borrow %48 borrow %49
+  %51: Bool trivial = not inspect %50
+  branch inspect %51 -> bb12 -> bb10
+
+bb9:
+  %52: F64 trivial = load inspect %6
+  jump -> bb8(consume %52)
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %53: Vec(F64) trivial = load inspect %9
+  %54: Vec(F64) trivial = load inspect %8
+  %55: Vec(F64) trivial = call Vec(F64).minNumber borrow %53 borrow %54
+  %56: F64 trivial = load inspect %10
+  %57: Bool trivial = call nearDouble borrow %55 borrow %56
+  %58: Bool trivial = not inspect %57
+  branch inspect %58 -> bb15 -> bb13
+
+bb12:
+  %59: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %60: I32 trivial = const 1
+  call +=(I32) borrow %59 borrow %60
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %61: Vec(F64) trivial = load inspect %8
+  %62: Vec(F64) trivial = load inspect %9
+  %63: Vec(F64) trivial = call Vec(F64).maxNumber borrow %61 borrow %62
+  %64: F64 trivial = load inspect %11
+  %65: Bool trivial = call nearDouble borrow %63 borrow %64
+  %66: Bool trivial = not inspect %65
+  branch inspect %66 -> bb18 -> bb16
+
+bb15:
+  %67: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %68: I32 trivial = const 1
+  call +=(I32) borrow %67 borrow %68
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %69: Vec(F64) trivial = load inspect %9
+  %70: Vec(F64) trivial = load inspect %8
+  %71: Vec(F64) trivial = call Vec(F64).maxNumber borrow %69 borrow %70
+  %72: F64 trivial = load inspect %11
+  %73: Bool trivial = call nearDouble borrow %71 borrow %72
+  %74: Bool trivial = not inspect %73
+  branch inspect %74 -> bb21 -> bb19
+
+bb18:
+  %75: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %76: I32 trivial = const 1
+  call +=(I32) borrow %75 borrow %76
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %77: Vec(F64) trivial = load inspect %4
+  %78: Vec(F64) trivial = load inspect %8
+  %79: Vec(F64) trivial = call Vec(F64).minNumber borrow %77 borrow %78
+  %80: F64 trivial = load inspect %6
+  %81: Bool trivial = call nearDouble borrow %79 borrow %80
+  %82: Bool trivial = not inspect %81
+  branch inspect %82 -> bb24 -> bb22
+
+bb21:
+  %83: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %84: I32 trivial = const 1
+  call +=(I32) borrow %83 borrow %84
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %85: Vec(F64) trivial = load inspect %8
+  %86: Vec(F64) trivial = load inspect %4
+  %87: Vec(F64) trivial = call Vec(F64).minNumber borrow %85 borrow %86
+  %88: F64 trivial = load inspect %6
+  %89: Bool trivial = call nearDouble borrow %87 borrow %88
+  %90: Bool trivial = not inspect %89
+  branch inspect %90 -> bb27 -> bb25
+
+bb24:
+  %91: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %92: I32 trivial = const 1
+  call +=(I32) borrow %91 borrow %92
+  jump -> bb23
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %93: Vec(F64) trivial = load inspect %4
+  %94: Vec(F64) trivial = load inspect %8
+  %95: Vec(F64) trivial = call Vec(F64).maxNumber borrow %93 borrow %94
+  %96: F64 trivial = load inspect %6
+  %97: Bool trivial = call nearDouble borrow %95 borrow %96
+  %98: Bool trivial = not inspect %97
+  branch inspect %98 -> bb30 -> bb28
+
+bb27:
+  %99: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %100: I32 trivial = const 1
+  call +=(I32) borrow %99 borrow %100
+  jump -> bb26
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %101: Vec(F64) trivial = load inspect %8
+  %102: Vec(F64) trivial = load inspect %4
+  %103: Vec(F64) trivial = call Vec(F64).maxNumber borrow %101 borrow %102
+  %104: F64 trivial = load inspect %6
+  %105: Bool trivial = call nearDouble borrow %103 borrow %104
+  %106: Bool trivial = not inspect %105
+  branch inspect %106 -> bb33 -> bb31
+
+bb30:
+  %107: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %108: I32 trivial = const 1
+  call +=(I32) borrow %107 borrow %108
+  jump -> bb29
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %109: Vec(F64) trivial = load inspect %4
+  %110: Vec(F64) trivial = load inspect %4
+  %111: Vec(F64) trivial = call Vec(F64).minNumber borrow %109 borrow %110
+  %112: Mask(F64) trivial = call isNaN(Vec(F64), Mask(F64)) borrow %111
+  %113: Bool trivial = vec.reduce and inspect %112
+  %114: Bool trivial = not inspect %113
+  branch inspect %114 -> bb36 -> bb34
+
+bb33:
+  %115: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %116: I32 trivial = const 1
+  call +=(I32) borrow %115 borrow %116
+  jump -> bb32
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %117: Vec(F64) trivial = load inspect %4
+  %118: Vec(F64) trivial = load inspect %4
+  %119: Vec(F64) trivial = call Vec(F64).maxNumber borrow %117 borrow %118
+  %120: Mask(F64) trivial = call isNaN(Vec(F64), Mask(F64)) borrow %119
+  %121: Bool trivial = vec.reduce and inspect %120
+  %122: Bool trivial = not inspect %121
+  branch inspect %122 -> bb39 -> bb37
+
+bb36:
+  %123: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %124: I32 trivial = const 1
+  call +=(I32) borrow %123 borrow %124
+  jump -> bb35
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %125: I32 [unique call] guaranteed from{%5} = load inspect %5
+  %126: I32 trivial = const 1
+  call +=(I32) borrow %125 borrow %126
+  jump -> bb1
+
+bb39:
+  %127: I32 [unique call] guaranteed from{%2} = load inspect %2
+  %128: I32 trivial = const 1
+  call +=(I32) borrow %127 borrow %128
+  jump -> bb38
+}
+
+fn roundTripCases() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: %F64 address = alloc frame F64
+  %3: %Vec(F64) address = alloc frame Vec(F64)
+  %4: %Vec(F32) address = alloc frame Vec(F32)
+  %5: I32 trivial = const 0
+  store inspect %0 consume %5
+  %6: I32 trivial = const 0
+  store inspect %1 consume %6
+  jump -> bb1
+
+bb1:
+  %7: I32 trivial = load inspect %1
+  %8: I32 trivial = const 8
+  %9: Bool trivial = lt inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  %10: I32 trivial = load inspect %0
+  return consume %10
+
+bb3:
+  %11: I32 trivial = load inspect %1
+  %12: F64 trivial = call sample borrow %11
+  store inspect %2 consume %12
+  %13: F64 trivial = load inspect %2
+  %14: Vec(F64) trivial = vec.splat inspect %13
+  store inspect %3 consume %14
+  %15: F64 trivial = load inspect %2
+  %16: F32 trivial = convert inspect %15
+  %17: Vec(F32) trivial = vec.splat inspect %16
+  store inspect %4 consume %17
+  %18: Vec(F64) trivial = load inspect %3
+  %19: Vec(F64) trivial = call Vec(F64).significandOf borrow %18
+  %20: Vec(F64) trivial = load inspect %3
+  %21: Vec(F64) trivial = call Vec(F64).exponentOf borrow %20
+  %22: Vec(F64) trivial = call Vec(F64).scaleByExponent borrow %19 borrow %21
+  %23: F64 trivial = load inspect %2
+  %24: Bool trivial = call nearDouble borrow %22 borrow %23
+  %25: Bool trivial = not inspect %24
+  branch inspect %25 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %26: Vec(F32) trivial = load inspect %4
+  %27: Vec(F32) trivial = call Vec(F32).significandOf borrow %26
+  %28: Vec(F32) trivial = load inspect %4
+  %29: Vec(F32) trivial = call Vec(F32).exponentOf borrow %28
+  %30: Vec(F32) trivial = call Vec(F32).scaleByExponent borrow %27 borrow %29
+  %31: F64 trivial = load inspect %2
+  %32: Bool trivial = call nearFloat borrow %30 borrow %31
+  %33: Bool trivial = not inspect %32
+  branch inspect %33 -> bb9 -> bb7
+
+bb6:
+  %34: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %35: I32 trivial = const 1
+  call +=(I32) borrow %34 borrow %35
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %36: I32 [unique call] guaranteed from{%1} = load inspect %1
+  %37: I32 trivial = const 1
+  call +=(I32) borrow %36 borrow %37
+  jump -> bb1
+
+bb9:
+  %38: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %39: I32 trivial = const 1
+  call +=(I32) borrow %38 borrow %39
+  jump -> bb8
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %String address = alloc frame String
+  %2: %String address = alloc frame String
+  %3: I32 trivial = call exponentCases
+  %4: I32 trivial = call scaleCases
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: I32 trivial = call fractionCases
+  %7: I32 trivial = add inspect %5 inspect %6
+  %8: I32 trivial = call orderCases
+  %9: I32 trivial = add inspect %7 inspect %8
+  %10: I32 trivial = call roundTripCases
+  %11: I32 trivial = add inspect %9 inspect %10
+  store inspect %0 consume %11
+  %12: Size trivial = const 0
+  %13: I32 trivial = load inspect %0
+  %14: Maybe(Size) trivial = call I32.showBound borrow %13
+  %15: Size trivial = call formatBound borrow %14
+  %16: Size trivial = add inspect %12 inspect %15
+  %17: String owned = call String.ofCapacity borrow %16
+  store inspect %1 consume %17
+  %18: I32 trivial = load inspect %0
+  %19: String [unique call] guaranteed from{%1} = load inspect %1
+  call I32.show borrow %18 borrow %19
+  %20: String owned = load inspect %1
+  store inspect %2 consume %20
+  %21: String [shared slot 0] guaranteed from{%2} = load inspect %2
+  %22: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %21
+  call print borrow %22
+  drop String inspect %2
+  %23: I32 trivial = load inspect %0
+  return consume %23
+}
+
+entry main

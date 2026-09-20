@@ -1,0 +1,40 @@
+{-
+   What the five AVX-512 float operations refuse - Analysis-Avx512.md §3.7, checked where each call
+   is written because below that point the declaration is gone and a trailing byte is a field.
+
+   # extensions: avx512
+
+   Two rules, and the signature carries neither:
+
+   - the **lane**. `Vec(a, n)` says the operands and the result agree and says nothing about what
+     `a` is; every one of these instructions is defined on a float lane and on nothing else.
+   - the **trailing byte** of the three that have one, which must be a literal for
+     `aesKeygenAssist`'s reason: the byte is part of the instruction, so a computed one is not an
+     instruction. The whole byte is accepted - every combination has a defined answer on the
+     machine - so what is refused here is a non-literal and a value that is not a byte at all.
+
+   `Reject.FloatOps.Ownership.yana` is the same source through the rewritten stage.
+-}
+import Native
+
+-- The lane has to be a float. An integer one is refused at all five, including the two whose
+-- trailing byte would otherwise be checked first.
+fn integerExponent(v: Vec(I32, 4)) -> Vec(I32, 4) = X86.getExponent(v)
+
+fn integerScale(v: Vec(I32, 4), e: Vec(I32, 4)) -> Vec(I32, 4) = X86.scale(v, e)
+
+fn integerMantissa(v: Vec(I64, 2)) -> Vec(I64, 2) = X86.getMantissa(v, 0)
+
+-- And the trailing byte has to be a literal byte, at each of the three that carry one.
+fn computedMantissa(v: Vec(F32, 4), control: Int) -> Vec(F32, 4) = X86.getMantissa(v, control)
+
+fn computedReduce(v: Vec(F32, 4), control: Int) -> Vec(F32, 4) = X86.reduce(v, control)
+
+fn computedRange(a: Vec(F64, 2), b: Vec(F64, 2), control: Int) -> Vec(F64, 2) =
+    X86.range(a, b, control)
+
+fn wideMantissa(v: Vec(F32, 4)) -> Vec(F32, 4) = X86.getMantissa(v, 256)
+
+fn negativeReduce(v: Vec(F64, 2)) -> Vec(F64, 2) = X86.reduce(v, -1)
+
+fn main() -> Int = 0

@@ -50,6 +50,11 @@ static LowerInst::Kind binaryKind(DeclBase decl, mir::BinaryOp op, DeclPtr<mir::
         // anything about.
         case mir::BinaryOp::BitsUpTo: return LowerInst::BitsUpTo;
 
+        // The two saturating lane operations, which are `Div`'s reading a third time: which two
+        // bounds a lane clamps to is exactly the question this seam exists to answer.
+        case mir::BinaryOp::SaturatingAdd: return isSigned ? LowerInst::ISatAdd : LowerInst::SatAdd;
+        case mir::BinaryOp::SaturatingSub: return isSigned ? LowerInst::ISatSub : LowerInst::SatSub;
+
         // `pext` and `pdep`, which cross this seam as themselves for `bzhi`'s reason: the widths
         // they are defined at are `hasMachineWidth`'s, so there is no narrow value in a register for
         // signedness to mean anything about.
@@ -1682,6 +1687,21 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto manifest = manifestOf(*result);
 
             /*
+             * The two saturating rows, which leave here for `Cmp`'s reason and one more: they are
+             * not `LowerInstBinary`s (see `LowerInstSaturating`), and they have nothing to do with
+             * the width seam below - a lane is a whole lane, and the answer is inside its range by
+             * construction, which is `WidthEffect::Closed` in op.def.
+             */
+            if(kind == LowerInst::SatAdd || kind == LowerInst::ISatAdd
+               || kind == LowerInst::SatSub || kind == LowerInst::ISatSub) {
+                auto saturating = block.addInst(lower, new (to.arena) LowerInstSaturating(
+                    kind, StringId(), manifest.type, lhs - lower, rhs - lower));
+
+                values.add(result->id.index, ((LowerInstSingle*)saturating)->created().ptr - lower);
+                break;
+            }
+
+            /*
              * The width seam - `width.cpp`, and `op.def`'s width column, which is what says
              * whether this operation has anything to do with it.
              *
@@ -2819,6 +2839,62 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     auto result = ssa[inst.results.get(ssa, 0)];
                     auto value = block.addInst(lower, new (to.arena) LowerInstAesKeygenAssist(
                         StringId(), manifestOf(*result).type, args[0], written.immediate));
+
+                    values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
+                    break;
+                }
+
+                /*
+                 * The AVX-512 float operations, two lower kinds with the row as the operation and
+                 * the node's `immediate` as the instruction's trailing byte. `vgetexp` and
+                 * `vscalef` have no byte, and the node carries a zero nothing reads.
+                 */
+                case mir::NativeOp::GetExponent:
+                case mir::NativeOp::GetMantissa:
+                case mir::NativeOp::ReduceFloat: {
+                    auto kind = written.op == mir::NativeOp::GetExponent ? LowerInst::GetExponent
+                              : written.op == mir::NativeOp::GetMantissa ? LowerInst::GetMantissa
+                                                                         : LowerInst::FpReduce;
+
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto value = block.addInst(lower, new (to.arena) LowerInstFloatAdjust(
+                        kind, StringId(), manifestOf(*result).type, args[0], written.immediate));
+
+                    values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
+                    break;
+                }
+
+                case mir::NativeOp::ScaleFloat:
+                case mir::NativeOp::RangeFloat: {
+                    auto kind = written.op == mir::NativeOp::ScaleFloat ? LowerInst::ScaleFloat
+                                                                        : LowerInst::RangeFloat;
+
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto value = block.addInst(lower, new (to.arena) LowerInstFloatCombine(
+                        kind, StringId(), manifestOf(*result).type, args[0], args[1],
+                        written.immediate));
+
+                    values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
+                    break;
+                }
+
+                /*
+                 * The four widening multiply-accumulates, one lower kind each - see
+                 * `LowerInstMulAccumulate`, where the reason the operation is the kind rather than a
+                 * field is written.
+                 */
+                case mir::NativeOp::VecDotBytes:
+                case mir::NativeOp::VecDotWords:
+                case mir::NativeOp::MulAdd52Low:
+                case mir::NativeOp::MulAdd52High: {
+                    auto kind = written.op == mir::NativeOp::VecDotBytes ? LowerInst::DotBytes
+                              : written.op == mir::NativeOp::VecDotWords ? LowerInst::DotWords
+                              : written.op == mir::NativeOp::MulAdd52Low ? LowerInst::MulAdd52Lo
+                                                                         : LowerInst::MulAdd52Hi;
+
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto value = block.addInst(lower, new (to.arena) LowerInstMulAccumulate(
+                        kind, StringId(), manifestOf(*result).type, args[0], args[1], args[2]));
 
                     values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
                     break;

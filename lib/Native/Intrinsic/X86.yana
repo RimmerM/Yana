@@ -344,3 +344,97 @@ pub data XgetbvResult {low: U32, high: U32}
 -}
 @builtin(x86CarrylessMultiply) @platform(pclmul) pub fn X86.carrylessMultiply(a: Vec(U64, 2), b: Vec(U64, 2), selector: Int) -> Vec(U64, 2)
 @builtin(x86CarrylessMultiply2) @platform(vpclmul) pub fn X86.carrylessMultiply2(a: Vec(U64, 4), b: Vec(U64, 4), selector: Int) -> Vec(U64, 4)
+
+{-
+   ==========================================================================================
+   The AVX-512 float operations - `@platform(avx512)`, five instructions.
+   ==========================================================================================
+
+   Analysis-Avx512.md §3.7. Unlike everything above, **each of these has a portable meaning**, and
+   `lib/Math/Math.yana` writes it: `exponentOf`, `significandOf` and `scaleByExponent` are members of
+   `Real`, and `fract`, `minNumber` and `maxNumber` are functions over it. What is here is the
+   machine's one-instruction spelling of six such bodies, and `lib/Math/Math.avx512.yana` is where the
+   two are joined - a `@replaces` per body, read only in a build at this level.
+
+   So the reason these are declarations rather than an expansion behind a portable builtin is the
+   opposite of the SHA rows' reason. There it was that no sequence stands for the instruction. Here a
+   sequence does, it is already written, it is already tested against the mathematics that reads it,
+   and a second copy of it inside the compiler would be the thing that drifts.
+
+   **Const-generic in the lane count**, because unlike a block of AES these are ordinary lane
+   operations and a caller holds whatever width the target chose. The lane must be `F32` or `F64`; a
+   call at an integer lane is refused where it is written.
+
+   ------------------------------------------------------------------------------------------------
+   The five
+
+   `getExponent(v)` is `vgetexpps`/`vgetexppd`: the unbiased exponent of each lane as a float, which
+   is `floor(log2(|x|))` for every finite non-zero lane. It differs from the bit trick it replaces at
+   exactly the arguments `Real` does not define `exponentOf` for - a subnormal gets its *true*
+   exponent here and -1023 there, a zero gets minus infinity, an infinity gets infinity and a NaN a
+   NaN - so the replacement is exact on the documented domain and strictly better outside it.
+
+   `getMantissa(v, control)` is `vgetmantps`/`vgetmantpd`. `control` is the instruction's trailing
+   byte: bits 1:0 choose the interval the answer is normalized into ( 0 for [1, 2), 1 for [1/2, 2),
+   2 for [1/2, 1), 3 for [3/4, 3/2) ) and bits 3:2 what happens to a sign ( 0 keeps the source's,
+   1 forces positive, 2 answers a NaN for a negative source, 3 is reserved ). `significandOf` is
+   control 0.
+
+   `reduce(v, control)` is `vreduceps`/`vreducepd`: `x - round(x)` at a chosen rounding and a chosen
+   number of fraction bits. Bits 7:4 are the count of fraction bits kept before the rounding, bit 3
+   suppresses the precision exception, bit 2 takes the rounding mode from `MXCSR` instead of the
+   byte, and bits 1:0 are that mode - 0 nearest-even, 1 down, 2 up, 3 toward zero. `fract` is
+   control 1: no fraction bits kept, rounded down, which is `x - floor(x)`.
+
+   `scale(value, exponent)` is `vscalefps`/`vscalefpd`: `value * 2 ^ trunc(exponent)` per lane,
+   saturating to an infinity above the range and underflowing gradually below it - which is exactly
+   what `Real` requires of `scaleByExponent` and what the two clamped multiplications it replaces
+   were written to achieve.
+
+   `range(lhs, rhs, control)` is `vrangeps`/`vrangepd`: a minimum or a maximum with the NaN and
+   signed-zero cases decided by the instruction rather than by which operand came second. Bits 1:0
+   choose the comparison ( 0 minimum, 1 maximum, 2 minimum of magnitudes, 3 maximum of magnitudes )
+   and bits 3:2 where the sign comes from ( 0 the first operand, 1 the comparison's answer, 2 forced
+   positive, 3 forced negative ). A NaN in one operand answers the other one, which is the rule
+   `minNumber` and `maxNumber` are written to.
+
+   `control` **must be a literal** in all three, for `aesKeygenAssist`'s reason: it is the trailing
+   byte, so a computed one is not an instruction.
+-}
+@builtin(x86GetExponent) @platform(avx512) pub fn (n: Int) X86.getExponent(value: Vec(a, n)) -> Vec(a, n)
+@builtin(x86GetMantissa) @platform(avx512) pub fn (n: Int) X86.getMantissa(value: Vec(a, n), control: Int) -> Vec(a, n)
+@builtin(x86ReduceFloat) @platform(avx512) pub fn (n: Int) X86.reduce(value: Vec(a, n), control: Int) -> Vec(a, n)
+@builtin(x86ScaleFloat) @platform(avx512) pub fn (n: Int) X86.scale(value: Vec(a, n), exponent: Vec(a, n)) -> Vec(a, n)
+@builtin(x86RangeFloat) @platform(avx512) pub fn (n: Int) X86.range(lhs: Vec(a, n), rhs: Vec(a, n), control: Int) -> Vec(a, n)
+
+{-
+   ==========================================================================================
+   IFMA - `@platform(avx512)`, the 52-bit multiply-accumulate pair.
+   ==========================================================================================
+
+   Analysis-Avx512.md §3.6. `vpmadd52luq` and `vpmadd52huq`: each takes the low 52 bits of two
+   64-bit lanes, multiplies them into a 104-bit product, and adds one half of that product into a
+   64-bit accumulator lane - the low 52 bits for `multiplyAdd52Low` and bits 103:52 for
+   `multiplyAdd52High`. The accumulator's own bits above 52 are kept and the addition wraps at 64,
+   so a carry out of the 52-bit window lands where a caller can see it.
+
+   **Here rather than in `Core` alone among the multiply-accumulates**, and the reason is the number
+   52. `accumulateByteProducts` and `accumulateWordProducts` are portable because a byte and a word
+   are what every machine's lanes are made of, so a target without the instruction has a short
+   sequence for them. Fifty-two is the float unit's mantissa, and these two exist because they ride
+   the FMA pipeline: a target without IFMA has no 52-bit anything, and the emulation is four
+   `pmuludq` and a carry chain that no caller would have written this way. What that emulation is
+   *for* is `mulx` per lane, which is a different program rather than a slower spelling of this one.
+
+   **The callers are 52-bit limb arithmetic and nothing else**: bignum multiplication and Montgomery
+   reduction over radix-2^52 limbs, and the base-10 conversion in §4.9 that peels a digit group per
+   lane against a pooled reciprocal. Each of those chooses the representation *because* the
+   instruction exists, which is the other half of why a portable name for it would be a name with no
+   portable users.
+
+   Const-generic in the lane count, on the float operations' terms above. The lane must be a 64-bit
+   integer; a call at any other lane is refused where it is written, and the top twelve bits of each
+   source lane are ignored by the machine rather than checked.
+-}
+@builtin(x86MulAdd52Low) @platform(avx512) pub fn (n: Int) X86.multiplyAdd52Low(acc: Vec(a, n), lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
+@builtin(x86MulAdd52High) @platform(avx512) pub fn (n: Int) X86.multiplyAdd52High(acc: Vec(a, n), lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)

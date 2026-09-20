@@ -1,0 +1,182 @@
+{-
+   `saturatingAdd` and `saturatingSub` over every integer lane width - Analysis-Avx512.md §3.8, which
+   declined them as an AVX-512 item and not as a library one.
+
+   Three implementations have to agree here and they are written in three different places: x86 has
+   `paddsb` and its seven siblings at a byte and a word lane, `expandVectorSaturating` in
+   codegen/x64/transform_expand.cpp writes the comparison and the select for a doubleword and a
+   quadword lane, LLVM names `llvm.sadd.sat` and its three siblings, and the JavaScript backend
+   clamps each lane in the host's own arithmetic. Every wrong answer is a plausible number, so what
+   is checked is the meaning.
+
+   **The reference is computed at a wider type**, which is the one way to write it that cannot repeat
+   the mistake the operation exists to prevent: `a + b` at `I64` cannot wrap for two `I32` operands,
+   so the clamp that follows it sees the true sum. The 64-bit lanes have no wider type to check
+   against and are the one pair checked against written-out boundary cases instead.
+
+   Every case checks **every lane**, through `all`, rather than lane zero: a body that computed one
+   lane and left the rest alone would pass a lane read and fail here.
+-}
+
+import Test
+
+-- The reference, at a width no lane can overflow. `lo` and `hi` are the lane type's own bounds.
+fn refClamp(value: I64, lo: I64, hi: I64) -> I64 =
+    if value < lo then lo else if value > hi then hi else value
+
+fn refAdd(a: I64, b: I64, lo: I64, hi: I64) -> I64 = refClamp(a + b, lo, hi)
+fn refSub(a: I64, b: I64, lo: I64, hi: I64) -> I64 = refClamp(a - b, lo, hi)
+
+{-
+   The eight values every lane width is walked over, as a `I64` the caller truncates.
+
+   Two at each end of a signed byte's range, two at each end of an unsigned one's, and a few in the
+   middle - so that at a byte lane the pairs cross every boundary, and at a wider one they are
+   ordinary small numbers whose sums cannot saturate. The boundary cases of the wider lanes are
+   written out separately below, since no small table reaches them.
+-}
+fn sample(index: Int) -> I64:
+    if index == 0 then return 0
+    if index == 1 then return 1
+    if index == 2 then return 127
+    if index == 3 then return 128
+    if index == 4 then return 255
+    if index == 5 then return 0 - 1
+    if index == 6 then return 0 - 128
+    return 100
+
+@test fn saturatingBytes():
+    let &i = 0
+    while i < 8:
+        let &j = 0
+        while j < 8:
+            let a = sample(i)
+            let b = sample(j)
+
+            -- Signed bytes: the operands are the samples truncated into the lane, and the reference
+            -- is the same two numbers added at a width that cannot wrap.
+            let sa = (truncate(a) :: I8)
+            let sb = (truncate(b) :: I8)
+            let signedAdd = refAdd(widen(sa), widen(sb), 0 - 128, 127)
+            let signedSub = refSub(widen(sa), widen(sb), 0 - 128, 127)
+
+            check(all(saturatingAdd(splat(sa) :: Vec(I8), splat(sb)) .== splat(truncate(signedAdd) :: I8)))
+            check(all(saturatingSub(splat(sa) :: Vec(I8), splat(sb)) .== splat(truncate(signedSub) :: I8)))
+
+            let ua = (truncate(a) :: U8)
+            let ub = (truncate(b) :: U8)
+            let plainAdd = refAdd(widen(ua), widen(ub), 0, 255)
+            let plainSub = refSub(widen(ua), widen(ub), 0, 255)
+
+            check(all(saturatingAdd(splat(ua) :: Vec(U8), splat(ub)) .== splat(truncate(plainAdd) :: U8)))
+            check(all(saturatingSub(splat(ua) :: Vec(U8), splat(ub)) .== splat(truncate(plainSub) :: U8)))
+            j += 1
+        i += 1
+
+@test fn saturatingWords():
+    let &i = 0
+    while i < 8:
+        let &j = 0
+        while j < 8:
+            -- The word lane's own boundaries, reached by scaling the byte samples up.
+            let a = sample(i) * 257
+            let b = sample(j) * 257
+
+            let sa = (truncate(a) :: I16)
+            let sb = (truncate(b) :: I16)
+            check(all(saturatingAdd(splat(sa) :: Vec(I16), splat(sb))
+                      .== splat(truncate(refAdd(widen(sa), widen(sb), 0 - 32768, 32767)) :: I16)))
+            check(all(saturatingSub(splat(sa) :: Vec(I16), splat(sb))
+                      .== splat(truncate(refSub(widen(sa), widen(sb), 0 - 32768, 32767)) :: I16)))
+
+            let ua = (truncate(a) :: U16)
+            let ub = (truncate(b) :: U16)
+            check(all(saturatingAdd(splat(ua) :: Vec(U16), splat(ub))
+                      .== splat(truncate(refAdd(widen(ua), widen(ub), 0, 65535)) :: U16)))
+            check(all(saturatingSub(splat(ua) :: Vec(U16), splat(ub))
+                      .== splat(truncate(refSub(widen(ua), widen(ub), 0, 65535)) :: U16)))
+            j += 1
+        i += 1
+
+{-
+   The doubleword lanes, which are the first width with no instruction on any x86 part - what runs
+   here is `expandVectorSaturating`'s comparison and select, at every level.
+
+   The samples are scaled to reach the lane's own boundaries rather than staying small, which is the
+   whole of what makes this a test of the clamp rather than of the addition.
+-}
+@test fn saturatingDoublewords():
+    let &i = 0
+    while i < 8:
+        let &j = 0
+        while j < 8:
+            let a = sample(i) * 16843009
+            let b = sample(j) * 16843009
+
+            let sa = (truncate(a) :: I32)
+            let sb = (truncate(b) :: I32)
+            check(all(saturatingAdd(splat(sa) :: Vec(I32), splat(sb))
+                      .== splat(truncate(refAdd(widen(sa), widen(sb), 0 - 2147483648, 2147483647)) :: I32)))
+            check(all(saturatingSub(splat(sa) :: Vec(I32), splat(sb))
+                      .== splat(truncate(refSub(widen(sa), widen(sb), 0 - 2147483648, 2147483647)) :: I32)))
+
+            let ua = (truncate(a) :: U32)
+            let ub = (truncate(b) :: U32)
+            check(all(saturatingAdd(splat(ua) :: Vec(U32), splat(ub))
+                      .== splat(truncate(refAdd(widen(ua), widen(ub), 0, 4294967295)) :: U32)))
+            check(all(saturatingSub(splat(ua) :: Vec(U32), splat(ub))
+                      .== splat(truncate(refSub(widen(ua), widen(ub), 0, 4294967295)) :: U32)))
+            j += 1
+        i += 1
+
+{-
+   The quadword lanes, checked against written-out boundaries rather than against a wider type -
+   there is no wider type, which is the whole reason this case is written differently from the three
+   above.
+
+   What each line asserts is one of the four ways a lane can leave its range, and the three that
+   cannot: an addition off each end, a subtraction off each end, and the ordinary answers in between.
+-}
+@test fn saturatingQuadwords():
+    let top = maxValue() :: I64
+    let bottom = minValue() :: I64
+    let one = splat(1 :: I64) :: Vec(I64)
+
+    check(all(saturatingAdd(splat(top) :: Vec(I64), one) .== splat(top)))
+    check(all(saturatingAdd(splat(top) :: Vec(I64), splat(top)) .== splat(top)))
+    check(all(saturatingSub(splat(bottom) :: Vec(I64), one) .== splat(bottom)))
+    check(all(saturatingSub(splat(bottom) :: Vec(I64), splat(top)) .== splat(bottom)))
+    check(all(saturatingAdd(splat(5 :: I64) :: Vec(I64), one) .== splat(6 :: I64)))
+    check(all(saturatingSub(splat(5 :: I64) :: Vec(I64), one) .== splat(4 :: I64)))
+    check(all(saturatingAdd(splat(bottom) :: Vec(I64), one) .== splat(bottom + 1)))
+
+    let full = maxValue() :: U64
+    let oneU = splat(1 :: U64) :: Vec(U64)
+
+    check(all(saturatingAdd(splat(full) :: Vec(U64), oneU) .== splat(full)))
+    check(all(saturatingSub(splat(0 :: U64) :: Vec(U64), oneU) .== splat(0 :: U64)))
+    check(all(saturatingSub(splat(full) :: Vec(U64), oneU) .== splat(full - 1)))
+    check(all(saturatingAdd(splat(5 :: U64) :: Vec(U64), oneU) .== splat(6 :: U64)))
+
+{-
+   The two properties a caller relies on and a wrapping spelling does not have.
+
+   `saturatingAdd` **commutes** and `saturatingSub` does not, which is why the backend marks only the
+   first row commutative - an operand exchange on the second would be a different answer.
+
+   Neither **associates**, and the second line is the counterexample: at a signed byte,
+   `(127 + 1) - 1` is 126 and `127 + (1 - 1)` is 127. It is here so that a reduction written over one
+   of these is written knowing it.
+-}
+@test fn saturatingAlgebra():
+    let a = splat(100 :: I8) :: Vec(I8)
+    let b = splat(50 :: I8) :: Vec(I8)
+
+    check(all(saturatingAdd(a, b) .== saturatingAdd(b, a)))
+    check(all(saturatingSub(a, b) .== splat(50 :: I8)))
+    check(all(saturatingSub(b, a) .== splat(0 - (50 :: I8))))
+
+    let top = splat(127 :: I8) :: Vec(I8)
+    let one = splat(1 :: I8) :: Vec(I8)
+    check(all(saturatingSub(saturatingAdd(top, one), one) .== splat(126 :: I8)))
+    check(all(saturatingAdd(top, saturatingSub(one, one)) .== splat(127 :: I8)))

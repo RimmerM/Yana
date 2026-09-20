@@ -148,7 +148,9 @@ Inst* cloneComputation(Policy& policy, Value& from) {
         case Value::BitsUpTo:
         case Value::GatherBits:
         case Value::ScatterBits:
-        case Value::Crc32: {
+        case Value::Crc32:
+        case Value::SaturatingAdd:
+        case Value::SaturatingSub: {
             auto& binary = (InstBinary&)from;
             return make(build(CloneTag<InstBinary>(), from.kind, value(binary.lhs), value(binary.rhs)));
         }
@@ -193,6 +195,23 @@ Inst* cloneComputation(Policy& policy, Value& from) {
             auto& crypto = (InstCryptoUnary&)from;
             return make(build(CloneTag<InstCryptoUnary>(), value(crypto.from), crypto.op,
                               crypto.roundConstant));
+        }
+
+        case Value::FloatAdjust: {
+            auto& adjust = (InstFloatAdjust&)from;
+            return make(build(CloneTag<InstFloatAdjust>(), value(adjust.from), adjust.op, adjust.control));
+        }
+
+        case Value::FloatCombine: {
+            auto& combine = (InstFloatCombine&)from;
+            return make(build(CloneTag<InstFloatCombine>(), value(combine.lhs), value(combine.rhs),
+                              combine.op, combine.control));
+        }
+
+        case Value::MulAccumulate: {
+            auto& muladd = (InstMulAccumulate&)from;
+            return make(build(CloneTag<InstMulAccumulate>(), value(muladd.acc), value(muladd.lhs),
+                              value(muladd.rhs), muladd.op));
         }
 
         /*

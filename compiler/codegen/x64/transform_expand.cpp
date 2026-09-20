@@ -3081,3 +3081,484 @@ void lowerMaskRegisters(Context&, LowerBase base, LowerFunction& fun) {
         }
     }
 }
+
+/*
+ * The three bit counts and `bitsUpTo` over a **vector** - Analysis-Avx512.md §3.2, and the pass that
+ * decides which of the four the machine does in one instruction.
+ *
+ * `Bits(Vec(a, n))` is an instance at every integer lane width (`provideVectorInstances`), so what
+ * arrives here is the same `Popcnt`, `ClzWidth` and `CttzWidth` intrinsics a scalar count produces
+ * and the same `BitsUpTo` binary, with a packed type on them. Each has an instruction at `avx512`
+ * over part of that range and a sequence everywhere else, and this is where the range is stated:
+ *
+ *  - **The population count** is `vpopcntb`/`vpopcntw` (BITALG) and `vpopcntd`/`vpopcntq`
+ *    (VPOPCNTDQ) - all four lane widths at this level. Below it, the nibble table: each byte's two
+ *    nibbles looked up in a sixteen-entry table of counts and added, which is what every SWAR
+ *    population count has been written as since SSSE3, then a fold of the bytes inside each lane.
+ *    The lookup is a `VecMove` rather than a `pshufb` written here, so `lowerVectorMoves` picks the
+ *    encoding: one `vpshufb` at 128 bits, a doubled table and one at 256, a repeated table and one
+ *    `vpermi2b` at 512.
+ *  - **The leading-zero count** is `vplzcntd`/`vplzcntq` (CD) and nothing narrower, at any level.
+ *    Everywhere else it is `laneBits - popcount(smear(x))`, the smear being `log2(laneBits)`
+ *    shift-and-or pairs. That is more than §3.2's estimate for the float-conversion route at a
+ *    32-bit lane (eight to ten), and it is uniform in the lane width, exact at every input including
+ *    zero, and needs no second implementation per width. The float route is the measurement to make
+ *    if a caller ever pays for this.
+ *  - **The trailing-zero count** has no instruction at any level, which is why there is no
+ *    `X86VecCount` row for one: it is `popcount((x & -x) - 1)` here exactly as it is at `sse4`, and
+ *    the population count inside it is whatever the two rules above make of it. Four instructions at
+ *    `avx512`, which is what §3.2 budgets for `width - 1 - vplzcnt(x & -x)`.
+ *  - **`bitsUpTo`** has none either, and that is not a gap this level closes - there is no lane-wise
+ *    `bzhi` on any machine here. The count saturates at the lane's width (`lib/Core/Bits.yana`), so
+ *    the sequence is the mask `(1 << count) - 1` chosen against the all-ones vector by a test of the
+ *    count's high bits. **The test is an equality against zero and not an unsigned comparison**: the
+ *    width is a power of two, so "at or above it" is "any bit at or above its log", which every lane
+ *    width has a `pcmpeq` for and only some have an unsigned relation for.
+ *
+ * Above `splitFullVectors`, so that what it writes at `avx512`'s natural width is split where no
+ * 512-bit row exists; above `lowerVectorMoves`, which is what turns its table lookups into the
+ * machine's; and above `expandByteShifts`, whose word-shift-and-mask is what the byte-lane shifts
+ * here become.
+ */
+namespace {
+
+/*
+ * The interned splats an expansion below builds its sequence out of - shared by
+ * `expandVectorBitCounts` and `expandVectorSaturating`, which need the same thing for the same
+ * reason and would otherwise state it twice.
+ *
+ * Every constant goes at the *top* of `home`, which is where a value with no operands may stand and
+ * where it dominates every use by construction - `expandVectorAbs`' rule and its reason. What that
+ * costs is `into`: where the expansion is itself inside `home`, an insertion above it moves it down,
+ * so the position it writes at has to move with it.
+ */
+struct PooledSplats {
+    LowerBase base;
+    LowerFunction& fun;
+    LowerBlock* home;
+
+    // The sequence being written, and the block it is being written into.
+    Expansion* into = nullptr;
+    LowerBlock* block = nullptr;
+
+    // One entry per constant the function needs, interned rather than left to a CSE pass that does
+    // not run below this point. A handful per function at most - the nibble table, the low-nibble
+    // mask, a small set of lane-width constants, a pair of saturating bounds - so a list scanned
+    // linearly is the right shape.
+    struct Pooled {
+        LowerType type;
+        U64 value;
+        LowerValue* built;
+    };
+
+    SmallArray<Pooled, 8> pooled;
+
+    void placed(Size count) {
+        if(into && block == home) into->at += count;
+    }
+
+    // A splat of `value` at `type`, interned. `poolVectorConstants` turns the pair into one
+    // `.rodata` load, and the load of a global nothing writes is rematerializable - so holding it
+    // across the function is the cheapest kind of register pressure there is.
+    LowerValue* constant(LowerType type, U64 value) {
+        for(auto& entry: pooled) {
+            if(entry.type == type && entry.value == value) return entry.built;
+        }
+
+        Expansion at { base, fun, home, 0 };
+        auto scalar = at.integer(scalarFormOf(type), value);
+        auto splat = at.splat(type, scalar);
+        placed(at.at);
+
+        pooled.push(Pooled { type, value, splat });
+        return splat;
+    }
+};
+
+struct BitCountExpansion: PooledSplats {
+    LowerValue* table = nullptr;
+
+    /*
+     * The sixteen counts, built as a splat and fifteen lane writes - which `poolVectorConstants`
+     * reads back through `constantVectorBytes` and turns into one `.rodata` entry, exactly as it
+     * does for the sign masks. Written as `Vec(U8, 16)` at every register width, because that is
+     * what makes it one entry rather than one per width: `lowerVectorMoves` doubles or repeats a
+     * narrow table for itself.
+     */
+    LowerValue* nibbleCounts() {
+        if(table) return table;
+
+        static const U8 kCounts[16] = { 0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4 };
+        auto bytes = vectorType(LowerLane::Int8, 16);
+        auto scalar = scalarFormOf(bytes);
+
+        Expansion at { base, fun, home, 0 };
+        auto zero = at.integer(scalar, 0);
+        LowerValue* built = at.splat(bytes, zero);
+
+        for(U8 i = 1; i < 16; i++) {
+            built = at.withLane(bytes, built, i, at.integer(scalar, kCounts[i]));
+        }
+
+        placed(at.at);
+        table = built;
+        return built;
+    }
+
+    LowerValue* lookup(Expansion& e, LowerType type, LowerValue* from, LowerValue* indices) {
+        return e.emit(new (fun.arena) LowerInstVecMove(
+            StringId(), type, from - base, indices - base, LowerLaneMove::Lookup));
+    }
+
+    // The population count of every **byte** of a value, whatever lanes it is read at.
+    LowerValue* byteCounts(Expansion& e, LowerValue* value) {
+        auto bytes = vectorType(LowerLane::Int8, value->type.byteWidth());
+        auto read = e.reinterpret(bytes, value);
+
+        // One instruction where the level has it, which leaves the in-lane fold below as the whole
+        // of what a wide lane's count costs at `avx512`.
+        if(hasEvexRow(EvexRow::PopcountNarrow)) {
+            return e.emit(new (fun.arena) LowerInstX86VecCount(StringId(), bytes, read - base, false));
+        }
+
+        auto counts = nibbleCounts();
+
+        /*
+         * **The low nibble is not masked here**, and the high one is not masked twice. A lookup
+         * takes its index modulo the table's lane count (§3.3), the table is sixteen lanes, and
+         * `lowerVectorMoves` implements that as the `and` with fifteen `byteControl` writes - so a
+         * mask of this operand would be that mask a second time. The high nibble arrives already in
+         * range because `expandByteShifts` writes a byte shift as a word shift and `0xff >> 4`.
+         */
+        auto high = e.binary(LowerInst::Shr, bytes, read, e.integer(scalarFormOf(bytes), 4));
+
+        auto lowCount = lookup(e, bytes, counts, read);
+        auto highCount = lookup(e, bytes, counts, high);
+        return e.binary(LowerInst::Add, bytes, lowCount, highCount);
+    }
+
+    // The population count of every lane, at the lane width the type states.
+    LowerValue* popcount(Expansion& e, LowerType type, LowerValue* value) {
+        auto lane = laneBytes(type.lane);
+
+        if(hasEvexRow(lane <= 2 ? EvexRow::PopcountNarrow : EvexRow::PopcountWide)) {
+            return e.emit(new (fun.arena) LowerInstX86VecCount(StringId(), type, value - base, false));
+        }
+
+        auto counted = byteCounts(e, value);
+        auto folded = e.reinterpret(type, counted);
+        if(lane == 1) return folded;
+
+        /*
+         * The bytes of each lane added together by the halving fold every SWAR sum is. No byte can
+         * exceed eight, so eight of them sum to sixty-four and nothing carries out of a byte at any
+         * lane width - which is what lets the masking wait until the end, one `and` rather than one
+         * per step.
+         */
+        for(U32 shift = 8; shift < lane * 8u; shift *= 2) {
+            auto moved = e.binary(LowerInst::Shr, type, folded, e.integer(scalarFormOf(type), shift));
+            folded = e.binary(LowerInst::Add, type, folded, moved);
+        }
+
+        return e.binary(LowerInst::And, type, folded, constant(type, 0xff));
+    }
+};
+
+} // namespace
+
+/*
+ * `saturatingAdd` and `saturatingSub` where the machine has no instruction - Analysis-Avx512.md §3.8
+ * and `Core.Vector`'s two clamping operations.
+ *
+ * x86 has `paddsb`/`paddsw`/`paddusb`/`paddusw` and their four subtracting twins, and nothing wider:
+ * a doubleword or a quadword lane is this sequence at every level, AVX-512 included. So the pass is
+ * keyed on the lane width rather than on a feature, and a byte or a word lane walks straight past it
+ * to `selectPackedForm`.
+ *
+ * **The overflow test is on the operands and not on the answer**, which is the whole of what makes
+ * each of these correct: the sum has already wrapped by the time it exists, so `min(a + b, maxValue)`
+ * is the wrong program and no arrangement of it is the right one.
+ *
+ *   unsigned add   `sum = a + b`, and it wrapped exactly where `sum <u a`
+ *   unsigned sub   `a - b`, and it wrapped exactly where `a <u b`
+ *   signed add     wrapped where `a` and `b` share a sign the answer does not - `(a ^ sum) & (b ^ sum) < 0`
+ *   signed sub     wrapped where `a` and `b` differ in sign and the answer differs from `a` -
+ *                  `(a ^ b) & (a ^ diff) < 0`
+ *
+ * The saturated value of a signed lane is read off the *first* operand's sign rather than chosen by a
+ * second comparison: `a >>s (bits - 1)` is all ones for a negative lane and zero otherwise, and the
+ * exclusive-or of that with the type's maximum is the minimum or the maximum accordingly. That is
+ * right for both operations, because a signed overflow can only carry the answer past the end `a`
+ * was already nearest.
+ */
+void expandVectorSaturating(Context&, LowerBase base, LowerFunction& fun) {
+    auto home = constantHome(base, fun);
+    if(!home) return;
+
+    PooledSplats state { base, fun, home };
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            auto kind = inst->kind;
+
+            if(kind != LowerInst::SatAdd && kind != LowerInst::ISatAdd
+               && kind != LowerInst::SatSub && kind != LowerInst::ISatSub) {
+                continue;
+            }
+
+            auto written = (LowerInstSaturating*)inst;
+            auto type = written->result.type;
+            auto lane = laneBytes(type.lane);
+
+            // A byte or a word lane is one instruction, at every level and both signednesses.
+            if(lane <= 2) continue;
+
+            Expansion e { base, fun, block, i };
+            state.into = &e;
+            state.block = block;
+
+            auto adding = kind == LowerInst::SatAdd || kind == LowerInst::ISatAdd;
+            auto isSigned = kind == LowerInst::ISatAdd || kind == LowerInst::ISatSub;
+            auto laneBits = U64(lane) * 8;
+            auto mask = maskType(type.lane, type.lanes());
+            auto scalar = scalarFormOf(type);
+
+            auto lhs = base[written->lhs];
+            auto rhs = base[written->rhs];
+            auto plain = e.binary(adding ? LowerInst::Add : LowerInst::Sub, type, lhs, rhs);
+            LowerValue* answer = nullptr;
+
+            if(!isSigned) {
+                auto wrapped = adding
+                    ? e.emit(new (fun.arena) LowerInstCmp(StringId(), plain - base, lhs - base,
+                                                          LowerCmp::lt, mask))
+                    : e.emit(new (fun.arena) LowerInstCmp(StringId(), lhs - base, rhs - base,
+                                                          LowerCmp::lt, mask));
+
+                auto bound = state.constant(type, adding ? ~U64(0) : 0);
+                answer = e.select(type, wrapped, bound, plain);
+            } else {
+                auto left = e.binary(LowerInst::Xor, type, lhs, adding ? plain : rhs);
+                auto right = e.binary(LowerInst::Xor, type, adding ? rhs : lhs, plain);
+                auto bad = e.binary(LowerInst::And, type, left, right);
+
+                auto wrapped = e.emit(new (fun.arena) LowerInstCmp(
+                    StringId(), bad - base, state.constant(type, 0) - base, LowerCmp::ilt, mask));
+
+                auto sign = e.binary(LowerInst::Sar, type, lhs, e.integer(scalar, laneBits - 1));
+                auto bound = e.binary(LowerInst::Xor, type, sign,
+                                      state.constant(type, (U64(1) << (laneBits - 1)) - 1));
+
+                answer = e.select(type, wrapped, bound, plain);
+            }
+
+            answer->name = written->result.name;
+            replaceAllUses(base, &written->result, answer);
+            removeInst(base, inst);
+
+            state.into = nullptr;
+            state.block = nullptr;
+            i = e.at - 1;
+        }
+    }
+}
+
+/*
+ * `accumulateByteProducts` and `accumulateWordProducts` where the machine has no VNNI -
+ * Analysis-Avx512.md §3.6 and `Core.Vector`'s two widening multiply-accumulates.
+ *
+ * `pmaddwd` is what makes this cheap, and it has been in the machine since SSE2: it multiplies each
+ * adjacent pair of signed word lanes and sums the pair into one doubleword, which is exactly a word
+ * dot product with a zero accumulator. So a `DotWords` is two instructions here and a `DotBytes` is
+ * eleven, against `vpdpwssd`'s one and `vpdpbusd`'s one at `avx512`.
+ *
+ * **What is deliberately not used is `pmaddubsw`**, which is the instruction a byte kernel reaches
+ * for first and is the wrong one: it saturates each pair's sum at a signed word, so a build using it
+ * would answer differently from a build with `vpdpbusd` - the same program, two answers, decided by
+ * a flag. `lib/Core/Vector.yana` promises no saturation anywhere, and this is where that promise is
+ * either kept or quietly broken.
+ *
+ * The byte route splits each word lane into its two bytes and runs `pmaddwd` twice:
+ *
+ *   `uEven`/`sEven`   the low byte of each word, zero- and sign-extended by a shift pair
+ *   `uOdd`/`sOdd`     the high byte of each word, by one shift each
+ *   `pmaddwd` of the two even halves is bytes 0 and 2 of each doubleword group, the odd halves 1 and 3
+ *
+ * and every product fits in a signed word by construction - an unsigned byte times a signed one is
+ * between -32640 and 32385 - so the pair sums `pmaddwd` computes are exact. The shifts are used in
+ * place of a pooled `0x00ff` mask on purpose: one extra instruction against a constant that would
+ * need `constantHome` and a register to live in, in a loop where the register is the scarce thing.
+ */
+void expandVectorDotProducts(Context&, LowerBase base, LowerFunction& fun) {
+    if(targetFeatures() & kFeatureAvx512vnni) return;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            auto kind = inst->kind;
+
+            if(kind != LowerInst::DotBytes && kind != LowerInst::DotWords) continue;
+
+            auto written = (LowerInstMulAccumulate*)inst;
+            auto type = written->result.type;
+
+            auto acc = base[written->acc];
+            auto lhs = base[written->lhs];
+            auto rhs = base[written->rhs];
+
+            Expansion e { base, fun, block, i };
+
+            // The word view of the two product operands. A `DotWords` has one already; a `DotBytes`
+            // reads the same register as half as many lanes of twice the width, which is a bitcast
+            // and no instruction.
+            auto words = LowerType(LowerLane::Int16, U8(type.laneShift + 1), false);
+            auto scalar = scalarFormOf(words);
+            LowerValue* answer = nullptr;
+
+            if(kind == LowerInst::DotWords) {
+                auto products = e.emit(new (fun.arena) LowerInstX86MulAddWords(
+                    StringId(), type, lhs - base, rhs - base));
+
+                answer = e.binary(LowerInst::Add, type, acc, products);
+            } else {
+                auto unsignedWords = e.reinterpret(words, lhs);
+                auto signedWords = e.reinterpret(words, rhs);
+                auto eight = e.integer(scalar, 8);
+
+                auto unsignedLow = e.binary(LowerInst::Shl, words, unsignedWords, eight);
+                auto unsignedEven = e.binary(LowerInst::Shr, words, unsignedLow, eight);
+                auto unsignedOdd = e.binary(LowerInst::Shr, words, unsignedWords, eight);
+
+                auto signedLow = e.binary(LowerInst::Shl, words, signedWords, eight);
+                auto signedEven = e.binary(LowerInst::Sar, words, signedLow, eight);
+                auto signedOdd = e.binary(LowerInst::Sar, words, signedWords, eight);
+
+                auto even = e.emit(new (fun.arena) LowerInstX86MulAddWords(
+                    StringId(), type, unsignedEven - base, signedEven - base));
+                auto odd = e.emit(new (fun.arena) LowerInstX86MulAddWords(
+                    StringId(), type, unsignedOdd - base, signedOdd - base));
+
+                auto partial = e.binary(LowerInst::Add, type, acc, even);
+                answer = e.binary(LowerInst::Add, type, partial, odd);
+            }
+
+            answer->name = written->result.name;
+            replaceAllUses(base, &written->result, answer);
+            removeInst(base, inst);
+
+            i = e.at - 1;
+        }
+    }
+}
+
+void expandVectorBitCounts(Context&, LowerBase base, LowerFunction& fun) {
+    auto home = constantHome(base, fun);
+    if(!home) return;
+
+    BitCountExpansion state { base, fun, home };
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+
+            auto intrinsic = inst->kind == LowerInst::Intrinsic;
+            auto which = intrinsic ? ((LowerInstIntrinsic*)inst)->getIntrinsic() : LowerIntrinsic::Nop;
+
+            if(intrinsic && which != LowerIntrinsic::Popcnt && which != LowerIntrinsic::ClzWidth
+               && which != LowerIntrinsic::CttzWidth) {
+                continue;
+            }
+
+            if(!intrinsic && inst->kind != LowerInst::BitsUpTo) continue;
+
+            auto result = intrinsic ? inst->created().ptr : &((LowerInstBinary*)inst)->result;
+            auto type = result->type;
+            if(!isIntVector(type)) continue;
+
+            Expansion e { base, fun, block, i };
+            state.into = &e;
+            state.block = block;
+
+            auto lane = laneBytes(type.lane);
+            auto laneBits = U64(lane) * 8;
+            auto scalar = scalarFormOf(type);
+            LowerValue* answer = nullptr;
+
+            if(intrinsic && which == LowerIntrinsic::Popcnt) {
+                answer = state.popcount(e, type, base[inst->used().ptr[0]]);
+            } else if(intrinsic && which == LowerIntrinsic::ClzWidth) {
+                auto value = base[inst->used().ptr[0]];
+
+                if(lane >= 4 && hasEvexRow(EvexRow::LeadingZeros)) {
+                    answer = e.emit(new (fun.arena) LowerInstX86VecCount(
+                        StringId(), type, value - base, true));
+                } else {
+                    /*
+                     * Every bit below the highest set one filled in, then counted. The smear is
+                     * idempotent under further shifts, so the halving chain reaches the whole lane
+                     * in `log2(laneBits)` steps - and a zero lane stays zero, which is how the
+                     * language's answer at zero (`laneBits`) falls out of the subtraction rather
+                     * than needing a test of its own.
+                     */
+                    auto smeared = value;
+                    for(U64 shift = 1; shift < laneBits; shift *= 2) {
+                        auto moved = e.binary(LowerInst::Shr, type, smeared, e.integer(scalar, shift));
+                        smeared = e.binary(LowerInst::Or, type, smeared, moved);
+                    }
+
+                    auto set = state.popcount(e, type, smeared);
+                    answer = e.binary(LowerInst::Sub, type, state.constant(type, laneBits), set);
+                }
+            } else if(intrinsic) {
+                /*
+                 * `popcount((x & -x) - 1)`, which has the language's answer at zero for nothing:
+                 * `0 & -0` is zero, one less is all ones, and the count of those is the lane's
+                 * width. There is no packed trailing count at any level, so this is the sequence at
+                 * `avx512` too - with a one-instruction population count inside it.
+                 */
+                auto value = base[inst->used().ptr[0]];
+                auto negated = e.binary(LowerInst::Sub, type, state.constant(type, 0), value);
+                auto lowest = e.binary(LowerInst::And, type, value, negated);
+                auto below = e.binary(LowerInst::Sub, type, lowest, state.constant(type, 1));
+
+                answer = state.popcount(e, type, below);
+            } else {
+                auto value = base[((LowerInstBinary*)inst)->lhs];
+                auto count = base[((LowerInstBinary*)inst)->rhs];
+
+                // The saturation, read off the count's high bits rather than out of a comparison
+                // against the width - see the note above this pass.
+                auto above = e.binary(LowerInst::And, type, count, state.constant(type, ~(laneBits - 1)));
+                auto inside = e.emit(new (fun.arena) LowerInstCmp(
+                    StringId(), above - base, state.constant(type, 0) - base, LowerCmp::eq,
+                    maskType(type.lane, type.lanes())));
+
+                auto one = state.constant(type, 1);
+                auto low = e.binary(LowerInst::And, type, count, state.constant(type, laneBits - 1));
+                auto shifted = e.binary(LowerInst::Shl, type, one, low);
+                auto mask = e.binary(LowerInst::Sub, type, shifted, one);
+
+                auto keep = e.select(type, inside, mask, state.constant(type, ~U64(0)));
+                answer = e.binary(LowerInst::And, type, value, keep);
+            }
+
+            answer->name = result->name;
+            replaceAllUses(base, result, answer);
+            removeInst(base, inst);
+
+            state.into = nullptr;
+            state.block = nullptr;
+
+            // The sequence stands where the count did, so the walk carries on past it - and past
+            // whatever went into the constant home, `placed` having moved `e.at` with it.
+            i = e.at - 1;
+        }
+    }
+}

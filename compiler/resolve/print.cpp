@@ -657,6 +657,51 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
 
             break;
         }
+        case Value::FloatAdjust: {
+            auto& adjust = (InstFloatAdjust&)inst;
+
+            print.writer.writeByte(' ');
+            print.writer.writeString(nameOfFloatAdjustOp(adjust.op));
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[adjust.from]);
+
+            if(adjust.op != FloatAdjustOp::Exponent) {
+                print.writer.writeByte(' ');
+                writeUInt(print.writer, adjust.control);
+            }
+
+            break;
+        }
+        case Value::FloatCombine: {
+            auto& combine = (InstFloatCombine&)inst;
+
+            print.writer.writeByte(' ');
+            print.writer.writeString(nameOfFloatCombineOp(combine.op));
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[combine.lhs]);
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[combine.rhs]);
+
+            if(combine.op == FloatCombineOp::Range) {
+                print.writer.writeByte(' ');
+                writeUInt(print.writer, combine.control);
+            }
+
+            break;
+        }
+        case Value::MulAccumulate: {
+            auto& muladd = (InstMulAccumulate&)inst;
+
+            print.writer.writeByte(' ');
+            print.writer.writeString(nameOfMulAccumulateOp(muladd.op));
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[muladd.acc]);
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[muladd.lhs]);
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[muladd.rhs]);
+            break;
+        }
         case Value::Add:
         case Value::Sub:
         case Value::Mul:
@@ -674,6 +719,8 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
         case Value::GatherBits:
         case Value::ScatterBits:
         case Value::Crc32:
+        case Value::SaturatingAdd:
+        case Value::SaturatingSub:
         case Value::Xor:
         case Value::Cmp: {
             auto& binary = (InstBinary&)inst;

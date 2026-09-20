@@ -1,0 +1,560 @@
+let image$base: () = <none>
+
+fn +=(U64)(%target: U64, %amount: U64) -> () {
+  b0:
+    %v2 = load %target : U64
+    %v3 = add %v2, %amount : U64
+    assign %target, %v3
+    ret
+}
+
+fn -=(U64)(%target: U64, %amount: U64) -> () {
+  b0:
+    %v2 = load %target : U64
+    %v3 = sub %v2, %amount : U64
+    assign %target, %v3
+    ret
+}
+
+fn +=(I32)(%target: I32, %amount: I32) -> () {
+  b0:
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
+    assign %target, %v3
+    ret
+}
+
+fn refCount(%value: U64, %bits: U64) -> U64 {
+  b0:
+    %n = alloc : U64
+    init %n, 0
+    %i = alloc : U64
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : U64
+    %v10 = cmp_lt %v9, %bits : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v34 = load %n : U64
+    ret %v34
+
+  b3:
+    %v12 = load %i : U64
+    %v13 = shr %value, %v12 : U64
+    %v16 = and %v13, 1 : U64
+    %v19 = cmp_eq %v16, 1 : Bool
+    je %v19, b4, b5
+
+  b4:
+    %v21 = load %n : U64
+    %v24 = borrow_mut %n : &U64
+    call +=(U64), %v24, 1
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v28 = load %i : U64
+    %v31 = borrow_mut %i : &U64
+    call +=(U64), %v31, 1
+    jmp b1
+}
+
+fn refLeading(%value: U64, %bits: U64) -> U64 {
+  b0:
+    %i = alloc : U64
+    init %i, %bits
+    jmp b1
+
+  b1:
+    %v5 = load %i : U64
+    %v8 = cmp_gt %v5, 0 : Bool
+    je %v8, b3, b2
+
+  b2:
+    ret %bits
+
+  b3:
+    %v10 = load %i : U64
+    %v13 = borrow_mut %i : &U64
+    call -=(U64), %v13, 1
+    %v15 = load %i : U64
+    %v16 = shr %value, %v15 : U64
+    %v19 = and %v16, 1 : U64
+    %v22 = cmp_eq %v19, 1 : Bool
+    je %v22, b4, b5
+
+  b4:
+    %v26 = sub %bits, 1 : U64
+    %v27 = load %i : U64
+    %v28 = sub %v26, %v27 : U64
+    ret %v28
+
+  b5:
+    jmp b6
+
+  b6:
+    jmp b1
+}
+
+fn refTrailing(%value: U64, %bits: U64) -> U64 {
+  b0:
+    %i = alloc : U64
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v6 = load %i : U64
+    %v7 = cmp_lt %v6, %bits : Bool
+    je %v7, b3, b2
+
+  b2:
+    ret %bits
+
+  b3:
+    %v9 = load %i : U64
+    %v10 = shr %value, %v9 : U64
+    %v13 = and %v10, 1 : U64
+    %v16 = cmp_eq %v13, 1 : Bool
+    je %v16, b4, b5
+
+  b4:
+    %v18 = load %i : U64
+    ret %v18
+
+  b5:
+    jmp b6
+
+  b6:
+    %v21 = load %i : U64
+    %v24 = borrow_mut %i : &U64
+    call +=(U64), %v24, 1
+    jmp b1
+}
+
+fn refUpTo(%value: U64, %bits: U64, %upTo: U64) -> U64 {
+  b0:
+    %v3 = cmp_ge %upTo, %bits : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret %value
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = shl 1, %upTo : U64
+    %v12 = sub %v9, 1 : U64
+    %v13 = and %value, %v12 : U64
+    ret %v13
+}
+
+fn wrongU8(%value: U64, %upTo: U64) -> I32 {
+  b0:
+    %v2 = cast %value : U8
+    %v = vsplat %v2 : Vec(U8)
+    %v4 = cast %upTo : U8
+    %n = vsplat %v4 : Vec(U8)
+    %v6 = countbits %v : Vec(U8)
+    %v8 = call refCount, %value, 8 : U64
+    %v9 = cast %v8 : U8
+    %v10 = vsplat %v9 : Vec(U8)
+    %v11 = cmp_ne %v6, %v10 : Mask(U8)
+    %v12 = vreduce_add %v11 : I32
+    %bad = alloc : I32
+    init %bad, %v12
+    %v15 = load %bad : I32
+    %v16 = clz %v : Vec(U8)
+    %v18 = call refLeading, %value, 8 : U64
+    %v19 = cast %v18 : U8
+    %v20 = vsplat %v19 : Vec(U8)
+    %v21 = cmp_ne %v16, %v20 : Mask(U8)
+    %v22 = vreduce_add %v21 : I32
+    %v23 = borrow_mut %bad : &I32
+    call +=(I32), %v23, %v22
+    %v25 = load %bad : I32
+    %v26 = ctz %v : Vec(U8)
+    %v28 = call refTrailing, %value, 8 : U64
+    %v29 = cast %v28 : U8
+    %v30 = vsplat %v29 : Vec(U8)
+    %v31 = cmp_ne %v26, %v30 : Mask(U8)
+    %v32 = vreduce_add %v31 : I32
+    %v33 = borrow_mut %bad : &I32
+    call +=(I32), %v33, %v32
+    %v35 = load %bad : I32
+    %v37 = vsplat 8 : Vec(U8)
+    %v38 = clz %v : Vec(U8)
+    %v39 = sub %v37, %v38 : Vec(U8)
+    %v42 = call refLeading, %value, 8 : U64
+    %v44 = sub 8, %v42 : U64
+    %v45 = cast %v44 : U8
+    %v46 = vsplat %v45 : Vec(U8)
+    %v47 = cmp_ne %v39, %v46 : Mask(U8)
+    %v48 = vreduce_add %v47 : I32
+    %v49 = borrow_mut %bad : &I32
+    call +=(I32), %v49, %v48
+    %v51 = load %bad : I32
+    %v52 = bitsupto %v, %n : Vec(U8)
+    %v54 = call refUpTo, %value, 8, %upTo : U64
+    %v55 = cast %v54 : U8
+    %v56 = vsplat %v55 : Vec(U8)
+    %v57 = cmp_ne %v52, %v56 : Mask(U8)
+    %v58 = vreduce_add %v57 : I32
+    %v59 = borrow_mut %bad : &I32
+    call +=(I32), %v59, %v58
+    %v61 = load %bad : I32
+    ret %v61
+}
+
+fn wrongU16(%value: U64, %upTo: U64) -> I32 {
+  b0:
+    %v2 = cast %value : U16
+    %v = vsplat %v2 : Vec(U16)
+    %v4 = cast %upTo : U16
+    %n = vsplat %v4 : Vec(U16)
+    %v6 = countbits %v : Vec(U16)
+    %v8 = call refCount, %value, 16 : U64
+    %v9 = cast %v8 : U16
+    %v10 = vsplat %v9 : Vec(U16)
+    %v11 = cmp_ne %v6, %v10 : Mask(U16)
+    %v12 = vreduce_add %v11 : I32
+    %bad = alloc : I32
+    init %bad, %v12
+    %v15 = load %bad : I32
+    %v16 = clz %v : Vec(U16)
+    %v18 = call refLeading, %value, 16 : U64
+    %v19 = cast %v18 : U16
+    %v20 = vsplat %v19 : Vec(U16)
+    %v21 = cmp_ne %v16, %v20 : Mask(U16)
+    %v22 = vreduce_add %v21 : I32
+    %v23 = borrow_mut %bad : &I32
+    call +=(I32), %v23, %v22
+    %v25 = load %bad : I32
+    %v26 = ctz %v : Vec(U16)
+    %v28 = call refTrailing, %value, 16 : U64
+    %v29 = cast %v28 : U16
+    %v30 = vsplat %v29 : Vec(U16)
+    %v31 = cmp_ne %v26, %v30 : Mask(U16)
+    %v32 = vreduce_add %v31 : I32
+    %v33 = borrow_mut %bad : &I32
+    call +=(I32), %v33, %v32
+    %v35 = load %bad : I32
+    %v37 = vsplat 16 : Vec(U16)
+    %v38 = clz %v : Vec(U16)
+    %v39 = sub %v37, %v38 : Vec(U16)
+    %v42 = call refLeading, %value, 16 : U64
+    %v44 = sub 16, %v42 : U64
+    %v45 = cast %v44 : U16
+    %v46 = vsplat %v45 : Vec(U16)
+    %v47 = cmp_ne %v39, %v46 : Mask(U16)
+    %v48 = vreduce_add %v47 : I32
+    %v49 = borrow_mut %bad : &I32
+    call +=(I32), %v49, %v48
+    %v51 = load %bad : I32
+    %v52 = bitsupto %v, %n : Vec(U16)
+    %v54 = call refUpTo, %value, 16, %upTo : U64
+    %v55 = cast %v54 : U16
+    %v56 = vsplat %v55 : Vec(U16)
+    %v57 = cmp_ne %v52, %v56 : Mask(U16)
+    %v58 = vreduce_add %v57 : I32
+    %v59 = borrow_mut %bad : &I32
+    call +=(I32), %v59, %v58
+    %v61 = load %bad : I32
+    ret %v61
+}
+
+fn wrongU32(%value: U64, %upTo: U64) -> I32 {
+  b0:
+    %v2 = cast %value : U32
+    %v = vsplat %v2 : Vec(U32)
+    %v4 = cast %upTo : U32
+    %n = vsplat %v4 : Vec(U32)
+    %v6 = countbits %v : Vec(U32)
+    %v8 = call refCount, %value, 32 : U64
+    %v9 = cast %v8 : U32
+    %v10 = vsplat %v9 : Vec(U32)
+    %v11 = cmp_ne %v6, %v10 : Mask(U32)
+    %v12 = vreduce_add %v11 : I32
+    %bad = alloc : I32
+    init %bad, %v12
+    %v15 = load %bad : I32
+    %v16 = clz %v : Vec(U32)
+    %v18 = call refLeading, %value, 32 : U64
+    %v19 = cast %v18 : U32
+    %v20 = vsplat %v19 : Vec(U32)
+    %v21 = cmp_ne %v16, %v20 : Mask(U32)
+    %v22 = vreduce_add %v21 : I32
+    %v23 = borrow_mut %bad : &I32
+    call +=(I32), %v23, %v22
+    %v25 = load %bad : I32
+    %v26 = ctz %v : Vec(U32)
+    %v28 = call refTrailing, %value, 32 : U64
+    %v29 = cast %v28 : U32
+    %v30 = vsplat %v29 : Vec(U32)
+    %v31 = cmp_ne %v26, %v30 : Mask(U32)
+    %v32 = vreduce_add %v31 : I32
+    %v33 = borrow_mut %bad : &I32
+    call +=(I32), %v33, %v32
+    %v35 = load %bad : I32
+    %v37 = vsplat 32 : Vec(U32)
+    %v38 = clz %v : Vec(U32)
+    %v39 = sub %v37, %v38 : Vec(U32)
+    %v42 = call refLeading, %value, 32 : U64
+    %v44 = sub 32, %v42 : U64
+    %v45 = cast %v44 : U32
+    %v46 = vsplat %v45 : Vec(U32)
+    %v47 = cmp_ne %v39, %v46 : Mask(U32)
+    %v48 = vreduce_add %v47 : I32
+    %v49 = borrow_mut %bad : &I32
+    call +=(I32), %v49, %v48
+    %v51 = load %bad : I32
+    %v52 = bitsupto %v, %n : Vec(U32)
+    %v54 = call refUpTo, %value, 32, %upTo : U64
+    %v55 = cast %v54 : U32
+    %v56 = vsplat %v55 : Vec(U32)
+    %v57 = cmp_ne %v52, %v56 : Mask(U32)
+    %v58 = vreduce_add %v57 : I32
+    %v59 = borrow_mut %bad : &I32
+    call +=(I32), %v59, %v58
+    %v61 = load %bad : I32
+    ret %v61
+}
+
+fn wrongU64(%value: U64, %upTo: U64) -> I32 {
+  b0:
+    %v = vsplat %value : Vec(U64)
+    %n = vsplat %upTo : Vec(U64)
+    %v4 = countbits %v : Vec(U64)
+    %v6 = call refCount, %value, 64 : U64
+    %v7 = vsplat %v6 : Vec(U64)
+    %v8 = cmp_ne %v4, %v7 : Mask(U64)
+    %v9 = vreduce_add %v8 : I32
+    %bad = alloc : I32
+    init %bad, %v9
+    %v12 = load %bad : I32
+    %v13 = clz %v : Vec(U64)
+    %v15 = call refLeading, %value, 64 : U64
+    %v16 = vsplat %v15 : Vec(U64)
+    %v17 = cmp_ne %v13, %v16 : Mask(U64)
+    %v18 = vreduce_add %v17 : I32
+    %v19 = borrow_mut %bad : &I32
+    call +=(I32), %v19, %v18
+    %v21 = load %bad : I32
+    %v22 = ctz %v : Vec(U64)
+    %v24 = call refTrailing, %value, 64 : U64
+    %v25 = vsplat %v24 : Vec(U64)
+    %v26 = cmp_ne %v22, %v25 : Mask(U64)
+    %v27 = vreduce_add %v26 : I32
+    %v28 = borrow_mut %bad : &I32
+    call +=(I32), %v28, %v27
+    %v30 = load %bad : I32
+    %v32 = vsplat 64 : Vec(U64)
+    %v33 = clz %v : Vec(U64)
+    %v34 = sub %v32, %v33 : Vec(U64)
+    %v37 = call refLeading, %value, 64 : U64
+    %v39 = sub 64, %v37 : U64
+    %v40 = vsplat %v39 : Vec(U64)
+    %v41 = cmp_ne %v34, %v40 : Mask(U64)
+    %v42 = vreduce_add %v41 : I32
+    %v43 = borrow_mut %bad : &I32
+    call +=(I32), %v43, %v42
+    %v45 = load %bad : I32
+    %v46 = bitsupto %v, %n : Vec(U64)
+    %v48 = call refUpTo, %value, 64, %upTo : U64
+    %v49 = vsplat %v48 : Vec(U64)
+    %v50 = cmp_ne %v46, %v49 : Mask(U64)
+    %v51 = vreduce_add %v50 : I32
+    %v52 = borrow_mut %bad : &I32
+    call +=(I32), %v52, %v51
+    %v54 = load %bad : I32
+    ret %v54
+}
+
+fn wrongSigned() -> I32 {
+  b0:
+    %v3 = sub 0, 1 : I8
+    %ones = vsplat %v3 : Vec(I8)
+    %v5 = countbits %ones : Vec(I8)
+    %v7 = vsplat 8 : Vec(I8)
+    %v8 = cmp_ne %v5, %v7 : Mask(I8)
+    %v9 = vreduce_add %v8 : I32
+    %bad = alloc : I32
+    init %bad, %v9
+    %v12 = load %bad : I32
+    %v13 = clz %ones : Vec(I8)
+    %v15 = vsplat 0 : Vec(I8)
+    %v16 = cmp_ne %v13, %v15 : Mask(I8)
+    %v17 = vreduce_add %v16 : I32
+    %v18 = borrow_mut %bad : &I32
+    call +=(I32), %v18, %v17
+    %v20 = load %bad : I32
+    %v21 = ctz %ones : Vec(I8)
+    %v23 = vsplat 0 : Vec(I8)
+    %v24 = cmp_ne %v21, %v23 : Mask(I8)
+    %v25 = vreduce_add %v24 : I32
+    %v26 = borrow_mut %bad : &I32
+    call +=(I32), %v26, %v25
+    %v28 = load %bad : I32
+    %v30 = vsplat 8 : Vec(I8)
+    %v31 = clz %ones : Vec(I8)
+    %v32 = sub %v30, %v31 : Vec(I8)
+    %v34 = vsplat 8 : Vec(I8)
+    %v35 = cmp_ne %v32, %v34 : Mask(I8)
+    %v36 = vreduce_add %v35 : I32
+    %v37 = borrow_mut %bad : &I32
+    call +=(I32), %v37, %v36
+    %v39 = load %bad : I32
+    %v41 = vsplat 4 : Vec(I8)
+    %v42 = bitsupto %ones, %v41 : Vec(I8)
+    %v44 = vsplat 15 : Vec(I8)
+    %v45 = cmp_ne %v42, %v44 : Mask(I8)
+    %v46 = vreduce_add %v45 : I32
+    %v47 = borrow_mut %bad : &I32
+    call +=(I32), %v47, %v46
+    %v52 = shl 1, 15 : I16
+    %low = vsplat %v52 : Vec(I16)
+    %v54 = load %bad : I32
+    %v55 = countbits %low : Vec(I16)
+    %v57 = vsplat 1 : Vec(I16)
+    %v58 = cmp_ne %v55, %v57 : Mask(I16)
+    %v59 = vreduce_add %v58 : I32
+    %v60 = borrow_mut %bad : &I32
+    call +=(I32), %v60, %v59
+    %v62 = load %bad : I32
+    %v63 = clz %low : Vec(I16)
+    %v65 = vsplat 0 : Vec(I16)
+    %v66 = cmp_ne %v63, %v65 : Mask(I16)
+    %v67 = vreduce_add %v66 : I32
+    %v68 = borrow_mut %bad : &I32
+    call +=(I32), %v68, %v67
+    %v70 = load %bad : I32
+    %v71 = ctz %low : Vec(I16)
+    %v73 = vsplat 15 : Vec(I16)
+    %v74 = cmp_ne %v71, %v73 : Mask(I16)
+    %v75 = vreduce_add %v74 : I32
+    %v76 = borrow_mut %bad : &I32
+    call +=(I32), %v76, %v75
+    %v78 = load %bad : I32
+    %v80 = vsplat 16 : Vec(I16)
+    %v81 = clz %low : Vec(I16)
+    %v82 = sub %v80, %v81 : Vec(I16)
+    %v84 = vsplat 16 : Vec(I16)
+    %v85 = cmp_ne %v82, %v84 : Mask(I16)
+    %v86 = vreduce_add %v85 : I32
+    %v87 = borrow_mut %bad : &I32
+    call +=(I32), %v87, %v86
+    %v89 = load %bad : I32
+    ret %v89
+}
+
+fn main() -> I32 {
+  b0:
+    %v0 = call wrongSigned : I32
+    %bad = alloc : I32
+    init %bad, %v0
+    %value = alloc : U64
+    init %value, 0
+    jmp b1
+
+  b1:
+    %v7 = load %value : U64
+    %v10 = cmp_lt %v7, 256 : Bool
+    je %v10, b3, b2
+
+  b2:
+    %bit = alloc : U64
+    init %bit, 0
+    jmp b7
+
+  b3:
+    %upTo = alloc : U64
+    init %upTo, 0
+    jmp b4
+
+  b4:
+    %v16 = load %upTo : U64
+    %v19 = cmp_le %v16, 72 : Bool
+    je %v19, b6, b5
+
+  b5:
+    %v60 = load %value : U64
+    %v63 = borrow_mut %value : &U64
+    call +=(U64), %v63, 1
+    jmp b1
+
+  b6:
+    %v21 = load %bad : I32
+    %v22 = load %value : U64
+    %v23 = load %upTo : U64
+    %v24 = call wrongU8, %v22, %v23 : I32
+    %v25 = borrow_mut %bad : &I32
+    call +=(I32), %v25, %v24
+    %v27 = load %bad : I32
+    %v28 = load %value : U64
+    %v31 = mul %v28, 257 : U64
+    %v32 = load %upTo : U64
+    %v33 = call wrongU16, %v31, %v32 : I32
+    %v34 = borrow_mut %bad : &I32
+    call +=(I32), %v34, %v33
+    %v36 = load %bad : I32
+    %v37 = load %value : U64
+    %v40 = mul %v37, 16843009 : U64
+    %v41 = load %upTo : U64
+    %v42 = call wrongU32, %v40, %v41 : I32
+    %v43 = borrow_mut %bad : &I32
+    call +=(I32), %v43, %v42
+    %v45 = load %bad : I32
+    %v46 = load %value : U64
+    %v49 = mul %v46, 72340172838076673 : U64
+    %v50 = load %upTo : U64
+    %v51 = call wrongU64, %v49, %v50 : I32
+    %v52 = borrow_mut %bad : &I32
+    call +=(I32), %v52, %v51
+    %v54 = load %upTo : U64
+    %v57 = borrow_mut %upTo : &U64
+    call +=(U64), %v57, 9
+    jmp b4
+
+  b7:
+    %v70 = load %bit : U64
+    %v73 = cmp_lt %v70, 64 : Bool
+    je %v73, b9, b8
+
+  b8:
+    %v114 = load %bad : I32
+    ret %v114
+
+  b9:
+    %v75 = load %bad : I32
+    %v77 = load %bit : U64
+    %v79 = shl 1, %v77 : U64
+    %v80 = load %bit : U64
+    %v81 = call wrongU64, %v79, %v80 : I32
+    %v82 = borrow_mut %bad : &I32
+    call +=(I32), %v82, %v81
+    %v84 = load %bad : I32
+    %v86 = load %bit : U64
+    %v88 = shl 1, %v86 : U64
+    %v91 = sub %v88, 1 : U64
+    %v93 = load %bit : U64
+    %v95 = sub 64, %v93 : U64
+    %v96 = call wrongU64, %v91, %v95 : I32
+    %v97 = borrow_mut %bad : &I32
+    call +=(I32), %v97, %v96
+    %v99 = load %bad : I32
+    %v101 = load %bit : U64
+    %v103 = shl 1, %v101 : U64
+    %v104 = load %bit : U64
+    %v105 = call wrongU32, %v103, %v104 : I32
+    %v106 = borrow_mut %bad : &I32
+    call +=(I32), %v106, %v105
+    %v108 = load %bit : U64
+    %v111 = borrow_mut %bit : &U64
+    call +=(U64), %v111, 1
+    jmp b7
+}

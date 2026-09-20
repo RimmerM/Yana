@@ -1898,6 +1898,11 @@ struct CoreClasses {
     GlobalPtr<TypeClass> bitwise = nullptr;
     GlobalPtr<TypeClass> bitcast = nullptr;
     GlobalPtr<TypeClass> lanewise = nullptr;
+
+    // And `Bits`, which a vector of integer lanes joins at every lane width - Analysis-Avx512.md
+    // §3.2. Read here as well as at the scalar widths in core.cpp, for the same reason the five
+    // above are: an instance over a vector is generated where a lookup found nothing.
+    GlobalPtr<TypeClass> bits = nullptr;
 };
 
 /*

@@ -124,6 +124,50 @@ bool fullWidthNative(LowerBase base, LowerInst* inst) {
         case LowerInst::Ror:
             return lane != 1;
 
+        // `vpopcnt{b,w,d,q}` and `vplzcnt{d,q}`, which have a `zmm` row wherever they have a `ymm`
+        // one - and `expandVectorBitCounts` has already written a sequence for every lane the level
+        // does not, so what arrives here is a row that exists at all three widths.
+        case LowerInst::X86VecCount:
+            return true;
+
+        // The saturating rows, which have a `zmm` twin at the two lane widths that reach here -
+        // `paddsb` and its siblings are BW, which this level has. `expandVectorSaturating` has
+        // already replaced every wider lane with a sequence, and that sequence is split like any
+        // other.
+        case LowerInst::SatAdd:
+        case LowerInst::ISatAdd:
+        case LowerInst::SatSub:
+        case LowerInst::ISatSub:
+            return lane <= 2;
+
+        // The five AVX-512 float operations, which have a `zmm` row wherever they have a `ymm` one
+        // and are only ever written at this level - `lib/Math/Math.avx512.yana` is the one caller.
+        case LowerInst::GetExponent:
+        case LowerInst::GetMantissa:
+        case LowerInst::FpReduce:
+        case LowerInst::ScaleFloat:
+        case LowerInst::RangeFloat:
+            return true;
+
+        /*
+         * The four widening multiply-accumulates, which have a `zmm` row wherever they have a `ymm`
+         * one - VNNI and IFMA are both VL extensions this level implies. A `DotBytes` or a
+         * `DotWords` reaches here only at that level, `expandVectorDotProducts` having replaced
+         * every other one with a sequence above this pass.
+         *
+         * `pmaddwd` is the other half of that: what the expansion writes is AVX2's `vpmaddwd ymm`
+         * and no wider, since the 512-bit form is AVX512BW and a build running the expansion at all
+         * does not have it. So a full-width one is always two halves.
+         */
+        case LowerInst::DotBytes:
+        case LowerInst::DotWords:
+        case LowerInst::MulAdd52Lo:
+        case LowerInst::MulAdd52Hi:
+            return true;
+
+        case LowerInst::X86MulAddWords:
+            return false;
+
         // `vpmulhuw`/`vpmulhw`, at the one width the machine has a high product.
         case LowerInst::MulHi:
         case LowerInst::IMulHi:

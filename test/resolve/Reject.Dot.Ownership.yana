@@ -1,0 +1,47 @@
+{-
+   `Reject.Dot.yana` through the rewritten stage - `expandMulAccumulate` in
+   resolve_mir/intrinsic/expand_vector.cpp.
+
+   # resolver: ownership
+   # extensions: avx512
+-}
+import Native
+
+-- The accumulator is a 32-bit integer lane, and nothing else. A float one is not a product to sum
+-- and a 64-bit one is not what either instruction writes.
+fn floatAccumulator(u: Vec(U8, 16), s: Vec(I8, 16)) -> Vec(F32, 4) =
+    accumulateByteProducts(zero() :: Vec(F32, 4), u, s)
+
+fn wideAccumulator(u: Vec(U8, 16), s: Vec(I8, 16)) -> Vec(I64, 2) =
+    accumulateByteProducts(zero() :: Vec(I64, 2), u, s)
+
+-- The byte form's first operand is read as unsigned and its second as signed. Swapping them is a
+-- different answer rather than a different spelling, so neither is accepted the other way round.
+fn signedFirst(a: Vec(I8, 16), s: Vec(I8, 16)) -> Vec(I32, 4) =
+    accumulateByteProducts(zero() :: Vec(I32, 4), a, s)
+
+fn unsignedSecond(u: Vec(U8, 16), b: Vec(U8, 16)) -> Vec(I32, 4) =
+    accumulateByteProducts(zero() :: Vec(I32, 4), u, b)
+
+-- The word form reads both as signed.
+fn unsignedWords(a: Vec(U16, 8), b: Vec(U16, 8)) -> Vec(I32, 4) =
+    accumulateWordProducts(zero() :: Vec(I32, 4), a, b)
+
+-- The lane *width* of the product operands is the operation's, not the caller's choice: a byte dot
+-- product reads bytes.
+fn wordsIntoByteForm(a: Vec(I16, 8), b: Vec(I16, 8)) -> Vec(I32, 4) =
+    accumulateByteProducts(zero() :: Vec(I32, 4), a, b)
+
+-- And the grouping: four narrow lanes per accumulator lane for the byte form and two for the word
+-- form, which is the one thing no signature in this language can state.
+fn tooFewBytes(u: Vec(U8, 8), s: Vec(I8, 8)) -> Vec(I32, 4) =
+    accumulateByteProducts(zero() :: Vec(I32, 4), u, s)
+
+fn tooManyWords(a: Vec(I16, 16), b: Vec(I16, 16)) -> Vec(I32, 4) =
+    accumulateWordProducts(zero() :: Vec(I32, 4), a, b)
+
+-- IFMA reads 64-bit lanes and writes one.
+fn narrowIfma(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4) =
+    X86.multiplyAdd52Low(zero() :: Vec(U32, 4), a, b)
+
+fn main() -> Int = 0

@@ -2064,6 +2064,123 @@ struct InstCryptoUnary: Inst {
     }
 };
 
+/*
+ * Which of the three one-operand AVX-512 float operations a `FloatAdjust` is, and which of the two
+ * two-operand ones a `FloatCombine` is - see those rows in inst.def.
+ */
+enum class FloatAdjustOp: U8 {
+    Exponent,
+    Mantissa,
+    Reduce,
+};
+
+enum class FloatCombineOp: U8 {
+    Scale,
+    Range,
+};
+
+inline StringView nameOfFloatAdjustOp(FloatAdjustOp op) {
+    switch(op) {
+        case FloatAdjustOp::Exponent: return "vgetexp"_v;
+        case FloatAdjustOp::Mantissa: return "vgetmant"_v;
+        default:                      return "vreduce"_v;
+    }
+}
+
+inline StringView nameOfFloatCombineOp(FloatCombineOp op) {
+    return op == FloatCombineOp::Scale ? "vscalef"_v : "vrange"_v;
+}
+
+// `control` is the instruction's trailing byte, and is read by every operation but `Exponent`.
+struct InstFloatAdjust: Inst {
+    InstFloatAdjust(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> from, FloatAdjustOp op,
+                    U8 control):
+        Inst(Value::FloatAdjust, block, type), from(from), op(op), control(control) {}
+
+    ModulePtr<Value> from;
+    FloatAdjustOp op;
+    U8 control;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        from = f(from);
+    }
+
+    bool sameExtra(const InstFloatAdjust& other) const {
+        return op == other.op && control == other.control;
+    }
+};
+
+// `control` is read by `Range` and ignored by `Scale`. Neither commutes: `vscalef`'s operands are a
+// value and an exponent, and `vrange` takes the sign of its answer from the first of them.
+struct InstFloatCombine: Inst {
+    InstFloatCombine(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> lhs, ModulePtr<Value> rhs,
+                     FloatCombineOp op, U8 control):
+        Inst(Value::FloatCombine, block, type), lhs(lhs), rhs(rhs), op(op), control(control) {}
+
+    ModulePtr<Value> lhs;
+    ModulePtr<Value> rhs;
+    FloatCombineOp op;
+    U8 control;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        lhs = f(lhs);
+        rhs = f(rhs);
+    }
+
+    bool sameExtra(const InstFloatCombine& other) const {
+        return op == other.op && control == other.control;
+    }
+};
+
+/*
+ * Which of the four widening multiply-accumulates a `MulAccumulate` is - see the row in inst.def.
+ *
+ * `DotBytes` and `DotWords` are portable (`vpdpbusd`, `vpdpwssd`); `MulAdd52Low` and `MulAdd52High`
+ * are IFMA's and reachable only from `lib/Native/Intrinsic/X86.yana`.
+ */
+enum class MulAccumulateOp: U8 {
+    DotBytes,
+    DotWords,
+    MulAdd52Low,
+    MulAdd52High,
+};
+
+inline StringView nameOfMulAccumulateOp(MulAccumulateOp op) {
+    switch(op) {
+        case MulAccumulateOp::DotBytes:    return "vpdpbusd"_v;
+        case MulAccumulateOp::DotWords:    return "vpdpwssd"_v;
+        case MulAccumulateOp::MulAdd52Low: return "vpmadd52luq"_v;
+        default:                           return "vpmadd52huq"_v;
+    }
+}
+
+/*
+ * `acc + f(lhs, rhs)`, accumulated into `acc`'s lanes.
+ *
+ * `acc` and the result are one type and `lhs` and `rhs` are another - narrower lanes, the same
+ * number of bytes - which is where this departs from every other arithmetic node here and is the
+ * whole point of the operation. The verifier is what holds the three to a shape; `op` says which
+ * grouping, and is what `sameExtra` compares.
+ */
+struct InstMulAccumulate: Inst {
+    InstMulAccumulate(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> acc, ModulePtr<Value> lhs,
+                      ModulePtr<Value> rhs, MulAccumulateOp op):
+        Inst(Value::MulAccumulate, block, type), acc(acc), lhs(lhs), rhs(rhs), op(op) {}
+
+    ModulePtr<Value> acc;
+    ModulePtr<Value> lhs;
+    ModulePtr<Value> rhs;
+    MulAccumulateOp op;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        acc = f(acc);
+        lhs = f(lhs);
+        rhs = f(rhs);
+    }
+
+    bool sameExtra(const InstMulAccumulate& other) const { return op == other.op; }
+};
+
 // Every lane combined into one scalar, in the pairwise order Design-Vector §4.5 states. `type` is
 // the lane's; for a mask it is `Int`, so `any` is Or, `all` is And and `count` is Add.
 struct InstVecReduce: Inst {

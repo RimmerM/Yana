@@ -1,0 +1,266 @@
+
+popcounts<complex>(%b: i8x16, %w: i16x8, %d: i32x4, %q: i64x2): i8x16 {
+  b_0 {
+    %rb = popcnt %b: i8x16
+    %rw = popcnt %w: i16x8
+    %rd = popcnt %d: i32x4
+    %rq = popcnt %q: i64x2
+    ret %rb
+  }
+}
+
+leadingWide<complex>(%d: i32x4): i32x4 {
+  b_0 {
+    %r = clz_width %d: i32x4
+    ret %r
+  }
+}
+
+trailing<complex>(%d: i32x4): i32x4 {
+  b_0 {
+    %r = cttz_width %d: i32x4
+    ret %r
+  }
+}
+
+upTo<complex>(%d: i32x4, %n: i32x4): i32x4 {
+  b_0 {
+    %r = bitsupto %d, %n: i32x4
+    ret %r
+  }
+}
+
+
+--- codegen: popcounts ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm4]  => f30f6f2568030000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm5]  => f30f6f2d70030000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm6]  => f30f6f3578030000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm7]  => f30f6f3d80030000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm8]  => f3440f6f0587030000
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shr uses=[xmm9, -] creates=[xmm9] pre=[xmm0->xmm9]  => 440f28c866410f71d104
+  bitcast uses=[xmm9] creates=[xmm9]  => 
+  and uses=[xmm9, xmm4] creates=[xmm9]  => 66440fdbcc
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm10]  => f3440f6f152f030000
+  and uses=[xmm0, xmm10] creates=[xmm0]  => 66410fdbc2
+  x86_permute uses=[xmm0, xmm10] creates=[xmm10] pre=[xmm8->xmm10]  => 450f28d066440f3800d0
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f0518030000
+  and uses=[xmm9, xmm0] creates=[xmm9]  => 66440fdbc8
+  x86_permute uses=[xmm9, xmm0] creates=[xmm0] pre=[xmm8->xmm0]  => 410f28c066410f3800c1
+  add uses=[xmm10, xmm0] creates=[xmm10]  => 66440ffcd0
+  bitcast uses=[xmm10] creates=[xmm10]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660f71d004
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  and uses=[xmm0, xmm4] creates=[xmm0]  => 660fdbc4
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm9]  => f3440f6f0def020000
+  and uses=[xmm1, xmm9] creates=[xmm1]  => 66410fdbc9
+  x86_permute uses=[xmm1, xmm9] creates=[xmm9] pre=[xmm8->xmm9]  => 450f28c866440f3800c9
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0dd8020000
+  and uses=[xmm0, xmm1] creates=[xmm0]  => 660fdbc1
+  x86_permute uses=[xmm0, xmm1] creates=[xmm1] pre=[xmm8->xmm1]  => 410f28c8660f3800c8
+  add uses=[xmm9, xmm1] creates=[xmm9]  => 66440ffcc9
+  bitcast uses=[xmm9] creates=[xmm9]  => 
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm9->xmm0]  => 410f28c1660f71d008
+  add uses=[xmm9, xmm0] creates=[xmm9]  => 66440ffdc8
+  and uses=[xmm9, xmm7] creates=[xmm9]  => 66440fdbcf
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm2] creates=[xmm2]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2660f71d004
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  and uses=[xmm0, xmm4] creates=[xmm0]  => 660fdbc4
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0d9f020000
+  and uses=[xmm2, xmm1] creates=[xmm2]  => 660fdbd1
+  x86_permute uses=[xmm2, xmm1] creates=[xmm1] pre=[xmm8->xmm1]  => 410f28c8660f3800ca
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f158a020000
+  and uses=[xmm0, xmm2] creates=[xmm0]  => 660fdbc2
+  x86_permute uses=[xmm0, xmm2] creates=[xmm2] pre=[xmm8->xmm2]  => 410f28d0660f3800d0
+  add uses=[xmm1, xmm2] creates=[xmm1]  => 660ffcca
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660f72d008
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffec8
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660f72d010
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffec8
+  and uses=[xmm1, xmm6] creates=[xmm1]  => 660fdbce
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm3] creates=[xmm3]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm3->xmm0]  => 0f28c3660f71d004
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  and uses=[xmm0, xmm4] creates=[xmm0]  => 660fdbc4
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0d49020000
+  and uses=[xmm3, xmm1] creates=[xmm3]  => 660fdbd9
+  x86_permute uses=[xmm3, xmm1] creates=[xmm1] pre=[xmm8->xmm1]  => 410f28c8660f3800cb
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f1534020000
+  and uses=[xmm0, xmm2] creates=[xmm0]  => 660fdbc2
+  x86_permute uses=[xmm0, xmm8] creates=[xmm8]  => 66440f3800c0
+  add uses=[xmm1, xmm8] creates=[xmm1]  => 66410ffcc8
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660f73d008
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660fd4c8
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660f73d010
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660fd4c8
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660f73d020
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660fd4c8
+  and uses=[xmm1, xmm5] creates=[xmm1]  => 660fdbcd
+  ret uses=[xmm0] creates=[] pre=[xmm10->xmm0]  => 410f28c2c3
+
+--- codegen: leadingWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0de8010000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f1530020000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => f30f6f1df8010000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm4]  => f30f6f2510020000
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm5, -] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8660f72d501
+  or uses=[xmm0, xmm5] creates=[xmm0]  => 660febc5
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm5, -] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8660f72d502
+  or uses=[xmm0, xmm5] creates=[xmm0]  => 660febc5
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm5, -] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8660f72d504
+  or uses=[xmm0, xmm5] creates=[xmm0]  => 660febc5
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm5, -] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8660f72d508
+  or uses=[xmm0, xmm5] creates=[xmm0]  => 660febc5
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm5, -] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8660f72d510
+  or uses=[xmm0, xmm5] creates=[xmm0]  => 660febc5
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shr uses=[xmm5, -] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8660f71d504
+  bitcast uses=[xmm5] creates=[xmm5]  => 
+  and uses=[xmm5, xmm1] creates=[xmm5]  => 660fdbe9
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0d80010000
+  and uses=[xmm0, xmm1] creates=[xmm0]  => 660fdbc1
+  x86_permute uses=[xmm0, xmm1] creates=[xmm1] pre=[xmm4->xmm1]  => 0f28cc660f3800c8
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f056c010000
+  and uses=[xmm5, xmm0] creates=[xmm5]  => 660fdbe8
+  x86_permute uses=[xmm5, xmm4] creates=[xmm4]  => 660f3800e5
+  add uses=[xmm1, xmm4] creates=[xmm1]  => 660ffccc
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660f72d008
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffec8
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660f72d010
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffec8
+  and uses=[xmm1, xmm3] creates=[xmm1]  => 660fdbcb
+  sub uses=[xmm0, xmm1] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2660ffac1
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: trailing ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0d28010000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => f30f6f1540010000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => f30f6f1d58010000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm4]  => f30f6f2570010000
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm5]  => 660fefed
+  sub uses=[xmm5, xmm0] creates=[xmm5]  => 660ffae8
+  and uses=[xmm0, xmm5] creates=[xmm0]  => 660fdbc5
+  sub uses=[xmm0, xmm4] creates=[xmm0]  => 660ffac4
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  imm uses=[] creates=[-]  => 
+  bitcast uses=[xmm0] creates=[xmm0]  => 
+  shr uses=[xmm4, -] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0660f71d404
+  bitcast uses=[xmm4] creates=[xmm4]  => 
+  and uses=[xmm4, xmm1] creates=[xmm4]  => 660fdbe1
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => f30f6f0dec000000
+  and uses=[xmm0, xmm1] creates=[xmm0]  => 660fdbc1
+  x86_permute uses=[xmm0, xmm1] creates=[xmm1] pre=[xmm3->xmm1]  => 0f28cb660f3800c8
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f05d8000000
+  and uses=[xmm4, xmm0] creates=[xmm4]  => 660fdbe0
+  x86_permute uses=[xmm4, xmm3] creates=[xmm3]  => 660f3800dc
+  add uses=[xmm1, xmm3] creates=[xmm1]  => 660ffccb
+  bitcast uses=[xmm1] creates=[xmm1]  => 
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660f72d008
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffec8
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm0, -] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660f72d010
+  add uses=[xmm1, xmm0] creates=[xmm1]  => 660ffec8
+  and uses=[xmm0, xmm2] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660fdbc2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: upTo ---
+block #0:
+  jmp uses=[] creates=[] pre=[xmm1->xmm7, xmm0->xmm1, xmm7->xmm0]  => 0f28f90f28c80f28c7
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm2]  => 660f76d2
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => f30f6f1dfb000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm4]  => f30f6f25e3000000
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm5]  => 660fefed
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm6]  => f30f6f35f7000000
+  and uses=[xmm8, xmm6] creates=[xmm8] pre=[xmm0->xmm8]  => 440f28c066440fdbc6
+  cmp_eq uses=[xmm8, xmm5] creates=[xmm8]  => 66440f76c5
+  and uses=[xmm0, xmm3] creates=[xmm0]  => 660fdbc3
+  vlane uses=[xmm4] creates=[rax]  => 660f7ee0
+  vlane uses=[xmm0] creates=[rcx]  => 660f7ec1
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm3, rax] creates=[xmm3] pre=[xmm4->xmm3]  => 0f28dc660f3a22d800
+  vlane uses=[xmm4] creates=[rax]  => 660f3a16e001
+  vlane uses=[xmm0] creates=[rcx]  => 660f3a16c101
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm3, rax] creates=[xmm3]  => 660f3a22d801
+  vlane uses=[xmm4] creates=[rax]  => 660f3a16e002
+  vlane uses=[xmm0] creates=[rcx]  => 660f3a16c102
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm3, rax] creates=[xmm3]  => 660f3a22d802
+  vlane uses=[xmm4] creates=[rax]  => 660f3a16e003
+  vlane uses=[xmm0] creates=[rcx]  => 660f3a16c103
+  shl uses=[rax, rcx] creates=[rax]  => d3e0
+  vwithlane uses=[xmm3, rax] creates=[xmm3]  => 660f3a22d803
+  sub uses=[xmm3, xmm4] creates=[xmm3]  => 660ffadc
+  select uses=[xmm3, xmm2, xmm8] creates=[xmm2]  => 410f28c0660f3810d3
+  and uses=[xmm0, xmm2] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660fdbc2
+  ret uses=[xmm0] creates=[]  => c3

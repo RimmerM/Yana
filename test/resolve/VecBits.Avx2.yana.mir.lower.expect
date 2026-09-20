@@ -1,0 +1,827 @@
+
+wrongU32<complex>(%value: I64, %upTo: I64): I32 {
+  b_0 {
+    %v_1 = cast %value: I32
+    %v_2 = vsplat %v_1: i32x8
+    %v_3 = cast %upTo: I32
+    %v_4 = vsplat %v_3: i32x8
+    %v_5 = popcnt %v_2: i32x8
+    jmp b_6
+  }
+
+  b_7 {
+    %v_8 = cast %v_9: I32
+    %v_10 = vsplat %v_8: i32x8
+    %v_11 = cmp_neq %v_5, %v_10: m32x8
+    %v_12 = vreduce_add %v_11: I32
+    %v_13 = clz_width %v_2: i32x8
+    %v_14 = imm 32: I64
+    jmp b_15
+  }
+
+  b_6 {
+    %v_16 = phi [b_17, %v_9], [b_0, 0]: I64
+    %v_18 = phi [b_17, %v_19], [b_0, 0]: I64
+    %v_20 = shr %value, %v_18: I64
+    %v_21 = and %v_20, 1: I64
+    %v_22 = cmp_eq %v_21, 1: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_24 {
+    jmp b_17
+  }
+
+  b_23 {
+    %v_25 = add %v_16, 1: I64
+    jmp b_17
+  }
+
+  b_17 {
+    %v_9 = phi [b_24, %v_16], [b_23, %v_25]: I64
+    %v_19 = add %v_18, 1: I64
+    %v_26 = cmp_lt %v_19, 32: I32
+    je %v_26, b_6, b_7
+  }
+
+  b_27 {
+    %v_28 = phi [b_29, %v_14], [b_30, %v_31]: I64
+    %v_32 = cast %v_28: I32
+    %v_33 = vsplat %v_32: i32x8
+    %v_34 = cmp_neq %v_13, %v_33: m32x8
+    %v_35 = vreduce_add %v_34: I32
+    %v_36 = add %v_12, %v_35: I32
+    %v_37 = cttz_width %v_2: i32x8
+    %v_38 = imm 32: I64
+    jmp b_39
+  }
+
+  b_15 {
+    %v_40 = phi [b_7, %v_14], [b_41, %v_42]: I64
+    %v_43 = cmp_neq %v_40, 0: I32
+    je %v_43, b_44, b_29
+  }
+
+  b_29 {
+    jmp b_27
+  }
+
+  b_44 {
+    %v_42 = sub %v_40, 1: I64
+    %v_45 = shr %value, %v_42: I64
+    %v_46 = and %v_45, 1: I64
+    %v_47 = cmp_eq %v_46, 1: I32
+    je %v_47, b_30, b_41
+  }
+
+  b_41 {
+    jmp b_15
+  }
+
+  b_30 {
+    %v_31 = sub 31, %v_42: I64
+    jmp b_27
+  }
+
+  b_48 {
+    %v_49 = phi [b_50, %v_38], [b_51, %v_52]: I64
+    %v_53 = cast %v_49: I32
+    %v_54 = vsplat %v_53: i32x8
+    %v_55 = cmp_neq %v_37, %v_54: m32x8
+    %v_56 = vreduce_add %v_55: I32
+    %v_57 = add %v_36, %v_56: I32
+    %v_58 = vsplat 32: i32x8
+    %v_59 = sub %v_58, %v_13: i32x8
+    %v_60 = imm 32: I64
+    jmp b_61
+  }
+
+  b_50 {
+    jmp b_48
+  }
+
+  b_39 {
+    %v_52 = phi [b_62, %v_63], [b_27, 0]: I64
+    %v_64 = shr %value, %v_52: I64
+    %v_65 = and %v_64, 1: I64
+    %v_66 = cmp_eq %v_65, 1: I32
+    je %v_66, b_51, b_62
+  }
+
+  b_62 {
+    %v_63 = add %v_52, 1: I64
+    %v_67 = cmp_lt %v_63, %v_38: I32
+    je %v_67, b_39, b_50
+  }
+
+  b_51 {
+    jmp b_48
+  }
+
+  b_68 {
+    %v_69 = phi [b_70, %v_60], [b_71, %v_72]: I64
+    %v_73 = sub 32, %v_69: I64
+    %v_74 = cast %v_73: I32
+    %v_75 = vsplat %v_74: i32x8
+    %v_76 = cmp_neq %v_59, %v_75: m32x8
+    %v_77 = vreduce_add %v_76: I32
+    %v_78 = add %v_57, %v_77: I32
+    %v_79 = bitsupto %v_2, %v_4: i32x8
+    %v_80 = cmp_ge %upTo, 32: I32
+    je %v_80, b_81, b_82
+  }
+
+  b_61 {
+    %v_83 = phi [b_48, %v_60], [b_84, %v_85]: I64
+    %v_86 = cmp_neq %v_83, 0: I32
+    je %v_86, b_87, b_70
+  }
+
+  b_70 {
+    jmp b_68
+  }
+
+  b_87 {
+    %v_85 = sub %v_83, 1: I64
+    %v_88 = shr %value, %v_85: I64
+    %v_89 = and %v_88, 1: I64
+    %v_90 = cmp_eq %v_89, 1: I32
+    je %v_90, b_71, b_84
+  }
+
+  b_84 {
+    jmp b_61
+  }
+
+  b_71 {
+    %v_72 = sub 31, %v_85: I64
+    jmp b_68
+  }
+
+  b_91 {
+    %v_92 = phi [b_82, %v_93], [b_81, %value]: I64
+    %v_94 = cast %v_92: I32
+    %v_95 = vsplat %v_94: i32x8
+    %v_96 = cmp_neq %v_79, %v_95: m32x8
+    %v_97 = vreduce_add %v_96: I32
+    %v_98 = add %v_78, %v_97: I32
+    ret %v_98
+  }
+
+  b_82 {
+    %v_99 = shl 1, %upTo: I64
+    %v_100 = sub %v_99, 1: I64
+    %v_93 = and %value, %v_100: I64
+    jmp b_91
+  }
+
+  b_81 {
+    jmp b_91
+  }
+}
+
+wrongU64<complex>(%value: I64, %upTo: I64): I32 {
+  b_0 {
+    %v_1 = vsplat %value: i64x4
+    %v_2 = vsplat %upTo: i64x4
+    %v_3 = popcnt %v_1: i64x4
+    jmp b_4
+  }
+
+  b_5 {
+    %v_6 = vsplat %v_7: i64x4
+    %v_8 = cmp_neq %v_3, %v_6: m64x4
+    %v_9 = vreduce_add %v_8: I32
+    %v_10 = clz_width %v_1: i64x4
+    %v_11 = imm 64: I64
+    jmp b_12
+  }
+
+  b_4 {
+    %v_13 = phi [b_14, %v_7], [b_0, 0]: I64
+    %v_15 = phi [b_14, %v_16], [b_0, 0]: I64
+    %v_17 = shr %value, %v_15: I64
+    %v_18 = and %v_17, 1: I64
+    %v_19 = cmp_eq %v_18, 1: I32
+    je %v_19, b_20, b_21
+  }
+
+  b_21 {
+    jmp b_14
+  }
+
+  b_20 {
+    %v_22 = add %v_13, 1: I64
+    jmp b_14
+  }
+
+  b_14 {
+    %v_7 = phi [b_21, %v_13], [b_20, %v_22]: I64
+    %v_16 = add %v_15, 1: I64
+    %v_23 = cmp_lt %v_16, 64: I32
+    je %v_23, b_4, b_5
+  }
+
+  b_24 {
+    %v_25 = phi [b_26, %v_11], [b_27, %v_28]: I64
+    %v_29 = vsplat %v_25: i64x4
+    %v_30 = cmp_neq %v_10, %v_29: m64x4
+    %v_31 = vreduce_add %v_30: I32
+    %v_32 = add %v_9, %v_31: I32
+    %v_33 = cttz_width %v_1: i64x4
+    %v_34 = imm 64: I64
+    jmp b_35
+  }
+
+  b_12 {
+    %v_36 = phi [b_5, %v_11], [b_37, %v_38]: I64
+    %v_39 = cmp_neq %v_36, 0: I32
+    je %v_39, b_40, b_26
+  }
+
+  b_26 {
+    jmp b_24
+  }
+
+  b_40 {
+    %v_38 = sub %v_36, 1: I64
+    %v_41 = shr %value, %v_38: I64
+    %v_42 = and %v_41, 1: I64
+    %v_43 = cmp_eq %v_42, 1: I32
+    je %v_43, b_27, b_37
+  }
+
+  b_37 {
+    jmp b_12
+  }
+
+  b_27 {
+    %v_28 = sub 63, %v_38: I64
+    jmp b_24
+  }
+
+  b_44 {
+    %v_45 = phi [b_46, %v_34], [b_47, %v_48]: I64
+    %v_49 = vsplat %v_45: i64x4
+    %v_50 = cmp_neq %v_33, %v_49: m64x4
+    %v_51 = vreduce_add %v_50: I32
+    %v_52 = add %v_32, %v_51: I32
+    %v_53 = vsplat 64: i64x4
+    %v_54 = sub %v_53, %v_10: i64x4
+    %v_55 = imm 64: I64
+    jmp b_56
+  }
+
+  b_46 {
+    jmp b_44
+  }
+
+  b_35 {
+    %v_48 = phi [b_57, %v_58], [b_24, 0]: I64
+    %v_59 = shr %value, %v_48: I64
+    %v_60 = and %v_59, 1: I64
+    %v_61 = cmp_eq %v_60, 1: I32
+    je %v_61, b_47, b_57
+  }
+
+  b_57 {
+    %v_58 = add %v_48, 1: I64
+    %v_62 = cmp_lt %v_58, %v_34: I32
+    je %v_62, b_35, b_46
+  }
+
+  b_47 {
+    jmp b_44
+  }
+
+  b_63 {
+    %v_64 = phi [b_65, %v_55], [b_66, %v_67]: I64
+    %v_68 = sub 64, %v_64: I64
+    %v_69 = vsplat %v_68: i64x4
+    %v_70 = cmp_neq %v_54, %v_69: m64x4
+    %v_71 = vreduce_add %v_70: I32
+    %v_72 = add %v_52, %v_71: I32
+    %v_73 = bitsupto %v_1, %v_2: i64x4
+    %v_74 = cmp_ge %upTo, 64: I32
+    je %v_74, b_75, b_76
+  }
+
+  b_56 {
+    %v_77 = phi [b_44, %v_55], [b_78, %v_79]: I64
+    %v_80 = cmp_neq %v_77, 0: I32
+    je %v_80, b_81, b_65
+  }
+
+  b_65 {
+    jmp b_63
+  }
+
+  b_81 {
+    %v_79 = sub %v_77, 1: I64
+    %v_82 = shr %value, %v_79: I64
+    %v_83 = and %v_82, 1: I64
+    %v_84 = cmp_eq %v_83, 1: I32
+    je %v_84, b_66, b_78
+  }
+
+  b_78 {
+    jmp b_56
+  }
+
+  b_66 {
+    %v_67 = sub 63, %v_79: I64
+    jmp b_63
+  }
+
+  b_85 {
+    %v_86 = phi [b_76, %v_87], [b_75, %value]: I64
+    %v_88 = vsplat %v_86: i64x4
+    %v_89 = cmp_neq %v_73, %v_88: m64x4
+    %v_90 = vreduce_add %v_89: I32
+    %v_91 = add %v_72, %v_90: I32
+    ret %v_91
+  }
+
+  b_76 {
+    %v_92 = shl 1, %upTo: I64
+    %v_93 = sub %v_92, 1: I64
+    %v_87 = and %value, %v_93: I64
+    jmp b_85
+  }
+
+  b_75 {
+    jmp b_85
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = vsplat 18446744073709551615: i8x32
+    %v_2 = popcnt %v_1: i8x32
+    %v_3 = vsplat 8: i8x32
+    %v_4 = cmp_neq %v_2, %v_3: m8x32
+    %v_5 = vreduce_add %v_4: I32
+    %v_6 = clz_width %v_1: i8x32
+    %v_7 = vsplat 0: i8x32
+    %v_8 = cmp_neq %v_6, %v_7: m8x32
+    %v_9 = vreduce_add %v_8: I32
+    %v_10 = add %v_5, %v_9: I32
+    %v_11 = cttz_width %v_1: i8x32
+    %v_12 = cmp_neq %v_11, %v_7: m8x32
+    %v_13 = vreduce_add %v_12: I32
+    %v_14 = add %v_10, %v_13: I32
+    %v_15 = sub %v_3, %v_6: i8x32
+    %v_16 = cmp_neq %v_15, %v_3: m8x32
+    %v_17 = vreduce_add %v_16: I32
+    %v_18 = add %v_14, %v_17: I32
+    %v_19 = vsplat 4: i8x32
+    %v_20 = bitsupto %v_1, %v_19: i8x32
+    %v_21 = vsplat 15: i8x32
+    %v_22 = cmp_neq %v_20, %v_21: m8x32
+    %v_23 = vreduce_add %v_22: I32
+    %v_24 = add %v_18, %v_23: I32
+    %v_25 = vsplat 18446744073709518848: i16x16
+    %v_26 = popcnt %v_25: i16x16
+    %v_27 = vsplat 1: i16x16
+    %v_28 = cmp_neq %v_26, %v_27: m16x16
+    %v_29 = vreduce_add %v_28: I32
+    %v_30 = add %v_24, %v_29: I32
+    %v_31 = clz_width %v_25: i16x16
+    %v_32 = vsplat 0: i16x16
+    %v_33 = cmp_neq %v_31, %v_32: m16x16
+    %v_34 = vreduce_add %v_33: I32
+    %v_35 = add %v_30, %v_34: I32
+    %v_36 = cttz_width %v_25: i16x16
+    %v_37 = vsplat 15: i16x16
+    %v_38 = cmp_neq %v_36, %v_37: m16x16
+    %v_39 = vreduce_add %v_38: I32
+    %v_40 = add %v_35, %v_39: I32
+    %v_41 = vsplat 16: i16x16
+    %v_42 = sub %v_41, %v_31: i16x16
+    %v_43 = cmp_neq %v_42, %v_41: m16x16
+    %v_44 = vreduce_add %v_43: I32
+    %v_45 = add %v_40, %v_44: I32
+    %v_46 = imm 8: I64
+    %v_47 = imm 8: I64
+    %v_48 = imm 8: I64
+    %v_49 = imm 16: I64
+    %v_50 = imm 16: I64
+    %v_51 = imm 16: I64
+    jmp b_52
+  }
+
+  b_53 {
+    jmp b_54
+  }
+
+  b_52 {
+    %v_55 = phi [b_56, %v_57], [b_0, %v_45]: I32
+    %v_58 = phi [b_56, %v_59], [b_0, 0]: I64
+    %v_60 = cast %v_58: I32
+    %v_61 = and %v_60, 255: I32
+    %v_62 = vsplat %v_61: i8x32
+    %v_63 = popcnt %v_62: i8x32
+    %v_64 = clz_width %v_62: i8x32
+    %v_65 = cttz_width %v_62: i8x32
+    %v_66 = sub %v_3, %v_64: i8x32
+    %v_67 = mul %v_58, 257: I64
+    %v_68 = cast %v_67: I32
+    %v_69 = and %v_68, 65535: I32
+    %v_70 = vsplat %v_69: i16x16
+    %v_71 = popcnt %v_70: i16x16
+    %v_72 = clz_width %v_70: i16x16
+    %v_73 = cttz_width %v_70: i16x16
+    %v_74 = sub %v_41, %v_72: i16x16
+    %v_75 = mul %v_58, 16843009: I64
+    %v_76 = mul %v_58, 72340172838076673: I64
+    jmp b_77
+  }
+
+  b_56 {
+    %v_59 = add %v_58, 1: I64
+    %v_78 = cmp_lt %v_59, 256: I32
+    je %v_78, b_52, b_53
+  }
+
+  b_77 {
+    %v_79 = phi [b_80, %v_57], [b_52, %v_55]: I32
+    %v_81 = phi [b_80, %v_82], [b_52, 0]: I64
+    %v_83 = cast %v_81: I32
+    %v_84 = and %v_83, 255: I32
+    %v_85 = vsplat %v_84: i8x32
+    jmp b_86
+  }
+
+  b_87 {
+    %v_88 = cmp_lt %v_89, 64: I32
+    je %v_88, b_54, b_90
+  }
+
+  b_90 {
+    ret %v_91
+  }
+
+  b_54 {
+    %v_92 = phi [b_87, %v_91], [b_53, %v_57]: I32
+    %v_93 = phi [b_87, %v_89], [b_53, 0]: I64
+    %v_94 = shl 1, %v_93: I64
+    %v_95 = call_complex wrongU64, %v_94, %v_93: I32
+    %v_96 = add %v_92, %v_95: I32
+    %v_97 = sub %v_94, 1: I64
+    %v_98 = sub 64, %v_93: I64
+    %v_99 = call_complex wrongU64, %v_97, %v_98: I32
+    %v_100 = add %v_96, %v_99: I32
+    %v_101 = call_complex wrongU32, %v_94, %v_93: I32
+    %v_91 = add %v_100, %v_101: I32
+    %v_89 = add %v_93, 1: I64
+    jmp b_87
+  }
+
+  b_102 {
+    %v_103 = cast %v_104: I32
+    %v_105 = and %v_103, 255: I32
+    %v_106 = vsplat %v_105: i8x32
+    %v_107 = cmp_neq %v_63, %v_106: m8x32
+    %v_108 = vreduce_add %v_107: I32
+    jmp b_109
+  }
+
+  b_109 {
+    %v_110 = phi [b_102, %v_46], [b_111, %v_112]: I64
+    %v_113 = cmp_neq %v_110, 0: I32
+    je %v_113, b_114, b_115
+  }
+
+  b_115 {
+    jmp b_116
+  }
+
+  b_114 {
+    %v_112 = sub %v_110, 1: I64
+    %v_117 = shr %v_58, %v_112: I64
+    %v_118 = and %v_117, 1: I64
+    %v_119 = cmp_eq %v_118, 1: I32
+    je %v_119, b_120, b_111
+  }
+
+  b_111 {
+    jmp b_109
+  }
+
+  b_120 {
+    %v_121 = sub 7, %v_112: I64
+    jmp b_116
+  }
+
+  b_116 {
+    %v_122 = phi [b_115, %v_46], [b_120, %v_121]: I64
+    %v_123 = cast %v_122: I32
+    %v_124 = and %v_123, 255: I32
+    %v_125 = vsplat %v_124: i8x32
+    %v_126 = cmp_neq %v_64, %v_125: m8x32
+    %v_127 = vreduce_add %v_126: I32
+    %v_128 = add %v_108, %v_127: I32
+    jmp b_129
+  }
+
+  b_130 {
+    jmp b_131
+  }
+
+  b_129 {
+    %v_132 = phi [b_133, %v_134], [b_116, 0]: I64
+    %v_135 = shr %v_58, %v_132: I64
+    %v_136 = and %v_135, 1: I64
+    %v_137 = cmp_eq %v_136, 1: I32
+    je %v_137, b_138, b_133
+  }
+
+  b_133 {
+    %v_134 = add %v_132, 1: I64
+    %v_139 = cmp_lt %v_134, %v_47: I32
+    je %v_139, b_129, b_130
+  }
+
+  b_138 {
+    jmp b_131
+  }
+
+  b_131 {
+    %v_140 = phi [b_130, %v_47], [b_138, %v_132]: I64
+    %v_141 = cast %v_140: I32
+    %v_142 = and %v_141, 255: I32
+    %v_143 = vsplat %v_142: i8x32
+    %v_144 = cmp_neq %v_65, %v_143: m8x32
+    %v_145 = vreduce_add %v_144: I32
+    %v_146 = add %v_128, %v_145: I32
+    jmp b_147
+  }
+
+  b_147 {
+    %v_148 = phi [b_131, %v_48], [b_149, %v_150]: I64
+    %v_151 = cmp_neq %v_148, 0: I32
+    je %v_151, b_152, b_153
+  }
+
+  b_153 {
+    jmp b_154
+  }
+
+  b_152 {
+    %v_150 = sub %v_148, 1: I64
+    %v_155 = shr %v_58, %v_150: I64
+    %v_156 = and %v_155, 1: I64
+    %v_157 = cmp_eq %v_156, 1: I32
+    je %v_157, b_158, b_149
+  }
+
+  b_149 {
+    jmp b_147
+  }
+
+  b_158 {
+    %v_159 = sub 7, %v_150: I64
+    jmp b_154
+  }
+
+  b_154 {
+    %v_160 = phi [b_153, %v_48], [b_158, %v_159]: I64
+    %v_161 = sub 8, %v_160: I64
+    %v_162 = cast %v_161: I32
+    %v_163 = and %v_162, 255: I32
+    %v_164 = vsplat %v_163: i8x32
+    %v_165 = cmp_neq %v_66, %v_164: m8x32
+    %v_166 = vreduce_add %v_165: I32
+    %v_167 = add %v_146, %v_166: I32
+    %v_168 = bitsupto %v_62, %v_85: i8x32
+    %v_169 = cmp_ge %v_81, 8: I32
+    je %v_169, b_170, b_171
+  }
+
+  b_171 {
+    %v_172 = shl 1, %v_81: I64
+    %v_173 = sub %v_172, 1: I64
+    %v_174 = and %v_58, %v_173: I64
+    jmp b_175
+  }
+
+  b_170 {
+    jmp b_175
+  }
+
+  b_175 {
+    %v_176 = phi [b_171, %v_174], [b_170, %v_58]: I64
+    %v_177 = cast %v_176: I32
+    %v_178 = and %v_177, 255: I32
+    %v_179 = vsplat %v_178: i8x32
+    %v_180 = cmp_neq %v_168, %v_179: m8x32
+    %v_181 = vreduce_add %v_180: I32
+    %v_182 = add %v_167, %v_181: I32
+    %v_183 = add %v_79, %v_182: I32
+    %v_184 = cast %v_81: I32
+    %v_185 = and %v_184, 65535: I32
+    %v_186 = vsplat %v_185: i16x16
+    jmp b_187
+  }
+
+  b_86 {
+    %v_188 = phi [b_189, %v_104], [b_77, 0]: I64
+    %v_190 = phi [b_189, %v_191], [b_77, 0]: I64
+    %v_192 = shr %v_58, %v_190: I64
+    %v_193 = and %v_192, 1: I64
+    %v_194 = cmp_eq %v_193, 1: I32
+    je %v_194, b_195, b_196
+  }
+
+  b_196 {
+    jmp b_189
+  }
+
+  b_195 {
+    %v_197 = add %v_188, 1: I64
+    jmp b_189
+  }
+
+  b_189 {
+    %v_104 = phi [b_196, %v_188], [b_195, %v_197]: I64
+    %v_191 = add %v_190, 1: I64
+    %v_198 = cmp_lt %v_191, 8: I32
+    je %v_198, b_86, b_102
+  }
+
+  b_199 {
+    %v_200 = cast %v_201: I32
+    %v_202 = and %v_200, 65535: I32
+    %v_203 = vsplat %v_202: i16x16
+    %v_204 = cmp_neq %v_71, %v_203: m16x16
+    %v_205 = vreduce_add %v_204: I32
+    jmp b_206
+  }
+
+  b_206 {
+    %v_207 = phi [b_199, %v_49], [b_208, %v_209]: I64
+    %v_210 = cmp_neq %v_207, 0: I32
+    je %v_210, b_211, b_212
+  }
+
+  b_212 {
+    jmp b_213
+  }
+
+  b_211 {
+    %v_209 = sub %v_207, 1: I64
+    %v_214 = shr %v_67, %v_209: I64
+    %v_215 = and %v_214, 1: I64
+    %v_216 = cmp_eq %v_215, 1: I32
+    je %v_216, b_217, b_208
+  }
+
+  b_208 {
+    jmp b_206
+  }
+
+  b_217 {
+    %v_218 = sub 15, %v_209: I64
+    jmp b_213
+  }
+
+  b_213 {
+    %v_219 = phi [b_212, %v_49], [b_217, %v_218]: I64
+    %v_220 = cast %v_219: I32
+    %v_221 = and %v_220, 65535: I32
+    %v_222 = vsplat %v_221: i16x16
+    %v_223 = cmp_neq %v_72, %v_222: m16x16
+    %v_224 = vreduce_add %v_223: I32
+    %v_225 = add %v_205, %v_224: I32
+    jmp b_226
+  }
+
+  b_227 {
+    jmp b_228
+  }
+
+  b_226 {
+    %v_229 = phi [b_230, %v_231], [b_213, 0]: I64
+    %v_232 = shr %v_67, %v_229: I64
+    %v_233 = and %v_232, 1: I64
+    %v_234 = cmp_eq %v_233, 1: I32
+    je %v_234, b_235, b_230
+  }
+
+  b_230 {
+    %v_231 = add %v_229, 1: I64
+    %v_236 = cmp_lt %v_231, %v_50: I32
+    je %v_236, b_226, b_227
+  }
+
+  b_235 {
+    jmp b_228
+  }
+
+  b_228 {
+    %v_237 = phi [b_227, %v_50], [b_235, %v_229]: I64
+    %v_238 = cast %v_237: I32
+    %v_239 = and %v_238, 65535: I32
+    %v_240 = vsplat %v_239: i16x16
+    %v_241 = cmp_neq %v_73, %v_240: m16x16
+    %v_242 = vreduce_add %v_241: I32
+    %v_243 = add %v_225, %v_242: I32
+    jmp b_244
+  }
+
+  b_244 {
+    %v_245 = phi [b_228, %v_51], [b_246, %v_247]: I64
+    %v_248 = cmp_neq %v_245, 0: I32
+    je %v_248, b_249, b_250
+  }
+
+  b_250 {
+    jmp b_251
+  }
+
+  b_249 {
+    %v_247 = sub %v_245, 1: I64
+    %v_252 = shr %v_67, %v_247: I64
+    %v_253 = and %v_252, 1: I64
+    %v_254 = cmp_eq %v_253, 1: I32
+    je %v_254, b_255, b_246
+  }
+
+  b_246 {
+    jmp b_244
+  }
+
+  b_255 {
+    %v_256 = sub 15, %v_247: I64
+    jmp b_251
+  }
+
+  b_251 {
+    %v_257 = phi [b_250, %v_51], [b_255, %v_256]: I64
+    %v_258 = sub 16, %v_257: I64
+    %v_259 = cast %v_258: I32
+    %v_260 = and %v_259, 65535: I32
+    %v_261 = vsplat %v_260: i16x16
+    %v_262 = cmp_neq %v_74, %v_261: m16x16
+    %v_263 = vreduce_add %v_262: I32
+    %v_264 = add %v_243, %v_263: I32
+    %v_265 = bitsupto %v_70, %v_186: i16x16
+    %v_266 = cmp_ge %v_81, 16: I32
+    je %v_266, b_267, b_268
+  }
+
+  b_268 {
+    %v_269 = shl 1, %v_81: I64
+    %v_270 = sub %v_269, 1: I64
+    %v_271 = and %v_67, %v_270: I64
+    jmp b_80
+  }
+
+  b_267 {
+    jmp b_80
+  }
+
+  b_80 {
+    %v_272 = phi [b_268, %v_271], [b_267, %v_67]: I64
+    %v_273 = cast %v_272: I32
+    %v_274 = and %v_273, 65535: I32
+    %v_275 = vsplat %v_274: i16x16
+    %v_276 = cmp_neq %v_265, %v_275: m16x16
+    %v_277 = vreduce_add %v_276: I32
+    %v_278 = add %v_264, %v_277: I32
+    %v_279 = add %v_183, %v_278: I32
+    %v_280 = call_complex wrongU32, %v_75, %v_81: I32
+    %v_281 = add %v_279, %v_280: I32
+    %v_282 = call_complex wrongU64, %v_76, %v_81: I32
+    %v_57 = add %v_281, %v_282: I32
+    %v_82 = add %v_81, 9: I64
+    %v_283 = cmp_le %v_82, 72: I32
+    je %v_283, b_77, b_56
+  }
+
+  b_187 {
+    %v_284 = phi [b_285, %v_201], [b_175, 0]: I64
+    %v_286 = phi [b_285, %v_287], [b_175, 0]: I64
+    %v_288 = shr %v_67, %v_286: I64
+    %v_289 = and %v_288, 1: I64
+    %v_290 = cmp_eq %v_289, 1: I32
+    je %v_290, b_291, b_292
+  }
+
+  b_292 {
+    jmp b_285
+  }
+
+  b_291 {
+    %v_293 = add %v_284, 1: I64
+    jmp b_285
+  }
+
+  b_285 {
+    %v_201 = phi [b_292, %v_284], [b_291, %v_293]: I64
+    %v_287 = add %v_286, 1: I64
+    %v_294 = cmp_lt %v_287, 16: I32
+    je %v_294, b_187, b_199
+  }
+}
+

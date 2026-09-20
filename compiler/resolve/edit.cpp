@@ -143,6 +143,22 @@ void IrEditor::recordUses(Inst* inst) {
         case Value::CryptoUnary:
             addUse(((InstCryptoUnary*)inst)->from, inst);
             break;
+        case Value::FloatAdjust:
+            addUse(((InstFloatAdjust*)inst)->from, inst);
+            break;
+        case Value::FloatCombine: {
+            auto combine = (InstFloatCombine*)inst;
+            addUse(combine->lhs, inst);
+            addUse(combine->rhs, inst);
+            break;
+        }
+        case Value::MulAccumulate: {
+            auto muladd = (InstMulAccumulate*)inst;
+            addUse(muladd->acc, inst);
+            addUse(muladd->lhs, inst);
+            addUse(muladd->rhs, inst);
+            break;
+        }
         // The table the slot is read out of. A TypeMetric has no operand at all - it names a type -
         // which is why the two are not one case despite being the same kind of question.
         case Value::TableSlot:
@@ -165,6 +181,8 @@ void IrEditor::recordUses(Inst* inst) {
         case Value::GatherBits:
         case Value::ScatterBits:
         case Value::Crc32:
+        case Value::SaturatingAdd:
+        case Value::SaturatingSub:
         case Value::Xor:
         case Value::Cmp: {
             auto binary = (InstBinary*)inst;

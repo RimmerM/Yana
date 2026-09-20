@@ -1,0 +1,106 @@
+
+narrow<complex>(%b: i8x64, %c: i8x64, %w: i16x32, %x: i16x32): i8x64 {
+  b_0 {
+    %a1 = isatadd %b, %c: i8x64
+    %a2 = satadd %b, %c: i8x64
+    %a3 = isatadd %w, %x: i16x32
+    %a4 = satadd %w, %x: i16x32
+    %s1 = isatsub %b, %c: i8x64
+    %s2 = satsub %b, %c: i8x64
+    %s3 = isatsub %w, %x: i16x32
+    %s4 = satsub %w, %x: i16x32
+    ret %a1
+  }
+}
+
+unsignedWide<complex>(%a: i32x16, %b: i32x16): i32x16 {
+  b_0 {
+    %r = satadd %a, %b: i32x16
+    %s = satsub %a, %b: i32x16
+    ret %r
+  }
+}
+
+signedWide<complex>(%a: i32x16, %b: i32x16): i32x16 {
+  b_0 {
+    %r = isatadd %a, %b: i32x16
+    %s = isatsub %a, %b: i32x16
+    ret %r
+  }
+}
+
+quadwords<complex>(%a: i64x8, %b: i64x8): i64x8 {
+  b_0 {
+    %r = isatadd %a, %b: i64x8
+    %s = satsub %a, %b: i64x8
+    ret %r
+  }
+}
+
+
+--- codegen: narrow ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  isatadd uses=[xmm0, xmm1] creates=[xmm4]  => 62f17d48ece1
+  satadd uses=[xmm0, xmm1] creates=[xmm5]  => 62f17d48dce9
+  isatadd uses=[xmm2, xmm3] creates=[xmm5]  => 62f16d48edeb
+  satadd uses=[xmm2, xmm3] creates=[xmm5]  => 62f16d48ddeb
+  isatsub uses=[xmm0, xmm1] creates=[xmm5]  => 62f17d48e8e9
+  satsub uses=[xmm0, xmm1] creates=[xmm0]  => 62f17d48d8c1
+  isatsub uses=[xmm2, xmm3] creates=[xmm0]  => 62f16d48e9c3
+  satsub uses=[xmm2, xmm3] creates=[xmm2]  => 62f16d48d9d3
+  ret uses=[xmm0] creates=[] pre=[xmm4->xmm0]  => 62f17c4828c4c3
+
+--- codegen: unsignedWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm2]  => 62f36d4825d2ff
+  add uses=[xmm0, xmm1] creates=[xmm3]  => 62f17d48fed9
+  cmp_lt uses=[xmm3, xmm0] creates=[k1]  => 62f365481ec801
+  select uses=[xmm2, xmm3, k1] creates=[xmm3]  => 62f17e496fda
+  sub uses=[xmm0, xmm1] creates=[xmm2]  => 62f17d48fad1
+  cmp_lt uses=[xmm0, xmm1] creates=[k1]  => 62f37d481ec901
+  x86_maskandn uses=[k1, xmm2] creates=[xmm2]  => 62f16d49fad2
+  ret uses=[xmm0] creates=[] pre=[xmm3->xmm0]  => 62f17c4828c3c3
+
+--- codegen: signedWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm2]  => 62f17e486f15b6000000
+  add uses=[xmm0, xmm1] creates=[xmm3]  => 62f17d48fed9
+  x86_ternarylogic uses=[xmm4, xmm3, xmm1] creates=[xmm4] pre=[xmm0->xmm4]  => 62f17c4828e062f3654825e124
+  x86_vectortomask uses=[xmm4] creates=[k1]  => 62f27e4839cc
+  imm uses=[] creates=[-]  => 
+  sar uses=[xmm0, -] creates=[xmm4]  => 62f15d4872e01f
+  xor uses=[xmm4, xmm2] creates=[xmm4]  => 62f15d48efe2
+  select uses=[xmm4, xmm3, k1] creates=[xmm3]  => 62f17e496fdc
+  sub uses=[xmm0, xmm1] creates=[xmm4]  => 62f17d48fae1
+  x86_ternarylogic uses=[xmm5, xmm1, xmm4] creates=[xmm5] pre=[xmm0->xmm5]  => 62f17c4828e862f3754825ec18
+  x86_vectortomask uses=[xmm5] creates=[k1]  => 62f27e4839cd
+  imm uses=[] creates=[-]  => 
+  sar uses=[xmm0, -] creates=[xmm0]  => 62f17d4872e01f
+  xor uses=[xmm0, xmm2] creates=[xmm0]  => 62f17d48efc2
+  select uses=[xmm0, xmm4, k1] creates=[xmm4]  => 62f17e496fe0
+  ret uses=[xmm0] creates=[] pre=[xmm3->xmm0]  => 62f17c4828c3c3
+
+--- codegen: quadwords ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[xmm0, xmm1] creates=[xmm2]  => 62f1fd48d4d1
+  x86_ternarylogic uses=[xmm3, xmm2, xmm1] creates=[xmm3] pre=[xmm0->xmm3]  => 62f17c4828d862f36d4825d924
+  x86_vectortomask uses=[xmm3] creates=[k1]  => 62f2fe4839cb
+  imm uses=[] creates=[-]  => 
+  sar uses=[xmm0, -] creates=[xmm3]  => 62f1e54872e03f
+  x86_addr [rip + $v512$ffffffffffffff7fffffffffffffff7fffffffffffffff7fffffffffffffff7fffffffffffffff7fffffffffffffff7fffffffffffffff7fffffffffffffff7f] uses=[] creates=[-]  => 
+  xor uses=[xmm3, -] creates=[xmm3]  => 62f16548ef1d66000000
+  select uses=[xmm3, xmm2, k1] creates=[xmm2]  => 62f1fe496fd3
+  sub uses=[xmm0, xmm1] creates=[xmm3]  => 62f1fd48fbd9
+  cmp_lt uses=[xmm0, xmm1] creates=[k1]  => 62f3fd481ec901
+  x86_maskandn uses=[k1, xmm3] creates=[xmm3]  => 62f1e549fbdb
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 62f17c4828c2c3

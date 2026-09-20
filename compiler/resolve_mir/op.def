@@ -104,6 +104,21 @@ YANA_MIR_BINOP( Ge,  "ge"_v,   OpCategory::Order,     WidthEffect::Closed )
 YANA_MIR_BINOP( MulHi, "mulhi"_v, OpCategory::Integer, WidthEffect::Closed )
 
 /*
+ * Lane-wise addition and subtraction that **clamps** rather than wrapping - `saturatingAdd` and
+ * `saturatingSub` in `lib/Core/Vector.yana`, Analysis-Avx512.md §3.8.
+ *
+ * `WidthEffect::Closed` is the column's whole point here: the answer is inside the lane's range by
+ * construction, which is what "saturating" means. It is also why there is no signedness column - the
+ * lane *type* is what says which two bounds it clamps to, exactly as it says whether a division is
+ * `div` or `idiv`.
+ *
+ * Vectors of integer lanes only, which `resolve_ssa/verify.cpp` holds them to: a scalar saturating
+ * add is a useful operation and nothing declares one.
+ */
+YANA_MIR_BINOP( SaturatingAdd, "saturatingadd"_v, OpCategory::Integer, WidthEffect::Closed )
+YANA_MIR_BINOP( SaturatingSub, "saturatingsub"_v, OpCategory::Integer, WidthEffect::Closed )
+
+/*
  * The low `count` bits of a value with everything above them cleared - `Core.Bits.bitsUpTo`, and
  * x86's `bzhi`.
  *

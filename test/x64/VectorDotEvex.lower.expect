@@ -1,0 +1,81 @@
+
+words<complex>(%acc: i32x4, %a: i16x8, %b: i16x8): i32x4 {
+  b_0 {
+    %r = vdotwords %acc, %a, %b: i32x4
+    ret %r
+  }
+}
+
+bytes<complex>(%acc: i32x4, %u: i8x16, %s: i8x16): i32x4 {
+  b_0 {
+    %r = vdotbytes %acc, %u, %s: i32x4
+    ret %r
+  }
+}
+
+wide<complex>(%acc: i32x8, %a: i16x16, %u: i8x32, %s: i8x32): i32x8 {
+  b_0 {
+    %w = vdotwords %acc, %a, %a: i32x8
+    %b = vdotbytes %acc, %u, %s: i32x8
+    ret %w
+  }
+}
+
+full<complex>(%acc: i32x16, %a: i16x32, %u: i8x64, %s: i8x64): i32x16 {
+  b_0 {
+    %w = vdotwords %acc, %a, %a: i32x16
+    %b = vdotbytes %acc, %u, %s: i32x16
+    ret %w
+  }
+}
+
+ifma<complex>(%acc: i64x2, %a: i64x2, %b: i64x2, %wacc: i64x4, %wa: i64x4, %facc: i64x8, %fa: i64x8): i64x2 {
+  b_0 {
+    %lo = vmadd52lo %acc, %a, %b: i64x2
+    %hi = vmadd52hi %acc, %a, %b: i64x2
+    %w = vmadd52lo %wacc, %wa, %wa: i64x4
+    %f = vmadd52hi %facc, %fa, %fa: i64x8
+    ret %lo
+  }
+}
+
+
+--- codegen: words ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vdotwords uses=[xmm0, xmm1, xmm2] creates=[xmm0]  => 62f2750852c2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: bytes ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vdotbytes uses=[xmm0, xmm1, xmm2] creates=[xmm0]  => 62f2750850c2
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: wide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vdotwords uses=[xmm4, xmm1, xmm1] creates=[xmm4] pre=[xmm0->xmm4]  => c5fc28e062f2752852e1
+  vdotbytes uses=[xmm0, xmm2, xmm3] creates=[xmm0]  => 62f26d2850c3
+  ret uses=[xmm0] creates=[] pre=[xmm4->xmm0]  => c5fc28c4c3
+
+--- codegen: full ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vdotwords uses=[xmm4, xmm1, xmm1] creates=[xmm4] pre=[xmm0->xmm4]  => 62f17c4828e062f2754852e1
+  vdotbytes uses=[xmm0, xmm2, xmm3] creates=[xmm0]  => 62f26d4850c3
+  ret uses=[xmm0] creates=[] pre=[xmm4->xmm0]  => 62f17c4828c4c3
+
+--- codegen: ifma ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vmadd52lo uses=[xmm7, xmm1, xmm2] creates=[xmm7] pre=[xmm0->xmm7]  => c5f828f862f2f508b4fa
+  vmadd52hi uses=[xmm0, xmm1, xmm2] creates=[xmm0]  => 62f2f508b5c2
+  vmadd52lo uses=[xmm3, xmm4, xmm4] creates=[xmm3]  => 62f2dd28b4dc
+  vmadd52hi uses=[xmm5, xmm6, xmm6] creates=[xmm5]  => 62f2cd48b5ee
+  ret uses=[xmm0] creates=[] pre=[xmm7->xmm0]  => c5f828c7c3

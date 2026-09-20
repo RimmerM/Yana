@@ -166,6 +166,17 @@ void MachineFormBuilder::registerWideForms() {
     wideTwin(FormVWideCmpF32,  FormVCmpF32,  "vcmpps ymm, ymm, ymm/m, predicate"_v);
     wideTwin(FormVWideCmpF64,  FormVCmpF64,  "vcmppd ymm, ymm, ymm/m, predicate"_v);
 
+    // The eight saturating rows and `pmaddwd`, whose 256-bit twins are AVX2's.
+    wideTwin(FormVWideSatAddI8,  FormVSatAddI8,  "vpaddsb ymm, ymm, ymm/m"_v);
+    wideTwin(FormVWideSatAddU8,  FormVSatAddU8,  "vpaddusb ymm, ymm, ymm/m"_v);
+    wideTwin(FormVWideSatAddI16, FormVSatAddI16, "vpaddsw ymm, ymm, ymm/m"_v);
+    wideTwin(FormVWideSatAddU16, FormVSatAddU16, "vpaddusw ymm, ymm, ymm/m"_v);
+    wideTwin(FormVWideSatSubI8,  FormVSatSubI8,  "vpsubsb ymm, ymm, ymm/m"_v);
+    wideTwin(FormVWideSatSubU8,  FormVSatSubU8,  "vpsubusb ymm, ymm, ymm/m"_v);
+    wideTwin(FormVWideSatSubI16, FormVSatSubI16, "vpsubsw ymm, ymm, ymm/m"_v);
+    wideTwin(FormVWideSatSubU16, FormVSatSubU16, "vpsubusw ymm, ymm, ymm/m"_v);
+    wideTwin(FormVWideMulAddWords, FormVMulAddWords, "vpmaddwd ymm, ymm, ymm/m"_v);
+
     // The minimum and the maximum, whose 256-bit integer rows are AVX2's own and whose float
     // ones are AVX's - stated as AVX2 with everything else here, a target below that having no
     // wide value to take the minimum of.

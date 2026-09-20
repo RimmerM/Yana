@@ -17,10 +17,10 @@
    ## What an instance supplies, and what it inherits
 
    Five members have no default, and every one of them is a question about the *representation*
-   rather than about mathematics: rounding toward zero, reading and writing a binary exponent, and
-   naming an infinity. Those are where 127-and-23 and 1023-and-52 live, and they are the only place
-   in this module where a width is written. The other nineteen members default onto the kernels
-   below, so an instance is five short bodies.
+   rather than about mathematics: reading and writing a binary exponent, naming an infinity, and
+   naming the smallest value the exponent field still holds normally. Those are where 127-and-23
+   and 1023-and-52 live, and they are the only place in this module where a width is written. Every
+   other member defaults onto the kernels below, so an instance is five short bodies.
 
    ## One rule this module is written under
 
@@ -80,7 +80,8 @@
    nothing for a kernel to have to choose between.
 -}
 pub class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m):
-  -- The four an instance answers. Each is one line of bit arithmetic at the type's own width.
+  -- Four of the five an instance answers - `smallestNormal` is the fifth and is below, being a
+  -- bound rather than an operation. Each is one line of bit arithmetic at the type's own width.
   --
   -- `exponentOf` and `significandOf` are the two halves of `x = significand * 2 ^ exponent` with the
   -- significand in [1, 2), defined for a positive normal argument and for nothing else - every
@@ -88,13 +89,21 @@ pub class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m):
   -- **required to saturate**: an exponent past the type's range answers an infinity or a zero rather
   -- than wrapping back into the middle of it, which is what lets `exp` overflow correctly.
   --
-  -- `trunc` is not a fifth: it is a Core intrinsic beside `floor`, `ceil` and `round`, because
+  -- `trunc` is not among them: it is a Core intrinsic beside `floor`, `ceil` and `round`, because
   -- every target has an instruction for it at every float width and an instance would be answering
   -- a question the machine has already settled. See resolve/inst.def.
   fn scaleByExponent(value: a, exponent: a) -> a
   fn exponentOf(value: a) -> a
   fn significandOf(value: a) -> a
   fn infinity() -> a
+
+  -- The smallest positive value the exponent field can hold with an implicit leading one - 2^-126
+  -- for a `Float` and 2^-1022 for a `Double`. It is here rather than among the kernels because it
+  -- is a width, and it is here rather than nowhere because it is the boundary `isSubnormal` below
+  -- tests against and the one bound in this module a caller cannot write for itself: a decimal
+  -- literal standing alone in a generic body is a `Float` (see the rule above), so the constant has
+  -- to arrive through the instance that knows which width it is.
+  fn smallestNormal() -> a
 
   -- And the sixteen that are the same code for every instance, so they are defaults over the
   -- kernels below rather than sixteen more bodies per instance. `floor`, `ceil` and `round` are not
@@ -115,6 +124,15 @@ pub class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m):
   fn acos(value: a) -> a = arcCosineOf(value)
   fn atan(value: a) -> a = arcTangentOf(value)
   fn atan2(y: a, x: a) -> a = arcTangent2Of(y, x)
+
+  -- And three more that are defaults for the sixteen's reason and *members* rather than functions
+  -- over the class for a different one: each is one machine instruction at AVX-512 and four or five
+  -- everywhere else, so an instance has somewhere to say so. `Math.avx512.yana` is where the two
+  -- vector instances do - see the kernels below for what each one means, which is the same thing
+  -- whichever body answers.
+  fn fract(value: a) -> a = fractionOf(value)
+  fn minNumber(lhs: a, rhs: a) -> a = minimumNumberOf(lhs, rhs)
+  fn maxNumber(lhs: a, rhs: a) -> a = maximumNumberOf(lhs, rhs)
 
 {-
    The two constants a caller asks for by name, and the two conversions that are the whole of what
@@ -159,6 +177,75 @@ fn (Real(a, m)) infinityLike(value: a) -> a = infinity()
 -- infinity is NaN under IEEE 754 at every width and on both targets, and `value` is there only to
 -- carry the type.
 fn (Real(a, m)) notANumberLike(value: a) -> a = zeroLike(value) * infinityLike(value)
+
+-- `smallestNormal` read through an argument, for `infinityLike`'s reason exactly.
+fn (Real(a, m)) smallestNormalLike(value: a) -> a = smallestNormal()
+
+{-
+   The five questions about a value's *class* - which IEEE 754 calls its class and which every
+   caller of this module ends up asking at least one of.
+
+   They answer `m` rather than `Bool`, which is what makes them worth having at all: over a vector
+   the answer is a lane mask that `select` takes, so a kernel can drop a NaN lane without a branch
+   and without leaving the vector. Over a scalar the same call answers a `Bool` and reads as the
+   test it is.
+
+   Each is written as the arithmetic that already distinguishes the case, rather than as bit
+   manipulation on a reinterpreted exponent field. Two reasons: the bit route needs a width, which
+   would put every one of these back inside the instances; and a comparison against a NaN is false
+   whichever way it is written, which is the whole of what the first three need.
+
+   - `isNaN` is the self-comparison, and it is the only value that fails it.
+   - `isInfinite` and `isFinite` both compare the magnitude against `infinity()`. Neither is the
+     other's negation - a NaN is neither infinite nor finite - so both are written.
+   - `isSubnormal` is below the smallest normal and not zero. A NaN fails the first test and a
+     zero fails the second, so no other value reaches it.
+   - `isZero` catches both zeros, which is what `.==` against a literal zero does.
+
+   **A signalling NaN is not distinguished from a quiet one.** Nothing in this library produces or
+   consumes one, and telling them apart is a mantissa bit - which is the width these are written to
+   avoid.
+-}
+pub fn (Real(a, m)) isNaN(value: a) -> m = value .!= value
+
+pub fn (Real(a, m)) isInfinite(value: a) -> m = magnitudeOf(value) .== infinityLike(value)
+
+pub fn (Real(a, m)) isFinite(value: a) -> m = magnitudeOf(value) .< infinityLike(value)
+
+pub fn (Real(a, m)) isSubnormal(value: a) -> m =
+    and(magnitudeOf(value) .< smallestNormalLike(value), value .!= 0.0)
+
+pub fn (Real(a, m)) isZero(value: a) -> m = value .== 0.0
+
+{-
+   The fractional part, and the two order operations that have an answer for a NaN - the three
+   kernels the `Real` members of those names default onto.
+
+   `fract(x)` is `x - floor(x)`, which is in `[0, 1)` for every finite argument including a negative
+   one - GLSL's `fract` and not C's `modf`, whose fraction carries the sign of its argument. The
+   sign-carrying one is `value - trunc(value)` and is left unnamed, because it is one call away and
+   the two are confused often enough that only one of them should have the short name. What `fract`
+   is *for* is a periodic index - a texture coordinate, a wave phase, a hash bucket - where a
+   negative argument must wrap to the top of the period rather than reflect through zero.
+
+   `minNumber` and `maxNumber` are `min` and `max` with the NaN rule written down: a NaN operand is
+   ignored and the other one comes back, and two NaNs answer a NaN. That is IEEE 754-2019's
+   `minimumNumber`/`maximumNumber` and not what the machine's instruction does - `minps` answers its
+   *second* operand whenever either is a NaN, which means `min(a, b)` and `min(b, a)` differ there -
+   so a reduction over data that may contain a NaN wants these and not `min`.
+
+   **Which zero comes back when both operands are zero is unspecified**, and deliberately: pinning
+   it to `-0.0` costs a second comparison on every call, and the callers these exist for - a bound,
+   a clamp, a running minimum - cannot tell the two apart anyway. A caller that can should test the
+   sign itself.
+-}
+fn (Real(a, m)) fractionOf(value: a) -> a = value - floor(value)
+
+fn (Real(a, m)) minimumNumberOf(lhs: a, rhs: a) -> a =
+    select(isNaN(lhs), rhs, select(or(lhs .< rhs, isNaN(rhs)), lhs, rhs))
+
+fn (Real(a, m)) maximumNumberOf(lhs: a, rhs: a) -> a =
+    select(isNaN(lhs), rhs, select(or(lhs .> rhs, isNaN(rhs)), lhs, rhs))
 
 {-
    Rounding - all four derived from the one an instance supplies.
@@ -628,6 +715,7 @@ instance Real(Float, Bool):
         bitcast(((bitcast(value) :: I32) `and` 8388607) `or` 1065353216) :: Float
 
     fn infinity() -> Float = bitcast(2139095040 :: I32) :: Float
+    fn smallestNormal() -> Float = 1.1754943508222875e-38
 
 -- Four of the five delegate, because four of the five are `@platform`-split above and an instance
 -- member is not a place a platform selection may be written: what `@platform` chooses between is two
@@ -641,34 +729,80 @@ instance Real(Double, Bool):
     fn exponentOf(value: Double) -> Double = exponentOfDouble(value)
     fn significandOf(value: Double) -> Double = significandOfDouble(value)
     fn infinity() -> Double = infinityDouble()
+    fn smallestNormal() -> Double = 2.2250738585072014e-308
+
+{-
+   The twelve bodies the two vector instances are made of, as free functions rather than inside the
+   instances - and the reason is the `Double` instance's reason one block up, arrived at from a
+   different direction.
+
+   Each of these is one AVX-512 instruction (Analysis-Avx512.md §3.7), and
+   `lib/Math/Math.avx512.yana` replaces all twelve with that instruction. A replacement is another
+   body of a **function** (Design-Replacements.md); an instance member is not one, and a member
+   cannot carry a second body chosen by the target any more than it can carry a `@platform` split.
+   So an instance member that a target might answer differently has to be a delegation, and these
+   are the bodies it delegates to.
+
+   Nothing else changed in moving them: each is what was written inside the instance, at the same
+   constants, with a name.
+-}
+fn scaleByExponentVecFloat(value: Vec(F32), exponent: Vec(F32)) -> Vec(F32):
+    let first = clampVecFloatExponent(exponent)
+    let second = clampVecFloatExponent(exponent - first)
+    return value * powerOfTwoVecFloat(first) * powerOfTwoVecFloat(second)
+
+fn exponentOfVecFloat(value: Vec(F32)) -> Vec(F32):
+    let bits = bitcast(value) :: Vec(Int)
+    return (widen((bits `shr` 23) `and` 255) :: Vec(F32)) - 127.0
+
+fn significandOfVecFloat(value: Vec(F32)) -> Vec(F32) =
+    bitcast(((bitcast(value) :: Vec(Int)) `and` 8388607) `or` 1065353216) :: Vec(F32)
+
+fn fractVecFloat(value: Vec(F32)) -> Vec(F32) = fractionOf(value)
+fn minNumberVecFloat(lhs: Vec(F32), rhs: Vec(F32)) -> Vec(F32) = minimumNumberOf(lhs, rhs)
+fn maxNumberVecFloat(lhs: Vec(F32), rhs: Vec(F32)) -> Vec(F32) = maximumNumberOf(lhs, rhs)
+
+fn scaleByExponentVecDouble(value: Vec(F64), exponent: Vec(F64)) -> Vec(F64):
+    let first = clampVecDoubleExponent(exponent)
+    let second = clampVecDoubleExponent(exponent - first)
+    return value * powerOfTwoVecDouble(first) * powerOfTwoVecDouble(second)
+
+fn exponentOfVecDouble(value: Vec(F64)) -> Vec(F64):
+    let bits = bitcast(value) :: Vec(Long)
+    return vecDoubleFromWholeBits((bits `shr` 52) `and` 2047) - 1023.0
+
+fn significandOfVecDouble(value: Vec(F64)) -> Vec(F64) =
+    bitcast(((bitcast(value) :: Vec(Long)) `and` 4503599627370495) `or` 4607182418800017408) :: Vec(F64)
+
+fn fractVecDouble(value: Vec(F64)) -> Vec(F64) = fractionOf(value)
+fn minNumberVecDouble(lhs: Vec(F64), rhs: Vec(F64)) -> Vec(F64) = minimumNumberOf(lhs, rhs)
+fn maxNumberVecDouble(lhs: Vec(F64), rhs: Vec(F64)) -> Vec(F64) = maximumNumberOf(lhs, rhs)
 
 instance Real(Vec(F32), Mask(F32)):
-    fn scaleByExponent(value: Vec(F32), exponent: Vec(F32)) -> Vec(F32):
-        let first = clampVecFloatExponent(exponent)
-        let second = clampVecFloatExponent(exponent - first)
-        return value * powerOfTwoVecFloat(first) * powerOfTwoVecFloat(second)
+    fn scaleByExponent(value: Vec(F32), exponent: Vec(F32)) -> Vec(F32) =
+        scaleByExponentVecFloat(value, exponent)
 
-    fn exponentOf(value: Vec(F32)) -> Vec(F32):
-        let bits = bitcast(value) :: Vec(Int)
-        return (widen((bits `shr` 23) `and` 255) :: Vec(F32)) - 127.0
-
-    fn significandOf(value: Vec(F32)) -> Vec(F32) =
-        bitcast(((bitcast(value) :: Vec(Int)) `and` 8388607) `or` 1065353216) :: Vec(F32)
+    fn exponentOf(value: Vec(F32)) -> Vec(F32) = exponentOfVecFloat(value)
+    fn significandOf(value: Vec(F32)) -> Vec(F32) = significandOfVecFloat(value)
 
     fn infinity() -> Vec(F32) = bitcast(splat(2139095040)) :: Vec(F32)
+    fn smallestNormal() -> Vec(F32) = splat(1.1754943508222875e-38 :: Float)
+
+    fn fract(value: Vec(F32)) -> Vec(F32) = fractVecFloat(value)
+    fn minNumber(lhs: Vec(F32), rhs: Vec(F32)) -> Vec(F32) = minNumberVecFloat(lhs, rhs)
+    fn maxNumber(lhs: Vec(F32), rhs: Vec(F32)) -> Vec(F32) = maxNumberVecFloat(lhs, rhs)
 
 instance Real(Vec(F64), Mask(F64)):
-    fn scaleByExponent(value: Vec(F64), exponent: Vec(F64)) -> Vec(F64):
-        let first = clampVecDoubleExponent(exponent)
-        let second = clampVecDoubleExponent(exponent - first)
-        return value * powerOfTwoVecDouble(first) * powerOfTwoVecDouble(second)
+    fn scaleByExponent(value: Vec(F64), exponent: Vec(F64)) -> Vec(F64) =
+        scaleByExponentVecDouble(value, exponent)
 
-    fn exponentOf(value: Vec(F64)) -> Vec(F64):
-        let bits = bitcast(value) :: Vec(Long)
-        return vecDoubleFromWholeBits((bits `shr` 52) `and` 2047) - 1023.0
-
-    fn significandOf(value: Vec(F64)) -> Vec(F64) =
-        bitcast(((bitcast(value) :: Vec(Long)) `and` 4503599627370495) `or` 4607182418800017408) :: Vec(F64)
+    fn exponentOf(value: Vec(F64)) -> Vec(F64) = exponentOfVecDouble(value)
+    fn significandOf(value: Vec(F64)) -> Vec(F64) = significandOfVecDouble(value)
 
     fn infinity() -> Vec(F64) = bitcast(splat(9218868437227405312 :: Long)) :: Vec(F64)
+    fn smallestNormal() -> Vec(F64) = splat(2.2250738585072014e-308 :: Double)
+
+    fn fract(value: Vec(F64)) -> Vec(F64) = fractVecDouble(value)
+    fn minNumber(lhs: Vec(F64), rhs: Vec(F64)) -> Vec(F64) = minNumberVecDouble(lhs, rhs)
+    fn maxNumber(lhs: Vec(F64), rhs: Vec(F64)) -> Vec(F64) = maxNumberVecDouble(lhs, rhs)
 

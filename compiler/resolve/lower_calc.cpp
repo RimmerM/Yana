@@ -845,6 +845,27 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 : binary<LowerInst::Crc32>(lower.lower, lower.to, block, lhs, rhs, type, instruction.name);
             break;
         }
+        /*
+         * The two saturating lane operations, which cross this seam as themselves - see
+         * `Value::SaturatingAdd` in inst.def. A lane is a whole lane at every width these are
+         * declared at, so there is no narrow value in a register for a width rule to mean anything
+         * about, which is `bitsupto`'s reason one arm up read at a vector.
+         */
+        case Value::SaturatingAdd:
+        case Value::SaturatingSub: {
+            auto& binaryInst = (InstBinary&)instruction;
+            auto lhs = lower.lower[mappedValue(lower, binaryInst.lhs)];
+            auto rhs = lower.lower[mappedValue(lower, binaryInst.rhs)];
+            auto type = lowerType(lower, instruction.type);
+
+            // Built rather than folded, `binary<>` asserting its kind is one of the arithmetic
+            // range's - which these are deliberately not, for the reason inst.def gives. `binaryKind`
+            // is what reads the lane's signedness off the type, as it does for every other pair.
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstSaturating(
+                binaryKind(lower, binaryInst), instruction.name, type,
+                lhs - lower.lower, rhs - lower.lower));
+            break;
+        }
         // The two floating-point operations that are neither the unary pair above nor the binary
         // group below: one operand and no arithmetic beside it, and three operands and no other
         // instruction of that arity in this IR.
@@ -990,6 +1011,44 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     instruction.name, type, from));
             }
 
+            break;
+        }
+        // The operation is a *kind* below this seam and a field above it - see
+        // `LowerInstFloatAdjust`, where the reason the trailing byte takes `flags` is written.
+        case Value::FloatAdjust: {
+            auto& adjust = (InstFloatAdjust&)instruction;
+            auto kind = adjust.op == FloatAdjustOp::Exponent ? LowerInst::GetExponent
+                      : adjust.op == FloatAdjustOp::Mantissa ? LowerInst::GetMantissa
+                                                             : LowerInst::FpReduce;
+
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstFloatAdjust(
+                kind, instruction.name, lowerType(lower, instruction.type),
+                mappedValue(lower, adjust.from), adjust.control));
+            break;
+        }
+        case Value::FloatCombine: {
+            auto& combine = (InstFloatCombine&)instruction;
+            auto kind = combine.op == FloatCombineOp::Scale ? LowerInst::ScaleFloat
+                                                            : LowerInst::RangeFloat;
+
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstFloatCombine(
+                kind, instruction.name, lowerType(lower, instruction.type),
+                mappedValue(lower, combine.lhs), mappedValue(lower, combine.rhs), combine.control));
+            break;
+        }
+        // And the four widening multiply-accumulates, where the operation is a kind below this seam
+        // for the same reason - see `LowerInstMulAccumulate`.
+        case Value::MulAccumulate: {
+            auto& muladd = (InstMulAccumulate&)instruction;
+            auto kind = muladd.op == MulAccumulateOp::DotBytes    ? LowerInst::DotBytes
+                      : muladd.op == MulAccumulateOp::DotWords    ? LowerInst::DotWords
+                      : muladd.op == MulAccumulateOp::MulAdd52Low ? LowerInst::MulAdd52Lo
+                                                                  : LowerInst::MulAdd52Hi;
+
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstMulAccumulate(
+                kind, instruction.name, lowerType(lower, instruction.type),
+                mappedValue(lower, muladd.acc), mappedValue(lower, muladd.lhs),
+                mappedValue(lower, muladd.rhs)));
             break;
         }
         /*

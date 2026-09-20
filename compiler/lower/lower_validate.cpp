@@ -268,6 +268,39 @@ static bool validateAbs(Diagnostics* diagnostics, LowerBase base, LowerInstUnary
     return true;
 }
 
+/*
+ * The four widening multiply-accumulates, and `pmaddwd` beside them.
+ *
+ * The rule that is *not* every other arithmetic row's: the accumulator is the result's type and the
+ * two product operands are a narrower vector of the same byte width, with as many lanes as the
+ * grouping reads. A `pmaddwd` has no accumulator and is the same rule over two operands.
+ *
+ * Checked here rather than left to the backends because it is what decides how many lanes an
+ * instruction reads: an operand a lane too narrow is a register read past its end, which is a wrong
+ * answer rather than a refusal on every machine.
+ */
+static bool validateMulAccumulate(Diagnostics* diagnostics, LowerBase base, LowerInst* inst,
+                                  LowerValue& result, LowerPtr<LowerValue> lhsPtr,
+                                  LowerPtr<LowerValue> rhsPtr, U32 group) {
+    auto type = result.type;
+    auto lhs = base[lhsPtr]->type;
+    auto rhs = base[rhsPtr]->type;
+
+    if(!isIntVector(type) || !isIntVector(lhs) || lhs != rhs) {
+        diagnostics->error("a widening multiply-accumulate reads two vectors of integer lanes of one type"_v,
+                           inst->source);
+        return false;
+    }
+
+    if(lhs.lanes() != type.lanes() * group || lhs.byteWidth() != type.byteWidth()) {
+        diagnostics->error("a widening multiply-accumulate reads a number of narrow lanes its grouping does not divide"_v,
+                           inst->source);
+        return false;
+    }
+
+    return true;
+}
+
 static bool validateFma(Diagnostics* diagnostics, LowerBase base, LowerInstFma* inst) {
     if(!validateFloatOnly(diagnostics, inst->result.type, inst)) return false;
 
@@ -1386,7 +1419,41 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::CryptoBinary:
         case LowerInst::AesInverseMix:
         case LowerInst::AesKeygenAssist:
+        // The four saturating rows, whose operands are the result's type exactly as an ordinary
+        // add's are.
+        case LowerInst::SatAdd:
+        case LowerInst::ISatAdd:
+        case LowerInst::SatSub:
+        case LowerInst::ISatSub:
+        // And the AVX-512 float operations, which hold it too: `vscalef`'s exponent is a vector of
+        // the same floats its value is, and `vrange`'s two operands are one comparison's.
+        case LowerInst::GetExponent:
+        case LowerInst::GetMantissa:
+        case LowerInst::FpReduce:
+        case LowerInst::ScaleFloat:
+        case LowerInst::RangeFloat:
             return validateSha(diagnostics, base, (LowerInstSingle*)inst);
+        case LowerInst::DotBytes:
+        case LowerInst::DotWords:
+        case LowerInst::MulAdd52Lo:
+        case LowerInst::MulAdd52Hi: {
+            auto muladd = (LowerInstMulAccumulate*)inst;
+            auto group = inst->kind == LowerInst::DotBytes ? 4u
+                       : inst->kind == LowerInst::DotWords ? 2u : 1u;
+
+            if(base[muladd->acc]->type != muladd->result.type) {
+                diagnostics->error("a widening multiply-accumulate accumulates into a vector that is not its result's type"_v,
+                                   inst->source);
+                return false;
+            }
+
+            return validateMulAccumulate(diagnostics, base, inst, muladd->result, muladd->lhs,
+                                         muladd->rhs, group);
+        }
+        case LowerInst::X86MulAddWords: {
+            auto pair = (LowerInstX86MulAddWords*)inst;
+            return validateMulAccumulate(diagnostics, base, inst, pair->result, pair->lhs, pair->rhs, 2);
+        }
         case LowerInst::Add:
             return validateAdd(diagnostics, base, (LowerInstBinary*)inst);
         case LowerInst::Sub:
@@ -1491,6 +1558,7 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::X86MinMax:
         case LowerInst::X86MulWide:
         case LowerInst::X86Sext:
+        case LowerInst::X86VecCount:
         case LowerInst::X86MaskAnd:
         case LowerInst::X86Permute:
         case LowerInst::X86MaskConvert:

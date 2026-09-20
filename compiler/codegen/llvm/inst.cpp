@@ -667,11 +667,204 @@ static void genCrypto(FunGen& f, LowerInst& inst) {
     f.define(single.result, f.builder.CreateBitCast(value, resultType, name));
 }
 
+/*
+ * The four widening multiply-accumulates - Analysis-Avx512.md §3.6.
+ *
+ * **The two dot products are built out of ordinary LLVM IR** rather than out of `llvm.x86.avx512.*`,
+ * which is where they depart from the float operations below and from the crypto rows: those are
+ * reached only from a `@platform(avx512)` declaration, and these are portable and arrive at every
+ * level. This backend is not told which level it is compiling for - the target's features are the
+ * module's attributes and LLVM reads them itself - so naming VNNI here would be naming an
+ * instruction a build may not have.
+ *
+ * What is written instead is the operation's definition: widen every narrow lane to 32 bits (zero-
+ * extending the first product operand of a byte dot product and sign-extending the second), multiply,
+ * then add the group's products into the accumulator through one shuffle per position in the group.
+ * LLVM folds that into `pmaddwd` at every level and into `vpdpbusd`/`vpdpwssd` where the target has
+ * VNNI, and where it folds neither it writes the sequence - which it knows more about than this
+ * compiler does, and is the same division every row in this file is under.
+ *
+ * IFMA's two are the other case and are the intrinsics, on the float operations' terms: they are
+ * reached only from `lib/Native/Intrinsic/X86.yana`'s `@platform(avx512)` declarations, so a build
+ * that gets here has the extension. LLVM names them unmasked, which is one fewer thing to arrange
+ * than `vgetexp` needed.
+ */
+static void genMulAccumulate(FunGen& f, LowerInst& inst) {
+    auto& muladd = (LowerInstMulAccumulate&)inst;
+    auto name = nameOf(f, muladd.result);
+    auto type = typeOf(f.gen, muladd.result.type);
+
+    auto acc = use(f, inst, muladd.acc);
+    auto lhs = use(f, inst, muladd.lhs);
+    auto rhs = use(f, inst, muladd.rhs);
+
+    if(inst.kind == LowerInst::MulAdd52Lo || inst.kind == LowerInst::MulAdd52Hi) {
+        auto bytes = muladd.result.type.byteWidth();
+        auto low = inst.kind == LowerInst::MulAdd52Lo;
+
+        auto which = bytes == 16
+            ? (low ? llvm::Intrinsic::x86_avx512_vpmadd52l_uq_128 : llvm::Intrinsic::x86_avx512_vpmadd52h_uq_128)
+            : bytes == 32
+            ? (low ? llvm::Intrinsic::x86_avx512_vpmadd52l_uq_256 : llvm::Intrinsic::x86_avx512_vpmadd52h_uq_256)
+            : (low ? llvm::Intrinsic::x86_avx512_vpmadd52l_uq_512 : llvm::Intrinsic::x86_avx512_vpmadd52h_uq_512);
+
+        llvm::Value* args[3] = { acc, lhs, rhs };
+        f.define(muladd.result, f.builder.CreateIntrinsic(
+            which, {}, llvm::ArrayRef<llvm::Value*>(args, 3), nullptr, name));
+        return;
+    }
+
+    auto group = inst.kind == LowerInst::DotBytes ? 4u : 2u;
+    auto lanes = unsigned(muladd.result.type.lanes());
+    auto wide = llvm::FixedVectorType::get(llvm::Type::getInt32Ty(f.gen.llvm), lanes * group);
+
+    // The first operand of a byte dot product is unsigned and the second signed; a word dot product
+    // reads both as signed. That asymmetry is the machine's and the declaration states it.
+    auto left = inst.kind == LowerInst::DotBytes ? f.builder.CreateZExt(lhs, wide)
+                                                 : f.builder.CreateSExt(lhs, wide);
+    auto products = f.builder.CreateMul(left, f.builder.CreateSExt(rhs, wide));
+
+    auto sum = acc;
+    for(unsigned k = 0; k < group; k++) {
+        llvm::SmallVector<int, 16> pattern;
+        for(unsigned i = 0; i < lanes; i++) pattern.push_back(int(i * group + k));
+
+        sum = f.builder.CreateAdd(sum, f.builder.CreateShuffleVector(products, pattern));
+    }
+
+    f.define(muladd.result, f.builder.CreateBitCast(sum, type, name));
+}
+
+/*
+ * The five AVX-512 float operations - Analysis-Avx512.md §3.7, `X86.getExponent` and its siblings.
+ *
+ * LLVM names each of them only in its **masked** form, one intrinsic per lane type per width, so
+ * what is built here is the unmasked operation spelled as a masked one: an all-ones mask and a zero
+ * merge source, which the backend folds back into the plain instruction. The mask is eight bits
+ * everywhere but sixteen floats, where it is sixteen, and the 512-bit rows take one more argument -
+ * the rounding mode, `4` being "the one in `MXCSR`", which is what every other float operation in
+ * this backend uses.
+ *
+ * A build that reaches this has `@platform(avx512)` in force, since the only callers are
+ * `lib/Math/Math.avx512.yana`'s replacements and that file is selected on the level.
+ */
+static void genAvx512Float(FunGen& f, LowerInst& inst) {
+    auto& single = (LowerInstSingle&)inst;
+    auto name = nameOf(f, single.result);
+    auto type = typeOf(f.gen, single.result.type);
+    auto lanes = single.result.type.lanes();
+    auto bytes = single.result.type.byteWidth();
+    auto wide = laneBytes(single.result.type.lane) == 8;
+    auto full = bytes == 64;
+
+    auto pick = [&](llvm::Intrinsic::ID at128, llvm::Intrinsic::ID at256, llvm::Intrinsic::ID at512) {
+        return bytes == 16 ? at128 : bytes == 32 ? at256 : at512;
+    };
+
+    auto imm = [&](U64 value) {
+        return llvm::ConstantInt::get(llvm::Type::getInt32Ty(f.gen.llvm), value);
+    };
+
+    llvm::Value* args[6] = {};
+    Size count = 0;
+    llvm::Intrinsic::ID which;
+
+    switch(inst.kind) {
+        case LowerInst::GetExponent:
+            args[count++] = use(f, inst, ((LowerInstFloatAdjust&)inst).from);
+            which = wide ? pick(llvm::Intrinsic::x86_avx512_mask_getexp_pd_128,
+                                llvm::Intrinsic::x86_avx512_mask_getexp_pd_256,
+                                llvm::Intrinsic::x86_avx512_mask_getexp_pd_512)
+                         : pick(llvm::Intrinsic::x86_avx512_mask_getexp_ps_128,
+                                llvm::Intrinsic::x86_avx512_mask_getexp_ps_256,
+                                llvm::Intrinsic::x86_avx512_mask_getexp_ps_512);
+            break;
+
+        case LowerInst::GetMantissa:
+            args[count++] = use(f, inst, ((LowerInstFloatAdjust&)inst).from);
+            args[count++] = imm(((LowerInstFloatAdjust&)inst).control());
+            which = wide ? pick(llvm::Intrinsic::x86_avx512_mask_getmant_pd_128,
+                                llvm::Intrinsic::x86_avx512_mask_getmant_pd_256,
+                                llvm::Intrinsic::x86_avx512_mask_getmant_pd_512)
+                         : pick(llvm::Intrinsic::x86_avx512_mask_getmant_ps_128,
+                                llvm::Intrinsic::x86_avx512_mask_getmant_ps_256,
+                                llvm::Intrinsic::x86_avx512_mask_getmant_ps_512);
+            break;
+
+        case LowerInst::FpReduce:
+            args[count++] = use(f, inst, ((LowerInstFloatAdjust&)inst).from);
+            args[count++] = imm(((LowerInstFloatAdjust&)inst).control());
+            which = wide ? pick(llvm::Intrinsic::x86_avx512_mask_reduce_pd_128,
+                                llvm::Intrinsic::x86_avx512_mask_reduce_pd_256,
+                                llvm::Intrinsic::x86_avx512_mask_reduce_pd_512)
+                         : pick(llvm::Intrinsic::x86_avx512_mask_reduce_ps_128,
+                                llvm::Intrinsic::x86_avx512_mask_reduce_ps_256,
+                                llvm::Intrinsic::x86_avx512_mask_reduce_ps_512);
+            break;
+
+        case LowerInst::ScaleFloat:
+            args[count++] = use(f, inst, ((LowerInstFloatCombine&)inst).lhs);
+            args[count++] = use(f, inst, ((LowerInstFloatCombine&)inst).rhs);
+            which = wide ? pick(llvm::Intrinsic::x86_avx512_mask_scalef_pd_128,
+                                llvm::Intrinsic::x86_avx512_mask_scalef_pd_256,
+                                llvm::Intrinsic::x86_avx512_mask_scalef_pd_512)
+                         : pick(llvm::Intrinsic::x86_avx512_mask_scalef_ps_128,
+                                llvm::Intrinsic::x86_avx512_mask_scalef_ps_256,
+                                llvm::Intrinsic::x86_avx512_mask_scalef_ps_512);
+            break;
+
+        default:
+            args[count++] = use(f, inst, ((LowerInstFloatCombine&)inst).lhs);
+            args[count++] = use(f, inst, ((LowerInstFloatCombine&)inst).rhs);
+            args[count++] = imm(((LowerInstFloatCombine&)inst).control());
+            which = wide ? pick(llvm::Intrinsic::x86_avx512_mask_range_pd_128,
+                                llvm::Intrinsic::x86_avx512_mask_range_pd_256,
+                                llvm::Intrinsic::x86_avx512_mask_range_pd_512)
+                         : pick(llvm::Intrinsic::x86_avx512_mask_range_ps_128,
+                                llvm::Intrinsic::x86_avx512_mask_range_ps_256,
+                                llvm::Intrinsic::x86_avx512_mask_range_ps_512);
+            break;
+    }
+
+    auto maskBits = lanes > 8 ? 16u : 8u;
+    args[count++] = llvm::Constant::getNullValue(type);
+    args[count++] = llvm::ConstantInt::get(llvm::Type::getIntNTy(f.gen.llvm, maskBits),
+                                           maskBits == 16 ? 0xffff : 0xff);
+
+    // `_MM_FROUND_CUR_DIRECTION`, the rounding every other float operation this backend emits uses.
+    if(full) args[count++] = imm(4);
+
+    f.define(single.result,
+             f.builder.CreateIntrinsic(which, {}, llvm::ArrayRef<llvm::Value*>(args, count), nullptr, name));
+}
+
 static void genBitOperation(FunGen& f, LowerInstBinary& inst) {
     auto lhs = use(f, inst, inst.lhs);
     auto rhs = use(f, inst, inst.rhs);
     auto name = nameOf(f, inst.result);
     auto width = bitOpWidthOf(f, inst.result.type);
+
+    /*
+     * The same sequence over a **vector**, whose lane width is not `bitOpWidthOf`'s answer -
+     * Analysis-Avx512.md §3.2. `ConstantInt::get` splats when handed a vector type, `icmp` over one
+     * answers a vector of `i1`, and `select` takes that as its condition, so the shape below is the
+     * scalar one with the constants built at the packed type. There is no lane-wise `bzhi` on any
+     * machine, so this is what every target gets - see `expandVectorBitCounts` for the same sequence
+     * written out in the x64 backend, where the count's high bits are tested instead because an
+     * unsigned packed relation is not free there.
+     */
+    if(inst.kind == LowerInst::BitsUpTo && isVectorLike(inst.result.type)) {
+        auto type = typeOf(f.gen, inst.result.type);
+        auto bits = U64(laneBytes(inst.result.type.lane)) * 8;
+
+        auto small = f.builder.CreateICmpULT(rhs, llvm::ConstantInt::get(type, bits));
+        auto masked = f.builder.CreateAnd(rhs, llvm::ConstantInt::get(type, bits - 1));
+        auto one = llvm::ConstantInt::get(type, 1);
+        auto mask = f.builder.CreateSub(f.builder.CreateShl(one, masked), one);
+
+        f.define(inst.result, f.builder.CreateSelect(small, f.builder.CreateAnd(lhs, mask), lhs, name));
+        return;
+    }
 
     if(inst.kind == LowerInst::BitsUpTo) {
         auto limit = llvm::ConstantInt::get(width.type, width.bits);
@@ -1640,6 +1833,32 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::Crc32:
             genCrc32(f, (LowerInstBinary&)inst);
             break;
+
+        /*
+         * The four saturating lane rows - `llvm.sadd.sat` and its three siblings, which are
+         * overloaded on the operand type and so name the lane width and count for nothing.
+         *
+         * An intrinsic rather than the comparison and the select `expandVectorSaturating` writes in
+         * the x64 backend, for the reason every row in this file is one: LLVM selects `paddsb` from
+         * it at a byte lane and writes the sequence itself where there is no instruction, and it
+         * knows more than this compiler does about which sequence.
+         */
+        case LowerInst::SatAdd:
+        case LowerInst::ISatAdd:
+        case LowerInst::SatSub:
+        case LowerInst::ISatSub: {
+            auto& binary = (LowerInstSaturating&)inst;
+            auto which = inst.kind == LowerInst::SatAdd  ? llvm::Intrinsic::uadd_sat
+                       : inst.kind == LowerInst::ISatAdd ? llvm::Intrinsic::sadd_sat
+                       : inst.kind == LowerInst::SatSub  ? llvm::Intrinsic::usub_sat
+                                                          : llvm::Intrinsic::ssub_sat;
+
+            llvm::Value* args[2] = { use(f, inst, binary.lhs), use(f, inst, binary.rhs) };
+            f.define(binary.result, f.builder.CreateIntrinsic(
+                which, { typeOf(f.gen, binary.result.type) },
+                llvm::ArrayRef<llvm::Value*>(args, 2), nullptr, nameOf(f, binary.result)));
+            break;
+        }
         case LowerInst::ShaBinary:
         case LowerInst::Sha256Rounds:
             genSha(f, inst);
@@ -1648,6 +1867,19 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::AesInverseMix:
         case LowerInst::AesKeygenAssist:
             genCrypto(f, inst);
+            break;
+        case LowerInst::GetExponent:
+        case LowerInst::GetMantissa:
+        case LowerInst::FpReduce:
+        case LowerInst::ScaleFloat:
+        case LowerInst::RangeFloat:
+            genAvx512Float(f, inst);
+            break;
+        case LowerInst::DotBytes:
+        case LowerInst::DotWords:
+        case LowerInst::MulAdd52Lo:
+        case LowerInst::MulAdd52Hi:
+            genMulAccumulate(f, inst);
             break;
 
         /*
@@ -1761,6 +1993,7 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::X86MinMax:
         case LowerInst::X86MulWide:
         case LowerInst::X86Sext:
+        case LowerInst::X86VecCount:
         case LowerInst::X86MaskAnd:
         case LowerInst::X86Permute:
         case LowerInst::X86MaskConvert:

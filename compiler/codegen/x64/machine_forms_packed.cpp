@@ -504,6 +504,40 @@ void MachineFormBuilder::registerPackedForms() {
     floatCompare(FormVCmpF64, "cmppd xmm, xmm/m, predicate"_v, 0x66);
 
     /*
+     * The saturating additions and subtractions - Analysis-Avx512.md §3.8, `Core.Vector`'s
+     * `saturatingAdd` and `saturatingSub`.
+     *
+     * All eight are SSE2 two-byte opcodes and therefore inside the v2 floor, and all eight are at a
+     * byte or a word lane: there is no `paddsd` on any x86 part, which is why the doubleword and
+     * quadword lanes are `expandVectorSaturating`'s sequence at every level rather than a row here.
+     *
+     * The signed and unsigned rows are different instructions at the same lane, exactly as the
+     * minimum's are - and unlike the minimum's, which of the two a program reaches is the *lane
+     * type's* answer rather than a comparison's, `saturatingAdd` over `Vec(U8)` being the operation
+     * `Vec(I8)`'s is not.
+     */
+    packed(FormVSatAddI8,  OpVSatAdd, "paddsb xmm, xmm/m"_v,  0x66, 0xec);
+    packed(FormVSatAddU8,  OpVSatAdd, "paddusb xmm, xmm/m"_v, 0x66, 0xdc);
+    packed(FormVSatAddI16, OpVSatAdd, "paddsw xmm, xmm/m"_v,  0x66, 0xed);
+    packed(FormVSatAddU16, OpVSatAdd, "paddusw xmm, xmm/m"_v, 0x66, 0xdd);
+    packed(FormVSatSubI8,  OpVSatSub, "psubsb xmm, xmm/m"_v,  0x66, 0xe8);
+    packed(FormVSatSubU8,  OpVSatSub, "psubusb xmm, xmm/m"_v, 0x66, 0xd8);
+    packed(FormVSatSubI16, OpVSatSub, "psubsw xmm, xmm/m"_v,  0x66, 0xe9);
+    packed(FormVSatSubU16, OpVSatSub, "psubusw xmm, xmm/m"_v, 0x66, 0xd9);
+
+    /*
+     * `pmaddwd` - SSE2, `66 0F F5`. Each adjacent pair of signed word lanes multiplied and summed
+     * into one doubleword lane.
+     *
+     * Here rather than beside VNNI because it is not VNNI's: it is what
+     * `expandVectorDotProducts` writes where the level has no `vpdpwssd`, and it has been in the
+     * machine since 2001. The operand lanes are words and the result's are doublewords, which is
+     * the one thing `packed` cannot say and does not have to - a form states register classes and
+     * a whole register is a whole register.
+     */
+    packed(FormVMulAddWords, OpVMulAddWords, "pmaddwd xmm, xmm/m"_v, 0x66, 0xf5);
+
+    /*
      * The lane-wise minimum and maximum.
      *
      * The one packed family with a signedness as well as a lane width, and the machine's own

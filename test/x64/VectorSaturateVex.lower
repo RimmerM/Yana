@@ -1,0 +1,55 @@
+# The saturating lane operations at `avx2`, where the eight rows are VEX-encoded over ymm.
+#
+# extensions: avx2
+#
+# `registerWideForms` derives each 256-bit row from its SSE2 one, so `vpaddsb ymm, ymm, ymm/m` is the
+# same instruction three operands wide. The two wider lanes are the same sequence `VectorSaturate.lower`
+# holds, at twice the register width.
+
+# The eight instructions, one call each, at the two lane widths the machine has them for. The signed
+# and unsigned rows are different instructions at the same lane - which is the whole reason the lower
+# IR has four kinds rather than two.
+narrow(%b: i8x32, %c: i8x32, %w: i16x16, %x: i16x16): i8x32 {
+    {
+        %a1 = isatadd %b, %c: i8x32
+        %a2 = satadd %b, %c: i8x32
+        %a3 = isatadd %w, %x: i16x16
+        %a4 = satadd %w, %x: i16x16
+        %s1 = isatsub %b, %c: i8x32
+        %s2 = satsub %b, %c: i8x32
+        %s3 = isatsub %w, %x: i16x16
+        %s4 = satsub %w, %x: i16x16
+        ret %a1
+    }
+}
+
+# The unsigned doubleword pair, which is the shortest of the four sequences: an addition wrapped
+# exactly where the sum is below one of its operands, and a subtraction exactly where the first
+# operand is below the second.
+unsignedWide(%a: i32x8, %b: i32x8): i32x8 {
+    {
+        %r = satadd %a, %b: i32x8
+        %s = satsub %a, %b: i32x8
+        ret %r
+    }
+}
+
+# The signed doubleword pair, where the saturated value is read off the first operand's sign rather
+# than chosen by a second comparison.
+signedWide(%a: i32x8, %b: i32x8): i32x8 {
+    {
+        %r = isatadd %a, %b: i32x8
+        %s = isatsub %a, %b: i32x8
+        ret %r
+    }
+}
+
+# And the quadword lanes, whose arithmetic shift is `expandQuadwordSar`'s sequence at this level -
+# `vpsraq` being AVX-512's.
+quadwords(%a: i64x4, %b: i64x4): i64x4 {
+    {
+        %r = isatadd %a, %b: i64x4
+        %s = satsub %a, %b: i64x4
+        ret %r
+    }
+}

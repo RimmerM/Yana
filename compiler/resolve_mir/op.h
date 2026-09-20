@@ -102,7 +102,8 @@ inline StringView nativeOpName(NativeOp op) {
 // Whether a native operation reads `NodeNative::immediate` - the two with a trailing byte a program
 // chooses. See native.def.
 inline bool nativeHasImmediate(NativeOp op) {
-    return op == NativeOp::AesKeygenAssist || op == NativeOp::CarrylessMultiply;
+    return op == NativeOp::AesKeygenAssist || op == NativeOp::CarrylessMultiply
+        || op == NativeOp::GetMantissa || op == NativeOp::ReduceFloat || op == NativeOp::RangeFloat;
 }
 
 /*

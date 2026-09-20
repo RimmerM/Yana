@@ -1,0 +1,59 @@
+{-
+   `VecZeroRemat.yana` at `avx512`, where the same recipe had the same hole a second time.
+
+   # extensions: avx512
+
+   `genVectorZero` writes a **VEX** exclusive-or for a wide destination, because a legacy SSE one
+   preserves the bits above the low sixteen bytes; that was fixed for `ClassYmm256` when this file
+   was written and `ClassZmm512` arrived afterwards, with §1.2 stage 2's natural width, and was not
+   added to the line. So a 512-bit zero rematerialized as a 128-bit `pxor` and kept lanes 8-31 of
+   whatever had last been in the register.
+
+   `VecBits.Avx512.yana` is what found it - a trailing-zero count needs a zero beside a pooled
+   constant, which is one more live vector than the allocator had - and this is the same shape at
+   the width, so that the recipe has a fixture at both of the classes it can carry. The answer is
+   the base file's, and has to be: the arithmetic is a fold over the same elements and the register
+   width is not part of it.
+
+   See `VecZeroRemat.yana` for what the two attributes are for.
+-}
+
+-- The call the accumulator is live across, and the vector work that dirties the register in front of
+-- it. Both bulk operations, so neither says `Vec` and both get one.
+@noinline
+fn folds(xs: [Int], salt: Int) -> Int:
+    let total = sum(xs)
+    let high = maximum(xs, 0)
+    let hits = occurrences(xs, salt `and` 255)
+    return total + high * 3 + hits * 7
+
+fn build(count: Int) -> [Int]:
+    let &xs = [] :: [Int]
+    let &i = 0 :: Int
+
+    while i < count:
+        push(xs, (i * 2654435761 + 7) `shr` 8 `and` 1023)
+        i = i + 1
+
+    return xs
+
+fn main() -> Int:
+    let xs = build(27)
+
+    let &total = 0 :: Int
+    let &round = 0 :: Int
+
+    while round < 3:
+        let &acc = zero() :: Vec(Int)
+        let k = splat((round + 1) * 2654435761)
+
+        for v in vectors(xs):
+            let t = (v * k) `xor` (v `shr` 7)
+            acc = acc + (t `xor` (t `shl` 3))
+
+        -- `acc` is read *after* the call, so its live range crosses one - which is the whole of what
+        -- makes the allocator take the recipe rather than a frame slot.
+        total = total + folds(xs, round) + horizontalSum(acc)
+        round = round + 1
+
+    return total `and` 65535

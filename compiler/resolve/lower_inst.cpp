@@ -127,6 +127,10 @@ LowerInst::Kind binaryKind(LowerContext& lower, InstBinary& binary) {
         case Value::GatherBits: return LowerInst::GatherBits;
         case Value::ScatterBits: return LowerInst::ScatterBits;
         case Value::Crc32: return LowerInst::Crc32;
+        // And the two saturating rows read the same question a third time: which pair of bounds a
+        // lane clamps to is which pair its type has.
+        case Value::SaturatingAdd: return signed_ ? LowerInst::ISatAdd : LowerInst::SatAdd;
+        case Value::SaturatingSub: return signed_ ? LowerInst::ISatSub : LowerInst::SatSub;
         default:
             assertTrue("expected binary instruction" == nullptr);
             return LowerInst::Add;
@@ -203,6 +207,9 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Sha256Rounds:
         case Value::CryptoBinary:
         case Value::CryptoUnary:
+        case Value::FloatAdjust:
+        case Value::FloatCombine:
+        case Value::MulAccumulate:
         case Value::VZeroUpper:
         case Value::VZeroAll:
         case Value::Add:
@@ -222,6 +229,8 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::GatherBits:
         case Value::ScatterBits:
         case Value::Crc32:
+        case Value::SaturatingAdd:
+        case Value::SaturatingSub:
         case Value::Xor:
         case Value::Cmp:
         case Value::Select:

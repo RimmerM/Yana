@@ -177,6 +177,8 @@ MachineTarget::MachineTarget() {
     name(OpVSar, "vsar"_v);
     name(OpVCmp, "vcmp"_v);
     name(OpVAbs, "vabs"_v);
+    name(OpVPopcount, "vpopcnt"_v);
+    name(OpVLeadingZeros, "vlzcnt"_v);
     name(OpVMin, "vmin"_v);
     name(OpVMax, "vmax"_v);
     name(OpVRol, "vrol"_v);

@@ -723,6 +723,127 @@ static bool requireFloating(ExprResolver& resolver, TypePtr type, LocationId sou
     return false;
 }
 
+/*
+ * `saturatingAdd` and `saturatingSub` - see `Value::SaturatingAdd` in inst.def.
+ *
+ * Integer lanes, checked here because this is the last place that can name the argument: below it
+ * the type is a lane kind and the declaration is gone. A float lane would be a question about
+ * rounding that no machine answers, and a mask is not a number.
+ */
+template<Value::Kind kind>
+static ModulePtr<Value> emitSaturating(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                       LocationId source, StringId name) {
+    auto what = kind == Value::SaturatingAdd ? "saturatingAdd"_v : "saturatingSub"_v;
+    auto lane = vectorLane(resolver.global, type);
+
+    if(!lane || resolver.global[lane]->kind != Type::Int) {
+        resolver.context.diagnostics.error("%@ is defined on vectors of integer lanes, and this is not one"_v,
+                                           source, what);
+        return nullptr;
+    }
+
+    return resolver.ref(resolver.emit<InstBinary>(source, name, type, kind, args[0], args[1]));
+}
+
+/*
+ * The four widening multiply-accumulates - `accumulateByteProducts` and `accumulateWordProducts` in
+ * `lib/Core/Vector.yana`, and IFMA's pair in `lib/Native/Intrinsic/X86.yana`. See
+ * `Value::MulAccumulate` in inst.def.
+ *
+ * Every check is here because this is the only place that can name the arguments. The signature can
+ * say that the accumulator and the result are one type and that the two narrow operands agree with
+ * each other, and it stops there: **four byte lanes per accumulator lane** is arithmetic over a lane
+ * count, which no shape term in `op.def` can state. So the relationship between the three widths is
+ * checked at the call, and getting it wrong is a diagnostic naming both types rather than an
+ * instruction that reads past the end of a register.
+ *
+ * `DotBytes`' asymmetry - an unsigned first operand and a signed second - is the machine's and is
+ * held to here as well. It is the one place a caller can get a *silently* wrong answer rather than
+ * a refusal, since both are bytes of the same width.
+ */
+struct MulAccumulateShape {
+    U16 accBits;
+    U16 narrowBits;
+
+    // How many narrow lanes the operation reads per accumulator lane. One for IFMA, whose operands
+    // are as wide as its accumulator.
+    U32 group;
+
+    // What each product operand's lanes are read as, or `Nothing` where the operation reads either -
+    // which is IFMA's pair, whose operands are the low 52 bits of a lane and neither signed nor
+    // unsigned above them.
+    Maybe<bool> firstSigned;
+    Maybe<bool> secondSigned;
+
+    // Whether the two disagree, which is only `vpdpbusd` and is the one thing the diagnostic has to
+    // explain rather than state.
+    bool mixedSigns;
+};
+
+static MulAccumulateShape shapeOfMulAccumulate(MulAccumulateOp op) {
+    switch(op) {
+        case MulAccumulateOp::DotBytes: return MulAccumulateShape { 32, 8, 4, Just(false), Just(true), true };
+        case MulAccumulateOp::DotWords: return MulAccumulateShape { 32, 16, 2, Just(true), Just(true), false };
+        default:                        return MulAccumulateShape { 64, 64, 1, Nothing(), Nothing(), false };
+    }
+}
+
+// The lane type of a vector, held to an integer of a stated width - and, where `wantSigned` is
+// given, to a signedness. `what` names the operand in the diagnostic.
+static bool requireIntLane(ExprResolver& resolver, TypePtr vector, U16 bits, Maybe<bool> wantSigned,
+                           bool mixed, StringView operation, StringView what, LocationId source) {
+    auto lane = vectorLane(resolver.global, vector);
+    auto type = lane ? resolver.global[lane] : nullptr;
+
+    if(!type || type->kind != Type::Int || ((IntType*)type)->bits != bits) {
+        resolver.context.diagnostics.error("%@'s %@ is a vector of %@-bit integer lanes, and this is not one"_v,
+                                           source, operation, what, I32(bits));
+        return false;
+    }
+
+    if(wantSigned && ((IntType*)type)->isSigned != wantSigned.unwrap()) {
+        auto why = mixed
+            ? "the machine reads the first as unsigned and the second as signed, and swapping them is a different answer rather than a different spelling"_v
+            : "both product operands are read as signed"_v;
+
+        resolver.context.diagnostics.error("%@'s %@ has to be a vector of %@ lanes - %@"_v,
+                                           source, operation, what,
+                                           wantSigned.unwrap() ? "signed"_v : "unsigned"_v, why);
+        return false;
+    }
+
+    return true;
+}
+
+template<MulAccumulateOp op>
+static ModulePtr<Value> emitMulAccumulate(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                          LocationId source, StringId name) {
+    auto shape = shapeOfMulAccumulate(op);
+    auto what = nameOfMulAccumulateOp(op);
+
+    auto lhs = resolver.valueType(args[1]);
+    auto rhs = resolver.valueType(args[2]);
+
+    if(!requireIntLane(resolver, type, shape.accBits, Nothing(), false, what, "accumulator"_v, source)) return nullptr;
+
+    if(!requireIntLane(resolver, lhs, shape.narrowBits, shape.firstSigned, shape.mixedSigns, what,
+                       "first product operand"_v, source)) return nullptr;
+    if(!requireIntLane(resolver, rhs, shape.narrowBits, shape.secondSigned, shape.mixedSigns, what,
+                       "second product operand"_v, source)) return nullptr;
+
+    auto lanes = vectorLanes(resolver.global, type);
+    auto narrowLanes = vectorLanes(resolver.global, lhs);
+
+    if(narrowLanes != lanes * shape.group) {
+        resolver.context.diagnostics.error("%@ reads %@ lanes of %@ bits per accumulator lane, so a %@-lane accumulator needs %@ of them and these have %@"_v,
+                                           source, what, I32(shape.group), I32(shape.narrowBits),
+                                           U32(lanes), U32(lanes * shape.group), U32(narrowLanes));
+        return nullptr;
+    }
+
+    return resolver.ref(resolver.emit<InstMulAccumulate>(source, name, type, args[0], args[1], args[2], op));
+}
+
 static ModulePtr<Value> emitSqrt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                  LocationId source, StringId name) {
     if(!requireFloating(resolver, type, source, "sqrt"_v)) return nullptr;
@@ -817,19 +938,32 @@ static ModulePtr<Value> emitAesInverseMix(ExprResolver& resolver, Buffer<ModuleP
                                                        CryptoUnaryOp::AesInverseMix, U8(0)));
 }
 
-static ModulePtr<Value> emitAesKeygenAssist(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                            LocationId source, StringId name) {
-    auto value = resolver.local[args[1]];
+/*
+ * The one argument that is not an operand: an instruction's trailing byte, which is settled where
+ * the call is written because a computed one is not an instruction. `noun` is what that byte is
+ * called in the declaration it came from - a round constant for `aesKeygenAssist`, a control byte
+ * for the AVX-512 float operations below.
+ */
+static Maybe<U8> trailingByteOf(ExprResolver& resolver, ModulePtr<Value> argument, LocationId source,
+                                StringView noun, StringView what) {
+    auto value = resolver.local[argument];
 
     if(value->kind != Value::ConstInt || ((ConstInt&)*value).value < 0 || ((ConstInt&)*value).value > 255) {
-        resolver.context.diagnostics.error("the round constant of `aesKeygenAssist` must be a constant from 0 to 255 - it is the instruction's trailing byte, and a computed one is not an instruction"_v,
-                                           source);
-        return nullptr;
+        resolver.context.diagnostics.error("the %@ of `%@` must be a constant from 0 to 255 - it is the instruction's trailing byte, and a computed one is not an instruction"_v,
+                                           source, noun, what);
+        return Nothing();
     }
 
-    auto constant = U8(((ConstInt&)*value).value);
+    return Just(U8(((ConstInt&)*value).value));
+}
+
+static ModulePtr<Value> emitAesKeygenAssist(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                            LocationId source, StringId name) {
+    auto constant = trailingByteOf(resolver, args[1], source, "round constant"_v, "aesKeygenAssist"_v);
+    if(!constant) return nullptr;
+
     return resolver.ref(resolver.emit<InstCryptoUnary>(source, name, type, args[0],
-                                                       CryptoUnaryOp::AesKeygenAssist, constant));
+                                                       CryptoUnaryOp::AesKeygenAssist, constant.unwrap()));
 }
 
 static ModulePtr<Value> emitCarrylessMultiply(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
@@ -850,6 +984,55 @@ static ModulePtr<Value> emitCarrylessMultiply(ExprResolver& resolver, Buffer<Mod
 static ModulePtr<Value> emitSha256Rounds(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                          LocationId source, StringId name) {
     return resolver.ref(resolver.emit<InstSha256Rounds>(source, name, type, args[0], args[1], args[2]));
+}
+
+/*
+ * The five AVX-512 float operations - see `lib/Native/Intrinsic/X86.yana` and §3.7 of
+ * Analysis-Avx512.md.
+ *
+ * Two checks between the declaration and the instruction, and neither can be made anywhere else.
+ * The lane has to be a float, which is `requireFloating` for `sqrt`'s reason - this is the last
+ * place that can name the argument. And the trailing byte has to be a literal, which is
+ * `aesKeygenAssist`'s rule: the three operations that carry one are three instructions per byte
+ * value, so a computed byte is not an instruction. The whole byte is accepted rather than the
+ * subset each operation defines, because every reserved combination has a defined answer on the
+ * machine and pruning them here would be this compiler inventing a rule Intel did not write.
+ */
+static ModulePtr<Value> emitGetExponent(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                        LocationId source, StringId name) {
+    if(!requireFloating(resolver, type, source, "getExponent"_v)) return nullptr;
+    return resolver.ref(resolver.emit<InstFloatAdjust>(source, name, type, args[0],
+                                                       FloatAdjustOp::Exponent, U8(0)));
+}
+
+template<FloatAdjustOp op>
+static ModulePtr<Value> emitFloatAdjust(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                        LocationId source, StringId name) {
+    auto what = op == FloatAdjustOp::Mantissa ? "getMantissa"_v : "reduce"_v;
+    if(!requireFloating(resolver, type, source, what)) return nullptr;
+
+    auto control = trailingByteOf(resolver, args[1], source, "control byte"_v, what);
+    if(!control) return nullptr;
+
+    return resolver.ref(resolver.emit<InstFloatAdjust>(source, name, type, args[0], op, control.unwrap()));
+}
+
+static ModulePtr<Value> emitScaleFloat(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                       LocationId source, StringId name) {
+    if(!requireFloating(resolver, type, source, "scale"_v)) return nullptr;
+    return resolver.ref(resolver.emit<InstFloatCombine>(source, name, type, args[0], args[1],
+                                                        FloatCombineOp::Scale, U8(0)));
+}
+
+static ModulePtr<Value> emitRangeFloat(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                       LocationId source, StringId name) {
+    if(!requireFloating(resolver, type, source, "range"_v)) return nullptr;
+
+    auto control = trailingByteOf(resolver, args[2], source, "control byte"_v, "range"_v);
+    if(!control) return nullptr;
+
+    return resolver.ref(resolver.emit<InstFloatCombine>(source, name, type, args[0], args[1],
+                                                        FloatCombineOp::Range, control.unwrap()));
 }
 
 // `X86.vzeroupper()` - no arguments and no result, so the hook is the emit and nothing else. The
@@ -986,6 +1169,15 @@ void defineCpuIntrinsics(Module& native) {
     attachIntrinsic(native, Op::x86AesDecrypt2, emitCryptoBinary<CryptoOp::AesDec>);
     attachIntrinsic(native, Op::x86AesDecryptLast2, emitCryptoBinary<CryptoOp::AesDecLast>);
     attachIntrinsic(native, Op::x86CarrylessMultiply2, emitCarrylessMultiply);
+
+    attachIntrinsic(native, Op::x86GetExponent, emitGetExponent);
+    attachIntrinsic(native, Op::x86GetMantissa, emitFloatAdjust<FloatAdjustOp::Mantissa>);
+    attachIntrinsic(native, Op::x86ReduceFloat, emitFloatAdjust<FloatAdjustOp::Reduce>);
+    attachIntrinsic(native, Op::x86ScaleFloat, emitScaleFloat);
+    attachIntrinsic(native, Op::x86RangeFloat, emitRangeFloat);
+
+    attachIntrinsic(native, Op::x86MulAdd52Low, emitMulAccumulate<MulAccumulateOp::MulAdd52Low>);
+    attachIntrinsic(native, Op::x86MulAdd52High, emitMulAccumulate<MulAccumulateOp::MulAdd52High>);
 }
 
 void defineVectorIntrinsics(Module& core) {
@@ -1005,6 +1197,10 @@ void defineVectorIntrinsics(Module& core) {
 
     attachIntrinsic(core, Op::vecMin, emitMinMax<CompareOp::Lt>);
     attachIntrinsic(core, Op::vecMax, emitMinMax<CompareOp::Gt>);
+    attachIntrinsic(core, Op::vecSaturatingAdd, emitSaturating<Value::SaturatingAdd>);
+    attachIntrinsic(core, Op::vecSaturatingSub, emitSaturating<Value::SaturatingSub>);
+    attachIntrinsic(core, Op::vecDotBytes, emitMulAccumulate<MulAccumulateOp::DotBytes>);
+    attachIntrinsic(core, Op::vecDotWords, emitMulAccumulate<MulAccumulateOp::DotWords>);
     attachIntrinsic(core, Op::vecAbs, emitAbs);
     attachIntrinsic(core, Op::vecSqrt, emitSqrt);
     attachIntrinsic(core, Op::vecTrunc, emitRounding<Value::Trunc>);
@@ -1126,6 +1322,17 @@ static ModulePtr<ClassInstance> numericInstance(Module& core, GlobalPtr<TypeClas
 
     if(typeClass == classes.bitwise) return defineBitwise(core, type, emitUnary<Value::Not>);
     if(typeClass == classes.integral) return defineIntegral(core, type);
+
+    /*
+     * `Bits` at **every** integer lane width, where the scalar class is instanced at thirty-two and
+     * sixty-four alone - Analysis-Avx512.md §3.2.
+     *
+     * `hasBitCounts` is not asked and must not be: it is the *scalar* set, and what draws it is that
+     * a narrow scalar is some bits of a wider register, so a count of a `U8` would be a count of its
+     * storage. A lane is the whole of itself at every width, which is the same fact the machine
+     * states by having `vpopcntb` and no `popcnt r8`.
+     */
+    if(typeClass == classes.bits) return defineBits(core, type);
 
     return nullptr;
 }

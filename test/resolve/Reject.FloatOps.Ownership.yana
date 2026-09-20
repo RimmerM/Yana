@@ -1,0 +1,27 @@
+{-
+   `Reject.FloatOps.yana` through the rewritten stage - `expandX86FloatOp` in
+   resolve_mir/intrinsic/expand_native.cpp.
+
+   # resolver: ownership
+   # extensions: avx512
+-}
+import Native
+
+fn integerExponent(v: Vec(I32, 4)) -> Vec(I32, 4) = X86.getExponent(v)
+
+fn integerScale(v: Vec(I32, 4), e: Vec(I32, 4)) -> Vec(I32, 4) = X86.scale(v, e)
+
+fn integerMantissa(v: Vec(I64, 2)) -> Vec(I64, 2) = X86.getMantissa(v, 0)
+
+fn computedMantissa(v: Vec(F32, 4), control: Int) -> Vec(F32, 4) = X86.getMantissa(v, control)
+
+fn computedReduce(v: Vec(F32, 4), control: Int) -> Vec(F32, 4) = X86.reduce(v, control)
+
+fn computedRange(a: Vec(F64, 2), b: Vec(F64, 2), control: Int) -> Vec(F64, 2) =
+    X86.range(a, b, control)
+
+fn wideMantissa(v: Vec(F32, 4)) -> Vec(F32, 4) = X86.getMantissa(v, 256)
+
+fn negativeReduce(v: Vec(F64, 2)) -> Vec(F64, 2) = X86.reduce(v, -1)
+
+fn main() -> Int = 0

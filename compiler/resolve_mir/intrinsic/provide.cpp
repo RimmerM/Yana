@@ -427,6 +427,34 @@ void Resolver::provideVectorInstances() {
     overLanes(Known::integral, Provided::integral);
 
     /*
+     * `Bits(Vec(a, n))` - Analysis-Avx512.md §3.2, and the one row here whose requirement is *not*
+     * the class it generates.
+     *
+     * `Integral(a)` and not `Bits(a)`, which is the whole content of this block. The scalar class is
+     * instanced at thirty-two and sixty-four bits alone (`Family::Machine`), and the reason is stated
+     * in `provided.def`: a `U8` is eight bits of a wider register, so a count of its *storage* and a
+     * count of its value are different numbers. **A lane is not.** A `Vec(U8, 16)`'s lane is exactly
+     * eight bits wide with nothing above it, so every count this class names has the same answer at
+     * a byte lane that it has at a word - and the machine agrees, `vpopcntb` being an instruction and
+     * `popcnt r8` not. Requiring the lane's own `Bits` would have given the vector class the scalar
+     * one's exclusions for a reason that does not survive being put in a lane.
+     *
+     * So the requirement is the widest one that still says "these lanes are integers with shifts",
+     * which is `Integral(a)` - the superclass `Bits` itself declares. A float lane has no instance
+     * here and neither does a mask: a mask's lane is all-ones or all-zeros and a population count of
+     * one would be its lane width or zero, which is `count` said expensively.
+     */
+    if(auto bits = program.roles.klass(Known::bits)) {
+        auto gen = makeContext(1, 1);
+        auto lane = variableAt(gen, 0);
+
+        if(require(gen, Known::integral, &lane, 1)) {
+            auto head = shapeOf(gen, 0, false);
+            if(head) provideInstance(Provided::bits, bits, &head, 1, gen);
+        }
+    }
+
+    /*
      * `Bitwise(Mask(a, n))` - Design-Vector §3.2's "masks themselves get `and`, `or` and `not`".
      *
      * **No context**, unlike every row above: a mask's four operations are defined on its own two

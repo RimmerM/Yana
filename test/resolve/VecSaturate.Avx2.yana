@@ -1,0 +1,142 @@
+{-
+   `VecSaturate.yana` at `avx2`, where the same eight instructions are VEX-encoded over ymm.
+
+   # extensions: avx2
+
+   The byte and word lanes are `vpaddsb`/`vpaddusb`/`vpaddsw`/`vpaddusw` and their four subtracting
+   twins at 256 bits, which `registerWideForms` derives from the SSE2 rows; the doubleword and
+   quadword lanes are `expandVectorSaturating`'s sequence three lanes wider. It is here for §60.6's
+   reason: two tiers are two expansions of one source, and only running both says they agree.
+
+   See `VecSaturate.yana` for what each function checks.
+-}
+fn refClamp(value: I64, lo: I64, hi: I64) -> I64 =
+    if value < lo then lo else if value > hi then hi else value
+
+-- The two references, taking their operands at `I64` so that a narrow lane widens into them at the
+-- call: a `widen` standing alone in an expression has nothing to take its result type from.
+fn refAdd(a: I64, b: I64, lo: I64, hi: I64) -> I64 = refClamp(a + b, lo, hi)
+fn refSub(a: I64, b: I64, lo: I64, hi: I64) -> I64 = refClamp(a - b, lo, hi)
+
+fn sample(index: Int) -> I64:
+    if index == 0 then return 0
+    if index == 1 then return 1
+    if index == 2 then return 127
+    if index == 3 then return 128
+    if index == 4 then return 255
+    if index == 5 then return 0 - 1
+    if index == 6 then return 0 - 128
+    return 100
+
+fn byteCases() -> Int:
+    let &wrong = 0
+    let &i = 0
+
+    while i < 8:
+        let &j = 0
+        while j < 8:
+            let sa = truncate(sample(i)) :: I8
+            let sb = truncate(sample(j)) :: I8
+            let wantAdd = truncate(refAdd(widen(sa), widen(sb), 0 - 128, 127)) :: I8
+            let wantSub = truncate(refSub(widen(sa), widen(sb), 0 - 128, 127)) :: I8
+
+            if !all(saturatingAdd(splat(sa) :: Vec(I8), splat(sb)) .== splat(wantAdd)) then wrong += 1
+            if !all(saturatingSub(splat(sa) :: Vec(I8), splat(sb)) .== splat(wantSub)) then wrong += 1
+
+            let ua = truncate(sample(i)) :: U8
+            let ub = truncate(sample(j)) :: U8
+            let wantAddU = truncate(refAdd(widen(ua), widen(ub), 0, 255)) :: U8
+            let wantSubU = truncate(refSub(widen(ua), widen(ub), 0, 255)) :: U8
+
+            if !all(saturatingAdd(splat(ua) :: Vec(U8), splat(ub)) .== splat(wantAddU)) then wrong += 1
+            if !all(saturatingSub(splat(ua) :: Vec(U8), splat(ub)) .== splat(wantSubU)) then wrong += 1
+            j += 1
+        i += 1
+
+    return wrong
+
+fn wordCases() -> Int:
+    let &wrong = 0
+    let &i = 0
+
+    while i < 8:
+        let &j = 0
+        while j < 8:
+            let sa = truncate(sample(i) * 257) :: I16
+            let sb = truncate(sample(j) * 257) :: I16
+            let wantAdd = truncate(refAdd(widen(sa), widen(sb), 0 - 32768, 32767)) :: I16
+            let wantSub = truncate(refSub(widen(sa), widen(sb), 0 - 32768, 32767)) :: I16
+
+            if !all(saturatingAdd(splat(sa) :: Vec(I16), splat(sb)) .== splat(wantAdd)) then wrong += 1
+            if !all(saturatingSub(splat(sa) :: Vec(I16), splat(sb)) .== splat(wantSub)) then wrong += 1
+
+            let ua = truncate(sample(i) * 257) :: U16
+            let ub = truncate(sample(j) * 257) :: U16
+            let wantAddU = truncate(refAdd(widen(ua), widen(ub), 0, 65535)) :: U16
+            let wantSubU = truncate(refSub(widen(ua), widen(ub), 0, 65535)) :: U16
+
+            if !all(saturatingAdd(splat(ua) :: Vec(U16), splat(ub)) .== splat(wantAddU)) then wrong += 1
+            if !all(saturatingSub(splat(ua) :: Vec(U16), splat(ub)) .== splat(wantSubU)) then wrong += 1
+            j += 1
+        i += 1
+
+    return wrong
+
+-- The first width with no instruction on any x86 part: what runs here is the sequence, at every
+-- level, and the samples are scaled to reach the lane's own boundaries rather than staying small.
+fn doublewordCases() -> Int:
+    let &wrong = 0
+    let &i = 0
+
+    while i < 8:
+        let &j = 0
+        while j < 8:
+            let sa = truncate(sample(i) * 16843009) :: I32
+            let sb = truncate(sample(j) * 16843009) :: I32
+            let wantAdd = truncate(refAdd(widen(sa), widen(sb), 0 - 2147483648, 2147483647)) :: I32
+            let wantSub = truncate(refSub(widen(sa), widen(sb), 0 - 2147483648, 2147483647)) :: I32
+
+            if !all(saturatingAdd(splat(sa) :: Vec(I32), splat(sb)) .== splat(wantAdd)) then wrong += 1
+            if !all(saturatingSub(splat(sa) :: Vec(I32), splat(sb)) .== splat(wantSub)) then wrong += 1
+
+            let ua = truncate(sample(i) * 16843009) :: U32
+            let ub = truncate(sample(j) * 16843009) :: U32
+            let wantAddU = truncate(refAdd(widen(ua), widen(ub), 0, 4294967295)) :: U32
+            let wantSubU = truncate(refSub(widen(ua), widen(ub), 0, 4294967295)) :: U32
+
+            if !all(saturatingAdd(splat(ua) :: Vec(U32), splat(ub)) .== splat(wantAddU)) then wrong += 1
+            if !all(saturatingSub(splat(ua) :: Vec(U32), splat(ub)) .== splat(wantSubU)) then wrong += 1
+            j += 1
+        i += 1
+
+    return wrong
+
+-- The quadword lanes, checked against written-out boundaries because there is no wider type to
+-- compute the reference at - which is the whole reason this case is written differently.
+fn quadwordCases() -> Int:
+    let &wrong = 0
+    let top = maxValue() :: I64
+    let bottom = minValue() :: I64
+    let one = splat(1 :: I64) :: Vec(I64)
+
+    if !all(saturatingAdd(splat(top) :: Vec(I64), one) .== splat(top)) then wrong += 1
+    if !all(saturatingAdd(splat(top) :: Vec(I64), splat(top)) .== splat(top)) then wrong += 1
+    if !all(saturatingSub(splat(bottom) :: Vec(I64), one) .== splat(bottom)) then wrong += 1
+    if !all(saturatingSub(splat(bottom) :: Vec(I64), splat(top)) .== splat(bottom)) then wrong += 1
+    if !all(saturatingAdd(splat(bottom) :: Vec(I64), one) .== splat(bottom + 1)) then wrong += 1
+    if !all(saturatingSub(splat(5 :: I64) :: Vec(I64), one) .== splat(4 :: I64)) then wrong += 1
+
+    let full = maxValue() :: U64
+    let oneU = splat(1 :: U64) :: Vec(U64)
+
+    if !all(saturatingAdd(splat(full) :: Vec(U64), oneU) .== splat(full)) then wrong += 1
+    if !all(saturatingSub(splat(0 :: U64) :: Vec(U64), oneU) .== splat(0 :: U64)) then wrong += 1
+    if !all(saturatingSub(splat(full) :: Vec(U64), oneU) .== splat(full - 1)) then wrong += 1
+    if !all(saturatingAdd(splat(5 :: U64) :: Vec(U64), oneU) .== splat(6 :: U64)) then wrong += 1
+
+    return wrong
+
+fn main() -> Int:
+    let total = byteCases() + wordCases() + doublewordCases() + quadwordCases()
+    print("{total}")
+    return total

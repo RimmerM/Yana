@@ -1163,15 +1163,36 @@ struct Verifier {
 
                     /*
                      * The three bit counts, at the width set `op.def` argues: a scalar integer of 32
-                     * or 64 bits. A vector is refused because a per-lane population count is a
-                     * nibble-table shuffle rather than this instruction widened, and a narrower
-                     * width because the lower IR has no scalar below `Int32` to hold one - so the
-                     * answer would be its storage's rather than its own.
+                     * or 64 bits, **or a vector of integer lanes at any width**.
+                     *
+                     * The two halves of that are one rule read twice. A count answers about a value
+                     * and not about the register holding it, so the scalar set is the widths whose
+                     * value fills a register - which is why a `U8` widens first and is counted as
+                     * the `I32` it became. A *lane* has nothing above it at any width, so a
+                     * `Vec(U8, 16)`'s eight bits are the whole of each lane and the count is the
+                     * lane's own; `vpopcntb` exists where `popcnt r8` does not, which is the same
+                     * fact stated by the machine. `provideVectorInstances` is where the instance set
+                     * says this, and Analysis-Avx512.md §3.2 is where it is argued.
+                     *
+                     * A **mask** is refused: its lanes are all-ones or all-zeros, so a population
+                     * count of one is the lane width or zero, which is `count` said expensively.
                      */
                     case mir::UnaryOp::CountBits:
                     case mir::UnaryOp::LeadingZeros:
                     case mir::UnaryOp::TrailingZeros: {
-                        if(!scalar || scalar->kind != mir::Type::Int || isVectorLike(type)) {
+                        if(isVectorLike(type)) {
+                            if(!mir::isMaskType(decl, type) && scalar &&
+                               scalar->kind == mir::Type::Int) {
+                                break;
+                            }
+
+                            report(inst.source,
+                                   "internal: %%@ counts the bits of a vector whose lanes are not integers"_v,
+                                   named);
+                            break;
+                        }
+
+                        if(!scalar || scalar->kind != mir::Type::Int) {
                             report(inst.source,
                                    "internal: %%@ counts the bits of something that is not a scalar integer"_v,
                                    named);
@@ -1268,6 +1289,25 @@ struct Verifier {
                     break;
                 }
 
+                /*
+                 * The two saturating lane operations, which are the opposite shape to the three
+                 * below: a vector of integer lanes and nothing else. A scalar is refused because
+                 * nothing declares one - see `Value::SaturatingAdd` in resolve/inst.def.
+                 */
+                if(binary.op == mir::BinaryOp::SaturatingAdd ||
+                   binary.op == mir::BinaryOp::SaturatingSub) {
+                    auto lane = isVectorLike(type) ? mir::laneTypeOf(decl, type) : DeclPtr<mir::Type>();
+
+                    if(!mir::isMaskType(decl, type) && lane && decl[lane]->kind == mir::Type::Int) {
+                        break;
+                    }
+
+                    report(inst.source,
+                           "internal: %%@ saturates something that is not a vector of integer lanes"_v,
+                           named);
+                    break;
+                }
+
                 if(binary.op != mir::BinaryOp::BitsUpTo &&
                    binary.op != mir::BinaryOp::GatherBits &&
                    binary.op != mir::BinaryOp::ScatterBits) {
@@ -1275,6 +1315,26 @@ struct Verifier {
                 }
 
                 auto scalar = type ? decl[type] : nullptr;
+
+                /*
+                 * `bitsUpTo` is the one of the three with a **lane-wise** answer, and it has one for
+                 * the counts' reason: the low `count` bits of a lane are the lane's own bits at every
+                 * width, where the low bits of a narrow *scalar* are some of a register's. The other
+                 * two stay scalar because `pext` and `pdep` are what they are - a gather over a
+                 * whole word, with nothing per lane on any machine here.
+                 */
+                if(binary.op == mir::BinaryOp::BitsUpTo && isVectorLike(type)) {
+                    auto lane = mir::laneTypeOf(decl, type);
+                    if(!mir::isMaskType(decl, type) && lane && decl[lane]->kind == mir::Type::Int) {
+                        break;
+                    }
+
+                    report(inst.source,
+                           "internal: %%@ selects bits of a vector whose lanes are not integers"_v,
+                           named);
+                    break;
+                }
+
                 if(!scalar || scalar->kind != mir::Type::Int || isVectorLike(type)) {
                     report(inst.source,
                            "internal: %%@ selects bits of something that is not a scalar integer"_v,

@@ -1075,6 +1075,94 @@ struct LowerInstAesKeygenAssist: LowerInstSingle {
 };
 
 /*
+ * Lane-wise addition and subtraction that clamps - the four rows in inst.def.
+ *
+ * **Not a `LowerInstBinary`, and that is the design rather than an accident.** A binary in this IR is
+ * one of the arithmetic range's kinds, which is what `isBinary` answers and what four passes read it
+ * for: strength reduction, the derived induction variables, the accumulator a tail call folds and
+ * the `lea` an address fold builds. Every one of them is written for arithmetic that *wraps*, and a
+ * saturating operation that looked like one to them would be rewritten into something it is not. So
+ * these carry their two operands themselves, and `LowerInstBinary`'s own constructor asserts the
+ * range - which is what caught the first version of this, written the other way.
+ */
+struct LowerInstSaturating: LowerInstSingle {
+    LowerInstSaturating(Kind kind, StringId name, LowerType type, LowerPtr<LowerValue> lhs,
+                        LowerPtr<LowerValue> rhs):
+        LowerInstSingle(kind, name, type), lhs(lhs), rhs(rhs)
+    {
+        usedCount = 2;
+    }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> lhs, rhs;
+};
+
+/*
+ * The five AVX-512 float operations - `vgetexpps`/`pd`, `vgetmantps`/`pd`, `vreduceps`/`pd`,
+ * `vscalefps`/`pd` and `vrangeps`/`pd`, as two structs over five kinds.
+ *
+ * **Which operation it is is the kind and not a field**, which is `aeskeygenassist`'s arrangement
+ * and is forced by the same thing: `flags` is one byte, the instruction's trailing byte is one byte,
+ * and `kLowerPlain` promises that `kind` and `flags` together are everything an instruction carries.
+ * An operation held in `flags` beside a control byte held in a field of its own would have broken
+ * that promise silently - `vrange %a, %b, 4` and `vrange %a, %b, 5` are a minimum and a maximum, and
+ * `lower_cse.cpp`'s fallback compares `flags` and the operands and would have unified them. That is
+ * what happened, and `test/resolve/VecReal.Avx512.yana` is what caught it.
+ *
+ * `control` is read by `GetMantissa`, `FpReduce` and `RangeFloat`; `GetExponent` and `ScaleFloat`
+ * have no trailing byte and carry a zero nothing reads.
+ */
+struct LowerInstFloatAdjust: LowerInstSingle {
+    LowerInstFloatAdjust(Kind kind, StringId name, LowerType type, LowerPtr<LowerValue> from, U8 control):
+        LowerInstSingle(kind, name, type), from(from)
+    {
+        usedCount = 1;
+        flags = control;
+    }
+
+    U8 control() const { return flags; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> from;
+};
+
+// Neither of the two-operand pair commutes - `vscalef` reads a value and an exponent, and `vrange`
+// takes its answer's sign from the first operand - so neither row is `kLowerCommutative`.
+struct LowerInstFloatCombine: LowerInstSingle {
+    LowerInstFloatCombine(Kind kind, StringId name, LowerType type, LowerPtr<LowerValue> lhs,
+                          LowerPtr<LowerValue> rhs, U8 control):
+        LowerInstSingle(kind, name, type), lhs(lhs), rhs(rhs)
+    {
+        usedCount = 2;
+        flags = control;
+    }
+
+    U8 control() const { return flags; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> lhs, rhs;
+};
+
+/*
+ * The four widening multiply-accumulates - see the rows in inst.def.
+ *
+ * `acc` is operand zero and the result is written over it, which is what the machine does; `lhs` and
+ * `rhs` hold the narrow operands and are a different `LowerType` from the result. Nothing else is
+ * carried: which operation it is is the kind, and `flags` stays zero.
+ */
+struct LowerInstMulAccumulate: LowerInstSingle {
+    LowerInstMulAccumulate(Kind kind, StringId name, LowerType type, LowerPtr<LowerValue> acc,
+                           LowerPtr<LowerValue> lhs, LowerPtr<LowerValue> rhs):
+        LowerInstSingle(kind, name, type), acc(acc), lhs(lhs), rhs(rhs)
+    {
+        usedCount = 3;
+    }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> acc, lhs, rhs;
+};
+
+/*
  * Vectors.
  */
 
@@ -1793,6 +1881,24 @@ struct LowerInstX86MulWide: LowerInstSingle {
     LowerPtr<LowerValue> lhs, rhs;
 };
 
+// A population count or a leading-zero count of every lane - see LowerInst::X86VecCount, which
+// states why the choice is the instruction's own and not read off anything.
+struct LowerInstX86VecCount: LowerInstSingle {
+    LowerInstX86VecCount(StringId name, LowerType type, LowerPtr<LowerValue> from, bool leading):
+        LowerInstSingle(X86VecCount, name, type), from(from)
+    {
+        usedCount = 1;
+        flags = leading ? 1 : 0;
+    }
+
+    // Whether this is the leading-zero count (`vplzcnt`) rather than the population count
+    // (`vpopcnt`).
+    bool isLeading() const { return flags != 0; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> from;
+};
+
 // The sign of a narrow value put back into the whole register - see LowerInst::X86Sext, which states
 // why the width read is the instruction's own and not its operand type's.
 struct LowerInstX86Sext: LowerInstSingle {
@@ -1952,6 +2058,19 @@ struct LowerInstX86MaskedStore: LowerInst {
     }
 
     LowerPtr<LowerValue> to, mask, value;
+};
+
+// `pmaddwd` - see LowerInst::X86MulAddWords. Two `i16` vectors in, one `i32` vector out.
+struct LowerInstX86MulAddWords: LowerInstSingle {
+    LowerInstX86MulAddWords(StringId name, LowerType type, LowerPtr<LowerValue> lhs,
+                            LowerPtr<LowerValue> rhs):
+        LowerInstSingle(X86MulAddWords, name, type), lhs(lhs), rhs(rhs)
+    {
+        usedCount = 2;
+    }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> lhs, rhs;
 };
 
 // Any bitwise function of three vectors, by its truth table - see LowerInst::X86TernaryLogic.

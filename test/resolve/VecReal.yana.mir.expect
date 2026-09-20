@@ -1,0 +1,1087 @@
+module ResolveTest
+
+fn refExponent(value: F64 [shared call]) -> F64 {
+  local & rest: F64
+  local & exponent: F64
+
+bb0:
+  %0: F64 = read copy.trivial (value)
+  write.init borrow.unique (rest) take %0
+  %2: F64 = const 0
+  write.init borrow.unique (exponent) take %2
+  jump -> bb1
+
+bb1:
+  %5: F64 = read copy.trivial (rest)
+  %6: F64 = const 2
+  %7: Bool = ge inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  jump -> bb4
+
+bb3:
+  %9: F64 = read copy.trivial (rest)
+  %10: F64 = const 0.5
+  %11: F64 = mul inspect %9 inspect %10
+  write.assign borrow.unique (rest) take %11
+  %13: F64 = read copy.trivial (exponent)
+  %14: F64 = const 1
+  %15: F64 = add inspect %13 inspect %14
+  write.assign borrow.unique (exponent) take %15
+  jump -> bb1
+
+bb4:
+  %19: F64 = read copy.trivial (rest)
+  %20: F64 = const 1
+  %21: Bool = lt inspect %19 inspect %20
+  branch inspect %21 -> bb6 -> bb5
+
+bb5:
+  %32: F64 = read copy.trivial (exponent)
+  return take %32
+
+bb6:
+  %23: F64 = read copy.trivial (rest)
+  %24: F64 = const 2
+  %25: F64 = mul inspect %23 inspect %24
+  write.assign borrow.unique (rest) take %25
+  %27: F64 = read copy.trivial (exponent)
+  %28: F64 = const 1
+  %29: F64 = sub inspect %27 inspect %28
+  write.assign borrow.unique (exponent) take %29
+  jump -> bb4
+}
+
+fn refSignificand(value: F64 [shared call]) -> F64 {
+  local & rest: F64
+
+bb0:
+  %0: F64 = read copy.trivial (value)
+  write.init borrow.unique (rest) take %0
+  jump -> bb1
+
+bb1:
+  %3: F64 = read copy.trivial (rest)
+  %4: F64 = const 2
+  %5: Bool = ge inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb2
+
+bb2:
+  jump -> bb4
+
+bb3:
+  %7: F64 = read copy.trivial (rest)
+  %8: F64 = const 0.5
+  %9: F64 = mul inspect %7 inspect %8
+  write.assign borrow.unique (rest) take %9
+  jump -> bb1
+
+bb4:
+  %13: F64 = read copy.trivial (rest)
+  %14: F64 = const 1
+  %15: Bool = lt inspect %13 inspect %14
+  branch inspect %15 -> bb6 -> bb5
+
+bb5:
+  %22: F64 = read copy.trivial (rest)
+  return take %22
+
+bb6:
+  %17: F64 = read copy.trivial (rest)
+  %18: F64 = const 2
+  %19: F64 = mul inspect %17 inspect %18
+  write.assign borrow.unique (rest) take %19
+  jump -> bb4
+}
+
+fn refScale(value: F64 [shared call], exponent: I32 [shared call]) -> F64 {
+  local & scaled: F64
+  local & i: I32
+
+bb0:
+  %0: F64 = read copy.trivial (value)
+  write.init borrow.unique (scaled) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = read copy.trivial (exponent)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  jump -> bb4
+
+bb3:
+  %9: F64 = read copy.trivial (scaled)
+  %10: F64 = const 2
+  %11: F64 = mul inspect %9 inspect %10
+  write.assign borrow.unique (scaled) take %11
+  %13: I32 [unique call] = read borrow.unique (i) loan0
+  %14: I32 = const 1
+  %15: {} = call +=(I32) borrow.unique %13 borrow.shared %14
+  jump -> bb1
+
+bb4:
+  %18: I32 = read copy.trivial (i)
+  %19: I32 = read copy.trivial (exponent)
+  %20: Bool = gt inspect %18 inspect %19
+  branch inspect %20 -> bb6 -> bb5
+
+bb5:
+  %30: F64 = read copy.trivial (scaled)
+  return take %30
+
+bb6:
+  %22: F64 = read copy.trivial (scaled)
+  %23: F64 = const 0.5
+  %24: F64 = mul inspect %22 inspect %23
+  write.assign borrow.unique (scaled) take %24
+  %26: I32 [unique call] = read borrow.unique (i) loan1
+  %27: I32 = const 1
+  %28: {} = call -=(I32) borrow.unique %26 borrow.shared %27
+  jump -> bb4
+}
+
+fn nearFloat(got: Vec(F32) [shared call], want: F64 [shared call]) -> Bool {
+  local scale: F64
+  local bound: F64
+  local difference: Vec(F32)
+  local size: Vec(F32)
+
+bb0:
+  %0: F64 = read copy.trivial (want)
+  %1: F64 = const 0
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: F64 = read copy.trivial (want)
+  jump -> bb2(take %7)
+
+bb2(%8: F64):
+  write.init borrow.unique (scale) take %8
+  %12: F64 = read copy.trivial (scale)
+  %13: F64 = const 1
+  %14: Bool = gt inspect %12 inspect %13
+  branch inspect %14 -> bb6 -> bb4
+
+bb3:
+  %4: F64 = read copy.trivial (want)
+  %5: F64 = const 0
+  %6: F64 = sub inspect %5 inspect %4
+  jump -> bb2(take %6)
+
+bb4:
+  %17: F64 = const 1
+  jump -> bb5(take %17)
+
+bb5(%18: F64):
+  %21: F64 = const 0.00001
+  %22: F64 = mul inspect %21 inspect %18
+  write.init borrow.unique (bound) take %22
+  %24: Vec(F32) = read copy.trivial (got)
+  %25: F64 = read copy.trivial (want)
+  %26: F32 = convert inspect %25
+  %27: Vec(F32) = vec.splat inspect %26
+  %28: Vec(F32) = sub inspect %24 inspect %27
+  write.init borrow.unique (difference) take %28
+  %30: Vec(F32) = read copy.trivial (difference)
+  %31: F32 = const 0
+  %32: Vec(F32) = vec.splat inspect %31
+  %33: Mask(F32) = lt inspect %30 inspect %32
+  %34: F32 = const 0
+  %35: Vec(F32) = vec.splat inspect %34
+  %36: Vec(F32) = read copy.trivial (difference)
+  %37: Vec(F32) = sub inspect %35 inspect %36
+  %38: Vec(F32) = read copy.trivial (difference)
+  %39: Vec(F32) = select inspect %33 inspect %37 inspect %38
+  write.init borrow.unique (size) take %39
+  %41: Vec(F32) = read copy.trivial (size)
+  %42: F64 = read copy.trivial (bound)
+  %43: F32 = convert inspect %42
+  %44: Vec(F32) = vec.splat inspect %43
+  %45: Mask(F32) = le inspect %41 inspect %44
+  %46: Bool = vec.reduce and inspect %45
+  return take %46
+
+bb6:
+  %16: F64 = read copy.trivial (scale)
+  jump -> bb5(take %16)
+}
+
+fn nearDouble(got: Vec(F64) [shared call], want: F64 [shared call]) -> Bool {
+  local scale: F64
+  local bound: F64
+  local difference: Vec(F64)
+  local size: Vec(F64)
+
+bb0:
+  %0: F64 = read copy.trivial (want)
+  %1: F64 = const 0
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: F64 = read copy.trivial (want)
+  jump -> bb2(take %7)
+
+bb2(%8: F64):
+  write.init borrow.unique (scale) take %8
+  %12: F64 = read copy.trivial (scale)
+  %13: F64 = const 1
+  %14: Bool = gt inspect %12 inspect %13
+  branch inspect %14 -> bb6 -> bb4
+
+bb3:
+  %4: F64 = read copy.trivial (want)
+  %5: F64 = const 0
+  %6: F64 = sub inspect %5 inspect %4
+  jump -> bb2(take %6)
+
+bb4:
+  %17: F64 = const 1
+  jump -> bb5(take %17)
+
+bb5(%18: F64):
+  %21: F64 = const 1E-12
+  %22: F64 = mul inspect %21 inspect %18
+  write.init borrow.unique (bound) take %22
+  %24: Vec(F64) = read copy.trivial (got)
+  %25: F64 = read copy.trivial (want)
+  %26: Vec(F64) = vec.splat inspect %25
+  %27: Vec(F64) = sub inspect %24 inspect %26
+  write.init borrow.unique (difference) take %27
+  %29: Vec(F64) = read copy.trivial (difference)
+  %30: F64 = const 0
+  %31: Vec(F64) = vec.splat inspect %30
+  %32: Mask(F64) = lt inspect %29 inspect %31
+  %33: F64 = const 0
+  %34: Vec(F64) = vec.splat inspect %33
+  %35: Vec(F64) = read copy.trivial (difference)
+  %36: Vec(F64) = sub inspect %34 inspect %35
+  %37: Vec(F64) = read copy.trivial (difference)
+  %38: Vec(F64) = select inspect %32 inspect %36 inspect %37
+  write.init borrow.unique (size) take %38
+  %40: Vec(F64) = read copy.trivial (size)
+  %41: F64 = read copy.trivial (bound)
+  %42: Vec(F64) = vec.splat inspect %41
+  %43: Mask(F64) = le inspect %40 inspect %42
+  %44: Bool = vec.reduce and inspect %43
+  return take %44
+
+bb6:
+  %16: F64 = read copy.trivial (scale)
+  jump -> bb5(take %16)
+}
+
+fn sample(index: I32 [shared call]) -> F64 {
+bb0:
+  %0: I32 = read copy.trivial (index)
+  %1: I32 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = read copy.trivial (index)
+  %8: I32 = const 1
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb6 -> bb4
+
+bb3:
+  %4: F64 = const 1
+  return take %4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %14: I32 = read copy.trivial (index)
+  %15: I32 = const 2
+  %16: Bool = eq inspect %14 inspect %15
+  branch inspect %16 -> bb9 -> bb7
+
+bb6:
+  %11: F64 = const 1.5
+  return take %11
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %21: I32 = read copy.trivial (index)
+  %22: I32 = const 3
+  %23: Bool = eq inspect %21 inspect %22
+  branch inspect %23 -> bb12 -> bb10
+
+bb9:
+  %18: F64 = const 2.5
+  return take %18
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %28: I32 = read copy.trivial (index)
+  %29: I32 = const 4
+  %30: Bool = eq inspect %28 inspect %29
+  branch inspect %30 -> bb15 -> bb13
+
+bb12:
+  %25: F64 = const 8
+  return take %25
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %35: I32 = read copy.trivial (index)
+  %36: I32 = const 5
+  %37: Bool = eq inspect %35 inspect %36
+  branch inspect %37 -> bb18 -> bb16
+
+bb15:
+  %32: F64 = const 0.75
+  return take %32
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %42: I32 = read copy.trivial (index)
+  %43: I32 = const 6
+  %44: Bool = eq inspect %42 inspect %43
+  branch inspect %44 -> bb21 -> bb19
+
+bb18:
+  %39: F64 = const 0.125
+  return take %39
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %49: F64 = const 0.003
+  return take %49
+
+bb21:
+  %46: F64 = const 1024
+  return take %46
+}
+
+fn exponentCases() -> I32 {
+  local & wrong: I32
+  local & i: I32
+  local value: F64
+  local narrow: Vec(F32)
+  local wide: Vec(F64)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = const 8
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %71: I32 = read copy.trivial (wrong)
+  return take %71
+
+bb3:
+  %9: I32 = read copy.trivial (i)
+  %10: F64 = call sample borrow.shared %9
+  write.init borrow.unique (value) take %10
+  %12: F64 = read copy.trivial (value)
+  %13: F32 = convert inspect %12
+  %14: Vec(F32) = vec.splat inspect %13
+  write.init borrow.unique (narrow) take %14
+  %16: F64 = read copy.trivial (value)
+  %17: Vec(F64) = vec.splat inspect %16
+  write.init borrow.unique (wide) take %17
+  %19: Vec(F32) = read copy.trivial (narrow)
+  %20: Vec(F32) = call exponentOf(Vec(F32), Mask(F32)) borrow.shared %19
+  %21: F64 = read copy.trivial (value)
+  %22: F64 = call refExponent borrow.shared %21
+  %23: Bool = call nearFloat borrow.shared %20 borrow.shared %22
+  %24: Bool = not inspect %23
+  branch inspect %24 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %31: Vec(F32) = read copy.trivial (narrow)
+  %32: Vec(F32) = call significandOf(Vec(F32), Mask(F32)) borrow.shared %31
+  %33: F64 = read copy.trivial (value)
+  %34: F64 = call refSignificand borrow.shared %33
+  %35: Bool = call nearFloat borrow.shared %32 borrow.shared %34
+  %36: Bool = not inspect %35
+  branch inspect %36 -> bb9 -> bb7
+
+bb6:
+  %26: I32 [unique call] = read borrow.unique (wrong) loan0
+  %27: I32 = const 1
+  %28: {} = call +=(I32) borrow.unique %26 borrow.shared %27
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %43: Vec(F64) = read copy.trivial (wide)
+  %44: Vec(F64) = call exponentOf(Vec(F64), Mask(F64)) borrow.shared %43
+  %45: F64 = read copy.trivial (value)
+  %46: F64 = call refExponent borrow.shared %45
+  %47: Bool = call nearDouble borrow.shared %44 borrow.shared %46
+  %48: Bool = not inspect %47
+  branch inspect %48 -> bb12 -> bb10
+
+bb9:
+  %38: I32 [unique call] = read borrow.unique (wrong) loan1
+  %39: I32 = const 1
+  %40: {} = call +=(I32) borrow.unique %38 borrow.shared %39
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %55: Vec(F64) = read copy.trivial (wide)
+  %56: Vec(F64) = call significandOf(Vec(F64), Mask(F64)) borrow.shared %55
+  %57: F64 = read copy.trivial (value)
+  %58: F64 = call refSignificand borrow.shared %57
+  %59: Bool = call nearDouble borrow.shared %56 borrow.shared %58
+  %60: Bool = not inspect %59
+  branch inspect %60 -> bb15 -> bb13
+
+bb12:
+  %50: I32 [unique call] = read borrow.unique (wrong) loan2
+  %51: I32 = const 1
+  %52: {} = call +=(I32) borrow.unique %50 borrow.shared %51
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %67: I32 [unique call] = read borrow.unique (i) loan4
+  %68: I32 = const 1
+  %69: {} = call +=(I32) borrow.unique %67 borrow.shared %68
+  jump -> bb1
+
+bb15:
+  %62: I32 [unique call] = read borrow.unique (wrong) loan3
+  %63: I32 = const 1
+  %64: {} = call +=(I32) borrow.unique %62 borrow.shared %63
+  jump -> bb14
+}
+
+fn scaleCases() -> I32 {
+  local & wrong: I32
+  local & e: I32
+  local wide: Vec(F64)
+  local narrow: Vec(F32)
+  local big: Vec(F64)
+  local small: Vec(F64)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: I32 = const 8
+  %3: I32 = const 0
+  %4: I32 = sub inspect %3 inspect %2
+  write.init borrow.unique (e) take %4
+  jump -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (e)
+  %8: I32 = const 8
+  %9: Bool = le inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb2
+
+bb2:
+  %54: F64 = const 1
+  %55: Vec(F64) = vec.splat inspect %54
+  %56: F64 = const 4000
+  %57: Vec(F64) = vec.splat inspect %56
+  %58: Vec(F64) = call scaleByExponent(Vec(F64), Mask(F64)) borrow.shared %55 borrow.shared %57
+  write.init borrow.unique (big) take %58
+  %60: F64 = const 1
+  %61: Vec(F64) = vec.splat inspect %60
+  %62: F64 = const 0
+  %63: F64 = const 4000
+  %64: F64 = sub inspect %62 inspect %63
+  %65: Vec(F64) = vec.splat inspect %64
+  %66: Vec(F64) = call scaleByExponent(Vec(F64), Mask(F64)) borrow.shared %61 borrow.shared %65
+  write.init borrow.unique (small) take %66
+  %68: Vec(F64) = read copy.trivial (big)
+  %69: Mask(F64) = call isInfinite(Vec(F64), Mask(F64)) borrow.shared %68
+  %70: Bool = vec.reduce and inspect %69
+  %71: Bool = not inspect %70
+  branch inspect %71 -> bb12 -> bb10
+
+bb3:
+  %11: F64 = const 2.5
+  %12: Vec(F64) = vec.splat inspect %11
+  write.init borrow.unique (wide) take %12
+  %14: F32 = const 2.5
+  %15: Vec(F32) = vec.splat inspect %14
+  write.init borrow.unique (narrow) take %15
+  %17: Vec(F64) = read copy.trivial (wide)
+  %18: I32 = read copy.trivial (e)
+  %19: F64 = convert inspect %18
+  %20: Vec(F64) = vec.splat inspect %19
+  %21: Vec(F64) = call scaleByExponent(Vec(F64), Mask(F64)) borrow.shared %17 borrow.shared %20
+  %22: F64 = const 2.5
+  %23: I32 = read copy.trivial (e)
+  %24: F64 = call refScale borrow.shared %22 borrow.shared %23
+  %25: Bool = call nearDouble borrow.shared %21 borrow.shared %24
+  %26: Bool = not inspect %25
+  branch inspect %26 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %33: Vec(F32) = read copy.trivial (narrow)
+  %34: I32 = read copy.trivial (e)
+  %35: F64 = convert inspect %34
+  %36: F32 = convert inspect %35
+  %37: Vec(F32) = vec.splat inspect %36
+  %38: Vec(F32) = call scaleByExponent(Vec(F32), Mask(F32)) borrow.shared %33 borrow.shared %37
+  %39: F64 = const 2.5
+  %40: I32 = read copy.trivial (e)
+  %41: F64 = call refScale borrow.shared %39 borrow.shared %40
+  %42: Bool = call nearFloat borrow.shared %38 borrow.shared %41
+  %43: Bool = not inspect %42
+  branch inspect %43 -> bb9 -> bb7
+
+bb6:
+  %28: I32 [unique call] = read borrow.unique (wrong) loan0
+  %29: I32 = const 1
+  %30: {} = call +=(I32) borrow.unique %28 borrow.shared %29
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %50: I32 [unique call] = read borrow.unique (e) loan2
+  %51: I32 = const 1
+  %52: {} = call +=(I32) borrow.unique %50 borrow.shared %51
+  jump -> bb1
+
+bb9:
+  %45: I32 [unique call] = read borrow.unique (wrong) loan1
+  %46: I32 = const 1
+  %47: {} = call +=(I32) borrow.unique %45 borrow.shared %46
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %78: Vec(F64) = read copy.trivial (small)
+  %79: Mask(F64) = call isZero(Vec(F64), Mask(F64)) borrow.shared %78
+  %80: Bool = vec.reduce and inspect %79
+  %81: Bool = not inspect %80
+  branch inspect %81 -> bb15 -> bb13
+
+bb12:
+  %73: I32 [unique call] = read borrow.unique (wrong) loan3
+  %74: I32 = const 1
+  %75: {} = call +=(I32) borrow.unique %73 borrow.shared %74
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %88: I32 = read copy.trivial (wrong)
+  return take %88
+
+bb15:
+  %83: I32 [unique call] = read borrow.unique (wrong) loan4
+  %84: I32 = const 1
+  %85: {} = call +=(I32) borrow.unique %83 borrow.shared %84
+  jump -> bb14
+}
+
+fn fractionCases() -> I32 {
+  local & wrong: I32
+  local & i: I32
+  local value: F64
+  local want: F64
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = const 8
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %48: I32 = read copy.trivial (wrong)
+  return take %48
+
+bb3:
+  %9: I32 = read copy.trivial (i)
+  %10: F64 = call sample borrow.shared %9
+  %11: F64 = const 3
+  %12: F64 = sub inspect %10 inspect %11
+  write.init borrow.unique (value) take %12
+  %14: F64 = read copy.trivial (value)
+  %15: F64 = read copy.trivial (value)
+  %16: F64 = floor inspect %15
+  %17: F64 = sub inspect %14 inspect %16
+  write.init borrow.unique (want) take %17
+  %19: F64 = read copy.trivial (value)
+  %20: Vec(F64) = vec.splat inspect %19
+  %21: Vec(F64) = call fract(Vec(F64), Mask(F64)) borrow.shared %20
+  %22: F64 = read copy.trivial (want)
+  %23: Bool = call nearDouble borrow.shared %21 borrow.shared %22
+  %24: Bool = not inspect %23
+  branch inspect %24 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %31: F64 = read copy.trivial (value)
+  %32: F32 = convert inspect %31
+  %33: Vec(F32) = vec.splat inspect %32
+  %34: Vec(F32) = call fract(Vec(F32), Mask(F32)) borrow.shared %33
+  %35: F64 = read copy.trivial (want)
+  %36: Bool = call nearFloat borrow.shared %34 borrow.shared %35
+  %37: Bool = not inspect %36
+  branch inspect %37 -> bb9 -> bb7
+
+bb6:
+  %26: I32 [unique call] = read borrow.unique (wrong) loan0
+  %27: I32 = const 1
+  %28: {} = call +=(I32) borrow.unique %26 borrow.shared %27
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %44: I32 [unique call] = read borrow.unique (i) loan2
+  %45: I32 = const 1
+  %46: {} = call +=(I32) borrow.unique %44 borrow.shared %45
+  jump -> bb1
+
+bb9:
+  %39: I32 [unique call] = read borrow.unique (wrong) loan1
+  %40: I32 = const 1
+  %41: {} = call +=(I32) borrow.unique %39 borrow.shared %40
+  jump -> bb8
+}
+
+fn orderCases() -> I32 {
+  local & wrong: I32
+  local nan: F64
+  local nanVec: Vec(F64)
+  local & i: I32
+  local value: F64
+  local other: F64
+  local a: Vec(F64)
+  local b: Vec(F64)
+  local low: F64
+  local high: F64
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: F64 = const 0
+  %3: F64 = const 0
+  %4: F64 = div inspect %2 inspect %3
+  write.init borrow.unique (nan) take %4
+  %6: F64 = read copy.trivial (nan)
+  %7: Vec(F64) = vec.splat inspect %6
+  write.init borrow.unique (nanVec) take %7
+  %9: I32 = const 0
+  write.init borrow.unique (i) take %9
+  jump -> bb1
+
+bb1:
+  %12: I32 = read copy.trivial (i)
+  %13: I32 = const 8
+  %14: Bool = lt inspect %12 inspect %13
+  branch inspect %14 -> bb3 -> bb2
+
+bb2:
+  %178: I32 = read copy.trivial (wrong)
+  return take %178
+
+bb3:
+  %16: I32 = read copy.trivial (i)
+  %17: F64 = call sample borrow.shared %16
+  write.init borrow.unique (value) take %17
+  %19: I32 = read copy.trivial (i)
+  %20: I32 = const 3
+  %21: I32 = add inspect %19 inspect %20
+  %22: I32 = const 8
+  %23: I32 = rem inspect %21 inspect %22
+  %24: F64 = call sample borrow.shared %23
+  %25: F64 = const 0
+  %26: F64 = sub inspect %25 inspect %24
+  write.init borrow.unique (other) take %26
+  %28: F64 = read copy.trivial (value)
+  %29: Vec(F64) = vec.splat inspect %28
+  write.init borrow.unique (a) take %29
+  %31: F64 = read copy.trivial (other)
+  %32: Vec(F64) = vec.splat inspect %31
+  write.init borrow.unique (b) take %32
+  %34: F64 = read copy.trivial (value)
+  %35: F64 = read copy.trivial (other)
+  %36: Bool = lt inspect %34 inspect %35
+  branch inspect %36 -> bb6 -> bb4
+
+bb4:
+  %39: F64 = read copy.trivial (other)
+  jump -> bb5(take %39)
+
+bb5(%40: F64):
+  write.init borrow.unique (low) take %40
+  %44: F64 = read copy.trivial (value)
+  %45: F64 = read copy.trivial (other)
+  %46: Bool = gt inspect %44 inspect %45
+  branch inspect %46 -> bb9 -> bb7
+
+bb6:
+  %38: F64 = read copy.trivial (value)
+  jump -> bb5(take %38)
+
+bb7:
+  %49: F64 = read copy.trivial (other)
+  jump -> bb8(take %49)
+
+bb8(%50: F64):
+  write.init borrow.unique (high) take %50
+  %54: Vec(F64) = read copy.trivial (a)
+  %55: Vec(F64) = read copy.trivial (b)
+  %56: Vec(F64) = call minNumber(Vec(F64), Mask(F64)) borrow.shared %54 borrow.shared %55
+  %57: F64 = read copy.trivial (low)
+  %58: Bool = call nearDouble borrow.shared %56 borrow.shared %57
+  %59: Bool = not inspect %58
+  branch inspect %59 -> bb12 -> bb10
+
+bb9:
+  %48: F64 = read copy.trivial (value)
+  jump -> bb8(take %48)
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %66: Vec(F64) = read copy.trivial (b)
+  %67: Vec(F64) = read copy.trivial (a)
+  %68: Vec(F64) = call minNumber(Vec(F64), Mask(F64)) borrow.shared %66 borrow.shared %67
+  %69: F64 = read copy.trivial (low)
+  %70: Bool = call nearDouble borrow.shared %68 borrow.shared %69
+  %71: Bool = not inspect %70
+  branch inspect %71 -> bb15 -> bb13
+
+bb12:
+  %61: I32 [unique call] = read borrow.unique (wrong) loan0
+  %62: I32 = const 1
+  %63: {} = call +=(I32) borrow.unique %61 borrow.shared %62
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %78: Vec(F64) = read copy.trivial (a)
+  %79: Vec(F64) = read copy.trivial (b)
+  %80: Vec(F64) = call maxNumber(Vec(F64), Mask(F64)) borrow.shared %78 borrow.shared %79
+  %81: F64 = read copy.trivial (high)
+  %82: Bool = call nearDouble borrow.shared %80 borrow.shared %81
+  %83: Bool = not inspect %82
+  branch inspect %83 -> bb18 -> bb16
+
+bb15:
+  %73: I32 [unique call] = read borrow.unique (wrong) loan1
+  %74: I32 = const 1
+  %75: {} = call +=(I32) borrow.unique %73 borrow.shared %74
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %90: Vec(F64) = read copy.trivial (b)
+  %91: Vec(F64) = read copy.trivial (a)
+  %92: Vec(F64) = call maxNumber(Vec(F64), Mask(F64)) borrow.shared %90 borrow.shared %91
+  %93: F64 = read copy.trivial (high)
+  %94: Bool = call nearDouble borrow.shared %92 borrow.shared %93
+  %95: Bool = not inspect %94
+  branch inspect %95 -> bb21 -> bb19
+
+bb18:
+  %85: I32 [unique call] = read borrow.unique (wrong) loan2
+  %86: I32 = const 1
+  %87: {} = call +=(I32) borrow.unique %85 borrow.shared %86
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %102: Vec(F64) = read copy.trivial (nanVec)
+  %103: Vec(F64) = read copy.trivial (a)
+  %104: Vec(F64) = call minNumber(Vec(F64), Mask(F64)) borrow.shared %102 borrow.shared %103
+  %105: F64 = read copy.trivial (value)
+  %106: Bool = call nearDouble borrow.shared %104 borrow.shared %105
+  %107: Bool = not inspect %106
+  branch inspect %107 -> bb24 -> bb22
+
+bb21:
+  %97: I32 [unique call] = read borrow.unique (wrong) loan3
+  %98: I32 = const 1
+  %99: {} = call +=(I32) borrow.unique %97 borrow.shared %98
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %114: Vec(F64) = read copy.trivial (a)
+  %115: Vec(F64) = read copy.trivial (nanVec)
+  %116: Vec(F64) = call minNumber(Vec(F64), Mask(F64)) borrow.shared %114 borrow.shared %115
+  %117: F64 = read copy.trivial (value)
+  %118: Bool = call nearDouble borrow.shared %116 borrow.shared %117
+  %119: Bool = not inspect %118
+  branch inspect %119 -> bb27 -> bb25
+
+bb24:
+  %109: I32 [unique call] = read borrow.unique (wrong) loan4
+  %110: I32 = const 1
+  %111: {} = call +=(I32) borrow.unique %109 borrow.shared %110
+  jump -> bb23
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %126: Vec(F64) = read copy.trivial (nanVec)
+  %127: Vec(F64) = read copy.trivial (a)
+  %128: Vec(F64) = call maxNumber(Vec(F64), Mask(F64)) borrow.shared %126 borrow.shared %127
+  %129: F64 = read copy.trivial (value)
+  %130: Bool = call nearDouble borrow.shared %128 borrow.shared %129
+  %131: Bool = not inspect %130
+  branch inspect %131 -> bb30 -> bb28
+
+bb27:
+  %121: I32 [unique call] = read borrow.unique (wrong) loan5
+  %122: I32 = const 1
+  %123: {} = call +=(I32) borrow.unique %121 borrow.shared %122
+  jump -> bb26
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %138: Vec(F64) = read copy.trivial (a)
+  %139: Vec(F64) = read copy.trivial (nanVec)
+  %140: Vec(F64) = call maxNumber(Vec(F64), Mask(F64)) borrow.shared %138 borrow.shared %139
+  %141: F64 = read copy.trivial (value)
+  %142: Bool = call nearDouble borrow.shared %140 borrow.shared %141
+  %143: Bool = not inspect %142
+  branch inspect %143 -> bb33 -> bb31
+
+bb30:
+  %133: I32 [unique call] = read borrow.unique (wrong) loan6
+  %134: I32 = const 1
+  %135: {} = call +=(I32) borrow.unique %133 borrow.shared %134
+  jump -> bb29
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %150: Vec(F64) = read copy.trivial (nanVec)
+  %151: Vec(F64) = read copy.trivial (nanVec)
+  %152: Vec(F64) = call minNumber(Vec(F64), Mask(F64)) borrow.shared %150 borrow.shared %151
+  %153: Mask(F64) = call isNaN(Vec(F64), Mask(F64)) borrow.shared %152
+  %154: Bool = vec.reduce and inspect %153
+  %155: Bool = not inspect %154
+  branch inspect %155 -> bb36 -> bb34
+
+bb33:
+  %145: I32 [unique call] = read borrow.unique (wrong) loan7
+  %146: I32 = const 1
+  %147: {} = call +=(I32) borrow.unique %145 borrow.shared %146
+  jump -> bb32
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %162: Vec(F64) = read copy.trivial (nanVec)
+  %163: Vec(F64) = read copy.trivial (nanVec)
+  %164: Vec(F64) = call maxNumber(Vec(F64), Mask(F64)) borrow.shared %162 borrow.shared %163
+  %165: Mask(F64) = call isNaN(Vec(F64), Mask(F64)) borrow.shared %164
+  %166: Bool = vec.reduce and inspect %165
+  %167: Bool = not inspect %166
+  branch inspect %167 -> bb39 -> bb37
+
+bb36:
+  %157: I32 [unique call] = read borrow.unique (wrong) loan8
+  %158: I32 = const 1
+  %159: {} = call +=(I32) borrow.unique %157 borrow.shared %158
+  jump -> bb35
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %174: I32 [unique call] = read borrow.unique (i) loan10
+  %175: I32 = const 1
+  %176: {} = call +=(I32) borrow.unique %174 borrow.shared %175
+  jump -> bb1
+
+bb39:
+  %169: I32 [unique call] = read borrow.unique (wrong) loan9
+  %170: I32 = const 1
+  %171: {} = call +=(I32) borrow.unique %169 borrow.shared %170
+  jump -> bb38
+}
+
+fn roundTripCases() -> I32 {
+  local & wrong: I32
+  local & i: I32
+  local value: F64
+  local wide: Vec(F64)
+  local narrow: Vec(F32)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (wrong) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = const 8
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %51: I32 = read copy.trivial (wrong)
+  return take %51
+
+bb3:
+  %9: I32 = read copy.trivial (i)
+  %10: F64 = call sample borrow.shared %9
+  write.init borrow.unique (value) take %10
+  %12: F64 = read copy.trivial (value)
+  %13: Vec(F64) = vec.splat inspect %12
+  write.init borrow.unique (wide) take %13
+  %15: F64 = read copy.trivial (value)
+  %16: F32 = convert inspect %15
+  %17: Vec(F32) = vec.splat inspect %16
+  write.init borrow.unique (narrow) take %17
+  %19: Vec(F64) = read copy.trivial (wide)
+  %20: Vec(F64) = call significandOf(Vec(F64), Mask(F64)) borrow.shared %19
+  %21: Vec(F64) = read copy.trivial (wide)
+  %22: Vec(F64) = call exponentOf(Vec(F64), Mask(F64)) borrow.shared %21
+  %23: Vec(F64) = call scaleByExponent(Vec(F64), Mask(F64)) borrow.shared %20 borrow.shared %22
+  %24: F64 = read copy.trivial (value)
+  %25: Bool = call nearDouble borrow.shared %23 borrow.shared %24
+  %26: Bool = not inspect %25
+  branch inspect %26 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %33: Vec(F32) = read copy.trivial (narrow)
+  %34: Vec(F32) = call significandOf(Vec(F32), Mask(F32)) borrow.shared %33
+  %35: Vec(F32) = read copy.trivial (narrow)
+  %36: Vec(F32) = call exponentOf(Vec(F32), Mask(F32)) borrow.shared %35
+  %37: Vec(F32) = call scaleByExponent(Vec(F32), Mask(F32)) borrow.shared %34 borrow.shared %36
+  %38: F64 = read copy.trivial (value)
+  %39: Bool = call nearFloat borrow.shared %37 borrow.shared %38
+  %40: Bool = not inspect %39
+  branch inspect %40 -> bb9 -> bb7
+
+bb6:
+  %28: I32 [unique call] = read borrow.unique (wrong) loan0
+  %29: I32 = const 1
+  %30: {} = call +=(I32) borrow.unique %28 borrow.shared %29
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %47: I32 [unique call] = read borrow.unique (i) loan2
+  %48: I32 = const 1
+  %49: {} = call +=(I32) borrow.unique %47 borrow.shared %48
+  jump -> bb1
+
+bb9:
+  %42: I32 [unique call] = read borrow.unique (wrong) loan1
+  %43: I32 = const 1
+  %44: {} = call +=(I32) borrow.unique %42 borrow.shared %43
+  jump -> bb8
+}
+
+fn main() -> I32 {
+  local total: I32
+  local & local1: String object1
+  local local2: String object1
+
+bb0:
+  %0: I32 = call exponentCases
+  %1: I32 = call scaleCases
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call fractionCases
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call orderCases
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call roundTripCases
+  %8: I32 = add inspect %6 inspect %7
+  write.init borrow.unique (total) take %8
+  %10: Size = const 0
+  %11: I32 = read copy.trivial (total)
+  %12: Maybe(Size) = call showBound(I32) borrow.shared %11
+  %13: Size = call formatBound borrow.shared %12
+  %14: Size = add inspect %10 inspect %13
+  %15: String = call String.ofCapacity borrow.shared %14
+  write.init borrow.unique (local1) take %15
+  %17: I32 = read copy.trivial (total)
+  %18: String [unique call] = read borrow.unique (local1) loan0
+  %19: {} = call show(I32) borrow.shared %17 borrow.unique %18
+  %20: String = read take (local1)
+  write.init borrow.unique (local2) take %20
+  %22: String [shared slot 0] = read borrow.shared (local2) loan1
+  %23: String [shared slot 0 view] = call.derivation view(String) borrow.shared %22 roots{1}
+  %24: {} = call print borrow.shared %23
+  drop (local2)
+  %25: I32 = read copy.trivial (total)
+  return take %25
+}
+
+entry main

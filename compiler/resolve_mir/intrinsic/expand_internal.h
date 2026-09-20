@@ -100,6 +100,11 @@ Node* expandX86Native(Builder& builder, Function& callee, Node* const* arguments
                       const Substitution& with, LocationId source, NativeOp op);
 Node* expandX86Interrupt(Builder& builder, Function& callee, Node* const* arguments,
                          const Substitution& with, LocationId source);
+// The five AVX-512 float operations. `count` is the operand count, so the control byte of the three
+// that carry one is argument `count` - it travels as `immediate` and is not an operand.
+Node* expandX86FloatOp(Builder& builder, Function& callee, Node* const* arguments, Size count,
+                       const Substitution& with, LocationId source, NativeOp op);
+
 Node* expandX86AesKeygenAssist(Builder& builder, Function& callee, Node* const* arguments,
                                const Substitution& with, LocationId source);
 Node* expandX86CarrylessMultiply(Builder& builder, Function& callee, Node* const* arguments,
@@ -212,6 +217,22 @@ Node* expandVecUnpack(Builder& builder, Function& callee, bool high, Node* const
                       const Substitution& with, LocationId source);
 Node* expandVecPackLanes(Builder& builder, Function& callee, Node* const* arguments,
                          const Substitution& with, LocationId source);
+
+// `saturatingAdd` and `saturatingSub`, whose integer-lane rule is checked at the call.
+Node* expandVecSaturating(Builder& builder, Function& callee, BinaryOp op, Node* const* arguments,
+                          const Substitution& with, LocationId source);
+
+/*
+ * The four widening multiply-accumulates, as one emitter with the row as a column - Analysis-Avx512.md
+ * §3.6.
+ *
+ * IFMA's two are x86's and the dot products are portable, so this is the one emitter here that
+ * serves both surfaces. One function all the same, because what it has to check is the same three
+ * shapes: an integer accumulator, two narrower operands agreeing with each other, and as many
+ * narrow lanes as the grouping reads.
+ */
+Node* expandMulAccumulate(Builder& builder, Function& callee, NativeOp op, Node* const* arguments,
+                          const Substitution& with, LocationId source);
 
 // `lookup`'s index width is checked here; `compress` and `expand` go straight to `expandX86Native`.
 Node* expandVecLookup(Builder& builder, Function& callee, Node* const* arguments,

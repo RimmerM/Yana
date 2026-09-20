@@ -1,0 +1,140 @@
+{-
+   `accumulateByteProducts` and `accumulateWordProducts` at the driver's floor, `sse4` -
+   Analysis-Avx512.md §3.6.
+
+   Neither is one instruction here: `vpdpbusd` and `vpdpwssd` are VNNI, so what runs at this level is
+   `expandVectorDotProducts` - `pmaddwd` and an addition for a word dot product, and two `pmaddwd`
+   over four shifted halves for a byte one. `VecDot.Avx2.yana` is the same source over ymm and
+   `VecDot.Avx512.yana` is where the two instructions themselves run, so the three fixtures together
+   are the sequence and the instruction answering the same numbers.
+
+   **What each case is here to catch**, since a dot product that is wrong is easy to write so that it
+   is wrong only in a way a splat cannot see:
+
+   - the *grouping*. Every case whose operand is `iota()` has a different value in every narrow lane,
+     so a body that read lane zero four times, or that grouped four consecutive accumulator lanes
+     instead of four consecutive narrow ones, answers something else. A splat cannot tell those
+     apart, which is why none of the grouping cases uses one.
+   - the *signedness split*. `vpdpbusd` reads its first operand as unsigned bytes and its second as
+     signed ones, and `255 * -128` against `-1 * -128` is the whole difference.
+   - that **nothing saturates**, which is the declaration's promise and the one a plausible lowering
+     breaks. `pmaddubsw` is the instruction a byte kernel reaches for first and clamps each pair's
+     sum at a signed word: `byteNoSaturation` is four products of -32640, whose true sum is -130560
+     and whose clamped-pair sum would be -65536. `wordWrap` is the word form's twin - two products of
+     2^30, whose sum is exactly 2^31 and must come back as the wrapped negative rather than as
+     `maxValue()`.
+
+   Every check is over the whole register through `all`, so a body that computed one lane and left
+   the rest alone fails. Each function answers the number of disagreements and the program answers
+   the total, which is zero.
+-}
+
+-- The lane count is not written anywhere below: `Vec(I32)` is the target's natural width and
+-- `Vec(U8)` is four times as many lanes of a quarter the width, which is exactly the shape these
+-- read. So one source runs at three widths.
+fn byteGrouping() -> Int:
+    let &wrong = 0
+
+    let index = iota() :: Vec(I32)
+    let ones = splat(1 :: I8) :: Vec(I8)
+
+    -- Accumulator lane `j` reads narrow lanes `4j` through `4j + 3`, so against a vector of ones the
+    -- answer is `(4j) + (4j+1) + (4j+2) + (4j+3)`, which is `16j + 6`.
+    let want = index * splat(16 :: I32) + splat(6 :: I32)
+    if !all(accumulateByteProducts(zero() :: Vec(I32), iota() :: Vec(U8), ones) .== want) then wrong += 1
+
+    -- The same grouping read from the other side, and with the *second* operand carrying the
+    -- distinct values instead of the first.
+    if !all(accumulateByteProducts(zero() :: Vec(I32), splat(1 :: U8), iota() :: Vec(I8)) .== want) then wrong += 1
+
+    -- And the accumulator, which is added in rather than replaced.
+    let base = splat(1000 :: I32) :: Vec(I32)
+    if !all(accumulateByteProducts(base, iota() :: Vec(U8), ones) .== want + base) then wrong += 1
+
+    return wrong
+
+fn byteSigns() -> Int:
+    let &wrong = 0
+
+    -- The first operand is unsigned: 255 is 255 here and would be -1 if it were read the other way.
+    -- Four products of `255 * 127` is 129540, and four of `-1 * 127` would be -508.
+    let big = splat(255 :: U8) :: Vec(U8)
+    if !all(accumulateByteProducts(zero() :: Vec(I32), big, splat(127 :: I8)) .== splat(129540 :: I32)) then wrong += 1
+
+    -- The second operand is signed: 0x80 is -128 here and would be 128 the other way. Four products
+    -- of `1 * -128` is -512.
+    let low = splat(minValue() :: I8) :: Vec(I8)
+    if !all(accumulateByteProducts(zero() :: Vec(I32), splat(1 :: U8), low) .== splat(0 - 512 :: I32)) then wrong += 1
+
+    return wrong
+
+-- The product a `pmaddubsw` route would clamp. Four products of `255 * -128`, whose true sum is
+-- -130560; a lowering that summed each adjacent pair at a signed word would answer -65536.
+fn byteNoSaturation() -> Int:
+    let &wrong = 0
+
+    let got = accumulateByteProducts(zero() :: Vec(I32), splat(255 :: U8) :: Vec(U8), splat(minValue() :: I8))
+    if !all(got .== splat(0 - 130560 :: I32)) then wrong += 1
+
+    return wrong
+
+fn wordGrouping() -> Int:
+    let &wrong = 0
+
+    let index = iota() :: Vec(I32)
+    let ones = splat(1 :: I16) :: Vec(I16)
+
+    -- Two narrow lanes per accumulator lane: `(2j) + (2j+1)`, which is `4j + 1`.
+    let want = index * splat(4 :: I32) + splat(1 :: I32)
+    if !all(accumulateWordProducts(zero() :: Vec(I32), iota() :: Vec(I16), ones) .== want) then wrong += 1
+
+    let base = splat(0 - 7 :: I32) :: Vec(I32)
+    if !all(accumulateWordProducts(base, ones, iota() :: Vec(I16)) .== want + base) then wrong += 1
+
+    -- Both operands signed, and a negative one in each position.
+    let negated = (zero() :: Vec(I16)) - (iota() :: Vec(I16))
+    if !all(accumulateWordProducts(zero() :: Vec(I32), negated, ones) .== (zero() :: Vec(I32)) - want) then wrong += 1
+
+    return wrong
+
+-- The one case whose answer is only correct if the accumulation wraps. Two products of `-32768 *
+-- -32768`, each 2^30, whose sum is exactly 2^31 - which is `minValue()` at a 32-bit lane and is
+-- `maxValue()` on any machine that clamped.
+fn wordWrap() -> Int:
+    let &wrong = 0
+
+    let extreme = splat(minValue() :: I16) :: Vec(I16)
+    let got = accumulateWordProducts(zero() :: Vec(I32), extreme, extreme)
+    if !all(got .== splat(minValue() :: I32)) then wrong += 1
+
+    -- And the accumulator wrapping on top of it: one more than the largest 32-bit lane.
+    let full = splat(maxValue() :: I32) :: Vec(I32)
+    let one = accumulateWordProducts(full, splat(1 :: I16), splat(1 :: I16))
+    if !all(one .== splat((minValue() :: I32) + 1)) then wrong += 1
+
+    return wrong
+
+-- A written width rather than the target's natural one, which is the 128-bit form at every level -
+-- `Vec(I32, 4)` with sixteen bytes, and `Vec(I32, 4)` with eight words.
+fn writtenWidths() -> Int:
+    let &wrong = 0
+
+    let bytes = accumulateByteProducts(zero() :: Vec(I32, 4), iota() :: Vec(U8, 16),
+                                       splat(1 :: I8) :: Vec(I8, 16))
+    let wantBytes = (iota() :: Vec(I32, 4)) * (splat(16 :: I32) :: Vec(I32, 4))
+                  + (splat(6 :: I32) :: Vec(I32, 4))
+    if !all(bytes .== wantBytes) then wrong += 1
+
+    let words = accumulateWordProducts(zero() :: Vec(I32, 4), iota() :: Vec(I16, 8),
+                                       splat(1 :: I16) :: Vec(I16, 8))
+    let wantWords = (iota() :: Vec(I32, 4)) * (splat(4 :: I32) :: Vec(I32, 4))
+                  + (splat(1 :: I32) :: Vec(I32, 4))
+    if !all(words .== wantWords) then wrong += 1
+
+    return wrong
+
+fn main() -> Int:
+    let total = byteGrouping() + byteSigns() + byteNoSaturation()
+              + wordGrouping() + wordWrap() + writtenWidths()
+    print("{total}")
+    return total

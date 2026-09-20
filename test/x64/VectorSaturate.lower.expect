@@ -1,0 +1,133 @@
+
+narrow<complex>(%b: i8x16, %c: i8x16, %w: i16x8, %x: i16x8): i8x16 {
+  b_0 {
+    %a1 = isatadd %b, %c: i8x16
+    %a2 = satadd %b, %c: i8x16
+    %a3 = isatadd %w, %x: i16x8
+    %a4 = satadd %w, %x: i16x8
+    %s1 = isatsub %b, %c: i8x16
+    %s2 = satsub %b, %c: i8x16
+    %s3 = isatsub %w, %x: i16x8
+    %s4 = satsub %w, %x: i16x8
+    ret %a1
+  }
+}
+
+unsignedWide<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %r = satadd %a, %b: i32x4
+    %s = satsub %a, %b: i32x4
+    ret %r
+  }
+}
+
+signedWide<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %r = isatadd %a, %b: i32x4
+    %s = isatsub %a, %b: i32x4
+    ret %r
+  }
+}
+
+quadwords<complex>(%a: i64x2, %b: i64x2): i64x2 {
+  b_0 {
+    %r = isatadd %a, %b: i64x2
+    %s = satsub %a, %b: i64x2
+    ret %r
+  }
+}
+
+
+--- codegen: narrow ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  isatadd uses=[xmm4, xmm1] creates=[xmm4] pre=[xmm0->xmm4]  => 0f28e0660fece1
+  satadd uses=[xmm5, xmm1] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8660fdce9
+  isatadd uses=[xmm5, xmm3] creates=[xmm5] pre=[xmm2->xmm5]  => 0f28ea660fedeb
+  satadd uses=[xmm5, xmm3] creates=[xmm5] pre=[xmm2->xmm5]  => 0f28ea660fddeb
+  isatsub uses=[xmm5, xmm1] creates=[xmm5] pre=[xmm0->xmm5]  => 0f28e8660fe8e9
+  satsub uses=[xmm0, xmm1] creates=[xmm0]  => 660fd8c1
+  isatsub uses=[xmm0, xmm3] creates=[xmm0] pre=[xmm2->xmm0]  => 0f28c2660fe9c3
+  satsub uses=[xmm2, xmm3] creates=[xmm2]  => 660fd9d3
+  ret uses=[xmm0] creates=[] pre=[xmm4->xmm0]  => 0f28c4c3
+
+--- codegen: unsignedWide ---
+block #0:
+  jmp uses=[] creates=[] pre=[xmm1->xmm2, xmm0->xmm1]  => 0f28d10f28c8
+block #1:
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm3]  => 660f76db
+  add uses=[xmm4, xmm2] creates=[xmm4] pre=[xmm1->xmm4]  => 0f28e1660ffee2
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f0547010000
+  xor uses=[xmm5, xmm0] creates=[xmm5] pre=[xmm4->xmm5]  => 0f28ec660fefe8
+  xor uses=[xmm6, xmm0] creates=[xmm6] pre=[xmm1->xmm6]  => 0f28f1660feff0
+  cmp_igt uses=[xmm6, xmm5] creates=[xmm6]  => 660f66f5
+  select uses=[xmm3, xmm4, xmm6] creates=[xmm4]  => 0f28c6660f3810e3
+  sub uses=[xmm0, xmm2] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660ffac2
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => f30f6f1d1e010000
+  xor uses=[xmm1, xmm3] creates=[xmm1]  => 660fefcb
+  xor uses=[xmm2, xmm3] creates=[xmm2]  => 660fefd3
+  cmp_igt uses=[xmm2, xmm1] creates=[xmm2]  => 660f66d1
+  x86_maskandn uses=[xmm2, xmm0] creates=[xmm2]  => 660fdfd0
+  ret uses=[xmm0] creates=[] pre=[xmm4->xmm0]  => 0f28c4c3
+
+--- codegen: signedWide ---
+block #0:
+  jmp uses=[] creates=[] pre=[xmm1->xmm2, xmm0->xmm1]  => 0f28d10f28c8
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => f30f6f1d02010000
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm4]  => 660fefe4
+  add uses=[xmm5, xmm2] creates=[xmm5] pre=[xmm1->xmm5]  => 0f28e9660ffeea
+  xor uses=[xmm0, xmm5] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660fefc5
+  xor uses=[xmm6, xmm5] creates=[xmm6] pre=[xmm2->xmm6]  => 0f28f2660feff5
+  and uses=[xmm0, xmm6] creates=[xmm0]  => 660fdbc6
+  cmp_igt uses=[xmm6, xmm0] creates=[xmm6] pre=[xmm4->xmm6]  => 0f28f4660f66f0
+  imm uses=[] creates=[-]  => 
+  sar uses=[xmm0, -] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660f72e01f
+  xor uses=[xmm7, xmm3] creates=[xmm7] pre=[xmm0->xmm7]  => 0f28f8660feffb
+  select uses=[xmm7, xmm5, xmm6] creates=[xmm5]  => 0f28c6660f3810ef
+  sub uses=[xmm6, xmm2] creates=[xmm6] pre=[xmm1->xmm6]  => 0f28f1660ffaf2
+  xor uses=[xmm0, xmm2] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660fefc2
+  xor uses=[xmm2, xmm6] creates=[xmm2] pre=[xmm1->xmm2]  => 0f28d1660fefd6
+  and uses=[xmm0, xmm2] creates=[xmm0]  => 660fdbc2
+  cmp_igt uses=[xmm4, xmm0] creates=[xmm4]  => 660f66e0
+  imm uses=[] creates=[-]  => 
+  sar uses=[xmm1, -] creates=[xmm1]  => 660f72e11f
+  xor uses=[xmm1, xmm3] creates=[xmm1]  => 660fefcb
+  select uses=[xmm1, xmm6, xmm4] creates=[xmm6]  => 0f28c4660f3810f1
+  ret uses=[xmm0] creates=[] pre=[xmm5->xmm0]  => 0f28c5c3
+
+--- codegen: quadwords ---
+block #0:
+  jmp uses=[] creates=[] pre=[xmm1->xmm2, xmm0->xmm1]  => 0f28d10f28c8
+block #1:
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f0592000000
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => f30f6f1d9a000000
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm4]  => 660fefe4
+  add uses=[xmm5, xmm2] creates=[xmm5] pre=[xmm1->xmm5]  => 0f28e9660fd4ea
+  xor uses=[xmm6, xmm5] creates=[xmm6] pre=[xmm1->xmm6]  => 0f28f1660feff5
+  xor uses=[xmm7, xmm5] creates=[xmm7] pre=[xmm2->xmm7]  => 0f28fa660feffd
+  and uses=[xmm6, xmm7] creates=[xmm6]  => 660fdbf7
+  cmp_igt uses=[xmm4, xmm6] creates=[xmm4]  => 660f3837e6
+  imm uses=[] creates=[-]  => 
+  shr uses=[xmm6, -] creates=[xmm6] pre=[xmm1->xmm6]  => 0f28f1660f73d63f
+  xor uses=[xmm6, xmm0] creates=[xmm6]  => 660feff0
+  sub uses=[xmm6, xmm0] creates=[xmm6]  => 660ffbf0
+  xor uses=[xmm6, xmm3] creates=[xmm6]  => 660feff3
+  select uses=[xmm6, xmm5, xmm4] creates=[xmm5]  => 0f28c4660f3810ee
+  sub uses=[xmm0, xmm2] creates=[xmm0] pre=[xmm1->xmm0]  => 0f28c1660ffbc2
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm3]  => f30f6f1d5d000000
+  xor uses=[xmm1, xmm3] creates=[xmm1]  => 660fefcb
+  xor uses=[xmm2, xmm3] creates=[xmm2]  => 660fefd3
+  cmp_igt uses=[xmm2, xmm1] creates=[xmm2]  => 660f3837d1
+  x86_maskandn uses=[xmm2, xmm0] creates=[xmm2]  => 660fdfd0
+  ret uses=[xmm0] creates=[] pre=[xmm5->xmm0]  => 0f28c5c3

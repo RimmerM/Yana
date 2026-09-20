@@ -1543,20 +1543,28 @@ static void genLoadConstant(AsmModule& to, MachineLocation dest, RegisterClassId
  * instruction writing an xmm destination zeroes the upper half of the register, so `vpxor xmm, xmm,
  * xmm` clears the whole ymm and is one byte shorter than the wide spelling.
  *
- * **And a 256-bit destination is VEX whatever `vectorClassNeedsVex` answers**, which is the one line
- * here that is not the paragraph above. That function's own note states the contract - "those are
- * all ClassXmm128 at the narrow width and ClassYmm256 at the wide one, and the wide one is VEX
- * whatever this answers" - and this is the single place a `ClassYmm256` is put to it, because a
+ * **And a 256- or 512-bit destination is VEX whatever `vectorClassNeedsVex` answers**, which is the
+ * one line here that is not the paragraph above. That function's own note states the contract -
+ * "those are all ClassXmm128 at the narrow width and ClassYmm256 at the wide one, and the wide one
+ * is VEX whatever this answers" - and this is the single place a wide class is put to it, because a
  * recipe carries the value's real class rather than a form's. Its first line answers `false` for
- * that class, so what came out was a **legacy** `pxor`, and a legacy SSE instruction *preserves* the
- * upper half of the register it writes: the accumulator's lanes 0-3 were cleared and lanes 4-7 kept
+ * those classes, so what came out was a **legacy** `pxor`, and a legacy SSE instruction *preserves*
+ * the bits above the low sixteen bytes: the accumulator's lanes 0-3 were cleared and lanes 4-7 kept
  * whatever the last vector in that register had left there. `test/bench/programs/VecInt.yana` is
  * where it showed - see findings.md §108, and `test/resolve/VecZeroRemat.yana`, which is the
  * fixture.
+ *
+ * **`ClassZmm512` was the same bug a second time** and arrived with the natural width of §1.2's
+ * stage 2, which added the class and not this line. A 512-bit zero therefore rematerialized as a
+ * 128-bit `pxor` and kept lanes 8-31 of whatever had last been in the register; three quarters of
+ * every lane was wrong, and only in a function under enough register pressure to rematerialize.
+ * `VecBits.Avx512.yana`'s trailing-zero count is what found it, `-1 - x` needing a zero beside a
+ * pooled constant. A register past fifteen has no VEX spelling and `writeVectorPrefix` re-spells it
+ * in EVEX, which zeroes the upper bits exactly as VEX does.
  */
 static void genVectorZero(AsmModule& to, MachineLocation dest, RegisterClassId regClass) {
     auto at = reg(dest, regClass);
-    auto vex = regClass == ClassYmm256 || vectorClassNeedsVex(regClass);
+    auto vex = regClass == ClassYmm256 || regClass == ClassZmm512 || vectorClassNeedsVex(regClass);
 
     auto prefix = InstPrefix {
         .kind = vex ? PrefixEncoding::Vex : PrefixEncoding::Legacy,
