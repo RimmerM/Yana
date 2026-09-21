@@ -534,8 +534,9 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
          * values** (D17, 2026-09-07). A `Fun` is one type whether the value of it captured nothing,
          * captured borrows into a frame, or owns a heap-placed environment block; the type cannot
          * tell them apart, so what it says is the conservative one - there may be something to
-         * release. The environment word carries a tag bit that says which, and the teardown tests it
-         * (`resolve_ssa/lower/fun.cpp`).
+         * release. Which of the three a *value* is, the teardown finds out from the pair: the
+         * environment word for whether there is one at all, and four bytes in front of the code
+         * word for what releases it (`resolve_ssa/lower/fun.cpp`).
          *
          * What keeps that from being a cost on every callback is that the question is asked of the
          * **occurrence** wherever a drop is placed: a value carrying `Shapes::closure` holds
@@ -563,7 +564,7 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
 
         // An erased iterator object is the same two words a closure is - the step and the block it
         // steps - so what it owes is what a closure owes: the block, where the value owns one, which
-        // is the tag bit's question and not the type's. See type.def's `Iter` row.
+        // is the pair's question and not the type's. See type.def's `Iter` row.
         case Type::Iter:
             return Ownership { false, true, false, TeardownKind::Derived, TeardownKind::Derived };
 

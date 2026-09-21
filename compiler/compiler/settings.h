@@ -725,7 +725,7 @@ struct CompileSettings {
      */
     bool ownershipRanges = false;
 
-    /// `-resolver legacy|ownership`, and implied by `-mode om` and `-mode os` - see ResolverStage.
+    /// `-resolver legacy|ownership`, and implied by `-mode mir` and `-mode ssa` - see ResolverStage.
     ResolverStage resolver = ResolverStage::Legacy;
 
     /*

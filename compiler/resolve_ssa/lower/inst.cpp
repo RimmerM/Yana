@@ -828,8 +828,8 @@ LowerBlock* Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> addre
     if(!childDrop && !childReclaim) return &block;
 
     /*
-     * A **function value**, whose release is a call to the one function that tests the tag - D17,
-     * and `fun.cpp` is where the representation is written down.
+     * A **function value**, whose release is a call to the one function that asks the pair's two
+     * questions - D17, and `fun.cpp` is where the representation is written down.
      *
      * Emitted once when *either* half is asked, rather than under one of them - which is sound only
      * because `funTeardown` always runs both: the captures' full `Drop`-and-`Reclaim` walk and an

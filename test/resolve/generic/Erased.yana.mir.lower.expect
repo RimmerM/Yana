@@ -1,13 +1,13 @@
 mut @trace = [0, 0, 0, 0]
 @image$base = []
-@environment(present(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(Vessel) = [8, 0, 0, 13, 0, 0, 0, 0]
-@witness(Describe(Vessel.size)) = [0, 0, 0, 0]
-@environment(present(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(Guard) = [8, 0, 0, 14, 0, 0, 0, 0]
-@witness(Describe(Guard.size)) = [0, 0, 0, 0]
+@environment(present(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Vessel), slot 4: @witness(Describe(Vessel.size))}
+@descriptor(Vessel) = [8, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
+@witness(Describe(Vessel.size)) = [0, 0, 0, 0] {slot 0: thunk(Vessel.size)}
+@environment(present(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Guard), slot 4: @witness(Describe(Guard.size))}
+@descriptor(Guard) = [8, 0, 0, 14, 0, 0, 0, 0] {slot 4: teardown(Guard)}
+@witness(Describe(Guard.size)) = [0, 0, 0, 0] {slot 0: thunk(Guard.size)}
 @environment(capacity'2(4)) = [4, 0, 0, 0]
-@environment(twice(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@environment(twice(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Guard), slot 8: thunk(grow)}
 
 Guard.drop<complex>(%v_0: I32, %v_1: I32) {
   b_2 {

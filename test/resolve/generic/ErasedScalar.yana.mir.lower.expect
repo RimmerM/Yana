@@ -1,8 +1,8 @@
 @image$base = []
-@environment(twiceMark(I32)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(I32) = [4, 0, 0, 13, 0, 0, 0, 0]
-@witness(Marked(I32.mark)) = [0, 0, 0, 0]
-@environment(pick(I32)) = [0, 0, 0, 0]
+@environment(twiceMark(I32)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(I32), slot 4: @witness(Marked(I32.mark))}
+@descriptor(I32) = [4, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
+@witness(Marked(I32.mark)) = [0, 0, 0, 0] {slot 0: thunk(I32.mark)}
+@environment(pick(I32)) = [0, 0, 0, 0] {slot 0: @descriptor(I32)}
 
 I32.mark<complex>(%x: I32): I32 {
   b_0 {

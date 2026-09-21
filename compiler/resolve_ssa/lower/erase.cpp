@@ -19,7 +19,6 @@ namespace {
  * What is deliberately *not* here is any question about which slot means what. That is the
  * numbering's, `freezeSchema` is where it is decided, and this file indexes it.
  */
-constexpr U32 kSlotBytes = 4;
 
 /*
  * A slot that holds an address holds `target - &image$base` as a **signed 32-bit** number.
@@ -38,6 +37,10 @@ constexpr U32 kSlotBytes = 4;
  * What it buys besides the bytes is that `target - &anchor` is known when the image is *assembled* -
  * so these slots never reach `applyDataRelocations`, and identical bytes serve an ELF executable at
  * a fixed address and a JIT buffer anywhere.
+ *
+ * `kSlotBytes` is in `internal.h` rather than here because `fun.cpp` writes a cell of exactly this
+ * encoding that is in no table - the four bytes in front of a lifted lambda. The argument is here;
+ * the number is where both files can read it.
  */
 
 /*
@@ -304,9 +307,9 @@ LowerPtr<LowerGlobal> Lowering::imageAnchor() {
  * One address inside a compiler-built table.
  *
  * **Anchor-relative**, so the cell is four bytes rather than a pointer and is final when the image
- * is assembled - see `kSlotBytes`, where the encoding is argued. `LowerDataRelocation` carries both
- * shapes; the absolute one is for a pointer a *source* constant holds, which is the program's own
- * pointer type and cannot be written until the image is mapped.
+ * is assembled - see the note at the top of this file, where the encoding is argued.
+ * `LowerDataRelocation` carries both shapes; the absolute one is for a pointer a *source* constant
+ * holds, which is the program's own pointer type and cannot be written until the image is mapped.
  */
 void Lowering::addPointer(LowerGlobal& table, U32 offset, LowerPtr<LowerFunction> function,
                           LowerPtr<LowerGlobal> global) {

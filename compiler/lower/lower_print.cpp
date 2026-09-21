@@ -568,6 +568,52 @@ void printGlobal(Net::Writer& writer, Context& context, LowerBase base, LowerGlo
     }
 
     writer.writeByte(']');
+
+    /*
+     * The addresses the bytes do not hold, which for a compiler-built table is most of what it
+     * says.
+     *
+     * A relocation site reads as zeroes until the image is assembled, so a table naming the wrong
+     * function and one naming the right one are the same bytes - which is to say no golden could
+     * tell a descriptor's teardown slot apart from an empty one, or a closure header naming a
+     * release from one that names nothing. Shown rather than round-tripped: the text format describes
+     * hand-written IR and has no syntax for a relocation, so this is a reading of the module and
+     * not a spelling of it.
+     *
+     * `slot` is four anchor-relative bytes and `ptr` is an absolute pointer - see
+     * LowerDataRelocation, where the two encodings are argued. A block target has no name outside
+     * the function that holds it, so a jump table's cells say which offsets are filled and nothing
+     * more.
+     */
+    if(!global.relocations.size()) return;
+
+    writer.writeString(" {"_v);
+    Size written = 0;
+
+    for(auto relocation: global.relocations.contents(base)) {
+        if(written++) writer.writeString(", "_v);
+
+        writer.writeString(relocation.anchorRelative ? "slot "_v : "ptr "_v);
+        printInt(writer, relocation.offset);
+        writer.writeString(": "_v);
+
+        if(relocation.function) {
+            writer.writeString(context.findName(base[relocation.function]->name));
+        } else if(relocation.global) {
+            writer.writeByte('@');
+            writer.writeString(context.findName(base[relocation.global]->name));
+        } else {
+            writer.writeString("<block>"_v);
+        }
+
+        if(relocation.anchor) {
+            writer.writeString(" - @"_v);
+            writer.writeString(context.findName(base[relocation.anchor]->name));
+        }
+
+    }
+
+    writer.writeByte('}');
 }
 
 void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst& inst, PrintContext& print) {

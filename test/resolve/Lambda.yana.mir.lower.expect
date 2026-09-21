@@ -1,4 +1,5 @@
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+@image$base = []
 
 double<complex>(%x: I32): I32 {
   b_0 {
@@ -74,6 +75,7 @@ main<complex>(): I32 {
   }
 }
 
+@header(main.lambda) = [0, 0, 0, 0]
 main.lambda<complex>(%main.lambda.env: Ptr, %x: I32): I32 {
   b_0 {
     %v_1 = add %x, 1: I32
@@ -81,6 +83,7 @@ main.lambda<complex>(%main.lambda.env: Ptr, %x: I32): I32 {
   }
 }
 
+@header(main.lambda'3) = [0, 0, 0, 0]
 main.lambda'3<complex>(%main.lambda'3.env: Ptr, %x: I32): I32 {
   b_0 {
     %v_1 = add %x, 3: I32
@@ -88,6 +91,7 @@ main.lambda'3<complex>(%main.lambda'3.env: Ptr, %x: I32): I32 {
   }
 }
 
+@header(main.lambda'4) = [0, 0, 0, 0]
 main.lambda'4<complex>(%main.lambda'4.env: Ptr, %x: I32): I32 {
   b_0 {
     %v_1 = imul %x, 3: I32
@@ -95,6 +99,7 @@ main.lambda'4<complex>(%main.lambda'4.env: Ptr, %x: I32): I32 {
   }
 }
 
+@header(main.lambda'5) = [0, 0, 0, 0]
 main.lambda'5<complex>(%main.lambda'5.env: Ptr, %x: I32): I32 {
   b_0 {
     %v_1 = sub %x, 1: I32
@@ -102,6 +107,7 @@ main.lambda'5<complex>(%main.lambda'5.env: Ptr, %x: I32): I32 {
   }
 }
 
+@header(main.lambda'6) = [0, 0, 0, 0]
 main.lambda'6<complex>(%main.lambda'6.env: Ptr, %x: I32): I32 {
   b_0 {
     %v_1 = add %x, 10: I32
@@ -109,6 +115,7 @@ main.lambda'6<complex>(%main.lambda'6.env: Ptr, %x: I32): I32 {
   }
 }
 
+@header(main.lambda'7) = [0, 0, 0, 0]
 main.lambda'7<complex>(%main.lambda'7.env: Ptr, %t: Ptr) {
   b_0 {
     %v_1 = loads %t, 4: I32
@@ -195,20 +202,27 @@ teardown(fun)<complex>(%v_0: Ptr) {
   b_1 {
     %v_2 = add %v_0, 8: Ptr
     %v_3 = load %v_2, 8: I64
-    %v_4 = and %v_3, 1: I64
-    %v_5 = cmp_eq %v_4, 0: I32
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    %v_8 = bitcast %v_3: Ptr
-    %v_9 = sub %v_8, 1: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    call_complex %v_10, %v_9
-    jmp b_6
+    %v_4 = cmp_eq %v_3, 0: I32
+    je %v_4, b_5, b_6
   }
 
   b_6 {
+    %v_7 = load %v_0, 8: Ptr
+    %v_8 = sub %v_7, 4: Ptr
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = sext %v_9: I64
+    %v_11 = cmp_eq %v_10, 0: I32
+    je %v_11, b_5, b_12
+  }
+
+  b_12 {
+    %v_13 = add %v_10, @image$base: Ptr
+    %v_14 = bitcast %v_3: Ptr
+    call_complex %v_13, %v_14
+    jmp b_5
+  }
+
+  b_5 {
     ret 
   }
 }

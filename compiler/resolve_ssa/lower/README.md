@@ -13,10 +13,22 @@ the same two questions with `JsRep` instead of `Repr`, so it arrives as a siblin
 and not as a set of switches inside it. It is also what makes an accidental dependency visible: a
 file in the parent that needs `lower/manifest.h` is asking a native question from the
 target-independent half, and its include says so. Two do today - `convert.cpp` asks
-`isReferenceValue`, `isAddressOnly` and `arrivesAsAddress` to choose a value's convention, and
-`verify.cpp` asks `arrivesAsAddress` and `manifestNative` to check a call's operands against the
-signature - and both are the same open question Analysis-IR.md §13 asks, of whether a convention is
-decidable before a target is chosen.
+`isReferenceValue`, `isAddressOnly` and `arrivesAsAddress` to choose a value's convention at fifteen
+sites, and `verify.cpp` asks `arrivesAsAddress` and `manifestNative` at four to check a call's
+operands against the signature.
+
+**That is two questions and not one, which this file used to say it was.** The wider one is
+Analysis-IR.md §13's - whether a convention is decidable before a target is chosen - and it is a
+change to what a call hands over. The narrower one is that most of those nineteen sites are not
+asking a machine anything: all three predicates reduce to `Manifestation::inMemory`, and
+`isReferenceValue` answers from the contract alone, above that line, in nearly every case those
+sites' comments motivate - `Origin::Slot` for a published loan, `Unique` for an exclusive one. The
+one that genuinely consults the table is `valueOccurrenceOf`, whose own comment concedes the guard
+is a pessimization check rather than a correctness one, and whose cost could be rehomed: `run`
+builds every signature from `manifestNative` over the **declared** occurrence, before any body is
+lowered, so the ABI never depended on what the conversion decided about an entry block argument.
+`Analysis-IR-JS.md` §1.3.1 is the survey and writes out the contract-only predicate that would
+replace them.
 
 ## Records are address-only, and that is the whole calling convention
 
@@ -597,39 +609,73 @@ It is not trivially copyable, and that is a different question from the teardown
 an exclusive loan of a capture, so duplicating the bytes would be a second exclusive capability over
 one object. Its uses are moves.
 
-### The environment word's tag bit, and the header behind it - D17
+### The cell in front of the code, and the two questions a drop asks - D17
 
 The second word is one of three things and a holder of the pair may not ask which: **null**, the
 address of a **local of the frame that built the closure**, or the address of a **heap block this
 file allocates**. `resolve_mir` decides which from the position the lambda was written at (its README
 has that half); everything below is the representation.
 
-A block is `[teardown][captures]` - `closureHeaderBytes` is the offset, one pointer rounded up to
-whatever the environment record's alignment wants, so a `Vec` capture is not loaded misaligned. Its
-address is stored in the pair **with bit zero set**, and that bit is the whole of how a drop at a
-site that cannot name the lambda tells a block from a frame address. The alternative was
-`known.def`'s `isHeapAddress`, and what ruled it out is that the default allocator does not fill that
-role - `resolve_mir/README.md`'s closure section is where the argument is.
+A block is the environment record and nothing else. What releases it is named by **four bytes of
+prefix data in front of the lifted function** - `LowerFunction::prefix`, which a code generator
+places immediately before the entry point, so the cell is at `[code - kSlotBytes]`. It holds
+`teardown - &image$base` the way every address cell in `erase.cpp` does, and **a zero cell is a
+lambda that owes nothing**. No teardown is ever at offset zero, because the anchor is never where a
+function can be - after all the code on the x64 backend, in a data section or at address zero under
+LLVM, behind `.text.entry` in a raw image.
 
-Three functions, all in `fun.cpp`:
+So a drop asks two questions, and they are different questions:
 
-- **`emitClosureBlock`** - `allocateHeap`, the header store, the zeroing rule `createBox` states
-  (this is its fourth site), a copy of the environment record the MIR relocated into this value, and
-  the `or $1`. Called from `emitFunValue` and nowhere else.
-- **`closureBlockTeardown`** - one per environment record: run `teardownHalves` over the record at
-  `closureHeaderBytes`, then `freeHeap` the block. It takes the *untagged block*, so the header skip
-  is in the file that knows the offset.
-- **`funTeardown`** - one for the whole program, and what every drop of a `Fun` calls: load the
-  word, `and $1`, branch, and on the taken edge subtract the tag, load the header and call it across
-  `kDefaultCallType` for `emitErasedTeardown`'s reason. The word is loaded twice, as an `I64` for the
-  test and as a `Ptr` inside the arm that needs an address, because this tier types a pointer and a
-  value cannot be both; the second load is on the path that is about to make an indirect call anyway.
+- **Does this value hold an environment at all?** That is the second word. Null is a lambda that
+  captured nothing, a plain function named as a value, and the empty pair a boxed iterator member
+  holds before its region is entered - `convert.cpp`'s `stepStoreEmptyBox`, which builds it out of
+  the *same* shim a filled one points at, so the code word cannot be asked here.
+- **Does that lambda owe anything?** That is the cell, and it is what tells a frame-placed
+  environment from a heap-placed one.
 
-**The call pays nothing at the site.** `code` is called with `env` exactly as the pair holds it, and
-a heap-placed lambda's own entry block adds `funEnvironmentBias` - `closureHeaderBytes - 1`, a
-constant - to its environment parameter once, in `gen.cpp`. The backend folds a constant add into the
-displacement of the load that uses it: `ClosureTeardown.yana`'s `escaping.lambda` is `add %env, 7`
-and a `loads`.
+The order is not a choice. Only a lambda with an environment has a cell - a plain function's thunk
+and a lambda that captured nothing always hold null, so four bytes in front of them would never be
+read - which makes the null test what keeps the read off a function with nothing in front of it, as
+well as what tells an empty box from a filled one. It is also the cheaper test: one load, against
+the cell's two dependent ones.
+
+Four functions, all in `fun.cpp`:
+
+- **`attachClosureHeader`** - the cell, interned on the `LowerFunction` because that is what it is in
+  front of. Called from `emitFunValue` for every lambda with an environment, before the code word is
+  stored: every code word a pair may hold comes through there, so every one the read can reach has
+  its four bytes. The teardown is asked of the *declaration*, not of the site, for the shared-shim
+  reason above.
+- **`emitClosureBlock`** - `allocateHeap` and one copy of the environment record the MIR relocated
+  into this value. No header to reserve, no header to store, no tag to put on the address. The
+  zeroing rule `createBox` states does not apply, for the reason written at the copy.
+- **`closureBlockTeardown`** - one per environment record: `teardownHalves` over the record, then
+  `freeHeap`. It takes the environment word exactly as the pair holds it, so there is no offset here
+  for a drop and a creation to disagree about.
+- **`funTeardown`** - one for the whole program, and what every drop of a `Fun` calls: test the
+  environment word for null, then load the cell, test it for zero, and on the taken edge add the
+  anchor back and call across `kDefaultCallType` for `emitErasedTeardown`'s reason. The
+  environment word is loaded twice, as an `I64` for the test and as a `Ptr` inside the arm that needs
+  an address, because this tier types a pointer and a value cannot be both; `opt` forwards the second
+  out of the first in every golden here.
+
+**Nothing is paid per closure.** Creating one is the allocation and the copy; `code` is called with
+`env` exactly as the pair holds it and the callee reads its captures straight off its parameter.
+`ClosureTeardown.yana`'s `escaping` allocates four bytes.
+
+> **Built, 2026-09-21.** This replaced D17's first form, which put the answer in the *value*: the
+> block was `[teardown][captures]` and the pair carried its address with bit zero set. That cost
+> eight bytes of header per closure - sixteen where a `Vec` capture raised the record's alignment -
+> plus a store and an `or` at every creation and a `funEnvironmentBias` `add` in the callee's entry
+> block to skip the header again, all for a fact that is constant per *lambda*. `known.def`'s
+> `isHeapAddress` was the alternative ruled out before either, because the default allocator does not
+> fill that role. What the tag did get right is that a drop finding nothing to do should not make a
+> call, which the shipping stage's always-callable header slot does; the zero cell keeps that. A
+> first version of this form also set bit zero of the cell to mark a teardown as present, which
+> needed a relocation addend in both backends and even function offsets; testing for zero needs
+> neither, because no teardown is at the anchor.
+> Over `test/resolve`'s `*.mir.lower.expect`: **114734 -> 114599 instructions** and 22346 -> 22367
+> blocks, the extra block being `teardown(fun)`'s second test, once per program.
 
 **A frame closure's drop is not emitted at all**, so there is nothing here to fold it away.
 `mir::ownershipOfOccurrence` answers "nothing to release" for a value carrying `Shapes::closure` or
@@ -637,15 +683,15 @@ and a `loads`.
 function named as a value. `ClosureTeardown.yana`'s `direct` and `either` have no teardown anywhere
 in them.
 
-**An erased iterator object goes through all three of these unchanged**, and that is the whole of
-what `iter(T)` costs the lowering - `doc/inflight/Design-Iterator-Objects.md` §3.4, built 2026-09-16.
+**An erased iterator object goes through all of these unchanged**, and that is the whole of what
+`iter(T)` costs the lowering - `doc/inflight/Design-Iterator-Objects.md` §3.4, built 2026-09-16.
 It is the same pair: the code word is the producer's step shim (`f$erased` or `f$erased.heap`, which
-is which being the position's answer rather than the lambda's), the environment word is the state
-record, and `emitClosureBlock`'s `[teardown][captures]` header is §3.4's `[teardown][payload]`. So
-`funTeardown` releases one, `funEnvironmentBias` biases one, and a frame-placed one owes nothing -
-which needed `holdsNoOwnedEnvironment` to read `mir::Type::Iter` beside `Type::Fun`, and was one
-call per scope exit until it did. `manifest.h`'s shape assertion takes the kind for the same reason:
-the closure shape names a position a pair already has.
+is which being the position's answer rather than the lambda's), and the environment word is the state
+record. The two shims are two functions, which is what lets a per-lambda cell answer a question the
+position decides. So `funTeardown` releases one and a frame-placed one owes nothing - which needed
+`holdsNoOwnedEnvironment` to read `mir::Type::Iter` beside `Type::Fun`, and was one call per scope
+exit until it did. `manifest.h`'s shape assertion takes the kind for the same reason: the closure
+shape names a position a pair already has.
 
 **What is not built**: an inliner that removes the allocation when a heap-placed closure is built and
 consumed in one block. The call could be devirtualized by store forwarding, but `allocateHeap` and
@@ -850,7 +896,7 @@ teardown while still emitting the real one - the IR text matched and the answer 
 ## Native only
 
 JavaScript is deliberately not a consumer of `gen.cpp`.
-[`Analysis-IR-JS.md`](../../doc/proposal/Analysis-IR-JS.md)'s JSIR is built against SSA from the
+[`Analysis-IR-JS.md`](../../../doc/proposal/Analysis-IR-JS.md)'s JSIR is built against SSA from the
 start rather than by teaching this walk a second target, which is how the current JS backend acquired
 representation questions of its own. `checkSettings` refuses `-resolver ownership` on a JS build
 rather than quietly producing a program by the other stage.

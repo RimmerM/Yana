@@ -4,6 +4,7 @@ mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
+@image$base = []
 
 Mark.drop<complex>(%v_0: I32) {
   b_1 {
@@ -833,91 +834,82 @@ walk$step<complex>(%$self: Ptr, %$resume: I32, %$cancel: I32): I32 {
     store %v_3, %v_25, 4
     %v_26 = alloca 92, 8: Ptr
     call_complex walk$new, %v_26, %v_20
-    %v_27 = call_complex allocateHeap, 104: Ptr
-    store %v_27, closure(walk.Iter), 8
-    %v_28 = add %v_27, 8: Ptr
-    copy %v_28, %v_26, 92
-    %v_29 = or %v_27, 1: Ptr
+    %v_27 = call_complex allocateHeap, 96: Ptr
+    copy %v_27, %v_26, 92
     store %$self, walk$erased.step, 8
-    %v_30 = add %$self, 8: Ptr
-    store %v_30, %v_29, 8
-    %v_31 = add %$self, 16: Ptr
-    store %v_31, 0, 8
-    %v_32 = add %$self, 64: Ptr
-    store %v_32, 11, 8
+    %v_28 = add %$self, 8: Ptr
+    store %v_28, %v_27, 8
+    %v_29 = add %$self, 16: Ptr
+    store %v_29, 0, 8
+    %v_30 = add %$self, 64: Ptr
+    store %v_30, 11, 8
     store %v_4, 5, 4
     ret 1
   }
 
-  b_33 {
-    %v_34 = loads %v_3, 4: I32
-    %v_35 = add %$self, 84: Ptr
-    store %v_35, %v_34, 4
+  b_31 {
+    %v_32 = loads %v_3, 4: I32
+    %v_33 = add %$self, 84: Ptr
+    store %v_33, %v_32, 4
     store %v_4, 2, 4
     ret 1
   }
 
   b_8 {
-    %v_36 = add %$self, 56: Ptr
-    %v_37 = load %v_36, 8: Ptr
-    %v_38 = alloca 92, 8: Ptr
-    call_complex walk$new, %v_38, %v_37
-    %v_39 = cmp_neq %$resume, 0: I32
-    je %v_39, b_40, b_41
+    %v_34 = add %$self, 56: Ptr
+    %v_35 = load %v_34, 8: Ptr
+    %v_36 = alloca 92, 8: Ptr
+    call_complex walk$new, %v_36, %v_35
+    %v_37 = cmp_neq %$resume, 0: I32
+    je %v_37, b_38, b_39
   }
 
   b_9 {
     call_complex teardown(fun), %$self
     store %$self, walk$erased.step, 8
-    %v_42 = add %$self, 8: Ptr
-    store %v_42, 0, 8
-    %v_43 = cmp_eq %$resume, 0: I32
-    je %v_43, b_33, b_8
+    %v_40 = add %$self, 8: Ptr
+    store %v_40, 0, 8
+    %v_41 = cmp_eq %$resume, 0: I32
+    je %v_41, b_31, b_8
   }
 
-  b_40 {
+  b_38 {
     %walk$erased.heap = fun walk$erased.heap: Ptr
-    %v_44 = call_complex allocateHeap, 104: Ptr
-    store %v_44, closure(walk.Iter), 8
-    %v_45 = add %v_44, 8: Ptr
-    copy %v_45, %v_38, 92
-    %v_46 = or %v_44, 1: Ptr
-    %v_47 = add %$self, 24: Ptr
-    store %v_47, %walk$erased.heap, 8
-    %v_48 = add %$self, 32: Ptr
-    store %v_48, %v_46, 8
-    %v_49 = call_complex %walk$erased.heap, %v_46, 0, 0: Ptr
-    call_complex teardown(fun), %v_47
-    store %v_47, walk$erased.heap, 8
-    %v_50 = add %$self, 32: Ptr
-    store %v_50, 0, 8
+    %v_42 = call_complex allocateHeap, 96: Ptr
+    copy %v_42, %v_36, 92
+    %v_43 = add %$self, 24: Ptr
+    store %v_43, %walk$erased.heap, 8
+    %v_44 = add %$self, 32: Ptr
+    store %v_44, %v_42, 8
+    %v_45 = call_complex %walk$erased.heap, %v_42, 0, 0: Ptr
+    call_complex teardown(fun), %v_43
+    store %v_43, walk$erased.heap, 8
+    %v_46 = add %$self, 32: Ptr
+    store %v_46, 0, 8
     jmp b_16
   }
 
-  b_41 {
-    %v_51 = call_complex allocateHeap, 104: Ptr
-    store %v_51, closure(walk.Iter), 8
-    %v_52 = add %v_51, 8: Ptr
-    copy %v_52, %v_38, 92
-    %v_53 = or %v_51, 1: Ptr
-    %v_54 = add %$self, 24: Ptr
-    store %v_54, walk$erased.step, 8
-    %v_55 = add %$self, 32: Ptr
-    store %v_55, %v_53, 8
-    %v_56 = add %$self, 40: Ptr
-    store %v_56, 0, 8
-    %v_57 = add %$self, 64: Ptr
-    store %v_57, 13, 8
+  b_39 {
+    %v_47 = call_complex allocateHeap, 96: Ptr
+    copy %v_47, %v_36, 92
+    %v_48 = add %$self, 24: Ptr
+    store %v_48, walk$erased.step, 8
+    %v_49 = add %$self, 32: Ptr
+    store %v_49, %v_47, 8
+    %v_50 = add %$self, 40: Ptr
+    store %v_50, 0, 8
+    %v_51 = add %$self, 64: Ptr
+    store %v_51, 13, 8
     store %v_4, 6, 4
     ret 1
   }
 
   b_10 {
-    %v_58 = add %$self, 24: Ptr
-    call_complex teardown(fun), %v_58
-    store %v_58, walk$erased.step, 8
-    %v_59 = add %$self, 32: Ptr
-    store %v_59, 0, 8
+    %v_52 = add %$self, 24: Ptr
+    call_complex teardown(fun), %v_52
+    store %v_52, walk$erased.step, 8
+    %v_53 = add %$self, 32: Ptr
+    store %v_53, 0, 8
     jmp b_16
   }
 
@@ -1114,91 +1106,82 @@ odds$step<complex>(%$self: Ptr, %$resume: I32, %$cancel: I32): I32 {
     store %v_3, %v_25, 4
     %v_26 = alloca 92, 8: Ptr
     call_complex evens$new, %v_26, %v_20
-    %v_27 = call_complex allocateHeap, 104: Ptr
-    store %v_27, closure(evens.Iter), 8
-    %v_28 = add %v_27, 8: Ptr
-    copy %v_28, %v_26, 92
-    %v_29 = or %v_27, 1: Ptr
+    %v_27 = call_complex allocateHeap, 96: Ptr
+    copy %v_27, %v_26, 92
     store %$self, evens$erased.step, 8
-    %v_30 = add %$self, 8: Ptr
-    store %v_30, %v_29, 8
-    %v_31 = add %$self, 16: Ptr
-    store %v_31, 0, 8
-    %v_32 = add %$self, 64: Ptr
-    store %v_32, 11, 8
+    %v_28 = add %$self, 8: Ptr
+    store %v_28, %v_27, 8
+    %v_29 = add %$self, 16: Ptr
+    store %v_29, 0, 8
+    %v_30 = add %$self, 64: Ptr
+    store %v_30, 11, 8
     store %v_4, 5, 4
     ret 1
   }
 
-  b_33 {
-    %v_34 = loads %v_3, 4: I32
-    %v_35 = add %$self, 84: Ptr
-    store %v_35, %v_34, 4
+  b_31 {
+    %v_32 = loads %v_3, 4: I32
+    %v_33 = add %$self, 84: Ptr
+    store %v_33, %v_32, 4
     store %v_4, 2, 4
     ret 1
   }
 
   b_8 {
-    %v_36 = add %$self, 56: Ptr
-    %v_37 = load %v_36, 8: Ptr
-    %v_38 = alloca 92, 8: Ptr
-    call_complex evens$new, %v_38, %v_37
-    %v_39 = cmp_neq %$resume, 0: I32
-    je %v_39, b_40, b_41
+    %v_34 = add %$self, 56: Ptr
+    %v_35 = load %v_34, 8: Ptr
+    %v_36 = alloca 92, 8: Ptr
+    call_complex evens$new, %v_36, %v_35
+    %v_37 = cmp_neq %$resume, 0: I32
+    je %v_37, b_38, b_39
   }
 
   b_9 {
     call_complex teardown(fun), %$self
     store %$self, evens$erased.step, 8
-    %v_42 = add %$self, 8: Ptr
-    store %v_42, 0, 8
-    %v_43 = cmp_eq %$resume, 0: I32
-    je %v_43, b_33, b_8
+    %v_40 = add %$self, 8: Ptr
+    store %v_40, 0, 8
+    %v_41 = cmp_eq %$resume, 0: I32
+    je %v_41, b_31, b_8
   }
 
-  b_40 {
+  b_38 {
     %evens$erased.heap = fun evens$erased.heap: Ptr
-    %v_44 = call_complex allocateHeap, 104: Ptr
-    store %v_44, closure(evens.Iter), 8
-    %v_45 = add %v_44, 8: Ptr
-    copy %v_45, %v_38, 92
-    %v_46 = or %v_44, 1: Ptr
-    %v_47 = add %$self, 24: Ptr
-    store %v_47, %evens$erased.heap, 8
-    %v_48 = add %$self, 32: Ptr
-    store %v_48, %v_46, 8
-    %v_49 = call_complex %evens$erased.heap, %v_46, 0, 0: Ptr
-    call_complex teardown(fun), %v_47
-    store %v_47, evens$erased.heap, 8
-    %v_50 = add %$self, 32: Ptr
-    store %v_50, 0, 8
+    %v_42 = call_complex allocateHeap, 96: Ptr
+    copy %v_42, %v_36, 92
+    %v_43 = add %$self, 24: Ptr
+    store %v_43, %evens$erased.heap, 8
+    %v_44 = add %$self, 32: Ptr
+    store %v_44, %v_42, 8
+    %v_45 = call_complex %evens$erased.heap, %v_42, 0, 0: Ptr
+    call_complex teardown(fun), %v_43
+    store %v_43, evens$erased.heap, 8
+    %v_46 = add %$self, 32: Ptr
+    store %v_46, 0, 8
     jmp b_16
   }
 
-  b_41 {
-    %v_51 = call_complex allocateHeap, 104: Ptr
-    store %v_51, closure(evens.Iter), 8
-    %v_52 = add %v_51, 8: Ptr
-    copy %v_52, %v_38, 92
-    %v_53 = or %v_51, 1: Ptr
-    %v_54 = add %$self, 24: Ptr
-    store %v_54, evens$erased.step, 8
-    %v_55 = add %$self, 32: Ptr
-    store %v_55, %v_53, 8
-    %v_56 = add %$self, 40: Ptr
-    store %v_56, 0, 8
-    %v_57 = add %$self, 64: Ptr
-    store %v_57, 13, 8
+  b_39 {
+    %v_47 = call_complex allocateHeap, 96: Ptr
+    copy %v_47, %v_36, 92
+    %v_48 = add %$self, 24: Ptr
+    store %v_48, evens$erased.step, 8
+    %v_49 = add %$self, 32: Ptr
+    store %v_49, %v_47, 8
+    %v_50 = add %$self, 40: Ptr
+    store %v_50, 0, 8
+    %v_51 = add %$self, 64: Ptr
+    store %v_51, 13, 8
     store %v_4, 6, 4
     ret 1
   }
 
   b_10 {
-    %v_58 = add %$self, 24: Ptr
-    call_complex teardown(fun), %v_58
-    store %v_58, evens$erased.step, 8
-    %v_59 = add %$self, 32: Ptr
-    store %v_59, 0, 8
+    %v_52 = add %$self, 24: Ptr
+    call_complex teardown(fun), %v_52
+    store %v_52, evens$erased.step, 8
+    %v_53 = add %$self, 32: Ptr
+    store %v_53, 0, 8
     jmp b_16
   }
 
@@ -1389,92 +1372,83 @@ evens$step<complex>(%$self: Ptr, %$resume: I32, %$cancel: I32): I32 {
     store %v_3, %v_25, 4
     %v_26 = alloca 92, 8: Ptr
     call_complex odds$new, %v_26, %v_20
-    %v_27 = call_complex allocateHeap, 104: Ptr
-    store %v_27, closure(odds.Iter), 8
-    %v_28 = add %v_27, 8: Ptr
-    copy %v_28, %v_26, 92
-    %v_29 = or %v_27, 1: Ptr
+    %v_27 = call_complex allocateHeap, 96: Ptr
+    copy %v_27, %v_26, 92
     store %$self, odds$erased.step, 8
-    %v_30 = add %$self, 8: Ptr
-    store %v_30, %v_29, 8
-    %v_31 = add %$self, 16: Ptr
-    store %v_31, 0, 8
-    %v_32 = add %$self, 64: Ptr
-    store %v_32, 11, 8
+    %v_28 = add %$self, 8: Ptr
+    store %v_28, %v_27, 8
+    %v_29 = add %$self, 16: Ptr
+    store %v_29, 0, 8
+    %v_30 = add %$self, 64: Ptr
+    store %v_30, 11, 8
     store %v_4, 5, 4
     ret 1
   }
 
-  b_33 {
-    %v_34 = loads %v_3, 4: I32
-    %v_35 = imul %v_34, 10: I32
-    %v_36 = add %$self, 84: Ptr
-    store %v_36, %v_35, 4
+  b_31 {
+    %v_32 = loads %v_3, 4: I32
+    %v_33 = imul %v_32, 10: I32
+    %v_34 = add %$self, 84: Ptr
+    store %v_34, %v_33, 4
     store %v_4, 2, 4
     ret 1
   }
 
   b_8 {
-    %v_37 = add %$self, 56: Ptr
-    %v_38 = load %v_37, 8: Ptr
-    %v_39 = alloca 92, 8: Ptr
-    call_complex odds$new, %v_39, %v_38
-    %v_40 = cmp_neq %$resume, 0: I32
-    je %v_40, b_41, b_42
+    %v_35 = add %$self, 56: Ptr
+    %v_36 = load %v_35, 8: Ptr
+    %v_37 = alloca 92, 8: Ptr
+    call_complex odds$new, %v_37, %v_36
+    %v_38 = cmp_neq %$resume, 0: I32
+    je %v_38, b_39, b_40
   }
 
   b_9 {
     call_complex teardown(fun), %$self
     store %$self, odds$erased.step, 8
-    %v_43 = add %$self, 8: Ptr
-    store %v_43, 0, 8
-    %v_44 = cmp_eq %$resume, 0: I32
-    je %v_44, b_33, b_8
+    %v_41 = add %$self, 8: Ptr
+    store %v_41, 0, 8
+    %v_42 = cmp_eq %$resume, 0: I32
+    je %v_42, b_31, b_8
   }
 
-  b_41 {
+  b_39 {
     %odds$erased.heap = fun odds$erased.heap: Ptr
-    %v_45 = call_complex allocateHeap, 104: Ptr
-    store %v_45, closure(odds.Iter), 8
-    %v_46 = add %v_45, 8: Ptr
-    copy %v_46, %v_39, 92
-    %v_47 = or %v_45, 1: Ptr
-    %v_48 = add %$self, 24: Ptr
-    store %v_48, %odds$erased.heap, 8
-    %v_49 = add %$self, 32: Ptr
-    store %v_49, %v_47, 8
-    %v_50 = call_complex %odds$erased.heap, %v_47, 0, 0: Ptr
-    call_complex teardown(fun), %v_48
-    store %v_48, odds$erased.heap, 8
-    %v_51 = add %$self, 32: Ptr
-    store %v_51, 0, 8
+    %v_43 = call_complex allocateHeap, 96: Ptr
+    copy %v_43, %v_37, 92
+    %v_44 = add %$self, 24: Ptr
+    store %v_44, %odds$erased.heap, 8
+    %v_45 = add %$self, 32: Ptr
+    store %v_45, %v_43, 8
+    %v_46 = call_complex %odds$erased.heap, %v_43, 0, 0: Ptr
+    call_complex teardown(fun), %v_44
+    store %v_44, odds$erased.heap, 8
+    %v_47 = add %$self, 32: Ptr
+    store %v_47, 0, 8
     jmp b_16
   }
 
-  b_42 {
-    %v_52 = call_complex allocateHeap, 104: Ptr
-    store %v_52, closure(odds.Iter), 8
-    %v_53 = add %v_52, 8: Ptr
-    copy %v_53, %v_39, 92
-    %v_54 = or %v_52, 1: Ptr
-    %v_55 = add %$self, 24: Ptr
-    store %v_55, odds$erased.step, 8
-    %v_56 = add %$self, 32: Ptr
-    store %v_56, %v_54, 8
-    %v_57 = add %$self, 40: Ptr
-    store %v_57, 0, 8
-    %v_58 = add %$self, 64: Ptr
-    store %v_58, 13, 8
+  b_40 {
+    %v_48 = call_complex allocateHeap, 96: Ptr
+    copy %v_48, %v_37, 92
+    %v_49 = add %$self, 24: Ptr
+    store %v_49, odds$erased.step, 8
+    %v_50 = add %$self, 32: Ptr
+    store %v_50, %v_48, 8
+    %v_51 = add %$self, 40: Ptr
+    store %v_51, 0, 8
+    %v_52 = add %$self, 64: Ptr
+    store %v_52, 13, 8
     store %v_4, 6, 4
     ret 1
   }
 
   b_10 {
-    %v_59 = add %$self, 24: Ptr
-    call_complex teardown(fun), %v_59
-    store %v_59, odds$erased.step, 8
-    %v_60 = add %$self, 32: Ptr
-    store %v_60, 0, 8
+    %v_53 = add %$self, 24: Ptr
+    call_complex teardown(fun), %v_53
+    store %v_53, odds$erased.step, 8
+    %v_54 = add %$self, 32: Ptr
+    store %v_54, 0, 8
     jmp b_16
   }
 
@@ -1672,118 +1646,109 @@ marked$step<complex>(%$self: Ptr, %$resume: I32, %$cancel: I32): I32 {
     store %v_3, %v_27, 4
     %v_28 = alloca 96, 8: Ptr
     call_complex marked$new, %v_28, %v_22
-    %v_29 = call_complex allocateHeap, 104: Ptr
-    store %v_29, closure(marked.Iter), 8
-    %v_30 = add %v_29, 8: Ptr
-    copy %v_30, %v_28, 96
-    %v_31 = or %v_29, 1: Ptr
+    %v_29 = call_complex allocateHeap, 96: Ptr
+    copy %v_29, %v_28, 96
     store %$self, marked$erased.step, 8
-    %v_32 = add %$self, 8: Ptr
-    store %v_32, %v_31, 8
-    %v_33 = add %$self, 16: Ptr
-    store %v_33, 0, 8
-    %v_34 = add %$self, 64: Ptr
-    store %v_34, 13, 8
+    %v_30 = add %$self, 8: Ptr
+    store %v_30, %v_29, 8
+    %v_31 = add %$self, 16: Ptr
+    store %v_31, 0, 8
+    %v_32 = add %$self, 64: Ptr
+    store %v_32, 13, 8
     store %v_5, 6, 4
     ret 1
   }
 
-  b_35 {
-    %v_36 = loads %v_3, 4: I32
-    %v_37 = add %$self, 84: Ptr
-    store %v_37, %v_36, 4
+  b_33 {
+    %v_34 = loads %v_3, 4: I32
+    %v_35 = add %$self, 84: Ptr
+    store %v_35, %v_34, 4
     store %v_5, 2, 4
     ret 1
   }
 
   b_9 {
-    %v_38 = cmp_eq %$resume, 0: I32
-    je %v_38, b_39, b_40
+    %v_36 = cmp_eq %$resume, 0: I32
+    je %v_36, b_37, b_38
   }
 
-  b_39 {
-    %v_41 = loads %v_4, 4: I32
-    %v_42 = load %v_4, 4: I32
-    call_complex Mark.drop, %v_42
-    %v_43 = imul %v_41, 100: I32
-    %v_44 = add %$self, 84: Ptr
-    store %v_44, %v_43, 4
+  b_37 {
+    %v_39 = loads %v_4, 4: I32
+    %v_40 = load %v_4, 4: I32
+    call_complex Mark.drop, %v_40
+    %v_41 = imul %v_39, 100: I32
+    %v_42 = add %$self, 84: Ptr
+    store %v_42, %v_41, 4
     store %v_5, 3, 4
     ret 1
   }
 
-  b_40 {
-    %v_45 = load %v_4, 4: I32
-    call_complex Mark.drop, %v_45
+  b_38 {
+    %v_43 = load %v_4, 4: I32
+    call_complex Mark.drop, %v_43
     jmp b_10
   }
 
   b_10 {
-    %v_46 = add %$self, 56: Ptr
-    %v_47 = load %v_46, 8: Ptr
-    %v_48 = alloca 96, 8: Ptr
-    call_complex marked$new, %v_48, %v_47
-    %v_49 = cmp_neq %$resume, 0: I32
-    je %v_49, b_50, b_51
+    %v_44 = add %$self, 56: Ptr
+    %v_45 = load %v_44, 8: Ptr
+    %v_46 = alloca 96, 8: Ptr
+    call_complex marked$new, %v_46, %v_45
+    %v_47 = cmp_neq %$resume, 0: I32
+    je %v_47, b_48, b_49
   }
 
   b_11 {
     call_complex teardown(fun), %$self
     store %$self, marked$erased.step, 8
-    %v_52 = add %$self, 8: Ptr
-    store %v_52, 0, 8
-    %v_53 = loads %v_3, 4: I32
-    %v_54 = loads @made, 4: I32
-    %v_55 = add %v_54, 1: I32
-    store @made, %v_55, 4
-    store %v_4, %v_53, 4
-    %v_56 = cmp_eq %$resume, 0: I32
-    je %v_56, b_35, b_40
+    %v_50 = add %$self, 8: Ptr
+    store %v_50, 0, 8
+    %v_51 = loads %v_3, 4: I32
+    %v_52 = loads @made, 4: I32
+    %v_53 = add %v_52, 1: I32
+    store @made, %v_53, 4
+    store %v_4, %v_51, 4
+    %v_54 = cmp_eq %$resume, 0: I32
+    je %v_54, b_33, b_38
   }
 
-  b_50 {
+  b_48 {
     %marked$erased.heap = fun marked$erased.heap: Ptr
-    %v_57 = call_complex allocateHeap, 104: Ptr
-    store %v_57, closure(marked.Iter), 8
-    %v_58 = add %v_57, 8: Ptr
-    copy %v_58, %v_48, 96
-    %v_59 = or %v_57, 1: Ptr
-    %v_60 = add %$self, 24: Ptr
-    store %v_60, %marked$erased.heap, 8
-    %v_61 = add %$self, 32: Ptr
-    store %v_61, %v_59, 8
-    %v_62 = call_complex %marked$erased.heap, %v_59, 0, 0: Ptr
-    call_complex teardown(fun), %v_60
-    store %v_60, marked$erased.heap, 8
-    %v_63 = add %$self, 32: Ptr
-    store %v_63, 0, 8
+    %v_55 = call_complex allocateHeap, 96: Ptr
+    copy %v_55, %v_46, 96
+    %v_56 = add %$self, 24: Ptr
+    store %v_56, %marked$erased.heap, 8
+    %v_57 = add %$self, 32: Ptr
+    store %v_57, %v_55, 8
+    %v_58 = call_complex %marked$erased.heap, %v_55, 0, 0: Ptr
+    call_complex teardown(fun), %v_56
+    store %v_56, marked$erased.heap, 8
+    %v_59 = add %$self, 32: Ptr
+    store %v_59, 0, 8
     jmp b_18
   }
 
-  b_51 {
-    %v_64 = call_complex allocateHeap, 104: Ptr
-    store %v_64, closure(marked.Iter), 8
-    %v_65 = add %v_64, 8: Ptr
-    copy %v_65, %v_48, 96
-    %v_66 = or %v_64, 1: Ptr
-    %v_67 = add %$self, 24: Ptr
-    store %v_67, marked$erased.step, 8
-    %v_68 = add %$self, 32: Ptr
-    store %v_68, %v_66, 8
-    %v_69 = add %$self, 40: Ptr
-    store %v_69, 0, 8
-    %v_70 = add %$self, 64: Ptr
-    store %v_70, 15, 8
+  b_49 {
+    %v_60 = call_complex allocateHeap, 96: Ptr
+    copy %v_60, %v_46, 96
+    %v_61 = add %$self, 24: Ptr
+    store %v_61, marked$erased.step, 8
+    %v_62 = add %$self, 32: Ptr
+    store %v_62, %v_60, 8
+    %v_63 = add %$self, 40: Ptr
+    store %v_63, 0, 8
+    %v_64 = add %$self, 64: Ptr
+    store %v_64, 15, 8
     store %v_5, 7, 4
     ret 1
   }
 
   b_12 {
-    %v_71 = add %$self, 24: Ptr
-    call_complex teardown(fun), %v_71
-    store %v_71, marked$erased.step, 8
-    %v_72 = add %$self, 32: Ptr
-    store %v_72, 0, 8
+    %v_65 = add %$self, 24: Ptr
+    call_complex teardown(fun), %v_65
+    store %v_65, marked$erased.step, 8
+    %v_66 = add %$self, 32: Ptr
+    store %v_66, 0, 8
     jmp b_18
   }
 
@@ -1906,194 +1871,195 @@ marked$item<complex>(%$self: Ptr, %$at: Ptr): Ptr {
   }
 }
 
+@header(walk$erased.step) = [0, 0, 0, 0] {slot 0: closure(walk.Iter)}
 walk$erased.step<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   b_0 {
-    %v_1 = add %$env, 7: Ptr
-    %v_2 = call_complex walk$step, %v_1, %$sent, %$cancel: I32
-    je %v_2, b_3, b_4
+    %v_1 = call_complex walk$step, %$env, %$sent, %$cancel: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = add %$env, 64: Ptr
+    %v_5 = load %v_4, 8: I64
+    %v_6 = cmp_neq %v_5, 0: I32
+    je %v_6, b_7, b_8
   }
 
   b_3 {
-    %v_5 = add %$env, 71: Ptr
-    %v_6 = load %v_5, 8: I64
-    %v_7 = cmp_neq %v_6, 0: I32
-    je %v_7, b_8, b_9
+    %v_9 = bitcast 0: Ptr
+    ret %v_9
   }
 
-  b_4 {
-    %v_10 = bitcast 0: Ptr
-    ret %v_10
+  b_7 {
+    store %v_4, 0, 8
+    %v_10 = cmp_eq %v_5, 11: I32
+    %v_11 = bitcast %$env: I64
+    %v_12 = select %v_10, %v_11, %v_5: I64
+    %v_13 = cmp_eq %v_5, 13: I32
+    %v_14 = add %$env, 24: Ptr
+    %v_15 = bitcast %v_14: I64
+    %v_16 = select %v_13, %v_15, %v_12: I64
+    %v_17 = or %v_16, 1: I64
+    %v_18 = bitcast %v_17: Ptr
+    ret %v_18
   }
 
   b_8 {
-    store %v_5, 0, 8
-    %v_11 = cmp_eq %v_6, 11: I32
-    %v_12 = bitcast %v_1: I64
-    %v_13 = select %v_11, %v_12, %v_6: I64
-    %v_14 = cmp_eq %v_6, 13: I32
-    %v_15 = add %$env, 31: Ptr
-    %v_16 = bitcast %v_15: I64
-    %v_17 = select %v_14, %v_16, %v_13: I64
-    %v_18 = or %v_17, 1: I64
-    %v_19 = bitcast %v_18: Ptr
+    %v_19 = add %$env, 84: Ptr
     ret %v_19
-  }
-
-  b_9 {
-    %v_20 = add %$env, 91: Ptr
-    ret %v_20
   }
 }
 
+@header(walk$erased.heap) = [0, 0, 0, 0] {slot 0: closure(walk.Iter)}
 walk$erased.heap<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   b_0 {
-    %v_1 = add %$env, 7: Ptr
-    %v_2 = call_complex walk$walk, %v_1, %$sent, %$cancel: Ptr
-    ret %v_2
+    %v_1 = call_complex walk$walk, %$env, %$sent, %$cancel: Ptr
+    ret %v_1
   }
 }
 
+@header(evens$erased.step) = [0, 0, 0, 0] {slot 0: closure(evens.Iter)}
 evens$erased.step<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   b_0 {
-    %v_1 = add %$env, 7: Ptr
-    %v_2 = call_complex evens$step, %v_1, %$sent, %$cancel: I32
-    je %v_2, b_3, b_4
+    %v_1 = call_complex evens$step, %$env, %$sent, %$cancel: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = add %$env, 64: Ptr
+    %v_5 = load %v_4, 8: I64
+    %v_6 = cmp_neq %v_5, 0: I32
+    je %v_6, b_7, b_8
   }
 
   b_3 {
-    %v_5 = add %$env, 71: Ptr
-    %v_6 = load %v_5, 8: I64
-    %v_7 = cmp_neq %v_6, 0: I32
-    je %v_7, b_8, b_9
+    %v_9 = bitcast 0: Ptr
+    ret %v_9
   }
 
-  b_4 {
-    %v_10 = bitcast 0: Ptr
-    ret %v_10
+  b_7 {
+    store %v_4, 0, 8
+    %v_10 = cmp_eq %v_5, 11: I32
+    %v_11 = bitcast %$env: I64
+    %v_12 = select %v_10, %v_11, %v_5: I64
+    %v_13 = cmp_eq %v_5, 13: I32
+    %v_14 = add %$env, 24: Ptr
+    %v_15 = bitcast %v_14: I64
+    %v_16 = select %v_13, %v_15, %v_12: I64
+    %v_17 = or %v_16, 1: I64
+    %v_18 = bitcast %v_17: Ptr
+    ret %v_18
   }
 
   b_8 {
-    store %v_5, 0, 8
-    %v_11 = cmp_eq %v_6, 11: I32
-    %v_12 = bitcast %v_1: I64
-    %v_13 = select %v_11, %v_12, %v_6: I64
-    %v_14 = cmp_eq %v_6, 13: I32
-    %v_15 = add %$env, 31: Ptr
-    %v_16 = bitcast %v_15: I64
-    %v_17 = select %v_14, %v_16, %v_13: I64
-    %v_18 = or %v_17, 1: I64
-    %v_19 = bitcast %v_18: Ptr
+    %v_19 = add %$env, 84: Ptr
     ret %v_19
-  }
-
-  b_9 {
-    %v_20 = add %$env, 91: Ptr
-    ret %v_20
   }
 }
 
+@header(evens$erased.heap) = [0, 0, 0, 0] {slot 0: closure(evens.Iter)}
 evens$erased.heap<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   b_0 {
-    %v_1 = add %$env, 7: Ptr
-    %v_2 = call_complex evens$walk, %v_1, %$sent, %$cancel: Ptr
-    ret %v_2
+    %v_1 = call_complex evens$walk, %$env, %$sent, %$cancel: Ptr
+    ret %v_1
   }
 }
 
+@header(odds$erased.step) = [0, 0, 0, 0] {slot 0: closure(odds.Iter)}
 odds$erased.step<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   b_0 {
-    %v_1 = add %$env, 7: Ptr
-    %v_2 = call_complex odds$step, %v_1, %$sent, %$cancel: I32
-    je %v_2, b_3, b_4
+    %v_1 = call_complex odds$step, %$env, %$sent, %$cancel: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = add %$env, 64: Ptr
+    %v_5 = load %v_4, 8: I64
+    %v_6 = cmp_neq %v_5, 0: I32
+    je %v_6, b_7, b_8
   }
 
   b_3 {
-    %v_5 = add %$env, 71: Ptr
-    %v_6 = load %v_5, 8: I64
-    %v_7 = cmp_neq %v_6, 0: I32
-    je %v_7, b_8, b_9
+    %v_9 = bitcast 0: Ptr
+    ret %v_9
   }
 
-  b_4 {
-    %v_10 = bitcast 0: Ptr
-    ret %v_10
+  b_7 {
+    store %v_4, 0, 8
+    %v_10 = cmp_eq %v_5, 11: I32
+    %v_11 = bitcast %$env: I64
+    %v_12 = select %v_10, %v_11, %v_5: I64
+    %v_13 = cmp_eq %v_5, 13: I32
+    %v_14 = add %$env, 24: Ptr
+    %v_15 = bitcast %v_14: I64
+    %v_16 = select %v_13, %v_15, %v_12: I64
+    %v_17 = or %v_16, 1: I64
+    %v_18 = bitcast %v_17: Ptr
+    ret %v_18
   }
 
   b_8 {
-    store %v_5, 0, 8
-    %v_11 = cmp_eq %v_6, 11: I32
-    %v_12 = bitcast %v_1: I64
-    %v_13 = select %v_11, %v_12, %v_6: I64
-    %v_14 = cmp_eq %v_6, 13: I32
-    %v_15 = add %$env, 31: Ptr
-    %v_16 = bitcast %v_15: I64
-    %v_17 = select %v_14, %v_16, %v_13: I64
-    %v_18 = or %v_17, 1: I64
-    %v_19 = bitcast %v_18: Ptr
+    %v_19 = add %$env, 84: Ptr
     ret %v_19
-  }
-
-  b_9 {
-    %v_20 = add %$env, 91: Ptr
-    ret %v_20
   }
 }
 
+@header(odds$erased.heap) = [0, 0, 0, 0] {slot 0: closure(odds.Iter)}
 odds$erased.heap<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   b_0 {
-    %v_1 = add %$env, 7: Ptr
-    %v_2 = call_complex odds$walk, %v_1, %$sent, %$cancel: Ptr
-    ret %v_2
+    %v_1 = call_complex odds$walk, %$env, %$sent, %$cancel: Ptr
+    ret %v_1
   }
 }
 
+@header(marked$erased.step) = [0, 0, 0, 0] {slot 0: closure(marked.Iter)}
 marked$erased.step<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   b_0 {
-    %v_1 = add %$env, 7: Ptr
-    %v_2 = call_complex marked$step, %v_1, %$sent, %$cancel: I32
-    je %v_2, b_3, b_4
+    %v_1 = call_complex marked$step, %$env, %$sent, %$cancel: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = add %$env, 64: Ptr
+    %v_5 = load %v_4, 8: I64
+    %v_6 = cmp_neq %v_5, 0: I32
+    je %v_6, b_7, b_8
   }
 
   b_3 {
-    %v_5 = add %$env, 71: Ptr
-    %v_6 = load %v_5, 8: I64
-    %v_7 = cmp_neq %v_6, 0: I32
-    je %v_7, b_8, b_9
+    %v_9 = bitcast 0: Ptr
+    ret %v_9
   }
 
-  b_4 {
-    %v_10 = bitcast 0: Ptr
-    ret %v_10
+  b_7 {
+    store %v_4, 0, 8
+    %v_10 = cmp_eq %v_5, 13: I32
+    %v_11 = bitcast %$env: I64
+    %v_12 = select %v_10, %v_11, %v_5: I64
+    %v_13 = cmp_eq %v_5, 15: I32
+    %v_14 = add %$env, 24: Ptr
+    %v_15 = bitcast %v_14: I64
+    %v_16 = select %v_13, %v_15, %v_12: I64
+    %v_17 = or %v_16, 1: I64
+    %v_18 = bitcast %v_17: Ptr
+    ret %v_18
   }
 
   b_8 {
-    store %v_5, 0, 8
-    %v_11 = cmp_eq %v_6, 13: I32
-    %v_12 = bitcast %v_1: I64
-    %v_13 = select %v_11, %v_12, %v_6: I64
-    %v_14 = cmp_eq %v_6, 15: I32
-    %v_15 = add %$env, 31: Ptr
-    %v_16 = bitcast %v_15: I64
-    %v_17 = select %v_14, %v_16, %v_13: I64
-    %v_18 = or %v_17, 1: I64
-    %v_19 = bitcast %v_18: Ptr
+    %v_19 = add %$env, 84: Ptr
     ret %v_19
   }
-
-  b_9 {
-    %v_20 = add %$env, 91: Ptr
-    ret %v_20
-  }
 }
 
+@header(marked$erased.heap) = [0, 0, 0, 0] {slot 0: closure(marked.Iter)}
 marked$erased.heap<complex>(%$env: Ptr, %$sent: I32, %$cancel: I32): Ptr {
   b_0 {
-    %v_1 = add %$env, 7: Ptr
-    %v_2 = call_complex marked$walk, %v_1, %$sent, %$cancel: Ptr
-    ret %v_2
+    %v_1 = call_complex marked$walk, %$env, %$sent, %$cancel: Ptr
+    ret %v_1
   }
 }
 
+@header(walk.cont) = [0, 0, 0, 0]
 walk.cont<complex>(%walk.cont.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %walk.cont.env, 8: Ptr
@@ -2123,6 +2089,7 @@ walk.cont<complex>(%walk.cont.env: Ptr, %$handed: I32): I32 {
   }
 }
 
+@header(walk.cont'2) = [0, 0, 0, 0]
 walk.cont'2<complex>(%walk.cont'2.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %walk.cont'2.env, 8: Ptr
@@ -2152,6 +2119,7 @@ walk.cont'2<complex>(%walk.cont'2.env: Ptr, %$handed: I32): I32 {
   }
 }
 
+@header(evens.cont) = [0, 0, 0, 0]
 evens.cont<complex>(%evens.cont.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %evens.cont.env, 8: Ptr
@@ -2181,6 +2149,7 @@ evens.cont<complex>(%evens.cont.env: Ptr, %$handed: I32): I32 {
   }
 }
 
+@header(evens.cont'2) = [0, 0, 0, 0]
 evens.cont'2<complex>(%evens.cont'2.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %evens.cont'2.env, 8: Ptr
@@ -2210,6 +2179,7 @@ evens.cont'2<complex>(%evens.cont'2.env: Ptr, %$handed: I32): I32 {
   }
 }
 
+@header(odds.cont) = [0, 0, 0, 0]
 odds.cont<complex>(%odds.cont.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %odds.cont.env, 8: Ptr
@@ -2239,6 +2209,7 @@ odds.cont<complex>(%odds.cont.env: Ptr, %$handed: I32): I32 {
   }
 }
 
+@header(odds.cont'2) = [0, 0, 0, 0]
 odds.cont'2<complex>(%odds.cont'2.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %odds.cont'2.env, 8: Ptr
@@ -2268,6 +2239,7 @@ odds.cont'2<complex>(%odds.cont'2.env: Ptr, %$handed: I32): I32 {
   }
 }
 
+@header(marked.cont) = [0, 0, 0, 0]
 marked.cont<complex>(%marked.cont.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %marked.cont.env, 8: Ptr
@@ -2297,6 +2269,7 @@ marked.cont<complex>(%marked.cont.env: Ptr, %$handed: I32): I32 {
   }
 }
 
+@header(marked.cont'2) = [0, 0, 0, 0]
 marked.cont'2<complex>(%marked.cont'2.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %marked.cont'2.env, 8: Ptr
@@ -2326,6 +2299,7 @@ marked.cont'2<complex>(%marked.cont'2.env: Ptr, %$handed: I32): I32 {
   }
 }
 
+@header(loopWalk.cont) = [0, 0, 0, 0]
 loopWalk.cont<complex>(%loopWalk.cont.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %loopWalk.cont.env, 8: Ptr
@@ -2337,6 +2311,7 @@ loopWalk.cont<complex>(%loopWalk.cont.env: Ptr, %$handed: I32): I32 {
   }
 }
 
+@header(loopMutual.cont) = [0, 0, 0, 0]
 loopMutual.cont<complex>(%loopMutual.cont.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %loopMutual.cont.env, 8: Ptr
@@ -2348,6 +2323,7 @@ loopMutual.cont<complex>(%loopMutual.cont.env: Ptr, %$handed: I32): I32 {
   }
 }
 
+@header(loopBroken.cont) = [0, 0, 0, 0]
 loopBroken.cont<complex>(%loopBroken.cont.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %loopBroken.cont.env, 8: Ptr
@@ -2614,32 +2590,9 @@ teardown(Tree)<complex>(%v_0: Ptr) {
   }
 }
 
-teardown(fun)<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = add %v_0, 8: Ptr
-    %v_3 = load %v_2, 8: I64
-    %v_4 = and %v_3, 1: I64
-    %v_5 = cmp_eq %v_4, 0: I32
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    %v_8 = bitcast %v_3: Ptr
-    %v_9 = sub %v_8, 1: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    call_complex %v_10, %v_9
-    jmp b_6
-  }
-
-  b_6 {
-    ret 
-  }
-}
-
 closure(walk.Iter)<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = add %v_0, 8: Ptr
-    call_complex teardown(walk.Iter), %v_2
+    call_complex teardown(walk.Iter), %v_0
     call_complex freeHeap, %v_0
     ret 
   }
@@ -2652,10 +2605,38 @@ teardown(walk.Iter)<complex>(%v_0: Ptr) {
   }
 }
 
-closure(evens.Iter)<complex>(%v_0: Ptr) {
+teardown(fun)<complex>(%v_0: Ptr) {
   b_1 {
     %v_2 = add %v_0, 8: Ptr
-    call_complex teardown(evens.Iter), %v_2
+    %v_3 = load %v_2, 8: I64
+    %v_4 = cmp_eq %v_3, 0: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = load %v_0, 8: Ptr
+    %v_8 = sub %v_7, 4: Ptr
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = sext %v_9: I64
+    %v_11 = cmp_eq %v_10, 0: I32
+    je %v_11, b_5, b_12
+  }
+
+  b_12 {
+    %v_13 = add %v_10, @image$base: Ptr
+    %v_14 = bitcast %v_3: Ptr
+    call_complex %v_13, %v_14
+    jmp b_5
+  }
+
+  b_5 {
+    ret 
+  }
+}
+
+closure(evens.Iter)<complex>(%v_0: Ptr) {
+  b_1 {
+    call_complex teardown(evens.Iter), %v_0
     call_complex freeHeap, %v_0
     ret 
   }
@@ -2670,8 +2651,7 @@ teardown(evens.Iter)<complex>(%v_0: Ptr) {
 
 closure(odds.Iter)<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = add %v_0, 8: Ptr
-    call_complex teardown(odds.Iter), %v_2
+    call_complex teardown(odds.Iter), %v_0
     call_complex freeHeap, %v_0
     ret 
   }
@@ -2686,8 +2666,7 @@ teardown(odds.Iter)<complex>(%v_0: Ptr) {
 
 closure(marked.Iter)<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = add %v_0, 8: Ptr
-    call_complex teardown(marked.Iter), %v_2
+    call_complex teardown(marked.Iter), %v_0
     call_complex freeHeap, %v_0
     ret 
   }

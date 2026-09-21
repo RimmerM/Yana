@@ -2467,17 +2467,17 @@ struct Conversion {
         /*
          * A **boxed** level, which is ended by releasing the box rather than by stepping it - §6.3.
          *
-         * A drop of the pair is the child's whole teardown: `funTeardown` tests the tag bit, calls
-         * the block's header - which is the child record's own `Drop`, which is its step entered
-         * with a cancel request - and hands the block back. So one instruction runs the departure
-         * path of every level below this one, and the recursion is the machine's rather than
-         * something this walk has to spell.
+         * A drop of the pair is the child's whole teardown: `funTeardown` finds the shim's release
+         * through the cell in front of its code, which runs the child record's own `Drop` - its
+         * step entered with a cancel request - and hands the block back. So one instruction runs
+         * the departure path of every level below this one, and the recursion is the machine's
+         * rather than something this walk has to spell.
          *
          * The **empty pair** written back is what makes it idempotent, and it is the same value
          * `f$new` writes: a box is released by the region it was built in *and* by the producer's
          * `return`, exactly as a concrete child is cancelled twice, and a second free is not the
-         * no-op a second cancel is. A pair whose environment word is null has the tag bit clear, so
-         * the drop that meets it does nothing.
+         * no-op a second cancel is. A drop of a pair whose environment word is null does nothing -
+         * `lower/fun.cpp`'s `funTeardown`, where that word is the first of its two questions.
          */
         if(decl()[held]->kind == mir::Type::Iter) {
             if(!shim) return;
@@ -2527,9 +2527,11 @@ struct Conversion {
      * The **empty pair** a boxed member holds while its region has not been entered - §6.3.
      *
      * A function value whose environment word is null, built out of the same shim a real box points
-     * at: the code word is therefore honest and the tag bit is clear, so a drop of it does nothing
-     * and there is no separate flag to say whether the level is there. `emitIterNew` writes the same
-     * value into the field, which is why this is a method rather than two spellings.
+     * at: the code word is therefore honest, and a drop of a pair with no environment does nothing,
+     * so there is no separate flag to say whether the level is there. That the shim is *shared* by
+     * the empty pair and a filled one is why `funTeardown` tests the word at all and not only the
+     * cell in front of the code - D17, `lower/fun.cpp`. `emitIterNew` writes the same value into
+     * the field, which is why this is a method rather than two spellings.
      */
     void stepStoreEmptyBox(LocationId at, U16 field, DeclPtr<mir::Function> shim) {
         auto occurrence = mir::owned(stepBoxType(field));
@@ -5231,11 +5233,11 @@ static bool emitIterNew(Context& context, mir::Program& program, SsaArena& arena
          * A **boxed** level is the empty pair rather than a finished index - §6.3.
          *
          * There is no child record in the field to write an index into: the member is two words, and
-         * what says "this level is not there" is an environment word of null, whose tag bit is
-         * clear. So a cancellation that reaches an unentered box drops a pair that owns nothing,
-         * which is the same "a call that does nothing" the finished index buys one row up. The code
-         * word is the real shim either way, so the pair is never a value that could be stepped into
-         * nothing.
+         * what says "this level is not there" is an environment word of null, which is what a
+         * drop asks first. So a cancellation that reaches an unentered box drops a pair that owns
+         * nothing, which is the same "a call that does nothing" the finished index buys one row up.
+         * The code word is the real shim either way, so the pair is never a value that could be
+         * stepped into nothing.
          */
         /*
          * A **delegating** member is the link rather than the bare pair - §6.3,

@@ -31,49 +31,93 @@ namespace ssa {
  *
  * The second word is one of three things and a holder of the pair may not ask which: null, the
  * address of a **local of the frame that built the closure**, or the address of a **heap block this
- * file allocates**. A block starts with its teardown - the function that releases the captures and
- * hands the block back - and a frame environment has none, so a drop has to tell them apart without
- * reading anything.
+ * file allocates**. Only the third owes anything when the value dies, so a drop at a site that
+ * cannot name the lambda has to tell them apart.
  *
- * **The low bit of the word says so.** A heap block's address is stored with bit zero set; a frame
- * address and null have it clear. The alternative was `known.def`'s `isHeapAddress`, and what ruled
- * it out is not a benchmark: that role is `Presence::Optional` and the *default* allocator does not
- * fill it, so a closure teardown built on it would be unwritable in the build everything uses. The
- * tag also wins on both costs. A drop of a value the compiler can see the lambda of costs nothing at
- * all, because it is not emitted - `mir::ownershipOfOccurrence` answers "nothing to release" for a
- * value carrying `Shapes::closure`, which every frame-placed closure does. And the **call** pays one
- * instruction in the callee and none at the site: `funEnvironmentBias` is added to the environment
- * parameter of a heap-placed lambda once, in its entry block, which is a constant the backend folds
- * into the displacement of the first capture it reads. `code` is called with `env` exactly as the
- * pair holds it.
+ * **The code word already says so, and it costs nothing to carry.** Which of the three a lambda
+ * uses is a compile-time constant per lambda - one lambda expression is one allocation site, and
+ * `resolve_mir` decides it from the position the lambda was written at - so the answer belongs with
+ * the *code*, which is the one word that names the lambda, and not with each value made from it.
+ * Four bytes of **prefix data** in front of the entry point hold it: `attachClosureHeader` writes
+ * them and `funTeardown` reads them back at `[code - kSlotBytes]`. A closure costs no header bytes,
+ * no header store and no tagging at the site that builds it, and nothing at all at the site that
+ * calls it - `code` is called with `env` exactly as the pair holds it.
+ *
+ * **A zero cell is a lambda with nothing to release.** Otherwise the cell holds
+ * `teardown - &image$base`, the way every other address cell in this stage does (`erase.cpp`, where
+ * the encoding is argued), and that difference is never zero: the anchor is placed where no function
+ * can be - after all the code on the x64 backend, in a data section or at address zero under LLVM,
+ * and behind `.text.entry` in a raw image. So a drop of a lambda that owes nothing is a load and a
+ * not-taken branch, which is what the alternative below got right and what the old stage - always a
+ * callable slot, always an indirect call, `teardown$none` where there was nothing to do - did not.
+ *
+ * **The environment word is still asked, first**, because the cell is the *lambda's* answer and a
+ * value of that lambda may hold no environment at all: a lambda that captured nothing, a plain
+ * function named as a value, and the empty pair a boxed iterator member holds before its region is
+ * entered, which `convert.cpp`'s `stepStoreEmptyBox` builds out of the *same* shim a filled one
+ * points at. So `funTeardown` asks two questions - see it, where the order is argued - and they are
+ * the shipping stage's own two with one test more.
+ *
+ * **What this replaced**, and why it is written down: the first form of D17 put the answer in the
+ * *value* instead. The block was `[teardown][captures]` and the pair carried its address with bit
+ * zero set, so a heap closure cost eight bytes of header - sixteen where a `Vec` capture raised the
+ * record's alignment - plus a store and an `or` at every creation, and `funEnvironmentBias` put an
+ * `add` in the callee's entry block to skip the header again. That is a cost per closure *instance*
+ * for a fact that is constant per lambda. The trade it was making is real and is the reason a zero
+ * cell is tested rather than called: a tag on the word is cheaper at a drop that finds nothing to do
+ * than an unconditional call through a header would be. Answering both with one cell in front of
+ * the code is what took the instance cost away without giving that back. `known.def`'s `isHeapAddress` was
+ * the alternative to the tag and was ruled out before either: that role is `Presence::Optional` and
+ * the *default* allocator does not fill it.
+ *
+ * "Immediately in front of the entry point" is a real constraint on the backend rather than a
+ * convention - see `LowerFunction::prefix`, `AsmModule::startFunction`, and LLVM's prefix data,
+ * which is the same thing under the same name.
  */
 
 /*
- * How far past a block's start its environment record is, and what the pair's word carries.
+ * The cell in front of a lifted function - D17, and one of the two ends of it.
  *
- * `kClosureEnvTag` is the bit; the header is one pointer at offset zero and the record follows it,
- * aligned to whatever the record wants - a `Vec` capture asks for sixteen and a block that answered
- * eight would be a misaligned load. Both ends of both numbers are in this file: `emitFunValue`
- * writes them, `closureBlockTeardown` reads the record back out and `funEnvironmentBias` is what the
- * lambda's own entry block adds.
+ * Interned on the *function*, because that is what it is in front of: one lambda is one placement
+ * and one environment record, so the same four bytes answer every value ever made from it, however
+ * many sites make one. `teardown` null is a frame-placed environment, which owes nothing, and the
+ * cell is then zero. A heap-placed one always has one, whether or not its captures owe anything,
+ * because the block has to be handed back.
+ *
+ * **Only a lambda with an environment has a cell**, which is the shipping stage's rule too. Every
+ * code word a pair may hold comes through `emitFunValue`, which calls this before it stores the
+ * word, and `funTeardown` reads `[code - kSlotBytes]` only past its null test - so a plain function's
+ * thunk and a lambda that captured nothing, whose pairs always hold null, would carry four bytes
+ * nothing reads. The one pair with a null word *and* a cell is the empty box, whose shim is
+ * heap-placed. What that makes the null test is load-bearing twice: it is what tells an empty box
+ * from a filled one, and it is what keeps the read off a function with nothing in front of it.
  */
-static constexpr U64 kClosureEnvTag = 1;
+void Lowering::attachClosureHeader(LowerPtr<LowerFunction> code, LowerPtr<LowerFunction> teardown) {
+    auto target = lower[code];
 
-U32 Lowering::closureHeaderBytes(DeclPtr<mir::Type> environment) {
-    auto manifest = manifestNative(layout, mir::owned(environment));
-    auto align = manifest.align > layout.target.pointerAlign ? manifest.align
-                                                             : layout.target.pointerAlign;
-
-    return align;
-}
-
-U32 Lowering::funEnvironmentBias(DeclPtr<mir::Function> lambda) {
-    if(!decl[lambda]->environment ||
-       decl[lambda]->environmentStorage == mir::StorageClass::Frame) {
-        return 0;
+    // Built once. A second call with the same answer would be harmless and a second call with a
+    // different one is a contradiction about a lambda's placement, which `assertTrue` is the right
+    // shape for - see the interning note above.
+    if(target->prefix) {
+        assertTrue((teardown != nullptr) == (lower[target->prefix]->relocations.size() != 0));
+        return;
     }
 
-    return closureHeaderBytes(decl[lambda]->environment) - U32(kClosureEnvTag);
+    auto global = new (to.arena) LowerGlobal(erasedName(
+        String("header(") + context.findName(target->name) + String(")")));
+
+    global->mut = false;
+    global->initialContents = ByteBuffer((Byte*)to.arena.alloc(kSlotBytes), kSlotBytes);
+    set(global->initialContents.ptr, kSlotBytes, 0);
+
+    /*
+     * Not in `to.globalOrder`, which is the whole of what prefix data is: a global in that list is
+     * emitted wherever the module's data goes, and these bytes have exactly one place they may be.
+     * `LowerFunction::prefix` is how they are reached, and the printer prints them there.
+     */
+    if(teardown) addPointer(*global, 0, teardown, nullptr);
+
+    target->prefix = global - lower;
 }
 
 /*
@@ -199,6 +243,28 @@ LowerPtr<LowerValue> Lowering::emitFunValue(LowerBlock& block, DeclPtr<mir::Func
 
     if(!code) return nullptr;
 
+    /*
+     * What this closure owes when it dies, decided here and spent on the code rather than on the
+     * value - D17.
+     *
+     * A heap-placed environment owes its captures and its block and a frame-placed one owes
+     * nothing, and gets a zero cell; a plain function gets no cell at all - see
+     * `attachClosureHeader`. Asked of the **declaration** and not of this site,
+     * because the cell is the code's and the code is shared: `stepStoreEmptyBox` builds a pair out
+     * of a heap-placed shim with a null environment word, so a site with nothing to release is not
+     * a lambda with nothing to release. Which is why the word is tested too - `funTeardown`.
+     */
+    auto heapPlaced = decl[callee]->environment &&
+                      decl[callee]->environmentStorage != mir::StorageClass::Frame;
+
+    LowerPtr<LowerFunction> teardown = nullptr;
+    if(heapPlaced) {
+        teardown = closureBlockTeardown(decl[callee]->environment, source);
+        if(!teardown) return nullptr;
+    }
+
+    if(decl[callee]->environment) attachClosureHeader(code, teardown);
+
     // The byte count as a value rather than a field, which is what `LowerInstAlloca` takes - see
     // `frameStorage`, which allocates every other kind of storage this stage makes.
     auto size = block.addInst(lower, new (to.arena) LowerImm(StringId(), LowerType::Int64,
@@ -227,7 +293,7 @@ LowerPtr<LowerValue> Lowering::emitFunValue(LowerBlock& block, DeclPtr<mir::Func
      */
     LowerPtr<LowerValue> held = environment;
 
-    if(held && decl[callee]->environmentStorage != mir::StorageClass::Frame) {
+    if(held && heapPlaced) {
         held = emitClosureBlock(block, decl[callee]->environment, held, source);
         if(!held) return nullptr;
     }
@@ -238,12 +304,14 @@ LowerPtr<LowerValue> Lowering::emitFunValue(LowerBlock& block, DeclPtr<mir::Func
 }
 
 /*
- * The heap block a closure that leaves its frame carries - its teardown, then the captures.
+ * The heap block a closure that leaves its frame carries - the captures, and nothing in front of
+ * them.
  *
- * Three stores and a call, and the last of them is the tag: the address goes into the pair with bit
- * zero set, which is the whole of how a drop at a site that cannot name this lambda finds the
- * teardown. `environment` is the record the MIR built on the frame and relocated into this value, so
- * the copy below is that relocation - a move of bytes, which is what a relocation is here.
+ * One call and one copy. The block *is* the environment record: what a drop needs to know about it
+ * is in front of the lambda's code rather than at the head of the block, so there is no header to
+ * reserve, no header to store and no tag to put on the address - D17, above. `environment` is the
+ * record the MIR built on the frame and relocated into this value, so the copy below is that
+ * relocation - a move of bytes, which is what a relocation is here.
  */
 LowerPtr<LowerValue> Lowering::emitClosureBlock(LowerBlock& block, DeclPtr<mir::Type> environment,
                                                 LowerPtr<LowerValue> from, LocationId source) {
@@ -251,8 +319,6 @@ LowerPtr<LowerValue> Lowering::emitClosureBlock(LowerBlock& block, DeclPtr<mir::
     if(!callee) return nullptr;
 
     auto manifest = manifestNative(layout, mir::owned(environment));
-    auto header = closureHeaderBytes(environment);
-    auto bytes = header + strideOf(manifest);
 
     auto name = block.addInst(lower, new (to.arena) LowerInstFun(StringId(), callee));
 
@@ -260,22 +326,13 @@ LowerPtr<LowerValue> Lowering::emitClosureBlock(LowerBlock& block, DeclPtr<mir::
                           [&](LowerInstCall* built) {
         new (built->created().ptr) LowerValue(built, LowerType::Pointer, StringId());
         built->used()[0] = ((LowerInstSingle*)name)->created().ptr - lower;
-        built->used()[1] = immediate(block, LowerType::Int64, U64(bytes));
+        built->used()[1] = immediate(block, LowerType::Int64, U64(strideOf(manifest)));
     });
 
     auto address = allocated->created().ptr - lower;
 
-    // The teardown, at offset zero - the one word a holder of the pair can reach without knowing
-    // what was captured, which is the whole reason the block has a header at all.
-    auto teardown = closureBlockTeardown(environment, source);
-    auto pointer = block.addInst(lower, new (to.arena) LowerInstFun(lower[teardown]->name,
-                                                                    teardown));
-
-    block.addInst(lower, new (to.arena) LowerInstStore(
-        address, ((LowerInstSingle*)pointer)->created().ptr - lower, layout.target.pointerSize));
-
     /*
-     * And the captures, moved in - **not** zeroed first, which is why this is not a fourth statement
+     * The captures, moved in - **not** zeroed first, which is why this is not a fourth statement
      * of `createBox`'s rule (`inst.cpp`'s note, and the README's "all three allocation sites").
      *
      * The rule is for a block whose fields are written one at a time, where whatever `allocateHeap`
@@ -284,29 +341,24 @@ LowerPtr<LowerValue> Lowering::emitClosureBlock(LowerBlock& block, DeclPtr<mir::
      * zero-fill ahead of it would write bytes the copy immediately overwrites. It did, and the
      * `hasPaddedWord` guard in front of it made that look deliberate.
      */
-    auto record = offsetAddress(block, address, header);
-
     block.addInst(lower, new (to.arena) LowerInstCopy(
-        record, from, immediate(block, LowerType::Int64, U64(manifest.size))));
+        address, from, immediate(block, LowerType::Int64, U64(manifest.size))));
 
-    auto tagged = block.addInst(lower, new (to.arena) LowerInstBinary(
-        StringId(), LowerType::Pointer, address, immediate(block, LowerType::Int64, kClosureEnvTag),
-        LowerInst::Or));
-
-    return ((LowerInstSingle*)tagged)->created().ptr - lower;
+    return address;
 }
 
 /*
- * What a heap-placed environment owes when the value holding it dies - the block's header word.
+ * What a heap-placed environment owes when the value holding it dies - what the cell in front of
+ * the lambda names.
  *
  * Interned on the environment record, because there is exactly one lambda per record and one block
- * shape per lambda. It takes the **block**, not the record: the untagged word is what the `Fun`
- * teardown has, and skipping the header here rather than at the drop keeps the offset in the one
- * file that knows it.
+ * shape per lambda. It takes the environment word exactly as the pair holds it, which is the block
+ * itself: nothing is in front of the record, so there is no offset here for a drop and a creation
+ * to disagree about.
  *
  * `teardownHalves` is what runs the captures, asked for both halves and for no release of its own -
- * the block is not the record's storage, it is the record's storage plus a header, so the free below
- * is this function's rather than something delegated.
+ * the storage under the record is this function's to hand back, since this is what a heap-placed
+ * environment owes and the record itself does not know it is on the heap.
  */
 LowerPtr<LowerFunction> Lowering::closureBlockTeardown(DeclPtr<mir::Type> environment,
                                                        LocationId source) {
@@ -326,11 +378,9 @@ LowerPtr<LowerFunction> Lowering::closureBlockTeardown(DeclPtr<mir::Type> enviro
         auto callee = teardownHalves(environment, true, true, false, source, BoxRelease::Owned);
         auto name = block->addInst(lower, new (to.arena) LowerInstFun(StringId(), callee));
 
-        auto record = offsetAddress(*block, address, closureHeaderBytes(environment));
-
         call(lower, to, *block, 0, 2, lower[callee]->callType, [&](LowerInstCall* built) {
             built->used()[0] = ((LowerInstSingle*)name)->created().ptr - lower;
-            built->used()[1] = record;
+            built->used()[1] = address;
         });
     }
 
@@ -340,14 +390,28 @@ LowerPtr<LowerFunction> Lowering::closureBlockTeardown(DeclPtr<mir::Type> enviro
 }
 
 /*
- * A function value's teardown, in one place - the tag test, and the header behind it.
+ * A function value's teardown, in one place - the environment word, the cell in front of the code,
+ * and the call behind it.
  *
  * One function for the whole program rather than one per function type, because nothing about it is
- * the type's: the pair is two words at the same two offsets whatever it was made from, and what
- * decides whether there is anything to run is a bit in the second of them. So a drop of a `Fun` is
- * one call, and every `Fun` in the program shares the callee.
+ * the type's: the pair is two words at the same two offsets whatever it was made from. So a drop of
+ * a `Fun` is one call, and every `Fun` in the program shares the callee.
  *
- * The header is called across `kDefaultCallType` for `emitErasedTeardown`'s reason - an indirect
+ * **Two questions and not one**, and they are different questions. Whether this *value* holds an
+ * environment at all is the second word: null is a lambda that captured nothing, a plain function
+ * named as a value, and the empty pair a boxed iterator member holds before its region is entered -
+ * `convert.cpp`'s `stepStoreEmptyBox`, which builds it out of the same shim a filled one points at,
+ * so the code word cannot be asked. Whether *that lambda* owes anything is the cell in front of the
+ * code, and it is what tells a frame-placed environment from a heap-placed one.
+ *
+ * The null test comes first, and it has to: only a lambda with an environment has a cell
+ * (`attachClosureHeader`), so the order is what keeps the read off a plain function's thunk. It is
+ * also the cheaper of the two - one load against the cell's two dependent ones, the code word and
+ * then the bytes in front of it. What the split costs over the old stage is nothing: that one
+ * tested null as well and then called through the header unconditionally, so a frame closure paid
+ * an indirect call to a teardown that did nothing where this pays a not-taken branch.
+ *
+ * The teardown is called across `kDefaultCallType` for `emitErasedTeardown`'s reason - an indirect
  * call has no callee to read a convention off, so there is one convention on this side of the
  * boundary rather than a lookup that could find a different one.
  */
@@ -360,48 +424,73 @@ LowerPtr<LowerFunction> Lowering::funTeardown(LocationId source) {
     funRelease = function - lower;
 
     auto entry = function->addBlock(lower, StringId());
+    auto header = function->addBlock(lower, StringId());
     auto owned = function->addBlock(lower, StringId());
     auto done = function->addBlock(lower, StringId());
 
     auto pair = &argument->result - lower;
 
     /*
-     * The word as a number for the test and as an address for the arithmetic - two loads of one
-     * slot, and the second is inside the arm that needs it.
+     * The environment word as a number for the test and as an address for the call - two loads of
+     * one slot, and the second is inside the arm that needs it.
      *
      * This tier types a pointer, so a value cannot be both; and reading it as an address on the
-     * common path would put a load in front of a branch that almost always leaves. What the split
-     * costs is one load on the path that is about to make an indirect call anyway.
+     * common path would put a load in front of a branch that leaves. What the split costs is one
+     * load on the path that is about to make an indirect call anyway, and the optimizer forwards
+     * the second out of the first in every golden here.
      */
     auto word = wordAt(*entry, pair, layout.target.funEnvOffset(), LowerType::Int64,
                        layout.target.pointerSize);
 
-    auto bit = entry->addInst(lower, new (to.arena) LowerInstBinary(
-        StringId(), LowerType::Int64, word, immediate(*entry, LowerType::Int64, kClosureEnvTag),
-        LowerInst::And));
-
-    auto zero = entry->addInst(lower, new (to.arena) LowerInstCmp(
-        StringId(), ((LowerInstSingle*)bit)->created().ptr - lower,
-        immediate(*entry, LowerType::Int64, 0), LowerCmp::eq));
+    auto empty = entry->addInst(lower, new (to.arena) LowerInstCmp(
+        StringId(), word, immediate(*entry, LowerType::Int64, 0), LowerCmp::eq));
 
     entry->addInst(lower, new (to.arena) LowerInstJe(
+        ((LowerInstSingle*)empty)->created().ptr - lower, done - lower, header - lower));
+
+    /*
+     * The cell, read the way every other address cell in this stage is read - four signed bytes,
+     * sign-extended - except that it is at a negative offset from a function rather than a positive
+     * one from a table, so the address is stated here instead of through `cellAddress`.
+     */
+    auto code = wordAt(*header, pair, layout.target.funCodeOffset(), LowerType::Pointer,
+                       layout.target.pointerSize);
+
+    auto site = header->addInst(lower, new (to.arena) LowerInstBinary(
+        StringId(), LowerType::Pointer, code, immediate(*header, LowerType::Int64, U64(kSlotBytes)),
+        LowerInst::Sub));
+
+    auto loaded = load(lower, to, *header, lower[((LowerInstSingle*)site)->created().ptr - lower],
+                       kSlotBytes, true, LowerType::Int32, StringId());
+
+    auto slot = cast<true, true>(lower, to, *header,
+                                 lower[loaded->created().ptr - lower], LowerType::Int64,
+                                 StringId())->created().ptr - lower;
+
+    auto zero = header->addInst(lower, new (to.arena) LowerInstCmp(
+        StringId(), slot, immediate(*header, LowerType::Int64, 0), LowerCmp::eq));
+
+    header->addInst(lower, new (to.arena) LowerInstJe(
         ((LowerInstSingle*)zero)->created().ptr - lower, done - lower, owned - lower));
 
-    // The block, which is the word with the tag taken off - a subtraction and not a mask, because
-    // the bit is known to be set on this edge and one form is what the backend folds into the load.
+    // The teardown's address, the offset added back onto the anchor - `cellPointer`'s last step,
+    // spelled out here because the test above needs the offset before it becomes an address.
+    auto anchor = imageAnchor();
+    auto base = owned->addInst(lower, new (to.arena) LowerInstGlobal(lower[anchor]->name, anchor));
+
+    auto teardown = binary<LowerInst::Add>(
+        lower, to, *owned, lower[slot],
+        lower[((LowerInstSingle*)base)->created().ptr - lower], LowerType::Pointer,
+        StringId())->created().ptr - lower;
+
+    // The environment exactly as the pair holds it, which is the record - see `emitClosureBlock`,
+    // where there stopped being anything in front of it.
     auto held = wordAt(*owned, pair, layout.target.funEnvOffset(), LowerType::Pointer,
                        layout.target.pointerSize);
 
-    auto block = owned->addInst(lower, new (to.arena) LowerInstBinary(
-        StringId(), LowerType::Pointer, held, immediate(*owned, LowerType::Int64, kClosureEnvTag),
-        LowerInst::Sub));
-
-    auto address = ((LowerInstSingle*)block)->created().ptr - lower;
-    auto header = wordAt(*owned, address, 0, LowerType::Pointer, layout.target.pointerSize);
-
     call(lower, to, *owned, 0, 2, kDefaultCallType, [&](LowerInstCall* built) {
-        built->used()[0] = header;
-        built->used()[1] = address;
+        built->used()[0] = teardown;
+        built->used()[1] = held;
     });
 
     owned->addInst(lower, new (to.arena) LowerInstJmp(done - lower));

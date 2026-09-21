@@ -3,9 +3,9 @@ mut @heapWindowNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapWindowLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapWindowFree = [0, 0, 0, 0, 0, 0, 0, 0]
 @image$base = []
-@environment(consume(Holder)) = [0, 0, 0, 0]
-@descriptor(Holder) = [12, 0, 0, 30, 0, 0, 0, 0]
-@environment(replaceAny(Holder)) = [0, 0, 0, 0]
+@environment(consume(Holder)) = [0, 0, 0, 0] {slot 0: @descriptor(Holder)}
+@descriptor(Holder) = [12, 0, 0, 30, 0, 0, 0, 0] {slot 4: teardown(Holder)}
+@environment(replaceAny(Holder)) = [0, 0, 0, 0] {slot 0: @descriptor(Holder)}
 
 consume<complex>(%v_0: Ptr, %value: Ptr, %n: I32): I32 {
   b_1 {

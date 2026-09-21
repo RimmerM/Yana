@@ -775,14 +775,15 @@ chain a relocation could invalidate, and naming it as a member rather than an ad
 trampoline.
 
 A boxed level is ended by **dropping the pair**, which is one instruction that runs everything: the
-tag bit is tested, the block's header is the child record's own `Drop`, that is its step entered with
-a cancel request, and the block is handed back - so the recursion down the chain is the machine's.
-The **empty pair** `f$new` writes in its place is what makes it idempotent, and it is the box's answer
-to the finished index below: a function value whose environment word is null has the tag bit clear, so
-a drop that meets it does nothing, and the code word is the real shim so the value is never one that
-could be stepped into nothing. The same pair is written back after every release, because a box is
-released where its region runs out, where a `break` leaves it, and again at the producer's `return`,
-and a second free is not the no-op a second cancel is.
+cell in front of the shim's code names the block's release, which is the child record's own `Drop`,
+that is its step entered with a cancel request, and the block is handed back - so the recursion down
+the chain is the machine's. The **empty pair** `f$new` writes in its place is what makes it
+idempotent, and it is the box's answer to the finished index below: a function value whose
+environment word is null owes nothing whatever its code word says, which is the first of the two
+questions `funTeardown` asks and the reason it asks it, and the code word is the real shim so the
+value is never one that could be stepped into nothing. The same pair is written back after every
+release, because a box is released where its region runs out, where a `break` leaves it, and again
+at the producer's `return`, and a second free is not the no-op a second cancel is.
 
 **`f$obj` is the witness's "make an object" entry** (`emitIterObject`), built 2026-09-16 (J61) -
 Design-Iterator-Objects.md §6.4, and the one generated body that is not part of a step. It is `g$new`

@@ -419,8 +419,9 @@ environment stays a local of the enclosing frame and everything in the paragraph
 exists - is exactly where `checkCarriedOrigins` fires, and there the environment is a **heap-placed
 block the value owns**.
 
-A block is `[teardown][captures]`: one pointer, then the environment record at whatever alignment it
-wants. The teardown releases the captures and hands the block back through the allocator roles;
+A block is the environment record and nothing else. What releases it is named by **four bytes in
+front of the lifted function** - prefix data, `LowerFunction::prefix`, the same mechanism the
+shipping stage uses - so the block costs no header and the pair costs no tag;
 `resolve_ssa/lower/fun.cpp` builds all of it, beside the `{code, env}` pair, which is `@box`'s
 arrangement - the ownership is decided here and the allocation lives one tier down. The captures
 themselves become the spec's fourth kind, a **consumed** capture (`CaptureKind::Owned`), so the
@@ -428,21 +429,29 @@ enclosing binding is moved out of and the environment owns what it holds. Decidi
 position rather than from the ownership analysis is forced: the analysis knows more and runs after
 the body is built, and the capture conventions are settled *while* it is built.
 
-**The second word carries a tag bit**: bit zero set means a heap block. That is D17's one open
-question, answered in J26 from the tree rather than from a benchmark - the alternative was
-`known.def`'s `isHeapAddress`, which is `Presence::Optional` and which the *default* provider does
-not fill (`lib/Native/Heap.native.yana` is `@allocator(bootstrap)` and declares `allocateHeap` and
-`freeHeap` only; the one declaration of the third is `lib/Native/HeapWindow.native.yana`, under
-`@allocator(window)`). A closure teardown built on that role would work in an opt-in build and be
-unwritable in the default one - the asymmetry `storesBoxProvenance` absorbs for boxes - and absorbing
-it here would mean two representations of a function value in one language.
+**The cell in front of the code holds `teardown - &image$base`**, and a zero cell is a lambda that
+owes nothing. That is D17's one open question, and the answer moved once. J26
+answered it with a tag on the *environment* word and a `[teardown][captures]` header on the block,
+having ruled out `known.def`'s `isHeapAddress` - which is `Presence::Optional` and which the
+*default* provider does not fill (`lib/Native/Heap.native.yana` is `@allocator(bootstrap)` and
+declares `allocateHeap` and `freeHeap` only; the one declaration of the third is
+`lib/Native/HeapWindow.native.yana`, under `@allocator(window)`), so a closure teardown built on it
+would work in an opt-in build and be unwritable in the default one. What that answer missed is that
+the fact is constant *per lambda* and was being paid for *per closure*: eight bytes of header,
+sixteen where a `Vec` capture raised the record's alignment, plus a store and an `or` at every
+creation and an `add` in the callee's entry block to skip the header again. The code word already
+names the lambda, so the answer belongs in front of it.
 
-**What the tag costs, measured on the emitted code.** The *call* pays nothing at the site: `code` is
-called with `env` exactly as the pair holds it, and a heap-placed lambda's own entry block adds
-`headerBytes - 1` to its environment parameter once (`funEnvironmentBias`), which the backend folds
-into the displacement of the first capture it reads - `ClosureTeardown.yana`'s `escaping.lambda` is
-one `add` and a `loads`. The *drop* is one call to `teardown(fun)`, which is one function for the
-whole program: load the word, `and $1`, branch, and on the taken edge load the header and call it.
+**What it costs, measured on the emitted code.** Creating a closure is the allocation and the copy,
+with nothing added: `ClosureTeardown.yana`'s `escaping` allocates four bytes where it used to
+allocate twelve. The *call* pays nothing at the site or in the callee - `code` is called with `env`
+exactly as the pair holds it, and `escaping.lambda` reads its capture straight off its parameter.
+The *drop* is one call to `teardown(fun)`, which is one function for the whole program: test the
+environment word for null, then load the cell at `[code - 4]`, test it for zero, and on the taken
+edge add the anchor back and call. The null test is a second question because the shim a boxed
+iterator member holds before its region is entered is the *same* code word as a filled one's, with
+no environment - `convert.cpp`'s `stepStoreEmptyBox` - and it comes first because only a lambda with
+an environment has a cell to read.
 
 **A frame closure's drop is not folded, it is not emitted.** `ownershipOf` answers `Derived` for
 `Fun` as a *type*, because a value of one may own a block; what says otherwise is the **occurrence**,
@@ -454,8 +463,9 @@ would be dropped like a closure, which stops a call through the pair being devir
 call on every `@lazy` thunk over nothing. The two marks differ at exactly one reader,
 `checkCarriedOrigins`: the first may not leave the frame and the second may go anywhere.
 
-`ClosureTeardown.yana` is the pair as emitted code - `direct` and `either` are frame closures and
-have no teardown anywhere in them, `escaping` allocates and carries the tag - and
+`ClosureTeardown.yana` is the pair as emitted code - `direct` and `either` are frame closures whose
+cells are zero and which have no teardown anywhere in them, `escaping` allocates and its cell names
+the release - and
 `ownership/ClosureEscape.yana` is the four owning positions run, with the allocator's bump pointer
 read back so that a block that was never handed back fails.
 
@@ -518,8 +528,8 @@ teardown and calls through the pair.
 **Owning the captures and placing the environment on the heap came apart.** They were one bit, and a
 site-typed closure needs the first without the second: a closure at an *owning* position consumes
 what it captured (`LambdaFrame::owns`, which is what `captureKindOf` reads), and where it keeps its
-site type there is no block, no `[teardown][captures]` header and no `funEnvironmentBias` - the
-record is stored inline in whatever holds it and released by that record's own derived teardown.
+site type there is no block and no cell in front of the lifted function - the record is stored
+inline in whatever holds it and released by that record's own derived teardown.
 `environmentStorage` stays the *pair's* question and is `Frame` for every lambda that keeps its type.
 
 **A merge is the one adaptation no position asks for.** `let f = if c then l1 else l2` is two lambdas
@@ -4112,9 +4122,11 @@ clears rather than in the answer - so a pair a consumer holds is still two rows 
 never delegates is unchanged down to the instruction. What that shape cannot carry is `| E`, whose
 failure has to reach *every* consumer; §6.6 says what that still needs.
 
-**The tag bit is the closure's**, unchanged: a heap-placed block's address carries bit zero and
-`teardown(fun)` is what tests it, so a frame-placed pair owes nothing and the frame's own drop of the
-record is what releases the producer. Which of the two a position gets is `wanted.access ==
+**The cell in front of the code is the closure's**, unchanged: a heap-placed shim's cell names what
+releases the block and a frame-placed one's is zero, so a frame-placed pair owes nothing and the
+frame's own drop of the record is what releases the producer. The two shims are two functions -
+`iterErasedStep` keys on the placement - which is what lets a per-lambda cell answer a question the
+*position* decides. Which of the two a position gets is `wanted.access ==
 Access::Owned`, which is the same question `liftFunction` asks of a lambda - and the one thing that
 differs from a closure is *when* it is asked: a lambda's placement is settled where the lambda is
 written, because its capture conventions depend on it, and an object's captures were settled at its

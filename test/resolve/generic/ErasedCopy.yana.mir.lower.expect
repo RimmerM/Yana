@@ -1,10 +1,10 @@
 mut @trace = [0, 0, 0, 0]
 @image$base = []
-@environment(twiceSunk(Tally)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(Tally) = [4, 0, 0, 14, 0, 0, 0, 0]
-@witness(Copy(Tally.copy)) = [0, 0, 0, 0]
-@witness(Sink(Tally.take)) = [0, 0, 0, 0]
-@environment(doubled(Tally)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(twiceSunk(Tally)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Tally), slot 4: @witness(Copy(Tally.copy)), slot 8: @witness(Sink(Tally.take))}
+@descriptor(Tally) = [4, 0, 0, 14, 0, 0, 0, 0] {slot 4: teardown(Tally)}
+@witness(Copy(Tally.copy)) = [0, 0, 0, 0] {slot 0: thunk(Tally.copy)}
+@witness(Sink(Tally.take)) = [0, 0, 0, 0] {slot 0: thunk(Tally.take)}
+@environment(doubled(Tally)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Tally)}
 
 Tally.drop<complex>(%v_0: I32) {
   b_1 {

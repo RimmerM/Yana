@@ -1,10 +1,10 @@
 @image$base = []
-@environment(oneLevel(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(Vessel) = [4, 0, 0, 13, 0, 0, 0, 0]
-@witness(Middle(Vessel.shift, Vessel.tag, Vessel.scale)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@environment(twoLevels(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@witness(Top(Vessel.crown, Vessel.shift, Vessel.tag, Vessel.scale)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@environment(both(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@environment(oneLevel(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Vessel), slot 4: @witness(Middle(Vessel.shift, Vessel.tag, Vessel.scale))}
+@descriptor(Vessel) = [4, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
+@witness(Middle(Vessel.shift, Vessel.tag, Vessel.scale)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: thunk(Vessel.shift), slot 4: thunk(Vessel.tag), slot 8: thunk(Vessel.scale)}
+@environment(twoLevels(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Vessel), slot 4: @witness(Top(Vessel.crown, Vessel.shift, Vessel.tag, Vessel.scale))}
+@witness(Top(Vessel.crown, Vessel.shift, Vessel.tag, Vessel.scale)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: thunk(Vessel.crown), slot 4: thunk(Vessel.shift), slot 8: thunk(Vessel.tag), slot 12: thunk(Vessel.scale)}
+@environment(both(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Vessel), slot 4: @witness(Middle(Vessel.shift, Vessel.tag, Vessel.scale)), slot 8: @witness(Top(Vessel.crown, Vessel.shift, Vessel.tag, Vessel.scale))}
 
 Vessel.tag<complex>(%v_0: I32): I32 {
   b_1 {

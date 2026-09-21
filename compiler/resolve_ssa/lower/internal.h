@@ -138,6 +138,15 @@ struct ShapeArg {
 };
 
 /*
+ * One cell of a compiler-built table, in bytes - and the one number two files have to agree on.
+ *
+ * Here rather than in `erase.cpp`, where the encoding is argued at length, because `fun.cpp` reads
+ * a cell that is in no table: the four bytes in front of a lifted lambda are written and read the
+ * way a table's address cell is, and a second `4` written there is a second number that can drift.
+ */
+constexpr U32 kSlotBytes = 4;
+
+/*
  * A declared function's aggregate convention - which parameters arrive as parts, and whether the
  * result leaves as parts instead of through a hidden pointer. Only functions that split something
  * have one, so every reader treats a missing shape as the convention `README.md` describes.
@@ -653,15 +662,13 @@ struct Lowering {
     LowerPtr<LowerFunction> emptyTeardown();
 
     /*
-     * D17's three numbers and the two functions behind them - `fun.cpp`, where they are argued.
+     * D17's one cell and the three functions behind it - `fun.cpp`, where they are argued.
      *
-     * `closureHeaderBytes` is how far past a heap environment block its record starts,
-     * `funEnvironmentBias` is what a heap-placed lambda adds to its own environment parameter, and
-     * the two teardowns are the header the block carries and the one shared function every drop of a
-     * `Fun` calls.
+     * `attachClosureHeader` puts the cell in front of a lifted function, `closureBlockTeardown` is
+     * what a heap-placed environment's cell names, and `funTeardown` is the one shared function
+     * every drop of a `Fun` calls.
      */
-    U32 closureHeaderBytes(DeclPtr<mir::Type> environment);
-    U32 funEnvironmentBias(DeclPtr<mir::Function> lambda);
+    void attachClosureHeader(LowerPtr<LowerFunction> code, LowerPtr<LowerFunction> teardown);
     LowerPtr<LowerValue> emitClosureBlock(LowerBlock& block, DeclPtr<mir::Type> environment,
                                           LowerPtr<LowerValue> from, LocationId source);
     LowerPtr<LowerFunction> closureBlockTeardown(DeclPtr<mir::Type> environment, LocationId source);
@@ -731,7 +738,8 @@ struct Lowering {
     LowerPtr<LowerValue> numberSlot(LowerBlock& block, U32 slot, LowerType type);
     LowerPtr<LowerValue> slotPointer(LowerBlock& block, U32 slot);
     // The shared address arithmetic, a plain word of a stated width, and a table's *address* cell -
-    // which is four anchor-relative bytes rather than a pointer. See `kSlotBytes` in erase.cpp.
+    // which is four anchor-relative bytes rather than a pointer. See `kSlotBytes` above, and the
+    // note in erase.cpp where the encoding is argued.
     LowerPtr<LowerValue> cellAddress(LowerBlock& block, LowerPtr<LowerValue> table, U32 offset);
     LowerPtr<LowerValue> wordAt(LowerBlock& block, LowerPtr<LowerValue> table, U32 offset,
                                 LowerType type, U32 width);

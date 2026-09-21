@@ -3,6 +3,7 @@ mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
+@image$base = []
 
 Guard.drop<complex>(%v_0: I32) {
   b_1 {
@@ -25,59 +26,57 @@ main<complex>(): I32 {
     %v_1 = alloca 16, 8: Ptr
     %v_2 = alloca 16, 8: Ptr
     %guarded.lambda = fun guarded.lambda: Ptr
-    %v_3 = call_complex allocateHeap, 12: Ptr
-    store %v_3, closure(guarded.lambda.env), 8
-    %v_4 = add %v_3, 8: Ptr
-    store %v_4, 7, 4
-    %v_5 = or %v_3, 1: Ptr
+    %v_3 = call_complex allocateHeap, 4: Ptr
+    store %v_3, 7, 4
     store %v_1, %guarded.lambda, 8
-    %v_6 = add %v_1, 8: Ptr
-    store %v_6, %v_5, 8
-    %v_7 = call_complex %guarded.lambda, %v_5: I32
+    %v_4 = add %v_1, 8: Ptr
+    store %v_4, %v_3, 8
+    %v_5 = call_complex %guarded.lambda, %v_3: I32
     call_complex teardown(fun), %v_1
-    %v_8 = loads @dropCalls, 4: I32
-    %v_9 = cmp_neq %v_8, 1: I32
-    je %v_9, b_10, b_11
+    %v_6 = loads @dropCalls, 4: I32
+    %v_7 = cmp_neq %v_6, 1: I32
+    je %v_7, b_8, b_9
   }
 
-  b_11 {
-    %v_12, %v_13 = call_complex plain: I64, I64
-    store %v_2, %v_12, 8
-    %v_14 = add %v_2, 8: Ptr
-    store %v_14, %v_13, 8
-    %v_15 = load %v_2, 8: Ptr
-    %v_16 = load %v_14, 8: Ptr
-    %v_17 = call_complex %v_15, %v_16: I32
+  b_9 {
+    %v_10, %v_11 = call_complex plain: I64, I64
+    store %v_2, %v_10, 8
+    %v_12 = add %v_2, 8: Ptr
+    store %v_12, %v_11, 8
+    %v_13 = load %v_2, 8: Ptr
+    %v_14 = load %v_12, 8: Ptr
+    %v_15 = call_complex %v_13, %v_14: I32
     call_complex teardown(fun), %v_2
-    %v_18 = loads @dropCalls, 4: I32
-    %v_19 = cmp_neq %v_18, 1: I32
-    je %v_19, b_20, b_21
+    %v_16 = loads @dropCalls, 4: I32
+    %v_17 = cmp_neq %v_16, 1: I32
+    je %v_17, b_18, b_19
   }
 
-  b_10 {
+  b_8 {
     ret 18446744073709551615
   }
 
-  b_21 {
-    %v_22 = add %v_7, %v_17: I32
-    %v_23 = loads @dropCalls, 4: I32
-    %v_24 = add %v_22, %v_23: I32
-    ret %v_24
+  b_19 {
+    %v_20 = add %v_5, %v_15: I32
+    %v_21 = loads @dropCalls, 4: I32
+    %v_22 = add %v_20, %v_21: I32
+    ret %v_22
   }
 
-  b_20 {
+  b_18 {
     ret 18446744073709551614
   }
 }
 
+@header(guarded.lambda) = [0, 0, 0, 0] {slot 0: closure(guarded.lambda.env)}
 guarded.lambda<complex>(%guarded.lambda.env: Ptr): I32 {
   b_0 {
-    %v_1 = add %guarded.lambda.env, 7: Ptr
-    %v_2 = loads %v_1, 4: I32
-    ret %v_2
+    %v_1 = loads %guarded.lambda.env, 4: I32
+    ret %v_1
   }
 }
 
+@header(plain.lambda) = [0, 0, 0, 0]
 plain.lambda<complex>(%plain.lambda.env: Ptr): I32 {
   b_0 {
     ret 5
@@ -284,8 +283,7 @@ freeHeap<complex>(%allocation: Ptr) {
 
 closure(guarded.lambda.env)<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = add %v_0, 8: Ptr
-    call_complex teardown(guarded.lambda.env), %v_2
+    call_complex teardown(guarded.lambda.env), %v_0
     call_complex freeHeap, %v_0
     ret 
   }
@@ -303,20 +301,27 @@ teardown(fun)<complex>(%v_0: Ptr) {
   b_1 {
     %v_2 = add %v_0, 8: Ptr
     %v_3 = load %v_2, 8: I64
-    %v_4 = and %v_3, 1: I64
-    %v_5 = cmp_eq %v_4, 0: I32
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    %v_8 = bitcast %v_3: Ptr
-    %v_9 = sub %v_8, 1: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    call_complex %v_10, %v_9
-    jmp b_6
+    %v_4 = cmp_eq %v_3, 0: I32
+    je %v_4, b_5, b_6
   }
 
   b_6 {
+    %v_7 = load %v_0, 8: Ptr
+    %v_8 = sub %v_7, 4: Ptr
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = sext %v_9: I64
+    %v_11 = cmp_eq %v_10, 0: I32
+    je %v_11, b_5, b_12
+  }
+
+  b_12 {
+    %v_13 = add %v_10, @image$base: Ptr
+    %v_14 = bitcast %v_3: Ptr
+    call_complex %v_13, %v_14
+    jmp b_5
+  }
+
+  b_5 {
     ret 
   }
 }

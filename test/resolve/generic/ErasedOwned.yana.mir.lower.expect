@@ -1,8 +1,8 @@
 mut @trace = [0, 0, 0, 0]
 @image$base = []
-@environment(pick(Guard)) = [0, 0, 0, 0]
-@descriptor(Guard) = [4, 0, 0, 14, 0, 0, 0, 0]
-@environment(sink(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(pick(Guard)) = [0, 0, 0, 0] {slot 0: @descriptor(Guard)}
+@descriptor(Guard) = [4, 0, 0, 14, 0, 0, 0, 0] {slot 4: teardown(Guard)}
+@environment(sink(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Guard)}
 
 Guard.drop<complex>(%v_0: I32) {
   b_1 {

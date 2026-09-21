@@ -4,17 +4,17 @@
 @genEnv$firstOf(4) = [4, 0, 0, 0]
 @genEnv$sumOf(4) = [4, 0, 0, 0]
 @genEnv$aliased(4) = [4, 0, 0, 0]
-@witness$Sized([I32 *2], I32) = [0, 0, 0, 0]
-@genEnv$firstThrough(2) = [2, 0, 0, 0, 0, 0, 0, 0]
-@witness$Sized([I32 *4], I32) = [0, 0, 0, 0]
-@genEnv$firstThrough(4) = [4, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$[I32 *4] = [16, 0, 0, 0, 16, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
-@genEnv$doubled(4) = [0, 0, 0, 0, 4, 0, 0, 0]
-@genEnv$mutatedCopy(4) = [0, 0, 0, 0, 4, 0, 0, 0]
-@genEnv$filled(4) = [0, 0, 0, 0, 4, 0, 0, 0]
-@typeDesc$Wide = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
-@witness$Widths(Wide, 4) = [0, 0, 0, 0]
-@genEnv$widthThrough(4, Wide) = [0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0]
+@witness$Sized([I32 *2], I32) = [0, 0, 0, 0] {slot 0: thunk$Sized([I32 *2], I32).firstItem#0}
+@genEnv$firstThrough(2) = [2, 0, 0, 0, 0, 0, 0, 0] {slot 4: @witness$Sized([I32 *2], I32)}
+@witness$Sized([I32 *4], I32) = [0, 0, 0, 0] {slot 0: thunk$Sized([I32 *4], I32).firstItem#0}
+@genEnv$firstThrough(4) = [4, 0, 0, 0, 0, 0, 0, 0] {slot 4: @witness$Sized([I32 *4], I32)}
+@typeDesc$[I32 *4] = [16, 0, 0, 0, 16, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0] {slot 12: teardown$none}
+@genEnv$doubled(4) = [0, 0, 0, 0, 4, 0, 0, 0] {slot 0: @typeDesc$[I32 *4]}
+@genEnv$mutatedCopy(4) = [0, 0, 0, 0, 4, 0, 0, 0] {slot 0: @typeDesc$[I32 *4]}
+@genEnv$filled(4) = [0, 0, 0, 0, 4, 0, 0, 0] {slot 0: @typeDesc$[I32 *4]}
+@typeDesc$Wide = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0] {slot 12: teardown$none}
+@witness$Widths(Wide, 4) = [0, 0, 0, 0] {slot 0: thunk$Widths(Wide, 4).widthSum#0}
+@genEnv$widthThrough(4, Wide) = [0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0] {slot 0: @typeDesc$Wide, slot 8: @witness$Widths(Wide, 4)}
 
 teardown$none<complex>(%value: Ptr) {
   b_0 {

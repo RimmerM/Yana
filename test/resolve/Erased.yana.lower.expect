@@ -1,20 +1,20 @@
 @image$base = []
-@typeDesc$I32 = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
-@typeDesc$() = [0, 0, 0, 0, 0, 0, 0, 0, 131, 1, 0, 0, 0, 0, 0, 0]
-@genEnv$pick(I32, ()) = [0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$identity(I32) = [0, 0, 0, 0]
-@genEnv$firstOf(I32) = [0, 0, 0, 0]
-@typeDesc$Bool = [1, 0, 0, 0, 1, 0, 0, 0, 131, 1, 0, 0, 0, 0, 0, 0]
-@genEnv$pick(I32, Bool) = [0, 0, 0, 0, 0, 0, 0, 0]
-@witness$Num(I32) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@witness$FromInt(I32) = [0, 0, 0, 0]
-@genEnv$twice(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
-@witness$Ord(I32) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@witness$Eq(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$smaller(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$middle(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$increment(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$nothingForwarded(I32) = [0, 0, 0, 0]
+@typeDesc$I32 = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0] {slot 12: teardown$none}
+@typeDesc$() = [0, 0, 0, 0, 0, 0, 0, 0, 131, 1, 0, 0, 0, 0, 0, 0] {slot 12: teardown$none}
+@genEnv$pick(I32, ()) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @typeDesc$I32, slot 4: @typeDesc$()}
+@genEnv$identity(I32) = [0, 0, 0, 0] {slot 0: @typeDesc$I32}
+@genEnv$firstOf(I32) = [0, 0, 0, 0] {slot 0: @typeDesc$I32}
+@typeDesc$Bool = [1, 0, 0, 0, 1, 0, 0, 0, 131, 1, 0, 0, 0, 0, 0, 0] {slot 12: teardown$none}
+@genEnv$pick(I32, Bool) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @typeDesc$I32, slot 4: @typeDesc$Bool}
+@witness$Num(I32) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: thunk$Num(I32).+#0, slot 4: thunk$Num(I32).-#1, slot 8: thunk$Num(I32).*#2, slot 12: thunk$Num(I32)./#3, slot 16: thunk$Num(I32).-#4, slot 20: @witness$FromInt(I32)}
+@witness$FromInt(I32) = [0, 0, 0, 0] {slot 0: thunk$FromInt(I32).fromInt#0}
+@genEnv$twice(I32) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @typeDesc$I32, slot 4: @witness$Num(I32)}
+@witness$Ord(I32) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: thunk$Ord(I32).<#0, slot 4: thunk$Ord(I32).<=#1, slot 8: thunk$Ord(I32).>#2, slot 12: thunk$Ord(I32).>=#3, slot 16: thunk$Ord(I32).compare#4, slot 20: thunk$Ord(I32).min#5, slot 24: thunk$Ord(I32).max#6, slot 28: @witness$Eq(I32)}
+@witness$Eq(I32) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: thunk$Eq(I32).==#0, slot 4: thunk$Eq(I32).!=#1}
+@genEnv$smaller(I32) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @typeDesc$I32, slot 4: @witness$Ord(I32)}
+@genEnv$middle(I32) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @typeDesc$I32, slot 4: @witness$Ord(I32)}
+@genEnv$increment(I32) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @typeDesc$I32, slot 4: @witness$Num(I32)}
+@genEnv$nothingForwarded(I32) = [0, 0, 0, 0] {slot 0: @typeDesc$I32}
 
 teardown$none<complex>(%value: Ptr) {
   b_0 {

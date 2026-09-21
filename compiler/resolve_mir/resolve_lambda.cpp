@@ -56,8 +56,8 @@ namespace mir {
  * what split them: `LambdaFrame::owns` is the position's convention and is what `captureKindOf`
  * reads, and `Function::environmentStorage` is the *pair's* question. A closure that keeps its site
  * type owns what it captured and is stored inline in whatever holds it, released by that record's
- * own derived teardown - so there is no block, no header and no `funEnvironmentBias`, and a direct
- * call hands the lifted function the record's own address.
+ * own derived teardown - so there is no block and no cell in front of the lifted function, and a
+ * direct call hands it the record's own address.
  *
  * **The conventions come from the binding**, which is what the spec says and what this does not get
  * to choose per use site: `&` is captured by exclusive borrow, and anything else by an independent
@@ -950,14 +950,13 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
      * convention, which `checkCarriedOrigins`' own condition is: an owned position claims the value
      * is the receiver's, and a value that refers to this frame may not be.
      *
-     * **Only where the position erases**, since site types - Design-Iterator-Objects.md §4. A block
-     * with a teardown header in front of it is what a *pair* needs to find its teardown at a site
-     * that cannot name the lambda; a site-typed value is stored inline in whatever holds it and its
-     * captures are released by that record's own derived teardown, so there is nothing to allocate
-     * and nothing to skip. The *capture* conventions still come from `owningPosition` alone
-     * (`LambdaFrame::owns`), which is what keeps a closure in a record field owning what it
-     * captured. Merging the two is what the split undoes: `funEnvironmentBias` biases the entry
-     * block of a heap-placed lambda, and a direct call hands it the record's own address.
+     * **Only where the position erases**, since site types - Design-Iterator-Objects.md §4. A heap
+     * block, and four bytes in front of the lifted function naming what releases it, are what a
+     * *pair* needs to find its teardown at a site that cannot name the lambda; a site-typed value is
+     * stored inline in whatever holds it and its captures are released by that record's own derived
+     * teardown, so there is nothing to allocate and nothing to name. The *capture* conventions still
+     * come from `owningPosition` alone (`LambdaFrame::owns`), which is what keeps a closure in a
+     * record field owning what it captured.
      */
     if(!raw) {
         Placement asked;

@@ -550,15 +550,6 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
      */
     auto closure = source.environment != nullptr;
 
-    /*
-     * A **heap-placed** environment arrives tagged - `funEnvironmentBias`, and D17's one instruction.
-     *
-     * The pair carries the block's address with bit zero set, and this body reads its captures out
-     * of the record that follows the block's header. Both are constants, so what the body needs is
-     * the parameter plus their difference, added once here rather than at every capture: the backend
-     * folds a constant add into the displacement of the load that uses it.
-     */
-    auto bias = funEnvironmentBias(&source - decl);
     auto entryLower = lower[blocks.getValue(0).unwrap()];
 
     /*
@@ -592,10 +583,13 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
         auto position = closure && i == 0 ? 0u : index++;
         auto declared = lower[target.args.get(lower, position)];
 
-        auto value = &declared->result - lower;
-        if(closure && i == 0 && bias) value = offsetAddress(*entryLower, value, bias);
-
-        values.add(argument->id.index, value);
+        /*
+         * The environment arrives as the record, wherever it was placed - D17. A heap-placed one
+         * used to arrive tagged and biased past a header, which was an `add` in this block and a
+         * header word in every block allocated; both went when the teardown moved in front of the
+         * code, so a frame environment and a heap environment are now the same parameter.
+         */
+        values.add(argument->id.index, &declared->result - lower);
     }
 
     /*

@@ -1,5 +1,5 @@
-@environment(folded(Outcome(I32, I32))) = [0, 0, 0, 0]
-@descriptor(Outcome(I32, I32)) = [8, 0, 0, 13, 0, 0, 0, 0]
+@environment(folded(Outcome(I32, I32))) = [0, 0, 0, 0] {slot 0: @descriptor(Outcome(I32, I32))}
+@descriptor(Outcome(I32, I32)) = [8, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
 @image$base = []
 
 folded<complex>(%v_0: Ptr, %x: Ptr, %first: Ptr, %n: I32): I32 {
@@ -85,6 +85,7 @@ main<complex>(): I32 {
   }
 }
 
+@header(main.lambda) = [0, 0, 0, 0]
 main.lambda<complex>(%main.lambda.env: Ptr, %n: I32): I32 {
   b_0 {
     %v_1 = imul %n, 3: I32

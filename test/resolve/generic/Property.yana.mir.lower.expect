@@ -1,13 +1,13 @@
 @image$base = []
-@environment(readFlag(Flagged)) = [0, 0, 0, 0, 8, 0, 0, 0]
-@descriptor(Flagged) = [9, 0, 0, 13, 0, 0, 0, 0]
-@environment(setFlag(Flagged)) = [0, 0, 0, 0, 8, 0, 0, 0]
-@environment(opaqueMark(Flagged, I32)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(I32) = [4, 0, 0, 13, 0, 0, 0, 0]
-@witness(Peek(I32.peek)) = [0, 0, 0, 0]
-@property(Flagged.mark) = [0, 0, 0, 0, 0, 0, 0, 0]
-@environment(bump(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(Vessel) = [8, 0, 0, 13, 0, 0, 0, 0]
+@environment(readFlag(Flagged)) = [0, 0, 0, 0, 8, 0, 0, 0] {slot 0: @descriptor(Flagged)}
+@descriptor(Flagged) = [9, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
+@environment(setFlag(Flagged)) = [0, 0, 0, 0, 8, 0, 0, 0] {slot 0: @descriptor(Flagged)}
+@environment(opaqueMark(Flagged, I32)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Flagged), slot 4: @descriptor(I32), slot 8: @witness(Peek(I32.peek)), slot 12: @property(Flagged.mark)}
+@descriptor(I32) = [4, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
+@witness(Peek(I32.peek)) = [0, 0, 0, 0] {slot 0: thunk(I32.peek)}
+@property(Flagged.mark) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: read(Flagged.mark), slot 4: set(Flagged.mark)}
+@environment(bump(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Vessel)}
+@descriptor(Vessel) = [8, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
 
 bump<complex>(%v_0: Ptr, %x: Ptr): I32 {
   b_1 {

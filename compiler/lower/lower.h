@@ -903,8 +903,9 @@ struct LowerFunction {
      *
      * "Immediately" is the whole content of the field: a code generator may pad before the data but
      * never between the data and the first instruction, because what reads it computes its address
-     * by subtracting the data's size from the entry point's. A closure header is the one user - see
-     * ClosureHeaderLayout in resolve/witness.h - and prefix data is what LLVM calls the same thing.
+     * by subtracting the data's size from the entry point's. A closure header is the one user, in
+     * both resolve stages - see ClosureHeaderFields in resolve/witness.h and `attachClosureHeader`
+     * in resolve_ssa/lower/fun.cpp - and prefix data is what LLVM calls the same thing.
      *
      * It is reached through the function rather than through LowerModule::globals for the same
      * reason: a global in that list is emitted wherever the module's data goes, and these bytes

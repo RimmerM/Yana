@@ -1,8 +1,8 @@
 @image$base = []
-@environment(erasedLens(Gate)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(Gate) = [4, 0, 0, 13, 0, 0, 0, 0]
-@witness(Guard(Gate.depth, Gate.hold, Gate.depthOf, Gate.opened, twiceDeep(Gate), steps(Gate))) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@environment(erasedIter(Gate)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(erasedLens(Gate)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Gate), slot 4: @witness(Guard(Gate.depth, Gate.hold, Gate.depthOf, Gate.opened, twiceDeep(Gate), steps(Gate)))}
+@descriptor(Gate) = [4, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
+@witness(Guard(Gate.depth, Gate.hold, Gate.depthOf, Gate.opened, twiceDeep(Gate), steps(Gate))) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: thunk(Gate.depth), slot 4: thunk(Gate.hold), slot 8: thunk(Gate.depthOf), slot 12: thunk(Gate.opened), slot 16: thunk(twiceDeep(Gate)), slot 20: thunk(steps(Gate))}
+@environment(erasedIter(Gate)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Gate), slot 4: @witness(Guard(Gate.depth, Gate.hold, Gate.depthOf, Gate.opened, twiceDeep(Gate), steps(Gate)))}
 
 Gate.depth<complex>(%v_0: I32): I32 {
   b_1 {
@@ -233,6 +233,7 @@ steps(Gate)<complex>(%v_0: I32, %$body: Ptr): I32 {
   }
 }
 
+@header(erasedLens.cont) = [0, 0, 0, 0]
 erasedLens.cont<complex>(%erasedLens.cont.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %erasedLens.cont.env, 8: Ptr
@@ -242,6 +243,7 @@ erasedLens.cont<complex>(%erasedLens.cont.env: Ptr, %$handed: I32): I32 {
   }
 }
 
+@header(erasedIter.cont) = [0, 0, 0, 0]
 erasedIter.cont<complex>(%erasedIter.cont.env: Ptr, %$handed: I32): I32 {
   b_0 {
     %v_1 = load %erasedIter.cont.env, 8: Ptr

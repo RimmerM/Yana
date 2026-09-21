@@ -2,26 +2,25 @@ mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
+@image$base = []
 
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
     %escaping.lambda = fun escaping.lambda: Ptr
-    %v_2 = call_complex allocateHeap, 12: Ptr
-    store %v_2, closure(escaping.lambda.env), 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, 100, 4
-    %v_4 = or %v_2, 1: Ptr
+    %v_2 = call_complex allocateHeap, 4: Ptr
+    store %v_2, 100, 4
     store %v_1, %escaping.lambda, 8
-    %v_5 = add %v_1, 8: Ptr
-    store %v_5, %v_4, 8
-    %v_6 = call_complex %escaping.lambda, %v_4, 1: I32
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = call_complex %escaping.lambda, %v_2, 1: I32
     call_complex teardown(fun), %v_1
-    %v_7 = add 89, %v_6: I32
-    ret %v_7
+    %v_5 = add 89, %v_4: I32
+    ret %v_5
   }
 }
 
+@header(direct.lambda) = [0, 0, 0, 0]
 direct.lambda<complex>(%direct.lambda.env: Ptr, %x: I32): I32 {
   b_0 {
     %v_1 = loads %direct.lambda.env, 4: I32
@@ -30,6 +29,7 @@ direct.lambda<complex>(%direct.lambda.env: Ptr, %x: I32): I32 {
   }
 }
 
+@header(either.lambda) = [0, 0, 0, 0]
 either.lambda<complex>(%either.lambda.env: Ptr, %x: I32): I32 {
   b_0 {
     %v_1 = loads %either.lambda.env, 4: I32
@@ -38,6 +38,7 @@ either.lambda<complex>(%either.lambda.env: Ptr, %x: I32): I32 {
   }
 }
 
+@header(either.lambda'2) = [0, 0, 0, 0]
 either.lambda'2<complex>(%either.lambda'2.env: Ptr, %x: I32): I32 {
   b_0 {
     %v_1 = loads %either.lambda'2.env, 4: I32
@@ -46,12 +47,12 @@ either.lambda'2<complex>(%either.lambda'2.env: Ptr, %x: I32): I32 {
   }
 }
 
+@header(escaping.lambda) = [0, 0, 0, 0] {slot 0: closure(escaping.lambda.env)}
 escaping.lambda<complex>(%escaping.lambda.env: Ptr, %x: I32): I32 {
   b_0 {
-    %v_1 = add %escaping.lambda.env, 7: Ptr
-    %v_2 = loads %v_1, 4: I32
-    %v_3 = add %x, %v_2: I32
-    ret %v_3
+    %v_1 = loads %escaping.lambda.env, 4: I32
+    %v_2 = add %x, %v_1: I32
+    ret %v_2
   }
 }
 
@@ -264,20 +265,27 @@ teardown(fun)<complex>(%v_0: Ptr) {
   b_1 {
     %v_2 = add %v_0, 8: Ptr
     %v_3 = load %v_2, 8: I64
-    %v_4 = and %v_3, 1: I64
-    %v_5 = cmp_eq %v_4, 0: I32
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    %v_8 = bitcast %v_3: Ptr
-    %v_9 = sub %v_8, 1: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    call_complex %v_10, %v_9
-    jmp b_6
+    %v_4 = cmp_eq %v_3, 0: I32
+    je %v_4, b_5, b_6
   }
 
   b_6 {
+    %v_7 = load %v_0, 8: Ptr
+    %v_8 = sub %v_7, 4: Ptr
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = sext %v_9: I64
+    %v_11 = cmp_eq %v_10, 0: I32
+    je %v_11, b_5, b_12
+  }
+
+  b_12 {
+    %v_13 = add %v_10, @image$base: Ptr
+    %v_14 = bitcast %v_3: Ptr
+    call_complex %v_13, %v_14
+    jmp b_5
+  }
+
+  b_5 {
     ret 
   }
 }

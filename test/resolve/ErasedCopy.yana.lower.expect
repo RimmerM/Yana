@@ -1,14 +1,14 @@
 @image$base = []
 mut @copyCalls = [0, 0, 0, 0]
-@typeDesc$I32 = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
+@typeDesc$I32 = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0] {slot 12: teardown$none}
 @witness$TrivialCopy(I32) = []
-@genEnv$copyInto(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$Point = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
+@genEnv$copyInto(I32) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @typeDesc$I32, slot 4: @witness$TrivialCopy(I32)}
+@typeDesc$Point = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0] {slot 12: teardown$none}
 @witness$TrivialCopy(Point) = []
-@genEnv$copyInto(Point) = [0, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$Quad = [36, 0, 0, 0, 36, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
+@genEnv$copyInto(Point) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @typeDesc$Point, slot 4: @witness$TrivialCopy(Point)}
+@typeDesc$Quad = [36, 0, 0, 0, 36, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0] {slot 12: teardown$none}
 @witness$TrivialCopy(Quad) = []
-@genEnv$copyInto(Quad) = [0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$copyInto(Quad) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @typeDesc$Quad, slot 4: @witness$TrivialCopy(Quad)}
 
 teardown$none<complex>(%value: Ptr) {
   b_0 {

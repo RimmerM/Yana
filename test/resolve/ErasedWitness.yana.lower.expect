@@ -1,13 +1,13 @@
 @image$base = []
-@typeDesc$Handle = [8, 0, 0, 0, 8, 0, 0, 0, 131, 8, 0, 0, 0, 0, 0, 0]
-@genEnv$relocate(Handle) = [0, 0, 0, 0]
-@typeDesc$Pair = [16, 0, 0, 0, 16, 0, 0, 0, 131, 8, 0, 0, 0, 0, 0, 0]
-@genEnv$relocate(Pair) = [0, 0, 0, 0]
-@typeDesc$I32 = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
-@witness$Num(I32) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@witness$FromInt(I32) = [0, 0, 0, 0]
-@genEnv$twice(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$numeric(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Handle = [8, 0, 0, 0, 8, 0, 0, 0, 131, 8, 0, 0, 0, 0, 0, 0] {slot 12: teardown$none}
+@genEnv$relocate(Handle) = [0, 0, 0, 0] {slot 0: @typeDesc$Handle}
+@typeDesc$Pair = [16, 0, 0, 0, 16, 0, 0, 0, 131, 8, 0, 0, 0, 0, 0, 0] {slot 12: teardown$none}
+@genEnv$relocate(Pair) = [0, 0, 0, 0] {slot 0: @typeDesc$Pair}
+@typeDesc$I32 = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0] {slot 12: teardown$none}
+@witness$Num(I32) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: thunk$Num(I32).+#0, slot 4: thunk$Num(I32).-#1, slot 8: thunk$Num(I32).*#2, slot 12: thunk$Num(I32)./#3, slot 16: thunk$Num(I32).-#4, slot 20: @witness$FromInt(I32)}
+@witness$FromInt(I32) = [0, 0, 0, 0] {slot 0: thunk$FromInt(I32).fromInt#0}
+@genEnv$twice(I32) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @typeDesc$I32, slot 4: @witness$Num(I32)}
+@genEnv$numeric(I32) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @typeDesc$I32, slot 4: @witness$Num(I32)}
 
 teardown$none<complex>(%value: Ptr) {
   b_0 {

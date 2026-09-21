@@ -1,8 +1,8 @@
 @string'142 = [97, 98]
 @string'143 = [97, 98, 99, 100]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
-@constant$0 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
-@constant$1 = [0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0]
+@constant$0 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0] {ptr 0: @string'142}
+@constant$1 = [0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0] {ptr 0: @string'143}
 
 main<complex>(): I32 {
   b_0 {
@@ -81,6 +81,7 @@ main<complex>(): I32 {
   }
 }
 
+@header(lazyNamed.thunk) = [0, 0, 0, 0]
 lazyNamed.thunk<complex>(%lazyNamed.thunk.env: Ptr): I32 {
   b_0 {
     %v_1 = load %lazyNamed.thunk.env, 8: Ptr
@@ -97,12 +98,14 @@ note.why.default<complex>(): I32 {
   }
 }
 
+@header(lazyDefault.thunk) = [0, 0, 0, 0]
 lazyDefault.thunk<complex>(%lazyDefault.thunk.env: Ptr): I32 {
   b_0 {
     ret 4
   }
 }
 
+@header(lazyDefault.thunk'2) = [0, 0, 0, 0]
 lazyDefault.thunk'2<complex>(%lazyDefault.thunk'2.env: Ptr): I32 {
   b_0 {
     ret 5
@@ -121,6 +124,7 @@ explain.why.default<complex>(): I32 {
   }
 }
 
+@header(main.thunk) = [0, 0, 0, 0]
 main.thunk<complex>(%main.thunk.env: Ptr): I32 {
   b_0 {
     ret 4

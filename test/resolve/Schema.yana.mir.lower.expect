@@ -1,7 +1,7 @@
 @image$base = []
-@environment(scale(I32)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(I32) = [4, 0, 0, 13, 0, 0, 0, 0]
-@witness(Num(I32.+, I32.-, I32.*, I32./, I32.-'2, I32.fromInt)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@environment(scale(I32)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(I32), slot 4: @witness(Num(I32.+, I32.-, I32.*, I32./, I32.-'2, I32.fromInt))}
+@descriptor(I32) = [4, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
+@witness(Num(I32.+, I32.-, I32.*, I32./, I32.-'2, I32.fromInt)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: thunk(I32.+), slot 4: thunk(I32.-), slot 8: thunk(I32.*), slot 12: thunk(I32./), slot 16: thunk(I32.-'2), slot 20: thunk(I32.fromInt)}
 
 scale<complex>(%v_0: Ptr, %v_1: Ptr, %x: Ptr, %y: Ptr) {
   b_2 {

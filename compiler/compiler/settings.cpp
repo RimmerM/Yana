@@ -1768,7 +1768,7 @@ Result<void, String> checkSettings(const CompileSettings& settings) {
      * JavaScript waits for JSIR rather than being reached by teaching the native lowering a second
      * target, so a JS build asking for it is refused here rather than producing a program by the
      * other stage and saying nothing. Its two dumps are refused for the same reason and by the same
-     * sentence: `-mode om -platform js` is a combination that does not exist.
+     * sentence: `-mode mir -platform js` is a combination that does not exist.
      */
     if(isJsMode(settings) && settings.resolver == ResolverStage::Ownership) {
         return Err(String("-resolver ownership is native only so far: the JavaScript side of that "

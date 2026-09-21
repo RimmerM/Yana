@@ -1,11 +1,11 @@
 mut @trace = [0, 0, 0, 0]
 @image$base = []
-@environment(drain(lent.Iter)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(lent.Iter) = [24, 0, 0, 30, 0, 0, 0, 0]
-@witness(Iterate(lent$next, lent$resume)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@environment(drain(owning.Iter)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(owning.Iter) = [17, 0, 0, 14, 0, 0, 0, 0]
-@witness(Iterate(owning$next, owning$resume)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(drain(lent.Iter)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(lent.Iter), slot 4: @witness(Iterate(lent$next, lent$resume))}
+@descriptor(lent.Iter) = [24, 0, 0, 30, 0, 0, 0, 0] {slot 4: teardown(lent.Iter)}
+@witness(Iterate(lent$next, lent$resume)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: thunk(lent$next), slot 4: thunk(lent$resume)}
+@environment(drain(owning.Iter)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(owning.Iter), slot 4: @witness(Iterate(owning$next, owning$resume))}
+@descriptor(owning.Iter) = [17, 0, 0, 14, 0, 0, 0, 0] {slot 4: teardown(owning.Iter)}
+@witness(Iterate(owning$next, owning$resume)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: thunk(owning$next), slot 4: thunk(owning$resume)}
 
 Held.drop<complex>(%v_0: I32) {
   b_1 {
