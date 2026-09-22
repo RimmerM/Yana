@@ -22,8 +22,9 @@
  * pointer is an `Int` away from an address. The two are one strongly connected component and are
  * resolved as one - see `definePrelude`.
  *
- * **There are two platform files and each target compiles one of them.** `Linux.x64.yana` is the
- * native one - the system call numbers and the memory mapping `allocateHeap` is built on - and
+ * **There are platform files and each target compiles one of them.** `Linux.linux.x64.yana` is the
+ * hosted native one - the system call numbers and the memory mapping `allocateHeap` is built on,
+ * with `Bare.bare.x64.yana` standing in for it where there is no operating system - and
  * `Host.js.yana` is the JS one, the host's array and string. **The selection is in the name**, which
  * is Analysis-Modules.md §2.5: a file whose name carries a target this build is not is not read at
  * all, so neither declares anything on the other's target and neither can forget to say so. Most of
@@ -33,7 +34,7 @@
  *
  * They are files of this module rather than modules of their own, which is what makes the mutual
  * visibility with the rest of Native simply what a module is, rather than an import pushed in by
- * hand. `Linux.x64.yana` also says which *machine*: the call numbers are the x86-64 table and every
+ * hand. `Linux.linux.x64.yana` also says which *machine*: the call numbers are the x86-64 table and every
  * one of them differs on arm64, which is the second axis §4.2.1 asked for.
  *
  * Nothing downstream distinguishes them by *name*: what the JS emitter drops is what it cannot

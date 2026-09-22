@@ -1,0 +1,19 @@
+-- A **bare** project, asked the questions an editor asks - J93.
+--
+-- `target = "bare"` in the project file selects the freestanding platform layer,
+-- `lib/Native/Bare.bare.x64.yana`, instead of the Linux one. So `ClockTime` and `readClock` are
+-- found there, and `openPath` - a Linux system call with no bare counterpart - is not found at all.
+-- The session used to start from default settings and never read the key's platform file.
+
+module
+
+import Native
+
+fn main(magic: U32) -> U32:
+    let &time = Native.ClockTime {}
+--                     ^clock
+    let status = Native.readClock(Native.clockMonotonic, time)
+--                      ^read
+    let handle = Native.openPath()
+--                      ^linuxOnly
+    return magic

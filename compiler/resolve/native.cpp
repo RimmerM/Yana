@@ -39,7 +39,7 @@
 // Native's source is `lib/Native/`.
 
 /*
- * The platform file - `lib/Native/Linux.x64.yana`.
+ * The platform file - `lib/Native/Linux.linux.x64.yana`.
  *
  * The system call numbers of one kernel and ABI, and nothing else. Everything it is written in terms
  * of comes from Native, and the one thing Native needs from it is `mapMemory` - which used to make

@@ -1042,6 +1042,10 @@ int main(int argc, const char** argv) {
     // it, which is why this is a fixture and not a comment.
     pass = runSemanticFixture(String("lsp/platform"), String("lsp/platform.expect"), generate) && pass;
 
+    // And a project whose `target` key is `bare`: the platform file the answers come from is
+    // `Bare.bare.x64.yana`, and a Linux-only system call is not a name at all.
+    pass = runSemanticFixture(String("lsp/bare"), String("lsp/bare.expect"), generate) && pass;
+
     pass = checkLibraryDefinitionLocation() && pass;
 
     // Completion, which is a pass of its own because every marker is a compile of its own - §8.

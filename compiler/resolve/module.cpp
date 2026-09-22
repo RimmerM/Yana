@@ -72,7 +72,7 @@ ast::ParsePtr<ast::Decl> declAt(ast::DeclList decls, Size index) {
  * environment (`linux`, `mac`, `win32`, `bare`) or an architecture (`x64`, `x86`, `arm`, `arm64`) name
  * the other two, spelled the way `-target` and `-arch` spell them, and `sha` names
  * an extension no level implies. `targetSelector` is the one place any of that is decided, so an
- * attribute and a file name can never disagree about what a target is called, and `Linux.x64.yana`'s
+ * attribute and a file name can never disagree about what a target is called, and `Linux.linux.x64.yana`'s
  * statement can be made about a single declaration in a file that is otherwise portable.
  *
  * The level and extension names are what `lib/Native/Intrinsic/X86.yana` gates on, and there the

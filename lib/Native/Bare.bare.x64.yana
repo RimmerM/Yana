@@ -1,0 +1,57 @@
+{-
+   The platform file for a machine with no operating system, on x86-64.
+
+   `Linux.linux.x64.yana` is the other one, and it used to be selected by `.x64` alone - its name
+   said Linux and its selector said only "x86-64", so a `-target bare` build compiled the Linux
+   system-call layer and a failed bounds check stopped the program with `syscall 60`, which on a
+   machine with no kernel is whatever the loader left at that vector. This file is what a bare build
+   reads instead, and it supplies **only what the library's always-compiled native files name**:
+   the heap, the clock, entropy, standard output, stopping and the path limit. Everything else in
+   the Linux file - files, processes, the command line - is reached only by a program that imports
+   the module built on it, and a bare program doing that is told the name is unknown, which is the
+   truth about the target.
+
+   Every call here answers the failure its Linux counterpart can already answer, because each
+   caller already has the fallback: no heap is a null region (`initHeap` returns), no clock is a
+   negative result (`Native.Clock` answers 0), no entropy is a non-positive count
+   (`systemEntropy` answers False). Nothing is pretended: a bare program that wants a heap or a
+   clock supplies one, and until then the library says so the way a refusing kernel would.
+-}
+
+pub data ClockTime {seconds: I64 = 0, nanos: I64 = 0}
+
+pub let clockRealtime = 0 :: USize
+pub let clockMonotonic = 1 :: USize
+
+-- No clock without a device to read one from. Negative, which is what a refused call answers.
+pub fn readClock(clock: USize, &into: ClockTime) -> Size = -1
+
+-- No address space to ask for: a bare program owns its memory map, so the library cannot invent a
+-- region in it. Null is the answer `initHeap` already stops on.
+pub fn mapMemory(size: Size) -> %U8 = null()
+
+pub let randomNonBlocking = 1 :: USize
+
+-- No entropy source is assumed (RDRAND is a level question, not a platform one). Zero, which
+-- `systemEntropy` reads as a failure rather than as a short answer it should ask again after.
+pub fn readRandom(to: %U8, count: Size, flags: USize) -> Size = 0
+
+-- Output with nowhere to go. The whole count, so a caller that loops until everything is written
+-- finishes rather than spinning on a device that will never take a byte.
+pub fn writeFile(handle: Size, from: %U8, count: Size) -> Size = count
+
+-- The same limit the Linux file states, since it is about the paths `Core` builds rather than about
+-- a kernel - a bare program that names files has a file system of its own to say otherwise.
+pub let maxPathBytes = 4096 :: Size
+
+{-
+   Stopping, with no process to end.
+
+   `hlt` in a loop: at ring 0 the core stops until an interrupt and then stops again, which is the
+   only meaning "the program is over" has on a machine nothing else is running on; at ring 3 the
+   instruction faults, which stops the program the other way. Either is a stop the loader can see,
+   and neither is a system call into a kernel that is not there. The status has no one to read it.
+-}
+pub fn exitProcess(status: Size):
+    while True:
+        X86.hlt()

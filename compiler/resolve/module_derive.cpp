@@ -129,7 +129,7 @@ struct Expansion {
      * One arm, which is exhaustive because a newtype has exactly one constructor, and a match rather
      * than a field access because a newtype's content is not a named field: positional content is
      * reachable only by pattern matching, which is Analysis-Derive.md §1's fourth probe and is still
-     * true. This is `openBits` in `Native/Linux.x64.yana`, written once per argument instead of once per
+     * true. This is `openBits` in `Native/Linux.linux.x64.yana`, written once per argument instead of once per
      * newtype.
      *
      * `bind` is the convention the class declared for the argument being unwrapped, carried onto the

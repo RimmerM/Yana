@@ -34,6 +34,11 @@ Result<void, String> Session::reloadProject() {
     settings.projectFile = rootPath;
     applyProjectFile(settings, project.unwrapOk());
 
+    // The host's operating system and format where the file named neither, as the driver does -
+    // `applyProjectFile` only settles them when it set one. Without this a session resolved as
+    // Linux on every host, and the target is what picks `lib/Native`'s platform layer (J91).
+    settleTargetAndFormat(settings, settings.explicitTarget, settings.explicitFormat);
+
     // A platform the file did not name still has to be one, because `@platform` selects which
     // declarations exist and there is no program that is both. Native is the default the driver
     // already has, and the status bar shows which one a session is - §5.4.

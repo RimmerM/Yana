@@ -4006,8 +4006,49 @@ void Resolver::resolveProgramEntry() {
 
     DeclPtr<Function> main = nullptr;
 
+    /*
+     * On a bare target, every `main` the root declares, whatever its arity - and more than one is
+     * refused (J91). `functionNamed` answers *one* declaration of the name, which was the exported
+     * one or else whichever registered first, so `main(magic)` beside `main(magic, info)` built with
+     * whichever came first in the file as the entry. The shipping stage calls that a duplicate, and
+     * so does this: an entry is what the loader jumps to, and there is no call site to select at.
+     */
     auto found = program.findFunction(program.root(), name, 0);
-    if(!found && bare) found = program.functionNamed(program.root(), name);
+    if(bare) {
+        auto base = decl();
+        DeclPtr<Function> only = nullptr;
+        auto count = 0u;
+
+        for(auto pointer: decl()[program.root()]->functions.contents(base)) {
+            auto& function = *base[pointer];
+            if(function.name != name) continue;
+
+            OverloadSet set;
+            program.findOverloads(program.root(), name, U32(function.args.size()), set);
+            if(set.plain != pointer) continue;
+
+            count++;
+            if(!only) only = pointer;
+            else if(count == 2) {
+                context.diagnostics.error(
+                    "a bare program's entry is `main`, and this module declares more than one - the loader enters one function, so keep one `main` and rename the others"_v,
+                    function.source);
+            }
+        }
+
+        if(count > 1) return;
+        found = only;
+    } else if(!found && !runsAtStartup()) {
+        // A `main` exists, but not at arity zero, and nothing else would run: say that rather than
+        // the driver's "declares neither `main` nor any top-level statement", which is not what
+        // happened. Beside top-level statements a `main(x)` is an ordinary function of that name.
+        if(auto named = program.functionNamed(program.root(), name)) {
+            context.diagnostics.error(
+                "`main` is the program's entry and takes no parameters on a hosted target - only a `-target bare` entry is entered with arguments"_v,
+                decl()[named]->source);
+            return;
+        }
+    }
 
     if(found) {
         // A lens answers what its continuation answered, and a program's entry has no caller to
@@ -4042,11 +4083,15 @@ void Resolver::resolveProgramEntry() {
     // would have nothing to pass them from - `resolveEntryBody` calls `main` with no arguments.
     // Refused by name rather than forwarded, since forwarding would decide what the loader's
     // registers mean before any program has asked for it.
+    //
+    // The entry below is still built, with no `main` to call: the top-level statements are what
+    // resolve a dynamic global's initializer, and returning here left `let start = seed()`
+    // unresolved, so a `main` reading `start` was also told it "reaches the end without returning".
     if(main && decl()[main]->args.size() != 0) {
         context.diagnostics.error(
             "a bare `main` that takes parameters is the program's entry itself, so the module cannot also have top-level statements to run before it - move them into `main`"_v,
             decl()[main]->source);
-        return;
+        main = nullptr;
     }
 
     // Anonymous, because nothing in the source can name it: it is reached from `Program::entry` and

@@ -989,11 +989,14 @@ Result<void, Tritium::String> checkSettings(const CompileSettings& settings);
 /// the way the author would have written it.
 StringView archName(TargetArch arch);
 
+/// The name `-target` uses for an operating system, for the same reason.
+StringView targetName(TargetType target);
+
 /*
  * A file-name selector - Analysis-Modules.md §2.5.
  *
  * A file may name the targets it is for in its own name: `Array.native.yana` is compiled on a
- * native build and absent from a JS one, and `Linux.x64.yana` is compiled only for x86-64. Every
+ * native build and absent from a JS one, and `Linux.linux.x64.yana` is compiled only for Linux on x86-64. Every
  * dotted segment after the first is one selector, and a file is part of its module when this
  * compilation satisfies all of them - so `Foo.native.linux.yana` reads as "and", the way two
  * `@platform` attributes on one declaration do.

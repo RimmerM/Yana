@@ -1,0 +1,39 @@
+== diagnostics
+
+error Main.yana:17:17: unknown function Native.openPath
+
+== lsp/bare/src/Main.yana
+
+clock at 13:23
+  kind: constructor
+  definition: Bare.bare.x64.yana:1:0..1:0 ""
+  hover: ClockTime.ClockTime({seconds: I64, nanos: I64})
+         -- from Native
+  reference: Clock.native.yana:1:0..1:0 ""
+  reference: Clock.native.yana:1:0..1:0 ""
+  reference: Main.yana:13:16..13:32 "Native.ClockTime"
+
+read at 15:24
+  kind: function
+  definition: Bare.bare.x64.yana:1:0..1:0 ""
+  hover: fn readClock(clock: USize, &into: ClockTime) -> Size
+         -- from Native
+  reference: Clock.native.yana:1:0..1:0 ""
+  reference: Clock.native.yana:1:0..1:0 ""
+  reference: Main.yana:15:17..15:33 "Native.readClock"
+
+linuxOnly at 17:24
+  nothing resolved here
+
+-- semantic tokens
+{"data":[11,15,3,1,0,0,8,3,1,0,1,9,4,5,16,0,7,16,7,0,2,8,6,5,0,0,9,16,8,0,0,17,21,5,12,0,23,4,5,16,4,11,5,4,0]}
+
+-- inlay hints
+[{"position":{"line":12,"character":13},"label":": ClockTime","kind":1},{"position":{"line":14,"character":14},"label":": Size","kind":1}]
+
+-- folding ranges
+[{"startLine":11,"endLine":12},{"startLine":13,"endLine":14},{"startLine":15,"endLine":16},{"startLine":17,"endLine":18}]
+
+-- document symbols
+[{"name":"main","detail":"fn main(magic: U32) -> U32","kind":12,"range":{"start":{"line":11,"character":0},"end":{"line":11,"character":26}},"selectionRange":{"start":{"line":11,"character":0},"end":{"line":11,"character":26}}}]
+

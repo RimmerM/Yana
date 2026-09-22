@@ -87,7 +87,7 @@ fn checked(answer: Size) -> Result(FileError, Size) =
 
 -- The same for a call whose answer is a *file offset* rather than a word - `lseek`, and nothing
 -- else. An offset is sixty-four bits on every Linux ABI, so it is the one result here that does not
--- narrow with the machine; see the note beside `offsetWord` in `Native/Linux.x64.yana`.
+-- narrow with the machine; see the note beside `offsetWord` in `Native/Linux.linux.x64.yana`.
 fn checkedOffset(answer: I64) -> Result(FileError, I64) =
     if answer < 0 then Err(errorOf(truncate(-answer) :: Size)) else Ok(answer)
 

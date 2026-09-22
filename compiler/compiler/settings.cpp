@@ -277,6 +277,11 @@ StringView archName(TargetArch arch) {
     return index < sizeof(archTable) / sizeof(StringView) ? archTable[index] : "unknown"_v;
 }
 
+StringView targetName(TargetType target) {
+    auto index = Size(target);
+    return index < sizeof(targetTable) / sizeof(StringView) ? targetTable[index] : "unknown"_v;
+}
+
 /*
  * The three levels - Analysis-Avx512.md §0.2 - as the instruction sets each adds to the one below it
  * and the flags every part of it has.
@@ -466,7 +471,7 @@ Maybe<String> checkExtensionFlags(const TargetExtensions& extensions) {
  * than a platform.
  *
  * **A system environment or an architecture excludes a JS build**, rather than being ignored on one:
- * `Linux.x64.yana` is a syscall table, and a target with no syscalls has no business compiling it.
+ * `Linux.linux.x64.yana` is a syscall table, and a target with no syscalls has no business compiling it.
  * That is the same answer `@platform(native)` would give, which is what makes the file form a
  * replacement for the attribute rather than a second mechanism beside it.
  */

@@ -5,6 +5,7 @@
 #include <llvm/ADT/APInt.h>
 #include <llvm/BinaryFormat/ELF.h>
 #include <llvm/Config/llvm-config.h>
+#include <llvm/IR/GlobalAlias.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Object/ELFObjectFile.h>
@@ -101,6 +102,13 @@ static bool startsItself(const CompileSettings& settings) {
            (settings.format == ExecutableFormat::ELF || settings.format == ExecutableFormat::Raw);
 }
 
+// A bare target in a container this backend can finish without a C toolchain's runtime - see
+// `addNativeEntry`'s bare arm. The routines are x64 assembly, so the architecture is the same guard.
+static bool freestandingBare(const CompileSettings& settings) {
+    return settings.target == TargetType::Bare && settings.arch == TargetArch::X64 &&
+           (settings.format == ExecutableFormat::ELF || settings.format == ExecutableFormat::Raw);
+}
+
 /*
  * The process entry, as assembly in the module - and why an LLVM-compiled program had a C runtime
  * inside it until it existed.
@@ -142,24 +150,39 @@ static bool startsItself(const CompileSettings& settings) {
  * loop, and did not once in the corpus - is deliberately absent: a link error naming it is a better
  * outcome than a slow one nobody measured.
  */
-static void addProcessEntry(llvm::Module& module, bool raw) {
+static void addProcessEntry(llvm::Module& module, bool raw, bool start = true) {
+    /*
+     * `start` false is a **bare** ELF or image - J92. It has no process to start: its entry is the
+     * program's own function, reached by address, so it takes the three routines and not `_start`.
+     * They go in `.text` rather than the entry section, which on a raw image is what keeps the entry
+     * at byte zero.
+     */
+    if(start) {
+        char entry[1024];
+        auto entryLength = format(toBuffer(entry), String(
+            "%@"
+            "\t.globl _start\n"
+            "\t.type _start,@function\n"
+            "_start:\n"
+            "\txorl %ebp, %ebp\n"
+            "\tmovq (%rsp), %rdi\n"
+            "\tleaq 8(%rsp), %rsi\n"
+            "\tleaq 16(%rsp,%rdi,8), %rdx\n"
+            "\tandq $-%@, %rsp\n"
+            "\tcall main\n"
+            "\tmovl %eax, %edi\n"
+            "\tmovl $%@, %eax\n"
+            "\tsyscall\n"
+            "\thlt\n"
+        ), raw ? String("\t.section .text.entry,\"ax\",@progbits\n") : String("\t.text\n"),
+           kEntryStackAlignment, kSysExitGroup);
+
+        module.appendModuleInlineAsm(llvm::StringRef(entry, entryLength));
+    }
+
     char text[4096];
     auto length = format(toBuffer(text), String(
         "%@"
-        "\t.globl _start\n"
-        "\t.type _start,@function\n"
-        "_start:\n"
-        "\txorl %ebp, %ebp\n"
-        "\tmovq (%rsp), %rdi\n"
-        "\tleaq 8(%rsp), %rsi\n"
-        "\tleaq 16(%rsp,%rdi,8), %rdx\n"
-        "\tandq $-%@, %rsp\n"
-        "\tcall main\n"
-        "\tmovl %eax, %edi\n"
-        "\tmovl $%@, %eax\n"
-        "\tsyscall\n"
-        "\thlt\n"
-
         "\t.globl memcpy\n"
         "\t.type memcpy,@function\n"
         "memcpy:\n"
@@ -201,8 +224,7 @@ static void addProcessEntry(llvm::Module& module, bool raw) {
         // Without it the linker marks the stack executable and says so, because an object with
         // assembly in it and no such note is one it cannot prove otherwise about.
         "\t.section .note.GNU-stack,\"\",@progbits\n"
-    ), raw ? String("\t.section .text.entry,\"ax\",@progbits\n") : String("\t.text\n"),
-       kEntryStackAlignment, kSysExitGroup);
+    ), (raw && start) ? String("") : String("\t.text\n"));
 
     module.appendModuleInlineAsm(llvm::StringRef(text, length));
 }
@@ -243,6 +265,22 @@ bool addNativeEntry(Context& context, llvm::Module& module, LowerModule& lowered
         for(auto& global: module.globals()) {
             if(global.isDeclaration()) continue;
             global.setLinkage(llvm::GlobalValue::InternalLinkage);
+        }
+
+        /*
+         * Freestanding, as the local backend's is - J92. The link used to be the hosted one, so a
+         * bare ELF came out dynamically linked against glibc with an interpreter, and the entry the
+         * kernel jumped to was `crt1.o`'s. What a bare program needs from outside is what any
+         * program LLVM compiled needs - the three memory routines - and an ELF's entry field naming
+         * its own entry, which `_start` as an alias of it is: the default entry symbol of every
+         * linker `cc` drives, with no instruction of its own.
+         */
+        if(freestandingBare(context.settings)) {
+            addProcessEntry(module, context.settings.format == ExecutableFormat::Raw, false);
+
+            if(context.settings.format == ExecutableFormat::ELF && !module.getNamedValue("_start")) {
+                llvm::GlobalAlias::create(llvm::GlobalValue::ExternalLinkage, "_start", entry);
+            }
         }
 
         return true;
@@ -883,7 +921,7 @@ bool linkExecutable(Context& context, const String& objectPath, const String& ou
      * directly. The link is still `cc` rather than `ld` because the driver is what knows where the
      * linker is.
      */
-    auto freestanding = startsItself(context.settings);
+    auto freestanding = startsItself(context.settings) || freestandingBare(context.settings);
 
     char command[4096];
     auto length = format(toBuffer(command),

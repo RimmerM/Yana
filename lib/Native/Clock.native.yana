@@ -49,7 +49,7 @@ pub fn unixTimeMicros() -> I64:
        and calls `main`, so nothing in the program can reach it afterwards. `/proc/self/auxv` is the
        way in that needs no compiler change: one `open`, one `read` and a scan for key 33, done once
        and cached in a `let &` beside a flag saying it has been tried. That is ordinary library code
-       and the syscalls it needs are all in `Linux.x64.yana` already.
+       and the syscalls it needs are all in `Linux.linux.x64.yana` already.
     2. *The symbol.* `__vdso_clock_gettime` is found by walking the mapped object's program headers
        to `PT_DYNAMIC`, reading `DT_SYMTAB`, `DT_STRTAB` and `DT_HASH` out of it, and adding the load
        bias - the difference between the base the kernel chose and the first `PT_LOAD`'s own address.

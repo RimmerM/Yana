@@ -1,14 +1,14 @@
 {-
    The Linux system-call layer, for x86-64.
 
-   **`.x64.yana`, and that is the point of the name** - Analysis-Modules.md §2.5 and §4.2.1. The call
-   numbers below are the x86-64 table and nothing else: on arm64 `read` is 63 rather than 0, and
-   every other number here differs too. Until a file could say which machine it was for, this said
-   it in a comment and was compiled for every one of them - including JS, where a syscall is not a
-   thing that exists. An architecture selector excludes a JS build for the same reason it excludes
-   arm64, so the one word replaces both facts.
+   **`.linux.x64.yana`, and that is the point of the name** - Analysis-Modules.md §2.5 and §4.2.1.
+   The call numbers below are the x86-64 table and nothing else: on arm64 `read` is 63 rather than
+   0, and every other number here differs too. `x64` excludes arm64 and a JS build, where a syscall
+   is not a thing that exists; `linux` excludes `-target bare`, which has no kernel to call and
+   takes `Bare.bare.x64.yana` instead. Until a file could say which machine it was for, this said
+   it in a comment and was compiled for every one of them.
 
-   An arm64 port is `Linux.arm64.yana` beside this, and nothing else has to change to accept it.
+   An arm64 port is `Linux.linux.arm64.yana` beside this, and nothing else has to change to accept it.
 -}
 
 {-

@@ -192,7 +192,7 @@ static Size findFirstDot(StringView stem) {
  * candidate and `parseLibraryGroup` drops the ones whose membership says otherwise. The library is
  * a few dozen files; the alternative is a second parse of every file to decide whether to parse it.
  *
- * A `.yana` name may carry target selectors - `Array.native.yana`, `Linux.x64.yana` - and one this
+ * A `.yana` name may carry target selectors - `Array.native.yana`, `Linux.linux.x64.yana` - and one this
  * compilation does not satisfy is not a file of the module at all (Analysis-Modules.md §2.5). The
  * exact path is recorded as it is found, so that `source` below never has to turn a name back into
  * a path: a selector segment and a directory separator are both spelled with a dot in a name, and
@@ -335,6 +335,50 @@ Array<LibraryFile> LibrarySource::files(Context& context, StringId module) {
         }
 
         result[j] = value;
+    }
+
+    /*
+     * A native build of `Native` with no **platform layer** - no file selected by both this
+     * operating system and this architecture, which is what `Linux.linux.x64.yana` and
+     * `Bare.bare.x64.yana` are (J91).
+     *
+     * Said here, once, because without it the build goes on to report every function the layer
+     * would have declared as unknown - `mapMemory`, `readClock`, `exitProcess` - at lines of files
+     * the author never opened, which is eleven sentences about the library for one fact about the
+     * target. Asked of the files rather than of a list in `checkSettings`, since a `-lib` library
+     * may carry a layer this one does not.
+     */
+    if(context.settings.platform == TargetPlatform::Native && String(name.text(), name.size()) == "Native") {
+        auto system = targetName(context.settings.target);
+        auto arch = archName(context.settings.arch);
+        auto layer = false;
+
+        for(auto& file: result) {
+            if(!file.selectors) continue;
+
+            auto text = context.findName(file.selectors);
+            auto segments = StringView { text.text(), text.size() };
+            auto hasSystem = false, hasArch = false;
+
+            while(segments.length) {
+                Size dot = 0;
+                while(dot < segments.length && segments.ptr[dot] != '.') dot++;
+
+                auto segment = StringView { segments.ptr, dot };
+                if(segment == system) hasSystem = true;
+                if(segment == arch) hasArch = true;
+
+                segments.ptr += dot < segments.length ? dot + 1 : dot;
+                segments.length -= dot < segments.length ? dot + 1 : dot;
+            }
+
+            if(hasSystem && hasArch) layer = true;
+        }
+
+        if(!layer) {
+            context.diagnostics.error("the standard library has no platform layer for %@ on %@ - a native build needs a file in `lib/Native` selected by both, such as `Linux.linux.x64.yana`"_v,
+                                      nullptr, String(system.ptr, system.length), String(arch.ptr, arch.length));
+        }
     }
 
     return result;
