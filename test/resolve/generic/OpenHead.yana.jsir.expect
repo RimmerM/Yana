@@ -1,0 +1,24 @@
+fn main() -> one %r0
+  var $0: %r1
+  block0:
+    %2: %r0 = const 3
+    %3: %r0 = const 4
+    %4: %r1 = object %s0 %2, %3
+    store var $0: %r1, %4
+    %5: %r0 = const 1
+    %6: %r1 = load var $0: %r1
+    %7: %r1 = alias %6
+    %8: %r0 = load property %7.left: %r0
+    %9: %r0 = load property %7.right: %r0
+    %10: %r0 = binary.add %8, %9
+    %11: %r0 = coerce %10
+    %12: %r0 = binary.add %5, %11
+    %13: %r0 = coerce %12
+    return %13
+
+optimizer clones 1 aliased 1 forwarded 0 removed 2 adopted 0 sunk 0
+
+shape %s0 object Pair {left: %r0, right: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0

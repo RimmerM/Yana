@@ -1,0 +1,57 @@
+{-
+   The second and third negative rows of Analysis-IR-JS.md §10.2, for §6.3's elision: **a copy kept
+   somewhere that outlives the next write to its source**, and **a copy taken across a loop back-edge
+   whose source is rewritten every iteration**.
+
+   Both are the same question about *time* rather than about position, and both are what the
+   elision's first condition refuses: a duplicate whose result goes into a record, into storage or
+   round an edge is one this pass stops being able to bound. `remembered` holds what the record said
+   before the write below it, and `first` holds what the loop said on its first iteration - so an
+   alias would make each of them follow its source and the answers would be the last value rather
+   than the remembered one.
+
+   Written with a record of two fields rather than one, because a one-field record is transparent on
+   this target and is its own field: there would be no object for an alias to be an alias *of*.
+-}
+
+data Point {x: Int, y: Int}
+
+data Pair {first: Point, second: Point}
+
+@noinline fn sum(p: Point) -> Int = p.x * 10 + p.y
+
+fn main() -> Int:
+    let &score = 0 :: Int
+
+    let &running = Point {x: 1, y: 2}
+    let remembered = Pair {first: running, second: running}
+    running.x = 8
+    running.y = 9
+
+    -- 12 and 89: the record kept what it was built from and the local moved on.
+    if sum(remembered.first) == 12: score = score + 1
+    if sum(remembered.second) == 12: score = score + 2
+    if sum(running) == 89: score = score + 4
+
+    let &counter = Point {x: 0, y: 0}
+    let &total = 0 :: Int
+    let &firstSeen = 0 :: Int
+
+    for i in 1..4:
+        counter.x = i
+        counter.y = i * 2
+
+        -- The copy outlives the iteration that made it, so it is the one thing in this loop that is
+        -- not allowed to follow `counter` round the back edge.
+        let snapshot = copy(counter)
+        counter.x = 0
+        counter.y = 0
+
+        if i == 1: firstSeen = sum(snapshot)
+        total = total + sum(snapshot)
+
+    -- 12 + 24 + 36 rather than 0 + 0 + 0.
+    if total == 72: score = score + 8
+    if firstSeen == 12: score = score + 16
+
+    return score

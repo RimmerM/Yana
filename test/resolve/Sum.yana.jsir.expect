@@ -1,0 +1,71 @@
+fn Guard.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    store var $0: %r0, %0
+    %1: %r0 = load global trace: %r0
+    %3: %r0 = load var $0: %r0
+    %4: %r0 = binary.add %1, %3
+    %5: %r0 = coerce %4
+    store global trace: %r0, %5
+    return
+
+fn main() -> one %r0
+  var $0: %r2
+  var $1: %r2
+  var $2: %r7
+  var $3: %r7
+  block0:
+    %10: %r2 = const 0
+    store var $0: %r2, %10
+    %12: %r2 = load var $0: %r2
+    %13: %r0 = map %12 [0 => 100, 1 => 200, else 300]
+    %14: %r2 = const 2
+    store var $1: %r2, %14
+    %16: %r2 = load var $1: %r2
+    %17: %r0 = map %16 [0 => 100, 1 => 200, else 300]
+    %18: %r0 = binary.add %13, %17
+    %19: %r0 = coerce %18
+    %32: %r0 = const 23017
+    %33: %r0 = binary.add %19, %32
+    %34: %r0 = coerce %33
+    %35: %r0 = const 4
+    %36: %r0 = alias %35
+    %37: %r7 = alias %36
+    store var $2: %r7, %37
+    %38: %r7 = load var $2: %r7
+    type.drop %38
+    %39: %r7 = const null
+    store var $3: %r7, %39
+    %40: %r7 = load var $3: %r7
+    type.drop %40
+    %41: %r0 = load global trace: %r0
+    %42: %r0 = binary.add %34, %41
+    %43: %r0 = coerce %42
+    return %43
+
+optimizer clones 0 aliased 0 forwarded 0 removed 25 adopted 0 sunk 0
+
+shape %s0 object Shape {$tag: %r2 tag, Line: %r0, width: %r0, height: %r0}
+shape %s1 object Outcome {$tag: %r2 tag, Proceed: %r0, Exit: %r0}
+shape %s2 object Outcome {$tag: %r2 tag, Proceed: %r0, Exit: %r5}
+
+rep %r0 = number signed 32
+rep %r1 = void
+rep %r2 = number unsigned 8
+rep %r3 = object %s0
+rep %r4 = object %s1
+rep %r5 = number bool
+rep %r6 = object %s2
+rep %r7 = nullable of %r0
+fn (one %r7) -> omitted
+  block0(%0: %r7):
+    %2: %r7 = const null
+    %3: %r8 = binary.eq %0, %2
+    branch %3 -> block1 -> block2
+  block1:
+    return
+  block2:
+    %1: %r0 = alias %0
+    call Guard.drop %1
+    jump -> block1
+

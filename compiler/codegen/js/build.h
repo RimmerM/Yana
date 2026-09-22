@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gen.h"
+#include "shared.h"
 #include "../../resolve/generic.h"
 #include "../../resolve/place.h"
 #include "../../resolve/witness.h"
@@ -23,8 +24,6 @@
  */
 namespace js {
 
-constexpr U32 kNoBlock = maxLimit<U32>;
-
 /*
  * The widest integer a host `number` holds every value of.
  *
@@ -35,54 +34,8 @@ constexpr U32 kNoBlock = maxLimit<U32>;
  */
 constexpr U16 kMaxNumberBits = 53;
 
-// One helper this file needs, in the order they were first asked for. `WideOp` is in ast.h, since
-// a call node carries one.
-struct WideHelper {
-    Name name;
-    WideOp op;
-    U16 bits;
-    bool isSigned;
-};
-
-// One saturating float-to-`bigint` conversion, per target type - see genCast in inst.cpp.
-struct SatHelper {
-    Name name;
-    U16 bits;
-    bool isSigned;
-};
-
-/*
- * One accessor for a bit range whose position is only known at run time - see place.cpp.
- *
- * The static ranges are two or three operations against constants and are emitted where they are
- * used. A range reached *through a reference* is not: the scale is a variable, so the read is a
- * divide, a floor and a mask, and the write is that plus the arithmetic to put the field back. Every
- * borrow of a narrow value in the program spells the same one out, and a program that borrows is a
- * program that does it everywhere.
- */
-struct BitHelper {
-    Name name;
-    U16 bits;
-    bool isSigned;
-    bool store;
-
-    // Whether the position arrives as a literal pair the body multiplies by, or as the single
-    // forward scale a reference carries and the body divides with. See place.cpp's Position.
-    bool packed;
-};
-
-/*
- * One block an enclosing construct can be left through, and how.
- *
- * A `Loop` entry is its header, so reaching it is `continue`; a `Forward` entry is a labelled block
- * whose end is that block, so reaching it is `break`. Between them these are every edge JS has no
- * `goto` for.
- */
-struct Exit {
-    U32 block;
-    Name label;
-    bool loop;
-};
+// `WideHelper`, `SatHelper` and `BitHelper` are in shared.h: the files that intern and emit them -
+// `wide.cpp`, `place.cpp` and the helper emitters in `inst.cpp` - serve both pipelines now.
 
 // One cell of a constant table that names a table emitted after it - see genGlobal.
 struct Forward {
@@ -213,13 +166,17 @@ struct AggregateBuildPlan {
     SmallArray<Filled, 16> filled;
 };
 
-struct Gen {
-    Context& context;
+/*
+ * The shipping stage's JavaScript generator state.
+ *
+ * Derived from `JsShared` rather than holding one, so that every AST builder below takes the base by
+ * reference and this struct converts at the call - see shared.h, which is where that trade is argued.
+ * What is left here is what only a `resolve::Program` can fill.
+ */
+struct Gen: JsShared {
     Program& program;
-    File& file;
     GlobalBase global;
     ModuleBase local;
-    JsBase base;
 
     /*
      * This target's layout answers, owned by this target.
@@ -230,11 +187,6 @@ struct Gen {
      * resolution is that both of those are right.
      */
     ReprTable& repr;
-
-    // Identifiers already handed out. Module-level names are checked by every local name as well,
-    // so that a local can never shadow a function it might want to call.
-    HashSet<StringId> moduleNames;
-    HashSet<StringId> localNames;
 
     HashMap<U32, Name> functionNames;
     HashMap<U32, Name> globalNames;
@@ -254,29 +206,6 @@ struct Gen {
      * before anything is emitted.
      */
     HashSet<U32> boxedGlobals;
-
-    /*
-     * The module-level `var`s a call can write, by name - the one kind of bare identifier whose read
-     * is a read of *storage*.
-     *
-     * The optimizer's rewrites all rest on one premise, which `propagateCopy` states outright: a
-     * local `var` is invisible to every callee, so nothing but this function's own text can change
-     * one. A module-level global is exactly the thing that premise is false of - `bump()` assigns
-     * `seen` from another function entirely - and without this, reading one looks as inert as
-     * reading a parameter. `let a = bump(); return seen + a` then became `return seen + bump()`,
-     * which reads the global *before* the call that writes it.
-     *
-     * **Which globals, is a question about the program rather than about the declaration.** `let &`
-     * says a global *may* be assigned, and `FloatNaN.yana`'s `zero` and `one` are declared that way
-     * only so that the division is not constant-folded - nothing ever assigns them, and treating
-     * them as storage puts a local in front of every comparison in that fixture. So the set is read
-     * off the places every emitted function names; see mutableGlobals(), which fills it.
-     *
-     * Two more are excluded there. A table is a `const` and is never assigned. And a boxed one's
-     * variable holds the box, which nothing reassigns either - a write goes to `.$box`, and a
-     * property read already counts as a read.
-     */
-    HashSet<StringId> mutableGlobals;
 
     /*
      * The one-field tuples that keep their wrapper - see isTransparentTuple, whose answer this
@@ -310,197 +239,8 @@ struct Gen {
     // Functions this target cannot emit - see excludeFunctions().
     HashSet<U32> excluded;
 
-    // Names this generator has already copied into the string arena - see internText.
-    HashSet<StringId> interned;
-
-    // The 33-to-53-bit helpers this file has asked for, interned per (operation, width, signedness)
-    // and emitted once at the end. See wide.cpp.
-    HashMap<U32, Name> wideHelpers;
-    Array<WideHelper> wideHelperOrder;
-
-    // The dynamic bit-range accessors, on the same terms, interned per (width, signedness,
-    // direction). See place.cpp.
-    HashMap<U32, Name> bitHelpers;
-    Array<BitHelper> bitHelperOrder;
-
-    // The saturating float-to-`bigint` conversions, interned per (width, signedness). The number
-    // case needs no helper; inst.cpp says why.
-    HashMap<U32, Name> satHelpers;
-    Array<SatHelper> satHelperOrder;
-
-    /*
-     * The scratch pair a `Float`/`I32` bitcast goes through - see genBitcast in inst.cpp.
-     *
-     * A `Float` here is a `number` that `Math.fround` has made exactly representable, so its
-     * thirty-two bits are well defined and completely unreachable: this target has no operator that
-     * sees them. Two views over one buffer is the only way, and one buffer per program is enough
-     * because the write and the read that follows it are the whole of the operation.
-     *
-     * Named lazily, so a program that never reinterprets a float emits neither declaration.
-     */
-    Name floatBitsBuffer;
-    Name floatBitsInts;
-    Name floatToBitsHelper;
-    Name bitsToFloatHelper;
-
-    /*
-     * The same pair at 64 bits - a `Float64Array` and a `BigInt64Array` over its buffer.
-     *
-     * Two pairs and not one because the *element type* is what does the reinterpretation, and the
-     * integer side of this one hands back a `bigint` where the 32-bit side hands back a `number`.
-     * A `Vec(F64)` lane read through the 32-bit pair returns the low half as a number, which then
-     * meets `BigInt.asIntN` and throws - which is exactly what happened while `Vec(Long)` was
-     * refused and this pair did not exist.
-     *
-     * Named lazily and independently, so a program that reinterprets only floats emits only the
-     * first pair.
-     */
-    Name doubleBitsBuffer;
-    Name doubleBitsInts;
-    Name doubleToBitsHelper;
-    Name bitsToDoubleHelper;
-
-    /*
-     * `round`, which is the one of the four roundings the host does not already have.
-     *
-     * `Math.round` breaks ties toward **positive infinity** - `Math.round(-1.5)` is -1 - and the
-     * language's `round` breaks them away from zero, so the two disagree at every negative half.
-     * `Math.trunc`, `Math.floor` and `Math.ceil` need no such helper: each is exactly the kind it
-     * implements, at every input including the infinities and the two zeros.
-     *
-     * A helper rather than an inline conditional because the operand appears three times in it, and
-     * a lane here is an expression that may hold a call. Named lazily on floatBitsHelper's terms.
-     */
-    Name roundAwayHelper;
-
-    /*
-     * `$swap16`, `$swap32` and `$swap64` - the byte reversal, which this host has no operator for at
-     * any width.
-     *
-     * One helper per width rather than one per type: what a swap does depends on how many bytes
-     * there are and on nothing else, so the two signednesses of a width share a helper and the
-     * caller's own coercion is what puts the sign back. Indexed by width - 16, 32 and 64 are slots
-     * 0, 1 and 2 - because the alternative is three names spelled out at every site that asks.
-     *
-     * Helpers rather than an inline expression for `roundAwayHelper`'s reason, doubled: the operand
-     * appears four times in the 32-bit shape and eight in the 64-bit one, and an operand here is an
-     * expression that may hold a call. Named lazily on floatBitsHelper's terms, so a program that
-     * never swaps emits none of them.
-     */
-    Name byteSwapHelpers[3];
-
-    /*
-     * `$popcount32` / `$ctz32` and their three 64-bit partners - the population count and the two
-     * zero counts, which the host answers exactly one of.
-     *
-     * `Math.clz32` is the one JavaScript has, and it is why there is no `$clz32`: a 32-bit leading
-     * count is that call and nothing else, so the slot for it stays empty and the site emits the
-     * call inline. Everything else is a helper for `byteSwapHelpers`' reason - the operand appears
-     * three or four times in each shape, and an operand here may be a call.
-     *
-     * Indexed by `bitCountHelperSlot`: the operation, then the width. The 64-bit three are the
-     * `bigint` domain and are written over the two halves rather than over the whole, because
-     * `Math.clz32` is the fast path and a `bigint` loop is not - see `emitBitCountHelpers`.
-     */
-    Name bitCountHelpers[6];
-
-    /*
-     * `$rol32` and its nine partners - the two rotations, at each of the five widths a scalar
-     * `Integral` instance is generated for (8, 16, 32, 53 and 64) and at each lane width a vector
-     * reaches through the same call.
-     *
-     * A helper for `byteSwapHelpers`' reason and one more of its own. The operand appears twice in
-     * every shape and an operand here may be a call, which is the first reason; the second is that
-     * the three host domains a rotation crosses - an `int32` operator set below 33 bits, wide.cpp's
-     * helpers to 53, and `bigint` above - each need a different body, and a function is where three
-     * bodies can share one name at the call site.
-     *
-     * Indexed by `rotateHelperSlot`: the direction, then the width. Named lazily, so a program that
-     * rotates nothing emits none of them.
-     */
-    Name rotateHelpers[10];
-
-    /*
-     * `$bzhi32` and its five partners - `Core.Bits.bitsUpTo` and the two directions of
-     * `Core.BitPermute`, at the two widths those are declared over.
-     *
-     * Helpers for `rotateHelpers`' two reasons and one that is theirs alone. The operand appears
-     * several times in each shape and an operand here may be a call; the two domains a 32-bit and a
-     * 64-bit body work in are different (`int32` operators against `bigint`); and the permutations
-     * are a *loop*, which is not an expression in any domain. There is no 53-bit slot, `Bits` being
-     * declared at 32 and 64 only.
-     *
-     * Indexed by `bitOpHelperSlot`: the operation, then the width. Named lazily, so a program that
-     * asks for none of the three emits none of them.
-     */
-    Name bitOpHelpers[6];
-
-    /*
-     * `$div` and `$rem` - the two divisors the language answers for, where the host does not.
-     *
-     * `x / 0` is 0 and `x % 0` is `x` (doc/spec/types.md, and the ruling beside `Div` in
-     * resolve/inst.def), and JavaScript agrees with exactly one half of one of them. A 32-bit
-     * quotient is already right for nothing: `a / 0` is an infinity and the `|0` this backend emits
-     * anyway turns any infinity into 0. Everything else disagrees, and disagrees three different
-     * ways - `a % 0` is NaN, the 33-to-53-bit band's `wrap` turns that quotient into NaN too, and
-     * BigInt division *throws* a RangeError rather than answering at all.
-     *
-     * One pair of helpers serves all three bands, which is what `b ? a / b : b` buys: the zero arm
-     * returns the *divisor*, so the answer carries the operand's own type and neither `0` nor `0n`
-     * has to be written. `!b` is true for both zeros and for no other integer.
-     *
-     * Helpers rather than an inline conditional for `roundAwayHelper`'s reason and one more: each
-     * operand appears twice, and an operand here is an expression that may hold a call - but also,
-     * a division is where a program least minds a call, being the slowest arithmetic on any target.
-     *
-     * Named lazily on floatBitsHelper's terms, so a program that never divides emits neither.
-     */
-    Name divideByZeroHelper;
-    Name remainderByZeroHelper;
-
-    /*
-     * The one helper the typed row of Implementation-Containers.md §14 needs - see NativeOp::HostGrow.
-     *
-     * Named lazily and once per program, on the same terms as the two above: a program with no typed
-     * array that ever grows emits nothing. It is written over `a.constructor` rather than over a
-     * constructor name, so one function serves every element type - which is also why the element
-     * predicate is not consulted here at all.
-     */
-    Name growHelper;
-
-    /*
-     * The word transfers, and the `DataView` they ride on - see NativeOp::HostWordRead.
-     *
-     * `viewHelper` is the cache and the other four are the operations. Five names rather than one
-     * expression per call site because that is what makes the cache worth having: `new DataView` at
-     * every call is fifteen times slower than the shift chain these replace, so the view is built
-     * once per array and hung off it, and every word after the first is one property read.
-     *
-     * A property on the array rather than a table keyed by buffer, which was the other candidate and
-     * is slower than doing nothing: a one-entry memo collapses to 30x the moment a loop touches two
-     * buffers - which a digest reading a message and writing a pad does - and a `WeakMap` lookup
-     * costs more than the shifts. The property was measured not to disturb the array it is attached
-     * to: element access over a tagged `Uint8Array` is 8.4 ms against 8.4 ms plain.
-     *
-     * Named lazily, one per width and direction, on `growHelper`'s terms. The slot is the width: 0 is
-     * 16 bits, 1 is 32 and 2 is 64.
-     */
-    Name viewHelper;
-    Name readWordHelper[3];
-    Name writeWordHelper[3];
-
-    // The heading each family of helpers is emitted under, so that a family the peephole emptied
-    // takes its own comment with it - see removeDeadHelpers.
-    JsPtr<Stmt> wideHelperComment = nullptr;
-    JsPtr<Stmt> bitHelperComment = nullptr;
-
-    // The property names that are the compiler's rather than the program's.
-    Name tagField;
-    Name payloadField;
-    Name boxField;
-    Name codeField;
-    Name envField;
-    Name headerField;
+    // The helper families, the identifier tables and the compiler's own property names are in
+    // `JsShared` above - see shared.h. Everything left in this struct needs a `resolve::Program`.
 
     /*
      * The three parts of a reference to a narrow value - Design.md's tier 2, as this target spells
@@ -537,7 +277,6 @@ struct Gen {
 
     Function* function = nullptr;
     ModulePtr<Function> functionPointer = nullptr;
-    StmtList* body = nullptr;
 
     HashMap<U32, JsPtr<Expr>> values;
     HashMap<U32, Name> phis;
@@ -671,7 +410,6 @@ struct Gen {
     // The constructs currently open that control can leave through - see emitChain.
     Array<Exit> exits;
 
-    U32 labelCounter = 0;
 
     // The erased half, set only while a generic function is being emitted - the same two fields
     // resolve/lower.cpp carries, for the same reason.
@@ -679,41 +417,6 @@ struct Gen {
     GenEnv* genContext = nullptr;
     Module* genModule = nullptr;
 };
-
-/*
- * Allocation.
- */
-
-template<class T, class... A>
-T* make(Gen& g, A&&... args) {
-    return new (g.file.arena) T(forward<A>(args)...);
-}
-
-template<class T>
-JsPtr<Expr> asExpr(Gen& g, T* value) {
-    return (Expr*)value - g.base;
-}
-
-template<class T>
-JsPtr<Stmt> asStmt(Gen& g, T* value) {
-    return (Stmt*)value - g.base;
-}
-
-template<class T>
-void emit(Gen& g, T* stmt) {
-    g.body->push(g.file.arena, asStmt(g, stmt));
-}
-
-// Builds one statement list, with everything emitted while `f` runs going into it.
-template<class F>
-StmtList collect(Gen& g, F&& f) {
-    StmtList list;
-    auto previous = g.body;
-    g.body = &list;
-    f();
-    g.body = previous;
-    return list;
-}
 
 // Every instruction of a function, in block order - what the passes that read a whole body before
 // anything is emitted (what is expressible, what it reaches, which locals are boxed) walk it with.
@@ -727,420 +430,18 @@ void eachInstruction(Gen& g, Function& function, F&& f) {
 }
 
 /*
- * Names. The rest of naming is in name.cpp; these two are here because every builder below reaches
- * for them.
+ * name.cpp - identifiers, for the three that name a `resolve::Value`.
  */
 
-// A name this generator spelled out itself rather than one derived from the program - `$tag`,
-// `Math`, `BigInt`. No disambiguation, because nothing else may claim these.
-Name literalName(Gen& g, StringView text);
-
-// A property name. These are not identifiers in a scope, so they need no disambiguation - two
-// records may both have an `x`, and a reserved word is a legal property name.
-Name propertyName(Gen& g, StringView text);
-
-/*
- * Expression builders.
- */
-
-inline JsPtr<Expr> variable(Gen& g, Name name) {
-    return asExpr(g, make<VarExpr>(g, name));
-}
-
-inline JsPtr<Expr> field(Gen& g, JsPtr<Expr> object, Name name) {
-    return asExpr(g, make<FieldExpr>(g, object, name));
-}
-
-inline JsPtr<Expr> number(Gen& g, F64 value, bool integral = true) {
-    return asExpr(g, make<NumberExpr>(g, value, integral));
-}
-
-// `2**bits` as an exact double, by doubling rather than by `pow`: every power of two up to 2^53 is
-// representable, and this is a compile-time constant in the emitted text either way.
-inline F64 powerOfTwo(U32 bits) {
-    F64 result = 1;
-    for(U32 i = 0; i < bits; i++) result *= 2;
-    return result;
-}
-
-inline JsPtr<Expr> bigInt(Gen& g, U64 value, bool isSigned) {
-    return asExpr(g, make<BigIntExpr>(g, value, isSigned));
-}
-
-/*
- * A `bigint` literal's value, or false where this is not one.
- *
- * The `bigint` half of `constantNumber` below, and it is a separate question rather than a widening
- * of that one: the two domains do not mix in this language's output any more than they do in the
- * host's, so a fold that took either would be a fold that could write `0n === 0`.
- *
- * `value` is the raw sixty-four bits and `isSigned` says which number they spell, so a caller
- * comparing two of them has to agree about that first - see `foldBigIntComparison`.
- */
-inline bool constantBigInt(Gen& g, JsPtr<Expr> pointer, U64& into, bool& isSigned) {
-    auto expr = g.base[pointer];
-    if(expr->kind != Expr::BigInt) return false;
-
-    into = ((BigIntExpr*)expr)->value;
-    isSigned = ((BigIntExpr*)expr)->isSigned;
-    return true;
-}
-
-inline JsPtr<Expr> boolean(Gen& g, bool value) {
-    return asExpr(g, make<BoolExpr>(g, value));
-}
-
-inline JsPtr<Expr> nullValue(Gen& g) {
-    return asExpr(g, make<NullExpr>(g));
-}
-
-inline JsPtr<Expr> elementAt(Gen& g, JsPtr<Expr> array, JsPtr<Expr> index) {
-    return asExpr(g, make<IndexExpr>(g, array, index));
-}
-
-inline JsPtr<Expr> index(Gen& g, JsPtr<Expr> array, U32 slot) {
-    return elementAt(g, array, number(g, F64(slot)));
-}
-
-/*
- * Evaluating the host's operators, and the one rule about when an answer may be written down.
- *
- * Every bit range this target reaches is built out of `&`, `|`, `<<` and `~` against numbers the
- * emitter worked out - a field's mask, its offset, the hole its neighbours must keep - and where the
- * value being written is a literal too, the whole read-modify-write is arithmetic over constants.
- * `Boxed {k: 7, a: 1, b: 4095}` emitted `~(4095 << 20)` and `(4095 & 4095) << 20`, and opt.cpp could
- * not take it back: that pass reasons about *ranges*, so it can drop a mask that provably does
- * nothing but cannot evaluate one that does something.
- *
- * These are stated here rather than at either use site because there are three of them - the emitter
- * below, the peephole's `foldConstantOp`, and the helper evaluator that reads a `$p20u$set` body and
- * works out what the call comes to. Three implementations of what `>>>` means is three chances to
- * disagree with the host about one of them.
- *
- * ## Two rules keep this exact
- *
- * **An operand is a *finite* number literal that is not negative zero**, tested on the bit pattern
- * rather than by comparison - see `constantNumber`. `-0` compares equal to `0`, so `x * -0` is the
- * one product whose sign cannot be recovered from its value, and the cheapest answer is for the sign
- * never to enter.
- *
- * **An answer is only ever written down as an exact integer** - see `numberLiteral`. The arithmetic
- * itself runs in `double`, because `Math.floor(w * 2**-32)` is what a bit range above the operators
- * is *made of* and there is no integer form of it; but a fraction is never emitted, so nothing here
- * depends on the printer round-tripping one, and a `-0` result is not representable in what comes
- * out. Intermediates stay in `F64` where they belong.
- *
- * The compiler is built at -O3 rather than -Ofast for exactly this reason - see the note in the root
- * CMakeLists.txt. Each operation below is one correctly-rounded IEEE 754 binary64 operation on both
- * sides, which is what makes evaluating it here the same as evaluating it there.
- */
-
-// 2^53: past it a double stops counting by ones, so an integer answer beyond this is one the host
-// would not have been able to state either.
-constexpr F64 kExactIntegerLimit = 9007199254740992.0;
-
-inline bool isNegativeZero(F64 value) {
-    union { F64 f; U64 bits; } punned = { value };
-    return punned.bits == (U64(1) << 63);
-}
-
-inline bool isFiniteNumber(F64 value) {
-    union { F64 f; U64 bits; } punned = { value };
-    return (punned.bits & (U64(0x7ff) << 52)) != (U64(0x7ff) << 52);
-}
-
-// Whether a value is an integer the host counts by ones at, which is the only shape an answer may
-// be written back as.
-inline bool isExactInteger(F64 value) {
-    return value >= -kExactIntegerLimit && value <= kExactIntegerLimit && F64(I64(value)) == value;
-}
-
-inline bool constantNumber(Gen& g, JsPtr<Expr> pointer, F64& into) {
-    auto expr = g.base[pointer];
-    if(expr->kind != Expr::Number) return false;
-
-    auto value = ((NumberExpr*)expr)->value;
-    if(!isFiniteNumber(value) || isNegativeZero(value)) return false;
-
-    into = value;
-    return true;
-}
-
-// The host's ToInt32 - truncate towards zero, then keep the low thirty-two bits. Only defined here
-// for a value inside the exactly-representable range, which every operand the emitter writes is;
-// the operators below decline anything else rather than guessing at the modulo.
-inline I32 toInt32(F64 value) {
-    return I32(U32(U64(I64(value))));
-}
-
-inline bool fitsInt32Conversion(F64 value) {
-    return value >= -kExactIntegerLimit && value <= kExactIntegerLimit;
-}
-
-// `Math.floor`, without libm: the truncation is exact inside the range above, and a negative value
-// that lost a fraction on the way rounds one further down.
-inline F64 floorOf(F64 value) {
-    auto truncated = F64(I64(value));
-    return (value < 0 && truncated != value) ? truncated - 1 : truncated;
-}
-
-/*
- * One host binary operator over two known values. False where the answer is not one this may state -
- * a `%` or `/` by zero, a bitwise operand too large to say what ToInt32 makes of it.
- *
- * The comparisons are not here: they answer a boolean rather than a number, and only the helper
- * evaluator has anywhere to put one.
- */
-inline bool applyJsBinary(BinaryOp op, F64 a, F64 b, F64& into) {
-    switch(op) {
-        case BinaryOp::Add: into = a + b; break;
-        case BinaryOp::Sub: into = a - b; break;
-        case BinaryOp::Mul: into = a * b; break;
-
-        case BinaryOp::Div:
-            if(b == 0) return false;
-            into = a / b;
-            break;
-
-        // The host's `%` is a remainder with the dividend's sign, which for two exact integers is
-        // the integer remainder. Restricted to that case rather than reaching for `fmod`, since the
-        // helpers that use it - `$w40u$wrap` and its family - reduce an integer by a power of two.
-        case BinaryOp::Rem:
-            if(b == 0 || !isExactInteger(a) || !isExactInteger(b)) return false;
-            into = F64(I64(a) % I64(b));
-            break;
-
-        default: {
-            if(!fitsInt32Conversion(a) || !fitsInt32Conversion(b)) return false;
-
-            auto x = toInt32(a);
-            auto y = toInt32(b);
-
-            // A shift count is masked to five bits by the host, so this masks it too rather than
-            // declining: `1 << 32` is `1` there, and any other answer would be a difference between
-            // the compiled and the emitted form rather than a missed opportunity.
-            auto by = U32(y) & 31;
-
-            switch(op) {
-                case BinaryOp::And: into = F64(x & y); break;
-                case BinaryOp::Or:  into = F64(x | y); break;
-                case BinaryOp::Xor: into = F64(x ^ y); break;
-                case BinaryOp::Shl: into = F64(I32(U32(x) << by)); break;
-                case BinaryOp::Sar: into = F64(x >> by); break;
-                case BinaryOp::Shr: into = F64(U32(x) >> by); break;
-                default: return false;
-            }
-        }
-    }
-
-    return isFiniteNumber(into);
-}
-
-inline bool applyJsUnary(UnaryOp op, F64 value, F64& into) {
-    switch(op) {
-        case UnaryOp::Neg:
-            into = -value;
-            break;
-        case UnaryOp::BitNot:
-            if(!fitsInt32Conversion(value)) return false;
-            into = F64(~toInt32(value));
-            break;
-        default:
-            return false;
-    }
-
-    return isFiniteNumber(into);
-}
-
-// An answer as a literal, or null where it is not one this may write down - see the rule above.
-inline JsPtr<Expr> numberLiteral(Gen& g, F64 value) {
-    if(!isExactInteger(value) || isNegativeZero(value)) return nullptr;
-    return number(g, value);
-}
-
-inline JsPtr<Expr> foldBinaryOp(Gen& g, BinaryOp op, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
-    F64 left, right, result;
-    if(!constantNumber(g, lhs, left) || !constantNumber(g, rhs, right)) return nullptr;
-    if(!applyJsBinary(op, left, right, result)) return nullptr;
-
-    return numberLiteral(g, result);
-}
-
-inline JsPtr<Expr> foldUnaryOp(Gen& g, UnaryOp op, JsPtr<Expr> value) {
-    F64 operand, result;
-    if(!constantNumber(g, value, operand)) return nullptr;
-    if(!applyJsUnary(op, operand, result)) return nullptr;
-
-    return numberLiteral(g, result);
-}
-
-/*
- * The comparisons, which answer a boolean and so are not `applyJsBinary`'s.
- *
- * `===` and `!==` on two numbers are value equality, so they fold like the ordering ones. The loose
- * pair is deliberately absent: this tree only builds one against a *reference* (see BinaryOp), where
- * what it tests is whether a property was ever attached, and neither side is a number.
- */
-inline JsPtr<Expr> foldComparison(Gen& g, BinaryOp op, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
-    F64 a, b;
-    if(!constantNumber(g, lhs, a) || !constantNumber(g, rhs, b)) return nullptr;
-
-    switch(op) {
-        case BinaryOp::Lt: return boolean(g, a <  b);
-        case BinaryOp::Le: return boolean(g, a <= b);
-        case BinaryOp::Gt: return boolean(g, a >  b);
-        case BinaryOp::Ge: return boolean(g, a >= b);
-        case BinaryOp::Eq: return boolean(g, a == b);
-        case BinaryOp::Ne: return boolean(g, a != b);
-        default: return nullptr;
-    }
-}
-
-/*
- * The same over two `bigint` literals, which is the domain the 64-bit types live in here.
- *
- * Only the comparisons, and deliberately: an *arithmetic* fold would have to wrap at the operand's
- * declared width, which is a property of the type rather than of the literal and is not in hand at
- * this call. A comparison answers a `Bool` and needs nothing but the two values.
- *
- * The literals must agree about signedness before their bits are read as numbers - the same
- * sixty-four bits are two different values otherwise, and every pair the emitter actually builds
- * agrees, because both sides of a comparison have been coerced to one operand type.
- */
-inline JsPtr<Expr> foldBigIntComparison(Gen& g, BinaryOp op, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
-    U64 a, b;
-    bool leftSigned, rightSigned;
-
-    if(!constantBigInt(g, lhs, a, leftSigned) || !constantBigInt(g, rhs, b, rightSigned)) return nullptr;
-    if(leftSigned != rightSigned) return nullptr;
-
-    switch(op) {
-        case BinaryOp::Lt: return boolean(g, leftSigned ? I64(a) <  I64(b) : a <  b);
-        case BinaryOp::Le: return boolean(g, leftSigned ? I64(a) <= I64(b) : a <= b);
-        case BinaryOp::Gt: return boolean(g, leftSigned ? I64(a) >  I64(b) : a >  b);
-        case BinaryOp::Ge: return boolean(g, leftSigned ? I64(a) >= I64(b) : a >= b);
-        case BinaryOp::Eq: return boolean(g, a == b);
-        case BinaryOp::Ne: return boolean(g, a != b);
-        default: return nullptr;
-    }
-}
-
-inline JsPtr<Expr> binary(Gen& g, BinaryOp op, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
-    if(auto folded = foldBinaryOp(g, op, lhs, rhs)) return folded;
-    if(auto folded = foldComparison(g, op, lhs, rhs)) return folded;
-    if(auto folded = foldBigIntComparison(g, op, lhs, rhs)) return folded;
-
-    return asExpr(g, make<BinaryExpr>(g, op, lhs, rhs));
-}
-
-inline JsPtr<Expr> unary(Gen& g, UnaryOp op, JsPtr<Expr> value) {
-    if(auto folded = foldUnaryOp(g, op, value)) return folded;
-    return asExpr(g, make<UnaryExpr>(g, op, value));
-}
-
-inline JsPtr<Expr> ternary(Gen& g, JsPtr<Expr> cond, JsPtr<Expr> then, JsPtr<Expr> otherwise) {
-    return asExpr(g, make<TernaryExpr>(g, cond, then, otherwise));
-}
-
-inline JsPtr<Expr> assign(Gen& g, JsPtr<Expr> target, JsPtr<Expr> value) {
-    return asExpr(g, make<AssignExpr>(g, target, value));
-}
-
-// The call an emitter builds when it knows its arguments: `call(g, f, a, b)`. The arity-at-runtime
-// form is below, for the instructions that forward an argument list they were handed.
-template<class... A>
-JsPtr<Expr> call(Gen& g, JsPtr<Expr> callee, A... args) {
-    auto node = make<CallExpr>(g, callee);
-    (node->args.push(g.file.arena, args), ...);
-    return asExpr(g, node);
-}
-
-inline JsPtr<Expr> callWith(Gen& g, JsPtr<Expr> callee, Array<JsPtr<Expr>>& args) {
-    auto node = make<CallExpr>(g, callee);
-    for(auto arg: args) node->args.push(g.file.arena, arg);
-
-    return asExpr(g, node);
-}
-
-// A call this generator built out of a host intrinsic rather than out of the program - see
-// CallExpr::pure, which is what the two builders below exist to set.
-inline JsPtr<Expr> asPureCall(Gen& g, JsPtr<Expr> value) {
-    ((CallExpr*)g.base[value])->pure = true;
-    return value;
-}
-
-/*
- * A property read that is a host container's `.length` - see `Expr::valueBits`.
- *
- * The one range that is the *host's* specification rather than a Yana type's, which is why it is
- * said here rather than left to `noteValueType`: `hostLength` answers a `Size`, so the type would
- * claim a signed 32-bit number, and what the host guarantees is an unsigned one.
- */
-inline JsPtr<Expr> asHostLength(Gen& g, JsPtr<Expr> value) {
-    auto expr = g.base[value];
-    expr->valueBits = 32;
-    expr->valueSigned = false;
-    return value;
-}
-
-// `Namespace.member(...)` for the handful of host intrinsics the integer tower needs - `Math.imul`,
-// `BigInt.asIntN`. Nothing else in the emitted code reaches for the host.
-template<class... A>
-JsPtr<Expr> hostCall(Gen& g, StringView object, StringView member, A... args) {
-    return asPureCall(g, call(g, field(g, variable(g, literalName(g, object)),
-                                       literalName(g, member)), args...));
-}
-
-// `Name(...)` - `BigInt(x)`, `Number(x)`. These are conversions rather than members of anything.
-template<class... A>
-JsPtr<Expr> globalCall(Gen& g, StringView name, A... args) {
-    return asPureCall(g, call(g, variable(g, literalName(g, name)), args...));
-}
-
-/*
- * Statement builders.
- */
-
-inline void emitExpr(Gen& g, JsPtr<Expr> value) {
-    emit(g, make<ExprStmt>(g, value));
-}
-
-// `var name = value;`, and the name is what everything downstream uses for the value.
-inline JsPtr<Expr> declare(Gen& g, Name name, JsPtr<Expr> value) {
-    emit(g, make<DeclStmt>(g, name, value, false));
-    return variable(g, name);
-}
-
-/*
- * name.cpp - identifiers.
- */
-
-// Copies text the generator built into the string arena before interning it, since
-// Context::addUnqualifiedName keeps the pointer it is given rather than copying.
-StringId internText(Gen& g, StringView text);
-
-// A module-level or local identifier, disambiguated against every name already handed out.
-Name uniqueName(Gen& g, StringView text, bool local);
-
-// `v7` for a value the source never named, so that the emitted code and the resolve dump agree on
-// what to call it.
-Name generatedName(Gen& g, StringView prefix, U32 index);
-
-Name valueName(Gen& g, Value& value);
-Name fieldName(Gen& g, StringId name, U16 index);
-
-// One word of a function-value field - `run$c`, `run$e`. See FieldProperty::fun.
-Name fieldPartName(Gen& g, Name field, StringView suffix);
-
-// The property a run of co-packed fields shares - `$p0` for the word at offset zero. See name.cpp.
-Name packedWordName(Gen& g, U32 offset);
+Name valueName(JsShared& g, Value& value);
+Name fieldName(JsShared& g, StringId name, U16 index);
 
 // One part of a flattened narrow reference - `p$o`, `p$k`, `p$s` - named after the reference it
 // came from so the emitted source still says which one that was.
-Name partName(Gen& g, Value& value, StringView suffix);
+Name partName(JsShared& g, Value& value, StringView suffix);
 
 // One lane of a vector - `x$0`, `x$1`. See VecParts, and partName, which this is a suffix of.
-Name laneName(Gen& g, Value& value, U32 lane);
+Name laneName(JsShared& g, Value& value, U32 lane);
 
 /*
  * type.cpp - what a type is on this target.
@@ -1150,10 +451,6 @@ IntType* intType(Gen& g, TypePtr type);
 RecordType* recordType(Gen& g, TypePtr type);
 bool isBool(Gen& g, TypePtr type);
 
-// A comparison's host boolean, as the number a `Bool` is on this target - see boolNumber in
-// type.cpp. Only the two instructions that produce a `Bool` from a test need it; everything else
-// already holds the number.
-JsPtr<Expr> boolNumber(Gen& g, JsPtr<Expr> test);
 
 /*
  * How wide this target holds an integer, and which register class it holds it in.
@@ -1188,60 +485,43 @@ bool isWideNumber(Gen& g, TypePtr type);
 
 JsPtr<Expr> coerce(Gen& g, TypePtr type, JsPtr<Expr> value);
 
-/*
- * wide.cpp - integers of 33 to 53 bits.
- */
-
-// The name of one helper, emitting it on first use. Callers normally want `wideCall`.
-Name wideHelper(Gen& g, WideOp op, U32 bits, bool isSigned);
-
-// `$w53i$and(a, b)`. `b` is null for the one-operand operations.
 JsPtr<Expr> wideCall(Gen& g, WideOp op, IntType* type, JsPtr<Expr> a, JsPtr<Expr> b);
-
-// The same, for a caller that has a width rather than a type - a bit range of a packed word is one
-// of these without being a value of any 33-to-53-bit type.
-JsPtr<Expr> wideCallAt(Gen& g, WideOp op, U32 bits, bool isSigned, JsPtr<Expr> a, JsPtr<Expr> b);
-
-// `v >= 2**(bits-1) ? v - 2**bits : v` - an unsigned bit pattern read back as a signed value.
-JsPtr<Expr> resignExpr(Gen& g, JsPtr<Expr> value, U32 bits);
-
-// A value crossing between a wide type and a narrower integer, in the widening direction.
 JsPtr<Expr> wideFromNarrow(Gen& g, IntType* to, IntType* from, JsPtr<Expr> value);
 
 // A tree of wide bitwise calls as one unpack-operate-pack, or null where this one is not that.
 // Asked at the root of a tree and never below it - see opt.cpp, which is the only caller.
-JsPtr<Expr> fuseWideBitwise(Gen& g, JsPtr<Expr> pointer);
+JsPtr<Expr> fuseWideBitwise(JsShared& g, JsPtr<Expr> pointer);
 
 // Every helper asked for, as function declarations. Called once, at the end of genProgram.
-void emitWideHelpers(Gen& g);
+void emitWideHelpers(JsShared& g);
 
 // The same for the dynamic bit-range accessors. Emitted *before* the wide helpers, since a body
 // here may ask for one of those and the list it would be appended to is already being walked.
 void emitBitHelpers(Gen& g);
 
 // The saturating float-to-`bigint` conversions a program asked for. See genCast in inst.cpp.
-void emitSaturationHelpers(Gen& g);
+void emitSaturationHelpers(JsShared& g);
 
 // The typed-array pair and the two functions a `Float`/`I32` bitcast goes through, where a program
 // asked for one. See genBitcast in inst.cpp.
-void emitFloatBitsHelpers(Gen& g);
+void emitFloatBitsHelpers(JsShared& g);
 
 // `function $round(v) { return v < 0 ? -Math.round(-v) : Math.round(v) }` - see Gen::roundAwayHelper.
-void emitRoundAwayHelper(Gen& g);
+void emitRoundAwayHelper(JsShared& g);
 
 // The byte reversals a program asked for, one function per width. See Gen::byteSwapHelpers.
-void emitByteSwapHelpers(Gen& g);
+void emitByteSwapHelpers(JsShared& g);
 
 // The bit counts a program asked for, one function per (operation, width). See
 // Gen::bitCountHelpers.
-void emitBitCountHelpers(Gen& g);
+void emitBitCountHelpers(JsShared& g);
 
 // The rotations a program asked for, one function per (direction, width). See Gen::rotateHelpers.
-void emitRotateHelpers(Gen& g);
+void emitRotateHelpers(JsShared& g);
 
 // The three BMI2 operations a program asked for, one function per (operation, width). See
 // Gen::bitOpHelpers.
-void emitBitOpHelpers(Gen& g);
+void emitBitOpHelpers(JsShared& g);
 
 /*
  * Which of the ten slots one (direction, width) is, or `kNoRotateHelper` for a width no instance is
@@ -1254,34 +534,54 @@ void emitBitOpHelpers(Gen& g);
  */
 static const Size kNoRotateHelper = ~Size(0);
 
-inline Size rotateHelperSlot(Value::Kind kind, U32 bits) {
+inline Size rotateHelperSlot(BitFamily of, U32 bits) {
     auto width = bits == 8 ? 0 : bits == 16 ? 1 : bits == 32 ? 2 : bits == 53 ? 3 : bits == 64 ? 4 : -1;
     if(width < 0) return kNoRotateHelper;
 
-    return Size((kind == Value::Rol ? 0 : 5) + width);
+    return Size((of == BitFamily::Rol ? 0 : 5) + width);
 }
 
 // Which of the six slots one (operation, width) is. The operation, then the width - so the two
 // widths of a count sit beside each other and the unused slot (a 32-bit leading count, which is
 // `Math.clz32` and no helper) is simply never filled.
-inline Size bitCountHelperSlot(Value::Kind kind, bool wide) {
-    auto op = kind == Value::CountBits ? 0 : kind == Value::LeadingZeros ? 1 : 2;
+inline Size bitCountHelperSlot(BitFamily of, bool wide) {
+    auto op = of == BitFamily::CountBits ? 0 : of == BitFamily::LeadingZeros ? 1 : 2;
     return Size(op * 2 + (wide ? 1 : 0));
 }
 
 // Which of the six slots one (operation, width) is - the same shape `bitCountHelperSlot` has, and
 // the widths are the two `Core.Bits` is declared over.
-inline Size bitOpHelperSlot(Value::Kind kind, bool wide) {
-    auto op = kind == Value::BitsUpTo ? 0 : kind == Value::GatherBits ? 1 : 2;
+inline Size bitOpHelperSlot(BitFamily of, bool wide) {
+    auto op = of == BitFamily::BitsUpTo ? 0 : of == BitFamily::GatherBits ? 1 : 2;
     return Size(op * 2 + (wide ? 1 : 0));
+}
+
+/*
+ * The legacy IR's own selector, translated once.
+ *
+ * `gen.cpp` reasons in `resolve::Value::Kind` and the JSIR pipeline in `mir::BinaryOp`/`UnaryOp`, so
+ * the shared tables are keyed on neither - see `BitFamily`. This is the older caller's half of that
+ * translation; the newer one's is in `structure.cpp`.
+ */
+inline BitFamily bitFamilyOf(Value::Kind kind) {
+    switch(kind) {
+        case Value::CountBits:     return BitFamily::CountBits;
+        case Value::LeadingZeros:  return BitFamily::LeadingZeros;
+        case Value::TrailingZeros: return BitFamily::TrailingZeros;
+        case Value::Rol:           return BitFamily::Rol;
+        case Value::Ror:           return BitFamily::Ror;
+        case Value::BitsUpTo:      return BitFamily::BitsUpTo;
+        case Value::GatherBits:    return BitFamily::GatherBits;
+        default:                   return BitFamily::ScatterBits;
+    }
 }
 
 // `function $div(a, b) { return b ? a / b : b }` and `$rem`, where a program asked for one. See
 // Gen::divideByZeroHelper.
-void emitDivisionHelpers(Gen& g);
+void emitDivisionHelpers(JsShared& g);
 
 // The typed array's growth, where a program asked for one. See NativeOp::HostGrow in inst.cpp.
-void emitGrowHelper(Gen& g);
+void emitGrowHelper(JsShared& g);
 
 // A host array holding `elements`, in whichever of Implementation-Containers.md §14's two rows this
 // element type belongs to - `[a, b]` or `new Uint8Array([a, b])`. Declared here because the three
@@ -1291,7 +591,7 @@ JsPtr<Expr> hostArrayForElement(Gen& g, TypePtr element, JsPtr<Expr> elements);
 
 // The `DataView` cache and the word transfers a program asked for. See NativeOp::HostWordRead in
 // inst.cpp, and Gen::viewHelper for what the cache is and what it was measured against.
-void emitWordHelpers(Gen& g);
+void emitWordHelpers(JsShared& g);
 
 // Whether a value of this type is a host object - what `isMemoryType` is on native, asked of this
 // target instead. See type.cpp for the three places the two answers differ.
@@ -2025,6 +1325,6 @@ void emitChain(Gen& g, U32 block, U32 stopAt);
 // Removes the bindings nothing needed and folds the writes that build a value into the literal that
 // builds it. Runs over the finished file, because how many readers a binding has is not known until
 // the function it is in has been emitted.
-void optimizeFile(Gen& g);
+void optimizeFile(JsShared& g);
 
 } // namespace js

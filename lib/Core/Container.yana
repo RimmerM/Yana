@@ -352,23 +352,20 @@ instance (n: Int) Chunked([a *n], a):
    what a window into one needs is where the storage starts, and `n` is the count the instance was
    selected at. `source'` at both ends roots the result in the same loan the argument was read under.
 
-   JavaScript keeps the two lines, and that is the platform split rather than an omission: a host
-   array has no address to take, and the conversion at a call is the only thing that means anything
-   there. The ownership stage is native-only, so what it needs is the native half.
+   JavaScript says the same sentence without the address, and its two are in
+   `Container.ownership.js.yana` and `Container.legacy.js.yana` beside this file rather than here.
+   The two stages need different *text* there - the shipping one's conversion at a call is structural
+   and the rewrite's is this member, so a body that leans on the conversion recurses under one stage
+   and not the other - and a signature the reader has to choose between after reading both is what a
+   selector exists to avoid. `test/resolve/FixedArray.yana` is the fixture that says so.
 -}
 @platform(native) instance (n: Int) Contiguous([a *n], a):
     fn elements(self: source'[a *n]) -> source'[a] =
         ArrayView {items: bitcast(addressOf(self)) :: %a, length: n :: Size}
 
-@platform(js) instance (n: Int) Contiguous([a *n], a):
-    fn elements(self: source'[a *n]) -> source'[a] = unclampedSlice(self, 0, n :: Size)
-
 @platform(native) instance (n: Int) Writable([a *n], a):
     fn elementsMut(&self: source'[a *n]) -> &source'[a] =
         ArrayView {items: bitcast(addressOf(self)) :: %a, length: n :: Size}
-
-@platform(js) instance (n: Int) Writable([a *n], a):
-    fn elementsMut(&self: source'[a *n]) -> &source'[a] = self
 
 {-
    Reading a whole vector out of a chunk, and writing one back - Implementation-Vector.md §12's "a

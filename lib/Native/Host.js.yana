@@ -159,8 +159,11 @@
    move out of the array: it is the same line `*(self.run.items + i)` is on the native side, and it
    is what a container's teardown and its `remove` are written with.
 
-   `hostAt` and `hostAtMut` answer a borrow, and carry the `return` marker for the reason `borrow`
-   does: the result names storage this function was handed rather than storage of its own.
+   `hostAt` and `hostAtMut` answer a borrow, and publish the pointee's origin for the reason
+   `borrow` does: the result names storage this function was handed rather than storage of its own.
+   `%source'a` is that statement said on the type, which is where every origin is written now - the
+   `return self` marker these carried until 2026-09-21 was the same sentence in the name area, and
+   the rewrite refuses it.
 
    `hostWrite` declares `->value` for the reason `store` does on the other target: what the array
    holds afterwards *is* that value, so the frame that owned it stops owing it a drop - and a
@@ -168,8 +171,8 @@
 -}
 @builtin(hostRead) pub fn hostRead(self: %a, index: Size) -> a
 @builtin(hostWrite) pub fn hostWrite(self: %a, index: Size, ->value: a) -> {}
-@builtin(hostAt) pub fn hostAt(return self: %a, index: Size) -> 'a
-@builtin(hostAtMut) pub fn hostAtMut(return self: %a, index: Size) -> &a
+@builtin(hostAt) pub fn hostAt(self: %source'a, index: Size) -> source'a
+@builtin(hostAtMut) pub fn hostAtMut(self: %source'a, index: Size) -> &source'a
 
 {-
    A whole vector out of a host array, and back into one - this target's half of

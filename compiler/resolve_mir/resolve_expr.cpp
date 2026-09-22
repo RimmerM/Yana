@@ -2862,10 +2862,23 @@ Node* Resolver::adaptToView(Builder& builder, Node& value, const Occurrence& pos
      * The same type and the same access, which is what makes this the recursion and not a
      * neighbour: a container whose `elements` derives a *different* container's view is an ordinary
      * call, and so is `elements` reaching the unique derivation, since that is the other member.
+     *
+     * **The question is asked of both ends since 2026-09-21 (J67)**, and until then it was asked of
+     * one. The test compared the position against the member's *argument* type, which are the same
+     * type only because a window and the container it is over are one logical type - so an
+     * owner-subject instance was caught by accident and a fixed array's was not:
+     * `Contiguous([a *n], a)` has `[a *n]` at the argument and `[a]` at the position, so `elements`
+     * calling `unclampedSlice(self, ...)` on JavaScript slipped past and recursed until the stack
+     * ran out (J66 §6). The value's type against the *argument* and the position against the
+     * *result* is the statement the body is actually making, and it catches both.
+     *
+     * Turning it on needed `Container.ownership.js.yana`'s bodies first, which build the view record
+     * out of `hostRow(self)` rather than asking for one - otherwise the report is the library
+     * failing to compile for that target at all. The two changes are one change.
      */
     if(currentFunction && currentFunction->derivation && currentFunction->args.size() &&
-       sameType(position.type,
-                decl()[currentFunction->args.get(decl(), 0)]->occurrence.type) &&
+       sameType(held.type, decl()[currentFunction->args.get(decl(), 0)]->occurrence.type) &&
+       sameType(position.type, currentFunction->result.type) &&
        currentFunction->result.contract.access() == access) {
         context.diagnostics.error(
             "this is the body that makes %@'s view, so it cannot ask for one - build the view "
@@ -3244,9 +3257,68 @@ Maybe<RunShape> arrayShape(Resolver& self, DeclPtr<Type> element, LocationId sou
  * stops the program. Written out here it is one comparison against null, which folds to nothing
  * wherever the placement pass puts the slots in the frame - a frame allocation does not fail.
  */
+/*
+ * The same literal on JavaScript - `Array {items, length}` over the host's own array.
+ *
+ * A second builder rather than a branch inside the one below, because the two share nothing: there
+ * is no run, no allocator refusal to test, no capacity field and no `Place::Index` over an address,
+ * and what is left of the native body once those are removed is two lines. Analysis-Modules.md's
+ * rule for the library is the one applied here - what varies between implementations is the
+ * *owner*, and this is the owner being built.
+ *
+ * **The elements are operands of the `host.array` node**, not writes after it. `[a, b, c]` is one
+ * expression in the emitted source and the shipping stage already emits it that way
+ * (`codegen/js/inst.cpp`'s `HostArray` arm, which is variadic); building an empty array and writing
+ * past its end would also be *wrong* on the typed row, where a `Uint8Array` of no elements accepts
+ * no write at all. They arrive `Take` because the array holds them afterwards, which is the same
+ * hand-over `hostWrite` declares and is what keeps this frame from releasing what the array owns.
+ *
+ * `@capacity(n)` is **ignored here**, and that is the honest answer rather than an omission: a host
+ * array grows on its own, so there is no reservation to make - `Array.js.yana`'s own `reserve`
+ * returns immediately for exactly that row - and on the typed row the literal's own count is the
+ * capacity until `hostGrow` moves it.
+ */
+static Node* buildHostArray(Resolver& self, Builder& builder, DeclPtr<Type> element,
+                            SmallArray<Node*, 8>& components, LocationId source) {
+    auto arrayRole = self.program.roles.record(intrinsic::Known::array);
+    if(!arrayRole) {
+        self.reportMissingRole(intrinsic::Known::array, "a growable array literal"_v, source);
+        return nullptr;
+    }
+
+    auto arrayType = instantiateRecord(self.context, self.program, arrayRole, &element, 1, source);
+    if(!arrayType) return nullptr;
+
+    auto& record = *(RecordType*)self.decl()[arrayType];
+    if(record.fields.size() != 2) {
+        self.context.diagnostics.error(
+            "this library's `Array` is not the record an array literal is built out of"_v, source);
+        return nullptr;
+    }
+
+    SmallArray<UseMode, 8> modes;
+    for(Size i = 0; i < components.size(); i++) modes.push(UseMode::Take);
+
+    auto handle = owned(self.program.types.pointerType(element));
+    auto items = builder.addHost(source, HostOp::Array, StringId(), components.pointer(),
+                                 modes.pointer(), components.size(), handle);
+    if(!items) return nullptr;
+
+    Node* parts[2];
+    parts[RunShape::kItems] = items;
+    parts[RunShape::kLength] = builder.addConst(
+        source, intConstant(record.field(self.decl(), 1).occurrence.type, U64(components.size())));
+
+    if(!parts[RunShape::kLength]) return nullptr;
+
+    return builder.addAggregate(source, arrayType, 0, parts, 2);
+}
+
 Node* Resolver::buildGrowableArray(Builder& builder, DeclPtr<Type> element,
                                    SmallArray<Node*, 8>& components, LocationId source,
                                    U64 capacity) {
+    if(isJsMode(context.settings)) return buildHostArray(*this, builder, element, components, source);
+
     auto shaped = arrayShape(*this, element, source);
     if(!shaped) return nullptr;
 

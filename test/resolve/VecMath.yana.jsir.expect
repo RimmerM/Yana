@@ -1,0 +1,174 @@
+fn scalars() -> one %r0
+  block0:
+    %0: %r1 = const 16
+    %1: %r1 = unary.sqrt %0
+    %2: %r1 = const 4
+    %3: %r2 = binary.ne %1, %2
+    branch %3 -> block2 -> block1
+  block1:
+    %4: %r1 = const 2.25
+    %5: %r1 = unary.sqrt %4
+    %6: %r1 = const 1.5
+    %7: %r2 = binary.ne %5, %6
+    branch %7 -> block4 -> block3
+  block2:
+    %37: %r0 = const -1
+    return %37
+  block3:
+    %8: %r1 = const 2
+    %9: %r1 = const 3
+    %10: %r1 = const 4
+    %11: %r1 = binary.mul %8, %9
+    %12: %r1 = binary.add %11, %10
+    %13: %r1 = const 10
+    %14: %r2 = binary.ne %12, %13
+    branch %14 -> block6 -> block5
+  block4:
+    %36: %r0 = const -2
+    return %36
+  block5:
+    %15: %r3 = const 6.25
+    %16: %r3 = unary.sqrt %15
+    %17: %r3 = coerce %16
+    %18: %r3 = const 2.5
+    %19: %r2 = binary.ne %17, %18
+    branch %19 -> block8 -> block7
+  block6:
+    %35: %r0 = const -3
+    return %35
+  block7:
+    %20: %r3 = const 0
+    %21: %r3 = unary.sqrt %20
+    %22: %r3 = coerce %21
+    %23: %r3 = const 1
+    %24: %r3 = binary.div %23, %22
+    %25: %r3 = coerce %24
+    %26: %r3 = const 1
+    %27: %r3 = const 0
+    %28: %r3 = binary.div %26, %27
+    %29: %r3 = coerce %28
+    %30: %r2 = binary.ne %25, %29
+    %31: %r0 = const -5
+    %32: %r0 = const 0
+    %33: %r0 = select %30, %31, %32
+    return %33
+  block8:
+    %34: %r0 = const -4
+    return %34
+
+fn lanes() -> one %r0
+  block0:
+    %0: %r3 = const 6.25
+    %1: %r3 = unary.sqrt %0
+    %2: %r3 = coerce %1
+    %3: %r3 = unary.sqrt %0
+    %4: %r3 = coerce %3
+    %5: %r3 = unary.sqrt %0
+    %6: %r3 = coerce %5
+    %7: %r3 = unary.sqrt %0
+    %8: %r3 = coerce %7
+    %9: %r3 = const 2.5
+    %10: %r2 = binary.ne %2, %9
+    branch %10 -> block2 -> block1
+  block1:
+    %11: %r3 = math.min %2, %4
+    %12: %r3 = math.min %6, %8
+    %13: %r3 = math.min %11, %12
+    %14: %r3 = const 2.5
+    %15: %r2 = binary.ne %13, %14
+    branch %15 -> block4 -> block3
+  block2:
+    %59: %r0 = const -1
+    return %59
+  block3:
+    %16: %r3 = const 0
+    %17: %r3 = const 1
+    %18: %r3 = const 2
+    %19: %r3 = const 3
+    %20: %r3 = const 3
+    %21: %r3 = const 1
+    %22: %r3 = binary.mul %16, %20
+    %23: %r3 = coerce %22
+    %24: %r3 = binary.add %23, %21
+    %25: %r3 = coerce %24
+    %26: %r3 = binary.mul %17, %20
+    %27: %r3 = coerce %26
+    %28: %r3 = binary.add %27, %21
+    %29: %r3 = coerce %28
+    %30: %r3 = binary.mul %18, %20
+    %31: %r3 = coerce %30
+    %32: %r3 = binary.add %31, %21
+    %33: %r3 = coerce %32
+    %34: %r3 = binary.mul %19, %20
+    %35: %r3 = coerce %34
+    %36: %r3 = binary.add %35, %21
+    %37: %r3 = coerce %36
+    %38: %r3 = const 1
+    %39: %r2 = binary.ne %25, %38
+    branch %39 -> block6 -> block5
+  block4:
+    %58: %r0 = const -2
+    return %58
+  block5:
+    %40: %r3 = const 4
+    %41: %r2 = binary.ne %29, %40
+    branch %41 -> block8 -> block7
+  block6:
+    %57: %r0 = const -3
+    return %57
+  block7:
+    %42: %r3 = const 7
+    %43: %r2 = binary.ne %33, %42
+    branch %43 -> block10 -> block9
+  block8:
+    %56: %r0 = const -4
+    return %56
+  block9:
+    %44: %r3 = binary.add %25, %29
+    %45: %r3 = coerce %44
+    %46: %r3 = binary.add %33, %37
+    %47: %r3 = coerce %46
+    %48: %r3 = binary.add %45, %47
+    %49: %r3 = coerce %48
+    %50: %r3 = const 22
+    %51: %r2 = binary.ne %49, %50
+    %52: %r0 = const -6
+    %53: %r0 = const 0
+    %54: %r0 = select %51, %52, %53
+    return %54
+  block10:
+    %55: %r0 = const -5
+    return %55
+
+fn main() -> one %r0
+  block0:
+    %0: %r0 = call scalars
+    %1: %r0 = const 0
+    %2: %r2 = binary.ne %0, %1
+    branch %2 -> block2 -> block1
+  block1:
+    %3: %r0 = call lanes
+    %4: %r0 = const 0
+    %5: %r2 = binary.ne %3, %4
+    branch %5 -> block4 -> block3
+  block2:
+    %11: %r0 = call scalars
+    return %11
+  block3:
+    %6: %r0 = const 7
+    return %6
+  block4:
+    %7: %r0 = call lanes
+    %8: %r0 = const 10
+    %9: %r0 = binary.mul %7, %8
+    %10: %r0 = coerce %9
+    return %10
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = number f64
+rep %r2 = number bool
+rep %r3 = number f32
+rep %r4 = array Float32Array of %r3
+rep %r5 = parts (%r3, %r3, %r3, %r3) as %r4

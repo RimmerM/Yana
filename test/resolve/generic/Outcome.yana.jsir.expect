@@ -1,0 +1,103 @@
+fn folded(one %r0, one %r1, one %r2) -> one %r2
+  block0(%0: %r6, %1: %r0, %2: %r1, %3: %r2):
+    %5: %r0 = load property %2.$c: %r0
+    %6: %r0 = load property %2.$e: %r0
+    %7: %r4 = call.value %5, %6, %3
+    %8: %r3 = load property %7.$tag: %r3
+    %9: %r3 = const 0
+    %10: %r7 = binary.eq %8, %9
+    branch %10 -> block2 -> block1
+  block1:
+    %11: %r2 = load property %7.Exit: %r2
+    %12: %r2 = const 0
+    %13: %r2 = binary.sub %12, %11
+    %14: %r2 = coerce %13
+    jump -> block3(%14)
+  block2:
+    %15: %r2 = load property %7.Proceed: %r2
+    jump -> block3(%15)
+  block3(%4: %r2):
+    return %4
+
+fn tried(one %r2) -> one %r4
+  block0(%0: %r2):
+    %2: %r2 = const 0
+    %3: %r7 = binary.gt %0, %2
+    branch %3 -> block2 -> block1
+  block1:
+    %4: %r2 = const 0
+    %5: %r2 = binary.sub %4, %0
+    %6: %r2 = coerce %5
+    %7: %r3 = const 1
+    %8: %r2 = const 0
+    %9: %r4 = object %s1 %7, %8, %6
+    jump -> block3(%9)
+  block2:
+    %10: %r2 = binary.add %0, %0
+    %11: %r2 = coerce %10
+    %12: %r3 = const 0
+    %13: %r2 = const 0
+    %14: %r4 = object %s1 %12, %11, %13
+    jump -> block3(%14)
+  block3(%1: %r4):
+    return %1
+
+fn main() -> one %r2
+  var $0: %r1
+  var $1: %r1
+  block0:
+    %6: %r0 = fun.code tried
+    %7: %r0 = const null
+    %8: %r1 = object %s0 %6, %7
+    store var $0: %r1, %8
+    %13: %r0 = fun.code tried
+    %14: %r0 = const null
+    %15: %r1 = object %s0 %13, %14
+    store var $1: %r1, %15
+    %20: %r2 = const 6
+    %21: %r0 = fun.code main.lambda
+    %22: %r0 = const null
+    %23: %r1 = object %s0 %21, %22
+    %2: %r1 = alias %23
+    %24: %r0 = load property %2.$c: %r0
+    %25: %r0 = load property %2.$e: %r0
+    %26: %r2 = call.value %24, %25, %20
+    %27: %r2 = const 0
+    %28: %r3 = const 0
+    %29: %r2 = const 0
+    %30: %r4 = object %s1 %28, %27, %29
+    %31: %r0 = fun.code tried
+    %32: %r0 = const null
+    %33: %r1 = object %s0 %31, %32
+    %5: %r1 = alias %33
+    %34: %r2 = const 3
+    %35: %r6 = gen.table
+    %36: %r2 = call folded %35, %30, %5, %34
+    %37: %r2 = const 10400
+    %38: %r2 = binary.add %37, %26
+    %39: %r2 = coerce %38
+    %40: %r2 = binary.add %39, %36
+    %41: %r2 = coerce %40
+    return %41
+
+fn main.lambda(one %r5, one %r2) -> one %r2 env
+  block0(%0: %r5, %1: %r2):
+    %2: %r2 = const 3
+    %3: %r2 = binary.mul %1, %2
+    %4: %r2 = coerce %3
+    return %4
+
+optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 2 sunk 0
+
+shape %s0 fun {$c: %r0 code, $e: %r0 env}
+shape %s1 object Outcome {$tag: %r3 tag, Proceed: %r2, Exit: %r2}
+shape %s2 object main.lambda.env {}
+
+rep %r0 = erased
+rep %r1 = object %s0
+rep %r2 = number signed 32
+rep %r3 = number unsigned 8
+rep %r4 = object %s1
+rep %r5 = object %s2
+rep %r6 = array Array of %r0
+rep %r7 = number bool

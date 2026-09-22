@@ -1,0 +1,79 @@
+fn main$() -> omitted
+  var $0: %r2
+  block0:
+    %0: %r0 = load global tally: %r0
+    store global doubled: %r0, %0
+    %1: %r0 = const 42
+    store global tally: %r0, %1
+    %2: %r0 = load global doubled: %r0
+    %3: %r0 = load global tally: %r0
+    %4: %r0 = binary.add %2, %3
+    %5: %r0 = coerce %4
+    store global final: %r0, %5
+    %12: %r2 = const ""
+    store var $0: %r2, %12
+    %13: %r2 = const "tally "
+    %14: %r2 = load var $0: %r2
+    %15: %r2 = alias %14
+    %16: %r2 = alias %13
+    %17: %r2 = alias %15
+    %18: %r2 = alias %16
+    %19: %r2 = host host.binary "+" %17, %18
+    store var $0: %r2, %19
+    %20: %r0 = load global tally: %r0
+    %21: %r2 = host host.global "String" %20
+    %22: %r2 = load var $0: %r2
+    %23: %r2 = alias %22
+    %24: %r2 = alias %21
+    %25: %r2 = alias %23
+    %26: %r2 = alias %24
+    %27: %r2 = host host.binary "+" %25, %26
+    store var $0: %r2, %27
+    %28: %r2 = const " doubled "
+    %29: %r2 = load var $0: %r2
+    %30: %r2 = alias %29
+    %31: %r2 = alias %28
+    %32: %r2 = alias %30
+    %33: %r2 = alias %31
+    %34: %r2 = host host.binary "+" %32, %33
+    store var $0: %r2, %34
+    %35: %r0 = load global doubled: %r0
+    %36: %r2 = host host.global "String" %35
+    %37: %r2 = load var $0: %r2
+    %38: %r2 = alias %37
+    %39: %r2 = alias %36
+    %40: %r2 = alias %38
+    %41: %r2 = alias %39
+    %42: %r2 = host host.binary "+" %40, %41
+    store var $0: %r2, %42
+    %43: %r2 = const " final "
+    %44: %r2 = load var $0: %r2
+    %45: %r2 = alias %44
+    %46: %r2 = alias %43
+    %47: %r2 = alias %45
+    %48: %r2 = alias %46
+    %49: %r2 = host host.binary "+" %47, %48
+    store var $0: %r2, %49
+    %50: %r0 = load global final: %r0
+    %51: %r2 = host host.global "String" %50
+    %52: %r2 = load var $0: %r2
+    %53: %r2 = alias %52
+    %54: %r2 = alias %51
+    %55: %r2 = alias %53
+    %56: %r2 = alias %54
+    %57: %r2 = host host.binary "+" %55, %56
+    store var $0: %r2, %57
+    %58: %r2 = load var $0: %r2
+    %59: %r2 = alias %58
+    %60: %r2 = alias %59
+    %61: %r2 = alias %60
+    host host.global "console.log" %61
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = void
+rep %r2 = string
+rep %r3 = number unsigned 8
+rep %r4 = nullable of %r0

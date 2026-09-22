@@ -1,0 +1,54 @@
+fn takesI8(one %r0) -> one %r1
+  block0(%0: %r0):
+    %1: %r1 = convert %0
+    return %1
+
+fn main() -> one %r1
+  var $0: %r2
+  block0:
+    %0: %r1 = const 63
+    %1: %r0 = const -128
+    %2: %r1 = call takesI8 %1
+    %3: %r1 = const -128
+    %4: %r3 = binary.eq %2, %3
+    %5: %r1 = const 127
+    %6: %r1 = select %4, %5, %0
+    %7: %r4 = const 1
+    %8: %r4 = const -0
+    %9: %r4 = binary.div %7, %8
+    %10: %r4 = const 0
+    %11: %r3 = binary.lt %9, %10
+    %12: %r1 = const 128
+    %13: %r1 = binary.add %6, %12
+    %14: %r1 = coerce %13
+    %15: %r1 = select %11, %14, %6
+    %16: %r1 = const -1
+    %17: %r1 = const -2
+    %18: %r2 = array %16, %17
+    store var $0: %r2, %18
+    %19: %r1 = const 0
+    %20: %r2 = load var $0: %r2
+    %21: %r1 = load element %20[%19]: %r1
+    %22: %r1 = const 1
+    %23: %r2 = load var $0: %r2
+    %24: %r1 = load element %23[%22]: %r1
+    %25: %r1 = binary.add %21, %24
+    %26: %r1 = coerce %25
+    %27: %r1 = const -3
+    %28: %r3 = binary.eq %26, %27
+    %29: %r1 = const 256
+    %30: %r1 = binary.add %15, %29
+    %31: %r1 = coerce %30
+    %32: %r1 = select %28, %31, %15
+    %33: %r1 = const 512
+    %34: %r1 = binary.add %32, %33
+    %35: %r1 = coerce %34
+    return %35
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 8
+rep %r1 = number signed 32
+rep %r2 = array Int32Array of %r1
+rep %r3 = number bool
+rep %r4 = number f64

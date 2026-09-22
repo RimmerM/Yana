@@ -1353,7 +1353,7 @@ struct BranchThreader {
         for(Size i = 0; i < join.instructionCount(); i++) {
             auto inst = opt.base[join.instructionAt(opt.base, i)];
             if(isTerminator(inst->kind)) continue;
-            if(!isPure(inst->kind)) return false;
+            if(!isPure(*inst)) return false;
 
             for(auto resultPointer: inst->results.contents(opt.base)) {
                 auto result = opt.base[resultPointer];

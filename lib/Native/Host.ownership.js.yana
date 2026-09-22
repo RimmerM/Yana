@@ -1,0 +1,27 @@
+{-
+   The one host operation the ownership stage needs and the shipping one does not.
+
+   **`.ownership.js.yana`, so the file itself is both selectors** - Analysis-Modules.md §2.5 for the
+   platform and the resolve stage beside it, which is what `String.ownership.js.yana` next door
+   already is. It is a file of its own rather than a declaration in `Host.js.yana` because a role is
+   claimed by one declaration and `compiler/resolve` has no emitter for this one: seen by that stage
+   the name would be a role with nothing behind it, and unseen it is simply not there.
+
+   `hostRow(xs)` is a fixed array's own storage read as the row of its elements. Natively the same
+   sentence is `bitcast(addressOf(self)) :: %a` and is what `Contiguous([a *n], a).elements` writes;
+   on this target `addressOf` does not exist and there is no `Bitcast([a *n], %a)` rung, so the
+   JavaScript member was written `unclampedSlice(self, 0, n)` and leaned on the conversion at a call.
+   Under this stage that conversion *is* the member, so it called itself -
+   `test/resolve/FixedArray.yana` overflowed its stack rather than answering, which is
+   `doc/progress/2026-09-21-J66-jsir-breadth.md` §6.
+
+   **It emits nothing.** A `[a *n]` here already *is* the host row, and a `%a` on this target is an
+   opaque reference to storage (see the head of `Host.js.yana`), so the two are one host value and
+   the operation is the statement that they are. `op.def`'s row expands through `addressOf`, whose
+   result type is read off the declaration rather than off the argument - which is the whole of the
+   difference between the two roles.
+
+   `source'` at both ends is what roots the window in the same loan the array was read under, so a
+   `[Int *4]` handed to `total(xs)` is borrowed for the call and not copied into one.
+-}
+@builtin(hostRow) pub fn (n: Int) hostRow(self: source'[a *n]) -> %source'a

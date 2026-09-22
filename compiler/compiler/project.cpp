@@ -529,8 +529,12 @@ void applyProjectFile(CompileSettings& settings, const ProjectFile& project) {
         settings.explicitPlatform = true;
     }
 
+    // A project naming a stage counts as having named it, the same way `mode` and `platform` do -
+    // which is what lets a `resolver = "legacy"` project ask for `-mode ir` without repeating the
+    // flag on the command line. See `checkSettings`, which refuses that mode to an unnamed stage.
     if(!settings.explicitResolver && project.resolver) {
         settings.resolver = project.resolver.unwrap();
+        settings.explicitResolver = true;
     }
 
     // The standard library this project builds against - `-lib` still wins, as every flag does.

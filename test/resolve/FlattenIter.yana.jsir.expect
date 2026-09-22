@@ -1,0 +1,324 @@
+fn nested(one %r0) -> one %r0
+  block0(%0: %r0):
+    %2: %r0 = const 0
+    %3: %r10 = object %s5 %2
+    %4: %r0 = const 0
+    %5: %r10 = object %s5 %4
+    store property %3.$v: %r0, %0
+    %6: %r0 = const 0
+    store property %5.$v: %r0, %6
+    %7: %r0 = const 3
+    %8: %r3 = const "$v"
+    %9: %r4 = object %s3 %3, %8
+    %10: %r3 = const "$v"
+    %11: %r4 = object %s3 %5, %10
+    %12: %r5 = object %s2 %9, %11
+    %13: %r0 = const 0
+    %14: %r0 = const 0
+    %15: %r0 = const 1
+    jump -> block1(%13)
+  block1(%1: %r0):
+    %16: %r11 = binary.lt %1, %7
+    branch %16 -> block2 -> block3
+  block2:
+    %17: %r0 = call nested.cont %12, %1
+    %18: %r11 = binary.eq %17, %14
+    branch %18 -> block4 -> block3
+  block3:
+    %19: %r0 = load property %5.$v: %r0
+    return %19
+  block4:
+    %20: %r0 = binary.add %1, %15
+    %21: %r0 = coerce %20
+    jump -> block1(%21)
+
+fn main() -> one %r0
+  var $0: %r1
+  var $1: %r14
+  var $2: %r2
+  var $3: %r14
+  block0:
+    %13: %r6 = host host.array
+    %14: %r7 = const 0
+    %15: %r8 = object %s4 %13, %14
+    %12: %r8 = alias %15
+    %16: %r0 = const 0
+    %17: %r0 = const 6
+    %18: %r0 = const 1
+    %19: %r0 = const 1
+    %20: %r11 = const 0
+    jump -> block1(%16)
+  block1(%0: %r0):
+    %21: %r11 = binary.lt %0, %17
+    branch %21 -> block3 -> block2
+  block2:
+    %22: %r6 = load property %12.items: %r6
+    %23: %r7 = load property %12.length: %r7
+    %24: %r0 = convert %23
+    %25: %r0 = const 0
+    %26: %r0 = const 3
+    %27: %r0 = const 0
+    %28: %r1 = object %s0 %26
+    store var $0: %r1, %28
+    %29: %r1 = load var $0: %r1
+    %30: %r3 = fun.code chain.lambda
+    %31: %r14 = object %s7 %30, %29
+    store var $1: %r14, %31
+    %32: %r0 = const 0
+    %33: %r0 = convert %24
+    %34: %r0 = const 1
+    %35: %r0 = const 1
+    %36: %r0 = const 1
+    %37: %r0 = const 0
+    %38: %r0 = const 1
+    jump -> block4(%32, %27)
+  block3:
+    %130: %r7 = load property %12.length: %r7
+    %131: %r0 = convert %130
+    %132: %r0 = binary.add %131, %18
+    %133: %r0 = coerce %132
+    %134: %r6 = load property %12.items: %r6
+    %135: %r11 = host host.capacity %134
+    %136: %r11 = binary.eq %135, %20
+    branch %136 -> block18 -> block19
+  block4(%1: %r0, %2: %r0):
+    %39: %r11 = binary.lt %1, %33
+    branch %39 -> block6 -> block5
+  block5:
+    %40: %r6 = load property %12.items: %r6
+    %41: %r7 = load property %12.length: %r7
+    %42: %r0 = convert %41
+    %43: %r0 = const 0
+    %44: %r0 = const 3
+    %45: %r0 = const 5
+    %46: %r0 = const 0
+    %47: %r2 = object %s1 %44
+    store var $2: %r2, %47
+    %48: %r2 = load var $2: %r2
+    %49: %r3 = fun.code chainBreak.lambda
+    %50: %r14 = object %s7 %49, %48
+    store var $3: %r14, %50
+    %51: %r0 = const 0
+    %52: %r0 = const 0
+    %53: %r0 = convert %42
+    %54: %r0 = const 1
+    %55: %r0 = const 1
+    %56: %r0 = const 1
+    %57: %r0 = const 0
+    %58: %r0 = const 0
+    %59: %r0 = const 1
+    %60: %r0 = const 2
+    %61: %r0 = const 0
+    jump -> block11(%52, %51, %46)
+  block6:
+    %107: %r0 = load global trace: %r0
+    %108: %r0 = binary.add %107, %34
+    %109: %r0 = coerce %108
+    store global trace: %r0, %109
+    %110: %r0 = convert %1
+    %111: %r15 = convert %110
+    %112: %r15 = convert %24
+    %113: %r11 = binary.ge %111, %112
+    branch %113 -> block10 -> block7
+  block7:
+    %114: %r6 = alias %22
+    %115: %r0 = binary.add %25, %110
+    %116: %r0 = coerce %115
+    %117: %r0 = load element %114[%116]: %r0
+    %118: %r0 = load property %29.scale: %r0
+    %119: %r0 = binary.mul %117, %118
+    %120: %r0 = coerce %119
+    %121: %r0 = binary.add %120, %38
+    %122: %r0 = coerce %121
+    %123: %r0 = binary.and %122, %36
+    %124: %r0 = coerce %123
+    %125: %r11 = binary.ne %124, %37
+    branch %125 -> block8 -> block9(%2)
+  block8:
+    %126: %r0 = binary.add %2, %122
+    %127: %r0 = coerce %126
+    jump -> block9(%127)
+  block9(%3: %r0):
+    %128: %r0 = binary.add %1, %35
+    %129: %r0 = coerce %128
+    jump -> block4(%129, %3)
+  block10:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block11(%4: %r0, %5: %r0, %6: %r0):
+    %62: %r11 = binary.lt %4, %53
+    branch %62 -> block12 -> block15(%6)
+  block12:
+    %63: %r0 = load global trace: %r0
+    %64: %r0 = binary.add %63, %54
+    %65: %r0 = coerce %64
+    store global trace: %r0, %65
+    %66: %r0 = convert %4
+    %67: %r15 = convert %66
+    %68: %r15 = convert %42
+    %69: %r11 = binary.ge %67, %68
+    branch %69 -> block17 -> block13
+  block13:
+    %70: %r6 = alias %40
+    %71: %r0 = binary.add %43, %66
+    %72: %r0 = coerce %71
+    %73: %r0 = load element %70[%72]: %r0
+    %74: %r0 = load property %48.scale: %r0
+    %75: %r0 = binary.mul %73, %74
+    %76: %r0 = coerce %75
+    %77: %r0 = binary.add %76, %59
+    %78: %r0 = coerce %77
+    %79: %r0 = binary.and %78, %56
+    %80: %r0 = coerce %79
+    %81: %r11 = binary.ne %80, %57
+    branch %81 -> block14 -> block16(%5, %6)
+  block14:
+    %82: %r0 = binary.add %6, %78
+    %83: %r0 = coerce %82
+    %84: %r11 = binary.gt %83, %45
+    %85: %r0 = select %84, %60, %61
+    %86: %r11 = binary.eq %85, %58
+    branch %86 -> block16(%85, %83) -> block15(%83)
+  block15(%7: %r0):
+    call Array(a).reclaim(I32) %12
+    %87: %r0 = const 1
+    %88: %r0 = call nested %87
+    %89: %r0 = const 1000000
+    %90: %r0 = binary.mul %2, %89
+    %91: %r0 = coerce %90
+    %92: %r0 = const 10000
+    %93: %r0 = binary.mul %7, %92
+    %94: %r0 = coerce %93
+    %95: %r0 = binary.add %91, %94
+    %96: %r0 = coerce %95
+    %97: %r0 = const 100
+    %98: %r0 = binary.mul %88, %97
+    %99: %r0 = coerce %98
+    %100: %r0 = binary.add %96, %99
+    %101: %r0 = coerce %100
+    %102: %r0 = load global trace: %r0
+    %103: %r0 = binary.add %101, %102
+    %104: %r0 = coerce %103
+    return %104
+  block16(%8: %r0, %9: %r0):
+    %105: %r0 = binary.add %4, %55
+    %106: %r0 = coerce %105
+    jump -> block11(%106, %8, %9)
+  block17:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block18:
+    %140: %r6 = load property %12.items: %r6
+    store element %140[%131]: %r0, %0
+    %141: %r15 = convert %133
+    %142: %r7 = convert %141
+    store property %12.length: %r7, %142
+    %143: %r0 = binary.add %0, %19
+    %144: %r0 = coerce %143
+    jump -> block1(%144)
+  block19:
+    %137: %r6 = load property %12.items: %r6
+    %138: %r0 = host host.field "length" host-range %137
+    %139: %r11 = binary.le %133, %138
+    branch %139 -> block18 -> block20
+  block20:
+    call growJsArray(I32) %12, %133
+    jump -> block18
+
+fn chain.lambda(one %r1, one %r0) -> one %r0 env
+  block0(%0: %r1, %1: %r0):
+    %2: %r0 = load property %0.scale: %r0
+    %3: %r0 = binary.mul %1, %2
+    %4: %r0 = coerce %3
+    %5: %r0 = const 1
+    %6: %r0 = binary.add %4, %5
+    %7: %r0 = coerce %6
+    return %7
+
+fn chainBreak.lambda(one %r2, one %r0) -> one %r0 env
+  block0(%0: %r2, %1: %r0):
+    %2: %r0 = load property %0.scale: %r0
+    %3: %r0 = binary.mul %1, %2
+    %4: %r0 = coerce %3
+    %5: %r0 = const 1
+    %6: %r0 = binary.add %4, %5
+    %7: %r0 = coerce %6
+    return %7
+
+fn nested.cont(one %r5, one %r0) -> one %r0 env
+  block0(%0: %r5, %1: %r0):
+    %2: %r4 = load property %0.depth: %r4
+    %3: %r4 = load property %0.total: %r4
+    %4: %r0 = load cell %2: %r0
+    %5: %r0 = const 0
+    %6: %r11 = binary.gt %4, %5
+    branch %6 -> block2 -> block1
+  block1:
+    %15: %r0 = load cell %3: %r0
+    %16: %r0 = binary.add %15, %1
+    %17: %r0 = coerce %16
+    store cell %3: %r0, %17
+    %18: %r0 = const 0
+    return %18
+  block2:
+    %7: %r0 = load cell %3: %r0
+    %8: %r0 = load cell %2: %r0
+    %9: %r0 = const 1
+    %10: %r0 = binary.sub %8, %9
+    %11: %r0 = coerce %10
+    %12: %r0 = call nested %11
+    %13: %r0 = binary.add %7, %12
+    %14: %r0 = coerce %13
+    store cell %3: %r0, %14
+    jump -> block1
+
+fn Array(a).reclaim(I32)(one %r8) -> omitted
+  var $0: %r8
+  block0(%0: %r8):
+    store var $0: %r8, %0
+    return
+
+fn growJsArray(I32)(one %r8, one %r0) -> omitted
+  block0(%0: %r8, %1: %r0):
+    %2: %r6 = load property %0.items: %r6
+    %3: %r0 = host host.field "length" host-range %2
+    %4: %r0 = binary.add %3, %3
+    %5: %r0 = coerce %4
+    %6: %r11 = binary.lt %5, %1
+    %7: %r0 = select %6, %1, %5
+    %8: %r0 = const 4
+    %9: %r11 = binary.lt %7, %8
+    %10: %r0 = const 4
+    %11: %r0 = select %9, %10, %7
+    %12: %r6 = load property %0.items: %r6
+    %13: %r6 = host host.grow %12, %11
+    store property %0.items: %r6, %13
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 1 sunk 0
+
+shape %s0 object chain.lambda.env {scale: %r0}
+shape %s1 object chainBreak.lambda.env {scale: %r0}
+shape %s2 object nested.cont.env {depth: %r4, total: %r4}
+shape %s3 ref {$o: %r3 owner, $k: %r3 key}
+shape %s4 object Array {items: %r6, length: %r7}
+shape %s5 cell {$v: %r0 box}
+shape %s6 object ArrayView {items: %r6, length: %r0, offset: %r0}
+shape %s7 fun {$c: %r3 code, $e: %r3 env}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = object %s1
+rep %r3 = erased
+rep %r4 = cell of %r0
+rep %r5 = object %s2
+rep %r6 = array Int32Array of %r0
+rep %r7 = number unsigned 30
+rep %r8 = object %s4
+rep %r9 = void
+rep %r10 = object %s5
+rep %r11 = number bool
+rep %r12 = object %s6
+rep %r13 = parts (%r6, %r0, %r0) as %r12
+rep %r14 = object %s7
+rep %r15 = number unsigned 32

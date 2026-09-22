@@ -1,0 +1,32 @@
+fn both(one %r1, one %r2) -> one %r0
+  block0(%0: %r1, %1: %r2):
+    %2: %r0 = const 100
+    %3: %r1 = load property %1.p: %r1
+    store property %3.x: %r0, %2
+    %4: %r0 = load property %0.x: %r0
+    %5: %r0 = load property %0.y: %r0
+    %6: %r0 = binary.add %4, %5
+    %7: %r0 = coerce %6
+    return %7
+
+fn main() -> one %r0
+  block0:
+    %5: %r0 = const 1
+    %6: %r0 = const 2
+    %7: %r1 = object %s0 %5, %6
+    %8: %r0 = const 0
+    %9: %r2 = object %s1 %7, %8
+    %4: %r2 = alias %9
+    %10: %r1 = load property %4.p: %r1
+    %11: %r1 = clone %10
+    %12: %r0 = call both %11, %4
+    return %12
+
+optimizer clones 1 aliased 0 forwarded 0 removed 4 adopted 1 sunk 0
+
+shape %s0 object Point {x: %r0, y: %r0}
+shape %s1 object Holder {p: %r1, tag: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = object %s1

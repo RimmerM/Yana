@@ -1,0 +1,155 @@
+let image$base: () = <none>
+
+fn Copy(a).copy(Point)(%from: Point) -> Point {
+  b0:
+    ret %from
+}
+
+fn sum(%p: Point) -> I32 {
+  b0:
+    %v1 = load %p@Point.x : I32
+    %v4 = mul %v1, 10 : I32
+    %v5 = load %p@Point.y : I32
+    %v6 = add %v4, %v5 : I32
+    ret %v6
+}
+
+fn main() -> I32 {
+  b0:
+    %score = alloc : I32
+    init %score, 0
+    %v3 = alloc : Point
+    aggregate %running@Point.x = 1, %running@Point.y = 2
+    %remembered = alloc : Pair
+    %v8 = load %running : Point
+    %v9 = load %running : Point
+    aggregate %local2@Pair.first = %v8, %local2@Pair.second = %v9
+    assign %running@Point.x, 8
+    assign %running@Point.y, 9
+    %v15 = load %local2@Pair.first : Point
+    %v16 = call sum, %v15 : I32
+    %v19 = cmp_eq %v16, 12 : Bool
+    je %v19, b1, b2
+
+  b1:
+    %v21 = load %score : I32
+    %v24 = add %v21, 1 : I32
+    assign %score, %v24
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v28 = load %local2@Pair.second : Point
+    %v29 = call sum, %v28 : I32
+    %v32 = cmp_eq %v29, 12 : Bool
+    je %v32, b4, b5
+
+  b4:
+    %v34 = load %score : I32
+    %v37 = add %v34, 2 : I32
+    assign %score, %v37
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v41 = load %running : Point
+    %v42 = call sum, %v41 : I32
+    %v45 = cmp_eq %v42, 89 : Bool
+    je %v45, b7, b8
+
+  b7:
+    %v47 = load %score : I32
+    %v50 = add %v47, 4 : I32
+    assign %score, %v50
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v54 = alloc : Point
+    aggregate %counter@Point.x = 0, %counter@Point.y = 0
+    %total = alloc : I32
+    init %total, 0
+    %firstSeen = alloc : I32
+    init %firstSeen, 0
+    %v69 = alloc : I32
+    init %local6, 1
+    jmp b10
+
+  b10:
+    %i = load %local6 : I32
+    %v73 = cmp_lt %i, 4 : Bool
+    je %v73, b11, b17
+
+  b11:
+    assign %counter@Point.x, %i
+    %v77 = mul %i, 2 : I32
+    assign %counter@Point.y, %v77
+    %v79 = load %counter : Point
+    %snapshot = call Copy(a).copy(Point), %v79 : Point
+    assign %counter@Point.x, 0
+    assign %counter@Point.y, 0
+    %v87 = cmp_eq %i, 1 : Bool
+    je %v87, b12, b13
+
+  b12:
+    %v89 = call sum, %snapshot : I32
+    assign %firstSeen, %v89
+    jmp b14
+
+  b13:
+    jmp b14
+
+  b14:
+    %v93 = load %total : I32
+    %v94 = call sum, %snapshot : I32
+    %v95 = add %v93, %v94 : I32
+    assign %total, %v95
+    jmp b15
+
+  b15:
+    %v97 = load %local6 : I32
+    jmp b16
+
+  b16:
+    %v99 = add %v97, 1 : I32
+    assign %local6, %v99
+    jmp b10
+
+  b17:
+    %v104 = load %total : I32
+    %v107 = cmp_eq %v104, 72 : Bool
+    je %v107, b18, b19
+
+  b18:
+    %v109 = load %score : I32
+    %v112 = add %v109, 8 : I32
+    assign %score, %v112
+    jmp b20
+
+  b19:
+    jmp b20
+
+  b20:
+    %v116 = load %firstSeen : I32
+    %v119 = cmp_eq %v116, 12 : Bool
+    je %v119, b21, b22
+
+  b21:
+    %v121 = load %score : I32
+    %v124 = add %v121, 16 : I32
+    assign %score, %v124
+    jmp b23
+
+  b22:
+    jmp b23
+
+  b23:
+    %v128 = load %score : I32
+    ret %v128
+}

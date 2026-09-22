@@ -1,0 +1,23 @@
+fn main() -> one %r0
+  var $0: %r2
+  block0:
+    %2: %r2 = const 1
+    store var $0: %r2, %2
+    %4: %r2 = load var $0: %r2
+    %5: %r1 = map %4 [0 => 0, else 3.4359738623E10]
+    %6: %r1 = const 3.4359738623E10
+    %7: %r0 = const 32768
+    %8: %r2 = binary.eq %5, %6
+    %9: %r0 = const 0
+    %10: %r0 = select %8, %7, %9
+    %11: %r0 = const 229375
+    %12: %r0 = binary.add %10, %11
+    %13: %r0 = coerce %12
+    return %13
+
+optimizer clones 0 aliased 0 forwarded 0 removed 3 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = number signed 53
+rep %r2 = number bool
+rep %r3 = number unsigned 8

@@ -1,0 +1,84 @@
+module ResolveTest
+
+data Pair {left: Counted, right: Counted}
+
+data Counted {size: I32}
+
+fn counted(n: I32 [shared call]) -> Counted {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Counted = aggregate.Counted take %0
+  return take %1
+}
+
+fn main() -> I32 {
+  local & a: Counted
+  local local1: Counted
+  local old: Counted
+  local & p: Pair
+  local local4: Counted
+  local & xs: [Counted *1]
+  local local6: Counted
+  local taken: Counted
+
+bb0:
+  %0: I32 = const 1
+  %1: Counted = call counted borrow.shared %0
+  write.init borrow.unique (a) take %1
+  %3: Counted [unique call] = read borrow.unique (a) loan0
+  %4: I32 = const 8
+  %5: Counted = call counted borrow.shared %4
+  %6: %Counted = address.exchange inspect %3
+  %7: Counted = read copy.trivial ([%%6])
+  write.init borrow.unique (local1) take %7
+  %9: Counted = read copy.trivial (local1)
+  write.assign borrow.unique ([%%6]) take %5
+  write.init borrow.unique (old) take %9
+  %12: I32 = const 3
+  %13: Counted = call counted borrow.shared %12
+  %14: I32 = const 5
+  %15: Counted = call counted borrow.shared %14
+  %16: Pair = aggregate.Pair take %13 take %15
+  write.init borrow.unique (p) take %16
+  %18: Counted [unique call] = read borrow.unique (p.left) loan1
+  %19: Counted [unique call] = read borrow.unique (p.right) loan2
+  %20: %Counted = address.exchange inspect %18
+  %21: %Counted = address.exchange inspect %19
+  %22: Counted = read copy.trivial ([%%20])
+  write.init borrow.unique (local4) take %22
+  %24: Counted = read copy.trivial (local4)
+  %25: Counted = read copy.trivial ([%%21])
+  write.assign borrow.unique ([%%20]) take %25
+  write.assign borrow.unique ([%%21]) take %24
+  %28: {} = const {}
+  %29: I32 = const 9
+  %30: Counted = call counted borrow.shared %29
+  %31: [Counted *1] = aggregate.0 take %30
+  write.init borrow.unique (xs) take %31
+  %33: Size = const 0
+  %34: Counted [unique call] = read borrow.unique (xs[0]) loan3
+  %35: I32 = const 0
+  %36: Counted = call counted borrow.shared %35
+  %37: %Counted = address.exchange inspect %34
+  %38: Counted = read copy.trivial ([%%37])
+  write.init borrow.unique (local6) take %38
+  %40: Counted = read copy.trivial (local6)
+  write.assign borrow.unique ([%%37]) take %36
+  write.init borrow.unique (taken) take %40
+  %43: I32 = read copy.trivial (old.size)
+  %44: I32 = const 10
+  %45: I32 = mul inspect %43 inspect %44
+  %46: I32 = read copy.trivial (a.size)
+  %47: I32 = add inspect %45 inspect %46
+  %48: I32 = read copy.trivial (p.left.size)
+  %49: I32 = const 10
+  %50: I32 = mul inspect %48 inspect %49
+  %51: I32 = add inspect %47 inspect %50
+  %52: I32 = read copy.trivial (p.right.size)
+  %53: I32 = add inspect %51 inspect %52
+  %54: I32 = read copy.trivial (taken.size)
+  %55: I32 = add inspect %53 inspect %54
+  return take %55
+}
+
+entry main

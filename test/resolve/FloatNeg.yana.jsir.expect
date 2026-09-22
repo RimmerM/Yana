@@ -1,0 +1,77 @@
+fn opaque(one %r0) -> one %r0
+  block0(%0: %r0):
+    return %0
+
+fn opaqueF(one %r1) -> one %r1
+  block0(%0: %r1):
+    return %0
+
+fn main() -> one %r2
+  block0:
+    %0: %r2 = const 0
+    %1: %r0 = const 2.5
+    %2: %r0 = call opaque %1
+    %3: %r0 = unary.neg %2
+    %4: %r0 = const -2.5
+    %5: %r3 = binary.eq %3, %4
+    %6: %r2 = const 1
+    %7: %r2 = select %5, %6, %0
+    %8: %r1 = const 1.5
+    %9: %r1 = call opaqueF %8
+    %10: %r1 = unary.neg %9
+    %11: %r1 = coerce %10
+    %12: %r1 = const -1.5
+    %13: %r3 = binary.eq %11, %12
+    %14: %r2 = const 2
+    %15: %r2 = binary.add %7, %14
+    %16: %r2 = coerce %15
+    %17: %r2 = select %13, %16, %7
+    %18: %r0 = const 3.25
+    %19: %r0 = call opaque %18
+    %20: %r0 = unary.neg %19
+    %21: %r0 = unary.neg %20
+    %22: %r0 = const 3.25
+    %23: %r3 = binary.eq %21, %22
+    %24: %r2 = const 4
+    %25: %r2 = binary.add %17, %24
+    %26: %r2 = coerce %25
+    %27: %r2 = select %23, %26, %17
+    %28: %r1 = const 7.5
+    %29: %r1 = call opaqueF %28
+    %30: %r1 = unary.neg %29
+    %31: %r1 = coerce %30
+    %32: %r1 = unary.neg %31
+    %33: %r1 = coerce %32
+    %34: %r1 = const 7.5
+    %35: %r3 = binary.eq %33, %34
+    %36: %r2 = const 8
+    %37: %r2 = binary.add %27, %36
+    %38: %r2 = coerce %37
+    %39: %r2 = select %35, %38, %27
+    %40: %r0 = const 1
+    %41: %r0 = const 0
+    %42: %r0 = call opaque %41
+    %43: %r0 = unary.neg %42
+    %44: %r0 = binary.div %40, %43
+    %45: %r0 = const 0
+    %46: %r3 = binary.lt %44, %45
+    %47: %r2 = const 16
+    %48: %r2 = binary.add %39, %47
+    %49: %r2 = coerce %48
+    %50: %r2 = select %46, %49, %39
+    %51: %r0 = const 2.5
+    %52: %r0 = unary.neg %51
+    %53: %r0 = const -2.5
+    %54: %r3 = binary.eq %52, %53
+    %55: %r2 = const 32
+    %56: %r2 = binary.add %50, %55
+    %57: %r2 = coerce %56
+    %58: %r2 = select %54, %57, %50
+    return %58
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number f64
+rep %r1 = number f32
+rep %r2 = number signed 32
+rep %r3 = number bool

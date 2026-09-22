@@ -1029,7 +1029,7 @@ bool mayWriteStorage(OptContext& opt, const Contained& contained, Inst& inst,
              * has looked at yet. Forgetting too much costs an optimization; forgetting too little is
              * a miscompile.
              */
-            if(isPure(inst.kind)) return false;
+            if(isPure(inst)) return false;
             return !contained[allocation];
     }
 }

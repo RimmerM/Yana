@@ -92,15 +92,29 @@ void Session::compile(CompletionRequest* completion, Cursor cursor) {
 
     // The rewritten stage, which is the only one with an editor surface - `ssa::Pipeline` states the
     // same assignment for a build, and the setting is read below this.
+    //
+    // **Kept after the default flipped** (2026-09-22, J81), because what this overrides is not the
+    // default: a project whose `yana.toml` says `resolver = "legacy"` is still edited here, and a
+    // server that honoured it would have no index, no completion and no `explain` to answer from.
+    // Which stage *built* it is that project's business; which stage answers the editor is not.
     context->settings.resolver = ResolverStage::Ownership;
 
     /*
-     * A JavaScript project is answered as the native program, until the rewritten stage resolves a
-     * JavaScript one: the library's `@platform(js)` half is written against the shipping stage, and a
-     * session that asked for it would report every declaration of that half as not resolving. What
-     * this costs is the project's own `@platform(js)` declarations, which the answers do not see.
+     * **The project's own platform, since 2026-09-22 (J75).**
+     *
+     * This used to force `Native` whatever the project said, because the rewritten stage did not
+     * resolve a JavaScript program and a session that asked for one would have reported every
+     * declaration of the library's `@platform(js)` half as not resolving. It does resolve one now -
+     * JSIR's whole point - so a `platform = "js"` project is answered as the JavaScript program it
+     * is, which is what makes its own `@platform(js)` declarations and its `.js.yana` files
+     * reachable by go-to-definition, hover and completion at all.
+     *
+     * Nothing is forced here now, and that is deliberate rather than an omission: `reloadProject`
+     * already fills a platform in for a project file that named none, so there is no state in which
+     * this is unset. Which platform a session is running as is what §5.4's status bar shows, and it
+     * decides which program the answers are about - a `@platform(native)` declaration is genuinely
+     * unknown in a JavaScript project, exactly as it is in a JavaScript build.
      */
-    context->settings.platform = TargetPlatform::Native;
 
     // Before anything is resolved, because it is what turns the recording sites on. A driver never
     // does this, which is the whole of what Implementation-Tooling.md §1.1 means by the cost being

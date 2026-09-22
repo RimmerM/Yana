@@ -1,0 +1,362 @@
+fn total(parts %r3) -> one %r0
+  block0(%0: %r1, %1: %r0, %2: %r0):
+    %5: %r0 = const 0
+    %6: %r0 = const 0
+    %7: %r0 = const 1
+    jump -> block1(%5, %6)
+  block1(%3: %r0, %4: %r0):
+    %8: %r4 = binary.lt %4, %1
+    branch %8 -> block3 -> block2
+  block2:
+    return %3
+  block3:
+    %9: %r5 = convert %4
+    %10: %r5 = convert %1
+    %11: %r4 = binary.ge %9, %10
+    branch %11 -> block5 -> block4
+  block4:
+    %12: %r1 = alias %0
+    %13: %r0 = binary.add %2, %4
+    %14: %r0 = coerce %13
+    %15: %r0 = load element %12[%14]: %r0
+    %16: %r0 = binary.add %3, %15
+    %17: %r0 = coerce %16
+    %18: %r0 = binary.add %4, %7
+    %19: %r0 = coerce %18
+    jump -> block1(%17, %19)
+  block5:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+fn main() -> one %r0
+  var $0: %r9
+  var $1: %r10
+  var $2: %r11
+  var $3: %r1
+  var $4: %r15
+  block0:
+    %3: %r0 = const 0
+    %4: %r0 = const 0
+    %5: %r0 = const 0
+    %6: %r0 = const 0
+    %7: %r7 = array %3, %4, %5, %6
+    %8: %r8 = object %s1 %7
+    %9: %r0 = const 1
+    %10: %r0 = const 2
+    %11: %r0 = const 3
+    %12: %r0 = const 4
+    %13: %r7 = array %9, %10, %11, %12
+    store property %8.$v: %r7, %13
+    %14: %r7 = load property %8.$v: %r7
+    %15: %r1 = alias %14
+    %16: %r0 = const 4
+    %17: %r0 = const 0
+    %18: %r0 = call total %15, %16, %17
+    %19: %r0 = const 10
+    %20: %r4 = binary.ne %18, %19
+    branch %20 -> block2 -> block1
+  block1:
+    %21: %r7 = load property %8.$v: %r7
+    %23: %r0 = const 4
+    %24: %r0 = const 0
+    %25: %r0 = const 1
+    %26: %r0 = const 3
+    %27: %r4 = binary.gt %25, %23
+    branch %27 -> block26 -> block25
+  block2:
+    %216: %r0 = const -1
+    return %216
+  block3:
+    %38: %r7 = load property %8.$v: %r7
+    %39: %r1 = alias %38
+    %40: %r0 = const 4
+    %41: %r0 = const 0
+    %42: %r0 = const 0
+    %43: %r0 = const 1
+    jump -> block31(%42)
+  block4:
+    %215: %r0 = const -2
+    return %215
+  block5:
+    %52: %r0 = const 7
+    %53: %r0 = const 8
+    %54: %r9 = array %52, %53
+    %55: %r1 = alias %54
+    %56: %r0 = const 2
+    %57: %r0 = const 0
+    %58: %r0 = call total %55, %56, %57
+    %59: %r0 = const 15
+    %60: %r4 = binary.ne %58, %59
+    branch %60 -> block8 -> block7
+  block6:
+    %192: %r0 = const -3
+    return %192
+  block7:
+    %61: %r0 = const 7
+    %62: %r0 = const 8
+    %63: %r9 = array %61, %62
+    store var $0: %r9, %63
+    %64: %r0 = const 0
+    %65: %r9 = load var $0: %r9
+    %66: %r0 = load element %65[%64]: %r0
+    %67: %r0 = const 1
+    %68: %r0 = binary.add %66, %67
+    %69: %r0 = coerce %68
+    store element %65[%64]: %r0, %69
+    %70: %r0 = const 1
+    %71: %r9 = load var $0: %r9
+    %72: %r0 = load element %71[%70]: %r0
+    %73: %r0 = const 1
+    %74: %r0 = binary.add %72, %73
+    %75: %r0 = coerce %74
+    store element %71[%70]: %r0, %75
+    %76: %r9 = load var $0: %r9
+    %77: %r9 = clone %76
+    %78: %r1 = alias %77
+    %79: %r0 = const 2
+    %80: %r0 = const 0
+    %81: %r0 = call total %78, %79, %80
+    %82: %r0 = const 17
+    %83: %r4 = binary.ne %81, %82
+    branch %83 -> block10 -> block9
+  block8:
+    %191: %r0 = const -4
+    return %191
+  block9:
+    %84: %r9 = load var $0: %r9
+    %85: %r9 = clone %84
+    %86: %r9 = alias %85
+    %87: %r1 = alias %86
+    %88: %r0 = const 2
+    %90: %r0 = const 0
+    %91: %r1 = alias %87
+    %92: %r0 = call total %91, %88, %90
+    %93: %r0 = const 17
+    %94: %r4 = binary.ne %92, %93
+    branch %94 -> block12 -> block11
+  block10:
+    %190: %r0 = const -5
+    return %190
+  block11:
+    %95: %r0 = const 0
+    %96: %r10 = array %95, %95, %95, %95, %95
+    store var $1: %r10, %96
+    %97: %r10 = load var $1: %r10
+    %98: %r1 = alias %97
+    %99: %r0 = const 5
+    %100: %r0 = const 0
+    %101: %r0 = call total %98, %99, %100
+    %102: %r0 = const 0
+    %103: %r4 = binary.ne %101, %102
+    branch %103 -> block14 -> block13
+  block12:
+    %189: %r0 = const -6
+    return %189
+  block13:
+    %104: %r0 = const 1
+    %105: %r0 = const 2
+    %106: %r0 = const 3
+    %107: %r0 = const 4
+    %108: %r7 = array %104, %105, %106, %107
+    %109: %r0 = const 100
+    %110: %r11 = object %s2 %108, %109
+    store var $2: %r11, %110
+    %111: %r11 = load var $2: %r11
+    %112: %r11 = alias %111
+    %113: %r7 = load property %112.values: %r7
+    %114: %r1 = alias %113
+    %115: %r0 = const 4
+    %116: %r0 = const 0
+    %117: %r0 = call total %114, %115, %116
+    %118: %r0 = load property %112.tag: %r0
+    %119: %r0 = binary.add %117, %118
+    %120: %r0 = coerce %119
+    %121: %r0 = const 110
+    %122: %r4 = binary.ne %120, %121
+    branch %122 -> block16 -> block15
+  block14:
+    %188: %r0 = const -7
+    return %188
+  block15:
+    %123: %r0 = const 5
+    %124: %r0 = const 5
+    %125: %r9 = array %123, %124
+    %126: %r1 = alias %125
+    %127: %r0 = const 2
+    %128: %r0 = const 0
+    %129: %r0 = call total %126, %127, %128
+    %130: %r0 = const 10
+    %131: %r4 = binary.ne %129, %130
+    branch %131 -> block18 -> block17
+  block16:
+    %187: %r0 = const -8
+    return %187
+  block17:
+    %132: %r1 = array
+    store var $3: %r1, %132
+    %133: %r1 = load var $3: %r1
+    %134: %r1 = alias %133
+    %135: %r0 = const 0
+    %136: %r0 = const 0
+    %137: %r0 = call total %134, %135, %136
+    %138: %r0 = const 0
+    %139: %r4 = binary.ne %137, %138
+    branch %139 -> block20 -> block19
+  block18:
+    %186: %r0 = const -9
+    return %186
+  block19:
+    %140: %r12 = const 10n
+    %141: %r13 = const 1
+    %142: %r14 = object %s3 %140, %141
+    %143: %r12 = const 20n
+    %144: %r13 = const 2
+    %145: %r14 = object %s3 %143, %144
+    %146: %r12 = const 30n
+    %147: %r13 = const 3
+    %148: %r14 = object %s3 %146, %147
+    %149: %r15 = array %142, %145, %148
+    store var $4: %r15, %149
+    %150: %r0 = const 0
+    %151: %r15 = load var $4: %r15
+    %152: %r14 = load element %151[%150]: %r14
+    %153: %r12 = load property %152.wide: %r12
+    %154: %r0 = const 1
+    %155: %r15 = load var $4: %r15
+    %156: %r14 = load element %155[%154]: %r14
+    %157: %r12 = load property %156.wide: %r12
+    %158: %r12 = binary.add %153, %157
+    %159: %r12 = coerce %158
+    %160: %r0 = const 2
+    %161: %r15 = load var $4: %r15
+    %162: %r14 = load element %161[%160]: %r14
+    %163: %r12 = load property %162.wide: %r12
+    %164: %r12 = binary.add %159, %163
+    %165: %r12 = coerce %164
+    %166: %r12 = const 60n
+    %167: %r4 = binary.ne %165, %166
+    branch %167 -> block22 -> block21
+  block20:
+    %185: %r0 = const -10
+    return %185
+  block21:
+    %170: %r0 = const 4
+    %172: %r0 = binary.add %170, %170
+    %173: %r0 = coerce %172
+    %174: %r0 = binary.add %173, %170
+    %175: %r0 = coerce %174
+    %176: %r0 = const 12
+    %177: %r4 = binary.ne %175, %176
+    branch %177 -> block24 -> block23
+  block22:
+    %184: %r0 = const -11
+    return %184
+  block23:
+    %178: %r7 = load property %8.$v: %r7
+    %179: %r1 = alias %178
+    %180: %r0 = const 4
+    %181: %r0 = const 0
+    %182: %r0 = call total %179, %180, %181
+    return %182
+  block24:
+    %183: %r0 = const -12
+    return %183
+  block25:
+    jump -> block27(%25)
+  block26:
+    jump -> block27(%23)
+  block27(%0: %r0):
+    %28: %r4 = binary.lt %26, %0
+    %29: %r0 = select %28, %0, %26
+    %30: %r4 = binary.gt %29, %23
+    branch %30 -> block29 -> block28
+  block28:
+    jump -> block30(%29)
+  block29:
+    jump -> block30(%23)
+  block30(%1: %r0):
+    %31: %r0 = binary.sub %1, %0
+    %32: %r0 = coerce %31
+    %33: %r0 = binary.add %24, %0
+    %34: %r0 = coerce %33
+    %22: %r1 = alias %21
+    %35: %r0 = call total %22, %32, %34
+    %36: %r0 = const 5
+    %37: %r4 = binary.ne %35, %36
+    branch %37 -> block4 -> block3
+  block31(%2: %r0):
+    %44: %r4 = binary.lt %2, %40
+    branch %44 -> block33 -> block32
+  block32:
+    %45: %r7 = load property %8.$v: %r7
+    %46: %r1 = alias %45
+    %47: %r0 = const 4
+    %48: %r0 = const 0
+    %49: %r0 = call total %46, %47, %48
+    %50: %r0 = const 20
+    %51: %r4 = binary.ne %49, %50
+    branch %51 -> block6 -> block5
+  block33:
+    %193: %r5 = convert %2
+    %194: %r5 = convert %40
+    %195: %r4 = binary.ge %193, %194
+    branch %195 -> block39 -> block34
+  block34:
+    %196: %r1 = alias %39
+    %197: %r0 = binary.add %41, %2
+    %198: %r0 = coerce %197
+    %199: %r0 = load element %196[%198]: %r0
+    %200: %r5 = convert %40
+    %201: %r4 = binary.ge %193, %200
+    branch %201 -> block38 -> block35
+  block35:
+    %202: %r1 = alias %39
+    %203: %r0 = binary.add %41, %2
+    %204: %r0 = coerce %203
+    %205: %r0 = load element %202[%204]: %r0
+    %206: %r0 = binary.add %199, %205
+    %207: %r0 = coerce %206
+    %208: %r5 = convert %40
+    %209: %r4 = binary.ge %193, %208
+    branch %209 -> block37 -> block36
+  block36:
+    %210: %r1 = alias %39
+    %211: %r0 = binary.add %41, %2
+    %212: %r0 = coerce %211
+    store element %210[%212]: %r0, %207
+    %213: %r0 = binary.add %2, %43
+    %214: %r0 = coerce %213
+    jump -> block31(%214)
+  block37:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block38:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block39:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+optimizer clones 4 aliased 2 forwarded 0 removed 4 adopted 0 sunk 0
+
+shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
+shape %s1 cell {$v: %r7 box}
+shape %s2 object Quad {values: %r7, tag: %r0}
+shape %s3 object Pad {wide: %r12, narrow: %r13}
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = object %s0
+rep %r3 = parts (%r1, %r0, %r0) as %r2
+rep %r4 = number bool
+rep %r5 = number unsigned 32
+rep %r6 = void
+rep %r7 = array Int32Array of %r0
+rep %r8 = object %s1
+rep %r9 = array Int32Array of %r0
+rep %r10 = array Int32Array of %r0
+rep %r11 = object %s2
+rep %r12 = bigint signed
+rep %r13 = number unsigned 8
+rep %r14 = object %s3
+rep %r15 = array Array of %r14

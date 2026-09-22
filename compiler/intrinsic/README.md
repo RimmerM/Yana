@@ -167,6 +167,16 @@ spellings. That works because a role is claimed once - the alternative, an attri
 member, would need a role per method - and it costs nothing because the wrappers are
 `@inline(always)` and a string literal on that target is a constant with no storage.
 
+Those rows had **never been checked against a declaration** until the rewrite grew emitters for them
+on 2026-09-21, and four of them did not fit the library that had been written against them:
+`hostArray` stated `pointerAt()` at a *result* position, which no result can satisfy; `hostViewRead`
+stated `integerAt()` for a signature whose width is the accessor's; and `hostAt`/`hostAtMut` stated a
+call-bounded pointer for two declarations that publish an origin into it. That is what the warning at
+the head of `resolve_mir/native.def` used to be about, and it is the argument for this directory
+restated from the failure end: a shape is a claim about a declaration, and a claim nothing compares
+is a claim that drifts. The rows are `rootedPointerAt()`, `addressAt()` and `anyAt()` now, and
+`lib/Native/Host.js.yana` writes `self: %source'a` where it used to write `return self: %a`.
+
 ## Who links against it
 
 `YanaIntrinsic` is a leaf beside `YanaCore` and depends on nothing else, because more than one stage

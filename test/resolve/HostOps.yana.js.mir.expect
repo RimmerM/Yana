@@ -1,0 +1,125 @@
+module ResolveTest
+
+fn units(text: String [shared call]) -> Size {
+bb0:
+  %0: String = read copy.trivial (text)
+  %1: String = const "length"
+  %2: Size = host host.field "length" borrow.shared %0
+  return take %2
+}
+
+fn unitAt(text: String [shared call], index: Size [shared call]) -> CodeUnit {
+bb0:
+  %0: String = read copy.trivial (text)
+  %1: String = const "charCodeAt"
+  %2: Size = read copy.trivial (index)
+  %3: CodeUnit = host host.call "charCodeAt" borrow.shared %0 borrow.shared %2
+  return take %3
+}
+
+fn joined'2(left: String [shared call], right: String [shared call]) -> String {
+bb0:
+  %0: String = read copy.trivial (left)
+  %1: String = const "+"
+  %2: String = read copy.trivial (right)
+  %3: String = host host.binary "+" borrow.shared %0 borrow.shared %2
+  return take %3
+}
+
+fn unitText'2(unit: CodeUnit [shared call]) -> String {
+bb0:
+  %0: String = const "String.fromCharCode"
+  %1: CodeUnit = read copy.trivial (unit)
+  %2: String = host host.global "String.fromCharCode" borrow.shared %1
+  return take %2
+}
+
+fn managed(items: %U8 [shared call]) -> Bool {
+bb0:
+  %0: %U8 = read copy.trivial (items)
+  %1: Bool = host host.capacity borrow.shared %0
+  return take %1
+}
+
+fn main() -> I32 {
+  local text: String
+  local numbers: Array(I32)
+  local local2: I32 [shared slot 0]
+  local local3: I32 [shared slot 0]
+
+bb0:
+  %0: String = const "host"
+  %1: CodeUnit = const 33
+  %2: String = call unitText'2 borrow.shared %1
+  %3: String = call joined'2 borrow.shared %0 borrow.shared %2
+  write.init borrow.unique (text) take %3
+  %5: I32 = const 7
+  %6: I32 = const 8
+  %7: %I32 = host host.array take %5 take %6
+  %8: @bits(30) U32 = const 2
+  %9: Array(I32) = aggregate.Array take %7 take %8
+  write.init borrow.unique (numbers) take %9
+  %11: String = read copy.trivial (text)
+  %12: Size = call units borrow.shared %11
+  %13: Size = const 0
+  %14: Bool = le inspect %12 inspect %13
+  branch inspect %14 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %19: String = read copy.trivial (text)
+  %20: Size = const 0
+  %21: CodeUnit = call unitAt borrow.shared %19 borrow.shared %20
+  %22: CodeUnit = const 104
+  %23: Bool = ne inspect %21 inspect %22
+  branch inspect %23 -> bb6 -> bb4
+
+bb3:
+  drop (numbers)
+  %16: I32 = const 1
+  return take %16
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %28: %U8 = host host.array
+  %29: Bool = call managed borrow.shared %28
+  %30: Bool = const False
+  %31: Bool = eq inspect %29 inspect %30
+  branch inspect %31 -> bb9 -> bb7
+
+bb6:
+  drop (numbers)
+  %25: I32 = const 2
+  return take %25
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %36: Size = const 0
+  %37: Array(I32) [shared call] = read borrow.shared (numbers) loan0
+  %38: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %37 roots{0}
+  %39: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %38 borrow.shared %36 roots{0}
+  write.init borrow.unique (local2) borrow.shared %39
+  %41: I32 = read copy.trivial (local2)
+  %42: Size = const 1
+  %43: Array(I32) [shared call] = read borrow.shared (numbers) loan1
+  %44: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %43 roots{1}
+  %45: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %44 borrow.shared %42 roots{1}
+  write.init borrow.unique (local3) borrow.shared %45
+  %47: I32 = read copy.trivial (local3)
+  drop (numbers)
+  %48: I32 = add inspect %41 inspect %47
+  return take %48
+
+bb9:
+  drop (numbers)
+  %33: I32 = const 3
+  return take %33
+}
+
+entry main

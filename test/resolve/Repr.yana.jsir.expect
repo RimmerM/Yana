@@ -1,0 +1,39 @@
+fn main() -> one %r0
+  var $0: %r2
+  var $1: %r3
+  block0:
+    %0: %r1 = const 1
+    %1: %r1 = const 0
+    %2: %r2 = object %s0 %0, %1
+    store var $0: %r2, %2
+    %3: %r3 = const 7
+    %4: %r3 = alias %3
+    store var $1: %r3, %4
+    %5: %r3 = load var $1: %r3
+    %6: %r3 = alias %5
+    %7: %r4 = convert %6
+    %10: %r2 = load var $0: %r2
+    %11: %r2 = alias %10
+    %12: %r1 = load property %11.optionA: %r1
+    %13: %r0 = const 1
+    %14: %r0 = const 0
+    %15: %r0 = select %12, %13, %14
+    %16: %r0 = convert %7
+    %17: %r0 = binary.add %15, %16
+    %18: %r0 = coerce %17
+    %19: %r0 = const 650
+    %20: %r0 = binary.add %18, %19
+    %21: %r0 = coerce %20
+    return %21
+
+optimizer clones 1 aliased 1 forwarded 0 removed 2 adopted 0 sunk 0
+
+shape %s0 object Flags {optionA: %r1, optionB: %r1}
+
+rep %r0 = number signed 32
+rep %r1 = number bool
+rep %r2 = object %s0
+rep %r3 = number unsigned 53
+rep %r4 = bigint unsigned
+rep %r5 = number unsigned 8
+rep %r6 = nullable of %r3

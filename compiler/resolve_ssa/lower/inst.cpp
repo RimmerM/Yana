@@ -3761,6 +3761,21 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
         case Inst::Unreachable:
             block.addInst(lower, new (to.arena) LowerInstUnreachable());
             break;
+
+        /*
+         * A host operation, which this tier never sees - Analysis-IR-JS.md §3.10's "native never
+         * sees one".
+         *
+         * An internal error and not a translation, because there is nothing to translate *to*:
+         * `@platform` selection deletes every declaration that could reach one, so a native build
+         * holds no name, no type and no instance that could build a `Host` node. What this arm
+         * catches is a selection bug - a `.js.yana` file read on a native build - and it catches it
+         * at the one place where saying so is still cheap. JSIR is the sibling that has the arm.
+         */
+        case Inst::Host:
+            assertTrue(false);
+            break;
+
         case Inst::KindCount:
             break;
     }

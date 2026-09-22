@@ -781,6 +781,47 @@ struct NodeNative: NodeResult {
 };
 
 /*
+ * An operation the **host** has and this IR does not - see inst.def, host.def and
+ * Analysis-IR-JS.md §3.10.
+ *
+ * `NodeNative`'s shape with the member name added and the blanket `Inspect` taken away. What it is
+ * *not* is an element access: `hostRead`, `hostWrite`, `hostAt` and `hostAtMut` build a
+ * `Place::Index` over a `Place::Address` instead, so a host element is a place and the two borrows
+ * are rooted by the machinery that roots `borrow`'s. host.def says why.
+ */
+struct NodeHost: NodeResult {
+    NodeHost(LocationId source, HostOp op): NodeResult(Host, source), op(op) {}
+
+    HostOp op;
+
+    /*
+     * The member the operation names - `"charCodeAt"`, `"length"`, `"+"`, the whole dotted path of a
+     * global call, or the message of a `throw`. Unset on the rows host.def says carry none.
+     *
+     * A field rather than an operand, and that is not an optimization: a name that survived as a
+     * value would be a string object built at run time and a property access spelled `o[k]`.
+     * `expand_host.cpp` reads it off the literal at the call and drops the argument, which is the
+     * last place that can report a computed one against something an author wrote.
+     *
+     * Braced, because `StringId`'s default constructor is trivial on purpose - see it - so an
+     * unbraced one here would be uninitialized rather than zero.
+     */
+    StringId member {};
+
+    OperandList arguments;
+
+    // By reference, for `NodeNative::eachOperand`'s reason: a `Forward` in an argument is rewritten
+    // in place by liveness, and a masked list has no address to rewrite through. These carry real
+    // modes, so unlike a native operation's that rewrite can actually happen here.
+    template<class F> void eachOperand(MirBase base, F&& f) {
+        auto items = arguments.contents(base);
+        for(Size i = 0; i < items.size(); i++) f(*items.pointerAt(i), OperandRole::Argument);
+    }
+
+    template<class F> void eachEdge(MirBase, F&&) {}
+};
+
+/*
  * A call to a function this program declares - Analysis-IR.md §5.6.
  *
  * The callee is a **declaration-region** `Function` and never another body's node, which is the rule

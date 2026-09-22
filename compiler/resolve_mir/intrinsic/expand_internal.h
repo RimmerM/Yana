@@ -105,6 +105,49 @@ Node* expandX86Interrupt(Builder& builder, Function& callee, Node* const* argume
 Node* expandX86FloatOp(Builder& builder, Function& callee, Node* const* arguments, Size count,
                        const Substitution& with, LocationId source, NativeOp op);
 
+
+/*
+ * expand_host.cpp - the operations the host has and the IR does not, `host.def`.
+ *
+ * Seventeen roles build a `Node::Host`; the four element faces build a **place** instead, which is
+ * what `op.def` says they are. The file's own header is where that division is argued.
+ *
+ * The emitters that take a row and a count take them for `expandX86Native`'s reason: what differs
+ * between `hostCall0` and `hostCall3` is the declaration's arity, which is the caller's to state -
+ * and is the whole of the difference, which is why the four share one `host.def` row.
+ */
+Node* expandHostField(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+Node* expandHostCall(Builder& builder, Function& callee, Node* const* arguments, Size count,
+                     const Substitution& with, LocationId source);
+Node* expandHostGlobal(Builder& builder, Function& callee, Node* const* arguments, Size count,
+                       const Substitution& with, LocationId source);
+Node* expandHostBinary(Builder& builder, Function& callee, Node* const* arguments,
+                       const Substitution& with, LocationId source);
+Node* expandHostThrow(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+Node* expandHostViewRead(Builder& builder, Function& callee, Node* const* arguments,
+                         const Substitution& with, LocationId source);
+Node* expandHostViewWrite(Builder& builder, Function& callee, Node* const* arguments,
+                          const Substitution& with, LocationId source);
+Node* expandHostArray(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+Node* expandHostGrow(Builder& builder, Function& callee, Node* const* arguments,
+                     const Substitution& with, LocationId source);
+Node* expandHostFixedCapacity(Builder& builder, Function& callee, Node* const* arguments,
+                              const Substitution& with, LocationId source);
+Node* expandHostVector(Builder& builder, Function& callee, Node* const* arguments, Size count,
+                       const Substitution& with, LocationId source, HostOp op);
+
+// The element - one read emitter, one write emitter, and one for both borrows, which is the same
+// three `lib/Native/Pointer.yana`'s `*p`, `store` and `borrow` have.
+Node* expandHostRead(Builder& builder, Function& callee, Node* const* arguments,
+                     const Substitution& with, LocationId source);
+Node* expandHostWrite(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+Node* expandHostAt(Builder& builder, Function& callee, Node* const* arguments,
+                   const Substitution& with, LocationId source);
+
 Node* expandX86AesKeygenAssist(Builder& builder, Function& callee, Node* const* arguments,
                                const Substitution& with, LocationId source);
 Node* expandX86CarrylessMultiply(Builder& builder, Function& callee, Node* const* arguments,

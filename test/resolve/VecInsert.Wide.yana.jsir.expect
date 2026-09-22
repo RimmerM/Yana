@@ -1,0 +1,57 @@
+fn wide() -> one %r0
+  block0:
+    %0: %r1 = const 1n
+    %1: %r1 = const 20015998348988n
+    %2: %r1 = const 1n
+    %3: %r4 = binary.ne %0, %2
+    branch %3 -> block2 -> block1
+  block1:
+    %4: %r1 = const 20015998348988n
+    %5: %r4 = binary.ne %1, %4
+    branch %5 -> block4 -> block3
+  block2:
+    %16: %r0 = const -1
+    return %16
+  block3:
+    %6: %r1 = const -3n
+    %7: %r1 = const -3n
+    %8: %r4 = binary.ne %6, %7
+    branch %8 -> block6 -> block5
+  block4:
+    %15: %r0 = const -2
+    return %15
+  block5:
+    %9: %r1 = const 20015998348988n
+    %10: %r4 = binary.ne %1, %9
+    %11: %r0 = const -4
+    %12: %r0 = const 0
+    %13: %r0 = select %10, %11, %12
+    return %13
+  block6:
+    %14: %r0 = const -3
+    return %14
+
+fn main() -> one %r0
+  block0:
+    %0: %r0 = call wide
+    %1: %r0 = const 0
+    %2: %r4 = binary.ne %0, %1
+    branch %2 -> block2 -> block1
+  block1:
+    %4: %r1 = const 20015998348988n
+    %5: %r1 = const 1000003n
+    %6: %r1 = binary.rem %4, %5
+    %7: %r1 = coerce %6
+    %8: %r0 = convert %7
+    return %8
+  block2:
+    %9: %r0 = call wide
+    return %9
+
+optimizer clones 0 aliased 0 forwarded 0 removed 1 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = bigint signed
+rep %r2 = array BigInt64Array of %r1
+rep %r3 = parts (%r1, %r1) as %r2
+rep %r4 = number bool

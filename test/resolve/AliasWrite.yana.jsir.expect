@@ -1,0 +1,86 @@
+fn both(one %r1, one %r1) -> one %r0
+  block0(%0: %r1, %1: %r1):
+    %2: %r0 = const 99
+    %3: %r0 = const 98
+    %4: %r1 = object %s0 %2, %3
+    store value %1: %r1, %4
+    %5: %r0 = load property %0.x: %r0
+    %6: %r0 = const 10
+    %7: %r0 = binary.mul %5, %6
+    %8: %r0 = coerce %7
+    %9: %r0 = load property %0.y: %r0
+    %10: %r0 = binary.add %8, %9
+    %11: %r0 = coerce %10
+    return %11
+
+fn sum(one %r1) -> one %r0
+  block0(%0: %r1):
+    %1: %r0 = load property %0.x: %r0
+    %2: %r0 = const 10
+    %3: %r0 = binary.mul %1, %2
+    %4: %r0 = coerce %3
+    %5: %r0 = load property %0.y: %r0
+    %6: %r0 = binary.add %4, %5
+    %7: %r0 = coerce %6
+    return %7
+
+fn main() -> one %r0
+  var $0: %r1
+  block0:
+    %3: %r0 = const 0
+    %4: %r0 = const 0
+    %5: %r1 = object %s0 %3, %4
+    store var $0: %r1, %5
+    %6: %r0 = const 0
+    %7: %r0 = const 1
+    %8: %r0 = const 2
+    %9: %r1 = object %s0 %7, %8
+    %2: %r1 = alias %9
+    %10: %r1 = clone %2
+    %11: %r0 = call both %10, %2
+    %12: %r0 = const 12
+    %13: %r2 = binary.eq %11, %12
+    %14: %r0 = const 1
+    %15: %r0 = select %13, %14, %6
+    %16: %r0 = load property %2.x: %r0
+    %17: %r0 = const 99
+    %18: %r2 = binary.eq %16, %17
+    %19: %r0 = const 2
+    %20: %r0 = binary.add %15, %19
+    %21: %r0 = coerce %20
+    %22: %r0 = select %18, %21, %15
+    %23: %r0 = load property %2.y: %r0
+    %24: %r0 = const 98
+    %25: %r2 = binary.eq %23, %24
+    %26: %r0 = const 4
+    %27: %r0 = binary.add %22, %26
+    %28: %r0 = coerce %27
+    %29: %r0 = select %25, %28, %22
+    %30: %r0 = const 3
+    %31: %r0 = const 4
+    %32: %r1 = object %s0 %30, %31
+    store var $0: %r1, %32
+    %33: %r1 = load var $0: %r1
+    %34: %r1 = clone %33
+    %35: %r0 = call sum %34
+    %36: %r0 = const 7
+    %37: %r1 = load var $0: %r1
+    store property %37.x: %r0, %36
+    %38: %r0 = const 34
+    %39: %r2 = binary.eq %35, %38
+    %40: %r0 = const 8
+    %41: %r0 = binary.add %29, %40
+    %42: %r0 = coerce %41
+    %43: %r0 = select %39, %42, %29
+    %44: %r0 = const 16
+    %45: %r0 = binary.add %43, %44
+    %46: %r0 = coerce %45
+    return %46
+
+optimizer clones 2 aliased 0 forwarded 0 removed 2 adopted 1 sunk 0
+
+shape %s0 object Point {x: %r0, y: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = number bool

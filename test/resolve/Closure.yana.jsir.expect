@@ -1,0 +1,148 @@
+fn main() -> one %r0
+  var $0: %r4
+  var $1: %r9
+  var $2: %r9
+  var $3: %r1
+  var $4: %r2
+  block0:
+    %0: %r0 = const 0
+    %1: %r10 = object %s7 %0
+    %12: %r0 = const 10
+    %13: %r4 = object %s3 %12
+    store var $0: %r4, %13
+    %14: %r4 = load var $0: %r4
+    %15: %r5 = fun.code main.lambda
+    %16: %r9 = object %s6 %15, %14
+    store var $1: %r9, %16
+    %17: %r0 = const 1
+    %18: %r0 = load property %14.base: %r0
+    %19: %r0 = binary.add %17, %18
+    %20: %r0 = coerce %19
+    %21: %r0 = const 0
+    store property %1.$v: %r0, %21
+    %22: %r5 = const "$v"
+    %23: %r6 = object %s5 %1, %22
+    %24: %r7 = object %s4 %23
+    %5: %r7 = alias %24
+    %25: %r5 = fun.code main.lambda'2
+    %26: %r9 = object %s6 %25, %5
+    store var $2: %r9, %26
+    %27: %r6 = load property %5.total: %r6
+    %28: %r0 = load cell %27: %r0
+    %29: %r0 = const 7
+    %30: %r0 = binary.add %28, %29
+    %31: %r0 = coerce %30
+    %32: %r6 = load property %5.total: %r6
+    store cell %32: %r0, %31
+    %33: %r0 = const 5
+    %34: %r1 = object %s0 %33
+    store var $3: %r1, %34
+    %35: %r1 = load var $3: %r1
+    %36: %r1 = clone %35
+    %37: %r5 = fun.code makeAdder.lambda
+    %38: %r9 = object %s6 %37, %36
+    %8: %r9 = alias %38
+    %39: %r0 = const 20
+    %40: %r5 = load property %8.$c: %r5
+    %41: %r5 = load property %8.$e: %r5
+    %42: %r0 = call.value %40, %41, %39
+    %43: %r0 = const 3
+    %44: %r0 = const 4
+    %45: %r2 = object %s1 %43, %44
+    store var $4: %r2, %45
+    %46: %r2 = load var $4: %r2
+    %47: %r2 = clone %46
+    %48: %r5 = fun.code makeScaler.lambda
+    %49: %r9 = object %s6 %48, %47
+    %11: %r9 = alias %49
+    %50: %r0 = const 10
+    %51: %r5 = load property %11.$c: %r5
+    %52: %r5 = load property %11.$e: %r5
+    %53: %r0 = call.value %51, %52, %50
+    %54: %r0 = const 6
+    %58: %r5 = fun.code colonBodies.lambda'2
+    %59: %r5 = const null
+    %60: %r9 = object %s6 %58, %59
+    %57: %r9 = alias %60
+    %61: %r5 = load property %57.$c: %r5
+    %62: %r5 = load property %57.$e: %r5
+    %63: %r0 = call.value %61, %62, %54
+    %64: %r0 = const 12
+    %65: %r0 = binary.add %63, %64
+    %66: %r0 = coerce %65
+    %67: %r0 = load property %1.$v: %r0
+    %68: %r0 = binary.add %20, %67
+    %69: %r0 = coerce %68
+    %70: %r0 = binary.add %69, %42
+    %71: %r0 = coerce %70
+    %72: %r0 = binary.add %71, %53
+    %73: %r0 = coerce %72
+    %74: %r0 = binary.add %73, %66
+    %75: %r0 = coerce %74
+    return %75
+
+fn makeAdder.lambda(one %r1, one %r0) -> one %r0 env
+  block0(%0: %r1, %1: %r0):
+    %2: %r0 = load property %0.amount: %r0
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    return %4
+
+fn makeScaler.lambda(one %r2, one %r0) -> one %r0 env
+  block0(%0: %r2, %1: %r0):
+    %2: %r0 = load property %0.scale: %r0
+    %3: %r0 = binary.mul %1, %2
+    %4: %r0 = coerce %3
+    %5: %r0 = load property %0.offset: %r0
+    %6: %r0 = binary.add %4, %5
+    %7: %r0 = coerce %6
+    return %7
+
+fn colonBodies.lambda'2(one %r3, one %r0) -> one %r0 env
+  block0(%0: %r3, %1: %r0):
+    %2: %r0 = const 1
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    return %4
+
+fn main.lambda(one %r4, one %r0) -> one %r0 env
+  block0(%0: %r4, %1: %r0):
+    %2: %r0 = load property %0.base: %r0
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    return %4
+
+fn main.lambda'2(one %r7) -> omitted env
+  block0(%0: %r7):
+    %1: %r6 = load property %0.total: %r6
+    %2: %r0 = load cell %1: %r0
+    %3: %r0 = const 7
+    %4: %r0 = binary.add %2, %3
+    %5: %r0 = coerce %4
+    %6: %r6 = load property %0.total: %r6
+    store cell %6: %r0, %5
+    return
+
+optimizer clones 2 aliased 0 forwarded 0 removed 9 adopted 4 sunk 0
+
+shape %s0 object makeAdder.lambda.env {amount: %r0}
+shape %s1 object makeScaler.lambda.env {scale: %r0, offset: %r0}
+shape %s2 object colonBodies.lambda'2.env {}
+shape %s3 object main.lambda.env {base: %r0}
+shape %s4 object main.lambda'2.env {total: %r6}
+shape %s5 ref {$o: %r5 owner, $k: %r5 key}
+shape %s6 fun {$c: %r5 code, $e: %r5 env}
+shape %s7 cell {$v: %r0 box}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = object %s1
+rep %r3 = object %s2
+rep %r4 = object %s3
+rep %r5 = erased
+rep %r6 = cell of %r0
+rep %r7 = object %s4
+rep %r8 = void
+rep %r9 = object %s6
+rep %r10 = object %s7
+rep %r11 = array Int32Array of %r0

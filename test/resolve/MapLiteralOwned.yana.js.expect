@@ -104,14 +104,14 @@ function indexRebuild_String_Held(self, slots) {
     v45 = v45 + 1 | 0;
   }
   self.live = 0;
-  var v97 = self.keys.length;
+  var v98 = self.keys.length;
   var v23 = 0;
-  while (v23 < v97) {
+  while (v23 < v98) {
     var at = v23;
-    var v78 = Hash_String_hash(self.keys[at], 2166136261);
-    var v85 = Math.imul((v78 ^ v78 >>> 16) >>> 0, 2246822507) >>> 0;
-    var v90 = Math.imul((v85 ^ v85 >>> 13) >>> 0, 3266489909) >>> 0;
-    indexPlace_String_Held(self, at, (v90 ^ v90 >>> 16) >>> 0);
+    var v79 = Hash_String_hash(self.keys[at], 2166136261);
+    var v86 = Math.imul((v79 ^ v79 >>> 16) >>> 0, 2246822507) >>> 0;
+    var v91 = Math.imul((v86 ^ v86 >>> 13) >>> 0, 3266489909) >>> 0;
+    indexPlace_String_Held(self, at, (v91 ^ v91 >>> 16) >>> 0);
     v23 = v23 + 1 | 0;
   }
 }
@@ -157,10 +157,10 @@ function insert_String_Held(self, key, value) {
   var h = hashKey_String(key);
   var at = findEntry_String_Held(self, key, h);
   if (at >= 0) {
-    var v31 = self.values[at];
-    var v34 = { n: v31.n };
-    v31.n = value.n;
-    return v34;
+    var v32 = self.values[at];
+    var v38 = { n: v32.n };
+    v32.n = value.n;
+    return v38;
   } else {
     appendEntry_String_Held(self, key, value, h);
     return null;

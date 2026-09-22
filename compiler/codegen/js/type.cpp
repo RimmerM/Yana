@@ -67,7 +67,7 @@ bool isBool(Gen& g, TypePtr type) {
  * where `ToInt32` reads the boolean as the same two numbers. What is left is a `Bool` that is
  * genuinely a value - returned, stored, passed, or compared - and there it is the representation.
  */
-JsPtr<Expr> boolNumber(Gen& g, JsPtr<Expr> test) {
+JsPtr<Expr> boolNumber(JsShared& g, JsPtr<Expr> test) {
     return ternary(g, test, number(g, 1), number(g, 0));
 }
 
@@ -254,8 +254,8 @@ FieldProperty fieldProperty(Gen& g, TypePtr type, U16 index) {
      * see partName - so the emitted source still says which field they belong to.
      */
     if(entry.type && g.global[entry.type]->kind == Type::Fun) {
-        property.envName = fieldPartName(g, property.name, "$e"_v);
-        property.name = fieldPartName(g, property.name, "$c"_v);
+        property.envName = fieldPartName(g, property.name, jsir::key::env);
+        property.name = fieldPartName(g, property.name, jsir::key::code);
         property.fun = true;
     }
 

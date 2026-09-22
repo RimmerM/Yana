@@ -47,6 +47,12 @@ static bool suspendsAt(Node& node) {
         // reachable through one can hand over.
         case Node::Native:
 
+        // And a host operation, for the same reason one target further out: what runs is the
+        // engine's, so it may do anything except hand control to a Yana continuation - which is
+        // what suspending is. `hostThrow` leaves without coming back, and that is not a suspension
+        // either: nothing resumes.
+        case Node::Host:
+
         // An atomic operation is an instruction and a memory ordering. It may make a thread wait for
         // a cache line; it may not hand control to a Yana function, which is what suspending is.
         case Node::Atomic:
@@ -2117,6 +2123,7 @@ struct Interprocedural {
                 }
 
                 case Node::Atomic:
+                case Node::Host:
                 case Node::Native: {
                     /*
                      * **A block move is a write, and is read as one** - J48, and it is the last

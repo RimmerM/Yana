@@ -1,0 +1,48 @@
+fn fib(one %r0) -> one %r0
+  block0(%0: %r0):
+    %2: %r0 = const 2
+    %3: %r1 = binary.lt %0, %2
+    branch %3 -> block3 -> block1
+  block1:
+    %4: %r0 = const 1
+    %5: %r0 = binary.sub %0, %4
+    %6: %r0 = coerce %5
+    %7: %r0 = call fib %6
+    %8: %r0 = const 2
+    %9: %r0 = binary.sub %0, %8
+    %10: %r0 = coerce %9
+    %11: %r0 = call fib %10
+    %12: %r0 = binary.add %7, %11
+    %13: %r0 = coerce %12
+    jump -> block2(%13)
+  block2(%1: %r0):
+    return %1
+  block3:
+    jump -> block2(%0)
+
+fn main() -> one %r0
+  block0:
+    %0: %r0 = const 4
+    %1: %r0 = load global counter: %r0
+    %2: %r0 = binary.add %1, %0
+    %3: %r0 = coerce %2
+    store global counter: %r0, %3
+    %4: %r0 = const 6
+    %5: %r0 = load global counter: %r0
+    %6: %r0 = binary.add %5, %4
+    %7: %r0 = coerce %6
+    store global counter: %r0, %7
+    %8: %r0 = const 37
+    %9: %r0 = const 10
+    %10: %r0 = call fib %9
+    %11: %r0 = binary.add %8, %10
+    %12: %r0 = coerce %11
+    %13: %r0 = load global counter: %r0
+    %14: %r0 = binary.add %12, %13
+    %15: %r0 = coerce %14
+    return %15
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = number bool

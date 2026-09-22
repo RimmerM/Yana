@@ -1,0 +1,106 @@
+fn main() -> one %r3
+  block0:
+    %5: %r3 = const 0
+    %6: %r3 = const 0
+    %7: %r3 = const 2
+    %8: %r7 = const 2
+    %9: %r1 = const 1
+    %10: %r0 = const 255n
+    %11: %r0 = const 0n
+    %12: %r3 = const 1
+    %13: %r3 = const 1
+    %14: %r7 = const 2
+    jump -> block1(%5, %6)
+  block1(%0: %r3, %1: %r3):
+    %15: %r8 = binary.lt %1, %7
+    branch %15 -> block3 -> block2
+  block2:
+    %16: %r6 = load global tree: %r6
+    %17: %r1 = load property %16.$tag: %r1
+    %18: %r1 = const 1
+    %19: %r8 = binary.eq %17, %18
+    branch %19 -> block16 -> block15
+  block3:
+    %28: %r3 = convert %1
+    %29: %r7 = convert %28
+    %30: %r8 = binary.ge %29, %8
+    branch %30 -> block13 -> block4
+  block4:
+    %31: %r5 = load global table: %r5
+    %32: %r4 = load element %31[%28]: %r4
+    %33: %r2 = load property %32.a: %r2
+    %34: %r2 = const null
+    %35: %r9 = binary.eq %33, %34
+    %36: %r1 = const 1
+    %37: %r1 = const 0
+    %38: %r1 = select %35, %37, %36
+    %39: %r8 = binary.eq %38, %9
+    branch %39 -> block6 -> block5
+  block5:
+    jump -> block10(%0)
+  block6:
+    %40: %r5 = load global table: %r5
+    %41: %r4 = load element %40[%28]: %r4
+    %42: %r2 = load property %41.a: %r2
+    %43: %r0 = load property %41.a: %r0
+    %44: %r0 = binary.and %43, %10
+    %45: %r0 = coerce %44
+    %46: %r8 = binary.eq %45, %11
+    branch %46 -> block8 -> block7
+  block7:
+    jump -> block9(%0)
+  block8:
+    %47: %r3 = binary.add %0, %12
+    %48: %r3 = coerce %47
+    jump -> block9(%48)
+  block9(%2: %r3):
+    jump -> block10(%2)
+  block10(%3: %r3):
+    %49: %r8 = binary.ge %29, %14
+    branch %49 -> block12 -> block11
+  block11:
+    %50: %r5 = load global table: %r5
+    %51: %r4 = load element %50[%28]: %r4
+    %52: %r3 = load property %51.b: %r3
+    %53: %r3 = binary.add %3, %52
+    %54: %r3 = coerce %53
+    %55: %r3 = binary.add %1, %13
+    %56: %r3 = coerce %55
+    jump -> block1(%54, %56)
+  block12:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block13:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block14(%4: %r3):
+    %23: %r3 = const 100
+    %24: %r3 = binary.mul %4, %23
+    %25: %r3 = coerce %24
+    %26: %r3 = binary.add %0, %25
+    %27: %r3 = coerce %26
+    return %27
+  block15:
+    %20: %r3 = const 7
+    jump -> block14(%20)
+  block16:
+    %21: %r6 = load global tree: %r6
+    %22: %r3 = load property %21.mark: %r3
+    jump -> block14(%22)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+shape %s0 object P {a: %r2, b: %r3}
+shape %s1 object Branch {$tag: %r1 tag, left: %r6, right: %r6, mark: %r3}
+
+rep %r0 = bigint signed
+rep %r1 = number unsigned 8
+rep %r2 = nullable of %r0
+rep %r3 = number signed 32
+rep %r4 = object %s0
+rep %r5 = array Array of %r4
+rep %r6 = object %s1
+rep %r7 = number unsigned 32
+rep %r8 = number bool
+rep %r9 = boolean
+rep %r10 = void

@@ -1,0 +1,75 @@
+fn Pair.copy(one %r1) -> one %r1
+  block0(%0: %r1):
+    %1: %r0 = load global copies: %r0
+    %2: %r0 = const 1
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    store global copies: %r0, %4
+    %5: %r0 = load property %0.left: %r0
+    %6: %r0 = const 100
+    %7: %r0 = binary.add %5, %6
+    %8: %r0 = coerce %7
+    %9: %r0 = load property %0.right: %r0
+    %10: %r1 = object %s0 %8, %9
+    return %10
+
+fn main() -> one %r0
+  var $0: %r1
+  var $1: %r1
+  var $2: %r1
+  block0:
+    %3: %r0 = const 1
+    %4: %r0 = const 2
+    %5: %r1 = object %s0 %3, %4
+    %2: %r1 = alias %5
+    %6: %r0 = const 3
+    %7: %r0 = const 0
+    %8: %r0 = const 0
+    %9: %r1 = object %s0 %7, %8
+    store var $0: %r1, %9
+    %10: %r1 = call Pair.copy %2
+    store var $0: %r1, %10
+    %11: %r1 = load var $0: %r1
+    store property %11.right: %r0, %6
+    %12: %r0 = const 0
+    %13: %r0 = const 0
+    %14: %r1 = object %s0 %12, %13
+    store var $1: %r1, %14
+    %15: %r1 = call Pair.copy %2
+    store var $1: %r1, %15
+    %16: %r0 = const 7
+    %17: %r0 = const 8
+    %18: %r1 = load var $1: %r1
+    store property %18.left: %r0, %16
+    %19: %r1 = load var $1: %r1
+    store property %19.right: %r0, %17
+    %20: %r1 = load var $0: %r1
+    %21: %r0 = load property %20.left: %r0
+    %22: %r0 = const 100
+    %23: %r0 = binary.mul %21, %22
+    %24: %r0 = coerce %23
+    %25: %r0 = const 0
+    %26: %r0 = const 0
+    %27: %r1 = object %s0 %25, %26
+    store var $2: %r1, %27
+    %28: %r0 = const 1
+    %29: %r0 = const 2
+    %30: %r1 = object %s0 %28, %29
+    store var $2: %r1, %30
+    %31: %r0 = const 5
+    %32: %r1 = load var $2: %r1
+    store property %32.right: %r0, %31
+    %33: %r0 = const 10075
+    %34: %r0 = binary.add %24, %33
+    %35: %r0 = coerce %34
+    %36: %r0 = load global copies: %r0
+    %37: %r0 = binary.add %35, %36
+    %38: %r0 = coerce %37
+    return %38
+
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 1 sunk 0
+
+shape %s0 object Pair {left: %r0, right: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0

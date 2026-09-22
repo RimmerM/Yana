@@ -1,0 +1,31 @@
+module ResolveTest
+
+let string'142: [CodeUnit *4] = "yana"
+
+fn greeting() -> String {
+bb0:
+  %0: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 4, ownsHeap: 0}, length: 4}}
+  return consume %0
+}
+
+fn width(text: String [shared call view]) -> I32 {
+bb0(%0: String [shared call view] guaranteed):
+  %1: String [shared call view] guaranteed from{%0} = load inspect %0
+  %2: Size trivial = call String.length borrow %1
+  %3: I32 trivial = convert inspect %2
+  return consume %3
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %String address = alloc frame String
+  %1: String owned = call greeting
+  store inspect %0 consume %1
+  %2: String [shared call] guaranteed from{%0} = load inspect %0
+  %3: String [shared slot 0 view] guaranteed from{%0} = call String.view borrow %2
+  %4: I32 trivial = call width borrow %3
+  drop String inspect %0
+  return consume %4
+}
+
+entry main

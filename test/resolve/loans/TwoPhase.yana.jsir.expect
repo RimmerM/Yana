@@ -1,0 +1,51 @@
+fn Guard.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    store var $0: %r0, %0
+    %1: %r0 = load global trace: %r0
+    %3: %r0 = load var $0: %r0
+    %4: %r0 = binary.add %1, %3
+    %5: %r0 = coerce %4
+    store global trace: %r0, %5
+    return
+
+fn main() -> one %r0
+  var $0: %r0
+  var $1: %r2
+  block0:
+    %0: %r0 = const 0
+    %1: %r0 = const 0
+    %2: %r2 = object %s0 %0, %1
+    store var $1: %r2, %2
+    %3: %r0 = const 3
+    %4: %r0 = alias %3
+    store var $0: %r0, %4
+    %6: %r0 = const 6
+    store var $0: %r0, %6
+    %7: %r0 = const 5
+    %8: %r0 = alias %7
+    %9: %r0 = const 1
+    %10: %r2 = object %s0 %8, %9
+    store var $1: %r2, %10
+    %11: %r2 = load var $1: %r2
+    %12: %r0 = load property %11.held: %r0
+    %13: %r0 = const 11
+    store property %11.held: %r0, %13
+    %14: %r0 = load var $0: %r0
+    call Guard.drop %14
+    %15: %r2 = load var $1: %r2
+    %16: %r0 = load property %15.held: %r0
+    call Guard.drop %16
+    %17: %r0 = const 17
+    %18: %r0 = load global trace: %r0
+    %19: %r0 = binary.add %17, %18
+    %20: %r0 = coerce %19
+    return %20
+
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0
+
+shape %s0 object Box {held: %r0, tag: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = void
+rep %r2 = object %s0

@@ -1,0 +1,85 @@
+fn Guard.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    store var $0: %r0, %0
+    %1: %r0 = load global trace: %r0
+    %2: %r0 = const 10
+    %3: %r0 = binary.mul %1, %2
+    %4: %r0 = coerce %3
+    %6: %r0 = load var $0: %r0
+    %7: %r0 = binary.add %4, %6
+    %8: %r0 = coerce %7
+    store global trace: %r0, %8
+    return
+
+fn main() -> one %r0
+  var $0: %r0
+  var $1: %r0
+  var $2: %r3
+  block0:
+    %0: %r0 = const 4
+    %1: %r0 = alias %0
+    store var $0: %r0, %1
+    %2: %r0 = load var $0: %r0
+    %3: %r0 = alias %2
+    %4: %r0 = const 4
+    %5: %r2 = binary.ne %3, %4
+    branch %5 -> block2 -> block1
+  block1:
+    %6: %r0 = const 5
+    %7: %r0 = alias %6
+    store var $1: %r0, %7
+    %8: %r0 = load var $1: %r0
+    call Guard.drop %8
+    %9: %r0 = load global trace: %r0
+    %10: %r0 = const 5
+    %11: %r2 = binary.ne %9, %10
+    branch %11 -> block4 -> block3
+  block2:
+    %36: %r0 = const -1
+    return %36
+  block3:
+    %12: %r0 = const 0
+    store global trace: %r0, %12
+    %13: %r0 = const 0
+    %14: %r0 = const 0
+    %15: %r3 = object %s0 %13, %14
+    store var $2: %r3, %15
+    %16: %r0 = const 7
+    %17: %r0 = const 3
+    %18: %r0 = alias %16
+    %19: %r0 = alias %17
+    %20: %r3 = object %s0 %18, %19
+    store var $2: %r3, %20
+    %21: %r3 = load var $2: %r3
+    %22: %r0 = load property %21.handle: %r0
+    %23: %r0 = alias %22
+    %24: %r3 = load var $2: %r3
+    %25: %r0 = load property %24.guard: %r0
+    call Guard.drop %25
+    %26: %r0 = const 7
+    %27: %r2 = binary.ne %23, %26
+    branch %27 -> block6 -> block5
+  block4:
+    %35: %r0 = const -2
+    return %35
+  block5:
+    %28: %r0 = load global trace: %r0
+    %29: %r0 = const 3
+    %30: %r2 = binary.ne %28, %29
+    %31: %r0 = const -4
+    %32: %r0 = const 0
+    %33: %r0 = select %30, %31, %32
+    return %33
+  block6:
+    %34: %r0 = const -3
+    return %34
+
+optimizer clones 0 aliased 0 forwarded 0 removed 1 adopted 0 sunk 0
+
+shape %s0 object Session {handle: %r0, guard: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = void
+rep %r2 = number bool
+rep %r3 = object %s0

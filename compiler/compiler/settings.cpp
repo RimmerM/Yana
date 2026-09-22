@@ -51,6 +51,7 @@ struct Flag {
         help,
         printModules,
         noIrOptimize,
+        noJsirOptimize,
         noChecks,
         checkLocations,
         noReplacements,
@@ -119,6 +120,7 @@ Flag flagTable[] = {
     { "h"_v, 0, Flag::help },
     { "print-modules"_v, 0, Flag::printModules },
     { "no-ir-opt"_v, 0, Flag::noIrOptimize },
+    { "no-jsir-opt"_v, 0, Flag::noJsirOptimize },
     { "no-checks"_v, 0, Flag::noChecks },
     { "check-locations"_v, 0, Flag::checkLocations },
     { "no-replacements"_v, 0, Flag::noReplacements },
@@ -163,6 +165,7 @@ StringView modeTable[] = {
     "llvm"_v,      // Llvm
     "mir"_v,       // Mir
     "ssa"_v,       // Ssa
+    "jsir"_v,      // Jsir
 };
 
 // ResolverStage, in declaration order.
@@ -1316,11 +1319,16 @@ What to build:
   -mode <m>             exe (default), shared, lib, or the pipeline stopped early:
                           ast        the parsed form of every source file
                           drops      where each local is live, and where it is dropped
+                                     (-resolver legacy)
                           ir         the resolved, optimized program as IR text
+                                     (-resolver legacy)
                           lower      the lowered program as IR text (native only)
                           llvm       LLVM IR text (native only)
-                          mir        the ownership MIR (-resolver ownership)
-                          ssa        the optimized ownership SSA (-resolver ownership)
+                          mir        the ownership MIR
+                          ssa        the optimized ownership SSA
+                          jsir       the JavaScript target IR (implies -platform js)
+                        shared and lib are -resolver legacy's too, and are not
+                        implemented in either stage yet.
   -platform <p>         native (default) or js. Decides which @platform declarations exist.
   -main <module>        the module the program starts in, when the input holds several
   -test                 build the @test declarations into a test program
@@ -1343,14 +1351,16 @@ How hard to try:
   -inline <level>       none, size, balanced or speed
   -switch-form <f>      auto (default), chain, search or table - how a `match` dispatches
   -no-ir-opt            switch off the IR optimizer      -no-checks    emit no bounds checks
+  -no-jsir-opt          switch off the JSIR optimizer, on -platform js
   -check-locations      inserted checks report their source location
   -no-replacements      run every function's baseline body, never an @replaces one
 
 Which resolve stage:
-  -resolver <r>         legacy (default), or ownership - the rewrite in compiler/resolve_mir
-                        and compiler/resolve_ssa. Native only, and a long way short of the
-                        whole language; -mode mir and -mode ssa select it. See
-                        doc/inflight/Analysis-IR.md part 11.
+  -resolver <r>         ownership (default) - the rewrite in compiler/resolve_mir and
+                        compiler/resolve_ssa, which compiles both platforms and is what
+                        -mode mir, ssa and jsir dump - or legacy, compiler/resolve, which
+                        is kept for comparison and answers -mode ir, drops, shared and lib.
+                        See doc/inflight/Analysis-IR.md part 11.
 
 Where things are:
   -project <path>       the yana.toml to read, rather than looking in the working directory
@@ -1532,6 +1542,15 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     // The two dumps only one stage produces. Selected here rather than checked
                     // later, for the reason the line above exists: a mode that needs a switch set
                     // should set it, not leave one that can be forgotten.
+                    // The JavaScript tier's dump is one target's as well as one stage's, so it
+                    // selects both - see CompileMode::Jsir. Written here rather than left to
+                    // `checkSettings` so that `-mode jsir` alone is a complete command line.
+                    if(settings.mode == CompileMode::Jsir) {
+                        settings.resolver = ResolverStage::Ownership;
+                        settings.explicitResolver = true;
+                        settings.platform = TargetPlatform::Js;
+                    }
+
                     if(settings.mode == CompileMode::Mir || settings.mode == CompileMode::Ssa) {
                         settings.resolver = ResolverStage::Ownership;
                         settings.explicitResolver = true;
@@ -1688,6 +1707,9 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
             case Flag::noIrOptimize:
                 settings.optimizeIr = false;
                 return true;
+            case Flag::noJsirOptimize:
+                settings.optimizeJsir = false;
+                return true;
             case Flag::checkLocations:
                 settings.checkLocations = true;
                 return true;
@@ -1722,10 +1744,50 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
     return Ok(move(settings));
 }
 
+/*
+ * The four modes the shipping stage still answers alone - see ResolverStage, whose default is the
+ * rewrite since 2026-09-22 (J81).
+ *
+ * `ir` and `drops` are dumps of `compiler/resolve`'s own IR, which the rewrite does not have and
+ * whose replacements are `mir` and `ssa`. `shared` and `lib` are not implemented in either stage,
+ * and are here because the sentence that says so is the shipping driver's.
+ */
+bool isLegacyOnlyMode(CompileMode mode) {
+    return mode == CompileMode::Ir || mode == CompileMode::Drops ||
+           mode == CompileMode::Shared || mode == CompileMode::Library;
+}
+
 Result<void, String> checkSettings(const CompileSettings& settings) {
     if(settings.compileObjects.size() == 0) {
         return Err(String("Nothing to compile. Name a source file or directory, or list the sources "
                           "in a yana.toml."));
+    }
+
+    /*
+     * A mode only the old stage answers, asked of the new default.
+     *
+     * **Refused rather than quietly compiled with the old stage.** The alternative - falling back -
+     * is the mistake the JavaScript checks below already name: a person who writes `-mode ir` to look
+     * at what their program became would be shown a different compiler's answer, and nothing on the
+     * command line would say so. Nothing needs the fallback either: no `yana.toml` in the tree sets
+     * `mode` to one of these, and every test driver that wants the old stage now names it.
+     *
+     * Only when the resolver was *not* named. `-resolver legacy -mode ir` is the sentence this
+     * message asks for and must go through, and `-resolver ownership -mode ir` keeps the refusal it
+     * already had - the one below for a JavaScript build, and the driver's own for a native one,
+     * which say what the rewrite does have rather than pointing back here.
+     */
+    if(!settings.explicitResolver && isLegacyOnlyMode(settings.mode)) {
+        auto mode = modeTable[(Size)settings.mode];
+
+        if(settings.mode == CompileMode::Ir || settings.mode == CompileMode::Drops) {
+            return Err(Tritium::format("-mode %@ is a dump of compiler/resolve's IR, which is no "
+                                       "longer the default stage. Write -resolver legacy for it, or "
+                                       "-mode mir or -mode ssa for this stage's own dumps.", mode));
+        }
+
+        return Err(Tritium::format("-mode %@ is compiler/resolve's, which is no longer the default "
+                                   "stage. Write -resolver legacy to reach it.", mode));
     }
 
     // `-o` names the artifact, and `-to` is the one thing that says where a build goes. A separator
@@ -1763,16 +1825,32 @@ Result<void, String> checkSettings(const CompileSettings& settings) {
     }
 
     /*
-     * The rewritten stage, which targets native only - Analysis-IR.md part 11.4's step 10.
+     * The rewritten stage on a JavaScript build - Analysis-IR-JS.md milestone 2.
      *
-     * JavaScript waits for JSIR rather than being reached by teaching the native lowering a second
-     * target, so a JS build asking for it is refused here rather than producing a program by the
-     * other stage and saying nothing. Its two dumps are refused for the same reason and by the same
-     * sentence: `-mode mir -platform js` is a combination that does not exist.
+     * This used to refuse the combination outright, on the argument that `-mode mir -platform js`
+     * was a combination that did not exist; milestone 0 narrowed it to the modes below the fork,
+     * because the parse, the MIR and the optimized SSA of a JavaScript program are three things this
+     * stage genuinely has. JSIR is the other half of that fork and is now built, so `-mode jsir` and
+     * `-mode exe` have answers too and a JavaScript program comes out of this pipeline.
+     *
+     * What is left is `ir` and `drops` - the *other* stage's dumps of an IR this one does not have -
+     * and the two library modes, whose own sentences below say why. Refused by name, saying what is
+     * missing: the alternative of quietly compiling such a build with the shipping stage is how a
+     * person ends up measuring the wrong compiler.
      */
-    if(isJsMode(settings) && settings.resolver == ResolverStage::Ownership) {
-        return Err(String("-resolver ownership is native only so far: the JavaScript side of that "
-                          "pipeline is JSIR, which is not built yet. Use -platform native."));
+    if(isJsMode(settings) && settings.resolver == ResolverStage::Ownership &&
+       (settings.mode == CompileMode::Ir || settings.mode == CompileMode::Drops)) {
+        return Err(String("-mode ir and -mode drops are the shipping stage's own dumps of an IR the "
+                          "ownership pipeline does not have. Its dumps are -mode mir, -mode ssa and "
+                          "-mode jsir."));
+    }
+
+    if(isJsMode(settings) && settings.resolver == ResolverStage::Ownership &&
+       settings.mode != CompileMode::Ast && settings.mode != CompileMode::Mir &&
+       settings.mode != CompileMode::Ssa && settings.mode != CompileMode::Jsir &&
+       settings.mode != CompileMode::Executable) {
+        return Err(String("-resolver ownership answers -mode ast, mir, ssa, jsir and exe for "
+                          "-platform js. The two library modes are not built for either stage."));
     }
 
     /*

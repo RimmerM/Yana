@@ -1,0 +1,86 @@
+fn scale(one %r0, one %r0) -> one %r0
+  block0(%0: %r3, %1: %r0, %2: %r0):
+    %3: %r0 = const null
+    %4: %r4 = object %s0 %3
+    %5: %r5 = const 1
+    %6: %r0 = load element %0[%5]: %r0
+    %7: %r5 = const 2
+    %8: %r0 = load element %6[%7]: %r0
+    %9: %r0 = call.value %8, %1, %2
+    store property %4.$v: %r0, %9
+    %10: %r5 = const 1
+    %11: %r0 = load element %0[%10]: %r0
+    %12: %r5 = const 0
+    %13: %r0 = load element %11[%12]: %r0
+    %14: %r0 = load property %4.$v: %r0
+    %15: %r0 = call.value %13, %14, %1
+    %16: %r5 = const 0
+    %17: %r0 = load element %0[%16]: %r0
+    %18: %r5 = const 2
+    %19: %r0 = load element %17[%18]: %r0
+    %20: %r0 = load property %4.$v: %r0
+    call.value %19, %20
+    return %15
+
+fn main() -> one %r1
+  block0:
+    %0: %r1 = const 2
+    %1: %r1 = const 3
+    %2: %r3 = gen.table
+    %3: %r1 = call scale %2, %0, %1
+    %13: %r1 = const 45
+    %14: %r1 = binary.add %3, %13
+    %15: %r1 = coerce %14
+    return %15
+
+fn I32.fromInt(one %r2) -> one %r1
+  block0(%0: %r2):
+    %1: %r1 = convert %0
+    return %1
+
+fn I32.+(one %r1, one %r1) -> one %r1
+  block0(%0: %r1, %1: %r1):
+    %2: %r1 = binary.add %0, %1
+    %3: %r1 = coerce %2
+    return %3
+
+fn I32.-(one %r1, one %r1) -> one %r1
+  block0(%0: %r1, %1: %r1):
+    %2: %r1 = binary.sub %0, %1
+    %3: %r1 = coerce %2
+    return %3
+
+fn I32.*(one %r1, one %r1) -> one %r1
+  block0(%0: %r1, %1: %r1):
+    %2: %r1 = binary.mul %0, %1
+    %3: %r1 = coerce %2
+    return %3
+
+fn I32./(one %r1, one %r1) -> one %r1
+  block0(%0: %r1, %1: %r1):
+    %2: %r1 = binary.div %0, %1
+    %3: %r1 = coerce %2
+    return %3
+
+fn I32.-(one %r1) -> one %r1
+  block0(%0: %r1):
+    %1: %r1 = unary.neg %0
+    %2: %r1 = coerce %1
+    return %2
+
+optimizer clones 0 aliased 0 forwarded 0 removed 9 adopted 0 sunk 0
+
+shape %s0 cell {$v: %r0 box}
+shape %s1 object Pair {first: %r1, second: %r7}
+shape %s2 object Labelled {tag: %r1, weight: %r1}
+
+rep %r0 = erased
+rep %r1 = number signed 32
+rep %r2 = bigint signed
+rep %r3 = array Array of %r0
+rep %r4 = object %s0
+rep %r5 = number unsigned 32
+rep %r6 = void
+rep %r7 = number bool
+rep %r8 = object %s1
+rep %r9 = object %s2

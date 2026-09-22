@@ -1,0 +1,138 @@
+fn note(one %r0) -> one %r0
+  block0(%0: %r0):
+    %1: %r0 = load global log: %r0
+    %2: %r0 = const 10
+    %3: %r0 = binary.mul %1, %2
+    %4: %r0 = coerce %3
+    %5: %r0 = binary.add %4, %0
+    %6: %r0 = coerce %5
+    store global log: %r0, %6
+    %7: %r0 = load global log: %r0
+    %8: %r0 = const 1E9
+    %9: %r5 = binary.gt %7, %8
+    branch %9 -> block2 -> block1
+  block1:
+    return %0
+  block2:
+    %10: %r0 = const 0
+    %11: %r0 = call note %10
+    return %11
+
+fn main() -> one %r0
+  var $0: %r3
+  block0:
+    %1: %r0 = const 9
+    %3: %r0 = const 1
+    %4: %r0 = call note %3
+    %5: %r0 = const 2
+    %6: %r0 = call note %5
+    %7: %r0 = const 10
+    %8: %r0 = binary.mul %6, %7
+    %9: %r0 = coerce %8
+    %10: %r0 = binary.add %9, %1
+    %11: %r0 = coerce %10
+    %12: %r0 = binary.add %11, %4
+    %13: %r0 = coerce %12
+    %15: %r0 = const 8
+    %17: %r0 = const 3
+    %18: %r0 = call note %17
+    %19: %r0 = const 1
+    %20: %r0 = binary.add %18, %19
+    %21: %r0 = coerce %20
+    %22: %r0 = const 10
+    %23: %r0 = binary.mul %21, %22
+    %24: %r0 = coerce %23
+    %25: %r0 = binary.add %24, %15
+    %26: %r0 = coerce %25
+    %27: %r0 = binary.add %13, %26
+    %28: %r0 = coerce %27
+    %29: %r0 = const 0
+    %30: %r0 = const 7
+    %31: %r1 = host host.array %29, %30
+    %32: %r2 = const 2
+    %33: %r3 = object %s0 %31, %32
+    store var $0: %r3, %33
+    %34: %r0 = const 4
+    %35: %r0 = call note %34
+    %36: %r0 = const 0
+    %37: %r0 = const 5
+    %38: %r0 = call note %37
+    %39: %r0 = const 2
+    %40: %r0 = const 0
+    %41: %r9 = convert %36
+    %42: %r9 = convert %39
+    %43: %r5 = binary.ge %41, %42
+    branch %43 -> block6 -> block1
+  block1:
+    %44: %r1 = alias %31
+    store element %44[%40]: %r0, %38
+    %45: %r0 = const 0
+    %46: %r0 = const 0
+    %47: %r9 = convert %45
+    %48: %r9 = convert %39
+    %49: %r5 = binary.ge %47, %48
+    branch %49 -> block5 -> block2
+  block2:
+    %50: %r1 = alias %31
+    %51: %r0 = load element %50[%46]: %r0
+    %52: %r0 = const 10
+    %53: %r0 = binary.mul %51, %52
+    %54: %r0 = coerce %53
+    %55: %r0 = const 1
+    %56: %r0 = const 0
+    %57: %r9 = convert %55
+    %58: %r9 = convert %39
+    %59: %r5 = binary.ge %57, %58
+    branch %59 -> block4 -> block3
+  block3:
+    %60: %r1 = alias %31
+    %61: %r0 = binary.add %56, %55
+    %62: %r0 = coerce %61
+    %63: %r0 = load element %60[%62]: %r0
+    %64: %r3 = load var $0: %r3
+    call Array(a).reclaim(I32) %64
+    %65: %r0 = binary.add %54, %63
+    %66: %r0 = coerce %65
+    %67: %r0 = binary.add %66, %35
+    %68: %r0 = coerce %67
+    %69: %r0 = binary.add %28, %68
+    %70: %r0 = coerce %69
+    %74: %r0 = const 56
+    %75: %r0 = binary.add %70, %74
+    %76: %r0 = coerce %75
+    %77: %r0 = load global log: %r0
+    %78: %r0 = binary.add %76, %77
+    %79: %r0 = coerce %78
+    return %79
+  block4:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block5:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block6:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+fn Array(a).reclaim(I32)(one %r3) -> omitted
+  var $0: %r3
+  block0(%0: %r3):
+    store var $0: %r3, %0
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 7 adopted 0 sunk 0
+
+shape %s0 object Array {items: %r1, length: %r2}
+shape %s1 object Pair {a: %r0, b: %r0}
+shape %s2 object ArrayView {items: %r1, length: %r0, offset: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = number unsigned 30
+rep %r3 = object %s0
+rep %r4 = void
+rep %r5 = number bool
+rep %r6 = object %s1
+rep %r7 = object %s2
+rep %r8 = parts (%r1, %r0, %r0) as %r7
+rep %r9 = number unsigned 32

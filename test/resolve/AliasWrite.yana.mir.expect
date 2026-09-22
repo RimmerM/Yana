@@ -1,0 +1,141 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+fn both(p: Point [shared call], q: Point [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 99
+  %1: I32 = const 98
+  %2: Point = aggregate.Point take %0 take %1
+  write.assign borrow.unique (q) take %2
+  %4: I32 = read copy.trivial (p.x)
+  %5: I32 = const 10
+  %6: I32 = mul inspect %4 inspect %5
+  %7: I32 = read copy.trivial (p.y)
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+fn sum'2(p: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (p.x)
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (p.y)
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn main() -> I32 {
+  local & score: I32
+  local & p: Point
+  local & moved: Point
+  local held: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (score) take %0
+  %2: I32 = const 1
+  %3: I32 = const 2
+  %4: Point = aggregate.Point take %2 take %3
+  write.init borrow.unique (p) take %4
+  %6: Point = read copy.trivial (p)
+  %7: Point [unique call] = read borrow.unique (p) loan0
+  %8: I32 = call both borrow.shared %6 borrow.unique %7
+  %9: I32 = const 12
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %18: I32 = read copy.trivial (p.x)
+  %19: I32 = const 99
+  %20: Bool = eq inspect %18 inspect %19
+  branch inspect %20 -> bb6 -> bb4
+
+bb3:
+  %12: I32 = read copy.trivial (score)
+  %13: I32 = const 1
+  %14: I32 = add inspect %12 inspect %13
+  write.assign borrow.unique (score) take %14
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %28: I32 = read copy.trivial (p.y)
+  %29: I32 = const 98
+  %30: Bool = eq inspect %28 inspect %29
+  branch inspect %30 -> bb9 -> bb7
+
+bb6:
+  %22: I32 = read copy.trivial (score)
+  %23: I32 = const 2
+  %24: I32 = add inspect %22 inspect %23
+  write.assign borrow.unique (score) take %24
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %38: I32 = const 3
+  %39: I32 = const 4
+  %40: Point = aggregate.Point take %38 take %39
+  write.init borrow.unique (moved) take %40
+  %42: Point = read copy.trivial (moved)
+  %43: I32 = call sum'2 borrow.shared %42
+  write.init borrow.unique (held) take %43
+  %45: I32 = const 7
+  write.assign borrow.unique (moved.x) take %45
+  %47: I32 = read copy.trivial (held)
+  %48: I32 = const 34
+  %49: Bool = eq inspect %47 inspect %48
+  branch inspect %49 -> bb12 -> bb10
+
+bb9:
+  %32: I32 = read copy.trivial (score)
+  %33: I32 = const 4
+  %34: I32 = add inspect %32 inspect %33
+  write.assign borrow.unique (score) take %34
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %57: I32 = read copy.trivial (moved.x)
+  %58: I32 = const 10
+  %59: I32 = mul inspect %57 inspect %58
+  %60: I32 = read copy.trivial (moved.y)
+  %61: I32 = add inspect %59 inspect %60
+  %62: I32 = const 74
+  %63: Bool = eq inspect %61 inspect %62
+  branch inspect %63 -> bb15 -> bb13
+
+bb12:
+  %51: I32 = read copy.trivial (score)
+  %52: I32 = const 8
+  %53: I32 = add inspect %51 inspect %52
+  write.assign borrow.unique (score) take %53
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %71: I32 = read copy.trivial (score)
+  return take %71
+
+bb15:
+  %65: I32 = read copy.trivial (score)
+  %66: I32 = const 16
+  %67: I32 = add inspect %65 inspect %66
+  write.assign borrow.unique (score) take %67
+  jump -> bb14
+}
+
+entry main

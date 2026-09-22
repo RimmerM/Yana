@@ -1,0 +1,61 @@
+fn main() -> one %r0
+  var $0: %r2
+  var $1: %r0
+  var $2: %r0
+  var $3: %r2
+  block0:
+    %0: %r0 = const 0
+    %1: %r1 = object %s0 %0
+    %2: %r0 = const 0
+    %3: %r1 = object %s0 %2
+    %4: %r0 = const 0
+    %5: %r0 = const 0
+    %6: %r2 = object %s1 %4, %5
+    store var $0: %r2, %6
+    %7: %r0 = const 0
+    %8: %r0 = const 0
+    %9: %r2 = object %s1 %7, %8
+    store var $3: %r2, %9
+    %10: %r0 = const 3
+    store property %1.$v: %r0, %10
+    %11: %r0 = const 4
+    store property %3.$v: %r0, %11
+    %12: %r0 = load property %1.$v: %r0
+    %13: %r0 = load property %3.$v: %r0
+    %14: %r2 = object %s1 %12, %13
+    store var $0: %r2, %14
+    %15: %r0 = const 5
+    %16: %r0 = alias %15
+    store var $1: %r0, %16
+    %17: %r0 = const 6
+    %18: %r0 = alias %17
+    store var $2: %r0, %18
+    %21: %r0 = load var $1: %r0
+    %22: %r0 = load var $2: %r0
+    %23: %r2 = object %s1 %21, %22
+    store var $3: %r2, %23
+    %24: %r2 = load var $0: %r2
+    %25: %r0 = load property %24.first: %r0
+    %26: %r2 = load var $0: %r2
+    %27: %r0 = load property %26.second: %r0
+    %28: %r0 = binary.add %25, %27
+    %29: %r0 = coerce %28
+    %30: %r2 = load var $3: %r2
+    %31: %r0 = load property %30.first: %r0
+    %32: %r0 = binary.add %29, %31
+    %33: %r0 = coerce %32
+    %34: %r2 = load var $3: %r2
+    %35: %r0 = load property %34.second: %r0
+    %36: %r0 = binary.add %33, %35
+    %37: %r0 = coerce %36
+    return %37
+
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0
+
+shape %s0 cell {$v: %r0 box}
+shape %s1 object Pair {first: %r0, second: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = object %s1
+rep %r3 = array Int32Array of %r0

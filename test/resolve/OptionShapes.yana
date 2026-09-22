@@ -1,0 +1,78 @@
+{-
+   `Maybe` at four payloads and a mutable borrow of each - Analysis-IR-JS.md §10.1's third and
+   fourth rows.
+
+   One declaration, four instantiations and the borrow of each, because the *payload* is what decides
+   the representation on this target and the borrow is what decides whether it needs somewhere to
+   rebind:
+
+   - `Maybe(Int)` - a number payload, so a `&` of one is a descriptor over storage;
+   - `Maybe(String)` - a host string, which is immutable, so the same;
+   - `Maybe(Point)` - a host object, so writing through a `&` of the payload writes its properties
+     and the reference is the object;
+   - `Maybe(Maybe(Int))` - the nested option, which is the one no niche can fold, since `Nothing` and
+     `Just(Nothing)` are two values that both have to be representable.
+
+   The fourth is why this is not four separate fixtures: `Nothing`, `Just(Nothing)` and
+   `Just(Just(0))` are three distinct answers and a representation that folded the outer absence into
+   the inner one would collapse the first two. `Nullable` is declared and not produced on this target
+   yet, so what this pins today is that the unfolded form is right; when niche folding arrives this
+   is the fixture that says which of the four may take it.
+
+   `found` is the half J69 §3 found the hard way: `Maybe('v)` *is* the type `Maybe(v)` with a shape
+   naming the payload - the borrow lives on the occurrence and not in the type - so a function
+   answering `Maybe(&Int)` and one answering `Maybe(Int)` are one `mir::RecordType` and two different
+   things to hold. Both are here and both are written through.
+-}
+
+data Point {x: Int, y: Int}
+
+fn found(&slot: 'Int) -> Maybe(&'Int) = Just(slot)
+
+fn total(value: Maybe(Int)) -> Int = match value:
+    Nothing -> 0
+    Just(n) -> n
+
+fn width(value: Maybe(String)) -> Int = match value:
+    Nothing -> 0
+    Just(text) -> truncate(length(text)) :: Int
+
+fn corner(value: Maybe(Point)) -> Int = match value:
+    Nothing -> 0
+    Just(p) -> p.x + p.y
+
+-- The nested option, which no niche folds: three arms and three answers.
+fn depth(value: Maybe(Maybe(Int))) -> Int = match value:
+    Nothing -> 1
+    Just(inner) -> match inner:
+        Nothing -> 2
+        Just(n) -> 3 + n
+
+fn main() -> Int:
+    let &number = 4
+    let &text = "abc" :: String
+    let &here = Point {x: 5, y: 6}
+
+    let &sum = total(Just(number)) + width(Just(copy(text))) + corner(Just(here))
+
+    -- The absent arm of each, which is what says the payload is not read there.
+    sum = sum + total(Nothing) + width(Nothing) + corner(Nothing)
+
+    -- The nested option at all three of its values.
+    sum = sum + depth(Nothing) + depth(Just(Nothing)) + depth(Just(Just(7)))
+
+    -- And a payload written *through* the option, which is the `Maybe(&Int)` half.
+    if found(number) is Just(borrowed):
+        borrowed = borrowed + 10
+
+    -- A mutable borrow of each subject, to prove which of them rebinds and which writes properties.
+    put(number, number * 2)
+    put(text, "abcdef")
+    here.x = here.x + 20
+
+    -- 4 + 3 + 11 = 18; the absent arms add nothing; 1 + 2 + 10 = 13; so 31 before the writes.
+    -- Then `number` is 14 doubled to 28, `text` is six units, and `here.x + here.y` is 31: 96.
+    return sum + number + (truncate(length(text)) :: Int) + here.x + here.y
+
+fn (a) put(&slot: a, ->value: a):
+    slot = value

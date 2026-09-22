@@ -1,0 +1,92 @@
+fn main() -> one %r0
+  block0:
+    %8: %r0 = const 0
+    %9: %r0 = const 3
+    %10: %r0 = const 0
+    %11: %r0 = const 1
+    %12: %r0 = const 2
+    jump -> block1(%10, %8)
+  block1(%0: %r0, %1: %r0):
+    %13: %r1 = binary.lt %0, %9
+    branch %13 -> block2 -> block3
+  block2:
+    %55: %r0 = binary.mul %0, %12
+    %56: %r0 = coerce %55
+    %58: %r0 = binary.add %1, %0
+    %59: %r0 = coerce %58
+    %60: %r0 = binary.add %59, %56
+    %61: %r0 = coerce %60
+    %62: %r0 = binary.add %0, %11
+    %63: %r0 = coerce %62
+    jump -> block1(%63, %61)
+  block3:
+    %14: %r0 = const 3
+    %15: %r0 = const 0
+    %16: %r0 = const 1
+    %17: %r0 = const 10
+    jump -> block4(%15, %1)
+  block4(%2: %r0, %3: %r0):
+    %18: %r1 = binary.lt %2, %14
+    branch %18 -> block5 -> block6
+  block5:
+    %46: %r0 = binary.add %2, %17
+    %47: %r0 = coerce %46
+    %49: %r0 = binary.add %3, %2
+    %50: %r0 = coerce %49
+    %51: %r0 = binary.add %50, %47
+    %52: %r0 = coerce %51
+    %53: %r0 = binary.add %2, %16
+    %54: %r0 = coerce %53
+    jump -> block4(%54, %52)
+  block6:
+    %19: %r0 = const 3
+    %20: %r0 = const 0
+    %21: %r0 = const 1
+    %22: %r0 = const 3
+    jump -> block7(%20, %3)
+  block7(%4: %r0, %5: %r0):
+    %23: %r1 = binary.lt %4, %19
+    branch %23 -> block8 -> block9
+  block8:
+    %37: %r0 = binary.mul %4, %22
+    %38: %r0 = coerce %37
+    %40: %r0 = binary.add %5, %4
+    %41: %r0 = coerce %40
+    %42: %r0 = binary.add %41, %38
+    %43: %r0 = coerce %42
+    %44: %r0 = binary.add %4, %21
+    %45: %r0 = coerce %44
+    jump -> block7(%45, %43)
+  block9:
+    %24: %r0 = const 3
+    %25: %r0 = const 0
+    %26: %r0 = const 1
+    %27: %r0 = const 100
+    jump -> block10(%25, %5)
+  block10(%6: %r0, %7: %r0):
+    %28: %r1 = binary.lt %6, %24
+    branch %28 -> block11 -> block12
+  block11:
+    %29: %r0 = binary.add %6, %26
+    %30: %r0 = coerce %29
+    %32: %r0 = binary.mul %6, %27
+    %33: %r0 = coerce %32
+    %35: %r0 = binary.add %7, %33
+    %36: %r0 = coerce %35
+    jump -> block10(%30, %36)
+  block12:
+    return %7
+
+optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0
+
+shape %s0 object Pair {left: %r0, right: %r0}
+shape %s1 object Nested {head: %r2, tail: %r0}
+shape %s2 object <tuple> {first: %r0, second: %r0}
+shape %s3 object <tuple> {f0: %r0, f1: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = number bool
+rep %r2 = object %s0
+rep %r3 = object %s1
+rep %r4 = object %s2
+rep %r5 = object %s3

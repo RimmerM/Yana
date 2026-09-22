@@ -107,6 +107,84 @@ inline bool nativeHasImmediate(NativeOp op) {
 }
 
 /*
+ * What a `host.def` row does - the effect column, Analysis-IR-JS.md §3.10.
+ *
+ * A mask and not an enum, because the answers combine: a host method call both changes host state
+ * and may leave without returning. Five bits rather than the four `Analysis-IR.md` gives a native
+ * operation, and the fifth - `Control` - is the one this tier records without acting on it, because
+ * what it licenses is a CFG shape only the tier that structures the syntax can build.
+ *
+ * `Pure` is exclusive with the rest by construction rather than by a check: a row that reads or
+ * writes anything is not pure, and the one row that claims it answers a question about a *type*.
+ */
+static constexpr U8 kHostPure    = 1;  // Recomputable, removable and movable: nothing outside it.
+static constexpr U8 kHostReads   = 2;  // A function of host state something else here may change.
+static constexpr U8 kHostWrites  = 4;  // Changes host state.
+static constexpr U8 kHostThrows  = 8;  // May leave without returning.
+static constexpr U8 kHostControl = 16; // Never returns normally - `throw`.
+
+// The `member` column of host.def: whether the row carries the `String` literal the call named.
+static constexpr bool kHostNamed = true;
+static constexpr bool kHostUnnamed = false;
+
+/*
+ * An operation the host has and this IR does not - the rows of host.def.
+ *
+ * Beside `NativeOp` for that enum's own reason: these are the other boundary where the IR's
+ * reasoning stops, and `resolve_ssa` carries the column down unchanged for JSIR to give it meaning.
+ */
+enum class HostOp: U8 {
+#define YANA_MIR_HOST(kind, name, effects, member) kind,
+#include "host.def"
+#undef YANA_MIR_HOST
+};
+
+// What a host operation is called in a dump - the second column of host.def.
+inline StringView hostOpName(HostOp op) {
+    switch(op) {
+#define YANA_MIR_HOST(kind, name, effects, member) case HostOp::kind: return name;
+#include "host.def"
+#undef YANA_MIR_HOST
+    }
+
+    return "?"_v;
+}
+
+// What the row says it does - the third column. Read by the MIR effect test and by every SSA pass
+// that asks whether an instruction may be moved, recomputed or dropped.
+inline U8 hostOpEffects(HostOp op) {
+    switch(op) {
+#define YANA_MIR_HOST(kind, name, effects, member) case HostOp::kind: return U8(effects);
+#include "host.def"
+#undef YANA_MIR_HOST
+    }
+
+    return kHostWrites | kHostThrows;
+}
+
+// Whether a host operation may be recomputed, dropped or moved - the `Pure` column, asked by name so
+// that the two tiers that ask it cannot come to spell the test differently.
+inline bool hostIsPure(HostOp op) { return (hostOpEffects(op) & kHostPure) != 0; }
+
+/*
+ * Whether a host operation carries a member name - the fourth column of host.def.
+ *
+ * A column rather than the inequality this was (`op <= HostOp::Throw || op == ViewRead || ...`):
+ * that answer depended on the *order* the rows happen to be written in, so moving one or adding one
+ * in the wrong place changed what the verifier checks with nothing saying so - and the verifier's
+ * whole job here is that a row which says it names a member does.
+ */
+inline bool hostHasMember(HostOp op) {
+    switch(op) {
+#define YANA_MIR_HOST(kind, name, effects, member) case HostOp::kind: return member;
+#include "host.def"
+#undef YANA_MIR_HOST
+    }
+
+    return false;
+}
+
+/*
  * What an operation does to a value **narrower than the register it is held in** - the width column
  * of `op.def`, and the whole of what the seam in `resolve_ssa/lower/width.cpp` reads.
  *

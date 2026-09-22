@@ -1,0 +1,79 @@
+fn main() -> one %r0
+  var $0: %r1
+  var $1: %r1
+  block0:
+    %12: %r0 = const 53
+    %13: %r0 = const 3
+    %17: %r0 = const 0
+    %18: %r0 = const 0
+    %19: %r0 = const 12
+    %20: %r0 = const 1
+    jump -> block1(%17, %18)
+  block1(%0: %r0, %1: %r0):
+    %21: %r2 = binary.lt %1, %13
+    branch %21 -> block3 -> block2
+  block2:
+    %22: %r0 = binary.add %12, %0
+    %23: %r0 = coerce %22
+    %24: %r0 = const 4
+    %25: %r0 = const 0
+    %26: %r0 = const 0
+    %27: %r1 = object %s0 %25, %26
+    store var $0: %r1, %27
+    %28: %r0 = const 0
+    %29: %r0 = const 5
+    %30: %r1 = object %s0 %28, %29
+    store var $0: %r1, %30
+    %31: %r0 = const 0
+    %32: %r0 = const 1
+    jump -> block4(%31)
+  block3:
+    %62: %r0 = binary.add %0, %19
+    %63: %r0 = coerce %62
+    %64: %r0 = binary.add %1, %20
+    %65: %r0 = coerce %64
+    jump -> block1(%63, %65)
+  block4(%2: %r0):
+    %33: %r2 = binary.lt %2, %24
+    branch %33 -> block6 -> block5
+  block5:
+    %34: %r1 = load var $0: %r1
+    %35: %r0 = load property %34.x: %r0
+    %36: %r0 = binary.add %23, %35
+    %37: %r0 = coerce %36
+    %43: %r0 = const 5
+    %44: %r0 = const 0
+    %45: %r0 = const 0
+    %46: %r1 = object %s0 %44, %45
+    store var $1: %r1, %46
+    %47: %r0 = const 1
+    %48: %r1 = object %s0 %43, %47
+    store var $1: %r1, %48
+    %49: %r1 = load var $1: %r1
+    %50: %r0 = const 6
+    store property %49.x: %r0, %50
+    %51: %r0 = const 17
+    %52: %r0 = binary.add %37, %51
+    %53: %r0 = coerce %52
+    return %53
+  block6:
+    %54: %r1 = load var $0: %r1
+    %55: %r0 = load property %54.x: %r0
+    %56: %r1 = load var $0: %r1
+    %57: %r0 = load property %56.y: %r0
+    %58: %r0 = binary.add %55, %57
+    %59: %r0 = coerce %58
+    store property %54.x: %r0, %59
+    %60: %r0 = binary.add %2, %32
+    %61: %r0 = coerce %60
+    jump -> block4(%61)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 17 adopted 0 sunk 0
+
+shape %s0 object Point {x: %r0, y: %r0}
+shape %s1 object Outer {inner: %r1, tag: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = number bool
+rep %r3 = object %s1

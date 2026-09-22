@@ -1,0 +1,86 @@
+@image$base = []
+
+bump<complex>(%t: Ptr, %by: I32) {
+  b_0 {
+    %v_1 = loads %t, 4: I32
+    %v_2 = add %v_1, %by: I32
+    store %t, %v_2, 4
+    %v_3 = add %t, 4: Ptr
+    %v_4 = loads %v_3, 4: I32
+    %v_5 = add %v_4, 1: I32
+    store %v_3, %v_5, 4
+    ret 
+  }
+}
+
+note<complex>(%n: Ptr, %by: I32) {
+  b_0 {
+    %v_1 = loads %n, 4: I32
+    %v_2 = add %v_1, %by: I32
+    store %n, %v_2, 4
+    %v_3 = add %n, 4: Ptr
+    %v_4 = loads %v_3, 4: I32
+    %v_5 = add %v_4, 1: I32
+    store %v_3, %v_5, 4
+    ret 
+  }
+}
+
+early<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = cmp_ilt %n, 0: I32
+    ret %v_1
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 0, 4
+    jmp b_3
+  }
+
+  b_4 {
+    %v_5 = cmp_ilt %v_6, 4: I32
+    je %v_5, b_3, b_7
+  }
+
+  b_3 {
+    %v_8 = phi [b_4, %v_6], [b_0, 1]: I32
+    call_complex bump, %v_1, %v_8
+    %v_9 = loads %v_1, 4: I32
+    %v_10 = imul %v_9, 10: I32
+    %v_11 = add %v_1, 4: Ptr
+    %v_12 = loads %v_11, 4: I32
+    %v_13 = add %v_10, %v_12: I32
+    %v_6 = add %v_8, 1: I32
+    jmp b_4
+  }
+
+  b_7 {
+    %v_14 = alloca 8, 4: Ptr
+    store %v_14, 0, 4
+    %v_15 = add %v_14, 4: Ptr
+    store %v_15, 0, 4
+    %v_16 = call_complex early, %v_13: I32
+    je %v_16, b_17, b_18
+  }
+
+  b_17 {
+    ret 18446744073709551615
+  }
+
+  b_18 {
+    call_complex note, %v_14, 5
+    call_complex note, %v_14, 7
+    %v_19 = loads %v_14, 4: I32
+    %v_20 = add %v_13, %v_19: I32
+    %v_21 = add %v_14, 4: Ptr
+    %v_22 = loads %v_21, 4: I32
+    %v_23 = add %v_20, %v_22: I32
+    ret %v_23
+  }
+}
+

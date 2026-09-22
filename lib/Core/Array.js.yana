@@ -109,6 +109,25 @@ pub fn push(&self: Array(a), ->item: a):
     hostWrite(self.items, count, item)
     self.length = truncate(count + 1) :: Count
 
+{-
+   The host array a window is cut from, rooted in the window - `Array.native.yana`'s `values` and
+   `valuesMut` with a different name, because it is a different promise.
+
+   `values` there is the *base of the window*: the caller may read `length` elements from it. Here
+   there is no base to advance - `items` is the whole host array in every window of it - so what a
+   caller may read is `offset` up to `offset + length`, and a caller has to say `offset` itself.
+   Giving the two one name would have let a body written against the native one read the wrong
+   elements here with no diagnostic anywhere, which is the failure the different name exists to
+   prevent.
+
+   What they do share is the reason they exist at all: a raw `%a` names nobody's storage, so a
+   container's field cannot be handed to anything that publishes an origin (`hostAt`, `borrow`)
+   until a signature has said whose it is. This is that signature, and the body is one field read.
+-}
+@inline fn hostItems(self: source'[a]) -> %source'a = self.items
+
+@inline fn hostItemsMut(&self: source'[a]) -> %source'a = self.items
+
 -- The window `slice` makes, with the clamping taken out - `Array.yana` is where the reason is. The
 -- base does not move on this target: `items` is the whole host array in every slice of it, so what
 -- a caller may read is the `offset` this advances, up to `offset + length`.

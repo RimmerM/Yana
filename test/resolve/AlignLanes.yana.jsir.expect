@@ -1,0 +1,119 @@
+fn digits(parts %r2) -> one %r3
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0):
+    %4: %r0 = const 1000
+    %5: %r0 = binary.mul %0, %4
+    %6: %r0 = coerce %5
+    %7: %r0 = const 100
+    %8: %r0 = binary.mul %1, %7
+    %9: %r0 = coerce %8
+    %10: %r0 = binary.add %6, %9
+    %11: %r0 = coerce %10
+    %12: %r0 = const 10
+    %13: %r0 = binary.mul %2, %12
+    %14: %r0 = coerce %13
+    %15: %r0 = binary.add %11, %14
+    %16: %r0 = coerce %15
+    %17: %r0 = binary.add %16, %3
+    %18: %r0 = coerce %17
+    %19: %r3 = convert %18
+    return %19
+
+fn main() -> one %r3
+  block0:
+    %0: %r0 = const 0
+    %1: %r0 = const 1
+    %2: %r0 = const 2
+    %3: %r0 = const 3
+    %4: %r0 = const 0
+    %5: %r0 = const 1
+    %6: %r0 = const 2
+    %7: %r0 = const 3
+    %8: %r0 = const 10
+    %9: %r0 = binary.add %4, %8
+    %10: %r0 = coerce %9
+    %11: %r0 = binary.add %5, %8
+    %12: %r0 = coerce %11
+    %13: %r0 = binary.add %6, %8
+    %14: %r0 = coerce %13
+    %15: %r0 = binary.add %7, %8
+    %16: %r0 = coerce %15
+    %17: %r3 = call digits %10, %12, %14, %16
+    %18: %r3 = const 11233
+    %19: %r4 = binary.ne %17, %18
+    branch %19 -> block2 -> block1
+  block1:
+    %20: %r3 = call digits %0, %1, %2, %3
+    %21: %r3 = const 123
+    %22: %r4 = binary.ne %20, %21
+    branch %22 -> block4 -> block3
+  block2:
+    %66: %r3 = const -1
+    return %66
+  block3:
+    %23: %r3 = call digits %12, %14, %16, %0
+    %24: %r3 = const 12330
+    %25: %r4 = binary.ne %23, %24
+    branch %25 -> block6 -> block5
+  block4:
+    %65: %r3 = const -2
+    return %65
+  block5:
+    %26: %r3 = call digits %14, %16, %0, %1
+    %27: %r3 = const 13301
+    %28: %r4 = binary.ne %26, %27
+    branch %28 -> block8 -> block7
+  block6:
+    %64: %r3 = const -3
+    return %64
+  block7:
+    %29: %r3 = call digits %16, %0, %1, %2
+    %30: %r3 = const 13012
+    %31: %r4 = binary.ne %29, %30
+    branch %31 -> block10 -> block9
+  block8:
+    %63: %r3 = const -4
+    return %63
+  block9:
+    %32: %r5 = const 7
+    %38: %r5 = const 5
+    %48: %r5 = const 15
+    %49: %r3 = convert %38
+    %50: %r3 = const 5
+    %51: %r4 = binary.ne %49, %50
+    branch %51 -> block12 -> block11
+  block10:
+    %62: %r3 = const -5
+    return %62
+  block11:
+    %52: %r3 = convert %48
+    %53: %r3 = const 15
+    %54: %r4 = binary.ne %52, %53
+    branch %54 -> block14 -> block13
+  block12:
+    %61: %r3 = const -6
+    return %61
+  block13:
+    %55: %r3 = convert %32
+    %56: %r3 = const 7
+    %57: %r4 = binary.ne %55, %56
+    branch %57 -> block16 -> block15
+  block14:
+    %60: %r3 = const -7
+    return %60
+  block15:
+    %58: %r3 = call digits %12, %14, %16, %0
+    return %58
+  block16:
+    %59: %r3 = const -8
+    return %59
+
+optimizer clones 0 aliased 0 forwarded 0 removed 14 adopted 0 sunk 0
+
+rep %r0 = number unsigned 32
+rep %r1 = array Uint32Array of %r0
+rep %r2 = parts (%r0, %r0, %r0, %r0) as %r1
+rep %r3 = number signed 32
+rep %r4 = number bool
+rep %r5 = number unsigned 8
+rep %r6 = array Uint8Array of %r5
+rep %r7 = parts (%r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5) as %r6

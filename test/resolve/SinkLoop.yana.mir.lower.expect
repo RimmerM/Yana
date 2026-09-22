@@ -1,0 +1,81 @@
+
+bump<complex>(%t: Ptr, %by: I32) {
+  b_0 {
+    %v_1 = loads %t, 4: I32
+    %v_2 = add %v_1, %by: I32
+    store %t, %v_2, 4
+    %v_3 = add %t, 4: Ptr
+    %v_4 = loads %v_3, 4: I32
+    %v_5 = add %v_4, 1: I32
+    store %v_3, %v_5, 4
+    ret 
+  }
+}
+
+note<complex>(%n: Ptr, %by: I32) {
+  b_0 {
+    %v_1 = loads %n, 4: I32
+    %v_2 = add %v_1, %by: I32
+    store %n, %v_2, 4
+    %v_3 = add %n, 4: Ptr
+    %v_4 = loads %v_3, 4: I32
+    %v_5 = add %v_4, 1: I32
+    store %v_3, %v_5, 4
+    ret 
+  }
+}
+
+early<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = cmp_ilt %n, 0: I32
+    ret %v_1
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    %v_2 = alloca 8, 4: Ptr
+    setpattern %v_1, 8, 0
+    jmp b_3
+  }
+
+  b_4 {
+    %v_5 = cmp_ilt %v_6, 4: I32
+    je %v_5, b_3, b_7
+  }
+
+  b_7 {
+    setpattern %v_2, 8, 0
+    %v_8 = call_complex early, %v_9: I32
+    je %v_8, b_10, b_11
+  }
+
+  b_3 {
+    %v_12 = phi [b_4, %v_6], [b_0, 1]: I32
+    call_complex bump, %v_1, %v_12
+    %v_13 = loads %v_1, 4: I32
+    %v_14 = imul %v_13, 10: I32
+    %v_15 = add %v_1, 4: Ptr
+    %v_16 = loads %v_15, 4: I32
+    %v_9 = add %v_14, %v_16: I32
+    %v_6 = add %v_12, 1: I32
+    jmp b_4
+  }
+
+  b_11 {
+    call_complex note, %v_2, 5
+    call_complex note, %v_2, 7
+    %v_17 = loads %v_2, 4: I32
+    %v_18 = add %v_9, %v_17: I32
+    %v_19 = add %v_2, 4: Ptr
+    %v_20 = loads %v_19, 4: I32
+    %v_21 = add %v_18, %v_20: I32
+    ret %v_21
+  }
+
+  b_10 {
+    ret 18446744073709551615
+  }
+}
+

@@ -1,0 +1,100 @@
+let image$base: () = <none>
+
+fn bump(%t: Tally, %by: I32) -> () {
+  b0:
+    %v2 = load %t : Tally
+    %v3 = load %t@Tally.total : I32
+    %v4 = add %v3, %by : I32
+    assign %t@Tally.total, %v4
+    %v6 = load %t : Tally
+    %v7 = load %t@Tally.seen : I32
+    %v10 = add %v7, 1 : I32
+    assign %t@Tally.seen, %v10
+    ret
+}
+
+fn note(%n: Note, %by: I32) -> () {
+  b0:
+    %v2 = load %n : Note
+    %v3 = load %n@Note.tag : I32
+    %v4 = add %v3, %by : I32
+    assign %n@Note.tag, %v4
+    %v6 = load %n : Note
+    %v7 = load %n@Note.count : I32
+    %v10 = add %v7, 1 : I32
+    assign %n@Note.count, %v10
+    ret
+}
+
+fn early(%n: I32) -> Bool {
+  b0:
+    %v3 = cmp_lt %n, 0 : Bool
+    ret %v3
+}
+
+fn main() -> I32 {
+  b0:
+    %v0 = alloc : Tally
+    aggregate %tally@Tally.total = 0, %tally@Tally.seen = 0
+    %last = alloc : I32
+    init %last, 0
+    %v12 = alloc : I32
+    init %local2, 1
+    jmp b1
+
+  b1:
+    %i = load %local2 : I32
+    %v16 = cmp_lt %i, 4 : Bool
+    je %v16, b2, b5
+
+  b2:
+    %v17 = load %tally : Tally
+    %v18 = borrow_mut %tally : &Tally
+    call bump, %v18, %i
+    %v20 = load %tally : Tally
+    %v21 = load %tally@Tally.total : I32
+    %v24 = mul %v21, 10 : I32
+    %v25 = load %tally : Tally
+    %v26 = load %tally@Tally.seen : I32
+    %v27 = add %v24, %v26 : I32
+    assign %last, %v27
+    jmp b3
+
+  b3:
+    %v29 = load %local2 : I32
+    jmp b4
+
+  b4:
+    %v31 = add %v29, 1 : I32
+    assign %local2, %v31
+    jmp b1
+
+  b5:
+    %v36 = alloc : Note
+    aggregate %held@Note.tag = 0, %held@Note.count = 0
+    %v40 = load %last : I32
+    %v41 = call early, %v40 : Bool
+    je %v41, b6, b7
+
+  b6:
+    ret -1
+
+  b7:
+    jmp b8
+
+  b8:
+    %v46 = load %held : Note
+    %v48 = borrow_mut %held : &Note
+    call note, %v48, 5
+    %v50 = load %held : Note
+    %v52 = borrow_mut %held : &Note
+    call note, %v52, 7
+    %v54 = load %last : I32
+    %v55 = load %held : Note
+    %v56 = load %held@Note.tag : I32
+    %v57 = add %v54, %v56 : I32
+    %v58 = load %held : Note
+    %v59 = load %held@Note.count : I32
+    %v60 = add %v57, %v59 : I32
+    ret %v60
+}

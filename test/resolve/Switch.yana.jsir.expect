@@ -1,0 +1,354 @@
+fn weigh(one %r0) -> one %r0
+  block0(%0: %r0):
+    %1: %r0 = const 1000
+    %2: %r2 = binary.gt %0, %1
+    branch %2 -> block2 -> block1
+  block1:
+    %3: %r0 = const 7
+    %4: %r0 = binary.mul %0, %3
+    %5: %r0 = coerce %4
+    %6: %r0 = const 3
+    %7: %r0 = binary.add %5, %6
+    %8: %r0 = coerce %7
+    return %8
+  block2:
+    %9: %r0 = const 0
+    return %9
+
+fn opaqueFour(one %r1) -> one %r1
+  block0(%0: %r1):
+    return %0
+
+fn opaqueNine(one %r1) -> one %r1
+  block0(%0: %r1):
+    return %0
+
+fn opaqueSpread(one %r1) -> one %r1
+  block0(%0: %r1):
+    return %0
+
+fn opaqueTwenty(one %r1) -> one %r1
+  block0(%0: %r1):
+    return %0
+
+fn four(one %r1) -> one %r0
+  var $0: %r1
+  block0(%0: %r1):
+    store var $0: %r1, %0
+    %3: %r1 = load var $0: %r1
+    switch %3 case 0 -> block1 case 1 -> block2 case 2 -> block3 else -> block4
+  block1:
+    %10: %r0 = const 0
+    %11: %r0 = call weigh %10
+    jump -> block5(%11)
+  block2:
+    %8: %r0 = const 1
+    %9: %r0 = call weigh %8
+    jump -> block5(%9)
+  block3:
+    %6: %r0 = const 2
+    %7: %r0 = call weigh %6
+    jump -> block5(%7)
+  block4:
+    %4: %r0 = const 3
+    %5: %r0 = call weigh %4
+    jump -> block5(%5)
+  block5(%1: %r0):
+    return %1
+
+fn nine(one %r1) -> one %r0
+  var $0: %r1
+  block0(%0: %r1):
+    store var $0: %r1, %0
+    %3: %r1 = load var $0: %r1
+    switch %3 case 0 -> block1 case 1 -> block2 case 2 -> block3 case 3 -> block4 case 4 -> block5 case 5 -> block6 case 6 -> block7 case 7 -> block8 else -> block9
+  block1:
+    %20: %r0 = const 10
+    %21: %r0 = call weigh %20
+    jump -> block10(%21)
+  block2:
+    %18: %r0 = const 11
+    %19: %r0 = call weigh %18
+    jump -> block10(%19)
+  block3:
+    %16: %r0 = const 12
+    %17: %r0 = call weigh %16
+    jump -> block10(%17)
+  block4:
+    %14: %r0 = const 13
+    %15: %r0 = call weigh %14
+    jump -> block10(%15)
+  block5:
+    %12: %r0 = const 14
+    %13: %r0 = call weigh %12
+    jump -> block10(%13)
+  block6:
+    %10: %r0 = const 15
+    %11: %r0 = call weigh %10
+    jump -> block10(%11)
+  block7:
+    %8: %r0 = const 16
+    %9: %r0 = call weigh %8
+    jump -> block10(%9)
+  block8:
+    %6: %r0 = const 17
+    %7: %r0 = call weigh %6
+    jump -> block10(%7)
+  block9:
+    %4: %r0 = const 18
+    %5: %r0 = call weigh %4
+    jump -> block10(%5)
+  block10(%1: %r0):
+    return %1
+
+fn spread(one %r1) -> one %r0
+  var $0: %r1
+  block0(%0: %r1):
+    store var $0: %r1, %0
+    %3: %r1 = load var $0: %r1
+    switch %3 case 0 -> block1 case 3 -> block2 case 7 -> block3 case 11 -> block4 case 14 -> block5 case 18 -> block6 case 22 -> block7 case 26 -> block8 else -> block9
+  block1:
+    %20: %r0 = const 20
+    %21: %r0 = call weigh %20
+    jump -> block10(%21)
+  block2:
+    %18: %r0 = const 21
+    %19: %r0 = call weigh %18
+    jump -> block10(%19)
+  block3:
+    %16: %r0 = const 22
+    %17: %r0 = call weigh %16
+    jump -> block10(%17)
+  block4:
+    %14: %r0 = const 23
+    %15: %r0 = call weigh %14
+    jump -> block10(%15)
+  block5:
+    %12: %r0 = const 24
+    %13: %r0 = call weigh %12
+    jump -> block10(%13)
+  block6:
+    %10: %r0 = const 25
+    %11: %r0 = call weigh %10
+    jump -> block10(%11)
+  block7:
+    %8: %r0 = const 26
+    %9: %r0 = call weigh %8
+    jump -> block10(%9)
+  block8:
+    %6: %r0 = const 27
+    %7: %r0 = call weigh %6
+    jump -> block10(%7)
+  block9:
+    %4: %r0 = const 28
+    %5: %r0 = call weigh %4
+    jump -> block10(%5)
+  block10(%1: %r0):
+    return %1
+
+fn twenty(one %r1) -> one %r0
+  var $0: %r1
+  block0(%0: %r1):
+    store var $0: %r1, %0
+    %3: %r1 = load var $0: %r1
+    switch %3 case 0 -> block1 case 1 -> block2 case 2 -> block3 case 3 -> block4 case 4 -> block5 case 5 -> block6 case 6 -> block7 case 7 -> block8 case 8 -> block9 case 9 -> block10 case 10 -> block11 case 11 -> block12 case 12 -> block13 case 13 -> block14 case 14 -> block15 case 15 -> block16 case 16 -> block17 case 17 -> block18 case 18 -> block19 else -> block20
+  block1:
+    %42: %r0 = const 30
+    %43: %r0 = call weigh %42
+    jump -> block21(%43)
+  block2:
+    %40: %r0 = const 31
+    %41: %r0 = call weigh %40
+    jump -> block21(%41)
+  block3:
+    %38: %r0 = const 32
+    %39: %r0 = call weigh %38
+    jump -> block21(%39)
+  block4:
+    %36: %r0 = const 33
+    %37: %r0 = call weigh %36
+    jump -> block21(%37)
+  block5:
+    %34: %r0 = const 34
+    %35: %r0 = call weigh %34
+    jump -> block21(%35)
+  block6:
+    %32: %r0 = const 35
+    %33: %r0 = call weigh %32
+    jump -> block21(%33)
+  block7:
+    %30: %r0 = const 36
+    %31: %r0 = call weigh %30
+    jump -> block21(%31)
+  block8:
+    %28: %r0 = const 37
+    %29: %r0 = call weigh %28
+    jump -> block21(%29)
+  block9:
+    %26: %r0 = const 38
+    %27: %r0 = call weigh %26
+    jump -> block21(%27)
+  block10:
+    %24: %r0 = const 39
+    %25: %r0 = call weigh %24
+    jump -> block21(%25)
+  block11:
+    %22: %r0 = const 40
+    %23: %r0 = call weigh %22
+    jump -> block21(%23)
+  block12:
+    %20: %r0 = const 41
+    %21: %r0 = call weigh %20
+    jump -> block21(%21)
+  block13:
+    %18: %r0 = const 42
+    %19: %r0 = call weigh %18
+    jump -> block21(%19)
+  block14:
+    %16: %r0 = const 43
+    %17: %r0 = call weigh %16
+    jump -> block21(%17)
+  block15:
+    %14: %r0 = const 44
+    %15: %r0 = call weigh %14
+    jump -> block21(%15)
+  block16:
+    %12: %r0 = const 45
+    %13: %r0 = call weigh %12
+    jump -> block21(%13)
+  block17:
+    %10: %r0 = const 46
+    %11: %r0 = call weigh %10
+    jump -> block21(%11)
+  block18:
+    %8: %r0 = const 47
+    %9: %r0 = call weigh %8
+    jump -> block21(%9)
+  block19:
+    %6: %r0 = const 48
+    %7: %r0 = call weigh %6
+    jump -> block21(%7)
+  block20:
+    %4: %r0 = const 49
+    %5: %r0 = call weigh %4
+    jump -> block21(%5)
+  block21(%1: %r0):
+    return %1
+
+fn main() -> one %r0
+  block0:
+    %0: %r1 = const 0
+    %1: %r1 = call opaqueFour %0
+    %2: %r0 = call four %1
+    %3: %r0 = const 3
+    %4: %r2 = binary.eq %2, %3
+    %5: %r0 = const 1
+    %6: %r0 = const 0
+    %7: %r0 = select %4, %5, %6
+    %8: %r1 = const 3
+    %9: %r1 = call opaqueFour %8
+    %10: %r0 = call four %9
+    %11: %r0 = const 24
+    %12: %r2 = binary.eq %10, %11
+    %13: %r0 = const 2
+    %14: %r0 = const 0
+    %15: %r0 = select %12, %13, %14
+    %16: %r0 = binary.add %7, %15
+    %17: %r0 = coerce %16
+    %18: %r1 = const 0
+    %19: %r1 = call opaqueNine %18
+    %20: %r0 = call nine %19
+    %21: %r0 = const 73
+    %22: %r2 = binary.eq %20, %21
+    %23: %r0 = const 4
+    %24: %r0 = const 0
+    %25: %r0 = select %22, %23, %24
+    %26: %r0 = binary.add %17, %25
+    %27: %r0 = coerce %26
+    %28: %r1 = const 4
+    %29: %r1 = call opaqueNine %28
+    %30: %r0 = call nine %29
+    %31: %r0 = const 101
+    %32: %r2 = binary.eq %30, %31
+    %33: %r0 = const 8
+    %34: %r0 = const 0
+    %35: %r0 = select %32, %33, %34
+    %36: %r0 = binary.add %27, %35
+    %37: %r0 = coerce %36
+    %38: %r1 = const 8
+    %39: %r1 = call opaqueNine %38
+    %40: %r0 = call nine %39
+    %41: %r0 = const 129
+    %42: %r2 = binary.eq %40, %41
+    %43: %r0 = const 16
+    %44: %r0 = const 0
+    %45: %r0 = select %42, %43, %44
+    %46: %r0 = binary.add %37, %45
+    %47: %r0 = coerce %46
+    %48: %r1 = const 0
+    %49: %r1 = call opaqueSpread %48
+    %50: %r0 = call spread %49
+    %51: %r0 = const 143
+    %52: %r2 = binary.eq %50, %51
+    %53: %r0 = const 32
+    %54: %r0 = const 0
+    %55: %r0 = select %52, %53, %54
+    %56: %r0 = binary.add %47, %55
+    %57: %r0 = coerce %56
+    %58: %r1 = const 18
+    %59: %r1 = call opaqueSpread %58
+    %60: %r0 = call spread %59
+    %61: %r0 = const 178
+    %62: %r2 = binary.eq %60, %61
+    %63: %r0 = const 64
+    %64: %r0 = const 0
+    %65: %r0 = select %62, %63, %64
+    %66: %r0 = binary.add %57, %65
+    %67: %r0 = coerce %66
+    %68: %r1 = const 29
+    %69: %r1 = call opaqueSpread %68
+    %70: %r0 = call spread %69
+    %71: %r0 = const 199
+    %72: %r2 = binary.eq %70, %71
+    %73: %r0 = const 128
+    %74: %r0 = const 0
+    %75: %r0 = select %72, %73, %74
+    %76: %r0 = binary.add %67, %75
+    %77: %r0 = coerce %76
+    %78: %r1 = const 0
+    %79: %r1 = call opaqueTwenty %78
+    %80: %r0 = call twenty %79
+    %81: %r0 = const 213
+    %82: %r2 = binary.eq %80, %81
+    %83: %r0 = const 256
+    %84: %r0 = const 0
+    %85: %r0 = select %82, %83, %84
+    %86: %r0 = binary.add %77, %85
+    %87: %r0 = coerce %86
+    %88: %r1 = const 9
+    %89: %r1 = call opaqueTwenty %88
+    %90: %r0 = call twenty %89
+    %91: %r0 = const 276
+    %92: %r2 = binary.eq %90, %91
+    %93: %r0 = const 512
+    %94: %r0 = const 0
+    %95: %r0 = select %92, %93, %94
+    %96: %r0 = binary.add %87, %95
+    %97: %r0 = coerce %96
+    %98: %r1 = const 19
+    %99: %r1 = call opaqueTwenty %98
+    %100: %r0 = call twenty %99
+    %101: %r0 = const 346
+    %102: %r2 = binary.eq %100, %101
+    %103: %r0 = const 1024
+    %104: %r0 = const 0
+    %105: %r0 = select %102, %103, %104
+    %106: %r0 = binary.add %97, %105
+    %107: %r0 = coerce %106
+    return %107
+
+optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = number unsigned 8
+rep %r2 = number bool

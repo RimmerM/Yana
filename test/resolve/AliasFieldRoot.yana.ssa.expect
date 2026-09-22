@@ -1,0 +1,33 @@
+module ResolveTest
+
+fn both(a: Point [shared call], h: Holder [unique call]) -> I32 {
+bb0(%0: Point [shared call] guaranteed, %1: Holder [unique call] guaranteed):
+  %2: I32 trivial = const 100
+  %3: %Point address = field.addr .p inspect %1
+  %4: %I32 address = field.addr .x inspect %3
+  store inspect %4 consume %2
+  %5: %I32 address = field.addr .x inspect %0
+  %6: I32 trivial = load inspect %5
+  %7: %I32 address = field.addr .y inspect %0
+  %8: I32 trivial = load inspect %7
+  %9: I32 trivial = add inspect %6 inspect %8
+  return consume %9
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Holder address = alloc frame Holder
+  %1: I32 trivial = const 1
+  %2: I32 trivial = const 2
+  %3: Point trivial = aggregate.Point consume %1 consume %2
+  %4: I32 trivial = const 0
+  %5: Holder trivial = aggregate.Holder consume %3 consume %4
+  store inspect %0 consume %5
+  %6: %Point address = field.addr .p inspect %0
+  %7: Point trivial = copy inspect %6
+  %8: Holder [unique call] guaranteed from{%0} = load inspect %0
+  %9: I32 trivial = call both borrow %7 borrow %8
+  return consume %9
+}
+
+entry main

@@ -1,0 +1,18 @@
+{-
+   One source, two targets - a string literal, and what a length costs on each.
+
+   The native goldens beside this are the program the rewrite builds for a machine; the
+   `.js.ssa.expect` is the same source built for JavaScript, where `"yana"` is a *host string
+   constant* - the text itself, at the record `known.def`'s `string` row names, with no byte global,
+   no run and no relocation under it (`Resolver::stringConstant`'s second arm).
+
+   Nothing in it is platform-specific, which is the point: a fixture acquires the JavaScript
+   assertion by having that file beside it, and its native goldens do not move.
+-}
+fn greeting() -> String = "yana"
+
+fn width(text: String) -> Int = truncate(length(text))
+
+fn main() -> Int:
+    let name = greeting()
+    return width(name)

@@ -1,6 +1,5 @@
 #include "verify.h"
 #include "dominance.h"
-#include "lower/manifest.h"
 
 namespace ssa {
 
@@ -140,13 +139,6 @@ struct Verifier {
     // in the one function that used to need it: three checks need it now, and three copies of one
     // `*program.decl` is three places to get the region wrong.
     DeclBase decl = *program.decl;
-
-    // The same region paired with the machine, for the checks that ask a *representation* question -
-    // see `Layout`. Built from the settings here rather than handed in, because this tier runs
-    // before the lowering does and there is nothing to hand it one.
-    // Through `layoutFor`, which is the one place a layout is filled: the manifestation reads the
-    // program's view table, and a layout built by hand here was one with nothing to read it from.
-    Layout layout = layoutFor(context, program);
 
     U32 errors = 0;
 
@@ -456,7 +448,8 @@ struct Verifier {
             auto declared = shape.params.get(decl, i).occurrence;
             auto supplied = base[used.value()];
 
-            if(arrivesAsAddress(layout, declared) != arrivesAsAddress(layout, supplied->occurrence)) {
+            if(denotesStorage(context, program, declared) !=
+               denotesStorage(context, program, supplied->occurrence)) {
                 report(inst.source,
                        "internal: a call through %@ supplies argument %@ under a different handover than its position"_v,
                        mir::typeText(context, decl, target->type()), i);
@@ -592,9 +585,9 @@ struct Verifier {
              */
             if(!mir::isConcreteType(decl, parameter.occurrence.type) ||
                !mir::isConcreteType(decl, supplied->type())) {
-                if(arrivesAsAddress(layout, parameter.occurrence) &&
-                   !arrivesAsAddress(layout, supplied->occurrence) &&
-                   manifestNative(layout, supplied->occurrence).dynamic) {
+                if(denotesStorage(context, program, parameter.occurrence) &&
+                   !denotesStorage(context, program, supplied->occurrence) &&
+                   !mir::isConcreteType(decl, supplied->type())) {
                     report(inst.source,
                            "internal: call to %@ supplies argument %@ as a value of unknown width, and the position it fills is erased"_v,
                            context.findName(callee->name), i);

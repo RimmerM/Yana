@@ -1,0 +1,229 @@
+fn Token.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    store var $0: %r0, %0
+    %1: %r0 = load global dropped: %r0
+    %2: %r0 = const 1
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    store global dropped: %r0, %4
+    return
+
+fn offsetBy(one %r3, one %r0) -> one %r3
+  var $0: %r3
+  var $1: %r4
+  var $2: %r7
+  var $3: %r3
+  block0(%0: %r3, %1: %r0):
+    store var $0: %r3, %0
+    %3: %r3 = load var $0: %r3
+    %4: %r3 = alias %3
+    %5: %r4 = object %s0 %1
+    store var $1: %r4, %5
+    %6: %r4 = load var $1: %r4
+    %7: %r6 = fun.code offsetBy.lambda
+    %8: %r7 = object %s2 %7, %6
+    store var $2: %r7, %8
+    store var $3: %r3, %4
+    %9: %r3 = load var $3: %r3
+    %10: %r3 = const null
+    %11: %r8 = binary.eq %9, %10
+    %12: %r2 = const 1
+    %13: %r2 = const 0
+    %14: %r2 = select %11, %13, %12
+    %15: %r2 = const 1
+    %16: %r9 = binary.eq %14, %15
+    branch %16 -> block2 -> block1
+  block1:
+    %17: %r3 = const null
+    jump -> block3(%17)
+  block2:
+    %19: %r0 = load var $3: %r0
+    %20: %r0 = load property %6.by: %r0
+    %21: %r0 = binary.add %19, %20
+    %22: %r0 = coerce %21
+    %23: %r3 = alias %22
+    jump -> block3(%23)
+  block3(%2: %r3):
+    return %2
+
+fn identify(one %r3) -> one %r3
+  var $0: %r3
+  block0(%0: %r3):
+    store var $0: %r3, %0
+    %5: %r6 = fun.code identify.lambda
+    %6: %r6 = const null
+    %8: %r0 = const 0
+    %10: %r3 = load var $0: %r3
+    %11: %r3 = const null
+    %12: %r8 = binary.eq %10, %11
+    %13: %r2 = const 1
+    %14: %r2 = const 0
+    %15: %r2 = select %12, %14, %13
+    %16: %r2 = const 1
+    %17: %r9 = binary.eq %15, %16
+    branch %17 -> block2 -> block1
+  block1:
+    %18: %r3 = load var $0: %r3
+    type.drop %18
+    %19: %r3 = const null
+    jump -> block3(%19)
+  block2:
+    %21: %r0 = load var $0: %r0
+    %9: %r10 = object %s3 %8
+    store property %9.$v: %r0, %21
+    %22: %r0 = load property %9.$v: %r0
+    %7: %r7 = object %s2 %5, %6
+    %4: %r7 = alias %7
+    %23: %r6 = load property %4.$c: %r6
+    %24: %r6 = load property %4.$e: %r6
+    %25: %r0 = call.value %23, %24, %22
+    %26: %r0 = load property %9.$v: %r0
+    call Token.drop %26
+    %27: %r3 = alias %25
+    jump -> block3(%27)
+  block3(%1: %r3):
+    return %1
+
+fn main() -> one %r0
+  var $0: %r3
+  var $1: %r3
+  var $2: %r3
+  var $3: %r3
+  block0:
+    %4: %r0 = const 4
+    %5: %r3 = alias %4
+    %6: %r0 = const 10
+    %7: %r3 = call offsetBy %5, %6
+    store var $0: %r3, %7
+    %8: %r3 = load var $0: %r3
+    %9: %r3 = const null
+    %10: %r8 = binary.eq %8, %9
+    %11: %r2 = const 1
+    %12: %r2 = const 0
+    %13: %r2 = select %10, %12, %11
+    %14: %r2 = const 1
+    %15: %r9 = binary.eq %13, %14
+    branch %15 -> block3 -> block1
+  block1:
+    %16: %r0 = const 0
+    jump -> block2(%16)
+  block2(%0: %r0):
+    %19: %r3 = const null
+    %20: %r0 = const 10
+    %21: %r3 = call offsetBy %19, %20
+    store var $1: %r3, %21
+    %22: %r3 = load var $1: %r3
+    %23: %r3 = const null
+    %24: %r8 = binary.eq %22, %23
+    %25: %r2 = const 1
+    %26: %r2 = const 0
+    %27: %r2 = select %24, %26, %25
+    %28: %r2 = const 1
+    %29: %r9 = binary.eq %27, %28
+    branch %29 -> block6 -> block4
+  block3:
+    %18: %r0 = load var $0: %r0
+    jump -> block2(%18)
+  block4:
+    %30: %r0 = const 1
+    jump -> block5(%30)
+  block5(%1: %r0):
+    %33: %r0 = binary.add %0, %1
+    %34: %r0 = coerce %33
+    %35: %r0 = const 7
+    %36: %r0 = alias %35
+    %37: %r3 = alias %36
+    %38: %r3 = call identify %37
+    store var $2: %r3, %38
+    %39: %r3 = load var $2: %r3
+    %40: %r3 = const null
+    %41: %r8 = binary.eq %39, %40
+    %42: %r2 = const 1
+    %43: %r2 = const 0
+    %44: %r2 = select %41, %43, %42
+    %45: %r2 = const 1
+    %46: %r9 = binary.eq %44, %45
+    branch %46 -> block9 -> block7
+  block6:
+    %32: %r0 = load var $1: %r0
+    jump -> block5(%32)
+  block7:
+    %47: %r0 = const 0
+    jump -> block8(%47)
+  block8(%2: %r0):
+    %50: %r0 = binary.add %34, %2
+    %51: %r0 = coerce %50
+    %52: %r3 = const null
+    %53: %r3 = call identify %52
+    store var $3: %r3, %53
+    %54: %r3 = load var $3: %r3
+    %55: %r3 = const null
+    %56: %r8 = binary.eq %54, %55
+    %57: %r2 = const 1
+    %58: %r2 = const 0
+    %59: %r2 = select %56, %58, %57
+    %60: %r2 = const 1
+    %61: %r9 = binary.eq %59, %60
+    branch %61 -> block12 -> block10
+  block9:
+    %49: %r0 = load var $2: %r0
+    jump -> block8(%49)
+  block10:
+    %62: %r0 = const 100
+    jump -> block11(%62)
+  block11(%3: %r0):
+    %65: %r0 = binary.add %51, %3
+    %66: %r0 = coerce %65
+    %67: %r0 = const 10
+    %68: %r0 = binary.mul %66, %67
+    %69: %r0 = coerce %68
+    %70: %r0 = load global dropped: %r0
+    %71: %r0 = binary.add %69, %70
+    %72: %r0 = coerce %71
+    return %72
+  block12:
+    %64: %r0 = load var $3: %r0
+    jump -> block11(%64)
+
+fn offsetBy.lambda(one %r4, one %r0) -> one %r0 env
+  block0(%0: %r4, %1: %r0):
+    %2: %r0 = load property %0.by: %r0
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    return %4
+
+fn identify.lambda(one %r5, one %r0) -> one %r0 env
+  block0(%0: %r5, %1: %r0):
+    return %1
+
+optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 1 sunk 2
+
+shape %s0 object offsetBy.lambda.env {by: %r0}
+shape %s1 object identify.lambda.env {}
+shape %s2 fun {$c: %r6 code, $e: %r6 env}
+shape %s3 cell {$v: %r0 box}
+
+rep %r0 = number signed 32
+rep %r1 = void
+rep %r2 = number unsigned 8
+rep %r3 = nullable of %r0
+rep %r4 = object %s0
+rep %r5 = object %s1
+rep %r6 = erased
+rep %r7 = object %s2
+rep %r8 = boolean
+rep %r9 = number bool
+rep %r10 = object %s3
+fn (one %r3) -> omitted
+  block0(%0: %r3):
+    %2: %r3 = const null
+    %3: %r8 = binary.eq %0, %2
+    branch %3 -> block1 -> block2
+  block1:
+    return
+  block2:
+    %1: %r0 = alias %0
+    call Token.drop %1
+    jump -> block1
+

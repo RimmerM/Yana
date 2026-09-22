@@ -1,0 +1,126 @@
+module ResolveTest
+
+data P {a: Maybe(I64), b: I32}
+
+data Branch = Leaf | Node {left: @box Branch, right: @box Branch, mark: I32} reclaim derived
+
+let table: [P *2] = [P {a: Just(3000000000000), b: 4}, P {a: Nothing, b: 5}]
+
+let & tree: Branch = Leaf
+
+fn niched() -> I32 {
+  local & n: I32
+  local & local1: I32
+  local i: I32
+  local v: I64
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (n) take %0
+  %2: I32 = const 0
+  %3: I32 = const 2
+  %4: I32 = const 1
+  write.init borrow.unique (local1) take %2
+  jump -> bb1(take %3, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local1)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %67: I32 = read copy.trivial (local1)
+  %68: I32 = add inspect %67 inspect %8
+  write.assign borrow.unique (local1) take %68
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %71: I32 = read copy.trivial (n)
+  return take %71
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local1)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: Size = convert inspect %20
+  %22: USize = const 2
+  %23: USize = bitcast inspect %21
+  %24: Bool = ge inspect %23 inspect %22
+  %25: {} = call checkCondition borrow.shared %24
+  %28: U8 = read copy.trivial (global table[...].a.#)
+  %29: U8 = const 1
+  %30: Bool = eq inspect %28 inspect %29
+  branch inspect %30 -> bb7(take %15, take %16) -> bb5(take %15, take %16)
+
+bb5(%26: I32, %27: I32):
+  jump -> bb6(take %26, take %27)
+
+bb6(%53: I32, %54: I32):
+  %57: I32 [unique call] = read borrow.unique (n) loan1
+  %58: I32 = read copy.trivial (i)
+  %59: Size = convert inspect %58
+  %60: USize = const 2
+  %61: USize = bitcast inspect %59
+  %62: Bool = ge inspect %61 inspect %60
+  %63: {} = call checkCondition borrow.shared %62
+  %64: I32 = read copy.trivial (global table[...].b)
+  %65: {} = call +=(I32) borrow.unique %57 borrow.shared %64
+  jump -> bb2(take %53, take %54)
+
+bb7(%31: I32, %32: I32):
+  %34: I64 = read copy.trivial (global table[...].a.Just)
+  write.init borrow.unique (v) take %34
+  %36: I64 = read copy.trivial (v)
+  %37: I64 = const 255
+  %38: I64 = and inspect %36 inspect %37
+  %39: I64 = const 0
+  %40: Bool = eq inspect %38 inspect %39
+  branch inspect %40 -> bb10(take %31, take %32) -> bb8(take %31, take %32)
+
+bb8(%41: I32, %42: I32):
+  jump -> bb9(take %41, take %42)
+
+bb9(%49: I32, %50: I32):
+  jump -> bb6(take %49, take %50)
+
+bb10(%43: I32, %44: I32):
+  %46: I32 [unique call] = read borrow.unique (n) loan0
+  %47: I32 = const 1
+  %48: {} = call +=(I32) borrow.unique %46 borrow.shared %47
+  jump -> bb9(take %43, take %44)
+}
+
+fn recursive() -> I32 {
+  local m: I32
+
+bb0:
+  %0: U8 = read copy.trivial (global tree.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: I32 = const 7
+  return take %9
+
+bb3:
+  %4: I32 = read copy.trivial (global tree.mark)
+  write.init borrow.unique (m) take %4
+  %6: I32 = read copy.trivial (m)
+  return take %6
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call niched
+  %1: I32 = call recursive
+  %2: I32 = const 100
+  %3: I32 = mul inspect %1 inspect %2
+  %4: I32 = add inspect %0 inspect %3
+  return take %4
+}
+
+entry main

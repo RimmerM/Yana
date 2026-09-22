@@ -1,0 +1,57 @@
+fn plain(one %r0) -> one %r1
+  block0(%0: %r2, %1: %r0):
+    %2: %r1 = const 7
+    return %2
+
+fn main() -> one %r1
+  var $0: %r3
+  block0:
+    %0: %r1 = const 3
+    %1: %r1 = const 1
+    %2: %r3 = object %s0 %0, %1
+    store var $0: %r3, %2
+    %3: %r3 = load var $0: %r3
+    %4: %r3 = alias %3
+    %5: %r1 = load property %4.size: %r1
+    %6: %r1 = binary.add %5, %5
+    %7: %r1 = coerce %6
+    %8: %r3 = load var $0: %r3
+    %9: %r3 = alias %8
+    %10: %r1 = load property %9.size: %r1
+    %11: %r1 = const 40
+    %12: %r1 = binary.add %10, %11
+    %13: %r1 = coerce %12
+    %14: %r1 = binary.add %7, %13
+    %15: %r1 = coerce %14
+    %16: %r3 = load var $0: %r3
+    %17: %r3 = alias %16
+    %18: %r1 = load property %17.size: %r1
+    %19: %r1 = const 1
+    %20: %r1 = binary.add %18, %19
+    %21: %r1 = coerce %20
+    %22: %r1 = binary.add %21, %21
+    %23: %r1 = coerce %22
+    %24: %r1 = binary.add %23, %23
+    %25: %r1 = coerce %24
+    %26: %r1 = binary.add %25, %25
+    %27: %r1 = coerce %26
+    %28: %r1 = binary.add %27, %27
+    %29: %r1 = coerce %28
+    %30: %r1 = binary.add %29, %29
+    %31: %r1 = coerce %30
+    %32: %r2 = gen.table
+    %33: %r1 = call plain %32, %17
+    %34: %r1 = binary.add %31, %33
+    %35: %r1 = coerce %34
+    %36: %r1 = binary.add %15, %35
+    %37: %r1 = coerce %36
+    return %37
+
+optimizer clones 3 aliased 3 forwarded 0 removed 0 adopted 0 sunk 0
+
+shape %s0 object Vessel {size: %r1, mark: %r1}
+
+rep %r0 = erased
+rep %r1 = number signed 32
+rep %r2 = array Array of %r0
+rep %r3 = object %s0

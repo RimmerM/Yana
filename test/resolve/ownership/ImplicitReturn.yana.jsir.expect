@@ -1,0 +1,35 @@
+fn fact(one %r0) -> one %r0
+  block0(%0: %r0):
+    %2: %r0 = const 1
+    %3: %r1 = binary.le %0, %2
+    branch %3 -> block3 -> block1
+  block1:
+    %4: %r0 = const 1
+    %5: %r0 = binary.sub %0, %4
+    %6: %r0 = coerce %5
+    %7: %r0 = call fact %6
+    %8: %r0 = binary.mul %0, %7
+    %9: %r0 = coerce %8
+    jump -> block2(%9)
+  block2(%1: %r0):
+    return %1
+  block3:
+    %10: %r0 = const 1
+    jump -> block2(%10)
+
+fn main() -> one %r0
+  block0:
+    %3: %r0 = const 94
+    %4: %r0 = const 4
+    %5: %r0 = call fact %4
+    %6: %r0 = binary.add %3, %5
+    %7: %r0 = coerce %6
+    return %7
+
+optimizer clones 0 aliased 0 forwarded 0 removed 3 adopted 0 sunk 0
+
+shape %s0 object Point {x: %r0, y: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = number bool
+rep %r2 = object %s0

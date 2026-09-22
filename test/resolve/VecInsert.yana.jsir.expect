@@ -1,0 +1,119 @@
+fn floats() -> one %r0
+  block0:
+    %0: %r1 = const 1.5
+    %1: %r1 = const -0
+    %2: %r1 = const 1.5
+    %3: %r4 = binary.ne %0, %2
+    branch %3 -> block2 -> block1
+  block1:
+    %4: %r1 = const 1
+    %5: %r1 = binary.div %4, %1
+    %6: %r1 = coerce %5
+    %7: %r1 = const 0
+    %8: %r4 = binary.gt %6, %7
+    branch %8 -> block4 -> block3
+  block2:
+    %20: %r0 = const -1
+    return %20
+  block3:
+    %9: %r5 = const 1.5
+    %10: %r5 = const 4.25
+    %11: %r5 = const 1.5
+    %12: %r4 = binary.ne %9, %11
+    branch %12 -> block6 -> block5
+  block4:
+    %19: %r0 = const -2
+    return %19
+  block5:
+    %13: %r5 = const 4.25
+    %14: %r4 = binary.ne %10, %13
+    %15: %r0 = const -4
+    %16: %r0 = const 0
+    %17: %r0 = select %14, %15, %16
+    return %17
+  block6:
+    %18: %r0 = const -3
+    return %18
+
+fn indices() -> one %r0
+  block0:
+    %0: %r0 = const 0
+    %1: %r0 = const 1
+    %3: %r0 = const 3
+    %4: %r0 = const 0
+    %5: %r4 = binary.ne %0, %4
+    branch %5 -> block2 -> block1
+  block1:
+    %6: %r0 = const 1
+    %7: %r4 = binary.ne %1, %6
+    branch %7 -> block4 -> block3
+  block2:
+    %14: %r0 = const -1
+    return %14
+  block3:
+    %8: %r0 = const 3
+    %9: %r4 = binary.ne %3, %8
+    %10: %r0 = const -3
+    %11: %r0 = const 0
+    %12: %r0 = select %9, %10, %11
+    return %12
+  block4:
+    %13: %r0 = const -2
+    return %13
+
+fn main() -> one %r0
+  block0:
+    %0: %r0 = call floats
+    %1: %r0 = const 0
+    %2: %r4 = binary.ne %0, %1
+    branch %2 -> block2 -> block1
+  block1:
+    %3: %r0 = call indices
+    %4: %r0 = const 0
+    %5: %r4 = binary.ne %3, %4
+    branch %5 -> block4 -> block3
+  block2:
+    %28: %r0 = call floats
+    %29: %r0 = const 10
+    %30: %r0 = binary.mul %28, %29
+    %31: %r0 = coerce %30
+    return %31
+  block3:
+    %6: %r0 = const 5
+    %7: %r0 = const 9
+    %8: %r0 = const 7
+    %9: %r0 = const 1000
+    %10: %r0 = binary.mul %8, %9
+    %11: %r0 = coerce %10
+    %12: %r0 = const 100
+    %13: %r0 = binary.mul %7, %12
+    %14: %r0 = coerce %13
+    %15: %r0 = binary.add %11, %14
+    %16: %r0 = coerce %15
+    %17: %r0 = const 10
+    %18: %r0 = binary.mul %6, %17
+    %19: %r0 = coerce %18
+    %20: %r0 = binary.add %16, %19
+    %21: %r0 = coerce %20
+    %22: %r0 = binary.add %21, %6
+    %23: %r0 = coerce %22
+    return %23
+  block4:
+    %24: %r0 = call indices
+    %25: %r0 = const 100
+    %26: %r0 = binary.mul %24, %25
+    %27: %r0 = coerce %26
+    return %27
+
+optimizer clones 0 aliased 0 forwarded 0 removed 1 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = number f32
+rep %r2 = array Float32Array of %r1
+rep %r3 = parts (%r1, %r1, %r1, %r1) as %r2
+rep %r4 = number bool
+rep %r5 = number f64
+rep %r6 = array Float64Array of %r5
+rep %r7 = parts (%r5, %r5) as %r6
+rep %r8 = array Int32Array of %r0
+rep %r9 = parts (%r0, %r0, %r0, %r0) as %r8

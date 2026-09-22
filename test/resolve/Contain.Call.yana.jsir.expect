@@ -1,0 +1,71 @@
+fn score(one %r1) -> one %r2
+  block0(%0: %r1):
+    %1: %r0 = load property %0.read: %r0
+    %2: %r2 = const 10
+    %3: %r2 = const 20
+    %4: %r2 = select %1, %2, %3
+    return %4
+
+fn mutate(one %r1) -> one %r2
+  block0(%0: %r1):
+    %1: %r0 = const 1
+    store property %0.read: %r0, %1
+    %2: %r2 = const 0
+    return %2
+
+fn main() -> one %r2
+  var $0: %r1
+  var $1: %r1
+  block0:
+    %0: %r0 = const 1
+    %1: %r0 = const 0
+    %2: %r1 = object %s0 %0, %1
+    store var $0: %r1, %2
+    %3: %r1 = load var $0: %r1
+    %4: %r1 = alias %3
+    %5: %r2 = call score %4
+    %6: %r2 = const 1
+    %7: %r1 = load var $0: %r1
+    %8: %r1 = alias %7
+    %9: %r2 = call score %8
+    %10: %r2 = const 8
+    %11: %r2 = binary.add %5, %6
+    %12: %r2 = coerce %11
+    %13: %r2 = binary.add %12, %9
+    %14: %r2 = coerce %13
+    %15: %r2 = binary.add %14, %10
+    %16: %r2 = coerce %15
+    %17: %r0 = const 0
+    %18: %r0 = const 1
+    %19: %r1 = object %s0 %17, %18
+    store var $1: %r1, %19
+    %20: %r1 = load var $1: %r1
+    %21: %r1 = alias %20
+    %22: %r2 = call score %21
+    %23: %r2 = const 100
+    %24: %r2 = binary.add %22, %23
+    %25: %r2 = coerce %24
+    %26: %r2 = binary.add %16, %25
+    %27: %r2 = coerce %26
+    %31: %r0 = const 0
+    %32: %r0 = const 0
+    %33: %r1 = object %s0 %31, %32
+    %30: %r1 = alias %33
+    %34: %r2 = call mutate %30
+    %35: %r0 = load property %30.read: %r0
+    %36: %r2 = const 1000
+    %37: %r2 = const 2000
+    %38: %r2 = select %35, %36, %37
+    %39: %r2 = binary.add %38, %34
+    %40: %r2 = coerce %39
+    %41: %r2 = binary.add %27, %40
+    %42: %r2 = coerce %41
+    return %42
+
+optimizer clones 3 aliased 3 forwarded 0 removed 2 adopted 1 sunk 0
+
+shape %s0 object Flags {read: %r0, write: %r0}
+
+rep %r0 = number bool
+rep %r1 = object %s0
+rep %r2 = number signed 32

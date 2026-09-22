@@ -24,6 +24,9 @@ namespace mir {
  *
  * `runBorrowed` is what makes the teardown nothing, and it is nothing **by construction** rather
  * than by running `Reclaim` to find out - which is what `markInertConstant` is told below.
+ *
+ * On JavaScript none of that exists and the constant is the text itself - see the arm at the top,
+ * which is the one place the two targets' literals differ.
  */
 Constant Resolver::stringConstant(StringId written, LocationId source) {
     auto declared = program.roles.record(intrinsic::Known::string);
@@ -31,6 +34,27 @@ Constant Resolver::stringConstant(StringId written, LocationId source) {
         reportMissingRole(intrinsic::Known::string, "a string literal"_v, source);
         return Constant();
     }
+
+    /*
+     * The **second arm** `Resolver::textValue`'s comment predicted - "the day a target's string has
+     * no static form is the day this grows a second arm again, and it will be *this* function that
+     * grows it". That day is a JavaScript build.
+     *
+     * A host string has no run, no bytes of its own and no address: what a literal *is* there is the
+     * text, handed to the engine, and everything the native arm below builds - a `[CodeUnit *n]`
+     * global, a `Run` of borrowed slots, an `Array` over it, a relocation into the image - describes
+     * storage this target does not have. So the constant stays a `Constant::Text` at the `string`
+     * record's own type, which is exactly what that kind was written to mean: `constant.h` says "a
+     * native build wants a run in static storage and a descriptor pointing into it, JS wants the
+     * host's own string", and the kind exists so that the answer is the *target's* rather than this
+     * tier's. JSIR is what turns one into a host string literal.
+     *
+     * No `markInertConstant`: that records that a native literal's teardown is nothing *by
+     * construction* because its run is borrowed. Here the record owes no teardown at all - the
+     * collector owns every host string, which is why `lib/` declares no `Reclaim(String)` for this
+     * target - so `isLinear` answers false and there is nothing to record.
+     */
+    if(isJsMode(context.settings)) return textConstant(DeclPtr<Type>(declared.offset), written);
 
     auto& record = *(RecordType*)decl()[declared];
     if(record.fields.size() != 1) {

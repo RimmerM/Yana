@@ -120,7 +120,7 @@ import Native
    each stage takes the form it can check.
 -}
 
-instance Index(Array(a), Size, a):
+@platform(native) instance Index(Array(a), Size, a):
     @inline(always) fn get(self: source'[a], index: Size) -> source'a:
         if (bitcast(index) :: USize) >= (bitcast(length(self)) :: USize) then checkFailed()
         return borrow(values(self) + index)
@@ -128,6 +128,30 @@ instance Index(Array(a), Size, a):
     @inline(always) fn getMut(&self: source'[a], index: Size) -> &source'a:
         if (bitcast(index) :: USize) >= (bitcast(length(self)) :: USize) then checkFailed()
         return borrowMut(valuesMut(self) + index)
+
+{-
+   And on JS, where an element is reached by index rather than by address - the pair the comment
+   above writes out, with the bound in front of it.
+
+   `values` has no JS body and cannot have one: `items` is the whole host array in every window of
+   it, so what a caller may read is `offset` up to `offset + length` and there is no base to advance
+   (`Array.js.yana` says so where the window is built). So the index the host is given is the
+   window's own plus the offset, and `hostAt`/`hostAtMut` are the element place - which is the same
+   place a native `borrow(values(self) + index)` is, reached the way this target reaches one.
+
+   Two instances rather than one body with a `@platform` split inside it, because the split is in
+   how the element is *reached* and the bodies then share only the bounds test - and the shipping
+   stage retires whichever of these it reads in favour of its own generated heads, exactly as it
+   retires the native one.
+-}
+@platform(js) instance Index(Array(a), Size, a):
+    @inline(always) fn get(self: source'[a], index: Size) -> source'a:
+        if (bitcast(index) :: USize) >= (bitcast(length(self)) :: USize) then checkFailed()
+        return hostAt(hostItems(self), self.offset + index)
+
+    @inline(always) fn getMut(&self: source'[a], index: Size) -> &source'a:
+        if (bitcast(index) :: USize) >= (bitcast(length(self)) :: USize) then checkFailed()
+        return hostAtMut(hostItemsMut(self), self.offset + index)
 
 {-
    How many elements the owner holds - `Container.yana`'s `Length`, and the first of the container

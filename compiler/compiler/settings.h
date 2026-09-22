@@ -48,14 +48,27 @@ enum class CompileMode {
     /// for. Both imply `-resolver ownership`, since nothing else produces either.
     Mir,
     Ssa,
+
+    /// The JavaScript target's own dump - Analysis-IR-JS.md §8.4. The typed managed-value IR between
+    /// OSSA and the syntax tree, with its representations, its shapes, its ABIs and one body per
+    /// function. Implies `-resolver ownership -platform js`, since nothing else produces one - the
+    /// same argument `mir` and `ssa` make, which is that a tier whose dump is a driver flag is a
+    /// tier whose output is asserted from its first fixture.
+    Jsir,
 };
 
 /*
  * Which resolve stage compiles this program - Analysis-IR.md part 11.2.
  *
- * `Legacy` is `compiler/resolve`, and is the default and what ships. `Ownership` is the rewrite in
- * `compiler/resolve_mir` and `compiler/resolve_ssa`, which shares the parser and everything from
- * `compiler/lower` down and nothing in between.
+ * `Ownership` is the rewrite in `compiler/resolve_mir` and `compiler/resolve_ssa`, which shares the
+ * parser and everything from `compiler/lower` down and nothing in between, and **is the default on
+ * both platforms** since 2026-09-22 (J81). `Legacy` is `compiler/resolve`, which is now the
+ * comparison stage: what is still only its is `-mode ir`, `-mode drops`, `-mode shared`,
+ * `-mode lib` and the goldens the test drivers pin it for.
+ *
+ * The default flipped rather than the old stage being deleted, deliberately: two front halves that
+ * can compile one fixture is the whole value of the second set of goldens, and a default that names
+ * the stage a person actually ships is what keeps the *other* one from being what they measure.
  *
  * A run-time switch rather than a build-time one, deliberately: what is worth having is one binary
  * that can compile one fixture both ways, so that a disagreement between them is a difference in
@@ -80,7 +93,7 @@ inline bool isJsMode(const struct CompileSettings& settings);
 inline bool isExecutableMode(CompileMode mode) {
     return mode == CompileMode::Executable || mode == CompileMode::Drops ||
            mode == CompileMode::Ir || mode == CompileMode::Lower || mode == CompileMode::Llvm ||
-           mode == CompileMode::Mir || mode == CompileMode::Ssa;
+           mode == CompileMode::Mir || mode == CompileMode::Ssa || mode == CompileMode::Jsir;
 }
 
 /// Whether a mode writes text about the program rather than something that runs. The three that do
@@ -88,7 +101,7 @@ inline bool isExecutableMode(CompileMode mode) {
 inline bool isTextMode(CompileMode mode) {
     return mode == CompileMode::Ast || mode == CompileMode::Drops ||
            mode == CompileMode::Ir || mode == CompileMode::Lower || mode == CompileMode::Llvm ||
-           mode == CompileMode::Mir || mode == CompileMode::Ssa;
+           mode == CompileMode::Mir || mode == CompileMode::Ssa || mode == CompileMode::Jsir;
 }
 
 /// Native executable formats that can be generated.
@@ -546,6 +559,16 @@ struct CompileSettings {
     /// where a semantic decision quietly moved to.
     bool optimizeIr = true;
 
+    /// Whether the **JSIR** optimizer runs - `-no-jsir-opt`, read only by `resolve_ssa/js/opt.h`'s
+    /// passes and therefore only on `-platform js -resolver ownership`.
+    ///
+    /// A third axis rather than a reading of `optimizeIr`, because Analysis-IR-JS.md §10.2 asks for
+    /// the three configurations separately: shared OSSA optimization on and off, JSIR optimization
+    /// on and off. What the pair answers that neither answers alone is which tier a disagreement
+    /// came from - a program that differs with `-no-ir-opt` and agrees with this one has a defect
+    /// above the fork, and the other way round has one below it.
+    bool optimizeJsir = true;
+
     /// How aggressively compiler/opt inlines - see InlineLevel. Read only when `optimizeIr` is on,
     /// since the whole stage is off otherwise.
     InlineLevel inlining = InlineLevel::Balanced;
@@ -725,8 +748,9 @@ struct CompileSettings {
      */
     bool ownershipRanges = false;
 
-    /// `-resolver legacy|ownership`, and implied by `-mode mir` and `-mode ssa` - see ResolverStage.
-    ResolverStage resolver = ResolverStage::Legacy;
+    /// `-resolver legacy|ownership`, and implied by `-mode mir`, `-mode ssa` and `-mode jsir`. The
+    /// rewrite since 2026-09-22 (J81) - see ResolverStage for why the old stage is still reachable.
+    ResolverStage resolver = ResolverStage::Ownership;
 
     /*
      * The `explain` query - Analysis-Ambient.md §7.3.

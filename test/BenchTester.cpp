@@ -73,6 +73,8 @@
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/gen.h"
 #include "../compiler/codegen/js/gen.h"
+#include "../compiler/codegen/js/jsir.h"
+#include "../compiler/resolve_ssa/pipeline.h"
 #include "corpus.h"
 #include "directives.h"
 
@@ -105,7 +107,7 @@ static U64 gAllocations = 0;
 static bool gTrace = false;
 
 /*
- * Where the allocations come from, under `-sites`.
+ * Where the allocations come from, under `-sites` - or `-sites <phase>` for one phase alone.
  *
  * A total says a change helped; this says what to change. The key is the address `malloc` was
  * called from, which after inlining is a line inside whichever pass built the list - not a line
@@ -127,6 +129,21 @@ struct Site {
 static Site gSites[kSiteSlots];
 static bool gProfiling = false;
 static U64 gSitesDropped = 0;
+
+/*
+ * Which phase the table is for - `-sites jsir` rather than `-sites`.
+ *
+ * A program-wide table answers "what does this compiler allocate", and that is not the question a
+ * phase column raises: two thirds of the corpus's allocations are the parse and the resolve both
+ * pipelines share, so the twenty largest sites are theirs whichever backend is being worked on.
+ * Naming a phase records only while that phase is the *innermost* frame, which is the same
+ * subtraction the phase column itself reports - so the table adds up to the column rather than to
+ * the column plus whatever nested inside it.
+ *
+ * -1 is every phase, which is what `-sites` alone still means.
+ */
+static int gSitePhase = -1;
+static bool siteInScope();   // defined below the phase stack, which is what it reads
 
 static void recordSite(void* address) {
     auto hash = (Size(address) * 0x9E3779B97F4A7C15ull) >> 45;
@@ -153,7 +170,7 @@ static void recordSite(void* address) {
 extern "C" void* malloc(size_t size) {
     if(gCounting) {
         gAllocations++;
-        if(gProfiling) recordSite(__builtin_return_address(0));
+        if(gProfiling && siteInScope()) recordSite(__builtin_return_address(0));
     }
 
     return __libc_malloc(size);
@@ -162,7 +179,7 @@ extern "C" void* malloc(size_t size) {
 extern "C" void* calloc(size_t count, size_t size) {
     if(gCounting) {
         gAllocations++;
-        if(gProfiling) recordSite(__builtin_return_address(0));
+        if(gProfiling && siteInScope()) recordSite(__builtin_return_address(0));
     }
 
     return __libc_calloc(count, size);
@@ -173,7 +190,7 @@ extern "C" void* calloc(size_t count, size_t size) {
 extern "C" void* realloc(void* p, size_t size) {
     if(gCounting) {
         gAllocations++;
-        if(gProfiling) recordSite(__builtin_return_address(0));
+        if(gProfiling && siteInScope()) recordSite(__builtin_return_address(0));
     }
 
     return __libc_realloc(p, size);
@@ -291,9 +308,15 @@ struct Phase {
 
 static Phase gPhases[] = {
     { "parse" }, { "resolve" }, { "ownership" }, { "opt" }, { "lower" }, { "amd64" }, { "js" },
+
+    // The JavaScript target through JSIR - the conversion, its verifier and the emission, charged
+    // together for the reason `js` is: what a reader compares is the two pipelines' cost for one
+    // program, and splitting one of them and not the other would make the columns incomparable.
+    { "jsir" },
 };
 
-enum PhaseId { PhaseParse, PhaseResolve, PhaseOwnership, PhaseOpt, PhaseLower, PhaseX64, PhaseJs, PhaseCount };
+enum PhaseId { PhaseParse, PhaseResolve, PhaseOwnership, PhaseOpt, PhaseLower, PhaseX64, PhaseJs,
+               PhaseJsir, PhaseCount };
 
 /*
  * The phase stack, and why a phase's number is not simply its elapsed time.
@@ -318,6 +341,11 @@ struct PhaseFrame {
 
 static PhaseFrame gPhaseStack[8];
 static Size gPhaseDepth = 0;
+
+static bool siteInScope() {
+    if(gSitePhase < 0) return true;
+    return gPhaseDepth && gPhaseStack[gPhaseDepth - 1].id == (PhaseId)gSitePhase;
+}
 
 static void enterPhase(PhaseId id) {
     assertTrue(gPhaseDepth < 8); // phases nested deeper than the pipeline has stages
@@ -386,6 +414,11 @@ static void benchNative(const Fixture& fixture) {
     if(stringView(fixture.path).startsWith("lib/"_v)) provider.moduleRoot = String("lib/modules/");
     Diagnostics diagnostics(provider);
     Context context(diagnostics);
+
+    // The shipping stage, named rather than defaulted to: `CompileSettings::resolver` is the rewrite
+    // since 2026-09-22 (J81), and what this row measures is `compiler/resolve` - `benchJsir` below
+    // is the other stage's row and `PhaseResolve` would otherwise be two compilers' number.
+    context.settings.resolver = ResolverStage::Legacy;
 
     // A `lib/` fixture is a suite with a synthesized entry rather than a program with a `main` -
     // Design-Test.md §11.2's F1. Without this it does not resolve at all, and a fixture that does
@@ -461,6 +494,10 @@ static void benchJs(const Fixture& fixture) {
     Diagnostics diagnostics(provider);
     Context context(diagnostics);
     context.settings.platform = TargetPlatform::Js;
+
+    // The shipping stage, for the reason `benchNative` states: this is the `js` row and `benchJsir`
+    // is the rewrite's.
+    context.settings.resolver = ResolverStage::Legacy;
     context.settings.test = stringView(fixture.path).startsWith("lib/"_v);
     provider.context = &context;
 
@@ -482,6 +519,50 @@ static void benchJs(const Fixture& fixture) {
     {
         PhaseTimer timer(PhaseJs);
         auto file = js::genProgram(context, *module);
+        Net::Writer writer(16384);
+        js::formatFile(writer, context, *file, false);
+    }
+}
+
+/*
+ * The same fixture through the ownership pipeline's JavaScript half - Analysis-IR-JS.md §7.8.
+ *
+ * Beside `benchJs` rather than folded into it, because the two are two compilers: this one resolves
+ * through `resolve_mir`, converts to SSA, optimizes it and then builds JSIR, and the only phase the
+ * two share is the parse. Charged to `jsir` as one number for the reason the phase comment gives.
+ *
+ * Silent where the program does not compile for this target yet, which is most of the corpus: what
+ * is being measured is the cost of the path, and a fixture that reports is a fixture the path did
+ * not run to the end on.
+ */
+static void benchJsir(const Fixture& fixture) {
+    if(!fixture.js) return;
+
+    BenchProvider provider;
+    provider.source = StringView { fixture.source.get(), fixture.length };
+    if(stringView(fixture.path).startsWith("lib/"_v)) provider.moduleRoot = String("lib/modules/");
+    Diagnostics diagnostics(provider);
+    Context context(diagnostics);
+    context.settings.platform = TargetPlatform::Js;
+    context.settings.resolver = ResolverStage::Ownership;
+    context.settings.test = stringView(fixture.path).startsWith("lib/"_v);
+    provider.context = &context;
+
+    auto name = context.addUnqualifiedName("Bench", 5);
+    auto ast = parseFixture(context, diagnostics, provider.source, name);
+
+    ssa::Pipeline pipeline(context);
+    if(!pipeline.resolve(ast, &provider)) return;
+    if(!pipeline.convert()) return;
+
+    pipeline.releaseMir();
+    if(!pipeline.optimize()) return;
+
+    {
+        PhaseTimer timer(PhaseJsir);
+        auto file = js::genJsirProgram(context, *pipeline.program, pipeline.converted, nullptr);
+        if(diagnostics.errorCount()) return;
+
         Net::Writer writer(16384);
         js::formatFile(writer, context, *file, false);
     }
@@ -552,7 +633,13 @@ static void reportSites(Size repeat) {
     }
 
     println("");
-    println("allocation sites (addr2line -e ../build-bench/test/YanaBench -f -i -C <offset>)");
+
+    if(gSitePhase < 0) {
+        println("allocation sites (addr2line -e ../build-bench/test/YanaBench -f -i -C <offset>)");
+    } else {
+        println("allocation sites in %@ (addr2line -e ../build-bench/test/YanaBench -f -i -C <offset>)",
+                gPhases[gSitePhase].name);
+    }
 
     // Twenty passes over a few hundred entries, picking the largest still unprinted each time.
     // Sorting would be tidier and this is a report printed once, after the measurement.
@@ -584,7 +671,22 @@ int main(int argc, const char** argv) {
     for(int i = 1; i < argc; i++) {
         if(String(argv[i]) == "-repeat" && i + 1 < argc) repeat = (Size)atoi(argv[++i]);
         else if(String(argv[i]) == "-trace") gTrace = true;
-        else if(String(argv[i]) == "-sites") gProfiling = true;
+        else if(String(argv[i]) == "-sites") {
+            gProfiling = true;
+
+            // An optional phase name after it. Recognized by matching the phase table rather than
+            // by "does not start with a dash", so a mistyped phase is a report and not a silent
+            // program-wide table that looks like the answer to a question nobody asked.
+            if(i + 1 < argc) {
+                for(Size p = 0; p < PhaseCount; p++) {
+                    if(String(argv[i + 1]) == String(gPhases[p].name)) {
+                        gSitePhase = (int)p;
+                        i++;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     auto skipped = readSkipList();
@@ -646,6 +748,7 @@ int main(int argc, const char** argv) {
     for(auto& fixture: fixtures) {
         benchNative(fixture);
         benchJs(fixture);
+        benchJsir(fixture);
     }
 
     for(auto& phase: gPhases) {
@@ -665,6 +768,7 @@ int main(int argc, const char** argv) {
         for(auto& fixture: fixtures) {
             benchNative(fixture);
             benchJs(fixture);
+            benchJsir(fixture);
         }
     }
 

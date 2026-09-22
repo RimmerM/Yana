@@ -1,0 +1,359 @@
+fn main() -> one %r0
+  var $0: %r6
+  var $1: %r3
+  var $2: %r6
+  var $3: %r3
+  var $4: %r6
+  var $5: %r3
+  var $6: %r6
+  var $7: %r3
+  block0:
+    %8: %r0 = const 4
+    %9: %r1 = array
+    %10: %r2 = const 0
+    %11: %r3 = object %s0 %9, %10
+    store var $1: %r3, %11
+    %12: %r0 = const 8
+    %13: %r0 = const 12
+    %14: %r1 = host host.array %8, %12, %13
+    %15: %r2 = const 3
+    %16: %r3 = object %s0 %14, %15
+    %17: %r5 = alias %16
+    %18: %r6 = call Maybe(a).toOutcome(Array(I32)) %17
+    store var $0: %r6, %18
+    %19: %r6 = load var $0: %r6
+    %20: %r6 = const null
+    %21: %r9 = binary.eq %19, %20
+    %22: %r4 = const 0
+    %23: %r4 = const 1
+    %24: %r4 = select %21, %23, %22
+    %25: %r4 = const 1
+    %26: %r10 = binary.eq %24, %25
+    %27: %r10 = unary.not %26
+    branch %27 -> block2 -> block1
+  block1:
+    %28: %r6 = load var $0: %r6
+    type.drop %28
+    %29: %r8 = const null
+    jump -> block4(%29)
+  block2:
+    %31: %r3 = load var $0: %r3
+    store var $1: %r3, %31
+    %32: %r0 = const 1
+    %33: %r3 = load var $1: %r3
+    %34: %r1 = load property %33.items: %r1
+    %35: %r3 = load var $1: %r3
+    %36: %r2 = load property %35.length: %r2
+    %37: %r0 = convert %36
+    %38: %r0 = const 0
+    %39: %r13 = convert %32
+    %40: %r13 = convert %37
+    %41: %r10 = binary.ge %39, %40
+    branch %41 -> block5 -> block3
+  block3:
+    %42: %r1 = alias %34
+    %43: %r0 = binary.add %38, %32
+    %44: %r0 = coerce %43
+    %45: %r0 = load element %42[%44]: %r0
+    %46: %r3 = load var $1: %r3
+    call Array(a).reclaim(I32) %46
+    %47: %r8 = alias %45
+    jump -> block4(%47)
+  block4(%0: %r8):
+    %48: %r0 = const 0
+    %49: %r8 = const null
+    %50: %r9 = binary.eq %0, %49
+    %51: %r4 = const 1
+    %52: %r4 = const 0
+    %53: %r4 = select %50, %52, %51
+    %54: %r4 = const 1
+    %55: %r10 = binary.eq %53, %54
+    branch %55 -> block7 -> block6
+  block5:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block6:
+    jump -> block8(%48)
+  block7:
+    %56: %r0 = alias %0
+    jump -> block8(%56)
+  block8(%1: %r0):
+    %57: %r1 = array
+    %58: %r2 = const 0
+    %59: %r3 = object %s0 %57, %58
+    store var $3: %r3, %59
+    %60: %r5 = const null
+    %61: %r6 = call Maybe(a).toOutcome(Array(I32)) %60
+    store var $2: %r6, %61
+    %62: %r6 = load var $2: %r6
+    %63: %r6 = const null
+    %64: %r9 = binary.eq %62, %63
+    %65: %r4 = const 0
+    %66: %r4 = const 1
+    %67: %r4 = select %64, %66, %65
+    %68: %r4 = const 1
+    %69: %r10 = binary.eq %67, %68
+    %70: %r10 = unary.not %69
+    branch %70 -> block10 -> block9
+  block9:
+    %71: %r6 = load var $2: %r6
+    type.drop %71
+    %72: %r8 = const null
+    jump -> block12(%72)
+  block10:
+    %74: %r3 = load var $2: %r3
+    store var $3: %r3, %74
+    %75: %r0 = const 1
+    %76: %r3 = load var $3: %r3
+    %77: %r1 = load property %76.items: %r1
+    %78: %r3 = load var $3: %r3
+    %79: %r2 = load property %78.length: %r2
+    %80: %r0 = convert %79
+    %81: %r0 = const 0
+    %82: %r13 = convert %75
+    %83: %r13 = convert %80
+    %84: %r10 = binary.ge %82, %83
+    branch %84 -> block13 -> block11
+  block11:
+    %85: %r1 = alias %77
+    %86: %r0 = binary.add %81, %75
+    %87: %r0 = coerce %86
+    %88: %r0 = load element %85[%87]: %r0
+    %89: %r3 = load var $3: %r3
+    call Array(a).reclaim(I32) %89
+    %90: %r8 = alias %88
+    jump -> block12(%90)
+  block12(%2: %r8):
+    %91: %r0 = const 0
+    %92: %r8 = const null
+    %93: %r9 = binary.eq %2, %92
+    %94: %r4 = const 1
+    %95: %r4 = const 0
+    %96: %r4 = select %93, %95, %94
+    %97: %r4 = const 1
+    %98: %r10 = binary.eq %96, %97
+    branch %98 -> block15 -> block14
+  block13:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block14:
+    jump -> block16(%91)
+  block15:
+    %99: %r0 = alias %2
+    jump -> block16(%99)
+  block16(%3: %r0):
+    %100: %r0 = const 5
+    %101: %r1 = array
+    %102: %r2 = const 0
+    %103: %r3 = object %s0 %101, %102
+    store var $5: %r3, %103
+    %104: %r0 = const 10
+    %105: %r0 = const 15
+    %106: %r1 = host host.array %100, %104, %105
+    %107: %r2 = const 3
+    %108: %r3 = object %s0 %106, %107
+    %109: %r5 = alias %108
+    %110: %r6 = call Maybe(a).toOutcome(Array(I32)) %109
+    store var $4: %r6, %110
+    %111: %r6 = load var $4: %r6
+    %112: %r6 = const null
+    %113: %r9 = binary.eq %111, %112
+    %114: %r4 = const 0
+    %115: %r4 = const 1
+    %116: %r4 = select %113, %115, %114
+    %117: %r4 = const 1
+    %118: %r10 = binary.eq %116, %117
+    %119: %r10 = unary.not %118
+    branch %119 -> block18 -> block17
+  block17:
+    %120: %r6 = load var $4: %r6
+    type.drop %120
+    %121: %r8 = const null
+    jump -> block20(%121)
+  block18:
+    %123: %r3 = load var $4: %r3
+    store var $5: %r3, %123
+    %124: %r0 = const 0
+    %125: %r3 = load var $5: %r3
+    %126: %r1 = load property %125.items: %r1
+    %127: %r3 = load var $5: %r3
+    %128: %r2 = load property %127.length: %r2
+    %129: %r0 = convert %128
+    %130: %r0 = const 0
+    %131: %r13 = convert %124
+    %132: %r13 = convert %129
+    %133: %r10 = binary.ge %131, %132
+    branch %133 -> block21 -> block19
+  block19:
+    %134: %r1 = alias %126
+    %135: %r0 = load element %134[%130]: %r0
+    %136: %r3 = load var $5: %r3
+    call Array(a).reclaim(I32) %136
+    %137: %r8 = alias %135
+    jump -> block20(%137)
+  block20(%4: %r8):
+    %138: %r0 = const 0
+    %139: %r8 = const null
+    %140: %r9 = binary.eq %4, %139
+    %141: %r4 = const 1
+    %142: %r4 = const 0
+    %143: %r4 = select %140, %142, %141
+    %144: %r4 = const 1
+    %145: %r10 = binary.eq %143, %144
+    branch %145 -> block23 -> block22
+  block21:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block22:
+    jump -> block24(%138)
+  block23:
+    %146: %r0 = alias %4
+    jump -> block24(%146)
+  block24(%5: %r0):
+    %147: %r1 = array
+    %148: %r2 = const 0
+    %149: %r3 = object %s0 %147, %148
+    store var $7: %r3, %149
+    %150: %r5 = const null
+    %151: %r6 = call Maybe(a).toOutcome(Array(I32)) %150
+    store var $6: %r6, %151
+    %152: %r6 = load var $6: %r6
+    %153: %r6 = const null
+    %154: %r9 = binary.eq %152, %153
+    %155: %r4 = const 0
+    %156: %r4 = const 1
+    %157: %r4 = select %154, %156, %155
+    %158: %r4 = const 1
+    %159: %r10 = binary.eq %157, %158
+    %160: %r10 = unary.not %159
+    branch %160 -> block26 -> block25
+  block25:
+    %161: %r6 = load var $6: %r6
+    type.drop %161
+    %162: %r8 = const null
+    jump -> block28(%162)
+  block26:
+    %164: %r3 = load var $6: %r3
+    store var $7: %r3, %164
+    %165: %r0 = const 0
+    %166: %r3 = load var $7: %r3
+    %167: %r1 = load property %166.items: %r1
+    %168: %r3 = load var $7: %r3
+    %169: %r2 = load property %168.length: %r2
+    %170: %r0 = convert %169
+    %171: %r0 = const 0
+    %172: %r13 = convert %165
+    %173: %r13 = convert %170
+    %174: %r10 = binary.ge %172, %173
+    branch %174 -> block29 -> block27
+  block27:
+    %175: %r1 = alias %167
+    %176: %r0 = load element %175[%171]: %r0
+    %177: %r3 = load var $7: %r3
+    call Array(a).reclaim(I32) %177
+    %178: %r8 = alias %176
+    jump -> block28(%178)
+  block28(%6: %r8):
+    %179: %r0 = const 0
+    %180: %r8 = const null
+    %181: %r9 = binary.eq %6, %180
+    %182: %r4 = const 1
+    %183: %r4 = const 0
+    %184: %r4 = select %181, %183, %182
+    %185: %r4 = const 1
+    %186: %r10 = binary.eq %184, %185
+    branch %186 -> block31 -> block30
+  block29:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block30:
+    jump -> block32(%179)
+  block31:
+    %187: %r0 = alias %6
+    jump -> block32(%187)
+  block32(%7: %r0):
+    %188: %r0 = binary.add %1, %3
+    %189: %r0 = coerce %188
+    %190: %r0 = binary.add %189, %5
+    %191: %r0 = coerce %190
+    %192: %r0 = binary.add %191, %7
+    %193: %r0 = coerce %192
+    return %193
+
+fn Maybe(a).toOutcome(Array(I32))(one %r5) -> one %r6
+  var $0: %r5
+  var $1: %r3
+  block0(%0: %r5):
+    store var $0: %r5, %0
+    %2: %r5 = load var $0: %r5
+    %3: %r5 = const null
+    %4: %r9 = binary.eq %2, %3
+    %5: %r4 = const 1
+    %6: %r4 = const 0
+    %7: %r4 = select %4, %6, %5
+    %8: %r4 = const 1
+    %9: %r10 = binary.eq %7, %8
+    branch %9 -> block3 -> block1
+  block1:
+    %10: %r5 = load var $0: %r5
+    type.drop %10
+    %11: %r6 = const null
+    jump -> block2(%11)
+  block2(%1: %r6):
+    return %1
+  block3:
+    %13: %r3 = load var $0: %r3
+    store var $1: %r3, %13
+    %14: %r3 = load var $1: %r3
+    %15: %r6 = alias %14
+    jump -> block2(%15)
+
+fn Array(a).reclaim(I32)(one %r3) -> omitted
+  var $0: %r3
+  block0(%0: %r3):
+    store var $0: %r3, %0
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0
+
+shape %s0 object Array {items: %r1, length: %r2}
+shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = number unsigned 30
+rep %r3 = object %s0
+rep %r4 = number unsigned 8
+rep %r5 = nullable of %r3
+rep %r6 = nullable of %r3
+rep %r7 = void
+rep %r8 = nullable of %r0
+rep %r9 = boolean
+rep %r10 = number bool
+rep %r11 = object %s1
+rep %r12 = parts (%r1, %r0, %r0) as %r11
+rep %r13 = number unsigned 32
+fn (one %r6) -> omitted
+  block0(%0: %r6):
+    %2: %r6 = const null
+    %3: %r9 = binary.eq %0, %2
+    branch %3 -> block1 -> block2
+  block1:
+    return
+  block2:
+    %1: %r3 = alias %0
+    call Array(a).reclaim(I32) %1
+    jump -> block1
+
+fn (one %r5) -> omitted
+  block0(%0: %r5):
+    %2: %r5 = const null
+    %3: %r9 = binary.eq %0, %2
+    branch %3 -> block1 -> block2
+  block1:
+    return
+  block2:
+    %1: %r3 = alias %0
+    call Array(a).reclaim(I32) %1
+    jump -> block1
+

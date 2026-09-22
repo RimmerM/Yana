@@ -1,0 +1,45 @@
+{-
+   The record that looks like three numbers and still owes a teardown - J74 §3, and the condition
+   record scalarization on the JavaScript target exists to refuse.
+
+   `jsRep` makes a small record of scalars `Parts`, so it crosses a call, a `return` and an edge as
+   its fields and never becomes an object. What decides "of scalars" is each field's *representation*
+   - and `Held` is a transparent record over an `Int`, so its representation is a number and nothing
+   about the shape of `Trio` says that releasing one runs anything at all.
+
+   Scalarizing it anyway is a leak rather than a refusal, and that is why this fixture counts rather
+   than asserting a shape: parts are not storage, so `emitTeardown` asks `jsManifest`, gets a
+   representation that is not an object, finds no transparent content under it and emits nothing.
+   `Core.MapString` in the library's own suite is where it was found - a hundred held values that
+   were never released - and this is the same shape in a program small enough to read.
+
+   The answer is `36 * 1000` for the three sums plus the live count, which is zero once every `Trio`
+   built in the loop has died. A build that scalarizes `Trio` answers `36003`.
+-}
+
+let &live = 0 :: Int
+
+data Held {n: Int}
+
+instance Drop(Held):
+    fn drop(->value: Held):
+        live = live - 1
+
+fn hold(n: Int) -> Held:
+    live = live + 1
+    return Held {n: n}
+
+-- Three fields, and on the JavaScript target every one of them is a number.
+data Trio {held: Held, x: Int, y: Int}
+
+fn total(t: Trio) -> Int = t.held.n + t.x + t.y
+
+fn build(n: Int) -> Trio = Trio {held: hold(n), x: n * 2, y: n * 3}
+
+fn main() -> Int:
+    let &sum = 0
+    for i in 1..4:
+        let t = build(i)
+        sum += total(t)
+
+    return sum * 1000 + live

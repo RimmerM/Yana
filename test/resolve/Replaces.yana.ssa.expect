@@ -169,7 +169,7 @@ bb0(%0: Array(I32) [shared call view] guaranteed):
   store inspect %1 consume %3
   %4: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
   %5: I32 [unique slot 0] guaranteed = load inspect %1
-  %6: Array(I32) [unique slot 1] guaranteed = load inspect %0
+  %6: Array(I32) [unique slot 1 view] guaranteed = load inspect %0
   %7: replaces$total(I32).cont.env affine = aggregate.replaces$total(I32).cont.env borrow %5 borrow %6
   %8: (I32) -> I32 [owned here shape10 .0=shared call] affine = fun.value replaces$total(I32).cont borrow %7
   %9: I32 trivial = call items(Array(I32), I32) borrow %4 borrow %8
@@ -188,7 +188,7 @@ bb0(%0: Array(Cents) [shared call view] guaranteed):
   store inspect %1 consume %3
   %4: Array(Cents) [shared call view] guaranteed from{%0} = load inspect %0
   %5: Cents [unique slot 0] guaranteed = load inspect %1
-  %6: Array(Cents) [unique slot 1] guaranteed = load inspect %0
+  %6: Array(Cents) [unique slot 1 view] guaranteed = load inspect %0
   %7: total(Cents).cont.env affine = aggregate.total(Cents).cont.env borrow %5 borrow %6
   %8: (Cents) -> I32 [owned here shape10 .0=shared call] affine = fun.value total(Cents).cont borrow %7
   %9: I32 trivial = call items(Array(Cents), Cents) borrow %4 borrow %8

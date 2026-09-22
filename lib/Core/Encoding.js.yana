@@ -23,8 +23,11 @@ import Native
 -- `%String`'s row, where `%U8` would build a `Uint8Array` to say the same nothing.
 fn hostNew(constructor: %U8) -> %U8 = hostConstruct(constructor, bitcast(hostArray() :: %String) :: %U8)
 
--- The live units of a typed-array window, as a `subarray` of the host array beneath it.
-fn hostSubarray(return items: %a, from: Size, to: Size) -> %U8 = hostCall2(items, "subarray", from, to)
+-- The live units of a typed-array window, as a `subarray` of the host array beneath it. The result
+-- shares the buffer rather than copying it, so it is rooted in the array it was cut from - said on
+-- the type as `%source'`, which is where `Pointer.yana` writes an origin and what the `return items`
+-- marker this carried until 2026-09-21 said in the name area.
+fn hostSubarray(items: %source'a, from: Size, to: Size) -> %source'U8 = hostCall2(items, "subarray", from, to)
 
 pub fn isValidUtf8(bytes: [U8]) -> Bool = utf8ValidFrom(bytes, 0)
 

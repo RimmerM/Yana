@@ -1,0 +1,109 @@
+fn main() -> one %r0
+  var $0: %r8
+  var $1: %r8
+  var $2: %r8
+  block0:
+    %0: %r0 = const 0
+    %1: %r7 = object %s4 %0
+    %14: %r0 = const 0
+    store property %1.$v: %r0, %14
+    %15: %r1 = const "$v"
+    %16: %r2 = object %s1 %1, %15
+    %17: %r3 = object %s0 %16
+    %5: %r3 = alias %17
+    %18: %r1 = fun.code main.lambda
+    %19: %r8 = object %s5 %18, %5
+    store var $0: %r8, %19
+    %20: %r2 = load property %5.total: %r2
+    %21: %r0 = load cell %20: %r0
+    %22: %r0 = const 1
+    %23: %r0 = binary.add %21, %22
+    %24: %r0 = coerce %23
+    %25: %r2 = load property %5.total: %r2
+    store cell %25: %r0, %24
+    %26: %r1 = const "$v"
+    %27: %r2 = object %s1 %1, %26
+    %28: %r5 = object %s2 %27
+    %9: %r5 = alias %28
+    %29: %r1 = fun.code main.lambda'2
+    %30: %r8 = object %s5 %29, %9
+    store var $1: %r8, %30
+    %31: %r2 = load property %9.total: %r2
+    %32: %r0 = load cell %31: %r0
+    %33: %r0 = const 10
+    %34: %r0 = binary.mul %32, %33
+    %35: %r0 = coerce %34
+    %36: %r2 = load property %9.total: %r2
+    store cell %36: %r0, %35
+    %37: %r0 = load property %1.$v: %r0
+    %38: %r1 = const "$v"
+    %39: %r2 = object %s1 %1, %38
+    %40: %r6 = object %s3 %39
+    %13: %r6 = alias %40
+    %41: %r1 = fun.code main.lambda'3
+    %42: %r8 = object %s5 %41, %13
+    store var $2: %r8, %42
+    %43: %r2 = load property %13.total: %r2
+    %44: %r0 = load cell %43: %r0
+    %45: %r0 = const 5
+    %46: %r0 = binary.add %44, %45
+    %47: %r0 = coerce %46
+    %48: %r2 = load property %13.total: %r2
+    store cell %48: %r0, %47
+    %49: %r0 = load property %1.$v: %r0
+    %50: %r0 = binary.add %49, %37
+    %51: %r0 = coerce %50
+    return %51
+
+fn main.lambda(one %r3) -> omitted env
+  block0(%0: %r3):
+    %1: %r2 = load property %0.total: %r2
+    %2: %r0 = load cell %1: %r0
+    %3: %r0 = const 1
+    %4: %r0 = binary.add %2, %3
+    %5: %r0 = coerce %4
+    %6: %r2 = load property %0.total: %r2
+    store cell %6: %r0, %5
+    return
+
+fn main.lambda'2(one %r5) -> omitted env
+  block0(%0: %r5):
+    %1: %r2 = load property %0.total: %r2
+    %2: %r0 = load cell %1: %r0
+    %3: %r0 = const 10
+    %4: %r0 = binary.mul %2, %3
+    %5: %r0 = coerce %4
+    %6: %r2 = load property %0.total: %r2
+    store cell %6: %r0, %5
+    return
+
+fn main.lambda'3(one %r6) -> omitted env
+  block0(%0: %r6):
+    %1: %r2 = load property %0.total: %r2
+    %2: %r0 = load cell %1: %r0
+    %3: %r0 = const 5
+    %4: %r0 = binary.add %2, %3
+    %5: %r0 = coerce %4
+    %6: %r2 = load property %0.total: %r2
+    store cell %6: %r0, %5
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 9 adopted 3 sunk 0
+
+shape %s0 object main.lambda.env {total: %r2}
+shape %s1 ref {$o: %r1 owner, $k: %r1 key}
+shape %s2 object main.lambda'2.env {total: %r2}
+shape %s3 object main.lambda'3.env {total: %r2}
+shape %s4 cell {$v: %r0 box}
+shape %s5 fun {$c: %r1 code, $e: %r1 env}
+
+rep %r0 = number signed 32
+rep %r1 = erased
+rep %r2 = cell of %r0
+rep %r3 = object %s0
+rep %r4 = void
+rep %r5 = object %s2
+rep %r6 = object %s3
+rep %r7 = object %s4
+rep %r8 = object %s5
+rep %r9 = array Int32Array of %r0

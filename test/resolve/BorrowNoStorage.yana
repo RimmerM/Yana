@@ -1,0 +1,46 @@
+{-
+   A `&` of something that has no storage of its own - `referenceTo`'s box in
+   `resolve_ssa/js/convert.cpp`, and J78's second defect.
+
+   A continuation's environment holds a *unique* loan of everything it captures, so its field for a
+   captured `String` wants the `{$o, $k}` descriptor. On the JavaScript target a host string is not
+   its own storage - there is no property a write could land in - so a descriptor over one needs a
+   box, and the box needs something to wrap. `planDemand` already builds one for a **parameter**
+   whose reborrow escapes, which is the case `countIn` itself is; what it cannot reach is a value
+   with no root in the body at all, and that is what the two calls below are:
+
+   - `"bob"` is a literal, so the captured value is a constant;
+   - `picked` is an element read out of `names`, so it is a temporary.
+
+   Both reach the environment through a `Value` place - a place over whatever host value is in hand
+   - and answering the *owner* of one handed the string out where the field wanted the descriptor,
+   which the object verifier reported as "wants cell and was supplied string".
+
+   `@noinline` on the producer is what keeps the environment: with the traversal flattened the
+   record is an aggregate nothing reads and `simplify` takes it away, which is why the whole shape
+   was latent until an inlining decision moved. That is also the rule this fixture is here to keep -
+   whether a program converts may not depend on what the inliner decided.
+-}
+
+@noinline
+iter fn eachOf(xs: [String]) -> String:
+    for i in 0 .. length(xs):
+        yield xs[i]
+
+fn countIn(xs: [String], wanted: String) -> Int:
+    let &total = 0
+
+    for v in eachOf(xs):
+        if v == wanted then total = total + 1
+
+    return total
+
+fn main() -> Int:
+    let names = ["ann", "bob", "cy", "bob"]
+
+    let byLiteral = countIn(names, "bob")
+
+    let picked = names[2]
+    let byTemporary = countIn(names, picked)
+
+    return byLiteral * 10 + byTemporary

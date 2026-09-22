@@ -1,0 +1,181 @@
+/*
+ * The roster of JSIR opcodes - one row per `jsir::JsInst::Kind`, and the only place a kind is
+ * written down. The enum, the concrete-type cast in `visitInst`, the mnemonic and the schema are
+ * generated from it - Analysis-IR-JS.md §8.3, which asks that "an opcode added without a complete
+ * schema should fail to compile or fail the construction verifier, not silently acquire no effects".
+ *
+ * ## The columns
+ *
+ *  - `kind` is the `JsInst::Kind` enumerator, and the order of these rows is the order of the enum.
+ *  - `Struct` is the concrete type a `JsInst` of that kind may be cast to. A kind whose struct
+ *    declares neither `eachUse` nor `eachEdge` does not compile, which is what makes the operand
+ *    walk and the verifier's dispatch total rather than defaulted.
+ *  - `mnemonic` is what `-mode jsir` prints.
+ *  - `result` says what the row produces: `kNoResult`, `kOneResult`, or `kMaybeResult` for the two
+ *    rows whose result is the callee's and may be `Void`.
+ *  - `effects` is §3.9's schema, as bits. The **whole** column is what an optimizer reads; there is
+ *    no "unknown" arm, and a row that reads storage says so rather than being conservatively
+ *    grouped with the calls.
+ *
+ * ## Why the effects are here and not derived
+ *
+ * The shipping backend decides what may move by asking what an expression *looks like* - whether a
+ * call node carries `pure`, whether a helper's name begins with `$`. That is the mechanism §4.4
+ * forbids, and the reason is that it cannot be checked: a helper renamed is an optimizer silently
+ * losing a fact. Here the row is the fact, a pass reads `jsInstEffects(kind)`, and a row that
+ * acquires a new effect changes every reader at once.
+ *
+ * The one refinement a kind cannot express is `Host`, whose effects are a `resolve_mir/host.def`
+ * row - `hostFixedCapacity` answers a question about a type and a `hostCall1` may do anything. The
+ * kind states the conservative answer and `effectsOf(const JsInst&)` states the row's, which is
+ * exactly the shape `ssa::isPure(const Inst&)` already has one tier up.
+ */
+
+//              kind          Struct              mnemonic          result         effects
+YANA_JSIR_INST( Const,        JsInstConst,        "const"_v,        kOneResult,    kJsPure )
+
+/*
+ * A function's code word, as a value - the first half of the pair a `(A) -> B` position asks for.
+ *
+ * Pure and an allocation of nothing: on this target a function is already a host value, so naming
+ * one is a read of a binding the file declares. Where the callee's own signature does not begin
+ * with an environment, what this names is a *thunk* rather than the callee - see `JsAbi::takesEnv`
+ * and `assemble.cpp`, which is the one place a thunk is written.
+ */
+YANA_JSIR_INST( FunCode,      JsInstFunCode,      "fun.code"_v,     kOneResult,    kJsPure )
+YANA_JSIR_INST( GenTable,     JsInstGenTable,     "gen.table"_v,    kOneResult,    kJsPure )
+
+/*
+ * A `GcObject(shape)` built from one value per property, in shape order.
+ *
+ * `kJsAllocates` rather than pure, and the distinction is §3.9's: an object literal computes nothing
+ * a second evaluation would compute differently, but its *identity* is observable - two of them are
+ * two objects - so CSE may not unify a pair and DCE may only remove one whose identity no host call
+ * has seen.
+ */
+YANA_JSIR_INST( Object,       JsInstObject,       "object"_v,       kOneResult,    kJsAllocates )
+
+// A host array built from its elements - `[a, b, c]`, or the typed row the element rep asks for.
+YANA_JSIR_INST( Array,        JsInstArray,        "array"_v,        kOneResult,    kJsAllocates )
+
+/*
+ * A structural duplicate - §3.6's `object.clone`, and the one ownership operation that costs
+ * anything on this target (Analysis-JS.md §2.5).
+ *
+ * An operation of its own rather than an `Object` the converter expanded, because §6.3's
+ * copy-to-alias elision is the highest-priority target optimization and it needs somewhere to state
+ * why a copy may become an alias. An expansion would have made that a pattern match over an object
+ * literal whose properties happen to read one source, which is a rewrite that cannot be verified.
+ */
+YANA_JSIR_INST( Clone,        JsInstClone,        "clone"_v,        kOneResult,    kJsAllocates )
+
+/*
+ * The same host reference under a second name, justified by mutation facts - §3.6's `object.alias`.
+ *
+ * Emitted where OSSA said `copy.trivial` of something this target duplicates by reading it. It is a
+ * node rather than nothing so that the dump says a sharing decision was taken; `opt` folds it away.
+ */
+YANA_JSIR_INST( Alias,        JsInstAlias,        "alias"_v,        kOneResult,    kJsPure )
+
+YANA_JSIR_INST( Load,         JsInstLoad,         "load"_v,         kOneResult,    kJsReads )
+YANA_JSIR_INST( Store,        JsInstStore,        "store"_v,        kNoResult,     kJsWrites )
+
+YANA_JSIR_INST( Binary,       JsInstBinary,       "binary"_v,       kOneResult,    kJsPure )
+YANA_JSIR_INST( Unary,        JsInstUnary,        "unary"_v,        kOneResult,    kJsPure )
+
+/*
+ * A value brought back into its own representation's domain - `x | 0`, `x >>> 0`, `Math.fround(x)`,
+ * `BigInt.asIntN(n, x)`.
+ *
+ * An operation of its own rather than something the emitter wraps every arithmetic result in,
+ * because §6.7's range propagation removes coercions and needs a node to remove. The rule the
+ * converter follows is the shipping backend's - one after every arithmetic result whose declared
+ * width the host's own operator does not produce - so what this tier starts with is what that one
+ * emits, and what a later slice takes away is attributable.
+ */
+YANA_JSIR_INST( Coerce,       JsInstCoerce,       "coerce"_v,       kOneResult,    kJsPure )
+
+/*
+ * One representation crossing to another - a narrowing, a widening, `number` to `bigint` and back,
+ * an integer to a float.
+ *
+ * Distinct from `Coerce`, which stays inside one representation: this one changes which `JsRep` the
+ * value has, so the verifier checks a pair of reps rather than one.
+ */
+YANA_JSIR_INST( Convert,      JsInstConvert,      "convert"_v,      kOneResult,    kJsPure )
+
+YANA_JSIR_INST( Select,       JsInstSelect,       "select"_v,       kOneResult,    kJsPure )
+
+/*
+ * A `match` over constants - the SSA `map` carried down.
+ *
+ * The **semantic tag survives**, which is §5.6's one fixed rule: a `Map` arrives here as a `Map` and
+ * not as a chain somebody has to recognize again. Which of the shapes it is spent in - a ternary
+ * chain, an object literal, a constant row - is `structure.cpp`'s, and today it is the chain.
+ */
+YANA_JSIR_INST( Map,          JsInstMap,          "map"_v,          kOneResult,    kJsPure )
+
+/*
+ * A direct call, against the callee's frozen `JsAbi`.
+ *
+ * `kJsCalls | kJsThrows`: this tier knows nothing about what a callee does, and a `check` that fails
+ * throws on this target rather than trapping. `mir::Summary` is where a later slice reads more.
+ */
+YANA_JSIR_INST( Call,         JsInstCall,         "call"_v,         kMaybeResult,  kJsCalls | kJsThrows )
+
+// A call through a function value - the pair's code word applied to its environment and the
+// arguments. The ABI is the *signature's*, which is what makes caller and callee checkable.
+YANA_JSIR_INST( CallValue,    JsInstCallValue,    "call.value"_v,   kMaybeResult,  kJsCalls | kJsThrows )
+
+/*
+ * One `resolve_mir/host.def` row - §3.10's node, given its meaning here.
+ *
+ * The kind's effects are the conservative ones and the row's are `effectsOf(const JsInst&)`. See the
+ * note at the top of this file.
+ */
+YANA_JSIR_INST( Host,         JsInstHost,         "host"_v,         kMaybeResult,  kJsCalls | kJsThrows )
+
+/*
+ * One of the runtime helper families, by **tag** - §2.3's "helper operations carry semantic tags,
+ * never recognized by name".
+ *
+ * One row for the whole roster rather than one per family, because what distinguishes them here is
+ * a number and nothing else: each is a call to a function this compiler writes out of a table both
+ * generators share (`JsShared`'s slots), and nothing between here and the emitter branches on which
+ * one it is. A row apiece would be ten mnemonics whose schemas are identical.
+ *
+ * The effects are the *tag's* and not the kind's, for `Host`'s reason - `effectsOf(const JsInst&)`
+ * is where a rotation is pure and a float reinterpretation is not, the latter riding on one shared
+ * typed-array pair that two of them may not be reordered across.
+ */
+YANA_JSIR_INST( Helper,       JsInstHelper,       "helper"_v,       kMaybeResult,  kJsCalls | kJsThrows )
+
+// A release through the type's own teardown function - see `JsInstTypeDrop`, where the one shape
+// that needs one is argued. An ordinary effectful call in OSSA order.
+YANA_JSIR_INST( TypeDrop,     JsInstTypeDrop,     "type.drop"_v,    kNoResult,     kJsCalls | kJsThrows | kJsWrites )
+
+// N parts as one host value - §3.6's `parts.materialize`. Allocates, for `Object`'s reason.
+YANA_JSIR_INST( Materialize,  JsInstMaterialize,  "materialize"_v,  kOneResult,    kJsAllocates )
+
+// One part of a multi-part value - §3.6's `parts.split`, read as a projection rather than a load.
+YANA_JSIR_INST( Split,        JsInstSplit,        "split"_v,        kOneResult,    kJsPure )
+
+// `Math.min` and `Math.max` - see `JsMathOp`, where the pair being a row rather than a `Host` node
+// is argued. Pure: it reads nothing and answers the same thing twice.
+YANA_JSIR_INST( Math,         JsInstMath,         "math"_v,         kOneResult,    kJsPure )
+
+/*
+ * `throw <value>` - how a program stops on this target, and the shape `hostThrow` takes.
+ *
+ * Not a terminator, deliberately, and for the reason `resolve_mir/host.def` gives about `Control`:
+ * making it one would split the block at every check in the program and leave an unreachable
+ * successor for the ordinary path to rejoin, which is a CFG change made by a tier that cannot see
+ * whether the host catches. What follows it in its block is dead code the structurer never reaches.
+ */
+YANA_JSIR_INST( Throw,        JsInstThrow,        "throw"_v,        kNoResult,     kJsThrows | kJsControl )
+
+YANA_JSIR_INST( Jump,         JsInstJump,         "jump"_v,         kNoResult,     kJsTerminator )
+YANA_JSIR_INST( Branch,       JsInstBranch,       "branch"_v,       kNoResult,     kJsTerminator )
+YANA_JSIR_INST( Switch,       JsInstSwitch,       "switch"_v,       kNoResult,     kJsTerminator )
+YANA_JSIR_INST( Return,       JsInstReturn,       "return"_v,       kNoResult,     kJsTerminator )
+YANA_JSIR_INST( Unreachable,  JsInstUnreachable,  "unreachable"_v,  kNoResult,     kJsTerminator )

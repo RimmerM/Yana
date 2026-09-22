@@ -1,0 +1,80 @@
+fn main() -> one %r0
+  var $0: %r2
+  block0:
+    %5: %r2 = const 576n
+    %6: %r2 = alias %5
+    store var $0: %r2, %6
+    %7: %r2 = load var $0: %r2
+    %8: %r2 = alias %7
+    %9: %r2 = alias %8
+    %10: %r2 = const 0n
+    %11: %r3 = binary.ne %9, %10
+    %12: %r3 = unary.not %11
+    branch %12 -> block2 -> block1
+  block1:
+    %13: %r0 = const 3
+    %14: %r0 = alias %13
+    %15: %r0 = const 3
+    %16: %r0 = alias %15
+    %17: %r0 = alias %14
+    %18: %r0 = alias %16
+    %19: %r3 = binary.eq %17, %18
+    %20: %r3 = unary.not %19
+    branch %20 -> block4 -> block3
+  block2:
+    %51: %r0 = const 1
+    return %51
+  block3:
+    %21: %r0 = const 3
+    %22: %r0 = alias %21
+    %23: %r0 = const 4
+    %24: %r0 = alias %23
+    %25: %r0 = alias %22
+    %26: %r0 = alias %24
+    %27: %r3 = binary.eq %25, %26
+    %28: %r3 = unary.not %27
+    %29: %r3 = unary.not %28
+    branch %29 -> block6 -> block5
+  block4:
+    %50: %r0 = const 2
+    return %50
+  block5:
+    %30: %r0 = const 9
+    %31: %r0 = alias %30
+    %32: %r0 = const 2
+    %33: %r0 = alias %32
+    %34: %r0 = alias %31
+    %35: %r0 = alias %33
+    %36: %r3 = binary.lt %34, %35
+    branch %36 -> block10 -> block9
+  block6:
+    %49: %r0 = const 3
+    return %49
+  block7:
+    %46: %r2 = load var $0: %r2
+    %47: %r0 = convert %46
+    return %47
+  block8:
+    %48: %r0 = const 4
+    return %48
+  block9:
+    %37: %r3 = binary.eq %34, %35
+    %38: %r1 = const 1
+    %39: %r1 = const 2
+    %40: %r1 = select %37, %38, %39
+    jump -> block11(%40)
+  block10:
+    %41: %r1 = const 0
+    jump -> block11(%41)
+  block11(%0: %r1):
+    %42: %r1 = const 2
+    %43: %r3 = binary.eq %0, %42
+    %44: %r3 = unary.not %43
+    branch %44 -> block8 -> block7
+
+optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = number unsigned 8
+rep %r2 = bigint signed
+rep %r3 = number bool

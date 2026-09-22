@@ -1,11 +1,22 @@
 #include "convert.h"
-#include "lower/manifest.h"
 #include "../resolve_mir/specialize.h"
 #include "../resolve_mir/own.h"
 
 namespace ssa {
 
 namespace {
+
+/*
+ * A value that **is** an address rather than one whose bytes are at one - `lower/manifest.h`'s
+ * `isReferenceValue`, restated with no `Layout` in it (Analysis-IR-JS.md §1.3.1).
+ *
+ * `denotesStorage` answers the pair - an owner in memory and a loan that is a pointer - and this is
+ * the half that names only the second. A free function because `convertWitnessEntry` below is not a
+ * member of the conversion and asks the same question about the same pair of occurrences.
+ */
+bool referenceValued(Context& context, mir::Program& program, const mir::Occurrence& occurrence) {
+    return !occurrence.contract.isOwned() && denotesStorage(context, program, occurrence);
+}
 
 /*
  * The three dense side tables a conversion needs, kept across functions.
@@ -367,11 +378,33 @@ struct Planner {
              * borrowed capture makes. One slot each rather than one for all of them, because they
              * are not one object.
              */
-            auto type = held.valid() ? substituted(source.local(mir, held)->occurrence).type
-                                     : substituted(function.result).type;
+            auto captured = held.valid() ? substituted(source.local(mir, held)->occurrence)
+                                         : substituted(function.result);
 
+            /*
+             * And the field says **what the value is**, not only what type it has - the access form
+             * and the access come from the binding being captured.
+             *
+             * A field is filled by a load out of the local's storage *at this occurrence*, so the
+             * occurrence is what decides which value that load produces. A shared window local is
+             * `Array(a) [shared call view]` and holds a view record; a field spelled
+             * `Array(a) [unique slot n]` asks that same storage for the owner, and on a machine the
+             * two are one address so nothing showed it - on JavaScript they are two different host
+             * objects and the construction is rejected (J67 §5, fixed in J70).
+             *
+             * The **access stays exclusive** and that is not an oversight. A field holds the address
+             * of the caller's storage whatever the binding was - `captureOf`'s reader takes it as an
+             * owned `%T` and every use of the local in the region goes through it - so the loan the
+             * field states is the one the region may write through, and only the form says which
+             * record that storage holds. Weakening it to the binding's own access was tried and is
+             * worse than a spelling: a record of nothing but shared external fields is *trivially
+             * copyable*, so the pair's environment word stops naming the frame's own record and the
+             * library's suite aborts inside `entries`.
+             */
             field.occurrence = mir::Occurrence {
-                type, mir::slotContract(mir::Access::Unique, record->originSlots), nullptr
+                captured.type,
+                mir::slotContract(mir::Access::Unique, record->originSlots,
+                                  captured.contract.form()), nullptr
             };
 
             record->originSlots++;
@@ -797,15 +830,17 @@ struct Conversion {
     DeclBase decl() { return *program.decl; }
 
     /*
-     * The region paired with the machine, for the two questions here that are about a value's
-     * *representation* rather than its type - whether it is reached through an address, and whether
-     * duplicating it is an operation. See `Layout`.
+     * **There is no `Layout` here any more** - Analysis-IR-JS.md §12.3's first open question, closed
+     * by J75.
      *
-     * This walk is below the line Analysis-Modules.md Move 2 draws: the MIR it reads is
-     * target-independent, and it is already asking the manifestation table questions, so it is one
-     * of the stages that knows which target it is reading for.
+     * This walk used to hold one, and ask the native manifestation table at fifteen sites whether a
+     * value was reached through an address and whether duplicating it was an operation. Which meant
+     * the shared tier's SSA was shaped by *one* target's layout, and §1.3.1's survey is the reason
+     * that was worth removing: almost all of it was a contract fact reached through a table that
+     * also knows about machines. What is left are three target-free predicates in `build.h` -
+     * `loanDenotesStorage`, `denotesStorage` and `holdsAggregate` - and the rule that nothing in
+     * `resolve_ssa` outside `lower/` includes `lower/`, which `tools/check-layering.sh` holds.
      */
-    Layout layout() { return layoutFor(context, program); }
 
     /*
      * One MIR type or occurrence, as this function sees it - the whole of what a specialization is.
@@ -908,34 +943,55 @@ struct Conversion {
      * local gets an allocation, and the `Init` that establishes a binding, which decides whether
      * there is anything to store. They used to be two tests and the second was the coarser one, so
      * a loan of a register-valued type made a local with no slot and a write with nowhere to go.
+     *
+     * **Not `loanDenotesStorage`**, and this is the one site where §1.3.1's survey is worth
+     * qualifying. What this decides is whether the *lowering* can use the incoming pointer as the
+     * local's storage, so the question is whether the loan manifests as one - the calling
+     * convention's question, which `denotesStorage` answers target-free. The semantic predicate
+     * answers "value" for a shared call-bounded loan of a trivially copyable aggregate, and a local
+     * of one would then be allocated at the **loan's** occurrence - a pointer-wide slot that a
+     * `field.addr` would project *into* rather than through. See `lower/README.md`.
      */
     bool aliasesLender(const mir::Occurrence& held) {
-        return !held.contract.isOwned() && isReferenceValue(layout(), held);
+        return referenceValued(held);
+    }
+
+    // The same question at the occurrences an *owner* is among - `arrivesAsAddress`, target-free.
+    // A call's question rather than a loan's; see `denotesStorage`.
+    bool reachedAsAddress(const mir::Occurrence& held) {
+        return denotesStorage(context, program, held);
+    }
+
+    // Today's `isReferenceValue`: a value that **is** an address rather than one whose bytes are at
+    // one. The pair `denotesStorage` answers together, split where a site needs only this half.
+    bool referenceValued(const mir::Occurrence& held) {
+        return ssa::referenceValued(context, program, held);
     }
 
     /*
-     * **`readMode`'s first clause, re-asked with the substitution and the target in hand.**
+     * **`readMode`'s first clause, re-asked with the substitution in hand.**
      *
      * `readMode` answers `CopyTrivial` for a trivially copyable place and a shared loan for
      * everything else, and a *generic* body asks it at a type variable: `a` owes a teardown as far
      * as the MIR builder knows, so `fn (Num(a)) g(x: a) = x + x` reads its parameter
      * `borrow.shared` where the same function written at `Int` reads it `copy.trivial`.
-     * Substitution is where that stops being true, and this tier is the first that has both the
-     * substituted type and the layout.
+     * Substitution is where that stops being true, and this tier is the first that has the
+     * substituted type.
      *
      * `specialize.h` says a specialization decides nothing, and it still does not: the instance
      * selection, the use modes and the drop points are the generic body's and are read unchanged.
      * What this changes is the *representation* of one occurrence, which `manifest.cpp` already
      * states is the same either way - "a trivial value's loan and its copy are physically the same
-     * thing", which is why `isReferenceValue` is false for exactly these and why that file says it
-     * expects no such loan to have to represent. This restores an invariant the manifestation table
-     * already assumes rather than adding one, and `lower/gen.cpp` builds a signature from the
-     * *declared* occurrence, so nothing about the ABI moves.
+     * thing". This restores an invariant the manifestation table already assumes rather than adding
+     * one, and `lower/gen.cpp` builds a signature from the *declared* occurrence, so nothing about
+     * the ABI moves.
      *
      * Both guards carry weight. Without triviality a copy is a second owner of something that owes
-     * a teardown; without the manifestation test a shared loan of an address-only record would
-     * become a copy of the record - correct, and a pessimization, since the loan of one of those is
-     * its address.
+     * a teardown; without `referenceValued` a shared loan of an aggregate would become a copy of the
+     * aggregate - correct, and a pessimization, since the loan of one of those is its address. That
+     * second guard is §1.3.1's category 2 and it is a *cost* question; what changed is where it is
+     * asked from. It used to reach the native manifestation table, and it now reads
+     * `holdsAggregate`, which is the same rows with the numbers left off.
      *
      * What it is worth is the *slot*. A borrow is a second name for storage, so a parameter read
      * through one keeps its frame slot: `promote` declines a slot whose store installs a
@@ -947,7 +1003,7 @@ struct Conversion {
     mir::Occurrence valueOccurrenceOf(const mir::Occurrence& held) {
         if(held.contract.isOwned()) return held;
         if(!mir::isTriviallyCopyableAt(decl(), held)) return held;
-        if(isReferenceValue(layout(), held)) return held;
+        if(referenceValued(held)) return held;
 
         return mir::owned(held.type);
     }
@@ -1281,8 +1337,8 @@ struct Conversion {
         auto value = base()[into.value()];
         auto held = value->occurrence;
 
-        if(!isReferenceValue(layout(), held)) return true;
-        if(manifestNative(layout(), mir::owned(held.type)).inMemory) return true;
+        if(!referenceValued(held)) return true;
+        if(holdsAggregate(decl(), held.type)) return true;
 
         auto read = mir::Occurrence { held.type, mir::ownedContract(), nullptr };
         auto loaded = editor.addLoad(at, editor.use(*value, UseKind::Inspect), read,
@@ -1321,7 +1377,7 @@ struct Conversion {
         auto value = base()[into.value()];
         auto held = value->occurrence;
 
-        if(arrivesAsAddress(layout(), held)) return true;
+        if(reachedAsAddress(held)) return true;
         if(!mir::sameType(held.type, position.type)) return true;
 
         auto slot = editor.resultOf(*editor.addAlloc(at, mir::owned(held.type),
@@ -2817,8 +2873,7 @@ struct Conversion {
              */
             auto value = base()[used.value()];
 
-            if(isReferenceValue(layout(), value->occurrence) &&
-               !isReferenceValue(layout(), declared.occurrence)) {
+            if(referenceValued(value->occurrence) && !referenceValued(declared.occurrence)) {
                 auto held = mir::owned(declared.occurrence.type);
                 value = editor.resultOf(*editor.addLoad(at, editor.use(*value, UseKind::Inspect),
                                                         held, conventionFor(held), false));
@@ -3173,7 +3228,7 @@ struct Conversion {
             return nullptr;
         }
 
-        if(isReferenceValue(layout(), position)) {
+        if(referenceValued(position)) {
             return editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Represent,
                                                     editor.use(*found, UseKind::Inspect), position,
                                                     conventionFor(position)));
@@ -3362,8 +3417,7 @@ struct Conversion {
                 auto& built = *base()[handed.value()];
                 auto stored = mir::owned(slotType);
 
-                if(isReferenceValue(layout(), built.occurrence) &&
-                   !isReferenceValue(layout(), stored)) {
+                if(referenceValued(built.occurrence) && !referenceValued(stored)) {
                     auto loaded = editor.addLoad(node.source, editor.use(built, UseKind::Inspect),
                                                  stored, conventionFor(stored), false);
                     handed = editor.use(*editor.resultOf(*loaded), UseKind::Consume);
@@ -3642,7 +3696,7 @@ struct Conversion {
                     return mir::rootPlace(mir, *place).kind == mir::Place::Address;
                 };
 
-                auto copies = isAddressOnly(layout(), result) &&
+                auto copies = holdsAggregate(decl(), result.type) &&
                               (mode == mir::UseMode::CopyTrivial ||
                                (relocates && mir::isTriviallyCopyableAt(decl(), result) &&
                                 outside()));
@@ -3766,7 +3820,7 @@ struct Conversion {
                 if(!useOf(written.of, node.source, of)) return;
 
                 auto& held = base()[of.value()]->occurrence;
-                if(!arrivesAsAddress(layout(), held)) {
+                if(!reachedAsAddress(held)) {
                     report(node.source,
                            "internal: the address of a value that is not reached through storage"_v);
                     return;
@@ -3849,6 +3903,35 @@ struct Conversion {
                 auto inst = editor.addNative(node.source, written.op, arguments.pointer(),
                                              arguments.size(), result, conventionFor(result),
                                              hasResult, written.immediate);
+
+                if(hasResult) produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+            /*
+             * And the host's - carried down with nothing added either, which is what "a node that
+             * passes through" means (Analysis-IR-JS.md §3.10).
+             *
+             * `valueUseOf` and not `useOf`, exactly as the arm above uses it: an operand whose
+             * occurrence is a reference to something this tier holds as a value needs the load in
+             * front of it, and a host operation's receiver is as likely to be one as a system
+             * call's address is.
+             */
+            case mir::Node::Host: {
+                auto& written = (mir::NodeHost&)node;
+
+                SmallArray<Use, 8> arguments;
+                for(auto operand: written.arguments.contents(mir)) {
+                    Use used;
+                    if(!valueUseOf(operand, node.source, used)) return;
+                    arguments.push(used);
+                }
+
+                auto result = substituted(mir::valueOccurrence(node));
+                auto hasResult = decl()[result.type]->kind != mir::Type::Unit;
+
+                auto inst = editor.addHost(node.source, written.op, written.member,
+                                           arguments.pointer(), arguments.size(), result,
+                                           conventionFor(result), hasResult);
 
                 if(hasResult) produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;
@@ -4209,7 +4292,7 @@ struct Conversion {
                     }
 
                     Use used;
-                    auto adapts = held && !arrivesAsAddress(layout(), *held)
+                    auto adapts = held && !reachedAsAddress(*held)
                         ? valueUseOf(operand, node.source, used)
                         : held ? referenceUseOf(operand, *held, node.source, used)
                                : useOf(operand, node.source, used);
@@ -5739,8 +5822,8 @@ static bool emitIterObject(Context& context, mir::Program& program, SsaArena& ar
          */
         auto value = (*arena)[entry->argumentAt(*arena, i)];
 
-        if(isReferenceValue(layoutFor(context, program), value->occurrence) &&
-           !isReferenceValue(layoutFor(context, program), declared.occurrence)) {
+        if(referenceValued(context, program, value->occurrence) &&
+           !referenceValued(context, program, declared.occurrence)) {
             auto held = mir::owned(declared.occurrence.type);
             value = editor.resultOf(*editor.addLoad(at, editor.use(*value, UseKind::Inspect), held,
                                                     conventionFor(decl, held), false));

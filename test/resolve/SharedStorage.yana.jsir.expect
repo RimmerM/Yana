@@ -1,0 +1,153 @@
+fn Counter.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    store var $0: %r0, %0
+    %1: %r0 = const 1
+    %2: %r0 = load global released: %r0
+    %3: %r0 = binary.add %2, %1
+    %4: %r0 = coerce %3
+    store global released: %r0, %4
+    return
+
+fn main() -> one %r0
+  var $0: %r4
+  var $1: %r4
+  var $2: %r7
+  var $3: %r4
+  block0:
+    %4: %r0 = const 0
+    %5: %r3 = const null
+    %6: %r4 = object %s0 %4, %5
+    store var $0: %r4, %6
+    %7: %r0 = const 7
+    %8: %r0 = const 35
+    %9: %r3 = alias %8
+    %10: %r4 = object %s0 %7, %9
+    store var $0: %r4, %10
+    %11: %r4 = load var $0: %r4
+    %12: %r3 = load property %11.held: %r3
+    %13: %r3 = alias %12
+    %14: %r0 = const 0
+    %15: %r3 = const null
+    %16: %r5 = binary.eq %13, %15
+    %17: %r2 = const 1
+    %18: %r2 = const 0
+    %19: %r2 = select %16, %18, %17
+    %20: %r2 = const 1
+    %21: %r6 = binary.eq %19, %20
+    branch %21 -> block2 -> block1
+  block1:
+    jump -> block3(%14)
+  block2:
+    %22: %r0 = alias %13
+    jump -> block3(%22)
+  block3(%0: %r0):
+    %23: %r0 = const 0
+    %24: %r3 = const null
+    %25: %r4 = object %s0 %23, %24
+    store var $1: %r4, %25
+    %26: %r0 = const 7
+    %27: %r0 = const 35
+    %28: %r3 = alias %27
+    %29: %r4 = object %s0 %26, %28
+    store var $1: %r4, %29
+    %30: %r0 = const 36
+    %31: %r3 = alias %30
+    %32: %r4 = load var $1: %r4
+    store property %32.held: %r3, %31
+    %33: %r3 = load property %32.held: %r3
+    %34: %r3 = alias %33
+    %35: %r0 = const 0
+    %36: %r3 = const null
+    %37: %r5 = binary.eq %34, %36
+    %38: %r2 = const 1
+    %39: %r2 = const 0
+    %40: %r2 = select %37, %39, %38
+    %41: %r2 = const 1
+    %42: %r6 = binary.eq %40, %41
+    branch %42 -> block5 -> block4
+  block4:
+    jump -> block6(%35)
+  block5:
+    %43: %r0 = alias %34
+    jump -> block6(%43)
+  block6(%1: %r0):
+    %44: %r0 = binary.add %0, %1
+    %45: %r0 = coerce %44
+    %46: %r0 = const 1
+    %47: %r0 = const 36
+    %48: %r0 = alias %47
+    %49: %r7 = object %s1 %46, %48
+    store var $2: %r7, %49
+    %50: %r7 = load var $2: %r7
+    %51: %r0 = load property %50.held: %r0
+    call Counter.drop %51
+    %52: %r0 = binary.add %45, %47
+    %53: %r0 = coerce %52
+    %54: %r0 = const 0
+    %55: %r3 = const null
+    %56: %r4 = object %s0 %54, %55
+    store var $3: %r4, %56
+    %57: %r0 = const 7
+    %58: %r0 = const 35
+    %59: %r3 = alias %58
+    %60: %r4 = object %s0 %57, %59
+    store var $3: %r4, %60
+    %61: %r4 = load var $3: %r4
+    %62: %r3 = load property %61.held: %r3
+    %64: %r0 = const 1
+    %65: %r3 = alias %64
+    %66: %r3 = alias %65
+    %67: %r0 = const 0
+    %68: %r3 = const null
+    %69: %r5 = binary.eq %66, %68
+    %70: %r2 = const 1
+    %71: %r2 = const 0
+    %72: %r2 = select %69, %71, %70
+    %73: %r2 = const 1
+    %74: %r6 = binary.eq %72, %73
+    branch %74 -> block8 -> block7
+  block7:
+    jump -> block9(%67)
+  block8:
+    %75: %r0 = alias %66
+    jump -> block9(%75)
+  block9(%2: %r0):
+    %76: %r0 = const 1
+    %77: %r0 = binary.add %2, %76
+    %78: %r0 = coerce %77
+    %79: %r3 = const null
+    %63: %r3 = alias %62
+    %80: %r5 = binary.eq %63, %79
+    %81: %r2 = const 1
+    %82: %r2 = const 0
+    %83: %r2 = select %80, %82, %81
+    %84: %r2 = const 1
+    %85: %r6 = binary.eq %83, %84
+    branch %85 -> block11 -> block10
+  block10:
+    jump -> block12(%78)
+  block11:
+    %86: %r0 = alias %63
+    jump -> block12(%86)
+  block12(%3: %r0):
+    %87: %r0 = binary.add %53, %3
+    %88: %r0 = coerce %87
+    %89: %r0 = load global released: %r0
+    %90: %r0 = binary.add %88, %89
+    %91: %r0 = coerce %90
+    return %91
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+shape %s0 object Boxed {tag: %r0, held: %r3}
+shape %s1 object Owning {tag: %r0, held: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = void
+rep %r2 = number unsigned 8
+rep %r3 = nullable of %r0
+rep %r4 = object %s0
+rep %r5 = boolean
+rep %r6 = number bool
+rep %r7 = object %s1

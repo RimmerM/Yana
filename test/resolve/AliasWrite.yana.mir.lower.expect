@@ -1,0 +1,48 @@
+
+both<complex>(%v_0: I32, %v_1: I32, %q: Ptr): I32 {
+  b_2 {
+    store %q, 99, 4
+    %v_3 = add %q, 4: Ptr
+    store %v_3, 98, 4
+    %v_4 = imul %v_0, 10: I32
+    %v_5 = add %v_4, %v_1: I32
+    ret %v_5
+  }
+}
+
+sum'2<complex>(%v_0: I32, %v_1: I32): I32 {
+  b_2 {
+    %v_3 = imul %v_0, 10: I32
+    %v_4 = add %v_3, %v_1: I32
+    ret %v_4
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    %v_2 = imm 1: I32
+    %v_3 = imm 2: I32
+    store %v_1, %v_2, 4
+    %v_4 = add %v_1, 4: Ptr
+    store %v_4, %v_3, 4
+    %v_5 = call_complex both, %v_2, %v_3, %v_1: I32
+    %v_6 = cmp_eq %v_5, 12: I32
+    %v_7 = loads %v_1, 4: I32
+    %v_8 = cmp_eq %v_7, 99: I32
+    %v_9 = add %v_6, 2: I32
+    %v_10 = select %v_8, %v_9, %v_6: I32
+    %v_11 = add %v_1, 4: Ptr
+    %v_12 = loads %v_11, 4: I32
+    %v_13 = cmp_eq %v_12, 98: I32
+    %v_14 = add %v_10, 4: I32
+    %v_15 = select %v_13, %v_14, %v_10: I32
+    %v_16 = call_complex sum'2, 3, 4: I32
+    %v_17 = cmp_eq %v_16, 34: I32
+    %v_18 = add %v_15, 8: I32
+    %v_19 = select %v_17, %v_18, %v_15: I32
+    %v_20 = add %v_19, 16: I32
+    ret %v_20
+  }
+}
+

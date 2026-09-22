@@ -1,0 +1,102 @@
+fn Vessel.tag(one %r0) -> one %r0
+  block0(%0: %r0):
+    %1: %r0 = const 1
+    %2: %r0 = binary.add %0, %1
+    %3: %r0 = coerce %2
+    return %3
+
+fn Vessel.scale(one %r0) -> one %r0
+  block0(%0: %r0):
+    %1: %r0 = const 2
+    %2: %r0 = binary.mul %0, %1
+    %3: %r0 = coerce %2
+    return %3
+
+fn Vessel.shift(one %r0) -> one %r0
+  block0(%0: %r0):
+    %1: %r0 = const 100
+    %2: %r0 = binary.add %0, %1
+    %3: %r0 = coerce %2
+    return %3
+
+fn Vessel.crown(one %r0) -> one %r0
+  block0(%0: %r0):
+    %1: %r0 = const 1000
+    %2: %r0 = binary.add %0, %1
+    %3: %r0 = coerce %2
+    return %3
+
+fn oneLevel(one %r1) -> one %r0
+  block0(%0: %r2, %1: %r1):
+    %2: %r3 = const 1
+    %3: %r1 = load element %0[%2]: %r1
+    %4: %r3 = const 1
+    %5: %r1 = load element %3[%4]: %r1
+    %6: %r0 = call.value %5, %1
+    %7: %r3 = const 1
+    %8: %r1 = load element %0[%7]: %r1
+    %9: %r3 = const 0
+    %10: %r1 = load element %8[%9]: %r1
+    %11: %r0 = call.value %10, %1
+    %12: %r0 = binary.add %6, %11
+    %13: %r0 = coerce %12
+    return %13
+
+fn twoLevels(one %r1) -> one %r0
+  block0(%0: %r2, %1: %r1):
+    %2: %r3 = const 1
+    %3: %r1 = load element %0[%2]: %r1
+    %4: %r3 = const 3
+    %5: %r1 = load element %3[%4]: %r1
+    %6: %r0 = call.value %5, %1
+    %7: %r3 = const 1
+    %8: %r1 = load element %0[%7]: %r1
+    %9: %r3 = const 0
+    %10: %r1 = load element %8[%9]: %r1
+    %11: %r0 = call.value %10, %1
+    %12: %r0 = binary.add %6, %11
+    %13: %r0 = coerce %12
+    return %13
+
+fn both(one %r1) -> one %r0
+  block0(%0: %r2, %1: %r1):
+    %2: %r3 = const 1
+    %3: %r1 = load element %0[%2]: %r1
+    %4: %r3 = const 1
+    %5: %r1 = load element %3[%4]: %r1
+    %6: %r0 = call.value %5, %1
+    return %6
+
+fn main() -> one %r0
+  var $0: %r0
+  block0:
+    %0: %r0 = const 5
+    %1: %r0 = alias %0
+    store var $0: %r0, %1
+    %2: %r0 = load var $0: %r0
+    %3: %r0 = alias %2
+    %4: %r2 = gen.table
+    %5: %r0 = call oneLevel %4, %3
+    %6: %r0 = load var $0: %r0
+    %7: %r0 = alias %6
+    %8: %r2 = gen.table
+    %9: %r0 = call twoLevels %8, %7
+    %10: %r0 = load var $0: %r0
+    %11: %r0 = alias %10
+    %12: %r2 = gen.table
+    %13: %r0 = call both %12, %11
+    %14: %r0 = binary.add %5, %9
+    %15: %r0 = coerce %14
+    %16: %r0 = binary.add %15, %13
+    %17: %r0 = coerce %16
+    %18: %r0 = const 1024
+    %19: %r0 = binary.sub %17, %18
+    %20: %r0 = coerce %19
+    return %20
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = erased
+rep %r2 = array Array of %r1
+rep %r3 = number unsigned 32

@@ -1,0 +1,19 @@
+{-
+   The fixed array's window, on JavaScript under the shipping resolve stage.
+
+   One line each, and both lean on the *conversion at a call* to turn `[a *n]` into `[a]`:
+   `unclampedSlice` takes a window, so the argument position asks for one, and `self` at a
+   `&source'[a]` result asks for one too. That works here because `compiler/resolve`'s conversion is
+   structural - it builds the view record itself and never calls a class member - so the member is
+   not in its own way.
+
+   It does not work under the rewrite, where the conversion *is* `Contiguous.elements`, and that is
+   the whole reason this file and `Container.ownership.js.yana` are two files. See the comment above
+   the native pair in `Container.yana`, and `doc/progress/2026-09-21-J66-jsir-breadth.md` §6 for how
+   the recursion was found. Goes with `compiler/resolve`.
+-}
+instance (n: Int) Contiguous([a *n], a):
+    fn elements(self: source'[a *n]) -> source'[a] = unclampedSlice(self, 0, n :: Size)
+
+instance (n: Int) Writable([a *n], a):
+    fn elementsMut(&self: source'[a *n]) -> &source'[a] = self

@@ -283,7 +283,7 @@ struct SelectConverter {
      * added here is the division, which is a cost.
      */
     bool speculatable(Inst& inst) {
-        if(!isPure(inst.kind) && !speculatableLoad(inst)) return false;
+        if(!isPure(inst) && !speculatableLoad(inst)) return false;
 
         if(inst.kind == Inst::Binary) {
             auto op = ((InstBinary&)inst).op;

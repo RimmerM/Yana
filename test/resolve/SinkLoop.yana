@@ -1,0 +1,60 @@
+{-
+   The negative row for §6.5's allocation sinking - `sinkAllocations` in
+   `resolve_ssa/js/opt_alias.cpp`.
+
+   An escaping local is a `Value` place on the JavaScript target, so the storage *is* the host
+   object and the conversion builds one where the frame slot is declared, which is the entry block.
+   Sinking that allocation to the block that dominates its uses is what stops a path leaving the
+   function from paying for it - and the one destination it may never take is **inside a loop the
+   definition was not in**, because the object is then rebuilt once per iteration and the local is
+   re-zeroed with it.
+
+   `tally` is that program: every use of it is inside the `for`, so the lowest common ancestor of
+   its uses is the loop body and a rule that does not ask about loops moves it there. The answer
+   says which happened - the 63 below is three iterations accumulating into one record, and a
+   record rebuilt every iteration answers 31.
+
+   `held` is the positive half in the same body, so that the fixture is not only a refusal: its
+   uses are all below the early return, and it is the shape `normalizeForm` in the library's own
+   Unicode cases has - five allocations on a path that returns before touching any of them.
+
+   There is deliberately **no** case here for the third condition - that a `Clone` is not one of
+   the kinds that may move. It is a real refusal (what a duplicate copies is whatever its source
+   holds when it runs, so one carried below a write to that source copies the written value) and no
+   program in this corpus distinguishes it: a duplicate's result is stored into its own local's
+   slot in the block that made it, so the "only across a block boundary" rule refuses it before the
+   kind is looked at. Allowing it moves 19 bytes of `Base.js` and changes no answer anywhere.
+
+   Two fields rather than three in both records, because a three-field record of primitives is
+   `Parts` on this target (J74's scalarization band) and there would be no allocation to sink.
+-}
+
+data Tally {total: Int, seen: Int}
+
+data Note {tag: Int, count: Int}
+
+@noinline fn bump(&t: Tally, by: Int):
+    t.total = t.total + by
+    t.seen = t.seen + 1
+
+@noinline fn note(&n: Note, by: Int):
+    n.tag = n.tag + by
+    n.count = n.count + 1
+
+@noinline fn early(n: Int) = n < 0
+
+fn main() -> Int:
+    let &tally = Tally {total: 0, seen: 0}
+    let &last = 0 :: Int
+
+    for i in 1..4:
+        bump(tally, i)
+        last = tally.total * 10 + tally.seen
+
+    let &held = Note {tag: 0, count: 0}
+    if early(last) then return -1
+
+    note(held, 5)
+    note(held, 7)
+
+    return last + held.tag + held.count

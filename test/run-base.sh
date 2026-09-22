@@ -73,7 +73,13 @@ run_row() {
 
     echo "== $name"
 
-    if [ "$name" = "js" ] || [ "$name" = "js-unoptimized" ]; then
+    case "$name" in
+        legacy-js|legacy-js-unoptimized|ownership-js|ownership-js-unoptimized|ownership-js-no-jsir-opt)
+            isJs=1 ;;
+        *) isJs=0 ;;
+    esac
+
+    if [ "$isJs" = "1" ]; then
         if ! command -v node > /dev/null; then
             echo "   node is not on PATH, so the JavaScript rows are not being run."
             return 0
@@ -130,9 +136,13 @@ note() {
 
 status=0
 
-start_row amd64          -mode exe -backend local
-start_row generic        -mode exe -backend local -specialize never
-start_row unoptimized    -mode exe -backend local -no-ir-opt
+# **Every row names its stage.** `-resolver` defaults to the rewrite since 2026-09-22 (J81), and a
+# matrix whose rows inherit that default is a matrix that changes which compiler it is about when the
+# default moves - which is the one thing a comparison suite must not do. So the rows are prefixed
+# with the stage they build, and each one writes the flag out even where it agrees with the default.
+start_row legacy         -mode exe -backend local -resolver legacy
+start_row legacy-generic -mode exe -backend local -specialize never -resolver legacy
+start_row legacy-unoptimized -mode exe -backend local -no-ir-opt -resolver legacy
 
 # **Every baseline and no replacement** - Design-Replacements.md §7. A replacement is held to answering
 # exactly what its baseline answers, and nothing can prove that; what checks it is the same cases
@@ -141,7 +151,7 @@ start_row unoptimized    -mode exe -backend local -no-ir-opt
 # chooses none, so a replacement that disagrees with its baseline fails one of the two. One row is
 # enough whatever the host: a baseline does not depend on the level, and the replacements it is
 # compared with are the other rows'.
-start_row no-replacements -mode exe -backend local -no-replacements
+start_row legacy-no-replacements -mode exe -backend local -no-replacements -resolver legacy
 
 # **The rows above the floor.** Every boundary in `moveMemory`/`copyMemory` is stated in widths -
 # the ladder's rungs are `n` transfers of `w` bytes covering `[nw, 2nw)`, the four-register group is
@@ -174,27 +184,54 @@ hostHasAll() {
 }
 
 if hostHasAll avx2 aes pclmulqdq; then
-    start_row avx2 -mode exe -backend local -enable-inst avx2
+    start_row legacy-avx2 -mode exe -backend local -enable-inst avx2 -resolver legacy
 
     if hostHas sha_ni; then
-        start_row sha -mode exe -backend local -enable-inst avx2 -enable-inst sha
+        start_row legacy-sha -mode exe -backend local -enable-inst avx2 -enable-inst sha -resolver legacy
     else
-        note sha "== sha: this machine has no SHA-NI, so that row is not being run."
+        note legacy-sha "== legacy-sha: this machine has no SHA-NI, so that row is not being run."
     fi
 
     # shellcheck disable=SC2086 # the list is words on purpose
     if hostHasAll $avx512Flags; then
-        start_row avx512 -mode exe -backend local -enable-inst avx512
-        start_row avx512-256 -mode exe -backend local -enable-inst avx512 -vector-width 256
+        start_row legacy-avx512 -mode exe -backend local -enable-inst avx512 -resolver legacy
+        start_row legacy-avx512-256 -mode exe -backend local -enable-inst avx512 -vector-width 256 -resolver legacy
     else
-        note avx512 "== avx512, avx512-256: this machine is not an Ice Lake or Zen 4 or later, so neither row is being run."
+        note legacy-avx512 "== legacy-avx512, legacy-avx512-256: this machine is not an Ice Lake or Zen 4 or later, so neither row is being run."
     fi
 else
-    note avx2 "== avx2, sha, avx512: this machine has no AVX2 with AES-NI, so none of those rows is being run."
+    note legacy-avx2 "== legacy-avx2, legacy-sha, legacy-avx512: this machine has no AVX2 with AES-NI, so none of those rows is being run."
 fi
 
-start_row js             -mode js
-start_row js-unoptimized -mode js -no-ir-opt
+start_row legacy-js      -mode js -resolver legacy
+start_row legacy-js-unoptimized -mode js -no-ir-opt -resolver legacy
+
+# **The same suite through the rewritten resolver, natively.** It was deliberately kept out of this
+# file while it was red - a row that always fails is a row everybody learns to ignore - and it has
+# passed every case in both build trees since 2026-09-21 (J70), so since 2026-09-22 (J81, the day the
+# rewrite became the default) it is a row. One row rather than the legacy ladder above: the ladder
+# exists to hold the *replacement* bodies to their portable baselines, and those bodies are the
+# library's, selected the same way by either stage - the `legacy-*` rows already assert them.
+start_row ownership      -mode exe -backend local -enable-inst sse4 -resolver ownership
+
+# **The same suite through the rewritten resolver and JSIR** - Analysis-IR-JS.md §9.7 item 8, and
+# `doc/progress/2026-09-21-J69-jsir-erased-base-suite.md`.
+#
+# Two rows since J70, which is §10.2's differential asked of a whole program rather than of a
+# fixture: the optimized row is what a build ships and the unoptimized one is the same program with
+# `compiler/opt` switched off, and a representation defect that the optimizer happens to fold away
+# shows in exactly one of them. The unoptimized row is where J67 §5's occurrence defect lived - a
+# continuation's captured field built at the owner's representation rather than at the window's -
+# and `doc/progress/2026-09-21-J70-jsir-correctness.md` is what closed it.
+start_row ownership-js   -mode js -resolver ownership
+start_row ownership-js-unoptimized -mode js -resolver ownership -no-ir-opt
+
+# And the third configuration Analysis-IR-JS.md §10.2 asks for, added 2026-09-22 (J72): the shared
+# optimizer on and the **JSIR** one off. The pair with the row above it is what says which tier a
+# disagreement came from - a suite that differs with `-no-ir-opt` and agrees with this one has a
+# defect above the fork, and the other way round has one below it, which is where
+# `resolve_ssa/js/opt_alias.cpp`'s rewrites are.
+start_row ownership-js-no-jsir-opt -mode js -resolver ownership -no-jsir-opt
 
 # Waited for and printed in declaration order, so the report comes out as the rows finish rather than
 # all at the end, and comes out the same way twice.

@@ -1,0 +1,287 @@
+fn one(one %r0) -> one %r1
+  block0(%0: %r0):
+    %1: %r1 = const "ab"
+    return %1
+
+fn main() -> one %r0
+  var $0: %r13
+  var $1: %r6
+  block0:
+    %3: %r0 = const 3
+    %4: %r2 = array
+    %5: %r14 = object %s3 %4
+    %6: %r2 = host host.array
+    %8: %r2 = alias %6
+    store property %5.$v: %r2, %8
+    %9: %r0 = const 0
+    %10: %r1 = const "ab"
+    %11: %r0 = const 1
+    jump -> block3(%9)
+  block1:
+    %60: %r2 = alias %47
+    %61: %r0 = binary.add %56, %55
+    %62: %r0 = coerce %61
+    %63: %r1 = load element %60[%62]: %r1
+    %64: %r1 = alias %63
+    %65: %r2 = load property %18.$v: %r2
+    call Array(a).reclaim(String) %65
+    %66: %r1 = alias %64
+    %67: %r1 = alias %66
+    %68: %r0 = host host.field "length" host-range %67
+    %69: %r0 = convert %68
+    %70: %r0 = binary.add %54, %69
+    %71: %r0 = coerce %70
+    %74: %r7 = load property %28.$v: %r7
+    %75: %r5 = load property %74.length: %r5
+    %76: %r0 = convert %75
+    %78: %r7 = load property %28.$v: %r7
+    call Array(a).reclaim(Array(I32)) %78
+    %79: %r0 = convert %76
+    %80: %r0 = binary.add %71, %79
+    %81: %r0 = coerce %80
+    return %81
+  block2:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block3(%0: %r0):
+    %12: %r15 = binary.lt %0, %3
+    branch %12 -> block5 -> block4
+  block4:
+    %13: %r0 = const 4
+    %14: %r8 = fun.code one
+    %15: %r8 = const null
+    %16: %r13 = object %s2 %14, %15
+    store var $0: %r13, %16
+    %17: %r2 = array
+    %18: %r14 = object %s3 %17
+    %19: %r2 = host host.array
+    %21: %r2 = alias %19
+    store property %18.$v: %r2, %21
+    %22: %r0 = const 0
+    %23: %r0 = const 1
+    %24: %r1 = const "ab"
+    jump -> block6(%22)
+  block5:
+    %107: %r8 = const "$v"
+    call push(String) %5, %107, %10
+    %108: %r0 = binary.add %0, %11
+    %109: %r0 = coerce %108
+    jump -> block3(%109)
+  block6(%1: %r0):
+    %25: %r15 = binary.lt %1, %13
+    branch %25 -> block8 -> block7
+  block7:
+    %26: %r0 = const 2
+    %27: %r7 = array
+    %28: %r16 = object %s4 %27
+    %29: %r7 = host host.array
+    %31: %r7 = alias %29
+    store property %28.$v: %r7, %31
+    %32: %r0 = const 0
+    %33: %r5 = const 0
+    %34: %r0 = const 1
+    %35: %r0 = const 1
+    %36: %r15 = const 0
+    jump -> block9(%32)
+  block8:
+    %104: %r8 = const "$v"
+    call push(String) %18, %104, %24
+    %105: %r0 = binary.add %1, %23
+    %106: %r0 = coerce %105
+    jump -> block6(%106)
+  block9(%2: %r0):
+    %37: %r15 = binary.lt %2, %26
+    branch %37 -> block11 -> block10
+  block10:
+    %40: %r2 = load property %5.$v: %r2
+    %41: %r5 = load property %40.length: %r5
+    %42: %r0 = convert %41
+    %44: %r2 = load property %5.$v: %r2
+    call Array(a).reclaim(String) %44
+    %45: %r0 = convert %42
+    %47: %r2 = load property %18.$v: %r2
+    %48: %r2 = load property %18.$v: %r2
+    %49: %r5 = load property %48.length: %r5
+    %50: %r0 = convert %49
+    %52: %r0 = convert %50
+    %53: %r0 = binary.add %45, %52
+    %54: %r0 = coerce %53
+    %55: %r0 = const 2
+    %56: %r0 = const 0
+    %57: %r19 = convert %55
+    %58: %r19 = convert %50
+    %59: %r15 = binary.ge %57, %58
+    branch %59 -> block2 -> block1
+  block11:
+    %82: %r4 = host host.array
+    %83: %r6 = object %s0 %82, %33
+    store var $1: %r6, %83
+    %84: %r7 = load property %28.$v: %r7
+    %85: %r5 = load property %84.length: %r5
+    %86: %r0 = convert %85
+    %87: %r0 = binary.add %86, %34
+    %88: %r0 = coerce %87
+    %90: %r7 = load property %28.$v: %r7
+    %91: %r15 = host host.capacity %90
+    %92: %r15 = binary.eq %91, %36
+    branch %92 -> block12 -> block13
+  block12:
+    %98: %r7 = load property %28.$v: %r7
+    %99: %r6 = load var $1: %r6
+    store element %98[%86]: %r6, %99
+    %100: %r19 = convert %88
+    %101: %r5 = convert %100
+    store property %84.length: %r5, %101
+    %102: %r0 = binary.add %2, %35
+    %103: %r0 = coerce %102
+    jump -> block9(%103)
+  block13:
+    %93: %r7 = load property %28.$v: %r7
+    %94: %r0 = host host.field "length" host-range %93
+    %95: %r15 = binary.le %88, %94
+    branch %95 -> block12 -> block14
+  block14:
+    %96: %r8 = const "$v"
+    call growJsArray(Array(I32)) %28, %96, %88
+    jump -> block12
+
+fn Array(a).reclaim(String)(one %r2) -> omitted
+  var $0: %r2
+  block0(%0: %r2):
+    store var $0: %r2, %0
+    return
+
+fn Array(a).reclaim(Array(I32))(one %r7) -> omitted
+  var $0: %r7
+  var $1: %r6
+  block0(%0: %r7):
+    store var $0: %r7, %0
+    %2: %r7 = load var $0: %r7
+    %3: %r5 = load property %2.length: %r5
+    %4: %r0 = convert %3
+    %5: %r0 = const 0
+    %6: %r0 = const 1
+    %8: %r7 = load var $0: %r7
+    jump -> block1(%5)
+  block1(%1: %r0):
+    %9: %r15 = binary.lt %1, %4
+    branch %9 -> block3 -> block2
+  block2:
+    return
+  block3:
+    %10: %r0 = convert %1
+    %11: %r6 = load element %8[%10]: %r6
+    store var $1: %r6, %11
+    %12: %r6 = load var $1: %r6
+    call Array(a).reclaim(I32) %12
+    %13: %r0 = binary.add %1, %6
+    %14: %r0 = coerce %13
+    jump -> block1(%14)
+
+fn push(String)(parts %r10, one %r1) -> omitted
+  block0(%0: %r8, %1: %r8, %2: %r1):
+    %3: %r2 = load element %0[%1]: %r2
+    %4: %r5 = load property %3.length: %r5
+    %5: %r0 = convert %4
+    %6: %r0 = const 1
+    %7: %r0 = binary.add %5, %6
+    %8: %r0 = coerce %7
+    %9: %r2 = load element %0[%1]: %r2
+    %10: %r2 = load element %0[%1]: %r2
+    %11: %r15 = host host.capacity %10
+    %12: %r15 = const 0
+    %13: %r15 = binary.eq %11, %12
+    branch %13 -> block1 -> block2
+  block1:
+    %17: %r2 = load element %0[%1]: %r2
+    %18: %r2 = load element %0[%1]: %r2
+    store element %18[%5]: %r1, %2
+    %19: %r19 = convert %8
+    %20: %r5 = convert %19
+    store property %3.length: %r5, %20
+    return
+  block2:
+    %14: %r2 = load element %0[%1]: %r2
+    %15: %r0 = host host.field "length" host-range %14
+    %16: %r15 = binary.le %8, %15
+    branch %16 -> block1 -> block3
+  block3:
+    call growJsArray(String) %0, %1, %8
+    jump -> block1
+
+fn Array(a).reclaim(I32)(one %r6) -> omitted
+  var $0: %r6
+  block0(%0: %r6):
+    store var $0: %r6, %0
+    return
+
+fn growJsArray(String)(parts %r10, one %r0) -> omitted
+  block0(%0: %r8, %1: %r8, %2: %r0):
+    %3: %r2 = load element %0[%1]: %r2
+    %4: %r2 = load element %0[%1]: %r2
+    %5: %r0 = host host.field "length" host-range %4
+    %6: %r0 = binary.add %5, %5
+    %7: %r0 = coerce %6
+    %8: %r15 = binary.lt %7, %2
+    %9: %r0 = select %8, %2, %7
+    %10: %r0 = const 4
+    %11: %r15 = binary.lt %9, %10
+    %12: %r0 = const 4
+    %13: %r0 = select %11, %12, %9
+    %14: %r2 = load element %0[%1]: %r2
+    %15: %r2 = host host.grow %14, %13
+    store element %0[%1]: %r2, %15
+    return
+
+fn growJsArray(Array(I32))(parts %r12, one %r0) -> omitted
+  block0(%0: %r8, %1: %r8, %2: %r0):
+    %3: %r7 = load element %0[%1]: %r7
+    %4: %r7 = load element %0[%1]: %r7
+    %5: %r0 = host host.field "length" host-range %4
+    %6: %r0 = binary.add %5, %5
+    %7: %r0 = coerce %6
+    %8: %r15 = binary.lt %7, %2
+    %9: %r0 = select %8, %2, %7
+    %10: %r0 = const 4
+    %11: %r15 = binary.lt %9, %10
+    %12: %r0 = const 4
+    %13: %r0 = select %11, %12, %9
+    %14: %r7 = load element %0[%1]: %r7
+    %15: %r7 = host host.grow %14, %13
+    store element %0[%1]: %r7, %15
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 14 adopted 0 sunk 0
+
+shape %s0 object Array {items: %r4, length: %r5}
+shape %s1 ref {$o: %r8 owner, $k: %r8 key}
+shape %s2 fun {$c: %r8 code, $e: %r8 env}
+shape %s3 cell {$v: %r2 box}
+shape %s4 cell {$v: %r7 box}
+shape %s5 host Array {length: %r5}
+shape %s6 object ArrayView {items: %r2, length: %r0, offset: %r0}
+shape %s7 host Array {length: %r5}
+shape %s8 object ArrayView {items: %r7, length: %r0, offset: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = string
+rep %r2 = array Array of %r1
+rep %r3 = void
+rep %r4 = array Int32Array of %r0
+rep %r5 = number unsigned 30
+rep %r6 = object %s0
+rep %r7 = array Array of %r6
+rep %r8 = erased
+rep %r9 = cell of %r2
+rep %r10 = parts (%r8, %r8) as %r9
+rep %r11 = cell of %r7
+rep %r12 = parts (%r8, %r8) as %r11
+rep %r13 = object %s2
+rep %r14 = object %s3
+rep %r15 = number bool
+rep %r16 = object %s4
+rep %r17 = object %s6
+rep %r18 = parts (%r2, %r0, %r0) as %r17
+rep %r19 = number unsigned 32
+rep %r20 = object %s8
+rep %r21 = parts (%r7, %r0, %r0) as %r20

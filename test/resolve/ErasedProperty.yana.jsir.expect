@@ -1,0 +1,59 @@
+fn main() -> one %r0
+  var $0: %r1
+  block0:
+    %0: %r0 = const 0
+    %1: %r0 = const 0
+    %2: %r1 = object %s0 %0, %1
+    store var $0: %r1, %2
+    %9: %r0 = const 1
+    %10: %r0 = const 2
+    %11: %r1 = object %s0 %9, %10
+    store var $0: %r1, %11
+    %12: %r0 = const 8
+    %13: %r1 = load var $0: %r1
+    store property %13.name: %r0, %12
+    %14: %r0 = const 1
+    %15: %r0 = const 3
+    %17: %r0 = alias %14
+    %18: %r0 = const 100
+    %19: %r0 = binary.mul %17, %18
+    %20: %r0 = coerce %19
+    %21: %r0 = alias %15
+    %22: %r0 = binary.add %20, %21
+    %23: %r0 = coerce %22
+    %24: %r0 = const 4
+    %25: %r0 = const 6
+    %27: %r0 = alias %25
+    %28: %r0 = const 100
+    %29: %r0 = binary.mul %27, %28
+    %30: %r0 = coerce %29
+    %31: %r0 = alias %24
+    %32: %r0 = binary.add %30, %31
+    %33: %r0 = coerce %32
+    %34: %r0 = const 5200
+    %35: %r1 = load var $0: %r1
+    %36: %r1 = clone %35
+    %37: %r0 = load property %36.name: %r0
+    %38: %r0 = const 10
+    %39: %r0 = binary.mul %37, %38
+    %40: %r0 = coerce %39
+    %41: %r0 = binary.add %34, %40
+    %42: %r0 = coerce %41
+    %43: %r0 = binary.add %42, %23
+    %44: %r0 = coerce %43
+    %45: %r0 = binary.add %44, %33
+    %46: %r0 = coerce %45
+    return %46
+
+optimizer clones 1 aliased 0 forwarded 4 removed 8 adopted 0 sunk 0
+
+shape %s0 object Person {name: %r0, age: %r0}
+shape %s1 object Item {name: %r0, cost: %r0}
+shape %s2 object Left {name: %r0, tag: %r0}
+shape %s3 object Right {tag: %r0, name: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = object %s1
+rep %r3 = object %s2
+rep %r4 = object %s3

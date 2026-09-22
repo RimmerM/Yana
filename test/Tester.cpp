@@ -162,6 +162,10 @@ void resolverTest(const String& path, StringView content) {
 
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
+
+    // `resolveModule` is `compiler/resolve`, so the settings have to say so: the default stage is
+    // the rewrite since 2026-09-22 (J81), and the file-name selectors read this.
+    context.settings.resolver = ResolverStage::Legacy;
     provider.context = &context;
 
     auto name = context.addUnqualifiedName("no_name", 7);
@@ -207,6 +211,10 @@ void generateResolverTest(const String& path, StringView content) {
 
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
+
+    // `resolveModule` is `compiler/resolve`, so the settings have to say so: the default stage is
+    // the rewrite since 2026-09-22 (J81), and the file-name selectors read this.
+    context.settings.resolver = ResolverStage::Legacy;
     provider.context = &context;
 
     auto name = context.addUnqualifiedName("no_name", 7);

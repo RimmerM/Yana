@@ -203,6 +203,13 @@ static bool nodeHasEffect(MirBase mir, Body& body, Node& node, const U32* isYiel
         case Node::RunSlots:
             return true;
 
+        // And a host operation, which is the one kind here whose answer is a *row* rather than the
+        // kind - `host.def`'s effect column, Analysis-IR-JS.md §3.10. `hostFixedCapacity` answers a
+        // question about a type and is the only row that has no effect; everything else reads or
+        // changes host state, which is something a consumer can observe.
+        case Node::Host:
+            return !hostIsPure(((NodeHost&)node).op);
+
         /*
          * A write, where what it writes is not the producer's own storage.
          *

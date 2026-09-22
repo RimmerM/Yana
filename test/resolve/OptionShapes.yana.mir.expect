@@ -1,0 +1,258 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+let string'142: [CodeUnit *3] = "abc"
+
+let string'143: [CodeUnit *6] = "abcdef"
+
+fn found(slot: I32 [unique slot 0]) -> Maybe(I32) [owned here shape4 .0=unique slot 0] {
+bb0:
+  %0: I32 [unique slot 0] = read borrow.unique (slot) loan0
+  %1: Maybe(I32) [owned here shape4 .0=unique slot 0] = aggregate.Just borrow.unique %0 roots.0{0}
+  return take %1
+}
+
+fn total(value: Maybe(I32) [shared call]) -> I32 {
+  local n: I32
+
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (value.Just)
+  write.init borrow.unique (n) take %5
+  %7: I32 = read copy.trivial (n)
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %4: I32 = const 0
+  jump -> bb2(take %4)
+}
+
+fn width(value: Maybe(String) [shared call]) -> I32 {
+  local text: String [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: String [shared call] = read borrow.shared (value.Just) loan0
+  write.init borrow.unique (text) borrow.shared %5
+  %7: String [shared call] = read borrow.shared (text) loan1 roots{0}
+  %8: String [shared slot 0 view] = call.derivation view(String) borrow.shared %7 roots{0, 1}
+  %9: Size = call length(String) borrow.shared %8
+  %10: I32 = convert inspect %9
+  jump -> bb2(take %10)
+
+bb2(%11: I32):
+  return take %11
+
+bb3:
+  %4: I32 = const 0
+  jump -> bb2(take %4)
+}
+
+fn corner(value: Maybe(Point) [shared call]) -> I32 {
+  local p: Point
+
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Point = read copy.trivial (value.Just)
+  write.init borrow.unique (p) take %5
+  %7: I32 = read copy.trivial (p.x)
+  %8: I32 = read copy.trivial (p.y)
+  %9: I32 = add inspect %7 inspect %8
+  jump -> bb2(take %9)
+
+bb2(%10: I32):
+  return take %10
+
+bb3:
+  %4: I32 = const 0
+  jump -> bb2(take %4)
+}
+
+fn depth(value: Maybe(Maybe(I32)) [shared call]) -> I32 {
+  local inner: Maybe(I32)
+  local n: I32
+
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Maybe(I32) = read copy.trivial (value.Just)
+  write.init borrow.unique (inner) take %5
+  %7: U8 = read copy.trivial (inner.#)
+  %8: U8 = const 0
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb6 -> bb4
+
+bb2(%20: I32):
+  return take %20
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+
+bb4:
+  %12: I32 = read copy.trivial (inner.Just)
+  write.init borrow.unique (n) take %12
+  %14: I32 = const 3
+  %15: I32 = read copy.trivial (n)
+  %16: I32 = add inspect %14 inspect %15
+  jump -> bb5(take %16)
+
+bb5(%17: I32):
+  jump -> bb2(take %17)
+
+bb6:
+  %11: I32 = const 2
+  jump -> bb5(take %11)
+}
+
+fn main() -> I32 {
+  local & number: I32
+  local & text: String
+  local & here: Point
+  local local3: Maybe(String)
+  local & sum: I32
+  local local5: Maybe(String)
+  local local6: Maybe(I32) [owned here shape4 .0=unique slot 0]
+  local & borrowed: I32 [unique slot 0]
+
+bb0:
+  %0: I32 = const 4
+  write.init borrow.unique (number) take %0
+  %2: String = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  write.init borrow.unique (text) take %2
+  %4: I32 = const 5
+  %5: I32 = const 6
+  %6: Point = aggregate.Point take %4 take %5
+  write.init borrow.unique (here) take %6
+  %8: I32 = read copy.trivial (number)
+  %9: Maybe(I32) = aggregate.Just take %8
+  %10: I32 = call total borrow.shared %9
+  %11: String [shared call] = read borrow.shared (text) loan0
+  %12: String [shared slot 0 view] = call.derivation view(String) borrow.shared %11 roots{0}
+  %13: String = call copy(String) borrow.shared %12
+  %14: Maybe(String) = aggregate.Just take %13
+  write.init borrow.unique (local3) take %14
+  %16: Maybe(String) [shared call] = read borrow.shared (local3) loan1
+  %17: I32 = call width borrow.shared %16
+  drop (local3)
+  %18: I32 = add inspect %10 inspect %17
+  %19: Point = read copy.trivial (here)
+  %20: Maybe(Point) = aggregate.Just take %19
+  %21: I32 = call corner borrow.shared %20
+  %22: I32 = add inspect %18 inspect %21
+  write.init borrow.unique (sum) take %22
+  %24: I32 = read copy.trivial (sum)
+  %25: Maybe(I32) = aggregate.Nothing
+  %26: I32 = call total borrow.shared %25
+  %27: I32 = add inspect %24 inspect %26
+  %28: Maybe(String) = aggregate.Nothing
+  write.init borrow.unique (local5) take %28
+  %30: Maybe(String) [shared call] = read borrow.shared (local5) loan2
+  %31: I32 = call width borrow.shared %30
+  drop (local5)
+  %32: I32 = add inspect %27 inspect %31
+  %33: Maybe(Point) = aggregate.Nothing
+  %34: I32 = call corner borrow.shared %33
+  %35: I32 = add inspect %32 inspect %34
+  write.assign borrow.unique (sum) take %35
+  %37: I32 = read copy.trivial (sum)
+  %38: Maybe(Maybe(I32)) = aggregate.Nothing
+  %39: I32 = call depth borrow.shared %38
+  %40: I32 = add inspect %37 inspect %39
+  %41: Maybe(I32) = aggregate.Nothing
+  %42: Maybe(Maybe(I32)) = aggregate.Just take %41
+  %43: I32 = call depth borrow.shared %42
+  %44: I32 = add inspect %40 inspect %43
+  %45: I32 = const 7
+  %46: Maybe(I32) = aggregate.Just take %45
+  %47: Maybe(Maybe(I32)) = aggregate.Just take %46
+  %48: I32 = call depth borrow.shared %47
+  %49: I32 = add inspect %44 inspect %48
+  write.assign borrow.unique (sum) take %49
+  %51: I32 [unique slot 0] = read borrow.unique (number) loan3
+  %52: Maybe(I32) [owned here shape4 .0=unique slot 0] = call found borrow.unique %51 roots.0{3}
+  write.init borrow.unique (local6) take %52
+  %54: U8 = read copy.trivial (local6.#)
+  %55: U8 = const 1
+  %56: Bool = eq inspect %54 inspect %55
+  branch inspect %56 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %66: I32 [unique call] = read borrow.unique (number) loan5
+  %67: I32 = read copy.trivial (number)
+  %68: I32 = const 2
+  %69: I32 = mul inspect %67 inspect %68
+  %70: {} = call put(I32) borrow.unique %66 take %69
+  %71: String [unique call] = read borrow.unique (text) loan6
+  %72: String = const String {units: Array {run: Run {items: &string'143, capacity: 6, ownsHeap: 0}, length: 6}}
+  %73: {} = call put(String) borrow.unique %71 take %72
+  %74: I32 = read copy.trivial (here.x)
+  %75: I32 = const 20
+  %76: I32 = add inspect %74 inspect %75
+  write.assign borrow.unique (here.x) take %76
+  %78: I32 = read copy.trivial (sum)
+  %79: I32 = read copy.trivial (number)
+  %80: I32 = add inspect %78 inspect %79
+  %81: String [shared call] = read borrow.shared (text) loan7
+  %82: String [shared slot 0 view] = call.derivation view(String) borrow.shared %81 roots{7}
+  %83: Size = call length(String) borrow.shared %82
+  drop (text)
+  %84: I32 = convert inspect %83
+  %85: I32 = add inspect %80 inspect %84
+  %86: I32 = read copy.trivial (here.x)
+  %87: I32 = add inspect %85 inspect %86
+  %88: I32 = read copy.trivial (here.y)
+  %89: I32 = add inspect %87 inspect %88
+  return take %89
+
+bb3:
+  %58: I32 [unique slot 0] = read borrow.unique (local6.Just) loan4 roots{3}
+  write.init borrow.unique (borrowed) borrow.unique %58
+  %60: I32 = read copy.trivial (borrowed)
+  %61: I32 = const 10
+  %62: I32 = add inspect %60 inspect %61
+  write.assign borrow.unique (borrowed) take %62
+  jump -> bb2
+}
+
+fn put(slot: a [unique call], value: a) -> {} {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: a = read take (value)
+  drop (slot)
+  write.assign borrow.unique (slot) take %0
+  return
+}
+
+fn put(I32)(slot: I32 [unique call], value: I32) -> {} = <put at I32>
+
+fn put(String)(slot: String [unique call], value: String) -> {} = <put at String>
+
+entry main

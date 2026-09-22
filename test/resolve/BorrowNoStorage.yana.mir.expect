@@ -1,0 +1,166 @@
+module ResolveTest
+
+let string'142: [CodeUnit *3] = "ann"
+
+let string'143: [CodeUnit *3] = "bob"
+
+let string'144: [CodeUnit *2] = "cy"
+
+let string'145: [CodeUnit *3] = "bob"
+
+let string'146: [CodeUnit *3] = "bob"
+
+lens fn eachOf(xs: Array(String) [shared call view], $body: (String) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local3: Size
+  local i: Size
+  local local5: String [shared slot 0 view]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Array(String) [shared call view] = read borrow.shared (xs) loan0
+  %3: Size = call length(Array(String)) borrow.shared %2
+  %4: Size = const 0
+  %5: Size = const 1
+  write.init borrow.unique (local3) take %4
+  jump -> bb1(take %3, take %5)
+
+bb1(%6: Size, %7: Size):
+  %14: Size = read copy.trivial (local3)
+  %15: Bool = lt inspect %14 inspect %6
+  branch inspect %15 -> bb4(take %6, take %7) -> bb3(take %6, take %7)
+
+bb2(%8: Size, %9: Size):
+  %34: Size = read copy.trivial (local3)
+  %35: Size = add inspect %34 inspect %9
+  write.assign borrow.unique (local3) take %35
+  jump -> bb1(take %8, take %9)
+
+bb3(%10: Size, %11: Size):
+  %38: I32 = read copy.trivial ($yielded)
+  return take %38
+
+bb4(%16: Size, %17: Size):
+  %19: Size = read copy.trivial (local3)
+  write.init borrow.unique (i) take %19
+  %21: Size = read copy.trivial (i)
+  %22: Array(String) [shared call view] = read borrow.shared (xs) loan1
+  %23: String [shared slot 0 view] = call.subscript get(Array(String), Size, String) borrow.shared %22 borrow.shared %21 roots{1}
+  write.init borrow.unique (local5) borrow.shared %23
+  %25: String [shared slot 0 view] = read borrow.shared (local5) loan2 roots{1}
+  %26: (String) -> I32 [shared call] = read borrow.shared ($body) loan3
+  %27: I32 = call inspect %26 borrow.shared %25
+  %28: I32 = const 0
+  %29: Bool = eq inspect %27 inspect %28
+  write.assign borrow.unique ($yielded) take %27
+  branch inspect %29 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %16, take %17)
+
+bb6:
+  jump -> bb3(take %16, take %17)
+}
+
+fn countIn(xs: Array(String) [shared call view], wanted: String [shared call view]) -> I32 {
+  local & total: I32
+  local v: String [shared call view]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: Array(String) [shared call view] = read borrow.shared (xs) loan0
+  lens.call eachOf borrow.shared %2 -> bb2
+
+bb1:
+  %17: I32 = read copy.trivial (total)
+  return take %17
+
+bb2(%3: String [shared call view]) handover(String [shared call view]) many -> bb1:
+  write.init borrow.unique (v) borrow.shared %3
+  %6: String [shared call view] = read borrow.shared (v) loan1 roots{0}
+  %7: String [shared call view] = read borrow.shared (wanted) loan2
+  %8: Bool = call ==(String) borrow.shared %6 borrow.shared %7
+  branch inspect %8 -> bb5 -> bb3
+
+bb3 handover(String [shared call view]) many:
+  jump -> bb4
+
+bb4 handover(String [shared call view]) many:
+  jump -> bb1
+
+bb5 handover(String [shared call view]) many:
+  %10: I32 = read copy.trivial (total)
+  %11: I32 = const 1
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (total) take %12
+  jump -> bb4
+}
+
+fn main() -> I32 {
+  local & local0: Array(String) object1
+  local names: Array(String) object1
+  local local2: String
+  local byLiteral: I32
+  local local4: String [shared slot 0 view]
+  local picked: String [shared slot 0 view]
+  local byTemporary: I32
+
+bb0:
+  %0: String = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  %1: String = const String {units: Array {run: Run {items: &string'143, capacity: 3, ownsHeap: 0}, length: 3}}
+  %2: String = const String {units: Array {run: Run {items: &string'144, capacity: 2, ownsHeap: 0}, length: 2}}
+  %3: String = const String {units: Array {run: Run {items: &string'145, capacity: 3, ownsHeap: 0}, length: 3}}
+  %4: %String = run.slots String *4
+  %5: Size = bitcast inspect %4
+  %6: Size = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  %8: {} = call checkCondition borrow.shared %7
+  %9: @bits(30) U32 = const 4
+  %10: @bits(2) U32 = const 1
+  %11: Run(String) = aggregate.Run take %4 take %9 take %10
+  %12: @bits(30) U32 = const 4
+  %13: Array(String) = aggregate.Array take %11 take %12
+  write.init borrow.unique (local0) take %13
+  %15: Size = const 0
+  write.init borrow.unique ([%%4][0]) take %0
+  %17: Size = const 1
+  write.init borrow.unique ([%%4][1]) take %1
+  %19: Size = const 2
+  write.init borrow.unique ([%%4][2]) take %2
+  %21: Size = const 3
+  write.init borrow.unique ([%%4][3]) take %3
+  %23: Array(String) = read take (local0)
+  write.init borrow.unique (names) take %23
+  %25: Array(String) [shared call] = read borrow.shared (names) loan0
+  %26: Array(String) [shared slot 0 view] = call.derivation elements(Array(String), String) borrow.shared %25 roots{0}
+  %27: String = const String {units: Array {run: Run {items: &string'146, capacity: 3, ownsHeap: 0}, length: 3}}
+  write.init borrow.unique (local2) take %27
+  %29: String [shared slot 0] = read borrow.shared (local2) loan1
+  %30: String [shared slot 0 view] = call.derivation view(String) borrow.shared %29 roots{1}
+  %31: I32 = call countIn borrow.shared %26 borrow.shared %30
+  drop (local2)
+  write.init borrow.unique (byLiteral) take %31
+  %33: Size = const 2
+  %34: Array(String) [shared call] = read borrow.shared (names) loan2
+  %35: Array(String) [shared slot 0 view] = call.derivation elements(Array(String), String) borrow.shared %34 roots{2}
+  %36: String [shared slot 0 view] = call.subscript get(Array(String), Size, String) borrow.shared %35 borrow.shared %33 roots{2}
+  write.init borrow.unique (local4) borrow.shared %36
+  %38: String [shared slot 0 view] = read borrow.shared (local4) loan3 roots{2}
+  write.init borrow.unique (picked) borrow.shared %38
+  %40: Array(String) [shared call] = read borrow.shared (names) loan4
+  %41: Array(String) [shared slot 0 view] = call.derivation elements(Array(String), String) borrow.shared %40 roots{4}
+  %42: String [shared slot 0 view] = read borrow.shared (picked) loan5 roots{2, 3}
+  %43: I32 = call countIn borrow.shared %41 borrow.shared %42
+  drop (names)
+  write.init borrow.unique (byTemporary) take %43
+  %45: I32 = read copy.trivial (byLiteral)
+  %46: I32 = const 10
+  %47: I32 = mul inspect %45 inspect %46
+  %48: I32 = read copy.trivial (byTemporary)
+  %49: I32 = add inspect %47 inspect %48
+  return take %49
+}
+
+entry main

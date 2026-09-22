@@ -305,8 +305,20 @@ bool optimizeProgram(Context& context, mir::Program& program, Converted& convert
      * signature this rewrites is rewritten once in the callee rather than once per copy of it, and
      * what it leaves behind - a record rebuilt in the callee's entry, taken apart at the caller - is
      * exactly what `promote`, `forwardMemory` and `removeDeadStorage` remove in the loop below.
+     *
+     * **Native only since 2026-09-21** - Analysis-IR-JS.md §3.7.1, which is where the decision is
+     * argued. What this flattens is a shared, call-bounded `AccessForm::View` of an `Array(a)`: two
+     * words at an address, split so that a bounds test compares against a register rather than a
+     * load. A window on JavaScript is a host handle, a length and an offset, and what is worth
+     * flattening there is a different set - the erased pair, the vector lanes, the narrow reference
+     * - none of which this pass touches. So it runs on the native side of the fork only, a
+     * JavaScript compilation sees the declarations as written, and JSIR's `JsAbi` is then a pure
+     * function of them rather than of what this left behind.
+     *
+     * In the pipeline and not inside the pass, which is the rule this file keeps: a pass answers a
+     * question, and whether the question is this target's is decided here.
      */
-    flattenArguments(opt);
+    if(!isJsMode(context.settings)) flattenArguments(opt);
 
     eachOptimizedBody(opt, program, [](OptContext& body) {
         checkpoint(body, "after flattenArguments"_v);

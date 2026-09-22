@@ -1,0 +1,74 @@
+fn main$() -> one %r0
+  block0:
+    %1: %r0 = const 20
+    store global seed: %r0, %1
+    %2: %r0 = load global counter: %r0
+    %3: %r0 = load global seed: %r0
+    %4: %r0 = binary.add %2, %3
+    %5: %r0 = coerce %4
+    store global counter: %r0, %5
+    %6: %r0 = load global counter: %r0
+    %7: %r2 = load global shape: %r2
+    %8: %r2 = clone %7
+    %9: %r1 = load property %8.$tag: %r1
+    %10: %r1 = const 0
+    %11: %r3 = binary.eq %9, %10
+    branch %11 -> block3 -> block2
+  block1(%0: %r0):
+    %18: %r0 = binary.add %6, %0
+    %19: %r0 = coerce %18
+    store global counter: %r0, %19
+    %20: %r0 = load global counter: %r0
+    store global recorded: %r0, %20
+    %21: %r0 = load global counter: %r0
+    %22: %r0 = const 1
+    %23: %r0 = binary.add %21, %22
+    %24: %r0 = coerce %23
+    store global first: %r0, %24
+    %25: %r0 = load global first: %r0
+    %26: %r0 = const 1
+    %27: %r0 = binary.add %25, %26
+    %28: %r0 = coerce %27
+    store global second: %r0, %28
+    %29: %r0 = const 3
+    %30: %r0 = load global counter: %r0
+    %31: %r0 = binary.add %29, %30
+    %32: %r0 = coerce %31
+    %33: %r0 = load global recorded: %r0
+    %34: %r0 = const 100
+    %35: %r0 = binary.mul %33, %34
+    %36: %r0 = coerce %35
+    %37: %r0 = binary.add %32, %36
+    %38: %r0 = coerce %37
+    %39: %r0 = load global first: %r0
+    %40: %r0 = const 10000
+    %41: %r0 = binary.mul %39, %40
+    %42: %r0 = coerce %41
+    %43: %r0 = binary.add %38, %42
+    %44: %r0 = coerce %43
+    %45: %r0 = load global second: %r0
+    %46: %r0 = const 1000000
+    %47: %r0 = binary.mul %45, %46
+    %48: %r0 = coerce %47
+    %49: %r0 = binary.add %44, %48
+    %50: %r0 = coerce %49
+    return %50
+  block2:
+    %12: %r0 = load property %8.Square: %r0
+    %13: %r0 = binary.mul %12, %12
+    %14: %r0 = coerce %13
+    jump -> block1(%14)
+  block3:
+    %15: %r0 = load property %8.Circle: %r0
+    %16: %r0 = binary.mul %15, %15
+    %17: %r0 = coerce %16
+    jump -> block1(%17)
+
+optimizer clones 1 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+shape %s0 object Shape {$tag: %r1 tag, Circle: %r0, Square: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = number unsigned 8
+rep %r2 = object %s0
+rep %r3 = number bool

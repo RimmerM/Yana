@@ -1,0 +1,63 @@
+fn main() -> one %r0
+  var $0: %r3
+  block0:
+    %0: %r1 = const 3
+    %1: %r2 = const 1000
+    %2: %r3 = object %s0 %0, %1
+    store var $0: %r3, %2
+    %3: %r3 = load var $0: %r3
+    %4: %r3 = alias %3
+    %5: %r2 = load property %4.wide: %r2
+    %6: %r4 = convert %5
+    %7: %r5 = convert %6
+    %8: %r4 = convert %7
+    %9: %r4 = const 1000n
+    %10: %r6 = binary.eq %8, %9
+    %11: %r0 = const 2
+    %12: %r0 = const 0
+    %13: %r0 = select %10, %11, %12
+    %14: %r0 = const 1
+    %15: %r0 = binary.add %14, %13
+    %16: %r0 = coerce %15
+    %17: %r3 = load var $0: %r3
+    %18: %r3 = alias %17
+    %19: %r1 = load property %18.small: %r1
+    %20: %r7 = convert %19
+    %21: %r7 = const 7
+    %22: %r7 = binary.add %20, %21
+    %23: %r7 = coerce %22
+    %24: %r7 = const 10
+    %25: %r0 = const 4
+    %26: %r6 = binary.eq %23, %24
+    %27: %r0 = const 0
+    %28: %r0 = select %26, %25, %27
+    %29: %r0 = binary.add %16, %28
+    %30: %r0 = coerce %29
+    %31: %r0 = const 8
+    %32: %r0 = binary.add %30, %31
+    %33: %r0 = coerce %32
+    %34: %r3 = load var $0: %r3
+    %35: %r3 = alias %34
+    %36: %r2 = load property %35.wide: %r2
+    %37: %r0 = convert %36
+    %38: %r0 = const 1000
+    %39: %r6 = binary.eq %37, %38
+    %40: %r0 = const 16
+    %41: %r0 = const 0
+    %42: %r0 = select %39, %40, %41
+    %43: %r0 = binary.add %33, %42
+    %44: %r0 = coerce %43
+    return %44
+
+optimizer clones 3 aliased 3 forwarded 0 removed 0 adopted 0 sunk 0
+
+shape %s0 object Box {small: %r1, wide: %r2}
+
+rep %r0 = number signed 32
+rep %r1 = number unsigned 4
+rep %r2 = number unsigned 20
+rep %r3 = object %s0
+rep %r4 = bigint unsigned
+rep %r5 = number unsigned 40
+rep %r6 = number bool
+rep %r7 = number unsigned 32

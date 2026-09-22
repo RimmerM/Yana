@@ -1,0 +1,428 @@
+fn opaque(one %r0) -> one %r0
+  var $0: %r0
+  block0(%0: %r0):
+    store var $0: %r0, %0
+    %1: %r0 = load var $0: %r0
+    %2: %r0 = alias %1
+    return %2
+
+fn codeIn(one %r2) -> one %r3
+  var $0: %r0
+  block0(%0: %r2):
+    %4: %r2 = const null
+    %5: %r9 = binary.eq %0, %4
+    %6: %r1 = const 1
+    %7: %r1 = const 0
+    %8: %r1 = select %5, %7, %6
+    %9: %r1 = const 0
+    %10: %r10 = binary.eq %8, %9
+    branch %10 -> block3 -> block1
+  block1:
+    %11: %r0 = alias %0
+    %12: %r0 = alias %11
+    store var $0: %r0, %12
+    %13: %r0 = load var $0: %r0
+    %14: %r0 = alias %13
+    %15: %r0 = alias %14
+    %16: %r0 = const ""
+    %17: %r0 = alias %15
+    %18: %r0 = alias %16
+    %19: %r0 = alias %17
+    %20: %r0 = alias %18
+    %21: %r10 = host host.binary "===" %19, %20
+    branch %21 -> block8 -> block4
+  block2(%1: %r3):
+    return %1
+  block3:
+    %41: %r3 = const 9
+    jump -> block2(%41)
+  block4:
+    %22: %r0 = alias %14
+    %23: %r0 = const "a"
+    %24: %r0 = alias %22
+    %25: %r0 = alias %23
+    %26: %r0 = alias %24
+    %27: %r0 = alias %25
+    %28: %r10 = host host.binary "===" %26, %27
+    branch %28 -> block6 -> block5
+  block5:
+    %29: %r0 = alias %14
+    %30: %r0 = const "ab"
+    %31: %r0 = alias %29
+    %32: %r0 = alias %30
+    %33: %r0 = alias %31
+    %34: %r0 = alias %32
+    %35: %r10 = host host.binary "===" %33, %34
+    %36: %r3 = const 3
+    %37: %r3 = const 4
+    %38: %r3 = select %35, %36, %37
+    jump -> block7(%38)
+  block6:
+    %39: %r3 = const 2
+    jump -> block7(%39)
+  block7(%2: %r3):
+    jump -> block9(%2)
+  block8:
+    %40: %r3 = const 1
+    jump -> block9(%40)
+  block9(%3: %r3):
+    jump -> block2(%3)
+
+fn main() -> one %r3
+  var $0: %r2
+  var $1: %r0
+  var $2: %r0
+  var $3: %r0
+  var $4: %r0
+  var $5: %r11
+  var $6: %r2
+  var $7: %r2
+  var $8: %r0
+  var $9: %r0
+  var $10: %r0
+  var $11: %r0
+  var $12: %r0
+  var $13: %r0
+  var $14: %r2
+  var $15: %r0
+  var $16: %r0
+  block0:
+    %6: %r2 = const null
+    store var $0: %r2, %6
+    %7: %r2 = load var $0: %r2
+    %8: %r2 = alias %7
+    %9: %r3 = call codeIn %8
+    %10: %r0 = const "a"
+    %11: %r0 = call opaque %10
+    %12: %r0 = const "b"
+    store var $1: %r0, %11
+    store var $2: %r0, %12
+    %13: %r0 = load var $1: %r0
+    %14: %r0 = alias %13
+    %15: %r0 = load var $2: %r0
+    %16: %r0 = alias %15
+    %17: %r0 = alias %14
+    %18: %r0 = alias %16
+    %19: %r0 = host host.binary "+" %17, %18
+    %20: %r2 = alias %19
+    store var $0: %r2, %20
+    %21: %r2 = load var $0: %r2
+    %22: %r2 = alias %21
+    %23: %r3 = call codeIn %22
+    %24: %r0 = const "a"
+    %25: %r0 = call opaque %24
+    %26: %r0 = const ""
+    store var $3: %r0, %25
+    store var $4: %r0, %26
+    %27: %r0 = load var $3: %r0
+    %28: %r0 = alias %27
+    %29: %r0 = load var $4: %r0
+    %30: %r0 = alias %29
+    %31: %r0 = alias %28
+    %32: %r0 = alias %30
+    %33: %r0 = host host.binary "+" %31, %32
+    %34: %r2 = alias %33
+    store var $0: %r2, %34
+    %35: %r2 = load var $0: %r2
+    %36: %r2 = alias %35
+    %37: %r3 = call codeIn %36
+    %38: %r2 = const null
+    store var $0: %r2, %38
+    %39: %r2 = load var $0: %r2
+    %40: %r2 = alias %39
+    %41: %r3 = call codeIn %40
+    %42: %r3 = const 10
+    %43: %r3 = binary.mul %23, %42
+    %44: %r3 = coerce %43
+    %45: %r3 = binary.add %9, %44
+    %46: %r3 = coerce %45
+    %47: %r3 = const 100
+    %48: %r3 = binary.mul %37, %47
+    %49: %r3 = coerce %48
+    %50: %r3 = binary.add %46, %49
+    %51: %r3 = coerce %50
+    %52: %r3 = const 1000
+    %53: %r3 = binary.mul %41, %52
+    %54: %r3 = coerce %53
+    %55: %r3 = binary.add %51, %54
+    %56: %r3 = coerce %55
+    %57: %r2 = const null
+    %58: %r3 = const 0
+    %59: %r11 = object %s1 %57, %58
+    store var $5: %r11, %59
+    %60: %r0 = const "a"
+    %61: %r0 = call opaque %60
+    %62: %r0 = const "b"
+    store var $8: %r0, %61
+    store var $9: %r0, %62
+    %63: %r0 = load var $8: %r0
+    %64: %r0 = alias %63
+    %65: %r0 = load var $9: %r0
+    %66: %r0 = alias %65
+    %67: %r0 = alias %64
+    %68: %r0 = alias %66
+    %69: %r0 = host host.binary "+" %67, %68
+    %70: %r2 = alias %69
+    %71: %r3 = const 2
+    %72: %r11 = object %s1 %70, %71
+    store var $5: %r11, %72
+    %73: %r11 = load var $5: %r11
+    %74: %r2 = const null
+    %75: %r2 = load property %73.name: %r2
+    %76: %r2 = alias %75
+    store var $6: %r2, %76
+    %77: %r2 = load var $6: %r2
+    %78: %r2 = alias %77
+    store property %73.name: %r2, %74
+    store var $7: %r2, %78
+    %79: %r2 = load var $7: %r2
+    %80: %r2 = alias %79
+    %81: %r3 = call codeIn %80
+    %82: %r2 = load property %73.name: %r2
+    %83: %r2 = alias %82
+    %84: %r3 = call codeIn %83
+    %85: %r3 = const 10
+    %86: %r3 = binary.mul %84, %85
+    %87: %r3 = coerce %86
+    %88: %r3 = binary.add %81, %87
+    %89: %r3 = coerce %88
+    %90: %r11 = load var $5: %r11
+    %91: %r3 = load property %90.id: %r3
+    %92: %r3 = const 100
+    %93: %r3 = binary.mul %91, %92
+    %94: %r3 = coerce %93
+    %95: %r3 = binary.add %89, %94
+    %96: %r3 = coerce %95
+    %97: %r3 = const 100000
+    %98: %r3 = binary.mul %96, %97
+    %99: %r3 = coerce %98
+    %100: %r3 = binary.add %56, %99
+    %101: %r3 = coerce %100
+    %102: %r4 = array
+    %103: %r12 = object %s2 %102
+    %104: %r4 = host host.array
+    %106: %r4 = alias %104
+    store property %103.$v: %r4, %106
+    %107: %r0 = const "a"
+    %108: %r0 = call opaque %107
+    %109: %r0 = const "b"
+    store var $10: %r0, %108
+    store var $11: %r0, %109
+    %110: %r0 = load var $10: %r0
+    %111: %r0 = alias %110
+    %112: %r0 = load var $11: %r0
+    %113: %r0 = alias %112
+    %114: %r0 = alias %111
+    %115: %r0 = alias %113
+    %116: %r0 = host host.binary "+" %114, %115
+    %117: %r2 = alias %116
+    %118: %r5 = const "$v"
+    call push(Maybe(String)) %103, %118, %117
+    %119: %r2 = const null
+    %120: %r5 = const "$v"
+    call push(Maybe(String)) %103, %120, %119
+    %121: %r0 = const "a"
+    %122: %r0 = call opaque %121
+    %123: %r0 = const ""
+    store var $12: %r0, %122
+    store var $13: %r0, %123
+    %124: %r0 = load var $12: %r0
+    %125: %r0 = alias %124
+    %126: %r0 = load var $13: %r0
+    %127: %r0 = alias %126
+    %128: %r0 = alias %125
+    %129: %r0 = alias %127
+    %130: %r0 = host host.binary "+" %128, %129
+    %131: %r2 = alias %130
+    %132: %r5 = const "$v"
+    call push(Maybe(String)) %103, %132, %131
+    %133: %r2 = const null
+    %134: %r5 = const "$v"
+    call push(Maybe(String)) %103, %134, %133
+    %135: %r0 = const "zz"
+    %136: %r0 = call opaque %135
+    %137: %r2 = alias %136
+    %138: %r5 = const "$v"
+    call push(Maybe(String)) %103, %138, %137
+    %139: %r3 = const 0
+    %140: %r3 = const 0
+    %141: %r3 = const 5
+    %142: %r3 = const 10
+    %143: %r3 = const 0
+    %144: %r3 = const 1
+    jump -> block1(%139, %140)
+  block1(%0: %r3, %1: %r3):
+    %145: %r10 = binary.lt %1, %141
+    branch %145 -> block3 -> block2
+  block2:
+    %146: %r4 = load property %103.$v: %r4
+    call Array(a).reclaim(Maybe(String)) %146
+    %147: %r3 = binary.add %101, %0
+    %148: %r3 = coerce %147
+    %149: %r3 = const 0
+    %150: %r3 = const 0
+    %151: %r3 = const 1000
+    %152: %r3 = const 3
+    %153: %r3 = const 0
+    %154: %r3 = const 2
+    %155: %r3 = const 1
+    %156: %r0 = const "a"
+    %157: %r3 = const 0
+    %158: %r0 = const ""
+    %159: %r0 = const "b"
+    jump -> block6(%149, %150)
+  block3:
+    %186: %r3 = binary.mul %0, %142
+    %187: %r3 = coerce %186
+    %189: %r4 = load property %103.$v: %r4
+    %190: %r4 = load property %103.$v: %r4
+    %191: %r13 = load property %190.length: %r13
+    %192: %r3 = convert %191
+    %193: %r3 = convert %1
+    %194: %r16 = convert %193
+    %195: %r16 = convert %192
+    %196: %r10 = binary.ge %194, %195
+    branch %196 -> block5 -> block4
+  block4:
+    %197: %r4 = alias %189
+    %198: %r3 = binary.add %143, %193
+    %199: %r3 = coerce %198
+    %200: %r2 = load element %197[%199]: %r2
+    %201: %r2 = alias %200
+    %202: %r3 = call codeIn %201
+    %203: %r3 = binary.add %187, %202
+    %204: %r3 = coerce %203
+    %205: %r3 = binary.add %1, %144
+    %206: %r3 = coerce %205
+    jump -> block1(%204, %206)
+  block5:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block6(%2: %r3, %3: %r3):
+    %160: %r10 = binary.lt %3, %151
+    branch %160 -> block8 -> block7
+  block7:
+    %161: %r3 = binary.add %148, %2
+    %162: %r3 = coerce %161
+    return %162
+  block8:
+    %163: %r3 = binary.rem %3, %152
+    %164: %r3 = coerce %163
+    %165: %r10 = binary.eq %164, %153
+    branch %165 -> block10 -> block9
+  block9:
+    %166: %r3 = binary.rem %3, %154
+    %167: %r3 = coerce %166
+    %168: %r0 = call opaque %156
+    %169: %r10 = binary.gt %167, %157
+    branch %169 -> block13 -> block12
+  block10:
+    %178: %r2 = const null
+    jump -> block11(%178)
+  block11(%4: %r2):
+    store var $14: %r2, %4
+    %179: %r2 = load var $14: %r2
+    %180: %r2 = alias %179
+    %181: %r3 = call codeIn %180
+    %182: %r3 = binary.add %2, %181
+    %183: %r3 = coerce %182
+    %184: %r3 = binary.add %3, %155
+    %185: %r3 = coerce %184
+    jump -> block6(%183, %185)
+  block12:
+    jump -> block14(%158)
+  block13:
+    jump -> block14(%159)
+  block14(%5: %r0):
+    store var $15: %r0, %168
+    store var $16: %r0, %5
+    %170: %r0 = load var $15: %r0
+    %171: %r0 = alias %170
+    %172: %r0 = load var $16: %r0
+    %173: %r0 = alias %172
+    %174: %r0 = alias %171
+    %175: %r0 = alias %173
+    %176: %r0 = host host.binary "+" %174, %175
+    %177: %r2 = alias %176
+    jump -> block11(%177)
+
+fn push(Maybe(String))(parts %r7, one %r2) -> omitted
+  block0(%0: %r5, %1: %r5, %2: %r2):
+    %3: %r4 = load element %0[%1]: %r4
+    %4: %r13 = load property %3.length: %r13
+    %5: %r3 = convert %4
+    %6: %r3 = const 1
+    %7: %r3 = binary.add %5, %6
+    %8: %r3 = coerce %7
+    %9: %r4 = load element %0[%1]: %r4
+    %10: %r4 = load element %0[%1]: %r4
+    %11: %r10 = host host.capacity %10
+    %12: %r10 = const 0
+    %13: %r10 = binary.eq %11, %12
+    branch %13 -> block1 -> block2
+  block1:
+    %17: %r4 = load element %0[%1]: %r4
+    %18: %r4 = load element %0[%1]: %r4
+    store element %18[%5]: %r2, %2
+    %19: %r16 = convert %8
+    %20: %r13 = convert %19
+    store property %3.length: %r13, %20
+    return
+  block2:
+    %14: %r4 = load element %0[%1]: %r4
+    %15: %r3 = host host.field "length" host-range %14
+    %16: %r10 = binary.le %8, %15
+    branch %16 -> block1 -> block3
+  block3:
+    call growJsArray(Maybe(String)) %0, %1, %8
+    jump -> block1
+
+fn Array(a).reclaim(Maybe(String))(one %r4) -> omitted
+  var $0: %r4
+  block0(%0: %r4):
+    store var $0: %r4, %0
+    return
+
+fn growJsArray(Maybe(String))(parts %r7, one %r3) -> omitted
+  block0(%0: %r5, %1: %r5, %2: %r3):
+    %3: %r4 = load element %0[%1]: %r4
+    %4: %r4 = load element %0[%1]: %r4
+    %5: %r3 = host host.field "length" host-range %4
+    %6: %r3 = binary.add %5, %5
+    %7: %r3 = coerce %6
+    %8: %r10 = binary.lt %7, %2
+    %9: %r3 = select %8, %2, %7
+    %10: %r3 = const 4
+    %11: %r10 = binary.lt %9, %10
+    %12: %r3 = const 4
+    %13: %r3 = select %11, %12, %9
+    %14: %r4 = load element %0[%1]: %r4
+    %15: %r4 = host host.grow %14, %13
+    store element %0[%1]: %r4, %15
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0
+
+shape %s0 ref {$o: %r5 owner, $k: %r5 key}
+shape %s1 object Row {name: %r2, id: %r3}
+shape %s2 cell {$v: %r4 box}
+shape %s3 host Array {length: %r13}
+shape %s4 object ArrayView {items: %r4, length: %r3, offset: %r3}
+
+rep %r0 = string
+rep %r1 = number unsigned 8
+rep %r2 = nullable of %r0
+rep %r3 = number signed 32
+rep %r4 = array Array of %r2
+rep %r5 = erased
+rep %r6 = cell of %r4
+rep %r7 = parts (%r5, %r5) as %r6
+rep %r8 = void
+rep %r9 = boolean
+rep %r10 = number bool
+rep %r11 = object %s1
+rep %r12 = object %s2
+rep %r13 = number unsigned 30
+rep %r14 = object %s4
+rep %r15 = parts (%r4, %r3, %r3) as %r14
+rep %r16 = number unsigned 32

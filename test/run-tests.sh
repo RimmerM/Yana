@@ -85,8 +85,16 @@ done
 
 echo "edit|$build/test/YanaEditTest" >> "$jobfile"
 echo "ossa|$build/test/YanaOssaTest" >> "$jobfile"
+echo "jsir|$build/test/YanaJsirTest" >> "$jobfile"
 echo "lsp|$build/test/YanaLspTest" >> "$jobfile"
 echo "lsp-protocol|$build/test/YanaLspProtocolTest" >> "$jobfile"
+
+# Not a driver and not a fixture corpus: the rewrite's directory boundaries, read out of the
+# `#include` lines - Analysis-IR-JS.md §8.1. It is here rather than in a C++ driver because what it
+# checks is the text of the repository, and it is in this run rather than in a hook because a
+# boundary nobody checks is a boundary that has already been crossed - which is exactly what §12.3's
+# first open question turned out to be.
+echo "layering|../tools/check-layering.sh" >> "$jobfile"
 
 extra=("$@")
 export LOGS="$logs"

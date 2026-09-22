@@ -412,7 +412,15 @@ YANA_INTRINSIC_OP( hostThrow,   OpForm::Node, unitAt(),    textAt()             
  * array on first use. The name is still the accessor's, which is where the width lives, and the byte
  * order is an ordinary argument because that is where the host takes it too.
  */
-YANA_INTRINSIC_OP( hostViewRead,  OpForm::Node, integerAt(), anyAt(), textAt(), integerAt(), boolAt() )
+/*
+ * The result is `anyAt()` and not `integerAt()`, which is the first of four rows this file got wrong
+ * and which nothing could have caught before §3.10's producer existed: the declaration is
+ * `hostViewRead(self: %U8, accessor: String, index: Size, little: Bool) -> a`, one signature over
+ * `getUint16`, `getUint32` and `getBigUint64`, and the width is the *accessor's* rather than the
+ * row's. `integerAt()` was a claim about a generic result that no generic result can satisfy - the
+ * same mistake `shape.h` opens by warning about, made in the other direction.
+ */
+YANA_INTRINSIC_OP( hostViewRead,  OpForm::Node, anyAt(),     anyAt(), textAt(), integerAt(), boolAt() )
 YANA_INTRINSIC_OP( hostViewWrite, OpForm::Node, unitAt(),    anyAt(), textAt(), integerAt(), anyAt(),
                                                                                              boolAt() )
 
@@ -435,14 +443,46 @@ YANA_INTRINSIC_OP( hostViewWrite, OpForm::Node, unitAt(),    anyAt(), textAt(), 
  * answer is whether `typedArrayFor` has a row for it, which is a compile-time question about the
  * pointee rather than anything the value knows.
  */
-YANA_INTRINSIC_OP( hostArray,         OpForm::Node, pointerAt()  )
+/*
+ * `hostArray()` answers `addressAt()` and not `pointerAt()`, on `stackInit`'s terms in `shape.h`:
+ * the array is one the *operation made*, so "read and not kept, bounded by the call" is not merely
+ * unneeded but untrue - the whole point of the value is that the caller keeps it. `pointerAt()` at a
+ * result position was unsatisfiable by any declaration, which is what a row with no producer costs.
+ */
+/*
+ * `hostRow(xs)` - a fixed array's own storage, as the row of its elements.
+ *
+ * The one thing this target could not say, and what `Contiguous([a *n], a).elements` needs to build
+ * a window without asking for one. Natively that member writes `bitcast(addressOf(self)) :: %a`; on
+ * JavaScript `addressOf` does not exist and `provideCoreInstances` generates no `Bitcast([a *n], %a)`
+ * rung, so a body written as `unclampedSlice(self, 0, n)` leaned on the conversion at a call - and
+ * under the ownership stage that conversion *is* this member, so it called itself and
+ * `test/resolve/FixedArray.yana` overflowed its stack. J66 §6 is the diagnosis.
+ *
+ * The expansion is `addressOf`'s, unchanged: a `[a *n]` here already *is* the host row, so what the
+ * two roles differ in is the result type, and `expandAddressOf` reads that off the declared result
+ * rather than off `pointerTo(0)`. So the row's result is `rootedAddressAt()` - a pointer the caller
+ * keeps whose pointee names the argument's published origin - and the subject is `viewAt()`, the
+ * shared borrow the member's own `self: source'[a *n]` is.
+ */
+YANA_INTRINSIC_OP( hostRow,           OpForm::Node, rootedAddressAt(), viewAt() )
+
+YANA_INTRINSIC_OP( hostArray,         OpForm::Node, addressAt()  )
 YANA_INTRINSIC_OP( hostGrow,          OpForm::Node, sameAs(0),   pointerAt(), integerAt()   )
 YANA_INTRINSIC_OP( hostFixedCapacity, OpForm::Node, boolAt(),    pointerAt()                )
 
 YANA_INTRINSIC_OP( hostRead,   OpForm::Node, pointeeOf(0), pointerAt(), integerAt()                )
 YANA_INTRINSIC_OP( hostWrite,  OpForm::Node, unitAt(),     pointerAt(), integerAt(), handoverOf(0) )
-YANA_INTRINSIC_OP( hostAt,     OpForm::Node, borrowOf(0),  pointerAt(), integerAt()                )
-YANA_INTRINSIC_OP( hostAtMut,  OpForm::Node, borrowMutOf(0), pointerAt(), integerAt()              )
+/*
+ * The two borrows take `rootedPointerAt()` and not `pointerAt()`, which is the same correction
+ * `borrow` and `borrowMut` already carry in the pointer block above: a result declared `source'a`
+ * is rooted in an origin the *signature* published, so the pointee of argument zero has to name one
+ * - `self: %source'a` - or the loan the caller is granted is rooted in nothing. The row said
+ * `CallBounded` and the library said `return self`, so the two disagreed in both directions at once
+ * and neither was read until §3.10 made something check them.
+ */
+YANA_INTRINSIC_OP( hostAt,     OpForm::Node, borrowOf(0),  rootedPointerAt(), integerAt()          )
+YANA_INTRINSIC_OP( hostAtMut,  OpForm::Node, borrowMutOf(0), rootedPointerAt(), integerAt()        )
 
 YANA_INTRINSIC_OP( hostVector,     OpForm::Node, anyAt(),  pointerAt(), integerAt()              )
 YANA_INTRINSIC_OP( hostVectorUpTo, OpForm::Node, anyAt(),  pointerAt(), integerAt(), integerAt() )

@@ -131,7 +131,9 @@
  *
  * A `Native` is **not** declined. A system call is an ordinary effect, and nothing in a cloned one
  * names the callee's frame: its operands are values, mapped like any other, and the frame it would
- * have addressed is the storage the clone brought with it.
+ * have addressed is the storage the clone brought with it. A `Host` is not declined for the same
+ * reason and one better - it is not even an address - which is what makes `@inline(always)` on the
+ * twenty-odd wrappers in `lib/Native/Host.js.yana` cost nothing.
  *
  * ## Adaptor chains, which are the one thing this does in two steps
  *
@@ -398,7 +400,103 @@ constexpr U32 kColdCallCost = 5;
  * for bytes on a program that is already faster than what it is compared against is a number with
  * nothing behind it.
  */
-Budget budgetFor(InlineLevel level) {
+
+/*
+ * What a callee may cost **on JavaScript**, whatever the level says - Analysis-IR-JS.md §6.10's
+ * "a JS compilation can feed the shared inliner JS cost summaries", as one number.
+ *
+ * The flat budget and nothing else, because that is the one term whose trade is different here. A
+ * copy natively is instructions the processor runs, and the reason the flat budget is twenty rather
+ * than eight is everything a copy *unlocks* below the inliner: a constant reaching the callee, a
+ * bounds test discharged, a slot promoted. All of that still holds here. What does not is the other
+ * half of the trade: an out-of-line call on this target is dispatched by an engine that inlines it
+ * again at run time, so the time a copy buys is time the host was going to find anyway - while the
+ * bytes are download and parse cost that nothing gives back.
+ *
+ * Measured on `test/base`'s `Base.js` - emitted bytes, and the best of five Node runs of the suite:
+ *
+ *     budget  12 -> 5,777,178  2.384s      16 (96 sole) -> 5,829,123  2.300s
+ *             14 -> 5,805,816  2.296s      20, no hints -> 5,878,124  2.717s
+ *             16 -> 5,809,113  2.291s      `-inline size`  -> 5,771,616  2.688s
+ *             18 -> 5,858,841  2.348s      `-inline none`  -> 5,969,922  7.453s
+ *             20 -> 5,921,807  2.304s      `-inline speed` -> 6,693,352  2.292s
+ *
+ * **Eight**, and the curve says two things the native one does not. Above it the bytes climb and the
+ * time does not move at all - `speed`'s forty is 884 KB larger and reads the same 2.29s - which is
+ * the host's own inliner being the thing that decides, and is the whole reason this cap exists.
+ * Below it the time turns: the two levels that switch something *off* rather than lowering it -
+ * `no hints`, and `-inline size`, which is this budget with the hints gone - are 18% and 17% slower
+ * for 38 KB and 4 KB. So `@inline` and `@hot` are worth what they cost here and the flat budget
+ * above eight is not.
+ *
+ * A cap rather than a table, so that `-inline none`, `size` and `speed` still mean on this target
+ * what their names say: the other three terms are the level's, and only the one whose trade the
+ * host changes is overridden.
+ *
+ * **Sixteen until J78**, and the number moved because the objective did rather than because the
+ * curve did. J72 set it where the *time* stops moving and J77 re-swept it there; J78 was asked for a
+ * program at or below the shipping backend's bytes while staying under its time, and re-ran the
+ * sweep on J77's instrument beside the second lever §6.10 proposes (see below). Bytes on
+ * `test/base`'s `Base.js` and user+system CPU, twenty-one interleaved rounds pinned to one core,
+ * against the shipping backend's 5,330,877 bytes and its own 2,326 ms; the control column - a
+ * byte-identical copy of the shipping backend's own file - read 1.0009x, which is what says the
+ * instrument resolves about 0.1%:
+ *
+ *     budget   bytes        ratio     CPU ratio
+ *          6   5,325,461    0.9990x   0.9912x     (J77's session)
+ *          8   5,356,497    1.0048x   0.8943x
+ *         10   5,388,522    1.0108x   0.8867x
+ *         12   5,401,250    1.0132x   0.8835x     (J77's session)
+ *         16   5,424,700    1.0176x   0.8842x
+ *
+ * Eight is the **smallest program whose time is still comfortably under the shipping backend's** -
+ * 0.894x, where six turns it to 0.991x for one more 31 KB. So the step from sixteen to eight is
+ * 68,203 bytes for 1.1% of the run and the step from eight to six is 31,036 for another 11%, which
+ * is where the curve stops being a trade and starts being a cliff.
+ *
+ * **The second lever was built, swept against this one in the same session, and is dominated.**
+ * §6.10's third summary asks for "repeated source bytes at the number of call sites" - a callee
+ * larger than `repeatFree` and called at more than `repeatSites` places refused whatever the budget
+ * says - and J77 named it as the shape of the cliff it saw. Built at J78, over the flat budget held
+ * at sixteen:
+ *
+ *     free sites   bytes        ratio     CPU ratio   where the rule sits
+ *        6     2   5,333,369    1.0005x   0.9848x     the flat budget only
+ *        6     3   5,340,733    1.0019x   0.9780x     "
+ *        6     4   5,349,557    1.0035x   0.9843x     "
+ *        7     4   5,372,531    1.0078x   -           "
+ *        6     4   5,234,246    0.9819x   1.0784x     above every term
+ *
+ * Two readings, and the second row group is the one that matters. Placed **above every term** - the
+ * wording §6.10 uses - it refuses the links of an adaptor chain, which is what
+ * `flattenContinuations` copies to turn a `for` over an `iter fn` into one loop: 0.982x the bytes
+ * for **1.078x** the time. Restricted to the flat budget, which is the only sentence it is a
+ * correction to, it costs 9% of the run for 1.4% of the bytes - and `budget 8` above buys *more*
+ * bytes (1.0048x against 1.0035x is within a thousandth) for 0.894x instead of 0.984x.
+ *
+ * So the term is not kept, and the reason is worth more than the term: **size is a better proxy for
+ * "this copy is cheap" than site count is**, because on this corpus the bodies with many sites are
+ * the hot ones. `mix32`, `murmurStep`, `MapHashPoint_hash` and `reserve_*` are what the cliff
+ * between six and eight is made of, and they are called from everywhere *because* they are the inner
+ * loops - so a rule that prices them by how often they appear prices exactly the copies the host
+ * cannot make back. A flat budget refusing by size leaves them alone and takes the large-and-rare
+ * bodies instead, which is the half of the program that is only bytes.
+ */
+constexpr U32 kJsBudget = 8;
+
+Budget capped(Budget limits, bool js) {
+    if(js && limits.budget > kJsBudget) limits.budget = kJsBudget;
+    return limits;
+}
+
+/*
+ * The cap is applied **once, on the way out**, rather than wrapped around each of the four rows.
+ *
+ * Four `capped(...)` calls were four chances to add a fifth level and forget one, and the cap is
+ * not a property of a level: it is the *pipeline's*, which is what the README's rule about this
+ * flag says. A level says what it trades and the target says what it can afford.
+ */
+static Budget levelBudget(InlineLevel level) {
     switch(level) {
         case InlineLevel::None:
             return Budget { 0, 0, 0, 0, false };
@@ -447,6 +545,8 @@ Budget budgetFor(InlineLevel level) {
 
     return Budget();
 }
+
+Budget budgetFor(InlineLevel level, bool js) { return capped(levelBudget(level), js); }
 
 /*
  * How many times a declaration is named, split by whether the reference is a call this pass could
@@ -1215,6 +1315,7 @@ struct Inliner {
 
         auto size = sizeOf(*callee);
 
+
         /*
          * And the same two numbers asked of the **site** - §J63, and `sizeAtSite` is where the whole
          * argument is.
@@ -1509,6 +1610,17 @@ struct Inliner {
                                         results ? occurrence() : Occurrence(),
                                         results ? convention() : Convention::Trivial, results != 0,
                                         written.immediate);
+                break;
+            }
+
+            case Inst::Host: {
+                auto& written = (InstHost&)from;
+                SmallArray<Use, 8> arguments;
+                mapUses(clone, written.arguments, arguments);
+
+                made = editor.addHost(at, written.op, written.member, arguments.pointer(),
+                                      arguments.size(), results ? occurrence() : Occurrence(),
+                                      results ? convention() : Convention::Trivial, results != 0);
                 break;
             }
 
@@ -2892,7 +3004,8 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
 } // namespace
 
 void inlineCalls(OptContext& opt) {
-    Inliner inliner { opt, budgetFor(opt.context.settings.inlining) };
+    Inliner inliner { opt, budgetFor(opt.context.settings.inlining,
+                                    isJsMode(opt.context.settings)) };
 
     /*
      * **Not** an early-out at `InlineLevel::None` - J49.

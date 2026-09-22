@@ -1,0 +1,121 @@
+fn main() -> one %r0
+  var $0: %r2
+  var $1: %r0
+  var $2: %r3
+  var $3: %r2
+  block0:
+    %4: %r1 = const 0
+    %5: %r0 = const 0
+    %6: %r0 = const 0
+    %7: %r2 = object %s0 %4, %5, %6
+    store var $0: %r2, %7
+    %8: %r4 = const "ab"
+    %9: %r1 = const 0
+    %10: %r0 = const 0
+    %11: %r0 = const 0
+    %12: %r3 = object %s1 %9, %10, %11
+    store var $2: %r3, %12
+    %13: %r4 = alias %8
+    %14: %r4 = alias %13
+    %15: %r4 = alias %14
+    %16: %r4 = alias %15
+    %17: %r0 = host host.field "length" host-range %16
+    %18: %r0 = const 0
+    %19: %r5 = binary.eq %17, %18
+    branch %19 -> block8 -> block7
+  block1:
+    %66: %r2 = load var $0: %r2
+    %67: %r0 = load property %66.Err: %r0
+    %68: %r0 = alias %67
+    store var $1: %r0, %68
+    %69: %r0 = const 0
+    %71: %r0 = load var $1: %r0
+    %72: %r0 = binary.sub %69, %71
+    %73: %r0 = coerce %72
+    jump -> block2(%73)
+  block2(%0: %r0):
+    return %0
+  block3:
+    %74: %r2 = load var $0: %r2
+    %75: %r0 = load property %74.Ok: %r0
+    jump -> block2(%75)
+  block4(%1: %r2):
+    store var $0: %r2, %1
+    %62: %r2 = load var $0: %r2
+    %63: %r1 = load property %62.$tag: %r1
+    %64: %r1 = const 1
+    %65: %r5 = binary.eq %63, %64
+    branch %65 -> block3 -> block1
+  block5:
+    %51: %r3 = load var $2: %r3
+    %52: %r0 = load property %51.Proceed: %r0
+    %53: %r1 = const 1
+    %54: %r0 = const 0
+    %55: %r2 = object %s0 %53, %54, %52
+    jump -> block4(%55)
+  block6:
+    %56: %r3 = load var $2: %r3
+    %57: %r0 = load property %56.Exit: %r0
+    %58: %r0 = alias %57
+    %59: %r1 = const 0
+    %60: %r0 = const 0
+    %61: %r2 = object %s0 %59, %58, %60
+    jump -> block4(%61)
+  block7:
+    %20: %r0 = const 7
+    %21: %r1 = const 1
+    %22: %r0 = const 0
+    %23: %r2 = object %s0 %21, %22, %20
+    jump -> block9(%23)
+  block8:
+    %24: %r0 = const 1
+    %25: %r0 = alias %24
+    %26: %r1 = const 0
+    %27: %r0 = const 0
+    %28: %r2 = object %s0 %26, %25, %27
+    jump -> block9(%28)
+  block9(%2: %r2):
+    %29: %r1 = const 0
+    %30: %r0 = const 0
+    %31: %r0 = const 0
+    %32: %r2 = object %s0 %29, %30, %31
+    store var $3: %r2, %32
+    store var $3: %r2, %2
+    %33: %r2 = load var $3: %r2
+    %34: %r1 = load property %33.$tag: %r1
+    %35: %r1 = const 1
+    %36: %r5 = binary.eq %34, %35
+    branch %36 -> block11 -> block10
+  block10:
+    %37: %r2 = load var $3: %r2
+    %38: %r0 = load property %37.Err: %r0
+    %39: %r1 = const 1
+    %40: %r0 = const 0
+    %41: %r3 = object %s1 %39, %40, %38
+    jump -> block12(%41)
+  block11:
+    %42: %r2 = load var $3: %r2
+    %43: %r0 = load property %42.Ok: %r0
+    %44: %r1 = const 0
+    %45: %r0 = const 0
+    %46: %r3 = object %s1 %44, %43, %45
+    jump -> block12(%46)
+  block12(%3: %r3):
+    store var $2: %r3, %3
+    %47: %r3 = load var $2: %r3
+    %48: %r1 = load property %47.$tag: %r1
+    %49: %r1 = const 1
+    %50: %r5 = binary.eq %48, %49
+    branch %50 -> block6 -> block5
+
+optimizer clones 0 aliased 0 forwarded 0 removed 1 adopted 0 sunk 0
+
+shape %s0 object Result {$tag: %r1 tag, Err: %r0, Ok: %r0}
+shape %s1 object Outcome {$tag: %r1 tag, Proceed: %r0, Exit: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = number unsigned 8
+rep %r2 = object %s0
+rep %r3 = object %s1
+rep %r4 = string
+rep %r5 = number bool

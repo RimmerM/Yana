@@ -294,6 +294,8 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/place.h
     resolve_mir/loan.h
     resolve_mir/inst.def
+    resolve_mir/native.def
+    resolve_mir/host.def
     resolve_mir/inst.h
     resolve_mir/inst.cpp
     resolve_mir/body.h
@@ -367,6 +369,7 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/intrinsic/expand_scalar.cpp
     resolve_mir/intrinsic/expand_exchange.cpp
     resolve_mir/intrinsic/expand_native.cpp
+    resolve_mir/intrinsic/expand_host.cpp
     resolve_mir/intrinsic/expand_atomic.cpp
     resolve_mir/intrinsic/expand_vector.cpp
     resolve_mir/intrinsic/expand_container.cpp
@@ -426,10 +429,38 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/lower/map.cpp
     resolve_ssa/lower/pack.cpp
     resolve_ssa/lower/width.cpp
+
+    resolve_ssa/js/name.h
+    resolve_ssa/js/name.cpp
+    resolve_ssa/js/inst.def
+    resolve_ssa/js/module.h
+    resolve_ssa/js/inst.cpp
+    resolve_ssa/js/repr.h
+    resolve_ssa/js/repr.cpp
+    resolve_ssa/js/abi.h
+    resolve_ssa/js/abi.cpp
+    resolve_ssa/js/build.h
+    resolve_ssa/js/convert.h
+    resolve_ssa/js/convert_internal.h
+    resolve_ssa/js/convert.cpp
+    resolve_ssa/js/constant.cpp
+    resolve_ssa/js/teardown.cpp
+    resolve_ssa/js/host.cpp
+    resolve_ssa/js/vector.cpp
+    resolve_ssa/js/verify.h
+    resolve_ssa/js/verify.cpp
+    resolve_ssa/js/cfg.h
+    resolve_ssa/js/cfg.cpp
+    resolve_ssa/js/opt.h
+    resolve_ssa/js/opt_alias.cpp
+    resolve_ssa/js/opt_coalesce.h
+    resolve_ssa/js/opt_coalesce.cpp
+    resolve_ssa/js/print.h
+    resolve_ssa/js/print.cpp
 )
 
 set_source_files_properties(resolve_mir/inst.def resolve_mir/type.def resolve_mir/op.def
-                            resolve_ssa/inst.def
+                            resolve_ssa/inst.def resolve_ssa/js/inst.def
                             PROPERTIES HEADER_FILE_ONLY TRUE)
 
 add_library(YanaResolveMir ${RESOLVE_MIR_SOURCE_FILES})
@@ -478,6 +509,8 @@ target_link_libraries(YanaLLVM PUBLIC YanaCore YanaLower YanaRaw ${LLVM_LIBRARIE
 # resolve IR that Analysis-JS.md part 3 describes.
 set(JS_SOURCE_FILES
     codegen/js/gen.h
+    codegen/js/shared.h
+    codegen/js/jsir.h
     codegen/js/build.h
     codegen/js/name.cpp
     codegen/js/type.cpp
@@ -489,10 +522,12 @@ set(JS_SOURCE_FILES
     codegen/js/ast.h
     codegen/js/opt.cpp
     codegen/js/format.cpp
+    codegen/js/structure.cpp
+    codegen/js/assemble.cpp
 )
 
 add_library(YanaJS ${JS_SOURCE_FILES})
-target_link_libraries(YanaJS PUBLIC YanaCore YanaResolve)
+target_link_libraries(YanaJS PUBLIC YanaCore YanaResolve YanaResolveSsa)
 
 set(ELF_SOURCE_FILES
     codegen/elf/elf.h

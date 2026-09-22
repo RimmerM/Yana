@@ -140,6 +140,30 @@ struct Builder {
     Place* addressPlace(Node& address, Occurrence occurrence, bool writable);
 
     /*
+     * One element of a **host array** - `Place::Index` over the `Place::Address` root above, which
+     * is what `op.def` says the four `hostRead`/`hostWrite`/`hostAt`/`hostAtMut` roles are.
+     *
+     * Separate from `elementPlace` and not a case inside it, because the two are handed different
+     * things. That one projects a container place the caller already has and *derives* the element
+     * off its type; here the container is a value in a register - a host array handle - so the root
+     * has to be minted and the element stated. What they have in common is the projection, which is
+     * the point: a host element ends up in exactly the position a native one is in for every pass
+     * above the backend, and the conversion turns both into the same element address.
+     *
+     * `element` is the occurrence of one element - the caller states it for `addressPlace`'s reason,
+     * a `%a`'s pointee being the only thing that says what one is.
+     *
+     * `container` is what the **root** denotes, and on this target that is the array itself:
+     * `lib/Native/Host.js.yana` opens by saying that a `%a` here is "an opaque reference to storage"
+     * rather than an address elements are counted from, so the storage the handle names is the
+     * container and the type that says so is the `array` role at the element. The conversion reads
+     * exactly that off the parent to type the element projection, which is the one thing downstream
+     * needs and the reason it is a parameter rather than the pointee restated.
+     */
+    Place* hostElementPlace(Node& array, Node& index, DeclPtr<Type> container, Occurrence element,
+                            bool writable);
+
+    /*
      * Constants. Interned per body, so the dense index a packed operand carries stays small.
      */
 
@@ -256,6 +280,22 @@ struct Builder {
      */
     Node* addNative(LocationId source, NativeOp op, Node* const* arguments, Size count,
                     DeclPtr<Type> result, U8 immediate = 0);
+
+    /*
+     * An operation the **host** has and this IR does not - see `NodeHost` and host.def.
+     *
+     * Three parallel arrays and not two, which is the difference from `addNative` directly above:
+     * `modes[i]` is what the *declaration* said about position `i`, read by `expand_host.cpp` off
+     * the substituted signature exactly as a call's arguments are read, so a `hostWrite`'s value
+     * arrives `Take` and a plain receiver arrives `BorrowShared`. A blanket `Inspect` here would
+     * have been the node telling the ownership passes something the signature contradicts.
+     *
+     * `result` is the whole occurrence and not only the type, because a host operation may hand back
+     * a borrow the signature published; `member` is the literal the call named, unset on the rows
+     * host.def says carry none.
+     */
+    Node* addHost(LocationId source, HostOp op, StringId member, Node* const* arguments,
+                  const UseMode* modes, Size count, const Occurrence& result);
 
     /*
      * One atomic operation - see `NodeAtomic`, and op.def's atomic block for the rows.

@@ -1,0 +1,107 @@
+fn at(one %r0) -> one %r0
+  block0(%0: %r0):
+    return %0
+
+fn main() -> one %r0
+  var $0: %r1
+  var $1: %r1
+  block0:
+    %2: %r0 = const 1
+    %3: %r0 = const 2
+    %4: %r0 = const 3
+    %5: %r0 = const 4
+    %6: %r1 = array %2, %3, %4, %5
+    store var $0: %r1, %6
+    %7: %r0 = const 0
+    %8: %r1 = array %7, %7, %7, %7
+    store var $1: %r1, %8
+    %9: %r0 = const 1
+    %10: %r0 = call at %9
+    %11: %r2 = const 4
+    %12: %r2 = convert %10
+    %13: %r3 = binary.ge %12, %11
+    branch %13 -> block8 -> block1
+  block1:
+    %14: %r0 = const 7
+    %15: %r1 = load var $1: %r1
+    store element %15[%10]: %r0, %14
+    %16: %r0 = const 3
+    %17: %r0 = call at %16
+    %18: %r2 = const 4
+    %19: %r2 = convert %17
+    %20: %r3 = binary.ge %19, %18
+    branch %20 -> block7 -> block2
+  block2:
+    %21: %r0 = const 5
+    %22: %r1 = load var $1: %r1
+    store element %22[%17]: %r0, %21
+    %23: %r0 = const 1
+    %24: %r0 = call at %23
+    %25: %r2 = const 4
+    %26: %r2 = convert %24
+    %27: %r3 = binary.ge %26, %25
+    branch %27 -> block6 -> block3
+  block3:
+    %28: %r1 = load var $1: %r1
+    %29: %r0 = load element %28[%24]: %r0
+    %30: %r0 = const 3
+    %31: %r0 = call at %30
+    %32: %r2 = const 4
+    %33: %r2 = convert %31
+    %34: %r3 = binary.ge %33, %32
+    branch %34 -> block5 -> block4
+  block4:
+    %35: %r1 = load var $1: %r1
+    %36: %r0 = load element %35[%31]: %r0
+    %37: %r0 = binary.add %29, %36
+    %38: %r0 = coerce %37
+    %39: %r1 = load var $0: %r1
+    %40: %r1 = alias %39
+    %41: %r0 = const 0
+    %42: %r0 = const 0
+    %43: %r0 = const 4
+    %44: %r2 = const 4
+    %45: %r0 = const 1
+    jump -> block9(%41, %42)
+  block5:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block6:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block7:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block8:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block9(%0: %r0, %1: %r0):
+    %46: %r3 = binary.lt %1, %43
+    branch %46 -> block11 -> block10
+  block10:
+    %47: %r0 = binary.add %38, %0
+    %48: %r0 = coerce %47
+    return %48
+  block11:
+    %49: %r0 = convert %1
+    %50: %r2 = convert %49
+    %51: %r3 = binary.ge %50, %44
+    branch %51 -> block13 -> block12
+  block12:
+    %52: %r0 = load element %40[%49]: %r0
+    %53: %r0 = binary.add %0, %52
+    %54: %r0 = coerce %53
+    %55: %r0 = binary.add %1, %45
+    %56: %r0 = coerce %55
+    jump -> block9(%54, %56)
+  block13:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+optimizer clones 1 aliased 1 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = number unsigned 32
+rep %r3 = number bool
+rep %r4 = void

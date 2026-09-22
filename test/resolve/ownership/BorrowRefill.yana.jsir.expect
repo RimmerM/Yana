@@ -1,0 +1,64 @@
+fn joined(one %r0, one %r0) -> one %r0
+  var $0: %r0
+  var $1: %r0
+  var $2: %r0
+  var $3: %r0
+  block0(%0: %r0, %1: %r0):
+    store var $0: %r0, %0
+    store var $1: %r0, %1
+    %2: %r0 = load var $0: %r0
+    %3: %r0 = alias %2
+    %4: %r0 = load var $1: %r0
+    %5: %r0 = alias %4
+    store var $2: %r0, %3
+    store var $3: %r0, %5
+    %6: %r0 = load var $2: %r0
+    %7: %r0 = alias %6
+    %8: %r0 = load var $3: %r0
+    %9: %r0 = alias %8
+    %10: %r0 = alias %7
+    %11: %r0 = alias %9
+    %12: %r0 = host host.binary "+" %10, %11
+    return %12
+
+fn main() -> one %r1
+  var $0: %r0
+  var $1: %r0
+  block0:
+    %0: %r0 = const "ab"
+    store var $0: %r0, %0
+    %1: %r0 = const "12"
+    store var $1: %r0, %1
+    %2: %r0 = load var $0: %r0
+    %3: %r0 = alias %2
+    %4: %r0 = load var $1: %r0
+    %5: %r0 = alias %4
+    %6: %r0 = call joined %3, %5
+    store var $0: %r0, %6
+    %7: %r0 = load var $0: %r0
+    %8: %r0 = alias %7
+    %9: %r0 = const "cd"
+    %10: %r0 = call joined %8, %9
+    store var $0: %r0, %10
+    %11: %r0 = load var $0: %r0
+    %12: %r0 = alias %11
+    %13: %r0 = const "ef"
+    %14: %r0 = call joined %12, %13
+    store var $0: %r0, %14
+    %15: %r0 = load var $0: %r0
+    %16: %r0 = alias %15
+    %17: %r0 = const "gh"
+    %18: %r0 = call joined %16, %17
+    store var $0: %r0, %18
+    %19: %r0 = load var $0: %r0
+    %20: %r0 = alias %19
+    %21: %r0 = alias %20
+    %22: %r0 = alias %21
+    %23: %r1 = host host.field "length" host-range %22
+    %24: %r1 = convert %23
+    return %24
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = string
+rep %r1 = number signed 32

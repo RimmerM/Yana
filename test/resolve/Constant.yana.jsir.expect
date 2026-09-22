@@ -1,0 +1,106 @@
+fn main() -> one %r5
+  var $0: %r0
+  var $1: %r0
+  var $2: %r0
+  var $3: %r0
+  block0:
+    %0: %r0 = const 2
+    %2: %r2 = const 12n
+    %3: %r3 = const 0.5
+    %6: %r0 = const 1
+    %7: %r3 = const -1
+    %9: %r0 = load global heading: %r0
+    store var $0: %r0, %9
+    %11: %r0 = load var $0: %r0
+    %12: %r5 = map %11 [0 => 1, 1 => 2, 2 => 4, else 8]
+    store var $1: %r0, %0
+    %14: %r0 = load var $1: %r0
+    %15: %r5 = map %14 [0 => 1, 1 => 2, 2 => 4, else 8]
+    %16: %r5 = const 16
+    %17: %r5 = binary.mul %15, %16
+    %18: %r5 = coerce %17
+    %19: %r5 = binary.add %12, %18
+    %20: %r5 = coerce %19
+    %21: %r1 = load global ready: %r1
+    %22: %r5 = const 1024
+    %23: %r5 = binary.add %20, %22
+    %24: %r5 = coerce %23
+    %25: %r5 = select %21, %24, %20
+    %26: %r5 = const 2048
+    %27: %r5 = binary.add %25, %26
+    %28: %r5 = coerce %27
+    %29: %r2 = load global limit: %r2
+    %30: %r1 = binary.eq %2, %29
+    %31: %r5 = const 6144
+    %32: %r5 = binary.add %25, %31
+    %33: %r5 = coerce %32
+    %34: %r5 = select %30, %33, %28
+    %35: %r3 = load global ratio: %r3
+    %36: %r1 = binary.eq %3, %35
+    %37: %r5 = const 8192
+    %38: %r5 = binary.add %34, %37
+    %39: %r5 = coerce %38
+    %40: %r5 = select %36, %39, %34
+    %41: %r5 = const 16384
+    %42: %r5 = binary.add %40, %41
+    %43: %r5 = coerce %42
+    %44: %r2 = load global offset: %r2
+    %45: %r2 = const -1n
+    %46: %r1 = binary.eq %44, %45
+    %47: %r5 = const 49152
+    %48: %r5 = binary.add %40, %47
+    %49: %r5 = coerce %48
+    %50: %r5 = select %46, %49, %43
+    %51: %r3 = load global fell: %r3
+    %52: %r3 = const -1
+    %53: %r1 = binary.eq %51, %52
+    %54: %r5 = const 65536
+    %55: %r5 = binary.add %50, %54
+    %56: %r5 = coerce %55
+    %57: %r5 = select %53, %56, %50
+    %58: %r3 = load global fell: %r3
+    %59: %r1 = binary.eq %7, %58
+    %60: %r5 = const 1048576
+    %61: %r5 = binary.add %57, %60
+    %62: %r5 = coerce %61
+    %63: %r5 = select %59, %62, %57
+    %64: %r0 = load global state: %r0
+    store var $2: %r0, %64
+    %66: %r0 = load var $2: %r0
+    %67: %r5 = map %66 [0 => 0, else 1]
+    store var $3: %r0, %6
+    %69: %r0 = load var $3: %r0
+    %70: %r5 = map %69 [0 => 0, else 1]
+    %71: %r1 = binary.eq %67, %70
+    %72: %r5 = const 131072
+    %73: %r5 = binary.add %63, %72
+    %74: %r5 = coerce %73
+    %75: %r5 = select %71, %74, %63
+    %76: %r2 = load global minimum: %r2
+    %77: %r2 = const 0n
+    %78: %r1 = binary.lt %76, %77
+    %79: %r5 = const 262144
+    %80: %r5 = binary.add %75, %79
+    %81: %r5 = coerce %80
+    %82: %r5 = select %78, %81, %75
+    %83: %r4 = load global mask: %r4
+    %84: %r4 = const 0n
+    %85: %r1 = binary.ne %83, %84
+    %86: %r5 = const 524288
+    %87: %r5 = binary.add %82, %86
+    %88: %r5 = coerce %87
+    %89: %r5 = select %85, %88, %82
+    return %89
+
+optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0
+
+shape %s0 object Config {heading: %r0, ready: %r1, limit: %r2, ratio: %r3, link: %r6, offset: %r5, state: %r0, fell: %r3}
+
+rep %r0 = number unsigned 8
+rep %r1 = number bool
+rep %r2 = bigint signed
+rep %r3 = number f32
+rep %r4 = bigint unsigned
+rep %r5 = number signed 32
+rep %r6 = array Uint8Array of %r0
+rep %r7 = object %s0

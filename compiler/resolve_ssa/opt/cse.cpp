@@ -15,7 +15,7 @@
  *
  * README.md's section A assigned `eliminateCommonValues` to the shared lower sequence, which runs
  * over this stage's output, and that verdict was right for the native target and only for it.
- * `doc/proposal/Analysis-IR-JS.md` §6.1 is the correction: JSIR consumes OSSA and never lowers, so
+ * `doc/inflight/Analysis-IR-JS.md` §6.1 is the correction: JSIR consumes OSSA and never lowers, so
  * "source arithmetic folding, CSE and DCE" is named there as work the shared OSSA optimizer keeps.
  * A CSE that lives only below the fork is a CSE the JavaScript backend does not have.
  *
@@ -136,6 +136,24 @@ static bool sameImmediates(Inst& a, Inst& b) {
          */
         case Inst::Map:
             return false;
+
+        /*
+         * A host operation compares its **row and its member**, which is the whole of what it is
+         * besides its operands - `resolve_mir/host.def`, and Analysis-IR-JS.md §3.10's "the member
+         * name is a field of the node".
+         *
+         * The row is what makes this worth writing rather than leaving to the default: only a
+         * `Pure` one gets this far (`isRemovable` asks `isPure(inst)` first, which for this kind is
+         * the row's answer), and today that is `hostFixedCapacity` alone. What the arm buys is that
+         * the day a second pure row exists, two of them at different members cannot be unified - the
+         * failure the default was protecting against, written down instead of relied on.
+         */
+        case Inst::Host: {
+            auto& left = (InstHost&)a;
+            auto& right = (InstHost&)b;
+            return left.op == right.op && left.member == right.member;
+        }
+
         default:
             return false;
     }
@@ -165,7 +183,7 @@ static bool ownershipAdmitsRemoval(OptContext& opt, Inst& inst) {
 }
 
 bool isRemovable(OptContext& opt, Inst& inst) {
-    return isPure(inst.kind) && ownershipAdmitsRemoval(opt, inst);
+    return isPure(inst) && ownershipAdmitsRemoval(opt, inst);
 }
 
 /*
@@ -185,7 +203,7 @@ bool isRemovable(OptContext& opt, Inst& inst) {
  * owner is declined here as it is above.
  */
 bool isRemovableIfUnread(OptContext& opt, Inst& inst) {
-    if(!isPure(inst.kind) && inst.kind != Inst::Load) return false;
+    if(!isPure(inst) && inst.kind != Inst::Load) return false;
     if(inst.kind == Inst::Load && ((InstLoad&)inst).isVolatile) return false;
     return ownershipAdmitsRemoval(opt, inst);
 }
@@ -227,7 +245,7 @@ bool isRemovableIfUnread(OptContext& opt, Inst& inst) {
  * `global.addr` under it, after every branch they fed had folded away.
  */
 bool isDiscardableIfUnread(OptContext& opt, Inst& inst) {
-    if(!isPure(inst.kind) && inst.kind != Inst::Load && inst.kind != Inst::Aggregate &&
+    if(!isPure(inst) && inst.kind != Inst::Load && inst.kind != Inst::Aggregate &&
        inst.kind != Inst::FunValue && inst.kind != Inst::Copy) {
         return false;
     }

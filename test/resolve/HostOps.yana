@@ -1,0 +1,47 @@
+{-
+   The host, as the rewritten stage builds it - Analysis-IR-JS.md §3.10 and
+   `compiler/resolve_mir/host.def`.
+
+   # resolver: ownership
+   # platform: js
+
+   Every declaration this reaches is `lib/Native/Host.js.yana`'s, which no other target reads, so
+   this fixture is a JavaScript program and nothing else - there is no machine to run it on and no
+   native golden beside it.
+
+   What it pins is the three things a `Node::Host` is: the row, the member name carried as a *field*
+   rather than as an operand, and the operand modes taken off the declaration. `[7, 8]` is the
+   fourth - a host array literal is one `host.array` whose elements arrive as moves - and the string
+   literal is the fifth, a constant with no global, no run and no relocation behind it.
+
+   `hostAt` is deliberately not here. It is a *place* rather than a node (see host.def), so what it
+   prints is an element address, and `Slice.yana`'s JavaScript golden is where one is.
+-}
+import Native
+
+-- `s.length` - a field read, which host.def's row calls `Reads` rather than `Pure`.
+fn units(text: String) -> Size = hostField(text, "length")
+
+-- `s.charCodeAt(i)` - a call of one argument on a receiver.
+fn unitAt(text: String, index: Size) -> CodeUnit = hostCall1(text, "charCodeAt", index)
+
+-- `a + b` on two host strings, whose "member name" is the operator's own spelling.
+fn joined(left: String, right: String) -> String = hostBinary(left, "+", right)
+
+-- `String.fromCharCode(u)` - a call on the host's global scope, with no receiver among the
+-- arguments at all.
+fn unitText(unit: CodeUnit) -> String = hostGlobal1("String.fromCharCode", unit)
+
+-- Whether this element's array has a capacity to manage - the one `Pure` row in the table, and a
+-- compile-time question about the element rather than about the value.
+fn managed(items: %U8) -> Bool = hostFixedCapacity(items)
+
+fn main() -> Int:
+    let text = joined("host", unitText(33))
+    let numbers = [7, 8]
+
+    if units(text) <= 0 then return 1
+    if unitAt(text, 0) != "h" then return 2
+    if managed(hostArray() :: %U8) == False then return 3
+
+    return numbers[0] + numbers[1]

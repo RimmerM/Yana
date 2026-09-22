@@ -1,0 +1,66 @@
+fn endless(one %r0) -> one %r0
+  block0(%0: %r0):
+    %2: %r0 = const 1
+    jump -> block1(%0)
+  block1(%1: %r0):
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    jump -> block1(%4)
+
+fn spins() -> one %r0
+  block0:
+    %0: %r0 = const 1
+    jump -> block1
+  block1:
+    %1: %r0 = load global seed: %r0
+    %2: %r0 = binary.add %1, %0
+    %3: %r0 = coerce %2
+    store global seed: %r0, %3
+    jump -> block1
+
+fn main() -> one %r0
+  block0:
+    %1: %r0 = load global seed: %r0
+    %2: %r0 = const 1000000
+    %3: %r1 = binary.gt %1, %2
+    branch %3 -> block3 -> block2
+  block1(%0: %r0):
+    %8: %r0 = const 3
+    %9: %r0 = binary.mul %0, %8
+    %10: %r0 = coerce %9
+    %11: %r0 = load global seed: %r0
+    %12: %r0 = const 2
+    %13: %r0 = binary.mul %11, %12
+    %14: %r0 = coerce %13
+    %15: %r0 = const 1
+    %16: %r0 = binary.add %14, %15
+    %17: %r0 = coerce %16
+    %18: %r0 = binary.add %10, %17
+    %19: %r0 = coerce %18
+    %20: %r0 = load global seed: %r0
+    %21: %r0 = const 1000000
+    %22: %r1 = binary.gt %20, %21
+    branch %22 -> block5 -> block4
+  block2:
+    %4: %r0 = const 2
+    %5: %r0 = binary.mul %1, %4
+    %6: %r0 = coerce %5
+    jump -> block1(%6)
+  block3:
+    %7: %r0 = call endless %1
+    jump -> block1(%7)
+  block4:
+    %23: %r0 = const 15
+    %24: %r0 = binary.mul %20, %23
+    %25: %r0 = coerce %24
+    %26: %r0 = binary.add %19, %25
+    %27: %r0 = coerce %26
+    return %27
+  block5:
+    %28: %r0 = call spins
+    unreachable
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = number bool

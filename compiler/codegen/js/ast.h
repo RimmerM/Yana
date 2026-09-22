@@ -417,6 +417,19 @@ struct File {
 
     Region<JsRegion> arena;
     StmtList statements;
+
+    /*
+     * Whether the formatter may spend **fewer lines** than the readable form asks for - a
+     * single-statement `if` without its block, and a run of empty `var`s as one declaration.
+     *
+     * Set by `assemble.cpp` and by nothing else, for the reason every other JSIR-only rule is gated
+     * on `JsShared::jsirPipeline`: this slice holds every `.js.expect` byte-identical, so a change
+     * of spelling that both generators would be right to make is still one generator's until a
+     * slice whose subject is the shipping backend takes it. It is a *format* flag rather than an AST
+     * node because there is nothing structural to say - `if (c) break L;` and `if (c) { break L; }`
+     * are the same tree.
+     */
+    bool terse = false;
 };
 
 } // namespace js

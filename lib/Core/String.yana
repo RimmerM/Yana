@@ -281,14 +281,19 @@ fn compareAfterRegister(self: String, other: String, shared: Size, head: Size) -
    length(text) + 1)` is the whole string, and an empty range in either order is the empty string.
    Nothing here can read past the end.
 
-   **What comes back depends on the resolve stage**, which is why the native bodies are in two files
-   of their own. Under `-resolver ownership` (`String.ownership.native.yana`) it is a **window**: a
+   **What comes back depends on the resolve stage**, which is why all four bodies are in files of
+   their own. Under `-resolver ownership` (`String.ownership.native.yana`) it is a **window**: a
    `StringView` over the same units, rooted in `text` by `source'`, with no allocation. That is the
    form part 4 specifies, and a caller that keeps the result past `text` says `copy`. The legacy stage
-   (`String.legacy.native.yana`, and the JS body below, which only that stage compiles) cannot
-   represent a window over part of a string, because its shared `String` is the owner's address, so
-   there it is a **copy**. Code written against the window is correct against the copy; the reverse
-   is not true, so library code is written to the window.
+   (`String.legacy.native.yana`, `String.legacy.js.yana`) cannot represent a window over part of a
+   string, because its shared `String` is the owner's address, so there it is a **copy**. Code
+   written against the window is correct against the copy; the reverse is not true, so library code
+   is written to the window.
+
+   On JavaScript the two stages differ in the signature and agree on the body: `String.ownership.js.yana`
+   declares the window and returns the host's own copy, which Analysis-IR-JS.md §3.2.2 is the
+   argument for - a host string has no units to point into, so a window there would be three values
+   carried everywhere to save a copy at the few places that cut.
 
    **Positions are raw units and this does not check that either lands on a code-point boundary.**
    Cutting between the two halves of one produces a unit sequence that decodes as U+FFFD. Every
@@ -296,25 +301,6 @@ fn compareAfterRegister(self: String, other: String, shared: Size, head: Size) -
    self-synchronizing in both encodings; any other offset is rounded with the boundary functions
    Implementation-String.md part 4 plans.
 -}
-
-{-
-   `self.substring(from, to)` on the host, which is the engine's own copy.
-
-   The unit loop this replaces was a concatenation per unit, so cutting one line out of a text walked
-   the rope once per unit of the line and splitting a file was quadratic in the size of the file. The
-   bounds are clamped here rather than left to the host's own clamping, because the native half has to
-   clamp and the two have to answer the same thing.
--}
-@platform(js) pub fn String.slice(text: String, from: Size, to: Size) -> String:
-    let count = length(text)
-    let &start = from
-    if start < 0 then start = 0
-
-    let &end = to
-    if end > count then end = count
-    if start >= end then return ""
-
-    return hostSubstring(text, start, end)
 
 {-
    Hashing a string - Implementation-Map.md §3 and §3.1.
@@ -395,7 +381,14 @@ instance Hash(String):
 
    The JS body is the value. A host string is immutable and has no storage to share, so two names for
    one of them cannot observe each other and there is nothing to duplicate. That is not an
-   optimization of a copy; it is what a copy *is* on that target.
+   optimization of a copy; it is what a copy *is* on that target - which is why under the rewrite
+   there is **no JS instance at all**: a record over one host handle with no teardown is
+   `TrivialCopy`, and the blanket instance beside the class is the same identity this would write.
+   Writing one would *subtract* that classification, which is what an authored `Copy` does, and a
+   string that is not trivially copyable needs storage at every borrowed position - including the
+   member-name argument of a host operation, where the literal then reaches the emitter as a read of
+   a temporary rather than as the constant it was written as. `String.legacy.js.yana` keeps it,
+   because the shipping stage's JS string is a compiler primitive rather than this record.
 -}
 @platform(native) instance Copy(String):
     fn copy(from: String) -> String:
@@ -405,9 +398,6 @@ instance Hash(String):
         String.appendUnits(fresh, units(from), count)
 
         return fresh
-
-@platform(js) instance Copy(String):
-    fn copy(from: String) -> String = from
 
 {-
    ==========================================================================================

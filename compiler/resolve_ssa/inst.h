@@ -531,6 +531,30 @@ struct InstNative: Inst {
 };
 
 /*
+ * An operation the **host** has and this IR does not - see inst.def and mir's host.def.
+ *
+ * `InstNative` with the member name added, carried down unchanged: the row says what it does, the
+ * member says which member, and the uses arrived under the modes the declaration stated. JSIR is
+ * what turns one into JavaScript.
+ */
+struct InstHost: Inst {
+    InstHost(LocationId source, mir::HostOp op): Inst(Host, source), op(op) {}
+
+    mir::HostOp op;
+
+    // `mir::NodeHost::member`, carried down unchanged. Braced for that field's reason: `StringId`'s
+    // default constructor is trivial on purpose.
+    StringId member {};
+    UseList arguments;
+
+    template<class F> void eachUse(SsaBase base, F&& f) {
+        for(auto used: arguments.contents(base)) f(used);
+    }
+
+    template<class F> void eachEdge(SsaBase, F&&) {}
+};
+
+/*
  * One atomic operation - inst.def's `Atomic` row, and `mir::NodeAtomic` carried down unchanged.
  *
  * The operands are the shape `mir::AtomicForm` states, with the **location first and as an address**:
@@ -1390,6 +1414,25 @@ using mir::storageClassName;
 inline bool isTerminator(Inst::Kind kind) { return (instFlags(kind) & kSsaTerminator) != 0; }
 inline bool isPure(Inst::Kind kind) { return (instFlags(kind) & kSsaPure) != 0; }
 inline bool mayConsume(Inst::Kind kind) { return (instFlags(kind) & kSsaConsumes) != 0; }
+
+/*
+ * The same question of one **instruction** - the kind's flag, refined where the kind's answer is not
+ * the whole answer.
+ *
+ * There is exactly one such kind and it is `Host`, whose effects are a `resolve_mir/host.def` row
+ * rather than a column here: `hostFixedCapacity` is a compile-time question about an element type
+ * and is as recomputable as a `Metric`, while a `hostCall1` may do anything. The flags column cannot
+ * say both, so the kind says the conservative one and this says the row's.
+ *
+ * An overload rather than a differently-named predicate, so that a pass asking "may I move this"
+ * asks it the same way whatever it is looking at - and so that the sites which hold an instruction
+ * get the finer answer with no pass having to know a refinement exists.
+ * `resolve_ssa/opt/README.md` records which passes read it.
+ */
+inline bool isPure(const Inst& inst) {
+    if(inst.kind == Inst::Host) return mir::hostIsPure(((const InstHost&)inst).op);
+    return isPure(inst.kind);
+}
 
 // Here rather than in the class, because it asks `isTerminator` and the traits are declared above
 // this line. Null for a block that is empty or whose last instruction is not one, which is the

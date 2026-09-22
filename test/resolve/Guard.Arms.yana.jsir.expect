@@ -1,0 +1,25 @@
+fn main() -> one %r0
+  var $0: %r1
+  var $1: %r1
+  block0:
+    %6: %r0 = const 9
+    %7: %r1 = const 0
+    store var $0: %r1, %7
+    %10: %r1 = load var $0: %r1
+    %11: %r0 = map %10 [0 => 1, 1 => 2, else 3]
+    %12: %r0 = binary.add %6, %11
+    %13: %r0 = coerce %12
+    %14: %r1 = const 2
+    store var $1: %r1, %14
+    %17: %r1 = load var $1: %r1
+    %18: %r0 = map %17 [0 => 1, 1 => 2, else 3]
+    %19: %r0 = binary.add %13, %18
+    %20: %r0 = coerce %19
+    return %20
+
+optimizer clones 0 aliased 0 forwarded 0 removed 10 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = number unsigned 8
+rep %r2 = nullable of %r0
+rep %r3 = nullable of %r1

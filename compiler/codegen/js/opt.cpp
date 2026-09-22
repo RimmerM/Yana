@@ -51,7 +51,7 @@ namespace {
 // The elements of a list, as storage that can be written back into. `contents()` yields values,
 // which is what every reader wants and what a rewrite cannot use.
 template<class T>
-T* itemsOf(Gen& g, JsList<T, false>& list) {
+T* itemsOf(JsShared& g, JsList<T, false>& list) {
     return g.base[list.list.p];
 }
 
@@ -78,7 +78,7 @@ struct Effects {
  * changes how many times it happens, which is the one thing no rewrite here is allowed to do.
  */
 template<class F>
-void eachOperand(Gen& g, Expr* expr, F&& f) {
+void eachOperand(JsShared& g, Expr* expr, F&& f) {
     switch(expr->kind) {
         case Expr::Field:
             f(((FieldExpr*)expr)->object, false);
@@ -143,7 +143,7 @@ void eachOperand(Gen& g, Expr* expr, F&& f) {
 // The expression a statement evaluates in its own right, or null where it has none. A label, a
 // jump and a comment have nothing; a body is not this, because a body is reached rather than
 // evaluated - see eachBody.
-JsPtr<Expr>* headerOf(Gen& g, Stmt* stmt) {
+JsPtr<Expr>* headerOf(JsShared& g, Stmt* stmt) {
     switch(stmt->kind) {
         case Stmt::Expression:
             return &((ExprStmt*)stmt)->value;
@@ -177,7 +177,7 @@ JsPtr<Expr>* headerOf(Gen& g, Stmt* stmt) {
  * `eachOperand` no longer has a boundary it must not substitute across.
  */
 template<class F>
-void eachBody(Gen& g, Stmt* stmt, F&& f) {
+void eachBody(JsShared& g, Stmt* stmt, F&& f) {
     switch(stmt->kind) {
         case Stmt::Block:
             f(((BlockStmt*)stmt)->body);
@@ -223,7 +223,7 @@ bool isEffectful(Expr* expr) {
  * any other - where an effect walk's question does not.
  */
 template<class F>
-void eachEffectOperand(Gen& g, Expr* expr, F&& f) {
+void eachEffectOperand(JsShared& g, Expr* expr, F&& f) {
     if(expr->kind == Expr::Call && ((CallExpr*)expr)->pure) {
         auto& args = ((CallExpr*)expr)->args;
         auto items = itemsOf(g, args);
@@ -243,7 +243,7 @@ void eachEffectOperand(Gen& g, Expr* expr, F&& f) {
  * every function in the file, so reading one has to be ordered against the calls around it exactly
  * as a property read is.
  */
-bool isMutableGlobal(Gen& g, Expr* expr) {
+bool isMutableGlobal(JsShared& g, Expr* expr) {
     return expr->kind == Expr::Var && g.mutableGlobals.contains(((VarExpr*)expr)->name.text);
 }
 
@@ -257,19 +257,19 @@ bool isMutableGlobal(Gen& g, Expr* expr) {
  * said the value in front of it was inert, which is one half of a comparison answering about a
  * different program from the other half.
  */
-void addNodeEffects(Gen& g, Expr* expr, Effects& out) {
+void addNodeEffects(JsShared& g, Expr* expr, Effects& out) {
     if(expr->kind == Expr::Field || expr->kind == Expr::Index || isMutableGlobal(g, expr)) out.reads = true;
     if(isEffectful(expr)) out.writes = true;
 }
 
-void addEffects(Gen& g, JsPtr<Expr> pointer, Effects& out) {
+void addEffects(JsShared& g, JsPtr<Expr> pointer, Effects& out) {
     auto expr = g.base[pointer];
     addNodeEffects(g, expr, out);
 
     eachEffectOperand(g, expr, [&](JsPtr<Expr>& operand, bool) { addEffects(g, operand, out); });
 }
 
-Effects effectsOf(Gen& g, JsPtr<Expr> pointer) {
+Effects effectsOf(JsShared& g, JsPtr<Expr> pointer) {
     Effects effects;
     addEffects(g, pointer, effects);
     return effects;
@@ -308,7 +308,7 @@ struct Names {
     }
 };
 
-void countExpr(Gen& g, JsPtr<Expr> pointer, Names& names) {
+void countExpr(JsShared& g, JsPtr<Expr> pointer, Names& names) {
     auto expr = g.base[pointer];
 
     if(expr->kind == Expr::Var) {
@@ -326,16 +326,16 @@ void countExpr(Gen& g, JsPtr<Expr> pointer, Names& names) {
     eachOperand(g, expr, [&](JsPtr<Expr>& operand, bool) { countExpr(g, operand, names); });
 }
 
-void countList(Gen& g, StmtList& list, Names& names);
+void countList(JsShared& g, StmtList& list, Names& names);
 
-void countStmt(Gen& g, JsPtr<Stmt> pointer, Names& names) {
+void countStmt(JsShared& g, JsPtr<Stmt> pointer, Names& names) {
     auto stmt = g.base[pointer];
     if(auto header = headerOf(g, stmt)) countExpr(g, *header, names);
 
     eachBody(g, stmt, [&](StmtList& body) { countList(g, body, names); });
 }
 
-void countList(Gen& g, StmtList& list, Names& names) {
+void countList(JsShared& g, StmtList& list, Names& names) {
     for(auto stmt: list.contents(g.base)) countStmt(g, stmt, names);
 }
 
@@ -345,7 +345,7 @@ void countList(Gen& g, StmtList& list, Names& names) {
 
 // Whether an expression mentions one name at all, which is what stops a value from being folded
 // into the object it is being read out of.
-bool mentions(Gen& g, JsPtr<Expr> pointer, Name name) {
+bool mentions(JsShared& g, JsPtr<Expr> pointer, Name name) {
     auto expr = g.base[pointer];
     if(expr->kind == Expr::Var && ((VarExpr*)expr)->name.text == name.text) return true;
 
@@ -368,7 +368,7 @@ bool mentions(Gen& g, JsPtr<Expr> pointer, Name name) {
  * only half of it for a global - see isMutableGlobal. A global read is a read of storage, so it
  * moves under the ordering rule below rather than freely.
  */
-bool isAtom(Gen& g, JsPtr<Expr> pointer, Names& names) {
+bool isAtom(JsShared& g, JsPtr<Expr> pointer, Names& names) {
     auto expr = g.base[pointer];
 
     switch(expr->kind) {
@@ -406,7 +406,7 @@ struct Substitution {
     bool blocked = false;
 };
 
-void substitute(Gen& g, JsPtr<Expr>& slot, Substitution& s, bool conditional) {
+void substitute(JsShared& g, JsPtr<Expr>& slot, Substitution& s, bool conditional) {
     if(s.done || s.blocked) return;
 
     auto expr = g.base[slot];
@@ -442,7 +442,7 @@ void substitute(Gen& g, JsPtr<Expr>& slot, Substitution& s, bool conditional) {
     addNodeEffects(g, expr, s.prefix);
 }
 
-bool substituteAnywhere(Gen& g, JsPtr<Expr>& slot, Name name, JsPtr<Expr> value) {
+bool substituteAnywhere(JsShared& g, JsPtr<Expr>& slot, Name name, JsPtr<Expr> value) {
     auto expr = g.base[slot];
 
     if(expr->kind == Expr::Var && ((VarExpr*)expr)->name.text == name.text) {
@@ -458,9 +458,9 @@ bool substituteAnywhere(Gen& g, JsPtr<Expr>& slot, Name name, JsPtr<Expr> value)
     return done;
 }
 
-bool substituteAfter(Gen& g, StmtList& list, Size from, Name name, JsPtr<Expr> value);
+bool substituteAfter(JsShared& g, StmtList& list, Size from, Name name, JsPtr<Expr> value);
 
-bool substituteInStmt(Gen& g, JsPtr<Stmt> pointer, Name name, JsPtr<Expr> value) {
+bool substituteInStmt(JsShared& g, JsPtr<Stmt> pointer, Name name, JsPtr<Expr> value) {
     auto stmt = g.base[pointer];
 
     if(auto header = headerOf(g, stmt)) {
@@ -478,7 +478,7 @@ bool substituteInStmt(Gen& g, JsPtr<Stmt> pointer, Name name, JsPtr<Expr> value)
 // The single use, wherever it is. It is always after the definition in the emitted structure,
 // because a resolve value is used where its definition dominates - and a use a definition dominates
 // cannot precede it in a graph the loop recovery has already made reducible.
-bool substituteAfter(Gen& g, StmtList& list, Size from, Name name, JsPtr<Expr> value) {
+bool substituteAfter(JsShared& g, StmtList& list, Size from, Name name, JsPtr<Expr> value) {
     for(Size i = from; i < list.size(); i++) {
         if(substituteInStmt(g, list.get(g.base, i), name, value)) return true;
     }
@@ -542,7 +542,7 @@ struct Copy {
     U32 count = 0;
 };
 
-void propagateExpr(Gen& g, JsPtr<Expr>& slot, Copy& c) {
+void propagateExpr(JsShared& g, JsPtr<Expr>& slot, Copy& c) {
     if(c.stopped) return;
 
     auto expr = g.base[slot];
@@ -565,9 +565,9 @@ void propagateExpr(Gen& g, JsPtr<Expr>& slot, Copy& c) {
 
 // Whether one statement contains an assignment to a name anywhere at all, bodies and closures
 // included - the question asked of a statement whose insides the guarded case will not walk.
-bool assignsName(Gen& g, JsPtr<Stmt> pointer, Name name);
+bool assignsName(JsShared& g, JsPtr<Stmt> pointer, Name name);
 
-bool assignsIn(Gen& g, StmtList& list, Name name) {
+bool assignsIn(JsShared& g, StmtList& list, Name name) {
     for(auto pointer: list.contents(g.base)) {
         if(assignsName(g, pointer, name)) return true;
     }
@@ -575,7 +575,7 @@ bool assignsIn(Gen& g, StmtList& list, Name name) {
     return false;
 }
 
-bool assignsInExpr(Gen& g, JsPtr<Expr> pointer, Name name) {
+bool assignsInExpr(JsShared& g, JsPtr<Expr> pointer, Name name) {
     auto expr = g.base[pointer];
     auto found = false;
 
@@ -591,7 +591,7 @@ bool assignsInExpr(Gen& g, JsPtr<Expr> pointer, Name name) {
     return found;
 }
 
-bool assignsName(Gen& g, JsPtr<Stmt> pointer, Name name) {
+bool assignsName(JsShared& g, JsPtr<Stmt> pointer, Name name) {
     auto stmt = g.base[pointer];
     if(auto header = headerOf(g, stmt)) {
         if(assignsInExpr(g, *header, name)) return true;
@@ -603,9 +603,9 @@ bool assignsName(Gen& g, JsPtr<Stmt> pointer, Name name) {
     return found;
 }
 
-void propagateList(Gen& g, StmtList& list, Size from, Copy& c);
+void propagateList(JsShared& g, StmtList& list, Size from, Copy& c);
 
-void propagateStmt(Gen& g, JsPtr<Stmt> pointer, Copy& c) {
+void propagateStmt(JsShared& g, JsPtr<Stmt> pointer, Copy& c) {
     if(c.stopped) return;
 
     auto stmt = g.base[pointer];
@@ -644,7 +644,7 @@ void propagateStmt(Gen& g, JsPtr<Stmt> pointer, Copy& c) {
     eachBody(g, stmt, [&](StmtList& body) { propagateList(g, body, 0, c); });
 }
 
-void propagateList(Gen& g, StmtList& list, Size from, Copy& c) {
+void propagateList(JsShared& g, StmtList& list, Size from, Copy& c) {
     for(Size i = from; i < list.size() && !c.stopped; i++) {
         propagateStmt(g, list.get(g.base, i), c);
     }
@@ -656,7 +656,7 @@ void propagateList(Gen& g, StmtList& list, Size from, Copy& c) {
 
 // Whether one statement has anything at all to do with a name - defined below, beside the other
 // rules that walk statements a value is being moved across.
-bool mentionsStmt(Gen& g, JsPtr<Stmt> pointer, Name name);
+bool mentionsStmt(JsShared& g, JsPtr<Stmt> pointer, Name name);
 
 /*
  * `var v = {a: 0, b: 0}; v.a = x;` -> `var v = {a: x, b: 0};`
@@ -688,7 +688,7 @@ bool mentionsStmt(Gen& g, JsPtr<Stmt> pointer, Name name);
  *    `var v = {a: x}` above `var x` is hoisted but unassigned, so the object holds `undefined`
  *    rather than the program failing.
  */
-bool foldInitializers(Gen& g, StmtList& list, Size index) {
+bool foldInitializers(JsShared& g, StmtList& list, Size index) {
     auto declaration = g.base[list.get(g.base, index)];
     if(declaration->kind != Stmt::Decl) return false;
 
@@ -835,7 +835,7 @@ bool foldInitializers(Gen& g, StmtList& list, Size index) {
 
 // Whether one statement has anything at all to do with a name - defined below, beside the other
 // rule that walks statements a value is being moved across.
-bool mentionsStmt(Gen& g, JsPtr<Stmt> pointer, Name name);
+bool mentionsStmt(JsShared& g, JsPtr<Stmt> pointer, Name name);
 
 // `v[k] = x` for a literal index - the one statement the rule below consumes. The slot is left as
 // the number it was written with, because whether it is a slot at all is a question about the array
@@ -846,7 +846,7 @@ struct ElementWrite {
     bool matched = false;
 };
 
-ElementWrite elementWrite(Gen& g, Stmt* stmt, Name name) {
+ElementWrite elementWrite(JsShared& g, Stmt* stmt, Name name) {
     if(stmt->kind != Stmt::Expression) return {};
 
     auto written = g.base[((ExprStmt*)stmt)->value];
@@ -896,7 +896,7 @@ ElementWrite elementWrite(Gen& g, Stmt* stmt, Name name) {
  * routinely declared between the two - `foldInitialValue` crosses them for the same reason. A
  * statement with a body is where that stops: pricing what it does is a walk of its own.
  */
-bool foldArrayElements(Gen& g, StmtList& list, Size index) {
+bool foldArrayElements(JsShared& g, StmtList& list, Size index) {
     auto declaration = g.base[list.get(g.base, index)];
     if(declaration->kind != Stmt::Decl) return false;
 
@@ -986,7 +986,7 @@ bool foldArrayElements(Gen& g, StmtList& list, Size index) {
  * in one expression with a comma, and this tree has no comma - so the honest answer is to leave a
  * shape it cannot spell rather than to pick one of the two.
  */
-JsPtr<Expr> discardedExpr(Gen& g, JsPtr<Expr> pointer) {
+JsPtr<Expr> discardedExpr(JsShared& g, JsPtr<Expr> pointer) {
     if(effectsOf(g, pointer).inert()) return nullptr;
 
     auto expr = g.base[pointer];
@@ -1018,7 +1018,7 @@ JsPtr<Expr> discardedExpr(Gen& g, JsPtr<Expr> pointer) {
 }
 
 // `f();` where nothing wants the value - see discardedExpr for what that leaves.
-bool foldDiscarded(Gen& g, StmtList& list, Size index) {
+bool foldDiscarded(JsShared& g, StmtList& list, Size index) {
     auto stmt = g.base[list.get(g.base, index)];
     if(stmt->kind != Stmt::Expression) return false;
 
@@ -1054,7 +1054,7 @@ bool foldDiscarded(Gen& g, StmtList& list, Size index) {
  * condition is still evaluated where the condition is - `effectsOf` says whether that matters - and
  * nothing here moves it anywhere.
  */
-bool foldEmptyIf(Gen& g, StmtList& list, Size index) {
+bool foldEmptyIf(JsShared& g, StmtList& list, Size index) {
     auto pointer = list.get(g.base, index);
     auto stmt = g.base[pointer];
     if(stmt->kind != Stmt::If) return false;
@@ -1080,7 +1080,7 @@ bool foldEmptyIf(Gen& g, StmtList& list, Size index) {
  * rule decides the second - zero is false, and so is a `NaN`, which is why the test is written as
  * `!= 0` on a value that is already known rather than as a range.
  */
-Maybe<bool> literalTruth(Gen& g, JsPtr<Expr> slot) {
+Maybe<bool> literalTruth(JsShared& g, JsPtr<Expr> slot) {
     auto expr = g.base[slot];
 
     if(expr->kind == Expr::Bool) return Just(((BoolExpr*)expr)->value);
@@ -1111,7 +1111,7 @@ Maybe<bool> literalTruth(Gen& g, JsPtr<Expr> slot) {
  * function-scoped already, and `break`/`continue` name a statement further out that neither arm
  * contained - so nothing in the arm can tell that the `if` around it is gone.
  */
-bool foldDecidedIf(Gen& g, StmtList& list, Size index) {
+bool foldDecidedIf(JsShared& g, StmtList& list, Size index) {
     auto stmt = g.base[list.get(g.base, index)];
     if(stmt->kind != Stmt::If) return false;
 
@@ -1153,7 +1153,7 @@ bool foldDecidedIf(Gen& g, StmtList& list, Size index) {
 // Whether one statement has anything at all to do with a name - its own expression, every nested
 // body, and every closure reached from either. The conservative half of the sink below: a statement
 // a declaration moves past has to be one that cannot tell.
-bool mentionsStmt(Gen& g, JsPtr<Stmt> pointer, Name name) {
+bool mentionsStmt(JsShared& g, JsPtr<Stmt> pointer, Name name) {
     auto stmt = g.base[pointer];
     if(auto header = headerOf(g, stmt)) {
         if(mentions(g, *header, name)) return true;
@@ -1203,7 +1203,7 @@ bool mentionsStmt(Gen& g, JsPtr<Stmt> pointer, Name name) {
  * expression, in any nested body, or in any closure. The assigned value does not move, so nothing
  * has to be said about what it would have crossed.
  */
-bool foldInitialValue(Gen& g, StmtList& list, Size index) {
+bool foldInitialValue(JsShared& g, StmtList& list, Size index) {
     auto declaration = g.base[list.get(g.base, index)];
     if(declaration->kind != Stmt::Decl) return false;
 
@@ -1251,7 +1251,7 @@ bool foldInitialValue(Gen& g, StmtList& list, Size index) {
  * one reached every use the counts know about. That is what keeps this from leaving a binding whose
  * readers have been split between two names, which is correct but larger than what it replaced.
  */
-bool propagateCopy(Gen& g, StmtList& list, Size index, Names& names) {
+bool propagateCopy(JsShared& g, StmtList& list, Size index, Names& names) {
     auto declaration = g.base[list.get(g.base, index)];
     if(declaration->kind != Stmt::Decl) return false;
 
@@ -1300,7 +1300,7 @@ bool propagateCopy(Gen& g, StmtList& list, Size index, Names& names) {
  * ownership operation that costs nothing here has no consumer at all. Removed only where the value
  * writes nothing - a call stays, because what it returns is not why it is there.
  */
-bool removeDeadBinding(Gen& g, StmtList& list, Size index, Names& names) {
+bool removeDeadBinding(JsShared& g, StmtList& list, Size index, Names& names) {
     auto declaration = g.base[list.get(g.base, index)];
     if(declaration->kind != Stmt::Decl) return false;
 
@@ -1313,7 +1313,7 @@ bool removeDeadBinding(Gen& g, StmtList& list, Size index, Names& names) {
 }
 
 // A binding read once and written never becomes its use - see isAtom for how far it travels.
-bool inlineBinding(Gen& g, StmtList& list, Size index, Names& names) {
+bool inlineBinding(JsShared& g, StmtList& list, Size index, Names& names) {
     auto declaration = g.base[list.get(g.base, index)];
     if(declaration->kind != Stmt::Decl) return false;
 
@@ -1329,7 +1329,37 @@ bool inlineBinding(Gen& g, StmtList& list, Size index, Names& names) {
 
     if(index + 1 >= list.size()) return false;
 
-    auto header = headerOf(g, g.base[list.get(g.base, index + 1)]);
+    /*
+     * The next statement's header, **through a labelled region it opens**.
+     *
+     * A region is entered exactly once at its top - `break L` leaves one and nothing re-enters it,
+     * which is what makes it different from the loop this deliberately does not look inside - so the
+     * first statement of `L: { ... }` runs immediately after the declaration and the expression
+     * moved into it evaluates where it already did. Without this the binding survives every region
+     * the structurer opens, and since J73 that is one per join: `var v = !(m === null) ? 1 : 0;`
+     * followed by `B0: { if (v) ... }`, where the shipping backend writes the test in the `if`.
+     * The `? 1 : 0` that is then left in a condition is `simplifyCondition`'s to remove.
+     *
+     * Gated on `jsirPipeline` because this slice holds every `.js.expect` byte-identical, on J73's
+     * terms for `dropUnreachable`: the rule is sound for both tiers and taking the gate off belongs
+     * in a slice whose subject is the shipping backend.
+     */
+    auto next = g.base[list.get(g.base, index + 1)];
+    for(auto depth = 0; g.jsirPipeline && depth < 8; depth++) {
+        if(next->kind == Stmt::Labelled) {
+            next = g.base[((LabelledStmt*)next)->content];
+            continue;
+        }
+
+        if(next->kind == Stmt::Block && ((BlockStmt*)next)->body.size()) {
+            next = g.base[((BlockStmt*)next)->body.get(g.base, 0)];
+            continue;
+        }
+
+        break;
+    }
+
+    auto header = headerOf(g, next);
     if(!header) return false;
 
     Substitution substitution { decl.name, decl.value, effectsOf(g, decl.value) };
@@ -1354,7 +1384,7 @@ bool inlineBinding(Gen& g, StmtList& list, Size index, Names& names) {
  * the answer. Where both or neither do, the answer no longer depends on the condition - and the
  * condition may still have an effect, so that case is declined rather than folded to a constant.
  */
-bool foldTernaryCompare(Gen& g, JsPtr<Expr>& slot) {
+bool foldTernaryCompare(JsShared& g, JsPtr<Expr>& slot) {
     auto expr = g.base[slot];
     if(expr->kind != Expr::Binary) return false;
 
@@ -1402,7 +1432,7 @@ bool foldTernaryCompare(Gen& g, JsPtr<Expr>& slot) {
  * value this compiler's types admit, so folding it would be inventing an answer for a program that
  * cannot arise rather than simplifying one that can.
  */
-bool foldConstantIndex(Gen& g, JsPtr<Expr>& slot) {
+bool foldConstantIndex(JsShared& g, JsPtr<Expr>& slot) {
     auto expr = g.base[slot];
     if(expr->kind != Expr::Index) return false;
 
@@ -1504,7 +1534,7 @@ Range declaredRange(Expr& expr) {
  * so is never in here; neither is a parameter, which is declared by nothing.
  */
 struct Ranges {
-    explicit Ranges(Gen& g): imul(literalName(g, "imul"_v)) {}
+    explicit Ranges(JsShared& g): imul(literalName(g, "imul"_v)) {}
 
     HashMap<U32, Range> bindings;
     Name imul;
@@ -1535,9 +1565,9 @@ F64 fillBelow(F64 value) {
     return F64(bits);
 }
 
-Range rangeOf(Gen& g, JsPtr<Expr> pointer, Ranges& ranges);
+Range rangeOf(JsShared& g, JsPtr<Expr> pointer, Ranges& ranges);
 
-Range rangeOfBinary(Gen& g, BinaryExpr& expr, Ranges& ranges) {
+Range rangeOfBinary(JsShared& g, BinaryExpr& expr, Ranges& ranges) {
     auto lhs = rangeOf(g, expr.lhs, ranges);
     auto rhs = rangeOf(g, expr.rhs, ranges);
 
@@ -1614,7 +1644,7 @@ Range rangeOfBinary(Gen& g, BinaryExpr& expr, Ranges& ranges) {
  * `Number` produces a number of no known range, `Math.fround` produces a fraction, `BigInt.asIntN`
  * produces a bigint, and the 33-to-53-bit helpers belong to a tower this does not reach into.
  */
-Range rangeOfCall(Gen& g, CallExpr& expr, Ranges& ranges) {
+Range rangeOfCall(JsShared& g, CallExpr& expr, Ranges& ranges) {
     if(!expr.pure || expr.wideBits != 0) return unknownRange();
 
     auto callee = g.base[expr.callee];
@@ -1624,7 +1654,7 @@ Range rangeOfCall(Gen& g, CallExpr& expr, Ranges& ranges) {
     return integerRange(kInt32Min, kInt32Max);
 }
 
-Range rangeOf(Gen& g, JsPtr<Expr> pointer, Ranges& ranges) {
+Range rangeOf(JsShared& g, JsPtr<Expr> pointer, Ranges& ranges) {
     auto expr = g.base[pointer];
 
     switch(expr->kind) {
@@ -1695,9 +1725,9 @@ Range rangeOf(Gen& g, JsPtr<Expr> pointer, Ranges& ranges) {
     }
 }
 
-void collectRanges(Gen& g, StmtList& list, Names& names, Ranges& ranges);
+void collectRanges(JsShared& g, StmtList& list, Names& names, Ranges& ranges);
 
-void collectStmt(Gen& g, JsPtr<Stmt> pointer, Names& names, Ranges& ranges) {
+void collectStmt(JsShared& g, JsPtr<Stmt> pointer, Names& names, Ranges& ranges) {
     auto stmt = g.base[pointer];
 
     if(stmt->kind == Stmt::Decl) {
@@ -1714,7 +1744,7 @@ void collectStmt(Gen& g, JsPtr<Stmt> pointer, Names& names, Ranges& ranges) {
 // In the order the statements are written, which is the order the bindings are defined in: a resolve
 // value is used where its definition dominates, so a declaration is always reached before its
 // readers are. A lookup that misses is unknown, so getting this wrong would cost precision only.
-void collectRanges(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
+void collectRanges(JsShared& g, StmtList& list, Names& names, Ranges& ranges) {
     for(auto stmt: list.contents(g.base)) collectStmt(g, stmt, names, ranges);
 }
 
@@ -1755,7 +1785,7 @@ void collectRanges(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
  * `Number`, built by `globalCall`, and a program that declares its own function of either name is
  * not this.
  */
-bool foldBigIntRoundTrip(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+bool foldBigIntRoundTrip(JsShared& g, JsPtr<Expr>& slot, Ranges& ranges) {
     auto expr = g.base[slot];
     if(expr->kind != Expr::Call) return false;
 
@@ -1822,7 +1852,7 @@ bool foldBigIntRoundTrip(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
     return true;
 }
 
-bool foldCoercion(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+bool foldCoercion(JsShared& g, JsPtr<Expr>& slot, Ranges& ranges) {
     auto expr = g.base[slot];
     if(expr->kind != Expr::Binary) return false;
 
@@ -1910,7 +1940,7 @@ bool foldCoercion(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
  * `!` - because those are the only nodes this backend builds whose value is not a number, and a
  * `Bool` that reaches a value position has already been widened past them (see boolNumber).
  */
-bool producesBoolean(Gen& g, JsPtr<Expr> pointer) {
+bool producesBoolean(JsShared& g, JsPtr<Expr> pointer) {
     auto expr = g.base[pointer];
 
     if(expr->kind == Expr::Unary) return ((UnaryExpr*)expr)->op == UnaryOp::Not;
@@ -1931,7 +1961,7 @@ bool producesBoolean(Gen& g, JsPtr<Expr> pointer) {
     }
 }
 
-bool foldBitwiseOperand(Gen& g, JsPtr<Expr>& slot) {
+bool foldBitwiseOperand(JsShared& g, JsPtr<Expr>& slot) {
     auto expr = g.base[slot];
     if(expr->kind != Expr::Binary) return false;
 
@@ -2002,7 +2032,7 @@ bool foldBitwiseOperand(Gen& g, JsPtr<Expr>& slot) {
  * Written as one rule rather than as two applications of the one above because neither half is
  * removable alone: `x << n` on a narrow x is not x, and the `>> n` is what puts it back.
  */
-bool foldSignExtend(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+bool foldSignExtend(JsShared& g, JsPtr<Expr>& slot, Ranges& ranges) {
     auto expr = g.base[slot];
     if(expr->kind != Expr::Binary) return false;
 
@@ -2054,7 +2084,7 @@ bool foldSignExtend(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
  * `Math.imul`, so an arm it calls constant may still be something the program *runs* - and an arm is
  * exactly what this deletes.
  */
-bool simplifyCondition(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+bool simplifyCondition(JsShared& g, JsPtr<Expr>& slot, Ranges& ranges) {
     auto expr = g.base[slot];
 
     if(expr->kind == Expr::Binary) {
@@ -2139,7 +2169,7 @@ Maybe<Inversion> invertedComparison(BinaryOp op) {
  * widening - `!(v7 <= n)` where `v7 > n` was there before, and `!(v54 === 0)` where the two rules
  * together answer `v54`. The rewrite that reaches the shape has to run before the one that reads it.
  */
-JsPtr<Expr> negatedCondition(Gen& g, JsPtr<Expr> slot, Ranges& ranges) {
+JsPtr<Expr> negatedCondition(JsShared& g, JsPtr<Expr> slot, Ranges& ranges) {
     while(simplifyCondition(g, slot, ranges)) {}
 
     auto expr = g.base[slot];
@@ -2187,7 +2217,7 @@ JsPtr<Expr> negatedCondition(Gen& g, JsPtr<Expr> slot, Ranges& ranges) {
  * has something in the alternative. The condition is the same one either way round - `negatedCondition`
  * preserves it rather than the value - and the arms are moved rather than rebuilt.
  */
-bool flipEmptyThen(Gen& g, StmtList& list, Size index, Ranges& ranges) {
+bool flipEmptyThen(JsShared& g, StmtList& list, Size index, Ranges& ranges) {
     auto stmt = g.base[list.get(g.base, index)];
     if(stmt->kind != Stmt::If) return false;
 
@@ -2210,7 +2240,7 @@ bool flipEmptyThen(Gen& g, StmtList& list, Size index, Ranges& ranges) {
  * expression sees - and the emitter writes short-circuiting as a ternary anyway, whose condition this
  * does reach.
  */
-bool foldConditions(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+bool foldConditions(JsShared& g, JsPtr<Expr>& slot, Ranges& ranges) {
     auto expr = g.base[slot];
 
     if(expr->kind == Expr::Ternary) {
@@ -2238,7 +2268,7 @@ bool foldConditions(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
  * live code. Only the two literal conditions are matched: `constantNumber` rejects a negative zero
  * on its bit pattern, so the one falsy number it declines is declined into leaving the node alone.
  */
-bool foldDecidedTernary(Gen& g, JsPtr<Expr>& slot) {
+bool foldDecidedTernary(JsShared& g, JsPtr<Expr>& slot) {
     auto expr = g.base[slot];
     if(expr->kind != Expr::Ternary) return false;
 
@@ -2271,7 +2301,7 @@ bool foldDecidedTernary(Gen& g, JsPtr<Expr>& slot) {
  * that one leaves. What is left is arithmetic - `x ∈ {0, 1}` makes `x ? 1 : 0` equal to `x`, and no
  * weaker range will do, since `2 ? 1 : 0` is 1.
  */
-bool foldBooleanWidening(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+bool foldBooleanWidening(JsShared& g, JsPtr<Expr>& slot, Ranges& ranges) {
     auto expr = g.base[slot];
     if(expr->kind != Expr::Ternary) return false;
 
@@ -2335,12 +2365,12 @@ struct Bindings {
 // helper that somehow called itself would stop rather than run out of stack.
 constexpr U32 kMaxEvalDepth = 8;
 
-bool evalExpr(Gen& g, JsPtr<Expr> pointer, Bindings& bindings, U32 depth, Known& into);
+bool evalExpr(JsShared& g, JsPtr<Expr> pointer, Bindings& bindings, U32 depth, Known& into);
 
 // A helper's declaration, by the name a call names. Null for a call to anything else, which is what
 // keeps this from interpreting the *program* - a user function may do anything, and what it answers
 // is not a question this pass asks.
-FunStmt* helperBody(Gen& g, Name name) {
+FunStmt* helperBody(JsShared& g, Name name) {
     auto generated = false;
     for(auto& helper: g.wideHelperOrder) if(helper.name.text == name.text) generated = true;
     for(auto& helper: g.bitHelperOrder) if(helper.name.text == name.text) generated = true;
@@ -2363,7 +2393,7 @@ FunStmt* helperBody(Gen& g, Name name) {
 //
 // The member is compared as an interned name rather than as text, because that is how the emitter
 // wrote it: `hostCall` goes through `literalName`, so the same spelling is the same id.
-bool evalHostCall(Gen& g, CallExpr& call, Name member, Bindings& bindings, U32 depth, Known& into) {
+bool evalHostCall(JsShared& g, CallExpr& call, Name member, Bindings& bindings, U32 depth, Known& into) {
     Known first, second;
     auto args = call.args.size();
 
@@ -2394,7 +2424,7 @@ bool evalHostCall(Gen& g, CallExpr& call, Name member, Bindings& bindings, U32 d
 
 // A call to a helper: its parameters bound to the evaluated arguments, and its body interpreted in
 // a scope of its own.
-bool evalHelperCall(Gen& g, FunStmt& helper, CallExpr& call, Bindings& outer, U32 depth,
+bool evalHelperCall(JsShared& g, FunStmt& helper, CallExpr& call, Bindings& outer, U32 depth,
                     Known& into) {
     if(helper.args.size() != call.args.size()) return false;
 
@@ -2430,7 +2460,7 @@ bool evalHelperCall(Gen& g, FunStmt& helper, CallExpr& call, Bindings& outer, U3
     return false;
 }
 
-bool evalExpr(Gen& g, JsPtr<Expr> pointer, Bindings& bindings, U32 depth, Known& into) {
+bool evalExpr(JsShared& g, JsPtr<Expr> pointer, Bindings& bindings, U32 depth, Known& into) {
     if(depth >= kMaxEvalDepth) return false;
 
     auto expr = g.base[pointer];
@@ -2537,7 +2567,7 @@ bool evalExpr(Gen& g, JsPtr<Expr> pointer, Bindings& bindings, U32 depth, Known&
 
 // A call whose arguments are all known, as the number it answers - or null where any part of it is
 // something this cannot evaluate, which is the ordinary case.
-JsPtr<Expr> foldCall(Gen& g, CallExpr& call) {
+JsPtr<Expr> foldCall(JsShared& g, CallExpr& call) {
     Bindings empty;
     Known result;
 
@@ -2554,7 +2584,7 @@ JsPtr<Expr> foldCall(Gen& g, CallExpr& call) {
  * arithmetic coerces: `"5" - 0` is `5` where `"5"` is not, so `x - 0` is only the identity for an
  * `x` that is already a number. Nothing here guesses - an unrecognized shape answers no.
  */
-bool isNumericExpr(Gen& g, JsPtr<Expr> pointer) {
+bool isNumericExpr(JsShared& g, JsPtr<Expr> pointer) {
     auto expr = g.base[pointer];
 
     switch(expr->kind) {
@@ -2610,7 +2640,7 @@ bool isNumericExpr(Gen& g, JsPtr<Expr> pointer) {
  * The subtraction alone. `x + 0` and `0 + x` both answer `+0` for an `x` of `-0`, so neither is the
  * identity there; `x - 0` is, because subtracting zero preserves the sign of a zero.
  */
-bool foldNumericIdentity(Gen& g, JsPtr<Expr>& slot) {
+bool foldNumericIdentity(JsShared& g, JsPtr<Expr>& slot) {
     auto expr = g.base[slot];
     if(expr->kind != Expr::Binary) return false;
 
@@ -2640,7 +2670,7 @@ bool foldNumericIdentity(Gen& g, JsPtr<Expr>& slot) {
  * `pure` is checked rather than the name alone: `BigInt` here is the host's, built by `globalCall`,
  * and a program that declares its own function of that name is not this.
  */
-JsPtr<Expr> foldBigIntCall(Gen& g, CallExpr& call) {
+JsPtr<Expr> foldBigIntCall(JsShared& g, CallExpr& call) {
     if(!call.pure) return nullptr;
 
     auto callee = g.base[call.callee];
@@ -2690,7 +2720,7 @@ JsPtr<Expr> foldBigIntCall(Gen& g, CallExpr& call) {
  * a mask over a literal, and the mask is removed by the rule below rather than by the emitter, which
  * has no ranges to decide it with. So the two run in one loop.
  */
-bool foldConstantOp(Gen& g, JsPtr<Expr>& slot) {
+bool foldConstantOp(JsShared& g, JsPtr<Expr>& slot) {
     auto expr = g.base[slot];
 
     if(expr->kind == Expr::Binary) {
@@ -2698,6 +2728,13 @@ bool foldConstantOp(Gen& g, JsPtr<Expr>& slot) {
         auto folded = foldBinaryOp(g, node.op, node.lhs, node.rhs);
         if(!folded) folded = foldComparison(g, node.op, node.lhs, node.rhs);
         if(!folded) folded = foldBigIntComparison(g, node.op, node.lhs, node.rhs);
+
+        // Gated for J73's `dropUnreachable` reason: the rule is sound on both tiers, this slice
+        // holds every `.js.expect` byte-identical, and taking the gate off belongs in a slice whose
+        // subject is the shipping backend.
+        if(!folded && g.jsirPipeline) {
+            folded = foldNullComparison(g, node.op, node.lhs, node.rhs);
+        }
 
         if(folded) {
             slot = folded;
@@ -2732,7 +2769,7 @@ bool foldConstantOp(Gen& g, JsPtr<Expr>& slot) {
     return false;
 }
 
-bool foldExprs(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+bool foldExprs(JsShared& g, JsPtr<Expr>& slot, Ranges& ranges) {
     auto changed = false;
     auto expr = g.base[slot];
 
@@ -2787,7 +2824,7 @@ bool foldExprs(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
  * recognize. So a match consumes its subtree and the walk does not descend into what it produced -
  * which has no wide calls left in it in any case.
  */
-bool fuseExprs(Gen& g, JsPtr<Expr>& slot) {
+bool fuseExprs(JsShared& g, JsPtr<Expr>& slot) {
     if(auto fused = fuseWideBitwise(g, slot)) {
         slot = fused;
         return true;
@@ -2801,7 +2838,7 @@ bool fuseExprs(Gen& g, JsPtr<Expr>& slot) {
     return changed;
 }
 
-bool fuseList(Gen& g, StmtList& list) {
+bool fuseList(JsShared& g, StmtList& list) {
     auto changed = false;
 
     for(auto pointer: list.contents(g.base)) {
@@ -2891,7 +2928,7 @@ struct Constants {
 
 // A value the table may hold - the same rule `numberLiteral` writes one back under for a number,
 // and every `bigint` literal, which is already exactly the value it denotes.
-bool carriedValue(Gen& g, JsPtr<Expr> pointer, Constants::Entry& into) {
+bool carriedValue(JsShared& g, JsPtr<Expr> pointer, Constants::Entry& into) {
     if(constantNumber(g, pointer, into.value) && isExactInteger(into.value)) {
         into.wide = false;
         return true;
@@ -2912,7 +2949,7 @@ bool carriedValue(Gen& g, JsPtr<Expr> pointer, Constants::Entry& into) {
  * reason foldExprs gives about its own rules: a target names storage, and `1000 = x` is not a
  * program. What that target *contains* is reads again - `o[i]` reads both `o` and `i`.
  */
-bool substituteConstants(Gen& g, JsPtr<Expr>& slot, Constants& known) {
+bool substituteConstants(JsShared& g, JsPtr<Expr>& slot, Constants& known) {
     auto expr = g.base[slot];
     auto changed = false;
 
@@ -2948,7 +2985,7 @@ bool substituteConstants(Gen& g, JsPtr<Expr>& slot, Constants& known) {
     return changed;
 }
 
-bool propagateConstants(Gen& g, StmtList& list) {
+bool propagateConstants(JsShared& g, StmtList& list) {
     Constants known;
 
     // The names this list introduced, which is what makes a write to one a write to a *local*. A
@@ -3030,7 +3067,7 @@ bool propagateConstants(Gen& g, StmtList& list) {
  * Run inside the round rather than after it: an arm this empties is one `foldEmptyIf` collapses and
  * `flipEmptyThen` turns round, which is where most of what it is worth actually shows up.
  */
-bool trimTailReturns(Gen& g, StmtList& list) {
+bool trimTailReturns(JsShared& g, StmtList& list) {
     auto changed = false;
 
     while(list.isNotEmpty()) {
@@ -3063,7 +3100,31 @@ bool trimTailReturns(Gen& g, StmtList& list) {
     return changed;
 }
 
-bool optimizeList(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
+bool completesNormally(JsShared& g, JsPtr<Stmt> pointer);
+
+/*
+ * The statements behind one control can never fall out of, removed.
+ *
+ * The structurer hoists an arm control never leaves out from under its `if` - `emitBranch` in
+ * `structure.cpp`, which is what keeps nine hundred bounds checks from putting the rest of their
+ * functions a level deeper each - and that is the one rewrite in this file that hoisting owes
+ * something back for. Where the condition then folds to a constant, `foldDecidedIf` replaces the
+ * `if` with the arm that runs, and everything that was hoisted behind it is unreachable: 1,745 bytes
+ * in `pastTheLastCodePoint` alone, which is a body of five folded table lookups.
+ *
+ * `completesNormally` is the whole of the test and it is the same one `trimTailReturns` and
+ * `stripTrailingContinue` stand on. Gated on `jsirPipeline` for the reason `JsShared` states: the
+ * rule is right for both generators and this slice holds the shipping one's goldens still.
+ */
+bool dropUnreachable(JsShared& g, StmtList& list, Size index) {
+    if(!g.jsirPipeline || index + 1 >= list.size()) return false;
+    if(completesNormally(g, list.get(g.base, index))) return false;
+
+    while(list.size() > index + 1) list.remove(g.base, list.size() - 1);
+    return true;
+}
+
+bool optimizeList(JsShared& g, StmtList& list, Names& names, Ranges& ranges) {
     // First, because it is what turns an operand into a literal for every rule below to work on -
     // and it reads the list rather than editing it, so nothing it sees can have moved.
     auto changed = propagateConstants(g, list);
@@ -3101,6 +3162,8 @@ bool optimizeList(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
         // Before the binding rules, because collapsing an `if` can leave the statement in front of
         // it and the one behind it adjacent - which is what the two fold rules ask about. And the
         // discard rule after it, since what an emptied `if` leaves behind is a discarded condition.
+        if(dropUnreachable(g, list, index)) changed = true;
+
         if(foldEmptyIf(g, list, index) || foldDiscarded(g, list, index)) {
             changed = true;
             continue;
@@ -3172,9 +3235,9 @@ bool optimizeList(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
  * the bodies this leaves alone, and costs nothing where it does not.
  */
 
-bool mentionsLabel(Gen& g, StmtList& list, Name label, bool breaksOnly);
+bool mentionsLabel(JsShared& g, StmtList& list, Name label, bool breaksOnly);
 
-bool mentionsLabel(Gen& g, JsPtr<Stmt> pointer, Name label, bool breaksOnly) {
+bool mentionsLabel(JsShared& g, JsPtr<Stmt> pointer, Name label, bool breaksOnly) {
     auto stmt = g.base[pointer];
 
     if(stmt->kind == Stmt::Break && ((BreakStmt*)stmt)->label.text == label.text) return true;
@@ -3191,7 +3254,7 @@ bool mentionsLabel(Gen& g, JsPtr<Stmt> pointer, Name label, bool breaksOnly) {
     return found;
 }
 
-bool mentionsLabel(Gen& g, StmtList& list, Name label, bool breaksOnly) {
+bool mentionsLabel(JsShared& g, StmtList& list, Name label, bool breaksOnly) {
     for(auto pointer: list.contents(g.base)) {
         if(mentionsLabel(g, pointer, label, breaksOnly)) return true;
     }
@@ -3199,10 +3262,10 @@ bool mentionsLabel(Gen& g, StmtList& list, Name label, bool breaksOnly) {
     return false;
 }
 
-bool completesNormally(Gen& g, StmtList& list);
+bool completesNormally(JsShared& g, StmtList& list);
 
 // Whether control can reach the statement *after* this one by falling out of it.
-bool completesNormally(Gen& g, JsPtr<Stmt> pointer) {
+bool completesNormally(JsShared& g, JsPtr<Stmt> pointer) {
     auto stmt = g.base[pointer];
 
     switch(stmt->kind) {
@@ -3239,7 +3302,7 @@ bool completesNormally(Gen& g, JsPtr<Stmt> pointer) {
 
 // A list falls out of its end exactly when its last statement does: nothing behind a statement that
 // does not complete normally is reachable, and the emitter builds no such statement.
-bool completesNormally(Gen& g, StmtList& list) {
+bool completesNormally(JsShared& g, StmtList& list) {
     if(list.isEmpty()) return true;
     return completesNormally(g, list.get(g.base, list.size() - 1));
 }
@@ -3251,7 +3314,7 @@ bool completesNormally(Gen& g, StmtList& list) {
  * stands on and is checked again at every level: an arm that could already fall out of itself is one
  * where the `continue` beside it is a real branch rather than a spelling of the end of the body.
  */
-bool stripTrailingContinue(Gen& g, StmtList& list, Name label) {
+bool stripTrailingContinue(JsShared& g, StmtList& list, Name label) {
     if(list.isEmpty() || completesNormally(g, list)) return false;
 
     auto last = g.base[list.get(g.base, list.size() - 1)];
@@ -3294,7 +3357,7 @@ bool stripTrailingContinue(Gen& g, StmtList& list, Name label) {
  * the `if` is the whole of the decision, so putting the exit in front of it changes nothing about
  * which statements run.
  */
-bool sinkTrailingExit(Gen& g, StmtList& list, Name label, Ranges& ranges) {
+bool sinkTrailingExit(JsShared& g, StmtList& list, Name label, Ranges& ranges) {
     if(list.isEmpty()) return false;
 
     auto last = g.base[list.get(g.base, list.size() - 1)];
@@ -3331,7 +3394,7 @@ bool sinkTrailingExit(Gen& g, StmtList& list, Name label, Ranges& ranges) {
  * transparent to both, since `break` with no label leaves the innermost enclosing loop whatever
  * blocks stand in the way.
  */
-void unlabelDirectExits(Gen& g, StmtList& list, Name label) {
+void unlabelDirectExits(JsShared& g, StmtList& list, Name label) {
     for(auto pointer: list.contents(g.base)) {
         auto stmt = g.base[pointer];
 
@@ -3367,7 +3430,7 @@ void unlabelDirectExits(Gen& g, StmtList& list, Name label) {
  * exactly what this has to accept - what makes it safe here is that both readings happen at the same
  * point in the iteration, with nothing between them.
  */
-bool isSimpleRead(Gen& g, JsPtr<Expr> pointer) {
+bool isSimpleRead(JsShared& g, JsPtr<Expr> pointer) {
     auto expr = g.base[pointer];
 
     switch(expr->kind) {
@@ -3404,7 +3467,7 @@ bool isSimpleRead(Gen& g, JsPtr<Expr> pointer) {
  *    `while` does - on the iteration whose test fails - so a reader after the loop would see the
  *    later value in one form and the earlier one in the other.
  */
-bool testableWithoutPrefix(Gen& g, LoopStmt& loop, Size prefix, JsPtr<Stmt> whole, Names& names) {
+bool testableWithoutPrefix(JsShared& g, LoopStmt& loop, Size prefix, JsPtr<Stmt> whole, Names& names) {
     for(Size i = 0; i < prefix; i++) {
         auto stmt = g.base[loop.body.get(g.base, i)];
         if(stmt->kind != Stmt::Decl) return false;
@@ -3440,7 +3503,7 @@ bool testableWithoutPrefix(Gen& g, LoopStmt& loop, Size prefix, JsPtr<Stmt> whol
     return true;
 }
 
-bool recoverLoop(Gen& g, StmtList& list, Size index, Names& names, Ranges& ranges) {
+bool recoverLoop(JsShared& g, StmtList& list, Size index, Names& names, Ranges& ranges) {
     auto whole = list.get(g.base, index);
     auto stmt = g.base[whole];
     if(stmt->kind != Stmt::Labelled) return false;
@@ -3481,15 +3544,24 @@ bool recoverLoop(Gen& g, StmtList& list, Size index, Names& names, Ranges& range
         }
     }
 
-    if(falls) {
-        /*
-         * The true arm reaches the `break` behind the `if`, so this loop is left from inside its
-         * body as well as by its test - and in a `while` the end of the body is the test, so that
-         * departure has to be written where it can still be seen.
-         *
-         * Only where there is no false arm. With one, the statements the `break` would leave past
-         * are exactly the ones about to be moved out to behind the loop, so it would run them.
-         */
+    /*
+     * Whether this loop is left from inside its body as well as by its test - and in a `while` the
+     * end of the body is the test, so such a departure has to be written where it can still be seen.
+     *
+     * **Two ways, not one.** The true arm may fall out of itself and reach the `break` behind the
+     * `if`, and it may carry a `break L` of its own - which the first version of this asked only the
+     * first of. The second is the shape an early `return` out of a `for` over an iterator takes:
+     * `Iter.yana`'s `firstOddOver` is `L: for(;;) { if(i < n) { ...; break L; ...; continue L } else
+     * { found = 0 } break L }`, and hoisting the false arm out from under a loop that is also left
+     * by that `break` ran "not found" on the path that had found something. It answered -1 where the
+     * source says 5, which is the whole reason this predicate is worth being exact about.
+     *
+     * Either way the refusal is the same and for the same reason: the statements the `break` would
+     * leave past are exactly the ones about to be moved out to behind the loop, so it would run them.
+     */
+    auto leavesFromBody = falls || mentionsLabel(g, then, label, true);
+
+    if(leavesFromBody) {
         if(after.isNotEmpty()) return false;
     } else if(mentionsLabel(g, after, label, false)) {
         return false;
@@ -3547,7 +3619,7 @@ bool recoverLoop(Gen& g, StmtList& list, Size index, Names& names, Ranges& range
     return true;
 }
 
-void recoverLoops(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
+void recoverLoops(JsShared& g, StmtList& list, Names& names, Ranges& ranges) {
     Size index = 0;
 
     while(index < list.size()) {
@@ -3576,7 +3648,7 @@ void recoverLoops(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
  * loop is then for the trees that assembling one uncovers, and it terminates because fusion removes
  * wide calls and never adds one.
  */
-void optimizeFunction(Gen& g, FunStmt& function) {
+void optimizeFunction(JsShared& g, FunStmt& function) {
     Names names;
     Ranges ranges(g);
 
@@ -3634,7 +3706,7 @@ void optimizeFunction(Gen& g, FunStmt& function) {
  * accessor wider than the operators reaches for a `wrap`, and removing the accessor is what makes
  * the wrap dead.
  */
-void removeDeadHelpers(Gen& g) {
+void removeDeadHelpers(JsShared& g) {
     if(g.wideHelperOrder.size() == 0 && g.bitHelperOrder.size() == 0) return;
 
     HashSet<U32> generated;
@@ -3699,7 +3771,7 @@ void removeDeadHelpers(Gen& g) {
 
 } // namespace
 
-void optimizeFile(Gen& g) {
+void optimizeFile(JsShared& g) {
     for(auto pointer: g.file.statements.contents(g.base)) {
         auto stmt = g.base[pointer];
         if(stmt->kind == Stmt::Fun) optimizeFunction(g, *(FunStmt*)stmt);

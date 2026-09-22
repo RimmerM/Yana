@@ -1,0 +1,95 @@
+let image$base: () = <none>
+
+let &live: I32 = 0
+
+fn +=(I32)(%target: I32, %amount: I32) -> () {
+  b0:
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
+    assign %target, %v3
+    ret
+}
+
+fn hold(%n: I32) -> Held {
+  b0:
+    %v1 = load live : I32
+    %v4 = add %v1, 1 : I32
+    assign live, %v4
+    %v6 = alloc : Held
+    aggregate %local0@Held.n = %n
+    ret %v6
+}
+
+fn total(%t: Trio) -> I32 {
+  b0:
+    %v1 = load %t@Trio.held : Held
+    %v2 = load %t@Trio.held@Held.n : I32
+    %v3 = load %t@Trio.x : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = load %t@Trio.y : I32
+    %v6 = add %v4, %v5 : I32
+    ret %v6
+}
+
+fn build(%n: I32) -> Trio {
+  b0:
+    %v1 = alloc : Trio
+    %v2 = call hold, %n : Held
+    %v5 = mul %n, 2 : I32
+    %v8 = mul %n, 3 : I32
+    aggregate %local0@Trio.held = %v2, %local0@Trio.x = %v5, %local0@Trio.y = %v8
+    ret %v1
+}
+
+fn main() -> I32 {
+  b0:
+    %sum = alloc : I32
+    init %sum, 0
+    %v9 = alloc : I32
+    init %local1, 1
+    jmp b1
+
+  b1:
+    %i = load %local1 : I32
+    %v13 = cmp_lt %i, 4 : Bool
+    je %v13, b2, b5
+
+  b2:
+    %t = call build, %i : Trio
+    %v15 = load %sum : I32
+    %v16 = call total, %t : I32
+    drop_derived %local2 via drop$Trio
+    %v17 = borrow_mut %sum : &I32
+    call +=(I32), %v17, %v16
+    jmp b3
+
+  b3:
+    %v19 = load %local1 : I32
+    jmp b4
+
+  b4:
+    %v21 = add %v19, 1 : I32
+    assign %local1, %v21
+    jmp b1
+
+  b5:
+    %v26 = load %sum : I32
+    %v29 = mul %v26, 1000 : I32
+    %v30 = load live : I32
+    %v31 = add %v29, %v30 : I32
+    ret %v31
+}
+
+fn Drop(Held).drop(%value: Held) -> () {
+  b0:
+    %v1 = load live : I32
+    %v4 = sub %v1, 1 : I32
+    assign live, %v4
+    ret
+}
+
+fn drop$Trio(%value: Trio) -> () {
+  b0:
+    drop %value@Trio.held via Drop(Held).drop
+    ret
+}

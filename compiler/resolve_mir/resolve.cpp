@@ -2353,10 +2353,11 @@ DeclPtr<Global> Resolver::stringBytesGlobal(StringId written, LocationId source)
  *
  * **One arm now, where there were two.** This used to try `stringLiteral`'s body as a constant and
  * fall back to *emitting the call*, opened by `@inline(always)`, for a target whose string has no
- * static form. There is no such target in this stage - `-resolver ownership` is native only - and
- * the fallback was the expensive half of a decision that had one answer: five bodies to resolve,
- * inline and fold at every literal in the program, to arrive at three field writes of numbers the
- * compiler already had.
+ * static form. Neither target this stage has is one - a JavaScript string is a constant of the
+ * emitted program exactly as a native one is a constant of its read-only data - and the fallback was
+ * the expensive half of a decision that had one answer: five bodies to resolve, inline and fold at
+ * every literal in the program, to arrive at three field writes of numbers the compiler already
+ * had.
  *
  * So a literal is a constant here and in a constant position alike, built by `stringConstant`
  * out of the layout, and `Lowering::placeConstant` puts it in read-only data once per distinct

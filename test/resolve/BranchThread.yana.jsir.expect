@@ -1,0 +1,97 @@
+fn main() -> one %r0
+  block0:
+    %7: %r0 = const 30
+    %8: %r0 = const 20
+    %9: %r0 = const 0
+    %10: %r0 = const 1
+    jump -> block2(%9)
+  block1(%0: %r0):
+    %18: %r0 = const 14
+    %19: %r0 = const 5
+    %20: %r0 = const 0
+    %21: %r0 = const 0
+    %22: %r0 = const 1
+    %23: %r0 = const 1
+    jump -> block8(%20)
+  block2(%1: %r0):
+    %11: %r1 = binary.lt %1, %8
+    branch %11 -> block4 -> block3
+  block3:
+    %12: %r0 = const -1
+    jump -> block1(%12)
+  block4:
+    %13: %r0 = binary.mul %1, %1
+    %14: %r0 = coerce %13
+    %15: %r1 = binary.gt %14, %7
+    branch %15 -> block6 -> block5
+  block5:
+    %16: %r0 = binary.add %1, %10
+    %17: %r0 = coerce %16
+    jump -> block2(%17)
+  block6:
+    jump -> block1(%1)
+  block7(%2: %r0):
+    %41: %r0 = binary.add %0, %2
+    %42: %r0 = coerce %41
+    %43: %r0 = const 10
+    %44: %r0 = const 0
+    %45: %r0 = const 0
+    %46: %r0 = const 1
+    jump -> block16(%44, %45)
+  block8(%3: %r0):
+    %24: %r1 = binary.lt %3, %19
+    branch %24 -> block10 -> block9
+  block9:
+    %25: %r0 = const -1
+    jump -> block7(%25)
+  block10:
+    %26: %r0 = binary.mul %3, %19
+    %27: %r0 = coerce %26
+    jump -> block11(%21)
+  block11(%4: %r0):
+    %28: %r1 = binary.lt %4, %19
+    branch %28 -> block13 -> block12
+  block12:
+    %29: %r0 = binary.add %3, %23
+    %30: %r0 = coerce %29
+    jump -> block8(%30)
+  block13:
+    %31: %r0 = binary.add %27, %4
+    %32: %r0 = coerce %31
+    %33: %r1 = binary.eq %32, %18
+    branch %33 -> block15 -> block14
+  block14:
+    %34: %r0 = binary.add %4, %22
+    %35: %r0 = coerce %34
+    jump -> block11(%35)
+  block15:
+    %36: %r0 = const 100
+    %37: %r0 = binary.mul %3, %36
+    %38: %r0 = coerce %37
+    %39: %r0 = binary.add %38, %4
+    %40: %r0 = coerce %39
+    jump -> block7(%40)
+  block16(%5: %r0, %6: %r0):
+    %47: %r1 = binary.lt %6, %43
+    branch %47 -> block18 -> block17
+  block17:
+    %48: %r0 = binary.add %42, %5
+    %49: %r0 = coerce %48
+    %56: %r0 = const 20
+    %57: %r0 = binary.add %49, %56
+    %58: %r0 = coerce %57
+    return %58
+  block18:
+    %59: %r0 = binary.add %5, %6
+    %60: %r0 = coerce %59
+    %61: %r0 = binary.add %6, %46
+    %62: %r0 = coerce %61
+    jump -> block16(%60, %62)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0
+
+shape %s0 object Point {x: %r0, y: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = number bool
+rep %r2 = object %s0

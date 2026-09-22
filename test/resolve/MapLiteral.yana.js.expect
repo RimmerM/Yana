@@ -93,9 +93,9 @@ function indexRebuild_I32_I32(self, slots) {
     v45 = v45 + 1 | 0;
   }
   self.live = 0;
-  var v88 = self.keys.length;
+  var v89 = self.keys.length;
   var v23 = 0;
-  while (v23 < v88) {
+  while (v23 < v89) {
     var at = v23;
     indexPlace_I32_I32(self, at, mix32(Math.imul((self.keys.items[at] ^ 2166136261) >>> 0, 16777619) >>> 0));
     v23 = v23 + 1 | 0;
@@ -235,9 +235,9 @@ function indexRebuild_String_I32(self, slots) {
     v45 = v45 + 1 | 0;
   }
   self.live = 0;
-  var v84 = self.keys.length;
+  var v85 = self.keys.length;
   var v23 = 0;
-  while (v23 < v84) {
+  while (v23 < v85) {
     var at = v23;
     indexPlace_String_I32(self, at, mix32(Hash_String_hash(self.keys[at], 2166136261)));
     v23 = v23 + 1 | 0;
@@ -276,9 +276,9 @@ function insert_String_I32(self, key, value) {
   var v30 = mix32(Hash_String_hash(key, 2166136261));
   var at = findEntry_String_I32(self, key, v30);
   if (at >= 0) {
-    var v31 = self.values.items;
-    var v13$1 = v31[at];
-    v31[at] = value;
+    var v36 = self.values.items;
+    var v13$1 = v36[at];
+    v36[at] = value;
     return v13$1;
   } else {
     appendEntry_String_I32(self, key, value, v30);
@@ -384,9 +384,9 @@ function indexRebuild_I32_Array_I32(self, slots) {
     v45 = v45 + 1 | 0;
   }
   self.live = 0;
-  var v81 = self.keys.length;
+  var v82 = self.keys.length;
   var v23 = 0;
-  while (v23 < v81) {
+  while (v23 < v82) {
     var at = v23;
     indexPlace_I32_Array_I32(self, at, hashKey_I32(self.keys.items[at]));
     v23 = v23 + 1 | 0;
@@ -430,11 +430,11 @@ function insert_I32_Array_I32(self, key, value) {
     v29 = indexFind_I32_Array_I32(self, key, h);
   }
   if (v29 >= 0) {
-    var v41 = self.values[v29];
-    var v44 = { items: v41.items, length: v41.length };
-    v41.items = value.items;
-    v41.length = value.length;
-    return v44;
+    var v42 = self.values[v29];
+    var v48 = { items: v42.items, length: v42.length };
+    v42.items = value.items;
+    v42.length = value.length;
+    return v48;
   } else {
     appendEntry_I32_Array_I32(self, key, value, h);
     return null;
@@ -530,9 +530,9 @@ function indexRebuild_I32_Map_I32_I32(self, slots) {
     v45 = v45 + 1 | 0;
   }
   self.live = 0;
-  var v81 = self.keys.length;
+  var v82 = self.keys.length;
   var v23 = 0;
-  while (v23 < v81) {
+  while (v23 < v82) {
     var at = v23;
     indexPlace_I32_Map_I32_I32(self, at, hashKey_I32(self.keys.items[at]));
     v23 = v23 + 1 | 0;
@@ -571,14 +571,14 @@ function insert_I32_Map_I32_I32(self, key, value) {
   var h = hashKey_I32(key);
   var at = findEntry_I32_Map_I32_I32(self, key, h);
   if (at >= 0) {
-    var v30 = self.values[at];
-    var v33 = { keys: v30.keys, values: v30.values, index: v30.index, live: v30.live, mask: v30.mask };
-    v30.keys = value.keys;
-    v30.values = value.values;
-    v30.index = value.index;
-    v30.live = value.live;
-    v30.mask = value.mask;
-    return v33;
+    var v31 = self.values[at];
+    var v37 = { keys: v31.keys, values: v31.values, index: v31.index, live: v31.live, mask: v31.mask };
+    v31.keys = value.keys;
+    v31.values = value.values;
+    v31.index = value.index;
+    v31.live = value.live;
+    v31.mask = value.mask;
+    return v37;
   } else {
     appendEntry_I32_Map_I32_I32(self, key, value, h);
     return null;

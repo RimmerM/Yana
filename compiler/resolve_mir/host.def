@@ -1,0 +1,129 @@
+/*
+ * The operations the **host** has and the IR does not - the content of a `Node::Host`.
+ * Analysis-IR-JS.md §3.10, which is this table's producer.
+ *
+ * `YANA_MIR_HOST( enumerator, name, effects, member )`. Beside `native.def` and deliberately not
+ * inside it: the two tables answer the same *kind* of question about two different machines, and
+ * the three things that differ are what make this a node of its own rather than more rows there.
+ *
+ *  1. **Effects are per row**, which is the `effects` column and the reason `native.def` has no such
+ *     column at all. Everything there is an instruction the backend emits and an ordered effect by
+ *     construction; here a property read, a method call that may do anything, a typed-array store
+ *     and a `throw` are four different answers, and an optimizer that could not tell them apart
+ *     could move nothing across any of them. The same argument makes `Atomic` a kind rather than a
+ *     `Native` - see its row in `inst.def`.
+ *  2. **The member name is a field**, not an operand, and the `member` column is which rows carry
+ *     one. It was an inequality over the enum - `op <= HostOp::Throw || op == ViewRead || ...` - so
+ *     the answer depended on the *order* the rows are written in and moving one silently changed
+ *     what the verifier checks. `hostField(s, "length")` names a member of the
+ *     host, and a name that survived as a *value* would be a string object built at run time and a
+ *     property access spelled `o[k]`. `expand_host.cpp` reads the literal at the call, stores it
+ *     here, and drops the argument; a non-literal in that position is a diagnostic where the
+ *     argument still exists as something an author wrote.
+ *  3. **Operand modes come off the declaration.** A `Native`'s operands are all `Inspect` because
+ *     they are addresses and counts. These are not: `hostWrite` consumes its value, `hostCall1` may
+ *     be handed an owned one, and the modes are `argumentMode`'s answer over the substituted
+ *     signature exactly as a call's are - so the ownership passes check them without knowing what a
+ *     host is.
+ *
+ * **What is not here** is the element family - `hostRead`, `hostWrite`, `hostAt` and `hostAtMut`.
+ * Those are not operations at all but the four faces of one **place**, which is what `op.def` says
+ * about them and what `expand_host.cpp` builds: a `Place::Index` over a `Place::Address` root, so a
+ * host element sits in exactly the position a native one sits in for every pass above the backend,
+ * and the borrow the two `At` roles hand back is rooted by the same machinery that roots `borrow`'s.
+ * A node would have needed a second rooting rule in `analyze_loan.cpp` to say what the declaration
+ * already says.
+ *
+ * **Native never sees one.** `@platform` selection deletes every declaration that could reach one,
+ * so `resolve_ssa/lower` treats a `Host` as an internal error rather than translating it.
+ */
+
+/*
+ * The five named shapes - `lib/Native/Host.js.yana`, which states the host as these rather than as a
+ * list of its methods. The member's spelling is the `String` argument, read at expansion.
+ *
+ * `Field` is `Reads` and **not** `Pure`, which is where this departs from §3.10's own example.
+ * A property read is idempotent only while nothing changes the object, and the thing that would
+ * change it is another row here: `Array.js.yana`'s `push` writes past the end of a host array,
+ * which is precisely what `hostField(items, "length")` answers. OSSA's alias analysis is about
+ * *allocations* - `mayWriteStorage` reasons over `Contained`, which a host handle is not - so it
+ * cannot say that two host objects are different, and a `Pure` row here would let CSE unify the two
+ * reads across the write. `Reads` says what is true: the result is a function of host state, and
+ * JSIR is the tier that can prove which state.
+ *
+ * The calls are `Writes | Throws`: a host method may do anything, including not return.
+ */
+YANA_MIR_HOST( Field,      "host.field"_v,      kHostReads,                 kHostNamed   )
+
+/*
+ * **One row per shape and not per arity.** `Call0` to `Call3` and `Global0`/`Global1` were six rows
+ * that differed in nothing: the same effects, the same member, the same emitter, and the same
+ * spelling at the other end. What the number in the name said is the *declaration's* arity, which
+ * is already the operand count of the node - so the six carried it twice and the verifier had no
+ * way to check the copy against the original. The roles stay one per arity, because a declaration
+ * has one arity and there is no variadic form to write; it is the row they expand to that is one.
+ */
+YANA_MIR_HOST( Call,       "host.call"_v,       kHostWrites | kHostThrows,  kHostNamed   )
+YANA_MIR_HOST( Global,     "host.global"_v,     kHostWrites | kHostThrows,  kHostNamed   )
+
+/*
+ * `lhs <operator> rhs`, whose member name is the operator's own spelling - `+` on two host strings,
+ * `===`, `<`.
+ *
+ * `Reads` rather than `Pure` for `Field`'s reason one rung weaker: the operands are values and the
+ * operator is the host's own, so nothing about it depends on host state - but `+` on two objects
+ * calls `valueOf`, and the library reaches this row only at strings today. A row that claimed purity
+ * would be claiming it for every type a caller may put there.
+ */
+YANA_MIR_HOST( Binary,     "host.binary"_v,     kHostReads,                 kHostNamed   )
+
+/*
+ * `throw message` - how a program stops on this target, and the one row that carries `kHostControl`.
+ *
+ * `Control` is **data for JSIR** rather than a terminator here. A terminator would split the block
+ * at every check in the program and leave an unreachable successor for the ordinary path to rejoin,
+ * which is a CFG change made by a tier that cannot see whether the host catches. The shipping
+ * stage's emitter writes the `throw` inline and lets what follows be dead code the formatter drops;
+ * this records the same fact as a column for the tier that structures the syntax.
+ */
+YANA_MIR_HOST( Throw,      "host.throw"_v,      kHostThrows | kHostControl, kHostNamed   )
+
+/*
+ * `DataView.getUint32(index, littleEndian)` and its setter - a machine word out of a byte array.
+ *
+ * Rows of their own rather than calls, because the receiver in the emitted source is not the
+ * argument: a `DataView` has to exist over the array's buffer, and the emitter hangs one off the
+ * array on first use. The name is still the accessor's, which is where the width lives.
+ */
+YANA_MIR_HOST( ViewRead,   "host.view.read"_v,  kHostReads,                 kHostNamed   )
+YANA_MIR_HOST( ViewWrite,  "host.view.write"_v, kHostWrites,                kHostNamed   )
+
+/*
+ * The host array's own three - `[]`, the typed row's growth, and the compile-time question about the
+ * element.
+ *
+ * `FixedCapacity` is the one **`Pure`** row in this table, and it is pure in the strongest sense
+ * available: it answers whether `typedArrayFor` has a row for the element type, which is a fact
+ * about a type rather than about a value. `Array.js.yana`'s `reserve` is written as one body over
+ * two representations precisely because the fold removes the branch it guards, in both directions,
+ * so this row being recomputable and removable is what that body depends on.
+ *
+ * `Array` is `Writes` although it reads nothing: what it produces is a fresh host object, and a row
+ * that claimed purity would let CSE hand two `[]` literals the same array.
+ */
+YANA_MIR_HOST( Array,         "host.array"_v,     kHostWrites, kHostUnnamed )
+YANA_MIR_HOST( Grow,          "host.grow"_v,      kHostWrites, kHostUnnamed )
+YANA_MIR_HOST( FixedCapacity, "host.capacity"_v,  kHostPure,   kHostUnnamed )
+
+/*
+ * A whole vector out of a host array and back into one - Implementation-Vector.md §12's JS half.
+ *
+ * Rows here rather than `lanes` element places written out at expansion, which is what `op.def`
+ * describes: the lane count is known here, so either would work, and what decides it is that a run
+ * of `lanes` reads is `lanes` bounds questions for every pass above to carry where one node is one.
+ * `hostVectorUpTo` clamps each index, which is the tail - and clamping is the emitter's, since it is
+ * the lane index that is held rather than anything the source wrote.
+ */
+YANA_MIR_HOST( Vector,     "host.vector"_v,      kHostReads,  kHostUnnamed )
+YANA_MIR_HOST( VectorUpTo, "host.vector.upto"_v, kHostReads,  kHostUnnamed )
+YANA_MIR_HOST( SetVector,  "host.vector.set"_v,  kHostWrites, kHostUnnamed )

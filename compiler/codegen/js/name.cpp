@@ -1,4 +1,5 @@
 #include "build.h"
+#include "../../resolve_ssa/js/name.h"
 
 /*
  * Identifiers.
@@ -22,7 +23,10 @@ namespace js {
  * of a byte lookup and the literal `"′′′"` in NormalizationTables are one id, and a program that
  * held both answered U+2034's case fold as the text `v67$10`.
  */
-static bool collides(Gen& g, StringView text) {
+using jsir::jsReservedWord;
+using jsir::jsSanitize;
+
+static bool collides(JsShared& g, StringView text) {
     auto& known = g.context.find(Context::nameHash(text));
     return known.textLength && !(StringView { known.text, known.textLength } == text);
 }
@@ -35,113 +39,15 @@ static bool collides(Gen& g, StringView text) {
  * is copied into the string arena first - and only the first time, since a field name is built
  * again at every projection that reads it.
  */
-StringId internText(Gen& g, StringView text) {
-    auto id = Context::nameHash(text);
-    if(g.interned.contains(id)) return id;
-
-    // A name a caller could have chosen differently is steered off a collision in uniqueName; the
-    // two that cannot - a property and a literal, which are the text they print - stop here rather
-    // than rewriting whatever the colliding id already names.
-    assertTrue(!collides(g, text));
-
-    auto storage = (char*)g.context.stringArena.alloc(text.length);
-    copy(text.ptr, storage, text.length);
-
-    g.interned.add(id);
-    return g.context.addUnqualifiedName(storage, text.length);
+StringId internText(JsShared& g, StringView text) {
+    return jsir::jsInternText(g.context, g.interned, text);
 }
 
-namespace {
-
-bool identifierPart(char c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-           c == '_' || c == '$';
-}
-
-bool reservedWord(StringView text) {
-    static const StringView kReserved[] = {
-        "await"_v, "break"_v, "case"_v, "catch"_v, "class"_v, "const"_v, "continue"_v, "debugger"_v,
-        "default"_v, "delete"_v, "do"_v, "else"_v, "enum"_v, "export"_v, "extends"_v, "false"_v,
-        "finally"_v, "for"_v, "function"_v, "if"_v, "implements"_v, "import"_v, "in"_v,
-        "instanceof"_v, "interface"_v, "let"_v, "new"_v, "null"_v, "package"_v, "private"_v,
-        "protected"_v, "public"_v, "return"_v, "static"_v, "super"_v, "switch"_v, "this"_v,
-        "throw"_v, "true"_v, "try"_v, "typeof"_v, "undefined"_v, "var"_v, "void"_v, "while"_v,
-        "with"_v, "yield"_v, "arguments"_v, "eval"_v, "Infinity"_v, "NaN"_v, "BigInt"_v, "Math"_v,
-        "Object"_v, "Array"_v, "Map"_v, "String"_v, "Number"_v, "Boolean"_v, "Symbol"_v,
-    };
-
-    for(auto word: kReserved) {
-        if(word == text) return true;
-    }
-
-    return false;
-}
-
-/*
- * A source name as a JS identifier.
- *
- * Mapping every operator character to `_` would make `Num(Int).+` and `Num(Int).-` two names that
- * read alike. Spelling each operator out keeps the emitted code debuggable, which §3.6 asks for and
- * is a large part of what the JS target is *for*; uniqueName() is what guarantees distinctness
- * regardless.
- */
-Size sanitize(StringView text, char* target, Size capacity) {
-    struct Word { char symbol; StringView text; };
-    static const Word kWords[] = {
-        { '+', "add"_v }, { '-', "sub"_v }, { '*', "mul"_v }, { '/', "div"_v }, { '%', "rem"_v },
-        { '=', "eq"_v }, { '<', "lt"_v }, { '>', "gt"_v }, { '!', "not"_v }, { '&', "and"_v },
-        { '|', "or"_v }, { '^', "xor"_v }, { '~', "inv"_v }, { '?', "q"_v },
-    };
-
-    Size length = 0;
-    auto append = [&](char c) {
-        // Runs of separators collapse, so `Num(Int).+` does not come out with three of them in a
-        // row where the source had punctuation next to punctuation.
-        if(c == '_' && (!length || target[length - 1] == '_')) return;
-        if(length + 1 < capacity) target[length++] = c;
-    };
-
-    if(text.length && text.ptr[0] >= '0' && text.ptr[0] <= '9') target[length++] = '_';
-
-    for(Size i = 0; i < text.length; i++) {
-        auto c = text.ptr[i];
-
-        if(identifierPart(c)) {
-            append(c);
-            continue;
-        }
-
-        StringView word;
-        for(auto& entry: kWords) {
-            if(entry.symbol == c) word = entry.text;
-        }
-
-        if(!word.length) {
-            append('_');
-            continue;
-        }
-
-        append('_');
-        for(Size j = 0; j < word.length; j++) append(word.ptr[j]);
-    }
-
-    while(length && target[length - 1] == '_') length--;
-    while(length && target[0] == '_' && length > 1) {
-        for(Size i = 1; i < length; i++) target[i - 1] = target[i];
-        length--;
-    }
-
-    if(!length) target[length++] = '_';
-    return length;
-}
-
-} // namespace
-
-Name uniqueName(Gen& g, StringView text, bool local) {
+Name uniqueName(JsShared& g, StringView text, bool local) {
     char buffer[512];
-    auto length = sanitize(text, buffer, sizeof(buffer) - 16);
+    auto length = jsSanitize(text, buffer, sizeof(buffer) - 16);
 
-    if(reservedWord(StringView { buffer, length })) buffer[length++] = '$';
+    if(jsReservedWord(StringView { buffer, length })) buffer[length++] = '$';
 
     // A name already handed out gets a numeric tail. The counter is kept per base name rather than
     // globally, so an identifier that never collides never grows one.
@@ -175,7 +81,7 @@ Name uniqueName(Gen& g, StringView text, bool local) {
     return Name { candidate };
 }
 
-Name generatedName(Gen& g, StringView prefix, U32 index) {
+Name generatedName(JsShared& g, StringView prefix, U32 index) {
     char buffer[64];
     copy(prefix.ptr, buffer, prefix.length);
 
@@ -185,7 +91,7 @@ Name generatedName(Gen& g, StringView prefix, U32 index) {
     return uniqueName(g, StringView { buffer, length }, true);
 }
 
-Name valueName(Gen& g, Value& value) {
+Name valueName(JsShared& g, Value& value) {
     if(value.name) {
         auto text = g.context.findName(value.name);
         return uniqueName(g, stringView(text), true);
@@ -205,7 +111,7 @@ Name valueName(Gen& g, Value& value) {
  * Shared by the two multi-part representations - the reference triple and the function-value pair -
  * because naming a part is the same job in both and the suffix is the whole of the difference.
  */
-Name partName(Gen& g, Value& value, StringView suffix) {
+Name partName(JsShared& g, Value& value, StringView suffix) {
     char buffer[512];
     Size length = 0;
 
@@ -229,7 +135,7 @@ Name partName(Gen& g, Value& value, StringView suffix) {
  * Beside `partName` because it is the same job with a computed suffix, and here rather than in
  * inst.cpp because a vector phi's lanes are declared by gen.cpp and assigned by flow.cpp.
  */
-Name laneName(Gen& g, Value& value, U32 lane) {
+Name laneName(JsShared& g, Value& value, U32 lane) {
     char suffix[16];
     Size length = 0;
 
@@ -239,13 +145,13 @@ Name laneName(Gen& g, Value& value, U32 lane) {
     return partName(g, value, StringView { suffix, length });
 }
 
-Name propertyName(Gen& g, StringView text) {
+Name propertyName(JsShared& g, StringView text) {
     char buffer[512];
-    auto length = sanitize(text, buffer, sizeof(buffer));
+    auto length = jsSanitize(text, buffer, sizeof(buffer));
     return Name { internText(g, StringView { buffer, length }) };
 }
 
-Name literalName(Gen& g, StringView text) {
+Name literalName(JsShared& g, StringView text) {
     return Name { internText(g, text) };
 }
 
@@ -257,7 +163,7 @@ Name literalName(Gen& g, StringView text) {
  * within a record - two packed words are two words at two offsets - and stable, since it is the same
  * number the layout dump prints.
  */
-Name packedWordName(Gen& g, U32 offset) {
+Name packedWordName(JsShared& g, U32 offset) {
     char buffer[32];
     buffer[0] = '$';
     buffer[1] = 'p';
@@ -266,7 +172,7 @@ Name packedWordName(Gen& g, U32 offset) {
     return Name { internText(g, StringView { buffer, length }) };
 }
 
-Name fieldName(Gen& g, StringId name, U16 index) {
+Name fieldName(JsShared& g, StringId name, U16 index) {
     if(name) {
         auto text = g.context.findName(name);
         return propertyName(g, stringView(text));
@@ -285,7 +191,7 @@ Name fieldName(Gen& g, StringId name, U16 index) {
  * name, so neither can their words, and the suffixes are ones `propertyName` never produces from a
  * source name because `$` is not in the sanitized alphabet.
  */
-Name fieldPartName(Gen& g, Name field, StringView suffix) {
+Name fieldPartName(JsShared& g, Name field, StringView suffix) {
     auto text = stringView(g.context.findName(field.text));
 
     char buffer[512];
@@ -294,6 +200,23 @@ Name fieldPartName(Gen& g, Name field, StringView suffix) {
     copy(suffix.ptr, buffer + length, suffix.length);
 
     return Name { internText(g, StringView { buffer, length + suffix.length }) };
+}
+
+/*
+ * The property names that are the compiler's rather than the program's - `$tag`, `$p`, `$v`.
+ *
+ * One function rather than a line in each generator's setup, because the names are the *target's*
+ * convention: two pipelines that each spelled a tag would be two hidden classes for one record the
+ * day one of them was changed, and there is no diagnostic for that - a value built by one and read
+ * by the other simply answers `undefined`.
+ */
+void nameSharedFields(JsShared& g) {
+    g.tagField = literalName(g, jsir::key::tag);
+    g.payloadField = literalName(g, jsir::key::payload);
+    g.boxField = literalName(g, jsir::key::box);
+    g.codeField = literalName(g, jsir::key::code);
+    g.envField = literalName(g, jsir::key::env);
+    g.headerField = literalName(g, jsir::key::header);
 }
 
 } // namespace js

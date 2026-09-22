@@ -26,6 +26,91 @@ namespace ssa {
 Convention conventionFor(DeclBase decl, const mir::Occurrence& occurrence);
 
 /*
+ * Whether a value of this logical type is held in **storage** rather than in a register - the
+ * declaration-level half of Analysis-IR-JS.md §1.3.1.
+ *
+ * A fact about the *declaration* and about nothing else, which is what lets this tier ask it: a
+ * record the target may not fold to its discriminant, a fixed array, an atomic location, a closure
+ * pair, an iterator pair and a type parameter are reached through storage on every target, and an
+ * integer, a float, a pointer, a vector and an enum-layout record are values on every target. No
+ * size, no alignment and no machine anywhere in it.
+ *
+ * It is `manifestNative(owned(t)).inMemory` restated, and the two must agree row for row - the
+ * lowering reads the table and this is what the tier above it may ask without including the table.
+ * `lower/manifest.cpp` carries the same rows with the numbers attached; a kind added to `type.def`
+ * has to be decided in both.
+ *
+ * **This is where §1.3.1's cost guard went.** "Is this big" is what `valueOccurrenceOf` used to ask
+ * the native layout, and it is the one question in that survey that is genuinely about cost rather
+ * than about contract - so it is asked here, from the declaration, rather than from a table that
+ * also knows about machines. The rejected alternatives are in `lower/README.md`.
+ */
+bool holdsAggregate(DeclBase decl, DeclPtr<mir::Type> type);
+
+/*
+ * Whether a loan of this occurrence denotes **storage** rather than a value - §1.3.1's predicate,
+ * and `readMode`'s own decision procedure with no `Layout` in it.
+ *
+ * ```text
+ * not a loan                      -> n/a
+ * a window                        -> value        (the descriptor is three words of its own)
+ * unique access                   -> storage      (a write has to reach the lender)
+ * a published origin              -> storage      (it outlives the expression that made it)
+ * trivially copyable, unpublished -> value        (readMode's first clause: the spec copies here)
+ * otherwise                       -> storage
+ * ```
+ *
+ * One definition for both targets, which is the point: JSIR asked exactly this question in J65 and
+ * wrote its own copy because reaching for `lower/manifest.h` from a target tier would have been the
+ * leak this function removes. The window row is J71's - a unique window and one whose origin is a
+ * slot both answer yes to the two rows below it, and both are wrong about a descriptor, since what
+ * `&xs: [Int]` writes through is the elements.
+ *
+ * It is **not** the calling convention's question. What a caller puts in an argument slot is
+ * `denotesStorage` below, which still asks `holdsAggregate`; this is what a loan *means*, and the
+ * two differ on exactly one row - a shared call-bounded loan of a trivially copyable aggregate.
+ */
+bool loanDenotesStorage(Context& context, mir::Program& program, const mir::Occurrence& occurrence);
+
+/*
+ * Whether one **use** of an address keeps it inside this body.
+ *
+ * A read, a write, a projection and a release all name storage and hand nothing out; everything
+ * else - a call argument, an edge argument, a `return`, an aggregate component - gives a second
+ * holder something it can write through. Here rather than in `resolve_ssa/js/convert.cpp`, which is
+ * where it was written, for `loanDenotesStorage`'s reason: it is a statement about SSA and not
+ * about a target, and a target tier that owns one is a target tier the next one will copy.
+ *
+ * It is deliberately **not** `opt/analysis.cpp`'s `admits`, which is the same shape asked for a
+ * different purpose: that one decides native `Contained` placement, so it has a row for `Free` -
+ * the last event of a heap slot's life, inside this body - and it recurses through a `Guaranteed`
+ * result rather than through `loanDenotesStorage`. The two answer the same question about the four
+ * rows they share and neither is the other's generalization.
+ *
+ * A projection is `true` only where the address is the thing being projected *from*. That is a
+ * correction: the `ElementAddress` row used to answer yes whichever operand the address was, so an
+ * address used as an **index** read as staying local. Nothing in the corpus does that - an index is
+ * a number - and the row said something it had not checked.
+ */
+bool useKeepsAddressLocal(SsaBase ssa, Inst& user, SsaPtr<Value> address);
+
+/*
+ * Whether a value of this occurrence is reached **as an address** - the question a calling
+ * convention asks, target-free.
+ *
+ * `lower/manifest.h`'s `arrivesAsAddress` restated: a window is its descriptor's storage, a loan
+ * that denotes storage is a pointer, and an owned aggregate's bytes are at the address it carries.
+ * `lower/gen.cpp` builds every signature from `manifestNative` over the *declared* occurrence, so
+ * this is the shared tier's reading of the same rule and the two may not drift - an argument
+ * adapted here under one answer and placed there under another is a miscompile at every call.
+ *
+ * Whether a convention is decidable before a target is chosen at all is `lower/README.md`'s wider
+ * question and is deliberately still open; this closes the narrow one, which is that the shared
+ * tier does not need the *table* to ask it.
+ */
+bool denotesStorage(Context& context, mir::Program& program, const mir::Occurrence& occurrence);
+
+/*
  * The one way SSA is built and rewritten - the gatekeeper the current `IrEditor` is, kept for the
  * tier where it belongs (§8.5).
  *
@@ -139,6 +224,16 @@ struct Editor {
     Inst* addNative(LocationId source, mir::NativeOp op, const Use* arguments, Size count,
                     const Occurrence& result, Convention convention, bool hasResult,
                     U8 immediate = 0);
+
+    /*
+     * An operation the host has and this IR does not - see `InstHost`.
+     *
+     * The uses arrive under the modes MIR gave them, which for this kind are the declaration's, so
+     * there is nothing to decide here: the conversion carried the node down and this is where it
+     * lands. `member` is unset on the rows `host.def` says carry none.
+     */
+    Inst* addHost(LocationId source, mir::HostOp op, StringId member, const Use* arguments,
+                  Size count, const Occurrence& result, Convention convention, bool hasResult);
 
     /*
      * One atomic operation - the location first, then the shape `mir::AtomicForm` states.

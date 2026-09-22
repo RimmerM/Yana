@@ -1,0 +1,48 @@
+{-
+   `exchange` and `swap` over storage whose host value **is** an object.
+
+   `Core.yana` declares both as builtins, and the ownership resolver expands each into the address of
+   what the `&` argument names plus a read and a write through it - `expandExchange`. On a target with
+   addresses that is the whole story. On JavaScript it is two questions, and this fixture is written
+   because each of them was answered wrongly first.
+
+   **The address is the place.** `addressOf(x)` is a bitcast of a value that arrived as an address,
+   which on this target means a value that *is* a place - so the node is the identity on it and the
+   loads and stores behind it reach the storage. Read as a value instead it was "a bitcast between a
+   host reference and a number", which is what every `swap` and `exchange` in `lib/` reported.
+
+   **A value taken out of object storage is copied one level.** A `Value` place is storage whose host
+   value is the object itself, so a whole value read out of one is that object and a whole value
+   written into one writes its properties. Both are right alone and wrong together: `exchange` reads
+   the old value out, writes the new one in, and hands the old one back - and without the copy the
+   old one *was* the object the write had just overwritten. The copy is one level, which is what a
+   native relocation out of storage is: the row below it moves rather than being duplicated.
+
+   Three shapes, because the storage differs in each: a local, a field, and an element.
+
+   1 * 10 + 8 = 18 from the local, 5 * 10 + 3 = 53 from the field pair, and 9 from the element,
+   which is 80.
+-}
+
+data Pair {left: Counted, right: Counted}
+
+-- A record rather than a scalar, which is the whole point: a scalar's storage is a box and a box is
+-- rebindable, so the case below only exists for a value whose host form is the object.
+data Counted {size: I32}
+
+fn counted(n: I32) = Counted {size: n}
+
+fn main() -> I32:
+    -- A local, which is the shortest shape that reaches it at all.
+    let &a = counted(1)
+    let ->old = exchange(a, counted(8))
+
+    -- A field, where the place is a property of an object rather than the object.
+    let &p = Pair {left: counted(3), right: counted(5)}
+    swap(p.left, p.right)
+
+    -- And an element, which is the route a container's own code takes.
+    let &xs = [counted(9)] :: [Counted *1]
+    let ->taken = exchange(xs[0], counted(0))
+
+    return old.size * 10 + a.size + p.left.size * 10 + p.right.size + taken.size

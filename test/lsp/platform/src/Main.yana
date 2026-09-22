@@ -1,0 +1,24 @@
+-- A **JavaScript** project, asked the questions an editor asks - J75.
+--
+-- The session used to force `TargetPlatform::Native` whatever the project file said, because the
+-- rewritten stage did not resolve a JavaScript program. It does, so this fixture is what says the
+-- answers are about the program the project actually is: a `@platform(js)` declaration is an
+-- ordinary one here, a `@platform(native)` one does not exist, and the `Host` module is the
+-- `.js.yana` file.
+
+module
+
+import Host
+
+@platform(js) fn only() -> Int = 10
+
+@platform(native) fn absent() -> Int = 20
+
+fn main() -> Int:
+    let a = only()
+--          ^selected
+    let b = Host.label()
+--               ^hostFile
+    let c = absent()
+--          ^excluded
+    return a + b + c

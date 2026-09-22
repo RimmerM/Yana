@@ -1,0 +1,34 @@
+fn main() -> one %r0
+  var $0: %r1
+  var $1: %r4
+  block0:
+    %0: %r1 = const 7
+    %1: %r1 = alias %0
+    store var $0: %r1, %1
+    %2: %r2 = const 1
+    %3: %r3 = const 2n
+    %4: %r2 = const 3
+    %5: %r4 = object %s0 %2, %3, %4
+    store var $1: %r4, %5
+    %6: %r1 = load var $0: %r1
+    %7: %r1 = alias %6
+    %8: %r5 = convert %7
+    %9: %r0 = convert %8
+    %10: %r4 = load var $1: %r4
+    %11: %r4 = alias %10
+    %12: %r3 = load property %11.second: %r3
+    %13: %r0 = convert %12
+    %14: %r0 = binary.add %9, %13
+    %15: %r0 = coerce %14
+    return %15
+
+optimizer clones 1 aliased 1 forwarded 0 removed 0 adopted 0 sunk 0
+
+shape %s0 object Ordered {first: %r2, second: %r3, third: %r2}
+
+rep %r0 = number signed 32
+rep %r1 = number unsigned 53
+rep %r2 = number signed 8
+rep %r3 = bigint signed
+rep %r4 = object %s0
+rep %r5 = bigint unsigned

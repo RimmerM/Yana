@@ -13,8 +13,11 @@ that both start with `O` made `om::` and `os::` a keystroke apart in every diff,
 says the order without knowing this compiler. The design record keeps its own spelling.
 
 **This is a clean rewrite and it shares no code with `compiler/resolve`.** It is selected at run time
-by `-resolver ownership`, the current stage is the default, and both hand a `LowerModule` to the same
-backends. Part 11.5 is when the old one is deleted, and it is not on a schedule.
+by `-resolver ownership` and **is the default on both platforms** since 2026-09-22 (J81); both hand a
+`LowerModule` to the same backends. `-resolver legacy` is now what reaches the old stage, which is
+kept as the comparison: its `-mode ir` and `-mode drops` dumps, its library modes, and the goldens in
+`test/` that only it produces are what a disagreement between the two is visible in. Part 11.5 is
+when it is deleted, and that is not on a schedule.
 
 ## The three things that are separate here and were not
 
@@ -121,6 +124,7 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 | `import.cpp` | which modules the program is made of, and what each one can see |
 | `export.cpp` | the declaring side of `pub` - a marker that means nothing, and an interface that leaks |
 | `intrinsic/` | the compiler's roles over this IR - see below |
+| `host.def` | the operations the **host** has and this IR does not - `Node::Host`, one row per role with the printed name and its effects. Beside `native.def` and not inside it: the effects are per row, the member name is a field rather than an operand, and the operand modes are the declaration's. Analysis-IR-JS.md §3.10 |
 
 `resolveProgram`'s order is the one thing that has to be read as a whole and it is in `resolve.cpp`:
 `discoverModules`, `linkImports`, `declareFixities`, `declareTypes`, `declareAliases`,
@@ -5311,3 +5315,52 @@ the type at a stride and has no slot an address could live in - and `ownership/R
 is the fixture. `Classifier::ownership` descends through a fixed array's element for that reason: a
 `[T *n]` member's own answer is folded from `T`'s by `ownershipOf`, which has no stack to notice that
 `T` is the record the fold is already inside.
+
+
+## A host operation is a node, and a host element is a place - J66
+
+`lib/Native/Host.js.yana` states the host as five *shapes* rather than as a list of its methods, with
+the member's spelling a `String` argument the compiler reads at the call. Twenty-one `op.def` roles
+reach it, and this stage answers them in two ways rather than one - `intrinsic/expand_host.cpp`.
+
+**Seventeen are a node that passes through.** `Node::Host`, one `host.def` row each; MIR builds it
+where the role is called, SSA carries it, and JSIR is the first tier that knows what it means. Three
+things separate it from `Node::Native`, and each is why it is a kind of its own:
+
+- the **effects are per row**. A property read reads, a method call may do anything, a `throw`
+  never returns, and `hostFixedCapacity` does nothing at all - four answers where `Native` has one.
+- the **member name is a field**, read off the literal at expansion and dropped from the operands. A
+  name that survived as a value would be a string object built at run time and a property access
+  spelled `o[k]`; a computed one is a diagnostic at the call, which is the last place the argument
+  exists as something an author wrote.
+- the **operand modes are the declaration's**. `argumentMode` over the substituted signature, exactly
+  as a call's arguments are read, so a `host.array` holding the elements of `[1, 2, 3]` takes them
+  and the ownership passes see a move without knowing what a host is.
+
+**Four are a place**, which is what `op.def` already said they were: `hostRead`, `hostWrite`,
+`hostAt` and `hostAtMut` are the four faces of one `Place::Index` over a `Place::Address` root. One
+form gives the read, the write and both borrows; the borrow the two `At` roles hand back is rooted by
+exactly the machinery that roots `borrow`'s, which is the whole reason not to make them nodes - a
+node handing back `source'a` would have needed a second rooting rule in `analyze_loan.cpp` to say
+what `self: %source'a` already says.
+
+The root's occurrence is the **container** - the `array` role at the element - rather than the
+pointee, because on that target a `%a` is the array: `Host.js.yana` opens by saying so, and it is
+what lets the conversion type the element projection with `elementTypeOf` and nothing added.
+
+## A string literal on JavaScript is the text - J66
+
+`Resolver::stringConstant` grew the second arm `Resolver::textValue`'s comment predicted - "the day a
+target's string has no static form is the day this grows a second arm again". A host string has no
+run, no bytes of its own and no address, so everything the native arm builds - a `[CodeUnit *n]`
+global, a borrowed `Run` over it, an `Array`, a relocation into the image - describes storage that
+target does not have. The constant stays a `Constant::Text` at the `string` record's own type, which
+is what `constant.h` says that kind is for.
+
+What made it reachable is that the library declares the record: `lib/Core/String.ownership.js.yana`
+writes `@builtin(string) pub data String {host: %U8}` and **no view for it**. A shared `String` there
+is the string (Analysis-IR-JS.md §3.2.2), so the `stringView` row is unclaimed and `viewRowOf` skips
+a row whose view half nothing declares - which is `known.def`'s reason for demoting that row to
+`Optional`. Two things follow that are worth knowing before reading a JavaScript MIR dump: there is
+no `Viewed(String)` call anywhere in it, and the record is `TrivialCopy`, so a literal reaches a host
+operation's member position as the constant it was written as rather than as a read of a temporary.

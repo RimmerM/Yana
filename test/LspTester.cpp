@@ -998,6 +998,7 @@ int main(int argc, const char** argv) {
     if(sweep) {
         if(sweepRoots.size() == 0) {
             sweepRoots.push(String("lsp/complete"));
+            sweepRoots.push(String("lsp/platform"));
             sweepRoots.push(String("lsp/recover"));
             sweepRoots.push(String("lsp/semantic"));
         }
@@ -1032,11 +1033,26 @@ int main(int argc, const char** argv) {
     // asserts is that the first's answers survive a broken declaration above them.
     pass = runSemanticFixture(String("lsp/semantic"), String("lsp/semantic.expect"), generate) && pass;
     pass = runSemanticFixture(String("lsp/recover"), String("lsp/recover.expect"), generate) && pass;
+
+    // And the same pass over a project that is **not native** - J75, where the session stopped
+    // forcing one. What it asserts is that a platform is a property of the project rather than of
+    // the editor: `@platform(js)` is an ordinary declaration here, `@platform(native)` is not a
+    // declaration at all, and `Host` is the `.js.yana` file. A session that quietly answered as the
+    // native program would answer all three the other way round and look entirely reasonable doing
+    // it, which is why this is a fixture and not a comment.
+    pass = runSemanticFixture(String("lsp/platform"), String("lsp/platform.expect"), generate) && pass;
+
     pass = checkLibraryDefinitionLocation() && pass;
 
     // Completion, which is a pass of its own because every marker is a compile of its own - §8.
     pass = runCompletionFixture(String("lsp/complete"), String("lsp/complete.expect"), generate) && pass;
     pass = runCompletionFixture(String("lsp/qualified"), String("lsp/qualified.expect"), generate) && pass;
+
+    // Completion over the JavaScript project, which is the third of the three answers J75's change
+    // is about: an offered name comes from the program that was resolved, so `only` is offered and
+    // `absent` is not.
+    pass = runCompletionFixture(String("lsp/platform"), String("lsp/platform.complete.expect"),
+                                generate) && pass;
 
     for(auto& test: tests) {
         auto result = File::openFile(test, readAccess());

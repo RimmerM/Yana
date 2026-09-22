@@ -1,0 +1,43 @@
+fn widenedUnsigned(one %r0) -> one %r1
+  block0(%0: %r0):
+    %1: %r3 = convert %0
+    %2: %r1 = convert %1
+    return %2
+
+fn normalizedU8(one %r0) -> one %r2
+  block0(%0: %r0):
+    %1: %r2 = convert %0
+    return %1
+
+fn main() -> one %r0
+  block0:
+    %6: %r0 = const 16383
+    %7: %r0 = const -1
+    %8: %r1 = call widenedUnsigned %7
+    %9: %r1 = const 18446744073709551615n
+    %10: %r6 = binary.eq %8, %9
+    %11: %r0 = const 16384
+    %12: %r0 = const 0
+    %13: %r0 = select %10, %11, %12
+    %14: %r0 = binary.add %6, %13
+    %15: %r0 = coerce %14
+    %16: %r0 = const 300
+    %17: %r2 = call normalizedU8 %16
+    %18: %r2 = const 44
+    %19: %r6 = binary.eq %17, %18
+    %20: %r0 = const 32768
+    %21: %r0 = const 0
+    %22: %r0 = select %19, %20, %21
+    %23: %r0 = binary.add %15, %22
+    %24: %r0 = coerce %23
+    return %24
+
+optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = bigint unsigned
+rep %r2 = number unsigned 8
+rep %r3 = bigint signed
+rep %r4 = number unsigned 4
+rep %r5 = number signed 4
+rep %r6 = number bool

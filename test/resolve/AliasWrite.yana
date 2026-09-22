@@ -1,0 +1,62 @@
+{-
+   The program copy-to-alias elision exists not to break - Analysis-IR-JS.md §6.3, and §10.2's first
+   negative row, "source mutated during a proposed copy alias".
+
+   `both(p, p)` is legal for a trivially copyable `p` **because the shared argument is a copy**: it
+   holds no loan, so the `&` argument beside it is an exclusive borrow of storage nothing else has a
+   name for. That is the one program in which turning the copy into an alias would be observed - the
+   callee's write through `q` would land in the object `p` reads out of, and the first line of the
+   callee would answer 99 and 98 rather than 1 and 2.
+
+   What refuses it on the JavaScript target is not a special case at the call. The elision asks its
+   read-only walk of the **source** as well as of the copy, and `&p` is both a position the callee
+   may write and a `Value` place a store names - so the call is declined from the source's side
+   before anything is said about the argument list. Weaken that walk and this fixture answers 30
+   under Node while the native build goes on answering 31.
+
+   `sum(moved)` is the same question one level in and is where the rewrite's conservatism is visible
+   rather than its safety: the write is *after* the borrow, so a live-range-aware version could alias
+   it, and the whole-body walk this slice built refuses it outright.
+
+   # resolver: ownership
+
+   **The shipping stage does not agree with itself about this program**, which is why the directive
+   is here rather than the fixture being compiled by both. `-no-ir-opt` through `compiler/resolve`
+   answers 1088 where an optimized build of the same program answers 12, on both targets: the
+   unoptimized build hands `both` the caller's storage at the shared position and the optimizer is
+   what turns it back into a copy. That is a defect in that stage and not in this one - the rewrite
+   answers 12 either way - and it is recorded in
+   `doc/progress/2026-09-22-J72-jsir-alias-scalarize.md` rather than being worked around here.
+-}
+
+data Point {x: Int, y: Int}
+
+-- The shared parameter and the exclusive one name the same storage at the one call below, which is
+-- what makes it the fixture: only the copy keeps them apart.
+@noinline fn both(p: Point, &q: Point) -> Int:
+    q = Point {x: 99, y: 98}
+    return p.x * 10 + p.y
+
+@noinline fn sum(p: Point) -> Int = p.x * 10 + p.y
+
+fn main() -> Int:
+    let &score = 0 :: Int
+
+    let &p = Point {x: 1, y: 2}
+
+    -- 12: what `both` saw is the copy, made before it wrote through `q`. An alias answers 998.
+    if both(p, p) == 12: score = score + 1
+
+    -- And the write did happen, so the copy was the argument rather than the whole call.
+    if p.x == 99: score = score + 2
+    if p.y == 98: score = score + 4
+
+    let &moved = Point {x: 3, y: 4}
+    let held = sum(moved)
+    moved.x = 7
+
+    -- 34 before the write, 74 after it.
+    if held == 34: score = score + 8
+    if moved.x * 10 + moved.y == 74: score = score + 16
+
+    return score

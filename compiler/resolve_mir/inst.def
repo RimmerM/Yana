@@ -159,6 +159,24 @@ YANA_MIR_INST( RunSlots,     NodeRunSlots,     "run.slots"_v,    kMirResult )
 YANA_MIR_INST( Native,       NodeNative,       "native"_v,       kMirResult )
 
 /*
+ * An operation the **host** has and this IR does not - the rows are host.def's, and
+ * Analysis-IR-JS.md §3.10 is the design.
+ *
+ * `Native`'s shape at the other machine, with three differences that are each a reason it is a kind
+ * of its own: the effects are per row rather than per kind, the member name is a field rather than
+ * an operand, and the operand modes are the *declaration's* rather than a blanket `Inspect`. host.def
+ * argues all three where the rows are.
+ *
+ * `kMirResult` with a result that may be unit, exactly as `Native` and `Atomic` have: `hostThrow`
+ * and the two writes answer `{}`.
+ *
+ * A node that **passes through**. MIR builds it where the role is called, SSA carries it, and JSIR is
+ * the first tier that knows what it means - so there is no lowering for one and
+ * `resolve_ssa/lower/inst.cpp` says so by asserting rather than by translating.
+ */
+YANA_MIR_INST( Host,         NodeHost,         "host"_v,         kMirResult )
+
+/*
  * One indivisible access to one location, and the ordering edge it establishes - the rows are
  * op.def's atomic block.
  *

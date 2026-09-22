@@ -198,10 +198,18 @@ inline void applyInliningDirective(CompileSettings& settings, StringView content
  * comparison is not available, and it costs the comparison, so it is worth writing only when the
  * old stage genuinely cannot compile the program.
  *
- * Only the one direction, like `# checks: off`: `legacy` is the default and a fixture saying so
- * would be saying nothing.
+ * Only the one direction, and the direction is what this pins: **a fixture's stage is the corpus's
+ * to state, not the command line's**. `CompileSettings::resolver` defaults to the rewrite since
+ * 2026-09-22 (J81), and every golden in this corpus that is not the rewrite's own was written by
+ * `compiler/resolve` - so the baseline here is `Legacy` whatever the compiler's default is, and this
+ * directive is the only thing that raises a fixture out of it. The alternative, letting the drivers
+ * inherit the flag's default, is a flip of that default silently reclassifying nine hundred goldens
+ * and the disagreement oracle asserting that the rewrite agrees with itself. The passes that *are*
+ * the rewrite's set `ResolverStage::Ownership` after this runs - see `ownershipSettings`.
  */
 inline void applyResolverDirective(CompileSettings& settings, StringView content) {
+    settings.resolver = ResolverStage::Legacy;
+
     auto directive = "# resolver: ownership"_v;
     if(content.length < directive.length) return;
 
@@ -280,8 +288,37 @@ inline void applyAllocatorDirective(CompileSettings& settings, StringView conten
 // Every directive at once. The drivers call this rather than any one of them, which is what keeps
 // the three of them reading the same fixture the same way - see the note above about why that is not
 // merely tidiness.
+/*
+ * `# platform: js` - `CompileSettings::platform`, and the second directive about *what* a fixture is
+ * rather than about how it is compiled.
+ *
+ * A fixture saying this is a JavaScript program: `@platform` selection reads `js`, the file-name
+ * selectors pick `Array.js.yana` over `Array.native.yana`, and nothing about it may be run on a
+ * machine. It exists for the one thing that has no other spelling - a program whose *diagnostic* is
+ * about the host, `Reject.HostMember.yana` being the first - because a host role is declared only in
+ * `lib/Native/Host.js.yana` and a native build cannot reach one to be refused.
+ *
+ * Only the one direction, like every directive here: `native` is the default and a fixture saying so
+ * would be saying nothing. A fixture that carries it must also carry `# resolver: ownership` or have
+ * a `.js.ssa.expect` beside it, because those are the two paths in `ResolveTester` that read it;
+ * there is deliberately no check for that, on the grounds that the failure is the fixture reporting
+ * against the wrong library rather than anything silent.
+ */
+inline void applyPlatformDirective(CompileSettings& settings, StringView content) {
+    auto directive = "# platform: js"_v;
+    if(content.length < directive.length) return;
+
+    for(Size i = 0; i + directive.length <= content.length; i++) {
+        if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
+
+        settings.platform = TargetPlatform::Js;
+        return;
+    }
+}
+
 inline void applyFixtureDirectives(CompileSettings& settings, StringView content) {
     applyExtensionDirective(settings, content);
+    applyPlatformDirective(settings, content);
     applyChecksDirective(settings, content);
     applyCheckLocationDirective(settings, content);
     applyInliningDirective(settings, content);
@@ -302,4 +339,19 @@ inline bool fixtureNeedsOwnershipStage(StringView content) {
     CompileSettings settings;
     applyResolverDirective(settings, content);
     return settings.resolver == ResolverStage::Ownership;
+}
+
+/*
+ * And whether a fixture is a **JavaScript** program, asked the same way and for the same readers.
+ *
+ * A fixture carrying `# platform: js` is compiled for that target and nothing else: it is not run,
+ * it has no native goldens, and every driver that compiles for a machine skips it. Such a fixture
+ * always carries `# resolver: ownership` as well - the shipping stage compiles JavaScript too, but
+ * what these fixtures are *about* is the rewrite's answer for it - so the drivers that already skip
+ * on the line above skip these without a second test.
+ */
+inline bool fixtureIsJavaScript(StringView content) {
+    CompileSettings settings;
+    applyPlatformDirective(settings, content);
+    return settings.platform == TargetPlatform::Js;
 }

@@ -74,7 +74,7 @@ static StringView opSuffix(WideOp op) {
     return "op"_v;
 }
 
-Name wideHelper(Gen& g, WideOp op, U32 bits, bool isSigned) {
+Name wideHelper(JsShared& g, WideOp op, U32 bits, bool isSigned) {
     auto key = helperKey(op, bits, isSigned);
     if(auto found = g.wideHelpers.get(key)) return found.unwrap();
 
@@ -106,7 +106,7 @@ JsPtr<Expr> wideCall(Gen& g, WideOp op, IntType* type, JsPtr<Expr> a, JsPtr<Expr
     return wideCallAt(g, op, heldBits(g, *type), type->isSigned, a, b);
 }
 
-JsPtr<Expr> wideCallAt(Gen& g, WideOp op, U32 bits, bool isSigned, JsPtr<Expr> a, JsPtr<Expr> b) {
+JsPtr<Expr> wideCallAt(JsShared& g, WideOp op, U32 bits, bool isSigned, JsPtr<Expr> a, JsPtr<Expr> b) {
     auto name = wideHelper(g, op, bits, isSigned);
     auto node = make<CallExpr>(g, variable(g, name));
     node->args.push(g.file.arena, a);
@@ -129,11 +129,11 @@ JsPtr<Expr> wideCallAt(Gen& g, WideOp op, U32 bits, bool isSigned, JsPtr<Expr> a
  * `resign` turns that into a signed one. Written as builders rather than as emitted text so that the
  * formatter still decides parenthesization and the peephole still sees ordinary nodes.
  */
-static JsPtr<Expr> lowHalf(Gen& g, JsPtr<Expr> value) {
+static JsPtr<Expr> lowHalf(JsShared& g, JsPtr<Expr> value) {
     return binary(g, BinaryOp::Shr, value, number(g, 0));
 }
 
-static JsPtr<Expr> splitHigh(Gen& g, JsPtr<Expr> value, bool isSigned) {
+static JsPtr<Expr> splitHigh(JsShared& g, JsPtr<Expr> value, bool isSigned) {
     auto scaled = binary(g, BinaryOp::Mul, value, number(g, kInvTwo32, false));
 
     // Truncation toward zero is the wrong rounding for a negative value - `-5 * 2**-32` truncates
@@ -161,14 +161,14 @@ static JsPtr<Expr> splitHigh(Gen& g, JsPtr<Expr> value, bool isSigned) {
  * that inlining happening, and what it buys is about a quarter of the emitted text of any program
  * that uses these types.
  */
-static JsPtr<Expr> highHalf(Gen& g, JsPtr<Expr> value, bool isSigned) {
+static JsPtr<Expr> highHalf(JsShared& g, JsPtr<Expr> value, bool isSigned) {
     return wideCallAt(g, WideOp::High, 0, isSigned, value, nullptr);
 }
 
 // `h * 2**32 + (l >>> 0)`, the unsigned value the two halves denote. A low half the builder already
 // knows to be zero is dropped rather than emitted as `+ (0 >>> 0)`, which is the shape a shift by
 // 32 or more produces.
-static JsPtr<Expr> join(Gen& g, JsPtr<Expr> high, JsPtr<Expr> low) {
+static JsPtr<Expr> join(JsShared& g, JsPtr<Expr> high, JsPtr<Expr> low) {
     auto scaled = binary(g, BinaryOp::Mul, high, number(g, kTwo32));
     auto literal = g.base[low];
     if(literal->kind == Expr::Number && ((NumberExpr*)literal)->value == 0) return scaled;
@@ -178,11 +178,11 @@ static JsPtr<Expr> join(Gen& g, JsPtr<Expr> high, JsPtr<Expr> low) {
 
 // The high half masked to the bits this width actually owns. Also what makes a signed operand's
 // floored - and therefore negative - high half read back as the right unsigned bits.
-static JsPtr<Expr> maskHigh(Gen& g, JsPtr<Expr> high, U32 bits) {
+static JsPtr<Expr> maskHigh(JsShared& g, JsPtr<Expr> high, U32 bits) {
     return binary(g, BinaryOp::And, high, number(g, powerOfTwo(bits - 32) - 1));
 }
 
-static JsPtr<Expr> variableNamed(Gen& g, StringView text, Name& into) {
+static JsPtr<Expr> variableNamed(JsShared& g, StringView text, Name& into) {
     into = literalName(g, text);
     return variable(g, into);
 }
@@ -195,7 +195,7 @@ static JsPtr<Expr> variableNamed(Gen& g, StringView text, Name& into) {
  * it a joined expression rather than a name emits that whole expression three times. The first
  * version of this did, and `$w53i$and` came out as three copies of the split.
  */
-static void returnWide(Gen& g, JsPtr<Expr> value, U32 bits, bool isSigned) {
+static void returnWide(JsShared& g, JsPtr<Expr> value, U32 bits, bool isSigned) {
     if(!isSigned) {
         emit(g, make<ReturnStmt>(g, value));
         return;
@@ -213,7 +213,7 @@ static void returnWide(Gen& g, JsPtr<Expr> value, U32 bits, bool isSigned) {
  * is needed twice. They are written here rather than as a string template because the tree is what
  * the formatter and the peephole read; a helper built out of text would be opaque to both.
  */
-static StmtList wideHelperBody(Gen& g, WideOp op, U32 bits, bool isSigned, JsList<Name, false>& args) {
+static StmtList wideHelperBody(JsShared& g, WideOp op, U32 bits, bool isSigned, JsList<Name, false>& args) {
     // Ahead of everything else because it is the one body with no width: the constants below are all
     // computed from `bits`, and this one is interned at zero.
     if(op == WideOp::High) {
@@ -521,7 +521,7 @@ static StmtList wideHelperBody(Gen& g, WideOp op, U32 bits, bool isSigned, JsLis
  * has the value in a variable or a helper argument, so the duplication is a name and not a
  * recomputation.
  */
-JsPtr<Expr> resignExpr(Gen& g, JsPtr<Expr> value, U32 bits) {
+JsPtr<Expr> resignExpr(JsShared& g, JsPtr<Expr> value, U32 bits) {
     return ternary(g, binary(g, BinaryOp::Ge, value, number(g, powerOfTwo(bits - 1))),
                    binary(g, BinaryOp::Sub, value, number(g, powerOfTwo(bits))), value);
 }
@@ -533,7 +533,7 @@ JsPtr<Expr> resignExpr(Gen& g, JsPtr<Expr> value, U32 bits) {
  * been generated - and a `function` declaration hoists, so a call textually above its definition is
  * the same program. Nothing else in this backend depends on statement order either.
  */
-void emitWideHelpers(Gen& g) {
+void emitWideHelpers(JsShared& g) {
     if(g.wideHelperOrder.size() == 0) return;
 
     auto heading = make<CommentStmt>(g, internText(g,
@@ -635,7 +635,7 @@ Half builtHalf(JsPtr<Expr> expr) {
     return half;
 }
 
-JsPtr<Expr> halfExpr(Gen& g, Half half) {
+JsPtr<Expr> halfExpr(JsShared& g, Half half) {
     return half.constant ? number(g, F64(half.value)) : half.expr;
 }
 
@@ -650,7 +650,7 @@ bool isFusible(WideOp op) {
  * drops was never going to do anything - which is also why the constant may be moved to the right
  * and each rule stated once rather than twice.
  */
-Half combine(Gen& g, WideOp op, Half a, Half b) {
+Half combine(JsShared& g, WideOp op, Half a, Half b) {
     if(a.constant && b.constant) {
         switch(op) {
             case WideOp::And: return constantHalf(a.value & b.value);
@@ -696,7 +696,7 @@ Half combine(Gen& g, WideOp op, Half a, Half b) {
     return result;
 }
 
-Half complement(Gen& g, Half a) {
+Half complement(JsShared& g, Half a) {
     if(a.constant) return constantHalf(~a.value);
     return builtHalf(unary(g, UnaryOp::BitNot, a.expr));
 }
@@ -711,13 +711,13 @@ Half complement(Gen& g, Half a) {
  * A name that is assigned elsewhere is still fine, and deliberately so: a fused tree contains
  * nothing but reads, so there is nothing between the two of them that could write.
  */
-bool isSplittable(Gen& g, JsPtr<Expr> pointer) {
+bool isSplittable(JsShared& g, JsPtr<Expr> pointer) {
     auto expr = g.base[pointer];
     if(expr->kind == Expr::Var) return true;
     return expr->kind == Expr::Number && ((NumberExpr*)expr)->integral;
 }
 
-Split splitLeaf(Gen& g, JsPtr<Expr> pointer, bool isSigned) {
+Split splitLeaf(JsShared& g, JsPtr<Expr> pointer, bool isSigned) {
     auto expr = g.base[pointer];
 
     if(expr->kind == Expr::Number) {
@@ -733,7 +733,7 @@ Split splitLeaf(Gen& g, JsPtr<Expr> pointer, bool isSigned) {
 
 // The tree as a pair of half-expressions, or false where something in it is not one of these
 // operators over splittable leaves. `names` counts the leaves that are not literals.
-bool splitTree(Gen& g, JsPtr<Expr> pointer, U16 bits, bool isSigned, Split& into, U32& names) {
+bool splitTree(JsShared& g, JsPtr<Expr> pointer, U16 bits, bool isSigned, Split& into, U32& names) {
     auto expr = g.base[pointer];
 
     if(expr->kind == Expr::Call) {
@@ -774,7 +774,7 @@ bool splitTree(Gen& g, JsPtr<Expr> pointer, U16 bits, bool isSigned, Split& into
  * high half is then already negative where the value is, so the join produces a signed result
  * directly. Same pair `decodeBits` narrows a signed field with, for the same reason.
  */
-Half topHalf(Gen& g, Half high, U32 bits, bool isSigned) {
+Half topHalf(JsShared& g, Half high, U32 bits, bool isSigned) {
     // Already inside the width, and below its sign bit where there is one, so neither the mask nor
     // the sign extension would change anything. This is what a mask against a constant produces,
     // which is the shape most of these are.
@@ -791,7 +791,7 @@ Half topHalf(Gen& g, Half high, U32 bits, bool isSigned) {
                             binary(g, BinaryOp::Shl, high.expr, distance), distance));
 }
 
-JsPtr<Expr> packWide(Gen& g, Split split, U32 bits, bool isSigned) {
+JsPtr<Expr> packWide(JsShared& g, Split split, U32 bits, bool isSigned) {
     auto top = topHalf(g, split.high, bits, isSigned);
     auto low = split.low.constant ? number(g, F64(U32(split.low.value)))
                                   : binary(g, BinaryOp::Shr, split.low.expr, number(g, 0));
@@ -809,7 +809,7 @@ JsPtr<Expr> packWide(Gen& g, Split split, U32 bits, bool isSigned) {
 
 } // namespace
 
-JsPtr<Expr> fuseWideBitwise(Gen& g, JsPtr<Expr> pointer) {
+JsPtr<Expr> fuseWideBitwise(JsShared& g, JsPtr<Expr> pointer) {
     auto expr = g.base[pointer];
     if(expr->kind != Expr::Call) return nullptr;
 

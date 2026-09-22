@@ -30,6 +30,11 @@ target_link_libraries(YanaEditTest YanaResolve)
 add_executable(YanaOssaTest OssaTester.cpp)
 target_link_libraries(YanaOssaTest YanaParse YanaResolveSsa)
 
+# The JSIR verifier's mutation suite - see JsirTester.cpp. `YanaResolveSsa` and nothing else: a
+# malformed body is built by hand, so the driver needs the tier and not the pipeline above it.
+add_executable(YanaJsirTest JsirTester.cpp)
+target_link_libraries(YanaJsirTest YanaParse YanaResolveSsa)
+
 add_executable(YanaLspTest LspTester.cpp)
 target_link_libraries(YanaLspTest YanaLspCore)
 

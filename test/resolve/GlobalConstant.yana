@@ -1,0 +1,55 @@
+-- The two things a module-level constant is that a value inside a body never is - Analysis-IR-JS.md
+-- §2.4, from the side that found out what happens when a target has two constant lowerings.
+--
+-- A global's initializer is the one value on the JavaScript targets that no body builds, so it used
+-- to be written by a second walk in `codegen/js/assemble.cpp` over `mir::` types, beside the one in
+-- `resolve_ssa/js/convert.cpp` that every body goes through. The two disagreed in both directions
+-- this fixture states, and neither disagreement is visible in a `.mir.expect`: one is a host value
+-- of the wrong *kind* and the other is a compiler that does not finish.
+--
+--  - `table` holds a **niche-folded payload at a representation the fold does not change**. `Just(x)`
+--    is `x` here, and `x` is an `I64` - a `bigint` on this target - so the property has to hold
+--    `3000000000000n` and not the `number` three trillion. Written as a number it is not a wrong
+--    answer but a *thrown* one: `g[i].a & 255n` is "Cannot mix BigInt and other types", which no
+--    golden asserts and which only running the file finds.
+--  - `tree` is a **recursive** sum, which has no finite zero object: `Node`'s properties are two
+--    more `Branch`es whose zeros would each have two more. `zeroOf` closes that with a cycle set and
+--    answers `null` at the second level, which is unreachable by construction because a property of
+--    an arm the tag does not name is never read. A depth cap instead of a cycle set is the wrong
+--    shape twice over, and the second is what mattered: thirty-two levels of a branching record is
+--    an exponential number of objects built before the cap fires, which exhausted the arena and
+--    aborted the compiler rather than reporting anything.
+--
+-- Held to a number on both targets rather than to the emitted text, because what each of these was
+-- is a thing the text looked perfectly reasonable about.
+
+data P {a: Maybe(I64), b: Int}
+
+let table = [P {a: Just(3000000000000), b: 4}, P {a: Nothing, b: 5}] :: [P *2]
+
+data Branch = Leaf | Node {left: Branch, right: Branch, mark: Int}
+
+-- Writable, so that nothing upstream may conclude the value is `Leaf` and fold the read away: what
+-- is being asserted is that the *zero* exists at all.
+let &tree = Leaf :: Branch
+
+-- `and 0xff` of three trillion is zero, which is the point twice over: the payload has to survive
+-- being read at its own width, and a number that arrived as a `number` cannot be read at that width
+-- at all - the host refuses to mix the two rather than answering something plausible.
+fn niched() -> Int:
+    let &n = 0
+    for i in 0..2:
+        if table[i].a is Just(v):
+            if (v `and` 0xff) == 0: n += 1
+
+        n += table[i].b
+
+    return n
+
+fn recursive() -> Int:
+    if tree is Node {left: _, right: _, mark: m} then return m
+    return 7
+
+-- niched:    1 + 4 + 5   = 10
+-- recursive: 7, scaled   = 700
+fn main() -> Int = niched() + recursive() * 100

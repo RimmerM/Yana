@@ -21,8 +21,15 @@ directory is passed through to every driver.
 | `YanaLlvmTest` | `llvm/` | the LLVM module built from lower IR, and that LLVM's own verifier accepts it |
 | `YanaElfTest` | `resolve/`, `lib/` | the same fixtures compiled to real ELF executables and run as processes |
 | `YanaOssaTest` | none - it builds and breaks its own IR | that the OSSA verifier *rejects* what it is meant to |
+| `YanaJsirTest` | none - it builds and breaks its own IR | that the JSIR verifier does the same: a number used as an object receiver, parts used as one value, an edge at the wrong representation, a missing definition, a store the place cannot hold, and a call that disagrees with its callee's plan |
 | `YanaLspTest` | `lsp/` | the editor-facing answers |
 | `YanaLspProtocolTest` | `lsp/protocol.expect` | the lifecycle over the real message loop |
+| `../tools/check-layering.sh` | `compiler/`'s `#include` lines | the rewrite's directory boundaries: nothing in `resolve_ssa` outside `lower/` or `js/` reaches into either, and neither target's tier reaches into the other's |
+
+The last row is a shell script rather than a driver, because what it checks is the *text of the
+repository* and not the behaviour of a program - Analysis-IR-JS.md §8.1, and the guard §12.3's first
+open question asked for when J75 closed it. It takes the same `generate` argument every job gets and
+ignores it: there is nothing here to regenerate.
 
 **Every driver reports its result in its exit status**, and `run-tests.sh` has nothing else to go on:
 it runs each driver as a job, reads the status, and names the ones that were not zero. A failure is a
@@ -47,6 +54,108 @@ the stricter terms `.mir.repr.expect` has — `generate` regenerates one that ex
 one — because a fixture that is not about the optimizer would otherwise carry a second copy of its IR
 that moves whenever a pass changes. `.ssa.expect` stays the *conversion's* output, so the pair is the
 before and after of the whole stage.
+`.js.ssa.expect` is the fifth, and it is the same source compiled as a **JavaScript** program by
+that same stage - Analysis-IR-JS.md milestone 3. It is additional rather than alternative: a fixture
+acquires one by having the file beside it and none of its native goldens move, so `.mir.expect` and
+`.ssa.expect` stay the native program's and this is the other target's. `.js.mir.expect` is
+separately optional beside it. The pass stops after the optimizer, so what it asserts is exactly the
+resolver's own answer for that target: the program resolves, converts, verifies and optimizes for it.
+What stays here is the fixtures that are about the *resolver's* JavaScript answer, which is what
+`resolve/HostOps.yana` and `resolve/HostText.yana` are; everything about what is emitted from it is
+`.jsir.expect`'s, below.
+
+`.jsir.expect` is the sixth, and it is the opt-in for the **JSIR pipeline** - Analysis-IR-JS.md
+§10.6's fixture contract. A fixture is compiled by the new JavaScript backend because this file
+exists beside it, on exactly the terms `.mir.expect` opts one into the native rewrite: a new one is
+an empty file plus a `generate` run. `.jsir.js.expect` holds the JavaScript that pipeline emits,
+beside the shipping stage's `.js.expect` rather than replacing it.
+
+**It is the opt-in in the rewrite-only directories too** since 2026-09-21 (J66), where there is no
+`.js.expect` for it to sit beside: `resolve/{ownership,loans,lens,generic,lazy,iter}/` hold the
+programs the shipping stage never compiled, and a `.jsir.expect` there is what says the JavaScript
+half of one runs. 70 of them have one, against 314 in the corpus proper.
+
+**And it does not follow `.js.expect`** since J70. The shipping stage's own opt-in is which fixtures
+*that* backend was ever taught to compile, which is a different question from which programs have a
+JavaScript meaning - so the rule here is the second one: a fixture with a `.run.expect` that the
+rewrite compiles for this target and that answers the same number carries a `.jsir.expect`, whether
+or not a `.js.expect` sits beside it. 94 of the 384 have no `.js.expect` at all. What is left out is
+five fixtures whose JavaScript answer genuinely differs from their native one and which have no
+`.js.run.expect` saying so - `NoChecks`, `Replaces`, `intrinsic/Supplied`, `VecLong.Avx512` and
+`VecMaskUpTo.Avx2`, all five of which answer the same different number under the shipping backend, so
+the difference is the fixture's rather than either pipeline's.
+
+**Two goldens for the text and one for the answer**, and the asymmetry is the point. Two backends
+emit different JavaScript for one program and there is no version of that which is a defect, so the
+text needs two files; what they *compute* is the property worth asserting, and a second expected
+value there would let exactly the disagreement this is built to catch pass silently. So both emitted
+programs are run under Node and both are held to the one `.run.expect` the native build answers - or
+to the `.js.run.expect` a fixture whose JavaScript answer differs on purpose names, which today is
+`Platform.yana` and nothing else. The **unoptimized** JSIR build is run too and held to the optimized
+one's answer, and a disagreement between those two is a failure in itself.
+
+**Three runs since 2026-09-22 (J72)**, which is Analysis-IR-JS.md §10.2's third axis: the shared
+optimizer on and off, and the **JSIR** optimizer on and off (`-no-jsir-opt`). The pair is what says
+which tier a disagreement came from - a fixture that differs with `-no-ir-opt` and agrees with the
+third run has a defect above the fork, and the other way round has one below it, which is where
+`resolve_ssa/js/opt_alias.cpp`'s rewrites are. `test/run-base.sh`'s `ownership-js-no-jsir-opt` row is
+the same axis asked of a whole program.
+
+**Three runs and two compilations** since 2026-09-22 (J80). `-no-ir-opt` is a different program
+above the fork and is a compilation of its own; the third configuration is the *same* SSA with the
+JSIR optimizer off, which is one more `genJsirProgram` over the object the first one already built -
+the setting is read at exactly one site, the per-function loop in `assemble.cpp`. That makes the
+axis sharper rather than cheaper: the input is identical by construction instead of by a second
+resolution being assumed to agree.
+
+The same pass produces the **resolver's** three goldens for this target as well, off the same
+compilation: `.js.mir.expect` and `.js.explain.expect` before the conversion (which releases the MIR
+bodies their placements are read off) and `.js.ssa.expect` before the optimizer. That was a second
+pass with its own front end until J80, so a fixture carrying both was compiled twice for one target.
+A fixture may carry the three and not the two - `resolve/HostOps.yana` is one, since this tier has
+no form for the program it describes.
+
+A `.jsir.expect` golden carries one **`optimizer`** line saying what that pass did to the fixture -
+clones seen, clones aliased, fields forwarded, instructions removed - so a fixture's own diff says
+whether a rewrite reached it. That is why every one of them moved when the pass landed, and it is
+why one will move again whenever a later slice adds a counter.
+
+`.jsir.errors.expect` is the seventh and is the other opt-in, added 2026-09-22 (J71): a fixture whose
+JavaScript answer is a **deliberate target gap** carries the sentence this target reports instead of
+a dump. It is `.errors.expect` one tier down - the file's existence is the opt-in, an empty one plus
+a `generate` run creates it, and what is compared is the recorded diagnostics of a JSIR compilation
+that is expected to report.
+
+It exists because a sweep is not a golden. `lib/Native`'s `allocateHeap`, `heapNext`, `sizeOf` and
+`mapMemory` are `@platform(native)` declarations a JavaScript program has no answer for; a bitcast
+between vectors of *different lane widths* has none either, a lane being a number here rather than a
+run of bits; and nine `X86.*` rows are one machine's. All of those are gaps this target is supposed
+to have, and until J71 the only thing standing over them was a count in a progress record - so a gap
+that silently became a *different* gap, or a wrong answer, changed nothing anybody would see. 66
+fixtures carry one. A file that records a *resolver* diagnostic rather than a JSIR one says so in its
+own text, which is what makes it answer "which of the two is this gap" rather than only "is there
+one".
+
+Mutually exclusive with `.jsir.expect` by construction: a fixture that converts has a dump and one
+that reports has none. A fixture that starts converting therefore loses this file and gains the other
+two, which is exactly the change a slice that closes a gap should show in its diff.
+
+`.js.ssa.expect` and `.js.mir.expect` stay as they are and stay separately optional: a fixture may
+have either, both or neither. The first is about what the *resolver* made of a JavaScript program and
+the second about what MIR did, and neither is subsumed by a golden of the tier below them - the same
+relation `.ssa.expect` has to `.mir.lower.expect` natively.
+
+`.jsir.js.expect` is a migration file and says so: when the shipping stage's JavaScript path is
+deleted, every one of them is renamed over its `.js.expect` in one change and the suffix goes.
+Keeping the new text under a distinct name until then is what makes "did the new pipeline's output
+move?" answerable from `git diff` while the old one is still regenerating its own goldens beside it.
+
+A fixture that is a JavaScript program and nothing else writes `# platform: js` beside
+`# resolver: ownership` - `resolve/HostOps.yana` and `resolve/Reject.HostMember.yana` are the two,
+and they have to be, because every declaration they reach is `lib/Native/Host.js.yana`'s and no other
+target reads it. Such a fixture takes only the JavaScript path: there is no machine to run it on, no
+native golden beside it, and every driver that compiles for one skips it.
+
 There is deliberately **no second run expectation**: `.run.expect` is what both stages are checked
 against, because two implementations of one language answering differently is exactly what this is
 here to catch. What a `.run.expect` does buy the second stage is a second *run*: the fixture is
@@ -110,6 +219,20 @@ off - and a fourth and fifth time on JavaScript where a `<fixture>.yana.js` mark
 are the assertions that cannot be regenerated into agreeing with a bad pass. `generate` is accepted
 and ignored, because there is nothing here to generate.
 
+`resolver:ownership` replaces all five with the **rewritten stage's** builds - one native and, where
+the same `<fixture>.yana.js` marker exists, one JavaScript build through JSIR. Two rather than five,
+because the switches the other three vary are the shipping optimizer's and the shipping specializer's
+and the rewrite's own are asserted by `YanaResolveTest`, which runs every `.jsir.expect` fixture in
+the optimized and unoptimized form and compares the answers. What these two add is the one thing that
+corpus cannot say - that the *library's* own suite passes when the rewrite compiled it.
+
+**Two of the five carry the marker** since 2026-09-21 (J68) - `MapLiteral` and
+`StringLiteralStorage`, which are exactly the two the shipping stage's own JavaScript rows compile.
+The other three are native by nature: two walk a file system and read addresses, and the third needs
+a module directory. So the marker set is "what this target can run at all" rather than "what the
+rewrite can run yet", and the rewrite passes all of it. Before vectors landed it passed none of it
+(`doc/progress/2026-09-21-J68-jsir-parts-vectors.md` §3).
+
 `YanaElfTest` shares both corpora and their goldens rather than having any of
 its own, and asserts a different thing about them: the resolve driver maps the generated bytes and
 calls into them, and this one writes the executable file that `yana -mode exe` writes on this platform
@@ -137,6 +260,16 @@ because every fixture there is compiled by the shipping stage first, so it goes 
 The directive is what makes it run that way - see `directives.h` - and the directory is filing. A
 fixture anywhere carrying that line is compiled only by the rewritten stage; `YanaResolveTest` skips
 the legacy half and its six goldens for it, and `YanaElfTest` and `YanaBench` skip it entirely.
+
+**The corpus's stage is not the command line's.** `-resolver` defaults to the rewrite since
+2026-09-22 (J81), and `applyResolverDirective` pins `ResolverStage::Legacy` before it looks for the
+line above - so the drivers read a fixture exactly as they did before the flip, and this directive
+stays the one thing that raises one out of it. That is deliberate and not an oversight: a corpus that
+inherited the flag's default would have had nine hundred goldens written by one stage quietly
+reclassified as the other's, and the `.mir.expect` oracle would have been asserting that the rewrite
+agrees with itself. The passes that *are* the rewrite's set the stage themselves, after the
+directives run. `resolve/` has no `# resolver: legacy` and needs none: legacy is what a fixture with
+no directive already is.
 
 `# test: yes` is `-test`, and it is the one directive that changes what the *entry* is. A fixture
 carrying it has no `main`: it has `@test` declarations, and what runs is the entry the compiler
@@ -334,6 +467,25 @@ Every one of the seven says so in its own header. `OptChain.Index.yana` was an e
 defect it was held back for was fixed - `prepareLocals` boxed a local because the local's *own* type
 was not a host object, where what a reference needs is an object at the end of the path, so
 `match maybeArr(n): Just(xs) -> xs[1]` read `.$v` off the bare array. It runs on both targets now.
+
+### The rewrite's JavaScript rows
+
+`run-base.sh` has a third JavaScript row since 2026-09-21 (J69): **`ownership-js`**, which is the same
+`test/base` suite built with `-mode js -resolver ownership` and therefore through
+`compiler/resolve_ssa/js`. It passes all **342** cases, which is exactly what the `legacy-js` and
+`legacy-js-unoptimized` rows pass, so the two pipelines are held to the same run rather than to two
+goldens.
+
+**Every row of that file names its stage and writes `-resolver` out**, since 2026-09-22 (J81) - the
+shipping rows are `legacy`, `legacy-generic`, `legacy-unoptimized`, `legacy-no-replacements`, the
+three `legacy-avx*`/`legacy-sha` rows and the two `legacy-js` ones, and the rewrite's are the native
+`ownership` row and the three `ownership-js` ones. The default moved that day; a matrix whose rows
+inherit a default is a matrix that silently changes which compiler it is about when the default moves
+again, which is the one thing a comparison suite may not do.
+
+The rewrite's rows arrived as each went green and not before - a row that always fails is a row
+everybody learns to ignore. `ownership-js-unoptimized` waited on J67 §5's occurrence defect, which
+J70 closed, and the native `ownership` row on the suite passing every case in both trees.
 
 `node-harness.js` is one Node process for the whole run, fed scripts over a pipe — starting Node ~170
 times was most of the wall time of this half. Each script is still evaluated with

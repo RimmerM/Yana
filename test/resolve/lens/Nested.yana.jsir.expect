@@ -1,0 +1,42 @@
+fn main() -> one %r0
+  block0:
+    %0: %r0 = const 0
+    %1: %r1 = object %s0 %0
+    %2: %r0 = const 0
+    store global log: %r0, %2
+    %3: %r0 = const 1
+    %4: %r0 = load global log: %r0
+    %5: %r0 = binary.add %4, %3
+    %6: %r0 = coerce %5
+    store global log: %r0, %6
+    %7: %r0 = load global log: %r0
+    %8: %r0 = load global log: %r0
+    %9: %r0 = binary.add %8, %7
+    %10: %r0 = coerce %9
+    store global log: %r0, %10
+    %11: %r0 = load global log: %r0
+    %12: %r0 = binary.add %11, %11
+    %13: %r0 = coerce %12
+    store property %1.$v: %r0, %13
+    %14: %r0 = load global log: %r0
+    %15: %r0 = const 1000
+    %16: %r0 = binary.add %14, %15
+    %17: %r0 = coerce %16
+    store global log: %r0, %17
+    %18: %r0 = load global log: %r0
+    %19: %r0 = const 100
+    %20: %r0 = binary.add %18, %19
+    %21: %r0 = coerce %20
+    store global log: %r0, %21
+    %22: %r0 = load global log: %r0
+    %23: %r0 = binary.add %13, %22
+    %24: %r0 = coerce %23
+    return %24
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+shape %s0 cell {$v: %r0 box}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = array Int32Array of %r0

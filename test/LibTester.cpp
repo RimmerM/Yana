@@ -10,6 +10,7 @@
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/gen.h"
 #include "../compiler/codegen/js/gen.h"
+#include "../compiler/codegen/js/jsir.h"
 #include "../compiler/resolve_ssa/pipeline.h"
 #include "Net/Stream.h"
 #include "Net/File.h"
@@ -775,6 +776,28 @@ static bool runOwnershipBuild(const String& path, StringView source, const Build
     }
 
     /*
+     * JavaScript, through JSIR - the same pipeline the compiler's own `-platform js -resolver
+     * ownership` runs, stopped at the emitted text rather than at a file.
+     *
+     * Above the lower IR rather than beside it, because this target never lowers: `resolve_ssa/js`
+     * consumes the optimized SSA directly, which is Analysis-IR-JS.md §2.1's fork. So the two
+     * branches of this function are the two backends and nothing above them differs.
+     */
+    if(options.js) {
+        auto file = js::genJsirProgram(context, *pipeline.program, pipeline.converted, nullptr);
+        if(!file || diagnostics.errorCount()) {
+            println("Fail (%@): the %@ backend produced %@ diagnostics.", path, options.which,
+                    diagnostics.errorCount());
+            return false;
+        }
+
+        Net::Writer writer(16384);
+        js::formatFile(writer, context, *file, false);
+        outcome = executeJsMain(writer.getBuffered());
+        return true;
+    }
+
+    /*
      * How to read what the entry answered, taken before the declarations go out of scope - the two
      * facts `executeMainIsolated` needs and the only ones it takes from above the lower IR.
      */
@@ -938,6 +961,21 @@ static bool runTest(const String& path, StringView source, bool ownership) {
      */
     if(ownership) {
         auto pass = runBuild(path, source, { "ownership"_v, false, true, false, true });
+
+        /*
+         * And JavaScript through JSIR, where the fixture opts in - the same `<fixture>.yana.js`
+         * marker the shipping rows read, because what a fixture asserts does not depend on which
+         * stage compiled it.
+         *
+         * One row rather than two: the unoptimized JS build the shipping pair carries is asserted
+         * for this stage by `YanaResolveTest`, which runs every `.jsir.expect` fixture in both
+         * forms and compares the answers. What this adds is the one thing that corpus cannot say -
+         * that the *library's* own suite passes on this target when the rewrite compiled it.
+         */
+        if(fileExists(path + String(".js")) && nodeAvailable()) {
+            pass = runBuild(path, source, { "ownership-js"_v, false, true, true, true }) && pass;
+        }
+
         println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
         return pass;
     }

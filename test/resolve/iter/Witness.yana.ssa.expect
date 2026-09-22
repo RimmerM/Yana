@@ -1070,7 +1070,7 @@ bb0(%0: Array(I32) [shared call view] guaranteed):
   %2: I32 trivial = const 0
   store inspect %1 consume %2
   %3: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
-  %4: Array(I32) [unique slot 0] guaranteed = load inspect %0
+  %4: Array(I32) [unique slot 0 view] guaranteed = load inspect %0
   %5: I32 [unique slot 1] guaranteed = load inspect %1
   %6: chunkedConcrete.cont.env affine = aggregate.chunkedConcrete.cont.env borrow %4 borrow %5
   %7: (Array(I32)) -> I32 [owned here shape11 .0=shared call] affine = fun.value chunkedConcrete.cont borrow %6

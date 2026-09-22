@@ -1,0 +1,212 @@
+fn madePoint() -> one %r1
+  block0:
+    %0: %r0 = const 3
+    %1: %r0 = const 4
+    %2: %r1 = object %s0 %0, %1
+    return %2
+
+fn main() -> one %r0
+  var $0: %r1
+  var $1: %r1
+  var $2: %r1
+  block0:
+    %16: %r0 = const 3
+    %20: %r0 = const 0
+    %21: %r0 = const 0
+    %22: %r0 = const 12
+    %23: %r0 = const 1
+    jump -> block1(%20, %21)
+  block1(%0: %r0, %1: %r0):
+    %24: %r2 = binary.lt %1, %16
+    branch %24 -> block3 -> block2
+  block2:
+    %25: %r0 = const 4
+    %29: %r0 = const 0
+    %30: %r0 = const 0
+    %31: %r0 = const 1
+    %32: %r0 = const 12
+    %33: %r0 = const 1
+    jump -> block4(%29, %30)
+  block3:
+    %156: %r0 = binary.add %0, %22
+    %157: %r0 = coerce %156
+    %158: %r0 = binary.add %1, %23
+    %159: %r0 = coerce %158
+    jump -> block1(%157, %159)
+  block4(%2: %r0, %3: %r0):
+    %34: %r2 = binary.lt %3, %25
+    branch %34 -> block6 -> block5
+  block5:
+    %35: %r0 = binary.add %0, %2
+    %36: %r0 = coerce %35
+    %37: %r0 = const 2
+    %38: %r0 = const 3
+    %42: %r0 = const 0
+    %43: %r0 = const 0
+    %44: %r0 = const 0
+    %45: %r0 = const 7
+    %46: %r0 = const 1
+    %47: %r0 = const 1
+    jump -> block10(%42, %43)
+  block6:
+    %151: %r2 = binary.gt %3, %31
+    branch %151 -> block8 -> block7
+  block7:
+    jump -> block9(%2)
+  block8:
+    %152: %r0 = binary.add %2, %32
+    %153: %r0 = coerce %152
+    jump -> block9(%153)
+  block9(%4: %r0):
+    %154: %r0 = binary.add %3, %33
+    %155: %r0 = coerce %154
+    jump -> block4(%4, %155)
+  block10(%5: %r0, %6: %r0):
+    %48: %r2 = binary.lt %6, %37
+    branch %48 -> block12 -> block11
+  block11:
+    %49: %r0 = binary.add %36, %5
+    %50: %r0 = coerce %49
+    %51: %r0 = const 3
+    %52: %r0 = const 0
+    %53: %r0 = const 0
+    %54: %r1 = object %s0 %52, %53
+    store var $0: %r1, %54
+    %55: %r0 = const 3
+    %56: %r0 = const 4
+    %57: %r1 = object %s0 %55, %56
+    store var $0: %r1, %57
+    %58: %r0 = const 0
+    %59: %r0 = const 1
+    jump -> block16(%58)
+  block12:
+    jump -> block13(%5, %44)
+  block13(%7: %r0, %8: %r0):
+    %144: %r2 = binary.lt %8, %38
+    branch %144 -> block15 -> block14
+  block14:
+    %145: %r0 = binary.add %6, %47
+    %146: %r0 = coerce %145
+    jump -> block10(%7, %146)
+  block15:
+    %147: %r0 = binary.add %7, %45
+    %148: %r0 = coerce %147
+    %149: %r0 = binary.add %8, %46
+    %150: %r0 = coerce %149
+    jump -> block13(%148, %150)
+  block16(%9: %r0):
+    %60: %r2 = binary.lt %9, %51
+    branch %60 -> block18 -> block17
+  block17:
+    %61: %r1 = load var $0: %r1
+    %62: %r0 = load property %61.x: %r0
+    %63: %r0 = binary.add %50, %62
+    %64: %r0 = coerce %63
+    %66: %r0 = const 2
+    %69: %r0 = const 0
+    %70: %r0 = const 0
+    %71: %r0 = const 1
+    %72: %r0 = const 13
+    jump -> block19(%69, %70)
+  block18:
+    %136: %r1 = load var $0: %r1
+    %137: %r0 = load property %136.x: %r0
+    %138: %r1 = load var $0: %r1
+    %139: %r0 = load property %138.y: %r0
+    %140: %r0 = binary.add %137, %139
+    %141: %r0 = coerce %140
+    store property %136.x: %r0, %141
+    %142: %r0 = binary.add %9, %59
+    %143: %r0 = coerce %142
+    jump -> block16(%143)
+  block19(%10: %r0, %11: %r0):
+    %73: %r2 = binary.lt %11, %66
+    branch %73 -> block21 -> block20
+  block20:
+    %74: %r0 = binary.add %64, %10
+    %75: %r0 = coerce %74
+    %76: %r0 = const 2
+    %77: %r0 = const 0
+    %78: %r0 = const 0
+    %79: %r1 = object %s0 %77, %78
+    store var $1: %r1, %79
+    %80: %r1 = call madePoint
+    store var $1: %r1, %80
+    %81: %r0 = const 0
+    %82: %r0 = const 0
+    %83: %r0 = const 1
+    %84: %r1 = load var $1: %r1
+    %85: %r0 = load property %84.x: %r0
+    %86: %r1 = load var $1: %r1
+    %87: %r0 = load property %86.y: %r0
+    %88: %r0 = binary.mul %85, %87
+    %89: %r0 = coerce %88
+    %90: %r0 = const 1
+    jump -> block22(%81, %82)
+  block21:
+    %132: %r0 = binary.add %10, %72
+    %133: %r0 = coerce %132
+    %134: %r0 = binary.add %11, %71
+    %135: %r0 = coerce %134
+    jump -> block19(%133, %135)
+  block22(%12: %r0, %13: %r0):
+    %91: %r2 = binary.lt %13, %76
+    branch %91 -> block24 -> block23
+  block23:
+    %92: %r0 = binary.add %75, %12
+    %93: %r0 = coerce %92
+    %94: %r0 = const 2
+    %95: %r0 = const 0
+    %96: %r0 = const 0
+    %97: %r1 = object %s0 %95, %96
+    store var $2: %r1, %97
+    %98: %r0 = const 3
+    %99: %r0 = const 4
+    %100: %r1 = object %s0 %98, %99
+    store var $2: %r1, %100
+    %101: %r0 = const 0
+    %102: %r0 = const 0
+    %103: %r0 = const 1
+    %104: %r0 = const 1
+    jump -> block25(%101, %102)
+  block24:
+    %126: %r0 = binary.add %12, %83
+    %127: %r0 = coerce %126
+    %128: %r0 = binary.add %127, %89
+    %129: %r0 = coerce %128
+    %130: %r0 = binary.add %13, %90
+    %131: %r0 = coerce %130
+    jump -> block22(%129, %131)
+  block25(%14: %r0, %15: %r0):
+    %105: %r2 = binary.lt %14, %94
+    branch %105 -> block27 -> block26
+  block26:
+    %106: %r0 = binary.add %93, %15
+    %107: %r0 = coerce %106
+    %111: %r0 = const 7
+    %112: %r0 = binary.add %107, %111
+    %113: %r0 = coerce %112
+    return %113
+  block27:
+    %114: %r1 = load var $2: %r1
+    %115: %r0 = load property %114.x: %r0
+    %116: %r0 = binary.add %115, %103
+    %117: %r0 = coerce %116
+    store property %114.x: %r0, %117
+    %118: %r1 = load var $2: %r1
+    %119: %r0 = load property %118.y: %r0
+    %120: %r0 = binary.mul %117, %119
+    %121: %r0 = coerce %120
+    %122: %r0 = binary.add %15, %121
+    %123: %r0 = coerce %122
+    %124: %r0 = binary.add %14, %104
+    %125: %r0 = coerce %124
+    jump -> block25(%125, %123)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 15 adopted 0 sunk 0
+
+shape %s0 object Point {x: %r0, y: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = number bool

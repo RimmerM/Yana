@@ -3506,11 +3506,37 @@ bool Resolver::checkResultContract(Node& value, LocationId source) {
         return false;
     }
 
+    /*
+     * An **owned value at a borrowed result** - Analysis-IR-JS.md part 12.3's second open question,
+     * settled here on 2026-09-21.
+     *
+     * Accepted where the value owes **no teardown**, and refused otherwise. The caller receives what
+     * it believes is a loan of `source`, so it releases nothing; a value with a teardown would
+     * therefore leak, and a value without one has nothing to leak. Everything else about the
+     * widening is already sound in the direction that matters - the caller's use is *bounded* by a
+     * loan the value does not need, which forbids more than the value requires and never less.
+     *
+     * The rule is about the **type** and not about the target, which is what makes it worth having:
+     * `String.slice` on JavaScript returns the host's own copy at a `source'String` result and is
+     * accepted, because a host string is the collector's; the same body written natively is refused
+     * with the sentence below, because a native `String` owns a run. So the two targets are held to
+     * one rule rather than one of them to an exemption, and no attribute or role carries a
+     * target-decided origin - which was the alternative §3.2.2 named.
+     *
+     * The loan the caller is granted is rooted in whatever the declaration published, which is the
+     * conservative answer: a result the callee built out of nothing is treated as pointing into
+     * `source`, so a caller that writes through `source` while it lives is refused. That is a
+     * refusal of a program that would have worked, and it is the direction to be wrong in.
+     */
     if(!declared.isOwned() && got.isOwned()) {
-        context.diagnostics.error(
-            "the result names an origin, so it has to be a borrow of something the caller keeps"_v,
-            source);
-        return false;
+        if(hasTeardown(decl(), valueOccurrence(value).type)) {
+            context.diagnostics.error(
+                "the result names an origin, so it has to be a borrow of something the caller keeps - this value owns its own storage, and nothing would release it"_v,
+                source);
+            return false;
+        }
+
+        return true;
     }
 
     if(declared.access() == Access::Unique && got.access() != Access::Unique) {

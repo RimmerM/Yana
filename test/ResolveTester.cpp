@@ -14,6 +14,7 @@
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/gen.h"
 #include "../compiler/codegen/js/gen.h"
+#include "../compiler/codegen/js/jsir.h"
 #include "../compiler/codegen/llvm/gen.h"
 #include "../compiler/resolve_ssa/pipeline.h"
 #include "../compiler/resolve_ssa/print.h"
@@ -219,6 +220,66 @@ struct RecordDiagnostics: Diagnostics {
     StringBuilder recorded;
 };
 
+/*
+ * The front end every pass in this file opens with - provider, diagnostics, context, directives, the
+ * settings it overrides and the parse.
+ *
+ * Ten passes here began with the same eleven lines and differed in two things: which diagnostics they
+ * collect, and which settings they set. The settings went in the *middle* of the block, so a line
+ * added to the front end had to be added ten times in nine functions, and one of them forgetting it
+ * is a fixture compiled a way nothing says out loud. The diagnostics are the template parameter -
+ * two passes record what was reported and the rest print it - and `settings` is a callback that runs
+ * exactly where the overrides used to, between the directives and the parse. The members are in
+ * declaration order, which is what makes the parse see the settings rather than the other way round.
+ *
+ * Not in `directives.h`, which is where this slice's plan put it: `TestProvider` reads
+ * `resolve/modules/`, and that header is what three drivers share *because* it is only about
+ * settings.
+ */
+template<class Diags>
+struct FixtureFront {
+    TestProvider provider;
+    Diags diagnostics;
+    Context context;
+    ast::Module ast;
+
+    template<class Settings>
+    FixtureFront(StringView source, Settings&& settings):
+        diagnostics(provider), context(diagnostics), ast(open(source, settings)) {}
+
+    explicit FixtureFront(StringView source):
+        FixtureFront(source, [](CompileSettings&) {}) {}
+
+private:
+    template<class Settings>
+    ast::Module open(StringView source, Settings&& settings) {
+        provider.source = source;
+        applyFixtureDirectives(context.settings, source);
+        settings(context.settings);
+        provider.context = &context;
+
+        auto name = context.addUnqualifiedName("ResolveTest", 11);
+        Lexer lexer(context, diagnostics, source, name);
+        Parser parser(context, lexer, name);
+        return parser.parseModule();
+    }
+};
+
+/*
+ * The rewrite's own front end, which is the same one with the resolver set - seven of the ten.
+ *
+ * The native one leaves the platform alone rather than setting it to `Native`, because a fixture may
+ * have said `# platform: js` and the directives have already run by the time this does.
+ */
+inline void ownershipSettings(CompileSettings& settings) {
+    settings.resolver = ResolverStage::Ownership;
+}
+
+inline void ownershipJsSettings(CompileSettings& settings) {
+    settings.resolver = ResolverStage::Ownership;
+    settings.platform = TargetPlatform::Js;
+}
+
 static bool fileExists(const String& path) {
     auto info = File::info(path);
     return info && !info.unwrapOk().isDirectory;
@@ -406,26 +467,18 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
  * only about what it emits.
  */
 static bool runRejectionTest(const String& path, const String& errorPath, StringView source, bool generate) {
-    TestProvider provider;
-    provider.source = source;
-    RecordDiagnostics diagnostics(provider);
-    Context context(diagnostics);
-    applyFixtureDirectives(context.settings, source);
-    provider.context = &context;
-
-    auto name = context.addUnqualifiedName("ResolveTest", 11);
-    Lexer lexer(context, diagnostics, source, name);
-    Parser parser(context, lexer, name);
-    auto ast = parser.parseModule();
+    FixtureFront<RecordDiagnostics> f(source);
+    auto& context = f.context;
+    auto& diagnostics = f.diagnostics;
 
     if(context.settings.resolver == ResolverStage::Ownership) {
         // Resolution alone, and deliberately not conversion: the pipeline's later halves assume a
         // program the checks accepted, so running them over one that was rejected asserts nothing
         // and asks the verifier about IR that was never meant to be complete.
         ssa::Pipeline pipeline(context);
-        pipeline.resolve(ast, &provider);
+        pipeline.resolve(f.ast, &f.provider);
     } else {
-        resolveProgram(context, ast, &provider);
+        resolveProgram(context, f.ast, &f.provider);
     }
 
     if(generate) {
@@ -458,18 +511,10 @@ static bool runRejectionTest(const String& path, const String& errorPath, String
  * report while the witness half is being filled in.
  */
 static bool runGenericPass(const String& path, StringView source, I64 expected) {
-    TestProvider provider;
-    provider.source = source;
-    PrintDiagnostics diagnostics(provider);
-    Context context(diagnostics);
-    applyFixtureDirectives(context.settings, source);
-    provider.context = &context;
-
-    auto name = context.addUnqualifiedName("ResolveTest", 11);
-    Lexer lexer(context, diagnostics, source, name);
-    Parser parser(context, lexer, name);
-    auto ast = parser.parseModule();
-    auto module = resolveProgram(context, ast, &provider, Program::Specialization::Generic);
+    FixtureFront<PrintDiagnostics> f(source);
+    auto& context = f.context;
+    auto& diagnostics = f.diagnostics;
+    auto module = resolveProgram(context, f.ast, &f.provider, Program::Specialization::Generic);
 
     if(diagnostics.errorCount()) {
         println("Fail (%@): forced-generic resolution produced %@ diagnostics.", path, diagnostics.errorCount());
@@ -757,19 +802,13 @@ static Maybe<I64> executeJsMain(const String& path, ByteBuffer emitted) {
 
 static bool runJsPass(const String& path, const String& jsPath, StringView source, bool generate,
                       bool forceGeneric, Maybe<I64> expectedRun, Maybe<I64>& ran) {
-    TestProvider provider;
-    provider.source = source;
-    PrintDiagnostics diagnostics(provider);
-    Context context(diagnostics);
-    applyFixtureDirectives(context.settings, source);
-    context.settings.platform = TargetPlatform::Js;
-    provider.context = &context;
+    FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
+        settings.platform = TargetPlatform::Js;
+    });
 
-    auto name = context.addUnqualifiedName("ResolveTest", 11);
-    Lexer lexer(context, diagnostics, source, name);
-    Parser parser(context, lexer, name);
-    auto ast = parser.parseModule();
-    auto module = resolveProgram(context, ast, &provider,
+    auto& context = f.context;
+    auto& diagnostics = f.diagnostics;
+    auto module = resolveProgram(context, f.ast, &f.provider,
                                  forceGeneric ? Program::Specialization::Generic
                                               : Program::Specialization::Always);
 
@@ -867,15 +906,14 @@ static bool runUnoptimizedPass(const String& path, StringView source, bool force
     auto pass = true;
 
     if(optimizedNative) {
-        TestProvider provider;
-        provider.source = source;
-        PrintDiagnostics diagnostics(provider);
-        Context context(diagnostics);
-        applyFixtureDirectives(context.settings, source);
-        context.settings.optimizeIr = false;
-        provider.context = &context;
+        FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
+            settings.optimizeIr = false;
+        });
 
-        auto module = resolveUnoptimized(context, provider, diagnostics);
+        auto& context = f.context;
+        auto& diagnostics = f.diagnostics;
+
+        auto module = resolveUnoptimized(context, f.provider, diagnostics);
         if(diagnostics.errorCount()) {
             println("Fail (%@): unoptimized resolution produced %@ diagnostics.", path,
                     diagnostics.errorCount());
@@ -901,16 +939,15 @@ static bool runUnoptimizedPass(const String& path, StringView source, bool force
     if(!optimizedJs) return pass;
 
     {
-        TestProvider provider;
-        provider.source = source;
-        PrintDiagnostics diagnostics(provider);
-        Context context(diagnostics);
-        applyFixtureDirectives(context.settings, source);
-        context.settings.platform = TargetPlatform::Js;
-        context.settings.optimizeIr = false;
-        provider.context = &context;
+        FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
+            settings.platform = TargetPlatform::Js;
+            settings.optimizeIr = false;
+        });
 
-        auto module = resolveUnoptimized(context, provider, diagnostics);
+        auto& context = f.context;
+        auto& diagnostics = f.diagnostics;
+
+        auto module = resolveUnoptimized(context, f.provider, diagnostics);
         if(diagnostics.errorCount()) {
             println("Fail (%@): unoptimized resolution for the JS target produced %@ diagnostics.",
                     path, diagnostics.errorCount());
@@ -999,22 +1036,16 @@ static bool runLlvmPass(const String& path, const String& llvmPath, Context& con
  * size of the shipping stage's version.
  */
 static bool runUnoptimizedOwnershipPass(const String& path, StringView source, I64 optimized) {
-    TestProvider provider;
-    provider.source = source;
-    PrintDiagnostics diagnostics(provider);
-    Context context(diagnostics);
-    applyFixtureDirectives(context.settings, source);
-    context.settings.resolver = ResolverStage::Ownership;
-    context.settings.optimizeIr = false;
-    provider.context = &context;
+    FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
+        ownershipSettings(settings);
+        settings.optimizeIr = false;
+    });
 
-    auto name = context.addUnqualifiedName("ResolveTest", 11);
-    Lexer lexer(context, diagnostics, source, name);
-    Parser parser(context, lexer, name);
-    auto ast = parser.parseModule();
+    auto& context = f.context;
+    auto& diagnostics = f.diagnostics;
 
     ssa::Pipeline pipeline(context);
-    if(!pipeline.resolve(ast, &provider) || !pipeline.convert()) {
+    if(!pipeline.resolve(f.ast, &f.provider) || !pipeline.convert()) {
         println("Fail (%@): the unoptimized ownership pipeline produced %@ diagnostics.", path,
                 diagnostics.errorCount());
         return false;
@@ -1081,21 +1112,12 @@ static bool runUnoptimizedOwnershipPass(const String& path, StringView source, I
  */
 static bool runOwnershipPass(const String& path, StringView source, bool generate,
                              Maybe<I64> expectedRun) {
-    TestProvider provider;
-    provider.source = source;
-    PrintDiagnostics diagnostics(provider);
-    Context context(diagnostics);
-    applyFixtureDirectives(context.settings, source);
-    context.settings.resolver = ResolverStage::Ownership;
-    provider.context = &context;
-
-    auto name = context.addUnqualifiedName("ResolveTest", 11);
-    Lexer lexer(context, diagnostics, source, name);
-    Parser parser(context, lexer, name);
-    auto ast = parser.parseModule();
+    FixtureFront<PrintDiagnostics> f(source, ownershipSettings);
+    auto& context = f.context;
+    auto& diagnostics = f.diagnostics;
 
     ssa::Pipeline pipeline(context);
-    if(!pipeline.resolve(ast, &provider)) {
+    if(!pipeline.resolve(f.ast, &f.provider)) {
         println("Fail (%@): the ownership resolver produced %@ diagnostics.", path, diagnostics.errorCount());
         return false;
     }
@@ -1279,6 +1301,276 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
     return pass;
 }
 
+// The answer both JavaScript pipelines are held to - `.run.expect`, or the documented exception a
+// fixture whose JavaScript answer differs on purpose names in `.js.run.expect`.
+static Maybe<I64> jsirExpectedRun(const String& path, const String& runPath) {
+    auto js = readExpectedRun(path + String(".js.run.expect"));
+    return js ? js : readExpectedRun(runPath);
+}
+
+/*
+ * The same fixture as a **JavaScript** program through the rewritten stage, resolver and tier alike.
+ *
+ * Five goldens off one compilation, opted into one at a time. Three of them are the resolver's answer
+ * for this target - `.js.mir.expect`, `.js.explain.expect` and `.js.ssa.expect`, milestone 3's and
+ * additional to the native ones, so a fixture acquires one without any of its others moving - and two
+ * are the tier's: `.jsir.expect` is the JSIR dump and `.jsir.js.expect` is the JavaScript it emits,
+ * beside the shipping backend's `.js.expect` rather than replacing it. The asymmetry in the last pair
+ * is the point: two backends emit different text for one program and there is no version of that
+ * which is a defect, so the text needs two files and what they *compute* needs one.
+ *
+ * **It was two passes until 2026-09-22 (J80)** and the front half was written twice. `runOwnershipJsPass`
+ * resolved, converted and optimized for this target to print the first three, and this function did
+ * exactly the same thing again to reach the tier - so a fixture carrying both goldens was compiled
+ * twice for one target, and the two copies could drift about which settings they set. The three
+ * goldens are printed at the same two points they were, which is what makes the fold byte-identical:
+ * the MIR and the explanation before `convert`, since the conversion releases the bodies their
+ * placements are read off, and the SSA before `optimize`.
+ *
+ * `emitJsir` is the second opt-in read apart from the first, and `resolve/HostOps.yana` is why: it is
+ * a fixture about the resolver's JavaScript answer whose program this tier has no form for, so it
+ * carries the three and not the two.
+ *
+ * Three builds and two front ends (§10.2). The optimized one is every golden and the answer the other
+ * two are held to; the second is `-no-ir-opt`, which is a different *program* and therefore a
+ * compilation of its own; and the third is the same SSA with the **JSIR** optimizer off, which is one
+ * more `genJsirProgram` over the object the first one already built. That pair is what says which
+ * tier a disagreement came from - a program that differs with `-no-ir-opt` and agrees with the third
+ * has a defect above the fork, and the other way round has one below it, which is where
+ * `opt_alias.cpp`'s rewrites are - and running the third off the same SSA is what makes it the one
+ * axis rather than two: the input is identical by construction instead of by a second resolution
+ * being assumed to agree.
+ */
+static bool runJsirPass(const String& path, StringView source, bool generate,
+                        Maybe<I64> expectedRun, bool emitJsir) {
+    auto pass = true;
+
+    // The dump first, because it is what `-mode jsir` writes and it is written *inside* the
+    // per-function loop - a JSIR body does not survive it (§7.1), so there is nothing to print
+    // afterwards.
+    Net::Writer dumpWriter(16384);
+    Net::Writer optimized(16384);
+    Net::Writer noJsirOpt(16384);
+
+    {
+        FixtureFront<PrintDiagnostics> f(source, ownershipJsSettings);
+        auto& context = f.context;
+        auto& diagnostics = f.diagnostics;
+
+        ssa::Pipeline pipeline(context);
+        if(!pipeline.resolve(f.ast, &f.provider)) {
+            println("Fail (%@): the ownership resolver produced %@ diagnostics for JavaScript.", path,
+                    diagnostics.errorCount());
+            return false;
+        }
+
+        auto golden = [&](const char* suffix, auto&& print) {
+            auto file = path + String(suffix);
+            if(!fileExists(file)) return;
+
+            if(generate) writeText(file, [&](Net::Writer& writer) { print(writer); });
+
+            Net::Writer writer(16384);
+            print(writer);
+            pass = compareText(file, writer.getBuffered()) && pass;
+        };
+
+        golden(".js.mir.expect", [&](Net::Writer& writer) {
+            mir::printProgram(writer, context, *pipeline.program);
+        });
+
+        /*
+         * The `explain` query, for the **JavaScript** program - the native pass's `.explain.expect`
+         * at the other target, opted into by `.js.explain.expect` on the same terms.
+         *
+         * A golden of its own rather than a second reading of the native one, because the two are
+         * genuinely different reports: `@platform` selects which declarations exist, so a JavaScript
+         * program has different callees, different placements and a different call-site index. Until
+         * 2026-09-22 (J75) the driver refused `explain -platform js` outright, and this is what says
+         * the refusal is gone and what the answer is.
+         *
+         * Before conversion, for the reason the MIR dump is: the locals' placements are read off the
+         * MIR bodies, which the conversion releases.
+         */
+        golden(".js.explain.expect", [&](Net::Writer& writer) {
+            mir::printExplanations(writer, context, *pipeline.program);
+        });
+
+        if(!pipeline.convert()) {
+            println("Fail (%@): SSA conversion or verification failed for JavaScript.", path);
+            return false;
+        }
+
+        golden(".js.ssa.expect", [&](Net::Writer& writer) {
+            ssa::printProgram(writer, context, *pipeline.program, pipeline.converted);
+        });
+
+        pipeline.releaseMir();
+
+        if(!pipeline.optimize()) {
+            println("Fail (%@): the SSA optimizer produced IR the verifier rejects for JavaScript.",
+                    path);
+            return false;
+        }
+
+        if(!emitJsir) return pass;
+
+        auto file = js::genJsirProgram(context, *pipeline.program, pipeline.converted, &dumpWriter);
+        if(diagnostics.errorCount()) {
+            println("Fail (%@): JSIR produced %@ diagnostics.", path, diagnostics.errorCount());
+            return false;
+        }
+
+        js::formatFile(optimized, context, *file, false);
+
+        // And the third configuration off the same SSA - see the header. The setting is read once,
+        // in the per-function loop of `assemble.cpp`, so flipping it between two emissions is the
+        // whole of what distinguishes them.
+        context.settings.optimizeJsir = false;
+        auto plain = js::genJsirProgram(context, *pipeline.program, pipeline.converted, nullptr);
+        if(diagnostics.errorCount()) {
+            println("Fail (%@): JSIR with its optimizer off produced %@ diagnostics.", path,
+                    diagnostics.errorCount());
+            return false;
+        }
+
+        js::formatFile(noJsirOpt, context, *plain, false);
+    }
+
+    auto jsirPath = path + String(".jsir.expect");
+    if(generate) {
+        writeText(jsirPath, [&](Net::Writer& writer) {
+            auto bytes = dumpWriter.getBuffered();
+            writer.writeBytes(bytes.ptr, bytes.length);
+        });
+    }
+
+    pass = compareText(jsirPath, dumpWriter.getBuffered()) && pass;
+
+    auto jsPath = path + String(".jsir.js.expect");
+    if(generate) {
+        writeText(jsPath, [&](Net::Writer& writer) {
+            auto bytes = optimized.getBuffered();
+            writer.writeBytes(bytes.ptr, bytes.length);
+        });
+    }
+
+    pass = compareText(jsPath, optimized.getBuffered()) && pass;
+
+    if(!expectedRun || !nodeAvailable()) return pass;
+
+    auto answered = executeJsMain(path, optimized.getBuffered());
+    if(!answered || answered.unwrap() != expectedRun.unwrap()) {
+        println("Fail (%@): the JSIR pipeline's JavaScript returned %@, expected %@.", path,
+                answered ? answered.unwrap() : I64(-1), expectedRun.unwrap());
+        return false;
+    }
+
+    auto plain = executeJsMain(path, noJsirOpt.getBuffered());
+    if(!plain || plain.unwrap() != answered.unwrap()) {
+        println("Fail (%@): the build with the JSIR optimizer off returned %@, and the one with it "
+                "on returned %@.", path, plain ? plain.unwrap() : I64(-1), answered.unwrap());
+        return false;
+    }
+
+    // And `-no-ir-opt`, which is a different program above the fork and therefore its own
+    // compilation rather than a second emission of the one above.
+    Net::Writer unoptimized(16384);
+    {
+        FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
+            ownershipJsSettings(settings);
+            settings.optimizeIr = false;
+        });
+
+        auto& context = f.context;
+        auto& diagnostics = f.diagnostics;
+
+        ssa::Pipeline pipeline(context);
+        if(!pipeline.resolve(f.ast, &f.provider) || !pipeline.convert()) {
+            println("Fail (%@): the unoptimized JavaScript build produced %@ diagnostics.", path,
+                    diagnostics.errorCount());
+            return false;
+        }
+
+        pipeline.releaseMir();
+        if(!pipeline.optimize()) {
+            println("Fail (%@): the unoptimized JavaScript build did not verify.", path);
+            return false;
+        }
+
+        auto file = js::genJsirProgram(context, *pipeline.program, pipeline.converted, nullptr);
+        if(diagnostics.errorCount()) {
+            println("Fail (%@): the unoptimized JSIR build produced %@ diagnostics.", path,
+                    diagnostics.errorCount());
+            return false;
+        }
+
+        js::formatFile(unoptimized, context, *file, false);
+    }
+
+    auto other = executeJsMain(path, unoptimized.getBuffered());
+    if(!other || other.unwrap() != answered.unwrap()) {
+        println("Fail (%@): the unoptimized JSIR build returned %@, and the optimized one returned %@.",
+                path, other ? other.unwrap() : I64(-1), answered.unwrap());
+        return false;
+    }
+
+    return pass;
+}
+
+/*
+ * A fixture whose JavaScript answer is a **deliberate target gap**, pinned by its diagnostic.
+ *
+ * `.jsir.errors.expect` is `.errors.expect` one tier down: the program resolves, converts and
+ * optimizes, and what JSIR has no form for is reported by name. Opted into by the file's existence
+ * and filled by `generate`, on exactly the terms a rejection fixture is.
+ *
+ * It exists because the sweep is not a golden. `lib/Native`'s `allocateHeap`, a bitcast between
+ * vectors of different lane widths and the nine `X86.*` rows are gaps this target is *supposed* to
+ * have, and the only thing standing over them was a number in a progress record - so a gap that
+ * silently became a different gap, or a wrong answer, changed nothing anybody would see. What this
+ * pins is the sentence: it fails when the construct stops being reported, when it starts being
+ * reported somewhere else, and when the sentence changes.
+ *
+ * Mutually exclusive with `.jsir.expect` by construction, since a fixture that converts has a dump
+ * and one that reports has none. `runTest` reads this one first.
+ */
+static bool runJsirGapTest(const String& path, const String& errorPath, StringView source,
+                           bool generate) {
+    FixtureFront<RecordDiagnostics> f(source, ownershipJsSettings);
+    auto& context = f.context;
+    auto& diagnostics = f.diagnostics;
+
+    ssa::Pipeline pipeline(context);
+    auto reached = pipeline.resolve(f.ast, &f.provider) && pipeline.convert();
+    if(reached) {
+        pipeline.releaseMir();
+        reached = pipeline.optimize();
+    }
+
+    // The tier itself, where the program got that far. A fixture whose gap is the *resolver's*
+    // rather than this target's still records what it reported, which is what makes the file say
+    // which of the two a gap is.
+    if(reached) js::genJsirProgram(context, *pipeline.program, pipeline.converted, nullptr);
+
+    if(generate) {
+        writeText(errorPath, [&](Net::Writer& writer) {
+            writer.writeString(StringView { diagnostics.recorded.pointer(),
+                                            diagnostics.recorded.size() });
+        });
+    }
+
+    auto pass = true;
+    if(!diagnostics.errorCount()) {
+        println("Fail (%@): expected the JavaScript pipeline to report, and it compiled the program.",
+                path);
+        pass = false;
+    }
+
+    return compareText(errorPath, ByteBuffer((Byte*)diagnostics.recorded.pointer(),
+                                             diagnostics.recorded.size())) && pass;
+}
+
 static bool runTest(const String& path, StringView source, bool generate) {
     auto errorPath = path + String(".errors.expect");
     if(fileExists(errorPath)) return runRejectionTest(path, errorPath, source, generate);
@@ -1294,8 +1586,40 @@ static bool runTest(const String& path, StringView source, bool generate) {
      * The comparison between the two stages is what such a fixture gives up, and that is the cost
      * the directive's comment asks a fixture to be worth.
      */
+    // The same source as a JavaScript program, where a golden says so - opted into separately from
+    // everything else, so that a fixture may have one, the other or both.
+    auto js = fileExists(path + String(".js.ssa.expect"));
+
+    // And the JSIR pipeline, opted into separately from everything else - see runJsirPass. A
+    // fixture whose JavaScript answer is a deliberate gap opts in the other way, with the sentence
+    // this target reports rather than with a dump - see runJsirGapTest.
+    auto jsir = fileExists(path + String(".jsir.expect"));
+    auto jsirGapPath = path + String(".jsir.errors.expect");
+    auto jsirGap = fileExists(jsirGapPath);
+
+    /*
+     * A fixture that is a JavaScript program and nothing else - `# platform: js`, see directives.h.
+     *
+     * The whole of this file below is a machine: a native golden, a lowering, an `executeMain`. A
+     * fixture whose subject is a host operation has none of those, because the declarations that
+     * reach one exist on no other target, so what it asserts is the JavaScript pass and that is all
+     * it runs.
+     */
+    if(fixtureIsJavaScript(source)) {
+        auto pass = runJsirPass(path, source, generate, jsirExpectedRun(path, runPath), jsir);
+        if(jsirGap) pass = runJsirGapTest(path, jsirGapPath, source, generate) && pass;
+
+        println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
+        return pass;
+    }
+
     if(fixtureNeedsOwnershipStage(source)) {
         auto pass = runOwnershipPass(path, source, generate, readExpectedRun(runPath));
+        if(js || jsir) {
+            pass = runJsirPass(path, source, generate, jsirExpectedRun(path, runPath), jsir) && pass;
+        }
+        if(jsirGap) pass = runJsirGapTest(path, jsirGapPath, source, generate) && pass;
+
         println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
         return pass;
     }
@@ -1308,25 +1632,18 @@ static bool runTest(const String& path, StringView source, bool generate) {
      */
     auto forceGeneric = fileExists(path + String(".generic"));
 
-    TestProvider provider;
-    provider.source = source;
-    PrintDiagnostics diagnostics(provider);
-    Context context(diagnostics);
-    applyFixtureDirectives(context.settings, source);
+    FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
+        // The `.own.expect` dump is the only reader of a local's live ranges, and asking for them
+        // is what makes the ownership passes build them at all - see
+        // CompileSettings::ownershipRanges. Set for every fixture rather than only the ones carrying
+        // that file, because the ranges have to be asked for before anything is resolved and which
+        // expectations exist is a question about the fixture directory that this run answers later.
+        settings.ownershipRanges = true;
+    });
 
-    // The `.own.expect` dump is the only reader of a local's live ranges, and asking for them is
-    // what makes the ownership passes build them at all - see CompileSettings::ownershipRanges.
-    // Set for every fixture rather than only the ones carrying that file, because the ranges have
-    // to be asked for before anything is resolved and which expectations exist is a question about
-    // the fixture directory that this run answers later.
-    context.settings.ownershipRanges = true;
-    provider.context = &context;
-
-    auto name = context.addUnqualifiedName("ResolveTest", 11);
-    Lexer lexer(context, diagnostics, source, name);
-    Parser parser(context, lexer, name);
-    auto ast = parser.parseModule();
-    auto module = resolveProgram(context, ast, &provider,
+    auto& context = f.context;
+    auto& diagnostics = f.diagnostics;
+    auto module = resolveProgram(context, f.ast, &f.provider,
                                  forceGeneric ? Program::Specialization::Generic
                                               : Program::Specialization::Always);
     if(diagnostics.errorCount()) {
@@ -1404,6 +1721,14 @@ static bool runTest(const String& path, StringView source, bool generate) {
     // What the JS build actually answered, where it was run at all. Held out here because the
     // optimizer's equivalence check compares against it rather than against any file.
     Maybe<I64> jsRan;
+
+    if(js || jsir) {
+        pass = runJsirPass(path, source, generate, jsirExpectedRun(path, runPath), jsir) && pass;
+    }
+
+    if(jsirGap) {
+        pass = runJsirGapTest(path, jsirGapPath, source, generate) && pass;
+    }
 
     if(fileExists(jsPath)) {
         // A fixture whose two targets legitimately answer differently names the JS answer here.

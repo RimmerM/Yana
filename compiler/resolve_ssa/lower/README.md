@@ -8,27 +8,32 @@ carried, and `gen.cpp` and its five companions turn a verified `ssa::Function` i
 both resolve stages hand to the backends.
 
 The directory is the boundary rather than a naming convention. [`Analysis-IR-JS.md`
-](../../../doc/proposal/Analysis-IR-JS.md)'s JSIR lowering is built against the same SSA and answers
+](../../../doc/inflight/Analysis-IR-JS.md)'s JSIR lowering is built against the same SSA and answers
 the same two questions with `JsRep` instead of `Repr`, so it arrives as a sibling of this directory
 and not as a set of switches inside it. It is also what makes an accidental dependency visible: a
 file in the parent that needs `lower/manifest.h` is asking a native question from the
-target-independent half, and its include says so. Two do today - `convert.cpp` asks
-`isReferenceValue`, `isAddressOnly` and `arrivesAsAddress` to choose a value's convention at fifteen
-sites, and `verify.cpp` asks `arrivesAsAddress` and `manifestNative` at four to check a call's
-operands against the signature.
+target-independent half, and its include says so.
 
-**That is two questions and not one, which this file used to say it was.** The wider one is
-Analysis-IR.md §13's - whether a convention is decidable before a target is chosen - and it is a
-change to what a call hands over. The narrower one is that most of those nineteen sites are not
-asking a machine anything: all three predicates reduce to `Manifestation::inMemory`, and
-`isReferenceValue` answers from the contract alone, above that line, in nearly every case those
-sites' comments motivate - `Origin::Slot` for a published loan, `Unique` for an exclusive one. The
-one that genuinely consults the table is `valueOccurrenceOf`, whose own comment concedes the guard
-is a pessimization check rather than a correctness one, and whose cost could be rehomed: `run`
-builds every signature from `manifestNative` over the **declared** occurrence, before any body is
-lowered, so the ABI never depended on what the conversion decided about an entry block argument.
-`Analysis-IR-JS.md` §1.3.1 is the survey and writes out the contract-only predicate that would
-replace them.
+**Nothing in the parent does, since 2026-09-22 (J75).** Two files did - `convert.cpp` asked
+`isReferenceValue`, `isAddressOnly` and `arrivesAsAddress` at fifteen sites and `verify.cpp` asked
+two of them and `manifestNative` at four - and Analysis-IR-JS.md §12.3's first open question was
+taking them out. It is closed: the sites read `loanDenotesStorage`, `denotesStorage` and
+`holdsAggregate` from `../build.h`, none of which has a `Layout` in it, and `tools/check-layering.sh`
+is a job in `run-tests.sh` that reads the `#include` lines and fails if the boundary is crossed
+again. `../README.md`'s "There is no `Layout` above `lower/` any more" is the account, including the
+one thing §1.3.1 proposed that was tried and not kept - dropping the cost guard from
+`valueOccurrenceOf`, which segfaulted twelve driver processes, because `aliasesLender` reads the same
+decision and a local that stops aliasing its lender is allocated at the loan's own pointer-wide
+occurrence.
+
+**The wider question is still this file's, and is still open.** Whether a calling convention is
+decidable before a target is chosen at all is Analysis-IR.md §13's, and it is a change to what a call
+hands over rather than to which header states the rule. What J75 changed is only that the rule is now
+stated twice in two tiers - `denotesStorage` above and `manifestNative` here - rather than once here
+and reached for from above. Two readings that may not drift is better than a leak and worse than one
+statement; making it one is that question's work. `run` builds every signature from `manifestNative`
+over the **declared** occurrence, before any body is lowered, so the ABI has never depended on what
+the conversion decided about an entry block argument, and that is the fact any answer starts from.
 
 ## Records are address-only, and that is the whole calling convention
 
@@ -896,7 +901,7 @@ teardown while still emitting the real one - the IR text matched and the answer 
 ## Native only
 
 JavaScript is deliberately not a consumer of `gen.cpp`.
-[`Analysis-IR-JS.md`](../../../doc/proposal/Analysis-IR-JS.md)'s JSIR is built against SSA from the
+[`Analysis-IR-JS.md`](../../../doc/inflight/Analysis-IR-JS.md)'s JSIR is built against SSA from the
 start rather than by teaching this walk a second target, which is how the current JS backend acquired
 representation questions of its own. `checkSettings` refuses `-resolver ownership` on a JS build
 rather than quietly producing a program by the other stage.

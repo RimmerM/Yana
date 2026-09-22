@@ -72,7 +72,7 @@ bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
   %5: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
   %6: I32 [unique slot 0] guaranteed = load inspect %3
   %7: I32 [unique slot 1] guaranteed = load inspect %2
-  %8: Array(I32) [unique slot 2] guaranteed = load inspect %0
+  %8: Array(I32) [unique slot 2 view] guaranteed = load inspect %0
   %9: classMember.cont.env affine = aggregate.classMember.cont.env borrow %6 borrow %7 borrow %8
   %10: (Array(I32)) -> I32 [owned here shape9 .0=shared call] affine = fun.value classMember.cont borrow %9
   %11: I32 trivial = call Array(a).chunks(I32) borrow %5 borrow %10

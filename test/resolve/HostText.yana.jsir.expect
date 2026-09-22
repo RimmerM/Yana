@@ -1,0 +1,18 @@
+fn main() -> one %r0
+  var $0: %r1
+  block0:
+    %0: %r1 = const "yana"
+    store var $0: %r1, %0
+    %1: %r1 = load var $0: %r1
+    %2: %r1 = alias %1
+    %3: %r1 = alias %2
+    %4: %r1 = alias %3
+    %5: %r1 = alias %4
+    %6: %r0 = host host.field "length" host-range %5
+    %7: %r0 = convert %6
+    return %7
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = string

@@ -1,0 +1,74 @@
+fn notANumber() -> one %r0
+  block0:
+    %0: %r0 = const 0
+    %1: %r0 = const 0
+    %2: %r0 = binary.div %0, %1
+    return %2
+
+fn infinite() -> one %r0
+  block0:
+    %0: %r0 = const 1
+    %1: %r0 = const 0
+    %2: %r0 = binary.div %0, %1
+    return %2
+
+fn main() -> one %r1
+  block0:
+    %2: %r1 = const 60
+    %3: %r0 = const 1E30
+    %4: %r1 = convert %3
+    %5: %r1 = const 2.147483647E9
+    %6: %r2 = binary.eq %4, %5
+    branch %6 -> block1 -> block2
+  block1:
+    %7: %r0 = const -1E30
+    %8: %r1 = convert %7
+    %9: %r1 = const -2.147483647E9
+    %10: %r2 = binary.lt %8, %9
+    branch %10 -> block3 -> block2
+  block2:
+    %11: %r1 = const 0
+    jump -> block4(%11)
+  block3:
+    %12: %r1 = const 40
+    jump -> block4(%12)
+  block4(%0: %r1):
+    %13: %r1 = binary.add %2, %0
+    %14: %r1 = coerce %13
+    %15: %r0 = call notANumber
+    %16: %r1 = convert %15
+    %17: %r1 = const 0
+    %18: %r2 = binary.eq %16, %17
+    branch %18 -> block5 -> block6
+  block5:
+    %19: %r0 = call infinite
+    %20: %r1 = convert %19
+    %21: %r1 = const 2.147483647E9
+    %22: %r2 = binary.eq %20, %21
+    branch %22 -> block7 -> block6
+  block6:
+    %23: %r1 = const 0
+    jump -> block8(%23)
+  block7:
+    %24: %r1 = const 50
+    jump -> block8(%24)
+  block8(%1: %r1):
+    %25: %r1 = binary.add %14, %1
+    %26: %r1 = coerce %25
+    %27: %r0 = const 1
+    %28: %r0 = const 0
+    %29: %r0 = binary.div %27, %28
+    %30: %r0 = const 1000000
+    %31: %r2 = binary.gt %29, %30
+    %32: %r1 = const 20
+    %33: %r1 = const 0
+    %34: %r1 = select %31, %32, %33
+    %35: %r1 = binary.add %26, %34
+    %36: %r1 = coerce %35
+    return %36
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number f64
+rep %r1 = number signed 32
+rep %r2 = number bool

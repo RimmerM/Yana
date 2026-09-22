@@ -1,0 +1,63 @@
+fn main() -> one %r0
+  var $0: %r4
+  block0:
+    %1: %r0 = const 0
+    %2: %r1 = const 0
+    %3: %r2 = const 0
+    %4: %r3 = const 0
+    %5: %r4 = object %s0 %1, %2, %3, %4
+    store var $0: %r4, %5
+    %6: %r0 = const 1
+    %7: %r1 = const 0
+    %8: %r1 = const 1
+    %9: %r1 = binary.sub %7, %8
+    %10: %r1 = coerce %9
+    %11: %r1 = const 0
+    %12: %r6 = binary.gt %10, %11
+    %13: %r0 = const 3
+    %14: %r0 = select %12, %13, %6
+    %15: %r0 = const 3
+    %16: %r1 = const 4
+    %17: %r2 = const 5
+    %18: %r3 = const 6
+    %19: %r4 = materialize %r5 %15, %16, %17, %18
+    store var $0: %r4, %19
+    %20: %r0 = const 60
+    %21: %r0 = binary.or %14, %20
+    %22: %r0 = coerce %21
+    %24: %r2 = const 1
+    %25: %r2 = binary.add %17, %24
+    %26: %r2 = coerce %25
+    %27: %r2 = const 6
+    %28: %r6 = binary.eq %26, %27
+    branch %28 -> block3 -> block1
+  block1:
+    jump -> block2(%22)
+  block2(%0: %r0):
+    return %0
+  block3:
+    %29: %r4 = load var $0: %r4
+    %30: %r3 = load property %29.wide: %r3
+    %31: %r3 = const 1
+    %32: %r3 = binary.add %30, %31
+    %33: %r3 = coerce %32
+    %34: %r3 = const 7
+    %35: %r6 = binary.eq %33, %34
+    branch %35 -> block4 -> block1
+  block4:
+    %36: %r0 = const 124
+    %37: %r0 = binary.or %14, %36
+    %38: %r0 = coerce %37
+    jump -> block2(%38)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 1 adopted 0 sunk 0
+
+shape %s0 object Widths {index: %r0, count: %r1, unit: %r2, wide: %r3}
+
+rep %r0 = number signed 32
+rep %r1 = number unsigned 32
+rep %r2 = number unsigned 16
+rep %r3 = number signed 53
+rep %r4 = object %s0
+rep %r5 = parts (%r0, %r1, %r2, %r3) as %r4
+rep %r6 = number bool

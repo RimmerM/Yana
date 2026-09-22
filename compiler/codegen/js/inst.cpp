@@ -501,31 +501,6 @@ void relocateWith(Gen& g, JsPtr<Expr> target, JsPtr<Expr> source, TypePtr type) 
     emitExpr(g, assign(g, target, source));
 }
 
-/*
- * A call to `$div` or `$rem`, naming the helper on its first use - see Gen::divideByZeroHelper.
- *
- * Pure, and that is not a formality: the whole point of the ruling these implement is that an
- * integer division computes a value and does nothing else, so the emitter is free to move one.
- */
-static JsPtr<Expr> divisionHelperCall(Gen& g, Name& helper, StringView helperName,
-                                      JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
-    if(!helper.text) helper = uniqueName(g, helperName, false);
-
-    auto node = make<CallExpr>(g, variable(g, helper));
-    node->args.push(g.file.arena, lhs);
-    node->args.push(g.file.arena, rhs);
-    node->pure = true;
-    return asExpr(g, node);
-}
-
-static JsPtr<Expr> divideCall(Gen& g, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
-    return divisionHelperCall(g, g.divideByZeroHelper, "$div"_v, lhs, rhs);
-}
-
-static JsPtr<Expr> remainderCall(Gen& g, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
-    return divisionHelperCall(g, g.remainderByZeroHelper, "$rem"_v, lhs, rhs);
-}
-
 static JsPtr<Expr> bitOpCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr> lhs, JsPtr<Expr> rhs);
 
 void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
@@ -696,7 +671,7 @@ void genCast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction);
  * eligible for the one-use inlining in opt.cpp and could be carried across the next bitcast's
  * write. An ordinary call is the form this backend already cannot move.
  */
-static void ensureFloatBits(Gen& g, bool wide) {
+static void ensureFloatBits(JsShared& g, bool wide) {
     if(wide) {
         if(g.doubleBitsBuffer.text) return;
 
@@ -729,7 +704,7 @@ static JsPtr<Expr> hostArrayOf(Gen& g, TypePtr type, JsPtr<Expr> elements) {
     return hostArrayForElement(g, pointeeType(g.global, type), elements);
 }
 
-static JsPtr<Expr> construct(Gen& g, StringView type, JsPtr<Expr> argument) {
+static JsPtr<Expr> construct(JsShared& g, StringView type, JsPtr<Expr> argument) {
     auto node = make<CallExpr>(g, variable(g, literalName(g, type)));
     node->args.push(g.file.arena, argument);
     node->construct = true;
@@ -738,7 +713,7 @@ static JsPtr<Expr> construct(Gen& g, StringView type, JsPtr<Expr> argument) {
 
 // `toBits` says which direction - a float in and its bits out, or the reverse - and `wide` says at
 // which width, the 64-bit pair answering in `bigint` where the 32-bit one answers in `number`.
-static Name floatBitsHelper(Gen& g, bool toBits, bool wide) {
+static Name floatBitsHelper(JsShared& g, bool toBits, bool wide) {
     auto& into = wide ? (toBits ? g.doubleToBitsHelper : g.bitsToDoubleHelper)
                       : (toBits ? g.floatToBitsHelper : g.bitsToFloatHelper);
     if(into.text) return into;
@@ -789,15 +764,8 @@ static JsPtr<Expr> roundingLane(Gen& g, Value::Kind kind, JsPtr<Expr> value) {
  * normal form, and applying it is the same statement every other arithmetic instruction here makes.
  */
 static JsPtr<Expr> byteSwapCall(Gen& g, TypePtr type, JsPtr<Expr> value) {
-    auto bits = heldBits(g, *(IntType*)g.global[type]);
-    auto slot = bits == 16 ? 0 : bits == 32 ? 1 : 2;
-
-    if(!g.byteSwapHelpers[slot].text) {
-        auto name = bits == 16 ? "$swap16"_v : bits == 32 ? "$swap32"_v : "$swap64"_v;
-        g.byteSwapHelpers[slot] = uniqueName(g, name, false);
-    }
-
-    auto node = make<CallExpr>(g, variable(g, g.byteSwapHelpers[slot]));
+    auto node = make<CallExpr>(g, variable(g, byteSwapHelperAt(
+        g, U32(heldBits(g, *(IntType*)g.global[type])))));
     node->args.push(g.file.arena, value);
     node->pure = true;
     return asExpr(g, node);
@@ -819,30 +787,13 @@ static JsPtr<Expr> byteSwapCall(Gen& g, TypePtr type, JsPtr<Expr> value) {
  */
 static JsPtr<Expr> bitCountCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr> value) {
     auto wide = heldBits(g, *(IntType*)g.global[type]) == 64;
+    auto helper = bitCountHelperAt(g, bitFamilyOf(kind), wide);
 
-    if(kind == Value::LeadingZeros && !wide) return hostCall(g, "Math"_v, "clz32"_v, value);
+    // The one the host answers directly - `Math.clz32`, whose argument goes through ToUint32, so a
+    // negative `I32` counts the bits of the two's complement pattern the machine counts.
+    if(!helper.text) return hostCall(g, "Math"_v, "clz32"_v, value);
 
-    auto want = [&](Value::Kind of, bool at) {
-        auto slot = bitCountHelperSlot(of, at);
-        if(g.bitCountHelpers[slot].text) return;
-
-        auto name = of == Value::CountBits    ? (at ? "$popcount64"_v : "$popcount32"_v)
-                  : of == Value::LeadingZeros ? "$clz64"_v
-                                              : (at ? "$ctz64"_v : "$ctz32"_v);
-
-        g.bitCountHelpers[slot] = uniqueName(g, name, false);
-    };
-
-    want(kind, wide);
-
-    // The 64-bit population and trailing counts are written over their operand's two halves and
-    // call the 32-bit helper on each, so asking for one asks for the other. The leading count needs
-    // no such partner: its halves go to `Math.clz32`, which is the host's own.
-    if(wide && kind != Value::LeadingZeros) want(kind, false);
-
-    auto slot = bitCountHelperSlot(kind, wide);
-
-    auto node = make<CallExpr>(g, variable(g, g.bitCountHelpers[slot]));
+    auto node = make<CallExpr>(g, variable(g, helper));
     node->args.push(g.file.arena, value);
     node->pure = true;
     return asExpr(g, node);
@@ -863,26 +814,14 @@ static JsPtr<Expr> bitCountCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Ex
 static JsPtr<Expr> rotateCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr> value, JsPtr<Expr> count) {
     auto integer = intType(g, type);
     auto bits = integer ? U32(heldBits(g, *(IntType*)g.global[canonicalType(g.global, type)])) : 0;
-    auto slot = rotateHelperSlot(kind, bits);
+    auto helper = rotateHelperAt(g, bitFamilyOf(kind), bits);
 
-    if(slot == kNoRotateHelper) {
+    if(!helper.text) {
         g.context.diagnostics.error("internal error: a rotation at a width with no instance"_v, LocationId());
         return value;
     }
 
-    if(!g.rotateHelpers[slot].text) {
-        char buffer[16];
-        Size length = 0;
-        buffer[length++] = '$';
-        buffer[length++] = 'r';
-        buffer[length++] = 'o';
-        buffer[length++] = kind == Value::Rol ? 'l' : 'r';
-        length += show(U64(bits), buffer + length, sizeof(buffer) - length);
-
-        g.rotateHelpers[slot] = uniqueName(g, StringView { buffer, length }, false);
-    }
-
-    auto node = make<CallExpr>(g, variable(g, g.rotateHelpers[slot]));
+    auto node = make<CallExpr>(g, variable(g, helper));
     node->args.push(g.file.arena, value);
     node->args.push(g.file.arena, count);
     node->pure = true;
@@ -900,21 +839,8 @@ static JsPtr<Expr> rotateCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr
 static JsPtr<Expr> bitOpCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
     auto integer = intType(g, type);
     auto bits = integer ? U32(heldBits(g, *(IntType*)g.global[canonicalType(g.global, type)])) : 32;
-    auto wide = bits == 64;
-    auto slot = bitOpHelperSlot(kind, wide);
 
-    if(!g.bitOpHelpers[slot].text) {
-        auto stem = kind == Value::BitsUpTo ? "$bzhi"_v : kind == Value::GatherBits ? "$pext"_v : "$pdep"_v;
-
-        char buffer[16];
-        Size length = 0;
-        for(Size i = 0; i < stem.length; i++) buffer[length++] = stem.ptr[i];
-        length += show(U64(wide ? 64 : 32), buffer + length, sizeof(buffer) - length);
-
-        g.bitOpHelpers[slot] = uniqueName(g, StringView { buffer, length }, false);
-    }
-
-    auto node = make<CallExpr>(g, variable(g, g.bitOpHelpers[slot]));
+    auto node = make<CallExpr>(g, variable(g, bitOpHelperAt(g, bitFamilyOf(kind), bits == 64)));
     node->args.push(g.file.arena, lhs);
     node->args.push(g.file.arena, rhs);
     node->pure = true;
@@ -1005,9 +931,11 @@ static JsPtr<Expr> saturatingToNumber(Gen& g, TypePtr to, JsPtr<Expr> value) {
  * rather than producing anything to coerce. So the three cases are written out, once per target
  * type, in a function - which is also what keeps `v` read once.
  */
-static Name saturatingLongHelper(Gen& g, IntType& integer) {
-    auto held = heldBits(g, integer);
-    auto key = (U32(held) << 1) | U32(integer.isSigned);
+} // namespace
+
+Name saturatingLongHelperAt(JsShared& g, U16 held, bool isSigned) {
+    auto integerIsSigned = isSigned;
+    auto key = (U32(held) << 1) | U32(integerIsSigned);
     if(auto found = g.satHelpers.get(key)) return found.unwrap();
 
     char buffer[32];
@@ -1017,12 +945,96 @@ static Name saturatingLongHelper(Gen& g, IntType& integer) {
     buffer[length++] = 'a';
     buffer[length++] = 't';
     length += show(U64(held), buffer + length, sizeof(buffer) - length);
-    buffer[length++] = integer.isSigned ? 'i' : 'u';
+    buffer[length++] = integerIsSigned ? 'i' : 'u';
 
     auto name = uniqueName(g, StringView { buffer, length }, false);
     g.satHelpers.add(key, name);
-    g.satHelperOrder.push(SatHelper { name, held, integer.isSigned });
+    g.satHelperOrder.push(SatHelper { name, held, integerIsSigned });
     return name;
+}
+
+Name floatBitsHelperAt(JsShared& g, bool toBits, bool wide) {
+    return floatBitsHelper(g, toBits, wide);
+}
+
+Name byteSwapHelperAt(JsShared& g, U32 bits) {
+    auto slot = bits == 16 ? 0 : bits == 32 ? 1 : 2;
+    if(g.byteSwapHelpers[slot].text) return g.byteSwapHelpers[slot];
+
+    auto name = bits == 16 ? "$swap16"_v : bits == 32 ? "$swap32"_v : "$swap64"_v;
+    g.byteSwapHelpers[slot] = uniqueName(g, name, false);
+    return g.byteSwapHelpers[slot];
+}
+
+Name bitCountHelperAt(JsShared& g, BitFamily of, bool wide) {
+    // The one case the host answers directly, and the reason this may answer no name at all:
+    // `leadingZeros` at thirty-two bits is `Math.clz32`, whose argument goes through ToUint32.
+    if(of == BitFamily::LeadingZeros && !wide) return Name {};
+
+    auto want = [&](BitFamily at, bool atWide) {
+        auto slot = bitCountHelperSlot(at, atWide);
+        if(g.bitCountHelpers[slot].text) return;
+
+        auto name = at == BitFamily::CountBits    ? (atWide ? "$popcount64"_v : "$popcount32"_v)
+                  : at == BitFamily::LeadingZeros ? "$clz64"_v
+                                                  : (atWide ? "$ctz64"_v : "$ctz32"_v);
+
+        g.bitCountHelpers[slot] = uniqueName(g, name, false);
+    };
+
+    want(of, wide);
+
+    // The 64-bit population and trailing counts are written over their operand's two halves and
+    // call the 32-bit helper on each, so asking for one asks for the other. The leading count needs
+    // no such partner: its halves go to `Math.clz32`, which is the host's own.
+    if(wide && of != BitFamily::LeadingZeros) want(of, false);
+
+    return g.bitCountHelpers[bitCountHelperSlot(of, wide)];
+}
+
+Name rotateHelperAt(JsShared& g, BitFamily of, U32 bits) {
+    auto slot = rotateHelperSlot(of, bits);
+    if(slot == kNoRotateHelper) return Name {};
+    if(g.rotateHelpers[slot].text) return g.rotateHelpers[slot];
+
+    char buffer[16];
+    Size length = 0;
+    buffer[length++] = '$';
+    buffer[length++] = 'r';
+    buffer[length++] = 'o';
+    buffer[length++] = of == BitFamily::Rol ? 'l' : 'r';
+    length += show(U64(bits), buffer + length, sizeof(buffer) - length);
+
+    g.rotateHelpers[slot] = uniqueName(g, StringView { buffer, length }, false);
+    return g.rotateHelpers[slot];
+}
+
+Name bitOpHelperAt(JsShared& g, BitFamily of, bool wide) {
+    auto slot = bitOpHelperSlot(of, wide);
+    if(g.bitOpHelpers[slot].text) return g.bitOpHelpers[slot];
+
+    auto stem = of == BitFamily::BitsUpTo ? "$bzhi"_v
+              : of == BitFamily::GatherBits ? "$pext"_v : "$pdep"_v;
+
+    char buffer[16];
+    Size length = 0;
+    for(Size i = 0; i < stem.length; i++) buffer[length++] = stem.ptr[i];
+    length += show(U64(wide ? 64 : 32), buffer + length, sizeof(buffer) - length);
+
+    g.bitOpHelpers[slot] = uniqueName(g, StringView { buffer, length }, false);
+    return g.bitOpHelpers[slot];
+}
+
+Name funDropHelperAt(JsShared& g) {
+    if(!g.funDropHelper.text) g.funDropHelper = uniqueName(g, "$fd"_v, false);
+    return g.funDropHelper;
+}
+
+namespace {
+
+// The same, for a caller that has a type rather than a width - which is the shipping stage's.
+Name saturatingLongHelper(Gen& g, IntType& integer) {
+    return saturatingLongHelperAt(g, heldBits(g, integer), integer.isSigned);
 }
 
 static JsPtr<Expr> saturatingToLong(Gen& g, TypePtr to, JsPtr<Expr> value) {
@@ -1821,9 +1833,9 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
     };
 
     RefParts parts;
-    parts.owner = part("$o"_v, owner);
-    parts.key = part("$k"_v, keyExpr);
-    if(envKeyExpr) parts.envKey = part("$ke"_v, envKeyExpr);
+    parts.owner = part(jsir::key::owner, owner);
+    parts.key = part(jsir::key::index, keyExpr);
+    if(envKeyExpr) parts.envKey = part(jsir::key::envIndex, envKeyExpr);
 
     /*
      * The scale, on a target that has bit ranges in it at all. Where nothing is packed every narrow
@@ -2360,7 +2372,7 @@ void genBlockCopy(Gen& g, Value& instruction, InstNative& native) {
 
 } // namespace
 
-void emitSaturationHelpers(Gen& g) {
+void emitSaturationHelpers(JsShared& g) {
     if(g.satHelperOrder.size() == 0) return;
 
     emit(g, make<CommentStmt>(g, internText(g,
@@ -2406,7 +2418,7 @@ void emitSaturationHelpers(Gen& g) {
 
 // One scratch pair and the up-to-two helpers over it, at one width. See `bitcastLane` for why the
 // width picks between two pairs rather than one pair serving both.
-static void emitFloatBitsPair(Gen& g, bool wide) {
+static void emitFloatBitsPair(JsShared& g, bool wide) {
     auto buffer = wide ? g.doubleBitsBuffer : g.floatBitsBuffer;
     if(!buffer.text) return;
 
@@ -2448,12 +2460,12 @@ static void emitFloatBitsPair(Gen& g, bool wide) {
     }
 }
 
-void emitFloatBitsHelpers(Gen& g) {
+void emitFloatBitsHelpers(JsShared& g) {
     emitFloatBitsPair(g, false);
     emitFloatBitsPair(g, true);
 }
 
-void emitRoundAwayHelper(Gen& g) {
+void emitRoundAwayHelper(JsShared& g) {
     if(!g.roundAwayHelper.text) return;
 
     emit(g, make<CommentStmt>(g, internText(g,
@@ -2549,9 +2561,9 @@ void emitRoundAwayHelper(Gen& g) {
  * The result is a `bigint` because the operand's type is 64 bits wide and that is what a value of it
  * is on this target. It is at most 64 either way; the conversion is about the type, not the range.
  */
-void emitBitCountHelpers(Gen& g) {
-    auto define = [&](Value::Kind kind, bool wide, void (*body)(Gen&, JsPtr<Expr>)) {
-        auto& name = g.bitCountHelpers[bitCountHelperSlot(kind, wide)];
+void emitBitCountHelpers(JsShared& g) {
+    auto define = [&](Value::Kind kind, bool wide, void (*body)(JsShared&, JsPtr<Expr>)) {
+        auto& name = g.bitCountHelpers[bitCountHelperSlot(bitFamilyOf(kind), wide)];
         if(!name.text) return;
 
         auto function = make<FunStmt>(g, name);
@@ -2563,13 +2575,13 @@ void emitBitCountHelpers(Gen& g) {
     };
 
     // The one thing the three wide bodies share: a half of the operand, as a `number`.
-    static auto half = [](Gen& g, JsPtr<Expr> value, bool high) {
+    static auto half = [](JsShared& g, JsPtr<Expr> value, bool high) {
         auto shifted = high ? binary(g, BinaryOp::Sar, value, bigInt(g, 32, false)) : value;
         return globalCall(g, "Number"_v,
                           binary(g, BinaryOp::And, shifted, bigInt(g, 0xffffffff, false)));
     };
 
-    define(Value::CountBits, false, [](Gen& g, JsPtr<Expr> v) {
+    define(Value::CountBits, false, [](JsShared& g, JsPtr<Expr> v) {
         auto step = [&](JsPtr<Expr> of, U32 shift, U32 mask, bool before) {
             auto down = binary(g, BinaryOp::Shr, of, number(g, F64(shift)));
             return before ? binary(g, BinaryOp::And, down, number(g, F64(mask)))
@@ -2589,16 +2601,16 @@ void emitBitCountHelpers(Gen& g) {
                                            number(g, 24))));
     });
 
-    define(Value::TrailingZeros, false, [](Gen& g, JsPtr<Expr> v) {
+    define(Value::TrailingZeros, false, [](JsShared& g, JsPtr<Expr> v) {
         auto lowest = binary(g, BinaryOp::And, v, unary(g, UnaryOp::Neg, v));
         auto index = binary(g, BinaryOp::Sub, number(g, 31), hostCall(g, "Math"_v, "clz32"_v, lowest));
 
         emit(g, make<ReturnStmt>(g, ternary(g, v, index, number(g, 32))));
     });
 
-    define(Value::CountBits, true, [](Gen& g, JsPtr<Expr> v) {
+    define(Value::CountBits, true, [](JsShared& g, JsPtr<Expr> v) {
         auto count = [&](bool high) {
-            auto node = make<CallExpr>(g, variable(g, g.bitCountHelpers[bitCountHelperSlot(Value::CountBits, false)]));
+            auto node = make<CallExpr>(g, variable(g, g.bitCountHelpers[bitCountHelperSlot(BitFamily::CountBits, false)]));
             node->args.push(g.file.arena, half(g, v, high));
             node->pure = true;
             return asExpr(g, node);
@@ -2608,7 +2620,7 @@ void emitBitCountHelpers(Gen& g) {
                                                binary(g, BinaryOp::Add, count(false), count(true)))));
     });
 
-    define(Value::LeadingZeros, true, [](Gen& g, JsPtr<Expr> v) {
+    define(Value::LeadingZeros, true, [](JsShared& g, JsPtr<Expr> v) {
         auto high = declare(g, literalName(g, "h"_v), half(g, v, true));
         auto below = binary(g, BinaryOp::Add, number(g, 32),
                             hostCall(g, "Math"_v, "clz32"_v, half(g, v, false)));
@@ -2617,9 +2629,9 @@ void emitBitCountHelpers(Gen& g) {
             ternary(g, high, hostCall(g, "Math"_v, "clz32"_v, high), below))));
     });
 
-    define(Value::TrailingZeros, true, [](Gen& g, JsPtr<Expr> v) {
+    define(Value::TrailingZeros, true, [](JsShared& g, JsPtr<Expr> v) {
         auto scan = [&](JsPtr<Expr> of) {
-            auto node = make<CallExpr>(g, variable(g, g.bitCountHelpers[bitCountHelperSlot(Value::TrailingZeros, false)]));
+            auto node = make<CallExpr>(g, variable(g, g.bitCountHelpers[bitCountHelperSlot(BitFamily::TrailingZeros, false)]));
             node->args.push(g.file.arena, of);
             node->pure = true;
             return asExpr(g, node);
@@ -2712,9 +2724,9 @@ void emitBitCountHelpers(Gen& g) {
  * `var` inside the body rather than `let`, for the reason build.h gives beside `declare`: these are
  * function-scoped and re-entering the block re-assigns rather than re-declares.
  */
-void emitBitOpHelpers(Gen& g) {
-    auto define = [&](Value::Kind kind, bool wide, void (*body)(Gen&, bool, JsPtr<Expr>, JsPtr<Expr>)) {
-        auto& name = g.bitOpHelpers[bitOpHelperSlot(kind, wide)];
+void emitBitOpHelpers(JsShared& g) {
+    auto define = [&](Value::Kind kind, bool wide, void (*body)(JsShared&, bool, JsPtr<Expr>, JsPtr<Expr>)) {
+        auto& name = g.bitOpHelpers[bitOpHelperSlot(bitFamilyOf(kind), wide)];
         if(!name.text) return;
 
         auto function = make<FunStmt>(g, name);
@@ -2734,11 +2746,11 @@ void emitBitOpHelpers(Gen& g) {
 
     // A constant in whichever domain the width works in - a `number` below 33 bits and a `bigint`
     // above, which is the same split every arithmetic emitter here makes.
-    static auto constant = [](Gen& g, bool wide, U64 n) {
+    static auto constant = [](JsShared& g, bool wide, U64 n) {
         return wide ? bigInt(g, n, false) : number(g, F64(n));
     };
 
-    static auto bitsUpTo = [](Gen& g, bool wide, JsPtr<Expr> value, JsPtr<Expr> count) {
+    static auto bitsUpTo = [](JsShared& g, bool wide, JsPtr<Expr> value, JsPtr<Expr> count) {
         auto width = U64(wide ? 64 : 32);
 
         // The count as an unsigned number, which is what the operation's ruling reads it as.
@@ -2755,7 +2767,7 @@ void emitBitOpHelpers(Gen& g) {
                                             binary(g, BinaryOp::And, value, mask), value)));
     };
 
-    static auto permute = [](Gen& g, bool wide, bool gather, JsPtr<Expr> value, JsPtr<Expr> maskArg) {
+    static auto permute = [](JsShared& g, bool wide, bool gather, JsPtr<Expr> value, JsPtr<Expr> maskArg) {
         auto zero = constant(g, wide, 0);
         auto one = constant(g, wide, 1);
 
@@ -2796,17 +2808,17 @@ void emitBitOpHelpers(Gen& g) {
         emit(g, make<ReturnStmt>(g, out));
     };
 
-    define(Value::BitsUpTo, false, [](Gen& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> n) { bitsUpTo(g, wide, v, n); });
-    define(Value::BitsUpTo, true, [](Gen& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> n) { bitsUpTo(g, wide, v, n); });
-    define(Value::GatherBits, false, [](Gen& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> m) { permute(g, wide, true, v, m); });
-    define(Value::GatherBits, true, [](Gen& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> m) { permute(g, wide, true, v, m); });
-    define(Value::ScatterBits, false, [](Gen& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> m) { permute(g, wide, false, v, m); });
-    define(Value::ScatterBits, true, [](Gen& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> m) { permute(g, wide, false, v, m); });
+    define(Value::BitsUpTo, false, [](JsShared& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> n) { bitsUpTo(g, wide, v, n); });
+    define(Value::BitsUpTo, true, [](JsShared& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> n) { bitsUpTo(g, wide, v, n); });
+    define(Value::GatherBits, false, [](JsShared& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> m) { permute(g, wide, true, v, m); });
+    define(Value::GatherBits, true, [](JsShared& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> m) { permute(g, wide, true, v, m); });
+    define(Value::ScatterBits, false, [](JsShared& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> m) { permute(g, wide, false, v, m); });
+    define(Value::ScatterBits, true, [](JsShared& g, bool wide, JsPtr<Expr> v, JsPtr<Expr> m) { permute(g, wide, false, v, m); });
 }
 
-void emitRotateHelpers(Gen& g) {
+void emitRotateHelpers(JsShared& g) {
     auto define = [&](Value::Kind kind, U32 bits) {
-        auto slot = rotateHelperSlot(kind, bits);
+        auto slot = rotateHelperSlot(bitFamilyOf(kind), bits);
         auto& name = g.rotateHelpers[slot];
         if(!name.text) return;
 
@@ -2886,7 +2898,7 @@ void emitRotateHelpers(Gen& g) {
     for(auto bits: widths) define(Value::Ror, bits);
 }
 
-void emitByteSwapHelpers(Gen& g) {
+void emitByteSwapHelpers(JsShared& g) {
     auto define = [&](Size slot, U32 bits) {
         auto& name = g.byteSwapHelpers[slot];
         if(!name.text) return;
@@ -2941,7 +2953,7 @@ void emitByteSwapHelpers(Gen& g) {
  * needs - `Math.trunc` in the 33-to-53-bit band, a bitwise coercion below it, and nothing at all for
  * a `bigint`, whose division truncates itself - so doing it here would be doing it twice.
  */
-void emitDivisionHelpers(Gen& g) {
+void emitDivisionHelpers(JsShared& g) {
     auto define = [&](Name& name, BinaryOp op, bool zeroIsDividend) {
         if(!name.text) return;
 
@@ -2978,7 +2990,64 @@ void emitDivisionHelpers(Gen& g) {
  * typed array's own bulk copy and is what the engine has a memcpy behind; writing the loop here
  * would be the same operation spelled so that it cannot be recognised.
  */
-void emitGrowHelper(Gen& g) {
+/*
+ * A function value's release - `JsShared::funDropHelper`, and `lower/fun.cpp`'s `funTeardown` read
+ * on a target whose collector owns the block.
+ *
+ * `function $fd(p) { var e = p.$e; if (e !== null) { var h = p.$c.$h; if (h) h(e); } }`
+ *
+ * Two questions in the native order and for the native reasons. The environment word first: null is
+ * a lambda that captured nothing, a plain function named as a value, and the empty pair a boxed
+ * iterator member holds, and only a lambda *with* an environment has a header - so the null test is
+ * what keeps the read off a plain function's thunk. The header second: it is the lambda's own
+ * answer to "do my captures owe anything", hung on the code word once beside the declaration rather
+ * than stored per closure.
+ *
+ * What is not here is the native half's third act. `funTeardown` ends in `freeHeap`, which is what
+ * hands a heap-placed environment's block back; here the collector does that, so the header is
+ * attached only where the captures owe an **authored** teardown and a lambda whose environment owes
+ * nothing has no header at all. That is §3.9 read at the one place a function value could have been
+ * an exception to it.
+ */
+void emitFunDropHelper(JsShared& g) {
+    if(!g.funDropHelper.text) return;
+
+    emit(g, make<CommentStmt>(g, internText(g,
+        "a function value's release - the environment word, then the lambda's own header"_v)));
+
+    auto function = make<FunStmt>(g, g.funDropHelper);
+    auto pair = literalName(g, "p"_v);
+    auto environment = literalName(g, "e"_v);
+    auto header = literalName(g, "h"_v);
+
+    function->args.push(g.file.arena, pair);
+
+    function->body = collect(g, [&] {
+        emit(g, make<DeclStmt>(g, environment, field(g, variable(g, pair), g.envField), true));
+
+        auto then = collect(g, [&] {
+            emit(g, make<DeclStmt>(g, header,
+                                   field(g, field(g, variable(g, pair), g.codeField),
+                                         g.headerField), true));
+
+            auto run = collect(g, [&] {
+                emitExpr(g, call(g, variable(g, header), variable(g, environment)));
+            });
+
+            emit(g, make<IfStmt>(g, variable(g, header), run, StmtList {}));
+        });
+
+        // `!=` rather than `!==`, for `BinaryOp::LooseNe`'s own reason: a lambda that captured
+        // nothing carries `null` and a pair whose word nothing attached reads back `undefined`, and
+        // one test is meant to cover both.
+        emit(g, make<IfStmt>(g, binary(g, BinaryOp::LooseNe, variable(g, environment),
+                                       nullValue(g)), then, StmtList {}));
+    });
+
+    emit(g, function);
+}
+
+void emitGrowHelper(JsShared& g) {
     if(!g.growHelper.text) return;
 
     emit(g, make<CommentStmt>(g, internText(g,
@@ -3070,7 +3139,7 @@ JsPtr<Expr> hostArrayForElement(Gen& g, TypePtr element, JsPtr<Expr> elements) {
  * user of this file will care about: it is the same speed - 9.8 ms against 9.7 - and it is one
  * function instead of four copies of the same three operations.
  */
-void emitWordHelpers(Gen& g) {
+void emitWordHelpers(JsShared& g) {
     auto wanted = false;
     for(U32 i = 0; i < 3; i++) {
         wanted = wanted || g.readWordHelper[i].text || g.writeWordHelper[i].text;
@@ -4230,8 +4299,8 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
              * would make the assignments implicit globals under a strict-mode script.
              */
             if(allocation.local < g.flatFuns.size() && g.flatFuns[allocation.local] && !boxed) {
-                auto code = partName(g, instruction, "$c"_v);
-                auto env = partName(g, instruction, "$e"_v);
+                auto code = partName(g, instruction, jsir::key::code);
+                auto env = partName(g, instruction, jsir::key::env);
 
                 emit(g, make<DeclStmt>(g, code, nullValue(g), false));
                 emit(g, make<DeclStmt>(g, env, nullValue(g), false));
@@ -4255,7 +4324,7 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
              * says there is no reference.
              */
             if(allocation.local < g.flatRefLocals.size() && g.flatRefLocals[allocation.local] && !boxed) {
-                auto owner = partName(g, instruction, "$o"_v);
+                auto owner = partName(g, instruction, jsir::key::owner);
                 emit(g, make<DeclStmt>(g, owner, nullValue(g), false));
 
                 RefParts parts;
@@ -4270,7 +4339,7 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
                  * object: `prepareRefLocals`' second rule declines every use that would ask for one.
                  */
                 if(!g.flatRefTagOnly[allocation.local]) {
-                    auto key = partName(g, instruction, "$k"_v);
+                    auto key = partName(g, instruction, jsir::key::index);
                     emit(g, make<DeclStmt>(g, key, JsPtr<Expr>(nullptr), false));
                     parts.key = variable(g, key);
 

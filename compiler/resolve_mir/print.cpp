@@ -568,6 +568,21 @@ struct Printer {
                     writeUInt(writer, ((NodeNative&)value).immediate);
                 }
                 break;
+            case Node::Host: {
+                // The row, then the member - and the member is quoted, because it is a *name of the
+                // host* and not an identifier of this program. A dump that printed it bare would
+                // read as if `length` were something in scope.
+                auto& host = (NodeHost&)value;
+                writer.writeString(" "_v);
+                writer.writeString(hostOpName(host.op));
+
+                if(host.member.value) {
+                    writer.writeString(" \""_v);
+                    writer.writeString(stringView(context.findName(host.member)));
+                    writer.writeString("\""_v);
+                }
+                break;
+            }
             case Node::VecLane:
             case Node::VecWithLane:
                 // The lane, which is a field rather than an operand - see inst.def, where the reason

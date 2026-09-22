@@ -1,0 +1,132 @@
+fn nestedBreaks(one %r0, one %r0) -> one %r0
+  block0(%0: %r0, %1: %r0):
+    %6: %r0 = const 0
+    %7: %r0 = const 0
+    %8: %r0 = const 0
+    %9: %r0 = const 0
+    %10: %r0 = const 4
+    %11: %r0 = const 5
+    %12: %r0 = const 4
+    %13: %r0 = const 1
+    %14: %r0 = const 2
+    jump -> block1(%6, %7)
+  block1(%2: %r0, %3: %r0):
+    %15: %r1 = binary.lt %3, %0
+    branch %15 -> block3 -> block2
+  block2:
+    return %2
+  block3:
+    jump -> block4(%8, %9)
+  block4(%4: %r0, %5: %r0):
+    %16: %r1 = binary.lt %4, %10
+    branch %16 -> block6 -> block5
+  block5:
+    %27: %r1 = binary.lt %4, %14
+    branch %27 -> block2 -> block9
+  block6:
+    %17: %r1 = binary.lt %4, %1
+    branch %17 -> block7 -> block5
+  block7:
+    %18: %r0 = binary.add %3, %4
+    %19: %r0 = coerce %18
+    %20: %r0 = binary.rem %19, %11
+    %21: %r0 = coerce %20
+    %22: %r1 = binary.eq %21, %12
+    branch %22 -> block5 -> block8
+  block8:
+    %23: %r0 = binary.add %5, %19
+    %24: %r0 = coerce %23
+    %25: %r0 = binary.add %4, %13
+    %26: %r0 = coerce %25
+    jump -> block4(%26, %24)
+  block9:
+    %28: %r0 = binary.add %2, %5
+    %29: %r0 = coerce %28
+    %30: %r0 = binary.add %3, %4
+    %31: %r0 = coerce %30
+    jump -> block1(%29, %31)
+
+fn main() -> one %r0
+  block0:
+    %3: %r0 = const 9
+    %4: %r0 = const 3
+    %5: %r0 = call nestedBreaks %3, %4
+    %6: %r0 = const 4
+    %7: %r0 = const 2
+    %8: %r0 = call nestedBreaks %6, %7
+    %9: %r0 = const 10
+    %10: %r0 = binary.mul %8, %9
+    %11: %r0 = coerce %10
+    %12: %r0 = binary.add %5, %11
+    %13: %r0 = coerce %12
+    %14: %r0 = const 10
+    %15: %r0 = const 7
+    %16: %r0 = const 3
+    %17: %r0 = const 0
+    %18: %r0 = const 1
+    jump -> block1(%17)
+  block1(%0: %r0):
+    %19: %r1 = binary.lt %0, %14
+    %20: %r1 = binary.lt %0, %15
+    %21: %r1 = binary.and %19, %20
+    branch %21 -> block2 -> block4
+  block2:
+    %22: %r1 = binary.eq %0, %16
+    branch %22 -> block4 -> block3
+  block3:
+    %23: %r0 = binary.add %0, %18
+    %24: %r0 = coerce %23
+    jump -> block1(%24)
+  block4:
+    %25: %r0 = const 100
+    %26: %r0 = binary.mul %0, %25
+    %27: %r0 = coerce %26
+    %28: %r0 = binary.add %13, %27
+    %29: %r0 = coerce %28
+    %30: %r0 = const 10
+    %31: %r0 = const 4
+    %32: %r0 = const 0
+    %33: %r0 = const 1
+    jump -> block5(%32)
+  block5(%1: %r0):
+    %34: %r1 = binary.lt %1, %30
+    branch %34 -> block6 -> block8
+  block6:
+    %35: %r1 = binary.eq %1, %31
+    branch %35 -> block8 -> block7
+  block7:
+    %36: %r0 = binary.add %1, %33
+    %37: %r0 = coerce %36
+    jump -> block5(%37)
+  block8:
+    %38: %r0 = const 1000
+    %39: %r0 = binary.mul %1, %38
+    %40: %r0 = coerce %39
+    %41: %r0 = binary.add %29, %40
+    %42: %r0 = coerce %41
+    %43: %r0 = const 5
+    %44: %r0 = const 8
+    %45: %r0 = const 0
+    %46: %r0 = const 1
+    jump -> block9(%45)
+  block9(%2: %r0):
+    %47: %r1 = binary.lt %2, %43
+    %48: %r1 = binary.lt %2, %44
+    %49: %r1 = binary.and %47, %48
+    branch %49 -> block11 -> block10
+  block10:
+    %50: %r0 = const 10000
+    %51: %r0 = binary.mul %2, %50
+    %52: %r0 = coerce %51
+    %53: %r0 = binary.add %42, %52
+    %54: %r0 = coerce %53
+    return %54
+  block11:
+    %55: %r0 = binary.add %2, %46
+    %56: %r0 = coerce %55
+    jump -> block9(%56)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = number bool

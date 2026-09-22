@@ -1,0 +1,397 @@
+fn comparisons(parts %r2, parts %r2) -> one %r0
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0, %4: %r0, %5: %r0, %6: %r0, %7: %r0):
+    %8: %r3 = binary.lt %0, %4
+    %9: %r3 = binary.lt %1, %5
+    %10: %r3 = binary.lt %2, %6
+    %11: %r3 = binary.lt %3, %7
+    %12: %r6 = binary.and %8, %9
+    %13: %r6 = binary.and %10, %11
+    %14: %r6 = binary.and %12, %13
+    %15: %r6 = unary.not %14
+    branch %15 -> block2 -> block1
+  block1:
+    %16: %r3 = binary.le %0, %4
+    %17: %r3 = binary.le %1, %5
+    %18: %r3 = binary.le %2, %6
+    %19: %r3 = binary.le %3, %7
+    %20: %r6 = binary.and %16, %17
+    %21: %r6 = binary.and %18, %19
+    %22: %r6 = binary.and %20, %21
+    %23: %r6 = unary.not %22
+    branch %23 -> block4 -> block3
+  block2:
+    %72: %r0 = const -1
+    return %72
+  block3:
+    %24: %r3 = binary.gt %4, %0
+    %25: %r3 = binary.gt %5, %1
+    %26: %r3 = binary.gt %6, %2
+    %27: %r3 = binary.gt %7, %3
+    %28: %r6 = binary.and %24, %25
+    %29: %r6 = binary.and %26, %27
+    %30: %r6 = binary.and %28, %29
+    %31: %r6 = unary.not %30
+    branch %31 -> block6 -> block5
+  block4:
+    %71: %r0 = const -2
+    return %71
+  block5:
+    %32: %r3 = binary.ge %4, %0
+    %33: %r3 = binary.ge %5, %1
+    %34: %r3 = binary.ge %6, %2
+    %35: %r3 = binary.ge %7, %3
+    %36: %r6 = binary.and %32, %33
+    %37: %r6 = binary.and %34, %35
+    %38: %r6 = binary.and %36, %37
+    %39: %r6 = unary.not %38
+    branch %39 -> block8 -> block7
+  block6:
+    %70: %r0 = const -3
+    return %70
+  block7:
+    %40: %r3 = binary.ne %0, %4
+    %41: %r3 = binary.ne %1, %5
+    %42: %r3 = binary.ne %2, %6
+    %43: %r3 = binary.ne %3, %7
+    %44: %r6 = binary.and %40, %41
+    %45: %r6 = binary.and %42, %43
+    %46: %r6 = binary.and %44, %45
+    %47: %r6 = unary.not %46
+    branch %47 -> block10 -> block9
+  block8:
+    %69: %r0 = const -4
+    return %69
+  block9:
+    %48: %r3 = binary.eq %0, %4
+    %49: %r3 = binary.eq %1, %5
+    %50: %r3 = binary.eq %2, %6
+    %51: %r3 = binary.eq %3, %7
+    %52: %r6 = binary.or %48, %49
+    %53: %r6 = binary.or %50, %51
+    %54: %r6 = binary.or %52, %53
+    branch %54 -> block12 -> block11
+  block10:
+    %68: %r0 = const -5
+    return %68
+  block11:
+    %55: %r3 = binary.gt %0, %4
+    %56: %r3 = binary.gt %1, %5
+    %57: %r3 = binary.gt %2, %6
+    %58: %r3 = binary.gt %3, %7
+    %59: %r6 = binary.or %55, %56
+    %60: %r6 = binary.or %57, %58
+    %61: %r6 = binary.or %59, %60
+    %62: %r6 = unary.not %61
+    %63: %r6 = unary.not %62
+    %64: %r0 = const -7
+    %65: %r0 = const 0
+    %66: %r0 = select %63, %64, %65
+    return %66
+  block12:
+    %67: %r0 = const -6
+    return %67
+
+fn combining(parts %r2, parts %r2) -> one %r0
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0, %4: %r0, %5: %r0, %6: %r0, %7: %r0):
+    %8: %r3 = binary.lt %0, %4
+    %9: %r3 = binary.lt %1, %5
+    %10: %r3 = binary.lt %2, %6
+    %11: %r3 = binary.lt %3, %7
+    %12: %r3 = binary.eq %0, %4
+    %13: %r3 = binary.eq %1, %5
+    %14: %r3 = binary.eq %2, %6
+    %15: %r3 = binary.eq %3, %7
+    %16: %r3 = binary.or %8, %12
+    %17: %r3 = binary.or %9, %13
+    %18: %r3 = binary.or %10, %14
+    %19: %r3 = binary.or %11, %15
+    %20: %r6 = binary.and %16, %17
+    %21: %r6 = binary.and %18, %19
+    %22: %r6 = binary.and %20, %21
+    %23: %r6 = unary.not %22
+    branch %23 -> block2 -> block1
+  block1:
+    %24: %r3 = binary.and %8, %12
+    %25: %r3 = binary.and %9, %13
+    %26: %r3 = binary.and %10, %14
+    %27: %r3 = binary.and %11, %15
+    %28: %r6 = binary.or %24, %25
+    %29: %r6 = binary.or %26, %27
+    %30: %r6 = binary.or %28, %29
+    branch %30 -> block4 -> block3
+  block2:
+    %52: %r0 = const -1
+    return %52
+  block3:
+    %31: %r3 = binary.xor %8, %12
+    %32: %r3 = binary.xor %9, %13
+    %33: %r3 = binary.xor %10, %14
+    %34: %r3 = binary.xor %11, %15
+    %35: %r6 = binary.and %31, %32
+    %36: %r6 = binary.and %33, %34
+    %37: %r6 = binary.and %35, %36
+    %38: %r6 = unary.not %37
+    branch %38 -> block6 -> block5
+  block4:
+    %51: %r0 = const -2
+    return %51
+  block5:
+    %39: %r3 = unary.not %12
+    %40: %r3 = unary.not %13
+    %41: %r3 = unary.not %14
+    %42: %r3 = unary.not %15
+    %43: %r6 = binary.and %39, %40
+    %44: %r6 = binary.and %41, %42
+    %45: %r6 = binary.and %43, %44
+    %46: %r6 = unary.not %45
+    %47: %r0 = const -4
+    %48: %r0 = const 0
+    %49: %r0 = select %46, %47, %48
+    return %49
+  block6:
+    %50: %r0 = const -3
+    return %50
+
+fn counting() -> one %r0
+  block0:
+    %0: %r0 = const 0
+    %1: %r0 = const 1
+    %2: %r0 = const 2
+    %3: %r0 = const 3
+    %4: %r0 = const 1
+    %5: %r3 = binary.ge %0, %4
+    %6: %r3 = binary.ge %1, %4
+    %7: %r3 = binary.ge %2, %4
+    %8: %r3 = binary.ge %3, %4
+    %9: %r0 = convert %5
+    %10: %r0 = convert %6
+    %11: %r0 = binary.add %9, %10
+    %12: %r0 = coerce %11
+    %13: %r0 = convert %7
+    %14: %r0 = convert %8
+    %15: %r0 = binary.add %13, %14
+    %16: %r0 = coerce %15
+    %17: %r0 = binary.add %12, %16
+    %18: %r0 = coerce %17
+    %19: %r0 = const 3
+    %20: %r6 = binary.ne %18, %19
+    branch %20 -> block2 -> block1
+  block1:
+    %21: %r0 = const 4
+    %22: %r0 = const 3
+    %23: %r0 = select %8, %22, %21
+    %24: %r0 = const 2
+    %25: %r0 = select %7, %24, %23
+    %26: %r0 = const 1
+    %27: %r0 = select %6, %26, %25
+    %28: %r0 = const 0
+    %29: %r0 = select %5, %28, %27
+    %30: %r0 = const 1
+    %31: %r6 = binary.ne %29, %30
+    branch %31 -> block4 -> block3
+  block2:
+    %94: %r0 = const -1
+    return %94
+  block3:
+    %32: %r0 = const 0
+    %33: %r3 = binary.lt %0, %32
+    %34: %r3 = binary.lt %1, %32
+    %35: %r3 = binary.lt %2, %32
+    %36: %r3 = binary.lt %3, %32
+    %37: %r0 = const 4
+    %38: %r0 = const 3
+    %39: %r0 = select %36, %38, %37
+    %40: %r0 = const 2
+    %41: %r0 = select %35, %40, %39
+    %42: %r0 = const 1
+    %43: %r0 = select %34, %42, %41
+    %44: %r0 = const 0
+    %45: %r0 = select %33, %44, %43
+    %46: %r0 = const 4
+    %47: %r6 = binary.ne %45, %46
+    branch %47 -> block6 -> block5
+  block4:
+    %93: %r0 = const -2
+    return %93
+  block5:
+    %48: %r0 = convert %33
+    %49: %r0 = convert %34
+    %50: %r0 = binary.add %48, %49
+    %51: %r0 = coerce %50
+    %52: %r0 = convert %35
+    %53: %r0 = convert %36
+    %54: %r0 = binary.add %52, %53
+    %55: %r0 = coerce %54
+    %56: %r0 = binary.add %51, %55
+    %57: %r0 = coerce %56
+    %58: %r0 = const 0
+    %59: %r6 = binary.ne %57, %58
+    branch %59 -> block8 -> block7
+  block6:
+    %92: %r0 = const -3
+    return %92
+  block7:
+    %60: %r3 = binary.ge %0, %32
+    %61: %r3 = binary.ge %1, %32
+    %62: %r3 = binary.ge %2, %32
+    %63: %r3 = binary.ge %3, %32
+    %64: %r0 = const 4
+    %65: %r0 = const 3
+    %66: %r0 = select %63, %65, %64
+    %67: %r0 = const 2
+    %68: %r0 = select %62, %67, %66
+    %69: %r0 = const 1
+    %70: %r0 = select %61, %69, %68
+    %71: %r0 = const 0
+    %72: %r0 = select %60, %71, %70
+    %73: %r0 = const 0
+    %74: %r6 = binary.ne %72, %73
+    branch %74 -> block10 -> block9
+  block8:
+    %91: %r0 = const -4
+    return %91
+  block9:
+    %75: %r0 = convert %60
+    %76: %r0 = convert %61
+    %77: %r0 = binary.add %75, %76
+    %78: %r0 = coerce %77
+    %79: %r0 = convert %62
+    %80: %r0 = convert %63
+    %81: %r0 = binary.add %79, %80
+    %82: %r0 = coerce %81
+    %83: %r0 = binary.add %78, %82
+    %84: %r0 = coerce %83
+    %85: %r0 = const 4
+    %86: %r6 = binary.ne %84, %85
+    %87: %r0 = const -6
+    %88: %r0 = const 0
+    %89: %r0 = select %86, %87, %88
+    return %89
+  block10:
+    %90: %r0 = const -5
+    return %90
+
+fn floats() -> one %r0
+  block0:
+    %0: %r7 = const 1.5
+    %1: %r7 = const 2.5
+    %2: %r3 = binary.lt %0, %1
+    %3: %r3 = binary.lt %0, %1
+    %4: %r3 = binary.lt %0, %1
+    %5: %r3 = binary.lt %0, %1
+    %6: %r6 = binary.and %2, %3
+    %7: %r6 = binary.and %4, %5
+    %8: %r6 = binary.and %6, %7
+    %9: %r6 = unary.not %8
+    branch %9 -> block2 -> block1
+  block1:
+    %10: %r3 = binary.lt %0, %1
+    %14: %r7 = select %10, %0, %1
+    %18: %r7 = const 1.5
+    %19: %r6 = binary.ne %14, %18
+    %20: %r0 = const -2
+    %21: %r0 = const 0
+    %22: %r0 = select %19, %20, %21
+    return %22
+  block2:
+    %23: %r0 = const -1
+    return %23
+
+fn main() -> one %r0
+  block0:
+    %1: %r0 = load global seed: %r0
+    %2: %r0 = load global seed: %r0
+    %3: %r0 = const 1
+    %4: %r0 = binary.add %2, %3
+    %5: %r0 = coerce %4
+    %6: %r0 = call comparisons %1, %1, %1, %1, %5, %5, %5, %5
+    %7: %r0 = const 0
+    %8: %r6 = binary.ne %6, %7
+    branch %8 -> block2 -> block1
+  block1:
+    %9: %r3 = binary.lt %1, %5
+    %10: %r3 = binary.lt %1, %5
+    %13: %r0 = select %9, %1, %5
+    %18: %r0 = select %10, %5, %1
+    %21: %r0 = const 3
+    %22: %r6 = binary.ne %13, %21
+    branch %22 -> block4 -> block11
+  block2:
+    %70: %r0 = call comparisons %1, %1, %1, %1, %5, %5, %5, %5
+    return %70
+  block3:
+    %25: %r0 = call combining %1, %1, %1, %1, %5, %5, %5, %5
+    %26: %r0 = const 0
+    %27: %r6 = binary.ne %25, %26
+    branch %27 -> block6 -> block5
+  block4:
+    %47: %r3 = binary.lt %1, %5
+    %48: %r3 = binary.lt %1, %5
+    %51: %r0 = select %47, %1, %5
+    %56: %r0 = select %48, %5, %1
+    %59: %r0 = const 3
+    %60: %r6 = binary.ne %51, %59
+    branch %60 -> block14 -> block13
+  block5:
+    %28: %r0 = call counting
+    %29: %r0 = const 0
+    %30: %r6 = binary.ne %28, %29
+    branch %30 -> block8 -> block7
+  block6:
+    %43: %r0 = call combining %1, %1, %1, %1, %5, %5, %5, %5
+    %44: %r0 = const 100
+    %45: %r0 = binary.mul %43, %44
+    %46: %r0 = coerce %45
+    return %46
+  block7:
+    %31: %r0 = call floats
+    %32: %r0 = const 0
+    %33: %r6 = binary.ne %31, %32
+    branch %33 -> block10 -> block9
+  block8:
+    %39: %r0 = call counting
+    %40: %r0 = const 1000
+    %41: %r0 = binary.mul %39, %40
+    %42: %r0 = coerce %41
+    return %42
+  block9:
+    %34: %r0 = const 4839
+    return %34
+  block10:
+    %35: %r0 = call floats
+    %36: %r0 = const 10000
+    %37: %r0 = binary.mul %35, %36
+    %38: %r0 = coerce %37
+    return %38
+  block11:
+    %23: %r0 = const 4
+    %24: %r6 = binary.ne %18, %23
+    branch %24 -> block4 -> block3
+  block12(%0: %r0):
+    %67: %r0 = const 10
+    %68: %r0 = binary.mul %0, %67
+    %69: %r0 = coerce %68
+    return %69
+  block13:
+    %61: %r0 = const 4
+    %62: %r6 = binary.ne %56, %61
+    %63: %r0 = const -2
+    %64: %r0 = const 0
+    %65: %r0 = select %62, %63, %64
+    jump -> block12(%65)
+  block14:
+    %66: %r0 = const -1
+    jump -> block12(%66)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 22 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = parts (%r0, %r0, %r0, %r0) as %r1
+rep %r3 = boolean
+rep %r4 = array Array of %r3
+rep %r5 = parts (%r3, %r3, %r3, %r3) as %r4
+rep %r6 = number bool
+rep %r7 = number f32
+rep %r8 = array Float32Array of %r7
+rep %r9 = parts (%r7, %r7, %r7, %r7) as %r8

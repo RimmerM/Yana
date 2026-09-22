@@ -1,0 +1,149 @@
+fn sum(one %r1) -> one %r0
+  block0(%0: %r1):
+    %1: %r0 = load property %0.x: %r0
+    %2: %r0 = const 10
+    %3: %r0 = binary.mul %1, %2
+    %4: %r0 = coerce %3
+    %5: %r0 = load property %0.y: %r0
+    %6: %r0 = binary.add %4, %5
+    %7: %r0 = coerce %6
+    return %7
+
+fn main() -> one %r0
+  var $0: %r1
+  var $1: %r2
+  var $2: %r1
+  var $3: %r1
+  block0:
+    %4: %r0 = const 0
+    %5: %r0 = const 0
+    %6: %r1 = object %s0 %4, %5
+    store var $0: %r1, %6
+    %7: %r0 = const 0
+    %8: %r0 = const 0
+    %9: %r1 = object %s0 %7, %8
+    %10: %r0 = const 0
+    %11: %r0 = const 0
+    %12: %r1 = object %s0 %10, %11
+    %13: %r2 = object %s1 %9, %12
+    store var $1: %r2, %13
+    %14: %r0 = const 0
+    %15: %r0 = const 0
+    %16: %r1 = object %s0 %14, %15
+    store var $2: %r1, %16
+    %17: %r0 = const 0
+    %18: %r0 = const 1
+    %19: %r0 = const 2
+    %20: %r1 = object %s0 %18, %19
+    store var $0: %r1, %20
+    %21: %r1 = load var $0: %r1
+    %22: %r1 = clone %21
+    %23: %r1 = load var $0: %r1
+    %24: %r1 = clone %23
+    %25: %r2 = object %s1 %22, %24
+    store var $1: %r2, %25
+    %26: %r0 = const 8
+    %27: %r1 = load var $0: %r1
+    store property %27.x: %r0, %26
+    %28: %r0 = const 9
+    %29: %r1 = load var $0: %r1
+    store property %29.y: %r0, %28
+    %30: %r2 = load var $1: %r2
+    %31: %r1 = load property %30.first: %r1
+    %32: %r1 = clone %31
+    %33: %r0 = call sum %32
+    %34: %r0 = const 12
+    %35: %r3 = binary.eq %33, %34
+    %36: %r0 = const 1
+    %37: %r0 = select %35, %36, %17
+    %38: %r2 = load var $1: %r2
+    %39: %r1 = load property %38.second: %r1
+    %40: %r1 = clone %39
+    %41: %r0 = call sum %40
+    %42: %r0 = const 12
+    %43: %r3 = binary.eq %41, %42
+    %44: %r0 = const 2
+    %45: %r0 = binary.add %37, %44
+    %46: %r0 = coerce %45
+    %47: %r0 = select %43, %46, %37
+    %48: %r1 = load var $0: %r1
+    %49: %r1 = clone %48
+    %50: %r0 = call sum %49
+    %51: %r0 = const 89
+    %52: %r3 = binary.eq %50, %51
+    %53: %r0 = const 4
+    %54: %r0 = binary.add %47, %53
+    %55: %r0 = coerce %54
+    %56: %r0 = select %52, %55, %47
+    %57: %r0 = const 0
+    %58: %r0 = const 0
+    %59: %r1 = object %s0 %57, %58
+    store var $2: %r1, %59
+    %60: %r0 = const 0
+    %61: %r0 = const 0
+    %62: %r0 = const 1
+    %63: %r0 = const 4
+    %64: %r0 = const 2
+    %65: %r0 = const 0
+    %66: %r0 = const 0
+    %67: %r0 = const 1
+    %68: %r0 = const 1
+    jump -> block1(%60, %61, %62)
+  block1(%0: %r0, %1: %r0, %2: %r0):
+    %69: %r3 = binary.lt %2, %63
+    branch %69 -> block3 -> block2
+  block2:
+    %70: %r0 = const 72
+    %71: %r3 = binary.eq %0, %70
+    %72: %r0 = const 8
+    %73: %r0 = binary.add %56, %72
+    %74: %r0 = coerce %73
+    %75: %r0 = select %71, %74, %56
+    %76: %r0 = const 12
+    %77: %r3 = binary.eq %1, %76
+    %78: %r0 = const 16
+    %79: %r0 = binary.add %75, %78
+    %80: %r0 = coerce %79
+    %81: %r0 = select %77, %80, %75
+    return %81
+  block3:
+    %82: %r1 = load var $2: %r1
+    store property %82.x: %r0, %2
+    %83: %r0 = binary.mul %2, %64
+    %84: %r0 = coerce %83
+    %85: %r1 = load var $2: %r1
+    store property %85.y: %r0, %84
+    %86: %r1 = load var $2: %r1
+    %87: %r1 = clone %86
+    %88: %r1 = alias %87
+    store var $3: %r1, %88
+    store property %82.x: %r0, %65
+    store property %85.y: %r0, %66
+    %89: %r3 = binary.eq %2, %67
+    branch %89 -> block6 -> block4
+  block4:
+    jump -> block5(%1)
+  block5(%3: %r0):
+    %93: %r1 = load var $3: %r1
+    %94: %r1 = alias %93
+    %95: %r0 = call sum %94
+    %96: %r0 = binary.add %0, %95
+    %97: %r0 = coerce %96
+    %98: %r0 = binary.add %2, %68
+    %99: %r0 = coerce %98
+    jump -> block1(%97, %3, %99)
+  block6:
+    %90: %r1 = load var $3: %r1
+    %91: %r1 = alias %90
+    %92: %r0 = call sum %91
+    jump -> block5(%92)
+
+optimizer clones 9 aliased 3 forwarded 0 removed 0 adopted 0 sunk 0
+
+shape %s0 object Point {x: %r0, y: %r0}
+shape %s1 object Pair {first: %r1, second: %r1}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = object %s1
+rep %r3 = number bool

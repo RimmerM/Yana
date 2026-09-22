@@ -1,0 +1,60 @@
+fn countdown(one %r0) -> one %r0
+  block0(%0: %r0):
+    %1: %r0 = const 0
+    %2: %r2 = binary.le %0, %1
+    branch %2 -> block2 -> block1
+  block1:
+    %3: %r0 = const 1
+    %4: %r0 = binary.sub %0, %3
+    %5: %r0 = coerce %4
+    %6: %r0 = call countdown %5
+    return %6
+  block2:
+    %7: %r0 = load global dynamic: %r0
+    return %7
+
+fn main$() -> one %r0
+  block0:
+    %0: %r0 = const 7
+    store global dynamic: %r0, %0
+    %1: %r0 = load global counter: %r0
+    %2: %r0 = const 20
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    store global counter: %r0, %4
+    %5: %r0 = const 0
+    %6: %r0 = const 3
+    %7: %r0 = call countdown %6
+    %8: %r0 = const 7
+    %9: %r2 = binary.eq %7, %8
+    %10: %r0 = const 1
+    %11: %r0 = select %9, %10, %5
+    %12: %r0 = load global counter: %r0
+    %13: %r0 = const 20
+    %14: %r2 = binary.eq %12, %13
+    %15: %r0 = const 2
+    %16: %r0 = binary.add %11, %15
+    %17: %r0 = coerce %16
+    %18: %r0 = select %14, %17, %11
+    %19: %r0 = const 4
+    %20: %r0 = binary.add %18, %19
+    %21: %r0 = coerce %20
+    %22: %r1 = load global greeting: %r1
+    %23: %r1 = alias %22
+    %24: %r1 = alias %23
+    %25: %r1 = alias %24
+    %26: %r0 = host host.field "length" host-range %25
+    %27: %r0 = convert %26
+    %28: %r0 = const 2
+    %29: %r2 = binary.eq %27, %28
+    %30: %r0 = const 12
+    %31: %r0 = binary.add %18, %30
+    %32: %r0 = coerce %31
+    %33: %r0 = select %29, %32, %21
+    return %33
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = string
+rep %r2 = number bool

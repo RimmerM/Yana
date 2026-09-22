@@ -1,0 +1,46 @@
+fn copyable(one %r0, one %r1) -> one %r1
+  block0(%0: %r2, %1: %r0, %2: %r1):
+    return %2
+
+fn movable(one %r0, one %r1) -> one %r1
+  block0(%0: %r2, %1: %r0, %2: %r1):
+    return %2
+
+fn main() -> one %r1
+  block0:
+    %0: %r1 = const 7
+    %1: %r1 = const 1
+    %2: %r2 = gen.table
+    %3: %r1 = call copyable %2, %0, %1
+    %4: %r1 = const 9
+    %5: %r1 = const 2
+    %6: %r2 = gen.table
+    %7: %r1 = call movable %6, %4, %5
+    %8: %r1 = binary.add %3, %7
+    %9: %r1 = coerce %8
+    %10: %r1 = const 1
+    %11: %r1 = const 2
+    %12: %r3 = object %s0 %10, %11
+    %13: %r1 = const 4
+    %14: %r2 = gen.table
+    %15: %r1 = call copyable %14, %12, %13
+    %16: %r1 = const 3
+    %17: %r1 = const 4
+    %18: %r3 = object %s0 %16, %17
+    %19: %r1 = const 8
+    %20: %r2 = gen.table
+    %21: %r1 = call movable %20, %18, %19
+    %22: %r1 = binary.add %15, %21
+    %23: %r1 = coerce %22
+    %24: %r1 = binary.add %9, %23
+    %25: %r1 = coerce %24
+    return %25
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+shape %s0 object Point {x: %r1, y: %r1}
+
+rep %r0 = erased
+rep %r1 = number signed 32
+rep %r2 = array Array of %r0
+rep %r3 = object %s0

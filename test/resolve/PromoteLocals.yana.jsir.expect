@@ -1,0 +1,110 @@
+fn bump(parts %r3) -> omitted
+  block0(%0: %r1, %1: %r1):
+    %2: %r0 = load element %0[%1]: %r0
+    %3: %r0 = const 100
+    %4: %r0 = binary.add %2, %3
+    %5: %r0 = coerce %4
+    store element %0[%1]: %r0, %5
+    return
+
+fn Held.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    store var $0: %r0, %0
+    %1: %r0 = load global live: %r0
+    %2: %r0 = const 1
+    %3: %r0 = binary.sub %1, %2
+    %4: %r0 = coerce %3
+    store global live: %r0, %4
+    %5: %r0 = load global trace: %r0
+    %6: %r0 = const 10
+    %7: %r0 = binary.mul %5, %6
+    %8: %r0 = coerce %7
+    %10: %r0 = load var $0: %r0
+    %11: %r0 = binary.add %8, %10
+    %12: %r0 = coerce %11
+    store global trace: %r0, %12
+    return
+
+fn main() -> one %r0
+  var $0: %r0
+  block0:
+    %2: %r0 = const 3
+    %3: %r0 = const 0
+    %4: %r0 = const 0
+    %5: %r0 = const 10
+    %6: %r0 = const 1
+    jump -> block1(%3, %4)
+  block1(%0: %r0, %1: %r0):
+    %7: %r5 = binary.lt %1, %2
+    branch %7 -> block3 -> block2
+  block2:
+    %8: %r0 = const 12
+    %9: %r5 = binary.eq %0, %8
+    %10: %r0 = const 4
+    %11: %r0 = const 0
+    %12: %r0 = select %9, %10, %11
+    %13: %r0 = const 7
+    %14: %r0 = const 0
+    %15: %r6 = object %s1 %14
+    store property %15.$v: %r0, %13
+    %16: %r1 = const "$v"
+    call bump %15, %16
+    %17: %r0 = load property %15.$v: %r0
+    %18: %r0 = const 107
+    %19: %r5 = binary.eq %17, %18
+    %20: %r0 = const 8
+    %21: %r0 = const 0
+    %22: %r0 = select %19, %20, %21
+    %23: %r0 = const 4
+    %24: %r0 = load global live: %r0
+    %25: %r0 = const 1
+    %26: %r0 = binary.add %24, %25
+    %27: %r0 = coerce %26
+    store global live: %r0, %27
+    %28: %r0 = alias %23
+    store var $0: %r0, %28
+    %29: %r0 = load var $0: %r0
+    call Held.drop %29
+    %37: %r0 = const 3
+    %38: %r0 = binary.add %37, %12
+    %39: %r0 = coerce %38
+    %40: %r0 = binary.add %39, %22
+    %41: %r0 = coerce %40
+    %42: %r0 = const 1008
+    %43: %r0 = binary.add %41, %42
+    %44: %r0 = coerce %43
+    %45: %r0 = load global live: %r0
+    %46: %r0 = const 10000
+    %47: %r0 = binary.mul %45, %46
+    %48: %r0 = coerce %47
+    %49: %r0 = binary.add %44, %48
+    %50: %r0 = coerce %49
+    %51: %r0 = load global trace: %r0
+    %52: %r0 = binary.add %50, %51
+    %53: %r0 = coerce %52
+    return %53
+  block3:
+    %54: %r0 = binary.mul %0, %5
+    %55: %r0 = coerce %54
+    %56: %r0 = binary.add %55, %1
+    %57: %r0 = coerce %56
+    %58: %r0 = binary.add %1, %6
+    %59: %r0 = coerce %58
+    jump -> block1(%57, %59)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0
+
+shape %s0 ref {$o: %r1 owner, $k: %r1 key}
+shape %s1 cell {$v: %r0 box}
+shape %s2 object Pair {a: %r0, b: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = erased
+rep %r2 = cell of %r0
+rep %r3 = parts (%r1, %r1) as %r2
+rep %r4 = void
+rep %r5 = number bool
+rep %r6 = object %s1
+rep %r7 = object %s2
+rep %r8 = number unsigned 4

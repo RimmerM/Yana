@@ -1,0 +1,1290 @@
+fn nearFloat(parts %r2, one %r3) -> one %r4
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0, %4: %r3):
+    %5: %r3 = const 0
+    %6: %r4 = binary.lt %4, %5
+    %7: %r3 = const 0
+    %8: %r3 = binary.sub %7, %4
+    %9: %r3 = select %6, %8, %4
+    %10: %r3 = const 1
+    %11: %r4 = binary.gt %9, %10
+    %12: %r3 = const 1
+    %13: %r3 = select %11, %9, %12
+    %14: %r3 = const 0.00001
+    %15: %r3 = binary.mul %14, %13
+    %16: %r0 = convert %4
+    %17: %r0 = binary.sub %0, %16
+    %18: %r0 = coerce %17
+    %19: %r0 = binary.sub %1, %16
+    %20: %r0 = coerce %19
+    %21: %r0 = binary.sub %2, %16
+    %22: %r0 = coerce %21
+    %23: %r0 = binary.sub %3, %16
+    %24: %r0 = coerce %23
+    %25: %r0 = const 0
+    %26: %r8 = binary.lt %18, %25
+    %27: %r8 = binary.lt %20, %25
+    %28: %r8 = binary.lt %22, %25
+    %29: %r8 = binary.lt %24, %25
+    %30: %r0 = const 0
+    %31: %r0 = binary.sub %30, %18
+    %32: %r0 = coerce %31
+    %33: %r0 = binary.sub %30, %20
+    %34: %r0 = coerce %33
+    %35: %r0 = binary.sub %30, %22
+    %36: %r0 = coerce %35
+    %37: %r0 = binary.sub %30, %24
+    %38: %r0 = coerce %37
+    %39: %r0 = select %26, %32, %18
+    %40: %r0 = select %27, %34, %20
+    %41: %r0 = select %28, %36, %22
+    %42: %r0 = select %29, %38, %24
+    %43: %r0 = convert %15
+    %44: %r8 = binary.le %39, %43
+    %45: %r8 = binary.le %40, %43
+    %46: %r8 = binary.le %41, %43
+    %47: %r8 = binary.le %42, %43
+    %48: %r4 = binary.and %44, %45
+    %49: %r4 = binary.and %46, %47
+    %50: %r4 = binary.and %48, %49
+    return %50
+
+fn nearDouble(parts %r6, one %r3) -> one %r4
+  block0(%0: %r3, %1: %r3, %2: %r3):
+    %3: %r3 = const 0
+    %4: %r4 = binary.lt %2, %3
+    %5: %r3 = const 0
+    %6: %r3 = binary.sub %5, %2
+    %7: %r3 = select %4, %6, %2
+    %8: %r3 = const 1
+    %9: %r4 = binary.gt %7, %8
+    %10: %r3 = const 1
+    %11: %r3 = select %9, %7, %10
+    %12: %r3 = const 1E-12
+    %13: %r3 = binary.mul %12, %11
+    %14: %r3 = binary.sub %0, %2
+    %15: %r3 = binary.sub %1, %2
+    %16: %r3 = const 0
+    %17: %r8 = binary.lt %14, %16
+    %18: %r8 = binary.lt %15, %16
+    %19: %r3 = const 0
+    %20: %r3 = binary.sub %19, %14
+    %21: %r3 = binary.sub %19, %15
+    %22: %r3 = select %17, %20, %14
+    %23: %r3 = select %18, %21, %15
+    %24: %r8 = binary.le %22, %13
+    %25: %r8 = binary.le %23, %13
+    %26: %r4 = binary.and %24, %25
+    return %26
+
+fn main() -> one %r7
+  var $0: %r13
+  block0:
+    %46: %r7 = const 0
+    %47: %r7 = const 0
+    %48: %r7 = const 8
+    %49: %r7 = const 0
+    %50: %r7 = const 1
+    %51: %r7 = const 2
+    %52: %r7 = const 3
+    %53: %r7 = const 4
+    %54: %r7 = const 5
+    %55: %r7 = const 6
+    %56: %r3 = const 1024
+    %57: %r3 = const 0.003
+    %58: %r3 = const 0.125
+    %59: %r3 = const 0.75
+    %60: %r3 = const 8
+    %61: %r3 = const 2.5
+    %62: %r3 = const 1.5
+    %63: %r3 = const 1
+    %64: %r3 = const 0
+    %65: %r3 = const 2
+    %66: %r3 = const 0.5
+    %67: %r3 = const 1
+    %68: %r3 = const 1
+    %69: %r3 = const 2
+    %70: %r3 = const 1
+    %71: %r7 = const 1
+    %72: %r3 = const 2
+    %73: %r3 = const 0.5
+    %74: %r3 = const 1
+    %75: %r3 = const 2
+    %76: %r7 = const 1
+    %77: %r3 = const 0
+    %78: %r3 = const 2
+    %79: %r3 = const 0.5
+    %80: %r3 = const 1
+    %81: %r3 = const 1
+    %82: %r3 = const 2
+    %83: %r3 = const 1
+    %84: %r7 = const 1
+    %85: %r3 = const 2
+    %86: %r3 = const 0.5
+    %87: %r3 = const 1
+    %88: %r3 = const 2
+    %89: %r7 = const 1
+    %90: %r7 = const 1
+    %91: %r7 = const 23
+    %92: %r7 = const 255
+    %93: %r0 = const 127
+    %94: %r7 = const 8388607
+    %95: %r7 = const 1.065353216E9
+    %96: %r16 = const 4503599627370495n
+    %97: %r16 = const 4607182418800017408n
+    jump -> block1(%46, %47)
+  block1(%0: %r7, %1: %r7):
+    %98: %r4 = binary.lt %1, %48
+    branch %98 -> block3 -> block2
+  block2:
+    %99: %r7 = const 0
+    %100: %r7 = const -8
+    %101: %r7 = const 8
+    %102: %r3 = const 2.5
+    %103: %r0 = const 2.5
+    %104: %r3 = const 2.5
+    %105: %r7 = const 0
+    %106: %r3 = const 2
+    %107: %r7 = const 1
+    %108: %r3 = const 0.5
+    %109: %r7 = const 1
+    %110: %r7 = const 1
+    %111: %r3 = const 2.5
+    %112: %r7 = const 0
+    %113: %r3 = const 2
+    %114: %r7 = const 1
+    %115: %r3 = const 0.5
+    %116: %r7 = const 1
+    %117: %r7 = const 1
+    %118: %r7 = const 1
+    jump -> block43(%99, %100)
+  block3:
+    %621: %r4 = binary.eq %1, %49
+    branch %621 -> block11 -> block4
+  block4:
+    %622: %r4 = binary.eq %1, %50
+    branch %622 -> block10 -> block5
+  block5:
+    %623: %r4 = binary.eq %1, %51
+    branch %623 -> block9 -> block6
+  block6:
+    %624: %r4 = binary.eq %1, %52
+    branch %624 -> block8 -> block7
+  block7:
+    %625: %r4 = binary.eq %1, %53
+    %626: %r4 = binary.eq %1, %54
+    %627: %r4 = binary.eq %1, %55
+    %628: %r3 = select %627, %56, %57
+    %629: %r3 = select %626, %58, %628
+    %630: %r3 = select %625, %59, %629
+    jump -> block12(%630)
+  block8:
+    jump -> block12(%60)
+  block9:
+    jump -> block12(%61)
+  block10:
+    jump -> block12(%62)
+  block11:
+    jump -> block12(%63)
+  block12(%2: %r3):
+    %631: %r0 = convert %2
+    %632: %r7 = helper.float.bits %631
+    %633: %r7 = coerce %632
+    %634: %r7 = helper.float.bits %631
+    %635: %r7 = coerce %634
+    %636: %r7 = helper.float.bits %631
+    %637: %r7 = coerce %636
+    %638: %r7 = helper.float.bits %631
+    %639: %r7 = coerce %638
+    %640: %r7 = binary.shr %633, %91
+    %641: %r7 = coerce %640
+    %642: %r7 = binary.shr %635, %91
+    %643: %r7 = coerce %642
+    %644: %r7 = binary.shr %637, %91
+    %645: %r7 = coerce %644
+    %646: %r7 = binary.shr %639, %91
+    %647: %r7 = coerce %646
+    %648: %r7 = binary.and %641, %92
+    %649: %r7 = coerce %648
+    %650: %r7 = binary.and %643, %92
+    %651: %r7 = coerce %650
+    %652: %r7 = binary.and %645, %92
+    %653: %r7 = coerce %652
+    %654: %r7 = binary.and %647, %92
+    %655: %r7 = coerce %654
+    %656: %r0 = convert %649
+    %657: %r0 = convert %651
+    %658: %r0 = convert %653
+    %659: %r0 = convert %655
+    %660: %r0 = binary.sub %656, %93
+    %661: %r0 = coerce %660
+    %662: %r0 = binary.sub %657, %93
+    %663: %r0 = coerce %662
+    %664: %r0 = binary.sub %658, %93
+    %665: %r0 = coerce %664
+    %666: %r0 = binary.sub %659, %93
+    %667: %r0 = coerce %666
+    jump -> block13(%2, %64)
+  block13(%3: %r3, %4: %r3):
+    %668: %r4 = binary.ge %3, %65
+    branch %668 -> block42 -> block14
+  block14:
+    jump -> block15(%3, %4)
+  block15(%5: %r3, %6: %r3):
+    %669: %r4 = binary.lt %5, %68
+    branch %669 -> block41 -> block16
+  block16:
+    %670: %r4 = call nearFloat %661, %663, %665, %667, %6
+    %671: %r4 = unary.not %670
+    branch %671 -> block18 -> block17
+  block17:
+    jump -> block19(%0)
+  block18:
+    %672: %r7 = binary.add %0, %71
+    %673: %r7 = coerce %672
+    jump -> block19(%673)
+  block19(%7: %r7):
+    %674: %r7 = binary.and %633, %94
+    %675: %r7 = coerce %674
+    %676: %r7 = binary.and %635, %94
+    %677: %r7 = coerce %676
+    %678: %r7 = binary.and %637, %94
+    %679: %r7 = coerce %678
+    %680: %r7 = binary.and %639, %94
+    %681: %r7 = coerce %680
+    %682: %r7 = binary.or %675, %95
+    %683: %r7 = coerce %682
+    %684: %r7 = binary.or %677, %95
+    %685: %r7 = coerce %684
+    %686: %r7 = binary.or %679, %95
+    %687: %r7 = coerce %686
+    %688: %r7 = binary.or %681, %95
+    %689: %r7 = coerce %688
+    %690: %r0 = helper.bits.float %683
+    %691: %r0 = coerce %690
+    %692: %r0 = helper.bits.float %685
+    %693: %r0 = coerce %692
+    %694: %r0 = helper.bits.float %687
+    %695: %r0 = coerce %694
+    %696: %r0 = helper.bits.float %689
+    %697: %r0 = coerce %696
+    jump -> block20(%2)
+  block20(%8: %r3):
+    %698: %r4 = binary.ge %8, %72
+    branch %698 -> block40 -> block21
+  block21:
+    jump -> block22(%8)
+  block22(%9: %r3):
+    %699: %r4 = binary.lt %9, %74
+    branch %699 -> block39 -> block23
+  block23:
+    %700: %r4 = call nearFloat %691, %693, %695, %697, %9
+    %701: %r4 = unary.not %700
+    %702: %r7 = binary.add %7, %76
+    %703: %r7 = coerce %702
+    %704: %r7 = select %701, %703, %7
+    %705: %r5 = call exponentOfVecDouble %2, %2
+    jump -> block24(%2, %77)
+  block24(%10: %r3, %11: %r3):
+    %706: %r4 = binary.ge %10, %78
+    branch %706 -> block38 -> block25
+  block25:
+    jump -> block26(%10, %11)
+  block26(%12: %r3, %13: %r3):
+    %707: %r4 = binary.lt %12, %81
+    branch %707 -> block37 -> block27
+  block27:
+    %708: %r3 = split %705 #0 of %r6
+    %709: %r3 = split %705 #1 of %r6
+    %710: %r4 = call nearDouble %708, %709, %13
+    %711: %r4 = unary.not %710
+    %712: %r7 = binary.add %704, %84
+    %713: %r7 = coerce %712
+    %714: %r7 = select %711, %713, %704
+    %715: %r16 = helper.float.bits %2
+    %716: %r16 = coerce %715
+    %717: %r16 = helper.float.bits %2
+    %718: %r16 = coerce %717
+    %719: %r16 = binary.and %716, %96
+    %720: %r16 = coerce %719
+    %721: %r16 = binary.and %718, %96
+    %722: %r16 = coerce %721
+    %723: %r16 = binary.or %720, %97
+    %724: %r16 = coerce %723
+    %725: %r16 = binary.or %722, %97
+    %726: %r16 = coerce %725
+    %727: %r3 = helper.bits.float %724
+    %728: %r3 = helper.bits.float %726
+    jump -> block28(%2)
+  block28(%14: %r3):
+    %729: %r4 = binary.ge %14, %85
+    branch %729 -> block36 -> block29
+  block29:
+    jump -> block30(%14)
+  block30(%15: %r3):
+    %730: %r4 = binary.lt %15, %87
+    branch %730 -> block35 -> block31
+  block31:
+    %731: %r4 = call nearDouble %727, %728, %15
+    %732: %r4 = unary.not %731
+    branch %732 -> block33 -> block32
+  block32:
+    jump -> block34(%714)
+  block33:
+    %733: %r7 = binary.add %714, %89
+    %734: %r7 = coerce %733
+    jump -> block34(%734)
+  block34(%16: %r7):
+    %735: %r7 = binary.add %1, %90
+    %736: %r7 = coerce %735
+    jump -> block1(%16, %736)
+  block35:
+    %737: %r3 = binary.mul %15, %88
+    jump -> block30(%737)
+  block36:
+    %738: %r3 = binary.mul %14, %86
+    jump -> block28(%738)
+  block37:
+    %739: %r3 = binary.mul %12, %82
+    %740: %r3 = binary.sub %13, %83
+    jump -> block26(%739, %740)
+  block38:
+    %741: %r3 = binary.mul %10, %79
+    %742: %r3 = binary.add %11, %80
+    jump -> block24(%741, %742)
+  block39:
+    %743: %r3 = binary.mul %9, %75
+    jump -> block22(%743)
+  block40:
+    %744: %r3 = binary.mul %8, %73
+    jump -> block20(%744)
+  block41:
+    %745: %r3 = binary.mul %5, %69
+    %746: %r3 = binary.sub %6, %70
+    jump -> block15(%745, %746)
+  block42:
+    %747: %r3 = binary.mul %3, %66
+    %748: %r3 = binary.add %4, %67
+    jump -> block13(%747, %748)
+  block43(%17: %r7, %18: %r7):
+    %119: %r4 = binary.le %18, %101
+    branch %119 -> block48 -> block44
+  block44:
+    %120: %r3 = const 1
+    %121: %r3 = const 4000
+    %122: %r5 = call scaleByExponentVecDouble %120, %120, %121, %121
+    %123: %r3 = const 1
+    %124: %r3 = const -4000
+    %125: %r5 = call scaleByExponentVecDouble %123, %123, %124, %124
+    %126: %r3 = const 0
+    %127: %r3 = split %122 #0 of %r6
+    %128: %r3 = split %122 #1 of %r6
+    %129: %r8 = binary.le %127, %126
+    %130: %r8 = binary.le %128, %126
+    %131: %r3 = const 0
+    %132: %r3 = binary.sub %131, %127
+    %133: %r3 = binary.sub %131, %128
+    %134: %r3 = select %129, %132, %127
+    %135: %r3 = select %130, %133, %128
+    %136: %r16 = const 9218868437227405312n
+    %137: %r3 = helper.bits.float %136
+    %138: %r3 = helper.bits.float %136
+    %139: %r8 = binary.eq %134, %137
+    %140: %r8 = binary.eq %135, %138
+    %141: %r4 = binary.and %139, %140
+    %142: %r4 = unary.not %141
+    branch %142 -> block46 -> block45
+  block45:
+    jump -> block47(%17)
+  block46:
+    %143: %r7 = const 1
+    %144: %r7 = binary.add %17, %143
+    %145: %r7 = coerce %144
+    jump -> block47(%145)
+  block47(%19: %r7):
+    %146: %r3 = const 0
+    %147: %r3 = split %125 #0 of %r6
+    %148: %r3 = split %125 #1 of %r6
+    %149: %r8 = binary.eq %147, %146
+    %150: %r8 = binary.eq %148, %146
+    %151: %r4 = binary.and %149, %150
+    %152: %r4 = unary.not %151
+    %153: %r7 = const 1
+    %154: %r7 = binary.add %19, %153
+    %155: %r7 = coerce %154
+    %156: %r7 = select %152, %155, %19
+    %157: %r7 = binary.add %0, %156
+    %158: %r7 = coerce %157
+    %159: %r7 = const 0
+    %160: %r7 = const 0
+    %161: %r7 = const 8
+    %162: %r7 = const 0
+    %163: %r7 = const 1
+    %164: %r7 = const 2
+    %165: %r7 = const 3
+    %166: %r7 = const 4
+    %167: %r7 = const 5
+    %168: %r7 = const 6
+    %169: %r3 = const 1024
+    %170: %r3 = const 0.003
+    %171: %r3 = const 0.125
+    %172: %r3 = const 0.75
+    %173: %r3 = const 8
+    %174: %r3 = const 2.5
+    %175: %r3 = const 1.5
+    %176: %r3 = const 1
+    %177: %r3 = const 3
+    %178: %r7 = const 1
+    %179: %r7 = const 1
+    %180: %r7 = const 1
+    jump -> block67(%159, %160)
+  block48:
+    %585: %r3 = convert %18
+    %586: %r5 = call scaleByExponentVecDouble %102, %102, %585, %585
+    jump -> block49(%104, %105)
+  block49(%20: %r3, %21: %r7):
+    %587: %r4 = binary.lt %21, %18
+    branch %587 -> block66 -> block50
+  block50:
+    jump -> block51(%20, %21)
+  block51(%22: %r3, %23: %r7):
+    %588: %r4 = binary.gt %23, %18
+    branch %588 -> block65 -> block52
+  block52:
+    %589: %r3 = split %586 #0 of %r6
+    %590: %r3 = split %586 #1 of %r6
+    %591: %r4 = call nearDouble %589, %590, %22
+    %592: %r4 = unary.not %591
+    branch %592 -> block54 -> block53
+  block53:
+    jump -> block55(%17)
+  block54:
+    %593: %r7 = binary.add %17, %110
+    %594: %r7 = coerce %593
+    jump -> block55(%594)
+  block55(%24: %r7):
+    %595: %r0 = convert %585
+    %596: %r1 = call scaleByExponentVecFloat %103, %103, %103, %103, %595, %595, %595, %595
+    jump -> block56(%111, %112)
+  block56(%25: %r3, %26: %r7):
+    %597: %r4 = binary.lt %26, %18
+    branch %597 -> block64 -> block57
+  block57:
+    jump -> block58(%25, %26)
+  block58(%27: %r3, %28: %r7):
+    %598: %r4 = binary.gt %28, %18
+    branch %598 -> block63 -> block59
+  block59:
+    %599: %r0 = split %596 #0 of %r2
+    %600: %r0 = split %596 #1 of %r2
+    %601: %r0 = split %596 #2 of %r2
+    %602: %r0 = split %596 #3 of %r2
+    %603: %r4 = call nearFloat %599, %600, %601, %602, %27
+    %604: %r4 = unary.not %603
+    branch %604 -> block61 -> block60
+  block60:
+    jump -> block62(%24)
+  block61:
+    %605: %r7 = binary.add %24, %117
+    %606: %r7 = coerce %605
+    jump -> block62(%606)
+  block62(%29: %r7):
+    %607: %r7 = binary.add %18, %118
+    %608: %r7 = coerce %607
+    jump -> block43(%29, %608)
+  block63:
+    %609: %r3 = binary.mul %27, %115
+    %610: %r7 = binary.sub %28, %116
+    %611: %r7 = coerce %610
+    jump -> block58(%609, %611)
+  block64:
+    %612: %r3 = binary.mul %25, %113
+    %613: %r7 = binary.add %26, %114
+    %614: %r7 = coerce %613
+    jump -> block56(%612, %614)
+  block65:
+    %615: %r3 = binary.mul %22, %108
+    %616: %r7 = binary.sub %23, %109
+    %617: %r7 = coerce %616
+    jump -> block51(%615, %617)
+  block66:
+    %618: %r3 = binary.mul %20, %106
+    %619: %r7 = binary.add %21, %107
+    %620: %r7 = coerce %619
+    jump -> block49(%618, %620)
+  block67(%30: %r7, %31: %r7):
+    %181: %r4 = binary.lt %31, %161
+    branch %181 -> block69 -> block68
+  block68:
+    %182: %r7 = binary.add %158, %30
+    %183: %r7 = coerce %182
+    %184: %r7 = const 0
+    %185: %r3 = const 0
+    %186: %r3 = const 0
+    %187: %r3 = binary.div %185, %186
+    %188: %r7 = const 0
+    %189: %r7 = const 8
+    %190: %r7 = const 0
+    %191: %r7 = const 1
+    %192: %r7 = const 2
+    %193: %r7 = const 3
+    %194: %r7 = const 4
+    %195: %r7 = const 5
+    %196: %r7 = const 6
+    %197: %r3 = const 1024
+    %198: %r3 = const 0.003
+    %199: %r3 = const 0.125
+    %200: %r3 = const 0.75
+    %201: %r3 = const 8
+    %202: %r3 = const 2.5
+    %203: %r3 = const 1.5
+    %204: %r3 = const 1
+    %205: %r7 = const 3
+    %206: %r7 = const 8
+    %207: %r7 = const 0
+    %208: %r7 = const 1
+    %209: %r7 = const 2
+    %210: %r7 = const 3
+    %211: %r7 = const 4
+    %212: %r7 = const 5
+    %213: %r7 = const 6
+    %214: %r3 = const 1024
+    %215: %r3 = const 0.003
+    %216: %r3 = const 0.125
+    %217: %r3 = const 0.75
+    %218: %r3 = const 8
+    %219: %r3 = const 2.5
+    %220: %r3 = const 1.5
+    %221: %r3 = const 1
+    %222: %r3 = const 0
+    %223: %r7 = const 1
+    %224: %r7 = const 1
+    %225: %r7 = const 1
+    %226: %r7 = const 1
+    %227: %r7 = const 1
+    %228: %r7 = const 1
+    %229: %r7 = const 1
+    %230: %r7 = const 1
+    %231: %r7 = const 1
+    %232: %r7 = const 1
+    %233: %r7 = const 1
+    %234: %r8 = binary.ne %187, %187
+    %235: %r8 = binary.ne %187, %187
+    %236: %r4 = binary.and %234, %235
+    %237: %r4 = unary.not %236
+    %238: %r4 = binary.and %234, %235
+    %239: %r4 = unary.not %238
+    jump -> block85(%184, %188)
+  block69:
+    %541: %r4 = binary.eq %31, %162
+    branch %541 -> block77 -> block70
+  block70:
+    %542: %r4 = binary.eq %31, %163
+    branch %542 -> block76 -> block71
+  block71:
+    %543: %r4 = binary.eq %31, %164
+    branch %543 -> block75 -> block72
+  block72:
+    %544: %r4 = binary.eq %31, %165
+    branch %544 -> block74 -> block73
+  block73:
+    %545: %r4 = binary.eq %31, %166
+    %546: %r4 = binary.eq %31, %167
+    %547: %r4 = binary.eq %31, %168
+    %548: %r3 = select %547, %169, %170
+    %549: %r3 = select %546, %171, %548
+    %550: %r3 = select %545, %172, %549
+    jump -> block78(%550)
+  block74:
+    jump -> block78(%173)
+  block75:
+    jump -> block78(%174)
+  block76:
+    jump -> block78(%175)
+  block77:
+    jump -> block78(%176)
+  block78(%32: %r3):
+    %551: %r3 = binary.sub %32, %177
+    %552: %r3 = unary.floor %551
+    %553: %r3 = binary.sub %551, %552
+    %554: %r3 = unary.floor %551
+    %555: %r3 = unary.floor %551
+    %556: %r3 = binary.sub %551, %554
+    %557: %r3 = binary.sub %551, %555
+    %558: %r4 = call nearDouble %556, %557, %553
+    %559: %r4 = unary.not %558
+    branch %559 -> block80 -> block79
+  block79:
+    jump -> block81(%30)
+  block80:
+    %560: %r7 = binary.add %30, %178
+    %561: %r7 = coerce %560
+    jump -> block81(%561)
+  block81(%33: %r7):
+    %562: %r0 = convert %551
+    %563: %r0 = unary.floor %562
+    %564: %r0 = coerce %563
+    %565: %r0 = unary.floor %562
+    %566: %r0 = coerce %565
+    %567: %r0 = unary.floor %562
+    %568: %r0 = coerce %567
+    %569: %r0 = unary.floor %562
+    %570: %r0 = coerce %569
+    %571: %r0 = binary.sub %562, %564
+    %572: %r0 = coerce %571
+    %573: %r0 = binary.sub %562, %566
+    %574: %r0 = coerce %573
+    %575: %r0 = binary.sub %562, %568
+    %576: %r0 = coerce %575
+    %577: %r0 = binary.sub %562, %570
+    %578: %r0 = coerce %577
+    %579: %r4 = call nearFloat %572, %574, %576, %578, %553
+    %580: %r4 = unary.not %579
+    branch %580 -> block83 -> block82
+  block82:
+    jump -> block84(%33)
+  block83:
+    %581: %r7 = binary.add %33, %179
+    %582: %r7 = coerce %581
+    jump -> block84(%582)
+  block84(%34: %r7):
+    %583: %r7 = binary.add %31, %180
+    %584: %r7 = coerce %583
+    jump -> block67(%34, %584)
+  block85(%35: %r7, %36: %r7):
+    %240: %r4 = binary.lt %36, %189
+    branch %240 -> block87 -> block86
+  block86:
+    %241: %r7 = binary.add %183, %35
+    %242: %r7 = coerce %241
+    %243: %r7 = const 0
+    %244: %r7 = const 0
+    %245: %r7 = const 8
+    %246: %r7 = const 0
+    %247: %r7 = const 1
+    %248: %r7 = const 2
+    %249: %r7 = const 3
+    %250: %r7 = const 4
+    %251: %r7 = const 5
+    %252: %r7 = const 6
+    %253: %r3 = const 1024
+    %254: %r3 = const 0.003
+    %255: %r3 = const 0.125
+    %256: %r3 = const 0.75
+    %257: %r3 = const 8
+    %258: %r3 = const 2.5
+    %259: %r3 = const 1.5
+    %260: %r3 = const 1
+    %261: %r7 = const 1
+    %262: %r7 = const 1
+    %263: %r7 = const 1
+    %264: %r16 = const 4503599627370495n
+    %265: %r16 = const 4607182418800017408n
+    %266: %r7 = const 8388607
+    %267: %r7 = const 1.065353216E9
+    %268: %r7 = const 23
+    %269: %r7 = const 255
+    %270: %r0 = const 127
+    jump -> block112(%243, %244)
+  block87:
+    %394: %r4 = binary.eq %36, %190
+    branch %394 -> block95 -> block88
+  block88:
+    %395: %r4 = binary.eq %36, %191
+    branch %395 -> block94 -> block89
+  block89:
+    %396: %r4 = binary.eq %36, %192
+    branch %396 -> block93 -> block90
+  block90:
+    %397: %r4 = binary.eq %36, %193
+    branch %397 -> block92 -> block91
+  block91:
+    %398: %r4 = binary.eq %36, %194
+    %399: %r4 = binary.eq %36, %195
+    %400: %r4 = binary.eq %36, %196
+    %401: %r3 = select %400, %197, %198
+    %402: %r3 = select %399, %199, %401
+    %403: %r3 = select %398, %200, %402
+    jump -> block96(%403)
+  block92:
+    jump -> block96(%201)
+  block93:
+    jump -> block96(%202)
+  block94:
+    jump -> block96(%203)
+  block95:
+    jump -> block96(%204)
+  block96(%37: %r3):
+    %404: %r7 = binary.add %36, %205
+    %405: %r7 = coerce %404
+    %406: %r7 = binary.rem %405, %206
+    %407: %r7 = coerce %406
+    %408: %r4 = binary.eq %407, %207
+    branch %408 -> block104 -> block97
+  block97:
+    %409: %r4 = binary.eq %407, %208
+    branch %409 -> block103 -> block98
+  block98:
+    %410: %r4 = binary.eq %407, %209
+    branch %410 -> block102 -> block99
+  block99:
+    %411: %r4 = binary.eq %407, %210
+    branch %411 -> block101 -> block100
+  block100:
+    %412: %r4 = binary.eq %407, %211
+    %413: %r4 = binary.eq %407, %212
+    %414: %r4 = binary.eq %407, %213
+    %415: %r3 = select %414, %214, %215
+    %416: %r3 = select %413, %216, %415
+    %417: %r3 = select %412, %217, %416
+    jump -> block105(%417)
+  block101:
+    jump -> block105(%218)
+  block102:
+    jump -> block105(%219)
+  block103:
+    jump -> block105(%220)
+  block104:
+    jump -> block105(%221)
+  block105(%38: %r3):
+    %418: %r3 = binary.sub %222, %38
+    %419: %r4 = binary.lt %37, %418
+    %420: %r3 = select %419, %37, %418
+    %421: %r4 = binary.gt %37, %418
+    %422: %r3 = select %421, %37, %418
+    %423: %r8 = binary.ne %37, %37
+    %424: %r8 = binary.ne %37, %37
+    %425: %r8 = binary.lt %37, %418
+    %426: %r8 = binary.lt %37, %418
+    %427: %r8 = binary.ne %418, %418
+    %428: %r8 = binary.ne %418, %418
+    %429: %r8 = binary.or %425, %427
+    %430: %r8 = binary.or %426, %428
+    %431: %r3 = select %429, %37, %418
+    %432: %r3 = select %430, %37, %418
+    %433: %r3 = select %423, %418, %431
+    %434: %r3 = select %424, %418, %432
+    %435: %r4 = call nearDouble %433, %434, %420
+    %436: %r4 = unary.not %435
+    branch %436 -> block107 -> block106
+  block106:
+    jump -> block108(%35)
+  block107:
+    %437: %r7 = binary.add %35, %223
+    %438: %r7 = coerce %437
+    jump -> block108(%438)
+  block108(%39: %r7):
+    %439: %r8 = binary.ne %418, %418
+    %440: %r8 = binary.ne %418, %418
+    %441: %r8 = binary.lt %418, %37
+    %442: %r8 = binary.lt %418, %37
+    %443: %r8 = binary.ne %37, %37
+    %444: %r8 = binary.ne %37, %37
+    %445: %r8 = binary.or %441, %443
+    %446: %r8 = binary.or %442, %444
+    %447: %r3 = select %445, %418, %37
+    %448: %r3 = select %446, %418, %37
+    %449: %r3 = select %439, %37, %447
+    %450: %r3 = select %440, %37, %448
+    %451: %r4 = call nearDouble %449, %450, %420
+    %452: %r4 = unary.not %451
+    %453: %r7 = binary.add %39, %224
+    %454: %r7 = coerce %453
+    %455: %r7 = select %452, %454, %39
+    %456: %r8 = binary.gt %37, %418
+    %457: %r8 = binary.gt %37, %418
+    %458: %r8 = binary.or %456, %439
+    %459: %r8 = binary.or %457, %440
+    %460: %r3 = select %458, %37, %418
+    %461: %r3 = select %459, %37, %418
+    %462: %r3 = select %443, %418, %460
+    %463: %r3 = select %444, %418, %461
+    %464: %r4 = call nearDouble %462, %463, %422
+    %465: %r4 = unary.not %464
+    %466: %r7 = binary.add %455, %225
+    %467: %r7 = coerce %466
+    %468: %r7 = select %465, %467, %455
+    %469: %r8 = binary.gt %418, %37
+    %470: %r8 = binary.gt %418, %37
+    %471: %r8 = binary.or %469, %443
+    %472: %r8 = binary.or %470, %444
+    %473: %r3 = select %471, %418, %37
+    %474: %r3 = select %472, %418, %37
+    %475: %r3 = select %439, %37, %473
+    %476: %r3 = select %440, %37, %474
+    %477: %r4 = call nearDouble %475, %476, %422
+    %478: %r4 = unary.not %477
+    %479: %r7 = binary.add %468, %226
+    %480: %r7 = coerce %479
+    %481: %r7 = select %478, %480, %468
+    %482: %r8 = binary.lt %187, %37
+    %483: %r8 = binary.lt %187, %37
+    %484: %r8 = binary.or %482, %443
+    %485: %r8 = binary.or %483, %444
+    %486: %r3 = select %484, %187, %37
+    %487: %r3 = select %485, %187, %37
+    %488: %r3 = select %234, %37, %486
+    %489: %r3 = select %235, %37, %487
+    %490: %r4 = call nearDouble %488, %489, %37
+    %491: %r4 = unary.not %490
+    %492: %r7 = binary.add %481, %227
+    %493: %r7 = coerce %492
+    %494: %r7 = select %491, %493, %481
+    %495: %r8 = binary.lt %37, %187
+    %496: %r8 = binary.lt %37, %187
+    %497: %r8 = binary.or %495, %234
+    %498: %r8 = binary.or %496, %235
+    %499: %r3 = select %497, %37, %187
+    %500: %r3 = select %498, %37, %187
+    %501: %r3 = select %443, %187, %499
+    %502: %r3 = select %444, %187, %500
+    %503: %r4 = call nearDouble %501, %502, %37
+    %504: %r4 = unary.not %503
+    %505: %r7 = binary.add %494, %228
+    %506: %r7 = coerce %505
+    %507: %r7 = select %504, %506, %494
+    %508: %r8 = binary.gt %187, %37
+    %509: %r8 = binary.gt %187, %37
+    %510: %r8 = binary.or %508, %443
+    %511: %r8 = binary.or %509, %444
+    %512: %r3 = select %510, %187, %37
+    %513: %r3 = select %511, %187, %37
+    %514: %r3 = select %234, %37, %512
+    %515: %r3 = select %235, %37, %513
+    %516: %r4 = call nearDouble %514, %515, %37
+    %517: %r4 = unary.not %516
+    %518: %r7 = binary.add %507, %229
+    %519: %r7 = coerce %518
+    %520: %r7 = select %517, %519, %507
+    %521: %r8 = binary.gt %37, %187
+    %522: %r8 = binary.gt %37, %187
+    %523: %r8 = binary.or %521, %234
+    %524: %r8 = binary.or %522, %235
+    %525: %r3 = select %523, %37, %187
+    %526: %r3 = select %524, %37, %187
+    %527: %r3 = select %443, %187, %525
+    %528: %r3 = select %444, %187, %526
+    %529: %r4 = call nearDouble %527, %528, %37
+    %530: %r4 = unary.not %529
+    %531: %r7 = binary.add %520, %230
+    %532: %r7 = coerce %531
+    %533: %r7 = select %530, %532, %520
+    %534: %r7 = binary.add %533, %231
+    %535: %r7 = coerce %534
+    %536: %r7 = select %237, %535, %533
+    branch %239 -> block110 -> block109
+  block109:
+    jump -> block111(%536)
+  block110:
+    %537: %r7 = binary.add %536, %232
+    %538: %r7 = coerce %537
+    jump -> block111(%538)
+  block111(%40: %r7):
+    %539: %r7 = binary.add %36, %233
+    %540: %r7 = coerce %539
+    jump -> block85(%40, %540)
+  block112(%41: %r7, %42: %r7):
+    %271: %r4 = binary.lt %42, %245
+    branch %271 -> block114 -> block113
+  block113:
+    %272: %r7 = binary.add %242, %41
+    %273: %r7 = coerce %272
+    %276: %r13 = const ""
+    store var $0: %r13, %276
+    %277: %r13 = host host.global "String" %273
+    %278: %r13 = load var $0: %r13
+    %279: %r13 = alias %278
+    %280: %r13 = alias %277
+    %281: %r13 = alias %279
+    %282: %r13 = alias %280
+    %283: %r13 = host host.binary "+" %281, %282
+    store var $0: %r13, %283
+    %284: %r13 = load var $0: %r13
+    %285: %r13 = alias %284
+    %286: %r13 = alias %285
+    %287: %r13 = alias %286
+    host host.global "console.log" %287
+    return %273
+  block114:
+    %288: %r4 = binary.eq %42, %246
+    branch %288 -> block122 -> block115
+  block115:
+    %289: %r4 = binary.eq %42, %247
+    branch %289 -> block121 -> block116
+  block116:
+    %290: %r4 = binary.eq %42, %248
+    branch %290 -> block120 -> block117
+  block117:
+    %291: %r4 = binary.eq %42, %249
+    branch %291 -> block119 -> block118
+  block118:
+    %292: %r4 = binary.eq %42, %250
+    %293: %r4 = binary.eq %42, %251
+    %294: %r4 = binary.eq %42, %252
+    %295: %r3 = select %294, %253, %254
+    %296: %r3 = select %293, %255, %295
+    %297: %r3 = select %292, %256, %296
+    jump -> block123(%297)
+  block119:
+    jump -> block123(%257)
+  block120:
+    jump -> block123(%258)
+  block121:
+    jump -> block123(%259)
+  block122:
+    jump -> block123(%260)
+  block123(%43: %r3):
+    %298: %r0 = convert %43
+    %299: %r16 = helper.float.bits %43
+    %300: %r16 = coerce %299
+    %301: %r16 = helper.float.bits %43
+    %302: %r16 = coerce %301
+    %303: %r16 = binary.and %300, %264
+    %304: %r16 = coerce %303
+    %305: %r16 = binary.and %302, %264
+    %306: %r16 = coerce %305
+    %307: %r16 = binary.or %304, %265
+    %308: %r16 = coerce %307
+    %309: %r16 = binary.or %306, %265
+    %310: %r16 = coerce %309
+    %311: %r3 = helper.bits.float %308
+    %312: %r3 = helper.bits.float %310
+    %313: %r5 = call exponentOfVecDouble %43, %43
+    %314: %r3 = split %313 #0 of %r6
+    %315: %r3 = split %313 #1 of %r6
+    %316: %r5 = call scaleByExponentVecDouble %311, %312, %314, %315
+    %317: %r3 = split %316 #0 of %r6
+    %318: %r3 = split %316 #1 of %r6
+    %319: %r4 = call nearDouble %317, %318, %43
+    %320: %r4 = unary.not %319
+    branch %320 -> block125 -> block124
+  block124:
+    jump -> block126(%41)
+  block125:
+    %321: %r7 = binary.add %41, %261
+    %322: %r7 = coerce %321
+    jump -> block126(%322)
+  block126(%44: %r7):
+    %323: %r7 = helper.float.bits %298
+    %324: %r7 = coerce %323
+    %325: %r7 = helper.float.bits %298
+    %326: %r7 = coerce %325
+    %327: %r7 = helper.float.bits %298
+    %328: %r7 = coerce %327
+    %329: %r7 = helper.float.bits %298
+    %330: %r7 = coerce %329
+    %331: %r7 = binary.and %324, %266
+    %332: %r7 = coerce %331
+    %333: %r7 = binary.and %326, %266
+    %334: %r7 = coerce %333
+    %335: %r7 = binary.and %328, %266
+    %336: %r7 = coerce %335
+    %337: %r7 = binary.and %330, %266
+    %338: %r7 = coerce %337
+    %339: %r7 = binary.or %332, %267
+    %340: %r7 = coerce %339
+    %341: %r7 = binary.or %334, %267
+    %342: %r7 = coerce %341
+    %343: %r7 = binary.or %336, %267
+    %344: %r7 = coerce %343
+    %345: %r7 = binary.or %338, %267
+    %346: %r7 = coerce %345
+    %347: %r0 = helper.bits.float %340
+    %348: %r0 = coerce %347
+    %349: %r0 = helper.bits.float %342
+    %350: %r0 = coerce %349
+    %351: %r0 = helper.bits.float %344
+    %352: %r0 = coerce %351
+    %353: %r0 = helper.bits.float %346
+    %354: %r0 = coerce %353
+    %355: %r7 = binary.shr %324, %268
+    %356: %r7 = coerce %355
+    %357: %r7 = binary.shr %326, %268
+    %358: %r7 = coerce %357
+    %359: %r7 = binary.shr %328, %268
+    %360: %r7 = coerce %359
+    %361: %r7 = binary.shr %330, %268
+    %362: %r7 = coerce %361
+    %363: %r7 = binary.and %356, %269
+    %364: %r7 = coerce %363
+    %365: %r7 = binary.and %358, %269
+    %366: %r7 = coerce %365
+    %367: %r7 = binary.and %360, %269
+    %368: %r7 = coerce %367
+    %369: %r7 = binary.and %362, %269
+    %370: %r7 = coerce %369
+    %371: %r0 = convert %364
+    %372: %r0 = convert %366
+    %373: %r0 = convert %368
+    %374: %r0 = convert %370
+    %375: %r0 = binary.sub %371, %270
+    %376: %r0 = coerce %375
+    %377: %r0 = binary.sub %372, %270
+    %378: %r0 = coerce %377
+    %379: %r0 = binary.sub %373, %270
+    %380: %r0 = coerce %379
+    %381: %r0 = binary.sub %374, %270
+    %382: %r0 = coerce %381
+    %383: %r1 = call scaleByExponentVecFloat %348, %350, %352, %354, %376, %378, %380, %382
+    %384: %r0 = split %383 #0 of %r2
+    %385: %r0 = split %383 #1 of %r2
+    %386: %r0 = split %383 #2 of %r2
+    %387: %r0 = split %383 #3 of %r2
+    %388: %r4 = call nearFloat %384, %385, %386, %387, %43
+    %389: %r4 = unary.not %388
+    branch %389 -> block128 -> block127
+  block127:
+    jump -> block129(%44)
+  block128:
+    %390: %r7 = binary.add %44, %262
+    %391: %r7 = coerce %390
+    jump -> block129(%391)
+  block129(%45: %r7):
+    %392: %r7 = binary.add %42, %263
+    %393: %r7 = coerce %392
+    jump -> block112(%45, %393)
+
+fn powerOfTwoVecDouble(parts %r6) -> parts %r6
+  block0(%0: %r3, %1: %r3):
+    %2: %r3 = const 1023
+    %3: %r3 = binary.add %0, %2
+    %4: %r3 = binary.add %1, %2
+    %5: %r3 = const 4.503599627370496E15
+    %6: %r3 = binary.add %3, %5
+    %7: %r3 = binary.add %4, %5
+    %8: %r16 = helper.float.bits %6
+    %9: %r16 = coerce %8
+    %10: %r16 = helper.float.bits %7
+    %11: %r16 = coerce %10
+    %12: %r16 = const 4503599627370495n
+    %13: %r16 = binary.and %9, %12
+    %14: %r16 = coerce %13
+    %15: %r16 = binary.and %11, %12
+    %16: %r16 = coerce %15
+    %17: %r16 = const 52n
+    %18: %r16 = binary.shl %14, %17
+    %19: %r16 = coerce %18
+    %20: %r16 = binary.shl %16, %17
+    %21: %r16 = coerce %20
+    %22: %r3 = helper.bits.float %19
+    %23: %r3 = helper.bits.float %21
+    %24: %r5 = materialize %r6 %22, %23
+    return %24
+
+fn scaleByExponentVecFloat(parts %r2, parts %r2) -> parts %r2
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0, %4: %r0, %5: %r0, %6: %r0, %7: %r0):
+    %8: %r0 = const -126
+    %9: %r8 = binary.gt %4, %8
+    %10: %r8 = binary.gt %5, %8
+    %11: %r8 = binary.gt %6, %8
+    %12: %r8 = binary.gt %7, %8
+    %13: %r0 = select %9, %4, %8
+    %14: %r0 = select %10, %5, %8
+    %15: %r0 = select %11, %6, %8
+    %16: %r0 = select %12, %7, %8
+    %17: %r0 = const 127
+    %18: %r8 = binary.lt %13, %17
+    %19: %r8 = binary.lt %14, %17
+    %20: %r8 = binary.lt %15, %17
+    %21: %r8 = binary.lt %16, %17
+    %22: %r0 = select %18, %13, %17
+    %23: %r0 = select %19, %14, %17
+    %24: %r0 = select %20, %15, %17
+    %25: %r0 = select %21, %16, %17
+    %26: %r0 = binary.sub %4, %22
+    %27: %r0 = coerce %26
+    %28: %r0 = binary.sub %5, %23
+    %29: %r0 = coerce %28
+    %30: %r0 = binary.sub %6, %24
+    %31: %r0 = coerce %30
+    %32: %r0 = binary.sub %7, %25
+    %33: %r0 = coerce %32
+    %34: %r0 = const -126
+    %35: %r8 = binary.gt %27, %34
+    %36: %r8 = binary.gt %29, %34
+    %37: %r8 = binary.gt %31, %34
+    %38: %r8 = binary.gt %33, %34
+    %39: %r0 = select %35, %27, %34
+    %40: %r0 = select %36, %29, %34
+    %41: %r0 = select %37, %31, %34
+    %42: %r0 = select %38, %33, %34
+    %43: %r0 = const 127
+    %44: %r8 = binary.lt %39, %43
+    %45: %r8 = binary.lt %40, %43
+    %46: %r8 = binary.lt %41, %43
+    %47: %r8 = binary.lt %42, %43
+    %48: %r0 = select %44, %39, %43
+    %49: %r0 = select %45, %40, %43
+    %50: %r0 = select %46, %41, %43
+    %51: %r0 = select %47, %42, %43
+    %52: %r7 = convert %22
+    %53: %r7 = convert %23
+    %54: %r7 = convert %24
+    %55: %r7 = convert %25
+    %56: %r7 = const 127
+    %57: %r7 = binary.add %52, %56
+    %58: %r7 = coerce %57
+    %59: %r7 = binary.add %53, %56
+    %60: %r7 = coerce %59
+    %61: %r7 = binary.add %54, %56
+    %62: %r7 = coerce %61
+    %63: %r7 = binary.add %55, %56
+    %64: %r7 = coerce %63
+    %65: %r7 = const 23
+    %66: %r7 = binary.shl %58, %65
+    %67: %r7 = coerce %66
+    %68: %r7 = binary.shl %60, %65
+    %69: %r7 = coerce %68
+    %70: %r7 = binary.shl %62, %65
+    %71: %r7 = coerce %70
+    %72: %r7 = binary.shl %64, %65
+    %73: %r7 = coerce %72
+    %74: %r0 = helper.bits.float %67
+    %75: %r0 = coerce %74
+    %76: %r0 = helper.bits.float %69
+    %77: %r0 = coerce %76
+    %78: %r0 = helper.bits.float %71
+    %79: %r0 = coerce %78
+    %80: %r0 = helper.bits.float %73
+    %81: %r0 = coerce %80
+    %82: %r0 = binary.mul %0, %75
+    %83: %r0 = coerce %82
+    %84: %r0 = binary.mul %1, %77
+    %85: %r0 = coerce %84
+    %86: %r0 = binary.mul %2, %79
+    %87: %r0 = coerce %86
+    %88: %r0 = binary.mul %3, %81
+    %89: %r0 = coerce %88
+    %90: %r7 = convert %48
+    %91: %r7 = convert %49
+    %92: %r7 = convert %50
+    %93: %r7 = convert %51
+    %94: %r7 = const 127
+    %95: %r7 = binary.add %90, %94
+    %96: %r7 = coerce %95
+    %97: %r7 = binary.add %91, %94
+    %98: %r7 = coerce %97
+    %99: %r7 = binary.add %92, %94
+    %100: %r7 = coerce %99
+    %101: %r7 = binary.add %93, %94
+    %102: %r7 = coerce %101
+    %103: %r7 = const 23
+    %104: %r7 = binary.shl %96, %103
+    %105: %r7 = coerce %104
+    %106: %r7 = binary.shl %98, %103
+    %107: %r7 = coerce %106
+    %108: %r7 = binary.shl %100, %103
+    %109: %r7 = coerce %108
+    %110: %r7 = binary.shl %102, %103
+    %111: %r7 = coerce %110
+    %112: %r0 = helper.bits.float %105
+    %113: %r0 = coerce %112
+    %114: %r0 = helper.bits.float %107
+    %115: %r0 = coerce %114
+    %116: %r0 = helper.bits.float %109
+    %117: %r0 = coerce %116
+    %118: %r0 = helper.bits.float %111
+    %119: %r0 = coerce %118
+    %120: %r0 = binary.mul %83, %113
+    %121: %r0 = coerce %120
+    %122: %r0 = binary.mul %85, %115
+    %123: %r0 = coerce %122
+    %124: %r0 = binary.mul %87, %117
+    %125: %r0 = coerce %124
+    %126: %r0 = binary.mul %89, %119
+    %127: %r0 = coerce %126
+    %128: %r1 = materialize %r2 %121, %123, %125, %127
+    return %128
+
+fn scaleByExponentVecDouble(parts %r6, parts %r6) -> parts %r6
+  block0(%0: %r3, %1: %r3, %2: %r3, %3: %r3):
+    %4: %r3 = const -1022
+    %5: %r8 = binary.gt %2, %4
+    %6: %r8 = binary.gt %3, %4
+    %7: %r3 = select %5, %2, %4
+    %8: %r3 = select %6, %3, %4
+    %9: %r3 = const 1023
+    %10: %r8 = binary.lt %7, %9
+    %11: %r8 = binary.lt %8, %9
+    %12: %r3 = select %10, %7, %9
+    %13: %r3 = select %11, %8, %9
+    %14: %r3 = binary.sub %2, %12
+    %15: %r3 = binary.sub %3, %13
+    %16: %r3 = const -1022
+    %17: %r8 = binary.gt %14, %16
+    %18: %r8 = binary.gt %15, %16
+    %19: %r3 = select %17, %14, %16
+    %20: %r3 = select %18, %15, %16
+    %21: %r3 = const 1023
+    %22: %r8 = binary.lt %19, %21
+    %23: %r8 = binary.lt %20, %21
+    %24: %r3 = select %22, %19, %21
+    %25: %r3 = select %23, %20, %21
+    %26: %r5 = call powerOfTwoVecDouble %12, %13
+    %27: %r3 = split %26 #0 of %r6
+    %28: %r3 = split %26 #1 of %r6
+    %29: %r3 = binary.mul %0, %27
+    %30: %r3 = binary.mul %1, %28
+    %31: %r5 = call powerOfTwoVecDouble %24, %25
+    %32: %r3 = split %31 #0 of %r6
+    %33: %r3 = split %31 #1 of %r6
+    %34: %r3 = binary.mul %29, %32
+    %35: %r3 = binary.mul %30, %33
+    %36: %r5 = materialize %r6 %34, %35
+    return %36
+
+fn exponentOfVecDouble(parts %r6) -> parts %r6
+  block0(%0: %r3, %1: %r3):
+    %2: %r16 = helper.float.bits %0
+    %3: %r16 = coerce %2
+    %4: %r16 = helper.float.bits %1
+    %5: %r16 = coerce %4
+    %6: %r16 = const 52n
+    %7: %r16 = binary.shr %3, %6
+    %8: %r16 = coerce %7
+    %9: %r16 = binary.shr %5, %6
+    %10: %r16 = coerce %9
+    %11: %r16 = const 2047n
+    %12: %r16 = binary.and %8, %11
+    %13: %r16 = coerce %12
+    %14: %r16 = binary.and %10, %11
+    %15: %r16 = coerce %14
+    %16: %r16 = const 4841369599423283200n
+    %17: %r16 = binary.or %13, %16
+    %18: %r16 = coerce %17
+    %19: %r16 = binary.or %15, %16
+    %20: %r16 = coerce %19
+    %21: %r3 = helper.bits.float %18
+    %22: %r3 = helper.bits.float %20
+    %23: %r3 = const 4.503599627370496E15
+    %24: %r3 = binary.sub %21, %23
+    %25: %r3 = binary.sub %22, %23
+    %26: %r3 = const 1023
+    %27: %r3 = binary.sub %24, %26
+    %28: %r3 = binary.sub %25, %26
+    %29: %r5 = materialize %r6 %27, %28
+    return %29
+
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0
+
+rep %r0 = number f32
+rep %r1 = array Float32Array of %r0
+rep %r2 = parts (%r0, %r0, %r0, %r0) as %r1
+rep %r3 = number f64
+rep %r4 = number bool
+rep %r5 = array Float64Array of %r3
+rep %r6 = parts (%r3, %r3) as %r5
+rep %r7 = number signed 32
+rep %r8 = boolean
+rep %r9 = array Array of %r8
+rep %r10 = parts (%r8, %r8, %r8, %r8) as %r9
+rep %r11 = array Array of %r8
+rep %r12 = parts (%r8, %r8) as %r11
+rep %r13 = string
+rep %r14 = array Int32Array of %r7
+rep %r15 = parts (%r7, %r7, %r7, %r7) as %r14
+rep %r16 = bigint signed
+rep %r17 = array BigInt64Array of %r16
+rep %r18 = parts (%r16, %r16) as %r17
+rep %r19 = number unsigned 8
+rep %r20 = nullable of %r7
+rep %r21 = void

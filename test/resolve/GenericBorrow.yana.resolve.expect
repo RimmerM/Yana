@@ -1,0 +1,231 @@
+let image$base: () = <none>
+
+let &heapFree: %%U8 = 0
+
+let ResolveTest.string$0: String = "ab"
+
+let ResolveTest.literal$1: String = "ab" {String(Array(Run(&ResolveTest.string$0, 2, 0), 2))}
+
+let ResolveTest.string$2: String = "abcd"
+
+let ResolveTest.literal$3: String = "abcd" {String(Array(Run(&ResolveTest.string$2, 4, 0), 4))}
+
+fn Viewed(String).view(%self: String) -> StringView {
+  b0:
+    %v1 = alloc : StringView
+    %v2 = borrow %self : 'String
+    %v3 = cast %v2 : 'String
+    %v4 = load [%v3]@String.units : Array(CodeUnit)
+    %v5 = load [%v3]@String.units@Array.run : Run(CodeUnit)
+    %v6 = load [%v3]@String.units@Array.run@Run.items : %CodeUnit
+    %v7 = borrow %self : 'String
+    %v8 = cast %v7 : 'String
+    %v9 = load [%v8]@String.units : Array(CodeUnit)
+    %v10 = load [%v8]@String.units@Array.length : @bits(30) U32
+    %v11 = cast %v10 : I32
+    %v12 = cast %v11 : Size
+    aggregate %local1@StringView.units = %v6, %local1@StringView.length = %v12
+    ret %v1
+}
+
+fn Length(String).length(%self: String) -> Size {
+  b0:
+    %v1 = load %self : String
+    %v2 = borrow %self : 'String
+    %v3 = call Viewed(String).view, %v2 : StringView
+    %v4 = load %local1@StringView.length : Size
+    ret %v4
+}
+
+fn Reclaim(String).reclaim(%value: String) -> () {
+  b0:
+    %v1 = borrow %value : 'String
+    %v2 = cast %v1 : 'String
+    %v3 = load [%v2]@String.units : Array(CodeUnit)
+    %v4 = load [%v2]@String.units@Array.run : Run(CodeUnit)
+    call releaseRun(CodeUnit), %v4
+    ret
+}
+
+fn freeListHead(%sizeClass: Size) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = bitcast %allocation : Size
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
+    %v14 = bitcast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %CodeUnit
+    %v8 = bitcast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn put(%slot: a, %value: a) -> () {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    assign %slot, %value
+    ret
+}
+
+fn exchanged(%slot: a, %value: a) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %v2 = load %slot : a
+    %v3 = gencall exchange(a), %v2, %value : a
+    ret %v3
+}
+
+fn main() -> I32 {
+  b0:
+    %flag = alloc : Bool
+    init %flag, False
+    %v3 = load %flag : Bool
+    %v5 = borrow_mut %flag : &Bool
+    call put(Bool), %v5, True
+    %count = alloc : I32
+    init %count, 5
+    %v11 = load %count : I32
+    %v14 = borrow_mut %count : &I32
+    call put(I32), %v14, 9
+    %v16 = copy ResolveTest.literal$1 : String
+    %name = alloc : String
+    init %name, %v16
+    %v19 = load %name : String
+    %v20 = copy ResolveTest.literal$3 : String
+    %v21 = borrow_mut %name : &String
+    %v22 = move %local4 : String
+    call put(String), %v21, %v22
+    %v24 = alloc : Point
+    aggregate %here@Point.x = 1, %here@Point.y = 2
+    %v28 = load %here : Point
+    %v29 = alloc : Point
+    aggregate %local6@Point.x = 30, %local6@Point.y = 40
+    %v33 = borrow_mut %here : &Point
+    %v34 = copy %local6 : Point
+    call put(Point), %v33, %v34
+    %other = alloc : I32
+    init %other, 100
+    %v40 = load %other : I32
+    %v43 = borrow_mut %other : &I32
+    %previous = call exchanged(I32), %v43, 7 : I32
+    %v45 = load %flag : Bool
+    je %v45, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v53 = phi [b1, 1], [b2, 0] : I32
+    %v54 = load %count : I32
+    %v55 = add %v53, %v54 : I32
+    %v56 = load %name : String
+    %v57 = call Length(String).length, %v56 : Size
+    drop %name via Reclaim(String).reclaim
+    %v58 = cast %v57 : I32
+    %v59 = add %v55, %v58 : I32
+    %v60 = load %here : Point
+    %v61 = load %here@Point.x : I32
+    %v62 = add %v59, %v61 : I32
+    %v63 = load %here : Point
+    %v64 = load %here@Point.y : I32
+    %v65 = add %v62, %v64 : I32
+    %v66 = add %v65, %previous : I32
+    %v67 = load %other : I32
+    %v68 = add %v66, %v67 : I32
+    ret %v68
+}
+
+fn put(Bool)(%slot: Bool, %value: Bool) -> () {
+  b0:
+    assign %slot, %value
+    ret
+}
+
+fn put(I32)(%slot: I32, %value: I32) -> () {
+  b0:
+    assign %slot, %value
+    ret
+}
+
+fn put(String)(%slot: String, %value: String) -> () {
+  b0:
+    drop %slot via Reclaim(String).reclaim
+    assign %slot, %value
+    ret
+}
+
+fn put(Point)(%slot: Point, %value: Point) -> () {
+  b0:
+    assign %slot, %value
+    ret
+}
+
+fn exchanged(I32)(%slot: I32, %value: I32) -> I32 {
+  b0:
+    %v2 = load %slot : I32
+    %v3 = borrow_mut %slot : &I32
+    %v4 = exchange [%v3], %value : I32
+    ret %v4
+}

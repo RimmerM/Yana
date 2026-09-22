@@ -1,0 +1,152 @@
+fn Guard.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    store var $0: %r0, %0
+    %1: %r0 = load global trace: %r0
+    %2: %r0 = const 10
+    %3: %r0 = binary.mul %1, %2
+    %4: %r0 = coerce %3
+    %6: %r0 = load var $0: %r0
+    %7: %r0 = binary.add %4, %6
+    %8: %r0 = coerce %7
+    store global trace: %r0, %8
+    return
+
+fn main() -> one %r0
+  var $0: %r0
+  var $1: %r0
+  var $2: %r0
+  var $3: %r0
+  var $4: %r0
+  block0:
+    %0: %r0 = const 7
+    %1: %r0 = alias %0
+    store var $0: %r0, %1
+    %2: %r0 = const 5
+    %3: %r0 = alias %2
+    store var $1: %r0, %3
+    %4: %r0 = load var $0: %r0
+    %5: %r0 = alias %4
+    %6: %r0 = const 7
+    %7: %r2 = binary.ne %5, %6
+    branch %7 -> block2 -> block1
+  block1:
+    %8: %r0 = load var $1: %r0
+    %9: %r0 = alias %8
+    %10: %r0 = const 5
+    %11: %r2 = binary.ne %9, %10
+    branch %11 -> block4 -> block3
+  block2:
+    %85: %r0 = const -1
+    return %85
+  block3:
+    %16: %r0 = load var $0: %r0
+    %17: %r0 = alias %16
+    %18: %r0 = binary.add %17, %17
+    %19: %r0 = coerce %18
+    %20: %r0 = const 14
+    %21: %r2 = binary.ne %19, %20
+    branch %21 -> block6 -> block5
+  block4:
+    %84: %r0 = const -2
+    return %84
+  block5:
+    %22: %r0 = load var $1: %r0
+    %23: %r0 = alias %22
+    %24: %r0 = binary.add %23, %23
+    %25: %r0 = coerce %24
+    %26: %r0 = const 10
+    %27: %r2 = binary.ne %25, %26
+    branch %27 -> block8 -> block7
+  block6:
+    %83: %r0 = const -4
+    return %83
+  block7:
+    %28: %r0 = load var $0: %r0
+    %29: %r0 = alias %28
+    %30: %r0 = binary.add %29, %29
+    %31: %r0 = coerce %30
+    %32: %r0 = const 14
+    %33: %r2 = binary.ne %31, %32
+    branch %33 -> block10 -> block9
+  block8:
+    %82: %r0 = const -5
+    return %82
+  block9:
+    %34: %r0 = load var $0: %r0
+    %35: %r0 = alias %34
+    %36: %r0 = const 3
+    %37: %r0 = binary.mul %35, %36
+    %38: %r0 = coerce %37
+    %39: %r0 = binary.add %38, %35
+    %40: %r0 = coerce %39
+    %41: %r0 = const 28
+    %42: %r2 = binary.ne %40, %41
+    branch %42 -> block12 -> block11
+  block10:
+    %81: %r0 = const -6
+    return %81
+  block11:
+    %43: %r0 = load var $1: %r0
+    %44: %r0 = alias %43
+    %45: %r0 = const 20
+    %46: %r0 = binary.mul %44, %45
+    %47: %r0 = coerce %46
+    %48: %r0 = binary.add %47, %44
+    %49: %r0 = coerce %48
+    %50: %r0 = const 105
+    %51: %r2 = binary.ne %49, %50
+    branch %51 -> block14 -> block13
+  block12:
+    %80: %r0 = const -7
+    return %80
+  block13:
+    %52: %r0 = load var $0: %r0
+    %53: %r0 = alias %52
+    %54: %r0 = const 2
+    %55: %r0 = binary.mul %53, %54
+    %56: %r0 = coerce %55
+    %57: %r0 = binary.add %56, %53
+    %58: %r0 = coerce %57
+    %59: %r0 = const 21
+    %60: %r2 = binary.ne %58, %59
+    branch %60 -> block16 -> block15
+  block14:
+    %79: %r0 = const -8
+    return %79
+  block15:
+    %61: %r0 = const 5
+    %62: %r0 = alias %61
+    store var $2: %r0, %62
+    %63: %r0 = const 105
+    %64: %r0 = alias %63
+    store var $3: %r0, %64
+    %65: %r0 = load global trace: %r0
+    %66: %r0 = const 0
+    %67: %r2 = binary.ne %65, %66
+    branch %67 -> block18 -> block17
+  block16:
+    %78: %r0 = const -9
+    return %78
+  block17:
+    %68: %r0 = const 4
+    %69: %r0 = alias %68
+    store var $4: %r0, %69
+    %70: %r0 = load var $4: %r0
+    call Guard.drop %70
+    %71: %r0 = load global trace: %r0
+    %72: %r0 = const 4
+    %73: %r2 = binary.ne %71, %72
+    %74: %r0 = const -13
+    %75: %r0 = const 4243
+    %76: %r0 = select %73, %74, %75
+    return %76
+  block18:
+    %77: %r0 = const -11
+    return %77
+
+optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = void
+rep %r2 = number bool

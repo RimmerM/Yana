@@ -1,0 +1,134 @@
+fn sum(parts %r5) -> parts %r2
+  block0(%0: %r3, %1: %r0, %2: %r0):
+    %3: %r0 = const 0
+    %4: %r7 = convert %3
+    %5: %r7 = convert %1
+    %6: %r8 = binary.ge %4, %5
+    branch %6 -> block2 -> block1
+  block1:
+    %7: %r3 = alias %0
+    %8: %r1 = load element %7[%2]: %r1
+    %9: %r0 = const 1
+    %10: %r7 = convert %9
+    %11: %r7 = convert %1
+    %12: %r8 = binary.ge %10, %11
+    branch %12 -> block4 -> block3
+  block2:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block3:
+    %13: %r3 = alias %0
+    %14: %r0 = binary.add %2, %9
+    %15: %r0 = coerce %14
+    %16: %r1 = load element %13[%15]: %r1
+    %17: %r0 = split %8 #0 of %r2
+    %18: %r0 = split %8 #1 of %r2
+    %19: %r0 = split %8 #2 of %r2
+    %20: %r0 = split %8 #3 of %r2
+    %21: %r0 = split %16 #0 of %r2
+    %22: %r0 = split %16 #1 of %r2
+    %23: %r0 = split %16 #2 of %r2
+    %24: %r0 = split %16 #3 of %r2
+    %25: %r0 = binary.add %17, %21
+    %26: %r0 = coerce %25
+    %27: %r0 = binary.add %18, %22
+    %28: %r0 = coerce %27
+    %29: %r0 = binary.add %19, %23
+    %30: %r0 = coerce %29
+    %31: %r0 = binary.add %20, %24
+    %32: %r0 = coerce %31
+    %33: %r1 = materialize %r2 %26, %28, %30, %32
+    return %33
+  block4:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+fn masked(parts %r5) -> parts %r2
+  block0(%0: %r3, %1: %r0, %2: %r0):
+    %3: %r0 = const 0
+    %4: %r7 = convert %3
+    %5: %r7 = convert %1
+    %6: %r8 = binary.ge %4, %5
+    branch %6 -> block2 -> block1
+  block1:
+    %7: %r3 = alias %0
+    %8: %r1 = load element %7[%2]: %r1
+    %9: %r0 = const 1
+    %10: %r7 = convert %9
+    %11: %r7 = convert %1
+    %12: %r8 = binary.ge %10, %11
+    branch %12 -> block4 -> block3
+  block2:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block3:
+    %13: %r3 = alias %0
+    %14: %r0 = binary.add %2, %9
+    %15: %r0 = coerce %14
+    %16: %r1 = load element %13[%15]: %r1
+    %17: %r0 = split %8 #0 of %r2
+    %18: %r0 = split %8 #1 of %r2
+    %19: %r0 = split %8 #2 of %r2
+    %20: %r0 = split %8 #3 of %r2
+    %21: %r0 = split %16 #0 of %r2
+    %22: %r0 = split %16 #1 of %r2
+    %23: %r0 = split %16 #2 of %r2
+    %24: %r0 = split %16 #3 of %r2
+    %25: %r0 = binary.and %17, %21
+    %26: %r0 = coerce %25
+    %27: %r0 = binary.and %18, %22
+    %28: %r0 = coerce %27
+    %29: %r0 = binary.and %19, %23
+    %30: %r0 = coerce %29
+    %31: %r0 = binary.and %20, %24
+    %32: %r0 = coerce %31
+    %33: %r1 = materialize %r2 %26, %28, %30, %32
+    return %33
+  block4:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+fn main() -> one %r0
+  var $0: %r3
+  block0:
+    %0: %r1 = load global a: %r1
+    %1: %r1 = load global b: %r1
+    %2: %r3 = host host.array %0, %1
+    %4: %r3 = alias %2
+    store var $0: %r3, %4
+    %5: %r0 = const 2
+    %6: %r0 = const 0
+    %7: %r1 = call sum %2, %5, %6
+    %8: %r0 = const 0
+    %9: %r1 = call masked %2, %5, %8
+    %10: %r3 = load var $0: %r3
+    call Array(a).reclaim(Vec(I32)) %10
+    %11: %r0 = split %7 #0 of %r2
+    %15: %r0 = const 100
+    %16: %r0 = binary.mul %11, %15
+    %17: %r0 = coerce %16
+    %19: %r0 = split %9 #1 of %r2
+    %22: %r0 = binary.add %17, %19
+    %23: %r0 = coerce %22
+    return %23
+
+fn Array(a).reclaim(Vec(I32))(one %r3) -> omitted
+  var $0: %r3
+  block0(%0: %r3):
+    store var $0: %r3, %0
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 7 adopted 0 sunk 0
+
+shape %s0 object ArrayView {items: %r3, length: %r0, offset: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = parts (%r0, %r0, %r0, %r0) as %r1
+rep %r3 = array Array of %r2
+rep %r4 = object %s0
+rep %r5 = parts (%r3, %r0, %r0) as %r4
+rep %r6 = void
+rep %r7 = number unsigned 32
+rep %r8 = number bool
+rep %r9 = number unsigned 30

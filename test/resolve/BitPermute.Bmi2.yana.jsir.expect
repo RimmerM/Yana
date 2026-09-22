@@ -1,0 +1,444 @@
+fn opaqueU32(one %r0) -> one %r0
+  block0(%0: %r0):
+    return %0
+
+fn opaqueI32(one %r1) -> one %r1
+  block0(%0: %r1):
+    return %0
+
+fn opaqueU64(one %r2) -> one %r2
+  block0(%0: %r2):
+    return %0
+
+fn main() -> one %r1
+  block0:
+    %3: %r0 = const 3.735928559E9
+    %4: %r0 = call opaqueU32 %3
+    %5: %r0 = const 16
+    %6: %r0 = helper.bitsupto %4, %5
+    %7: %r0 = coerce %6
+    %8: %r0 = const 48879
+    %9: %r3 = binary.eq %7, %8
+    %10: %r1 = const 1
+    %11: %r1 = const 0
+    %12: %r1 = select %9, %10, %11
+    %13: %r0 = const 3.735928559E9
+    %14: %r0 = call opaqueU32 %13
+    %15: %r0 = const 4
+    %16: %r0 = helper.bitsupto %14, %15
+    %17: %r0 = coerce %16
+    %18: %r0 = const 15
+    %19: %r3 = binary.eq %17, %18
+    %20: %r1 = const 2
+    %21: %r1 = const 0
+    %22: %r1 = select %19, %20, %21
+    %23: %r1 = binary.add %12, %22
+    %24: %r1 = coerce %23
+    %25: %r0 = const 3.735928559E9
+    %26: %r0 = call opaqueU32 %25
+    %27: %r0 = const 1
+    %28: %r0 = helper.bitsupto %26, %27
+    %29: %r0 = coerce %28
+    %30: %r0 = const 1
+    %31: %r3 = binary.eq %29, %30
+    %32: %r1 = const 4
+    %33: %r1 = const 0
+    %34: %r1 = select %31, %32, %33
+    %35: %r1 = binary.add %24, %34
+    %36: %r1 = coerce %35
+    %37: %r0 = const 3.735928559E9
+    %38: %r0 = call opaqueU32 %37
+    %39: %r1 = const 8
+    %40: %r0 = const 3.735928559E9
+    %41: %r0 = call opaqueU32 %40
+    %42: %r0 = const 3.735928559E9
+    %43: %r3 = binary.eq %41, %42
+    %44: %r1 = const 16
+    %45: %r1 = const 0
+    %46: %r1 = select %43, %44, %45
+    %47: %r1 = binary.add %39, %46
+    %48: %r1 = coerce %47
+    %49: %r0 = const 3.735928559E9
+    %50: %r0 = call opaqueU32 %49
+    %51: %r0 = const 3.735928559E9
+    %52: %r3 = binary.eq %50, %51
+    %53: %r1 = const 32
+    %54: %r1 = const 0
+    %55: %r1 = select %52, %53, %54
+    %56: %r1 = binary.add %48, %55
+    %57: %r1 = coerce %56
+    %58: %r0 = const 3.735928559E9
+    %59: %r0 = call opaqueU32 %58
+    %60: %r0 = const 3.735928559E9
+    %61: %r3 = binary.eq %59, %60
+    branch %61 -> block1 -> block2
+  block1:
+    %62: %r0 = const 3.735928559E9
+    %63: %r0 = call opaqueU32 %62
+    %64: %r0 = const 3.735928559E9
+    %65: %r3 = binary.eq %63, %64
+    branch %65 -> block3 -> block2
+  block2:
+    %66: %r3 = const 0
+    jump -> block4(%66)
+  block3:
+    %67: %r0 = const 3.735928559E9
+    %68: %r0 = call opaqueU32 %67
+    %69: %r0 = const 3.735928559E9
+    %70: %r3 = binary.eq %68, %69
+    jump -> block4(%70)
+  block4(%0: %r3):
+    %71: %r1 = const 64
+    %72: %r1 = const 0
+    %73: %r1 = select %0, %71, %72
+    %74: %r1 = binary.add %57, %73
+    %75: %r1 = coerce %74
+    %76: %r1 = binary.add %36, %75
+    %77: %r1 = coerce %76
+    %78: %r2 = const 81985529216486895n
+    %79: %r2 = call opaqueU64 %78
+    %80: %r2 = const 24n
+    %81: %r2 = helper.bitsupto %79, %80
+    %82: %r2 = coerce %81
+    %83: %r2 = const 11259375n
+    %84: %r3 = binary.eq %82, %83
+    %85: %r1 = const 128
+    %86: %r1 = const 0
+    %87: %r1 = select %84, %85, %86
+    %88: %r2 = const 81985529216486895n
+    %89: %r2 = call opaqueU64 %88
+    %90: %r2 = const 81985529216486895n
+    %91: %r3 = binary.eq %89, %90
+    %92: %r1 = const 256
+    %93: %r1 = const 0
+    %94: %r1 = select %91, %92, %93
+    %95: %r1 = binary.add %87, %94
+    %96: %r1 = coerce %95
+    %97: %r2 = const 81985529216486895n
+    %98: %r2 = call opaqueU64 %97
+    %99: %r2 = const 81985529216486895n
+    %100: %r2 = call opaqueU64 %99
+    %101: %r2 = const 81985529216486895n
+    %102: %r3 = binary.eq %100, %101
+    %103: %r1 = const 512
+    %104: %r1 = const 0
+    %105: %r1 = select %102, %103, %104
+    %106: %r1 = binary.add %96, %105
+    %107: %r1 = coerce %106
+    %108: %r1 = binary.add %77, %107
+    %109: %r1 = coerce %108
+    %110: %r0 = const 3.735928559E9
+    %111: %r0 = call opaqueU32 %110
+    %112: %r0 = const 16
+    %113: %r0 = const 8
+    %114: %r0 = binary.shr %111, %112
+    %115: %r0 = coerce %114
+    %116: %r0 = helper.bitsupto %115, %113
+    %117: %r0 = coerce %116
+    %118: %r0 = const 173
+    %119: %r3 = binary.eq %117, %118
+    %120: %r1 = const 1024
+    %121: %r1 = const 0
+    %122: %r1 = select %119, %120, %121
+    %123: %r0 = const 3.735928559E9
+    %124: %r0 = call opaqueU32 %123
+    %125: %r0 = const 16
+    %126: %r0 = helper.bitsupto %124, %125
+    %127: %r0 = coerce %126
+    %128: %r0 = const 48879
+    %129: %r3 = binary.eq %127, %128
+    %130: %r1 = const 2048
+    %131: %r1 = const 0
+    %132: %r1 = select %129, %130, %131
+    %133: %r1 = binary.add %122, %132
+    %134: %r1 = coerce %133
+    %135: %r0 = const 3.735928559E9
+    %136: %r0 = call opaqueU32 %135
+    %137: %r0 = const 28
+    %138: %r0 = const 4
+    %139: %r0 = binary.shr %136, %137
+    %140: %r0 = coerce %139
+    %141: %r0 = helper.bitsupto %140, %138
+    %142: %r0 = coerce %141
+    %143: %r0 = const 13
+    %144: %r3 = binary.eq %142, %143
+    %145: %r1 = const 4096
+    %146: %r1 = const 0
+    %147: %r1 = select %144, %145, %146
+    %148: %r1 = binary.add %134, %147
+    %149: %r1 = coerce %148
+    %150: %r1 = binary.add %109, %149
+    %151: %r1 = coerce %150
+    %152: %r0 = const 3.05419896E8
+    %153: %r0 = call opaqueU32 %152
+    %154: %r0 = const 4.27825536E9
+    %155: %r0 = call opaqueU32 %154
+    %156: %r0 = helper.gatherbits %153, %155
+    %157: %r0 = coerce %156
+    %158: %r0 = const 4694
+    %159: %r3 = binary.eq %157, %158
+    %160: %r1 = const 8192
+    %161: %r1 = const 0
+    %162: %r1 = select %159, %160, %161
+    %163: %r0 = const 4694
+    %164: %r0 = call opaqueU32 %163
+    %165: %r0 = const 4.27825536E9
+    %166: %r0 = call opaqueU32 %165
+    %167: %r0 = helper.scatterbits %164, %166
+    %168: %r0 = coerce %167
+    %169: %r0 = const 3.02011904E8
+    %170: %r3 = binary.eq %168, %169
+    %171: %r1 = const 16384
+    %172: %r1 = const 0
+    %173: %r1 = select %170, %171, %172
+    %174: %r1 = binary.add %162, %173
+    %175: %r1 = coerce %174
+    %176: %r0 = const 3.735928559E9
+    %177: %r0 = call opaqueU32 %176
+    %178: %r0 = const 65535
+    %179: %r0 = call opaqueU32 %178
+    %180: %r0 = helper.gatherbits %177, %179
+    %181: %r0 = coerce %180
+    %182: %r0 = const 48879
+    %183: %r3 = binary.eq %181, %182
+    %184: %r1 = const 32768
+    %185: %r1 = const 0
+    %186: %r1 = select %183, %184, %185
+    %187: %r1 = binary.add %175, %186
+    %188: %r1 = coerce %187
+    %189: %r0 = const 15
+    %190: %r0 = call opaqueU32 %189
+    %191: %r0 = const 2.52645135E8
+    %192: %r0 = call opaqueU32 %191
+    %193: %r0 = helper.scatterbits %190, %192
+    %194: %r0 = coerce %193
+    %195: %r0 = const 15
+    %196: %r3 = binary.eq %194, %195
+    %197: %r1 = const 65536
+    %198: %r1 = const 0
+    %199: %r1 = select %196, %197, %198
+    %200: %r1 = binary.add %188, %199
+    %201: %r1 = coerce %200
+    %202: %r1 = binary.add %151, %201
+    %203: %r1 = coerce %202
+    %204: %r0 = const 3.05419896E8
+    %205: %r0 = call opaqueU32 %204
+    %206: %r0 = const 4.27825536E9
+    %207: %r0 = call opaqueU32 %206
+    %208: %r2 = const 81985529216486895n
+    %209: %r2 = call opaqueU64 %208
+    %210: %r2 = const 71776123356119040n
+    %211: %r2 = call opaqueU64 %210
+    %212: %r0 = helper.gatherbits %205, %207
+    %213: %r0 = coerce %212
+    %214: %r0 = helper.scatterbits %213, %207
+    %215: %r0 = coerce %214
+    %216: %r0 = binary.and %205, %207
+    %217: %r0 = coerce %216
+    %218: %r3 = binary.eq %215, %217
+    %219: %r1 = const 131072
+    %220: %r1 = const 0
+    %221: %r1 = select %218, %219, %220
+    %222: %r2 = helper.gatherbits %209, %211
+    %223: %r2 = coerce %222
+    %224: %r2 = helper.scatterbits %223, %211
+    %225: %r2 = coerce %224
+    %226: %r2 = binary.and %209, %211
+    %227: %r2 = coerce %226
+    %228: %r3 = binary.eq %225, %227
+    %229: %r1 = const 262144
+    %230: %r1 = const 0
+    %231: %r1 = select %228, %229, %230
+    %232: %r1 = binary.add %221, %231
+    %233: %r1 = coerce %232
+    %234: %r1 = binary.add %203, %233
+    %235: %r1 = coerce %234
+    %236: %r0 = const 3.735928559E9
+    %237: %r0 = call opaqueU32 %236
+    %238: %r0 = const 0
+    %239: %r0 = call opaqueU32 %238
+    %240: %r0 = helper.gatherbits %237, %239
+    %241: %r0 = coerce %240
+    %242: %r0 = const 0
+    %243: %r3 = binary.eq %241, %242
+    %244: %r1 = const 524288
+    %245: %r1 = const 0
+    %246: %r1 = select %243, %244, %245
+    %247: %r0 = const 3.735928559E9
+    %248: %r0 = call opaqueU32 %247
+    %249: %r0 = const 0
+    %250: %r0 = call opaqueU32 %249
+    %251: %r0 = helper.scatterbits %248, %250
+    %252: %r0 = coerce %251
+    %253: %r0 = const 0
+    %254: %r3 = binary.eq %252, %253
+    %255: %r1 = const 1048576
+    %256: %r1 = const 0
+    %257: %r1 = select %254, %255, %256
+    %258: %r1 = binary.add %246, %257
+    %259: %r1 = coerce %258
+    %260: %r0 = const 3.735928559E9
+    %261: %r0 = call opaqueU32 %260
+    %262: %r0 = const 4.294967295E9
+    %263: %r0 = call opaqueU32 %262
+    %264: %r0 = helper.gatherbits %261, %263
+    %265: %r0 = coerce %264
+    %266: %r0 = const 3.735928559E9
+    %267: %r3 = binary.eq %265, %266
+    %268: %r1 = const 2097152
+    %269: %r1 = const 0
+    %270: %r1 = select %267, %268, %269
+    %271: %r1 = binary.add %259, %270
+    %272: %r1 = coerce %271
+    %273: %r0 = const 3.735928559E9
+    %274: %r0 = call opaqueU32 %273
+    %275: %r0 = const 4.294967295E9
+    %276: %r0 = call opaqueU32 %275
+    %277: %r0 = helper.scatterbits %274, %276
+    %278: %r0 = coerce %277
+    %279: %r0 = const 3.735928559E9
+    %280: %r3 = binary.eq %278, %279
+    %281: %r1 = const 4194304
+    %282: %r1 = const 0
+    %283: %r1 = select %280, %281, %282
+    %284: %r1 = binary.add %272, %283
+    %285: %r1 = coerce %284
+    %286: %r1 = binary.add %235, %285
+    %287: %r1 = coerce %286
+    %288: %r1 = const -16777216
+    %289: %r1 = call opaqueI32 %288
+    %290: %r1 = const 3.05419896E8
+    %291: %r1 = call opaqueI32 %290
+    %292: %r1 = helper.gatherbits %291, %289
+    %293: %r1 = coerce %292
+    %294: %r1 = const 18
+    %295: %r3 = binary.eq %293, %294
+    branch %295 -> block5 -> block7
+  block5:
+    %296: %r1 = const 3.05419896E8
+    %297: %r1 = const -16777216
+    %298: %r1 = helper.gatherbits %296, %297
+    %299: %r1 = coerce %298
+    %300: %r1 = const 18
+    %301: %r3 = binary.eq %299, %300
+    branch %301 -> block6 -> block7
+  block6:
+    %302: %r1 = const 18
+    %303: %r1 = call opaqueI32 %302
+    %304: %r1 = helper.scatterbits %303, %289
+    %305: %r1 = coerce %304
+    %306: %r1 = const 3.01989888E8
+    %307: %r3 = binary.eq %305, %306
+    branch %307 -> block8 -> block7
+  block7:
+    %308: %r3 = const 0
+    jump -> block9(%308)
+  block8:
+    %309: %r1 = const -1
+    %310: %r1 = call opaqueI32 %309
+    %311: %r1 = const -1
+    %312: %r1 = call opaqueI32 %311
+    %313: %r1 = helper.gatherbits %310, %312
+    %314: %r1 = coerce %313
+    %315: %r1 = const -1
+    %316: %r3 = binary.eq %314, %315
+    jump -> block9(%316)
+  block9(%1: %r3):
+    %317: %r1 = const 8388608
+    %318: %r1 = const 0
+    %319: %r1 = select %1, %317, %318
+    %320: %r1 = binary.add %287, %319
+    %321: %r1 = coerce %320
+    %322: %r2 = const 81985529216486895n
+    %323: %r2 = call opaqueU64 %322
+    %324: %r2 = const 71776123356119040n
+    %325: %r2 = call opaqueU64 %324
+    %326: %r2 = helper.gatherbits %323, %325
+    %327: %r2 = coerce %326
+    %328: %r2 = const 2329003n
+    %329: %r3 = binary.eq %327, %328
+    branch %329 -> block11 -> block10
+  block10:
+    %330: %r3 = const 0
+    jump -> block12(%330)
+  block11:
+    %331: %r2 = const 291n
+    %332: %r2 = call opaqueU64 %331
+    %333: %r2 = const 71776123356119040n
+    %334: %r2 = call opaqueU64 %333
+    %335: %r2 = helper.scatterbits %332, %334
+    %336: %r2 = coerce %335
+    %337: %r2 = const 19070976n
+    %338: %r3 = binary.eq %336, %337
+    jump -> block12(%338)
+  block12(%2: %r3):
+    %339: %r1 = const 16777216
+    %340: %r1 = const 0
+    %341: %r1 = select %2, %339, %340
+    %342: %r1 = binary.add %321, %341
+    %343: %r1 = coerce %342
+    %344: %r0 = const 43981
+    %345: %r0 = call opaqueU32 %344
+    %346: %r0 = const 4660
+    %347: %r0 = call opaqueU32 %346
+    %348: %r0 = const 1.431655765E9
+    %349: %r0 = helper.scatterbits %345, %348
+    %350: %r0 = coerce %349
+    %351: %r0 = const 2.86331153E9
+    %352: %r0 = helper.scatterbits %347, %351
+    %353: %r0 = coerce %352
+    %354: %r0 = binary.or %350, %353
+    %355: %r0 = coerce %354
+    %356: %r0 = const 1.179474545E9
+    %357: %r3 = binary.eq %355, %356
+    %358: %r1 = const 33554432
+    %359: %r1 = const 0
+    %360: %r1 = select %357, %358, %359
+    %361: %r1 = binary.add %343, %360
+    %362: %r1 = coerce %361
+    %363: %r1 = const 2.01326592E8
+    %364: %r1 = binary.add %362, %363
+    %365: %r1 = coerce %364
+    %366: %r0 = const 3.735928559E9
+    %367: %r0 = call opaqueU32 %366
+    %368: %r0 = const 16
+    %369: %r0 = call lowVia(U32) %367, %368
+    %370: %r0 = const 48879
+    %371: %r3 = binary.eq %369, %370
+    %372: %r1 = const 2.68435456E8
+    %373: %r1 = const 0
+    %374: %r1 = select %371, %372, %373
+    %375: %r0 = const 3.05419896E8
+    %376: %r0 = call opaqueU32 %375
+    %377: %r0 = const 4.27825536E9
+    %378: %r0 = call opaqueU32 %377
+    %379: %r0 = call gatherVia(U32) %376, %378
+    %380: %r0 = const 4694
+    %381: %r3 = binary.eq %379, %380
+    %382: %r1 = const 5.36870912E8
+    %383: %r1 = const 0
+    %384: %r1 = select %381, %382, %383
+    %385: %r1 = binary.add %374, %384
+    %386: %r1 = coerce %385
+    %387: %r1 = binary.add %365, %386
+    %388: %r1 = coerce %387
+    return %388
+
+fn lowVia(U32)(one %r0, one %r0) -> one %r0
+  block0(%0: %r0, %1: %r0):
+    %2: %r0 = helper.bitsupto %0, %1
+    %3: %r0 = coerce %2
+    return %3
+
+fn gatherVia(U32)(one %r0, one %r0) -> one %r0
+  block0(%0: %r0, %1: %r0):
+    %2: %r0 = helper.gatherbits %0, %1
+    %3: %r0 = coerce %2
+    return %3
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number unsigned 32
+rep %r1 = number signed 32
+rep %r2 = bigint unsigned
+rep %r3 = number bool

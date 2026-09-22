@@ -1,0 +1,30 @@
+fn main() -> one %r0
+  block0:
+    %8: %r0 = const 7
+    %9: %r0 = alias %8
+    %10: %r0 = const 7
+    %11: %r0 = alias %10
+    %12: %r0 = const 100
+    %13: %r0 = binary.mul %11, %12
+    %14: %r0 = coerce %13
+    %15: %r0 = const 2
+    %16: %r0 = alias %15
+    %17: %r0 = alias %16
+    %18: %r0 = const 100
+    %19: %r0 = binary.mul %17, %18
+    %20: %r0 = coerce %19
+    %21: %r0 = alias %16
+    %22: %r0 = binary.add %20, %21
+    %23: %r0 = coerce %22
+    %24: %r0 = const 26
+    %25: %r0 = binary.add %24, %9
+    %26: %r0 = coerce %25
+    %27: %r0 = binary.add %26, %14
+    %28: %r0 = coerce %27
+    %29: %r0 = binary.add %28, %23
+    %30: %r0 = coerce %29
+    return %30
+
+optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0
+
+rep %r0 = number signed 32

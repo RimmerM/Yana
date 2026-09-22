@@ -242,6 +242,20 @@ constexpr PositionShape addressAt() {
     return PositionShape { ShapeTerm::Pointer, 0 };
 }
 
+/*
+ * A pointer the operation **computed** whose *pointee* names an origin the signature published -
+ * `hostRow`'s `%source'a`, the storage a fixed array occupies read as the row of its elements.
+ *
+ * Distinct from `rootedPointerAt` in the axis that one is a parameter shape for: that says the
+ * pointer itself is read and not kept, which is true of an operand and untrue of a result a window
+ * record is built out of. Distinct from `addressAt` in the other direction - there *is* somewhere
+ * for the pointee to be rooted, and it is the argument.
+ */
+constexpr PositionShape rootedAddressAt() {
+    return PositionShape { ShapeTerm::Pointer, 0, ShapeAccess::Any, ShapeOrigin::Any,
+                           ShapeOrigin::Published };
+}
+
 // The same, whose *pointee* names an origin the signature published - `%source'a`. What every
 // operation that hands the storage on depends on: a borrow taken through an unqualified `%a` is
 // rooted in nothing and cannot be returned by anybody.

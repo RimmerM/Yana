@@ -1,0 +1,51 @@
+fn main() -> one %r0
+  var $0: %r4
+  block0:
+    %0: %r3 = fun.code call.thunk
+    %1: %r3 = const null
+    %2: %r4 = object %s2 %0, %1
+    store var $0: %r4, %2
+    %3: %r0 = const 38
+    %7: %r3 = fun.code callForcing.thunk
+    %8: %r3 = const null
+    %9: %r4 = object %s2 %7, %8
+    %6: %r4 = alias %9
+    %10: %r3 = load property %6.$c: %r3
+    %11: %r3 = load property %6.$e: %r3
+    %12: %r0 = call.value %10, %11
+    %13: %r0 = binary.add %3, %12
+    %14: %r0 = coerce %13
+    %15: %r0 = load global effects: %r0
+    %16: %r0 = binary.add %14, %15
+    %17: %r0 = coerce %16
+    return %17
+
+fn call.thunk(one %r1) -> one %r0 env
+  block0(%0: %r1):
+    %1: %r0 = const 1
+    %2: %r0 = load global effects: %r0
+    %3: %r0 = binary.add %2, %1
+    %4: %r0 = coerce %3
+    store global effects: %r0, %4
+    return %1
+
+fn callForcing.thunk(one %r2) -> one %r0 env
+  block0(%0: %r2):
+    %1: %r0 = const 4
+    %2: %r0 = load global effects: %r0
+    %3: %r0 = binary.add %2, %1
+    %4: %r0 = coerce %3
+    store global effects: %r0, %4
+    return %1
+
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 1 sunk 0
+
+shape %s0 object call.thunk.env {}
+shape %s1 object callForcing.thunk.env {}
+shape %s2 fun {$c: %r3 code, $e: %r3 env}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = object %s1
+rep %r3 = erased
+rep %r4 = object %s2

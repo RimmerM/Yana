@@ -224,6 +224,20 @@ struct Printer {
                     uint(((InstNative&)value).immediate);
                 }
                 break;
+            case Inst::Host: {
+                // The row, then the member, quoted for the reason the MIR dump quotes it: it names
+                // the host and not anything of this program.
+                auto& host = (InstHost&)value;
+                writer.writeString(" "_v);
+                writer.writeString(mir::hostOpName(host.op));
+
+                if(host.member.value) {
+                    writer.writeString(" \""_v);
+                    writer.writeString(stringView(context.findName(host.member)));
+                    writer.writeString("\""_v);
+                }
+                break;
+            }
             case Inst::VecLane:
             case Inst::VecWithLane:
                 // The lane, which is a field rather than an operand - `mir::inst.def` is where the

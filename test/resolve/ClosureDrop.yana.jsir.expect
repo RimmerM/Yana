@@ -1,0 +1,98 @@
+fn Guard.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    store var $0: %r0, %0
+    %1: %r0 = load global dropCalls: %r0
+    %2: %r0 = const 1
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    store global dropCalls: %r0, %4
+    return
+
+fn plain() -> one %r3
+  block0:
+    %0: %r2 = fun.code plain.lambda
+    %1: %r2 = const null
+    %2: %r3 = object %s0 %0, %1
+    return %2
+
+fn main() -> one %r0
+  var $0: %r0
+  var $1: %r4
+  block0:
+    %3: %r2 = const null
+    %4: %r2 = const null
+    %6: %r0 = const 7
+    %7: %r0 = alias %6
+    store var $0: %r0, %7
+    %8: %r0 = load var $0: %r0
+    %9: %r4 = object %s1 %8
+    store var $1: %r4, %9
+    %10: %r4 = load var $1: %r4
+    %11: %r2 = fun.code guarded.lambda
+    %12: %r3 = object %s0 %11, %10
+    %2: %r3 = alias %12
+    %13: %r2 = load property %2.$c: %r2
+    %14: %r2 = load property %2.$e: %r2
+    %15: %r0 = call.value %13, %14
+    helper.fun.drop %2
+    %16: %r0 = load global dropCalls: %r0
+    %17: %r0 = const 1
+    %18: %r6 = binary.ne %16, %17
+    branch %18 -> block2 -> block1
+  block1:
+    %19: %r3 = call plain
+    %5: %r3 = object %s0 %3, %4
+    store value %5: %r3, %19
+    %20: %r2 = load property %5.$c: %r2
+    %21: %r2 = load property %5.$e: %r2
+    %22: %r0 = call.value %20, %21
+    helper.fun.drop %5
+    %23: %r0 = load global dropCalls: %r0
+    %24: %r0 = const 1
+    %25: %r6 = binary.ne %23, %24
+    branch %25 -> block4 -> block3
+  block2:
+    %32: %r0 = const -1
+    return %32
+  block3:
+    %26: %r0 = binary.add %15, %22
+    %27: %r0 = coerce %26
+    %28: %r0 = load global dropCalls: %r0
+    %29: %r0 = binary.add %27, %28
+    %30: %r0 = coerce %29
+    return %30
+  block4:
+    %31: %r0 = const -2
+    return %31
+
+fn guarded.lambda(one %r4) -> one %r0 env
+  block0(%0: %r4):
+    %1: %r0 = load property %0.g: %r0
+    %2: %r0 = load property %0.g: %r0
+    return %2
+
+fn guarded.lambda(one %r4) -> omitted
+  block0(%0: %r4):
+    %1: %r0 = load property %0.g: %r0
+    call Guard.drop %1
+    return
+
+fn plain.lambda(one %r5) -> one %r0 env
+  block0(%0: %r5):
+    %1: %r0 = const 5
+    return %1
+
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 1 sunk 1
+
+shape %s0 fun {$c: %r2 code, $e: %r2 env}
+shape %s1 object guarded.lambda.env {g: %r0}
+shape %s2 object plain.lambda.env {}
+
+rep %r0 = number signed 32
+rep %r1 = void
+rep %r2 = erased
+rep %r3 = object %s0
+rep %r4 = object %s1
+rep %r5 = object %s2
+rep %r6 = number bool

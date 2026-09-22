@@ -10,6 +10,7 @@
 #include "../lower/lower_validate.h"
 #include "../codegen/llvm/gen.h"
 #include "../codegen/js/gen.h"
+#include "../codegen/js/jsir.h"
 #include "../codegen/x64/emit.h"
 #include "../opt/opt.h"
 #include "../repr/repr.h"
@@ -87,6 +88,38 @@ static bool printAsts(Context& context, ModuleMap& map) {
 /*
  * The targets.
  */
+
+/*
+ * The JavaScript target through JSIR - `-mode exe -platform js -resolver ownership`, and the dump
+ * `-mode jsir` writes beside it.
+ *
+ * One function for the two because they are one pipeline: the dump is written *inside* the
+ * per-function loop, since a JSIR body does not survive it (Analysis-IR-JS.md §7.1), so a mode that
+ * printed afterwards would be a mode that needed the bodies kept. The emitted file is built either
+ * way and discarded for the dump, which costs one AST for a debugging flag and keeps the two from
+ * being two walks that can disagree.
+ */
+static bool compileJsir(Context& context, mir::Program& program, ssa::Converted& converted,
+                        const String& outputDir, StringView name) {
+    if(context.settings.mode == CompileMode::Jsir) {
+        return writeText(context, joinPath(outputDir, name, ".jsir"_v), [&](Net::Writer& writer) {
+            js::genJsirProgram(context, program, converted, &writer);
+        }) && !context.diagnostics.errorCount();
+    }
+
+    if(context.settings.mode != CompileMode::Executable) {
+        context.diagnostics.error("-resolver ownership answers -mode ast, mir, ssa, jsir and exe for -platform js"_v,
+                                  nullptr);
+        return false;
+    }
+
+    auto file = js::genJsirProgram(context, program, converted, nullptr);
+    if(context.diagnostics.errorCount()) return false;
+
+    return writeText(context, joinPath(outputDir, name, ".js"_v), [&](Net::Writer& writer) {
+        js::formatFile(writer, context, *file, false);
+    });
+}
 
 static bool compileJs(Context& context, Program& program, const String& outputDir, StringView name) {
     auto file = js::genProgram(context, program);
@@ -270,7 +303,8 @@ static bool ensureOutputDirectory(const String& outputDir) {
 }
 
 /*
- * The rewritten stage - `-resolver ownership`, and Analysis-IR.md part 11.2.
+ * The rewritten stage - `-resolver ownership`, the default since 2026-09-22 (J81), and
+ * Analysis-IR.md part 11.2.
  *
  * A path of its own beside the one below rather than a branch inside it, because the two share
  * nothing above `compiler/lower`: there is no `Program` here, no resolve IR and no `compiler/opt`.
@@ -280,7 +314,13 @@ static bool ensureOutputDirectory(const String& outputDir) {
  * The modes it answers are the ones that have an answer. `mir` and `ssa` are its own two dumps;
  * `lower`, `llvm` and `exe` are the shared backends reached through it. The rest - `ir`, `drops`, and
  * two library modes - are either the other stage's own output or work that has not arrived, and each
- * says which rather than producing something misleading.
+ * says which rather than producing something misleading. Reaching one of those from here means
+ * `-resolver ownership` was *written*, since `checkSettings` refuses them to a command line that
+ * left the stage unnamed - the sentence there is the one that names `-resolver legacy`.
+ *
+ * On a JavaScript target the answer stops at the fork: the two dumps are produced the same way and
+ * everything below them is refused by `checkSettings`, because the other half of the fork is JSIR
+ * and it is not built. See the guard above `lower` and Analysis-IR-JS.md milestone 0.
  */
 static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
                                   ast::ModuleProvider& provider, const String& outputDir,
@@ -332,6 +372,20 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
         });
     }
 
+    /*
+     * The fork - `resolve_ssa/lower` is its native half and `resolve_ssa/js` is the other
+     * (Analysis-IR-JS.md part 9).
+     *
+     * A JavaScript build takes the second arm and never reaches the line below, which is the one
+     * thing about this function that has to stay true: lowering a program whose `@platform`
+     * selection kept the library's JavaScript half would produce a native module for declarations
+     * that have no machine meaning, and the consequence would be silent. `checkSettings` refuses
+     * every mode neither arm answers, so arriving past this with a JavaScript target would mean the
+     * two disagree about which those are.
+     */
+    if(isJsMode(settings)) return compileJsir(context, *pipeline.program, pipeline.converted,
+                                              outputDir, name);
+
     auto lowered = pipeline.lower();
     if(!lowered || context.diagnostics.errorCount()) return false;
 
@@ -347,7 +401,7 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
     }
 
     if(settings.mode != CompileMode::Executable && settings.mode != CompileMode::Llvm) {
-        context.diagnostics.error("-resolver ownership implements -mode mir, ssa, lower, llvm and exe so far"_v,
+        context.diagnostics.error("-resolver ownership implements -mode mir, ssa, lower, llvm and exe so far - -mode ir, drops, shared and lib are -resolver legacy's"_v,
                                   nullptr);
         return false;
     }
@@ -624,15 +678,12 @@ int main(int argc, const char** argv) {
      * `-mode exe` standing and would otherwise fall into a build.
      */
     if(context.settings.explaining()) {
-        // What the query reads is resolved by the rewritten stage, and that stage reads no JavaScript
-        // program yet - the library's `@platform(js)` half is written against the shipping stage. So
-        // the query is refused for one, rather than answered with every reason the library did not
-        // resolve.
-        if(isJsMode(context.settings)) {
-            printlnError("Error: explain reads the rewritten resolve stage, which does not resolve a JavaScript program yet. Use -platform native.");
-            return 1;
-        }
-
+        // **A JavaScript program is explained too, since 2026-09-22 (J75).** This used to refuse one
+        // by name, because what the query reads is resolved by the rewritten stage and that stage
+        // read no JavaScript program - the library's `@platform(js)` half would have come back as a
+        // page of unresolved declarations. It resolves one now, and `@platform` selecting which
+        // declarations exist is exactly why the answer has to be per target: a native build and a
+        // JavaScript build are two programs, and this reports whichever one the flags name.
         ssa::Pipeline pipeline(context);
         if(!pipeline.resolve(root->parsed, &provider, toBuffer(testRoots))) return 1;
         return explainProgram(context, *pipeline.program) ? 0 : 1;
@@ -710,7 +761,8 @@ int main(int argc, const char** argv) {
         // both `-mode mir` and `-resolver legacy`.
         case CompileMode::Mir:
         case CompileMode::Ssa:
-            diagnostics.error("-mode mir and -mode ssa are the ownership pipeline's dumps - see -resolver"_v,
+        case CompileMode::Jsir:
+            diagnostics.error("-mode mir, -mode ssa and -mode jsir are the ownership pipeline's dumps - see -resolver"_v,
                               nullptr);
             break;
 

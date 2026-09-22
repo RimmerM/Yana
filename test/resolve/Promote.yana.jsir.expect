@@ -1,0 +1,29 @@
+fn main() -> one %r0
+  block0:
+    %2: %r0 = const 5
+    %3: %r0 = const 0
+    %4: %r0 = const 0
+    %5: %r0 = const 1
+    jump -> block1(%3, %4)
+  block1(%0: %r0, %1: %r0):
+    %6: %r1 = binary.lt %1, %2
+    branch %6 -> block3 -> block2
+  block2:
+    %10: %r0 = const 16104
+    %11: %r0 = binary.add %0, %10
+    %12: %r0 = coerce %11
+    return %12
+  block3:
+    %13: %r0 = binary.add %0, %1
+    %14: %r0 = coerce %13
+    %15: %r0 = binary.add %1, %5
+    %16: %r0 = coerce %15
+    jump -> block1(%14, %16)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 3 adopted 0 sunk 0
+
+shape %s0 object Flags {a: %r1, b: %r1}
+
+rep %r0 = number signed 32
+rep %r1 = number bool
+rep %r2 = object %s0

@@ -1,0 +1,196 @@
+fn arithmetic(parts %r2) -> parts %r2
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0):
+    %4: %r0 = const 4
+    %5: %r0 = binary.add %0, %4
+    %6: %r0 = coerce %5
+    %7: %r0 = binary.add %1, %4
+    %8: %r0 = coerce %7
+    %9: %r0 = binary.add %2, %4
+    %10: %r0 = coerce %9
+    %11: %r0 = binary.add %3, %4
+    %12: %r0 = coerce %11
+    %13: %r0 = binary.mul %0, %4
+    %14: %r0 = coerce %13
+    %15: %r0 = binary.mul %1, %4
+    %16: %r0 = coerce %15
+    %17: %r0 = binary.mul %2, %4
+    %18: %r0 = coerce %17
+    %19: %r0 = binary.mul %3, %4
+    %20: %r0 = coerce %19
+    %21: %r0 = binary.and %6, %14
+    %22: %r0 = coerce %21
+    %23: %r0 = binary.and %8, %16
+    %24: %r0 = coerce %23
+    %25: %r0 = binary.and %10, %18
+    %26: %r0 = coerce %25
+    %27: %r0 = binary.and %12, %20
+    %28: %r0 = coerce %27
+    %29: %r0 = binary.shl %22, %4
+    %30: %r0 = coerce %29
+    %31: %r0 = binary.shl %24, %4
+    %32: %r0 = coerce %31
+    %33: %r0 = binary.shl %26, %4
+    %34: %r0 = coerce %33
+    %35: %r0 = binary.shl %28, %4
+    %36: %r0 = coerce %35
+    %37: %r0 = binary.sub %30, %0
+    %38: %r0 = coerce %37
+    %39: %r0 = binary.sub %32, %1
+    %40: %r0 = coerce %39
+    %41: %r0 = binary.sub %34, %2
+    %42: %r0 = coerce %41
+    %43: %r0 = binary.sub %36, %3
+    %44: %r0 = coerce %43
+    %45: %r1 = materialize %r2 %38, %40, %42, %44
+    return %45
+
+fn widths(parts %r5, parts %r8) -> parts %r5
+  block0(%0: %r3, %1: %r3, %2: %r3, %3: %r3, %4: %r6, %5: %r6):
+    %6: %r3 = binary.shl %0, %0
+    %7: %r3 = coerce %6
+    %8: %r3 = binary.shl %1, %1
+    %9: %r3 = coerce %8
+    %10: %r3 = binary.shl %2, %2
+    %11: %r3 = coerce %10
+    %12: %r3 = binary.shl %3, %3
+    %13: %r3 = coerce %12
+    %14: %r3 = binary.or %0, %7
+    %15: %r3 = coerce %14
+    %16: %r3 = binary.or %1, %9
+    %17: %r3 = coerce %16
+    %18: %r3 = binary.or %2, %11
+    %19: %r3 = coerce %18
+    %20: %r3 = binary.or %3, %13
+    %21: %r3 = coerce %20
+    %22: %r4 = materialize %r5 %15, %17, %19, %21
+    return %22
+
+fn widening(parts %r2) -> parts %r11
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0):
+    %4: %r9 = convert %0
+    %5: %r9 = convert %1
+    %6: %r9 = convert %2
+    %7: %r9 = convert %3
+    %8: %r10 = materialize %r11 %4, %5, %6, %7
+    return %8
+
+fn narrowing(parts %r11) -> parts %r2
+  block0(%0: %r9, %1: %r9, %2: %r9, %3: %r9):
+    %4: %r0 = convert %0
+    %5: %r0 = convert %1
+    %6: %r0 = convert %2
+    %7: %r0 = convert %3
+    %8: %r1 = materialize %r2 %4, %5, %6, %7
+    return %8
+
+fn reinterpreting(parts %r11) -> parts %r14
+  block0(%0: %r9, %1: %r9, %2: %r9, %3: %r9):
+    %4: %r12 = helper.bits.float %0
+    %5: %r12 = coerce %4
+    %6: %r12 = helper.bits.float %1
+    %7: %r12 = coerce %6
+    %8: %r12 = helper.bits.float %2
+    %9: %r12 = coerce %8
+    %10: %r12 = helper.bits.float %3
+    %11: %r12 = coerce %10
+    %12: %r13 = materialize %r14 %5, %7, %9, %11
+    return %12
+
+fn aliases(parts %r14) -> parts %r14
+  block0(%0: %r12, %1: %r12, %2: %r12, %3: %r12):
+    %4: %r13 = materialize %r14 %0, %1, %2, %3
+    return %4
+
+fn main() -> one %r9
+  block0:
+    %0: %r1 = load global sink: %r1
+    %1: %r0 = split %0 #0 of %r2
+    %2: %r0 = split %0 #1 of %r2
+    %3: %r0 = split %0 #2 of %r2
+    %4: %r0 = split %0 #3 of %r2
+    %5: %r1 = call arithmetic %1, %2, %3, %4
+    %6: %r0 = split %5 #0 of %r2
+    %7: %r0 = split %5 #1 of %r2
+    %8: %r0 = split %5 #2 of %r2
+    %9: %r0 = split %5 #3 of %r2
+    %10: %r10 = call widening %6, %7, %8, %9
+    %11: %r9 = split %10 #0 of %r11
+    %12: %r9 = split %10 #1 of %r11
+    %13: %r9 = split %10 #2 of %r11
+    %14: %r9 = split %10 #3 of %r11
+    %15: %r1 = call narrowing %11, %12, %13, %14
+    %16: %r13 = call reinterpreting %11, %12, %13, %14
+    %17: %r12 = split %16 #0 of %r14
+    %18: %r12 = split %16 #1 of %r14
+    %19: %r12 = split %16 #2 of %r14
+    %20: %r12 = split %16 #3 of %r14
+    %21: %r13 = call aliases %17, %18, %19, %20
+    %22: %r3 = const 1
+    %23: %r6 = const 2
+    %24: %r4 = call widths %22, %22, %22, %22, %23, %23
+    %25: %r12 = split %21 #0 of %r14
+    %26: %r12 = split %21 #1 of %r14
+    %27: %r12 = split %21 #2 of %r14
+    %28: %r12 = split %21 #3 of %r14
+    %29: %r9 = helper.float.bits %25
+    %30: %r9 = coerce %29
+    %31: %r9 = helper.float.bits %26
+    %32: %r9 = coerce %31
+    %33: %r9 = helper.float.bits %27
+    %34: %r9 = coerce %33
+    %35: %r9 = helper.float.bits %28
+    %36: %r9 = coerce %35
+    %37: %r0 = convert %30
+    %38: %r0 = convert %32
+    %39: %r0 = convert %34
+    %40: %r0 = convert %36
+    %41: %r0 = split %15 #0 of %r2
+    %42: %r0 = split %15 #1 of %r2
+    %43: %r0 = split %15 #2 of %r2
+    %44: %r0 = split %15 #3 of %r2
+    %45: %r0 = binary.xor %41, %37
+    %46: %r0 = coerce %45
+    %47: %r0 = binary.xor %42, %38
+    %48: %r0 = coerce %47
+    %49: %r0 = binary.xor %43, %39
+    %50: %r0 = coerce %49
+    %51: %r0 = binary.xor %44, %40
+    %52: %r0 = coerce %51
+    %53: %r3 = split %24 #0 of %r5
+    %54: %r3 = split %24 #1 of %r5
+    %55: %r3 = split %24 #2 of %r5
+    %56: %r3 = split %24 #3 of %r5
+    %57: %r0 = convert %53
+    %58: %r0 = convert %54
+    %59: %r0 = convert %55
+    %60: %r0 = convert %56
+    %61: %r0 = binary.xor %46, %57
+    %62: %r0 = coerce %61
+    %63: %r0 = binary.xor %48, %58
+    %64: %r0 = coerce %63
+    %65: %r0 = binary.xor %50, %59
+    %66: %r0 = coerce %65
+    %67: %r0 = binary.xor %52, %60
+    %68: %r0 = coerce %67
+    %69: %r1 = materialize %r2 %62, %64, %66, %68
+    store global sink: %r1, %69
+    %70: %r9 = const 1
+    return %70
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 16
+rep %r1 = array Int16Array of %r0
+rep %r2 = parts (%r0, %r0, %r0, %r0) as %r1
+rep %r3 = number unsigned 8
+rep %r4 = array Uint8Array of %r3
+rep %r5 = parts (%r3, %r3, %r3, %r3) as %r4
+rep %r6 = number unsigned 32
+rep %r7 = array Uint32Array of %r6
+rep %r8 = parts (%r6, %r6) as %r7
+rep %r9 = number signed 32
+rep %r10 = array Int32Array of %r9
+rep %r11 = parts (%r9, %r9, %r9, %r9) as %r10
+rep %r12 = number f32
+rep %r13 = array Float32Array of %r12
+rep %r14 = parts (%r12, %r12, %r12, %r12) as %r13

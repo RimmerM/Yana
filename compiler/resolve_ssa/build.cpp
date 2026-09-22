@@ -350,6 +350,157 @@ Convention conventionFor(DeclBase decl, const mir::Occurrence& occurrence) {
     return mir::isTriviallyCopyableAt(decl, occurrence) ? Convention::Trivial : Convention::Affine;
 }
 
+// The declaration in `build.h` is where the argument is. The rows are `manifestNative`'s, with the
+// numbers left off - which is the whole of what makes this one askable here.
+bool holdsAggregate(DeclBase decl, DeclPtr<mir::Type> type) {
+    if(!type) return false;
+
+    auto& logical = *decl[type];
+
+    switch(logical.kind) {
+        // No bytes, or bytes a register holds. An `@bits(n)` refinement and a `Size` are the same
+        // answer for a narrower reason: a value too wide for a register is not a width this language
+        // has, so the *kind* decides here and the table decides how many bytes it takes.
+        case mir::Type::Unit:
+        case mir::Type::Int:
+        case mir::Type::Float:
+        case mir::Type::Pointer:
+            return false;
+
+        /*
+         * A vector is a **register** value - Design-Vector §2.5 makes that a contract rather than an
+         * observation, so there is no target on which one is storage.
+         *
+         * The two exceptions are the same one: a count nothing has supplied yet. A quantified count
+         * and the natural form over a lane a generic body cannot measure both reach this with no
+         * number, and a value whose width is not known here is reached the way every other one is.
+         */
+        case mir::Type::Vector: {
+            auto& vector = (mir::VectorType&)logical;
+            return !vector.hasFixedCount() || !vector.lanes;
+        }
+
+        /*
+         * An **enum-layout** record is its discriminant and nothing else, which is the one
+         * refinement no kind can make - `manifestNative`'s `Record` row, where the argument is.
+         */
+        case mir::Type::Record:
+            return ((mir::RecordType&)logical).layout != mir::RecordLayout::Enum;
+
+        // A function value with a **convention** is a raw code pointer; without one it is the
+        // `{code, env}` pair, which the shared IR has no register for. An iterator object is the
+        // same pair.
+        case mir::Type::Fun:
+            return !((mir::FunType&)logical).convention;
+        case mir::Type::Iter:
+            return true;
+
+        // A fixed array's elements are inline, an atomic is a *location* rather than a value
+        // (Analysis-Atomics.md §3.1), and a type parameter's layout is in the descriptor its caller
+        // supplied. All three are reached through storage whatever they turn out to hold.
+        case mir::Type::Array:
+        case mir::Type::Atomic:
+        case mir::Type::Variable:
+            return true;
+
+        // A number written where a type is. No value has one, so nothing holds one anywhere.
+        case mir::Type::Const:
+        case mir::Type::KindCount:
+            return false;
+    }
+
+    return false;
+}
+
+// The declaration in `build.h` is where the argument is.
+bool useKeepsAddressLocal(SsaBase ssa, Inst& user, SsaPtr<Value> address) {
+    (void)ssa;
+
+    switch(user.kind) {
+        case Inst::Load:
+            return ((InstLoad&)user).address.value() == address;
+        case Inst::Copy:
+            return ((InstCopy&)user).address.value() == address;
+        case Inst::Store:
+            return ((InstStore&)user).address.value() == address;
+        case Inst::Drop:
+            return ((InstDrop&)user).address.value() == address;
+        case Inst::Free:
+            return true;
+
+        // A projection of an object hands out a *different* address, whose own escape is its own
+        // question. What this one says is that the root itself did not leave - and it says it of
+        // the address being projected *from*, which is the half the `ElementAddress` row left out.
+        case Inst::FieldAddress:
+            return ((InstFieldAddress&)user).base.value() == address;
+        case Inst::ElementAddress:
+            return ((InstElementAddress&)user).base.value() == address;
+
+        default:
+            return false;
+    }
+}
+
+// The declaration in `build.h` is where the argument is.
+bool loanDenotesStorage(Context& context, mir::Program& program, const mir::Occurrence& occurrence) {
+    // Kept in the signature although nothing below reads it - both callers ask this of an
+    // occurrence, and a row that does need a context is what the view row below used to be.
+    (void)context;
+
+    auto contract = occurrence.contract;
+    if(contract.isOwned()) return false;
+
+    /*
+     * A **window** denotes a value and not storage, whatever else the contract says.
+     *
+     * The descriptor is three words of its own: what `&xs: [Int]` writes through is the elements,
+     * and a `[shared slot n view]` reborrow copies three words rather than publishing an address.
+     * Above the two rows below it for exactly that reason - a unique window and one whose origin is
+     * a slot both answer yes to them, and both are wrong about a descriptor. J71 is the account.
+     *
+     * `hasViewFor` and not `viewRecordOf`, which is the same answer without the work: that one
+     * *instantiates* the view record at the owner's arguments, and what is wanted here is only
+     * whether there is one. This is asked on the native path at every loan of every occurrence and
+     * ahead of the two cheap rows below it, so the instantiation was the first thing a shared loan
+     * of an `Int` paid for.
+     */
+    if(contract.form() == mir::AccessForm::View &&
+       mir::hasViewFor(*program.decl, program, occurrence.type, contract.access())) {
+        return false;
+    }
+
+    // The two the source published - `doc/spec/ownership.md`. Exclusive access has to reach the
+    // lender's storage to write through it, and an external-origin qualifier outlives the
+    // expression that made it and must therefore retain an address.
+    if(contract.access() == mir::Access::Unique) return true;
+    if(contract.origin() == mir::Origin::Slot) return true;
+
+    // `readMode`'s first clause, and the whole of the rest of the decision: the spec *copies* at a
+    // shared call-bounded position of a trivially copyable type, so the loan and the copy are the
+    // same thing and there is no storage for it to denote.
+    return !mir::isTriviallyCopyableAt(*program.decl, occurrence);
+}
+
+// The declaration in `build.h` is where the argument is.
+bool denotesStorage(Context& context, mir::Program& program, const mir::Occurrence& occurrence) {
+    (void)context;
+
+    // A window is laid out as its descriptor record, which is storage like any other record - the
+    // row `manifestNative` puts above its reference-value row.
+    if(occurrence.contract.form() == mir::AccessForm::View &&
+       mir::hasViewFor(*program.decl, program, occurrence.type,
+                       occurrence.contract.access())) {
+        return true;
+    }
+
+    if(!occurrence.contract.isOwned()) {
+        if(occurrence.contract.access() == mir::Access::Unique) return true;
+        if(occurrence.contract.origin() == mir::Origin::Slot) return true;
+    }
+
+    return holdsAggregate(*program.decl, occurrence.type);
+}
+
 /*
  * A constant, at whatever the *type* says its value owes.
  *
@@ -613,6 +764,18 @@ Inst* Editor::addNative(LocationId source, mir::NativeOp op, const Use* argument
                         U8 immediate) {
     auto inst = new (arena) InstNative(source, op);
     inst->immediate = immediate;
+    inst->arguments.reserve(arena, count);
+    for(Size i = 0; i < count; i++) inst->arguments.push(arena, arguments[i]);
+
+    append(inst);
+    if(hasResult) addResult(*inst, result, convention);
+    return inst;
+}
+
+Inst* Editor::addHost(LocationId source, mir::HostOp op, StringId member, const Use* arguments,
+                      Size count, const Occurrence& result, Convention convention, bool hasResult) {
+    auto inst = new (arena) InstHost(source, op);
+    inst->member = member;
     inst->arguments.reserve(arena, count);
     for(Size i = 0; i < count; i++) inst->arguments.push(arena, arguments[i]);
 
@@ -889,6 +1052,7 @@ static void mapUses(SsaBase base, Inst& inst, F&& f) {
             break;
 
         case Inst::Native:   many(((InstNative&)inst).arguments); break;
+        case Inst::Host:     many(((InstHost&)inst).arguments); break;
         case Inst::Atomic:   many(((InstAtomic&)inst).arguments); break;
         case Inst::AtomicOk: one(((InstAtomicOk&)inst).cas); break;
 

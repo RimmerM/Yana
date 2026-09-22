@@ -439,7 +439,7 @@ struct LoopKiller {
                 // body is made of. A `Store` is not one of them any more: the counter's step is an
                 // addition since `promote`, so the only store that could stand here is a write to a
                 // slot promotion declined, which is a write this pass has no account of.
-                if(isPure(inst.kind) || isTerminator(inst.kind)) continue;
+                if(isPure(inst) || isTerminator(inst.kind)) continue;
                 if(inst.kind == Inst::Load) {
                     if(((InstLoad&)inst).isVolatile) { ok = false; return; }
                     continue;
@@ -516,7 +516,7 @@ struct LoopKiller {
  *
  * `hoistLoopInvariants` in `lower/lower_licm.cpp` performs the same motion over the lower IR, and
  * README.md's section A assigned this row to it. That verdict was right for the native target and
- * only for it: `doc/proposal/Analysis-IR-JS.md` §6.1 names loop simplification as work the shared
+ * only for it: `doc/inflight/Analysis-IR-JS.md` §6.1 names loop simplification as work the shared
  * OSSA optimizer keeps, because JSIR consumes OSSA and never lowers. What lives only below the fork
  * is not there for JavaScript at all.
  *
@@ -766,7 +766,7 @@ struct Hoister {
          */
         if(result->convention != Convention::Trivial) return false;
 
-        if(isPure(inst.kind)) return isRemovable(opt, inst) && operandsOutside(loop, inst);
+        if(isPure(inst)) return isRemovable(opt, inst) && operandsOutside(loop, inst);
 
         // A read owes the ownership rule by hand, because `isRemovable` opens by refusing every kind
         // that is not pure and a `Load` is deliberately not one - see `inst.def`.

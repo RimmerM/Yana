@@ -1,0 +1,206 @@
+fn onlyRed(one %r1) -> one %r2
+  block0(%0: %r1):
+    %1: %r1 = const null
+    %2: %r3 = binary.eq %0, %1
+    %3: %r0 = const 1
+    %4: %r0 = const 0
+    %5: %r0 = select %2, %4, %3
+    %6: %r0 = const 1
+    %7: %r4 = binary.eq %5, %6
+    branch %7 -> block2 -> block1
+  block1:
+    %12: %r0 = const 1
+    %13: %r4 = binary.eq %5, %12
+    branch %13 -> block5 -> block4
+  block2:
+    %9: %r0 = alias %0
+    %10: %r0 = const 0
+    %11: %r4 = binary.eq %9, %10
+    branch %11 -> block3 -> block1
+  block3:
+    %27: %r2 = const 10
+    return %27
+  block4:
+    %18: %r0 = const 1
+    %19: %r4 = binary.eq %5, %18
+    branch %19 -> block8 -> block7
+  block5:
+    %15: %r0 = alias %0
+    %16: %r0 = const 1
+    %17: %r4 = binary.eq %15, %16
+    branch %17 -> block6 -> block4
+  block6:
+    %26: %r2 = const 20
+    return %26
+  block7:
+    %24: %r2 = const 0
+    return %24
+  block8:
+    %21: %r0 = alias %0
+    %22: %r0 = const 2
+    %23: %r4 = binary.eq %21, %22
+    branch %23 -> block9 -> block7
+  block9:
+    %25: %r2 = const 30
+    return %25
+
+fn main() -> one %r2
+  var $0: %r0
+  var $1: %r0
+  var $2: %r0
+  var $3: %r0
+  var $4: %r0
+  var $5: %r0
+  var $6: %r0
+  var $7: %r0
+  block0:
+    %9: %r2 = const 5
+    %10: %r0 = const 0
+    store var $0: %r0, %10
+    %13: %r0 = load var $0: %r0
+    %14: %r2 = map %13 [0 => 1, 1 => 2, else 3]
+    %15: %r2 = binary.add %9, %14
+    %16: %r2 = coerce %15
+    %17: %r0 = const 1
+    store var $1: %r0, %17
+    %20: %r0 = load var $1: %r0
+    %21: %r2 = map %20 [0 => 1, 1 => 2, else 3]
+    %22: %r2 = binary.add %16, %21
+    %23: %r2 = coerce %22
+    %24: %r0 = const 2
+    store var $2: %r0, %24
+    %27: %r0 = load var $2: %r0
+    %28: %r2 = map %27 [0 => 1, 1 => 2, else 3]
+    %29: %r2 = binary.add %23, %28
+    %30: %r2 = coerce %29
+    %31: %r0 = const 0
+    %32: %r1 = alias %31
+    %33: %r2 = call onlyRed %32
+    %34: %r2 = binary.add %30, %33
+    %35: %r2 = coerce %34
+    %36: %r0 = const 1
+    %37: %r1 = alias %36
+    %38: %r2 = call onlyRed %37
+    %39: %r2 = binary.add %35, %38
+    %40: %r2 = coerce %39
+    %41: %r0 = const 2
+    %42: %r1 = alias %41
+    %43: %r2 = call onlyRed %42
+    %44: %r2 = binary.add %40, %43
+    %45: %r2 = coerce %44
+    %46: %r1 = const null
+    %47: %r2 = call onlyRed %46
+    %48: %r2 = binary.add %45, %47
+    %49: %r2 = coerce %48
+    %58: %r2 = const 28
+    %59: %r2 = binary.add %49, %58
+    %60: %r2 = coerce %59
+    %61: %r0 = const 0
+    store var $3: %r0, %61
+    %63: %r0 = load var $3: %r0
+    %64: %r0 = const 0
+    %65: %r4 = binary.eq %63, %64
+    %66: %r0 = const 1
+    %67: %r4 = binary.eq %63, %66
+    jump -> block2
+  block1(%0: %r2):
+    %70: %r2 = binary.add %60, %0
+    %71: %r2 = coerce %70
+    %72: %r0 = const 1
+    store var $4: %r0, %72
+    %74: %r0 = load var $4: %r0
+    %75: %r0 = const 0
+    %76: %r4 = binary.eq %74, %75
+    %77: %r0 = const 1
+    %78: %r4 = binary.eq %74, %77
+    jump -> block7
+  block2:
+    branch %65 -> block5 -> block3
+  block3:
+    branch %67 -> block4 -> block2
+  block4:
+    %68: %r2 = const 100
+    jump -> block1(%68)
+  block5:
+    %69: %r2 = const 50
+    jump -> block1(%69)
+  block6(%1: %r2):
+    %81: %r2 = binary.add %71, %1
+    %82: %r2 = coerce %81
+    %83: %r0 = const 0
+    store var $5: %r0, %83
+    %85: %r0 = load var $5: %r0
+    %86: %r0 = const 0
+    %87: %r4 = binary.eq %85, %86
+    branch %87 -> block13 -> block12
+  block7:
+    branch %76 -> block10 -> block8
+  block8:
+    branch %78 -> block9 -> block7
+  block9:
+    %79: %r2 = const 100
+    jump -> block6(%79)
+  block10:
+    %80: %r2 = const 50
+    jump -> block6(%80)
+  block11(%2: %r2):
+    %94: %r2 = binary.add %82, %2
+    %95: %r2 = coerce %94
+    %96: %r0 = const 1
+    store var $6: %r0, %96
+    %98: %r0 = load var $6: %r0
+    %99: %r0 = const 0
+    %100: %r4 = binary.eq %98, %99
+    branch %100 -> block16 -> block15
+  block12:
+    %88: %r0 = const 1
+    %89: %r4 = binary.eq %85, %88
+    %90: %r2 = const 7
+    %91: %r2 = const 8
+    %92: %r2 = select %89, %90, %91
+    jump -> block11(%92)
+  block13:
+    %93: %r2 = const 9
+    jump -> block11(%93)
+  block14(%3: %r2):
+    %107: %r2 = binary.add %95, %3
+    %108: %r2 = coerce %107
+    %109: %r0 = const 2
+    store var $7: %r0, %109
+    %111: %r0 = load var $7: %r0
+    %112: %r0 = const 0
+    %113: %r4 = binary.eq %111, %112
+    branch %113 -> block19 -> block18
+  block15:
+    %101: %r0 = const 1
+    %102: %r4 = binary.eq %98, %101
+    %103: %r2 = const 7
+    %104: %r2 = const 8
+    %105: %r2 = select %102, %103, %104
+    jump -> block14(%105)
+  block16:
+    %106: %r2 = const 9
+    jump -> block14(%106)
+  block17(%4: %r2):
+    %120: %r2 = binary.add %108, %4
+    %121: %r2 = coerce %120
+    return %121
+  block18:
+    %114: %r0 = const 1
+    %115: %r4 = binary.eq %111, %114
+    %116: %r2 = const 7
+    %117: %r2 = const 8
+    %118: %r2 = select %115, %116, %117
+    jump -> block17(%118)
+  block19:
+    %119: %r2 = const 9
+    jump -> block17(%119)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 26 adopted 0 sunk 0
+
+rep %r0 = number unsigned 8
+rep %r1 = nullable of %r0
+rep %r2 = number signed 32
+rep %r3 = boolean
+rep %r4 = number bool
+rep %r5 = nullable of %r2

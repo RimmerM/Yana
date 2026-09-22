@@ -1,0 +1,287 @@
+fn strided(one %r0) -> one %r0
+  block0(%0: %r0):
+    %4: %r2 = array
+    %5: %r7 = object %s2 %4
+    %6: %r2 = host host.array
+    %8: %r2 = alias %6
+    store property %5.$v: %r2, %8
+    %9: %r0 = const 0
+    %10: %r0 = const 6
+    %11: %r0 = const 0
+    %12: %r0 = const 0
+    %13: %r0 = const 0
+    %14: %r0 = const 10
+    %15: %r0 = const 0
+    %16: %r0 = const 1
+    jump -> block1(%9)
+  block1(%1: %r0):
+    %17: %r9 = binary.lt %1, %10
+    branch %17 -> block3 -> block2
+  block2:
+    %18: %r0 = const 0
+    %19: %r0 = const 0
+    %20: %r0 = const 6
+    %21: %r0 = const 0
+    %22: %r0 = const 0
+    jump -> block4(%18, %19)
+  block3:
+    %57: %r0 = binary.mul %1, %14
+    %58: %r0 = coerce %57
+    %59: %r1 = object %s0 %1, %11, %12, %13, %58, %15
+    %60: %r3 = const "$v"
+    call push(Cell) %5, %60, %59
+    %61: %r0 = binary.add %1, %16
+    %62: %r0 = coerce %61
+    jump -> block1(%62)
+  block4(%2: %r0, %3: %r0):
+    %23: %r9 = binary.lt %2, %20
+    branch %23 -> block6 -> block5
+  block5:
+    %24: %r2 = load property %5.$v: %r2
+    call Array(a).reclaim(Cell) %24
+    return %3
+  block6:
+    %26: %r2 = load property %5.$v: %r2
+    %27: %r2 = load property %5.$v: %r2
+    %28: %r8 = load property %27.length: %r8
+    %29: %r0 = convert %28
+    %30: %r0 = convert %2
+    %31: %r12 = convert %30
+    %32: %r12 = convert %29
+    %33: %r9 = binary.ge %31, %32
+    branch %33 -> block8 -> block7
+  block7:
+    %34: %r2 = alias %26
+    %35: %r0 = binary.add %21, %30
+    %36: %r0 = coerce %35
+    %37: %r1 = load element %34[%36]: %r1
+    %38: %r0 = load property %37.a: %r0
+    %39: %r0 = binary.add %3, %38
+    %40: %r0 = coerce %39
+    %42: %r2 = load property %5.$v: %r2
+    %43: %r2 = load property %5.$v: %r2
+    %44: %r8 = load property %43.length: %r8
+    %45: %r0 = convert %44
+    %46: %r12 = convert %45
+    %47: %r9 = binary.ge %31, %46
+    branch %47 -> block10 -> block9
+  block8:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block9:
+    %48: %r2 = alias %42
+    %49: %r0 = binary.add %22, %30
+    %50: %r0 = coerce %49
+    %51: %r1 = load element %48[%50]: %r1
+    %52: %r0 = load property %51.e: %r0
+    %53: %r0 = binary.add %40, %52
+    %54: %r0 = coerce %53
+    %55: %r0 = binary.add %2, %0
+    %56: %r0 = coerce %55
+    jump -> block4(%56, %54)
+  block10:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+fn main() -> one %r0
+  block0:
+    %3: %r0 = const 2
+    %4: %r0 = call strided %3
+    %5: %r0 = const 66
+    %6: %r9 = binary.ne %4, %5
+    branch %6 -> block2 -> block1
+  block1:
+    %7: %r2 = array
+    %8: %r7 = object %s2 %7
+    %9: %r2 = host host.array
+    %11: %r2 = alias %9
+    store property %8.$v: %r2, %11
+    %12: %r0 = const 0
+    %13: %r0 = const 6
+    %14: %r0 = const 0
+    %15: %r0 = const 0
+    %16: %r0 = const 0
+    %17: %r0 = const 10
+    %18: %r0 = const 0
+    %19: %r0 = const 1
+    jump -> block9(%12)
+  block2:
+    %86: %r0 = const -1
+    return %86
+  block3:
+    %31: %r0 = const 1
+    %32: %r0 = call strided %31
+    %33: %r0 = const 165
+    %34: %r9 = binary.ne %32, %33
+    branch %34 -> block6 -> block5
+  block4:
+    %47: %r0 = const -2
+    return %47
+  block5:
+    %35: %r0 = const 9
+    %36: %r0 = call strided %35
+    %37: %r0 = const 0
+    %38: %r9 = binary.ne %36, %37
+    branch %38 -> block8 -> block7
+  block6:
+    %46: %r0 = const -3
+    return %46
+  block7:
+    %39: %r0 = const 2
+    %40: %r0 = call strided %39
+    %41: %r0 = const 3
+    %42: %r0 = call strided %41
+    %43: %r0 = binary.add %40, %42
+    %44: %r0 = coerce %43
+    return %44
+  block8:
+    %45: %r0 = const -4
+    return %45
+  block9(%0: %r0):
+    %20: %r9 = binary.lt %0, %13
+    branch %20 -> block18 -> block10
+  block10:
+    %21: %r0 = const 0
+    %22: %r0 = const 0
+    %23: %r0 = const 6
+    %24: %r0 = const 0
+    %25: %r0 = const 0
+    %26: %r0 = const 2
+    jump -> block11(%21, %22)
+  block11(%1: %r0, %2: %r0):
+    %27: %r9 = binary.lt %1, %23
+    branch %27 -> block13 -> block12
+  block12:
+    %28: %r2 = load property %8.$v: %r2
+    call Array(a).reclaim(Cell) %28
+    %29: %r0 = const 66
+    %30: %r9 = binary.ne %2, %29
+    branch %30 -> block4 -> block3
+  block13:
+    %49: %r2 = load property %8.$v: %r2
+    %50: %r2 = load property %8.$v: %r2
+    %51: %r8 = load property %50.length: %r8
+    %52: %r0 = convert %51
+    %53: %r0 = convert %1
+    %54: %r12 = convert %53
+    %55: %r12 = convert %52
+    %56: %r9 = binary.ge %54, %55
+    branch %56 -> block17 -> block14
+  block14:
+    %57: %r2 = alias %49
+    %58: %r0 = binary.add %24, %53
+    %59: %r0 = coerce %58
+    %60: %r1 = load element %57[%59]: %r1
+    %61: %r0 = load property %60.a: %r0
+    %62: %r0 = binary.add %2, %61
+    %63: %r0 = coerce %62
+    %65: %r2 = load property %8.$v: %r2
+    %66: %r2 = load property %8.$v: %r2
+    %67: %r8 = load property %66.length: %r8
+    %68: %r0 = convert %67
+    %69: %r12 = convert %68
+    %70: %r9 = binary.ge %54, %69
+    branch %70 -> block16 -> block15
+  block15:
+    %71: %r2 = alias %65
+    %72: %r0 = binary.add %25, %53
+    %73: %r0 = coerce %72
+    %74: %r1 = load element %71[%73]: %r1
+    %75: %r0 = load property %74.e: %r0
+    %76: %r0 = binary.add %63, %75
+    %77: %r0 = coerce %76
+    %78: %r0 = binary.add %1, %26
+    %79: %r0 = coerce %78
+    jump -> block11(%79, %77)
+  block16:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block17:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block18:
+    %80: %r0 = binary.mul %0, %17
+    %81: %r0 = coerce %80
+    %82: %r1 = object %s0 %0, %14, %15, %16, %81, %18
+    %83: %r3 = const "$v"
+    call push(Cell) %8, %83, %82
+    %84: %r0 = binary.add %0, %19
+    %85: %r0 = coerce %84
+    jump -> block9(%85)
+
+fn push(Cell)(parts %r5, one %r1) -> omitted
+  block0(%0: %r3, %1: %r3, %2: %r1):
+    %3: %r2 = load element %0[%1]: %r2
+    %4: %r8 = load property %3.length: %r8
+    %5: %r0 = convert %4
+    %6: %r0 = const 1
+    %7: %r0 = binary.add %5, %6
+    %8: %r0 = coerce %7
+    %9: %r2 = load element %0[%1]: %r2
+    %10: %r2 = load element %0[%1]: %r2
+    %11: %r9 = host host.capacity %10
+    %12: %r9 = const 0
+    %13: %r9 = binary.eq %11, %12
+    branch %13 -> block1 -> block2
+  block1:
+    %17: %r2 = load element %0[%1]: %r2
+    %18: %r2 = load element %0[%1]: %r2
+    store element %18[%5]: %r1, %2
+    %19: %r12 = convert %8
+    %20: %r8 = convert %19
+    store property %3.length: %r8, %20
+    return
+  block2:
+    %14: %r2 = load element %0[%1]: %r2
+    %15: %r0 = host host.field "length" host-range %14
+    %16: %r9 = binary.le %8, %15
+    branch %16 -> block1 -> block3
+  block3:
+    call growJsArray(Cell) %0, %1, %8
+    jump -> block1
+
+fn Array(a).reclaim(Cell)(one %r2) -> omitted
+  var $0: %r2
+  block0(%0: %r2):
+    store var $0: %r2, %0
+    return
+
+fn growJsArray(Cell)(parts %r5, one %r0) -> omitted
+  block0(%0: %r3, %1: %r3, %2: %r0):
+    %3: %r2 = load element %0[%1]: %r2
+    %4: %r2 = load element %0[%1]: %r2
+    %5: %r0 = host host.field "length" host-range %4
+    %6: %r0 = binary.add %5, %5
+    %7: %r0 = coerce %6
+    %8: %r9 = binary.lt %7, %2
+    %9: %r0 = select %8, %2, %7
+    %10: %r0 = const 4
+    %11: %r9 = binary.lt %9, %10
+    %12: %r0 = const 4
+    %13: %r0 = select %11, %12, %9
+    %14: %r2 = load element %0[%1]: %r2
+    %15: %r2 = host host.grow %14, %13
+    store element %0[%1]: %r2, %15
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0
+
+shape %s0 object Cell {a: %r0, b: %r0, c: %r0, d: %r0, e: %r0, f: %r0}
+shape %s1 ref {$o: %r3 owner, $k: %r3 key}
+shape %s2 cell {$v: %r2 box}
+shape %s3 host Array {length: %r8}
+shape %s4 object ArrayView {items: %r2, length: %r0, offset: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = array Array of %r1
+rep %r3 = erased
+rep %r4 = cell of %r2
+rep %r5 = parts (%r3, %r3) as %r4
+rep %r6 = void
+rep %r7 = object %s2
+rep %r8 = number unsigned 30
+rep %r9 = number bool
+rep %r10 = object %s4
+rep %r11 = parts (%r2, %r0, %r0) as %r10
+rep %r12 = number unsigned 32

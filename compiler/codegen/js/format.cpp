@@ -45,6 +45,9 @@ struct Format {
     Context& context;
     JsBase base;
     bool minify;
+
+    // `File::terse` - the two line-count rules below, on for the JSIR pipeline only.
+    bool terse = false;
     U32 indentation = 0;
 
     void write(StringView text) { writer.writeString(text); }
@@ -399,14 +402,119 @@ void writeExpr(Format& f, JsPtr<Expr> pointer) {
 
 void writeStmt(Format& f, JsPtr<Stmt> pointer);
 
+void writeStmts(Format& f, StmtList& body);
+
 void writeBody(Format& f, StmtList body) {
     f.write('{');
     f.newline();
-    f.withLevel([&] {
-        for(auto stmt: body.contents(f.base)) writeStmt(f, stmt);
-    });
+    f.withLevel([&] { writeStmts(f, body); });
     f.startLine();
     f.write('}');
+}
+
+/*
+ * Whether a statement can stand as an `if`'s body without a block - `if (c) throw $t;`.
+ *
+ * The four that leave and the one that computes, and no others. A nested `if` is excluded because
+ * an `else` below it would attach to the wrong one; a loop, a labelled statement and a block are
+ * excluded because each writes lines of its own and the block is the form this avoids. A `var` is
+ * excluded for a reason that is not correctness - `var` is function-scoped, so `if (c) var x = 1;`
+ * declares `x` either way - but because a declaration that reads as conditional and is not is the
+ * one thing in this file worth a brace.
+ */
+bool standsAlone(Format& f, StmtList& list) {
+    if(list.size() != 1) return false;
+
+    switch(f.base[list.get(f.base, 0)]->kind) {
+        case Stmt::Break:
+        case Stmt::Continue:
+        case Stmt::Return:
+        case Stmt::Throw:
+        case Stmt::Expression:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+// A `var` with no initializer, which is what a block argument's declaration is and what the run
+// below joins. A `const` is never one: every constant this tree declares has a value.
+bool isEmptyVar(Format& f, JsPtr<Stmt> pointer) {
+    auto stmt = f.base[pointer];
+    if(stmt->kind != Stmt::Decl) return false;
+
+    auto& decl = *(DeclStmt*)stmt;
+    return !decl.constant && !decl.value;
+}
+
+/*
+ * One statement list, with `File::terse`'s run of empty `var`s written as one declaration.
+ *
+ * `var p1; var p2; ... var p42;` is what a function's block arguments are declared as - 3,327 lines
+ * of `Base.js` against the shipping backend's 274, because that one's structurer assigns into the
+ * variable the source named and this one gives every join its own. Joining a run costs five bytes a
+ * name where a line costs eleven.
+ *
+ * A **run** rather than every empty `var` in the body, because `foldInitialValue` in `opt.cpp` has
+ * already moved the ones it could join to their first write, and what is left at the top is
+ * contiguous. Joining across a statement between two of them would undo that pass's ordering.
+ */
+void writeStmts(Format& f, StmtList& body) {
+    auto list = body.contents(f.base);
+
+    for(Size i = 0; i < list.size();) {
+        if(!f.terse || !isEmptyVar(f, list[i])) {
+            writeStmt(f, list[i]);
+            i++;
+            continue;
+        }
+
+        auto end = i;
+        while(end < list.size() && isEmptyVar(f, list[end])) end++;
+
+        if(end - i < 2) {
+            writeStmt(f, list[i]);
+            i++;
+            continue;
+        }
+
+        f.startLine();
+        f.write("var "_v);
+
+        for(auto j = i; j < end; j++) {
+            if(j != i) {
+                f.write(',');
+                f.space();
+            }
+
+            f.name(((DeclStmt*)f.base[list[j]])->name);
+        }
+
+        f.write(';');
+        f.newline();
+        i = end;
+    }
+}
+
+// Whether an expression's first emitted token is `{` - see the `Stmt::Expression` arm below.
+static bool startsWithBrace(JsBase base, JsPtr<Expr> pointer) {
+    for(U32 depth = 0; pointer && depth < 64; depth++) {
+        auto expr = base[pointer];
+
+        switch(expr->kind) {
+            case Expr::Object:  return true;
+            case Expr::Field:   pointer = ((FieldExpr*)expr)->object; break;
+            case Expr::Index:   pointer = ((IndexExpr*)expr)->array; break;
+            case Expr::Call:    pointer = ((CallExpr*)expr)->construct ? nullptr : ((CallExpr*)expr)->callee; break;
+            case Expr::Binary:  pointer = ((BinaryExpr*)expr)->lhs; break;
+            case Expr::Assign:  pointer = ((AssignExpr*)expr)->target; break;
+            case Expr::Ternary: pointer = ((TernaryExpr*)expr)->cond; break;
+            default:            return false;
+        }
+    }
+
+    return false;
 }
 
 void writeStmt(Format& f, JsPtr<Stmt> pointer) {
@@ -418,12 +526,27 @@ void writeStmt(Format& f, JsPtr<Stmt> pointer) {
             writeBody(f, ((BlockStmt*)stmt)->body);
             f.newline();
             break;
-        case Stmt::Expression:
+        /*
+         * An expression statement, parenthesized where its **first token** would start a statement.
+         *
+         * `{ $tag: 1, Just: 11 }.$tag;` is a valid expression and not a valid statement: the parser
+         * reads the leading `{` as a block and the `:` inside it as a label that is not one. The
+         * grammar's rule is about the first token rather than about the outermost node, so the test
+         * walks down the leftmost operand until it reaches a leaf - which is the same walk a
+         * `function` or a `class` at that position would need, neither of which this emitter builds.
+         */
+        case Stmt::Expression: {
+            auto value = ((ExprStmt*)stmt)->value;
+            auto wrap = startsWithBrace(f.base, value);
+
             f.startLine();
-            writeExpr(f, ((ExprStmt*)stmt)->value);
+            if(wrap) f.write('(');
+            writeExpr(f, value);
+            if(wrap) f.write(')');
             f.write(';');
             f.newline();
             break;
+        }
         case Stmt::If: {
             auto branch = (IfStmt*)stmt;
             auto then = branch->then;
@@ -436,6 +559,20 @@ void writeStmt(Format& f, JsPtr<Stmt> pointer) {
             writeExpr(f, branch->cond);
             f.write(')');
             f.space();
+
+            /*
+             * A single statement without its block - `File::terse`, and 1,441 sites in `Base.js`
+             * against the shipping backend's 678, because an inlined bounds check is
+             * `if (c) throw $t;` here and a `checkCondition(c)` call there. `sameLine` is the
+             * mechanism a label already uses: the statement writes its own newline, so there is
+             * nothing after it here.
+             */
+            if(f.terse && !otherwise.list.count && standsAlone(f, then)) {
+                f.sameLine = true;
+                writeStmt(f, then.get(f.base, 0));
+                break;
+            }
+
             writeBody(f, then);
 
             if(otherwise.list.count) {
@@ -573,7 +710,7 @@ void writeStmt(Format& f, JsPtr<Stmt> pointer) {
 } // namespace
 
 void formatFile(Net::Writer& writer, Context& context, File& file, bool minify) {
-    Format format { writer, context, *file.arena, minify };
+    Format format { writer, context, *file.arena, minify, file.terse };
 
     // Strict mode, always: `with` and a few other things this tree cannot build are the reason,
     // and a file that opts in once is one fewer thing for every emitted function to be careful of.

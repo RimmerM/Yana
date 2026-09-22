@@ -1,0 +1,523 @@
+fn computed(one %r2) -> one %r1
+  block0(%0: %r2):
+    %1: %r2 = alias %0
+    %2: %r0 = load property %1.$tag: %r0
+    %3: %r1 = map %2 [0 => 1, 1 => 4, 2 => 0, 3 => 2, else 5]
+    return %3
+
+fn opaque(one %r2) -> one %r2
+  block0(%0: %r2):
+    %1: %r2 = clone %0
+    return %1
+
+fn main() -> one %r1
+  var $0: %r2
+  var $1: %r2
+  block0:
+    %14: %r1 = const 1
+    %15: %r0 = const 0
+    %16: %r1 = const 0
+    %17: %r1 = const 0
+    %18: %r1 = const 0
+    %19: %r1 = const 0
+    %20: %r1 = const 0
+    %21: %r2 = object %s0 %15, %14, %16, %17, %18, %19, %20
+    %22: %r2 = call opaque %21
+    %23: %r0 = load property %22.$tag: %r0
+    %24: %r1 = map %23 [0 => 1, 1 => 4, 2 => 0, 3 => 2, else 5]
+    %25: %r1 = const 1
+    %26: %r3 = binary.eq %24, %25
+    branch %26 -> block3 -> block1
+  block1:
+    %27: %r3 = const 0
+    jump -> block2(%27)
+  block2(%0: %r3):
+    %41: %r1 = const 1
+    %42: %r1 = const 0
+    %43: %r1 = select %0, %41, %42
+    %44: %r1 = const 2
+    %45: %r1 = const 3
+    %46: %r0 = const 1
+    %47: %r1 = const 0
+    %48: %r1 = const 0
+    %49: %r1 = const 0
+    %50: %r1 = const 0
+    %51: %r2 = object %s0 %46, %47, %44, %45, %48, %49, %50
+    %52: %r2 = call opaque %51
+    %53: %r0 = load property %52.$tag: %r0
+    %54: %r1 = map %53 [0 => 1, 1 => 4, 2 => 0, 3 => 2, else 5]
+    %55: %r1 = const 4
+    %56: %r3 = binary.eq %54, %55
+    branch %56 -> block6 -> block4
+  block3:
+    %28: %r0 = const 2
+    %29: %r1 = const 0
+    %30: %r1 = const 0
+    %31: %r1 = const 0
+    %32: %r1 = const 0
+    %33: %r1 = const 0
+    %34: %r1 = const 0
+    %35: %r2 = object %s0 %28, %29, %30, %31, %32, %33, %34
+    %36: %r2 = call opaque %35
+    %37: %r0 = load property %36.$tag: %r0
+    %38: %r1 = map %37 [0 => 1, 1 => 4, 2 => 0, 3 => 2, else 5]
+    %39: %r1 = const 0
+    %40: %r3 = binary.eq %38, %39
+    jump -> block2(%40)
+  block4:
+    %57: %r3 = const 0
+    jump -> block5(%57)
+  block5(%1: %r3):
+    %71: %r1 = const 2
+    %72: %r1 = const 0
+    %73: %r1 = select %1, %71, %72
+    %74: %r1 = binary.add %43, %73
+    %75: %r1 = coerce %74
+    %76: %r1 = const 0
+    %77: %r1 = const 1
+    %78: %r0 = const 3
+    %79: %r1 = const 0
+    %80: %r1 = const 0
+    %81: %r1 = const 0
+    %82: %r1 = const 0
+    %83: %r2 = object %s0 %78, %79, %80, %81, %76, %77, %82
+    %84: %r2 = call opaque %83
+    %85: %r0 = load property %84.$tag: %r0
+    %86: %r1 = map %85 [0 => 1, 1 => 4, 2 => 0, 3 => 2, else 5]
+    %87: %r1 = const 2
+    %88: %r3 = binary.eq %86, %87
+    %89: %r1 = const 4
+    %90: %r1 = const 0
+    %91: %r1 = select %88, %89, %90
+    %92: %r1 = binary.add %75, %91
+    %93: %r1 = coerce %92
+    %94: %r1 = const 1
+    %95: %r0 = const 0
+    %96: %r1 = const 0
+    %97: %r1 = const 0
+    %98: %r1 = const 0
+    %99: %r1 = const 0
+    %100: %r1 = const 0
+    %101: %r2 = object %s0 %95, %94, %96, %97, %98, %99, %100
+    %102: %r2 = call opaque %101
+    %103: %r0 = load property %102.$tag: %r0
+    %104: %r3 = map %103 [0 => 1, 1 => 1, 2 => 0, 3 => 0, else 1]
+    branch %104 -> block9 -> block7
+  block6:
+    %58: %r1 = const 6
+    %59: %r0 = const 4
+    %60: %r1 = const 0
+    %61: %r1 = const 0
+    %62: %r1 = const 0
+    %63: %r1 = const 0
+    %64: %r1 = const 0
+    %65: %r2 = object %s0 %59, %60, %61, %62, %63, %64, %58
+    %66: %r2 = call opaque %65
+    %67: %r0 = load property %66.$tag: %r0
+    %68: %r1 = map %67 [0 => 1, 1 => 4, 2 => 0, 3 => 2, else 5]
+    %69: %r1 = const 5
+    %70: %r3 = binary.eq %68, %69
+    jump -> block5(%70)
+  block7:
+    %105: %r3 = const 0
+    jump -> block8(%105)
+  block8(%2: %r3):
+    %117: %r1 = const 8
+    %118: %r1 = const 0
+    %119: %r1 = select %2, %117, %118
+    %120: %r1 = binary.add %93, %119
+    %121: %r1 = coerce %120
+    %122: %r1 = const 3
+    %123: %r0 = const 4
+    %124: %r1 = const 0
+    %125: %r1 = const 0
+    %126: %r1 = const 0
+    %127: %r1 = const 0
+    %128: %r1 = const 0
+    %129: %r2 = object %s0 %123, %124, %125, %126, %127, %128, %122
+    %130: %r2 = call opaque %129
+    %131: %r0 = load property %130.$tag: %r0
+    %132: %r3 = map %131 [0 => 1, 1 => 1, 2 => 0, 3 => 0, else 1]
+    branch %132 -> block12 -> block10
+  block9:
+    %106: %r1 = const 1
+    %107: %r1 = const 1
+    %108: %r0 = const 1
+    %109: %r1 = const 0
+    %110: %r1 = const 0
+    %111: %r1 = const 0
+    %112: %r1 = const 0
+    %113: %r2 = object %s0 %108, %109, %106, %107, %110, %111, %112
+    %114: %r2 = call opaque %113
+    %115: %r0 = load property %114.$tag: %r0
+    %116: %r3 = map %115 [0 => 1, 1 => 1, 2 => 0, 3 => 0, else 1]
+    jump -> block8(%116)
+  block10:
+    %133: %r3 = const 0
+    jump -> block11(%133)
+  block11(%3: %r3):
+    %146: %r1 = const 16
+    %147: %r1 = const 0
+    %148: %r1 = select %3, %146, %147
+    %149: %r1 = binary.add %121, %148
+    %150: %r1 = coerce %149
+    %151: %r1 = const 0
+    %152: %r1 = const 1
+    %153: %r0 = const 3
+    %154: %r1 = const 0
+    %155: %r1 = const 0
+    %156: %r1 = const 0
+    %157: %r1 = const 0
+    %158: %r2 = object %s0 %153, %154, %155, %156, %151, %152, %157
+    %159: %r2 = call opaque %158
+    %160: %r0 = load property %159.$tag: %r0
+    %161: %r3 = map %160 [0 => 1, 1 => 1, 2 => 0, 3 => 0, else 1]
+    %162: %r3 = unary.not %161
+    %163: %r1 = const 32
+    %164: %r1 = const 0
+    %165: %r1 = select %162, %163, %164
+    %166: %r1 = binary.add %150, %165
+    %167: %r1 = coerce %166
+    %168: %r1 = const 0
+    %169: %r1 = const 1
+    %170: %r0 = const 3
+    %171: %r1 = const 0
+    %172: %r1 = const 0
+    %173: %r1 = const 0
+    %174: %r1 = const 0
+    %175: %r2 = object %s0 %170, %171, %172, %173, %168, %169, %174
+    %176: %r2 = call opaque %175
+    %177: %r0 = load property %176.$tag: %r0
+    %178: %r3 = map %177 [0 => 0, 1 => 0, 2 => 0, 3 => 1, else 0]
+    branch %178 -> block15 -> block13
+  block12:
+    %134: %r0 = const 2
+    %135: %r1 = const 0
+    %136: %r1 = const 0
+    %137: %r1 = const 0
+    %138: %r1 = const 0
+    %139: %r1 = const 0
+    %140: %r1 = const 0
+    %141: %r2 = object %s0 %134, %135, %136, %137, %138, %139, %140
+    %142: %r2 = call opaque %141
+    %143: %r0 = load property %142.$tag: %r0
+    %144: %r3 = map %143 [0 => 1, 1 => 1, 2 => 0, 3 => 0, else 1]
+    %145: %r3 = unary.not %144
+    jump -> block11(%145)
+  block13:
+    %179: %r3 = const 0
+    jump -> block14(%179)
+  block14(%4: %r3):
+    %192: %r1 = const 64
+    %193: %r1 = const 0
+    %194: %r1 = select %4, %192, %193
+    %195: %r1 = binary.add %167, %194
+    %196: %r1 = coerce %195
+    %197: %r1 = const 1
+    %198: %r0 = const 0
+    %199: %r1 = const 0
+    %200: %r1 = const 0
+    %201: %r1 = const 0
+    %202: %r1 = const 0
+    %203: %r1 = const 0
+    %204: %r2 = object %s0 %198, %197, %199, %200, %201, %202, %203
+    %205: %r2 = call opaque %204
+    %206: %r0 = load property %205.$tag: %r0
+    %207: %r0 = map %206 [0 => 0, 1 => 1, 2 => 2, 3 => 1, else 1]
+    %208: %r0 = const 0
+    %209: %r3 = binary.eq %207, %208
+    branch %209 -> block18 -> block16
+  block15:
+    %180: %r1 = const 1
+    %181: %r0 = const 0
+    %182: %r1 = const 0
+    %183: %r1 = const 0
+    %184: %r1 = const 0
+    %185: %r1 = const 0
+    %186: %r1 = const 0
+    %187: %r2 = object %s0 %181, %180, %182, %183, %184, %185, %186
+    %188: %r2 = call opaque %187
+    %189: %r0 = load property %188.$tag: %r0
+    %190: %r3 = map %189 [0 => 0, 1 => 0, 2 => 0, 3 => 1, else 0]
+    %191: %r3 = unary.not %190
+    jump -> block14(%191)
+  block16:
+    %210: %r3 = const 0
+    jump -> block17(%210)
+  block17(%5: %r3):
+    %224: %r1 = const 128
+    %225: %r1 = const 0
+    %226: %r1 = select %5, %224, %225
+    %227: %r1 = binary.add %196, %226
+    %228: %r1 = coerce %227
+    %229: %r1 = const 1
+    %230: %r1 = const 1
+    %231: %r0 = const 1
+    %232: %r1 = const 0
+    %233: %r1 = const 0
+    %234: %r1 = const 0
+    %235: %r1 = const 0
+    %236: %r2 = object %s0 %231, %232, %229, %230, %233, %234, %235
+    %237: %r2 = call opaque %236
+    %238: %r0 = load property %237.$tag: %r0
+    %239: %r0 = map %238 [0 => 0, 1 => 1, 2 => 2, 3 => 1, else 1]
+    %240: %r0 = const 1
+    %241: %r3 = binary.eq %239, %240
+    branch %241 -> block21 -> block19
+  block18:
+    %211: %r0 = const 2
+    %212: %r1 = const 0
+    %213: %r1 = const 0
+    %214: %r1 = const 0
+    %215: %r1 = const 0
+    %216: %r1 = const 0
+    %217: %r1 = const 0
+    %218: %r2 = object %s0 %211, %212, %213, %214, %215, %216, %217
+    %219: %r2 = call opaque %218
+    %220: %r0 = load property %219.$tag: %r0
+    %221: %r0 = map %220 [0 => 0, 1 => 1, 2 => 2, 3 => 1, else 1]
+    %222: %r0 = const 2
+    %223: %r3 = binary.eq %221, %222
+    jump -> block17(%223)
+  block19:
+    %242: %r3 = const 0
+    jump -> block20(%242)
+  block20(%6: %r3):
+    %256: %r1 = const 256
+    %257: %r1 = const 0
+    %258: %r1 = select %6, %256, %257
+    %259: %r1 = binary.add %228, %258
+    %260: %r1 = coerce %259
+    %261: %r1 = const 7
+    %262: %r0 = const 0
+    %263: %r1 = const 0
+    %264: %r1 = const 0
+    %265: %r1 = const 0
+    %266: %r1 = const 0
+    %267: %r1 = const 0
+    %268: %r2 = object %s0 %262, %261, %263, %264, %265, %266, %267
+    %269: %r2 = call opaque %268
+    %270: %r0 = load property %269.$tag: %r0
+    %271: %r0 = const 0
+    %272: %r3 = binary.eq %270, %271
+    branch %272 -> block30 -> block22
+  block21:
+    %243: %r1 = const 3
+    %244: %r0 = const 4
+    %245: %r1 = const 0
+    %246: %r1 = const 0
+    %247: %r1 = const 0
+    %248: %r1 = const 0
+    %249: %r1 = const 0
+    %250: %r2 = object %s0 %244, %245, %246, %247, %248, %249, %243
+    %251: %r2 = call opaque %250
+    %252: %r0 = load property %251.$tag: %r0
+    %253: %r0 = map %252 [0 => 0, 1 => 1, 2 => 2, 3 => 1, else 1]
+    %254: %r0 = const 1
+    %255: %r3 = binary.eq %253, %254
+    jump -> block20(%255)
+  block22:
+    %276: %r3 = const 0
+    jump -> block23(%276)
+  block23(%7: %r3):
+    %293: %r1 = const 512
+    %294: %r1 = const 0
+    %295: %r1 = select %7, %293, %294
+    %296: %r1 = binary.add %260, %295
+    %297: %r1 = coerce %296
+    %298: %r1 = const 200
+    %299: %r0 = const 0
+    %300: %r1 = const 0
+    %301: %r1 = const 0
+    %302: %r1 = const 0
+    %303: %r1 = const 0
+    %304: %r1 = const 0
+    %305: %r2 = object %s0 %299, %298, %300, %301, %302, %303, %304
+    %306: %r2 = call opaque %305
+    %307: %r0 = load property %306.$tag: %r0
+    %308: %r0 = const 0
+    %309: %r3 = binary.eq %307, %308
+    branch %309 -> block31 -> block32
+  block24:
+    %277: %r0 = const 2
+    %278: %r1 = const 0
+    %279: %r1 = const 0
+    %280: %r1 = const 0
+    %281: %r1 = const 0
+    %282: %r1 = const 0
+    %283: %r1 = const 0
+    %284: %r2 = object %s0 %277, %278, %279, %280, %281, %282, %283
+    %285: %r2 = call opaque %284
+    %286: %r0 = load property %285.$tag: %r0
+    %287: %r0 = const 0
+    %288: %r3 = binary.eq %286, %287
+    branch %288 -> block34 -> block33
+  block25(%8: %r3):
+    %338: %r1 = const 1024
+    %339: %r1 = const 0
+    %340: %r1 = select %8, %338, %339
+    %341: %r1 = binary.add %297, %340
+    %342: %r1 = coerce %341
+    %343: %r0 = const 2
+    %344: %r1 = const 0
+    %345: %r1 = const 0
+    %346: %r1 = const 0
+    %347: %r1 = const 0
+    %348: %r1 = const 0
+    %349: %r1 = const 0
+    %350: %r2 = object %s0 %343, %344, %345, %346, %347, %348, %349
+    %351: %r2 = call opaque %350
+    %352: %r0 = load property %351.$tag: %r0
+    %353: %r0 = const 0
+    %354: %r3 = binary.eq %352, %353
+    branch %354 -> block36 -> block37
+  block26:
+    %314: %r1 = const 2
+    %315: %r0 = const 0
+    %316: %r1 = const 0
+    %317: %r1 = const 0
+    %318: %r1 = const 0
+    %319: %r1 = const 0
+    %320: %r1 = const 0
+    %321: %r2 = object %s0 %315, %314, %316, %317, %318, %319, %320
+    %322: %r2 = call opaque %321
+    %323: %r0 = load property %322.$tag: %r0
+    %324: %r0 = const 0
+    %325: %r3 = binary.eq %323, %324
+    branch %325 -> block41 -> block42
+  block27:
+    %390: %r3 = const 0
+    jump -> block28(%390)
+  block28(%9: %r3):
+    %410: %r1 = const 4096
+    %411: %r1 = const 0
+    %412: %r1 = select %9, %410, %411
+    %413: %r1 = binary.add %371, %412
+    %414: %r1 = coerce %413
+    return %414
+  block29:
+    %391: %r1 = const 1
+    %392: %r0 = const 4
+    %393: %r1 = const 0
+    %394: %r1 = const 0
+    %395: %r1 = const 0
+    %396: %r1 = const 0
+    %397: %r1 = const 0
+    %398: %r2 = object %s0 %392, %393, %394, %395, %396, %397, %391
+    %399: %r2 = call opaque %398
+    %400: %r0 = load property %399.$tag: %r0
+    %401: %r0 = const 2
+    %402: %r3 = binary.eq %400, %401
+    branch %402 -> block46 -> block45
+  block30:
+    %273: %r1 = load property %269.Circle: %r1
+    %274: %r1 = const 7
+    %275: %r3 = binary.eq %273, %274
+    branch %275 -> block24 -> block22
+  block31:
+    %310: %r1 = load property %306.Circle: %r1
+    %311: %r1 = const 100
+    %312: %r3 = binary.ge %310, %311
+    branch %312 -> block26 -> block32
+  block32:
+    %313: %r3 = const 0
+    jump -> block25(%313)
+  block33:
+    %289: %r1 = const 0
+    jump -> block35(%289)
+  block34:
+    %290: %r1 = load property %285.Circle: %r1
+    jump -> block35(%290)
+  block35(%10: %r1):
+    %291: %r1 = const 0
+    %292: %r3 = binary.eq %10, %291
+    jump -> block23(%292)
+  block36:
+    %355: %r1 = load property %351.Circle: %r1
+    %356: %r1 = const 100
+    %357: %r3 = binary.ge %355, %356
+    branch %357 -> block38 -> block37
+  block37:
+    %358: %r0 = load property %351.$tag: %r0
+    %359: %r0 = const 0
+    %360: %r3 = binary.eq %358, %359
+    %361: %r1 = const 1
+    %362: %r1 = const 0
+    %363: %r1 = select %360, %361, %362
+    jump -> block39(%363)
+  block38:
+    %364: %r1 = const 2
+    jump -> block39(%364)
+  block39(%11: %r1):
+    %365: %r1 = const 0
+    %366: %r3 = binary.eq %11, %365
+    %367: %r1 = const 2048
+    %368: %r1 = const 0
+    %369: %r1 = select %366, %367, %368
+    %370: %r1 = binary.add %342, %369
+    %371: %r1 = coerce %370
+    %372: %r0 = const 2
+    %373: %r1 = const 0
+    %374: %r1 = const 0
+    %375: %r1 = const 0
+    %376: %r1 = const 0
+    %377: %r1 = const 0
+    %378: %r1 = const 0
+    %379: %r2 = object %s0 %372, %373, %374, %375, %376, %377, %378
+    %380: %r2 = call opaque %379
+    %381: %r0 = load property %380.$tag: %r0
+    %382: %r0 = const 2
+    %383: %r3 = binary.eq %381, %382
+    branch %383 -> block29 -> block40
+  block40:
+    %384: %r2 = clone %380
+    store var $0: %r2, %384
+    %385: %r2 = load var $0: %r2
+    %386: %r2 = alias %385
+    %387: %r1 = call computed %386
+    %388: %r1 = const 0
+    %389: %r3 = binary.eq %387, %388
+    branch %389 -> block29 -> block27
+  block41:
+    %326: %r1 = load property %322.Circle: %r1
+    %327: %r1 = const 100
+    %328: %r3 = binary.ge %326, %327
+    branch %328 -> block43 -> block42
+  block42:
+    %329: %r0 = load property %322.$tag: %r0
+    %330: %r0 = const 0
+    %331: %r3 = binary.eq %329, %330
+    %332: %r1 = const 1
+    %333: %r1 = const 0
+    %334: %r1 = select %331, %332, %333
+    jump -> block44(%334)
+  block43:
+    %335: %r1 = const 2
+    jump -> block44(%335)
+  block44(%12: %r1):
+    %336: %r1 = const 1
+    %337: %r3 = binary.eq %12, %336
+    jump -> block25(%337)
+  block45:
+    %403: %r2 = clone %399
+    store var $1: %r2, %403
+    %404: %r2 = load var $1: %r2
+    %405: %r2 = alias %404
+    %406: %r1 = call computed %405
+    jump -> block47(%406)
+  block46:
+    %407: %r1 = const 0
+    jump -> block47(%407)
+  block47(%13: %r1):
+    %408: %r1 = const 5
+    %409: %r3 = binary.eq %13, %408
+    jump -> block28(%409)
+
+optimizer clones 6 aliased 3 forwarded 0 removed 0 adopted 0 sunk 0
+
+shape %s0 object Shape {$tag: %r0 tag, Circle: %r1, width: %r1, height: %r1, from: %r1, to: %r1, Poly: %r1}
+
+rep %r0 = number unsigned 8
+rep %r1 = number signed 32
+rep %r2 = object %s0
+rep %r3 = number bool

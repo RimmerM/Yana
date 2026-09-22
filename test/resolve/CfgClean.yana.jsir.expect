@@ -1,0 +1,148 @@
+fn Held.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    store var $0: %r0, %0
+    %1: %r0 = load global live: %r0
+    %2: %r0 = const 1
+    %3: %r0 = binary.sub %1, %2
+    %4: %r0 = coerce %3
+    store global live: %r0, %4
+    %5: %r0 = load global trace: %r0
+    %6: %r0 = const 10
+    %7: %r0 = binary.mul %5, %6
+    %8: %r0 = coerce %7
+    %10: %r0 = load var $0: %r0
+    %11: %r0 = binary.add %8, %10
+    %12: %r0 = coerce %11
+    store global trace: %r0, %12
+    return
+
+fn nested(one %r0) -> one %r0
+  var $0: %r0
+  var $1: %r0
+  block0(%0: %r0):
+    %6: %r0 = const 0
+    %7: %r0 = load global live: %r0
+    %8: %r0 = const 1
+    %9: %r0 = binary.add %7, %8
+    %10: %r0 = coerce %9
+    store global live: %r0, %10
+    %11: %r0 = alias %0
+    %12: %r2 = const 1
+    store var $0: %r0, %11
+    %13: %r0 = const 0
+    %14: %r0 = const 2
+    %15: %r0 = const 1
+    %16: %r0 = const 4
+    %17: %r0 = const 10
+    jump -> block1(%13, %6)
+  block1(%1: %r0, %2: %r0):
+    %18: %r2 = binary.lt %1, %0
+    branch %18 -> block2 -> block7(%12, %2)
+  block2:
+    %19: %r2 = binary.gt %1, %14
+    branch %19 -> block6 -> block3
+  block3:
+    %20: %r2 = binary.gt %1, %16
+    branch %20 -> block11 -> block10
+  block4:
+    %27: %r0 = load var $0: %r0
+    call Held.drop %27
+    jump -> block5
+  block5:
+    %28: %r2 = const 0
+    jump -> block7(%28, %2)
+  block6:
+    %29: %r2 = const 0
+    %30: %r0 = load var $0: %r0
+    store var $1: %r0, %30
+    %32: %r0 = load var $1: %r0
+    %33: %r0 = load var $1: %r0
+    call Held.drop %33
+    %34: %r0 = const 4
+    %35: %r2 = binary.gt %32, %34
+    branch %35 -> block12(%2) -> block13
+  block7(%3: %r2, %4: %r0):
+    branch %3 -> block8 -> block9
+  block8:
+    %41: %r0 = load var $0: %r0
+    call Held.drop %41
+    jump -> block9
+  block9:
+    return %4
+  block10:
+    %21: %r0 = binary.mul %2, %17
+    %22: %r0 = coerce %21
+    %23: %r0 = binary.add %22, %1
+    %24: %r0 = coerce %23
+    %25: %r0 = binary.add %1, %15
+    %26: %r0 = coerce %25
+    jump -> block1(%26, %24)
+  block11:
+    jump -> block4
+  block12(%5: %r0):
+    jump -> block7(%29, %5)
+  block13:
+    %36: %r0 = const 10
+    %37: %r0 = binary.mul %2, %36
+    %38: %r0 = coerce %37
+    %39: %r0 = binary.add %38, %32
+    %40: %r0 = coerce %39
+    jump -> block12(%40)
+
+fn main() -> one %r0
+  var $0: %r0
+  var $1: %r0
+  var $2: %r0
+  block0:
+    %0: %r0 = const 0
+    %1: %r0 = load global live: %r0
+    %2: %r0 = const 1
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    store global live: %r0, %4
+    %5: %r0 = alias %0
+    store var $2: %r0, %5
+    jump -> block1
+  block1:
+    %6: %r0 = load var $2: %r0
+    call Held.drop %6
+    jump -> block2
+  block2:
+    %7: %r0 = const 35
+    %8: %r0 = const 3
+    %9: %r0 = call nested %8
+    %10: %r0 = const 5
+    %11: %r0 = binary.mul %9, %10
+    %12: %r0 = coerce %11
+    %13: %r0 = binary.add %7, %12
+    %14: %r0 = coerce %13
+    %15: %r0 = const 6
+    %16: %r0 = call nested %15
+    %17: %r0 = const 7
+    %18: %r0 = binary.mul %16, %17
+    %19: %r0 = coerce %18
+    %20: %r0 = binary.add %14, %19
+    %21: %r0 = coerce %20
+    %22: %r0 = const 769
+    %23: %r0 = binary.add %21, %22
+    %24: %r0 = coerce %23
+    %25: %r0 = const 1000
+    %26: %r0 = binary.mul %24, %25
+    %27: %r0 = coerce %26
+    %28: %r0 = load global trace: %r0
+    %29: %r0 = const 10
+    %30: %r0 = binary.mul %28, %29
+    %31: %r0 = coerce %30
+    %32: %r0 = binary.add %27, %31
+    %33: %r0 = coerce %32
+    %34: %r0 = load global live: %r0
+    %35: %r0 = binary.add %33, %34
+    %36: %r0 = coerce %35
+    return %36
+
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = void
+rep %r2 = number bool

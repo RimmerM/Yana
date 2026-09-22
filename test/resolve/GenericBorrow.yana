@@ -1,0 +1,58 @@
+{-
+   A concrete `&` handed to a generic `&a` - Analysis-IR-JS.md §10.3's row, written because the two
+   ends of that position disagree on this target in a way no machine has.
+
+   Natively a `&a` is a pointer and a `&Bool` is a pointer, so the position is one shape whatever
+   fills it. On JavaScript a reference is `{$o, $k}` where it has to be able to rebind and is the
+   host object itself where writing through it writes properties, and `jsManifest` decides which
+   from the *occurrence* - so a body compiled once against `&a` and a caller holding a `Bool`, an
+   `I32`, a `String` and a record between them exercise every answer that question has.
+
+   Four subjects and one generic body, which is the whole of the fixture:
+
+   - **`Bool`** and **`I32`** are numbers, so the reference is a descriptor over storage the caller
+     boxes;
+   - **`String`** is a host string, which is immutable, so it is a descriptor too - this is the one
+     a shared `String` is *not*, and the pair is what makes `AccessForm` visible;
+   - **`Point`** is a host object, so the reference is the object and writing through it writes its
+     properties rather than rebinding anything.
+
+   `exchange` is here rather than a plain assignment because it is the operation that reads the old
+   value out and writes the new one in through the same reference, which is where a descriptor and
+   an object-as-its-own-reference stop agreeing if either is wrong.
+
+   The legacy backend compiles this too and the two are held to the same answer, which is the point
+   of the shared `.run.expect`.
+-}
+
+data Point {x: Int, y: Int}
+
+fn (a) put(&slot: a, ->value: a):
+    slot = value
+
+fn (a) exchanged(&slot: a, ->value: a) -> a = exchange(slot, value)
+
+fn main() -> Int:
+    let &flag = False
+    put(flag, True)
+
+    let &count = 5
+    put(count, 9)
+
+    let &name = "ab" :: String
+    put(name, "abcd")
+
+    let &here = Point {x: 1, y: 2}
+    put(here, Point {x: 30, y: 40})
+
+    -- And the same position read *and* written in one step.
+    let &other = 100
+    let previous = exchanged(other, 7)
+
+    -- 1 + 9 + 4 + 70 + 100 + 7 = 191.
+    return (if flag then 1 else 0)
+        + count
+        + (truncate(length(name)) :: Int)
+        + here.x + here.y
+        + previous
+        + other

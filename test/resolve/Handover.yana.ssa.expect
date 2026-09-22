@@ -10,7 +10,7 @@ fn writeThrough(xs: Array(I32) [unique call view]) -> I32 {
 bb0(%0: Array(I32) [unique call view] guaranteed):
   %1: %I32 address = alloc frame I32
   %2: Array(I32) [unique call view] guaranteed from{%0} = load inspect %0
-  %3: Array(I32) [unique slot 0] guaranteed = load inspect %0
+  %3: Array(I32) [unique slot 0 view] guaranteed = load inspect %0
   %4: I32 [unique slot 1] guaranteed = load inspect %1
   %5: writeThrough.cont.env affine = aggregate.writeThrough.cont.env borrow %3 borrow %4
   %6: (&Array(I32)) -> I32 [owned here shape9 .0=shared call] affine = fun.value writeThrough.cont borrow %5
@@ -23,7 +23,7 @@ fn readOnly(xs: Array(I32) [shared call view]) -> I32 {
 bb0(%0: Array(I32) [shared call view] guaranteed):
   %1: %I32 address = alloc frame I32
   %2: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
-  %3: Array(I32) [unique slot 0] guaranteed = load inspect %0
+  %3: Array(I32) [unique slot 0 view] guaranteed = load inspect %0
   %4: I32 [unique slot 1] guaranteed = load inspect %1
   %5: readOnly.cont.env affine = aggregate.readOnly.cont.env borrow %3 borrow %4
   %6: (Array(I32)) -> I32 [owned here shape9 .0=shared call] affine = fun.value readOnly.cont borrow %5

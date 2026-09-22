@@ -56,6 +56,29 @@ YANA_SSA_INST( Metric,        InstMetric,         "metric"_v,        kSsaPure )
 YANA_SSA_INST( Native,        InstNative,         "native"_v,        0 )
 
 /*
+ * An operation the **host** has and this IR does not - the MIR `host` carried down, Analysis-IR-JS.md
+ * §3.10 and `resolve_mir/host.def` for the rows.
+ *
+ * **Not `kSsaPure`, and that is the kind's answer rather than the row's.** The flags column is per
+ * kind, and what a host operation does is per row: a property read reads, a method call may do
+ * anything, and `hostFixedCapacity` answers a question about a type and does nothing at all. So the
+ * flag here is the conservative one and `isPure(const Inst&)` is what refines it - the one place in
+ * this tier where a kind-level effect question has an instruction-level answer, and the reason that
+ * overload exists at all.
+ *
+ * **`kSsaConsumes`**, which is where it departs from `Native` in the other direction: a native
+ * operation's operands are addresses and counts and every one of them is `Inspect`, and a host
+ * operation's are the *declaration's* - `host.array` holds the elements of `[1, 2, 3]` afterwards,
+ * so they arrive as moves. The flag is what says an owned operand is legal here at all; which
+ * positions actually consume is the signature's answer and was settled before the node was built.
+ *
+ * Nothing lowers one. JSIR is the first tier that knows what a host operation means, so
+ * `resolve_ssa/lower` treats one as an internal error - a native build contains no declaration that
+ * could reach it, `@platform` selection having deleted them all.
+ */
+YANA_SSA_INST( Host,          InstHost,           "host"_v,          kSsaConsumes )
+
+/*
  * One atomic operation, and whether its compare-exchange stored - the MIR pair carried down.
  *
  * **Not `kSsaPure`, not even the load.** Purity here means "may be computed again, or not computed

@@ -1077,8 +1077,8 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
          * reference they belong to, and the whole triple is dropped if the body never touches it.
          */
         if(flattensArgs && refIsFlattened(g, arg->type, arg->convention)) {
-            auto owner = partName(g, *arg, "$o"_v);
-            auto key = partName(g, *arg, "$k"_v);
+            auto owner = partName(g, *arg, jsir::key::owner);
+            auto key = partName(g, *arg, jsir::key::index);
 
             into.push(g.file.arena, owner);
             into.push(g.file.arena, key);
@@ -1091,7 +1091,7 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
             // shift - see RefParts::envKey. Both sides count the arity from the declaration, so
             // this has to be the same split flatRefArity makes.
             if(isFunValue(g, arg->type)) {
-                auto envKey = partName(g, *arg, "$ke"_v);
+                auto envKey = partName(g, *arg, jsir::key::envIndex);
                 into.push(g.file.arena, envKey);
                 parts.envKey = variable(g, envKey);
             } else if(narrowRefCarriesScale(g)) {
@@ -1113,8 +1113,8 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
          * the whole representation was chosen for.
          */
         if(flattensArgs && funIsFlattened(g, arg->type, arg->convention)) {
-            auto code = partName(g, *arg, "$c"_v);
-            auto env = partName(g, *arg, "$e"_v);
+            auto code = partName(g, *arg, jsir::key::code);
+            auto env = partName(g, *arg, jsir::key::env);
 
             into.push(g.file.arena, code);
             into.push(g.file.arena, env);
@@ -1782,19 +1782,15 @@ Ptr<File> genProgram(Context& context, Program& program) {
     ReprTable repr(*program.types, jsReprTarget());
 
     Gen g {
-        context, program, *file, *program.types, *program.arena, *file->arena, repr
+        { context, *file, *file->arena },
+        program, *program.types, *program.arena, repr
     };
 
-    g.tagField = literalName(g, "$tag"_v);
-    g.payloadField = literalName(g, "$p"_v);
-    g.boxField = literalName(g, "$v"_v);
-    g.codeField = literalName(g, "$c"_v);
-    g.envField = literalName(g, "$e"_v);
-    g.refObject = literalName(g, "$o"_v);
-    g.refKey = literalName(g, "$k"_v);
-    g.refScale = literalName(g, "$s"_v);
-    g.refEnvKey = literalName(g, "$ke"_v);
-    g.headerField = literalName(g, "$h"_v);
+    nameSharedFields(g);
+    g.refObject = literalName(g, jsir::key::owner);
+    g.refKey = literalName(g, jsir::key::index);
+    g.refScale = literalName(g, jsir::key::scale);
+    g.refEnvKey = literalName(g, jsir::key::envIndex);
     if(program.root) g.headerType = closureHeaderPlaceType(*program.root);
 
     /*

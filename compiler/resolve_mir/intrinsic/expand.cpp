@@ -498,40 +498,62 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
          * is lost is a placement decision and a vectorization rather than an operation - and the two
          * scan limits and the unchecked atomic entrance are emitters above.
          *
-         * The **host** family needs the JavaScript pipeline `Analysis-IR-JS.md` describes, and is
-         * the one group that may never arrive here as written: this stage does not compile for that
-         * target at all yet, so what these arms record is that the roles exist rather than that they
-         * are nearly done.
-         *
          * The **CPU** instructions are gone from this list too - a `native.def` row apiece, and the
          * `sha1rnds4` round group as four rows rather than an operand, since it is the
          * instruction's trailing byte. Each stays `@platform`-gated at its declaration, so a build
          * below the level that has one never resolves the name.
+         *
+         * And the **host** family is gone from it since 2026-09-21, which is what emptied the list:
+         * `expand_host.cpp` is the twenty-one emitters and `host.def` the rows. There is no
+         * "not implemented yet" arm left anywhere in this roster, which is worth noticing rather
+         * than deleting the paragraph over - every `op.def` row now has an emitter.
          */
-        case Op::hostField:
-        case Op::hostCall0:
-        case Op::hostCall1:
-        case Op::hostCall2:
-        case Op::hostCall3:
-        case Op::hostGlobal0:
-        case Op::hostGlobal1:
-        case Op::hostBinary:
-        case Op::hostThrow:
+
+        /*
+         * The host - `expand_host.cpp`, `host.def`, Analysis-IR-JS.md §3.10.
+         *
+         * One arm apiece although four of them share an emitter, for the x86 family's reason: the
+         * row is what the arm decides. What tells `hostCall0` from `hostCall3` below the signature
+         * is how many arguments the declaration wrote, which is the node's operand count - so the
+         * four expand to one `HostOp::Call` row rather than to four that say the arity twice.
+         */
+        case Op::hostField:  return expandHostField(builder, callee, arguments, with, source);
+        case Op::hostCall0: return expandHostCall(builder, callee, arguments, 2, with, source);
+        case Op::hostCall1: return expandHostCall(builder, callee, arguments, 3, with, source);
+        case Op::hostCall2: return expandHostCall(builder, callee, arguments, 4, with, source);
+        case Op::hostCall3: return expandHostCall(builder, callee, arguments, 5, with, source);
+        case Op::hostGlobal0: return expandHostGlobal(builder, callee, arguments, 1, with, source);
+        case Op::hostGlobal1: return expandHostGlobal(builder, callee, arguments, 2, with, source);
+        case Op::hostBinary: return expandHostBinary(builder, callee, arguments, with, source);
+        case Op::hostThrow:  return expandHostThrow(builder, callee, arguments, with, source);
         case Op::hostViewRead:
+            return expandHostViewRead(builder, callee, arguments, with, source);
         case Op::hostViewWrite:
-        case Op::hostArray:
-        case Op::hostGrow:
+            return expandHostViewWrite(builder, callee, arguments, with, source);
+
+        // A fixed array's row is its own storage, so this is `addressOf` with the declared result
+        // deciding the pointee - see `hostRow` in `op.def`, which is where the two differ.
+        case Op::hostRow:    return expandAddressOf(builder, callee, arguments, with, source);
+
+        case Op::hostArray:  return expandHostArray(builder, callee, arguments, with, source);
+        case Op::hostGrow:   return expandHostGrow(builder, callee, arguments, with, source);
         case Op::hostFixedCapacity:
-        case Op::hostRead:
-        case Op::hostWrite:
+            return expandHostFixedCapacity(builder, callee, arguments, with, source);
+
+        // The element - a place, which is why `hostAt` and `hostAtMut` are one emitter: the declared
+        // result is what says whether the loan is shared or exclusive.
+        case Op::hostRead:  return expandHostRead(builder, callee, arguments, with, source);
+        case Op::hostWrite: return expandHostWrite(builder, callee, arguments, with, source);
         case Op::hostAt:
         case Op::hostAtMut:
+            return expandHostAt(builder, callee, arguments, with, source);
+
         case Op::hostVector:
+            return expandHostVector(builder, callee, arguments, 2, with, source, HostOp::Vector);
         case Op::hostVectorUpTo:
+            return expandHostVector(builder, callee, arguments, 3, with, source, HostOp::VectorUpTo);
         case Op::hostSetVector:
-            context.diagnostics.error("the ownership resolver does not implement %@ yet"_v, source,
-                                      context.findName(callee.name));
-            return nullptr;
+            return expandHostVector(builder, callee, arguments, 3, with, source, HostOp::SetVector);
 
         // Not a fallback either, and for the opposite reason: `Count` is not a role.
         case Op::Count: break;

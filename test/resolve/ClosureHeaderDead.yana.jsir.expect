@@ -1,0 +1,80 @@
+fn Guard.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    store var $0: %r0, %0
+    %1: %r0 = load global dropCalls: %r0
+    %2: %r0 = const 1
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    store global dropCalls: %r0, %4
+    return
+
+fn main() -> one %r0
+  var $0: %r0
+  var $1: %r0
+  var $2: %r2
+  block0:
+    %0: %r0 = const 3
+    %1: %r0 = const 0
+    %2: %r3 = object %s1 %1
+    %3: %r0 = alias %0
+    store property %2.$v: %r0, %3
+    %4: %r0 = load property %2.$v: %r0
+    %5: %r0 = alias %4
+    store var $0: %r0, %5
+    %6: %r0 = load var $0: %r0
+    %7: %r0 = alias %6
+    %8: %r0 = const 10
+    %9: %r0 = binary.add %8, %7
+    %10: %r0 = coerce %9
+    %11: %r0 = load property %2.$v: %r0
+    call Guard.drop %11
+    %12: %r0 = const 5
+    %13: %r0 = alias %12
+    store var $1: %r0, %13
+    %14: %r0 = load var $1: %r0
+    %15: %r2 = object %s0 %14
+    store var $2: %r2, %15
+    %16: %r2 = load var $2: %r2
+    %17: %r5 = fun.code handedOff.lambda
+    %18: %r6 = object %s2 %17, %16
+    %21: %r6 = alias %18
+    %22: %r0 = const 1
+    %23: %r5 = load property %21.$c: %r5
+    %24: %r5 = load property %21.$e: %r5
+    %25: %r0 = call.value %23, %24, %22
+    helper.fun.drop %21
+    %26: %r0 = binary.add %10, %25
+    %27: %r0 = coerce %26
+    %28: %r0 = load global dropCalls: %r0
+    %29: %r0 = binary.add %27, %28
+    %30: %r0 = coerce %29
+    return %30
+
+fn handedOff.lambda(one %r2, one %r0) -> one %r0 env
+  block0(%0: %r2, %1: %r0):
+    %2: %r0 = load property %0.g: %r0
+    %3: %r0 = load property %0.g: %r0
+    %4: %r0 = binary.add %1, %3
+    %5: %r0 = coerce %4
+    return %5
+
+fn handedOff.lambda(one %r2) -> omitted
+  block0(%0: %r2):
+    %1: %r0 = load property %0.g: %r0
+    call Guard.drop %1
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 1 sunk 0
+
+shape %s0 object handedOff.lambda.env {g: %r0}
+shape %s1 cell {$v: %r0 box}
+shape %s2 fun {$c: %r5 code, $e: %r5 env}
+
+rep %r0 = number signed 32
+rep %r1 = void
+rep %r2 = object %s0
+rep %r3 = object %s1
+rep %r4 = array Int32Array of %r0
+rep %r5 = erased
+rep %r6 = object %s2

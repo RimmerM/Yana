@@ -1342,6 +1342,31 @@ struct Verifier {
     }
 
     /*
+     * A host operation - host.def, and the one thing a `Host` node has that this can check.
+     *
+     * Not the arity, which is where this differs from `Native` directly above: every row's operand
+     * count *is* its declaration's, because `expand_host.cpp` reads the modes off the signature
+     * position by position and would have indexed past the parameter list before reaching here. What
+     * is not the declaration's is the **member**, which was an argument and is now a field - so what
+     * is worth restating is that the rows host.def says carry one do, and that the rows it says
+     * carry none did not acquire one.
+     *
+     * That stays true now that `Call` and `Global` are one row each rather than one per arity
+     * (2026-09-22, J80): the arity a row's name used to spell was never what this checked, and it
+     * is still `expand_host.cpp`'s walk over the signature that establishes it.
+     */
+    void checkHost(Node& node) {
+        auto& written = (NodeHost&)node;
+        auto named = written.member.value != 0;
+
+        if(named == hostHasMember(written.op)) return;
+
+        report(node.source, named ? "internal: %@ names no member and carries one"_v
+                                  : "internal: %@ names a member and carries none"_v,
+               hostOpName(written.op));
+    }
+
+    /*
      * A `match` over constants - inst.def's `Map` row, and the four things a form selection below is
      * entitled to assume about one.
      *
@@ -1480,6 +1505,7 @@ struct Verifier {
             case Node::Return: return checkReturn(node);
             case Node::Atomic: return checkAtomic(node);
             case Node::Native: return checkNative(node);
+            case Node::Host:   return checkHost(node);
             default:           return;
         }
     }

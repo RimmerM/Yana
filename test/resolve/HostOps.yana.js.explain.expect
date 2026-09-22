@@ -1,0 +1,66 @@
+fn units(text: String) -> Size
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    text writable [not declared &]
+  retains:    text
+  calls:      called at 1 site
+  hint:       mutates text writable [not declared &]; retains text
+  hover:
+---
+- **mutates**: text writable [not declared &]
+- **retains**: text
+
+fn unitAt(text: String, index: Size) -> CodeUnit
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    text writable [not declared &]
+  retains:    text
+  calls:      called at 1 site
+  hint:       mutates text writable [not declared &]; retains text
+  hover:
+---
+- **mutates**: text writable [not declared &]
+- **retains**: text
+
+fn joined(left: String, right: String) -> String
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    left writable [not declared &], right writable [not declared &]
+  retains:    left, right
+  calls:      called at 1 site
+  hint:       mutates left writable [not declared &], right writable [not declared &]; retains left, right
+  hover:
+---
+- **mutates**: left writable [not declared &], right writable [not declared &]
+- **retains**: left, right
+
+fn unitText(unit: CodeUnit) -> String
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+fn managed(items: %U8) -> Bool
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    items writable
+  retains:    items
+  calls:      called at 1 site
+  hint:       retains items
+  hover:
+---
+- **retains**: items
+
+fn main() -> I32
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 0 sites

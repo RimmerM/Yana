@@ -70,10 +70,10 @@ function findEntry_I32_I32(self, key, h) {
 function scanEntries_I32_I32(self, key) {
   var v26 = self.keys.length;
   var v3 = 0;
-  var v31 = self.keys.items;
+  var v33 = self.keys.items;
   while (v3 < v26) {
     var at = v3;
-    if (v31[at] === key) {
+    if (v33[at] === key) {
       return at;
     } else {
       v3 = v3 + 1 | 0;
@@ -214,9 +214,9 @@ function insert_String_I32(self, key, value) {
   var v28 = mix32(Hash_String_hash(key, 2166136261));
   var at = findEntry_String_I32(self, key, v28);
   if (at >= 0) {
-    var v29 = self.values.items;
-    var v13$1 = v29[at];
-    v29[at] = value;
+    var v35 = self.values.items;
+    var v13$1 = v35[at];
+    v35[at] = value;
     return v13$1;
   } else {
     appendEntry_String_I32(self, key, value, v28);
@@ -354,38 +354,38 @@ function main() {
   if (at >= 0) {
     a.values.items[at] = 5;
   } else {
-    var v99 = a.keys.length;
+    var v100 = a.keys.length;
     push_I32(a.keys, 1);
     push_I32(a.values, 5);
-    var v104 = a.mask;
-    if (v104 === 0) {
-      var v135 = v99 + 1;
-      if (v135 > 8) {
-        indexRebuild_I32_I32(a, indexSlotsFor(v135));
+    var v105 = a.mask;
+    if (v105 === 0) {
+      var v136 = v100 + 1;
+      if (v136 > 8) {
+        indexRebuild_I32_I32(a, indexSlotsFor(v136));
       }
     } else {
-      var v111 = v104 + 1;
-      if (a.live + 1 > v111 - (v111 >>> 3)) {
-        indexRebuild_I32_I32(a, Math.imul(v99 + 1, 2) > v111 ? v111 + v111 | 0 : v111);
+      var v112 = v105 + 1;
+      if (a.live + 1 > v112 - (v112 >>> 3)) {
+        indexRebuild_I32_I32(a, Math.imul(v100 + 1, 2) > v112 ? v112 + v112 | 0 : v112);
       } else {
-        indexPlace_I32_I32(a, v99, v52);
+        indexPlace_I32_I32(a, v100, v52);
       }
     }
   }
-  var v74 = { keys: null, values: { items: null, length: 0 }, index: { items: null, length: 0 }, live: 0, mask: 0 };
-  var v75 = [];
-  if (v75.length !== 0) {
-    v75.length = 0;
+  var v75 = { keys: null, values: { items: null, length: 0 }, index: { items: null, length: 0 }, live: 0, mask: 0 };
+  var v76 = [];
+  if (v76.length !== 0) {
+    v76.length = 0;
   }
-  var v79 = { items: new Int32Array([]), length: 0 };
-  var v83 = { items: new Int32Array([]), length: 0 };
-  v74.keys = v75;
-  v74.values = v79;
-  v74.index = v83;
-  v74.live = 0;
-  v74.mask = 0;
-  var v19 = insert_String_I32(v74, "a", 6);
-  return touchInt(a) + touchString(v74) | 0;
+  var v80 = { items: new Int32Array([]), length: 0 };
+  var v84 = { items: new Int32Array([]), length: 0 };
+  v75.keys = v76;
+  v75.values = v80;
+  v75.index = v84;
+  v75.live = 0;
+  v75.mask = 0;
+  var v19 = insert_String_I32(v75, "a", 6);
+  return touchInt(a) + touchString(v75) | 0;
 }
 
 // a typed array's growth - see Implementation-Containers.md, section 14

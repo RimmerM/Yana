@@ -1420,8 +1420,24 @@ DeclPtr<Type> donorElementOf(DeclBase base, Program& program, DeclPtr<Type> type
     return record.arguments.size() == 1 ? record.arguments.get(base, 0) : nullptr;
 }
 
+/*
+ * A row is live only where the library declares **both** halves of it, which is the one thing this
+ * walk asks beyond the owner's role.
+ *
+ * `instanceOfRole` already answers false for an unclaimed *owner*, so the guard is about the view:
+ * a target whose shared occurrence of a type is the type itself declares no view record for it, and
+ * a row half-claimed would make `AccessForm::View` an answer with nothing to manifest as.
+ * JavaScript's `String` is the case that forced it - a host string has no units to point into, so
+ * there is no window to carry and `Analysis-IR-JS.md` §3.2.2 is the decision that a shared one is
+ * the same single host value. `known.def`'s `stringView` row is `Optional` for exactly this.
+ *
+ * Deliberately not a third column on `ViewRow`: what decides it is what the library declared, not
+ * what the table says, and a column would be the same fact in two places for one of them to get
+ * wrong.
+ */
 const ViewRow* viewRowOf(DeclBase base, Program& program, DeclPtr<Type> type) {
     for(auto& row: kViewRows) {
+        if(!program.roles.record(row.view)) continue;
         if(instanceOfRole(base, program, type, row.owner)) return &row;
     }
 

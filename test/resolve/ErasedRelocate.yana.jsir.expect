@@ -1,0 +1,60 @@
+fn main() -> one %r0
+  var $0: %r0
+  var $1: %r0
+  var $2: %r1
+  var $3: %r1
+  block0:
+    %0: %r0 = const 0n
+    %1: %r0 = const 0n
+    %2: %r1 = object %s0 %0, %1
+    store var $3: %r1, %2
+    %3: %r0 = const 10n
+    %4: %r0 = alias %3
+    store var $0: %r0, %4
+    %5: %r0 = load var $0: %r0
+    %6: %r0 = alias %5
+    store var $1: %r0, %6
+    %8: %r0 = load var $1: %r0
+    %9: %r0 = const 10n
+    %10: %r2 = binary.ne %8, %9
+    branch %10 -> block2 -> block1
+  block1:
+    %11: %r0 = const 20n
+    %12: %r0 = alias %11
+    %13: %r0 = const 5n
+    %14: %r1 = object %s0 %12, %13
+    store var $2: %r1, %14
+    %15: %r1 = load var $2: %r1
+    %16: %r1 = alias %15
+    store var $3: %r1, %16
+    %17: %r1 = load var $3: %r1
+    %18: %r0 = load property %17.left: %r0
+    %19: %r0 = load property %17.left: %r0
+    %20: %r0 = const 20n
+    %21: %r2 = binary.ne %19, %20
+    branch %21 -> block4 -> block3
+  block2:
+    %32: %r0 = const -1n
+    return %32
+  block3:
+    %22: %r1 = load var $3: %r1
+    %23: %r0 = load property %22.right: %r0
+    %24: %r0 = const 5n
+    %25: %r2 = binary.ne %23, %24
+    %26: %r0 = const -3n
+    %27: %r0 = const 30n
+    %28: %r0 = binary.add %27, %23
+    %29: %r0 = coerce %28
+    %30: %r0 = select %25, %26, %29
+    return %30
+  block4:
+    %31: %r0 = const -2n
+    return %31
+
+optimizer clones 1 aliased 1 forwarded 0 removed 1 adopted 0 sunk 0
+
+shape %s0 object Pair {left: %r0, right: %r0}
+
+rep %r0 = bigint signed
+rep %r1 = object %s0
+rep %r2 = number bool

@@ -1,0 +1,48 @@
+== diagnostics
+
+error Main.yana:22:12: unknown function absent
+
+== lsp/platform/src/Main.yana
+
+selected at 18:12
+  kind: function
+  definition: Main.yana:13:14..13:30 "fn only() -> Int"
+  hover: fn only() -> I32
+  reference: Main.yana:18:12..18:16 "only"
+
+hostFile at 20:17
+  kind: function
+  definition: Host.js.yana:5:4..5:21 "fn label() -> Int"
+  hover: fn label() -> I32
+         -- from Host
+  reference: Main.yana:20:12..20:22 "Host.label"
+
+excluded at 22:12
+  nothing resolved here
+
+-- semantic tokens
+{"data":[12,27,3,1,0,4,13,3,1,0,1,8,1,5,0,0,4,4,8,0,2,8,1,5,0,0,4,10,8,0,4,11,1,5,0,0,4,1,5,0]}
+
+-- inlay hints
+[{"position":{"line":17,"character":9},"label":": I32","kind":1},{"position":{"line":19,"character":9},"label":": I32","kind":1}]
+
+-- folding ranges
+[{"startLine":16,"endLine":17},{"startLine":18,"endLine":19},{"startLine":20,"endLine":21},{"startLine":22,"endLine":23}]
+
+-- document symbols
+[{"name":"only","detail":"fn only() -> I32","kind":12,"range":{"start":{"line":12,"character":14},"end":{"line":12,"character":30}},"selectionRange":{"start":{"line":12,"character":14},"end":{"line":12,"character":30}}},{"name":"main","detail":"fn main() -> I32","kind":12,"range":{"start":{"line":16,"character":0},"end":{"line":16,"character":16}},"selectionRange":{"start":{"line":16,"character":0},"end":{"line":16,"character":16}}}]
+
+== lsp/platform/src/Host.js.yana
+
+-- semantic tokens
+{"data":[4,18,3,1,0]}
+
+-- inlay hints
+[]
+
+-- folding ranges
+[]
+
+-- document symbols
+[{"name":"label","detail":"fn label() -> I32","kind":12,"range":{"start":{"line":4,"character":4},"end":{"line":4,"character":21}},"selectionRange":{"start":{"line":4,"character":4},"end":{"line":4,"character":21}}}]
+

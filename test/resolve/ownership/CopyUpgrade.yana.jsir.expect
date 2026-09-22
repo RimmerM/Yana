@@ -1,0 +1,83 @@
+fn main() -> one %r0
+  var $0: %r3
+  block0:
+    %5: %r0 = const 1
+    %6: %r0 = const 9
+    %7: %r0 = const 4
+    %8: %r1 = host host.array %5, %6, %7
+    %9: %r2 = const 3
+    %10: %r3 = object %s0 %8, %9
+    store var $0: %r3, %10
+    %11: %r0 = const 19
+    %12: %r0 = const 3
+    %13: %r0 = const 0
+    %14: %r0 = const 0
+    %15: %r0 = const 0
+    %16: %r0 = const 1
+    jump -> block1(%14, %15)
+  block1(%0: %r0, %1: %r0):
+    %17: %r8 = binary.lt %1, %12
+    branch %17 -> block3 -> block2
+  block2:
+    %18: %r3 = load var $0: %r3
+    call Array(a).reclaim(I32) %18
+    %19: %r0 = binary.add %11, %0
+    %20: %r0 = coerce %19
+    return %20
+  block3:
+    %21: %r9 = convert %1
+    %22: %r9 = convert %12
+    %23: %r8 = binary.ge %21, %22
+    branch %23 -> block10 -> block4
+  block4:
+    %24: %r1 = alias %8
+    %25: %r0 = binary.add %13, %1
+    %26: %r0 = coerce %25
+    %27: %r0 = load element %24[%26]: %r0
+    %28: %r8 = binary.gt %27, %0
+    branch %28 -> block6 -> block5
+  block5:
+    jump -> block8(%0)
+  block6:
+    %29: %r9 = convert %12
+    %30: %r8 = binary.ge %21, %29
+    branch %30 -> block9 -> block7
+  block7:
+    %31: %r1 = alias %8
+    %32: %r0 = binary.add %13, %1
+    %33: %r0 = coerce %32
+    %34: %r0 = load element %31[%33]: %r0
+    jump -> block8(%34)
+  block8(%2: %r0):
+    %35: %r0 = binary.add %1, %16
+    %36: %r0 = coerce %35
+    jump -> block1(%2, %36)
+  block9:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block10:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+fn Array(a).reclaim(I32)(one %r3) -> omitted
+  var $0: %r3
+  block0(%0: %r3):
+    store var $0: %r3, %0
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0
+
+shape %s0 object Array {items: %r1, length: %r2}
+shape %s1 object Pair {left: %r0, right: %r0}
+shape %s2 object ArrayView {items: %r1, length: %r0, offset: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = number unsigned 30
+rep %r3 = object %s0
+rep %r4 = void
+rep %r5 = object %s1
+rep %r6 = object %s2
+rep %r7 = parts (%r1, %r0, %r0) as %r6
+rep %r8 = number bool
+rep %r9 = number unsigned 32

@@ -64,8 +64,11 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 
 | Question | Answered in |
 | --- | --- |
-| what a MIR occurrence's convention is | `convert.cpp`, `conventionFor` |
+| what a MIR occurrence's convention is | `build.cpp`, `conventionFor` |
 | whether a shared loan of it is its copy | `convert.cpp`, `valueOccurrenceOf` |
+| whether a loan **denotes storage** or a value | `build.cpp`, `loanDenotesStorage` - one definition, read by JSIR too |
+| whether a value is reached **as an address** | `build.cpp`, `denotesStorage` - the convention's question, target-free |
+| whether a value of a type lives in storage at all | `build.cpp`, `holdsAggregate` - the declaration-level fact both of those rest on |
 | how a body is built, and how one is rewritten | `build.cpp`, `Editor` |
 | whether an owned value is linear | `resolve_mir/type.cpp`, `isLinear` |
 | whether a type has anything to run when it dies | `resolve_mir/type.cpp`, `hasTeardown` |
@@ -104,8 +107,8 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 | what a callee receives an argument as | `resolve_mir/inst.cpp`, `argumentMode` |
 | whether a call may suspend | the callee's `Summary`, through `resolve_mir`'s `maySuspend` |
 
-`valueOccurrenceOf` is `readMode`'s first clause re-asked with the substitution and the layout in
-hand, and it is the **one decision a specialization makes for itself** - `specialize.h`'s "a
+`valueOccurrenceOf` is `readMode`'s first clause re-asked with the substitution in hand, and it is
+the **one decision a specialization makes for itself** - `specialize.h`'s "a
 specialization decides nothing" is about instance selection, use modes and drop points, all of which
 are still the generic body's and are read unchanged. A generic body reads its parameter
 `borrow.shared` because `a` owes a teardown as far as the MIR builder knows; at `I32` it does not,
@@ -113,6 +116,45 @@ and `manifest.cpp` already states that a plain shared loan of a register-valued 
 type *is* its copy - "no loan of a trivial scalar is made at all for this table to represent". So
 this restores an invariant the manifestation table assumes rather than adding one, and
 `lower/gen.cpp` builds a signature from the **declared** occurrence, so nothing about the ABI moves.
+
+## There is no `Layout` above `lower/` any more
+
+Until J75 this tier read the native manifestation table: `convert.cpp` held a `Layout` and asked
+`isReferenceValue`, `isAddressOnly` and `arrivesAsAddress` at fifteen sites, and `verify.cpp` asked
+two of them and `manifestNative` at four. Analysis-IR-JS.md §1.3.1 is the survey that took them out,
+and the replacement is three functions in `build.h` with no machine in any of them:
+
+```text
+holdsAggregate(type)         a value of this type lives in storage       <- the declaration alone
+loanDenotesStorage(occ)      what a loan means                          <- readMode's own procedure
+denotesStorage(occ)          what a caller puts in an argument slot      <- arrivesAsAddress, restated
+```
+
+`holdsAggregate` is `manifestNative(owned(t)).inMemory` with the numbers left off, and the two must
+agree row for row - a kind added to `type.def` is decided in both.
+
+**`loanDenotesStorage` is JSIR's and is read nowhere here**, which is worth saying because it is the
+one §1.3.1 named. Every question this tier asks turns out to be the convention's - what a caller puts
+in an argument slot, whether a local may use the pointer it was handed - and a convention is a
+function of the *declared* occurrence, which is exactly why it can be answered without a machine. A
+tier still free to choose a representation may ask what a loan means instead; this one is not, since
+`lower/gen.cpp` has already built the signature. One definition above the fork, read by whichever
+tier is asking it.
+
+`holdsAggregate` is also where §1.3.1's **cost guard** went. That guard is `valueOccurrenceOf`'s second test, which asks "is this big" so that a
+shared loan of an aggregate does not become a copy of the aggregate; §1.3.1 proposed dropping it and
+recovering the cost somewhere else, and J75 tried that and did not keep it. What happens without it
+is not a pessimization: `aliasesLender` and `valueOccurrenceOf` are one decision read at two sites,
+so a loan that stops denoting storage also stops using the incoming pointer as the local's storage -
+and the local is then allocated at the **loan's** occurrence, a pointer-wide slot that every
+`field.addr` projects *into* rather than through. Twelve driver processes segfaulted. The guard is a
+cost question and stays one; what changed is that it is now asked from the declaration instead of
+from a table that also knows about machines.
+
+What is **not** closed is the wider question `lower/README.md` asks - whether a calling convention is
+decidable before a target is chosen at all. `denotesStorage` is this tier's reading of the rule
+`lower/gen.cpp` builds every signature by, and the two may not drift; making them one statement
+rather than two readings of one is that question's work and not this one's.
 
 What it is worth is the *slot*. A borrow is a second name for storage, so a parameter read through
 one keeps its frame slot: `promote` declines a slot whose store installs a `Guaranteed` value and
@@ -228,12 +270,19 @@ here would be a second thing for every later pass to understand. The address is 
 branch so that it dominates both arms. Nothing in the current language subset produces one - the MIR
 README says why - so this path is written and untested.
 
-## Bytes are a directory below
+## Bytes are a directory below, and host values are the one beside it
 
 Everything from here to the `LowerModule` - what a record is in storage, what a value is in a
 register, and the walk that emits it - is [`lower/`](lower/README.md) and is native. The split is a
 wall rather than a filing decision: this directory is the ownership graph and the checks over it, and
 a second target's lowering arrives as a sibling of that directory rather than as a switch inside it.
+
+**It has.** [`js/`](js/README.md) is JSIR - the typed managed-value IR
+[`Analysis-IR-JS.md`](../../doc/inflight/Analysis-IR-JS.md) is about - built against this same SSA and
+answering the same two questions with `JsRep` where the other has `Repr`. The two directories are the
+whole of the target fork, and the boundary is what makes an accidental dependency visible: a file
+above needing either one's manifestation table is asking a target question from the
+target-independent half, and the include says so.
 
 What is left below is what a *value* is here, which is not a representation question.
 
@@ -567,6 +616,19 @@ The environment is `resolve_lambda.cpp`'s shape one tier down and for the same r
 locals the region reads, an environment parameter in front of the ones the position declares, and a
 `fun.value` pairing the two. What differs is only that nothing in the source wrote it - and that a
 continuation's environment is always the frame's, so it carries `Shapes::closure` and owes nothing.
+
+**A captured field says what the value is, and only the access is the field's own.** The field is
+filled by a load out of the local's storage *at the field's occurrence*, so that occurrence decides
+which value the load produces - and a window local is `Array(a) [shared call view]` whose storage
+holds a view record, while a field spelled `Array(a) [unique slot n]` asks the same storage for the
+owner. On a machine both are an address and the difference cannot show; on JavaScript they are two
+different host objects, which is how `doc/progress/2026-09-21-J67-jsir-coverage.md` §5 found it. So
+the **form** is the binding's (J70) and the **access** is exclusive whatever the binding was: the
+field holds the address of the caller's storage in every case, `captureOf`'s reader takes it as an
+owned `%T`, and the loan the field states is the one the region may write through. Weakening the
+access to the binding's own was tried and is worse than a spelling - a record of nothing but shared
+external fields is *trivially copyable*, so the pair's environment word stops naming the frame's own
+record and the library's own suite aborts inside `entries`.
 (`fun.value` stopped being `kSsaPure` with D17: a value whose environment is heap-placed *takes* that
 environment, so the operand's lineage ends at the instruction exactly as an aggregate's components
 do, and the flags are per kind.)
@@ -1046,3 +1108,30 @@ disagree can honestly say. A shape changes no manifestation at this tier, so the
 promotion declares accepts an arm carrying one. Declaring a shape and being handed none stays an
 error: that is a promise the argument does not keep. Before the excusal, `Environment.variable`'s
 `while` loop was rejected by the verifier after `promote` and every pass after it.
+
+## A host operation passes through, and nothing here lowers one
+
+`Inst::Host` is `mir::Node::Host` carried down with nothing added - the row, the member name and the
+uses under the modes MIR gave them. `resolve_mir/host.def` is the table and Analysis-IR-JS.md §3.10
+is the design; what this tier does with one is carry it, verify it and let the optimizer reason about
+it through its row.
+
+Three places where it is not quite `Inst::Native`, each of which is a decision:
+
+- **`kSsaConsumes`.** A native operation's operands are addresses and counts and every one of them is
+  `Inspect`. A host operation's are the declaration's, and `host.array` holds the elements of
+  `[1, 2, 3]` afterwards, so they arrive as moves. The flag is what makes an owned operand legal
+  here; which positions actually consume is the signature's answer and was settled before the node
+  was built.
+- **Not `kSsaPure`, and `isPure(const Inst&)` refines it.** The flags column is per kind and the
+  effects are per row - see `opt/README.md`, where the six passes that read the finer answer are
+  listed.
+- **`lower/inst.cpp` asserts.** There is no native arm for one and there must not be: `@platform`
+  selection deletes every declaration that could reach a host role, so a `Host` arriving at the
+  native lowering is a *selection* bug - a `.js.yana` file read on a native build - and this is the
+  one place where saying so is still cheap. JSIR is the sibling that has the arm.
+
+A JavaScript compilation stops after `optimize`, which is what `compileOwnershipStage`'s guard above
+`pipeline.lower()` enforces and what `-mode mir` and `-mode ssa` answer. Two passes are the native
+side of that fork rather than shared - `flattenArguments` and `placeRuns`, both switched off in
+`opt/opt.cpp` - and `opt/README.md` is where the argument is.

@@ -1,0 +1,45 @@
+fn main() -> one %r0
+  block0:
+    %0: %r0 = const 0
+    store global seen: %r0, %0
+    %1: %r0 = load global seen: %r0
+    %2: %r0 = const 5
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    store global seen: %r0, %4
+    %5: %r0 = const 1
+    %6: %r0 = load global seen: %r0
+    %7: %r0 = binary.add %6, %5
+    %8: %r0 = coerce %7
+    %9: %r0 = const 1000
+    %10: %r0 = binary.mul %8, %9
+    %11: %r0 = coerce %10
+    %12: %r0 = const 3
+    store global seen: %r0, %12
+    %13: %r0 = load global seen: %r0
+    %14: %r0 = load global seen: %r0
+    %15: %r0 = const 5
+    %16: %r0 = binary.add %14, %15
+    %17: %r0 = coerce %16
+    store global seen: %r0, %17
+    %18: %r0 = const 1
+    %19: %r0 = const 100
+    %20: %r0 = binary.mul %13, %19
+    %21: %r0 = coerce %20
+    %22: %r0 = const 10
+    %23: %r0 = binary.mul %13, %22
+    %24: %r0 = coerce %23
+    %25: %r0 = binary.add %21, %24
+    %26: %r0 = coerce %25
+    %27: %r0 = load global seen: %r0
+    %28: %r0 = binary.add %26, %27
+    %29: %r0 = coerce %28
+    %30: %r0 = binary.add %29, %18
+    %31: %r0 = coerce %30
+    %32: %r0 = binary.add %11, %31
+    %33: %r0 = coerce %32
+    return %33
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 32

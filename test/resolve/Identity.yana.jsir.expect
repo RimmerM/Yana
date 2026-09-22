@@ -1,0 +1,16 @@
+fn main() -> one %r0
+  block0:
+    %2: %r0 = const 300
+    %3: %r0 = alias %2
+    %4: %r0 = alias %3
+    %8: %r0 = const 54023
+    %9: %r0 = binary.add %4, %8
+    %10: %r0 = coerce %9
+    return %10
+
+optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0
+
+shape %s0 object Pair {left: %r0, right: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0

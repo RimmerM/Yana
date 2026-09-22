@@ -1,0 +1,79 @@
+fn opaque(one %r0) -> one %r0
+  block0(%0: %r0):
+    %1: %r0 = load global log: %r0
+    %2: %r0 = binary.add %1, %0
+    %3: %r0 = coerce %2
+    store global log: %r0, %3
+    %4: %r0 = load global log: %r0
+    %5: %r0 = const 1000
+    %6: %r1 = binary.gt %4, %5
+    %7: %r0 = const 0
+    %8: %r0 = select %6, %7, %0
+    return %8
+
+fn main() -> one %r0
+  var $0: %r2
+  var $1: %r3
+  block0:
+    %0: %r0 = const 5
+    %4: %r0 = call opaque %0
+    %8: %r0 = const 1349
+    %9: %r0 = binary.add %4, %8
+    %10: %r0 = coerce %9
+    %11: %r0 = const 6
+    %12: %r0 = const 0
+    %13: %r0 = const 0
+    %14: %r0 = const 0
+    %15: %r2 = object %s0 %13, %14
+    %16: %r3 = object %s1 %12, %15
+    store var $1: %r3, %16
+    %17: %r0 = const 1
+    %18: %r0 = const 2
+    %19: %r2 = object %s0 %17, %18
+    store var $0: %r2, %19
+    %20: %r0 = const 7
+    %21: %r2 = load var $0: %r2
+    %22: %r2 = clone %21
+    %23: %r3 = object %s1 %20, %22
+    store var $1: %r3, %23
+    %24: %r0 = call opaque %11
+    %25: %r3 = load var $1: %r3
+    store property %25.tag: %r0, %24
+    %26: %r3 = load var $1: %r3
+    %27: %r2 = load property %26.held: %r2
+    %28: %r0 = load property %27.a: %r0
+    %29: %r0 = const 100
+    %30: %r0 = binary.mul %28, %29
+    %31: %r0 = coerce %30
+    %32: %r2 = load property %26.held: %r2
+    %33: %r0 = load property %32.b: %r0
+    %34: %r0 = const 10
+    %35: %r0 = binary.mul %33, %34
+    %36: %r0 = coerce %35
+    %37: %r0 = binary.add %31, %36
+    %38: %r0 = coerce %37
+    %39: %r0 = binary.add %38, %24
+    %40: %r0 = coerce %39
+    %41: %r0 = binary.add %10, %40
+    %42: %r0 = coerce %41
+    %43: %r0 = const 7
+    %49: %r0 = call opaque %43
+    %50: %r0 = const 127
+    %51: %r0 = binary.add %49, %50
+    %52: %r0 = coerce %51
+    %53: %r0 = binary.add %42, %52
+    %54: %r0 = coerce %53
+    %55: %r0 = load global log: %r0
+    %56: %r0 = binary.add %54, %55
+    %57: %r0 = coerce %56
+    return %57
+
+optimizer clones 1 aliased 0 forwarded 0 removed 11 adopted 0 sunk 0
+
+shape %s0 object Pair {a: %r0, b: %r0}
+shape %s1 object Held {tag: %r0, held: %r2}
+
+rep %r0 = number signed 32
+rep %r1 = number bool
+rep %r2 = object %s0
+rep %r3 = object %s1

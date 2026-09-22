@@ -1,0 +1,57 @@
+fn main() -> one %r0
+  block0:
+    %5: %r1 = const 4n
+    %6: %r1 = const 0n
+    %7: %r4 = object %s1 %6
+    %8: %r1 = const 0n
+    store property %7.$v: %r1, %8
+    %9: %r1 = const 0n
+    %10: %r1 = const 2n
+    %11: %r1 = const 0n
+    %12: %r1 = const 10n
+    %13: %r1 = const 1n
+    %14: %r1 = const 1n
+    jump -> block1(%9)
+  block1(%0: %r1):
+    %15: %r5 = binary.lt %0, %5
+    branch %15 -> block3 -> block2
+  block2:
+    %16: %r1 = load property %7.$v: %r1
+    %17: %r1 = const 60n
+    %18: %r1 = binary.add %17, %16
+    %19: %r1 = coerce %18
+    %20: %r0 = convert %19
+    return %20
+  block3:
+    %21: %r1 = binary.rem %0, %10
+    %22: %r1 = coerce %21
+    %23: %r5 = binary.eq %22, %11
+    %24: %r2 = const "$v"
+    %25: %r3 = object %s0 %7, %24
+    %26: %r2 = const "$v"
+    %27: %r3 = object %s0 %7, %26
+    branch %23 -> block5(%25) -> block4(%27)
+  block4(%1: %r3):
+    jump -> block6(%12, %1)
+  block5(%2: %r3):
+    jump -> block6(%13, %2)
+  block6(%3: %r1, %4: %r3):
+    %28: %r1 = load cell %4: %r1
+    %29: %r1 = binary.add %28, %3
+    %30: %r1 = coerce %29
+    store cell %4: %r1, %30
+    %31: %r1 = binary.add %0, %14
+    %32: %r1 = coerce %31
+    jump -> block1(%32)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+shape %s0 ref {$o: %r2 owner, $k: %r2 key}
+shape %s1 cell {$v: %r1 box}
+
+rep %r0 = number signed 32
+rep %r1 = bigint signed
+rep %r2 = erased
+rep %r3 = cell of %r1
+rep %r4 = object %s1
+rep %r5 = number bool

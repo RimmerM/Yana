@@ -1,0 +1,76 @@
+fn main() -> one %r1
+  block0:
+    %0: %r1 = const 0
+    %1: %r0 = load global byte: %r0
+    %2: %r2 = convert %1
+    %3: %r3 = convert %2
+    %4: %r3 = const -49
+    %5: %r4 = binary.eq %3, %4
+    %6: %r1 = const 1
+    %7: %r1 = select %5, %6, %0
+    %8: %r1 = convert %3
+    %9: %r1 = const -49
+    %10: %r4 = binary.eq %8, %9
+    %11: %r1 = const 2
+    %12: %r1 = binary.add %7, %11
+    %13: %r1 = coerce %12
+    %14: %r1 = select %10, %13, %7
+    %15: %r0 = load global short: %r0
+    %16: %r5 = convert %15
+    %17: %r6 = convert %16
+    %18: %r6 = const -25536
+    %19: %r4 = binary.eq %17, %18
+    %20: %r1 = const 4
+    %21: %r1 = binary.add %14, %20
+    %22: %r1 = coerce %21
+    %23: %r1 = select %19, %22, %14
+    %24: %r1 = convert %17
+    %25: %r1 = const -25536
+    %26: %r4 = binary.eq %24, %25
+    %27: %r1 = const 8
+    %28: %r1 = binary.add %23, %27
+    %29: %r1 = coerce %28
+    %30: %r1 = select %26, %29, %23
+    %31: %r1 = load global signedByte: %r1
+    %32: %r3 = convert %31
+    %33: %r2 = convert %32
+    %34: %r2 = const 207
+    %35: %r4 = binary.eq %33, %34
+    %36: %r1 = const 16
+    %37: %r1 = binary.add %30, %36
+    %38: %r1 = coerce %37
+    %39: %r1 = select %35, %38, %30
+    %40: %r0 = convert %33
+    %41: %r0 = const 207
+    %42: %r4 = binary.eq %40, %41
+    %43: %r1 = const 32
+    %44: %r1 = binary.add %39, %43
+    %45: %r1 = coerce %44
+    %46: %r1 = select %42, %45, %39
+    %47: %r1 = load global signedShort: %r1
+    %48: %r6 = convert %47
+    %49: %r5 = convert %48
+    %50: %r5 = const 40000
+    %51: %r4 = binary.eq %49, %50
+    %52: %r1 = const 64
+    %53: %r1 = binary.add %46, %52
+    %54: %r1 = coerce %53
+    %55: %r1 = select %51, %54, %46
+    %56: %r0 = convert %49
+    %57: %r0 = const 40000
+    %58: %r4 = binary.eq %56, %57
+    %59: %r1 = const 128
+    %60: %r1 = binary.add %55, %59
+    %61: %r1 = coerce %60
+    %62: %r1 = select %58, %61, %55
+    return %62
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number unsigned 32
+rep %r1 = number signed 32
+rep %r2 = number unsigned 8
+rep %r3 = number signed 8
+rep %r4 = number bool
+rep %r5 = number unsigned 16
+rep %r6 = number signed 16

@@ -1,0 +1,156 @@
+fn tagOf(one %r1) -> one %r2
+  block0(%0: %r1):
+    %2: %r1 = const null
+    %3: %r4 = binary.eq %0, %2
+    %4: %r0 = const 1
+    %5: %r0 = const 0
+    %6: %r0 = select %3, %5, %4
+    %7: %r0 = const 0
+    %8: %r5 = binary.eq %6, %7
+    branch %8 -> block5 -> block1
+  block1:
+    %9: %r0 = const 1
+    %10: %r5 = binary.eq %6, %9
+    branch %10 -> block6 -> block2
+  block2:
+    %15: %r0 = const 1
+    %16: %r5 = binary.eq %6, %15
+    branch %16 -> block8 -> block3
+  block3:
+    %21: %r2 = const 3
+    jump -> block4(%21)
+  block4(%1: %r2):
+    return %1
+  block5:
+    %24: %r2 = const 0
+    jump -> block4(%24)
+  block6:
+    %12: %r0 = alias %0
+    %13: %r0 = const 0
+    %14: %r5 = binary.eq %12, %13
+    branch %14 -> block7 -> block2
+  block7:
+    %23: %r2 = const 1
+    jump -> block4(%23)
+  block8:
+    %18: %r0 = alias %0
+    %19: %r0 = const 1
+    %20: %r5 = binary.eq %18, %19
+    branch %20 -> block9 -> block3
+  block9:
+    %22: %r2 = const 2
+    jump -> block4(%22)
+
+fn depthOf(one %r3) -> one %r2
+  block0(%0: %r3):
+    %2: %r0 = load property %0.$tag: %r0
+    %3: %r0 = const 0
+    %4: %r5 = binary.eq %2, %3
+    branch %4 -> block4 -> block1
+  block1:
+    %5: %r0 = load property %0.$tag: %r0
+    %6: %r0 = const 1
+    %7: %r5 = binary.eq %5, %6
+    branch %7 -> block5 -> block2
+  block2:
+    %16: %r1 = load property %0.Just: %r1
+    %17: %r0 = load property %0.Just: %r0
+    %18: %r2 = const 300
+    %19: %r1 = alias %17
+    %20: %r2 = call tagOf %19
+    %21: %r2 = binary.add %18, %20
+    %22: %r2 = coerce %21
+    jump -> block3(%22)
+  block3(%1: %r2):
+    return %1
+  block4:
+    %24: %r2 = const 100
+    jump -> block3(%24)
+  block5:
+    %8: %r1 = load property %0.Just: %r1
+    %9: %r1 = const null
+    %10: %r4 = binary.eq %8, %9
+    %11: %r0 = const 1
+    %12: %r0 = const 0
+    %13: %r0 = select %10, %12, %11
+    %14: %r0 = const 0
+    %15: %r5 = binary.eq %13, %14
+    branch %15 -> block6 -> block2
+  block6:
+    %23: %r2 = const 200
+    jump -> block3(%23)
+
+fn main() -> one %r2
+  block0:
+    %0: %r1 = const null
+    %1: %r2 = call tagOf %0
+    %2: %r0 = const 0
+    %3: %r1 = alias %2
+    %4: %r2 = call tagOf %3
+    %5: %r0 = const 2
+    %6: %r1 = alias %5
+    %7: %r2 = call tagOf %6
+    %8: %r2 = const 10
+    %9: %r2 = binary.mul %4, %8
+    %10: %r2 = coerce %9
+    %11: %r2 = binary.add %1, %10
+    %12: %r2 = coerce %11
+    %13: %r2 = const 100
+    %14: %r2 = binary.mul %7, %13
+    %15: %r2 = coerce %14
+    %16: %r2 = binary.add %12, %15
+    %17: %r2 = coerce %16
+    %18: %r0 = const 0
+    %19: %r1 = const null
+    %20: %r3 = object %s0 %18, %19
+    %21: %r2 = call depthOf %20
+    %22: %r1 = const null
+    %23: %r0 = const 1
+    %24: %r3 = object %s0 %23, %22
+    %25: %r2 = call depthOf %24
+    %26: %r0 = const 1
+    %27: %r1 = alias %26
+    %28: %r0 = const 1
+    %29: %r3 = object %s0 %28, %27
+    %30: %r2 = call depthOf %29
+    %31: %r2 = binary.add %21, %25
+    %32: %r2 = coerce %31
+    %33: %r2 = binary.add %32, %30
+    %34: %r2 = coerce %33
+    %35: %r2 = binary.add %17, %34
+    %36: %r2 = coerce %35
+    %37: %r0 = const 2
+    %38: %r1 = alias %37
+    %39: %r1 = const null
+    %41: %r1 = alias %38
+    %42: %r1 = alias %41
+    %43: %r2 = call tagOf %42
+    %44: %r2 = const 10
+    %45: %r2 = binary.mul %43, %44
+    %46: %r2 = coerce %45
+    %47: %r1 = alias %39
+    %48: %r1 = alias %47
+    %49: %r2 = call tagOf %48
+    %50: %r2 = binary.add %46, %49
+    %51: %r2 = coerce %50
+    %52: %r2 = binary.add %36, %51
+    %53: %r2 = coerce %52
+    %60: %r2 = const 1315
+    %61: %r2 = binary.add %53, %60
+    %62: %r2 = coerce %61
+    return %62
+
+optimizer clones 0 aliased 0 forwarded 2 removed 9 adopted 0 sunk 0
+
+shape %s0 object Maybe {$tag: %r0 tag, Just: %r1}
+shape %s1 object Pair {first: %r1, second: %r1}
+
+rep %r0 = number unsigned 8
+rep %r1 = nullable of %r0
+rep %r2 = number signed 32
+rep %r3 = object %s0
+rep %r4 = boolean
+rep %r5 = number bool
+rep %r6 = object %s1
+rep %r7 = number unsigned 4
+rep %r8 = nullable of %r7

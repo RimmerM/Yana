@@ -1,0 +1,117 @@
+module ResolveTest
+
+data Tally {total: I32, seen: I32}
+
+data Note {tag: I32, count: I32}
+
+fn bump(t: Tally [unique call], by: I32 [shared call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (t.total)
+  %1: I32 = read copy.trivial (by)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (t.total) take %2
+  %4: I32 = read copy.trivial (t.seen)
+  %5: I32 = const 1
+  %6: I32 = add inspect %4 inspect %5
+  write.assign borrow.unique (t.seen) take %6
+  return
+}
+
+fn note(n: Note [unique call], by: I32 [shared call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (n.tag)
+  %1: I32 = read copy.trivial (by)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (n.tag) take %2
+  %4: I32 = read copy.trivial (n.count)
+  %5: I32 = const 1
+  %6: I32 = add inspect %4 inspect %5
+  write.assign borrow.unique (n.count) take %6
+  return
+}
+
+fn early(n: I32 [shared call]) -> Bool {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = lt inspect %0 inspect %1
+  return take %2
+}
+
+fn main() -> I32 {
+  local & tally: Tally
+  local & last: I32
+  local & local2: I32
+  local i: I32
+  local & held: Note
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 0
+  %2: Tally = aggregate.Tally take %0 take %1
+  write.init borrow.unique (tally) take %2
+  %4: I32 = const 0
+  write.init borrow.unique (last) take %4
+  %6: I32 = const 1
+  %7: I32 = const 4
+  %8: I32 = const 1
+  write.init borrow.unique (local2) take %6
+  jump -> bb1(take %7, take %8)
+
+bb1(%9: I32, %10: I32):
+  %17: I32 = read copy.trivial (local2)
+  %18: Bool = lt inspect %17 inspect %9
+  branch inspect %18 -> bb4(take %9, take %10) -> bb3(take %9, take %10)
+
+bb2(%11: I32, %12: I32):
+  %34: I32 = read copy.trivial (local2)
+  %35: I32 = add inspect %34 inspect %12
+  write.assign borrow.unique (local2) take %35
+  jump -> bb1(take %11, take %12)
+
+bb3(%13: I32, %14: I32):
+  %38: I32 = const 0
+  %39: I32 = const 0
+  %40: Note = aggregate.Note take %38 take %39
+  write.init borrow.unique (held) take %40
+  %42: I32 = read copy.trivial (last)
+  %43: Bool = call early borrow.shared %42
+  branch inspect %43 -> bb7 -> bb5
+
+bb4(%19: I32, %20: I32):
+  %22: I32 = read copy.trivial (local2)
+  write.init borrow.unique (i) take %22
+  %24: Tally [unique call] = read borrow.unique (tally) loan0
+  %25: I32 = read copy.trivial (i)
+  %26: {} = call bump borrow.unique %24 borrow.shared %25
+  %27: I32 = read copy.trivial (tally.total)
+  %28: I32 = const 10
+  %29: I32 = mul inspect %27 inspect %28
+  %30: I32 = read copy.trivial (tally.seen)
+  %31: I32 = add inspect %29 inspect %30
+  write.assign borrow.unique (last) take %31
+  jump -> bb2(take %19, take %20)
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %48: Note [unique call] = read borrow.unique (held) loan1
+  %49: I32 = const 5
+  %50: {} = call note borrow.unique %48 borrow.shared %49
+  %51: Note [unique call] = read borrow.unique (held) loan2
+  %52: I32 = const 7
+  %53: {} = call note borrow.unique %51 borrow.shared %52
+  %54: I32 = read copy.trivial (last)
+  %55: I32 = read copy.trivial (held.tag)
+  %56: I32 = add inspect %54 inspect %55
+  %57: I32 = read copy.trivial (held.count)
+  %58: I32 = add inspect %56 inspect %57
+  return take %58
+
+bb7:
+  %45: I32 = const -1
+  return take %45
+}
+
+entry main

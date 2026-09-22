@@ -337,7 +337,7 @@ struct Forwarder {
      * yes to every instruction that is not pure.
      */
     void forgetWritten(Inst& inst) {
-        if(isPure(inst.kind)) return;
+        if(isPure(inst)) return;
 
         auto written = writtenThrough(inst);
 

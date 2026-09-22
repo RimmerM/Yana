@@ -1,0 +1,44 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 8, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    %v_5 = alloca 4, 4: Ptr
+    %v_6 = alloca 4, 4: Ptr
+    store %v_1, 1, 4
+    %v_7 = imm 8: I32
+    copy %v_2, %v_1, 4
+    %v_8 = alloca 4, 4: Ptr
+    copy %v_8, %v_2, 4
+    store %v_1, %v_7, 4
+    %v_9 = load %v_8, 4: I32
+    store %v_3, 3, 4
+    %v_10 = add %v_3, 4: Ptr
+    store %v_10, 5, 4
+    copy %v_4, %v_3, 4
+    %v_11 = alloca 4, 4: Ptr
+    copy %v_11, %v_4, 4
+    %v_12 = alloca 4, 4: Ptr
+    copy %v_12, %v_10, 4
+    copy %v_3, %v_12, 4
+    copy %v_10, %v_11, 4
+    store %v_5, 9, 4
+    copy %v_6, %v_5, 4
+    %v_13 = alloca 4, 4: Ptr
+    copy %v_13, %v_6, 4
+    store %v_5, 0, 4
+    %v_14 = load %v_13, 4: I32
+    %v_15 = imul %v_9, 10: I32
+    %v_16 = add %v_15, %v_7: I32
+    %v_17 = loads %v_3, 4: I32
+    %v_18 = imul %v_17, 10: I32
+    %v_19 = add %v_16, %v_18: I32
+    %v_20 = loads %v_10, 4: I32
+    %v_21 = add %v_19, %v_20: I32
+    %v_22 = add %v_21, %v_14: I32
+    ret %v_22
+  }
+}
+

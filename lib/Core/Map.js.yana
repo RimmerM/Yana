@@ -67,11 +67,26 @@ fn appendPair(&self: Map(k, v), ->key: k, ->value: v):
     push(self.keys, key)
     push(self.values, value)
 
-fn keyAt(self: 'Map(k, v), at: Size) -> 'k = hostAt(self.keys.items, at)
+{-
+   The two host arrays, rooted in the map - `Array.native.yana`'s `values` for a field chain, and
+   here for the reason that one exists: a raw `%k` names nobody's storage, so it cannot be handed to
+   an operation that publishes an origin until a signature has said whose it is.
 
-fn valueAt(self: 'Map(k, v), at: Size) -> 'v = hostAt(self.values.items, at)
+   The field chain rather than `hostItems` over `self.keys`, which would say the same thing through
+   a window: a map's arrays are never sliced, so the window would be built and its `offset` would be
+   zero at every accessor below.
+-}
+fn hostKeys(self: source'Map(k, v)) -> %source'k = self.keys.items
 
-fn valueAtMut(&self: 'Map(k, v), at: Size) -> &'v = hostAtMut(self.values.items, at)
+fn hostValues(self: source'Map(k, v)) -> %source'v = self.values.items
+
+fn hostValuesMut(&self: source'Map(k, v)) -> %source'v = self.values.items
+
+fn keyAt(self: 'Map(k, v), at: Size) -> 'k = hostAt(hostKeys(self), at)
+
+fn valueAt(self: 'Map(k, v), at: Size) -> 'v = hostAt(hostValues(self), at)
+
+fn valueAtMut(&self: 'Map(k, v), at: Size) -> &'v = hostAtMut(hostValuesMut(self), at)
 
 fn takeEntry(&self: Map(k, v), at: Size) -> Entry(k, v):
     let last = entryCount(self) - 1

@@ -1,0 +1,20 @@
+{-
+   A host role's member name, computed - `compiler/resolve_mir/host.def`'s second difference from
+   `native.def`, refused where the argument still exists as something an author wrote.
+
+   # resolver: ownership
+   # platform: js
+
+   A name that survived as a *value* would be a string object built at run time and a property
+   access spelled `o[k]`, which is a different operation from the one the role describes. So it is a
+   diagnostic at the call rather than a fallback, and this is where that is asserted.
+-}
+import Native
+
+fn member() -> String = "length"
+
+fn computed(text: String) -> Size = hostField(text, member())
+
+fn concatenated(text: String) -> Size = hostField(text, "len" ++ "gth")
+
+fn main() -> Int = truncate(computed("host")) + truncate(concatenated("host"))

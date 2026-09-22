@@ -1,0 +1,31 @@
+fn main() -> one %r0
+  var $0: %r0
+  var $1: %r0
+  block0:
+    %0: %r0 = const 10
+    %1: %r0 = alias %0
+    store var $0: %r0, %1
+    %2: %r0 = load var $0: %r0
+    %3: %r0 = alias %2
+    %4: %r0 = const 1
+    %5: %r0 = binary.add %3, %4
+    %6: %r0 = coerce %5
+    %7: %r0 = alias %6
+    store var $1: %r0, %7
+    %8: %r0 = load var $0: %r0
+    %9: %r0 = alias %8
+    %10: %r0 = load var $1: %r0
+    %11: %r0 = alias %10
+    %12: %r0 = binary.add %9, %11
+    %13: %r0 = coerce %12
+    %22: %r0 = const 110
+    %23: %r0 = binary.add %13, %22
+    %24: %r0 = coerce %23
+    return %24
+
+optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0
+
+shape %s0 object Two {left: %r0, right: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0

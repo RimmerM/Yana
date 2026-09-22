@@ -1,0 +1,132 @@
+fn Held.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    store var $0: %r0, %0
+    %1: %r0 = load global live: %r0
+    %2: %r0 = const 1
+    %3: %r0 = binary.sub %1, %2
+    %4: %r0 = coerce %3
+    store global live: %r0, %4
+    return
+
+fn doubled(one %r0) -> one %r0
+  block0(%0: %r0):
+    %1: %r0 = const 2
+    %2: %r0 = binary.mul %0, %1
+    %3: %r0 = coerce %2
+    return %3
+
+fn zero() -> one %r0
+  block0:
+    %0: %r0 = const 0
+    return %0
+
+fn main() -> one %r0
+  var $0: %r0
+  var $1: %r0
+  var $2: %r0
+  var $3: %r0
+  block0:
+    %1: %r0 = const 6
+    %2: %r0 = call doubled %1
+    %3: %r0 = const 41
+    %4: %r0 = binary.mul %2, %3
+    %5: %r0 = coerce %4
+    %6: %r0 = load global calls: %r0
+    %7: %r0 = const 1
+    %8: %r0 = binary.add %6, %7
+    %9: %r0 = coerce %8
+    store global calls: %r0, %9
+    %10: %r0 = const 4369
+    %11: %r0 = binary.add %5, %10
+    %12: %r0 = coerce %11
+    %13: %r0 = const 30
+    %14: %r0 = call zero
+    %15: %r0 = const 0
+    %16: %r2 = binary.ne %14, %15
+    branch %16 -> block2 -> block1
+  block1:
+    %17: %r0 = const 0
+    jump -> block3(%17)
+  block2:
+    %18: %r0 = binary.div %13, %14
+    %19: %r0 = coerce %18
+    jump -> block3(%19)
+  block3(%0: %r0):
+    %20: %r0 = const 59
+    %21: %r0 = binary.mul %0, %20
+    %22: %r0 = coerce %21
+    %23: %r0 = binary.add %12, %22
+    %24: %r0 = coerce %23
+    %25: %r0 = const 3364
+    %26: %r0 = binary.add %24, %25
+    %27: %r0 = coerce %26
+    %28: %r0 = const 6
+    %29: %r0 = call doubled %28
+    %30: %r0 = const 103
+    %31: %r0 = binary.mul %29, %30
+    %32: %r0 = coerce %31
+    %33: %r0 = binary.add %27, %32
+    %34: %r0 = coerce %33
+    %35: %r0 = const 3
+    %36: %r0 = load global live: %r0
+    %37: %r0 = const 1
+    %38: %r0 = binary.add %36, %37
+    %39: %r0 = coerce %38
+    store global live: %r0, %39
+    %40: %r0 = alias %35
+    store var $0: %r0, %40
+    %41: %r0 = load var $0: %r0
+    call Held.drop %41
+    %42: %r0 = load global live: %r0
+    %43: %r0 = const 1
+    %44: %r0 = binary.add %42, %43
+    %45: %r0 = coerce %44
+    store global live: %r0, %45
+    %46: %r0 = const 4
+    %47: %r0 = alias %46
+    store var $1: %r0, %47
+    %48: %r0 = load var $1: %r0
+    call Held.drop %48
+    %49: %r0 = const 7
+    %50: %r0 = load global live: %r0
+    %51: %r0 = const 1
+    %52: %r0 = binary.add %50, %51
+    %53: %r0 = coerce %52
+    store global live: %r0, %53
+    %54: %r0 = alias %49
+    store var $2: %r0, %54
+    %55: %r0 = load var $2: %r0
+    call Held.drop %55
+    %56: %r0 = const 1178
+    %57: %r0 = binary.add %34, %56
+    %58: %r0 = coerce %57
+    %59: %r0 = const 7
+    %60: %r0 = load global live: %r0
+    %61: %r0 = const 1
+    %62: %r0 = binary.add %60, %61
+    %63: %r0 = coerce %62
+    store global live: %r0, %63
+    %64: %r0 = alias %59
+    store var $3: %r0, %64
+    %65: %r0 = load var $3: %r0
+    call Held.drop %65
+    %66: %r0 = const 1000
+    %67: %r0 = binary.mul %58, %66
+    %68: %r0 = coerce %67
+    %69: %r0 = load global calls: %r0
+    %70: %r0 = const 10
+    %71: %r0 = binary.mul %69, %70
+    %72: %r0 = coerce %71
+    %73: %r0 = binary.add %68, %72
+    %74: %r0 = coerce %73
+    %75: %r0 = load global live: %r0
+    %76: %r0 = binary.add %74, %75
+    %77: %r0 = coerce %76
+    return %77
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = void
+rep %r2 = number bool

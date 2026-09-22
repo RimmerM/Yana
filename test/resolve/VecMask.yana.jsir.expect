@@ -1,0 +1,85 @@
+fn main() -> one %r0
+  block0:
+    %1: %r1 = const 1
+    %2: %r1 = const 2
+    %3: %r0 = const 7
+    %4: %r0 = const 3
+    %5: %r6 = binary.lt %1, %2
+    %9: %r0 = select %5, %3, %4
+    %13: %r6 = binary.lt %4, %3
+    %17: %r1 = select %13, %1, %2
+    %21: %r0 = const 0
+    %22: %r0 = const 1
+    %23: %r0 = const 2
+    %24: %r0 = const 3
+    %25: %r0 = const 3
+    %26: %r6 = binary.lt %21, %25
+    %27: %r6 = binary.lt %22, %25
+    %28: %r6 = binary.lt %23, %25
+    %29: %r6 = binary.lt %24, %25
+    %30: %r0 = const 0
+    %31: %r0 = select %26, %21, %30
+    %32: %r0 = select %27, %22, %30
+    %33: %r0 = select %28, %23, %30
+    %34: %r0 = select %29, %24, %30
+    %35: %r9 = binary.or %26, %27
+    %36: %r9 = binary.or %28, %29
+    %37: %r9 = binary.or %35, %36
+    %38: %r9 = unary.not %37
+    branch %38 -> block3 -> block2
+  block1(%0: %r0):
+    %61: %r0 = const 100000
+    %62: %r0 = binary.mul %9, %61
+    %63: %r0 = coerce %62
+    %64: %r1 = const 1
+    %65: %r9 = binary.eq %17, %64
+    %66: %r0 = const 1
+    %67: %r0 = const 0
+    %68: %r0 = select %65, %66, %67
+    %69: %r0 = const 10000
+    %70: %r0 = binary.mul %68, %69
+    %71: %r0 = coerce %70
+    %72: %r0 = binary.add %63, %71
+    %73: %r0 = coerce %72
+    %74: %r0 = binary.add %73, %0
+    %75: %r0 = coerce %74
+    return %75
+  block2:
+    %39: %r0 = binary.add %31, %32
+    %40: %r0 = coerce %39
+    %41: %r0 = binary.add %33, %34
+    %42: %r0 = coerce %41
+    %43: %r0 = binary.add %40, %42
+    %44: %r0 = coerce %43
+    %45: %r0 = const 10
+    %46: %r0 = binary.mul %44, %45
+    %47: %r0 = coerce %46
+    %48: %r0 = convert %26
+    %49: %r0 = convert %27
+    %50: %r0 = binary.add %48, %49
+    %51: %r0 = coerce %50
+    %52: %r0 = convert %28
+    %53: %r0 = convert %29
+    %54: %r0 = binary.add %52, %53
+    %55: %r0 = coerce %54
+    %56: %r0 = binary.add %51, %55
+    %57: %r0 = coerce %56
+    %58: %r0 = binary.add %47, %57
+    %59: %r0 = coerce %58
+    jump -> block1(%59)
+  block3:
+    %60: %r0 = const -1
+    jump -> block1(%60)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = number f32
+rep %r2 = array Float32Array of %r1
+rep %r3 = parts (%r1, %r1, %r1, %r1) as %r2
+rep %r4 = array Int32Array of %r0
+rep %r5 = parts (%r0, %r0, %r0, %r0) as %r4
+rep %r6 = boolean
+rep %r7 = array Array of %r6
+rep %r8 = parts (%r6, %r6, %r6, %r6) as %r7
+rep %r9 = number bool

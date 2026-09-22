@@ -271,11 +271,19 @@ YANA_KNOWN_ROLE( arrayView, Entity::Record, 1,    0,      0,      false,   Prese
  * is the owner, whose fields `push` reaches. That default is the one place a view row and a window
  * row differ, and `resolve_mir/type.cpp`'s table says which is which.
  *
- * `Required`, because a string literal is grammar and has to be a value of something.
+ * `string` is `Required`, because a string literal is grammar and has to be a value of something.
+ *
+ * `stringView` is **`Optional` since 2026-09-21**, and the target is the reason. A view row is live
+ * only where the library declares both halves of it (`viewRowOf`), and on JavaScript a shared
+ * `String` *is* the string: a host string has no addressable units, so there is no window to carry
+ * and carrying one would mean three values at every parameter and field in the program to save a
+ * copy at the few places that cut - Analysis-IR-JS.md §3.2.2. So that target declares the record and
+ * no view for it, and what used to be a `Required` row reporting a library that is missing nothing
+ * is now the ordinary "the compiler copes" every optional row means.
  */
 //              role        entity          arity members payload teardown presence
 YANA_KNOWN_ROLE( string,     Entity::Record, 0,    0,      0,      false,   Presence::Required )
-YANA_KNOWN_ROLE( stringView, Entity::Record, 0,    0,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( stringView, Entity::Record, 0,    0,      0,      false,   Presence::Optional )
 
 /*
  * How an owner becomes its view - the derivations, which are class members the compiler calls at
@@ -314,11 +322,18 @@ YANA_KNOWN_ROLE( index,      Entity::Class, 3,    2,      0,      false,   Prese
  * is into `Resolver::stringConstant`, which spells them from the `string` and `run` rows below.
  * The row stays because the *shipping* stage still builds a literal through this function and finds
  * it by name (`resolve/native.cpp`), which is the coupling this file exists to replace - so the row
- * is what checks that the library declares it until that lookup becomes a read of this row. It is
- * `Required` for that reason and not for the grammar's any more.
+ * is what checks the declaration's arity until that lookup becomes a read of this row.
+ *
+ * **`Optional` since 2026-09-21, and the target is the reason.** It forges a string over a run of
+ * *addressable units*, which is a thing a host string does not have: there is no JavaScript body
+ * that could be written for this signature, and the shipping stage does not ask for one either -
+ * its JS path builds a literal as the host's own string and already tests `program.stringLiteral`
+ * for null (`resolve/expr_map.cpp`). `Required` therefore reported a library that is missing
+ * nothing, on the one target where the operation does not exist. What the row still does where it
+ * *is* claimed is unchanged.
  */
 //              role          entity            arity members payload teardown presence
-YANA_KNOWN_ROLE( stringLiteral, Entity::Function, 2,   0,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( stringLiteral, Entity::Function, 2,   0,      0,      false,   Presence::Optional )
 YANA_KNOWN_ROLE( slice,         Entity::Function, 3,   0,      0,      false,   Presence::Required )
 YANA_KNOWN_ROLE( sliceMut,      Entity::Function, 3,   0,      0,      false,   Presence::Required )
 

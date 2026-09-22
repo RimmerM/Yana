@@ -1,0 +1,42 @@
+{-
+   The program condition 2 of the copy-to-alias elision exists for - Analysis-IR-JS.md §6.3, and
+   `doc/progress/2026-09-22-J72-jsir-alias-scalarize.md` §7's first **zero** row, closed.
+
+   J72 weakened each safety condition in turn and two of the seven broke nothing. The one it wrote
+   down as "a `Value` place root accepted as stable" is a weakening of a test that reads
+
+       if(place.kind != JsPlaceKind::Var) return false;
+
+   and the reason weakening *that particular arm* of it changes nothing is that the arm is
+   unreachable: a whole-value read of a `Value` place is the owner value itself and not a `Load`, so
+   the only roots this test is ever asked about are a `Property`, an `Element`, a `Cell` and a
+   `Global`. Those are the storage it genuinely refuses and this is the fixture for them.
+
+   `both(h.p, h)` reads a `Point` out of a field and hands the same record to a position the callee
+   writes through. The copy at the borrow is what keeps them apart: `h.p.x = 100` inside the callee
+   lands in `h`'s own object, and what the first argument holds was taken before it. Accepting a
+   `Property` root as stable storage makes this answer **102** under Node against the 3 the native
+   build answers - the read-only walk over *this* body's names proves nothing about a field, because
+   the write is through a second name the callee holds.
+
+   # resolver: ownership
+
+   `AliasWrite.yana`'s directive and its reason: `f(x, &y)` naming one storage is a program the
+   shipping stage does not agree with itself about between `-no-ir-opt` and an optimized build.
+-}
+
+data Point {x: Int, y: Int}
+-- Two fields, so that the record is not the transparent one-field form - `Holder {p: Point}` alone
+-- *is* its `Point` here, and `h.p` would be `h`.
+data Holder {p: Point, tag: Int}
+
+-- The shared parameter and the exclusive one reach the same object at the one call below.
+@noinline fn both(a: Point, &h: Holder) -> Int:
+    h.p.x = 100
+    return a.x + a.y
+
+fn main() -> Int:
+    let &h = Holder {p: Point {x: 1, y: 2}, tag: 0}
+
+    -- 3: what `both` saw is the copy, made before it wrote through `h`. An alias answers 102.
+    return both(h.p, h)

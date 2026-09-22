@@ -464,6 +464,15 @@ Place* Builder::addressPlace(Node& address, Occurrence occurrence, bool writable
                                           writable));
 }
 
+// The argument is in build.h, beside the declaration.
+Place* Builder::hostElementPlace(Node& array, Node& index, DeclPtr<Type> container,
+                                 Occurrence element, bool writable) {
+    auto parent = addressPlace(array, Occurrence { container, element.contract, nullptr }, writable);
+    assertTrue(hasResult(index.kind));
+
+    return body.place(base(), internPlace(Place::Index, parent, index.id.index, element, writable));
+}
+
 /*
  * Interned per body, linearly.
  *
@@ -993,6 +1002,22 @@ Node* Builder::addNative(LocationId source, NativeOp op, Node* const* arguments,
 
     for(Size i = 0; i < count; i++) {
         node->arguments.push(arena(), resultOf(*arguments[i], UseMode::Inspect));
+    }
+
+    append(node);
+    return node;
+}
+
+// The argument is in build.h, beside the declaration.
+Node* Builder::addHost(LocationId source, HostOp op, StringId member, Node* const* arguments,
+                       const UseMode* modes, Size count, const Occurrence& result) {
+    auto node = new (arena()) NodeHost(source, op);
+    node->member = member;
+    node->occurrence = result;
+    node->arguments.reserve(arena(), count);
+
+    for(Size i = 0; i < count; i++) {
+        node->arguments.push(arena(), resultOf(*arguments[i], modes[i]));
     }
 
     append(node);

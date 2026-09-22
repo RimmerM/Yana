@@ -1,0 +1,168 @@
+fn double(one %r0) -> one %r0
+  block0(%0: %r0):
+    %1: %r0 = const 2
+    %2: %r0 = binary.mul %0, %1
+    %3: %r0 = coerce %2
+    return %3
+
+fn triple(one %r0) -> one %r0
+  block0(%0: %r0):
+    %1: %r0 = const 3
+    %2: %r0 = binary.mul %0, %1
+    %3: %r0 = coerce %2
+    return %3
+
+fn opaque(one %r0) -> one %r0
+  block0(%0: %r0):
+    return %0
+
+fn held(one %r0) -> one %r0
+  var $0: %r0
+  block0(%0: %r0):
+    %1: %r0 = alias %0
+    store var $0: %r0, %1
+    %2: %r0 = load var $0: %r0
+    %3: %r0 = alias %2
+    %4: %r0 = const 5
+    %5: %r0 = binary.add %4, %3
+    %6: %r0 = coerce %5
+    %7: %r0 = load var $0: %r0
+    %8: %r0 = alias %7
+    %9: %r0 = const 6
+    %10: %r0 = binary.add %9, %8
+    %11: %r0 = coerce %10
+    %12: %r0 = binary.add %6, %11
+    %13: %r0 = coerce %12
+    return %13
+
+fn counted(one %r0) -> one %r0
+  var $0: %r7
+  block0(%0: %r0):
+    %1: %r0 = alias %0
+    %2: %r0 = const 2
+    %3: %r7 = object %s3 %1, %2
+    store var $0: %r7, %3
+    %4: %r7 = load var $0: %r7
+    %5: %r7 = alias %4
+    %6: %r0 = const 5
+    %7: %r0 = call go(counted.lambda) %5, %6
+    return %7
+
+fn main() -> one %r0
+  block0:
+    %6: %r0 = const 0
+    %7: %r8 = object %s4 %6
+    %8: %r0 = const 3
+    %9: %r0 = call opaque %8
+    %10: %r0 = call held %9
+    %11: %r0 = call counted %9
+    %12: %r0 = const 4
+    %13: %r0 = call opaque %12
+    %14: %r1 = object %s0
+    %15: %r0 = call apply(main.lambda) %14, %13
+    %16: %r2 = fun.code double
+    %17: %r2 = const null
+    %18: %r3 = object %s1 %16, %17
+    %2: %r3 = alias %18
+    %19: %r0 = const 7
+    %20: %r0 = call opaque %19
+    %21: %r0 = call apply((I32) -> I32) %2, %20
+    %22: %r0 = const 1
+    %23: %r0 = call opaque %22
+    %24: %r0 = alias %9
+    %25: %r0 = call twice(main.lambda'2) %24, %23
+    %26: %r2 = fun.code triple
+    %27: %r2 = const null
+    %28: %r3 = object %s1 %26, %27
+    %5: %r3 = alias %28
+    %29: %r0 = const 2
+    %30: %r0 = call opaque %29
+    %31: %r0 = call twice((I32) -> I32) %5, %30
+    %32: %r0 = const 100
+    %33: %r0 = call opaque %32
+    store property %7.$v: %r0, %33
+    %34: %r0 = alias %9
+    %35: %r2 = const "$v"
+    call lends(main.lambda'3) %34, %7, %35
+    %36: %r0 = binary.add %10, %11
+    %37: %r0 = coerce %36
+    %38: %r0 = binary.add %37, %15
+    %39: %r0 = coerce %38
+    %40: %r0 = binary.add %39, %21
+    %41: %r0 = coerce %40
+    %42: %r0 = binary.add %41, %25
+    %43: %r0 = coerce %42
+    %44: %r0 = binary.add %43, %31
+    %45: %r0 = coerce %44
+    %46: %r0 = load property %7.$v: %r0
+    %47: %r0 = binary.add %45, %46
+    %48: %r0 = coerce %47
+    return %48
+
+fn apply(main.lambda)(one %r1, one %r0) -> one %r0
+  block0(%0: %r1, %1: %r0):
+    %2: %r0 = const 3
+    %3: %r0 = binary.mul %1, %2
+    %4: %r0 = coerce %3
+    return %4
+
+fn apply((I32) -> I32)(one %r3, one %r0) -> one %r0
+  block0(%0: %r3, %1: %r0):
+    %2: %r2 = load property %0.$c: %r2
+    %3: %r2 = load property %0.$e: %r2
+    %4: %r0 = call.value %2, %3, %1
+    return %4
+
+fn twice(main.lambda'2)(one %r0, one %r0) -> one %r0
+  block0(%0: %r0, %1: %r0):
+    %2: %r0 = binary.add %1, %0
+    %3: %r0 = coerce %2
+    %4: %r0 = binary.add %3, %0
+    %5: %r0 = coerce %4
+    return %5
+
+fn twice((I32) -> I32)(one %r3, one %r0) -> one %r0
+  block0(%0: %r3, %1: %r0):
+    %2: %r2 = load property %0.$c: %r2
+    %3: %r2 = load property %0.$e: %r2
+    %4: %r0 = call.value %2, %3, %1
+    %5: %r2 = load property %0.$c: %r2
+    %6: %r2 = load property %0.$e: %r2
+    %7: %r0 = call.value %5, %6, %4
+    return %7
+
+fn lends(main.lambda'3)(one %r0, parts %r5) -> omitted
+  block0(%0: %r0, %1: %r2, %2: %r2):
+    %3: %r0 = load element %1[%2]: %r0
+    %4: %r0 = binary.add %3, %0
+    %5: %r0 = coerce %4
+    store element %1[%2]: %r0, %5
+    return
+
+fn go(counted.lambda)(one %r7, one %r0) -> one %r0
+  block0(%0: %r7, %1: %r0):
+    %2: %r0 = load property %0.run: %r0
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    %5: %r0 = load property %0.weight: %r0
+    %6: %r0 = binary.mul %4, %5
+    %7: %r0 = coerce %6
+    return %7
+
+optimizer clones 1 aliased 1 forwarded 0 removed 4 adopted 2 sunk 0
+
+shape %s0 object main.lambda.env {}
+shape %s1 fun {$c: %r2 code, $e: %r2 env}
+shape %s2 ref {$o: %r2 owner, $k: %r2 key}
+shape %s3 object Step {run: %r0, weight: %r0}
+shape %s4 cell {$v: %r0 box}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = erased
+rep %r3 = object %s1
+rep %r4 = cell of %r0
+rep %r5 = parts (%r2, %r2) as %r4
+rep %r6 = void
+rep %r7 = object %s3
+rep %r8 = object %s4

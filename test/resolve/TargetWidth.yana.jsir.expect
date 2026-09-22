@@ -1,0 +1,106 @@
+fn opaque(one %r0) -> one %r0
+  block0(%0: %r0):
+    return %0
+
+fn main() -> one %r0
+  var $0: %r3
+  block0:
+    %0: %r0 = const 0
+    %1: %r0 = const 10
+    %2: %r0 = const 20
+    %3: %r0 = const 30
+    %4: %r1 = host host.array %1, %2, %3
+    %5: %r2 = const 3
+    %6: %r3 = object %s0 %4, %5
+    store var $0: %r3, %6
+    %7: %r0 = const 3
+    %8: %r0 = const 0
+    %9: %r0 = const 2
+    %10: %r7 = convert %9
+    %11: %r7 = convert %7
+    %12: %r8 = binary.ge %10, %11
+    branch %12 -> block2 -> block1
+  block1:
+    %13: %r1 = alias %4
+    %14: %r0 = binary.add %8, %9
+    %15: %r0 = coerce %14
+    %16: %r0 = load element %13[%15]: %r0
+    %17: %r3 = load var $0: %r3
+    call Array(a).reclaim(I32) %17
+    %18: %r0 = const 30
+    %19: %r8 = binary.eq %16, %18
+    %20: %r0 = const 1
+    %21: %r0 = select %19, %20, %0
+    %22: %r0 = const 7
+    %23: %r0 = call opaque %22
+    %24: %r9 = convert %23
+    %25: %r9 = const 7n
+    %26: %r8 = binary.eq %24, %25
+    %27: %r0 = const 2
+    %28: %r0 = binary.add %21, %27
+    %29: %r0 = coerce %28
+    %30: %r0 = select %26, %29, %21
+    %31: %r0 = const 4
+    %32: %r0 = binary.add %30, %31
+    %33: %r0 = coerce %32
+    %34: %r0 = const -1
+    %35: %r0 = call opaque %34
+    %36: %r0 = const 1000000
+    %37: %r0 = call opaque %36
+    %38: %r7 = convert %35
+    %39: %r7 = convert %37
+    %40: %r8 = binary.gt %38, %39
+    %41: %r0 = const 12
+    %42: %r0 = binary.add %30, %41
+    %43: %r0 = coerce %42
+    %44: %r0 = select %40, %43, %33
+    %45: %r0 = const 1
+    %46: %r0 = call opaque %45
+    %47: %r0 = const 2
+    %48: %r0 = call opaque %47
+    %49: %r7 = convert %46
+    %50: %r7 = convert %48
+    %51: %r8 = binary.gt %49, %50
+    %52: %r8 = unary.not %51
+    %53: %r0 = const 16
+    %54: %r0 = binary.add %44, %53
+    %55: %r0 = coerce %54
+    %56: %r0 = select %52, %55, %44
+    %57: %r0 = const 300
+    %58: %r0 = call opaque %57
+    %59: %r0 = convert %58
+    %60: %r0 = const 300
+    %61: %r8 = binary.eq %59, %60
+    %62: %r0 = const 32
+    %63: %r0 = binary.add %56, %62
+    %64: %r0 = coerce %63
+    %65: %r0 = select %61, %64, %56
+    %66: %r0 = const 64
+    %67: %r0 = binary.add %65, %66
+    %68: %r0 = coerce %67
+    return %68
+  block2:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+fn Array(a).reclaim(I32)(one %r3) -> omitted
+  var $0: %r3
+  block0(%0: %r3):
+    store var $0: %r3, %0
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+shape %s0 object Array {items: %r1, length: %r2}
+shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = number unsigned 30
+rep %r3 = object %s0
+rep %r4 = void
+rep %r5 = object %s1
+rep %r6 = parts (%r1, %r0, %r0) as %r5
+rep %r7 = number unsigned 32
+rep %r8 = number bool
+rep %r9 = bigint signed

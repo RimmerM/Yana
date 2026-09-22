@@ -1,0 +1,59 @@
+@image$base = []
+mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+@ResolveTest.string$0 = [121, 97, 110, 97]
+@ResolveTest.literal$1 = [0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0] {ptr 0: @ResolveTest.string$0}
+
+freeHeap<complex>(%allocation: Ptr) {
+  b_0 {
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    %v_5 = sub %allocation, 8: Ptr
+    %sizeClass = loads %v_5, 8: I64
+    %v_6 = load @heapFree, 8: Ptr
+    %v_7 = shl %sizeClass, 3: I64
+    %v_8 = add %v_6, %v_7: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    store %allocation, %v_9, 8
+    %v_10 = load @heapFree, 8: Ptr
+    %v_11 = add %v_10, %v_7: Ptr
+    store %v_11, %allocation, 8
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %ResolveTest.literal$1 = global @ResolveTest.literal$1: Ptr
+    %v_1 = add @ResolveTest.literal$1, 12: Ptr
+    %v_2 = load %v_1, 4: I32
+    %v_3 = add %ResolveTest.literal$1, 8: Ptr
+    %v_4 = load %v_3, 4: I64
+    %v_5 = shr %v_4, 30: I64
+    %v_6 = cast %v_5: I32
+    %v_7 = cmp_eq %v_6, 1: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_8 {
+    %v_11 = load %ResolveTest.literal$1, 8: Ptr
+    call_complex freeHeap, %v_11
+    jmp b_10
+  }
+
+  b_10 {
+    ret %v_2
+  }
+}
+

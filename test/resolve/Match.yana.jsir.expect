@@ -1,0 +1,420 @@
+fn area(one %r3) -> one %r2
+  block0(%0: %r3):
+    %2: %r1 = load property %0.$tag: %r1
+    %3: %r1 = const 0
+    %4: %r5 = binary.eq %2, %3
+    branch %4 -> block5 -> block1
+  block1:
+    %8: %r1 = load property %0.$tag: %r1
+    %9: %r1 = const 0
+    %10: %r5 = binary.eq %8, %9
+    branch %10 -> block7 -> block2
+  block2:
+    %11: %r1 = load property %0.$tag: %r1
+    %12: %r1 = const 1
+    %13: %r5 = binary.eq %11, %12
+    branch %13 -> block8 -> block3
+  block3:
+    %17: %r2 = load property %0.width: %r2
+    %18: %r2 = load property %0.height: %r2
+    %19: %r2 = binary.mul %17, %18
+    %20: %r2 = coerce %19
+    jump -> block4(%20)
+  block4(%1: %r2):
+    return %1
+  block5:
+    %5: %r2 = load property %0.Circle: %r2
+    %6: %r2 = const 11
+    %7: %r5 = binary.ge %5, %6
+    branch %7 -> block6 -> block1
+  block6:
+    %26: %r2 = const 100
+    jump -> block4(%26)
+  block7:
+    %25: %r2 = load property %0.Circle: %r2
+    jump -> block4(%25)
+  block8:
+    %14: %r2 = load property %0.width: %r2
+    %15: %r2 = const 11
+    %16: %r5 = binary.ge %14, %15
+    branch %16 -> block9 -> block3
+  block9:
+    %21: %r2 = load property %0.height: %r2
+    %22: %r2 = const 10
+    %23: %r2 = binary.mul %21, %22
+    %24: %r2 = coerce %23
+    jump -> block4(%24)
+
+fn nested(one %r4) -> one %r2
+  block0(%0: %r4):
+    %2: %r4 = const null
+    %3: %r7 = binary.eq %0, %2
+    %4: %r1 = const 1
+    %5: %r1 = const 0
+    %6: %r1 = select %3, %5, %4
+    %7: %r1 = const 1
+    %8: %r5 = binary.eq %6, %7
+    branch %8 -> block5 -> block1
+  block1:
+    %13: %r1 = const 1
+    %14: %r5 = binary.eq %6, %13
+    branch %14 -> block7 -> block2
+  block2:
+    %19: %r1 = const 1
+    %20: %r5 = binary.eq %6, %19
+    branch %20 -> block9 -> block3
+  block3:
+    %25: %r2 = const 0
+    jump -> block4(%25)
+  block4(%1: %r2):
+    return %1
+  block5:
+    %10: %r1 = alias %0
+    %11: %r1 = const 0
+    %12: %r5 = binary.eq %10, %11
+    branch %12 -> block6 -> block1
+  block6:
+    %28: %r2 = const 1
+    jump -> block4(%28)
+  block7:
+    %16: %r1 = alias %0
+    %17: %r1 = const 1
+    %18: %r5 = binary.eq %16, %17
+    branch %18 -> block8 -> block2
+  block8:
+    %27: %r2 = const 2
+    jump -> block4(%27)
+  block9:
+    %22: %r1 = alias %0
+    %23: %r1 = const 2
+    %24: %r5 = binary.eq %22, %23
+    branch %24 -> block10 -> block3
+  block10:
+    %26: %r2 = const 3
+    jump -> block4(%26)
+
+fn pairValue(one %r6) -> one %r2
+  block0(%0: %r6):
+    %2: %r1 = load property %0.f0: %r1
+    %3: %r1 = load property %0.f0: %r1
+    %4: %r1 = const 0
+    %5: %r5 = binary.eq %3, %4
+    branch %5 -> block5 -> block1
+  block1:
+    %10: %r1 = load property %0.f0: %r1
+    %11: %r1 = const 0
+    %12: %r5 = binary.eq %10, %11
+    branch %12 -> block7 -> block2
+  block2:
+    %17: %r1 = load property %0.f0: %r1
+    %18: %r1 = const 1
+    %19: %r5 = binary.eq %17, %18
+    branch %19 -> block9 -> block3
+  block3:
+    %20: %r2 = const 5
+    jump -> block4(%20)
+  block4(%1: %r2):
+    return %1
+  block5:
+    %6: %r5 = load property %0.f1: %r5
+    %7: %r5 = load property %0.f1: %r5
+    %8: %r1 = const 1
+    %9: %r5 = binary.eq %7, %8
+    branch %9 -> block6 -> block1
+  block6:
+    %26: %r2 = const 1
+    jump -> block4(%26)
+  block7:
+    %13: %r5 = load property %0.f1: %r5
+    %14: %r5 = load property %0.f1: %r5
+    %15: %r1 = const 0
+    %16: %r5 = binary.eq %14, %15
+    branch %16 -> block8 -> block2
+  block8:
+    %25: %r2 = const 2
+    jump -> block4(%25)
+  block9:
+    %21: %r5 = load property %0.f1: %r5
+    %22: %r2 = const 3
+    %23: %r2 = const 4
+    %24: %r2 = select %21, %22, %23
+    jump -> block4(%24)
+
+fn firstOrRest(one %r4) -> one %r2
+  var $0: %r1
+  block0(%0: %r4):
+    %2: %r4 = const null
+    %3: %r7 = binary.eq %0, %2
+    %4: %r1 = const 1
+    %5: %r1 = const 0
+    %6: %r1 = select %3, %5, %4
+    %7: %r1 = const 1
+    %8: %r5 = binary.eq %6, %7
+    branch %8 -> block4 -> block1
+  block1:
+    %13: %r1 = const 1
+    %14: %r5 = binary.eq %6, %13
+    branch %14 -> block6 -> block2
+  block2:
+    %15: %r2 = const 0
+    jump -> block3(%15)
+  block3(%1: %r2):
+    return %1
+  block4:
+    %10: %r1 = alias %0
+    %11: %r1 = const 0
+    %12: %r5 = binary.eq %10, %11
+    branch %12 -> block5 -> block1
+  block5:
+    %20: %r2 = const 10
+    jump -> block3(%20)
+  block6:
+    %16: %r1 = alias %0
+    store var $0: %r1, %16
+    %18: %r1 = load var $0: %r1
+    %19: %r2 = map %18 [0 => 1, 1 => 2, else 3]
+    jump -> block3(%19)
+
+fn blockArm(one %r1) -> one %r2
+  var $0: %r1
+  var $1: %r1
+  block0(%0: %r1):
+    store var $0: %r1, %0
+    %2: %r1 = load var $0: %r1
+    %3: %r1 = const 0
+    %4: %r5 = binary.eq %2, %3
+    branch %4 -> block2 -> block1
+  block1:
+    %5: %r1 = const 1
+    %6: %r5 = binary.eq %2, %5
+    %7: %r2 = const 20
+    %8: %r2 = const 300
+    %9: %r2 = select %6, %7, %8
+    return %9
+  block2:
+    %10: %r1 = const 0
+    store var $1: %r1, %10
+    %12: %r1 = load var $1: %r1
+    %13: %r2 = map %12 [0 => 1, 1 => 2, else 3]
+    %14: %r2 = const 2
+    %15: %r2 = binary.mul %13, %14
+    %16: %r2 = coerce %15
+    return %16
+
+fn main() -> one %r2
+  var $0: %r1
+  var $1: %r1
+  var $2: %r1
+  block0:
+    %2: %r1 = const 0
+    store var $0: %r1, %2
+    %4: %r1 = load var $0: %r1
+    %5: %r2 = map %4 [0 => 1, 1 => 2, else 3]
+    %6: %r1 = const 1
+    store var $1: %r1, %6
+    %8: %r1 = load var $1: %r1
+    %9: %r2 = map %8 [0 => 1, 1 => 2, else 3]
+    %10: %r2 = binary.add %5, %9
+    %11: %r2 = coerce %10
+    %12: %r1 = const 2
+    store var $2: %r1, %12
+    %14: %r1 = load var $2: %r1
+    %15: %r2 = map %14 [0 => 1, 1 => 2, else 3]
+    %16: %r2 = binary.add %11, %15
+    %17: %r2 = coerce %16
+    %28: %r2 = const 11
+    %29: %r2 = binary.add %17, %28
+    %30: %r2 = coerce %29
+    %31: %r2 = const 20
+    %32: %r1 = const 0
+    %33: %r2 = const 0
+    %34: %r2 = const 0
+    %35: %r3 = object %s0 %32, %31, %33, %34
+    %36: %r2 = call area %35
+    %37: %r2 = binary.add %30, %36
+    %38: %r2 = coerce %37
+    %39: %r2 = const 3
+    %40: %r1 = const 0
+    %41: %r2 = const 0
+    %42: %r2 = const 0
+    %43: %r3 = object %s0 %40, %39, %41, %42
+    %44: %r2 = call area %43
+    %45: %r2 = binary.add %38, %44
+    %46: %r2 = coerce %45
+    %47: %r2 = const 20
+    %48: %r2 = const 2
+    %49: %r1 = const 1
+    %50: %r2 = const 0
+    %51: %r3 = object %s0 %49, %50, %47, %48
+    %52: %r2 = call area %51
+    %53: %r2 = binary.add %46, %52
+    %54: %r2 = coerce %53
+    %55: %r2 = const 3
+    %56: %r2 = const 9
+    %57: %r1 = const 1
+    %58: %r2 = const 0
+    %59: %r3 = object %s0 %57, %58, %55, %56
+    %60: %r2 = call area %59
+    %61: %r2 = binary.add %54, %60
+    %62: %r2 = coerce %61
+    %63: %r1 = const 0
+    %64: %r4 = alias %63
+    %65: %r2 = call nested %64
+    %66: %r2 = binary.add %62, %65
+    %67: %r2 = coerce %66
+    %68: %r1 = const 1
+    %69: %r4 = alias %68
+    %70: %r2 = call nested %69
+    %71: %r2 = binary.add %67, %70
+    %72: %r2 = coerce %71
+    %73: %r1 = const 2
+    %74: %r4 = alias %73
+    %75: %r2 = call nested %74
+    %76: %r2 = binary.add %72, %75
+    %77: %r2 = coerce %76
+    %78: %r4 = const null
+    %79: %r2 = call nested %78
+    %80: %r2 = binary.add %77, %79
+    %81: %r2 = coerce %80
+    %82: %r1 = const 0
+    %83: %r5 = const 1
+    %84: %r6 = object %s1 %82, %83
+    %85: %r2 = call pairValue %84
+    %86: %r2 = binary.add %81, %85
+    %87: %r2 = coerce %86
+    %88: %r1 = const 0
+    %89: %r5 = const 0
+    %90: %r6 = object %s1 %88, %89
+    %91: %r2 = call pairValue %90
+    %92: %r2 = binary.add %87, %91
+    %93: %r2 = coerce %92
+    %94: %r1 = const 1
+    %95: %r5 = const 1
+    %96: %r6 = object %s1 %94, %95
+    %97: %r2 = call pairValue %96
+    %98: %r2 = binary.add %93, %97
+    %99: %r2 = coerce %98
+    %100: %r1 = const 1
+    %101: %r5 = const 0
+    %102: %r6 = object %s1 %100, %101
+    %103: %r2 = call pairValue %102
+    %104: %r2 = binary.add %99, %103
+    %105: %r2 = coerce %104
+    %106: %r1 = const 2
+    %107: %r5 = const 1
+    %108: %r6 = object %s1 %106, %107
+    %109: %r2 = call pairValue %108
+    %110: %r2 = binary.add %105, %109
+    %111: %r2 = coerce %110
+    %112: %r1 = const 2
+    %113: %r5 = const 0
+    %114: %r6 = object %s1 %112, %113
+    %115: %r2 = call pairValue %114
+    %116: %r2 = binary.add %111, %115
+    %117: %r2 = coerce %116
+    %118: %r1 = const 0
+    %119: %r4 = alias %118
+    %120: %r2 = call firstOrRest %119
+    %121: %r2 = binary.add %117, %120
+    %122: %r2 = coerce %121
+    %123: %r1 = const 1
+    %124: %r4 = alias %123
+    %125: %r2 = call firstOrRest %124
+    %126: %r2 = binary.add %122, %125
+    %127: %r2 = coerce %126
+    %128: %r1 = const 2
+    %129: %r4 = alias %128
+    %130: %r2 = call firstOrRest %129
+    %131: %r2 = binary.add %127, %130
+    %132: %r2 = coerce %131
+    %133: %r4 = const null
+    %134: %r2 = call firstOrRest %133
+    %135: %r2 = binary.add %132, %134
+    %136: %r2 = coerce %135
+    %137: %r2 = const 3
+    %138: %r2 = binary.add %136, %137
+    %139: %r2 = coerce %138
+    %140: %r0 = load global least: %r0
+    %141: %r0 = const -9223372036854775808n
+    %142: %r5 = binary.eq %140, %141
+    branch %142 -> block4 -> block1
+  block1:
+    %143: %r0 = const -1n
+    %144: %r5 = binary.eq %140, %143
+    branch %144 -> block3 -> block2
+  block2:
+    %145: %r0 = const 0n
+    %146: %r5 = binary.eq %140, %145
+    %147: %r2 = const 3
+    %148: %r2 = const 4
+    %149: %r2 = select %146, %147, %148
+    jump -> block5(%149)
+  block3:
+    %150: %r2 = const 2
+    jump -> block5(%150)
+  block4:
+    %151: %r2 = const 1
+    jump -> block5(%151)
+  block5(%0: %r2):
+    %152: %r2 = const 1000
+    %153: %r2 = binary.mul %0, %152
+    %154: %r2 = coerce %153
+    %155: %r2 = binary.add %139, %154
+    %156: %r2 = coerce %155
+    %157: %r0 = load global minusOne: %r0
+    %158: %r0 = const -9223372036854775808n
+    %159: %r5 = binary.eq %157, %158
+    branch %159 -> block9 -> block6
+  block6:
+    %160: %r0 = const -1n
+    %161: %r5 = binary.eq %157, %160
+    branch %161 -> block8 -> block7
+  block7:
+    %162: %r0 = const 0n
+    %163: %r5 = binary.eq %157, %162
+    %164: %r2 = const 3
+    %165: %r2 = const 4
+    %166: %r2 = select %163, %164, %165
+    jump -> block10(%166)
+  block8:
+    %167: %r2 = const 2
+    jump -> block10(%167)
+  block9:
+    %168: %r2 = const 1
+    jump -> block10(%168)
+  block10(%1: %r2):
+    %169: %r2 = const 100
+    %170: %r2 = binary.mul %1, %169
+    %171: %r2 = coerce %170
+    %172: %r2 = binary.add %156, %171
+    %173: %r2 = coerce %172
+    %174: %r2 = const 34
+    %175: %r2 = binary.add %173, %174
+    %176: %r2 = coerce %175
+    %177: %r1 = const 0
+    %178: %r2 = call blockArm %177
+    %179: %r2 = binary.add %176, %178
+    %180: %r2 = coerce %179
+    %181: %r1 = const 1
+    %182: %r2 = call blockArm %181
+    %183: %r2 = binary.add %180, %182
+    %184: %r2 = coerce %183
+    %185: %r1 = const 2
+    %186: %r2 = call blockArm %185
+    %187: %r2 = binary.add %184, %186
+    %188: %r2 = coerce %187
+    return %188
+
+optimizer clones 0 aliased 0 forwarded 0 removed 20 adopted 0 sunk 0
+
+shape %s0 object Shape {$tag: %r1 tag, Circle: %r2, width: %r2, height: %r2}
+shape %s1 object <tuple> {f0: %r1, f1: %r5}
+
+rep %r0 = bigint signed
+rep %r1 = number unsigned 8
+rep %r2 = number signed 32
+rep %r3 = object %s0
+rep %r4 = nullable of %r1
+rep %r5 = number bool
+rep %r6 = object %s1
+rep %r7 = boolean

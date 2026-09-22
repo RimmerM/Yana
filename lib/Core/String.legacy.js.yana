@@ -1,0 +1,37 @@
+import Native
+
+{-
+   `String.slice` on JavaScript under the legacy resolve stage - a copy, and the signature says so.
+
+   `String.yana` has the contract; `String.ownership.js.yana` beside this is the window signature the
+   rewrite reads, over the same host call. This body was in `String.yana` until 2026-09-21 and moved
+   out for the reason the native pair moved out before it: the two stages differ in the *signature*,
+   so choosing between them after reading both is not an option. Goes with `compiler/resolve`.
+
+   `self.substring(from, to)` is the engine's own copy. The unit loop it replaces was a concatenation
+   per unit, so cutting one line out of a text walked the rope once per unit of the line and
+   splitting a file was quadratic in the size of the file. The bounds are clamped here rather than
+   left to the host's own clamping, because the native half has to clamp and the two have to answer
+   the same thing.
+-}
+pub fn String.slice(text: String, from: Size, to: Size) -> String:
+    let count = length(text)
+    let &start = from
+    if start < 0 then start = 0
+
+    let &end = to
+    if end > count then end = count
+    if start >= end then return ""
+
+    return hostSubstring(text, start, end)
+
+{-
+   Duplicating one, on the stage whose JS `String` is a compiler primitive - `String.yana` is where
+   the argument is.
+
+   The body is the value: a host string is immutable and has no storage to share, so two names for
+   one of them cannot observe each other. Under the rewrite the record is `TrivialCopy` and the
+   blanket instance says the same thing, so this is the legacy stage's alone.
+-}
+instance Copy(String):
+    fn copy(from: String) -> String = from

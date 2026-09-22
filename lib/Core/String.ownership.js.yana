@@ -1,0 +1,94 @@
+import Native
+
+{-
+   ==========================================================================================
+   What a `String` is on JavaScript, under the ownership resolve stage.
+   ==========================================================================================
+
+   `String.yana` has the contract and every operation; this file has the two records the operations
+   are *about*, and it exists because the shipping stage never needed them. There a JS string is a
+   primitive the compiler registers (`Type::String`), so the library declared one for native only and
+   the JavaScript half of `String.yana` was written against a type nothing in `lib/` names. The
+   rewrite holds no name for a string at all - it reads `@builtin(string)` - so on this target it had
+   none, which is milestone 0's wall 1 and the reason `Core` did not resolve for JavaScript
+   (`doc/progress/2026-09-21-J63-jsir-milestone-0.md` §3).
+
+   **The library declares it and the compiler registers nothing**, which is the decision rather than
+   the shortest path. Registering a second primitive would have put the target back inside the
+   resolver - a type whose fields, ownership and view the compiler knows by name - which is exactly
+   what `@builtin(string)` replaced on the other target. A record claiming the role is read by the
+   same three questions the native one is read by, and the target-specific part of the answer is one
+   line in JSIR rather than a kind in `type.def`.
+
+   **`.ownership.js.yana`, and both selectors are load-bearing.** `js` because a native build reads
+   `String.yana`'s own `@platform(native)` records; `ownership` because the shipping stage would find
+   *two* strings on this target - its registered primitive and this declaration - and a `data String`
+   in `Core` is not something it can be asked to ignore. `settings.h`'s `resolverSelector` is what
+   the file name reaches, and deleting `compiler/resolve` is what folds this file into `String.yana`.
+-}
+
+{-
+   The owner - one opaque handle on the host's own `string`.
+
+   **`%U8` is the library's existing spelling for a host value nothing reads through**, and
+   `Unicode/Collator.js.yana`'s `Collator {host: %U8}` is the precedent: the pointee type carries no
+   meaning, and what makes it right *here* is precisely that a host string has no addressable units,
+   so there is nothing the pointee could honestly be. Nothing in `lib/` reads this field - every
+   operation in `String.yana`'s JavaScript half takes `self: String` and hands the whole value to a
+   host role, which is what lets JSIR map the record to the single `HostString` value
+   `Analysis-IR-JS.md` §3.2.2 decides on. A field the library read would be a property access on a
+   primitive.
+
+   A newtype over `%U8` rather than a bare `%U8` alias, because the role wants a *record* -
+   `known.def`'s `string` row is `Entity::Record` - and because a bare pointer would make
+   `String` arithmetic-compatible with a host array, which nothing wants.
+-}
+@builtin(string)
+pub data String {host: %U8}
+
+{-
+   **There is deliberately no `StringView` here, and no `Viewed(String)`.**
+
+   That is Analysis-IR-JS.md §3.2.2 said in the library: on this target a shared `String` *is* the
+   string. The native view is two words into the owner's units, because a native slice is a window
+   and a window is worth carrying; a host string has no units to point into, so a slice is
+   `String.prototype.slice` - the engine's own copy - and a window here would mean carrying
+   `(string, from, to)` at every parameter, field and block argument in the program to save a copy at
+   the few places that cut.
+
+   So the `stringView` row is unclaimed on this target and the view row for `String` is not live at
+   all - `viewRowOf` asks for both halves, and `known.def`'s row is `Optional` for this reason. What
+   that buys beyond the representation is that the JavaScript half of `String.yana` says exactly what
+   it looks like it says: `hostCall1(self, "charCodeAt", index)` hands over the string, not a
+   derivation of it, and the member literal reaches the emitter as the constant it was written as.
+
+   A one-field record with no teardown is trivially copyable, which is the right answer here and not
+   a coincidence: the collector owns every host string, `Reclaim(String)` has no instance on this
+   target, and two names for one host string cannot observe each other.
+-}
+
+{-
+   `String.slice` on JavaScript under this stage - the **window signature** over a copying body.
+
+   `String.yana` has the contract and `String.ownership.native.yana` the other target's body. Every
+   caller in `lib/` - `Text.ownership.yana`'s trims, splits and searches are all of them - is written
+   against the window, so this has to declare one: `text: source'String` in and `source'String` out,
+   rooted in the string it cuts from. What comes back is the host's own copy rather than a window
+   into `text`, and Analysis-IR-JS.md §3.2.2 is the argument that the difference is unobservable -
+   a copy aliases *less* than a window, and the only thing a program could see is a write through the
+   owner while a window into it is live, which the loan checker refuses on both targets.
+
+   The clamping is the native body's, in the same order, because the two have to answer the same
+   thing and the host's own clamping is not that order.
+-}
+pub fn String.slice(text: source'String, from: Size, to: Size) -> source'String:
+    let count = length(text)
+    let &start = from
+    if start < 0 then start = 0
+    if start > count then start = count
+
+    let &end = to
+    if end < start then end = start
+    if end > count then end = count
+
+    return hostSubstring(text, start, end)

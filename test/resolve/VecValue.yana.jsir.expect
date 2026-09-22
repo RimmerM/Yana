@@ -1,0 +1,118 @@
+fn main() -> one %r0
+  block0:
+    %5: %r0 = load global seed: %r0
+    %6: %r0 = binary.add %5, %5
+    %7: %r0 = coerce %6
+    %8: %r0 = binary.add %5, %5
+    %9: %r0 = coerce %8
+    %14: %r0 = const 2
+    %15: %r0 = binary.mul %5, %14
+    %16: %r0 = coerce %15
+    %17: %r0 = binary.mul %5, %14
+    %18: %r0 = coerce %17
+    %23: %r0 = const 6
+    %24: %r3 = binary.ne %7, %23
+    branch %24 -> block2 -> block1
+  block1:
+    %25: %r0 = const 6
+    %26: %r3 = binary.ne %18, %25
+    branch %26 -> block4 -> block3
+  block2:
+    %86: %r0 = const -1
+    return %86
+  block3:
+    %27: %r0 = const 10
+    %28: %r0 = math.max %27, %5
+    %29: %r0 = math.max %5, %5
+    %30: %r0 = math.max %28, %29
+    %31: %r0 = const 10
+    %32: %r3 = binary.ne %30, %31
+    branch %32 -> block6 -> block5
+  block4:
+    %85: %r0 = const -2
+    return %85
+  block5:
+    %33: %r0 = math.min %27, %5
+    %34: %r0 = math.min %5, %5
+    %35: %r0 = math.min %33, %34
+    %36: %r0 = const 3
+    %37: %r3 = binary.ne %35, %36
+    branch %37 -> block8 -> block7
+  block6:
+    %84: %r0 = const -3
+    return %84
+  block7:
+    %38: %r0 = const 0
+    %39: %r0 = const 4
+    %40: %r0 = const 1
+    jump -> block9(%5, %5, %5, %5, %38)
+  block8:
+    %83: %r0 = const -4
+    return %83
+  block9(%0: %r0, %1: %r0, %2: %r0, %3: %r0, %4: %r0):
+    %41: %r3 = binary.lt %4, %39
+    branch %41 -> block11 -> block10
+  block10:
+    %42: %r0 = const 15
+    %43: %r3 = binary.ne %0, %42
+    branch %43 -> block13 -> block12
+  block11:
+    %73: %r0 = binary.add %0, %5
+    %74: %r0 = coerce %73
+    %75: %r0 = binary.add %1, %5
+    %76: %r0 = coerce %75
+    %77: %r0 = binary.add %2, %5
+    %78: %r0 = coerce %77
+    %79: %r0 = binary.add %3, %5
+    %80: %r0 = coerce %79
+    %81: %r0 = binary.add %4, %40
+    %82: %r0 = coerce %81
+    jump -> block9(%74, %76, %78, %80, %82)
+  block12:
+    %44: %r0 = const 15
+    %45: %r3 = binary.ne %1, %44
+    branch %45 -> block15 -> block14
+  block13:
+    %72: %r0 = const -5
+    return %72
+  block14:
+    %46: %r0 = const 1
+    %47: %r0 = binary.add %46, %46
+    %48: %r0 = coerce %47
+    %49: %r0 = binary.add %46, %46
+    %50: %r0 = coerce %49
+    %51: %r0 = binary.add %48, %50
+    %52: %r0 = coerce %51
+    %53: %r0 = binary.add %0, %1
+    %54: %r0 = coerce %53
+    %55: %r0 = binary.add %2, %3
+    %56: %r0 = coerce %55
+    %57: %r0 = binary.add %54, %56
+    %58: %r0 = coerce %57
+    %59: %r0 = const 15
+    %60: %r0 = binary.mul %52, %59
+    %61: %r0 = coerce %60
+    %62: %r3 = binary.ne %58, %61
+    branch %62 -> block17 -> block16
+  block15:
+    %71: %r0 = const -6
+    return %71
+  block16:
+    %63: %r0 = const 100
+    %64: %r0 = binary.mul %9, %63
+    %65: %r0 = coerce %64
+    %66: %r0 = binary.add %65, %16
+    %67: %r0 = coerce %66
+    %68: %r0 = binary.add %67, %27
+    %69: %r0 = coerce %68
+    return %69
+  block17:
+    %70: %r0 = const -7
+    return %70
+
+optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = parts (%r0, %r0, %r0, %r0) as %r1
+rep %r3 = number bool

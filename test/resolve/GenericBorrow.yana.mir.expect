@@ -1,0 +1,115 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+let string'142: [CodeUnit *2] = "ab"
+
+let string'143: [CodeUnit *4] = "abcd"
+
+fn put(slot: a [unique call], value: a) -> {} {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: a = read take (value)
+  drop (slot)
+  write.assign borrow.unique (slot) take %0
+  return
+}
+
+fn exchanged(slot: a [unique call], value: a) -> a {
+  form specialized
+  slot #0 type a
+  local local2: a
+
+bb0:
+  %0: a [unique call] = read borrow.unique (slot) loan0
+  %1: a = read take (value)
+  %2: %a = address.exchange inspect %0
+  %3: a = read forward ([%%2])
+  write.init borrow.unique (local2) take %3
+  %5: a = read take (local2)
+  write.assign borrow.unique ([%%2]) take %1
+  return take %5
+}
+
+fn main() -> I32 {
+  local & flag: Bool
+  local & count: I32
+  local & name: String
+  local & here: Point
+  local & other: I32
+  local previous: I32
+
+bb0:
+  %0: Bool = const False
+  write.init borrow.unique (flag) take %0
+  %2: Bool [unique call] = read borrow.unique (flag) loan0
+  %3: Bool = const True
+  %4: {} = call put(Bool) borrow.unique %2 take %3
+  %5: I32 = const 5
+  write.init borrow.unique (count) take %5
+  %7: I32 [unique call] = read borrow.unique (count) loan1
+  %8: I32 = const 9
+  %9: {} = call put(I32) borrow.unique %7 take %8
+  %10: String = const String {units: Array {run: Run {items: &string'142, capacity: 2, ownsHeap: 0}, length: 2}}
+  write.init borrow.unique (name) take %10
+  %12: String [unique call] = read borrow.unique (name) loan2
+  %13: String = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  %14: {} = call put(String) borrow.unique %12 take %13
+  %15: I32 = const 1
+  %16: I32 = const 2
+  %17: Point = aggregate.Point take %15 take %16
+  write.init borrow.unique (here) take %17
+  %19: Point [unique call] = read borrow.unique (here) loan3
+  %20: I32 = const 30
+  %21: I32 = const 40
+  %22: Point = aggregate.Point take %20 take %21
+  %23: {} = call put(Point) borrow.unique %19 take %22
+  %24: I32 = const 100
+  write.init borrow.unique (other) take %24
+  %26: I32 [unique call] = read borrow.unique (other) loan4
+  %27: I32 = const 7
+  %28: I32 = call exchanged(I32) borrow.unique %26 take %27
+  write.init borrow.unique (previous) take %28
+  %30: Bool = read copy.trivial (flag)
+  branch inspect %30 -> bb3 -> bb1
+
+bb1:
+  %33: I32 = const 0
+  jump -> bb2(take %33)
+
+bb2(%34: I32):
+  %37: I32 = read copy.trivial (count)
+  %38: I32 = add inspect %34 inspect %37
+  %39: String [shared call] = read borrow.shared (name) loan5
+  %40: String [shared slot 0 view] = call.derivation view(String) borrow.shared %39 roots{5}
+  %41: Size = call length(String) borrow.shared %40
+  drop (name)
+  %42: I32 = convert inspect %41
+  %43: I32 = add inspect %38 inspect %42
+  %44: I32 = read copy.trivial (here.x)
+  %45: I32 = add inspect %43 inspect %44
+  %46: I32 = read copy.trivial (here.y)
+  %47: I32 = add inspect %45 inspect %46
+  %48: I32 = read copy.trivial (previous)
+  %49: I32 = add inspect %47 inspect %48
+  %50: I32 = read copy.trivial (other)
+  %51: I32 = add inspect %49 inspect %50
+  return take %51
+
+bb3:
+  %32: I32 = const 1
+  jump -> bb2(take %32)
+}
+
+fn put(Bool)(slot: Bool [unique call], value: Bool) -> {} = <put at Bool>
+
+fn put(I32)(slot: I32 [unique call], value: I32) -> {} = <put at I32>
+
+fn put(String)(slot: String [unique call], value: String) -> {} = <put at String>
+
+fn put(Point)(slot: Point [unique call], value: Point) -> {} = <put at Point>
+
+fn exchanged(I32)(slot: I32 [unique call], value: I32) -> I32 = <exchanged at I32>
+
+entry main

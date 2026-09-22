@@ -1,0 +1,50 @@
+fn main() -> one %r0
+  block0:
+    %5: %r1 = const 10n
+    %6: %r1 = const 0n
+    %7: %r1 = const 4n
+    %8: %r1 = const 1n
+    %9: %r1 = const 1n
+    jump -> block1(%6, %5)
+  block1(%0: %r1, %1: %r1):
+    %10: %r2 = binary.lt %0, %7
+    branch %10 -> block3 -> block2
+  block2:
+    %11: %r1 = const 42n
+    %12: %r1 = binary.add %1, %11
+    %13: %r1 = coerce %12
+    %14: %r1 = const 10n
+    %15: %r1 = const 0n
+    %16: %r1 = const 0n
+    %17: %r1 = const 3n
+    %18: %r1 = const 1n
+    %19: %r1 = const 1n
+    jump -> block4(%15, %16, %14)
+  block3:
+    %30: %r1 = binary.add %1, %8
+    %31: %r1 = coerce %30
+    %32: %r1 = binary.add %0, %9
+    %33: %r1 = coerce %32
+    jump -> block1(%33, %31)
+  block4(%2: %r1, %3: %r1, %4: %r1):
+    %20: %r2 = binary.lt %2, %17
+    branch %20 -> block6 -> block5
+  block5:
+    %21: %r1 = binary.add %13, %3
+    %22: %r1 = coerce %21
+    %23: %r0 = convert %22
+    return %23
+  block6:
+    %24: %r1 = binary.add %3, %4
+    %25: %r1 = coerce %24
+    %26: %r1 = binary.add %4, %18
+    %27: %r1 = coerce %26
+    %28: %r1 = binary.add %2, %19
+    %29: %r1 = coerce %28
+    jump -> block4(%29, %25, %27)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = bigint signed
+rep %r2 = number bool

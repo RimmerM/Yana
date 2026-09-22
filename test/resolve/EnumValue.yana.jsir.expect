@@ -1,0 +1,42 @@
+fn main() -> one %r0
+  block0:
+    %0: %r1 = const 2
+    %1: %r1 = convert %0
+    %2: %r0 = convert %1
+    %3: %r2 = convert %2
+    %4: %r3 = const 4.294967296E9
+    %5: %r4 = convert %4
+    %6: %r2 = convert %5
+    %7: %r2 = binary.add %3, %6
+    %8: %r2 = coerce %7
+    %9: %r2 = const 4294967296n
+    %10: %r2 = binary.sub %8, %9
+    %11: %r2 = coerce %10
+    %12: %r1 = const 2
+    %13: %r1 = convert %12
+    %14: %r0 = convert %13
+    %15: %r2 = convert %14
+    %16: %r1 = const 122
+    %17: %r1 = convert %16
+    %18: %r0 = convert %17
+    %19: %r2 = convert %18
+    %20: %r2 = binary.add %15, %19
+    %21: %r2 = coerce %20
+    %22: %r1 = const 12
+    %23: %r1 = convert %22
+    %24: %r0 = convert %23
+    %25: %r2 = convert %24
+    %26: %r2 = binary.add %21, %25
+    %27: %r2 = coerce %26
+    %28: %r2 = binary.add %27, %11
+    %29: %r2 = coerce %28
+    %30: %r0 = convert %29
+    return %30
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+
+rep %r0 = number signed 32
+rep %r1 = number unsigned 8
+rep %r2 = bigint signed
+rep %r3 = number unsigned 64
+rep %r4 = bigint unsigned

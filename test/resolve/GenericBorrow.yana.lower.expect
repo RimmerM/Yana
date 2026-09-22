@@ -1,0 +1,78 @@
+@image$base = []
+mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+@ResolveTest.string$0 = [97, 98]
+@ResolveTest.literal$1 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0] {ptr 0: @ResolveTest.string$0}
+@ResolveTest.string$2 = [97, 98, 99, 100]
+@ResolveTest.literal$3 = [0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0] {ptr 0: @ResolveTest.string$2}
+
+Reclaim(String).reclaim<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: I64
+    %v_3 = shr %v_2, 30: I64
+    %v_4 = cast %v_3: I32
+    %v_5 = cmp_eq %v_4, 1: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    jmp b_8
+  }
+
+  b_6 {
+    %v_9 = load %value, 8: Ptr
+    call_complex freeHeap, %v_9
+    jmp b_8
+  }
+
+  b_8 {
+    ret 
+  }
+}
+
+freeHeap<complex>(%allocation: Ptr) {
+  b_0 {
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    %v_5 = sub %allocation, 8: Ptr
+    %sizeClass = loads %v_5, 8: I64
+    %v_6 = load @heapFree, 8: Ptr
+    %v_7 = shl %sizeClass, 3: I64
+    %v_8 = add %v_6, %v_7: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    store %allocation, %v_9, 8
+    %v_10 = load @heapFree, 8: Ptr
+    %v_11 = add %v_10, %v_7: Ptr
+    store %v_11, %allocation, 8
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    copy %v_1, @ResolveTest.literal$1, 16
+    %name = alloca 16, 8: Ptr
+    copy %name, %v_1, 16
+    %v_2 = alloca 16, 8: Ptr
+    copy %v_2, @ResolveTest.literal$3, 16
+    call_complex Reclaim(String).reclaim, %name
+    copy %name, %v_2, 16
+    %v_3 = add %name, 12: Ptr
+    %v_4 = load %v_3, 4: I32
+    call_complex Reclaim(String).reclaim, %name
+    %v_5 = add %v_4, 80: I32
+    %v_6 = add %v_5, 100: I32
+    %v_7 = add %v_6, 7: I32
+    ret %v_7
+  }
+}
+
