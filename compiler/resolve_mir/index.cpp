@@ -461,7 +461,10 @@ void describeSymbol(Context& context, Program& program, const Symbol& symbol, De
         }
         case Symbol::Kind::Type:
         case Symbol::Kind::Alias: {
-            into << (symbol.kind == Symbol::Kind::Alias ? "alias " : "data ");
+            // `type` for one no `data` declares - a width, named by completion's builtin items.
+            auto declared = symbol.kind == Symbol::Kind::Alias ||
+                            (symbol.payload && base[DeclPtr<Type>(symbol.payload)]->kind == Type::Record);
+            into << (symbol.kind == Symbol::Kind::Alias ? "alias " : declared ? "data " : "type ");
 
             // A type with no declaration - a width, a tuple - prints as itself, since there is no
             // `data` line anywhere for it to be quoted from.

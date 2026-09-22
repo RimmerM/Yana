@@ -4078,6 +4078,9 @@ struct Resolver {
     void captureConstructionCompletion(DeclPtr<Type> record, U16 first, U16 count, bool namesOnly);
     void captureArgumentCompletion(const OverloadSet& set, DeclPtr<Type> expected, bool namesOnly);
     void capturePatternCompletion(DeclPtr<Type> pivot);
+    void captureInfixCompletion();
+    void captureTypeCompletion();
+    bool patternHasCursor(ast::Pat& pat);
 
     bool captureArguments(ast::ParseList<ast::TupArg> written, const OverloadSet& set, U32 leading);
     bool captureFields(ast::ParseList<ast::TupArg> written, DeclPtr<Type> record, U16 first, U16 count);

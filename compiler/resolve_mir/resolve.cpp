@@ -381,6 +381,12 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
         case ast::Type::Unit:
             return program.types.unit;
         case ast::Type::Con: {
+            // The name the cursor is in - `complete.cpp`, which offers types and nothing else here.
+            if(isCursorSentinel(context, type.name)) {
+                captureTypeCompletion();
+                return nullptr;
+            }
+
             if(auto builtin = program.types.findBuiltin(context, type.name)) {
                 recordReference(context, type.source, typeSymbol(decl(), builtin), builtin);
                 return builtin;

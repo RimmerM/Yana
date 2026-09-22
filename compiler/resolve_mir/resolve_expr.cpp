@@ -2563,6 +2563,22 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
                 context.diagnostics.error(
                     "a `let` is a statement unless the scope of its names is written - `let x = e in x` is the form that answers"_v,
                     expr.source);
+
+                /*
+                 * And the binding resolved anyway, as the statement it would be, with its name
+                 * taken back out of scope afterwards. This is the state every `let ... in` passes
+                 * through while it is typed, and an editor asks about the initializer the whole
+                 * time: reporting and returning left everything inside it out of the index, so the
+                 * line being written had no hover, no definition and no argument overlay until the
+                 * `in` arrived (`test/lsp/recover`). A lens call is left alone - the statement form
+                 * would add a second report about its extent to the one above.
+                 */
+                if(!lensCallee(*parse[binding.content])) {
+                    auto scope = bindings.size();
+                    resolveDeclaration(builder, expr);
+                    bindings.resize(U32(scope));
+                }
+
                 return nullptr;
             }
 
@@ -6096,6 +6112,12 @@ bool Resolver::flattenChain(ast::Expr& expr, Chain& chain, bool report) {
                                           node->op.source);
             }
 
+            return false;
+        }
+
+        // The name between backticks that is still being typed - `complete.cpp`.
+        if(isCursorSentinel(context, node->op.var)) {
+            captureInfixCompletion();
             return false;
         }
 

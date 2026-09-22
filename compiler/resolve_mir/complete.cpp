@@ -1,6 +1,7 @@
 #include "complete.h"
 #include "resolve_internal.h"
 #include "name.h"
+#include "../intrinsic/primitive.h"
 
 /*
  * What is in scope at the cursor, collected once - Implementation-Tooling.md §8.
@@ -53,7 +54,9 @@ struct Collector {
 
     // The names already offered, so that a binding shadowing an outer one - or an import offering what
     // this module also declares - is one item rather than two. Nearest first is what makes that right.
+    // Keyed on the qualifier as well: `Mode.Fast` and a bare `Fast` are two spellings of two things.
     Array<StringId> seen;
+    Array<StringId> seenQualifiers;
 
     // The same for the *name* half of a `name: value` pair, kept apart: a parameter called `count` and
     // a local called `count` are two different things to write at an argument position.
@@ -62,20 +65,29 @@ struct Collector {
     // The members of every instance, which are reached by selection and have no name to offer.
     HashMap<U32, bool> instanceMembers;
 
-    bool take(StringId name, bool naming) {
+    bool take(StringId name, bool naming, StringId qualifier = {}) {
         if(name == StringId()) return false;
 
-        auto& into = naming ? seenNaming : seen;
-        for(auto existing: into) {
-            if(existing == name) return false;
+        if(naming) {
+            for(auto existing: seenNaming) {
+                if(existing == name) return false;
+            }
+
+            seenNaming.push(name);
+            return true;
         }
 
-        into.push(name);
+        for(Size i = 0; i < seen.size(); i++) {
+            if(seen[i] == name && seenQualifiers[i] == qualifier) return false;
+        }
+
+        seen.push(name);
+        seenQualifiers.push(qualifier);
         return true;
     }
 
     void add(const Symbol& symbol, DeclPtr<Type> type, StringId qualifier, U8 rank, bool naming = false) {
-        if(!take(symbol.name, naming)) return;
+        if(!take(symbol.name, naming, qualifier)) return;
 
         CompletionItem item;
         item.symbol = symbol;
@@ -180,17 +192,94 @@ bool importOffers(Resolver& resolver, Import* import, StringId name, bool export
 }
 
 /*
+ * What kind of position the cursor is in, which is what decides which tables are offered at all.
+ *
+ * `Values` is an expression: constructors, functions and globals, and a type only where something is
+ * reached *through* it with a dot - see `namespaceHeads`. `Constructors` is a pattern. `Types` is a
+ * type position - after `::`, in a parameter, a field or a result - where the items are types and
+ * aliases and nothing a value could be.
+ */
+enum class Offered: U8 { Values, Constructors, Types };
+
+// The text of a name up to its last dot, interned - `Point` for `Point.span` - or nothing for a name
+// with no namespace. From the text for `lastSegment`'s reason.
+StringId namespaceHead(Context& context, StringId name) {
+    auto& identifier = context.find(name);
+
+    for(auto i = identifier.textLength; i > 0; i--) {
+        if(identifier.text[i - 1] != '.') continue;
+        return context.addUnqualifiedName(identifier.text, i - 1);
+    }
+
+    return StringId();
+}
+
+/*
+ * The type names a dot reaches something through, in any visible module: the head of every
+ * namespaced function (`fn String.push` makes `String` one), and every record whose constructors are
+ * `data qualified` and are written `Mode.Fast`.
+ *
+ * This is what a type name in an expression is *for*. A type is not a value, so offering one where a
+ * value is being written is offering a name that does not resolve - unless what the author means to
+ * type next is the dot. The constructor a record shares its name with is offered as the constructor,
+ * which is the other half of the same answer.
+ */
+void namespaceHeads(Resolver& resolver, Array<StringId>& into) {
+    auto& program = resolver.program;
+    auto base = resolver.decl();
+
+    auto add = [&](StringId name) {
+        if(!name) return;
+        for(auto existing: into) if(existing == name) return;
+        into.push(name);
+    };
+
+    eachVisibleModule(resolver, [&](DeclPtr<mir::Module> owner, Import*, StringId, U8) {
+        auto& module = *base[owner];
+
+        for(auto pointer: module.functions.contents(base)) {
+            add(namespaceHead(resolver.context, base[pointer]->name));
+        }
+
+        for(auto pointer: module.records.contents(base)) {
+            auto& record = *base[pointer];
+            if(record.tuple || record.instanceOf) continue;
+
+            for(U16 i = 0; i < U16(record.cons.size()); i++) {
+                if(program.findConstructor(owner, record.cons.get(base, i).name).record == pointer) continue;
+
+                add(record.name);
+                break;
+            }
+        }
+    });
+}
+
+/*
  * §8.1's first kind: everything a name written here could refer to.
  *
  * The order the tables are walked in decides a name two of them hold - `data Point {..}` declares both
- * a type and its constructor - so constructors come before types. Every position that reaches the
- * sentinel is an expression, a type name is not a value there, and a constructor completes to
+ * a type and its constructor - so constructors come before types. A constructor completes to
  * `Point {x: , y: }` where a type completes to a name that does not resolve.
+ *
+ * A `data qualified` constructor is offered under its type's name - `Mode.Fast` - since that is the
+ * only way it is written. It carries the type as its qualifier, which is what the server's filter
+ * compares with a typed `Mode.` and what the label is written under when nothing was typed yet.
+ * Only through an unqualified import: a constructor reached as `U.Mode.Fast` would need a qualifier
+ * of two segments, and is rare enough to leave out.
  */
-void collectVisible(Collector& into, bool constructorsOnly = false) {
+void collectVisible(Collector& into, Offered position = Offered::Values) {
     auto& resolver = into.resolver;
     auto& program = resolver.program;
     auto base = resolver.decl();
+
+    Array<StringId> heads;
+    if(position == Offered::Values) namespaceHeads(resolver, heads);
+
+    auto reachedThrough = [&](StringId name) {
+        for(auto head: heads) if(head == name) return true;
+        return false;
+    };
 
     eachVisibleModule(resolver, [&](DeclPtr<mir::Module> owner, Import* import, StringId qualifier,
                                     U8 rank) {
@@ -201,53 +290,64 @@ void collectVisible(Collector& into, bool constructorsOnly = false) {
             into.add(symbol, type, qualifier, rank);
         };
 
-        for(auto pointer: module.records.contents(base)) {
-            auto& record = *base[pointer];
-            if(record.tuple || record.instanceOf) continue;
+        if(position != Offered::Types) {
+            for(auto pointer: module.records.contents(base)) {
+                auto& record = *base[pointer];
+                if(record.tuple || record.instanceOf) continue;
 
-            for(U16 i = 0; i < U16(record.cons.size()); i++) {
-                // A `data qualified` record keeps its constructors out of the table, so a bare name
-                // would not reach them.
-                auto name = record.cons.get(base, i).name;
-                if(program.findConstructor(owner, name).record != pointer) continue;
+                for(U16 i = 0; i < U16(record.cons.size()); i++) {
+                    auto name = record.cons.get(base, i).name;
+                    auto symbol = constructorSymbol(base, ConstructorRef { pointer, i });
+                    auto exported = exportedSymbol(base, pointer);
 
-                offer(constructorSymbol(base, ConstructorRef { pointer, i }), asBase<Type>(pointer),
-                      exportedSymbol(base, pointer));
+                    if(program.findConstructor(owner, name).record == pointer) {
+                        offer(symbol, asBase<Type>(pointer), exported);
+                    } else if(!qualifier && importOffers(resolver, import, record.name, exported)) {
+                        into.add(symbol, asBase<Type>(pointer), record.name, rank);
+                    }
+                }
             }
         }
 
-        if(constructorsOnly) return;
+        if(position == Offered::Constructors) return;
 
-        for(auto pointer: module.functions.contents(base)) {
-            if(!offerable(into, pointer)) continue;
+        if(position == Offered::Values) {
+            for(auto pointer: module.functions.contents(base)) {
+                if(!offerable(into, pointer)) continue;
 
-            auto& function = *base[pointer];
-            offer(functionSymbol(base, pointer), function.result.type, function.exported);
-        }
+                auto& function = *base[pointer];
+                offer(functionSymbol(base, pointer), function.result.type, function.exported);
+            }
 
-        for(auto pointer: module.globals.contents(base)) {
-            offer(globalSymbol(program, pointer, owner), base[pointer]->occurrence.type,
-                  base[pointer]->exported);
+            for(auto pointer: module.globals.contents(base)) {
+                offer(globalSymbol(program, pointer, owner), base[pointer]->occurrence.type,
+                      base[pointer]->exported);
+            }
         }
 
         for(auto pointer: module.records.contents(base)) {
             auto& record = *base[pointer];
             if(record.tuple || record.instanceOf) continue;
+            if(position == Offered::Values && !reachedThrough(record.name)) continue;
 
             offer(typeSymbol(base, asBase<Type>(pointer)), nullptr, exportedSymbol(base, pointer));
         }
 
         for(auto pointer: program.aliases) {
             if(base[pointer]->module != owner) continue;
+            if(position == Offered::Values && !reachedThrough(base[pointer]->name)) continue;
+
             offer(aliasSymbol(base, pointer), nullptr, base[pointer]->exported);
         }
 
-        // A member is exported with its class, which is the rule `exportedSymbol` states for one.
+        // A class is neither a value nor a type, so it is offered for the members written in its
+        // own namespace and nowhere else. A member is exported with its class, which is the rule
+        // `exportedSymbol` states for one.
+        if(position != Offered::Values) return;
+
         for(auto pointer: program.classes) {
             auto& klass = *base[pointer];
             if(klass.module != owner) continue;
-
-            offer(classSymbol(base, pointer), nullptr, klass.exported);
 
             if(intrinsic::isTeardownRole(klass.role)) continue;
 
@@ -659,7 +759,75 @@ void Resolver::capturePatternCompletion(DeclPtr<Type> pivot) {
     request.expected = pivot;
     request.pattern = true;
 
-    collectVisible(collector, true);
+    collectVisible(collector, Offered::Constructors);
+    finishCompletion(*this, request);
+}
+
+/*
+ * A type position - `x :: I|`, `fn f(p: Po|`, `-> |`.
+ *
+ * Types and aliases, and nothing a value could be: a function offered after `::` completes to a
+ * program that does not parse. There is no expected type to rank by, so the ranking is where the
+ * name is declared.
+ */
+void Resolver::captureTypeCompletion() {
+    if(!wantsCompletion(context)) return;
+
+    auto& request = *context.completion;
+    Collector collector { *this, request };
+    begin(*this, request, collector);
+
+    collectVisible(collector, Offered::Types);
+
+    // And the types no declaration states - `I32`, `U8`, `F64` - which a position spelling a type
+    // is where they are written most. `primitive.def`'s roster, answered through `findBuiltin` so
+    // the item is the type the name resolves to.
+    for(auto& primitive: intrinsic::primitiveTable) {
+        auto name = context.addUnqualifiedName(primitive.name.ptr, U32(primitive.name.length));
+        auto type = program.types.findBuiltin(context, name);
+        if(!type) continue;
+
+        Symbol symbol = typeSymbol(decl(), type);
+        symbol.name = name;
+        collector.add(symbol, nullptr, StringId(), U8(RankImported));
+    }
+
+    finishCompletion(*this, request);
+}
+
+/*
+ * The name between backticks - `` a `sh| b ``.
+ *
+ * What `findOperator` would accept there, and nothing else: a function with a fixity declared for its
+ * name somewhere in scope. The fixity is the filter because it is the rule - a two-argument function
+ * with no `infixl` is refused between backticks however well its arguments fit - and because it is
+ * what makes the list short: Core's bitwise operators rather than every function in the program.
+ * A name reached only through a qualified import is left out, since a backtick holds a bare name, and
+ * so is a symbolic one - `+` has a fixity too, and is written without the backticks.
+ */
+void Resolver::captureInfixCompletion() {
+    if(!wantsCompletion(context)) return;
+
+    auto& request = *context.completion;
+    Collector collector { *this, request };
+    begin(*this, request, collector);
+    request.infix = true;
+
+    collectVisible(collector);
+
+    auto& items = request.items;
+    U32 kept = 0;
+    for(U32 i = 0; i < items.size(); i++) {
+        auto& item = items[i];
+        auto kind = item.symbol.kind;
+        if(kind != Symbol::Kind::Function && kind != Symbol::Kind::ClassFun) continue;
+        if(item.qualifier || operatorNamed(context, item.symbol.name)) continue;
+        if(!findFixity(context, program, here(), item.symbol.name)) continue;
+
+        items[kept++] = item;
+    }
+
+    items.resize(kept);
     finishCompletion(*this, request);
 }
 

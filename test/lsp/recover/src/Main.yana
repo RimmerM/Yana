@@ -62,3 +62,14 @@ fn main() -> Int:
     return twice(c)
 --         ^call
 --               ^sigWritten
+
+-- A `let` whose `in` has not been typed yet, in a body whose result type is inferred from it.
+fn letTyping(s: Shape) = let a = area(s)
+--                                    ^letTyping
+
+fn afterLet(s: Shape) -> Int = twice(s)
+--                             ^afterLet
+
+-- And the same `let` with its `in` typed and the body not yet.
+fn letIn(s: Shape) -> Int = let a = area(s) in
+--                                       ^letIn

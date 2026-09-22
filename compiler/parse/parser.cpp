@@ -2429,6 +2429,19 @@ ast::Expr Parser::parseQop() {
     }
 
     expect(Token::Grave, "expected an operator"_v);
+
+    /*
+     * The name being typed between the backticks - `` a `sh| `` - which is the sentinel like any
+     * other name the cursor is in, and a `` a `| `` with nothing typed yet is the gap. The closing
+     * backtick is optional here and only here: while the name is being written it is usually not
+     * there yet, and a completion compile reports nothing anyway.
+     */
+    if(atCursorName() || atCursorGap()) {
+        auto cursor = atCursorName() ? eatCursorToken() : emitCursorHere();
+        maybe(Token::Grave);
+        return cursor;
+    }
+
     auto op = expect(Token::VarID, "expected an operator"_v).from({ .id = StringId() }).id;
     expect(Token::Grave, "expected '`' after operator identifier"_v);
 
@@ -2734,6 +2747,9 @@ ast::Type Parser::parseType() {
         return parseAType(location, attributes);
     }
 
+    // A type not typed yet - `x :: |` - which is the sentinel as a type name. See `parseTypeName`.
+    if(atCursorGap()) return cursorType(location, attributes);
+
     auto funKind = parseFunKind();
     auto hasArgs = false;
     ast::ParseList<ast::ArgDecl> args;
@@ -2749,6 +2765,8 @@ ast::Type Parser::parseType() {
     }
 
     if(!hasArgs) {
+        if(atCursorName()) return cursorType(location, attributes);
+
         if(token.type == Token::ConID || token.type == Token::VarID) {
             auto isVar = token.type == Token::VarID;
             auto name = token.data.id;
@@ -3005,6 +3023,20 @@ ast::Type Parser::applySigil(bool mut, StringId group, bool tick, ast::Type inne
     return makeType(Shared, ref, (ast::Type::RefPayload { heap(inner), group, tick }), location, attributes);
 }
 
+/*
+ * The name the cursor is in, in a type position - §8.1's first kind for types, and the reason a
+ * completion after `::`, in a parameter or in a result offers types rather than values.
+ *
+ * A constructor type named by the sentinel, whichever case was typed: a lowercase name here is a type
+ * variable, but what completes it is still a type name, and a sentinel read as a variable would be
+ * declared by the signature rather than looked up. Its arguments, if any were written, are left for
+ * the parse after it - the name is what is being asked about.
+ */
+ast::Type Parser::cursorType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes) {
+    auto cursor = atCursorName() ? eatCursorToken() : emitCursorHere();
+    return ast::Type { .name = cursorId, .attributes = attributes, .source = cursor.source, .kind = ast::Type::Con };
+}
+
 ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes) {
     if(maybe(Token::VarSym, [&](Token& t) { return t.data.id == checkedRefId; })) {
         auto type = parseAType(location, nullptr);
@@ -3063,6 +3095,8 @@ ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::At
         }
 
         return parseLabelledType(yieldId, location, attributes);
+    } else if(atCursorName() || atCursorGap()) {
+        return cursorType(location, attributes);
     } else if(token.type == Token::ConID || token.type == Token::VarID) {
         auto isVar = token.type == Token::VarID;
         auto name = token.data.id;

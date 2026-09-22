@@ -64,6 +64,22 @@
         <enterHandlerDelegate order="first" implementation="se.rimmer.yana.YanaEnterHandlerDelegate"/>
 
         <!--
+          The backticks of an infix application, which pair, step over and delete together the way a
+          bracket does - but are one token type at both ends, so no brace matcher can describe them.
+          Typing the opening one also asks for completion. See the class.
+        -->
+        <typedHandler implementation="se.rimmer.yana.YanaInfixTypedHandler"/>
+
+        <!--
+          Paste. Without a formatter the platform indents a pasted block by its own generic rule,
+          which re-decides the first line's column and moves every line with it; in a layout
+          language that changes what the code means. First, because the platform takes the first
+          extension that claims the editor and its own default claims every one.
+        -->
+        <typingActionsExtension order="first" implementation="se.rimmer.yana.YanaPasteHandler"/>
+        <backspaceHandlerDelegate implementation="se.rimmer.yana.YanaInfixBackspaceHandler"/>
+
+        <!--
           And Enter opens a level under a header that asked for one. There is no formatter to
           derive an indent from - reformatting a layout-sensitive language by rules the compiler
           does not share is how a working file stops compiling - so this is the extension point
@@ -110,5 +126,21 @@
             displayName="Yana"/>
 
         <notificationGroup id="Yana" displayType="BALLOON"/>
+
+        <!--
+          "New | Yana File", and the New menu of a Yana project - see YanaNewFile.kt. The templates are
+          the two things a Yana file can be: part of its directory's module, or a module of its own.
+        -->
+        <internalFileTemplate name="Yana File"/>
+        <internalFileTemplate name="Yana Module"/>
+        <postStartupActivity implementation="se.rimmer.yana.project.YanaNewMenuSetup"/>
     </extensions>
+
+    <actions>
+        <action id="Yana.NewFile" class="se.rimmer.yana.project.YanaNewFileAction"
+                text="Yana File" description="Create a Yana source file or module"
+                icon="/icons/yana.svg">
+            <add-to-group group-id="NewGroup" anchor="first"/>
+        </action>
+    </actions>
 </idea-plugin>

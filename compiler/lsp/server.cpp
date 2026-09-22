@@ -331,11 +331,14 @@ void Server::onInitialize(const JsonValue& message, const JsonValue* id) {
     out.json.field("documentSymbolProvider"_v).value(true);
     out.json.field("foldingRangeProvider"_v).value(true);
 
-    // M8 - Implementation-Tooling.md §8. `.` is the one trigger character: every other position
-    // starts with an identifier character, which a client asks about on its own.
+    // M8 - Implementation-Tooling.md §8. `.` and the backtick opening an infix name are the trigger
+    // characters: every other position starts with an identifier character, which a client asks
+    // about on its own, and these two are where the list is most of what an author wants to know -
+    // the members, and the handful of functions that may stand between backticks at all.
     out.json.field("completionProvider"_v).startObject();
     out.json.field("triggerCharacters"_v).startArray();
     out.json.arrayField().value("."_v);
+    out.json.arrayField().value("`"_v);
     out.json.endArray();
     out.json.endObject();
 

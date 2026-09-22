@@ -1010,6 +1010,14 @@ static bool followedByColon(StringView text, U32 offset) {
     return i < text.length && text.ptr[i] == ':';
 }
 
+// And whether the backtick closing an infix name is already written - `` a `sh|` b ``.
+static bool followedByGrave(StringView text, U32 offset) {
+    auto i = Size(offset);
+    while(i < text.length && isIdentifier(text.ptr[i])) i++;
+
+    return i < text.length && text.ptr[i] == '`';
+}
+
 void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U32 offset,
                      StringView text, bool snippets, bool utf16) {
     CompletionRequest request;
@@ -1171,12 +1179,21 @@ void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U
         itemSite.naming = item.naming;
 
         StringBuilder insert;
-        auto isSnippet = !alreadyCalled &&
-                         writeInsertText(context, program, item.symbol, label.string(), itemSite, insert);
+        auto isSnippet = false;
+
+        // Between backticks the name is the whole of what is written - it is applied by the operands
+        // either side of it, not by brackets - and what it still owes is the closing backtick, unless
+        // that was typed (or paired by the editor) already.
+        if(request.infix) {
+            insert << label.view();
+            if(!followedByGrave(text, offset)) insert << "`";
+        } else if(!alreadyCalled) {
+            isSnippet = writeInsertText(context, program, item.symbol, label.string(), itemSite, insert);
+        }
 
         // Only when it differs from the label. An item whose insert text is its own name says
         // nothing by carrying one, and a client is entitled to show the two apart.
-        auto inserts = !alreadyCalled && insert.size() != label.size();
+        auto inserts = (request.infix || !alreadyCalled) && insert.size() != label.size();
         if(inserts) {
             json.field("insertText"_v).value(insert.view());
             json.field("insertTextFormat"_v).value(U32(isSnippet ? 2 : 1));

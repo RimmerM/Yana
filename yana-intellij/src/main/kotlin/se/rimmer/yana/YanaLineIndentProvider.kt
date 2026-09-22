@@ -73,7 +73,7 @@ class YanaLineIndentProvider : LineIndentProvider {
         return ""
     }
 
-    private companion object {
+    internal companion object {
         // Whether the text before the caret still has an open block. The trailing token is the
         // usual case - `fn f():`, `match s:`, `Circle(c) ->`, `(x) ->`, `data X {` - but a record
         // can be written on one line first, so `data X { field: A` must behave the same way.

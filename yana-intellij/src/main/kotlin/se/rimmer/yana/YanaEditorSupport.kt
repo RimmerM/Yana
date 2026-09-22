@@ -5,7 +5,9 @@ import com.intellij.lang.BracePair
 import com.intellij.lang.Commenter
 import com.intellij.lang.PairedBraceMatcher
 import com.intellij.psi.PsiFile
+import com.intellij.psi.TokenType
 import com.intellij.psi.tree.IElementType
+import com.intellij.psi.tree.TokenSet
 
 /*
  * The features that come from having a lexer.
@@ -18,7 +20,16 @@ import com.intellij.psi.tree.IElementType
 class YanaBraceMatcher : PairedBraceMatcher {
     override fun getPairs(): Array<BracePair> = PAIRS
 
-    override fun isPairedBracesAllowedBeforeType(lbraceType: IElementType, next: IElementType?) = true
+    /*
+     * Whether typing an opening bracket also writes its closing one, asked of the token after the
+     * caret. Only where nothing is written yet - the end of the line, a space, a separator, or the
+     * closing bracket of something enclosing it. In front of a name or a literal the bracket is
+     * being put *around* existing code, and a closing one written there would be in the wrong place
+     * and have to be deleted: `(|a + b` must not become `()a + b`.
+     */
+    override fun isPairedBracesAllowedBeforeType(lbraceType: IElementType, next: IElementType?) =
+        next == null || next in PAIRED_BEFORE
+
 
     override fun getCodeConstructStart(file: PsiFile?, openingBraceOffset: Int) = openingBraceOffset
 
@@ -27,6 +38,15 @@ class YanaBraceMatcher : PairedBraceMatcher {
             BracePair(YanaTokenTypes.PAREN_L, YanaTokenTypes.PAREN_R, false),
             BracePair(YanaTokenTypes.BRACKET_L, YanaTokenTypes.BRACKET_R, false),
             BracePair(YanaTokenTypes.BRACE_L, YanaTokenTypes.BRACE_R, true),
+        )
+
+        private val PAIRED_BEFORE = TokenSet.orSet(
+            TokenSet.create(
+                TokenType.WHITE_SPACE,
+                YanaTokenTypes.PAREN_R, YanaTokenTypes.BRACKET_R, YanaTokenTypes.BRACE_R,
+                YanaTokenTypes.COMMA, YanaTokenTypes.SEMICOLON,
+            ),
+            YanaTokenTypes.COMMENTS,
         )
     }
 }

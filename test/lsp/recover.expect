@@ -9,9 +9,11 @@ error Main.yana:55:0: expected an expression
 error Main.yana:55:0: expected ')'
 error Main.yana:59:0: expected an expression
 error Main.yana:59:0: expected ')'
+error Main.yana:76:0: expected an expression
 error Main.yana:42:11: no twice takes 0 arguments
 error Main.yana:50:11: no Shapes.scale takes 1 arguments
 error Main.yana:59:0: s is given twice
+error Main.yana:67:25: a `let` is a statement unless the scope of its names is written - `let x = e in x` is the form that answers
 
 == lsp/recover/src/Main.yana
 
@@ -37,6 +39,8 @@ classfun at 33:28
          -- instance Area(Shape)
   reference: Main.yana:33:28..33:32 "area"
   reference: Main.yana:33:38..33:42 "area"
+  reference: Main.yana:67:33..67:37 "area"
+  reference: Main.yana:74:36..74:40 "area"
   reference: Shapes.yana:19:41..19:45 "area"
 
 sigTyping at 42:17
@@ -66,6 +70,7 @@ call at 62:11
   hover: fn twice(s: Shape) -> I32
   reference: Main.yana:42:11..42:16 "twice"
   reference: Main.yana:62:11..62:16 "twice"
+  reference: Main.yana:70:31..70:36 "twice"
 
 sigWritten at 62:17
   kind: local
@@ -75,17 +80,39 @@ sigWritten at 62:17
   reference: Main.yana:62:17..62:18 "c"
   signature: {"signatures":[{"label":"fn twice(s: Shape) -> I32","parameters":[{"label":[9,17]}]}],"activeSignature":0,"activeParameter":0}
 
+letTyping at 67:38
+  kind: argument
+  definition: Main.yana:67:13..67:21 "s: Shape"
+  hover: argument s: Shape
+  reference: Main.yana:67:13..67:21 "s: Shape"
+  reference: Main.yana:67:38..67:39 "s"
+
+afterLet at 70:31
+  kind: function
+  definition: Main.yana:33:0..33:25 "fn twice(s: Shape) -> Int"
+  hover: fn twice(s: Shape) -> I32
+  reference: Main.yana:42:11..42:16 "twice"
+  reference: Main.yana:62:11..62:16 "twice"
+  reference: Main.yana:70:31..70:36 "twice"
+
+letIn at 74:41
+  kind: argument
+  definition: Main.yana:74:9..74:17 "s: Shape"
+  hover: argument s: Shape
+  reference: Main.yana:74:9..74:17 "s: Shape"
+  reference: Main.yana:74:41..74:42 "s"
+
 -- semantic tokens
-{"data":[12,18,5,1,0,0,10,3,1,0,4,14,5,1,0,0,10,3,1,0,0,12,1,4,0,9,12,5,1,0,0,10,3,1,0,1,15,1,5,0,0,5,1,4,0,2,11,1,5,0,4,12,5,1,0,0,10,3,1,0,0,6,4,9,0,0,5,1,4,0,0,5,4,9,0,0,5,1,4,0,8,13,5,1,0,0,10,3,1,0,1,11,5,8,0,7,13,5,1,0,0,10,3,1,0,1,11,12,8,0,5,17,5,1,0,0,10,3,1,0,1,11,12,8,0,3,13,3,1,0,1,8,1,5,0,0,4,13,7,0,2,11,5,8,0,0,6,1,5,0]}
+{"data":[12,18,5,1,0,0,10,3,1,0,4,14,5,1,0,0,10,3,1,0,0,12,1,4,0,9,12,5,1,0,0,10,3,1,0,1,15,1,5,0,0,5,1,4,0,2,11,1,5,0,4,12,5,1,0,0,10,3,1,0,0,6,4,9,0,0,5,1,4,0,0,5,4,9,0,0,5,1,4,0,8,13,5,1,0,0,10,3,1,0,1,11,5,8,0,7,13,5,1,0,0,10,3,1,0,1,11,12,8,0,5,17,5,1,0,0,10,3,1,0,1,11,12,8,0,3,13,3,1,0,1,8,1,5,0,0,4,13,7,0,2,11,5,8,0,0,6,1,5,0,5,16,5,1,0,0,13,1,5,0,0,4,4,9,0,0,5,1,4,0,3,15,5,1,0,0,10,3,1,0,0,6,5,8,0,0,6,1,4,0,4,12,5,1,0,0,10,3,1,0,0,10,1,5,0,0,4,4,9,0,0,5,1,4,0]}
 
 -- inlay hints
-[{"position":{"line":26,"character":16},"label":": I32","kind":1},{"position":{"line":59,"character":9},"label":": Shape","kind":1}]
+[{"position":{"line":26,"character":16},"label":": I32","kind":1},{"position":{"line":59,"character":9},"label":": Shape","kind":1},{"position":{"line":66,"character":30},"label":": I32","kind":1},{"position":{"line":73,"character":33},"label":": I32","kind":1}]
 
 -- folding ranges
 [{"startLine":25,"endLine":28},{"startLine":40,"endLine":41},{"startLine":48,"endLine":49},{"startLine":54,"endLine":55},{"startLine":58,"endLine":59},{"startLine":60,"endLine":61}]
 
 -- document symbols
-[{"name":"halfWritten","detail":"fn halfWritten(s: Shape) -> I32","kind":12,"range":{"start":{"line":12,"character":0},"end":{"line":12,"character":31}},"selectionRange":{"start":{"line":12,"character":0},"end":{"line":12,"character":31}}},{"name":"pending","detail":"fn pending(s: Shape) -> I32","kind":12,"range":{"start":{"line":16,"character":0},"end":{"line":16,"character":27}},"selectionRange":{"start":{"line":16,"character":0},"end":{"line":16,"character":27}}},{"name":"probe","detail":"fn probe(s: Shape) -> I32","kind":12,"range":{"start":{"line":25,"character":0},"end":{"line":25,"character":25}},"selectionRange":{"start":{"line":25,"character":0},"end":{"line":25,"character":25}}},{"name":"twice","detail":"fn twice(s: Shape) -> I32","kind":12,"range":{"start":{"line":32,"character":0},"end":{"line":32,"character":25}},"selectionRange":{"start":{"line":32,"character":0},"end":{"line":32,"character":25}}},{"name":"typing","detail":"fn typing(s: Shape) -> I32","kind":12,"range":{"start":{"line":40,"character":0},"end":{"line":40,"character":26}},"selectionRange":{"start":{"line":40,"character":0},"end":{"line":40,"character":26}}},{"name":"naming","detail":"fn naming(s: Shape) -> I32","kind":12,"range":{"start":{"line":48,"character":0},"end":{"line":48,"character":26}},"selectionRange":{"start":{"line":48,"character":0},"end":{"line":48,"character":26}}},{"name":"namingBack","detail":"fn namingBack(s: Shape) -> I32","kind":12,"range":{"start":{"line":54,"character":0},"end":{"line":54,"character":30}},"selectionRange":{"start":{"line":54,"character":0},"end":{"line":54,"character":30}}},{"name":"main","detail":"fn main() -> I32","kind":12,"range":{"start":{"line":58,"character":0},"end":{"line":58,"character":16}},"selectionRange":{"start":{"line":58,"character":0},"end":{"line":58,"character":16}}}]
+[{"name":"halfWritten","detail":"fn halfWritten(s: Shape) -> I32","kind":12,"range":{"start":{"line":12,"character":0},"end":{"line":12,"character":31}},"selectionRange":{"start":{"line":12,"character":0},"end":{"line":12,"character":31}}},{"name":"pending","detail":"fn pending(s: Shape) -> I32","kind":12,"range":{"start":{"line":16,"character":0},"end":{"line":16,"character":27}},"selectionRange":{"start":{"line":16,"character":0},"end":{"line":16,"character":27}}},{"name":"probe","detail":"fn probe(s: Shape) -> I32","kind":12,"range":{"start":{"line":25,"character":0},"end":{"line":25,"character":25}},"selectionRange":{"start":{"line":25,"character":0},"end":{"line":25,"character":25}}},{"name":"twice","detail":"fn twice(s: Shape) -> I32","kind":12,"range":{"start":{"line":32,"character":0},"end":{"line":32,"character":25}},"selectionRange":{"start":{"line":32,"character":0},"end":{"line":32,"character":25}}},{"name":"typing","detail":"fn typing(s: Shape) -> I32","kind":12,"range":{"start":{"line":40,"character":0},"end":{"line":40,"character":26}},"selectionRange":{"start":{"line":40,"character":0},"end":{"line":40,"character":26}}},{"name":"naming","detail":"fn naming(s: Shape) -> I32","kind":12,"range":{"start":{"line":48,"character":0},"end":{"line":48,"character":26}},"selectionRange":{"start":{"line":48,"character":0},"end":{"line":48,"character":26}}},{"name":"namingBack","detail":"fn namingBack(s: Shape) -> I32","kind":12,"range":{"start":{"line":54,"character":0},"end":{"line":54,"character":30}},"selectionRange":{"start":{"line":54,"character":0},"end":{"line":54,"character":30}}},{"name":"main","detail":"fn main() -> I32","kind":12,"range":{"start":{"line":58,"character":0},"end":{"line":58,"character":16}},"selectionRange":{"start":{"line":58,"character":0},"end":{"line":58,"character":16}}},{"name":"letTyping","detail":"fn letTyping(s: Shape) -> {}","kind":12,"range":{"start":{"line":66,"character":0},"end":{"line":66,"character":22}},"selectionRange":{"start":{"line":66,"character":0},"end":{"line":66,"character":22}}},{"name":"afterLet","detail":"fn afterLet(s: Shape) -> I32","kind":12,"range":{"start":{"line":69,"character":0},"end":{"line":69,"character":28}},"selectionRange":{"start":{"line":69,"character":0},"end":{"line":69,"character":28}}},{"name":"letIn","detail":"fn letIn(s: Shape) -> I32","kind":12,"range":{"start":{"line":73,"character":0},"end":{"line":73,"character":25}},"selectionRange":{"start":{"line":73,"character":0},"end":{"line":73,"character":25}}}]
 
 == lsp/recover/src/Shapes.yana
 

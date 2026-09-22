@@ -198,3 +198,55 @@ fn nested(l: Line) -> Line = {l | .from.}
 --                                      ^updatePath
 
 fn origin() -> Point = Point {x: 0, y: 0}
+
+-- An infix application being typed: after the opening backtick, partway into the name, and inside a
+-- name whose closing backtick is already there. What is offered is what may stand between backticks
+-- - a function with a declared fixity - and choosing one writes the name, not a call of it.
+infixl 6 `nudge`
+fn nudge(a: Int, b: Int) -> Int = a + b
+
+fn infixOpen(p: Point) -> Int = p.x `
+--                                   ^infixOpen
+fn infixName(p: Point) -> Int = p.x `sh
+--                                     ^infixName
+fn infixClosed(p: Point) -> Int = p.x `sh` 2
+--                                       ^infixClosed
+
+-- A type position, where the items are types and nothing else: after `::`, in a parameter and in a
+-- result.
+fn ascribed(p: Point) -> Int = p.x :: I32
+--                                     ^ascribe
+fn ascribedGap(p: Point) -> Int = (p.x :: )
+--                                        ^ascribeGap
+fn ascribedEnd(p: Point) -> Int = p.x ::  -- nothing typed yet
+--                                       ^ascribeEnd
+fn typedParameter(p: Point) -> Int = p.x
+--                   ^parameterType
+fn typedResult(p: Point) -> Point = p
+--                          ^resultType
+
+-- A `data qualified` type, whose constructors are reached through the type's name: after the dot,
+-- and partway into the constructor.
+data qualified Mode = Fast | Slow
+fn fastMode() -> Mode = Mode.Fast
+--                           ^qualifiedCon
+fn slowMode() -> Mode = Mode.Sl
+--                             ^qualifiedConTyped
+
+-- An expression position, where a type is offered only for what a dot reaches through it.
+fn expressionName(p: Point) -> Int = Poi
+--                                      ^expressionType
+
+-- Where a `Mode` is expected, the qualified constructors are offered whole; and in a `match` the
+-- constructor being typed is answered at all - before, the arm's sentinel covered nothing, the match
+-- was not exhaustive, and no alternative was reached.
+fn qualifiedHead() -> Mode = Mode.Fast
+--                           ^qualifiedHead
+fn qualifiedPattern(m: Mode) -> Int = match m:
+    Mode.Fast -> 1
+--       ^qualifiedPattern
+    Mode.Slow -> 2
+fn plainPattern(s: Shape) -> Int = match s:
+    Circle {radius} -> radius
+--   ^plainPattern
+    Square {side} -> side

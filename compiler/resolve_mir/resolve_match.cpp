@@ -2358,6 +2358,28 @@ bool Resolver::matchCases(Place& pivot, Buffer<ast::Pat> patterns, const bool* t
  * it is `PatternSpace`'s answer rather than "the last one": reaching it means every value that is
  * not one it matches has been ruled out, all the way down through nesting.
  */
+// Whether the cursor sentinel names a constructor anywhere in a pattern - an arm's own, or one nested
+// in its payload or fields.
+bool Resolver::patternHasCursor(ast::Pat& pat) {
+    switch(pat.kind) {
+        case ast::Pat::Con:
+            if(isCursorSentinel(context, pat.con.name)) return true;
+            return pat.con.pats && patternHasCursor(*parse[pat.con.pats]);
+        case ast::Pat::Tup:
+            for(auto field: pat.tup.contents(parse)) {
+                if(field.pat && patternHasCursor(*parse[field.pat])) return true;
+            }
+            return false;
+        case ast::Pat::Arr:
+            for(auto element: pat.arr.contents(parse)) {
+                if(patternHasCursor(element)) return true;
+            }
+            return false;
+        default:
+            return false;
+    }
+}
+
 Node* Resolver::resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
                              Request wanted) {
     auto& written = *parse[expr.match];
@@ -2425,6 +2447,23 @@ Node* Resolver::resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
     Array<ast::Pat> patterns;
     patterns.reserve(U32(written.alts.size()));
     for(auto alternative: written.alts.contents(parse)) patterns.push(alternative.pat);
+
+    /*
+     * A constructor being typed in one of the alternatives - `complete.cpp`'s pattern capture.
+     *
+     * Before the coverage walk rather than where the pattern is resolved, because the walk is what
+     * stops first: the sentinel names no constructor, so the arm it stands in covers nothing, the
+     * match is "not exhaustive", and the alternatives were never reached. So completion in a `match`
+     * answered nothing at all - only a refutable `let` reached the capture.
+     */
+    if(wantsCompletion(context)) {
+        for(auto& pattern: patterns) {
+            if(!patternHasCursor(pattern)) continue;
+
+            capturePatternCompletion(pivotType);
+            return nullptr;
+        }
+    }
 
     /*
      * Which alternatives need a test, decided for the whole match before any of it is emitted.

@@ -88,6 +88,10 @@ struct CompletionRequest {
     // A cursor in a pattern, where the items are constructors and nothing else - §8.1's fifth kind.
     bool pattern = false;
 
+    // A cursor between backticks - `` a `sh| `` - where the items are the functions an infix
+    // application can name, and choosing one writes the name rather than a call of it.
+    bool infix = false;
+
     Array<CompletionItem> items;
 };
 

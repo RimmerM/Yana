@@ -298,6 +298,9 @@ struct Parser: BasicParser<Lexer, Token> {
     // A position with nothing written at it: a zero-width node at the cursor, consuming nothing.
     ast::Expr emitCursorHere();
 
+    // The sentinel as a type name - the cursor's token, or the gap where a type has not been typed.
+    ast::Type cursorType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes);
+
     // True when the layout has already ended whatever the current token could have belonged to.
     // Nothing can be parsed here, and everything that opens an indentation block has to ask
     // before opening one - see withLevel().
