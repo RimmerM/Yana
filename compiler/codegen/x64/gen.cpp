@@ -1478,9 +1478,14 @@ static void genEpilogue(AsmModule& to, const FrameLayout& frame) {
 
 // An interrupt entry has no call return address. An exception entry additionally has an error code
 // below the hardware frame, which must be discarded immediately before IRETQ restores the CPU frame.
+//
+// REX.W is not optional. A bare 0xcf is IRETD even in 64-bit mode: it pops the five frame entries as
+// 4-byte slots out of the 8-byte frame the processor pushed, so every handler that returned resumed at
+// a RIP built from half of the saved RIP and half of CS.
 static void genInterruptReturn(AsmModule& to, bool hasErrorCode) {
     if(hasErrorCode) genAddImm(to, U8(IntRegister::rsp), I32(8), false);
-    to.buffer.writeByte(0xcf); // IRETQ in 64-bit mode
+    to.buffer.writeByte(0x48);
+    to.buffer.writeByte(0xcf);
 }
 
 // RIP-relative LEA (0x8d, mod=00 rm=101) + a relocation against the target's eventual offset. The

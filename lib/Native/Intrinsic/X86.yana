@@ -114,6 +114,26 @@ module Native
 -}
 pub data CpuidResult {eax: U32, ebx: U32, ecx: U32, edx: U32}
 
+{-
+   What the processor pushed on entering an `@convention(x86_interrupt)` handler, which receives a
+   pointer to it as its first parameter - an exception that pushes an error code passes that as a
+   second, `U64` parameter, and it is not part of this record:
+
+       @convention(x86_interrupt)
+       fn onPageFault(frame: %InterruptFrame, error: U64):
+           let faultedAt = (*frame).rip
+
+   Five words, lowest address first, whether or not the privilege level changed: long mode pushes
+   SS:RSP on every entry, which is also why one record serves both. `@layout(c)` because the order
+   is the processor's - an `auto` record may be reordered. Writing through the pointer changes where
+   and how the interrupted code resumes, which is what a scheduler switching on a timer wants.
+
+   A declared type rather than something each project writes: a record with the fields out of order
+   or one word short compiles, and reads the wrong words.
+-}
+@layout(c) @platform(x64)
+pub data InterruptFrame {rip: U64, cs: U64, rflags: U64, rsp: U64, ss: U64}
+
 @builtin(x86Cpuid) @platform(x64) pub fn X86.cpuid(leaf: U32, subleaf: U32) -> CpuidResult
 @builtin(x86Rdtscp) @platform(x64) pub fn X86.rdtscp() -> U64
 @builtin(x86Rdtsc) @platform(x64) pub fn X86.rdtsc() -> U64

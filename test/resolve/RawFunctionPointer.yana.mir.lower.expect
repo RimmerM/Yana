@@ -1,3 +1,4 @@
+mut @interruptedAt = [0, 0, 0, 0, 0, 0, 0, 0]
 
 add<sysv>(%lhs: I64, %rhs: I64): I64 {
   b_0 {
@@ -8,6 +9,8 @@ add<sysv>(%lhs: I64, %rhs: I64): I64 {
 
 interruptHandler<x86_interrupt>(%frame: Ptr) {
   b_0 {
+    %v_1 = load %frame, 8: I64
+    store @interruptedAt, %v_1, 8
     ret 
   }
 }

@@ -2,13 +2,13 @@ module ResolveTest
 
 data Holder {callback: @convention(sysv) (U64, U64) -> U64}
 
-data InterruptFrame {rip: U64}
-
 data InterruptSlot {handler: @convention(x86_interrupt) (%InterruptFrame) -> {}}
 
 let globalCallback: @convention(sysv) (U64, U64) -> U64 = @add
 
 let callbacks: [@convention(sysv) (U64, U64) -> U64 *2] = [@add, @add]
+
+let & interruptedAt: U64 = 0
 
 let interrupt: @convention(x86_interrupt) (%InterruptFrame) -> {} = @interruptHandler
 
@@ -22,6 +22,9 @@ bb0:
 
 fn interruptHandler(frame: %InterruptFrame [shared call]) -> {} {
 bb0:
+  %0: %InterruptFrame = read copy.trivial (frame)
+  %1: U64 = read copy.trivial ([%%0].rip)
+  write.assign borrow.unique (global interruptedAt) take %1
   return
 }
 

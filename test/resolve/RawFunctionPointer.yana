@@ -1,19 +1,23 @@
 -- Raw function pointers are direct code addresses, not closure pairs.
 -- # resolver: ownership
 
+import Native
+
 @convention(sysv)
 fn add(lhs: U64, rhs: U64) -> U64 = lhs + rhs
 
 data Holder { callback: @convention(sysv) (U64, U64) -> U64 }
-data InterruptFrame { rip: U64 }
 data InterruptSlot { handler: @convention(x86_interrupt) (%InterruptFrame) -> {} }
 
 let globalCallback = add :: @convention(sysv) (U64, U64) -> U64
 let callbacks = [add, add] :: [@convention(sysv) (U64, U64) -> U64 *2]
 
+let &interruptedAt = 0 :: U64
+
+-- `InterruptFrame` is Native's: the frame the processor pushed, read through the handler's pointer.
 @convention(x86_interrupt)
 fn interruptHandler(frame: %InterruptFrame):
-    return
+    interruptedAt = (*frame).rip
 
 let interrupt = interruptHandler :: @convention(x86_interrupt) (%InterruptFrame) -> {}
 

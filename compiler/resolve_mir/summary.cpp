@@ -447,6 +447,30 @@ struct Interprocedural {
              * `roleFunction` reports as an internal error.
              */
             rootAllocator();
+
+            /*
+             * And a function a reachable global's initializer names - a code pointer in a `let`, a
+             * record or a fixed array - asked only once the queue is empty, because only then is
+             * the set of reachable globals settled for the bodies drained so far.
+             *
+             * Inside the drain rather than after it, which is where it was: a function rooted there
+             * was marked emitted and never walked, so whatever it called and every global it named
+             * stayed unreached - a `@convention(x86_interrupt)` handler reached only through its
+             * slot in a table wrote a global the image did not have. Settled when a pass over the
+             * globals adds no function, which it must eventually, since `root` adds each once.
+             */
+            if(next >= reached.size()) {
+                program.discoveringFrom = nullptr;
+                reachGlobalAddresses();
+
+                for(auto modulePointer: program.modules) {
+                    for(auto pointer: decl[modulePointer]->globals.contents(decl)) {
+                        if(!decl[pointer]->reachable) continue;
+                        reachConstantFunctions(decl[pointer]->initial, reachConstantFunctions);
+                    }
+                }
+            }
+
             if(next >= reached.size()) break;
 
             auto caller = U32(next);
@@ -883,17 +907,9 @@ struct Interprocedural {
             }
         }
 
+        // The last pass of the drain above settled the globals, and every function their
+        // initializers name was rooted and walked there.
         program.discoveringFrom = nullptr;
-        reachGlobalAddresses();
-
-        // A reachable global may hold a function address in a record or fixed array. It is a code
-        // root just like a NodeFunValue, while its global reachability is handled by the pass above.
-        for(auto modulePointer: program.modules) {
-            for(auto pointer: decl[modulePointer]->globals.contents(decl)) {
-                if(!decl[pointer]->reachable) continue;
-                reachConstantFunctions(decl[pointer]->initial, reachConstantFunctions);
-            }
-        }
 
         /*
          * The edges that needed the whole walk - see `edges`. Everything they name was rooted as it
