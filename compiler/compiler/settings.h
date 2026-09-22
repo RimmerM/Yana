@@ -460,6 +460,12 @@ struct CompileSettings {
     bool explicitOutput = false;
     bool explicitImageBase = false;
 
+    /// Whether `-target` and `-format` were named, so that a project file's `target` and `format`
+    /// fill in only what they did not - and so that the pairing between the two is settled again on
+    /// what either named. See settleTargetAndFormat.
+    bool explicitTarget = false;
+    bool explicitFormat = false;
+
     /// Whether `-backend` was named. Not for a project file's sake - one cannot set a backend - but
     /// for the difference between a backend that was *chosen* and one that was *defaulted*: naming
     /// one this target has no code generator for is a mistake to report, and defaulting to one is
@@ -961,6 +967,16 @@ inline bool localBackendSupported(const CompileSettings& settings) {
 /// What is *missing* is not checked here, because a `yana.toml` may still supply it - see
 /// checkSettings, which the driver calls once the project file has been applied.
 Result<CompileSettings, Tritium::String> parseCommandLine(const char** argv, Size argc);
+
+/// Defaults the operating system and executable format that neither `-target`/`-format` nor a
+/// project file named, pairs each with the other where only one was, and derives the backend from
+/// the result. The command line runs it; `applyProjectFile` runs it again on what the file added.
+void settleTargetAndFormat(CompileSettings& settings, bool hasTarget, bool hasFormat);
+
+/// The value a `-target` or `-format` word names, or nothing. For `yana.toml`, which spells the two
+/// keys with the flags' words.
+Maybe<TargetType> targetNamed(const Tritium::String& name);
+Maybe<ExecutableFormat> formatNamed(const Tritium::String& name);
 
 /// The usage text `-help` prints. See its definition for why it is written rather than generated.
 StringView helpText();

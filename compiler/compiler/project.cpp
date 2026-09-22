@@ -467,17 +467,44 @@ Result<ProjectFile, String> readProjectFile(const String& path) {
             }
             project.library = joinProjectPath(project.directory, values[0]);
         } else if(key == "target"_v) {
-            /*
-             * The key that used to mean both halves, refused rather than guessed at.
-             *
-             * `target = "native"` set a `CompileMode` while its own comment said it was about the
-             * platform, and `target = "jslib"` set both at once. Now that they are two keys, reading
-             * an old file either way would silently change what half of these projects compile - so
-             * the file says which half it meant, once, and every later reader knows.
-             */
-            reader.fail("`target` is now two keys: `platform = \"native\"` or `\"js\"` for the machine, "
-                        "and `mode = \"exe\"` for what is produced"_v);
-            break;
+            if(values.size() != 1) {
+                reader.fail("target names one operating system"_v);
+                break;
+            }
+
+            auto& value = values[0];
+            if(auto target = targetNamed(value)) {
+                project.target = target;
+            } else if(value == "native" || value == "js" || value == "jslib" || value == "exe" ||
+                      value == "shared" || value == "lib") {
+                /*
+                 * The key's old meaning, refused rather than guessed at.
+                 *
+                 * `target = "native"` set a `CompileMode` while its own comment said it was about the
+                 * platform, and `target = "jslib"` set both at once. Reading such a file as either
+                 * half would silently change what it compiles, so it says which keys it meant, once.
+                 * The word is `-target`'s again otherwise, and no operating system is spelled like one
+                 * of these.
+                 */
+                reader.fail("`target` names the operating system now, as `-target` does. The machine "
+                            "is `platform = \"native\"` or `\"js\"`, and what is produced is `mode = \"exe\"`"_v);
+                break;
+            } else {
+                reader.fail("unknown target: valid targets are linux|mac|win32|bare"_v);
+                break;
+            }
+        } else if(key == "format"_v) {
+            if(values.size() != 1) {
+                reader.fail("format names one executable format"_v);
+                break;
+            }
+
+            if(auto format = formatNamed(values[0])) {
+                project.format = format;
+            } else {
+                reader.fail("unknown format: valid formats are elf|mach|pe|raw"_v);
+                break;
+            }
         } else {
             reader.fail(stringView(formatError("unknown key \"%@\""_v, toString(key))));
             break;
@@ -535,6 +562,19 @@ void applyProjectFile(CompileSettings& settings, const ProjectFile& project) {
     if(!settings.explicitResolver && project.resolver) {
         settings.resolver = project.resolver.unwrap();
         settings.explicitResolver = true;
+    }
+
+    // The operating system and the container. A flag still wins, one setting at a time, and the
+    // pairing is asked again on what either named - so `target = "bare"` with no `format` is the ELF
+    // `-target bare` would give, and `-format raw` on the command line keeps the file's `bare`.
+    auto fileTarget = !settings.explicitTarget && project.target;
+    auto fileFormat = !settings.explicitFormat && project.format;
+    if(fileTarget) settings.target = project.target.unwrap();
+    if(fileFormat) settings.format = project.format.unwrap();
+    if(fileTarget || fileFormat) {
+        settings.explicitTarget = settings.explicitTarget || fileTarget;
+        settings.explicitFormat = settings.explicitFormat || fileFormat;
+        settleTargetAndFormat(settings, settings.explicitTarget, settings.explicitFormat);
     }
 
     // The standard library this project builds against - `-lib` still wins, as every flag does.

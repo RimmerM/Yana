@@ -3990,11 +3990,26 @@ void Resolver::resolveProgramEntry() {
     // the two have to move together - see `kEntryPointName`, where that argument is written.
     auto name = context.addUnqualifiedName(intrinsic::kEntryPointName);
 
-    // Arity zero, since a program's entry takes no arguments and a `main` that took some is a
-    // function of that name - which the "no entry point" message is the right thing to say about.
+    /*
+     * Arity zero on a hosted target, since a process entry has nothing to pass and a `main` that
+     * took parameters is a function of that name - which the "no entry point" message is the right
+     * thing to say about.
+     *
+     * **Any arity on a bare one.** `-target bare` has no process ABI: its entry is an ordinary
+     * function entered with whatever the loader left in the argument registers (a boot protocol's
+     * magic and info pointer, say), and both native backends keep its signature as written for
+     * exactly that. Looking for arity zero there refused the one shape such an entry has, with a
+     * sentence claiming there was no `main` at all. The shipping stage never asked the arity.
+     */
+    auto bare = context.settings.platform == TargetPlatform::Native &&
+                context.settings.target == TargetType::Bare;
+
     DeclPtr<Function> main = nullptr;
 
-    if(auto found = program.findFunction(program.root(), name, 0)) {
+    auto found = program.findFunction(program.root(), name, 0);
+    if(!found && bare) found = program.functionNamed(program.root(), name);
+
+    if(found) {
         // A lens answers what its continuation answered, and a program's entry has no caller to
         // supply one. Reported here rather than left to "there is no entry point", which is what a
         // module with no `main` at all is told and is not what happened.
@@ -4020,6 +4035,17 @@ void Resolver::resolveProgramEntry() {
      */
     if(!runsAtStartup()) {
         program.entry = main;
+        return;
+    }
+
+    // A bare entry that takes parameters is entered directly, and a synthesized one in front of it
+    // would have nothing to pass them from - `resolveEntryBody` calls `main` with no arguments.
+    // Refused by name rather than forwarded, since forwarding would decide what the loader's
+    // registers mean before any program has asked for it.
+    if(main && decl()[main]->args.size() != 0) {
+        context.diagnostics.error(
+            "a bare `main` that takes parameters is the program's entry itself, so the module cannot also have top-level statements to run before it - move them into `main`"_v,
+            decl()[main]->source);
         return;
     }
 

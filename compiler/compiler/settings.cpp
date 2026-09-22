@@ -218,6 +218,23 @@ StringView targetTable[] = {
     "bare"_v,  // Bare
 };
 
+static Maybe<U32> matchString(StringView* table, Size count, const String& arg);
+
+// The `-target` and `-format` words, for a project file that writes them as keys - see project.cpp.
+Maybe<TargetType> targetNamed(const String& name) {
+    if(auto target = matchString(targetTable, sizeof(targetTable) / sizeof(StringView), name)) {
+        return Just((TargetType)target.unwrap());
+    }
+    return Nothing();
+}
+
+Maybe<ExecutableFormat> formatNamed(const String& name) {
+    if(auto format = matchString(formatTable, sizeof(formatTable) / sizeof(StringView), name)) {
+        return Just((ExecutableFormat)format.unwrap());
+    }
+    return Nothing();
+}
+
 // `-image-base` is a command-line number rather than a Yana integer literal, so accept the same
 // decimal and 0x-prefixed hexadecimal spellings without making the driver depend on a host-sized
 // integer parser. The image base is deliberately unsigned: it is an address, not a displacement.
@@ -1037,26 +1054,17 @@ static void applyHostExtensions(CompileSettings& settings) {
 #endif // __X86__
 }
 
-static void applyDefaults(CompileSettings& settings, bool hasArch, bool hasTarget, bool hasFormat, bool hasExtensions) {
-    // Set the arch to the current one if nothing was provided.
-    //
-    // AArch64 is tested for first and by its own macro rather than through the platform header's,
-    // because that header's `__X64__` states a *word width* and not an instruction set: an aarch64
-    // host defines both `__ARM__` and `__X64__`, so asking for x86-64 first answers x86-64 there.
-    if(!hasArch) {
-#if defined(__aarch64__) || defined(_M_ARM64)
-        settings.arch = TargetArch::ARM64;
-#elif __X64__
-        settings.arch = TargetArch::X64;
-#elif __X86__
-        settings.arch = TargetArch::X86;
-#elif __ARM__
-        settings.arch = TargetArch::ARM;
-#else
-#error Cannot determine arch for current host, please add a #define here for the current platform.
-#endif
-    }
-
+/*
+ * The operating system, the executable format and the backend - the part of the defaults a project
+ * file can still change after the command line has been read.
+ *
+ * Separate from applyDefaults for that reason: `-target`/`-format` and a `yana.toml`'s `target` and
+ * `format` are the same two settings, so the pairing between them and the backend derived from both
+ * is asked again once the file has had its say, with `hasTarget`/`hasFormat` meaning "named by
+ * either". Running it twice is the same as running it once on the final answers, because every
+ * branch reads only what was named and recomputes the rest.
+ */
+void settleTargetAndFormat(CompileSettings& settings, bool hasTarget, bool hasFormat) {
     // Set the target to the current one if nothing was provided.
     if(!hasTarget) {
 #if __LINUX__
@@ -1122,6 +1130,44 @@ static void applyDefaults(CompileSettings& settings, bool hasArch, bool hasTarge
         }
     }
 
+    /*
+     * And the backend, which is the one default that has to be taken *after* the three above rather
+     * than beside them: which code generators exist is a fact about the target, and the target is
+     * only settled here.
+     *
+     * The local one wherever it exists - see NativeBackend. It is the faster build and needs no
+     * toolchain installed, which is what a build being run wants; LLVM is the faster program, which
+     * is what a build being shipped wants, and it is one flag away. Everywhere else LLVM is the only
+     * one there is. Assigned both ways rather than only raised to `Local`, because a project file
+     * settles the target a second time and may name one the first answer does not hold for.
+     */
+    if(!settings.explicitBackend) {
+        settings.backend = localBackendSupported(settings) ? NativeBackend::Local : NativeBackend::Llvm;
+    }
+}
+
+static void applyDefaults(CompileSettings& settings, bool hasArch, bool hasTarget, bool hasFormat, bool hasExtensions) {
+    // Set the arch to the current one if nothing was provided.
+    //
+    // AArch64 is tested for first and by its own macro rather than through the platform header's,
+    // because that header's `__X64__` states a *word width* and not an instruction set: an aarch64
+    // host defines both `__ARM__` and `__X64__`, so asking for x86-64 first answers x86-64 there.
+    if(!hasArch) {
+#if defined(__aarch64__) || defined(_M_ARM64)
+        settings.arch = TargetArch::ARM64;
+#elif __X64__
+        settings.arch = TargetArch::X64;
+#elif __X86__
+        settings.arch = TargetArch::X86;
+#elif __ARM__
+        settings.arch = TargetArch::ARM;
+#else
+#error Cannot determine arch for current host, please add a #define here for the current platform.
+#endif
+    }
+
+    settleTargetAndFormat(settings, hasTarget, hasFormat);
+
     // All AArch64 cpus seem to support NEON (documentation is unclear if this is required though).
     // x86-64 needs no such line any more: its level is v2 unless something raises it, and v2 is the
     // floor rather than a default - see TargetExtensions.
@@ -1141,20 +1187,6 @@ static void applyDefaults(CompileSettings& settings, bool hasArch, bool hasTarge
      */
     if(!hasArch && !hasExtensions) {
         applyHostExtensions(settings);
-    }
-
-    /*
-     * And the backend, which is the one default that has to be taken *after* the three above rather
-     * than beside them: which code generators exist is a fact about the target, and the target is
-     * only settled here.
-     *
-     * The local one wherever it exists - see NativeBackend. It is the faster build and needs no
-     * toolchain installed, which is what a build being run wants; LLVM is the faster program, which
-     * is what a build being shipped wants, and it is one flag away. Everywhere else there is nothing
-     * to choose and the value stays what it was constructed as.
-     */
-    if(!settings.explicitBackend && localBackendSupported(settings)) {
-        settings.backend = NativeBackend::Local;
     }
 }
 
@@ -1740,6 +1772,8 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
     }
 
     settings.explicitExtensions = hasExtensions;
+    settings.explicitTarget = hasTarget;
+    settings.explicitFormat = hasFormat;
     applyDefaults(settings, hasArch, hasTarget, hasFormat, hasExtensions);
     return Ok(move(settings));
 }

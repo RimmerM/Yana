@@ -16,8 +16,10 @@
  * **Every key is spelled the way the flag that overrides it is spelled**, which is what `target`
  * stopped doing when the mode and the platform became two questions: it named a `CompileMode` while
  * meaning a platform, beside a `-target` flag that meant the operating system. `platform` and `mode`
- * are the two keys now, and the old one is refused with a sentence saying which of them was meant
- * rather than being read as either.
+ * are the two keys for those now, and `target` means what `-target` means - the operating system,
+ * beside `format` for `-format`. A file still carrying one of the old key's values (`"native"`,
+ * `"js"`, `"jslib"`, ...) is refused with a sentence saying which keys were meant: none of those
+ * words is an operating system, so the two readings never collide.
  */
 struct ProjectFile {
     /// The file itself, and the directory holding it. Every relative path in the file is relative
@@ -76,6 +78,12 @@ struct ProjectFile {
     /// `platform = "native"` - which machine the program is for, and therefore which `@platform`
     /// declarations exist. Nothing when unset. See §5.4: this is the one the server resolves against.
     Maybe<TargetPlatform> platform;
+
+    /// `target = "bare"` and `format = "raw"` - the operating system and the executable container,
+    /// the words `-target` and `-format` take. Nothing when unset, and then the host's, paired the
+    /// way the flags pair them: naming one derives the other - see settleTargetAndFormat.
+    Maybe<TargetType> target;
+    Maybe<ExecutableFormat> format;
 
     /// `mode = "exe"` - what the compilation produces. Nothing when unset.
     Maybe<CompileMode> mode;
