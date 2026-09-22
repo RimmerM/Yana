@@ -2,18 +2,11 @@ package se.rimmer.yana.run
 
 import com.intellij.execution.BeforeRunTask
 import com.intellij.execution.BeforeRunTaskProvider
-import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.configurations.RunConfiguration
-import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.execution.runners.ExecutionEnvironment
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.DataContext
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.util.Key
 import se.rimmer.yana.YanaIcons
-import se.rimmer.yana.settings.YanaCompilerLocator
 import javax.swing.Icon
 
 /*
@@ -30,8 +23,8 @@ import javax.swing.Icon
  *
  * The earlier objection to one - that it would be a second place deciding which binary was just
  * built - is answered by asking the configuration rather than repeating it: `resolveProjectFile` and
- * `resolveOutputDirectory` below are the same methods the run half calls to find the executable, so
- * there is still one answer.
+ * `resolveOutputDirectory` are the same methods the run half calls to find the executable, so there
+ * is still one answer. The build itself is YanaBuild, which the Build action runs as well.
  */
 class YanaBuildBeforeRunTask : BeforeRunTask<YanaBuildBeforeRunTask>(PROVIDER_ID) {
     init {
@@ -63,93 +56,9 @@ class YanaBuildBeforeRunTaskProvider : BeforeRunTaskProvider<YanaBuildBeforeRunT
     ): Boolean {
         if (configuration !is YanaRunConfiguration) return true
 
-        /*
-         * The editor's buffers, onto disk, before the compiler reads them.
-         *
-         * The compiler is a separate process reading files, so anything still only in a document is
-         * invisible to it - and the symptom is not an error but a build of the *previous* edit, with
-         * the next run picking up what the last one missed. Nothing else in the run flow does this
-         * for a custom before-run task.
-         *
-         * `invokeAndWait` because saving is a write action and this method is on a background
-         * thread, which is the same fact that lets the build below block.
-         */
-        ApplicationManager.getApplication().invokeAndWait {
-            FileDocumentManager.getInstance().saveAllDocuments()
-        }
-
-        val compiler = YanaCompilerLocator.find()
-        if (compiler == null) {
-            report(
-                environment,
-                "The Yana compiler was not found. Put yana on PATH, or set its location in " +
-                    "Settings | Languages & Frameworks | Yana.",
-            )
-            return false
-        }
-
-        val command = GeneralCommandLine(compiler.absolutePath)
-        command.withParameters("-project", configuration.resolveProjectFile().absolutePath)
-        command.withParameters("-to", configuration.resolveOutputDirectory().absolutePath)
-
-        // What to call it, so that the file this writes is the file the run half looks for - see
-        // YanaRunConfiguration.resolveExecutableName. Left out when the project does not say enough
-        // to know, which `checkConfiguration` has already refused to launch.
-        configuration.resolveExecutableName()?.let { command.withParameters("-output", it) }
-
-        // Left out when the configuration does not set one, so that the project file's `mode`
-        // decides - which matters for more than the output format: `@platform` selects which
-        // declarations exist, so the mode is part of what the program *is*.
-        configuration.mode.trim().takeIf { it.isNotEmpty() }?.let { command.withParameters("-mode", it) }
-
-        // The rewritten resolve stage for **every** build - the stage the language server answers
-        // from, so what runs is the program the editor described.
-        //
-        // Still written out after the compiler's own default became `ownership` (2026-09-22): what
-        // the fallback below is the fallback *for* is a project that names a stage, and a project
-        // saying `resolver = "legacy"` is built the way it asks. Dropping the flag would leave that
-        // project building one way from the terminal and another from the run button.
-        //
-        // JavaScript used to be left out of this, because it was the one target only the shipping
-        // stage built and the driver refused the flag for it. JSIR changed that (2026-09-22, J75):
-        // the rewrite builds a JavaScript program, the language server resolves a `platform = "js"`
-        // project as one, and a run configuration that still asked the shipping stage would be
-        // running a different program from the one whose errors the editor had been showing - which
-        // is the single thing this line exists to prevent.
-        val resolver = configuration.readProjectFile()?.resolver
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: "ownership"
-        command.withParameters("-resolver", resolver)
-
-        command.withWorkDirectory(configuration.buildWorkingDirectory())
-        command.withCharset(Charsets.UTF_8)
-
-        // This method is already off the EDT - that is the whole reason the build lives here - so
-        // waiting for the process is allowed, and blocking is what "before run" means.
-        val result = CapturingProcessHandler(command).runProcess()
-        if (result.exitCode == 0) return true
-
-        // Both streams: the driver reports diagnostics on one and its own failures on the other, and
-        // which of the two holds the reason depends on how it failed.
-        val message = result.stderr.trim().ifEmpty { result.stdout.trim() }
-            .ifEmpty { "the Yana compiler exited with status ${result.exitCode}" }
-
-        report(environment, message)
-        return false
-    }
-
-    /*
-     * A notification rather than a thrown exception.
-     *
-     * Returning false is what stops the launch; the platform says nothing else about why, so this is
-     * the only place the driver's diagnostics reach the user. A balloon is the right weight for it -
-     * the run never started, so there is no console to print into.
-     */
-    private fun report(environment: ExecutionEnvironment, message: String) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("Yana")
-            .createNotification("Yana build failed", message, NotificationType.ERROR)
-            .notify(environment.project)
+        // Returning false is what stops the launch; the platform says nothing else about why, so
+        // YanaBuild's notification is the only place the diagnostics reach the user - the run never
+        // started, so there is no console to print into.
+        return YanaBuild.run(configuration)
     }
 }

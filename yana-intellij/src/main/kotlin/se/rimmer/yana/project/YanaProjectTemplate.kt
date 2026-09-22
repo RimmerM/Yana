@@ -22,7 +22,7 @@ object YanaProjectTemplate {
         root.mkdirs()
         File(root, "src").mkdirs()
 
-        File(root, "yana.toml").writeText(PROJECT_FILE)
+        File(root, "yana.toml").writeText(projectFile(root.name))
         File(root, ".gitignore").writeText(GIT_IGNORE)
 
         if (createSample) File(root, "src/Main.yana").writeText(SAMPLE_MODULE)
@@ -57,8 +57,13 @@ object YanaProjectTemplate {
      *
      * Add one when the project grows a second module, which is also when the compiler starts asking
      * for it by name.
+     *
+     * There *is* an `output`, named after the project. Without one the artifact is named after the
+     * main module, and here that is the source root - so every new project built as `Src`, which is
+     * the directory's name and not the program's. It goes in the file rather than into the run
+     * configuration so that `yana` in a terminal and Build in the IDE write the same file.
      */
-    private val PROJECT_FILE = """
+    private fun projectFile(name: String) = """
         # What this program is: where its source lives, what it is built for, and where the build
         # goes. The compiler and the language server both read this file, so the editor and the
         # build agree about which files are in the program.
@@ -67,7 +72,12 @@ object YanaProjectTemplate {
         sources = ["src"]
         platform = "native"
         to = "build"
+        output = "${quote(name)}"
     """.trimIndent() + "\n"
+
+    /// The project's name as a TOML basic string's contents. A directory name can hold a quote or a
+    /// backslash, and either would end the string early or start an escape.
+    private fun quote(text: String) = text.replace("\\", "\\\\").replace("\"", "\\\"")
 
     private val SAMPLE_MODULE = """
         -- The program is entered through `main`. This file is part of the module `Src`, which is

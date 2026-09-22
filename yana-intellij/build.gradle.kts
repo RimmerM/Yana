@@ -42,6 +42,13 @@ dependencies {
         // deprecated. Removed here rather than left warning, since the comment above already tracks
         // what a version bump costs.
         testFramework(TestFrameworkType.Platform)
+
+        // CLion's build button is CLion's own extension point (see yana-clion.xml), so its
+        // interfaces are compiled against here. The plugin depends on it optionally; this is the
+        // compile classpath, not a requirement to load.
+        bundledPlugin("com.intellij.clion")
+
+        pluginVerifier()
     }
 
     testImplementation("junit:junit:4.13.2")
@@ -65,6 +72,20 @@ tasks.named("build") {
 }
 
 intellijPlatform {
+    /*
+     * `verifyPlugin` against the IDE that will actually load this, which is usually newer than the
+     * one it is compiled against - there is no `until-build`, so it loads in every later release.
+     * Passing tests prove nothing about that: they run on the compile platform. A Build-window
+     * version of YanaBuild compiled clean, passed all its tests, and threw `NoSuchMethodError` in
+     * CLion 2026.1 on the first Run. Point it at an installation with
+     * `./gradlew verifyPlugin -PverifyIde=/path/to/clion`.
+     */
+    pluginVerification {
+        ides {
+            providers.gradleProperty("verifyIde").orNull?.let { local(file(it)) }
+        }
+    }
+
     pluginConfiguration {
         ideaVersion {
             sinceBuild = providers.gradleProperty("pluginSinceBuild")

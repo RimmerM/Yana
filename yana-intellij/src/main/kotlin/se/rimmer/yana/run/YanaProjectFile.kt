@@ -69,6 +69,20 @@ class YanaProjectFile private constructor(val file: File) {
         private val entry = Regex("""^([A-Za-z0-9_-]+)\s*=\s*(.+)$""")
         private val quoted = Regex(""""((?:[^"\\]|\\.)*)"""")
 
+        // The escapes the compiler's reader accepts (compiler/compiler/project.cpp), so that a value
+        // written with one - the template escapes a project name holding a quote - is the same
+        // string here as there. `-output` is passed from this, so a difference is a wrong file name.
+        private val escape = Regex("""\\(.)""")
+
+        private fun unescape(text: String) = escape.replace(text) {
+            when (val c = it.groupValues[1]) {
+                "n" -> "\n"
+                "t" -> "\t"
+                "r" -> "\r"
+                else -> c
+            }
+        }
+
         fun read(file: File): YanaProjectFile? {
             if (!file.isFile) return null
 
@@ -87,7 +101,7 @@ class YanaProjectFile private constructor(val file: File) {
                 if (inTable) continue
 
                 val match = entry.find(line) ?: continue
-                val values = quoted.findAll(match.groupValues[2]).map { it.groupValues[1] }.toList()
+                val values = quoted.findAll(match.groupValues[2]).map { unescape(it.groupValues[1]) }.toList()
                 if (values.isEmpty()) continue
 
                 when (match.groupValues[1]) {

@@ -58,7 +58,7 @@ class YanaRunConfigurationEditor : SettingsEditor<YanaRunConfiguration>() {
         .addLabeledComponent("Output directory:", outputDirectory, 1, false)
         .addTooltip("Empty uses the project file's `output`, and build/ beside it when it has none.")
         .addLabeledComponent("Mode:", mode, 1, false)
-        .addTooltip("Empty uses the project file's `target`. One of exe, js, jslib, lib, shared, llvm.")
+        .addTooltip("Empty uses the project file's `mode`. One of exe, js, jslib, lib, shared, llvm.")
         .addLabeledComponent("Program arguments:", programArguments, 1, false)
         .addLabeledComponent("Working directory:", workingDirectory, 1, false)
         .addComponentFillVertically(JPanel(), 0)

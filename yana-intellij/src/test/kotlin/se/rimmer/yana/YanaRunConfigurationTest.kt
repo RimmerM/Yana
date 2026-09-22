@@ -3,8 +3,19 @@ package se.rimmer.yana
 import com.intellij.execution.RunManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import se.rimmer.yana.lsp.YanaSemanticTokens
+import com.intellij.task.ProjectModelBuildTask
+import com.intellij.task.impl.ProjectTaskList
+import com.intellij.task.ProjectTaskManager
+import com.intellij.task.ProjectTaskRunner
+import com.jetbrains.cidr.execution.build.CidrBuildConfigurationProvider
+import se.rimmer.yana.project.YanaProjectTemplate
 import se.rimmer.yana.run.PROVIDER_ID
+import se.rimmer.yana.run.YanaBuildTarget
+import se.rimmer.yana.run.YanaProjectFile
+import se.rimmer.yana.run.YanaProjectTaskRunner
 import se.rimmer.yana.run.YanaRunConfigurationType
+import java.io.File
+import java.nio.file.Files
 
 /*
  * The parts of the plugin that are wiring rather than logic, and that failed silently when they
@@ -34,6 +45,57 @@ class YanaRunConfigurationTest : BasePlatformTestCase() {
 
         assertNotNull("a new Yana configuration should have the build step attached", build)
         assertTrue("the build step should be enabled", build!!.isEnabled)
+    }
+
+    /*
+     * CLion's Build button builds the selected Yana configuration.
+     *
+     * Two registrations have to line up for it, and neither says anything when it does not: the
+     * button is simply disabled when no `cidr.buildConfigurationProvider` answers, and a build
+     * nobody's runner claims is dropped. So this walks the path the button walks - the providers,
+     * then `ProjectTaskManager`'s build task, then the first runner that says yes.
+     */
+    fun testSelectedConfigurationIsBuildable() {
+        val manager = RunManager.getInstance(project)
+        val factory = YanaRunConfigurationType.getInstance().configurationFactories.first()
+        val settings = manager.createConfiguration("app", factory)
+        manager.addConfiguration(settings)
+        manager.selectedConfiguration = settings
+
+        val buildable = CidrBuildConfigurationProvider.EP_NAME.extensionList
+            .flatMap { it.getBuildableConfigurations(project) }
+            .filterIsInstance<YanaBuildTarget>()
+
+        assertEquals("the selected configuration should be offered to the Build button", 1, buildable.size)
+        assertSame(settings.configuration, buildable[0].configuration)
+
+        val task = ProjectTaskManager.getInstance(project).createBuildTask(true, buildable[0])
+        val tasks = if (task is ProjectTaskList) task.toList() else listOf(task)
+        val build = tasks.filterIsInstance<ProjectModelBuildTask<*>>().single()
+
+        val runner = ProjectTaskRunner.EP_NAME.extensionList.firstOrNull { it.canRun(project, build) }
+        assertTrue("the Yana runner should be the one to build it, found $runner", runner is YanaProjectTaskRunner)
+    }
+
+    /*
+     * A new project builds under its own name.
+     *
+     * Left to the compiler, the artifact is named after the main module, and the template's only
+     * module is the source root - so every new project built as `Src`.
+     */
+    fun testNewProjectIsNamedAfterItself() {
+        val parent = Files.createTempDirectory("yana-template").toFile()
+        try {
+            for (name in listOf("Game", "My \"quoted\" \\ game")) {
+                val root = File(parent, name)
+                YanaProjectTemplate.write(root, createSample = true)
+
+                val file = YanaProjectFile.read(File(root, "yana.toml"))
+                assertEquals(name, file!!.executableName())
+            }
+        } finally {
+            parent.deleteRecursively()
+        }
     }
 
     /*

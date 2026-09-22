@@ -24,6 +24,13 @@
     <depends>com.intellij.modules.platform</depends>
     <depends optional="true" config-file="yana-lsp.xml">com.intellij.modules.ultimate</depends>
 
+    <!--
+      CLion's Build button, which is CLion's action rather than the platform's and asks CLion's own
+      extension point what to build - see YanaBuildConfigurationProvider. Optional for the same
+      reason as the server: without CLion the plugin still loads, and keeps Run.
+    -->
+    <depends optional="true" config-file="yana-clion.xml">com.intellij.clion</depends>
+
     <extensions defaultExtensionNs="com.intellij">
         <fileType
             name="Yana"
@@ -101,6 +108,14 @@
           indicator and shows up under "Before launch" where a user can turn it off.
         -->
         <stepsBeforeRunProvider implementation="se.rimmer.yana.run.YanaBuildBeforeRunTaskProvider"/>
+
+        <!--
+          The same build, reached from Build rather than from Run - for a library, a JavaScript
+          program or a binary for another machine, none of which is run here. The platform's build
+          actions go through `ProjectTaskManager`, which asks each runner in turn and takes the
+          first that says yes; first, because CLion's own runners claim broadly.
+        -->
+        <projectTaskRunner order="first" implementation="se.rimmer.yana.run.YanaProjectTaskRunner"/>
 
         <!--
           "New Project | Yana" - §12. CLion's wizard offers CMake templates because every language it

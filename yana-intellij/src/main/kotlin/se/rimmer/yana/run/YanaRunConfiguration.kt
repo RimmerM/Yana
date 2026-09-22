@@ -49,7 +49,7 @@ class YanaRunConfigurationOptions : LocatableRunConfigurationOptions() {
     var outputDirectory by string("")
 
     /// The compile mode, spelled as the driver's `-mode` spells it. Empty means the project file's
-    /// own `target`, which is the answer for every project that has one.
+    /// own `mode`, which is the answer for every project that has one.
     var mode by string("")
 
     var programArguments by string("")
