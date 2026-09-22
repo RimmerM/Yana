@@ -24,6 +24,291 @@ fn toDouble(%value: I32) -> F64 {
     ret %v1
 }
 
+fn unsignedToFloat(%value: U32) -> F32 {
+  b0:
+    %v1 = cast %value : F32
+    ret %v1
+}
+
+fn unsignedToDouble(%value: U32) -> F64 {
+  b0:
+    %v1 = cast %value : F64
+    ret %v1
+}
+
+fn unsignedLongToFloat(%value: U64) -> F32 {
+  b0:
+    %v1 = cast %value : F32
+    ret %v1
+}
+
+fn unsignedLongToDouble(%value: U64) -> F64 {
+  b0:
+    %v1 = cast %value : F64
+    ret %v1
+}
+
+fn floatToUnsigned(%value: F32) -> U32 {
+  b0:
+    %v1 = cast %value : U32
+    ret %v1
+}
+
+fn doubleToUnsigned(%value: F64) -> U64 {
+  b0:
+    %v1 = cast %value : U64
+    ret %v1
+}
+
+fn floatToUnsignedLong(%value: F32) -> U64 {
+  b0:
+    %v1 = cast %value : U64
+    ret %v1
+}
+
+fn doubleToUnsignedInt(%value: F64) -> U32 {
+  b0:
+    %v1 = cast %value : U32
+    ret %v1
+}
+
+fn notANumber() -> F64 {
+  b0:
+    %v4 = div 0, 0 : F64
+    ret %v4
+}
+
+fn unsignedBoundaries() -> I32 {
+  b0:
+    %v1 = call unsignedToDouble, 4294967295 : F64
+    %v4 = cmp_ne %v1, 4.294967295E9 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = call unsignedToFloat, 4294967295 : F32
+    %v13 = cmp_ne %v10, 4.294967296E9 : Bool
+    je %v13, b4, b5
+
+  b4:
+    ret 2
+
+  b5:
+    jmp b6
+
+  b6:
+    %v19 = call unsignedLongToDouble, 9223372036854775808 : F64
+    %v22 = cmp_ne %v19, 9.223372036854776E18 : Bool
+    je %v22, b7, b8
+
+  b7:
+    ret 3
+
+  b8:
+    jmp b9
+
+  b9:
+    %v28 = call unsignedLongToFloat, 9223372036854775808 : F32
+    %v31 = cmp_ne %v28, 9.223372036854776E18 : Bool
+    je %v31, b10, b11
+
+  b10:
+    ret 4
+
+  b11:
+    jmp b12
+
+  b12:
+    %v37 = call floatToUnsigned, 4.294967296E9 : U32
+    %v39 = cmp_ne %v37, 4294967295 : Bool
+    je %v39, b13, b14
+
+  b13:
+    ret 5
+
+  b14:
+    jmp b15
+
+  b15:
+    %v45 = call doubleToUnsigned, 9.223372036854776E18 : U64
+    %v47 = cmp_ne %v45, 9223372036854775808 : Bool
+    je %v47, b16, b17
+
+  b16:
+    ret 6
+
+  b17:
+    jmp b18
+
+  b18:
+    %v53 = call floatToUnsigned, -1 : U32
+    %v55 = cmp_ne %v53, 0 : Bool
+    je %v55, b19, b20
+
+  b19:
+    ret 7
+
+  b20:
+    jmp b21
+
+  b21:
+    %v61 = call doubleToUnsigned, -1 : U64
+    %v63 = cmp_ne %v61, 0 : Bool
+    je %v63, b22, b23
+
+  b22:
+    ret 8
+
+  b23:
+    jmp b24
+
+  b24:
+    %v69 = call floatToUnsigned, 1.0000000150474662E30 : U32
+    %v71 = cmp_ne %v69, 4294967295 : Bool
+    je %v71, b25, b26
+
+  b25:
+    ret 9
+
+  b26:
+    jmp b27
+
+  b27:
+    %v77 = call doubleToUnsigned, 1E30 : U64
+    %v79 = cmp_ne %v77, 18446744073709551615 : Bool
+    je %v79, b28, b29
+
+  b28:
+    ret 10
+
+  b29:
+    jmp b30
+
+  b30:
+    %v84 = call notANumber : F64
+    %v85 = cast %v84 : F32
+    %v86 = call floatToUnsigned, %v85 : U32
+    %v88 = cmp_ne %v86, 0 : Bool
+    je %v88, b31, b32
+
+  b31:
+    ret 11
+
+  b32:
+    jmp b33
+
+  b33:
+    %v93 = call notANumber : F64
+    %v94 = call doubleToUnsigned, %v93 : U64
+    %v96 = cmp_ne %v94, 0 : Bool
+    je %v96, b34, b35
+
+  b34:
+    ret 12
+
+  b35:
+    jmp b36
+
+  b36:
+    %v102 = call floatToUnsignedLong, 9.223372036854776E18 : U64
+    %v104 = cmp_ne %v102, 9223372036854775808 : Bool
+    je %v104, b37, b38
+
+  b37:
+    ret 13
+
+  b38:
+    jmp b39
+
+  b39:
+    %v110 = call doubleToUnsignedInt, 4.294967295E9 : U32
+    %v112 = cmp_ne %v110, 4294967295 : Bool
+    je %v112, b40, b41
+
+  b40:
+    ret 14
+
+  b41:
+    jmp b42
+
+  b42:
+    %v118 = call floatToUnsignedLong, -1 : U64
+    %v120 = cmp_ne %v118, 0 : Bool
+    je %v120, b43, b44
+
+  b43:
+    ret 15
+
+  b44:
+    jmp b45
+
+  b45:
+    %v126 = call doubleToUnsignedInt, -1 : U32
+    %v128 = cmp_ne %v126, 0 : Bool
+    je %v128, b46, b47
+
+  b46:
+    ret 16
+
+  b47:
+    jmp b48
+
+  b48:
+    %v134 = call floatToUnsignedLong, 1.0000000150474662E30 : U64
+    %v136 = cmp_ne %v134, 18446744073709551615 : Bool
+    je %v136, b49, b50
+
+  b49:
+    ret 17
+
+  b50:
+    jmp b51
+
+  b51:
+    %v142 = call doubleToUnsignedInt, 1E30 : U32
+    %v144 = cmp_ne %v142, 4294967295 : Bool
+    je %v144, b52, b53
+
+  b52:
+    ret 18
+
+  b53:
+    jmp b54
+
+  b54:
+    %v149 = call notANumber : F64
+    %v150 = cast %v149 : F32
+    %v151 = call floatToUnsignedLong, %v150 : U64
+    %v153 = cmp_ne %v151, 0 : Bool
+    je %v153, b55, b56
+
+  b55:
+    ret 19
+
+  b56:
+    jmp b57
+
+  b57:
+    %v158 = call notANumber : F64
+    %v159 = call doubleToUnsignedInt, %v158 : U32
+    %v161 = cmp_ne %v159, 0 : Bool
+    je %v161, b58, b59
+
+  b58:
+    ret 20
+
+  b59:
+    jmp b60
+
+  b60:
+    ret 0
+}
+
 fn ascribed() -> I32 {
   b0:
     %v1 = cast 9.75 : I32
@@ -66,15 +351,35 @@ fn main() -> I32 {
     %v11 = call toDouble, 6 : F64
     %v12 = cast %v11 : I32
     %v13 = add %v9, %v12 : I32
-    %v14 = call ascribed : I32
-    %v15 = add %v13, %v14 : I32
-    %v17 = call implicitArgument, 7 : I64
-    %v18 = cast %v17 : I32
-    %v19 = add %v15, %v18 : I32
-    %v21 = call implicitReturn, 8 : F64
-    %v22 = cast %v21 : I32
-    %v23 = add %v19, %v22 : I32
-    %v25 = call explicitNarrowing, 9.5 : I32
-    %v26 = add %v23, %v25 : I32
-    ret %v26
+    %v15 = call unsignedToFloat, 10 : F32
+    %v16 = cast %v15 : I32
+    %v17 = add %v13, %v16 : I32
+    %v19 = call unsignedToDouble, 11 : F64
+    %v20 = cast %v19 : I32
+    %v21 = add %v17, %v20 : I32
+    %v23 = call unsignedLongToFloat, 12 : F32
+    %v24 = cast %v23 : I32
+    %v25 = add %v21, %v24 : I32
+    %v27 = call unsignedLongToDouble, 13 : F64
+    %v28 = cast %v27 : I32
+    %v29 = add %v25, %v28 : I32
+    %v30 = call ascribed : I32
+    %v31 = add %v29, %v30 : I32
+    %v33 = call implicitArgument, 7 : I64
+    %v34 = cast %v33 : I32
+    %v35 = add %v31, %v34 : I32
+    %v37 = call implicitReturn, 8 : F64
+    %v38 = cast %v37 : I32
+    %v39 = add %v35, %v38 : I32
+    %v41 = call explicitNarrowing, 9.5 : I32
+    %v42 = add %v39, %v41 : I32
+    %v44 = call floatToUnsigned, 14.5 : U32
+    %v45 = cast %v44 : I32
+    %v46 = add %v42, %v45 : I32
+    %v48 = call doubleToUnsigned, 15.5 : U64
+    %v49 = cast %v48 : I32
+    %v50 = add %v46, %v49 : I32
+    %v51 = call unsignedBoundaries : I32
+    %v52 = add %v50, %v51 : I32
+    ret %v52
 }

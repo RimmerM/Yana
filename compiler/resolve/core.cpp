@@ -831,17 +831,14 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
      * later without the resolver learning anything new about conversion. The ladder is written out
      * rather than searched: one step, never a chain.
      *
-     * **The crossing set is `I32` and `I64` and no other width**, which is exactly the set that
-     * crossed before the merge - the `numeric[]` four were `Int`, `Long` and the two floats. Item 7
-     * closes its gap without touching this: the complaint was that `I32` could not reach a float
-     * where `Int` could, and `I32` *is* `Int` now, so the two spellings agree. Whether the eight
-     * remaining widths should cross as well is a separate question with a real answer either way -
-     * a `U8` into a `F32` is exact and a `U64` into one is not - and nothing in the tree asks for it
-     * yet, so the set stays as it was rather than growing by forty rungs on the way past.
+     * **The crossing set is the 32- and 64-bit integer widths** - `I32`/`U32` and `I64`/`U64` -
+     * and no narrower width. Item 7 closed the signed spelling gap by making `I32` the same type as
+     * `Int`; this keeps the unsigned spellings on the same width-based ladder rather than making
+     * signedness a second axis of float conversion. The loop below asks the shared conversion rule
+     * for every integer in `widthTypes`, so adding a width to that rule cannot leave this stage's
+     * generated instances behind.
      */
-    TypePtr crossing[] = { program.scalar.int_, program.scalar.long_ };
-
-    for(auto integer: crossing) {
+    for(auto integer: widthTypes) {
         for(auto real: floats) {
             defineRung(*module, integer, real);
             defineRung(*module, real, integer);
@@ -1048,4 +1045,3 @@ void definePreludeText(Program& program, Module& core) {
     program.appendAssign = context.addUnqualifiedName("++=", 3);
     program.negate = context.addUnqualifiedName("-", 1);
 }
-

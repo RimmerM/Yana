@@ -464,12 +464,12 @@ instance Random(Bool):
    decides it is that the shift is where the *unwanted* bits go, and a float wants the count of bits
    it can hold rather than a whole word.
 
-   `truncate` and then `widen`, which is two conversions to reach a float from a `U32`. The
-   conversion ladder relates the eight fixed widths to `Int` and `Long` and relates *those* to the
-   two floating types, so `U32` reaches a `Double` through one of them. `Int` is the one to go
-   through: every value here has already been shifted below 2^27, so the narrowing step cannot lose
-   anything - where `Long` would be exact as well and would be a `bigint` on JavaScript, which is
-   the cost this whole file is arranged to avoid.
+   `truncate` and then `widen`, which is the explicit range-preserving route this code uses from a
+   shifted `U32` to a float. Direct `U32`/`U64` float conversions are available too, but keeping the
+   intermediate `Int` here records that each shifted value is in the cheap signed range: every value
+   here has already been shifted below 2^27, so the narrowing step cannot lose anything - where
+   `Long` would be exact as well and would be a `bigint` on JavaScript, which is the cost this whole
+   file is arranged to avoid.
 
    `1.0` is not in the range and cannot be: the largest value is `1 - 2^-53`, because the assembled
    integer is at most `2^53 - 1`. That is what makes `low + u * (high - low)` safe to write below

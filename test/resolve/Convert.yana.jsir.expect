@@ -1,8 +1,277 @@
-fn main() -> one %r0
+fn unsignedToFloat(one %r0) -> one %r1
+  block0(%0: %r0):
+    %1: %r1 = convert %0
+    return %1
+
+fn unsignedToDouble(one %r0) -> one %r2
+  block0(%0: %r0):
+    %1: %r2 = convert %0
+    return %1
+
+fn unsignedLongToFloat(one %r3) -> one %r1
+  block0(%0: %r3):
+    %1: %r1 = convert %0
+    return %1
+
+fn unsignedLongToDouble(one %r3) -> one %r2
+  block0(%0: %r3):
+    %1: %r2 = convert %0
+    return %1
+
+fn floatToUnsigned(one %r1) -> one %r0
+  block0(%0: %r1):
+    %1: %r0 = convert %0
+    return %1
+
+fn doubleToUnsigned(one %r2) -> one %r3
+  block0(%0: %r2):
+    %1: %r3 = convert %0
+    return %1
+
+fn floatToUnsignedLong(one %r1) -> one %r3
+  block0(%0: %r1):
+    %1: %r3 = convert %0
+    return %1
+
+fn doubleToUnsignedInt(one %r2) -> one %r0
+  block0(%0: %r2):
+    %1: %r0 = convert %0
+    return %1
+
+fn notANumber() -> one %r2
   block0:
-    %0: %r0 = const 51
-    return %0
+    %0: %r2 = const 0
+    %1: %r2 = const 0
+    %2: %r2 = binary.div %0, %1
+    return %2
+
+fn main() -> one %r4
+  block0:
+    %1: %r4 = const 18
+    %2: %r0 = const 10
+    %3: %r1 = call unsignedToFloat %2
+    %4: %r4 = convert %3
+    %5: %r4 = binary.add %1, %4
+    %6: %r4 = coerce %5
+    %7: %r0 = const 11
+    %8: %r2 = call unsignedToDouble %7
+    %9: %r4 = convert %8
+    %10: %r4 = binary.add %6, %9
+    %11: %r4 = coerce %10
+    %12: %r3 = const 12n
+    %13: %r1 = call unsignedLongToFloat %12
+    %14: %r4 = convert %13
+    %15: %r4 = binary.add %11, %14
+    %16: %r4 = coerce %15
+    %17: %r3 = const 13n
+    %18: %r2 = call unsignedLongToDouble %17
+    %19: %r4 = convert %18
+    %20: %r4 = binary.add %16, %19
+    %21: %r4 = coerce %20
+    %22: %r4 = const 33
+    %23: %r4 = binary.add %21, %22
+    %24: %r4 = coerce %23
+    %25: %r1 = const 14.5
+    %26: %r0 = call floatToUnsigned %25
+    %27: %r4 = convert %26
+    %28: %r4 = binary.add %24, %27
+    %29: %r4 = coerce %28
+    %30: %r2 = const 15.5
+    %31: %r3 = call doubleToUnsigned %30
+    %32: %r4 = convert %31
+    %33: %r4 = binary.add %29, %32
+    %34: %r4 = coerce %33
+    %35: %r0 = const 4.294967295E9
+    %36: %r2 = call unsignedToDouble %35
+    %37: %r2 = const 4.294967295E9
+    %38: %r5 = binary.ne %36, %37
+    branch %38 -> block39 -> block2
+  block1(%0: %r4):
+    %139: %r4 = binary.add %34, %0
+    %140: %r4 = coerce %139
+    return %140
+  block2:
+    %39: %r0 = const 4.294967295E9
+    %40: %r1 = call unsignedToFloat %39
+    %41: %r1 = const 4.294967296E9
+    %42: %r5 = binary.ne %40, %41
+    branch %42 -> block38 -> block3
+  block3:
+    %43: %r3 = const 9223372036854775808n
+    %44: %r2 = call unsignedLongToDouble %43
+    %45: %r2 = const 9.223372036854776E18
+    %46: %r5 = binary.ne %44, %45
+    branch %46 -> block37 -> block4
+  block4:
+    %47: %r3 = const 9223372036854775808n
+    %48: %r1 = call unsignedLongToFloat %47
+    %49: %r1 = const 9.223372036854776E18
+    %50: %r5 = binary.ne %48, %49
+    branch %50 -> block36 -> block5
+  block5:
+    %51: %r1 = const 4.294967296E9
+    %52: %r0 = call floatToUnsigned %51
+    %53: %r0 = const 4.294967295E9
+    %54: %r5 = binary.ne %52, %53
+    branch %54 -> block35 -> block6
+  block6:
+    %55: %r2 = const 9.223372036854776E18
+    %56: %r3 = call doubleToUnsigned %55
+    %57: %r3 = const 9223372036854775808n
+    %58: %r5 = binary.ne %56, %57
+    branch %58 -> block34 -> block7
+  block7:
+    %59: %r1 = const -1
+    %60: %r0 = call floatToUnsigned %59
+    %61: %r0 = const 0
+    %62: %r5 = binary.ne %60, %61
+    branch %62 -> block33 -> block8
+  block8:
+    %63: %r2 = const -1
+    %64: %r3 = call doubleToUnsigned %63
+    %65: %r3 = const 0n
+    %66: %r5 = binary.ne %64, %65
+    branch %66 -> block32 -> block9
+  block9:
+    %67: %r1 = const 1.0000000150474662E30
+    %68: %r0 = call floatToUnsigned %67
+    %69: %r0 = const 4.294967295E9
+    %70: %r5 = binary.ne %68, %69
+    branch %70 -> block31 -> block10
+  block10:
+    %71: %r2 = const 1E30
+    %72: %r3 = call doubleToUnsigned %71
+    %73: %r3 = const 18446744073709551615n
+    %74: %r5 = binary.ne %72, %73
+    branch %74 -> block30 -> block11
+  block11:
+    %75: %r2 = call notANumber
+    %76: %r1 = convert %75
+    %77: %r0 = call floatToUnsigned %76
+    %78: %r0 = const 0
+    %79: %r5 = binary.ne %77, %78
+    branch %79 -> block29 -> block12
+  block12:
+    %80: %r2 = call notANumber
+    %81: %r3 = call doubleToUnsigned %80
+    %82: %r3 = const 0n
+    %83: %r5 = binary.ne %81, %82
+    branch %83 -> block28 -> block13
+  block13:
+    %84: %r1 = const 9.223372036854776E18
+    %85: %r3 = call floatToUnsignedLong %84
+    %86: %r3 = const 9223372036854775808n
+    %87: %r5 = binary.ne %85, %86
+    branch %87 -> block27 -> block14
+  block14:
+    %88: %r2 = const 4.294967295E9
+    %89: %r0 = call doubleToUnsignedInt %88
+    %90: %r0 = const 4.294967295E9
+    %91: %r5 = binary.ne %89, %90
+    branch %91 -> block26 -> block15
+  block15:
+    %92: %r1 = const -1
+    %93: %r3 = call floatToUnsignedLong %92
+    %94: %r3 = const 0n
+    %95: %r5 = binary.ne %93, %94
+    branch %95 -> block25 -> block16
+  block16:
+    %96: %r2 = const -1
+    %97: %r0 = call doubleToUnsignedInt %96
+    %98: %r0 = const 0
+    %99: %r5 = binary.ne %97, %98
+    branch %99 -> block24 -> block17
+  block17:
+    %100: %r1 = const 1.0000000150474662E30
+    %101: %r3 = call floatToUnsignedLong %100
+    %102: %r3 = const 18446744073709551615n
+    %103: %r5 = binary.ne %101, %102
+    branch %103 -> block23 -> block18
+  block18:
+    %104: %r2 = const 1E30
+    %105: %r0 = call doubleToUnsignedInt %104
+    %106: %r0 = const 4.294967295E9
+    %107: %r5 = binary.ne %105, %106
+    branch %107 -> block22 -> block19
+  block19:
+    %108: %r2 = call notANumber
+    %109: %r1 = convert %108
+    %110: %r3 = call floatToUnsignedLong %109
+    %111: %r3 = const 0n
+    %112: %r5 = binary.ne %110, %111
+    branch %112 -> block21 -> block20
+  block20:
+    %113: %r2 = call notANumber
+    %114: %r0 = call doubleToUnsignedInt %113
+    %115: %r0 = const 0
+    %116: %r5 = binary.ne %114, %115
+    %117: %r4 = const 20
+    %118: %r4 = const 0
+    %119: %r4 = select %116, %117, %118
+    jump -> block1(%119)
+  block21:
+    %120: %r4 = const 19
+    jump -> block1(%120)
+  block22:
+    %121: %r4 = const 18
+    jump -> block1(%121)
+  block23:
+    %122: %r4 = const 17
+    jump -> block1(%122)
+  block24:
+    %123: %r4 = const 16
+    jump -> block1(%123)
+  block25:
+    %124: %r4 = const 15
+    jump -> block1(%124)
+  block26:
+    %125: %r4 = const 14
+    jump -> block1(%125)
+  block27:
+    %126: %r4 = const 13
+    jump -> block1(%126)
+  block28:
+    %127: %r4 = const 12
+    jump -> block1(%127)
+  block29:
+    %128: %r4 = const 11
+    jump -> block1(%128)
+  block30:
+    %129: %r4 = const 10
+    jump -> block1(%129)
+  block31:
+    %130: %r4 = const 9
+    jump -> block1(%130)
+  block32:
+    %131: %r4 = const 8
+    jump -> block1(%131)
+  block33:
+    %132: %r4 = const 7
+    jump -> block1(%132)
+  block34:
+    %133: %r4 = const 6
+    jump -> block1(%133)
+  block35:
+    %134: %r4 = const 5
+    jump -> block1(%134)
+  block36:
+    %135: %r4 = const 4
+    jump -> block1(%135)
+  block37:
+    %136: %r4 = const 3
+    jump -> block1(%136)
+  block38:
+    %137: %r4 = const 2
+    jump -> block1(%137)
+  block39:
+    %138: %r4 = const 1
+    jump -> block1(%138)
 
 optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
 
-rep %r0 = number signed 32
+rep %r0 = number unsigned 32
+rep %r1 = number f32
+rep %r2 = number f64
+rep %r3 = bigint unsigned
+rep %r4 = number signed 32
+rep %r5 = number bool

@@ -1,7 +1,293 @@
 
+unsignedToFloat<complex>(%value: I32): F32 {
+  b_0 {
+    %v_1 = cast %value: F32
+    ret %v_1
+  }
+}
+
+unsignedToDouble<complex>(%value: I32): F64 {
+  b_0 {
+    %v_1 = cast %value: F64
+    ret %v_1
+  }
+}
+
+unsignedLongToFloat<complex>(%value: I64): F32 {
+  b_0 {
+    %v_1 = cast %value: F32
+    ret %v_1
+  }
+}
+
+unsignedLongToDouble<complex>(%value: I64): F64 {
+  b_0 {
+    %v_1 = cast %value: F64
+    ret %v_1
+  }
+}
+
+floatToUnsigned<complex>(%value: F32): I32 {
+  b_0 {
+    %v_1 = cast %value: I32
+    ret %v_1
+  }
+}
+
+doubleToUnsigned<complex>(%value: F64): I64 {
+  b_0 {
+    %v_1 = cast %value: I64
+    ret %v_1
+  }
+}
+
+floatToUnsignedLong<complex>(%value: F32): I64 {
+  b_0 {
+    %v_1 = cast %value: I64
+    ret %v_1
+  }
+}
+
+doubleToUnsignedInt<complex>(%value: F64): I32 {
+  b_0 {
+    %v_1 = cast %value: I32
+    ret %v_1
+  }
+}
+
+notANumber<complex>(): F64 {
+  b_0 {
+    %v_1 = div 0, 0: F64
+    ret %v_1
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
-    ret 51
+    %v_1 = call_complex unsignedToFloat, 10: F32
+    %v_2 = ftoi %v_1: I32
+    %v_3 = add 18, %v_2: I32
+    %v_4 = call_complex unsignedToDouble, 11: F64
+    %v_5 = ftoi %v_4: I32
+    %v_6 = add %v_3, %v_5: I32
+    %v_7 = call_complex unsignedLongToFloat, 12: F32
+    %v_8 = ftoi %v_7: I32
+    %v_9 = add %v_6, %v_8: I32
+    %v_10 = call_complex unsignedLongToDouble, 13: F64
+    %v_11 = ftoi %v_10: I32
+    %v_12 = add %v_9, %v_11: I32
+    %v_13 = add %v_12, 33: I32
+    %v_14 = call_complex floatToUnsigned, 14.5: I32
+    %v_15 = add %v_13, %v_14: I32
+    %v_16 = call_complex doubleToUnsigned, 15.5: I64
+    %v_17 = cast %v_16: I32
+    %v_18 = add %v_15, %v_17: I32
+    %v_19 = call_complex unsignedToDouble, 4294967295: F64
+    %v_20 = cmp_neq %v_19, 4.294967295E9: I32
+    je %v_20, b_21, b_22
+  }
+
+  b_23 {
+    %v_24 = phi [b_25, %v_26], [b_27, 19], [b_28, 18], [b_29, 17], [b_30, 16], [b_31, 15], [b_32, 14], [b_33, 13], [b_34, 12], [b_35, 11], [b_36, 10], [b_37, 9], [b_38, 8], [b_39, 7], [b_40, 6], [b_41, 5], [b_42, 4], [b_43, 3], [b_44, 2], [b_21, 1]: I32
+    %v_45 = add %v_18, %v_24: I32
+    ret %v_45
+  }
+
+  b_22 {
+    %v_46 = call_complex unsignedToFloat, 4294967295: F32
+    %v_47 = cmp_neq %v_46, 4.294967296E9: I32
+    je %v_47, b_44, b_48
+  }
+
+  b_48 {
+    %v_49 = call_complex unsignedLongToDouble, 9223372036854775808: F64
+    %v_50 = cmp_neq %v_49, 9.223372036854776E18: I32
+    je %v_50, b_43, b_51
+  }
+
+  b_51 {
+    %v_52 = call_complex unsignedLongToFloat, 9223372036854775808: F32
+    %v_53 = cmp_neq %v_52, 9.223372036854776E18: I32
+    je %v_53, b_42, b_54
+  }
+
+  b_54 {
+    %v_55 = call_complex floatToUnsigned, 4.294967295E9: I32
+    %v_56 = cmp_neq %v_55, 4294967295: I32
+    je %v_56, b_41, b_57
+  }
+
+  b_57 {
+    %v_58 = call_complex doubleToUnsigned, 9.223372036854776E18: I64
+    %v_59 = cmp_neq %v_58, 9223372036854775808: I32
+    je %v_59, b_40, b_60
+  }
+
+  b_60 {
+    %v_61 = call_complex floatToUnsigned, -1: I32
+    %v_62 = cmp_neq %v_61, 0: I32
+    je %v_62, b_39, b_63
+  }
+
+  b_63 {
+    %v_64 = call_complex doubleToUnsigned, -1: I64
+    %v_65 = cmp_neq %v_64, 0: I32
+    je %v_65, b_38, b_66
+  }
+
+  b_66 {
+    %v_67 = call_complex floatToUnsigned, 1E30: I32
+    %v_68 = cmp_neq %v_67, 4294967295: I32
+    je %v_68, b_37, b_69
+  }
+
+  b_69 {
+    %v_70 = call_complex doubleToUnsigned, 1E30: I64
+    %v_71 = cmp_neq %v_70, 18446744073709551615: I32
+    je %v_71, b_36, b_72
+  }
+
+  b_72 {
+    %v_73 = call_complex notANumber: F64
+    %v_74 = cast %v_73: F32
+    %v_75 = call_complex floatToUnsigned, %v_74: I32
+    %v_76 = cmp_neq %v_75, 0: I32
+    je %v_76, b_35, b_77
+  }
+
+  b_77 {
+    %v_78 = call_complex notANumber: F64
+    %v_79 = call_complex doubleToUnsigned, %v_78: I64
+    %v_80 = cmp_neq %v_79, 0: I32
+    je %v_80, b_34, b_81
+  }
+
+  b_81 {
+    %v_82 = call_complex floatToUnsignedLong, 9.223372036854776E18: I64
+    %v_83 = cmp_neq %v_82, 9223372036854775808: I32
+    je %v_83, b_33, b_84
+  }
+
+  b_84 {
+    %v_85 = call_complex doubleToUnsignedInt, 4.294967295E9: I32
+    %v_86 = cmp_neq %v_85, 4294967295: I32
+    je %v_86, b_32, b_87
+  }
+
+  b_87 {
+    %v_88 = call_complex floatToUnsignedLong, -1: I64
+    %v_89 = cmp_neq %v_88, 0: I32
+    je %v_89, b_31, b_90
+  }
+
+  b_90 {
+    %v_91 = call_complex doubleToUnsignedInt, -1: I32
+    %v_92 = cmp_neq %v_91, 0: I32
+    je %v_92, b_30, b_93
+  }
+
+  b_93 {
+    %v_94 = call_complex floatToUnsignedLong, 1E30: I64
+    %v_95 = cmp_neq %v_94, 18446744073709551615: I32
+    je %v_95, b_29, b_96
+  }
+
+  b_96 {
+    %v_97 = call_complex doubleToUnsignedInt, 1E30: I32
+    %v_98 = cmp_neq %v_97, 4294967295: I32
+    je %v_98, b_28, b_99
+  }
+
+  b_99 {
+    %v_100 = call_complex notANumber: F64
+    %v_101 = cast %v_100: F32
+    %v_102 = call_complex floatToUnsignedLong, %v_101: I64
+    %v_103 = cmp_neq %v_102, 0: I32
+    je %v_103, b_27, b_25
+  }
+
+  b_25 {
+    %v_104 = call_complex notANumber: F64
+    %v_105 = call_complex doubleToUnsignedInt, %v_104: I32
+    %v_106 = cmp_neq %v_105, 0: I32
+    %v_26 = select %v_106, 20, 0: I32
+    jmp b_23
+  }
+
+  b_27 {
+    jmp b_23
+  }
+
+  b_28 {
+    jmp b_23
+  }
+
+  b_29 {
+    jmp b_23
+  }
+
+  b_30 {
+    jmp b_23
+  }
+
+  b_31 {
+    jmp b_23
+  }
+
+  b_32 {
+    jmp b_23
+  }
+
+  b_33 {
+    jmp b_23
+  }
+
+  b_34 {
+    jmp b_23
+  }
+
+  b_35 {
+    jmp b_23
+  }
+
+  b_36 {
+    jmp b_23
+  }
+
+  b_37 {
+    jmp b_23
+  }
+
+  b_38 {
+    jmp b_23
+  }
+
+  b_39 {
+    jmp b_23
+  }
+
+  b_40 {
+    jmp b_23
+  }
+
+  b_41 {
+    jmp b_23
+  }
+
+  b_42 {
+    jmp b_23
+  }
+
+  b_43 {
+    jmp b_23
+  }
+
+  b_44 {
+    jmp b_23
+  }
+
+  b_21 {
+    jmp b_23
   }
 }
 

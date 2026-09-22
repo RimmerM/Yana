@@ -28,6 +28,358 @@ bb0:
   return take %1
 }
 
+fn unsignedToFloat(value: U32 [shared call]) -> F32 {
+bb0:
+  %0: U32 = read copy.trivial (value)
+  %1: F32 = convert inspect %0
+  return take %1
+}
+
+fn unsignedToDouble(value: U32 [shared call]) -> F64 {
+bb0:
+  %0: U32 = read copy.trivial (value)
+  %1: F64 = convert inspect %0
+  return take %1
+}
+
+fn unsignedLongToFloat(value: U64 [shared call]) -> F32 {
+bb0:
+  %0: U64 = read copy.trivial (value)
+  %1: F32 = convert inspect %0
+  return take %1
+}
+
+fn unsignedLongToDouble(value: U64 [shared call]) -> F64 {
+bb0:
+  %0: U64 = read copy.trivial (value)
+  %1: F64 = convert inspect %0
+  return take %1
+}
+
+fn floatToUnsigned(value: F32 [shared call]) -> U32 {
+bb0:
+  %0: F32 = read copy.trivial (value)
+  %1: U32 = convert inspect %0
+  return take %1
+}
+
+fn doubleToUnsigned(value: F64 [shared call]) -> U64 {
+bb0:
+  %0: F64 = read copy.trivial (value)
+  %1: U64 = convert inspect %0
+  return take %1
+}
+
+fn floatToUnsignedLong(value: F32 [shared call]) -> U64 {
+bb0:
+  %0: F32 = read copy.trivial (value)
+  %1: U64 = convert inspect %0
+  return take %1
+}
+
+fn doubleToUnsignedInt(value: F64 [shared call]) -> U32 {
+bb0:
+  %0: F64 = read copy.trivial (value)
+  %1: U32 = convert inspect %0
+  return take %1
+}
+
+fn notANumber() -> F64 {
+bb0:
+  %0: F64 = const 0
+  %1: F64 = const 0
+  %2: F64 = div inspect %0 inspect %1
+  return take %2
+}
+
+fn unsignedBoundaries() -> I32 {
+bb0:
+  %0: U32 = const 4294967295
+  %1: F64 = call unsignedToDouble borrow.shared %0
+  %2: F64 = const 4.294967295E9
+  %3: Bool = ne inspect %1 inspect %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: U32 = const 4294967295
+  %9: F32 = call unsignedToFloat borrow.shared %8
+  %10: F32 = const 4.294967296E9
+  %11: Bool = ne inspect %9 inspect %10
+  branch inspect %11 -> bb6 -> bb4
+
+bb3:
+  %5: I32 = const 1
+  return take %5
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %16: U64 = const 9223372036854775808
+  %17: F64 = call unsignedLongToDouble borrow.shared %16
+  %18: F64 = const 9.223372036854776E18
+  %19: Bool = ne inspect %17 inspect %18
+  branch inspect %19 -> bb9 -> bb7
+
+bb6:
+  %13: I32 = const 2
+  return take %13
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %24: U64 = const 9223372036854775808
+  %25: F32 = call unsignedLongToFloat borrow.shared %24
+  %26: F32 = const 9.223372036854776E18
+  %27: Bool = ne inspect %25 inspect %26
+  branch inspect %27 -> bb12 -> bb10
+
+bb9:
+  %21: I32 = const 3
+  return take %21
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %32: F32 = const 4.294967295E9
+  %33: U32 = call floatToUnsigned borrow.shared %32
+  %34: U32 = const 4294967295
+  %35: Bool = ne inspect %33 inspect %34
+  branch inspect %35 -> bb15 -> bb13
+
+bb12:
+  %29: I32 = const 4
+  return take %29
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %40: F64 = const 9.223372036854776E18
+  %41: U64 = call doubleToUnsigned borrow.shared %40
+  %42: U64 = const 9223372036854775808
+  %43: Bool = ne inspect %41 inspect %42
+  branch inspect %43 -> bb18 -> bb16
+
+bb15:
+  %37: I32 = const 5
+  return take %37
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %48: F32 = const -1
+  %49: U32 = call floatToUnsigned borrow.shared %48
+  %50: U32 = const 0
+  %51: Bool = ne inspect %49 inspect %50
+  branch inspect %51 -> bb21 -> bb19
+
+bb18:
+  %45: I32 = const 6
+  return take %45
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %56: F64 = const -1
+  %57: U64 = call doubleToUnsigned borrow.shared %56
+  %58: U64 = const 0
+  %59: Bool = ne inspect %57 inspect %58
+  branch inspect %59 -> bb24 -> bb22
+
+bb21:
+  %53: I32 = const 7
+  return take %53
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %64: F32 = const 1E30
+  %65: U32 = call floatToUnsigned borrow.shared %64
+  %66: U32 = const 4294967295
+  %67: Bool = ne inspect %65 inspect %66
+  branch inspect %67 -> bb27 -> bb25
+
+bb24:
+  %61: I32 = const 8
+  return take %61
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %72: F64 = const 1E30
+  %73: U64 = call doubleToUnsigned borrow.shared %72
+  %74: U64 = const 18446744073709551615
+  %75: Bool = ne inspect %73 inspect %74
+  branch inspect %75 -> bb30 -> bb28
+
+bb27:
+  %69: I32 = const 9
+  return take %69
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %80: F64 = call notANumber
+  %81: F32 = convert inspect %80
+  %82: U32 = call floatToUnsigned borrow.shared %81
+  %83: U32 = const 0
+  %84: Bool = ne inspect %82 inspect %83
+  branch inspect %84 -> bb33 -> bb31
+
+bb30:
+  %77: I32 = const 10
+  return take %77
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %89: F64 = call notANumber
+  %90: U64 = call doubleToUnsigned borrow.shared %89
+  %91: U64 = const 0
+  %92: Bool = ne inspect %90 inspect %91
+  branch inspect %92 -> bb36 -> bb34
+
+bb33:
+  %86: I32 = const 11
+  return take %86
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %97: F32 = const 9.223372036854776E18
+  %98: U64 = call floatToUnsignedLong borrow.shared %97
+  %99: U64 = const 9223372036854775808
+  %100: Bool = ne inspect %98 inspect %99
+  branch inspect %100 -> bb39 -> bb37
+
+bb36:
+  %94: I32 = const 12
+  return take %94
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %105: F64 = const 4.294967295E9
+  %106: U32 = call doubleToUnsignedInt borrow.shared %105
+  %107: U32 = const 4294967295
+  %108: Bool = ne inspect %106 inspect %107
+  branch inspect %108 -> bb42 -> bb40
+
+bb39:
+  %102: I32 = const 13
+  return take %102
+
+bb40:
+  jump -> bb41
+
+bb41:
+  %113: F32 = const -1
+  %114: U64 = call floatToUnsignedLong borrow.shared %113
+  %115: U64 = const 0
+  %116: Bool = ne inspect %114 inspect %115
+  branch inspect %116 -> bb45 -> bb43
+
+bb42:
+  %110: I32 = const 14
+  return take %110
+
+bb43:
+  jump -> bb44
+
+bb44:
+  %121: F64 = const -1
+  %122: U32 = call doubleToUnsignedInt borrow.shared %121
+  %123: U32 = const 0
+  %124: Bool = ne inspect %122 inspect %123
+  branch inspect %124 -> bb48 -> bb46
+
+bb45:
+  %118: I32 = const 15
+  return take %118
+
+bb46:
+  jump -> bb47
+
+bb47:
+  %129: F32 = const 1E30
+  %130: U64 = call floatToUnsignedLong borrow.shared %129
+  %131: U64 = const 18446744073709551615
+  %132: Bool = ne inspect %130 inspect %131
+  branch inspect %132 -> bb51 -> bb49
+
+bb48:
+  %126: I32 = const 16
+  return take %126
+
+bb49:
+  jump -> bb50
+
+bb50:
+  %137: F64 = const 1E30
+  %138: U32 = call doubleToUnsignedInt borrow.shared %137
+  %139: U32 = const 4294967295
+  %140: Bool = ne inspect %138 inspect %139
+  branch inspect %140 -> bb54 -> bb52
+
+bb51:
+  %134: I32 = const 17
+  return take %134
+
+bb52:
+  jump -> bb53
+
+bb53:
+  %145: F64 = call notANumber
+  %146: F32 = convert inspect %145
+  %147: U64 = call floatToUnsignedLong borrow.shared %146
+  %148: U64 = const 0
+  %149: Bool = ne inspect %147 inspect %148
+  branch inspect %149 -> bb57 -> bb55
+
+bb54:
+  %142: I32 = const 18
+  return take %142
+
+bb55:
+  jump -> bb56
+
+bb56:
+  %154: F64 = call notANumber
+  %155: U32 = call doubleToUnsignedInt borrow.shared %154
+  %156: U32 = const 0
+  %157: Bool = ne inspect %155 inspect %156
+  branch inspect %157 -> bb60 -> bb58
+
+bb57:
+  %151: I32 = const 19
+  return take %151
+
+bb58:
+  jump -> bb59
+
+bb59:
+  %162: I32 = const 0
+  return take %162
+
+bb60:
+  %159: I32 = const 20
+  return take %159
+}
+
 fn ascribed() -> I32 {
 bb0:
   %0: F64 = const 9.75
@@ -79,20 +431,46 @@ bb0:
   %11: F64 = call toDouble borrow.shared %10
   %12: I32 = convert inspect %11
   %13: I32 = add inspect %9 inspect %12
-  %14: I32 = call ascribed
-  %15: I32 = add inspect %13 inspect %14
-  %16: I32 = const 7
-  %17: I64 = call implicitArgument borrow.shared %16
-  %18: I32 = convert inspect %17
-  %19: I32 = add inspect %15 inspect %18
-  %20: I32 = const 8
-  %21: F64 = call implicitReturn borrow.shared %20
-  %22: I32 = convert inspect %21
-  %23: I32 = add inspect %19 inspect %22
-  %24: F64 = const 9.5
-  %25: I32 = call explicitNarrowing borrow.shared %24
-  %26: I32 = add inspect %23 inspect %25
-  return take %26
+  %14: U32 = const 10
+  %15: F32 = call unsignedToFloat borrow.shared %14
+  %16: I32 = convert inspect %15
+  %17: I32 = add inspect %13 inspect %16
+  %18: U32 = const 11
+  %19: F64 = call unsignedToDouble borrow.shared %18
+  %20: I32 = convert inspect %19
+  %21: I32 = add inspect %17 inspect %20
+  %22: U64 = const 12
+  %23: F32 = call unsignedLongToFloat borrow.shared %22
+  %24: I32 = convert inspect %23
+  %25: I32 = add inspect %21 inspect %24
+  %26: U64 = const 13
+  %27: F64 = call unsignedLongToDouble borrow.shared %26
+  %28: I32 = convert inspect %27
+  %29: I32 = add inspect %25 inspect %28
+  %30: I32 = call ascribed
+  %31: I32 = add inspect %29 inspect %30
+  %32: I32 = const 7
+  %33: I64 = call implicitArgument borrow.shared %32
+  %34: I32 = convert inspect %33
+  %35: I32 = add inspect %31 inspect %34
+  %36: I32 = const 8
+  %37: F64 = call implicitReturn borrow.shared %36
+  %38: I32 = convert inspect %37
+  %39: I32 = add inspect %35 inspect %38
+  %40: F64 = const 9.5
+  %41: I32 = call explicitNarrowing borrow.shared %40
+  %42: I32 = add inspect %39 inspect %41
+  %43: F32 = const 14.5
+  %44: U32 = call floatToUnsigned borrow.shared %43
+  %45: I32 = convert inspect %44
+  %46: I32 = add inspect %42 inspect %45
+  %47: F64 = const 15.5
+  %48: U64 = call doubleToUnsigned borrow.shared %47
+  %49: I32 = convert inspect %48
+  %50: I32 = add inspect %46 inspect %49
+  %51: I32 = call unsignedBoundaries
+  %52: I32 = add inspect %50 inspect %51
+  return take %52
 }
 
 entry main

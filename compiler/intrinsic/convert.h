@@ -100,16 +100,15 @@ inline bool integerRangeFits(Numeric from, Numeric to) {
  * Neither `::` nor an implicit position ever selects one, because both answer `sameType` and return
  * before an instance is looked for.
  *
- * ## The crossing set is `I32` and `I64`
+ * ## The crossing set is the 32- and 64-bit integer widths
  *
- * An integer reaches a float only from those two, and a float reaches an integer only into them.
- * The set is stated rather than derived, and it is worth saying why it is not simply "every integer
- * whose magnitude fits the float's mantissa": `I32` into `F32` is in this set and is *not* exact
- * past 2^24, so the derived rule would refuse a conversion the language has admitted since before
- * the eight fixed widths existed. Whether the remaining widths should cross as well is a real
- * question with an answer either way - a `U8` into an `F32` is exact and a `U64` into one is not -
- * and nothing in the tree asks for it, so the set stays what it was rather than growing by forty
- * rungs on the way past.
+ * An integer reaches a float only at `I32`/`U32` and `I64`/`U64`, and a float reaches an integer
+ * only into those widths. The set is stated rather than derived, and it is worth saying why it is
+ * not simply "every integer whose magnitude fits the float's mantissa": `I32` into `F32` is in this
+ * set and is *not* exact past 2^24, so the derived rule would refuse a conversion the language has
+ * admitted since before the eight fixed widths existed. The unsigned counterparts use the same
+ * width-based rule, which makes `U32` to `Double` direct and keeps signedness from creating a second
+ * conversion ladder. The narrower widths still have no direct float rung and widen to `I32` first.
  */
 enum class Rung: U8 {
     None,
@@ -117,10 +116,10 @@ enum class Rung: U8 {
     Narrow,
 };
 
-// The integers a float rung is written at - see the note above, which is where the set is argued.
+// The integer widths a float rung is written at - see the note above, which is where the set is argued.
 inline bool crossesToFloat(Numeric integer) {
     return integer.kind == PrimitiveKind::Int && integer.target == TargetWidth::Fixed &&
-           integer.isSigned && (integer.bits == 32 || integer.bits == 64);
+           (integer.bits == 32 || integer.bits == 64);
 }
 
 // Whether two rows describe one type - the four columns, since that is the whole of what a
