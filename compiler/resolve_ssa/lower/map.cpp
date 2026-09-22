@@ -77,31 +77,8 @@ struct MapPlan {
     I64 span() const { return highest - lowest + 1; }
 };
 
-/*
- * Constant equality, structurally and bit-exactly.
- *
- * `mir::Constant`'s own `==` is three words, and three words is the whole of a scalar - so this adds
- * exactly the case it cannot answer: an aggregate, whose handle differs per construction even where
- * the values agree. Bits rather than numbers is a requirement rather than a convenience, and the
- * reason is `resolve/expr_map.cpp`'s: `-0.0` and `0.0` are the same number and different values, and
- * collapsing them is how a table becomes a range test answering the wrong one of two constants.
- */
-bool sameConstant(DeclBase decl, const mir::Constant& a, const mir::Constant& b) {
-    if(a == b) return true;
-    if(a.kind != b.kind || !mir::sameType(a.type, b.type)) return false;
-    if(a.kind != mir::Constant::Aggregate) return false;
-
-    auto& lhs = *decl[a.aggregate()];
-    auto& rhs = *decl[b.aggregate()];
-    if(lhs.constructor != rhs.constructor) return false;
-    if(lhs.values.size() != rhs.values.size()) return false;
-
-    for(Size i = 0; i < lhs.values.size(); i++) {
-        if(!sameConstant(decl, lhs.values.get(decl, i), rhs.values.get(decl, i))) return false;
-    }
-
-    return true;
-}
+// `sameConstant` - structural, bit-exact constant equality - is `resolve_ssa/build.h`'s since J88,
+// where the JavaScript target's `match` over records asks it too.
 
 /*
  * A scalar constant as the number it is, sign-extended from its own width.

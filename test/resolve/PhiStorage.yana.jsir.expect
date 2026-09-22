@@ -53,16 +53,14 @@ fn main() -> one %r2
   block0:
     %1: %r0 = const 1
     %2: %r1 = alias %1
-    store var $0: %r1, %2
-    %3: %r1 = load var $0: %r1
+    %3: %r1 = alias %2
     %4: %r1 = alias %3
     %5: %r2 = call tagOf %4
     %6: %r2 = const 100
     %7: %r2 = binary.mul %5, %6
     %8: %r2 = coerce %7
     %9: %r1 = const null
-    store var $1: %r1, %9
-    %10: %r1 = load var $1: %r1
+    %10: %r1 = alias %9
     %11: %r1 = alias %10
     %12: %r2 = call tagOf %11
     %13: %r2 = const 10
@@ -93,7 +91,7 @@ fn main() -> one %r2
     %32: %r2 = coerce %31
     return %32
 
-optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 2
 
 rep %r0 = number unsigned 8
 rep %r1 = nullable of %r0

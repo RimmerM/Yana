@@ -3,19 +3,13 @@ fn inherited(one %r0, one %r0) -> one %r0
   var $1: %r9
   block0(%0: %r0, %1: %r0):
     %3: %r0 = alias %0
-    %4: %r4 = object %s3 %1
-    store var $0: %r4, %4
-    %5: %r4 = load var $0: %r4
-    %6: %r8 = fun.code inherited.thunk
-    %7: %r9 = object %s7 %6, %5
-    store var $1: %r9, %7
     %8: %r0 = const 0
     %9: %r10 = binary.eq %3, %8
     branch %9 -> block3 -> block2
   block1(%2: %r0):
     return %2
   block2:
-    %10: %r0 = load property %5.mark: %r0
+    %10: %r0 = alias %1
     %11: %r0 = load global effects: %r0
     %12: %r0 = binary.add %11, %10
     %13: %r0 = coerce %12
@@ -35,16 +29,12 @@ fn main() -> one %r0
   var $6: %r9
   var $7: %r5
   var $8: %r9
+  var $9: %r8
+  var $10: %r8
   block0:
     %4: %r0 = const 0
     %5: %r0 = const 1
-    %8: %r1 = object %s0 %5
-    store var $1: %r1, %8
-    %9: %r1 = load var $1: %r1
-    %10: %r8 = fun.code taken.thunk
-    %11: %r9 = object %s7 %10, %9
-    store var $2: %r9, %11
-    %12: %r0 = load property %9.mark: %r0
+    %12: %r0 = alias %5
     %13: %r0 = load global effects: %r0
     %14: %r0 = binary.add %13, %12
     %15: %r0 = coerce %14
@@ -53,20 +43,6 @@ fn main() -> one %r0
     %17: %r10 = binary.eq %12, %16
     %18: %r0 = const 1
     %19: %r0 = select %17, %18, %4
-    %20: %r0 = const 2
-    %23: %r2 = object %s1 %20
-    store var $3: %r2, %23
-    %24: %r2 = load var $3: %r2
-    %25: %r8 = fun.code skipped.thunk
-    %26: %r9 = object %s7 %25, %24
-    store var $4: %r9, %26
-    %27: %r0 = const 4
-    %30: %r3 = object %s2 %27
-    store var $5: %r3, %30
-    %31: %r3 = load var $5: %r3
-    %32: %r8 = fun.code shut.thunk
-    %33: %r9 = object %s7 %32, %31
-    store var $6: %r9, %33
     %34: %r0 = const 6
     %35: %r0 = binary.add %19, %34
     %36: %r0 = coerce %35
@@ -102,17 +78,6 @@ fn main() -> one %r0
     %69: %r0 = binary.add %54, %68
     %70: %r0 = coerce %69
     %71: %r0 = select %67, %70, %54
-    %74: %r8 = fun.code main.thunk'2
-    %75: %r8 = const null
-    %76: %r9 = object %s7 %74, %75
-    store var $0: %r9, %76
-    %77: %r0 = const 128
-    %80: %r5 = object %s4 %77
-    store var $7: %r5, %80
-    %81: %r5 = load var $7: %r5
-    %82: %r8 = fun.code replaced.thunk
-    %83: %r9 = object %s7 %82, %81
-    store var $8: %r9, %83
     %84: %r0 = const 192
     %85: %r0 = binary.add %71, %84
     %86: %r0 = coerce %85
@@ -128,10 +93,8 @@ fn main() -> one %r0
     %62: %r0 = const 0
     jump -> block1(%62)
   block3:
-    %59: %r9 = object %s7 %57, %58
-    %3: %r9 = alias %59
-    %63: %r8 = load property %3.$c: %r8
-    %64: %r8 = load property %3.$e: %r8
+    %63: %r8 = alias %57
+    %64: %r8 = alias %58
     %65: %r0 = call.value %63, %64
     jump -> block1(%65)
 
@@ -198,7 +161,7 @@ fn main.thunk'2(one %r7) -> one %r0 env
     store global effects: %r0, %4
     return %1
 
-optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 1 sunk 1
+optimizer clones 0 aliased 0 forwarded 4 removed 52 adopted 1 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 5
 
 shape %s0 object taken.thunk.env {mark: %r0}
 shape %s1 object skipped.thunk.env {mark: %r0}

@@ -5,7 +5,7 @@ fn boxedValue(one %r8) -> one %r0
     %4: %r9 = binary.eq %2, %3
     branch %4 -> block4 -> block1
   block1:
-    %5: %r2 = load property %0.$tag: %r2
+    %5: %r2 = alias %2
     %6: %r2 = const 1
     %7: %r9 = binary.eq %5, %6
     branch %7 -> block5 -> block2
@@ -31,19 +31,17 @@ fn boxedValue(one %r8) -> one %r0
 
 fn main() -> one %r0
   var $0: %r10
+  var $1: %r1
+  var $2: %r5
+  var $3: %r4
+  var $4: %r3
+  var $5: %r0
+  var $6: %r0
+  var $7: %r2
+  var $8: %r0
+  var $9: %r0
+  var $10: %r0
   block0:
-    %5: %r0 = const 0
-    %6: %r0 = const 0
-    %7: %r1 = object %s0 %5, %6
-    %8: %r5 = const ""
-    %9: %r2 = const 0
-    %10: %r0 = const 0
-    %11: %r0 = const 0
-    %12: %r0 = const 0
-    %13: %r4 = object %s1 %9, %10, %11, %12
-    %14: %r3 = const null
-    %15: %r10 = object %s4 %7, %8, %13, %14
-    store var $0: %r10, %15
     %16: %r0 = const 3
     %17: %r1 = load global cursor: %r1
     %18: %r0 = load property %17.x: %r0
@@ -53,7 +51,7 @@ fn main() -> one %r0
     %22: %r1 = load global cursor: %r1
     store property %22.x: %r0, %21
     %23: %r1 = load global cursor: %r1
-    %24: %r1 = clone %23
+    %24: %r1 = alias %23
     %25: %r0 = load property %24.x: %r0
     %26: %r0 = load property %24.y: %r0
     %27: %r0 = binary.add %25, %26
@@ -192,26 +190,17 @@ fn main() -> one %r0
     %142: %r0 = select %138, %141, %128
     %143: %r0 = const 2
     %144: %r0 = const 3
-    %145: %r1 = object %s0 %143, %144
     %146: %r5 = const "ok"
     %147: %r2 = const 1
     %148: %r0 = const 0
     %149: %r0 = const 2
     %150: %r0 = const 5
-    %151: %r4 = object %s1 %147, %148, %149, %150
     %152: %r0 = const 4
-    %153: %r3 = alias %152
-    %154: %r10 = object %s4 %145, %146, %151, %153
-    store var $0: %r10, %154
-    %155: %r10 = load var $0: %r10
-    %156: %r1 = load property %155.home: %r1
-    %157: %r1 = clone %156
-    %158: %r0 = load property %157.x: %r0
-    %159: %r0 = load property %157.y: %r0
+    %158: %r0 = alias %143
+    %159: %r0 = alias %144
     %160: %r0 = binary.add %158, %159
     %161: %r0 = coerce %160
-    %162: %r10 = load var $0: %r10
-    %163: %r5 = load property %162.label: %r5
+    %163: %r5 = alias %146
     %164: %r5 = alias %163
     %165: %r5 = alias %164
     %166: %r5 = alias %165
@@ -219,27 +208,24 @@ fn main() -> one %r0
     %168: %r0 = convert %167
     %169: %r0 = binary.add %161, %168
     %170: %r0 = coerce %169
-    %171: %r10 = load var $0: %r10
-    %172: %r4 = load property %171.mode: %r4
-    %173: %r4 = clone %172
-    %174: %r2 = load property %173.$tag: %r2
+    %174: %r2 = alias %147
     %175: %r2 = const 0
     %176: %r9 = binary.eq %174, %175
     branch %176 -> block11 -> block10
   block10:
-    %177: %r0 = load property %173.w: %r0
-    %178: %r0 = load property %173.h: %r0
+    %177: %r0 = alias %149
+    %178: %r0 = alias %150
     %179: %r0 = binary.mul %177, %178
     %180: %r0 = coerce %179
     jump -> block12(%180)
   block11:
-    %181: %r0 = load property %173.Circle: %r0
+    %181: %r0 = alias %148
     jump -> block12(%181)
   block12(%3: %r0):
     %182: %r0 = binary.add %170, %3
     %183: %r0 = coerce %182
-    %184: %r10 = load var $0: %r10
-    %185: %r3 = load property %184.limit: %r3
+    %153: %r3 = alias %152
+    %185: %r3 = alias %153
     %186: %r3 = alias %185
     %187: %r0 = const 0
     %188: %r3 = const null
@@ -281,7 +267,7 @@ fn main() -> one %r0
     %219: %r0 = select %215, %218, %203
     return %219
 
-optimizer clones 7 aliased 0 forwarded 2 removed 1 adopted 0 sunk 0
+optimizer clones 7 aliased 3 forwarded 2 removed 35 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 3 promoted 8
 
 shape %s0 object Point {x: %r0, y: %r0}
 shape %s1 object Shape {$tag: %r2 tag, Circle: %r0, w: %r0, h: %r0}

@@ -2650,6 +2650,15 @@ struct Program {
         return found.isJust() && found.unwrap();
     }
 
+    // Every environment this program interned, in no particular order. A target that has to know
+    // what the erased calls hand over before it lays anything out reads it here - the JavaScript
+    // target's `JsTarget::witnessedFields`. Read-only, because interning is `internEnvironment`'s.
+    template<class F> void forEachEnvironment(F&& visit) {
+        for(auto environment: environments) {
+            if(environment) visit(environment);
+        }
+    }
+
 private:
     static U64 nameKey(DeclPtr<Module> module, StringId name);
 

@@ -1,0 +1,274 @@
+module ResolveTest
+
+data Rec {a: I32, b: I32}
+
+data Outer {inner: Rec, tag: I32}
+
+fn poke(r: Rec [unique call]) -> {} {
+bb0:
+  %0: I32 = const 99
+  write.assign borrow.unique (r.a) take %0
+  return
+}
+
+fn t1(start: I32 [shared call]) -> I32 {
+  local & p: Rec
+  local q: Rec
+
+bb0:
+  %0: I32 = read copy.trivial (start)
+  %1: I32 = const 2
+  %2: Rec = aggregate.Rec take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: Rec = read copy.trivial (p)
+  write.init borrow.unique (q) take %4
+  %6: Rec [unique call] = read borrow.unique (p) loan0
+  %7: {} = call poke borrow.unique %6
+  %8: I32 = read copy.trivial (q.a)
+  return take %8
+}
+
+fn t2(p: Rec [unique call]) -> I32 {
+  local q: Rec
+
+bb0:
+  %0: Rec = read copy.trivial (p)
+  write.init borrow.unique (q) take %0
+  %2: I32 = const 7
+  write.assign borrow.unique (p.a) take %2
+  %4: I32 = read copy.trivial (q.a)
+  %5: I32 = read copy.trivial (q.b)
+  %6: I32 = add inspect %4 inspect %5
+  return take %6
+}
+
+fn t3() -> I32 {
+  local & total: I32
+  local & keep: Rec
+  local & local2: I32
+  local i: I32
+  local & r: Rec
+  local & c: Rec
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 = const 0
+  %3: I32 = const 0
+  %4: Rec = aggregate.Rec take %2 take %3
+  write.init borrow.unique (keep) take %4
+  %6: I32 = const 0
+  %7: I32 = const 4
+  %8: I32 = const 1
+  write.init borrow.unique (local2) take %6
+  jump -> bb1(take %7, take %8)
+
+bb1(%9: I32, %10: I32):
+  %17: I32 = read copy.trivial (local2)
+  %18: Bool = lt inspect %17 inspect %9
+  branch inspect %18 -> bb4(take %9, take %10) -> bb3(take %9, take %10)
+
+bb2(%11: I32, %12: I32):
+  %47: I32 = read copy.trivial (local2)
+  %48: I32 = add inspect %47 inspect %12
+  write.assign borrow.unique (local2) take %48
+  jump -> bb1(take %11, take %12)
+
+bb3(%13: I32, %14: I32):
+  %51: I32 = read copy.trivial (total)
+  %52: I32 = const 1000
+  %53: I32 = mul inspect %51 inspect %52
+  %54: I32 = read copy.trivial (keep.a)
+  %55: I32 = add inspect %53 inspect %54
+  return take %55
+
+bb4(%19: I32, %20: I32):
+  %22: I32 = read copy.trivial (local2)
+  write.init borrow.unique (i) take %22
+  %24: I32 = read copy.trivial (i)
+  %25: I32 = read copy.trivial (i)
+  %26: I32 = const 2
+  %27: I32 = mul inspect %25 inspect %26
+  %28: Rec = aggregate.Rec take %24 take %27
+  write.init borrow.unique (r) take %28
+  %30: I32 = read copy.trivial (r.b)
+  %31: I32 = const 1
+  %32: I32 = add inspect %30 inspect %31
+  write.assign borrow.unique (r.b) take %32
+  %34: Rec = read copy.trivial (r)
+  write.init borrow.unique (c) take %34
+  %36: I32 = read copy.trivial (c.a)
+  %37: I32 = const 100
+  %38: I32 = add inspect %36 inspect %37
+  write.assign borrow.unique (c.a) take %38
+  %40: Rec = read copy.trivial (c)
+  write.assign borrow.unique (keep) take %40
+  %42: I32 = read copy.trivial (total)
+  %43: I32 = read copy.trivial (r.a)
+  %44: I32 = add inspect %42 inspect %43
+  write.assign borrow.unique (total) take %44
+  jump -> bb2(take %19, take %20)
+}
+
+fn t4(start: I32 [shared call]) -> I32 {
+  local o: Outer
+  local & local2: Outer
+  local & u: Outer
+
+bb0:
+  %0: I32 = read copy.trivial (start)
+  %1: I32 = const 1
+  %2: Rec = aggregate.Rec take %0 take %1
+  %3: I32 = const 3
+  %4: Outer = aggregate.Outer take %2 take %3
+  write.init borrow.unique (o) take %4
+  %6: Outer = read copy.trivial (o)
+  write.init borrow.unique (local2) take %6
+  %8: I32 = const 4
+  write.assign borrow.unique (local2.tag) take %8
+  %10: Outer = read copy.trivial (local2)
+  write.init borrow.unique (u) take %10
+  %12: I32 = const 50
+  write.assign borrow.unique (u.inner.a) take %12
+  %14: I32 = read copy.trivial (o.inner.a)
+  %15: I32 = const 100
+  %16: I32 = mul inspect %14 inspect %15
+  %17: I32 = read copy.trivial (u.inner.a)
+  %18: I32 = add inspect %16 inspect %17
+  return take %18
+}
+
+fn t5(o: Rec [unique call]) -> I32 {
+  local & local1: Rec
+  local u: Rec
+
+bb0:
+  %0: Rec = read copy.trivial (o)
+  write.init borrow.unique (local1) take %0
+  %2: I32 = read copy.trivial (o.b)
+  %3: I32 = const 1
+  %4: I32 = add inspect %2 inspect %3
+  write.assign borrow.unique (local1.a) take %4
+  %6: Rec = read copy.trivial (local1)
+  write.init borrow.unique (u) take %6
+  %8: I32 = const 40
+  write.assign borrow.unique (o.b) take %8
+  %10: I32 = read copy.trivial (u.a)
+  %11: I32 = const 100
+  %12: I32 = mul inspect %10 inspect %11
+  %13: I32 = read copy.trivial (u.b)
+  %14: I32 = add inspect %12 inspect %13
+  return take %14
+}
+
+fn main() -> I32 {
+  local & p: Rec
+  local r: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: Rec = aggregate.Rec take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = const 5
+  %5: I32 = call t1 borrow.shared %4
+  %6: Rec [unique call] = read borrow.unique (p) loan0
+  %7: I32 = call t2 borrow.unique %6
+  %8: I32 = const 10
+  %9: I32 = mul inspect %7 inspect %8
+  %10: I32 = add inspect %5 inspect %9
+  %11: I32 = call t3
+  %12: I32 = add inspect %10 inspect %11
+  %13: I32 = const 3
+  %14: I32 = call t4 borrow.shared %13
+  %15: I32 = add inspect %12 inspect %14
+  %16: Rec [unique call] = read borrow.unique (p) loan1
+  %17: I32 = call t5 borrow.unique %16
+  %18: I32 = add inspect %15 inspect %17
+  write.init borrow.unique (r) take %18
+  %20: I32 = read copy.trivial (r)
+  %21: I32 = const 6790
+  %22: Bool = ne inspect %20 inspect %21
+  branch inspect %22 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %27: I32 = const 5
+  %28: I32 = call t1 borrow.shared %27
+  %29: I32 = const 5
+  %30: Bool = ne inspect %28 inspect %29
+  branch inspect %30 -> bb6 -> bb4
+
+bb3:
+  %24: I32 = const 1
+  return take %24
+
+bb4:
+  %33: Rec [unique call] = read borrow.unique (p) loan2
+  %34: I32 = call t2 borrow.unique %33
+  %35: I32 = const 47
+  %36: Bool = ne inspect %34 inspect %35
+  jump -> bb5(take %36)
+
+bb5(%37: Bool):
+  branch inspect %37 -> bb9 -> bb7
+
+bb6:
+  %32: Bool = const True
+  jump -> bb5(take %32)
+
+bb7:
+  %42: Rec [unique call] = read borrow.unique (p) loan3
+  %43: I32 = call t5 borrow.unique %42
+  %44: I32 = const 4140
+  %45: Bool = ne inspect %43 inspect %44
+  jump -> bb8(take %45)
+
+bb8(%46: Bool):
+  branch inspect %46 -> bb12 -> bb10
+
+bb9:
+  %41: Bool = const True
+  jump -> bb8(take %41)
+
+bb10:
+  %51: I32 = read copy.trivial (p.a)
+  %52: I32 = const 7
+  %53: Bool = ne inspect %51 inspect %52
+  jump -> bb11(take %53)
+
+bb11(%54: Bool):
+  branch inspect %54 -> bb15 -> bb13
+
+bb12:
+  %50: Bool = const True
+  jump -> bb11(take %50)
+
+bb13:
+  %59: I32 = read copy.trivial (p.b)
+  %60: I32 = const 40
+  %61: Bool = ne inspect %59 inspect %60
+  jump -> bb14(take %61)
+
+bb14(%62: Bool):
+  branch inspect %62 -> bb18 -> bb16
+
+bb15:
+  %58: Bool = const True
+  jump -> bb14(take %58)
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %69: I32 = const 0
+  return take %69
+
+bb18:
+  %66: I32 = const 2
+  return take %66
+}
+
+entry main

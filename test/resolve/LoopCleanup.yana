@@ -1,0 +1,103 @@
+{-
+   What JSIR does to a hot loop over an array of records - J86.
+
+   `ageCells` and `markItems` are `xs[i] = {xs[i] | ...}`: four grafted subscripts per element, each
+   with its own bounds check and its own element read. `numberValues` in
+   `compiler/resolve_ssa/js/opt_alias.cpp` keeps one check and one read, and makes a range read of
+   the element a range of the value already read. `markItems`' update is one clone rather than two:
+   the copy stored back is a move out of its local although the local is in a loop, because the
+   loop fills it again before reading it (`refilledFirst`). The `for c in items(xs)` loops used to
+   write a dead `{ $v: 0 }` box every iteration (`dropWriteOnlyObjects`).
+
+   `stamp` is the negative: the local is read again after the copy in the same iteration, so the
+   copy stays a copy - an alias would put one object in every element, and `stamp` would answer 16
+   rather than 6.
+
+   `deadArm` is a branch `numberValues` decides because a dominating one already did, whose dropped
+   arm holds a loop: the loop's header keeps a predecessor through its back edge, so deleting only
+   the blocks left with none kept it, emitted a `var` for its argument and left the join a phantom
+   predecessor (J91). Every block the entry no longer reaches is deleted now.
+
+   The answer is the native build's, 61.
+
+   # resolver: ownership
+-}
+
+data Cell {kind: @bits(4) U32, live: Bool, count: @bits(12) U32, age: @bits(20) U32}
+
+data Item {weight: F64, kind: @bits(4) U32, live: Bool, marked: Bool, level: @bits(8) U32, count: @bits(12) U32}
+
+fn makeCells(n: Int) -> [Cell]:
+    let &xs = [] :: [Cell]
+    for j in 0..n:
+        let i = bitcast(j) :: U32
+        push(xs, Cell {kind: i % 16, live: i % 3 == 0, count: i % 4096, age: i % 1000000})
+    return xs
+
+fn makeItems(n: Int) -> [Item]:
+    let &xs = [] :: [Item]
+    for j in 0..n:
+        let i = bitcast(j) :: U32
+        push(xs, Item {weight: 1.5, kind: i % 16, live: i % 3 == 0, marked: False, level: i % 256, count: i % 4096})
+    return xs
+
+fn sumCells(xs: [Cell]) -> U32:
+    let &total = 0 :: U32
+    for c in items(xs):
+        if c.live:
+            total = total + c.kind + c.count
+        else:
+            total = total + (c.age % 7)
+    return total
+
+fn ageCells(&xs: [Cell]):
+    for i in 0..length(xs):
+        xs[i] = {xs[i] | age: (xs[i].age + 1) % 1000000, live: !xs[i].live}
+
+fn sumItems(xs: [Item]) -> U32:
+    let &total = 0 :: U32
+    for it in items(xs):
+        if it.live:
+            total = total + it.kind + it.count
+        else:
+            total = total + it.level
+    return total
+
+fn markItems(&xs: [Item]):
+    for i in 0..length(xs):
+        xs[i] = {xs[i] | marked: !xs[i].marked, count: (xs[i].count + 1) % 4096}
+
+fn stamp(&xs: [Item]) -> U32:
+    let &acc = xs[0]
+    for i in 0..length(xs):
+        xs[i] = acc
+        acc.count = acc.count + 1
+    let &total = 0 :: U32
+    for it in items(xs):
+        total = total + it.count
+    return total
+
+@noinline fn deadArm(x: Int, n: Int) -> Int:
+    let &s = 0
+    if x > n:
+        if x > n:
+            s = 1
+        else:
+            let &i = 0
+            while i < n:
+                s = s + i * 7
+                i += 1
+    return s
+
+fn main() -> Int:
+    let &cells = makeCells(12)
+    let &things = makeItems(12)
+    let &check = 0 :: U32
+    for round in 0..3:
+        ageCells(cells)
+        markItems(things)
+        check = check + sumCells(cells) + sumItems(things)
+    let &few = makeItems(4)
+    check = check + stamp(few)
+    check = check + (bitcast(deadArm(6, 5) * 10 + deadArm(0, 5)) :: U32)
+    return bitcast(check % 256)

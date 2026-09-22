@@ -19,7 +19,7 @@ fn nested(one %r1) -> one %r0
     %21: %r4 = binary.gt %19, %20
     branch %21 -> block4 -> block1
   block4:
-    %23: %r0 = load property %0.right: %r0
+    %23: %r0 = alias %19
     return %23
   block5:
     %5: %r3 = const null
@@ -430,7 +430,7 @@ fn main() -> one %r0
     %301: %r0 = coerce %300
     jump -> block35(%301, %299)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 0
 
 shape %s0 object Pair {left: %r0, right: %r0}
 

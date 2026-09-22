@@ -24,21 +24,14 @@ fn main() -> one %r5
   var $0: %r7
   var $1: %r4
   var $2: %r11
+  var $3: %r2
+  var $4: %r0
   block0:
-    %0: %r1 = array
-    %1: %r0 = const 0
-    %2: %r0 = const 0
-    %3: %r2 = object %s1 %0, %1, %2
-    %4: %r0 = const 0
-    %5: %r11 = object %s3 %3, %4
-    store var $2: %r11, %5
     %6: %r0 = const 3
     %7: %r0 = const 1
     %8: %r0 = const 2
     %9: %r1 = host host.array %6, %7, %8
     %10: %r6 = const 3
-    %11: %r7 = object %s2 %9, %10
-    store var $0: %r7, %11
     %12: %r0 = const 3
     %13: %r0 = const 0
     %14: %r0 = const 0
@@ -55,19 +48,18 @@ fn main() -> one %r5
     %27: %r10 = binary.ge %25, %26
     branch %27 -> block28 -> block25
   block2:
-    %155: %r7 = load var $0: %r7
+    %155: %r7 = alias %11
     call Array(a).reclaim(I32) %155
     %156: %r5 = const -1n
     return %156
   block3:
     %65: %r0 = const 1
-    %66: %r0 = const 0
     %67: %r9 = convert %65
     %68: %r9 = convert %12
     %69: %r10 = binary.ge %67, %68
     branch %69 -> block16 -> block15
   block4:
-    %153: %r7 = load var $0: %r7
+    %153: %r7 = alias %11
     call Array(a).reclaim(I32) %153
     %154: %r5 = const -2n
     return %154
@@ -76,15 +68,14 @@ fn main() -> one %r5
     %77: %r0 = const 2
     %78: %r2 = materialize %r3 %9, %12, %76
     %79: %r4 = object %s0 %78, %77
-    store var $1: %r4, %79
-    %80: %r4 = load var $1: %r4
+    %80: %r4 = alias %79
     %81: %r4 = alias %80
     %82: %r0 = call readView %81
     %83: %r0 = const 2
     %84: %r10 = binary.ne %82, %83
     branch %84 -> block8 -> block7
   block6:
-    %151: %r7 = load var $0: %r7
+    %151: %r7 = alias %11
     call Array(a).reclaim(I32) %151
     %152: %r5 = const -3n
     return %152
@@ -92,26 +83,21 @@ fn main() -> one %r5
     %85: %r0 = const 0
     %86: %r0 = const 0
     %87: %r2 = materialize %r3 %9, %12, %85
-    %88: %r11 = object %s3 %87, %86
-    store var $2: %r11, %88
-    %89: %r11 = load var $2: %r11
-    %90: %r2 = load property %89.buf: %r2
+    %90: %r2 = alias %87
     %91: %r4 = object %s0 %90, %86
     %92: %r0 = call readView %91
     %93: %r0 = const 4
     %94: %r10 = binary.ne %92, %93
     branch %94 -> block10 -> block9
   block8:
-    %149: %r7 = load var $0: %r7
+    %149: %r7 = alias %11
     call Array(a).reclaim(I32) %149
     %150: %r5 = const -4n
     return %150
   block9:
-    %95: %r11 = load var $2: %r11
-    %96: %r0 = load property %95.at: %r0
+    %96: %r0 = alias %86
     %97: %r0 = const 100
-    %98: %r11 = load var $2: %r11
-    %99: %r2 = load property %98.buf: %r2
+    %99: %r2 = alias %87
     %100: %r0 = convert %96
     %101: %r9 = convert %100
     %102: %r0 = load property %99.length: %r0
@@ -119,19 +105,18 @@ fn main() -> one %r5
     %104: %r10 = binary.ge %101, %103
     branch %104 -> block34 -> block33
   block10:
-    %147: %r7 = load var $0: %r7
+    %147: %r7 = alias %11
     call Array(a).reclaim(I32) %147
     %148: %r5 = const -5n
     return %148
   block11:
     %123: %r0 = const 1
-    %124: %r0 = const 0
     %125: %r9 = convert %123
     %126: %r9 = convert %12
     %127: %r10 = binary.ge %125, %126
     branch %127 -> block20 -> block19
   block12:
-    %145: %r7 = load var $0: %r7
+    %145: %r7 = alias %11
     call Array(a).reclaim(I32) %145
     %146: %r5 = const -6n
     return %146
@@ -146,7 +131,7 @@ fn main() -> one %r5
     unreachable
   block15:
     %70: %r1 = alias %9
-    %71: %r0 = binary.add %66, %65
+    %71: %r0 = alias %65
     %72: %r0 = coerce %71
     %73: %r0 = load element %70[%72]: %r0
     %74: %r0 = const 2
@@ -168,11 +153,10 @@ fn main() -> one %r5
     unreachable
   block19:
     %128: %r1 = alias %9
-    %129: %r0 = binary.add %124, %123
+    %129: %r0 = alias %123
     %130: %r0 = coerce %129
     %131: %r0 = load element %128[%130]: %r0
     %132: %r0 = const 2
-    %133: %r0 = const 0
     %134: %r9 = convert %132
     %135: %r9 = convert %12
     %136: %r10 = binary.ge %134, %135
@@ -182,10 +166,10 @@ fn main() -> one %r5
     unreachable
   block21:
     %137: %r1 = alias %9
-    %138: %r0 = binary.add %133, %132
+    %138: %r0 = alias %132
     %139: %r0 = coerce %138
     %140: %r0 = load element %137[%139]: %r0
-    %141: %r7 = load var $0: %r7
+    %141: %r7 = alias %11
     call Array(a).reclaim(I32) %141
     %142: %r0 = binary.add %131, %140
     %143: %r0 = coerce %142
@@ -199,6 +183,7 @@ fn main() -> one %r5
     %19: %r0 = load element %18[%13]: %r0
     %20: %r0 = const 3
     %21: %r10 = binary.ne %19, %20
+    %11: %r7 = object %s2 %9, %10
     branch %21 -> block2 -> block1
   block24:
     host host.throw "yana: a runtime check failed"
@@ -216,7 +201,6 @@ fn main() -> one %r5
   block26:
     %36: %r1 = alias %9
     store element %36[%22]: %r0, %32
-    %37: %r0 = const 0
     %38: %r0 = const 1
     %39: %r0 = const 1
     %40: %r9 = convert %39
@@ -231,7 +215,7 @@ fn main() -> one %r5
     unreachable
   block29:
     %43: %r1 = alias %9
-    %44: %r0 = binary.add %37, %39
+    %44: %r0 = alias %39
     %45: %r0 = coerce %44
     %46: %r0 = load element %43[%45]: %r0
     %47: %r0 = const 1
@@ -243,7 +227,7 @@ fn main() -> one %r5
     branch %52 -> block31 -> block30
   block30:
     %53: %r1 = alias %9
-    %54: %r0 = binary.add %37, %38
+    %54: %r0 = alias %38
     %55: %r0 = coerce %54
     store element %53[%55]: %r0, %49
     %56: %r0 = const 0
@@ -266,8 +250,7 @@ fn main() -> one %r5
     %109: %r0 = coerce %108
     store element %106[%109]: %r0, %97
     %110: %r0 = const 0
-    %111: %r11 = load var $2: %r11
-    %112: %r2 = load property %111.buf: %r2
+    %112: %r2 = alias %87
     %113: %r9 = convert %110
     %114: %r0 = load property %112.length: %r0
     %115: %r9 = convert %114
@@ -280,10 +263,9 @@ fn main() -> one %r5
 fn Array(a).reclaim(I32)(one %r7) -> omitted
   var $0: %r7
   block0(%0: %r7):
-    store var $0: %r7, %0
     return
 
-optimizer clones 1 aliased 1 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 1 aliased 1 forwarded 0 removed 22 adopted 0 sunk 1 numbered 5 decided 0 unboxed 0 updated 0 split 1 promoted 12
 
 shape %s0 object View {buf: %r2, at: %r0}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

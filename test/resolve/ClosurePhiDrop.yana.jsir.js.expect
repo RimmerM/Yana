@@ -8,20 +8,8 @@ function Guard_drop(self) {
 }
 
 function main() {
-  var v2 = { $v: 3 };
-  var v12 = 10 + { g: v2.$v }.g | 0;
-  Guard_drop(v2.$v);
-  var v16 = { $v: 5 };
-  var v26 = Math.imul(10, { g: v16.$v }.g);
-  Guard_drop(v16.$v);
-  return (v12 + v26 | 0) + dropCalls | 0;
-}
-
-function either_lambda(either_lambda_env, x) {
-  return x + either_lambda_env.g | 0;
-}
-
-function either_lambda_2(either_lambda_2_env, x) {
-  return Math.imul(x, either_lambda_2_env.g);
+  Guard_drop(3);
+  Guard_drop(5);
+  return 63 + dropCalls | 0;
 }
 main();

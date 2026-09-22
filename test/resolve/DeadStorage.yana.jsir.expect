@@ -1,7 +1,6 @@
 fn Held.drop(one %r0) -> omitted
   var $0: %r0
   block0(%0: %r0):
-    store var $0: %r0, %0
     %1: %r0 = load global live: %r0
     %2: %r0 = const 1
     %3: %r0 = binary.sub %1, %2
@@ -11,7 +10,7 @@ fn Held.drop(one %r0) -> omitted
     %6: %r0 = const 10
     %7: %r0 = binary.mul %5, %6
     %8: %r0 = coerce %7
-    %10: %r0 = load var $0: %r0
+    %10: %r0 = alias %0
     %11: %r0 = binary.add %8, %10
     %12: %r0 = coerce %11
     store global trace: %r0, %12
@@ -38,8 +37,7 @@ fn main() -> one %r0
     %4: %r0 = coerce %3
     store global live: %r0, %4
     %5: %r0 = alias %0
-    store var $0: %r0, %5
-    %6: %r0 = load var $0: %r0
+    %6: %r0 = alias %5
     call Held.drop %6
     %7: %r0 = const 7
     %8: %r0 = const 0
@@ -49,11 +47,9 @@ fn main() -> one %r0
     call bump %9, %10
     %11: %r0 = load property %9.$v: %r0
     %20: %r7 = const "abcdef"
-    store var $1: %r7, %20
-    %21: %r7 = load var $1: %r7
+    %21: %r7 = alias %20
     %22: %r7 = alias %21
-    store var $2: %r7, %22
-    %23: %r7 = load var $2: %r7
+    %23: %r7 = alias %22
     %24: %r7 = alias %23
     %25: %r7 = alias %24
     %26: %r7 = alias %25
@@ -78,7 +74,7 @@ fn main() -> one %r0
     %52: %r0 = coerce %51
     return %52
 
-optimizer clones 0 aliased 0 forwarded 0 removed 16 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 20 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 4
 
 shape %s0 ref {$o: %r2 owner, $k: %r2 key}
 shape %s1 cell {$v: %r0 box}

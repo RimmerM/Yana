@@ -5,8 +5,7 @@ fn main() -> one %r0
     %0: %r0 = const 30
     %1: %r1 = const 1
     %2: %r2 = const 9.25
-    store var $0: %r1, %1
-    %4: %r1 = load var $0: %r1
+    %4: %r1 = alias %1
     %5: %r3 = const 1
     %6: %r1 = binary.eq %4, %5
     %7: %r2 = const 8
@@ -16,8 +15,7 @@ fn main() -> one %r0
     %11: %r0 = coerce %10
     %12: %r1 = const 0
     %13: %r2 = const 9.25
-    store var $1: %r1, %12
-    %15: %r1 = load var $1: %r1
+    %15: %r1 = alias %12
     %16: %r3 = const 1
     %17: %r1 = binary.eq %15, %16
     %18: %r2 = const 8
@@ -30,7 +28,7 @@ fn main() -> one %r0
     %25: %r0 = coerce %24
     return %25
 
-optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 2
 
 rep %r0 = number signed 32
 rep %r1 = number bool

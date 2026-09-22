@@ -1,0 +1,69 @@
+
+nothing<complex>(%x: I32) {
+  b_0 {
+    ret 
+  }
+}
+
+f<complex>(%a: I32, %b: I32, %c: I32): F64 {
+  b_0 {
+    je %a, b_1, b_2
+  }
+
+  b_2 {
+    call_complex nothing, %c
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = phi [b_2, -0], [b_1, %v_5]: F32
+    jmp b_6
+  }
+
+  b_1 {
+    call_complex nothing, %c
+    %v_5 = select %b, 1, 0: F32
+    jmp b_3
+  }
+
+  b_6 {
+    %v_7 = phi [b_3, %v_4], [b_8, %v_9]: F32
+    %v_10 = phi [b_3, 0], [b_8, %v_11]: I32
+    %v_12 = cmp_ilt %v_10, %c: I32
+    je %v_12, b_8, b_13
+  }
+
+  b_13 {
+    %v_14 = cast %v_7: F64
+    ret %v_14
+  }
+
+  b_8 {
+    %v_9 = add %v_7, %v_7: F32
+    %v_11 = add %v_10, 1: I32
+    jmp b_6
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex f, 1, 0, 1: F64
+    %v_2 = div 1, %v_1: F64
+    %v_3 = cmp_gt %v_2, 0: I32
+    %v_4 = select %v_3, 1, 2: I32
+    %v_5 = imul %v_4, 100: I32
+    %v_6 = call_complex f, 0, 0, 1: F64
+    %v_7 = div 1, %v_6: F64
+    %v_8 = cmp_gt %v_7, 0: I32
+    %v_9 = select %v_8, 1, 2: I32
+    %v_10 = imul %v_9, 10: I32
+    %v_11 = add %v_5, %v_10: I32
+    %v_12 = call_complex f, 1, 1, 1: F64
+    %v_13 = div 1, %v_12: F64
+    %v_14 = cmp_gt %v_13, 0: I32
+    %v_15 = select %v_14, 1, 2: I32
+    %v_16 = add %v_11, %v_15: I32
+    ret %v_16
+  }
+}
+

@@ -7,15 +7,22 @@ fn main() -> one %r0
   var $5: %r7
   var $6: %r7
   var $7: %r7
+  var $8: %r1
+  var $9: %r1
+  var $10: %r1
+  var $11: %r1
+  var $12: %r1
+  var $13: %r1
+  var $14: %r1
+  var $15: %r1
+  var $16: %r1
+  var $17: %r1
+  var $18: %r1
+  var $19: %r1
+  var $20: %r1
+  var $21: %r1
+  var $22: %r0
   block0:
-    %7: %r0 = const 0
-    %8: %r8 = object %s6 %7
-    %9: %r0 = const 103
-    store property %8.$v: %r0, %9
-    %10: %r0 = const 0
-    %11: %r8 = object %s6 %10
-    %12: %r0 = const 201
-    store property %11.$v: %r0, %12
     %13: %r0 = const 0
     %14: %r0 = const 4
     %15: %r0 = const 0
@@ -36,45 +43,24 @@ fn main() -> one %r0
     %22: %r0 = const 1237
     %23: %r0 = binary.add %3, %22
     %24: %r0 = coerce %23
-    %25: %r0 = const 0
-    %26: %r8 = object %s6 %25
     %31: %r0 = const 0
-    store property %26.$v: %r0, %31
-    %32: %r1 = const "$v"
-    %33: %r2 = object %s1 %26, %32
-    %34: %r3 = object %s0 %33
-    %30: %r3 = alias %34
-    %35: %r1 = fun.code lazyNamed.thunk
-    %36: %r7 = object %s5 %35, %30
-    store var $3: %r7, %36
+    store var $22: %r0, %31
     %37: %r0 = const 10
-    %38: %r0 = load property %26.$v: %r0
+    %38: %r0 = load var $22: %r0
     %39: %r0 = binary.add %37, %38
     %40: %r0 = coerce %39
     %41: %r0 = binary.add %24, %40
     %42: %r0 = coerce %41
-    %49: %r1 = fun.code note.why.default
-    %50: %r1 = const null
-    %51: %r7 = object %s5 %49, %50
-    store var $4: %r7, %51
     %52: %r0 = const 9
-    %53: %r1 = fun.code note.why.default
-    %54: %r1 = const null
-    %55: %r7 = object %s5 %53, %54
-    store var $5: %r7, %55
     %56: %r1 = fun.code lazyDefault.thunk
     %57: %r1 = const null
-    %58: %r7 = object %s5 %56, %57
-    %45: %r7 = alias %58
-    %59: %r1 = load property %45.$c: %r1
-    %60: %r1 = load property %45.$e: %r1
+    %59: %r1 = alias %56
+    %60: %r1 = alias %57
     %61: %r0 = call.value %59, %60
     %62: %r1 = fun.code lazyDefault.thunk'2
     %63: %r1 = const null
-    %64: %r7 = object %s5 %62, %63
-    %48: %r7 = alias %64
-    %65: %r1 = load property %48.$c: %r1
-    %66: %r1 = load property %48.$e: %r1
+    %65: %r1 = alias %62
+    %66: %r1 = alias %63
     %67: %r0 = call.value %65, %66
     %68: %r0 = binary.add %52, %61
     %69: %r0 = coerce %68
@@ -82,36 +68,14 @@ fn main() -> one %r0
     %71: %r0 = coerce %70
     %72: %r0 = binary.add %42, %71
     %73: %r0 = coerce %72
-    %74: %r1 = fun.code note.why.default
-    %75: %r1 = const null
-    %76: %r7 = object %s5 %74, %75
-    store var $6: %r7, %76
-    %77: %r1 = fun.code note.why.default
-    %78: %r1 = const null
-    %79: %r7 = object %s5 %77, %78
-    store var $7: %r7, %79
-    %80: %r1 = fun.code audited.fallback.default
-    %81: %r1 = const null
-    %82: %r7 = object %s5 %80, %81
-    store var $0: %r7, %82
-    %83: %r1 = fun.code audited.fallback.default
-    %84: %r1 = const null
-    %85: %r7 = object %s5 %83, %84
-    store var $1: %r7, %85
-    %86: %r1 = fun.code explain.why.default
-    %87: %r1 = const null
-    %88: %r7 = object %s5 %86, %87
-    store var $2: %r7, %88
     %89: %r0 = const 50
     %90: %r0 = binary.add %73, %89
     %91: %r0 = coerce %90
     %92: %r1 = fun.code main.thunk
     %93: %r1 = const null
-    %94: %r7 = object %s5 %92, %93
-    %6: %r7 = alias %94
     %95: %r0 = const 3
-    %96: %r1 = load property %6.$c: %r1
-    %97: %r1 = load property %6.$e: %r1
+    %96: %r1 = alias %92
+    %97: %r1 = alias %93
     %98: %r0 = call.value %96, %97
     %99: %r0 = binary.mul %95, %98
     %100: %r0 = coerce %99
@@ -197,7 +161,7 @@ fn main.thunk(one %r6) -> one %r0 env
     %1: %r0 = const 4
     return %1
 
-optimizer clones 0 aliased 0 forwarded 0 removed 9 adopted 4 sunk 1
+optimizer clones 0 aliased 0 forwarded 6 removed 67 adopted 4 sunk 1 numbered 0 decided 0 unboxed 1 updated 0 split 7 promoted 0
 
 shape %s0 object lazyNamed.thunk.env {ran: %r2}
 shape %s1 ref {$o: %r1 owner, $k: %r1 key}

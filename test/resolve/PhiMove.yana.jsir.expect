@@ -180,7 +180,6 @@ fn main() -> one %r1
     store var $0: %r0, %44
     %45: %r0 = load var $0: %r0
     %46: %r0 = alias %45
-    store var $1: %r0, %46
     %47: %r1 = const 7
     %50: %r0 = const ""
     store var $2: %r0, %50
@@ -210,20 +209,18 @@ fn main() -> one %r1
     store var $2: %r0, %71
     %72: %r0 = load var $2: %r0
     %73: %r0 = alias %72
-    store var $3: %r0, %73
-    %74: %r0 = load var $1: %r0
+    %74: %r0 = alias %46
     %75: %r0 = alias %74
     %76: %r0 = alias %75
-    store var $4: %r0, %76
-    %77: %r0 = load var $4: %r0
+    %77: %r0 = alias %76
     %78: %r0 = alias %77
     %79: %r1 = call checksum %78
-    %80: %r0 = load var $1: %r0
+    %80: %r0 = alias %46
     %81: %r0 = alias %80
     %82: %r1 = call checksum %81
     %83: %r1 = binary.add %79, %82
     %84: %r1 = coerce %83
-    %85: %r0 = load var $3: %r0
+    %85: %r0 = alias %73
     %86: %r0 = alias %85
     %87: %r1 = call checksum %86
     %88: %r1 = binary.add %84, %87
@@ -259,7 +256,6 @@ fn main() -> one %r1
     store var $5: %r0, %116
     %117: %r0 = load var $5: %r0
     %118: %r0 = alias %117
-    store var $6: %r0, %118
     %119: %r1 = const 7
     %122: %r0 = const ""
     store var $7: %r0, %122
@@ -289,20 +285,18 @@ fn main() -> one %r1
     store var $7: %r0, %143
     %144: %r0 = load var $7: %r0
     %145: %r0 = alias %144
-    store var $8: %r0, %145
-    %146: %r0 = load var $8: %r0
+    %146: %r0 = alias %145
     %147: %r0 = alias %146
     %148: %r0 = alias %147
-    store var $9: %r0, %148
-    %149: %r0 = load var $9: %r0
+    %149: %r0 = alias %148
     %150: %r0 = alias %149
     %151: %r1 = call checksum %150
-    %152: %r0 = load var $6: %r0
+    %152: %r0 = alias %118
     %153: %r0 = alias %152
     %154: %r1 = call checksum %153
     %155: %r1 = binary.add %151, %154
     %156: %r1 = coerce %155
-    %157: %r0 = load var $8: %r0
+    %157: %r0 = alias %145
     %158: %r0 = alias %157
     %159: %r1 = call checksum %158
     %160: %r1 = binary.add %156, %159
@@ -311,7 +305,7 @@ fn main() -> one %r1
     %163: %r1 = coerce %162
     return %163
 
-optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 18 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 8
 
 rep %r0 = string
 rep %r1 = number signed 32

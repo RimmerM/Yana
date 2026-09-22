@@ -72,6 +72,10 @@ bool holdsAggregate(DeclBase decl, DeclPtr<mir::Type> type);
  */
 bool loanDenotesStorage(Context& context, mir::Program& program, const mir::Occurrence& occurrence);
 
+// Constant equality, structurally and bit-exactly - an aggregate's handle differs per construction
+// where its values agree, and `-0.0` is not `0.0`. See `build.cpp`.
+bool sameConstant(DeclBase decl, const mir::Constant& a, const mir::Constant& b);
+
 /*
  * Whether one **use** of an address keeps it inside this body.
  *

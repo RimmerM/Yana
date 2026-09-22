@@ -452,7 +452,14 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/js/cfg.h
     resolve_ssa/js/cfg.cpp
     resolve_ssa/js/opt.h
+    resolve_ssa/js/opt_internal.h
+    resolve_ssa/js/opt_analysis.cpp
     resolve_ssa/js/opt_alias.cpp
+    resolve_ssa/js/opt_move.cpp
+    resolve_ssa/js/opt_number.cpp
+    resolve_ssa/js/opt_objects.cpp
+    resolve_ssa/js/opt_variables.cpp
+    resolve_ssa/js/opt_driver.cpp
     resolve_ssa/js/opt_coalesce.h
     resolve_ssa/js/opt_coalesce.cpp
     resolve_ssa/js/print.h

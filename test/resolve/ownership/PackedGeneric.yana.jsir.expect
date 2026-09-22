@@ -1,33 +1,27 @@
 fn main() -> one %r0
   var $0: %r2
   block0:
-    %0: %r1 = const 0
-    %1: %r1 = const 0
-    %2: %r2 = object %s0 %0, %1
+    %2: %r2 = const 0
     store var $0: %r2, %2
-    %3: %r1 = const 0
-    %4: %r1 = const 0
-    %5: %r2 = object %s0 %3, %4
-    store var $0: %r2, %5
-    %6: %r2 = load var $0: %r2
-    %7: %r1 = const 1
-    store property %6.lead: %r1, %7
-    %8: %r2 = load var $0: %r2
-    %9: %r1 = const 1
-    store property %8.trail: %r1, %9
-    %10: %r1 = load property %6.lead: %r1
-    %11: %r0 = const 1
-    %12: %r0 = const 0
-    %13: %r0 = select %10, %11, %12
-    %14: %r0 = const 2
-    %15: %r0 = binary.add %13, %14
-    %16: %r0 = coerce %15
-    return %16
+    %3: %r1 = const 1
+    store bits @0:1 of (var $0: %r2): %r1, %3
+    %4: %r1 = const 1
+    store bits @1:1 of (var $0: %r2): %r1, %4
+    %5: %r1 = load bits @0:1 of (var $0: %r2): %r1
+    %6: %r0 = const 1
+    %7: %r0 = const 0
+    %8: %r0 = select %5, %6, %7
+    %9: %r0 = const 2
+    %10: %r0 = binary.add %8, %9
+    %11: %r0 = coerce %10
+    return %11
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
 
 shape %s0 object Panel {lead: %r1, trail: %r1}
 
+packing #0 %r2 Panel {lead @0:1, trail @1:1}
+
 rep %r0 = number signed 32
 rep %r1 = number bool
-rep %r2 = object %s0
+rep %r2 = number unsigned 2

@@ -8,53 +8,20 @@ fn main() -> one %r0
   block0:
     %0: %r0 = const 1
     %3: %r0 = const 7
-    %4: %r1 = const 2n
-    %5: %r2 = object %s0 %4, %3
-    store var $0: %r2, %5
-    %6: %r2 = load var $0: %r2
-    %7: %r2 = alias %6
-    %8: %r1 = const 0n
-    %9: %r0 = const 0
-    %10: %r2 = object %s0 %8, %9
-    store var $1: %r2, %10
-    store var $1: %r2, %7
-    %11: %r2 = load var $1: %r2
-    %12: %r0 = load property %11.tag: %r0
+    %12: %r0 = alias %3
     %13: %r0 = binary.add %0, %12
     %14: %r0 = coerce %13
     %15: %r0 = const 7
-    %16: %r1 = const 3n
-    %17: %r2 = object %s0 %16, %15
-    store var $2: %r2, %17
-    %18: %r2 = load var $2: %r2
-    %19: %r2 = alias %18
-    %20: %r1 = const 0n
-    %21: %r0 = const 0
-    %22: %r2 = object %s0 %20, %21
-    store var $3: %r2, %22
-    store var $3: %r2, %19
-    %23: %r2 = load var $3: %r2
-    %24: %r0 = load property %23.tag: %r0
+    %24: %r0 = alias %15
     %25: %r0 = binary.add %14, %24
     %26: %r0 = coerce %25
-    %27: %r3 = const 5
     %28: %r0 = const 9
-    %29: %r4 = object %s1 %27, %28
-    store var $4: %r4, %29
-    %30: %r4 = load var $4: %r4
-    %31: %r4 = alias %30
-    %32: %r3 = const 0
-    %33: %r0 = const 0
-    %34: %r4 = object %s1 %32, %33
-    store var $5: %r4, %34
-    store var $5: %r4, %31
-    %35: %r4 = load var $5: %r4
-    %36: %r0 = load property %35.tag: %r0
+    %36: %r0 = alias %28
     %37: %r0 = binary.add %26, %36
     %38: %r0 = coerce %37
     return %38
 
-optimizer clones 3 aliased 3 forwarded 0 removed 2 adopted 0 sunk 0
+optimizer clones 3 aliased 3 forwarded 3 removed 35 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 6
 
 shape %s0 object Box {value: %r1, tag: %r0}
 shape %s1 object Box {value: %r3, tag: %r0}

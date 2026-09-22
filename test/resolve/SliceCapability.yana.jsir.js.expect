@@ -8,49 +8,20 @@ function readView(v) {
 }
 
 function main() {
-  var s2 = { buf: { items: new Int32Array([]), length: 0, offset: 0 }, at: 0 };
   var v9 = new Int32Array([3, 1, 2]);
-  var s0 = { items: v9, length: 3 };
-  if (v9[0] !== 3) {
-    Array_a_reclaim_I32(s0);
-    return -1n;
-  }
+  if (v9[0] !== 3) return -1n;
   v9[0] = v9[0] + 1 | 0;
   v9[1] = v9[1] + 1 | 0;
-  if (v9[0] !== 4) {
-    Array_a_reclaim_I32(s0);
-    return -2n;
-  }
-  if (v9[1] !== 2) {
-    Array_a_reclaim_I32(s0);
-    return -3n;
-  }
-  if (readView({ buf: { items: v9, length: 3, offset: 0 }, at: 2 }) !== 2) {
-    Array_a_reclaim_I32(s0);
-    return -4n;
-  }
-  s2 = { buf: { items: v9, length: 3, offset: 0 }, at: 0 };
-  if (readView({ buf: s2.buf, at: 0 }) !== 4) {
-    Array_a_reclaim_I32(s0);
-    return -5n;
-  }
-  var v96 = s2.at;
-  var v99 = s2.buf;
-  if (v96 >>> 0 >= v99.length >>> 0) throw $t;
-  v99.items[v99.offset + v96 | 0] = 100;
-  var v112 = s2.buf;
-  if (0 >= v112.length >>> 0) throw $t;
-  if (v112.items[v112.offset] !== 100) {
-    Array_a_reclaim_I32(s0);
-    return -6n;
-  }
-  var v131 = v9[1];
-  var v140 = v9[2];
-  Array_a_reclaim_I32(s0);
-  return BigInt.asIntN(64, BigInt(v131 + v140 | 0));
-}
-
-function Array_a_reclaim_I32(value) {
+  if (v9[0] !== 4) return -2n;
+  if (v9[1] !== 2) return -3n;
+  if (readView({ buf: { items: v9, length: 3, offset: 0 }, at: 2 }) !== 2) return -4n;
+  var v87 = { items: v9, length: 3, offset: 0 };
+  if (readView({ buf: v87, at: 0 }) !== 4) return -5n;
+  if (0 >= v87.length >>> 0) throw $t;
+  v87.items[v87.offset + 0] = 100;
+  if (0 >= v87.length >>> 0) throw $t;
+  if (v87.items[v87.offset] !== 100) return -6n;
+  return BigInt.asIntN(64, BigInt(v9[1] + v9[2] | 0));
 }
 var $t = "yana: a runtime check failed";
 main();

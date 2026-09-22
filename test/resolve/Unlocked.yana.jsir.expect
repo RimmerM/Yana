@@ -74,15 +74,11 @@ fn invariantField(one %r0, one %r0) -> one %r0
 
 fn writtenField(one %r0, one %r0) -> one %r0
   var $0: %r2
+  var $1: %r0
+  var $2: %r0
   block0(%0: %r0, %1: %r0):
-    %4: %r0 = const 0
-    %5: %r0 = const 0
-    %6: %r2 = object %s0 %4, %5
-    store var $0: %r2, %6
     %7: %r0 = const 7
-    %8: %r2 = object %s0 %1, %7
-    store var $0: %r2, %8
-    %9: %r2 = load var $0: %r2
+    store var $1: %r0, %1
     %10: %r0 = const 0
     %11: %r0 = const 1
     %12: %r0 = const 1
@@ -91,23 +87,21 @@ fn writtenField(one %r0, one %r0) -> one %r0
     %13: %r1 = binary.lt %3, %0
     branch %13 -> block3 -> block2
   block2:
-    %14: %r2 = load var $0: %r2
-    %15: %r0 = load property %14.value: %r0
+    %15: %r0 = load var $1: %r0
     %16: %r0 = binary.add %2, %15
     %17: %r0 = coerce %16
     return %17
   block3:
-    %18: %r2 = load var $0: %r2
-    %19: %r0 = load property %18.value: %r0
+    %19: %r0 = load var $1: %r0
     %20: %r0 = binary.add %19, %11
     %21: %r0 = coerce %20
-    store property %18.value: %r0, %21
-    %22: %r0 = load property %9.other: %r0
-    %23: %r0 = binary.add %2, %22
-    %24: %r0 = coerce %23
-    %25: %r0 = binary.add %3, %12
-    %26: %r0 = coerce %25
-    jump -> block1(%24, %26)
+    store var $1: %r0, %21
+    %23: %r0 = alias %7
+    %24: %r0 = binary.add %2, %23
+    %25: %r0 = coerce %24
+    %26: %r0 = binary.add %3, %12
+    %27: %r0 = coerce %26
+    jump -> block1(%25, %27)
 
 fn main() -> one %r0
   block0:
@@ -183,7 +177,7 @@ fn main() -> one %r0
     %69: %r0 = coerce %68
     return %69
 
-optimizer clones 0 aliased 0 forwarded 0 removed 1 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 1
 
 shape %s0 object Cell {value: %r0, other: %r0}
 

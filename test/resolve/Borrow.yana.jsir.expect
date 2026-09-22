@@ -1,36 +1,29 @@
 fn main() -> one %r0
   var $0: %r1
+  var $1: %r0
+  var $2: %r0
   block0:
-    %0: %r0 = const 0
-    %1: %r0 = const 0
-    %2: %r1 = object %s0 %0, %1
-    store var $0: %r1, %2
     %3: %r0 = const 10
     %4: %r0 = const 20
-    %5: %r1 = object %s0 %3, %4
-    store var $0: %r1, %5
+    store var $1: %r0, %3
     %6: %r0 = const 1
     %7: %r0 = const 2
-    %8: %r1 = load var $0: %r1
-    %9: %r0 = load property %8.x: %r0
+    %9: %r0 = load var $1: %r0
     %10: %r0 = binary.add %9, %6
     %11: %r0 = coerce %10
-    store property %8.x: %r0, %11
-    %12: %r1 = load var $0: %r1
-    %13: %r0 = load property %12.y: %r0
+    store var $1: %r0, %11
+    %13: %r0 = alias %4
     %14: %r0 = binary.add %13, %7
     %15: %r0 = coerce %14
-    store property %12.y: %r0, %15
     %16: %r0 = const 33
-    %17: %r1 = load var $0: %r1
-    %18: %r0 = load property %17.x: %r0
+    %18: %r0 = load var $1: %r0
     %19: %r0 = binary.add %16, %18
     %20: %r0 = coerce %19
     %21: %r0 = binary.add %20, %15
     %22: %r0 = coerce %21
     return %22
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 11 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 1
 
 shape %s0 object Point {x: %r0, y: %r0}
 

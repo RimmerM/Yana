@@ -1,36 +1,25 @@
 fn main() -> one %r0
-  var $0: %r2
+  var $0: %r1
   var $1: %r0
+  var $2: %r0
+  var $3: %r0
+  var $4: %r0
+  var $5: %r0
   block0:
-    %0: %r0 = const 0
-    %1: %r1 = object %s0 %0
-    %2: %r0 = const 0
-    %3: %r1 = object %s0 %2
-    %4: %r0 = const 0
-    %5: %r0 = const 0
-    %6: %r2 = object %s1 %4, %5
-    store var $0: %r2, %6
     %7: %r0 = const 7
-    store property %1.$v: %r0, %7
     %8: %r0 = const 5
-    store property %3.$v: %r0, %8
-    %9: %r0 = load property %1.$v: %r0
-    %10: %r0 = load property %3.$v: %r0
-    %11: %r2 = object %s1 %9, %10
-    store var $0: %r2, %11
-    %12: %r2 = load var $0: %r2
-    %13: %r0 = load property %12.a: %r0
-    %14: %r0 = load property %12.a: %r0
-    %15: %r2 = load var $0: %r2
-    %16: %r0 = load property %15.b: %r0
+    %9: %r0 = alias %7
+    %10: %r0 = alias %8
+    %13: %r0 = alias %9
+    %14: %r0 = alias %13
+    %16: %r0 = alias %10
     %17: %r0 = binary.add %14, %16
     %18: %r0 = coerce %17
     %19: %r0 = const 3
     %20: %r0 = alias %19
-    store var $1: %r0, %20
-    %21: %r0 = load var $1: %r0
+    %21: %r0 = alias %20
     %22: %r0 = alias %21
-    %23: %r0 = load var $1: %r0
+    %23: %r0 = alias %20
     %24: %r0 = alias %23
     %25: %r4 = binary.eq %22, %24
     %26: %r0 = const 1000
@@ -48,10 +37,10 @@ fn main() -> one %r0
     %38: %r0 = coerce %37
     return %38
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 17 adopted 0 sunk 0 numbered 1 decided 0 unboxed 2 updated 0 split 1 promoted 6
 
-shape %s0 cell {$v: %r0 box}
-shape %s1 object Pair {a: %r0, b: %r0}
+shape %s0 object Pair {a: %r0, b: %r0}
+shape %s1 cell {$v: %r0 box}
 
 rep %r0 = number signed 32
 rep %r1 = object %s0

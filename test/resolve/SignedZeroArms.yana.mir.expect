@@ -1,0 +1,132 @@
+module ResolveTest
+
+fn nothing(x: I32 [shared call]) -> {} {
+  local y: I32
+
+bb0:
+  %0: I32 = read copy.trivial (x)
+  write.init borrow.unique (y) take %0
+  return
+}
+
+fn f(a: Bool [shared call], b: Bool [shared call], c: I32 [shared call]) -> F64 {
+  local & r: F32
+  local & local4: I32
+  local i: I32
+
+bb0:
+  %0: F32 = const 0
+  write.init borrow.unique (r) take %0
+  %2: Bool = read copy.trivial (a)
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %14: I32 = read copy.trivial (c)
+  %15: {} = call nothing borrow.shared %14
+  %16: F32 = const -0
+  write.assign borrow.unique (r) take %16
+  jump -> bb2
+
+bb2:
+  %20: I32 = read copy.trivial (c)
+  %21: I32 = const 0
+  %22: I32 = const 1
+  write.init borrow.unique (local4) take %21
+  jump -> bb7(take %20, take %22)
+
+bb3:
+  %4: I32 = read copy.trivial (c)
+  %5: {} = call nothing borrow.shared %4
+  %6: Bool = read copy.trivial (b)
+  branch inspect %6 -> bb6 -> bb4
+
+bb4:
+  %9: F32 = const 0
+  jump -> bb5(take %9)
+
+bb5(%10: F32):
+  write.assign borrow.unique (r) take %10
+  jump -> bb2
+
+bb6:
+  %8: F32 = const 1
+  jump -> bb5(take %8)
+
+bb7(%23: I32, %24: I32):
+  %31: I32 = read copy.trivial (local4)
+  %32: Bool = lt inspect %31 inspect %23
+  branch inspect %32 -> bb10(take %23, take %24) -> bb9(take %23, take %24)
+
+bb8(%25: I32, %26: I32):
+  %43: I32 = read copy.trivial (local4)
+  %44: I32 = add inspect %43 inspect %26
+  write.assign borrow.unique (local4) take %44
+  jump -> bb7(take %25, take %26)
+
+bb9(%27: I32, %28: I32):
+  %47: F32 = read copy.trivial (r)
+  %48: F64 = convert inspect %47
+  return take %48
+
+bb10(%33: I32, %34: I32):
+  %36: I32 = read copy.trivial (local4)
+  write.init borrow.unique (i) take %36
+  %38: F32 = read copy.trivial (r)
+  %39: F32 = const 2
+  %40: F32 = mul inspect %38 inspect %39
+  write.assign borrow.unique (r) take %40
+  jump -> bb8(take %33, take %34)
+}
+
+fn sign(x: F64 [shared call]) -> I32 {
+bb0:
+  %0: F64 = read copy.trivial (x)
+  %1: F64 = const 0
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 2
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: F64 = const 1
+  %1: Bool = const True
+  %2: Bool = const False
+  %3: I32 = const 1
+  %4: F64 = call f borrow.shared %1 borrow.shared %2 borrow.shared %3
+  %5: F64 = div inspect %0 inspect %4
+  %6: I32 = call sign borrow.shared %5
+  %7: I32 = const 100
+  %8: I32 = mul inspect %6 inspect %7
+  %9: F64 = const 1
+  %10: Bool = const False
+  %11: Bool = const False
+  %12: I32 = const 1
+  %13: F64 = call f borrow.shared %10 borrow.shared %11 borrow.shared %12
+  %14: F64 = div inspect %9 inspect %13
+  %15: I32 = call sign borrow.shared %14
+  %16: I32 = const 10
+  %17: I32 = mul inspect %15 inspect %16
+  %18: I32 = add inspect %8 inspect %17
+  %19: F64 = const 1
+  %20: Bool = const True
+  %21: Bool = const True
+  %22: I32 = const 1
+  %23: F64 = call f borrow.shared %20 borrow.shared %21 borrow.shared %22
+  %24: F64 = div inspect %19 inspect %23
+  %25: I32 = call sign borrow.shared %24
+  %26: I32 = add inspect %18 inspect %25
+  return take %26
+}
+
+entry main

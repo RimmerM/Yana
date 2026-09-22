@@ -56,20 +56,17 @@ fn main() -> one %r2
   block0:
     %9: %r2 = const 5
     %10: %r0 = const 0
-    store var $0: %r0, %10
-    %13: %r0 = load var $0: %r0
+    %13: %r0 = alias %10
     %14: %r2 = map %13 [0 => 1, 1 => 2, else 3]
     %15: %r2 = binary.add %9, %14
     %16: %r2 = coerce %15
     %17: %r0 = const 1
-    store var $1: %r0, %17
-    %20: %r0 = load var $1: %r0
+    %20: %r0 = alias %17
     %21: %r2 = map %20 [0 => 1, 1 => 2, else 3]
     %22: %r2 = binary.add %16, %21
     %23: %r2 = coerce %22
     %24: %r0 = const 2
-    store var $2: %r0, %24
-    %27: %r0 = load var $2: %r0
+    %27: %r0 = alias %24
     %28: %r2 = map %27 [0 => 1, 1 => 2, else 3]
     %29: %r2 = binary.add %23, %28
     %30: %r2 = coerce %29
@@ -96,8 +93,7 @@ fn main() -> one %r2
     %59: %r2 = binary.add %49, %58
     %60: %r2 = coerce %59
     %61: %r0 = const 0
-    store var $3: %r0, %61
-    %63: %r0 = load var $3: %r0
+    %63: %r0 = alias %61
     %64: %r0 = const 0
     %65: %r4 = binary.eq %63, %64
     %66: %r0 = const 1
@@ -107,8 +103,7 @@ fn main() -> one %r2
     %70: %r2 = binary.add %60, %0
     %71: %r2 = coerce %70
     %72: %r0 = const 1
-    store var $4: %r0, %72
-    %74: %r0 = load var $4: %r0
+    %74: %r0 = alias %72
     %75: %r0 = const 0
     %76: %r4 = binary.eq %74, %75
     %77: %r0 = const 1
@@ -128,8 +123,7 @@ fn main() -> one %r2
     %81: %r2 = binary.add %71, %1
     %82: %r2 = coerce %81
     %83: %r0 = const 0
-    store var $5: %r0, %83
-    %85: %r0 = load var $5: %r0
+    %85: %r0 = alias %83
     %86: %r0 = const 0
     %87: %r4 = binary.eq %85, %86
     branch %87 -> block13 -> block12
@@ -147,8 +141,7 @@ fn main() -> one %r2
     %94: %r2 = binary.add %82, %2
     %95: %r2 = coerce %94
     %96: %r0 = const 1
-    store var $6: %r0, %96
-    %98: %r0 = load var $6: %r0
+    %98: %r0 = alias %96
     %99: %r0 = const 0
     %100: %r4 = binary.eq %98, %99
     branch %100 -> block16 -> block15
@@ -166,8 +159,7 @@ fn main() -> one %r2
     %107: %r2 = binary.add %95, %3
     %108: %r2 = coerce %107
     %109: %r0 = const 2
-    store var $7: %r0, %109
-    %111: %r0 = load var $7: %r0
+    %111: %r0 = alias %109
     %112: %r0 = const 0
     %113: %r4 = binary.eq %111, %112
     branch %113 -> block19 -> block18
@@ -196,7 +188,7 @@ fn main() -> one %r2
     %119: %r2 = const 9
     jump -> block17(%119)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 26 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 34 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 8
 
 rep %r0 = number unsigned 8
 rep %r1 = nullable of %r0

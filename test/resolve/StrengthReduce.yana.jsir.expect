@@ -974,7 +974,6 @@ fn main() -> one %r1
     %29: %r0 = const -4611686018427387904n
     %30: %r0 = const 9223372036854775807n
     %31: %r3 = array %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30
-    store var $0: %r3, %31
     %32: %r1 = const 0
     %33: %r1 = const 1
     %34: %r1 = const -1
@@ -985,7 +984,6 @@ fn main() -> one %r1
     %39: %r1 = const 2.147483647E9
     %40: %r1 = const -2.147483647E9
     %41: %r4 = array %32, %33, %34, %35, %36, %37, %38, %39, %40
-    store var $1: %r4, %41
     %42: %r5 = const 0n
     %43: %r5 = const 1n
     %44: %r5 = const 7n
@@ -995,7 +993,6 @@ fn main() -> one %r1
     %48: %r5 = const 18446744073709551615n
     %49: %r5 = const 18446744073709551614n
     %50: %r6 = array %42, %43, %44, %45, %46, %47, %48, %49
-    store var $2: %r6, %50
     %51: %r7 = const 0
     %52: %r7 = const 1
     %53: %r7 = const 4
@@ -1003,12 +1000,10 @@ fn main() -> one %r1
     %55: %r7 = const 4.294967295E9
     %56: %r7 = const 4.294967294E9
     %57: %r8 = array %51, %52, %53, %54, %55, %56
-    store var $3: %r8, %57
     %58: %r1 = const 0
     %59: %r1 = const 0
     %60: %r1 = const 12
     %61: %r7 = const 12
-    %62: %r7 = const 12
     %63: %r0 = const 8n
     %64: %r0 = const 3n
     %65: %r0 = const 1024n
@@ -1120,13 +1115,12 @@ fn main() -> one %r1
     %138: %r2 = binary.ge %137, %113
     branch %138 -> block50 -> block49
   block13:
-    %283: %r3 = load var $0: %r3
+    %283: %r3 = alias %31
     %284: %r0 = load element %283[%280]: %r0
     %285: %r1 = call signedLong %284
     %286: %r1 = binary.add %0, %285
     %287: %r1 = coerce %286
-    %288: %r2 = binary.ge %281, %62
-    branch %288 -> block16 -> block15
+    jump -> block15
   block14:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -1158,7 +1152,7 @@ fn main() -> one %r1
     %302: %r1 = coerce %301
     jump -> block1(%300, %302)
   block21:
-    %273: %r4 = load var $1: %r4
+    %273: %r4 = alias %41
     %274: %r1 = load element %273[%270]: %r1
     %275: %r1 = call signedInt %274
     %276: %r1 = binary.add %2, %275
@@ -1170,7 +1164,7 @@ fn main() -> one %r1
     host host.throw "yana: a runtime check failed"
     unreachable
   block23:
-    %194: %r6 = load var $2: %r6
+    %194: %r6 = alias %50
     %195: %r5 = load element %194[%191]: %r5
     %196: %r5 = binary.div %195, %80
     %197: %r5 = coerce %196
@@ -1299,7 +1293,7 @@ fn main() -> one %r1
     %269: %r1 = coerce %268
     jump -> block7(%267, %269)
   block49:
-    %139: %r8 = load var $3: %r8
+    %139: %r8 = alias %57
     %140: %r7 = load element %139[%136]: %r7
     %141: %r7 = binary.div %140, %115
     %142: %r7 = coerce %141
@@ -1388,7 +1382,7 @@ fn main() -> one %r1
     %190: %r1 = coerce %189
     jump -> block10(%188, %190)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 0 promoted 4
 
 rep %r0 = bigint signed
 rep %r1 = number signed 32

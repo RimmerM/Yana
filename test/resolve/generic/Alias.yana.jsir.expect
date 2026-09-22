@@ -1,29 +1,24 @@
 fn main() -> one %r0
   var $0: %r1
   var $1: %r1
+  var $2: %r0
+  var $3: %r0
+  var $4: %r0
+  var $5: %r0
   block0:
     %0: %r0 = const 20
     %1: %r0 = const 22
-    %2: %r1 = object %s0 %0, %1
-    store var $0: %r1, %2
     %3: %r0 = const 100
-    %4: %r0 = const 0
-    %5: %r1 = object %s0 %3, %4
-    store var $1: %r1, %5
-    %6: %r1 = load var $0: %r1
-    %7: %r1 = alias %6
-    %8: %r0 = load property %7.left: %r0
-    %9: %r0 = load property %7.right: %r0
+    %8: %r0 = alias %0
+    %9: %r0 = alias %1
     %10: %r0 = binary.add %8, %9
     %11: %r0 = coerce %10
-    %12: %r1 = load var $1: %r1
-    %13: %r1 = alias %12
-    %14: %r0 = load property %13.left: %r0
+    %14: %r0 = alias %3
     %15: %r0 = binary.add %11, %14
     %16: %r0 = coerce %15
     return %16
 
-optimizer clones 2 aliased 2 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 2 aliased 2 forwarded 0 removed 11 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 3
 
 shape %s0 object Two {left: %r0, right: %r0}
 

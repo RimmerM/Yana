@@ -3,16 +3,9 @@ fn owned() -> one %r3
     %4: %r0 = const 4
     %5: %r10 = fun.code owned.lambda
     %6: %r10 = const null
-    %7: %r11 = object %s5 %5, %6
-    %3: %r11 = alias %7
     %11: %r1 = host host.array
     %12: %r2 = const 0
-    %13: %r3 = object %s0 %11, %12
-    %10: %r3 = alias %13
-    %14: %r12 = host host.capacity %11
-    %15: %r12 = const 0
-    %16: %r12 = binary.eq %14, %15
-    branch %16 -> block4 -> block5
+    jump -> block5
   block1(%0: %r0):
     %24: %r12 = binary.lt %0, %4
     branch %24 -> block3 -> block2
@@ -22,24 +15,23 @@ fn owned() -> one %r3
     %27: %r3 = object %s0 %25, %26
     return %27
   block3:
-    %28: %r10 = load property %3.$c: %r10
-    %29: %r10 = load property %3.$e: %r10
+    %28: %r10 = alias %5
+    %29: %r10 = alias %6
     %30: %r0 = call.value %28, %29, %0
     %31: %r2 = load property %10.length: %r2
     %32: %r0 = convert %31
     %33: %r0 = binary.add %32, %22
     %34: %r0 = coerce %33
     %35: %r1 = load property %10.items: %r1
-    %36: %r12 = host host.capacity %35
-    %37: %r12 = binary.eq %36, %23
-    branch %37 -> block9 -> block7
+    jump -> block7
   block4:
     %20: %r0 = const 0
     %21: %r0 = const 1
     %22: %r0 = const 1
-    %23: %r12 = const 0
     jump -> block1(%20)
   block5:
+    %13: %r3 = object %s0 %11, %12
+    %10: %r3 = alias %13
     %17: %r1 = load property %10.items: %r1
     %18: %r0 = host host.field "length" host-range %17
     %19: %r12 = binary.le %4, %18
@@ -48,7 +40,7 @@ fn owned() -> one %r3
     call growJsArray(I32) %10, %4
     jump -> block4
   block7:
-    %38: %r1 = load property %10.items: %r1
+    %38: %r1 = alias %35
     %39: %r0 = host host.field "length" host-range %38
     %40: %r12 = binary.le %34, %39
     branch %40 -> block9 -> block8
@@ -68,7 +60,6 @@ fn owned() -> one %r3
 fn Guard.drop(one %r0) -> omitted
   var $0: %r0
   block0(%0: %r0):
-    store var $0: %r0, %0
     %1: %r0 = load global dropCalls: %r0
     %2: %r0 = const 1
     %3: %r0 = binary.add %1, %2
@@ -87,6 +78,8 @@ fn main() -> one %r0
   var $7: %r11
   var $8: %r7
   var $9: %r11
+  var $10: %r0
+  var $11: %r0
   block0:
     %0: %r0 = const 10
     %1: %r0 = const 20
@@ -95,20 +88,14 @@ fn main() -> one %r0
     %4: %r1 = host host.array %0, %1, %2, %3
     %5: %r2 = const 4
     %6: %r3 = object %s0 %4, %5
-    store var $0: %r3, %6
     %7: %r3 = call owned
-    store var $1: %r3, %7
     %8: %r0 = const 4
     %9: %r0 = const 0
     %10: %r0 = call replaces$sum(Array(I32), I32) %4, %8, %9
-    %11: %r3 = load var $0: %r3
+    %11: %r3 = alias %6
     call Array(a).reclaim(I32) %11
-    %12: %r3 = load var $1: %r3
+    %12: %r3 = alias %7
     call Array(a).reclaim(I32) %12
-    %13: %r1 = array
-    %14: %r2 = const 0
-    %15: %r3 = object %s0 %13, %14
-    store var $3: %r3, %15
     %16: %r0 = const 10
     %17: %r0 = const 20
     %18: %r0 = const 30
@@ -116,26 +103,18 @@ fn main() -> one %r0
     %20: %r1 = host host.array %16, %17, %18, %19
     %21: %r2 = const 4
     %22: %r3 = object %s0 %20, %21
-    store var $2: %r3, %22
     %23: %r3 = call owned
-    store var $3: %r3, %23
-    %24: %r3 = load var $3: %r3
+    %24: %r3 = alias %23
     %25: %r1 = load property %24.items: %r1
-    %26: %r3 = load var $3: %r3
+    %26: %r3 = alias %23
     %27: %r2 = load property %26.length: %r2
     %28: %r0 = convert %27
     %29: %r0 = const 0
     %30: %r0 = call replaces$sum(Array(I32), I32) %25, %28, %29
-    %31: %r3 = load var $2: %r3
+    %31: %r3 = alias %22
     call Array(a).reclaim(I32) %31
-    %32: %r3 = load var $3: %r3
+    %32: %r3 = alias %23
     call Array(a).reclaim(I32) %32
-    %33: %r0 = const 0
-    %34: %r14 = object %s6 %33
-    %35: %r1 = array
-    %36: %r2 = const 0
-    %37: %r3 = object %s0 %35, %36
-    store var $5: %r3, %37
     %38: %r0 = const 10
     %39: %r0 = const 20
     %40: %r0 = const 30
@@ -143,56 +122,35 @@ fn main() -> one %r0
     %42: %r1 = host host.array %38, %39, %40, %41
     %43: %r2 = const 4
     %44: %r3 = object %s0 %42, %43
-    store var $4: %r3, %44
     %45: %r3 = call owned
-    store var $5: %r3, %45
-    %46: %r3 = load var $5: %r3
+    %46: %r3 = alias %45
     %47: %r1 = load property %46.items: %r1
-    %48: %r3 = load var $5: %r3
+    %48: %r3 = alias %45
     %49: %r2 = load property %48.length: %r2
     %50: %r0 = convert %49
     %51: %r0 = const 0
     %52: %r0 = call replaces$sum(Array(I32), I32) %47, %50, %51
-    store property %34.$v: %r0, %52
-    %53: %r3 = load var $4: %r3
+    %53: %r3 = alias %44
     call Array(a).reclaim(I32) %53
-    %54: %r3 = load var $5: %r3
+    %54: %r3 = alias %45
     call Array(a).reclaim(I32) %54
-    %55: %r0 = const 0
-    %56: %r14 = object %s6 %55
     %57: %r0 = const 7
     %58: %r0 = alias %57
-    store property %56.$v: %r0, %58
-    %59: %r0 = load property %56.$v: %r0
-    %60: %r6 = object %s2 %59
-    store var $6: %r6, %60
-    %61: %r6 = load var $6: %r6
-    %62: %r10 = fun.code ownedStaysAtItsEdges.lambda
-    %63: %r11 = object %s5 %62, %61
-    store var $7: %r11, %63
+    %59: %r0 = alias %58
     %64: %r0 = const 10
-    %65: %r0 = load property %61.g: %r0
+    %65: %r0 = alias %59
     %66: %r0 = binary.add %64, %65
     %67: %r0 = coerce %66
-    %68: %r0 = load property %56.$v: %r0
+    %68: %r0 = alias %59
     call Guard.drop %68
-    %69: %r0 = const 0
-    %70: %r14 = object %s6 %69
     %71: %r0 = const 7
     %72: %r0 = alias %71
-    store property %70.$v: %r0, %72
-    %73: %r0 = load property %70.$v: %r0
-    %74: %r7 = object %s3 %73
-    store var $8: %r7, %74
-    %75: %r7 = load var $8: %r7
-    %76: %r10 = fun.code ownedStaysAtItsEdges.lambda'2
-    %77: %r11 = object %s5 %76, %75
-    store var $9: %r11, %77
+    %73: %r0 = alias %72
     %78: %r0 = const 10
-    %79: %r0 = load property %75.g: %r0
+    %79: %r0 = alias %73
     %80: %r0 = binary.mul %78, %79
     %81: %r0 = coerce %80
-    %82: %r0 = load property %70.$v: %r0
+    %82: %r0 = alias %73
     call Guard.drop %82
     %83: %r0 = binary.add %10, %30
     %84: %r0 = coerce %83
@@ -330,7 +288,6 @@ fn replaces$sum(Array(I32), I32)(parts %r9) -> one %r0
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
-    store var $0: %r3, %0
     return
 
 fn growJsArray(I32)(one %r3, one %r0) -> omitted
@@ -345,12 +302,12 @@ fn growJsArray(I32)(one %r3, one %r0) -> omitted
     %9: %r12 = binary.lt %7, %8
     %10: %r0 = const 4
     %11: %r0 = select %9, %10, %7
-    %12: %r1 = load property %0.items: %r1
+    %12: %r1 = alias %2
     %13: %r1 = host host.grow %12, %11
     store property %0.items: %r1, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 2 sunk 0
+optimizer clones 0 aliased 0 forwarded 4 removed 49 adopted 2 sunk 1 numbered 4 decided 2 unboxed 2 updated 0 split 0 promoted 14
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object owned.lambda.env {}

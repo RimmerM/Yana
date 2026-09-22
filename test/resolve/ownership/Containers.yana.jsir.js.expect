@@ -5,10 +5,8 @@ function total(xs$0, xs$1, xs$2) {
   var p4 = 0;
   while (p4 < xs$1) {
     if (p4 >>> 0 >= xs$1 >>> 0) throw $t;
-    var v17 = p3 + xs$0[xs$2 + p4 | 0] | 0;
-    var v19 = p4 + 1 | 0;
-    p3 = v17;
-    p4 = v19;
+    p3 = p3 + xs$0[xs$2 + p4 | 0] | 0;
+    p4 = p4 + 1 | 0;
   }
   return p3;
 }
@@ -21,11 +19,11 @@ function main() {
   push_I32(v5, 8);
   push_I32(v5, 9);
   var v13 = v5.items;
-  if (0 >= v5.length) throw $t;
+  var v15 = v5.length;
+  if (0 >= v15) throw $t;
   var v24 = v13[0] + 1 | 0;
-  var v25 = v5.items;
-  if (0 >= v5.length) throw $t;
-  v25[0] = v24;
+  if (0 >= v15) throw $t;
+  v13[0] = v24;
   var v35 = v5.items;
   var v37 = v5.length;
   var v40 = 1 > v37 ? v37 : 1;
@@ -34,32 +32,23 @@ function main() {
   var s0 = "";
   s0 = s0 + String.fromCharCode(65);
   s0 = s0 + "bc";
-  var s1 = "hello";
-  var v68 = total(v5.items, v5.length, 0);
-  var v71 = v5.length;
-  Array_a_reclaim_I32(v5);
-  return (((((v68 + v71 | 0) + s0.length | 0) + (s0.charCodeAt(2) | 0) | 0) + s1.length | 0) + (s1.charCodeAt(1) | 0) | 0) + v47 | 0;
+  return (((((total(v5.items, v5.length, 0) + v5.length | 0) + s0.length | 0) + (s0.charCodeAt(2) | 0) | 0) + "hello".length | 0) + ("hello".charCodeAt(1) | 0) | 0) + v47 | 0;
 }
 
 function push_I32(self, item) {
   var v3 = self.length;
   var v6 = v3 + 1;
-  B0: {
-    if (v6 <= self.items.length) break B0;
-    growJsArray_I32(self, v6);
-  }
+  if (v6 > self.items.length) growJsArray_I32(self, v6);
   self.items[v3] = item;
   self.length = v6 & 1073741823;
 }
 
-function Array_a_reclaim_I32(value) {
-}
-
 function growJsArray_I32(self, wanted) {
-  var v3 = self.items.length;
+  var v2 = self.items;
+  var v3 = v2.length;
   var v5 = v3 + v3 | 0;
   var v7 = v5 < wanted ? wanted : v5;
-  var v13 = $grow(self.items, v7 < 4 ? 4 : v7);
+  var v13 = $grow(v2, v7 < 4 ? 4 : v7);
   self.items = v13;
 }
 var $t = "yana: a runtime check failed";

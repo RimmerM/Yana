@@ -12,14 +12,9 @@ fn main() -> one %r0
   block2:
     %14: %r0 = const 4
     %16: %r0 = const 7
-    %17: %r0 = const 0
-    %18: %r6 = object %s1 %17
-    %19: %r0 = const 0
-    store property %18.$v: %r0, %19
     %20: %r0 = convert %14
     %21: %r0 = binary.add %16, %20
     %22: %r0 = coerce %21
-    store property %18.$v: %r0, %22
     %23: %r0 = binary.add %1, %22
     %24: %r0 = coerce %23
     return %24
@@ -32,7 +27,7 @@ fn main() -> one %r0
     %30: %r0 = coerce %29
     jump -> block1(%30, %28)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 7 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
 
 shape %s0 object ArrayView {items: %r3, length: %r0, offset: %r0}
 shape %s1 cell {$v: %r0 box}

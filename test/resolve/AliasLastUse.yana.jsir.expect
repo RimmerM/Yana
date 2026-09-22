@@ -1,0 +1,241 @@
+fn bumped(one %r0) -> one %r2
+  var $0: %r2
+  block0(%0: %r0):
+    %4: %r1 = const 1.5
+    %5: %r2 = object %s0 %4, %0
+    %6: %r2 = alias %5
+    %7: %r0 = const 1
+    %8: %r0 = binary.add %0, %7
+    %9: %r0 = coerce %8
+    store property %6.count: %r0, %9
+    %10: %r2 = alias %5
+    %11: %r2 = alias %10
+    return %11
+
+fn projected(one %r0) -> one %r0
+  var $0: %r2
+  var $1: %r2
+  block0(%0: %r0):
+    %7: %r1 = const 0.5
+    %8: %r2 = object %s0 %7, %0
+    %9: %r2 = alias %8
+    %10: %r0 = const 2
+    %11: %r0 = binary.mul %0, %10
+    %12: %r0 = coerce %11
+    store property %9.count: %r0, %12
+    %13: %r2 = alias %8
+    %14: %r2 = alias %13
+    %15: %r2 = alias %14
+    %16: %r0 = load property %15.count: %r0
+    return %16
+
+fn field(one %r0) -> one %r0
+  var $0: %r3
+  var $1: %r2
+  var $2: %r2
+  var $3: %r0
+  block0(%0: %r0):
+    %9: %r1 = const 2
+    %10: %r2 = object %s0 %9, %0
+    %11: %r0 = const 3
+    %14: %r2 = alias %10
+    %15: %r0 = const 10
+    %16: %r0 = binary.add %0, %15
+    %17: %r0 = coerce %16
+    store property %14.count: %r0, %17
+    %19: %r2 = alias %10
+    %20: %r2 = alias %19
+    %21: %r2 = alias %20
+    %22: %r0 = load property %21.count: %r0
+    %24: %r0 = alias %11
+    %25: %r0 = binary.add %22, %24
+    %26: %r0 = coerce %25
+    return %26
+
+fn writtenAfter(one %r0) -> one %r0
+  var $0: %r2
+  var $1: %r2
+  block0(%0: %r0):
+    %7: %r1 = const 4
+    %8: %r2 = object %s0 %7, %0
+    %9: %r2 = alias %8
+    %10: %r2 = clone %9
+    %11: %r0 = const 9
+    %12: %r2 = alias %8
+    store property %12.count: %r0, %11
+    %13: %r2 = alias %10
+    %14: %r0 = load property %13.count: %r0
+    %15: %r0 = const 10
+    %16: %r0 = binary.mul %14, %15
+    %17: %r0 = coerce %16
+    %18: %r0 = binary.add %17, %11
+    %19: %r0 = coerce %18
+    return %19
+
+fn looped() -> one %r0
+  var $0: %r2
+  var $1: %r2
+  block0:
+    %7: %r1 = const 0.25
+    %8: %r0 = const 0
+    %9: %r2 = object %s0 %7, %8
+    %10: %r1 = const 0.75
+    %11: %r0 = const 0
+    %12: %r2 = object %s0 %10, %11
+    store var $1: %r2, %12
+    %13: %r0 = const 1
+    %14: %r0 = const 4
+    %15: %r0 = const 10
+    %16: %r0 = const 3
+    %17: %r0 = const 1
+    jump -> block1(%13)
+  block1(%0: %r0):
+    %18: %r4 = binary.lt %0, %14
+    branch %18 -> block3 -> block2
+  block2:
+    %19: %r2 = load var $1: %r2
+    %20: %r0 = load property %19.count: %r0
+    return %20
+  block3:
+    %21: %r2 = alias %9
+    %22: %r0 = load property %21.count: %r0
+    %23: %r0 = binary.mul %22, %15
+    %24: %r0 = coerce %23
+    %25: %r0 = binary.add %24, %0
+    %26: %r0 = coerce %25
+    store property %21.count: %r0, %26
+    %27: %r4 = binary.lt %0, %16
+    branch %27 -> block5 -> block4
+  block4:
+    %30: %r0 = binary.add %0, %17
+    %31: %r0 = coerce %30
+    jump -> block1(%31)
+  block5:
+    %28: %r2 = alias %9
+    %29: %r2 = clone %28
+    store var $1: %r2, %29
+    jump -> block4
+
+fn movedThenWritten(one %r0) -> one %r0
+  var $0: %r2
+  var $1: %r2
+  block0(%0: %r0):
+    %7: %r1 = const 8
+    %8: %r2 = object %s0 %7, %0
+    %9: %r2 = alias %8
+    %10: %r0 = const 1
+    %11: %r0 = binary.add %0, %10
+    %12: %r0 = coerce %11
+    store property %9.count: %r0, %12
+    %13: %r2 = alias %8
+    %14: %r2 = alias %13
+    %15: %r2 = alias %14
+    %16: %r0 = load property %15.count: %r0
+    %17: %r0 = const 100
+    %18: %r0 = binary.mul %16, %17
+    %19: %r0 = coerce %18
+    store property %15.count: %r0, %19
+    return %19
+
+fn main() -> one %r0
+  var $0: %r2
+  var $1: %r2
+  var $2: %r2
+  var $3: %r2
+  block0:
+    %13: %r0 = const 0
+    %14: %r0 = const 41
+    %15: %r2 = call bumped %14
+    %16: %r2 = alias %15
+    %17: %r0 = load property %16.count: %r0
+    %18: %r0 = const 42
+    %19: %r4 = binary.eq %17, %18
+    branch %19 -> block3 -> block1
+  block1:
+    jump -> block2(%13)
+  block2(%0: %r0):
+    %25: %r0 = const 21
+    %26: %r0 = call projected %25
+    %27: %r0 = const 42
+    %28: %r4 = binary.eq %26, %27
+    %29: %r0 = const 2
+    %30: %r0 = binary.add %0, %29
+    %31: %r0 = coerce %30
+    %32: %r0 = select %28, %31, %0
+    %33: %r0 = const 5
+    %34: %r0 = call field %33
+    %35: %r0 = const 18
+    %36: %r4 = binary.eq %34, %35
+    %37: %r0 = const 4
+    %38: %r0 = binary.add %32, %37
+    %39: %r0 = coerce %38
+    %40: %r0 = select %36, %39, %32
+    %41: %r0 = const 3
+    %42: %r0 = call writtenAfter %41
+    %43: %r0 = const 39
+    %44: %r4 = binary.eq %42, %43
+    %45: %r0 = const 8
+    %46: %r0 = binary.add %40, %45
+    %47: %r0 = coerce %46
+    %48: %r0 = select %44, %47, %40
+    %49: %r0 = call looped
+    %50: %r0 = const 12
+    %51: %r4 = binary.eq %49, %50
+    %52: %r0 = const 16
+    %53: %r0 = binary.add %48, %52
+    %54: %r0 = coerce %53
+    %55: %r0 = select %51, %54, %48
+    %56: %r0 = const 6
+    %57: %r0 = call movedThenWritten %56
+    %58: %r0 = const 700
+    %59: %r4 = binary.eq %57, %58
+    %60: %r0 = const 32
+    %61: %r0 = binary.add %55, %60
+    %62: %r0 = coerce %61
+    %63: %r0 = select %59, %62, %55
+    %64: %r1 = const 16
+    %65: %r0 = const 1
+    %66: %r2 = object %s0 %64, %65
+    %67: %r2 = alias %66
+    %68: %r2 = clone %67
+    %69: %r0 = const 2
+    %70: %r2 = alias %66
+    store property %70.count: %r0, %69
+    %71: %r2 = alias %66
+    %72: %r2 = alias %71
+    %73: %r2 = alias %68
+    %74: %r0 = load property %73.count: %r0
+    %75: %r0 = const 10
+    %76: %r0 = binary.mul %74, %75
+    %77: %r0 = coerce %76
+    %78: %r2 = alias %72
+    %79: %r0 = load property %78.count: %r0
+    %80: %r0 = binary.add %77, %79
+    %81: %r0 = coerce %80
+    %82: %r0 = const 12
+    %83: %r4 = binary.eq %81, %82
+    %84: %r0 = const 64
+    %85: %r0 = binary.add %63, %84
+    %86: %r0 = coerce %85
+    %87: %r0 = select %83, %86, %63
+    return %87
+  block3:
+    %20: %r2 = alias %15
+    %21: %r1 = load property %20.weight: %r1
+    %22: %r1 = const 1.5
+    %23: %r4 = binary.eq %21, %22
+    branch %23 -> block4 -> block1
+  block4:
+    %24: %r0 = const 1
+    jump -> block2(%24)
+
+optimizer clones 8 aliased 5 forwarded 0 removed 82 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 24
+
+shape %s0 object Rec {weight: %r1, count: %r0}
+shape %s1 object Outer {inner: %r2, tag: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = number f64
+rep %r2 = object %s0
+rep %r3 = object %s1
+rep %r4 = number bool

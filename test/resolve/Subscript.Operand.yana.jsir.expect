@@ -32,10 +32,6 @@ fn main() -> one %r0
   var $0: %r5
   var $1: %r5
   block0:
-    %2: %r1 = array
-    %3: %r4 = const 0
-    %4: %r5 = object %s1 %2, %3
-    store var $1: %r5, %4
     %5: %r0 = const 1
     %6: %r0 = const 2
     %7: %r0 = const 3
@@ -43,15 +39,11 @@ fn main() -> one %r0
     %9: %r0 = const 5
     %10: %r1 = host host.array %5, %6, %7, %8, %9
     %11: %r4 = const 5
-    %12: %r5 = object %s1 %10, %11
-    store var $0: %r5, %12
     %13: %r0 = const 2
     %14: %r0 = const 0
     %15: %r0 = const 1
     %16: %r1 = host host.array %13, %14, %15
     %17: %r4 = const 3
-    %18: %r5 = object %s1 %16, %17
-    store var $1: %r5, %18
     %19: %r0 = const 5
     %20: %r0 = const 0
     %21: %r0 = const 0
@@ -60,24 +52,22 @@ fn main() -> one %r0
     %24: %r7 = binary.ge %22, %23
     branch %24 -> block18 -> block11
   block1:
-    %42: %r0 = const 0
     %43: %r0 = const 2
     %44: %r8 = convert %43
     %45: %r8 = convert %19
     %46: %r7 = binary.ge %44, %45
     branch %46 -> block22 -> block19
   block2:
-    %116: %r5 = load var $0: %r5
+    %116: %r5 = alias %12
     call Array(a).reclaim(I32) %116
-    %117: %r5 = load var $1: %r5
+    %117: %r5 = alias %18
     call Array(a).reclaim(I32) %117
     %118: %r0 = const -1
     return %118
   block3:
-    %63: %r0 = const 0
-    %64: %r5 = load var $1: %r5
+    %64: %r5 = alias %18
     %65: %r1 = load property %64.items: %r1
-    %66: %r5 = load var $1: %r5
+    %66: %r5 = alias %18
     %67: %r4 = load property %66.length: %r4
     %68: %r0 = convert %67
     %69: %r0 = const 0
@@ -87,9 +77,9 @@ fn main() -> one %r0
     %73: %r7 = binary.ge %71, %72
     branch %73 -> block26 -> block23
   block4:
-    %113: %r5 = load var $0: %r5
+    %113: %r5 = alias %12
     call Array(a).reclaim(I32) %113
-    %114: %r5 = load var $1: %r5
+    %114: %r5 = alias %18
     call Array(a).reclaim(I32) %114
     %115: %r0 = const -2
     return %115
@@ -100,7 +90,7 @@ fn main() -> one %r0
     %90: %r7 = binary.ne %88, %89
     branch %90 -> block8 -> block7
   block6:
-    %111: %r5 = load var $0: %r5
+    %111: %r5 = alias %12
     call Array(a).reclaim(I32) %111
     %112: %r0 = const -3
     return %112
@@ -112,7 +102,7 @@ fn main() -> one %r0
     %96: %r7 = binary.ne %94, %95
     branch %96 -> block10 -> block9
   block8:
-    %109: %r5 = load var $0: %r5
+    %109: %r5 = alias %12
     call Array(a).reclaim(I32) %109
     %110: %r0 = const -4
     return %110
@@ -125,7 +115,7 @@ fn main() -> one %r0
     %102: %r7 = binary.ge %100, %101
     branch %102 -> block28 -> block27
   block10:
-    %107: %r5 = load var $0: %r5
+    %107: %r5 = alias %12
     call Array(a).reclaim(I32) %107
     %108: %r0 = const -5
     return %108
@@ -152,20 +142,22 @@ fn main() -> one %r0
   block17(%1: %r0):
     %33: %r0 = binary.sub %1, %0
     %34: %r0 = coerce %33
-    %35: %r0 = binary.add %20, %0
+    %35: %r0 = alias %0
     %36: %r0 = coerce %35
     %37: %r0 = call total %10, %34, %36
     %38: %r0 = binary.add %26, %37
     %39: %r0 = coerce %38
     %40: %r0 = const 6
     %41: %r7 = binary.ne %39, %40
+    %18: %r5 = object %s1 %16, %17
+    %12: %r5 = object %s1 %10, %11
     branch %41 -> block2 -> block1
   block18:
     host host.throw "yana: a runtime check failed"
     unreachable
   block19:
     %47: %r1 = alias %10
-    %48: %r0 = binary.add %42, %43
+    %48: %r0 = alias %43
     %49: %r0 = coerce %48
     %50: %r0 = load element %47[%49]: %r0
     %51: %r0 = const 2
@@ -175,7 +167,7 @@ fn main() -> one %r0
     branch %54 -> block21 -> block20
   block20:
     %55: %r1 = alias %10
-    %56: %r0 = binary.add %42, %51
+    %56: %r0 = alias %51
     %57: %r0 = coerce %56
     %58: %r0 = load element %55[%57]: %r0
     %59: %r0 = binary.add %50, %58
@@ -199,10 +191,10 @@ fn main() -> one %r0
     branch %79 -> block25 -> block24
   block24:
     %80: %r1 = alias %10
-    %81: %r0 = binary.add %63, %76
+    %81: %r0 = alias %76
     %82: %r0 = coerce %81
     %83: %r0 = load element %80[%82]: %r0
-    %84: %r5 = load var $1: %r5
+    %84: %r5 = alias %18
     call Array(a).reclaim(I32) %84
     %85: %r0 = const 3
     %86: %r7 = binary.ne %83, %85
@@ -218,7 +210,7 @@ fn main() -> one %r0
     store element %103[%97]: %r0, %98
     %104: %r0 = const 0
     %105: %r0 = call total %10, %19, %104
-    %106: %r5 = load var $0: %r5
+    %106: %r5 = alias %12
     call Array(a).reclaim(I32) %106
     return %105
   block28:
@@ -228,10 +220,9 @@ fn main() -> one %r0
 fn Array(a).reclaim(I32)(one %r5) -> omitted
   var $0: %r5
   block0(%0: %r5):
-    store var $0: %r5, %0
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 1 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 10 adopted 0 sunk 2 numbered 4 decided 0 unboxed 0 updated 0 split 0 promoted 11
 
 shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
 shape %s1 object Array {items: %r1, length: %r4}

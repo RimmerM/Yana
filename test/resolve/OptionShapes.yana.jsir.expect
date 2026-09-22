@@ -12,8 +12,7 @@ fn width(one %r2) -> one %r3
   block1:
     %9: %r0 = alias %0
     %10: %r0 = alias %9
-    store var $0: %r0, %10
-    %11: %r0 = load var $0: %r0
+    %11: %r0 = alias %10
     %12: %r0 = alias %11
     %13: %r0 = alias %12
     %14: %r0 = alias %13
@@ -28,28 +27,25 @@ fn width(one %r2) -> one %r3
 
 fn main() -> one %r3
   var $0: %r0
-  var $1: %r7
-  var $2: %r10
-  var $3: %r7
-  var $4: %r7
-  var $5: %r11
-  var $6: %r11
-  var $7: %r11
+  var $1: %r6
+  var $2: %r11
+  var $3: %r6
+  var $4: %r6
+  var $5: %r7
+  var $6: %r7
+  var $7: %r7
+  var $8: %r3
+  var $9: %r3
   block0:
     %8: %r3 = const 0
-    %9: %r6 = object %s0 %8
-    %10: %r3 = const 0
-    %11: %r3 = const 0
-    %12: %r7 = object %s1 %10, %11
-    store var $1: %r7, %12
+    %9: %r8 = object %s1 %8
     %13: %r3 = const 4
     store property %9.$v: %r3, %13
     %14: %r0 = const "abc"
     store var $0: %r0, %14
     %15: %r3 = const 5
     %16: %r3 = const 6
-    %17: %r7 = object %s1 %15, %16
-    store var $1: %r7, %17
+    %17: %r6 = object %s0 %15, %16
     %18: %r3 = load property %9.$v: %r3
     %20: %r0 = load var $0: %r0
     %21: %r0 = alias %20
@@ -58,13 +54,9 @@ fn main() -> one %r3
     %24: %r3 = call width %23
     %25: %r3 = binary.add %18, %24
     %26: %r3 = coerce %25
-    %27: %r7 = load var $1: %r7
-    %28: %r7 = clone %27
+    %27: %r6 = alias %17
+    %28: %r6 = clone %27
     %29: %r12 = alias %28
-    %30: %r3 = const 0
-    %31: %r3 = const 0
-    %32: %r7 = object %s1 %30, %31
-    store var $3: %r7, %32
     %33: %r12 = const null
     %34: %r4 = binary.eq %29, %33
     %35: %r1 = const 1
@@ -81,7 +73,7 @@ fn main() -> one %r3
     store property %9.$v: %r3, %173
     %174: %r0 = const "abcdef"
     store var $0: %r0, %174
-    %175: %r7 = load var $1: %r7
+    %175: %r6 = alias %17
     %176: %r3 = load property %175.x: %r3
     %177: %r3 = const 20
     %178: %r3 = binary.add %176, %177
@@ -99,13 +91,13 @@ fn main() -> one %r3
     %189: %r3 = coerce %188
     %190: %r3 = binary.add %189, %179
     %191: %r3 = coerce %190
-    %192: %r7 = load var $1: %r7
+    %192: %r6 = alias %17
     %193: %r3 = load property %192.y: %r3
     %194: %r3 = binary.add %191, %193
     %195: %r3 = coerce %194
     return %195
   block2:
-    %165: %r9 = load var $2: %r9
+    %165: %r10 = load var $2: %r10
     %166: %r3 = load cell %165: %r3
     %167: %r3 = const 10
     %168: %r3 = binary.add %166, %167
@@ -113,12 +105,11 @@ fn main() -> one %r3
     store cell %165: %r3, %169
     jump -> block1
   block3:
-    %40: %r7 = alias %29
-    %41: %r7 = alias %40
-    store var $3: %r7, %41
-    %42: %r7 = load var $3: %r7
+    %40: %r6 = alias %29
+    %41: %r6 = alias %40
+    %42: %r6 = alias %41
     %43: %r3 = load property %42.x: %r3
-    %44: %r7 = load var $3: %r7
+    %44: %r6 = alias %41
     %45: %r3 = load property %44.y: %r3
     %46: %r3 = binary.add %43, %45
     %47: %r3 = coerce %46
@@ -134,10 +125,6 @@ fn main() -> one %r3
     %53: %r3 = binary.add %50, %52
     %54: %r3 = coerce %53
     %55: %r12 = const null
-    %56: %r3 = const 0
-    %57: %r3 = const 0
-    %58: %r7 = object %s1 %56, %57
-    store var $4: %r7, %58
     %59: %r12 = const null
     %60: %r4 = binary.eq %55, %59
     %61: %r1 = const 1
@@ -147,13 +134,11 @@ fn main() -> one %r3
     %65: %r5 = binary.eq %63, %64
     branch %65 -> block7 -> block6
   block6:
-    %66: %r7 = alias %55
-    %67: %r7 = clone %66
-    store var $4: %r7, %67
-    %68: %r7 = load var $4: %r7
-    %69: %r3 = load property %68.x: %r3
-    %70: %r7 = load var $4: %r7
-    %71: %r3 = load property %70.y: %r3
+    %66: %r6 = alias %55
+    %196: %r3 = load property %66.x: %r3
+    %197: %r3 = load property %66.y: %r3
+    %69: %r3 = alias %196
+    %71: %r3 = alias %197
     %72: %r3 = binary.add %69, %71
     %73: %r3 = coerce %72
     jump -> block8(%73)
@@ -164,17 +149,17 @@ fn main() -> one %r3
     %75: %r3 = binary.add %54, %1
     %76: %r3 = coerce %75
     %77: %r1 = const 0
-    %78: %r11 = const null
+    %78: %r7 = const null
     %80: %r1 = alias %77
     %81: %r1 = const 0
     %82: %r5 = binary.eq %80, %81
     branch %82 -> block13 -> block9
   block9:
-    %83: %r11 = alias %78
-    %84: %r11 = alias %83
-    store var $5: %r11, %84
-    %85: %r11 = load var $5: %r11
-    %86: %r11 = const null
+    %83: %r7 = alias %78
+    %84: %r7 = alias %83
+    store var $5: %r7, %84
+    %85: %r7 = load var $5: %r7
+    %86: %r7 = const null
     %87: %r4 = binary.eq %85, %86
     %88: %r1 = const 1
     %89: %r1 = const 0
@@ -199,18 +184,18 @@ fn main() -> one %r3
   block14(%3: %r3):
     %100: %r3 = binary.add %76, %3
     %101: %r3 = coerce %100
-    %102: %r11 = const null
+    %102: %r7 = const null
     %103: %r1 = const 1
     %105: %r1 = alias %103
     %106: %r1 = const 0
     %107: %r5 = binary.eq %105, %106
     branch %107 -> block19 -> block15
   block15:
-    %108: %r11 = alias %102
-    %109: %r11 = alias %108
-    store var $6: %r11, %109
-    %110: %r11 = load var $6: %r11
-    %111: %r11 = const null
+    %108: %r7 = alias %102
+    %109: %r7 = alias %108
+    store var $6: %r7, %109
+    %110: %r7 = load var $6: %r7
+    %111: %r7 = const null
     %112: %r4 = binary.eq %110, %111
     %113: %r1 = const 1
     %114: %r1 = const 0
@@ -242,12 +227,12 @@ fn main() -> one %r3
     %133: %r5 = binary.eq %131, %132
     branch %133 -> block25 -> block21
   block21:
-    %128: %r11 = alias %127
-    %134: %r11 = alias %128
-    %135: %r11 = alias %134
-    store var $7: %r11, %135
-    %136: %r11 = load var $7: %r11
-    %137: %r11 = const null
+    %128: %r7 = alias %127
+    %134: %r7 = alias %128
+    %135: %r7 = alias %134
+    store var $7: %r7, %135
+    %136: %r7 = load var $7: %r7
+    %137: %r7 = const null
     %138: %r4 = binary.eq %136, %137
     %139: %r1 = const 1
     %140: %r1 = const 0
@@ -272,12 +257,12 @@ fn main() -> one %r3
   block26(%7: %r3):
     %151: %r3 = binary.add %126, %7
     %152: %r3 = coerce %151
-    %153: %r8 = const "$v"
-    %154: %r9 = object %s2 %9, %153
-    %155: %r10 = alias %154
-    store var $2: %r10, %155
-    %156: %r10 = load var $2: %r10
-    %157: %r10 = const null
+    %153: %r9 = const "$v"
+    %154: %r10 = object %s2 %9, %153
+    %155: %r11 = alias %154
+    store var $2: %r11, %155
+    %156: %r11 = load var $2: %r11
+    %157: %r11 = const null
     %158: %r4 = binary.eq %156, %157
     %159: %r1 = const 1
     %160: %r1 = const 0
@@ -286,12 +271,12 @@ fn main() -> one %r3
     %163: %r5 = binary.eq %161, %162
     branch %163 -> block2 -> block1
 
-optimizer clones 3 aliased 1 forwarded 6 removed 8 adopted 0 sunk 0
+optimizer clones 3 aliased 1 forwarded 6 removed 29 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 1 split 1 promoted 8
 
-shape %s0 cell {$v: %r3 box}
-shape %s1 object Point {x: %r3, y: %r3}
-shape %s2 ref {$o: %r8 owner, $k: %r8 key}
-shape %s3 object Maybe {$tag: %r1 tag, Just: %r11}
+shape %s0 object Point {x: %r3, y: %r3}
+shape %s1 cell {$v: %r3 box}
+shape %s2 ref {$o: %r9 owner, $k: %r9 key}
+shape %s3 object Maybe {$tag: %r1 tag, Just: %r7}
 
 rep %r0 = string
 rep %r1 = number unsigned 8
@@ -300,11 +285,11 @@ rep %r3 = number signed 32
 rep %r4 = boolean
 rep %r5 = number bool
 rep %r6 = object %s0
-rep %r7 = object %s1
-rep %r8 = erased
-rep %r9 = cell of %r3
-rep %r10 = nullable of %r9
-rep %r11 = nullable of %r3
-rep %r12 = nullable of %r7
+rep %r7 = nullable of %r3
+rep %r8 = object %s1
+rep %r9 = erased
+rep %r10 = cell of %r3
+rep %r11 = nullable of %r10
+rep %r12 = nullable of %r6
 rep %r13 = object %s3
 rep %r14 = array Int32Array of %r3

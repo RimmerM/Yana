@@ -168,6 +168,24 @@ void Conversion::convertAggregate(ssa::InstAggregate& aggregate) {
     if(rep.kind == JsRepKind::Void) return define(aggregate, nullptr);
 
     /*
+     * A **scalarized** record: the construction is a `Pack` of the components, in record order,
+     * which is the order the packing row lists them in. A constant construction folds to one number
+     * in the builder, so `Flags {a: True, b: False}` is the literal `1`.
+     */
+    if(record_ && rep.kind == JsRepKind::Number) {
+        auto packing = jsWholePackingOf(target, type);
+        if(packing && packing->word == repId) {
+            auto row = jsWholePackingRow(target, type);
+            if(auto value = packOf(row, record_->cons.get(decl, aggregate.constructor).first,
+                                   held(components), where)) {
+                return define(aggregate, value);
+            }
+
+            return;
+        }
+    }
+
+    /*
      * An enum, and a sum whose payloads all substituted away: the tag is the whole value.
      *
      * `RecordLayout::Enum` and not "the representation is a number", which is the test this had
@@ -269,6 +287,14 @@ void Conversion::convertAggregate(ssa::InstAggregate& aggregate) {
     for(auto& property: shape.properties) {
         if(property.role == JsPropertyRole::Tag) {
             members.push(builder.number(F64(arm.value), property.rep, where));
+            continue;
+        }
+
+        // A `$pN` word is the `Pack` of the fields it holds - `JsShape::packedFields`.
+        if(property.role == JsPropertyRole::StorageUnit) {
+            auto value = packOf(property.packing, arm.first, held(components), where);
+            if(!value) return;
+            members.push(value);
             continue;
         }
 
@@ -727,11 +753,42 @@ void Conversion::convertInst(ssa::Inst& inst) {
             auto basePlace = placeOrFail(written.base.value(), where);
             if(!basePlace.valid()) return;
 
+            /*
+             * A field of a **scalarized** record - a range of the number the base place holds.
+             *
+             * Asked of the place's content before anything is loaded, because the word is not read
+             * here: a `BitRange` names the storage, and a load or a store of it is the decode or the
+             * read-modify-write. The row is the record's (`jsWholePackingOf`), and the content has to
+             * be that row's word too - a transparent record over a narrow integer is a number of the
+             * same width, and it is not one of these.
+             */
+            if(written.property == ssa::InstFieldAddress::kNoProperty &&
+               written.field != ssa::InstFieldAddress::kDiscriminant) {
+                auto content = builder.place(basePlace).content;
+                auto packing = target.rep(content).kind == JsRepKind::Number
+                             ? jsWholePackingOf(target, written.record) : nullptr;
+
+                if(packing && packing->word == content) {
+                    for(auto& bits: packing->fields) {
+                        if(bits.field != written.field) continue;
+
+                        auto range = builder.addBitRange(basePlace, bits.offset, bits.width,
+                                                         bits.isSigned, bits.rep);
+                        return definePlace(inst, range);
+                    }
+
+                    // A unit field, which has no bits - see the object arm's `kNoField` below.
+                    return definePlace(inst, builder.addVariable(jsVoidRep(target)));
+                }
+            }
+
             auto owner = builder.load(basePlace, where);
             if(!owner) {
                 internal("met a projection of storage with no value"_v, where);
                 return;
             }
+
+            if(builder.place(basePlace).kind != JsPlaceKind::Value) markProjected(inst);
 
             /*
              * A **field of a type variable**, in a body compiled once - `mir::GenSlotKind::Property`,
@@ -878,6 +935,18 @@ void Conversion::convertInst(ssa::Inst& inst) {
                 return;
             }
 
+            /*
+             * A field that shares a `$pN` word - `JsTarget::packFields`. The word is an ordinary
+             * property and the field is a range of it, so a store is a read-modify-write of the
+             * property and everything that walks the shape per property copies the word whole.
+             */
+            if(auto packed = target.shape(ownerRep.shape).packedField(written.field)) {
+                auto word = builder.addProperty(owner, ownerRep.shape, packed->slot);
+                auto bits = packed->bits;
+                return definePlace(inst, builder.addBitRange(word, bits.offset, bits.width,
+                                                             bits.isSigned, bits.rep));
+            }
+
             auto slot = target.shape(ownerRep.shape).slotOfField(written.field);
             if(slot == JsProperty::kNoField) {
                 // A unit field has no property at all, so there is nothing to project into. A place
@@ -904,6 +973,8 @@ void Conversion::convertInst(ssa::Inst& inst) {
                 internal("met an element address with no owner"_v, where);
                 return;
             }
+
+            if(builder.place(basePlace).kind != JsPlaceKind::Value) markProjected(inst);
 
             auto& ownerRep = target.rep(owner->rep);
             if(ownerRep.kind != JsRepKind::HostArray) {
@@ -1167,6 +1238,14 @@ void Conversion::convertInst(ssa::Inst& inst) {
                 return;
             }
 
+            // The same statement one level in: a field of a packed record that arrived as a value
+            // is a range of a number nobody stores, so there is no word to read-modify-write.
+            if(builder.place(place).kind == JsPlaceKind::BitRange &&
+               builder.place(builder.place(place).word).kind == JsPlaceKind::Value) {
+                report("a write into a field of a packed value that is not in storage"_v, where);
+                return;
+            }
+
             /*
              * A `%T` field written with an **interior reference** - a lending iterator's hand-over
              * slot, which is the one storage this target has no representation for yet.
@@ -1297,6 +1376,25 @@ void Conversion::convertInst(ssa::Inst& inst) {
                 }
 
                 /*
+                 * An operand that is a **reference carried as one value** - a block argument whose
+                 * manifestation needed a cell, which has no place until something asks. The place
+                 * is the `Cell` over it, the storage the descriptor names, and not a `Value` place
+                 * over a conversion of it: that relabelled the descriptor as the `Bool` it points
+                 * at and the store through the result was refused as "a write into storage that is
+                 * a host value". `Packed.yana`'s `loaned` is the shape once `pick` is inlined - the
+                 * chosen reference arrives at a join as a block argument and is `represent`ed at
+                 * the owner form before it is written through (J84).
+                 */
+                auto& operandRow = at(*ssa[written.value.value()]);
+                if(operandRow.one && target.rep(base()[operandRow.one]->rep).kind == JsRepKind::Cell) {
+                    auto place = placeOrFail(written.value.value(), where);
+                    if(!place.valid()) return;
+
+                    definePlace(inst, place);
+                    return;
+                }
+
+                /*
                  * And an operand whose representation is **multi-part**, which is where one value
                  * has to exist.
                  *
@@ -1374,6 +1472,25 @@ void Conversion::convertInst(ssa::Inst& inst) {
                 auto named = at(*ssa[written.value.value()]).place;
                 if(named.valid()) {
                     definePlace(inst, named);
+                    return;
+                }
+
+                /*
+                 * An operand that is a **reference carried as one value** - a block argument whose
+                 * manifestation needed a cell, which has no place until something asks. The place
+                 * is the `Cell` over it, the storage the descriptor names, and not a `Value` place
+                 * over a conversion of it: that relabelled the descriptor as the `Bool` it points
+                 * at and the store through the result was refused as "a write into storage that is
+                 * a host value". `Packed.yana`'s `loaned` is the shape once `pick` is inlined - the
+                 * chosen reference arrives at a join as a block argument and is `represent`ed at
+                 * the owner form before it is written through (J84).
+                 */
+                auto& operandRow = at(*ssa[written.value.value()]);
+                if(operandRow.one && target.rep(base()[operandRow.one]->rep).kind == JsRepKind::Cell) {
+                    auto place = placeOrFail(written.value.value(), where);
+                    if(!place.valid()) return;
+
+                    definePlace(inst, place);
                     return;
                 }
 
@@ -1609,17 +1726,28 @@ void Conversion::convertInst(ssa::Inst& inst) {
                                    bool(constantLiteral(written.fallback, repId));
 
             if(!literalArms || !literalFallback) {
-                SmallArray<JsValue*, 8> answers;
-                for(auto entry: written.entries.contents(ssa)) {
-                    answers.push(constantOf(entry.value, repId, where));
-                }
-
                 /*
                  * A **closed** map's fallback is its last arm, on `NodeMap::closed`'s own terms -
                  * the selector is a discriminant and the arms are every constructor, so the last
                  * test is one whose failure cannot happen.
                  */
-                auto closed = written.closed && answers.size() && !written.fallback.isSet();
+                auto count = U32(written.entries.size());
+                auto closed = written.closed && count && !written.fallback.isSet();
+
+                // What the chain answers when no test holds, as a constant - so that an arm
+                // answering the same is neither built nor tested for (J88). `_ -> Pair {...}` over
+                // four constructors was four tests, each building the same record.
+                auto otherwise = closed ? written.entries.get(ssa, count - 1).value : written.fallback;
+
+                SmallArray<JsValue*, 8> answers;
+                SmallArray<bool, 8> repeats;
+                for(U32 i = 0; i < count; i++) {
+                    auto entry = written.entries.get(ssa, i);
+                    auto repeat = (!closed || i + 1 < count) && otherwise.isSet() &&
+                                  ssa::sameConstant(decl, entry.value, otherwise);
+                    repeats.push(repeat);
+                    answers.push(repeat ? nullptr : constantOf(entry.value, repId, where));
+                }
 
                 auto answer = closed ? answers[answers.size() - 1]
                                      : constantOf(written.fallback, repId, where);
@@ -1633,6 +1761,7 @@ void Conversion::convertInst(ssa::Inst& inst) {
 
                 for(U32 i = arms; i > 0; i--) {
                     auto entry = written.entries.get(ssa, i - 1);
+                    if(repeats[i - 1]) continue;
                     if(!answers[i - 1]) return;
 
                     auto same = binaryOf(mir::BinaryOp::Eq, boolRep, selector,
@@ -1667,6 +1796,8 @@ void Conversion::convertInst(ssa::Inst& inst) {
             if(!fallback && written.closed && node->entries.size()) {
                 auto last = node->entries.size() - 1;
                 node->fallback = node->entries.get(base(), last).to;
+                node->closed = true;
+                node->closedFrom = node->entries.get(base(), last).from;
                 node->entries.remove(base(), last);
                 define(inst, base()[node->result]);
                 return;
@@ -2128,6 +2259,22 @@ bool Conversion::run() {
              */
             if(isCellParts(passing.rep)) {
                 auto content = target.rep(jsStoredRep(target, passing.rep)).content;
+
+                /*
+                 * And a **narrow** one that crossed with its scale is a range of `owner[key]` at
+                 * that scale - the shipping backend's `refShift`, as a place. Every read decodes and
+                 * every write read-modify-writes, including when the caller's storage was a whole
+                 * local, which is what a scale of one (or zero, for a signed content) says.
+                 */
+                if(passing.positions == 3) {
+                    auto& held = target.rep(content);
+                    auto width = held.domain == NumberDomain::Bool01 ? 1u : U32(held.bits);
+                    setPlace(argument->id.index,
+                             builder.addScaledRange(lanes[0], lanes[1], lanes[2], content, width,
+                                                    held.domain == NumberDomain::Signed));
+                    continue;
+                }
+
                 setPlace(argument->id.index,
                            builder.addElement(lanes[0], lanes[1], content));
             }

@@ -207,8 +207,7 @@ fn main() -> one %r3
   block15:
     %79: %r0 = const "Purple"
     %80: %r2 = call colourOf %79
-    store var $2: %r2, %80
-    %81: %r2 = load var $2: %r2
+    %81: %r2 = alias %80
     %82: %r2 = const null
     %83: %r5 = binary.eq %81, %82
     %84: %r1 = const 1
@@ -223,8 +222,7 @@ fn main() -> one %r3
   block17:
     %89: %r0 = const ""
     %90: %r2 = call signalOf %89
-    store var $3: %r2, %90
-    %91: %r2 = load var $3: %r2
+    %91: %r2 = alias %90
     %92: %r2 = const null
     %93: %r5 = binary.eq %91, %92
     %94: %r1 = const 1
@@ -262,7 +260,7 @@ fn main() -> one %r3
     %29: %r0 = const "Stop"
     jump -> block19(%29)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 2
 
 rep %r0 = string
 rep %r1 = number unsigned 8

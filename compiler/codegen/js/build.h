@@ -495,9 +495,6 @@ JsPtr<Expr> fuseWideBitwise(JsShared& g, JsPtr<Expr> pointer);
 // Every helper asked for, as function declarations. Called once, at the end of genProgram.
 void emitWideHelpers(JsShared& g);
 
-// The same for the dynamic bit-range accessors. Emitted *before* the wide helpers, since a body
-// here may ask for one of those and the list it would be appended to is already being walked.
-void emitBitHelpers(Gen& g);
 
 // The saturating float-to-`bigint` conversions a program asked for. See genCast in inst.cpp.
 void emitSaturationHelpers(JsShared& g);
@@ -1326,5 +1323,8 @@ void emitChain(Gen& g, U32 block, U32 stopAt);
 // builds it. Runs over the finished file, because how many readers a binding has is not known until
 // the function it is in has been emitted.
 void optimizeFile(JsShared& g);
+
+// JSIR only: calls to empty functions removed, and functions nothing reaches - see opt.cpp.
+void sweepFunctions(JsShared& g);
 
 } // namespace js

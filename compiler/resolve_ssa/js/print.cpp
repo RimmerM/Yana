@@ -158,6 +158,51 @@ struct Printer {
                 text(" "_v);
                 text(jsPropertyRoleName(property.role));
             }
+
+            if(property.role == JsPropertyRole::StorageUnit) {
+                text(" #"_v);
+                uint(property.packing);
+            }
+        }
+
+        text("}\n"_v);
+    }
+
+    // One packed word: its fields in record order, each as `name @offset:width`, and `s` where the
+    // field is read back sign-extended.
+    void packingDeclaration(U32 index) {
+        auto& row = target.packings[index];
+
+        text("packing #"_v);
+        uint(index);
+        text(" "_v);
+        rep(row.word);
+
+        auto declared = row.source && decl[row.source]->kind == mir::Type::Record
+                      ? (mir::RecordType*)decl[row.source] : nullptr;
+        if(declared && declared->name) {
+            text(" "_v);
+            name(declared->name);
+        }
+
+        text(" {"_v);
+        for(U32 i = 0; i < row.fields.size(); i++) {
+            if(i) text(", "_v);
+
+            auto& bits = row.fields[i];
+            if(declared && bits.field < declared->fields.size() &&
+               declared->fields.get(decl, bits.field).name) {
+                name(declared->fields.get(decl, bits.field).name);
+            } else {
+                text("f"_v);
+                uint(bits.field);
+            }
+
+            text(" @"_v);
+            uint(bits.offset);
+            text(":"_v);
+            uint(bits.width);
+            if(bits.isSigned) text("s"_v);
         }
 
         text("}\n"_v);
@@ -239,6 +284,21 @@ struct Printer {
                 valueRef(value.index);
                 text("]"_v);
                 break;
+            case JsPlaceKind::BitRange:
+                text(" @"_v);
+                uint(value.bitOffset);
+                text(":"_v);
+                uint(value.bitWidth);
+                if(value.bitSigned) text("s"_v);
+                if(value.bitScale) {
+                    text(value.bitWhole ? " whole"_v : ""_v);
+                    text(" scaled "_v);
+                    valueRef(value.bitScale);
+                }
+                text(" of ("_v);
+                place(value.word);
+                text(")"_v);
+                break;
         }
 
         text(": "_v);
@@ -298,6 +358,12 @@ struct Printer {
             case JsInst::Object:
                 text(" %s"_v);
                 uint(((JsInstObject&)node).shape.index);
+                operands(node);
+                return;
+
+            case JsInst::Pack:
+                text(" #"_v);
+                uint(((JsInstPack&)node).packing);
                 operands(node);
                 return;
 
@@ -517,10 +583,27 @@ void printTables(Net::Writer& writer, JsTarget& target) {
     printer.uint(target.optimizer.adopted);
     printer.text(" sunk "_v);
     printer.uint(target.optimizer.sunk);
+    printer.text(" numbered "_v);
+    printer.uint(target.optimizer.numbered);
+    printer.text(" decided "_v);
+    printer.uint(target.optimizer.decided);
+    printer.text(" unboxed "_v);
+    printer.uint(target.optimizer.unboxed);
+    printer.text(" updated "_v);
+    printer.uint(target.optimizer.updated);
+    printer.text(" split "_v);
+    printer.uint(target.optimizer.split);
+    printer.text(" promoted "_v);
+    printer.uint(target.optimizer.promoted);
     printer.text("\n\n"_v);
 
     for(U32 i = 0; i < target.shapes.size(); i++) printer.shapeDeclaration(JsShapeId(i));
     if(target.shapes.size()) printer.text("\n"_v);
+
+    // Printed only where something packed, so a program the packing switches leave alone dumps
+    // exactly what it dumped before they existed.
+    for(U32 i = 0; i < target.packings.size(); i++) printer.packingDeclaration(i);
+    if(target.packings.size()) printer.text("\n"_v);
 
     for(U32 i = 0; i < target.reps.size(); i++) {
         printer.repDeclaration(JsRepId(i));

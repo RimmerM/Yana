@@ -5,20 +5,17 @@ fn main() -> one %r0
   block0:
     %19: %r0 = const 30
     %20: %r5 = const 1
-    store var $0: %r5, %20
-    %22: %r5 = load var $0: %r5
+    %22: %r5 = alias %20
     %23: %r0 = map %22 [0 => 0, else 1]
     %24: %r0 = binary.add %19, %23
     %25: %r0 = coerce %24
     %26: %r2 = const 1
-    store var $1: %r2, %26
-    %28: %r2 = load var $1: %r2
+    %28: %r2 = alias %26
     %29: %r0 = map %28 [0 => 1, else 2]
     %30: %r0 = binary.add %25, %29
     %31: %r0 = coerce %30
     %32: %r5 = const 1
-    store var $2: %r5, %32
-    %34: %r5 = load var $2: %r5
+    %34: %r5 = alias %32
     %35: %r0 = const 0
     %36: %r0 = const 0
     %37: %r1 = object %s0 %35, %36
@@ -39,7 +36,7 @@ fn main() -> one %r0
     %52: %r0 = coerce %51
     return %52
 
-optimizer clones 0 aliased 0 forwarded 0 removed 22 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 25 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 3
 
 shape %s0 object Pair {x: %r0, y: %r0}
 shape %s1 object Choice {$tag: %r2 tag, Left: %r0, value: %r0, extra: %r0}

@@ -1,0 +1,13 @@
+{-
+   A bare `main` with parameters is the program's entry itself (J91).
+
+   # resolver: ownership
+   # target: bare
+
+   `-target bare` has no process ABI: the loader enters the entry with whatever it left in the
+   argument registers - a boot protocol's magic and info pointer, say - so the entry keeps its
+   signature as written and nothing is synthesized in front of it. On a hosted target the same
+   `main` is refused (`ownership/Reject.MainParameters`).
+-}
+
+fn main(magic: U32, info: Size) -> U32 = if info == 0 then magic else magic + 1

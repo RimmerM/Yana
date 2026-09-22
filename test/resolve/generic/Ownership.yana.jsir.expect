@@ -1,12 +1,11 @@
 fn Conn.drop(one %r0) -> omitted
   var $0: %r0
   block0(%0: %r0):
-    store var $0: %r0, %0
     %1: %r0 = load global trace: %r0
     %2: %r0 = const 10
     %3: %r0 = binary.mul %1, %2
     %4: %r0 = coerce %3
-    %6: %r0 = load var $0: %r0
+    %6: %r0 = alias %0
     %7: %r0 = binary.add %4, %6
     %8: %r0 = coerce %7
     store global trace: %r0, %8
@@ -15,12 +14,11 @@ fn Conn.drop(one %r0) -> omitted
 fn Guard.drop(one %r0) -> omitted
   var $0: %r0
   block0(%0: %r0):
-    store var $0: %r0, %0
     %1: %r0 = load global trace: %r0
     %2: %r0 = const 10
     %3: %r0 = binary.mul %1, %2
     %4: %r0 = coerce %3
-    %6: %r0 = load var $0: %r0
+    %6: %r0 = alias %0
     %7: %r0 = binary.add %4, %6
     %8: %r0 = coerce %7
     store global trace: %r0, %8
@@ -35,8 +33,7 @@ fn main() -> one %r0
   block0:
     %0: %r0 = const 1
     %1: %r0 = alias %0
-    store var $0: %r0, %1
-    %2: %r0 = load var $0: %r0
+    %2: %r0 = alias %1
     call Conn.drop %2
     %3: %r0 = load global trace: %r0
     %4: %r0 = const 1
@@ -45,8 +42,7 @@ fn main() -> one %r0
   block1:
     %6: %r0 = const 2
     %7: %r0 = alias %6
-    store var $1: %r0, %7
-    %8: %r0 = load var $1: %r0
+    %8: %r0 = alias %7
     call Conn.drop %8
     %9: %r0 = load global trace: %r0
     %10: %r0 = const 12
@@ -58,8 +54,7 @@ fn main() -> one %r0
   block3:
     %12: %r0 = const 3
     %13: %r0 = alias %12
-    store var $2: %r0, %13
-    %14: %r0 = load var $2: %r0
+    %14: %r0 = alias %13
     call Guard.drop %14
     %15: %r0 = load global trace: %r0
     %16: %r0 = const 123
@@ -71,11 +66,9 @@ fn main() -> one %r0
   block5:
     %18: %r0 = const 4
     %19: %r0 = alias %18
-    store var $3: %r0, %19
-    %20: %r0 = load var $3: %r0
+    %20: %r0 = alias %19
     %21: %r0 = alias %20
-    store var $4: %r0, %21
-    %22: %r0 = load var $4: %r0
+    %22: %r0 = alias %21
     call Conn.drop %22
     %23: %r0 = load global trace: %r0
     %24: %r0 = const 1234
@@ -96,7 +89,7 @@ fn main() -> one %r0
     %32: %r0 = const -5
     return %32
 
-optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 9 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 7
 
 rep %r0 = number signed 32
 rep %r1 = void

@@ -55,14 +55,12 @@ function floats() {
 }
 
 function main() {
-  var p0;
   var v1 = seed;
   var v5 = seed + 1 | 0;
   if (comparisons(v1, v1, v1, v1, v5, v5, v5, v5) !== 0) return comparisons(v1, v1, v1, v1, v5, v5, v5, v5);
   var v9 = v1 < v5;
-  var v10 = v1 < v5;
   var v13 = v9 ? v1 : v5;
-  var v18 = v10 ? v5 : v1;
+  var v18 = v9 ? v5 : v1;
   B0: {
     if (v13 === 3) {
       if (v18 !== 4) break B0;
@@ -72,15 +70,6 @@ function main() {
       return 4839;
     }
   }
-  var v47 = v1 < v5;
-  var v48 = v1 < v5;
-  var v51 = v47 ? v1 : v5;
-  var v56 = v48 ? v5 : v1;
-  if (v51 !== 3) {
-    p0 = -1;
-  } else {
-    p0 = v56 !== 4 ? -2 : 0;
-  }
-  return Math.imul(p0, 10);
+  return Math.imul((v1 < v5 ? v1 : v5) !== 3 ? -1 : (v1 < v5 ? v5 : v1) !== 4 ? -2 : 0, 10);
 }
 main();

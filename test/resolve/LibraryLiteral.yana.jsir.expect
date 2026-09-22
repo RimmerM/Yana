@@ -448,7 +448,6 @@ fn pushDecimalDigits(one %r3, one %r2, one %r2, parts %r6) -> omitted
   var $0: %r1
   block0(%0: %r3, %1: %r2, %2: %r2, %3: %r4, %4: %r4):
     %6: %r1 = host host.global "String" %0
-    store var $0: %r1, %6
     %7: %r2 = const 0
     %8: %r2 = const 1
     %9: %r13 = const 46
@@ -462,7 +461,7 @@ fn pushDecimalDigits(one %r3, one %r2, one %r2, parts %r6) -> omitted
     %11: %r11 = binary.eq %5, %2
     branch %11 -> block5 -> block4
   block4:
-    %18: %r1 = load var $0: %r1
+    %18: %r1 = alias %6
     %19: %r1 = alias %18
     %20: %r2 = convert %5
     %21: %r1 = alias %19
@@ -676,7 +675,7 @@ fn writeShortest(one %r8, parts %r6) -> omitted
     branch %60 -> block11 -> block9
   block9:
     %61: %r3 = load property %0.digits: %r3
-    %62: %r2 = load property %0.exponent: %r2
+    %62: %r2 = alias %58
     %63: %r2 = binary.add %5, %62
     %64: %r2 = coerce %63
     call pushDecimalDigits %61, %5, %64, %1, %2
@@ -807,11 +806,9 @@ fn Maybe(a).show(I32)(one %r10, parts %r6) -> omitted
     %42: %r1 = load var $0: %r1
     %43: %r1 = alias %42
     %44: %r1 = load element %1[%2]: %r1
-    store var $1: %r1, %44
-    store var $2: %r1, %43
-    %45: %r1 = load var $1: %r1
+    %45: %r1 = alias %44
     %46: %r1 = alias %45
-    %47: %r1 = load var $2: %r1
+    %47: %r1 = alias %43
     %48: %r1 = alias %47
     %49: %r1 = alias %46
     %50: %r1 = alias %48
@@ -819,7 +816,7 @@ fn Maybe(a).show(I32)(one %r10, parts %r6) -> omitted
     store element %1[%2]: %r1, %51
     jump -> block2
 
-optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 3
 
 shape %s0 ref {$o: %r4 owner, $k: %r4 key}
 shape %s1 object Shortest {digits: %r3, exponent: %r2}

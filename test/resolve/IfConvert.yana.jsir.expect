@@ -1,7 +1,6 @@
 fn Held.drop(one %r0) -> omitted
   var $0: %r0
   block0(%0: %r0):
-    store var $0: %r0, %0
     %1: %r0 = load global live: %r0
     %2: %r0 = const 1
     %3: %r0 = binary.sub %1, %2
@@ -75,8 +74,7 @@ fn main() -> one %r0
     %39: %r0 = coerce %38
     store global live: %r0, %39
     %40: %r0 = alias %35
-    store var $0: %r0, %40
-    %41: %r0 = load var $0: %r0
+    %41: %r0 = alias %40
     call Held.drop %41
     %42: %r0 = load global live: %r0
     %43: %r0 = const 1
@@ -85,8 +83,7 @@ fn main() -> one %r0
     store global live: %r0, %45
     %46: %r0 = const 4
     %47: %r0 = alias %46
-    store var $1: %r0, %47
-    %48: %r0 = load var $1: %r0
+    %48: %r0 = alias %47
     call Held.drop %48
     %49: %r0 = const 7
     %50: %r0 = load global live: %r0
@@ -95,8 +92,7 @@ fn main() -> one %r0
     %53: %r0 = coerce %52
     store global live: %r0, %53
     %54: %r0 = alias %49
-    store var $2: %r0, %54
-    %55: %r0 = load var $2: %r0
+    %55: %r0 = alias %54
     call Held.drop %55
     %56: %r0 = const 1178
     %57: %r0 = binary.add %34, %56
@@ -108,8 +104,7 @@ fn main() -> one %r0
     %63: %r0 = coerce %62
     store global live: %r0, %63
     %64: %r0 = alias %59
-    store var $3: %r0, %64
-    %65: %r0 = load var $3: %r0
+    %65: %r0 = alias %64
     call Held.drop %65
     %66: %r0 = const 1000
     %67: %r0 = binary.mul %58, %66
@@ -125,7 +120,7 @@ fn main() -> one %r0
     %77: %r0 = coerce %76
     return %77
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 4
 
 rep %r0 = number signed 32
 rep %r1 = void

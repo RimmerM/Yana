@@ -1,0 +1,190 @@
+fn poke(one %r1) -> omitted
+  block0(%0: %r1):
+    %1: %r0 = const 99
+    store property %0.a: %r0, %1
+    return
+
+fn t1(one %r0) -> one %r0
+  var $0: %r1
+  block0(%0: %r0):
+    %7: %r0 = const 2
+    %8: %r1 = object %s0 %0, %7
+    %3: %r1 = alias %8
+    %9: %r1 = clone %3
+    call poke %3
+    %10: %r1 = alias %9
+    %11: %r0 = load property %10.a: %r0
+    return %11
+
+fn t2(one %r1) -> one %r0
+  var $0: %r1
+  block0(%0: %r1):
+    %4: %r1 = clone %0
+    %5: %r0 = const 7
+    store property %0.a: %r0, %5
+    %6: %r1 = alias %4
+    %7: %r0 = load property %6.a: %r0
+    %8: %r1 = alias %4
+    %9: %r0 = load property %8.b: %r0
+    %10: %r0 = binary.add %7, %9
+    %11: %r0 = coerce %10
+    return %11
+
+fn t3() -> one %r0
+  var $0: %r1
+  var $1: %r1
+  var $2: %r1
+  block0:
+    %11: %r0 = const 0
+    %12: %r0 = const 0
+    %13: %r0 = const 0
+    %14: %r1 = object %s0 %12, %13
+    store var $0: %r1, %14
+    %15: %r0 = const 0
+    %16: %r0 = const 1
+    %17: %r0 = const 4
+    %18: %r0 = const 2
+    %19: %r0 = const 1
+    %20: %r0 = const 100
+    jump -> block1(%11, %15)
+  block1(%0: %r0, %1: %r0):
+    %21: %r3 = binary.lt %1, %17
+    branch %21 -> block3 -> block2
+  block2:
+    %22: %r0 = const 1000
+    %23: %r0 = binary.mul %0, %22
+    %24: %r0 = coerce %23
+    %25: %r1 = load var $0: %r1
+    %26: %r0 = load property %25.a: %r0
+    %27: %r0 = binary.add %24, %26
+    %28: %r0 = coerce %27
+    return %28
+  block3:
+    %29: %r0 = binary.mul %1, %18
+    %30: %r0 = coerce %29
+    %31: %r1 = object %s0 %1, %30
+    %32: %r1 = alias %31
+    %33: %r0 = binary.add %30, %19
+    %34: %r0 = coerce %33
+    store property %32.b: %r0, %34
+    %35: %r1 = alias %31
+    %36: %r1 = alias %35
+    %37: %r1 = alias %36
+    %38: %r0 = load property %37.a: %r0
+    %39: %r0 = binary.add %38, %20
+    %40: %r0 = coerce %39
+    store property %37.a: %r0, %40
+    %41: %r1 = alias %36
+    %42: %r1 = alias %41
+    store var $0: %r1, %42
+    %43: %r0 = binary.add %0, %1
+    %44: %r0 = coerce %43
+    %45: %r0 = binary.add %1, %16
+    %46: %r0 = coerce %45
+    jump -> block1(%44, %46)
+
+fn t4(one %r0) -> one %r0
+  block0(%0: %r0):
+    %5: %r0 = const 50
+    %6: %r0 = const 100
+    %7: %r0 = binary.mul %0, %6
+    %8: %r0 = coerce %7
+    %9: %r0 = binary.add %8, %5
+    %10: %r0 = coerce %9
+    return %10
+
+fn t5(one %r1) -> one %r0
+  var $0: %r1
+  var $1: %r1
+  block0(%0: %r1):
+    %8: %r0 = load property %0.b: %r0
+    %9: %r0 = const 1
+    %10: %r0 = binary.add %8, %9
+    %11: %r0 = coerce %10
+    %25: %r0 = alias %8
+    %15: %r0 = const 40
+    store property %0.b: %r0, %15
+    %17: %r0 = alias %11
+    %18: %r0 = const 100
+    %19: %r0 = binary.mul %17, %18
+    %20: %r0 = coerce %19
+    %22: %r0 = alias %25
+    %23: %r0 = binary.add %20, %22
+    %24: %r0 = coerce %23
+    return %24
+
+fn main() -> one %r0
+  block0:
+    %4: %r0 = const 1
+    %5: %r0 = const 2
+    %6: %r1 = object %s0 %4, %5
+    %3: %r1 = alias %6
+    %7: %r0 = const 5
+    %8: %r0 = call t1 %7
+    %9: %r0 = call t2 %3
+    %10: %r0 = const 10
+    %11: %r0 = binary.mul %9, %10
+    %12: %r0 = coerce %11
+    %13: %r0 = binary.add %8, %12
+    %14: %r0 = coerce %13
+    %15: %r0 = call t3
+    %16: %r0 = binary.add %14, %15
+    %17: %r0 = coerce %16
+    %18: %r0 = const 3
+    %19: %r0 = call t4 %18
+    %20: %r0 = binary.add %17, %19
+    %21: %r0 = coerce %20
+    %22: %r0 = call t5 %3
+    %23: %r0 = binary.add %21, %22
+    %24: %r0 = coerce %23
+    %25: %r0 = const 6790
+    %26: %r3 = binary.ne %24, %25
+    branch %26 -> block2 -> block1
+  block1:
+    %27: %r0 = const 5
+    %28: %r0 = call t1 %27
+    %29: %r0 = const 5
+    %30: %r3 = binary.ne %28, %29
+    branch %30 -> block8 -> block3
+  block2:
+    %47: %r0 = const 1
+    return %47
+  block3:
+    %31: %r0 = call t2 %3
+    %32: %r0 = const 47
+    %33: %r3 = binary.ne %31, %32
+    branch %33 -> block8 -> block4
+  block4:
+    %34: %r0 = call t5 %3
+    %35: %r0 = const 4140
+    %36: %r3 = binary.ne %34, %35
+    branch %36 -> block8 -> block5
+  block5:
+    %37: %r0 = load property %3.a: %r0
+    %38: %r0 = const 7
+    %39: %r3 = binary.ne %37, %38
+    branch %39 -> block8 -> block6
+  block6:
+    %40: %r0 = load property %3.b: %r0
+    %41: %r0 = const 40
+    %42: %r3 = binary.ne %40, %41
+    jump -> block7(%42)
+  block7(%0: %r3):
+    %44: %r0 = const 2
+    %45: %r0 = const 0
+    %46: %r0 = select %0, %44, %45
+    return %46
+  block8:
+    %43: %r3 = const 1
+    jump -> block7(%43)
+
+optimizer clones 6 aliased 3 forwarded 2 removed 44 adopted 2 sunk 0 numbered 1 decided 0 unboxed 0 updated 1 split 0 promoted 9
+
+shape %s0 object Rec {a: %r0, b: %r0}
+shape %s1 object Outer {inner: %r1, tag: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = void
+rep %r3 = number bool
+rep %r4 = object %s1

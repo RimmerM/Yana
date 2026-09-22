@@ -1031,48 +1031,21 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
  * the bits *are* the value and this is the same shift and mask for every one of them.
  */
 
-/*
- * Which of the two forms a range is reached by.
- *
- * A runtime scale always takes the wide one, whatever this target's words are: it arrived with a
- * reference, and a reference is the one place the word's width is not known - see maxWordBits. A
- * constant position takes the wide form only where the word genuinely needs it.
- */
-static bool needsWideForm(PlaceBits bits) {
-    if(bits.scale) return true;
-    return bits.word > 32 && bits.offset + bits.width > 32;
-}
 
-/*
- * A range that *is* the word it lives in, which is a single-field record: the one field fills the
- * scalar, so reading it is reading the number and writing it is writing the number.
- *
- * Asked only of a word too wide for the host's operators, where the alternative is a remainder and a
- * re-sign - three operations to recover a value nothing has touched. Below 32 the mask is one cheap
- * operation and stays, which also keeps the two ends of a narrower word agreeing about whether it
- * holds the value or the pattern.
- *
- * Both directions have to take this together or neither may: what makes the identity sound is that
- * the word holds whatever the store put there, so the store must not be masking what the load will
- * not.
- */
-static bool coversWord(PlaceBits bits) {
-    return !bits.scale && bits.word > 32 && bits.offset == 0 && bits.width >= bits.word;
-}
 
 // The shift, for the 32-bit form. Null where the range starts at bit zero of what it names, and
 // never asked of a range that arrived with a scale.
-static JsPtr<Expr> shiftOf(Gen& g, PlaceBits bits) {
-    return bits.offset ? number(g, F64(bits.offset)) : nullptr;
+static JsPtr<Expr> shiftOf(JsShared& g, U32 offset) {
+    return offset ? number(g, F64(offset)) : nullptr;
 }
 
 // The same position as a *multiplier*, for the wide form: `2**offset` folded into whatever scale a
 // reference arrived with. Null means one, which is what lets a range at bit zero cost nothing.
-static JsPtr<Expr> scaleOf(Gen& g, PlaceBits bits) {
-    if(!bits.scale) return bits.offset ? number(g, powerOfTwo(bits.offset)) : nullptr;
-    if(!bits.offset) return bits.scale;
+static JsPtr<Expr> scaleOf(JsShared& g, U32 offset, JsPtr<Expr> scale) {
+    if(!scale) return offset ? number(g, powerOfTwo(offset)) : nullptr;
+    if(!offset) return scale;
 
-    return binary(g, BinaryOp::Mul, bits.scale, number(g, powerOfTwo(bits.offset)));
+    return binary(g, BinaryOp::Mul, scale, number(g, powerOfTwo(offset)));
 }
 
 /*
@@ -1085,32 +1058,37 @@ static JsPtr<Expr> scaleOf(Gen& g, PlaceBits bits) {
  * divide per access either way, so that end divides instead. `divides` is that difference and it is
  * the only thing separating the two families of helper below.
  */
-struct Position {
-    JsPtr<Expr> down = nullptr;   // multiply the word by this; null means one
-    JsPtr<Expr> up = nullptr;     // multiply the field by this; null means one
-    bool divides = false;         // `word / up` rather than `word * down`
-};
+/*
+ * `BitPosition` itself is `shared.h`'s since J82, with every function below that takes a range
+ * apart: they take the range as numbers rather than as a `PlaceBits` and the state as `JsShared`
+ * rather than as `Gen`, so that JSIR's assembly can emit the same helpers. The alternative was a
+ * second copy under `resolve_ssa/js`, which is two spellings of one bit layout that both backends
+ * have to agree on word for word.
+ */
+BitPosition bitPosition(JsShared& g, U32 offset, JsPtr<Expr> scale) {
+    BitPosition position;
 
-static Position positionOf(Gen& g, PlaceBits bits) {
-    Position position;
-
-    if(bits.scale) {
-        position.up = scaleOf(g, bits);
+    if(scale) {
+        position.up = scaleOf(g, offset, scale);
         position.divides = true;
         return position;
     }
 
-    if(bits.offset) {
-        position.down = number(g, 1.0 / powerOfTwo(bits.offset), false);
-        position.up = number(g, powerOfTwo(bits.offset));
+    if(offset) {
+        position.down = number(g, 1.0 / powerOfTwo(offset), false);
+        position.up = number(g, powerOfTwo(offset));
     }
 
     return position;
 }
 
+static BitPosition positionOf(Gen& g, PlaceBits bits) {
+    return bitPosition(g, bits.offset, bits.scale);
+}
+
 // The bits at and above the range, as an integer. Exact for every value a `number` holds, since
 // scaling by a power of two only moves the exponent.
-static JsPtr<Expr> shiftedDown(Gen& g, JsPtr<Expr> owner, Position position) {
+static JsPtr<Expr> shiftedDown(JsShared& g, JsPtr<Expr> owner, BitPosition position) {
     if(position.divides) {
         return hostCall(g, "Math"_v, "floor"_v, binary(g, BinaryOp::Div, owner, position.up));
     }
@@ -1121,7 +1099,7 @@ static JsPtr<Expr> shiftedDown(Gen& g, JsPtr<Expr> owner, Position position) {
 
 // The low `width` bits of an already-shifted value, read as the field's own type. Shared by both
 // forms, because once the range is at bit zero it is inside 32 bits either way.
-static JsPtr<Expr> maskToField(Gen& g, JsPtr<Expr> value, U32 width, bool isSigned) {
+static JsPtr<Expr> maskToField(JsShared& g, JsPtr<Expr> value, U32 width, bool isSigned) {
     if(width >= 32) return binary(g, BinaryOp::And, value, number(g, F64(~U32(0))));
 
     /*
@@ -1139,8 +1117,8 @@ static JsPtr<Expr> maskToField(Gen& g, JsPtr<Expr> value, U32 width, bool isSign
     return binary(g, BinaryOp::And, value, number(g, F64((U32(1) << width) - 1)));
 }
 
-static JsPtr<Expr> decodeRange(Gen& g, JsPtr<Expr> owner, PlaceBits bits, Position position,
-                               bool wide, bool isSigned) {
+JsPtr<Expr> decodeRange(JsShared& g, JsPtr<Expr> owner, U32 offset, U32 width, BitPosition position,
+                        bool wide, bool isSigned) {
     /*
      * A range entirely below bit 32 takes the 32-bit form whatever the word is, because `>>>` reads
      * its operand as `ToUint32` - the low half - and the field is inside that half by construction.
@@ -1148,13 +1126,13 @@ static JsPtr<Expr> decodeRange(Gen& g, JsPtr<Expr> owner, PlaceBits bits, Positi
      */
     if(!wide) {
         auto value = owner;
-        if(auto shift = shiftOf(g, bits)) value = binary(g, BinaryOp::Shr, value, shift);
+        if(auto shift = shiftOf(g, offset)) value = binary(g, BinaryOp::Shr, value, shift);
 
-        return maskToField(g, value, bits.width, isSigned);
+        return maskToField(g, value, width, isSigned);
     }
 
     auto value = shiftedDown(g, owner, position);
-    if(bits.width < 32) return maskToField(g, value, bits.width, isSigned);
+    if(width < 32) return maskToField(g, value, width, isSigned);
 
     /*
      * A field of 32 bits or more, which no 32-bit operator can cut down: the remainder is the only
@@ -1163,13 +1141,13 @@ static JsPtr<Expr> decodeRange(Gen& g, JsPtr<Expr> owner, PlaceBits bits, Positi
      * by the one shape that has no alternative - a field wider than the operators, in a word wider
      * than the operators.
      */
-    auto reduced = binary(g, BinaryOp::Rem, value, number(g, powerOfTwo(bits.width)));
+    auto reduced = binary(g, BinaryOp::Rem, value, number(g, powerOfTwo(width)));
     if(!isSigned) return reduced;
 
     // Read back as a signed value. The binding is `resignExpr`'s requirement rather than a tidiness
     // measure: it mentions its operand three times.
     if(g.body) reduced = declare(g, generatedName(g, "bits"_v, g.labelCounter++), reduced);
-    return resignExpr(g, reduced, bits.width);
+    return resignExpr(g, reduced, width);
 }
 
 /*
@@ -1191,14 +1169,14 @@ static JsPtr<Expr> decodeRange(Gen& g, JsPtr<Expr> owner, PlaceBits bits, Positi
  * find the bits it wants, while writing has to leave alone every bit it does not - and `owner & hole`
  * drops the whole high half of a word that has one.
  */
-static JsPtr<Expr> encodeRange(Gen& g, JsPtr<Expr> owner, PlaceBits bits, Position position,
-                               bool wide, JsPtr<Expr> value) {
-    auto mask = bits.width >= 32 ? ~U32(0) : (U32(1) << bits.width) - 1;
+JsPtr<Expr> encodeRange(JsShared& g, JsPtr<Expr> owner, U32 offset, U32 width, U32 word,
+                        BitPosition position, bool wide, JsPtr<Expr> value) {
+    auto mask = width >= 32 ? ~U32(0) : (U32(1) << width) - 1;
 
     if(!wide) {
         value = binary(g, BinaryOp::And, value, number(g, F64(mask)));
 
-        auto shift = shiftOf(g, bits);
+        auto shift = shiftOf(g, offset);
         if(shift) value = binary(g, BinaryOp::Shl, value, shift);
 
         // The hole the field occupies, as a constant - the shift is one, and so is the mask.
@@ -1217,17 +1195,17 @@ static JsPtr<Expr> encodeRange(Gen& g, JsPtr<Expr> owner, PlaceBits bits, Positi
          * word if what it is adding to is the pattern rather than the pattern minus 2^32. Narrower
          * words cannot be negative in the first place and are left alone.
          */
-        if(bits.word < 32) return written;
+        if(word < 32) return written;
         return binary(g, BinaryOp::Shr, written, number(g, 0));
     }
 
     // Both readings are of the *pattern* rather than of the value, so a signed field is reduced the
     // unsigned way at both ends and the subtraction below cancels exactly.
     auto reduce = [&](JsPtr<Expr> from) -> JsPtr<Expr> {
-        if(bits.width < 32) return binary(g, BinaryOp::And, from, number(g, F64(mask)));
-        if(bits.width == 32) return binary(g, BinaryOp::Shr, from, number(g, 0));
+        if(width < 32) return binary(g, BinaryOp::And, from, number(g, F64(mask)));
+        if(width == 32) return binary(g, BinaryOp::Shr, from, number(g, 0));
 
-        return wideCallAt(g, WideOp::Wrap, bits.width, false, from, nullptr);
+        return wideCallAt(g, WideOp::Wrap, width, false, from, nullptr);
     };
 
     auto held = reduce(shiftedDown(g, owner, position));
@@ -1248,7 +1226,7 @@ static JsPtr<Expr> encodeRange(Gen& g, JsPtr<Expr> owner, PlaceBits bits, Positi
  * program that borrows narrow values or holds records above 32 bits does the same thing everywhere.
  *
  * Two families, because the two ends hold the position differently and neither should take the
- * other's cost - see Position. A **packed** helper is handed the reciprocal and the scale, both
+ * other's cost - see BitPosition. A **packed** helper is handed the reciprocal and the scale, both
  * literals at the site, and multiplies; a **borrowed** one is handed the reference's own scale and
  * divides. Both are interned per (width, signedness, direction), so every offset of a given width
  * shares one, which is what keeps this from becoming a helper per field.
@@ -1262,7 +1240,7 @@ static U32 bitHelperKey(U32 bits, bool isSigned, bool store, bool packed) {
     return (bits << 3) | (U32(packed) << 2) | (U32(isSigned) << 1) | U32(store);
 }
 
-static Name bitHelper(Gen& g, U32 bits, bool isSigned, bool store, bool packed) {
+Name bitHelper(JsShared& g, U32 bits, bool isSigned, bool store, bool packed) {
     // A store reads and writes the *pattern* at both ends, so the sign is not one of its questions -
     // and keying on it anyway produced two helpers with identical bodies.
     if(store) isSigned = false;
@@ -1291,12 +1269,12 @@ static Name bitHelper(Gen& g, U32 bits, bool isSigned, bool store, bool packed) 
     return name;
 }
 
-static JsPtr<Expr> namedParameter(Gen& g, StringView text, Name& into) {
+static JsPtr<Expr> namedParameter(JsShared& g, StringView text, Name& into) {
     into = literalName(g, text);
     return variable(g, into);
 }
 
-void emitBitHelpers(Gen& g) {
+void emitBitHelpers(JsShared& g, U32 wordBits) {
     if(g.bitHelperOrder.size() == 0) return;
 
     auto heading = make<CommentStmt>(g, internText(g,
@@ -1321,7 +1299,7 @@ void emitBitHelpers(Gen& g) {
              * a borrowed one takes the scale alone and divides with it, and a load through one
              * therefore needs no second parameter at all.
              */
-            Position position;
+            BitPosition position;
             function->args.push(g.file.arena, wordName);
 
             if(helper.packed) {
@@ -1342,14 +1320,9 @@ void emitBitHelpers(Gen& g) {
 
             // The word is as wide as this target packs, since the body serves every range of this
             // width - and it is the arithmetic form for all of them by construction.
-            PlaceBits bits;
-            bits.width = helper.bits;
-            bits.word = maxWordBits(g);
-            bits.scale = helper.packed ? nullptr : up;
-
             emit(g, make<ReturnStmt>(g, helper.store
-                ? encodeRange(g, word, bits, position, true, value)
-                : decodeRange(g, word, bits, position, true, helper.isSigned)));
+                ? encodeRange(g, word, 0, helper.bits, wordBits, position, true, value)
+                : decodeRange(g, word, 0, helper.bits, position, true, helper.isSigned)));
         });
 
         emit(g, function);
@@ -1363,7 +1336,7 @@ void emitBitHelpers(Gen& g) {
  * nothing wanted go away - a reborrow computes the field's value only to describe where it is, and
  * without this the emitted body kept two loads it never looked at.
  */
-static JsPtr<Expr> bitCall(Gen& g, Name name, Buffer<const JsPtr<Expr>> args) {
+static JsPtr<Expr> bitCall(JsShared& g, Name name, Buffer<const JsPtr<Expr>> args) {
     auto node = make<CallExpr>(g, variable(g, name));
     for(auto arg: args) node->args.push(g.file.arena, arg);
 
@@ -1383,8 +1356,55 @@ static bool fieldIsSigned(Gen& g, TypePtr type) {
     return integer && integer->isSigned;
 }
 
+
 /*
- * Whether a range is worth calling for rather than writing out.
+ * A range with no scale is a constant one, and `decodeBitRange`/`encodeBitRange` below are the one
+ * copy of what decides it - the identity, the 32-bit operators, or a call. What is left here is the
+ * reference's own case, which always takes the wide form and always calls: a scale arrives with a
+ * reference, the one place the word's width is not known (see `maxWordBits`), and its position is
+ * a variable, so there is nothing to fold and the call is the same length at every site.
+ */
+JsPtr<Expr> decodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr type) {
+    if(!bits.scale) return decodeBitRange(g, owner, bits.offset, bits.width, bits.word, fieldIsSigned(g, type));
+
+    auto position = positionOf(g, bits);
+    auto name = bitHelper(g, bits.width, fieldIsSigned(g, type), false, false);
+    JsPtr<Expr> args[] = { owner, position.up };
+    return bitCall(g, name, toBuffer(args));
+}
+
+JsPtr<Expr> encodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr type, JsPtr<Expr> value) {
+    if(!bits.scale) {
+        return encodeBitRange(g, owner, bits.offset, bits.width, bits.word, fieldIsSigned(g, type), value);
+    }
+
+    auto position = positionOf(g, bits);
+    auto name = bitHelper(g, bits.width, fieldIsSigned(g, type), true, false);
+    JsPtr<Expr> args[] = { owner, position.up, value };
+    return bitCall(g, name, toBuffer(args));
+}
+
+/*
+ * The same two for a **constant** range named by numbers rather than by a `PlaceBits` and a type -
+ * what JSIR's `JsPlaceKind::BitRange` becomes. The shapes are `decodeBits`/`encodeBits`' with no
+ * scale: a word that is its one field is the word, a range reached by the host's operators is
+ * written out, and an arithmetic range above bit zero calls the interned packed helper.
+ */
+/*
+ * A range that *is* the word it lives in, which is a single-field record: the one field fills the
+ * scalar, so reading it is reading the number and writing it is writing the number.
+ *
+ * Asked only of a word too wide for the host's operators, where the alternative is a remainder and a
+ * re-sign - three operations to recover a value nothing has touched. Below 32 the mask is one cheap
+ * operation and stays, which also keeps the two ends of a narrower word agreeing about whether it
+ * holds the value or the pattern.
+ *
+ * Both directions have to take this together or neither may: what makes the identity sound is that
+ * the word holds whatever the store put there, so the store must not be masking what the load will
+ * not.
+ */
+/*
+ * Whether a range is worth calling for (`wide && offset != 0` below) rather than writing out.
  *
  * A reference always is: its position is a variable, so there is nothing to fold and the expression
  * is the same length at every site. A constant one is worth it only where it is actually *at* an
@@ -1392,39 +1412,222 @@ static bool fieldIsSigned(Gen& g, TypePtr type) {
  * operations, and a helper would add a multiply by one and a floor of it to every access of the low
  * field of every record.
  */
-static bool worthCalling(PlaceBits bits, bool wide) {
-    return wide && (bits.scale || bits.offset != 0);
-}
+JsPtr<Expr> decodeBitRange(JsShared& g, JsPtr<Expr> owner, U32 offset, U32 width, U32 word,
+                           bool isSigned) {
+    if(word > 32 && offset == 0 && width >= word) return owner;
 
-JsPtr<Expr> decodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr type) {
-    if(coversWord(bits)) return owner;
+    auto wide = word > 32 && offset + width > 32;
+    auto position = bitPosition(g, offset, nullptr);
+    if(!(wide && offset != 0)) return decodeRange(g, owner, offset, width, position, wide, isSigned);
 
-    auto isSigned = fieldIsSigned(g, type);
-    auto wide = needsWideForm(bits);
-    auto position = positionOf(g, bits);
-    if(!worthCalling(bits, wide)) return decodeRange(g, owner, bits, position, wide, isSigned);
-
-    auto name = bitHelper(g, bits.width, isSigned, false, !bits.scale);
-    JsPtr<Expr> args[] = { owner, bits.scale ? position.up : position.down };
+    auto name = bitHelper(g, width, isSigned, false, true);
+    JsPtr<Expr> args[] = { owner, position.down };
     return bitCall(g, name, toBuffer(args));
 }
 
-JsPtr<Expr> encodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr type, JsPtr<Expr> value) {
-    if(coversWord(bits)) return value;
+JsPtr<Expr> encodeBitRange(JsShared& g, JsPtr<Expr> owner, U32 offset, U32 width, U32 word,
+                           bool isSigned, JsPtr<Expr> value) {
+    if(word > 32 && offset == 0 && width >= word) return value;
 
-    auto wide = bits.scale || bits.word > 32;
-    auto position = positionOf(g, bits);
-    if(!worthCalling(bits, wide)) return encodeRange(g, owner, bits, position, wide, value);
-
-    auto name = bitHelper(g, bits.width, fieldIsSigned(g, type), true, !bits.scale);
-
-    if(bits.scale) {
-        JsPtr<Expr> args[] = { owner, position.up, value };
-        return bitCall(g, name, toBuffer(args));
+    auto wide = word > 32;
+    auto position = bitPosition(g, offset, nullptr);
+    if(!(wide && offset != 0)) {
+        return encodeRange(g, owner, offset, width, word, position, wide, value);
     }
 
+    auto name = bitHelper(g, width, isSigned, true, true);
     JsPtr<Expr> args[] = { owner, position.down, position.up, value };
     return bitCall(g, name, toBuffer(args));
+}
+
+JsPtr<Expr> decodeScaledRange(JsShared& g, JsPtr<Expr> owner, JsPtr<Expr> scale, U32 offset,
+                              U32 width, bool isSigned, bool whole) {
+    auto name = bitHelper(g, width, isSigned, false, false);
+    JsPtr<Expr> args[] = { owner, scaleOf(g, offset, scale) };
+    auto decoded = bitCall(g, name, toBuffer(args));
+
+    if(!whole || !isSigned) return decoded;
+    return ternary(g, scale, decoded, owner);
+}
+
+JsPtr<Expr> encodeScaledRange(JsShared& g, JsPtr<Expr> owner, JsPtr<Expr> scale, U32 offset,
+                              U32 width, bool isSigned, bool whole, JsPtr<Expr> value) {
+    auto name = bitHelper(g, width, isSigned, true, false);
+    JsPtr<Expr> args[] = { owner, scaleOf(g, offset, scale), value };
+    auto encoded = bitCall(g, name, toBuffer(args));
+
+    if(!whole || !isSigned) return encoded;
+    return ternary(g, scale, encoded, value);
+}
+
+/*
+ * A range reference that has to be **one value** - an erased `&Bool`, a returned or stored one, a
+ * capture, a phi - as the `{$o, $k}` pair every reader of a reference already knows (J84).
+ *
+ * ```js
+ * var $bitCellProto = Object.defineProperty({}, "$v", { get: $bitCell$get, set: $bitCell$set });
+ * function $bitCell(o, k, s, m, i) {
+ *     if (s === 0) return { $o: o, $k: k };
+ *     var c = Object.create($bitCellProto); c.o = o; c.k = k; c.s = s; c.m = m; c.i = i;
+ *     return { $o: c, $k: "$v" };
+ * }
+ * ```
+ *
+ * The shipping backend's one-value form is `{$o, $k, $s}` instead, and every reader of every
+ * reference then reads a scale - including an erased body's, whose `&t` may be anything. Here the
+ * scale stays inside the box: `$o[$k]` on it is a getter that decodes and an assignment is a setter
+ * that read-modify-writes the word, so an erased body compiled once, a phi and a stored reference
+ * all keep reading a `Cell` as a `Cell`, and only the rare escaping range pays for an accessor. The
+ * two accessors are functions of their own over `this` rather than closures, because this tree has
+ * no function expression, and they share one prototype so every box is one hidden class. A zero
+ * scale is a signed content's plain storage (`JsPlace::bitWhole`), which needs no box at all.
+ */
+JsPtr<Expr> bitCellCall(JsShared& g, JsPtr<Expr> owner, JsPtr<Expr> key, JsPtr<Expr> scale,
+                        U32 width, bool isSigned) {
+    if(!g.bitCellHelper.text) {
+        g.bitCellHelper = uniqueName(g, "$bitCell"_v, false);
+        g.bitCellProto = uniqueName(g, "$bitCellProto"_v, false);
+    }
+
+    return call(g, variable(g, g.bitCellHelper), owner, key, scale, number(g, powerOfTwo(width)),
+                number(g, isSigned ? 1 : 0));
+}
+
+void emitBitCellHelper(JsShared& g) {
+    if(!g.bitCellHelper.text) return;
+
+    emit(g, make<CommentStmt>(g, internText(g,
+        "a range reference as one value - an accessor box; see codegen/js/place.cpp"_v)));
+
+    auto self = [&] { return variable(g, literalName(g, "this"_v)); };
+    auto member = [&](StringView text) { return field(g, self(), literalName(g, text)); };
+    auto floorOf = [&](JsPtr<Expr> value) { return hostCall(g, "Math"_v, "floor"_v, value); };
+
+    // `var v = Math.floor(this.o[this.k] / this.s) % this.m;
+    //  return this.i && v >= this.m / 2 ? v - this.m : v;`
+    auto getter = make<FunStmt>(g, uniqueName(g, "$bitCell$get"_v, false));
+    auto getterName = getter->name;
+    getter->body = collect(g, [&] {
+        auto v = literalName(g, "v"_v);
+        auto word = elementAt(g, member("o"_v), member("k"_v));
+        emit(g, make<DeclStmt>(g, v, binary(g, BinaryOp::Rem,
+                                            floorOf(binary(g, BinaryOp::Div, word, member("s"_v))),
+                                            member("m"_v)), true));
+        auto negative = binary(g, BinaryOp::LogicalAnd, member("i"_v),
+                               binary(g, BinaryOp::Ge, variable(g, v),
+                                      binary(g, BinaryOp::Div, member("m"_v), number(g, 2))));
+        emit(g, make<ReturnStmt>(g, ternary(g, negative,
+                                            binary(g, BinaryOp::Sub, variable(g, v), member("m"_v)),
+                                            variable(g, v))));
+    });
+    emit(g, getter);
+
+    // `var w = this.o[this.k], m = this.m;
+    //  this.o[this.k] = w + ((x % m + m) % m - Math.floor(w / this.s) % m) * this.s;`
+    auto setter = make<FunStmt>(g, uniqueName(g, "$bitCell$set"_v, false));
+    auto setterName = setter->name;
+    auto x = literalName(g, "x"_v);
+    setter->args.push(g.file.arena, x);
+    setter->body = collect(g, [&] {
+        auto w = literalName(g, "w"_v);
+        auto m = literalName(g, "m"_v);
+        emit(g, make<DeclStmt>(g, w, elementAt(g, member("o"_v), member("k"_v)), true));
+        emit(g, make<DeclStmt>(g, m, member("m"_v), true));
+
+        auto wanted = binary(g, BinaryOp::Rem,
+                             binary(g, BinaryOp::Add,
+                                    binary(g, BinaryOp::Rem, variable(g, x), variable(g, m)),
+                                    variable(g, m)),
+                             variable(g, m));
+        auto current = binary(g, BinaryOp::Rem,
+                              floorOf(binary(g, BinaryOp::Div, variable(g, w), member("s"_v))),
+                              variable(g, m));
+        auto updated = binary(g, BinaryOp::Add, variable(g, w),
+                              binary(g, BinaryOp::Mul, binary(g, BinaryOp::Sub, wanted, current),
+                                     member("s"_v)));
+        emitExpr(g, assign(g, elementAt(g, member("o"_v), member("k"_v)), updated));
+    });
+    emit(g, setter);
+
+    // The one prototype - `Object.defineProperty({}, "$v", {get, set})`.
+    auto accessors = make<ObjectExpr>(g);
+    accessors->properties.push(g.file.arena, Property { literalName(g, "get"_v), variable(g, getterName) });
+    accessors->properties.push(g.file.arena, Property { literalName(g, "set"_v), variable(g, setterName) });
+    auto proto = call(g, field(g, variable(g, literalName(g, "Object"_v)), literalName(g, "defineProperty"_v)),
+                      asExpr(g, make<ObjectExpr>(g)), asExpr(g, make<StringExpr>(g, internText(g, "$v"_v))),
+                      asExpr(g, accessors));
+    emit(g, make<DeclStmt>(g, g.bitCellProto, proto, false));
+
+    auto function = make<FunStmt>(g, g.bitCellHelper);
+    Name o = literalName(g, "o"_v), k = literalName(g, "k"_v), sc = literalName(g, "s"_v),
+         mm = literalName(g, "m"_v), ii = literalName(g, "i"_v), c = literalName(g, "c"_v);
+    for(auto arg: { o, k, sc, mm, ii }) function->args.push(g.file.arena, arg);
+
+    function->body = collect(g, [&] {
+        auto plain = make<ObjectExpr>(g);
+        plain->properties.push(g.file.arena, Property { propertyName(g, "$o"_v), variable(g, o) });
+        plain->properties.push(g.file.arena, Property { propertyName(g, "$k"_v), variable(g, k) });
+        auto early = collect(g, [&] { emit(g, make<ReturnStmt>(g, asExpr(g, plain))); });
+        emit(g, make<IfStmt>(g, binary(g, BinaryOp::Eq, variable(g, sc), number(g, 0)), early,
+                             StmtList {}));
+
+        emit(g, make<DeclStmt>(g, c, call(g, field(g, variable(g, literalName(g, "Object"_v)),
+                                                   literalName(g, "create"_v)),
+                                          variable(g, g.bitCellProto)), true));
+        Name members[] = { o, k, sc, mm, ii };
+        for(auto name: members) {
+            emitExpr(g, assign(g, field(g, variable(g, c), name), variable(g, name)));
+        }
+
+        auto boxed = make<ObjectExpr>(g);
+        boxed->properties.push(g.file.arena, Property { propertyName(g, "$o"_v), variable(g, c) });
+        boxed->properties.push(g.file.arena,
+                               Property { propertyName(g, "$k"_v), asExpr(g, make<StringExpr>(g, internText(g, "$v"_v))) });
+        emit(g, make<ReturnStmt>(g, asExpr(g, boxed)));
+    });
+
+    emit(g, function);
+}
+
+/*
+ * A word built from its fields - JSIR's `Pack`.
+ *
+ * Each field is reduced to its own bits first, which is `encodeRange`'s inner mask and for the same
+ * reason: a signed field arrives sign-extended. Then the terms are combined by `|` and `<<` where the
+ * whole word is inside the host's operators, and by `+` and a power of two where it is not - exact,
+ * because the ranges are disjoint and every term is a non-negative integer below 2^53. A word of
+ * exactly 32 bits is read back unsigned (`>>> 0`), as `encodeRange` leaves one; a narrower one
+ * cannot reach bit 31 and a wider one is built by `+`, which never goes negative.
+ */
+JsPtr<Expr> packBitRanges(JsShared& g, Buffer<const JsPtr<Expr>> values, Buffer<const U32> offsets,
+                          Buffer<const U32> widths, U32 word) {
+    JsPtr<Expr> result = nullptr;
+
+    for(Size i = 0; i < values.size(); i++) {
+        auto width = widths[i];
+        auto offset = offsets[i];
+
+        JsPtr<Expr> term;
+        if(width < 32) {
+            term = binary(g, BinaryOp::And, values[i], number(g, F64((U32(1) << width) - 1)));
+        } else if(width == 32) {
+            term = binary(g, BinaryOp::Shr, values[i], number(g, 0));
+        } else {
+            term = wideCallAt(g, WideOp::Wrap, width, false, values[i], nullptr);
+        }
+
+        if(word <= 32) {
+            if(offset) term = binary(g, BinaryOp::Shl, term, number(g, F64(offset)));
+            result = result ? binary(g, BinaryOp::Or, result, term) : term;
+        } else {
+            if(offset) term = binary(g, BinaryOp::Mul, term, number(g, powerOfTwo(offset)));
+            result = result ? binary(g, BinaryOp::Add, result, term) : term;
+        }
+    }
+
+    if(!result) return number(g, 0);
+    if(word == 32) result = binary(g, BinaryOp::Shr, result, number(g, 0));
+    return result;
 }
 
 TypePtr foldedPayload(Gen& g, TypePtr record) {

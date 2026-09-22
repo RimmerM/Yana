@@ -29,15 +29,12 @@ function main() {
   var v91 = opaqueU64(1311768467463790320n);
   var v94 = v89 + 256;
   var v97 = new Uint32Array([0, 0]);
-  var s0 = { items: v97, length: 2 };
   var v102 = opaqueU32(305419896);
   v97[0] = v102;
   var v122 = $swap32(v97[0]) >>> 0 === 2018915346 ? 512 : 0;
   var v127 = $swap32(opaqueU32(305419896)) >>> 0;
   v97[1] = v127;
-  var v143 = v97[1];
-  Array_a_reclaim_U32(s0);
-  return v94 + (v122 + (v143 === 2018915346 ? 1024 : 0)) + 2048 + ((swapVia_U32(opaqueU32(305419896)) === 2018915346 ? 4096 : 0) + (swapVia_U64(opaqueU64(1n)) === 72057594037927936n ? 8192 : 0));
+  return v94 + (v122 + (v97[1] === 2018915346 ? 1024 : 0)) + 2048 + ((swapVia_U32(opaqueU32(305419896)) === 2018915346 ? 4096 : 0) + (swapVia_U64(opaqueU64(1n)) === 72057594037927936n ? 8192 : 0));
 }
 
 function swapVia_U32(value) {
@@ -46,9 +43,6 @@ function swapVia_U32(value) {
 
 function swapVia_U64(value) {
   return BigInt.asUintN(64, $swap64(value));
-}
-
-function Array_a_reclaim_U32(value) {
 }
 var $t = "yana: a runtime check failed";
 

@@ -90,6 +90,27 @@ struct JsTarget {
     DeclBase decl;
     SsaBase ssa;
 
+    /*
+     * The two packing switches, named after the shipping backend's `ReprTarget` knobs they port.
+     *
+     * `scalarizeRecords` makes a record all of whose fields are narrow numbers one `number` - no
+     * object, no hidden class, a copy that is a read. `packFields` makes the narrow fields of a
+     * record that stays an object share `$pN` properties. Both **on** since J85. J83 built them
+     * off and J84 added the shift-carrying narrow reference a `&` of a packed field needs: the first
+     * record that packs puts a `&flags.a` in front of it, so the two had to land together or not at
+     * all, which is the shipping backend's rule for the same pair. They stay switches because a
+     * `JsirTester` case builds a target with one of them off.
+     */
+    bool scalarizeRecords = true;
+    bool packFields = true;
+
+    // The packed words - see `JsPacking`. `packingOfRecord` names a scalarized record's own row,
+    // keyed on the type alone: `JsPlaceKind::BitRange` is built at a projection that knows the
+    // record and not the occurrence, so `jsRep` scalarizes only where the ownership shape changes
+    // nothing about the packing (`wholePackingOf`).
+    Array<JsPacking> packings;
+    HashMap<U32, U32> packingOfRecord;
+
     // One reusable body arena - §7.1's "not one arena reservation per function". Reset after each
     // function becomes AST.
     JsirArena arena { 4 * 1024 * 1024 };
@@ -158,6 +179,22 @@ struct JsTarget {
      * Collected by `planProgram` before any representation is interned, because `jsRep` memoizes.
      */
     HashSet<U32> environmentRecords;
+
+    /*
+     * The fields a **property witness** names, keyed `(record type << 32) | field` - and so the
+     * fields that never pack (J85).
+     *
+     * A property witness on this target is a *name*: the body compiled once reads `owner[key]`, so
+     * the witnessed field has to be a property of its own. A field packed into a `$pN` word, or a
+     * record that is one number, has none. The shipping backend hands the body a `{read, set}` pair
+     * of accessors instead; building that here would change the erased body's read from a property
+     * access into two calls for every witness, packed or not, to serve a layout this target is free
+     * not to choose. So the witnessed field keeps its property and its neighbours still pack.
+     *
+     * Collected by `planProgram` before any representation is interned, for `environmentRecords`'
+     * reason: `jsRep` memoizes, and every environment is interned by the MIR stage before JSIR runs.
+     */
+    HashSet<U64> witnessedFields;
 
     /*
      * The globals stored **boxed** - `var counter = {$v: 0}` - because something takes a reference
@@ -340,6 +377,23 @@ JsShapeId jsShapeOf(JsTarget& target, DeclPtr<mir::Type> record,
  * projection into one names, whose keys are the fields' own names because what they are called is
  * the host's answer and not this compiler's.
  */
+/*
+ * The packing row of a scalarized record, or null where `written.record` is not one - what a
+ * projection asks before building a `BitRange` over the record's own place.
+ */
+const JsPacking* jsWholePackingOf(JsTarget& target, DeclPtr<mir::Type> record);
+
+// The same row as an index into `JsTarget::packings`, or `JsProperty::kNoPacking` - what a `Pack`
+// names. The pointer above is for reading and is invalidated by the next row the table grows.
+U32 jsWholePackingRow(JsTarget& target, DeclPtr<mir::Type> record);
+
+// A field's value as the `width`-bit pattern it is stored as - the reduction a `Pack` folds with.
+// A signed value contributes its two's-complement low bits, exactly as `encodeRange` stores it.
+inline U64 jsFieldPattern(F64 value, U32 width) {
+    auto bits = U64(I64(value));
+    return width >= 64 ? bits : bits & ((U64(1) << width) - 1);
+}
+
 JsShapeId jsHostShapeOf(JsTarget& target, DeclPtr<mir::Type> record, LocationId where);
 
 /*
@@ -374,8 +428,9 @@ JsRepId jsCellRep(JsTarget& target, JsRepId content);
 /*
  * The same reference **flat** - `(owner, key)`, with `{$o, $k}` as its materialized form.
  *
- * §3.2's "a narrow reference passed flat is `(owner, key, scale)`", minus the scale this target has
- * no packed places for yet. A reference is already a pair of host values, so the object around it
+ * §3.2's "a narrow reference passed flat is `(owner, key, scale)`", with the scale only where a range
+ * can exist - `jsRefCarriesScale`, since J84, and on by default since J85. A reference is already a
+ * pair of host values, so the object around it
  * buys nothing at a position that takes two arguments - and it costs an allocation at every mutable
  * borrow crossing a call, which is 867 of them in `Base.js` against the shipping backend's 223.
  *
@@ -385,6 +440,9 @@ JsRepId jsCellRep(JsTarget& target, JsRepId content);
  * still holds a call to, since two contents give two materialized reps and therefore two ids.
  */
 JsRepId jsCellPartsRep(JsTarget& target, JsRepId content);
+
+// Whether a reference to `content` crosses as three parts, the third a scale. See repr.cpp.
+bool jsRefCarriesScale(JsTarget& target, JsRepId content);
 
 // The `{$v: content}` object itself - what a boxed local and a boxed global are stored in.
 JsRepId jsBoxRep(JsTarget& target, JsRepId content);

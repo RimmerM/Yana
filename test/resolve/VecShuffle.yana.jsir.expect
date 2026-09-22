@@ -1,48 +1,34 @@
 fn oneSource() -> one %r0
   block0:
-    %0: %r1 = const 0
-    %2: %r1 = const 2
     %3: %r1 = const 3
-    %9: %r5 = binary.ne %3, %3
-    branch %9 -> block2 -> block1
+    jump -> block1
   block1:
-    %10: %r5 = binary.ne %0, %0
-    branch %10 -> block4 -> block3
+    jump -> block3
   block2:
     %42: %r0 = const -1
     return %42
   block3:
-    %11: %r1 = const 3
-    %12: %r5 = binary.ne %3, %11
-    branch %12 -> block6 -> block5
+    jump -> block5
   block4:
     %41: %r0 = const -2
     return %41
   block5:
-    %18: %r1 = const 2
-    %19: %r5 = binary.ne %2, %18
-    branch %19 -> block8 -> block7
+    jump -> block7
   block6:
     %40: %r0 = const -3
     return %40
   block7:
-    %20: %r1 = const 2
-    %21: %r5 = binary.ne %2, %20
-    branch %21 -> block10 -> block9
+    jump -> block9
   block8:
     %39: %r0 = const -4
     return %39
   block9:
-    %27: %r1 = const 2
-    %28: %r5 = binary.ne %2, %27
-    branch %28 -> block12 -> block11
+    jump -> block11
   block10:
     %38: %r0 = const -5
     return %38
   block11:
-    %29: %r1 = const 2
-    %30: %r5 = binary.ne %2, %29
-    branch %30 -> block14 -> block13
+    jump -> block13
   block12:
     %37: %r0 = const -6
     return %37
@@ -59,24 +45,18 @@ fn oneSource() -> one %r0
 
 fn twoSources() -> one %r0
   block0:
-    %0: %r1 = const 0
-    %1: %r1 = const 1
     %2: %r1 = const 2
     %3: %r1 = const 3
     %4: %r1 = const 10
-    %5: %r1 = binary.add %4, %0
+    %5: %r1 = alias %4
     %6: %r1 = coerce %5
     %9: %r1 = binary.add %4, %2
     %10: %r1 = coerce %9
     %11: %r1 = binary.add %4, %3
     %12: %r1 = coerce %11
-    %18: %r1 = const 1
-    %19: %r5 = binary.ne %1, %18
-    branch %19 -> block2 -> block1
+    jump -> block1
   block1:
-    %20: %r1 = const 0
-    %21: %r5 = binary.ne %0, %20
-    branch %21 -> block4 -> block3
+    jump -> block3
   block2:
     %43: %r0 = const -1
     return %43
@@ -95,8 +75,7 @@ fn twoSources() -> one %r0
     %41: %r0 = const -3
     return %41
   block7:
-    %31: %r5 = binary.ne %1, %1
-    branch %31 -> block10 -> block9
+    jump -> block9
   block8:
     %40: %r0 = const -4
     return %40
@@ -120,38 +99,24 @@ fn twoSources() -> one %r0
 fn byteLane() -> one %r0
   block0:
     %0: %r6 = const 0
-    %3: %r6 = const 3
-    %7: %r6 = const 7
-    %12: %r6 = const 12
-    %15: %r6 = const 15
-    %33: %r6 = const 3
-    %34: %r5 = binary.ne %3, %33
-    branch %34 -> block2 -> block1
+    jump -> block1
   block1:
-    %35: %r6 = const 0
-    %36: %r5 = binary.ne %0, %35
-    branch %36 -> block4 -> block3
+    jump -> block3
   block2:
     %52: %r0 = const -1
     return %52
   block3:
-    %37: %r6 = const 7
-    %38: %r5 = binary.ne %7, %37
-    branch %38 -> block6 -> block5
+    jump -> block5
   block4:
     %51: %r0 = const -2
     return %51
   block5:
-    %39: %r6 = const 12
-    %40: %r5 = binary.ne %12, %39
-    branch %40 -> block8 -> block7
+    jump -> block7
   block6:
     %50: %r0 = const -3
     return %50
   block7:
-    %41: %r6 = const 15
-    %42: %r5 = binary.ne %15, %41
-    branch %42 -> block10 -> block9
+    jump -> block9
   block8:
     %49: %r0 = const -4
     return %49
@@ -212,13 +177,12 @@ fn runtime(parts %r3) -> one %r0
 
 fn main() -> one %r0
   block0:
-    %0: %r1 = const 0
     %1: %r1 = const 1
     %2: %r1 = const 2
     %3: %r1 = const 3
     %4: %r0 = load global seed: %r0
     %5: %r1 = convert %4
-    %6: %r1 = binary.add %0, %5
+    %6: %r1 = alias %5
     %7: %r1 = coerce %6
     %8: %r1 = binary.add %1, %5
     %9: %r1 = coerce %8
@@ -281,7 +245,7 @@ fn main() -> one %r0
     %33: %r0 = coerce %32
     return %33
 
-optimizer clones 0 aliased 0 forwarded 0 removed 73 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 109 adopted 0 sunk 0 numbered 2 decided 15 unboxed 0 updated 0 split 0 promoted 0
 
 rep %r0 = number signed 32
 rep %r1 = number unsigned 32

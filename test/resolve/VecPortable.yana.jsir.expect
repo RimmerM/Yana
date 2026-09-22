@@ -1,36 +1,26 @@
 fn construction() -> one %r0
   block0:
-    %0: %r0 = const 0
-    %1: %r0 = const 0
     %2: %r0 = const 1
     %3: %r0 = const 2
     %4: %r0 = const 3
-    %5: %r0 = const 0
-    %6: %r3 = binary.ne %0, %5
-    branch %6 -> block2 -> block1
+    jump -> block1
   block1:
-    %7: %r0 = const 0
-    %8: %r3 = binary.ne %0, %7
-    branch %8 -> block4 -> block3
+    jump -> block3
   block2:
     %27: %r0 = const -1
     return %27
   block3:
-    %9: %r0 = const 0
-    %10: %r3 = binary.ne %1, %9
-    branch %10 -> block6 -> block5
+    jump -> block5
   block4:
     %26: %r0 = const -2
     return %26
   block5:
-    %11: %r0 = const 1
-    %12: %r3 = binary.ne %2, %11
-    branch %12 -> block8 -> block7
+    jump -> block7
   block6:
     %25: %r0 = const -3
     return %25
   block7:
-    %13: %r0 = binary.add %1, %2
+    %13: %r0 = alias %2
     %14: %r0 = coerce %13
     %15: %r0 = binary.add %3, %4
     %16: %r0 = coerce %15
@@ -152,53 +142,35 @@ fn floats() -> one %r0
 
 fn rearrangement() -> one %r0
   block0:
-    %0: %r0 = const 0
-    %1: %r0 = const 1
-    %2: %r0 = const 2
-    %3: %r0 = const 3
-    %4: %r0 = const 3
-    %5: %r3 = binary.ne %3, %4
-    branch %5 -> block2 -> block1
+    jump -> block1
   block1:
-    %6: %r0 = const 2
-    %7: %r3 = binary.ne %2, %6
-    branch %7 -> block4 -> block3
+    jump -> block3
   block2:
     %30: %r0 = const -1
     return %30
   block3:
-    %8: %r0 = const 1
-    %9: %r3 = binary.ne %1, %8
-    branch %9 -> block6 -> block5
+    jump -> block5
   block4:
     %29: %r0 = const -2
     return %29
   block5:
-    %10: %r0 = const 3
-    %11: %r3 = binary.ne %3, %10
-    branch %11 -> block8 -> block7
+    jump -> block7
   block6:
     %28: %r0 = const -3
     return %28
   block7:
     %12: %r0 = const 9
-    %13: %r0 = const 0
-    %14: %r3 = binary.ne %0, %13
-    branch %14 -> block10 -> block9
+    jump -> block9
   block8:
     %27: %r0 = const -4
     return %27
   block9:
-    %15: %r0 = const 9
-    %16: %r3 = binary.ne %12, %15
-    branch %16 -> block12 -> block11
+    jump -> block11
   block10:
     %26: %r0 = const -5
     return %26
   block11:
-    %17: %r0 = const 2
-    %18: %r3 = binary.ne %2, %17
-    branch %18 -> block14 -> block13
+    jump -> block13
   block12:
     %25: %r0 = const -6
     return %25
@@ -308,7 +280,7 @@ fn main() -> one %r0
     %22: %r0 = coerce %21
     return %22
 
-optimizer clones 0 aliased 0 forwarded 0 removed 64 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 92 adopted 0 sunk 0 numbered 7 decided 11 unboxed 0 updated 0 split 0 promoted 0
 
 rep %r0 = number signed 32
 rep %r1 = array Int32Array of %r0

@@ -5,31 +5,27 @@ function sum(p) {
 }
 
 function main() {
-  var s3;
-  var s0 = { x: 1, y: 2 };
-  var s1 = { first: { x: s0.x, y: s0.y }, second: { x: s0.x, y: s0.y } };
-  s0.x = 8;
-  s0.y = 9;
-  var v31 = s1.first;
-  var v37 = sum({ x: v31.x, y: v31.y }) === 12 ? 1 : 0;
-  var v39 = s1.second;
-  var v47 = sum({ x: v39.x, y: v39.y }) === 12 ? v37 + 2 : v37;
-  var v56 = sum({ x: s0.x, y: s0.y }) === 89 ? v47 + 4 : v47;
-  var s2 = { x: 0, y: 0 };
+  var v20 = { x: 1, y: 2 };
+  var v22 = { x: v20.x, y: v20.y };
+  var v24 = { x: v20.x, y: v20.y };
+  v20.x = 8;
+  v20.y = 9;
+  var v37 = sum(v22) === 12 ? 1 : 0;
+  var v47 = sum(v24) === 12 ? v37 + 2 : v37;
+  var v56 = sum(v20) === 89 ? v47 + 4 : v47;
+  var v59 = { x: 0, y: 0 };
   var p0 = 0;
   var p3 = 0;
   var p2 = 1;
   while (p2 < 4) {
-    s2.x = p2;
-    s2.y = Math.imul(p2, 2);
-    s3 = { x: s2.x, y: s2.y };
-    s2.x = 0;
-    s2.y = 0;
-    if (p2 === 1) p3 = sum(s3);
-    var v97 = p0 + sum(s3) | 0;
-    var v99 = p2 + 1 | 0;
-    p0 = v97;
-    p2 = v99;
+    v59.x = p2;
+    v59.y = Math.imul(p2, 2);
+    var v87 = { x: v59.x, y: v59.y };
+    v59.x = 0;
+    v59.y = 0;
+    if (p2 === 1) p3 = sum(v87);
+    p0 = p0 + sum(v87) | 0;
+    p2 = p2 + 1 | 0;
   }
   var v75 = p0 === 72 ? v56 + 8 : v56;
   return p3 === 12 ? v75 + 16 : v75;

@@ -1,0 +1,64 @@
+{-
+   A write through a reference a call handed back - J92.
+
+   # resolver: ownership
+
+   `low` and `pick` answer a place inside their argument, and the caller writes through the answer.
+   The shared optimizer's containment said `p` never escaped - true, since nothing *stores* the
+   returned address - and the walk asking "may this store reach `p`" stopped at the call's result, so
+   the two stores reached nothing and `ConstantContents` folded the later reads of `p.a` to the literal
+   `p` was built with. Both writes vanished, natively and on JavaScript alike, while `-no-ir-opt` and
+   the shipping stage kept them. A call's result is now a second name for whatever its arguments
+   named (`opt/analysis.cpp`'s `addressMayName`).
+
+   The second half is the same program over a record with a packed field, built by a call, in a loop.
+-}
+
+data P {a: Int, b: Int}
+
+@noinline
+fn low(&p: 'P) -> &'Int = p.a
+
+@noinline
+fn pick(&p: 'P, hi: Bool) -> &'Int:
+    if hi then return p.b
+    return p.a
+
+fn plain() -> Int:
+    let &p = P {a: 100, b: 200}
+    let &l = low(p)
+    l = l - 1
+    let &q = pick(p, False)
+    q = q - 7
+    return p.a * 1000 + p.b
+
+data Q {a: Int, b: Int, c: Bool}
+
+@noinline
+fn lowQ(&p: 'Q) -> &'Int = p.a
+
+@noinline
+fn pickQ(&p: 'Q, hi: Bool) -> &'Int:
+    if hi then return p.b
+    return p.a
+
+@noinline
+fn makeQ(i: Int) -> Q = Q {a: 100 + i, b: 200 - i, c: i > 0}
+
+fn packed() -> Int:
+    let &total = 0
+    for i in 0..2:
+        let &p = makeQ(i)
+        let &l = lowQ(p)
+        l = l - 1
+        let &q = pickQ(p, i == 1)
+        q = q - 7
+        total = total * 1000 + p.a * 10 + p.b % 10 + (if p.c then 1 else 0)
+    return total
+
+fn main() -> Int:
+    -- 92200, and 920 * 1000 + 1003 for the packed loop's two passes. The optimizer that lost the
+    -- writes answered 100200 and 990 * 1000 + 1010.
+    if plain() != 92200 then return 1
+    if packed() != 921003 then return 2
+    return 0

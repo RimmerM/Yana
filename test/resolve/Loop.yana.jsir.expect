@@ -9,6 +9,10 @@ fn main() -> one %r0
   var $0: %r1
   var $1: %r1
   var $2: %r1
+  var $3: %r0
+  var $4: %r0
+  var $5: %r0
+  var $6: %r0
   block0:
     %16: %r0 = const 3
     %20: %r0 = const 0
@@ -68,14 +72,9 @@ fn main() -> one %r0
     %49: %r0 = binary.add %36, %5
     %50: %r0 = coerce %49
     %51: %r0 = const 3
-    %52: %r0 = const 0
-    %53: %r0 = const 0
-    %54: %r1 = object %s0 %52, %53
-    store var $0: %r1, %54
     %55: %r0 = const 3
     %56: %r0 = const 4
-    %57: %r1 = object %s0 %55, %56
-    store var $0: %r1, %57
+    store var $3: %r0, %55
     %58: %r0 = const 0
     %59: %r0 = const 1
     jump -> block16(%58)
@@ -98,8 +97,7 @@ fn main() -> one %r0
     %60: %r2 = binary.lt %9, %51
     branch %60 -> block18 -> block17
   block17:
-    %61: %r1 = load var $0: %r1
-    %62: %r0 = load property %61.x: %r0
+    %62: %r0 = load var $3: %r0
     %63: %r0 = binary.add %50, %62
     %64: %r0 = coerce %63
     %66: %r0 = const 2
@@ -109,13 +107,11 @@ fn main() -> one %r0
     %72: %r0 = const 13
     jump -> block19(%69, %70)
   block18:
-    %136: %r1 = load var $0: %r1
-    %137: %r0 = load property %136.x: %r0
-    %138: %r1 = load var $0: %r1
-    %139: %r0 = load property %138.y: %r0
+    %137: %r0 = load var $3: %r0
+    %139: %r0 = alias %56
     %140: %r0 = binary.add %137, %139
     %141: %r0 = coerce %140
-    store property %136.x: %r0, %141
+    store var $3: %r0, %141
     %142: %r0 = binary.add %9, %59
     %143: %r0 = coerce %142
     jump -> block16(%143)
@@ -126,18 +122,13 @@ fn main() -> one %r0
     %74: %r0 = binary.add %64, %10
     %75: %r0 = coerce %74
     %76: %r0 = const 2
-    %77: %r0 = const 0
-    %78: %r0 = const 0
-    %79: %r1 = object %s0 %77, %78
-    store var $1: %r1, %79
     %80: %r1 = call madePoint
-    store var $1: %r1, %80
     %81: %r0 = const 0
     %82: %r0 = const 0
     %83: %r0 = const 1
-    %84: %r1 = load var $1: %r1
+    %84: %r1 = alias %80
     %85: %r0 = load property %84.x: %r0
-    %86: %r1 = load var $1: %r1
+    %86: %r1 = alias %80
     %87: %r0 = load property %86.y: %r0
     %88: %r0 = binary.mul %85, %87
     %89: %r0 = coerce %88
@@ -156,14 +147,9 @@ fn main() -> one %r0
     %92: %r0 = binary.add %75, %12
     %93: %r0 = coerce %92
     %94: %r0 = const 2
-    %95: %r0 = const 0
-    %96: %r0 = const 0
-    %97: %r1 = object %s0 %95, %96
-    store var $2: %r1, %97
     %98: %r0 = const 3
     %99: %r0 = const 4
-    %100: %r1 = object %s0 %98, %99
-    store var $2: %r1, %100
+    store var $5: %r0, %98
     %101: %r0 = const 0
     %102: %r0 = const 0
     %103: %r0 = const 1
@@ -188,13 +174,11 @@ fn main() -> one %r0
     %113: %r0 = coerce %112
     return %113
   block27:
-    %114: %r1 = load var $2: %r1
-    %115: %r0 = load property %114.x: %r0
+    %115: %r0 = load var $5: %r0
     %116: %r0 = binary.add %115, %103
     %117: %r0 = coerce %116
-    store property %114.x: %r0, %117
-    %118: %r1 = load var $2: %r1
-    %119: %r0 = load property %118.y: %r0
+    store var $5: %r0, %117
+    %119: %r0 = alias %99
     %120: %r0 = binary.mul %117, %119
     %121: %r0 = coerce %120
     %122: %r0 = binary.add %15, %121
@@ -203,7 +187,7 @@ fn main() -> one %r0
     %125: %r0 = coerce %124
     jump -> block25(%125, %123)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 15 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 39 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 4
 
 shape %s0 object Point {x: %r0, y: %r0}
 

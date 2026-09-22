@@ -4,14 +4,7 @@ var effects = 0;
 
 // 
 function fallbackSkipped(m) {
-  var p1;
-  if (!(m === null)) {
-    p1 = m;
-  } else {
-    var v8 = { $c: fallbackSkipped_thunk, $e: null };
-    p1 = v8.$c(v8.$e);
-  }
-  return p1;
+  return !(m === null) ? m : fallbackSkipped_thunk(null);
 }
 
 function onceKept(flag, value) {
@@ -24,14 +17,9 @@ function main() {
   effects = effects + 1 | 0;
   var v33 = fallbackSkipped(5) === 5 ? 255 : 127;
   var v41 = fallbackSkipped(null) === 7 ? v33 + 256 : v33;
-  var v47 = v41 + 512;
-  var v50 = { $c: main_thunk_2, $e: null };
-  var v88 = ((v50.$c(v50.$e) + 1 | 0) === 8 ? v41 + 1536 : v47) + 2048;
-  var v96 = { $c: maskRuns_thunk, $e: null };
-  var v114 = (7 & v96.$c(v96.$e)) === 3 ? v88 + 4096 : v88;
-  var v123 = v114 + 24576;
-  var v126 = { $c: main_thunk_3, $e: null };
-  var v138 = (v126.$c(v126.$e) + 1 | 0) === 8 ? v114 + 57344 : v123;
+  var v88 = ((main_thunk_2(null) + 1 | 0) === 8 ? v41 + 1536 : v41 + 512) + 2048;
+  var v114 = (7 & maskRuns_thunk(null)) === 3 ? v88 + 4096 : v88;
+  var v138 = (main_thunk_3(null) + 1 | 0) === 8 ? v114 + 57344 : v114 + 24576;
   var v155 = onceKept(0, { $c: main_thunk_5, $e: null }) === 0 ? v138 + 196608 : v138 + 65536;
   return Math.imul(onceKept(1, { $c: main_thunk_6, $e: null }) === 8 ? v155 + 262144 : v155, 100) + effects | 0;
 }
@@ -41,19 +29,9 @@ function fallbackSkipped_thunk(fallbackSkipped_thunk_env) {
   return 7;
 }
 
-function maskSkips_thunk(maskSkips_thunk_env) {
-  effects = effects + 1 | 0;
-  return 3;
-}
-
 function maskRuns_thunk(maskRuns_thunk_env) {
   effects = effects + 1 | 0;
   return 3;
-}
-
-function main_thunk(main_thunk_env) {
-  effects = effects + 1 | 0;
-  return 7;
 }
 
 function main_thunk_2(main_thunk_2_env) {
@@ -61,16 +39,7 @@ function main_thunk_2(main_thunk_2_env) {
   return 7;
 }
 
-function defaulted_value_default() {
-  return 2;
-}
-
 function main_thunk_3(main_thunk_3_env) {
-  effects = effects + 1 | 0;
-  return 7;
-}
-
-function main_thunk_4(main_thunk_4_env) {
   effects = effects + 1 | 0;
   return 7;
 }
@@ -83,9 +52,5 @@ function main_thunk_5(main_thunk_5_env) {
 function main_thunk_6(main_thunk_6_env) {
   effects = effects + 1 | 0;
   return 7;
-}
-
-function defaulted_value_default$fn($e) {
-  return defaulted_value_default();
 }
 main();

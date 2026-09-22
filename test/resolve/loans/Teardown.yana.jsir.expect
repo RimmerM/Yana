@@ -1,7 +1,6 @@
 fn Guard.drop(one %r0) -> omitted
   var $0: %r0
   block0(%0: %r0):
-    store var $0: %r0, %0
     %1: %r0 = load global trace: %r0
     %2: %r0 = const 1
     %3: %r0 = binary.add %1, %2
@@ -12,7 +11,6 @@ fn Guard.drop(one %r0) -> omitted
 fn Tracked.drop(one %r2) -> omitted
   var $0: %r2
   block0(%0: %r2):
-    store var $0: %r2, %0
     %1: %r0 = load global trace: %r0
     %2: %r0 = const 100
     %3: %r0 = binary.add %1, %2
@@ -21,47 +19,54 @@ fn Tracked.drop(one %r2) -> omitted
     return
 
 fn main() -> one %r0
-  var $0: %r4
-  var $1: %r4
-  var $2: %r7
-  var $3: %r8
-  var $4: %r9
+  var $0: %r3
+  var $1: %r3
+  var $2: %r4
+  var $3: %r5
+  var $4: %r6
   var $5: %r2
   var $6: %r10
+  var $7: %r0
+  var $8: %r0
+  var $9: %r0
+  var $10: %r0
+  var $11: %r0
+  var $12: %r0
+  var $13: %r0
+  var $14: %r0
+  var $15: %r0
+  var $16: %r0
+  var $17: %r0
+  var $18: %r0
+  var $19: %r0
+  var $20: %r0
+  var $21: %r0
+  var $22: %r5
+  var $23: %r0
+  var $24: %r0
   block0:
-    %0: %r0 = const 0
-    %1: %r3 = object %s1 %0
-    %2: %r0 = const 0
-    %3: %r0 = const 0
-    %4: %r4 = object %s2 %2, %3
-    store var $0: %r4, %4
     %5: %r0 = const 2
     %6: %r0 = alias %5
-    store property %1.$v: %r0, %6
     %7: %r0 = const 3
     %8: %r0 = alias %7
-    %9: %r0 = load property %1.$v: %r0
-    %10: %r4 = object %s2 %9, %8
-    store var $0: %r4, %10
-    %11: %r4 = load var $0: %r4
-    %12: %r0 = load property %11.borrowed: %r0
+    %9: %r0 = alias %6
+    %12: %r0 = alias %9
     %13: %r0 = const 10
     %14: %r0 = binary.mul %12, %13
     %15: %r0 = coerce %14
     %16: %r0 = binary.add %15, %7
     %17: %r0 = coerce %16
-    %18: %r0 = load property %1.$v: %r0
+    %18: %r0 = alias %9
     call Guard.drop %18
-    %19: %r4 = load var $0: %r4
-    %20: %r0 = load property %19.owned: %r0
+    %20: %r0 = alias %8
     call Guard.drop %20
     %21: %r0 = const 23
-    %22: %r6 = binary.ne %17, %21
+    %22: %r9 = binary.ne %17, %21
     branch %22 -> block2 -> block1
   block1:
     %23: %r0 = load global trace: %r0
     %24: %r0 = const 2
-    %25: %r6 = binary.ne %23, %24
+    %25: %r9 = binary.ne %23, %24
     branch %25 -> block4 -> block3
   block2:
     %190: %r0 = const -1
@@ -69,24 +74,17 @@ fn main() -> one %r0
   block3:
     %26: %r0 = const 0
     store global trace: %r0, %26
-    %27: %r0 = const 0
-    %28: %r3 = object %s1 %27
     %29: %r0 = const 4
     %30: %r0 = alias %29
-    store property %28.$v: %r0, %30
     %31: %r0 = const 5
     %32: %r0 = alias %31
-    %33: %r0 = load property %28.$v: %r0
-    %34: %r4 = object %s2 %33, %32
-    store var $1: %r4, %34
-    %35: %r4 = load var $1: %r4
-    %36: %r0 = load property %35.owned: %r0
+    %36: %r0 = alias %32
     call Guard.drop %36
-    %37: %r0 = load property %28.$v: %r0
+    %37: %r0 = alias %30
     call Guard.drop %37
     %38: %r0 = load global trace: %r0
     %39: %r0 = const 2
-    %40: %r6 = binary.ne %38, %39
+    %40: %r9 = binary.ne %38, %39
     branch %40 -> block6 -> block5
   block4:
     %189: %r0 = const -2
@@ -94,34 +92,19 @@ fn main() -> one %r0
   block5:
     %41: %r0 = const 0
     store global trace: %r0, %41
-    %42: %r0 = const 0
-    %43: %r3 = object %s1 %42
-    %44: %r0 = const 0
-    %45: %r3 = object %s1 %44
-    %46: %r0 = const 0
-    %47: %r0 = const 0
-    %48: %r0 = const 0
-    %49: %r7 = object %s3 %46, %47, %48
-    store var $2: %r7, %49
     %50: %r0 = const 1
     %51: %r0 = alias %50
-    store property %43.$v: %r0, %51
     %52: %r0 = const 2
     %53: %r0 = alias %52
-    store property %45.$v: %r0, %53
     %54: %r0 = const 3
     %55: %r0 = alias %54
-    %56: %r0 = load property %43.$v: %r0
-    %57: %r0 = load property %45.$v: %r0
-    %58: %r7 = object %s3 %56, %57, %55
-    store var $2: %r7, %58
-    %59: %r7 = load var $2: %r7
-    %60: %r0 = load property %59.left: %r0
+    %56: %r0 = alias %51
+    %57: %r0 = alias %53
+    %60: %r0 = alias %56
     %61: %r0 = const 100
     %62: %r0 = binary.mul %60, %61
     %63: %r0 = coerce %62
-    %64: %r7 = load var $2: %r7
-    %65: %r0 = load property %64.right: %r0
+    %65: %r0 = alias %57
     %66: %r0 = const 10
     %67: %r0 = binary.mul %65, %66
     %68: %r0 = coerce %67
@@ -129,15 +112,14 @@ fn main() -> one %r0
     %70: %r0 = coerce %69
     %71: %r0 = binary.add %70, %54
     %72: %r0 = coerce %71
-    %73: %r0 = load property %43.$v: %r0
+    %73: %r0 = alias %56
     call Guard.drop %73
-    %74: %r0 = load property %45.$v: %r0
+    %74: %r0 = alias %53
     call Guard.drop %74
-    %75: %r7 = load var $2: %r7
-    %76: %r0 = load property %75.own: %r0
+    %76: %r0 = alias %55
     call Guard.drop %76
     %77: %r0 = const 123
-    %78: %r6 = binary.ne %72, %77
+    %78: %r9 = binary.ne %72, %77
     branch %78 -> block8 -> block7
   block6:
     %188: %r0 = const -4
@@ -145,7 +127,7 @@ fn main() -> one %r0
   block7:
     %79: %r0 = load global trace: %r0
     %80: %r0 = const 3
-    %81: %r6 = binary.ne %79, %80
+    %81: %r9 = binary.ne %79, %80
     branch %81 -> block10 -> block9
   block8:
     %187: %r0 = const -5
@@ -153,56 +135,36 @@ fn main() -> one %r0
   block9:
     %82: %r0 = const 0
     store global trace: %r0, %82
-    %83: %r0 = const 0
-    %84: %r3 = object %s1 %83
-    %85: %r0 = const 0
-    %86: %r0 = const 0
-    %87: %r0 = const 0
-    %88: %r8 = object %s4 %86, %87
-    %89: %r9 = object %s5 %85, %88
-    store var $4: %r9, %89
     %90: %r0 = const 1
     %91: %r0 = alias %90
-    store property %84.$v: %r0, %91
     %92: %r0 = const 2
     %93: %r0 = alias %92
     %94: %r0 = const 3
     %95: %r0 = alias %94
-    %96: %r8 = object %s4 %93, %95
-    store var $3: %r8, %96
-    %97: %r8 = load var $3: %r8
-    %98: %r0 = load property %84.$v: %r0
-    %99: %r9 = object %s5 %98, %97
-    store var $4: %r9, %99
-    %100: %r9 = load var $4: %r9
-    %101: %r0 = load property %100.borrowed: %r0
+    %98: %r0 = alias %91
+    %101: %r0 = alias %98
     %102: %r0 = const 100
     %103: %r0 = binary.mul %101, %102
     %104: %r0 = coerce %103
-    %105: %r9 = load var $4: %r9
-    %106: %r8 = load property %105.owned: %r8
-    %107: %r0 = load property %106.a: %r0
-    %108: %r0 = load property %106.a: %r0
+    %107: %r0 = alias %93
+    %108: %r0 = alias %107
     %109: %r0 = const 10
     %110: %r0 = binary.mul %108, %109
     %111: %r0 = coerce %110
     %112: %r0 = binary.add %104, %111
     %113: %r0 = coerce %112
-    %114: %r8 = load property %105.owned: %r8
-    %115: %r0 = load property %114.b: %r0
-    %116: %r0 = load property %114.b: %r0
+    %115: %r0 = alias %95
+    %116: %r0 = alias %115
     %117: %r0 = binary.add %113, %116
     %118: %r0 = coerce %117
-    %119: %r0 = load property %84.$v: %r0
+    %119: %r0 = alias %98
     call Guard.drop %119
-    %120: %r9 = load var $4: %r9
-    %121: %r8 = load property %120.owned: %r8
-    %122: %r0 = load property %121.a: %r0
+    %122: %r0 = alias %93
     call Guard.drop %122
-    %123: %r0 = load property %121.b: %r0
+    %123: %r0 = alias %95
     call Guard.drop %123
     %124: %r0 = const 123
-    %125: %r6 = binary.ne %118, %124
+    %125: %r9 = binary.ne %118, %124
     branch %125 -> block12 -> block11
   block10:
     %186: %r0 = const -6
@@ -210,7 +172,7 @@ fn main() -> one %r0
   block11:
     %126: %r0 = load global trace: %r0
     %127: %r0 = const 3
-    %128: %r6 = binary.ne %126, %127
+    %128: %r9 = binary.ne %126, %127
     branch %128 -> block14 -> block13
   block12:
     %185: %r0 = const -7
@@ -218,33 +180,25 @@ fn main() -> one %r0
   block13:
     %129: %r0 = const 0
     store global trace: %r0, %129
-    %130: %r0 = const 0
-    %131: %r3 = object %s1 %130
-    %132: %r0 = const 0
-    %133: %r0 = const 0
-    %134: %r2 = object %s0 %132, %133
-    store var $5: %r2, %134
     %135: %r0 = const 4
     %136: %r0 = alias %135
-    store property %131.$v: %r0, %136
     %137: %r0 = const 5
     %138: %r0 = alias %137
-    %139: %r0 = load property %131.$v: %r0
+    %139: %r0 = alias %136
     %140: %r2 = object %s0 %139, %138
-    store var $5: %r2, %140
-    %141: %r2 = load var $5: %r2
+    %141: %r2 = alias %140
     %142: %r0 = load property %141.watched: %r0
     %143: %r0 = const 10
     %144: %r0 = binary.mul %142, %143
     %145: %r0 = coerce %144
     %146: %r0 = binary.add %145, %137
     %147: %r0 = coerce %146
-    %148: %r0 = load property %131.$v: %r0
+    %148: %r0 = alias %139
     call Guard.drop %148
-    %149: %r2 = load var $5: %r2
+    %149: %r2 = alias %140
     call Tracked.drop %149
     %150: %r0 = const 45
-    %151: %r6 = binary.ne %147, %150
+    %151: %r9 = binary.ne %147, %150
     branch %151 -> block16 -> block15
   block14:
     %184: %r0 = const -8
@@ -252,7 +206,7 @@ fn main() -> one %r0
   block15:
     %152: %r0 = load global trace: %r0
     %153: %r0 = const 101
-    %154: %r6 = binary.ne %152, %153
+    %154: %r9 = binary.ne %152, %153
     branch %154 -> block18 -> block17
   block16:
     %183: %r0 = const -9
@@ -260,28 +214,21 @@ fn main() -> one %r0
   block17:
     %155: %r0 = const 0
     store global trace: %r0, %155
-    %156: %r0 = const 0
-    %157: %r3 = object %s1 %156
     %158: %r0 = const 6
     %159: %r0 = alias %158
-    store property %157.$v: %r0, %159
     %160: %r0 = const 7
-    %161: %r0 = load property %157.$v: %r0
-    %162: %r10 = object %s6 %161, %160
-    store var $6: %r10, %162
-    %163: %r10 = load var $6: %r10
-    %164: %r10 = alias %163
-    %165: %r0 = load property %164.held: %r0
+    %161: %r0 = alias %159
+    %165: %r0 = alias %161
     %166: %r0 = const 10
     %167: %r0 = binary.mul %165, %166
     %168: %r0 = coerce %167
-    %169: %r0 = load property %164.at: %r0
+    %169: %r0 = alias %160
     %170: %r0 = binary.add %168, %169
     %171: %r0 = coerce %170
-    %172: %r0 = load property %157.$v: %r0
+    %172: %r0 = alias %161
     call Guard.drop %172
     %173: %r0 = const 67
-    %174: %r6 = binary.ne %171, %173
+    %174: %r9 = binary.ne %171, %173
     branch %174 -> block20 -> block19
   block18:
     %182: %r0 = const -10
@@ -289,7 +236,7 @@ fn main() -> one %r0
   block19:
     %175: %r0 = load global trace: %r0
     %176: %r0 = const 1
-    %177: %r6 = binary.ne %175, %176
+    %177: %r9 = binary.ne %175, %176
     %178: %r0 = const -12
     %179: %r0 = const 100
     %180: %r0 = select %177, %178, %179
@@ -298,14 +245,14 @@ fn main() -> one %r0
     %181: %r0 = const -11
     return %181
 
-optimizer clones 1 aliased 1 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 1 aliased 1 forwarded 4 removed 81 adopted 0 sunk 0 numbered 8 decided 0 unboxed 7 updated 0 split 5 promoted 22
 
 shape %s0 object Tracked {watched: %r0, own: %r0}
-shape %s1 cell {$v: %r0 box}
-shape %s2 object Held {borrowed: %r0, owned: %r0}
-shape %s3 object Two {left: %r0, right: %r0, own: %r0}
+shape %s1 object Held {borrowed: %r0, owned: %r0}
+shape %s2 object Two {left: %r0, right: %r0, own: %r0}
+shape %s3 object Nested {borrowed: %r0, owned: %r5}
 shape %s4 object Pair {a: %r0, b: %r0}
-shape %s5 object Nested {borrowed: %r0, owned: %r8}
+shape %s5 cell {$v: %r0 box}
 shape %s6 object Watching {held: %r0, at: %r0}
 
 rep %r0 = number signed 32
@@ -313,9 +260,9 @@ rep %r1 = void
 rep %r2 = object %s0
 rep %r3 = object %s1
 rep %r4 = object %s2
-rep %r5 = array Int32Array of %r0
-rep %r6 = number bool
-rep %r7 = object %s3
-rep %r8 = object %s4
-rep %r9 = object %s5
+rep %r5 = object %s4
+rep %r6 = object %s3
+rep %r7 = object %s5
+rep %r8 = array Int32Array of %r0
+rep %r9 = number bool
 rep %r10 = object %s6

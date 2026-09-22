@@ -1,13 +1,12 @@
 fn main() -> one %r0
-  var $0: %r2
+  var $0: %r1
   block0:
-    %5: %r2 = const 576n
-    %6: %r2 = alias %5
-    store var $0: %r2, %6
-    %7: %r2 = load var $0: %r2
-    %8: %r2 = alias %7
-    %9: %r2 = alias %8
-    %10: %r2 = const 0n
+    %5: %r1 = const 576n
+    %6: %r1 = alias %5
+    %7: %r1 = alias %6
+    %8: %r1 = alias %7
+    %9: %r1 = alias %8
+    %10: %r1 = const 0n
     %11: %r3 = binary.ne %9, %10
     %12: %r3 = unary.not %11
     branch %12 -> block2 -> block1
@@ -51,7 +50,7 @@ fn main() -> one %r0
     %49: %r0 = const 3
     return %49
   block7:
-    %46: %r2 = load var $0: %r2
+    %46: %r1 = alias %6
     %47: %r0 = convert %46
     return %47
   block8:
@@ -59,22 +58,22 @@ fn main() -> one %r0
     return %48
   block9:
     %37: %r3 = binary.eq %34, %35
-    %38: %r1 = const 1
-    %39: %r1 = const 2
-    %40: %r1 = select %37, %38, %39
+    %38: %r2 = const 1
+    %39: %r2 = const 2
+    %40: %r2 = select %37, %38, %39
     jump -> block11(%40)
   block10:
-    %41: %r1 = const 0
+    %41: %r2 = const 0
     jump -> block11(%41)
-  block11(%0: %r1):
-    %42: %r1 = const 2
+  block11(%0: %r2):
+    %42: %r2 = const 2
     %43: %r3 = binary.eq %0, %42
     %44: %r3 = unary.not %43
     branch %44 -> block8 -> block7
 
-optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 2
 
 rep %r0 = number signed 32
-rep %r1 = number unsigned 8
-rep %r2 = bigint signed
+rep %r1 = bigint signed
+rep %r2 = number unsigned 8
 rep %r3 = number bool

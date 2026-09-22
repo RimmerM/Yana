@@ -50,8 +50,6 @@ fn main() -> one %r0
     %30: %r0 = const 7
     %31: %r1 = host host.array %29, %30
     %32: %r2 = const 2
-    %33: %r3 = object %s0 %31, %32
-    store var $0: %r3, %33
     %34: %r0 = const 4
     %35: %r0 = call note %34
     %36: %r0 = const 0
@@ -79,17 +77,17 @@ fn main() -> one %r0
     %53: %r0 = binary.mul %51, %52
     %54: %r0 = coerce %53
     %55: %r0 = const 1
-    %56: %r0 = const 0
     %57: %r9 = convert %55
     %58: %r9 = convert %39
     %59: %r5 = binary.ge %57, %58
     branch %59 -> block4 -> block3
   block3:
     %60: %r1 = alias %31
-    %61: %r0 = binary.add %56, %55
+    %61: %r0 = alias %55
     %62: %r0 = coerce %61
     %63: %r0 = load element %60[%62]: %r0
-    %64: %r3 = load var $0: %r3
+    %33: %r3 = object %s0 %31, %32
+    %64: %r3 = alias %33
     call Array(a).reclaim(I32) %64
     %65: %r0 = binary.add %54, %63
     %66: %r0 = coerce %65
@@ -117,10 +115,9 @@ fn main() -> one %r0
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
-    store var $0: %r3, %0
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 7 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 10 adopted 0 sunk 1 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 1
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object Pair {a: %r0, b: %r0}

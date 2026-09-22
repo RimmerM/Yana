@@ -10,7 +10,6 @@ fn bump(parts %r3) -> omitted
 fn Held.drop(one %r0) -> omitted
   var $0: %r0
   block0(%0: %r0):
-    store var $0: %r0, %0
     %1: %r0 = load global live: %r0
     %2: %r0 = const 1
     %3: %r0 = binary.sub %1, %2
@@ -20,7 +19,7 @@ fn Held.drop(one %r0) -> omitted
     %6: %r0 = const 10
     %7: %r0 = binary.mul %5, %6
     %8: %r0 = coerce %7
-    %10: %r0 = load var $0: %r0
+    %10: %r0 = alias %0
     %11: %r0 = binary.add %8, %10
     %12: %r0 = coerce %11
     store global trace: %r0, %12
@@ -63,8 +62,7 @@ fn main() -> one %r0
     %27: %r0 = coerce %26
     store global live: %r0, %27
     %28: %r0 = alias %23
-    store var $0: %r0, %28
-    %29: %r0 = load var $0: %r0
+    %29: %r0 = alias %28
     call Held.drop %29
     %37: %r0 = const 3
     %38: %r0 = binary.add %37, %12
@@ -93,7 +91,7 @@ fn main() -> one %r0
     %59: %r0 = coerce %58
     jump -> block1(%57, %59)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 10 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 2
 
 shape %s0 ref {$o: %r1 owner, $k: %r1 key}
 shape %s1 cell {$v: %r0 box}

@@ -1,0 +1,32 @@
+{-
+   J91: `0.0` and `-0.0` are two answers. They compare equal, and dividing into them gives infinities
+   of opposite sign, so a JavaScript fold that asks whether two arms assign "the same literal" has to
+   ask it of the bits: `foldAssignIf` once made `if b then 1.0 else 0.0` / `-0.0` one `?:` over `0`
+   and `f(True, False, 1)` answered `-Inf` where native answers `Inf`.
+
+   `nothing` keeps both arms from being one block before the fold sees them.
+-}
+
+@noinline
+fn nothing(x: Int):
+    let y = x
+
+@noinline
+fn f(a: Bool, b: Bool, c: Int) -> F64:
+    let &r = 0.0
+    if a:
+        nothing(c)
+        r = if b then 1.0 else 0.0
+    else:
+        nothing(c)
+        r = -0.0
+    for i in 0..c:
+        r = r * 2.0
+    return r
+
+fn sign(x: F64) -> Int = if x > 0.0 then 1 else 2
+
+fn main() -> Int:
+    -- 121 when every sign is right: `Inf`, `-Inf` and `0.5`.
+    return sign(1.0 / f(True, False, 1)) * 100 + sign(1.0 / f(False, False, 1)) * 10 +
+        sign(1.0 / f(True, True, 1))

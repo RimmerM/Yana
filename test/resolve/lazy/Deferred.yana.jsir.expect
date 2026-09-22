@@ -9,18 +9,24 @@ fn main() -> one %r0
   var $7: %r22
   var $8: %r22
   var $9: %r10
+  var $10: %r2
+  var $11: %r2
+  var $12: %r2
+  var $13: %r2
+  var $14: %r2
+  var $15: %r2
+  var $16: %r2
+  var $17: %r2
+  var $18: %r2
+  var $19: %r2
+  var $20: %r2
+  var $21: %r2
   block0:
-    %29: %r2 = fun.code main.thunk
-    %30: %r2 = const null
-    %31: %r22 = object %s19 %29, %30
-    store var $0: %r22, %31
     %32: %r0 = const 1
     %33: %r2 = fun.code main.thunk'2
     %34: %r2 = const null
-    %35: %r22 = object %s19 %33, %34
-    %4: %r22 = alias %35
-    %36: %r2 = load property %4.$c: %r2
-    %37: %r2 = load property %4.$e: %r2
+    %36: %r2 = alias %33
+    %37: %r2 = alias %34
     %38: %r0 = call.value %36, %37
     %39: %r0 = const 2
     %40: %r14 = binary.eq %38, %39
@@ -28,14 +34,8 @@ fn main() -> one %r0
     %42: %r0 = select %40, %41, %32
     %43: %r2 = fun.code main.thunk'3
     %44: %r2 = const null
-    %45: %r22 = object %s19 %43, %44
-    %7: %r22 = alias %45
-    %46: %r2 = fun.code main.thunk'4
-    %47: %r2 = const null
-    %48: %r22 = object %s19 %46, %47
-    store var $1: %r22, %48
-    %49: %r2 = load property %7.$c: %r2
-    %50: %r2 = load property %7.$e: %r2
+    %49: %r2 = alias %43
+    %50: %r2 = alias %44
     %51: %r0 = call.value %49, %50
     %52: %r0 = const 4
     %53: %r14 = binary.eq %51, %52
@@ -44,13 +44,7 @@ fn main() -> one %r0
     %56: %r0 = coerce %55
     %57: %r0 = select %53, %56, %42
     %58: %r0 = const 5
-    %59: %r1 = object %s0 %58
-    store var $6: %r1, %59
-    %60: %r1 = load var $6: %r1
-    %61: %r2 = fun.code capturing.thunk
-    %62: %r22 = object %s19 %61, %60
-    store var $7: %r22, %62
-    %63: %r0 = load property %60.n: %r0
+    %63: %r0 = alias %58
     %64: %r0 = const 16
     %65: %r0 = load global effects: %r0
     %66: %r0 = binary.add %65, %64
@@ -70,12 +64,7 @@ fn main() -> one %r0
     store property %77.$v: %r0, %82
     %83: %r2 = const "$v"
     %84: %r3 = object %s2 %77, %83
-    %85: %r4 = object %s1 %84
-    %81: %r4 = alias %85
-    %86: %r2 = fun.code mutableCapture.thunk
-    %87: %r22 = object %s19 %86, %81
-    store var $8: %r22, %87
-    %88: %r3 = load property %81.n: %r3
+    %88: %r3 = alias %84
     %89: %r0 = load cell %88: %r0
     %90: %r0 = const 2
     %91: %r0 = binary.mul %89, %90
@@ -86,26 +75,15 @@ fn main() -> one %r0
     %96: %r0 = binary.add %75, %95
     %97: %r0 = coerce %96
     %98: %r0 = select %94, %97, %75
-    %99: %r2 = fun.code main.thunk'5
-    %100: %r2 = const null
-    %101: %r22 = object %s19 %99, %100
-    store var $2: %r22, %101
     %102: %r0 = const 32
     %103: %r0 = binary.add %98, %102
     %104: %r0 = coerce %103
     %105: %r2 = fun.code main.thunk'6
     %106: %r2 = const null
-    %107: %r22 = object %s19 %105, %106
-    %10: %r22 = alias %107
-    %108: %r0 = const 0
-    %109: %r0 = const 0
-    %110: %r10 = object %s8 %108, %109
-    store var $9: %r10, %110
-    %111: %r2 = load property %10.$c: %r2
-    %112: %r2 = load property %10.$e: %r2
+    %111: %r2 = alias %105
+    %112: %r2 = alias %106
     %113: %r10 = call.value %111, %112
-    store var $9: %r10, %113
-    %114: %r10 = load var $9: %r10
+    %114: %r10 = alias %113
     %115: %r0 = load property %114.x: %r0
     %116: %r0 = const 2
     %117: %r14 = binary.eq %115, %116
@@ -115,10 +93,8 @@ fn main() -> one %r0
     %121: %r0 = select %117, %120, %104
     %122: %r2 = fun.code main.thunk'7
     %123: %r2 = const null
-    %124: %r22 = object %s19 %122, %123
-    %13: %r22 = alias %124
-    %125: %r2 = load property %13.$c: %r2
-    %126: %r2 = load property %13.$e: %r2
+    %125: %r2 = alias %122
+    %126: %r2 = alias %123
     %127: %r0 = call.value %125, %126
     %128: %r0 = const 128
     %129: %r14 = binary.eq %127, %128
@@ -128,28 +104,20 @@ fn main() -> one %r0
     %133: %r0 = select %129, %132, %121
     %134: %r2 = fun.code main.thunk'8
     %135: %r2 = const null
-    %136: %r22 = object %s19 %134, %135
-    %16: %r22 = alias %136
-    %137: %r2 = load property %16.$c: %r2
-    %138: %r2 = load property %16.$e: %r2
+    %137: %r2 = alias %134
+    %138: %r2 = alias %135
     %139: %r14 = call.value %137, %138
     %140: %r0 = const 256
     %141: %r0 = binary.add %133, %140
     %142: %r0 = coerce %141
     %143: %r0 = select %139, %142, %133
-    %144: %r2 = fun.code main.thunk'9
-    %145: %r2 = const null
-    %146: %r22 = object %s19 %144, %145
-    store var $3: %r22, %146
     %147: %r0 = const 512
     %148: %r0 = binary.add %143, %147
     %149: %r0 = coerce %148
     %150: %r2 = fun.code main.thunk'10
     %151: %r2 = const null
-    %152: %r22 = object %s19 %150, %151
-    %19: %r22 = alias %152
-    %153: %r2 = load property %19.$c: %r2
-    %154: %r2 = load property %19.$e: %r2
+    %153: %r2 = alias %150
+    %154: %r2 = alias %151
     %155: %r0 = call.value %153, %154
     %156: %r0 = const 1025
     %157: %r14 = binary.eq %155, %156
@@ -160,10 +128,8 @@ fn main() -> one %r0
     %162: %r0 = const 3
     %163: %r2 = fun.code main.thunk'11
     %164: %r2 = const null
-    %165: %r22 = object %s19 %163, %164
-    %22: %r22 = alias %165
-    %166: %r2 = load property %22.$c: %r2
-    %167: %r2 = load property %22.$e: %r2
+    %166: %r2 = alias %163
+    %167: %r2 = alias %164
     %168: %r0 = call.value %166, %167
     %169: %r0 = const 0
     %170: %r0 = const 1
@@ -179,37 +145,25 @@ fn main() -> one %r0
     %176: %r0 = binary.add %161, %175
     %177: %r0 = coerce %176
     %178: %r0 = select %174, %177, %161
-    %179: %r2 = fun.code main.thunk'12
-    %180: %r2 = const null
-    %181: %r22 = object %s19 %179, %180
-    store var $4: %r22, %181
     %182: %r0 = const 4096
     %183: %r0 = binary.add %178, %182
     %184: %r0 = coerce %183
     %185: %r2 = fun.code main.thunk'13
     %186: %r2 = const null
-    %187: %r22 = object %s19 %185, %186
-    %25: %r22 = alias %187
-    %188: %r2 = load property %25.$c: %r2
-    %189: %r2 = load property %25.$e: %r2
+    %188: %r2 = alias %185
+    %189: %r2 = alias %186
     %190: %r14 = call.value %188, %189
     %191: %r0 = const 12288
     %192: %r0 = binary.add %178, %191
     %193: %r0 = coerce %192
     %194: %r0 = select %190, %193, %184
-    %195: %r2 = fun.code main.thunk'14
-    %196: %r2 = const null
-    %197: %r22 = object %s19 %195, %196
-    store var $5: %r22, %197
     %198: %r0 = const 16384
     %199: %r0 = binary.add %194, %198
     %200: %r0 = coerce %199
     %201: %r2 = fun.code main.thunk'15
     %202: %r2 = const null
-    %203: %r22 = object %s19 %201, %202
-    %28: %r22 = alias %203
-    %204: %r2 = load property %28.$c: %r2
-    %205: %r2 = load property %28.$e: %r2
+    %204: %r2 = alias %201
+    %205: %r2 = alias %202
     %206: %r14 = call.value %204, %205
     %207: %r0 = const 49152
     %208: %r0 = binary.add %194, %207
@@ -399,7 +353,7 @@ fn main.thunk'15(one %r21) -> one %r14 env
     %5: %r14 = const 1
     return %5
 
-optimizer clones 0 aliased 0 forwarded 0 removed 21 adopted 10 sunk 2
+optimizer clones 0 aliased 0 forwarded 20 removed 85 adopted 10 sunk 2 numbered 0 decided 0 unboxed 0 updated 0 split 6 promoted 2
 
 shape %s0 object capturing.thunk.env {n: %r0}
 shape %s1 object mutableCapture.thunk.env {n: %r3}

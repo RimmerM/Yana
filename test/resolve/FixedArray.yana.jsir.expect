@@ -31,20 +31,14 @@ fn total(parts %r3) -> one %r0
 fn main() -> one %r0
   var $0: %r9
   var $1: %r13
+  var $2: %r7
   block0:
-    %3: %r0 = const 0
-    %4: %r0 = const 0
-    %5: %r0 = const 0
-    %6: %r0 = const 0
-    %7: %r7 = array %3, %4, %5, %6
-    %8: %r8 = object %s1 %7
     %9: %r0 = const 1
     %10: %r0 = const 2
     %11: %r0 = const 3
     %12: %r0 = const 4
     %13: %r7 = array %9, %10, %11, %12
-    store property %8.$v: %r7, %13
-    %14: %r7 = load property %8.$v: %r7
+    %14: %r7 = alias %13
     %15: %r1 = alias %14
     %16: %r0 = const 4
     %17: %r0 = const 0
@@ -53,9 +47,7 @@ fn main() -> one %r0
     %20: %r4 = binary.ne %18, %19
     branch %20 -> block2 -> block1
   block1:
-    %21: %r7 = load property %8.$v: %r7
     %23: %r0 = const 4
-    %24: %r0 = const 0
     %25: %r0 = const 1
     %26: %r0 = const 3
     %27: %r4 = binary.gt %25, %23
@@ -64,10 +56,9 @@ fn main() -> one %r0
     %138: %r0 = const -3
     return %138
   block3:
-    %38: %r7 = load property %8.$v: %r7
+    %38: %r7 = alias %13
     %39: %r1 = alias %38
     %40: %r0 = const 4
-    %41: %r0 = const 0
     %42: %r0 = const 0
     %43: %r0 = const 1
     jump -> block19(%42)
@@ -92,23 +83,22 @@ fn main() -> one %r0
     %61: %r0 = const 7
     %62: %r0 = const 8
     %63: %r9 = array %61, %62
-    store var $0: %r9, %63
     %64: %r0 = const 0
-    %65: %r9 = load var $0: %r9
+    %65: %r9 = alias %63
     %66: %r0 = load element %65[%64]: %r0
     %67: %r0 = const 1
     %68: %r0 = binary.add %66, %67
     %69: %r0 = coerce %68
     store element %65[%64]: %r0, %69
     %70: %r0 = const 1
-    %71: %r9 = load var $0: %r9
+    %71: %r9 = alias %63
     %72: %r0 = load element %71[%70]: %r0
     %73: %r0 = const 1
     %74: %r0 = binary.add %72, %73
     %75: %r0 = coerce %74
     store element %71[%70]: %r0, %75
-    %76: %r9 = load var $0: %r9
-    %77: %r9 = clone %76
+    %76: %r9 = alias %63
+    %77: %r9 = alias %76
     %78: %r1 = alias %77
     %79: %r0 = const 2
     %80: %r0 = const 0
@@ -130,19 +120,18 @@ fn main() -> one %r0
     %91: %r11 = const 3
     %92: %r12 = object %s2 %90, %91
     %93: %r13 = array %86, %89, %92
-    store var $1: %r13, %93
     %94: %r0 = const 0
-    %95: %r13 = load var $1: %r13
+    %95: %r13 = alias %93
     %96: %r12 = load element %95[%94]: %r12
     %97: %r10 = load property %96.wide: %r10
     %98: %r0 = const 1
-    %99: %r13 = load var $1: %r13
+    %99: %r13 = alias %93
     %100: %r12 = load element %99[%98]: %r12
     %101: %r10 = load property %100.wide: %r10
     %102: %r10 = binary.add %97, %101
     %103: %r10 = coerce %102
     %104: %r0 = const 2
-    %105: %r13 = load var $1: %r13
+    %105: %r13 = alias %93
     %106: %r12 = load element %105[%104]: %r12
     %107: %r10 = load property %106.wide: %r10
     %108: %r10 = binary.add %103, %107
@@ -154,7 +143,7 @@ fn main() -> one %r0
     %118: %r0 = const -10
     return %118
   block11:
-    %112: %r7 = load property %8.$v: %r7
+    %112: %r7 = alias %13
     %113: %r1 = alias %112
     %114: %r0 = const 4
     %115: %r0 = const 0
@@ -179,8 +168,9 @@ fn main() -> one %r0
   block18(%1: %r0):
     %31: %r0 = binary.sub %1, %0
     %32: %r0 = coerce %31
-    %33: %r0 = binary.add %24, %0
+    %33: %r0 = alias %0
     %34: %r0 = coerce %33
+    %21: %r7 = alias %13
     %22: %r1 = alias %21
     %35: %r0 = call total %22, %32, %34
     %36: %r0 = const 5
@@ -190,7 +180,7 @@ fn main() -> one %r0
     %44: %r4 = binary.lt %2, %40
     branch %44 -> block21 -> block20
   block20:
-    %45: %r7 = load property %8.$v: %r7
+    %45: %r7 = alias %13
     %46: %r1 = alias %45
     %47: %r0 = const 4
     %48: %r0 = const 0
@@ -205,7 +195,7 @@ fn main() -> one %r0
     branch %123 -> block25 -> block22
   block22:
     %124: %r1 = alias %39
-    %125: %r0 = binary.add %41, %2
+    %125: %r0 = alias %2
     %126: %r0 = coerce %125
     %127: %r0 = load element %124[%126]: %r0
     %128: %r0 = binary.add %127, %127
@@ -215,8 +205,7 @@ fn main() -> one %r0
     branch %131 -> block24 -> block23
   block23:
     %132: %r1 = alias %39
-    %133: %r0 = binary.add %41, %2
-    %134: %r0 = coerce %133
+    %134: %r0 = alias %126
     store element %132[%134]: %r0, %129
     %135: %r0 = binary.add %2, %43
     %136: %r0 = coerce %135
@@ -228,7 +217,7 @@ fn main() -> one %r0
     host host.throw "yana: a runtime check failed"
     unreachable
 
-optimizer clones 1 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 1 aliased 1 forwarded 0 removed 12 adopted 0 sunk 0 numbered 4 decided 0 unboxed 1 updated 0 split 0 promoted 11
 
 shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
 shape %s1 cell {$v: %r7 box}

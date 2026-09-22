@@ -13,11 +13,12 @@ var wrapped = { $tag: 1, lo: 0, hi: 0, only: 40 };
 // 
 function boxedValue(b) {
   var p1;
+  var v2 = b.$tag;
   B0: {
-    if (b.$tag === 0) {
+    if (v2 === 0) {
       p1 = b.lo + Math.imul(b.hi, 16) | 0;
     } else {
-      if (b.$tag === 1) {
+      if (v2 === 1) {
         p1 = b.only;
         break B0;
       }
@@ -28,53 +29,18 @@ function boxedValue(b) {
 }
 
 function main() {
-  var p0, p1, p2, p3, p4;
   cursor.x = cursor.x + 1 | 0;
   var v23 = cursor;
-  var v24 = { x: v23.x, y: v23.y };
-  var v32 = (v24.x + v24.y | 0) === 31 ? 7 : 3;
+  var v32 = (v23.x + v23.y | 0) === 31 ? 7 : 3;
   var v48 = !(some === null) ? v32 + 56 : v32 + 24;
-  if (!(none === null)) {
-    p0 = none;
-  } else {
-    p0 = 100;
-  }
-  var v65 = p0 === 100 ? v48 + 64 : v48;
+  var v65 = (!(none === null) ? none : 100) === 100 ? v48 + 64 : v48;
   var v67 = { $tag: boxShape.$tag, Circle: boxShape.Circle, w: boxShape.w, h: boxShape.h };
-  if (v67.$tag === 0) {
-    p1 = v67.Circle;
-  } else {
-    p1 = 24;
-  }
-  var v78 = p1 === 24 ? v65 + 128 : v65;
+  var v78 = (v67.$tag === 0 ? v67.Circle : 24) === 24 ? v65 + 128 : v65;
   var v80 = { $tag: roundShape.$tag, Circle: roundShape.Circle, w: roundShape.w, h: roundShape.h };
-  if (v80.$tag === 0) {
-    p2 = 11;
-  } else {
-    p2 = Math.imul(v80.w, v80.h);
-  }
-  var v94 = p2 === 11 ? v78 + 256 : v78;
+  var v94 = (v80.$tag === 0 ? 11 : Math.imul(v80.w, v80.h)) === 11 ? v78 + 256 : v78;
   var v109 = greeting.length === 5 ? v94 + 3584 : v94 + 1536;
   var v125 = (labelled.name.length + 15 | 0) === 21 ? v109 + 4096 : v109;
   var v142 = (boxedValue({ $tag: packed.$tag, lo: packed.lo, hi: packed.hi, only: packed.only }) + boxedValue({ $tag: wrapped.$tag, lo: wrapped.lo, hi: wrapped.hi, only: wrapped.only }) | 0) === 139 ? v125 + 73728 : v125 + 8192;
-  var s0 = { home: { x: 2, y: 3 }, label: "ok", mode: { $tag: 1, Circle: 0, w: 2, h: 5 }, limit: 4 };
-  var v156 = s0.home;
-  var v157 = { x: v156.x, y: v156.y };
-  var v170 = (v157.x + v157.y | 0) + s0.label.length | 0;
-  var v172 = s0.mode;
-  var v173 = { $tag: v172.$tag, Circle: v172.Circle, w: v172.w, h: v172.h };
-  if (v173.$tag === 0) {
-    p3 = v173.Circle;
-  } else {
-    p3 = Math.imul(v173.w, v173.h);
-  }
-  var v183 = v170 + p3 | 0;
-  var v185 = s0.limit;
-  if (!(v185 === null)) {
-    p4 = v185;
-  } else {
-    p4 = 0;
-  }
-  return ((v183 + p4 | 0) === 21 ? v142 + 16384 : v142) + 32768;
+  return ((((5 + "ok".length | 0) + 10 | 0) + 4 | 0) === 21 ? v142 + 16384 : v142) + 32768;
 }
 main();

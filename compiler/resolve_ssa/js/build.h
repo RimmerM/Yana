@@ -192,6 +192,109 @@ struct JsBuilder {
         return addPlace(copy);
     }
 
+    /*
+     * `width` bits at `offset` of the number `word` holds, read at `content` - a field of a packed
+     * record or of a `$pN` word.
+     *
+     * **Nested ranges compose**: a range of a range is a range of the outer word at the summed
+     * offset, so `pair.flags.optionA` of a scalarized `Pair` whose `flags` is a scalarized `Flags` is
+     * one place over `pair`'s word rather than two, and the verifier can hold every `BitRange` to
+     * "`word` is not one". The word's owner, index and key are copied - see `JsPlaceKind::BitRange`
+     * for why - and the owner is named a second time, which `JsValue::uses` may over-count.
+     */
+    JsPlaceId addBitRange(JsPlaceId word, U32 offset, U32 width, bool isSigned, JsRepId content) {
+        JsPlace outer = place(word);
+        JsirPtr<JsValue> scale = nullptr;
+        if(outer.kind == JsPlaceKind::BitRange) {
+            offset += outer.bitOffset;
+            scale = outer.bitScale;
+            word = outer.word;
+            outer = place(word);
+        }
+
+        JsPlace range = outer;
+        range.kind = JsPlaceKind::BitRange;
+        range.content = content;
+        range.nichePayload = false;
+        range.word = word;
+        range.bitOffset = U8(offset);
+        range.bitWidth = U8(width);
+        range.bitSigned = isSigned;
+
+        // A field of a range a reference carried keeps the reference's scale and is no longer the
+        // whole of it - see `JsPlace::bitWhole`.
+        range.bitScale = scale;
+        range.bitWhole = false;
+
+        if(range.owner) base[range.owner]->uses++;
+        if(range.index) base[range.index]->uses++;
+        if(range.bitScale) base[range.bitScale]->uses++;
+        return addPlace(range);
+    }
+
+    /*
+     * The storage a **three-part narrow reference** names - `(owner, key, scale)` - as a range of
+     * `owner[key]` at a scale known only at run time. `content` is the reference's content; the
+     * word is read as a float because nothing here knows how wide it is (see `JsPlace::bitScale`).
+     */
+    JsPlaceId addScaledRange(JsValue* owner, JsValue* key, JsValue* scale, JsRepId content,
+                             U32 width, bool isSigned) {
+        auto word = addElement(owner, key, jsNumberRep(target, NumberDomain::Float64, 64));
+
+        JsPlace range = place(word);
+        range.kind = JsPlaceKind::BitRange;
+        range.content = content;
+        range.word = word;
+        range.bitOffset = 0;
+        range.bitWidth = U8(width);
+        range.bitSigned = isSigned;
+        range.bitScale = scale - base;
+        range.bitWhole = true;
+
+        owner->uses++;
+        key->uses++;
+        scale->uses++;
+        return addPlace(range);
+    }
+
+    /*
+     * A packed word built from its fields - `JsTarget::packings[packing]`, one value per field in
+     * that row's order.
+     *
+     * **Folded** where every operand is a numeric constant, which is what makes a constant record
+     * a constant here as it is natively: `Flags {a: True, b: False}` is the literal `1`, and a
+     * `zeroOf` a packed record is the literal `0` without asking. Each field is reduced to its own
+     * `width` bits first, so a signed field contributes its pattern rather than its value - the same
+     * reduction `codegen/js/place.cpp`'s `encodeRange` makes at run time.
+     */
+    JsValue* pack(U32 packing, Buffer<JsValue*> values, LocationId source) {
+        auto& row = target.packings[packing];
+
+        auto constant = values.size() == row.fields.size();
+        F64 folded = 0;
+        for(U32 i = 0; constant && i < values.size(); i++) {
+            auto value = values[i];
+            auto definer = value && value->definer ? base[value->definer] : nullptr;
+            if(!definer || definer->kind != JsInst::Const) { constant = false; break; }
+
+            auto& literal = ((JsInstConst*)definer)->constant;
+            if(literal.kind != JsConstant::Number || !literal.integral) { constant = false; break; }
+
+            folded += F64(jsFieldPattern(literal.number, row.fields[i].width)) *
+                      F64(U64(1) << row.fields[i].offset);
+        }
+
+        if(constant) return number(folded, row.word, source);
+
+        auto inst = add<JsInstPack>(row.word, source, packing);
+        for(auto value: values) {
+            inst->values.push(target.arena, value - base);
+            value->uses++;
+        }
+
+        return base[inst->result];
+    }
+
     JsValue* constant(const JsConstant& value, JsRepId rep, LocationId source) {
         auto inst = add<JsInstConst>(rep, source, value);
         return base[inst->result];

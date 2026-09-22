@@ -4,41 +4,39 @@ fn main() -> one %r0
   block0:
     %0: %r0 = const 3
     %1: %r1 = array %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0
-    store var $0: %r1, %1
     %2: %r0 = const 5
     %3: %r2 = array %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2, %2
-    store var $1: %r2, %3
     %4: %r0 = const 0
-    %5: %r1 = load var $0: %r1
+    %5: %r1 = alias %1
     %6: %r0 = load element %5[%4]: %r0
     %7: %r0 = const 8
-    %8: %r1 = load var $0: %r1
+    %8: %r1 = alias %1
     %9: %r0 = load element %8[%7]: %r0
     %10: %r0 = binary.add %6, %9
     %11: %r0 = coerce %10
     %12: %r0 = const 16
-    %13: %r1 = load var $0: %r1
+    %13: %r1 = alias %1
     %14: %r0 = load element %13[%12]: %r0
     %15: %r0 = binary.add %11, %14
     %16: %r0 = coerce %15
     %17: %r0 = const 0
-    %18: %r2 = load var $1: %r2
+    %18: %r2 = alias %3
     %19: %r0 = load element %18[%17]: %r0
     %20: %r0 = binary.add %16, %19
     %21: %r0 = coerce %20
     %22: %r0 = const 17
-    %23: %r2 = load var $1: %r2
+    %23: %r2 = alias %3
     %24: %r0 = load element %23[%22]: %r0
     %25: %r0 = binary.add %21, %24
     %26: %r0 = coerce %25
     %27: %r0 = const 39
-    %28: %r2 = load var $1: %r2
+    %28: %r2 = alias %3
     %29: %r0 = load element %28[%27]: %r0
     %30: %r0 = binary.add %26, %29
     %31: %r0 = coerce %30
     return %31
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 6
 
 rep %r0 = number signed 32
 rep %r1 = array Int32Array of %r0

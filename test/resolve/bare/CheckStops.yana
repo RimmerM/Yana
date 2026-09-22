@@ -1,0 +1,15 @@
+{-
+   A failed check on a bare target stops in a `hlt` loop and makes no system call (J91).
+
+   # resolver: ownership
+   # target: bare
+
+   `lib/Native/Bare.bare.x64.yana`'s `exitProcess` is `while True: X86.hlt()`, since there is no
+   kernel to end a process: at ring 0 the core halts until an interrupt and halts again, at ring 3
+   the instruction faults. A bounds check that fails reaches it through `checkFailed`, and the
+   `.mir.lower.expect` beside this is what shows the loop is there and the `syscall` is not.
+-}
+
+fn main(index: Size) -> U32:
+    let table = [3, 5, 7, 11] :: [U32 *4]
+    return table[index]

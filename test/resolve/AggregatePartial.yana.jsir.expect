@@ -14,6 +14,8 @@ fn opaque(one %r0) -> one %r0
 fn main() -> one %r0
   var $0: %r2
   var $1: %r3
+  var $2: %r0
+  var $3: %r2
   block0:
     %0: %r0 = const 5
     %4: %r0 = call opaque %0
@@ -21,32 +23,14 @@ fn main() -> one %r0
     %9: %r0 = binary.add %4, %8
     %10: %r0 = coerce %9
     %11: %r0 = const 6
-    %12: %r0 = const 0
-    %13: %r0 = const 0
-    %14: %r0 = const 0
-    %15: %r2 = object %s0 %13, %14
-    %16: %r3 = object %s1 %12, %15
-    store var $1: %r3, %16
     %17: %r0 = const 1
     %18: %r0 = const 2
-    %19: %r2 = object %s0 %17, %18
-    store var $0: %r2, %19
-    %20: %r0 = const 7
-    %21: %r2 = load var $0: %r2
-    %22: %r2 = clone %21
-    %23: %r3 = object %s1 %20, %22
-    store var $1: %r3, %23
     %24: %r0 = call opaque %11
-    %25: %r3 = load var $1: %r3
-    store property %25.tag: %r0, %24
-    %26: %r3 = load var $1: %r3
-    %27: %r2 = load property %26.held: %r2
-    %28: %r0 = load property %27.a: %r0
+    %28: %r0 = alias %17
     %29: %r0 = const 100
     %30: %r0 = binary.mul %28, %29
     %31: %r0 = coerce %30
-    %32: %r2 = load property %26.held: %r2
-    %33: %r0 = load property %32.b: %r0
+    %33: %r0 = alias %18
     %34: %r0 = const 10
     %35: %r0 = binary.mul %33, %34
     %36: %r0 = coerce %35
@@ -68,12 +52,12 @@ fn main() -> one %r0
     %57: %r0 = coerce %56
     return %57
 
-optimizer clones 1 aliased 0 forwarded 0 removed 11 adopted 0 sunk 0
+optimizer clones 1 aliased 1 forwarded 2 removed 31 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 1 promoted 2
 
-shape %s0 object Pair {a: %r0, b: %r0}
-shape %s1 object Held {tag: %r0, held: %r2}
+shape %s0 object Held {tag: %r0, held: %r2}
+shape %s1 object Pair {a: %r0, b: %r0}
 
 rep %r0 = number signed 32
 rep %r1 = number bool
-rep %r2 = object %s0
-rep %r3 = object %s1
+rep %r2 = object %s1
+rep %r3 = object %s0

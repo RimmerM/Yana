@@ -3,60 +3,44 @@
 function main() {
   var p6;
   var v11 = new Int32Array([1, 2, 3]);
-  var s0 = { items: v11, length: 3 };
   var v17 = new Int32Array([1, 2, 3]);
-  var s1 = { items: v17, length: 3 };
   var v23 = new Int32Array([1, 2, 4]);
-  var s2 = { items: v23, length: 3 };
   var v37 = itemsEqual_I32(v11, 3, 0, v17, 3, 0) ? 1 : 0;
   var p4 = 0;
-  B2: {
+  B0: {
     while (p4 < 3) {
       var v44 = p4 >>> 0;
       if (v44 >= 3) throw $t;
-      var v49 = 0 + p4 | 0;
+      var v49 = p4 | 0;
       if (v44 >= 3) throw $t;
-      if (v11[v49] !== v23[0 + p4 | 0]) {
+      if (v11[v49] !== v23[v49]) {
         p6 = 0;
-        break B2;
+        break B0;
       }
       p4 = p4 + 1 | 0;
     }
     p6 = 1;
   }
-  var v61 = p6 ^ 1;
-  Array_a_reclaim_I32(s2);
-  var v65 = v61 ? 2 : 0;
-  var p1 = itemsEqual_I32(v11, 3, 0, v17, 3, 0);
-  Array_a_reclaim_I32(s1);
-  var v74 = p1 ? 4 : 0;
+  var v65 = p6 ^ 1 ? 2 : 0;
+  var v74 = itemsEqual_I32(v11, 3, 0, v17, 3, 0) ? 4 : 0;
   var s3 = "";
   s3 = s3 + String.fromCharCode(91);
-  var v84 = { items: v11, length: 3, offset: 0 };
-  var v87 = v84.length;
   var p7 = 0;
-  while (p7 < v87) {
+  while (p7 < 3) {
     if (p7 > 0) s3 = s3 + ", ";
-    if (p7 >>> 0 >= v84.length >>> 0) throw $t;
-    s3 = s3 + String(v84.items[v84.offset + p7 | 0]);
+    if (p7 >>> 0 >= 3) throw $t;
+    s3 = s3 + String(v11[0 + p7 | 0]);
     p7 = p7 + 1 | 0;
   }
   s3 = s3 + String.fromCharCode(93);
-  var v101 = { $v: 0 };
   var p2 = 0;
   var p3 = 0;
   while (p2 < 3) {
     if (p2 >>> 0 >= 3) throw $t;
-    var v130 = p3 + v11[0 + p2 | 0] | 0;
-    v101.$v = 0;
+    p3 = p3 + v11[p2 | 0] | 0;
     p2 = p2 + 1 | 0;
-    p3 = v130;
   }
-  Array_a_reclaim_I32(s0);
   return (v37 + v65 + v74 + s3.length | 0) + p3 | 0;
-}
-
-function Array_a_reclaim_I32(value) {
 }
 
 function itemsEqual_I32(left$0, left$1, left$2, right$0, right$1, right$2) {

@@ -1,0 +1,197 @@
+import Native
+
+{-
+   **A `&` of a packed field**, through the new stage - `Packed.yana`'s borrowing half, restated in
+   the form the new stage accepts.
+
+   # resolver: ownership
+
+   `Packed.yana` cannot opt in: five of its calls pass a `@bits` field to `&x: U32`, which this stage
+   refuses by design, since a reference's content is the field's own type. Everything else it asks
+   of a borrowed narrow field is here, with the same answers, plus the three shapes JSIR's
+   shift-carrying reference has to get right (J84): a range reached through a reference that was
+   itself a range, a range that escapes as one value, and two ranges of one word exchanged.
+
+   What makes this a test rather than a picture is that every mistake is silent. A reference that
+   names the word without its shift writes over the neighbours; a scale dropped at one end reads
+   the low bits of somebody else's word; a swap that writes before it has read both loses one. The
+   answer - the native build's - is what catches each of them.
+-}
+
+data Header {version: @bits(4) U32, flags: @bits(3) U32, length: @bits(13) U32}
+
+data Flags {optionA: Bool, optionB: Bool}
+
+data Nine {a: Bool, b: Bool, c: Bool, d: Bool, e: Bool, f: Bool, g: Bool, h: Bool, i: Bool}
+
+-- Co-packed: `count` fills its own storage, so `live` and `kind` share a word inside an object.
+data Entry {live: Bool, kind: @bits(3) U32, count: Int}
+
+-- Nested: a packed record inside a packed record, so `o.inner.optionB` is one range of `o`'s word.
+data Outer {inner: Flags, tail: Bool, level: @bits(5) U32}
+
+-- Two four-bit neighbours and a flag, for the exchange.
+data Quad {a: @bits(4) U32, b: @bits(4) U32, c: Bool}
+
+-- Thirty-seven bits: a record that could co-pack its fields *or* be one number, and must be the
+-- number - the shipping backend decides the whole record first.
+data Cell {kind: @bits(4) U32, live: Bool, count: @bits(12) U32, age: @bits(20) U32}
+
+fn tick(&x: @bits(3) U32): x = x + 1
+
+fn grow(&x: @bits(5) U32): x = x + 4
+
+fn flip(&b: Bool): b = !b
+
+fn nudge(&x: @bits(13) U32): x = x + 1
+
+fn nudgeTwice(&x: @bits(13) U32):
+    nudge(x)
+    nudge(x)
+
+fn valueOf(f: Flags) -> Int = (if f.optionA then 1 else 0) + (if f.optionB then 2 else 0)
+
+-- Handed down two frames and written at the bottom: the middle frame passes on a reference it was
+-- handed, scale and all. 1020 + 1.
+fn threaded() -> Int:
+    let &h = Header {version: 1, flags: 2, length: 100}
+
+    nudgeTwice(h.length)
+
+    return (h.length :: Int) * 10 + (h.version :: Int)
+
+-- Nine references is twenty-seven positions. The shipping backend declines to flatten past 24;
+-- this target has no guard (`abi.cpp`), and the answer is the same. 1 + 20 + 300.
+fn nine(&a: Bool, &b: Bool, &c: Bool, &d: Bool, &e: Bool,
+        &f: Bool, &g: Bool, &h: Bool, &i: Bool):
+    a = True
+    b = True
+    c = True
+    d = True
+    e = True
+    f = True
+    g = True
+    h = True
+    i = True
+
+fn wide() -> Int:
+    let &s = Nine {a: False, b: False, c: False, d: False, e: False,
+                   f: False, g: False, h: False, i: False}
+
+    nine(s.a, s.b, s.c, s.d, s.e, s.f, s.g, s.h, s.i)
+
+    return (if s.a then 1 else 0) + (if s.e then 20 else 0) + (if s.i then 300 else 0)
+
+-- A reference chosen between two ranges and returned: the result is one value, so each arm is the
+-- accessor box, and the write lands after the call. 0 + 2.
+fn pick(flag: Bool, &a: 'Bool, &b: 'Bool) -> &'Bool = if flag then a else b
+
+fn loaned() -> Int:
+    let &f = Flags {optionA: True, optionB: True}
+    let &chosen = pick(True, f.optionA, f.optionB)
+
+    chosen = False
+
+    return (if f.optionA then 1 else 0) + (if f.optionB then 2 else 0)
+
+-- A range projected out of a reference to the whole record, handed back. 1 + 2.
+fn optionOf(&f: 'Flags) -> &'Bool = f.optionA
+
+fn returned() -> Int:
+    let &f = Flags {optionA: False, optionB: True}
+    let &chosen = optionOf(f)
+
+    chosen = True
+
+    return (if f.optionA then 1 else 0) + (if f.optionB then 2 else 0)
+
+-- Two co-packed fields of an object, borrowed in turn, and one returned. 1 + 30 + 800, 1 + 10 + 200.
+fn tally() -> Int:
+    let &e = Entry {live: False, kind: 2, count: 7}
+
+    flip(e.live)
+    tick(e.kind)
+    e.count = e.count + 1
+
+    return (if e.live then 1 else 0) + (e.kind :: Int) * 10 + e.count * 100
+
+fn liveOf(&e: 'Entry) -> &'Bool = e.live
+
+fn kept() -> Int:
+    let &e = Entry {live: False, kind: 1, count: 2}
+    let &flag = liveOf(e)
+
+    flag = True
+
+    return (if e.live then 1 else 0) + (e.kind :: Int) * 10 + e.count * 100
+
+-- Nested ranges: a `&Flags` that is itself a range, written field by field and passed on field by
+-- field - the scale the caller sent times the field's own offset. 1 + 10 + 700.
+fn setBoth(&f: Flags):
+    f.optionA = True
+    f.optionB = True
+
+fn flipSecond(&f: Flags): flip(f.optionB)
+
+fn nested() -> Int:
+    let &o = Outer {inner: Flags {optionA: False, optionB: False}, tail: False, level: 3}
+
+    setBoth(o.inner)
+    flipSecond(o.inner)
+    flip(o.tail)
+    grow(o.level)
+
+    return valueOf(o.inner) + (if o.tail then 10 else 0) + (o.level :: Int) * 100
+
+-- A body compiled once takes its reference as one object, so a range crossing into one is the
+-- accessor box: the erased body reads and writes `$o[$k]` and the box decodes. 2 * 10 + 1.
+@generic
+fn (a) put(&slot: a, ->value: a): slot = value
+
+fn erased() -> Int:
+    let &f = Flags {optionA: False, optionB: False}
+    put(f.optionB, True)
+
+    let &e = Entry {live: False, kind: 5, count: 3}
+    put(e.live, True)
+
+    return valueOf(f) * 10 + (if e.live then 1 else 0) + (e.kind :: Int) * 100 + e.count * 1000
+
+-- Two ranges of one word exchanged: both are read before either is written, or one is lost.
+-- Flags: swapped to (False, True), then `exchange` takes the True back out - 0 + 0 + 4.
+-- Quad: 12, 3, True - 1200 + 30 + 1, through two references into one word. (`swap` itself binds
+-- its one type variable at `U32` and refuses a `@bits(4)` place, so the four-bit pair is written.)
+fn swapFour(&x: @bits(4) U32, &y: @bits(4) U32):
+    let t = x
+    x = y
+    y = t
+
+-- Behind a reference, so that the word is not a constant the optimizer can fold the swap into.
+fn swapFlags(&g: Flags) -> Bool:
+    swap(g.optionA, g.optionB)
+    return exchange(g.optionB, False)
+
+fn swapped() -> Int:
+    let &g = Flags {optionA: True, optionB: False}
+    let old = swapFlags(g)
+
+    let &q = Quad {a: 3, b: 12, c: True}
+    swapFour(q.a, q.b)
+
+    let flags = (if g.optionA then 1 else 0) + (if g.optionB then 2 else 0) + (if old then 4 else 0)
+    return flags + ((q.a :: Int) * 100 + (q.b :: Int) * 10 + (if q.c then 1 else 0)) * 10
+
+-- The record that must be one number, read and written field-wise. 9 + 1 + 4000 * 2 + ...
+fn cells() -> Int:
+    let &c = Cell {kind: 9, live: False, count: 4000, age: 1000000}
+
+    flip(c.live)
+    c.count = c.count + 95
+    c.age = c.age + 48575
+
+    return (c.kind :: Int) + (if c.live then 16 else 0) + (c.count :: Int) * 32 +
+           ((c.age :: Int) - 1000000) * 1000
+
+fn main() -> Int =
+    threaded() + wide() * 10 + loaned() * 1000 + returned() * 10000 + tally() + kept() +
+    nested() * 7 + erased() * 3 + swapped() + cells()

@@ -1,0 +1,112 @@
+{-
+   J87: which array locals still need a box on JavaScript, and a record update built as one
+   literal. A plain host array (`[String]`, `[Cell]`) is the bare JS array, so a `&` to one needs
+   somewhere to rebind only where a callee can *replace* it; growth never does on that row.
+
+   The shipping stage answers `replace` wrong on JavaScript (it drops the new array), so:
+   # resolver: ownership
+-}
+
+data Cell {kind: @bits(4) U32, live: Bool, count: @bits(12) U32, age: @bits(20) U32}
+
+data Item {weight: F64, live: Bool, marked: Bool, level: @bits(8) U32, count: @bits(12) U32}
+
+data Inner {a: F64, b: I32}
+data Outer {inner: Inner, tag: I32}
+
+-- Only pushes: the box has nothing to rebind.
+@noinline fn fill(&xs: Array(String), n: Int):
+    for i in 0..n:
+        push(xs, "a{i}")
+
+-- Replaces the array outright: the caller's box is what makes this visible.
+@noinline fn replace(&xs: Array(String)):
+    xs = ["x", "yy", "zzz"]
+
+-- The same, inlined into its caller.
+fn replaceInline(&xs: Array(String)):
+    xs = ["pp", "q"]
+
+fn pushed(&xs: Array(String), n: Int) -> Int:
+    push(xs, "c{n}")
+    return n
+
+fn letters(xs: [String]) -> Int:
+    let &t = 0
+    for x in items(xs):
+        t = t + (truncate(length(x)) :: Int)
+    return t
+
+let &calls = 0
+
+@noinline fn made(v: Item) -> Item:
+    calls = calls + 1
+    return v
+
+fn boxes() -> Int:
+    -- inlined pushes into a local: no box at all
+    let &cells = [] :: [Cell]
+    for j in 0..10:
+        let i = bitcast(j) :: U32
+        push(cells, Cell {kind: i % 16, live: i % 3 == 0, count: i, age: i * 7})
+
+    let &a = [] :: [String]
+    fill(a, 4)
+
+    let &b = ["q"] :: [String]
+    replace(b)
+    push(b, "wwww")
+
+    let &d = ["q"] :: [String]
+    replaceInline(d)
+    push(d, "r")
+
+    -- captured by a closure whose body only pushes. (One whose callee replaces the array was J87's
+    -- open item, fixed in J88: `ClosureRefCapture.yana`.)
+    let &c = [] :: [String]
+    let f = (n: Int) -> pushed(c, n)
+    f(1)
+    f(22)
+
+    let &sum = 0
+    for x in items(cells):
+        sum = sum + (bitcast(x.age) :: Int)
+
+    let lengthB = truncate(length(b)) :: Int
+    return sum + letters(a) * 10 + letters(b) * 100 + lengthB * 1000 + letters(d) * 10000 + letters(c) * 100000
+
+fn updates() -> Int:
+    let &xs = [] :: [Item]
+    for j in 0..6:
+        let i = bitcast(j) :: U32
+        push(xs, Item {weight: 1.5, live: i % 2 == 0, marked: False, level: i, count: i * 3})
+
+    -- two writes into one packed word, the source read inside the replacements
+    for i in 0..length(xs):
+        xs[i] = {xs[i] | marked: !xs[i].marked, count: (xs[i].count + 1) % 4096}
+
+    -- a replacement written after one of its word neighbours, and a plain field
+    let &ys = [] :: [Item]
+    for x in items(xs):
+        push(ys, {x | level: x.level + 10, weight: x.weight * 2.0, live: !x.live})
+
+    -- a move update
+    let v = Item {weight: 0.25, live: True, marked: True, level: 3, count: 4}
+    let moved = {->v | count: v.count + 1, marked: False}
+
+    -- a source with a side effect, evaluated once
+    let once = {made(moved) | level: 9}
+
+    -- a nested path writes into the one copy
+    let o = Outer {inner: Inner {a: 1.0, b: 2}, tag: 3}
+    let p = {o | .inner.b: 20, .inner.a: 5.0, tag: 30}
+
+    let &total = 0
+    for y in items(ys):
+        let bits = (if y.marked then 1 else 0) + (if y.live then 2 else 0)
+        total = total + bits + (bitcast(y.level + y.count) :: Int) + (truncate(y.weight * 4.0) :: Int)
+    let extra = (bitcast(moved.count + once.level) :: Int) + (if moved.marked then 100 else 0)
+    return total * 10 + extra * 1000 + calls * 100000 + p.inner.b * 1000000 + (truncate(p.inner.a) :: Int) * 10000000 + p.tag + o.inner.b
+
+-- 545395 + 70116132, where every case is right.
+fn main() -> Int = boxes() + updates()

@@ -130,6 +130,34 @@ inline bool walkAddress(JsTarget& target, ssa::Body& from, SsaPtr<ssa::Value> ro
 
             if(descriptor && useWantsDescriptor(target, user, address)) *descriptor = true;
 
+            /*
+             * Except into a **scalarized record**, whose field is a range of the root's own number
+             * rather than a different place (J84). A `&` of one that leaves is the root's storage
+             * leaving, and the root needs the `{$v}` box a range reference can name - the word
+             * the three-part reference's owner and key are. `jsRep` is asked first because the
+             * row is memoized on the type by the question itself - and only when the switch is
+             * on, since asking interns the record's representation early and renumbers every
+             * `%rN` in a dump that packs nothing.
+             */
+            if(target.scalarizeRecords && user.kind == ssa::Inst::FieldAddress &&
+               user.results.size() &&
+               ((ssa::InstFieldAddress&)user).base.value() == address) {
+                auto& projection = (ssa::InstFieldAddress&)user;
+                if(projection.property == ssa::InstFieldAddress::kNoProperty &&
+                   projection.field != ssa::InstFieldAddress::kDiscriminant && projection.record &&
+                   target.rep(jsRep(target, projection.record, user.source)).kind ==
+                       JsRepKind::Number &&
+                   jsWholePackingOf(target, projection.record)) {
+                    auto field = ssa[user.results.get(ssa, 0)];
+                    if(!seen[field->id.index]) {
+                        seen.set(field->id.index, true);
+                        pending.push(user.results.get(ssa, 0));
+                    }
+
+                    continue;
+                }
+            }
+
             if(user.kind == ssa::Inst::Load && user.results.size()) {
                 auto read = ssa[user.results.get(ssa, 0)];
                 if(((ssa::InstLoad&)user).address.value() == address &&
@@ -514,6 +542,7 @@ struct Conversion {
     JsValue* valueOf(SsaPtr<ssa::Value> pointer, LocationId where) {
         auto value = ssa[pointer];
 
+        reprojectIfStale(*value);
         auto& row = at(*value);
         if(row.one) return base()[row.one];
 
@@ -670,7 +699,116 @@ struct Conversion {
      * callee that read `x.$o[x.$k]` would agree about nothing. `JsAbi` is what keeps them together,
      * and this is the arm the flat positions take.
      */
-    bool referencePartsOf(JsPlaceId id, LocationId where, SmallArray<JsValue*, 8>& into) {
+    /*
+     * A `Pack` of one packing row, reading the field values out of a constructor's components -
+     * `components[i]` is field `first + i`. Null, reported, where a component is missing.
+     */
+    JsValue* packOf(U32 packing, U16 first, Buffer<JsValue*> components, LocationId where) {
+        SmallArray<JsValue*, 8> operands;
+        for(auto& bits: target.packings[packing].fields) {
+            auto index = U32(bits.field - first);
+            if(bits.field < first || index >= components.size() || !components[index]) {
+                if(!failed) internal("met a packed field with no component"_v, where);
+                failed = true;
+                return nullptr;
+            }
+
+            operands.push(components[index]);
+        }
+
+        return builder.pack(packing, held(operands), where);
+    }
+
+    /*
+     * The flat reference's own representation for a place's content - two parts, or three where the
+     * content is narrow (`jsRefCarriesScale`).
+     */
+    JsRepId flatRefRep(JsRepId content) { return jsCellPartsRep(target, content); }
+
+    // `(owner, key)` for a `{$o, $k}` descriptor split apart, whatever the content - the object has
+    // two properties whether or not the flat form it came from had a third.
+    JsRepId pairRefRep(JsRepId content) {
+        auto erased = jsErasedRep(target);
+        JsRepId parts[2] = { erased, erased };
+        return jsPartsRep(target, Buffer<JsRepId>(parts, 2), jsCellRep(target, content));
+    }
+
+    JsValue* scaleConstant(F64 scale, LocationId where) {
+        return builder.number(scale, jsNumberRep(target, NumberDomain::Float64, 64), where);
+    }
+
+    /*
+     * The scale of a place that is **not** a range: one for an unsigned or `Bool01` content, whose
+     * plain storage already holds the pattern, and zero - "no range" - for a signed one, whose plain
+     * storage holds the value. See `JsPlace::bitWhole`.
+     */
+    JsValue* plainScale(JsRepId content, LocationId where) {
+        auto& rep = target.rep(jsStoredRep(target, content));
+        auto isSigned = rep.kind == JsRepKind::Number && rep.domain == NumberDomain::Signed;
+        return scaleConstant(isSigned ? 0 : 1, where);
+    }
+
+    /*
+     * The three parts of a reference to a **range of a packed word** - the shift-carrying narrow
+     * reference (J84), and the shipping backend's `(owner, key, scale)`.
+     *
+     * The owner and key are the *word's*, and the scale is `2**offset` times whatever scale the word
+     * itself was reached at: one for a word in a property or an element, the reference's own for a
+     * range a three-part reference carried in. A word reached any other way - a descriptor that
+     * arrived as one value, a box built for a value - is `referenceTo` of the word taken apart, and
+     * such a word is always a whole-record pattern, so its own scale is one.
+     */
+    bool rangeReferenceParts(JsPlaceId id, LocationId where, SmallArray<JsValue*, 8>& into) {
+        auto range = builder.place(id);
+        auto factor = F64(U64(1) << range.bitOffset);
+
+        if(range.bitScale) {
+            auto word = builder.place(range.word);
+            auto owner = base()[word.owner];
+            auto key = base()[word.index];
+            auto scale = base()[range.bitScale];
+            owner->uses++;
+            key->uses++;
+
+            if(range.bitOffset) {
+                scale = binaryOf(mir::BinaryOp::Mul, jsNumberRep(target, NumberDomain::Float64, 64),
+                                 scale, scaleConstant(factor, where), where);
+                if(!scale) return false;
+            } else {
+                scale->uses++;
+            }
+
+            into.push(owner);
+            into.push(key);
+            into.push(scale);
+            return true;
+        }
+
+        auto& word = builder.place(range.word);
+        if(word.kind == JsPlaceKind::Property || word.kind == JsPlaceKind::Element) {
+            if(!pairParts(range.word, where, into)) return false;
+        } else {
+            auto reference = referenceTo(range.word, where);
+            if(!reference) return false;
+
+            auto pair = pairRefRep(builder.place(range.word).content);
+            for(U16 i = 0; i < 2; i++) {
+                auto part = builder.splitPart(reference, pair, i, where);
+                if(!part) {
+                    internal("could not split a reference descriptor"_v, where);
+                    return false;
+                }
+
+                into.push(part);
+            }
+        }
+
+        into.push(scaleConstant(factor, where));
+        return true;
+    }
+
+    // `(owner, key)` of a property or an element place - the two halves `borrow.describe` names.
+    bool pairParts(JsPlaceId id, LocationId where, SmallArray<JsValue*, 8>& into) {
         auto& place = builder.place(id);
         auto erased = target.shape(jsRefShape(target)).properties[0].rep;
 
@@ -698,17 +836,41 @@ struct Conversion {
             return true;
         }
 
+        return false;
+    }
+
+    bool referencePartsOf(JsPlaceId id, LocationId where, SmallArray<JsValue*, 8>& into) {
+        auto& place = builder.place(id);
+        auto content = place.content;
+        auto scaled = jsRefCarriesScale(target, content);
+
+        if(place.kind == JsPlaceKind::BitRange) {
+            if(!scaled) {
+                internal("met a range whose content carries no scale"_v, where);
+                failed = true;
+                return false;
+            }
+
+            return rangeReferenceParts(id, where, into);
+        }
+
+        if(pairParts(id, where, into)) {
+            if(scaled) into.push(plainScale(content, where));
+            return true;
+        }
+
         /*
          * Anything else is the descriptor taken apart, which is what a reborrow of a reference and
          * a reference that arrived as one value both are. `referenceTo` answers the object and the
-         * split is two property reads - still no allocation, which is the point.
+         * split is two property reads - still no allocation, which is the point. A descriptor is
+         * `$o[$k]` whatever produced it - `$bitCell`'s box included - so its scale is the plain one.
          */
         auto reference = referenceTo(id, where);
         if(!reference) return false;
 
-        auto flat = jsCellPartsRep(target, builder.place(id).content);
+        auto pair = pairRefRep(content);
         for(U16 i = 0; i < 2; i++) {
-            auto part = builder.splitPart(reference, flat, i, where);
+            auto part = builder.splitPart(reference, pair, i, where);
             if(!part) {
                 internal("could not split a reference descriptor"_v, where);
                 return false;
@@ -717,10 +879,26 @@ struct Conversion {
             into.push(part);
         }
 
+        if(scaled) into.push(plainScale(content, where));
         return true;
     }
 
     JsValue* referenceTo(JsPlaceId id, LocationId where) {
+        /*
+         * A range that has to be **one value** - an erased argument, a returned or stored
+         * reference, a capture, an edge. Its three parts, materialized: `$bitCell`'s accessor box,
+         * `{$o: {get $v, set $v}, $k: "$v"}`, which every reader of a `Cell` already reads and
+         * writes as `$o[$k]` without knowing a range is behind it (J84).
+         */
+        if(builder.place(id).kind == JsPlaceKind::BitRange) {
+            SmallArray<JsValue*, 8> parts;
+            if(!referencePartsOf(id, where, parts)) return nullptr;
+
+            auto box = builder.materialize(flatRefRep(builder.place(id).content), held(parts), where);
+            if(!box) internal("could not materialize a range reference"_v, where);
+            return box;
+        }
+
         auto& place = builder.place(id);
         auto cellRep = jsCellRep(target, place.content);
 
@@ -905,6 +1083,7 @@ struct Conversion {
         auto value = ssa[pointer];
         ok = true;
 
+        reprojectIfStale(*value);
         auto& row = at(*value);
         if(row.place.valid()) return row.place;
 
@@ -953,6 +1132,49 @@ struct Conversion {
         ok = false;
         internal("met an address it has not converted"_v, where);
         return JsPlaceId();
+    }
+
+    /*
+     * A projection whose owner was loaded, made again where it is used when the storage it was
+     * loaded from may have been rebound since - see `JsTargetValue::projectedIn`.
+     *
+     * "Since" is anything in the block after the owner's load that writes or calls, and any other
+     * block. Both are conservative and both only cost a load: a use in the next statement with no
+     * store between keeps the first conversion, which is what keeps the common `p.x += 1` - a load
+     * and a store through one address - one read of `p`.
+     */
+    void markProjected(ssa::Inst& inst) {
+        if(!inst.results.size() || !builder.current) return;
+
+        auto& row = at(*ssa[inst.results.get(ssa, 0)]);
+        row.projectedIn = builder.current - base();
+        row.projectedAt = U32(builder.current->instructionList.size());
+    }
+
+    void reprojectIfStale(ssa::Value& value) {
+        auto& row = at(value);
+        if(!row.projectedIn || !value.definer) return;
+
+        auto block = base()[row.projectedIn];
+        if(block == builder.current) {
+            auto list = block->instructions(base());
+            auto fresh = true;
+            for(Size i = row.projectedAt; i < list.size(); i++) {
+                auto effects = effectsOf(*base()[list[i]]);
+                if(effects & (kJsWrites | kJsCalls)) {
+                    fresh = false;
+                    break;
+                }
+            }
+
+            if(fresh) return;
+        }
+
+        row.one = nullptr;
+        row.place = JsPlaceId();
+        row.nicheTag = JsPlaceId();
+        row.projectedIn = nullptr;
+        convertInst(*ssa[value.definer]);
     }
 
     /*
@@ -1350,6 +1572,37 @@ struct Conversion {
             return nullptr;
         }
 
+        /*
+         * A **scalarized** record's constant is its packed word - each field's own constant, packed
+         * by the builder, which folds a `Pack` of constants to the one number.
+         */
+        if(rep.kind == JsRepKind::Number && decl[type]->kind == mir::Type::Record) {
+            auto packing = jsWholePackingOf(target, type);
+            if(packing && packing->word == repId) {
+                auto row = jsWholePackingRow(target, type);
+                auto first = ((mir::RecordType*)decl[type])->cons.get(decl, constructor).first;
+
+                // Each field's representation read out first: a `constantOf` below may intern a
+                // representation and grow the packing table under a reference into it.
+                SmallArray<JsRepId, 8> reps;
+                for(U32 i = 0; i < childCount; i++) {
+                    JsRepId wanted;
+                    for(auto& bits: target.packings[row].fields) {
+                        if(bits.field == U16(first + i)) wanted = bits.rep;
+                    }
+
+                    reps.push(wanted);
+                }
+
+                SmallArray<JsValue*, 8> fields;
+                for(U32 i = 0; i < childCount; i++) {
+                    fields.push(reps[i].valid() ? constantOf(childData[i], reps[i], where) : nullptr);
+                }
+
+                return packOf(row, first, held(fields), where);
+            }
+        }
+
         if(rep.kind != JsRepKind::GcObject) {
             /*
              * A transparent record, whose constant is its one field's - the same statement `jsRep`
@@ -1368,6 +1621,19 @@ struct Conversion {
         for(auto& property: shape.properties) {
             if(property.role == JsPropertyRole::Tag) {
                 members.push(builder.number(F64(arm.value), property.rep, where));
+                continue;
+            }
+
+            // A `$pN` word: the constants of the fields it holds, packed and folded to one number.
+            if(property.role == JsPropertyRole::StorageUnit) {
+                SmallArray<JsValue*, 8> fields;
+                for(U32 i = 0; i < childCount; i++) {
+                    auto packed = shape.packedField(U16(arm.first + i));
+                    fields.push(packed && packed->slot == U16(&property - &shape.properties[0])
+                        ? constantOf(childData[i], packed->bits.rep, where) : nullptr);
+                }
+
+                members.push(packOf(property.packing, arm.first, held(fields), where));
                 continue;
             }
 

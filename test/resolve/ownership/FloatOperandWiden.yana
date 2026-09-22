@@ -1,0 +1,26 @@
+{-
+   An operator whose right operand widens the left one's float type - J92's review item 13.
+
+   # resolver: ownership
+
+   `a + b` at `(F32, F64)` binds `F64` from the right operand, and the left one has to be brought up
+   to it afterwards - `widenPreparedArguments`, which did that for integers only. The float left
+   operand reached `addBinary` as an `F32` beside an `F64`: an assertion in a checked build, and "the
+   ownership pipeline produced invalid lower IR" in a release one. `Reject.FloatOperandNarrow.yana`
+   is the program the review found, which is refused.
+-}
+
+@noinline fn half(x: F64) -> F32 = truncate(x * 0.5)
+
+fn main() -> Int:
+    let a = half(3.0)
+    let b = 2.25 :: F64
+    let &sum = 0.0 :: F64
+    sum = a + b
+    sum = sum + a
+    let d = b - a * a
+    let e = a * b
+    if sum != 5.25 then return 1
+    if d != 0.0 then return 2
+    if e != 3.375 then return 3
+    return 0

@@ -1,0 +1,169 @@
+{-
+   J89: a record whose object nobody observes is its fields, on JavaScript.
+
+   A record local the demand pass kept in a variable is an object literal stored there and read back
+   property by property. Where every store is a literal nothing else names and every read is only
+   the owner of a property access, `splitRecordVariables` makes the slot one variable per property,
+   `forwardVariables` answers each read from the store that dominates it and `dropDeadStores` takes
+   what nothing reads - so `onlyFields` and `twoPaths` build no object at all. The fields are `F64`
+   and `String` so that no packing slice turns the record into a number first.
+
+   The three that escape are left to what they already were: `returned` gives its object back and
+   `captured` keeps it in a closure's environment that is passed on, so both still build it, and
+   `passed` hands it to a callee that is not inlined - which crosses the call as its three fields
+   (J74's small-record ABI), so there was never an object to keep. `sharedBorrow` is the program where identity is observable - a callee writes through a
+   `&` to the local and the caller reads what it wrote - and `inlineWrite` is the same write once it
+   is inlined, where the object is gone and the write is a variable's.
+
+   `expect` is the `@caller` shape `lib/Test`'s `check` has: a location built at the call, consumed
+   by the callee and read only when the claim fails. Inlined, it costs nothing on the passing path.
+
+   The shipping stage has no `truncate` from `Size`, and the code under test is the rewrite's, so:
+   # resolver: ownership
+-}
+
+data Point {x: F64, y: F64, name: String}
+data Site {file: String, line: Int, column: Int, function: String}
+
+-- Only fields: the object is never built.
+@noinline fn onlyFields(k: F64) -> F64:
+    let p = Point {x: k, y: k * 2.0, name: "only"}
+    return p.x + p.y
+
+-- Built on two paths and read after the join.
+@noinline fn twoPaths(c: Bool, k: F64) -> F64:
+    let &p = Point {x: 0.0, y: 0.0, name: ""}
+    if c:
+        p = Point {x: k, y: 1.0, name: "then"}
+    else:
+        p = Point {x: 2.0, y: k, name: "else"}
+    return p.x * 10.0 + p.y
+
+-- Written through a field after it was built.
+@noinline fn fieldWrite(k: F64) -> F64:
+    let &p = Point {x: k, y: 0.0, name: "w"}
+    if k > 1.0 then p.y = k + 1.0
+    return p.x + p.y
+
+@noinline fn sum(p: Point) -> F64 = p.x + p.y
+
+-- Escapes through a call.
+@noinline fn passed(k: F64) -> F64:
+    let p = Point {x: k, y: 3.0, name: "passed"}
+    return sum(p) + p.x
+
+-- Escapes through a return.
+@noinline fn returned(k: F64) -> Point:
+    let p = Point {x: k, y: 4.0, name: "returned"}
+    if k > 0.0 then return p
+    return Point {x: 0.0, y: 0.0, name: "zero"}
+
+@noinline fn apply(f: (F64) -> F64, d: F64) -> F64 = f(d)
+
+-- Escapes through a capture the closure carries into a callee.
+@noinline fn captured(k: F64) -> F64:
+    let p = Point {x: k, y: 5.0, name: "captured"}
+    return apply((d: F64) -> p.x + p.y + d, 1.0)
+
+@noinline fn bump(&p: Point):
+    p.x = p.x + 100.0
+
+-- Identity: the callee writes through a loan of the local, and the caller reads the write.
+@noinline fn sharedBorrow(k: F64) -> F64:
+    let &p = Point {x: k, y: 6.0, name: "shared"}
+    bump(p)
+    return p.x + p.y
+
+fn bumpInline(&p: Point):
+    p.x = p.x + 1000.0
+
+@noinline fn inlineWrite(k: F64) -> F64:
+    let &p = Point {x: k, y: 7.0, name: "inline"}
+    bumpInline(p)
+    return p.x + p.y
+
+-- J91: a load sees the record in the slot *when it ran*. `rebind` writes through `&r` while `q`
+-- still names the old record; inlined into `aliasedStore`, `q` and `r` are one variable, `q` is a
+-- load before the store and `r.x` a load after it, so splitting the slot must not answer `q.y`
+-- from the new fields. `aliasedLoop` is the same across a loop's back edge.
+data Pair {x: F64, y: F64}
+
+fn rebind(q: Pair, &r: Pair) -> F64:
+    r = Pair {x: q.y * 7.0, y: 1.0}
+    return q.x * 1000.0 + q.y * 100.0 + r.x
+
+@noinline fn aliasedStore(k: F64) -> F64:
+    let &p = Pair {x: k, y: k + 1.0}
+    return rebind(p, p) + p.y
+
+fn walk(q: Pair, &r: Pair, n: Int) -> F64:
+    let &acc = 0.0 :: F64
+    for i in 0..n:
+        r = Pair {x: r.y, y: q.x + r.x}
+        acc = acc + q.y
+    return acc
+
+@noinline fn aliasedLoop(k: F64, n: Int) -> F64:
+    let &p = Pair {x: k, y: k + 1.0}
+    return walk(p, p, n) * 1000.0 + p.x
+
+-- J91: an address computed once and read after a whole store to its base. Natively a field's
+-- address is a function of the storage alone, so the shared optimizer reuses the one `acc.count`
+-- computed before the updates for the `return`; here the updates rebind `acc` to a new object, and
+-- the address had loaded the old one - `updates` answered 10 rather than 11. `retested` is the same
+-- through a niche-folded discriminant: the second `is Just` read the first one's tag and then a
+-- field of `null`.
+data Tally {weight: F64, count: Int}
+
+@noinline fn updates(start: Int) -> Int:
+    let &acc = Tally {weight: 0.5, count: start}
+    acc = {acc | count: acc.count + 1}
+    acc = {acc | weight: acc.weight + 1.0}
+    return acc.count
+
+fn optional(c: Bool, k: F64) -> Maybe(Pair) = if c then Just(Pair {x: k, y: 2.0}) else Nothing
+
+@noinline fn retested(k: F64, c: Bool) -> F64:
+    let &m = optional(c, k)
+    let &s = 0.0 :: F64
+    if m is Just(p):
+        s = p.x + p.y
+    m = optional(!c, k + 1.0)
+    if m is Just(p):
+        s = s * 10.0 + p.x
+    return s
+
+let &failures = 0
+let &lastLine = 0
+
+@noinline fn report(file: String, line: Int, function: String):
+    failures += 1
+    lastLine = line * 100 + truncate(length(file) + length(function))
+
+fn expect(held: Bool, @caller ->at: Site):
+    if held then return
+    report(at.file, at.line, at.function)
+
+@noinline fn checks(n: Int) -> Int:
+    expect(n > 2)
+    expect(n < 100)
+    expect(n == 5)
+    return failures * 1000 + lastLine
+
+fn main() -> Int:
+    let &total = onlyFields(1.5)
+    total += twoPaths(True, 3.0) + twoPaths(False, 4.0)
+    total += fieldWrite(2.0) + fieldWrite(0.5)
+    total += passed(2.0) + returned(3.0).y + returned(-1.0).y
+    total += captured(2.0) + sharedBorrow(1.0) + inlineWrite(1.0)
+    let first = checks(5)
+    let second = checks(200)
+    -- 1199, 0 and 2000 + 15000 + the two names' lengths when every case is right: two failures, the
+    -- last on line 150. The test driver compiles this as module `ResolveTest`, so its `.run.expect`
+    -- counts eleven units of file name where a standalone build counts twelve.
+    let right = if total == 1199.0 then 100000 else 0
+    -- 3429 and 6003 natively and unoptimized; the split once answered 28429 and 10004.
+    let aliased = if aliasedStore(3.0) == 3429.0 && aliasedLoop(1.0, 3) == 6003.0 then 1000000 else 0
+    -- 11 and 4 natively and unoptimized.
+    let rebound = if updates(10) == 11 && retested(2.0, True) == 4.0 && retested(2.0, False) == 3.0 then 10000000 else 0
+    return right + first + second + aliased + rebound

@@ -288,6 +288,16 @@ struct JsRep {
                 domain == NumberDomain::Unsigned);
     }
 
+    /*
+     * `hostFixedCapacity`'s answer for an array of this representation: a typed row is
+     * fixed-length and a plain one grows (Implementation-Containers.md §14). One rule, because
+     * both the optimizer and `codegen/js/structure.cpp` fold the call to it, and the two folding
+     * differently would decide one program's branches two ways.
+     */
+    bool hasFixedCapacity() const {
+        return kind == JsRepKind::HostArray && typedArray != TypedArray::Plain;
+    }
+
     bool isWideNumber() const {
         return kind == JsRepKind::Number && bits > 32 && bits <= kMaxNumberBits &&
                (domain == NumberDomain::Signed || domain == NumberDomain::Unsigned);
@@ -322,6 +332,17 @@ enum class JsPropertyRole: U8 {
     // The two words of a reference descriptor - `{$o, $k}`, the object and the key inside it.
     Owner,
     Key,
+
+    /*
+     * `$pN` - one word several narrow fields share, under `JsTarget::packFields`.
+     *
+     * A role of its own rather than a `Field` with no field index, because every loop that walks a
+     * shape per *field* has to meet it and do something different: the fields it holds are found
+     * through `JsShape::packedField`, and a construction supplies it as a `Pack` of them. Treating it
+     * as a field with the index `kNoField` is the shipping backend's `tally` reading `undefined` out
+     * of a key that no longer existed, which is the silent version of the same mistake.
+     */
+    StorageUnit,
 };
 
 struct JsProperty {
@@ -335,6 +356,50 @@ struct JsProperty {
     // Which `mir::RecordType` field this stands for, and `kNoField` for the compiler's own.
     static constexpr U16 kNoField = 0xffff;
     U16 field = kNoField;
+
+    // `StorageUnit` only: which `JsTarget::packings` row describes the word.
+    static constexpr U32 kNoPacking = ~U32(0);
+    U32 packing = kNoPacking;
+};
+
+/*
+ * One narrow field's bits inside a packed word - `(offset, width, signed)` and the representation a
+ * decode of it produces.
+ *
+ * Placed by `resolve_ssa/packing.h`'s `packBits`, which is the native layout's own rule: the two
+ * targets may disagree about *which* fields are candidates (a `bigint` is not one here) but not about
+ * where a candidate lands.
+ */
+struct JsPackedField {
+    U16 field = JsProperty::kNoField;
+    U8 offset = 0;
+    U8 width = 0;
+    bool isSigned = false;
+    JsRepId rep;
+};
+
+/*
+ * One packed word: the whole of a scalarized record (`JsTarget::scalarizeRecords`), or one `$pN`
+ * property of a record that stays an object (`JsTarget::packFields`).
+ *
+ * `fields` is in record order, which is the order a `Pack`'s operands are in. `word` is the
+ * `Number{Unsigned, span}` the word is held as - a plain number representation rather than a kind
+ * of its own, because a packed record *is* a number to everything that does not project a field of
+ * it: a copy is an alias, a `Maybe` of one folds to `number | null` and a row of them is a typed
+ * array, all without anybody asking.
+ */
+struct JsPacking {
+    JsRepId word;
+    U8 span = 0;
+    DeclPtr<mir::Type> source = nullptr;
+    Array<JsPackedField> fields;
+};
+
+// A field that shares a `$pN` property: which property, and where in it.
+struct JsShapePackedField {
+    U16 field = JsProperty::kNoField;
+    U16 slot = JsProperty::kNoField;
+    JsPackedField bits;
 };
 
 enum class JsShapeKind: U8 {
@@ -395,6 +460,24 @@ struct JsShape {
     // Which constructor's payload each property belongs to, or `kShared` - used by the dump and by
     // the construction check, which is what catches a sum built with another arm's property.
     Array<JsProperty> properties;
+
+    /*
+     * The fields that live inside a `StorageUnit` property rather than in one of their own - the
+     * per-shape map `packedField` answers.
+     *
+     * `slotOfField` deliberately answers `kNoField` for these: a caller that asked it wanted the
+     * property that *is* the field, and handing it the shared word would read four fields where it
+     * meant one. So every per-field walk asks both, and a packed field is always a `BitRange`.
+     */
+    Array<JsShapePackedField> packedFields;
+
+    const JsShapePackedField* packedField(U16 field) const {
+        for(auto& packed: packedFields) {
+            if(packed.field == field) return &packed;
+        }
+
+        return nullptr;
+    }
 
     U16 slotOfField(U16 field) const {
         for(U32 i = 0; i < properties.size(); i++) {
@@ -630,6 +713,24 @@ enum class JsPlaceKind: U8 {
 
     // The storage *is* this object - see above.
     Value,
+
+    /*
+     * `width` bits at `offset` inside the number another place holds - a field of a packed record,
+     * or of a `$pN` word several fields share.
+     *
+     * A place over a **place** rather than over a value, because a write has to reach the word: a
+     * store is a read-modify-write of `word`, and a value read out of it would be a copy to modify.
+     * `owner`, `index`, `shape`, `slot` and `global` are the word's own, copied, so a pass that asks
+     * what object a store touches (`opt_alias.cpp`'s use walk) sees the owner being written without
+     * having to know this kind exists. Nested ranges compose - `JsBuilder::addBitRange` adds the
+     * offsets - so `word` is never itself a `BitRange`.
+     *
+     * The alternative was a flag on the word's own place, the way `nichePayload` is one. It was
+     * rejected because the store forwarding and the variable analyses read `kind == Var` as "this
+     * store replaces the slot", which a partial write does not: a kind nobody matches is refused by
+     * every one of them, where a flag would have had to be remembered at each.
+     */
+    BitRange,
 };
 
 struct JsValue;
@@ -669,6 +770,32 @@ struct JsPlace {
      * reads it as a licence for precisely that mismatch and for no other - see `checkPlace`.
      */
     bool nichePayload = false;
+
+    // `BitRange` only: the place holding the word, and where the range is in it.
+    JsPlaceId word;
+    U8 bitOffset = 0;
+    U8 bitWidth = 0;
+    bool bitSigned = false;
+
+    /*
+     * `BitRange` only, and null for a constant range: the **scale a reference carried** - the third
+     * part of a narrow reference, `2**offset` of wherever the caller's range was (J84).
+     *
+     * A range with one is at `bitScale × 2**bitOffset` of a word nobody here knows the width of,
+     * so it is read and written through the wide `$bNx$get/set` helpers and never with `>>>`. Its
+     * word is the `Element(owner, key)` the other two parts name.
+     *
+     * `bitWhole` says the range is the reference's own content rather than a field projected out
+     * of it, and it is the one form for which a scale of **zero** means something: "no range - the
+     * storage holds the value itself". That sentinel exists for a signed narrow content alone,
+     * whose plain storage holds `-3` where a word would hold the pattern `253`, so no scale makes
+     * the arithmetic form the identity on it. An unsigned or `Bool01` content in plain storage is
+     * passed a scale of one, which *is* the identity on a pattern, and so a field projected out of
+     * a whole-record reference - always unsigned, since a packed word is a pattern - composes by
+     * multiplication and never meets the zero.
+     */
+    JsirPtr<JsValue> bitScale = nullptr;
+    bool bitWhole = false;
 };
 
 /*
@@ -846,6 +973,23 @@ struct JsInstArray: JsInst {
     template<class F> void eachEdge(JsirBase, F&&) {}
 };
 
+/*
+ * A packed word built from its fields - `JsTarget::packings[packing]`, one operand per field in that
+ * row's order. Pure: it computes a number.
+ */
+struct JsInstPack: JsInst {
+    JsInstPack(LocationId source, U32 packing): JsInst(Pack, source), packing(packing) {}
+
+    U32 packing;
+    JsirList<JsirPtr<JsValue>, false> values;
+
+    template<class F> void eachUse(JsirBase base, F&& f) {
+        for(auto used: values.contents(base)) f(used);
+    }
+
+    template<class F> void eachEdge(JsirBase, F&&) {}
+};
+
 struct JsInstClone: JsInst {
     JsInstClone(LocationId source, JsirPtr<JsValue> from): JsInst(Clone, source), from(from) {}
 
@@ -953,6 +1097,17 @@ struct JsInstMap: JsInst {
     JsirPtr<JsValue> selector;
     JsirList<JsMapEntry, false> entries;
     JsConstant fallback;
+
+    /*
+     * Set where the map is **closed** - its selector is a discriminant and the arms are every
+     * constructor - and then `fallback` is the last arm, whose selector is `closedFrom`.
+     *
+     * The chain needs neither: the last arm is its `else` either way. What needs them is every
+     * other spelling (J88): a table has to know which slot the last arm is, and a range test or an
+     * affine step is total only over a domain the arms are the whole of.
+     */
+    bool closed = false;
+    F64 closedFrom = 0;
 
     template<class F> void eachUse(JsirBase, F&& f) { f(selector); }
     template<class F> void eachEdge(JsirBase, F&&) {}
@@ -1425,6 +1580,22 @@ struct JsTargetValue {
      * a place kind because no instruction ever names it.
      */
     JsPlaceId nicheTag;
+
+    /*
+     * Where a projection that **loaded its owner** was converted: the block and how many
+     * instructions it held after the owner's load (J91).
+     *
+     * A field or element address of storage that is not itself the object - a variable, a property,
+     * a cell - reads the object out of that storage when it is converted. Natively an address is a
+     * pure function of its base, so the shared optimizer computes one once and reuses it across a
+     * whole store to the base; here that store *rebinds* the storage to a new object, and the old
+     * load still names the old one. So a use checks whether anything that writes or calls was
+     * emitted since, and converts the projection again at the use when it was - which is "load the
+     * owner at the use". Refusing the reuse in the shared optimizer was the alternative, and it
+     * would have been a native cost for a JavaScript representation.
+     */
+    JsirPtr<JsBlock> projectedIn = nullptr;
+    U32 projectedAt = 0;
 };
 
 /*
@@ -1523,6 +1694,29 @@ struct JsOptRewrite {
  * are reset here instead, which is `compiler/util/README.md`'s rule for a table rebuilt once per
  * function.
  */
+/*
+ * One entry of `numberValues`' scoped tables (J86): a pure computation or a read in scope, keyed on
+ * its first operand's canonical value, and the entry that key named before this one - the table is
+ * a linked list per key whose heads are restored as the dominator-tree walk leaves a subtree.
+ */
+struct JsOptNumbered {
+    JsInst* inst = nullptr;
+    U32 key = 0;
+    U32 previous = maxLimit<U32>;
+    bool read = false;
+};
+
+// A branch condition one arm decided, in scope below that arm - and a branch it decides again.
+struct JsOptFact {
+    U32 value = 0;
+    bool answer = false;
+};
+
+struct JsOptDecision {
+    JsInst* branch = nullptr;
+    bool answer = false;
+};
+
 struct JsOptScratch {
     // The CSR use index - one entry per value into `useList`.
     Array<U32> useStart;
@@ -1560,6 +1754,51 @@ struct JsOptScratch {
     Array<U32> work;
     IndexSet seen;
     Array<JsInst*> candidates;
+
+    // `numberValues`: the canonical value of each value, the newest table entry per key, the table
+    // itself, the facts the arms above have proved, the branches they decide, and the dominator
+    // tree's children as a CSR index.
+    Array<U32> canonical;
+    Array<U32> numberedHead;
+    Array<JsOptNumbered> numbered;
+    Array<JsOptFact> facts;
+    Array<JsOptDecision> decisions;
+
+    // `unboxLocals` and `updatesAsLiterals` (J87): the candidates, the straight path from a clone
+    // to the read that uses the copy, and per property of that copy its value and its word variable.
+    Array<JsInst*> boxes;
+    Array<JsInst*> path;
+    Array<JsValue*> fieldValues;
+    Array<JsPlaceId> fieldWords;
+    Array<U32> childStart;
+    Array<U32> childList;
+
+    // Which values are computed from constants alone - spelled at every use, so never shared.
+    IndexSet constantOnly;
+
+    // The first value of each distinct constant in the body, by `constantKey`, and per value the
+    // first one of its constant - what makes a comparison with two literal zeros one comparison.
+    HashMap<U64, U32> constantValues;
+    Array<U32> constantClass;
+
+    // J89's three variable passes: per slot a state, a shape, a store count and the first of its
+    // field variables; every load and store of each slot as a CSR index; the alias walk's stack;
+    // and per block the liveness of the one slot being asked about.
+    Array<U32> slotState;
+    Array<U32> slotShape;
+    Array<JsInst*> slotStore;
+    Array<U32> fieldStart;
+    Array<JsPlaceId> fieldPlaces;
+    Array<U32> touchStart;
+    Array<JsInst*> touches;
+    Array<JsValue*> names;
+    Array<U32> position;
+    Array<U8> reached;
+    Array<U8> blockState;
+    Array<U32> blockGen;
+    Array<U32> blockKill;
+    Array<U8> liveIn;
+    Array<JsInst*> deadStores;
 };
 
 
@@ -1674,7 +1913,17 @@ struct JsCoalesced {
      */
     Array<U32> root;
 
+    /*
+     * By `JsValueId`: for an instruction result whose one use is an edge copy into a block argument
+     * it may be computed straight into, that argument's value id - `kNoClass` for every other value.
+     * J90: `var v = p + 1 | 0; ... p = v;` is `p = p + 1 | 0;` where nothing between the two reads
+     * `p`. The emitter binds such a result to the argument's variable rather than to a `var` of its
+     * own, and the edge copy is then `p = p` and written as nothing.
+     */
+    Array<U32> into;
+
     U32 rootOf(U32 value) const { return value < root.size() ? root[value] : kNoClass; }
+    U32 intoOf(U32 value) const { return value < into.size() ? into[value] : kNoClass; }
 };
 
 /*
@@ -1706,6 +1955,19 @@ struct JsCoalesceScratch {
 
     Array<U32> live;
     Array<U32> candidates;
+
+    // J90's edge values: the uses of every value, what an `alias` names, and the classes one block
+    // has already assigned early.
+    Array<U32> valueUses;
+    Array<U32> aliasOf;
+    Array<U32> claimed;
+
+    // Per value, where in its block it is defined, and per class, the last read in the block -
+    // each beside the block (plus one) it was recorded for, so nothing is cleared between blocks.
+    Array<U32> definedAt;
+    Array<U32> definedIn;
+    Array<U32> lastRead;
+    Array<U32> lastReadIn;
 };
 
 /*
@@ -1733,6 +1995,23 @@ struct JsOptCounts {
     // Allocations moved to the point that dominates their uses rather than made where the frame
     // slot was declared - `sinkAllocations` (§6.5's first and third bullets).
     U32 sunk = 0;
+
+    // Computations and reads answered by an identical one that dominates them, and branches whose
+    // condition a dominating arm already decided - `numberValues` (J86).
+    U32 numbered = 0;
+    U32 decided = 0;
+
+    // One-property boxes nothing else saw, made variables - `unboxLocals` - and record updates of an
+    // object built as one literal rather than a clone written field by field - `updatesAsLiterals`
+    // (J87).
+    U32 unboxed = 0;
+    U32 updated = 0;
+
+    // Record variables split into one variable per property - `splitRecordVariables` - and loads of a
+    // variable answered by the one store that dominates them - `forwardVariables` (J89). A store
+    // into a variable nothing reads before the next write counts under `removed`.
+    U32 split = 0;
+    U32 promoted = 0;
 };
 
 StringView jsInstMnemonic(JsInst::Kind kind);

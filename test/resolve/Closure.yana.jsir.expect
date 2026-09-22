@@ -8,64 +8,45 @@ fn main() -> one %r0
     %0: %r0 = const 0
     %1: %r10 = object %s7 %0
     %12: %r0 = const 10
-    %13: %r4 = object %s3 %12
-    store var $0: %r4, %13
-    %14: %r4 = load var $0: %r4
-    %15: %r5 = fun.code main.lambda
-    %16: %r9 = object %s6 %15, %14
-    store var $1: %r9, %16
     %17: %r0 = const 1
-    %18: %r0 = load property %14.base: %r0
+    %18: %r0 = alias %12
     %19: %r0 = binary.add %17, %18
     %20: %r0 = coerce %19
     %21: %r0 = const 0
     store property %1.$v: %r0, %21
     %22: %r5 = const "$v"
     %23: %r6 = object %s5 %1, %22
-    %24: %r7 = object %s4 %23
-    %5: %r7 = alias %24
-    %25: %r5 = fun.code main.lambda'2
-    %26: %r9 = object %s6 %25, %5
-    store var $2: %r9, %26
-    %27: %r6 = load property %5.total: %r6
+    %27: %r6 = alias %23
     %28: %r0 = load cell %27: %r0
     %29: %r0 = const 7
     %30: %r0 = binary.add %28, %29
     %31: %r0 = coerce %30
-    %32: %r6 = load property %5.total: %r6
+    %32: %r6 = alias %27
     store cell %32: %r0, %31
     %33: %r0 = const 5
     %34: %r1 = object %s0 %33
-    store var $3: %r1, %34
-    %35: %r1 = load var $3: %r1
-    %36: %r1 = clone %35
+    %35: %r1 = alias %34
+    %36: %r1 = alias %35
     %37: %r5 = fun.code makeAdder.lambda
-    %38: %r9 = object %s6 %37, %36
-    %8: %r9 = alias %38
     %39: %r0 = const 20
-    %40: %r5 = load property %8.$c: %r5
-    %41: %r5 = load property %8.$e: %r5
+    %40: %r5 = alias %37
+    %41: %r5 = alias %36
     %42: %r0 = call.value %40, %41, %39
     %43: %r0 = const 3
     %44: %r0 = const 4
     %45: %r2 = object %s1 %43, %44
-    store var $4: %r2, %45
-    %46: %r2 = load var $4: %r2
-    %47: %r2 = clone %46
+    %46: %r2 = alias %45
+    %47: %r2 = alias %46
     %48: %r5 = fun.code makeScaler.lambda
-    %49: %r9 = object %s6 %48, %47
-    %11: %r9 = alias %49
     %50: %r0 = const 10
-    %51: %r5 = load property %11.$c: %r5
-    %52: %r5 = load property %11.$e: %r5
+    %51: %r5 = alias %48
+    %52: %r5 = alias %47
     %53: %r0 = call.value %51, %52, %50
     %54: %r0 = const 6
     %58: %r5 = fun.code colonBodies.lambda'2
     %59: %r5 = const null
-    %60: %r9 = object %s6 %58, %59
-    %57: %r9 = alias %60
-    %61: %r5 = load property %57.$c: %r5
-    %62: %r5 = load property %57.$e: %r5
+    %61: %r5 = alias %58
+    %62: %r5 = alias %59
     %63: %r0 = call.value %61, %62, %54
     %64: %r0 = const 12
     %65: %r0 = binary.add %63, %64
@@ -119,11 +100,11 @@ fn main.lambda'2(one %r7) -> omitted env
     %3: %r0 = const 7
     %4: %r0 = binary.add %2, %3
     %5: %r0 = coerce %4
-    %6: %r6 = load property %0.total: %r6
+    %6: %r6 = alias %1
     store cell %6: %r0, %5
     return
 
-optimizer clones 2 aliased 0 forwarded 0 removed 9 adopted 4 sunk 0
+optimizer clones 2 aliased 2 forwarded 8 removed 28 adopted 4 sunk 0 numbered 2 decided 0 unboxed 0 updated 0 split 0 promoted 3
 
 shape %s0 object makeAdder.lambda.env {amount: %r0}
 shape %s1 object makeScaler.lambda.env {scale: %r0, offset: %r0}

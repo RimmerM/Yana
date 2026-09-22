@@ -8,17 +8,12 @@ fn double(one %r0) -> one %r0
 fn consume(one %r3) -> one %r0
   var $0: %r3
   block0(%0: %r3):
-    %1: %r1 = array
-    %2: %r2 = const 0
-    %3: %r3 = object %s0 %1, %2
-    store var $0: %r3, %3
-    store var $0: %r3, %0
-    %4: %r3 = load var $0: %r3
+    %4: %r3 = alias %0
     %5: %r1 = load property %4.items: %r1
-    %6: %r3 = load var $0: %r3
+    %6: %r3 = alias %0
     %7: %r2 = load property %6.length: %r2
     %8: %r0 = convert %7
-    %10: %r3 = load var $0: %r3
+    %10: %r3 = alias %0
     call Array(a).reclaim(I32) %10
     %11: %r0 = convert %8
     return %11
@@ -28,96 +23,73 @@ fn main() -> one %r0
   var $1: %r17
   var $2: %r16
   var $3: %r3
+  var $4: %r10
+  var $5: %r10
+  var $6: %r0
+  var $7: %r16
+  var $8: %r10
+  var $9: %r10
+  var $10: %r10
+  var $11: %r10
   block0:
-    %9: %r0 = const 0
-    %10: %r10 = const null
-    %11: %r10 = const null
-    %12: %r16 = object %s9 %10, %11
-    %13: %r17 = object %s10 %9, %12
-    store var $1: %r17, %13
     %17: %r0 = const 0
     %18: %r18 = object %s11 %17
     %22: %r10 = fun.code main.lambda
     %23: %r10 = const null
-    %24: %r16 = object %s9 %22, %23
-    %2: %r16 = alias %24
     %25: %r0 = const 10
-    %26: %r10 = load property %2.$c: %r10
-    %27: %r10 = load property %2.$e: %r10
+    %26: %r10 = alias %22
+    %27: %r10 = alias %23
     %28: %r0 = call.value %26, %27, %25
-    %29: %r10 = fun.code double
-    %30: %r10 = const null
-    %31: %r16 = object %s9 %29, %30
-    store var $0: %r16, %31
     %32: %r10 = fun.code main.lambda'3
     %33: %r10 = const null
-    %34: %r16 = object %s9 %32, %33
-    %5: %r16 = alias %34
     %35: %r0 = const 1
-    %36: %r10 = load property %5.$c: %r10
-    %37: %r10 = load property %5.$e: %r10
+    %36: %r10 = alias %32
+    %37: %r10 = alias %33
     %38: %r0 = call.value %36, %37, %35
-    %39: %r10 = load property %5.$c: %r10
-    %40: %r10 = load property %5.$e: %r10
+    %39: %r10 = alias %32
+    %40: %r10 = alias %33
     %41: %r0 = call.value %39, %40, %38
     %42: %r10 = fun.code main.lambda'4
     %43: %r10 = const null
-    %44: %r16 = object %s9 %42, %43
-    %8: %r16 = alias %44
     %45: %r0 = const 4
-    %46: %r10 = load property %8.$c: %r10
-    %47: %r10 = load property %8.$e: %r10
+    %46: %r10 = alias %42
+    %47: %r10 = alias %43
     %48: %r0 = call.value %46, %47, %45
     %49: %r0 = const 2
     %50: %r10 = fun.code main.lambda'5
     %51: %r10 = const null
-    %52: %r16 = object %s9 %50, %51
-    %53: %r17 = object %s10 %49, %52
-    store var $1: %r17, %53
     %54: %r0 = const 6
-    %55: %r17 = load var $1: %r17
-    %56: %r16 = load property %55.run: %r16
-    %57: %r10 = load property %56.$c: %r10
-    %58: %r10 = load property %56.$e: %r10
+    %57: %r10 = alias %50
+    %58: %r10 = alias %51
     %59: %r0 = call.value %57, %58, %54
-    %60: %r17 = load var $1: %r17
-    %61: %r0 = load property %60.weight: %r0
+    %61: %r0 = alias %49
     %62: %r0 = binary.mul %59, %61
     %63: %r0 = coerce %62
     %65: %r0 = const 1
     %66: %r10 = fun.code main.lambda'6
     %67: %r10 = const null
-    %68: %r16 = object %s9 %66, %67
-    %16: %r16 = alias %68
-    %69: %r10 = load property %16.$c: %r10
-    %70: %r10 = load property %16.$e: %r10
+    %69: %r10 = alias %66
+    %70: %r10 = alias %67
     %71: %r0 = call.value %69, %70, %65
-    %72: %r10 = load property %16.$c: %r10
-    %73: %r10 = load property %16.$e: %r10
+    %72: %r10 = alias %66
+    %73: %r10 = alias %67
     %74: %r0 = call.value %72, %73, %71
-    %75: %r10 = fun.code consume
-    %76: %r10 = const null
-    %77: %r16 = object %s9 %75, %76
-    store var $2: %r16, %77
     %78: %r0 = const 1
     %79: %r0 = const 2
     %80: %r0 = const 3
     %81: %r1 = host host.array %78, %79, %80
     %82: %r2 = const 3
     %83: %r3 = object %s0 %81, %82
-    store var $3: %r3, %83
-    %86: %r3 = load var $3: %r3
+    %86: %r3 = alias %83
     call Array(a).reclaim(I32) %86
     %87: %r0 = const 3
     %88: %r0 = const 100
     store property %18.$v: %r0, %88
     %89: %r10 = fun.code main.lambda'7
     %90: %r10 = const null
-    %91: %r16 = object %s9 %89, %90
-    %21: %r16 = alias %91
     %92: %r10 = const "$v"
-    %93: %r10 = load property %21.$c: %r10
-    %94: %r10 = load property %21.$e: %r10
+    %93: %r10 = alias %89
+    %94: %r10 = alias %90
     call.value %93, %94, %18, %92
     %95: %r0 = const 65
     %96: %r0 = binary.add %28, %95
@@ -184,10 +156,9 @@ fn main.lambda'7(one %r9, parts %r12) -> omitted env
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
-    store var $0: %r3, %0
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 14 adopted 5 sunk 0
+optimizer clones 0 aliased 0 forwarded 14 removed 56 adopted 5 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 4 promoted 7
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object main.lambda.env {}
@@ -198,8 +169,8 @@ shape %s5 object main.lambda'6.env {}
 shape %s6 object main.lambda'7.env {}
 shape %s7 ref {$o: %r10 owner, $k: %r10 key}
 shape %s8 object ArrayView {items: %r1, length: %r0, offset: %r0}
-shape %s9 fun {$c: %r10 code, $e: %r10 env}
-shape %s10 object Step {weight: %r0, run: %r16}
+shape %s9 object Step {weight: %r0, run: %r16}
+shape %s10 fun {$c: %r10 code, $e: %r10 env}
 shape %s11 cell {$v: %r0 box}
 
 rep %r0 = number signed 32
@@ -218,6 +189,6 @@ rep %r12 = parts (%r10, %r10) as %r11
 rep %r13 = void
 rep %r14 = object %s8
 rep %r15 = parts (%r1, %r0, %r0) as %r14
-rep %r16 = object %s9
-rep %r17 = object %s10
+rep %r16 = object %s10
+rep %r17 = object %s9
 rep %r18 = object %s11

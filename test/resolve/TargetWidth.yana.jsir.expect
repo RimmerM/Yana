@@ -11,10 +11,7 @@ fn main() -> one %r0
     %3: %r0 = const 30
     %4: %r1 = host host.array %1, %2, %3
     %5: %r2 = const 3
-    %6: %r3 = object %s0 %4, %5
-    store var $0: %r3, %6
     %7: %r0 = const 3
-    %8: %r0 = const 0
     %9: %r0 = const 2
     %10: %r7 = convert %9
     %11: %r7 = convert %7
@@ -22,10 +19,11 @@ fn main() -> one %r0
     branch %12 -> block2 -> block1
   block1:
     %13: %r1 = alias %4
-    %14: %r0 = binary.add %8, %9
+    %14: %r0 = alias %9
     %15: %r0 = coerce %14
     %16: %r0 = load element %13[%15]: %r0
-    %17: %r3 = load var $0: %r3
+    %6: %r3 = object %s0 %4, %5
+    %17: %r3 = alias %6
     call Array(a).reclaim(I32) %17
     %18: %r0 = const 30
     %19: %r8 = binary.eq %16, %18
@@ -86,10 +84,9 @@ fn main() -> one %r0
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
-    store var $0: %r3, %0
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 3 adopted 0 sunk 1 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 1
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

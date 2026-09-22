@@ -6,64 +6,39 @@ function main() {
   while (p0 < 200000) {
     var v103 = v8.length;
     var v105 = v103 + 1;
-    B1: {
-      if (v105 <= v8.items.length) break B1;
-      growJsArray_I32(v8, v105);
-    }
+    if (v105 > v8.items.length) growJsArray_I32(v8, v105);
     v8.items[v103] = p0;
     v8.length = v105 & 1073741823;
     p0 = p0 + 1 | 0;
   }
-  if (v8.length !== 200000) {
-    Array_a_reclaim_I32(v8);
-    return -1;
-  }
-  var v23 = v8.items;
-  if (0 >= v8.length) throw $t;
-  if (v23[0]) {
-    Array_a_reclaim_I32(v8);
-    return -2;
-  }
-  var v35 = v8.items;
-  if (131071 >= v8.length) throw $t;
-  if (v35[131071] !== 131071) {
-    Array_a_reclaim_I32(v8);
-    return -3;
-  }
-  var v49 = v8.items;
-  if (131072 >= v8.length) throw $t;
-  if (v49[131072] !== 131072) {
-    Array_a_reclaim_I32(v8);
-    return -4;
-  }
-  var v63 = v8.items;
-  if (199999 >= v8.length) throw $t;
-  if (v63[199999] !== 199999) {
-    Array_a_reclaim_I32(v8);
-    return -5;
-  }
+  var v15 = v8.items;
+  var v17 = v8.length;
+  if (v17 !== 200000) return -1;
+  if (0 >= v17) throw $t;
+  if (v15[0]) return -2;
+  if (131071 >= v17) throw $t;
+  if (v15[131071] !== 131071) return -3;
+  if (131072 >= v17) throw $t;
+  if (v15[131072] !== 131072) return -4;
+  if (199999 >= v17) throw $t;
+  if (v15[199999] !== 199999) return -5;
   var p1 = 0;
   var p2 = 0;
   while (p2 < 200000) {
     var v82 = v8.items;
     if (p2 >>> 0 >= v8.length) throw $t;
-    var v94 = p1 + v82[0 + p2 | 0] | 0;
-    var v96 = p2 + 100 | 0;
-    p1 = v94;
-    p2 = v96;
+    p1 = p1 + v82[p2 | 0] | 0;
+    p2 = p2 + 100 | 0;
   }
-  Array_a_reclaim_I32(v8);
   return p1;
 }
 
-function Array_a_reclaim_I32(value) {
-}
-
 function growJsArray_I32(self, wanted) {
-  var v3 = self.items.length;
+  var v2 = self.items;
+  var v3 = v2.length;
   var v5 = v3 + v3 | 0;
   var v7 = v5 < wanted ? wanted : v5;
-  var v13 = $grow(self.items, v7 < 4 ? 4 : v7);
+  var v13 = $grow(v2, v7 < 4 ? 4 : v7);
   self.items = v13;
 }
 var $t = "yana: a runtime check failed";

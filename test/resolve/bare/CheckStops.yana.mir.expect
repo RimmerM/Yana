@@ -1,0 +1,22 @@
+module ResolveTest
+
+fn main(index: Size [shared call]) -> U32 {
+  local table: [U32 *4]
+
+bb0:
+  %0: U32 = const 3
+  %1: U32 = const 5
+  %2: U32 = const 7
+  %3: U32 = const 11
+  %4: [U32 *4] = aggregate.0 take %0 take %1 take %2 take %3
+  write.init borrow.unique (table) take %4
+  %6: Size = read copy.trivial (index)
+  %7: USize = const 4
+  %8: USize = bitcast inspect %6
+  %9: Bool = ge inspect %8 inspect %7
+  %10: {} = call checkCondition borrow.shared %9
+  %11: U32 = read copy.trivial (table[...])
+  return take %11
+}
+
+entry main

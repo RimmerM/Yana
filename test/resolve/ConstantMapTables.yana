@@ -1,0 +1,153 @@
+{-
+   J88: which spelling a `match` over literal constants takes on JavaScript. Every function is
+   `@noinline` so that the map meets a selector it cannot fold, and every answer is summed into
+   the result so that a wrong slot shows.
+-}
+
+data Colour = Red | Orange | Yellow | Green | Blue | Indigo | Violet
+data Pair {left: I32, right: I32}
+
+-- A dense closed map of numbers on no line: a table.
+@noinline fn wavelength(c: Colour) -> I32 = match c:
+    Red -> 700
+    Orange -> 620
+    Yellow -> 580
+    Green -> 530
+    Blue -> 470
+    Indigo -> 445
+    Violet -> 400
+
+-- The same on a line: an affine step.
+@noinline fn rank(c: Colour) -> I32 = match c:
+    Red -> 10
+    Orange -> 13
+    Yellow -> 16
+    Green -> 19
+    Blue -> 22
+    Indigo -> 25
+    Violet -> 28
+
+-- Two answers, one of them a run of the domain: a range test.
+@noinline fn warm(c: Colour) -> Bool = match c:
+    Red -> True
+    Orange -> True
+    Yellow -> True
+    _ -> False
+
+-- Every arm the same.
+@noinline fn seven(c: Colour) -> I32 = match c:
+    Red -> 7
+    Orange -> 7
+    _ -> 7
+
+-- An open map with a fallback, dense keys: a table read `T[s] ?? f`.
+@noinline fn score(n: I32) -> I32 = match n:
+    0 -> 3
+    1 -> 1
+    2 -> 4
+    3 -> 1
+    4 -> 5
+    5 -> 9
+    _ -> -1
+
+-- Open and offset: the keys start at 10.
+@noinline fn offset(n: I32) -> I32 = match n:
+    10 -> 2
+    11 -> 7
+    12 -> 1
+    13 -> 8
+    14 -> 2
+    _ -> 0
+
+-- Open, negative keys.
+@noinline fn negative(n: I32) -> I32 = match n:
+    -3 -> 30
+    -2 -> 20
+    -1 -> 11
+    0 -> 5
+    1 -> 99
+    _ -> 1
+
+-- String arms.
+@noinline fn name(c: Colour) -> String = match c:
+    Red -> "red"
+    Orange -> "orange"
+    Yellow -> "yellow"
+    Green -> "green"
+    Blue -> "blue"
+    Indigo -> "indigo"
+    Violet -> "violet"
+
+-- A `Maybe` whose `Nothing` is `null`, in an open map.
+@noinline fn maybe(n: I32) -> Maybe(I32) = match n:
+    0 -> Just(4)
+    1 -> Nothing
+    2 -> Just(6)
+    3 -> Just(8)
+    _ -> Just(-2)
+
+-- Sparse keys: stays a chain rather than a thousand-slot row.
+@noinline fn sparse(n: I32) -> I32 = match n:
+    0 -> 1
+    100 -> 2
+    1000 -> 3
+    5000 -> 4
+    _ -> 0
+
+-- On a line, but the step times the key is past 2^53: `s * 99999999 - ...` would round in the
+-- host's doubles and answer 100000000 for 1000000008 (J91), so this is not the affine spelling.
+@noinline fn bigStep(n: I32) -> I32 = match n:
+    1000000007 -> 0
+    1000000008 -> 99999999
+    1000000009 -> 199999998
+    _ -> 5
+
+-- A bigint answer.
+@noinline fn wide(c: Colour) -> I64 = match c:
+    Red -> 1
+    Orange -> 4294967296
+    Yellow -> 9
+    Green -> -7
+    Blue -> 123456789012
+    Indigo -> 0
+    Violet -> 2
+
+-- Object arms: not a table, and only the chosen record is built.
+@noinline fn pair(c: Colour) -> Pair = match c:
+    Red -> Pair {left: 1, right: 2}
+    Orange -> Pair {left: 3, right: 4}
+    Yellow -> Pair {left: 5, right: 6}
+    _ -> Pair {left: 7, right: 8}
+
+-- The same row as `wavelength`, from a second function: one table.
+@noinline fn wavelengthAgain(c: Colour) -> I32 = match c:
+    Red -> 700
+    Orange -> 620
+    Yellow -> 580
+    Green -> 530
+    Blue -> 470
+    Indigo -> 445
+    Violet -> 400
+
+fn main() -> Int:
+    let colours = [Red, Orange, Yellow, Green, Blue, Indigo, Violet]
+    let &total = 0 :: I64
+    let &names = ""
+    for c in items(colours):
+        total = total + (widen(wavelength(c) + rank(c) * 3 + seven(c) + wavelengthAgain(c)) :: I64)
+        if warm(c) then total = total + 1000
+        total = total + wide(c)
+        let p = pair(c)
+        total = total + (widen(p.left * 10 + p.right) :: I64)
+        names = names ++ name(c)
+    for i in -5..20:
+        total = total * 3 + (widen(score(i) + offset(i) * 2 + negative(i) + sparse(i * 50)) :: I64)
+        total = total % 1000000007
+        if maybe(i) is Just(v) then total = total + (widen(v) :: I64)
+        else total = total + 17
+    -- The keys `sparse` has past the loop's reach, and `bigStep` over its run and both sides of it.
+    total = total + (widen(sparse(1000) * 10 + sparse(5000)) :: I64)
+    for i in 0..4:
+        total = total * 7 + (widen(bigStep(1000000006 + i)) :: I64)
+        total = total % 1000000007
+    return (truncate(total) :: Int) + (truncate(length(names)) :: Int) * 3

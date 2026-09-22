@@ -1,0 +1,24 @@
+module ResolveTest
+
+fn main(index: Size [shared call]) -> U32 {
+bb0(%0: Size trivial):
+  %1: %Size address = alloc frame Size [shared call]
+  %2: %[U32 *4] address = alloc frame [U32 *4]
+  store inspect %1 borrow %0
+  %3: U32 trivial = const 3
+  %4: U32 trivial = const 5
+  %5: U32 trivial = const 7
+  %6: U32 trivial = const 11
+  %7: [U32 *4] trivial = aggregate.0 consume %3 consume %4 consume %5 consume %6
+  store inspect %2 consume %7
+  %8: Size trivial = load inspect %1
+  %9: USize trivial = const 4
+  %10: USize trivial = bitcast inspect %8
+  %11: Bool trivial = ge inspect %10 inspect %9
+  call checkCondition borrow %11
+  %12: %U32 address = element.addr inspect %2 inspect %8
+  %13: U32 trivial = load inspect %12
+  return consume %13
+}
+
+entry main

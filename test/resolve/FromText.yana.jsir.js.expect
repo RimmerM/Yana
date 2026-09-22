@@ -4,9 +4,9 @@ var replacementChar = 65533;
 
 // 
 function main() {
-  var p0, p1;
+  var p0;
   B0: {
-    p0 = ({ field: 44, line: 10 }.line === 10 ? 7 : 6) + 1;
+    p0 = 8;
     break B0;
   }
   var v49 = p0 + 3210 | 0;
@@ -17,20 +17,11 @@ function main() {
     p3 = p3 + 1 | 0;
   }
   var v65 = v49 + Math.imul(p4, 10000) | 0;
-  B4: {
-    if (decodeChar("x", 0).f0 === 120) {
-      if ("x" === "x") {
-        p1 = v65 + 100000 | 0;
-        break B4;
-      }
-    }
-    p1 = v65;
-  }
-  return p1 + 1000000 | 0;
+  return (decodeChar("x", 0).f0 === 120 && "x" === "x" ? v65 + 100000 | 0 : v65) + 1000000 | 0;
 }
 
 function decodeChar(text, at) {
-  var s1, p2, p4;
+  var p2;
   var v6 = at >>> 0;
   if (v6 < text.length ^ 1) return { f0: replacementChar, f1: at };
   B0: {
@@ -44,27 +35,11 @@ function decodeChar(text, at) {
       }
       var v40 = text.charCodeAt(at) >>> 0;
       var v46 = text.charCodeAt(v26) >>> 0;
-      B1: {
-        if (v40 >= 55296 & v40 <= 56319) {
-          if (v46 >= 56320 & v46 <= 57343) {
-            p2 = (65536 + (v40 - 55296 << 10 >>> 0) >>> 0) + (v46 - 56320 >>> 0) >>> 0;
-            break B1;
-          }
-        }
-        p2 = null;
-      }
+      p2 = v40 >= 55296 & v40 <= 56319 && v46 >= 56320 & v46 <= 57343 ? (65536 + (v40 - 55296 << 10 >>> 0) >>> 0) + (v46 - 56320 >>> 0) >>> 0 : null;
     }
   }
-  if (!(p2 === null)) {
-    s1 = p2;
-    return { f0: s1, f1: at + 2 | 0 };
-  }
+  if (!(p2 === null)) return { f0: p2, f1: at + 2 | 0 };
   var v89 = text.charCodeAt(at) >>> 0;
-  if (v89 >= 55296 & v89 <= 57343) {
-    p4 = 65533;
-  } else {
-    p4 = v89 >= 1114112 ? 65533 : v89;
-  }
-  return { f0: p4, f1: at + 1 | 0 };
+  return { f0: (v89 >= 55296 & v89 <= 57343 || v89 >= 1114112) ? 65533 : v89, f1: at + 1 | 0 };
 }
 main();

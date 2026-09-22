@@ -15,29 +15,18 @@ function main() {
   var p1 = 0;
   while (p1 < v29) {
     if (p1 >>> 0 >= v29) throw $t;
-    var v89 = p0 + v27[0 + p1 | 0] | 0;
-    var v91 = p1 + 1 | 0;
-    p0 = v89;
-    p1 = v91;
+    p0 = p0 + v27[p1 | 0] | 0;
+    p1 = p1 + 1 | 0;
   }
-  var v37 = v10.length;
-  Array_a_reclaim_I32(v10);
-  var v41 = p0 + v37 | 0;
+  var v41 = p0 + v10.length | 0;
   var v45 = new Int32Array([7, 8, 9]);
-  var s0 = { items: v45, length: 3 };
-  var v66 = v45[0] + v45[1] | 0;
-  var v75 = v45[2];
-  Array_a_reclaim_I32(s0);
-  return v41 + (v66 + v75 | 0) | 0;
+  return v41 + ((v45[0] + v45[1] | 0) + v45[2] | 0) | 0;
 }
 
 function push_I32(self, item) {
   var v3 = self.length;
   var v6 = v3 + 1;
-  B0: {
-    if (v6 <= self.items.length) break B0;
-    growJsArray_I32(self, v6);
-  }
+  if (v6 > self.items.length) growJsArray_I32(self, v6);
   self.items[v3] = item;
   self.length = v6 & 1073741823;
 }
@@ -45,20 +34,19 @@ function push_I32(self, item) {
 function remove_I32(self, index) {
   var v3 = self.length;
   if (index >>> 0 >= v3) return null;
-  var v9 = self.items[index];
-  self.items.copyWithin(index, index + 1 | 0, v3);
+  var v8 = self.items;
+  var v9 = v8[index];
+  v8.copyWithin(index, index + 1 | 0, v3);
   self.length = v3 - 1 & 1073741823;
   return v9;
 }
 
-function Array_a_reclaim_I32(value) {
-}
-
 function growJsArray_I32(self, wanted) {
-  var v3 = self.items.length;
+  var v2 = self.items;
+  var v3 = v2.length;
   var v5 = v3 + v3 | 0;
   var v7 = v5 < wanted ? wanted : v5;
-  var v13 = $grow(self.items, v7 < 4 ? 4 : v7);
+  var v13 = $grow(v2, v7 < 4 ? 4 : v7);
   self.items = v13;
 }
 var $t = "yana: a runtime check failed";

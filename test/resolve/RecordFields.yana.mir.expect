@@ -1,0 +1,731 @@
+module ResolveTest
+
+data Point {x: F64, y: F64, name: String} reclaim derived
+
+data Site {file: String, line: I32, column: I32, function: String} reclaim derived
+
+data Pair {x: F64, y: F64}
+
+data Tally {weight: F64, count: I32}
+
+data captured.lambda.env {p: 0'Point} shape2
+
+let & failures: I32 = 0
+
+let & lastLine: I32 = 0
+
+let string'142: [CodeUnit *4] = "only"
+
+let string'143: [CodeUnit *0] = ""
+
+let string'144: [CodeUnit *4] = "then"
+
+let string'145: [CodeUnit *4] = "else"
+
+let string'146: [CodeUnit *1] = "w"
+
+let string'147: [CodeUnit *6] = "passed"
+
+let string'148: [CodeUnit *8] = "returned"
+
+let string'149: [CodeUnit *4] = "zero"
+
+let string'150: [CodeUnit *8] = "captured"
+
+let string'151: [CodeUnit *6] = "shared"
+
+let string'152: [CodeUnit *6] = "inline"
+
+let string'153: [CodeUnit *11] = "ResolveTest"
+
+let string'154: [CodeUnit *6] = "checks"
+
+let string'155: [CodeUnit *11] = "ResolveTest"
+
+let string'156: [CodeUnit *6] = "checks"
+
+let string'157: [CodeUnit *11] = "ResolveTest"
+
+let string'158: [CodeUnit *6] = "checks"
+
+fn onlyFields(k: F64 [shared call]) -> F64 {
+  local p: Point
+
+bb0:
+  %0: F64 = read copy.trivial (k)
+  %1: F64 = read copy.trivial (k)
+  %2: F64 = const 2
+  %3: F64 = mul inspect %1 inspect %2
+  %4: String = const String {units: Array {run: Run {items: &string'142, capacity: 4, ownsHeap: 0}, length: 4}}
+  %5: Point = aggregate.Point take %0 take %3 take %4
+  write.init borrow.unique (p) take %5
+  %7: F64 = read copy.trivial (p.x)
+  %8: F64 = read copy.trivial (p.y)
+  drop (p)
+  %9: F64 = add inspect %7 inspect %8
+  return take %9
+}
+
+fn twoPaths(c: Bool [shared call], k: F64 [shared call]) -> F64 {
+  local & p: Point
+
+bb0:
+  %0: F64 = const 0
+  %1: F64 = const 0
+  %2: String = const String {units: Array {run: Run {items: &string'143, capacity: 0, ownsHeap: 0}, length: 0}}
+  %3: Point = aggregate.Point take %0 take %1 take %2
+  write.init borrow.unique (p) take %3
+  drop (p)
+  %5: Bool = read copy.trivial (c)
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %12: F64 = const 2
+  %13: F64 = read copy.trivial (k)
+  %14: String = const String {units: Array {run: Run {items: &string'145, capacity: 4, ownsHeap: 0}, length: 4}}
+  %15: Point = aggregate.Point take %12 take %13 take %14
+  write.reinit borrow.unique (p) take %15
+  jump -> bb2
+
+bb2:
+  %19: F64 = read copy.trivial (p.x)
+  %20: F64 = const 10
+  %21: F64 = mul inspect %19 inspect %20
+  %22: F64 = read copy.trivial (p.y)
+  drop (p)
+  %23: F64 = add inspect %21 inspect %22
+  return take %23
+
+bb3:
+  %7: F64 = read copy.trivial (k)
+  %8: F64 = const 1
+  %9: String = const String {units: Array {run: Run {items: &string'144, capacity: 4, ownsHeap: 0}, length: 4}}
+  %10: Point = aggregate.Point take %7 take %8 take %9
+  write.reinit borrow.unique (p) take %10
+  jump -> bb2
+}
+
+fn fieldWrite(k: F64 [shared call]) -> F64 {
+  local & p: Point
+
+bb0:
+  %0: F64 = read copy.trivial (k)
+  %1: F64 = const 0
+  %2: String = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
+  %3: Point = aggregate.Point take %0 take %1 take %2
+  write.init borrow.unique (p) take %3
+  %5: F64 = read copy.trivial (k)
+  %6: F64 = const 1
+  %7: Bool = gt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %15: F64 = read copy.trivial (p.x)
+  %16: F64 = read copy.trivial (p.y)
+  drop (p)
+  %17: F64 = add inspect %15 inspect %16
+  return take %17
+
+bb3:
+  %9: F64 = read copy.trivial (k)
+  %10: F64 = const 1
+  %11: F64 = add inspect %9 inspect %10
+  write.assign borrow.unique (p.y) take %11
+  jump -> bb2
+}
+
+fn sum'2(p: Point [shared call]) -> F64 {
+bb0:
+  %0: F64 = read copy.trivial (p.x)
+  %1: F64 = read copy.trivial (p.y)
+  %2: F64 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn passed(k: F64 [shared call]) -> F64 {
+  local p: Point
+
+bb0:
+  %0: F64 = read copy.trivial (k)
+  %1: F64 = const 3
+  %2: String = const String {units: Array {run: Run {items: &string'147, capacity: 6, ownsHeap: 0}, length: 6}}
+  %3: Point = aggregate.Point take %0 take %1 take %2
+  write.init borrow.unique (p) take %3
+  %5: Point [shared call] = read borrow.shared (p) loan0
+  %6: F64 = call sum'2 borrow.shared %5
+  %7: F64 = read copy.trivial (p.x)
+  drop (p)
+  %8: F64 = add inspect %6 inspect %7
+  return take %8
+}
+
+fn returned(k: F64 [shared call]) -> Point {
+  local p: Point
+
+bb0:
+  %0: F64 = read copy.trivial (k)
+  %1: F64 = const 4
+  %2: String = const String {units: Array {run: Run {items: &string'148, capacity: 8, ownsHeap: 0}, length: 8}}
+  %3: Point = aggregate.Point take %0 take %1 take %2
+  write.init borrow.unique (p) take %3
+  %5: F64 = read copy.trivial (k)
+  %6: F64 = const 0
+  %7: Bool = gt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  drop (p)
+  jump -> bb2
+
+bb2:
+  %12: F64 = const 0
+  %13: F64 = const 0
+  %14: String = const String {units: Array {run: Run {items: &string'149, capacity: 4, ownsHeap: 0}, length: 4}}
+  %15: Point = aggregate.Point take %12 take %13 take %14
+  return take %15
+
+bb3:
+  %9: Point = read take (p)
+  return take %9
+}
+
+fn apply(f: (F64) -> F64 [shared call], d: F64 [shared call]) -> F64 {
+bb0:
+  %0: (F64) -> F64 [shared call] = read borrow.shared (f) loan0
+  %1: F64 = read copy.trivial (d)
+  %2: F64 = call inspect %0 borrow.shared %1
+  return take %2
+}
+
+fn captured(k: F64 [shared call]) -> F64 {
+  local p: Point
+  local captured.lambda.env: captured.lambda.env
+  local local3: (F64) -> F64 [owned here shape8 .0=shared call]
+
+bb0:
+  %0: F64 = read copy.trivial (k)
+  %1: F64 = const 5
+  %2: String = const String {units: Array {run: Run {items: &string'150, capacity: 8, ownsHeap: 0}, length: 8}}
+  %3: Point = aggregate.Point take %0 take %1 take %2
+  write.init borrow.unique (p) take %3
+  %5: Point [shared slot 0] = read borrow.shared (p) loan0
+  %6: captured.lambda.env = aggregate.captured.lambda.env borrow.shared %5 roots.0{0}
+  write.init borrow.unique (captured.lambda.env) take %6
+  %8: captured.lambda.env [shared call] = read borrow.shared (captured.lambda.env) loan1 roots.0{0}
+  %9: (F64) -> F64 [owned here shape8 .0=shared call] = fun.value captured.lambda inspect %8 roots.0{0, 1}
+  write.init borrow.unique (local3) take %9
+  %11: (F64) -> F64 [shared call shape8 .0=shared call] = read borrow.shared (local3) loan2 roots.0{0, 1}
+  %12: F64 = const 1
+  %13: F64 = call apply borrow.shared %11 borrow.shared %12
+  drop (p)
+  return take %13
+}
+
+fn bump(p: Point [unique call]) -> {} {
+bb0:
+  %0: F64 = read copy.trivial (p.x)
+  %1: F64 = const 100
+  %2: F64 = add inspect %0 inspect %1
+  write.assign borrow.unique (p.x) take %2
+  return
+}
+
+fn sharedBorrow(k: F64 [shared call]) -> F64 {
+  local & p: Point
+
+bb0:
+  %0: F64 = read copy.trivial (k)
+  %1: F64 = const 6
+  %2: String = const String {units: Array {run: Run {items: &string'151, capacity: 6, ownsHeap: 0}, length: 6}}
+  %3: Point = aggregate.Point take %0 take %1 take %2
+  write.init borrow.unique (p) take %3
+  %5: Point [unique call] = read borrow.unique (p) loan0
+  %6: {} = call bump borrow.unique %5
+  %7: F64 = read copy.trivial (p.x)
+  %8: F64 = read copy.trivial (p.y)
+  drop (p)
+  %9: F64 = add inspect %7 inspect %8
+  return take %9
+}
+
+fn bumpInline(p: Point [unique call]) -> {} {
+bb0:
+  %0: F64 = read copy.trivial (p.x)
+  %1: F64 = const 1000
+  %2: F64 = add inspect %0 inspect %1
+  write.assign borrow.unique (p.x) take %2
+  return
+}
+
+fn inlineWrite(k: F64 [shared call]) -> F64 {
+  local & p: Point
+
+bb0:
+  %0: F64 = read copy.trivial (k)
+  %1: F64 = const 7
+  %2: String = const String {units: Array {run: Run {items: &string'152, capacity: 6, ownsHeap: 0}, length: 6}}
+  %3: Point = aggregate.Point take %0 take %1 take %2
+  write.init borrow.unique (p) take %3
+  %5: Point [unique call] = read borrow.unique (p) loan0
+  %6: {} = call bumpInline borrow.unique %5
+  %7: F64 = read copy.trivial (p.x)
+  %8: F64 = read copy.trivial (p.y)
+  drop (p)
+  %9: F64 = add inspect %7 inspect %8
+  return take %9
+}
+
+fn rebind(q: Pair [shared call], r: Pair [unique call]) -> F64 {
+bb0:
+  %0: F64 = read copy.trivial (q.y)
+  %1: F64 = const 7
+  %2: F64 = mul inspect %0 inspect %1
+  %3: F64 = const 1
+  %4: Pair = aggregate.Pair take %2 take %3
+  write.assign borrow.unique (r) take %4
+  %6: F64 = read copy.trivial (q.x)
+  %7: F64 = const 1000
+  %8: F64 = mul inspect %6 inspect %7
+  %9: F64 = read copy.trivial (q.y)
+  %10: F64 = const 100
+  %11: F64 = mul inspect %9 inspect %10
+  %12: F64 = add inspect %8 inspect %11
+  %13: F64 = read copy.trivial (r.x)
+  %14: F64 = add inspect %12 inspect %13
+  return take %14
+}
+
+fn aliasedStore(k: F64 [shared call]) -> F64 {
+  local & p: Pair
+
+bb0:
+  %0: F64 = read copy.trivial (k)
+  %1: F64 = read copy.trivial (k)
+  %2: F64 = const 1
+  %3: F64 = add inspect %1 inspect %2
+  %4: Pair = aggregate.Pair take %0 take %3
+  write.init borrow.unique (p) take %4
+  %6: Pair = read copy.trivial (p)
+  %7: Pair [unique call] = read borrow.unique (p) loan0
+  %8: F64 = call rebind borrow.shared %6 borrow.unique %7
+  %9: F64 = read copy.trivial (p.y)
+  %10: F64 = add inspect %8 inspect %9
+  return take %10
+}
+
+fn walk(q: Pair [shared call], r: Pair [unique call], n: I32 [shared call]) -> F64 {
+  local & acc: F64
+  local & local4: I32
+  local i: I32
+
+bb0:
+  %0: F64 = const 0
+  write.init borrow.unique (acc) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 0
+  %4: I32 = const 1
+  write.init borrow.unique (local4) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local4)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %31: I32 = read copy.trivial (local4)
+  %32: I32 = add inspect %31 inspect %8
+  write.assign borrow.unique (local4) take %32
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %35: F64 = read copy.trivial (acc)
+  return take %35
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local4)
+  write.init borrow.unique (i) take %18
+  %20: F64 = read copy.trivial (r.y)
+  %21: F64 = read copy.trivial (q.x)
+  %22: F64 = read copy.trivial (r.x)
+  %23: F64 = add inspect %21 inspect %22
+  %24: Pair = aggregate.Pair take %20 take %23
+  write.assign borrow.unique (r) take %24
+  %26: F64 = read copy.trivial (acc)
+  %27: F64 = read copy.trivial (q.y)
+  %28: F64 = add inspect %26 inspect %27
+  write.assign borrow.unique (acc) take %28
+  jump -> bb2(take %15, take %16)
+}
+
+fn aliasedLoop(k: F64 [shared call], n: I32 [shared call]) -> F64 {
+  local & p: Pair
+
+bb0:
+  %0: F64 = read copy.trivial (k)
+  %1: F64 = read copy.trivial (k)
+  %2: F64 = const 1
+  %3: F64 = add inspect %1 inspect %2
+  %4: Pair = aggregate.Pair take %0 take %3
+  write.init borrow.unique (p) take %4
+  %6: Pair = read copy.trivial (p)
+  %7: Pair [unique call] = read borrow.unique (p) loan0
+  %8: I32 = read copy.trivial (n)
+  %9: F64 = call walk borrow.shared %6 borrow.unique %7 borrow.shared %8
+  %10: F64 = const 1000
+  %11: F64 = mul inspect %9 inspect %10
+  %12: F64 = read copy.trivial (p.x)
+  %13: F64 = add inspect %11 inspect %12
+  return take %13
+}
+
+fn updates(start: I32 [shared call]) -> I32 {
+  local & acc: Tally
+  local & local2: Tally
+  local & local3: Tally
+
+bb0:
+  %0: F64 = const 0.5
+  %1: I32 = read copy.trivial (start)
+  %2: Tally = aggregate.Tally take %0 take %1
+  write.init borrow.unique (acc) take %2
+  %4: Tally = read copy.trivial (acc)
+  write.init borrow.unique (local2) take %4
+  %6: I32 = read copy.trivial (acc.count)
+  %7: I32 = const 1
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (local2.count) take %8
+  %10: Tally = read copy.trivial (local2)
+  write.assign borrow.unique (acc) take %10
+  %12: Tally = read copy.trivial (acc)
+  write.init borrow.unique (local3) take %12
+  %14: F64 = read copy.trivial (acc.weight)
+  %15: F64 = const 1
+  %16: F64 = add inspect %14 inspect %15
+  write.assign borrow.unique (local3.weight) take %16
+  %18: Tally = read copy.trivial (local3)
+  write.assign borrow.unique (acc) take %18
+  %20: I32 = read copy.trivial (acc.count)
+  return take %20
+}
+
+fn optional(c: Bool [shared call], k: F64 [shared call]) -> Maybe(Pair) {
+bb0:
+  %0: Bool = read copy.trivial (c)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %6: Maybe(Pair) = aggregate.Nothing
+  jump -> bb2(take %6)
+
+bb2(%7: Maybe(Pair)):
+  return take %7
+
+bb3:
+  %2: F64 = read copy.trivial (k)
+  %3: F64 = const 2
+  %4: Pair = aggregate.Pair take %2 take %3
+  %5: Maybe(Pair) = aggregate.Just take %4
+  jump -> bb2(take %5)
+}
+
+fn retested(k: F64 [shared call], c: Bool [shared call]) -> F64 {
+  local & m: Maybe(Pair)
+  local & s: F64
+  local p: Pair
+  local p: Pair
+
+bb0:
+  %0: Bool = read copy.trivial (c)
+  %1: F64 = read copy.trivial (k)
+  %2: Maybe(Pair) = call optional borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (m) take %2
+  %4: F64 = const 0
+  write.init borrow.unique (s) take %4
+  %6: U8 = read copy.trivial (m.#)
+  %7: U8 = const 1
+  %8: Bool = eq inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %18: Bool = read copy.trivial (c)
+  %19: Bool = not inspect %18
+  %20: F64 = read copy.trivial (k)
+  %21: F64 = const 1
+  %22: F64 = add inspect %20 inspect %21
+  %23: Maybe(Pair) = call optional borrow.shared %19 borrow.shared %22
+  write.assign borrow.unique (m) take %23
+  %25: U8 = read copy.trivial (m.#)
+  %26: U8 = const 1
+  %27: Bool = eq inspect %25 inspect %26
+  branch inspect %27 -> bb6 -> bb4
+
+bb3:
+  %10: Pair = read copy.trivial (m.Just)
+  write.init borrow.unique (p) take %10
+  %12: F64 = read copy.trivial (p.x)
+  %13: F64 = read copy.trivial (p.y)
+  %14: F64 = add inspect %12 inspect %13
+  write.assign borrow.unique (s) take %14
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %39: F64 = read copy.trivial (s)
+  return take %39
+
+bb6:
+  %29: Pair = read copy.trivial (m.Just)
+  write.init borrow.unique (p) take %29
+  %31: F64 = read copy.trivial (s)
+  %32: F64 = const 10
+  %33: F64 = mul inspect %31 inspect %32
+  %34: F64 = read copy.trivial (p.x)
+  %35: F64 = add inspect %33 inspect %34
+  write.assign borrow.unique (s) take %35
+  jump -> bb5
+}
+
+fn report(file: String [shared call view], line: I32 [shared call], function: String [shared call view]) -> {} {
+bb0:
+  %0: I32 [unique call] = read borrow.unique (global failures) loan0
+  %1: I32 = const 1
+  %2: {} = call +=(I32) borrow.unique %0 borrow.shared %1
+  %3: I32 = read copy.trivial (line)
+  %4: I32 = const 100
+  %5: I32 = mul inspect %3 inspect %4
+  %6: String [shared call view] = read borrow.shared (file) loan1
+  %7: Size = call length(String) borrow.shared %6
+  %8: String [shared call view] = read borrow.shared (function) loan2
+  %9: Size = call length(String) borrow.shared %8
+  %10: Size = add inspect %7 inspect %9
+  %11: I32 = convert inspect %10
+  %12: I32 = add inspect %5 inspect %11
+  write.assign borrow.unique (global lastLine) take %12
+  return
+}
+
+fn expect(held: Bool [shared call], @caller at: Site) -> {} {
+bb0:
+  %0: Bool = read copy.trivial (held)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %4: String [shared call] = read borrow.shared (at.file) loan0
+  %5: String [shared slot 0 view] = call.derivation view(String) borrow.shared %4 roots{0}
+  %6: I32 = read copy.trivial (at.line)
+  %7: String [shared call] = read borrow.shared (at.function) loan1
+  %8: String [shared slot 0 view] = call.derivation view(String) borrow.shared %7 roots{1}
+  %9: {} = call report borrow.shared %5 borrow.shared %6 borrow.shared %8
+  drop (at)
+  return
+
+bb3:
+  drop (at)
+  return
+}
+
+fn checks(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 2
+  %2: Bool = gt inspect %0 inspect %1
+  %3: String = const String {units: Array {run: Run {items: &string'153, capacity: 11, ownsHeap: 0}, length: 11}}
+  %4: I32 = const 148
+  %5: I32 = const 4
+  %6: String = const String {units: Array {run: Run {items: &string'154, capacity: 6, ownsHeap: 0}, length: 6}}
+  %7: Site = aggregate.Site take %3 take %4 take %5 take %6
+  %8: {} = call expect borrow.shared %2 take %7
+  %9: I32 = read copy.trivial (n)
+  %10: I32 = const 100
+  %11: Bool = lt inspect %9 inspect %10
+  %12: String = const String {units: Array {run: Run {items: &string'155, capacity: 11, ownsHeap: 0}, length: 11}}
+  %13: I32 = const 149
+  %14: I32 = const 4
+  %15: String = const String {units: Array {run: Run {items: &string'156, capacity: 6, ownsHeap: 0}, length: 6}}
+  %16: Site = aggregate.Site take %12 take %13 take %14 take %15
+  %17: {} = call expect borrow.shared %11 take %16
+  %18: I32 = read copy.trivial (n)
+  %19: I32 = const 5
+  %20: Bool = eq inspect %18 inspect %19
+  %21: String = const String {units: Array {run: Run {items: &string'157, capacity: 11, ownsHeap: 0}, length: 11}}
+  %22: I32 = const 150
+  %23: I32 = const 4
+  %24: String = const String {units: Array {run: Run {items: &string'158, capacity: 6, ownsHeap: 0}, length: 6}}
+  %25: Site = aggregate.Site take %21 take %22 take %23 take %24
+  %26: {} = call expect borrow.shared %20 take %25
+  %27: I32 = read copy.trivial (global failures)
+  %28: I32 = const 1000
+  %29: I32 = mul inspect %27 inspect %28
+  %30: I32 = read copy.trivial (global lastLine)
+  %31: I32 = add inspect %29 inspect %30
+  return take %31
+}
+
+fn main() -> I32 {
+  local & total: F64
+  local local1: Point
+  local local2: Point
+  local first: I32
+  local second: I32
+  local right: I32
+  local aliased: I32
+  local rebound: I32
+
+bb0:
+  %0: F64 = const 1.5
+  %1: F64 = call onlyFields borrow.shared %0
+  write.init borrow.unique (total) take %1
+  %3: F64 [unique call] = read borrow.unique (total) loan0
+  %4: Bool = const True
+  %5: F64 = const 3
+  %6: F64 = call twoPaths borrow.shared %4 borrow.shared %5
+  %7: Bool = const False
+  %8: F64 = const 4
+  %9: F64 = call twoPaths borrow.shared %7 borrow.shared %8
+  %10: F64 = add inspect %6 inspect %9
+  %11: {} = call +=(F64) borrow.unique %3 borrow.shared %10
+  %12: F64 [unique call] = read borrow.unique (total) loan1
+  %13: F64 = const 2
+  %14: F64 = call fieldWrite borrow.shared %13
+  %15: F64 = const 0.5
+  %16: F64 = call fieldWrite borrow.shared %15
+  %17: F64 = add inspect %14 inspect %16
+  %18: {} = call +=(F64) borrow.unique %12 borrow.shared %17
+  %19: F64 [unique call] = read borrow.unique (total) loan2
+  %20: F64 = const 2
+  %21: F64 = call passed borrow.shared %20
+  %22: F64 = const 3
+  %23: Point = call returned borrow.shared %22
+  write.init borrow.unique (local1) take %23
+  %25: F64 = read copy.trivial (local1.y)
+  drop (local1)
+  %26: F64 = add inspect %21 inspect %25
+  %27: F64 = const -1
+  %28: Point = call returned borrow.shared %27
+  write.init borrow.unique (local2) take %28
+  %30: F64 = read copy.trivial (local2.y)
+  drop (local2)
+  %31: F64 = add inspect %26 inspect %30
+  %32: {} = call +=(F64) borrow.unique %19 borrow.shared %31
+  %33: F64 [unique call] = read borrow.unique (total) loan3
+  %34: F64 = const 2
+  %35: F64 = call captured borrow.shared %34
+  %36: F64 = const 1
+  %37: F64 = call sharedBorrow borrow.shared %36
+  %38: F64 = add inspect %35 inspect %37
+  %39: F64 = const 1
+  %40: F64 = call inlineWrite borrow.shared %39
+  %41: F64 = add inspect %38 inspect %40
+  %42: {} = call +=(F64) borrow.unique %33 borrow.shared %41
+  %43: I32 = const 5
+  %44: I32 = call checks borrow.shared %43
+  write.init borrow.unique (first) take %44
+  %46: I32 = const 200
+  %47: I32 = call checks borrow.shared %46
+  write.init borrow.unique (second) take %47
+  %49: F64 = read copy.trivial (total)
+  %50: F64 = const 1199
+  %51: Bool = eq inspect %49 inspect %50
+  branch inspect %51 -> bb3 -> bb1
+
+bb1:
+  %54: I32 = const 0
+  jump -> bb2(take %54)
+
+bb2(%55: I32):
+  write.init borrow.unique (right) take %55
+  %59: F64 = const 3
+  %60: F64 = call aliasedStore borrow.shared %59
+  %61: F64 = const 3429
+  %62: Bool = eq inspect %60 inspect %61
+  branch inspect %62 -> bb6 -> bb4
+
+bb3:
+  %53: I32 = const 100000
+  jump -> bb2(take %53)
+
+bb4:
+  %71: I32 = const 0
+  jump -> bb5(take %71)
+
+bb5(%72: I32):
+  write.init borrow.unique (aliased) take %72
+  %76: I32 = const 10
+  %77: I32 = call updates borrow.shared %76
+  %78: I32 = const 11
+  %79: Bool = eq inspect %77 inspect %78
+  branch inspect %79 -> bb10 -> bb8
+
+bb6:
+  %64: F64 = const 1
+  %65: I32 = const 3
+  %66: F64 = call aliasedLoop borrow.shared %64 borrow.shared %65
+  %67: F64 = const 6003
+  %68: Bool = eq inspect %66 inspect %67
+  branch inspect %68 -> bb7 -> bb4
+
+bb7:
+  %70: I32 = const 1000000
+  jump -> bb5(take %70)
+
+bb8:
+  %94: I32 = const 0
+  jump -> bb9(take %94)
+
+bb9(%95: I32):
+  write.init borrow.unique (rebound) take %95
+  %99: I32 = read copy.trivial (right)
+  %100: I32 = read copy.trivial (first)
+  %101: I32 = add inspect %99 inspect %100
+  %102: I32 = read copy.trivial (second)
+  %103: I32 = add inspect %101 inspect %102
+  %104: I32 = read copy.trivial (aliased)
+  %105: I32 = add inspect %103 inspect %104
+  %106: I32 = read copy.trivial (rebound)
+  %107: I32 = add inspect %105 inspect %106
+  return take %107
+
+bb10:
+  %81: F64 = const 2
+  %82: Bool = const True
+  %83: F64 = call retested borrow.shared %81 borrow.shared %82
+  %84: F64 = const 4
+  %85: Bool = eq inspect %83 inspect %84
+  branch inspect %85 -> bb11 -> bb8
+
+bb11:
+  %87: F64 = const 2
+  %88: Bool = const False
+  %89: F64 = call retested borrow.shared %87 borrow.shared %88
+  %90: F64 = const 3
+  %91: Bool = eq inspect %89 inspect %90
+  branch inspect %91 -> bb12 -> bb8
+
+bb12:
+  %93: I32 = const 10000000
+  jump -> bb9(take %93)
+}
+
+fn captured.lambda(captured.lambda.env: captured.lambda.env [unique call], d: F64 [shared call]) -> F64 {
+bb0:
+  %0: F64 = read copy.trivial (captured.lambda.env.p.x)
+  %1: F64 = read copy.trivial (captured.lambda.env.p.y)
+  %2: F64 = add inspect %0 inspect %1
+  %3: F64 = read copy.trivial (d)
+  %4: F64 = add inspect %2 inspect %3
+  return take %4
+}
+
+entry main

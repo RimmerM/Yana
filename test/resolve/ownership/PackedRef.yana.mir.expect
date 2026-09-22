@@ -1,0 +1,736 @@
+module ResolveTest
+
+data Header {version: @bits(4) U32, flags: @bits(3) U32, length: @bits(13) U32}
+
+data Flags {optionA: Bool, optionB: Bool}
+
+data Nine {a: Bool, b: Bool, c: Bool, d: Bool, e: Bool, f: Bool, g: Bool, h: Bool, i: Bool}
+
+data Entry {live: Bool, kind: @bits(3) U32, count: I32}
+
+data Outer {inner: Flags, tail: Bool, level: @bits(5) U32}
+
+data Quad {a: @bits(4) U32, b: @bits(4) U32, c: Bool}
+
+data Cell {kind: @bits(4) U32, live: Bool, count: @bits(12) U32, age: @bits(20) U32}
+
+fn tick(x: @bits(3) U32 [unique call]) -> {} {
+bb0:
+  %0: @bits(3) U32 = read copy.trivial (x)
+  %1: U32 = convert inspect %0
+  %2: U32 = const 1
+  %3: U32 = add inspect %1 inspect %2
+  %4: @bits(3) U32 = convert inspect %3
+  write.assign borrow.unique (x) take %4
+  return
+}
+
+fn grow(x: @bits(5) U32 [unique call]) -> {} {
+bb0:
+  %0: @bits(5) U32 = read copy.trivial (x)
+  %1: U32 = convert inspect %0
+  %2: U32 = const 4
+  %3: U32 = add inspect %1 inspect %2
+  %4: @bits(5) U32 = convert inspect %3
+  write.assign borrow.unique (x) take %4
+  return
+}
+
+fn flip(b: Bool [unique call]) -> {} {
+bb0:
+  %0: Bool = read copy.trivial (b)
+  %1: Bool = not inspect %0
+  write.assign borrow.unique (b) take %1
+  return
+}
+
+fn nudge(x: @bits(13) U32 [unique call]) -> {} {
+bb0:
+  %0: @bits(13) U32 = read copy.trivial (x)
+  %1: U32 = convert inspect %0
+  %2: U32 = const 1
+  %3: U32 = add inspect %1 inspect %2
+  %4: @bits(13) U32 = convert inspect %3
+  write.assign borrow.unique (x) take %4
+  return
+}
+
+fn nudgeTwice(x: @bits(13) U32 [unique call]) -> {} {
+bb0:
+  %0: @bits(13) U32 [unique call] = read borrow.unique (x) loan0
+  %1: {} = call nudge borrow.unique %0
+  %2: @bits(13) U32 [unique call] = read borrow.unique (x) loan1
+  %3: {} = call nudge borrow.unique %2
+  return
+}
+
+fn valueOf'2(f: Flags [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (f.optionA)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  %7: Bool = read copy.trivial (f.optionB)
+  branch inspect %7 -> bb6(take %4) -> bb4(take %4)
+
+bb3:
+  %2: I32 = const 1
+  jump -> bb2(take %2)
+
+bb4(%8: I32):
+  %12: I32 = const 0
+  jump -> bb5(take %12, take %8)
+
+bb5(%13: I32, %14: I32):
+  %17: I32 = add inspect %14 inspect %13
+  return take %17
+
+bb6(%9: I32):
+  %11: I32 = const 2
+  jump -> bb5(take %11, take %9)
+}
+
+fn threaded() -> I32 {
+  local & h: Header
+
+bb0:
+  %0: @bits(4) U32 = const 1
+  %1: @bits(3) U32 = const 2
+  %2: @bits(13) U32 = const 100
+  %3: Header = aggregate.Header take %0 take %1 take %2
+  write.init borrow.unique (h) take %3
+  %5: @bits(13) U32 [unique call] = read borrow.unique (h.length) loan0
+  %6: {} = call nudgeTwice borrow.unique %5
+  %7: @bits(13) U32 = read copy.trivial (h.length)
+  %8: I32 = convert inspect %7
+  %9: I32 = const 10
+  %10: I32 = mul inspect %8 inspect %9
+  %11: @bits(4) U32 = read copy.trivial (h.version)
+  %12: I32 = convert inspect %11
+  %13: I32 = add inspect %10 inspect %12
+  return take %13
+}
+
+fn nine(a: Bool [unique call], b: Bool [unique call], c: Bool [unique call], d: Bool [unique call], e: Bool [unique call], f: Bool [unique call], g: Bool [unique call], h: Bool [unique call], i: Bool [unique call]) -> {} {
+bb0:
+  %0: Bool = const True
+  write.assign borrow.unique (a) take %0
+  %2: Bool = const True
+  write.assign borrow.unique (b) take %2
+  %4: Bool = const True
+  write.assign borrow.unique (c) take %4
+  %6: Bool = const True
+  write.assign borrow.unique (d) take %6
+  %8: Bool = const True
+  write.assign borrow.unique (e) take %8
+  %10: Bool = const True
+  write.assign borrow.unique (f) take %10
+  %12: Bool = const True
+  write.assign borrow.unique (g) take %12
+  %14: Bool = const True
+  write.assign borrow.unique (h) take %14
+  %16: Bool = const True
+  write.assign borrow.unique (i) take %16
+  return
+}
+
+fn wide() -> I32 {
+  local & s: Nine
+
+bb0:
+  %0: Bool = const False
+  %1: Bool = const False
+  %2: Bool = const False
+  %3: Bool = const False
+  %4: Bool = const False
+  %5: Bool = const False
+  %6: Bool = const False
+  %7: Bool = const False
+  %8: Bool = const False
+  %9: Nine = aggregate.Nine take %0 take %1 take %2 take %3 take %4 take %5 take %6 take %7 take %8
+  write.init borrow.unique (s) take %9
+  %11: Bool [unique call] = read borrow.unique (s.a) loan0
+  %12: Bool [unique call] = read borrow.unique (s.b) loan1
+  %13: Bool [unique call] = read borrow.unique (s.c) loan2
+  %14: Bool [unique call] = read borrow.unique (s.d) loan3
+  %15: Bool [unique call] = read borrow.unique (s.e) loan4
+  %16: Bool [unique call] = read borrow.unique (s.f) loan5
+  %17: Bool [unique call] = read borrow.unique (s.g) loan6
+  %18: Bool [unique call] = read borrow.unique (s.h) loan7
+  %19: Bool [unique call] = read borrow.unique (s.i) loan8
+  %20: {} = call nine borrow.unique %11 borrow.unique %12 borrow.unique %13 borrow.unique %14 borrow.unique %15 borrow.unique %16 borrow.unique %17 borrow.unique %18 borrow.unique %19
+  %21: Bool = read copy.trivial (s.a)
+  branch inspect %21 -> bb3 -> bb1
+
+bb1:
+  %24: I32 = const 0
+  jump -> bb2(take %24)
+
+bb2(%25: I32):
+  %28: Bool = read copy.trivial (s.e)
+  branch inspect %28 -> bb6(take %25) -> bb4(take %25)
+
+bb3:
+  %23: I32 = const 1
+  jump -> bb2(take %23)
+
+bb4(%29: I32):
+  %33: I32 = const 0
+  jump -> bb5(take %33, take %29)
+
+bb5(%34: I32, %35: I32):
+  %38: I32 = add inspect %35 inspect %34
+  %39: Bool = read copy.trivial (s.i)
+  branch inspect %39 -> bb9(take %38) -> bb7(take %38)
+
+bb6(%30: I32):
+  %32: I32 = const 20
+  jump -> bb5(take %32, take %30)
+
+bb7(%40: I32):
+  %44: I32 = const 0
+  jump -> bb8(take %44, take %40)
+
+bb8(%45: I32, %46: I32):
+  %49: I32 = add inspect %46 inspect %45
+  return take %49
+
+bb9(%41: I32):
+  %43: I32 = const 300
+  jump -> bb8(take %43, take %41)
+}
+
+fn pick(flag: Bool [shared call], a: Bool [unique slot 0], b: Bool [unique slot 0]) -> Bool [unique slot 0 owner] {
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: Bool [unique slot 0] = read borrow.unique (b) loan1
+  jump -> bb2(borrow.unique %3)
+
+bb2(%4: Bool [unique slot 0]):
+  return borrow.unique %4
+
+bb3:
+  %2: Bool [unique slot 0] = read borrow.unique (a) loan0
+  jump -> bb2(borrow.unique %2)
+}
+
+fn loaned() -> I32 {
+  local & f: Flags
+  local & chosen: Bool [unique slot 0 owner]
+
+bb0:
+  %0: Bool = const True
+  %1: Bool = const True
+  %2: Flags = aggregate.Flags take %0 take %1
+  write.init borrow.unique (f) take %2
+  %4: Bool = const True
+  %5: Bool [unique slot 0] = read borrow.unique (f.optionA) loan0
+  %6: Bool [unique slot 0] = read borrow.unique (f.optionB) loan1
+  %7: Bool [unique slot 0 owner] = call pick borrow.shared %4 borrow.unique %5 borrow.unique %6 roots{0, 1}
+  write.init borrow.unique (chosen) borrow.unique %7
+  %9: Bool = const False
+  write.assign borrow.unique (chosen) take %9
+  %11: Bool = read copy.trivial (f.optionA)
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  %14: I32 = const 0
+  jump -> bb2(take %14)
+
+bb2(%15: I32):
+  %18: Bool = read copy.trivial (f.optionB)
+  branch inspect %18 -> bb6(take %15) -> bb4(take %15)
+
+bb3:
+  %13: I32 = const 1
+  jump -> bb2(take %13)
+
+bb4(%19: I32):
+  %23: I32 = const 0
+  jump -> bb5(take %23, take %19)
+
+bb5(%24: I32, %25: I32):
+  %28: I32 = add inspect %25 inspect %24
+  return take %28
+
+bb6(%20: I32):
+  %22: I32 = const 2
+  jump -> bb5(take %22, take %20)
+}
+
+fn optionOf(f: Flags [unique slot 0]) -> Bool [unique slot 0 owner] {
+bb0:
+  %0: Bool [unique slot 0] = read borrow.unique (f.optionA) loan0
+  return borrow.unique %0
+}
+
+fn returned() -> I32 {
+  local & f: Flags
+  local & chosen: Bool [unique slot 0 owner]
+
+bb0:
+  %0: Bool = const False
+  %1: Bool = const True
+  %2: Flags = aggregate.Flags take %0 take %1
+  write.init borrow.unique (f) take %2
+  %4: Flags [unique slot 0] = read borrow.unique (f) loan0
+  %5: Bool [unique slot 0 owner] = call optionOf borrow.unique %4 roots{0}
+  write.init borrow.unique (chosen) borrow.unique %5
+  %7: Bool = const True
+  write.assign borrow.unique (chosen) take %7
+  %9: Bool = read copy.trivial (f.optionA)
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  %12: I32 = const 0
+  jump -> bb2(take %12)
+
+bb2(%13: I32):
+  %16: Bool = read copy.trivial (f.optionB)
+  branch inspect %16 -> bb6(take %13) -> bb4(take %13)
+
+bb3:
+  %11: I32 = const 1
+  jump -> bb2(take %11)
+
+bb4(%17: I32):
+  %21: I32 = const 0
+  jump -> bb5(take %21, take %17)
+
+bb5(%22: I32, %23: I32):
+  %26: I32 = add inspect %23 inspect %22
+  return take %26
+
+bb6(%18: I32):
+  %20: I32 = const 2
+  jump -> bb5(take %20, take %18)
+}
+
+fn tally() -> I32 {
+  local & e: Entry
+
+bb0:
+  %0: Bool = const False
+  %1: @bits(3) U32 = const 2
+  %2: I32 = const 7
+  %3: Entry = aggregate.Entry take %0 take %1 take %2
+  write.init borrow.unique (e) take %3
+  %5: Bool [unique call] = read borrow.unique (e.live) loan0
+  %6: {} = call flip borrow.unique %5
+  %7: @bits(3) U32 [unique call] = read borrow.unique (e.kind) loan1
+  %8: {} = call tick borrow.unique %7
+  %9: I32 = read copy.trivial (e.count)
+  %10: I32 = const 1
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (e.count) take %11
+  %13: Bool = read copy.trivial (e.live)
+  branch inspect %13 -> bb3 -> bb1
+
+bb1:
+  %16: I32 = const 0
+  jump -> bb2(take %16)
+
+bb2(%17: I32):
+  %20: @bits(3) U32 = read copy.trivial (e.kind)
+  %21: I32 = convert inspect %20
+  %22: I32 = const 10
+  %23: I32 = mul inspect %21 inspect %22
+  %24: I32 = add inspect %17 inspect %23
+  %25: I32 = read copy.trivial (e.count)
+  %26: I32 = const 100
+  %27: I32 = mul inspect %25 inspect %26
+  %28: I32 = add inspect %24 inspect %27
+  return take %28
+
+bb3:
+  %15: I32 = const 1
+  jump -> bb2(take %15)
+}
+
+fn liveOf(e: Entry [unique slot 0]) -> Bool [unique slot 0 owner] {
+bb0:
+  %0: Bool [unique slot 0] = read borrow.unique (e.live) loan0
+  return borrow.unique %0
+}
+
+fn kept() -> I32 {
+  local & e: Entry
+  local & flag: Bool [unique slot 0 owner]
+
+bb0:
+  %0: Bool = const False
+  %1: @bits(3) U32 = const 1
+  %2: I32 = const 2
+  %3: Entry = aggregate.Entry take %0 take %1 take %2
+  write.init borrow.unique (e) take %3
+  %5: Entry [unique slot 0] = read borrow.unique (e) loan0
+  %6: Bool [unique slot 0 owner] = call liveOf borrow.unique %5 roots{0}
+  write.init borrow.unique (flag) borrow.unique %6
+  %8: Bool = const True
+  write.assign borrow.unique (flag) take %8
+  %10: Bool = read copy.trivial (e.live)
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  %13: I32 = const 0
+  jump -> bb2(take %13)
+
+bb2(%14: I32):
+  %17: @bits(3) U32 = read copy.trivial (e.kind)
+  %18: I32 = convert inspect %17
+  %19: I32 = const 10
+  %20: I32 = mul inspect %18 inspect %19
+  %21: I32 = add inspect %14 inspect %20
+  %22: I32 = read copy.trivial (e.count)
+  %23: I32 = const 100
+  %24: I32 = mul inspect %22 inspect %23
+  %25: I32 = add inspect %21 inspect %24
+  return take %25
+
+bb3:
+  %12: I32 = const 1
+  jump -> bb2(take %12)
+}
+
+fn setBoth(f: Flags [unique call]) -> {} {
+bb0:
+  %0: Bool = const True
+  write.assign borrow.unique (f.optionA) take %0
+  %2: Bool = const True
+  write.assign borrow.unique (f.optionB) take %2
+  return
+}
+
+fn flipSecond(f: Flags [unique call]) -> {} {
+bb0:
+  %0: Bool [unique call] = read borrow.unique (f.optionB) loan0
+  %1: {} = call flip borrow.unique %0
+  return
+}
+
+fn nested() -> I32 {
+  local & o: Outer
+
+bb0:
+  %0: Bool = const False
+  %1: Bool = const False
+  %2: Flags = aggregate.Flags take %0 take %1
+  %3: Bool = const False
+  %4: @bits(5) U32 = const 3
+  %5: Outer = aggregate.Outer take %2 take %3 take %4
+  write.init borrow.unique (o) take %5
+  %7: Flags [unique call] = read borrow.unique (o.inner) loan0
+  %8: {} = call setBoth borrow.unique %7
+  %9: Flags [unique call] = read borrow.unique (o.inner) loan1
+  %10: {} = call flipSecond borrow.unique %9
+  %11: Bool [unique call] = read borrow.unique (o.tail) loan2
+  %12: {} = call flip borrow.unique %11
+  %13: @bits(5) U32 [unique call] = read borrow.unique (o.level) loan3
+  %14: {} = call grow borrow.unique %13
+  %15: Flags = read copy.trivial (o.inner)
+  %16: I32 = call valueOf'2 borrow.shared %15
+  %17: Bool = read copy.trivial (o.tail)
+  branch inspect %17 -> bb3(take %16) -> bb1(take %16)
+
+bb1(%18: I32):
+  %22: I32 = const 0
+  jump -> bb2(take %22, take %18)
+
+bb2(%23: I32, %24: I32):
+  %27: I32 = add inspect %24 inspect %23
+  %28: @bits(5) U32 = read copy.trivial (o.level)
+  %29: I32 = convert inspect %28
+  %30: I32 = const 100
+  %31: I32 = mul inspect %29 inspect %30
+  %32: I32 = add inspect %27 inspect %31
+  return take %32
+
+bb3(%19: I32):
+  %21: I32 = const 10
+  jump -> bb2(take %21, take %19)
+}
+
+fn put(slot: a [unique call], value: a) -> {} {
+  form erased
+  slot #0 type a
+bb0:
+  %0: a = read take (value)
+  drop (slot)
+  write.assign borrow.unique (slot) take %0
+  return
+}
+
+fn erased() -> I32 {
+  local & f: Flags
+  local & e: Entry
+
+bb0:
+  %0: Bool = const False
+  %1: Bool = const False
+  %2: Flags = aggregate.Flags take %0 take %1
+  write.init borrow.unique (f) take %2
+  %4: Bool [unique call] = read borrow.unique (f.optionB) loan0
+  %5: Bool = const True
+  %6: {} = call put(Bool) borrow.unique %4 take %5
+  %7: Bool = const False
+  %8: @bits(3) U32 = const 5
+  %9: I32 = const 3
+  %10: Entry = aggregate.Entry take %7 take %8 take %9
+  write.init borrow.unique (e) take %10
+  %12: Bool [unique call] = read borrow.unique (e.live) loan1
+  %13: Bool = const True
+  %14: {} = call put(Bool) borrow.unique %12 take %13
+  %15: Flags = read copy.trivial (f)
+  %16: I32 = call valueOf'2 borrow.shared %15
+  %17: I32 = const 10
+  %18: I32 = mul inspect %16 inspect %17
+  %19: Bool = read copy.trivial (e.live)
+  branch inspect %19 -> bb3(take %18) -> bb1(take %18)
+
+bb1(%20: I32):
+  %24: I32 = const 0
+  jump -> bb2(take %24, take %20)
+
+bb2(%25: I32, %26: I32):
+  %29: I32 = add inspect %26 inspect %25
+  %30: @bits(3) U32 = read copy.trivial (e.kind)
+  %31: I32 = convert inspect %30
+  %32: I32 = const 100
+  %33: I32 = mul inspect %31 inspect %32
+  %34: I32 = add inspect %29 inspect %33
+  %35: I32 = read copy.trivial (e.count)
+  %36: I32 = const 1000
+  %37: I32 = mul inspect %35 inspect %36
+  %38: I32 = add inspect %34 inspect %37
+  return take %38
+
+bb3(%21: I32):
+  %23: I32 = const 1
+  jump -> bb2(take %23, take %21)
+}
+
+fn swapFour(x: @bits(4) U32 [unique call], y: @bits(4) U32 [unique call]) -> {} {
+  local t: @bits(4) U32
+
+bb0:
+  %0: @bits(4) U32 = read copy.trivial (x)
+  write.init borrow.unique (t) take %0
+  %2: @bits(4) U32 = read copy.trivial (y)
+  write.assign borrow.unique (x) take %2
+  %4: @bits(4) U32 = read copy.trivial (t)
+  write.assign borrow.unique (y) take %4
+  return
+}
+
+fn swapFlags(g: Flags [unique call]) -> Bool {
+  local local1: Bool
+  local local2: Bool
+
+bb0:
+  %0: Bool [unique call] = read borrow.unique (g.optionA) loan0
+  %1: Bool [unique call] = read borrow.unique (g.optionB) loan1
+  %2: %Bool = address.exchange inspect %0
+  %3: %Bool = address.exchange inspect %1
+  %4: Bool = read copy.trivial ([%%2])
+  write.init borrow.unique (local1) take %4
+  %6: Bool = read copy.trivial (local1)
+  %7: Bool = read copy.trivial ([%%3])
+  write.assign borrow.unique ([%%2]) take %7
+  write.assign borrow.unique ([%%3]) take %6
+  %10: {} = const {}
+  %11: Bool [unique call] = read borrow.unique (g.optionB) loan2
+  %12: Bool = const False
+  %13: %Bool = address.exchange inspect %11
+  %14: Bool = read copy.trivial ([%%13])
+  write.init borrow.unique (local2) take %14
+  %16: Bool = read copy.trivial (local2)
+  write.assign borrow.unique ([%%13]) take %12
+  return take %16
+}
+
+fn swapped() -> I32 {
+  local & g: Flags
+  local old: Bool
+  local & q: Quad
+  local flags: I32
+
+bb0:
+  %0: Bool = const True
+  %1: Bool = const False
+  %2: Flags = aggregate.Flags take %0 take %1
+  write.init borrow.unique (g) take %2
+  %4: Flags [unique call] = read borrow.unique (g) loan0
+  %5: Bool = call swapFlags borrow.unique %4
+  write.init borrow.unique (old) take %5
+  %7: @bits(4) U32 = const 3
+  %8: @bits(4) U32 = const 12
+  %9: Bool = const True
+  %10: Quad = aggregate.Quad take %7 take %8 take %9
+  write.init borrow.unique (q) take %10
+  %12: @bits(4) U32 [unique call] = read borrow.unique (q.a) loan1
+  %13: @bits(4) U32 [unique call] = read borrow.unique (q.b) loan2
+  %14: {} = call swapFour borrow.unique %12 borrow.unique %13
+  %15: Bool = read copy.trivial (g.optionA)
+  branch inspect %15 -> bb3 -> bb1
+
+bb1:
+  %18: I32 = const 0
+  jump -> bb2(take %18)
+
+bb2(%19: I32):
+  %22: Bool = read copy.trivial (g.optionB)
+  branch inspect %22 -> bb6(take %19) -> bb4(take %19)
+
+bb3:
+  %17: I32 = const 1
+  jump -> bb2(take %17)
+
+bb4(%23: I32):
+  %27: I32 = const 0
+  jump -> bb5(take %27, take %23)
+
+bb5(%28: I32, %29: I32):
+  %32: I32 = add inspect %29 inspect %28
+  %33: Bool = read copy.trivial (old)
+  branch inspect %33 -> bb9(take %32) -> bb7(take %32)
+
+bb6(%24: I32):
+  %26: I32 = const 2
+  jump -> bb5(take %26, take %24)
+
+bb7(%34: I32):
+  %38: I32 = const 0
+  jump -> bb8(take %38, take %34)
+
+bb8(%39: I32, %40: I32):
+  %43: I32 = add inspect %40 inspect %39
+  write.init borrow.unique (flags) take %43
+  %45: I32 = read copy.trivial (flags)
+  %46: @bits(4) U32 = read copy.trivial (q.a)
+  %47: I32 = convert inspect %46
+  %48: I32 = const 100
+  %49: I32 = mul inspect %47 inspect %48
+  %50: @bits(4) U32 = read copy.trivial (q.b)
+  %51: I32 = convert inspect %50
+  %52: I32 = const 10
+  %53: I32 = mul inspect %51 inspect %52
+  %54: I32 = add inspect %49 inspect %53
+  %55: Bool = read copy.trivial (q.c)
+  branch inspect %55 -> bb12(take %45, take %54) -> bb10(take %45, take %54)
+
+bb9(%35: I32):
+  %37: I32 = const 4
+  jump -> bb8(take %37, take %35)
+
+bb10(%56: I32, %57: I32):
+  %62: I32 = const 0
+  jump -> bb11(take %62, take %56, take %57)
+
+bb11(%63: I32, %64: I32, %65: I32):
+  %68: I32 = add inspect %65 inspect %63
+  %69: I32 = const 10
+  %70: I32 = mul inspect %68 inspect %69
+  %71: I32 = add inspect %64 inspect %70
+  return take %71
+
+bb12(%58: I32, %59: I32):
+  %61: I32 = const 1
+  jump -> bb11(take %61, take %58, take %59)
+}
+
+fn cells() -> I32 {
+  local & c: Cell
+
+bb0:
+  %0: @bits(4) U32 = const 9
+  %1: Bool = const False
+  %2: @bits(12) U32 = const 4000
+  %3: @bits(20) U32 = const 1000000
+  %4: Cell = aggregate.Cell take %0 take %1 take %2 take %3
+  write.init borrow.unique (c) take %4
+  %6: Bool [unique call] = read borrow.unique (c.live) loan0
+  %7: {} = call flip borrow.unique %6
+  %8: @bits(12) U32 = read copy.trivial (c.count)
+  %9: U32 = convert inspect %8
+  %10: U32 = const 95
+  %11: U32 = add inspect %9 inspect %10
+  %12: @bits(12) U32 = convert inspect %11
+  write.assign borrow.unique (c.count) take %12
+  %14: @bits(20) U32 = read copy.trivial (c.age)
+  %15: U32 = convert inspect %14
+  %16: U32 = const 48575
+  %17: U32 = add inspect %15 inspect %16
+  %18: @bits(20) U32 = convert inspect %17
+  write.assign borrow.unique (c.age) take %18
+  %20: @bits(4) U32 = read copy.trivial (c.kind)
+  %21: I32 = convert inspect %20
+  %22: Bool = read copy.trivial (c.live)
+  branch inspect %22 -> bb3(take %21) -> bb1(take %21)
+
+bb1(%23: I32):
+  %27: I32 = const 0
+  jump -> bb2(take %27, take %23)
+
+bb2(%28: I32, %29: I32):
+  %32: I32 = add inspect %29 inspect %28
+  %33: @bits(12) U32 = read copy.trivial (c.count)
+  %34: I32 = convert inspect %33
+  %35: I32 = const 32
+  %36: I32 = mul inspect %34 inspect %35
+  %37: I32 = add inspect %32 inspect %36
+  %38: @bits(20) U32 = read copy.trivial (c.age)
+  %39: I32 = convert inspect %38
+  %40: I32 = const 1000000
+  %41: I32 = sub inspect %39 inspect %40
+  %42: I32 = const 1000
+  %43: I32 = mul inspect %41 inspect %42
+  %44: I32 = add inspect %37 inspect %43
+  return take %44
+
+bb3(%24: I32):
+  %26: I32 = const 16
+  jump -> bb2(take %26, take %24)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call threaded
+  %1: I32 = call wide
+  %2: I32 = const 10
+  %3: I32 = mul inspect %1 inspect %2
+  %4: I32 = add inspect %0 inspect %3
+  %5: I32 = call loaned
+  %6: I32 = const 1000
+  %7: I32 = mul inspect %5 inspect %6
+  %8: I32 = add inspect %4 inspect %7
+  %9: I32 = call returned
+  %10: I32 = const 10000
+  %11: I32 = mul inspect %9 inspect %10
+  %12: I32 = add inspect %8 inspect %11
+  %13: I32 = call tally
+  %14: I32 = add inspect %12 inspect %13
+  %15: I32 = call kept
+  %16: I32 = add inspect %14 inspect %15
+  %17: I32 = call nested
+  %18: I32 = const 7
+  %19: I32 = mul inspect %17 inspect %18
+  %20: I32 = add inspect %16 inspect %19
+  %21: I32 = call erased
+  %22: I32 = const 3
+  %23: I32 = mul inspect %21 inspect %22
+  %24: I32 = add inspect %20 inspect %23
+  %25: I32 = call swapped
+  %26: I32 = add inspect %24 inspect %25
+  %27: I32 = call cells
+  %28: I32 = add inspect %26 inspect %27
+  return take %28
+}
+
+entry main

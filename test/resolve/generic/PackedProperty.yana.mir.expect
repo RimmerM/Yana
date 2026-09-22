@@ -1,0 +1,193 @@
+module ResolveTest
+
+data Bits {flag: Bool, other: Bool, level: @bits(4) U32}
+
+data Mixed {size: I32, flag: Bool, ready: Bool, level: @bits(4) U32}
+
+data Quiet {flag: Bool, other: Bool, level: @bits(4) U32}
+
+fn readFlag(x: a [shared call]) -> Bool {
+  form erased
+  slot #0 type a
+  slot #1 property a.flag
+bb0:
+  %0: Bool = read copy.trivial (x.flag)
+  return take %0
+}
+
+fn setFlag(x: a [unique call]) -> Bool {
+  form erased
+  slot #0 type a
+  slot #1 property a.flag
+bb0:
+  %0: Bool = const True
+  write.assign borrow.unique (x.flag) take %0
+  %2: Bool = read copy.trivial (x.flag)
+  return take %2
+}
+
+fn score(flag: Bool [shared call], other: Bool [shared call], level: U32 [shared call]) -> I32 {
+  local & n: I32
+
+bb0:
+  %0: U32 = read copy.trivial (level)
+  %1: I32 = bitcast inspect %0
+  write.init borrow.unique (n) take %1
+  %3: Bool = read copy.trivial (flag)
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: Bool = read copy.trivial (other)
+  branch inspect %10 -> bb6 -> bb4
+
+bb3:
+  %5: I32 [unique call] = read borrow.unique (n) loan0
+  %6: I32 = const 100
+  %7: {} = call +=(I32) borrow.unique %5 borrow.shared %6
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %17: I32 = read copy.trivial (n)
+  return take %17
+
+bb6:
+  %12: I32 [unique call] = read borrow.unique (n) loan1
+  %13: I32 = const 1000
+  %14: {} = call +=(I32) borrow.unique %12 borrow.shared %13
+  jump -> bb5
+}
+
+fn main() -> I32 {
+  local & b: Bits
+  local & m: Mixed
+  local & q: Quiet
+
+bb0:
+  %0: Bool = const False
+  %1: Bool = const True
+  %2: U32 = const 5
+  %3: @bits(4) U32 = convert inspect %2
+  %4: Bits = aggregate.Bits take %0 take %1 take %3
+  write.init borrow.unique (b) take %4
+  %6: Bits = read copy.trivial (b)
+  %7: Bool = call readFlag(Bits) borrow.shared %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %12: Bits [unique call] = read borrow.unique (b) loan0
+  %13: Bool = call setFlag(Bits) borrow.unique %12
+  %14: Bool = const False
+  %15: Bool = eq inspect %13 inspect %14
+  branch inspect %15 -> bb6 -> bb4
+
+bb3:
+  %9: I32 = const -1
+  return take %9
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %20: Bool = read copy.trivial (b.flag)
+  %21: Bool = const False
+  %22: Bool = eq inspect %20 inspect %21
+  branch inspect %22 -> bb9 -> bb7
+
+bb6:
+  %17: I32 = const -2
+  return take %17
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %27: I32 = const 20000
+  %28: Bool = const False
+  %29: Bool = const True
+  %30: U32 = const 9
+  %31: @bits(4) U32 = convert inspect %30
+  %32: Mixed = aggregate.Mixed take %27 take %28 take %29 take %31
+  write.init borrow.unique (m) take %32
+  %34: Mixed = read copy.trivial (m)
+  %35: Bool = call readFlag(Mixed) borrow.shared %34
+  branch inspect %35 -> bb12 -> bb10
+
+bb9:
+  %24: I32 = const -3
+  return take %24
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %40: Mixed [unique call] = read borrow.unique (m) loan1
+  %41: Bool = call setFlag(Mixed) borrow.unique %40
+  %42: Bool = const False
+  %43: Bool = eq inspect %41 inspect %42
+  branch inspect %43 -> bb15 -> bb13
+
+bb12:
+  %37: I32 = const -4
+  return take %37
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %48: Bool = read copy.trivial (m.flag)
+  %49: Bool = const False
+  %50: Bool = eq inspect %48 inspect %49
+  branch inspect %50 -> bb18 -> bb16
+
+bb15:
+  %45: I32 = const -5
+  return take %45
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %55: Bool = const False
+  %56: Bool = const False
+  %57: U32 = const 3
+  %58: @bits(4) U32 = convert inspect %57
+  %59: Quiet = aggregate.Quiet take %55 take %56 take %58
+  write.init borrow.unique (q) take %59
+  %61: Bool = const True
+  write.assign borrow.unique (q.other) take %61
+  %63: Bool = read copy.trivial (b.flag)
+  %64: Bool = read copy.trivial (b.other)
+  %65: @bits(4) U32 = read copy.trivial (b.level)
+  %66: U32 = convert inspect %65
+  %67: I32 = call score borrow.shared %63 borrow.shared %64 borrow.shared %66
+  %68: I32 = read copy.trivial (m.size)
+  %69: I32 = add inspect %67 inspect %68
+  %70: Bool = read copy.trivial (m.flag)
+  %71: Bool = read copy.trivial (m.ready)
+  %72: @bits(4) U32 = read copy.trivial (m.level)
+  %73: U32 = convert inspect %72
+  %74: I32 = call score borrow.shared %70 borrow.shared %71 borrow.shared %73
+  %75: I32 = add inspect %69 inspect %74
+  %76: Bool = read copy.trivial (q.flag)
+  %77: Bool = read copy.trivial (q.other)
+  %78: @bits(4) U32 = read copy.trivial (q.level)
+  %79: U32 = convert inspect %78
+  %80: I32 = call score borrow.shared %76 borrow.shared %77 borrow.shared %79
+  %81: I32 = add inspect %75 inspect %80
+  return take %81
+
+bb18:
+  %52: I32 = const -6
+  return take %52
+}
+
+entry main

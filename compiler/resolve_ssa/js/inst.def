@@ -77,6 +77,13 @@ YANA_JSIR_INST( Clone,        JsInstClone,        "clone"_v,        kOneResult, 
  */
 YANA_JSIR_INST( Alias,        JsInstAlias,        "alias"_v,        kOneResult,    kJsPure )
 
+/*
+ * A packed word built from narrow fields - a scalarized record, or one `$pN` property of a record
+ * whose narrow fields share a word. Pure: the result is a number, and a construction whose operands
+ * are all constants is folded to one by `JsBuilder::pack` before it is ever built.
+ */
+YANA_JSIR_INST( Pack,         JsInstPack,         "pack"_v,         kOneResult,    kJsPure )
+
 YANA_JSIR_INST( Load,         JsInstLoad,         "load"_v,         kOneResult,    kJsReads )
 YANA_JSIR_INST( Store,        JsInstStore,        "store"_v,        kNoResult,     kJsWrites )
 

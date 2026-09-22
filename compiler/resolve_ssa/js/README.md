@@ -33,7 +33,7 @@ optimizer switched off since J72, which is a third row.
 | `vector.cpp` | every operation over a multi-part value - asked **before** the scalar switch, on the representation rather than on the type |
 | `cfg.h/.cpp` | `JsCfg` - reverse postorder, immediate dominators, loop membership and reachability, computed **once** per body and read by the verifier, the optimizer and the AST tier alike |
 | `verify.cpp` | construction, finished-CFG and representation verification - on in every build |
-| `opt.h` + `opt_alias.cpp` | the JSIR optimizer - §6.3's copy-to-alias elision and the forwarding and dead-code walks it needs to pay. Switchable off whole with `-no-jsir-opt` |
+| `opt.h`, `opt_internal.h` + `opt_*.cpp` | the JSIR optimizer, one `Optimizer` split by the question each pass answers (J93): `opt_analysis` the indexes (uses, dominance, positions, variable touches) and the editing helpers, `opt_alias` §6.3's copy-to-alias elision and the literal forwarding beside it, `opt_move` a copy at the last use, `opt_number` value numbering and decided branches, `opt_objects` where an object is built and whether it needs to be one, `opt_variables` scalar replacement and dead stores, `opt_driver` the order. Switchable off whole with `-no-jsir-opt` |
 | `opt_coalesce.h/.cpp` | §6.8's block-argument coalescing - *which* arguments may share a variable. What one is called is still `codegen/js/structure.cpp`'s |
 | `print.cpp` | `-mode jsir` - the bodies, then the representation and shape declarations, which are only complete once every body has asked for one |
 
@@ -111,6 +111,11 @@ they were, and which J79 measured at a third of this tier's whole allocation cou
 `HostString`, `GcObject{shape}`, `HostArray{element, typed-array kind, length}`,
 `Parts{parts, materialized?}`, `Cell{content}` and `Erased`.
 
+There is no packed kind. A record packed whole is a plain `Number{Unsigned, span}` and a `$pN` word
+is a property of that representation (`JsPropertyRole::StorageUnit`); what says which bits are which
+field is the `JsPacking` row the record names, read by the one place that decodes it - a
+`JsPlaceKind::BitRange`. On by default since J85; see "Packed places" below.
+
 Seven of them are decisions rather than transcriptions of the plan:
 
 - **`Parts` is N values and never one.** A logical value whose manifestation is `Parts` is N JSIR
@@ -172,7 +177,8 @@ a change to three functions rather than to every site a sum is reached from:
   consumer writes folds against it (`foldTernaryCompare` in `codegen/js/opt.cpp`, which already
   existed for the shipping backend's own folded tags). The projection of
   `InstFieldAddress::kDiscriminant` answers that *value* rather than a place, which is the state
-  `placeOf` already knows;
+  `placeOf` already knows - and it is read when the projection is converted, so it is one of the
+  projections J91 converts again at a use (below);
 - **the payload place** is the base's place read at the payload's representation -
   `JsBuilder::addNichePayload`, a copy of the place with `JsPlace::nichePayload` set, which is the
   one licence `checkPlace` grants against a shape's property representation. `Downcast` being the
@@ -252,8 +258,8 @@ Two rules follow and both are `manifestNative`'s, read here rather than invented
   reachable only once an inlining decision left the call below it out of line, which is why it
   survived every sweep until one did.
 
-**A reference crosses flat** - `(owner, key)`, §3.2's narrow-reference row minus the scale this
-target has no packed places for. A descriptor is already a pair of host values, so the object around
+**A reference crosses flat** - `(owner, key)`, §3.2's narrow-reference row; J84 added the scale
+that makes it reach a field packed into a word. A descriptor is already a pair of host values, so the object around
 it buys nothing at a position that takes two arguments and costs one allocation at every mutable
 borrow crossing a call: 867 in `Base.js` against 223, and 819 of those were `{$o: box, $k: "$v"}` - a
 reference to a whole boxed local. It also takes a level off every read *inside* the callee, which is
@@ -405,7 +411,7 @@ var $ge$twiceMark = [$d$I32, $w$Marked];
   JSIR CFG and nothing else about JSIR, and the CFG is unchanged across the boundary - which is what
   `JsCfg` being computed once and read on both sides of it now says out loud.
 
-## The optimizer - one pass, five rewrites
+## The optimizer - one pass, many rewrites
 
 `opt_alias.cpp` since 2026-09-22 (J72), run between the conversion and the AST builder and
 switchable off whole with **`-no-jsir-opt`** - Analysis-IR-JS.md §10.2's third configuration, which
@@ -457,6 +463,17 @@ from 703 to **2,487** when those two landed and the alias chain was followed to 
 Every rewrite here replaces one instruction with an **`Alias` of a value already in scope**, which is
 why none of them rewrites an operand list: the result value keeps its identity and its users never
 learn anything changed. `Alias` emits nothing at all in `structure.cpp`.
+
+**A projection of storage that is not the object is converted again at a use** that follows a write
+or a call (J91, `reprojectIfStale` in `convert_internal.h`). A field or element address of a
+variable, a property or a cell *loads* the object out of that storage where the projection is
+converted. Natively an address is a pure function of its base, so the shared optimizer computes one
+once and reuses it across a whole store to the base - `acc.count` before `acc = {acc | ...}` and
+after it - and here that store rebinds the storage to a new object, which the old load does not see.
+So the row remembers where the owner was loaded (`JsTargetValue::projectedIn`), and a use in another
+block, or after anything in the same block that writes or calls, converts the projection again. The
+alternative was to refuse the reuse in the shared optimizer, which is a native cost for a JavaScript
+representation. `Base.js` moved by a few hundred bytes.
 
 **Two use counts, and they answer different questions.** `JsValue::uses` is the construction count
 `codegen/js/opt.cpp` reads to decide whether an expression may be written at its single use, and it
@@ -542,8 +559,176 @@ is computed once per body and only for a body that has a candidate. An **irreduc
 refused rather than approximated: a retreating edge whose target does not dominate its source names
 a cycle no natural loop describes, and `test/base` contains no such body.
 
+**The sixth and seventh are the live-range half of §6.3** (2026-09-22, J82), J72 §9's fifth item.
+The four conditions above are asked of the whole body, so a copy whose source was written *before*
+it, or whose copy is returned, survived even where nothing named the source again - `return p` from
+a `let &p` was `return { a: s0.a, b: s0.b }`. Two narrower rules take those shapes without a
+liveness analysis:
+
+- **`moveLastUses`: a clone at the last use of a local is a move.** Every name for the slot's object
+  - each load of the slot, each alias of one, each object-valued property read out of one - is used
+  only before the clone, in its own block or in one dominating it. Outside a loop that is an order
+  by dominance; **inside one** (J86) the block must also be in exactly the clone's loops, which makes
+  it "earlier in this iteration", and every load of the slot must be preceded in its own iteration by
+  a store to it (`refilledFirst`), so what the next iteration reads is never the moved object -
+  `xs[i] = {xs[i] | ...}` in a loop is one clone rather than two. None of those names was ever kept, and every object
+  the slot ever holds, nested fields included, is owned outright: a fresh allocation used once or a
+  clone that is still one, **never an `Alias`**. That last clause is what the move adds - aliasing
+  the copy hands out its nested objects too, and one of them may be a field `aliasCopies` shared.
+  After it, the copy may be written, returned or kept like any owned value.
+- **`readThroughCopies`: a clone read only for numbers is answered from its source** when every read
+  is in the clone's block and nothing between the clone and the last read writes or calls. A store
+  into a `Var` is the one write let through, and the copy may pass through one variable on the way -
+  `let i = o.inner` is a store and a load back. The source may be any root, a `Property` included.
+
+Both run after `aliasCopies` has been applied and the index rebuilt, so a clone that pass made an
+alias is seen as the alias it now is; and `aliasCopies` in the next round follows a moved copy through
+its `alias` like any other name. Both count under `aliased`. `test/resolve/AliasLastUse.yana` is the
+fixture - records with an `F64` in them, so no packing slice will turn the clones into numbers - and
+`JsirTester`'s shared-position test gained a third variant, since its body was a clone at the last
+use of its local and had quietly become a move. `doc/progress/2026-09-22-J82-jsir-alias-last-use.md`
+is the account.
+
+**The eighth is `numberValues`** (2026-09-22, J86): value numbering over the dominator tree, for the
+redundancy an `@inline(always)` graft leaves once per copy. `xs[i] = {xs[i] | f: xs[i].f + 1}` is four
+grafted subscripts, each with its own bounds check and element read, and OSSA's `cse` removes none of
+them: a window's length is a field of a view record it roots in no allocation, and it declines a
+comparison across blocks on purpose. Here the window is flat values (J71), so the four lengths are
+already one value and what was missing was a pass saying the four checks are one:
+
+- a `binary`, `unary`, `coerce` or `convert` over the same canonical operands as one in scope
+  becomes an alias of it - except a comparison in another block (numbered, not rewritten, for
+  `cse.cpp`'s materialization reason) and a computation over constants alone, which is spelled at
+  its use (`Scalars.yana` grew `var`s the one time it was not excluded). `0 + i` at an integer
+  representation is `i`;
+- a read of a property, an element or a range of either is answered by an identical read in scope,
+  where scope ends at a block with more than one way in and at any write that is not a local or any
+  call; a range of an element whose whole word a read already produced becomes a range of that value
+  (a `BitRange` over a `Value` place, the form a packed record that arrived as a value already has);
+- a branch on a condition a dominating arm decided - the arm's block entered only from that arm -
+  becomes a jump, and every block the entry no longer reaches is deleted - by reachability from the
+  entry since J91, because a loop in the dropped arm keeps a predecessor through its own back edge and
+  deleting only the blocks left with none kept it, with a `var` for its argument and a phantom
+  predecessor on the join. The cached `JsCfg` is dropped when that happens, and the argument
+  coalescing and `structure.cpp` skip a deleted block's arguments.
+
+**`dropWriteOnlyObjects`** (J86) sits in front of `dropDead`: an object every use of which is the
+owner of a property store is removed with its stores, which is the `{ $v: 0 }` box an inlined `for`
+over `items(xs)` wrote on every iteration and nobody opened. `test/resolve/LoopCleanup.yana` is the
+fixture for all three, with `stamp` as the loop-move negative.
+`doc/progress/2026-09-22-J86-jsir-loop-cleanup.md` is the account.
+
+**Three rewrites for boxes and updates** (J87), in `opt_number.cpp` and `opt_objects.cpp`:
+
+- **`foldConstantBranches`** answers `hostFixedCapacity` in JSIR with `structure.cpp`'s rule (a typed
+  row has a capacity, anything else does not) and decides every branch whose condition is a constant
+  or `eq`/`ne` of two integral ones. Before this the guarded `growJsArray(box, "$v", n)` call was
+  still in the body when the optimizer ran, and it was the one use keeping an inlined `push`'s array
+  local boxed.
+- **`unboxLocals`** turns a one-property box whose every use is a read or write of that property into
+  a variable: `{ $v: [] }` and `v.$v` become `var s = []` and `s`. Any other name for the box (a
+  descriptor, a call argument, a bit range, a niche view) refuses. Growth on the plain row never
+  replaces the array, but `xs = [...]` through a `&` does, so the box stays wherever the descriptor
+  still leaves the body - a non-inlined `push_String(box, "$v", x)` included. Removing *those* needs
+  an interprocedural "never rebinds" fact per parameter and a different ABI for it; not built.
+- **`updatesAsLiterals`** builds `{v | a: x}` of an object as one literal: the clone into a variable,
+  the stores into its fields and the read that uses it become an object built from the source's
+  unreplaced fields and the replacements, with a packed `$pN` word seeded from the source and run
+  through the updates' bit stores in one variable. The clone and that read must be joined by a
+  straight path (single-predecessor `jump`s) on which nothing but a variable or the copy is written
+  and nothing is called, so reading the source at the end sees what the clone saw. An unreplaced
+  field that is not a number, a boolean, a `BigInt` or a string refuses, since a clone copies an
+  object-valued field and a literal would share it. `test/resolve/ArrayBoxUpdate.yana` is the
+  fixture; `doc/progress/2026-09-22-J87-jsir-array-boxes-update.md` is the account.
+
+**A `match` over literal constants** (J88) is still one `JsInstMap` in JSIR - the semantic tag §5.6
+asks to survive - and `mapExpr` in `codegen/js/structure.cpp` spells it, in the order of what each
+costs to run: one literal where every arm agrees; a range test where two answers are all there are and
+one of them is a run (of the domain when the map is closed, of the integers when it is open); an affine
+step `s * k + b` (closed, or open over a dense run tested first, and only where every product, the
+bias and every answer are exact integers of a double - J91); a module-level table `$m[s - lo]`
+from four arms up where the span is at most four times the count and 256; and otherwise the `===`
+chain. An open table reads `T[i] ?? fallback` unless an arm is `null`, when it tests the range. Tables
+are interned by content (`Assembly::mapNames`) and the read carries the row's narrowest integer type,
+so the AST range walk still drops the `| 0` the chain made unnecessary. `JsInstMap::closed` and
+`closedFrom` keep the last arm's selector, which only the chain could do without. A niche-folded
+answer (`Nothing`/`Just(k)`) is a literal (`constantLiteral`), and an object arm stays a `Select`
+chain - never a table, for J69's reason - that skips any arm answering the fallback's record
+(`ssa::sameConstant`, moved up from `lower/map.cpp`). `test/resolve/ConstantMapTables.yana` is the
+fixture; `doc/progress/2026-09-22-J88-jsir-closure-ref-map-tables.md` is the account.
+
+**A record whose field is a unique loan is never transparent** (J88, `transparentContentOf`). A
+lambda's environment is the one that has such a field, and `environmentRecords` keeps it an object
+only while the lambda is reachable - once inlined everywhere, the environment's construction and the
+reads of a captured `&` survived and the record became the *value* it captured, so a callee that
+rebound the storage wrote into a box around a copy. `test/resolve/ClosureRefCapture.yana`.
+
+**Scalar replacement of records** (J89), three rewrites at the end of each round plus a wider
+`forwardFields` - the fold the shipping stage does by forwarding a whole-record store into a field
+load, and which native gets from `splitAggregateSlots` in the lower tier this target never runs:
+
+- **`splitRecordVariables`** makes a record variable one variable per property where every store
+  into it is a literal nothing else names (an `object`, or a `materialize` building one host object,
+  each value at its property's representation) and every load of it is only ever - through
+  `alias`es - the owner of a property read, a property write or a bit range over one property.
+  Anything else - a clone of it, an argument, an edge, a `Value` or `Cell` place, a niche payload, a
+  bit range over the variable itself - refuses the slot. So does an access **after a whole store**
+  (J91): a load observes the object in the slot when it ran, so every access through its names must
+  be reached from it with no whole store of the slot on the way - after it and before the next store
+  in its block, or in a block `floodClean` reaches cleanly. `aliasCopies` makes the other shape out
+  of `h(p, p)` with `&r` rebinding `p`, and the split answered the new record's fields for `q`. A record built on two paths needs nothing
+  more: each path stores its fields, and a variable is already what a join reads.
+- **`forwardVariables`** answers a variable's loads from its one store where that store dominates
+  them. **`dropDeadStores`** removes a whole store no path reads before the next one, by liveness over
+  that slot - asked of a slot nothing loads and of a slot some store fills with an allocation or a
+  constant, which covers the zero the conversion writes where a record local is declared.
+- **`storeLiteralFields`** writes a literal stored whole into a `Value` place as its values, property
+  by property, which is how `structure.cpp` spelled that store anyway.
+- **`forwardFields`** now follows `alias`es, whole reads of a `Value` place and clones nothing writes
+  to the literal, answers a `split` of a `materialize` with its part, and runs a second time at the
+  end of the round. Through a clone it forwards only a primitive, because a clone copies an
+  object-valued field - `ErasedCopy.yana` answers -7 instead of 25 without that rule.
+
+`structure.cpp` no longer declares a variable no instruction names. `test/resolve/RecordFields.yana`
+is the fixture; `doc/progress/2026-09-22-J89-jsir-scalar-replacement.md` is the account.
+
+**Text the per-body tiers could not remove** (J90), three mechanisms in three places:
+
+- **Calls to empty functions, and functions nothing reaches** - `sweepFunctions` in
+  `codegen/js/opt.cpp`, run by `genJsirProgram` over the whole file before the peephole and once
+  after it. A teardown's call is minted by `teardown.cpp` after the shared inliner ran, so a
+  `Reclaim` body that folded to nothing was still called (`Array_a_reclaim_I32(v9);`, 367 in
+  `Base.js`), and this tier's rewrites take the last use of helpers minted per use (`growJsArray_T`,
+  a devirtualized lambda) after `resolve_ssa/opt/reach.cpp` decided reachability. A call statement to
+  an empty function becomes what its arguments write, in order; a function no non-function
+  top-level statement reaches goes, with its `$h` header. To a fixed point. It is the only
+  whole-program pass on this target, and it is on the tree because bodies are converted, optimized
+  and structured one at a time on one reused arena.
+- **An edge value computed into its argument** - `coalesceEdgeValues` in `opt_coalesce.cpp`, read by
+  `defineBound` in `structure.cpp` through `JsCoalesced::into`. A result whose one use is an edge copy
+  into a block argument, defined in the block whose terminator copies it, is assigned to the
+  argument's variable where it is computed - `p5 = p5 + 1 | 0` rather than `var v673 = ...; p5 =
+  v673;` - where nothing after the definition reads the argument's class (no instruction, not the
+  terminator's operand, no other copy on any of its edges, following `alias`es), the class is live
+  out along no edge, and no other value of the block claimed the class. `emitEdge` now writes the
+  edge as the **parallel** copy it is: ordered so that no copy overwrites what a later one reads, and
+  a cycle broken through one `var t`. Before J90 a swap of two plain arguments came out as
+  `p1 = p2; p2 = p1;` - no fixture and nothing in `test/base` had one.
+- **Short-circuit chains** - four peephole rules in `codegen/js/opt.cpp`, gated on `jsirPipeline`:
+  nested `if`s without `else` are `&&`, two adjacent `if`s taking one jump are `||`, a labelled
+  region's guard becomes `if/else` where nothing else names the label, and an `if/else` assigning
+  one variable is a conditional (with `c ? (d ? x : y) : y` as `c && d ? x : y`). JavaScript's `&&`
+  is lazy, so none of this is speculation, and it runs after one-use bindings are folded into
+  conditions, which is what keeps `xs[i]` behind `i < length(xs)`. Not in `resolve_ssa/opt/select.cpp`:
+  that pass would have to prove a later condition safe to evaluate eagerly, and native does not
+  need the text.
+
+`test/resolve/TextCleanup.yana` is the fixture; `doc/progress/2026-09-22-J90-jsir-text-cleanup.md`
+is the account.
+
 `JsTarget::optimizer` counts what fired - clones seen, clones aliased, fields forwarded, instructions
-removed, storages adopted, allocations sunk - and `-mode jsir` prints one `optimizer` line per program, so "how much
+removed, storages adopted, allocations sunk, values numbered, branches decided, boxes unboxed, updates
+built as literals, records split, variable loads promoted - and `-mode jsir` prints one `optimizer` line per program, so "how much
 did this fire" is a `grep` over a dump. Every `.jsir.expect` golden carries that line, which is what makes a fixture's
 own diff say whether a rewrite reached it.
 
@@ -635,3 +820,37 @@ wrong together, and `exchange` is where they meet - it reads the old value out, 
 in, and hands back an object the write has already overwritten. One level is what a native relocation
 out of storage is, which is the difference from `Clone`, a second owner that recurses.
 `resolve/ExchangeStorage.yana` is the fixture, over the three storages that differ.
+
+**Packed places** (J83, on by default since J85). `JsTarget::scalarizeRecords` makes a
+record all of whose fields are narrow numbers one `Number{Unsigned, span}`, and `packFields` puts the
+narrow fields of a record that stays an object into `$pN` properties (`JsPropertyRole::StorageUnit`,
+with `JsShape::packedFields` as the per-shape field-to-(slot, range) map - `slotOfField` answers
+`kNoField` for a packed field on purpose). Which fields are candidates is read off the `JsRep` -
+narrow, a `number`, trivially copyable, not `@host`/`@box`, and never in a pinned record or a lambda
+environment - and where they land is `resolve_ssa/packing.h`, the *rule* the native layout also uses. The two
+targets share the rule and not the layout: natively the budget is 64 bits and on this target 53,
+and candidacy differs too (a `bigint` field, a witnessed field, J86's exactly-full whole record), so
+one record may be one word natively and two here. A field
+of either is a `JsPlaceKind::BitRange` over the word's place, a construction is a `Pack` that the
+builder folds when every operand is a constant, and `codegen/js/structure.cpp` decodes and
+read-modify-writes through `place.cpp`'s shared bit helpers. A record whose run exactly fills 8, 16
+or 32 bits is one number too since J86, unlike native, because what packing saves here is the object
+rather than bits. Whole-record scalarization is asked
+first and co-packing only of a record that cannot be one number (J84), which is the shipping
+backend's order. A field a **property witness** names never packs (`JsTarget::witnessedFields`,
+J85): a body compiled once reads it as `owner[key]`, so it keeps a property of its own while its
+neighbours still pack, and a record holding one is never one number. The shipping backend hands such
+a body a `{read, set}` accessor pair instead; here the answer is the layout, because the accessor
+would turn every erased field read into two calls to serve a layout this target is free not to pick.
+`generic/PackedProperty.yana` is the fixture.
+
+**The narrow reference** (J84, on with the same switches). Where something packs, a reference whose
+content is narrow (`jsRefCarriesScale`, which is `packableRep` of the content) crosses as three
+positions, `(owner, key, scale)`, and the callee's place is a `BitRange` with a `bitScale` over
+`owner[key]`, read and written through the borrowed `$bNx$get/set` helpers. The caller answers the
+scale: `2**offset` for a range of a word, times the incoming scale for a range of a reference, one
+for plain unsigned storage, and zero ("no range") for plain signed storage (`JsPlace::bitWhole`).
+Where such a reference has to be **one value** - an erased argument, a return, a phi, a capture - it
+is `Materialize`d into `$bitCell`'s accessor box, `{$o: box, $k: "$v"}`, so every `Cell` still reads
+and writes as `$o[$k]`. There is no arity guard; `abi.cpp` says why. A property witness on a packed
+field cannot arise (above); `assemble.cpp` still refuses one by name, as an invariant.

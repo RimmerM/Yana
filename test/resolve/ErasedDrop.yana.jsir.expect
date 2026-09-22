@@ -1,7 +1,6 @@
 fn Counted.drop(one %r0) -> omitted
   var $0: %r0
   block0(%0: %r0):
-    store var $0: %r0, %0
     %1: %r0 = load global live: %r0
     %2: %r0 = const 1n
     %3: %r0 = binary.sub %1, %2
@@ -12,7 +11,6 @@ fn Counted.drop(one %r0) -> omitted
 fn Holder.drop(one %r6) -> omitted
   var $0: %r6
   block0(%0: %r6):
-    store var $0: %r6, %0
     %1: %r0 = load global live: %r0
     %2: %r0 = const 1n
     %3: %r0 = binary.sub %1, %2
@@ -38,8 +36,7 @@ fn main() -> one %r2
     %11: %r0 = coerce %10
     store global live: %r0, %11
     %12: %r0 = alias %7
-    store var $1: %r0, %12
-    %13: %r0 = load var $1: %r0
+    %13: %r0 = alias %12
     call Counted.drop %13
     %14: %r0 = load global live: %r0
     %15: %r0 = const 0n
@@ -53,8 +50,7 @@ fn main() -> one %r2
     %21: %r0 = coerce %20
     store global live: %r0, %21
     %22: %r0 = alias %17
-    store var $2: %r0, %22
-    %23: %r0 = load var $2: %r0
+    %23: %r0 = alias %22
     call Counted.drop %23
     %24: %r0 = load global live: %r0
     %25: %r0 = const 0n
@@ -79,9 +75,8 @@ fn main() -> one %r2
     %34: %r0 = coerce %33
     store global live: %r0, %34
     %35: %r0 = alias %30
-    store var $3: %r0, %35
     %36: %r0 = load global live: %r0
-    %37: %r0 = load var $3: %r0
+    %37: %r0 = alias %35
     call Counted.drop %37
     %38: %r0 = const 10n
     %39: %r0 = binary.mul %36, %38
@@ -163,10 +158,9 @@ fn main() -> one %r2
     %85: %r4 = const 3
     %86: %r5 = object %s1 %84, %85
     %87: %r6 = object %s0 %86, %76
-    store var $4: %r6, %87
-    %88: %r6 = load var $4: %r6
+    %88: %r6 = alias %87
     call Holder.drop %88
-    %89: %r6 = load var $4: %r6
+    %89: %r6 = alias %87
     %90: %r5 = load property %89.items: %r5
     call Array(a).reclaim(I32) %90
     %91: %r0 = load global live: %r0
@@ -181,18 +175,10 @@ fn main() -> one %r2
     %95: %r9 = const "cd"
     %96: %r9 = const "ef"
     %97: %r10 = host host.array %94, %95, %96
-    %99: %r10 = alias %97
-    store var $0: %r10, %99
     %100: %r2 = const 3
-    %101: %r2 = const 0
     %102: %r9 = const ""
-    %103: %r2 = const 0
-    %104: %r14 = object %s4 %103
-    %105: %r2 = const 0
-    store property %104.$v: %r2, %105
     %106: %r2 = const 0
     %107: %r2 = const 1
-    %108: %r2 = const 0
     jump -> block24(%106, %102)
   block16:
     %166: %r2 = const -11
@@ -232,11 +218,9 @@ fn main() -> one %r2
     branch %130 -> block20 -> block19
   block23:
     %138: %r9 = alias %118
-    store var $5: %r9, %0
-    store var $6: %r9, %138
-    %139: %r9 = load var $5: %r9
+    %139: %r9 = alias %0
     %140: %r9 = alias %139
-    %141: %r9 = load var $6: %r9
+    %141: %r9 = alias %138
     %142: %r9 = alias %141
     %143: %r9 = alias %140
     %144: %r9 = alias %142
@@ -254,25 +238,23 @@ fn main() -> one %r2
     branch %151 -> block28 -> block26
   block26:
     %152: %r10 = alias %97
-    %153: %r2 = binary.add %101, %2
+    %153: %r2 = alias %2
     %154: %r2 = coerce %153
     %155: %r9 = load element %152[%154]: %r9
     %156: %r9 = alias %155
-    store var $7: %r9, %3
-    store var $8: %r9, %156
-    %157: %r9 = load var $7: %r9
+    %157: %r9 = alias %3
     %158: %r9 = alias %157
-    %159: %r9 = load var $8: %r9
+    %159: %r9 = alias %156
     %160: %r9 = alias %159
     %161: %r9 = alias %158
     %162: %r9 = alias %160
     %163: %r9 = host host.binary "+" %161, %162
-    store property %104.$v: %r2, %108
     %164: %r2 = binary.add %2, %107
     %165: %r2 = coerce %164
     jump -> block24(%165, %163)
   block27:
-    %110: %r10 = load var $0: %r10
+    %99: %r10 = alias %97
+    %110: %r10 = alias %99
     call Array(a).reclaim(String) %110
     %111: %r9 = const "abcdef"
     %112: %r9 = alias %3
@@ -289,27 +271,23 @@ fn main() -> one %r2
 fn push(Counted)(one %r8, one %r0) -> omitted
   var $0: %r0
   block0(%0: %r8, %1: %r0):
-    store var $0: %r0, %1
     %2: %r4 = load property %0.length: %r4
     %3: %r2 = convert %2
     %4: %r2 = const 1
     %5: %r2 = binary.add %3, %4
     %6: %r2 = coerce %5
     %7: %r7 = load property %0.items: %r7
-    %8: %r11 = host host.capacity %7
-    %9: %r11 = const 0
-    %10: %r11 = binary.eq %8, %9
-    branch %10 -> block1 -> block2
+    jump -> block2
   block1:
     %14: %r7 = load property %0.items: %r7
-    %15: %r0 = load var $0: %r0
+    %15: %r0 = alias %1
     store element %14[%3]: %r0, %15
     %16: %r15 = convert %6
     %17: %r4 = convert %16
     store property %0.length: %r4, %17
     return
   block2:
-    %11: %r7 = load property %0.items: %r7
+    %11: %r7 = alias %7
     %12: %r2 = host host.field "length" host-range %11
     %13: %r11 = binary.le %6, %12
     branch %13 -> block1 -> block3
@@ -321,17 +299,12 @@ fn Array(a).reclaim(Counted)(one %r8) -> omitted
   var $0: %r8
   var $1: %r0
   block0(%0: %r8):
-    %2: %r7 = array
-    %3: %r4 = const 0
-    %4: %r8 = object %s2 %2, %3
-    store var $0: %r8, %4
-    store var $0: %r8, %0
-    %5: %r8 = load var $0: %r8
+    %5: %r8 = alias %0
     %6: %r4 = load property %5.length: %r4
     %7: %r2 = convert %6
     %8: %r2 = const 0
     %9: %r2 = const 1
-    %10: %r8 = load var $0: %r8
+    %10: %r8 = alias %0
     %11: %r7 = load property %10.items: %r7
     jump -> block1(%8)
   block1(%1: %r2):
@@ -342,8 +315,7 @@ fn Array(a).reclaim(Counted)(one %r8) -> omitted
   block3:
     %13: %r2 = convert %1
     %14: %r0 = load element %11[%13]: %r0
-    store var $1: %r0, %14
-    %15: %r0 = load var $1: %r0
+    %15: %r0 = alias %14
     call Counted.drop %15
     %16: %r2 = binary.add %1, %9
     %17: %r2 = coerce %16
@@ -352,13 +324,11 @@ fn Array(a).reclaim(Counted)(one %r8) -> omitted
 fn Array(a).reclaim(String)(one %r10) -> omitted
   var $0: %r10
   block0(%0: %r10):
-    store var $0: %r10, %0
     return
 
 fn Array(a).reclaim(I32)(one %r5) -> omitted
   var $0: %r5
   block0(%0: %r5):
-    store var $0: %r5, %0
     return
 
 fn growJsArray(Counted)(one %r8, one %r2) -> omitted
@@ -373,12 +343,12 @@ fn growJsArray(Counted)(one %r8, one %r2) -> omitted
     %9: %r11 = binary.lt %7, %8
     %10: %r2 = const 4
     %11: %r2 = select %9, %10, %7
-    %12: %r7 = load property %0.items: %r7
+    %12: %r7 = alias %2
     %13: %r7 = host host.grow %12, %11
     store property %0.items: %r7, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 3 adopted 1 sunk 2
+optimizer clones 0 aliased 0 forwarded 0 removed 33 adopted 1 sunk 2 numbered 3 decided 1 unboxed 0 updated 0 split 0 promoted 14
 
 shape %s0 object Holder {items: %r5, tag: %r0}
 shape %s1 object Array {items: %r3, length: %r4}

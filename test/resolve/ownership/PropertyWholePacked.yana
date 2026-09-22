@@ -1,0 +1,39 @@
+{-
+   A field requirement read and written through a record packed into one word - J92.
+
+   # resolver: ownership
+
+   `Box` is fifty-five bits - a forty-one-bit `P` and two `Bool`s - and native placement packs all of
+   it into one eight-byte word, so `flag` is bit 53 of the word at offset 0. The property slot used to
+   say exactly that, and the body compiled once for `a.flag: Bool` loads what its own type is - one
+   byte - at the offset and shifts it right by 53, which is always zero. `setFlag` wrote into bits no
+   read ever saw and `getFlag` answered `False` whatever the record held. The slot is now split
+   against the unit the body loads, which is `borrowNarrow`'s rule: byte 6, bit 5.
+
+   JavaScript and the shipping stage were right throughout; `PackedProperty.yana` never reached this
+   because none of its records is a whole word with the field above bit 7.
+-}
+
+data P {a: @bits(20) I32, b: @bits(20) I32, c: Bool}
+data Box {x: P, flag: Bool, ok: Bool}
+
+@generic
+fn (a.flag: Bool) setFlag(&x: a):
+    x.flag = !x.flag
+
+@generic
+fn (a.flag: Bool) getFlag(x: a) -> Bool = x.flag
+
+fn main() -> Int:
+    let &by = Box {x: P {a: 1, b: 2, c: False}, flag: False, ok: False}
+    setFlag(by)
+    if !by.flag then return 1
+    if !getFlag(by) then return 2
+    if by.ok || by.x.a != 1 || by.x.b != 2 || by.x.c then return 3
+
+    by.flag = False
+    if getFlag(by) then return 4
+    by.ok = True
+    setFlag(by)
+    if !getFlag(by) || !by.ok || !by.flag then return 5
+    return 0

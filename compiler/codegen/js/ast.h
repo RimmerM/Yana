@@ -85,6 +85,11 @@ enum class BinaryOp: U8 {
 
     And, Xor, Or,
     LogicalAnd, LogicalOr,
+
+    // `??`. Its own precedence level is the loosest binary one, and the grammar refuses to mix it
+    // with `&&` or `||` unparenthesized in either direction - `format.cpp` states that where it
+    // prints one. Built only by a constant table's open read (J88), `T[i] ?? fallback`.
+    Nullish,
 };
 
 struct Expr {

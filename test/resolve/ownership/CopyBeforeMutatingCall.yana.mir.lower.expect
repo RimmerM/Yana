@@ -1,0 +1,143 @@
+
+poke<complex>(%r: Ptr) {
+  b_0 {
+    store %r, 99, 4
+    ret 
+  }
+}
+
+t1<complex>(%start: I32): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, %start, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 2, 4
+    call_complex poke, %v_1
+    ret %start
+  }
+}
+
+t2<complex>(%p: Ptr): I32 {
+  b_0 {
+    %v_1 = load %p, 4: I32
+    %v_2 = add %p, 4: Ptr
+    %v_3 = load %v_2, 4: I32
+    store %p, 7, 4
+    %v_4 = add %v_1, %v_3: I32
+    ret %v_4
+  }
+}
+
+t3<complex>(): I32 {
+  b_0 {
+    jmp b_1
+  }
+
+  b_2 {
+    %v_3 = cmp_ilt %v_4, 4: I32
+    je %v_3, b_1, b_5
+  }
+
+  b_5 {
+    %v_6 = imul %v_7, 1000: I32
+    %v_8 = add %v_6, %v_9: I32
+    ret %v_8
+  }
+
+  b_1 {
+    %v_10 = phi [b_2, %v_7], [b_0, 0]: I32
+    %v_11 = phi [b_2, %v_4], [b_0, 0]: I32
+    %v_9 = add %v_11, 100: I32
+    %v_7 = add %v_10, %v_11: I32
+    %v_4 = add %v_11, 1: I32
+    jmp b_2
+  }
+}
+
+t4<complex>(%start: I32): I32 {
+  b_0 {
+    %v_1 = imul %start, 100: I32
+    %v_2 = add %v_1, 50: I32
+    ret %v_2
+  }
+}
+
+t5<complex>(%o: Ptr): I32 {
+  b_0 {
+    %v_1 = add %o, 4: Ptr
+    %v_2 = load %v_1, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_3, 1: I32
+    store %v_1, 40, 4
+    %v_5 = imul %v_4, 100: I32
+    %v_6 = add %v_5, %v_2: I32
+    ret %v_6
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 2, 4
+    %v_3 = call_complex t1, 5: I32
+    %v_4 = call_complex t2, %v_1: I32
+    %v_5 = imul %v_4, 10: I32
+    %v_6 = add %v_3, %v_5: I32
+    %v_7 = call_complex t3: I32
+    %v_8 = add %v_6, %v_7: I32
+    %v_9 = call_complex t4, 3: I32
+    %v_10 = add %v_8, %v_9: I32
+    %v_11 = call_complex t5, %v_1: I32
+    %v_12 = add %v_10, %v_11: I32
+    %v_13 = cmp_neq %v_12, 6790: I32
+    je %v_13, b_14, b_15
+  }
+
+  b_15 {
+    %v_16 = call_complex t1, 5: I32
+    %v_17 = cmp_neq %v_16, 5: I32
+    je %v_17, b_18, b_19
+  }
+
+  b_14 {
+    ret 1
+  }
+
+  b_19 {
+    %v_20 = call_complex t2, %v_1: I32
+    %v_21 = cmp_neq %v_20, 47: I32
+    je %v_21, b_18, b_22
+  }
+
+  b_22 {
+    %v_23 = call_complex t5, %v_1: I32
+    %v_24 = cmp_neq %v_23, 4140: I32
+    je %v_24, b_18, b_25
+  }
+
+  b_25 {
+    %v_26 = loads %v_1, 4: I32
+    %v_27 = cmp_neq %v_26, 7: I32
+    je %v_27, b_18, b_28
+  }
+
+  b_28 {
+    %v_29 = add %v_1, 4: Ptr
+    %v_30 = loads %v_29, 4: I32
+    %v_31 = cmp_neq %v_30, 40: I32
+    jmp b_32
+  }
+
+  b_32 {
+    %v_33 = phi [b_28, %v_31], [b_18, 1]: I32
+    %v_34 = select %v_33, 2, 0: I32
+    ret %v_34
+  }
+
+  b_18 {
+    jmp b_32
+  }
+}
+

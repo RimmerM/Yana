@@ -1,0 +1,16 @@
+{-
+   A hosted `main` that takes parameters, in a module with nothing else to run (J91).
+
+   # resolver: ownership
+
+   A process entry has nothing to pass, so on a hosted target `main(x)` is not the entry - and with
+   no top-level statement either, the program has none. The driver used to say the module "declares
+   neither `main` nor any top-level statement", which is false: it declares a `main`, at the wrong
+   arity. The sentence now says which, and that only a `-target bare` entry takes arguments. Beside
+   top-level statements a `main(x)` is an ordinary function and nothing is reported.
+
+   The bare half - more than one `main` refused - is `bare/Reject.Entry.Overloads`, under the
+   bare target directive J93 added.
+-}
+
+fn main(x: Int) -> Int = x

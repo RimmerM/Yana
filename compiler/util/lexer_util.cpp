@@ -90,25 +90,35 @@ NumericLiteral parseNumericLiteral(const char*& p, const char* m) {
             lit.i = parseIntLiteral<10>(p, m, parseDigit, lit.overflowed);
         }
     } else {
-        // Check for a dot or exponent to determine if this is a float.
+        /*
+         * Check for a dot or exponent to determine if this is a float.
+         *
+         * **Running out of input is an integer**, and every look past `d` is bounded by `m` rather
+         * than by `p`. The scan used to leave the loop by its condition when the digits reached the
+         * end of the buffer, and the only code after the loop was the float path - so a file whose
+         * last token was `0` read it as the float `0.0` and reported "no instance of FromDecimal"
+         * at a `return 0`. The `m - p` bounds were the same mistake the other way: they measured
+         * from the literal's start, so `d[1]` could read one past the end.
+         */
         auto d = p + 1;
-        while(d < m) {
-            if(*d == '.' && m - p >= 2 && isDigit(d[1])) {
-                // The first char after the dot must be numeric, as well.
-                break;
-            } else if((*d == 'e' || *d == 'E') && m - p >= 2) {
-                // This is an exponent. If it is valid, the next char needs to be a numeric,
-                // with an optional sign in-between.
-                if(d[1] == '+' || d[1] == '-') d++;
-                if(isDigit(d[1])) {
-                    break;
-                } else {
-                    // This wasn't a valid float.
-                    lit.i = parseIntLiteral<10>(p, m, parseDigit, lit.overflowed);
-                    return lit;
-                }
-            } else if(!isDigit(*d)) {
-                // This wasn't a valid float.
+        while(true) {
+            if(d >= m || (!isDigit(*d) && *d != '.' && *d != 'e' && *d != 'E')) {
+                lit.i = parseIntLiteral<10>(p, m, parseDigit, lit.overflowed);
+                return lit;
+            }
+
+            if(*d == '.') {
+                // The first char after the dot must be numeric, as well - `1..n` is a range.
+                if(m - d >= 2 && isDigit(d[1])) break;
+                lit.i = parseIntLiteral<10>(p, m, parseDigit, lit.overflowed);
+                return lit;
+            }
+
+            if(*d == 'e' || *d == 'E') {
+                // An exponent is a digit after the marker, with an optional sign in-between.
+                auto e = d + 1;
+                if(e < m && (*e == '+' || *e == '-')) e++;
+                if(e < m && isDigit(*e)) break;
                 lit.i = parseIntLiteral<10>(p, m, parseDigit, lit.overflowed);
                 return lit;
             }

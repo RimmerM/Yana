@@ -1,5 +1,6 @@
 #include "repr.h"
 #include "name.h"
+#include "../packing.h"
 
 /*
  * See repr.h. This is the table; `abi.h` is the call convention over it and `convert.cpp` is its one
@@ -52,6 +53,7 @@ StringView jsPlaceKindName(JsPlaceKind kind) {
         case JsPlaceKind::Element:  return "element"_v;
         case JsPlaceKind::Global:   return "global"_v;
         case JsPlaceKind::Value:    return "value"_v;
+        case JsPlaceKind::BitRange: return "bits"_v;
     }
 
     return "?"_v;
@@ -66,6 +68,7 @@ StringView jsPropertyRoleName(JsPropertyRole role) {
         case JsPropertyRole::Env:   return "env"_v;
         case JsPropertyRole::Owner: return "owner"_v;
         case JsPropertyRole::Key:   return "key"_v;
+        case JsPropertyRole::StorageUnit: return "unit"_v;
     }
 
     return "?"_v;
@@ -484,8 +487,45 @@ JsRepId jsCellRep(JsTarget& target, JsRepId content) {
     return internRep(target, rep);
 }
 
+static bool packableRep(JsTarget& target, JsRepId id, U32& bits, bool& isSigned);
+
+/*
+ * Whether a reference to `content` carries a **scale** - the shipping backend's
+ * `narrowRefCarriesScale`, asked of the content rather than of the target alone.
+ *
+ * Only a content that could be a field of a packed word can be named by a range, and that is
+ * exactly `packableRep`'s answer, since a range is only ever built over a field that answered yes -
+ * so a `&U8` or a `&Int` stays the two-part pair even with both switches on. And nothing carries
+ * one while nothing packs, for the shipping backend's reason: a target with no ranges in it has
+ * every narrow value at offset zero of the storage it names, so while nothing is packed nothing may
+ * pay for the arithmetic.
+ */
+bool jsRefCarriesScale(JsTarget& target, JsRepId content) {
+    if(!target.packFields && !target.scalarizeRecords) return false;
+
+    U32 bits = 0;
+    bool isSigned = false;
+    return content.valid() && packableRep(target, jsStoredRep(target, content), bits, isSigned);
+}
+
+/*
+ * A reference passed flat: `(owner, key)`, or `(owner, key, scale)` where the content is narrow.
+ *
+ * The scale is a float, because it is `2**offset` of a word up to 53 bits wide and a multiplier
+ * rather than anything the integer tower should wrap. The materialized form is the `{$o, $k}` pair
+ * in both cases, which is the J84 decision the shipping backend does not take: its one-value form is
+ * `{$o, $k, $s}` and every reader of a reference reads the scale. Here a three-part reference that
+ * has to become one value becomes `$bitCell`'s accessor box instead (`codegen/js/place.cpp`), so a
+ * `Cell` - an erased argument, a stored or returned reference, a phi - keeps meaning `$o[$k]` and
+ * the erased ABI stays one object whatever the substitution packs.
+ */
 JsRepId jsCellPartsRep(JsTarget& target, JsRepId content) {
     auto erased = jsErasedRep(target);
+    if(jsRefCarriesScale(target, content)) {
+        JsRepId parts[3] = { erased, erased, jsNumberRep(target, NumberDomain::Float64, 64) };
+        return jsPartsRep(target, Buffer<JsRepId>(parts, 3), jsCellRep(target, content));
+    }
+
     JsRepId parts[2] = { erased, erased };
     return jsPartsRep(target, Buffer<JsRepId>(parts, 2), jsCellRep(target, content));
 }
@@ -573,6 +613,28 @@ DeclPtr<mir::Type> transparentContentOf(JsTarget& target, DeclPtr<mir::Type> rec
     // The one field the value is, and whatever `@host` fields follow it.
     auto first = declared.fields.get(target.decl, constructor.first);
     if(first.host || first.boxed || isUnitType(target, first.occurrence.type)) return nullptr;
+
+    /*
+     * A field holding a **unique loan** is not the value it names, so the record cannot be that
+     * value either. What the property holds is the reference - the `{$o, $k}` descriptor where the
+     * content needs a cell, the object where it is one - and a transparent record handed on the
+     * *content*: a write through the field then landed in a box built around a copy.
+     *
+     * A lambda's environment is the record that has such a field, and `environmentRecords` normally
+     * keeps it an object; it stops doing so once the lambda is inlined everywhere and so unreachable,
+     * while the construction and the reads of the captured `&` survive in the body it was inlined
+     * into. `let g = (n: Int) -> swapIn(e, n)` with `swapIn` assigning a new array answered the old
+     * array on JavaScript, a captured `&s: Int` passed to `bump` the old number, and a captured
+     * `&p: Point` was a verifier refusal (J88). Every unique loan rather than only the ones that need
+     * a cell, because the object case - the reference *is* the content - would be transparent over a
+     * `GcObject`, a combination no other record produces and nothing downstream builds. Asked here
+     * rather than by keeping every environment, because a capture that is only read is still free to
+     * be the value.
+     */
+    if(!first.occurrence.contract.isOwned() &&
+       first.occurrence.contract.access() == mir::Access::Unique) {
+        return nullptr;
+    }
 
     auto hosted = false;
     for(U16 i = 1; i < constructor.count; i++) {
@@ -860,6 +922,12 @@ static bool scalarizesHere(JsTarget& target, DeclPtr<mir::Type> type, mir::Type*
     if(!mir::isTriviallyCopyable(target.decl, type)) return false;
 
     auto& shape = target.shape(shapeId);
+
+    // A record whose narrow fields share a `$pN` word is left an object. Its parts would be the
+    // properties, and a projection of the field would then be a decode of a part - a second arm of
+    // `FieldAddress` for a record `packFields` has already made cheaper to hold.
+    if(shape.packedFields.size()) return false;
+
     if(shape.properties.size() < kScalarizeLeast || shape.properties.size() > kScalarizeFields) return false;
 
     for(auto& property: shape.properties) {
@@ -867,6 +935,296 @@ static bool scalarizesHere(JsTarget& target, DeclPtr<mir::Type> type, mir::Type*
     }
 
     return true;
+}
+
+// ------------------------------------------------------------------------------------ packing
+
+namespace {
+
+// One property of a shape as the packing walk sees it - `packBits`' `valueBits`/`unitBits`, plus
+// what the field is held as. Zero bits for a property that owns its storage.
+struct JsPackMember {
+    U32 valueBits = 0;
+    U32 unitBits = 0;
+    bool isSigned = false;
+};
+
+using JsPackMembers = SmallArray<JsPackMember, 8>;
+
+} // namespace
+
+/*
+ * Whether a field held at this representation may share a word, and how many bits it owns.
+ *
+ * The native rule read off the `JsRep` rather than off the native `Repr`: **narrow** - fewer bits
+ * than its own natural storage, so a `@bits(20) U32`, a `Bool`, an enum's discriminant and a
+ * scalarized record are candidates and a `U8` or an `I32` is not - and a *number*. The second half
+ * is where the two targets part: a `bigint` field (`Long`, `@bits(54)` to `@bits(63)`) is narrow
+ * natively and is a different host type here, and there is no arithmetic that puts one into a
+ * `number` exactly. The explicit `kMaxNumberBits` test says the same thing twice on purpose, since a
+ * `Number` wider than that would be a representation bug that packing would turn into wrong bits.
+ */
+static bool packableRep(JsTarget& target, JsRepId id, U32& bits, bool& isSigned) {
+    auto& rep = target.rep(id);
+    if(rep.kind != JsRepKind::Number) return false;
+
+    switch(rep.domain) {
+        case NumberDomain::Bool01:   bits = 1; isSigned = false; break;
+        case NumberDomain::Signed:   bits = rep.bits; isSigned = true; break;
+        case NumberDomain::Unsigned: bits = rep.bits; isSigned = false; break;
+        case NumberDomain::Float32:
+        case NumberDomain::Float64:  return false;
+    }
+
+    if(!bits || bits > kMaxNumberBits) return false;
+    return bits < mir::storageBitsFor(U8(bits));
+}
+
+/*
+ * One member per property of `shape`, and whether the record may pack at all.
+ *
+ * The record-level refusals are the ones a caller could observe: a **pin** (`@layout(js)` promises
+ * one property per field and `@layout(c)`/`@layout(packed)` are a wire format - none of them is
+ * this compiler's to rearrange), a lambda's **environment** (its identity is what a closure shares),
+ * and more than one constructor, since a sum's arms overlap and co-packing across them is a later
+ * question. A field that is `@host` or `@box`, or whose value has an authored copy or release, never
+ * packs - the second for `packableValue`'s native reason: those calls take the field's address. Nor
+ * does a field a property witness names, which needs a property of its own for a body compiled once
+ * to read by name (`JsTarget::witnessedFields`); so a record with one is never one number.
+ */
+static bool packMembers(JsTarget& target, DeclPtr<mir::Type> type, mir::RecordType& record,
+                        const JsShape& shape, JsPackMembers& members) {
+    if(record.layout != mir::RecordLayout::Single || record.cons.size() != 1) return false;
+    if(record.pinned()) return false;
+    if(target.environmentRecords.contains(U32(type.offset))) return false;
+
+    for(auto& property: shape.properties) {
+        JsPackMember member;
+
+        if(property.role == JsPropertyRole::Field && property.field != JsProperty::kNoField) {
+            auto field = record.fields.get(target.decl, property.field);
+            auto held = field.occurrence.type;
+
+            auto witnessed = target.witnessedFields.contains((U64(type.offset) << 32) |
+                                                             U64(property.field));
+
+            U32 bits = 0;
+            bool isSigned = false;
+            if(!field.host && !field.boxed && !witnessed &&
+               packableRep(target, property.rep, bits, isSigned) &&
+               mir::isTriviallyCopyable(target.decl, held) && !jsOwesTeardown(target, held)) {
+                member.valueBits = bits;
+                member.unitBits = mir::storageBitsFor(U8(bits));
+                member.isSigned = isSigned;
+            }
+        }
+
+        members.push(member);
+    }
+
+    return true;
+}
+
+static U32 addPacking(JsTarget& target, DeclPtr<mir::Type> type, const JsShape& shape,
+                      const JsPackMembers& members, const ssa::PackOrder& order, Size from,
+                      const ssa::PackedRun& run, const ssa::PackOffsets& offsets) {
+    JsPacking packing;
+    packing.span = U8(run.span);
+    packing.word = jsNumberRep(target, NumberDomain::Unsigned, U8(run.span));
+    packing.source = type;
+
+    // In record order, which is the order a `Pack`'s operands are supplied in - placement order is
+    // `packOrder`'s business and nobody downstream should have to know it.
+    for(U32 slot = 0; slot < shape.properties.size(); slot++) {
+        for(U16 i = 0; i < run.count; i++) {
+            if(order[from + i] != slot) continue;
+
+            auto& property = shape.properties[slot];
+            packing.fields.push(JsPackedField {
+                property.field, U8(offsets[i]), U8(members[slot].valueBits), members[slot].isSigned,
+                property.rep
+            });
+        }
+    }
+
+    auto id = U32(target.packings.size());
+    target.packings.push(::move(packing));
+    return id;
+}
+
+/*
+ * The whole record as one word, or `kNoPacking` - `JsTarget::scalarizeRecords`.
+ *
+ * Every field narrow and placed in one run of at most 53 bits. At least two fields, since a record
+ * of one is transparent here before this is asked.
+ *
+ * A run that exactly *fills* its natural storage - 8, 16 or 32 bits - is packed too, since J86, and
+ * that is where this departs from the native `scalarizeRecord`. The native rule declines it because
+ * such a record is already a byte or a word there: it has no bits for a neighbour and no niche, so
+ * packing would buy one decode per field and nothing else. What packing buys on this target is not
+ * bits but **the object** - `PackTop`'s 8-bit `B1 {lo, hi}` was `{ $p0: n }`, one allocation per
+ * value to hold one number. A niche is not a reason either: `Maybe(T)` here is `T | null` whatever
+ * `T`'s representation is (J74).
+ */
+static U32 wholePackingOver(JsTarget& target, DeclPtr<mir::Type> type, mir::RecordType& record,
+                            const JsShape& shape, bool add) {
+    if(shape.properties.size() < 2) return JsProperty::kNoPacking;
+
+    JsPackMembers members;
+    if(!packMembers(target, type, record, shape, members)) return JsProperty::kNoPacking;
+
+    ssa::PackOrder order;
+    for(U16 i = 0; i < members.size(); i++) {
+        if(!members[i].valueBits) return JsProperty::kNoPacking;
+        order.push(i);
+    }
+
+    ssa::packOrder(members, order, false);
+
+    ssa::PackOffsets offsets;
+    auto run = ssa::packBits(members, order, 0, kMaxNumberBits, &offsets);
+    if(run.count != order.size()) return JsProperty::kNoPacking;
+
+    if(!add) return 0;
+    return addPacking(target, type, shape, members, order, 0, run, offsets);
+}
+
+static bool samePacking(const JsPacking& a, const JsPacking& b) {
+    if(a.word != b.word || a.fields.size() != b.fields.size()) return false;
+
+    for(U32 i = 0; i < a.fields.size(); i++) {
+        auto& x = a.fields[i];
+        auto& y = b.fields[i];
+        if(x.field != y.field || x.offset != y.offset || x.width != y.width ||
+           x.isSigned != y.isSigned || x.rep != y.rep) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/*
+ * Whether this occurrence of a record is its packed word - asked by `jsRep` of every record.
+ *
+ * The row is the **type's**, computed from the shapeless shape and memoized on the handle, because
+ * the place that reads it - a `FieldAddress` - knows the record and not the occurrence. An ownership
+ * shape can only change a field into a reference, which is never narrow, so the two answers differ
+ * only by one of them declining; where they do differ this declines, rather than packing a record
+ * one way and projecting it the other.
+ *
+ * And that difference is asserted never to happen, because `jsWholePackingRow` - what a projection
+ * asks - is keyed on the type alone and would still answer the row for an occurrence declined
+ * here. Keying the row on (type, shape) instead was the alternative; it would be the fix the day a
+ * shape can make a field narrow, and until then it is a second key nothing reaches.
+ */
+static const JsPacking* wholePackingOf(JsTarget& target, DeclPtr<mir::Type> type,
+                                       DeclPtr<mir::OwnershipSchema> shape_, mir::RecordType& record,
+                                       JsShapeId shapeId) {
+    U32 row = JsProperty::kNoPacking;
+    if(auto found = target.packingOfRecord.get(U32(type.offset))) {
+        row = found.unwrap();
+    } else {
+        auto plain = shape_ ? jsShapeOf(target, type, nullptr, kNullLocation) : shapeId;
+        row = wholePackingOver(target, type, record, target.shape(plain), true);
+        target.packingOfRecord.add(U32(type.offset), row);
+    }
+
+    if(row == JsProperty::kNoPacking) return nullptr;
+    if(!shape_) return &target.packings[row];
+
+    auto here = wholePackingOver(target, type, record, target.shape(shapeId), true);
+    assertTrue(here != JsProperty::kNoPacking);
+    if(here == JsProperty::kNoPacking) return nullptr;
+
+    // The row was only for comparing; it names nothing, so it is taken back off the table.
+    auto same = samePacking(target.packings[here], target.packings[row]);
+    target.packings.pop();
+    assertTrue(same);
+    return same ? &target.packings[row] : nullptr;
+}
+
+U32 jsWholePackingRow(JsTarget& target, DeclPtr<mir::Type> record) {
+    if(!record) return JsProperty::kNoPacking;
+    auto found = target.packingOfRecord.get(U32(record.offset));
+    return found ? found.unwrap() : JsProperty::kNoPacking;
+}
+
+const JsPacking* jsWholePackingOf(JsTarget& target, DeclPtr<mir::Type> record) {
+    auto row = jsWholePackingRow(target, record);
+    return row == JsProperty::kNoPacking ? nullptr : &target.packings[row];
+}
+
+/*
+ * The narrow fields of a record that stays an object, co-packed into `$pN` properties -
+ * `JsTarget::packFields`.
+ *
+ * The native `placeArm`'s loop: candidates in `packOrder`, runs of at most 53 bits, and **a field
+ * alone in a word is not packed** - it keeps its own property, and with it an address a borrow can
+ * name without a shift. Candidates need a second candidate in the record for the same reason, which
+ * is `packCandidate`'s. The `$pN` properties go after the plain ones, in run order, and the fields
+ * they absorbed leave the property list: a construction supplies each word as one `Pack`.
+ */
+static void coPack(JsTarget& target, DeclPtr<mir::Type> type, mir::RecordType& record,
+                   JsShape& shape) {
+    JsPackMembers members;
+    if(!packMembers(target, type, record, shape, members)) return;
+
+    ssa::PackOrder candidates;
+    for(U16 i = 0; i < members.size(); i++) {
+        if(members[i].valueBits) candidates.push(i);
+    }
+
+    if(candidates.size() < 2) return;
+    ssa::packOrder(members, candidates, false);
+
+    SmallArray<bool, 16> absorbed;
+    for(U32 i = 0; i < shape.properties.size(); i++) absorbed.push(false);
+
+    struct Unit { U32 packing; };
+    SmallArray<Unit, 4> units;
+
+    Size at = 0;
+    while(at < candidates.size()) {
+        ssa::PackOffsets offsets;
+        auto run = ssa::packBits(members, candidates, at, kMaxNumberBits, &offsets);
+        if(run.count < 2) {
+            at++;
+            continue;
+        }
+
+        units.push(Unit { addPacking(target, type, shape, members, candidates, at, run, offsets) });
+        for(U16 i = 0; i < run.count; i++) absorbed[candidates[at + i]] = true;
+        at += run.count;
+    }
+
+    if(!units.size()) return;
+
+    Array<JsProperty> kept;
+    for(U32 i = 0; i < shape.properties.size(); i++) {
+        if(!absorbed[i]) kept.push(shape.properties[i]);
+    }
+
+    for(U32 u = 0; u < units.size(); u++) {
+        char buffer[16] = { '$', 'p' };
+        auto length = 2 + show(U64(u), buffer + 2, sizeof(buffer) - 2);
+
+        auto& row = target.packings[units[u].packing];
+        JsProperty unit;
+        unit.key = jsInternText(target.context, target.interned, StringView { buffer, length });
+        unit.rep = row.word;
+        unit.role = JsPropertyRole::StorageUnit;
+        unit.packing = units[u].packing;
+
+        auto slot = U16(kept.size());
+        kept.push(unit);
+
+        for(auto& bits: row.fields) {
+            shape.packedFields.push(JsShapePackedField { bits.field, slot, bits });
+        }
+    }
+
+    shape.properties = ::move(kept);
 }
 
 static bool isBoolRecord(JsTarget& target, DeclPtr<mir::Type> type) {
@@ -951,6 +1309,21 @@ JsShapeId jsShapeOf(JsTarget& target, DeclPtr<mir::Type> record,
             propertyKey(target, declared, i), fieldRepOf(target, held, where),
             JsPropertyRole::Field, i
         });
+    }
+
+    /*
+     * **The whole record first, and co-packing only for one that cannot be a number** - the
+     * shipping backend's order (`scalarizeTuple` before `placeArm`), and the one that matters: a
+     * record co-packed first had one `$p0` property left and no longer met "at least two fields",
+     * so under both switches a 37-bit `{kind, live, count, age}` became `{ $p0: n }` - an object
+     * per element and a clone per update, where `scalarizeRecords` alone made it a number. The
+     * question is asked here without adding a row (`wholePackingOver`'s dry run), because the row
+     * itself is `jsRep`'s and is keyed on the type.
+     */
+    if(target.packFields &&
+       !(target.scalarizeRecords &&
+         wholePackingOver(target, record, declared, shape, false) != JsProperty::kNoPacking)) {
+        coPack(target, record, declared, shape);
     }
 
     target.shapes[id.index] = ::move(shape);
@@ -1119,6 +1492,19 @@ JsRepId jsRep(JsTarget& target, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipS
                 rep.kind = JsRepKind::GcObject;
                 rep.shape = jsShapeOf(target, type, shape_, where);
                 rep.source = type;
+
+                /*
+                 * A record of **narrow numbers** is one number - `JsTarget::scalarizeRecords`, and
+                 * the shipping backend's `scalarizeTuple`. Asked before the object is interned and
+                 * before `scalarizesHere`, because a packed record is a primitive and every rule
+                 * below is about something that has properties.
+                 */
+                if(target.scalarizeRecords) {
+                    if(auto packing = wholePackingOf(target, type, shape_, record, rep.shape)) {
+                        return packing->word;
+                    }
+                }
+
                 auto object = internRep(target, rep);
 
                 /*

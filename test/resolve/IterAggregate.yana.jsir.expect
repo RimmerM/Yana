@@ -16,11 +16,13 @@ fn main() -> one %r0
   var $2: %r11
   var $3: %r11
   var $4: %r11
+  var $5: %r10
+  var $6: %r10
+  var $7: %r10
+  var $8: %r10
+  var $9: %r10
+  var $10: %r10
   block0:
-    %10: %r5 = array
-    %11: %r6 = const 0
-    %12: %r7 = object %s1 %10, %11
-    store var $1: %r7, %12
     %13: %r0 = const 0
     %14: %r0 = const 0
     %15: %r1 = object %s0 %13, %14
@@ -31,18 +33,13 @@ fn main() -> one %r0
     %20: %r0 = const 5
     %21: %r1 = object %s0 %19, %20
     %22: %r3 = host host.array %15, %18, %21
-    %24: %r3 = alias %22
-    store var $0: %r3, %24
     %25: %r0 = const 1
     %26: %r0 = const 2
     %27: %r0 = const 3
     %28: %r0 = const 4
     %29: %r5 = host host.array %25, %26, %27, %28
     %30: %r6 = const 4
-    %31: %r7 = object %s1 %29, %30
-    store var $1: %r7, %31
     %32: %r0 = const 3
-    %33: %r0 = const 0
     %34: %r0 = const 0
     %35: %r0 = const 0
     %36: %r0 = convert %32
@@ -52,20 +49,10 @@ fn main() -> one %r0
     %38: %r2 = binary.lt %0, %36
     branch %38 -> block3 -> block2
   block2:
-    %39: %r0 = const 0
     %40: %r0 = const 0
-    %41: %r10 = fun.code positiveX
-    %42: %r10 = const null
-    %43: %r11 = object %s3 %41, %42
-    store var $2: %r11, %43
-    %44: %r0 = const 0
-    %45: %r12 = object %s4 %44
-    %46: %r0 = const 0
-    store property %45.$v: %r0, %46
     %47: %r0 = const 0
     %48: %r0 = convert %32
     %49: %r0 = const 1
-    %50: %r0 = const 0
     %51: %r0 = const 0
     jump -> block6(%47, %40)
   block3:
@@ -76,10 +63,10 @@ fn main() -> one %r0
     branch %145 -> block5 -> block4
   block4:
     %146: %r3 = alias %22
-    %147: %r0 = binary.add %33, %142
+    %147: %r0 = alias %142
     %148: %r0 = coerce %147
     %149: %r1 = load element %146[%148]: %r1
-    %150: %r1 = clone %149
+    %150: %r1 = alias %149
     %151: %r0 = load property %150.y: %r0
     %152: %r0 = binary.add %1, %151
     %153: %r0 = coerce %152
@@ -100,7 +87,7 @@ fn main() -> one %r0
     branch %127 -> block12 -> block8
   block8:
     %128: %r3 = alias %22
-    %129: %r0 = binary.add %39, %124
+    %129: %r0 = alias %124
     %130: %r0 = coerce %129
     %131: %r1 = load element %128[%130]: %r1
     %132: %r1 = clone %131
@@ -113,35 +100,15 @@ fn main() -> one %r0
     %137: %r0 = load property %136.y: %r0
     %138: %r0 = binary.add %3, %137
     %139: %r0 = coerce %138
-    store property %45.$v: %r0, %50
     jump -> block11(%139)
   block10:
     %53: %r0 = binary.add %1, %3
     %54: %r0 = coerce %53
-    %55: %r0 = const 0
     %56: %r0 = const 0
-    %57: %r10 = fun.code positiveX
-    %58: %r10 = const null
-    %59: %r11 = object %s3 %57, %58
-    store var $3: %r11, %59
-    %60: %r10 = fun.code yOf
-    %61: %r10 = const null
-    %62: %r11 = object %s3 %60, %61
-    store var $4: %r11, %62
-    %63: %r0 = const 0
-    %64: %r12 = object %s4 %63
-    %65: %r0 = const 0
-    store property %64.$v: %r0, %65
-    %66: %r0 = const 0
-    %67: %r12 = object %s4 %66
-    %68: %r0 = const 0
-    store property %67.$v: %r0, %68
     %69: %r0 = const 0
     %70: %r0 = convert %32
     %71: %r0 = const 1
-    %72: %r0 = const 0
     %73: %r0 = const 0
-    %74: %r0 = const 0
     jump -> block13(%69, %56)
   block11(%4: %r0):
     %140: %r0 = binary.add %2, %49
@@ -161,7 +128,7 @@ fn main() -> one %r0
     branch %108 -> block19 -> block15
   block15:
     %109: %r3 = alias %22
-    %110: %r0 = binary.add %55, %105
+    %110: %r0 = alias %105
     %111: %r0 = coerce %110
     %112: %r1 = load element %109[%111]: %r1
     %113: %r1 = clone %112
@@ -175,20 +142,19 @@ fn main() -> one %r0
     %119: %r0 = load property %118.y: %r0
     %120: %r0 = binary.add %6, %119
     %121: %r0 = coerce %120
-    store property %64.$v: %r0, %74
-    store property %67.$v: %r0, %72
     jump -> block18(%121)
   block17:
-    %76: %r3 = load var $0: %r3
+    %24: %r3 = alias %22
+    %76: %r3 = alias %24
     call Array(a).reclaim(Point) %76
     %77: %r0 = binary.add %54, %6
     %78: %r0 = coerce %77
-    %79: %r7 = load var $1: %r7
+    %31: %r7 = object %s1 %29, %30
+    %79: %r7 = alias %31
     %80: %r5 = load property %79.items: %r5
-    %81: %r7 = load var $1: %r7
+    %81: %r7 = alias %31
     %82: %r6 = load property %81.length: %r6
     %83: %r0 = convert %82
-    %84: %r0 = const 0
     %85: %r0 = const 0
     %86: %r0 = const 0
     %87: %r0 = convert %83
@@ -205,7 +171,7 @@ fn main() -> one %r0
     %89: %r2 = binary.lt %8, %87
     branch %89 -> block22 -> block21
   block21:
-    %90: %r7 = load var $1: %r7
+    %90: %r7 = alias %31
     call Array(a).reclaim(I32) %90
     %91: %r0 = binary.add %78, %9
     %92: %r0 = coerce %91
@@ -218,7 +184,7 @@ fn main() -> one %r0
     branch %96 -> block24 -> block23
   block23:
     %97: %r5 = alias %80
-    %98: %r0 = binary.add %84, %93
+    %98: %r0 = alias %93
     %99: %r0 = coerce %98
     %100: %r0 = load element %97[%99]: %r0
     %101: %r0 = binary.add %9, %100
@@ -233,16 +199,14 @@ fn main() -> one %r0
 fn Array(a).reclaim(Point)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
-    store var $0: %r3, %0
     return
 
 fn Array(a).reclaim(I32)(one %r7) -> omitted
   var $0: %r7
   block0(%0: %r7):
-    store var $0: %r7, %0
     return
 
-optimizer clones 8 aliased 5 forwarded 0 removed 1 adopted 0 sunk 0
+optimizer clones 8 aliased 6 forwarded 0 removed 46 adopted 0 sunk 1 numbered 4 decided 0 unboxed 0 updated 0 split 3 promoted 4
 
 shape %s0 object Point {x: %r0, y: %r0}
 shape %s1 object Array {items: %r5, length: %r6}

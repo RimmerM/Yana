@@ -24,15 +24,13 @@ fn pick(one %r1, one %r1) -> one %r1
   var $0: %r1
   var $1: %r1
   block0(%0: %r2, %1: %r1, %2: %r1):
-    store var $0: %r1, %1
-    store var $1: %r1, %2
     %3: %r3 = const 0
     %4: %r1 = load element %0[%3]: %r1
     %5: %r3 = const 2
     %6: %r1 = load element %4[%5]: %r1
-    %7: %r1 = load var $1: %r1
+    %7: %r1 = alias %2
     call.value %6, %7
-    %8: %r1 = load var $0: %r1
+    %8: %r1 = alias %1
     return %8
 
 fn main() -> one %r0
@@ -48,7 +46,7 @@ fn main() -> one %r0
     %8: %r0 = coerce %7
     return %8
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 2
 
 rep %r0 = number signed 32
 rep %r1 = erased

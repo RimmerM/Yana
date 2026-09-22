@@ -316,9 +316,35 @@ inline void applyPlatformDirective(CompileSettings& settings, StringView content
     }
 }
 
+/*
+ * `# target: bare` - `-target bare`, the freestanding operating system: no kernel, so the library's
+ * platform layer is `lib/Native/Bare.bare.x64.yana` rather than `Linux.linux.x64.yana`, and a `main`
+ * may take parameters because the loader enters it directly.
+ *
+ * The third directive about *what* a fixture is, and applied the way the command line applies the
+ * flag - `settleTargetAndFormat` with a target named and no format - so a fixture and `yana
+ * -target bare` build the same thing. Only the one value: every other operating system is either
+ * the host's, which is the default, or one this machine cannot run, and a bare fixture is one no
+ * driver runs either - it is asserted by its dumps and its diagnostics. `# format:` is not a
+ * directive, because nothing a fixture asserts reads the executable format.
+ */
+inline void applyTargetDirective(CompileSettings& settings, StringView content) {
+    auto directive = "# target: bare"_v;
+    if(content.length < directive.length) return;
+
+    for(Size i = 0; i + directive.length <= content.length; i++) {
+        if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
+
+        settings.target = TargetType::Bare;
+        settleTargetAndFormat(settings, true, false);
+        return;
+    }
+}
+
 inline void applyFixtureDirectives(CompileSettings& settings, StringView content) {
     applyExtensionDirective(settings, content);
     applyPlatformDirective(settings, content);
+    applyTargetDirective(settings, content);
     applyChecksDirective(settings, content);
     applyCheckLocationDirective(settings, content);
     applyInliningDirective(settings, content);

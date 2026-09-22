@@ -2,14 +2,6 @@ fn main() -> one %r0
   var $0: %r3
   var $1: %r7
   block0:
-    %54: %r1 = array
-    %55: %r2 = const 0
-    %56: %r3 = object %s0 %54, %55
-    store var $0: %r3, %56
-    %57: %r6 = array
-    %58: %r2 = const 0
-    %59: %r7 = object %s1 %57, %58
-    store var $1: %r7, %59
     %60: %r0 = const 1
     %61: %r0 = const 2
     %62: %r0 = const 3
@@ -23,8 +15,6 @@ fn main() -> one %r0
     %70: %r0 = const 11
     %71: %r1 = host host.array %60, %61, %62, %63, %64, %65, %66, %67, %68, %69, %70
     %72: %r2 = const 11
-    %73: %r3 = object %s0 %71, %72
-    store var $0: %r3, %73
     %74: %r5 = const 3
     %75: %r5 = const 1
     %76: %r5 = const 4
@@ -32,11 +22,8 @@ fn main() -> one %r0
     %78: %r5 = const 5
     %79: %r6 = host host.array %74, %75, %76, %77, %78
     %80: %r2 = const 5
-    %81: %r7 = object %s1 %79, %80
-    store var $1: %r7, %81
     %82: %r0 = const 0
     %83: %r0 = const 11
-    %84: %r0 = const 0
     %85: %r0 = const 0
     %86: %r0 = const 0
     %87: %r0 = const 4
@@ -62,9 +49,9 @@ fn main() -> one %r0
     %101: %r15 = binary.lt %97, %95
     %102: %r15 = binary.lt %98, %95
     %103: %r15 = binary.lt %99, %95
-    %104: %r0 = binary.add %84, %0
+    %104: %r0 = alias %0
     %105: %r0 = coerce %104
-    %106: %r0 = binary.add %84, %83
+    %106: %r0 = alias %83
     %107: %r0 = coerce %106
     %108: %r0 = const 1
     %109: %r0 = binary.sub %107, %108
@@ -101,7 +88,7 @@ fn main() -> one %r0
     %140: %r0 = coerce %139
     jump -> block5(%134, %136, %138, %140)
   block4:
-    %660: %r0 = binary.add %84, %0
+    %660: %r0 = alias %0
     %661: %r0 = coerce %660
     %662: %r0 = load element %71[%661]: %r0
     %663: %r0 = const 1
@@ -135,7 +122,6 @@ fn main() -> one %r0
     %148: %r14 = binary.eq %146, %147
     %149: %r0 = const 1
     %150: %r0 = select %148, %149, %82
-    %151: %r0 = const 0
     %152: %r0 = const 0
     %153: %r0 = const 4
     %154: %r0 = binary.sub %83, %153
@@ -158,9 +144,9 @@ fn main() -> one %r0
     %167: %r14 = binary.lt %9, %83
     branch %167 -> block8 -> block10(%10, %11, %12, %13)
   block8:
-    %168: %r0 = binary.add %151, %9
+    %168: %r0 = alias %9
     %169: %r0 = coerce %168
-    %170: %r0 = binary.add %151, %83
+    %170: %r0 = alias %83
     %171: %r0 = coerce %170
     %172: %r0 = const 1
     %173: %r0 = binary.sub %171, %172
@@ -208,7 +194,7 @@ fn main() -> one %r0
     %217: %r0 = select %213, %13, %209
     jump -> block10(%214, %215, %216, %217)
   block9:
-    %632: %r0 = binary.add %151, %9
+    %632: %r0 = alias %9
     %633: %r0 = coerce %632
     %634: %r0 = load element %71[%633]: %r0
     %635: %r0 = const 1
@@ -245,7 +231,6 @@ fn main() -> one %r0
     %224: %r0 = binary.add %150, %223
     %225: %r0 = coerce %224
     %226: %r0 = select %222, %225, %150
-    %227: %r0 = const 0
     %228: %r0 = const 0
     %229: %r0 = const 0
     %230: %r0 = const 4
@@ -266,12 +251,12 @@ fn main() -> one %r0
     %293: %r0 = binary.add %226, %292
     %294: %r0 = coerce %293
     %295: %r0 = select %291, %294, %226
-    %296: %r3 = load var $0: %r3
+    %73: %r3 = object %s0 %71, %72
+    %296: %r3 = alias %73
     %297: %r1 = load property %296.items: %r1
-    %298: %r3 = load var $0: %r3
+    %298: %r3 = alias %73
     %299: %r2 = load property %298.length: %r2
     %300: %r0 = convert %299
-    %301: %r0 = const 0
     %302: %r0 = const 0
     %303: %r0 = const 4
     %304: %r0 = binary.sub %300, %303
@@ -305,9 +290,9 @@ fn main() -> one %r0
     %244: %r15 = binary.lt %240, %238
     %245: %r15 = binary.lt %241, %238
     %246: %r15 = binary.lt %242, %238
-    %247: %r0 = binary.add %227, %22
+    %247: %r0 = alias %22
     %248: %r0 = coerce %247
-    %249: %r0 = binary.add %227, %83
+    %249: %r0 = alias %83
     %250: %r0 = coerce %249
     %251: %r0 = const 1
     %252: %r0 = binary.sub %250, %251
@@ -344,7 +329,7 @@ fn main() -> one %r0
     %283: %r0 = coerce %282
     jump -> block11(%277, %279, %281, %283)
   block15:
-    %610: %r0 = binary.add %227, %22
+    %610: %r0 = alias %22
     %611: %r0 = coerce %610
     %612: %r0 = load element %71[%611]: %r0
     %613: %r0 = const 1
@@ -371,7 +356,7 @@ fn main() -> one %r0
     %368: %r0 = math.max %27, %28
     %369: %r0 = math.max %29, %30
     %370: %r0 = math.max %368, %369
-    %371: %r3 = load var $0: %r3
+    %371: %r3 = alias %73
     call Array(a).reclaim(I32) %371
     %372: %r0 = const 11
     %373: %r14 = binary.eq %370, %372
@@ -379,12 +364,12 @@ fn main() -> one %r0
     %375: %r0 = binary.add %295, %374
     %376: %r0 = coerce %375
     %377: %r0 = select %373, %376, %295
-    %378: %r7 = load var $1: %r7
+    %81: %r7 = object %s1 %79, %80
+    %378: %r7 = alias %81
     %379: %r6 = load property %378.items: %r6
-    %380: %r7 = load var $1: %r7
+    %380: %r7 = alias %81
     %381: %r2 = load property %380.length: %r2
     %382: %r0 = convert %381
-    %383: %r0 = const 0
     %384: %r5 = const 0
     %385: %r5 = const 0
     %386: %r0 = const 4
@@ -399,9 +384,9 @@ fn main() -> one %r0
     %317: %r14 = binary.lt %31, %300
     branch %317 -> block19 -> block16(%32, %33, %34, %35)
   block19:
-    %318: %r0 = binary.add %301, %31
+    %318: %r0 = alias %31
     %319: %r0 = coerce %318
-    %320: %r0 = binary.add %301, %300
+    %320: %r0 = alias %300
     %321: %r0 = coerce %320
     %322: %r0 = const 1
     %323: %r0 = binary.sub %321, %322
@@ -449,7 +434,7 @@ fn main() -> one %r0
     %367: %r0 = select %363, %35, %359
     jump -> block16(%364, %365, %366, %367)
   block20:
-    %582: %r0 = binary.add %301, %31
+    %582: %r0 = alias %31
     %583: %r0 = coerce %582
     %584: %r0 = load element %297[%583]: %r0
     %585: %r0 = const 1
@@ -489,7 +474,6 @@ fn main() -> one %r0
     %450: %r0 = binary.add %377, %449
     %451: %r0 = coerce %450
     %452: %r0 = select %448, %451, %377
-    %453: %r0 = const 0
     %454: %r5 = const 0
     %455: %r0 = const 4
     %456: %r0 = binary.sub %382, %455
@@ -524,9 +508,9 @@ fn main() -> one %r0
     %401: %r15 = binary.lt %396, %399
     %402: %r15 = binary.lt %397, %399
     %403: %r15 = binary.lt %398, %399
-    %404: %r0 = binary.add %383, %40
+    %404: %r0 = alias %40
     %405: %r0 = coerce %404
-    %406: %r0 = binary.add %383, %382
+    %406: %r0 = alias %382
     %407: %r0 = coerce %406
     %408: %r0 = const 1
     %409: %r0 = binary.sub %407, %408
@@ -563,7 +547,7 @@ fn main() -> one %r0
     %440: %r5 = coerce %439
     jump -> block21(%434, %436, %438, %440)
   block25:
-    %560: %r0 = binary.add %383, %40
+    %560: %r0 = alias %40
     %561: %r0 = coerce %560
     %562: %r5 = load element %379[%561]: %r5
     %563: %r0 = const 1
@@ -590,7 +574,7 @@ fn main() -> one %r0
     %522: %r5 = math.max %45, %46
     %523: %r5 = math.max %47, %48
     %524: %r5 = math.max %522, %523
-    %525: %r7 = load var $1: %r7
+    %525: %r7 = alias %81
     call Array(a).reclaim(F32) %525
     %526: %r5 = const 5
     %527: %r14 = binary.eq %524, %526
@@ -606,9 +590,9 @@ fn main() -> one %r0
     %470: %r14 = binary.lt %49, %382
     branch %470 -> block29 -> block26(%50, %51, %52, %53)
   block29:
-    %471: %r0 = binary.add %453, %49
+    %471: %r0 = alias %49
     %472: %r0 = coerce %471
-    %473: %r0 = binary.add %453, %382
+    %473: %r0 = alias %382
     %474: %r0 = coerce %473
     %475: %r0 = const 1
     %476: %r0 = binary.sub %474, %475
@@ -657,7 +641,7 @@ fn main() -> one %r0
     %521: %r5 = select %517, %53, %513
     jump -> block26(%518, %519, %520, %521)
   block30:
-    %532: %r0 = binary.add %453, %49
+    %532: %r0 = alias %49
     %533: %r0 = coerce %532
     %534: %r5 = load element %379[%533]: %r5
     %535: %r0 = const 1
@@ -688,16 +672,14 @@ fn main() -> one %r0
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
-    store var $0: %r3, %0
     return
 
 fn Array(a).reclaim(F32)(one %r7) -> omitted
   var $0: %r7
   block0(%0: %r7):
-    store var $0: %r7, %0
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 13 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 31 adopted 0 sunk 2 numbered 18 decided 0 unboxed 0 updated 0 split 0 promoted 6
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object Array {items: %r6, length: %r2}

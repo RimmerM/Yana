@@ -21,7 +21,8 @@
  */
 namespace jsir {
 
-// Rewrites `body` in place. Answers false only where it reported; there is no "could not optimize".
+// Rewrites `body` in place. Answers false only where it reported, which it never does today - a
+// rewrite that cannot be proved is not made - and there is no "could not optimize".
 bool optimizeBody(JsTarget& target, JsBody& body);
 
 } // namespace jsir

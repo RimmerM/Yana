@@ -2,8 +2,7 @@ fn main() -> one %r0
   var $0: %r2
   block0:
     %2: %r2 = const 1
-    store var $0: %r2, %2
-    %4: %r2 = load var $0: %r2
+    %4: %r2 = alias %2
     %5: %r1 = map %4 [0 => 0, else 3.4359738623E10]
     %6: %r1 = const 3.4359738623E10
     %7: %r0 = const 32768
@@ -15,7 +14,7 @@ fn main() -> one %r0
     %13: %r0 = coerce %12
     return %13
 
-optimizer clones 0 aliased 0 forwarded 0 removed 3 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 1
 
 rep %r0 = number signed 32
 rep %r1 = number signed 53

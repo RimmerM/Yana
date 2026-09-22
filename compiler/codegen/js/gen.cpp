@@ -1863,7 +1863,7 @@ Ptr<File> genProgram(Context& context, Program& program) {
     // is written in terms of wide.cpp's shifts, so its body asks for three wide helpers that have to
     // be on the list before it is walked. Emitted below `emitBitHelpers` rather than above it
     // because it asks that pass for nothing and nothing asks it.
-    emitBitHelpers(g);
+    emitBitHelpers(g, maxWordBits(g));
     emitRotateHelpers(g);
     emitWideHelpers(g);
 

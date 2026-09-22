@@ -3,28 +3,19 @@ fn main() -> one %r0
   var $1: %r3
   var $2: %r3
   block0:
-    %2: %r1 = array
-    %3: %r2 = const 0
-    %4: %r3 = object %s0 %2, %3
-    store var $0: %r3, %4
     %5: %r0 = const 7
     %6: %r0 = const 8
     %7: %r0 = const 9
     %8: %r1 = host host.array %5, %6, %7
     %9: %r2 = const 3
-    %10: %r3 = object %s0 %8, %9
-    store var $0: %r3, %10
     %11: %r0 = const 1
     %12: %r0 = const 2
     %13: %r0 = const 3
     %14: %r1 = host host.array %11, %12, %13
     %15: %r2 = const 3
-    %16: %r3 = object %s0 %14, %15
-    store var $1: %r3, %16
     %17: %r0 = const 1
     %18: %r0 = const 10
     %19: %r0 = const 3
-    %20: %r0 = const 0
     %21: %r7 = convert %17
     %22: %r7 = convert %19
     %23: %r8 = binary.ge %21, %22
@@ -35,9 +26,8 @@ fn main() -> one %r0
     %69: %r0 = binary.add %56, %68
     %70: %r0 = coerce %69
     %71: %r0 = const 2
-    %72: %r0 = const 0
     %73: %r7 = convert %71
-    %74: %r7 = convert %62
+    %74: %r7 = alias %65
     %75: %r8 = binary.ge %73, %74
     branch %75 -> block4 -> block3
   block2:
@@ -45,10 +35,10 @@ fn main() -> one %r0
     unreachable
   block3:
     %76: %r1 = alias %59
-    %77: %r0 = binary.add %72, %71
+    %77: %r0 = alias %71
     %78: %r0 = coerce %77
     %79: %r0 = load element %76[%78]: %r0
-    %80: %r3 = load var $0: %r3
+    %80: %r3 = alias %10
     call Array(a).reclaim(I32) %80
     %81: %r0 = binary.add %70, %79
     %82: %r0 = coerce %81
@@ -60,7 +50,6 @@ fn main() -> one %r0
     %88: %r0 = const 6
     %89: %r2 = const 3
     %90: %r0 = const 3
-    %91: %r0 = const 0
     %92: %r0 = const 1
     %93: %r0 = const 3
     jump -> block13(%84, %85)
@@ -69,7 +58,7 @@ fn main() -> one %r0
     unreachable
   block5:
     %24: %r1 = alias %14
-    %25: %r0 = binary.add %20, %17
+    %25: %r0 = alias %17
     %26: %r0 = coerce %25
     store element %24[%26]: %r0, %18
     %27: %r0 = const 0
@@ -82,37 +71,37 @@ fn main() -> one %r0
     %32: %r1 = alias %14
     %33: %r0 = load element %32[%28]: %r0
     %34: %r0 = const 1
-    %35: %r0 = const 0
     %36: %r7 = convert %34
     %37: %r7 = convert %19
     %38: %r8 = binary.ge %36, %37
     branch %38 -> block10 -> block7
   block7:
     %39: %r1 = alias %14
-    %40: %r0 = binary.add %35, %34
+    %40: %r0 = alias %34
     %41: %r0 = coerce %40
     %42: %r0 = load element %39[%41]: %r0
     %43: %r0 = binary.add %33, %42
     %44: %r0 = coerce %43
     %45: %r0 = const 2
-    %46: %r0 = const 0
     %47: %r7 = convert %45
     %48: %r7 = convert %19
     %49: %r8 = binary.ge %47, %48
     branch %49 -> block9 -> block8
   block8:
     %50: %r1 = alias %14
-    %51: %r0 = binary.add %46, %45
+    %51: %r0 = alias %45
     %52: %r0 = coerce %51
     %53: %r0 = load element %50[%52]: %r0
-    %54: %r3 = load var $1: %r3
+    %16: %r3 = object %s0 %14, %15
+    %54: %r3 = alias %16
     call Array(a).reclaim(I32) %54
     %55: %r0 = binary.add %44, %53
     %56: %r0 = coerce %55
     %57: %r0 = const 0
-    %58: %r3 = load var $0: %r3
+    %10: %r3 = object %s0 %8, %9
+    %58: %r3 = alias %10
     %59: %r1 = load property %58.items: %r1
-    %60: %r3 = load var $0: %r3
+    %60: %r3 = alias %10
     %61: %r2 = load property %60.length: %r2
     %62: %r0 = convert %61
     %63: %r0 = const 0
@@ -141,8 +130,6 @@ fn main() -> one %r0
     return %96
   block15:
     %97: %r1 = host host.array %86, %87, %88
-    %98: %r3 = object %s0 %97, %89
-    store var $2: %r3, %98
     %99: %r0 = binary.rem %1, %90
     %100: %r0 = coerce %99
     %101: %r0 = convert %100
@@ -152,10 +139,11 @@ fn main() -> one %r0
     branch %104 -> block17 -> block16
   block16:
     %105: %r1 = alias %97
-    %106: %r0 = binary.add %91, %101
+    %106: %r0 = alias %101
     %107: %r0 = coerce %106
     %108: %r0 = load element %105[%107]: %r0
-    %109: %r3 = load var $2: %r3
+    %98: %r3 = object %s0 %97, %89
+    %109: %r3 = alias %98
     call Array(a).reclaim(I32) %109
     %110: %r0 = binary.add %0, %108
     %111: %r0 = coerce %110
@@ -169,10 +157,9 @@ fn main() -> one %r0
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
-    store var $0: %r3, %0
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 13 adopted 0 sunk 3 numbered 6 decided 0 unboxed 0 updated 0 split 0 promoted 5
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

@@ -10,11 +10,7 @@ fn main() -> one %r0
     %3: %r0 = const 2
     %4: %r0 = const 3
     %5: %r0 = const 4
-    %6: %r1 = array %2, %3, %4, %5
-    store var $0: %r1, %6
     %7: %r0 = const 0
-    %8: %r1 = array %7, %7, %7, %7
-    store var $1: %r1, %8
     %9: %r0 = const 1
     %10: %r0 = call at %9
     %11: %r2 = const 4
@@ -23,7 +19,8 @@ fn main() -> one %r0
     branch %13 -> block8 -> block1
   block1:
     %14: %r0 = const 7
-    %15: %r1 = load var $1: %r1
+    %8: %r1 = array %7, %7, %7, %7
+    %15: %r1 = alias %8
     store element %15[%10]: %r0, %14
     %16: %r0 = const 3
     %17: %r0 = call at %16
@@ -33,7 +30,7 @@ fn main() -> one %r0
     branch %20 -> block7 -> block2
   block2:
     %21: %r0 = const 5
-    %22: %r1 = load var $1: %r1
+    %22: %r1 = alias %8
     store element %22[%17]: %r0, %21
     %23: %r0 = const 1
     %24: %r0 = call at %23
@@ -42,7 +39,7 @@ fn main() -> one %r0
     %27: %r3 = binary.ge %26, %25
     branch %27 -> block6 -> block3
   block3:
-    %28: %r1 = load var $1: %r1
+    %28: %r1 = alias %8
     %29: %r0 = load element %28[%24]: %r0
     %30: %r0 = const 3
     %31: %r0 = call at %30
@@ -51,11 +48,12 @@ fn main() -> one %r0
     %34: %r3 = binary.ge %33, %32
     branch %34 -> block5 -> block4
   block4:
-    %35: %r1 = load var $1: %r1
+    %35: %r1 = alias %8
     %36: %r0 = load element %35[%31]: %r0
     %37: %r0 = binary.add %29, %36
     %38: %r0 = coerce %37
-    %39: %r1 = load var $0: %r1
+    %6: %r1 = array %2, %3, %4, %5
+    %39: %r1 = alias %6
     %40: %r1 = alias %39
     %41: %r0 = const 0
     %42: %r0 = const 0
@@ -98,7 +96,7 @@ fn main() -> one %r0
     host host.throw "yana: a runtime check failed"
     unreachable
 
-optimizer clones 1 aliased 1 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 1 aliased 1 forwarded 0 removed 2 adopted 0 sunk 2 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 5
 
 rep %r0 = number signed 32
 rep %r1 = array Int32Array of %r0

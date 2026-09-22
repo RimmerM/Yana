@@ -106,7 +106,8 @@ void eachOperand(JsShared& g, Expr* expr, F&& f) {
             break;
         case Expr::Binary: {
             auto value = (BinaryExpr*)expr;
-            auto shortCircuit = value->op == BinaryOp::LogicalAnd || value->op == BinaryOp::LogicalOr;
+            auto shortCircuit = value->op == BinaryOp::LogicalAnd || value->op == BinaryOp::LogicalOr ||
+                                value->op == BinaryOp::Nullish;
 
             f(value->lhs, false);
             f(value->rhs, shortCircuit);
@@ -997,7 +998,7 @@ JsPtr<Expr> discardedExpr(JsShared& g, JsPtr<Expr> pointer) {
             break;
         case Expr::Binary: {
             auto op = ((BinaryExpr*)expr)->op;
-            if(op == BinaryOp::LogicalAnd || op == BinaryOp::LogicalOr) return pointer;
+            if(op == BinaryOp::LogicalAnd || op == BinaryOp::LogicalOr || op == BinaryOp::Nullish) return pointer;
             break;
         }
         default:
@@ -1632,6 +1633,11 @@ Range rangeOfBinary(JsShared& g, BinaryExpr& expr, Ranges& ranges) {
             auto bound = F64(U64(1) << (31 - by));
             return integerRange(-bound, bound - 1);
         }
+        case BinaryOp::Nullish:
+            // One operand or the other - a table read or its fallback (J88).
+            if(!lhs.known || !rhs.known) return unknownRange();
+            return integerRange(lhs.low < rhs.low ? lhs.low : rhs.low,
+                                lhs.high > rhs.high ? lhs.high : rhs.high);
         default:
             // `/` is a float divide, `%` keeps its dividend's sign, and everything left produces a
             // boolean or one of its operands.
@@ -2736,6 +2742,16 @@ bool foldConstantOp(JsShared& g, JsPtr<Expr>& slot) {
             folded = foldNullComparison(g, node.op, node.lhs, node.rhs);
         }
 
+        // J90: a short-circuit chain whose left operand propagation decided - `true && x` is `x`
+        // and `false && x` is `false`, and the same for `||` the other way round. Only a `boolean`
+        // literal, since `0 && x` is `0` and not `false`.
+        if(!folded && g.jsirPipeline &&
+           (node.op == BinaryOp::LogicalAnd || node.op == BinaryOp::LogicalOr) &&
+           g.base[node.lhs]->kind == Expr::Bool) {
+            auto value = ((BoolExpr*)g.base[node.lhs])->value;
+            folded = (value == (node.op == BinaryOp::LogicalAnd)) ? node.rhs : node.lhs;
+        }
+
         if(folded) {
             slot = folded;
             return true;
@@ -3124,6 +3140,224 @@ bool dropUnreachable(JsShared& g, StmtList& list, Size index) {
     return true;
 }
 
+bool mentionsLabel(JsShared& g, StmtList& list, Name label, bool breaksOnly);
+bool mentionsLabel(JsShared& g, JsPtr<Stmt> pointer, Name label, bool breaksOnly);
+
+/*
+ * `lhs && rhs` or `lhs || rhs`, left-associated and with a literal operand on the left folded.
+ * Left-associated because the chain is built innermost first - the inner `if`s are merged before the
+ * outer one sees them - and `a && (b && c)` is the same value with a pair of parentheses more.
+ */
+JsPtr<Expr> logical(JsShared& g, BinaryOp op, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
+    auto left = g.base[lhs];
+    if(left->kind == Expr::Bool) {
+        auto value = ((BoolExpr*)left)->value;
+        if(op == BinaryOp::LogicalAnd) return value ? rhs : lhs;
+        return value ? lhs : rhs;
+    }
+
+    auto right = g.base[rhs];
+    if(right->kind == Expr::Binary && ((BinaryExpr*)right)->op == op) {
+        auto inner = ((BinaryExpr*)right)->lhs;
+        auto outer = ((BinaryExpr*)right)->rhs;
+        return logical(g, op, logical(g, op, lhs, inner), outer);
+    }
+
+    return asExpr(g, make<BinaryExpr>(g, op, lhs, rhs));
+}
+
+/*
+ * Short-circuit chains - J90, and JSIR's only: the shipping backend's goldens are the comparison.
+ *
+ * A Yana `a && b && c` is a cascade of branches by the time it reaches JSIR - SSA has no lazy
+ * operator, and `resolve_ssa/opt/select.cpp` if-converts one diamond with pure arms rather than a
+ * chain - so the structurer writes it as the nested `if`s it is, one per block:
+ *
+ *     B2: { if (v81 === 23) { if (v82 === -90) { p2 = 1; break B2; } } p2 = 0; }
+ *
+ * JavaScript *has* the lazy operator, so no speculation is needed to put the chain back: `a && b`
+ * evaluates `b` only where `a` held, in the same order, which is exactly what the nested `if` did.
+ * So the rewrite is here, after the one-use bindings have been folded into their conditions - which
+ * is what makes `i < n && xs[i] > 0` one condition, the read of `xs[i]` still behind the test that
+ * guards it - rather than in the shared SSA `select` pass, which would have to prove the later
+ * conditions safe to evaluate eagerly and would move every native golden to do it.
+ *
+ * Four rules, each an identity on any condition, effectful or not:
+ *
+ *  - `if (a) { if (b) S }` is `if (a && b) S`;
+ *  - `if (a) J; if (b) J;` for one jump `J` is `if (a || b) J;`;
+ *  - `L: { if (c) { X; break L; } Y }` is `if (c) { X } else { Y }` where nothing else names `L` -
+ *    the structurer's `foldRegionGuard`, asked again of the guard the first rule made;
+ *  - `if (c) p = x; else p = y;` is `p = c ? x : y;`, and `c ? (d ? x : y) : y` for a literal `y` is
+ *    `c && d ? x : y`.
+ */
+bool mergeNestedIf(JsShared& g, StmtList& list, Size index) {
+    auto pointer = list.get(g.base, index);
+    auto outer = (IfStmt*)g.base[pointer];
+    if(outer->kind != Stmt::If || outer->otherwise.isNotEmpty() || outer->then.size() != 1) return false;
+
+    auto inner = g.base[outer->then.get(g.base, 0)];
+    if(inner->kind != Stmt::If || ((IfStmt*)inner)->otherwise.isNotEmpty()) return false;
+
+    auto first = outer->cond;
+    auto second = ((IfStmt*)inner)->cond;
+    auto then = ((IfStmt*)inner)->then;
+
+    // Built before the node is written back to, since building allocates - see `foldRegionGuard`.
+    auto merged = logical(g, BinaryOp::LogicalAnd, first, second);
+    auto& written = *(IfStmt*)g.base[pointer];
+    written.cond = merged;
+    written.then = then;
+    return true;
+}
+
+bool sameJump(JsShared& g, JsPtr<Stmt> x, JsPtr<Stmt> y) {
+    auto a = g.base[x];
+    auto b = g.base[y];
+    if(a->kind != b->kind) return false;
+
+    switch(a->kind) {
+        case Stmt::Break: return ((BreakStmt*)a)->label.text == ((BreakStmt*)b)->label.text;
+        case Stmt::Continue: return ((ContinueStmt*)a)->label.text == ((ContinueStmt*)b)->label.text;
+        case Stmt::Return: return !((ReturnStmt*)a)->value && !((ReturnStmt*)b)->value;
+        default: return false;
+    }
+}
+
+bool mergeSameExit(JsShared& g, StmtList& list, Size index) {
+    if(index + 1 >= list.size()) return false;
+
+    auto firstPointer = list.get(g.base, index);
+    auto first = (IfStmt*)g.base[firstPointer];
+    auto second = (IfStmt*)g.base[list.get(g.base, index + 1)];
+    if(first->kind != Stmt::If || second->kind != Stmt::If) return false;
+    if(first->otherwise.isNotEmpty() || second->otherwise.isNotEmpty()) return false;
+    if(first->then.size() != 1 || second->then.size() != 1) return false;
+    if(!sameJump(g, first->then.get(g.base, 0), second->then.get(g.base, 0))) return false;
+
+    auto merged = logical(g, BinaryOp::LogicalOr, first->cond, second->cond);
+    ((IfStmt*)g.base[firstPointer])->cond = merged;
+    list.remove(g.base, index + 1);
+    return true;
+}
+
+bool foldLabelledGuard(JsShared& g, StmtList& list, Size index) {
+    auto pointer = list.get(g.base, index);
+    auto labelled = (LabelledStmt*)g.base[pointer];
+    if(labelled->kind != Stmt::Labelled) return false;
+
+    auto label = labelled->label;
+    auto blockPointer = labelled->content;
+    auto block = (BlockStmt*)g.base[blockPointer];
+    if(block->kind != Stmt::Block || block->body.size() < 2) return false;
+
+    auto guardPointer = block->body.get(g.base, 0);
+    auto guard = (IfStmt*)g.base[guardPointer];
+    if(guard->kind != Stmt::If || guard->otherwise.isNotEmpty() || guard->then.isEmpty()) return false;
+
+    auto last = g.base[guard->then.get(g.base, guard->then.size() - 1)];
+    if(last->kind != Stmt::Break || ((BreakStmt*)last)->label.text != label.text) return false;
+
+    // Only where the label goes with it: with another exit still naming it, the rewrite is one
+    // more level of indentation for the same region.
+    for(Size i = 0; i + 1 < guard->then.size(); i++) {
+        if(mentionsLabel(g, guard->then.get(g.base, i), label, false)) return false;
+    }
+
+    for(Size i = 1; i < block->body.size(); i++) {
+        if(mentionsLabel(g, block->body.get(g.base, i), label, false)) return false;
+    }
+
+    StmtList rest {};
+    for(Size i = 1; i < block->body.size(); i++) {
+        rest.push(g.file.arena, ((BlockStmt*)g.base[blockPointer])->body.get(g.base, i));
+    }
+
+    auto& written = *(IfStmt*)g.base[guardPointer];
+    written.then.remove(g.base, written.then.size() - 1);
+    written.otherwise = rest;
+
+    auto& body = ((BlockStmt*)g.base[blockPointer])->body;
+    while(body.size() > 1) body.remove(g.base, body.size() - 1);
+
+    list.set(g.base, index, guardPointer);
+    return true;
+}
+
+bool sameLiteral(JsShared& g, JsPtr<Expr> x, JsPtr<Expr> y) {
+    auto a = g.base[x];
+    auto b = g.base[y];
+    if(a->kind != b->kind) return false;
+
+    switch(a->kind) {
+        case Expr::Number: return sameNumberBits(((NumberExpr*)a)->value, ((NumberExpr*)b)->value) &&
+                                  ((NumberExpr*)a)->integral == ((NumberExpr*)b)->integral;
+        case Expr::Bool: return ((BoolExpr*)a)->value == ((BoolExpr*)b)->value;
+        case Expr::Null: return true;
+        default: return false;
+    }
+}
+
+// The variable a statement `p = x;` assigns, and `x`.
+Maybe<Name> assignedVariable(JsShared& g, StmtList& arm, JsPtr<Expr>& value) {
+    if(arm.size() != 1) return Nothing();
+
+    auto stmt = g.base[arm.get(g.base, 0)];
+    if(stmt->kind != Stmt::Expression) return Nothing();
+
+    auto expr = g.base[((ExprStmt*)stmt)->value];
+    if(expr->kind != Expr::Assign) return Nothing();
+
+    auto target = g.base[((AssignExpr*)expr)->target];
+    if(target->kind != Expr::Var) return Nothing();
+
+    value = ((AssignExpr*)expr)->value;
+    return Just(((VarExpr*)target)->name);
+}
+
+bool foldAssignIf(JsShared& g, StmtList& list, Size index) {
+    auto pointer = list.get(g.base, index);
+    auto branch = (IfStmt*)g.base[pointer];
+    if(branch->kind != Stmt::If) return false;
+
+    JsPtr<Expr> x = nullptr, y = nullptr;
+    auto left = assignedVariable(g, branch->then, x);
+    auto right = assignedVariable(g, branch->otherwise, y);
+    if(!left || !right || left.unwrap().text != right.unwrap().text) return false;
+
+    auto name = left.unwrap();
+    auto cond = branch->cond;
+
+    // `c ? (d ? x : y) : y` is `c && d ? x : y`, and `c ? x : (d ? x : y)` is `c || d ? x : y`.
+    for(;;) {
+        auto then = g.base[x];
+        auto otherwise = g.base[y];
+
+        if(then->kind == Expr::Ternary && sameLiteral(g, ((TernaryExpr*)then)->otherwise, y)) {
+            auto nested = (TernaryExpr*)then;
+            auto inner = nested->cond;
+            x = nested->then;
+            cond = logical(g, BinaryOp::LogicalAnd, cond, inner);
+            continue;
+        }
+
+        if(otherwise->kind == Expr::Ternary && sameLiteral(g, ((TernaryExpr*)otherwise)->then, x)) {
+            auto nested = (TernaryExpr*)otherwise;
+            auto inner = nested->cond;
+            y = nested->otherwise;
+            cond = logical(g, BinaryOp::LogicalOr, cond, inner);
+            continue;
+        }
+
+        break;
+    }
+
+    auto value = ternary(g, cond, x, y);
+    auto assigned = assign(g, variable(g, name), value);
+    list.set(g.base, index, asStmt(g, make<ExprStmt>(g, assigned)));
+    return true;
+}
+
 bool optimizeList(JsShared& g, StmtList& list, Names& names, Ranges& ranges) {
     // First, because it is what turns an operand into a literal for every rule below to work on -
     // and it reads the list rather than editing it, so nothing it sees can have moved.
@@ -3155,6 +3389,19 @@ bool optimizeList(JsShared& g, StmtList& list, Names& names, Ranges& ranges) {
 
             if(flipEmptyThen(g, list, index, ranges)) changed = true;
             while(simplifyCondition(g, ((IfStmt*)stmt)->cond, ranges)) changed = true;
+
+            // J90's short-circuit chains - see `mergeNestedIf`. The same position again after each,
+            // since a chain is several of them.
+            if(g.jsirPipeline && (mergeNestedIf(g, list, index) || mergeSameExit(g, list, index) ||
+                                  foldAssignIf(g, list, index))) {
+                changed = true;
+                continue;
+            }
+        }
+
+        if(g.jsirPipeline && stmt->kind == Stmt::Labelled && foldLabelledGuard(g, list, index)) {
+            changed = true;
+            continue;
         }
 
         // Both rewrites shorten the list, so the same position is looked at again rather than the
@@ -3769,7 +4016,206 @@ void removeDeadHelpers(JsShared& g) {
     if(!stillHas(nullptr, &g.bitHelperOrder)) dropComment(g.bitHelperComment);
 }
 
+/*
+ * The functions JSIR's conversion minted and its optimizer then emptied or orphaned - J90.
+ *
+ * Two facts the per-body tiers above this cannot see, because both are about *other* bodies. JSIR
+ * converts, optimizes and structures one body at a time, and the calls it cannot remove are the ones
+ * it writes last: a teardown step is expanded into a call to the type's `Reclaim` body in the
+ * conversion (`resolve_ssa/js/teardown.cpp`), after the shared inliner has run, so the call survives
+ * even where that body folded to nothing - `Array_a_reclaim_I32(v9);` beside an empty
+ * `function Array_a_reclaim_I32(value) {}`, 367 times in `Base.js`. And JSIR's own rewrites remove
+ * the last use of a helper the conversion minted for one (`growJsArray_T` once a `push` folded, a
+ * lambda once its pair was devirtualized), after `resolve_ssa/opt/reach.cpp` decided what is
+ * reachable.
+ *
+ * So, over the whole file and before the peephole (whose rewrites then take the operands a removed
+ * call leaves unread): a call statement to a function whose body is empty is replaced by whatever
+ * its arguments do, in order - an argument that writes stays as a statement of its own, and one that
+ * only reads goes, since discarding a read changes nothing a program can observe - and a function no
+ * root reaches is removed. A root is any top-level statement that is not a function, except the one
+ * shape that belongs to a function rather than to the program: `f.$h = g;`, a lambda's teardown
+ * header, which is kept exactly while `f` is. To a fixed point, because a body that only called an
+ * empty one is empty now and a function only a removed one called is unreachable.
+ *
+ * Asked of the JSIR pipeline only. The shipping backend's `excludeFunctions` decides what it emits
+ * before the tree is built, and its goldens are the comparison this one is measured against.
+ */
+template<class F>
+void eachMention(JsShared& g, JsPtr<Expr> pointer, F& f) {
+    auto expr = g.base[pointer];
+    if(expr->kind == Expr::Var) f(((VarExpr*)expr)->name.text);
+    eachOperand(g, expr, [&](JsPtr<Expr>& operand, bool) { eachMention(g, operand, f); });
+}
+
+template<class F>
+void eachMentionIn(JsShared& g, StmtList& list, F& f) {
+    for(auto pointer: list.contents(g.base)) {
+        auto stmt = g.base[pointer];
+        if(auto header = headerOf(g, stmt)) eachMention(g, *header, f);
+        eachBody(g, stmt, [&](StmtList& body) { eachMentionIn(g, body, f); });
+    }
+}
+
+// `f.$h = g;` at the top level, answered as `f` - see `sweepFunctions`.
+Maybe<U32> headerOwner(JsShared& g, Stmt* stmt) {
+    if(stmt->kind != Stmt::Expression) return Nothing();
+    auto value = g.base[((ExprStmt*)stmt)->value];
+    if(value->kind != Expr::Assign) return Nothing();
+
+    auto target = g.base[((AssignExpr*)value)->target];
+    if(target->kind != Expr::Field) return Nothing();
+
+    auto object = g.base[((FieldExpr*)target)->object];
+    if(object->kind != Expr::Var) return Nothing();
+    return Just(U32(((VarExpr*)object)->name.text));
+}
+
+bool isEmptyBody(JsShared& g, StmtList& body) {
+    if(body.size() == 0) return true;
+    if(body.size() > 1) return false;
+
+    auto only = g.base[body.get(g.base, 0)];
+    return only->kind == Stmt::Return && !((ReturnStmt*)only)->value;
+}
+
+// Rewrites every call statement to a member of `empty` in `list` and below; answers whether any was.
+bool removeEmptyCalls(JsShared& g, StmtList& list, HashSet<U32>& empty) {
+    auto changed = false;
+    for(auto pointer: list.contents(g.base)) {
+        eachBody(g, g.base[pointer], [&](StmtList& body) {
+            if(removeEmptyCalls(g, body, empty)) changed = true;
+        });
+    }
+
+    auto isEmptyCall = [&](Stmt* stmt) -> CallExpr* {
+        if(stmt->kind != Stmt::Expression) return nullptr;
+        auto value = g.base[((ExprStmt*)stmt)->value];
+        if(value->kind != Expr::Call) return nullptr;
+
+        auto callee = g.base[((CallExpr*)value)->callee];
+        if(callee->kind != Expr::Var || !empty.contains(((VarExpr*)callee)->name.text)) return nullptr;
+        return (CallExpr*)value;
+    };
+
+    auto found = false;
+    for(auto pointer: list.contents(g.base)) {
+        if(isEmptyCall(g.base[pointer])) found = true;
+    }
+    if(!found) return changed;
+
+    // Rebuilt rather than edited in place, because one call may leave several statements behind.
+    StmtList rebuilt {};
+    for(auto pointer: list.contents(g.base)) {
+        auto call = isEmptyCall(g.base[pointer]);
+        if(!call) {
+            rebuilt.push(g.file.arena, pointer);
+            continue;
+        }
+
+        auto items = itemsOf(g, call->args);
+        for(Size i = 0; i < call->args.size(); i++) {
+            if(!effectsOf(g, items[i]).writes) continue;
+            if(auto kept = discardedExpr(g, items[i])) {
+                rebuilt.push(g.file.arena, asStmt(g, make<ExprStmt>(g, kept)));
+            }
+        }
+    }
+
+    list = rebuilt;
+    return true;
+}
+
 } // namespace
+
+void sweepFunctions(JsShared& g) {
+    auto& statements = g.file.statements;
+
+    for(;;) {
+        auto changed = false;
+
+        HashSet<U32> empty;
+        for(auto pointer: statements.contents(g.base)) {
+            auto stmt = g.base[pointer];
+            if(stmt->kind == Stmt::Fun && isEmptyBody(g, ((FunStmt*)stmt)->body)) {
+                empty.add(((FunStmt*)stmt)->name.text);
+            }
+        }
+
+        if(empty.size() > 0) {
+            for(auto pointer: statements.contents(g.base)) {
+                auto stmt = g.base[pointer];
+                if(stmt->kind == Stmt::Fun && removeEmptyCalls(g, ((FunStmt*)stmt)->body, empty)) {
+                    changed = true;
+                }
+            }
+        }
+
+        // Reachability: the functions by name, the roots, and a worklist over the bodies.
+        HashMap<U32, U32> functions;
+        for(Size i = 0; i < statements.size(); i++) {
+            auto stmt = g.base[statements.get(g.base, i)];
+            if(stmt->kind == Stmt::Fun) functions.add(((FunStmt*)stmt)->name.text, U32(i));
+        }
+
+        HashMap<U32, U32> headers;
+        for(Size i = 0; i < statements.size(); i++) {
+            auto owner = headerOwner(g, g.base[statements.get(g.base, i)]);
+            if(owner && functions.get(owner.unwrap())) headers.add(owner.unwrap(), U32(i));
+        }
+
+        HashSet<U32> reached;
+        Array<U32> work;
+        auto reach = [&](U32 name) {
+            if(!functions.get(name) || reached.contains(name)) return;
+            reached.add(name);
+            work.push(name);
+        };
+
+        for(auto pointer: statements.contents(g.base)) {
+            auto stmt = g.base[pointer];
+            if(stmt->kind == Stmt::Fun || stmt->kind == Stmt::Comment) continue;
+            if(auto owner = headerOwner(g, stmt); owner && functions.get(owner.unwrap())) continue;
+
+            if(auto header = headerOf(g, stmt)) eachMention(g, *header, reach);
+            eachBody(g, stmt, [&](StmtList& body) { eachMentionIn(g, body, reach); });
+        }
+
+        while(work.size() > 0) {
+            auto name = work.pop().unwrap();
+            auto stmt = (FunStmt*)g.base[statements.get(g.base, functions.get(name).unwrap())];
+            eachMentionIn(g, stmt->body, reach);
+
+            // A reached lambda keeps its header, and the header its teardown.
+            if(auto header = headers.get(name)) {
+                auto other = g.base[statements.get(g.base, header.unwrap())];
+                eachMention(g, ((ExprStmt*)other)->value, reach);
+            }
+        }
+
+        Size index = 0;
+        while(index < statements.size()) {
+            auto stmt = g.base[statements.get(g.base, index)];
+            auto dead = false;
+
+            if(stmt->kind == Stmt::Fun) {
+                dead = !reached.contains(((FunStmt*)stmt)->name.text);
+            } else if(auto owner = headerOwner(g, stmt); owner && functions.get(owner.unwrap())) {
+                dead = !reached.contains(owner.unwrap());
+            }
+
+            if(dead) {
+                statements.remove(g.base, index);
+                changed = true;
+                continue;
+            }
+
+            index++;
+        }
+
+        if(!changed) break;
+    }
+}
 
 void optimizeFile(JsShared& g) {
     for(auto pointer: g.file.statements.contents(g.base)) {

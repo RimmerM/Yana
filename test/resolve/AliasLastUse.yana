@@ -1,0 +1,95 @@
+{-
+   The live-range half of copy-to-alias elision - J72 §9 item 5, built in J82.
+
+   `aliasCopies` in `compiler/resolve_ssa/js/opt_alias.cpp` asks its questions of the whole body,
+   so a `clone` whose source was written *before* the copy, or whose copy is returned, survives as
+   `{ weight: p.weight, count: p.count }` even where nothing names the source again. Two narrower
+   rules take those: a clone at the **last use** of a local is a move (`moveLastUses`), and a clone
+   read only for numbers before anything could write is answered from its source
+   (`readThroughCopies`).
+
+   Every record here holds an `F64`, which no packing budget on the JavaScript target will ever take
+   into a word - so the clones stay objects under record packing (J85) and this fixture goes on
+   asking the question it was written for.
+
+   Each case is a distinct power of two and `main` is 127 when they all pass. The native build is the
+   independent reference: it has no clone to elide, so a wrong alias shows as a different number
+   under Node and nowhere else.
+
+   # resolver: ownership
+
+   Only because the shipping stage reads `let q = p` of a small trivially copyable record as a
+   borrow rather than a copy, so `writtenAfter` and the last case of `main` see the write that
+   follows and it answers 55 on both targets. `AliasWrite.yana` is the same disagreement.
+-}
+
+data Rec {weight: F64, count: Int}
+
+data Outer {inner: Rec, tag: Int}
+
+-- A copy returned at the last use of a written local: the move. Before J82 this was a
+-- property-by-property duplicate, refused because the local was written and the copy kept.
+@noinline fn bumped(start: Int) -> Rec:
+    let &p = Rec {weight: 1.5, count: start}
+    p.count = p.count + 1
+    return p
+
+-- A copy taken apart straight away: the projection reads the source.
+@noinline fn projected(start: Int) -> Int:
+    let &p = Rec {weight: 0.5, count: start}
+    p.count = p.count * 2
+    let q = p
+    return q.count
+
+-- A copy of a *field* - a `Property` root, which `aliasCopies` refuses whatever else holds.
+@noinline fn field(start: Int) -> Int:
+    let &o = Outer {inner: Rec {weight: 2.0, count: start}, tag: 3}
+    o.inner.count = o.inner.count + 10
+    let i = o.inner
+    return i.count + o.tag
+
+-- The source is written after the copy and read again: the copy must survive, and `q` keeps the
+-- value from before the write.
+@noinline fn writtenAfter(start: Int) -> Int:
+    let &p = Rec {weight: 4.0, count: start}
+    let q = p
+    p.count = 9
+    return q.count * 10 + p.count
+
+-- A copy inside a loop is never the last use of the local, whatever the block around it says: the
+-- next iteration writes the local again. An alias here answers 123 rather than 12.
+@noinline fn looped() -> Int:
+    let &acc = Rec {weight: 0.25, count: 0}
+    let &keep = Rec {weight: 0.75, count: 0}
+    for i in 1..4:
+        acc.count = acc.count * 10 + i
+        if i < 3: keep = acc
+    return keep.count
+
+-- A moved copy that is then written: the move is only sound because nothing reads `p` again.
+@noinline fn movedThenWritten(start: Int) -> Int:
+    let &p = Rec {weight: 8.0, count: start}
+    p.count = p.count + 1
+    let &q = p
+    q.count = q.count * 100
+    return q.count
+
+fn main() -> Int:
+    let &score = 0 :: Int
+
+    let b = bumped(41)
+    if b.count == 42 && b.weight == 1.5: score = score + 1
+    if projected(21) == 42: score = score + 2
+    if field(5) == 18: score = score + 4
+    if writtenAfter(3) == 39: score = score + 8
+    if looped() == 12: score = score + 16
+    if movedThenWritten(6) == 700: score = score + 32
+
+    -- The same record copied twice from one source, the second at its last use.
+    let &r = Rec {weight: 16.0, count: 1}
+    let first = r
+    r.count = 2
+    let second = r
+    if first.count * 10 + second.count == 12: score = score + 64
+
+    return score

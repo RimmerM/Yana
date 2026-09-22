@@ -80,16 +80,12 @@ function main() {
     p5 = p15;
     p6 = 0;
     while (p5 >= 2) {
-      var v747 = p5 * 0.5;
-      var v748 = p6 + 1;
-      p5 = v747;
-      p6 = v748;
+      p5 = p5 * 0.5;
+      p6 = p6 + 1;
     }
     while (p5 < 1) {
-      var v745 = p5 * 2;
-      var v746 = p6 - 1;
-      p5 = v745;
-      p6 = v746;
+      p5 = p5 * 2;
+      p6 = p6 - 1;
     }
     if (nearFloat(v661, v663, v665, v667, p6) ^ 1) p7 = p7 + 1 | 0;
     var v675 = v633 & 8388607;
@@ -116,16 +112,12 @@ function main() {
     p12 = p15;
     p13 = 0;
     while (p12 >= 2) {
-      var v741 = p12 * 0.5;
-      var v742 = p13 + 1;
-      p12 = v741;
-      p13 = v742;
+      p12 = p12 * 0.5;
+      p13 = p13 + 1;
     }
     while (p12 < 1) {
-      var v739 = p12 * 2;
-      var v740 = p13 - 1;
-      p12 = v739;
-      p13 = v740;
+      p12 = p12 * 2;
+      p13 = p13 - 1;
     }
     var v714 = nearDouble(v705[0], v705[1], p13) ^ 1 ? v704 + 1 | 0 : v704;
     var v716 = BigInt.asIntN(64, $bc$d2l(p15));
@@ -142,11 +134,7 @@ function main() {
     while (p15 < 1) {
       p15 = p15 * 2;
     }
-    if (nearDouble(v727, v728, p15) ^ 1) {
-      p7 = v714 + 1 | 0;
-    } else {
-      p7 = v714;
-    }
+    p7 = nearDouble(v727, v728, p15) ^ 1 ? v714 + 1 | 0 : v714;
     p1 = p1 + 1 | 0;
   }
   var p29 = 0;
@@ -156,16 +144,12 @@ function main() {
     p22 = 2.5;
     p23 = 0;
     while (p23 < p18) {
-      var v618 = p22 * 2;
-      var v620 = p23 + 1 | 0;
-      p22 = v618;
-      p23 = v620;
+      p22 = p22 * 2;
+      p23 = p23 + 1 | 0;
     }
     while (p23 > p18) {
-      var v615 = p22 * 0.5;
-      var v617 = p23 - 1 | 0;
-      p22 = v615;
-      p23 = v617;
+      p22 = p22 * 0.5;
+      p23 = p23 - 1 | 0;
     }
     if (nearDouble(v586[0], v586[1], p22) ^ 1) p29 = p29 + 1 | 0;
     var v595 = Math.fround(p18);
@@ -173,16 +157,12 @@ function main() {
     p27 = 2.5;
     p28 = 0;
     while (p28 < p18) {
-      var v612 = p27 * 2;
-      var v614 = p28 + 1 | 0;
-      p27 = v612;
-      p28 = v614;
+      p27 = p27 * 2;
+      p28 = p28 + 1 | 0;
     }
     while (p28 > p18) {
-      var v609 = p27 * 0.5;
-      var v611 = p28 - 1 | 0;
-      p27 = v609;
-      p28 = v611;
+      p27 = p27 * 0.5;
+      p28 = p28 - 1 | 0;
     }
     if (nearFloat(v596[0], v596[1], v596[2], v596[3], p27) ^ 1) p29 = p29 + 1 | 0;
     p18 = p18 + 1 | 0;
@@ -217,9 +197,10 @@ function main() {
     }
     var v551 = p32 - 3;
     var v553 = v551 - Math.floor(v551);
-    if (nearDouble(v551 - Math.floor(v551), v551 - Math.floor(v551), v553) ^ 1) p34 = p34 + 1 | 0;
+    if (nearDouble(v553, v553, v553) ^ 1) p34 = p34 + 1 | 0;
     var v562 = Math.fround(v551);
-    if (nearFloat(Math.fround(v562 - Math.fround(Math.floor(v562))), Math.fround(v562 - Math.fround(Math.floor(v562))), Math.fround(v562 - Math.fround(Math.floor(v562))), Math.fround(v562 - Math.fround(Math.floor(v562))), v553) ^ 1) p34 = p34 + 1 | 0;
+    var v572 = Math.fround(v562 - Math.fround(Math.floor(v562)));
+    if (nearFloat(v572, v572, v572, v572, v553) ^ 1) p34 = p34 + 1 | 0;
     p31 = p31 + 1 | 0;
   }
   var v183 = v158 + p34 | 0;
@@ -273,26 +254,30 @@ function main() {
     var v418 = 0 - p38;
     var v420 = p37 < v418 ? p37 : v418;
     var v422 = p37 > v418 ? p37 : v418;
-    if (nearDouble(p37 !== p37 ? v418 : (p37 < v418 || v418 !== v418) ? p37 : v418, p37 !== p37 ? v418 : (p37 < v418 || v418 !== v418) ? p37 : v418, v420) ^ 1) p39 = p39 + 1 | 0;
+    var v423 = p37 !== p37;
+    var v429 = p37 < v418 || v418 !== v418;
+    if (nearDouble(v423 ? v418 : v429 ? p37 : v418, v423 ? v418 : v429 ? p37 : v418, v420) ^ 1) p39 = p39 + 1 | 0;
     var v439 = v418 !== v418;
     var v440 = v418 !== v418;
     var v441 = v418 < p37;
-    var v442 = v418 < p37;
     var v443 = p37 !== p37;
     var v444 = p37 !== p37;
-    var v455 = nearDouble(v439 ? p37 : (v441 || v443) ? v418 : p37, v440 ? p37 : (v442 || v444) ? v418 : p37, v420) ^ 1 ? p39 + 1 | 0 : p39;
-    var v468 = nearDouble(v443 ? v418 : (p37 > v418 || v439) ? p37 : v418, v444 ? v418 : (p37 > v418 || v440) ? p37 : v418, v422) ^ 1 ? v455 + 1 | 0 : v455;
-    var v481 = nearDouble(v439 ? p37 : (v418 > p37 || v443) ? v418 : p37, v440 ? p37 : (v418 > p37 || v444) ? v418 : p37, v422) ^ 1 ? v468 + 1 | 0 : v468;
-    var v494 = nearDouble(v234 ? p37 : (v187 < p37 || v443) ? v187 : p37, v235 ? p37 : (v187 < p37 || v444) ? v187 : p37, p37) ^ 1 ? v481 + 1 | 0 : v481;
-    var v507 = nearDouble(v443 ? v187 : (p37 < v187 || v234) ? p37 : v187, v444 ? v187 : (p37 < v187 || v235) ? p37 : v187, p37) ^ 1 ? v494 + 1 | 0 : v494;
-    var v520 = nearDouble(v234 ? p37 : (v187 > p37 || v443) ? v187 : p37, v235 ? p37 : (v187 > p37 || v444) ? v187 : p37, p37) ^ 1 ? v507 + 1 | 0 : v507;
-    var v533 = nearDouble(v443 ? v187 : (p37 > v187 || v234) ? p37 : v187, v444 ? v187 : (p37 > v187 || v235) ? p37 : v187, p37) ^ 1 ? v520 + 1 | 0 : v520;
+    var v445 = v441 || v443;
+    var v455 = nearDouble(v439 ? p37 : v445 ? v418 : p37, v440 ? p37 : v445 ? v418 : p37, v420) ^ 1 ? p39 + 1 | 0 : p39;
+    var v458 = p37 > v418 || v439;
+    var v468 = nearDouble(v443 ? v418 : v458 ? p37 : v418, v444 ? v418 : v458 ? p37 : v418, v422) ^ 1 ? v455 + 1 | 0 : v455;
+    var v471 = v418 > p37 || v443;
+    var v481 = nearDouble(v439 ? p37 : v471 ? v418 : p37, v440 ? p37 : v471 ? v418 : p37, v422) ^ 1 ? v468 + 1 | 0 : v468;
+    var v484 = v187 < p37 || v443;
+    var v494 = nearDouble(v234 ? p37 : v484 ? v187 : p37, v235 ? p37 : v484 ? v187 : p37, p37) ^ 1 ? v481 + 1 | 0 : v481;
+    var v495 = p37 < v187;
+    var v507 = nearDouble(v443 ? v187 : (v495 || v234) ? p37 : v187, v444 ? v187 : (v495 || v235) ? p37 : v187, p37) ^ 1 ? v494 + 1 | 0 : v494;
+    var v510 = v187 > p37 || v443;
+    var v520 = nearDouble(v234 ? p37 : v510 ? v187 : p37, v235 ? p37 : v510 ? v187 : p37, p37) ^ 1 ? v507 + 1 | 0 : v507;
+    var v521 = p37 > v187;
+    var v533 = nearDouble(v443 ? v187 : (v521 || v234) ? p37 : v187, v444 ? v187 : (v521 || v235) ? p37 : v187, p37) ^ 1 ? v520 + 1 | 0 : v520;
     var v536 = v237 ? v533 + 1 | 0 : v533;
-    if (v239) {
-      p39 = v536 + 1 | 0;
-    } else {
-      p39 = v536;
-    }
+    p39 = v239 ? v536 + 1 | 0 : v536;
     p36 = p36 + 1 | 0;
   }
   var v242 = v183 + p39 | 0;

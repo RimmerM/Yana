@@ -6,11 +6,9 @@ var seed = 3;
 function main() {
   var v5 = seed;
   var v7 = v5 + v5 | 0;
-  var v9 = v5 + v5 | 0;
   var v16 = Math.imul(v5, 2);
-  var v18 = Math.imul(v5, 2);
   if (v7 !== 6) return -1;
-  if (v18 !== 6) return -2;
+  if (v16 !== 6) return -2;
   if (Math.max(Math.max(10, v5), Math.max(v5, v5)) !== 10) return -3;
   if (Math.min(Math.min(10, v5), Math.min(v5, v5)) !== 3) return -4;
   var p0 = v5;
@@ -19,16 +17,11 @@ function main() {
   var p3 = v5;
   var p4 = 0;
   while (p4 < 4) {
-    var v181 = p0 + v5 | 0;
-    var v183 = p1 + v5 | 0;
-    var v185 = p2 + v5 | 0;
-    var v187 = p3 + v5 | 0;
-    var v189 = p4 + 1 | 0;
-    p0 = v181;
-    p1 = v183;
-    p2 = v185;
-    p3 = v187;
-    p4 = v189;
+    p0 = p0 + v5 | 0;
+    p1 = p1 + v5 | 0;
+    p2 = p2 + v5 | 0;
+    p3 = p3 + v5 | 0;
+    p4 = p4 + 1 | 0;
   }
   if (p0 !== 15) return -5;
   if (p1 !== 15) return -6;
@@ -36,18 +29,22 @@ function main() {
   if (((v5 + v7 | 0) + (v16 + p0 | 0) | 0) !== 30) return -8;
   var v83 = 10 > v5;
   var v84 = v5 > v5;
-  var v85 = v5 > v5;
-  var v86 = v5 > v5;
-  if ((v83 ? 1 : 0) + (v84 ? 1 : 0) + ((v85 ? 1 : 0) + (v86 ? 1 : 0)) !== 1) return -9;
-  if ((v83 | v84 | (v85 | v86)) ^ 1) return -10;
-  if (v83 & v84 & (v85 & v86)) return -11;
+  var v87 = v83 ? 1 : 0;
+  var v88 = v84 ? 1 : 0;
+  if (v87 + v88 + (v88 + v88) !== 1) return -9;
+  if ((v83 | v84 | (v84 | v84)) ^ 1) return -10;
+  if (v83 & v84 & (v84 & v84)) return -11;
   var v108 = v83 ? 7 : 2;
   var v109 = v84 ? 7 : 2;
   if (v108 !== 7) return -12;
   if (v109 !== 2) return -13;
   if ((v5 > v5 ? 0 : 10 > v5 ? 1 : v5 > v5 ? 2 : v5 > v5 ? 3 : 4) !== 1) return -14;
-  if ((10 < v5 ? 0 : v5 < v5 ? 1 : v5 < v5 ? 2 : v5 < v5 ? 3 : 4) !== 4) return -15;
-  if (10 >= v5 ? 0 : v5 >= v5 ? 1 : v5 >= v5 ? 2 : v5 >= v5 ? 3 : 4) return -16;
-  return (Math.imul(v9, 100) + v16 | 0) + 10 | 0;
+  var v132 = 10 < v5;
+  var v133 = v5 < v5;
+  if ((v132 ? 0 : v133 ? 1 : v133 ? 2 : v133 ? 3 : 4) !== 4) return -15;
+  var v146 = 10 >= v5;
+  var v147 = v5 >= v5;
+  if (v146 ? 0 : v147 ? 1 : v147 ? 2 : v147 ? 3 : 4) return -16;
+  return (Math.imul(v7, 100) + v16 | 0) + 10 | 0;
 }
 main();

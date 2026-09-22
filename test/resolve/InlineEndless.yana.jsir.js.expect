@@ -19,14 +19,8 @@ function spins() {
 }
 
 function main() {
-  var p0;
   var v1 = seed;
-  if (v1 > 1000000) {
-    p0 = endless(v1);
-  } else {
-    p0 = Math.imul(v1, 2);
-  }
-  var v19 = Math.imul(p0, 3) + (Math.imul(seed, 2) + 1 | 0) | 0;
+  var v19 = Math.imul(v1 > 1000000 ? endless(v1) : Math.imul(v1, 2), 3) + (Math.imul(seed, 2) + 1 | 0) | 0;
   var v20 = seed;
   if (v20 <= 1000000) return v19 + Math.imul(v20, 15) | 0;
   var v28 = spins();

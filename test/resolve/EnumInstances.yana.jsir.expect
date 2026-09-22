@@ -3,25 +3,25 @@ fn opaque(one %r0) -> one %r0
     return %0
 
 fn main() -> one %r0
-  var $0: %r3
+  var $0: %r2
   block0:
     %6: %r1 = const 2
     %7: %r1 = convert %6
     %8: %r0 = convert %7
     %9: %r0 = const 2
-    %10: %r2 = binary.eq %8, %9
+    %10: %r3 = binary.eq %8, %9
     branch %10 -> block2 -> block1
   block1:
-    %11: %r2 = const 0
+    %11: %r3 = const 0
     jump -> block3(%11)
   block2:
     %12: %r1 = const 122
     %13: %r1 = convert %12
     %14: %r0 = convert %13
     %15: %r0 = const 122
-    %16: %r2 = binary.eq %14, %15
+    %16: %r3 = binary.eq %14, %15
     jump -> block3(%16)
-  block3(%0: %r2):
+  block3(%0: %r3):
     %17: %r0 = const 1
     %18: %r0 = const 0
     %19: %r0 = select %0, %17, %18
@@ -32,29 +32,29 @@ fn main() -> one %r0
     %30: %r0 = call opaque %29
     %31: %r4 = convert %30
     %32: %r4 = const 0n
-    %33: %r2 = binary.ge %31, %32
+    %33: %r3 = binary.ge %31, %32
     %34: %r4 = const 2n
-    %35: %r2 = binary.le %31, %34
-    %36: %r2 = binary.and %33, %35
+    %35: %r3 = binary.le %31, %34
+    %36: %r3 = binary.and %33, %35
     branch %36 -> block5 -> block4
   block4:
-    %37: %r3 = const null
+    %37: %r2 = const null
     jump -> block6(%37)
   block5:
     %38: %r1 = convert %31
     %39: %r1 = convert %38
-    %40: %r3 = alias %39
+    %40: %r2 = alias %39
     jump -> block6(%40)
-  block6(%1: %r3):
-    store var $0: %r3, %1
-    %41: %r3 = load var $0: %r3
-    %42: %r3 = const null
+  block6(%1: %r2):
+    store var $0: %r2, %1
+    %41: %r2 = load var $0: %r2
+    %42: %r2 = const null
     %43: %r5 = binary.eq %41, %42
     %44: %r1 = const 1
     %45: %r1 = const 0
     %46: %r1 = select %43, %45, %44
     %47: %r1 = const 1
-    %48: %r2 = binary.eq %46, %47
+    %48: %r3 = binary.eq %46, %47
     branch %48 -> block8 -> block7
   block7:
     %49: %r0 = const -1
@@ -66,7 +66,7 @@ fn main() -> one %r0
     jump -> block9(%53)
   block9(%2: %r0):
     %54: %r0 = const 1
-    %55: %r2 = binary.eq %2, %54
+    %55: %r3 = binary.eq %2, %54
     %56: %r0 = const 32
     %57: %r0 = const 0
     %58: %r0 = select %55, %56, %57
@@ -76,27 +76,27 @@ fn main() -> one %r0
     %62: %r1 = const 2
     %63: %r1 = convert %62
     %64: %r1 = convert %61
-    %65: %r2 = binary.lt %64, %63
+    %65: %r3 = binary.lt %64, %63
     branch %65 -> block10 -> block11
   block10:
     %66: %r1 = const 2
     %67: %r1 = const 1
     %68: %r1 = convert %67
     %69: %r1 = convert %66
-    %70: %r2 = binary.ge %69, %68
+    %70: %r3 = binary.ge %69, %68
     branch %70 -> block12 -> block11
   block11:
-    %71: %r2 = const 0
+    %71: %r3 = const 0
     jump -> block16(%71)
   block12:
     %72: %r1 = const 1
     %73: %r1 = const 0
     %74: %r1 = convert %72
     %75: %r1 = convert %73
-    %76: %r2 = binary.lt %74, %75
+    %76: %r3 = binary.lt %74, %75
     branch %76 -> block14 -> block13
   block13:
-    %77: %r2 = binary.eq %74, %75
+    %77: %r3 = binary.eq %74, %75
     %78: %r1 = const 1
     %79: %r1 = const 2
     %80: %r1 = select %77, %78, %79
@@ -106,9 +106,9 @@ fn main() -> one %r0
     jump -> block15(%81)
   block15(%3: %r1):
     %82: %r1 = const 2
-    %83: %r2 = binary.eq %3, %82
+    %83: %r3 = binary.eq %3, %82
     jump -> block16(%83)
-  block16(%4: %r2):
+  block16(%4: %r3):
     %84: %r0 = const 64
     %85: %r0 = const 0
     %86: %r0 = select %4, %84, %85
@@ -117,18 +117,18 @@ fn main() -> one %r0
     %89: %r1 = const 2
     %90: %r0 = call anyValue(Whence, I32) %89
     %91: %r0 = const 2
-    %92: %r2 = binary.eq %90, %91
+    %92: %r3 = binary.eq %90, %91
     branch %92 -> block18 -> block17
   block17:
-    %93: %r2 = const 0
+    %93: %r3 = const 0
     jump -> block19(%93)
   block18:
     %94: %r1 = const 122
     %95: %r0 = call anyValue(Errno, I32) %94
     %96: %r0 = const 122
-    %97: %r2 = binary.eq %95, %96
+    %97: %r3 = binary.eq %95, %96
     jump -> block19(%97)
-  block19(%5: %r2):
+  block19(%5: %r3):
     %98: %r0 = const 128
     %99: %r0 = const 0
     %100: %r0 = select %5, %98, %99
@@ -148,11 +148,11 @@ fn anyValue(Errno, I32)(one %r1) -> one %r0
     %2: %r0 = convert %1
     return %2
 
-optimizer clones 0 aliased 0 forwarded 0 removed 7 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 7 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
 
 rep %r0 = number signed 32
 rep %r1 = number unsigned 8
-rep %r2 = number bool
-rep %r3 = nullable of %r1
+rep %r2 = nullable of %r1
+rep %r3 = number bool
 rep %r4 = bigint signed
 rep %r5 = boolean

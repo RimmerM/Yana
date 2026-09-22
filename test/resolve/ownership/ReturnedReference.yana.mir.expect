@@ -1,0 +1,216 @@
+module ResolveTest
+
+data P {a: I32, b: I32}
+
+data Q {a: I32, b: I32, c: Bool}
+
+fn low(p: P [unique slot 0]) -> I32 [unique slot 0 owner] {
+bb0:
+  %0: I32 [unique slot 0] = read borrow.unique (p.a) loan0
+  return borrow.unique %0
+}
+
+fn pick(p: P [unique slot 0], hi: Bool [shared call]) -> I32 [unique slot 0 owner] {
+bb0:
+  %0: Bool = read copy.trivial (hi)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %5: I32 [unique slot 0] = read borrow.unique (p.a) loan1
+  return borrow.unique %5
+
+bb3:
+  %2: I32 [unique slot 0] = read borrow.unique (p.b) loan0
+  return borrow.unique %2
+}
+
+fn plain() -> I32 {
+  local & p: P
+  local & l: I32 [unique slot 0 owner]
+  local & q: I32 [unique slot 0 owner]
+
+bb0:
+  %0: I32 = const 100
+  %1: I32 = const 200
+  %2: P = aggregate.P take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: P [unique slot 0] = read borrow.unique (p) loan0
+  %5: I32 [unique slot 0 owner] = call low borrow.unique %4 roots{0}
+  write.init borrow.unique (l) borrow.unique %5
+  %7: I32 = read copy.trivial (l)
+  %8: I32 = const 1
+  %9: I32 = sub inspect %7 inspect %8
+  write.assign borrow.unique (l) take %9
+  %11: P [unique slot 0] = read borrow.unique (p) loan1
+  %12: Bool = const False
+  %13: I32 [unique slot 0 owner] = call pick borrow.unique %11 borrow.shared %12 roots{1}
+  write.init borrow.unique (q) borrow.unique %13
+  %15: I32 = read copy.trivial (q)
+  %16: I32 = const 7
+  %17: I32 = sub inspect %15 inspect %16
+  write.assign borrow.unique (q) take %17
+  %19: I32 = read copy.trivial (p.a)
+  %20: I32 = const 1000
+  %21: I32 = mul inspect %19 inspect %20
+  %22: I32 = read copy.trivial (p.b)
+  %23: I32 = add inspect %21 inspect %22
+  return take %23
+}
+
+fn lowQ(p: Q [unique slot 0]) -> I32 [unique slot 0 owner] {
+bb0:
+  %0: I32 [unique slot 0] = read borrow.unique (p.a) loan0
+  return borrow.unique %0
+}
+
+fn pickQ(p: Q [unique slot 0], hi: Bool [shared call]) -> I32 [unique slot 0 owner] {
+bb0:
+  %0: Bool = read copy.trivial (hi)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %5: I32 [unique slot 0] = read borrow.unique (p.a) loan1
+  return borrow.unique %5
+
+bb3:
+  %2: I32 [unique slot 0] = read borrow.unique (p.b) loan0
+  return borrow.unique %2
+}
+
+fn makeQ(i: I32 [shared call]) -> Q {
+bb0:
+  %0: I32 = const 100
+  %1: I32 = read copy.trivial (i)
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = const 200
+  %4: I32 = read copy.trivial (i)
+  %5: I32 = sub inspect %3 inspect %4
+  %6: I32 = read copy.trivial (i)
+  %7: I32 = const 0
+  %8: Bool = gt inspect %6 inspect %7
+  %9: Q = aggregate.Q take %2 take %5 take %8
+  return take %9
+}
+
+fn packed() -> I32 {
+  local & total: I32
+  local & local1: I32
+  local i: I32
+  local & p: Q
+  local & l: I32 [unique slot 0 owner]
+  local & q: I32 [unique slot 0 owner]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 = const 0
+  %3: I32 = const 2
+  %4: I32 = const 1
+  write.init borrow.unique (local1) take %2
+  jump -> bb1(take %3, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local1)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %70: I32 = read copy.trivial (local1)
+  %71: I32 = add inspect %70 inspect %8
+  write.assign borrow.unique (local1) take %71
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %74: I32 = read copy.trivial (total)
+  return take %74
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local1)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: Q = call makeQ borrow.shared %20
+  write.init borrow.unique (p) take %21
+  %23: Q [unique slot 0] = read borrow.unique (p) loan0
+  %24: I32 [unique slot 0 owner] = call lowQ borrow.unique %23 roots{0}
+  write.init borrow.unique (l) borrow.unique %24
+  %26: I32 = read copy.trivial (l)
+  %27: I32 = const 1
+  %28: I32 = sub inspect %26 inspect %27
+  write.assign borrow.unique (l) take %28
+  %30: Q [unique slot 0] = read borrow.unique (p) loan1
+  %31: I32 = read copy.trivial (i)
+  %32: I32 = const 1
+  %33: Bool = eq inspect %31 inspect %32
+  %34: I32 [unique slot 0 owner] = call pickQ borrow.unique %30 borrow.shared %33 roots{1}
+  write.init borrow.unique (q) borrow.unique %34
+  %36: I32 = read copy.trivial (q)
+  %37: I32 = const 7
+  %38: I32 = sub inspect %36 inspect %37
+  write.assign borrow.unique (q) take %38
+  %40: I32 = read copy.trivial (total)
+  %41: I32 = const 1000
+  %42: I32 = mul inspect %40 inspect %41
+  %43: I32 = read copy.trivial (p.a)
+  %44: I32 = const 10
+  %45: I32 = mul inspect %43 inspect %44
+  %46: I32 = add inspect %42 inspect %45
+  %47: I32 = read copy.trivial (p.b)
+  %48: I32 = const 10
+  %49: I32 = rem inspect %47 inspect %48
+  %50: I32 = add inspect %46 inspect %49
+  %51: Bool = read copy.trivial (p.c)
+  branch inspect %51 -> bb7(take %15, take %16, take %50) -> bb5(take %15, take %16, take %50)
+
+bb5(%52: I32, %53: I32, %54: I32):
+  %60: I32 = const 0
+  jump -> bb6(take %60, take %52, take %53, take %54)
+
+bb6(%61: I32, %62: I32, %63: I32, %64: I32):
+  %67: I32 = add inspect %64 inspect %61
+  write.assign borrow.unique (total) take %67
+  jump -> bb2(take %62, take %63)
+
+bb7(%55: I32, %56: I32, %57: I32):
+  %59: I32 = const 1
+  jump -> bb6(take %59, take %55, take %56, take %57)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call plain
+  %1: I32 = const 92200
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = call packed
+  %8: I32 = const 921003
+  %9: Bool = ne inspect %7 inspect %8
+  branch inspect %9 -> bb6 -> bb4
+
+bb3:
+  %4: I32 = const 1
+  return take %4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %14: I32 = const 0
+  return take %14
+
+bb6:
+  %11: I32 = const 2
+  return take %11
+}
+
+entry main

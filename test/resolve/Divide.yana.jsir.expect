@@ -17,7 +17,6 @@ fn main() -> one %r0
     %28: %r1 = const -9223372036854775807n
     %29: %r1 = const 9223372036854775807n
     %30: %r2 = array %24, %25, %26, %27, %22, %28, %29
-    store var $0: %r2, %30
     %31: %r1 = const 0n
     %32: %r1 = const -1n
     %33: %r1 = const 1n
@@ -26,7 +25,6 @@ fn main() -> one %r0
     %36: %r1 = const 3n
     %37: %r1 = const 10n
     %38: %r2 = array %31, %32, %33, %34, %35, %36, %37
-    store var $1: %r2, %38
     %39: %r0 = const 0
     %40: %r0 = const 1
     %41: %r0 = const 7
@@ -34,7 +32,6 @@ fn main() -> one %r0
     %43: %r0 = const -2.147483647E9
     %44: %r0 = const 2.147483647E9
     %45: %r3 = array %39, %40, %41, %42, %23, %43, %44
-    store var $2: %r3, %45
     %46: %r0 = const 0
     %47: %r0 = const -1
     %48: %r0 = const 1
@@ -43,35 +40,30 @@ fn main() -> one %r0
     %51: %r0 = const 3
     %52: %r0 = const 10
     %53: %r3 = array %46, %47, %48, %49, %50, %51, %52
-    store var $3: %r3, %53
     %54: %r4 = const 0n
     %55: %r4 = const 1n
     %56: %r4 = const 7n
     %57: %r4 = const 18446744073709551615n
     %58: %r4 = const 9223372036854775808n
     %59: %r5 = array %54, %55, %56, %57, %58
-    store var $4: %r5, %59
     %60: %r4 = const 0n
     %61: %r4 = const 1n
     %62: %r4 = const 2n
     %63: %r4 = const 3n
     %64: %r4 = const 18446744073709551615n
     %65: %r5 = array %60, %61, %62, %63, %64
-    store var $5: %r5, %65
     %66: %r6 = const 0
     %67: %r6 = const 1
     %68: %r6 = const 7
     %69: %r6 = const 4.294967295E9
     %70: %r6 = const 2.147483648E9
     %71: %r7 = array %66, %67, %68, %69, %70
-    store var $6: %r7, %71
     %72: %r6 = const 0
     %73: %r6 = const 1
     %74: %r6 = const 2
     %75: %r6 = const 3
     %76: %r6 = const 4.294967295E9
     %77: %r7 = array %72, %73, %74, %75, %76
-    store var $7: %r7, %77
     %78: %r0 = const 0
     %79: %r0 = const 0
     %80: %r0 = const 7
@@ -137,11 +129,11 @@ fn main() -> one %r0
     jump -> block7(%0, %118)
   block3:
     %185: %r0 = convert %1
-    %186: %r2 = load var $0: %r2
+    %186: %r2 = alias %30
     %187: %r1 = load element %186[%185]: %r1
     %188: %r1 = binary.sub %87, %187
     %189: %r1 = coerce %188
-    %190: %r3 = load var $2: %r3
+    %190: %r3 = alias %45
     %191: %r0 = load element %190[%185]: %r0
     %192: %r0 = binary.sub %98, %191
     %193: %r0 = coerce %192
@@ -156,7 +148,7 @@ fn main() -> one %r0
     branch %197 -> block13 -> block14
   block6:
     %213: %r0 = convert %3
-    %214: %r2 = load var $1: %r2
+    %214: %r2 = alias %38
     %215: %r1 = load element %214[%213]: %r1
     %216: %r1 = binary.div %187, %215
     %217: %r1 = coerce %216
@@ -174,9 +166,9 @@ fn main() -> one %r0
     return %139
   block9:
     %140: %r0 = convert %5
-    %141: %r5 = load var $4: %r5
+    %141: %r5 = alias %59
     %142: %r4 = load element %141[%140]: %r4
-    %143: %r7 = load var $6: %r7
+    %143: %r7 = alias %71
     %144: %r6 = load element %143[%140]: %r6
     jump -> block10(%4, %120)
   block10(%6: %r0, %7: %r0):
@@ -188,7 +180,7 @@ fn main() -> one %r0
     jump -> block7(%6, %147)
   block12:
     %148: %r0 = convert %7
-    %149: %r5 = load var $5: %r5
+    %149: %r5 = alias %65
     %150: %r4 = load element %149[%148]: %r4
     %151: %r4 = binary.div %142, %150
     %152: %r4 = coerce %151
@@ -265,7 +257,7 @@ fn main() -> one %r0
   block33(%12: %r0):
     %232: %r0 = binary.add %2, %12
     %233: %r0 = coerce %232
-    %234: %r3 = load var $3: %r3
+    %234: %r3 = alias %53
     %235: %r0 = load element %234[%213]: %r0
     %236: %r0 = binary.div %191, %235
     %237: %r0 = coerce %236
@@ -345,7 +337,7 @@ fn main() -> one %r0
   block57(%18: %r0):
     %164: %r0 = binary.add %6, %18
     %165: %r0 = coerce %164
-    %166: %r7 = load var $7: %r7
+    %166: %r7 = alias %77
     %167: %r6 = load element %166[%148]: %r6
     %168: %r6 = binary.div %144, %167
     %169: %r6 = coerce %168
@@ -388,7 +380,7 @@ fn main() -> one %r0
     %184: %r0 = coerce %183
     jump -> block10(%182, %184)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 8
 
 rep %r0 = number signed 32
 rep %r1 = bigint signed

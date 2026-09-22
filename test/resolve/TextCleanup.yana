@@ -1,0 +1,88 @@
+{-
+   J90: three things JSIR's text carried that the program did not need, on JavaScript.
+
+   `discarded` drops the array a call hands back. `Reclaim([Int])` folds to an empty body on a
+   collected host, but the call to it is minted after the inliner ran, so the file used to carry
+   `Array_a_reclaim_I32(build(count, 3));` and an empty function. The call goes now, and `build`
+   has to stay: it is what counts. `displaced` is the same teardown with the effect *in* its
+   argument - a map insertion whose displaced array is dropped at once - so the insertion stays as
+   a statement of its own.
+
+   `swapped` and `stepped` are loops whose variables the edge copies assign. A value computed only
+   to be copied into one is computed straight into it - `p = p + 1 | 0` rather than a `var` and a
+   copy - except where another copy on the same edge still reads the old value: a swap, and the
+   `a, b = b, a + b` step, where `b`'s new value is computed before `a` is handed the old `b`.
+
+   `chains` and `prefix` are short-circuit chains, which reach JavaScript as nested `if`s and leave
+   it as `&&` and `||`. `bump` has an effect, so where the left operand decides the answer it must
+   not run; `prefix`'s subscript traps past the end, so its test must stay behind `i < length(xs)`.
+
+   The code under test is the rewrite's JavaScript backend, so:
+   # resolver: ownership
+-}
+
+@noinline fn build(&count: Int, n: Int) -> [Int]:
+    count += 1
+    let &xs = [] :: [Int]
+    for i in 0..n:
+        push(xs, i)
+    return xs
+
+@noinline fn discarded() -> Int:
+    let &count = 0
+    let _ = build(count, 3)
+    let _ = build(count, 4)
+    return count
+
+-- The displaced value an assignment into a map hands back is torn down at once: the teardown's
+-- argument is the insertion itself, which must stay when the call around it goes.
+@noinline fn displaced() -> Int:
+    let &m = [:] :: [Int: [Int]]
+    m[1] = [1, 2]
+    m[1] = [3, 4, 5]
+    return truncate(length(m[1]))
+
+@noinline fn swapped(n: Int) -> Int:
+    let &a = 1
+    let &b = 2
+    for i in 0..n:
+        let t = a
+        a = b
+        b = t
+    return a * 10 + b
+
+@noinline fn stepped(n: Int) -> Int:
+    let &a = 0
+    let &b = 1
+    for i in 0..n:
+        let next = a + b
+        a = b
+        b = next
+    return a
+
+@noinline fn bump(&count: Int, answer: Bool) -> Bool:
+    count += 1
+    return answer
+
+@noinline fn chains(x: Int, y: Int) -> Int:
+    let &count = 0
+    let &hits = 0
+    if x > 0 && bump(count, True) && y > 0:
+        hits += 1
+    if x < 0 || bump(count, False) || y < 0:
+        hits += 10
+    if x > 0 && y > 0 && x < 100:
+        hits += 100
+    return count * 1000 + hits
+
+@noinline fn prefix(xs: [Int]) -> Int:
+    let &i = 0
+    while i < length(xs) && xs[i] > 0:
+        i += 1
+    return i
+
+fn main() -> Int:
+    let xs = [3, 1, 4]
+    let ys = [2, 0, 5]
+    let chained = chains(5, 7) + chains(-5, 7) * 3 + chains(5, -7) * 5
+    return discarded() + displaced() * 100000 + swapped(3) + stepped(10) + chained + prefix(xs) * 7 + prefix(ys) * 11

@@ -1,24 +1,22 @@
 fn scale(one %r0, one %r0) -> one %r0
+  var $0: %r0
   block0(%0: %r3, %1: %r0, %2: %r0):
-    %3: %r0 = const null
-    %4: %r4 = object %s0 %3
     %5: %r5 = const 1
     %6: %r0 = load element %0[%5]: %r0
     %7: %r5 = const 2
     %8: %r0 = load element %6[%7]: %r0
     %9: %r0 = call.value %8, %1, %2
-    store property %4.$v: %r0, %9
     %10: %r5 = const 1
     %11: %r0 = load element %0[%10]: %r0
     %12: %r5 = const 0
     %13: %r0 = load element %11[%12]: %r0
-    %14: %r0 = load property %4.$v: %r0
+    %14: %r0 = alias %9
     %15: %r0 = call.value %13, %14, %1
     %16: %r5 = const 0
     %17: %r0 = load element %0[%16]: %r0
     %18: %r5 = const 2
     %19: %r0 = load element %17[%18]: %r0
-    %20: %r0 = load property %4.$v: %r0
+    %20: %r0 = alias %9
     call.value %19, %20
     return %15
 
@@ -68,7 +66,7 @@ fn I32.-(one %r1) -> one %r1
     %2: %r1 = coerce %1
     return %2
 
-optimizer clones 0 aliased 0 forwarded 0 removed 9 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0 numbered 0 decided 0 unboxed 1 updated 0 split 0 promoted 2
 
 shape %s0 cell {$v: %r0 box}
 shape %s1 object Pair {first: %r1, second: %r7}

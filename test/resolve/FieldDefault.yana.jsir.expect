@@ -1,18 +1,20 @@
 fn main() -> one %r0
   block0:
-    %23: %r0 = const 278
-    return %23
+    %29: %r0 = const 278
+    return %29
 
-optimizer clones 0 aliased 0 forwarded 0 removed 23 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 29 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
 
-shape %s0 object Flags {read: %r1, write: %r1, level: %r0}
+shape %s0 object Flags {level: %r0, $p0: %r2 unit #0}
 shape %s1 object Window {title: %r0, width: %r0, height: %r0}
 shape %s2 object Report {$tag: %r6 tag, code$0: %r0, code$1: %r0}
 
+packing #0 %r2 Flags {read @0:1, write @1:1}
+
 rep %r0 = number signed 32
 rep %r1 = number bool
-rep %r2 = object %s0
-rep %r3 = parts (%r1, %r1, %r0) as %r2
+rep %r2 = number unsigned 2
+rep %r3 = object %s0
 rep %r4 = object %s1
 rep %r5 = parts (%r0, %r0, %r0) as %r4
 rep %r6 = number unsigned 8

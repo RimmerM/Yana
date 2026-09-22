@@ -127,6 +127,7 @@ struct Coalescer {
         auto& place = *body.place(base, placeId);
         if(place.owner) f(base[place.owner]->id.index);
         if(place.index) f(base[place.index]->id.index);
+        if(place.bitScale) f(base[place.bitScale]->id.index);
     }
 
     /*
@@ -156,7 +157,7 @@ struct Coalescer {
 
         for(U32 i = 0; i < count; i++) {
             auto block = blockAt(i);
-            if(block == entry) continue;
+            if(block == entry || block->deleted) continue;
 
             for(U32 j = 0; j < block->argumentCount(); j++) {
                 auto id = base[block->argumentAt(base, j)]->id.index;
@@ -304,6 +305,7 @@ struct Coalescer {
 
     for(U32 b = 0; b < count; b++) {
         live.clear();
+        if(blockAt(b)->deleted) continue;
         BitMatrix::forEach(liveAt.row(b), words, [&](Size column) { live.push(U32(column)); });
 
         for(Size i = 0; i < live.size(); i++) {
@@ -316,6 +318,7 @@ struct Coalescer {
 candidates.clear();
 
     for(U32 b = 0; b < count; b++) {
+        if(blockAt(b)->deleted) continue;
         auto terminator = blockAt(b)->terminator(base);
         if(!terminator) continue;
 
@@ -355,7 +358,187 @@ candidates.clear();
     }
 
     publish();
+    coalesceEdgeValues();
 }
+
+    /*
+     * J90 - an instruction result whose only use is an edge copy into a block argument, computed
+     * straight into the argument's variable. The golden-gap analysis counted 532 of
+     * `var v673 = p5 + v662 | 0; ... p5 = v673;` in `Base.js`; the peephole in `codegen/js/opt.cpp`
+     * folds such a `var` into its use only where nothing stands between them, and in a loop body
+     * something usually does.
+     *
+     * The classes above are about block arguments only, and a result is not given a class here:
+     * this is narrower than coalescing it, because it has to be, since a result is written *inside*
+     * a block where an argument is written on an edge. So the condition is stated on the one block
+     * that holds both the definition and the copy, and is exact there rather than a block-granular
+     * interference bit:
+     *
+     *  - **nothing after the definition reads the argument's class** - no later instruction, not
+     *    the terminator's own operand, and no other copy on any of the terminator's edges. The last
+     *    is the parallel-copy rule the sequential edge rule above states for arguments: in
+     *    `p = v; q = p;` for a swap, writing `v` into `p` early would hand `q` the new value. An
+     *    `alias` is followed to what it names, because the emitter spells one as its source;
+     *  - **the class is live out of the block along no edge** - where a branch copies `v` into `p`
+     *    on one edge, the other edge must not read `p` either;
+     *  - **one early assignment per class per block**, since two of them into one variable would be
+     *    the second overwriting the first before either edge.
+     *
+     * Reading the argument *in* the definition is allowed - `p = p + 1` reads before it writes.
+     */
+    void coalesceEdgeValues() {
+        auto& uses = scratch.valueUses;
+        auto& aliasOf = scratch.aliasOf;
+        auto& claimed = scratch.claimed;
+
+        uses.clear();
+        aliasOf.clear();
+        for(U32 i = 0; i < body.values.size(); i++) {
+            uses.push(0);
+            aliasOf.push(kNoArgument);
+        }
+
+        auto count = body.blocks.size();
+        for(U32 b = 0; b < count; b++) {
+            auto block = blockAt(b);
+            if(block->deleted) continue;
+
+            auto countUse = [&](U32 id) { if(id < uses.size()) uses[id]++; };
+
+            for(auto pointer: block->instructions(base)) {
+                auto& inst = *base[pointer];
+                eachArgumentUse(inst, countUse);
+
+                if(inst.kind == JsInst::Alias && inst.result && ((JsInstAlias&)inst).from) {
+                    aliasOf[base[inst.result]->id.index] = base[((JsInstAlias&)inst).from]->id.index;
+                }
+            }
+
+            if(auto terminator = block->terminator(base)) {
+                eachArgumentUse(*terminator, countUse);
+                forEachEdge(base, *terminator, [&](JsEdge& edge) {
+                    for(U32 i = 0; i < edge.arguments.size(); i++) {
+                        if(auto supplied = edge.arguments.get(base, i)) countUse(base[supplied]->id.index);
+                    }
+                });
+            }
+        }
+
+        // The class a read of `id` is a read of, following aliases; `kNoArgument` for no class.
+        auto classRead = [&](U32 id) -> U32 {
+            for(U32 guard = 0; guard < 64 && id < aliasOf.size() && aliasOf[id] != kNoArgument; guard++) {
+                id = aliasOf[id];
+            }
+
+            if(id >= dense.size() || dense[id] == kNoArgument) return kNoArgument;
+            return classOf(dense[id]);
+        };
+
+        /*
+         * Where each value is defined and where each class is last read, per block, in one walk -
+         * so "nothing after the definition reads the class" is a comparison rather than a scan of
+         * the block per edge argument, which was quadratic in a long loop body.
+         */
+        auto& definedAt = scratch.definedAt;
+        auto& definedIn = scratch.definedIn;
+        auto& lastRead = scratch.lastRead;
+        auto& lastReadIn = scratch.lastReadIn;
+        definedAt.clear();
+        definedIn.clear();
+        for(U32 i = 0; i < body.values.size(); i++) {
+            definedAt.push(0);
+            definedIn.push(0);
+        }
+
+        lastRead.clear();
+        lastReadIn.clear();
+        for(U32 i = 0; i < dense.size(); i++) {
+            lastRead.push(0);
+            lastReadIn.push(0);
+        }
+
+        for(U32 b = 0; b < count; b++) {
+            auto block = blockAt(b);
+            auto terminator = block->terminator(base);
+            if(!terminator) continue;
+
+            claimed.clear();
+
+            U32 position = 0;
+            for(auto pointer: block->instructions(base)) {
+                auto& inst = *base[pointer];
+                eachArgumentUse(inst, [&](U32 id) {
+                    auto read = classRead(id);
+                    if(read >= lastRead.size()) return;
+                    lastRead[read] = position;
+                    lastReadIn[read] = b + 1;
+                });
+
+                if(inst.result && base[inst.result]->id.index < definedAt.size()) {
+                    auto id = base[inst.result]->id.index;
+                    if(definedIn[id] != b + 1) {
+                        definedAt[id] = position;
+                        definedIn[id] = b + 1;
+                    }
+                }
+
+                position++;
+            }
+
+            forEachEdge(base, *terminator, [&](JsEdge& copyEdge) {
+                if(!copyEdge.target) return;
+                auto to = base[copyEdge.target];
+
+                for(U32 i = 0; i < copyEdge.arguments.size() && i < to->argumentCount(); i++) {
+                    auto supplied = copyEdge.arguments.get(base, i);
+                    if(!supplied) continue;
+
+                    auto valueIdOf = base[supplied]->id.index;
+                    auto destId = base[to->argumentAt(base, i)]->id.index;
+                    if(valueIdOf >= dense.size() || dense[valueIdOf] != kNoArgument) continue;
+                    if(destId >= dense.size() || dense[destId] == kNoArgument) continue;
+                    if(uses[valueIdOf] != 1 || aliasOf[valueIdOf] != kNoArgument) continue;
+
+                    auto destClass = classOf(dense[destId]);
+
+                    auto isClaimed = false;
+                    for(auto c: claimed) if(c == destClass) isClaimed = true;
+                    if(isClaimed) continue;
+
+                    // Defined in this block, and nothing after the definition reads the class. A
+                    // read inside the definition itself is allowed.
+                    if(valueIdOf >= definedIn.size() || definedIn[valueIdOf] != b + 1) continue;
+                    if(destClass < lastRead.size() && lastReadIn[destClass] == b + 1 &&
+                       lastRead[destClass] > definedAt[valueIdOf]) {
+                        continue;
+                    }
+
+                    auto clear = true;
+
+                    eachArgumentUse(*terminator, [&](U32 id) { if(classRead(id) == destClass) clear = false; });
+                    forEachEdge(base, *terminator, [&](JsEdge& other) {
+                        for(U32 k = 0; k < other.arguments.size(); k++) {
+                            auto read = other.arguments.get(base, k);
+                            if(!read || (&other == &copyEdge && k == i)) continue;
+                            if(classRead(base[read]->id.index) == destClass) clear = false;
+                        }
+                    });
+
+                    if(!clear) continue;
+
+                    auto outRow = scratch.outOf.row(b);
+                    for(auto member: scratch.classMembers[destClass]) {
+                        if(BitMatrix::test(outRow, member)) clear = false;
+                    }
+
+                    if(!clear) continue;
+
+                    claimed.push(destClass);
+                    target.coalesced.into[valueIdOf] = destId;
+                }
+            });
+        }
+    }
 };
 
 } // namespace
@@ -364,7 +547,11 @@ const JsCoalesced& jsCoalesceArguments(JsTarget& target, JsBody& body) {
     auto& answer = target.coalesced;
 
     answer.root.clear();
-    for(U32 i = 0; i < body.values.size(); i++) answer.root.push(JsCoalesced::kNoClass);
+    answer.into.clear();
+    for(U32 i = 0; i < body.values.size(); i++) {
+        answer.root.push(JsCoalesced::kNoClass);
+        answer.into.push(JsCoalesced::kNoClass);
+    }
 
     Coalescer coalescer(target, body);
     coalescer.run();

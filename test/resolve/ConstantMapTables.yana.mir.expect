@@ -1,0 +1,415 @@
+module ResolveTest
+
+data Colour = Red | Orange | Yellow | Green | Blue | Indigo | Violet
+
+data Pair {left: I32, right: I32}
+
+let string'149: [CodeUnit *0] = ""
+
+let string'255: [CodeUnit *3] = "red"
+
+let string'256: [CodeUnit *6] = "orange"
+
+let string'257: [CodeUnit *6] = "yellow"
+
+let string'258: [CodeUnit *5] = "green"
+
+let string'259: [CodeUnit *4] = "blue"
+
+let string'260: [CodeUnit *6] = "indigo"
+
+let string'261: [CodeUnit *6] = "violet"
+
+fn wavelength(c: Colour [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: I32 = map [0 -> 700, 1 -> 620, 2 -> 580, 3 -> 530, 4 -> 470, 5 -> 445, 6 -> 400] inspect %0
+  return take %1
+}
+
+fn rank(c: Colour [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: I32 = map [0 -> 10, 1 -> 13, 2 -> 16, 3 -> 19, 4 -> 22, 5 -> 25, 6 -> 28] inspect %0
+  return take %1
+}
+
+fn warm(c: Colour [shared call]) -> Bool {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: Bool = map [0 -> True, 1 -> True, 2 -> True, 3 -> False, 4 -> False, 5 -> False, 6 -> False] inspect %0
+  return take %1
+}
+
+fn seven(c: Colour [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: I32 = map [0 -> 7, 1 -> 7, 2 -> 7, 3 -> 7, 4 -> 7, 5 -> 7, 6 -> 7] inspect %0
+  return take %1
+}
+
+fn score(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = map [0 -> 3, 1 -> 1, 2 -> 4, 3 -> 1, 4 -> 5, 5 -> 9] else -1 inspect %0
+  return take %1
+}
+
+fn offset(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = map [10 -> 2, 11 -> 7, 12 -> 1, 13 -> 8, 14 -> 2] else 0 inspect %0
+  return take %1
+}
+
+fn negative(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = map [-3 -> 30, -2 -> 20, -1 -> 11, 0 -> 5, 1 -> 99] else 1 inspect %0
+  return take %1
+}
+
+fn name(c: Colour [shared call]) -> String {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: String = map [0 -> String {units: Array {run: Run {items: &string'255, capacity: 3, ownsHeap: 0}, length: 3}}, 1 -> String {units: Array {run: Run {items: &string'256, capacity: 6, ownsHeap: 0}, length: 6}}, 2 -> String {units: Array {run: Run {items: &string'257, capacity: 6, ownsHeap: 0}, length: 6}}, 3 -> String {units: Array {run: Run {items: &string'258, capacity: 5, ownsHeap: 0}, length: 5}}, 4 -> String {units: Array {run: Run {items: &string'259, capacity: 4, ownsHeap: 0}, length: 4}}, 5 -> String {units: Array {run: Run {items: &string'260, capacity: 6, ownsHeap: 0}, length: 6}}, 6 -> String {units: Array {run: Run {items: &string'261, capacity: 6, ownsHeap: 0}, length: 6}}] inspect %0
+  return take %1
+}
+
+fn maybe(n: I32 [shared call]) -> Maybe(I32) {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Maybe(I32) = map [0 -> Just(4), 1 -> Nothing, 2 -> Just(6), 3 -> Just(8)] else Just(-2) inspect %0
+  return take %1
+}
+
+fn sparse(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb6 -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (n)
+  %6: I32 = const 100
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb7 -> bb2
+
+bb2:
+  %10: I32 = read copy.trivial (n)
+  %11: I32 = const 1000
+  %12: Bool = eq inspect %10 inspect %11
+  branch inspect %12 -> bb8 -> bb3
+
+bb3:
+  %15: I32 = read copy.trivial (n)
+  %16: I32 = const 5000
+  %17: Bool = eq inspect %15 inspect %16
+  branch inspect %17 -> bb9 -> bb4
+
+bb4:
+  %20: I32 = const 0
+  jump -> bb5(take %20)
+
+bb5(%21: I32):
+  return take %21
+
+bb6:
+  %4: I32 = const 1
+  jump -> bb5(take %4)
+
+bb7:
+  %9: I32 = const 2
+  jump -> bb5(take %9)
+
+bb8:
+  %14: I32 = const 3
+  jump -> bb5(take %14)
+
+bb9:
+  %19: I32 = const 4
+  jump -> bb5(take %19)
+}
+
+fn bigStep(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = map [1000000007 -> 0, 1000000008 -> 99999999, 1000000009 -> 199999998] else 5 inspect %0
+  return take %1
+}
+
+fn wide(c: Colour [shared call]) -> I64 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: I64 = map [0 -> 1, 1 -> 4294967296, 2 -> 9, 3 -> -7, 4 -> 123456789012, 5 -> 0, 6 -> 2] inspect %0
+  return take %1
+}
+
+fn pair(c: Colour [shared call]) -> Pair {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: Pair = map [0 -> Pair {left: 1, right: 2}, 1 -> Pair {left: 3, right: 4}, 2 -> Pair {left: 5, right: 6}, 3 -> Pair {left: 7, right: 8}, 4 -> Pair {left: 7, right: 8}, 5 -> Pair {left: 7, right: 8}, 6 -> Pair {left: 7, right: 8}] inspect %0
+  return take %1
+}
+
+fn wavelengthAgain(c: Colour [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: I32 = map [0 -> 700, 1 -> 620, 2 -> 580, 3 -> 530, 4 -> 470, 5 -> 445, 6 -> 400] inspect %0
+  return take %1
+}
+
+fn main() -> I32 {
+  local & local0: Array(Colour) object1
+  local colours: Array(Colour) object1
+  local & total: I64
+  local & names: String
+  local c: Colour [shared call]
+  local p: Pair
+  local & local6: I32
+  local i: I32
+  local local8: Maybe(I32)
+  local v: I32
+  local & local10: I32
+  local i: I32
+
+bb0:
+  %0: Colour = const Red
+  %1: Colour = const Orange
+  %2: Colour = const Yellow
+  %3: Colour = const Green
+  %4: Colour = const Blue
+  %5: Colour = const Indigo
+  %6: Colour = const Violet
+  %7: %Colour = run.slots Colour *7
+  %8: Size = bitcast inspect %7
+  %9: Size = const 0
+  %10: Bool = eq inspect %8 inspect %9
+  %11: {} = call checkCondition borrow.shared %10
+  %12: @bits(30) U32 = const 7
+  %13: @bits(2) U32 = const 1
+  %14: Run(Colour) = aggregate.Run take %7 take %12 take %13
+  %15: @bits(30) U32 = const 7
+  %16: Array(Colour) = aggregate.Array take %14 take %15
+  write.init borrow.unique (local0) take %16
+  %18: Size = const 0
+  write.init borrow.unique ([%%7][0]) take %0
+  %20: Size = const 1
+  write.init borrow.unique ([%%7][1]) take %1
+  %22: Size = const 2
+  write.init borrow.unique ([%%7][2]) take %2
+  %24: Size = const 3
+  write.init borrow.unique ([%%7][3]) take %3
+  %26: Size = const 4
+  write.init borrow.unique ([%%7][4]) take %4
+  %28: Size = const 5
+  write.init borrow.unique ([%%7][5]) take %5
+  %30: Size = const 6
+  write.init borrow.unique ([%%7][6]) take %6
+  %32: Array(Colour) = read take (local0)
+  write.init borrow.unique (colours) take %32
+  %34: I64 = const 0
+  write.init borrow.unique (total) take %34
+  %36: String = const String {units: Array {run: Run {items: &string'149, capacity: 0, ownsHeap: 0}, length: 0}}
+  write.init borrow.unique (names) take %36
+  %38: Array(Colour) [shared call] = read borrow.shared (colours) loan0
+  %39: Array(Colour) [shared slot 0 view] = call.derivation elements(Array(Colour), Colour) borrow.shared %38 roots{0}
+  lens.call items(Array(Colour), Colour) borrow.shared %39 -> bb2
+
+bb1:
+  drop (colours)
+  %92: I32 = const -5
+  %93: I32 = const 20
+  %94: I32 = const 1
+  write.init borrow.unique (local6) take %92
+  jump -> bb6(take %93, take %94)
+
+bb2(%40: Colour [shared call]) handover(Colour [shared call]) many -> bb1:
+  write.init borrow.unique (c) borrow.shared %40
+  %43: I64 = read copy.trivial (total)
+  %44: Colour = read copy.trivial (c)
+  %45: I32 = call wavelength borrow.shared %44
+  %46: Colour = read copy.trivial (c)
+  %47: I32 = call rank borrow.shared %46
+  %48: I32 = const 3
+  %49: I32 = mul inspect %47 inspect %48
+  %50: I32 = add inspect %45 inspect %49
+  %51: Colour = read copy.trivial (c)
+  %52: I32 = call seven borrow.shared %51
+  %53: I32 = add inspect %50 inspect %52
+  %54: Colour = read copy.trivial (c)
+  %55: I32 = call wavelengthAgain borrow.shared %54
+  %56: I32 = add inspect %53 inspect %55
+  %57: I64 = convert inspect %56
+  %58: I64 = add inspect %43 inspect %57
+  write.assign borrow.unique (total) take %58
+  %60: Colour = read copy.trivial (c)
+  %61: Bool = call warm borrow.shared %60
+  branch inspect %61 -> bb5 -> bb3
+
+bb3 handover(Colour [shared call]) many:
+  jump -> bb4
+
+bb4 handover(Colour [shared call]) many:
+  %69: I64 = read copy.trivial (total)
+  %70: Colour = read copy.trivial (c)
+  %71: I64 = call wide borrow.shared %70
+  %72: I64 = add inspect %69 inspect %71
+  write.assign borrow.unique (total) take %72
+  %74: Colour = read copy.trivial (c)
+  %75: Pair = call pair borrow.shared %74
+  write.init borrow.unique (p) take %75
+  %77: I64 = read copy.trivial (total)
+  %78: I32 = read copy.trivial (p.left)
+  %79: I32 = const 10
+  %80: I32 = mul inspect %78 inspect %79
+  %81: I32 = read copy.trivial (p.right)
+  %82: I32 = add inspect %80 inspect %81
+  %83: I64 = convert inspect %82
+  %84: I64 = add inspect %77 inspect %83
+  write.assign borrow.unique (total) take %84
+  %86: String = read take (names)
+  %87: Colour = read copy.trivial (c)
+  %88: String = call name borrow.shared %87
+  %89: String = call ++(String) take %86 take %88
+  write.reinit borrow.unique (names) take %89
+  jump -> bb1
+
+bb5 handover(Colour [shared call]) many:
+  %63: I64 = read copy.trivial (total)
+  %64: I64 = const 1000
+  %65: I64 = add inspect %63 inspect %64
+  write.assign borrow.unique (total) take %65
+  jump -> bb4
+
+bb6(%95: I32, %96: I32):
+  %103: I32 = read copy.trivial (local6)
+  %104: Bool = lt inspect %103 inspect %95
+  branch inspect %104 -> bb9(take %95, take %96) -> bb8(take %95, take %96)
+
+bb7(%97: I32, %98: I32):
+  %162: I32 = read copy.trivial (local6)
+  %163: I32 = add inspect %162 inspect %98
+  write.assign borrow.unique (local6) take %163
+  jump -> bb6(take %97, take %98)
+
+bb8(%99: I32, %100: I32):
+  %166: I64 = read copy.trivial (total)
+  %167: I32 = const 1000
+  %168: I32 = call sparse borrow.shared %167
+  %169: I32 = const 10
+  %170: I32 = mul inspect %168 inspect %169
+  %171: I32 = const 5000
+  %172: I32 = call sparse borrow.shared %171
+  %173: I32 = add inspect %170 inspect %172
+  %174: I64 = convert inspect %173
+  %175: I64 = add inspect %166 inspect %174
+  write.assign borrow.unique (total) take %175
+  %177: I32 = const 0
+  %178: I32 = const 4
+  %179: I32 = const 1
+  write.init borrow.unique (local10) take %177
+  jump -> bb13(take %178, take %179)
+
+bb9(%105: I32, %106: I32):
+  %108: I32 = read copy.trivial (local6)
+  write.init borrow.unique (i) take %108
+  %110: I64 = read copy.trivial (total)
+  %111: I64 = const 3
+  %112: I64 = mul inspect %110 inspect %111
+  %113: I32 = read copy.trivial (i)
+  %114: I32 = call score borrow.shared %113
+  %115: I32 = read copy.trivial (i)
+  %116: I32 = call offset borrow.shared %115
+  %117: I32 = const 2
+  %118: I32 = mul inspect %116 inspect %117
+  %119: I32 = add inspect %114 inspect %118
+  %120: I32 = read copy.trivial (i)
+  %121: I32 = call negative borrow.shared %120
+  %122: I32 = add inspect %119 inspect %121
+  %123: I32 = read copy.trivial (i)
+  %124: I32 = const 50
+  %125: I32 = mul inspect %123 inspect %124
+  %126: I32 = call sparse borrow.shared %125
+  %127: I32 = add inspect %122 inspect %126
+  %128: I64 = convert inspect %127
+  %129: I64 = add inspect %112 inspect %128
+  write.assign borrow.unique (total) take %129
+  %131: I64 = read copy.trivial (total)
+  %132: I64 = const 1000000007
+  %133: I64 = rem inspect %131 inspect %132
+  write.assign borrow.unique (total) take %133
+  %135: I32 = read copy.trivial (i)
+  %136: Maybe(I32) = call maybe borrow.shared %135
+  write.init borrow.unique (local8) take %136
+  %140: U8 = read copy.trivial (local8.#)
+  %141: U8 = const 1
+  %142: Bool = eq inspect %140 inspect %141
+  branch inspect %142 -> bb12(take %105, take %106) -> bb10(take %105, take %106)
+
+bb10(%138: I32, %139: I32):
+  %153: I64 = read copy.trivial (total)
+  %154: I64 = const 17
+  %155: I64 = add inspect %153 inspect %154
+  write.assign borrow.unique (total) take %155
+  jump -> bb11(take %138, take %139)
+
+bb11(%157: I32, %158: I32):
+  jump -> bb7(take %157, take %158)
+
+bb12(%143: I32, %144: I32):
+  %146: I32 = read copy.trivial (local8.Just)
+  write.init borrow.unique (v) take %146
+  %148: I64 = read copy.trivial (total)
+  %149: I32 = read copy.trivial (v)
+  %150: I64 = convert inspect %149
+  %151: I64 = add inspect %148 inspect %150
+  write.assign borrow.unique (total) take %151
+  jump -> bb11(take %143, take %144)
+
+bb13(%180: I32, %181: I32):
+  %188: I32 = read copy.trivial (local10)
+  %189: Bool = lt inspect %188 inspect %180
+  branch inspect %189 -> bb16(take %180, take %181) -> bb15(take %180, take %181)
+
+bb14(%182: I32, %183: I32):
+  %210: I32 = read copy.trivial (local10)
+  %211: I32 = add inspect %210 inspect %183
+  write.assign borrow.unique (local10) take %211
+  jump -> bb13(take %182, take %183)
+
+bb15(%184: I32, %185: I32):
+  %214: I64 = read copy.trivial (total)
+  %215: I32 = convert inspect %214
+  %216: String [shared call] = read borrow.shared (names) loan1
+  %217: String [shared slot 0 view] = call.derivation view(String) borrow.shared %216 roots{1}
+  %218: Size = call length(String) borrow.shared %217
+  drop (names)
+  %219: I32 = convert inspect %218
+  %220: I32 = const 3
+  %221: I32 = mul inspect %219 inspect %220
+  %222: I32 = add inspect %215 inspect %221
+  return take %222
+
+bb16(%190: I32, %191: I32):
+  %193: I32 = read copy.trivial (local10)
+  write.init borrow.unique (i) take %193
+  %195: I64 = read copy.trivial (total)
+  %196: I64 = const 7
+  %197: I64 = mul inspect %195 inspect %196
+  %198: I32 = const 1000000006
+  %199: I32 = read copy.trivial (i)
+  %200: I32 = add inspect %198 inspect %199
+  %201: I32 = call bigStep borrow.shared %200
+  %202: I64 = convert inspect %201
+  %203: I64 = add inspect %197 inspect %202
+  write.assign borrow.unique (total) take %203
+  %205: I64 = read copy.trivial (total)
+  %206: I64 = const 1000000007
+  %207: I64 = rem inspect %205 inspect %206
+  write.assign borrow.unique (total) take %207
+  jump -> bb14(take %190, take %191)
+}
+
+entry main

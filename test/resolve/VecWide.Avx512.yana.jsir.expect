@@ -3,18 +3,15 @@ fn main() -> one %r0
     %5: %r0 = load global seed: %r0
     %6: %r0 = binary.add %5, %5
     %7: %r0 = coerce %6
-    %8: %r0 = binary.add %5, %5
-    %9: %r0 = coerce %8
     %14: %r0 = const 2
     %15: %r0 = binary.mul %5, %14
     %16: %r0 = coerce %15
-    %17: %r0 = binary.mul %5, %14
-    %18: %r0 = coerce %17
     %23: %r0 = const 6
     %24: %r3 = binary.ne %7, %23
     branch %24 -> block2 -> block1
   block1:
     %25: %r0 = const 6
+    %18: %r0 = alias %16
     %26: %r3 = binary.ne %18, %25
     branch %26 -> block4 -> block3
   block2:
@@ -113,14 +110,12 @@ fn main() -> one %r0
   block18:
     %83: %r4 = binary.gt %34, %5
     %84: %r4 = binary.gt %5, %5
-    %85: %r4 = binary.gt %5, %5
-    %86: %r4 = binary.gt %5, %5
     %87: %r0 = convert %83
     %88: %r0 = convert %84
     %89: %r0 = binary.add %87, %88
     %90: %r0 = coerce %89
-    %91: %r0 = convert %85
-    %92: %r0 = convert %86
+    %91: %r0 = alias %88
+    %92: %r0 = alias %88
     %93: %r0 = binary.add %91, %92
     %94: %r0 = coerce %93
     %95: %r0 = binary.add %90, %94
@@ -133,6 +128,8 @@ fn main() -> one %r0
     return %176
   block20:
     %99: %r3 = binary.or %83, %84
+    %86: %r4 = alias %84
+    %85: %r4 = alias %84
     %100: %r3 = binary.or %85, %86
     %101: %r3 = binary.or %99, %100
     %102: %r3 = unary.not %101
@@ -190,8 +187,8 @@ fn main() -> one %r0
   block30:
     %132: %r4 = binary.lt %34, %5
     %133: %r4 = binary.lt %5, %5
-    %134: %r4 = binary.lt %5, %5
-    %135: %r4 = binary.lt %5, %5
+    %134: %r4 = alias %133
+    %135: %r4 = alias %133
     %136: %r0 = const 4
     %137: %r0 = const 3
     %138: %r0 = select %135, %137, %136
@@ -209,8 +206,8 @@ fn main() -> one %r0
   block32:
     %146: %r4 = binary.ge %34, %5
     %147: %r4 = binary.ge %5, %5
-    %148: %r4 = binary.ge %5, %5
-    %149: %r4 = binary.ge %5, %5
+    %148: %r4 = alias %147
+    %149: %r4 = alias %147
     %150: %r0 = const 4
     %151: %r0 = const 3
     %152: %r0 = select %149, %151, %150
@@ -228,6 +225,7 @@ fn main() -> one %r0
     return %169
   block34:
     %161: %r0 = const 100
+    %9: %r0 = alias %7
     %162: %r0 = binary.mul %9, %161
     %163: %r0 = coerce %162
     %164: %r0 = binary.add %163, %16
@@ -239,7 +237,7 @@ fn main() -> one %r0
     %168: %r0 = const -16
     return %168
 
-optimizer clones 0 aliased 0 forwarded 0 removed 22 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 24 adopted 0 sunk 0 numbered 26 decided 0 unboxed 0 updated 0 split 0 promoted 0
 
 rep %r0 = number signed 32
 rep %r1 = array Int32Array of %r0

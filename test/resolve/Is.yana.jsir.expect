@@ -5,7 +5,7 @@ fn area(one %r2) -> one %r1
     %4: %r3 = binary.eq %2, %3
     branch %4 -> block4 -> block1
   block1:
-    %5: %r0 = load property %0.$tag: %r0
+    %5: %r0 = alias %2
     %6: %r0 = const 1
     %7: %r3 = binary.eq %5, %6
     branch %7 -> block5 -> block2
@@ -178,7 +178,7 @@ fn main() -> one %r1
     %142: %r1 = coerce %141
     return %142
 
-optimizer clones 0 aliased 0 forwarded 12 removed 30 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 9 removed 30 adopted 0 sunk 0 numbered 4 decided 0 unboxed 0 updated 0 split 0 promoted 0
 
 shape %s0 object Shape {$tag: %r0 tag, Circle: %r1, width: %r1, height: %r1}
 shape %s1 object Maybe {$tag: %r0 tag, Just: %r4}

@@ -85,6 +85,44 @@ bool Conversion::runConstant(const mir::Constant* constant, JsRepId rep, bool bo
  * than computed.
  */
 Maybe<JsConstant> Conversion::constantLiteral(const mir::Constant& constant, JsRepId repId) {
+    /*
+     * A **niche-folded** answer is a literal too: `Nothing` is `null` and `Just(k)` is `k`'s own
+     * literal - `aggregateConstant`'s niche arm, with nothing built. Without it a `match` answering
+     * `Maybe(I32)` was a `Select` chain over the same literals (J88), which spells the same ternary
+     * but never reaches `mapExpr`'s tables.
+     */
+    if(auto niche = nicheOf(repId)) {
+        if(!constant.type || decl[constant.type]->kind != mir::Type::Record) return Nothing();
+
+        U16 constructor = 0;
+        const mir::Constant* children = nullptr;
+        U32 childCount = 0;
+
+        if(constant.kind == mir::Constant::Enum) {
+            constructor = constant.asConstructor();
+        } else if(constant.kind == mir::Constant::Aggregate) {
+            auto aggregate = decl[constant.aggregate()];
+            constructor = aggregate->constructor;
+            children = aggregate->values.pointer(decl);
+            childCount = U32(aggregate->values.size());
+        } else {
+            return Nothing();
+        }
+
+        auto arm = ((mir::RecordType*)decl[constant.type])->cons.get(decl, constructor);
+        if(I32(arm.value) != niche->presentTag) {
+            JsConstant absent;
+            absent.kind = JsConstant::Null;
+            return Just(absent);
+        }
+
+        auto at = U32(niche->payloadField - arm.first);
+        if(at >= childCount) return Nothing();
+
+        auto content = niche->content;
+        return constantLiteral(children[at], content);
+    }
+
     auto& rep = target.rep(repId);
 
     switch(constant.kind) {

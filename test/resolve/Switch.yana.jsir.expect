@@ -34,8 +34,7 @@ fn opaqueTwenty(one %r1) -> one %r1
 fn four(one %r1) -> one %r0
   var $0: %r1
   block0(%0: %r1):
-    store var $0: %r1, %0
-    %3: %r1 = load var $0: %r1
+    %3: %r1 = alias %0
     switch %3 case 0 -> block1 case 1 -> block2 case 2 -> block3 else -> block4
   block1:
     %10: %r0 = const 0
@@ -59,8 +58,7 @@ fn four(one %r1) -> one %r0
 fn nine(one %r1) -> one %r0
   var $0: %r1
   block0(%0: %r1):
-    store var $0: %r1, %0
-    %3: %r1 = load var $0: %r1
+    %3: %r1 = alias %0
     switch %3 case 0 -> block1 case 1 -> block2 case 2 -> block3 case 3 -> block4 case 4 -> block5 case 5 -> block6 case 6 -> block7 case 7 -> block8 else -> block9
   block1:
     %20: %r0 = const 10
@@ -104,8 +102,7 @@ fn nine(one %r1) -> one %r0
 fn spread(one %r1) -> one %r0
   var $0: %r1
   block0(%0: %r1):
-    store var $0: %r1, %0
-    %3: %r1 = load var $0: %r1
+    %3: %r1 = alias %0
     switch %3 case 0 -> block1 case 3 -> block2 case 7 -> block3 case 11 -> block4 case 14 -> block5 case 18 -> block6 case 22 -> block7 case 26 -> block8 else -> block9
   block1:
     %20: %r0 = const 20
@@ -149,8 +146,7 @@ fn spread(one %r1) -> one %r0
 fn twenty(one %r1) -> one %r0
   var $0: %r1
   block0(%0: %r1):
-    store var $0: %r1, %0
-    %3: %r1 = load var $0: %r1
+    %3: %r1 = alias %0
     switch %3 case 0 -> block1 case 1 -> block2 case 2 -> block3 case 3 -> block4 case 4 -> block5 case 5 -> block6 case 6 -> block7 case 7 -> block8 case 8 -> block9 case 9 -> block10 case 10 -> block11 case 11 -> block12 case 12 -> block13 case 13 -> block14 case 14 -> block15 case 15 -> block16 case 16 -> block17 case 17 -> block18 case 18 -> block19 else -> block20
   block1:
     %42: %r0 = const 30
@@ -347,7 +343,7 @@ fn main() -> one %r0
     %107: %r0 = coerce %106
     return %107
 
-optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 4
 
 rep %r0 = number signed 32
 rep %r1 = number unsigned 8

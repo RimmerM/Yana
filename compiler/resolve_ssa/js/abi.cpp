@@ -37,8 +37,18 @@ static JsPassing passingOf(JsTarget& target, const mir::Occurrence& occurrence, 
      * position that can take two arguments and costs one allocation at every mutable borrow that
      * crosses a call. It also takes a level off every read through it: the callee names
      * `owner[key]` where it named `x.$o[x.$k]`. That is the shipping backend's own arrangement -
-     * `showWith(v699, ..., v11, "$v", 1)` is its flattened `{$o, $k, $s}`, minus the scale this
-     * target has no packed places for.
+     * `showWith(v699, ..., v11, "$v", 1)` is its flattened `{$o, $k, $s}`. The scale is a third
+     * position only where the content is narrow and something packs - `jsRefCarriesScale` - so
+     * `positions` is read off the parts representation rather than written as two.
+     *
+     * **There is no arity guard** (J84), where the shipping backend declines to flatten a signature
+     * past 24 arguments - `Packed.yana`'s `nine`, nine `&Bool`s and 27 arguments. Its reason is
+     * native: a callee past 16-24 arguments starts spilling them. V8 passes every JavaScript
+     * argument on the stack whatever the count, so there is no cliff for a guard to stand in front
+     * of, and the cost of a position is one push against the descriptor's allocation and two
+     * property reads. The guard would also make this a question about the whole signature where it
+     * is a question about one position, and `forEachPosition`, the thunks and `checkCall` all rely
+     * on it being the second. `PackedRef.yana`'s `nine` is 27 positions and gives native's answer.
      *
      * **An erased position keeps the object**, which is J70's rule read one step on: a body
      * compiled once reads a `Cell` argument as `x.$o[x.$k]` whatever is in it, and the substitution
@@ -55,7 +65,7 @@ static JsPassing passingOf(JsTarget& target, const mir::Occurrence& occurrence, 
 
         passing.kind = JsPassingKind::Parts;
         passing.rep = jsCellPartsRep(target, manifest.rep);
-        passing.positions = 2;
+        passing.positions = target.rep(passing.rep).partCount;
         return passing;
     }
 
@@ -283,6 +293,19 @@ bool planProgram(JsTarget& target) {
             target.environmentRecords.add(U32(function->environment.offset));
         }
     }
+
+    // The fields a property witness names, for the same reason and before the same question - see
+    // `JsTarget::witnessedFields`. Every environment, reachable or not: keeping one field unpacked
+    // that no running body reads costs a property, and missing one costs the program.
+    program.forEachEnvironment([&](DeclPtr<mir::GenEnvironment> environment) {
+        auto& filled = *target.decl[environment];
+        for(U32 index = 0; index < filled.slots.size(); index++) {
+            auto witness = filled.slots.get(target.decl, index);
+            if(witness.kind != mir::GenSlotKind::Property || !witness.type) continue;
+
+            target.witnessedFields.add((U64(witness.type.offset) << 32) | U64(witness.field));
+        }
+    });
 
     /*
      * Every reachable declaration, in module order - the same walk `lower/gen.cpp` opens with, and

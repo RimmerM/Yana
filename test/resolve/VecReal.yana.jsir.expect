@@ -606,10 +606,8 @@ fn main() -> one %r7
     %551: %r3 = binary.sub %32, %177
     %552: %r3 = unary.floor %551
     %553: %r3 = binary.sub %551, %552
-    %554: %r3 = unary.floor %551
-    %555: %r3 = unary.floor %551
-    %556: %r3 = binary.sub %551, %554
-    %557: %r3 = binary.sub %551, %555
+    %556: %r3 = alias %553
+    %557: %r3 = alias %553
     %558: %r4 = call nearDouble %556, %557, %553
     %559: %r4 = unary.not %558
     branch %559 -> block80 -> block79
@@ -623,20 +621,11 @@ fn main() -> one %r7
     %562: %r0 = convert %551
     %563: %r0 = unary.floor %562
     %564: %r0 = coerce %563
-    %565: %r0 = unary.floor %562
-    %566: %r0 = coerce %565
-    %567: %r0 = unary.floor %562
-    %568: %r0 = coerce %567
-    %569: %r0 = unary.floor %562
-    %570: %r0 = coerce %569
     %571: %r0 = binary.sub %562, %564
     %572: %r0 = coerce %571
-    %573: %r0 = binary.sub %562, %566
-    %574: %r0 = coerce %573
-    %575: %r0 = binary.sub %562, %568
-    %576: %r0 = coerce %575
-    %577: %r0 = binary.sub %562, %570
-    %578: %r0 = coerce %577
+    %574: %r0 = alias %572
+    %576: %r0 = alias %572
+    %578: %r0 = alias %572
     %579: %r4 = call nearFloat %572, %574, %576, %578, %553
     %580: %r4 = unary.not %579
     branch %580 -> block83 -> block82
@@ -752,13 +741,11 @@ fn main() -> one %r7
     %421: %r4 = binary.gt %37, %418
     %422: %r3 = select %421, %37, %418
     %423: %r8 = binary.ne %37, %37
-    %424: %r8 = binary.ne %37, %37
+    %424: %r8 = alias %423
     %425: %r8 = binary.lt %37, %418
-    %426: %r8 = binary.lt %37, %418
     %427: %r8 = binary.ne %418, %418
-    %428: %r8 = binary.ne %418, %418
     %429: %r8 = binary.or %425, %427
-    %430: %r8 = binary.or %426, %428
+    %430: %r8 = alias %429
     %431: %r3 = select %429, %37, %418
     %432: %r3 = select %430, %37, %418
     %433: %r3 = select %423, %418, %431
@@ -776,11 +763,10 @@ fn main() -> one %r7
     %439: %r8 = binary.ne %418, %418
     %440: %r8 = binary.ne %418, %418
     %441: %r8 = binary.lt %418, %37
-    %442: %r8 = binary.lt %418, %37
     %443: %r8 = binary.ne %37, %37
     %444: %r8 = binary.ne %37, %37
     %445: %r8 = binary.or %441, %443
-    %446: %r8 = binary.or %442, %444
+    %446: %r8 = alias %445
     %447: %r3 = select %445, %418, %37
     %448: %r3 = select %446, %418, %37
     %449: %r3 = select %439, %37, %447
@@ -791,9 +777,8 @@ fn main() -> one %r7
     %454: %r7 = coerce %453
     %455: %r7 = select %452, %454, %39
     %456: %r8 = binary.gt %37, %418
-    %457: %r8 = binary.gt %37, %418
     %458: %r8 = binary.or %456, %439
-    %459: %r8 = binary.or %457, %440
+    %459: %r8 = alias %458
     %460: %r3 = select %458, %37, %418
     %461: %r3 = select %459, %37, %418
     %462: %r3 = select %443, %418, %460
@@ -804,9 +789,8 @@ fn main() -> one %r7
     %467: %r7 = coerce %466
     %468: %r7 = select %465, %467, %455
     %469: %r8 = binary.gt %418, %37
-    %470: %r8 = binary.gt %418, %37
     %471: %r8 = binary.or %469, %443
-    %472: %r8 = binary.or %470, %444
+    %472: %r8 = alias %471
     %473: %r3 = select %471, %418, %37
     %474: %r3 = select %472, %418, %37
     %475: %r3 = select %439, %37, %473
@@ -817,9 +801,8 @@ fn main() -> one %r7
     %480: %r7 = coerce %479
     %481: %r7 = select %478, %480, %468
     %482: %r8 = binary.lt %187, %37
-    %483: %r8 = binary.lt %187, %37
     %484: %r8 = binary.or %482, %443
-    %485: %r8 = binary.or %483, %444
+    %485: %r8 = alias %484
     %486: %r3 = select %484, %187, %37
     %487: %r3 = select %485, %187, %37
     %488: %r3 = select %234, %37, %486
@@ -830,7 +813,7 @@ fn main() -> one %r7
     %493: %r7 = coerce %492
     %494: %r7 = select %491, %493, %481
     %495: %r8 = binary.lt %37, %187
-    %496: %r8 = binary.lt %37, %187
+    %496: %r8 = alias %495
     %497: %r8 = binary.or %495, %234
     %498: %r8 = binary.or %496, %235
     %499: %r3 = select %497, %37, %187
@@ -843,9 +826,8 @@ fn main() -> one %r7
     %506: %r7 = coerce %505
     %507: %r7 = select %504, %506, %494
     %508: %r8 = binary.gt %187, %37
-    %509: %r8 = binary.gt %187, %37
     %510: %r8 = binary.or %508, %443
-    %511: %r8 = binary.or %509, %444
+    %511: %r8 = alias %510
     %512: %r3 = select %510, %187, %37
     %513: %r3 = select %511, %187, %37
     %514: %r3 = select %234, %37, %512
@@ -856,7 +838,7 @@ fn main() -> one %r7
     %519: %r7 = coerce %518
     %520: %r7 = select %517, %519, %507
     %521: %r8 = binary.gt %37, %187
-    %522: %r8 = binary.gt %37, %187
+    %522: %r8 = alias %521
     %523: %r8 = binary.or %521, %234
     %524: %r8 = binary.or %522, %235
     %525: %r3 = select %523, %37, %187
@@ -1264,7 +1246,7 @@ fn exponentOfVecDouble(parts %r6) -> parts %r6
     %29: %r5 = materialize %r6 %27, %28
     return %29
 
-optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 20 adopted 0 sunk 0 numbered 32 decided 0 unboxed 0 updated 0 split 0 promoted 0
 
 rep %r0 = number f32
 rep %r1 = array Float32Array of %r0

@@ -154,6 +154,70 @@ struct Verifier {
                 if(!place.owner) fail("a value place with no value"_v, inst.source);
                 return;
 
+            /*
+             * A range of a packed word: the word is an integer `number`, the range lies inside it,
+             * and what a read produces is a number exactly as wide as the range.
+             *
+             * The second is the check with a wrong answer behind it rather than a crash - a range
+             * past the word's top reads zeros and a write there makes the word wider than its
+             * representation promises, which the next `Pack` or equality then gets wrong. Ranges
+             * compose in the builder, so the word itself is never a range.
+             */
+            case JsPlaceKind::BitRange: {
+                if(!place.word.valid() || place.word.index >= body.places.size()) {
+                    return fail("a bit range over a place that does not exist"_v, inst.source);
+                }
+
+                auto& word = *body.place(base, place.word);
+                if(word.kind == JsPlaceKind::BitRange) {
+                    return fail("a bit range over a bit range that was not composed"_v, inst.source);
+                }
+
+                checkPlace(inst, place.word);
+
+                /*
+                 * A range a **reference's scale** positions (J84) is over an element nobody here
+                 * knows the width of, so the word is only held to being a number and the range to
+                 * being inside the widest word this target packs. The scale is a number too, and a
+                 * zero scale - "the storage holds the value" - is only a whole range's to carry.
+                 */
+                if(place.bitScale) {
+                    if(word.kind != JsPlaceKind::Element) {
+                        return fail("a scaled bit range whose word is not an element"_v, inst.source);
+                    }
+
+                    if(target.rep(base[place.bitScale]->rep).kind != JsRepKind::Number) {
+                        return fail("a bit range scaled by something that is not a number"_v,
+                                    inst.source);
+                    }
+
+                    if(!place.bitWidth || U32(place.bitOffset) + place.bitWidth > kMaxNumberBits ||
+                       (place.bitWhole && place.bitOffset)) {
+                        return fail("a scaled bit range outside any word"_v, inst.source);
+                    }
+                } else {
+                    auto& held = target.rep(word.content);
+                    if(held.kind != JsRepKind::Number || held.domain != NumberDomain::Unsigned ||
+                       held.bits > kMaxNumberBits) {
+                        return fail("a bit range of something that is not a packed word"_v,
+                                    inst.source);
+                    }
+
+                    if(!place.bitWidth || U32(place.bitOffset) + place.bitWidth > held.bits) {
+                        return fail("a bit range outside its word"_v, inst.source);
+                    }
+                }
+
+                auto& content = target.rep(place.content);
+                auto width = content.domain == NumberDomain::Bool01 ? 1 : content.bits;
+                if(content.kind != JsRepKind::Number || content.isFloat() ||
+                   width != place.bitWidth) {
+                    fail("a bit range whose content is not a number of its width"_v, inst.source);
+                }
+
+                return;
+            }
+
             case JsPlaceKind::Element: {
                 if(!place.owner || !place.index) {
                     return fail("an element place with no owner or index"_v, inst.source);
@@ -272,6 +336,36 @@ struct Verifier {
 
                 if(!jsNullIsAValue(target, base[inst.result]->rep)) {
                     fail("a null at a representation that has no absent value"_v, inst.source);
+                }
+
+                return;
+            }
+
+            /*
+             * A `Pack` supplies every field of its row, each at the field's own representation, and
+             * produces the row's word - the `Object` check below said for a word.
+             */
+            case JsInst::Pack: {
+                auto& written = (JsInstPack&)inst;
+                if(written.packing >= target.packings.size()) {
+                    return fail("a pack naming a packing that does not exist"_v, inst.source);
+                }
+
+                auto& row = target.packings[written.packing];
+                if(written.values.size() != row.fields.size()) {
+                    return fail("a pack that does not supply every field"_v, inst.source);
+                }
+
+                for(U32 i = 0; i < row.fields.size(); i++) {
+                    auto supplied = written.values.get(base, i);
+                    if(supplied && base[supplied]->rep != row.fields[i].rep) {
+                        return fail("a pack whose field is not the field's representation"_v,
+                                    inst.source);
+                    }
+                }
+
+                if(inst.result && base[inst.result]->rep != row.word) {
+                    fail("a pack whose result is not its word"_v, inst.source);
                 }
 
                 return;
@@ -433,7 +527,13 @@ struct Verifier {
                     auto supplied = written.values.get(base, i);
                     if(!supplied) continue;
 
-                    if(base[supplied]->rep != target.partList[parts.firstPart + i]) {
+                    // An `Erased` part accepts anything - the waiver an `Erased` argument part and
+                    // an `Erased` shape property already give - which is what a reference's owner
+                    // is: whatever object the storage is in.
+                    auto wanted = target.partList[parts.firstPart + i];
+                    if(target.rep(wanted).kind == JsRepKind::Erased) continue;
+
+                    if(base[supplied]->rep != wanted) {
                         fail("a materialization supplied a part at the wrong representation"_v,
                              inst.source);
                     }

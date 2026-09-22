@@ -1,4 +1,6 @@
 #include "jsir.h"
+#include <cmath>
+#include <cstring>
 #include "../../resolve_ssa/js/name.h"
 #include "../../resolve/type.h"
 
@@ -93,6 +95,362 @@ struct Structurer {
 
     const JsRep& rep(JsRepId id) { return target.rep(id); }
 
+
+    // ---------------------------------------------------------------- constant maps
+
+    /*
+     * A `match` over literal constants, in the cheapest of five spellings (J88).
+     *
+     * §5.6 left which of the native shapes (`resolve_ssa/lower/map.cpp`) are worth having here to
+     * measurement, and the measurement is pure-JS microbenchmarks - 39M calls, CPU time, eleven
+     * interleaved rounds, a control column within 1%, and 35 ms the loop floor:
+     *
+     *   | arms                 | chain    | array `T[s]` | `switch` |
+     *   | 3                    | 35 ms    | 35 ms        | 36 ms    |
+     *   | 6 / 12 / 24 uniform  | ~188 ms  | ~35 ms       | ~187 ms  |
+     *   | skewed 90% to arm 0  | 62-76 ms | 35 ms        | 63 ms    |
+     *
+     * So a table wins from six arms up and ties at three, and `switch` is the chain under another
+     * name - the engine does not make it a jump table for a value this small. What is tried, in
+     * the order of what each costs to run, which is `map.cpp`'s order:
+     *
+     * - **one literal**, where every arm (and an open map's fallback) answers the same;
+     * - a **range test**, where two answers are all there are and the selectors of one of them are
+     *   one run - of the domain when the map is closed, of the integers when it is open. A `Bool`
+     *   property is the case `map.cpp` has it for, and the rule is not about `Bool` here;
+     * - an **affine step** `s * k + b`, where every answer is an integer on one line through the
+     *   selectors - closed, or open over a dense run with the run tested first;
+     * - a **table**, a module-level array read as `T[s - lowest]`, from four arms up and where the
+     *   selectors are dense enough (`kMapTableSlack`) that the row stays small. Interned by content
+     *   and named `$m`, `$m$1` in the order the bodies ask. An open map reads `T[i] ?? fallback`
+     *   where no arm is `null` - out of range is `undefined` - and tests the range where one is;
+     * - otherwise the **chain** of `===` tests it always was.
+     *
+     * Only literal arms reach here: an arm that is an object is a `Select` chain built in
+     * `convert.cpp` and never a table (J69 - a shared row of objects would let a write through one
+     * answer change the next call's), and each of its object literals has one use, so the AST
+     * inliner puts it in its arm and only the chosen one is built. An arm answering the same
+     * record as the fallback is neither built nor tested (`convert.cpp`).
+     *
+     * next: `map.cpp`'s two remaining shapes - a `Bool` property as the bits of one immediate, and
+     * a whole map packed into one - are table-free and would serve a sparse `Bool` map the table
+     * refuses; and a table read at a selector only the AST optimizer finds constant (a local it
+     * forwards) is left as `$m[2]` where the chain folded to the arm, which `Constant.yana` shows.
+     */
+    static constexpr I64 kMapTableSlack = 4;
+    static constexpr I64 kMapTableLimit = 256;
+    static constexpr U32 kMapTableArms = 4;
+
+    static bool sameLiteral(const JsConstant& x, const JsConstant& y) {
+        if(x.kind != y.kind) return false;
+
+        switch(x.kind) {
+            // Bits rather than `==`, for `map.cpp`'s reason: `-0` and `0` are different answers.
+            case JsConstant::Number:
+            case JsConstant::Bool:   return sameNumberBits(x.number, y.number) &&
+                                            x.integral == y.integral;
+            case JsConstant::BigInt: return x.bits == y.bits && x.isSigned == y.isSigned;
+            case JsConstant::Text:   return x.text == y.text;
+            default:                 return true;
+        }
+    }
+
+    static bool integralNumber(const JsConstant& x, I64& into) {
+        if(x.kind != JsConstant::Number || !x.integral) return false;
+        if(!(x.number >= -9007199254740992.0 && x.number <= 9007199254740992.0)) return false;
+        if(x.number != F64(I64(x.number))) return false;
+        if(x.number == 0 && std::signbit(x.number)) return false;
+
+        into = I64(x.number);
+        return true;
+    }
+
+    JsPtr<Expr> integer(I64 value) {
+        return number(a, F64(value), true);
+    }
+
+    // `lo <= s && s <= hi`, leaving out a bound the domain already guarantees.
+    JsPtr<Expr> rangeTest(JsPtr<Expr> selector, I64 lo, I64 hi, bool lowKnown, bool highKnown) {
+        if(lo == hi) return binary(a, BinaryOp::Eq, selector, integer(lo));
+
+        auto low = lowKnown ? JsPtr<Expr>() : binary(a, BinaryOp::Ge, selector, integer(lo));
+        auto high = highKnown ? JsPtr<Expr>() : binary(a, BinaryOp::Le, selector, integer(hi));
+
+        if(!low) return high;
+        if(!high) return low;
+        return binary(a, BinaryOp::LogicalAnd, low, high);
+    }
+
+    Name mapTable(const JsConstant* cells, Size size) {
+        for(U32 i = 0; i < a.mapNames.size(); i++) {
+            auto start = a.mapStart[i];
+            auto end = i + 1 < a.mapNames.size() ? a.mapStart[i + 1] : U32(a.mapCells.size());
+            if(end - start != size) continue;
+
+            auto same = true;
+            for(U32 j = 0; same && j < size; j++) same = sameLiteral(a.mapCells[start + j], cells[j]);
+            if(same) return a.mapNames[i];
+        }
+
+        auto name = uniqueName(a, "$m"_v, false);
+        a.mapNames.push(name);
+        a.mapStart.push(U32(a.mapCells.size()));
+        for(Size j = 0; j < size; j++) a.mapCells.push(cells[j]);
+        return name;
+    }
+
+    JsPtr<Expr> mapChain(JsInstMap& written, JsPtr<Expr> selector) {
+        auto answer = mapLiteral(a, written.fallback);
+        for(Size i = written.entries.size(); i > 0; i--) {
+            auto entry = written.entries.get(ir, U32(i - 1));
+            answer = ternary(a, binary(a, BinaryOp::Eq, selector, number(a, entry.from)),
+                             mapLiteral(a, entry.to), answer);
+        }
+
+        return answer;
+    }
+
+    JsPtr<Expr> mapExpr(JsInstMap& written, JsPtr<Expr> selector) {
+        auto closed = written.closed;
+        auto& fallback = written.fallback;
+
+        // Every arm, the closed map's last one included, with its selector as an integer.
+        struct Arm { I64 key; JsConstant to; };
+        SmallArray<Arm, 16> arms;
+
+        auto keyed = rep(ir[written.selector]->rep).kind == JsRepKind::Number;
+        auto addArm = [&](F64 from, const JsConstant& to) {
+            JsConstant key;
+            key.number = from;
+            I64 value = 0;
+            if(!integralNumber(key, value)) keyed = false;
+            arms.push(Arm { value, to });
+        };
+
+        for(auto entry: written.entries.contents(ir)) addArm(entry.from, entry.to);
+        if(closed) addArm(written.closedFrom, fallback);
+
+        if(!keyed || arms.size() == 0) return mapChain(written, selector);
+
+        // A selector the emitter already knows is the arm itself - which the chain got for free
+        // from the AST optimizer folding `2 === 0 ? ...`, and a table read would not.
+        auto definer = ir[written.selector]->definer;
+        auto constant = definer && ir[definer]->kind == JsInst::Const &&
+                        ((JsInstConst*)ir[definer])->constant.kind == JsConstant::Number;
+
+        if(constant || a.base[selector]->kind == Expr::Number) {
+            auto known = constant ? ((JsInstConst*)ir[definer])->constant.number
+                                  : ((NumberExpr*)a.base[selector])->value;
+            for(auto& arm: arms) {
+                if(F64(arm.key) == known) return mapLiteral(a, arm.to);
+            }
+
+            if(!closed) return mapLiteral(a, fallback);
+        }
+
+        auto lowest = arms[0].key;
+        auto highest = arms[0].key;
+        for(auto& arm: arms) {
+            if(arm.key < lowest) lowest = arm.key;
+            if(arm.key > highest) highest = arm.key;
+        }
+
+        // Selectors are distinct, so a span equal to the count is every integer between the ends.
+        auto count = I64(arms.size());
+        auto dense = highest - lowest + 1 == count;
+
+        // One literal.
+        auto uniform = closed || sameLiteral(fallback, arms[0].to);
+        for(auto& arm: arms) {
+            if(!sameLiteral(arm.to, arms[0].to)) uniform = false;
+        }
+
+        if(uniform) return mapLiteral(a, arms[0].to);
+
+        /*
+         * Two answers, one of them on a run. Closed, the run is over the *domain* - a selector
+         * between two of the arms is not a value the discriminant carries - so either answer may be
+         * the one tested, and the bound at an end of the domain is left out. Open, the run has to be
+         * the integers themselves, and the other answer is the fallback.
+         */
+        {
+            auto tested = closed ? arms[0].to : fallback;
+            JsConstant other;
+            auto two = true;
+            auto found = false;
+
+            for(auto& arm: arms) {
+                if(sameLiteral(arm.to, tested)) continue;
+                if(!found) { other = arm.to; found = true; continue; }
+                if(!sameLiteral(arm.to, other)) two = false;
+            }
+
+            if(two && found) {
+                // `run` is the answer the test selects; `rest` is what it does not.
+                auto attempt = [&](const JsConstant& run, const JsConstant& rest, JsPtr<Expr>& out) -> U32 {
+                    I64 lo = 0, hi = 0, inRun = 0;
+                    for(auto& arm: arms) {
+                        if(!sameLiteral(arm.to, run)) continue;
+                        if(!inRun || arm.key < lo) lo = arm.key;
+                        if(!inRun || arm.key > hi) hi = arm.key;
+                        inRun++;
+                    }
+
+                    if(!inRun) return 0;
+
+                    if(closed) {
+                        for(auto& arm: arms) {
+                            if(arm.key >= lo && arm.key <= hi && !sameLiteral(arm.to, run)) return 0;
+                        }
+                    } else if(hi - lo + 1 != inRun) {
+                        return 0;
+                    }
+
+                    auto lowKnown = closed && lo == lowest;
+                    auto highKnown = closed && hi == highest;
+                    out = ternary(a, rangeTest(selector, lo, hi, lowKnown, highKnown),
+                                  mapLiteral(a, run), mapLiteral(a, rest));
+                    return lo == hi ? 1 : U32(!lowKnown) + U32(!highKnown);
+                };
+
+                JsPtr<Expr> first, second;
+                U32 firstCost = closed ? attempt(other, tested, first) : attempt(other, fallback, first);
+                U32 secondCost = closed ? attempt(tested, other, second) : 0;
+
+                // The chain's own orientation where the two cost the same - it tests the first
+                // arm's answer - so that a two-arm map reads as it always did.
+                if(secondCost && (!firstCost || secondCost <= firstCost)) return second;
+                if(firstCost) return first;
+            }
+        }
+
+        /*
+         * `s * k + b`, solved from two arms and checked against every one, over a domain the arms
+         * are the whole of - or over a dense run an open map tests first. A negative step is spelled
+         * `b - s * |k|` so that a zero selector never makes `-0`.
+         *
+         * Checked in *doubles'* terms as well as in `I64`'s: every product `key * |k|`, the bias
+         * and every answer must be exact integers of a double (J91), since that is what the host
+         * computes with. `1000000008 -> 99999999` in steps of 99999999 is a product past 2^53, and
+         * the host answered 100000000 for it; a table or a chain is exact.
+         */
+        if((closed || dense) && arms.size() >= 2) {
+            SmallArray<I64, 16> values;
+            auto numeric = true;
+            for(auto& arm: arms) {
+                I64 value = 0;
+                if(!integralNumber(arm.to, value)) { numeric = false; break; }
+                values.push(value);
+            }
+
+            auto runKey = arms[1].key - arms[0].key;
+            auto runValue = numeric ? values[1] - values[0] : 0;
+
+            if(numeric && runKey && !(runValue % runKey) && runValue) {
+                auto stride = runValue / runKey;
+                I64 first = 0, bias = 0;
+                constexpr I64 kExact = I64(1) << 53;
+                auto exact = [&](I64 x) { return x >= -kExact && x <= kExact; };
+                auto fits = !__builtin_mul_overflow(arms[0].key, stride, &first) &&
+                            !__builtin_sub_overflow(values[0], first, &bias) && exact(bias);
+                for(Size i = 0; fits && i < arms.size(); i++) {
+                    I64 term = 0, total = 0;
+                    fits = !__builtin_mul_overflow(arms[i].key, stride, &term) &&
+                           !__builtin_add_overflow(term, bias, &total) && total == values[i] &&
+                           exact(term) && exact(total);
+                }
+
+                if(fits) {
+                    auto magnitude = stride < 0 ? -stride : stride;
+                    auto scaled = magnitude == 1 ? selector : binary(a, BinaryOp::Mul, selector, integer(magnitude));
+
+                    JsPtr<Expr> step;
+                    if(stride < 0)      step = binary(a, BinaryOp::Sub, integer(bias), scaled);
+                    else if(bias > 0)   step = binary(a, BinaryOp::Add, scaled, integer(bias));
+                    else if(bias < 0)   step = binary(a, BinaryOp::Sub, scaled, integer(-bias));
+                    else                step = scaled;
+
+                    if(closed) return step;
+                    return ternary(a, rangeTest(selector, lowest, highest, false, false), step,
+                                   mapLiteral(a, fallback));
+                }
+            }
+        }
+
+        /*
+         * A table. Every cell a literal the host holds as itself - an `undefined` would read the same
+         * as out of range - and the fallback too where the map is open, since it fills the holes.
+         */
+        auto span = highest - lowest + 1;
+        auto tabled = arms.size() >= kMapTableArms && span <= kMapTableLimit &&
+                      span <= kMapTableSlack * count;
+
+        auto nullArm = false;
+        auto literalKind = [](const JsConstant& x) {
+            return x.kind == JsConstant::Number || x.kind == JsConstant::BigInt ||
+                   x.kind == JsConstant::Text || x.kind == JsConstant::Null;
+        };
+
+        for(auto& arm: arms) {
+            if(!literalKind(arm.to)) tabled = false;
+            if(arm.to.kind == JsConstant::Null) nullArm = true;
+        }
+
+        if(!closed && !literalKind(fallback)) tabled = false;
+        if(!tabled) return mapChain(written, selector);
+
+        // A short run of padding in front is cheaper than a subtraction at every read.
+        auto start = lowest > 0 && lowest <= 4 ? I64(0) : lowest;
+        auto filler = closed ? arms[0].to : fallback;
+
+        SmallArray<JsConstant, 32> cells;
+        for(auto i = start; i <= highest; i++) cells.push(filler);
+        for(auto& arm: arms) cells[Size(arm.key - start)] = arm.to;
+
+        auto table = mapTable(&cells[0], cells.size());
+        auto at = start == 0 ? selector
+                : start > 0  ? binary(a, BinaryOp::Sub, selector, integer(start))
+                             : binary(a, BinaryOp::Add, selector, integer(-start));
+        auto read = elementAt(a, variable(a, table), at);
+
+        /*
+         * What the row holds, stated on the read as the narrowest integer type covering it - the
+         * one fact the chain carried in its shape and a table read does not. Without it the AST
+         * optimizer's range walk (`declaredRange`) knew nothing about `$m[s]`, and every `+` over
+         * one grew a `| 0` that the chain's `1 ... 8` had made unnecessary.
+         */
+        {
+            I64 low = 0, high = 0;
+            auto integral = true;
+            for(Size i = 0; integral && i < cells.size(); i++) {
+                I64 value = 0;
+                integral = integralNumber(cells[i], value);
+                if(!i || value < low) low = value;
+                if(!i || value > high) high = value;
+            }
+
+            if(integral) {
+                U8 bits = 1;
+                if(low >= 0) {
+                    while(bits < 32 && (high >> bits)) bits++;
+                    if(!(high >> bits)) a.base[read]->valueBits = bits;
+                } else {
+                    while(bits < 32 && (high >= (I64(1) << (bits - 1)) || low < -(I64(1) << (bits - 1)))) bits++;
+                    if(high < (I64(1) << (bits - 1)) && low >= -(I64(1) << (bits - 1))) {
+                        a.base[read]->valueBits = bits;
+                        a.base[read]->valueSigned = true;
+                    }
+                }
+            }
+        }
+
+        if(closed) return read;
+        if(!nullArm) return binary(a, BinaryOp::Nullish, read, mapLiteral(a, fallback));
+
+        return ternary(a, rangeTest(selector, lowest, highest, false, false), read,
+                       mapLiteral(a, fallback));
+    }
+
     // ---------------------------------------------------------------- values
 
     JsPtr<Expr> valueOf(JsirPtr<JsValue> pointer, LocationId where) {
@@ -144,6 +502,23 @@ struct Structurer {
         // is exactly what a re-entered block wants.
         auto id = ir[inst.result]->id.index;
         while(a.valueNames.size() <= id) a.valueNames.push(Name {});
+
+        /*
+         * A result whose one use is an edge copy into a block argument, computed straight into that
+         * argument's variable - J90, and `jsir::JsCoalesced::into` is where the conditions are. The
+         * value is registered under the argument's name in `arguments` as well, which is what makes
+         * `emitEdge` see `p = p` and write nothing.
+         */
+        auto into = target.coalesced.intoOf(id);
+        if(into != jsir::JsCoalesced::kNoClass && into < a.arguments.size() && a.arguments[into].text) {
+            auto name = a.arguments[into];
+            while(a.arguments.size() <= id) a.arguments.push(Name {});
+
+            a.arguments[id] = name;
+            emitExpr(a, assign(a, variable(a, name), value));
+            define(inst, variable(a, name));
+            return;
+        }
 
         if(!a.valueNames[id].text) a.valueNames[id] = generatedName(a, "v"_v, id);
         define(inst, declare(a, a.valueNames[id], value));
@@ -200,6 +575,13 @@ struct Structurer {
 
             case JsPlaceKind::Value:
                 return valueOf(place.owner, where);
+
+            // Not an expression of its own: a read decodes and a write read-modify-writes, and
+            // both are `readPlace`'s and `writeInto`'s. Reaching here is a reference to one, which
+            // the conversion refuses by name.
+            case JsPlaceKind::BitRange:
+                fail("met a bit range where one host expression was wanted"_v, where);
+                return nullValue(a);
         }
 
         fail("met a place kind it has no arm for"_v, where);
@@ -216,6 +598,23 @@ struct Structurer {
      */
     JsPtr<Expr> readPlace(JsPlaceId id, LocationId where) {
         auto& place = *body.place(ir, id);
+
+        // A range of a packed word: the word, decoded - `codegen/js/place.cpp`'s constant-range
+        // form, which is the shipping backend's own spelling of the same bits.
+        if(place.kind == JsPlaceKind::BitRange && place.bitScale) {
+            return noteRange(decodeScaledRange(a, placeExpr(place.word, where),
+                                               valueOf(place.bitScale, where), place.bitOffset,
+                                               place.bitWidth, place.bitSigned, place.bitWhole),
+                             place.content);
+        }
+
+        if(place.kind == JsPlaceKind::BitRange) {
+            auto word = rep(body.place(ir, place.word)->content).bits;
+            return noteRange(decodeBitRange(a, placeExpr(place.word, where), place.bitOffset,
+                                            place.bitWidth, word, place.bitSigned),
+                             place.content);
+        }
+
         return noteRange(placeExpr(id, where), place.content);
     }
 
@@ -254,6 +653,27 @@ struct Structurer {
      */
     void writeInto(JsPlaceId id, JsPtr<Expr> value, LocationId where) {
         auto& place = *body.place(ir, id);
+
+        /*
+         * A range of a packed word is a read-modify-write of the word: `word = encode(word, v)`.
+         * The word's place is spelled twice, which is safe because every operand a place names is
+         * a bound value by now (`defineBound`) - reading it twice evaluates nothing twice.
+         */
+        if(place.kind == JsPlaceKind::BitRange && place.bitScale) {
+            auto updated = encodeScaledRange(a, placeExpr(place.word, where),
+                                             valueOf(place.bitScale, where), place.bitOffset,
+                                             place.bitWidth, place.bitSigned, place.bitWhole, value);
+            writeInto(place.word, updated, where);
+            return;
+        }
+
+        if(place.kind == JsPlaceKind::BitRange) {
+            auto word = rep(body.place(ir, place.word)->content).bits;
+            auto updated = encodeBitRange(a, placeExpr(place.word, where), place.bitOffset,
+                                          place.bitWidth, word, place.bitSigned, value);
+            writeInto(place.word, updated, where);
+            return;
+        }
 
         if(place.kind != JsPlaceKind::Value) {
             emitExpr(a, assign(a, placeExpr(id, where), value));
@@ -818,9 +1238,7 @@ struct Structurer {
             case mir::HostOp::FixedCapacity: {
                 if(count < 1) break;
 
-                auto& held = rep(ir[inst.arguments.get(ir, 0)]->rep);
-                auto typed = held.kind == JsRepKind::HostArray && held.typedArray != TypedArray::Plain;
-                return number(a, typed ? 1 : 0);
+                return number(a, rep(ir[inst.arguments.get(ir, 0)]->rep).hasFixedCapacity() ? 1 : 0);
             }
 
             // `$grow(a, n)` - a typed row is fixed-length, so growing one is a fresh row of the same
@@ -1302,6 +1720,23 @@ struct Structurer {
                 defineBound(inst, cloneExpr((JsInstClone&)inst));
                 return;
 
+            case JsInst::Pack: {
+                auto& written = (JsInstPack&)inst;
+                auto& row = target.packings[written.packing];
+
+                SmallArray<JsPtr<Expr>, 8> values;
+                SmallArray<U32, 8> offsets, widths;
+                for(U32 i = 0; i < row.fields.size(); i++) {
+                    values.push(valueOf(written.values.get(ir, i), where));
+                    offsets.push(row.fields[i].offset);
+                    widths.push(row.fields[i].width);
+                }
+
+                defineBound(inst, noteRange(packBitRanges(a, held(values), held(offsets), held(widths), row.span),
+                                            row.word));
+                return;
+            }
+
             case JsInst::Load:
                 defineBound(inst, readPlace(((JsInstLoad&)inst).place, where));
                 return;
@@ -1339,39 +1774,11 @@ struct Structurer {
             }
 
             /*
-             * A `match` over constants, as a chain of tests.
-             *
-             * §5.6 leaves which of the six native shapes are worth having here to measurement, and
-             * says the semantic tag has to survive to this point so that the choice is still
-             * available. The chain is what an arm count in the corpus's range costs least to emit
-             * and read; a table needs a constant pool and a dense key range, and neither has been
-             * measured on this target.
-             *
-             * next: measure a `switch` and an object literal against this, the way §77 of
-             * test/bench/findings.md measured the native jump table.
+             * A `match` over constants - `mapExpr` chooses the spelling.
              */
             case JsInst::Map: {
                 auto& written = (JsInstMap&)inst;
-                auto selector = valueOf(written.selector, where);
-
-                auto literal = [&](const JsConstant& value) -> JsPtr<Expr> {
-                    switch(value.kind) {
-                        case JsConstant::Number: return number(a, value.number, value.integral);
-                        case JsConstant::BigInt: return bigInt(a, value.bits, value.isSigned);
-                        case JsConstant::Text:   return asExpr(a, make<StringExpr>(a, value.text));
-                        case JsConstant::Null:   return nullValue(a);
-                        default:                 return asExpr(a, make<UndefinedExpr>(a));
-                    }
-                };
-
-                auto answer = literal(written.fallback);
-                for(Size i = written.entries.size(); i > 0; i--) {
-                    auto entry = written.entries.get(ir, U32(i - 1));
-                    answer = ternary(a, binary(a, BinaryOp::Eq, selector, number(a, entry.from)),
-                                     literal(entry.to), answer);
-                }
-
-                defineBound(inst, answer);
+                defineBound(inst, mapExpr(written, valueOf(written.selector, where)));
                 return;
             }
 
@@ -1449,6 +1856,21 @@ struct Structurer {
                 // A `Cell` is an object of the `{$o, $k}` shape, which is what makes a flat
                 // reference materialize the same descriptor `borrow.describe` builds - one
                 // spelling for a reference whatever produced it.
+                /*
+                 * A **three-part** reference - `(owner, key, scale)` - is the one `Cell` that is not
+                 * its parts in a shape: the scale has no property to go in, so the one value is
+                 * `$bitCell`'s accessor box (J84, `codegen/js/place.cpp`).
+                 */
+                if(to.kind == JsRepKind::Cell && written.values.size() == 3) {
+                    auto& content = rep(to.content);
+                    auto width = content.domain == NumberDomain::Bool01 ? 1u : U32(content.bits);
+                    defineBound(inst, bitCellCall(a, valueOf(written.values.get(ir, 0), where),
+                                                  valueOf(written.values.get(ir, 1), where),
+                                                  valueOf(written.values.get(ir, 2), where), width,
+                                                  content.domain == NumberDomain::Signed));
+                    return;
+                }
+
                 if(to.kind == JsRepKind::GcObject || to.kind == JsRepKind::Cell) {
                     defineBound(inst, shapedObject(to.shape, written.values, where));
                     return;
@@ -1819,6 +2241,24 @@ struct Structurer {
     void emitEdge(JsEdge& edge, LocationId where) {
         if(!edge.target) return;
 
+        /*
+         * The copies are a **parallel** assignment and JavaScript has only sequential ones - J90.
+         * `jump -> block1(%2, %1, %15)`, a loop swapping two variables, was written
+         * `p1 = p2; p2 = p1;` until then, which hands both the old `p2`. The coalescer's sequential
+         * rule keeps two *coalesced* arguments from meeting that hazard, and nothing kept two
+         * plain ones from it. So the copies are ordered: one is written once no other pending copy
+         * reads what it overwrites, which leaves the source order wherever that order was already
+         * right, and a cycle is broken by saving one destination in a `var` first - the swap's
+         * `var t = p1; p1 = p2; p2 = t;`. A source that is neither a name nor a literal is saved
+         * before anything is assigned, since which names it reads is not asked here.
+         */
+        struct Copy {
+            Name to;
+            JsPtr<Expr> from;
+        };
+
+        SmallArray<Copy, 8> pending;
+
         auto to = ir[edge.target];
         for(U32 i = 0; i < edge.arguments.size(); i++) {
             auto argument = ir[to->argumentAt(ir, i)];
@@ -1838,8 +2278,56 @@ struct Structurer {
                 continue;
             }
 
-            emitExpr(a, assign(a, variable(a, a.arguments[id]),
-                               valueOf(supplied, where)));
+            pending.push(Copy { a.arguments[id], valueOf(supplied, where) });
+        }
+
+        auto isLiteral = [&](JsPtr<Expr> expr) {
+            switch(a.base[expr]->kind) {
+                case Expr::Number: case Expr::BigInt: case Expr::String: case Expr::Bool:
+                case Expr::Null: case Expr::Undefined:
+                    return true;
+                default:
+                    return false;
+            }
+        };
+
+        auto reads = [&](JsPtr<Expr> expr, Name name) {
+            auto node = a.base[expr];
+            return node->kind == Expr::Var && ((VarExpr*)node)->name.text == name.text;
+        };
+
+        if(pending.size() > 1) {
+            for(auto& copy: pending) {
+                auto kind = a.base[copy.from]->kind;
+                if(kind == Expr::Var || isLiteral(copy.from)) continue;
+                copy.from = declare(a, uniqueName(a, "t"_v, true), copy.from);
+            }
+        }
+
+        while(pending.size() > 0) {
+            auto chosen = pending.size();
+            for(Size i = 0; i < pending.size() && chosen == pending.size(); i++) {
+                auto free = true;
+                for(Size j = 0; j < pending.size(); j++) {
+                    if(j != i && reads(pending[j].from, pending[i].to)) free = false;
+                }
+
+                if(free) chosen = i;
+            }
+
+            if(chosen == pending.size()) {
+                // A cycle: every pending destination is some other copy's source.
+                auto saved = pending[0].to;
+                auto temporary = declare(a, uniqueName(a, "t"_v, true), variable(a, saved));
+                for(Size j = 1; j < pending.size(); j++) {
+                    if(reads(pending[j].from, saved)) pending[j].from = temporary;
+                }
+
+                continue;
+            }
+
+            emitExpr(a, assign(a, variable(a, pending[chosen].to), pending[chosen].from));
+            pending.remove(chosen);
         }
     }
 
@@ -2185,11 +2673,30 @@ struct Structurer {
         for(U32 i = 0; i < body.values.size(); i++) a.values.push(nullptr);
         for(U32 i = 0; i < body.values.size(); i++) a.arguments.push(Name {});
 
+        a.variableNamed.clear();
+        for(U32 i = 0; i < body.variables.size(); i++) a.variableNamed.push(0);
+
+        for(U32 i = 0; i < body.blocks.size(); i++) {
+            auto block = blockAt(i);
+            if(block->deleted) continue;
+
+            for(auto pointer: block->instructions(ir)) {
+                auto& inst = *ir[pointer];
+                auto placeId = inst.kind == JsInst::Load ? ((JsInstLoad&)inst).place
+                             : inst.kind == JsInst::Store ? ((JsInstStore&)inst).place : JsPlaceId();
+                if(!placeId.valid()) continue;
+
+                auto place = body.place(ir, placeId);
+                if(place->kind == JsPlaceKind::BitRange && place->word.valid()) place = body.place(ir, place->word);
+                if(place->kind == JsPlaceKind::Var && place->slot < a.variableNamed.size()) a.variableNamed[place->slot] = 1;
+            }
+        }
+
         auto statements = collect(a, [&] {
             for(U32 i = 0; i < body.variables.size(); i++) {
                 auto name = generatedName(a, "s"_v, i);
                 a.variables.push(name);
-                emit(a, make<DeclStmt>(a, name, nullptr, false));
+                if(a.variableNamed[i]) emit(a, make<DeclStmt>(a, name, nullptr, false));
             }
 
             /*
@@ -2274,7 +2781,7 @@ struct Structurer {
 
             for(U32 i = 0; i < body.blocks.size(); i++) {
                 auto block = blockAt(i);
-                if(block == entry) continue;
+                if(block == entry || block->deleted) continue;
 
                 for(U32 j = 0; j < block->argumentCount(); j++) {
                     auto argument = ir[block->argumentAt(ir, j)];
@@ -2436,6 +2943,16 @@ void Structurer::emitLoop(U32 header, RegionList& outside, Size at, RegionList& 
 StmtList structureBody(Assembly& a, JsBody& body, JsList<Name, false>& parameters) {
     Structurer structurer(a, body);
     return structurer.run(parameters);
+}
+
+JsPtr<Expr> mapLiteral(Assembly& a, const JsConstant& value) {
+    switch(value.kind) {
+        case JsConstant::Number: return number(a, value.number, value.integral);
+        case JsConstant::BigInt: return bigInt(a, value.bits, value.isSigned);
+        case JsConstant::Text:   return asExpr(a, make<StringExpr>(a, value.text));
+        case JsConstant::Null:   return nullValue(a);
+        default:                 return asExpr(a, make<UndefinedExpr>(a));
+    }
 }
 
 JsPtr<Expr> structureConstant(Assembly& a, JsBody& body) {

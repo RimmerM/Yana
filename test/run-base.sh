@@ -230,7 +230,7 @@ start_row ownership-js-unoptimized -mode js -resolver ownership -no-ir-opt
 # optimizer on and the **JSIR** one off. The pair with the row above it is what says which tier a
 # disagreement came from - a suite that differs with `-no-ir-opt` and agrees with this one has a
 # defect above the fork, and the other way round has one below it, which is where
-# `resolve_ssa/js/opt_alias.cpp`'s rewrites are.
+# `resolve_ssa/js/opt_*.cpp`'s rewrites are.
 start_row ownership-js-no-jsir-opt -mode js -resolver ownership -no-jsir-opt
 
 # Waited for and printed in declaration order, so the report comes out as the rows finish rather than

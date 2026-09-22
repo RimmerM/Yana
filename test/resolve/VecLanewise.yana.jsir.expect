@@ -310,7 +310,7 @@ fn main() -> one %r0
     branch %8 -> block2 -> block1
   block1:
     %9: %r3 = binary.lt %1, %5
-    %10: %r3 = binary.lt %1, %5
+    %10: %r3 = alias %9
     %13: %r0 = select %9, %1, %5
     %18: %r0 = select %10, %5, %1
     %21: %r0 = const 3
@@ -383,7 +383,7 @@ fn main() -> one %r0
     %66: %r0 = const -1
     jump -> block12(%66)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 22 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 22 adopted 0 sunk 0 numbered 3 decided 0 unboxed 0 updated 0 split 0 promoted 0
 
 rep %r0 = number signed 32
 rep %r1 = array Int32Array of %r0

@@ -4,20 +4,10 @@ var trace = 0;
 
 // 
 function main() {
-  var p2;
-  var s1 = BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, 5n + 5n) + BigInt.asIntN(64, 5n + 1n)) - 1n);
-  if (s1 === 15n) {
-    if (5n < s1) trace = trace | 1;
-  }
-  if (!(s1 < 5n)) {
-    if (!(s1 === 5n)) trace = trace | 2;
-  }
-  if (s1 < 5n) {
-    p2 = 5n;
-  } else {
-    p2 = s1;
-  }
-  if (p2 === s1) trace = trace | 4;
+  var v23 = BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, 5n + 5n) + BigInt.asIntN(64, 5n + 1n)) - 1n);
+  if (v23 === 15n && 5n < v23) trace = trace | 1;
+  if (!(v23 < 5n) && !(v23 === 5n)) trace = trace | 2;
+  if ((v23 < 5n ? 5n : v23) === v23) trace = trace | 4;
   trace = trace | 8;
   if (BigInt.asIntN(64, 5n - 5n) !== 0n ^ 1) trace = trace | 16;
   trace = trace | 32;
@@ -32,10 +22,8 @@ function main() {
   var p0 = 0;
   var p1 = 2;
   while (p1 < 5) {
-    var v150 = p0 + 1 | 0;
-    var v152 = p1 + 1 | 0;
-    p0 = v150;
-    p1 = v152;
+    p0 = p0 + 1 | 0;
+    p1 = p1 + 1 | 0;
   }
   if (p0 === 3) trace = trace | 16384;
   trace = trace | 32768;

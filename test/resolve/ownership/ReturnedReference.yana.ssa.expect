@@ -1,0 +1,219 @@
+module ResolveTest
+
+fn low(p: P [unique slot 0]) -> I32 [unique slot 0 owner] {
+bb0(%0: P [unique slot 0] guaranteed):
+  %1: %I32 address = field.addr .a inspect %0
+  %2: I32 [unique slot 0] guaranteed from{%0} = load inspect %1
+  return borrow %2
+}
+
+fn pick(p: P [unique slot 0], hi: Bool [shared call]) -> I32 [unique slot 0 owner] {
+bb0(%0: P [unique slot 0] guaranteed, %1: Bool trivial):
+  %2: %Bool address = alloc frame Bool [shared call]
+  store inspect %2 borrow %1
+  %3: Bool trivial = load inspect %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %4: %I32 address = field.addr .a inspect %0
+  %5: I32 [unique slot 0] guaranteed from{%0} = load inspect %4
+  return borrow %5
+
+bb3:
+  %6: %I32 address = field.addr .b inspect %0
+  %7: I32 [unique slot 0] guaranteed from{%0} = load inspect %6
+  return borrow %7
+}
+
+fn plain() -> I32 {
+bb0:
+  %0: %P address = alloc frame P
+  %1: I32 trivial = const 100
+  %2: I32 trivial = const 200
+  %3: P trivial = aggregate.P consume %1 consume %2
+  store inspect %0 consume %3
+  %4: P [unique slot 0] guaranteed from{%0} = load inspect %0
+  %5: I32 [unique slot 0 owner] guaranteed from{%0} = call low borrow %4
+  %6: I32 trivial = load inspect %5
+  %7: I32 trivial = const 1
+  %8: I32 trivial = sub inspect %6 inspect %7
+  store inspect %5 consume %8
+  %9: P [unique slot 0] guaranteed from{%0} = load inspect %0
+  %10: Bool trivial = const False
+  %11: I32 [unique slot 0 owner] guaranteed from{%0} = call pick borrow %9 borrow %10
+  %12: I32 trivial = load inspect %11
+  %13: I32 trivial = const 7
+  %14: I32 trivial = sub inspect %12 inspect %13
+  store inspect %11 consume %14
+  %15: %I32 address = field.addr .a inspect %0
+  %16: I32 trivial = load inspect %15
+  %17: I32 trivial = const 1000
+  %18: I32 trivial = mul inspect %16 inspect %17
+  %19: %I32 address = field.addr .b inspect %0
+  %20: I32 trivial = load inspect %19
+  %21: I32 trivial = add inspect %18 inspect %20
+  return consume %21
+}
+
+fn lowQ(p: Q [unique slot 0]) -> I32 [unique slot 0 owner] {
+bb0(%0: Q [unique slot 0] guaranteed):
+  %1: %I32 address = field.addr .a inspect %0
+  %2: I32 [unique slot 0] guaranteed from{%0} = load inspect %1
+  return borrow %2
+}
+
+fn pickQ(p: Q [unique slot 0], hi: Bool [shared call]) -> I32 [unique slot 0 owner] {
+bb0(%0: Q [unique slot 0] guaranteed, %1: Bool trivial):
+  %2: %Bool address = alloc frame Bool [shared call]
+  store inspect %2 borrow %1
+  %3: Bool trivial = load inspect %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %4: %I32 address = field.addr .a inspect %0
+  %5: I32 [unique slot 0] guaranteed from{%0} = load inspect %4
+  return borrow %5
+
+bb3:
+  %6: %I32 address = field.addr .b inspect %0
+  %7: I32 [unique slot 0] guaranteed from{%0} = load inspect %6
+  return borrow %7
+}
+
+fn makeQ(i: I32 [shared call]) -> Q {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = const 100
+  %3: I32 trivial = load inspect %1
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: I32 trivial = const 200
+  %6: I32 trivial = load inspect %1
+  %7: I32 trivial = sub inspect %5 inspect %6
+  %8: I32 trivial = load inspect %1
+  %9: I32 trivial = const 0
+  %10: Bool trivial = gt inspect %8 inspect %9
+  %11: Q trivial = aggregate.Q consume %4 consume %7 consume %10
+  return consume %11
+}
+
+fn packed() -> I32 {
+bb0:
+  %18: %I32 address = alloc frame I32
+  %19: %I32 address = alloc frame I32
+  %20: %I32 address = alloc frame I32
+  %21: %Q address = alloc frame Q
+  %22: I32 trivial = const 0
+  store inspect %18 consume %22
+  %23: I32 trivial = const 0
+  %24: I32 trivial = const 2
+  %25: I32 trivial = const 1
+  store inspect %19 consume %23
+  jump -> bb1(consume %24, consume %25)
+
+bb1(%0: I32 trivial, %1: I32 trivial):
+  %26: I32 trivial = load inspect %19
+  %27: Bool trivial = lt inspect %26 inspect %0
+  branch inspect %27 -> bb4(consume %0, consume %1) -> bb3(consume %0, consume %1)
+
+bb2(%2: I32 trivial, %3: I32 trivial):
+  %28: I32 trivial = load inspect %19
+  %29: I32 trivial = add inspect %28 inspect %3
+  store inspect %19 consume %29
+  jump -> bb1(consume %2, consume %3)
+
+bb3(%4: I32 trivial, %5: I32 trivial):
+  %30: I32 trivial = load inspect %18
+  return consume %30
+
+bb4(%6: I32 trivial, %7: I32 trivial):
+  %31: I32 trivial = load inspect %19
+  store inspect %20 consume %31
+  %32: I32 trivial = load inspect %20
+  %33: Q trivial = call makeQ borrow %32
+  store inspect %21 consume %33
+  %34: Q [unique slot 0] guaranteed from{%21} = load inspect %21
+  %35: I32 [unique slot 0 owner] guaranteed from{%21} = call lowQ borrow %34
+  %36: I32 trivial = load inspect %35
+  %37: I32 trivial = const 1
+  %38: I32 trivial = sub inspect %36 inspect %37
+  store inspect %35 consume %38
+  %39: Q [unique slot 0] guaranteed from{%21} = load inspect %21
+  %40: I32 trivial = load inspect %20
+  %41: I32 trivial = const 1
+  %42: Bool trivial = eq inspect %40 inspect %41
+  %43: I32 [unique slot 0 owner] guaranteed from{%21} = call pickQ borrow %39 borrow %42
+  %44: I32 trivial = load inspect %43
+  %45: I32 trivial = const 7
+  %46: I32 trivial = sub inspect %44 inspect %45
+  store inspect %43 consume %46
+  %47: I32 trivial = load inspect %18
+  %48: I32 trivial = const 1000
+  %49: I32 trivial = mul inspect %47 inspect %48
+  %50: %I32 address = field.addr .a inspect %21
+  %51: I32 trivial = load inspect %50
+  %52: I32 trivial = const 10
+  %53: I32 trivial = mul inspect %51 inspect %52
+  %54: I32 trivial = add inspect %49 inspect %53
+  %55: %I32 address = field.addr .b inspect %21
+  %56: I32 trivial = load inspect %55
+  %57: I32 trivial = const 10
+  %58: I32 trivial = rem inspect %56 inspect %57
+  %59: I32 trivial = add inspect %54 inspect %58
+  %60: %Bool address = field.addr .c inspect %21
+  %61: Bool trivial = load inspect %60
+  branch inspect %61 -> bb7(consume %6, consume %7, consume %59) -> bb5(consume %6, consume %7, consume %59)
+
+bb5(%8: I32 trivial, %9: I32 trivial, %10: I32 trivial):
+  %62: I32 trivial = const 0
+  jump -> bb6(consume %62, consume %8, consume %9, consume %10)
+
+bb6(%11: I32 trivial, %12: I32 trivial, %13: I32 trivial, %14: I32 trivial):
+  %63: I32 trivial = add inspect %14 inspect %11
+  store inspect %18 consume %63
+  jump -> bb2(consume %12, consume %13)
+
+bb7(%15: I32 trivial, %16: I32 trivial, %17: I32 trivial):
+  %64: I32 trivial = const 1
+  jump -> bb6(consume %64, consume %15, consume %16, consume %17)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call plain
+  %1: I32 trivial = const 92200
+  %2: Bool trivial = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %3: I32 trivial = call packed
+  %4: I32 trivial = const 921003
+  %5: Bool trivial = ne inspect %3 inspect %4
+  branch inspect %5 -> bb6 -> bb4
+
+bb3:
+  %6: I32 trivial = const 1
+  return consume %6
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %7: I32 trivial = const 0
+  return consume %7
+
+bb6:
+  %8: I32 trivial = const 2
+  return consume %8
+}
+
+entry main

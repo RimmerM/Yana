@@ -1,0 +1,179 @@
+module ResolveTest
+
+fn setFlag(x: a [unique call]) -> {} {
+bb0(%0: a [unique call] guaranteed):
+  %1: %Bool address = field.addr .flag inspect %0
+  %2: Bool trivial = load inspect %1
+  %3: Bool trivial = not inspect %2
+  %4: %Bool address = field.addr .flag inspect %0
+  store inspect %4 consume %3
+  return
+}
+
+fn getFlag(x: a [shared call]) -> Bool {
+bb0(%0: a [shared call] guaranteed):
+  %1: %Bool address = field.addr .flag inspect %0
+  %2: Bool trivial = load inspect %1
+  return consume %2
+}
+
+fn main() -> I32 {
+bb0:
+  %5: %Box address = alloc frame Box
+  %6: @bits(20) I32 trivial = const 1
+  %7: @bits(20) I32 trivial = const 2
+  %8: Bool trivial = const False
+  %9: P trivial = aggregate.P consume %6 consume %7 consume %8
+  %10: Bool trivial = const False
+  %11: Bool trivial = const False
+  %12: Box trivial = aggregate.Box consume %9 consume %10 consume %11
+  store inspect %5 consume %12
+  %13: Box [unique call] guaranteed from{%5} = load inspect %5
+  call setFlag [Box] borrow %13
+  %14: %Bool address = field.addr .flag inspect %5
+  %15: Bool trivial = load inspect %14
+  %16: Bool trivial = not inspect %15
+  branch inspect %16 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %17: Box trivial = copy inspect %5
+  %18: Bool trivial = call getFlag [Box] borrow %17
+  %19: Bool trivial = not inspect %18
+  branch inspect %19 -> bb6 -> bb4
+
+bb3:
+  %20: I32 trivial = const 1
+  return consume %20
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %21: %Bool address = field.addr .ok inspect %5
+  %22: Bool trivial = load inspect %21
+  branch inspect %22 -> bb9 -> bb7
+
+bb6:
+  %23: I32 trivial = const 2
+  return consume %23
+
+bb7:
+  %24: %P address = field.addr .x inspect %5
+  %25: %@bits(20) I32 address = field.addr .a inspect %24
+  %26: @bits(20) I32 trivial = load inspect %25
+  %27: I32 trivial = convert inspect %26
+  %28: I32 trivial = const 1
+  %29: Bool trivial = ne inspect %27 inspect %28
+  jump -> bb8(consume %29)
+
+bb8(%0: Bool trivial):
+  branch inspect %0 -> bb12 -> bb10
+
+bb9:
+  %30: Bool trivial = const True
+  jump -> bb8(consume %30)
+
+bb10:
+  %31: %P address = field.addr .x inspect %5
+  %32: %@bits(20) I32 address = field.addr .b inspect %31
+  %33: @bits(20) I32 trivial = load inspect %32
+  %34: I32 trivial = convert inspect %33
+  %35: I32 trivial = const 2
+  %36: Bool trivial = ne inspect %34 inspect %35
+  jump -> bb11(consume %36)
+
+bb11(%1: Bool trivial):
+  branch inspect %1 -> bb15 -> bb13
+
+bb12:
+  %37: Bool trivial = const True
+  jump -> bb11(consume %37)
+
+bb13:
+  %38: %P address = field.addr .x inspect %5
+  %39: %Bool address = field.addr .c inspect %38
+  %40: Bool trivial = load inspect %39
+  jump -> bb14(consume %40)
+
+bb14(%2: Bool trivial):
+  branch inspect %2 -> bb18 -> bb16
+
+bb15:
+  %41: Bool trivial = const True
+  jump -> bb14(consume %41)
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %42: Bool trivial = const False
+  %43: %Bool address = field.addr .flag inspect %5
+  store inspect %43 consume %42
+  %44: Box trivial = copy inspect %5
+  %45: Bool trivial = call getFlag [Box] borrow %44
+  branch inspect %45 -> bb21 -> bb19
+
+bb18:
+  %46: I32 trivial = const 3
+  return consume %46
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %47: Bool trivial = const True
+  %48: %Bool address = field.addr .ok inspect %5
+  store inspect %48 consume %47
+  %49: Box [unique call] guaranteed from{%5} = load inspect %5
+  call setFlag [Box] borrow %49
+  %50: Box trivial = copy inspect %5
+  %51: Bool trivial = call getFlag [Box] borrow %50
+  %52: Bool trivial = not inspect %51
+  branch inspect %52 -> bb24 -> bb22
+
+bb21:
+  %53: I32 trivial = const 4
+  return consume %53
+
+bb22:
+  %54: %Bool address = field.addr .ok inspect %5
+  %55: Bool trivial = load inspect %54
+  %56: Bool trivial = not inspect %55
+  jump -> bb23(consume %56)
+
+bb23(%3: Bool trivial):
+  branch inspect %3 -> bb27 -> bb25
+
+bb24:
+  %57: Bool trivial = const True
+  jump -> bb23(consume %57)
+
+bb25:
+  %58: %Bool address = field.addr .flag inspect %5
+  %59: Bool trivial = load inspect %58
+  %60: Bool trivial = not inspect %59
+  jump -> bb26(consume %60)
+
+bb26(%4: Bool trivial):
+  branch inspect %4 -> bb30 -> bb28
+
+bb27:
+  %61: Bool trivial = const True
+  jump -> bb26(consume %61)
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %62: I32 trivial = const 0
+  return consume %62
+
+bb30:
+  %63: I32 trivial = const 5
+  return consume %63
+}
+
+entry main

@@ -1,0 +1,52 @@
+{-
+   A **property witness on a field this target would pack** - J85.
+
+   # resolver: ownership
+
+   On JavaScript a property witness is a *name*: a body compiled once reads `owner[key]`. A record
+   whose narrow fields share a `$pN` word, or which is one number altogether, has no property of its
+   own for the witnessed field, so there is no name to hand over. JSIR answers that by **not packing
+   the field a property requirement names**: it keeps its own property, and the record's other narrow
+   fields still pack beside it where there are two of them. The shipping backend hands a `{read, set}`
+   pair of accessors instead, which is the native slot's third shape; here the answer is the layout.
+
+   `Bits` would be one number and `Mixed` would co-pack all three of its narrow fields - both with
+   `flag` witnessed. `Quiet` is `Bits` with no witness on it, so it is still one number, which is what
+   says the refusal is per field and not a switch.
+-}
+
+data Bits {flag: Bool, other: Bool, level: @bits(4) U32}
+data Mixed {size: I32, flag: Bool, ready: Bool, level: @bits(4) U32}
+data Quiet {flag: Bool, other: Bool, level: @bits(4) U32}
+
+@generic
+fn (a.flag: Bool) readFlag(x: a) -> Bool = x.flag
+
+@generic
+fn (a.flag: Bool) setFlag(&x: a) -> Bool:
+    x.flag = True
+    return x.flag
+
+fn score(flag: Bool, other: Bool, level: U32) -> I32:
+    let &n = bitcast(level) :: I32
+    if flag then n += 100
+    if other then n += 1000
+    return n
+
+fn main() -> I32:
+    let &b = Bits {flag: False, other: True, level: 5 :: U32}
+    if readFlag(b) then return -1
+    if setFlag(b) == False then return -2
+    if b.flag == False then return -3
+
+    let &m = Mixed {size: 20000 :: I32, flag: False, ready: True, level: 9 :: U32}
+    if readFlag(m) then return -4
+    if setFlag(m) == False then return -5
+    if m.flag == False then return -6
+
+    let &q = Quiet {flag: False, other: False, level: 3 :: U32}
+    q.other = True
+
+    -- 1105 + (20000 + 1109) + 1003 = 23217
+    return score(b.flag, b.other, b.level) + m.size + score(m.flag, m.ready, m.level) +
+        score(q.flag, q.other, q.level)

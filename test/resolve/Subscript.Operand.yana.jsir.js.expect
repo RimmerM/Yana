@@ -5,54 +5,28 @@ function total(xs$0, xs$1, xs$2) {
   var p4 = 0;
   while (p4 < xs$1) {
     if (p4 >>> 0 >= xs$1 >>> 0) throw $t;
-    var v17 = p3 + xs$0[xs$2 + p4 | 0] | 0;
-    var v19 = p4 + 1 | 0;
-    p3 = v17;
-    p4 = v19;
+    p3 = p3 + xs$0[xs$2 + p4 | 0] | 0;
+    p4 = p4 + 1 | 0;
   }
   return p3;
 }
 
 function main() {
-  var s1 = { items: new Int32Array([]), length: 0 };
   var v10 = new Int32Array([1, 2, 3, 4, 5]);
-  var s0 = { items: v10, length: 5 };
-  s1 = { items: new Int32Array([2, 0, 1]), length: 3 };
-  if ((v10[0] + total(v10, 2, 1) | 0) !== 6) {
-    Array_a_reclaim_I32(s0);
-    Array_a_reclaim_I32(s1);
-    return -1;
-  }
-  if ((v10[2] + v10[2] | 0) !== 6) {
-    Array_a_reclaim_I32(s0);
-    Array_a_reclaim_I32(s1);
-    return -2;
-  }
-  var v65 = s1.items;
-  if (0 >= s1.length) throw $t;
+  var v16 = new Int32Array([2, 0, 1]);
+  var v41 = (v10[0] + total(v10, 2, 1) | 0) !== 6 ? 1 : 0;
+  var v18 = { items: v16, length: 3 };
+  if (v41) return -1;
+  if ((v10[2] + v10[2] | 0) !== 6) return -2;
+  var v65 = v18.items;
+  if (0 >= v18.length) throw $t;
   var v76 = v65[0];
   if (v76 >>> 0 >= 5) throw $t;
-  var v83 = v10[0 + v76];
-  Array_a_reclaim_I32(s1);
-  if (v83 !== 3) {
-    Array_a_reclaim_I32(s0);
-    return -3;
-  }
-  if (total(v10, 5, 0) !== 15) {
-    Array_a_reclaim_I32(s0);
-    return -4;
-  }
-  if (total(v10, 5, 0) !== 15) {
-    Array_a_reclaim_I32(s0);
-    return -5;
-  }
+  if (v10[v76] !== 3) return -3;
+  if (total(v10, 5, 0) !== 15) return -4;
+  if (total(v10, 5, 0) !== 15) return -5;
   v10[0] = 10;
-  var v105 = total(v10, 5, 0);
-  Array_a_reclaim_I32(s0);
-  return v105;
-}
-
-function Array_a_reclaim_I32(value) {
+  return total(v10, 5, 0);
 }
 var $t = "yana: a runtime check failed";
 main();

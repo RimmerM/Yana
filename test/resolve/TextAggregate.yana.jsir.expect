@@ -14,7 +14,6 @@ fn main() -> one %r2
     %11: %r2 = const 1
     %12: %r2 = const 2
     %13: %r5 = const 2
-    %14: %r5 = const 2
     jump -> block3(%0, %10)
   block3(%2: %r2, %3: %r2):
     %15: %r6 = binary.lt %3, %12
@@ -35,8 +34,7 @@ fn main() -> one %r2
     %24: %r0 = alias %23
     %25: %r2 = host host.field "length" host-range %24
     %26: %r2 = convert %25
-    %27: %r6 = binary.ge %17, %14
-    branch %27 -> block8 -> block7
+    jump -> block7
   block7:
     %28: %r4 = load global rows: %r4
     %29: %r3 = load element %28[%16]: %r3
@@ -76,7 +74,7 @@ fn main() -> one %r2
     host host.throw "yana: a runtime check failed"
     unreachable
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 0 promoted 0
 
 shape %s0 object Row {name: %r0, rank: %r2}
 

@@ -220,12 +220,32 @@ bool addressMayName(OptContext& opt, Value* address, Value& allocation) {
         // The end of the chain rather than its root: a root is the answer, and anything that is not a
         // block argument is a root this body cannot name, which `allocationRoot`'s null already says.
         while(at && at->definer) {
-            if(opt.base[at->definer]->kind == Inst::Alloc) break;
+            auto kind = opt.base[at->definer]->kind;
+            if(kind == Inst::Alloc || kind == Inst::Call) break;
             at = addressStep(opt, at);
         }
 
         if(!at) continue;
         if(at == &allocation) return true;
+
+        /*
+         * A **call's result** is a second name for whatever its arguments named - J92. `Contained`
+         * admits an argument whose callee hands its address back, as long as the result does not
+         * escape in turn (J48), so `pick(&p) -> &'Int` leaves `p` contained while `q = q - 7` writes
+         * through the answer. Ending the walk here said that store reached nothing of `p`, and
+         * `ConstantContents` then folded a later read of `p.a` to the literal the record was built
+         * with. The callee's summary does not say which argument the result came from, so every
+         * argument is a candidate; a call whose result is not an address is never asked this.
+         */
+        if(at->definer && opt.base[at->definer]->kind == Inst::Call) {
+            auto& call = (InstCall&)*opt.base[at->definer];
+            for(Size i = 0; i < call.arguments.size(); i++) {
+                auto used = call.arguments.get(opt.base, i);
+                if(used.isSet()) pending.push(opt.base[used.value()]);
+            }
+            continue;
+        }
+
         if(at->definer || !at->block) continue;
 
         auto known = false;

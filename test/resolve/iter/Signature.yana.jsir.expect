@@ -10,41 +10,14 @@ fn main() -> one %r0
   var $8: %r3
   var $9: %r3
   var $10: %r5
+  var $11: %r5
+  var $12: %r0
   block0:
-    %0: %r0 = const 0
-    %1: %r0 = const 0
-    %2: %r0 = const 0
-    %3: %r0 = const 0
-    %4: %r1 = object %s0 %0, %1, %2, %3
-    store var $0: %r1, %4
-    %5: %r0 = const 0
-    %6: %r0 = const 0
-    %7: %r3 = const ""
-    %8: %r0 = const 0
-    %9: %r0 = const 0
-    %10: %r4 = object %s1 %5, %6, %7, %8, %9
-    store var $1: %r4, %10
     %11: %r0 = const 0
     %12: %r0 = const 0
     %13: %r3 = const ""
     %14: %r0 = const 0
     %15: %r0 = const 0
-    %17: %r0 = const 0
-    %18: %r0 = const 0
-    %19: %r3 = const ""
-    %20: %r0 = const 0
-    %21: %r0 = const 0
-    %22: %r5 = object %s2 %17, %18, %19, %20, %21
-    %23: %r0 = const 0
-    %24: %r6 = object %s3 %22, %23
-    store var $3: %r6, %24
-    %25: %r0 = const 0
-    %26: %r0 = const 0
-    %27: %r3 = const ""
-    %28: %r0 = const 0
-    %29: %r0 = const 0
-    %30: %r5 = object %s2 %25, %26, %27, %28, %29
-    store var $4: %r5, %30
     %31: %r0 = const 0
     store global after: %r0, %31
     %32: %r0 = const 3
@@ -53,14 +26,12 @@ fn main() -> one %r0
     %35: %r0 = const 0
     %36: %r0 = const 0
     %37: %r1 = object %s0 %33, %34, %35, %36
-    store var $5: %r1, %37
     %38: %r0 = const 0
-    %39: %r1 = load var $5: %r1
+    %39: %r1 = alias %37
     store property %39.$index: %r0, %38
-    %40: %r1 = load var $5: %r1
+    %40: %r1 = alias %37
     store property %40.n: %r0, %32
-    %41: %r1 = load var $5: %r1
-    store var $0: %r1, %41
+    %41: %r1 = alias %37
     %42: %r0 = const 0
     %43: %r0 = const 1
     %44: %r0 = const 1
@@ -70,102 +41,82 @@ fn main() -> one %r0
     %48: %r0 = const 2.147483647E9
     jump -> block1
   block1:
-    %49: %r1 = load var $0: %r1
-    %50: %r1 = load var $0: %r1
-    %51: %r1 = load var $0: %r1
+    %51: %r1 = alias %41
     %52: %r0 = load property %51.$index: %r0
     %53: %r7 = binary.eq %52, %42
     branch %53 -> block9 -> block7
   block2:
-    %64: %r0 = const 2
-    %65: %r3 = const "abc"
-    %66: %r0 = const 0
-    %67: %r0 = const 0
-    %68: %r3 = const ""
-    %69: %r0 = const 0
-    %70: %r0 = const 0
-    %71: %r4 = object %s1 %66, %67, %68, %69, %70
-    store var $7: %r4, %71
+    %69: %r0 = const 2
+    %70: %r3 = const "abc"
+    %71: %r0 = const 0
     %72: %r0 = const 0
-    %73: %r4 = load var $7: %r4
-    store property %73.$index: %r0, %72
-    %74: %r4 = load var $7: %r4
-    store property %74.source: %r3, %65
-    %75: %r4 = load var $7: %r4
-    store property %75.n: %r0, %64
-    %76: %r4 = load var $7: %r4
-    store var $6: %r4, %76
-    %77: %r4 = load var $6: %r4
-    %78: %r4 = clone %77
-    store var $1: %r4, %78
-    %79: %r0 = const 0
-    %80: %r0 = const 1
-    %81: %r3 = const "at "
-    %82: %r3 = const " of "
-    %83: %r0 = const 1
+    %73: %r3 = const ""
+    %74: %r0 = const 0
+    %75: %r0 = const 0
+    %76: %r4 = object %s1 %71, %72, %73, %74, %75
+    %77: %r0 = const 0
+    %78: %r4 = alias %76
+    store property %78.$index: %r0, %77
+    %79: %r4 = alias %76
+    store property %79.source: %r3, %70
+    %80: %r4 = alias %76
+    store property %80.n: %r0, %69
+    %81: %r4 = alias %76
+    %82: %r4 = alias %81
+    %83: %r4 = clone %82
     %84: %r0 = const 0
     %85: %r0 = const 1
-    %86: %r0 = const 2.147483647E9
-    %88: %r3 = const ""
+    %86: %r3 = const "at "
+    %87: %r3 = const " of "
+    %88: %r0 = const 1
+    %89: %r0 = const 0
+    %90: %r0 = const 1
+    %91: %r0 = const 2.147483647E9
+    %93: %r3 = const ""
     jump -> block3
   block3:
-    %89: %r4 = load var $1: %r4
-    %90: %r4 = load var $1: %r4
-    %91: %r4 = load var $1: %r4
-    %92: %r4 = load var $1: %r4
-    %93: %r0 = load property %92.$index: %r0
-    %94: %r7 = binary.eq %93, %79
-    branch %94 -> block15 -> block13
+    %97: %r4 = alias %83
+    %98: %r0 = load property %97.$index: %r0
+    %99: %r7 = binary.eq %98, %84
+    branch %99 -> block15 -> block13
   block4:
-    %149: %r3 = const "hello"
-    store var $2: %r3, %149
-    %150: %r3 = load var $2: %r3
-    %151: %r3 = alias %150
-    %152: %r0 = const 2
-    %153: %r0 = const 0
-    %154: %r0 = const 0
-    %155: %r3 = const ""
-    %156: %r0 = const 0
-    %157: %r0 = const 0
-    %158: %r5 = object %s2 %153, %154, %155, %156, %157
-    store var $10: %r5, %158
-    %159: %r0 = const 0
-    %160: %r5 = load var $10: %r5
-    store property %160.$index: %r0, %159
-    %161: %r5 = load var $10: %r5
-    store property %161.source: %r3, %151
-    %162: %r5 = load var $10: %r5
-    store property %162.n: %r0, %152
-    %163: %r5 = load var $10: %r5
-    %16: %r5 = object %s2 %11, %12, %13, %14, %15
-    store value %16: %r5, %163
-    %164: %r0 = const 0
-    %165: %r6 = object %s3 %16, %164
-    store var $3: %r6, %165
-    %166: %r6 = load var $3: %r6
-    %167: %r5 = load property %166.cursor: %r5
-    %168: %r5 = clone %167
-    store var $4: %r5, %168
+    %162: %r3 = const "hello"
+    %163: %r3 = alias %162
+    %164: %r3 = alias %163
+    %165: %r0 = const 2
+    %166: %r0 = const 0
+    %167: %r0 = const 0
+    %168: %r3 = const ""
     %169: %r0 = const 0
-    %170: %r0 = const 1
-    %171: %r0 = const 1
+    %170: %r0 = const 0
+    %171: %r5 = object %s3 %166, %167, %168, %169, %170
     %172: %r0 = const 0
-    %173: %r0 = const 1
-    %174: %r0 = const 2.147483647E9
+    %173: %r5 = alias %171
+    store property %173.$index: %r0, %172
+    %174: %r5 = alias %171
+    store property %174.source: %r3, %164
+    %175: %r5 = alias %171
+    store property %175.n: %r0, %165
+    %176: %r5 = alias %171
+    %16: %r5 = object %s3 %11, %12, %13, %14, %15
+    store value %16: %r5, %176
+    %180: %r5 = alias %16
+    %181: %r5 = clone %180
+    %182: %r0 = const 0
+    %183: %r0 = const 1
+    %184: %r0 = const 1
+    %185: %r0 = const 0
+    %186: %r0 = const 1
+    %187: %r0 = const 2.147483647E9
     jump -> block5
   block5:
-    %175: %r5 = load var $4: %r5
-    %176: %r5 = load var $4: %r5
-    %177: %r5 = load var $4: %r5
-    %178: %r5 = load var $4: %r5
-    %179: %r0 = load property %178.$index: %r0
-    %180: %r7 = binary.eq %179, %169
-    branch %180 -> block21 -> block19
+    %191: %r5 = alias %181
+    %192: %r0 = load property %191.$index: %r0
+    %193: %r7 = binary.eq %192, %182
+    branch %193 -> block21 -> block19
   block6:
-    %188: %r0 = load global after: %r0
-    %189: %r6 = load var $3: %r6
-    store property %189.seen: %r0, %188
-    return %188
+    %206: %r0 = load global after: %r0
+    return %206
   block7:
     %54: %r7 = binary.eq %52, %43
     branch %54 -> block8 -> block2
@@ -174,156 +125,177 @@ fn main() -> one %r0
     %56: %r0 = binary.add %55, %44
     %57: %r0 = coerce %56
     store global after: %r0, %57
-    %58: %r0 = load property %50.p: %r0
-    %59: %r0 = binary.add %58, %45
-    %60: %r0 = coerce %59
-    store property %50.p: %r0, %60
+    %58: %r1 = alias %41
+    %59: %r0 = load property %58.p: %r0
+    %60: %r0 = binary.add %59, %45
+    %61: %r0 = coerce %60
+    store property %58.p: %r0, %61
     jump -> block10
   block9:
-    store property %50.p: %r0, %46
+    %62: %r1 = alias %41
+    store property %62.p: %r0, %46
     jump -> block10
   block10:
-    %61: %r0 = load property %50.p: %r0
-    %62: %r0 = load property %49.n: %r0
-    %63: %r7 = binary.lt %61, %62
-    branch %63 -> block12 -> block11
+    %63: %r1 = alias %41
+    %64: %r0 = load property %63.p: %r0
+    %65: %r1 = alias %41
+    %66: %r0 = load property %65.n: %r0
+    %67: %r7 = binary.lt %64, %66
+    branch %67 -> block12 -> block11
   block11:
-    store property %51.$index: %r0, %48
+    %68: %r1 = alias %41
+    store property %68.$index: %r0, %48
     jump -> block2
   block12:
-    %203: %r1 = load var $0: %r1
-    store property %203.$slot: %r0, %61
-    store property %51.$index: %r0, %47
+    %224: %r1 = alias %41
+    store property %224.$slot: %r0, %64
+    %225: %r1 = alias %41
+    store property %225.$index: %r0, %47
     jump -> block1
   block13:
-    %95: %r7 = binary.eq %93, %80
-    branch %95 -> block14 -> block4
+    %100: %r7 = binary.eq %98, %85
+    branch %100 -> block14 -> block4
   block14:
-    %96: %r0 = load property %91.p: %r0
-    %98: %r3 = load property %89.source: %r3
-    %99: %r3 = alias %98
-    %100: %r3 = alias %99
-    %101: %r3 = alias %100
-    %102: %r3 = alias %101
-    %103: %r0 = host host.field "length" host-range %102
-    store var $8: %r3, %88
-    %105: %r3 = load var $8: %r3
+    %101: %r4 = alias %83
+    %102: %r0 = load property %101.p: %r0
+    %104: %r4 = alias %83
+    %105: %r3 = load property %104.source: %r3
     %106: %r3 = alias %105
-    %107: %r3 = alias %81
-    %108: %r3 = alias %106
-    %109: %r3 = alias %107
-    %110: %r3 = host host.binary "+" %108, %109
-    store var $8: %r3, %110
-    %111: %r3 = host host.global "String" %96
+    %107: %r3 = alias %106
+    %108: %r3 = alias %107
+    %109: %r3 = alias %108
+    %110: %r0 = host host.field "length" host-range %109
+    store var $8: %r3, %93
     %112: %r3 = load var $8: %r3
     %113: %r3 = alias %112
-    %114: %r3 = alias %111
+    %114: %r3 = alias %86
     %115: %r3 = alias %113
     %116: %r3 = alias %114
     %117: %r3 = host host.binary "+" %115, %116
     store var $8: %r3, %117
-    %118: %r3 = load var $8: %r3
-    %119: %r3 = alias %118
-    %120: %r3 = alias %82
-    %121: %r3 = alias %119
+    %118: %r3 = host host.global "String" %102
+    %119: %r3 = load var $8: %r3
+    %120: %r3 = alias %119
+    %121: %r3 = alias %118
     %122: %r3 = alias %120
-    %123: %r3 = host host.binary "+" %121, %122
-    store var $8: %r3, %123
-    %124: %r3 = load property %89.source: %r3
-    %125: %r3 = alias %124
+    %123: %r3 = alias %121
+    %124: %r3 = host host.binary "+" %122, %123
+    store var $8: %r3, %124
+    %125: %r3 = load var $8: %r3
     %126: %r3 = alias %125
-    %127: %r3 = load var $8: %r3
-    %128: %r3 = alias %127
-    %129: %r3 = alias %126
-    %130: %r3 = alias %128
-    %131: %r3 = alias %129
-    %132: %r3 = host host.binary "+" %130, %131
-    store var $8: %r3, %132
-    %133: %r3 = load var $8: %r3
+    %127: %r3 = alias %87
+    %128: %r3 = alias %126
+    %129: %r3 = alias %127
+    %130: %r3 = host host.binary "+" %128, %129
+    store var $8: %r3, %130
+    %131: %r4 = alias %83
+    %132: %r3 = load property %131.source: %r3
+    %133: %r3 = alias %132
     %134: %r3 = alias %133
-    store var $9: %r3, %134
-    %135: %r3 = load var $9: %r3
+    %135: %r3 = load var $8: %r3
     %136: %r3 = alias %135
-    %137: %r3 = alias %136
-    %138: %r3 = alias %137
-    %139: %r0 = host host.field "length" host-range %138
-    %140: %r0 = convert %139
-    %141: %r0 = load global after: %r0
-    %142: %r0 = binary.add %141, %140
-    %143: %r0 = coerce %142
-    store global after: %r0, %143
-    %144: %r0 = binary.add %96, %83
-    %145: %r0 = coerce %144
-    store property %91.p: %r0, %145
+    %137: %r3 = alias %134
+    %138: %r3 = alias %136
+    %139: %r3 = alias %137
+    %140: %r3 = host host.binary "+" %138, %139
+    store var $8: %r3, %140
+    %141: %r3 = load var $8: %r3
+    %142: %r3 = alias %141
+    %143: %r3 = alias %142
+    %144: %r3 = alias %143
+    %145: %r3 = alias %144
+    %146: %r3 = alias %145
+    %147: %r0 = host host.field "length" host-range %146
+    %148: %r0 = convert %147
+    %149: %r0 = load global after: %r0
+    %150: %r0 = binary.add %149, %148
+    %151: %r0 = coerce %150
+    store global after: %r0, %151
+    %152: %r0 = binary.add %102, %88
+    %153: %r0 = coerce %152
+    %154: %r4 = alias %83
+    store property %154.p: %r0, %153
     jump -> block16
   block15:
-    store property %91.p: %r0, %84
+    %155: %r4 = alias %83
+    store property %155.p: %r0, %89
     jump -> block16
   block16:
-    %146: %r0 = load property %91.p: %r0
-    %147: %r0 = load property %90.n: %r0
-    %148: %r7 = binary.lt %146, %147
-    branch %148 -> block18 -> block17
+    %156: %r4 = alias %83
+    %157: %r0 = load property %156.p: %r0
+    %158: %r4 = alias %83
+    %159: %r0 = load property %158.n: %r0
+    %160: %r7 = binary.lt %157, %159
+    branch %160 -> block18 -> block17
   block17:
-    store property %92.$index: %r0, %86
+    %161: %r4 = alias %83
+    store property %161.$index: %r0, %91
     jump -> block4
   block18:
-    %202: %r4 = load var $1: %r4
-    store property %202.$slot: %r0, %146
-    store property %92.$index: %r0, %85
+    %222: %r4 = alias %83
+    store property %222.$slot: %r0, %157
+    %223: %r4 = alias %83
+    store property %223.$index: %r0, %90
     jump -> block3
   block19:
-    %181: %r7 = binary.eq %179, %170
-    branch %181 -> block20 -> block6
+    %194: %r7 = binary.eq %192, %183
+    branch %194 -> block20 -> block6
   block20:
-    %182: %r0 = load property %177.p: %r0
-    %183: %r0 = binary.add %182, %171
-    %184: %r0 = coerce %183
-    store property %177.p: %r0, %184
+    %195: %r5 = alias %181
+    %196: %r0 = load property %195.p: %r0
+    %197: %r0 = binary.add %196, %184
+    %198: %r0 = coerce %197
+    store property %195.p: %r0, %198
     jump -> block22
   block21:
-    store property %177.p: %r0, %172
+    %199: %r5 = alias %181
+    store property %199.p: %r0, %185
     jump -> block22
   block22:
-    %185: %r0 = load property %177.p: %r0
-    %186: %r0 = load property %176.n: %r0
-    %187: %r7 = binary.lt %185, %186
-    branch %187 -> block24 -> block23
+    %200: %r5 = alias %181
+    %201: %r0 = load property %200.p: %r0
+    %202: %r5 = alias %181
+    %203: %r0 = load property %202.n: %r0
+    %204: %r7 = binary.lt %201, %203
+    branch %204 -> block24 -> block23
   block23:
-    store property %178.$index: %r0, %174
+    %205: %r5 = alias %181
+    store property %205.$index: %r0, %187
     jump -> block6
   block24:
-    %190: %r3 = load property %175.source: %r3
-    %191: %r3 = alias %190
-    %192: %r3 = alias %191
-    %193: %r3 = alias %192
-    %194: %r0 = host host.field "length" host-range %193
-    %195: %r0 = convert %194
-    %196: %r0 = binary.add %195, %185
-    %197: %r0 = coerce %196
-    %198: %r5 = load var $4: %r5
-    store property %198.$slot: %r0, %197
-    store property %178.$index: %r0, %173
-    %199: %r0 = load global after: %r0
-    %200: %r0 = binary.add %199, %197
-    %201: %r0 = coerce %200
-    store global after: %r0, %201
+    %208: %r5 = alias %181
+    %209: %r3 = load property %208.source: %r3
+    %210: %r3 = alias %209
+    %211: %r3 = alias %210
+    %212: %r3 = alias %211
+    %213: %r0 = host host.field "length" host-range %212
+    %214: %r0 = convert %213
+    %215: %r0 = binary.add %214, %201
+    %216: %r0 = coerce %215
+    %217: %r5 = alias %181
+    store property %217.$slot: %r0, %216
+    %218: %r5 = alias %181
+    store property %218.$index: %r0, %186
+    %219: %r0 = load global after: %r0
+    %220: %r0 = binary.add %219, %216
+    %221: %r0 = coerce %220
+    store global after: %r0, %221
     jump -> block5
 
-optimizer clones 2 aliased 0 forwarded 0 removed 3 adopted 0 sunk 1
+optimizer clones 2 aliased 0 forwarded 0 removed 57 adopted 0 sunk 1 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 43
 
 shape %s0 object counted.Iter {$index: %r0, $slot: %r0, n: %r0, p: %r0}
 shape %s1 object owning.Iter {$index: %r0, $slot: %r0, source: %r3, n: %r0, p: %r0}
-shape %s2 object shared.Iter {$index: %r0, $slot: %r0, source: %r3, n: %r0, p: %r0}
-shape %s3 object Holder {cursor: %r5, seen: %r0}
+shape %s2 object Holder {cursor: %r5, seen: %r0}
+shape %s3 object shared.Iter {$index: %r0, $slot: %r0, source: %r3, n: %r0, p: %r0}
 
 rep %r0 = number signed 32
 rep %r1 = object %s0
 rep %r2 = parts (%r0, %r0, %r0, %r0) as %r1
 rep %r3 = string
 rep %r4 = object %s1
-rep %r5 = object %s2
-rep %r6 = object %s3
+rep %r5 = object %s3
+rep %r6 = object %s2
 rep %r7 = number bool
 rep %r8 = number unsigned 8
 rep %r9 = nullable of %r0

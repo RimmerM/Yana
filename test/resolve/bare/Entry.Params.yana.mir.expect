@@ -1,0 +1,24 @@
+module ResolveTest
+
+fn main(magic: U32 [shared call], info: Size [shared call]) -> U32 {
+bb0:
+  %0: Size = read copy.trivial (info)
+  %1: Size = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: U32 = read copy.trivial (magic)
+  %6: U32 = const 1
+  %7: U32 = add inspect %5 inspect %6
+  jump -> bb2(take %7)
+
+bb2(%8: U32):
+  return take %8
+
+bb3:
+  %4: U32 = read copy.trivial (magic)
+  jump -> bb2(take %4)
+}
+
+entry main

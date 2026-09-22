@@ -1,0 +1,374 @@
+fn wavelength(one %r0) -> one %r1
+  var $0: %r0
+  block0(%0: %r0):
+    %2: %r0 = alias %0
+    %3: %r1 = map %2 [0 => 700, 1 => 620, 2 => 580, 3 => 530, 4 => 470, 5 => 445, else 400]
+    return %3
+
+fn rank(one %r0) -> one %r1
+  var $0: %r0
+  block0(%0: %r0):
+    %2: %r0 = alias %0
+    %3: %r1 = map %2 [0 => 10, 1 => 13, 2 => 16, 3 => 19, 4 => 22, 5 => 25, else 28]
+    return %3
+
+fn warm(one %r0) -> one %r2
+  var $0: %r0
+  block0(%0: %r0):
+    %2: %r0 = alias %0
+    %3: %r2 = map %2 [0 => 1, 1 => 1, 2 => 1, 3 => 0, 4 => 0, 5 => 0, else 0]
+    return %3
+
+fn seven(one %r0) -> one %r1
+  var $0: %r0
+  block0(%0: %r0):
+    %2: %r0 = alias %0
+    %3: %r1 = map %2 [0 => 7, 1 => 7, 2 => 7, 3 => 7, 4 => 7, 5 => 7, else 7]
+    return %3
+
+fn score(one %r1) -> one %r1
+  block0(%0: %r1):
+    %1: %r1 = map %0 [0 => 3, 1 => 1, 2 => 4, 3 => 1, 4 => 5, 5 => 9, else -1]
+    return %1
+
+fn offset(one %r1) -> one %r1
+  block0(%0: %r1):
+    %1: %r1 = map %0 [10 => 2, 11 => 7, 12 => 1, 13 => 8, 14 => 2, else 0]
+    return %1
+
+fn negative(one %r1) -> one %r1
+  block0(%0: %r1):
+    %1: %r1 = map %0 [-3 => 30, -2 => 20, -1 => 11, 0 => 5, 1 => 99, else 1]
+    return %1
+
+fn name(one %r0) -> one %r3
+  var $0: %r0
+  block0(%0: %r0):
+    %2: %r0 = alias %0
+    %3: %r3 = map %2 [0 => "red", 1 => "orange", 2 => "yellow", 3 => "green", 4 => "blue", 5 => "indigo", else "violet"]
+    return %3
+
+fn maybe(one %r1) -> one %r4
+  block0(%0: %r1):
+    %1: %r4 = map %0 [0 => 4, 1 => null, 2 => 6, 3 => 8, else -2]
+    return %1
+
+fn sparse(one %r1) -> one %r1
+  block0(%0: %r1):
+    %2: %r1 = const 0
+    %3: %r2 = binary.eq %0, %2
+    branch %3 -> block5 -> block1
+  block1:
+    %4: %r1 = const 100
+    %5: %r2 = binary.eq %0, %4
+    branch %5 -> block6 -> block2
+  block2:
+    %6: %r1 = const 1000
+    %7: %r2 = binary.eq %0, %6
+    branch %7 -> block7 -> block3
+  block3:
+    %8: %r1 = const 5000
+    %9: %r2 = binary.eq %0, %8
+    %10: %r1 = const 4
+    %11: %r1 = const 0
+    %12: %r1 = select %9, %10, %11
+    jump -> block4(%12)
+  block4(%1: %r1):
+    return %1
+  block5:
+    %15: %r1 = const 1
+    jump -> block4(%15)
+  block6:
+    %14: %r1 = const 2
+    jump -> block4(%14)
+  block7:
+    %13: %r1 = const 3
+    jump -> block4(%13)
+
+fn bigStep(one %r1) -> one %r1
+  block0(%0: %r1):
+    %1: %r1 = map %0 [1.000000007E9 => 0, 1.000000008E9 => 99999999, 1.000000009E9 => 1.99999998E8, else 5]
+    return %1
+
+fn wide(one %r0) -> one %r5
+  var $0: %r0
+  block0(%0: %r0):
+    %2: %r0 = alias %0
+    %3: %r5 = map %2 [0 => 1n, 1 => 4294967296n, 2 => 9n, 3 => -7n, 4 => 123456789012n, 5 => 0n, else 2n]
+    return %3
+
+fn pair(one %r0) -> one %r6
+  var $0: %r0
+  block0(%0: %r0):
+    %2: %r0 = alias %0
+    %3: %r1 = const 1
+    %4: %r1 = const 2
+    %5: %r6 = object %s0 %3, %4
+    %6: %r1 = const 3
+    %7: %r1 = const 4
+    %8: %r6 = object %s0 %6, %7
+    %9: %r1 = const 5
+    %10: %r1 = const 6
+    %11: %r6 = object %s0 %9, %10
+    %12: %r1 = const 7
+    %13: %r1 = const 8
+    %14: %r6 = object %s0 %12, %13
+    %15: %r0 = const 2
+    %16: %r2 = binary.eq %2, %15
+    %17: %r6 = select %16, %11, %14
+    %18: %r0 = const 1
+    %19: %r2 = binary.eq %2, %18
+    %20: %r6 = select %19, %8, %17
+    %21: %r0 = const 0
+    %22: %r2 = binary.eq %2, %21
+    %23: %r6 = select %22, %5, %20
+    return %23
+
+fn wavelengthAgain(one %r0) -> one %r1
+  var $0: %r0
+  block0(%0: %r0):
+    %2: %r0 = alias %0
+    %3: %r1 = map %2 [0 => 700, 1 => 620, 2 => 580, 3 => 530, 4 => 470, 5 => 445, else 400]
+    return %3
+
+fn main() -> one %r1
+  var $0: %r9
+  var $1: %r4
+  var $2: %r6
+  var $3: %r3
+  var $4: %r3
+  var $5: %r3
+  block0:
+    %10: %r0 = const 0
+    %11: %r0 = const 1
+    %12: %r0 = const 2
+    %13: %r0 = const 3
+    %14: %r0 = const 4
+    %15: %r0 = const 5
+    %16: %r0 = const 6
+    %17: %r7 = host host.array %10, %11, %12, %13, %14, %15, %16
+    %18: %r8 = const 7
+    %20: %r5 = const 0n
+    %21: %r3 = const ""
+    store var $5: %r3, %21
+    %22: %r1 = const 7
+    %27: %r1 = const 0
+    %28: %r1 = const 1
+    %29: %r1 = const 3
+    %30: %r5 = const 1000n
+    %31: %r1 = const 10
+    jump -> block11(%27, %20)
+  block1(%0: %r1, %1: %r5):
+    %44: %r2 = binary.lt %0, %36
+    branch %44 -> block3 -> block2
+  block2:
+    %45: %r1 = const 1000
+    %46: %r1 = call sparse %45
+    %47: %r1 = const 10
+    %48: %r1 = binary.mul %46, %47
+    %49: %r1 = coerce %48
+    %50: %r1 = const 5000
+    %51: %r1 = call sparse %50
+    %52: %r1 = binary.add %49, %51
+    %53: %r1 = coerce %52
+    %54: %r5 = convert %53
+    %55: %r5 = binary.add %1, %54
+    %56: %r5 = coerce %55
+    %57: %r1 = const 0
+    %58: %r1 = const 1
+    %59: %r1 = const 4
+    %60: %r5 = const 7n
+    %61: %r1 = const 1.000000006E9
+    %62: %r5 = const 1000000007n
+    jump -> block7(%57, %56)
+  block3:
+    %88: %r5 = binary.mul %1, %37
+    %89: %r5 = coerce %88
+    %90: %r1 = call score %0
+    %91: %r1 = call offset %0
+    %92: %r1 = binary.mul %91, %38
+    %93: %r1 = coerce %92
+    %94: %r1 = binary.add %90, %93
+    %95: %r1 = coerce %94
+    %96: %r1 = call negative %0
+    %97: %r1 = binary.add %95, %96
+    %98: %r1 = coerce %97
+    %99: %r1 = binary.mul %0, %39
+    %100: %r1 = coerce %99
+    %101: %r1 = call sparse %100
+    %102: %r1 = binary.add %98, %101
+    %103: %r1 = coerce %102
+    %104: %r5 = convert %103
+    %105: %r5 = binary.add %89, %104
+    %106: %r5 = coerce %105
+    %107: %r5 = binary.rem %106, %40
+    %108: %r5 = coerce %107
+    %109: %r4 = call maybe %0
+    store var $1: %r4, %109
+    %110: %r4 = load var $1: %r4
+    %111: %r4 = const null
+    %112: %r16 = binary.eq %110, %111
+    %113: %r0 = const 1
+    %114: %r0 = const 0
+    %115: %r0 = select %112, %114, %113
+    %116: %r2 = binary.eq %115, %41
+    branch %116 -> block6 -> block4
+  block4:
+    %117: %r5 = binary.add %108, %42
+    %118: %r5 = coerce %117
+    jump -> block5(%118)
+  block5(%2: %r5):
+    %124: %r1 = binary.add %0, %43
+    %125: %r1 = coerce %124
+    jump -> block1(%125, %2)
+  block6:
+    %120: %r1 = load var $1: %r1
+    %121: %r5 = convert %120
+    %122: %r5 = binary.add %108, %121
+    %123: %r5 = coerce %122
+    jump -> block5(%123)
+  block7(%3: %r1, %4: %r5):
+    %63: %r2 = binary.lt %3, %59
+    branch %63 -> block9 -> block8
+  block8:
+    %64: %r1 = convert %4
+    %65: %r3 = load var $5: %r3
+    %66: %r3 = alias %65
+    %67: %r3 = alias %66
+    %68: %r3 = alias %67
+    %69: %r1 = host host.field "length" host-range %68
+    %70: %r1 = convert %69
+    %71: %r1 = const 3
+    %72: %r1 = binary.mul %70, %71
+    %73: %r1 = coerce %72
+    %74: %r1 = binary.add %64, %73
+    %75: %r1 = coerce %74
+    return %75
+  block9:
+    %76: %r5 = binary.mul %4, %60
+    %77: %r5 = coerce %76
+    %78: %r1 = binary.add %61, %3
+    %79: %r1 = coerce %78
+    %80: %r1 = call bigStep %79
+    %81: %r5 = convert %80
+    %82: %r5 = binary.add %77, %81
+    %83: %r5 = coerce %82
+    %84: %r5 = binary.rem %83, %62
+    %85: %r5 = coerce %84
+    %86: %r1 = binary.add %3, %58
+    %87: %r1 = coerce %86
+    jump -> block7(%87, %85)
+  block10:
+    %19: %r9 = object %s1 %17, %18
+    %34: %r9 = alias %19
+    call Array(a).reclaim(Colour) %34
+    %35: %r1 = const -5
+    %36: %r1 = const 20
+    %37: %r5 = const 3n
+    %38: %r1 = const 2
+    %39: %r1 = const 50
+    %40: %r5 = const 1000000007n
+    %41: %r0 = const 1
+    %42: %r5 = const 17n
+    %43: %r1 = const 1
+    jump -> block1(%35, %6)
+  block11(%5: %r1, %6: %r5):
+    %33: %r2 = binary.lt %5, %22
+    branch %33 -> block12 -> block10
+  block12:
+    %126: %r17 = convert %5
+    %127: %r17 = convert %22
+    %128: %r2 = binary.ge %126, %127
+    branch %128 -> block14 -> block13
+  block13:
+    %129: %r7 = alias %17
+    %130: %r1 = alias %5
+    %131: %r1 = coerce %130
+    %132: %r0 = load element %129[%131]: %r0
+    %136: %r1 = call wavelength %132
+    %137: %r1 = call rank %132
+    %138: %r1 = binary.mul %137, %29
+    %139: %r1 = coerce %138
+    %140: %r1 = binary.add %136, %139
+    %141: %r1 = coerce %140
+    %142: %r1 = call seven %132
+    %143: %r1 = binary.add %141, %142
+    %144: %r1 = coerce %143
+    %145: %r1 = call wavelengthAgain %132
+    %146: %r1 = binary.add %144, %145
+    %147: %r1 = coerce %146
+    %148: %r5 = convert %147
+    %149: %r5 = binary.add %6, %148
+    %150: %r5 = coerce %149
+    %151: %r2 = call warm %132
+    branch %151 -> block15 -> block16(%150)
+  block14:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block15:
+    %152: %r5 = binary.add %150, %30
+    %153: %r5 = coerce %152
+    jump -> block16(%153)
+  block16(%7: %r5):
+    %154: %r5 = call wide %132
+    %155: %r5 = binary.add %7, %154
+    %156: %r5 = coerce %155
+    %157: %r6 = call pair %132
+    %158: %r6 = alias %157
+    %159: %r1 = load property %158.left: %r1
+    %160: %r1 = binary.mul %159, %31
+    %161: %r1 = coerce %160
+    %162: %r6 = alias %157
+    %163: %r1 = load property %162.right: %r1
+    %164: %r1 = binary.add %161, %163
+    %165: %r1 = coerce %164
+    %166: %r5 = convert %165
+    %167: %r5 = binary.add %156, %166
+    %168: %r5 = coerce %167
+    %169: %r3 = load var $5: %r3
+    %170: %r3 = alias %169
+    %171: %r3 = call name %132
+    %172: %r3 = alias %170
+    %173: %r3 = alias %172
+    %174: %r3 = alias %171
+    %175: %r3 = alias %174
+    %176: %r3 = alias %173
+    %177: %r3 = alias %175
+    %178: %r3 = host host.binary "+" %176, %177
+    store var $5: %r3, %178
+    %179: %r1 = binary.add %5, %28
+    %180: %r1 = coerce %179
+    jump -> block11(%180, %168)
+
+fn Array(a).reclaim(Colour)(one %r9) -> omitted
+  var $0: %r9
+  block0(%0: %r9):
+    return
+
+optimizer clones 0 aliased 0 forwarded 0 removed 35 adopted 0 sunk 1 numbered 1 decided 0 unboxed 1 updated 0 split 0 promoted 13
+
+shape %s0 object Pair {left: %r1, right: %r1}
+shape %s1 object Array {items: %r7, length: %r8}
+shape %s2 cell {$v: %r3 box}
+shape %s3 object ArrayView {items: %r7, length: %r1, offset: %r1}
+shape %s4 cell {$v: %r1 box}
+
+rep %r0 = number unsigned 8
+rep %r1 = number signed 32
+rep %r2 = number bool
+rep %r3 = string
+rep %r4 = nullable of %r1
+rep %r5 = bigint signed
+rep %r6 = object %s0
+rep %r7 = array Uint8Array of %r0
+rep %r8 = number unsigned 30
+rep %r9 = object %s1
+rep %r10 = void
+rep %r11 = object %s2
+rep %r12 = object %s3
+rep %r13 = parts (%r7, %r1, %r1) as %r12
+rep %r14 = object %s4
+rep %r15 = array Int32Array of %r1
+rep %r16 = boolean
+rep %r17 = number unsigned 32
+rep %r18 = array Array of %r3

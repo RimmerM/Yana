@@ -1,11 +1,6 @@
 fn summing(one %r0, one %r0) -> one %r0
   var $0: %r2
   block0(%0: %r0, %1: %r0):
-    %4: %r1 = const 0
-    %5: %r0 = const 0
-    %6: %r0 = const 0
-    %7: %r2 = object %s0 %4, %5, %6
-    store var $0: %r2, %7
     %8: %r0 = const 0
     %9: %r0 = const 1
     jump -> block4(%8)
@@ -13,7 +8,7 @@ fn summing(one %r0, one %r0) -> one %r0
     %38: %r0 = load global log: %r0
     return %38
   block2:
-    %33: %r2 = load var $0: %r2
+    %33: %r2 = alias %2
     %34: %r0 = load property %33.Exit: %r0
     %35: %r0 = load global log: %r0
     %36: %r0 = binary.add %35, %34
@@ -21,8 +16,7 @@ fn summing(one %r0, one %r0) -> one %r0
     store global log: %r0, %37
     jump -> block1
   block3(%2: %r2):
-    store var $0: %r2, %2
-    %29: %r2 = load var $0: %r2
+    %29: %r2 = alias %2
     %30: %r1 = load property %29.$tag: %r1
     %31: %r1 = const 1
     %32: %r3 = binary.eq %30, %31
@@ -63,14 +57,18 @@ fn main() -> one %r0
   var $0: %r2
   var $1: %r2
   var $2: %r2
+  var $3: %r1
+  var $4: %r0
+  var $5: %r0
+  var $6: %r1
+  var $7: %r0
+  var $8: %r0
+  var $9: %r1
+  var $10: %r0
+  var $11: %r0
   block0:
     %0: %r0 = const 0
     store global log: %r0, %0
-    %1: %r1 = const 0
-    %2: %r0 = const 0
-    %3: %r0 = const 0
-    %4: %r2 = object %s0 %1, %2, %3
-    store var $0: %r2, %4
     %5: %r0 = load global log: %r0
     %6: %r0 = const 1
     %7: %r0 = binary.add %5, %6
@@ -81,7 +79,6 @@ fn main() -> one %r0
     %11: %r0 = binary.add %10, %9
     %12: %r0 = coerce %11
     store global log: %r0, %12
-    %13: %r0 = const 0
     %14: %r0 = load global log: %r0
     %15: %r0 = const 100
     %16: %r0 = binary.add %14, %15
@@ -89,16 +86,12 @@ fn main() -> one %r0
     store global log: %r0, %17
     %18: %r1 = const 0
     %19: %r0 = const 0
-    %20: %r2 = object %s0 %18, %13, %19
-    store var $0: %r2, %20
-    %21: %r2 = load var $0: %r2
-    %22: %r1 = load property %21.$tag: %r1
+    %22: %r1 = alias %18
     %23: %r1 = const 1
     %24: %r3 = binary.eq %22, %23
     branch %24 -> block1 -> block2
   block1:
-    %25: %r2 = load var $0: %r2
-    %26: %r0 = load property %25.Exit: %r0
+    %26: %r0 = alias %19
     %27: %r0 = load global log: %r0
     %28: %r0 = binary.add %27, %26
     %29: %r0 = coerce %28
@@ -108,11 +101,6 @@ fn main() -> one %r0
     %30: %r0 = load global log: %r0
     %31: %r0 = const 0
     store global log: %r0, %31
-    %32: %r1 = const 0
-    %33: %r0 = const 0
-    %34: %r0 = const 0
-    %35: %r2 = object %s0 %32, %33, %34
-    store var $1: %r2, %35
     %36: %r0 = load global log: %r0
     %37: %r0 = const 1
     %38: %r0 = binary.add %36, %37
@@ -120,17 +108,12 @@ fn main() -> one %r0
     store global log: %r0, %39
     %40: %r0 = const 5
     %41: %r1 = const 1
-    %42: %r0 = const 0
-    %43: %r2 = object %s0 %41, %42, %40
-    store var $1: %r2, %43
-    %44: %r2 = load var $1: %r2
-    %45: %r1 = load property %44.$tag: %r1
+    %45: %r1 = alias %41
     %46: %r1 = const 1
     %47: %r3 = binary.eq %45, %46
     branch %47 -> block3 -> block4
   block3:
-    %48: %r2 = load var $1: %r2
-    %49: %r0 = load property %48.Exit: %r0
+    %49: %r0 = alias %40
     %50: %r0 = load global log: %r0
     %51: %r0 = binary.add %50, %49
     %52: %r0 = coerce %51
@@ -140,23 +123,13 @@ fn main() -> one %r0
     %53: %r0 = load global log: %r0
     %54: %r0 = const 0
     store global log: %r0, %54
-    %55: %r1 = const 0
-    %56: %r0 = const 0
-    %57: %r0 = const 0
-    %58: %r2 = object %s0 %55, %56, %57
-    store var $2: %r2, %58
     %59: %r0 = load global log: %r0
     %60: %r0 = const 1
     %61: %r0 = binary.add %59, %60
     %62: %r0 = coerce %61
     store global log: %r0, %62
-    %63: %r0 = const 1
     %64: %r1 = const 1
-    %65: %r0 = const 0
-    %66: %r2 = object %s0 %64, %65, %63
-    store var $2: %r2, %66
-    %67: %r2 = load var $2: %r2
-    %68: %r1 = load property %67.$tag: %r1
+    %68: %r1 = alias %64
     %69: %r1 = const 1
     %70: %r3 = binary.eq %68, %69
     branch %70 -> block5 -> block6
@@ -201,7 +174,7 @@ fn main() -> one %r0
     %103: %r0 = coerce %102
     return %103
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 48 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 3 promoted 7
 
 shape %s0 object Outcome {$tag: %r1 tag, Proceed: %r0, Exit: %r0}
 

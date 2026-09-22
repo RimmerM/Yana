@@ -12,8 +12,6 @@ fn main() -> one %r3
   var $6: %r9
   block0:
     %0: %r0 = const 0
-    %1: %r2 = array %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0
-    store var $0: %r2, %1
     %2: %r3 = const 0
     %3: %r3 = call at %2
     %4: %r4 = const 64
@@ -21,7 +19,8 @@ fn main() -> one %r3
     %6: %r5 = binary.ge %5, %4
     branch %6 -> block4 -> block1
   block1:
-    %7: %r2 = load var $0: %r2
+    %1: %r2 = array %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0, %0
+    %7: %r2 = alias %1
     %8: %r0 = load element %7[%3]: %r0
     %9: %r3 = convert %8
     %10: %r3 = const 63
@@ -31,7 +30,7 @@ fn main() -> one %r3
     %14: %r5 = binary.ge %13, %12
     branch %14 -> block3 -> block2
   block2:
-    %15: %r2 = load var $0: %r2
+    %15: %r2 = alias %1
     %16: %r0 = load element %15[%11]: %r0
     %17: %r3 = convert %16
     %18: %r3 = binary.add %9, %17
@@ -40,8 +39,6 @@ fn main() -> one %r3
     %21: %r3 = binary.add %19, %20
     %22: %r3 = coerce %21
     %23: %r3 = const -1
-    %24: %r6 = array %23, %23, %23, %23, %23, %23, %23, %23
-    store var $1: %r6, %24
     %25: %r3 = const 7
     %26: %r3 = call at %25
     %27: %r4 = const 8
@@ -55,7 +52,8 @@ fn main() -> one %r3
     host host.throw "yana: a runtime check failed"
     unreachable
   block5:
-    %30: %r6 = load var $1: %r6
+    %24: %r6 = array %23, %23, %23, %23, %23, %23, %23, %23
+    %30: %r6 = alias %24
     %31: %r3 = load element %30[%26]: %r3
     %32: %r3 = const 8
     %33: %r3 = binary.add %31, %32
@@ -63,8 +61,6 @@ fn main() -> one %r3
     %35: %r3 = binary.add %22, %34
     %36: %r3 = coerce %35
     %37: %r0 = const 3
-    %38: %r1 = array %37, %37, %37, %37, %37, %37, %37, %37
-    store var $2: %r1, %38
     %39: %r3 = const 0
     %40: %r3 = call at %39
     %41: %r4 = const 8
@@ -75,7 +71,8 @@ fn main() -> one %r3
     host host.throw "yana: a runtime check failed"
     unreachable
   block7:
-    %44: %r1 = load var $2: %r1
+    %38: %r1 = array %37, %37, %37, %37, %37, %37, %37, %37
+    %44: %r1 = alias %38
     %45: %r0 = load element %44[%40]: %r0
     %46: %r3 = convert %45
     %47: %r3 = const 7
@@ -85,7 +82,7 @@ fn main() -> one %r3
     %51: %r5 = binary.ge %50, %49
     branch %51 -> block9 -> block8
   block8:
-    %52: %r1 = load var $2: %r1
+    %52: %r1 = alias %38
     %53: %r0 = load element %52[%48]: %r0
     %54: %r3 = convert %53
     %55: %r3 = binary.add %46, %54
@@ -93,8 +90,6 @@ fn main() -> one %r3
     %57: %r3 = binary.add %36, %56
     %58: %r3 = coerce %57
     %59: %r3 = const 7
-    %60: %r6 = array %59, %59, %59, %59, %59, %59, %59, %59
-    store var $3: %r6, %60
     %61: %r3 = const 0
     %62: %r3 = call at %61
     %63: %r4 = const 8
@@ -108,7 +103,8 @@ fn main() -> one %r3
     host host.throw "yana: a runtime check failed"
     unreachable
   block11:
-    %66: %r6 = load var $3: %r6
+    %60: %r6 = array %59, %59, %59, %59, %59, %59, %59, %59
+    %66: %r6 = alias %60
     %67: %r3 = load element %66[%62]: %r3
     %68: %r3 = const 7
     %69: %r3 = call at %68
@@ -117,7 +113,7 @@ fn main() -> one %r3
     %72: %r5 = binary.ge %71, %70
     branch %72 -> block13 -> block12
   block12:
-    %73: %r6 = load var $3: %r6
+    %73: %r6 = alias %60
     %74: %r3 = load element %73[%69]: %r3
     %75: %r3 = binary.add %67, %74
     %76: %r3 = coerce %75
@@ -155,8 +151,6 @@ fn main() -> one %r3
     %108: %r0 = const 0
     %109: %r0 = const 0
     %110: %r0 = const 0
-    %111: %r7 = array %79, %80, %81, %82, %83, %84, %85, %86, %87, %88, %89, %90, %91, %92, %93, %94, %95, %96, %97, %98, %99, %100, %101, %102, %103, %104, %105, %106, %107, %108, %109, %110
-    store var $4: %r7, %111
     %112: %r3 = const 31
     %113: %r3 = call at %112
     %114: %r4 = const 32
@@ -170,7 +164,8 @@ fn main() -> one %r3
     host host.throw "yana: a runtime check failed"
     unreachable
   block15:
-    %117: %r7 = load var $4: %r7
+    %111: %r7 = array %79, %80, %81, %82, %83, %84, %85, %86, %87, %88, %89, %90, %91, %92, %93, %94, %95, %96, %97, %98, %99, %100, %101, %102, %103, %104, %105, %106, %107, %108, %109, %110
+    %117: %r7 = alias %111
     %118: %r0 = load element %117[%113]: %r0
     %119: %r3 = convert %118
     %120: %r3 = binary.add %78, %119
@@ -178,8 +173,6 @@ fn main() -> one %r3
     %122: %r3 = const 10
     %123: %r3 = const 20
     %124: %r3 = const 30
-    %125: %r8 = array %122, %123, %124
-    store var $5: %r8, %125
     %126: %r3 = const 2
     %127: %r3 = call at %126
     %128: %r4 = const 3
@@ -190,7 +183,8 @@ fn main() -> one %r3
     host host.throw "yana: a runtime check failed"
     unreachable
   block17:
-    %131: %r8 = load var $5: %r8
+    %125: %r8 = array %122, %123, %124
+    %131: %r8 = alias %125
     %132: %r3 = load element %131[%127]: %r3
     %133: %r3 = const 3
     %134: %r3 = binary.add %132, %133
@@ -213,8 +207,6 @@ fn main() -> one %r3
     %149: %r3 = binary.add %121, %148
     %150: %r3 = coerce %149
     %151: %r3 = const 42
-    %152: %r9 = array %151
-    store var $6: %r9, %152
     %153: %r3 = const 0
     %154: %r3 = call at %153
     %155: %r4 = const 1
@@ -228,7 +220,8 @@ fn main() -> one %r3
     host host.throw "yana: a runtime check failed"
     unreachable
   block21:
-    %158: %r9 = load var $6: %r9
+    %152: %r9 = array %151
+    %158: %r9 = alias %152
     %159: %r3 = load element %158[%154]: %r3
     %160: %r3 = const 1
     %161: %r3 = binary.add %159, %160
@@ -258,7 +251,7 @@ fn main() -> one %r3
     host host.throw "yana: a runtime check failed"
     unreachable
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 7 adopted 0 sunk 7 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 10
 
 rep %r0 = number unsigned 8
 rep %r1 = array Uint8Array of %r0

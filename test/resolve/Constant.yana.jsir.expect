@@ -10,11 +10,9 @@ fn main() -> one %r5
     %6: %r0 = const 1
     %7: %r3 = const -1
     %9: %r0 = load global heading: %r0
-    store var $0: %r0, %9
-    %11: %r0 = load var $0: %r0
+    %11: %r0 = alias %9
     %12: %r5 = map %11 [0 => 1, 1 => 2, 2 => 4, else 8]
-    store var $1: %r0, %0
-    %14: %r0 = load var $1: %r0
+    %14: %r0 = alias %0
     %15: %r5 = map %14 [0 => 1, 1 => 2, 2 => 4, else 8]
     %16: %r5 = const 16
     %17: %r5 = binary.mul %15, %16
@@ -65,11 +63,9 @@ fn main() -> one %r5
     %62: %r5 = coerce %61
     %63: %r5 = select %59, %62, %57
     %64: %r0 = load global state: %r0
-    store var $2: %r0, %64
-    %66: %r0 = load var $2: %r0
+    %66: %r0 = alias %64
     %67: %r5 = map %66 [0 => 0, else 1]
-    store var $3: %r0, %6
-    %69: %r0 = load var $3: %r0
+    %69: %r0 = alias %6
     %70: %r5 = map %69 [0 => 0, else 1]
     %71: %r1 = binary.eq %67, %70
     %72: %r5 = const 131072
@@ -92,7 +88,7 @@ fn main() -> one %r5
     %89: %r5 = select %85, %88, %82
     return %89
 
-optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 4
 
 shape %s0 object Config {heading: %r0, ready: %r1, limit: %r2, ratio: %r3, link: %r6, offset: %r5, state: %r0, fell: %r3}
 

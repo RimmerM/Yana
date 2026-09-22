@@ -1,739 +1,592 @@
 fn Owned.drop(one %r2) -> omitted
   var $0: %r2
   block0(%0: %r2):
-    %5: %r1 = const 0
-    %6: %r1 = const 0
-    %7: %r2 = object %s0 %5, %6
-    store var $0: %r2, %7
     store var $0: %r2, %0
-    %8: %r9 = load global dropped: %r9
-    %9: %r2 = load var $0: %r2
-    %10: %r1 = load property %9.a: %r1
-    %11: %r10 = const "$v"
-    %12: %r11 = object %s4 %8, %11
-    %13: %r10 = const "$v"
-    %14: %r11 = object %s4 %8, %13
-    branch %10 -> block3(%12) -> block1(%14)
-  block1(%1: %r11):
-    %15: %r0 = const 2n
-    jump -> block2(%15, %1)
-  block2(%2: %r0, %3: %r11):
-    %17: %r0 = load cell %3: %r0
-    %18: %r0 = binary.add %17, %2
-    %19: %r0 = coerce %18
-    store cell %3: %r0, %19
+    %5: %r8 = load global dropped: %r8
+    %6: %r1 = load bits @0:1 of (var $0: %r2): %r1
+    %7: %r9 = const "$v"
+    %8: %r10 = object %s4 %5, %7
+    %9: %r9 = const "$v"
+    %10: %r10 = object %s4 %5, %9
+    branch %6 -> block3(%8) -> block1(%10)
+  block1(%1: %r10):
+    %11: %r0 = const 2n
+    jump -> block2(%11, %1)
+  block2(%2: %r0, %3: %r10):
+    %13: %r0 = load cell %3: %r0
+    %14: %r0 = binary.add %13, %2
+    %15: %r0 = coerce %14
+    store cell %3: %r0, %15
     return
-  block3(%4: %r11):
-    %16: %r0 = const 1n
-    jump -> block2(%16, %4)
+  block3(%4: %r10):
+    %12: %r0 = const 1n
+    jump -> block2(%12, %4)
 
-fn tagOf(one %r6) -> one %r7
-  var $0: %r4
-  block0(%0: %r6):
-    %2: %r6 = const null
-    %3: %r12 = binary.eq %0, %2
-    %4: %r5 = const 1
-    %5: %r5 = const 0
-    %6: %r5 = select %3, %5, %4
-    %7: %r5 = const 0
+fn tagOf(one %r5) -> one %r6
+  var $0: %r2
+  block0(%0: %r5):
+    %2: %r5 = const null
+    %3: %r11 = binary.eq %0, %2
+    %4: %r4 = const 1
+    %5: %r4 = const 0
+    %6: %r4 = select %3, %5, %4
+    %7: %r4 = const 0
     %8: %r1 = binary.eq %6, %7
     branch %8 -> block3 -> block1
   block1:
-    %9: %r4 = alias %0
-    %10: %r4 = alias %9
-    store var $0: %r4, %10
-    %11: %r4 = load var $0: %r4
-    %12: %r4 = alias %11
-    %13: %r1 = load property %12.a: %r1
-    %14: %r7 = const 1
-    %15: %r7 = const 0
-    %16: %r7 = select %13, %14, %15
-    %17: %r1 = load property %12.b: %r1
-    %18: %r7 = const 2
-    %19: %r7 = const 0
-    %20: %r7 = select %17, %18, %19
-    %21: %r7 = binary.add %16, %20
-    %22: %r7 = coerce %21
+    %9: %r2 = alias %0
+    %10: %r2 = alias %9
+    %11: %r2 = alias %10
+    %12: %r2 = alias %11
+    %13: %r1 = load bits @0:1 of (value %12: %r2): %r1
+    %14: %r6 = const 1
+    %15: %r6 = const 0
+    %16: %r6 = select %13, %14, %15
+    %17: %r1 = load bits @1:1 of (value %12: %r2): %r1
+    %18: %r6 = const 2
+    %19: %r6 = const 0
+    %20: %r6 = select %17, %18, %19
+    %21: %r6 = binary.add %16, %20
+    %22: %r6 = coerce %21
     jump -> block2(%22)
-  block2(%1: %r7):
+  block2(%1: %r6):
     return %1
   block3:
-    %23: %r7 = const 4
+    %23: %r6 = const 4
     jump -> block2(%23)
 
-fn heldValue(one %r8) -> one %r7
-  block0(%0: %r8):
-    %2: %r5 = load property %0.$tag: %r5
-    %3: %r5 = const 0
+fn heldValue(one %r7) -> one %r6
+  block0(%0: %r7):
+    %2: %r4 = load property %0.$tag: %r4
+    %3: %r4 = const 0
     %4: %r1 = binary.eq %2, %3
     branch %4 -> block4 -> block1
   block1:
-    %5: %r5 = load property %0.$tag: %r5
-    %6: %r5 = const 1
+    %5: %r4 = alias %2
+    %6: %r4 = const 1
     %7: %r1 = binary.eq %5, %6
     branch %7 -> block5 -> block2
   block2:
-    %8: %r7 = const 8
+    %8: %r6 = const 8
     jump -> block3(%8)
-  block3(%1: %r7):
+  block3(%1: %r6):
     return %1
   block4:
     %13: %r1 = load property %0.a: %r1
     %14: %r1 = load property %0.b: %r1
-    %15: %r7 = const 1
-    %16: %r7 = const 0
-    %17: %r7 = select %13, %15, %16
-    %18: %r7 = const 2
-    %19: %r7 = const 0
-    %20: %r7 = select %14, %18, %19
-    %21: %r7 = binary.add %17, %20
-    %22: %r7 = coerce %21
+    %15: %r6 = const 1
+    %16: %r6 = const 0
+    %17: %r6 = select %13, %15, %16
+    %18: %r6 = const 2
+    %19: %r6 = const 0
+    %20: %r6 = select %14, %18, %19
+    %21: %r6 = binary.add %17, %20
+    %22: %r6 = coerce %21
     jump -> block3(%22)
   block5:
-    %9: %r7 = load property %0.Wide: %r7
-    %10: %r7 = const 10
-    %11: %r7 = binary.mul %9, %10
-    %12: %r7 = coerce %11
+    %9: %r6 = load property %0.Wide: %r6
+    %10: %r6 = const 10
+    %11: %r6 = binary.mul %9, %10
+    %12: %r6 = coerce %11
     jump -> block3(%12)
 
-fn main() -> one %r7
-  var $0: %r14
-  var $1: %r14
-  var $2: %r15
-  var $3: %r15
-  var $4: %r15
-  var $5: %r4
-  var $6: %r15
-  var $7: %r15
-  var $8: %r17
-  var $9: %r20
-  var $10: %r21
+fn main() -> one %r6
+  var $0: %r13
+  var $1: %r13
+  var $2: %r14
+  var $3: %r14
+  var $4: %r14
+  var $5: %r2
+  var $6: %r14
+  var $7: %r22
+  var $8: %r18
+  var $9: %r19
+  var $10: %r2
+  var $11: %r12
+  var $12: %r2
+  var $13: %r12
+  var $14: %r2
+  var $15: %r2
+  var $16: %r15
+  var $17: %r4
+  var $18: %r12
+  var $19: %r17
+  var $20: %r1
+  var $21: %r15
+  var $22: %r4
+  var $23: %r16
+  var $24: %r12
+  var $25: %r16
   block0:
-    %0: %r1 = const 0
-    %1: %r1 = const 0
-    %2: %r4 = object %s1 %0, %1
-    %3: %r13 = const 0
-    %4: %r14 = object %s5 %2, %3
-    store var $0: %r14, %4
-    %5: %r1 = const 1
-    %6: %r1 = const 0
-    %7: %r4 = object %s1 %5, %6
-    %8: %r13 = const 7
-    %9: %r14 = object %s5 %7, %8
-    store var $0: %r14, %9
-    %10: %r1 = const 1
-    %11: %r14 = load var $0: %r14
-    %12: %r4 = load property %11.flags: %r4
-    store property %12.b: %r1, %10
-    %13: %r14 = load var $0: %r14
-    %14: %r13 = load property %13.count: %r13
-    %15: %r13 = const 1
-    %16: %r13 = binary.add %14, %15
-    %17: %r13 = coerce %16
-    store property %13.count: %r13, %17
-    %18: %r4 = load property %11.flags: %r4
-    %19: %r4 = clone %18
-    %20: %r1 = load property %19.a: %r1
-    %21: %r7 = const 1
-    %22: %r7 = const 0
-    %23: %r7 = select %20, %21, %22
-    %24: %r1 = load property %19.b: %r1
-    %25: %r7 = const 2
-    %26: %r7 = const 0
-    %27: %r7 = select %24, %25, %26
-    %28: %r7 = binary.add %23, %27
-    %29: %r7 = coerce %28
-    %30: %r7 = const 10
-    %31: %r7 = binary.mul %29, %30
-    %32: %r7 = coerce %31
-    %33: %r7 = convert %17
-    %34: %r7 = binary.add %32, %33
-    %35: %r7 = coerce %34
-    %36: %r1 = const 0
-    %37: %r1 = const 0
-    %38: %r4 = object %s1 %36, %37
-    %39: %r13 = const 0
-    %40: %r14 = object %s5 %38, %39
-    store var $1: %r14, %40
-    %41: %r1 = const 0
-    %42: %r1 = const 0
-    %43: %r4 = object %s1 %41, %42
-    %44: %r13 = const 0
-    %45: %r14 = object %s5 %43, %44
-    store var $1: %r14, %45
-    %46: %r14 = load var $1: %r14
-    %47: %r1 = const 1
-    %48: %r4 = load property %46.flags: %r4
-    store property %48.a: %r1, %47
-    %49: %r1 = const 1
-    %50: %r4 = load property %46.flags: %r4
-    store property %50.b: %r1, %49
-    %51: %r4 = load property %46.flags: %r4
-    %52: %r1 = const 0
-    store property %51.a: %r1, %52
-    %53: %r4 = load property %46.flags: %r4
-    %54: %r4 = clone %53
-    %55: %r1 = load property %54.a: %r1
-    %56: %r7 = const 1
-    %57: %r7 = const 0
-    %58: %r7 = select %55, %56, %57
-    %59: %r1 = load property %54.b: %r1
-    %60: %r7 = const 2
-    %61: %r7 = const 0
-    %62: %r7 = select %59, %60, %61
-    %63: %r7 = binary.add %58, %62
-    %64: %r7 = coerce %63
-    %65: %r7 = binary.add %35, %64
-    %66: %r7 = coerce %65
-    %67: %r1 = const 0
-    %68: %r1 = const 0
-    %69: %r4 = object %s1 %67, %68
+    %5: %r2 = const 1
+    %6: %r12 = const 7
+    store var $10: %r2, %5
+    %8: %r1 = const 1
+    store bits @1:1 of (var $10: %r2): %r1, %8
+    %11: %r12 = alias %6
+    %12: %r12 = const 1
+    %13: %r12 = binary.add %11, %12
+    %14: %r12 = coerce %13
+    %16: %r2 = load var $10: %r2
+    %17: %r2 = alias %16
+    %18: %r1 = load bits @0:1 of (value %17: %r2): %r1
+    %19: %r6 = const 1
+    %20: %r6 = const 0
+    %21: %r6 = select %18, %19, %20
+    %22: %r1 = load bits @1:1 of (value %17: %r2): %r1
+    %23: %r6 = const 2
+    %24: %r6 = const 0
+    %25: %r6 = select %22, %23, %24
+    %26: %r6 = binary.add %21, %25
+    %27: %r6 = coerce %26
+    %28: %r6 = const 10
+    %29: %r6 = binary.mul %27, %28
+    %30: %r6 = coerce %29
+    %31: %r6 = convert %14
+    %32: %r6 = binary.add %30, %31
+    %33: %r6 = coerce %32
+    %39: %r2 = const 0
+    store var $12: %r2, %39
+    %43: %r1 = const 1
+    store bits @0:1 of (var $12: %r2): %r1, %43
+    %44: %r1 = const 1
+    store bits @1:1 of (var $12: %r2): %r1, %44
+    %46: %r1 = const 0
+    store bits @0:1 of (var $12: %r2): %r1, %46
+    %48: %r2 = load var $12: %r2
+    %49: %r2 = alias %48
+    %50: %r1 = load bits @0:1 of (value %49: %r2): %r1
+    %51: %r6 = const 1
+    %52: %r6 = const 0
+    %53: %r6 = select %50, %51, %52
+    %54: %r1 = load bits @1:1 of (value %49: %r2): %r1
+    %55: %r6 = const 2
+    %56: %r6 = const 0
+    %57: %r6 = select %54, %55, %56
+    %58: %r6 = binary.add %53, %57
+    %59: %r6 = coerce %58
+    %60: %r6 = binary.add %33, %59
+    %61: %r6 = coerce %60
+    %68: %r14 = const 3
+    store var $2: %r14, %68
+    %69: %r1 = const 0
+    store bits @0:1 of (var $2: %r14): %r1, %69
     %70: %r1 = const 0
-    %71: %r1 = const 0
-    %72: %r4 = object %s1 %70, %71
-    %73: %r15 = object %s6 %69, %72
-    store var $2: %r15, %73
-    %74: %r1 = const 1
-    %75: %r1 = const 1
-    %76: %r4 = object %s1 %74, %75
-    %77: %r1 = const 0
-    %78: %r1 = const 0
-    %79: %r4 = object %s1 %77, %78
-    %80: %r15 = object %s6 %76, %79
-    store var $2: %r15, %80
-    %81: %r15 = load var $2: %r15
-    %82: %r1 = const 0
-    %83: %r4 = load property %81.f: %r4
-    store property %83.a: %r1, %82
-    %84: %r1 = const 0
-    %85: %r4 = load property %81.f: %r4
-    store property %85.b: %r1, %84
-    %86: %r15 = load var $2: %r15
-    %87: %r1 = const 1
-    %88: %r4 = load property %86.g: %r4
-    store property %88.a: %r1, %87
-    %89: %r1 = const 1
-    %90: %r4 = load property %86.g: %r4
-    store property %90.b: %r1, %89
-    %91: %r4 = load property %81.f: %r4
-    %92: %r4 = clone %91
-    %93: %r1 = load property %92.a: %r1
-    %94: %r7 = const 1
-    %95: %r7 = const 0
-    %96: %r7 = select %93, %94, %95
-    %97: %r1 = load property %92.b: %r1
-    %98: %r7 = const 2
-    %99: %r7 = const 0
-    %100: %r7 = select %97, %98, %99
-    %101: %r7 = binary.add %96, %100
-    %102: %r7 = coerce %101
-    %103: %r4 = load property %86.g: %r4
-    %104: %r4 = clone %103
-    %105: %r1 = load property %104.a: %r1
-    %106: %r7 = const 1
-    %107: %r7 = const 0
-    %108: %r7 = select %105, %106, %107
-    %109: %r1 = load property %104.b: %r1
-    %110: %r7 = const 2
-    %111: %r7 = const 0
-    %112: %r7 = select %109, %110, %111
-    %113: %r7 = binary.add %108, %112
-    %114: %r7 = coerce %113
-    %115: %r7 = const 10
-    %116: %r7 = binary.mul %114, %115
-    %117: %r7 = coerce %116
-    %118: %r7 = binary.add %102, %117
-    %119: %r7 = coerce %118
-    %120: %r7 = binary.add %66, %119
-    %121: %r7 = coerce %120
-    %122: %r1 = const 0
-    %123: %r1 = const 0
-    %124: %r4 = object %s1 %122, %123
-    %125: %r1 = const 0
-    %126: %r1 = const 0
-    %127: %r4 = object %s1 %125, %126
-    %128: %r15 = object %s6 %124, %127
-    store var $3: %r15, %128
-    %129: %r1 = const 0
-    %130: %r1 = const 0
-    %131: %r4 = object %s1 %129, %130
-    %132: %r1 = const 0
-    %133: %r1 = const 0
-    %134: %r4 = object %s1 %132, %133
-    %135: %r15 = object %s6 %131, %134
-    store var $3: %r15, %135
-    %136: %r1 = const 1
-    %137: %r15 = load var $3: %r15
-    %138: %r4 = load property %137.f: %r4
-    store property %138.a: %r1, %136
-    %139: %r1 = const 1
-    %140: %r15 = load var $3: %r15
-    %141: %r4 = load property %140.g: %r4
-    store property %141.b: %r1, %139
-    %142: %r4 = load property %137.f: %r4
-    %143: %r4 = clone %142
-    %144: %r1 = load property %143.a: %r1
-    %145: %r7 = const 1
-    %146: %r7 = const 0
-    %147: %r7 = select %144, %145, %146
-    %148: %r1 = load property %143.b: %r1
-    %149: %r7 = const 2
-    %150: %r7 = const 0
-    %151: %r7 = select %148, %149, %150
-    %152: %r7 = binary.add %147, %151
-    %153: %r7 = coerce %152
-    %154: %r4 = load property %140.g: %r4
-    %155: %r4 = clone %154
-    %156: %r1 = load property %155.a: %r1
-    %157: %r7 = const 1
-    %158: %r7 = const 0
-    %159: %r7 = select %156, %157, %158
-    %160: %r1 = load property %155.b: %r1
-    %161: %r7 = const 2
-    %162: %r7 = const 0
-    %163: %r7 = select %160, %161, %162
-    %164: %r7 = binary.add %159, %163
-    %165: %r7 = coerce %164
-    %166: %r7 = const 10
-    %167: %r7 = binary.mul %165, %166
-    %168: %r7 = coerce %167
-    %169: %r7 = binary.add %153, %168
-    %170: %r7 = coerce %169
-    %171: %r7 = binary.add %121, %170
-    %172: %r7 = coerce %171
-    %173: %r1 = const 0
-    %174: %r1 = const 0
-    %175: %r4 = object %s1 %173, %174
-    %176: %r1 = const 0
-    %177: %r1 = const 0
-    %178: %r4 = object %s1 %176, %177
-    %179: %r15 = object %s6 %175, %178
-    store var $4: %r15, %179
-    %180: %r1 = const 1
-    %181: %r1 = const 0
-    %182: %r4 = object %s1 %180, %181
-    %183: %r1 = const 0
-    %184: %r1 = const 1
-    %185: %r4 = object %s1 %183, %184
-    %186: %r15 = object %s6 %182, %185
-    store var $4: %r15, %186
-    %187: %r15 = load var $4: %r15
-    %188: %r4 = load property %187.g: %r4
-    %189: %r4 = clone %188
-    store var $5: %r4, %189
-    %190: %r4 = load var $5: %r4
-    %191: %r4 = alias %190
-    %192: %r1 = load property %191.a: %r1
-    %193: %r7 = const 1
-    %194: %r7 = const 0
-    %195: %r7 = select %192, %193, %194
-    %196: %r1 = load property %191.b: %r1
-    %197: %r7 = const 2
-    %198: %r7 = const 0
-    %199: %r7 = select %196, %197, %198
-    %200: %r7 = binary.add %195, %199
-    %201: %r7 = coerce %200
-    %202: %r7 = const 10
-    %203: %r7 = binary.mul %201, %202
-    %204: %r7 = coerce %203
-    %205: %r15 = load var $4: %r15
-    %206: %r4 = load property %205.f: %r4
-    %207: %r4 = clone %206
-    %208: %r1 = load property %207.a: %r1
-    %209: %r7 = const 1
-    %210: %r7 = const 0
-    %211: %r7 = select %208, %209, %210
-    %212: %r1 = load property %207.b: %r1
-    %213: %r7 = const 2
-    %214: %r7 = const 0
-    %215: %r7 = select %212, %213, %214
-    %216: %r7 = binary.add %211, %215
-    %217: %r7 = coerce %216
-    %218: %r7 = binary.add %204, %217
-    %219: %r7 = coerce %218
-    %220: %r7 = binary.add %172, %219
-    %221: %r7 = coerce %220
-    %222: %r1 = const 0
-    %223: %r1 = const 0
-    %224: %r4 = object %s1 %222, %223
-    %225: %r1 = const 0
-    %226: %r1 = const 0
-    %227: %r4 = object %s1 %225, %226
-    %228: %r15 = object %s6 %224, %227
-    store var $6: %r15, %228
-    %229: %r1 = const 0
-    %230: %r1 = const 0
-    %231: %r4 = object %s1 %229, %230
-    %232: %r1 = const 0
-    %233: %r1 = const 0
-    %234: %r4 = object %s1 %232, %233
-    %235: %r15 = object %s6 %231, %234
-    store var $6: %r15, %235
-    %236: %r15 = load var $6: %r15
-    %237: %r4 = load property %236.g: %r4
-    %238: %r1 = const 1
-    store property %237.b: %r1, %238
-    %239: %r15 = load var $6: %r15
-    %240: %r4 = load property %239.f: %r4
-    %241: %r4 = clone %240
-    %242: %r1 = load property %241.a: %r1
-    %243: %r7 = const 1
-    %244: %r7 = const 0
-    %245: %r7 = select %242, %243, %244
-    %246: %r1 = load property %241.b: %r1
-    %247: %r7 = const 2
-    %248: %r7 = const 0
-    %249: %r7 = select %246, %247, %248
-    %250: %r7 = binary.add %245, %249
-    %251: %r7 = coerce %250
-    %252: %r4 = load property %236.g: %r4
-    %253: %r4 = clone %252
-    %254: %r1 = load property %253.a: %r1
-    %255: %r7 = const 1
-    %256: %r7 = const 0
-    %257: %r7 = select %254, %255, %256
-    %258: %r1 = load property %253.b: %r1
-    %259: %r7 = const 2
-    %260: %r7 = const 0
-    %261: %r7 = select %258, %259, %260
-    %262: %r7 = binary.add %257, %261
-    %263: %r7 = coerce %262
-    %264: %r7 = const 10
-    %265: %r7 = binary.mul %263, %264
-    %266: %r7 = coerce %265
-    %267: %r7 = binary.add %251, %266
-    %268: %r7 = coerce %267
-    %269: %r7 = binary.add %221, %268
-    %270: %r7 = coerce %269
-    %271: %r1 = const 0
-    %272: %r1 = const 0
-    %273: %r4 = object %s1 %271, %272
-    %274: %r1 = const 0
-    %275: %r1 = const 0
-    %276: %r4 = object %s1 %274, %275
-    %277: %r15 = object %s6 %273, %276
-    store var $7: %r15, %277
-    %278: %r1 = const 1
-    %279: %r1 = const 0
-    %280: %r4 = object %s1 %278, %279
-    %281: %r1 = const 0
-    %282: %r1 = const 1
-    %283: %r4 = object %s1 %281, %282
-    %284: %r15 = object %s6 %280, %283
-    store var $7: %r15, %284
-    %285: %r15 = load var $7: %r15
-    %286: %r4 = load property %285.f: %r4
-    %287: %r15 = load var $7: %r15
-    %288: %r4 = load property %287.g: %r4
-    %289: %r1 = load property %286.a: %r1
-    %290: %r1 = load property %288.a: %r1
-    store property %286.a: %r1, %290
-    store property %288.a: %r1, %289
-    %291: %r4 = load property %285.f: %r4
-    %292: %r1 = const 1
-    %293: %r1 = load property %291.b: %r1
-    store property %291.b: %r1, %292
-    %294: %r4 = load property %285.f: %r4
-    %295: %r4 = clone %294
-    %296: %r1 = load property %295.a: %r1
-    %297: %r7 = const 1
-    %298: %r7 = const 0
-    %299: %r7 = select %296, %297, %298
-    %300: %r1 = load property %295.b: %r1
-    %301: %r7 = const 2
-    %302: %r7 = const 0
-    %303: %r7 = select %300, %301, %302
-    %304: %r7 = binary.add %299, %303
-    %305: %r7 = coerce %304
-    %306: %r4 = load property %287.g: %r4
-    %307: %r4 = clone %306
-    %308: %r1 = load property %307.a: %r1
-    %309: %r7 = const 1
-    %310: %r7 = const 0
-    %311: %r7 = select %308, %309, %310
-    %312: %r1 = load property %307.b: %r1
-    %313: %r7 = const 2
-    %314: %r7 = const 0
-    %315: %r7 = select %312, %313, %314
-    %316: %r7 = binary.add %311, %315
-    %317: %r7 = coerce %316
-    %318: %r7 = const 10
-    %319: %r7 = binary.mul %317, %318
-    %320: %r7 = coerce %319
-    %321: %r7 = binary.add %305, %320
-    %322: %r7 = coerce %321
-    %323: %r7 = const 100
-    %324: %r7 = const 0
-    %325: %r7 = select %293, %323, %324
-    %326: %r7 = binary.add %322, %325
-    %327: %r7 = coerce %326
-    %328: %r7 = binary.add %270, %327
-    %329: %r7 = coerce %328
-    %330: %r1 = const 1
-    %331: %r1 = const 0
-    %332: %r2 = object %s0 %330, %331
-    %333: %r1 = const 0
-    %334: %r1 = const 1
-    %335: %r2 = object %s0 %333, %334
-    %336: %r17 = object %s7 %332, %335
-    store var $8: %r17, %336
-    %337: %r17 = load var $8: %r17
-    %338: %r2 = load property %337.x: %r2
-    call Owned.drop %338
-    %339: %r2 = load property %337.y: %r2
-    call Owned.drop %339
-    %340: %r9 = load global dropped: %r9
-    %341: %r0 = load property %340.$v: %r0
-    %342: %r7 = convert %341
-    %343: %r7 = binary.add %329, %342
-    %344: %r7 = coerce %343
-    %345: %r6 = const null
-    %346: %r7 = call tagOf %345
-    %347: %r1 = const 1
-    %348: %r1 = const 1
-    %349: %r4 = object %s1 %347, %348
-    %350: %r6 = alias %349
-    %351: %r7 = call tagOf %350
-    %352: %r1 = const 0
-    %353: %r1 = const 1
-    %354: %r4 = object %s1 %352, %353
-    %355: %r6 = alias %354
-    %356: %r7 = call tagOf %355
-    %357: %r7 = const 10
-    %358: %r7 = binary.mul %351, %357
-    %359: %r7 = coerce %358
-    %360: %r7 = binary.add %346, %359
-    %361: %r7 = coerce %360
-    %362: %r7 = const 100
-    %363: %r7 = binary.mul %356, %362
-    %364: %r7 = coerce %363
-    %365: %r7 = binary.add %361, %364
-    %366: %r7 = coerce %365
-    %367: %r7 = binary.add %344, %366
-    %368: %r7 = coerce %367
-    %369: %r1 = const 1
-    %370: %r1 = const 0
-    %371: %r5 = const 0
-    %372: %r7 = const 0
-    %373: %r8 = object %s2 %371, %369, %370, %372
-    %374: %r7 = call heldValue %373
-    %375: %r7 = const 5
-    %376: %r5 = const 1
-    %377: %r1 = const 0
-    %378: %r1 = const 0
-    %379: %r8 = object %s2 %376, %377, %378, %375
-    %380: %r7 = call heldValue %379
-    %381: %r7 = const 100
-    %382: %r7 = binary.mul %380, %381
-    %383: %r7 = coerce %382
-    %384: %r7 = binary.add %374, %383
-    %385: %r7 = coerce %384
-    %386: %r5 = const 2
-    %387: %r1 = const 0
-    %388: %r1 = const 0
-    %389: %r7 = const 0
-    %390: %r8 = object %s2 %386, %387, %388, %389
-    %391: %r7 = call heldValue %390
-    %392: %r7 = const 10000
-    %393: %r7 = binary.mul %391, %392
-    %394: %r7 = coerce %393
-    %395: %r7 = binary.add %385, %394
-    %396: %r7 = coerce %395
-    %397: %r7 = binary.add %368, %396
-    %398: %r7 = coerce %397
-    %399: %r1 = const 0
-    %400: %r18 = const 0n
-    %401: %r5 = const 0
-    %402: %r19 = const 0
-    %403: %r13 = const 0
-    %404: %r19 = const 0
-    %405: %r20 = object %s8 %399, %400, %401, %402, %403, %404
-    store var $9: %r20, %405
-    %406: %r1 = const 1
-    %407: %r18 = const 9n
-    %408: %r5 = const 3
-    %409: %r19 = const 5
-    %410: %r13 = const 40
-    %411: %r19 = const 6
-    %412: %r20 = object %s8 %406, %407, %408, %409, %410, %411
-    store var $9: %r20, %412
-    %413: %r20 = load var $9: %r20
-    %414: %r19 = const 6
-    store property %413.d: %r19, %414
-    %415: %r20 = load var $9: %r20
-    %416: %r19 = load property %415.f: %r19
-    %417: %r7 = convert %416
-    %418: %r7 = const 1
-    %419: %r7 = binary.add %417, %418
-    %420: %r7 = coerce %419
-    %421: %r19 = convert %420
-    store property %415.f: %r19, %421
-    %422: %r20 = load var $9: %r20
-    %423: %r18 = load property %422.b: %r18
-    %424: %r18 = const 1n
-    %425: %r18 = binary.add %423, %424
-    %426: %r18 = coerce %425
-    store property %422.b: %r18, %426
-    %427: %r20 = load var $9: %r20
-    %428: %r1 = load property %427.a: %r1
-    %429: %r7 = const 1
-    %430: %r7 = const 0
-    %431: %r7 = select %428, %429, %430
-    %432: %r7 = convert %426
-    %433: %r7 = const 10
-    %434: %r7 = binary.mul %432, %433
-    %435: %r7 = coerce %434
-    %436: %r7 = binary.add %431, %435
-    %437: %r7 = coerce %436
-    %438: %r20 = load var $9: %r20
-    %439: %r5 = load property %438.c: %r5
-    %440: %r7 = convert %439
-    %441: %r7 = const 100
-    %442: %r7 = binary.mul %440, %441
-    %443: %r7 = coerce %442
-    %444: %r7 = binary.add %437, %443
-    %445: %r7 = coerce %444
-    %446: %r19 = load property %413.d: %r19
-    %447: %r7 = convert %446
-    %448: %r7 = const 1000
-    %449: %r7 = binary.mul %447, %448
-    %450: %r7 = coerce %449
-    %451: %r7 = binary.add %445, %450
-    %452: %r7 = coerce %451
-    %453: %r20 = load var $9: %r20
-    %454: %r13 = load property %453.e: %r13
-    %455: %r7 = convert %454
-    %456: %r7 = const 10000
-    %457: %r7 = binary.mul %455, %456
-    %458: %r7 = coerce %457
-    %459: %r7 = binary.add %452, %458
-    %460: %r7 = coerce %459
-    %461: %r19 = load property %415.f: %r19
-    %462: %r7 = convert %461
-    %463: %r7 = const 1000000
-    %464: %r7 = binary.mul %462, %463
-    %465: %r7 = coerce %464
-    %466: %r7 = binary.add %460, %465
-    %467: %r7 = coerce %466
-    %468: %r7 = binary.add %398, %467
-    %469: %r7 = coerce %468
-    %470: %r1 = const 0
-    %471: %r18 = const 0n
-    %472: %r5 = const 0
-    %473: %r19 = const 0
-    %474: %r13 = const 0
-    %475: %r19 = const 0
-    %476: %r21 = object %s9 %470, %471, %472, %473, %474, %475
-    store var $10: %r21, %476
-    %477: %r1 = const 1
-    %478: %r18 = const 9n
-    %479: %r5 = const 3
-    %480: %r19 = const 5
-    %481: %r13 = const 40
-    %482: %r19 = const 6
-    %483: %r21 = object %s9 %477, %478, %479, %480, %481, %482
-    store var $10: %r21, %483
-    %484: %r21 = load var $10: %r21
-    %485: %r19 = const 6
-    store property %484.d: %r19, %485
-    %486: %r21 = load var $10: %r21
-    %487: %r19 = load property %486.f: %r19
-    %488: %r7 = convert %487
-    %489: %r7 = const 1
-    %490: %r7 = binary.add %488, %489
-    %491: %r7 = coerce %490
-    %492: %r19 = convert %491
-    store property %486.f: %r19, %492
-    %493: %r21 = load var $10: %r21
-    %494: %r18 = load property %493.b: %r18
-    %495: %r18 = const 1n
-    %496: %r18 = binary.add %494, %495
-    %497: %r18 = coerce %496
-    store property %493.b: %r18, %497
-    %498: %r21 = load var $10: %r21
-    %499: %r1 = load property %498.a: %r1
-    %500: %r7 = const 1
-    %501: %r7 = const 0
-    %502: %r7 = select %499, %500, %501
-    %503: %r7 = convert %497
-    %504: %r7 = const 10
-    %505: %r7 = binary.mul %503, %504
-    %506: %r7 = coerce %505
-    %507: %r7 = binary.add %502, %506
-    %508: %r7 = coerce %507
-    %509: %r21 = load var $10: %r21
-    %510: %r5 = load property %509.c: %r5
-    %511: %r7 = convert %510
-    %512: %r7 = const 100
-    %513: %r7 = binary.mul %511, %512
-    %514: %r7 = coerce %513
-    %515: %r7 = binary.add %508, %514
-    %516: %r7 = coerce %515
-    %517: %r19 = load property %484.d: %r19
-    %518: %r7 = convert %517
-    %519: %r7 = const 1000
-    %520: %r7 = binary.mul %518, %519
-    %521: %r7 = coerce %520
-    %522: %r7 = binary.add %516, %521
-    %523: %r7 = coerce %522
-    %524: %r21 = load var $10: %r21
-    %525: %r13 = load property %524.e: %r13
-    %526: %r7 = convert %525
-    %527: %r7 = const 10000
-    %528: %r7 = binary.mul %526, %527
-    %529: %r7 = coerce %528
-    %530: %r7 = binary.add %523, %529
-    %531: %r7 = coerce %530
-    %532: %r19 = load property %486.f: %r19
-    %533: %r7 = convert %532
-    %534: %r7 = const 1000000
-    %535: %r7 = binary.mul %533, %534
-    %536: %r7 = coerce %535
-    %537: %r7 = binary.add %531, %536
-    %538: %r7 = coerce %537
-    %539: %r7 = binary.add %469, %538
-    %540: %r7 = coerce %539
-    %551: %r7 = const 7406403
-    %552: %r7 = binary.add %540, %551
-    %553: %r7 = coerce %552
-    return %553
+    store bits @1:1 of (var $2: %r14): %r1, %70
+    %71: %r1 = const 1
+    store bits @2:1 of (var $2: %r14): %r1, %71
+    %72: %r1 = const 1
+    store bits @3:1 of (var $2: %r14): %r1, %72
+    %73: %r2 = load bits @0:2 of (var $2: %r14): %r2
+    %74: %r2 = alias %73
+    %75: %r1 = load bits @0:1 of (value %74: %r2): %r1
+    %76: %r6 = const 1
+    %77: %r6 = const 0
+    %78: %r6 = select %75, %76, %77
+    %79: %r1 = load bits @1:1 of (value %74: %r2): %r1
+    %80: %r6 = const 2
+    %81: %r6 = const 0
+    %82: %r6 = select %79, %80, %81
+    %83: %r6 = binary.add %78, %82
+    %84: %r6 = coerce %83
+    %85: %r2 = load bits @2:2 of (var $2: %r14): %r2
+    %86: %r2 = alias %85
+    %87: %r1 = load bits @0:1 of (value %86: %r2): %r1
+    %88: %r6 = const 1
+    %89: %r6 = const 0
+    %90: %r6 = select %87, %88, %89
+    %91: %r1 = load bits @1:1 of (value %86: %r2): %r1
+    %92: %r6 = const 2
+    %93: %r6 = const 0
+    %94: %r6 = select %91, %92, %93
+    %95: %r6 = binary.add %90, %94
+    %96: %r6 = coerce %95
+    %97: %r6 = const 10
+    %98: %r6 = binary.mul %96, %97
+    %99: %r6 = coerce %98
+    %100: %r6 = binary.add %84, %99
+    %101: %r6 = coerce %100
+    %102: %r6 = binary.add %61, %101
+    %103: %r6 = coerce %102
+    %110: %r14 = const 0
+    store var $3: %r14, %110
+    %111: %r1 = const 1
+    store bits @0:1 of (var $3: %r14): %r1, %111
+    %112: %r1 = const 1
+    store bits @3:1 of (var $3: %r14): %r1, %112
+    %113: %r2 = load bits @0:2 of (var $3: %r14): %r2
+    %114: %r2 = alias %113
+    %115: %r1 = load bits @0:1 of (value %114: %r2): %r1
+    %116: %r6 = const 1
+    %117: %r6 = const 0
+    %118: %r6 = select %115, %116, %117
+    %119: %r1 = load bits @1:1 of (value %114: %r2): %r1
+    %120: %r6 = const 2
+    %121: %r6 = const 0
+    %122: %r6 = select %119, %120, %121
+    %123: %r6 = binary.add %118, %122
+    %124: %r6 = coerce %123
+    %125: %r2 = load bits @2:2 of (var $3: %r14): %r2
+    %126: %r2 = alias %125
+    %127: %r1 = load bits @0:1 of (value %126: %r2): %r1
+    %128: %r6 = const 1
+    %129: %r6 = const 0
+    %130: %r6 = select %127, %128, %129
+    %131: %r1 = load bits @1:1 of (value %126: %r2): %r1
+    %132: %r6 = const 2
+    %133: %r6 = const 0
+    %134: %r6 = select %131, %132, %133
+    %135: %r6 = binary.add %130, %134
+    %136: %r6 = coerce %135
+    %137: %r6 = const 10
+    %138: %r6 = binary.mul %136, %137
+    %139: %r6 = coerce %138
+    %140: %r6 = binary.add %124, %139
+    %141: %r6 = coerce %140
+    %142: %r6 = binary.add %103, %141
+    %143: %r6 = coerce %142
+    %150: %r14 = const 9
+    store var $4: %r14, %150
+    %151: %r2 = load bits @2:2 of (var $4: %r14): %r2
+    %152: %r2 = alias %151
+    %153: %r2 = alias %152
+    %154: %r2 = alias %153
+    %155: %r1 = load bits @0:1 of (value %154: %r2): %r1
+    %156: %r6 = const 1
+    %157: %r6 = const 0
+    %158: %r6 = select %155, %156, %157
+    %159: %r1 = load bits @1:1 of (value %154: %r2): %r1
+    %160: %r6 = const 2
+    %161: %r6 = const 0
+    %162: %r6 = select %159, %160, %161
+    %163: %r6 = binary.add %158, %162
+    %164: %r6 = coerce %163
+    %165: %r6 = const 10
+    %166: %r6 = binary.mul %164, %165
+    %167: %r6 = coerce %166
+    %168: %r2 = load bits @0:2 of (var $4: %r14): %r2
+    %169: %r2 = alias %168
+    %170: %r1 = load bits @0:1 of (value %169: %r2): %r1
+    %171: %r6 = const 1
+    %172: %r6 = const 0
+    %173: %r6 = select %170, %171, %172
+    %174: %r1 = load bits @1:1 of (value %169: %r2): %r1
+    %175: %r6 = const 2
+    %176: %r6 = const 0
+    %177: %r6 = select %174, %175, %176
+    %178: %r6 = binary.add %173, %177
+    %179: %r6 = coerce %178
+    %180: %r6 = binary.add %167, %179
+    %181: %r6 = coerce %180
+    %182: %r6 = binary.add %143, %181
+    %183: %r6 = coerce %182
+    %184: %r14 = const 0
+    %185: %r20 = object %s9 %184
+    %192: %r14 = const 0
+    store property %185.$v: %r14, %192
+    %193: %r1 = const 1
+    store bits @3:1 of (property %185.$v: %r14): %r1, %193
+    %194: %r2 = load bits @0:2 of (property %185.$v: %r14): %r2
+    %195: %r2 = alias %194
+    %196: %r1 = load bits @0:1 of (value %195: %r2): %r1
+    %197: %r6 = const 1
+    %198: %r6 = const 0
+    %199: %r6 = select %196, %197, %198
+    %200: %r1 = load bits @1:1 of (value %195: %r2): %r1
+    %201: %r6 = const 2
+    %202: %r6 = const 0
+    %203: %r6 = select %200, %201, %202
+    %204: %r6 = binary.add %199, %203
+    %205: %r6 = coerce %204
+    %206: %r2 = load bits @2:2 of (property %185.$v: %r14): %r2
+    %207: %r2 = alias %206
+    %208: %r1 = load bits @0:1 of (value %207: %r2): %r1
+    %209: %r6 = const 1
+    %210: %r6 = const 0
+    %211: %r6 = select %208, %209, %210
+    %212: %r1 = load bits @1:1 of (value %207: %r2): %r1
+    %213: %r6 = const 2
+    %214: %r6 = const 0
+    %215: %r6 = select %212, %213, %214
+    %216: %r6 = binary.add %211, %215
+    %217: %r6 = coerce %216
+    %218: %r6 = const 10
+    %219: %r6 = binary.mul %217, %218
+    %220: %r6 = coerce %219
+    %221: %r6 = binary.add %205, %220
+    %222: %r6 = coerce %221
+    %223: %r6 = binary.add %183, %222
+    %224: %r6 = coerce %223
+    %231: %r14 = const 9
+    store var $6: %r14, %231
+    %232: %r1 = load bits @0:1 of (var $6: %r14): %r1
+    %233: %r1 = load bits @2:1 of (var $6: %r14): %r1
+    store bits @0:1 of (var $6: %r14): %r1, %233
+    store bits @2:1 of (var $6: %r14): %r1, %232
+    %234: %r1 = const 1
+    %235: %r1 = load bits @1:1 of (var $6: %r14): %r1
+    store bits @1:1 of (var $6: %r14): %r1, %234
+    %236: %r2 = load bits @0:2 of (var $6: %r14): %r2
+    %237: %r2 = alias %236
+    %238: %r1 = load bits @0:1 of (value %237: %r2): %r1
+    %239: %r6 = const 1
+    %240: %r6 = const 0
+    %241: %r6 = select %238, %239, %240
+    %242: %r1 = load bits @1:1 of (value %237: %r2): %r1
+    %243: %r6 = const 2
+    %244: %r6 = const 0
+    %245: %r6 = select %242, %243, %244
+    %246: %r6 = binary.add %241, %245
+    %247: %r6 = coerce %246
+    %248: %r2 = load bits @2:2 of (var $6: %r14): %r2
+    %249: %r2 = alias %248
+    %250: %r1 = load bits @0:1 of (value %249: %r2): %r1
+    %251: %r6 = const 1
+    %252: %r6 = const 0
+    %253: %r6 = select %250, %251, %252
+    %254: %r1 = load bits @1:1 of (value %249: %r2): %r1
+    %255: %r6 = const 2
+    %256: %r6 = const 0
+    %257: %r6 = select %254, %255, %256
+    %258: %r6 = binary.add %253, %257
+    %259: %r6 = coerce %258
+    %260: %r6 = const 10
+    %261: %r6 = binary.mul %259, %260
+    %262: %r6 = coerce %261
+    %263: %r6 = binary.add %247, %262
+    %264: %r6 = coerce %263
+    %265: %r6 = const 100
+    %266: %r6 = const 0
+    %267: %r6 = select %235, %265, %266
+    %268: %r6 = binary.add %264, %267
+    %269: %r6 = coerce %268
+    %270: %r6 = binary.add %224, %269
+    %271: %r6 = coerce %270
+    %274: %r2 = const 1
+    %277: %r2 = const 2
+    %280: %r2 = alias %274
+    call Owned.drop %280
+    %281: %r2 = alias %277
+    call Owned.drop %281
+    %282: %r8 = load global dropped: %r8
+    %283: %r0 = load property %282.$v: %r0
+    %284: %r6 = convert %283
+    %285: %r6 = binary.add %271, %284
+    %286: %r6 = coerce %285
+    %287: %r5 = const null
+    %288: %r6 = call tagOf %287
+    %291: %r2 = const 3
+    %292: %r5 = alias %291
+    %293: %r6 = call tagOf %292
+    %296: %r2 = const 2
+    %297: %r5 = alias %296
+    %298: %r6 = call tagOf %297
+    %299: %r6 = const 10
+    %300: %r6 = binary.mul %293, %299
+    %301: %r6 = coerce %300
+    %302: %r6 = binary.add %288, %301
+    %303: %r6 = coerce %302
+    %304: %r6 = const 100
+    %305: %r6 = binary.mul %298, %304
+    %306: %r6 = coerce %305
+    %307: %r6 = binary.add %303, %306
+    %308: %r6 = coerce %307
+    %309: %r6 = binary.add %286, %308
+    %310: %r6 = coerce %309
+    %311: %r1 = const 1
+    %312: %r1 = const 0
+    %313: %r4 = const 0
+    %314: %r6 = const 0
+    %315: %r7 = object %s2 %313, %311, %312, %314
+    %316: %r6 = call heldValue %315
+    %317: %r6 = const 5
+    %318: %r4 = const 1
+    %319: %r1 = const 0
+    %320: %r1 = const 0
+    %321: %r7 = object %s2 %318, %319, %320, %317
+    %322: %r6 = call heldValue %321
+    %323: %r6 = const 100
+    %324: %r6 = binary.mul %322, %323
+    %325: %r6 = coerce %324
+    %326: %r6 = binary.add %316, %325
+    %327: %r6 = coerce %326
+    %328: %r4 = const 2
+    %329: %r1 = const 0
+    %330: %r1 = const 0
+    %331: %r6 = const 0
+    %332: %r7 = object %s2 %328, %329, %330, %331
+    %333: %r6 = call heldValue %332
+    %334: %r6 = const 10000
+    %335: %r6 = binary.mul %333, %334
+    %336: %r6 = coerce %335
+    %337: %r6 = binary.add %327, %336
+    %338: %r6 = coerce %337
+    %339: %r6 = binary.add %310, %338
+    %340: %r6 = coerce %339
+    %347: %r15 = const 9n
+    %348: %r4 = const 3
+    %350: %r12 = const 40
+    %352: %r17 = const 357
+    store var $19: %r17, %352
+    %355: %r16 = const 6
+    store bits @0:4s of (var $19: %r17): %r16, %355
+    %357: %r16 = load bits @4:4s of (var $19: %r17): %r16
+    %358: %r6 = convert %357
+    %359: %r6 = const 1
+    %360: %r6 = binary.add %358, %359
+    %361: %r6 = coerce %360
+    %362: %r16 = convert %361
+    store bits @4:4s of (var $19: %r17): %r16, %362
+    %364: %r15 = alias %347
+    %365: %r15 = const 1n
+    %366: %r15 = binary.add %364, %365
+    %367: %r15 = coerce %366
+    %369: %r1 = load bits @8:1 of (var $19: %r17): %r1
+    %370: %r6 = const 1
+    %371: %r6 = const 0
+    %372: %r6 = select %369, %370, %371
+    %373: %r6 = convert %367
+    %374: %r6 = const 10
+    %375: %r6 = binary.mul %373, %374
+    %376: %r6 = coerce %375
+    %377: %r6 = binary.add %372, %376
+    %378: %r6 = coerce %377
+    %380: %r4 = alias %348
+    %381: %r6 = convert %380
+    %382: %r6 = const 100
+    %383: %r6 = binary.mul %381, %382
+    %384: %r6 = coerce %383
+    %385: %r6 = binary.add %378, %384
+    %386: %r6 = coerce %385
+    %388: %r16 = load bits @0:4s of (var $19: %r17): %r16
+    %389: %r6 = convert %388
+    %390: %r6 = const 1000
+    %391: %r6 = binary.mul %389, %390
+    %392: %r6 = coerce %391
+    %393: %r6 = binary.add %386, %392
+    %394: %r6 = coerce %393
+    %396: %r12 = alias %350
+    %397: %r6 = convert %396
+    %398: %r6 = const 10000
+    %399: %r6 = binary.mul %397, %398
+    %400: %r6 = coerce %399
+    %401: %r6 = binary.add %394, %400
+    %402: %r6 = coerce %401
+    %404: %r16 = load bits @4:4s of (var $19: %r17): %r16
+    %405: %r6 = convert %404
+    %406: %r6 = const 1000000
+    %407: %r6 = binary.mul %405, %406
+    %408: %r6 = coerce %407
+    %409: %r6 = binary.add %402, %408
+    %410: %r6 = coerce %409
+    %411: %r6 = binary.add %340, %410
+    %412: %r6 = coerce %411
+    %420: %r1 = const 1
+    %421: %r15 = const 9n
+    %422: %r4 = const 3
+    %424: %r12 = const 40
+    %425: %r16 = const 6
+    store var $25: %r16, %425
+    %428: %r16 = const 6
+    %430: %r16 = load var $25: %r16
+    %431: %r6 = convert %430
+    %432: %r6 = const 1
+    %433: %r6 = binary.add %431, %432
+    %434: %r6 = coerce %433
+    %435: %r16 = convert %434
+    store var $25: %r16, %435
+    %437: %r15 = alias %421
+    %438: %r15 = const 1n
+    %439: %r15 = binary.add %437, %438
+    %440: %r15 = coerce %439
+    %442: %r1 = alias %420
+    %443: %r6 = const 1
+    %444: %r6 = const 0
+    %445: %r6 = select %442, %443, %444
+    %446: %r6 = convert %440
+    %447: %r6 = const 10
+    %448: %r6 = binary.mul %446, %447
+    %449: %r6 = coerce %448
+    %450: %r6 = binary.add %445, %449
+    %451: %r6 = coerce %450
+    %453: %r4 = alias %422
+    %454: %r6 = convert %453
+    %455: %r6 = const 100
+    %456: %r6 = binary.mul %454, %455
+    %457: %r6 = coerce %456
+    %458: %r6 = binary.add %451, %457
+    %459: %r6 = coerce %458
+    %461: %r16 = alias %428
+    %462: %r6 = convert %461
+    %463: %r6 = const 1000
+    %464: %r6 = binary.mul %462, %463
+    %465: %r6 = coerce %464
+    %466: %r6 = binary.add %459, %465
+    %467: %r6 = coerce %466
+    %469: %r12 = alias %424
+    %470: %r6 = convert %469
+    %471: %r6 = const 10000
+    %472: %r6 = binary.mul %470, %471
+    %473: %r6 = coerce %472
+    %474: %r6 = binary.add %467, %473
+    %475: %r6 = coerce %474
+    %477: %r16 = load var $25: %r16
+    %478: %r6 = convert %477
+    %479: %r6 = const 1000000
+    %480: %r6 = binary.mul %478, %479
+    %481: %r6 = coerce %480
+    %482: %r6 = binary.add %475, %481
+    %483: %r6 = coerce %482
+    %484: %r6 = binary.add %412, %483
+    %485: %r6 = coerce %484
+    %496: %r6 = const 7406403
+    %497: %r6 = binary.add %485, %496
+    %498: %r6 = coerce %497
+    return %498
 
-optimizer clones 15 aliased 3 forwarded 0 removed 10 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 135 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 5 promoted 13
 
 shape %s0 object Owned {a: %r1, b: %r1}
 shape %s1 object Flags {a: %r1, b: %r1}
-shape %s2 object Held {$tag: %r5 tag, a: %r1, b: %r1, Wide: %r7}
+shape %s2 object Held {$tag: %r4 tag, a: %r1, b: %r1, Wide: %r6}
 shape %s3 cell {$v: %r0 box}
-shape %s4 ref {$o: %r10 owner, $k: %r10 key}
-shape %s5 object Settings {flags: %r4, count: %r13}
-shape %s6 object Two {f: %r4, g: %r4}
-shape %s7 object Pair {x: %r2, y: %r2}
-shape %s8 object Inefficient {a: %r1, b: %r18, c: %r5, d: %r19, e: %r13, f: %r19}
-shape %s9 object Pinned {a: %r1, b: %r18, c: %r5, d: %r19, e: %r13, f: %r19}
-shape %s10 object HostShaped {a: %r1, b: %r18, c: %r5, d: %r19, e: %r13, f: %r19}
-shape %s11 object HostFlags {a: %r1, b: %r1}
+shape %s4 ref {$o: %r9 owner, $k: %r9 key}
+shape %s5 object Settings {flags: %r2, count: %r12}
+shape %s6 object Two {f: %r2, g: %r2}
+shape %s7 object Inefficient {b: %r15, c: %r4, e: %r12, $p0: %r17 unit #3}
+shape %s8 object Pinned {a: %r1, b: %r15, c: %r4, d: %r16, e: %r12, f: %r16}
+shape %s9 cell {$v: %r14 box}
+shape %s10 object Pair {x: %r2, y: %r2}
+shape %s11 object HostShaped {a: %r1, b: %r15, c: %r4, d: %r16, e: %r12, f: %r16}
+shape %s12 object HostFlags {a: %r1, b: %r1}
+
+packing #0 %r2 Owned {a @0:1, b @1:1}
+packing #1 %r2 Flags {a @0:1, b @1:1}
+packing #2 %r14 Two {f @0:2, g @2:2}
+packing #3 %r17 Inefficient {a @8:1, d @0:4s, f @4:4s}
 
 rep %r0 = bigint signed
 rep %r1 = number bool
-rep %r2 = object %s0
+rep %r2 = number unsigned 2
 rep %r3 = void
-rep %r4 = object %s1
-rep %r5 = number unsigned 8
-rep %r6 = nullable of %r4
-rep %r7 = number signed 32
-rep %r8 = object %s2
-rep %r9 = object %s3
-rep %r10 = erased
-rep %r11 = cell of %r0
-rep %r12 = boolean
-rep %r13 = number unsigned 32
-rep %r14 = object %s5
-rep %r15 = object %s6
-rep %r16 = array Uint8Array of %r1
-rep %r17 = object %s7
-rep %r18 = bigint unsigned
-rep %r19 = number signed 4
-rep %r20 = object %s8
-rep %r21 = object %s9
+rep %r4 = number unsigned 8
+rep %r5 = nullable of %r2
+rep %r6 = number signed 32
+rep %r7 = object %s2
+rep %r8 = object %s3
+rep %r9 = erased
+rep %r10 = cell of %r0
+rep %r11 = boolean
+rep %r12 = number unsigned 32
+rep %r13 = object %s5
+rep %r14 = number unsigned 4
+rep %r15 = bigint unsigned
+rep %r16 = number signed 4
+rep %r17 = number unsigned 9
+rep %r18 = object %s7
+rep %r19 = object %s8
+rep %r20 = object %s9
+rep %r21 = array Uint8Array of %r1
 rep %r22 = object %s10
 rep %r23 = object %s11
+rep %r24 = object %s12

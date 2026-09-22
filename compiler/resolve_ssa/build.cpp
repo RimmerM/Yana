@@ -1637,4 +1637,33 @@ Inst* Editor::replaceTerminator(Block& block, Inst* terminator) {
     return terminator;
 }
 
+/*
+ * Constant equality, structurally and bit-exactly.
+ *
+ * `mir::Constant`'s own `==` is three words, and three words is the whole of a scalar - so this adds
+ * exactly the case it cannot answer: an aggregate, whose handle differs per construction even where
+ * the values agree. Bits rather than numbers is a requirement rather than a convenience, and the
+ * reason is `resolve/expr_map.cpp`'s: `-0.0` and `0.0` are the same number and different values, and
+ * collapsing them is how a table becomes a range test answering the wrong one of two constants.
+ *
+ * Here rather than in `lower/map.cpp`, where it was written, since J88: the JavaScript target asks
+ * it of a `match` whose arms are records, and `resolve_ssa/js` does not include `lower/`.
+ */
+bool sameConstant(DeclBase decl, const mir::Constant& a, const mir::Constant& b) {
+    if(a == b) return true;
+    if(a.kind != b.kind || !mir::sameType(a.type, b.type)) return false;
+    if(a.kind != mir::Constant::Aggregate) return false;
+
+    auto& lhs = *decl[a.aggregate()];
+    auto& rhs = *decl[b.aggregate()];
+    if(lhs.constructor != rhs.constructor) return false;
+    if(lhs.values.size() != rhs.values.size()) return false;
+
+    for(Size i = 0; i < lhs.values.size(); i++) {
+        if(!sameConstant(decl, lhs.values.get(decl, i), rhs.values.get(decl, i))) return false;
+    }
+
+    return true;
+}
+
 } // namespace ssa

@@ -1,0 +1,143 @@
+
+low<complex>(%p: Ptr): Ptr {
+  b_0 {
+    ret %p
+  }
+}
+
+pick<complex>(%p: Ptr, %hi: I32): Ptr {
+  b_0 {
+    je %hi, b_1, b_2
+  }
+
+  b_2 {
+    ret %p
+  }
+
+  b_1 {
+    %v_3 = add %p, 4: Ptr
+    ret %v_3
+  }
+}
+
+lowQ<complex>(%p: Ptr): Ptr {
+  b_0 {
+    ret %p
+  }
+}
+
+pickQ<complex>(%p: Ptr, %hi: I32): Ptr {
+  b_0 {
+    je %hi, b_1, b_2
+  }
+
+  b_2 {
+    ret %p
+  }
+
+  b_1 {
+    %v_3 = add %p, 4: Ptr
+    ret %v_3
+  }
+}
+
+makeQ<complex>(%i: I32): I32, I32, I32 {
+  b_0 {
+    %v_1 = add 100, %i: I32
+    %v_2 = sub 200, %i: I32
+    %v_3 = cmp_igt %i, 0: I32
+    ret %v_1, %v_2, %v_3
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 100, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 200, 4
+    %v_3 = call_complex low, %v_1: Ptr
+    %v_4 = loads %v_3, 4: I32
+    %v_5 = sub %v_4, 1: I32
+    store %v_3, %v_5, 4
+    %v_6 = call_complex pick, %v_1, 0: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sub %v_7, 7: I32
+    store %v_6, %v_8, 4
+    %v_9 = loads %v_1, 4: I32
+    %v_10 = imul %v_9, 1000: I32
+    %v_11 = add %v_1, 4: Ptr
+    %v_12 = loads %v_11, 4: I32
+    %v_13 = add %v_10, %v_12: I32
+    %v_14 = cmp_neq %v_13, 92200: I32
+    je %v_14, b_15, b_16
+  }
+
+  b_16 {
+    %v_17 = alloca 9, 4: Ptr
+    jmp b_18
+  }
+
+  b_15 {
+    ret 1
+  }
+
+  b_19 {
+    %v_20 = cmp_neq %v_21, 921003: I32
+    %v_22 = select %v_20, 2, 0: I32
+    ret %v_22
+  }
+
+  b_18 {
+    %v_23 = phi [b_24, %v_21], [b_16, 0]: I32
+    %v_25 = phi [b_24, %v_26], [b_16, 0]: I32
+    %v_27, %v_28, %v_29 = call_complex makeQ, %v_25: I32, I32, I32
+    store %v_17, %v_27, 4
+    %v_30 = add %v_17, 4: Ptr
+    store %v_30, %v_28, 4
+    %v_31 = add %v_17, 8: Ptr
+    store %v_31, %v_29, 1
+    %v_32 = call_complex lowQ, %v_17: Ptr
+    %v_33 = loads %v_32, 4: I32
+    %v_34 = sub %v_33, 1: I32
+    store %v_32, %v_34, 4
+    %v_35 = cmp_eq %v_25, 1: I32
+    %v_36 = call_complex pickQ, %v_17, %v_35: Ptr
+    %v_37 = loads %v_36, 4: I32
+    %v_38 = sub %v_37, 7: I32
+    store %v_36, %v_38, 4
+    %v_39 = imul %v_23, 1000: I32
+    %v_40 = loads %v_17, 4: I32
+    %v_41 = imul %v_40, 10: I32
+    %v_42 = add %v_39, %v_41: I32
+    %v_43 = add %v_17, 4: Ptr
+    %v_44 = loads %v_43, 4: I32
+    %v_45 = imulhi %v_44, 1717986919: I32
+    %v_46 = sar %v_45, 2: I32
+    %v_47 = shr %v_46, 31: I32
+    %v_48 = add %v_46, %v_47: I32
+    %v_49 = imul %v_48, 10: I32
+    %v_50 = sub %v_44, %v_49: I32
+    %v_51 = add %v_42, %v_50: I32
+    %v_52 = add %v_17, 8: Ptr
+    %v_53 = load %v_52, 1: I32
+    je %v_53, b_54, b_55
+  }
+
+  b_55 {
+    jmp b_24
+  }
+
+  b_54 {
+    jmp b_24
+  }
+
+  b_24 {
+    %v_56 = phi [b_55, 0], [b_54, 1]: I32
+    %v_21 = add %v_51, %v_56: I32
+    %v_26 = add %v_25, 1: I32
+    %v_57 = cmp_ilt %v_26, 2: I32
+    je %v_57, b_18, b_19
+  }
+}
+

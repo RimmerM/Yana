@@ -11,12 +11,10 @@ fn main() -> one %r0
   var $9: %r1
   block0:
     %0: %r1 = const 1
-    store var $0: %r1, %0
-    %2: %r1 = load var $0: %r1
+    %2: %r1 = alias %0
     %3: %r0 = map %2 [0 => 0, else 1]
     %4: %r1 = const 1
-    store var $1: %r1, %4
-    %6: %r1 = load var $1: %r1
+    %6: %r1 = alias %4
     %7: %r0 = map %6 [0 => 0, else 1]
     %8: %r0 = binary.add %3, %7
     %9: %r0 = coerce %8
@@ -24,79 +22,73 @@ fn main() -> one %r0
     %11: %r2 = const 40
     %12: %r1 = const 1
     %13: %r1 = const 0
-    %14: %r2 = const 0
-    %15: %r2 = const 10
-    %16: %r1 = const 0
-    %17: %r1 = const 1
-    store var $2: %r2, %10
-    %19: %r2 = load var $2: %r2
-    %20: %r0 = map %19 [0 => 0, else 1]
-    %21: %r0 = const 1000
-    %22: %r0 = binary.mul %20, %21
-    %23: %r0 = coerce %22
-    store var $3: %r2, %11
-    %25: %r2 = load var $3: %r2
-    %26: %r0 = map %25 [10 => 10, 20 => 20, else 40]
-    %27: %r0 = const 10
-    %28: %r0 = binary.mul %26, %27
-    %29: %r0 = coerce %28
-    %30: %r0 = binary.add %23, %29
-    %31: %r0 = coerce %30
-    store var $4: %r1, %12
-    %33: %r1 = load var $4: %r1
-    %34: %r0 = map %33 [0 => 0, else 1]
-    %35: %r0 = const 2
-    %36: %r0 = binary.mul %34, %35
-    %37: %r0 = coerce %36
-    %38: %r0 = binary.add %31, %37
-    %39: %r0 = coerce %38
-    store var $5: %r1, %13
-    %41: %r1 = load var $5: %r1
-    %42: %r0 = map %41 [0 => 0, else 1]
-    %43: %r0 = binary.add %39, %42
-    %44: %r0 = coerce %43
-    store var $6: %r2, %14
-    %46: %r2 = load var $6: %r2
-    %47: %r0 = map %46 [0 => 0, else 1]
-    %48: %r0 = const 1000
-    %49: %r0 = binary.mul %47, %48
-    %50: %r0 = coerce %49
-    %51: %r0 = binary.sub %44, %50
-    %52: %r0 = coerce %51
-    store var $7: %r2, %15
-    %54: %r2 = load var $7: %r2
-    %55: %r0 = map %54 [10 => 10, 20 => 20, else 40]
-    %56: %r0 = const 10
-    %57: %r0 = binary.mul %55, %56
-    %58: %r0 = coerce %57
-    %59: %r0 = binary.sub %52, %58
-    %60: %r0 = coerce %59
-    store var $8: %r1, %16
-    %62: %r1 = load var $8: %r1
-    %63: %r0 = map %62 [0 => 0, else 1]
-    %64: %r0 = const 2
-    %65: %r0 = binary.mul %63, %64
-    %66: %r0 = coerce %65
-    %67: %r0 = binary.sub %60, %66
-    %68: %r0 = coerce %67
-    store var $9: %r1, %17
-    %70: %r1 = load var $9: %r1
-    %71: %r0 = map %70 [0 => 0, else 1]
-    %72: %r0 = binary.sub %68, %71
-    %73: %r0 = coerce %72
-    %74: %r0 = const 20
-    %75: %r0 = binary.add %73, %74
-    %76: %r0 = coerce %75
-    %77: %r0 = binary.add %76, %9
-    %78: %r0 = coerce %77
-    return %78
+    %16: %r2 = const 0
+    %17: %r2 = const 10
+    %18: %r1 = const 0
+    %19: %r1 = const 1
+    %23: %r2 = alias %10
+    %24: %r0 = map %23 [0 => 0, else 1]
+    %25: %r0 = const 1000
+    %26: %r0 = binary.mul %24, %25
+    %27: %r0 = coerce %26
+    %29: %r2 = alias %11
+    %30: %r0 = map %29 [10 => 10, 20 => 20, else 40]
+    %31: %r0 = const 10
+    %32: %r0 = binary.mul %30, %31
+    %33: %r0 = coerce %32
+    %34: %r0 = binary.add %27, %33
+    %35: %r0 = coerce %34
+    %37: %r1 = alias %12
+    %38: %r0 = map %37 [0 => 0, else 1]
+    %39: %r0 = const 2
+    %40: %r0 = binary.mul %38, %39
+    %41: %r0 = coerce %40
+    %42: %r0 = binary.add %35, %41
+    %43: %r0 = coerce %42
+    %45: %r1 = alias %13
+    %46: %r0 = map %45 [0 => 0, else 1]
+    %47: %r0 = binary.add %43, %46
+    %48: %r0 = coerce %47
+    %50: %r2 = alias %16
+    %51: %r0 = map %50 [0 => 0, else 1]
+    %52: %r0 = const 1000
+    %53: %r0 = binary.mul %51, %52
+    %54: %r0 = coerce %53
+    %55: %r0 = binary.sub %48, %54
+    %56: %r0 = coerce %55
+    %58: %r2 = alias %17
+    %59: %r0 = map %58 [10 => 10, 20 => 20, else 40]
+    %60: %r0 = const 10
+    %61: %r0 = binary.mul %59, %60
+    %62: %r0 = coerce %61
+    %63: %r0 = binary.sub %56, %62
+    %64: %r0 = coerce %63
+    %66: %r1 = alias %18
+    %67: %r0 = map %66 [0 => 0, else 1]
+    %68: %r0 = const 2
+    %69: %r0 = binary.mul %67, %68
+    %70: %r0 = coerce %69
+    %71: %r0 = binary.sub %64, %70
+    %72: %r0 = coerce %71
+    %74: %r1 = alias %19
+    %75: %r0 = map %74 [0 => 0, else 1]
+    %76: %r0 = binary.sub %72, %75
+    %77: %r0 = coerce %76
+    %78: %r0 = const 20
+    %79: %r0 = binary.add %77, %78
+    %80: %r0 = coerce %79
+    %81: %r0 = binary.add %80, %9
+    %82: %r0 = coerce %81
+    return %82
 
-optimizer clones 0 aliased 0 forwarded 0 removed 10 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 24 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 10
 
-shape %s0 object Config {flag: %r2, level: %r2, enabled: %r1, quiet: %r1}
+shape %s0 object Config {flag: %r2, level: %r2, $p0: %r3 unit #0}
+
+packing #0 %r3 Config {enabled @0:1, quiet @1:1}
 
 rep %r0 = number signed 32
 rep %r1 = number bool
 rep %r2 = number unsigned 8
-rep %r3 = object %s0
-rep %r4 = parts (%r2, %r2, %r1, %r1) as %r3
+rep %r3 = number unsigned 2
+rep %r4 = object %s0

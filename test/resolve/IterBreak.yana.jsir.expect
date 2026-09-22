@@ -1,26 +1,19 @@
 fn main() -> one %r0
   var $0: %r2
   block0:
-    %0: %r0 = const 0
-    %1: %r1 = object %s0 %0
-    %2: %r0 = const 0
-    store property %1.$v: %r0, %2
     %3: %r2 = const "abc"
-    store var $0: %r2, %3
-    %4: %r2 = load var $0: %r2
+    %4: %r2 = alias %3
     %5: %r2 = alias %4
     %6: %r2 = alias %5
     %7: %r2 = alias %6
     %8: %r0 = host host.field "length" host-range %7
     %9: %r0 = convert %8
-    store property %1.$v: %r0, %9
     %10: %r0 = const -1
     %11: %r0 = binary.add %9, %10
     %12: %r0 = coerce %11
-    store property %1.$v: %r0, %12
     return %12
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 7 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 1
 
 shape %s0 cell {$v: %r0 box}
 

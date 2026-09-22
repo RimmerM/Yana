@@ -1,0 +1,60 @@
+{-
+   A copy of a trivial record, then a write through the source - J92's review item 12.
+
+   # resolver: ownership
+
+   Reported as "aborts with 134"; it does not. 134 was the program's own `r % 256`, which is 6790
+   here, and a signal's status arrived at the same number by coincidence. The shipping stage answers
+   32 (6944) because it reads `q` through `p` after `poke` and after `p.a = 7` - `t1` answers 99 and
+   `t2` 9 there. `let q = p` of a record of two `Int`s is a copy (a plain binding of an existing
+   trivial value copies), and were it a borrow instead the writes would be a loan conflict and the
+   program refused - neither stage refuses it, so the shipping stage's answer is wrong either way.
+-}
+
+data Rec {a: Int, b: Int}
+data Outer {inner: Rec, tag: Int}
+
+@noinline fn poke(&r: Rec):
+    r.a = 99
+
+@noinline fn t1(start: Int) -> Int:
+    let &p = Rec {a: start, b: 2}
+    let q = p
+    poke(p)
+    return q.a
+
+@noinline fn t2(&p: Rec) -> Int:
+    let q = p
+    p.a = 7
+    return q.a + q.b
+
+@noinline fn t3() -> Int:
+    let &total = 0 :: Int
+    let &keep = Rec {a: 0, b: 0}
+    for i in 0..4:
+        let &r = Rec {a: i, b: i * 2}
+        r.b = r.b + 1
+        let &c = r
+        c.a = c.a + 100
+        keep = c
+        total = total + r.a
+    return total * 1000 + keep.a
+
+@noinline fn t4(start: Int) -> Int:
+    let o = Outer {inner: Rec {a: start, b: 1}, tag: 3}
+    let &u = {o | tag: 4}
+    u.inner.a = 50
+    return o.inner.a * 100 + u.inner.a
+
+@noinline fn t5(&o: Rec) -> Int:
+    let u = {o | a: o.b + 1}
+    o.b = 40
+    return u.a * 100 + u.b
+
+fn main() -> Int:
+    let &p = Rec {a: 1, b: 2}
+    let r = t1(5) + t2(p) * 10 + t3() + t4(3) + t5(p)
+    -- 5 + 3 * 10 + 6103 + 350 + 302
+    if r != 6790 then return 1
+    if t1(5) != 5 || t2(p) != 47 || t5(p) != 4140 || p.a != 7 || p.b != 40 then return 2
+    return 0

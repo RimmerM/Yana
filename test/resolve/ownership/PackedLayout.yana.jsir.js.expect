@@ -30,27 +30,12 @@ function offsetWideRoundTrip(value) {
 
 function main() {
   var p1;
-  var v44 = wideRoundTrip(78187493530n);
-  var v46 = offsetWideRoundTrip(151488268715n);
-  var s0 = { present: 1, writable: 1, user: 0, writeThrough: 0, cacheDisable: 0, accessed: 1, dirty: 0, huge: 0, globalPage: 1, available: 0, address: 78187493530, reserved: 0, executeDisable: 1 };
-  var s1 = { present: 1, writable: 1, user: 0, writeThrough: 0, cacheDisable: 0, accessed: 1, dirty: 0, huge: 1, globalPage: 1, available: 0, address: 78187493530, reserved: 0, executeDisable: 1 };
-  var v115 = 155 + (v44 === 78187493530n ? 1 : 0) + (v46 === 151488268715n ? 1 : 0) + (BigInt.asUintN(64, BigInt(s0.executeDisable)) === 1n ? 2 : 0);
+  var v116 = 155 + (wideRoundTrip(78187493530n) === 78187493530n ? 1 : 0) + (offsetWideRoundTrip(151488268715n) === 151488268715n ? 1 : 0) + 2;
   B0: {
-    if (s1.present) {
-      if (s1.huge === 1) {
-        if (s1.available === 0) {
-          if (BigInt.asUintN(64, BigInt(s1.address)) === 78187493530n) {
-            if (s1.executeDisable) {
-              p1 = 2;
-              break B0;
-            }
-          }
-        }
-      }
-    }
-    p1 = 0;
+    p1 = 2;
+    break B0;
   }
-  return v115 + p1 | 0;
+  return v116 + p1 | 0;
 }
 
 // integers of 33 to 53 bits - see codegen/js/wide.cpp

@@ -13,15 +13,11 @@ function folds(xs$0, xs$1, xs$2, salt) {
     var v312 = xs$0[v308 + 1];
     var v315 = xs$0[v308 + 2];
     var v318 = xs$0[v308 + 3];
-    var v320 = p4 + v309 | 0;
-    var v322 = p5 + v312 | 0;
-    var v324 = p6 + v315 | 0;
-    var v326 = p7 + v318 | 0;
+    p4 = p4 + v309 | 0;
+    p5 = p5 + v312 | 0;
+    p6 = p6 + v315 | 0;
+    p7 = p7 + v318 | 0;
     p8 = p8 + 4 | 0;
-    p4 = v320;
-    p5 = v322;
-    p6 = v324;
-    p7 = v326;
   }
   if (p8 < xs$1) {
     var v35 = xs$1 - p8 | 0;
@@ -42,14 +38,10 @@ function folds(xs$0, xs$1, xs$2, salt) {
     var v70 = v41 ? v58 : 0;
     var v71 = v42 ? v63 : 0;
     var v72 = v43 ? v68 : 0;
-    var v74 = p4 + v69 | 0;
-    var v76 = p5 + v70 | 0;
-    var v78 = p6 + v71 | 0;
-    var v80 = p7 + v72 | 0;
-    p4 = v74;
-    p5 = v76;
-    p6 = v78;
-    p7 = v80;
+    p4 = p4 + v69 | 0;
+    p5 = p5 + v70 | 0;
+    p6 = p6 + v71 | 0;
+    p7 = p7 + v72 | 0;
   }
   var v86 = (p4 + p5 | 0) + (p6 + p7 | 0) | 0;
   var v90 = xs$1 - 4 | 0;
@@ -68,15 +60,11 @@ function folds(xs$0, xs$1, xs$2, salt) {
     var v298 = p14 > v284;
     var v299 = p15 > v287;
     var v300 = p16 > v290;
-    var v301 = v297 ? p13 : v281;
-    var v302 = v298 ? p14 : v284;
-    var v303 = v299 ? p15 : v287;
-    var v304 = v300 ? p16 : v290;
+    p13 = v297 ? p13 : v281;
+    p14 = v298 ? p14 : v284;
+    p15 = v299 ? p15 : v287;
+    p16 = v300 ? p16 : v290;
     p17 = p17 + 4 | 0;
-    p13 = v301;
-    p14 = v302;
-    p15 = v303;
-    p16 = v304;
   }
   if (p17 < xs$1) {
     var v104 = xs$2 + p17 | 0;
@@ -101,14 +89,10 @@ function folds(xs$0, xs$1, xs$2, salt) {
     var v146 = p14 > v142;
     var v147 = p15 > v143;
     var v148 = p16 > v144;
-    var v149 = v145 ? p13 : v141;
-    var v150 = v146 ? p14 : v142;
-    var v151 = v147 ? p15 : v143;
-    var v152 = v148 ? p16 : v144;
-    p13 = v149;
-    p14 = v150;
-    p15 = v151;
-    p16 = v152;
+    p13 = v145 ? p13 : v141;
+    p14 = v146 ? p14 : v142;
+    p15 = v147 ? p15 : v143;
+    p16 = v148 ? p16 : v144;
   }
   var v155 = Math.max(Math.max(p13, p14), Math.max(p15, p16));
   var v158 = salt & 255;
@@ -117,9 +101,8 @@ function folds(xs$0, xs$1, xs$2, salt) {
   var p22 = 0;
   while (p23 <= v162) {
     var v244 = xs$2 + p23 | 0;
-    var v276 = p22 + ((xs$0[v244] === v158 && true ? 1 : 0) + (xs$0[v244 + 1] === v158 && true ? 1 : 0) + ((xs$0[v244 + 2] === v158 && true ? 1 : 0) + (xs$0[v244 + 3] === v158 && true ? 1 : 0))) | 0;
+    p22 = p22 + ((xs$0[v244] === v158 && true ? 1 : 0) + (xs$0[v244 + 1] === v158 && true ? 1 : 0) + ((xs$0[v244 + 2] === v158 && true ? 1 : 0) + (xs$0[v244 + 3] === v158 && true ? 1 : 0))) | 0;
     p23 = p23 + 4 | 0;
-    p22 = v276;
   }
   if (p23 < xs$1) {
     var v176 = xs$2 + p23 | 0;
@@ -145,10 +128,7 @@ function main() {
     var v229 = Math.imul(p2, -1640531535) + 7 >>> 8 & 1023;
     var v231 = v18.length;
     var v233 = v231 + 1;
-    B1: {
-      if (v233 <= v18.items.length) break B1;
-      growJsArray_I32(v18, v233);
-    }
+    if (v233 > v18.items.length) growJsArray_I32(v18, v233);
     v18.items[v231] = v229;
     v18.length = v233 & 1073741823;
     p2 = p2 + 1 | 0;
@@ -167,7 +147,7 @@ function main() {
     p5 = 0;
     p6 = 0;
     while (p7 <= v60) {
-      var v161 = 0 + p7 | 0;
+      var v161 = p7 | 0;
       var v162 = v56[v161];
       var v165 = v56[v161 + 1];
       var v168 = v56[v161 + 2];
@@ -192,15 +172,11 @@ function main() {
       var v207 = v191 ^ v199;
       var v209 = v193 ^ v201;
       var v211 = v195 ^ v203;
-      var v213 = p3 + v205 | 0;
-      var v215 = p4 + v207 | 0;
-      var v217 = p5 + v209 | 0;
-      var v219 = p6 + v211 | 0;
+      p3 = p3 + v205 | 0;
+      p4 = p4 + v207 | 0;
+      p5 = p5 + v209 | 0;
+      p6 = p6 + v211 | 0;
       p7 = p7 + 4 | 0;
-      p3 = v213;
-      p4 = v215;
-      p5 = v217;
-      p6 = v219;
     }
     if (p7 < v58) {
       var v65 = v58 - p7 | 0;
@@ -208,8 +184,8 @@ function main() {
       var v67 = 1 < v65;
       var v68 = 2 < v65;
       var v69 = 3 < v65;
-      var v71 = 0 + p7 | 0;
-      var v75 = 0 + v58 - 1;
+      var v71 = p7 | 0;
+      var v75 = v58 - 1;
       var v78 = v56[v71 > v75 ? v75 : v71];
       var v80 = v71 + 1;
       var v83 = v56[v80 > v75 ? v75 : v80];
@@ -241,30 +217,23 @@ function main() {
       var v133 = v117 ^ v125;
       var v135 = v119 ^ v127;
       var v137 = v121 ^ v129;
-      var v139 = p3 + v131 | 0;
-      var v141 = p4 + v133 | 0;
-      var v143 = p5 + v135 | 0;
-      var v145 = p6 + v137 | 0;
-      p3 = v139;
-      p4 = v141;
-      p5 = v143;
-      p6 = v145;
+      p3 = p3 + v131 | 0;
+      p4 = p4 + v133 | 0;
+      p5 = p5 + v135 | 0;
+      p6 = p6 + v137 | 0;
     }
     p0 = (p0 + folds(v18.items, v18.length, 0, p1) | 0) + ((p3 + p4 | 0) + (p5 + p6 | 0) | 0) | 0;
     p1 = v53;
   }
-  Array_a_reclaim_I32(v18);
   return p0 & 65535;
 }
 
-function Array_a_reclaim_I32(value) {
-}
-
 function growJsArray_I32(self, wanted) {
-  var v3 = self.items.length;
+  var v2 = self.items;
+  var v3 = v2.length;
   var v5 = v3 + v3 | 0;
   var v7 = v5 < wanted ? wanted : v5;
-  var v13 = $grow(self.items, v7 < 4 ? 4 : v7);
+  var v13 = $grow(v2, v7 < 4 ? 4 : v7);
   self.items = v13;
 }
 

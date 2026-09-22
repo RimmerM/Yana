@@ -116,6 +116,17 @@ struct Assembly: JsShared {
     Array<StringId> throwTexts;
 
     /*
+     * The constant tables a `match` over literals reads - `var $m = [1, 4, 0, 2, 5];` - interned by
+     * content, so two maps answering the same row share one, and named `$m`, `$m$1`, ... by `uniqueName`. `mapCells` is every table's slots end
+     * to end and `mapStart` is where each begins; `mapStart[i + 1]` (or the end) is where it stops.
+     * Emitted beside the thrown sentences and for their reason. See `JsInst::Map` in
+     * `structure.cpp` for which maps become one.
+     */
+    Array<Name> mapNames;
+    Array<U32> mapStart;
+    Array<jsir::JsConstant> mapCells;
+
+    /*
      * Per function.
      */
 
@@ -141,6 +152,10 @@ struct Assembly: JsShared {
     // A `Var` place's name, and a block argument's - the only two things that become a `var` here.
     Array<Name> variables;
     Array<Name> arguments;
+
+    // Which `Var` slots an instruction still names. A slot the JSIR optimizer emptied - a record
+    // `splitRecordVariables` replaced by its fields, a field nothing read - is declared by nobody.
+    Array<U8> variableNamed;
 
     // One name per coalescing class, by the value id of the class's representative - see
     // `jsir::JsCoalesced`, which is what says which arguments share one.
@@ -213,6 +228,10 @@ StmtList structureBody(Assembly& a, jsir::JsBody& body, JsList<Name, false>& par
  * through and nests each result into its one reader rather than binding it - see `runConstant`.
  */
 JsPtr<Expr> structureConstant(Assembly& a, jsir::JsBody& body);
+
+// One literal a constant `match` answers, as the expression it is spelled with - shared by the map's
+// own emission and the tables `Assembly::mapNames` declares.
+JsPtr<Expr> mapLiteral(Assembly& a, const jsir::JsConstant& value);
 
 /*
  * The whole program through JSIR - the entry `-mode exe -platform js -resolver ownership` reaches.

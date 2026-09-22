@@ -303,6 +303,26 @@ struct Assembler {
                                               : JsProperty::kNoField;
 
                 /*
+                 * A field this target **packed** - into a `$pN` word beside its neighbours, or with
+                 * the whole record as one number. It has no property of its own to name, and the
+                 * cell that would serve it is the native slot's second shape, an offset with a
+                 * shift - which an erased body reading `owner[key]` has no way to apply. Unreachable
+                 * since J85: `planProgram` collects every witnessed field before anything is laid
+                 * out, and `packMembers` never packs one (`JsTarget::witnessedFields`). Still
+                 * refused by name, because a layout that forgot the rule would otherwise hand over
+                 * a key the object does not have and read `undefined`.
+                 */
+                auto packedWhole = target.rep(rep).kind == JsRepKind::Number &&
+                                   jsWholePackingOf(target, witness.type);
+                auto coPacked = shape.valid() && target.shape(shape).packedField(witness.field);
+                if(packedWhole || coPacked) {
+                    target.notYet("a property witness for a field of a packed record, which has "
+                                  "no property of its own for a body compiled once to name"_v,
+                                  witness.type, where);
+                    return nullptr;
+                }
+
+                /*
                  * A subject with **no host object of its own** - a transparent record, whose value
                  * is its one stored field, or a host row. There is no name to hand over, and the
                  * honest cell would be the native slot's third shape: a `{read, set}` pair. Named
@@ -757,6 +777,25 @@ struct Assembler {
                                    asExpr(a, make<StringExpr>(a, a.throwTexts[i])), false));
         }
 
+        // The constant tables, for the same reason: a `var` whose initializer has to have run before
+        // any body reads it.
+        for(U32 i = 0; i < a.mapNames.size(); i++) {
+            auto end = i + 1 < a.mapNames.size() ? a.mapStart[i + 1] : U32(a.mapCells.size());
+            auto row = make<ArrayExpr>(a);
+            for(auto cell = a.mapStart[i]; cell < end; cell++) {
+                row->values.push(a.file.arena, mapLiteral(a, a.mapCells[cell]));
+            }
+
+            emit(a, make<DeclStmt>(a, a.mapNames[i], asExpr(a, row), false));
+        }
+
+        /*
+         * Bit ranges first, for `gen.cpp`'s reason: one of those bodies may ask for a wide helper.
+         * The word is the widest a `number` holds exactly rather than a packing budget read from
+         * a table, because a helper serves every range of its width in every word - including a
+         * packed record's word, which on this target is up to 53 bits wide (J85).
+         */
+        emitBitHelpers(a, kMaxNumberBits);
         emitRotateHelpers(a);
         emitWideHelpers(a);
         emitSaturationHelpers(a);
@@ -769,6 +808,7 @@ struct Assembler {
         emitGrowHelper(a);
         emitWordHelpers(a);
         emitFunDropHelper(a);
+        emitBitCellHelper(a);
 
         /*
          * The entry call **last**, which is what the shipping file does too and is load-bearing: a
@@ -826,7 +866,14 @@ Ptr<File> genJsirProgram(Context& context, mir::Program& program, ssa::Converted
     // unchanged: one-use inlining, object-literal merging, condition spelling, wide-helper fusion
     // and dead-helper removal all operate on facts that exist only after the tree is built (§6.1).
     file->statements = statements;
+    sweepFunctions(a);
     optimizeFile(a);
+
+    // And once more, for the bodies only the peephole emptied - a teardown whose one statement was
+    // `if (a0 !== null) {}` once the call inside it went. What this leaves (an operand nobody reads
+    // any more) is dead text rather than a wrong answer, and the peephole cannot be run twice: its
+    // `recoverLoops` is last on purpose.
+    sweepFunctions(a);
     return file;
 }
 

@@ -1,0 +1,22 @@
+{-
+   A bare `main` with parameters beside top-level statements (J91).
+
+   # resolver: ownership
+   # target: bare
+
+   A synthesized entry runs the top-level statements and then calls `main` - but a bare `main` that
+   takes parameters is entered by the loader directly, and there is nobody to hand the synthesized
+   one the arguments. So the two cannot both be the entry, and the sentence says to move the
+   statements into `main`.
+
+   `main` reads `start`, a global only the top-level statements initialize, which is what this
+   fixture is for beyond the sentence itself: the refusal used to skip the synthesized entry, so
+   `start` was never resolved and `main` was also told it "reaches the end without returning". The
+   golden holds exactly one error.
+-}
+
+fn seed() -> U32 = 7
+
+let start = seed()
+
+fn main(magic: U32) -> U32 = magic + start

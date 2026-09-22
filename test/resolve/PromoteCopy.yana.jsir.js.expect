@@ -17,17 +17,11 @@ function classify(n) {
 }
 
 function weight(c) {
-  return c === 0 ? 1 : c === 1 ? 2 : c === 2 ? 3 : 4;
+  return c + 1;
 }
 
 function score(n) {
-  var p1;
-  if (n < 0) {
-    p1 = classify(0 - n | 0);
-  } else {
-    p1 = null;
-  }
-  return p1 === null ? 0 : 1;
+  return (n < 0 ? classify(0 - n | 0) : null) === null ? 0 : 1;
 }
 
 function ranked(n) {
@@ -47,28 +41,12 @@ function ranked(n) {
 }
 
 function removed(n) {
-  var p1;
-  if (n < 0) {
-    p1 = classify(0 - n | 0);
-  } else {
-    p1 = null;
-  }
-  return p1 === null ? 0 : 1;
+  return (n < 0 ? classify(0 - n | 0) : null) === null ? 0 : 1;
 }
 
 function scored(n) {
-  var p1, p2;
-  if (n < 0) {
-    p2 = classify(0 - n | 0);
-  } else {
-    p2 = null;
-  }
-  if (p2 === null) {
-    p1 = 0;
-  } else {
-    p1 = weight(p2);
-  }
-  return p1;
+  var p2 = n < 0 ? classify(0 - n | 0) : null;
+  return p2 === null ? 0 : weight(p2);
 }
 
 function main() {

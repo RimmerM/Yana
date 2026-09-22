@@ -1,0 +1,85 @@
+{-
+   J88: a lambda capturing a `&` local, inlined away, while the construction of its environment
+   and the reads of the capture survive in the body it was inlined into. The environment is then
+   no longer a reachable lambda's, and on JavaScript it was made transparent over the captured
+   *value*: a callee that rebinds the storage wrote into a box built around a copy (an array, a
+   number), and a captured `&` of a record or of a packed field was a refusal.
+
+   The shipping stage answers the first line wrong on JavaScript, so:
+   # resolver: ownership
+-}
+
+data P {x: I32, y: I32}
+data K {tag: U8, n: U8, ok: Bool}
+data W {a: U8, b: U8, name: String}
+
+@noinline fn swapIn(&xs: Array(String), n: Int) -> Int:
+    xs = ["s{n}", "t"]
+    return n
+
+fn swapInline(&xs: Array(String), n: Int) -> Int:
+    xs = ["i{n}"]
+    return n
+
+@noinline fn pushOne(&xs: Array(String), n: Int) -> Int:
+    push(xs, "p{n}")
+    return n
+
+@noinline fn bump(&v: Int, n: Int) -> Int:
+    v = v + n
+    return n
+
+@noinline fn setP(&p: P, n: I32) -> I32:
+    p = P {x: n, y: n * 2}
+    return n
+
+fn nudgeP(&p: P, n: I32) -> I32:
+    p.y = p.y + n
+    return n
+
+@noinline fn setN(&n: U8, k: U8) -> U8:
+    n = k
+    return k
+
+@noinline fn rename(&s: String, n: Int) -> Int:
+    s = "w{n}"
+    return n
+
+fn main() -> Int:
+    let &e = ["e"] :: [String]
+    let g = (n: Int) -> swapIn(e, n)
+    g(7)
+
+    let &e2 = ["e"] :: [String]
+    let g2 = (n: Int) -> swapInline(e2, n)
+    g2(5)
+
+    let &e3 = ["e"] :: [String]
+    let g3 = (n: Int) -> pushOne(e3, n)
+    g3(1)
+    g3(2)
+
+    let &s = 1
+    let h = (n: Int) -> bump(s, n)
+    h(40)
+    h(1)
+
+    let &p = P {x: 1, y: 2}
+    let q = (n: I32) -> setP(p, n)
+    q(9)
+    let q2 = (n: I32) -> nudgeP(p, n)
+    q2(100)
+
+    let &k = K {tag: 3, n: 5, ok: True}
+    let r = (m: U8) -> setN(k.n, m)
+    r(77)
+
+    let &w = W {a: 1, b: 2, name: "w"}
+    let t = (m: U8) -> setN(w.b, m)
+    t(33)
+    let u = (n: Int) -> rename(w.name, n)
+    u(4)
+
+    let strings = truncate(length(e) + length(e[0]) * 10 + length(e2[0]) * 100 + length(e3) * 1000 + length(w.name) * 20000) :: Int
+    let flags = if k.ok then 7 else 0
+    return strings + s * 100000 + (p.x + p.y) * 1000000 + (widen(k.n) :: Int) * 3 + (widen(w.a + w.b) :: Int) * 11 + (widen(k.tag) :: Int) + flags

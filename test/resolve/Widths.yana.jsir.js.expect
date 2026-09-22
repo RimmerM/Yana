@@ -3,23 +3,9 @@
 function main() {
   var p0;
   B0: {
-    if ($w53i$wrap($w53i$add({ index: 3, count: 4, unit: 5, wide: 6 }.wide, 1)) === 7) {
-      p0 = 127;
-      break B0;
-    }
-    p0 = 63;
+    p0 = 127;
+    break B0;
   }
   return p0;
-}
-
-// integers of 33 to 53 bits - see codegen/js/wide.cpp
-function $w53i$add(a, b) {
-  var v = a + b;
-  return v >= 4503599627370496 ? v - 9007199254740992 : v < -4503599627370496 ? v + 9007199254740992 : v;
-}
-
-function $w53i$wrap(a) {
-  var v = a % 9007199254740992;
-  return v >= 4503599627370496 ? v - 9007199254740992 : v < -4503599627370496 ? v + 9007199254740992 : v;
 }
 main();

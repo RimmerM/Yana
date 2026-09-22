@@ -4,94 +4,90 @@ var after = 0;
 
 // 
 function main() {
-  var s8, s9;
+  var s8;
   after = 0;
-  var s5 = { $index: 0, $slot: 0, n: 3, p: 0 };
+  var v37 = { $index: 0, $slot: 0, n: 3, p: 0 };
   L0: for (;;) {
-    var v52 = s5.$index;
+    var v52 = v37.$index;
     B1: {
       if (v52 === 0) {
-        s5.p = 0;
+        v37.p = 0;
       } else {
         if (v52 === 1) {
           after = after + 1 | 0;
-          s5.p = s5.p + 1 | 0;
+          v37.p = v37.p + 1 | 0;
           break B1;
         }
         break L0;
       }
     }
-    var v61 = s5.p;
-    if (v61 < s5.n) {
-      s5.$slot = v61;
-      s5.$index = 1;
+    var v64 = v37.p;
+    if (v64 < v37.n) {
+      v37.$slot = v64;
+      v37.$index = 1;
       continue L0;
     }
-    s5.$index = 2147483647;
+    v37.$index = 2147483647;
     break L0;
   }
-  var s7 = { $index: 0, $slot: 0, source: "abc", n: 2, p: 0 };
-  var s1 = { $index: s7.$index, $slot: s7.$slot, source: s7.source, n: s7.n, p: s7.p };
+  var v76 = { $index: 0, $slot: 0, source: "abc", n: 2, p: 0 };
+  var v83 = { $index: v76.$index, $slot: v76.$slot, source: v76.source, n: v76.n, p: v76.p };
   L2: for (;;) {
-    var v93 = s1.$index;
+    var v98 = v83.$index;
     B3: {
-      if (v93 === 0) {
-        s1.p = 0;
+      if (v98 === 0) {
+        v83.p = 0;
       } else {
-        if (v93 === 1) {
-          var v96 = s1.p;
+        if (v98 === 1) {
+          var v102 = v83.p;
           s8 = "";
           s8 = s8 + "at ";
-          s8 = s8 + String(v96);
+          s8 = s8 + String(v102);
           s8 = s8 + " of ";
-          s8 = s8 + s1.source;
-          s9 = s8;
-          after = after + s9.length | 0;
-          s1.p = v96 + 1 | 0;
+          s8 = s8 + v83.source;
+          after = after + s8.length | 0;
+          v83.p = v102 + 1 | 0;
           break B3;
         }
         break L2;
       }
     }
-    var v146 = s1.p;
-    if (v146 < s1.n) {
-      s1.$slot = v146;
-      s1.$index = 1;
+    var v157 = v83.p;
+    if (v157 < v83.n) {
+      v83.$slot = v157;
+      v83.$index = 1;
       continue L2;
     }
-    s1.$index = 2147483647;
+    v83.$index = 2147483647;
     break L2;
   }
-  var s10 = { $index: 0, $slot: 0, source: "hello", n: 2, p: 0 };
-  var s3 = { cursor: { $index: s10.$index, $slot: s10.$slot, source: s10.source, n: s10.n, p: s10.p }, seen: 0 };
-  var v167 = s3.cursor;
-  var s4 = { $index: v167.$index, $slot: v167.$slot, source: v167.source, n: v167.n, p: v167.p };
+  var v171 = { $index: 0, $slot: 0, source: "hello", n: 2, p: 0 };
+  var v16 = { $index: v171.$index, $slot: v171.$slot, source: v171.source, n: v171.n, p: v171.p };
+  var v181 = { $index: v16.$index, $slot: v16.$slot, source: v16.source, n: v16.n, p: v16.p };
   L4: for (;;) {
-    var v179 = s4.$index;
+    var v192 = v181.$index;
     B5: {
-      if (v179 === 0) {
-        s4.p = 0;
+      if (v192 === 0) {
+        v181.p = 0;
       } else {
-        if (v179 === 1) {
-          s4.p = s4.p + 1 | 0;
+        if (v192 === 1) {
+          v181.p = v181.p + 1 | 0;
           break B5;
         }
         break L4;
       }
     }
-    var v185 = s4.p;
-    if (v185 < s4.n) {
-      var v197 = s4.source.length + v185 | 0;
-      s4.$slot = v197;
-      s4.$index = 1;
-      after = after + v197 | 0;
+    var v201 = v181.p;
+    if (v201 < v181.n) {
+      var v216 = v181.source.length + v201 | 0;
+      v181.$slot = v216;
+      v181.$index = 1;
+      after = after + v216 | 0;
       continue L4;
     }
-    s4.$index = 2147483647;
+    v181.$index = 2147483647;
     break L4;
   }
-  var v188 = after;
-  s3.seen = v188;
-  return v188;
+  return after;
 }
 main();

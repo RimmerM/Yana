@@ -1,0 +1,43 @@
+
+half<complex>(%x: F64): F32 {
+  b_0 {
+    %v_1 = mul %x, 0.5: F64
+    %v_2 = cast %v_1: F32
+    ret %v_2
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex half, 3: F32
+    %v_2 = cast %v_1: F64
+    %v_3 = add %v_2, 2.25: F64
+    %v_4 = add %v_3, %v_2: F64
+    %v_5 = mul %v_1, %v_1: F32
+    %v_6 = cast %v_5: F64
+    %v_7 = sub 2.25, %v_6: F64
+    %v_8 = mul %v_2, 2.25: F64
+    %v_9 = cmp_neq %v_4, 5.25: I32
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    %v_12 = cmp_neq %v_7, 0: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_10 {
+    ret 1
+  }
+
+  b_14 {
+    %v_15 = cmp_neq %v_8, 3.375: I32
+    %v_16 = select %v_15, 3, 0: I32
+    ret %v_16
+  }
+
+  b_13 {
+    ret 2
+  }
+}
+

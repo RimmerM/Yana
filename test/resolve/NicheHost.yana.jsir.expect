@@ -9,15 +9,10 @@ fn depthOf(one %r4) -> one %r0
   block1:
     %6: %r3 = load property %0.Just: %r3
     %7: %r3 = clone %6
-    store var $0: %r3, %7
     %8: %r0 = const 2
-    %9: %r3 = load var $0: %r3
+    %9: %r3 = alias %7
     %10: %r3 = alias %9
     %11: %r0 = const 0
-    %12: %r0 = const 0
-    %13: %r0 = const 0
-    %14: %r1 = object %s0 %12, %13
-    store var $1: %r1, %14
     %15: %r3 = const null
     %16: %r12 = binary.eq %10, %15
     %17: %r2 = const 1
@@ -34,13 +29,12 @@ fn depthOf(one %r4) -> one %r0
   block4:
     %22: %r1 = alias %10
     %23: %r1 = alias %22
-    store var $1: %r1, %23
-    %24: %r1 = load var $1: %r1
+    %24: %r1 = alias %23
     %25: %r0 = load property %24.x: %r0
     %26: %r0 = const 10
     %27: %r0 = binary.mul %25, %26
     %28: %r0 = coerce %27
-    %29: %r1 = load var $1: %r1
+    %29: %r1 = alias %23
     %30: %r0 = load property %29.y: %r0
     %31: %r0 = binary.add %28, %30
     %32: %r0 = coerce %31
@@ -58,10 +52,6 @@ fn pairValue(one %r6) -> one %r0
     %3: %r3 = load property %0.left: %r3
     %4: %r3 = clone %3
     %5: %r0 = const 7
-    %6: %r0 = const 0
-    %7: %r0 = const 0
-    %8: %r1 = object %s0 %6, %7
-    store var $0: %r1, %8
     %9: %r3 = const null
     %10: %r12 = binary.eq %4, %9
     %11: %r2 = const 1
@@ -73,13 +63,12 @@ fn pairValue(one %r6) -> one %r0
   block1:
     %16: %r1 = alias %4
     %17: %r1 = alias %16
-    store var $0: %r1, %17
-    %18: %r1 = load var $0: %r1
+    %18: %r1 = alias %17
     %19: %r0 = load property %18.x: %r0
     %20: %r0 = const 10
     %21: %r0 = binary.mul %19, %20
     %22: %r0 = coerce %21
-    %23: %r1 = load var $0: %r1
+    %23: %r1 = alias %17
     %24: %r0 = load property %23.y: %r0
     %25: %r0 = binary.add %22, %24
     %26: %r0 = coerce %25
@@ -114,8 +103,7 @@ fn pairValue(one %r6) -> one %r0
 fn opaqueText(one %r7) -> one %r7
   var $0: %r7
   block0(%0: %r7):
-    store var $0: %r7, %0
-    %1: %r7 = load var $0: %r7
+    %1: %r7 = alias %0
     %2: %r7 = alias %1
     return %2
 
@@ -158,9 +146,8 @@ fn textDepth(one %r9) -> one %r0
   block1:
     %6: %r8 = load property %0.Just: %r8
     %7: %r8 = alias %6
-    store var $0: %r8, %7
     %8: %r0 = const 2
-    %9: %r8 = load var $0: %r8
+    %9: %r8 = alias %7
     %10: %r8 = alias %9
     %11: %r0 = const 0
     %12: %r8 = const null
@@ -179,8 +166,7 @@ fn textDepth(one %r9) -> one %r0
   block4:
     %19: %r7 = alias %10
     %20: %r7 = alias %19
-    store var $1: %r7, %20
-    %21: %r7 = load var $1: %r7
+    %21: %r7 = alias %20
     %22: %r7 = alias %21
     %23: %r0 = call codeOf %22
     jump -> block6(%23)
@@ -208,8 +194,7 @@ fn namedValue(one %r10) -> one %r0
   block1:
     %13: %r7 = alias %4
     %14: %r7 = alias %13
-    store var $0: %r7, %14
-    %15: %r7 = load var $0: %r7
+    %15: %r7 = alias %14
     %16: %r7 = alias %15
     %17: %r0 = call codeOf %16
     jump -> block3(%17)
@@ -254,16 +239,14 @@ fn main() -> one %r0
   var $10: %r8
   var $11: %r8
   var $12: %r8
+  var $13: %r0
+  var $14: %r0
   block0:
     %11: %r0 = const 3
     %12: %r0 = const 4
     %13: %r1 = object %s0 %11, %12
     %14: %r3 = alias %13
     %15: %r0 = const 9
-    %16: %r0 = const 0
-    %17: %r0 = const 0
-    %18: %r1 = object %s0 %16, %17
-    store var $0: %r1, %18
     %19: %r3 = const null
     %20: %r12 = binary.eq %14, %19
     %21: %r2 = const 1
@@ -273,16 +256,11 @@ fn main() -> one %r0
     %25: %r11 = binary.eq %23, %24
     branch %25 -> block2 -> block1
   block1:
-    %26: %r1 = alias %14
-    %27: %r1 = alias %26
-    store var $0: %r1, %27
-    %28: %r1 = load var $0: %r1
-    %29: %r0 = load property %28.x: %r0
+    %29: %r0 = alias %11
     %30: %r0 = const 10
     %31: %r0 = binary.mul %29, %30
     %32: %r0 = coerce %31
-    %33: %r1 = load var $0: %r1
-    %34: %r0 = load property %33.y: %r0
+    %34: %r0 = alias %12
     %35: %r0 = binary.add %32, %34
     %36: %r0 = coerce %35
     jump -> block3(%36)
@@ -291,10 +269,6 @@ fn main() -> one %r0
   block3(%0: %r0):
     %37: %r3 = const null
     %38: %r0 = const 9
-    %39: %r0 = const 0
-    %40: %r0 = const 0
-    %41: %r1 = object %s0 %39, %40
-    store var $1: %r1, %41
     %42: %r3 = const null
     %43: %r12 = binary.eq %37, %42
     %44: %r2 = const 1
@@ -305,15 +279,13 @@ fn main() -> one %r0
     branch %48 -> block5 -> block4
   block4:
     %49: %r1 = alias %37
-    %50: %r1 = clone %49
-    store var $1: %r1, %50
-    %51: %r1 = load var $1: %r1
-    %52: %r0 = load property %51.x: %r0
+    %338: %r0 = load property %49.x: %r0
+    %339: %r0 = load property %49.y: %r0
+    %52: %r0 = alias %338
     %53: %r0 = const 10
     %54: %r0 = binary.mul %52, %53
     %55: %r0 = coerce %54
-    %56: %r1 = load var $1: %r1
-    %57: %r0 = load property %56.y: %r0
+    %57: %r0 = alias %339
     %58: %r0 = binary.add %55, %57
     %59: %r0 = coerce %58
     jump -> block6(%59)
@@ -388,8 +360,7 @@ fn main() -> one %r0
   block7:
     %128: %r7 = alias %119
     %129: %r7 = alias %128
-    store var $2: %r7, %129
-    %130: %r7 = load var $2: %r7
+    %130: %r7 = alias %129
     %131: %r7 = alias %130
     %132: %r0 = call codeOf %131
     jump -> block9(%132)
@@ -410,8 +381,7 @@ fn main() -> one %r0
   block10:
     %143: %r7 = alias %134
     %144: %r7 = alias %143
-    store var $3: %r7, %144
-    %145: %r7 = load var $3: %r7
+    %145: %r7 = alias %144
     %146: %r7 = alias %145
     %147: %r0 = call codeOf %146
     jump -> block12(%147)
@@ -433,8 +403,7 @@ fn main() -> one %r0
   block13:
     %159: %r7 = alias %150
     %160: %r7 = alias %159
-    store var $4: %r7, %160
-    %161: %r7 = load var $4: %r7
+    %161: %r7 = alias %160
     %162: %r7 = alias %161
     %163: %r0 = call codeOf %162
     jump -> block15(%163)
@@ -454,8 +423,7 @@ fn main() -> one %r0
   block16:
     %173: %r7 = alias %164
     %174: %r7 = alias %173
-    store var $5: %r7, %174
-    %175: %r7 = load var $5: %r7
+    %175: %r7 = alias %174
     %176: %r7 = alias %175
     %177: %r0 = call codeOf %176
     jump -> block18(%177)
@@ -465,11 +433,9 @@ fn main() -> one %r0
     %178: %r7 = const "a"
     %179: %r7 = call opaqueText %178
     %180: %r7 = const "b"
-    store var $6: %r7, %179
-    store var $7: %r7, %180
-    %181: %r7 = load var $6: %r7
+    %181: %r7 = alias %179
     %182: %r7 = alias %181
-    %183: %r7 = load var $7: %r7
+    %183: %r7 = alias %180
     %184: %r7 = alias %183
     %185: %r7 = alias %182
     %186: %r7 = alias %184
@@ -487,8 +453,7 @@ fn main() -> one %r0
   block19:
     %197: %r7 = alias %188
     %198: %r7 = alias %197
-    store var $8: %r7, %198
-    %199: %r7 = load var $8: %r7
+    %199: %r7 = alias %198
     %200: %r7 = alias %199
     %201: %r0 = call codeOf %200
     jump -> block21(%201)
@@ -508,8 +473,7 @@ fn main() -> one %r0
   block22:
     %211: %r7 = alias %202
     %212: %r7 = alias %211
-    store var $9: %r7, %212
-    %213: %r7 = load var $9: %r7
+    %213: %r7 = alias %212
     %214: %r7 = alias %213
     %215: %r0 = call codeOf %214
     jump -> block24(%215)
@@ -658,7 +622,7 @@ fn main() -> one %r0
     %337: %r0 = coerce %336
     return %337
 
-optimizer clones 7 aliased 4 forwarded 0 removed 7 adopted 0 sunk 0
+optimizer clones 7 aliased 4 forwarded 2 removed 49 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 1 split 1 promoted 21
 
 shape %s0 object Point {x: %r0, y: %r0}
 shape %s1 object Maybe {$tag: %r2 tag, Just: %r3}

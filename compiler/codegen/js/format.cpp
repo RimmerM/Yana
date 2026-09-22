@@ -29,6 +29,7 @@ const OpInfo kBinaryOps[] = {
     { "=="_v, 8 }, { "!="_v, 8 },
     { "&"_v, 7 }, { "^"_v, 6 }, { "|"_v, 5 },
     { "&&"_v, 4 }, { "||"_v, 3 },
+    { "??"_v, 3 },
 };
 
 // Below everything, so a function expression is bare where it stands alone - a `return`, an
@@ -345,11 +346,24 @@ void writeExpr(Format& f, JsPtr<Expr> pointer) {
 
             // Every operator here is left-associative, so the right operand needs one level more
             // than the left to stay unparenthesized.
-            writeNested(f, binary->lhs, op.precedence);
+            //
+            // Except that `??` beside `&&` or `||` is a syntax error without parentheses whatever
+            // the precedence says, so either operand that pairs the two is parenthesized outright.
+            auto mixes = [&](JsPtr<Expr> operand) {
+                auto inner = f.base[operand];
+                if(inner->kind != Expr::Binary) return false;
+
+                auto innerOp = ((BinaryExpr*)inner)->op;
+                auto logical = [](BinaryOp o) { return o == BinaryOp::LogicalAnd || o == BinaryOp::LogicalOr; };
+                return (binary->op == BinaryOp::Nullish && logical(innerOp)) ||
+                       (innerOp == BinaryOp::Nullish && logical(binary->op));
+            };
+
+            writeNested(f, binary->lhs, mixes(binary->lhs) ? U8(255) : op.precedence);
             f.space();
             f.write(op.text);
             f.space();
-            writeNested(f, binary->rhs, U8(op.precedence + 1));
+            writeNested(f, binary->rhs, mixes(binary->rhs) ? U8(255) : U8(op.precedence + 1));
             break;
         }
         case Expr::Ternary: {

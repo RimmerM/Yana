@@ -4,17 +4,13 @@ fn joined(one %r0, one %r0) -> one %r0
   var $2: %r0
   var $3: %r0
   block0(%0: %r0, %1: %r0):
-    store var $0: %r0, %0
-    store var $1: %r0, %1
-    %2: %r0 = load var $0: %r0
+    %2: %r0 = alias %0
     %3: %r0 = alias %2
-    %4: %r0 = load var $1: %r0
+    %4: %r0 = alias %1
     %5: %r0 = alias %4
-    store var $2: %r0, %3
-    store var $3: %r0, %5
-    %6: %r0 = load var $2: %r0
+    %6: %r0 = alias %3
     %7: %r0 = alias %6
-    %8: %r0 = load var $3: %r0
+    %8: %r0 = alias %5
     %9: %r0 = alias %8
     %10: %r0 = alias %7
     %11: %r0 = alias %9
@@ -28,10 +24,9 @@ fn main() -> one %r1
     %0: %r0 = const "ab"
     store var $0: %r0, %0
     %1: %r0 = const "12"
-    store var $1: %r0, %1
     %2: %r0 = load var $0: %r0
     %3: %r0 = alias %2
-    %4: %r0 = load var $1: %r0
+    %4: %r0 = alias %1
     %5: %r0 = alias %4
     %6: %r0 = call joined %3, %5
     store var $0: %r0, %6
@@ -58,7 +53,7 @@ fn main() -> one %r1
     %24: %r1 = convert %23
     return %24
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 5
 
 rep %r0 = string
 rep %r1 = number signed 32

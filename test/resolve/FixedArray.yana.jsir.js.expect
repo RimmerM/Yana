@@ -5,40 +5,36 @@ function total(xs$0, xs$1, xs$2) {
   var p4 = 0;
   while (p4 < xs$1) {
     if (p4 >>> 0 >= xs$1 >>> 0) throw $t;
-    var v17 = p3 + xs$0[xs$2 + p4 | 0] | 0;
-    var v19 = p4 + 1 | 0;
-    p3 = v17;
-    p4 = v19;
+    p3 = p3 + xs$0[xs$2 + p4 | 0] | 0;
+    p4 = p4 + 1 | 0;
   }
   return p3;
 }
 
 function main() {
-  var v8 = { $v: new Int32Array([0, 0, 0, 0]) };
   var v13 = new Int32Array([1, 2, 3, 4]);
-  v8.$v = v13;
-  if (total(v8.$v, 4, 0) !== 10) return -3;
-  if (total(v8.$v, 2, 1) !== 5) return -4;
-  var v38 = v8.$v;
+  if (total(v13, 4, 0) !== 10) return -3;
+  if (total(v13, 2, 1) !== 5) return -4;
   var p2 = 0;
   while (p2 < 4) {
     var v121 = p2 >>> 0;
     if (v121 >= 4) throw $t;
-    var v127 = v38[0 + p2 | 0];
+    var v126 = p2 | 0;
+    var v127 = v13[v126];
     var v129 = v127 + v127 | 0;
     if (v121 >= 4) throw $t;
-    v38[0 + p2 | 0] = v129;
+    v13[v126] = v129;
     p2 = p2 + 1 | 0;
   }
-  if (total(v8.$v, 4, 0) !== 20) return -5;
+  if (total(v13, 4, 0) !== 20) return -5;
   if (total(new Int32Array([7, 8]), 2, 0) !== 15) return -6;
-  var s0 = new Int32Array([7, 8]);
-  s0[0] = s0[0] + 1 | 0;
-  s0[1] = s0[1] + 1 | 0;
-  if (total(s0.slice(), 2, 0) !== 17) return -10;
-  var s1 = [{ wide: 10n, narrow: 1 }, { wide: 20n, narrow: 2 }, { wide: 30n, narrow: 3 }];
-  if (BigInt.asIntN(64, BigInt.asIntN(64, s1[0].wide + s1[1].wide) + s1[2].wide) !== 60n) return -8;
-  return total(v8.$v, 4, 0);
+  var v63 = new Int32Array([7, 8]);
+  v63[0] = v63[0] + 1 | 0;
+  v63[1] = v63[1] + 1 | 0;
+  if (total(v63, 2, 0) !== 17) return -10;
+  var v93 = [{ wide: 10n, narrow: 1 }, { wide: 20n, narrow: 2 }, { wide: 30n, narrow: 3 }];
+  if (BigInt.asIntN(64, BigInt.asIntN(64, v93[0].wide + v93[1].wide) + v93[2].wide) !== 60n) return -8;
+  return total(v13, 4, 0);
 }
 var $t = "yana: a runtime check failed";
 main();

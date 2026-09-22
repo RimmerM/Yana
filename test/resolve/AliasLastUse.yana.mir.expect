@@ -1,0 +1,324 @@
+module ResolveTest
+
+data Rec {weight: F64, count: I32}
+
+data Outer {inner: Rec, tag: I32}
+
+fn bumped(start: I32 [shared call]) -> Rec {
+  local & p: Rec
+
+bb0:
+  %0: F64 = const 1.5
+  %1: I32 = read copy.trivial (start)
+  %2: Rec = aggregate.Rec take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = read copy.trivial (p.count)
+  %5: I32 = const 1
+  %6: I32 = add inspect %4 inspect %5
+  write.assign borrow.unique (p.count) take %6
+  %8: Rec = read copy.trivial (p)
+  return take %8
+}
+
+fn projected(start: I32 [shared call]) -> I32 {
+  local & p: Rec
+  local q: Rec
+
+bb0:
+  %0: F64 = const 0.5
+  %1: I32 = read copy.trivial (start)
+  %2: Rec = aggregate.Rec take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = read copy.trivial (p.count)
+  %5: I32 = const 2
+  %6: I32 = mul inspect %4 inspect %5
+  write.assign borrow.unique (p.count) take %6
+  %8: Rec = read copy.trivial (p)
+  write.init borrow.unique (q) take %8
+  %10: I32 = read copy.trivial (q.count)
+  return take %10
+}
+
+fn field(start: I32 [shared call]) -> I32 {
+  local & o: Outer
+  local i: Rec
+
+bb0:
+  %0: F64 = const 2
+  %1: I32 = read copy.trivial (start)
+  %2: Rec = aggregate.Rec take %0 take %1
+  %3: I32 = const 3
+  %4: Outer = aggregate.Outer take %2 take %3
+  write.init borrow.unique (o) take %4
+  %6: I32 = read copy.trivial (o.inner.count)
+  %7: I32 = const 10
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (o.inner.count) take %8
+  %10: Rec = read copy.trivial (o.inner)
+  write.init borrow.unique (i) take %10
+  %12: I32 = read copy.trivial (i.count)
+  %13: I32 = read copy.trivial (o.tag)
+  %14: I32 = add inspect %12 inspect %13
+  return take %14
+}
+
+fn writtenAfter(start: I32 [shared call]) -> I32 {
+  local & p: Rec
+  local q: Rec
+
+bb0:
+  %0: F64 = const 4
+  %1: I32 = read copy.trivial (start)
+  %2: Rec = aggregate.Rec take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: Rec = read copy.trivial (p)
+  write.init borrow.unique (q) take %4
+  %6: I32 = const 9
+  write.assign borrow.unique (p.count) take %6
+  %8: I32 = read copy.trivial (q.count)
+  %9: I32 = const 10
+  %10: I32 = mul inspect %8 inspect %9
+  %11: I32 = read copy.trivial (p.count)
+  %12: I32 = add inspect %10 inspect %11
+  return take %12
+}
+
+fn looped() -> I32 {
+  local & acc: Rec
+  local & keep: Rec
+  local & local2: I32
+  local i: I32
+
+bb0:
+  %0: F64 = const 0.25
+  %1: I32 = const 0
+  %2: Rec = aggregate.Rec take %0 take %1
+  write.init borrow.unique (acc) take %2
+  %4: F64 = const 0.75
+  %5: I32 = const 0
+  %6: Rec = aggregate.Rec take %4 take %5
+  write.init borrow.unique (keep) take %6
+  %8: I32 = const 1
+  %9: I32 = const 4
+  %10: I32 = const 1
+  write.init borrow.unique (local2) take %8
+  jump -> bb1(take %9, take %10)
+
+bb1(%11: I32, %12: I32):
+  %19: I32 = read copy.trivial (local2)
+  %20: Bool = lt inspect %19 inspect %11
+  branch inspect %20 -> bb4(take %11, take %12) -> bb3(take %11, take %12)
+
+bb2(%13: I32, %14: I32):
+  %47: I32 = read copy.trivial (local2)
+  %48: I32 = add inspect %47 inspect %14
+  write.assign borrow.unique (local2) take %48
+  jump -> bb1(take %13, take %14)
+
+bb3(%15: I32, %16: I32):
+  %51: I32 = read copy.trivial (keep.count)
+  return take %51
+
+bb4(%21: I32, %22: I32):
+  %24: I32 = read copy.trivial (local2)
+  write.init borrow.unique (i) take %24
+  %26: I32 = read copy.trivial (acc.count)
+  %27: I32 = const 10
+  %28: I32 = mul inspect %26 inspect %27
+  %29: I32 = read copy.trivial (i)
+  %30: I32 = add inspect %28 inspect %29
+  write.assign borrow.unique (acc.count) take %30
+  %32: I32 = read copy.trivial (i)
+  %33: I32 = const 3
+  %34: Bool = lt inspect %32 inspect %33
+  branch inspect %34 -> bb7(take %21, take %22) -> bb5(take %21, take %22)
+
+bb5(%35: I32, %36: I32):
+  jump -> bb6(take %35, take %36)
+
+bb6(%42: I32, %43: I32):
+  jump -> bb2(take %42, take %43)
+
+bb7(%37: I32, %38: I32):
+  %40: Rec = read copy.trivial (acc)
+  write.assign borrow.unique (keep) take %40
+  jump -> bb6(take %37, take %38)
+}
+
+fn movedThenWritten(start: I32 [shared call]) -> I32 {
+  local & p: Rec
+  local & q: Rec
+
+bb0:
+  %0: F64 = const 8
+  %1: I32 = read copy.trivial (start)
+  %2: Rec = aggregate.Rec take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = read copy.trivial (p.count)
+  %5: I32 = const 1
+  %6: I32 = add inspect %4 inspect %5
+  write.assign borrow.unique (p.count) take %6
+  %8: Rec = read copy.trivial (p)
+  write.init borrow.unique (q) take %8
+  %10: I32 = read copy.trivial (q.count)
+  %11: I32 = const 100
+  %12: I32 = mul inspect %10 inspect %11
+  write.assign borrow.unique (q.count) take %12
+  %14: I32 = read copy.trivial (q.count)
+  return take %14
+}
+
+fn main() -> I32 {
+  local & score: I32
+  local b: Rec
+  local & r: Rec
+  local first: Rec
+  local second: Rec
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (score) take %0
+  %2: I32 = const 41
+  %3: Rec = call bumped borrow.shared %2
+  write.init borrow.unique (b) take %3
+  %5: I32 = read copy.trivial (b.count)
+  %6: I32 = const 42
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %19: I32 = const 21
+  %20: I32 = call projected borrow.shared %19
+  %21: I32 = const 42
+  %22: Bool = eq inspect %20 inspect %21
+  branch inspect %22 -> bb7 -> bb5
+
+bb3:
+  %9: F64 = read copy.trivial (b.weight)
+  %10: F64 = const 1.5
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb4 -> bb1
+
+bb4:
+  %13: I32 = read copy.trivial (score)
+  %14: I32 = const 1
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (score) take %15
+  jump -> bb2
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %30: I32 = const 5
+  %31: I32 = call field borrow.shared %30
+  %32: I32 = const 18
+  %33: Bool = eq inspect %31 inspect %32
+  branch inspect %33 -> bb10 -> bb8
+
+bb7:
+  %24: I32 = read copy.trivial (score)
+  %25: I32 = const 2
+  %26: I32 = add inspect %24 inspect %25
+  write.assign borrow.unique (score) take %26
+  jump -> bb6
+
+bb8:
+  jump -> bb9
+
+bb9:
+  %41: I32 = const 3
+  %42: I32 = call writtenAfter borrow.shared %41
+  %43: I32 = const 39
+  %44: Bool = eq inspect %42 inspect %43
+  branch inspect %44 -> bb13 -> bb11
+
+bb10:
+  %35: I32 = read copy.trivial (score)
+  %36: I32 = const 4
+  %37: I32 = add inspect %35 inspect %36
+  write.assign borrow.unique (score) take %37
+  jump -> bb9
+
+bb11:
+  jump -> bb12
+
+bb12:
+  %52: I32 = call looped
+  %53: I32 = const 12
+  %54: Bool = eq inspect %52 inspect %53
+  branch inspect %54 -> bb16 -> bb14
+
+bb13:
+  %46: I32 = read copy.trivial (score)
+  %47: I32 = const 8
+  %48: I32 = add inspect %46 inspect %47
+  write.assign borrow.unique (score) take %48
+  jump -> bb12
+
+bb14:
+  jump -> bb15
+
+bb15:
+  %62: I32 = const 6
+  %63: I32 = call movedThenWritten borrow.shared %62
+  %64: I32 = const 700
+  %65: Bool = eq inspect %63 inspect %64
+  branch inspect %65 -> bb19 -> bb17
+
+bb16:
+  %56: I32 = read copy.trivial (score)
+  %57: I32 = const 16
+  %58: I32 = add inspect %56 inspect %57
+  write.assign borrow.unique (score) take %58
+  jump -> bb15
+
+bb17:
+  jump -> bb18
+
+bb18:
+  %73: F64 = const 16
+  %74: I32 = const 1
+  %75: Rec = aggregate.Rec take %73 take %74
+  write.init borrow.unique (r) take %75
+  %77: Rec = read copy.trivial (r)
+  write.init borrow.unique (first) take %77
+  %79: I32 = const 2
+  write.assign borrow.unique (r.count) take %79
+  %81: Rec = read copy.trivial (r)
+  write.init borrow.unique (second) take %81
+  %83: I32 = read copy.trivial (first.count)
+  %84: I32 = const 10
+  %85: I32 = mul inspect %83 inspect %84
+  %86: I32 = read copy.trivial (second.count)
+  %87: I32 = add inspect %85 inspect %86
+  %88: I32 = const 12
+  %89: Bool = eq inspect %87 inspect %88
+  branch inspect %89 -> bb22 -> bb20
+
+bb19:
+  %67: I32 = read copy.trivial (score)
+  %68: I32 = const 32
+  %69: I32 = add inspect %67 inspect %68
+  write.assign borrow.unique (score) take %69
+  jump -> bb18
+
+bb20:
+  jump -> bb21
+
+bb21:
+  %97: I32 = read copy.trivial (score)
+  return take %97
+
+bb22:
+  %91: I32 = read copy.trivial (score)
+  %92: I32 = const 64
+  %93: I32 = add inspect %91 inspect %92
+  write.assign borrow.unique (score) take %93
+  jump -> bb21
+}
+
+entry main

@@ -9,23 +9,18 @@ fn main() -> one %r1
     %0: %r1 = const 3
     %1: %r1 = const 1
     %2: %r3 = object %s0 %0, %1
-    store var $0: %r3, %2
-    %3: %r3 = load var $0: %r3
-    %4: %r3 = alias %3
-    %5: %r1 = load property %4.size: %r1
+    %5: %r1 = alias %0
     %6: %r1 = binary.add %5, %5
     %7: %r1 = coerce %6
-    %8: %r3 = load var $0: %r3
-    %9: %r3 = alias %8
-    %10: %r1 = load property %9.size: %r1
+    %10: %r1 = alias %0
     %11: %r1 = const 40
     %12: %r1 = binary.add %10, %11
     %13: %r1 = coerce %12
     %14: %r1 = binary.add %7, %13
     %15: %r1 = coerce %14
-    %16: %r3 = load var $0: %r3
+    %16: %r3 = alias %2
     %17: %r3 = alias %16
-    %18: %r1 = load property %17.size: %r1
+    %18: %r1 = alias %0
     %19: %r1 = const 1
     %20: %r1 = binary.add %18, %19
     %21: %r1 = coerce %20
@@ -47,7 +42,7 @@ fn main() -> one %r1
     %37: %r1 = coerce %36
     return %37
 
-optimizer clones 3 aliased 3 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 3 aliased 3 forwarded 3 removed 5 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 3
 
 shape %s0 object Vessel {size: %r1, mark: %r1}
 

@@ -5563,9 +5563,12 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
  * decided before its argument offers an answer, which is what a functional dependency needs - so the
  * only place an earlier argument can be brought up to the answer is here, once the walk is over.
  *
- * **Integers only, and only where the two differ**, which is what keeps this from being a second
- * conversion pass: a widening between two integer widths is a `cast` with nothing to observe about
- * when it runs, and every other way a value's type can differ from its position's - a view adapted
+ * **Numbers only, and only where the two differ**, which is what keeps this from being a second
+ * conversion pass: a widening between two integer or floating widths is a `cast` with nothing to
+ * observe about when it runs - and floats are here since J92, because `acc + x` at `(F32, F64)`
+ * binds `F64` from the right operand exactly as `(I32, I64)` does, and leaving the left one an `F32`
+ * handed `addBinary` two types (an assertion in a checked build, invalid lower IR in a release one)
+ * where the program deserved the precision diagnostic its assignment then earns, and every other way a value's type can differ from its position's - a view adapted
  * from a container, a borrow of the declared type - was settled by `prepareArgument` and must not be
  * reconsidered here. A `@lazy` position holds a thunk and is left alone for the same reason.
  *
@@ -5591,7 +5594,11 @@ bool Resolver::widenPreparedArguments(Builder& builder, Function& callee, const 
         auto expected = typeArguments.expected(parameter.occurrence.type);
 
         if(!held || !expected || sameType(held, expected)) continue;
-        if(decl()[held]->kind != Type::Int || decl()[expected]->kind != Type::Int) continue;
+        auto scalar = [&](DeclPtr<Type> type) {
+            auto kind = decl()[type]->kind;
+            return kind == Type::Int || kind == Type::Float;
+        };
+        if(!scalar(held) || !scalar(expected)) continue;
 
         auto widened = coerce(builder, *into[position], expected, source, "an argument"_v,
                               parameter.occurrence.contract.access());

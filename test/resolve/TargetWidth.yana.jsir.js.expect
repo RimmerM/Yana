@@ -5,18 +5,11 @@ function opaque(x) {
 }
 
 function main() {
-  var v4 = new Int32Array([10, 20, 30]);
-  var s0 = { items: v4, length: 3 };
-  var v16 = v4[2];
-  Array_a_reclaim_I32(s0);
-  var v21 = v16 === 30 ? 1 : 0;
+  var v21 = new Int32Array([10, 20, 30])[2] === 30 ? 1 : 0;
   var v30 = BigInt.asIntN(64, BigInt(opaque(7))) === 7n ? v21 + 2 : v21;
   var v44 = opaque(-1) >>> 0 > opaque(1000000) >>> 0 ? v30 + 12 : v30 + 4;
   var v56 = opaque(1) >>> 0 > opaque(2) >>> 0 ^ 1 ? v44 + 16 : v44;
   return (opaque(300) === 300 ? v56 + 32 : v56) + 64;
-}
-
-function Array_a_reclaim_I32(value) {
 }
 var $t = "yana: a runtime check failed";
 main();

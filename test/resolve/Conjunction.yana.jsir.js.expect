@@ -4,83 +4,19 @@ var trace = 0;
 
 // 
 function nested(p) {
-  var p1;
   var v2 = p.left;
-  if (v2 > 0) {
-    p1 = v2;
-  } else {
-    p1 = null;
-  }
-  if (!(p1 === null)) {
-    if (p1 === 1) {
-      if (p.right > 0) return p.right;
-    }
+  var p1 = v2 > 0 ? v2 : null;
+  if (!(p1 === null) && p1 === 1) {
+    var v19 = p.right;
+    if (v19 > 0) return v19;
   }
   return 0;
 }
 
 function main() {
-  var s7, s9, s10, p0, p1, p2, p3, p4, p5, p6, p7, p10;
-  var s0 = 3;
-  B0: {
-    if (s0 > 1) {
-      p0 = Math.imul(s0, 10);
-      break B0;
-    }
-    p0 = 0;
-  }
-  var v33 = p0 === 30 ? 1 : 0;
-  var s1 = 1;
-  B2: {
-    if (s1 > 1) {
-      p1 = Math.imul(s1, 10);
-      break B2;
-    }
-    p1 = 0;
-  }
-  var v57 = p1 === 0 ? v33 + 2 : v33;
+  var s7, s9, s10, p6, p7, p10;
   var s2 = null;
-  B4: {
-    if (!(s2 === null)) {
-      if (s2 > 1) {
-        p2 = Math.imul(s2, 10);
-        break B4;
-      }
-    }
-    p2 = 0;
-  }
-  var v80 = p2 === 0 ? v57 + 4 : v57;
-  var s3 = 5;
-  B6: {
-    if (s3 > 1) {
-      if (Math.imul(s3, 2) < 20) {
-        p3 = s3;
-        break B6;
-      }
-    }
-    p3 = 0;
-  }
-  var v106 = p3 === 5 ? v80 + 8 : v80;
-  var s4 = 20;
-  B8: {
-    if (s4 > 1) {
-      if (Math.imul(s4, 2) < 20) {
-        p4 = s4;
-        break B8;
-      }
-    }
-    p4 = 0;
-  }
-  var v132 = p4 === 0 ? v106 + 16 : v106;
-  var s5 = 4;
-  B10: {
-    if (s5 > 2) {
-      p5 = s5 + 1;
-      break B10;
-    }
-    p5 = 0;
-  }
-  var v156 = p5 === 5 ? v132 + 32 : v132;
+  var v156 = ((!(s2 === null) && s2 > 1 ? Math.imul(s2, 10) : 0) === 0 ? 7 : 3) + 8 + 16 + 32;
   var v159 = v156 + 64;
   B12: {
     s7 = 4;
@@ -105,19 +41,12 @@ function main() {
   var p8 = 4;
   var p9 = 0;
   L16: for (;;) {
-    if (p8 > 0) {
-      p10 = p8;
-    } else {
-      p10 = null;
-    }
+    p10 = p8 > 0 ? p8 : null;
     s10 = p10;
-    if (!(s10 === null)) {
-      if (s10 > 2) {
-        var v299 = p9 + s10 | 0;
-        p8 = p8 - 1 | 0;
-        p9 = v299;
-        continue L16;
-      }
+    if (!(s10 === null) && s10 > 2) {
+      p9 = p9 + s10 | 0;
+      p8 = p8 - 1 | 0;
+      continue L16;
     }
     var v275 = p9 === 7 ? v250 + 2048 : v250;
     trace = trace + 1 | 0;

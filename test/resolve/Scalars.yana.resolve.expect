@@ -165,6 +165,12 @@ fn roundUpTo(I32)(%value: I32, %multiple: I32) -> I32 {
     ret %v10
 }
 
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
 fn numberOf(%call: Syscall) -> USize {
   b0:
     %v1 = cast %call : I32
@@ -177,12 +183,6 @@ fn exitProcess(%status: Size) -> () {
     %v2 = call numberOf, 60 : USize
     %v3 = bitcast %status : USize
     %v4 = syscall %v2, %v3 : Size
-    ret
-}
-
-fn abortProcess() -> () {
-  b0:
-    call exitProcess, 134
     ret
 }
 

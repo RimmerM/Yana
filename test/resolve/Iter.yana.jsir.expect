@@ -1,10 +1,9 @@
 fn main() -> one %r0
   var $0: %r1
+  var $1: %r0
+  var $2: %r0
+  var $3: %r0
   block0:
-    %30: %r0 = const 0
-    %31: %r0 = const 0
-    %32: %r1 = object %s0 %30, %31
-    store var $0: %r1, %32
     %33: %r0 = const 5
     %34: %r0 = const 0
     %35: %r0 = const 0
@@ -70,7 +69,7 @@ fn main() -> one %r0
     %60: %r0 = const 10
     %61: %r0 = const 6
     %62: %r0 = const 0
-    %63: %r3 = object %s1 %62
+    store var $1: %r0, %62
     %64: %r0 = const 0
     %65: %r0 = const 1
     %66: %r0 = const 0
@@ -86,13 +85,13 @@ fn main() -> one %r0
     %70: %r0 = coerce %69
     jump -> block13(%70)
   block16:
-    store property %63.$v: %r0, %7
+    store var $1: %r0, %7
     %71: %r0 = const 1
     jump -> block17(%71)
   block17(%8: %r0):
     %72: %r0 = const 1
     %73: %r2 = binary.eq %8, %72
-    %74: %r0 = load property %63.$v: %r0
+    %74: %r0 = load var $1: %r0
     %75: %r0 = const -1
     %76: %r0 = select %73, %74, %75
     %77: %r0 = binary.add %59, %76
@@ -100,7 +99,7 @@ fn main() -> one %r0
     %79: %r0 = const 10
     %80: %r0 = const 20
     %81: %r0 = const 0
-    %82: %r3 = object %s1 %81
+    store var $2: %r0, %81
     %83: %r0 = const 0
     %84: %r0 = const 0
     %85: %r0 = const 0
@@ -131,7 +130,7 @@ fn main() -> one %r0
   block23:
     %99: %r0 = binary.mul %9, %92
     %100: %r0 = coerce %99
-    store property %82.$v: %r0, %100
+    store var $2: %r0, %100
     jump -> block24(%93, %10)
   block24(%11: %r0, %12: %r0):
     %101: %r2 = binary.eq %11, %85
@@ -141,7 +140,7 @@ fn main() -> one %r0
   block26(%13: %r0, %14: %r0):
     %102: %r0 = const 1
     %103: %r2 = binary.eq %13, %102
-    %104: %r0 = load property %82.$v: %r0
+    %104: %r0 = load var $2: %r0
     %105: %r0 = select %103, %104, %14
     %106: %r0 = binary.add %78, %105
     %107: %r0 = coerce %106
@@ -201,7 +200,7 @@ fn main() -> one %r0
     %130: %r0 = const 10
     %131: %r0 = const 4
     %132: %r0 = const 0
-    %133: %r3 = object %s1 %132
+    store var $3: %r0, %132
     %134: %r0 = const 0
     %135: %r0 = const 1
     %136: %r0 = const 0
@@ -230,13 +229,13 @@ fn main() -> one %r0
     %143: %r2 = binary.gt %21, %131
     branch %143 -> block40 -> block42
   block40:
-    store property %133.$v: %r0, %21
+    store var $3: %r0, %21
     %144: %r0 = const 1
     jump -> block41(%144)
   block41(%22: %r0):
     %145: %r0 = const 1
     %146: %r2 = binary.eq %22, %145
-    %147: %r0 = load property %133.$v: %r0
+    %147: %r0 = load var $3: %r0
     %148: %r0 = const -1
     %149: %r0 = select %146, %147, %148
     %150: %r0 = binary.add %129, %149
@@ -252,8 +251,7 @@ fn main() -> one %r0
     %234: %r0 = coerce %233
     jump -> block37(%234)
   block43(%23: %r1):
-    store var $0: %r1, %23
-    %167: %r1 = load var $0: %r1
+    %167: %r1 = alias %23
     %168: %r0 = load property %167.b: %r0
     %169: %r0 = binary.add %151, %168
     %170: %r0 = coerce %169
@@ -373,7 +371,7 @@ fn main() -> one %r0
     %219: %r0 = coerce %218
     return %219
 
-optimizer clones 0 aliased 0 forwarded 0 removed 1 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0 numbered 0 decided 0 unboxed 3 updated 0 split 0 promoted 1
 
 shape %s0 object Pair {a: %r0, b: %r0}
 shape %s1 cell {$v: %r0 box}

@@ -32,7 +32,6 @@ fn main() -> one %r0
     %27: %r1 = load property %4.items: %r1
     %28: %r2 = load property %4.length: %r2
     %29: %r0 = convert %28
-    %30: %r0 = const 0
     %31: %r0 = const 0
     %32: %r0 = const 0
     %33: %r0 = const 1
@@ -56,8 +55,6 @@ fn main() -> one %r0
     %44: %r0 = const 9
     %45: %r1 = host host.array %42, %43, %44
     %46: %r2 = const 3
-    %47: %r3 = object %s0 %45, %46
-    store var $0: %r3, %47
     %48: %r0 = const 0
     %49: %r0 = const 3
     %50: %r0 = const 0
@@ -72,7 +69,7 @@ fn main() -> one %r0
     branch %83 -> block7 -> block6
   block6:
     %84: %r1 = alias %27
-    %85: %r0 = binary.add %30, %1
+    %85: %r0 = alias %1
     %86: %r0 = coerce %85
     %87: %r0 = load element %84[%86]: %r0
     %88: %r0 = binary.add %0, %87
@@ -87,30 +84,29 @@ fn main() -> one %r0
     %54: %r1 = alias %45
     %55: %r0 = load element %54[%50]: %r0
     %56: %r0 = const 1
-    %57: %r0 = const 0
     %58: %r9 = convert %56
     %59: %r9 = convert %49
     %60: %r10 = binary.ge %58, %59
     branch %60 -> block12 -> block9
   block9:
     %61: %r1 = alias %45
-    %62: %r0 = binary.add %57, %56
+    %62: %r0 = alias %56
     %63: %r0 = coerce %62
     %64: %r0 = load element %61[%63]: %r0
     %65: %r0 = binary.add %55, %64
     %66: %r0 = coerce %65
     %67: %r0 = const 2
-    %68: %r0 = const 0
     %69: %r9 = convert %67
     %70: %r9 = convert %49
     %71: %r10 = binary.ge %69, %70
     branch %71 -> block11 -> block10
   block10:
     %72: %r1 = alias %45
-    %73: %r0 = binary.add %68, %67
+    %73: %r0 = alias %67
     %74: %r0 = coerce %73
     %75: %r0 = load element %72[%74]: %r0
-    %76: %r3 = load var $0: %r3
+    %47: %r3 = object %s0 %45, %46
+    %76: %r3 = alias %47
     call Array(a).reclaim(I32) %76
     %77: %r0 = binary.add %66, %75
     %78: %r0 = coerce %77
@@ -135,10 +131,7 @@ fn push(I32)(one %r3, one %r0) -> omitted
     %5: %r0 = binary.add %3, %4
     %6: %r0 = coerce %5
     %7: %r1 = load property %0.items: %r1
-    %8: %r10 = host host.capacity %7
-    %9: %r10 = const 0
-    %10: %r10 = binary.eq %8, %9
-    branch %10 -> block1 -> block2
+    jump -> block2
   block1:
     %14: %r1 = load property %0.items: %r1
     store element %14[%3]: %r0, %1
@@ -147,7 +140,7 @@ fn push(I32)(one %r3, one %r0) -> omitted
     store property %0.length: %r2, %16
     return
   block2:
-    %11: %r1 = load property %0.items: %r1
+    %11: %r1 = alias %7
     %12: %r0 = host host.field "length" host-range %11
     %13: %r10 = binary.le %6, %12
     branch %13 -> block1 -> block3
@@ -167,7 +160,7 @@ fn remove(I32)(one %r3, one %r0) -> one %r6
   block1:
     %8: %r1 = load property %0.items: %r1
     %9: %r0 = load element %8[%4]: %r0
-    %10: %r1 = load property %0.items: %r1
+    %10: %r1 = alias %8
     %11: %r0 = const 1
     %12: %r0 = binary.add %4, %11
     %13: %r0 = coerce %12
@@ -187,7 +180,6 @@ fn remove(I32)(one %r3, one %r0) -> one %r6
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
-    store var $0: %r3, %0
     return
 
 fn growJsArray(I32)(one %r3, one %r0) -> omitted
@@ -202,12 +194,12 @@ fn growJsArray(I32)(one %r3, one %r0) -> omitted
     %9: %r10 = binary.lt %7, %8
     %10: %r0 = const 4
     %11: %r0 = select %9, %10, %7
-    %12: %r1 = load property %0.items: %r1
+    %12: %r1 = alias %2
     %13: %r1 = host host.grow %12, %11
     store property %0.items: %r1, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 3 adopted 1 sunk 1
+optimizer clones 0 aliased 0 forwarded 0 removed 11 adopted 1 sunk 2 numbered 6 decided 1 unboxed 0 updated 0 split 0 promoted 1
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

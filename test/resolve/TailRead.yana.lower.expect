@@ -4,24 +4,6 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
-mapMemory<complex>(%size: I64): Ptr {
-  b_0 {
-    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: I64
-    %v_1 = cmp_ilt %result, 0: I32
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    %v_4 = bitcast 0: Ptr
-    ret %v_4
-  }
-
-  b_3 {
-    %v_5 = bitcast %result: Ptr
-    ret %v_5
-  }
-}
-
 initHeap<complex>() {
   b_0 {
     %result = syscall 9, 0, 4198400, 3, 34, 18446744073709551615, 0: I64
@@ -210,6 +192,24 @@ allocateHeap<complex>(%size: I64): Ptr {
     %v_16 = add %v_14, %v_14: I64
     %v_18 = add %v_17, 1: I64
     jmp b_13
+  }
+}
+
+mapMemory<complex>(%size: I64): Ptr {
+  b_0 {
+    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: I64
+    %v_1 = cmp_ilt %result, 0: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = bitcast 0: Ptr
+    ret %v_4
+  }
+
+  b_3 {
+    %v_5 = bitcast %result: Ptr
+    ret %v_5
   }
 }
 

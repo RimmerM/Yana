@@ -22,17 +22,12 @@ fn sumCells(parts %r6) -> one %r0
     %16: %r0 = load property %15.a: %r0
     %17: %r0 = binary.add %3, %16
     %18: %r0 = coerce %17
-    %19: %r15 = convert %1
-    %20: %r14 = binary.ge %9, %19
-    branch %20 -> block7 -> block6
+    jump -> block6
   block5:
     host host.throw "yana: a runtime check failed"
     unreachable
   block6:
-    %21: %r3 = alias %0
-    %22: %r4 = binary.add %2, %4
-    %23: %r4 = coerce %22
-    %24: %r1 = load element %21[%23]: %r1
+    %24: %r1 = alias %15
     %25: %r0 = load property %24.c: %r0
     %26: %r0 = binary.add %18, %25
     %27: %r0 = coerce %26
@@ -50,10 +45,6 @@ fn main() -> one %r4
   var $3: %r13
   var $4: %r3
   block0:
-    %21: %r11 = array
-    %22: %r12 = const 0
-    %23: %r13 = object %s3 %21, %22
-    store var $3: %r13, %23
     %24: %r0 = const 1n
     %25: %r0 = const 2n
     %26: %r0 = const 3n
@@ -67,8 +58,6 @@ fn main() -> one %r4
     %34: %r1 = materialize %r2 %27, %28, %29
     %35: %r1 = materialize %r2 %30, %31, %32
     %36: %r3 = host host.array %33, %34, %35
-    %38: %r3 = alias %36
-    store var $0: %r3, %38
     %39: %r0 = const 7n
     %40: %r0 = const 5n
     %41: %r0 = const 9n
@@ -82,8 +71,6 @@ fn main() -> one %r4
     %49: %r1 = materialize %r2 %42, %43, %44
     %50: %r1 = materialize %r2 %45, %46, %47
     %51: %r3 = host host.array %48, %49, %50
-    %53: %r3 = alias %51
-    store var $1: %r3, %53
     %54: %r0 = const 1n
     %55: %r0 = const 2n
     %56: %r0 = const 3n
@@ -95,8 +82,6 @@ fn main() -> one %r4
     %62: %r7 = materialize %r8 %54, %55, %56, %57
     %63: %r7 = materialize %r8 %58, %59, %60, %61
     %64: %r9 = host host.array %62, %63
-    %66: %r9 = alias %64
-    store var $2: %r9, %66
     %67: %r0 = const 1n
     %68: %r0 = const 2n
     %69: %r0 = const 3n
@@ -104,8 +89,6 @@ fn main() -> one %r4
     %71: %r0 = const 5n
     %72: %r11 = host host.array %67, %68, %69, %70, %71
     %73: %r12 = const 5
-    %74: %r13 = object %s3 %72, %73
-    store var $3: %r13, %74
     %75: %r4 = const 0
     %76: %r4 = const 3
     %77: %r4 = const 0
@@ -115,7 +98,6 @@ fn main() -> one %r4
     %81: %r4 = const 1
     %82: %r4 = select %80, %81, %75
     %83: %r4 = const 2
-    %84: %r4 = const 0
     %85: %r0 = const 0n
     %86: %r4 = const 0
     %87: %r4 = const 1
@@ -124,7 +106,8 @@ fn main() -> one %r4
     %88: %r14 = binary.lt %1, %83
     branch %88 -> block3 -> block2
   block2:
-    %89: %r9 = load var $2: %r9
+    %66: %r9 = alias %64
+    %89: %r9 = alias %66
     call Array(a).reclaim(Quad) %89
     %90: %r0 = const 55n
     %91: %r14 = binary.eq %0, %90
@@ -132,12 +115,11 @@ fn main() -> one %r4
     %93: %r4 = binary.add %82, %92
     %94: %r4 = coerce %93
     %95: %r4 = select %91, %94, %82
-    %96: %r4 = const 0
-    %98: %r3 = load var $1: %r3
-    %99: %r3 = load var $1: %r3
+    %53: %r3 = alias %51
+    %98: %r3 = alias %53
+    %99: %r3 = alias %53
     %100: %r12 = load property %99.length: %r12
     %101: %r4 = convert %100
-    %102: %r4 = const 0
     %103: %r0 = const 0n
     %104: %r4 = const 0
     %105: %r4 = const 1
@@ -149,7 +131,7 @@ fn main() -> one %r4
     branch %353 -> block7 -> block4
   block4:
     %354: %r9 = alias %64
-    %355: %r4 = binary.add %84, %1
+    %355: %r4 = alias %1
     %356: %r4 = coerce %355
     %357: %r7 = load element %354[%356]: %r7
     %358: %r0 = load property %357.w: %r0
@@ -159,10 +141,7 @@ fn main() -> one %r4
     %362: %r14 = binary.ge %351, %361
     branch %362 -> block6 -> block5
   block5:
-    %363: %r9 = alias %64
-    %364: %r4 = binary.add %84, %1
-    %365: %r4 = coerce %364
-    %366: %r7 = load element %363[%365]: %r7
+    %366: %r7 = alias %357
     %367: %r0 = load property %366.z: %r0
     %368: %r0 = binary.add %360, %367
     %369: %r0 = coerce %368
@@ -182,7 +161,7 @@ fn main() -> one %r4
     %107: %r14 = binary.lt %3, %101
     branch %107 -> block11 -> block10
   block10:
-    %108: %r3 = load var $1: %r3
+    %108: %r3 = alias %53
     call Array(a).reclaim(Cell) %108
     %109: %r0 = const 555n
     %110: %r14 = binary.eq %2, %109
@@ -190,7 +169,6 @@ fn main() -> one %r4
     %112: %r4 = binary.add %95, %111
     %113: %r4 = coerce %112
     %114: %r4 = select %110, %113, %95
-    %115: %r4 = const 0
     %116: %r0 = const 0n
     %117: %r4 = const 1
     %118: %r4 = binary.sub %76, %117
@@ -205,7 +183,7 @@ fn main() -> one %r4
     branch %332 -> block15 -> block12
   block12:
     %333: %r3 = alias %36
-    %334: %r4 = binary.add %96, %3
+    %334: %r4 = alias %3
     %335: %r4 = coerce %334
     %336: %r1 = load element %333[%335]: %r1
     %337: %r0 = load property %336.a: %r0
@@ -214,8 +192,7 @@ fn main() -> one %r4
     branch %339 -> block14 -> block13
   block13:
     %340: %r3 = alias %98
-    %341: %r4 = binary.add %102, %3
-    %342: %r4 = coerce %341
+    %342: %r4 = alias %335
     %343: %r1 = load element %340[%342]: %r1
     %344: %r0 = load property %343.b: %r0
     %345: %r0 = binary.mul %337, %344
@@ -241,12 +218,12 @@ fn main() -> one %r4
     %126: %r4 = binary.add %114, %125
     %127: %r4 = coerce %126
     %128: %r4 = select %124, %127, %114
-    %129: %r13 = load var $3: %r13
+    %74: %r13 = object %s3 %72, %73
+    %129: %r13 = alias %74
     %130: %r11 = load property %129.items: %r11
-    %131: %r13 = load var $3: %r13
+    %131: %r13 = alias %74
     %132: %r12 = load property %131.length: %r12
     %133: %r4 = convert %132
-    %134: %r4 = const 0
     %135: %r0 = const 0n
     %136: %r4 = const 0
     %137: %r4 = const 1
@@ -258,7 +235,7 @@ fn main() -> one %r4
     branch %320 -> block20 -> block19
   block19:
     %321: %r3 = alias %36
-    %322: %r4 = binary.add %115, %5
+    %322: %r4 = alias %5
     %323: %r4 = coerce %322
     %324: %r1 = load element %321[%323]: %r1
     %325: %r0 = load property %324.b: %r0
@@ -274,7 +251,7 @@ fn main() -> one %r4
     %138: %r14 = binary.lt %7, %133
     branch %138 -> block23 -> block22
   block22:
-    %139: %r13 = load var $3: %r13
+    %139: %r13 = alias %74
     call Array(a).reclaim(I64) %139
     %140: %r0 = const 15n
     %141: %r14 = binary.eq %6, %140
@@ -282,7 +259,6 @@ fn main() -> one %r4
     %143: %r4 = binary.add %128, %142
     %144: %r4 = coerce %143
     %145: %r4 = select %141, %144, %128
-    %146: %r4 = const 0
     %147: %r0 = const 0n
     %148: %r4 = const 0
     %149: %r4 = const 1
@@ -294,7 +270,7 @@ fn main() -> one %r4
     branch %309 -> block25 -> block24
   block24:
     %310: %r11 = alias %130
-    %311: %r4 = binary.add %134, %7
+    %311: %r4 = alias %7
     %312: %r4 = coerce %311
     %313: %r0 = load element %310[%312]: %r0
     %314: %r0 = binary.add %6, %313
@@ -316,7 +292,6 @@ fn main() -> one %r4
     %155: %r4 = binary.add %145, %154
     %156: %r4 = coerce %155
     %157: %r4 = select %153, %156, %145
-    %158: %r4 = const 0
     %159: %r4 = const 3
     %160: %r0 = const 0n
     %161: %r4 = const 0
@@ -330,7 +305,7 @@ fn main() -> one %r4
     branch %297 -> block30 -> block29
   block29:
     %298: %r3 = alias %36
-    %299: %r4 = binary.add %146, %294
+    %299: %r4 = alias %294
     %300: %r4 = coerce %299
     %301: %r1 = load element %298[%300]: %r1
     %302: %r0 = load property %301.c: %r0
@@ -355,7 +330,7 @@ fn main() -> one %r4
     branch %182 -> block36 -> block33
   block33:
     %183: %r3 = alias %36
-    %184: %r4 = binary.add %170, %179
+    %184: %r4 = alias %179
     %185: %r4 = coerce %184
     %186: %r1 = load element %183[%185]: %r1
     %187: %r0 = load property %186.a: %r0
@@ -370,7 +345,6 @@ fn main() -> one %r4
     %194: %r4 = binary.add %169, %193
     %195: %r4 = coerce %194
     %196: %r4 = select %192, %195, %169
-    %197: %r4 = const 0
     %198: %r4 = const 3
     %199: %r0 = const 0n
     %200: %r4 = const 0
@@ -397,7 +371,7 @@ fn main() -> one %r4
     branch %238 -> block42 -> block39
   block39:
     %239: %r3 = alias %36
-    %240: %r4 = binary.add %226, %235
+    %240: %r4 = alias %235
     %241: %r4 = coerce %240
     %242: %r1 = load element %239[%241]: %r1
     %243: %r0 = load property %242.a: %r0
@@ -416,11 +390,10 @@ fn main() -> one %r4
     %254: %r4 = select %250, %253, %225
     %255: %r3 = host host.array
     %257: %r3 = alias %255
-    store var $4: %r3, %257
     %258: %r4 = const 0
     %259: %r4 = const 0
     %260: %r0 = call sumCells %255, %258, %259
-    %261: %r3 = load var $4: %r3
+    %261: %r3 = alias %257
     call Array(a).reclaim(Cell) %261
     %262: %r0 = const 0n
     %263: %r14 = binary.eq %260, %262
@@ -428,7 +401,8 @@ fn main() -> one %r4
     %265: %r4 = binary.add %254, %264
     %266: %r4 = coerce %265
     %267: %r4 = select %263, %266, %254
-    %271: %r3 = load var $0: %r3
+    %38: %r3 = alias %36
+    %271: %r3 = alias %38
     call Array(a).reclaim(Cell) %271
     %272: %r4 = const 3
     %273: %r4 = binary.add %267, %272
@@ -451,7 +425,6 @@ fn main() -> one %r4
     %167: %r4 = binary.add %157, %166
     %168: %r4 = coerce %167
     %169: %r4 = select %165, %168, %157
-    %170: %r4 = const 0
     %171: %r0 = const 0n
     %172: %r4 = const 0
     %173: %r4 = const 1
@@ -466,7 +439,7 @@ fn main() -> one %r4
     branch %284 -> block47 -> block46
   block46:
     %285: %r3 = alias %36
-    %286: %r4 = binary.add %158, %281
+    %286: %r4 = alias %281
     %287: %r4 = coerce %286
     %288: %r1 = load element %285[%287]: %r1
     %289: %r0 = load property %288.c: %r0
@@ -491,7 +464,7 @@ fn main() -> one %r4
     branch %209 -> block53 -> block50
   block50:
     %210: %r3 = alias %36
-    %211: %r4 = binary.add %197, %206
+    %211: %r4 = alias %206
     %212: %r4 = coerce %211
     %213: %r1 = load element %210[%212]: %r1
     %214: %r0 = load property %213.a: %r0
@@ -508,7 +481,6 @@ fn main() -> one %r4
     %223: %r4 = binary.add %196, %222
     %224: %r4 = coerce %223
     %225: %r4 = select %221, %224, %196
-    %226: %r4 = const 0
     %227: %r4 = const 2
     %228: %r0 = const 0n
     %229: %r4 = const 0
@@ -526,22 +498,19 @@ fn main() -> one %r4
 fn Array(a).reclaim(Quad)(one %r9) -> omitted
   var $0: %r9
   block0(%0: %r9):
-    store var $0: %r9, %0
     return
 
 fn Array(a).reclaim(Cell)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
-    store var $0: %r3, %0
     return
 
 fn Array(a).reclaim(I64)(one %r13) -> omitted
   var $0: %r13
   block0(%0: %r13):
-    store var $0: %r13, %0
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 39 adopted 0 sunk 1 numbered 18 decided 1 unboxed 0 updated 0 split 0 promoted 9
 
 shape %s0 object ArrayView {items: %r3, length: %r4, offset: %r4}
 shape %s1 object Cell {a: %r0, b: %r0, c: %r0}

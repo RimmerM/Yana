@@ -342,7 +342,6 @@ fn main() -> one %r0
     %23: %r0 = const 1023
     %24: %r0 = const 1
     %25: %r0 = const 1
-    %26: %r9 = const 0
     jump -> block4(%19)
   block1(%0: %r0, %1: %r0):
     %48: %r9 = binary.lt %1, %30
@@ -374,7 +373,6 @@ fn main() -> one %r0
     %31: %r0 = const 0
     %32: %r0 = const 1
     %33: %r0 = const -1.640531535E9
-    %34: %r0 = const 0
     %35: %r0 = const 0
     %36: %r0 = const 4
     %37: %r0 = const 0
@@ -403,9 +401,7 @@ fn main() -> one %r0
     %232: %r0 = binary.add %231, %24
     %233: %r0 = coerce %232
     %234: %r1 = load property %15.items: %r1
-    %235: %r9 = host host.capacity %234
-    %236: %r9 = binary.eq %235, %26
-    branch %236 -> block12 -> block13
+    jump -> block13
   block7(%3: %r0, %4: %r0, %5: %r0, %6: %r0):
     %146: %r1 = load property %15.items: %r1
     %147: %r4 = load property %15.length: %r4
@@ -436,9 +432,9 @@ fn main() -> one %r0
     %67: %r10 = binary.lt %39, %65
     %68: %r10 = binary.lt %40, %65
     %69: %r10 = binary.lt %41, %65
-    %70: %r0 = binary.add %34, %7
+    %70: %r0 = alias %7
     %71: %r0 = coerce %70
-    %72: %r0 = binary.add %34, %58
+    %72: %r0 = alias %58
     %73: %r0 = coerce %72
     %74: %r0 = binary.sub %73, %45
     %75: %r0 = coerce %74
@@ -514,7 +510,7 @@ fn main() -> one %r0
     %145: %r0 = coerce %144
     jump -> block7(%139, %141, %143, %145)
   block11:
-    %160: %r0 = binary.add %34, %7
+    %160: %r0 = alias %7
     %161: %r0 = coerce %160
     %162: %r0 = load element %56[%161]: %r0
     %163: %r0 = const 1
@@ -587,7 +583,7 @@ fn main() -> one %r0
     %244: %r0 = coerce %243
     jump -> block4(%244)
   block13:
-    %237: %r1 = load property %15.items: %r1
+    %237: %r1 = alias %234
     %238: %r0 = host host.field "length" host-range %237
     %239: %r9 = binary.le %233, %238
     branch %239 -> block12 -> block14
@@ -598,7 +594,6 @@ fn main() -> one %r0
 fn Array(a).reclaim(I32)(one %r5) -> omitted
   var $0: %r5
   block0(%0: %r5):
-    store var $0: %r5, %0
     return
 
 fn growJsArray(I32)(one %r5, one %r0) -> omitted
@@ -613,12 +608,12 @@ fn growJsArray(I32)(one %r5, one %r0) -> omitted
     %9: %r9 = binary.lt %7, %8
     %10: %r0 = const 4
     %11: %r0 = select %9, %10, %7
-    %12: %r1 = load property %0.items: %r1
+    %12: %r1 = alias %2
     %13: %r1 = host host.grow %12, %11
     store property %0.items: %r1, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 10 adopted 1 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 15 adopted 1 sunk 0 numbered 5 decided 1 unboxed 0 updated 0 split 0 promoted 0
 
 shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
 shape %s1 object Array {items: %r1, length: %r4}

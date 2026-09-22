@@ -5,23 +5,16 @@ fn main() -> one %r1
   var $3: %r2
   var $4: %r3
   var $5: %r0
+  var $6: %r4
+  var $7: %r0
   block0:
-    %5: %r4 = const 0
-    %6: %r0 = const 0
-    %7: %r5 = object %s1 %5, %6
-    store var $2: %r5, %7
     %8: %r0 = const 233
     %9: %r0 = alias %8
-    store var $0: %r0, %9
     %10: %r0 = const 55
     %11: %r0 = alias %10
-    store var $1: %r0, %11
-    %12: %r4 = const 44
     %13: %r0 = const 10
-    %14: %r5 = object %s1 %12, %13
-    store var $2: %r5, %14
     %15: %r1 = const 5
-    %16: %r0 = load var $1: %r0
+    %16: %r0 = alias %11
     %17: %r0 = alias %16
     %18: %r0 = const 48
     %19: %r0 = binary.sub %17, %18
@@ -30,16 +23,15 @@ fn main() -> one %r1
     %22: %r6 = binary.eq %20, %21
     %23: %r1 = const 6
     %24: %r1 = select %22, %23, %15
-    %25: %r5 = load var $2: %r5
-    %26: %r0 = load property %25.line: %r0
-    %27: %r0 = load property %25.line: %r0
+    %26: %r0 = alias %13
+    %27: %r0 = alias %26
     %28: %r0 = const 10
     %29: %r6 = binary.eq %27, %28
     %30: %r1 = const 1
     %31: %r1 = binary.add %24, %30
     %32: %r1 = coerce %31
     %33: %r1 = select %29, %32, %24
-    %34: %r0 = load var $0: %r0
+    %34: %r0 = alias %9
     %35: %r0 = alias %34
     %36: %r0 = const 233
     %38: %r6 = binary.eq %35, %36
@@ -58,9 +50,9 @@ fn main() -> one %r1
     %55: %r1 = const 1
     jump -> block9(%52, %53)
   block3:
-    %39: %r0 = load var $1: %r0
+    %39: %r0 = alias %11
     %40: %r0 = alias %39
-    %41: %r0 = load var $0: %r0
+    %41: %r0 = alias %9
     %42: %r0 = alias %41
     %43: %r6 = binary.lt %40, %42
     branch %43 -> block4 -> block1
@@ -77,7 +69,9 @@ fn main() -> one %r1
     %98: %r1 = coerce %97
     return %98
   block7:
-    %85: %r2 = load var $3: %r2
+    %81: %r2 = alias %80
+    %82: %r2 = alias %81
+    %85: %r2 = alias %82
     %86: %r2 = alias %85
     %87: %r2 = const "x"
     %88: %r2 = alias %86
@@ -106,23 +100,14 @@ fn main() -> one %r1
     %65: %r1 = coerce %64
     %66: %r2 = const "x"
     %67: %r2 = alias %66
-    %68: %r0 = const 0
-    %69: %r1 = const 0
-    %70: %r3 = object %s0 %68, %69
-    store var $4: %r3, %70
     %71: %r2 = alias %67
     %72: %r1 = const 0
     %73: %r3 = call decodeChar %71, %72
-    store var $4: %r3, %73
-    %74: %r3 = load var $4: %r3
+    %74: %r3 = alias %73
     %75: %r0 = load property %74.f0: %r0
     %76: %r0 = alias %75
-    store var $5: %r0, %76
-    %78: %r0 = load var $5: %r0
+    %78: %r0 = alias %76
     %80: %r2 = const "x"
-    %81: %r2 = alias %80
-    %82: %r2 = alias %81
-    store var $3: %r2, %82
     %83: %r0 = const 120
     %84: %r6 = binary.eq %78, %83
     branch %84 -> block7 -> block5
@@ -191,8 +176,7 @@ fn decodeChar(one %r2, one %r1) -> one %r3
   block4:
     %106: %r0 = load var $0: %r0
     %107: %r0 = alias %106
-    store var $1: %r0, %107
-    %108: %r0 = load var $1: %r0
+    %108: %r0 = alias %107
     %109: %r0 = alias %108
     %110: %r1 = const 2
     %111: %r1 = binary.add %1, %110
@@ -296,7 +280,7 @@ fn decodeChar(one %r2, one %r1) -> one %r3
     %104: %r3 = object %s0 %100, %103
     return %104
 
-optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 24 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 1 promoted 9
 
 shape %s0 object <tuple> {f0: %r0, f1: %r1}
 shape %s1 object Separators {field: %r4, line: %r0}

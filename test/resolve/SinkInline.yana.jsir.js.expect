@@ -8,24 +8,14 @@ function Token_drop(value) {
 }
 
 function offsetBy(value, by) {
-  var p2;
-  var s1 = { by: by };
-  if (!(value === null)) {
-    p2 = value + s1.by | 0;
-  } else {
-    p2 = null;
-  }
-  return p2;
+  return !(value === null) ? value + by | 0 : null;
 }
 
 function identify(value) {
   var p1;
   if (!(value === null)) {
-    var v9 = { $v: value };
-    var v22 = v9.$v;
-    var v7 = { $c: identify_lambda, $e: null };
-    var v25 = v7.$c(v7.$e, v22);
-    Token_drop(v9.$v);
+    var v25 = identify_lambda(null, value);
+    Token_drop(value);
     p1 = v25;
   } else {
     $td$Maybe_Token(value);
@@ -35,38 +25,14 @@ function identify(value) {
 }
 
 function main() {
-  var p0, p1, p2, p3;
   var s0 = offsetBy(4, 10);
-  if (!(s0 === null)) {
-    p0 = s0;
-  } else {
-    p0 = 0;
-  }
+  var p0 = !(s0 === null) ? s0 : 0;
   var s1 = offsetBy(null, 10);
-  if (!(s1 === null)) {
-    p1 = s1;
-  } else {
-    p1 = 1;
-  }
-  var v34 = p0 + p1 | 0;
+  var v34 = p0 + (!(s1 === null) ? s1 : 1) | 0;
   var s2 = identify(7);
-  if (!(s2 === null)) {
-    p2 = s2;
-  } else {
-    p2 = 0;
-  }
-  var v51 = v34 + p2 | 0;
+  var v51 = v34 + (!(s2 === null) ? s2 : 0) | 0;
   var s3 = identify(null);
-  if (!(s3 === null)) {
-    p3 = s3;
-  } else {
-    p3 = 100;
-  }
-  return Math.imul(v51 + p3 | 0, 10) + dropped | 0;
-}
-
-function offsetBy_lambda(offsetBy_lambda_env, at) {
-  return at + offsetBy_lambda_env.by | 0;
+  return Math.imul(v51 + (!(s3 === null) ? s3 : 100) | 0, 10) + dropped | 0;
 }
 
 function identify_lambda(identify_lambda_env, t) {

@@ -1,21 +1,18 @@
 fn main() -> one %r0
   var $0: %r0
+  var $1: %r0
   block0:
     %0: %r0 = const 62
     %1: %r0 = const 40
-    %2: %r0 = const 0
-    %3: %r1 = object %s0 %2
-    store property %3.$v: %r0, %1
-    %4: %r0 = load property %3.$v: %r0
+    %4: %r0 = alias %1
     %5: %r0 = alias %4
-    store var $0: %r0, %5
-    %6: %r0 = load var $0: %r0
+    %6: %r0 = alias %5
     %7: %r0 = alias %6
     %8: %r0 = binary.add %0, %7
     %9: %r0 = coerce %8
     return %9
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 0 numbered 0 decided 0 unboxed 1 updated 0 split 0 promoted 2
 
 shape %s0 cell {$v: %r0 box}
 

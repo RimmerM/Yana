@@ -45,22 +45,16 @@ fn tried(one %r2) -> one %r4
 fn main() -> one %r2
   var $0: %r1
   var $1: %r1
+  var $2: %r0
+  var $3: %r0
+  var $4: %r0
+  var $5: %r0
   block0:
-    %6: %r0 = fun.code tried
-    %7: %r0 = const null
-    %8: %r1 = object %s0 %6, %7
-    store var $0: %r1, %8
-    %13: %r0 = fun.code tried
-    %14: %r0 = const null
-    %15: %r1 = object %s0 %13, %14
-    store var $1: %r1, %15
     %20: %r2 = const 6
     %21: %r0 = fun.code main.lambda
     %22: %r0 = const null
-    %23: %r1 = object %s0 %21, %22
-    %2: %r1 = alias %23
-    %24: %r0 = load property %2.$c: %r0
-    %25: %r0 = load property %2.$e: %r0
+    %24: %r0 = alias %21
+    %25: %r0 = alias %22
     %26: %r2 = call.value %24, %25, %20
     %27: %r2 = const 0
     %28: %r3 = const 0
@@ -87,7 +81,7 @@ fn main.lambda(one %r5, one %r2) -> one %r2 env
     %4: %r2 = coerce %3
     return %4
 
-optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 2 sunk 0
+optimizer clones 0 aliased 0 forwarded 2 removed 24 adopted 2 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 0
 
 shape %s0 fun {$c: %r0 code, $e: %r0 env}
 shape %s1 object Outcome {$tag: %r3 tag, Proceed: %r2, Exit: %r2}

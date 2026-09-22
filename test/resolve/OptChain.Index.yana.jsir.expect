@@ -9,10 +9,6 @@ fn main() -> one %r0
   var $7: %r3
   block0:
     %8: %r0 = const 4
-    %9: %r1 = array
-    %10: %r2 = const 0
-    %11: %r3 = object %s0 %9, %10
-    store var $1: %r3, %11
     %12: %r0 = const 8
     %13: %r0 = const 12
     %14: %r1 = host host.array %8, %12, %13
@@ -38,24 +34,22 @@ fn main() -> one %r0
     jump -> block4(%29)
   block2:
     %31: %r3 = load var $0: %r3
-    store var $1: %r3, %31
     %32: %r0 = const 1
-    %33: %r3 = load var $1: %r3
+    %33: %r3 = alias %31
     %34: %r1 = load property %33.items: %r1
-    %35: %r3 = load var $1: %r3
+    %35: %r3 = alias %31
     %36: %r2 = load property %35.length: %r2
     %37: %r0 = convert %36
-    %38: %r0 = const 0
     %39: %r13 = convert %32
     %40: %r13 = convert %37
     %41: %r10 = binary.ge %39, %40
     branch %41 -> block5 -> block3
   block3:
     %42: %r1 = alias %34
-    %43: %r0 = binary.add %38, %32
+    %43: %r0 = alias %32
     %44: %r0 = coerce %43
     %45: %r0 = load element %42[%44]: %r0
-    %46: %r3 = load var $1: %r3
+    %46: %r3 = alias %31
     call Array(a).reclaim(I32) %46
     %47: %r8 = alias %45
     jump -> block4(%47)
@@ -78,10 +72,6 @@ fn main() -> one %r0
     %56: %r0 = alias %0
     jump -> block8(%56)
   block8(%1: %r0):
-    %57: %r1 = array
-    %58: %r2 = const 0
-    %59: %r3 = object %s0 %57, %58
-    store var $3: %r3, %59
     %60: %r5 = const null
     %61: %r6 = call Maybe(a).toOutcome(Array(I32)) %60
     store var $2: %r6, %61
@@ -102,24 +92,22 @@ fn main() -> one %r0
     jump -> block12(%72)
   block10:
     %74: %r3 = load var $2: %r3
-    store var $3: %r3, %74
     %75: %r0 = const 1
-    %76: %r3 = load var $3: %r3
+    %76: %r3 = alias %74
     %77: %r1 = load property %76.items: %r1
-    %78: %r3 = load var $3: %r3
+    %78: %r3 = alias %74
     %79: %r2 = load property %78.length: %r2
     %80: %r0 = convert %79
-    %81: %r0 = const 0
     %82: %r13 = convert %75
     %83: %r13 = convert %80
     %84: %r10 = binary.ge %82, %83
     branch %84 -> block13 -> block11
   block11:
     %85: %r1 = alias %77
-    %86: %r0 = binary.add %81, %75
+    %86: %r0 = alias %75
     %87: %r0 = coerce %86
     %88: %r0 = load element %85[%87]: %r0
-    %89: %r3 = load var $3: %r3
+    %89: %r3 = alias %74
     call Array(a).reclaim(I32) %89
     %90: %r8 = alias %88
     jump -> block12(%90)
@@ -143,10 +131,6 @@ fn main() -> one %r0
     jump -> block16(%99)
   block16(%3: %r0):
     %100: %r0 = const 5
-    %101: %r1 = array
-    %102: %r2 = const 0
-    %103: %r3 = object %s0 %101, %102
-    store var $5: %r3, %103
     %104: %r0 = const 10
     %105: %r0 = const 15
     %106: %r1 = host host.array %100, %104, %105
@@ -172,11 +156,10 @@ fn main() -> one %r0
     jump -> block20(%121)
   block18:
     %123: %r3 = load var $4: %r3
-    store var $5: %r3, %123
     %124: %r0 = const 0
-    %125: %r3 = load var $5: %r3
+    %125: %r3 = alias %123
     %126: %r1 = load property %125.items: %r1
-    %127: %r3 = load var $5: %r3
+    %127: %r3 = alias %123
     %128: %r2 = load property %127.length: %r2
     %129: %r0 = convert %128
     %130: %r0 = const 0
@@ -187,7 +170,7 @@ fn main() -> one %r0
   block19:
     %134: %r1 = alias %126
     %135: %r0 = load element %134[%130]: %r0
-    %136: %r3 = load var $5: %r3
+    %136: %r3 = alias %123
     call Array(a).reclaim(I32) %136
     %137: %r8 = alias %135
     jump -> block20(%137)
@@ -210,10 +193,6 @@ fn main() -> one %r0
     %146: %r0 = alias %4
     jump -> block24(%146)
   block24(%5: %r0):
-    %147: %r1 = array
-    %148: %r2 = const 0
-    %149: %r3 = object %s0 %147, %148
-    store var $7: %r3, %149
     %150: %r5 = const null
     %151: %r6 = call Maybe(a).toOutcome(Array(I32)) %150
     store var $6: %r6, %151
@@ -234,11 +213,10 @@ fn main() -> one %r0
     jump -> block28(%162)
   block26:
     %164: %r3 = load var $6: %r3
-    store var $7: %r3, %164
     %165: %r0 = const 0
-    %166: %r3 = load var $7: %r3
+    %166: %r3 = alias %164
     %167: %r1 = load property %166.items: %r1
-    %168: %r3 = load var $7: %r3
+    %168: %r3 = alias %164
     %169: %r2 = load property %168.length: %r2
     %170: %r0 = convert %169
     %171: %r0 = const 0
@@ -249,7 +227,7 @@ fn main() -> one %r0
   block27:
     %175: %r1 = alias %167
     %176: %r0 = load element %175[%171]: %r0
-    %177: %r3 = load var $7: %r3
+    %177: %r3 = alias %164
     call Array(a).reclaim(I32) %177
     %178: %r8 = alias %176
     jump -> block28(%178)
@@ -303,18 +281,16 @@ fn Maybe(a).toOutcome(Array(I32))(one %r5) -> one %r6
     return %1
   block3:
     %13: %r3 = load var $0: %r3
-    store var $1: %r3, %13
-    %14: %r3 = load var $1: %r3
+    %14: %r3 = alias %13
     %15: %r6 = alias %14
     jump -> block2(%15)
 
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
-    store var $0: %r3, %0
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 29 adopted 0 sunk 0 numbered 2 decided 0 unboxed 0 updated 0 split 0 promoted 13
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

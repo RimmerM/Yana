@@ -21,53 +21,22 @@ function opaqueI32(x) {
 }
 
 function main() {
-  var p0, p1, p2, p3, p4, p5;
   var v168 = (($popcount32(opaqueInt(305419896)) | 0) === 13 ? 1 : 0) + ((Math.clz32(opaqueInt(305419896)) | 0) === 3 ? 2 : 0) + (($ctz32(opaqueInt(305419896)) | 0) === 3 ? 4 : 0) + ((($popcount32(opaqueInt(0)) | 0) === 0 ? 8 : 0) + ((Math.clz32(opaqueInt(0)) | 0) === 32 ? 16 : 0) + (($ctz32(opaqueInt(0)) | 0) === 32 ? 32 : 0)) + (($popcount32(opaqueU32(4294967295)) >>> 0 === 32 ? 64 : 0) + (Math.clz32(opaqueU32(4294967295)) >>> 0 === 0 ? 128 : 0) + ($ctz32(opaqueU32(4294967295)) >>> 0 === 0 ? 256 : 0)) + ((BigInt.asIntN(64, $popcount64(opaqueLong(72623859790382856n))) === 13n ? 512 : 0) + (BigInt.asIntN(64, $clz64(opaqueLong(72623859790382856n))) === 7n ? 1024 : 0) + (BigInt.asIntN(64, $ctz64(opaqueLong(72623859790382856n))) === 3n ? 2048 : 0)) + ((BigInt.asUintN(64, $popcount64(opaqueU64(0n))) === 0n ? 4096 : 0) + (BigInt.asUintN(64, $clz64(opaqueU64(0n))) === 64n ? 8192 : 0) + (BigInt.asUintN(64, $ctz64(opaqueU64(0n))) === 64n ? 16384 : 0));
   var v170 = opaqueI32(-1);
   var v197 = v168 + ((($popcount32(v170) | 0) === 32 ? 32768 : 0) + ((Math.clz32(v170) | 0) === 0 ? 65536 : 0) + (($ctz32(v170) | 0) === 0 ? 131072 : 0));
   var v223 = ((32 - (Math.clz32(opaqueInt(305419896)) | 0) | 0) === 29 ? 262144 : 0) + ((32 - (Math.clz32(opaqueInt(0)) | 0) | 0) === 0 ? 524288 : 0);
   var v225 = opaqueInt(1024);
-  if (v225 !== 0) {
-    p0 = (v225 & v225 - 1) === 0 ? 1 : 0;
-  } else {
-    p0 = 0;
-  }
-  var v240 = v223 + (p0 ? 1048576 : 0);
+  var v240 = v223 + (v225 !== 0 && (v225 & v225 - 1) === 0 ? 1048576 : 0);
   var v242 = opaqueInt(1023);
-  if (v242 !== 0) {
-    p1 = (v242 & v242 - 1) === 0 ? 1 : 0;
-  } else {
-    p1 = 0;
-  }
-  var v258 = v240 + (p1 ^ 1 ? 2097152 : 0);
+  var v258 = v240 + ((v242 !== 0 && (v242 & v242 - 1) === 0 ? 1 : 0) ^ 1 ? 2097152 : 0);
   var v260 = opaqueInt(0);
-  if (v260 !== 0) {
-    p2 = (v260 & v260 - 1) === 0 ? 1 : 0;
-  } else {
-    p2 = 0;
-  }
-  var v276 = v258 + (p2 ^ 1 ? 4194304 : 0);
+  var v276 = v258 + ((v260 !== 0 && (v260 & v260 - 1) === 0 ? 1 : 0) ^ 1 ? 4194304 : 0);
   var v278 = opaqueInt(1000);
-  if (v278 <= 1) {
-    p3 = 1;
-  } else {
-    p3 = 1 << 32 - (Math.clz32(v278 - 1 | 0) | 0);
-  }
-  var v299 = v276 + (p3 === 1024 ? 8388608 : 0);
+  var v299 = v276 + ((v278 <= 1 ? 1 : 1 << 32 - (Math.clz32(v278 - 1 | 0) | 0)) === 1024 ? 8388608 : 0);
   var v301 = opaqueInt(1024);
-  if (v301 <= 1) {
-    p4 = 1;
-  } else {
-    p4 = 1 << 32 - (Math.clz32(v301 - 1 | 0) | 0);
-  }
-  var v322 = v299 + (p4 === 1024 ? 16777216 : 0);
+  var v322 = v299 + ((v301 <= 1 ? 1 : 1 << 32 - (Math.clz32(v301 - 1 | 0) | 0)) === 1024 ? 16777216 : 0);
   var v324 = opaqueInt(0);
-  if (v324 <= 1) {
-    p5 = 1;
-  } else {
-    p5 = 1 << 32 - (Math.clz32(v324 - 1 | 0) | 0);
-  }
-  return v197 + (v322 + (p5 === 1 ? 33554432 : 0)) + 469762048 + ((countVia_U32(opaqueU32(4294967295)) === 32 ? 536870912 : 0) + (leadingVia_U64(opaqueU64(1n)) === 63n ? 1073741824 : 0));
+  return v197 + (v322 + ((v324 <= 1 ? 1 : 1 << 32 - (Math.clz32(v324 - 1 | 0) | 0)) === 1 ? 33554432 : 0)) + 469762048 + ((countVia_U32(opaqueU32(4294967295)) === 32 ? 536870912 : 0) + (leadingVia_U64(opaqueU64(1n)) === 63n ? 1073741824 : 0));
 }
 
 function countVia_U32(value) {

@@ -48,10 +48,8 @@ function shown(value) {
             if (p12 !== 0n) p13 = p13 + 1 | 0;
           } else {
             while (p13 > 0) {
-              var v98 = BigInt.asUintN(64, p12 * 10n);
-              var v100 = p13 - 1 | 0;
-              p12 = v98;
-              p13 = v100;
+              p12 = BigInt.asUintN(64, p12 * 10n);
+              p13 = p13 - 1 | 0;
             }
             p12 = BigInt.asUintN(64, BigInt.asUintN(64, p12 * 10n) + BigInt.asUintN(64, BigInt.asIntN(64, BigInt(v79 - 48 & 65535))));
           }
@@ -74,9 +72,8 @@ function shown(value) {
       }
       p22 = 0;
       while (p20 < v55) {
-        var v150 = Math.imul(p22, 10) + (v51.charCodeAt(p20) - 48 & 65535) | 0;
+        p22 = Math.imul(p22, 10) + (v51.charCodeAt(p20) - 48 & 65535) | 0;
         p20 = p20 + 1 | 0;
-        p22 = v150;
       }
       if (p19) p22 = -p22 | 0;
       writeShortest({ digits: p12, exponent: (p22 + p13 | 0) - p14 | 0 }, v24, "$v");
@@ -111,14 +108,14 @@ function main() {
 }
 
 function pushDecimalDigits(value, count, pointAt, to$0, to$1) {
-  var s0 = String(value);
+  var v6 = String(value);
   var p5 = 0;
   while (p5 < count) {
     if (p5 === pointAt) {
       var v17 = to$0[to$1] + String.fromCharCode(46);
       to$0[to$1] = v17;
     }
-    var v23 = s0.charCodeAt(p5);
+    var v23 = v6.charCodeAt(p5);
     var v29 = to$0[to$1] + String.fromCharCode(v23);
     to$0[to$1] = v29;
     p5 = p5 + 1 | 0;
@@ -156,10 +153,8 @@ function writeShortest(value, to$0, to$1) {
   B0: {
     while (p5 < 17) {
       if (v8 < p6) break B0;
-      var v18 = BigInt.asUintN(64, p6 * 10n);
-      var v20 = p5 + 1 | 0;
-      p6 = v18;
-      p5 = v20;
+      p6 = BigInt.asUintN(64, p6 * 10n);
+      p5 = p5 + 1 | 0;
     }
     p5 = 17;
   }
@@ -182,8 +177,9 @@ function writeShortest(value, to$0, to$1) {
     }
   }
   if (v26 >= 0 & v26 <= 7) {
+    var v58 = value.exponent;
     B4: {
-      if (value.exponent >= 0) {
+      if (v58 >= 0) {
         pushDecimalDigits(value.digits, p5, p5, to$0, to$1);
         p4 = value.exponent;
         L5: for (;;) {
@@ -196,7 +192,7 @@ function writeShortest(value, to$0, to$1) {
           break B4;
         }
       } else {
-        pushDecimalDigits(value.digits, p5, p5 + value.exponent | 0, to$0, to$1);
+        pushDecimalDigits(value.digits, p5, p5 + v58 | 0, to$0, to$1);
       }
     }
     return;
@@ -214,15 +210,13 @@ function writeShortest(value, to$0, to$1) {
 }
 
 function Maybe_a_show_I32(value, to$0, to$1) {
-  var s0, s1, s2;
+  var s0;
   if (!(value === null)) {
     s0 = "";
     s0 = s0 + "Just(";
     s0 = s0 + String(value);
     s0 = s0 + ")";
-    s1 = to$0[to$1];
-    s2 = s0;
-    to$0[to$1] = s1 + s2;
+    to$0[to$1] = to$0[to$1] + s0;
   } else {
     to$0[to$1] = to$0[to$1] + "Nothing";
   }

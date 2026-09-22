@@ -5,65 +5,25 @@ var effects = 0;
 // 
 function inherited(depth, mark) {
   var p2;
-  var s0 = { mark: mark };
   if (depth === 0) {
     p2 = 0;
   } else {
-    var v10 = s0.mark;
-    effects = effects + v10 | 0;
-    p2 = v10;
+    effects = effects + mark | 0;
+    p2 = mark;
   }
   return p2;
 }
 
 function main() {
-  var v12 = { mark: 1 }.mark;
-  effects = effects + v12 | 0;
-  var v19 = v12 === 1 ? 1 : 0;
-  var v45 = inherited(3, 8) === 8 ? v19 + 14 : v19 + 6;
+  effects = effects + 1 | 0;
+  var v45 = inherited(3, 8) === 8 ? 15 : 7;
   var v54 = inherited(0, 16) === 0 ? v45 + 16 : v45;
-  var v59 = { $c: main_thunk, $e: null };
-  var v71 = v59.$c(v59.$e) === 32 ? v54 + 32 : v54;
+  var v71 = main_thunk(null) === 32 ? v54 + 32 : v54;
   return effects === 41 ? v71 + 448 : v71 + 192;
-}
-
-function taken_thunk(taken_thunk_env) {
-  var v1 = taken_thunk_env.mark;
-  effects = effects + v1 | 0;
-  return v1;
-}
-
-function skipped_thunk(skipped_thunk_env) {
-  var v1 = skipped_thunk_env.mark;
-  effects = effects + v1 | 0;
-  return v1;
-}
-
-function shut_thunk(shut_thunk_env) {
-  var v1 = shut_thunk_env.mark;
-  effects = effects + v1 | 0;
-  return v1;
-}
-
-function inherited_thunk(inherited_thunk_env) {
-  var v1 = inherited_thunk_env.mark;
-  effects = effects + v1 | 0;
-  return v1;
-}
-
-function replaced_thunk(replaced_thunk_env) {
-  var v1 = replaced_thunk_env.mark;
-  effects = effects + v1 | 0;
-  return v1;
 }
 
 function main_thunk(main_thunk_env) {
   effects = effects + 32 | 0;
   return 32;
-}
-
-function main_thunk_2(main_thunk_2_env) {
-  effects = effects + 64 | 0;
-  return 64;
 }
 main();

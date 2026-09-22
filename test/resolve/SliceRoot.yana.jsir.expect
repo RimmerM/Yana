@@ -3,16 +3,9 @@ fn main() -> one %r0
     %16: %r0 = const 8
     %17: %r13 = fun.code viaTwoCalls.lambda
     %18: %r13 = const null
-    %19: %r14 = object %s6 %17, %18
-    %15: %r14 = alias %19
     %23: %r5 = host host.array
     %24: %r8 = const 0
-    %25: %r9 = object %s5 %23, %24
-    %22: %r9 = alias %25
-    %26: %r15 = host host.capacity %23
-    %27: %r15 = const 0
-    %28: %r15 = binary.eq %26, %27
-    branch %28 -> block18 -> block19
+    jump -> block19
   block1(%0: %r0):
     %34: %r15 = binary.lt %0, %16
     branch %34 -> block3 -> block2
@@ -35,19 +28,12 @@ fn main() -> one %r0
     %53: %r0 = const 8
     %54: %r13 = fun.code viaLocal.lambda
     %55: %r13 = const null
-    %56: %r14 = object %s6 %54, %55
-    %52: %r14 = alias %56
     %60: %r5 = host host.array
     %61: %r8 = const 0
-    %62: %r9 = object %s5 %60, %61
-    %59: %r9 = alias %62
-    %63: %r15 = host host.capacity %60
-    %64: %r15 = const 0
-    %65: %r15 = binary.eq %63, %64
-    branch %65 -> block21 -> block22
+    jump -> block22
   block3:
-    %304: %r13 = load property %15.$c: %r13
-    %305: %r13 = load property %15.$e: %r13
+    %304: %r13 = alias %17
+    %305: %r13 = alias %18
     %306: %r0 = call.value %304, %305, %0
     call push(I32) %22, %306
     %307: %r0 = binary.add %0, %33
@@ -77,19 +63,12 @@ fn main() -> one %r0
     %92: %r0 = const 8
     %93: %r13 = fun.code partial.lambda
     %94: %r13 = const null
-    %95: %r14 = object %s6 %93, %94
-    %91: %r14 = alias %95
     %99: %r5 = host host.array
     %100: %r8 = const 0
-    %101: %r9 = object %s5 %99, %100
-    %98: %r9 = alias %101
-    %102: %r15 = host host.capacity %99
-    %103: %r15 = const 0
-    %104: %r15 = binary.eq %102, %103
-    branch %104 -> block24 -> block25
+    jump -> block25
   block6:
-    %299: %r13 = load property %52.$c: %r13
-    %300: %r13 = load property %52.$e: %r13
+    %299: %r13 = alias %54
+    %300: %r13 = alias %55
     %301: %r0 = call.value %299, %300, %1
     call push(I32) %59, %301
     %302: %r0 = binary.add %1, %70
@@ -221,19 +200,12 @@ fn main() -> one %r0
     %199: %r0 = const 8
     %200: %r13 = fun.code viaReturn.lambda
     %201: %r13 = const null
-    %202: %r14 = object %s6 %200, %201
-    %198: %r14 = alias %202
     %206: %r5 = host host.array
     %207: %r8 = const 0
-    %208: %r9 = object %s5 %206, %207
-    %205: %r9 = alias %208
-    %209: %r15 = host host.capacity %206
-    %210: %r15 = const 0
-    %211: %r15 = binary.eq %209, %210
-    branch %211 -> block27 -> block28
+    jump -> block28
   block14:
-    %294: %r13 = load property %91.$c: %r13
-    %295: %r13 = load property %91.$e: %r13
+    %294: %r13 = alias %93
+    %295: %r13 = alias %94
     %296: %r0 = call.value %294, %295, %2
     call push(I32) %98, %296
     %297: %r0 = binary.add %2, %109
@@ -287,8 +259,8 @@ fn main() -> one %r0
     %260: %r0 = coerce %259
     return %260
   block17:
-    %261: %r13 = load property %198.$c: %r13
-    %262: %r13 = load property %198.$e: %r13
+    %261: %r13 = alias %200
+    %262: %r13 = alias %201
     %263: %r0 = call.value %261, %262, %12
     call push(I32) %205, %263
     %264: %r0 = binary.add %12, %216
@@ -299,6 +271,8 @@ fn main() -> one %r0
     %33: %r0 = const 1
     jump -> block1(%32)
   block19:
+    %25: %r9 = object %s5 %23, %24
+    %22: %r9 = alias %25
     %29: %r5 = load property %22.items: %r5
     %30: %r0 = host host.field "length" host-range %29
     %31: %r15 = binary.le %16, %30
@@ -311,6 +285,8 @@ fn main() -> one %r0
     %70: %r0 = const 1
     jump -> block4(%69)
   block22:
+    %62: %r9 = object %s5 %60, %61
+    %59: %r9 = alias %62
     %66: %r5 = load property %59.items: %r5
     %67: %r0 = host host.field "length" host-range %66
     %68: %r15 = binary.le %53, %67
@@ -323,6 +299,8 @@ fn main() -> one %r0
     %109: %r0 = const 1
     jump -> block7(%108)
   block25:
+    %101: %r9 = object %s5 %99, %100
+    %98: %r9 = alias %101
     %105: %r5 = load property %98.items: %r5
     %106: %r0 = host host.field "length" host-range %105
     %107: %r15 = binary.le %92, %106
@@ -335,6 +313,8 @@ fn main() -> one %r0
     %216: %r0 = const 1
     jump -> block15(%215)
   block28:
+    %208: %r9 = object %s5 %206, %207
+    %205: %r9 = alias %208
     %212: %r5 = load property %205.items: %r5
     %213: %r0 = host host.field "length" host-range %212
     %214: %r15 = binary.le %199, %213
@@ -476,7 +456,6 @@ fn replaces$sum(Array(I32), I32)(parts %r7) -> one %r0
 fn Array(a).reclaim(I32)(one %r9) -> omitted
   var $0: %r9
   block0(%0: %r9):
-    store var $0: %r9, %0
     return
 
 fn push(I32)(one %r9, one %r0) -> omitted
@@ -487,10 +466,7 @@ fn push(I32)(one %r9, one %r0) -> omitted
     %5: %r0 = binary.add %3, %4
     %6: %r0 = coerce %5
     %7: %r5 = load property %0.items: %r5
-    %8: %r15 = host host.capacity %7
-    %9: %r15 = const 0
-    %10: %r15 = binary.eq %8, %9
-    branch %10 -> block1 -> block2
+    jump -> block2
   block1:
     %14: %r5 = load property %0.items: %r5
     store element %14[%3]: %r0, %1
@@ -499,7 +475,7 @@ fn push(I32)(one %r9, one %r0) -> omitted
     store property %0.length: %r8, %16
     return
   block2:
-    %11: %r5 = load property %0.items: %r5
+    %11: %r5 = alias %7
     %12: %r0 = host host.field "length" host-range %11
     %13: %r15 = binary.le %6, %12
     branch %13 -> block1 -> block3
@@ -519,12 +495,12 @@ fn growJsArray(I32)(one %r9, one %r0) -> omitted
     %9: %r15 = binary.lt %7, %8
     %10: %r0 = const 4
     %11: %r0 = select %9, %10, %7
-    %12: %r5 = load property %0.items: %r5
+    %12: %r5 = alias %2
     %13: %r5 = host host.grow %12, %11
     store property %0.items: %r5, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 25 adopted 8 sunk 0
+optimizer clones 0 aliased 0 forwarded 8 removed 49 adopted 8 sunk 4 numbered 2 decided 5 unboxed 0 updated 0 split 0 promoted 0
 
 shape %s0 object viaTwoCalls.lambda.env {}
 shape %s1 object viaLocal.lambda.env {}

@@ -1,0 +1,53 @@
+
+main<complex>(%index: I64): I32 {
+  b_0 {
+    %v_1 = alloca 16, 4: Ptr
+    store %v_1, 3, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 5, 4
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 7, 4
+    %v_4 = add %v_1, 12: Ptr
+    store %v_4, 11, 4
+    %v_5 = cmp_ge %index, 4: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    %v_8 = shl %index, 2: I64
+    %v_9 = add %v_1, %v_8: Ptr
+    %v_10 = load %v_9, 4: I32
+    ret %v_10
+  }
+
+  b_6 {
+    call_complex checkFailed
+    unreachable 
+  }
+}
+
+checkFailed<complex>() {
+  b_0 {
+    call_complex abortProcess
+    unreachable 
+  }
+}
+
+exitProcess<complex>(%status: I64) {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    hlt 
+    jmp b_1
+  }
+}
+
+abortProcess<complex>() {
+  b_0 {
+    call_complex exitProcess, 134
+    unreachable 
+  }
+}
+

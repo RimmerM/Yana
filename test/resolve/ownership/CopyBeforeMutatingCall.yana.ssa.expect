@@ -1,0 +1,293 @@
+module ResolveTest
+
+fn poke(r: Rec [unique call]) -> {} {
+bb0(%0: Rec [unique call] guaranteed):
+  %1: I32 trivial = const 99
+  %2: %I32 address = field.addr .a inspect %0
+  store inspect %2 consume %1
+  return
+}
+
+fn t1(start: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %Rec address = alloc frame Rec
+  %3: %Rec address = alloc frame Rec
+  store inspect %1 borrow %0
+  %4: I32 trivial = load inspect %1
+  %5: I32 trivial = const 2
+  %6: Rec trivial = aggregate.Rec consume %4 consume %5
+  store inspect %2 consume %6
+  %7: Rec trivial = copy inspect %2
+  store inspect %3 consume %7
+  %8: Rec [unique call] guaranteed from{%2} = load inspect %2
+  call poke borrow %8
+  %9: %I32 address = field.addr .a inspect %3
+  %10: I32 trivial = load inspect %9
+  return consume %10
+}
+
+fn t2(p: Rec [unique call]) -> I32 {
+bb0(%0: Rec [unique call] guaranteed):
+  %1: %Rec address = alloc frame Rec
+  %2: Rec trivial = copy inspect %0
+  store inspect %1 consume %2
+  %3: I32 trivial = const 7
+  %4: %I32 address = field.addr .a inspect %0
+  store inspect %4 consume %3
+  %5: %I32 address = field.addr .a inspect %1
+  %6: I32 trivial = load inspect %5
+  %7: %I32 address = field.addr .b inspect %1
+  %8: I32 trivial = load inspect %7
+  %9: I32 trivial = add inspect %6 inspect %8
+  return consume %9
+}
+
+fn t3() -> I32 {
+bb0:
+  %8: %I32 address = alloc frame I32
+  %9: %Rec address = alloc frame Rec
+  %10: %I32 address = alloc frame I32
+  %11: %I32 address = alloc frame I32
+  %12: %Rec address = alloc frame Rec
+  %13: %Rec address = alloc frame Rec
+  %14: I32 trivial = const 0
+  store inspect %8 consume %14
+  %15: I32 trivial = const 0
+  %16: I32 trivial = const 0
+  %17: Rec trivial = aggregate.Rec consume %15 consume %16
+  store inspect %9 consume %17
+  %18: I32 trivial = const 0
+  %19: I32 trivial = const 4
+  %20: I32 trivial = const 1
+  store inspect %10 consume %18
+  jump -> bb1(consume %19, consume %20)
+
+bb1(%0: I32 trivial, %1: I32 trivial):
+  %21: I32 trivial = load inspect %10
+  %22: Bool trivial = lt inspect %21 inspect %0
+  branch inspect %22 -> bb4(consume %0, consume %1) -> bb3(consume %0, consume %1)
+
+bb2(%2: I32 trivial, %3: I32 trivial):
+  %23: I32 trivial = load inspect %10
+  %24: I32 trivial = add inspect %23 inspect %3
+  store inspect %10 consume %24
+  jump -> bb1(consume %2, consume %3)
+
+bb3(%4: I32 trivial, %5: I32 trivial):
+  %25: I32 trivial = load inspect %8
+  %26: I32 trivial = const 1000
+  %27: I32 trivial = mul inspect %25 inspect %26
+  %28: %I32 address = field.addr .a inspect %9
+  %29: I32 trivial = load inspect %28
+  %30: I32 trivial = add inspect %27 inspect %29
+  return consume %30
+
+bb4(%6: I32 trivial, %7: I32 trivial):
+  %31: I32 trivial = load inspect %10
+  store inspect %11 consume %31
+  %32: I32 trivial = load inspect %11
+  %33: I32 trivial = load inspect %11
+  %34: I32 trivial = const 2
+  %35: I32 trivial = mul inspect %33 inspect %34
+  %36: Rec trivial = aggregate.Rec consume %32 consume %35
+  store inspect %12 consume %36
+  %37: %I32 address = field.addr .b inspect %12
+  %38: I32 trivial = load inspect %37
+  %39: I32 trivial = const 1
+  %40: I32 trivial = add inspect %38 inspect %39
+  %41: %I32 address = field.addr .b inspect %12
+  store inspect %41 consume %40
+  %42: Rec trivial = copy inspect %12
+  store inspect %13 consume %42
+  %43: %I32 address = field.addr .a inspect %13
+  %44: I32 trivial = load inspect %43
+  %45: I32 trivial = const 100
+  %46: I32 trivial = add inspect %44 inspect %45
+  %47: %I32 address = field.addr .a inspect %13
+  store inspect %47 consume %46
+  %48: Rec trivial = copy inspect %13
+  store inspect %9 consume %48
+  %49: I32 trivial = load inspect %8
+  %50: %I32 address = field.addr .a inspect %12
+  %51: I32 trivial = load inspect %50
+  %52: I32 trivial = add inspect %49 inspect %51
+  store inspect %8 consume %52
+  jump -> bb2(consume %6, consume %7)
+}
+
+fn t4(start: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %Outer address = alloc frame Outer
+  %3: %Outer address = alloc frame Outer
+  %4: %Outer address = alloc frame Outer
+  store inspect %1 borrow %0
+  %5: I32 trivial = load inspect %1
+  %6: I32 trivial = const 1
+  %7: Rec trivial = aggregate.Rec consume %5 consume %6
+  %8: I32 trivial = const 3
+  %9: Outer trivial = aggregate.Outer consume %7 consume %8
+  store inspect %2 consume %9
+  %10: Outer trivial = copy inspect %2
+  store inspect %3 consume %10
+  %11: I32 trivial = const 4
+  %12: %I32 address = field.addr .tag inspect %3
+  store inspect %12 consume %11
+  %13: Outer trivial = copy inspect %3
+  store inspect %4 consume %13
+  %14: I32 trivial = const 50
+  %15: %Rec address = field.addr .inner inspect %4
+  %16: %I32 address = field.addr .a inspect %15
+  store inspect %16 consume %14
+  %17: %Rec address = field.addr .inner inspect %2
+  %18: %I32 address = field.addr .a inspect %17
+  %19: I32 trivial = load inspect %18
+  %20: I32 trivial = const 100
+  %21: I32 trivial = mul inspect %19 inspect %20
+  %22: %Rec address = field.addr .inner inspect %4
+  %23: %I32 address = field.addr .a inspect %22
+  %24: I32 trivial = load inspect %23
+  %25: I32 trivial = add inspect %21 inspect %24
+  return consume %25
+}
+
+fn t5(o: Rec [unique call]) -> I32 {
+bb0(%0: Rec [unique call] guaranteed):
+  %1: %Rec address = alloc frame Rec
+  %2: %Rec address = alloc frame Rec
+  %3: Rec trivial = copy inspect %0
+  store inspect %1 consume %3
+  %4: %I32 address = field.addr .b inspect %0
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = const 1
+  %7: I32 trivial = add inspect %5 inspect %6
+  %8: %I32 address = field.addr .a inspect %1
+  store inspect %8 consume %7
+  %9: Rec trivial = copy inspect %1
+  store inspect %2 consume %9
+  %10: I32 trivial = const 40
+  %11: %I32 address = field.addr .b inspect %0
+  store inspect %11 consume %10
+  %12: %I32 address = field.addr .a inspect %2
+  %13: I32 trivial = load inspect %12
+  %14: I32 trivial = const 100
+  %15: I32 trivial = mul inspect %13 inspect %14
+  %16: %I32 address = field.addr .b inspect %2
+  %17: I32 trivial = load inspect %16
+  %18: I32 trivial = add inspect %15 inspect %17
+  return consume %18
+}
+
+fn main() -> I32 {
+bb0:
+  %4: %Rec address = alloc frame Rec
+  %5: %I32 address = alloc frame I32
+  %6: I32 trivial = const 1
+  %7: I32 trivial = const 2
+  %8: Rec trivial = aggregate.Rec consume %6 consume %7
+  store inspect %4 consume %8
+  %9: I32 trivial = const 5
+  %10: I32 trivial = call t1 borrow %9
+  %11: Rec [unique call] guaranteed from{%4} = load inspect %4
+  %12: I32 trivial = call t2 borrow %11
+  %13: I32 trivial = const 10
+  %14: I32 trivial = mul inspect %12 inspect %13
+  %15: I32 trivial = add inspect %10 inspect %14
+  %16: I32 trivial = call t3
+  %17: I32 trivial = add inspect %15 inspect %16
+  %18: I32 trivial = const 3
+  %19: I32 trivial = call t4 borrow %18
+  %20: I32 trivial = add inspect %17 inspect %19
+  %21: Rec [unique call] guaranteed from{%4} = load inspect %4
+  %22: I32 trivial = call t5 borrow %21
+  %23: I32 trivial = add inspect %20 inspect %22
+  store inspect %5 consume %23
+  %24: I32 trivial = load inspect %5
+  %25: I32 trivial = const 6790
+  %26: Bool trivial = ne inspect %24 inspect %25
+  branch inspect %26 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %27: I32 trivial = const 5
+  %28: I32 trivial = call t1 borrow %27
+  %29: I32 trivial = const 5
+  %30: Bool trivial = ne inspect %28 inspect %29
+  branch inspect %30 -> bb6 -> bb4
+
+bb3:
+  %31: I32 trivial = const 1
+  return consume %31
+
+bb4:
+  %32: Rec [unique call] guaranteed from{%4} = load inspect %4
+  %33: I32 trivial = call t2 borrow %32
+  %34: I32 trivial = const 47
+  %35: Bool trivial = ne inspect %33 inspect %34
+  jump -> bb5(consume %35)
+
+bb5(%0: Bool trivial):
+  branch inspect %0 -> bb9 -> bb7
+
+bb6:
+  %36: Bool trivial = const True
+  jump -> bb5(consume %36)
+
+bb7:
+  %37: Rec [unique call] guaranteed from{%4} = load inspect %4
+  %38: I32 trivial = call t5 borrow %37
+  %39: I32 trivial = const 4140
+  %40: Bool trivial = ne inspect %38 inspect %39
+  jump -> bb8(consume %40)
+
+bb8(%1: Bool trivial):
+  branch inspect %1 -> bb12 -> bb10
+
+bb9:
+  %41: Bool trivial = const True
+  jump -> bb8(consume %41)
+
+bb10:
+  %42: %I32 address = field.addr .a inspect %4
+  %43: I32 trivial = load inspect %42
+  %44: I32 trivial = const 7
+  %45: Bool trivial = ne inspect %43 inspect %44
+  jump -> bb11(consume %45)
+
+bb11(%2: Bool trivial):
+  branch inspect %2 -> bb15 -> bb13
+
+bb12:
+  %46: Bool trivial = const True
+  jump -> bb11(consume %46)
+
+bb13:
+  %47: %I32 address = field.addr .b inspect %4
+  %48: I32 trivial = load inspect %47
+  %49: I32 trivial = const 40
+  %50: Bool trivial = ne inspect %48 inspect %49
+  jump -> bb14(consume %50)
+
+bb14(%3: Bool trivial):
+  branch inspect %3 -> bb18 -> bb16
+
+bb15:
+  %51: Bool trivial = const True
+  jump -> bb14(consume %51)
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %52: I32 trivial = const 0
+  return consume %52
+
+bb18:
+  %53: I32 trivial = const 2
+  return consume %53
+}
+
+entry main

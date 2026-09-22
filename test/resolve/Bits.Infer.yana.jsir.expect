@@ -1,26 +1,22 @@
 fn main() -> one %r0
   var $0: %r2
   var $1: %r2
+  var $2: %r1
+  var $3: %r1
+  var $4: %r1
+  var $5: %r1
   block0:
     %0: %r1 = const 4000n
     %1: %r1 = const 21n
-    %2: %r2 = object %s0 %1, %0
-    store var $0: %r2, %2
-    %3: %r2 = load var $0: %r2
-    %4: %r2 = alias %3
-    %5: %r1 = load property %4.left: %r1
-    %6: %r1 = load property %4.right: %r1
+    %5: %r1 = alias %1
+    %6: %r1 = alias %0
     %7: %r1 = binary.add %5, %6
     %8: %r1 = coerce %7
     %9: %r0 = convert %8
     %10: %r1 = const 300n
     %11: %r1 = const 5n
-    %12: %r2 = object %s0 %10, %11
-    store var $1: %r2, %12
-    %13: %r2 = load var $1: %r2
-    %14: %r2 = alias %13
-    %15: %r1 = load property %14.left: %r1
-    %16: %r1 = load property %14.right: %r1
+    %15: %r1 = alias %10
+    %16: %r1 = alias %11
     %17: %r1 = binary.add %15, %16
     %18: %r1 = coerce %17
     %19: %r0 = convert %18
@@ -28,7 +24,7 @@ fn main() -> one %r0
     %21: %r0 = coerce %20
     return %21
 
-optimizer clones 2 aliased 2 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 2 aliased 2 forwarded 0 removed 10 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 4
 
 shape %s0 object Same {left: %r1, right: %r1}
 

@@ -20,13 +20,12 @@ fn held(one %r0) -> one %r0
   var $0: %r0
   block0(%0: %r0):
     %1: %r0 = alias %0
-    store var $0: %r0, %1
-    %2: %r0 = load var $0: %r0
+    %2: %r0 = alias %1
     %3: %r0 = alias %2
     %4: %r0 = const 5
     %5: %r0 = binary.add %4, %3
     %6: %r0 = coerce %5
-    %7: %r0 = load var $0: %r0
+    %7: %r0 = alias %1
     %8: %r0 = alias %7
     %9: %r0 = const 6
     %10: %r0 = binary.add %9, %8
@@ -41,8 +40,7 @@ fn counted(one %r0) -> one %r0
     %1: %r0 = alias %0
     %2: %r0 = const 2
     %3: %r7 = object %s3 %1, %2
-    store var $0: %r7, %3
-    %4: %r7 = load var $0: %r7
+    %4: %r7 = alias %3
     %5: %r7 = alias %4
     %6: %r0 = const 5
     %7: %r0 = call go(counted.lambda) %5, %6
@@ -149,7 +147,7 @@ fn go(counted.lambda)(one %r7, one %r0) -> one %r0
     %7: %r0 = coerce %6
     return %7
 
-optimizer clones 1 aliased 1 forwarded 0 removed 4 adopted 2 sunk 0
+optimizer clones 1 aliased 1 forwarded 0 removed 6 adopted 2 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 3
 
 shape %s0 object main.lambda.env {}
 shape %s1 fun {$c: %r2 code, $e: %r2 env}

@@ -12,8 +12,7 @@ var mask = 18446744073709551615n;
 
 // 
 function main() {
-  var s0 = heading;
-  var v20 = (s0 === 0 ? 1 : s0 === 1 ? 2 : s0 === 2 ? 4 : 8) + 64;
+  var v20 = $m[heading] + 64;
   var v25 = ready ? v20 + 1024 : v20;
   var v34 = 12n === limit ? v25 + 6144 : v25 + 2048;
   var v40 = 0.5 === ratio ? v34 + 8192 : v34;
@@ -24,4 +23,5 @@ function main() {
   var v82 = minimum < 0n ? v75 + 262144 : v75;
   return mask !== 0n ? v82 + 524288 : v82;
 }
+var $m = [1, 2, 4, 8];
 main();

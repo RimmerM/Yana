@@ -96,7 +96,7 @@ struct BitHelper {
     bool store;
 
     // Whether the position arrives as a literal pair the body multiplies by, or as the single
-    // forward scale a reference carries and the body divides with. See place.cpp's Position.
+    // forward scale a reference carries and the body divides with. See BitPosition.
     bool packed;
 };
 
@@ -231,6 +231,10 @@ struct JsShared {
     // The one helper the typed row of Implementation-Containers.md §14 needs - see
     // NativeOp::HostGrow. Written over `a.constructor`, so one function serves every element type.
     Name growHelper;
+
+    // `$bitCell(o, k, s, m, i)` and the prototype its boxes share - see `emitBitCellHelper`.
+    Name bitCellHelper;
+    Name bitCellProto;
 
     /*
      * `$fd` - a function value's release, and the whole of what a collected target owes one.
@@ -433,6 +437,18 @@ constexpr F64 kExactIntegerLimit = 9007199254740992.0;
 inline bool isNegativeZero(F64 value) {
     union { F64 f; U64 bits; } punned = { value };
     return punned.bits == (U64(1) << 63);
+}
+
+/*
+ * Whether two number literals are the *same* literal - by bits, because `==` says `0` and `-0` are
+ * one number and they are two answers (`1 / x`). Every "these two arms give the same literal" test
+ * on this target asks this rather than `==`: `structure.cpp`'s map spellings and `opt.cpp`'s
+ * `foldAssignIf`, which once folded `x ? -0 : 0` to `0` (J91). NaN against NaN of another payload
+ * says no, which only ever keeps two arms apart.
+ */
+inline bool sameNumberBits(F64 x, F64 y) {
+    union { F64 f; U64 bits; } a = { x }, b = { y };
+    return a.bits == b.bits;
 }
 
 inline bool isFiniteNumber(F64 value) {
@@ -809,6 +825,68 @@ JsPtr<Expr> wideCallAt(JsShared& g, WideOp op, U32 bits, bool isSigned, JsPtr<Ex
 
 // `v >= 2**(bits-1) ? v - 2**bits : v` - an unsigned bit pattern read back as a signed value.
 JsPtr<Expr> resignExpr(JsShared& g, JsPtr<Expr> value, U32 bits);
+
+/*
+ * A bit range of a packed word, taken apart and put back - `place.cpp`'s, on `JsShared` so that
+ * both backends spell one layout the same way.
+ *
+ * Where a range sits, as the two numbers the wide form multiplies by. `down` brings the bits at and
+ * above the range to bit zero and `up` puts a field back, and the two are reciprocals - so a
+ * position could be one number and is two because of *which* number each end has. A constant offset
+ * knows both and multiplies twice, which is what a `Math.floor` wants in front of it. A reference
+ * carries the forward scale alone, and deriving its reciprocal would be a divide per access either
+ * way, so that end divides instead. `divides` is that difference and it is the only thing separating
+ * the two families of helper `bitHelper` interns.
+ */
+struct BitPosition {
+    JsPtr<Expr> down = nullptr;   // multiply the word by this; null means one
+    JsPtr<Expr> up = nullptr;     // multiply the field by this; null means one
+    bool divides = false;         // `word / up` rather than `word * down`
+};
+
+// `scale` is a run-time multiplier of `2**offset` a reference carried, or null for a constant range.
+BitPosition bitPosition(JsShared& g, U32 offset, JsPtr<Expr> scale);
+
+// `wide` is the arithmetic form, for a word wider than the host's 32-bit operators; `word` is how
+// wide that word can be, which a store needs and a load does not. See place.cpp.
+JsPtr<Expr> decodeRange(JsShared& g, JsPtr<Expr> owner, U32 offset, U32 width, BitPosition position,
+                        bool wide, bool isSigned);
+JsPtr<Expr> encodeRange(JsShared& g, JsPtr<Expr> owner, U32 offset, U32 width, U32 word,
+                        BitPosition position, bool wide, JsPtr<Expr> value);
+
+/*
+ * A range a reference's **scale** positions - JSIR's `BitRange` with a `bitScale` (J84). Always the
+ * borrowed `$bNx$get/set` helper, since nothing at the site knows the word's width. `whole` is the
+ * reference's own content, for which a scale of zero means "the storage holds the value" - see
+ * `JsPlace::bitWhole` - and costs a test at the site rather than a second helper family.
+ */
+JsPtr<Expr> decodeScaledRange(JsShared& g, JsPtr<Expr> owner, JsPtr<Expr> scale, U32 offset,
+                              U32 width, bool isSigned, bool whole);
+JsPtr<Expr> encodeScaledRange(JsShared& g, JsPtr<Expr> owner, JsPtr<Expr> scale, U32 offset,
+                              U32 width, bool isSigned, bool whole, JsPtr<Expr> value);
+
+// `$bitCell(owner, key, scale, 2**width, signed)` - a range reference as one `{$o, $k}` value.
+JsPtr<Expr> bitCellCall(JsShared& g, JsPtr<Expr> owner, JsPtr<Expr> key, JsPtr<Expr> scale,
+                        U32 width, bool isSigned);
+void emitBitCellHelper(JsShared& g);
+
+// A constant range named by numbers - JSIR's `BitRange` place. `word` is the word's width in bits.
+JsPtr<Expr> decodeBitRange(JsShared& g, JsPtr<Expr> owner, U32 offset, U32 width, U32 word,
+                           bool isSigned);
+JsPtr<Expr> encodeBitRange(JsShared& g, JsPtr<Expr> owner, U32 offset, U32 width, U32 word,
+                           bool isSigned, JsPtr<Expr> value);
+
+// A word built from its fields, one `(value, offset, width)` per field - JSIR's `Pack`.
+JsPtr<Expr> packBitRanges(JsShared& g, Buffer<const JsPtr<Expr>> values, Buffer<const U32> offsets,
+                          Buffer<const U32> widths, U32 word);
+
+// The interned accessor for one (width, signedness, direction, family), declared on first ask.
+Name bitHelper(JsShared& g, U32 bits, bool isSigned, bool store, bool packed);
+
+// Every accessor `bitHelper` was asked for, as function declarations over a word of `wordBits`.
+// Emitted *before* the wide helpers, since a body here may ask for one of those and the list it
+// would be appended to is already being walked.
+void emitBitHelpers(JsShared& g, U32 wordBits);
 
 // A value crossing between a wide type and a narrower integer, in the widening direction.
 

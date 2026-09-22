@@ -9,14 +9,10 @@ fn main() -> one %r0
     %4: %r1 = host host.array %0, %1, %2, %3
     %5: %r2 = const 4
     %6: %r3 = object %s0 %4, %5
-    store var $0: %r3, %6
     %7: %r0 = const 4
     %8: %r0 = const 0
-    %9: %r0 = const 0
-    %10: %r7 = object %s2 %9
     %11: %r0 = call replaces$sum(Array(I32), I32) %4, %7, %8
-    store property %10.$v: %r0, %11
-    %12: %r3 = load var $0: %r3
+    %12: %r3 = alias %6
     call Array(a).reclaim(I32) %12
     %13: %r0 = const 1
     %14: %r0 = const 2
@@ -24,11 +20,8 @@ fn main() -> one %r0
     %16: %r0 = const 4
     %17: %r1 = host host.array %13, %14, %15, %16
     %18: %r2 = const 4
-    %19: %r3 = object %s0 %17, %18
-    store var $1: %r3, %19
     %20: %r0 = const 4
     %21: %r0 = const 0
-    %22: %r0 = const 0
     %24: %r0 = const 0
     %25: %r0 = const 10
     %26: %r8 = convert %24
@@ -39,17 +32,15 @@ fn main() -> one %r0
     %29: %r1 = alias %17
     store element %29[%21]: %r0, %25
     %30: %r0 = call replaces$sum(Array(I32), I32) %17, %20, %21
-    %23: %r7 = object %s2 %22
-    store property %23.$v: %r0, %30
     %31: %r0 = const 0
     %32: %r0 = call replaces$sum(Array(I32), I32) %17, %20, %31
-    %33: %r3 = load var $1: %r3
+    %19: %r3 = object %s0 %17, %18
+    %33: %r3 = alias %19
     call Array(a).reclaim(I32) %33
     %34: %r0 = binary.add %30, %32
     %35: %r0 = coerce %34
     %36: %r0 = binary.add %11, %35
     %37: %r0 = coerce %36
-    %41: %r0 = const 0
     %43: %r0 = const 1
     %44: %r0 = const 2
     %45: %r0 = const 3
@@ -80,8 +71,6 @@ fn main() -> one %r0
     %63: %r0 = const 0
     %64: %r0 = call replaces$sum(Array(I32), I32) %60, %62, %63
     call Array(a).reclaim(I32) %40
-    %42: %r7 = object %s2 %41
-    store property %42.$v: %r0, %64
     %65: %r0 = binary.add %37, %64
     %66: %r0 = coerce %65
     return %66
@@ -92,7 +81,6 @@ fn main() -> one %r0
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
-    store var $0: %r3, %0
     return
 
 fn replaces$sum(Array(I32), I32)(parts %r6) -> one %r0
@@ -193,7 +181,7 @@ fn replaces$sum(Array(I32), I32)(parts %r6) -> one %r0
     %95: %r0 = coerce %94
     jump -> block2(%95, %87, %89, %91, %93)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 1 sunk 3
+optimizer clones 0 aliased 0 forwarded 0 removed 14 adopted 1 sunk 4 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 2
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

@@ -1,7 +1,6 @@
 fn Held.drop(one %r0) -> omitted
   var $0: %r0
   block0(%0: %r0):
-    store var $0: %r0, %0
     %1: %r0 = load global live: %r0
     %2: %r0 = const 1
     %3: %r0 = binary.sub %1, %2
@@ -11,7 +10,7 @@ fn Held.drop(one %r0) -> omitted
     %6: %r0 = const 10
     %7: %r0 = binary.mul %5, %6
     %8: %r0 = coerce %7
-    %10: %r0 = load var $0: %r0
+    %10: %r0 = alias %0
     %11: %r0 = binary.add %8, %10
     %12: %r0 = coerce %11
     store global trace: %r0, %12
@@ -29,7 +28,6 @@ fn nested(one %r0) -> one %r0
     store global live: %r0, %10
     %11: %r0 = alias %0
     %12: %r2 = const 1
-    store var $0: %r0, %11
     %13: %r0 = const 0
     %14: %r0 = const 2
     %15: %r0 = const 1
@@ -46,7 +44,7 @@ fn nested(one %r0) -> one %r0
     %20: %r2 = binary.gt %1, %16
     branch %20 -> block11 -> block10
   block4:
-    %27: %r0 = load var $0: %r0
+    %27: %r0 = alias %11
     call Held.drop %27
     jump -> block5
   block5:
@@ -54,10 +52,9 @@ fn nested(one %r0) -> one %r0
     jump -> block7(%28, %2)
   block6:
     %29: %r2 = const 0
-    %30: %r0 = load var $0: %r0
-    store var $1: %r0, %30
-    %32: %r0 = load var $1: %r0
-    %33: %r0 = load var $1: %r0
+    %30: %r0 = alias %11
+    %32: %r0 = alias %30
+    %33: %r0 = alias %30
     call Held.drop %33
     %34: %r0 = const 4
     %35: %r2 = binary.gt %32, %34
@@ -65,7 +62,7 @@ fn nested(one %r0) -> one %r0
   block7(%3: %r2, %4: %r0):
     branch %3 -> block8 -> block9
   block8:
-    %41: %r0 = load var $0: %r0
+    %41: %r0 = alias %11
     call Held.drop %41
     jump -> block9
   block9:
@@ -101,11 +98,10 @@ fn main() -> one %r0
     %3: %r0 = binary.add %1, %2
     %4: %r0 = coerce %3
     store global live: %r0, %4
-    %5: %r0 = alias %0
-    store var $2: %r0, %5
     jump -> block1
   block1:
-    %6: %r0 = load var $2: %r0
+    %5: %r0 = alias %0
+    %6: %r0 = alias %5
     call Held.drop %6
     jump -> block2
   block2:
@@ -141,7 +137,7 @@ fn main() -> one %r0
     %36: %r0 = coerce %35
     return %36
 
-optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 7
 
 rep %r0 = number signed 32
 rep %r1 = void

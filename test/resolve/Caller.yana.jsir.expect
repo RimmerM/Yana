@@ -40,10 +40,7 @@ fn main() -> one %r0
     %123: %r0 = const 5
     return %123
   block5:
-    %53: %r0 = const 87
-    %57: %r0 = const 87
-    %60: %r8 = binary.ne %53, %57
-    branch %60 -> block8 -> block7
+    jump -> block7
   block6:
     %122: %r0 = const 6
     return %122
@@ -81,8 +78,7 @@ fn main() -> one %r0
     call I32.show %71, %75, %89
     %90: %r1 = load property %75.$v: %r1
     %91: %r1 = alias %90
-    store var $0: %r1, %91
-    %92: %r1 = load var $0: %r1
+    %92: %r1 = alias %91
     %93: %r1 = alias %92
     %94: %r1 = alias %93
     %95: %r1 = alias %94
@@ -95,7 +91,7 @@ fn main() -> one %r0
     %120: %r0 = const 8
     return %120
   block11:
-    %100: %r1 = load var $0: %r1
+    %100: %r1 = alias %91
     %101: %r1 = alias %100
     %102: %r0 = const 0
     %103: %r1 = alias %101
@@ -108,7 +104,7 @@ fn main() -> one %r0
     %119: %r0 = const 9
     return %119
   block13:
-    %108: %r1 = load var $0: %r1
+    %108: %r1 = alias %91
     %109: %r1 = alias %108
     %110: %r0 = const 2
     %111: %r1 = alias %109
@@ -135,7 +131,7 @@ fn I32.show(one %r0, parts %r4) -> omitted
     store element %1[%2]: %r1, %9
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 38 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 42 adopted 0 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 0 promoted 3
 
 shape %s0 ref {$o: %r2 owner, $k: %r2 key}
 shape %s1 object Site {file: %r1, line: %r0, column: %r0, function: %r1}

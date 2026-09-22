@@ -6,12 +6,11 @@ fn main() -> one %r0
   block0:
     %3: %r1 = const 5n
     %4: %r1 = alias %3
-    store var $0: %r1, %4
-    %5: %r1 = load var $0: %r1
+    %5: %r1 = alias %4
     %6: %r1 = alias %5
     %7: %r1 = binary.add %6, %6
     %8: %r1 = coerce %7
-    %10: %r1 = load var $0: %r1
+    %10: %r1 = alias %4
     %11: %r1 = alias %10
     %12: %r1 = const 1n
     %14: %r1 = binary.add %11, %12
@@ -22,23 +21,22 @@ fn main() -> one %r0
     %22: %r1 = binary.sub %18, %20
     %23: %r1 = coerce %22
     %24: %r1 = alias %23
-    store var $1: %r1, %24
-    %25: %r1 = load var $1: %r1
+    %25: %r1 = alias %24
     %26: %r1 = alias %25
     %27: %r1 = const 15n
     %29: %r2 = binary.eq %26, %27
     branch %29 -> block2 -> block1
   block1:
-    %39: %r1 = load var $1: %r1
+    %39: %r1 = alias %24
     %40: %r1 = alias %39
-    %41: %r1 = load var $0: %r1
+    %41: %r1 = alias %4
     %42: %r1 = alias %41
     %43: %r2 = binary.lt %40, %42
     branch %43 -> block4 -> block19
   block2:
-    %30: %r1 = load var $0: %r1
+    %30: %r1 = alias %4
     %31: %r1 = alias %30
-    %32: %r1 = load var $1: %r1
+    %32: %r1 = alias %24
     %33: %r1 = alias %32
     %34: %r2 = binary.lt %31, %33
     branch %34 -> block3 -> block1
@@ -50,14 +48,12 @@ fn main() -> one %r0
     store global trace: %r0, %38
     jump -> block1
   block4:
-    %54: %r1 = load var $0: %r1
+    %54: %r1 = alias %4
     %55: %r1 = alias %54
-    %56: %r1 = load var $1: %r1
+    %56: %r1 = alias %24
     %57: %r1 = alias %56
-    store var $2: %r1, %55
-    store var $3: %r1, %57
-    %58: %r1 = load var $3: %r1
-    %59: %r1 = load var $2: %r1
+    %58: %r1 = alias %57
+    %59: %r1 = alias %55
     %60: %r2 = binary.lt %58, %59
     branch %60 -> block20 -> block22
   block5:
@@ -68,7 +64,7 @@ fn main() -> one %r0
     store global trace: %r0, %53
     jump -> block4
   block6:
-    %70: %r1 = load var $0: %r1
+    %70: %r1 = alias %4
     %71: %r1 = alias %70
     %72: %r1 = const 0n
     %73: %r2 = binary.ne %71, %72
@@ -81,9 +77,9 @@ fn main() -> one %r0
     store global trace: %r0, %69
     jump -> block6
   block8:
-    %78: %r1 = load var $0: %r1
+    %78: %r1 = alias %4
     %79: %r1 = alias %78
-    %80: %r1 = load var $0: %r1
+    %80: %r1 = alias %4
     %81: %r1 = alias %80
     %82: %r1 = binary.sub %79, %81
     %83: %r1 = coerce %82
@@ -109,7 +105,7 @@ fn main() -> one %r0
     %98: %r0 = binary.or %96, %97
     %99: %r0 = coerce %98
     store global trace: %r0, %99
-    %100: %r1 = load var $0: %r1
+    %100: %r1 = alias %4
     %101: %r1 = alias %100
     %102: %r1 = const 0n
     %103: %r2 = binary.ne %101, %102
@@ -202,18 +198,18 @@ fn main() -> one %r0
     %49: %r2 = binary.eq %47, %48
     branch %49 -> block5 -> block4
   block20:
-    %62: %r1 = load var $2: %r1
+    %62: %r1 = alias %55
     jump -> block21(%62)
   block21(%2: %r1):
-    %63: %r1 = load var $1: %r1
+    %63: %r1 = alias %24
     %64: %r1 = alias %63
     %65: %r2 = binary.eq %2, %64
     branch %65 -> block7 -> block6
   block22:
-    %61: %r1 = load var $3: %r1
+    %61: %r1 = alias %57
     jump -> block21(%61)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 7 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 11 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 18
 
 rep %r0 = number signed 32
 rep %r1 = bigint signed

@@ -1,0 +1,810 @@
+module ResolveTest
+
+let & failures: I32 = 0
+
+let & lastLine: I32 = 0
+
+let string'142: [CodeUnit *4] = "only"
+
+let string'143: [CodeUnit *0] = ""
+
+let string'144: [CodeUnit *4] = "then"
+
+let string'145: [CodeUnit *4] = "else"
+
+let string'146: [CodeUnit *1] = "w"
+
+let string'147: [CodeUnit *6] = "passed"
+
+let string'148: [CodeUnit *8] = "returned"
+
+let string'149: [CodeUnit *4] = "zero"
+
+let string'150: [CodeUnit *8] = "captured"
+
+let string'151: [CodeUnit *6] = "shared"
+
+let string'152: [CodeUnit *6] = "inline"
+
+let string'153: [CodeUnit *11] = "ResolveTest"
+
+let string'154: [CodeUnit *6] = "checks"
+
+let string'155: [CodeUnit *11] = "ResolveTest"
+
+let string'156: [CodeUnit *6] = "checks"
+
+let string'157: [CodeUnit *11] = "ResolveTest"
+
+let string'158: [CodeUnit *6] = "checks"
+
+fn onlyFields(k: F64 [shared call]) -> F64 {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64 [shared call]
+  %2: %Point address = alloc frame Point
+  store inspect %1 borrow %0
+  %3: F64 trivial = load inspect %1
+  %4: F64 trivial = load inspect %1
+  %5: F64 trivial = const 2
+  %6: F64 trivial = mul inspect %4 inspect %5
+  %7: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 4, ownsHeap: 0}, length: 4}}
+  %8: Point owned = aggregate.Point consume %3 consume %6 consume %7
+  store inspect %2 consume %8
+  %9: %F64 address = field.addr .x inspect %2
+  %10: F64 trivial = load inspect %9
+  %11: %F64 address = field.addr .y inspect %2
+  %12: F64 trivial = load inspect %11
+  drop Point inspect %2
+  %13: F64 trivial = add inspect %10 inspect %12
+  return consume %13
+}
+
+fn twoPaths(c: Bool [shared call], k: F64 [shared call]) -> F64 {
+bb0(%0: Bool trivial, %1: F64 trivial):
+  %2: %Bool address = alloc frame Bool [shared call]
+  %3: %F64 address = alloc frame F64 [shared call]
+  %4: %Point address = alloc frame Point
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %5: F64 trivial = const 0
+  %6: F64 trivial = const 0
+  %7: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 0, ownsHeap: 0}, length: 0}}
+  %8: Point owned = aggregate.Point consume %5 consume %6 consume %7
+  store inspect %4 consume %8
+  drop Point inspect %4
+  %9: Bool trivial = load inspect %2
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  %10: F64 trivial = const 2
+  %11: F64 trivial = load inspect %3
+  %12: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 4, ownsHeap: 0}, length: 4}}
+  %13: Point owned = aggregate.Point consume %10 consume %11 consume %12
+  store inspect %4 consume %13
+  jump -> bb2
+
+bb2:
+  %14: %F64 address = field.addr .x inspect %4
+  %15: F64 trivial = load inspect %14
+  %16: F64 trivial = const 10
+  %17: F64 trivial = mul inspect %15 inspect %16
+  %18: %F64 address = field.addr .y inspect %4
+  %19: F64 trivial = load inspect %18
+  drop Point inspect %4
+  %20: F64 trivial = add inspect %17 inspect %19
+  return consume %20
+
+bb3:
+  %21: F64 trivial = load inspect %3
+  %22: F64 trivial = const 1
+  %23: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 4, ownsHeap: 0}, length: 4}}
+  %24: Point owned = aggregate.Point consume %21 consume %22 consume %23
+  store inspect %4 consume %24
+  jump -> bb2
+}
+
+fn fieldWrite(k: F64 [shared call]) -> F64 {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64 [shared call]
+  %2: %Point address = alloc frame Point
+  store inspect %1 borrow %0
+  %3: F64 trivial = load inspect %1
+  %4: F64 trivial = const 0
+  %5: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
+  %6: Point owned = aggregate.Point consume %3 consume %4 consume %5
+  store inspect %2 consume %6
+  %7: F64 trivial = load inspect %1
+  %8: F64 trivial = const 1
+  %9: Bool trivial = gt inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: %F64 address = field.addr .x inspect %2
+  %11: F64 trivial = load inspect %10
+  %12: %F64 address = field.addr .y inspect %2
+  %13: F64 trivial = load inspect %12
+  drop Point inspect %2
+  %14: F64 trivial = add inspect %11 inspect %13
+  return consume %14
+
+bb3:
+  %15: F64 trivial = load inspect %1
+  %16: F64 trivial = const 1
+  %17: F64 trivial = add inspect %15 inspect %16
+  %18: %F64 address = field.addr .y inspect %2
+  store inspect %18 consume %17
+  jump -> bb2
+}
+
+fn sum'2(p: Point [shared call]) -> F64 {
+bb0(%0: Point [shared call] guaranteed):
+  %1: %F64 address = field.addr .x inspect %0
+  %2: F64 trivial = load inspect %1
+  %3: %F64 address = field.addr .y inspect %0
+  %4: F64 trivial = load inspect %3
+  %5: F64 trivial = add inspect %2 inspect %4
+  return consume %5
+}
+
+fn passed(k: F64 [shared call]) -> F64 {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64 [shared call]
+  %2: %Point address = alloc frame Point
+  store inspect %1 borrow %0
+  %3: F64 trivial = load inspect %1
+  %4: F64 trivial = const 3
+  %5: String owned = const String {units: Array {run: Run {items: &string'147, capacity: 6, ownsHeap: 0}, length: 6}}
+  %6: Point owned = aggregate.Point consume %3 consume %4 consume %5
+  store inspect %2 consume %6
+  %7: Point [shared call] guaranteed from{%2} = load inspect %2
+  %8: F64 trivial = call sum'2 borrow %7
+  %9: %F64 address = field.addr .x inspect %2
+  %10: F64 trivial = load inspect %9
+  drop Point inspect %2
+  %11: F64 trivial = add inspect %8 inspect %10
+  return consume %11
+}
+
+fn returned(k: F64 [shared call]) -> Point {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64 [shared call]
+  %2: %Point address = alloc frame Point
+  store inspect %1 borrow %0
+  %3: F64 trivial = load inspect %1
+  %4: F64 trivial = const 4
+  %5: String owned = const String {units: Array {run: Run {items: &string'148, capacity: 8, ownsHeap: 0}, length: 8}}
+  %6: Point owned = aggregate.Point consume %3 consume %4 consume %5
+  store inspect %2 consume %6
+  %7: F64 trivial = load inspect %1
+  %8: F64 trivial = const 0
+  %9: Bool trivial = gt inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  drop Point inspect %2
+  jump -> bb2
+
+bb2:
+  %10: F64 trivial = const 0
+  %11: F64 trivial = const 0
+  %12: String owned = const String {units: Array {run: Run {items: &string'149, capacity: 4, ownsHeap: 0}, length: 4}}
+  %13: Point owned = aggregate.Point consume %10 consume %11 consume %12
+  return consume %13
+
+bb3:
+  %14: Point owned = load inspect %2
+  return consume %14
+}
+
+fn apply(f: (F64) -> F64 [shared call], d: F64 [shared call]) -> F64 {
+bb0(%0: (F64) -> F64 [shared call] guaranteed, %1: F64 trivial):
+  %2: %F64 address = alloc frame F64 [shared call]
+  store inspect %2 borrow %1
+  %3: (F64) -> F64 [shared call] guaranteed from{%0} = load inspect %0
+  %4: F64 trivial = load inspect %2
+  %5: F64 trivial = call [value #0] inspect %3 borrow %4
+  return consume %5
+}
+
+fn captured(k: F64 [shared call]) -> F64 {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64 [shared call]
+  %2: %Point address = alloc frame Point
+  %3: %captured.lambda.env address = alloc frame captured.lambda.env
+  %4: %(F64) -> F64 address = alloc frame (F64) -> F64 [owned here shape8 .0=shared call]
+  store inspect %1 borrow %0
+  %5: F64 trivial = load inspect %1
+  %6: F64 trivial = const 5
+  %7: String owned = const String {units: Array {run: Run {items: &string'150, capacity: 8, ownsHeap: 0}, length: 8}}
+  %8: Point owned = aggregate.Point consume %5 consume %6 consume %7
+  store inspect %2 consume %8
+  %9: Point [shared slot 0] guaranteed from{%2} = load inspect %2
+  %10: captured.lambda.env trivial = aggregate.captured.lambda.env borrow %9
+  store inspect %3 consume %10
+  %11: captured.lambda.env [shared call] guaranteed from{%2, %3} = load inspect %3
+  %12: (F64) -> F64 [owned here shape8 .0=shared call] affine = fun.value captured.lambda inspect %11
+  store inspect %4 consume %12
+  %13: (F64) -> F64 [shared call shape8 .0=shared call] guaranteed from{%2, %3, %4} = load inspect %4
+  %14: F64 trivial = const 1
+  %15: F64 trivial = call apply borrow %13 borrow %14
+  drop Point inspect %2
+  return consume %15
+}
+
+fn bump(p: Point [unique call]) -> {} {
+bb0(%0: Point [unique call] guaranteed):
+  %1: %F64 address = field.addr .x inspect %0
+  %2: F64 trivial = load inspect %1
+  %3: F64 trivial = const 100
+  %4: F64 trivial = add inspect %2 inspect %3
+  %5: %F64 address = field.addr .x inspect %0
+  store inspect %5 consume %4
+  return
+}
+
+fn sharedBorrow(k: F64 [shared call]) -> F64 {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64 [shared call]
+  %2: %Point address = alloc frame Point
+  store inspect %1 borrow %0
+  %3: F64 trivial = load inspect %1
+  %4: F64 trivial = const 6
+  %5: String owned = const String {units: Array {run: Run {items: &string'151, capacity: 6, ownsHeap: 0}, length: 6}}
+  %6: Point owned = aggregate.Point consume %3 consume %4 consume %5
+  store inspect %2 consume %6
+  %7: Point [unique call] guaranteed from{%2} = load inspect %2
+  call bump borrow %7
+  %8: %F64 address = field.addr .x inspect %2
+  %9: F64 trivial = load inspect %8
+  %10: %F64 address = field.addr .y inspect %2
+  %11: F64 trivial = load inspect %10
+  drop Point inspect %2
+  %12: F64 trivial = add inspect %9 inspect %11
+  return consume %12
+}
+
+fn bumpInline(p: Point [unique call]) -> {} {
+bb0(%0: Point [unique call] guaranteed):
+  %1: %F64 address = field.addr .x inspect %0
+  %2: F64 trivial = load inspect %1
+  %3: F64 trivial = const 1000
+  %4: F64 trivial = add inspect %2 inspect %3
+  %5: %F64 address = field.addr .x inspect %0
+  store inspect %5 consume %4
+  return
+}
+
+fn inlineWrite(k: F64 [shared call]) -> F64 {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64 [shared call]
+  %2: %Point address = alloc frame Point
+  store inspect %1 borrow %0
+  %3: F64 trivial = load inspect %1
+  %4: F64 trivial = const 7
+  %5: String owned = const String {units: Array {run: Run {items: &string'152, capacity: 6, ownsHeap: 0}, length: 6}}
+  %6: Point owned = aggregate.Point consume %3 consume %4 consume %5
+  store inspect %2 consume %6
+  %7: Point [unique call] guaranteed from{%2} = load inspect %2
+  call bumpInline borrow %7
+  %8: %F64 address = field.addr .x inspect %2
+  %9: F64 trivial = load inspect %8
+  %10: %F64 address = field.addr .y inspect %2
+  %11: F64 trivial = load inspect %10
+  drop Point inspect %2
+  %12: F64 trivial = add inspect %9 inspect %11
+  return consume %12
+}
+
+fn rebind(q: Pair [shared call], r: Pair [unique call]) -> F64 {
+bb0(%0: Pair [shared call] guaranteed, %1: Pair [unique call] guaranteed):
+  %2: %F64 address = field.addr .y inspect %0
+  %3: F64 trivial = load inspect %2
+  %4: F64 trivial = const 7
+  %5: F64 trivial = mul inspect %3 inspect %4
+  %6: F64 trivial = const 1
+  %7: Pair trivial = aggregate.Pair consume %5 consume %6
+  store inspect %1 consume %7
+  %8: %F64 address = field.addr .x inspect %0
+  %9: F64 trivial = load inspect %8
+  %10: F64 trivial = const 1000
+  %11: F64 trivial = mul inspect %9 inspect %10
+  %12: %F64 address = field.addr .y inspect %0
+  %13: F64 trivial = load inspect %12
+  %14: F64 trivial = const 100
+  %15: F64 trivial = mul inspect %13 inspect %14
+  %16: F64 trivial = add inspect %11 inspect %15
+  %17: %F64 address = field.addr .x inspect %1
+  %18: F64 trivial = load inspect %17
+  %19: F64 trivial = add inspect %16 inspect %18
+  return consume %19
+}
+
+fn aliasedStore(k: F64 [shared call]) -> F64 {
+bb0(%0: F64 trivial):
+  %1: %F64 address = alloc frame F64 [shared call]
+  %2: %Pair address = alloc frame Pair
+  store inspect %1 borrow %0
+  %3: F64 trivial = load inspect %1
+  %4: F64 trivial = load inspect %1
+  %5: F64 trivial = const 1
+  %6: F64 trivial = add inspect %4 inspect %5
+  %7: Pair trivial = aggregate.Pair consume %3 consume %6
+  store inspect %2 consume %7
+  %8: Pair trivial = copy inspect %2
+  %9: Pair [unique call] guaranteed from{%2} = load inspect %2
+  %10: F64 trivial = call rebind borrow %8 borrow %9
+  %11: %F64 address = field.addr .y inspect %2
+  %12: F64 trivial = load inspect %11
+  %13: F64 trivial = add inspect %10 inspect %12
+  return consume %13
+}
+
+fn walk(q: Pair [shared call], r: Pair [unique call], n: I32 [shared call]) -> F64 {
+bb0(%0: Pair [shared call] guaranteed, %1: Pair [unique call] guaranteed, %2: I32 trivial):
+  %11: %I32 address = alloc frame I32 [shared call]
+  %12: %F64 address = alloc frame F64
+  %13: %I32 address = alloc frame I32
+  %14: %I32 address = alloc frame I32
+  store inspect %11 borrow %2
+  %15: F64 trivial = const 0
+  store inspect %12 consume %15
+  %16: I32 trivial = load inspect %11
+  %17: I32 trivial = const 0
+  %18: I32 trivial = const 1
+  store inspect %13 consume %17
+  jump -> bb1(consume %16, consume %18)
+
+bb1(%3: I32 trivial, %4: I32 trivial):
+  %19: I32 trivial = load inspect %13
+  %20: Bool trivial = lt inspect %19 inspect %3
+  branch inspect %20 -> bb4(consume %3, consume %4) -> bb3(consume %3, consume %4)
+
+bb2(%5: I32 trivial, %6: I32 trivial):
+  %21: I32 trivial = load inspect %13
+  %22: I32 trivial = add inspect %21 inspect %6
+  store inspect %13 consume %22
+  jump -> bb1(consume %5, consume %6)
+
+bb3(%7: I32 trivial, %8: I32 trivial):
+  %23: F64 trivial = load inspect %12
+  return consume %23
+
+bb4(%9: I32 trivial, %10: I32 trivial):
+  %24: I32 trivial = load inspect %13
+  store inspect %14 consume %24
+  %25: %F64 address = field.addr .y inspect %1
+  %26: F64 trivial = load inspect %25
+  %27: %F64 address = field.addr .x inspect %0
+  %28: F64 trivial = load inspect %27
+  %29: %F64 address = field.addr .x inspect %1
+  %30: F64 trivial = load inspect %29
+  %31: F64 trivial = add inspect %28 inspect %30
+  %32: Pair trivial = aggregate.Pair consume %26 consume %31
+  store inspect %1 consume %32
+  %33: F64 trivial = load inspect %12
+  %34: %F64 address = field.addr .y inspect %0
+  %35: F64 trivial = load inspect %34
+  %36: F64 trivial = add inspect %33 inspect %35
+  store inspect %12 consume %36
+  jump -> bb2(consume %9, consume %10)
+}
+
+fn aliasedLoop(k: F64 [shared call], n: I32 [shared call]) -> F64 {
+bb0(%0: F64 trivial, %1: I32 trivial):
+  %2: %F64 address = alloc frame F64 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %Pair address = alloc frame Pair
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %5: F64 trivial = load inspect %2
+  %6: F64 trivial = load inspect %2
+  %7: F64 trivial = const 1
+  %8: F64 trivial = add inspect %6 inspect %7
+  %9: Pair trivial = aggregate.Pair consume %5 consume %8
+  store inspect %4 consume %9
+  %10: Pair trivial = copy inspect %4
+  %11: Pair [unique call] guaranteed from{%4} = load inspect %4
+  %12: I32 trivial = load inspect %3
+  %13: F64 trivial = call walk borrow %10 borrow %11 borrow %12
+  %14: F64 trivial = const 1000
+  %15: F64 trivial = mul inspect %13 inspect %14
+  %16: %F64 address = field.addr .x inspect %4
+  %17: F64 trivial = load inspect %16
+  %18: F64 trivial = add inspect %15 inspect %17
+  return consume %18
+}
+
+fn updates(start: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %Tally address = alloc frame Tally
+  %3: %Tally address = alloc frame Tally
+  %4: %Tally address = alloc frame Tally
+  store inspect %1 borrow %0
+  %5: F64 trivial = const 0.5
+  %6: I32 trivial = load inspect %1
+  %7: Tally trivial = aggregate.Tally consume %5 consume %6
+  store inspect %2 consume %7
+  %8: Tally trivial = copy inspect %2
+  store inspect %3 consume %8
+  %9: %I32 address = field.addr .count inspect %2
+  %10: I32 trivial = load inspect %9
+  %11: I32 trivial = const 1
+  %12: I32 trivial = add inspect %10 inspect %11
+  %13: %I32 address = field.addr .count inspect %3
+  store inspect %13 consume %12
+  %14: Tally trivial = copy inspect %3
+  store inspect %2 consume %14
+  %15: Tally trivial = copy inspect %2
+  store inspect %4 consume %15
+  %16: %F64 address = field.addr .weight inspect %2
+  %17: F64 trivial = load inspect %16
+  %18: F64 trivial = const 1
+  %19: F64 trivial = add inspect %17 inspect %18
+  %20: %F64 address = field.addr .weight inspect %4
+  store inspect %20 consume %19
+  %21: Tally trivial = copy inspect %4
+  store inspect %2 consume %21
+  %22: %I32 address = field.addr .count inspect %2
+  %23: I32 trivial = load inspect %22
+  return consume %23
+}
+
+fn optional(c: Bool [shared call], k: F64 [shared call]) -> Maybe(Pair) {
+bb0(%0: Bool trivial, %1: F64 trivial):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %F64 address = alloc frame F64 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %5: Bool trivial = load inspect %3
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: Maybe(Pair) trivial = aggregate.Nothing
+  jump -> bb2(consume %6)
+
+bb2(%2: Maybe(Pair) trivial):
+  return consume %2
+
+bb3:
+  %7: F64 trivial = load inspect %4
+  %8: F64 trivial = const 2
+  %9: Pair trivial = aggregate.Pair consume %7 consume %8
+  %10: Maybe(Pair) trivial = aggregate.Just consume %9
+  jump -> bb2(consume %10)
+}
+
+fn retested(k: F64 [shared call], c: Bool [shared call]) -> F64 {
+bb0(%0: F64 trivial, %1: Bool trivial):
+  %2: %F64 address = alloc frame F64 [shared call]
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %Maybe(Pair) address = alloc frame Maybe(Pair)
+  %5: %F64 address = alloc frame F64
+  %6: %Pair address = alloc frame Pair
+  %7: %Pair address = alloc frame Pair
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %8: Bool trivial = load inspect %3
+  %9: F64 trivial = load inspect %2
+  %10: Maybe(Pair) trivial = call optional borrow %8 borrow %9
+  store inspect %4 consume %10
+  %11: F64 trivial = const 0
+  store inspect %5 consume %11
+  %12: %U8 address = field.addr .# inspect %4
+  %13: U8 trivial = load inspect %12
+  %14: U8 trivial = const 1
+  %15: Bool trivial = eq inspect %13 inspect %14
+  branch inspect %15 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %16: Bool trivial = load inspect %3
+  %17: Bool trivial = not inspect %16
+  %18: F64 trivial = load inspect %2
+  %19: F64 trivial = const 1
+  %20: F64 trivial = add inspect %18 inspect %19
+  %21: Maybe(Pair) trivial = call optional borrow %17 borrow %20
+  store inspect %4 consume %21
+  %22: %U8 address = field.addr .# inspect %4
+  %23: U8 trivial = load inspect %22
+  %24: U8 trivial = const 1
+  %25: Bool trivial = eq inspect %23 inspect %24
+  branch inspect %25 -> bb6 -> bb4
+
+bb3:
+  %26: %Pair address = field.addr .Just inspect %4
+  %27: Pair trivial = copy inspect %26
+  store inspect %6 consume %27
+  %28: %F64 address = field.addr .x inspect %6
+  %29: F64 trivial = load inspect %28
+  %30: %F64 address = field.addr .y inspect %6
+  %31: F64 trivial = load inspect %30
+  %32: F64 trivial = add inspect %29 inspect %31
+  store inspect %5 consume %32
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %33: F64 trivial = load inspect %5
+  return consume %33
+
+bb6:
+  %34: %Pair address = field.addr .Just inspect %4
+  %35: Pair trivial = copy inspect %34
+  store inspect %7 consume %35
+  %36: F64 trivial = load inspect %5
+  %37: F64 trivial = const 10
+  %38: F64 trivial = mul inspect %36 inspect %37
+  %39: %F64 address = field.addr .x inspect %7
+  %40: F64 trivial = load inspect %39
+  %41: F64 trivial = add inspect %38 inspect %40
+  store inspect %5 consume %41
+  jump -> bb5
+}
+
+fn report(file: String [shared call view], line: I32 [shared call], function: String [shared call view]) -> {} {
+bb0(%0: String [shared call view] guaranteed, %1: I32 trivial, %2: String [shared call view] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %1
+  %4: %I32 address = global.addr failures
+  %5: I32 [unique call] guaranteed = load inspect %4
+  %6: I32 trivial = const 1
+  call +=(I32) borrow %5 borrow %6
+  %7: I32 trivial = load inspect %3
+  %8: I32 trivial = const 100
+  %9: I32 trivial = mul inspect %7 inspect %8
+  %10: String [shared call view] guaranteed from{%0} = load inspect %0
+  %11: Size trivial = call String.length borrow %10
+  %12: String [shared call view] guaranteed from{%2} = load inspect %2
+  %13: Size trivial = call String.length borrow %12
+  %14: Size trivial = add inspect %11 inspect %13
+  %15: I32 trivial = convert inspect %14
+  %16: I32 trivial = add inspect %9 inspect %15
+  %17: %I32 address = global.addr lastLine
+  store inspect %17 consume %16
+  return
+}
+
+fn expect(held: Bool [shared call], at: Site) -> {} {
+bb0(%0: Bool trivial, %1: Site owned):
+  %2: %Bool address = alloc frame Bool [shared call]
+  %3: %Site address = alloc frame Site
+  store inspect %2 borrow %0
+  store inspect %3 consume %1
+  %4: Bool trivial = load inspect %2
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %5: %String address = field.addr .file inspect %3
+  %6: String [shared call] guaranteed from{%3} = load inspect %5
+  %7: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %6
+  %8: %I32 address = field.addr .line inspect %3
+  %9: I32 trivial = load inspect %8
+  %10: %String address = field.addr .function inspect %3
+  %11: String [shared call] guaranteed from{%3} = load inspect %10
+  %12: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %11
+  call report borrow %7 borrow %9 borrow %12
+  drop Site inspect %3
+  return
+
+bb3:
+  drop Site inspect %3
+  return
+}
+
+fn checks(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 2
+  %4: Bool trivial = gt inspect %2 inspect %3
+  %5: String owned = const String {units: Array {run: Run {items: &string'153, capacity: 11, ownsHeap: 0}, length: 11}}
+  %6: I32 trivial = const 148
+  %7: I32 trivial = const 4
+  %8: String owned = const String {units: Array {run: Run {items: &string'154, capacity: 6, ownsHeap: 0}, length: 6}}
+  %9: Site owned = aggregate.Site consume %5 consume %6 consume %7 consume %8
+  call expect borrow %4 consume %9
+  %10: I32 trivial = load inspect %1
+  %11: I32 trivial = const 100
+  %12: Bool trivial = lt inspect %10 inspect %11
+  %13: String owned = const String {units: Array {run: Run {items: &string'155, capacity: 11, ownsHeap: 0}, length: 11}}
+  %14: I32 trivial = const 149
+  %15: I32 trivial = const 4
+  %16: String owned = const String {units: Array {run: Run {items: &string'156, capacity: 6, ownsHeap: 0}, length: 6}}
+  %17: Site owned = aggregate.Site consume %13 consume %14 consume %15 consume %16
+  call expect borrow %12 consume %17
+  %18: I32 trivial = load inspect %1
+  %19: I32 trivial = const 5
+  %20: Bool trivial = eq inspect %18 inspect %19
+  %21: String owned = const String {units: Array {run: Run {items: &string'157, capacity: 11, ownsHeap: 0}, length: 11}}
+  %22: I32 trivial = const 150
+  %23: I32 trivial = const 4
+  %24: String owned = const String {units: Array {run: Run {items: &string'158, capacity: 6, ownsHeap: 0}, length: 6}}
+  %25: Site owned = aggregate.Site consume %21 consume %22 consume %23 consume %24
+  call expect borrow %20 consume %25
+  %26: %I32 address = global.addr failures
+  %27: I32 trivial = load inspect %26
+  %28: I32 trivial = const 1000
+  %29: I32 trivial = mul inspect %27 inspect %28
+  %30: %I32 address = global.addr lastLine
+  %31: I32 trivial = load inspect %30
+  %32: I32 trivial = add inspect %29 inspect %31
+  return consume %32
+}
+
+fn main() -> I32 {
+bb0:
+  %3: %F64 address = alloc frame F64
+  %4: %Point address = alloc frame Point
+  %5: %Point address = alloc frame Point
+  %6: %I32 address = alloc frame I32
+  %7: %I32 address = alloc frame I32
+  %8: %I32 address = alloc frame I32
+  %9: %I32 address = alloc frame I32
+  %10: %I32 address = alloc frame I32
+  %11: F64 trivial = const 1.5
+  %12: F64 trivial = call onlyFields borrow %11
+  store inspect %3 consume %12
+  %13: F64 [unique call] guaranteed from{%3} = load inspect %3
+  %14: Bool trivial = const True
+  %15: F64 trivial = const 3
+  %16: F64 trivial = call twoPaths borrow %14 borrow %15
+  %17: Bool trivial = const False
+  %18: F64 trivial = const 4
+  %19: F64 trivial = call twoPaths borrow %17 borrow %18
+  %20: F64 trivial = add inspect %16 inspect %19
+  call +=(F64) borrow %13 borrow %20
+  %21: F64 [unique call] guaranteed from{%3} = load inspect %3
+  %22: F64 trivial = const 2
+  %23: F64 trivial = call fieldWrite borrow %22
+  %24: F64 trivial = const 0.5
+  %25: F64 trivial = call fieldWrite borrow %24
+  %26: F64 trivial = add inspect %23 inspect %25
+  call +=(F64) borrow %21 borrow %26
+  %27: F64 [unique call] guaranteed from{%3} = load inspect %3
+  %28: F64 trivial = const 2
+  %29: F64 trivial = call passed borrow %28
+  %30: F64 trivial = const 3
+  %31: Point owned = call returned borrow %30
+  store inspect %4 consume %31
+  %32: %F64 address = field.addr .y inspect %4
+  %33: F64 trivial = load inspect %32
+  drop Point inspect %4
+  %34: F64 trivial = add inspect %29 inspect %33
+  %35: F64 trivial = const -1
+  %36: Point owned = call returned borrow %35
+  store inspect %5 consume %36
+  %37: %F64 address = field.addr .y inspect %5
+  %38: F64 trivial = load inspect %37
+  drop Point inspect %5
+  %39: F64 trivial = add inspect %34 inspect %38
+  call +=(F64) borrow %27 borrow %39
+  %40: F64 [unique call] guaranteed from{%3} = load inspect %3
+  %41: F64 trivial = const 2
+  %42: F64 trivial = call captured borrow %41
+  %43: F64 trivial = const 1
+  %44: F64 trivial = call sharedBorrow borrow %43
+  %45: F64 trivial = add inspect %42 inspect %44
+  %46: F64 trivial = const 1
+  %47: F64 trivial = call inlineWrite borrow %46
+  %48: F64 trivial = add inspect %45 inspect %47
+  call +=(F64) borrow %40 borrow %48
+  %49: I32 trivial = const 5
+  %50: I32 trivial = call checks borrow %49
+  store inspect %6 consume %50
+  %51: I32 trivial = const 200
+  %52: I32 trivial = call checks borrow %51
+  store inspect %7 consume %52
+  %53: F64 trivial = load inspect %3
+  %54: F64 trivial = const 1199
+  %55: Bool trivial = eq inspect %53 inspect %54
+  branch inspect %55 -> bb3 -> bb1
+
+bb1:
+  %56: I32 trivial = const 0
+  jump -> bb2(consume %56)
+
+bb2(%0: I32 trivial):
+  store inspect %8 consume %0
+  %57: F64 trivial = const 3
+  %58: F64 trivial = call aliasedStore borrow %57
+  %59: F64 trivial = const 3429
+  %60: Bool trivial = eq inspect %58 inspect %59
+  branch inspect %60 -> bb6 -> bb4
+
+bb3:
+  %61: I32 trivial = const 100000
+  jump -> bb2(consume %61)
+
+bb4:
+  %62: I32 trivial = const 0
+  jump -> bb5(consume %62)
+
+bb5(%1: I32 trivial):
+  store inspect %9 consume %1
+  %63: I32 trivial = const 10
+  %64: I32 trivial = call updates borrow %63
+  %65: I32 trivial = const 11
+  %66: Bool trivial = eq inspect %64 inspect %65
+  branch inspect %66 -> bb10 -> bb8
+
+bb6:
+  %67: F64 trivial = const 1
+  %68: I32 trivial = const 3
+  %69: F64 trivial = call aliasedLoop borrow %67 borrow %68
+  %70: F64 trivial = const 6003
+  %71: Bool trivial = eq inspect %69 inspect %70
+  branch inspect %71 -> bb7 -> bb4
+
+bb7:
+  %72: I32 trivial = const 1000000
+  jump -> bb5(consume %72)
+
+bb8:
+  %73: I32 trivial = const 0
+  jump -> bb9(consume %73)
+
+bb9(%2: I32 trivial):
+  store inspect %10 consume %2
+  %74: I32 trivial = load inspect %8
+  %75: I32 trivial = load inspect %6
+  %76: I32 trivial = add inspect %74 inspect %75
+  %77: I32 trivial = load inspect %7
+  %78: I32 trivial = add inspect %76 inspect %77
+  %79: I32 trivial = load inspect %9
+  %80: I32 trivial = add inspect %78 inspect %79
+  %81: I32 trivial = load inspect %10
+  %82: I32 trivial = add inspect %80 inspect %81
+  return consume %82
+
+bb10:
+  %83: F64 trivial = const 2
+  %84: Bool trivial = const True
+  %85: F64 trivial = call retested borrow %83 borrow %84
+  %86: F64 trivial = const 4
+  %87: Bool trivial = eq inspect %85 inspect %86
+  branch inspect %87 -> bb11 -> bb8
+
+bb11:
+  %88: F64 trivial = const 2
+  %89: Bool trivial = const False
+  %90: F64 trivial = call retested borrow %88 borrow %89
+  %91: F64 trivial = const 3
+  %92: Bool trivial = eq inspect %90 inspect %91
+  branch inspect %92 -> bb12 -> bb8
+
+bb12:
+  %93: I32 trivial = const 10000000
+  jump -> bb9(consume %93)
+}
+
+fn captured.lambda(captured.lambda.env: captured.lambda.env [unique call], d: F64 [shared call]) -> F64 {
+bb0(%0: captured.lambda.env [unique call] guaranteed, %1: F64 trivial):
+  %2: %F64 address = alloc frame F64 [shared call]
+  store inspect %2 borrow %1
+  %3: %Point address = field.addr .p inspect %0
+  %4: %Point address = load inspect %3
+  %5: %F64 address = field.addr .x inspect %4
+  %6: F64 trivial = load inspect %5
+  %7: %Point address = field.addr .p inspect %0
+  %8: %Point address = load inspect %7
+  %9: %F64 address = field.addr .y inspect %8
+  %10: F64 trivial = load inspect %9
+  %11: F64 trivial = add inspect %6 inspect %10
+  %12: F64 trivial = load inspect %2
+  %13: F64 trivial = add inspect %11 inspect %12
+  return consume %13
+}
+
+entry main

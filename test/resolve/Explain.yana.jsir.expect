@@ -2,30 +2,15 @@ fn main() -> one %r0
   var $0: %r2
   var $1: %r2
   block0:
-    %0: %r1 = const 0n
-    %1: %r1 = const 0n
-    %2: %r2 = object %s0 %0, %1
-    store var $0: %r2, %2
-    %3: %r1 = const 1n
-    %4: %r1 = const 2n
-    %5: %r2 = object %s0 %3, %4
-    store var $0: %r2, %5
     %6: %r1 = const 3n
-    %7: %r1 = const 4n
-    %8: %r2 = object %s0 %6, %7
-    store var $1: %r2, %8
-    %9: %r2 = load var $1: %r2
-    %10: %r2 = alias %9
-    store var $0: %r2, %10
-    %11: %r2 = load var $0: %r2
-    %12: %r1 = load property %11.left: %r1
+    %12: %r1 = alias %6
     %16: %r1 = const 40n
     %17: %r1 = binary.add %12, %16
     %18: %r1 = coerce %17
     %19: %r0 = convert %18
     return %19
 
-optimizer clones 1 aliased 1 forwarded 0 removed 3 adopted 0 sunk 0
+optimizer clones 1 aliased 1 forwarded 1 removed 18 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 2
 
 shape %s0 object Pair {left: %r1, right: %r1}
 

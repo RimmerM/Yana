@@ -2,30 +2,26 @@ fn main() -> one %r0
   var $0: %r0
   var $1: %r1
   var $2: %r0
+  var $3: %r0
+  var $4: %r0
   block0:
     %0: %r0 = const 7
     %1: %r0 = alias %0
     %2: %r0 = alias %1
-    store var $0: %r0, %2
     %3: %r0 = const 30
     %4: %r0 = const 4
-    %5: %r1 = object %s0 %3, %4
-    store var $1: %r1, %5
     %6: %r0 = const 100
     %7: %r0 = alias %6
     %8: %r0 = alias %7
-    store var $2: %r0, %8
-    %9: %r0 = load var $0: %r0
+    %9: %r0 = alias %2
     %10: %r0 = alias %9
     %11: %r0 = const 2
     %12: %r0 = binary.add %10, %11
     %13: %r0 = coerce %12
-    %14: %r1 = load var $1: %r1
-    %15: %r1 = alias %14
-    %16: %r0 = load property %15.left: %r0
+    %16: %r0 = alias %3
     %17: %r0 = binary.add %13, %16
     %18: %r0 = coerce %17
-    %19: %r0 = load var $2: %r0
+    %19: %r0 = alias %8
     %20: %r0 = alias %19
     %21: %r0 = alias %20
     %22: %r0 = const 1
@@ -33,29 +29,25 @@ fn main() -> one %r0
     %24: %r0 = coerce %23
     %25: %r0 = binary.add %18, %24
     %26: %r0 = coerce %25
-    %27: %r0 = load var $0: %r0
+    %27: %r0 = alias %2
     %28: %r0 = alias %27
     %29: %r0 = const 2
     %30: %r0 = binary.add %28, %29
     %31: %r0 = coerce %30
     %32: %r0 = binary.add %26, %31
     %33: %r0 = coerce %32
-    %34: %r1 = load var $1: %r1
-    %35: %r1 = alias %34
-    %36: %r0 = load property %35.left: %r0
-    %37: %r0 = load property %35.right: %r0
+    %36: %r0 = alias %3
+    %37: %r0 = alias %4
     %38: %r0 = binary.add %36, %37
     %39: %r0 = coerce %38
     %40: %r0 = binary.add %33, %39
     %41: %r0 = coerce %40
-    %42: %r1 = load var $1: %r1
-    %43: %r1 = alias %42
-    %44: %r0 = load property %43.left: %r0
+    %44: %r0 = alias %3
     %45: %r0 = binary.add %41, %44
     %46: %r0 = coerce %45
     return %46
 
-optimizer clones 3 aliased 3 forwarded 0 removed 0 adopted 0 sunk 0
+optimizer clones 3 aliased 3 forwarded 0 removed 11 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 7
 
 shape %s0 object Pair {left: %r0, right: %r0}
 

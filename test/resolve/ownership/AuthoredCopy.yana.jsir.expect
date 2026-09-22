@@ -14,38 +14,27 @@ fn main() -> one %r0
   block0:
     %0: %r0 = const 3
     %1: %r0 = alias %0
-    store var $0: %r0, %1
-    %2: %r0 = load var $0: %r0
+    %2: %r0 = alias %1
     %3: %r0 = alias %2
-    store var $1: %r0, %3
-    %5: %r0 = load var $1: %r0
-    %6: %r0 = const 7
-    %7: %r0 = alias %6
-    store var $2: %r0, %7
+    %5: %r0 = alias %3
     %8: %r0 = const 10
     %9: %r0 = binary.add %5, %8
     %10: %r0 = coerce %9
     %11: %r0 = const 4
     %12: %r0 = alias %11
-    store var $3: %r0, %12
-    %13: %r0 = load var $3: %r0
+    %13: %r0 = alias %12
     %14: %r0 = alias %13
-    store var $4: %r0, %14
-    %16: %r0 = load var $4: %r0
+    %16: %r0 = alias %14
     %17: %r0 = binary.add %16, %11
     %18: %r0 = coerce %17
     %19: %r0 = binary.add %10, %18
     %20: %r0 = coerce %19
-    %21: %r0 = const 5
-    %22: %r0 = alias %21
-    store var $5: %r0, %22
     %23: %r0 = const 10
     %24: %r0 = binary.add %20, %23
     %25: %r0 = coerce %24
     %26: %r0 = const 1
     %27: %r0 = alias %26
-    store var $6: %r0, %27
-    %28: %r0 = load var $6: %r0
+    %28: %r0 = alias %27
     %29: %r0 = alias %28
     store var $7: %r0, %29
     %31: %r0 = load var $7: %r0
@@ -53,11 +42,6 @@ fn main() -> one %r0
     %33: %r0 = binary.add %31, %32
     %34: %r0 = coerce %33
     store var $7: %r0, %34
-    %35: %r0 = const 1
-    %36: %r0 = alias %35
-    store var $8: %r0, %36
-    %38: %r0 = const 2
-    store var $8: %r0, %38
     %39: %r0 = const 100
     %40: %r0 = binary.mul %34, %39
     %41: %r0 = coerce %40
@@ -70,8 +54,7 @@ fn main() -> one %r0
     %48: %r0 = alias %47
     store var $9: %r0, %48
     %49: %r0 = load var $9: %r0
-    store var $10: %r0, %49
-    %51: %r0 = load var $10: %r0
+    %51: %r0 = alias %49
     %52: %r0 = const 9
     %53: %r0 = alias %52
     store var $9: %r0, %53
@@ -79,14 +62,11 @@ fn main() -> one %r0
     %55: %r0 = coerce %54
     %56: %r0 = binary.add %46, %55
     %57: %r0 = coerce %56
-    %58: %r0 = const 6
-    %59: %r0 = alias %58
-    store var $11: %r0, %59
     %60: %r0 = const 12
     %61: %r0 = binary.add %57, %60
     %62: %r0 = coerce %61
     return %62
 
-optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 25 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 6
 
 rep %r0 = number signed 32

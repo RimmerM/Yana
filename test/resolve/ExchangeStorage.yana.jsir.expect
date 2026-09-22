@@ -7,11 +7,9 @@ fn main() -> one %r0
   var $5: %r2
   var $6: %r0
   var $7: %r0
+  var $8: %r0
+  var $9: %r0
   block0:
-    %0: %r0 = const 0
-    %1: %r0 = const 0
-    %2: %r1 = object %s0 %0, %1
-    store var $3: %r1, %2
     %3: %r0 = const 1
     %4: %r0 = alias %3
     store var $0: %r0, %4
@@ -19,67 +17,59 @@ fn main() -> one %r0
     %6: %r0 = alias %5
     %7: %r0 = load var $0: %r0
     %8: %r0 = alias %7
-    store var $1: %r0, %8
-    %9: %r0 = load var $1: %r0
+    %9: %r0 = alias %8
     %10: %r0 = alias %9
     store var $0: %r0, %6
-    store var $2: %r0, %10
     %11: %r0 = const 3
     %12: %r0 = alias %11
     %13: %r0 = const 5
     %14: %r0 = alias %13
-    %15: %r1 = object %s0 %12, %14
-    store var $3: %r1, %15
-    %16: %r1 = load var $3: %r1
-    %17: %r1 = load var $3: %r1
-    %18: %r0 = load property %16.left: %r0
+    store var $8: %r0, %12
+    store var $9: %r0, %14
+    %18: %r0 = load var $8: %r0
     %19: %r0 = alias %18
-    store var $4: %r0, %19
-    %20: %r0 = load var $4: %r0
+    %20: %r0 = alias %19
     %21: %r0 = alias %20
-    %22: %r0 = load property %17.right: %r0
+    %22: %r0 = load var $9: %r0
     %23: %r0 = alias %22
-    store property %16.left: %r0, %23
-    store property %17.right: %r0, %21
+    store var $8: %r0, %23
+    store var $9: %r0, %21
     %24: %r0 = const 9
     %25: %r0 = alias %24
     %26: %r2 = array %25
-    store var $5: %r2, %26
     %27: %r0 = const 0
-    %28: %r2 = load var $5: %r2
+    %28: %r2 = alias %26
     %29: %r0 = const 0
     %30: %r0 = alias %29
     %31: %r0 = load element %28[%27]: %r0
     %32: %r0 = alias %31
-    store var $6: %r0, %32
-    %33: %r0 = load var $6: %r0
+    %33: %r0 = alias %32
     %34: %r0 = alias %33
     store element %28[%27]: %r0, %30
-    store var $7: %r0, %34
-    %36: %r0 = load var $2: %r0
+    %36: %r0 = alias %10
     %37: %r0 = const 10
     %38: %r0 = binary.mul %36, %37
     %39: %r0 = coerce %38
     %41: %r0 = load var $0: %r0
     %42: %r0 = binary.add %39, %41
     %43: %r0 = coerce %42
-    %44: %r0 = load property %16.left: %r0
-    %45: %r0 = load property %16.left: %r0
-    %46: %r0 = const 10
-    %47: %r0 = binary.mul %45, %46
-    %48: %r0 = coerce %47
-    %49: %r0 = binary.add %43, %48
-    %50: %r0 = coerce %49
-    %51: %r0 = load property %17.right: %r0
-    %52: %r0 = load property %17.right: %r0
-    %53: %r0 = binary.add %50, %52
-    %54: %r0 = coerce %53
-    %56: %r0 = load var $7: %r0
-    %57: %r0 = binary.add %54, %56
-    %58: %r0 = coerce %57
-    return %58
+    %45: %r0 = load var $8: %r0
+    %46: %r0 = alias %45
+    %47: %r0 = const 10
+    %48: %r0 = binary.mul %46, %47
+    %49: %r0 = coerce %48
+    %50: %r0 = binary.add %43, %49
+    %51: %r0 = coerce %50
+    %53: %r0 = load var $9: %r0
+    %54: %r0 = alias %53
+    %55: %r0 = binary.add %51, %54
+    %56: %r0 = coerce %55
+    %58: %r0 = alias %34
+    %59: %r0 = binary.add %56, %58
+    %60: %r0 = coerce %59
+    return %60
 
-optimizer clones 0 aliased 0 forwarded 0 removed 3 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 19 adopted 0 sunk 0 numbered 2 decided 0 unboxed 0 updated 0 split 1 promoted 6
 
 shape %s0 object Pair {left: %r0, right: %r0}
 

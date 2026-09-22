@@ -15,10 +15,8 @@ function scaled(n, factor) {
   var p2 = 0;
   var p3 = 0;
   while (p3 < n) {
-    var v12 = p2 + v8 | 0;
-    var v14 = p3 + 1 | 0;
-    p2 = v12;
-    p3 = v14;
+    p2 = p2 + v8 | 0;
+    p3 = p3 + 1 | 0;
   }
   return p2;
 }
@@ -27,26 +25,22 @@ function invariantField(n, seed) {
   var p2 = 7;
   var p3 = 0;
   while (p3 < n) {
-    var v10 = p2 + 7 | 0;
-    var v12 = p3 + 1 | 0;
-    p2 = v10;
-    p3 = v12;
+    p2 = p2 + 7 | 0;
+    p3 = p3 + 1 | 0;
   }
   return p2;
 }
 
 function writtenField(n, seed) {
-  var s0 = { value: seed, other: 7 };
+  var s1 = seed;
   var p2 = 7;
   var p3 = 0;
   while (p3 < n) {
-    s0.value = s0.value + 1 | 0;
-    var v24 = p2 + s0.other | 0;
-    var v26 = p3 + 1 | 0;
-    p2 = v24;
-    p3 = v26;
+    s1 = s1 + 1 | 0;
+    p2 = p2 + 7 | 0;
+    p3 = p3 + 1 | 0;
   }
-  return p2 + s0.value | 0;
+  return p2 + s1 | 0;
 }
 
 function main() {

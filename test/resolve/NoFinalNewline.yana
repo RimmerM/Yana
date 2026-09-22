@@ -1,0 +1,10 @@
+{-
+   A source whose last byte is the last digit of an integer literal, with no newline after it - J92,
+   for the lexer fix of the review's item 14. It used to report "no instance of FromDecimal(I32)"
+   here, because digits running into the end of the buffer left the scan on its float path.
+
+   Keep the file without a final newline: that is the whole fixture, and an editor that adds one
+   turns it into any other program.
+-}
+
+fn main() -> Int = 7

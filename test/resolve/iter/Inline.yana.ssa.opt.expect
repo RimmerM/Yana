@@ -790,11 +790,9 @@ bb11:
 bb13:
   %61: Size trivial = const 134
   %62: Syscall trivial = const SysExit
-  %63: U16 trivial = bitcast inspect %62
-  %64: I32 trivial = convert inspect %63
-  %65: USize trivial = convert inspect %64
-  %66: USize trivial = bitcast inspect %61
-  %67: Size trivial = native syscall inspect %65 inspect %66
+  %63: USize trivial = call numberOf borrow %62
+  %64: USize trivial = bitcast inspect %61
+  %65: Size trivial = native syscall inspect %63 inspect %64
   unreachable
 
 bb16:

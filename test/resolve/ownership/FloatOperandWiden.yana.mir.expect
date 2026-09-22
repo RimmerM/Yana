@@ -1,0 +1,92 @@
+module ResolveTest
+
+fn half(x: F64 [shared call]) -> F32 {
+bb0:
+  %0: F64 = read copy.trivial (x)
+  %1: F64 = const 0.5
+  %2: F64 = mul inspect %0 inspect %1
+  %3: F32 = convert inspect %2
+  return take %3
+}
+
+fn main() -> I32 {
+  local a: F32
+  local b: F64
+  local & sum: F64
+  local d: F64
+  local e: F64
+
+bb0:
+  %0: F64 = const 3
+  %1: F32 = call half borrow.shared %0
+  write.init borrow.unique (a) take %1
+  %3: F64 = const 2.25
+  write.init borrow.unique (b) take %3
+  %5: F64 = const 0
+  write.init borrow.unique (sum) take %5
+  %7: F32 = read copy.trivial (a)
+  %8: F64 = const 2.25
+  %9: F64 = convert inspect %7
+  %10: F64 = add inspect %9 inspect %8
+  write.assign borrow.unique (sum) take %10
+  %12: F64 = read copy.trivial (sum)
+  %13: F32 = read copy.trivial (a)
+  %14: F64 = convert inspect %13
+  %15: F64 = add inspect %12 inspect %14
+  write.assign borrow.unique (sum) take %15
+  %17: F64 = const 2.25
+  %18: F32 = read copy.trivial (a)
+  %19: F32 = read copy.trivial (a)
+  %20: F32 = mul inspect %18 inspect %19
+  %21: F64 = convert inspect %20
+  %22: F64 = sub inspect %17 inspect %21
+  write.init borrow.unique (d) take %22
+  %24: F32 = read copy.trivial (a)
+  %25: F64 = const 2.25
+  %26: F64 = convert inspect %24
+  %27: F64 = mul inspect %26 inspect %25
+  write.init borrow.unique (e) take %27
+  %29: F64 = read copy.trivial (sum)
+  %30: F64 = const 5.25
+  %31: Bool = ne inspect %29 inspect %30
+  branch inspect %31 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %36: F64 = read copy.trivial (d)
+  %37: F64 = const 0
+  %38: Bool = ne inspect %36 inspect %37
+  branch inspect %38 -> bb6 -> bb4
+
+bb3:
+  %33: I32 = const 1
+  return take %33
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %43: F64 = read copy.trivial (e)
+  %44: F64 = const 3.375
+  %45: Bool = ne inspect %43 inspect %44
+  branch inspect %45 -> bb9 -> bb7
+
+bb6:
+  %40: I32 = const 2
+  return take %40
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %50: I32 = const 0
+  return take %50
+
+bb9:
+  %47: I32 = const 3
+  return take %47
+}
+
+entry main

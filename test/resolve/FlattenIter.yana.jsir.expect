@@ -46,7 +46,6 @@ fn main() -> one %r0
     %17: %r0 = const 6
     %18: %r0 = const 1
     %19: %r0 = const 1
-    %20: %r11 = const 0
     jump -> block1(%16)
   block1(%0: %r0):
     %21: %r11 = binary.lt %0, %17
@@ -55,15 +54,8 @@ fn main() -> one %r0
     %22: %r6 = load property %12.items: %r6
     %23: %r7 = load property %12.length: %r7
     %24: %r0 = convert %23
-    %25: %r0 = const 0
     %26: %r0 = const 3
     %27: %r0 = const 0
-    %28: %r1 = object %s0 %26
-    store var $0: %r1, %28
-    %29: %r1 = load var $0: %r1
-    %30: %r3 = fun.code chain.lambda
-    %31: %r14 = object %s7 %30, %29
-    store var $1: %r14, %31
     %32: %r0 = const 0
     %33: %r0 = convert %24
     %34: %r0 = const 1
@@ -78,9 +70,7 @@ fn main() -> one %r0
     %132: %r0 = binary.add %131, %18
     %133: %r0 = coerce %132
     %134: %r6 = load property %12.items: %r6
-    %135: %r11 = host host.capacity %134
-    %136: %r11 = binary.eq %135, %20
-    branch %136 -> block18 -> block19
+    jump -> block19
   block4(%1: %r0, %2: %r0):
     %39: %r11 = binary.lt %1, %33
     branch %39 -> block6 -> block5
@@ -88,16 +78,9 @@ fn main() -> one %r0
     %40: %r6 = load property %12.items: %r6
     %41: %r7 = load property %12.length: %r7
     %42: %r0 = convert %41
-    %43: %r0 = const 0
     %44: %r0 = const 3
     %45: %r0 = const 5
     %46: %r0 = const 0
-    %47: %r2 = object %s1 %44
-    store var $2: %r2, %47
-    %48: %r2 = load var $2: %r2
-    %49: %r3 = fun.code chainBreak.lambda
-    %50: %r14 = object %s7 %49, %48
-    store var $3: %r14, %50
     %51: %r0 = const 0
     %52: %r0 = const 0
     %53: %r0 = convert %42
@@ -122,10 +105,10 @@ fn main() -> one %r0
     branch %113 -> block10 -> block7
   block7:
     %114: %r6 = alias %22
-    %115: %r0 = binary.add %25, %110
+    %115: %r0 = alias %110
     %116: %r0 = coerce %115
     %117: %r0 = load element %114[%116]: %r0
-    %118: %r0 = load property %29.scale: %r0
+    %118: %r0 = alias %26
     %119: %r0 = binary.mul %117, %118
     %120: %r0 = coerce %119
     %121: %r0 = binary.add %120, %38
@@ -160,10 +143,10 @@ fn main() -> one %r0
     branch %69 -> block17 -> block13
   block13:
     %70: %r6 = alias %40
-    %71: %r0 = binary.add %43, %66
+    %71: %r0 = alias %66
     %72: %r0 = coerce %71
     %73: %r0 = load element %70[%72]: %r0
-    %74: %r0 = load property %48.scale: %r0
+    %74: %r0 = alias %44
     %75: %r0 = binary.mul %73, %74
     %76: %r0 = coerce %75
     %77: %r0 = binary.add %76, %59
@@ -217,7 +200,7 @@ fn main() -> one %r0
     %144: %r0 = coerce %143
     jump -> block1(%144)
   block19:
-    %137: %r6 = load property %12.items: %r6
+    %137: %r6 = alias %134
     %138: %r0 = host host.field "length" host-range %137
     %139: %r11 = binary.le %133, %138
     branch %139 -> block18 -> block20
@@ -275,7 +258,6 @@ fn nested.cont(one %r5, one %r0) -> one %r0 env
 fn Array(a).reclaim(I32)(one %r8) -> omitted
   var $0: %r8
   block0(%0: %r8):
-    store var $0: %r8, %0
     return
 
 fn growJsArray(I32)(one %r8, one %r0) -> omitted
@@ -290,12 +272,12 @@ fn growJsArray(I32)(one %r8, one %r0) -> omitted
     %9: %r11 = binary.lt %7, %8
     %10: %r0 = const 4
     %11: %r0 = select %9, %10, %7
-    %12: %r6 = load property %0.items: %r6
+    %12: %r6 = alias %2
     %13: %r6 = host host.grow %12, %11
     store property %0.items: %r6, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 2 adopted 1 sunk 0
+optimizer clones 0 aliased 0 forwarded 2 removed 20 adopted 1 sunk 0 numbered 4 decided 1 unboxed 0 updated 0 split 0 promoted 2
 
 shape %s0 object chain.lambda.env {scale: %r0}
 shape %s1 object chainBreak.lambda.env {scale: %r0}

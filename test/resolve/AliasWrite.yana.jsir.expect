@@ -2,8 +2,8 @@ fn both(one %r1, one %r1) -> one %r0
   block0(%0: %r1, %1: %r1):
     %2: %r0 = const 99
     %3: %r0 = const 98
-    %4: %r1 = object %s0 %2, %3
-    store value %1: %r1, %4
+    store property %1.x: %r0, %2
+    store property %1.y: %r0, %3
     %5: %r0 = load property %0.x: %r0
     %6: %r0 = const 10
     %7: %r0 = binary.mul %5, %6
@@ -27,10 +27,6 @@ fn sum(one %r1) -> one %r0
 fn main() -> one %r0
   var $0: %r1
   block0:
-    %3: %r0 = const 0
-    %4: %r0 = const 0
-    %5: %r1 = object %s0 %3, %4
-    store var $0: %r1, %5
     %6: %r0 = const 0
     %7: %r0 = const 1
     %8: %r0 = const 2
@@ -59,12 +55,11 @@ fn main() -> one %r0
     %30: %r0 = const 3
     %31: %r0 = const 4
     %32: %r1 = object %s0 %30, %31
-    store var $0: %r1, %32
-    %33: %r1 = load var $0: %r1
+    %33: %r1 = alias %32
     %34: %r1 = clone %33
     %35: %r0 = call sum %34
     %36: %r0 = const 7
-    %37: %r1 = load var $0: %r1
+    %37: %r1 = alias %32
     store property %37.x: %r0, %36
     %38: %r0 = const 34
     %39: %r2 = binary.eq %35, %38
@@ -77,7 +72,7 @@ fn main() -> one %r0
     %46: %r0 = coerce %45
     return %46
 
-optimizer clones 2 aliased 0 forwarded 0 removed 2 adopted 1 sunk 0
+optimizer clones 2 aliased 0 forwarded 0 removed 8 adopted 1 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 2
 
 shape %s0 object Point {x: %r0, y: %r0}
 

@@ -780,6 +780,79 @@ static void testFlatReferenceIsTwoPositions() {
 }
 
 /*
+ * The same boundary for a **narrow** content once something packs: `(owner, key, scale)`, three
+ * positions (J84). The scale is what says where in the caller's word the value is, so a caller that
+ * dropped it would hand the callee a range at offset zero of somebody else's word - a wrong answer
+ * rather than a crash, which is why the arity is the verifier's to hold.
+ *
+ * And the other half of the decision: with nothing packed the same content is two positions, and a
+ * wide content is two positions whatever packs, so the scale is paid only where a range can exist.
+ */
+static void testFlatNarrowReferenceIsThreePositions() {
+    currentTest = "a flat narrow reference passed without its scale";
+
+    JsirScratch s;
+    s.entry();
+
+    // Both switches are on by default since J85, so "nothing packs" is written out.
+    s.target.scalarizeRecords = false;
+    s.target.packFields = false;
+
+    auto narrow = jsNumberRep(s.target, NumberDomain::Bool01, 1);
+    check(s.target.rep(jsCellPartsRep(s.target, narrow)).partCount == 2,
+          "a narrow reference should be two positions while nothing packs");
+
+    s.target.packFields = true;
+    auto flat = jsCellPartsRep(s.target, narrow);
+    check(s.target.rep(flat).partCount == 3, "a narrow reference should carry a scale");
+    check(s.target.rep(jsCellPartsRep(s.target, s.number())).partCount == 2,
+          "a wide reference should not carry a scale");
+
+    JsAbi callee;
+    callee.parameters.push(JsPassing { JsPassingKind::Parts, flat, 3 });
+    callee.result = JsPassing { JsPassingKind::One, s.number(), 1 };
+
+    auto abi = s.calleeAbi(::move(callee));
+
+    auto shape = oneProperty(s);
+    auto owner = s.builder.add<JsInstObject>(objectRep(s, shape), kNullLocation, shape);
+    auto zero = s.builder.number(0, s.number(), kNullLocation);
+    owner->values.push(s.target.arena, zero - s.builder.base);
+    zero->uses++;
+
+    JsConstant text;
+    text.kind = JsConstant::Text;
+    text.text = s.context.addUnqualifiedName("x", 1);
+    auto key = s.builder.constant(text, jsErasedRep(s.target), kNullLocation);
+    auto scale = s.builder.number(4, jsNumberRep(s.target, NumberDomain::Float64, 64),
+                                  kNullLocation);
+
+    auto call = s.builder.add<JsInstCall>(s.number(), kNullLocation, nullptr, abi);
+    call->arguments.push(s.target.arena, owner->result);
+    call->arguments.push(s.target.arena, key - s.builder.base);
+    call->arguments.push(s.target.arena, scale - s.builder.base);
+    s.builder.base[owner->result]->uses++;
+    key->uses++;
+    scale->uses++;
+
+    // The range a callee's entry builds over its three positions, read once - a scaled place
+    // verifies. The owner is erased, as an entry argument's is: an element of a host object with a
+    // known shape is not a place this tier builds.
+    auto erasedOwner = s.builder.constant(text, jsErasedRep(s.target), kNullLocation);
+    auto range = s.builder.addScaledRange(erasedOwner, key, scale, narrow, 1, false);
+    s.builder.load(range, kNullLocation);
+
+    s.returns(call->result);
+
+    check(s.verify(), "the correct body should verify");
+
+    call->arguments.remove(s.builder.base, 2);
+
+    check(!s.verify(), "a narrow reference passed without its scale should be rejected");
+    check(s.diagnostics.said("arity disagrees"_v), "the report should name the arity");
+}
+
+/*
  * The erased ABI's three mutations - §4.5 asked for these before the family's direct path is relied
  * on, and each one is a shape a pass that rewrote one end of the boundary would produce.
  */
@@ -995,11 +1068,19 @@ static void testErasedCellStillWantsADescriptor() {
  * The body is the shape the measurement found: a record in a `Var`, read out and duplicated for a
  * call. `Var` is what the demand pass gives a local whose address never escaped, which is the
  * elision's second condition.
+ *
+ * **The slot is read again after the call** since J82, and a third variant leaves that read out. A
+ * clone at the last use of a local is a move (`moveLastUses`) and becomes an alias whatever the
+ * callee may do with it, so without the later read this body stopped being about the shared bit at
+ * all - the third variant is that statement asserted rather than an accident of the first two.
  */
 static void testCopyToAliasNeedsASharedPosition() {
     currentTest = "a copy handed to a position the callee may write";
 
-    for(U32 shared = 0; shared < 2; shared++) {
+    for(U32 variant = 0; variant < 3; variant++) {
+        auto shared = variant == 1;
+        auto lastUse = variant == 2;
+
         JsirScratch s;
         s.entry();
 
@@ -1007,7 +1088,7 @@ static void testCopyToAliasNeedsASharedPosition() {
         auto record = objectRep(s, shape);
 
         JsAbi callee;
-        callee.parameters.push(JsPassing { JsPassingKind::One, record, 1, false, shared != 0 });
+        callee.parameters.push(JsPassing { JsPassingKind::One, record, 1, false, shared });
         callee.result = JsPassing { JsPassingKind::One, s.number(), 1 };
 
         auto abi = s.calleeAbi(::move(callee));
@@ -1028,14 +1109,21 @@ static void testCopyToAliasNeedsASharedPosition() {
         call->arguments.push(s.target.arena, copy->result);
         s.builder.base[copy->result]->uses++;
 
-        auto ret = s.returns(call->result);
+        if(lastUse) {
+            s.returns(call->result);
+        } else {
+            auto after = s.builder.load(slot, kNullLocation);
+            s.returns(s.builder.load(s.builder.addProperty(after, shape, 0), kNullLocation));
+        }
 
         check(s.verify(), "the correct body should verify");
         check(optimizeBody(s.target, s.body), "the optimizer should not report");
         check(s.verify(), "the optimized body should verify");
 
         auto aliased = s.target.optimizer.aliased == 1;
-        if(shared) {
+        if(lastUse) {
+            check(aliased, "a copy at the last use of its local should become an alias");
+        } else if(shared) {
             check(aliased, "a copy at a shared position should become an alias");
         } else {
             check(!aliased, "a copy at a position the callee may write should stay a copy");
@@ -1286,6 +1374,140 @@ static void testNichePayloadPlaceNamesItsFold() {
     check(s.diagnostics.said("not that fold"_v), "the report should name the fold");
 }
 
+/*
+ * A packing row for the three cases below: `{a: @bits(4) U32 @0, b: @bits(20) U32 @8, c: Bool @40}`
+ * in a 41-bit word - built by hand, because the rule that places fields is `packing.h`'s and what
+ * these cases are about is what the builder and the verifier do with a row once it exists.
+ */
+static U32 packingRow(JsirScratch& s) {
+    JsPacking row;
+    row.span = 41;
+    row.word = jsNumberRep(s.target, NumberDomain::Unsigned, 41);
+    row.fields.push(JsPackedField { 0, 0, 4, false, jsNumberRep(s.target, NumberDomain::Unsigned, 4) });
+    row.fields.push(JsPackedField { 1, 8, 20, false,
+                                    jsNumberRep(s.target, NumberDomain::Unsigned, 20) });
+    row.fields.push(JsPackedField { 2, 40, 1, false, jsNumberRep(s.target, NumberDomain::Bool01, 1) });
+
+    auto id = U32(s.target.packings.size());
+    s.target.packings.push(::move(row));
+    return id;
+}
+
+/*
+ * A range of a range is one range of the outer word - what `pair.flags.optionA` becomes when both
+ * records are scalarized. The verifier holds every `BitRange` to "the word is not one", so a builder
+ * that nested instead of composing would be refused rather than emitted as two decodes.
+ */
+static void testBitRangesCompose() {
+    currentTest = "a bit range of a bit range composes";
+
+    JsirScratch s;
+    s.entry();
+
+    auto word = s.builder.addVariable(jsNumberRep(s.target, NumberDomain::Unsigned, 41));
+    auto inner = s.builder.addBitRange(word, 8, 20, false,
+                                       jsNumberRep(s.target, NumberDomain::Unsigned, 20));
+    auto bit = s.builder.addBitRange(inner, 3, 1, false, jsNumberRep(s.target, NumberDomain::Bool01, 1));
+
+    auto& composed = s.builder.place(bit);
+    check(composed.kind == JsPlaceKind::BitRange, "the nested place should be a bit range");
+    check(composed.word == word, "the nested range should name the outer word, not the inner range");
+    check(composed.bitOffset == 11, "the offsets should add");
+    check(composed.bitWidth == 1, "the width should be the inner range's");
+
+    auto read = s.builder.load(bit, kNullLocation);
+    auto widened = s.builder.add<JsInstConvert>(s.number(), kNullLocation, read - s.builder.base);
+    read->uses++;
+    s.returns(s.builder.base[widened->result]);
+
+    check(s.verify(), "a composed range inside its word should verify");
+}
+
+/*
+ * A range that does not fit its word, and a range whose content is not a number of its width.
+ * The first reads zeros and makes the next write widen the word past what its representation says;
+ * the second decodes four bits into something that claims to be twenty.
+ */
+static void testBitRangeStaysInsideItsWord() {
+    currentTest = "a bit range stays inside its word";
+
+    {
+        JsirScratch s;
+        s.entry();
+
+        auto word = s.builder.addVariable(jsNumberRep(s.target, NumberDomain::Unsigned, 12));
+        auto range = s.builder.addBitRange(word, 8, 8, false,
+                                           jsNumberRep(s.target, NumberDomain::Unsigned, 8));
+        auto read = s.builder.load(range, kNullLocation);
+        auto widened = s.builder.add<JsInstConvert>(s.number(), kNullLocation, read - s.builder.base);
+        read->uses++;
+        s.returns(s.builder.base[widened->result]);
+
+        check(!s.verify(), "a range past the top of its word should be rejected");
+        check(s.diagnostics.said("outside its word"_v), "the report should say the range is outside");
+    }
+
+    {
+        JsirScratch s;
+        s.entry();
+
+        auto word = s.builder.addVariable(jsNumberRep(s.target, NumberDomain::Unsigned, 12));
+        auto range = s.builder.addBitRange(word, 0, 4, false,
+                                           jsNumberRep(s.target, NumberDomain::Unsigned, 20));
+        auto read = s.builder.load(range, kNullLocation);
+        auto widened = s.builder.add<JsInstConvert>(s.number(), kNullLocation, read - s.builder.base);
+        read->uses++;
+        s.returns(s.builder.base[widened->result]);
+
+        check(!s.verify(), "a range read at another width should be rejected");
+        check(s.diagnostics.said("not a number of its width"_v), "the report should name the width");
+    }
+}
+
+/*
+ * A `Pack` of constants is the constant - `Flags {a: True, b: False}` is `1` - with each field
+ * reduced to its own bits first, so a value wider than its field cannot write over a neighbour.
+ * One operand that is not a constant keeps the instruction, and the verifier holds that one to its
+ * row.
+ */
+static void testPackFoldsConstants() {
+    currentTest = "a pack of constants folds";
+
+    JsirScratch s;
+    s.entry();
+    auto row = packingRow(s);
+    auto& packing = s.target.packings[row];
+
+    JsValue* fields[] = {
+        s.builder.number(0x1f, packing.fields[0].rep, kNullLocation),   // five bits into four
+        s.builder.number(3, packing.fields[1].rep, kNullLocation),
+        s.builder.number(1, packing.fields[2].rep, kNullLocation),
+    };
+
+    auto folded = s.builder.pack(row, Buffer<JsValue*> { fields, 3 }, kNullLocation);
+    auto definer = s.builder.base[folded->definer];
+    check(definer->kind == JsInst::Const, "a pack of constants should be a constant");
+    check(((JsInstConst*)definer)->constant.number == F64(0xf + (3 << 8)) + 1099511627776.0,
+          "the constant should be every field's own bits at its offset");
+    check(folded->rep == packing.word, "the constant should be at the word's representation");
+
+    auto variable = s.builder.addVariable(packing.fields[1].rep);
+    fields[1] = s.builder.load(variable, kNullLocation);
+    auto built = s.builder.pack(row, Buffer<JsValue*> { fields, 3 }, kNullLocation);
+    check(s.builder.base[built->definer]->kind == JsInst::Pack, "a computed field should keep the pack");
+
+    auto convert = s.builder.add<JsInstConvert>(s.number(), kNullLocation, built - s.builder.base);
+    built->uses++;
+    s.returns(s.builder.base[convert->result]);
+    check(s.verify(), "a pack of its row's fields should verify");
+
+    // The same pack with its second operand at the wrong width.
+    s.builder.place(variable).content = jsNumberRep(s.target, NumberDomain::Unsigned, 8);
+    fields[1]->rep = jsNumberRep(s.target, NumberDomain::Unsigned, 8);
+    check(!s.verify(), "a pack whose field is at another representation should be rejected");
+    check(s.diagnostics.said("not the field's representation"_v), "the report should name the field");
+}
+
 int main() {
     /*
      * **In definition order**, and the list is the file read top to bottom.
@@ -1311,6 +1533,7 @@ int main() {
     testEdgeDropsOneLane();
     testCallFlattensItsParts();
     testFlatReferenceIsTwoPositions();
+    testFlatNarrowReferenceIsThreePositions();
     testErasedCallCarriesItsEnvironment();
     testGenericEnvironmentIsATable();
     testConcretePositionIsStillChecked();
@@ -1321,6 +1544,9 @@ int main() {
     testNullIsNotAValueOfANumber();
     testNicheDoesNotNest();
     testNichePayloadPlaceNamesItsFold();
+    testBitRangesCompose();
+    testBitRangeStaysInsideItsWord();
+    testPackFoldsConstants();
 
     if(failures) {
         println("%@ failures.", failures);

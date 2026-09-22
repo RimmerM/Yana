@@ -506,6 +506,13 @@ and `VirtualPlace::shift` is what makes them one: a shift that is a constant and
 value are the same place, so the decode and the encode are written once and the three sources differ
 only in where the number came from.
 
+The three sources also have to agree on **which unit** the shift is inside, and since J92 they do: a
+body compiled once loads the unit its *field type* is, so a property slot is split against that unit
+exactly as `borrowNarrow` splits a narrow reference - `writePropertySlot` folds the whole units of
+the shift into the byte offset. It used to hand the body the offset of the word the field was packed
+into and the shift within that word, so a `Bool` at bit 53 of an eight-byte record was read as the
+byte at offset 0 shifted right by 53 (`test/resolve/ownership/PropertyWholePacked.yana`).
+
 It is also not a fold: the mask on a value already known to be in range is removed by the builders'
 own constant folding and by the backends, not by a test here.
 

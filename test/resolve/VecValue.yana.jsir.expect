@@ -3,18 +3,15 @@ fn main() -> one %r0
     %5: %r0 = load global seed: %r0
     %6: %r0 = binary.add %5, %5
     %7: %r0 = coerce %6
-    %8: %r0 = binary.add %5, %5
-    %9: %r0 = coerce %8
     %14: %r0 = const 2
     %15: %r0 = binary.mul %5, %14
     %16: %r0 = coerce %15
-    %17: %r0 = binary.mul %5, %14
-    %18: %r0 = coerce %17
     %23: %r0 = const 6
     %24: %r3 = binary.ne %7, %23
     branch %24 -> block2 -> block1
   block1:
     %25: %r0 = const 6
+    %18: %r0 = alias %16
     %26: %r3 = binary.ne %18, %25
     branch %26 -> block4 -> block3
   block2:
@@ -99,6 +96,7 @@ fn main() -> one %r0
     return %71
   block16:
     %63: %r0 = const 100
+    %9: %r0 = alias %7
     %64: %r0 = binary.mul %9, %63
     %65: %r0 = coerce %64
     %66: %r0 = binary.add %65, %16
@@ -110,7 +108,7 @@ fn main() -> one %r0
     %70: %r0 = const -7
     return %70
 
-optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 10 adopted 0 sunk 0 numbered 12 decided 0 unboxed 0 updated 0 split 0 promoted 0
 
 rep %r0 = number signed 32
 rep %r1 = array Int32Array of %r0

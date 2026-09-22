@@ -16,7 +16,7 @@ fn movesU8(one %r0) -> one %r1
     %15: %r0 = const 13
     %16: %r0 = const 14
     %17: %r0 = const 15
-    %18: %r0 = binary.add %2, %0
+    %18: %r0 = alias %0
     %19: %r0 = coerce %18
     %20: %r0 = binary.add %3, %0
     %21: %r0 = coerce %20
@@ -135,7 +135,7 @@ fn movesU8(one %r0) -> one %r1
     %134: %r1 = const 0
     %135: %r1 = const 1
     %136: %r1 = select %117, %135, %134
-    %137: %r1 = binary.add %133, %136
+    %137: %r1 = alias %136
     %138: %r1 = const 0
     %139: %r1 = const 1
     %140: %r1 = select %118, %139, %138
@@ -485,7 +485,6 @@ fn movesU8(one %r0) -> one %r1
     %470: %r1 = coerce %469
     %471: %r1 = binary.add %448, %470
     %472: %r1 = coerce %471
-    %473: %r0 = const 0
     %474: %r0 = const 1
     %475: %r0 = const 2
     %476: %r0 = const 3
@@ -502,7 +501,7 @@ fn movesU8(one %r0) -> one %r1
     %487: %r0 = const 14
     %488: %r0 = const 15
     %489: %r0 = const 1
-    %490: %r0 = binary.add %473, %489
+    %490: %r0 = alias %489
     %491: %r0 = coerce %490
     %492: %r0 = binary.add %474, %489
     %493: %r0 = coerce %492
@@ -659,7 +658,7 @@ fn movesU8(one %r0) -> one %r1
     %756: %r1 = const 0
     %757: %r1 = const 1
     %758: %r1 = select %117, %757, %756
-    %759: %r1 = binary.add %755, %758
+    %759: %r1 = alias %758
     %760: %r1 = const 0
     %761: %r1 = const 1
     %762: %r1 = select %118, %761, %760
@@ -787,7 +786,7 @@ fn movesU8(one %r0) -> one %r1
     %916: %r1 = const 0
     %917: %r1 = const 1
     %918: %r1 = select %117, %917, %916
-    %919: %r1 = binary.add %915, %918
+    %919: %r1 = alias %918
     %920: %r1 = const 0
     %921: %r1 = const 1
     %922: %r1 = select %118, %921, %920
@@ -1325,12 +1324,11 @@ fn main() -> one %r1
     %213: %r10 = const 1
     %214: %r10 = const 0
     %215: %r10 = const 0
-    %216: %r10 = const 0
     %217: %r10 = const 1
     %218: %r10 = const 2
     %219: %r10 = const 3
     %220: %r10 = const 1
-    %221: %r10 = binary.add %216, %220
+    %221: %r10 = alias %220
     %222: %r10 = coerce %221
     %223: %r10 = binary.add %217, %220
     %224: %r10 = coerce %223
@@ -1885,7 +1883,7 @@ fn main() -> one %r1
     %767: %r1 = call movesU8 %246
     %768: %r1 = binary.add %766, %767
     %769: %r1 = coerce %768
-    %770: %r10 = binary.add %202, %1
+    %770: %r10 = alias %1
     %771: %r10 = coerce %770
     %772: %r10 = binary.add %203, %1
     %773: %r10 = coerce %772
@@ -1917,7 +1915,7 @@ fn main() -> one %r1
     %799: %r1 = const 0
     %800: %r1 = const 1
     %801: %r1 = select %794, %800, %799
-    %802: %r1 = binary.add %798, %801
+    %802: %r1 = alias %801
     %803: %r1 = const 0
     %804: %r1 = const 1
     %805: %r1 = select %795, %804, %803
@@ -2056,7 +2054,7 @@ fn main() -> one %r1
     %930: %r1 = const 0
     %931: %r1 = const 1
     %932: %r1 = select %794, %931, %930
-    %933: %r1 = binary.add %929, %932
+    %933: %r1 = alias %932
     %934: %r1 = const 0
     %935: %r1 = const 1
     %936: %r1 = select %795, %935, %934
@@ -2088,7 +2086,7 @@ fn main() -> one %r1
     %970: %r1 = const 0
     %971: %r1 = const 1
     %972: %r1 = select %794, %971, %970
-    %973: %r1 = binary.add %969, %972
+    %973: %r1 = alias %972
     %974: %r1 = const 0
     %975: %r1 = const 1
     %976: %r1 = select %795, %975, %974
@@ -2141,7 +2139,7 @@ fn main() -> one %r1
     %1023: %r10 = coerce %1022
     jump -> block1(%1021, %1023)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 64 adopted 0 sunk 0
+optimizer clones 0 aliased 0 forwarded 0 removed 66 adopted 0 sunk 0 numbered 66 decided 0 unboxed 0 updated 0 split 0 promoted 0
 
 shape %s0 object <tuple> {f0: %r2, f1: %r1}
 shape %s1 object <tuple> {f0: %r14, f1: %r1}

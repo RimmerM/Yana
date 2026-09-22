@@ -4,8 +4,6 @@ let decimalPairs: String = "0001020304050607080910111213141516171819202122232425
 
 let image$base: () = <none>
 
-let &commandLineEnvironment: %%U8 = 0
-
 let &heapNext: %U8 = 0
 
 let &heapLimit: %U8 = 0
@@ -13,6 +11,8 @@ let &heapLimit: %U8 = 0
 let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
+
+let &commandLineEnvironment: %%U8 = 0
 
 let ResolveTest.string$0: String = "w"
 
@@ -602,165 +602,6 @@ fn +=(Size)(%target: Size, %amount: Size) -> () {
     %v3 = add %v2, %amount : Size
     assign %target, %v3
     ret
-}
-
-fn numberOf(%call: Syscall) -> USize {
-  b0:
-    %v1 = cast %call : I32
-    %v2 = cast %v1 : USize
-    ret %v2
-}
-
-fn mapMemory(%size: Size) -> %U8 {
-  b0:
-    %anonymous = bitcast -1 : USize
-    %v4 = call numberOf, SysMprotect : USize
-    %v6 = bitcast %size : USize
-    %result = syscall %v4, 0, %v6, 3, 34, %anonymous, 0 : Size
-    %v13 = cmp_lt %result, 0 : Bool
-    je %v13, b1, b2
-
-  b1:
-    %v16 = bitcast 0 : %U8
-    ret %v16
-
-  b2:
-    jmp b3
-
-  b3:
-    %v19 = bitcast %result : %U8
-    ret %v19
-}
-
-fn unmapMemory(%from: %U8, %size: Size) -> Size {
-  b0:
-    %v3 = call numberOf, SysIoctl : USize
-    %v4 = bitcast %from : USize
-    %v5 = bitcast %size : USize
-    %v6 = syscall %v3, %v4, %v5 : Size
-    ret %v6
-}
-
-fn protectNone(%from: %U8, %size: Size) -> Size {
-  b0:
-    %v3 = call numberOf, SysMunmap : USize
-    %v4 = bitcast %from : USize
-    %v5 = bitcast %size : USize
-    %v7 = syscall %v3, %v4, %v5, 0 : Size
-    ret %v7
-}
-
-fn exitProcess(%status: Size) -> () {
-  b0:
-    %v2 = call numberOf, 60 : USize
-    %v3 = bitcast %status : USize
-    %v4 = syscall %v2, %v3 : Size
-    ret
-}
-
-fn auxiliaryValue(%kind: USize) -> Maybe(USize) {
-  b0:
-    %v1 = load commandLineEnvironment : %%U8
-    %at = alloc : %%U8
-    init %at, %v1
-    %v4 = load %at : %%U8
-    %v5 = bitcast %v4 : Size
-    %v7 = cmp_eq %v5, 0 : Bool
-    je %v7, b1, b2
-
-  b1:
-    %v9 = alloc : Maybe(USize)
-    init %local1.discriminant, 0
-    ret %v9
-
-  b2:
-    jmp b3
-
-  b3:
-    jmp b4
-
-  b4:
-    %v15 = load %at : %%U8
-    %v16 = load [%v15] : %U8
-    %v17 = bitcast %v16 : USize
-    %v20 = cmp_ne %v17, 0 : Bool
-    je %v20, b6, b5
-
-  b5:
-    %v30 = load %at : %%U8
-    %v33 = strideof %U8 : Size
-    %v34 = mul 1, %v33 : Size
-    %v35 = add %v30, %v34 : %%U8
-    %v36 = bitcast %v35 : %USize
-    %entry = alloc : %USize
-    init %entry, %v36
-    jmp b7
-
-  b6:
-    %v22 = load %at : %%U8
-    %v25 = strideof %U8 : Size
-    %v26 = mul 1, %v25 : Size
-    %v27 = add %v22, %v26 : %%U8
-    assign %at, %v27
-    jmp b4
-
-  b7:
-    %v40 = load %entry : %USize
-    %v41 = load [%v40] : USize
-    %v43 = cmp_ne %v41, 0 : Bool
-    je %v43, b9, b8
-
-  b8:
-    %v69 = alloc : Maybe(USize)
-    init %local4.discriminant, 0
-    ret %v69
-
-  b9:
-    %v45 = load %entry : %USize
-    %v46 = load [%v45] : USize
-    %v47 = cmp_eq %v46, %kind : Bool
-    je %v47, b10, b11
-
-  b10:
-    %v49 = alloc : Maybe(USize)
-    %v51 = load %entry : %USize
-    %v54 = strideof USize : Size
-    %v55 = mul 1, %v54 : Size
-    %v56 = add %v51, %v55 : %USize
-    %v57 = load [%v56] : USize
-    aggregate %local3.discriminant = 1, %local3@Just = %v57
-    ret %v49
-
-  b11:
-    jmp b12
-
-  b12:
-    %v61 = load %entry : %USize
-    %v64 = strideof USize : Size
-    %v65 = mul 2, %v64 : Size
-    %v66 = add %v61, %v65 : %USize
-    assign %entry, %v66
-    jmp b7
-}
-
-fn systemPageBytes() -> Size {
-  b0:
-    %v1 = call auxiliaryValue, 6 : Maybe(USize)
-    %v2 = load %local0.discriminant : I32
-    %v4 = cmp_eq %v2, 1 : Bool
-    je %v4, b2, b1
-
-  b1:
-    jmp b3
-
-  b2:
-    %page = load %local0@Just : USize
-    %v7 = bitcast %page : Size
-    jmp b3
-
-  b3:
-    %v11 = phi [b2, %v7], [b1, 4096] : Size
-    ret %v11
 }
 
 fn initHeap() -> () {
@@ -1548,6 +1389,165 @@ fn abortProcess() -> () {
   b0:
     call exitProcess, 134
     ret
+}
+
+fn numberOf(%call: Syscall) -> USize {
+  b0:
+    %v1 = cast %call : I32
+    %v2 = cast %v1 : USize
+    ret %v2
+}
+
+fn mapMemory(%size: Size) -> %U8 {
+  b0:
+    %anonymous = bitcast -1 : USize
+    %v4 = call numberOf, SysMprotect : USize
+    %v6 = bitcast %size : USize
+    %result = syscall %v4, 0, %v6, 3, 34, %anonymous, 0 : Size
+    %v13 = cmp_lt %result, 0 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v16 = bitcast 0 : %U8
+    ret %v16
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = bitcast %result : %U8
+    ret %v19
+}
+
+fn unmapMemory(%from: %U8, %size: Size) -> Size {
+  b0:
+    %v3 = call numberOf, SysIoctl : USize
+    %v4 = bitcast %from : USize
+    %v5 = bitcast %size : USize
+    %v6 = syscall %v3, %v4, %v5 : Size
+    ret %v6
+}
+
+fn protectNone(%from: %U8, %size: Size) -> Size {
+  b0:
+    %v3 = call numberOf, SysMunmap : USize
+    %v4 = bitcast %from : USize
+    %v5 = bitcast %size : USize
+    %v7 = syscall %v3, %v4, %v5, 0 : Size
+    ret %v7
+}
+
+fn exitProcess(%status: Size) -> () {
+  b0:
+    %v2 = call numberOf, 60 : USize
+    %v3 = bitcast %status : USize
+    %v4 = syscall %v2, %v3 : Size
+    ret
+}
+
+fn auxiliaryValue(%kind: USize) -> Maybe(USize) {
+  b0:
+    %v1 = load commandLineEnvironment : %%U8
+    %at = alloc : %%U8
+    init %at, %v1
+    %v4 = load %at : %%U8
+    %v5 = bitcast %v4 : Size
+    %v7 = cmp_eq %v5, 0 : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v9 = alloc : Maybe(USize)
+    init %local1.discriminant, 0
+    ret %v9
+
+  b2:
+    jmp b3
+
+  b3:
+    jmp b4
+
+  b4:
+    %v15 = load %at : %%U8
+    %v16 = load [%v15] : %U8
+    %v17 = bitcast %v16 : USize
+    %v20 = cmp_ne %v17, 0 : Bool
+    je %v20, b6, b5
+
+  b5:
+    %v30 = load %at : %%U8
+    %v33 = strideof %U8 : Size
+    %v34 = mul 1, %v33 : Size
+    %v35 = add %v30, %v34 : %%U8
+    %v36 = bitcast %v35 : %USize
+    %entry = alloc : %USize
+    init %entry, %v36
+    jmp b7
+
+  b6:
+    %v22 = load %at : %%U8
+    %v25 = strideof %U8 : Size
+    %v26 = mul 1, %v25 : Size
+    %v27 = add %v22, %v26 : %%U8
+    assign %at, %v27
+    jmp b4
+
+  b7:
+    %v40 = load %entry : %USize
+    %v41 = load [%v40] : USize
+    %v43 = cmp_ne %v41, 0 : Bool
+    je %v43, b9, b8
+
+  b8:
+    %v69 = alloc : Maybe(USize)
+    init %local4.discriminant, 0
+    ret %v69
+
+  b9:
+    %v45 = load %entry : %USize
+    %v46 = load [%v45] : USize
+    %v47 = cmp_eq %v46, %kind : Bool
+    je %v47, b10, b11
+
+  b10:
+    %v49 = alloc : Maybe(USize)
+    %v51 = load %entry : %USize
+    %v54 = strideof USize : Size
+    %v55 = mul 1, %v54 : Size
+    %v56 = add %v51, %v55 : %USize
+    %v57 = load [%v56] : USize
+    aggregate %local3.discriminant = 1, %local3@Just = %v57
+    ret %v49
+
+  b11:
+    jmp b12
+
+  b12:
+    %v61 = load %entry : %USize
+    %v64 = strideof USize : Size
+    %v65 = mul 2, %v64 : Size
+    %v66 = add %v61, %v65 : %USize
+    assign %entry, %v66
+    jmp b7
+}
+
+fn systemPageBytes() -> Size {
+  b0:
+    %v1 = call auxiliaryValue, 6 : Maybe(USize)
+    %v2 = load %local0.discriminant : I32
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %page = load %local0@Just : USize
+    %v7 = bitcast %page : Size
+    jmp b3
+
+  b3:
+    %v11 = phi [b2, %v7], [b1, 4096] : Size
+    ret %v11
 }
 
 fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {

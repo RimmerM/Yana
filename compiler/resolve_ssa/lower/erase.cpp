@@ -1298,15 +1298,41 @@ void Lowering::writePropertySlot(LowerGlobal& table, U32 offset, DeclPtr<mir::Ty
     }
 
     auto held = reprOf(layout, subject).fields.get(decl, field);
-    if(held.offset > kMaxPropertyOffset) {
+
+    /*
+     * The split against the unit the **body** loads - J92, and `borrowNarrow`'s rule for the same
+     * reason. `propertyPlace` reads `manifest.size` bytes of the field's own type at the offset, so
+     * the offset has to be the start of *that* unit and the shift has to be inside it. The layout's
+     * `offset` is the start of the word the field was packed into, which is a different thing as soon
+     * as the word is wider than the field's type: a `Bool` at bit 53 of an eight-byte record was read
+     * as the byte at offset 0 shifted by 53, which is always zero. `packBits`' straddle rule is what
+     * makes the split exact; a `@layout(c)` bit-field that crosses the unit is refused, as a borrow
+     * of one is.
+     */
+    auto shift = U32(held.bitOffset);
+    auto at = held.offset;
+    if(held.isPacked()) {
+        auto unitBits = manifestNative(layout, held.occurrence).size * 8;
+        if(unitBits && shift % unitBits + held.bitWidth > unitBits) {
+            context.diagnostics.error(
+                "%@ cannot be passed to generic code - its %@ field's bits cross the storage unit its type is read in"_v,
+                source, mir::typeText(context, decl, subject),
+                context.findName(((mir::RecordType*)decl[subject])->fields.get(decl, field).name));
+        } else if(unitBits) {
+            at += shift / unitBits * (unitBits / 8);
+            shift %= unitBits;
+        }
+    }
+
+    if(at > kMaxPropertyOffset) {
         context.diagnostics.error(
             "%@ cannot be passed to generic code - its %@ field is %@ bytes in, and a property slot reaches %@"_v,
             source, mir::typeText(context, decl, subject),
             context.findName(((mir::RecordType*)decl[subject])->fields.get(decl, field).name),
-            U64(held.offset), U64(kMaxPropertyOffset));
+            U64(at), U64(kMaxPropertyOffset));
     }
 
-    writeCell(table, offset, held.offset | (U32(held.bitOffset) << kPropertyShiftShift));
+    writeCell(table, offset, at | (shift << kPropertyShiftShift));
 }
 
 LowerPtr<LowerGlobal> Lowering::environmentFor(DeclPtr<mir::GenEnvironment> environment,

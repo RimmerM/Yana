@@ -8,31 +8,24 @@ function Held_drop(self) {
 }
 
 function main() {
-  var s13;
-  Held_drop({ left: 1, right: 0 }.left);
+  Held_drop(1);
   $td$Maybe_Held(2);
   Array_a_reclaim_Held({ items: new Int32Array([4]), length: 1 });
   Held_drop(8);
   Held_drop(16);
-  var s9 = { left: 32, right: 0 };
-  Held_drop(s9.left);
-  s9.left = 64;
-  Held_drop(s9.left);
-  Held_drop({ left: 128, right: 0 }.left);
+  Held_drop(32);
+  Held_drop(64);
+  Held_drop(128);
   Held_drop(128);
   return dropped;
 }
 
 function Array_a_reclaim_Held(value) {
-  var s1;
-  var s0 = { items: new Int32Array([]), length: 0 };
-  s0 = value;
-  var v7 = s0.length;
-  var v11 = s0.items;
+  var v7 = value.length;
+  var v11 = value.items;
   var p1 = 0;
   while (p1 < v7) {
-    s1 = v11[p1];
-    Held_drop(s1);
+    Held_drop(v11[p1]);
     p1 = p1 + 1 | 0;
   }
 }
