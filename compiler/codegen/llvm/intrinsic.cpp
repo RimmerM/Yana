@@ -209,6 +209,21 @@ static llvm::Value* joinHalves(FunGen& f, llvm::Value* pair, llvm::Type* type) {
     return f.builder.CreateOr(low, f.builder.CreateShl(high, llvm::ConstantInt::get(type, 32)));
 }
 
+// The x86 instruction returns edx:eax, while the language intrinsic returns that pair as one U64.
+// Keep the inline assembly's multi-result type local to this backend, just as the x64 pseudo keeps
+// the two fixed output registers local to its encoder.
+static llvm::Value* genJoinedAsm(FunGen& f, LowerInstIntrinsic& inst, const char* text,
+                                  const char* constraints, llvm::ArrayRef<llvm::Value*> args) {
+    llvm::SmallVector<llvm::Type*, 4> argTypes;
+    for(auto arg: args) argTypes.push_back(arg->getType());
+
+    auto pair = llvm::StructType::get(f.builder.getInt32Ty(), f.builder.getInt32Ty());
+    auto assembly = llvm::InlineAsm::get(llvm::FunctionType::get(pair, argTypes, false), text,
+                                         constraints, true);
+    auto result = f.builder.CreateCall(assembly, args);
+    return joinHalves(f, result, typeOf(f.gen, inst.created()[0].type));
+}
+
 bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
     auto created = inst.created();
 
@@ -305,9 +320,10 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
             return true;
         }
 
-        case LowerIntrinsic::Rdtscp:
-            genAsm(f, inst, "rdtscp", "={ax},={dx},~{rcx}", {});
+        case LowerIntrinsic::Rdtscp: {
+            f.define(inst.created()[0], genJoinedAsm(f, inst, "rdtscp", "={ax},={dx},~{rcx}", {}));
             return true;
+        }
 
         case LowerIntrinsic::Rdtsc: {
             // The machine answers in edx:eax whichever of the two the IR asked for, so the single
@@ -378,7 +394,7 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
 
         case LowerIntrinsic::Rdmsr: {
             llvm::Value* args[] = { asInt32(f, argOf(f, inst, 0)) };
-            genAsm(f, inst, "rdmsr", "={ax},={dx},{cx}", args);
+            f.define(inst.created()[0], genJoinedAsm(f, inst, "rdmsr", "={ax},={dx},{cx}", args));
             return true;
         }
 
@@ -393,7 +409,7 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
 
         case LowerIntrinsic::Xgetbv: {
             llvm::Value* args[] = { asInt32(f, argOf(f, inst, 0)) };
-            genAsm(f, inst, "xgetbv", "={ax},={dx},{cx}", args);
+            f.define(inst.created()[0], genJoinedAsm(f, inst, "xgetbv", "={ax},={dx},{cx}", args));
             return true;
         }
 

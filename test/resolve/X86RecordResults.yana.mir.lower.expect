@@ -6,23 +6,23 @@ cpuidEax<complex>(%leaf: I32, %subleaf: I32): I32 {
   }
 }
 
-rdtscpLow<complex>(): I32 {
+rdtscpValue<complex>(): I64 {
   b_0 {
-    %v_1, %v_2 = rdtscp : I32, I32
+    %v_1 = rdtscp : I64
     ret %v_1
   }
 }
 
-rdmsrLow<complex>(%msr: I32): I32 {
+rdmsrValue<complex>(%msr: I32): I64 {
   b_0 {
-    %v_1, %v_2 = rdmsr %msr: I32, I32
+    %v_1 = rdmsr %msr: I64
     ret %v_1
   }
 }
 
-xgetbvLow<complex>(%index: I32): I32 {
+xgetbvValue<complex>(%index: I32): I64 {
   b_0 {
-    %v_1, %v_2 = xgetbv %index: I32, I32
+    %v_1 = xgetbv %index: I64
     ret %v_1
   }
 }

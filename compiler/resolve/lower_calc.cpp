@@ -116,36 +116,13 @@ static LowerInst* lowerX86Native(LowerContext& lower, LowerBlock& block, Inst& i
             storeRecordResults(inst, record, 4);
             return nullptr;
         }
-        case NativeOp::X86Rdtscp: {
-            auto record = recordResult();
-            auto* inst = (LowerInstIntrinsic*)emit(LowerIntrinsic::Rdtscp, 2, 0,
-                                                   LowerType::Int32, false);
-            new (inst->created().ptr + 1) LowerValue(inst, LowerType::Int32, StringId());
-            storeRecordResults(inst, record, 2);
-            return nullptr;
-        }
-        case NativeOp::X86Rdmsr: {
-            auto record = recordResult();
-            auto* inst = (LowerInstIntrinsic*)emit(LowerIntrinsic::Rdmsr, 2, 1,
-                                                   LowerType::Int32, false);
-            new (inst->created().ptr + 1) LowerValue(inst, LowerType::Int32, StringId());
-            storeRecordResults(inst, record, 2);
-            return nullptr;
-        }
-        case NativeOp::X86Xgetbv: {
-            auto record = recordResult();
-            auto* inst = (LowerInstIntrinsic*)emit(LowerIntrinsic::Xgetbv, 2, 1,
-                                                   LowerType::Int32, false);
-            new (inst->created().ptr + 1) LowerValue(inst, LowerType::Int32, StringId());
-            storeRecordResults(inst, record, 2);
-            return nullptr;
-        }
         default:
             break;
     }
 
     LowerIntrinsic which = LowerIntrinsic::Rdtsc;
     switch(op) {
+        case NativeOp::X86Rdtscp:      which = LowerIntrinsic::Rdtscp; break;
         case NativeOp::X86Rdtsc:       which = LowerIntrinsic::Rdtsc; break;
         case NativeOp::X86MFence:      which = LowerIntrinsic::MFence; break;
         case NativeOp::X86LFence:      which = LowerIntrinsic::LFence; break;
@@ -159,7 +136,9 @@ static LowerInst* lowerX86Native(LowerContext& lower, LowerBlock& block, Inst& i
         case NativeOp::X86Cli:         which = LowerIntrinsic::Cli; break;
         case NativeOp::X86Sti:         which = LowerIntrinsic::Sti; break;
         case NativeOp::X86Swapgs:      which = LowerIntrinsic::Swapgs; break;
+        case NativeOp::X86Rdmsr:       which = LowerIntrinsic::Rdmsr; break;
         case NativeOp::X86Wrmsr:       which = LowerIntrinsic::Wrmsr; break;
+        case NativeOp::X86Xgetbv:      which = LowerIntrinsic::Xgetbv; break;
         case NativeOp::X86In8:         which = LowerIntrinsic::In8; break;
         case NativeOp::X86In16:        which = LowerIntrinsic::In16; break;
         case NativeOp::X86In32:        which = LowerIntrinsic::In32; break;

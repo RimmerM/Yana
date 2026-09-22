@@ -78,21 +78,16 @@ features(%leaf: I32, %sub: I32): I32 {
 
 stamp(): I64 {
     {
-        %lo, %hi = rdtscp
-        %l = cast %lo: I64
-        %h = cast %hi: I64
-        %s = shl %h, 32: I64
-        %r = or %l, %s: I64
+        %r = rdtscp: I64
         ret %r
     }
 }
 
 stampAcrossValue(%a: I64, %b: I64, %c: I64, %keep: I64): I64 {
     {
-        %lo, %hi = rdtscp
-        %l = cast %lo: I64
-        %r = add %keep, %l: I64
-        ret %r
+        %r = rdtscp: I64
+        %s = add %keep, %r: I64
+        ret %s
     }
 }
 

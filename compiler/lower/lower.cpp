@@ -28,9 +28,8 @@ static constexpr LowerIntrinsicDesc kIntrinsics[kLowerIntrinsicCount] = {
     // Takes the leaf and subleaf, and returns the four information registers in their usual order.
     [Size(LowerIntrinsic::Cpuid)] = { "cpuid"_v, 4, 2, kLowerOrdered },
 
-    // Returns the counter as two halves, low then high, because that is how the machine hands it
-    // back: one register each, and combining them is the caller's arithmetic rather than ours.
-    [Size(LowerIntrinsic::Rdtscp)] = { "rdtscp"_v, 2, 0, kLowerOrdered },
+    // Returns the counter as one U64, joined from the low and high registers by the backend.
+    [Size(LowerIntrinsic::Rdtscp)] = { "rdtscp"_v, 1, 0, kLowerOrdered },
 
     // The same counter as one number, which is the target's arithmetic rather than the caller's:
     // it is three instructions there and two here, and the two would be allocated as if the halves
@@ -52,12 +51,12 @@ static constexpr LowerIntrinsicDesc kIntrinsics[kLowerIntrinsicCount] = {
     [Size(LowerIntrinsic::Sti)] = { "sti"_v, 0, 0, kLowerOrdered | kLowerPrivileged },
     [Size(LowerIntrinsic::Swapgs)] = { "swapgs"_v, 0, 0, kLowerOrdered | kLowerPrivileged },
 
-    // Takes the register number and returns its two halves; the write takes the number and both
-    // halves. Split rather than joined because that is how the machine addresses them, and a
-    // 64-bit value here would be arithmetic in front of an instruction that cannot read it.
-    [Size(LowerIntrinsic::Rdmsr)] = { "rdmsr"_v, 2, 1, kLowerOrdered | kLowerPrivileged },
+    // Takes the register number and returns one U64, joined from edx:eax by the backend. The write
+    // still takes the number and both halves because that is how the machine addresses them.
+    [Size(LowerIntrinsic::Rdmsr)] = { "rdmsr"_v, 1, 1, kLowerOrdered | kLowerPrivileged },
     [Size(LowerIntrinsic::Wrmsr)] = { "wrmsr"_v, 0, 3, kLowerOrdered | kLowerPrivileged },
-    [Size(LowerIntrinsic::Xgetbv)] = { "xgetbv"_v, 2, 1, kLowerOrdered },
+    // Like rdmsr, but for an extended-state register and without the privileged flag.
+    [Size(LowerIntrinsic::Xgetbv)] = { "xgetbv"_v, 1, 1, kLowerOrdered },
 
     [Size(LowerIntrinsic::In8)] = { "in8"_v, 1, 1, kLowerOrdered | kLowerPrivileged },
     [Size(LowerIntrinsic::In16)] = { "in16"_v, 1, 1, kLowerOrdered | kLowerPrivileged },

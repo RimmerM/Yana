@@ -3222,17 +3222,34 @@ struct Emitter {
      * so placement had already been told about all of it.
      */
 
-    // RDTSC (0f 31) answers in edx:eax, and the intrinsic's result is the whole counter - so the
-    // halves are joined here. rdx is the form's clobber and the shift is why it declares the flags;
-    // rax is its result, which the tie-free fixed def already put in place.
-    void emitRdTsc() {
-        to.buffer.writeByte(0x0f);
-        to.buffer.writeByte(0x31);
+    // The instruction answers in edx:eax, and the intrinsic's result is the whole value - so the
+    // halves are joined here. rdx is the form's clobber and the shift is why the form declares the
+    // flags; rax is its result, which the tie-free fixed def already put in place.
+    void emitJoinedX86(U8 opcode, U8 opcodeAlt, U8 escape) {
+        if(escape) to.buffer.writeByte(escape);
+        to.buffer.writeByte(opcode);
+        if(opcodeAlt) to.buffer.writeByte(opcodeAlt);
 
         // SHL rdx, 32 (REX.W c1 /4 ib), then OR rax, rdx.
         genRegExt(to, true, U8(IntRegister::rdx), 0xc1, 4);
         to.buffer.writeByte(32);
         genRegReg(to, true, U8(IntRegister::rax), U8(IntRegister::rdx), 0x09);
+    }
+
+    void emitRdTsc() {
+        emitJoinedX86(0x31, 0, 0x0f);
+    }
+
+    void emitRdTscp() {
+        emitJoinedX86(0x01, 0xf9, 0x0f);
+    }
+
+    void emitRdMsr() {
+        emitJoinedX86(0x32, 0, 0x0f);
+    }
+
+    void emitXGetBv() {
+        emitJoinedX86(0x01, 0xd0, 0x0f);
     }
 
     // IN al, dx (ec) writes only the low byte of eax and leaves the rest of it holding whatever it
@@ -3736,6 +3753,18 @@ struct Emitter {
 
             case PseudoKind::RdTsc:
                 emitRdTsc();
+                break;
+
+            case PseudoKind::RdTscp:
+                emitRdTscp();
+                break;
+
+            case PseudoKind::RdMsr:
+                emitRdMsr();
+                break;
+
+            case PseudoKind::XGetBv:
+                emitXGetBv();
                 break;
 
             case PseudoKind::PortIn8:

@@ -2430,45 +2430,13 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                         storeRecordResults(built, record, 4);
                         return nullptr;
                     }
-                    case mir::NativeOp::X86Rdtscp: {
-                        auto record = recordResult();
-                        auto built = addIntrinsic(LowerIntrinsic::Rdtscp, 2, 0, false);
-                        for(Size i = 0; i < 2; i++) {
-                            new (built->created().ptr + i) LowerValue(built, LowerType::Int32,
-                                                                       StringId());
-                        }
-                        block.addInst(lower, (LowerInst*)built);
-                        storeRecordResults(built, record, 2);
-                        return nullptr;
-                    }
-                    case mir::NativeOp::X86Rdmsr: {
-                        auto record = recordResult();
-                        auto built = addIntrinsic(LowerIntrinsic::Rdmsr, 2, 1, false);
-                        for(Size i = 0; i < 2; i++) {
-                            new (built->created().ptr + i) LowerValue(built, LowerType::Int32,
-                                                                       StringId());
-                        }
-                        block.addInst(lower, (LowerInst*)built);
-                        storeRecordResults(built, record, 2);
-                        return nullptr;
-                    }
-                    case mir::NativeOp::X86Xgetbv: {
-                        auto record = recordResult();
-                        auto built = addIntrinsic(LowerIntrinsic::Xgetbv, 2, 1, false);
-                        for(Size i = 0; i < 2; i++) {
-                            new (built->created().ptr + i) LowerValue(built, LowerType::Int32,
-                                                                       StringId());
-                        }
-                        block.addInst(lower, (LowerInst*)built);
-                        storeRecordResults(built, record, 2);
-                        return nullptr;
-                    }
                     default:
                         break;
                 }
 
                 LowerIntrinsic which = LowerIntrinsic::Rdtsc;
                 switch(op) {
+                    case mir::NativeOp::X86Rdtscp:      which = LowerIntrinsic::Rdtscp; break;
                     case mir::NativeOp::X86Rdtsc:       which = LowerIntrinsic::Rdtsc; break;
                     case mir::NativeOp::X86MFence:      which = LowerIntrinsic::MFence; break;
                     case mir::NativeOp::X86LFence:      which = LowerIntrinsic::LFence; break;
@@ -2482,7 +2450,9 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     case mir::NativeOp::X86Cli:         which = LowerIntrinsic::Cli; break;
                     case mir::NativeOp::X86Sti:         which = LowerIntrinsic::Sti; break;
                     case mir::NativeOp::X86Swapgs:      which = LowerIntrinsic::Swapgs; break;
+                    case mir::NativeOp::X86Rdmsr:       which = LowerIntrinsic::Rdmsr; break;
                     case mir::NativeOp::X86Wrmsr:       which = LowerIntrinsic::Wrmsr; break;
+                    case mir::NativeOp::X86Xgetbv:      which = LowerIntrinsic::Xgetbv; break;
                     case mir::NativeOp::X86In8:         which = LowerIntrinsic::In8; break;
                     case mir::NativeOp::X86In16:        which = LowerIntrinsic::In16; break;
                     case mir::NativeOp::X86In32:        which = LowerIntrinsic::In32; break;

@@ -1,7 +1,7 @@
 {-
-   The fixed-register x86 results are source records, while each field read still lowers to the
-   intrinsic's corresponding register result. This fixture does not run the privileged operations;
-   its lower goldens are the assertion about their representation.
+   CPUID remains a source record because it returns four independent information registers. The
+   timestamp and machine-state reads return one U64 assembled from their fixed edx:eax results.
+   This fixture does not run the privileged operations; its goldens assert their representation.
 -}
 
 import Native
@@ -10,15 +10,11 @@ fn cpuidEax(leaf: U32, subleaf: U32) -> U32:
     let result = X86.cpuid(leaf, subleaf)
     return result.eax
 
-fn rdtscpLow() -> U32:
-    let result = X86.rdtscp()
-    return result.low
+fn rdtscpValue() -> U64:
+    return X86.rdtscp()
 
-fn rdmsrLow(msr: U32) -> U32:
-    let result = X86.rdmsr(msr)
-    return result.low
+fn rdmsrValue(msr: U32) -> U64:
+    return X86.rdmsr(msr)
 
-fn xgetbvLow(index: U32) -> U32:
-    let result = X86.xgetbv(index)
-    return result.low
-
+fn xgetbvValue(index: U32) -> U64:
+    return X86.xgetbv(index)

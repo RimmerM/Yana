@@ -17,7 +17,8 @@
  *            `add` does, because it says so with the same constraint.
  *   cpuid    forces two operands into fixed registers and produces four results in fixed registers,
  *            one of which is callee-saved and so drags a save into the prologue.
- *   rdtscp   writes a register it does not name as a result at all, which is a clobber like a call's.
+ *   rdtscp   and the two state-register reads join edx:eax into one result after their fixed
+ *            register instruction, while declaring every other written register as a clobber.
  *   mfence   has no operands and no results, and exists entirely for its effect on everything else.
  *   prefetch takes an *address*, which the address folding rewrites into a folded addressing mode
  *            exactly as it does a load's, because the form says the operand is one.
@@ -329,21 +330,18 @@ void addIntrinsics(MachineTarget& target) {
 
     {
         // RDTSCP (0f 01 f9) reads the timestamp counter into edx:eax and the processor id into ecx.
-        // Only the counter halves are results here, so ecx is a register the instruction writes
-        // without naming - an implicit clobber, exactly like a call's, and the allocator keeps live
-        // values out of it for exactly the same reason.
+        // The pseudo joins the counter halves into the one U64 result; edx, ecx and the flags are
+        // clobbers of the whole sequence.
         auto b = add(LowerIntrinsic::Rdtscp, "rdtscp"_v, kFeatureBaseline);
         b.form.defs.push(fixedDef(IntRegister::rax));
-        b.form.defs.push(fixedDef(IntRegister::rdx));
+        b.form.clobbers.add(gpr(IntRegister::rdx));
         b.form.clobbers.add(gpr(IntRegister::rcx));
+        b.form.flagsEffect = FlagsEffect::Clobber;
         b.form.encoding = EncodingDescriptor {
-            .family = EncodingFamily::Opcode,
-            .opcode = 0x01, .opcodeAlt = 0xf9, .escape = 0x0f,
-            .width = OperationWidth::Fixed32,
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::RdTscp,
         };
 
-        b.desc.results.push(integer32Rule());
-        b.desc.results.push(integer32Rule());
+        b.desc.results.push(integer64Rule());
     }
 
     {
@@ -589,10 +587,9 @@ void addIntrinsics(MachineTarget& target) {
     /*
      * Model-specific and extended-state registers.
      *
-     * The same shape as CPUID: fixed registers on both sides, and the allocator copying values into
-     * and out of them. What is new is only that one of them writes nothing at all, so its form has
-     * defs to state and none to take a width from - which is why every form here says its width
-     * outright rather than deriving it from a result.
+     * The same fixed-register inputs as CPUID, but one U64 result: the pseudo emits the instruction
+     * in its fixed 32-bit form and joins edx:eax into rax. rdx and the flags are clobbers of that
+     * joined sequence.
      */
 
     {
@@ -600,16 +597,14 @@ void addIntrinsics(MachineTarget& target) {
         auto b = add(LowerIntrinsic::Rdmsr, "rdmsr"_v, kFeatureBaseline);
         b.form.uses.push(fixedReg(IntRegister::rcx));
         b.form.defs.push(fixedDef(IntRegister::rax));
-        b.form.defs.push(fixedDef(IntRegister::rdx));
+        b.form.clobbers.add(gpr(IntRegister::rdx));
+        b.form.flagsEffect = FlagsEffect::Clobber;
         b.form.encoding = EncodingDescriptor {
-            .family = EncodingFamily::Opcode,
-            .opcode = 0x32, .escape = 0x0f,
-            .width = OperationWidth::Fixed32,
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::RdMsr,
         };
 
         b.desc.operands.push(integer32Rule());
-        b.desc.results.push(integer32Rule());
-        b.desc.results.push(integer32Rule());
+        b.desc.results.push(integer64Rule());
     }
 
     {
@@ -635,16 +630,14 @@ void addIntrinsics(MachineTarget& target) {
         auto b = add(LowerIntrinsic::Xgetbv, "xgetbv"_v, kFeatureBaseline);
         b.form.uses.push(fixedReg(IntRegister::rcx));
         b.form.defs.push(fixedDef(IntRegister::rax));
-        b.form.defs.push(fixedDef(IntRegister::rdx));
+        b.form.clobbers.add(gpr(IntRegister::rdx));
+        b.form.flagsEffect = FlagsEffect::Clobber;
         b.form.encoding = EncodingDescriptor {
-            .family = EncodingFamily::Opcode,
-            .opcode = 0x01, .opcodeAlt = 0xd0, .escape = 0x0f,
-            .width = OperationWidth::Fixed32,
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::XGetBv,
         };
 
         b.desc.operands.push(integer32Rule());
-        b.desc.results.push(integer32Rule());
-        b.desc.results.push(integer32Rule());
+        b.desc.results.push(integer64Rule());
     }
 
     /*

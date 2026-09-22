@@ -57,21 +57,16 @@ features<complex>(%leaf: I32, %sub: I32): I32 {
 
 stamp<complex>(): I64 {
   b_0 {
-    %lo, %hi = rdtscp : I32, I32
-    %l = cast %lo: I64
-    %h = cast %hi: I64
-    %s = shl %h, 32: I64
-    %r = or %l, %s: I64
+    %r = rdtscp : I64
     ret %r
   }
 }
 
 stampAcrossValue<complex>(%a: I64, %b: I64, %c: I64, %keep: I64): I64 {
   b_0 {
-    %lo, %hi = rdtscp : I32, I32
-    %l = cast %lo: I64
-    %r = add %keep, %l: I64
-    ret %r
+    %r = rdtscp : I64
+    %s = add %keep, %r: I64
+    ret %s
   }
 }
 
@@ -113,7 +108,7 @@ block #1:
   load uses=[rdi] creates=[rdx] post=[rdx->stack:9]  => 488b174889542448
   load uses=[rdi] creates=[rdx] post=[rdx->stack:10]  => 488b174889542450
   fun uses=[] creates=[-]  => 
-  call_clobber uses=[-, rdi] creates=[rax] pre=[stack:0->rdi]  => 488b3c24e8a4000000
+  call_clobber uses=[-, rdi] creates=[rax] pre=[stack:0->rdi]  => 488b3c24e8b4000000
   popcnt uses=[stack:0] creates=[rcx]  => f3480fb80c24
   add uses=[rbp, stack:1] creates=[rbp]  => 48036c2408
   add uses=[rbp, stack:2] creates=[rbp]  => 48036c2410
@@ -145,20 +140,14 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  rdtscp uses=[] creates=[rax, rdx]  => 0f01f9
-  cast uses=[rax] creates=[rax]  => 8bc0
-  cast uses=[rdx] creates=[rdx]  => 8bd2
-  imm uses=[] creates=[-]  => 
-  shl uses=[rdx, -] creates=[rdx]  => 48c1e220
-  or uses=[rax, rdx] creates=[rax]  => 4809d0
+  rdtscp uses=[] creates=[rax]  => 0f01f948c1e2204809d0
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: stampAcrossValue ---
 block #0:
   jmp uses=[] creates=[] pre=[rcx->rsi]  => 488bf1
 block #1:
-  rdtscp uses=[] creates=[rax, rdx]  => 0f01f9
-  cast uses=[rax] creates=[rax]  => 8bc0
+  rdtscp uses=[] creates=[rax]  => 0f01f948c1e2204809d0
   add uses=[rsi, rax] creates=[rsi]  => 4801c6
   ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
 

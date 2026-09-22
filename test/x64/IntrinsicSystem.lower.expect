@@ -66,18 +66,20 @@ spilledAddress<complex>(%arg: I32, %keep: I32, %p: Ptr): I32 {
   }
 }
 
-copyMsr<complex>(%from: I32, %to: I32) {
+copyMsr<complex>(%from: I32, %to: I32, %shift: I64) {
   b_0 {
-    %lo, %hi = rdmsr %from: I32, I32
+    %value = rdmsr %from: I64
+    %hi64 = shr %value, %shift: I64
+    %hi = cast %hi64: I32
+    %lo = cast %value: I32
     wrmsr %to, %lo, %hi
     ret 
   }
 }
 
-xcr0<complex>(): I32 {
+xcr0<complex>(): I64 {
   b_0 {
-    %lo, %hi = xgetbv 0: I32, I32
-    %r = add %lo, %hi: I32
+    %r = xgetbv 0: I64
     ret %r
   }
 }
@@ -216,9 +218,12 @@ block #1:
 
 --- codegen: copyMsr ---
 block #0:
-  jmp uses=[] creates=[] pre=[rdi->rcx]  => 8bcf
+  jmp uses=[] creates=[] pre=[rdi->rcx, rdx->rdi]  => 8bcf488bfa
 block #1:
-  rdmsr uses=[rcx] creates=[rax, rdx]  => 0f32
+  rdmsr uses=[rcx] creates=[rax]  => 0f3248c1e2204809d0
+  shr uses=[rdx, rcx] creates=[rdx] pre=[rax->rdx, rdi->rcx]  => 488bd0488bcf48d3ea
+  cast uses=[rdx] creates=[rdx]  => 8bd2
+  cast uses=[rax] creates=[rax]  => 8bc0
   wrmsr uses=[rcx, rax, rdx] creates=[] pre=[rsi->rcx]  => 8bce0f30
   ret uses=[] creates=[]  => c3
 
@@ -227,8 +232,7 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[remat:0]  => 
-  xgetbv uses=[rcx] creates=[rax, rdx] pre=[remat:0->rcx]  => b9000000000f01d0
-  add uses=[rax, rdx] creates=[rax]  => 01d0
+  xgetbv uses=[rcx] creates=[rax] pre=[remat:0->rcx]  => b9000000000f01d048c1e2204809d0
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: ports ---
@@ -278,8 +282,8 @@ block start:
   lfence uses=[] creates=[]  => 0faee8
   sub uses=[rax, rcx] creates=[rax] pre=[rcx->rax]  => 488bc14829c8
   cmp_lt uses=[rax, rdi] creates=[-]  => 4839f8
-  je uses=[-] creates=[]  => 731f
-  align  => 660f1f440000
+  je uses=[-] creates=[]  => 732f
+  align  => 666666666666660f1f8400000000000f1f8000000000
 block body:
   pause uses=[] creates=[]  => f390
   rdtsc uses=[] creates=[rax]  => 0f3148c1e2204809d0

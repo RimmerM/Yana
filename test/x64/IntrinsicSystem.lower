@@ -89,21 +89,24 @@ spilledAddress(%arg: I32, %keep: I32, %p: Ptr): I32 {
 }
 
 # Model-specific registers: the number in ecx, the value in edx:eax, and every one of those a fixed
-# register the allocator copies into and out of. The read's two results feed the write, so the
-# copies have to survive between them.
-copyMsr(%from: I32, %to: I32) {
+# register the allocator copies into and out of. The read joins its two machine registers into one
+# U64, which this test splits again for the write so both fixed-register paths stay covered. The
+# supplied shift keeps that split a normal two-operand lower operation rather than an extra remat.
+copyMsr(%from: I32, %to: I32, %shift: I64) {
     {
-        %lo, %hi = rdmsr %from
+        %value = rdmsr %from: I64
+        %hi64 = shr %value, %shift: I64
+        %hi = cast %hi64: I32
+        %lo = cast %value: I32
         wrmsr %to, %lo, %hi
         ret
     }
 }
 
 # The extended-state register read, which is the one intrinsic here needing a target feature.
-xcr0(): I32 {
+xcr0(): I64 {
     {
-        %lo, %hi = xgetbv 0
-        %r = add %lo, %hi: I32
+        %r = xgetbv 0: I64
         ret %r
     }
 }

@@ -1036,11 +1036,14 @@ enum class PseudoKind: U8 {
     MaskLoad,
     MaskStore,
 
-    // The two intrinsics whose one operation is several instructions (§15.2 of the plan). Both
+    // The four intrinsics whose one operation is several instructions (§15.2 of the plan). They
     // expand after allocation, which is only safe because every register and flag their expansion
     // touches is a fixed operand or a declared clobber of the form that names them - so nothing the
     // expansion does can surprise a placement that has already happened.
-    RdTsc,   // the counter's two halves joined into the one value the intrinsic returns
+    RdTsc,   // RDTSC's two halves joined into the one value the intrinsic returns
+    RdTscp,  // RDTSCP's two halves joined into the one value the intrinsic returns
+    RdMsr,   // RDMSR's two halves joined into the one value the intrinsic returns
+    XGetBv,  // XGETBV's two halves joined into the one value the intrinsic returns
     PortIn8, // a byte read from a port, zero-extended into the whole result
     Interrupt, // `int imm8`, whose vector is an immediate operand
 };

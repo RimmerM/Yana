@@ -12,34 +12,22 @@ bb0:
   return take %4
 }
 
-fn rdtscpLow() -> U32 {
-  local result: RdtscpResult
-
+fn rdtscpValue() -> U64 {
 bb0:
-  %0: RdtscpResult = native rdtscp
-  write.init borrow.unique (result) take %0
-  %2: U32 = read copy.trivial (result.low)
-  return take %2
+  %0: U64 = native rdtscp
+  return take %0
 }
 
-fn rdmsrLow(msr: U32 [shared call]) -> U32 {
-  local result: RdmsrResult
-
+fn rdmsrValue(msr: U32 [shared call]) -> U64 {
 bb0:
   %0: U32 = read copy.trivial (msr)
-  %1: RdmsrResult = native rdmsr inspect %0
-  write.init borrow.unique (result) take %1
-  %3: U32 = read copy.trivial (result.low)
-  return take %3
+  %1: U64 = native rdmsr inspect %0
+  return take %1
 }
 
-fn xgetbvLow(index: U32 [shared call]) -> U32 {
-  local result: XgetbvResult
-
+fn xgetbvValue(index: U32 [shared call]) -> U64 {
 bb0:
   %0: U32 = read copy.trivial (index)
-  %1: XgetbvResult = native xgetbv inspect %0
-  write.init borrow.unique (result) take %1
-  %3: U32 = read copy.trivial (result.low)
-  return take %3
+  %1: U64 = native xgetbv inspect %0
+  return take %1
 }
