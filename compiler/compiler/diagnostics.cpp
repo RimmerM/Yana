@@ -56,7 +56,25 @@ void PrintDiagnostics::message(Level level, StringView text, const Location* whe
         default: type = "";
     }
 
-    printError("%@:%@: %@: ", line + 1, column, type);
+    /*
+     * `path:line:column:`, which is the shape a terminal, CLion's Build window and every editor's
+     * "jump to error" already parse - and the only one that says *which* file in a project of more
+     * than one. The path is left out where there is none: a report with no location at all, or text
+     * that was never read from a file.
+     *
+     * **Both numbers are 1-based here**, where the lexer counts a column from zero - a link that
+     * lands one character left of what it points at is a link that looks broken. The column printed
+     * before this named a file was 0-based, which is the one thing about this line that changed for
+     * a reader who was already reading it.
+     */
+    StringView path {};
+    if(where) {
+        path = provider.getPath(where->sourceModule);
+        if(path.length == 0 && library) path = library->pathOf(where->sourceModule);
+    }
+
+    if(path.length > 0) printError("%@:", path);
+    printError("%@:%@: %@: ", line + 1, column + 1, type);
     printlnError(text);
 
     if(!where) return;

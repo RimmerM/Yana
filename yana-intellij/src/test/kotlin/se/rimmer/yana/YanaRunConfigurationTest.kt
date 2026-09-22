@@ -1,6 +1,14 @@
 package se.rimmer.yana
 
+import com.intellij.build.BuildViewManager
+import com.intellij.build.events.BuildEvent
+import com.intellij.build.events.FailureResult
+import com.intellij.build.events.FileMessageEvent
+import com.intellij.build.events.FinishBuildEvent
 import com.intellij.execution.RunManager
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.testFramework.PlatformTestUtil
+import com.intellij.testFramework.replaceService
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import se.rimmer.yana.lsp.YanaSemanticTokens
 import com.intellij.task.ProjectModelBuildTask
@@ -10,10 +18,14 @@ import com.intellij.task.ProjectTaskRunner
 import com.jetbrains.cidr.execution.build.CidrBuildConfigurationProvider
 import se.rimmer.yana.project.YanaProjectTemplate
 import se.rimmer.yana.run.PROVIDER_ID
+import se.rimmer.yana.run.YanaBuild
 import se.rimmer.yana.run.YanaBuildTarget
+import se.rimmer.yana.run.YanaDiagnostic
 import se.rimmer.yana.run.YanaProjectFile
 import se.rimmer.yana.run.YanaProjectTaskRunner
+import se.rimmer.yana.run.YanaRunConfiguration
 import se.rimmer.yana.run.YanaRunConfigurationType
+import se.rimmer.yana.settings.YanaSettings
 import java.io.File
 import java.nio.file.Files
 
@@ -95,6 +107,88 @@ class YanaRunConfigurationTest : BasePlatformTestCase() {
             }
         } finally {
             parent.deleteRecursively()
+        }
+    }
+
+    /*
+     * The driver's error stream, split into one Build-window entry per diagnostic.
+     *
+     * The format is compiler/compiler/diagnostics.cpp's, and it is text: a change there shows up
+     * as a build whose tree says only "failed", so this pins the shape the parser expects.
+     */
+    fun testDiagnosticsAreSplitPerMessage() {
+        val output = """
+            /work/src/Main.yana:4:10: error: a `:` block here is a lens call's continuation
+                let x: Int = "no"
+                     ^
+            C:\work\src\Other.yana:7:2: warning: unused
+            2:0: : a note, with no file behind it
+        """.trimIndent() + "\n"
+
+        val diagnostics = YanaDiagnostic.parse(output)
+        assertEquals(listOf("error", "warning", ""), diagnostics.map { it.level })
+        assertEquals(listOf("/work/src/Main.yana", "C:\\work\\src\\Other.yana", null), diagnostics.map { it.path })
+        assertEquals(listOf(4, 7, 2), diagnostics.map { it.line })
+        assertEquals("a `:` block here is a lens call's continuation", diagnostics[0].text)
+        assertTrue("the quoted line and marker belong to the first", diagnostics[0].detail.endsWith("     ^"))
+        assertEquals("2:0: a note, with no file behind it", diagnostics[2].title)
+    }
+
+    /*
+     * A whole build, through the Build window, against a stand-in compiler.
+     *
+     * Everything else here checks wiring; this is the one that runs YanaBuild, and it exists because
+     * the first Build-window version passed every other test and failed on its first click - an
+     * AssertionError out of `BuildProgress`, which only running the build finds. A plugin error is
+     * logged with `error`, which fails a platform test, so a repeat of that fails here.
+     *
+     * What it asserts is what makes the window worth having: the diagnostic arrives as a message
+     * that names its file, at the line and column the driver printed less one.
+     */
+    fun testBuildReportsDiagnosticsIntoTheBuildWindow() {
+        val root = Files.createTempDirectory("yana-build").toFile()
+        val settings = YanaSettings.getInstance()
+        val previousCompiler = settings.compilerPath
+        try {
+            val source = File(root, "src/Main.yana")
+            source.parentFile.mkdirs()
+            source.writeText("fn main() -> Int = 0\n")
+            File(root, "yana.toml").writeText("sources = [\"src\"]\noutput = \"app\"\n")
+
+            // The stand-in prints what the driver prints for one located error, and fails.
+            val compiler = File(root, "yana")
+            compiler.writeText("#!/bin/sh\necho '${source.path}:3:5: error: nope' >&2\necho '  quoted' >&2\nexit 1\n")
+            compiler.setExecutable(true)
+            settings.compilerPath = compiler.path
+
+            val events = mutableListOf<BuildEvent>()
+            val view = object : BuildViewManager(project) {
+                override fun onEvent(buildId: Any, event: BuildEvent) {
+                    synchronized(events) { events += event }
+                }
+            }
+            project.replaceService(BuildViewManager::class.java, view, testRootDisposable)
+
+            val manager = RunManager.getInstance(project)
+            val factory = YanaRunConfigurationType.getInstance().configurationFactories.first()
+            val configuration = manager.createConfiguration("app", factory).configuration as YanaRunConfiguration
+            configuration.projectFile = File(root, "yana.toml").path
+
+            // Off the EDT, as both real callers are, while this thread pumps the events the build's
+            // save-all waits on.
+            val built = ApplicationManager.getApplication().executeOnPooledThread<Boolean> { YanaBuild.run(configuration) }
+            assertFalse("the stand-in compiler fails, so the build should", PlatformTestUtil.waitForFuture(built, 30_000))
+
+            val messages = synchronized(events) { events.filterIsInstance<FileMessageEvent>() }
+            assertEquals("one diagnostic, as a message naming its file", 1, messages.size)
+            assertEquals("nope", messages[0].message)
+            assertEquals(source.canonicalFile, messages[0].filePosition.file!!.canonicalFile)
+            assertEquals(2, messages[0].filePosition.startLine)
+            assertEquals(4, messages[0].filePosition.startColumn)
+            assertTrue("the build should finish as failed", synchronized(events) { events.any { it is FinishBuildEvent && it.result is FailureResult } })
+        } finally {
+            settings.compilerPath = previousCompiler
+            root.deleteRecursively()
         }
     }
 

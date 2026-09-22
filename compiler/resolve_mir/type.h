@@ -614,6 +614,15 @@ struct RecordType: Type {
      */
     bool exported = false;
 
+    /*
+     * A field of this declaration did not resolve, so the list below is missing it - and saying
+     * "has no field called x" about a record whose declaration plainly writes one is a second
+     * report of the first mistake, in a file that has none. A recovering compile reaches those
+     * uses (`mir::recovering`), and `Resolver::quietAboutBroken` is what keeps them quiet.
+     * Carried to an instantiation for the reason `pin` is.
+     */
+    bool broken = false;
+
     // Non-embedding: `SmallList`'s embedded encoding is for elements of four bytes or fewer, and a
     // field is a name, a type and a position.
     DeclList<RecordField, false> fields;

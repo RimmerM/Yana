@@ -88,6 +88,12 @@ struct LibrarySource;
 struct SourceProvider {
     virtual StringView getSource(StringId module) = 0;
     virtual const Location* getNode(LocationId node) = 0;
+
+    // The path a file was read from, as the compiler was given it - what a printed diagnostic
+    // names so that a terminal or an IDE can open the place it points at. Empty where there is no
+    // file behind the text, which is why this has a default rather than being owed by every
+    // provider: a test harness compiling a string has nothing to answer with.
+    virtual StringView getPath(StringId file) { return {}; }
 };
 
 struct Diagnostics {
@@ -168,6 +174,45 @@ struct Diagnostics {
 
         Diagnostics& diagnostics;
         U32 before;
+    };
+
+    /*
+     * The rest of a walk, silenced - and armed part way through it rather than at its start.
+     *
+     * `Silence` covers a question that is asked and answered, so its scope is written where the
+     * question is. This one is for a walk that turns out, some way in, to be reporting the
+     * consequences of a mistake that is already reported - see `Resolver::quietenRest`, which is
+     * what arms one. Disarmed until then, so a walk that never reaches such a use is a walk this
+     * costs a branch.
+     *
+     * `suspend` and `resume` are for the walk that *contains* another: a body resolved on demand
+     * from inside a quietened one is not about that mistake, so it is heard. They move only this
+     * object's own hold on the count, which is why a `Silence` a condition opened around all of it
+     * is left exactly as it was.
+     */
+    struct QuietRest {
+        QuietRest() = default;
+        QuietRest(const QuietRest&) = delete;
+        ~QuietRest() { release(); }
+
+        void arm(Diagnostics& hold) {
+            if(diagnostics) return;
+
+            diagnostics = &hold;
+            hold.silenced++;
+        }
+
+        void release() {
+            if(!diagnostics) return;
+
+            diagnostics->silenced--;
+            diagnostics = nullptr;
+        }
+
+        void suspend() { if(diagnostics) diagnostics->silenced--; }
+        void resume() { if(diagnostics) diagnostics->silenced++; }
+
+        Diagnostics* diagnostics = nullptr;
     };
 
     /*

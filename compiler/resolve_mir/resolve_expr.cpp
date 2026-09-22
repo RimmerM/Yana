@@ -102,6 +102,21 @@ bool Resolver::reachesInside(RecordType& record, LocationId source, StringView w
 }
 
 /*
+ * A use of a record whose declaration lost a field, quietened - `RecordType::broken`, and
+ * `Resolver::quietenRest` for what quietening means and why the rest of the body goes with it.
+ *
+ * Asked by the sites that would otherwise say the record has no such field, which is a sentence
+ * about a declaration that plainly writes one. A type that is not a record answers false, so a
+ * caller hands over whatever it has rather than testing first.
+ */
+bool Resolver::quietAboutBroken(DeclPtr<Type> type) {
+    if(!type || decl()[type]->kind != Type::Record || !((RecordType*)decl()[type])->broken) return false;
+
+    quietenRest();
+    return true;
+}
+
+/*
  * Whether a local is a `@lazy` parameter of the function being resolved - `Arg::lazy`.
  *
  * Read off the declaration rather than mirrored onto the `Local`, because the declaration is where
@@ -207,7 +222,9 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain, 
                 // `bound` is the third case and is silent for the same reason: the body *did* bind
                 // this name and the binding is what failed, so it has been reported already - see
                 // `Binding`.
-                if(complain && !bound) {
+                //
+                // And a function whose signature did not resolve is the fourth - `brokenFunctions`.
+                if(complain && !bound && !quietAboutBrokenFunction(expr.var)) {
                     context.diagnostics.error("unknown name %@"_v, expr.source,
                                               context.findName(expr.var));
                 }
@@ -542,6 +559,9 @@ Place* Resolver::fieldNamedOf(Builder& builder, Place& target, StringId name,
         if(!reachesInside(record, nameSource, "its fields"_v)) return nullptr;
         return builder.fieldPlace(target, index);
     }
+
+    // The declaration lost a field, and this is very likely that field - see `RecordType::broken`.
+    if(quietAboutBroken(recordType ? recordType : target.occurrence.type)) return nullptr;
 
     if(recordType != target.occurrence.type) {
         context.diagnostics.error(
@@ -1514,6 +1534,9 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
     // The cursor among the fields being written - before they are mapped, since a half-typed name is
     // not a field and mapping it is what would report.
     if(captureFields(written.args, asBase<Type>(record), arm.first, arm.count)) return nullptr;
+
+    // A record whose declaration lost a field cannot be built as written - see `quietenRest`.
+    if(quietAboutBroken(asBase<Type>(record))) return nullptr;
 
     if(!constructionArguments(expr, *declared, arm, map)) return nullptr;
 
@@ -2592,9 +2615,9 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         case ast::Expr::Map:
             return resolveMapLiteral(builder, expr, hint);
 
-        // What the parser left where it reported - see `parseErrors`.
+        // What the parser left where it reported - see `quietErrors`.
         case ast::Expr::Error:
-            parseErrors++;
+            quietErrors++;
             return nullptr;
 
         default:
@@ -3738,7 +3761,7 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
 
                 if(named) recordCallee(written.callee.source, *named);
             }
-        } else {
+        } else if(!quietAboutBrokenFunction(name)) {
             context.diagnostics.error("unknown function %@"_v, written.callee.source,
                                       context.findName(name));
         }
@@ -3947,6 +3970,9 @@ Node* Resolver::resolveDotCall(Builder& builder, ast::AppExpr& written, ast::Fie
                 "no %@ takes %@ arguments - `x.%@(...)` is `%@(x, ...)`, so the receiver is the first of them"_v,
                 field.field.source, context.findName(name), U64(arity), context.findName(name),
                 context.findName(name));
+        } else if(quietAboutBroken(receiver->occurrence.type) || quietAboutBrokenFunction(name)) {
+            // Neither is missing: the receiver's declaration or the function's is, and that is where
+            // it is reported - `RecordType::broken`, `Resolver::brokenFunctions`.
         } else if(qualified) {
             context.diagnostics.error(
                 "%@ has no field called %@, and nothing in scope declares %@ or a function %@"_v,
@@ -5186,6 +5212,8 @@ bool Resolver::dischargeProperty(GenProperty property, const Substitution& with,
             return reachesInside(record, source, "its fields"_v);
         }
     }
+
+    if(quietAboutBroken(subject)) return false;
 
     context.diagnostics.error("%@ has no field called %@, and this call needs one"_v, source,
                               typeText(context, decl(), subject),

@@ -1398,7 +1398,12 @@ void Resolver::declareFieldsOf(ast::Decl& declaration, DeclPtr<RecordType> point
                                               occurrence);
             readingFieldType = false;
 
-            if(!resolved) return;
+            // Reported already; what is left is to stop its uses reporting it again - see
+            // `RecordType::broken`.
+            if(!resolved) {
+                record->broken = true;
+                return;
+            }
             if(!withinPacked(record->fields.size(), source, "fields"_v)) return;
 
             /*

@@ -50,7 +50,7 @@ class YanaProjectTaskRunner : ProjectTaskRunner() {
             override fun run(indicator: ProgressIndicator) {
                 // In order, and stopping at the first failure: a second build's output under the
                 // first one's errors is noise, and the first is the one to fix.
-                val built = targets.all { YanaBuild.run(it.configuration, announceSuccess = true) }
+                val built = targets.all { YanaBuild.run(it.configuration, showWindow = true) }
                 promise.setResult(
                     when {
                         indicator.isCanceled -> TaskRunnerResults.ABORTED

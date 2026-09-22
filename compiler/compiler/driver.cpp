@@ -624,9 +624,25 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
+    /*
+     * Whether this compile reports past an error - `CompileSettings::recover`.
+     *
+     * The rewritten stage does, as an editor's compile always has: a parse error in one file used to
+     * stop the compile here, which hid every type error in every other file, and a type error stopped
+     * it before the ownership analyses, which hid every use-after-move. Resolution with errors still
+     * builds nothing - `ssa::Pipeline::resolve` answers false on any - so what changes is only how
+     * much of what is wrong one build says.
+     *
+     * The shipping stage stops where it always has: it is the comparison oracle, and its own goldens
+     * are what it is compared on. So does `-mode ast`, whose whole point is the parse.
+     */
+    context.settings.recover = context.settings.resolver == ResolverStage::Ownership
+                            && context.settings.mode != CompileMode::Ast;
+
     // Every file is parsed by `prepare`, which is what grouping them into modules needed - see
-    // FileProvider::prepare. So a parse error anywhere in the tree stops the compile here.
-    if(diagnostics.errorCount() > 0) return 1;
+    // FileProvider::prepare. So a parse error anywhere in the tree stops a compile that does not
+    // recover here, and one that does resolves around the placeholders the parser left.
+    if(diagnostics.errorCount() > 0 && !context.settings.recover) return 1;
 
     /*
      * `-mode ast`, which is finished already: parsing is the stage it stops at.

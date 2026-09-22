@@ -1,0 +1,37 @@
+{-
+   Every stage's diagnostics in **one** compile - the rewritten stage recovering, which is what a
+   build does since `CompileSettings::recover`.
+
+   # resolver: ownership
+   # recover: yes
+
+   Without it this file reports the parse error and nothing else: the compile stopped before
+   resolution, and a type error would in turn have stopped it before the ownership analyses - so a
+   project with mistakes in three files took three builds to see them.
+
+   The assertion is therefore the *count* as much as the text: one mistake of each kind, in three
+   declarations that do not refer to one another, since what is being tested is how far the compile
+   gets rather than what one broken declaration does to the next. `Reject.*` fixtures are the other
+   half of that and deliberately do not ask for this, being about what a stage says rather than
+   about how much of the program it goes on to read.
+-}
+
+data Box {value: String}
+
+-- The parser reports, and leaves a placeholder where the expression should be.
+fn parsed() -> Int:
+    return (1 +
+
+-- The types report, against a declaration that resolved.
+fn typed() -> Int = "not a number"
+
+-- And the ownership analysis reports, which only runs because neither of the two above stopped it.
+fn owned() -> Int:
+    let b = Box {value: "x"}
+    consume(b)
+    consume(b)
+    return 0
+
+fn consume(->b: Box) -> Int = 0
+
+fn main() -> Int = 0

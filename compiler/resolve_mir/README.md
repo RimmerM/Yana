@@ -134,14 +134,27 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 `resolveTestEntry` under `-test`), `resolveBodies`, `freezeSchemas`, `verifyProgram`,
 `analyzeProgram`, `computeSummaries`.
 
-**An editor's compile is the same order with three differences**, all keyed off `Context::index` being
-set, which only `lsp::Session` does. It does not stop at the checkpoint after the declaration passes,
-so bodies are resolved against whichever declarations did resolve; a body whose walk reported - or
-reached a placeholder the parser left, `Resolver::parseErrors` - has its MIR handle dropped at the end
-of the walk, so the verifier and the analyses see it as a declaration with no body rather than a
-malformed one; and a completion request (`Context::completion`) stops after the bodies. The
-summaries also root every non-generic function of the program's own modules there and under
-`explain`, since both are asked about functions nothing calls.
+**A recovering compile is the same order with two differences** - `mir::recovering`, which is an
+editor's compile (`Context::index`, set only by `lsp::Session`) or a build that asked for it
+(`CompileSettings::recover`, which the driver sets for every `-resolver ownership` build that is not
+`-mode ast`). It does not stop at the checkpoint after the declaration passes, so bodies are resolved
+against whichever declarations did resolve; and a body whose walk reported - or reached a placeholder
+the parser left, or used a declaration that did not resolve, `Resolver::quietErrors` - has its MIR
+handle dropped at the end of the walk, so the verifier and the analyses see it as a declaration with
+no body rather than a malformed one. Every later checkpoint compares an `ErrorMark` instead of the
+program-wide count, so a pass stops such a compile only for what that pass reported.
+
+That is what makes one build report every file's mistakes rather than the first stage's: without it a
+parse error anywhere stopped the compile before resolution and a type error anywhere stopped it before
+the ownership analyses. What a recovering compile must then *not* do is report the consequences of a
+mistake it is already reporting - `Resolver::quietenRest`, `RecordType::broken` and
+`Resolver::brokenFunctions` are the three parts of that: the first use of a declaration that failed is
+quiet, and the rest of the body holding it is quiet with it, since a record missing a field goes on to
+be built short of an argument and matched by a pattern that binds nothing.
+
+**An editor's compile has one difference of its own**: a completion request (`Context::completion`)
+stops after the bodies. The summaries also root every non-generic function of the program's own
+modules there and under `explain`, since both are asked about functions nothing calls.
 
 **Every phase runs over the whole program**, not over one module and then the next. That is the same
 statement as "an import does not trigger the resolution of what it names": a pass that finished a

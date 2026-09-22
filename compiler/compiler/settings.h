@@ -685,6 +685,22 @@ struct CompileSettings {
     bool test = false;
 
     /*
+     * Whether the rewritten stage reports past an error rather than stopping at the next checkpoint
+     * - `mir::recovering`, which is what reads it, along with `Context::index`.
+     *
+     * An editor's compile always has; this is the same behaviour for a batch compile, which the
+     * driver turns on for `-resolver ownership`. Without it a build reported one *stage's* errors
+     * and stopped: a parse error in one file hid every type error in the others, and a type error
+     * hid every ownership error, so a project with mistakes in three files took three builds to see
+     * them. It costs nothing on a program without errors - every site it changes is a checkpoint
+     * that was going to pass anyway.
+     *
+     * A setting rather than a field of the context, so that a fixture can ask for it -
+     * `# recover: yes`, test/directives.h - and be compiled the way the command line compiles it.
+     */
+    bool recover = false;
+
+    /*
      * The package this compilation is - `[package] name` from its own `yana.toml`, or `-package`.
      *
      * Empty for a program that has not said, which is every one that only consumes packages. What

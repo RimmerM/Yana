@@ -327,6 +327,7 @@ RecordType* Types::instantiate(DeclBase base, DeclPtr<RecordType> declaration, D
     // The declaration's pin, because a pin is part of the type rather than something written on one
     // instantiation - see `RecordType::pin`. `Boxed(I32)` is `@layout(c)` exactly when `Boxed` is.
     record->pin = written.pin;
+    record->broken = written.broken;
 
     for(Size i = 0; i < count; i++) record->arguments.push(arena, args[i]);
 

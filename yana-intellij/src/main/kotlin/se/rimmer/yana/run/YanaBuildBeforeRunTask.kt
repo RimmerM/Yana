@@ -57,8 +57,8 @@ class YanaBuildBeforeRunTaskProvider : BeforeRunTaskProvider<YanaBuildBeforeRunT
         if (configuration !is YanaRunConfiguration) return true
 
         // Returning false is what stops the launch; the platform says nothing else about why, so
-        // YanaBuild's notification is the only place the diagnostics reach the user - the run never
-        // started, so there is no console to print into.
+        // the Build window YanaBuild brings forward on a failure is where the diagnostics are - the
+        // run never started, so there is no console of its own to print into.
         return YanaBuild.run(configuration)
     }
 }

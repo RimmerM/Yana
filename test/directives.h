@@ -341,6 +341,26 @@ inline void applyTargetDirective(CompileSettings& settings, StringView content) 
     }
 }
 
+/*
+ * `# recover: yes` - `CompileSettings::recover`, which the driver turns on for every build through
+ * the rewritten stage and a fixture does not get by default.
+ *
+ * Off by default because every rejection fixture's golden was written against the stage stopping at
+ * its first failing checkpoint, and what those fixtures assert is *a* diagnostic rather than how far
+ * past it a compile gets. A fixture about that - `resolve/Recover.*.yana` - asks for it by name.
+ */
+inline void applyRecoverDirective(CompileSettings& settings, StringView content) {
+    auto directive = "# recover: yes"_v;
+    if(content.length < directive.length) return;
+
+    for(Size i = 0; i + directive.length <= content.length; i++) {
+        if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
+
+        settings.recover = true;
+        return;
+    }
+}
+
 inline void applyFixtureDirectives(CompileSettings& settings, StringView content) {
     applyExtensionDirective(settings, content);
     applyPlatformDirective(settings, content);
@@ -350,6 +370,7 @@ inline void applyFixtureDirectives(CompileSettings& settings, StringView content
     applyInliningDirective(settings, content);
     applyResolverDirective(settings, content);
     applyTestDirective(settings, content);
+    applyRecoverDirective(settings, content);
     applyAllocatorDirective(settings, content);
 }
 

@@ -3928,7 +3928,8 @@ void Resolver::resolveRootTopLevel(Builder& builder) {
  * order on every target.
  */
 void Resolver::resolveEntryBody(Function& function, DeclPtr<Function> main) {
-    ErrorMark mark(context, parseErrors);
+    BodyQuiet quiet(*this);
+    ErrorMark mark(context, quietErrors);
 
     Builder builder(context, program, function);
     beginEntry(function);
@@ -3975,7 +3976,7 @@ void Resolver::resolveEntryBody(Function& function, DeclPtr<Function> main) {
     currentFunction = nullptr;
 
     // As for any body - see `resolveBody`.
-    if(recording(context) && (mark.reported() || parseErrors != mark.parseErrorsBefore)) {
+    if(recovering(context) && (mark.reported() || quietErrors != mark.quietErrorsBefore)) {
         function.mir = nullptr;
     }
 }
@@ -4172,7 +4173,8 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     function.bodyState = Function::BodyState::Reading;
 
     // What this body reports, told apart from what the file reported before it - see `ErrorMark`.
-    ErrorMark mark(context, parseErrors);
+    BodyQuiet quiet(*this);
+    ErrorMark mark(context, quietErrors);
 
     /*
      * A declaration with no body, and no role saying who supplies one.
@@ -4404,13 +4406,15 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     function.bodyState = Function::BodyState::Read;
 
     /*
-     * An editor's compile keeps going past a body that reported, and what it may not do is hand that
-     * body to the analyses: a walk that stopped part way leaves a shape the verifier would call the
-     * compiler's mistake. Its answers are already in the index, so what is dropped is only what the
-     * analyses would have read - and a body with none is a body with no summary, which is the
-     * conservative answer a caller already gets for a foreign declaration.
+     * A recovering compile - an editor's, or a build's - keeps going past a body that reported, and
+     * what it may not do is hand that body to the analyses: a walk that stopped part way leaves a
+     * shape the verifier would call the compiler's mistake. An editor's answers are already in the
+     * index, so what is dropped is only what the analyses would have read - and a body with none is a
+     * body with no summary, which is the conservative answer a caller already gets for a foreign
+     * declaration. The *other* bodies still reach the analyses, which is what reports a use after a
+     * move in one file while another file has a type error.
      */
-    if(recording(context) && (mark.reported() || parseErrors != mark.parseErrorsBefore)) {
+    if(recovering(context) && (mark.reported() || quietErrors != mark.quietErrorsBefore)) {
         function.mir = nullptr;
     }
 }
@@ -4603,7 +4607,7 @@ void Resolver::finish(Builder& builder, Function& function, bool unit, LocationI
     // it abandoned. `mark` is taken where the body's walk began, since asking the program-wide count
     // here would suppress the message in every function after the first mistake in the file - and a
     // placeholder the parser left counts, since the parser is what reported that one.
-    auto reported = mark.reported() || parseErrors != mark.parseErrorsBefore;
+    auto reported = mark.reported() || quietErrors != mark.quietErrorsBefore;
 
     for(U32 i = 0; i < body.blocks.size(); i++) {
         auto block = body.block(base, BlockId(i));

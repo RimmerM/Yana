@@ -166,6 +166,11 @@ StringView FileProvider::getSource(StringId module) {
     return StringView { entry->text.get(), entry->length };
 }
 
+StringView FileProvider::getPath(StringId file) {
+    auto entry = moduleMap.find(file);
+    return entry ? entry->path : StringView {};
+}
+
 const Location* FileProvider::getNode(LocationId id) {
     return context ? context->getLocation(id) : nullptr;
 }

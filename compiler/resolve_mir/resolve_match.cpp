@@ -672,6 +672,11 @@ void Resolver::constructorFields(ast::Pat& pat, RecordType& record, const Record
                                  SmallArray<ast::Pat*, 4>& into, bool report) {
     for(U16 i = 0; i < arm.count; i++) into.push(nullptr);
 
+    // A pattern over a record whose declaration lost a field names fields that are not there, and
+    // binds nothing the arm can then use - see `quietenRest`. Only where this walk reports: the
+    // coverage walk asks the same question silently, and quietening there would be a second count.
+    if(report && quietAboutBroken(asBase<Type>(&record - decl()))) return;
+
     /*
      * What a message about this field list calls what it is a field list *of*.
      *
@@ -1449,14 +1454,14 @@ bool Resolver::resolveBinding(Builder& builder, const ast::VarDecl& binding, Pla
             // list produces a value, and `resolveStatement` takes the expression by reference.
             auto arm = alternatives[i];
             auto errors = context.diagnostics.errorCount();
-            auto placeholders = parseErrors;
+            auto placeholders = quietErrors;
             resolveStatement(builder, arm.expr);
 
             // An alternative that failed to resolve did not leave the block either, and saying so as
             // well would repeat the first report in weaker words - which is also true of one the
             // parser left a placeholder in, whose report is the parser's.
             if(!departed(builder) && errors == context.diagnostics.errorCount() &&
-               placeholders == parseErrors) {
+               placeholders == quietErrors) {
                 context.diagnostics.error(
                     "an alternative of a declaration has to leave the block - return, break, or continue"_v,
                     arm.expr.source);
@@ -2387,11 +2392,11 @@ Node* Resolver::resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
     /*
      * No alternatives, which the grammar produces only where the parser has already said so: this is
      * a `match` being typed, with its pivot written and nothing under it yet. So it is a placeholder
-     * like any other - see `parseErrors` - and the pivot is still resolved in an editor's compile,
+     * like any other - see `quietErrors` - and the pivot is still resolved in an editor's compile,
      * since it is what the author is asking about while the alternatives are written.
      */
     if(!written.alts.size()) {
-        parseErrors++;
+        quietErrors++;
         if(recording(context)) resolvePlace(builder, written.pivot, false);
         return nullptr;
     }

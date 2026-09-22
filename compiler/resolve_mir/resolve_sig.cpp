@@ -2705,6 +2705,7 @@ void Resolver::declareFunction(ast::Decl& declaration, Size slot) {
 
     auto function = declareSignature(declaration, declaration.fun.name);
     if(!function) {
+        brokenFunctions.push(declaration.fun.name);
         record(nullptr, nullptr);
         return;
     }

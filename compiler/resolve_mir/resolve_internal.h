@@ -220,19 +220,30 @@ struct Chain {
 // five fields of `Test.Case` are named once and nowhere else.
 struct TestLibrary;
 
+/*
+ * Whether this compile goes on past an error - resolving bodies against whatever declarations did
+ * resolve, dropping a body that reported before the analyses see it, and stopping at a later
+ * checkpoint only for what that checkpoint's own pass reported. `mir::resolveProgram` is where the
+ * checkpoints are and `CompileSettings::recover` is where the answer comes from.
+ *
+ * Separate from `recording` because the two used to be one test and are two questions: an editor
+ * both records and recovers, and a build recovers and records nothing.
+ */
+inline bool recovering(Context& context) { return context.index != nullptr || context.settings.recover; }
+
 struct ErrorMark {
-    explicit ErrorMark(Context& context, U32 parseErrors = 0):
-        context(context), before(context.diagnostics.errorCount()), parseErrorsBefore(parseErrors) {}
+    explicit ErrorMark(Context& context, U32 quietErrors = 0):
+        context(context), before(context.diagnostics.errorCount()), quietErrorsBefore(quietErrors) {}
 
     bool reported() const { return context.diagnostics.errorCount() != before; }
 
     Context& context;
     U32 before;
 
-    // `Resolver::parseErrors` where a *body's* walk began - what `finish` and the editor's body drop
-    // compare against, since a placeholder the parser left is a mistake already named and nothing
-    // counted it here. Zero, and unread, for every other mark.
-    U32 parseErrorsBefore;
+    // `Resolver::quietErrors` where a *body's* walk began - what `finish` and a recovering compile's
+    // body drop compare against, since a mistake named somewhere else is one nothing counted here.
+    // Zero, and unread, for every other mark.
+    U32 quietErrorsBefore;
 };
 
 /*
@@ -1185,15 +1196,85 @@ struct Resolver {
     Array<Binding> bindings;
 
     /*
-     * How many placeholders the parser left where it reported - `ast::Expr::Error`, and a `match`
-     * with nothing under it - this walk has reached.
+     * How many mistakes this walk has reached that were **named somewhere else** - a placeholder the
+     * parser left where it reported (`ast::Expr::Error`, and a `match` with nothing under it), and a
+     * use of a declaration that did not resolve (`quietAboutBroken`).
      *
-     * Only an editor's compile resolves a file that did not parse. What it reads a placeholder as is
-     * nothing, silently, since the mistake is named already; what it may not do is hand the body that
-     * held one to the analyses, which is what `resolveBody` asks this for - a count it compares, on
-     * `ErrorMark`'s terms, because a body may be built inside another.
+     * Only a recovering compile - `mir::recovering` - reaches either: every other compile stopped at
+     * the checkpoint before the bodies. What it reads one as is nothing, silently, since the mistake
+     * is named already; what it may not do is hand the body that held one to the analyses, which is
+     * what `resolveBody` asks this for - a count it compares, on `ErrorMark`'s terms, because a body
+     * may be built inside another.
      */
-    U32 parseErrors = 0;
+    U32 quietErrors = 0;
+
+    /*
+     * The names of module-level functions whose signature did not resolve, and so were never
+     * declared - which makes every call of one "unknown function", in files that did nothing wrong.
+     * By name rather than by declaration, because there is no declaration: this is asked only once a
+     * lookup has already failed, so what it can wrongly quieten is a genuinely unknown name that a
+     * broken function elsewhere happens to share - which still fails the build, and is reported on
+     * the next one once that function is fixed.
+     */
+    Array<StringId> brokenFunctions;
+
+    // Whether a call of `name` that found nothing is a use of a function that failed to declare,
+    // counted in `quietErrors` rather than reported when it is.
+    bool quietAboutBrokenFunction(StringId name) {
+        for(auto broken: brokenFunctions) {
+            if(broken != name) continue;
+            quietenRest();
+            return true;
+        }
+
+        return false;
+    }
+
+    // The same for a record whose declaration lost a field - see `RecordType::broken`.
+    bool quietAboutBroken(DeclPtr<Type> type);
+
+    /*
+     * The rest of this body, silenced - because it has used a declaration that did not resolve.
+     *
+     * What a body goes on to say after that is overwhelmingly about the hole: a construction of a
+     * record missing a field is short of an argument, a pattern over it binds nothing, and every use
+     * of what it bound is then an unknown name. The first use is the one place worth quietening
+     * specifically - the error sites above ask - and past it the whole body is, since chasing each
+     * consequence to its own site is a list that is never finished. The body still counts as failed
+     * (`quietErrors`), so it is still dropped before the analyses, and the build still fails on the
+     * declaration's own error. What is lost is a second, *independent* mistake later in the same
+     * body, which is reported on the next build - the same as a body that stops at its first error.
+     *
+     * Per body: `BodyQuiet` opens each one heard, so a body resolved on demand from inside a quiet
+     * one - an iterator's producer, say - reports its own mistakes.
+     */
+    Diagnostics::QuietRest* quiet = nullptr;
+
+    void quietenRest() {
+        quietErrors++;
+
+        // Only inside a body, which is the only walk that has somewhere to stop: `BodyQuiet` owns
+        // the hold and releases it, so there is no path that arms one and leaves it armed.
+        if(quiet) quiet->arm(context.diagnostics);
+    }
+
+    /// One body's hold, and the reason the one around it is suspended for the length of this one.
+    struct BodyQuiet {
+        explicit BodyQuiet(Resolver& resolver): resolver(resolver), outer(resolver.quiet) {
+            if(outer) outer->suspend();
+            resolver.quiet = &own;
+        }
+
+        ~BodyQuiet() {
+            own.release();
+            resolver.quiet = outer;
+            if(outer) outer->resume();
+        }
+
+        Resolver& resolver;
+        Diagnostics::QuietRest* outer;
+        Diagnostics::QuietRest own;
+    };
 
     // The function whose body is being resolved, which `return` and `yield` need and nothing else
     // does. Swapped for the length of a lifted body - `resolveLiftedBody` - which is the one walk

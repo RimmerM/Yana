@@ -482,7 +482,8 @@ Node* Resolver::adaptSiteValue(Builder& builder, Node& value, RecordType& site, 
 void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implicitReturn, bool thunk,
                                  bool owns, LocationId source) {
     // The same mark an ordinary body takes - `ErrorMark`, and `finish` is what reads it.
-    ErrorMark mark(context, parseErrors);
+    BodyQuiet quiet(*this);
+    ErrorMark mark(context, quietErrors);
     Builder builder(context, program, lifted);
 
     LambdaFrame frame;
@@ -620,7 +621,7 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
     builder.seal();
 
     // As for any body - see `resolveBody`.
-    if(recording(context) && (mark.reported() || parseErrors != mark.parseErrorsBefore)) {
+    if(recovering(context) && (mark.reported() || quietErrors != mark.quietErrorsBefore)) {
         lifted.mir = nullptr;
     }
 

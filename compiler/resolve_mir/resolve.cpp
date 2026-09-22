@@ -2829,11 +2829,11 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
          * that is not going to compile does not need it to have run - the checkpoint returns before
          * any body - and the latch means a program that *is* runs it in its usual place.
          *
-         * `context.index` keeps an editor's compile on the old path for the reason the checkpoint
-         * itself makes an exception for one: a file being written is a file with a mistake in it, and
-         * what it asks is what the rest of the file means.
+         * A recovering compile keeps the old path for the reason the checkpoint itself makes an
+         * exception for one - see `recovering`: what it asks is what the rest of the program means,
+         * and every body below needs the globals settled to answer that.
          */
-        if(!context.diagnostics.errorCount() || context.index) settleGlobals();
+        if(!context.diagnostics.errorCount() || recovering(context)) settleGlobals();
     }
 
     /*
@@ -2875,15 +2875,16 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     checkExports(context, *program, toBuffer(groups));
 
     /*
-     * The one checkpoint an editor's compile does not stop at.
+     * The one checkpoint a recovering compile does not stop at - see `recovering`.
      *
      * A file being written is a file with a mistake in it, and what an editor asks is what the rest of
-     * it means - so with an index attached the bodies are resolved against whatever declarations did
+     * it means; a build asks the same thing, since a project with mistakes in three files should say
+     * so in one build rather than three. So the bodies are resolved against whatever declarations did
      * resolve, and a body that reports because of a broken one is dropped before the analyses rather
      * than handed to them (see `Resolver::resolveBody`). Every other checkpoint below is a pass
-     * refusing its own input and stops an editor's compile exactly as it stops a build.
+     * refusing its own input and stops a recovering compile only for what that pass reported.
      */
-    if(context.diagnostics.errorCount() && !context.index) return program;
+    if(context.diagnostics.errorCount() && !recovering(context)) return program;
 
     if(!settleTypes()) return program;
     settleGlobals();
@@ -2965,8 +2966,8 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     ErrorMark frozen(context);
     freezeSchemas(context, *program);
 
-    // An editor's compile has errors by definition, so it stops only on what this pass reported.
-    if(context.index ? frozen.reported() : context.diagnostics.errorCount() != 0) return program;
+    // A recovering compile may have errors already, so it stops only on what this pass reported.
+    if(recovering(context) ? frozen.reported() : context.diagnostics.errorCount() != 0) return program;
 
     /*
      * Verified, then analysed, then summarized, and the order is the dependency order.
@@ -2990,7 +2991,7 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      */
     ErrorMark forms(context);
     selectGenForms(context, *program);
-    if(context.index ? forms.reported() : context.diagnostics.errorCount() != 0) return program;
+    if(recovering(context) ? forms.reported() : context.diagnostics.errorCount() != 0) return program;
 
     computeSummaries(context, *program);
 

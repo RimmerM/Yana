@@ -143,6 +143,7 @@ struct FileProvider: ast::ModuleProvider, SourceProvider {
     void prepare(Context& context);
 
     StringView getSource(StringId module) override;
+    StringView getPath(StringId file) override;
     const Location* getNode(LocationId id) override;
     ast::ModuleGroup* getModule(StringId name) override;
 
