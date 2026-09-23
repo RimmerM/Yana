@@ -32,18 +32,18 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v11 = sub %allocation, 8 : %U8
-    %v12 = bitcast %v11 : %Size
-    %sizeClass = load [%v12] : Size
-    %v14 = bitcast %allocation : %%U8
-    %v19 = load heapFree : %%U8
-    %v21 = mul %sizeClass, 8 : Size
-    %v22 = add %v19, %v21 : %%U8
-    %v23 = load [%v22] : %U8
-    assign [%v14], %v23
-    %v24 = load heapFree : %%U8
-    %v27 = add %v24, %v21 : %%U8
-    assign [%v27], %allocation
+    %v12 = sub %allocation, 8 : %U8
+    %v13 = bitcast %v12 : %Size
+    %sizeClass = load [%v13] : Size
+    %v15 = bitcast %allocation : %%U8
+    %v20 = load heapFree : %%U8
+    %v22 = mul %sizeClass, 8 : Size
+    %v23 = add %v20, %v22 : %%U8
+    %v24 = load [%v23] : %U8
+    assign [%v15], %v24
+    %v25 = load heapFree : %%U8
+    %v28 = add %v25, %v22 : %%U8
+    assign [%v28], %allocation
     ret
 }
 

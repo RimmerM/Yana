@@ -220,18 +220,40 @@ Node* expandPointerBorrow(Builder& builder, Function& callee, Node* const* argum
  * in every reader of `binaryResult`. Writing the reinterpretation out is what an address *is* at
  * this boundary, it costs nothing (a bitcast is no instruction), and it keeps the one rule.
  *
- * The arithmetic is at the **count's** width, which is what the declaration states: `advance(it: %a,
- * count: Size)` says the offset is a `Size`, so the multiply and the displacement are both that and
- * neither is a width this function chose.
+ * The arithmetic is at the **address's** width, and the count is brought to it first. The declaration
+ * is generic over the count - `(Integral(n)) +(it: %source'a, count: n)` - so that `p + i` takes a
+ * `U32` or an `I32` as it is rather than making every caller spell a conversion to `Size`. Widening
+ * before the multiply is what makes that correct: a `U32` index times an eight-byte stride overflows
+ * thirty-two bits long before it leaves the address space, and a negative `I32` displacement added at
+ * its own width would be four billion bytes forward. The word **keeps the count's signedness** -
+ * `Size` for a signed count and `USize` for an unsigned one - so the conversion is a sign extension
+ * or a zero extension and the value is what the program wrote either way.
+ *
+ * The constraint admits a `Vec` (`Integral` has lanewise instances), and a variable the enclosing
+ * declaration binds is not a width yet, so both are refused here where the type is finally known.
  */
 static Node* displace(Builder& builder, Function& callee, Node* const* arguments,
                       const Substitution& with, LocationId source, BinaryOp op) {
     auto pointer = substituteOccurrence(builder.context, builder.program, callee.result, with);
     auto element = ((PointerType*)builder.declBase()[pointer.type])->to;
-    auto width = valueOccurrence(*arguments[1]).type;
+    auto countType = valueOccurrence(*arguments[1]).type;
+
+    auto canonical = canonicalInt(builder.declBase(), countType);
+    if(!canonical || builder.declBase()[canonical]->kind != Type::Int) {
+        builder.context.diagnostics.error(
+            "pointer arithmetic counts in a scalar integer, and %@ is not one"_v, source,
+            typeText(builder.context, builder.declBase(), countType));
+        return nullptr;
+    }
+
+    auto isSigned = ((IntType*)builder.declBase()[canonical])->isSigned;
+    auto width = builder.program.types.intType(intrinsic::kWordMaxBits, isSigned,
+                                               intrinsic::TargetWidth::Word);
+    auto count = countType == width ? arguments[1]
+                                    : builder.addConvert(source, *arguments[1], width);
 
     auto stride = builder.addMetric(source, TypeMetric::Stride, element, width);
-    auto offset = builder.addBinary(source, BinaryOp::Mul, *arguments[1], *stride);
+    auto offset = builder.addBinary(source, BinaryOp::Mul, *count, *stride);
 
     // On the pointer itself rather than through an integer, so that what the pointer refers to is
     // still on the result - `Builder::addDisplace`, where that is argued.

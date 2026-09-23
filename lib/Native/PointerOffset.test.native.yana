@@ -1,0 +1,53 @@
+{-
+   `p + n` and `p - n` at every integer width the count may have.
+
+   The declaration is generic over the count, and what makes that correct is the widening in front of
+   the multiply: a signed count is sign-extended to `Size` and an unsigned one zero-extended to
+   `USize`. So each case goes through a `@noinline` identity - a constant count would fold, and
+   the folded answer is right whether or not the extension is there. The two that would be wrong
+   without it are a negative `I32`, which added at its own width is four billion elements forward,
+   and a `U32` with its top bit set, which a sign extension turns into a step backwards.
+-}
+
+import Test
+
+@noinline fn hideI32(v: I32) -> I32 = v
+@noinline fn hideU32(v: U32) -> U32 = v
+@noinline fn hideU16(v: U16) -> U16 = v
+@noinline fn hideU8(v: U8) -> U8 = v
+@noinline fn hideSize(v: Size) -> Size = v
+@noinline fn hideUSize(v: USize) -> USize = v
+
+@test fn pointerOffsetWidths():
+    let &xs = [10, 20, 30, 40, 50] :: [I64 *5]
+    let p = bitcast(addressOf(xs)) :: %I64
+    let q = p + 4
+
+    checkEqual(*(p + 1), 20)
+    checkEqual(*(p + hideSize(1)), 20)
+    checkEqual(*(p + hideUSize(4)), 50)
+    checkEqual(*(p + hideI32(2)), 30)
+    checkEqual(*(p + hideU32(3)), 40)
+    checkEqual(*(p + hideU16(2)), 30)
+    checkEqual(*(p + hideU8(1)), 20)
+
+    checkEqual(*(q - 1), 40)
+    checkEqual(*(q - hideU32(3)), 20)
+    checkEqual(*(q - hideU8(4)), 10)
+    checkEqual(*(q + hideI32(-1)), 40)
+    checkEqual(*(p - hideI32(-3)), 40)
+
+@test fn pointerOffsetExtension():
+    let &xs = [10, 20] :: [I64 *2]
+    let p = bitcast(addressOf(xs)) :: %U8
+
+    -- Two gigabytes forward, in bytes so nothing is scaled. Only the address is computed and never
+    -- read, and `difference` is what says which way it went: zero-extended the count is 2^31, and
+    -- sign-extended it would be -2^31. A round trip `(p + far) - far` would not tell them apart.
+    let far = hideU32(0x80000000)
+    checkEqual(difference(p, p + far), 0x80000000 :: Size)
+    checkEqual(difference(p + far, p), -0x80000000 :: Size)
+
+    -- A negative count scaled by an eight-byte stride.
+    let second = (bitcast(p) :: %I64) + 1
+    checkEqual(*(second + hideI32(-1)), 10)

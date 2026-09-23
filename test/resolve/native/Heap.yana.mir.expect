@@ -24,25 +24,27 @@ bb2:
   write.assign borrow.unique ([%%12]) take %13
   %15: {} = const {}
   %16: %I32 = read copy.trivial (cells)
-  %17: Size = const 3
-  %18: Size = metric stride I32
-  %19: Size = mul inspect %17 inspect %18
-  %20: %I32 [owned here shape6 .*=shared slot 0] = add inspect %16 inspect %19
-  %21: I32 = const 22
-  write.assign borrow.unique ([%%20]) take %21
-  %23: {} = const {}
-  %24: %I32 = read copy.trivial (cells)
-  %25: I32 = read copy.trivial ([%%24])
-  %26: I32 = const 100
-  %27: I32 = mul inspect %25 inspect %26
-  %28: %I32 = read copy.trivial (cells)
-  %29: Size = const 3
-  %30: Size = metric stride I32
-  %31: Size = mul inspect %29 inspect %30
-  %32: %I32 [owned here shape6 .*=shared slot 0] = add inspect %28 inspect %31
-  %33: I32 = read copy.trivial ([%%32])
-  %34: I32 = add inspect %27 inspect %33
-  return take %34
+  %17: I32 = const 3
+  %18: Size = convert inspect %17
+  %19: Size = metric stride I32
+  %20: Size = mul inspect %18 inspect %19
+  %21: %I32 [owned here shape6 .*=shared slot 0] = add inspect %16 inspect %20
+  %22: I32 = const 22
+  write.assign borrow.unique ([%%21]) take %22
+  %24: {} = const {}
+  %25: %I32 = read copy.trivial (cells)
+  %26: I32 = read copy.trivial ([%%25])
+  %27: I32 = const 100
+  %28: I32 = mul inspect %26 inspect %27
+  %29: %I32 = read copy.trivial (cells)
+  %30: I32 = const 3
+  %31: Size = convert inspect %30
+  %32: Size = metric stride I32
+  %33: Size = mul inspect %31 inspect %32
+  %34: %I32 [owned here shape6 .*=shared slot 0] = add inspect %29 inspect %33
+  %35: I32 = read copy.trivial ([%%34])
+  %36: I32 = add inspect %28 inspect %35
+  return take %36
 
 bb3:
   %6: I32 = const 0

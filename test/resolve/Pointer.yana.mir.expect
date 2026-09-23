@@ -159,32 +159,33 @@ bb0:
   %5: %Node [owned here shape6 .*=shared slot 0] = address inspect %4 roots.0{0}
   write.init borrow.unique (base) take %5
   %7: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
-  %8: Size = const 1
-  %9: Size = metric stride Node
-  %10: Size = mul inspect %8 inspect %9
-  %11: %Node [owned here shape6 .*=shared slot 0] = add inspect %7 inspect %10 roots.0{0}
-  write.init borrow.unique (next) take %11
-  %13: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
-  %14: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (next) roots.0{0}
-  %15: Size = bitcast inspect %14
-  %16: Size = bitcast inspect %13
-  %17: Size = sub inspect %15 inspect %16
-  %18: Size = metric stride Node
-  %19: Size = div inspect %17 inspect %18
-  %20: Size = const 100
-  %21: Size = mul inspect %19 inspect %20
-  %22: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
-  %23: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %22 roots.0{0}
-  %24: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (next) roots.0{0}
-  %25: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %24 roots.0{0}
-  %26: Size = bitcast inspect %25
-  %27: Size = bitcast inspect %23
-  %28: Size = sub inspect %26 inspect %27
-  %29: Size = metric stride U8
-  %30: Size = div inspect %28 inspect %29
-  %31: Size = add inspect %21 inspect %30
-  %32: I64 = convert inspect %31
-  return take %32
+  %8: I32 = const 1
+  %9: Size = convert inspect %8
+  %10: Size = metric stride Node
+  %11: Size = mul inspect %9 inspect %10
+  %12: %Node [owned here shape6 .*=shared slot 0] = add inspect %7 inspect %11 roots.0{0}
+  write.init borrow.unique (next) take %12
+  %14: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %15: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (next) roots.0{0}
+  %16: Size = bitcast inspect %15
+  %17: Size = bitcast inspect %14
+  %18: Size = sub inspect %16 inspect %17
+  %19: Size = metric stride Node
+  %20: Size = div inspect %18 inspect %19
+  %21: Size = const 100
+  %22: Size = mul inspect %20 inspect %21
+  %23: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %24: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %23 roots.0{0}
+  %25: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (next) roots.0{0}
+  %26: %U8 [owned here shape6 .*=shared slot 0] = bitcast inspect %25 roots.0{0}
+  %27: Size = bitcast inspect %26
+  %28: Size = bitcast inspect %24
+  %29: Size = sub inspect %27 inspect %28
+  %30: Size = metric stride U8
+  %31: Size = div inspect %29 inspect %30
+  %32: Size = add inspect %22 inspect %31
+  %33: I64 = convert inspect %32
+  return take %33
 }
 
 fn compareAddresses() -> I64 {
@@ -204,72 +205,73 @@ bb0:
   write.init borrow.unique (score) take %7
   %9: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
   %10: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
-  %11: Size = const 1
-  %12: Size = metric stride Node
-  %13: Size = mul inspect %11 inspect %12
-  %14: %Node [owned here shape6 .*=shared slot 0] = add inspect %10 inspect %13 roots.0{0}
-  %15: Bool = lt inspect %9 inspect %14
-  branch inspect %15 -> bb3 -> bb1
+  %11: I32 = const 1
+  %12: Size = convert inspect %11
+  %13: Size = metric stride Node
+  %14: Size = mul inspect %12 inspect %13
+  %15: %Node [owned here shape6 .*=shared slot 0] = add inspect %10 inspect %14 roots.0{0}
+  %16: Bool = lt inspect %9 inspect %15
+  branch inspect %16 -> bb3 -> bb1
 
 bb1:
   jump -> bb2
 
 bb2:
-  %23: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
   %24: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
-  %25: Bool = eq inspect %23 inspect %24
-  branch inspect %25 -> bb6 -> bb4
+  %25: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %26: Bool = eq inspect %24 inspect %25
+  branch inspect %26 -> bb6 -> bb4
 
 bb3:
-  %17: I64 = read copy.trivial (score)
-  %18: I64 = const 1
-  %19: I64 = add inspect %17 inspect %18
-  write.assign borrow.unique (score) take %19
+  %18: I64 = read copy.trivial (score)
+  %19: I64 = const 1
+  %20: I64 = add inspect %18 inspect %19
+  write.assign borrow.unique (score) take %20
   jump -> bb2
 
 bb4:
   jump -> bb5
 
 bb5:
-  %33: %Node = call null(Node)
-  %34: Bool = call isNull(Node) borrow.shared %33
-  branch inspect %34 -> bb9 -> bb7
+  %34: %Node = call null(Node)
+  %35: Bool = call isNull(Node) borrow.shared %34
+  branch inspect %35 -> bb9 -> bb7
 
 bb6:
-  %27: I64 = read copy.trivial (score)
-  %28: I64 = const 2
-  %29: I64 = add inspect %27 inspect %28
-  write.assign borrow.unique (score) take %29
+  %28: I64 = read copy.trivial (score)
+  %29: I64 = const 2
+  %30: I64 = add inspect %28 inspect %29
+  write.assign borrow.unique (score) take %30
   jump -> bb5
 
 bb7:
   jump -> bb8
 
 bb8:
-  %42: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
-  %43: Bool = call isNull(Node) borrow.shared %42
-  %44: Bool = not inspect %43
-  branch inspect %44 -> bb12 -> bb10
+  %43: %Node [owned here shape6 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %44: Bool = call isNull(Node) borrow.shared %43
+  %45: Bool = not inspect %44
+  branch inspect %45 -> bb12 -> bb10
 
 bb9:
-  %36: I64 = read copy.trivial (score)
-  %37: I64 = const 4
-  %38: I64 = add inspect %36 inspect %37
-  write.assign borrow.unique (score) take %38
+  %37: I64 = read copy.trivial (score)
+  %38: I64 = const 4
+  %39: I64 = add inspect %37 inspect %38
+  write.assign borrow.unique (score) take %39
   jump -> bb8
 
 bb10:
   jump -> bb11
 
 bb11:
-  %52: I64 = read copy.trivial (score)
-  return take %52
+  %53: I64 = read copy.trivial (score)
+  return take %53
 
 bb12:
-  %46: I64 = read copy.trivial (score)
-  %47: I64 = const 8
-  %48: I64 = add inspect %46 inspect %47
-  write.assign borrow.unique (score) take %48
+  %47: I64 = read copy.trivial (score)
+  %48: I64 = const 8
+  %49: I64 = add inspect %47 inspect %48
+  write.assign borrow.unique (score) take %49
   jump -> bb11
 }
 

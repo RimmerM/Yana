@@ -225,32 +225,33 @@ bb2(%4: %Node trivial):
   %9: %Node [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %8
   store inspect %1 consume %9
   %10: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
-  %11: Size trivial = const 1
-  %12: Size trivial = metric stride Node
-  %13: Size trivial = mul inspect %11 inspect %12
-  %14: %Node [owned here shape6 .*=shared slot 0] trivial = add inspect %10 inspect %13
-  store inspect %2 consume %14
-  %15: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
-  %16: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
-  %17: Size trivial = bitcast inspect %16
-  %18: Size trivial = bitcast inspect %15
-  %19: Size trivial = sub inspect %17 inspect %18
-  %20: Size trivial = metric stride Node
-  %21: Size trivial = div inspect %19 inspect %20
-  %22: Size trivial = const 100
-  %23: Size trivial = mul inspect %21 inspect %22
-  %24: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
-  %25: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %24
-  %26: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
-  %27: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %26
-  %28: Size trivial = bitcast inspect %27
-  %29: Size trivial = bitcast inspect %25
-  %30: Size trivial = sub inspect %28 inspect %29
-  %31: Size trivial = metric stride U8
-  %32: Size trivial = div inspect %30 inspect %31
-  %33: Size trivial = add inspect %23 inspect %32
-  %34: I64 trivial = convert inspect %33
-  return consume %34
+  %11: I32 trivial = const 1
+  %12: Size trivial = convert inspect %11
+  %13: Size trivial = metric stride Node
+  %14: Size trivial = mul inspect %12 inspect %13
+  %15: %Node [owned here shape6 .*=shared slot 0] trivial = add inspect %10 inspect %14
+  store inspect %2 consume %15
+  %16: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %17: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %18: Size trivial = bitcast inspect %17
+  %19: Size trivial = bitcast inspect %16
+  %20: Size trivial = sub inspect %18 inspect %19
+  %21: Size trivial = metric stride Node
+  %22: Size trivial = div inspect %20 inspect %21
+  %23: Size trivial = const 100
+  %24: Size trivial = mul inspect %22 inspect %23
+  %25: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %26: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %25
+  %27: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %28: %U8 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %27
+  %29: Size trivial = bitcast inspect %28
+  %30: Size trivial = bitcast inspect %26
+  %31: Size trivial = sub inspect %29 inspect %30
+  %32: Size trivial = metric stride U8
+  %33: Size trivial = div inspect %31 inspect %32
+  %34: Size trivial = add inspect %24 inspect %33
+  %35: I64 trivial = convert inspect %34
+  return consume %35
 }
 
 fn compareAddresses() -> I64 {
@@ -265,16 +266,16 @@ bb1:
   jump -> bb2
 
 bb2:
-  %18: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
   %19: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
-  %20: Bool trivial = eq inspect %18 inspect %19
-  branch inspect %20 -> bb6 -> bb4
+  %20: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %21: Bool trivial = eq inspect %19 inspect %20
+  branch inspect %21 -> bb6 -> bb4
 
 bb3:
-  %21: I64 trivial = load inspect %2
-  %22: I64 trivial = const 1
-  %23: I64 trivial = add inspect %21 inspect %22
-  store inspect %2 consume %23
+  %22: I64 trivial = load inspect %2
+  %23: I64 trivial = const 1
+  %24: I64 trivial = add inspect %22 inspect %23
+  store inspect %2 consume %24
   jump -> bb2
 
 bb4:
@@ -284,38 +285,38 @@ bb5:
   jump -> bb15
 
 bb6:
-  %33: I64 trivial = load inspect %2
-  %34: I64 trivial = const 2
-  %35: I64 trivial = add inspect %33 inspect %34
-  store inspect %2 consume %35
+  %34: I64 trivial = load inspect %2
+  %35: I64 trivial = const 2
+  %36: I64 trivial = add inspect %34 inspect %35
+  store inspect %2 consume %36
   jump -> bb5
 
 bb7:
   jump -> bb8
 
 bb8:
-  %36: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
+  %37: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
   jump -> bb19
 
 bb9:
-  %44: I64 trivial = load inspect %2
-  %45: I64 trivial = const 4
-  %46: I64 trivial = add inspect %44 inspect %45
-  store inspect %2 consume %46
+  %45: I64 trivial = load inspect %2
+  %46: I64 trivial = const 4
+  %47: I64 trivial = add inspect %45 inspect %46
+  store inspect %2 consume %47
   jump -> bb8
 
 bb10:
   jump -> bb11
 
 bb11:
-  %47: I64 trivial = load inspect %2
-  return consume %47
+  %48: I64 trivial = load inspect %2
+  return consume %48
 
 bb12:
-  %48: I64 trivial = load inspect %2
-  %49: I64 trivial = const 8
-  %50: I64 trivial = add inspect %48 inspect %49
-  store inspect %2 consume %50
+  %49: I64 trivial = load inspect %2
+  %50: I64 trivial = const 8
+  %51: I64 trivial = add inspect %49 inspect %50
+  store inspect %2 consume %51
   jump -> bb11
 
 bb13:
@@ -333,45 +334,46 @@ bb14(%4: %Node trivial):
   store inspect %2 consume %10
   %11: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
   %12: %Node [owned here shape6 .*=shared slot 0] trivial = load inspect %1
-  %13: Size trivial = const 1
-  %14: Size trivial = metric stride Node
-  %15: Size trivial = mul inspect %13 inspect %14
-  %16: %Node [owned here shape6 .*=shared slot 0] trivial = add inspect %12 inspect %15
-  %17: Bool trivial = lt inspect %11 inspect %16
-  branch inspect %17 -> bb3 -> bb1
+  %13: I32 trivial = const 1
+  %14: Size trivial = convert inspect %13
+  %15: Size trivial = metric stride Node
+  %16: Size trivial = mul inspect %14 inspect %15
+  %17: %Node [owned here shape6 .*=shared slot 0] trivial = add inspect %12 inspect %16
+  %18: Bool trivial = lt inspect %11 inspect %17
+  branch inspect %18 -> bb3 -> bb1
 
 bb15:
-  %25: Size trivial = const 0
-  %26: %Node trivial = call Size.%a.bitcast(Node) borrow %25
-  jump -> bb16(consume %26)
+  %26: Size trivial = const 0
+  %27: %Node trivial = call Size.%a.bitcast(Node) borrow %26
+  jump -> bb16(consume %27)
 
-bb16(%24: %Node trivial):
+bb16(%25: %Node trivial):
   jump -> bb17
 
 bb17:
-  %28: %%Node address = alloc frame %Node [shared call]
-  store inspect %28 borrow %24
-  %29: %Node trivial = load inspect %28
-  %30: Size trivial = call %a.Size.bitcast(Node) borrow %29
-  %31: Size trivial = const 0
-  %32: Bool trivial = eq inspect %30 inspect %31
-  jump -> bb18(consume %32)
+  %29: %%Node address = alloc frame %Node [shared call]
+  store inspect %29 borrow %25
+  %30: %Node trivial = load inspect %29
+  %31: Size trivial = call %a.Size.bitcast(Node) borrow %30
+  %32: Size trivial = const 0
+  %33: Bool trivial = eq inspect %31 inspect %32
+  jump -> bb18(consume %33)
 
-bb18(%27: Bool trivial):
-  branch inspect %27 -> bb9 -> bb7
+bb18(%28: Bool trivial):
+  branch inspect %28 -> bb9 -> bb7
 
 bb19:
-  %38: %%Node address = alloc frame %Node [shared call]
-  store inspect %38 borrow %36
-  %39: %Node trivial = load inspect %38
-  %40: Size trivial = call %a.Size.bitcast(Node) borrow %39
-  %41: Size trivial = const 0
-  %42: Bool trivial = eq inspect %40 inspect %41
-  jump -> bb20(consume %42)
+  %39: %%Node address = alloc frame %Node [shared call]
+  store inspect %39 borrow %37
+  %40: %Node trivial = load inspect %39
+  %41: Size trivial = call %a.Size.bitcast(Node) borrow %40
+  %42: Size trivial = const 0
+  %43: Bool trivial = eq inspect %41 inspect %42
+  jump -> bb20(consume %43)
 
-bb20(%37: Bool trivial):
-  %43: Bool trivial = not inspect %37
-  branch inspect %43 -> bb12 -> bb10
+bb20(%38: Bool trivial):
+  %44: Bool trivial = not inspect %38
+  branch inspect %44 -> bb12 -> bb10
 }
 
 fn blockOperations() -> I64 {

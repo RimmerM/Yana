@@ -196,32 +196,33 @@ fn remove(Handle)(%self: Array(Handle), %index: I32) -> Maybe(Handle) {
     %v46 = strideof Handle : Size
     %v47 = mul %v45, %v46 : Size
     %v48 = add %v44, %v47 : %Handle
-    %v50 = strideof Handle : Size
-    %v51 = mul 1, %v50 : Size
-    %v52 = add %v48, %v51 : %Handle
-    %v53 = bitcast %v52 : %U8
-    %v54 = load %self : Array(Handle)
-    %v55 = load %self@Array.run : Run(Handle)
-    %v56 = load %self@Array.run@Run.items : %Handle
-    %v57 = call byteSpan(Handle), %v56, %rest : Size
-    call moveMemory, %v41, %v53, %v57
+    %v50 = cast 1 : Size
+    %v51 = strideof Handle : Size
+    %v52 = mul %v50, %v51 : Size
+    %v53 = add %v48, %v52 : %Handle
+    %v54 = bitcast %v53 : %U8
+    %v55 = load %self : Array(Handle)
+    %v56 = load %self@Array.run : Run(Handle)
+    %v57 = load %self@Array.run@Run.items : %Handle
+    %v58 = call byteSpan(Handle), %v57, %rest : Size
+    call moveMemory, %v41, %v54, %v58
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v61 = load %self : Array(Handle)
-    %v62 = load %self@Array.length : @bits(30) U32
-    %v63 = cast %v62 : I32
-    %v65 = sub %v63, 1 : I32
-    %v66 = cast %v65 : U32
-    %v68 = and %v66, 1073741823 : U32
-    %v69 = cast %v68 : @bits(30) U32
-    assign %self@Array.length, %v69
-    %v71 = alloc : Maybe(Handle)
+    %v62 = load %self : Array(Handle)
+    %v63 = load %self@Array.length : @bits(30) U32
+    %v64 = cast %v63 : I32
+    %v66 = sub %v64, 1 : I32
+    %v67 = cast %v66 : U32
+    %v69 = and %v67, 1073741823 : U32
+    %v70 = cast %v69 : @bits(30) U32
+    assign %self@Array.length, %v70
+    %v72 = alloc : Maybe(Handle)
     aggregate %local4.discriminant = 1, %local4@Just = %doomed
-    ret %v71
+    ret %v72
 }
 
 fn emptyArray(I32)() -> Array(I32) {
@@ -688,10 +689,11 @@ fn allocateHeap(%size: Size) -> %U8 {
     assign heapNext, %v62
     %v64 = bitcast %block : %Size
     assign [%v64], %sizeClass
-    %v68 = strideof U8 : Size
-    %v69 = mul 8, %v68 : Size
-    %v70 = add %block, %v69 : %U8
-    ret %v70
+    %v68 = cast 8 : Size
+    %v69 = strideof U8 : Size
+    %v70 = mul %v68, %v69 : Size
+    %v71 = add %block, %v70 : %U8
+    ret %v71
 }
 
 fn freeHeap(%allocation: %U8) -> () {
@@ -707,14 +709,15 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v9 = strideof U8 : Size
-    %v10 = mul 8, %v9 : Size
-    %v11 = sub %allocation, %v10 : %U8
-    %v12 = bitcast %v11 : %Size
-    %sizeClass = load [%v12] : Size
-    %v14 = bitcast %allocation : %%U8
-    %v15 = call freeListHead, %sizeClass : %U8
-    assign [%v14], %v15
+    %v9 = cast 8 : Size
+    %v10 = strideof U8 : Size
+    %v11 = mul %v9, %v10 : Size
+    %v12 = sub %allocation, %v11 : %U8
+    %v13 = bitcast %v12 : %Size
+    %sizeClass = load [%v13] : Size
+    %v15 = bitcast %allocation : %%U8
+    %v16 = call freeListHead, %sizeClass : %U8
+    assign [%v15], %v16
     call setFreeListHead, %sizeClass, %allocation
     ret
 }

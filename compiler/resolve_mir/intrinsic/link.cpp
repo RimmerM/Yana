@@ -198,6 +198,7 @@ static bool termMatches(Program& program, const PositionShape& shape, DeclPtr<Ty
         case ShapeTerm::SameAs: return relative() == type;
 
         case ShapeTerm::Integer: return base[type]->kind == Type::Int;
+        case ShapeTerm::IntegerOrVar: return base[type]->kind == Type::Int || base[type]->kind == Type::Variable;
         case ShapeTerm::Bool:    return type == booleanType(program);
         case ShapeTerm::Unit:    return base[type]->kind == Type::Unit;
         case ShapeTerm::Function: return base[type]->kind == Type::Fun;

@@ -667,21 +667,22 @@ fn elementStride() -> I64 {
     %v3 = bitcast 0 : %Node
     aggregate %local0@Node.value = 0, %local0@Node.next = %v3
     %base = addressof %local0 : %Node
-    %v8 = strideof Node : Size
-    %v9 = mul 1, %v8 : Size
-    %next = add %base, %v9 : %Node
-    %v11 = sub %next, %base : Size
-    %v12 = strideof Node : Size
-    %v13 = div %v11, %v12 : Size
-    %v16 = mul %v13, 100 : Size
-    %v17 = bitcast %base : %U8
-    %v18 = bitcast %next : %U8
-    %v19 = sub %v18, %v17 : Size
-    %v20 = strideof U8 : Size
-    %v21 = div %v19, %v20 : Size
-    %v22 = add %v16, %v21 : Size
-    %v23 = cast %v22 : I64
-    ret %v23
+    %v8 = cast 1 : Size
+    %v9 = strideof Node : Size
+    %v10 = mul %v8, %v9 : Size
+    %next = add %base, %v10 : %Node
+    %v12 = sub %next, %base : Size
+    %v13 = strideof Node : Size
+    %v14 = div %v12, %v13 : Size
+    %v17 = mul %v14, 100 : Size
+    %v18 = bitcast %base : %U8
+    %v19 = bitcast %next : %U8
+    %v20 = sub %v19, %v18 : Size
+    %v21 = strideof U8 : Size
+    %v22 = div %v20, %v21 : Size
+    %v23 = add %v17, %v22 : Size
+    %v24 = cast %v23 : I64
+    ret %v24
 }
 
 fn compareAddresses() -> I64 {
@@ -692,67 +693,68 @@ fn compareAddresses() -> I64 {
     %base = addressof %local0 : %Node
     %score = alloc : I64
     init %score, 0
-    %v11 = strideof Node : Size
-    %v12 = mul 1, %v11 : Size
-    %v13 = add %base, %v12 : %Node
-    %v14 = cmp_lt %base, %v13 : Bool
-    je %v14, b1, b2
+    %v11 = cast 1 : Size
+    %v12 = strideof Node : Size
+    %v13 = mul %v11, %v12 : Size
+    %v14 = add %base, %v13 : %Node
+    %v15 = cmp_lt %base, %v14 : Bool
+    je %v15, b1, b2
 
   b1:
-    %v16 = load %score : I64
-    %v19 = add %v16, 1 : I64
-    assign %score, %v19
+    %v17 = load %score : I64
+    %v20 = add %v17, 1 : I64
+    assign %score, %v20
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v23 = cmp_eq %base, %base : Bool
-    je %v23, b4, b5
+    %v24 = cmp_eq %base, %base : Bool
+    je %v24, b4, b5
 
   b4:
-    %v25 = load %score : I64
-    %v28 = add %v25, 2 : I64
-    assign %score, %v28
+    %v26 = load %score : I64
+    %v29 = add %v26, 2 : I64
+    assign %score, %v29
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v33 = bitcast 0 : %Node
-    %v34 = bitcast %v33 : Size
-    %v36 = cmp_eq %v34, 0 : Bool
-    je %v36, b7, b8
+    %v34 = bitcast 0 : %Node
+    %v35 = bitcast %v34 : Size
+    %v37 = cmp_eq %v35, 0 : Bool
+    je %v37, b7, b8
 
   b7:
-    %v38 = load %score : I64
-    %v41 = add %v38, 4 : I64
-    assign %score, %v41
+    %v39 = load %score : I64
+    %v42 = add %v39, 4 : I64
+    assign %score, %v42
     jmp b9
 
   b8:
     jmp b9
 
   b9:
-    %v45 = bitcast %base : Size
-    %v47 = cmp_eq %v45, 0 : Bool
-    %v49 = xor %v47, True : Bool
-    je %v49, b10, b11
+    %v46 = bitcast %base : Size
+    %v48 = cmp_eq %v46, 0 : Bool
+    %v50 = xor %v48, True : Bool
+    je %v50, b10, b11
 
   b10:
-    %v51 = load %score : I64
-    %v54 = add %v51, 8 : I64
-    assign %score, %v54
+    %v52 = load %score : I64
+    %v55 = add %v52, 8 : I64
+    assign %score, %v55
     jmp b12
 
   b11:
     jmp b12
 
   b12:
-    %v58 = load %score : I64
-    ret %v58
+    %v59 = load %score : I64
+    ret %v59
 }
 
 fn blockOperations() -> I64 {

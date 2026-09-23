@@ -179,6 +179,7 @@ StringView shapeTermName(ShapeTerm term) {
         case ShapeTerm::PointerTo: return "a pointer to that"_v;
         case ShapeTerm::SameAs:    return "the same type as that"_v;
         case ShapeTerm::Integer:   return "an integer"_v;
+        case ShapeTerm::IntegerOrVar: return "an integer, or a type variable of this signature"_v;
         case ShapeTerm::Bool:      return "Bool"_v;
         case ShapeTerm::Unit:      return "{}"_v;
         case ShapeTerm::Function:  return "a function value"_v;

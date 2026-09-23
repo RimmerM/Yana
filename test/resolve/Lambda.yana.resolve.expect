@@ -321,10 +321,11 @@ fn allocateHeap(%size: Size) -> %U8 {
     assign heapNext, %v62
     %v64 = bitcast %block : %Size
     assign [%v64], %sizeClass
-    %v68 = strideof U8 : Size
-    %v69 = mul 8, %v68 : Size
-    %v70 = add %block, %v69 : %U8
-    ret %v70
+    %v68 = cast 8 : Size
+    %v69 = strideof U8 : Size
+    %v70 = mul %v68, %v69 : Size
+    %v71 = add %block, %v70 : %U8
+    ret %v71
 }
 
 fn freeHeap(%allocation: %U8) -> () {
@@ -340,14 +341,15 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v9 = strideof U8 : Size
-    %v10 = mul 8, %v9 : Size
-    %v11 = sub %allocation, %v10 : %U8
-    %v12 = bitcast %v11 : %Size
-    %sizeClass = load [%v12] : Size
-    %v14 = bitcast %allocation : %%U8
-    %v15 = call freeListHead, %sizeClass : %U8
-    assign [%v14], %v15
+    %v9 = cast 8 : Size
+    %v10 = strideof U8 : Size
+    %v11 = mul %v9, %v10 : Size
+    %v12 = sub %allocation, %v11 : %U8
+    %v13 = bitcast %v12 : %Size
+    %sizeClass = load [%v13] : Size
+    %v15 = bitcast %allocation : %%U8
+    %v16 = call freeListHead, %sizeClass : %U8
+    assign [%v15], %v16
     call setFreeListHead, %sizeClass, %allocation
     ret
 }

@@ -64,6 +64,12 @@ enum class ShapeTerm: U8 {
 
     // Any integer type - a width the target has, signed or not.
     Integer,
+    // An integer type, or a variable of the declaration's own that a call settles to one. For a
+    // position the library means to be generic over its width - pointer arithmetic's count - where
+    // `Integer` would pin the declaration to one width. What a variable does *not* promise is that
+    // the type it settles to is a scalar integer (`Integral` has vector instances too), so the
+    // emitter owes that check after substitution.
+    IntegerOrVar,
 
     Bool,
     Unit,
@@ -206,6 +212,7 @@ constexpr PositionShape unitAt() { return PositionShape { ShapeTerm::Unit, 0 }; 
 constexpr PositionShape deferredAt() { return PositionShape { ShapeTerm::Deferred, 0 }; }
 constexpr PositionShape boolAt() { return PositionShape { ShapeTerm::Bool, 0 }; }
 constexpr PositionShape integerAt() { return PositionShape { ShapeTerm::Integer, 0 }; }
+constexpr PositionShape integerOrVarAt() { return PositionShape { ShapeTerm::IntegerOrVar, 0 }; }
 constexpr PositionShape functionAt() { return PositionShape { ShapeTerm::Function, 0 }; }
 
 // A string the emitter reads at compile time - see `ShapeTerm::Text`. Shared rather than owned: the

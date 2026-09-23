@@ -349,16 +349,33 @@ static ModulePtr<Value> emitTraits(ExprResolver& resolver, Buffer<ModulePtr<Valu
  * moved rather than disappeared: the scale is a TypeMetric, and the multiply by the one it folds to
  * is removed where every other constant-folding decision is made, in the translation to the lower IR.
  * The resolver no longer claims to know how wide a `U8` is on the target being built for.
+ *
+ * The count is any integer the declaration's `Integral(n)` admits, and it is brought to the address's
+ * width before the multiply - `Size` when it is signed and `USize` when it is not, so the cast is the
+ * extension that keeps its value. `displace` in `resolve_mir/intrinsic/expand_pointer.cpp` is the
+ * same rule and says why; the two stages compile one declaration and have to agree on it.
  */
 template<Value::Kind kind>
 static ModulePtr<Value> emitPointerOffset(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                           LocationId source, StringId name) {
-    auto offsetType = resolver.valueType(args[1]);
+    auto countType = resolver.valueType(args[1]);
+    if(resolver.global[countType]->kind != Type::Int) {
+        resolver.context.diagnostics.error("pointer arithmetic counts in a scalar integer, and %@ is not one"_v,
+                                           source, describeType(resolver.context, resolver.global, countType));
+        return nullptr;
+    }
+
+    auto isSigned = ((IntType*)resolver.global[countType])->isSigned;
+    auto offsetType = isSigned ? resolver.module.scalar.size : resolver.module.scalar.unsignedSize;
+    auto count = countType == offsetType
+        ? args[1]
+        : resolver.ref(resolver.emit<InstUnary>(source, StringId(), offsetType, Value::Cast, args[1]));
+
     auto scale = resolver.ref(resolver.emit<InstTypeMetric>(source, StringId(), offsetType,
                                                             elementType(resolver, args),
                                                             TypeMetricKind::Stride));
     auto offset = resolver.ref(resolver.emit<InstBinary>(source, StringId(), offsetType, Value::Mul,
-                                                         args[1], scale));
+                                                         count, scale));
 
     return resolver.ref(resolver.emit<InstBinary>(source, name, type, kind, args[0], offset));
 }

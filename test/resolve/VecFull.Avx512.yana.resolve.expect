@@ -285,10 +285,11 @@ fn allocateHeap(%size: Size) -> %U8 {
     assign heapNext, %v62
     %v64 = bitcast %block : %Size
     assign [%v64], %sizeClass
-    %v68 = strideof U8 : Size
-    %v69 = mul 8, %v68 : Size
-    %v70 = add %block, %v69 : %U8
-    ret %v70
+    %v68 = cast 8 : Size
+    %v69 = strideof U8 : Size
+    %v70 = mul %v68, %v69 : Size
+    %v71 = add %block, %v70 : %U8
+    ret %v71
 }
 
 fn numberOf(%call: Syscall) -> USize {
@@ -410,94 +411,98 @@ fn byteArithmetic() -> I32 {
     %v13 = mul %a, %v12 : Vec(U8)
     %v14 = bitcast %into : %Vec(U8)
     assign [%v14], %v13
-    %v18 = strideof U8 : Size
-    %v19 = mul 64, %v18 : Size
-    %v20 = add %into, %v19 : %U8
-    %v22 = vsplat 2 : Vec(U8)
-    %v23 = shr %a, %v22 : Vec(U8)
-    %v24 = bitcast %v20 : %Vec(U8)
-    assign [%v24], %v23
-    %v28 = strideof U8 : Size
-    %v29 = mul 128, %v28 : Size
-    %v30 = add %into, %v29 : %U8
-    %v32 = vsplat 3 : Vec(U8)
-    %v33 = shl %a, %v32 : Vec(U8)
-    %v34 = bitcast %v30 : %Vec(U8)
-    assign [%v34], %v33
+    %v18 = cast 64 : Size
+    %v19 = strideof U8 : Size
+    %v20 = mul %v18, %v19 : Size
+    %v21 = add %into, %v20 : %U8
+    %v23 = vsplat 2 : Vec(U8)
+    %v24 = shr %a, %v23 : Vec(U8)
+    %v25 = bitcast %v21 : %Vec(U8)
+    assign [%v25], %v24
+    %v29 = cast 128 : Size
+    %v30 = strideof U8 : Size
+    %v31 = mul %v29, %v30 : Size
+    %v32 = add %into, %v31 : %U8
+    %v34 = vsplat 3 : Vec(U8)
+    %v35 = shl %a, %v34 : Vec(U8)
+    %v36 = bitcast %v32 : %Vec(U8)
+    assign [%v36], %v35
     %wrong = alloc : I32
     init %wrong, 0
-    %v45 = alloc : I32
+    %v47 = alloc : I32
     init %local1, 0
     jmp b4
 
   b4:
     %i = load %local1 : I32
-    %v49 = cmp_lt %i, 64 : Bool
-    je %v49, b5, b17
+    %v51 = cmp_lt %i, 64 : Bool
+    je %v51, b5, b17
 
   b5:
     %at = cast %i : Size
-    %v51 = load seed : I32
-    %x = add %i, %v51 : I32
-    %v53 = strideof U8 : Size
-    %v54 = mul %at, %v53 : Size
-    %v55 = add %into, %v54 : %U8
-    %v56 = load [%v55] : U8
-    %v57 = cast %v56 : I32
-    %v60 = mul %x, 3 : I32
-    %v63 = and %v60, 255 : I32
-    %v64 = cmp_ne %v57, %v63 : Bool
-    je %v64, b6, b7
+    %v53 = load seed : I32
+    %x = add %i, %v53 : I32
+    %v55 = strideof U8 : Size
+    %v56 = mul %at, %v55 : Size
+    %v57 = add %into, %v56 : %U8
+    %v58 = load [%v57] : U8
+    %v59 = cast %v58 : I32
+    %v62 = mul %x, 3 : I32
+    %v65 = and %v62, 255 : I32
+    %v66 = cmp_ne %v59, %v65 : Bool
+    je %v66, b6, b7
 
   b6:
-    %v66 = load %wrong : I32
-    %v69 = add %v66, 1 : I32
-    assign %wrong, %v69
+    %v68 = load %wrong : I32
+    %v71 = add %v68, 1 : I32
+    assign %wrong, %v71
     jmp b8
 
   b7:
     jmp b8
 
   b8:
-    %v75 = strideof U8 : Size
-    %v76 = mul 64, %v75 : Size
-    %v77 = add %into, %v76 : %U8
+    %v77 = cast 64 : Size
     %v78 = strideof U8 : Size
-    %v79 = mul %at, %v78 : Size
-    %v80 = add %v77, %v79 : %U8
-    %v81 = load [%v80] : U8
-    %v82 = cast %v81 : I32
-    %v85 = shr %x, 2 : I32
-    %v86 = cmp_ne %v82, %v85 : Bool
-    je %v86, b9, b10
+    %v79 = mul %v77, %v78 : Size
+    %v80 = add %into, %v79 : %U8
+    %v81 = strideof U8 : Size
+    %v82 = mul %at, %v81 : Size
+    %v83 = add %v80, %v82 : %U8
+    %v84 = load [%v83] : U8
+    %v85 = cast %v84 : I32
+    %v88 = shr %x, 2 : I32
+    %v89 = cmp_ne %v85, %v88 : Bool
+    je %v89, b9, b10
 
   b9:
-    %v88 = load %wrong : I32
-    %v91 = add %v88, 1 : I32
-    assign %wrong, %v91
+    %v91 = load %wrong : I32
+    %v94 = add %v91, 1 : I32
+    assign %wrong, %v94
     jmp b11
 
   b10:
     jmp b11
 
   b11:
-    %v97 = strideof U8 : Size
-    %v98 = mul 128, %v97 : Size
-    %v99 = add %into, %v98 : %U8
-    %v100 = strideof U8 : Size
-    %v101 = mul %at, %v100 : Size
-    %v102 = add %v99, %v101 : %U8
-    %v103 = load [%v102] : U8
-    %v104 = cast %v103 : I32
-    %v107 = shl %x, 3 : I32
-    %v110 = and %v107, 255 : I32
-    %v111 = cmp_ne %v104, %v110 : Bool
-    je %v111, b12, b13
+    %v100 = cast 128 : Size
+    %v101 = strideof U8 : Size
+    %v102 = mul %v100, %v101 : Size
+    %v103 = add %into, %v102 : %U8
+    %v104 = strideof U8 : Size
+    %v105 = mul %at, %v104 : Size
+    %v106 = add %v103, %v105 : %U8
+    %v107 = load [%v106] : U8
+    %v108 = cast %v107 : I32
+    %v111 = shl %x, 3 : I32
+    %v114 = and %v111, 255 : I32
+    %v115 = cmp_ne %v108, %v114 : Bool
+    je %v115, b12, b13
 
   b12:
-    %v113 = load %wrong : I32
-    %v116 = add %v113, 1 : I32
-    assign %wrong, %v116
+    %v117 = load %wrong : I32
+    %v120 = add %v117, 1 : I32
+    assign %wrong, %v120
     jmp b14
 
   b13:
@@ -507,17 +512,17 @@ fn byteArithmetic() -> I32 {
     jmp b15
 
   b15:
-    %v120 = load %local1 : I32
+    %v124 = load %local1 : I32
     jmp b16
 
   b16:
-    %v122 = add %v120, 1 : I32
-    assign %local1, %v122
+    %v126 = add %v124, 1 : I32
+    assign %local1, %v126
     jmp b4
 
   b17:
-    %v127 = load %wrong : I32
-    ret %v127
+    %v131 = load %wrong : I32
+    ret %v131
 }
 
 fn lanesByIndex() -> I32 {
@@ -747,66 +752,67 @@ fn widenedAndNarrowed() -> I32 {
     %into = bitcast %v14 : %U16
     %v16 = bitcast %into : %Vec(U16)
     assign [%v16], %low
-    %v20 = strideof U16 : Size
-    %v21 = mul 32, %v20 : Size
-    %v22 = add %into, %v21 : %U16
-    %v23 = bitcast %v22 : %Vec(U16)
-    assign [%v23], %high
+    %v20 = cast 32 : Size
+    %v21 = strideof U16 : Size
+    %v22 = mul %v20, %v21 : Size
+    %v23 = add %into, %v22 : %U16
+    %v24 = bitcast %v23 : %Vec(U16)
+    assign [%v24], %high
     %narrowed = call allocateHeap, 64 : %U8
-    %v28 = vsplat 257 : Vec(U16)
-    %v29 = mul %low, %v28 : Vec(U16)
-    %v30 = cast %v29 : Vec(U8, 32)
-    %v31 = cast %high : Vec(U8, 32)
-    %v32 = vshuffle %v30, %v31, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63 : Vec(U8)
-    %v33 = bitcast %narrowed : %Vec(U8)
-    assign [%v33], %v32
+    %v29 = vsplat 257 : Vec(U16)
+    %v30 = mul %low, %v29 : Vec(U16)
+    %v31 = cast %v30 : Vec(U8, 32)
+    %v32 = cast %high : Vec(U8, 32)
+    %v33 = vshuffle %v31, %v32, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63 : Vec(U8)
+    %v34 = bitcast %narrowed : %Vec(U8)
+    assign [%v34], %v33
     %wrong = alloc : I32
     init %wrong, 0
-    %v44 = alloc : I32
+    %v45 = alloc : I32
     init %local1, 0
     jmp b4
 
   b4:
     %i = load %local1 : I32
-    %v48 = cmp_lt %i, 64 : Bool
-    je %v48, b5, b14
+    %v49 = cmp_lt %i, 64 : Bool
+    je %v49, b5, b14
 
   b5:
     %at = cast %i : Size
-    %v50 = strideof U16 : Size
-    %v51 = mul %at, %v50 : Size
-    %v52 = add %into, %v51 : %U16
-    %v53 = load [%v52] : U16
-    %v54 = cast %v53 : I32
-    %v55 = load seed : I32
-    %v56 = add %i, %v55 : I32
-    %v57 = cmp_ne %v54, %v56 : Bool
-    je %v57, b6, b7
+    %v51 = strideof U16 : Size
+    %v52 = mul %at, %v51 : Size
+    %v53 = add %into, %v52 : %U16
+    %v54 = load [%v53] : U16
+    %v55 = cast %v54 : I32
+    %v56 = load seed : I32
+    %v57 = add %i, %v56 : I32
+    %v58 = cmp_ne %v55, %v57 : Bool
+    je %v58, b6, b7
 
   b6:
-    %v59 = load %wrong : I32
-    %v62 = add %v59, 1 : I32
-    assign %wrong, %v62
+    %v60 = load %wrong : I32
+    %v63 = add %v60, 1 : I32
+    assign %wrong, %v63
     jmp b8
 
   b7:
     jmp b8
 
   b8:
-    %v66 = strideof U8 : Size
-    %v67 = mul %at, %v66 : Size
-    %v68 = add %narrowed, %v67 : %U8
-    %v69 = load [%v68] : U8
-    %v70 = cast %v69 : I32
-    %v71 = load seed : I32
-    %v72 = add %i, %v71 : I32
-    %v73 = cmp_ne %v70, %v72 : Bool
-    je %v73, b9, b10
+    %v67 = strideof U8 : Size
+    %v68 = mul %at, %v67 : Size
+    %v69 = add %narrowed, %v68 : %U8
+    %v70 = load [%v69] : U8
+    %v71 = cast %v70 : I32
+    %v72 = load seed : I32
+    %v73 = add %i, %v72 : I32
+    %v74 = cmp_ne %v71, %v73 : Bool
+    je %v74, b9, b10
 
   b9:
-    %v75 = load %wrong : I32
-    %v78 = add %v75, 1 : I32
-    assign %wrong, %v78
+    %v76 = load %wrong : I32
+    %v79 = add %v76, 1 : I32
+    assign %wrong, %v79
     jmp b11
 
   b10:
@@ -816,17 +822,17 @@ fn widenedAndNarrowed() -> I32 {
     jmp b12
 
   b12:
-    %v82 = load %local1 : I32
+    %v83 = load %local1 : I32
     jmp b13
 
   b13:
-    %v84 = add %v82, 1 : I32
-    assign %local1, %v84
+    %v85 = add %v83, 1 : I32
+    assign %local1, %v85
     jmp b4
 
   b14:
-    %v89 = load %wrong : I32
-    ret %v89
+    %v90 = load %wrong : I32
+    ret %v90
 }
 
 fn narrowTable() -> I32 {
@@ -1210,46 +1216,48 @@ fn wideMasks() -> I32 {
     jmp b27
 
   b27:
-    %v430 = strideof U8 : Size
-    %v431 = mul 0, %v430 : Size
-    %v432 = add %into, %v431 : %U8
-    %v433 = load [%v432] : U8
-    %v434 = cast %v433 : I32
-    %v436 = load seed : I32
-    %v438 = add 3, %v436 : I32
-    %v439 = cmp_ne %v434, %v438 : Bool
-    je %v439, b29, b28
+    %v430 = cast 0 : Size
+    %v431 = strideof U8 : Size
+    %v432 = mul %v430, %v431 : Size
+    %v433 = add %into, %v432 : %U8
+    %v434 = load [%v433] : U8
+    %v435 = cast %v434 : I32
+    %v437 = load seed : I32
+    %v439 = add 3, %v437 : I32
+    %v440 = cmp_ne %v435, %v439 : Bool
+    je %v440, b29, b28
 
   b28:
-    %v443 = strideof U8 : Size
-    %v444 = mul 3, %v443 : Size
-    %v445 = add %into, %v444 : %U8
-    %v446 = load [%v445] : U8
-    %v447 = cast %v446 : I32
-    %v449 = load seed : I32
-    %v451 = add 63, %v449 : I32
-    %v452 = cmp_ne %v447, %v451 : Bool
+    %v444 = cast 3 : Size
+    %v445 = strideof U8 : Size
+    %v446 = mul %v444, %v445 : Size
+    %v447 = add %into, %v446 : %U8
+    %v448 = load [%v447] : U8
+    %v449 = cast %v448 : I32
+    %v451 = load seed : I32
+    %v453 = add 63, %v451 : I32
+    %v454 = cmp_ne %v449, %v453 : Bool
     jmp b30
 
   b29:
     jmp b30
 
   b30:
-    %v456 = phi [b28, %v452], [b29, True] : Bool
-    je %v456, b31, b32
+    %v458 = phi [b28, %v454], [b29, True] : Bool
+    je %v458, b31, b32
 
   b31:
-    %v458 = load %wrong : I32
-    %v461 = add %v458, 1 : I32
-    assign %wrong, %v461
+    %v460 = load %wrong : I32
+    %v463 = add %v460, 1 : I32
+    assign %wrong, %v463
     jmp b33
 
   b32:
     jmp b33
 
   b33:
-    %v465 = load %wrong : I32
-    ret %v465
+    %v467 = load %wrong : I32
+    ret %v467
 }
 
 fn transfersUpTo() -> I32 {

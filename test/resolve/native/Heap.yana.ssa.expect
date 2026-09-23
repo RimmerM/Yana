@@ -21,28 +21,30 @@ bb2:
   %14: I32 trivial = const 11
   store inspect %13 consume %14
   %15: %I32 trivial = load inspect %1
-  %16: Size trivial = const 3
-  %17: Size trivial = metric stride I32
-  %18: Size trivial = mul inspect %16 inspect %17
-  %19: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %15 inspect %18
-  %20: I32 trivial = const 22
-  store inspect %19 consume %20
-  %21: %I32 trivial = load inspect %1
-  %22: I32 trivial = load inspect %21
-  %23: I32 trivial = const 100
-  %24: I32 trivial = mul inspect %22 inspect %23
-  %25: %I32 trivial = load inspect %1
-  %26: Size trivial = const 3
-  %27: Size trivial = metric stride I32
-  %28: Size trivial = mul inspect %26 inspect %27
-  %29: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %25 inspect %28
-  %30: I32 trivial = load inspect %29
-  %31: I32 trivial = add inspect %24 inspect %30
-  return consume %31
+  %16: I32 trivial = const 3
+  %17: Size trivial = convert inspect %16
+  %18: Size trivial = metric stride I32
+  %19: Size trivial = mul inspect %17 inspect %18
+  %20: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %15 inspect %19
+  %21: I32 trivial = const 22
+  store inspect %20 consume %21
+  %22: %I32 trivial = load inspect %1
+  %23: I32 trivial = load inspect %22
+  %24: I32 trivial = const 100
+  %25: I32 trivial = mul inspect %23 inspect %24
+  %26: %I32 trivial = load inspect %1
+  %27: I32 trivial = const 3
+  %28: Size trivial = convert inspect %27
+  %29: Size trivial = metric stride I32
+  %30: Size trivial = mul inspect %28 inspect %29
+  %31: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %26 inspect %30
+  %32: I32 trivial = load inspect %31
+  %33: I32 trivial = add inspect %25 inspect %32
+  return consume %33
 
 bb3:
-  %32: I32 trivial = const 0
-  return consume %32
+  %34: I32 trivial = const 0
+  return consume %34
 
 bb4:
   %6: %%U8 address = alloc frame %U8 [shared call]

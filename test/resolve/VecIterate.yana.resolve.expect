@@ -923,14 +923,15 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v9 = strideof U8 : Size
-    %v10 = mul 8, %v9 : Size
-    %v11 = sub %allocation, %v10 : %U8
-    %v12 = bitcast %v11 : %Size
-    %sizeClass = load [%v12] : Size
-    %v14 = bitcast %allocation : %%U8
-    %v15 = call freeListHead, %sizeClass : %U8
-    assign [%v14], %v15
+    %v9 = cast 8 : Size
+    %v10 = strideof U8 : Size
+    %v11 = mul %v9, %v10 : Size
+    %v12 = sub %allocation, %v11 : %U8
+    %v13 = bitcast %v12 : %Size
+    %sizeClass = load [%v13] : Size
+    %v15 = bitcast %allocation : %%U8
+    %v16 = call freeListHead, %sizeClass : %U8
+    assign [%v15], %v16
     call setFreeListHead, %sizeClass, %allocation
     ret
 }
@@ -1015,7 +1016,7 @@ fn largest(%xs: ArrayView(I32), %floor: I32) -> I32 {
     ret %v15
 }
 
-(Chunked(c, a), Num(Vec(a)), Length(ArrayView(a)), Lanewise(Vec(a), Mask(a))) fn total(%xs: c) -> a {
+(Chunked(c, a), Num(Vec(a)), Length(ArrayView(a)), Integral(Size), Lanewise(Vec(a), Mask(a))) fn total(%xs: c) -> a {
   schema {
     #0 type c
     #1 type a
@@ -1025,7 +1026,8 @@ fn largest(%xs: ArrayView(I32), %floor: I32) -> I32 {
     #5 class Chunked(c, a)
     #6 class Num(Vec(a))
     #7 class Length(ArrayView(a))
-    #8 class Lanewise(Vec(a), Mask(a))
+    #8 class Integral(Size)
+    #9 class Lanewise(Vec(a), Mask(a))
   }
 
   b0:
@@ -1046,7 +1048,7 @@ fn largest(%xs: ArrayView(I32), %floor: I32) -> I32 {
     ret %v14
 }
 
-(Chunked(c, a), Ord(a), Lanewise(Vec(a), Mask(a)), Length(ArrayView(a))) fn biggest(%xs: c, %floor: a) -> a {
+(Chunked(c, a), Ord(a), Lanewise(Vec(a), Mask(a)), Length(ArrayView(a)), Integral(Size)) fn biggest(%xs: c, %floor: a) -> a {
   schema {
     #0 type c
     #1 type a
@@ -1057,6 +1059,7 @@ fn largest(%xs: ArrayView(I32), %floor: I32) -> I32 {
     #6 class Ord(a)
     #7 class Lanewise(Vec(a), Mask(a))
     #8 class Length(ArrayView(a))
+    #9 class Integral(Size)
   }
 
   b0:
@@ -1238,7 +1241,7 @@ fn ResolveTest.continuation$24(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}
     ret %v24
 }
 
-(Chunked(c, a), Num(Vec(a)), Length(ArrayView(a)), Lanewise(Vec(a), Mask(a))) fn ResolveTest.continuation$25(%env: %{acc: &Vec(a)}, %value$: Vec(a)) -> Outcome((), ()) {
+(Chunked(c, a), Num(Vec(a)), Length(ArrayView(a)), Integral(Size), Lanewise(Vec(a), Mask(a))) fn ResolveTest.continuation$25(%env: %{acc: &Vec(a)}, %value$: Vec(a)) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type a
@@ -1248,7 +1251,8 @@ fn ResolveTest.continuation$24(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}
     #5 class Chunked(c, a)
     #6 class Num(Vec(a))
     #7 class Length(ArrayView(a))
-    #8 class Lanewise(Vec(a), Mask(a))
+    #8 class Integral(Size)
+    #9 class Lanewise(Vec(a), Mask(a))
   }
 
   b0:
@@ -1262,7 +1266,7 @@ fn ResolveTest.continuation$24(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}
     ret %v7
 }
 
-(Chunked(c, a), Ord(a), Lanewise(Vec(a), Mask(a)), Length(ArrayView(a))) fn ResolveTest.continuation$26(%env: %{acc: &Vec(a)}, %value$: {Vec(a), I32}) -> Outcome((), ()) {
+(Chunked(c, a), Ord(a), Lanewise(Vec(a), Mask(a)), Length(ArrayView(a)), Integral(Size)) fn ResolveTest.continuation$26(%env: %{acc: &Vec(a)}, %value$: {Vec(a), I32}) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type a
@@ -1273,6 +1277,7 @@ fn ResolveTest.continuation$24(%env: %{acc: &Vec(I32)}, %value$: {Vec(I32), I32}
     #6 class Ord(a)
     #7 class Lanewise(Vec(a), Mask(a))
     #8 class Length(ArrayView(a))
+    #9 class Integral(Size)
   }
 
   b0:

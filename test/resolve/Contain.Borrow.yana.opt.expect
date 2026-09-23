@@ -163,29 +163,29 @@ fn allocateHeap(%size: Size) -> %U8 {
     jmp b5
 
   b5:
-    %v79 = load %size : Size
-    %v80 = cmp_lt %v79, %v20 : Bool
-    je %v80, b16, b6
+    %v80 = load %size : Size
+    %v81 = cmp_lt %v80, %v20 : Bool
+    je %v81, b16, b6
 
   b6:
-    %v82 = load %sizeClass : Size
-    %v23 = cmp_ge %v82, 32 : Bool
+    %v83 = load %sizeClass : Size
+    %v23 = cmp_ge %v83, 32 : Bool
     je %v23, b15, b7
 
   b7:
-    %v92 = load heapFree : %%U8
-    %v94 = mul %v82, 8 : Size
-    %v95 = add %v92, %v94 : %%U8
-    %v96 = load [%v95] : %U8
-    %v30 = bitcast %v96 : Size
+    %v93 = load heapFree : %%U8
+    %v95 = mul %v83, 8 : Size
+    %v96 = add %v93, %v95 : %%U8
+    %v97 = load [%v96] : %U8
+    %v30 = bitcast %v97 : Size
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b14, b8
 
   b8:
-    %v103 = shl 16, %v82 : Size
+    %v104 = shl 16, %v83 : Size
     %v42 = load heapNext : %U8
-    %v45 = add %v42, %v103 : %U8
+    %v45 = add %v42, %v104 : %U8
     %v46 = load heapLimit : %U8
     %v47 = cmp_gt %v45, %v46 : Bool
     je %v47, b10, b9
@@ -194,7 +194,7 @@ fn allocateHeap(%size: Size) -> %U8 {
     jmp b12
 
   b10:
-    %v49 = call growHeap, %v103 : Bool
+    %v49 = call growHeap, %v104 : Bool
     %v51 = xor %v49, True : Bool
     je %v51, b13, b11
 
@@ -203,34 +203,34 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b12:
     %block = load heapNext : %U8
-    %v62 = add %block, %v103 : %U8
+    %v62 = add %block, %v104 : %U8
     assign heapNext, %v62
     %v64 = bitcast %block : %Size
-    assign [%v64], %v82
-    %v70 = add %block, 8 : %U8
-    ret %v70
+    assign [%v64], %v83
+    %v71 = add %block, 8 : %U8
+    ret %v71
 
   b13:
     %v54 = bitcast 0 : %U8
     ret %v54
 
   b14:
-    %v36 = bitcast %v96 : %%U8
+    %v36 = bitcast %v97 : %%U8
     %v37 = load [%v36] : %U8
-    assign [%v95], %v37
-    ret %v96
+    assign [%v96], %v37
+    ret %v97
 
   b15:
     %v26 = bitcast 0 : %U8
     ret %v26
 
   b16:
-    %v84 = load %size : Size
-    %v85 = add %v84, %v84 : Size
-    assign %size, %v85
-    %v87 = load %sizeClass : Size
-    %v89 = add %v87, 1 : Size
-    assign %sizeClass, %v89
+    %v85 = load %size : Size
+    %v86 = add %v85, %v85 : Size
+    assign %size, %v86
+    %v88 = load %sizeClass : Size
+    %v90 = add %v88, 1 : Size
+    assign %sizeClass, %v90
     jmp b5
 
   b17:
@@ -251,18 +251,18 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v11 = sub %allocation, 8 : %U8
-    %v12 = bitcast %v11 : %Size
-    %sizeClass = load [%v12] : Size
-    %v14 = bitcast %allocation : %%U8
-    %v19 = load heapFree : %%U8
-    %v21 = mul %sizeClass, 8 : Size
-    %v22 = add %v19, %v21 : %%U8
-    %v23 = load [%v22] : %U8
-    assign [%v14], %v23
-    %v24 = load heapFree : %%U8
-    %v27 = add %v24, %v21 : %%U8
-    assign [%v27], %allocation
+    %v12 = sub %allocation, 8 : %U8
+    %v13 = bitcast %v12 : %Size
+    %sizeClass = load [%v13] : Size
+    %v15 = bitcast %allocation : %%U8
+    %v20 = load heapFree : %%U8
+    %v22 = mul %sizeClass, 8 : Size
+    %v23 = add %v20, %v22 : %%U8
+    %v24 = load [%v23] : %U8
+    assign [%v15], %v24
+    %v25 = load heapFree : %%U8
+    %v28 = add %v25, %v22 : %%U8
+    assign [%v28], %allocation
     ret
 }
 

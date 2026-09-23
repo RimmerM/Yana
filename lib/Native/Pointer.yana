@@ -216,10 +216,17 @@ pub fn borrowMut(it: %source'a) -> &source'a
    plain `%a` result carries nothing, so the borrow would be one no signature can say whose storage
    it is - and `op.def`'s `pointerAdd` row now requires the qualifier rather than leaving the two
    readings to drift.
+
+   **The count is any integer**, and not `Size` alone. A plain function cannot be overloaded, so a
+   second `+` taking `USize` was not a thing this module could declare, and a `U32` index was the one
+   an author had to launder through `bitcast(n :: USize) :: Size` - two conversions stating nothing
+   either meant. The compiler widens the count to the address's width before scaling it, keeping its
+   sign: a signed count is sign-extended to `Size` and an unsigned one zero-extended to `USize`. A
+   `Vec` satisfies `Integral` too and is refused at the call.
 -}
 @builtin(pointerAdd)
-pub fn +(it: %source'a, count: Size) -> %source'a
+pub fn (Integral(n)) +(it: %source'a, count: n) -> %source'a
 @builtin(pointerSub)
-pub fn -(it: %source'a, count: Size) -> %source'a
+pub fn (Integral(n)) -(it: %source'a, count: n) -> %source'a
 @builtin(pointerDifference)
 pub fn difference(from: %a, to: %a) -> Size
