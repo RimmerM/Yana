@@ -8,8 +8,17 @@ import Native
 -- has to round-trip, the box has to be *released*, and a generic function specialized at one of
 -- these types has to reach through the same indirection its concrete caller does.
 --
--- `.repr.expect` says where the pointers landed. The numbers below say the programs still mean what
--- they say.
+-- `.mir.repr.expect` says where the pointers landed. The numbers below say the programs still mean
+-- what they say.
+
+{-
+   # resolver: ownership
+
+   The shipping stage refuses a match over a `'` pivot, which `unwrapOr` below needs: it takes
+   `'`-rooted parameters, and a constructor with several fields is matched field by field -
+   `Cons {head, tail}`. JavaScript does not convert a teardown through a boxed field yet, which
+   `.jsir.errors.expect` records.
+-}
 
 data List = Nil | Cons {head: Int, tail: List}
 
@@ -17,7 +26,7 @@ data List = Nil | Cons {head: Int, tail: List}
 -- niche of that pointer and a `List` is one word of tail plus one of head.
 fn sum(xs: List) -> Int = match xs:
     Nil -> 0
-    Cons(c) -> c.head + sum(c.tail)
+    Cons {head, tail} -> head + sum(tail)
 
 -- The case the cut is interesting for.
 --
@@ -30,7 +39,7 @@ data Tree = Leaf(Int) | Branch {left: Maybe(Tree), right: Maybe(Tree), label: In
 
 fn total(t: Tree) -> Int = match t:
     Leaf(v) -> v
-    Branch(b) -> b.label + totalOf(b.left) + totalOf(b.right)
+    Branch {left, right, label} -> label + totalOf(left) + totalOf(right)
 
 fn totalOf(m: Maybe(Tree)) -> Int = match m:
     Nothing -> 0
@@ -46,9 +55,9 @@ fn totalOf(m: Maybe(Tree)) -> Int = match m:
 -- rather than stylistic: the indirection is on `Just`, so `Just(->v)` here would relocate the target
 -- out of the box and leave the allocation with nothing to hand it back - the reclaim that would have
 -- is the one the move just told the compiler not to run. See wholeMove in resolve/analyze_borrow.cpp.
--- Reading through the pointer is what a fold over a recursive structure wants anyway, and the
--- `return` roots are what say whose storage the answer lives in.
-fn unwrapOr(return m: Maybe(a), return fallback: a) -> 'a = match m:
+-- Reading through the pointer is what a fold over a recursive structure wants anyway, and the `'`
+-- on both parameters is what says the answer lives in the storage of one or the other.
+fn unwrapOr(m: 'Maybe(a), fallback: 'a) -> 'a = match m:
     Nothing -> fallback
     Just(v) -> v
 
@@ -59,7 +68,7 @@ fn leftOf(t: Tree) -> Int:
 
     return match t:
         Leaf(v) -> v
-        Branch(b) -> total(unwrapOr(b.left, absent))
+        Branch {left, right: _, label: _} -> total(unwrapOr(left, absent))
 
 fn buildList() -> Int:
     let xs = Cons {head: 1, tail: Cons {head: 2, tail: Cons {head: 39, tail: Nil}}}
@@ -93,7 +102,7 @@ data Chain = End | Link {payload: Tracked, rest: Chain}
 
 fn idsOf(c: Chain) -> Int = match c:
     End -> 0
-    Link(l) -> l.payload.id + idsOf(l.rest)
+    Link {payload, rest} -> payload.id + idsOf(rest)
 
 fn buildChain() -> Int:
     let c = Link {payload: track(4), rest: Link {payload: track(5), rest: End}}

@@ -1,0 +1,70 @@
+{-
+   Three programs the ownership stage refused and should not have - J132.
+
+   # resolver: ownership
+
+   `storeNamed` and `resultNamed` keep a loan of a *named* binding of a string literal in a global
+   and in a result: the window is the placed run either way, as it is for the literal written inline
+   (`computeStaticLiterals`). `repoint` and `repointSometimes` store a loan of their own array in a
+   `&` parameter's field and then replace it with one the caller lent: the second whole write
+   replaces what the field held, so the caller is not told it keeps the first (`localWriteOf`).
+   `quietObject` steps an iterator object whose captured function value is a lambda that only
+   prints, while another function value in the program writes `gArr` and a window of `gArr` is live
+   across the step: what the step runs is what its construction was handed (`constructedStep`), as
+   a `for` over the same call would be judged.
+-}
+
+data Loose {held: 'String}
+data Store {held: kept'[Int]}
+
+let &gText = Loose {held: "x"}
+let &gArr = [1, 2, 3] :: Array(Int)
+
+fn storeNamed():
+    let s = "hello"
+    gText = {gText | held: s}
+
+fn resultNamed(y: a'String) -> a'String:
+    let s = "abc"
+    return s
+
+fn repoint(&s: Store(kept'), xs: kept'[Int]) -> Int:
+    let owned = [xs[0] + 41, 2] :: Array(Int)
+    s = {s | held: owned}
+    let seen = s.held[0]
+    s = {s | held: xs}
+    return seen
+
+fn repointSometimes(&s: Store(kept'), xs: kept'[Int], c: Bool):
+    let owned = [xs[0] + 41, 2] :: Array(Int)
+    if c:
+        s = {s | held: owned}
+    s = {s | held: xs}
+
+fn grow():
+    for i in 0..1000:
+        push(gArr, i + 100)
+
+iter fn runs(g: () -> {}) -> Int:
+    for i in 0..3:
+        g()
+        yield i + 10
+
+fn quietObject() -> Int:
+    let &it = runs(() -> print("quiet"))
+    let w = gArr[0..3]
+    let &first = 0
+    if it.next() is Just(x):
+        first = x
+    return w[0] + w[1] + w[2] + first
+
+fn main() -> Int:
+    storeNamed()
+    let a = [1, 2] :: Array(Int)
+    let &s = Store {held: a}
+    let seen = repoint(s, a)
+    repointSometimes(s, a, True)
+    let k = () -> grow()
+    k()
+    print("{gText.held} {resultNamed("q")} {seen} {s.held[0]} {length(gArr)}")
+    return quietObject()

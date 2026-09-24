@@ -1,5 +1,7 @@
 -- What function values and captures reject. Each function is one rule; the expectation beside this
 -- file is the whole of what it reports.
+--
+-- # resolver: ownership
 
 fn applyUnit(f: () -> {}): f()
 
@@ -11,14 +13,8 @@ fn escapingBorrow() -> () -> {}:
     let &total = 0 :: Int
     return (): total = total + 1
 
--- The exclusivity half of the same rule: a by-reference capture is a mutable borrow live for as
--- long as the closure, so the enclosing frame may not touch the binding while one exists.
-fn borrowedWhileCaptured() -> Int:
-    let &count = 0 :: Int
-    let bump = (): count = count + 1
-    let seen = count
-    applyUnit(bump)
-    return seen
+-- A frame touching a binding a stored closure captured by `&` moved to
+-- `Reject.Closure.Legacy.yana`; that file says what the new stage does instead.
 
 -- A capture that came out by value is one whose enclosing binding was not mutable, so writing it
 -- would write the environment's own copy and the enclosing frame would never see it.
@@ -31,15 +27,8 @@ fn unknownArgument() -> Int:
     let f = (x) -> x + 1
     return 0
 
--- The result type is the body's, so there is nothing for a `return` to be checked against.
-fn returnInInferredLambda() -> Int:
-    let f = (x: Int): return x + 1
-    return 0
-
--- A generic function reached as a value would need a witness rather than an address.
-fn genericAsValue() -> Int:
-    let f = identity
-    return 0
+-- `return` in a lambda whose result its body decides, and a generic function as a value moved to
+-- `Reject.Closure.Legacy.yana`; that file says what the new stage does instead.
 
 -- lens and iter lambdas parse and are not implemented.
 fn lensLambda() -> Int:

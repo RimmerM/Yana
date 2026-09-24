@@ -4,14 +4,17 @@ import Native
    The capability is in the value, not in the binding - Analysis-Borrows.md §2.5.
 
    `let &x` says the binding may write the storage named by `x`. That was the *only* thing anything
-   read, and it is the wrong question in both directions once a reference can be stored:
+   read, and it is the wrong question once a reference can be stored:
 
-   1. A stored **exclusive** window may be written through from an immutable binding. `&c` would be
-      exclusive access to the `Cursor` itself - to the two words of the descriptor - and writing an
-      element is not writing those. What authorizes it is the field's own type.
-   2. A stored **shared** window may not be written through from a mutable one, for the same reason
-      read the other way: `&v` is exclusive access to `v`, and says nothing about storage `v` merely
-      points at. Reject.ValueCapability.yana is that half.
+   1. A stored **exclusive** window is written through from an **exclusive** binding. This fixture
+      used to write one from an immutable `c: Cursor`, on the reasoning that `c.buf`'s own type is
+      what authorizes the write. The rewritten stage refuses that and is right to:
+      a reference reached through a shared borrow is narrowed to shared, because two shared loans of
+      one `Cursor` would otherwise be two writers of one exclusive capability - types.md, "record
+      fields are mutable through unique access to the record". So `bump` takes `&c`.
+   2. A stored **shared** window may not be written through from a mutable one: `&v` is exclusive
+      access to `v`, and says nothing about storage `v` merely points at.
+      Reject.ValueCapability.yana is that half, and it is the half that stands.
 
    A field is where the two come apart, because a field has no convention. A *parameter* keeps
    taking it from the convention - `&xs: [Int]` is an exclusive window because the caller proved it -
@@ -26,8 +29,8 @@ data Cursor {buf: &'[Int], at: Int}
 data View {buf: '[Int], at: Int}
 data Holder {items: Array(Int)}
 
--- 1. An exclusive window in an immutable binding. Nothing about `c` is writable; `c.buf` is.
-fn bump(c: Cursor):
+-- 1. An exclusive window written through an exclusive borrow of the record that holds it.
+fn bump(&c: Cursor):
     c.buf[c.at] = c.buf[c.at] + 1
 
 -- The owner half, unchanged: the record holds the elements, so the binding is what says so.
@@ -42,10 +45,12 @@ fn peek(c: Cursor) -> Int:
 fn main() -> I64:
     let &owned = [10, 20, 30] :: Array(Int)
 
-    let c = Cursor {buf: owned, at: 1}
+    let &c = Cursor {buf: owned, at: 1}
     bump(c)
-    if owned[1] != 21 then return -1
+    -- `c` holds an exclusive loan of `owned`, so it is read through `c` before `owned` is read
+    -- directly, and not after.
     if peek(c) != 21 then return -2
+    if owned[1] != 21 then return -1
 
     let &h = Holder {items: [1, 2] :: Array(Int)}
     fill(h)

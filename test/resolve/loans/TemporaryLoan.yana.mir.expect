@@ -1,0 +1,167 @@
+module ResolveTest
+
+data Holder {view: 0'Array(I32), at: I32} shape1
+
+fn total(xs: Array(I32) [shared slot 0 view]) -> I32 {
+  local & s: I32
+  local x: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (s) take %0
+  %2: Array(I32) [shared slot 0 view] = read borrow.shared (xs) loan0
+  lens.call items(Array(I32), I32) borrow.shared %2 -> bb2
+
+bb1:
+  %10: I32 = read copy.trivial (s)
+  return take %10
+
+bb2(%3: I32 [shared slot 0]) handover(I32 [shared slot 0]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 [unique call] = read borrow.unique (s) loan1
+  %7: I32 = read copy.trivial (x)
+  %8: {} = call +=(I32) borrow.unique %6 borrow.shared %7
+  jump -> bb1
+}
+
+fn clobber(a: I32 [shared call]) -> I32 {
+  local & xs: [I32 *32]
+  local & local2: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: [I32 *32] = aggregate.0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0
+  write.init borrow.unique (xs) take %1
+  %3: I32 = const 0
+  %4: I32 = const 32
+  %5: I32 = const 1
+  write.init borrow.unique (local2) take %3
+  jump -> bb1(take %4, take %5)
+
+bb1(%6: I32, %7: I32):
+  %14: I32 = read copy.trivial (local2)
+  %15: Bool = lt inspect %14 inspect %6
+  branch inspect %15 -> bb4(take %6, take %7) -> bb3(take %6, take %7)
+
+bb2(%8: I32, %9: I32):
+  %32: I32 = read copy.trivial (local2)
+  %33: I32 = add inspect %32 inspect %9
+  write.assign borrow.unique (local2) take %33
+  jump -> bb1(take %8, take %9)
+
+bb3(%10: I32, %11: I32):
+  %36: Size = const 31
+  %37: I32 = read copy.trivial (xs[31])
+  return take %37
+
+bb4(%16: I32, %17: I32):
+  %19: I32 = read copy.trivial (local2)
+  write.init borrow.unique (i) take %19
+  %21: I32 = read copy.trivial (i)
+  %22: Size = convert inspect %21
+  %23: USize = const 32
+  %24: USize = bitcast inspect %22
+  %25: Bool = ge inspect %24 inspect %23
+  %26: {} = call checkCondition borrow.shared %25
+  %27: I32 = read copy.trivial (a)
+  %28: I32 = read copy.trivial (i)
+  %29: I32 = add inspect %27 inspect %28
+  write.assign borrow.unique (xs[...]) take %29
+  jump -> bb2(take %16, take %17)
+}
+
+fn held(n: I32 [shared call]) -> I32 {
+  local local1: [I32 *3]
+  local h: Holder
+  local k: I32
+  local local4: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = read copy.trivial (n)
+  %2: I32 = const 2
+  %3: I32 = mul inspect %1 inspect %2
+  %4: I32 = read copy.trivial (n)
+  %5: I32 = const 3
+  %6: I32 = mul inspect %4 inspect %5
+  %7: [I32 *3] = aggregate.0 take %0 take %3 take %6
+  write.init borrow.unique (local1) take %7
+  %9: [I32 *3] [shared slot 0] = read borrow.shared (local1) loan0
+  %10: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %9 roots{0}
+  %11: I32 = const 1
+  %12: Holder = aggregate.Holder borrow.shared %10 take %11 roots.0{0}
+  write.init borrow.unique (h) take %12
+  %14: I32 = const 9000
+  %15: I32 = call clobber borrow.shared %14
+  write.init borrow.unique (k) take %15
+  %17: I32 = read copy.trivial (h.at)
+  %18: Array(I32) [shared slot 0 view] = read borrow.shared (h.view) loan1 roots{0}
+  %19: Size = convert inspect %17
+  %20: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %18 borrow.shared %19 roots{0, 1}
+  write.init borrow.unique (local4) borrow.shared %20
+  %22: I32 = read copy.trivial (local4)
+  %23: Array(I32) [shared slot 0 view] = read borrow.shared (h.view) loan2 roots{0}
+  %24: I32 = call total borrow.shared %23
+  %25: I32 = add inspect %22 inspect %24
+  %26: I32 = read copy.trivial (k)
+  %27: I32 = add inspect %25 inspect %26
+  %28: I32 = const 9031
+  %29: I32 = sub inspect %27 inspect %28
+  return take %29
+}
+
+fn named(n: I32 [shared call]) -> I32 {
+  local v: [I32 *2]
+  local g: Holder
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = read copy.trivial (n)
+  %2: [I32 *2] = aggregate.0 take %0 take %1
+  write.init borrow.unique (v) take %2
+  %4: [I32 *2] [shared slot 0] = read borrow.shared (v) loan0
+  %5: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *2], I32) borrow.shared %4 roots{0}
+  %6: I32 = const 0
+  %7: Holder = aggregate.Holder borrow.shared %5 take %6 roots.0{0}
+  write.init borrow.unique (g) take %7
+  %9: Array(I32) [shared slot 0 view] = read borrow.shared (g.view) loan1 roots{0}
+  %10: I32 = call total borrow.shared %9
+  return take %10
+}
+
+fn main() -> I32 {
+  local local0: [I32 *3]
+  local a: I32
+  local b: I32
+  local c: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: I32 = const 3
+  %3: [I32 *3] = aggregate.0 take %0 take %1 take %2
+  write.init borrow.unique (local0) take %3
+  %5: [I32 *3] [shared slot 0] = read borrow.shared (local0) loan0
+  %6: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %5 roots{0}
+  %7: I32 = call total borrow.shared %6
+  write.init borrow.unique (a) take %7
+  %9: I32 = const 5
+  %10: I32 = call held borrow.shared %9
+  write.init borrow.unique (b) take %10
+  %12: I32 = const 7
+  %13: I32 = call named borrow.shared %12
+  write.init borrow.unique (c) take %13
+  %15: I32 = read copy.trivial (a)
+  %16: I32 = const 1000
+  %17: I32 = mul inspect %15 inspect %16
+  %18: I32 = read copy.trivial (b)
+  %19: I32 = const 10
+  %20: I32 = mul inspect %18 inspect %19
+  %21: I32 = add inspect %17 inspect %20
+  %22: I32 = read copy.trivial (c)
+  %23: I32 = add inspect %21 inspect %22
+  return take %23
+}
+
+entry main

@@ -1,0 +1,86 @@
+{-
+   Re-pointing a loan field with a record update.
+
+   # resolver: ownership
+
+   Assigning to a loan-typed place writes through to the storage it lends, so `box.held = source`
+   over a shared loan is refused (`../ownership/Reject.LoanFieldAssign.yana`). What re-points a loan
+   field is assigning its record, and an update is how one field of it is spelled - ownership.md,
+   "Records holding external values". The update's copy is this expression's own storage, so the
+   replaced field is *installed* rather than written through: the old loan is released with the old
+   value, and nothing is written into the cell it named.
+
+   `local` and `throughParameter` are the shared-loan field; `consuming` is `{->store | ...}` out of
+   a `&` parameter, which the put-back rule admits because the same statement writes the record
+   back, and is the spelling for a record with a field that cannot be copied; `exclusive` is an
+   `&'` field, where the update re-points and an assignment to the field then writes through to the
+   new cell. `viaResult` is `rememberOwned(itself(box), source)` over a `box` already holding
+   `source`, which the earlier spelling refused. `Reject.UpdateRepoint.yana` is the other half.
+-}
+
+data Cell {value: Int}
+data Store {held: kept'Cell, tag: Int}
+-- An array rather than a `String`, which is `TrivialCopy` on JavaScript: the point of `Owned` is a
+-- field an update cannot copy.
+data Owned {held: kept'Cell, items: [Int]}
+data Exclusive {held: &kept'Cell, tag: Int}
+
+fn remember(&store: Store(kept'), value: kept'Cell):
+    store = {store | held: value}
+
+fn rememberOwned(&store: Owned(kept'), value: kept'Cell):
+    store = {->store | held: value}
+
+fn repoint(&store: Exclusive(kept'), &value: kept'Cell):
+    store = {->store | held: value}
+
+fn itself(&s: owner'Owned) -> &owner'Owned = s
+
+-- 73: the record holds `source` and keeps its tag.
+fn local() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed, tag: 3}
+    box = {box | held: source}
+    return box.held.value * 10 + box.tag
+
+-- 73, and `seed` is free again once `box` is finished with.
+fn throughParameter() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed, tag: 3}
+    remember(box, source)
+    let answer = box.held.value * 10 + box.tag
+    seed.value = 2
+    return answer + seed.value - 2
+
+-- 72: the items came along with the record rather than being copied.
+fn consuming() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Owned {held: seed, items: [1, 2]}
+    rememberOwned(box, source)
+    return box.held.value * 10 + box.items[1]
+
+-- 43146: the update re-points without writing `seed`, and the field assignment after it writes
+-- through to `source`.
+fn exclusive() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &other = Cell {value: 8}
+    let &box = Exclusive {held: seed, tag: 3}
+    box = {->box | held: source}
+    box.held = Cell {value: 4}
+    let first = box.held.value * 10 + box.tag
+    repoint(box, other)
+    box.held.value = 6
+    return first * 1000 + seed.value * 100 + source.value * 10 + other.value
+
+-- 77: `box` already holds `source`, and the call's result is live while `source` is borrowed.
+fn viaResult() -> Int:
+    let &source = Cell {value: 7}
+    let &box = Owned {held: source, items: [1]}
+    rememberOwned(itself(box), source)
+    return box.held.value * 11
+
+fn main() -> Int = local() + throughParameter() + consuming() + exclusive() + viaResult()

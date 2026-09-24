@@ -1,0 +1,34 @@
+{-
+   A dereference keeps the pointer's lender alive.
+
+   # resolver: ownership
+
+   `q` is the only thing that refers to `a` after its first line, and the last thing done with `a`
+   is a read *through* `q`. The dereference names the pointer only as the root of an address place,
+   and before J124 liveness read no origins through one, so `drop (a)` landed between
+   `read copy.trivial (q)` and the read through it, and the unoptimized build read 0 where the
+   optimized one read 6. `b` is the same through `store`, and `c` through `borrowMut`; the
+   unoptimized build of the three crashed. `junk` is allocated in between so that a
+   run released early is reused. It answers 6777, with the IR optimizer on and off.
+-}
+
+import Native
+
+fn main() -> Int:
+    let a = [5, 6] :: Array(I32)
+    let &q = values(a)
+    q = q + 1
+    let junk = [7, 7] :: Array(I32)
+    let read = copy(borrow(q))
+    let b = [1, 2] :: Array(I32)
+    let &w = values(b)
+    w = w + 1
+    let junk2 = [7, 7] :: Array(I32)
+    store(w, 9)
+    let c = [3, 4] :: Array(I32)
+    let &v = values(c)
+    v = v + 1
+    let junk3 = [7, 7] :: Array(I32)
+    let &m = borrowMut(v)
+    m = 8
+    return read * 1000 + junk[0] * 100 + junk2[1] * 10 + junk3[1]

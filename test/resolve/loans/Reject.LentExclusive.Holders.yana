@@ -1,0 +1,36 @@
+{-
+   Two globals holding loans of one global where either loan is exclusive (ownership.md, "Loans and
+   globals").
+
+   # resolver: ownership
+
+   A global lent exclusively is reachable only through its one holder
+   (`Reject.LentExclusive.yana`), and the borrow that stores the loan is the one use of the lender's
+   name that rule lets through - so a second holder's store is refused, whichever of the two loans
+   is the exclusive one. "Second" is the order the analysis meets them, which puts every function
+   body before the entry sequence: `second`'s store of `gFirst` is met first, so it is `gTight`'s
+   initializer that is reported. The three pairs are exclusive then exclusive, shared then
+   exclusive, and exclusive then shared. Two shared holders are legal: `GlobalLoan.yana`.
+-}
+
+data Cell {value: Int}
+data Tight {held: &'Cell}
+data Loose {held: 'Cell}
+
+let &gFirst = Cell {value: 1}
+let &gSecond = Cell {value: 2}
+
+let &gTight = Tight {held: gFirst}
+
+fn second() -> Int:
+    gAlso = Tight {held: gFirst}
+    return gAlso.held.value
+
+let gLoose = Loose {held: gSecond}
+let &gAlso = Tight {held: gSecond}
+
+let &gThird = Cell {value: 3}
+let &gOnly = Tight {held: gThird}
+let gAfter = Loose {held: gThird}
+
+fn main() -> Int = gTight.held.value + gLoose.held.value

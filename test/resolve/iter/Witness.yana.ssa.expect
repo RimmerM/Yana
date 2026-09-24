@@ -545,7 +545,7 @@ bb0(%0: Step [shared call] guaranteed):
   %3: Step trivial = copy inspect %0
   %4: I32 [unique slot 0] guaranteed = load inspect %1
   %5: paceConcrete.cont.env affine = aggregate.paceConcrete.cont.env borrow %4
-  %6: (I32) -> I32 [owned here shape11 .0=shared call] affine = fun.value paceConcrete.cont borrow %5
+  %6: (I32) -> I32 [owned here shape13 .0=shared call] affine = fun.value paceConcrete.cont borrow %5
   %7: I32 trivial = call paces(Step) borrow %3 borrow %6
   jump -> bb1
 
@@ -585,7 +585,7 @@ bb3:
   %17: I32 [unique slot 0] guaranteed = load inspect %2
   %18: (I32) -> I32 [unique slot 1] guaranteed = load inspect %1
   %19: Branch.descend.cont'2.env affine = aggregate.Branch.descend.cont'2.env borrow %17 borrow %18
-  %20: (I32) -> I32 [owned here shape11 .0=shared call] affine = fun.value Branch.descend.cont'2 borrow %19
+  %20: (I32) -> I32 [owned here shape13 .0=shared call] affine = fun.value Branch.descend.cont'2 borrow %19
   %21: I32 trivial = call Branch.descend borrow %16 borrow %20
   jump -> bb4
 
@@ -610,7 +610,7 @@ bb7:
   %29: I32 [unique slot 0] guaranteed = load inspect %2
   %30: (I32) -> I32 [unique slot 1] guaranteed = load inspect %1
   %31: Branch.descend.cont.env affine = aggregate.Branch.descend.cont.env borrow %29 borrow %30
-  %32: (I32) -> I32 [owned here shape11 .0=shared call] affine = fun.value Branch.descend.cont borrow %31
+  %32: (I32) -> I32 [owned here shape13 .0=shared call] affine = fun.value Branch.descend.cont borrow %31
   %33: I32 trivial = call Branch.descend borrow %28 borrow %32
   jump -> bb8
 
@@ -704,7 +704,7 @@ bb0(%0: Branch [shared call] guaranteed):
   %3: Branch [shared call] guaranteed from{%0} = load inspect %0
   %4: I32 [unique slot 0] guaranteed = load inspect %1
   %5: descendConcrete.cont.env affine = aggregate.descendConcrete.cont.env borrow %4
-  %6: (I32) -> I32 [owned here shape11 .0=shared call] affine = fun.value descendConcrete.cont borrow %5
+  %6: (I32) -> I32 [owned here shape13 .0=shared call] affine = fun.value descendConcrete.cont borrow %5
   %7: I32 trivial = call Branch.descend borrow %3 borrow %6
   jump -> bb1
 
@@ -720,7 +720,7 @@ bb0(%0: c [shared call] guaranteed):
   %11: %%Array(I32) address = alloc frame %Array(I32)
   %12: %Size address = alloc frame Size
   %13: %Size address = alloc frame Size
-  %14: c [shared call] guaranteed from{%0} = load inspect %0
+  %14: c [shared slot 0] guaranteed from{%0} = load inspect %0
   %15: iter(Array(I32)) owned = call chunks$obj [class #0.1] borrow %14
   store inspect %9 consume %15
   %16: I32 trivial = const 0
@@ -832,7 +832,7 @@ bb0(%0: c [shared call] guaranteed):
   %12: %Maybe(Array(I32)) address = alloc frame Maybe(Array(I32)) [owned here shape1 .0=shared slot 0 view]
   %13: %Size address = alloc frame Size
   %14: %Size address = alloc frame Size
-  %15: c [shared call] guaranteed from{%0} = load inspect %0
+  %15: c [shared slot 0] guaranteed from{%0} = load inspect %0
   %16: iter(Array(I32)) owned = call chunks$obj [class #0.1] borrow %15
   store inspect %9 consume %16
   %17: I32 trivial = const 0
@@ -954,7 +954,7 @@ bb0(%0: c [shared call] guaranteed):
   %10: %%Array(I32) address = alloc frame %Array(I32)
   %11: %Size address = alloc frame Size
   %12: %Size address = alloc frame Size
-  %13: c [shared call] guaranteed from{%0} = load inspect %0
+  %13: c [shared slot 0] guaranteed from{%0} = load inspect %0
   %14: iter(Array(I32)) owned = call chunks$obj [class #0.1] borrow %13
   %15: I32 trivial = const 0
   %16: Held(iter(Array(I32))) owned = aggregate.Held consume %14 consume %15
@@ -1069,11 +1069,11 @@ bb0(%0: Array(I32) [shared call view] guaranteed):
   %1: %I32 address = alloc frame I32
   %2: I32 trivial = const 0
   store inspect %1 consume %2
-  %3: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
+  %3: Array(I32) [shared slot 0 view] guaranteed from{%0} = load inspect %0
   %4: Array(I32) [unique slot 0 view] guaranteed = load inspect %0
   %5: I32 [unique slot 1] guaranteed = load inspect %1
   %6: chunkedConcrete.cont.env affine = aggregate.chunkedConcrete.cont.env borrow %4 borrow %5
-  %7: (Array(I32)) -> I32 [owned here shape11 .0=shared call] affine = fun.value chunkedConcrete.cont borrow %6
+  %7: (Array(I32)) -> I32 [owned here shape13 .0=shared call] affine = fun.value chunkedConcrete.cont borrow %6
   %8: I32 trivial = call Array(a).chunks(I32) borrow %3 borrow %7
   jump -> bb1
 
@@ -2496,9 +2496,9 @@ bb0(%0: Branch.descend.Iter [shared slot 0] guaranteed, %1: %I32 trivial):
   return consume %1
 }
 
-fn Branch.descend$next($self: Branch.descend.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn Branch.descend$next($self: Branch.descend.Iter [unique slot 0 shape8 .2.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn Branch.descend$resume($self: Branch.descend.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn Branch.descend$resume($self: Branch.descend.Iter [unique slot 0 shape8 .2.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn Branch.descend$erased.step($env: Branch.descend.Iter [unique call], $sent: I32, $cancel: Bool) -> %I32 {
 bb0(%0: Branch.descend.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):
@@ -2564,7 +2564,7 @@ bb0(%0: Array(I32) [shared call view] guaranteed):
   %11: %%Array(I32) address = alloc frame %Array(I32)
   %12: %Size address = alloc frame Size
   %13: %Size address = alloc frame Size
-  %14: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
+  %14: Array(I32) [shared slot 0 view] guaranteed from{%0} = load inspect %0
   %15: iter(Array(I32)) owned = call Array(a).chunks$obj borrow %14
   store inspect %9 consume %15
   %16: I32 trivial = const 0
@@ -2675,7 +2675,7 @@ bb0(%0: [I32 *3] [shared call] guaranteed):
   %11: %%Array(I32) address = alloc frame %Array(I32)
   %12: %Size address = alloc frame Size
   %13: %Size address = alloc frame Size
-  %14: [I32 *3] [shared call] guaranteed from{%0} = load inspect %0
+  %14: [I32 *3] [shared slot 0] guaranteed from{%0} = load inspect %0
   %15: iter(Array(I32)) owned = call [a *n].chunks$obj borrow %14
   store inspect %9 consume %15
   %16: I32 trivial = const 0
@@ -2873,15 +2873,15 @@ bb0(%0: descendConcrete.cont.env [unique call] guaranteed, %1: I32 trivial):
   return consume %7
 }
 
-fn chunkedConcrete.cont(chunkedConcrete.cont.env: chunkedConcrete.cont.env [unique call], $handed: Array(I32) [shared call view]) -> I32 {
-bb0(%0: chunkedConcrete.cont.env [unique call] guaranteed, %1: Array(I32) [shared call view] guaranteed):
+fn chunkedConcrete.cont(chunkedConcrete.cont.env: chunkedConcrete.cont.env [unique call], $handed: Array(I32) [shared slot 0 view]) -> I32 {
+bb0(%0: chunkedConcrete.cont.env [unique call] guaranteed, %1: Array(I32) [shared slot 0 view] guaranteed):
   %10: %Array(I32) address = field.addr .xs inspect %0
   %11: %Array(I32) address = load inspect %10
   %12: %I32 address = field.addr .total inspect %0
   %13: %I32 address = load inspect %12
   %14: %Size address = alloc frame Size
   %15: %Size address = alloc frame Size
-  %16: Array(I32) [shared call view] guaranteed from{%1, %11} = load inspect %1
+  %16: Array(I32) [shared slot 0 view] guaranteed from{%1, %11} = load inspect %1
   jump -> bb5
 
 bb1(%2: Size trivial, %3: Size trivial):
@@ -2904,7 +2904,7 @@ bb4(%8: Size trivial, %9: Size trivial):
   store inspect %15 consume %27
   %28: I32 [unique call] guaranteed from{%13} = load inspect %13
   %29: Size trivial = load inspect %15
-  %30: Array(I32) [shared call view] guaranteed from{%1, %11} = load inspect %1
+  %30: Array(I32) [shared slot 0 view] guaranteed from{%1, %11} = load inspect %1
   jump -> bb7
 
 bb5:

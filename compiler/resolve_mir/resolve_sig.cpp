@@ -881,6 +881,25 @@ bool Resolver::resolveArgument(ast::Type& written, Position position, SlotScope*
         return false;
     }
 
+    /*
+     * And the **window**, where the argument is a type that has one - `Named('String)`,
+     * `Named('[I32])`.
+     *
+     * A qualified argument's slots stand at the positions where the record's variable stands whole,
+     * and a shared variable position bound to a type with a view *is* that view: `substitutedContract`
+     * says so for every position a substitution reaches, and `substituteShape` for the shape of an
+     * instantiated generic, which is how `Entry('k, 'v)` at `String` already held a window. Written
+     * directly, the same argument said whole value, so the record's field was laid out as a pointer
+     * to the owner while the constructor - which asks the field's own position, a variable bound to
+     * `String` - stored the view's two words there, and `e.name` read the bytes' address as a
+     * `String` (J131). The same rule the root applies above, at the one place it was not.
+     */
+    if(!contract.isOwned() && contract.form() == AccessForm::WholeValue &&
+       hasViewFor(decl(), program, logical, contract.access())) {
+        contract = Contract { contract.access(), contract.origin(), AccessForm::View,
+                              contract.slot() };
+    }
+
     into = Occurrence { logical, contract, shape };
     return true;
 }

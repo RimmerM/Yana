@@ -39,7 +39,10 @@ iter fn each(xs: [a]) -> a:
    is captured by reference rather than sunk, because a continuation's extent is the enclosing call
    and this frame never owned it.
 -}
-iter fn mapped(xs: [a], f: (a) -> b) -> b:
+-- `-> ->b`: each item is handed over owned, because the consumer below pushes it into an array, and
+-- `push` consumes. The default hand-over is a borrow (lenses.md), which the shipping stage let through
+-- here and the rewritten stage does not.
+iter fn mapped(xs: [a], f: (a) -> b) -> ->b:
     for x in each(xs):
         yield f(x)
 

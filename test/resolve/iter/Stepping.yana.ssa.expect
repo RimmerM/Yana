@@ -472,7 +472,7 @@ bb42:
   jump -> bb44
 
 bb43:
-  %154: words.Iter [unique call shape9 .2.0.*=shared slot 0] guaranteed from{%20, %22} = load inspect %22
+  %154: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0] guaranteed from{%20, %22} = load inspect %22
   %155: String owned = call words$take borrow %154
   store inspect %23 consume %155
   %156: String owned = load inspect %21
@@ -1339,8 +1339,8 @@ bb0(%0: words.Iter owned):
   return
 }
 
-fn words$take($self: words.Iter [unique call]) -> String {
-bb0(%0: words.Iter [unique call] guaranteed):
+fn words$take($self: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0]) -> String {
+bb0(%0: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0] guaranteed):
   %1: %String address = field.addr .$slot inspect %0
   %2: String owned = load inspect %1
   %3: Bool trivial = const False
@@ -1349,9 +1349,9 @@ bb0(%0: words.Iter [unique call] guaranteed):
   return consume %2
 }
 
-fn words$next($self: words.Iter [unique slot 0]) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+fn words$next($self: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0]) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
 
-fn words$resume($self: words.Iter [unique slot 0], $v: {}) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+fn words$resume($self: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0], $v: {}) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
 
 fn counting$new(total: Size [unique slot 0]) -> counting.Iter [owned here shape11 .2.*=unique slot 0] {
 bb0(%0: Size [unique slot 0] guaranteed):
@@ -1469,9 +1469,9 @@ bb13:
   branch inspect %60 -> bb11 -> bb2
 }
 
-fn counting$next($self: counting.Iter [unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+fn counting$next($self: counting.Iter [unique slot 0 shape11 .2.*=unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn counting$resume($self: counting.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+fn counting$resume($self: counting.Iter [unique slot 0 shape11 .2.*=unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn watching$new(g: Guard [shared slot 0]) -> watching.Iter [owned here shape12 .2.*=shared slot 0] {
 bb0(%0: Guard [shared slot 0] guaranteed):
@@ -1569,9 +1569,9 @@ bb12:
   return consume %33
 }
 
-fn watching$next($self: watching.Iter [unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+fn watching$next($self: watching.Iter [unique slot 0 shape12 .2.*=shared slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn watching$resume($self: watching.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+fn watching$resume($self: watching.Iter [unique slot 0 shape12 .2.*=shared slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn main.cont(main.cont.env: main.cont.env [unique call], $handed: Size [shared call]) -> I32 {
 bb0(%0: main.cont.env [unique call] guaranteed, %1: Size trivial):

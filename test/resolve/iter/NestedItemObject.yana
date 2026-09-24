@@ -1,0 +1,131 @@
+{-
+   An iterator object whose producer nests a traversal and hands its items on - J131.
+
+   # resolver: ownership
+
+   Three things, each of which failed before J131 with the compiler this slice started from:
+
+   - `for v in items(xs): yield v` inside a producer held as an object (`let it = f(...)`), at
+     `I32`, `I64`, `U8` and `String`, stepped by `it.next()` and by `for x in it`. `items` hands
+     over `source'a`, so a scalar item is a *reference* the child keeps in its own slot, and the
+     nested region was handed the slot's contents read as an address (invalid lower IR). A generic
+     `relay` over `'a` is the same shape with the origin written by the author.
+   - `for e in each(xs)` whose `e` is kept across the outer `yield` (review 3 item 4). The member
+     holding `e` held its address - the nested member's slot, inside the record - and the object
+     crashed. A shared loan of a scalar is carried as its value now, so a suspended object that is
+     copied (`let &moved = it`, the record is trivially copyable) keeps answering its own items.
+   - An object whose record held a pointer the IR optimizer split into a register: its zero was an
+     immediate of pointer type, which the lowering's validator refuses.
+-}
+
+iter fn relayI32(xs: '[I32]) -> I32:
+    for v in items(xs):
+        yield v
+
+iter fn relayI64(xs: '[I64]) -> I64:
+    for v in items(xs):
+        yield v
+
+iter fn relayU8(xs: '[U8]) -> U8:
+    for v in items(xs):
+        yield v
+
+iter fn relayText(xs: '[String]) -> 'String:
+    for v in items(xs):
+        yield v
+
+iter fn (a) relay(xs: '[a]) -> 'a:
+    for v in items(xs):
+        yield v
+
+iter fn walk(xs: '[I32]) -> 'I32:
+    for i in 0 .. length(xs):
+        yield xs[i]
+
+iter fn doubled(xs: '[I32]) -> I32:
+    for v in walk(xs):
+        yield v * 2
+
+iter fn each(xs: '[I32]) -> 'I32:
+    for i in 0 .. length(xs):
+        yield xs[i]
+
+-- `e` is live across the first `yield`, so the record keeps it.
+iter fn kept(xs: '[I32]) -> I32:
+    for e in each(xs):
+        yield 1
+        yield e * 100
+
+fn scalars() -> I64:
+    let small = [1, 2, 3] :: [I32]
+    let wide = [4000000000, 5] :: [I64]
+    let bytes = [7, 250] :: [U8]
+
+    let &t = 0 :: I64
+    let &a = relayI32(small)
+    while a.next() is Just(v):
+        t = t + (v :: I64)
+
+    let &b = relayI64(wide)
+    for v in b:
+        t = t + v
+
+    let &c = relayU8(bytes)
+    if c.next() is Just(v):
+        t = t + (v :: I64) * 1000
+    for v in c:
+        t = t + (v :: I64) * 1000
+
+    let &d = relay(small)
+    for v in d:
+        t = t + (v :: I64) * 10
+
+    let &f = doubled(small)
+    while f.next() is Just(v):
+        t = t + (v :: I64) * 100
+    return t
+
+fn texts() -> Size:
+    let words = ["ab", "cde", "f"]
+    let &n = 0 :: Size
+    let &it = relayText(words)
+    if it.next() is Just(w):
+        n = n * 10 + length(w)
+    for w in it:
+        n = n * 10 + length(w)
+
+    let &g = relay(words)
+    for w in g:
+        n = n * 10 + length(w)
+    return n
+
+fn held() -> I32:
+    let xs = [1, 2]
+    let &t = 0
+    let &it = kept(xs)
+    while it.next() is Just(x):
+        t += x
+
+    let &jt = kept(xs)
+    for x in jt:
+        t += x * 1000
+
+    -- A copy of an object suspended with `e` held: each copy answers its own items.
+    let &kt = kept(xs)
+    if kt.next() is Just(x):
+        t += x * 10000
+    let &moved = kt
+    kt = kept([7, 8])
+    if kt.next() is Just(x):
+        t += x * 10000
+    while moved.next() is Just(x):
+        t += x * 10000
+    return t
+
+fn main() -> I32:
+    let s = scalars()
+    let w = texts()
+    let h = held()
+    print("{s} {w} {h}")
+    if s != 4000258271 || w != 231231 || h != 3332302 then return 1
+    return 0

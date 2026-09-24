@@ -1,0 +1,13 @@
+-- The rule of `Reject.InlineCapacity.yana` the default stage does not refuse yet: a literal
+-- longer than `@capacity(n)`. It accepts it (declarations.md, "@capacity", states a bound). Move
+-- it back when it does.
+
+import Native
+
+-- `@capacity(n)` is a bound rather than a starting size, so a literal past it has nowhere to go. The
+-- push that would exceed it fails at run time; the literal that does is a resolve error, because the
+-- length is written down.
+fn tooLong():
+    let xs = [1, 2, 3, 4, 5] :: @inline(4) @capacity(4) [Int]
+
+fn main() -> Int = 0

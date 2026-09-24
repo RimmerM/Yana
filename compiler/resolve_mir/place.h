@@ -207,6 +207,28 @@ inline Place& rootPlace(MirBase base, Place& place) {
 }
 
 /*
+ * The step nearest the root at which a place leaves **storage its root owns** - a projection whose
+ * own occurrence is a loan, or a `Deref` through one - and null where every step is the root's own.
+ *
+ * The one walk for the question "who owns the storage this place names", which a record update asks
+ * (is the loan field the copy's own slot?) and `Resolver::unwrittenSource` asks (can anything but
+ * the root's binding write these bytes?). Nearest the root and not nearest the place, because below
+ * the first borrowed step every step is somebody else's storage whatever its own occurrence says,
+ * and the first one is what both callers compare against.
+ *
+ * Not the writability walk `Resolver::loanFieldWriteRefused` makes, deliberately: an exclusive loan
+ * field is not the root's storage and may still be written, so "where did writability go" and "whose
+ * storage is it" stop at different steps under `box.exclusive.shared.value`.
+ */
+inline Place* firstBorrowedStep(MirBase base, Place& place) {
+    Place* found = nullptr;
+    for(auto at = &place; at->parent; at = base[at->parent]) {
+        if(at->kind == Place::Deref || !at->occurrence.contract.isOwned()) found = at;
+    }
+    return found;
+}
+
+/*
  * Whether a teardown at this place can see where the value's interior boxes came from -
  * `ssa::InstDrop::boxesVisible`, and `ssa::BoxRelease` for what it decides.
  *

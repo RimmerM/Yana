@@ -1,0 +1,161 @@
+{-
+   A loan a call installs in a `&` argument.
+
+   # resolver: ownership
+
+   `remember`'s signature puts `value`'s loan in the group `store` holds, so after the call the
+   destination holds a shared loan of the source and the source is borrowed for as long as the
+   destination is live - ownership.md, "External origins": at a call each group is bound to a set of
+   concrete origins. These are the uses that stay legal: reading through the destination, and
+   writing the source once the destination is finished with. `Reject.Installed.yana` is the other
+   half.
+-}
+
+data Cell {value: Int}
+data Store {held: kept'Cell}
+data Named {first: k'Cell, second: k'Cell}
+-- An array rather than a `String`, which is `TrivialCopy` on JavaScript - `let &d = box` would copy
+-- a record of one there, and the binding case would not be a borrow on both targets.
+data Owned {held: kept'Cell, items: [Int]}
+
+fn remember(&store: Store(kept'), value: kept'Cell):
+    store = Store {held: value}
+
+fn rememberFirst(&named: Named(k'), value: k'Cell):
+    named = Named {first: value, second: named.second}
+
+fn rememberOwned(&store: Owned(kept'), value: kept'Cell):
+    store = Owned {held: value, items: [1]}
+
+fn itself(&s: owner'Owned) -> &owner'Owned = s
+
+lens fn holding(&store: Store(kept'), value: kept'Cell):
+    store = Store {held: value}
+    yield {}
+
+class Keeps(c):
+  fn keep(self: c, &store: Store(kept'), value: kept'Cell) -> {}
+
+data Keeper {id: Int}
+
+instance Keeps(Keeper):
+    fn keep(self: Keeper, &store: Store(kept'), value: kept'Cell):
+        store = Store {held: value}
+
+-- 7: the destination reads what was installed.
+fn readThrough() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    remember(box, source)
+    return box.held.value
+
+-- 16: the source is writable again after the destination's last use.
+fn writeAfter() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    remember(box, source)
+    let read = box.held.value
+    source.value = 9
+    return read + source.value
+
+-- 13: a field origin; the other field keeps the loan it had.
+fn fieldOrigin() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &named = Named {first: seed, second: seed}
+    rememberFirst(named, source)
+    let read = named.first.value + named.second.value
+    source.value = 5
+    return read + source.value
+
+-- 17: a lens, and the source written once both the region and the destination are over.
+fn throughLens() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    let &read = 0
+    holding(box, source):
+        read = box.held.value
+    source.value = 10
+    return read + source.value
+
+-- 15: a class member selected here, and one dispatched from a body compiled once.
+fn throughClass() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    keep(Keeper {id: 0}, box, source)
+    let read = box.held.value
+    source.value = 8
+    return read + source.value
+
+fn (Keeps(c)) generic(keeper: c) -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    keep(keeper, box, source)
+    let read = box.held.value
+    source.value = 8
+    return read + source.value
+
+-- 13: a loop installing a different source on each pass.
+fn inLoop() -> Int:
+    let &seed = Cell {value: 1}
+    let &a = Cell {value: 4}
+    let &b = Cell {value: 5}
+    let &box = Store {held: seed}
+    let &total = 0
+    for i in 0..2:
+        if i == 0 then remember(box, a) else remember(box, b)
+        total += box.held.value
+    a.value = 2
+    b.value = 2
+    return total + a.value + b.value
+
+-- 13: through a `&` binding and through a returned reference, read back through the owner.
+fn throughBorrow() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &other = Cell {value: 6}
+    let &box = Owned {held: seed, items: [2]}
+    let &d = box
+    rememberOwned(d, source)
+    let first = box.held.value
+    rememberOwned(itself(box), other)
+    return first + box.held.value
+
+-- A generic callee installs too.
+-- Nothing in `put`'s signature describes what is inside `a`, so whatever `v` carries may land
+-- anywhere inside `x`: `box` holds `source` after the call, and the write of `source` is legal once
+-- `box` is finished with.
+fn (a) put(&x: a, ->v: a):
+    x = v
+
+fn throughGeneric() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    put(box, Store {held: source})
+    let read = box.held.value
+    source.value = 9
+    return read + source.value
+
+-- A loan of an element the parameter's origin publishes is a reborrow of `cells`, not this frame's
+-- storage: the slot `cells[0]` is parked in is only the name it is reached by.
+fn stashElement(&store: Store(kept'), cells: kept'[Cell]):
+    store = Store {held: cells[0]}
+
+fn elementDestination() -> Int:
+    let &seed = Cell {value: 1}
+    let cells = [Cell {value: 5}, Cell {value: 6}]
+    let &box = Store {held: seed}
+    stashElement(box, cells)
+    return box.held.value
+
+-- 130, the sum of the answers above.
+fn main() -> Int =
+    readThrough() + writeAfter() + fieldOrigin() + throughLens() + throughClass() +
+        generic(Keeper {id: 1}) + inLoop() + throughBorrow() + throughGeneric() +
+        elementDestination()

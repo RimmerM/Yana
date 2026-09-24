@@ -1,0 +1,39 @@
+{-
+   `HandoverSlot.yana` through a raw pointer: `-> %a'I32` hands over an address into the caller's
+   `a`, and a consumer stores it into a field in that origin and reads it after the lens returned.
+
+   # resolver: ownership
+
+   `values(xs)` is `%a'T`, so its pointee is a statement about `xs` and the hand-over's slot check
+   (`analyze_loan.cpp`'s `checkHandoverConformance`) accepts it, offset or not.
+   `Reject.HandoverSlot.yana`'s `relay` is the pointer that looks the same and is not: a copy of a
+   `%yield'` hand-over, whose pointee is bounded by a call rather than stated.
+-}
+
+import Native
+
+data Spot {held: kept'I32}
+
+lens fn second(xs: a'[I32]) -> %a'I32:
+    yield values(xs) + 1
+
+lens fn third(xs: a'[I32]) -> %a'I32:
+    let p = values(xs)
+    yield p + 2
+
+fn keep(&spot: Spot(kept'), xs: kept'[I32]):
+    let p = second(xs) in:
+        spot = {spot | held: borrow(p)}
+
+fn keepThird(&spot: Spot(kept'), xs: kept'[I32]):
+    let p = third(xs) in:
+        spot = {spot | held: borrow(p)}
+
+fn main() -> Int:
+    let b = [10, 20, 30] :: Array(I32)
+    let &spot = Spot {held: b[0]}
+    keep(spot, b)
+    let &total = spot.held
+    keepThird(spot, b)
+    total += spot.held * 100
+    return total - 3000

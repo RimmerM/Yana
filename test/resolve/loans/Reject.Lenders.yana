@@ -1,0 +1,80 @@
+{-
+   What the lender walk still refuses, one line per refusal no other fixture reaches.
+
+   # resolver: ownership
+
+   `analyze_loan.cpp`'s `judgeLenders` follows a borrowing local to what it holds and a raw address
+   to what its pointee holds - but only where those origins say what the value *refers to*.
+   `Lenders.yana` is what that admits. What it does not follow is a value only a call bounds: a
+   lens's hand-over, whose origins are every argument of the call - the storage that must outlive
+   the continuation, not the storage the value points into. `held` and `bytes` below yield a local
+   of their own, and `globalBorrowed` was accepted before the walk was shared: the global kept a
+   pointer into `held`'s dead frame.
+
+   The pointer lines are the same through a `%yield'` hand-over, and the `Opaque` lines a pointer
+   whose type names no pointee at all, which a global may hold and a result or a field may not. The
+   last two are a reborrow chain into a global, which names the lender at the end of the chain.
+-}
+
+import Native
+
+data Store {held: kept'[I32]}
+data PStore {held: kept'I32}
+data Loose {held: '[I32]}
+data PLoose {held: 'I32}
+
+let gArr = [1, 2, 3] :: Array(I32)
+let &gLoose = Loose {held: gArr}
+let &gPLoose = PLoose {held: gArr[0]}
+
+lens fn held(xs: [I32]) -> [I32]:
+    let owned = [xs[0] + 41, 2] :: Array(I32)
+    yield owned
+
+lens fn bytes(xs: [I32]) -> %yield'I32:
+    let owned = [xs[0] + 41, 2] :: Array(I32)
+    yield values(owned)
+fn resultOpaque(xs: a'[I32], p: %I32) -> a'I32 = borrow(p)
+
+fn resultBounded(xs: a'[I32]) -> a'I32:
+    let p = bytes(xs) in:
+        return borrow(p)
+    return xs[0]
+
+fn destinationOpaque(&store: PStore(kept'), xs: kept'[I32], p: %I32):
+    store = {store | held: borrow(p)}
+
+fn destinationBorrowed(&store: Store(kept'), xs: kept'[I32]):
+    let view = held(xs) in:
+        store = {store | held: view}
+
+fn destinationBounded(&store: PStore(kept'), xs: kept'[I32]):
+    let p = bytes(xs) in:
+        store = {store | held: borrow(p)}
+
+fn globalBorrowed():
+    let view = held(gArr) in:
+        gLoose = {gLoose | held: view}
+
+fn globalBounded():
+    let p = bytes(gArr) in:
+        gPLoose = {gPLoose | held: borrow(p)}
+
+lens fn handsTemporary() -> %I32:
+    yield values([3, 4] :: [I32 *2])
+
+lens fn handsBorrowed(xs: [I32]) -> %I32:
+    let view = held(xs) in:
+        yield values(view)
+
+fn globalThroughReborrow(xs: a'[I32]):
+    let v = xs
+    gLoose = {gLoose | held: v}
+
+fn globalThroughChain():
+    let &tmp = [4, 5] :: Array(I32)
+    let v = tmp
+    let w = v
+    gLoose = {gLoose | held: w}
+
+fn main() -> Int = 0

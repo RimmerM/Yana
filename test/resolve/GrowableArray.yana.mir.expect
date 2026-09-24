@@ -174,41 +174,44 @@ bb3:
 }
 
 fn windows() -> I32 {
-  local & local0: Array(I32) object1
-  local local1: Array(I32) object1
+  local local0: [I32 *3]
+  local & local1: Array(I32) object2
+  local local2: Array(I32) object2
 
 bb0:
   %0: I32 = const 4
   %1: I32 = const 5
   %2: I32 = const 6
   %3: [I32 *3] = aggregate.0 take %0 take %1 take %2
-  %4: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %3
-  %5: I32 = call total borrow.shared %4
-  %6: I32 = const 1
-  %7: I32 = const 2
-  %8: %I32 = run.slots I32 *2
-  %9: Size = bitcast inspect %8
-  %10: Size = const 0
-  %11: Bool = eq inspect %9 inspect %10
-  %12: {} = call checkCondition borrow.shared %11
-  %13: @bits(30) U32 = const 2
-  %14: @bits(2) U32 = const 1
-  %15: Run(I32) = aggregate.Run take %8 take %13 take %14
-  %16: @bits(30) U32 = const 2
-  %17: Array(I32) = aggregate.Array take %15 take %16
-  write.init borrow.unique (local0) take %17
-  %19: Size = const 0
-  write.init borrow.unique ([%%8][0]) take %6
-  %21: Size = const 1
-  write.init borrow.unique ([%%8][1]) take %7
-  %23: Array(I32) = read take (local0)
-  write.init borrow.unique (local1) take %23
-  %25: Array(I32) [shared slot 0] = read borrow.shared (local1) loan0
-  %26: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %25 roots{0}
-  %27: I32 = call total borrow.shared %26
-  drop (local1)
-  %28: I32 = add inspect %5 inspect %27
-  return take %28
+  write.init borrow.unique (local0) take %3
+  %5: [I32 *3] [shared call] = read borrow.shared (local0) loan0
+  %6: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %5 roots{0}
+  %7: I32 = call total borrow.shared %6
+  %8: I32 = const 1
+  %9: I32 = const 2
+  %10: %I32 = run.slots I32 *2
+  %11: Size = bitcast inspect %10
+  %12: Size = const 0
+  %13: Bool = eq inspect %11 inspect %12
+  %14: {} = call checkCondition borrow.shared %13
+  %15: @bits(30) U32 = const 2
+  %16: @bits(2) U32 = const 1
+  %17: Run(I32) = aggregate.Run take %10 take %15 take %16
+  %18: @bits(30) U32 = const 2
+  %19: Array(I32) = aggregate.Array take %17 take %18
+  write.init borrow.unique (local1) take %19
+  %21: Size = const 0
+  write.init borrow.unique ([%%10][0]) take %8
+  %23: Size = const 1
+  write.init borrow.unique ([%%10][1]) take %9
+  %25: Array(I32) = read take (local1)
+  write.init borrow.unique (local2) take %25
+  %27: Array(I32) [shared slot 0] = read borrow.shared (local2) loan1
+  %28: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %27 roots{1}
+  %29: I32 = call total borrow.shared %28
+  drop (local2)
+  %30: I32 = add inspect %7 inspect %29
+  return take %30
 }
 
 fn consume(xs: Array(I32)) -> I32 {
@@ -465,7 +468,7 @@ fn traversed() -> I32 {
   local local2: I32 [shared slot 0]
   local first: I32
   local & sum: I32
-  local v: I32 [shared call]
+  local v: I32 [shared slot 0]
 
 bb0:
   %0: I32 = const 1
@@ -502,7 +505,7 @@ bb0:
   write.init borrow.unique (first) take %30
   %32: I32 = const 0
   write.init borrow.unique (sum) take %32
-  %34: Array(I32) [shared call] = read borrow.shared (xs) loan1
+  %34: Array(I32) [shared slot 0] = read borrow.shared (xs) loan1
   %35: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %34 roots{1}
   lens.call items(Array(I32), I32) borrow.shared %35 -> bb2
 
@@ -513,7 +516,7 @@ bb1:
   %46: I32 = add inspect %44 inspect %45
   return take %46
 
-bb2(%36: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+bb2(%36: I32 [shared slot 0]) handover(I32 [shared slot 0]) many -> bb1:
   write.init borrow.unique (v) borrow.shared %36
   %39: I32 = read copy.trivial (sum)
   %40: I32 = read copy.trivial (v)
@@ -525,7 +528,7 @@ bb2(%36: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
 fn traversedFixed() -> I32 {
   local & xs: [I32 *3]
   local & sum: I32
-  local v: I32 [shared call]
+  local v: I32 [shared slot 0]
 
 bb0:
   %0: I32 = const 2
@@ -535,14 +538,14 @@ bb0:
   write.init borrow.unique (xs) take %3
   %5: I32 = const 0
   write.init borrow.unique (sum) take %5
-  %7: [I32 *3] = read copy.trivial (xs)
+  %7: [I32 *3] [shared slot 0] = read borrow.shared (xs) loan0
   lens.call items([I32 *3], I32) borrow.shared %7 -> bb2
 
 bb1:
   %16: I32 = read copy.trivial (sum)
   return take %16
 
-bb2(%8: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+bb2(%8: I32 [shared slot 0]) handover(I32 [shared slot 0]) many -> bb1:
   write.init borrow.unique (v) borrow.shared %8
   %11: I32 = read copy.trivial (sum)
   %12: I32 = read copy.trivial (v)

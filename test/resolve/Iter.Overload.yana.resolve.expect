@@ -209,10 +209,11 @@ fn main() -> I32 {
     %v45 = load [%v41]@Array.length : @bits(30) U32
     %v46 = cast %v45 : Size
     init %xs@ArrayView.length, %v46
-    %v48 = call Chunked(Array(a), a).chunks(I32, ()), %xs, %v37 : Outcome((), ())
+    %v48 = borrow %xs : 'ArrayView(I32)
+    %v49 = call Chunked(Array(a), a).chunks(I32, ()), %v48, %v37 : Outcome((), ())
     drop %local5 via Reclaim(Array(a)).reclaim(I32)
-    %v49 = load %total : I32
-    ret %v49
+    %v50 = load %total : I32
+    ret %v50
 }
 
 fn ResolveTest.continuation$23(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {

@@ -8,9 +8,11 @@ import Native
 -- conversion - it is that there is nothing to build one out of. A shared window was made over a
 -- shared borrow of its owner, other views of that owner may be live, and no later step can make
 -- that borrow exclusive after the fact.
+--
+-- # resolver: ownership
 
 data View {buf: '[Int], at: Int}
-data Cursor {buf: &[Int], at: Int}
+data Cursor {buf: &'[Int], at: Int}
 
 -- The window is shared, and storing it where an exclusive one is wanted would hand out a write to
 -- storage `v` is still watching.

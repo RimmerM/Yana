@@ -1,0 +1,231 @@
+module ResolveTest
+
+data Cell {value: I32}
+
+data Loose {held: 0'Array(I32)} shape1
+
+data Store {held: 0'Cell} shape2
+
+let & gArr: Array(I32)
+
+let & gOther: Array(I32)
+
+let gCell: Cell = Cell {value: 4}
+
+let & gSpare: Cell = Cell {value: 6}
+
+let & gLoose: Loose
+
+let & gStore: Store
+
+fn remember(store: Store [unique call shape2 .0=shared slot 0], value: Cell [shared slot 0]) -> {} {
+  local & local2: Store
+
+bb0:
+  %0: Store [owned here shape2 .0=shared slot 0] = read copy.trivial (store)
+  write.init borrow.unique (local2) take %0
+  %2: Cell [shared slot 0] = read borrow.shared (value) loan0
+  write.init borrow.unique (local2.held) borrow.shared %2
+  %4: Store = read copy.trivial (local2) roots{0} roots.0{0}
+  write.assign borrow.unique (store) take %4
+  return
+}
+
+fn repoint() -> {} {
+  local & local0: Loose
+
+bb0:
+  %0: Loose = read copy.trivial (global gLoose)
+  write.init borrow.unique (local0) take %0
+  %2: Array(I32) [shared slot 0] = read borrow.shared (global gOther) loan0
+  %3: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %2 roots{0}
+  write.init borrow.unique (local0.held) borrow.shared %3
+  %5: Loose = read copy.trivial (local0) roots{0} roots.0{0}
+  write.assign borrow.unique (global gLoose) take %5
+  return
+}
+
+fn narrow() -> {} {
+bb0:
+  %0: Array(I32) [shared call] = read borrow.shared (global gArr) loan0
+  %1: Size = const 1
+  %2: Size = const 3
+  %3: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %0 roots{0}
+  %4: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %3 borrow.shared %1 borrow.shared %2 roots{0}
+  %5: Loose = aggregate.Loose borrow.shared %4 roots.0{0}
+  write.assign borrow.unique (global gLoose) take %5
+  return
+}
+
+fn viaBinding() -> {} {
+  local w: Array(I32) [shared call]
+  local & local1: Loose
+
+bb0:
+  %0: Array(I32) [shared call] = read borrow.shared (global gOther) loan0
+  write.init borrow.unique (w) borrow.shared %0
+  %2: Loose = read copy.trivial (global gLoose)
+  write.init borrow.unique (local1) take %2
+  %4: Array(I32) [shared slot 0] = read borrow.shared (w) loan1 roots{0}
+  %5: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %4 roots{0, 1}
+  write.init borrow.unique (local1.held) borrow.shared %5
+  %7: Loose = read copy.trivial (local1) roots{0, 1} roots.0{0, 1}
+  write.assign borrow.unique (global gLoose) take %7
+  return
+}
+
+fn total(xs: Array(I32) [shared slot 0 view]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: Array(I32) [shared slot 0 view] = read borrow.shared (xs) loan0
+  lens.call items(Array(I32), I32) borrow.shared %2 -> bb2
+
+bb1:
+  %10: I32 = read copy.trivial (sum)
+  return take %10
+
+bb2(%3: I32 [shared slot 0]) handover(I32 [shared slot 0]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 [unique call] = read borrow.unique (sum) loan1
+  %7: I32 = read copy.trivial (x)
+  %8: {} = call +=(I32) borrow.unique %6 borrow.shared %7
+  jump -> bb1
+}
+
+fn main() -> I32 {
+  local first: I32
+  local local1: I32 [shared slot 0]
+  local second: I32
+  local third: I32
+  local local4: I32 [shared slot 0]
+  local fourth: I32
+  local local6: I32 [shared slot 0]
+  local fifth: I32
+  local before: I32
+
+bb0:
+  %0: Array(I32) [shared slot 0 view] = read borrow.shared (global gLoose.held) loan0
+  %1: I32 = call total borrow.shared %0
+  write.init borrow.unique (first) take %1
+  %3: {} = call repoint
+  %4: Size = const 0
+  %5: Array(I32) [shared slot 0 view] = read borrow.shared (global gLoose.held) loan1
+  %6: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %5 borrow.shared %4 roots{1}
+  write.init borrow.unique (local1) borrow.shared %6
+  %8: I32 = read copy.trivial (local1)
+  write.init borrow.unique (second) take %8
+  %10: {} = call narrow
+  %11: Array(I32) [shared slot 0 view] = read borrow.shared (global gLoose.held) loan2
+  %12: I32 = call total borrow.shared %11
+  write.init borrow.unique (third) take %12
+  %14: Size = const 0
+  %15: Array(I32) [shared slot 0 view] = read borrow.shared (global gLoose.held) loan3
+  %16: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %15 borrow.shared %14 roots{3}
+  write.init borrow.unique (local4) borrow.shared %16
+  %18: I32 = read copy.trivial (local4)
+  write.init borrow.unique (fourth) take %18
+  %20: {} = call viaBinding
+  %21: Size = const 2
+  %22: Array(I32) [shared slot 0 view] = read borrow.shared (global gLoose.held) loan4
+  %23: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %22 borrow.shared %21 roots{4}
+  write.init borrow.unique (local6) borrow.shared %23
+  %25: I32 = read copy.trivial (local6)
+  write.init borrow.unique (fifth) take %25
+  %27: I32 = read copy.trivial (global gStore.held.value)
+  write.init borrow.unique (before) take %27
+  %29: Store [unique call] = read borrow.unique (global gStore) loan5
+  %30: Cell [shared slot 0] = read borrow.shared (global gSpare) loan6
+  %31: {} = call remember borrow.unique %29 borrow.shared %30
+  %32: I32 = read copy.trivial (first)
+  %33: I32 = const 1000000
+  %34: I32 = mul inspect %32 inspect %33
+  %35: I32 = read copy.trivial (second)
+  %36: I32 = const 100000
+  %37: I32 = mul inspect %35 inspect %36
+  %38: I32 = add inspect %34 inspect %37
+  %39: I32 = read copy.trivial (third)
+  %40: I32 = const 10000
+  %41: I32 = mul inspect %39 inspect %40
+  %42: I32 = add inspect %38 inspect %41
+  %43: I32 = read copy.trivial (fourth)
+  %44: I32 = const 1000
+  %45: I32 = mul inspect %43 inspect %44
+  %46: I32 = add inspect %42 inspect %45
+  %47: I32 = read copy.trivial (fifth)
+  %48: I32 = const 100
+  %49: I32 = mul inspect %47 inspect %48
+  %50: I32 = add inspect %46 inspect %49
+  %51: I32 = read copy.trivial (before)
+  %52: I32 = const 10
+  %53: I32 = mul inspect %51 inspect %52
+  %54: I32 = add inspect %50 inspect %53
+  %55: I32 = read copy.trivial (global gStore.held.value)
+  %56: I32 = add inspect %54 inspect %55
+  return take %56
+}
+
+fn main$() -> I32 {
+  local & local0: Array(I32)
+  local & local1: Array(I32)
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: I32 = const 3
+  %3: %I32 = run.slots I32 *3
+  %4: Size = bitcast inspect %3
+  %5: Size = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  %7: {} = call checkCondition borrow.shared %6
+  %8: @bits(30) U32 = const 3
+  %9: @bits(2) U32 = const 1
+  %10: Run(I32) = aggregate.Run take %3 take %8 take %9
+  %11: @bits(30) U32 = const 3
+  %12: Array(I32) = aggregate.Array take %10 take %11
+  write.init borrow.unique (local0) take %12
+  %14: Size = const 0
+  write.init borrow.unique ([%%3][0]) take %0
+  %16: Size = const 1
+  write.init borrow.unique ([%%3][1]) take %1
+  %18: Size = const 2
+  write.init borrow.unique ([%%3][2]) take %2
+  %20: Array(I32) = read take (local0)
+  write.init borrow.unique (global gArr) take %20
+  %22: I32 = const 7
+  %23: I32 = const 8
+  %24: I32 = const 9
+  %25: %I32 = run.slots I32 *3
+  %26: Size = bitcast inspect %25
+  %27: Size = const 0
+  %28: Bool = eq inspect %26 inspect %27
+  %29: {} = call checkCondition borrow.shared %28
+  %30: @bits(30) U32 = const 3
+  %31: @bits(2) U32 = const 1
+  %32: Run(I32) = aggregate.Run take %25 take %30 take %31
+  %33: @bits(30) U32 = const 3
+  %34: Array(I32) = aggregate.Array take %32 take %33
+  write.init borrow.unique (local1) take %34
+  %36: Size = const 0
+  write.init borrow.unique ([%%25][0]) take %22
+  %38: Size = const 1
+  write.init borrow.unique ([%%25][1]) take %23
+  %40: Size = const 2
+  write.init borrow.unique ([%%25][2]) take %24
+  %42: Array(I32) = read take (local1)
+  write.init borrow.unique (global gOther) take %42
+  %44: Array(I32) [shared slot 0] = read borrow.shared (global gArr) loan0
+  %45: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %44 roots{0}
+  %46: Loose = aggregate.Loose borrow.shared %45 roots.0{0}
+  write.init borrow.unique (global gLoose) take %46
+  %48: Cell [shared slot 0] = read borrow.shared (global gCell) loan1
+  %49: Store = aggregate.Store borrow.shared %48 roots.0{1}
+  write.init borrow.unique (global gStore) take %49
+  %51: I32 = call main
+  return take %51
+}
+
+entry main$

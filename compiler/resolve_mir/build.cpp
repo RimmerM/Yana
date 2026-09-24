@@ -354,7 +354,23 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
          */
         auto position = fieldContract(declBase(), viewed ? nullptr : parent.occurrence.shape,
                                       declared);
-        auto member = Occurrence { declared.occurrence.type, position, declared.occurrence.shape };
+        /*
+         * And what is **inside** the field is the parent's shape one step down, where it says
+         * anything there - the reading half of the construction's `under` in `resolveConstruct`.
+         * `Maybe(%s'I32)` binds the payload's pointee, and a projection that took the field's
+         * declared shape instead handed `Just(p)` a bare `%I32`: the copy out of it then carried no
+         * origin, which is how an iterator object's `%yield'` item outlived the step (J125).
+         *
+         * It **replaces** the declared shape rather than merging with it, and that is sound only
+         * because the two cannot both say something: a written type qualifies a field of the type
+         * it is written on and no deeper ("a qualifier reaches only a field of the type it is
+         * written on"), so a declared field shape and a parent's position under it never meet. A
+         * rule letting a qualifier reach two records deep would need a merge here.
+         */
+        auto inside = viewed ? nullptr
+                             : program.shapes.under(parent.occurrence.shape, PathStep::field(index));
+        auto member = Occurrence { declared.occurrence.type, position,
+                                   inside ? inside : declared.occurrence.shape };
 
         if(position.isOwned()) {
             return internPlace(Place::Field, &parent, index, requalified(member, held), writable);
@@ -1741,6 +1757,12 @@ void Builder::pruneUnreachable() {
         auto region = body.region(base(), ContinuationId(i));
         region->entry = renumber(region->entry);
         region->destination = renumber(region->destination);
+
+        // And the skip target, which is a block index for the same reason `destination` is. A
+        // skipping call whose continuation and alternative both leave has a join nothing enters,
+        // made before the alternative - so this is the one shape where pruning moves the
+        // alternative, and an index left unrenumbered would name the region's own entry.
+        region->otherwise = renumber(region->otherwise);
     }
 }
 

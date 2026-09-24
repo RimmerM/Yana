@@ -193,7 +193,7 @@ bb2:
   jump -> bb4
 
 bb3:
-  %14: words.Iter [unique call shape9 .2.0.*=shared slot 0] = read borrow.unique (spelling) loan2 roots.0{0}
+  %14: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0] = read borrow.unique (spelling) loan2 roots.0{0}
   %15: String = call words$take borrow.unique %14
   write.init borrow.unique (w) take %15
   %17: Size [unique call] = read borrow.unique (n) loan3
@@ -254,7 +254,7 @@ bb8:
 
 bb9:
   %49: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0] = read borrow.unique (h) loan9 roots.0{8}
-  %50: Maybe(String) [owned here shape1 .0=shared slot 0 view] = call next(words.Iter, String, {}) borrow.unique %49 roots.0{8, 9}
+  %50: Maybe(String) [owned here shape1 .0=shared slot 0 view] = call words$next borrow.unique %49 roots.0{8, 9}
   write.init borrow.unique (w) take %50
   %52: U8 = read copy.trivial (w.#)
   %53: U8 = const 1
@@ -287,11 +287,11 @@ fn words$step($self: words.Iter [unique call], $resume: I32, $cancel: Bool) -> B
 
 fn words$drop($self: words.Iter) -> {} = <no body>
 
-fn words$take($self: words.Iter [unique call]) -> String = <no body>
+fn words$take($self: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0]) -> String = <no body>
 
-fn words$next($self: words.Iter [unique slot 0]) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+fn words$next($self: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0]) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
 
-fn words$resume($self: words.Iter [unique slot 0], $v: {}) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+fn words$resume($self: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0], $v: {}) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
 
 fn guards$new() -> guards.Iter = <no body>
 

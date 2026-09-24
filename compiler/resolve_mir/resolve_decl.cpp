@@ -1516,6 +1516,7 @@ void Resolver::declareFieldsOf(ast::Decl& declaration, DeclPtr<RecordType> point
         for(auto existing: record->cons.contents(decl())) {
             if(existing.value != declared.value) continue;
 
+            record->valuesCollide = true;
             context.diagnostics.error("%@ and %@ are both %@ - a constructor's value has to be its own"_v,
                                       declared.source, context.findName(existing.name),
                                       context.findName(declared.name), declared.value);

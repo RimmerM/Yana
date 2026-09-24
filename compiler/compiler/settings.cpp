@@ -1829,6 +1829,24 @@ Result<void, String> checkSettings(const CompileSettings& settings) {
                                    "stage. Write -resolver legacy to reach it.", mode));
     }
 
+    /*
+     * `-specialize never`, asked of the stage that does not read it - the refusal above, for a
+     * switch rather than a mode.
+     *
+     * It is `compiler/resolve`'s `Program::Specialization::Generic` and nothing else reads it, so
+     * the rewrite would build a byte-identical binary with it and without it: a person
+     * comparing the two forms would have compared one form with itself. Refused rather than given a
+     * meaning here, because the rewrite's answer to "which form" is per declaration - it chooses,
+     * and `@generic` pins the erased one - and a switch forcing every generic erased is a feature
+     * (Analysis-IR.md §11.4's milestone 6 remainder) that this sentence should not pretend exists.
+     * `always` is the default and the rewrite's own behaviour, so it stays accepted.
+     */
+    if(settings.forceGeneric && settings.resolver != ResolverStage::Legacy) {
+        return Err(String("-specialize never is compiler/resolve's. The ownership stage chooses each "
+                          "generic's form itself, and @generic on a declaration pins the erased "
+                          "one - write that, or -resolver legacy for the switch."));
+    }
+
     // `-o` names the artifact, and `-to` is the one thing that says where a build goes. A separator
     // here would be a second answer to that question, and one that can point anywhere.
     for(Size i = 0; i < settings.outputName.size(); i++) {

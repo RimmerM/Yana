@@ -14,6 +14,8 @@
    stops before the analysis runs, so one file cannot show both.
 -}
 
+import Native
+
 let &trace = 0 :: I32
 
 data Guard {id: I32}
@@ -160,5 +162,21 @@ fn refilledLenderStillLive() -> I32:
     r = Reader {held: h, at: 1}
     h.id = 9
     return r.held.id
+
+-- A write through a raw pointer read out of storage, while a unique loan of what it may point at
+-- is live. The message names the storage as "what h.at points at" (J128): it used to print the
+-- dump's name for the pointer's target, `[%%11]`, which is nowhere in the source.
+data PointerHolder {at: %Cell}
+
+lens fn holding(&c: Cell) -> &I32:
+    yield c.v
+
+fn throughStoredPointer() -> I32:
+    let &c = Cell {v: 1}
+    let h = PointerHolder {at: addressOf(c)}
+    let r = holding(c) in:
+        store(h.at, Cell {v: 5})
+        r += 1
+    return c.v
 
 fn main() -> I32 = 0

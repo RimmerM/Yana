@@ -1,0 +1,466 @@
+module ResolveTest
+
+fn firstItem(xs: c [shared call]) -> a = <no body>
+
+fn widthSum(self: d [shared call], xs: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn countOf(xs: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn firstOf(xs: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn sumOf(xs: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn heldFirst(h: Holder(I32, n) [shared call]) -> I32 = <no body>
+
+fn aliased(xs: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn three() -> Holder(I32, 3) {
+bb0:
+  %0: I32 trivial = const 4
+  %1: I32 trivial = const 5
+  %2: I32 trivial = const 6
+  %3: [I32 *3] trivial = aggregate.0 consume %0 consume %1 consume %2
+  %4: Holder(I32, 3) trivial = aggregate.Holder consume %3
+  return consume %4
+}
+
+fn both(p: Pair(I32, 2) [shared call]) -> I32 {
+bb0(%0: Pair(I32, 2) [shared call] guaranteed):
+  %1: %[I32 *2] address = field.addr .left inspect %0
+  %2: [I32 *2] trivial = copy inspect %1
+  %3: I32 trivial = call firstOf(2) borrow %2
+  %4: %[I32 *2] address = field.addr .right inspect %0
+  %5: [I32 *2] trivial = copy inspect %4
+  %6: I32 trivial = call firstOf(2) borrow %5
+  %7: I32 trivial = add inspect %3 inspect %6
+  return consume %7
+}
+
+fn [I32 *n].firstItem(xs: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn [I32 *2].firstItem(xs: [I32 *2] [shared call]) -> I32 {
+bb0(%0: [I32 *2] [shared call] guaranteed):
+  %1: I32 trivial = const 100
+  return consume %1
+}
+
+fn Narrow.widthSum(self: Narrow [shared call], xs: [I32 *2] [shared call]) -> I32 {
+bb0(%0: Narrow [shared call] guaranteed, %1: [I32 *2] [shared call] guaranteed):
+  %2: Size trivial = const 0
+  %3: %I32 address = element.addr inspect %1 inspect %2
+  %4: I32 trivial = load inspect %3
+  %5: Size trivial = const 1
+  %6: %I32 address = element.addr inspect %1 inspect %5
+  %7: I32 trivial = load inspect %6
+  %8: I32 trivial = add inspect %4 inspect %7
+  %9: %I32 address = field.addr .bias inspect %0
+  %10: I32 trivial = load inspect %9
+  %11: I32 trivial = add inspect %8 inspect %10
+  return consume %11
+}
+
+fn Wide.widthSum(self: Wide [shared call], xs: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn widthThrough(s: d [shared call], xs: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn firstThrough(xs: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn doubled(xs: [I32 *n] [shared call]) -> [I32 *n] = <no body>
+
+fn mutatedCopy(xs: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn filled(like: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: %[I32 *4] address = alloc frame [I32 *4]
+  %1: %Pair(I32, 2) address = alloc frame Pair(I32, 2)
+  %2: %I32 address = alloc frame I32
+  %3: %[I32 *4] address = alloc frame [I32 *4]
+  %4: %[I32 *4] address = alloc frame [I32 *4]
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = alloc frame I32
+  %7: %I32 address = alloc frame I32
+  %8: %[I32 *2] address = alloc frame [I32 *2]
+  %9: %I32 address = alloc frame I32
+  %10: I32 trivial = const 7
+  %11: I32 trivial = const 2
+  %12: I32 trivial = const 3
+  %13: I32 trivial = const 4
+  %14: [I32 *4] trivial = aggregate.0 consume %10 consume %11 consume %12 consume %13
+  store inspect %0 consume %14
+  %15: I32 trivial = const 10
+  %16: I32 trivial = const 0
+  %17: [I32 *2] trivial = aggregate.0 consume %15 consume %16
+  %18: I32 trivial = const 100
+  %19: I32 trivial = const 0
+  %20: [I32 *2] trivial = aggregate.0 consume %18 consume %19
+  %21: Pair(I32, 2) trivial = aggregate.Pair consume %17 consume %20
+  store inspect %1 consume %21
+  %22: [I32 *4] trivial = copy inspect %0
+  %23: I32 trivial = call countOf(4) borrow %22
+  %24: [I32 *4] trivial = copy inspect %0
+  %25: I32 trivial = call firstOf(4) borrow %24
+  %26: I32 trivial = add inspect %23 inspect %25
+  %27: [I32 *4] trivial = copy inspect %0
+  %28: I32 trivial = call sumOf(4) borrow %27
+  %29: I32 trivial = add inspect %26 inspect %28
+  %30: Holder(I32, 3) trivial = call three
+  %31: I32 trivial = call heldFirst(3) borrow %30
+  %32: I32 trivial = add inspect %29 inspect %31
+  %33: Pair(I32, 2) trivial = copy inspect %1
+  %34: I32 trivial = call both borrow %33
+  %35: I32 trivial = add inspect %32 inspect %34
+  %36: %[I32 *2] address = field.addr .left inspect %1
+  %37: [I32 *2] trivial = copy inspect %36
+  %38: I32 trivial = call [I32 *2].firstItem borrow %37
+  %39: I32 trivial = add inspect %35 inspect %38
+  %40: [I32 *4] trivial = copy inspect %0
+  %41: I32 trivial = call [I32 *n].firstItem(4) borrow %40
+  %42: I32 trivial = add inspect %39 inspect %41
+  %43: [I32 *4] trivial = copy inspect %0
+  %44: I32 trivial = call aliased(4) borrow %43
+  %45: I32 trivial = add inspect %42 inspect %44
+  %46: %[I32 *2] address = field.addr .left inspect %1
+  %47: [I32 *2] trivial = copy inspect %46
+  %48: I32 trivial = call firstThrough(2) borrow %47
+  %49: I32 trivial = add inspect %45 inspect %48
+  %50: [I32 *4] trivial = copy inspect %0
+  %51: I32 trivial = call firstThrough(4) borrow %50
+  %52: I32 trivial = add inspect %49 inspect %51
+  store inspect %2 consume %52
+  %53: I32 trivial = const 7
+  %54: I32 trivial = const 2
+  %55: I32 trivial = const 3
+  %56: I32 trivial = const 4
+  %57: [I32 *4] trivial = aggregate.0 consume %53 consume %54 consume %55 consume %56
+  store inspect %3 consume %57
+  %58: [I32 *4] trivial = copy inspect %3
+  %59: [I32 *4] trivial = call doubled(4) borrow %58
+  store inspect %4 consume %59
+  %60: Size trivial = const 3
+  %61: %I32 address = element.addr inspect %4 inspect %60
+  %62: I32 trivial = load inspect %61
+  store inspect %5 consume %62
+  %63: [I32 *4] trivial = copy inspect %3
+  %64: I32 trivial = call mutatedCopy(4) borrow %63
+  %65: Size trivial = const 0
+  %66: %I32 address = element.addr inspect %3 inspect %65
+  %67: I32 trivial = load inspect %66
+  %68: I32 trivial = add inspect %64 inspect %67
+  store inspect %6 consume %68
+  %69: I32 trivial = load inspect %5
+  %70: I32 trivial = load inspect %6
+  %71: I32 trivial = add inspect %69 inspect %70
+  %72: [I32 *4] trivial = copy inspect %0
+  %73: I32 trivial = call filled(4) borrow %72
+  %74: I32 trivial = add inspect %71 inspect %73
+  store inspect %7 consume %74
+  %75: I32 trivial = const 10
+  %76: I32 trivial = const 0
+  %77: [I32 *2] trivial = aggregate.0 consume %75 consume %76
+  store inspect %8 consume %77
+  %78: I32 trivial = const 1
+  %79: Narrow trivial = aggregate.Narrow consume %78
+  %80: [I32 *2] trivial = copy inspect %8
+  %81: I32 trivial = call Narrow.widthSum borrow %79 borrow %80
+  %82: I32 trivial = const 1
+  %83: Wide trivial = aggregate.Wide consume %82
+  %84: [I32 *2] trivial = copy inspect %8
+  %85: I32 trivial = call Wide.widthSum(2) borrow %83 borrow %84
+  %86: I32 trivial = add inspect %81 inspect %85
+  %87: I32 trivial = const 1
+  %88: Wide trivial = aggregate.Wide consume %87
+  %89: [I32 *4] trivial = copy inspect %0
+  %90: I32 trivial = call widthThrough(4, Wide) borrow %88 borrow %89
+  %91: I32 trivial = add inspect %86 inspect %90
+  store inspect %9 consume %91
+  %92: I32 trivial = load inspect %2
+  %93: I32 trivial = load inspect %7
+  %94: I32 trivial = add inspect %92 inspect %93
+  %95: I32 trivial = load inspect %9
+  %96: I32 trivial = add inspect %94 inspect %95
+  return consume %96
+}
+
+fn countOf(4)(xs: [I32 *4] [shared call]) -> I32 {
+bb0(%0: [I32 *4] [shared call] guaranteed):
+  %1: I32 trivial = const 4
+  return consume %1
+}
+
+fn firstOf(4)(xs: [I32 *4] [shared call]) -> I32 {
+bb0(%0: [I32 *4] [shared call] guaranteed):
+  %1: Size trivial = const 0
+  %2: I32 trivial = const 4
+  %3: USize trivial = convert inspect %2
+  %4: USize trivial = bitcast inspect %1
+  %5: Bool trivial = ge inspect %4 inspect %3
+  call checkCondition borrow %5
+  %6: %I32 address = element.addr inspect %0 inspect %1
+  %7: I32 trivial = load inspect %6
+  return consume %7
+}
+
+fn sumOf(4)(xs: [I32 *4] [shared call]) -> I32 {
+bb0(%0: [I32 *4] [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = const 0
+  store inspect %1 consume %3
+  %4: I32 trivial = const 0
+  store inspect %2 consume %4
+  jump -> bb1
+
+bb1:
+  %5: I32 trivial = load inspect %2
+  %6: [I32 *4] trivial = copy inspect %0
+  %7: I32 trivial = call countOf(4) borrow %6
+  %8: Bool trivial = lt inspect %5 inspect %7
+  branch inspect %8 -> bb3 -> bb2
+
+bb2:
+  %9: I32 trivial = load inspect %1
+  return consume %9
+
+bb3:
+  %10: I32 trivial = load inspect %1
+  %11: I32 trivial = load inspect %2
+  %12: Size trivial = convert inspect %11
+  %13: I32 trivial = const 4
+  %14: USize trivial = convert inspect %13
+  %15: USize trivial = bitcast inspect %12
+  %16: Bool trivial = ge inspect %15 inspect %14
+  call checkCondition borrow %16
+  %17: %I32 address = element.addr inspect %0 inspect %12
+  %18: I32 trivial = load inspect %17
+  %19: I32 trivial = add inspect %10 inspect %18
+  store inspect %1 consume %19
+  %20: I32 trivial = load inspect %2
+  %21: I32 trivial = const 1
+  %22: I32 trivial = add inspect %20 inspect %21
+  store inspect %2 consume %22
+  jump -> bb1
+}
+
+fn heldFirst(3)(h: Holder(I32, 3) [shared call]) -> I32 {
+bb0(%0: Holder(I32, 3) [shared call] guaranteed):
+  %1: %[I32 *3] address = field.addr .items inspect %0
+  %2: [I32 *3] trivial = copy inspect %1
+  %3: I32 trivial = call firstOf(3) borrow %2
+  return consume %3
+}
+
+fn [I32 *n].firstItem(4)(xs: [I32 *4] [shared call]) -> I32 {
+bb0(%0: [I32 *4] [shared call] guaranteed):
+  %1: Size trivial = const 0
+  %2: I32 trivial = const 4
+  %3: USize trivial = convert inspect %2
+  %4: USize trivial = bitcast inspect %1
+  %5: Bool trivial = ge inspect %4 inspect %3
+  call checkCondition borrow %5
+  %6: %I32 address = element.addr inspect %0 inspect %1
+  %7: I32 trivial = load inspect %6
+  return consume %7
+}
+
+fn aliased(4)(xs: [I32 *4] [shared call]) -> I32 {
+bb0(%0: [I32 *4] [shared call] guaranteed):
+  %1: [I32 *4] trivial = copy inspect %0
+  %2: I32 trivial = call countOf(4) borrow %1
+  return consume %2
+}
+
+fn firstThrough(2)(xs: [I32 *2] [shared call]) -> I32 {
+bb0(%0: [I32 *2] [shared call] guaranteed):
+  %1: [I32 *2] trivial = copy inspect %0
+  %2: I32 trivial = call [I32 *2].firstItem borrow %1
+  return consume %2
+}
+
+fn firstThrough(4)(xs: [I32 *4] [shared call]) -> I32 {
+bb0(%0: [I32 *4] [shared call] guaranteed):
+  %1: [I32 *4] trivial = copy inspect %0
+  %2: I32 trivial = call [I32 *n].firstItem(4) borrow %1
+  return consume %2
+}
+
+fn doubled(4)(xs: [I32 *4] [shared call]) -> [I32 *4] {
+bb0(%0: [I32 *4] [shared call] guaranteed):
+  %1: %[I32 *4] address = alloc frame [I32 *4]
+  %2: %I32 address = alloc frame I32
+  %3: [I32 *4] trivial = copy inspect %0
+  store inspect %1 consume %3
+  %4: I32 trivial = const 0
+  store inspect %2 consume %4
+  jump -> bb1
+
+bb1:
+  %5: I32 trivial = load inspect %2
+  %6: I32 trivial = const 4
+  %7: Bool trivial = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %8: [I32 *4] trivial = copy inspect %1
+  return consume %8
+
+bb3:
+  %9: I32 trivial = load inspect %2
+  %10: Size trivial = convert inspect %9
+  %11: I32 trivial = const 4
+  %12: USize trivial = convert inspect %11
+  %13: USize trivial = bitcast inspect %10
+  %14: Bool trivial = ge inspect %13 inspect %12
+  call checkCondition borrow %14
+  %15: I32 trivial = load inspect %2
+  %16: Size trivial = convert inspect %15
+  %17: I32 trivial = const 4
+  %18: USize trivial = convert inspect %17
+  %19: USize trivial = bitcast inspect %16
+  %20: Bool trivial = ge inspect %19 inspect %18
+  call checkCondition borrow %20
+  %21: %I32 address = element.addr inspect %1 inspect %16
+  %22: I32 trivial = load inspect %21
+  %23: I32 trivial = const 2
+  %24: I32 trivial = mul inspect %22 inspect %23
+  %25: %I32 address = element.addr inspect %1 inspect %10
+  store inspect %25 consume %24
+  %26: I32 trivial = load inspect %2
+  %27: I32 trivial = const 1
+  %28: I32 trivial = add inspect %26 inspect %27
+  store inspect %2 consume %28
+  jump -> bb1
+}
+
+fn mutatedCopy(4)(xs: [I32 *4] [shared call]) -> I32 {
+bb0(%0: [I32 *4] [shared call] guaranteed):
+  %1: %[I32 *4] address = alloc frame [I32 *4]
+  %2: [I32 *4] trivial = copy inspect %0
+  store inspect %1 consume %2
+  %3: Size trivial = const 0
+  %4: I32 trivial = const 4
+  %5: USize trivial = convert inspect %4
+  %6: USize trivial = bitcast inspect %3
+  %7: Bool trivial = ge inspect %6 inspect %5
+  call checkCondition borrow %7
+  %8: Size trivial = const 0
+  %9: I32 trivial = const 4
+  %10: USize trivial = convert inspect %9
+  %11: USize trivial = bitcast inspect %8
+  %12: Bool trivial = ge inspect %11 inspect %10
+  call checkCondition borrow %12
+  %13: %I32 address = element.addr inspect %1 inspect %8
+  %14: I32 trivial = load inspect %13
+  %15: I32 trivial = const 1
+  %16: I32 trivial = add inspect %14 inspect %15
+  %17: %I32 address = element.addr inspect %1 inspect %3
+  store inspect %17 consume %16
+  %18: Size trivial = const 0
+  %19: I32 trivial = const 4
+  %20: USize trivial = convert inspect %19
+  %21: USize trivial = bitcast inspect %18
+  %22: Bool trivial = ge inspect %21 inspect %20
+  call checkCondition borrow %22
+  %23: %I32 address = element.addr inspect %1 inspect %18
+  %24: I32 trivial = load inspect %23
+  return consume %24
+}
+
+fn filled(4)(like: [I32 *4] [shared call]) -> I32 {
+bb0(%0: [I32 *4] [shared call] guaranteed):
+  %1: %[I32 *4] address = alloc frame [I32 *4]
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: I32 trivial = const 7
+  %5: [I32 *4] trivial = aggregate.0 consume %4 consume %4 consume %4 consume %4
+  store inspect %1 consume %5
+  %6: I32 trivial = const 0
+  store inspect %2 consume %6
+  %7: I32 trivial = const 0
+  store inspect %3 consume %7
+  jump -> bb1
+
+bb1:
+  %8: I32 trivial = load inspect %3
+  %9: I32 trivial = const 4
+  %10: Bool trivial = lt inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb2
+
+bb2:
+  %11: I32 trivial = load inspect %2
+  return consume %11
+
+bb3:
+  %12: I32 trivial = load inspect %2
+  %13: I32 trivial = load inspect %3
+  %14: Size trivial = convert inspect %13
+  %15: I32 trivial = const 4
+  %16: USize trivial = convert inspect %15
+  %17: USize trivial = bitcast inspect %14
+  %18: Bool trivial = ge inspect %17 inspect %16
+  call checkCondition borrow %18
+  %19: %I32 address = element.addr inspect %1 inspect %14
+  %20: I32 trivial = load inspect %19
+  %21: I32 trivial = add inspect %12 inspect %20
+  store inspect %2 consume %21
+  %22: I32 trivial = load inspect %3
+  %23: I32 trivial = const 1
+  %24: I32 trivial = add inspect %22 inspect %23
+  store inspect %3 consume %24
+  jump -> bb1
+}
+
+fn Wide.widthSum(2)(self: Wide [shared call], xs: [I32 *2] [shared call]) -> I32 {
+bb0(%0: Wide [shared call] guaranteed, %1: [I32 *2] [shared call] guaranteed):
+  %2: I32 trivial = const 2
+  %3: %I32 address = field.addr .bias inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = add inspect %2 inspect %4
+  return consume %5
+}
+
+fn widthThrough(4, Wide)(s: Wide [shared call], xs: [I32 *4] [shared call]) -> I32 {
+bb0(%0: Wide [shared call] guaranteed, %1: [I32 *4] [shared call] guaranteed):
+  %2: Wide [shared call] guaranteed from{%0} = load inspect %0
+  %3: [I32 *4] trivial = copy inspect %1
+  %4: I32 trivial = call Wide.widthSum(4) borrow %2 borrow %3
+  return consume %4
+}
+
+fn firstOf(3)(xs: [I32 *3] [shared call]) -> I32 {
+bb0(%0: [I32 *3] [shared call] guaranteed):
+  %1: Size trivial = const 0
+  %2: I32 trivial = const 3
+  %3: USize trivial = convert inspect %2
+  %4: USize trivial = bitcast inspect %1
+  %5: Bool trivial = ge inspect %4 inspect %3
+  call checkCondition borrow %5
+  %6: %I32 address = element.addr inspect %0 inspect %1
+  %7: I32 trivial = load inspect %6
+  return consume %7
+}
+
+fn firstOf(2)(xs: [I32 *2] [shared call]) -> I32 {
+bb0(%0: [I32 *2] [shared call] guaranteed):
+  %1: Size trivial = const 0
+  %2: I32 trivial = const 2
+  %3: USize trivial = convert inspect %2
+  %4: USize trivial = bitcast inspect %1
+  %5: Bool trivial = ge inspect %4 inspect %3
+  call checkCondition borrow %5
+  %6: %I32 address = element.addr inspect %0 inspect %1
+  %7: I32 trivial = load inspect %6
+  return consume %7
+}
+
+fn Wide.widthSum(4)(self: Wide [shared call], xs: [I32 *4] [shared call]) -> I32 {
+bb0(%0: Wide [shared call] guaranteed, %1: [I32 *4] [shared call] guaranteed):
+  %2: I32 trivial = const 4
+  %3: %I32 address = field.addr .bias inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = add inspect %2 inspect %4
+  return consume %5
+}
+
+entry main

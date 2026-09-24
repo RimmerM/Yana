@@ -287,7 +287,7 @@ bb0:
   %1: Tree.walk.Iter = call Tree.walk$new take %0
   write.init borrow.unique (it) take %1
   %3: Tree.walk.Iter [unique slot 0] = read borrow.unique (it) loan0
-  %4: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(Tree.walk.Iter, I32, {}) borrow.unique %3 roots.0{0}
+  %4: Maybe(I32) [owned here shape2 .0=shared slot 0] = call Tree.walk$next borrow.unique %3 roots.0{0}
   write.init borrow.unique (local2) take %4
   %6: U8 = read copy.trivial (local2.#)
   %7: U8 = const 1
@@ -623,7 +623,7 @@ bb2:
 
 bb3:
   %10: iter(I32) [unique slot 0] = read borrow.unique (it) loan1
-  %11: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(iter(I32), I32, {}) borrow.unique %10 roots.0{1}
+  %11: Maybe(I32) [owned here shape2 .0=shared slot 0] = call iter(I32)$next borrow.unique %10 roots.0{1}
   write.init borrow.unique (local4) take %11
   %13: U8 = read copy.trivial (local4.#)
   %14: U8 = const 1
@@ -1028,7 +1028,7 @@ fn chunkedByFor(xs: c [shared call]) -> I32 {
   local local7: I32 [shared slot 0]
 
 bb0:
-  %0: c [shared call] = read borrow.shared (xs) loan0
+  %0: c [shared slot 0] = read borrow.shared (xs) loan0
   %1: iter(Array(I32)) = call chunks$obj(c, I32) borrow.shared %0
   write.init borrow.unique (it) take %1
   %3: I32 = const 0
@@ -1104,7 +1104,7 @@ fn chunkedByNext(xs: c [shared call]) -> I32 {
   local local8: I32 [shared slot 0]
 
 bb0:
-  %0: c [shared call] = read borrow.shared (xs) loan0
+  %0: c [shared slot 0] = read borrow.shared (xs) loan0
   %1: iter(Array(I32)) = call chunks$obj(c, I32) borrow.shared %0
   write.init borrow.unique (it) take %1
   %3: I32 = const 0
@@ -1124,7 +1124,7 @@ bb2:
 
 bb3:
   %10: iter(Array(I32)) [unique slot 0] = read borrow.unique (it) loan1
-  %11: Maybe(Array(I32)) [owned here shape1 .0=shared slot 0 view] = call next(iter(Array(I32)), Array(I32), {}) borrow.unique %10 roots.0{1}
+  %11: Maybe(Array(I32)) [owned here shape1 .0=shared slot 0 view] = call iter(Array(I32))$next borrow.unique %10 roots.0{1}
   write.init borrow.unique (local4) take %11
   %13: U8 = read copy.trivial (local4.#)
   %14: U8 = const 1
@@ -1188,7 +1188,7 @@ fn chunkedByField(xs: c [shared call]) -> I32 {
   local local6: I32 [shared slot 0]
 
 bb0:
-  %0: c [shared call] = read borrow.shared (xs) loan0
+  %0: c [shared slot 0] = read borrow.shared (xs) loan0
   %1: iter(Array(I32)) = call chunks$obj(c, I32) borrow.shared %0
   %2: I32 = const 0
   %3: Held(iter(Array(I32))) = aggregate.Held take %1 take %2
@@ -1263,7 +1263,7 @@ fn chunkedSelected(xs: c [shared call]) -> I32 {
   local local7: I32 [shared slot 0]
 
 bb0:
-  %0: c [shared call] = read borrow.shared (xs) loan0
+  %0: c [shared slot 0] = read borrow.shared (xs) loan0
   %1: iter(Array(I32)) = call chunks$obj(c, I32) borrow.shared %0
   write.init borrow.unique (it) take %1
   %3: I32 = const 0
@@ -1327,7 +1327,7 @@ bb7(%33: Size, %34: Size):
 
 fn chunkedConcrete(xs: Array(I32) [shared call view]) -> I32 {
   local & total: I32
-  local chunk: Array(I32) [shared call view]
+  local chunk: Array(I32) [shared slot 0 view]
   local & local3: Size
   local i: Size
   local local5: I32 [shared slot 0]
@@ -1335,42 +1335,42 @@ fn chunkedConcrete(xs: Array(I32) [shared call view]) -> I32 {
 bb0:
   %0: I32 = const 0
   write.init borrow.unique (total) take %0
-  %2: Array(I32) [shared call view] = read borrow.shared (xs) loan0
+  %2: Array(I32) [shared slot 0 view] = read borrow.shared (xs) loan0
   lens.call chunks(Array(I32), I32) borrow.shared %2 -> bb2
 
 bb1:
   %38: I32 = read copy.trivial (total)
   return take %38
 
-bb2(%3: Array(I32) [shared call view]) handover(Array(I32) [shared call view]) many -> bb1:
+bb2(%3: Array(I32) [shared slot 0 view]) handover(Array(I32) [shared slot 0 view]) many -> bb1:
   write.init borrow.unique (chunk) borrow.shared %3
-  %6: Array(I32) [shared call view] = read borrow.shared (chunk) loan1 roots{0}
+  %6: Array(I32) [shared slot 0 view] = read borrow.shared (chunk) loan1 roots{0}
   %7: Size = call length(Array(I32)) borrow.shared %6
   %8: Size = const 0
   %9: Size = const 1
   write.init borrow.unique (local3) take %8
   jump -> bb3(take %7, take %9)
 
-bb3(%10: Size, %11: Size) handover(Array(I32) [shared call view]) many:
+bb3(%10: Size, %11: Size) handover(Array(I32) [shared slot 0 view]) many:
   %18: Size = read copy.trivial (local3)
   %19: Bool = lt inspect %18 inspect %10
   branch inspect %19 -> bb6(take %10, take %11) -> bb5(take %10, take %11)
 
-bb4(%12: Size, %13: Size) handover(Array(I32) [shared call view]) many:
+bb4(%12: Size, %13: Size) handover(Array(I32) [shared slot 0 view]) many:
   %33: Size = read copy.trivial (local3)
   %34: Size = add inspect %33 inspect %13
   write.assign borrow.unique (local3) take %34
   jump -> bb3(take %12, take %13)
 
-bb5(%14: Size, %15: Size) handover(Array(I32) [shared call view]) many:
+bb5(%14: Size, %15: Size) handover(Array(I32) [shared slot 0 view]) many:
   jump -> bb1
 
-bb6(%20: Size, %21: Size) handover(Array(I32) [shared call view]) many:
+bb6(%20: Size, %21: Size) handover(Array(I32) [shared slot 0 view]) many:
   %23: Size = read copy.trivial (local3)
   write.init borrow.unique (i) take %23
   %25: I32 [unique call] = read borrow.unique (total) loan2
   %26: Size = read copy.trivial (i)
-  %27: Array(I32) [shared call view] = read borrow.shared (chunk) loan3 roots{0}
+  %27: Array(I32) [shared slot 0 view] = read borrow.shared (chunk) loan3 roots{0}
   %28: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %27 borrow.shared %26 roots{0, 3}
   write.init borrow.unique (local5) borrow.shared %28
   %30: I32 = read copy.trivial (local5)
@@ -1657,9 +1657,9 @@ fn Branch.descend$drop($self: Branch.descend.Iter) -> {} = <no body>
 
 fn Branch.descend$item($self: Branch.descend.Iter [shared slot 0], $at: %I32) -> I32 [shared slot 0] = <no body>
 
-fn Branch.descend$next($self: Branch.descend.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn Branch.descend$next($self: Branch.descend.Iter [unique slot 0 shape8 .2.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn Branch.descend$resume($self: Branch.descend.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn Branch.descend$resume($self: Branch.descend.Iter [unique slot 0 shape8 .2.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn Branch.descend$erased.step($env: Branch.descend.Iter [unique call], $sent: I32, $cancel: Bool) -> %I32 = <no body>
 

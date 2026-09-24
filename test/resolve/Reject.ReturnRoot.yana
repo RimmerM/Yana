@@ -1,32 +1,31 @@
 -- What the return-root rules reject. Each function is one rule.
+--
+-- # resolver: ownership
+-- # recover: yes - every rule below is reported in one compile, the way the command line reports them.
 
 data Point {x: Int, y: Int}
 
 -- A result that is a borrow, with nothing declared to root it in.
 fn unrooted(p: Point) -> 'Int = p.x
 
--- `return` on a value that arrives in a register: what the body sees is a copy of its own, so
--- there is no caller-side storage for the result to be rooted in. Rejected twice, and the second one
--- is what says the rule holds however the borrow was taken: a value naming no storage is given a
--- frame slot to be borrowed from (convertBorrow), so what reaches the result is a reference to this
--- frame - and the return-root check answers a reference to this frame the same way whatever made it.
-fn copied(return n: Int) -> 'Int = n
+-- `copied(n: 'Int) -> 'Int = n`, a register copy with nothing to root, is legal: in the origin
+-- model `n` is the caller's storage (ownership.md, "External origins and returned borrows").
 
--- `return` on a sunk argument: the callee owns it, so nothing survives the call to be rooted in.
-fn sunk(return ->p: Point) -> 'Int = p.x
+-- `'` on a sunk argument: the callee owns it, so nothing survives the call to be rooted in.
+fn sunk(->p: 'Point) -> 'Int = p.x
 
 -- A borrow of storage this frame owns. It stops existing when the frame does, whatever the
 -- signature declared.
-fn ofLocal(return p: Point) -> 'Int:
+fn ofLocal(p: 'Point) -> 'Int:
     let here = Point {x: 1, y: 2}
     return here.x
 
 -- A borrow rooted in an argument the signature did not mark.
-fn wrongRoot(return a: Point, b: Point) -> 'Int = b.y
+fn wrongRoot(a: 'Point, b: Point) -> 'Int = b.y
 
--- The loan a `return` argument creates outlives the call, so writing through the original while
+-- The loan a `'` argument creates outlives the call, so writing through the original while
 -- the result is still live is two writers of one place.
-fn larger(return &a: Int, return &b: Int) -> &Int = if a > b then a else b
+fn larger(&a: 'Int, &b: 'Int) -> &'Int = if a > b then a else b
 
 fn loanSurvivesCall() -> Int:
     let &first = 1 :: Int
@@ -36,12 +35,8 @@ fn loanSurvivesCall() -> Int:
     first = 5
     return picked
 
--- `let &` on a borrow that was never exclusive.
-fn immutableBinding(return p: Point) -> Int:
-    let &field = xOfPoint(p)
-    return field
-
-fn xOfPoint(return p: Point) -> 'Int = p.x
+-- `let &field = xOfPoint(p)` over a shared borrow is legal: `let &` asks only for
+-- storage and copies a `TrivialCopy` value (ownership.md, "The two axes of a `let`").
 
 {-
    The two-call chain, rooted where the signature cannot hand it back.
@@ -54,6 +49,6 @@ fn xOfPoint(return p: Point) -> 'Int = p.x
 -}
 fn undeclaredWindow(xs: Array(Int)) -> '[Int] = slice(elements(xs), 0, 2)
 
-fn localWindow(return xs: Array(Int)) -> '[Int]:
+fn localWindow(xs: 'Array(Int)) -> '[Int]:
     let here = newArray(4, (i: Size) -> 1 :: Int)
     return slice(elements(here), 0, 2)

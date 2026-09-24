@@ -251,6 +251,11 @@ struct ClobberSite {
 struct RegisterClaim {
     LiveId web = LiveId(0);
 
+    // Whether the web has a folded-address pair at all - see FoldConflict. Copied here from the
+    // web's list when the claim is made, so that isFree can pass over an occupant with none without
+    // reading anything the claim does not hold; it sits in what was padding.
+    bool folds = false;
+
     // Where the stretches this claim covers sit in PlacementScratch::claimRanges - sorted, disjoint,
     // and in program points. `count == 0` is the whole-life claim above, whose stretches are the
     // web's own interval and are not copied anywhere.
@@ -423,11 +428,38 @@ static void buildOrder(const CallConvention& convention, RegisterBankId bank, U1
 }
 
 /*
+ * A folded address's part and an operand of the access that folds it: the two may not share a
+ * register *at that access* - see collectTieConflicts. Stated at two program points rather than as a
+ * pair of webs, because that is where the hazard is: the part holding its register when the
+ * X86Address reads it (`partPoint`, which is `beforeInst` of the X86Address) and the operand holding
+ * the same register at the access (`operandPoint`, `beforeInst` of the access).
+ *
+ * `FoldPair` is the pair over values, collected before the webs exist; `FoldConflict` is one side of
+ * it restated over webs. They are kept grouped by `web` and, within one web, ordered by `other`, so a
+ * query finds the pairs of two webs by a search rather than a scan - a frame address folded into
+ * every store of a large function is one side of a pair per store.
+ */
+struct FoldPair {
+    LiveId part;
+    LiveId operand;
+    U32 partPoint;
+    U32 operandPoint;
+};
+
+struct FoldConflict {
+    LiveId web;
+    LiveId other;
+    U32 partPoint;
+    U32 operandPoint;
+    bool isPart; // whether `web` is the part rather than the operand
+};
+
+/*
  * Everything a placement pass works in, held across the functions being placed rather than built
  * per function - see RegScratch in gen.h.
  *
  * Every buffer here is O(values) or O(registers) in size and empty again by the time the next
- * function starts, and there are eleven of them plus a list per value; building them per pass is
+ * function starts, and there are thirty of them plus a list per value; building them per pass is
  * where a small module's compilation was spending most of its allocations. The one rule is that
  * nothing in here may carry meaning across a call: `reset` empties all of it, and a pass that read
  * something it had not written this time would be reading the previous function.
@@ -439,6 +471,8 @@ struct PlacementScratch {
     // allocation per row per function that first reached it.
     SmallArray<RegisterClaim, 8> occupants[kRegisterBankCount][kMaxRegistersPerBank];
     ArrayList<LiveId> tieConflicts;
+    Array<FoldConflict> foldConflicts;
+    Array<U32> foldStart;
     ArrayList<Range> slotOccupants;
     ArrayList<LiveId> slotWebs;
     Array<ClobberSite> clobberSites;
@@ -456,6 +490,8 @@ struct PlacementScratch {
     // the block order the merges are attempted in.
     Array<LiveId> parent;
     ArrayList<LiveId> valueTies;
+    Array<FoldPair> foldPairs;
+    Array<FoldConflict> foldSorting;
     Array<Size> blockOrder;
 
     // computeSpillCosts: how many values each web holds.
@@ -497,6 +533,8 @@ struct PlacementScratch {
     void reset(Size valueCount) {
         webs.reset(valueCount);
         tieConflicts.reset(valueCount);
+        foldConflicts.clear();
+        foldStart.clear();
         slotOccupants.reset(0);
         slotWebs.reset(0);
         clobberSites.clear();
@@ -559,6 +597,13 @@ struct Placer {
     // no more share a register than share a web, and a rule that only refused the merge left the
     // register sharing to be discovered by whichever of the two happened to be placed second.
     ArrayList<LiveId>& tieConflicts;
+
+    // The folded-address pairs, by web - see FoldConflict. Kept apart from `tieConflicts` because they
+    // hold at one access rather than for two whole lives: a pair of webs here may share a register
+    // and a slot anywhere else, and may be merged. Web `w`'s are `foldConflicts[foldStart[w]]` up to
+    // `foldStart[w + 1]`.
+    Array<FoldConflict>& foldConflicts;
+    Array<U32>& foldStart;
 
     // The registers a value can be handed, held once rather than rebuilt at every assignment.
     RegSet allocatable = allocatableRegs();
@@ -653,6 +698,7 @@ struct Placer {
         base(base), fun(fun), live(live), machine(machine), constraints(constraints),
         scratch(scratch), shapes(scratch.shapes), frequency(frequency), out(out),
         webs(scratch.webs), occupants(scratch.occupants), tieConflicts(scratch.tieConflicts),
+        foldConflicts(scratch.foldConflicts), foldStart(scratch.foldStart),
         frame(out.frame), slotOccupants(scratch.slotOccupants), slotWebs(scratch.slotWebs),
         clobberSites(scratch.clobberSites),
         remats(out.remats), incomingArgs(out.incomingArgs), displacedFrom(displacedFrom),
@@ -766,6 +812,64 @@ struct Placer {
         return false;
     }
 
+    // Whether `webId` over `interval` and `other` over `held` would put a folded address's part and
+    // an operand of its access in one register at that access - see FoldConflict.
+    //
+    // Only a partial stretch can: a whole-life operand is live across the X86Address, where the part
+    // is too, so two whole lives have been refused by the overlap test already. What is left is an
+    // operand's window opening at the access (§5.8-§5.10), whose load joins the X86Address's post
+    // copies. So two whole-life claims are answered without reading the list at all, which is what
+    // keeps this off the walk's own queries - a frame address folded into every store of a large
+    // function holds a pair per store, and scanning them per occupant tripled the placement of
+    // `test/base`. The callers answer that case before calling, because each already knows it:
+    // isFree's loop tests the claim's count and the ask, and displaces holds a whole-life occupant
+    // and tests the ask. Whether the ask is the web's own interval is asked by identity, since that
+    // is how the walk passes it; a copy of it is only a slower correct answer. Rejected: two flags
+    // passed in to be tested here, which is what this took until J118 - one caller always passed
+    // `false, false` and the other always `true` for the occupant.
+    //
+    // Otherwise the pairs are searched for in whichever of the two webs' lists is shorter. A pair is
+    // filed under both of its webs, so either list holds every pair the two share, and the lengths
+    // are lopsided: a frame address holds a pair per access it is folded into, an operand one per
+    // access it is an operand of. `askedPairs` is the length of the ask's list, which the caller
+    // reads once. Searching the ask's list for every occupant was the first form, and on `test/base`
+    // it was most of what doubled `isFree` against the placer before the pairs existed - the queries
+    // and the occupants they meet are the same in number to within 0.1% of each other.
+    //
+    // Searching by *point* instead - each web's list in access order, the ask's extent looked up
+    // once per query and its pairs matched against each occupant - was tried and read seven times
+    // slower: the partial asks that reach this include regions, and a region's extent can cover most
+    // of a frame address's list.
+    bool foldsConflict(LiveId webId, const LiveInterval& interval, U32 askedPairs,
+        LiveId other, const LiveInterval& held) const {
+        auto theirs = foldCount(other);
+        if(theirs == 0) return false;
+        if(theirs < askedPairs) return foldsBetween(other, held, webId, interval);
+        return foldsBetween(webId, interval, other, held);
+    }
+
+    // The same question asked of `webId`'s own list, over `own` and `other`'s `theirs`.
+    bool foldsBetween(LiveId webId, const LiveInterval& own, LiveId other, const LiveInterval& theirs) const {
+        auto lo = foldStart[webId];
+        auto hi = foldStart[Size(webId) + 1];
+        while(lo < hi) {
+            auto mid = lo + (hi - lo) / 2;
+            if(U32(foldConflicts[mid].other) < U32(other)) lo = mid + 1;
+            else hi = mid;
+        }
+
+        for(auto end = foldStart[Size(webId) + 1]; lo < end && foldConflicts[lo].other == other; lo++) {
+            auto& fold = foldConflicts[lo];
+            auto& part = fold.isPart ? own : theirs;
+            auto& operand = fold.isPart ? theirs : own;
+            if(part.covers(fold.partPoint) && operand.covers(fold.operandPoint)) return true;
+        }
+
+        return false;
+    }
+
+    U32 foldCount(LiveId webId) const { return foldStart[Size(webId) + 1] - foldStart[webId]; }
+
     // A register is available to a web when nothing already in it is ever live at the same time.
     // Comparing whole intervals rather than an endpoint against the walk's current position is what
     // lets a phi be placed at whichever predecessor edge reaches it first, and what lets a register
@@ -775,7 +879,8 @@ struct Placer {
     // destructive result and a sibling operand of its instruction have disjoint lives *by
     // construction* - the operand's ends where the result's begins - and still may not share a
     // register, because the copy that puts operand zero into the result's register runs in front of
-    // the instruction and would overwrite the sibling before it is read.
+    // the instruction and would overwrite the sibling before it is read. `foldConflicts` is the
+    // same hazard at one access rather than over two lives.
     //
     // Occupancy is tracked per *unit* rather than per register name, because two views of one
     // register are the same storage. Today every class covers its register completely and a unit is
@@ -784,8 +889,14 @@ struct Placer {
     // What each occupant is compared against is its own claim rather than its life - see
     // RegisterClaim. For the whole-life claim the two are the same thing, which is what this always
     // was; for a cluster claim they are not, and the stretch is the answer.
+    //
+    // What it reads about the ask itself - its pair count, and whether it is whole - is read per
+    // call rather than once per search in a struct the callers fill: handing that over by reference
+    // measured a tenth slower on `test/base` than the two reads it saves.
     bool isFree(LiveId webId, RegisterClassId cls, PhysicalReg reg, const LiveInterval& interval) {
         auto units = targetRegisters().viewOf(cls, reg).units;
+        auto askedPairs = foldCount(webId);
+        auto wholeAsk = askedPairs > 0 && interval.ranges == webs[webId].interval().ranges;
 
         for(Size i = 0; units; i++, units >>= 1) {
             if(!(units & 1)) continue;
@@ -798,10 +909,25 @@ struct Placer {
 
                 if(claimOf(claim).overlaps(interval)) return false;
                 if(tiesConflict(webId, claim.web)) return false;
+                if(askedPairs > 0 && claim.folds && (!wholeAsk || claim.count != 0)
+                    && claimFoldsConflict(webId, interval, askedPairs, claim)) {
+                    return false;
+                }
             }
         }
 
         return true;
+    }
+
+    // foldsConflict for isFree, whose loop has already answered the cases that read no list: an ask
+    // or an occupant whose web has no pairs, and two whole lives. Kept out of line, and handed the
+    // claim rather than its interval, so that the loop over the occupants compiles to the one it was
+    // before the pairs existed - inlined, the held interval went through the stack for every
+    // occupant, which cost `isFree` a tenth of its time on `test/base` for a call one occupant in
+    // seven reaches.
+    NOINLINE bool claimFoldsConflict(LiveId webId, const LiveInterval& interval, U32 askedPairs, const RegisterClaim& claim) const {
+        auto held = claimOf(claim);
+        return foldsConflict(webId, interval, askedPairs, claim.web, held);
     }
 
     // The stretches a claim holds its register over, as an interval the overlap test takes.
@@ -825,7 +951,7 @@ struct Placer {
         auto units = targetRegisters().viewOf(cls, reg).units;
 
         for(Size i = 0; units; i++, units >>= 1) {
-            if(units & 1) occupants[reg.bank][i].push(RegisterClaim { .web = webId });
+            if(units & 1) occupants[reg.bank][i].push(RegisterClaim { .web = webId, .folds = foldCount(webId) > 0 });
         }
     }
 
@@ -841,7 +967,7 @@ struct Placer {
         for(Size i = 0; units; i++, units >>= 1) {
             if(units & 1) {
                 occupants[reg.bank][i].push(RegisterClaim {
-                    .web = webId, .offset = offset, .count = U32(count),
+                    .web = webId, .folds = foldCount(webId) > 0, .offset = offset, .count = U32(count),
                 });
             }
         }
@@ -1185,7 +1311,12 @@ struct Placer {
         // Cluster claims are handed out after the walk that displaces anything has finished, so
         // there is no such thing as displacing one and nothing here has to price it.
         assertTrue(claim.count == 0);
-        return webs[claim.web].interval().overlaps(interval) || tiesConflict(webId, claim.web);
+        auto held = webs[claim.web].interval();
+        // The occupant is its whole life here, so an ask of the web's whole life is two whole lives,
+        // which the overlap test has answered - see foldsConflict.
+        return held.overlaps(interval) || tiesConflict(webId, claim.web)
+            || (interval.ranges != webs[webId].interval().ranges
+                && foldsConflict(webId, interval, foldCount(webId), claim.web, held));
     }
 
     // The register whose occupants would be cheapest to displace, if displacing them costs less than
@@ -1326,25 +1457,77 @@ using TieConflicts = ArrayList<LiveId>;
 // Operand zero is deliberately not here, since the result sharing its location is the whole content
 // of the tie; and neither is an operand that *is* operand zero (`sub %a, %a`), where the copy in
 // front of the instruction is an identity and overwrites nothing.
-static void collectTieConflicts(Placer& a, TieConflicts& out) {
+//
+// A folded address's base and index against the *operands* of the access that folds it is the same
+// hazard reached without a tie, and goes into `folds` rather than `out`. The parts are read by the
+// X86Address one instruction above the access, so their lives end at `afterInst` of that one; an
+// operand's register segment that opens at the access - a §5.9 cluster window, whose load joins the
+// X86Address's own post copies - claims its register from that very point, and the two stretches
+// meet without overlapping. So a constant read by two stores was loaded into the register the first
+// store's computed index was in, and the store went through the value it was storing. An operand
+// that *is* one of the parts is skipped: storing an index through itself reads one register for
+// both, and nothing overwrites it.
+//
+// Stated at the access rather than over the two webs' lives, which is what a tie is. As a whole-life
+// pair it kept a web from ever sharing a register, a slot or a merge with anything it was ever
+// stored beside: a frame address that is the base of five stores of callee-saved webs could take no
+// callee-saved register at all, and `test/base` grew by 7 KB of re-materialized addresses. And
+// stated here rather than by making the parts live into the access, which is what they are: a part
+// is a web with windows of its own, and §5.9 collects its reads off the X86Address that uses it, so
+// a window over one still closes an instruction early whatever its interval says. The point pair
+// holds either way round, whichever is placed first and in whatever kind of claim.
+//
+// The X86Address is the instruction in front of the access. Were it anywhere else the two points
+// would not describe the hazard, so such a pair falls back to the whole-life tie.
+static void collectTieConflicts(Placer& a, TieConflicts& out, Array<FoldPair>& folds) {
     out.reset(a.out.webOf.size());
+    folds.clear();
+
+    auto pair = [&](LowerValue* left, LowerValue* right) {
+        if(isImplicit(left) || isImplicit(right) || left == right) return;
+
+        out[left->liveId()].push(right->liveId());
+        out[right->liveId()].push(left->liveId());
+    };
+
+    U32 index = 0;
+    LowerInst* previous = nullptr;
 
     auto onInst = [&](LowerInst* inst) {
+        auto used = inst->used();
+        auto address = a.machine.formOf(inst).addressOperand();
+        auto folded = address >= 0 && Size(address) < used.size() && isMem(a.base[used[address]]);
+
+        if(folded) {
+            auto xaddr = a.base[used[address]]->inst();
+            auto adjacent = xaddr == previous;
+
+            for(auto partId: xaddr->used()) {
+                auto part = a.base[partId];
+
+                for(Size i = 0; i < used.size(); i++) {
+                    auto operand = a.base[used[i]];
+                    if(I32(i) == address) continue;
+
+                    if(!adjacent) {
+                        pair(part, operand);
+                    } else if(!isImplicit(part) && !isImplicit(operand) && part != operand) {
+                        folds.push(FoldPair {
+                            .part = part->liveId(), .operand = operand->liveId(),
+                            .partPoint = beforeInst(index - 1), .operandPoint = beforeInst(index),
+                        });
+                    }
+                }
+            }
+        }
+
         auto tied = a.machine.formOf(inst).tiedResult();
         if(tied < 0) return;
         if(inst->createdCount == 0 || isImplicit(&inst->created()[0])) return;
-
-        auto used = inst->used();
         if(Size(tied) >= used.size()) return;
 
-        auto result = inst->created()[0].liveId();
-
-        auto conflicts = [&](LowerValue* value) {
-            if(isImplicit(value)) return;
-
-            out[result].push(value->liveId());
-            out[value->liveId()].push(result);
-        };
+        auto result = &inst->created()[0];
+        auto conflicts = [&](LowerValue* value) { pair(result, value); };
 
         for(Size i = 0; i < used.size(); i++) {
             if(I32(i) == tied || used[i] == used[tied]) continue;
@@ -1360,16 +1543,22 @@ static void collectTieConflicts(Placer& a, TieConflicts& out) {
         // Reachable since a load can be folded into a destructive operation (foldLoads in
         // transform_address.cpp); before that, the only instructions with a folded address were the ones
         // with no copy in front of them.
-        auto address = a.machine.formOf(inst).addressOperand();
-        if(address >= 0 && isMem(a.base[used[address]])) {
+        if(folded) {
             for(auto part: a.base[used[address]]->inst()->used()) conflicts(a.base[part]);
         }
     };
 
+    auto step = [&](LowerInst* inst) {
+        onInst(inst);
+        previous = inst;
+        index++;
+    };
+
     for(auto offset: a.fun.blocks.contents(a.base)) {
         auto block = a.base[offset];
-        for(auto i: block->instructions.contents(a.base)) onInst(a.base[i]);
-        onInst(a.base[block->terminator]);
+        for(auto i: block->instructions.contents(a.base)) step(a.base[i]);
+        step(a.base[block->terminator]);
+        previous = nullptr;
     }
 }
 
@@ -1415,7 +1604,8 @@ static void buildWebs(Placer& a) {
     };
 
     auto& tieConflicts = a.scratch.valueTies;
-    collectTieConflicts(a, tieConflicts);
+    auto& foldPairs = a.scratch.foldPairs;
+    collectTieConflicts(a, tieConflicts, foldPairs);
 
     auto tiesConflict = [&](LiveId left, LiveId right) {
         for(auto id: tieConflicts[left]) {
@@ -1552,6 +1742,50 @@ static void buildWebs(Placer& a) {
     for(Size i = 0; i < tieConflicts.size(); i++) {
         for(auto id: tieConflicts[i]) a.tieConflicts[LiveId(i)].push(a.out.webOf[id]);
     }
+
+    // The folded-address pairs never refused a merge - a part and an operand are both live at the
+    // X86Address, so no two such values share a web - and are filed under both of their webs, by
+    // two counting sorts: on `other` first and then, stably, on `web`. Collected into the list the
+    // queries read and sorted out of it and back, so the second sort leaves the answer in place.
+    auto& sorting = a.scratch.foldSorting;
+    a.foldConflicts.clear();
+    for(auto& fold: foldPairs) {
+        auto part = a.out.webOf[fold.part];
+        auto operand = a.out.webOf[fold.operand];
+        if(part == operand) continue;
+
+        a.foldConflicts.push(FoldConflict {
+            .web = part, .other = operand,
+            .partPoint = fold.partPoint, .operandPoint = fold.operandPoint, .isPart = true,
+        });
+        a.foldConflicts.push(FoldConflict {
+            .web = operand, .other = part,
+            .partPoint = fold.partPoint, .operandPoint = fold.operandPoint, .isPart = false,
+        });
+    }
+
+    auto countingSort = [&](Array<FoldConflict>& from, Array<FoldConflict>& into, auto key) {
+        auto& start = a.foldStart;
+        start.clear();
+        for(Size i = 0; i <= a.out.webOf.size(); i++) start.push(0);
+        for(auto& fold: from) start[Size(key(fold)) + 1]++;
+        for(Size i = 0; i < a.out.webOf.size(); i++) start[i + 1] += start[i];
+
+        into.clear();
+        into.resize(U32(from.size()));
+
+        // Placed backwards from each group's end, which keeps it stable and leaves `start[k + 1]` at
+        // group k's beginning - so one shift makes `start` the boundaries the query reads.
+        for(Size i = from.size(); i > 0; i--) {
+            auto& fold = from[i - 1];
+            into[--start[Size(key(fold)) + 1]] = fold;
+        }
+        for(Size i = 0; i < a.out.webOf.size(); i++) start[i] = start[i + 1];
+        start[a.out.webOf.size()] = U32(from.size());
+    };
+
+    countingSort(a.foldConflicts, sorting, [](const FoldConflict& fold) { return fold.other; });
+    countingSort(sorting, a.foldConflicts, [](const FoldConflict& fold) { return fold.web; });
 }
 
 /*

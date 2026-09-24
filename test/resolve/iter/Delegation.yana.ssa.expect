@@ -3163,8 +3163,8 @@ bb0(%0: pass.Iter [shared slot 0] guaranteed, %1: %I32 trivial):
   return consume %1
 }
 
-fn pass$next($self: pass.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] {
-bb0(%0: pass.Iter [unique slot 0] guaranteed):
+fn pass$next($self: pass.Iter [unique slot 0 shape8 .2.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] {
+bb0(%0: pass.Iter [unique slot 0 shape8 .2.*=shared slot 0] guaranteed):
   %1: I32 trivial = const 0
   %2: Bool trivial = const False
   %3: %I32 trivial = call pass$walk borrow %0 consume %1 consume %2
@@ -3183,7 +3183,7 @@ bb2:
   return consume %9
 }
 
-fn pass$resume($self: pass.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn pass$resume($self: pass.Iter [unique slot 0 shape8 .2.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn finishMovedPass(it: pass.Iter, packed: I32 [shared call]) -> I32 {
 bb0(%0: pass.Iter owned, %1: I32 trivial):
@@ -3360,9 +3360,9 @@ bb0(%0: outer.Iter owned):
   return
 }
 
-fn outer$next($self: outer.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn outer$next($self: outer.Iter [unique slot 0 shape8 .2.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn outer$resume($self: outer.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn outer$resume($self: outer.Iter [unique slot 0 shape8 .2.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn tallied$new(t: Tree [shared slot 0]) -> tallied.Iter [owned here shape8 .2.*=shared slot 0] {
 bb0(%0: Tree [shared slot 0] guaranteed):
@@ -3641,9 +3641,9 @@ bb0(%0: tallied.Iter owned):
   return
 }
 
-fn tallied$next($self: tallied.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn tallied$next($self: tallied.Iter [unique slot 0 shape8 .2.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn tallied$resume($self: tallied.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn tallied$resume($self: tallied.Iter [unique slot 0 shape8 .2.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn odds$new(t: Tree [shared slot 0]) -> odds.Iter [owned here shape8 .2.*=shared slot 0] {
 bb0(%0: Tree [shared slot 0] guaranteed):
@@ -4011,9 +4011,9 @@ bb0(%0: odds.Iter [shared slot 0] guaranteed, %1: %I32 trivial):
   return consume %1
 }
 
-fn odds$next($self: odds.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn odds$next($self: odds.Iter [unique slot 0 shape8 .2.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn odds$resume($self: odds.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn odds$resume($self: odds.Iter [unique slot 0 shape8 .2.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn evens$new(t: Tree [shared slot 0]) -> evens.Iter [owned here shape8 .2.*=shared slot 0] {
 bb0(%0: Tree [shared slot 0] guaranteed):
@@ -4383,9 +4383,9 @@ bb0(%0: evens.Iter [shared slot 0] guaranteed, %1: %I32 trivial):
   return consume %1
 }
 
-fn evens$next($self: evens.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn evens$next($self: evens.Iter [unique slot 0 shape8 .2.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn evens$resume($self: evens.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn evens$resume($self: evens.Iter [unique slot 0 shape8 .2.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn marked$new(t: Tree [shared slot 0]) -> marked.Iter [owned here shape8 .2.*=shared slot 0] {
 bb0(%0: Tree [shared slot 0] guaranteed):
@@ -4785,9 +4785,9 @@ bb0(%0: marked.Iter [shared slot 0] guaranteed, %1: %I32 trivial):
   return consume %1
 }
 
-fn marked$next($self: marked.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn marked$next($self: marked.Iter [unique slot 0 shape8 .2.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn marked$resume($self: marked.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn marked$resume($self: marked.Iter [unique slot 0 shape8 .2.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn descend$erased.step($env: descend.Iter [unique call], $sent: I32, $cancel: Bool) -> %I32 {
 bb0(%0: descend.Iter [unique call] guaranteed, %1: I32 trivial, %2: Bool trivial):

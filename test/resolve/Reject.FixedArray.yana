@@ -6,6 +6,8 @@
    the elements its type names, which makes growth impossible, the length a check rather than an
    inference, and `n` something the compiler has to be able to read off the source - a literal or a
    const parameter, per Implementation-Const-Generics.md §2.5.
+
+   # resolver: ownership
 -}
 
 import Native
@@ -46,14 +48,7 @@ fn wrongArray() -> Int:
     let quad = [1, 2, 3, 4] :: [Int *4]
     return pairSum(quad)
 
-{-
-   A fixed array of itself has no finite size, and there is no edge to cut.
-
-   `breakLayoutCycles` inserts an indirection at the back edge of a record cycle; a fixed array has
-   none to insert one on - boxing the element would make `[Cell *4]` four pointers, which is a
-   different type from the one that was written. So this is reported instead of silently becoming
-   something else.
--}
-data Cell {kids: [Cell *4]}
+-- A fixed array of itself is `Reject.FixedArray.Recursive.yana`: the new stage stops
+-- at a declaration error, which hid every rule above.
 
 fn main() -> Int = 0

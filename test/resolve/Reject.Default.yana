@@ -7,16 +7,16 @@
 --
 -- The type is not in question here the way it is for a global: a field has one already, so a
 -- default is checked against it rather than deciding it.
+--
+-- # resolver: ownership
 
 data Pair {a: Int, b: Int}
 data Direction = North | South
 data Shape = Circle(Int) | Square(Int)
 
--- A number that is not one of the type's, in both directions: a decimal for an integer field, and
--- an integer wider than the field can hold.
+-- A number that is not one of the type's: a decimal for an integer field. (The other direction, an
+-- integer wider than the field, is in `Reject.Default.Legacy.yana`.)
 data Rounded {value: Int = 2.5}
-data TooBig {value: U8 = 300}
-
 -- A record is written out rather than written as a number, which is the same answer a global of one
 -- gets: zero is not one of a `Pair`'s values however many bytes it would have filled.
 data Nested {inner: Pair = 0}
@@ -38,20 +38,15 @@ data Held {shape: Shape = Circle(2.5)}
 -- the error it would be anywhere else.
 data Partial {point: Pair = Pair {a: 1}}
 
--- A growable array allocates its run, so there is nothing constant about one: the storage would
--- have to exist before the program starts. `[T *n]` is the shape that does have a constant form,
--- since its elements are the value's own bytes.
-data Grown {items: Array(Int) = [1, 2]}
+-- An integer wider than its field, a growable array and an unknown constructor as defaults moved to
+-- `Reject.Default.Legacy.yana`; that file says what the new stage does instead.
 
 -- And a fixed array whose literal is not as long as the type says. The length is in the type, so
 -- this is a comparison rather than an inference.
 data Short {items: [Int *3] = [1, 2]}
 
--- A name that is no constructor at all.
-data Unknown {heading: Direction = West}
-
--- And an expression, which is the form neither position has: there is nothing to evaluate it at.
-data Computed {value: Int = 1 + 1}
+-- An expression default, `1 + 1`, is refused here; the new stage folds it
+-- (`ownership/ConstantFold.yana`).
 
 -- A field whose own type did not resolve is reported once, by the type resolution that failed. A
 -- default is not then evaluated against the error type it recovered with.

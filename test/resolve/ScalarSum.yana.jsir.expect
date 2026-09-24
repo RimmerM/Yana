@@ -1,0 +1,329 @@
+fn colourOf(one %r1) -> one %r2
+  block0(%0: %r1):
+    %2: %r0 = load property %0.$tag: %r0
+    %3: %r0 = const 0
+    %4: %r4 = binary.eq %2, %3
+    branch %4 -> block3 -> block1
+  block1:
+    %5: %r0 = load property %0.Gray: %r0
+    %6: %r2 = convert %5
+    %7: %r2 = const 1000
+    %8: %r2 = binary.mul %6, %7
+    %9: %r2 = coerce %8
+    jump -> block2(%9)
+  block2(%1: %r2):
+    return %1
+  block3:
+    %10: %r0 = load property %0.r: %r0
+    %11: %r0 = load property %0.g: %r0
+    %12: %r0 = load property %0.b: %r0
+    %13: %r2 = convert %10
+    %14: %r2 = convert %11
+    %15: %r2 = const 10
+    %16: %r2 = binary.mul %14, %15
+    %17: %r2 = coerce %16
+    %18: %r2 = binary.add %13, %17
+    %19: %r2 = coerce %18
+    %20: %r2 = convert %12
+    %21: %r2 = const 100
+    %22: %r2 = binary.mul %20, %21
+    %23: %r2 = coerce %22
+    %24: %r2 = binary.add %19, %23
+    %25: %r2 = coerce %24
+    jump -> block2(%25)
+
+fn fiveOf(one %r3) -> one %r2
+  block0(%0: %r3):
+    %2: %r0 = load property %0.$tag: %r0
+    switch %2 case 0 -> block1 case 1 -> block2 case 2 -> block3 case 3 -> block4 else -> block5
+  block1:
+    %23: %r0 = load property %0.C0: %r0
+    %24: %r2 = convert %23
+    jump -> block6(%24)
+  block2:
+    %18: %r0 = load property %0.C1: %r0
+    %19: %r2 = convert %18
+    %20: %r2 = const 10
+    %21: %r2 = binary.mul %19, %20
+    %22: %r2 = coerce %21
+    jump -> block6(%22)
+  block3:
+    %13: %r0 = load property %0.C2: %r0
+    %14: %r2 = convert %13
+    %15: %r2 = const 100
+    %16: %r2 = binary.mul %14, %15
+    %17: %r2 = coerce %16
+    jump -> block6(%17)
+  block4:
+    %8: %r0 = load property %0.C3: %r0
+    %9: %r2 = convert %8
+    %10: %r2 = const 1000
+    %11: %r2 = binary.mul %9, %10
+    %12: %r2 = coerce %11
+    jump -> block6(%12)
+  block5:
+    %3: %r0 = load property %0.C4: %r0
+    %4: %r2 = convert %3
+    %5: %r2 = const 10000
+    %6: %r2 = binary.mul %4, %5
+    %7: %r2 = coerce %6
+    jump -> block6(%7)
+  block6(%1: %r2):
+    return %1
+
+fn taggedOf(one %r6) -> one %r2
+  var $0: %r5
+  var $1: %r5
+  block0(%0: %r6):
+    %2: %r0 = load property %0.$tag: %r0
+    %3: %r0 = const 0
+    %4: %r4 = binary.eq %2, %3
+    branch %4 -> block3 -> block1
+  block1:
+    %5: %r5 = load property %0.Unset: %r5
+    %6: %r5 = alias %5
+    %7: %r5 = alias %6
+    %8: %r5 = alias %7
+    %9: %r4 = load bits @0:1 of (value %8: %r5): %r4
+    %10: %r2 = const 1
+    %11: %r2 = const 0
+    %12: %r2 = select %9, %10, %11
+    %13: %r4 = load bits @1:1 of (value %8: %r5): %r4
+    %14: %r2 = const 2
+    %15: %r2 = const 0
+    %16: %r2 = select %13, %14, %15
+    %17: %r2 = binary.add %12, %16
+    %18: %r2 = coerce %17
+    %19: %r2 = const 100
+    %20: %r2 = binary.add %18, %19
+    %21: %r2 = coerce %20
+    jump -> block2(%21)
+  block2(%1: %r2):
+    return %1
+  block3:
+    %22: %r5 = load property %0.Set: %r5
+    %23: %r5 = alias %22
+    %24: %r5 = alias %23
+    %25: %r5 = alias %24
+    %26: %r4 = load bits @0:1 of (value %25: %r5): %r4
+    %27: %r2 = const 1
+    %28: %r2 = const 0
+    %29: %r2 = select %26, %27, %28
+    %30: %r4 = load bits @1:1 of (value %25: %r5): %r4
+    %31: %r2 = const 2
+    %32: %r2 = const 0
+    %33: %r2 = select %30, %31, %32
+    %34: %r2 = binary.add %29, %33
+    %35: %r2 = coerce %34
+    jump -> block2(%35)
+
+fn maybeOf(one %r8) -> one %r2
+  var $0: %r7
+  block0(%0: %r8):
+    %3: %r8 = const null
+    %4: %r9 = binary.eq %0, %3
+    %5: %r0 = const 1
+    %6: %r0 = const 0
+    %7: %r0 = select %4, %6, %5
+    %8: %r0 = const 0
+    %9: %r4 = binary.eq %7, %8
+    branch %9 -> block3 -> block1
+  block1:
+    %10: %r7 = alias %0
+    %11: %r7 = alias %10
+    %12: %r7 = alias %11
+    %13: %r7 = alias %12
+    %14: %r0 = load property %13.$tag: %r0
+    %15: %r0 = const 0
+    %16: %r4 = binary.eq %14, %15
+    branch %16 -> block5 -> block4
+  block2(%1: %r2):
+    return %1
+  block3:
+    %24: %r2 = const 500
+    jump -> block2(%24)
+  block4:
+    %17: %r0 = load property %13.B: %r0
+    %18: %r2 = convert %17
+    %19: %r2 = const 1000
+    %20: %r2 = binary.add %18, %19
+    %21: %r2 = coerce %20
+    jump -> block6(%21)
+  block5:
+    %22: %r0 = load property %13.A: %r0
+    %23: %r2 = convert %22
+    jump -> block6(%23)
+  block6(%2: %r2):
+    jump -> block2(%2)
+
+fn main() -> one %r2
+  var $0: %r7
+  var $1: %r5
+  var $2: %r6
+  var $3: %r0
+  var $4: %r0
+  var $5: %r0
+  block0:
+    %9: %r2 = const 1016
+    %10: %r0 = const 1
+    %11: %r0 = const 2
+    %12: %r0 = const 3
+    %13: %r0 = const 0
+    %14: %r0 = const 0
+    %15: %r1 = object %s0 %13, %10, %11, %12, %14
+    %16: %r2 = call colourOf %15
+    %17: %r0 = const 4
+    %18: %r0 = const 1
+    %19: %r0 = const 0
+    %20: %r0 = const 0
+    %21: %r0 = const 0
+    %22: %r1 = object %s0 %18, %19, %20, %21, %17
+    %23: %r2 = call colourOf %22
+    %24: %r2 = binary.add %16, %23
+    %25: %r2 = coerce %24
+    %26: %r2 = binary.add %9, %25
+    %27: %r2 = coerce %26
+    %28: %r0 = const 1
+    %29: %r0 = const 0
+    %30: %r0 = const 0
+    %31: %r0 = const 0
+    %32: %r0 = const 0
+    %33: %r0 = const 0
+    %34: %r3 = object %s1 %29, %28, %30, %31, %32, %33
+    %35: %r2 = call fiveOf %34
+    %36: %r0 = const 1
+    %37: %r0 = const 4
+    %38: %r0 = const 0
+    %39: %r0 = const 0
+    %40: %r0 = const 0
+    %41: %r0 = const 0
+    %42: %r3 = object %s1 %37, %38, %39, %40, %41, %36
+    %43: %r2 = call fiveOf %42
+    %44: %r2 = binary.add %35, %43
+    %45: %r2 = coerce %44
+    %46: %r2 = binary.add %27, %45
+    %47: %r2 = coerce %46
+    %50: %r5 = const 3
+    %51: %r0 = const 0
+    %52: %r5 = const 0
+    %53: %r6 = object %s2 %51, %50, %52
+    %54: %r2 = call taggedOf %53
+    %57: %r5 = const 2
+    %58: %r0 = const 1
+    %59: %r5 = const 0
+    %60: %r6 = object %s2 %58, %59, %57
+    %61: %r2 = call taggedOf %60
+    %62: %r2 = binary.add %54, %61
+    %63: %r2 = coerce %62
+    %64: %r2 = binary.add %47, %63
+    %65: %r2 = coerce %64
+    %70: %r0 = const 41
+    %71: %r0 = const 0
+    %72: %r0 = const 0
+    store var $3: %r0, %71
+    store var $4: %r0, %70
+    store var $5: %r0, %72
+    %75: %r0 = load var $3: %r0
+    %76: %r0 = const 0
+    %77: %r4 = binary.eq %75, %76
+    branch %77 -> block2 -> block1
+  block1:
+    %79: %r0 = load var $5: %r0
+    %80: %r0 = const 1
+    %81: %r0 = binary.add %79, %80
+    %82: %r0 = coerce %81
+    %83: %r0 = const 1
+    %84: %r0 = const 0
+    store var $3: %r0, %83
+    store var $4: %r0, %84
+    store var $5: %r0, %82
+    jump -> block3
+  block2:
+    %87: %r0 = load var $4: %r0
+    %88: %r0 = const 1
+    %89: %r0 = binary.add %87, %88
+    %90: %r0 = coerce %89
+    %91: %r0 = const 0
+    %92: %r0 = const 0
+    store var $3: %r0, %91
+    store var $4: %r0, %90
+    store var $5: %r0, %92
+    jump -> block3
+  block3:
+    %96: %r0 = load var $3: %r0
+    %97: %r0 = const 0
+    %98: %r4 = binary.eq %96, %97
+    branch %98 -> block5 -> block4
+  block4:
+    %99: %r0 = load var $5: %r0
+    %100: %r2 = convert %99
+    %101: %r2 = const 1000
+    %102: %r2 = binary.add %100, %101
+    %103: %r2 = coerce %102
+    jump -> block6(%103)
+  block5:
+    %104: %r0 = load var $4: %r0
+    %105: %r2 = convert %104
+    jump -> block6(%105)
+  block6(%0: %r2):
+    %106: %r2 = binary.add %65, %0
+    %107: %r2 = coerce %106
+    %110: %r5 = const 1
+    %111: %r5 = alias %110
+    %112: %r5 = alias %111
+    %113: %r0 = const 1
+    %114: %r5 = const 0
+    %115: %r6 = object %s2 %113, %114, %112
+    %116: %r6 = alias %115
+    %117: %r6 = alias %116
+    %118: %r2 = call taggedOf %117
+    %119: %r2 = binary.add %107, %118
+    %120: %r2 = coerce %119
+    %121: %r8 = const null
+    %122: %r2 = call maybeOf %121
+    %123: %r0 = const 2
+    %124: %r0 = const 0
+    %125: %r0 = const 0
+    %126: %r7 = object %s4 %124, %123, %125
+    %127: %r8 = alias %126
+    %128: %r2 = call maybeOf %127
+    %129: %r2 = binary.add %122, %128
+    %130: %r2 = coerce %129
+    %131: %r0 = const 3
+    %132: %r0 = const 1
+    %133: %r0 = const 0
+    %134: %r7 = object %s4 %132, %133, %131
+    %135: %r8 = alias %134
+    %136: %r2 = call maybeOf %135
+    %137: %r2 = binary.add %130, %136
+    %138: %r2 = coerce %137
+    %139: %r2 = binary.add %120, %138
+    %140: %r2 = coerce %139
+    %149: %r2 = const 65
+    %150: %r2 = binary.add %140, %149
+    %151: %r2 = coerce %150
+    return %151
+
+optimizer clones 4 aliased 4 forwarded 0 removed 42 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 5
+
+shape %s0 object Colour {$tag: %r0 tag, r: %r0, g: %r0, b: %r0, Gray: %r0}
+shape %s1 object Five {$tag: %r0 tag, C0: %r0, C1: %r0, C2: %r0, C3: %r0, C4: %r0}
+shape %s2 object Tagged {$tag: %r0 tag, Set: %r5, Unset: %r5}
+shape %s3 object Flags {a: %r4, b: %r4}
+shape %s4 object Sum {$tag: %r0 tag, A: %r0, B: %r0}
+shape %s5 object Wide {$tag: %r0 tag, W1: %r10, W2: %r10}
+
+packing #0 %r5 Flags {a @0:1, b @1:1}
+
+rep %r0 = number unsigned 8
+rep %r1 = object %s0
+rep %r2 = number signed 32
+rep %r3 = object %s1
+rep %r4 = number bool
+rep %r5 = number unsigned 2
+rep %r6 = object %s2
+rep %r7 = object %s4
+rep %r8 = nullable of %r7
+rep %r9 = boolean
+rep %r10 = number unsigned 32
+rep %r11 = object %s5

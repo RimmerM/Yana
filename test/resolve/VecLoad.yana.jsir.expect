@@ -102,6 +102,7 @@ fn main() -> one %r0
   var $1: %r7
   var $2: %r7
   var $3: %r9
+  var $4: %r18
   block0:
     %22: %r0 = const 1
     %23: %r0 = const 2
@@ -172,355 +173,356 @@ fn main() -> one %r0
     %84: %r0 = const 2
     %85: %r0 = const 3
     %86: %r18 = array %83, %84, %85
-    %87: %r1 = alias %86
-    %88: %r0 = const 3
-    %89: %r0 = const 0
-    %90: %r0 = call sumInts %87, %88, %89
-    %91: %r0 = const 10000
-    %92: %r0 = binary.mul %90, %91
-    %93: %r0 = coerce %92
-    %94: %r0 = binary.add %82, %93
-    %95: %r0 = coerce %94
+    %87: %r18 = alias %86
+    %88: %r1 = alias %87
+    %89: %r0 = const 3
+    %90: %r0 = const 0
+    %91: %r0 = call sumInts %88, %89, %90
+    %92: %r0 = const 10000
+    %93: %r0 = binary.mul %91, %92
+    %94: %r0 = coerce %93
+    %95: %r0 = binary.add %82, %94
+    %96: %r0 = coerce %95
     %43: %r7 = object %s1 %41, %42
-    %96: %r7 = alias %43
-    %97: %r5 = load property %96.items: %r5
-    %98: %r7 = alias %43
-    %99: %r6 = load property %98.length: %r6
-    %100: %r0 = convert %99
+    %97: %r7 = alias %43
+    %98: %r5 = load property %97.items: %r5
+    %99: %r7 = alias %43
+    %100: %r6 = load property %99.length: %r6
+    %101: %r0 = convert %100
     %51: %r7 = object %s1 %49, %50
-    %102: %r7 = alias %51
-    %103: %r5 = load property %102.items: %r5
-    %104: %r7 = alias %51
-    %105: %r6 = load property %104.length: %r6
-    %106: %r0 = convert %105
-    %108: %r4 = const 0
-    %109: %r0 = convert %100
-    %110: %r0 = const 0
-    %111: %r0 = const 4
-    jump -> block9(%108, %108, %108, %108, %110)
+    %103: %r7 = alias %51
+    %104: %r5 = load property %103.items: %r5
+    %105: %r7 = alias %51
+    %106: %r6 = load property %105.length: %r6
+    %107: %r0 = convert %106
+    %109: %r4 = const 0
+    %110: %r0 = convert %101
+    %111: %r0 = const 0
+    %112: %r0 = const 4
+    jump -> block9(%109, %109, %109, %109, %111)
   block5:
-    %371: %r0 = convert %1
-    %372: %r21 = convert %371
-    %373: %r21 = convert %62
-    %374: %r12 = binary.ge %372, %373
-    branch %374 -> block7 -> block6
+    %372: %r0 = convert %1
+    %373: %r21 = convert %372
+    %374: %r21 = convert %62
+    %375: %r12 = binary.ge %373, %374
+    branch %375 -> block7 -> block6
   block6:
-    %375: %r1 = alias %59
-    %376: %r0 = alias %371
-    %377: %r0 = coerce %376
-    store element %375[%377]: %r0, %64
-    %378: %r0 = binary.add %1, %71
-    %379: %r0 = coerce %378
-    jump -> block3(%379)
+    %376: %r1 = alias %59
+    %377: %r0 = alias %372
+    %378: %r0 = coerce %377
+    store element %376[%378]: %r0, %64
+    %379: %r0 = binary.add %1, %71
+    %380: %r0 = coerce %379
+    jump -> block3(%380)
   block7:
     host host.throw "yana: a runtime check failed"
     unreachable
   block8:
-    %380: %r0 = convert %0
-    %381: %r0 = alias %380
-    %382: %r0 = coerce %381
-    store element %59[%382]: %r0, %64
-    %383: %r0 = const 1
-    %384: %r0 = binary.add %382, %383
-    store element %59[%384]: %r0, %64
-    %385: %r0 = const 2
-    %386: %r0 = binary.add %382, %385
-    store element %59[%386]: %r0, %64
-    %387: %r0 = const 3
-    %388: %r0 = binary.add %382, %387
-    store element %59[%388]: %r0, %64
+    %381: %r0 = convert %0
+    %382: %r0 = alias %381
+    %383: %r0 = coerce %382
+    store element %59[%383]: %r0, %64
+    %384: %r0 = const 1
+    %385: %r0 = binary.add %383, %384
+    store element %59[%385]: %r0, %64
+    %386: %r0 = const 2
+    %387: %r0 = binary.add %383, %386
+    store element %59[%387]: %r0, %64
+    %388: %r0 = const 3
+    %389: %r0 = binary.add %383, %388
+    store element %59[%389]: %r0, %64
     jump -> block1(%69)
   block9(%2: %r4, %3: %r4, %4: %r4, %5: %r4, %6: %r0):
-    %112: %r0 = binary.add %6, %111
-    %113: %r0 = coerce %112
-    %114: %r12 = binary.le %113, %109
-    branch %114 -> block14 -> block10
+    %113: %r0 = binary.add %6, %112
+    %114: %r0 = coerce %113
+    %115: %r12 = binary.le %114, %110
+    branch %115 -> block14 -> block10
   block10:
-    %115: %r12 = binary.lt %6, %109
-    branch %115 -> block12 -> block11
+    %116: %r12 = binary.lt %6, %110
+    branch %116 -> block12 -> block11
   block11:
     jump -> block13(%2, %3, %4, %5)
   block12:
-    %116: %r0 = binary.sub %109, %6
-    %117: %r0 = coerce %116
-    %118: %r4 = const 0
-    %119: %r4 = const 1
-    %120: %r4 = const 2
-    %121: %r4 = const 3
-    %122: %r4 = convert %117
-    %123: %r13 = binary.lt %118, %122
-    %124: %r13 = binary.lt %119, %122
-    %125: %r13 = binary.lt %120, %122
-    %126: %r13 = binary.lt %121, %122
-    %127: %r0 = convert %6
-    %128: %r0 = alias %127
-    %129: %r0 = coerce %128
-    %130: %r0 = alias %100
-    %131: %r0 = coerce %130
-    %132: %r0 = const 1
-    %133: %r0 = binary.sub %131, %132
-    %134: %r0 = coerce %133
-    %135: %r12 = binary.gt %129, %134
-    %136: %r0 = select %135, %134, %129
-    %137: %r4 = load element %97[%136]: %r4
-    %138: %r0 = const 1
-    %139: %r0 = binary.add %129, %138
-    %140: %r12 = binary.gt %139, %134
-    %141: %r0 = select %140, %134, %139
-    %142: %r4 = load element %97[%141]: %r4
-    %143: %r0 = const 2
-    %144: %r0 = binary.add %129, %143
-    %145: %r12 = binary.gt %144, %134
-    %146: %r0 = select %145, %134, %144
-    %147: %r4 = load element %97[%146]: %r4
-    %148: %r0 = const 3
-    %149: %r0 = binary.add %129, %148
-    %150: %r12 = binary.gt %149, %134
-    %151: %r0 = select %150, %134, %149
-    %152: %r4 = load element %97[%151]: %r4
-    %153: %r4 = select %123, %137, %108
-    %154: %r4 = select %124, %142, %108
-    %155: %r4 = select %125, %147, %108
-    %156: %r4 = select %126, %152, %108
-    %158: %r0 = alias %129
-    %159: %r0 = alias %106
-    %160: %r0 = coerce %159
-    %161: %r0 = const 1
-    %162: %r0 = binary.sub %160, %161
-    %163: %r0 = coerce %162
-    %164: %r12 = binary.gt %158, %163
-    %165: %r0 = select %164, %163, %158
-    %166: %r4 = load element %103[%165]: %r4
-    %167: %r0 = const 1
-    %168: %r0 = binary.add %158, %167
-    %169: %r12 = binary.gt %168, %163
-    %170: %r0 = select %169, %163, %168
-    %171: %r4 = load element %103[%170]: %r4
-    %172: %r0 = const 2
-    %173: %r0 = binary.add %158, %172
-    %174: %r12 = binary.gt %173, %163
-    %175: %r0 = select %174, %163, %173
-    %176: %r4 = load element %103[%175]: %r4
-    %177: %r0 = const 3
-    %178: %r0 = binary.add %158, %177
-    %179: %r12 = binary.gt %178, %163
-    %180: %r0 = select %179, %163, %178
-    %181: %r4 = load element %103[%180]: %r4
-    %182: %r4 = select %123, %166, %108
-    %183: %r4 = select %124, %171, %108
-    %184: %r4 = select %125, %176, %108
-    %185: %r4 = select %126, %181, %108
-    %186: %r4 = binary.mul %153, %182
-    %187: %r4 = coerce %186
-    %188: %r4 = binary.add %187, %2
-    %189: %r4 = coerce %188
-    %190: %r4 = binary.mul %154, %183
-    %191: %r4 = coerce %190
-    %192: %r4 = binary.add %191, %3
-    %193: %r4 = coerce %192
-    %194: %r4 = binary.mul %155, %184
-    %195: %r4 = coerce %194
-    %196: %r4 = binary.add %195, %4
-    %197: %r4 = coerce %196
-    %198: %r4 = binary.mul %156, %185
-    %199: %r4 = coerce %198
-    %200: %r4 = binary.add %199, %5
-    %201: %r4 = coerce %200
-    jump -> block13(%189, %193, %197, %201)
+    %117: %r0 = binary.sub %110, %6
+    %118: %r0 = coerce %117
+    %119: %r4 = const 0
+    %120: %r4 = const 1
+    %121: %r4 = const 2
+    %122: %r4 = const 3
+    %123: %r4 = convert %118
+    %124: %r13 = binary.lt %119, %123
+    %125: %r13 = binary.lt %120, %123
+    %126: %r13 = binary.lt %121, %123
+    %127: %r13 = binary.lt %122, %123
+    %128: %r0 = convert %6
+    %129: %r0 = alias %128
+    %130: %r0 = coerce %129
+    %131: %r0 = alias %101
+    %132: %r0 = coerce %131
+    %133: %r0 = const 1
+    %134: %r0 = binary.sub %132, %133
+    %135: %r0 = coerce %134
+    %136: %r12 = binary.gt %130, %135
+    %137: %r0 = select %136, %135, %130
+    %138: %r4 = load element %98[%137]: %r4
+    %139: %r0 = const 1
+    %140: %r0 = binary.add %130, %139
+    %141: %r12 = binary.gt %140, %135
+    %142: %r0 = select %141, %135, %140
+    %143: %r4 = load element %98[%142]: %r4
+    %144: %r0 = const 2
+    %145: %r0 = binary.add %130, %144
+    %146: %r12 = binary.gt %145, %135
+    %147: %r0 = select %146, %135, %145
+    %148: %r4 = load element %98[%147]: %r4
+    %149: %r0 = const 3
+    %150: %r0 = binary.add %130, %149
+    %151: %r12 = binary.gt %150, %135
+    %152: %r0 = select %151, %135, %150
+    %153: %r4 = load element %98[%152]: %r4
+    %154: %r4 = select %124, %138, %109
+    %155: %r4 = select %125, %143, %109
+    %156: %r4 = select %126, %148, %109
+    %157: %r4 = select %127, %153, %109
+    %159: %r0 = alias %130
+    %160: %r0 = alias %107
+    %161: %r0 = coerce %160
+    %162: %r0 = const 1
+    %163: %r0 = binary.sub %161, %162
+    %164: %r0 = coerce %163
+    %165: %r12 = binary.gt %159, %164
+    %166: %r0 = select %165, %164, %159
+    %167: %r4 = load element %104[%166]: %r4
+    %168: %r0 = const 1
+    %169: %r0 = binary.add %159, %168
+    %170: %r12 = binary.gt %169, %164
+    %171: %r0 = select %170, %164, %169
+    %172: %r4 = load element %104[%171]: %r4
+    %173: %r0 = const 2
+    %174: %r0 = binary.add %159, %173
+    %175: %r12 = binary.gt %174, %164
+    %176: %r0 = select %175, %164, %174
+    %177: %r4 = load element %104[%176]: %r4
+    %178: %r0 = const 3
+    %179: %r0 = binary.add %159, %178
+    %180: %r12 = binary.gt %179, %164
+    %181: %r0 = select %180, %164, %179
+    %182: %r4 = load element %104[%181]: %r4
+    %183: %r4 = select %124, %167, %109
+    %184: %r4 = select %125, %172, %109
+    %185: %r4 = select %126, %177, %109
+    %186: %r4 = select %127, %182, %109
+    %187: %r4 = binary.mul %154, %183
+    %188: %r4 = coerce %187
+    %189: %r4 = binary.add %188, %2
+    %190: %r4 = coerce %189
+    %191: %r4 = binary.mul %155, %184
+    %192: %r4 = coerce %191
+    %193: %r4 = binary.add %192, %3
+    %194: %r4 = coerce %193
+    %195: %r4 = binary.mul %156, %185
+    %196: %r4 = coerce %195
+    %197: %r4 = binary.add %196, %4
+    %198: %r4 = coerce %197
+    %199: %r4 = binary.mul %157, %186
+    %200: %r4 = coerce %199
+    %201: %r4 = binary.add %200, %5
+    %202: %r4 = coerce %201
+    jump -> block13(%190, %194, %198, %202)
   block13(%7: %r4, %8: %r4, %9: %r4, %10: %r4):
-    %202: %r4 = binary.add %7, %8
-    %203: %r4 = coerce %202
-    %204: %r4 = binary.add %9, %10
-    %205: %r4 = coerce %204
-    %206: %r4 = binary.add %203, %205
-    %207: %r4 = coerce %206
-    %208: %r7 = alias %43
-    call Array(a).reclaim(F32) %208
-    %209: %r7 = alias %51
+    %203: %r4 = binary.add %7, %8
+    %204: %r4 = coerce %203
+    %205: %r4 = binary.add %9, %10
+    %206: %r4 = coerce %205
+    %207: %r4 = binary.add %204, %206
+    %208: %r4 = coerce %207
+    %209: %r7 = alias %43
     call Array(a).reclaim(F32) %209
-    %210: %r4 = const 30
-    %211: %r12 = binary.eq %207, %210
-    %212: %r0 = const 30
-    %213: %r0 = const 0
-    %214: %r0 = select %211, %212, %213
-    %215: %r0 = const 100
-    %216: %r0 = binary.mul %214, %215
-    %217: %r0 = coerce %216
-    %218: %r0 = binary.add %95, %217
-    %219: %r0 = coerce %218
-    %221: %r0 = const 8
-    %222: %r0 = convert %77
-    %223: %r0 = const 0
-    %224: %r0 = const 4
-    jump -> block16(%223)
+    %210: %r7 = alias %51
+    call Array(a).reclaim(F32) %210
+    %211: %r4 = const 30
+    %212: %r12 = binary.eq %208, %211
+    %213: %r0 = const 30
+    %214: %r0 = const 0
+    %215: %r0 = select %212, %213, %214
+    %216: %r0 = const 100
+    %217: %r0 = binary.mul %215, %216
+    %218: %r0 = coerce %217
+    %219: %r0 = binary.add %96, %218
+    %220: %r0 = coerce %219
+    %222: %r0 = const 8
+    %223: %r0 = convert %77
+    %224: %r0 = const 0
+    %225: %r0 = const 4
+    jump -> block16(%224)
   block14:
-    %330: %r0 = convert %6
-    %331: %r0 = alias %330
-    %332: %r0 = coerce %331
-    %333: %r4 = load element %97[%332]: %r4
-    %334: %r0 = const 1
-    %335: %r0 = binary.add %332, %334
-    %336: %r4 = load element %97[%335]: %r4
-    %337: %r0 = const 2
-    %338: %r0 = binary.add %332, %337
-    %339: %r4 = load element %97[%338]: %r4
-    %340: %r0 = const 3
-    %341: %r0 = binary.add %332, %340
-    %342: %r4 = load element %97[%341]: %r4
-    %344: %r0 = alias %332
-    %345: %r4 = load element %103[%344]: %r4
-    %346: %r0 = const 1
-    %347: %r0 = binary.add %344, %346
-    %348: %r4 = load element %103[%347]: %r4
-    %349: %r0 = const 2
-    %350: %r0 = binary.add %344, %349
-    %351: %r4 = load element %103[%350]: %r4
-    %352: %r0 = const 3
-    %353: %r0 = binary.add %344, %352
-    %354: %r4 = load element %103[%353]: %r4
-    %355: %r4 = binary.mul %333, %345
-    %356: %r4 = coerce %355
-    %357: %r4 = binary.add %356, %2
-    %358: %r4 = coerce %357
-    %359: %r4 = binary.mul %336, %348
-    %360: %r4 = coerce %359
-    %361: %r4 = binary.add %360, %3
-    %362: %r4 = coerce %361
-    %363: %r4 = binary.mul %339, %351
-    %364: %r4 = coerce %363
-    %365: %r4 = binary.add %364, %4
-    %366: %r4 = coerce %365
-    %367: %r4 = binary.mul %342, %354
-    %368: %r4 = coerce %367
-    %369: %r4 = binary.add %368, %5
-    %370: %r4 = coerce %369
-    jump -> block9(%358, %362, %366, %370, %113)
+    %331: %r0 = convert %6
+    %332: %r0 = alias %331
+    %333: %r0 = coerce %332
+    %334: %r4 = load element %98[%333]: %r4
+    %335: %r0 = const 1
+    %336: %r0 = binary.add %333, %335
+    %337: %r4 = load element %98[%336]: %r4
+    %338: %r0 = const 2
+    %339: %r0 = binary.add %333, %338
+    %340: %r4 = load element %98[%339]: %r4
+    %341: %r0 = const 3
+    %342: %r0 = binary.add %333, %341
+    %343: %r4 = load element %98[%342]: %r4
+    %345: %r0 = alias %333
+    %346: %r4 = load element %104[%345]: %r4
+    %347: %r0 = const 1
+    %348: %r0 = binary.add %345, %347
+    %349: %r4 = load element %104[%348]: %r4
+    %350: %r0 = const 2
+    %351: %r0 = binary.add %345, %350
+    %352: %r4 = load element %104[%351]: %r4
+    %353: %r0 = const 3
+    %354: %r0 = binary.add %345, %353
+    %355: %r4 = load element %104[%354]: %r4
+    %356: %r4 = binary.mul %334, %346
+    %357: %r4 = coerce %356
+    %358: %r4 = binary.add %357, %2
+    %359: %r4 = coerce %358
+    %360: %r4 = binary.mul %337, %349
+    %361: %r4 = coerce %360
+    %362: %r4 = binary.add %361, %3
+    %363: %r4 = coerce %362
+    %364: %r4 = binary.mul %340, %352
+    %365: %r4 = coerce %364
+    %366: %r4 = binary.add %365, %4
+    %367: %r4 = coerce %366
+    %368: %r4 = binary.mul %343, %355
+    %369: %r4 = coerce %368
+    %370: %r4 = binary.add %369, %5
+    %371: %r4 = coerce %370
+    jump -> block9(%359, %363, %367, %371, %114)
   block15(%11: %r0):
-    %319: %r9 = alias %35
-    call Array(a).reclaim(I32) %319
-    %320: %r0 = const 10
-    %321: %r0 = binary.mul %11, %320
-    %322: %r0 = coerce %321
-    %323: %r0 = binary.add %219, %322
-    %324: %r0 = coerce %323
-    %325: %r0 = const 0
-    %326: %r0 = call sumInts %59, %62, %325
+    %320: %r9 = alias %35
+    call Array(a).reclaim(I32) %320
+    %321: %r0 = const 10
+    %322: %r0 = binary.mul %11, %321
+    %323: %r0 = coerce %322
+    %324: %r0 = binary.add %220, %323
+    %325: %r0 = coerce %324
+    %326: %r0 = const 0
+    %327: %r0 = call sumInts %59, %62, %326
     %61: %r9 = object %s2 %59, %60
-    %327: %r9 = alias %61
-    call Array(a).reclaim(I32) %327
-    %328: %r0 = binary.add %324, %326
-    %329: %r0 = coerce %328
-    return %329
+    %328: %r9 = alias %61
+    call Array(a).reclaim(I32) %328
+    %329: %r0 = binary.add %325, %327
+    %330: %r0 = coerce %329
+    return %330
   block16(%12: %r0):
-    %225: %r0 = binary.add %12, %224
-    %226: %r0 = coerce %225
-    %227: %r12 = binary.le %226, %222
-    branch %227 -> block21 -> block17
+    %226: %r0 = binary.add %12, %225
+    %227: %r0 = coerce %226
+    %228: %r12 = binary.le %227, %223
+    branch %228 -> block21 -> block17
   block17:
-    %228: %r12 = binary.lt %12, %222
-    branch %228 -> block18 -> block19
+    %229: %r12 = binary.lt %12, %223
+    branch %229 -> block18 -> block19
   block18:
-    %229: %r0 = binary.sub %222, %12
-    %230: %r0 = coerce %229
-    %231: %r0 = const 0
-    %232: %r0 = const 1
-    %233: %r0 = const 2
-    %234: %r0 = const 3
-    %235: %r13 = binary.lt %231, %230
-    %236: %r13 = binary.lt %232, %230
-    %237: %r13 = binary.lt %233, %230
-    %238: %r13 = binary.lt %234, %230
-    %239: %r0 = convert %12
-    %240: %r0 = alias %239
-    %241: %r0 = coerce %240
-    %242: %r0 = alias %77
-    %243: %r0 = coerce %242
-    %244: %r0 = const 1
-    %245: %r0 = binary.sub %243, %244
-    %246: %r0 = coerce %245
-    %247: %r12 = binary.gt %241, %246
-    %248: %r0 = select %247, %246, %241
-    %249: %r0 = load element %74[%248]: %r0
-    %250: %r0 = const 1
-    %251: %r0 = binary.add %241, %250
-    %252: %r12 = binary.gt %251, %246
-    %253: %r0 = select %252, %246, %251
-    %254: %r0 = load element %74[%253]: %r0
-    %255: %r0 = const 2
-    %256: %r0 = binary.add %241, %255
-    %257: %r12 = binary.gt %256, %246
-    %258: %r0 = select %257, %246, %256
-    %259: %r0 = load element %74[%258]: %r0
-    %260: %r0 = const 3
-    %261: %r0 = binary.add %241, %260
-    %262: %r12 = binary.gt %261, %246
-    %263: %r0 = select %262, %246, %261
-    %264: %r0 = load element %74[%263]: %r0
-    %265: %r13 = binary.eq %249, %221
-    %266: %r13 = binary.eq %254, %221
-    %267: %r13 = binary.eq %259, %221
-    %268: %r13 = binary.eq %264, %221
-    %269: %r13 = binary.and %265, %235
+    %230: %r0 = binary.sub %223, %12
+    %231: %r0 = coerce %230
+    %232: %r0 = const 0
+    %233: %r0 = const 1
+    %234: %r0 = const 2
+    %235: %r0 = const 3
+    %236: %r13 = binary.lt %232, %231
+    %237: %r13 = binary.lt %233, %231
+    %238: %r13 = binary.lt %234, %231
+    %239: %r13 = binary.lt %235, %231
+    %240: %r0 = convert %12
+    %241: %r0 = alias %240
+    %242: %r0 = coerce %241
+    %243: %r0 = alias %77
+    %244: %r0 = coerce %243
+    %245: %r0 = const 1
+    %246: %r0 = binary.sub %244, %245
+    %247: %r0 = coerce %246
+    %248: %r12 = binary.gt %242, %247
+    %249: %r0 = select %248, %247, %242
+    %250: %r0 = load element %74[%249]: %r0
+    %251: %r0 = const 1
+    %252: %r0 = binary.add %242, %251
+    %253: %r12 = binary.gt %252, %247
+    %254: %r0 = select %253, %247, %252
+    %255: %r0 = load element %74[%254]: %r0
+    %256: %r0 = const 2
+    %257: %r0 = binary.add %242, %256
+    %258: %r12 = binary.gt %257, %247
+    %259: %r0 = select %258, %247, %257
+    %260: %r0 = load element %74[%259]: %r0
+    %261: %r0 = const 3
+    %262: %r0 = binary.add %242, %261
+    %263: %r12 = binary.gt %262, %247
+    %264: %r0 = select %263, %247, %262
+    %265: %r0 = load element %74[%264]: %r0
+    %266: %r13 = binary.eq %250, %222
+    %267: %r13 = binary.eq %255, %222
+    %268: %r13 = binary.eq %260, %222
+    %269: %r13 = binary.eq %265, %222
     %270: %r13 = binary.and %266, %236
     %271: %r13 = binary.and %267, %237
     %272: %r13 = binary.and %268, %238
-    %273: %r12 = binary.or %269, %270
-    %274: %r12 = binary.or %271, %272
-    %275: %r12 = binary.or %273, %274
-    branch %275 -> block20 -> block19
+    %273: %r13 = binary.and %269, %239
+    %274: %r12 = binary.or %270, %271
+    %275: %r12 = binary.or %272, %273
+    %276: %r12 = binary.or %274, %275
+    branch %276 -> block20 -> block19
   block19:
-    %276: %r0 = const -1
-    jump -> block15(%276)
+    %277: %r0 = const -1
+    jump -> block15(%277)
   block20:
-    %277: %r0 = const 4
-    %278: %r0 = const 3
-    %279: %r0 = select %272, %278, %277
-    %280: %r0 = const 2
-    %281: %r0 = select %271, %280, %279
-    %282: %r0 = const 1
-    %283: %r0 = select %270, %282, %281
-    %284: %r0 = const 0
-    %285: %r0 = select %269, %284, %283
-    %286: %r0 = binary.add %12, %285
-    %287: %r0 = coerce %286
-    jump -> block15(%287)
+    %278: %r0 = const 4
+    %279: %r0 = const 3
+    %280: %r0 = select %273, %279, %278
+    %281: %r0 = const 2
+    %282: %r0 = select %272, %281, %280
+    %283: %r0 = const 1
+    %284: %r0 = select %271, %283, %282
+    %285: %r0 = const 0
+    %286: %r0 = select %270, %285, %284
+    %287: %r0 = binary.add %12, %286
+    %288: %r0 = coerce %287
+    jump -> block15(%288)
   block21:
-    %288: %r0 = convert %12
-    %289: %r0 = alias %288
-    %290: %r0 = coerce %289
-    %291: %r0 = load element %74[%290]: %r0
-    %292: %r0 = const 1
-    %293: %r0 = binary.add %290, %292
-    %294: %r0 = load element %74[%293]: %r0
-    %295: %r0 = const 2
-    %296: %r0 = binary.add %290, %295
-    %297: %r0 = load element %74[%296]: %r0
-    %298: %r0 = const 3
-    %299: %r0 = binary.add %290, %298
-    %300: %r0 = load element %74[%299]: %r0
-    %301: %r13 = binary.eq %291, %221
-    %302: %r13 = binary.eq %294, %221
-    %303: %r13 = binary.eq %297, %221
-    %304: %r13 = binary.eq %300, %221
-    %305: %r12 = binary.or %301, %302
-    %306: %r12 = binary.or %303, %304
-    %307: %r12 = binary.or %305, %306
-    branch %307 -> block23 -> block22
+    %289: %r0 = convert %12
+    %290: %r0 = alias %289
+    %291: %r0 = coerce %290
+    %292: %r0 = load element %74[%291]: %r0
+    %293: %r0 = const 1
+    %294: %r0 = binary.add %291, %293
+    %295: %r0 = load element %74[%294]: %r0
+    %296: %r0 = const 2
+    %297: %r0 = binary.add %291, %296
+    %298: %r0 = load element %74[%297]: %r0
+    %299: %r0 = const 3
+    %300: %r0 = binary.add %291, %299
+    %301: %r0 = load element %74[%300]: %r0
+    %302: %r13 = binary.eq %292, %222
+    %303: %r13 = binary.eq %295, %222
+    %304: %r13 = binary.eq %298, %222
+    %305: %r13 = binary.eq %301, %222
+    %306: %r12 = binary.or %302, %303
+    %307: %r12 = binary.or %304, %305
+    %308: %r12 = binary.or %306, %307
+    branch %308 -> block23 -> block22
   block22:
-    jump -> block16(%226)
+    jump -> block16(%227)
   block23:
-    %308: %r0 = const 4
-    %309: %r0 = const 3
-    %310: %r0 = select %304, %309, %308
-    %311: %r0 = const 2
-    %312: %r0 = select %303, %311, %310
-    %313: %r0 = const 1
-    %314: %r0 = select %302, %313, %312
-    %315: %r0 = const 0
-    %316: %r0 = select %301, %315, %314
-    %317: %r0 = binary.add %12, %316
-    %318: %r0 = coerce %317
-    jump -> block15(%318)
+    %309: %r0 = const 4
+    %310: %r0 = const 3
+    %311: %r0 = select %305, %310, %309
+    %312: %r0 = const 2
+    %313: %r0 = select %304, %312, %311
+    %314: %r0 = const 1
+    %315: %r0 = select %303, %314, %313
+    %316: %r0 = const 0
+    %317: %r0 = select %302, %316, %315
+    %318: %r0 = binary.add %12, %317
+    %319: %r0 = coerce %318
+    jump -> block15(%319)
 
 fn Array(a).reclaim(F32)(one %r7) -> omitted
   var $0: %r7
@@ -532,7 +534,7 @@ fn Array(a).reclaim(I32)(one %r9) -> omitted
   block0(%0: %r9):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 24 adopted 0 sunk 4 numbered 13 decided 0 unboxed 0 updated 0 split 0 promoted 10
+optimizer clones 0 aliased 0 forwarded 0 removed 25 adopted 0 sunk 4 numbered 13 decided 0 unboxed 0 updated 0 split 0 promoted 11
 
 shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
 shape %s1 object Array {items: %r5, length: %r6}

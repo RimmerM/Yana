@@ -1,0 +1,46 @@
+{-
+   A window of a value with no storage of its own.
+
+   # resolver: ownership
+
+   `[n, n + 1]` at a window position is a fixed array built right there, and the window is a loan of
+   a frame slot the compiler gives it. The slot lives as long as the loan is used, like any local,
+   so every use below stays inside the frame: handed to a window parameter for the call, held in a
+   local record read after other calls have reused the stack, and a named local's window beside it.
+   A string literal is placed static bytes and its window is not the frame's at all.
+   `Reject.TemporaryLoan.yana` is the half that lets such a window leave the frame.
+-}
+
+data Holder {view: '[Int], at: Int}
+
+fn total(xs: '[Int]) -> Int:
+    let &s = 0
+    for x in items(xs):
+        s += x
+    return s
+
+-- Reuses the stack a dead frame's temporary would have been in.
+@noinline
+fn clobber(a: Int) -> Int:
+    let &xs = [0] :: [Int *32]
+    for i in 0..32:
+        xs[i] = a + i
+    return xs[31]
+
+@noinline
+fn held(n: Int) -> Int:
+    let h = Holder {view: [n, n * 2, n * 3], at: 1}
+    let k = clobber(9000)
+    return h.view[h.at] + total(h.view) + k - 9031
+
+@noinline
+fn named(n: Int) -> Int:
+    let v = [n, n] :: [Int *2]
+    let g = Holder {view: v, at: 0}
+    return total(g.view)
+
+fn main() -> Int:
+    let a = total([1, 2, 3])                       -- 6
+    let b = held(5)                                -- 10 + 30
+    let c = named(7)                               -- 14
+    return a * 1000 + b * 10 + c

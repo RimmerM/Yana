@@ -10,6 +10,8 @@
 
    Each of these declines the marker rather than half-setting it. A `@caller` position that cannot be
    filled must not become a position every call site may leave out and nothing fills.
+
+   # resolver: ownership
 -}
 
 data Site {file: String, line: Int, column: Int, function: String}
@@ -34,7 +36,8 @@ fn itself(@caller(source: text) text: String) -> Int = 0
 
 -- The fill is a value, so there is no storage of the caller's for a `&` or a `return` to name.
 fn mutable(@caller &at: Site) -> Int = at.line
-fn rooted(@caller return at: Site) -> Int = at.line
+-- `@caller return at: Site` is refused: the `return` spelling is gone (`'` is
+-- an origin, not a storage claim), so the `&` half above is what remains of the rule.
 
 -- `@caller` *is* what fills a position the call site left out, so a written default is a second
 -- answer to the same question.

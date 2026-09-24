@@ -2,6 +2,7 @@
 #include "resolve_internal.h"
 #include "name.h"
 #include "own.h"
+#include "print.h"
 #include "intrinsic/link.h"
 
 namespace mir {
@@ -1437,6 +1438,37 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& 
                                           source);
     }
 
+    /*
+     * What the enclosing expression is holding with a teardown, given **storage** before the region
+     * is entered - `combine(Token {id: 10}, if b > 0 then t else: around(): return 0 ...)`.
+     *
+     * A `return` or a `?` inside the region leaves this function, so it abandons those values as
+     * surely as one written beside them; but the region's floor keeps it from naming them, because
+     * the region is outlined and a node of the caller's is not a value there. A local is: it is the
+     * caller's storage, and a return from inside a region already drops the caller's live locals on
+     * the way out, the way it drops a named `let` above the call. So the value becomes an unnamed
+     * local here and is read back out where the caller carries on, and nothing else about the
+     * expression changes. Rejected: releasing through the region's exit code in the caller, which
+     * would be a second drop placement for the one edge the ordinary one already handles.
+     *
+     * Not over a **skipping** call, whose alternative is a second place the caller carries on at
+     * and joins the first: the value would have to be read out on one path and still be in the
+     * local on the other. There the values stay nodes, `heldStranded` says so, and an exit from
+     * inside is refused by name (`releaseHeld`), which is the one shape left.
+     */
+    struct Spill { Held* frame; U32 index; Place* place; };
+    SmallArray<Spill, 8> spills;
+    auto outerStranded = heldStranded;
+
+    // In `abandonedHeld`'s order, outermost first, because the unnamed locals are dropped in the
+    // order they are declared - which is what makes this the order a named `let` would give.
+    SmallArray<HeldSlot, 8> abandoned;
+    abandonedHeld(nullptr, abandoned);
+    for(auto slot: abandoned) {
+        if(skipped) heldStranded = true;
+        else spills.push(Spill { slot.frame, slot.index, hold(builder, *slot.frame->at(slot.index), source) });
+    }
+
     auto region = builder.enterRegion(Continuation::Handover, multiplicity);
     auto entry = builder.addBlock(StringId());
 
@@ -1530,6 +1562,7 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& 
      */
     builder.leaveRegion();
     heldFloor = outerHeld;
+    heldStranded = outerStranded;
 
     /*
      * Falling off the end of the extent - the implicit `continue`, and the one place a resume
@@ -1580,6 +1613,14 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& 
     // about the last statement of the body.
     if(!fellOut && !enteredFrom(builder.body, builder.base(), *join)) {
         builder.addUnreachable(source);
+    }
+
+    // The spilled values, back in hand where the caller carries on - see above.
+    if(!builder.isTerminated()) {
+        for(auto& spill: spills) {
+            spill.frame->at(spill.index) = readPlace(builder, source, *spill.place,
+                                                     bindingRequest(Access::Owned));
+        }
     }
 
     // A departure inside the region left the region and no more, so the iterator asks again here -
@@ -2330,6 +2371,8 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
     // Writability is checked here rather than at the builder because this is where the source
     // position is: the builder asserts the same thing, and an assertion is not a diagnostic.
     if(!place->writable) {
+        if(captureWriteRefused(builder, *place, written.target.source)) return;
+        if(loanFieldWriteRefused(builder, *place, written.target.source)) return;
         context.diagnostics.error("this is not declared `&`, so it cannot be assigned"_v,
                                   written.target.source);
         return;
@@ -2457,7 +2500,7 @@ void Resolver::resolveWhile(Builder& builder, ast::Expr& expr) {
 Loop::Loop(Resolver& resolver, Carry* carry, Block& exit, Block& again, ContinuationId region,
            bool leavesRegion):
     resolver(resolver), outer(resolver.loops), carry(carry), exit(exit), again(again),
-    region(region), leavesRegion(leavesRegion) {
+    region(region), heldAtEntry(resolver.held), leavesRegion(leavesRegion) {
     resolver.loops = this;
 }
 
@@ -2523,6 +2566,8 @@ void Resolver::resolveExit(Builder& builder, ast::Expr& expr) {
         if(!resumeExit(builder, expr, loop)) builder.addUnreachable(expr.source);
         return;
     }
+
+    releaseHeld(builder, loop.heldAtEntry, expr.source);
 
     /*
      * The loop that *is* a continuation region - `for x in items(xs)`.
@@ -2661,6 +2706,8 @@ bool Resolver::resumeExit(Builder& builder, ast::Expr& expr, Loop& loop) {
         arguments.push(builder.resultOf(*wrapped, argumentMode(ownedContract(),
                                                                SourceKind::Result)));
 
+        // After the value, as `resolveReturn` releases after its operand - see `releaseHeld`.
+        releaseHeld(builder, loop.heldAtEntry, expr.source);
         loop.carry->edge(builder, arguments);
         builder.addJump(expr.source, loop.again, arguments.pointer(), arguments.size());
         return true;
@@ -2720,6 +2767,7 @@ bool Resolver::resumeExit(Builder& builder, ast::Expr& expr, Loop& loop) {
     value = holdBorrowed(builder, *value, wanted, resume.type, expr.source);
     if(!value) return false;
 
+    releaseHeld(builder, loop.heldAtEntry, expr.source);
     builder.addResume(expr.source, loop.exit, *value, resume);
     return true;
 }
@@ -3327,6 +3375,73 @@ void Resolver::resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr
 }
 
 /*
+ * A write through a shared loan a record holds - refused with the loan named, at every write: an
+ * assignment, a compound one, a `&` argument and a replaced path in a record update.
+ *
+ * ownership.md is the rule, twice over. A field typed `kept'Cell` *is* the cell, owned elsewhere and
+ * reached shared ("Records holding external values"), and assigning to a loan-typed place always
+ * writes through to the storage it lends - "there is no operation that rebinds what a borrow refers
+ * to" ("Binding conventions") covers a field as it covers a binding. So `store.held = value` is a
+ * write through a shared loan and is refused. What *re-points* a loan field is assigning its record,
+ * which releases the old loan with the old value, and a record update is how one field of it is
+ * spelled: `store = {store | held: value}` (`resolveUpdate`). The shipping stage read the
+ * field assignment as re-pointing and admitted it; the first sentence below says which it is.
+ *
+ * Found by walking up from the target to the first projection whose own occurrence is a shared
+ * loan under a parent that may be written: that is the one step where writability was lost, and
+ * the only one the sentence can be about. Either the target is that field or it is below it
+ * (writing into the lent storage). The record and field are named from the place, so the spelling
+ * the sentence offers is the one the author's own names make. It is a walk of its own rather than
+ * `firstBorrowedStep`'s, because the question is where *writability* went: an exclusive loan field
+ * is somebody else's storage and still writable, so `box.exclusive.shared.value` is about `shared`.
+ */
+bool Resolver::loanFieldWriteRefused(Builder& builder, Place& place, LocationId source) {
+    auto base = builder.base();
+
+    for(auto at = &place; at->parent; at = base[at->parent]) {
+        if(at->occurrence.contract.access() != Access::Shared) continue;
+        if(!base[at->parent]->writable) continue;
+
+        // The field itself, which is `at` or the slot a `Deref` of the referent sits on.
+        auto field = at->kind == Place::Deref ? base[at->parent] : at;
+
+        String record;
+        auto name = StringId();
+        // Named only where the record has a name: the copy a record update makes is an unnamed
+        // local, and `local1 = {local1 | ...}` is advice nobody can follow.
+        auto& root = rootPlace(base, *field);
+        auto named = root.kind != Place::Local ||
+                     builder.body.local(base, LocalId(root.payload))->name != StringId();
+
+        if(named && field->kind == Place::Field && field->parent) {
+            record = spelledPlace(builder, *base[field->parent]);
+            auto recordType = (RecordType*)decl()[base[field->parent]->occurrence.type];
+            name = recordType->field(decl(), U16(field->payload)).name;
+        }
+
+        if(name == StringId()) {
+            context.diagnostics.error(at == &place
+                ? "this field is a shared loan, so writing through it would write storage the loan only reads. To hold a different loan, assign the record, with an update to replace one field"_v
+                : "this is reached through a shared loan a record holds, so it can be read here and not written - write it through its owner"_v,
+                source);
+        } else if(at == &place) {
+            context.diagnostics.error(
+                "%@.%@ is a shared loan, so writing through it would write storage the loan only reads. To hold a different loan, assign the record: `%@ = {%@ | %@: ...}`"_v,
+                source, record, context.findName(name), record, record, context.findName(name));
+        } else {
+            context.diagnostics.error(
+                "%@ is reached through %@.%@, a shared loan, so it can be read here and not written - write it through its owner, or hold a different loan with `%@ = {%@ | %@: ...}`"_v,
+                source, spelledPlace(builder, place), record,
+                context.findName(name), record, record, context.findName(name));
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+/*
  * `return` - an ordinary one everywhere, including inside a continuation.
  *
  * It is Analysis-Lens.md §5.1's second exit out of a continuation and needs nothing here for that,
@@ -3386,6 +3501,7 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
             return;
         }
 
+        releaseHeld(builder, nullptr, expr.source);
         builder.addReturn(expr.source, *wrapped);
         return;
     }
@@ -3424,6 +3540,7 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
             return;
         }
 
+        releaseHeld(builder, nullptr, expr.source);
         builder.addReturn(expr.source, *value);
         return;
     }
@@ -3436,6 +3553,7 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
             return;
         }
 
+        releaseHeld(builder, nullptr, expr.source);
         builder.addReturnUnit(expr.source);
         return;
     }
@@ -3479,6 +3597,9 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
         return;
     }
 
+    // What the enclosing expression is holding, given up after the operand rather than before it -
+    // `releaseHeld`, where the order is argued.
+    releaseHeld(builder, nullptr, expr.source);
     builder.addReturn(expr.source, *value);
 }
 
@@ -3665,8 +3786,11 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
          * covers is conditional and nothing between the two lines can leave.
          */
         readingConstant = !startup;
+        auto outerProbing = probingGlobal;
+        probingGlobal = startup;
         auto constant = resolveConstant(*parse[binding.content], nullptr, &notConstant);
         readingConstant = false;
+        probingGlobal = outerProbing;
 
         /*
          * A **string**, whose value is the one thing here that cannot be settled yet - at the root
@@ -4222,6 +4346,8 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     auto outerLambdaFloor = lambdaFloor;
     auto outerBindings = U32(bindings.size());
 
+    auto outerStranded = heldStranded;
+    heldStranded = false;
     currentFunction = &function;
     held = nullptr;
     loops = nullptr;
@@ -4398,6 +4524,7 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     currentFunction = outerFunction;
     held = outerHeld;
     loops = outerLoops;
+    heldStranded = outerStranded;
     continuationLocal = outerContinuation;
     yieldedLocal = outerYielded;
     guardYields = outerGuard;
@@ -4585,6 +4712,21 @@ void Resolver::checkAlwaysInline(Function& function, LocationId source) {
             auto kind = base[pointer]->kind;
             if(kind == Node::LensCall || kind == Node::LensTry) {
                 return refuse("a body that calls a lens"_v);
+            }
+
+            /*
+             * A body that **calls itself** - every copy of it contains the same call, so there is
+             * no number of expansions after which the attribute has been carried out. Refused here,
+             * once, rather than left to the graft's depth limit, which meets it at every call site
+             * and inside the body's own conversion, eight copies deep each time. A cycle through a
+             * second function is still the limit's; this is the shape an author writes.
+             */
+            if(kind == Node::Call && decl()[((NodeCall*)base[pointer])->callee] == &function) {
+                context.diagnostics.error(
+                    "`@inline(always)` on %@ cannot be carried out because the body calls itself - a copy of it would contain the same call. Use `@inline` for a body the optimizer should weigh instead"_v,
+                    source, context.findName(function.name));
+                function.alwaysInline = false;
+                return;
             }
         }
     }

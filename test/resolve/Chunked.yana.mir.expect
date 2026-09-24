@@ -1,0 +1,538 @@
+module ResolveTest
+
+data Chunks {a: Array(I32), b: Array(I32), c: Array(I32), used: I32} reclaim derived
+
+data Ring {items: Array(I32)} reclaim derived
+
+instance Chunked(Chunks, I32): Chunks.chunks
+
+instance Contiguous(Ring, I32): Ring.elements
+
+instance Chunked(Ring, I32): Ring.chunks
+
+fn threeChunks(x: I32 [shared call]) -> Chunks {
+  local & local1: Array(I32)
+  local & local2: Array(I32)
+  local & local3: Array(I32)
+
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = const 1
+  %3: I32 = add inspect %1 inspect %2
+  %4: %I32 = run.slots I32 *2
+  %5: Size = bitcast inspect %4
+  %6: Size = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  %8: {} = call checkCondition borrow.shared %7
+  %9: @bits(30) U32 = const 2
+  %10: @bits(2) U32 = const 1
+  %11: Run(I32) = aggregate.Run take %4 take %9 take %10
+  %12: @bits(30) U32 = const 2
+  %13: Array(I32) = aggregate.Array take %11 take %12
+  write.init borrow.unique (local1) take %13
+  %15: Size = const 0
+  write.init borrow.unique ([%%4][0]) take %0
+  %17: Size = const 1
+  write.init borrow.unique ([%%4][1]) take %3
+  %19: Array(I32) = read take (local1)
+  %20: I32 = read copy.trivial (x)
+  %21: I32 = const 2
+  %22: I32 = add inspect %20 inspect %21
+  %23: I32 = read copy.trivial (x)
+  %24: I32 = const 3
+  %25: I32 = add inspect %23 inspect %24
+  %26: %I32 = run.slots I32 *2
+  %27: Size = bitcast inspect %26
+  %28: Size = const 0
+  %29: Bool = eq inspect %27 inspect %28
+  %30: {} = call checkCondition borrow.shared %29
+  %31: @bits(30) U32 = const 2
+  %32: @bits(2) U32 = const 1
+  %33: Run(I32) = aggregate.Run take %26 take %31 take %32
+  %34: @bits(30) U32 = const 2
+  %35: Array(I32) = aggregate.Array take %33 take %34
+  write.init borrow.unique (local2) take %35
+  %37: Size = const 0
+  write.init borrow.unique ([%%26][0]) take %22
+  %39: Size = const 1
+  write.init borrow.unique ([%%26][1]) take %25
+  %41: Array(I32) = read take (local2)
+  %42: I32 = read copy.trivial (x)
+  %43: I32 = const 4
+  %44: I32 = add inspect %42 inspect %43
+  %45: I32 = read copy.trivial (x)
+  %46: I32 = const 5
+  %47: I32 = add inspect %45 inspect %46
+  %48: %I32 = run.slots I32 *2
+  %49: Size = bitcast inspect %48
+  %50: Size = const 0
+  %51: Bool = eq inspect %49 inspect %50
+  %52: {} = call checkCondition borrow.shared %51
+  %53: @bits(30) U32 = const 2
+  %54: @bits(2) U32 = const 1
+  %55: Run(I32) = aggregate.Run take %48 take %53 take %54
+  %56: @bits(30) U32 = const 2
+  %57: Array(I32) = aggregate.Array take %55 take %56
+  write.init borrow.unique (local3) take %57
+  %59: Size = const 0
+  write.init borrow.unique ([%%48][0]) take %44
+  %61: Size = const 1
+  write.init borrow.unique ([%%48][1]) take %47
+  %63: Array(I32) = read take (local3)
+  %64: I32 = const 3
+  %65: Chunks = aggregate.Chunks take %19 take %41 take %63 take %64
+  return take %65
+}
+
+lens fn Chunks.chunks(self: Chunks [shared slot 0], $body: (Array(I32)) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial ($yielded)
+  %3: I32 = const 0
+  %4: Bool = eq inspect %2 inspect %3
+  branch inspect %4 -> bb1 -> bb2
+
+bb1:
+  %6: Array(I32) [shared slot 0] = read borrow.shared (self.a) loan0
+  %7: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %6 roots{0}
+  %8: (Array(I32)) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %9: I32 = call inspect %8 borrow.shared %7
+  write.assign borrow.unique ($yielded) take %9
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %13: I32 = read copy.trivial (self.used)
+  %14: I32 = const 1
+  %15: Bool = gt inspect %13 inspect %14
+  branch inspect %15 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %30: I32 = read copy.trivial (self.used)
+  %31: I32 = const 2
+  %32: Bool = gt inspect %30 inspect %31
+  branch inspect %32 -> bb12 -> bb10
+
+bb6:
+  %17: I32 = read copy.trivial ($yielded)
+  %18: I32 = const 0
+  %19: Bool = eq inspect %17 inspect %18
+  branch inspect %19 -> bb7 -> bb8
+
+bb7:
+  %21: Array(I32) [shared slot 0] = read borrow.shared (self.b) loan2
+  %22: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %21 roots{2}
+  %23: (Array(I32)) -> I32 [shared call] = read borrow.shared ($body) loan3
+  %24: I32 = call inspect %23 borrow.shared %22
+  write.assign borrow.unique ($yielded) take %24
+  jump -> bb9
+
+bb8:
+  jump -> bb9
+
+bb9:
+  jump -> bb5
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %47: I32 = read copy.trivial ($yielded)
+  return take %47
+
+bb12:
+  %34: I32 = read copy.trivial ($yielded)
+  %35: I32 = const 0
+  %36: Bool = eq inspect %34 inspect %35
+  branch inspect %36 -> bb13 -> bb14
+
+bb13:
+  %38: Array(I32) [shared slot 0] = read borrow.shared (self.c) loan4
+  %39: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %38 roots{4}
+  %40: (Array(I32)) -> I32 [shared call] = read borrow.shared ($body) loan5
+  %41: I32 = call inspect %40 borrow.shared %39
+  write.assign borrow.unique ($yielded) take %41
+  jump -> bb15
+
+bb14:
+  jump -> bb15
+
+bb15:
+  jump -> bb11
+}
+
+fn Ring.elements(self: Ring [shared slot 0 owner]) -> Array(I32) [shared slot 0 view] {
+bb0:
+  %0: Array(I32) [shared slot 0 owner] = read borrow.shared (self.items) loan0
+  %1: Array(I32) [shared slot 0 view] = call elements(Array(I32), I32) borrow.shared %0 roots{0}
+  return borrow.shared %1
+}
+
+lens fn Ring.chunks(self: Ring [shared slot 0], $body: (Array(I32)) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Ring [shared slot 0] = read borrow.shared (self) loan0
+  %3: Array(I32) [shared slot 0 view] = call elements(Ring, I32) borrow.shared %2 roots{0}
+  %4: (Array(I32)) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %5: I32 = call inspect %4 borrow.shared %3
+  write.assign borrow.unique ($yielded) take %5
+  %7: I32 = read copy.trivial ($yielded)
+  return take %7
+}
+
+lens fn each(xs: Array(a) [shared call view], $body: (a) -> I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  local & $yielded: I32
+  local & i: I32
+  local n: I32
+  local local5: a [shared slot 0]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  %4: Array(a) [shared call view] = read borrow.shared (xs) loan0
+  %5: Size = call length(Array(a)) borrow.shared %4
+  %6: I32 = convert inspect %5
+  write.init borrow.unique (n) take %6
+  jump -> bb1
+
+bb1:
+  %9: I32 = read copy.trivial (i)
+  %10: I32 = read copy.trivial (n)
+  %11: Bool = lt inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb2
+
+bb2:
+  %31: I32 = read copy.trivial ($yielded)
+  return take %31
+
+bb3:
+  %13: I32 = read copy.trivial (i)
+  %14: Array(a) [shared call view] = read borrow.shared (xs) loan1
+  %15: Size = convert inspect %13
+  %16: a [shared slot 0] = call.subscript get(Array(a), Size, a) borrow.shared %14 borrow.shared %15 roots{1}
+  write.init borrow.unique (local5) borrow.shared %16
+  %18: a [shared slot 0] = read borrow.shared (local5) loan2 roots{1}
+  %19: (a) -> I32 [shared call] = read borrow.shared ($body) loan3
+  %20: I32 = call inspect %19 borrow.shared %18
+  %21: I32 = const 0
+  %22: Bool = eq inspect %20 inspect %21
+  write.assign borrow.unique ($yielded) take %20
+  branch inspect %22 -> bb4 -> bb5
+
+bb4:
+  %26: I32 = read copy.trivial (i)
+  %27: I32 = const 1
+  %28: I32 = add inspect %26 inspect %27
+  write.assign borrow.unique (i) take %28
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+fn sumChunked(xs: Chunks [shared call]) -> I32 {
+  local & total: I32
+  local chunk: Array(I32) [shared slot 0 view]
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: Chunks [shared slot 0] = read borrow.shared (xs) loan0
+  lens.call chunks(Chunks, I32) borrow.shared %2 -> bb2
+
+bb1:
+  %16: I32 = read copy.trivial (total)
+  return take %16
+
+bb2(%3: Array(I32) [shared slot 0 view]) handover(Array(I32) [shared slot 0 view]) many -> bb1:
+  write.init borrow.unique (chunk) borrow.shared %3
+  %6: Array(I32) [shared slot 0 view] = read borrow.shared (chunk) loan1 roots{0}
+  lens.call each(I32) borrow.shared %6 -> bb4
+
+bb3 handover(Array(I32) [shared slot 0 view]) many:
+  jump -> bb1
+
+bb4(%7: I32 [shared call]) handover(I32 [shared call]) many -> bb3:
+  write.init borrow.unique (x) borrow.shared %7
+  %10: I32 = read copy.trivial (total)
+  %11: I32 = read copy.trivial (x)
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (total) take %12
+  jump -> bb3
+}
+
+fn sumContiguous(xs: Ring [shared call]) -> I32 {
+  local & total: I32
+  local chunk: Array(I32) [shared slot 0 view]
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: Ring [shared slot 0] = read borrow.shared (xs) loan0
+  lens.call chunks(Ring, I32) borrow.shared %2 -> bb2
+
+bb1:
+  %16: I32 = read copy.trivial (total)
+  return take %16
+
+bb2(%3: Array(I32) [shared slot 0 view]) handover(Array(I32) [shared slot 0 view]) many -> bb1:
+  write.init borrow.unique (chunk) borrow.shared %3
+  %6: Array(I32) [shared slot 0 view] = read borrow.shared (chunk) loan1 roots{0}
+  lens.call each(I32) borrow.shared %6 -> bb4
+
+bb3 handover(Array(I32) [shared slot 0 view]) many:
+  jump -> bb1
+
+bb4(%7: I32 [shared call]) handover(I32 [shared call]) many -> bb3:
+  write.init borrow.unique (x) borrow.shared %7
+  %10: I32 = read copy.trivial (total)
+  %11: I32 = read copy.trivial (x)
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (total) take %12
+  jump -> bb3
+}
+
+fn sumArray(xs: Array(I32) [shared call owner]) -> I32 {
+  local & total: I32
+  local chunk: Array(I32) [shared slot 0 view]
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: Array(I32) [shared slot 0 owner] = read borrow.shared (xs) loan0
+  %3: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %2 roots{0}
+  lens.call chunks(Array(I32), I32) borrow.shared %3 -> bb2
+
+bb1:
+  %17: I32 = read copy.trivial (total)
+  return take %17
+
+bb2(%4: Array(I32) [shared slot 0 view]) handover(Array(I32) [shared slot 0 view]) many -> bb1:
+  write.init borrow.unique (chunk) borrow.shared %4
+  %7: Array(I32) [shared slot 0 view] = read borrow.shared (chunk) loan1 roots{0}
+  lens.call each(I32) borrow.shared %7 -> bb4
+
+bb3 handover(Array(I32) [shared slot 0 view]) many:
+  jump -> bb1
+
+bb4(%8: I32 [shared call]) handover(I32 [shared call]) many -> bb3:
+  write.init borrow.unique (x) borrow.shared %8
+  %11: I32 = read copy.trivial (total)
+  %12: I32 = read copy.trivial (x)
+  %13: I32 = add inspect %11 inspect %12
+  write.assign borrow.unique (total) take %13
+  jump -> bb3
+}
+
+fn total(xs: Array(I32) [shared call view]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: Array(I32) [shared call view] = read borrow.shared (xs) loan0
+  lens.call each(I32) borrow.shared %2 -> bb2
+
+bb1:
+  %11: I32 = read copy.trivial (sum)
+  return take %11
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 = read copy.trivial (sum)
+  %7: I32 = read copy.trivial (x)
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (sum) take %8
+  jump -> bb1
+}
+
+fn count'2(xs: Array(a) [shared call view]) -> I32 {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: Array(a) [shared call view] = read borrow.shared (xs) loan0
+  %1: Size = call length(Array(a)) borrow.shared %0
+  %2: I32 = convert inspect %1
+  return take %2
+}
+
+fn firstOver(xs: Chunks [shared call], bound: I32 [shared call]) -> I32 {
+  local chunk: Array(I32) [shared slot 0 view]
+  local x: I32 [shared call]
+
+bb0:
+  %0: Chunks [shared slot 0] = read borrow.shared (xs) loan0
+  lens.call chunks(Chunks, I32) borrow.shared %0 -> bb2
+
+bb1:
+  %17: I32 = const -1
+  return take %17
+
+bb2(%1: Array(I32) [shared slot 0 view]) handover(Array(I32) [shared slot 0 view]) many -> bb1:
+  write.init borrow.unique (chunk) borrow.shared %1
+  %4: Array(I32) [shared slot 0 view] = read borrow.shared (chunk) loan1 roots{0}
+  lens.call each(I32) borrow.shared %4 -> bb4
+
+bb3 handover(Array(I32) [shared slot 0 view]) many:
+  jump -> bb1
+
+bb4(%5: I32 [shared call]) handover(I32 [shared call]) many -> bb3:
+  write.init borrow.unique (x) borrow.shared %5
+  %8: I32 = read copy.trivial (x)
+  %9: I32 = read copy.trivial (bound)
+  %10: Bool = gt inspect %8 inspect %9
+  branch inspect %10 -> bb7 -> bb5
+
+bb5 handover(I32 [shared call]) many:
+  jump -> bb6
+
+bb6 handover(I32 [shared call]) many:
+  jump -> bb3
+
+bb7 handover(I32 [shared call]) many:
+  %12: I32 = read copy.trivial (x)
+  return take %12
+}
+
+fn firstOfEachChunk(xs: Chunks [shared call]) -> I32 {
+  local & total: I32
+  local chunk: Array(I32) [shared slot 0 view]
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: Chunks [shared slot 0] = read borrow.shared (xs) loan0
+  lens.call chunks(Chunks, I32) borrow.shared %2 -> bb2
+
+bb1:
+  %16: I32 = read copy.trivial (total)
+  return take %16
+
+bb2(%3: Array(I32) [shared slot 0 view]) handover(Array(I32) [shared slot 0 view]) many -> bb1:
+  write.init borrow.unique (chunk) borrow.shared %3
+  %6: Array(I32) [shared slot 0 view] = read borrow.shared (chunk) loan1 roots{0}
+  lens.call each(I32) borrow.shared %6 -> bb4
+
+bb3 handover(Array(I32) [shared slot 0 view]) many:
+  jump -> bb1
+
+bb4(%7: I32 [shared call]) handover(I32 [shared call]) many -> bb3:
+  write.init borrow.unique (x) borrow.shared %7
+  %10: I32 = read copy.trivial (total)
+  %11: I32 = read copy.trivial (x)
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (total) take %12
+  break -> bb3
+}
+
+fn main() -> I32 {
+  local cs: Chunks
+  local & local1: Array(I32)
+  local ring: Ring
+  local & local3: Array(I32) object8
+  local arr: Array(I32) object8
+
+bb0:
+  %0: I32 = const 1
+  %1: Chunks = call threeChunks borrow.shared %0
+  write.init borrow.unique (cs) take %1
+  %3: I32 = const 10
+  %4: I32 = const 20
+  %5: I32 = const 30
+  %6: %I32 = run.slots I32 *3
+  %7: Size = bitcast inspect %6
+  %8: Size = const 0
+  %9: Bool = eq inspect %7 inspect %8
+  %10: {} = call checkCondition borrow.shared %9
+  %11: @bits(30) U32 = const 3
+  %12: @bits(2) U32 = const 1
+  %13: Run(I32) = aggregate.Run take %6 take %11 take %12
+  %14: @bits(30) U32 = const 3
+  %15: Array(I32) = aggregate.Array take %13 take %14
+  write.init borrow.unique (local1) take %15
+  %17: Size = const 0
+  write.init borrow.unique ([%%6][0]) take %3
+  %19: Size = const 1
+  write.init borrow.unique ([%%6][1]) take %4
+  %21: Size = const 2
+  write.init borrow.unique ([%%6][2]) take %5
+  %23: Array(I32) = read take (local1)
+  %24: Ring = aggregate.Ring take %23
+  write.init borrow.unique (ring) take %24
+  %26: I32 = const 4
+  %27: I32 = const 5
+  %28: I32 = const 6
+  %29: %I32 = run.slots I32 *3
+  %30: Size = bitcast inspect %29
+  %31: Size = const 0
+  %32: Bool = eq inspect %30 inspect %31
+  %33: {} = call checkCondition borrow.shared %32
+  %34: @bits(30) U32 = const 3
+  %35: @bits(2) U32 = const 1
+  %36: Run(I32) = aggregate.Run take %29 take %34 take %35
+  %37: @bits(30) U32 = const 3
+  %38: Array(I32) = aggregate.Array take %36 take %37
+  write.init borrow.unique (local3) take %38
+  %40: Size = const 0
+  write.init borrow.unique ([%%29][0]) take %26
+  %42: Size = const 1
+  write.init borrow.unique ([%%29][1]) take %27
+  %44: Size = const 2
+  write.init borrow.unique ([%%29][2]) take %28
+  %46: Array(I32) = read take (local3)
+  write.init borrow.unique (arr) take %46
+  %48: Chunks [shared call] = read borrow.shared (cs) loan0
+  %49: I32 = call sumChunked borrow.shared %48
+  %50: Ring [shared call] = read borrow.shared (ring) loan1
+  %51: I32 = call sumContiguous borrow.shared %50
+  %52: I32 = add inspect %49 inspect %51
+  %53: Array(I32) [shared call] = read borrow.shared (arr) loan2
+  %54: I32 = call sumArray borrow.shared %53
+  drop (arr)
+  %55: I32 = add inspect %52 inspect %54
+  %56: Ring [shared slot 0] = read borrow.shared (ring) loan3
+  %57: Array(I32) [shared slot 0 view] = call elements(Ring, I32) borrow.shared %56 roots{3}
+  %58: I32 = call total borrow.shared %57
+  %59: I32 = add inspect %55 inspect %58
+  %60: Ring [shared slot 0] = read borrow.shared (ring) loan4
+  %61: Array(I32) [shared slot 0 view] = call elements(Ring, I32) borrow.shared %60 roots{4}
+  %62: I32 = call count'2(I32) borrow.shared %61
+  drop (ring)
+  %63: I32 = add inspect %59 inspect %62
+  %64: Chunks [shared call] = read borrow.shared (cs) loan5
+  %65: I32 = const 3
+  %66: I32 = call firstOver borrow.shared %64 borrow.shared %65
+  %67: I32 = add inspect %63 inspect %66
+  %68: Chunks [shared call] = read borrow.shared (cs) loan6
+  %69: I32 = call firstOfEachChunk borrow.shared %68
+  drop (cs)
+  %70: I32 = add inspect %67 inspect %69
+  return take %70
+}
+
+fn count'2(I32)(xs: Array(I32) [shared call view]) -> I32 = <count at I32>
+
+lens fn each(I32)(xs: Array(I32) [shared call view], $body: (I32) -> I32 [shared call]) -> I32 = <each at I32>
+
+entry main

@@ -1,0 +1,30 @@
+{-
+   A call that writes a caller's local through an address held in a global, and takes no argument.
+
+   `poke` reaches `x` through `g.p`, which is in no argument position, so its `mutates` row is
+   `none` - and the optimizer read that as "this call writes nothing `x` could be", forwarded the
+   load of `x` across it, and answered 11. A local whose address a call kept is a barrier at every
+   call (`resolve_ssa/opt/analysis.cpp`). Native only: a raw pointer is the one way to put a local's
+   address in a global, since the loan checker refuses it for a reference.
+-}
+import Native
+
+data Box {p: %Int}
+
+let &dummy = 0
+let &g = Box {p: addressOf(dummy)}
+
+@noinline
+fn keep(p: %Int):
+    g.p = p
+
+@noinline
+fn poke():
+    store(g.p, 7)
+
+fn main() -> Int:
+    let &x = 1
+    keep(addressOf(x))
+    let before = x
+    poke()
+    return before * 10 + x

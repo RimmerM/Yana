@@ -973,6 +973,8 @@ enum class IterCaptureKind: U8 {
 // The one row `resolve_ssa` names, kept in step with the enumeration here - see `kCaptureAddress`.
 static_assert(U8(IterCaptureKind::Address) == RecordType::kCaptureAddress,
               "the step conversion reads `Address` by number");
+static_assert(U8(IterCaptureKind::View) == RecordType::kCaptureView,
+              "the dumps read `View` by number");
 
 static IterCaptureKind captureKindOf(DeclBase base, const Occurrence& parameter) {
     if(parameter.contract.isOwned()) return IterCaptureKind::Value;
@@ -1007,6 +1009,32 @@ static IterCaptureKind captureKindOf(DeclBase base, const Occurrence& parameter)
     }
 
     return IterCaptureKind::Address;
+}
+
+/*
+ * How a **payload local** that is a loan travels into the record - `captureKindOf`, less the one
+ * row that exists for a parameter.
+ *
+ * A `'T` parameter is held by address because `f$new` is filled from the argument as it arrives,
+ * and a slot-rooted loan arrives as an address whatever its type. A local is filled by the step's
+ * own `Init`, which adapts: where the member holds bytes and the loan is an address, it stores what
+ * the loan names (`Conversion`'s `Init` arm). So a shared loan of a trivially copyable value is
+ * carried as its bytes whichever origin it names - a copy no program can tell from the loan, and
+ * one that stays good when the object moves.
+ *
+ * Which is the point (J131). `for e in each(xs)` inside a producer, with `each` handing over `'I32`,
+ * binds `e` to the nested member's own slot - a copying child's item is where it keeps it - so a
+ * member holding `e`'s *address* held an address inside this record, and a `let moved = it` taken
+ * between two `yield`s left it naming the old bytes. The bytes themselves need no lender.
+ */
+static IterCaptureKind payloadKindOf(DeclBase base, const Occurrence& held) {
+    if(!held.contract.isOwned() && held.contract.access() == Access::Shared &&
+       held.contract.form() == AccessForm::WholeValue && Shapes::isEmpty(held.shape) &&
+       isTriviallyCopyable(base, held.type)) {
+        return IterCaptureKind::Value;
+    }
+
+    return captureKindOf(base, held);
 }
 
 /*
@@ -1265,7 +1293,7 @@ bool Resolver::collectIterNests(Function& producer, Body& body, Array<IterNest>&
                 if(local->isParameter() || local->demandsHeap) continue;
 
                 auto carried = substituteOccurrence(context, program, local->occurrence, with);
-                if(captureKindOf(decl(), carried) != IterCaptureKind::Value) continue;
+                if(payloadKindOf(decl(), carried) != IterCaptureKind::Value) continue;
             }
 
             fail("%@ runs a recursive traversal over storage the object itself holds, and a boxed level outlives the step that built it - so the child's borrow would point into a record that moves; write `@heap` on the binding, or traverse a parameter instead"_v);
@@ -1559,7 +1587,133 @@ DeclPtr<Type> Resolver::iterSiteTypeOf(Function& declared, const Substitution& w
     Array<IterNest> nests;
     if(!collectIterNests(*decl()[producer], body, nests, source)) return nullptr;
 
-    return mintIterSite(*decl()[producer], owner, body, live, yieldSlot.pointer(), nests, source);
+    for(auto refused: iterNestRefused) {
+        if(refused == producer) return nullptr;
+    }
+
+    Array<U8> fromItem;
+    if(!refuseHeldNestItems(*decl()[producer], body, live, nests, fromItem)) {
+        iterNestRefused.push(producer);
+        return nullptr;
+    }
+
+    auto made = mintIterSite(*decl()[producer], owner, body, live, yieldSlot.pointer(), nests,
+                             source);
+    if(!made) return nullptr;
+
+    /*
+     * And whether the item this record lends may be inside it - `RecordType::itemInRecord`, which
+     * the producer nesting this one reads. A `yield` names a local (`lentAt`); the bytes are the
+     * record's where that local is a payload member holding its value, or a borrow bound out of a
+     * nested item that is itself the record's. A parameter, an `@heap` binding and a window name
+     * storage outside it.
+     */
+    auto& record = *(RecordType*)decl()[made];
+
+    for(U32 i = 0; i < live.lentAt.size(); i++) {
+        auto root = live.lentAt[i];
+        if(root == kNoLocal) continue;
+
+        auto local = body.local(mir, LocalId(root));
+        if(local->isParameter() || local->demandsHeap) continue;
+
+        auto held = substituteOccurrence(context, program, local->occurrence, with);
+        if(payloadKindOf(decl(), held) == IterCaptureKind::Value ||
+           (root < fromItem.size() && fromItem[root])) {
+            record.itemInRecord = true;
+        }
+    }
+
+    return made;
+}
+
+/*
+ * A borrow of a nested traversal's item **kept across this producer's own `yield`**, where the item
+ * lives inside the child's record - and so inside this one (J131).
+ *
+ * The child lends out of its own payload (`RecordType::itemInRecord`), so the loop variable is an
+ * address inside the record, and a local that holds it across a hand-over is a member holding that
+ * address. A record moves with whatever holds it, so after `let moved = relocate(it)` the member
+ * named where the child used to be - the same self-borrow `checkObjectBody` refuses between two
+ * payload locals, one indirection further away, where that check cannot see the lender because it is
+ * a block argument rather than a local. A copying child's scalar item is not one of these: the
+ * member holds the value (`payloadKindOf`). Neither is a child that lends the caller's storage.
+ *
+ * `fromItem` answers, per local, whether it is bound out of such an item - directly, or by a `let`
+ * that borrows one that is - which is also what says whether this record's own item is inside it.
+ */
+bool Resolver::refuseHeldNestItems(Function& producer, Body& body, const LiveAcross& live,
+                                   const Array<IterNest>& nests, Array<U8>& fromItem) {
+    auto mir = *program.mir;
+    for(U32 i = 0; i < body.locals.size(); i++) fromItem.push(0);
+
+    // The entry arguments of the regions whose child lends out of its own record.
+    Array<U32> items;
+    for(auto& nest: nests) {
+        if(!nest.record || nest.boxed) continue;
+        if(decl()[nest.record]->kind != Type::Record) continue;
+        if(!((RecordType*)decl()[nest.record])->itemInRecord) continue;
+
+        auto region = body.region(mir, nest.region);
+        if(!region) continue;
+
+        auto entry = body.block(mir, region->entry);
+        for(auto argument: entry->arguments.contents(mir)) items.push(mir[argument]->id.index);
+    }
+
+    if(!items.size()) return true;
+
+    // Bindings in node order, which is the order a `let` over a `let` is written in.
+    for(U32 b = 0; b < body.blocks.size(); b++) {
+        auto block = body.block(mir, BlockId(b));
+
+        for(auto pointer: block->nodes.contents(mir)) {
+            auto& node = *mir[pointer];
+            if(node.kind != Node::Write) continue;
+
+            auto& write = (NodeWrite&)node;
+            if(write.mode != Destination::Init || write.value.source() != SourceKind::Result) continue;
+
+            auto target = body.place(mir, write.destination.placeId());
+            if(target->kind != Place::Local) continue;
+
+            auto value = write.value.nodeId().index;
+            auto bound = false;
+
+            for(auto item: items) bound = bound || item == value;
+
+            if(!bound) {
+                auto& read = *body.node(mir, write.value.nodeId());
+                if(read.kind == Node::Read) {
+                    auto root = rootLocalOf(mir, body, ((NodeRead&)read).place.placeId());
+                    bound = root != kNoLocal && fromItem[root];
+                }
+            }
+
+            if(bound) fromItem[target->payload] = 1;
+        }
+    }
+
+    auto ok = true;
+    auto with = substitutionOf(decl(), producer);
+
+    for(U32 i = 0; i < body.locals.size(); i++) {
+        if(!fromItem[i] || !live.liveLocal(i)) continue;
+
+        auto local = body.local(mir, LocalId(i));
+        if(local->isParameter() || local->occurrence.contract.isOwned()) continue;
+
+        auto held = substituteOccurrence(context, program, local->occurrence, with);
+        if(payloadKindOf(decl(), held) == IterCaptureKind::Value) continue;
+
+        context.diagnostics.error(
+            "%@ keeps %@ across a `yield`, and %@ is an item a nested traversal lends out of its own object - which lives inside this one, and a record moves with whatever holds it, so the borrow would point at where the item used to be; copy what is needed out of %@ before the `yield`"_v,
+            local->source, context.findName(producer.name), context.findName(local->name),
+            context.findName(local->name), context.findName(local->name));
+        ok = false;
+    }
+
+    return ok;
 }
 
 /*
@@ -1937,19 +2091,23 @@ DeclPtr<Type> Resolver::mintIterSite(Function& producer, Function& owner, Body& 
             placed = true;
         } else {
             /*
-             * And otherwise **how the loan travels**, which is the same three-way question
-             * `captureKindOf` asks of a parameter and is asked with the same function.
+             * And otherwise **how the loan travels**, which is the three-way question
+             * `captureKindOf` asks of a parameter, asked through `payloadKindOf` - the same
+             * function less its slot-origin row, which a local's `Init` adapts where a
+             * constructor's argument cannot.
              *
-             * It has to be the same question, because what the step does with the member is decided
+             * It has to be one question, because what the step does with the member is decided
              * by `aliasesLender` one tier down: a member whose occurrence *is* an address needs a
              * pointer field and no storage of its own, and one whose occurrence is bytes needs a
-             * field those bytes fit in and the field's address as its storage. Asking it twice with
-             * two rules is how `for chunk in chunks(self)` came to store a two-word descriptor into
-             * a pointer field and read it back as one.
+             * field those bytes fit in and the field's address as its storage - filled with what
+             * the loan names where the loan is an address (J131). Asking it twice with two rules
+             * is how `for chunk in chunks(self)` came to store a two-word descriptor into a
+             * pointer field and read it back as one; the two readers below that ask whether the
+             * record holds a local by address ask `payloadKindOf` too.
              *
              * An **owned** local answers `Value` and is the ordinary member it always was.
              */
-            auto travels = captureKindOf(decl(), held);
+            auto travels = payloadKindOf(decl(), held);
             auto descriptor = travels == IterCaptureKind::View
                 ? viewRecordOf(context, program, held) : nullptr;
 
@@ -2333,7 +2491,7 @@ DeclPtr<Type> Resolver::mintIterSite(Function& producer, Function& owner, Body& 
                 if(!local->isParameter()) {
                     auto carried = substituteOccurrence(context, program, local->occurrence, with);
 
-                    if(captureKindOf(decl(), carried) != IterCaptureKind::Value) {
+                    if(payloadKindOf(decl(), carried) != IterCaptureKind::Value) {
                         lender = record->originSlots++;
                         break;
                     }
@@ -3691,6 +3849,8 @@ bool Resolver::resolveErasedFor(Builder& builder, ast::Expr& expr, ast::ForExpr&
  * moving or dropping the object while the item is live is the loan checker's ordinary refusal rather
  * than a rule of this feature's own.
  */
+static Contract declaredContractAt(DeclBase base, const Occurrence& declared, DeclList<U16> path);
+
 bool Resolver::iterIterateInstance(Function& producer, RecordType& record,
                                    const Occurrence& handover, LocationId source) {
     auto with = substitutionOf(decl(), producer);
@@ -3713,7 +3873,126 @@ bool Resolver::iterIterateInstance(Function& producer, RecordType& record,
     subject.next = Function::Generated::IterNext;
     subject.resume = Function::Generated::IterResume;
 
+    /*
+     * Which of the producer's origins each loan the object keeps is in - `self`'s shape.
+     *
+     * `$new` publishes one slot per **lent** parameter, in order, and its result's shape says where
+     * in the record each one sits; the producer's own signature says which origin the parameter was
+     * lent in. Slot `1 + s` of the step is the producer's origin `s`, so an item position the
+     * producer bound to `s` and the record position holding what the caller lent in `s` meet in one
+     * group at the call - the item is kept alive by the caller's storage, not by the object, and
+     * stepping past it is no conflict. A parameter lent for the call only publishes nothing the
+     * item could name, and is rooted in `self`'s own slot like everything else the object owns.
+     */
+    subject.declared = &declaring.handover;
+    subject.producerSlots = declaring.originSlots;
+
+    auto made = record.producerNew ? decl()[record.producerNew] : nullptr;
+    if(made && !Shapes::isEmpty(made->result.shape)) {
+        SmallArray<U16, 4> slotOfLent;
+        for(U32 i = 0; i < declaring.writtenArity(); i++) {
+            if(IterCaptureKind(record.captureKinds.get(decl(), i)) == IterCaptureKind::Value) continue;
+
+            auto contract = decl()[declaring.args.get(decl(), i)]->occurrence.contract;
+            auto slot = contract.origin() == Origin::Slot ? contract.slot() : kNoOriginSlot;
+            slotOfLent.push(slot < declaring.originSlots ? U16(1 + slot) : U16(0));
+        }
+
+        auto& schema = *decl()[made->result.shape];
+        SmallArray<ExternalSlot, 4> positions;
+
+        for(auto slotPointer: schema.slots.contents(decl())) {
+            auto& kept = *decl()[slotPointer];
+            auto lent = kept.contract.slot();
+
+            ExternalSlot position;
+            position.path = kept.path;
+            position.contract = slotContract(kept.contract.access(),
+                                             lent < slotOfLent.size() ? slotOfLent[lent] : U16(0),
+                                             kept.contract.form());
+            positions.push(position);
+        }
+
+        subject.selfShape = program.shapes.intern(positions.pointer(), positions.size());
+    }
+
+    /*
+     * `f$take` hands the item over the way `f$next` lends it, and so under the same shape (J127).
+     *
+     * It is the owning half of the same protocol: a `for` over a held `-> ->T` object moves each
+     * item out of the slot, and what the item refers to is where the producer's declaration put it
+     * whoever steps the object. Unshaped, an owned item holding a `yield'` reference into the record
+     * - or a reference into storage the caller lent - came out of the call rooted in nothing, which
+     * is J125's first bug again on the path `next` does not take. So `self` gets the step's shape and
+     * the item its interior positions, each in `self`'s slot or in `1 + a` for the caller's origin
+     * `a`, exactly as `iterateInstanceFor` roots them beneath `Maybe`'s payload - here the item is
+     * the result itself, so the paths are the hand-over's own.
+     */
+    if(record.producerTake) {
+        auto& take = *decl()[record.producerTake];
+        decl()[take.args.get(decl(), 0)]->occurrence =
+            Occurrence { recordType, slotContract(Access::Unique, 0), subject.selfShape };
+        take.originSlots = U16(1 + subject.producerSlots);
+
+        if(!Shapes::isEmpty(handover.shape)) {
+            auto& schema = *decl()[handover.shape];
+            SmallArray<ExternalSlot, 4> positions;
+
+            for(auto slotPointer: schema.slots.contents(decl())) {
+                auto& inner = *decl()[slotPointer];
+
+                auto slot = U16(0);
+                auto declared = declaredContractAt(decl(), declaring.handover, inner.path);
+                if(declared.origin() == Origin::Slot && declared.slot() < subject.producerSlots) {
+                    slot = U16(1 + declared.slot());
+                }
+
+                ExternalSlot position;
+                position.path = inner.path;
+                position.contract = slotContract(inner.contract.access(), slot, inner.contract.form());
+                positions.push(position);
+            }
+
+            take.result = Occurrence { handover.type, ownedContract(),
+                                       program.shapes.intern(positions.pointer(), positions.size()) };
+        }
+    }
+
     return iterateInstanceFor(subject, handover, resume, source);
+}
+
+/*
+ * The contract a **declared** hand-over gives the position at `path` - the deepest position the
+ * declaration bound on the way there, or the root's own where it bound none.
+ *
+ * By path rather than by index, which is the one thing `originContractAt` does not do: the positions
+ * the object's item has are the *lent local's* (`handover.shape`, the storage the record holds), and
+ * the declaration's are whatever the signature wrote - `%yield'I32` binds the pointee, and
+ * `a'Entry(k, v)` binds nothing inside and means all of it. The two lists agree on paths and not on
+ * order or length.
+ */
+static Contract declaredContractAt(DeclBase base, const Occurrence& declared, DeclList<U16> path) {
+    auto answer = declared.contract;
+    Size depth = 0;
+    if(Shapes::isEmpty(declared.shape)) return answer;
+
+    for(auto slotPointer: base[declared.shape]->slots.contents(base)) {
+        auto& slot = *base[slotPointer];
+        auto length = slot.path.size();
+        if(length <= depth || length > path.size()) continue;
+
+        auto prefix = true;
+        for(Size i = 0; i < length && prefix; i++) {
+            prefix = slot.path.get(base, i) == path.get(base, i);
+        }
+
+        if(prefix) {
+            answer = slot.contract;
+            depth = length;
+        }
+    }
+
+    return answer;
 }
 
 /*
@@ -3733,7 +4012,7 @@ bool Resolver::iterateInstanceFor(const IterateSubject& subject, const Occurrenc
     auto& declaration = *decl()[klass];
     if(declaration.members.size() < 2) return true;
 
-    auto& next = *decl()[declaration.members.get(decl(), 0)];
+    auto& next = *decl()[declaration.members.get(decl(), kIterateNext)];
 
     /*
      * `Maybe(Y)`, taken from the class member's own result rather than from a role of its own.
@@ -3792,7 +4071,56 @@ bool Resolver::iterateInstanceFor(const IterateSubject& subject, const Occurrenc
     position.contract = substitutedContract(decl(), program, declared, handover.type,
                                             slotContract(Access::Shared, 0));
 
-    Occurrence answered { answer, ownedContract(), program.shapes.intern(&position, 1) };
+    /*
+     * The item's **interior** positions under the payload's, each rooted where the producer's
+     * declaration says - J125.
+     *
+     * They were left out, and that was two bugs. The **layout**: a position inside the item that is
+     * a reference (`Entry('k, 'v)` at `String`, whose key is a window) is part of what the record's
+     * slot holds, and a payload read without it read the window's two words as an owned string -
+     * `pairs(m).next()` over string keys printed garbage. And the **extent**: `%yield'I32` says the
+     * pointee is in the frame that handed it over, and here that frame *is* the object - the
+     * producer keeps its locals in the record between steps and the next step reuses or frees them.
+     * With the root the item's only tie to the object, and a pointer trivially copied, `let q = p`
+     * kept the address and dropped the loan, and `q` read after the next `next()` read a finished
+     * pass (J124 §2.5).
+     *
+     * So a position the declaration left to the frame - `yield'`, or the unnamed `'k` of
+     * `Entry('k, 'v)` - is `self`'s slot, and the next step, a move or a drop of the object is the
+     * ordinary conflict with a live copy. A position naming one of the **caller's** origins
+     * (`-> %a'T`) is in storage the caller lent and outlives any one step and the object too, so it
+     * is rooted in slot `1 + a`, which `self`'s shape binds to where the record keeps that loan.
+     * Paths are the lent local's (`handover.shape`), since those are the bytes; the declaration is
+     * read by path (`declaredContractAt`). The erased form has no declaration and roots every
+     * position in the object, which is what its `$item` has always done.
+     */
+    SmallArray<ExternalSlot, 4> positions;
+    positions.push(position);
+
+    if(!Shapes::isEmpty(handover.shape)) {
+        auto& schema = *decl()[handover.shape];
+
+        for(U32 i = 0; i < schema.slots.size(); i++) {
+            auto& inner = *decl()[schema.slots.get(decl(), i)];
+
+            auto slot = U16(0);
+            if(subject.declared) {
+                auto declared = declaredContractAt(decl(), *subject.declared, inner.path);
+                if(declared.origin() == Origin::Slot && declared.slot() < subject.producerSlots) {
+                    slot = U16(1 + declared.slot());
+                }
+            }
+
+            ExternalSlot interior;
+            interior.path.push(program.decl, PathStep::field(lent));
+            for(auto step: inner.path.contents(decl())) interior.path.push(program.decl, step);
+            interior.contract = slotContract(inner.contract.access(), slot, inner.contract.form());
+            positions.push(interior);
+        }
+    }
+
+    Occurrence answered { answer, ownedContract(),
+                          program.shapes.intern(positions.pointer(), positions.size()) };
 
     auto member = [&](StringView suffix, Function::Generated kind, DeclPtr<Type> sent) {
         auto pointer = generatedFor(subject.module, subject.base, suffix, kind, subject.record,
@@ -3805,7 +4133,8 @@ bool Resolver::iterateInstanceFor(const IterateSubject& subject, const Occurrenc
         self->name = context.addUnqualifiedName("$self", 5);
         self->source = source;
         self->index = 0;
-        self->occurrence = Occurrence { subject.type, slotContract(Access::Unique, 0), nullptr };
+        self->occurrence = Occurrence { subject.type, slotContract(Access::Unique, 0),
+                                        subject.selfShape };
         made->args.push(program.decl, self - *program.decl);
 
         if(sent) {
@@ -3818,7 +4147,7 @@ bool Resolver::iterateInstanceFor(const IterateSubject& subject, const Occurrenc
         }
 
         made->result = answered;
-        made->originSlots = 1;
+        made->originSlots = U16(1 + subject.producerSlots);
         return pointer;
     };
 
@@ -4483,7 +4812,7 @@ bool Resolver::iterItem(Function& producer, RecordType& record, const Occurrence
  */
 bool Resolver::refuseNextOnResuming(Function& callee, const Substitution& with, LocationId source) {
     auto klass = program.roles.klass(intrinsic::Known::iterate);
-    if(!klass || callee.klass != klass || callee.classMember != 0) return true;
+    if(!klass || callee.klass != klass || callee.classMember != kIterateNext) return true;
     if(!with.count || !with.arguments[0]) return true;
 
     auto record = recordDeclarationOf(decl(), with.arguments[0]);
@@ -4500,6 +4829,93 @@ bool Resolver::refuseNextOnResuming(Function& callee, const Substitution& with, 
         "%@'s passes hand a value back, so `next()` has nothing to send it - write `resume(v)`"_v,
         source, context.findName(decl()[site.producer]->name));
     return false;
+}
+
+/*
+ * Whether a concrete `it.next()` or `it.resume(v)` calls `member`, the generated step
+ * `generatedMemberAt` selected, by its own name - J125.
+ *
+ * The class says `next(&self: source's) -> Maybe(source'item)`, and `item` is a variable there: the
+ * signature has no position for anything *inside* the item, so a call typed by it cannot say that a
+ * `%yield'I32` item points into the object, nor that an `Entry('k, 'v)` item's key is a window. The
+ * generated member's signature says both (`iterateInstanceFor`), and at a concrete subject the
+ * member is known - the instance is generated, ground, and is what `callTarget` would select at the
+ * conversion anyway. So the call names it, exactly as `expandProvidedCall` replaces a concrete call
+ * of a provided instance's member with what the member computes, and the loan analysis reads the
+ * signature that is true of this object instead of the one every implementation shares. These four
+ * are exactly `Iterate`'s members at a site type and at the erased one, so no member index is read.
+ *
+ * A body generic in `Iterate` still calls the class member, and the item stays opaque there.
+ */
+bool stepsOwnObject(const Function& member) {
+    switch(member.generated) {
+        case Function::Generated::IterNext:
+        case Function::Generated::IterResume:
+        case Function::Generated::IterErasedNext:
+        case Function::Generated::IterErasedResume:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/*
+ * An object whose item points into the object, handed to a body generic in `Iterate` - refused,
+ * J125.
+ *
+ * `stepsOwnObject` roots such an item in the object where the object's type is known. A body
+ * generic in the class cannot: `item` is a variable there, a `%yield'I32` item is a bare `%I32` to
+ * it, and `Copy(item)` lets it keep one past the next step and hand it back - `NG.yana` answered 0
+ * from a finished pass. The class has no position to say "inside the item, and in the object", so
+ * the refusal is at the one point that sees both sides: the requirement's discharge, where the
+ * selected instance's step says what the class does not. A position the producer bound to one of
+ * its caller's origins is not in the object, and passes.
+ *
+ * Not for the class's own members: `it.next()` at a known type is the step itself.
+ */
+bool Resolver::refuseOpaqueObjectItem(Function& callee, GenRequirement requirement,
+                                      const Substitution& with, LocationId source) {
+    auto klass = program.roles.klass(intrinsic::Known::iterate);
+    if(!klass || requirement.klass != klass || callee.klass == klass) return true;
+
+    SmallArray<DeclPtr<Type>, 4> arguments;
+    for(auto argument: requirement.args.contents(decl())) {
+        auto supplied = substituteType(context, program, argument, with);
+        if(!supplied || !isConcreteType(decl(), supplied)) return true;
+        arguments.push(supplied);
+    }
+
+    InstanceMatch found;
+    if(!selectInstance(context, program, klass, arguments.pointer(), arguments.size(), source,
+                       false, found)) {
+        return true;
+    }
+
+    auto member = decl()[found.instance]->members.get(decl(), kIterateNext);
+    if(!member) return true;
+
+    auto& step = *decl()[member];
+    if(step.generated != Function::Generated::IterNext &&
+       step.generated != Function::Generated::IterErasedNext) {
+        return true;
+    }
+
+    if(Shapes::isEmpty(step.result.shape)) return true;
+
+    // The payload's own position is `[field]` and is the class's `source'item`; an interior one
+    // is deeper, and one in slot 0 is in the object.
+    for(auto slotPointer: decl()[step.result.shape]->slots.contents(decl())) {
+        auto& position = *decl()[slotPointer];
+        if(position.path.size() < 2 || position.contract.slot() != 0) continue;
+
+        context.diagnostics.error(
+            "%@ needs %@ to be steppable, and what it hands over refers into the object itself - a body generic in `Iterate` sees only %@ and could keep one past the next step, so step this object where its type is written"_v,
+            source, context.findName(callee.name), typeText(context, decl(), arguments[0]),
+            typeText(context, decl(), arguments[1]));
+        return false;
+    }
+
+    return true;
 }
 
 /*

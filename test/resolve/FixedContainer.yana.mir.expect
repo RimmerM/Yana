@@ -5,19 +5,19 @@ fn total(xs: c [shared call]) -> I32 {
   slot #0 type c
   slot #1 class Chunked(c, I32)
   local & sum: I32
-  local v: I32 [shared call]
+  local v: I32 [shared slot 0]
 
 bb0:
   %0: I32 = const 0
   write.init borrow.unique (sum) take %0
-  %2: c [shared call] = read borrow.shared (xs) loan0
+  %2: c [shared slot 0] = read borrow.shared (xs) loan0
   lens.call items(c, I32) borrow.shared %2 -> bb2
 
 bb1:
   %11: I32 = read copy.trivial (sum)
   return take %11
 
-bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+bb2(%3: I32 [shared slot 0]) handover(I32 [shared slot 0]) many -> bb1:
   write.init borrow.unique (v) borrow.shared %3
   %6: I32 = read copy.trivial (sum)
   %7: I32 = read copy.trivial (v)

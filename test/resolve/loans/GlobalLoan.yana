@@ -1,0 +1,65 @@
+{-
+   A global holding a loan of another global.
+
+   # resolver: ownership
+
+   A loan of a global lives as long as the program, so a global may hold one: it is the one lender
+   whose extent is the holder's. Such a record has no constant form - its field is a reference to
+   storage, and `gArr`'s run exists only once the entry has allocated it - so `gLoose` is a dynamic
+   global, built by the entry sequence the way `gArr` is. Re-pointing it is the record update
+   made the spelling for, into another global's window; `../Reject.LoanDestination.yana` is the half
+   that stores a loan the call only lends.
+-}
+
+data Cell {value: Int}
+data Loose {held: '[Int]}
+data Store {held: kept'Cell}
+
+let &gArr = [1, 2, 3] :: Array(Int)
+let &gOther = [7, 8, 9] :: Array(Int)
+let gCell = Cell {value: 4}
+let &gSpare = Cell {value: 6}
+
+-- A window of a global array, and a shared loan of a global record.
+let &gLoose = Loose {held: gArr}
+let &gStore = Store {held: gCell}
+
+fn remember(&store: Store(kept'), value: kept'Cell):
+    store = {store | held: value}
+
+-- Another global's window, by update and by the whole record.
+fn repoint():
+    gLoose = {gLoose | held: gOther}
+
+fn narrow():
+    gLoose = Loose {held: gArr[1..3]}
+
+-- A borrow binding of a global lends what it holds, which is the global.
+--
+-- What is *not* here is a write to `gArr` or `gOther`: a global another global holds a loan of is
+-- read-only for the whole program, because the holder's loan is live at every point of
+-- it. `Reject.LentGlobal.yana` is that refusal, and `Reject.GlobalAcross.yana` is the same
+-- question asked of a loan a function holds across a call.
+fn viaBinding():
+    let w = gOther
+    gLoose = {gLoose | held: w}
+
+fn total(xs: '[Int]) -> Int:
+    let &sum = 0
+    for x in items(xs):
+        sum += x
+    return sum
+
+fn main() -> Int:
+    let first = total(gLoose.held)                 -- 6
+    repoint()
+    let second = gLoose.held[0]                    -- 7
+    narrow()
+    let third = total(gLoose.held)                 -- 5
+    let fourth = gLoose.held[0]                    -- 2
+    viaBinding()
+    let fifth = gLoose.held[2]                     -- 9
+    let before = gStore.held.value                 -- 4
+    remember(gStore, gSpare)                       -- installed into a global, of a global
+    return first * 1000000 + second * 100000 + third * 10000 + fourth * 1000 + fifth * 100 + before * 10
+        + gStore.held.value

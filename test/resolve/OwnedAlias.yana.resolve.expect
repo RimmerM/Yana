@@ -39,10 +39,12 @@ fn shared() -> I32 {
     %v2 = call Length(String).length, %c : Size
     %v3 = load [%v1] : String
     %v4 = call Length(String).length, %v3 : Size
-    drop %local0 via Reclaim(String).reclaim
     %n = add %v2, %v4 : Size
     %v6 = cast %n : I32
-    ret %v6
+    %c = move %local0 : String
+    %v8 = call consume, %c : I32
+    %v9 = add %v6, %v8 : I32
+    ret %v9
 }
 
 fn exclusive() -> I32 {

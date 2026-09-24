@@ -1,0 +1,40 @@
+module ResolveTest
+
+data Cell {value: I32}
+
+data Tight {held: &0'Cell} shape3
+
+let & gCell: Cell = Cell {value: 1}
+
+let & gTight: Tight
+
+fn bump() -> {} {
+bb0:
+  %0: I32 [unique slot 0] = read borrow.unique (global gTight.held.value) loan0
+  %1: I32 = const 1
+  %2: {} = call +=(I32) borrow.unique %0 borrow.shared %1
+  return
+}
+
+fn main() -> I32 {
+bb0:
+  %0: {} = call bump
+  %1: {} = call bump
+  %2: I32 = read copy.trivial (global gTight.held.value)
+  %3: I32 = const 10
+  %4: I32 = mul inspect %2 inspect %3
+  %5: I32 = const 4
+  %6: I32 = add inspect %4 inspect %5
+  return take %6
+}
+
+fn main$() -> I32 {
+bb0:
+  %0: Cell [unique slot 0] = read borrow.unique (global gCell) loan0
+  %1: Tight = aggregate.Tight borrow.unique %0 roots.0{0}
+  write.init borrow.unique (global gTight) take %1
+  %3: I32 = call main
+  return take %3
+}
+
+entry main$

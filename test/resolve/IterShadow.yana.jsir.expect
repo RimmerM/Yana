@@ -1,4 +1,5 @@
 fn main() -> one %r0
+  var $0: %r1
   block0:
     %2: %r0 = const 5
     %3: %r0 = const 0
@@ -7,34 +8,34 @@ fn main() -> one %r0
     %6: %r0 = const 1
     jump -> block1(%5, %3)
   block1(%0: %r0, %1: %r0):
-    %7: %r1 = binary.lt %0, %4
+    %7: %r2 = binary.lt %0, %4
     branch %7 -> block3 -> block2
   block2:
-    %14: %r0 = const 4
-    %16: %r0 = const 7
-    %20: %r0 = convert %14
-    %21: %r0 = binary.add %16, %20
-    %22: %r0 = coerce %21
-    %23: %r0 = binary.add %1, %22
-    %24: %r0 = coerce %23
-    return %24
+    %15: %r0 = const 4
+    %17: %r0 = const 7
+    %21: %r0 = convert %15
+    %22: %r0 = binary.add %17, %21
+    %23: %r0 = coerce %22
+    %24: %r0 = binary.add %1, %23
+    %25: %r0 = coerce %24
+    return %25
   block3:
-    %25: %r0 = binary.add %1, %2
-    %26: %r0 = coerce %25
-    %27: %r0 = binary.add %26, %0
-    %28: %r0 = coerce %27
-    %29: %r0 = binary.add %0, %6
-    %30: %r0 = coerce %29
-    jump -> block1(%30, %28)
+    %26: %r0 = binary.add %1, %2
+    %27: %r0 = coerce %26
+    %28: %r0 = binary.add %27, %0
+    %29: %r0 = coerce %28
+    %30: %r0 = binary.add %0, %6
+    %31: %r0 = coerce %30
+    jump -> block1(%31, %29)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 14 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
 
 shape %s0 object ArrayView {items: %r3, length: %r0, offset: %r0}
 shape %s1 cell {$v: %r0 box}
 
 rep %r0 = number signed 32
-rep %r1 = number bool
-rep %r2 = array Int32Array of %r0
+rep %r1 = array Int32Array of %r0
+rep %r2 = number bool
 rep %r3 = array Int32Array of %r0
 rep %r4 = object %s0
 rep %r5 = parts (%r3, %r0, %r0) as %r4

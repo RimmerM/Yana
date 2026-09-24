@@ -398,6 +398,7 @@ fn main() -> I32 {
   local ys: Array(F32) object9
   local & local6: Array(I32) object13
   local & target: Array(I32) object13
+  local local8: [I32 *3]
 
 bb0:
   %0: I32 = const 1
@@ -549,48 +550,50 @@ bb0:
   %146: I32 = const 2
   %147: I32 = const 3
   %148: [I32 *3] = aggregate.0 take %145 take %146 take %147
-  %149: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %148
-  %150: I32 = call sumInts borrow.shared %149
-  %151: I32 = const 10000
-  %152: I32 = mul inspect %150 inspect %151
-  %153: I32 = add inspect %144 inspect %152
-  %154: Array(F32) [shared call] = read borrow.shared (xs) loan2
-  %155: Array(F32) [shared slot 0 view] = call.derivation elements(Array(F32), F32) borrow.shared %154 roots{2}
-  %156: Array(F32) [shared call] = read borrow.shared (ys) loan3
+  write.init borrow.unique (local8) take %148
+  %150: [I32 *3] [shared call] = read borrow.shared (local8) loan2
+  %151: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %150 roots{2}
+  %152: I32 = call sumInts borrow.shared %151
+  %153: I32 = const 10000
+  %154: I32 = mul inspect %152 inspect %153
+  %155: I32 = add inspect %144 inspect %154
+  %156: Array(F32) [shared call] = read borrow.shared (xs) loan3
   %157: Array(F32) [shared slot 0 view] = call.derivation elements(Array(F32), F32) borrow.shared %156 roots{3}
-  %158: F32 = call dot borrow.shared %155 borrow.shared %157
+  %158: Array(F32) [shared call] = read borrow.shared (ys) loan4
+  %159: Array(F32) [shared slot 0 view] = call.derivation elements(Array(F32), F32) borrow.shared %158 roots{4}
+  %160: F32 = call dot borrow.shared %157 borrow.shared %159
   drop (xs)
   drop (ys)
-  %159: F32 = const 30
-  %160: Bool = eq inspect %158 inspect %159
-  branch inspect %160 -> bb3(take %153) -> bb1(take %153)
+  %161: F32 = const 30
+  %162: Bool = eq inspect %160 inspect %161
+  branch inspect %162 -> bb3(take %155) -> bb1(take %155)
 
-bb1(%161: I32):
-  %165: I32 = const 0
-  jump -> bb2(take %165, take %161)
+bb1(%163: I32):
+  %167: I32 = const 0
+  jump -> bb2(take %167, take %163)
 
-bb2(%166: I32, %167: I32):
-  %170: I32 = const 100
-  %171: I32 = mul inspect %166 inspect %170
-  %172: I32 = add inspect %167 inspect %171
-  %173: Array(I32) [shared call] = read borrow.shared (ints) loan4
-  %174: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %173 roots{4}
-  %175: I32 = const 8
-  %176: I32 = call indexOf'2 borrow.shared %174 borrow.shared %175
+bb2(%168: I32, %169: I32):
+  %172: I32 = const 100
+  %173: I32 = mul inspect %168 inspect %172
+  %174: I32 = add inspect %169 inspect %173
+  %175: Array(I32) [shared call] = read borrow.shared (ints) loan5
+  %176: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %175 roots{5}
+  %177: I32 = const 8
+  %178: I32 = call indexOf'2 borrow.shared %176 borrow.shared %177
   drop (ints)
-  %177: I32 = const 10
-  %178: I32 = mul inspect %176 inspect %177
-  %179: I32 = add inspect %172 inspect %178
-  %180: Array(I32) [shared call] = read borrow.shared (target) loan5
-  %181: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %180 roots{5}
-  %182: I32 = call sumInts borrow.shared %181
+  %179: I32 = const 10
+  %180: I32 = mul inspect %178 inspect %179
+  %181: I32 = add inspect %174 inspect %180
+  %182: Array(I32) [shared call] = read borrow.shared (target) loan6
+  %183: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %182 roots{6}
+  %184: I32 = call sumInts borrow.shared %183
   drop (target)
-  %183: I32 = add inspect %179 inspect %182
-  return take %183
+  %185: I32 = add inspect %181 inspect %184
+  return take %185
 
-bb3(%162: I32):
-  %164: I32 = const 30
-  jump -> bb2(take %164, take %162)
+bb3(%164: I32):
+  %166: I32 = const 30
+  jump -> bb2(take %166, take %164)
 }
 
 entry main

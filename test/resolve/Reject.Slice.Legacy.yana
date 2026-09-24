@@ -1,0 +1,26 @@
+-- The rule of `Reject.Slice.yana` the default stage does not refuse yet: an unqualified window
+-- parameter rooting a returned view (functions.md, "External origin relationships": an unqualified
+-- argument cannot root a returned external value). It accepts both functions below and treats each
+-- result as a loan of the argument at the caller. Move them back when it refuses them.
+
+data Cursor {items: '[Int], at: Int}
+
+-- A view of an argument is fine to *make* and not to hand back unannounced: the signature is the
+-- contract, so the caller has to be told which argument the result is rooted in. `xs: '[Int]` is
+-- the fix, and it is the same fix a `&Int` result needs.
+fn escapeUndeclared(xs: [Int]) -> '[Int] = slice(xs, 0, 1)
+
+{-
+   And a *record* holding a slice is held to the same contract, because handing one back hands the
+   caller a reference whatever is wrapped around it. `xs: '[Int]` is the fix here too.
+
+   Both halves of the check apply to a result that merely contains a reference, as long as the result
+   owns nothing: such a record has every root it has reached through a reference, so a local one is
+   the mistake with no second reading. A record holding an owned array *alongside* the slice is the
+   case provenance cannot answer for, since it is field-insensitive and the array's local roots are
+   not a mistake. Written `Cursor {items: elements(xs)}` the same rule applies, and
+   `Reject.WindowRoot.yana` is that program.
+-}
+fn wrapUndeclared(xs: [Int]) -> Cursor = Cursor {items: xs, at: 0}
+
+fn main() -> Int = 0

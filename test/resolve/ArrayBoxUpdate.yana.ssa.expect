@@ -173,7 +173,7 @@ bb0(%0: Array(String) [shared call view] guaranteed):
   %1: %I32 address = alloc frame I32
   %2: I32 trivial = const 0
   store inspect %1 consume %2
-  %3: Array(String) [shared call view] guaranteed from{%0} = load inspect %0
+  %3: Array(String) [shared slot 0 view] guaranteed from{%0} = load inspect %0
   %4: I32 [unique slot 0] guaranteed = load inspect %1
   %5: Array(String) [unique slot 1 view] guaranteed = load inspect %0
   %6: letters.cont.env affine = aggregate.letters.cont.env borrow %4 borrow %5
@@ -322,7 +322,7 @@ bb3(%4: I32 trivial, %5: I32 trivial):
   %96: I32 trivial = call boxes.lambda borrow %94 borrow %95
   %97: I32 trivial = const 0
   store inspect %22 consume %97
-  %98: Array(Cell) [shared call] guaranteed from{%9} = load inspect %9
+  %98: Array(Cell) [shared slot 0] guaranteed from{%9} = load inspect %9
   %99: Array(Cell) [shared slot 0 view] guaranteed from{%9} = call Array(a).elements(Cell) borrow %98
   %100: I32 [unique slot 0] guaranteed = load inspect %22
   %101: boxes.cont.env affine = aggregate.boxes.cont.env borrow %100
@@ -506,7 +506,7 @@ bb7(%12: Size trivial, %13: Size trivial):
   store inspect %28 consume %90
   %91: Array(Item) owned = load inspect %28
   store inspect %29 consume %91
-  %92: Array(Item) [shared call] guaranteed from{%21} = load inspect %21
+  %92: Array(Item) [shared slot 0] guaranteed from{%21} = load inspect %21
   %93: Array(Item) [shared slot 0 view] guaranteed from{%21} = call Array(a).elements(Item) borrow %92
   %94: Array(Item) [unique slot 0] guaranteed = load inspect %29
   %95: updates.cont'2.env affine = aggregate.updates.cont'2.env borrow %94
@@ -578,7 +578,7 @@ bb9:
   store inspect %37 consume %230
   %231: I32 trivial = const 0
   store inspect %38 consume %231
-  %232: Array(Item) [shared call] guaranteed from{%29} = load inspect %29
+  %232: Array(Item) [shared slot 0] guaranteed from{%29} = load inspect %29
   %233: Array(Item) [shared slot 0 view] guaranteed from{%29} = call Array(a).elements(Item) borrow %232
   %234: I32 [unique slot 0] guaranteed = load inspect %38
   %235: updates.cont.env affine = aggregate.updates.cont.env borrow %234
@@ -856,14 +856,14 @@ bb0(%0: boxes.lambda.env [shared call] guaranteed, %1: I32 trivial):
   return consume %7
 }
 
-fn letters.cont(letters.cont.env: letters.cont.env [unique call], $handed: String [shared call view]) -> I32 {
-bb0(%0: letters.cont.env [unique call] guaranteed, %1: String [shared call view] guaranteed):
+fn letters.cont(letters.cont.env: letters.cont.env [unique call], $handed: String [shared slot 0 view]) -> I32 {
+bb0(%0: letters.cont.env [unique call] guaranteed, %1: String [shared slot 0 view] guaranteed):
   %2: %I32 address = field.addr .t inspect %0
   %3: %I32 address = load inspect %2
   %4: %Array(String) address = field.addr .xs inspect %0
   %5: %Array(String) address = load inspect %4
   %6: I32 trivial = load inspect %3
-  %7: String [shared call view] guaranteed from{%1, %5} = load inspect %1
+  %7: String [shared slot 0 view] guaranteed from{%1, %5} = load inspect %1
   %8: Size trivial = call String.length borrow %7
   %9: I32 trivial = convert inspect %8
   %10: I32 trivial = add inspect %6 inspect %9
@@ -872,8 +872,8 @@ bb0(%0: letters.cont.env [unique call] guaranteed, %1: String [shared call view]
   return consume %11
 }
 
-fn boxes.cont(boxes.cont.env: boxes.cont.env [unique call], $handed: Cell [shared call]) -> I32 {
-bb0(%0: boxes.cont.env [unique call] guaranteed, %1: Cell [shared call] guaranteed):
+fn boxes.cont(boxes.cont.env: boxes.cont.env [unique call], $handed: Cell [shared slot 0]) -> I32 {
+bb0(%0: boxes.cont.env [unique call] guaranteed, %1: Cell [shared slot 0] guaranteed):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
   %4: I32 trivial = load inspect %3
@@ -887,8 +887,8 @@ bb0(%0: boxes.cont.env [unique call] guaranteed, %1: Cell [shared call] guarante
   return consume %10
 }
 
-fn updates.cont(updates.cont.env: updates.cont.env [unique call], $handed: Item [shared call]) -> I32 {
-bb0(%0: updates.cont.env [unique call] guaranteed, %1: Item [shared call] guaranteed):
+fn updates.cont(updates.cont.env: updates.cont.env [unique call], $handed: Item [shared slot 0]) -> I32 {
+bb0(%0: updates.cont.env [unique call] guaranteed, %1: Item [shared slot 0] guaranteed):
   %7: %I32 address = field.addr .total inspect %0
   %8: %I32 address = load inspect %7
   %9: %I32 address = alloc frame I32
@@ -943,8 +943,8 @@ bb6(%6: I32 trivial):
   jump -> bb5(consume %37, consume %6)
 }
 
-fn updates.cont'2(updates.cont'2.env: updates.cont'2.env [unique call], $handed: Item [shared call]) -> I32 {
-bb0(%0: updates.cont'2.env [unique call] guaranteed, %1: Item [shared call] guaranteed):
+fn updates.cont'2(updates.cont'2.env: updates.cont'2.env [unique call], $handed: Item [shared slot 0]) -> I32 {
+bb0(%0: updates.cont'2.env [unique call] guaranteed, %1: Item [shared slot 0] guaranteed):
   %2: %Array(Item) address = field.addr .ys inspect %0
   %3: %Array(Item) address = load inspect %2
   %4: %Item address = alloc frame Item

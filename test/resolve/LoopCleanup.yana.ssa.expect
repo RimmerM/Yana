@@ -145,7 +145,7 @@ bb0(%0: Array(Cell) [shared call view] guaranteed):
   %1: %U32 address = alloc frame U32
   %2: U32 trivial = const 0
   store inspect %1 consume %2
-  %3: Array(Cell) [shared call view] guaranteed from{%0} = load inspect %0
+  %3: Array(Cell) [shared slot 0 view] guaranteed from{%0} = load inspect %0
   %4: U32 [unique slot 0] guaranteed = load inspect %1
   %5: sumCells.cont.env affine = aggregate.sumCells.cont.env borrow %4
   %6: (Cell) -> I32 [owned here shape8 .0=shared call] affine = fun.value sumCells.cont borrow %5
@@ -380,7 +380,7 @@ bb0(%0: Array(Item) [shared call view] guaranteed):
   %1: %U32 address = alloc frame U32
   %2: U32 trivial = const 0
   store inspect %1 consume %2
-  %3: Array(Item) [shared call view] guaranteed from{%0} = load inspect %0
+  %3: Array(Item) [shared slot 0 view] guaranteed from{%0} = load inspect %0
   %4: U32 [unique slot 0] guaranteed = load inspect %1
   %5: sumItems.cont.env affine = aggregate.sumItems.cont.env borrow %4
   %6: (Item) -> I32 [owned here shape8 .0=shared call] affine = fun.value sumItems.cont borrow %5
@@ -634,7 +634,7 @@ bb2(%3: Size trivial, %4: Size trivial):
 bb3(%5: Size trivial, %6: Size trivial):
   %43: U32 trivial = const 0
   store inspect %12 consume %43
-  %44: Array(Item) [shared call view] guaranteed from{%0} = load inspect %0
+  %44: Array(Item) [shared slot 0 view] guaranteed from{%0} = load inspect %0
   %45: U32 [unique slot 0] guaranteed = load inspect %12
   %46: stamp.cont.env affine = aggregate.stamp.cont.env borrow %45
   %47: (Item) -> I32 [owned here shape8 .0=shared call] affine = fun.value stamp.cont borrow %46
@@ -903,8 +903,8 @@ bb4(%6: I32 trivial, %7: I32 trivial):
   jump -> bb2(consume %6, consume %7)
 }
 
-fn sumCells.cont(sumCells.cont.env: sumCells.cont.env [unique call], $handed: Cell [shared call]) -> I32 {
-bb0(%0: sumCells.cont.env [unique call] guaranteed, %1: Cell [shared call] guaranteed):
+fn sumCells.cont(sumCells.cont.env: sumCells.cont.env [unique call], $handed: Cell [shared slot 0]) -> I32 {
+bb0(%0: sumCells.cont.env [unique call] guaranteed, %1: Cell [shared slot 0] guaranteed):
   %2: %U32 address = field.addr .total inspect %0
   %3: %U32 address = load inspect %2
   %4: %Bool address = field.addr .live inspect %1
@@ -940,8 +940,8 @@ bb3:
   jump -> bb2
 }
 
-fn sumItems.cont(sumItems.cont.env: sumItems.cont.env [unique call], $handed: Item [shared call]) -> I32 {
-bb0(%0: sumItems.cont.env [unique call] guaranteed, %1: Item [shared call] guaranteed):
+fn sumItems.cont(sumItems.cont.env: sumItems.cont.env [unique call], $handed: Item [shared slot 0]) -> I32 {
+bb0(%0: sumItems.cont.env [unique call] guaranteed, %1: Item [shared slot 0] guaranteed):
   %2: %U32 address = field.addr .total inspect %0
   %3: %U32 address = load inspect %2
   %4: %Bool address = field.addr .live inspect %1
@@ -975,8 +975,8 @@ bb3:
   jump -> bb2
 }
 
-fn stamp.cont(stamp.cont.env: stamp.cont.env [unique call], $handed: Item [shared call]) -> I32 {
-bb0(%0: stamp.cont.env [unique call] guaranteed, %1: Item [shared call] guaranteed):
+fn stamp.cont(stamp.cont.env: stamp.cont.env [unique call], $handed: Item [shared slot 0]) -> I32 {
+bb0(%0: stamp.cont.env [unique call] guaranteed, %1: Item [shared slot 0] guaranteed):
   %2: %U32 address = field.addr .total inspect %0
   %3: %U32 address = load inspect %2
   %4: U32 trivial = load inspect %3

@@ -1,0 +1,95 @@
+module ResolveTest
+
+data List = Nil | Cons {head: I32, tail: @box List} reclaim derived
+
+fn sum'2(xs: List [shared call]) -> I32 {
+  local head: I32
+  local tail: List [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (xs.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (xs.head)
+  write.init borrow.unique (head) take %5
+  %7: List [shared call] = read borrow.shared (xs.tail) loan0
+  write.init borrow.unique (tail) borrow.shared %7
+  %9: I32 = read copy.trivial (head)
+  %10: List [shared call] = read borrow.shared (tail) loan1 roots{0}
+  %11: I32 = call sum'2 borrow.shared %10
+  %12: I32 = add inspect %9 inspect %11
+  jump -> bb2(take %12)
+
+bb2(%13: I32):
+  return take %13
+
+bb3:
+  %4: I32 = const 0
+  jump -> bb2(take %4)
+}
+
+fn buildAndDrop() -> I32 {
+  local xs: List
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: I32 = const 39
+  %3: List = aggregate.Nil
+  %4: List = aggregate.Cons take %2 take %3
+  %5: List = aggregate.Cons take %1 take %4
+  %6: List = aggregate.Cons take %0 take %5
+  write.init borrow.unique (xs) take %6
+  %8: List [shared call] = read borrow.shared (xs) loan0
+  %9: I32 = call sum'2 borrow.shared %8
+  drop (xs)
+  return take %9
+}
+
+fn main() -> I32 {
+  local warm: I32
+  local settled: %U8
+  local again: I32
+
+bb0:
+  %0: I32 = call buildAndDrop
+  write.init borrow.unique (warm) take %0
+  %2: %U8 = read copy.trivial (global heapNext)
+  write.init borrow.unique (settled) take %2
+  %4: I32 = call buildAndDrop
+  write.init borrow.unique (again) take %4
+  %6: %U8 = read copy.trivial (global heapNext)
+  %7: %U8 = read copy.trivial (settled)
+  %8: Bool = eq inspect %6 inspect %7
+  %9: Bool = not inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %14: I32 = read copy.trivial (again)
+  %15: I32 = read copy.trivial (warm)
+  %16: Bool = ne inspect %14 inspect %15
+  branch inspect %16 -> bb6 -> bb4
+
+bb3:
+  %11: I32 = const -1
+  return take %11
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %21: I32 = read copy.trivial (again)
+  return take %21
+
+bb6:
+  %18: I32 = const -2
+  return take %18
+}
+
+entry main

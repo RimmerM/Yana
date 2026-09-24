@@ -96,50 +96,51 @@ main<complex>(): I32 {
     %v_52 = add %v_51, 9: Ptr
     store %v_52, 55, 1
     call_complex String.appendUnits, %v_3, %v_52, 1
-    %v_53 = sext %v_38: I64
-    %v_54 = imul %v_53, 1000000: I64
-    %v_55 = add %v_35, 2: Ptr
-    %v_56 = load %v_55, 1: I32
-    %v_57 = cast %v_56: I64
-    %v_58 = load %v_1, 8: I64
-    %v_59 = add %v_1, 8: Ptr
-    %v_60 = load %v_59, 4: I32
-    %v_61 = add %v_1, 12: Ptr
-    %v_62 = load %v_61, 4: I32
-    call_complex String.reclaim, %v_58, %v_60, %v_62
-    %v_63 = imul %v_57, 10000: I64
-    %v_64 = add %v_54, %v_63: I64
-    %v_65 = load %v_2, 8: Ptr
-    %v_66 = load %v_65, 1: I32
-    %v_67 = cast %v_66: I64
-    %v_68 = bitcast %v_65: I64
-    %v_69 = add %v_2, 8: Ptr
-    %v_70 = load %v_69, 4: I32
-    %v_71 = add %v_2, 12: Ptr
-    %v_72 = load %v_71, 4: I32
-    call_complex String.reclaim, %v_68, %v_70, %v_72
-    %v_73 = imul %v_67, 100: I64
-    %v_74 = add %v_64, %v_73: I64
-    %v_75 = add %v_3, 12: Ptr
-    %v_76 = load %v_75, 4: I32
-    %v_77 = sext %v_76: I64
-    %v_78 = load %v_3, 8: I64
-    %v_79 = add %v_3, 8: Ptr
-    %v_80 = load %v_79, 4: I32
-    call_complex String.reclaim, %v_78, %v_80, %v_76
-    %v_81 = imul %v_77, 10: I64
-    %v_82 = add %v_74, %v_81: I64
-    %v_83 = add %v_82, 8: I64
-    %v_84 = sub %v_83, 800: I64
-    %v_85 = loads @calls, 4: I32
-    %v_86 = sext %v_85: I64
-    %v_87 = add %v_84, %v_86: I64
-    %v_88 = sext %v_87: I32
-    ret %v_88
+    %v_53 = load %v_1, 8: Ptr
+    %v_54 = add %v_1, 12: Ptr
+    %v_55 = load %v_54, 4: I32
+    %v_56 = sext %v_55: I64
+    %v_57 = imul %v_56, 1000000: I64
+    %v_58 = add %v_53, 2: Ptr
+    %v_59 = load %v_58, 1: I32
+    %v_60 = cast %v_59: I64
+    %v_61 = bitcast %v_53: I64
+    %v_62 = add %v_1, 8: Ptr
+    %v_63 = load %v_62, 4: I32
+    call_complex String.reclaim, %v_61, %v_63, %v_55
+    %v_64 = imul %v_60, 10000: I64
+    %v_65 = add %v_57, %v_64: I64
+    %v_66 = load %v_2, 8: Ptr
+    %v_67 = load %v_66, 1: I32
+    %v_68 = cast %v_67: I64
+    %v_69 = bitcast %v_66: I64
+    %v_70 = add %v_2, 8: Ptr
+    %v_71 = load %v_70, 4: I32
+    %v_72 = add %v_2, 12: Ptr
+    %v_73 = load %v_72, 4: I32
+    call_complex String.reclaim, %v_69, %v_71, %v_73
+    %v_74 = imul %v_68, 100: I64
+    %v_75 = add %v_65, %v_74: I64
+    %v_76 = add %v_3, 12: Ptr
+    %v_77 = load %v_76, 4: I32
+    %v_78 = sext %v_77: I64
+    %v_79 = load %v_3, 8: I64
+    %v_80 = add %v_3, 8: Ptr
+    %v_81 = load %v_80, 4: I32
+    call_complex String.reclaim, %v_79, %v_81, %v_77
+    %v_82 = imul %v_78, 10: I64
+    %v_83 = add %v_75, %v_82: I64
+    %v_84 = add %v_83, 8: I64
+    %v_85 = sub %v_84, 800: I64
+    %v_86 = loads @calls, 4: I32
+    %v_87 = sext %v_86: I64
+    %v_88 = add %v_85, %v_87: I64
+    %v_89 = sext %v_88: I32
+    ret %v_89
   }
 
   b_33 {
-    %v_89 = syscall 60, 134: I64
+    %v_90 = syscall 60, 134: I64
     unreachable 
   }
 }

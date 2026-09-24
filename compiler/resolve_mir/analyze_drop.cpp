@@ -871,7 +871,8 @@ void Analysis::placeDrops() {
     }
 }
 
-bool analyzeBody(Context& context, Program& program, Function& function) {
+bool analyzeBody(Context& context, Program& program, Function& function,
+                 GlobalLending* globalLending) {
     if(!function.mir) return true;
 
     auto base = *program.mir;
@@ -884,6 +885,8 @@ bool analyzeBody(Context& context, Program& program, Function& function) {
     Analysis analysis {
         context, program, function, body, base, *program.decl, *elaboration
     };
+    analysis.globalEffects = program.globalEffects;
+    analysis.globalLending = globalLending;
 
     /*
      * The order, and every step of it is a dependency rather than a preference.
@@ -907,6 +910,14 @@ bool analyzeBody(Context& context, Program& program, Function& function) {
     analysis.buildPaths();
     analysis.computeOrigins();
     analysis.buildOriginLog();
+
+    // Again with a generation for each loan some holder carried back to its own mint (J127) - which
+    // only the settled state can say, and which widens every row the first run built.
+    if(analysis.findGenerations()) {
+        analysis.computeOrigins();
+        analysis.buildOriginLog();
+    }
+
     analysis.computeLoanExtents();
     analysis.publishOrigins();
 
@@ -916,6 +927,10 @@ bool analyzeBody(Context& context, Program& program, Function& function) {
 
     analysis.computeInitialization();
     analysis.placeDrops();
+
+    // After the drops, because a teardown is a call nothing in the body wrote: where it runs is
+    // what `placeDrops` decided, and a loan of a global live there is asked as it is at a call.
+    analysis.checkGlobalAccessAtTeardowns();
     return analysis.errors == 0;
 }
 
@@ -991,6 +1006,12 @@ bool analyzeProgram(Context& context, Program& program) {
     auto decl = *program.decl;
     auto analyzed = true;
 
+    // What each call may do to the program's globals, which every body's loan check asks and no
+    // body can answer alone - `computeGlobalEffects`, run on the first question.
+    releaseGlobalEffects(program.globalEffects);
+    program.globalEffects = new GlobalEffects(context, program);
+    GlobalLending lending;
+
     for(auto modulePointer: program.modules) {
         auto module = decl[modulePointer];
         for(auto functionPointer: module->functions.contents(decl)) {
@@ -1006,10 +1027,13 @@ bool analyzeProgram(Context& context, Program& program) {
             auto& function = *decl[functionPointer];
             if(function.specializes) continue;
 
-            analyzed &= analyzeBody(context, program, function);
+            analyzed &= analyzeBody(context, program, function, &lending);
         }
     }
 
+    // Once every body has said which globals a global holds a loan of - a write in a body analysed
+    // before the one storing the loan is as much a write as one after it. See `GlobalLending`.
+    if(analyzed) analyzed = checkLentGlobalWrites(context, program, lending);
     return analyzed;
 }
 

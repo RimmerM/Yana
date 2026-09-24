@@ -1,0 +1,30 @@
+{-
+   Assigning to a field that holds a shared loan.
+
+   # resolver: ownership
+
+   ownership.md says it twice: a field typed `kept'Cell` *is* the cell, owned elsewhere and reached
+   shared ("Records holding external values"), and assigning to a loan-typed place always writes
+   through to the storage it lends ("Binding conventions"). So `store.held = value` would be a write
+   through a shared loan, and so would `store.held.value = 3`. A loan field is re-pointed by
+   assigning its record - `store = {store | held: value}`, as `loans/UpdateRepoint.yana` shows -
+   and
+   the first sentence offers that spelling in the fixture's own names. An update path through the
+   loan (`pokeUpdate`) is the second sentence's write. The stage refused the two assignments
+   already; what it used to say was "this is not declared `&`", about a binding that is.
+-}
+
+data Cell {value: Int}
+data Store {held: kept'Cell}
+
+fn remember(&store: Store(kept'), value: kept'Cell):
+    store.held = value
+
+fn poke(&store: Store):
+    store.held.value = 3
+
+-- The same write spelled as an update path: the copy's `held` is the update's own slot, and
+-- `.held.value` is the cell behind it.
+fn pokeUpdate(store: Store) -> Store = {store | .held.value: 5}
+
+fn main() -> Int = 0

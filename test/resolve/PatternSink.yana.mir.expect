@@ -1,0 +1,268 @@
+module ResolveTest
+
+data Buffer {bytes: %U8} drop authored
+
+data Box = Nil | Held {Held: Buffer} | Pair {left: Buffer, right: Buffer} drop derived
+
+instance Drop(Buffer): Buffer.drop
+
+let & live: I64 = 0
+
+fn makeBuffer() -> Buffer {
+bb0:
+  %0: I64 [unique call] = read borrow.unique (global live) loan0
+  %1: I64 = const 1
+  %2: {} = call +=(I64) borrow.unique %0 borrow.shared %1
+  %3: Size = const 16
+  %4: %U8 = call allocateHeap borrow.shared %3
+  %5: Buffer = aggregate.Buffer take %4
+  return take %5
+}
+
+fn Buffer.drop(value: Buffer) -> {} {
+bb0:
+  %0: %U8 = read copy.trivial (value.bytes)
+  %1: {} = call freeHeap borrow.shared %0
+  %2: I64 [unique call] = read borrow.unique (global live) loan0
+  %3: I64 = const 1
+  %4: {} = call -=(I64) borrow.unique %2 borrow.shared %3
+  return
+}
+
+fn touch(it: Buffer [shared call]) -> I64 {
+bb0:
+  %0: I64 = const 0
+  return take %0
+}
+
+fn touchBox(it: Box [shared call]) -> I64 {
+bb0:
+  %0: I64 = const 0
+  return take %0
+}
+
+fn derived() -> I64 {
+  local b: Box
+  local inside: I64
+
+bb0:
+  %0: Buffer = call makeBuffer
+  %1: Box = aggregate.Held take %0
+  write.init borrow.unique (b) take %1
+  %3: I64 = read copy.trivial (global live)
+  write.init borrow.unique (inside) take %3
+  %5: I64 = read copy.trivial (inside)
+  %6: Box [shared call] = read borrow.shared (b) loan0
+  %7: I64 = call touchBox borrow.shared %6
+  drop (b)
+  %8: I64 = add inspect %5 inspect %7
+  return take %8
+}
+
+fn derivedBraced() -> I64 {
+  local b: Box
+  local inside: I64
+
+bb0:
+  %0: Buffer = call makeBuffer
+  %1: Buffer = call makeBuffer
+  %2: Box = aggregate.Pair take %0 take %1
+  write.init borrow.unique (b) take %2
+  %4: I64 = read copy.trivial (global live)
+  write.init borrow.unique (inside) take %4
+  %6: I64 = read copy.trivial (inside)
+  %7: Box [shared call] = read borrow.shared (b) loan0
+  %8: I64 = call touchBox borrow.shared %7
+  drop (b)
+  %9: I64 = add inspect %6 inspect %8
+  return take %9
+}
+
+fn borrowed() -> I64 {
+  local b: Box
+  local v: Buffer [shared call]
+
+bb0:
+  %0: Buffer = call makeBuffer
+  %1: Box = aggregate.Held take %0
+  write.init borrow.unique (b) take %1
+  %3: U8 = read copy.trivial (b.#)
+  %4: U8 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb4 -> bb1
+
+bb1:
+  %13: U8 = read copy.trivial (b.#)
+  drop (b)
+  %14: U8 = const 0
+  %15: Bool = eq inspect %13 inspect %14
+  branch inspect %15 -> bb5 -> bb2
+
+bb2:
+  %20: I64 = const 0
+  %21: I64 = const 2
+  %22: I64 = sub inspect %20 inspect %21
+  jump -> bb3(take %22)
+
+bb3(%23: I64):
+  return take %23
+
+bb4:
+  %7: Buffer [shared call] = read borrow.shared (b.Held) loan0
+  write.init borrow.unique (v) borrow.shared %7
+  %9: I64 = read copy.trivial (global live)
+  %10: Buffer [shared call] = read borrow.shared (v) loan1 roots{0}
+  %11: I64 = call touch borrow.shared %10
+  drop (b)
+  %12: I64 = add inspect %9 inspect %11
+  jump -> bb3(take %12)
+
+bb5:
+  %17: I64 = const 0
+  %18: I64 = const 1
+  %19: I64 = sub inspect %17 inspect %18
+  jump -> bb3(take %19)
+}
+
+fn taken() -> Buffer {
+  local b: Box object1
+  local v: Buffer object1
+
+bb0:
+  %0: Buffer = call makeBuffer
+  %1: Box = aggregate.Held take %0
+  write.init borrow.unique (b) take %1
+  %3: U8 = read copy.trivial (b.#)
+  %4: U8 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb4 -> bb1
+
+bb1:
+  %10: U8 = read copy.trivial (b.#)
+  drop (b)
+  %11: U8 = const 0
+  %12: Bool = eq inspect %10 inspect %11
+  branch inspect %12 -> bb5 -> bb2
+
+bb2:
+  %15: Buffer = call makeBuffer
+  jump -> bb3(take %15)
+
+bb3(%16: Buffer):
+  return take %16
+
+bb4:
+  %7: Buffer = read take (b.Held)
+  write.init borrow.unique (v) take %7
+  %9: Buffer = read take (v)
+  jump -> bb3(take %9)
+
+bb5:
+  %14: Buffer = call makeBuffer
+  jump -> bb3(take %14)
+}
+
+fn discarded() -> I64 {
+  local b: Box object1
+  local before: I64
+  local local2: Buffer object1
+  local arm: I32
+
+bb0:
+  %0: Buffer = call makeBuffer
+  %1: Box = aggregate.Held take %0
+  write.init borrow.unique (b) take %1
+  %3: I64 = read copy.trivial (global live)
+  write.init borrow.unique (before) take %3
+  %5: U8 = read copy.trivial (b.#)
+  %6: U8 = const 1
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb4 -> bb1
+
+bb1:
+  %12: U8 = read copy.trivial (b.#)
+  drop (b)
+  %13: U8 = const 0
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb5 -> bb2
+
+bb2:
+  %19: I32 = const 0
+  %20: I32 = const 2
+  %21: I32 = sub inspect %19 inspect %20
+  jump -> bb3(take %21)
+
+bb3(%22: I32):
+  write.init borrow.unique (arm) take %22
+  %27: I64 = read copy.trivial (before)
+  %28: I64 = const 10
+  %29: I64 = mul inspect %27 inspect %28
+  %30: I64 = read copy.trivial (global live)
+  %31: I64 = add inspect %29 inspect %30
+  %32: I32 = read copy.trivial (arm)
+  %33: I64 = convert inspect %32
+  %34: I64 = add inspect %31 inspect %33
+  return take %34
+
+bb4:
+  %9: Buffer = read take (b.Held)
+  write.init borrow.unique (local2) take %9
+  drop (local2)
+  %11: I32 = const 0
+  jump -> bb3(take %11)
+
+bb5:
+  %16: I32 = const 0
+  %17: I32 = const 1
+  %18: I32 = sub inspect %16 inspect %17
+  jump -> bb3(take %18)
+}
+
+fn main() -> I64 {
+  local a: I64
+  local b: I64
+  local c: I64
+  local d: I64
+  local taken_: Buffer
+  local e: I64
+
+bb0:
+  %0: I64 = call derived
+  write.init borrow.unique (a) take %0
+  %2: I64 = call derivedBraced
+  write.init borrow.unique (b) take %2
+  %4: I64 = call borrowed
+  write.init borrow.unique (c) take %4
+  %6: I64 = call discarded
+  write.init borrow.unique (d) take %6
+  %8: Buffer = call taken
+  write.init borrow.unique (taken_) take %8
+  %10: I64 = read copy.trivial (global live)
+  %11: Buffer [shared call] = read borrow.shared (taken_) loan0
+  %12: I64 = call touch borrow.shared %11
+  drop (taken_)
+  %13: I64 = add inspect %10 inspect %12
+  write.init borrow.unique (e) take %13
+  %15: I64 = read copy.trivial (a)
+  %16: I64 = const 100000
+  %17: I64 = mul inspect %15 inspect %16
+  %18: I64 = read copy.trivial (b)
+  %19: I64 = const 10000
+  %20: I64 = mul inspect %18 inspect %19
+  %21: I64 = add inspect %17 inspect %20
+  %22: I64 = read copy.trivial (c)
+  %23: I64 = const 1000
+  %24: I64 = mul inspect %22 inspect %23
+  %25: I64 = add inspect %21 inspect %24
+  %26: I64 = read copy.trivial (d)
+  %27: I64 = const 10
+  %28: I64 = mul inspect %26 inspect %27
+  %29: I64 = add inspect %25 inspect %28
+  %30: I64 = read copy.trivial (e)
+  %31: I64 = add inspect %29 inspect %30
+  %32: I64 = read copy.trivial (global live)
+  %33: I64 = add inspect %31 inspect %32
+  return take %33
+}
+
+entry main

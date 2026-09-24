@@ -62,7 +62,7 @@ fn borrowed() -> I64:
     return match b:
         Held(v) -> live + touch(v)
         Nil -> 0 - 1
-        Pair(p) -> 0 - 2
+        Pair {_, _} -> 0 - 2
 
 -- Taking it out. The box is moved from afterwards, so nothing releases the buffer on the way out of
 -- this frame and the caller receives the only owner there is.
@@ -72,7 +72,7 @@ fn taken() -> Buffer:
     return match b:
         Held(->v) -> v
         Nil -> makeBuffer()
-        Pair(p) -> makeBuffer()
+        Pair {_, _} -> makeBuffer()
 
 -- `->` on `_` is a value taken out and dropped where it was taken, which is the one way to release a
 -- payload without naming it. Read on both sides of the match, because the interesting property is
@@ -84,7 +84,7 @@ fn discarded() -> I64:
     let arm = match b:
         Held(->_) -> 0
         Nil -> 0 - 1
-        Pair(p) -> 0 - 2
+        Pair {_, _} -> 0 - 2
 
     return before * 10 + live + arm
 

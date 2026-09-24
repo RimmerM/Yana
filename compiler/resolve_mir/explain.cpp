@@ -622,11 +622,9 @@ static void explainObject(Context& context, Program& program, const Explanation&
 
         // How a captured argument is held, where the name alone does not say it - the `.ssa` dump
         // prints the same three words beside the same three kinds of field.
-        if(field.index >= 2 && field.index < site->payloadFirst) {
-            auto kind = site->captureKinds.get(decl, field.index - 2);
-            if(kind == RecordType::kCaptureAddress) text.append("(lent)"_v);
-            else if(kind == 2) text.append("(window)"_v);
-        }
+        auto kind = site->captureKindAt(decl, field.index);
+        if(kind == RecordType::kCaptureAddress) text.append("(lent)"_v);
+        else if(kind == RecordType::kCaptureView) text.append("(window)"_v);
 
         // `$held` comes after the payload and is not part of it - see `RecordType::heldField` - and
         // so do delegation's two words, which are notes about the chain rather than members.

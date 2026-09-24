@@ -160,6 +160,22 @@ inline bool walkAddress(JsTarget& target, ssa::Body& from, SsaPtr<ssa::Value> ro
 
             if(user.kind == ssa::Inst::Load && user.results.size()) {
                 auto read = ssa[user.results.get(ssa, 0)];
+
+                /*
+                 * An **exclusive window** read out of the storage is the host object itself, and
+                 * whoever holds it writes its properties - a continuation's result carrier at a
+                 * window-valued result (`let w = firstOf(s) in: return w`, J131) is the shape: the
+                 * environment's field is `[unique slot n view]`, the region stores into it and the
+                 * frame returns the storage afterwards. So the object has to exist before that load,
+                 * which is what `projects` asks the allocation for; a `var` left `undefined` was a
+                 * `TypeError` at the region's first store.
+                 */
+                if(projected && ((ssa::InstLoad&)user).address.value() == address &&
+                   !read->occurrence.contract.isOwned() &&
+                   read->occurrence.contract.access() == mir::Access::Unique &&
+                   read->occurrence.contract.form() == mir::AccessForm::View) {
+                    *projected = true;
+                }
                 if(((ssa::InstLoad&)user).address.value() == address &&
                    loanDenotesStorageAt(target, read->occurrence)) {
                     if(!seen[read->id.index]) {

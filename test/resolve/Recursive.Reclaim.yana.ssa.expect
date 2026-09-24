@@ -1,0 +1,93 @@
+module ResolveTest
+
+fn sum'2(xs: List [shared call]) -> I32 {
+bb0(%0: List [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: %U8 address = field.addr .# inspect %0
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 0
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: %I32 address = field.addr .head inspect %0
+  %8: I32 trivial = load inspect %7
+  store inspect %2 consume %8
+  %9: %List address = field.addr .tail inspect %0
+  %10: List [shared call] guaranteed from{%0} = load inspect %9
+  %11: I32 trivial = load inspect %2
+  %12: List [shared call] guaranteed from{%0} = load inspect %10
+  %13: I32 trivial = call sum'2 borrow %12
+  %14: I32 trivial = add inspect %11 inspect %13
+  jump -> bb2(consume %14)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %15: I32 trivial = const 0
+  jump -> bb2(consume %15)
+}
+
+fn buildAndDrop() -> I32 {
+bb0:
+  %0: %List address = alloc frame List
+  %1: I32 trivial = const 1
+  %2: I32 trivial = const 2
+  %3: I32 trivial = const 39
+  %4: List owned = aggregate.Nil
+  %5: List owned = aggregate.Cons consume %3 consume %4
+  %6: List owned = aggregate.Cons consume %2 consume %5
+  %7: List owned = aggregate.Cons consume %1 consume %6
+  store inspect %0 consume %7
+  %8: List [shared call] guaranteed from{%0} = load inspect %0
+  %9: I32 trivial = call sum'2 borrow %8
+  drop List inspect %0
+  return consume %9
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %%U8 address = alloc frame %U8
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = call buildAndDrop
+  store inspect %0 consume %3
+  %4: %%U8 address = global.addr heapNext
+  %5: %U8 trivial = load inspect %4
+  store inspect %1 consume %5
+  %6: I32 trivial = call buildAndDrop
+  store inspect %2 consume %6
+  %7: %%U8 address = global.addr heapNext
+  %8: %U8 trivial = load inspect %7
+  %9: %U8 trivial = load inspect %1
+  %10: Bool trivial = eq inspect %8 inspect %9
+  %11: Bool trivial = not inspect %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %12: I32 trivial = load inspect %2
+  %13: I32 trivial = load inspect %0
+  %14: Bool trivial = ne inspect %12 inspect %13
+  branch inspect %14 -> bb6 -> bb4
+
+bb3:
+  %15: I32 trivial = const -1
+  return consume %15
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %16: I32 trivial = load inspect %2
+  return consume %16
+
+bb6:
+  %17: I32 trivial = const -2
+  return consume %17
+}
+
+entry main

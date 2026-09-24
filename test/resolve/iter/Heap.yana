@@ -143,18 +143,33 @@ fn fillSlots(&b: [U8 *8]):
    a nested traversal and therefore a payload member holding `items(...).Iter`.
 
    **A fixed array is not a self-borrow**, and that is worth stating because the design's example
-   reads as though it must be. `items(self: c)` takes its container by a shared loan, and a loan of a
-   trivially copyable whole value is physically a **copy** (`IterCaptureKind::Value`) - so what the
-   child's record holds is the eight bytes, not a pointer into the outer one, and the refusal has
+   reads as though it must be. `bufferBytes(xs: [U8 *8])` below takes its container by a shared loan, and a loan
+   of a trivially copyable whole value is physically a **copy** (`IterCaptureKind::Value`) - so what
+   the child's record holds is the eight bytes, not a pointer into the outer one, and the refusal has
    nothing to fire on. `@heap` is not needed here and would buy nothing.
+
+   `bufferBytes` and `each` rather than `items`, since J129: `items` and `Chunked.chunks` now publish
+   their container's origin (`self: source'c`, `'c`), which makes the container a `'T` reference -
+   so over a fixed array they *are* a self-borrow - and an object nesting a traversal that hands over
+   a slot-named scalar does not convert yet (J129 §7). `each` below is `items` as it was written
+   before, unqualified.
 
    `heapedItems` below is the shape that really is one.
 -}
+iter fn (Chunked(c, a)) each(self: c) -> a:
+    for chunk in chunks(self):
+        for i in 0 .. length(chunk):
+            yield chunk[i]
+
+iter fn bufferBytes(xs: [U8 *8]) -> U8:
+    for i in 0 .. 8:
+        yield xs[i]
+
 iter fn bytesByItems() -> Int:
     let &buffer = [0] :: [U8 *8]
     fillSlots(buffer)
 
-    for b in items(buffer):
+    for b in bufferBytes(buffer):
         yield b :: Int
 
 {-
@@ -169,7 +184,7 @@ iter fn bytesByItems() -> Int:
 iter fn heapedItems() -> Int:
     let @heap mine = [1, 2, 3]
 
-    for v in items(mine):
+    for v in each(mine):
         yield v
 
 fn walkingBytes() -> Int:

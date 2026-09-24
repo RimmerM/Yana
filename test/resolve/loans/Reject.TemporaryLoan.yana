@@ -1,0 +1,38 @@
+{-
+   A window of a value with no storage of its own, let out of the frame.
+
+   # resolver: ownership
+
+   The literal is given a frame slot and the window is a loan of it, so each line below is refused
+   by the rule for any loan of the frame: stored into a global, returned, or left in a `&`
+   parameter's field. Without this rule the window carries no loan at all and every one of these
+   would compile - `stash` would read another call's stack through `sink` natively. `identity` is
+   the
+   same window reaching the global through a call whose result is rooted in its argument, and
+   `gTemp` is the entry's own temporary, which is why the message suggests a module-level `let`.
+-}
+
+data Holder {view: '[Int], at: Int}
+data Kept {view: kept'[Int]}
+
+let &sinkRun = [0] :: Array(Int)
+let &sink = Holder {view: sinkRun, at: 0}
+let gTemp = Holder {view: [4, 5], at: 0}
+
+fn stash(n: Int):
+    sink = {sink | view: [n, n + 1]}
+
+fn stashWhole(n: Int):
+    sink = Holder {view: [n], at: 0}
+
+fn identity(xs: s'[Int]) -> s'[Int] = xs
+
+fn stashThrough(n: Int):
+    sink = {sink | view: identity([n])}
+
+fn build(n: Int) -> Holder = Holder {view: [n, n * 2], at: 0}
+
+fn fill(&store: Kept(kept'), n: Int):
+    store = {store | view: [n]}
+
+fn main() -> Int = 0

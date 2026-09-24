@@ -65,10 +65,6 @@ function widthOf(w) {
   return v14;
 }
 
-function bump(x$o, x$k, x$s) {
-  x$o[x$k] = x$o[x$k] + 1 & 255;
-}
-
 function maybeOf(m) {
   var v10;
   if (m === null) {
@@ -80,9 +76,6 @@ function maybeOf(m) {
 }
 
 function main() {
-  var v6 = (((payloadOf({ $tag: 0, $p: 7 }) + payloadOf({ $tag: 1, $p: 9 }) | 0) + (colourOf({ $tag: 0, r: 1, g: 2, b: 3, $p: 0 }) + colourOf({ $tag: 1, r: 0, g: 0, b: 0, $p: 4 }) | 0) | 0) + (fiveOf({ $tag: 0, $p: 1 }) + fiveOf({ $tag: 4, $p: 1 }) | 0) | 0) + (taggedOf({ $tag: 0, $p: 3 }) + taggedOf({ $tag: 1, $p: 2 }) | 0) | 0;
-  var v72 = { $tag: 0, $p: 41 };
-  bump(v72, "$p", 1);
-  return (((v6 + payloadOf(v72) | 0) + taggedOf({ $tag: 1, $p: 1 }) | 0) + ((maybeOf(null) + maybeOf({ $tag: 0, $p: 2 }) | 0) + maybeOf({ $tag: 1, $p: 3 }) | 0) | 0) + (widthOf({ $tag: 0, $p: 5 }) + widthOf({ $tag: 1, $p: 6 }) | 0) | 0;
+  return (((((((payloadOf({ $tag: 0, $p: 7 }) + payloadOf({ $tag: 1, $p: 9 }) | 0) + (colourOf({ $tag: 0, r: 1, g: 2, b: 3, $p: 0 }) + colourOf({ $tag: 1, r: 0, g: 0, b: 0, $p: 4 }) | 0) | 0) + (fiveOf({ $tag: 0, $p: 1 }) + fiveOf({ $tag: 4, $p: 1 }) | 0) | 0) + (taggedOf({ $tag: 0, $p: 3 }) + taggedOf({ $tag: 1, $p: 2 }) | 0) | 0) + payloadOf({ $tag: 0, $p: 42 }) | 0) + taggedOf({ $tag: 1, $p: 1 }) | 0) + ((maybeOf(null) + maybeOf({ $tag: 0, $p: 2 }) | 0) + maybeOf({ $tag: 1, $p: 3 }) | 0) | 0) + (widthOf({ $tag: 0, $p: 5 }) + widthOf({ $tag: 1, $p: 6 }) | 0) | 0;
 }
 main();

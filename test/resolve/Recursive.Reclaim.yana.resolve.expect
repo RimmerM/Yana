@@ -342,11 +342,11 @@ fn sum(%xs: List) -> I32 {
     je %v3, b2, b1
 
   b1:
-    %c = load %xs@Cons : {head: I32, tail: @box List}
-    %v7 = load %xs@Cons.head : I32
-    %v8 = load %xs@Cons.tail.* : List
-    %v9 = call sum, %v8 : I32
-    %v10 = add %v7, %v9 : I32
+    %v6 = load %xs@Cons : {head: I32, tail: @box List}
+    %head = load %xs@Cons.head : I32
+    %tail = load %xs@Cons.tail.* : List
+    %v9 = call sum, %tail : I32
+    %v10 = add %head, %v9 : I32
     jmp b3
 
   b2:

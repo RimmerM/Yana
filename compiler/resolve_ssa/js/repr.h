@@ -181,6 +181,19 @@ struct JsTarget {
     HashSet<U32> environmentRecords;
 
     /*
+     * The records `transparentContentOf` is asking about right now, innermost last - its cycle
+     * guard, for `mir::hidesLoans`' reason. The question recurses into a single field's record and,
+     * for a shared loan, through `jsRep` back into itself, and `data Solo {inner: 'Solo}` - a type
+     * with no value, but a legal one - asked it without bound: a function taking one crashed the
+     * compile with the stack. A record met again while it is being asked is answered "not
+     * transparent", so a cycle keeps its object. A non-cyclic type never meets one, which is why
+     * the guard changes no answer the corpus sees. Rejected: moving the shared-loan test above the
+     * recursion, which was proposed for this and does not end it - that test is a `jsRep`, and
+     * `jsRep` memoizes only after it has asked this.
+     */
+    SmallArray<U32, 8> transparentAsking;
+
+    /*
      * The fields a **property witness** names, keyed `(record type << 32) | field` - and so the
      * fields that never pack (J85).
      *

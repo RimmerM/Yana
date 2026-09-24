@@ -35,20 +35,26 @@ fn main() -> one %r0
     store property %18.left: %r0, %16
     %19: %r1 = alias %15
     store property %19.right: %r0, %17
-    %20: %r1 = alias %10
-    %21: %r0 = load property %20.left: %r0
-    %22: %r0 = const 100
-    %23: %r0 = binary.mul %21, %22
-    %24: %r0 = coerce %23
-    %33: %r0 = const 10075
-    %34: %r0 = binary.add %24, %33
-    %35: %r0 = coerce %34
-    %36: %r0 = load global copies: %r0
-    %37: %r0 = binary.add %35, %36
-    %38: %r0 = coerce %37
-    return %38
+    %20: %r0 = alias %3
+    %21: %r0 = const 10000
+    %22: %r0 = binary.mul %20, %21
+    %23: %r0 = coerce %22
+    %24: %r1 = alias %10
+    %25: %r0 = load property %24.left: %r0
+    %26: %r0 = const 100
+    %27: %r0 = binary.mul %25, %26
+    %28: %r0 = coerce %27
+    %29: %r0 = binary.add %23, %28
+    %30: %r0 = coerce %29
+    %39: %r0 = const 75
+    %40: %r0 = binary.add %30, %39
+    %41: %r0 = coerce %40
+    %42: %r0 = load global copies: %r0
+    %43: %r0 = binary.add %41, %42
+    %44: %r0 = coerce %43
+    return %44
 
-optimizer clones 0 aliased 0 forwarded 0 removed 25 adopted 1 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 4
+optimizer clones 0 aliased 0 forwarded 1 removed 25 adopted 1 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 4
 
 shape %s0 object Pair {left: %r0, right: %r0}
 

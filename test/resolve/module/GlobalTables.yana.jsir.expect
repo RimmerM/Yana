@@ -1,0 +1,57 @@
+fn main() -> one %r1
+  block0:
+    %0: %r1 = const 0
+    %1: %r0 = load global decimalPairs: %r0
+    %2: %r0 = alias %1
+    %3: %r0 = alias %2
+    %4: %r0 = alias %3
+    %5: %r1 = host host.field "length" host-range %4
+    %6: %r1 = const 2
+    %7: %r1 = binary.div %5, %6
+    %8: %r1 = coerce %7
+    %9: %r1 = const 10
+    %10: %r2 = binary.eq %8, %9
+    %11: %r1 = const 1
+    %12: %r1 = select %10, %11, %0
+    %13: %r1 = const 0
+    %14: %r3 = const 5
+    %15: %r3 = convert %13
+    %16: %r2 = binary.ge %15, %14
+    branch %16 -> block2 -> block1
+  block1:
+    %17: %r1 = const 4
+    %18: %r3 = const 5
+    %19: %r3 = convert %17
+    %20: %r2 = binary.ge %19, %18
+    branch %20 -> block4 -> block3
+  block2:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block3:
+    %21: %r1 = const 6
+    %22: %r1 = binary.add %12, %21
+    %23: %r1 = coerce %22
+    %24: %r0 = load global decimalPairs: %r0
+    %25: %r0 = alias %24
+    %26: %r0 = const "00010203040506070809"
+    %27: %r0 = alias %25
+    %28: %r0 = alias %26
+    %29: %r0 = alias %27
+    %30: %r0 = alias %28
+    %31: %r2 = host host.binary "===" %29, %30
+    %32: %r1 = const 14
+    %33: %r1 = binary.add %12, %32
+    %34: %r1 = coerce %33
+    %35: %r1 = select %31, %34, %23
+    return %35
+  block4:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
+
+rep %r0 = string
+rep %r1 = number signed 32
+rep %r2 = number bool
+rep %r3 = number unsigned 32
+rep %r4 = void

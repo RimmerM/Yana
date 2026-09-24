@@ -1,0 +1,90 @@
+{-
+   What `yana explain` says a traversal over a parameter does to it.
+
+   A `for x in items(xs)` read as writing and keeping `xs`: the producer's `yield` is a call through
+   its continuation parameter, which made its body unattributable, and the `lens.call` joined the top
+   of the lattice into every caller. The continuation is the caller's own blocks, so its effects are
+   counted there, and the `.explain.expect` beside this says `none` for every read-only loop below -
+   over a string, an array, nested traversals, `lines`, `pairs`, a lens - and still says `writable` where the
+   hand-over is `&` and the caller writes through it, or where a subscript is written directly -
+   and `none` retained for a compound assignment through one.
+
+   # resolver: ownership
+-}
+
+-- `items(text)` is the reported shape, and a string is a `Chunked` container natively only; the
+-- same traversal over a string parameter that both targets have is `splitOn`.
+fn countA(text: String) -> Int:
+    let &n = 0 - 1
+    for piece in splitOn(text, 97):
+        n += 1
+    return n
+
+fn sumArr(xs: [Int]) -> Int:
+    let &n = 0
+    for x in items(xs):
+        n += x
+    return n
+
+fn nested(xss: [[Int]]) -> Int:
+    let &n = 0
+    for xs in items(xss):
+        for x in items(xs):
+            n += x
+    return n
+
+fn countLines(text: String) -> Int:
+    let &n = 0
+    for l in lines(text):
+        n += 1
+    return n
+
+fn sumMap(m: [String: Int]) -> Int:
+    let &n = 0
+    for e in pairs(m):
+        n += e.value
+    return n
+
+lens fn around(xs: [Int]):
+    yield {}
+
+fn useLens(xs: [Int]) -> Int:
+    let &n = 0
+    around(xs):
+        n = 1
+    return n
+
+iter fn each(xs: [Int]) -> Int:
+    for i in 0..length(xs):
+        yield xs[i]
+
+fn useEach(xs: [Int]) -> Int:
+    let &n = 0
+    for x in each(xs):
+        n += x
+    return n
+
+lens fn mutWindow(&xs: [Int]) -> &[Int]:
+    yield xs
+
+fn bump(&xs: [Int]):
+    let w = mutWindow(xs)
+    w[0] = 10
+
+fn setFirst(&xs: [Int]):
+    xs[0] = 20
+
+-- The compound form, which once reported `retains: xs`: `+=` is a generic body, and its
+-- specialization at `I32` read `target + amount` as a value that may hold a pointer.
+fn addFirst(&xs: [Int]):
+    xs[0] += 1
+
+fn main() -> Int:
+    let &a = [1, 2, 3]
+    let &r = countA("banana") + sumArr(a) + nested([[1], [2, 3]]) + countLines("a\nb\nc")
+    r += sumMap(["x": 4]) + useLens(a) + useEach(a)
+    bump(a)
+    r += a[0]
+    setFirst(a)
+    addFirst(a)
+    return r + a[0]

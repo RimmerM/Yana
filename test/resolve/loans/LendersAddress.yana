@@ -1,0 +1,26 @@
+{-
+   A loan through a raw address, followed to what the pointer's pointee is rooted in - the same
+   answer for a result and for a `&` parameter's field.
+
+   # resolver: ownership
+
+   `borrow(values(xs) + 1)` is rooted at an address, and `values` published its pointee as `xs`'s,
+   so the loan is judged by `xs`'s. The result check followed it and accepted; the destination
+   check refused it by the compiler's text for the address. `Lenders.yana` says why.
+-}
+
+import Native
+
+data Box {items: [Int]}
+data Store {held: kept'Box}
+
+fn first(xs: kept'[Box]) -> kept'Box = borrow(values(xs))
+
+fn stash(&store: Store(kept'), xs: kept'[Box]):
+    store = {store | held: borrow(values(xs) + 1)}
+
+fn main() -> Int:
+    let bs = [Box {items: [10]}, Box {items: [20]}]
+    let &s = Store {held: bs[0]}
+    stash(s, bs)
+    return first(bs).items[0] + s.held.items[0]

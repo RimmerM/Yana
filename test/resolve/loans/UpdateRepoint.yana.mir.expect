@@ -1,0 +1,285 @@
+module ResolveTest
+
+data Cell {value: I32}
+
+data Store {held: 0'Cell, tag: I32} shape2
+
+data Owned {held: 0'Cell, items: Array(I32)} shape2 reclaim derived
+
+data Exclusive {held: &0'Cell, tag: I32} shape3
+
+fn remember(store: Store [unique call shape2 .0=shared slot 0], value: Cell [shared slot 0]) -> {} {
+  local & local2: Store
+
+bb0:
+  %0: Store [owned here shape2 .0=shared slot 0] = read copy.trivial (store)
+  write.init borrow.unique (local2) take %0
+  %2: Cell [shared slot 0] = read borrow.shared (value) loan0
+  write.init borrow.unique (local2.held) borrow.shared %2
+  %4: Store = read copy.trivial (local2) roots{0} roots.0{0}
+  write.assign borrow.unique (store) take %4
+  return
+}
+
+fn rememberOwned(store: Owned [unique call shape2 .0=shared slot 0], value: Cell [shared slot 0]) -> {} {
+  local & local2: Owned
+
+bb0:
+  %0: Cell [shared slot 0] = read borrow.shared (value) loan0
+  %1: Owned [owned here shape2 .0=shared slot 0] = read take (store)
+  write.init borrow.unique (local2) take %1
+  write.init borrow.unique (local2.held) borrow.shared %0
+  %4: Owned = read take (local2) roots{0} roots.0{0}
+  write.reinit borrow.unique (store) take %4
+  return
+}
+
+fn repoint(store: Exclusive [unique call shape3 .0=unique slot 0], value: Cell [unique slot 0]) -> {} {
+  local & local2: Exclusive
+
+bb0:
+  %0: Cell [unique slot 0] = read borrow.unique (value) loan0
+  %1: Exclusive [owned here shape3 .0=unique slot 0] = read take (store)
+  write.init borrow.unique (local2) take %1
+  write.init borrow.unique (local2.held) borrow.unique %0
+  %4: Exclusive = read take (local2) roots{0} roots.0{0}
+  write.reinit borrow.unique (store) take %4
+  return
+}
+
+fn itself(s: Owned [unique slot 0]) -> Owned [unique slot 0 owner] {
+bb0:
+  %0: Owned [unique slot 0] = read borrow.unique (s) loan0
+  return borrow.unique %0
+}
+
+fn local() -> I32 {
+  local & seed: Cell
+  local & source: Cell
+  local & box: Store
+  local & local3: Store
+
+bb0:
+  %0: I32 = const 1
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (seed) take %1
+  %3: I32 = const 7
+  %4: Cell = aggregate.Cell take %3
+  write.init borrow.unique (source) take %4
+  %6: Cell [shared slot 0] = read borrow.shared (seed) loan0
+  %7: I32 = const 3
+  %8: Store = aggregate.Store borrow.shared %6 take %7 roots.0{0}
+  write.init borrow.unique (box) take %8
+  %10: Store = read copy.trivial (box) roots.0{0}
+  write.init borrow.unique (local3) take %10
+  %12: Cell [shared slot 0] = read borrow.shared (source) loan1
+  write.init borrow.unique (local3.held) borrow.shared %12
+  %14: Store = read copy.trivial (local3) roots{1} roots.0{1}
+  write.assign borrow.unique (box) take %14
+  %16: I32 = read copy.trivial (box.held.value)
+  %17: I32 = const 10
+  %18: I32 = mul inspect %16 inspect %17
+  %19: I32 = read copy.trivial (box.tag)
+  %20: I32 = add inspect %18 inspect %19
+  return take %20
+}
+
+fn throughParameter() -> I32 {
+  local & seed: Cell
+  local & source: Cell
+  local & box: Store
+  local answer: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (seed) take %1
+  %3: I32 = const 7
+  %4: Cell = aggregate.Cell take %3
+  write.init borrow.unique (source) take %4
+  %6: Cell [shared slot 0] = read borrow.shared (seed) loan0
+  %7: I32 = const 3
+  %8: Store = aggregate.Store borrow.shared %6 take %7 roots.0{0}
+  write.init borrow.unique (box) take %8
+  %10: Store [unique call] = read borrow.unique (box) loan1 roots.0{0}
+  %11: Cell [shared slot 0] = read borrow.shared (source) loan2
+  %12: {} = call remember borrow.unique %10 borrow.shared %11
+  %13: I32 = read copy.trivial (box.held.value)
+  %14: I32 = const 10
+  %15: I32 = mul inspect %13 inspect %14
+  %16: I32 = read copy.trivial (box.tag)
+  %17: I32 = add inspect %15 inspect %16
+  write.init borrow.unique (answer) take %17
+  %19: I32 = const 2
+  write.assign borrow.unique (seed.value) take %19
+  %21: I32 = read copy.trivial (answer)
+  %22: I32 = read copy.trivial (seed.value)
+  %23: I32 = add inspect %21 inspect %22
+  %24: I32 = const 2
+  %25: I32 = sub inspect %23 inspect %24
+  return take %25
+}
+
+fn consuming() -> I32 {
+  local & seed: Cell
+  local & source: Cell
+  local & local2: Array(I32)
+  local & box: Owned
+  local local4: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = const 1
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (seed) take %1
+  %3: I32 = const 7
+  %4: Cell = aggregate.Cell take %3
+  write.init borrow.unique (source) take %4
+  %6: Cell [shared slot 0] = read borrow.shared (seed) loan0
+  %7: I32 = const 1
+  %8: I32 = const 2
+  %9: %I32 = run.slots I32 *2
+  %10: Size = bitcast inspect %9
+  %11: Size = const 0
+  %12: Bool = eq inspect %10 inspect %11
+  %13: {} = call checkCondition borrow.shared %12
+  %14: @bits(30) U32 = const 2
+  %15: @bits(2) U32 = const 1
+  %16: Run(I32) = aggregate.Run take %9 take %14 take %15
+  %17: @bits(30) U32 = const 2
+  %18: Array(I32) = aggregate.Array take %16 take %17
+  write.init borrow.unique (local2) take %18
+  %20: Size = const 0
+  write.init borrow.unique ([%%9][0]) take %7
+  %22: Size = const 1
+  write.init borrow.unique ([%%9][1]) take %8
+  %24: Array(I32) = read take (local2)
+  %25: Owned = aggregate.Owned borrow.shared %6 take %24 roots.0{0}
+  write.init borrow.unique (box) take %25
+  %27: Owned [unique call] = read borrow.unique (box) loan1 roots.0{0}
+  %28: Cell [shared slot 0] = read borrow.shared (source) loan2
+  %29: {} = call rememberOwned borrow.unique %27 borrow.shared %28
+  %30: I32 = read copy.trivial (box.held.value)
+  %31: I32 = const 10
+  %32: I32 = mul inspect %30 inspect %31
+  %33: Size = const 1
+  %34: Array(I32) [shared call] = read borrow.shared (box.items) loan3
+  %35: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %34 roots{3}
+  %36: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %35 borrow.shared %33 roots{3}
+  write.init borrow.unique (local4) borrow.shared %36
+  %38: I32 = read copy.trivial (local4)
+  drop (box)
+  %39: I32 = add inspect %32 inspect %38
+  return take %39
+}
+
+fn exclusive() -> I32 {
+  local & seed: Cell
+  local & source: Cell
+  local & other: Cell
+  local & box: Exclusive object3
+  local & local4: Exclusive object3
+  local first: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (seed) take %1
+  %3: I32 = const 7
+  %4: Cell = aggregate.Cell take %3
+  write.init borrow.unique (source) take %4
+  %6: I32 = const 8
+  %7: Cell = aggregate.Cell take %6
+  write.init borrow.unique (other) take %7
+  %9: Cell [unique slot 0] = read borrow.unique (seed) loan0
+  %10: I32 = const 3
+  %11: Exclusive = aggregate.Exclusive borrow.unique %9 take %10 roots.0{0}
+  write.init borrow.unique (box) take %11
+  %13: Cell [unique slot 0] = read borrow.unique (source) loan1
+  %14: Exclusive = read take (box) roots.0{0}
+  write.init borrow.unique (local4) take %14
+  write.init borrow.unique (local4.held) borrow.unique %13
+  %17: Exclusive = read take (local4) roots{1} roots.0{1}
+  write.reinit borrow.unique (box) take %17
+  %19: I32 = const 4
+  %20: Cell = aggregate.Cell take %19
+  write.assign borrow.unique (box.held) take %20
+  %22: I32 = read copy.trivial (box.held.value)
+  %23: I32 = const 10
+  %24: I32 = mul inspect %22 inspect %23
+  %25: I32 = read copy.trivial (box.tag)
+  %26: I32 = add inspect %24 inspect %25
+  write.init borrow.unique (first) take %26
+  %28: Exclusive [unique call] = read borrow.unique (box) loan2 roots{1} roots.0{1}
+  %29: Cell [unique slot 0] = read borrow.unique (other) loan3
+  %30: {} = call repoint borrow.unique %28 borrow.unique %29
+  %31: I32 = const 6
+  write.assign borrow.unique (box.held.value) take %31
+  %33: I32 = read copy.trivial (first)
+  %34: I32 = const 1000
+  %35: I32 = mul inspect %33 inspect %34
+  %36: I32 = read copy.trivial (seed.value)
+  %37: I32 = const 100
+  %38: I32 = mul inspect %36 inspect %37
+  %39: I32 = add inspect %35 inspect %38
+  %40: I32 = read copy.trivial (source.value)
+  %41: I32 = const 10
+  %42: I32 = mul inspect %40 inspect %41
+  %43: I32 = add inspect %39 inspect %42
+  %44: I32 = read copy.trivial (other.value)
+  %45: I32 = add inspect %43 inspect %44
+  return take %45
+}
+
+fn viaResult() -> I32 {
+  local & source: Cell
+  local & local1: Array(I32)
+  local & box: Owned
+
+bb0:
+  %0: I32 = const 7
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (source) take %1
+  %3: Cell [shared slot 0] = read borrow.shared (source) loan0
+  %4: I32 = const 1
+  %5: %I32 = run.slots I32 *1
+  %6: Size = bitcast inspect %5
+  %7: Size = const 0
+  %8: Bool = eq inspect %6 inspect %7
+  %9: {} = call checkCondition borrow.shared %8
+  %10: @bits(30) U32 = const 1
+  %11: @bits(2) U32 = const 1
+  %12: Run(I32) = aggregate.Run take %5 take %10 take %11
+  %13: @bits(30) U32 = const 1
+  %14: Array(I32) = aggregate.Array take %12 take %13
+  write.init borrow.unique (local1) take %14
+  %16: Size = const 0
+  write.init borrow.unique ([%%5][0]) take %4
+  %18: Array(I32) = read take (local1)
+  %19: Owned = aggregate.Owned borrow.shared %3 take %18 roots.0{0}
+  write.init borrow.unique (box) take %19
+  %21: Owned [unique slot 0] = read borrow.unique (box) loan1 roots.0{0}
+  %22: Owned [unique slot 0 owner] = call itself borrow.unique %21 roots{0, 1} roots.0{0, 1}
+  %23: Cell [shared slot 0] = read borrow.shared (source) loan2
+  %24: {} = call rememberOwned borrow.unique %22 borrow.shared %23
+  %25: I32 = read copy.trivial (box.held.value)
+  drop (box)
+  %26: I32 = const 11
+  %27: I32 = mul inspect %25 inspect %26
+  return take %27
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call local
+  %1: I32 = call throughParameter
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call consuming
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call exclusive
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call viaResult
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+entry main

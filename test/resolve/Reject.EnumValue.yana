@@ -1,4 +1,10 @@
 -- What `@value(n)` refuses - Analysis-Language.md §5.1.
+--
+-- A compile that reported still provides `Enum.nameOf` and `fromValue`, and over a declaration whose
+-- selectors repeat each would build a `map` with a repeated key. That asserted in `build-assert`,
+-- so the collisions below are also what keeps the provided members from building one.
+--
+-- # resolver: ownership
 
 -- Two constructors naming one number. Reported at the later of the two, which is the one whose
 -- number can change without renumbering everything after it.

@@ -1,0 +1,199 @@
+{-
+   A copy of a `%yield'` hand-over kept where its call does not reach.
+
+   # resolver: ownership
+
+   `%yield'I32` says the pointee is bounded by the call: the lens yields an address into its own
+   frame, and the frame is gone when the call returns. The origin walk used to fill that position
+   with the lens call's arguments' loans and nothing else. That keeps the arguments alive and says
+   nothing about where the pointer points, so a copy of it stored into a `&` parameter's
+   `%kept'I32` field looked like a loan of `xs`, which `kept` names, and into a global's `%'I32`
+   field it looked like a loan of `gArr`, a global. Over `bytes0()`, which is lent nothing, it looked
+   like no loan at all. A caller's own writable local carried it past the call, and nothing held the
+   local to the call either. Every function below compiled before J123, and `destination`,
+   `global` and `outlives` read the dead frame's 42.
+
+   Each lens call whose hand-over has such a position now carries a **call bound** there, a loan
+   standing for the callee's frame (`analyze_loan.cpp`'s `findCallBounds`). Every holder meets it
+   as a value a call lent for the length of that call, which none of them accepts, and a use of it in
+   a block outside the call's region is refused where it is made. `relay` is J120's H3: it hands on
+   such a copy as an unqualified `%I32`, which promises the consumer nothing, so a consumer may keep
+   it. That is `Reject.Pointer.yana`'s `-> %I32` of a local, one frame further down.
+
+   The last three are J124's. An `iter fn`'s `for` body is re-entered once per `yield`, and each
+   pass hands over a pointer into the frame as it is *then*. `stale` carries the pointer into the
+   next pass through the outer `q` and reads it there, after the producer freed the run it points
+   into (it printed 84). The copy stored on one pass is a second generation of the bound, renamed
+   where the region's storage goes round to its entry, and any use of it is refused. `stalePass`
+   and `afterPass` are the same two refusals for the loop body's own storage, which the
+   continuation's frame holds for one pass: `inner` read through `q` on the next pass (the
+   unoptimized build printed 1), and after the loop (an internal error in the conversion before).
+
+   The last five are J128's, and every one of them compiled before it. The loop body's own storage
+   was checked only at the region's edges, and J127's test of a local made again while a loan of
+   its previous value is in use skipped a continuation's storage, so the seam let a stale loan
+   through. `afterIf` is `stalePass` with the read one block down, which ended in the conversion's
+   "a place names a local with no storage". `nestedRegions` reads the previous outer pass's `inner`
+   on the next one's first inner pass (it printed 212). `whileInFor`, `whileInLens` and
+   `whileInPasses` are J127's `madeAgain` inside a `for` body, a lens block and a two-pass `for`
+   (84, 84 and 142, read out of freed runs). All five are now one check, reported at the use.
+
+   `CallBound.yana` is the other half: the same pointer used, copied, stepped and stored while the
+   call is running.
+-}
+
+import Native
+
+data Spot {at: %kept'I32}
+data Loose {at: %'I32}
+
+let gArr = [1] :: Array(I32)
+let &gLoose = Loose {at: values(gArr)}
+
+lens fn bytes(xs: [I32]) -> %yield'I32:
+    let owned = [xs[0] + 41, 2] :: Array(I32)
+    yield values(owned)
+
+lens fn bytes0() -> %yield'I32:
+    let owned = [41, 2] :: Array(I32)
+    yield values(owned)
+
+iter fn addresses(from: I32) -> %yield'I32:
+    let &cells = [from, from + 1, from + 2] :: Array(I32)
+    for i in 0..3:
+        yield values(cells) + i
+
+fn destination(&spot: Spot(kept'), xs: kept'[I32]):
+    let p = bytes(xs) in:
+        spot = {spot | at: p}
+
+fn destination0(&spot: Spot(kept'), xs: kept'[I32]):
+    let p = bytes0() in:
+        spot = {spot | at: p}
+
+fn global():
+    let p = bytes(gArr) in:
+        gLoose = {gLoose | at: p}
+
+fn global0():
+    let p = bytes0() in:
+        gLoose = {gLoose | at: p}
+
+fn outlives(xs: [I32]) -> I32:
+    let &q = values(xs)
+    let p = bytes(xs) in:
+        q = p
+    return copy(borrow(q))
+
+fn outlivesLoop(xs: [I32]) -> I32:
+    let &q = values(xs)
+    for r in addresses(1):
+        q = r
+    return copy(borrow(q))
+
+fn outlivesBreak(xs: [I32]) -> I32:
+    let &q = values(xs)
+    for r in addresses(1):
+        q = r + 1
+        break
+    return copy(borrow(q))
+
+lens fn relay(xs: [I32]) -> %I32:
+    let p = bytes(xs) in:
+        yield p
+
+iter fn fresh(n: I32) -> %yield'I32:
+    for i in 0..n:
+        let owned = [i + 40, 2] :: Array(I32)
+        yield values(owned)
+
+fn stale(xs: [I32]) -> I32:
+    let &q = values(xs)
+    let &total = 0
+    for r in fresh(3):
+        total += copy(borrow(q))
+        q = r
+    return total
+
+fn stalePass(xs: [I32]) -> I32:
+    let &q = values(xs)
+    let &total = 0
+    for x in items(xs):
+        total += copy(borrow(q))
+        let inner = [x, 2] :: Array(I32)
+        q = values(inner)
+    return total
+
+fn afterPass(xs: [I32]) -> I32:
+    let &q = values(xs)
+    for x in items(xs):
+        let inner = [x, 2] :: Array(I32)
+        q = values(inner)
+    return copy(borrow(q))
+
+fn afterIf(xs: [I32]) -> I32:
+    let a = [1] :: Array(I32)
+    let &q = values(a)
+    let &total = 0
+    for x in items(xs):
+        if x > 100:
+            total += 1
+        total += copy(borrow(q))
+        let inner = [x + 40, 2] :: Array(I32)
+        q = values(inner)
+    return total
+
+fn nestedRegions(xs: [I32], ys: [I32]) -> I32:
+    let a = [1] :: Array(I32)
+    let &q = values(a)
+    let &total = 0
+    for y in items(ys):
+        let inner = [y + 40, 2] :: Array(I32)
+        for x in items(xs):
+            total += copy(borrow(q))
+            q = values(inner)
+    return total
+
+fn whileInFor(ys: [I32]) -> I32:
+    let a = [1] :: Array(I32)
+    let &total = 0
+    for y in items(ys):
+        let &q = values(a)
+        let &j = 0
+        while j < 3:
+            let owned = [j + 40, 2] :: Array(I32)
+            total += copy(borrow(q))
+            q = values(owned)
+            j += 1
+    return total
+
+lens fn around():
+    yield {}
+
+fn whileInLens() -> I32:
+    let a = [1] :: Array(I32)
+    let &total = 0
+    around():
+        let &q = values(a)
+        let &j = 0
+        while j < 3:
+            let owned = [j + 40, 2] :: Array(I32)
+            total += copy(borrow(q))
+            q = values(owned)
+            j += 1
+    return total
+
+fn whileInPasses(ys: [I32]) -> I32:
+    let a = [1] :: Array(I32)
+    let &q = values(a)
+    let &total = 0
+    for y in items(ys):
+        let &j = 0
+        while j < 2:
+            let inner = [y + j + 40, 2] :: Array(I32)
+            total += copy(borrow(q))
+            q = values(inner)
+            j += 1
+    return total
+
+fn main() -> Int = 0

@@ -452,7 +452,7 @@ fn peek(it: upTo.Iter [unique call]) -> I32 {
 
 bb0:
   %0: upTo.Iter [unique slot 0] = read borrow.unique (it) loan0
-  %1: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(upTo.Iter, I32, {}) borrow.unique %0 roots.0{0}
+  %1: Maybe(I32) [owned here shape2 .0=shared slot 0] = call upTo$next borrow.unique %0 roots.0{0}
   write.init borrow.unique (local1) take %1
   %3: U8 = read copy.trivial (local1.#)
   %4: U8 = const 1
@@ -487,7 +487,7 @@ bb0:
 
 bb1:
   %3: upTo.Iter [unique slot 0] = read borrow.unique (it) loan0
-  %4: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(upTo.Iter, I32, {}) borrow.unique %3 roots.0{0}
+  %4: Maybe(I32) [owned here shape2 .0=shared slot 0] = call upTo$next borrow.unique %3 roots.0{0}
   write.init borrow.unique (local2) take %4
   %6: U8 = read copy.trivial (local2.#)
   %7: U8 = const 1

@@ -1,0 +1,56 @@
+{-
+   An exit taken while the expression walk is holding an owner.
+
+   `combine(token(a)?, token(b)?)` is the shape: the first token is an argument under construction
+   when the second `?` leaves, and it is a node result rather than a local - so nothing named it for
+   the drop placement, and the rewritten stage reached the `return` still owning it ("owned value
+   reaches return unconsumed"). A `return` inside a `match` arm in argument position and a `break`
+   from one are the same position reached by the two other exits, and all three release it.
+
+   The answer is the number of tokens dropped, which is every token built - three from each
+   function, two consumed by `combine` and one released on the way out: 9. The shipping stage
+   answers the same.
+-}
+
+let &dropped = 0 :: Int
+
+data Token {id: Int}
+
+instance Drop(Token):
+    fn drop(->value: Token):
+        dropped = dropped + 1
+
+fn token(n: Int) -> Maybe(Token) = if n > 0 then Just(Token {id: n}) else Nothing
+fn maybeId(n: Int) -> Maybe(Int) = if n > 0 then Just(n) else Nothing
+fn combine(->x: Token, ->y: Token) -> Int = x.id + y.id
+
+-- `?` twice in one call: the second exit releases the first argument.
+fn paired(a: Int, b: Int) -> Maybe(Int) = Just(combine(token(a)?, token(b)?))
+
+-- A `return` from an arm, with the first argument held across the `match`.
+fn matched(a: Int, b: Int) -> Maybe(Int):
+    let v = combine(Token {id: a}, match maybeId(b):
+        Just(n) -> Token {id: n}
+        Nothing:
+            return Nothing
+    )
+    return Just(v)
+
+-- And a `break`, which leaves a loop the held argument was built inside.
+fn looped(a: Int, b: Int) -> Int:
+    let &sum = 0
+    for i in 0..3:
+        sum = sum + combine(Token {id: a}, match maybeId(b - i):
+            Just(n) -> Token {id: n}
+            Nothing:
+                break
+        )
+    return sum
+
+fn main() -> Int:
+    let p = paired(3, 4)
+    let q = paired(3, 0 - 1)
+    let m = matched(3, 4)
+    let n = matched(3, 0 - 1)
+    let l = looped(3, 1)
+    return dropped

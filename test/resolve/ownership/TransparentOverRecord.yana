@@ -1,0 +1,138 @@
+{-
+   A one-field record over a record, on JavaScript.
+
+   # resolver: ownership
+
+   The shipping stage refuses `Call` as a constraint over a lambda, which the last two cases need.
+
+   A record with one stored field is *transparent* on that target - its value is the field's - and
+   every site that takes one apart asked the representation whether it was an object before it asked
+   the type whether it was transparent. Over a number the two agree. Over a record they did not:
+   `W {b: Box}` had `Box`'s representation, so it was built as a `Box` with the whole `b` in `m`, and
+   `w.b.n` was refused as "a field of this representation", optimized and not. The same held over a
+   string-holding record, a packed record, a sum, a `Maybe` of a record, a typed row, a tuple and an
+   inlined-away lambda environment whose one capture is a record. Such a record is now an object
+   holding its field (`resolve_ssa/js/repr.cpp`'s `transparentContentOf`).
+
+   Each case compares its answer with the right one and sets one bit, so the answer is 4095 and a
+   regression names its case by the bit it clears.
+-}
+
+data Box {m: Int, n: Int}
+data W {b: Box}
+data V {w: W}
+
+data Named {m: Int, n: Int, s: String}
+data WN {b: Named}
+
+data Narrow {m: U8, n: U8}
+data WP {b: Narrow}
+
+data S = A {x: Int} | B {y: Int, z: Int}
+data WS {s: S}
+
+data WM {b: Maybe(Box)}
+data WI {i: Maybe(Int)}
+
+data WA {xs: [Int]}
+data WT {ss: [String]}
+
+data WU {t: {a: Int, b: Int}}
+
+-- A reproducer: built, lent exclusively and read through the loan.
+fn lent(b: Box, k: Int) -> Int:
+    let w = W {b: b}
+    let &v = w
+    return v.b.n + k + v.b.m
+
+-- Two levels, each of which was transparent over the next.
+fn twoLevels(b: Box, k: Int) -> Int:
+    let v = V {w: W {b: b}}
+    return v.w.b.n + k + v.w.b.m
+
+-- Over a record the target keeps an object for - it holds a string.
+fn overObject(->b: Named, k: Int) -> Int:
+    let w = WN {b: b}
+    let &v = w
+    return v.b.n + k + v.b.m + truncate(length(v.b.s))
+
+-- Over a record packed into one number, written through the loan.
+fn overPacked(b: Narrow, k: Int) -> Int:
+    let w = WP {b: b}
+    let &v = w
+    v.b.m = 5
+    return (v.b.n :: Int) + k + (v.b.m :: Int)
+
+fn sumValue(w: WS) -> Int = match w.s:
+    A {x} -> x
+    B {y, z} -> y + z
+
+-- Over a sum, matched through the wrapper and then replaced.
+fn overSum() -> Int:
+    let &w = WS {s: B {y: 30, z: 2}}
+    let a = sumValue(w)
+    w.s = A {x: 10}
+    return a + sumValue(w)
+
+-- Over a niche-folded `Maybe`, of a record and of a number.
+fn overMaybe() -> Int:
+    let w = WM {b: Just(Box {m: 2, n: 30})}
+    let x = WI {i: Just(10)}
+    let &r = 0
+    if w.b is Just(b): r += b.m + b.n
+    if x.i is Just(i): r += i
+    return r
+
+-- Over a typed row, which keeps its object for its count, and over a plain one.
+fn overArrays() -> Int:
+    let &w = WA {xs: [1, 2, 3]}
+    push(w.xs, 36)
+    let t = WT {ss: ["a", "bc"]}
+    return w.xs[3] + truncate(length(w.xs) + length(t.ss))
+
+-- Across calls that are kept out of line: built, lent exclusively, and read.
+@noinline fn make(m: Int) -> W = W {b: Box {m: m, n: 30}}
+@noinline fn readW(w: W) -> Int = w.b.m + w.b.n
+@noinline fn bumpW(&w: W):
+    w.b.n += 1
+
+fn acrossCalls() -> Int:
+    let &w = make(1)
+    bumpW(w)
+    return readW(w) + 10
+
+-- Over a tuple.
+fn overTuple() -> Int:
+    let w = WU {t: {a: 30, b: 12}}
+    return w.t.a + w.t.b
+
+fn (Call(f, (Int) -> Int)) apply(g: f, x: Int) -> Int = g(x)
+
+-- Two audit rows: an environment whose one capture is a record, inlined away.
+fn captureInts() -> Int:
+    let b = Box {m: 2, n: 30}
+    let g = (x: Int) -> x + b.m + b.n
+    return apply(g, 10)
+
+fn captureString() -> Int:
+    let b = Named {m: 2, n: 27, s: "abc"}
+    let g = (x: Int) -> x + b.m + b.n + truncate(length(b.s))
+    return apply(g, 10)
+
+fn bit(ok: Bool, at: Int) -> Int = if ok then 1 `shl` at else 0
+
+fn main() -> Int:
+    let &r = 0
+    r += bit(lent(Box {m: 2, n: 30}, 10) == 42, 0)
+    r += bit(twoLevels(Box {m: 2, n: 30}, 10) == 42, 1)
+    r += bit(overObject(Named {m: 2, n: 30, s: "abc"}, 7) == 42, 2)
+    r += bit(overPacked(Narrow {m: 2, n: 30}, 10) == 45, 3)
+    r += bit(overSum() == 42, 4)
+    r += bit(overMaybe() == 42, 5)
+    r += bit(overArrays() == 42, 6)
+    r += bit(acrossCalls() == 42, 7)
+    r += bit(overTuple() == 42, 8)
+    r += bit(captureInts() == 42, 9)
+    r += bit(captureString() == 42, 10)
+    r += bit(lent(Box {m: 1, n: 1}, 0) == 2, 11)
+    return r

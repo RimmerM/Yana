@@ -1,0 +1,82 @@
+# A folded address whose index is computed next to an operand of the access that has no register.
+#
+# `boundaries` is the lower IR the ownership stage hands the backend for `[0] :: [Size]` followed by a
+# counted loop, under `-no-ir-opt`, trimmed to what still reproduces it and with its callees stubbed
+# out - a hand-written function of the same shape did not reproduce it (J95 §3, J97). The element's
+# offset is `mul 0L, 8L`, which is left unfolded there and pins its result to rax; the address folds
+# it as the index. `%zero` is a recipe read by two stores, so §5.9 gives it a cluster window, whose
+# load joins the x86_addr's post copies - the one point after the index's life has ended and before
+# the store reads it through the address.
+#
+# First-fit offered that window rax, and the store became `mov $0,%eax ; mov %rax,(%rcx,%rax,1)`:
+# right only because both numbers are zero, and a wrong address for any other pair. The property is
+# that the register the window loads into (the x86_addr's `post=`) is not the one the store's
+# address reads; collectTieConflicts in place.cpp is the rule, and `checkFoldedAddress` in verify.cpp
+# names this case exactly without it.
+#
+# extensions: sse4
+
+allocateHeap<complex>(%size: I64): Ptr {
+  b_0 {
+    %p = bitcast %size: Ptr
+    ret %p
+  }
+}
+
+push<complex>(%self: Ptr, %item: I64) {
+  b_0 {
+    store %self, %item, 8
+    ret 
+  }
+}
+
+boundaries<complex>(%n: I64): I64, I32, I32 {
+  b_0 {
+    %zero = imm 0L: I64
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    %v_4 = alloca 8, 8: Ptr
+    %v_5 = alloca 8, 8: Ptr
+    store %v_1, %n, 8
+    %v_6 = call_complex allocateHeap, 8L: Ptr
+    store %v_2, %v_6, 8
+    %v_26 = mul 0L, 8L: I64
+    %v_27 = add %v_6, %v_26: Ptr
+    store %v_27, %zero, 8
+    copy %v_3, %v_2, 16
+    %v_28 = loads %v_1, 8: I64
+    store %v_4, %zero, 8
+    jmp b_29
+  }
+
+  b_29 {
+    %v_30 = loads %v_4, 8: I64
+    %v_31 = cmp_ilt %v_30, %v_28: I32
+    je %v_31, b_32, b_33
+  }
+
+  b_34 {
+    %v_35 = loads %v_4, 8: I64
+    %v_36 = add %v_35, 1L: I64
+    store %v_4, %v_36, 8
+    jmp b_29
+  }
+
+  b_33 {
+    %v_37 = load %v_3, 8: I64
+    %v_38 = add %v_3, 8: Ptr
+    %v_39 = load %v_38, 4: I32
+    %v_40 = add %v_3, 12: Ptr
+    %v_41 = load %v_40, 4: I32
+    ret %v_37, %v_39, %v_41
+  }
+
+  b_32 {
+    %v_42 = loads %v_4, 8: I64
+    store %v_5, %v_42, 8
+    %v_43 = loads %v_5, 8: I64
+    call_complex push, %v_3, %v_43
+    jmp b_34
+  }
+}

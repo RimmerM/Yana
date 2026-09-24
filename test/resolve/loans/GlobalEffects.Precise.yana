@@ -1,0 +1,55 @@
+{-
+   A loan of a global held across calls the whole-program summary charges with code they never
+   run, and which the check reads again at the types they are called at - see
+   `computeGlobalEffects` in `compiler/resolve_mir/analyze_loan.cpp`.
+
+   # resolver: ownership
+-}
+
+data Noisy {n: Int}
+data Weird {n: Int}
+
+let &gArr = [1, 2, 3] :: Array(Int)
+let &gLog = [0] :: Array(Int)
+
+fn grow():
+    for i in 0..1000:
+        push(gArr, i + 100)
+
+instance Drop(Noisy):
+    fn drop(->value: Noisy):
+        grow()
+
+-- Selected at `Weird` only, so printing an `Int` never runs it.
+instance Eq(Weird):
+    fn ==(a: Weird, b: Weird) -> Bool:
+        push(gLog, 1)
+        return a.n == b.n
+
+fn printsInt() -> Int:
+    let w = gLog[0..1]
+    let same = if 3 == 4 then 1 else 2
+    print("{same}")
+    return w[0] + same
+
+-- A closure runs where it is called, and making one runs nothing.
+fn makeGrower() -> () -> {} = () -> grow()
+
+fn returnsClosure() -> Int:
+    let w = gArr[0..3]
+    let f = makeGrower()
+    let r = w[0] + w[1]
+    f()
+    return r
+
+-- A generic callee that only borrows its argument cannot release it.
+fn (a) peek(x: a) -> Int = 1
+
+fn borrowsNoisy() -> Int:
+    let a = Noisy {n: 1}
+    let w = gArr[0..3]
+    let n = peek(a)
+    let k = w[0] + w[1] + n
+    return k + a.n
+
+fn main() -> Int = printsInt() * 100 + returnsClosure() * 10 + borrowsNoisy()

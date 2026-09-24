@@ -27,7 +27,10 @@
 
    `fn identity(v: a) -> a = v` is the same statement in return position: the signature promises the
    caller an `a` it may drop, out of storage the caller lent. The two honest spellings are `->v`,
-   which takes it, and a `return` marker with a borrow result, which promises only a view.
+   which takes it, and `v: 'a` with a `'a` result, which promises only a view.
+
+   # resolver: ownership
+   # recover: yes - every rule below is reported in one compile, the way the command line reports them.
 -}
 
 data Held {n: Int}

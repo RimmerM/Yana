@@ -815,6 +815,10 @@ struct Loop {
 
     ContinuationId region;
 
+    // The innermost held frame when the loop was opened - what its carry threads. A frame above it
+    // was registered inside the loop's body, and an exit gives its values up (`releaseHeld`).
+    Held* heldAtEntry;
+
     /*
      * Whether leaving this loop leaves the continuation region it is written in - the `for` over an
      * `iter fn`, where the loop *is* the region.
@@ -926,6 +930,10 @@ bool mapSpanAdmits(I64 lowest, I64 highest, Size count);
 // A mapping's entries ascending by selector, in place - the order `NodeMap` declares. `@value(n)` is
 // what makes it necessary: a declaration may pin its constructors to numbers in any order at all.
 void sortMapEntries(MapEntry* entries, Size count);
+
+// Whether a concrete step call names the object's own generated member rather than `Iterate`'s -
+// `resolve_object.cpp`, and `Resolver::generatedMemberAt`, which selects it.
+bool stepsOwnObject(const Function& member);
 
 /*
  * Which module the resolver is reading, for the length of a scope.
@@ -1344,6 +1352,10 @@ struct Resolver {
      */
     SmallArray<DeclPtr<Function>, 8> iterMinting;
 
+    // The producers `refuseHeldNestItems` refused, so that a second site type naming one - a call
+    // and a signature spelling `f.Iter` - does not repeat the sentence.
+    SmallArray<DeclPtr<Function>, 2> iterNestRefused;
+
     /*
      * And the producers a mint has found to be in a **cycle** - §6.3's delegation, built 2026-09-16.
      *
@@ -1466,6 +1478,16 @@ struct Resolver {
      * than an edge, which is what `bindingFloor` says about a lambda one tier over.
      */
     Held* heldFloor = nullptr;
+
+    /*
+     * Whether some frame under `heldFloor` holds a value with a teardown as a node rather than in
+     * storage - so that a function exit from inside the region could not release it.
+     *
+     * `resolveLensCall` spills such values into locals before a region, which is what lets a
+     * `return` inside it leave them to the ordinary drop placement; a skipping call cannot (see
+     * there), sets this instead, and `releaseHeld` refuses a `return` or `?` under it by name.
+     */
+    bool heldStranded = false;
 
     /*
      * The loops open at this point in the walk, innermost first - `Loop`, and null outside one.
@@ -1617,6 +1639,20 @@ struct Resolver {
      * refusing a type inside one would report a mistake nobody made.
      */
     bool readingConstant = false;
+
+    /*
+     * Whether the constant being read is a **root-level global's initializer probe** - the one
+     * position where "not a constant" means "run it at startup" rather than "refuse it".
+     *
+     * `resolveAggregateConstant` reads it for a loan field: a record holding a loan has no constant
+     * form (the reference is to storage, and placed bytes would have to be relocated against it),
+     * but at a program point it is an ordinary dynamic global built by the entry sequence - which is
+     * where `let &gLoose = Loose {held: gArr}` belongs anyway, since `gArr` is itself dynamic. A
+     * field or parameter default has no program point, and keeps the refusal: `ConstantScope`
+     * clears this for every such position, including one the probe reaches on demand, and the probe
+     * itself saves and restores it rather than clearing it after.
+     */
+    bool probingGlobal = false;
 
     /*
      * A written type in a position that classifies a *value* - a parameter, a result, a field.
@@ -2332,6 +2368,8 @@ struct Resolver {
     DeclPtr<Type> mintIterSite(Function& producer, Function& owner, Body& body, LiveAcross& live,
                                const U32* isYield, Array<IterNest>& nests, LocationId source);
     bool collectIterNests(Function& producer, Body& body, Array<IterNest>& into, LocationId source);
+    bool refuseHeldNestItems(Function& producer, Body& body, const LiveAcross& live,
+                             const Array<IterNest>& nests, Array<U8>& fromItem);
     DeclPtr<Function> generatedFor(DeclPtr<Module> module, StringId base, StringView suffix,
                                    Function::Generated kind, DeclPtr<Type> record,
                                    DeclPtr<Function> from, LocationId source);
@@ -2358,6 +2396,17 @@ struct Resolver {
         DeclPtr<Function> from = nullptr;
         Function::Generated next = Function::Generated::None;
         Function::Generated resume = Function::Generated::None;
+
+        /*
+         * Where the item's interior positions are rooted - J125. A site type knows its producer's
+         * **declared** hand-over, so a position the producer bound to one of its caller's origins
+         * can be rooted in what the object keeps of that origin (`selfShape`, one slot per producer
+         * origin after `self`'s own) and a `yield'` one in the object. The erased form knows neither
+         * and roots every interior position in the object.
+         */
+        const Occurrence* declared = nullptr;
+        DeclPtr<OwnershipSchema> selfShape = nullptr;
+        U16 producerSlots = 0;
     };
 
     bool iterateInstanceFor(const IterateSubject& subject, const Occurrence& handover,
@@ -2368,6 +2417,8 @@ struct Resolver {
                   LocationId source);
     bool iterTake(Function& producer, RecordType& record, const Occurrence& handover);
     bool refuseNextOnResuming(Function& callee, const Substitution& with, LocationId source);
+    bool refuseOpaqueObjectItem(Function& callee, GenRequirement requirement,
+                                const Substitution& with, LocationId source);
     bool checkObjectBody(Function& producer, Body& body, const LiveAcross& live,
                          const U32* isYield, LocationId source);
     Node* constructIterObject(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
@@ -2620,6 +2671,7 @@ struct Resolver {
 
     // One written instance member against the class's declaration of it, at this head. Reports the
     // signature the author would have to write.
+    void inheritMemberOrigins(Function& written, Function& expected, const Substitution& with);
     bool checkMemberSignature(Function& written, Function& expected, const Substitution& with,
                               LocationId source);
     String signatureText(Function& function, const Substitution& with);
@@ -2903,10 +2955,12 @@ struct Resolver {
     Node* finishCall(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
                      TypeArguments& typeArguments, DeclPtr<Type> hint, LocationId source);
 
-    // The provided-member half of `finishCall`: the member's node where the call is concrete and
-    // the instance is the compiler's, null where it is anything else. See the definition.
-    Node* expandProvidedCall(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
-                             TypeArguments& typeArguments, LocationId source);
+    // The member of a compiler-made instance a concrete class-member call reaches, and the
+    // provided half of what `finishCall` does with it: the member's node, or null where it is a
+    // body. See the definitions.
+    Function* generatedMemberAt(Function& callee, const Substitution& with, LocationId source);
+    Node* expandProvidedCall(Builder& builder, Function& function, SmallArray<Node*, 8>& arguments,
+                             const Substitution& with, LocationId source);
 
     /*
      * A call of one class member the compiler reaches without a name - `Truth.truthy` for a
@@ -3090,8 +3144,27 @@ struct Resolver {
     bool rawLambdaCaptureRejected() const;
 
     // Whether a place is reached through the innermost lambda's environment - for the message at a
-    // position that consumes, and for nothing else.
-    bool isCapture(Builder& builder, Place& place);
+    // position that consumes, and for nothing else. `member` receives the place one step below the
+    // root, which is null where the place is the root itself.
+    bool isCapture(Builder& builder, Place& place, Place** member = nullptr);
+
+    // The capture a place is reached through, and the environment member it sits in; null where it
+    // is not reached through one - for the two diagnostics that name a capture.
+    const Capture* captureReaching(Builder& builder, Place& place, Place** member = nullptr);
+
+    // A write to a place reached through a capture that is not a reference - a copy, a shared loan,
+    // or anything a closure leaving the frame holds - reported with the captured name, and true when
+    // it was. `writable` alone already refuses it; this is the sentence.
+    bool captureWriteRefused(Builder& builder, Place& place, LocationId source);
+
+    // The same for a place reached through a **shared loan a record holds** - `store.held = value`
+    // over `data Store {held: kept'Cell}`. The record is writable and the field is not, and "this is
+    // not declared `&`" names a binding that is. True when it reported.
+    bool loanFieldWriteRefused(Builder& builder, Place& place, LocationId source);
+
+    // A place as a diagnostic names it: `placeText`, except that a lambda's capture is spelled with
+    // the captured name rather than the environment path it is stored at.
+    String spelledPlace(Builder& builder, Place& place);
 
     // A call whose callee is a value rather than a name - G7. The value is already resolved, because
     // the order it is read in is part of what the call means; see the note at `resolveCall`.
@@ -3505,6 +3578,36 @@ struct Resolver {
      * callee of a call through a value.
      */
     Place* hold(Builder& builder, Node& value, LocationId source);
+
+    // The unwritable place a trivially copied value was read out of, or null - see the definition.
+    Place* unwrittenSource(Builder& builder, Node& value);
+
+    /*
+     * The values the walk is holding, given up at an exit that leaves the positions holding them -
+     * `?`'s exit arm, a `return`, and a `break` or `continue` out of a loop opened inside the
+     * expression that holds them.
+     *
+     * `combine(token(a)?, token(b)?)` is the shape: the first token is an argument under
+     * construction when the second `?` leaves, and it is a node result - so nothing names it for the
+     * drop placement, and the exit reached the return owning it. A `Carry` threads such a value
+     * *through* a construct's blocks; an exit is the one edge that does not come back, so what it
+     * owes is the teardown instead, and `hold` is how a teardown is owed here. Every frame from the
+     * innermost down to `until` (or the region's floor), which for a loop exit is the frame standing
+     * when the loop was opened: what is below it crosses the exit on the loop's own carry.
+     */
+    void releaseHeld(Builder& builder, Held* until, LocationId source);
+
+    /*
+     * The held values an exit abandons, in the order they are to be dropped: every frame from the
+     * innermost down to `until` or the region's floor, **outermost frame first** and left to right
+     * within one, keeping only an owner with a teardown. `releaseHeld` gives them up through it and
+     * a lens region spills them into storage through it (`resolveLensCall`), so the two cannot
+     * disagree about the order again - they did once, J112's fix having reached only the first,
+     * and a `return` inside a lens region dropped `f(a, g(b, <region>))`'s values innermost first.
+     * Rejected: a callback visitor, which is a template in this header for two callers.
+     */
+    struct HeldSlot { Held* frame; U32 index; };
+    void abandonedHeld(Held* until, SmallArray<HeldSlot, 8>& into);
 
     // The same temporary, where the position that receives the value only borrows it - the one place
     // that rule is written, for the reason the definition gives.
@@ -4534,21 +4637,30 @@ struct GenScope {
  * parameter default. Restored rather than cleared for `GenScope`'s reason - a default is read while
  * a `data` head is being declared, and a flag left standing would refuse a site type in the next
  * field of the same record.
+ *
+ * It also clears `Resolver::probingGlobal` for its length: every one of the three is a position
+ * with no program point, so a default read on demand while a root-level global is being probed is
+ * refused as a default and not admitted as part of the global.
  */
 struct ConstantScope {
     explicit ConstantScope(Resolver& resolver):
-        resolver(resolver), outer(resolver.readingConstant)
+        resolver(resolver), outer(resolver.readingConstant), outerProbing(resolver.probingGlobal)
     {
         resolver.readingConstant = true;
+        resolver.probingGlobal = false;
     }
 
-    ~ConstantScope() { resolver.readingConstant = outer; }
+    ~ConstantScope() {
+        resolver.readingConstant = outer;
+        resolver.probingGlobal = outerProbing;
+    }
 
     ConstantScope(const ConstantScope&) = delete;
     ConstantScope& operator = (const ConstantScope&) = delete;
 
     Resolver& resolver;
     bool outer;
+    bool outerProbing;
 };
 
 /*

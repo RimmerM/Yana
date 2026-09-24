@@ -1957,20 +1957,16 @@ Node* Resolver::matchAsMap(Builder& builder, ast::Expr& expr, Place& pivot,
     SmallArray<bool, 16> answered;
 
     if(record) {
+        // Two constructors pinned to one number is a declaration this cannot map: the selector no
+        // longer says which arm the value is. The declaration walk has reported it and says so on
+        // the record, which replaced a comparison of every pair here on every match.
+        if(record->valuesCollide) return nullptr;
+
         for(auto arm: record->cons.contents(decl())) {
             MapEntry entry;
             entry.selector = arm.value;
             entries.push(entry);
             answered.push(false);
-        }
-
-        // Two constructors pinned to one number is a declaration this cannot map: the selector no
-        // longer says which arm the value is. Whether it is a program worth reporting is the
-        // declaration checker's question and not this one's.
-        for(Size i = 0; i < entries.size(); i++) {
-            for(Size j = i + 1; j < entries.size(); j++) {
-                if(entries[i].selector == entries[j].selector) return nullptr;
-            }
         }
     }
 

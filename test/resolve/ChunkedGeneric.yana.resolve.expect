@@ -781,9 +781,10 @@ fn countAll(Chunks, I32)(%xs: Chunks) -> I32 {
     %v9 = symbol ResolveTest.continuation$23(Chunks, I32) : %()
     init %local3.code, %v9
     init %local3.env, %v7
-    %v12 = call Chunked(Chunks, I32).chunks(()), %xs, %v8 : Outcome((), ())
-    %v13 = load %n : I32
-    ret %v13
+    %v12 = borrow %xs : 'Chunks
+    %v13 = call Chunked(Chunks, I32).chunks(()), %v12, %v8 : Outcome((), ())
+    %v14 = load %n : I32
+    ret %v14
 }
 
 fn ResolveTest.continuation$23(Chunks, I32)(%env: %{n: &I32}, %value$: ArrayView(I32)) -> Outcome((), ()) {
@@ -928,18 +929,19 @@ fn countUntil(Chunks, I32)(%xs: Chunks, %bound: I32) -> I32 {
     %v11 = symbol ResolveTest.continuation$25(Chunks, I32) : %()
     init %local3.code, %v11
     init %local3.env, %v9
-    %v14 = call Chunked(Chunks, I32).chunks(I32), %xs, %v10 : Outcome((), I32)
-    %v15 = load %local4.discriminant : I32
-    %v17 = cmp_eq %v15, 1 : Bool
-    je %v17, b1, b2
+    %v14 = borrow %xs : 'Chunks
+    %v15 = call Chunked(Chunks, I32).chunks(I32), %v14, %v10 : Outcome((), I32)
+    %v16 = load %local4.discriminant : I32
+    %v18 = cmp_eq %v16, 1 : Bool
+    je %v18, b1, b2
 
   b1:
-    %v19 = load %local4@Exit : I32
-    ret %v19
+    %v20 = load %local4@Exit : I32
+    ret %v20
 
   b2:
-    %v21 = load %n : I32
-    ret %v21
+    %v22 = load %n : I32
+    ret %v22
 }
 
 fn ResolveTest.continuation$25(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value$: ArrayView(I32)) -> Outcome((), I32) {
@@ -1115,18 +1117,19 @@ fn countChunks(Chunks, I32)(%xs: Chunks, %bound: I32) -> I32 {
     %v11 = symbol ResolveTest.continuation$27(Chunks, I32) : %()
     init %local3.code, %v11
     init %local3.env, %v9
-    %v14 = call Chunked(Chunks, I32).chunks(I32), %xs, %v10 : Outcome((), I32)
-    %v15 = load %local4.discriminant : I32
-    %v17 = cmp_eq %v15, 1 : Bool
-    je %v17, b1, b2
+    %v14 = borrow %xs : 'Chunks
+    %v15 = call Chunked(Chunks, I32).chunks(I32), %v14, %v10 : Outcome((), I32)
+    %v16 = load %local4.discriminant : I32
+    %v18 = cmp_eq %v16, 1 : Bool
+    je %v18, b1, b2
 
   b1:
-    %v19 = load %local4@Exit : I32
-    ret %v19
+    %v20 = load %local4@Exit : I32
+    ret %v20
 
   b2:
-    %v21 = load %n : I32
-    ret %v21
+    %v22 = load %n : I32
+    ret %v22
 }
 
 fn ResolveTest.continuation$27(Chunks, I32)(%env: %{n: &I32, bound: I32}, %value$: ArrayView(I32)) -> Outcome((), I32) {
@@ -1272,9 +1275,10 @@ fn countAll(Array(I32), I32)(%xs: Array(I32)) -> I32 {
     %v16 = load [%v12]@Array.length : @bits(30) U32
     %v17 = cast %v16 : Size
     init %xs@ArrayView.length, %v17
-    %v19 = call Chunked(Array(a), a).chunks(I32, ()), %xs, %v8 : Outcome((), ())
-    %v20 = load %n : I32
-    ret %v20
+    %v19 = borrow %xs : 'ArrayView(I32)
+    %v20 = call Chunked(Array(a), a).chunks(I32, ()), %v19, %v8 : Outcome((), ())
+    %v21 = load %n : I32
+    ret %v21
 }
 
 fn ResolveTest.continuation$23(Array(I32), I32)(%env: %{n: &I32}, %value$: ArrayView(I32)) -> Outcome((), ()) {
@@ -1326,18 +1330,19 @@ fn countUntil(Array(I32), I32)(%xs: Array(I32), %bound: I32) -> I32 {
     %v18 = load [%v14]@Array.length : @bits(30) U32
     %v19 = cast %v18 : Size
     init %xs@ArrayView.length, %v19
-    %v21 = call Chunked(Array(a), a).chunks(I32, I32), %xs, %v10 : Outcome((), I32)
-    %v22 = load %local4.discriminant : I32
-    %v24 = cmp_eq %v22, 1 : Bool
-    je %v24, b1, b2
+    %v21 = borrow %xs : 'ArrayView(I32)
+    %v22 = call Chunked(Array(a), a).chunks(I32, I32), %v21, %v10 : Outcome((), I32)
+    %v23 = load %local4.discriminant : I32
+    %v25 = cmp_eq %v23, 1 : Bool
+    je %v25, b1, b2
 
   b1:
-    %v26 = load %local4@Exit : I32
-    ret %v26
+    %v27 = load %local4@Exit : I32
+    ret %v27
 
   b2:
-    %v28 = load %n : I32
-    ret %v28
+    %v29 = load %n : I32
+    ret %v29
 }
 
 fn ResolveTest.continuation$25(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %value$: ArrayView(I32)) -> Outcome((), I32) {
@@ -1420,18 +1425,19 @@ fn countChunks(Array(I32), I32)(%xs: Array(I32), %bound: I32) -> I32 {
     %v18 = load [%v14]@Array.length : @bits(30) U32
     %v19 = cast %v18 : Size
     init %xs@ArrayView.length, %v19
-    %v21 = call Chunked(Array(a), a).chunks(I32, I32), %xs, %v10 : Outcome((), I32)
-    %v22 = load %local4.discriminant : I32
-    %v24 = cmp_eq %v22, 1 : Bool
-    je %v24, b1, b2
+    %v21 = borrow %xs : 'ArrayView(I32)
+    %v22 = call Chunked(Array(a), a).chunks(I32, I32), %v21, %v10 : Outcome((), I32)
+    %v23 = load %local4.discriminant : I32
+    %v25 = cmp_eq %v23, 1 : Bool
+    je %v25, b1, b2
 
   b1:
-    %v26 = load %local4@Exit : I32
-    ret %v26
+    %v27 = load %local4@Exit : I32
+    ret %v27
 
   b2:
-    %v28 = load %n : I32
-    ret %v28
+    %v29 = load %n : I32
+    ret %v29
 }
 
 fn ResolveTest.continuation$27(Array(I32), I32)(%env: %{n: &I32, bound: I32}, %value$: ArrayView(I32)) -> Outcome((), I32) {

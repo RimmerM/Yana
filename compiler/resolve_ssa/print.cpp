@@ -574,11 +574,9 @@ struct Printer {
                      * keeps. `for x in g(...)` and `withLock(m):` are both that, and which of the
                      * two it is is the member's own type - `g.Iter` against `withLock.Lens`.
                      */
-                    if(field.index >= 2 && field.index < record->payloadFirst) {
-                        auto kind = record->captureKinds.get(decl, field.index - 2);
-                        if(kind == mir::RecordType::kCaptureAddress) writer.writeString(" lent"_v);
-                        else if(kind == 2) writer.writeString(" window"_v);
-                    }
+                    auto kind = record->captureKindAt(decl, field.index);
+                    if(kind == mir::RecordType::kCaptureAddress) writer.writeString(" lent"_v);
+                    else if(kind == mir::RecordType::kCaptureView) writer.writeString(" window"_v);
 
                     /*
                      * The payload proper - which is every field past `payloadFirst` except the three

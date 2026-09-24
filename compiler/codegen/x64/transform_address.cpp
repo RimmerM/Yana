@@ -493,10 +493,11 @@ void foldLeas(LowerBase base, LowerFunction& fun) {
  *    would read a neighbouring value. This is the rule directMemoryOperands applies to a frame slot,
  *    asked of an address instead.
  *  - **Nothing may be copied into a fixed register in front of the instruction.** The address's own
- *    base and index are live *into* the consumer - they belong to the X86Address one above it - so a
- *    copy emitted in front could overwrite one. The destructive copy is covered, by
- *    collectTieConflicts in place.cpp; a fixed-register operand is not, which is what keeps the
- *    group-3 `mul` and `div` shapes out of this.
+ *    base and index belong to the X86Address one above the consumer and their lives end there, but
+ *    the consumer still reads them - so a copy emitted in front of it could overwrite one. The
+ *    destructive copy and every register operand of the consumer are covered, by
+ *    collectTieConflicts in place.cpp; a fixed-register (implicit) operand is not, which is what
+ *    keeps the group-3 `mul` and `div` shapes out of this.
  */
 
 /*

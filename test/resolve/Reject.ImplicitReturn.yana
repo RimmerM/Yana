@@ -1,5 +1,7 @@
 -- The two ways the `=` form does not work out: a result type that cannot be inferred, and a body
 -- that has no result to return.
+--
+-- # resolver: ownership
 
 -- Directly recursive. The body is what decides the result type, and the body is what is asking.
 fn fact(n: Int) = if n <= 1 then 1 else n * fact(n - 1)
@@ -11,11 +13,16 @@ fn isOdd(n: Int) = if n == 0 then False else isEven(n - 1)
 
 -- A body that produces nothing. `=` says the function is this expression, so this is the block
 -- form written with the wrong separator - it warns rather than erroring, since it does compile.
-fn bump(&x: Int) = x = x + 1
+-- (Written `= x = x + 1`; an assignment is not an expression, and the new stage refuses
+-- that spelling as unbuilt, so the body is a call that answers `{}`.)
+fn add(&x: Int, n: Int):
+    x = x + n
+
+fn bump(&x: Int) = add(x, 1)
 
 -- The same body with the unit result written out is the author saying what the warning would, so
 -- it is left alone.
-fn bumpDeclared(&x: Int): x = x + 1
+fn bumpDeclared(&x: Int): add(x, 1)
 
 -- And the form the warning points at.
 fn bumpBlock(&x: Int): x = x + 1

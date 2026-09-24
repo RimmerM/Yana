@@ -1,4 +1,5 @@
 #include "pass.h"
+#include "../../resolve_mir/analyze.h"
 
 /*
  * The whole-body answers, computed and cached - see analysis.h, which is where the argument for
@@ -1011,8 +1012,19 @@ bool mayWriteStorage(OptContext& opt, const Contained& contained, Inst& inst,
          * A call, and the two facts that answer it.
          *
          * A callee cannot write storage whose address it was never given, so an allocation that is
-         * **not** contained is one it may have reached by some other route - and then the only
-         * question left is whether the callee writes through anything at all.
+         * **not** contained is one it may have reached by some other route. It is a barrier where
+         * the callee writes through an argument, or where it can reach global state at all
+         * (`mir::reachesGlobalState`, J113). The second is the route that is not an argument: an
+         * address kept in a global is written by a callee that takes nothing (`store(g.p, 7)`), and
+         * `mutates` is a row over argument positions, so it reads `none` there
+         * (`test/resolve/GlobalPointerWrite.yana`). Only a raw pointer puts a local's address in a
+         * global - the loan checker refuses it for a reference - so a callee reaching no global
+         * keeps the forwarding across it. A specialization is asked with its type arguments'
+         * teardowns, which its generic's row leaves to the caller: `consume$Noisy` over a `Drop`
+         * that stores through a pointer kept in a global reaches it (J121). What the fact cannot tell apart is a callee reading a
+         * writable heap global from one reading a local's address out of one, which is why 17 of
+         * the goldens J110 moved stayed moved: their calls reach `String.reclaim`, the allocator or
+         * `print`.
          *
          * A **contained** allocation is the case `escapes` opened. `Contained` now admits a call
          * argument at a position whose address the callee does not keep, so "contained" no longer
@@ -1028,7 +1040,7 @@ bool mayWriteStorage(OptContext& opt, const Contained& contained, Inst& inst,
             if(!call.callee || call.through != mir::CallThrough::Declaration) return true;
 
             auto mutated = opt.decl[call.callee]->summary.mutates().get(mir::ArgumentSet::all());
-            if(!contained[allocation]) return mutated.any();
+            if(!contained[allocation]) return mutated.any() || mir::reachesGlobalState(opt.program, call.callee);
 
             for(Size i = 0; i < call.arguments.size(); i++) {
                 if(!mutated.has(U32(i))) continue;

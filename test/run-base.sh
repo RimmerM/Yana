@@ -214,6 +214,16 @@ start_row legacy-js-unoptimized -mode js -no-ir-opt -resolver legacy
 # library's, selected the same way by either stage - the `legacy-*` rows already assert them.
 start_row ownership      -mode exe -backend local -enable-inst sse4 -resolver ownership
 
+# **And unoptimized**, since 2026-09-23 (J95) - the native half of the differential the two JSIR rows
+# below already ask. Without it a representation defect the optimizer folds away has nowhere to show,
+# and one did for two days: J70 gave a continuation's captured window the binding's form, natively a
+# window *by value*, and every row above scalar-replaced the environment before anything read it.
+# `legacy-unoptimized` is the same row for the other stage. It was also the first input to stop in
+# the x64 allocation verifier on a folded address whose index register an operand's window reused -
+# which `build-release` compiled silently and answered right by luck - and that is
+# `doc/progress/2026-09-23-J97-x64-folded-address.md`; it passes in both trees since.
+start_row ownership-unoptimized -mode exe -backend local -no-ir-opt -resolver ownership
+
 # **The same suite through the rewritten resolver and JSIR** - Analysis-IR-JS.md §9.7 item 8, and
 # `doc/progress/2026-09-21-J69-jsir-erased-base-suite.md`.
 #

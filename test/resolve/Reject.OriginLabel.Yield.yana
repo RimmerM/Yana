@@ -1,0 +1,16 @@
+-- `yield` with no marker - the other half of `Reject.OriginLabel.yana`'s rule. `yield'` is a hard
+-- keyword rather than a name the lexer fuses, precisely so that no program can write a label spelled
+-- that way - so a bare `yield` in type position is the keyword written where a type belongs, and
+-- what a reader who forgot the marker is told is about the marker rather than about an unknown name.
+--
+-- A file of its own because the golden's second line is a cascade rather than a claim: the type
+-- parser reports the keyword and hands on an error type, which the resolver then refuses as a type
+-- form it does not implement. It is recorded rather than filtered, because a golden that hid it would
+-- assert an output nothing produces, and it should disappear when the resolver learns to be silent
+-- about a type the parser already reported.
+--
+-- # resolver: ownership
+
+fn bare(n: yield) -> Int = 0
+
+fn main() -> Int = 0

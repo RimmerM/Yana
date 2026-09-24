@@ -1,0 +1,60 @@
+{-
+   A `%yield'` hand-over's pointer used while its call is running.
+
+   # resolver: ownership
+
+   `Reject.CallBound.yana` refuses a copy of the pointer kept past the call. Everything here keeps
+   it inside the call's block: stepped through a function publishing its origin, stored into a
+   caller's writable local and replaced before the call returns, built into a record, and handed by
+   an `iter fn` to a loop body that keeps it in a local of its own. Each pass of a loop over
+   `addresses` hands over a new pointer, so the last two loops keep it to the pass that received it:
+   stored into the outer `q` and replaced before the pass ends, and read into a value that is
+   carried across passes instead of the pointer. It answers
+   2 + 42 + 1 + 10 + 11 + 12 + 20 + 21 + 22 + 32 + 1.
+
+   The `copy(borrow(q))` after the first call is the last use of `a`. Before J124 a dereference of
+   a pointer held in a local did not keep the pointer's lender alive, so `a`'s drop landed between
+   reading `q` and reading through it, and the unoptimized pipeline read a freed run.
+-}
+
+import Native
+
+data Spot {at: %'I32}
+
+lens fn bytes(xs: [I32]) -> %yield'I32:
+    let owned = [xs[0] + 41, 2] :: Array(I32)
+    yield values(owned)
+
+iter fn addresses(from: I32) -> %yield'I32:
+    let &cells = [from, from + 1, from + 2] :: Array(I32)
+    for i in 0..3:
+        yield values(cells) + i
+
+fn step(p: %a'I32) -> %a'I32 = p + 1
+
+fn main() -> Int:
+    let a = [1] :: Array(I32)
+    let &total = 0
+    let &q = values(a)
+    let p = bytes(a) in:
+        q = step(p)
+        total += copy(borrow(q))
+        let s = Spot {at: p}
+        total += copy(borrow(s.at))
+        q = values(a)
+    total += copy(borrow(q))
+    for r in addresses(10):
+        let &inner = r
+        inner = step(inner) - 1
+        total += copy(borrow(inner))
+    let b = [1] :: Array(I32)
+    let &kept = values(b)
+    for r in addresses(20):
+        kept = r
+        total += copy(borrow(kept))
+        kept = values(b)
+    let &last = 0
+    for r in addresses(30):
+        last = copy(borrow(r))
+    total += last
+    return total + copy(borrow(kept))

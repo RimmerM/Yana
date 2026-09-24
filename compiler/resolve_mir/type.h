@@ -376,6 +376,29 @@ struct Ownership {
     TeardownKind reclaim = TeardownKind::None;
     TeardownKind drop = TeardownKind::None;
 
+    /*
+     * Whether a value of the type holds a **host handle** - on JavaScript, a raw pointer in a record
+     * that is not `@local`, which is what `data String {host: %U8}` and `data Collator {host: %U8}`
+     * are there. Never set on native.
+     *
+     * A sixth field and not a subtraction from `trivialCopy`, because the two answer different
+     * questions and the target is right to answer the first one differently. A host string is
+     * immutable and the host collects it, so duplicating the handle *is* a copy, and a `String` that
+     * was not `trivialCopy` would need storage at every borrowed position - `lib/Core/String.yana`
+     * says what that cost. What the target may not change is what a program *means*, and a `let &`
+     * of a place is a loan or a second value according to whether the type is `TrivialCopy`
+     * (`doc/spec/ownership.md`, "A second name for an owned value"). Natively a `String` owns its
+     * run and is not, so `let &d = s` then `d = "bcd"` writes `s`; read off this target's
+     * `trivialCopy` it would be a copy, and the same program would answer differently on the two
+     * targets. `bindsAsCopy` below is the binding's question, and this is the half of it the target
+     * does not get to decide.
+     */
+    bool hostHandle = false;
+
+    // Whether a `let` of a place of this type makes a second *value* rather than a loan - the spec's
+    // `TrivialCopy` row read the same on every target. See `hostHandle`.
+    bool bindsAsCopy() const { return trivialCopy && !hostHandle; }
+
     bool needsTeardown() const {
         return reclaim != TeardownKind::None || drop != TeardownKind::None;
     }
@@ -477,6 +500,28 @@ struct RecordField {
      * changes nothing on this one.
      */
     bool host = false;
+
+    /*
+     * The field holds the **address of the lender's storage**, whatever its occurrence says about
+     * the value that storage holds - a continuation environment's captures, and nothing else.
+     *
+     * The occurrence cannot say it alone. A capture's contract carries the binding's *form*, because
+     * on JavaScript the storage of a shared window local holds a view object and a field spelled at
+     * the owner asks it for the wrong one (J70). But a field `Array(a) [unique slot n view]` is, by
+     * every other record's reading, a **writable window by value** - an iterator record's `&xs: [a]`
+     * argument is exactly that and is sixteen bytes inline - and `manifestNative`'s view row answers
+     * before its reference row, so natively the capture was laid out and filled as a copy of the
+     * window while `captureOf` read the first word back as the storage's address. The optimizer
+     * scalar-replaced the environment away and hid it; `-no-ir-opt` segfaulted.
+     *
+     * A bit rather than a fourth access form, because it is a fact about the *record* - the same
+     * contract names a window by value in an iterator record and a pointer here - and rather than a
+     * test for "this record is an environment", because the one site that makes such a record is
+     * the one that knows, and every layout reader then asks the field. Read by the native layout
+     * (`membersOf`) and its construction (`Inst::Aggregate`); JavaScript's representation is keyed
+     * on the occurrence and wants the form it already reads.
+     */
+    bool holdsAddress = false;
 
     /*
      * `data Flags {read: Bool = False}` - what a construction that leaves this field out builds, and
@@ -623,6 +668,16 @@ struct RecordType: Type {
      */
     bool broken = false;
 
+    /*
+     * Two constructors of this declaration are pinned to one number - "A and C are both 2", which
+     * the declaration walk has reported. Kept because a compile that reported still provides the
+     * `Enum` bodies and still resolves matches over the type, and each of those building a map
+     * would hand `addMap` a repeated selector; they read this and take the chain instead. Set where
+     * the collision is found rather than searched for by each of them, since that walk has already
+     * compared every pair. Carried to an instantiation for the reason `pin` is.
+     */
+    bool valuesCollide = false;
+
     // Non-embedding: `SmallList`'s embedded encoding is for elements of four bytes or fewer, and a
     // field is a name, a type and a position.
     DeclList<RecordField, false> fields;
@@ -703,6 +758,10 @@ struct RecordType: Type {
      */
     U16 originSlots = 0;
     DeclPtr<OwnershipSchema> schema = nullptr;
+
+    // `hidesLoans`' memo: 0 not asked yet, 1 being asked, 2 no, 3 yes. Filled on demand rather than
+    // by `foldSchemas`, whose walk is flat and would see `Array(Store)` before `Run(Store)`.
+    U8 hiddenLoans = 0;
 
     // Set by `classifyTypes` when it has folded this record. Not a cache - the fold runs exactly
     // once, and this is what a cycle in the member graph is detected with.
@@ -889,6 +948,19 @@ struct RecordType: Type {
     bool slotWindow = false;
 
     /*
+     * Whether what the slot points at may be **inside this record** - a lending producer whose
+     * `yield` names one of its own payload members held by value, or a borrow it bound out of a
+     * nested traversal of that kind. `items` lends the caller's elements through a window and is not
+     * one; `iter fn boxes() -> Box` yielding a `let b = Box {...}` is.
+     *
+     * One reader: the producer that *nests* this one, which may not keep such an item across its
+     * own `yield` - the item would then be an address inside a record that moves with whatever holds
+     * it (`refuseHeldNestItems`, J131). The item is good for as long as the consumer holds it within
+     * one step, which is what a standalone object's consumer does.
+     */
+    bool itemInRecord = false;
+
+    /*
      * Whether the producer is a **`lens fn`** rather than an `iter fn` - a one-hand-over site type,
      * minted for a lens region a producer runs over part of its own body
      * (`doc/inflight/Design-Iterator-Objects.md` §6.6, built 2026-09-16).
@@ -920,6 +992,20 @@ struct RecordType: Type {
     // since `resolve_ssa` cannot see the enumeration and a bare `!= 0` was wrong the moment a third
     // kind arrived.
     static constexpr U8 kCaptureAddress = 1;
+
+    // And the other row the dumps name - the field holds a window's own view record.
+    static constexpr U8 kCaptureView = 2;
+
+    // The first captured argument's field: `$index` and `$slot` come before it (`payloadFirst`).
+    static constexpr U16 kCaptureFirst = 2;
+
+    // How the field at `index` holds a captured argument - one of the rows above, or 0, the value
+    // itself, for a field outside the captures. The index arithmetic stated once, for the two dumps
+    // that name the kind beside the field.
+    U8 captureKindAt(DeclBase base, U16 index) {
+        if(index < kCaptureFirst || index >= payloadFirst) return 0;
+        return captureKinds.get(base, index - kCaptureFirst);
+    }
 
     /*
      * Which local of the producer's body each payload member is, and which `yield`s keep it alive.
@@ -1922,11 +2008,52 @@ inline DeclPtr<OwnershipSchema> shapeOf(DeclBase base, const Occurrence& occurre
     return occurrence.shape ? occurrence.shape : schemaOf(base, occurrence.type);
 }
 
+/*
+ * Whether a value of this type holds loans at positions its schema cannot name - the **element**
+ * position of a container.
+ *
+ * `[Store]` over `data Store {held: kept'Cell}` holds every element's `held`, but the elements are
+ * behind the run's `%a`, and a schema is a list of *paths*: a path through a pointer names one
+ * pointee, not `length` of them, and a fixed array's elements are not fields at all ("Elements are
+ * not fields"). So `Array(Store)` has no schema and, before this question, no origin position - its
+ * elements' loans were dropped at the store and a write of the lender was admitted while the array
+ * was read.
+ *
+ * What answers it is structural, as ownership.md says qualification is: a record whose owned field -
+ * through any number of pointers - is a type with a schema or one that hides loans itself, and a
+ * fixed array whose element is. A loan field is not followed: what is inside the lender is the
+ * lender's business, and the loan of it is already a position. The origin analysis gives such a
+ * value one more position, after its schema's slots - `originPositions` - and everything written
+ * anywhere under it goes there.
+ *
+ * Refusing these instead - the answer `foldRecordSchema` gives `data Outer {inner: Reader}` - would
+ * make `[Store]` unwritable; the fold refuses an owned field there because the *field* has a spelling
+ * that names the slot, and an element has none.
+ */
+bool hidesLoansWalk(DeclBase base, DeclPtr<Type> type);
+
+// Inline for the answer every local and value of every body asks for: a scalar, or a record already
+// decided.
+inline bool hidesLoans(DeclBase base, DeclPtr<Type> type) {
+    if(!type) return false;
+
+    auto found = base[type];
+    if(found->kind == Type::Record) {
+        auto memo = ((RecordType*)found)->hiddenLoans;
+        if(memo >= 2) return memo == 3;
+    } else if(found->kind != Type::Array) {
+        return false;
+    }
+
+    return hidesLoansWalk(base, type);
+}
+
 // Whether a value of this occurrence refers to storage somebody else owns - a borrow, or a record
 // with an external field. What decides whether a local carries an origin set even though it owns
 // what is in it.
 inline bool carriesOrigins(DeclBase base, const Occurrence& occurrence) {
-    return !occurrence.contract.isOwned() || shapeOf(base, occurrence) != nullptr;
+    return !occurrence.contract.isOwned() || shapeOf(base, occurrence) != nullptr ||
+           hidesLoans(base, occurrence.type);
 }
 
 /*
@@ -1938,14 +2065,30 @@ inline bool carriesOrigins(DeclBase base, const Occurrence& occurrence) {
  * the language - §2.2 groups fields under a name and is explicit that grouping "does not claim that
  * the members are one object".
  *
+ * A container of loan-carrying values has one more, last: the element position `hidesLoans`
+ * describes, which every element's positions are folded into. One rather than one per element slot,
+ * because the elements are not a path and a store into one of them is not told which.
+ *
  * The root is a position even where the occurrence is **owned** and it is therefore always empty. It
  * costs a row and it buys the property every mapping over these positions relies on: a place and the
  * value read out of it have the same count, because both are `1 + slots(type)`. A representation
  * that dropped the root for an owned value would make a read of a whole record a renumbering.
  */
 inline U32 originPositions(DeclBase base, const Occurrence& occurrence) {
-    if(!carriesOrigins(base, occurrence)) return 0;
+    auto schema = shapeOf(base, occurrence);
+    auto hidden = hidesLoans(base, occurrence.type);
+    if(occurrence.contract.isOwned() && !schema && !hidden) return 0;
 
+    auto count = schema ? 1 + U32(base[schema]->slots.size()) : 1;
+    return hidden ? count + 1 : count;
+}
+
+// The position `hidesLoans` adds - the last one - or zero where the type hides nothing. Zero is the
+// root, which is the conservative place for anything that has no position of its own. The count
+// `originPositions` makes before adding it, rather than a call to it: that would ask `hidesLoans`
+// a second time.
+inline U32 elementPosition(DeclBase base, const Occurrence& occurrence) {
+    if(!hidesLoans(base, occurrence.type)) return 0;
     auto schema = shapeOf(base, occurrence);
     return schema ? 1 + U32(base[schema]->slots.size()) : 1;
 }

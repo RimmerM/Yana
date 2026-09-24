@@ -1,0 +1,41 @@
+{-
+   `SharedThroughExclusive.yana`'s pair where one side *can* write what the other reaches.
+
+   # resolver: ownership
+
+   `box1` holds an **exclusive** loan of `source`, and `box2` a shared loan of it taken through
+   `box1` - so a callee holding `box1` exclusively may write `source`, which `box2` reads. Refused
+   whichever of the two is borrowed first, and refused where both boxes borrow `source` directly
+   (`direct`), which is the second borrow's conflict before any call. The first two are the halves
+   of the rule the legal fixture relies on: `forward` is refused by the access that writes against
+   the shared loan it meets, and its second report is the exclusive borrow of `box2` meeting the
+   live exclusive loan of `box1` - whose own reach through unique loans holds `source`.
+-}
+
+data Cell {value: Int}
+data Store {held: kept'Cell}
+data Unique {held: &kept'Cell}
+
+fn touch(&a: Unique(k1'), &b: Store(k2')) -> Int = a.held.value + b.held.value
+
+fn touchBack(&b: Store(k2'), &a: Unique(k1')) -> Int = a.held.value + b.held.value
+
+fn forward() -> Int:
+    let &source = Cell {value: 7}
+    let &box1 = Unique {held: source}
+    let &box2 = Store {held: box1.held}
+    return touch(box1, box2)
+
+fn backward() -> Int:
+    let &source = Cell {value: 7}
+    let &box1 = Unique {held: source}
+    let &box2 = Store {held: box1.held}
+    return touchBack(box2, box1)
+
+fn direct() -> Int:
+    let &source = Cell {value: 7}
+    let &box1 = Unique {held: source}
+    let &box2 = Store {held: source}
+    return touch(box1, box2)
+
+fn main() -> Int = 0

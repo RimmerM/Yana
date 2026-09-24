@@ -1,0 +1,56 @@
+{-
+   A loan stored into a global by a path other than the global's own place.
+
+   # resolver: ownership
+
+   A global holds a loan only of storage that lives as long as the program -
+   `Reject.LentGlobal.yana` and `../Reject.LoanDestination.yana` hold the direct stores. These
+   reach the same global through a loan of it: a record field holding `&gStore`, a `&` binding of
+   it, and a reference a call handed back - and a call installing into two globals, the second of
+   which is asked about too. `throughFieldGlobal` is the one that conforms.
+-}
+
+data Cell {value: Int}
+data Store {held: kept'Cell}
+data Other {held: other'Cell}
+data Pair {a: &p'Store, n: Int}
+-- Not trivially copyable, so that `let &w = gOwned` is a borrow of the global rather than a copy.
+data Owned {held: kept'Cell, items: [Int]}
+
+let gCell = Cell {value: 4}
+let &gStore = Store {held: gCell}
+let &gOther = Other {held: gCell}
+let &gOwned = Owned {held: gCell, items: [1]}
+
+fn remember(&store: Store(kept'), value: kept'Cell):
+    store = {store | held: value}
+
+fn itself(&s: owner'Store) -> &owner'Store = s
+
+fn two(&a: Store(kept'), &b: Other(other'), va: kept'Cell, vb: other'Cell):
+    a = {a | held: va}
+    b = {b | held: vb}
+
+fn secondGlobal():
+    let local = Cell {value: 99}
+    two(gStore, gOther, gCell, local)
+
+fn throughResult():
+    let local = Cell {value: 99}
+    remember(itself(gStore), local)
+
+fn throughField():
+    let local = Cell {value: 99}
+    let &pair = Pair {a: gStore, n: 0}
+    pair.a = Store {held: local}
+
+fn throughBinding():
+    let local = Cell {value: 99}
+    let &w = gOwned
+    w = Owned {held: local, items: [2]}
+
+fn throughFieldGlobal():
+    let &pair = Pair {a: gStore, n: 0}
+    pair.a = Store {held: gCell}
+
+fn main() -> Int = 0

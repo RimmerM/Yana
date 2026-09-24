@@ -1,0 +1,11 @@
+-- The rule of `Reject.Lazy.yana` whose reason the default stage does not give: a `@lazy`
+-- parameter handed into another deferred argument inside an expression is a capture, because
+-- the inner thunk would hold the outer one. The shipping stage says so; the default stage
+-- refuses the line too, but as "there is no instance of FromInt(() -> I32)", a worse diagnostic
+-- that names no rule. Move it back when it names the same one.
+
+fn wrapped(@lazy value: Int) -> Int = once(True, value + 1)
+
+fn once(flag: Bool, @lazy value: Int) -> Int = if flag then value else 0
+
+fn main() -> Int = 0

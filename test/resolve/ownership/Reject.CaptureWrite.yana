@@ -1,0 +1,57 @@
+{-
+   A write to a capture that is a copy - doc/spec/functions.md, "Closures": "a captured local that
+   is written must be captured by reference".
+
+   # resolver: ownership
+
+   The rewritten stage's half of `resolve/Reject.Closure.yana`'s `writeToCopiedCapture`, which
+   asserts the rule for the shipping stage. A capture's convention comes from the binding, so a
+   binding not declared `&` is captured as a copy or a shared loan, and a write through it would land
+   in the closure's environment and never reach the enclosing frame. The stage accepted all of these
+   and ran them, printing the value from before the write. Each function is one
+   write; the expectation beside this file is the whole of what it reports.
+-}
+
+data Point {x: Int, y: Int}
+
+fn applyUnit(f: () -> {}): f()
+
+fn bump(&v: Int): v += 1
+
+fn grow(&s: String): s = s ++ "!"
+
+-- Assignment, the case the spec names.
+fn assigned():
+    let fixed = 1
+    applyUnit((): fixed = 2)
+
+-- A compound assignment is the same write.
+fn compound():
+    let fixed = 1
+    applyUnit((): fixed += 2)
+
+-- A field of a captured record is part of the copy.
+fn field():
+    let p = Point {x: 1, y: 2}
+    applyUnit((): p.x = 5)
+
+-- A `&` argument writes through to the same storage, which a copy cannot give it.
+fn handedOut():
+    let fixed = 1
+    applyUnit((): bump(fixed))
+
+-- Not `TrivialCopy`, so a shared loan rather than a copy - refused as the same mistake.
+fn sharedLoan():
+    let text = copy("a")
+    applyUnit((): grow(text))
+
+-- A closure that leaves the frame owns its copy, and there `let &` is not the way out.
+fn leaving() -> () -> {}:
+    let text = copy("a")
+    return (): text = "b"
+
+-- And the binding that *is* declared `&` is captured by reference and stays writable.
+fn byReference() -> Int:
+    let &count = 0 :: Int
+    applyUnit((): count += 1)
+    return count

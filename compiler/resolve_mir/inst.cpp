@@ -14,17 +14,6 @@ StringView nodeMnemonic(Node::Kind kind) {
     return "?"_v;
 }
 
-U16 nodeFlags(Node::Kind kind) {
-    switch(kind) {
-#define YANA_MIR_INST(k, Struct, mnemonic, flags) case Node::k: return flags;
-#include "inst.def"
-#undef YANA_MIR_INST
-        case Node::KindCount: break;
-    }
-
-    return 0;
-}
-
 StringView useModeName(UseMode mode) {
     switch(mode) {
         case UseMode::Inspect:      return "inspect"_v;
@@ -193,8 +182,19 @@ UseMode readMode(DeclBase base, MirBase mir, Body& body, const Place& place, Req
     // used to test the type kinds by hand, and would have disagreed with the verifier - which asks
     // that function - at the first type with a teardown and no copy. `published` is the other half
     // and belongs to the position rather than the type - see `Request`.
-    if(!wanted.published && isTriviallyCopyableAt(base, place.occurrence)) {
-        return UseMode::CopyTrivial;
+    //
+    // Except that an **exclusive** request asks the binding's question and not the target's:
+    // `let &d = s` over a `String` is a loan of `s` on every target, because it is one natively and
+    // a program's meaning may not follow the representation (`Ownership::hostHandle`). A
+    // shared or an owning request still copies: `let d = s` and `let ->d = s` then differ from
+    // native only in what they *accept* - a later write or use of `s` - since a host string cannot be
+    // observed to have been duplicated. Making the shared one a loan too was tried; it moved 150 JS
+    // goldens, refused two fixtures and shrank `Base.js` by 3 KB, and it is its own change.
+    if(!wanted.published) {
+        auto ownership = ownershipOfOccurrence(base, place.occurrence);
+        if(ownership.trivialCopy && (wanted.access != Access::Unique || ownership.bindsAsCopy())) {
+            return UseMode::CopyTrivial;
+        }
     }
 
     // Exclusive access, before anything about the place: neither a copy nor a shared loan satisfies
@@ -365,6 +365,10 @@ DeclPtr<OwnershipSchema> Shapes::noEnvironment() {
 
     plainShape = intern(&slot, 1);
     return plainShape;
+}
+
+Program::~Program() {
+    releaseGlobalEffects(globalEffects);
 }
 
 Module* Program::addModule(StringId name) {

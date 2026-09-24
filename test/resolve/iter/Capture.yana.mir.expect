@@ -117,7 +117,7 @@ bb2:
   return take %27
 
 bb3:
-  %13: handing.Iter [unique call] = read borrow.unique (it) loan1
+  %13: handing.Iter [unique slot 0] = read borrow.unique (it) loan1
   %14: Owned = call handing$take borrow.unique %13
   write.init borrow.unique (v) take %14
   %16: I32 = read copy.trivial (packed)
@@ -190,7 +190,7 @@ bb2:
   return take %21
 
 bb3:
-  %11: handing.Iter [unique call] = read borrow.unique (it) loan1
+  %11: handing.Iter [unique slot 0] = read borrow.unique (it) loan1
   %12: Owned = call handing$take borrow.unique %11
   write.init borrow.unique (v) take %12
   %14: I32 = read copy.trivial (v.id)
@@ -695,7 +695,7 @@ fn handing$step($self: handing.Iter [unique call], $resume: I32, $cancel: Bool) 
 
 fn handing$drop($self: handing.Iter) -> {} = <no body>
 
-fn handing$take($self: handing.Iter [unique call]) -> Owned = <no body>
+fn handing$take($self: handing.Iter [unique slot 0]) -> Owned = <no body>
 
 fn handing$next($self: handing.Iter [unique slot 0]) -> Maybe(Owned) [owned here shape2 .0=shared slot 0] = <no body>
 
@@ -705,17 +705,17 @@ fn over$new(big: Big [shared slot 0], n: I32) -> over.Iter [owned here shape8 .2
 
 fn over$step($self: over.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
 
-fn over$next($self: over.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn over$next($self: over.Iter [unique slot 0 shape8 .2.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn over$resume($self: over.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn over$resume($self: over.Iter [unique slot 0 shape8 .2.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn picking$new(xs: Array(I32) [shared slot 0 view], n: I32) -> picking.Iter [owned here shape10 .2.0.*=shared slot 0] = <no body>
 
 fn picking$step($self: picking.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
 
-fn picking$next($self: picking.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn picking$next($self: picking.Iter [unique slot 0 shape10 .2.0.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn picking$resume($self: picking.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn picking$resume($self: picking.Iter [unique slot 0 shape10 .2.0.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn paired$new(xs: Array(I32) [shared slot 0 view], n: I32) -> paired.Iter [owned here shape10 .2.0.*=shared slot 0] = <no body>
 
@@ -723,8 +723,8 @@ fn paired$step($self: paired.Iter [unique call], $resume: I32, $cancel: Bool) ->
 
 fn paired$item($self: paired.Iter [shared slot 0]) -> Pair(I32, I32) [shared slot 0] = <no body>
 
-fn paired$next($self: paired.Iter [unique slot 0]) -> Maybe(Pair(I32, I32)) [owned here shape2 .0=shared slot 0] = <no body>
+fn paired$next($self: paired.Iter [unique slot 0 shape11 .2.0.*=shared slot 1]) -> Maybe(Pair(I32, I32)) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn paired$resume($self: paired.Iter [unique slot 0], $v: {}) -> Maybe(Pair(I32, I32)) [owned here shape2 .0=shared slot 0] = <no body>
+fn paired$resume($self: paired.Iter [unique slot 0 shape11 .2.0.*=shared slot 1], $v: {}) -> Maybe(Pair(I32, I32)) [owned here shape2 .0=shared slot 0] = <no body>
 
 entry main

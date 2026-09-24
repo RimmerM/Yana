@@ -1,0 +1,81 @@
+{-
+   A hand-over that names one of the caller's origins, and a body that keeps the promise.
+
+   # resolver: ownership
+
+   `-> a'Int` on a `lens fn` or an `iter fn` says the handed value is in whatever the caller bound
+   `a` to, and the lens call binds the continuation's parameter to exactly that - so a consumer may
+   store the value into storage held by `a`'s origin and read it after the lens has returned, which
+   every `keep` below does. `analyze_loan.cpp`'s `checkHandoverConformance` holds the body to it the
+   way `checkReturnConformance` holds a result: every lender must be a loan of storage the caller
+   granted in that slot, or a global. These are the shapes that pass: an element, a window, a
+   reborrow of the parameter, a global, an `iter fn`'s element and a skipping lens's.
+   `Reject.HandoverSlot.yana` is what does not, and `HandoverSlotPointer.yana` is a pointer.
+-}
+
+data Store {held: kept'[Int]}
+data Cell {held: kept'Int}
+
+let gArr = [100, 200] :: Array(Int)
+
+lens fn first(xs: a'[Int]) -> a'Int:
+    yield xs[0]
+
+lens fn middle(xs: a'[Int]) -> a'[Int]:
+    yield xs[1..3]
+
+lens fn whole(xs: a'[Int]) -> a'[Int]:
+    let v = xs
+    yield v
+
+lens fn global(xs: a'[Int]) -> a'[Int]:
+    yield gArr
+
+lens fn firstOr(xs: a'[Int]) -> (a'Int | Int):
+    if length(xs) == 0 then return 0
+    yield xs[0]
+
+iter fn each(xs: a'[Int]) -> a'Int:
+    for i in 0..length(xs):
+        yield xs[i]
+
+fn keepFirst(&cell: Cell(kept'), xs: kept'[Int]):
+    let v = first(xs) in:
+        cell = {cell | held: v}
+
+fn keepMiddle(&store: Store(kept'), xs: kept'[Int]):
+    let v = middle(xs) in:
+        store = {store | held: v}
+
+fn keepWhole(&store: Store(kept'), xs: kept'[Int]):
+    let v = whole(xs) in:
+        store = {store | held: v}
+
+fn keepLast(&cell: Cell(kept'), xs: kept'[Int]):
+    for x in each(xs):
+        cell = {cell | held: x}
+
+fn keepFirstOr(&cell: Cell(kept'), xs: kept'[Int]):
+    let v = firstOr(xs) | e -> cell = {cell | held: xs[1]} in:
+        cell = {cell | held: v}
+
+fn main() -> Int:
+    let a = [1, 2, 3, 4] :: Array(Int)
+    let &cell = Cell {held: a[0]}
+    let &store = Store {held: a}
+
+    keepFirst(cell, a)
+    let &total = cell.held :: Int
+    keepMiddle(store, a)
+    total += store.held[0] * 10 + store.held[1] * 100
+    keepWhole(store, a)
+    total += store.held[3] * 1000
+    keepLast(cell, a)
+    total += cell.held * 10000
+    keepFirstOr(cell, a)
+    total += cell.held * 100000
+
+    let v = global(a) in:
+        total += v[1] * 1000000
+
+    return total

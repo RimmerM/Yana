@@ -952,7 +952,7 @@ void Resolver::enumFromValueBody(Builder& builder, Function& function, Local& nu
         auto atLeast = builder.addBinary(source, BinaryOp::Ge, *given, *constant(range.lowest));
         auto atMost = builder.addBinary(source, BinaryOp::Le, *given, *constant(range.highest));
         condition = builder.addBinary(source, BinaryOp::And, *atLeast, *atMost);
-    } else if(mapSpanAdmits(range.lowest, range.highest, constructors.size())) {
+    } else if(mapSpanAdmits(range.lowest, range.highest, constructors.size()) && !enumeration.valuesCollide) {
         /*
          * A set with holes, as the **mapping** it is - `True` at each pinned number and `False`
          * everywhere else, over an open domain (D3).
@@ -974,13 +974,7 @@ void Resolver::enumFromValueBody(Builder& builder, Function& function, Local& nu
             entries.push(entry);
         }
 
-        for(Size i = 1; i < entries.size(); i++) {
-            for(Size j = i; j && entries[j].selector < entries[j - 1].selector; j--) {
-                auto held = entries[j];
-                entries[j] = entries[j - 1];
-                entries[j - 1] = held;
-            }
-        }
+        sortMapEntries(entries.pointer(), entries.size());
 
         condition = builder.addMap(source, *given, entries.pointer(), entries.size(),
                                    truthConstant(program, false), false, owned(truth));
@@ -1054,7 +1048,14 @@ void Resolver::enumNameOfBody(Builder& builder, Function& function, Local& item,
 
     auto answer = textType(source);
 
-    if(answer && mapSpanAdmits(range.lowest, range.highest, count)) {
+    /*
+     * Two constructors pinned to one number **decline** the table, the way `matchAsMap` declines a
+     * match over the same declaration: the tag no longer says which word to answer, so a slot per
+     * selector has no single value to hold. Only reachable once the declaration walk has reported
+     * the collision - `RecordType::valuesCollide` - and the chain below takes it instead, which is a
+     * body nothing will run.
+     */
+    if(answer && mapSpanAdmits(range.lowest, range.highest, count) && !enumeration.valuesCollide) {
         /*
          * The words as `Constant::Text`, built later - `PendingTextMap`, and the same deferral a
          * string global is under. What a literal *is* is what the library's `stringLiteral` returns,

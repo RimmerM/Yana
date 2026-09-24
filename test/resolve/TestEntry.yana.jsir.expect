@@ -1,0 +1,433 @@
+fn answersATest() -> one %r6
+  block0:
+    %4: %r6 = const null
+    return %4
+
+fn main$() -> one %r0
+  var $0: %r11
+  block0:
+    %0: %r1 = const "ResolveTest"
+    %1: %r0 = const 30
+    %2: %r0 = const 6
+    %3: %r1 = const "arithmeticHolds"
+    %4: %r1 = const "arithmeticHolds"
+    %5: %r1 = const "ResolveTest"
+    %6: %r7 = const 0
+    %7: %r8 = fun.code arithmeticHolds$case
+    %8: %r8 = const null
+    %9: %r9 = object %s3 %7, %8
+    %10: %r2 = materialize %r3 %0, %1, %2, %3
+    %11: %r10 = object %s2 %4, %5, %10, %6, %9
+    %12: %r1 = const "ResolveTest"
+    %13: %r0 = const 36
+    %14: %r0 = const 30
+    %15: %r1 = const "namedCase"
+    %16: %r1 = const "a name that is prose"
+    %17: %r1 = const "ResolveTest"
+    %18: %r7 = const 0
+    %19: %r8 = fun.code namedCase$case
+    %20: %r8 = const null
+    %21: %r9 = object %s3 %19, %20
+    %22: %r2 = materialize %r3 %12, %13, %14, %15
+    %23: %r10 = object %s2 %16, %17, %22, %18, %21
+    %24: %r1 = const "ResolveTest"
+    %25: %r0 = const 41
+    %26: %r0 = const 6
+    %27: %r1 = const "answersATest"
+    %28: %r1 = const "answersATest"
+    %29: %r1 = const "ResolveTest"
+    %30: %r7 = const 0
+    %31: %r8 = fun.code answersATest
+    %32: %r8 = const null
+    %33: %r9 = object %s3 %31, %32
+    %34: %r2 = materialize %r3 %24, %25, %26, %27
+    %35: %r10 = object %s2 %28, %29, %34, %30, %33
+    %36: %r1 = const "ResolveTest"
+    %37: %r0 = const 53
+    %38: %r0 = const 14
+    %39: %r1 = const "saysItAborts"
+    %40: %r1 = const "saysItAborts"
+    %41: %r1 = const "ResolveTest"
+    %42: %r7 = const 1
+    %43: %r8 = fun.code saysItAborts$case
+    %44: %r8 = const null
+    %45: %r9 = object %s3 %43, %44
+    %46: %r2 = materialize %r3 %36, %37, %38, %39
+    %47: %r10 = object %s2 %40, %41, %46, %42, %45
+    %48: %r1 = const "ResolveTest"
+    %49: %r0 = const 67
+    %50: %r0 = const 6
+    %51: %r1 = const "oneThatFails"
+    %52: %r1 = const "oneThatFails"
+    %53: %r1 = const "ResolveTest"
+    %54: %r7 = const 0
+    %55: %r8 = fun.code oneThatFails$case
+    %56: %r8 = const null
+    %57: %r9 = object %s3 %55, %56
+    %58: %r2 = materialize %r3 %48, %49, %50, %51
+    %59: %r10 = object %s2 %52, %53, %58, %54, %57
+    %60: %r11 = host host.array %11, %23, %35, %47, %59
+    %62: %r11 = alias %60
+    %63: %r0 = const 5
+    %64: %r0 = const 0
+    %65: %r0 = call runMain %60, %63, %64
+    %66: %r11 = alias %62
+    call Array(a).reclaim(Case) %66
+    return %65
+
+fn arithmeticHolds$case() -> one %r6
+  block0:
+    %8: %r6 = const null
+    return %8
+
+fn namedCase$case() -> one %r6
+  block0:
+    %4: %r6 = const null
+    return %4
+
+fn saysItAborts$case() -> one %r6
+  block0:
+    %4: %r6 = const null
+    return %4
+
+fn oneThatFails$case() -> one %r6
+  var $0: %r2
+  var $1: %r1
+  var $2: %r2
+  var $3: %r2
+  var $4: %r1
+  var $5: %r2
+  var $6: %r1
+  var $7: %r2
+  var $8: %r1
+  var $9: %r2
+  block0:
+    %5: %r1 = const "1 == 2"
+    %6: %r1 = const "ResolveTest"
+    %7: %r0 = const 68
+    %8: %r0 = const 4
+    %9: %r1 = const "oneThatFails"
+    %10: %r2 = materialize %r3 %6, %7, %8, %9
+    %11: %r2 = alias %10
+    %12: %r2 = alias %11
+    %13: %r1 = alias %5
+    %14: %r1 = alias %13
+    %15: %r1 = const ""
+    %16: %r4 = object %s0 %12, %14, %15
+    call record %16
+    %18: %r0 = const 70
+    %24: %r0 = load global claimLine: %r0
+    %25: %r0 = const 2
+    %26: %r0 = binary.add %24, %25
+    %27: %r0 = coerce %26
+    %29: %r0 = alias %18
+    %30: %r7 = binary.eq %27, %29
+    %31: %r1 = const "claimAt() + 2 == mark.line"
+    %32: %r1 = const "ResolveTest"
+    %33: %r0 = const 71
+    %34: %r0 = const 4
+    %35: %r1 = const "oneThatFails"
+    branch %30 -> block2 -> block1
+  block1:
+    %36: %r2 = materialize %r3 %32, %33, %34, %35
+    %37: %r2 = alias %36
+    %38: %r2 = alias %37
+    %39: %r1 = alias %31
+    %40: %r1 = alias %39
+    %41: %r1 = const ""
+    %42: %r4 = object %s0 %38, %40, %41
+    call record %42
+    jump -> block2
+  block2:
+    %43: %r0 = load global claimWidth: %r0
+    %44: %r0 = const 6
+    %45: %r7 = binary.eq %43, %44
+    %46: %r1 = const "claimText() == 6"
+    %47: %r1 = const "ResolveTest"
+    %48: %r0 = const 72
+    %49: %r0 = const 4
+    %50: %r1 = const "oneThatFails"
+    branch %45 -> block4 -> block3
+  block3:
+    %51: %r2 = materialize %r3 %47, %48, %49, %50
+    %52: %r2 = alias %51
+    %53: %r2 = alias %52
+    %54: %r1 = alias %46
+    %55: %r1 = alias %54
+    %56: %r1 = const ""
+    %57: %r4 = object %s0 %53, %55, %56
+    call record %57
+    jump -> block4
+  block4:
+    %58: %r0 = load global failed: %r0
+    %59: %r0 = const 1
+    %60: %r7 = binary.eq %58, %59
+    %61: %r1 = const "claims() == 1"
+    %62: %r1 = const "ResolveTest"
+    %63: %r0 = const 73
+    %64: %r0 = const 4
+    %65: %r1 = const "oneThatFails"
+    branch %60 -> block6 -> block5
+  block5:
+    %66: %r2 = materialize %r3 %62, %63, %64, %65
+    %67: %r2 = alias %66
+    %68: %r2 = alias %67
+    %69: %r1 = alias %61
+    %70: %r1 = alias %69
+    %71: %r1 = const ""
+    %72: %r4 = object %s0 %68, %70, %71
+    call record %72
+    jump -> block6
+  block6:
+    %73: %r6 = const null
+    return %73
+
+fn Array(a).reclaim(Case)(one %r11) -> omitted
+  var $0: %r11
+  var $1: %r10
+  block0(%0: %r11):
+    %2: %r11 = alias %0
+    %3: %r15 = load property %2.length: %r15
+    %4: %r0 = convert %3
+    %5: %r0 = const 0
+    %6: %r0 = const 1
+    %8: %r11 = alias %0
+    jump -> block1(%5)
+  block1(%1: %r0):
+    %9: %r7 = binary.lt %1, %4
+    branch %9 -> block3 -> block2
+  block2:
+    return
+  block3:
+    %10: %r0 = convert %1
+    %11: %r10 = load element %8[%10]: %r10
+    %13: %r0 = binary.add %1, %6
+    %14: %r0 = coerce %13
+    jump -> block1(%14)
+
+fn record(one %r4) -> omitted
+  var $0: %r4
+  block0(%0: %r4):
+    %9: %r0 = load global failed: %r0
+    %10: %r0 = const 1
+    %11: %r0 = binary.add %9, %10
+    %12: %r0 = coerce %11
+    store global failed: %r0, %12
+    %13: %r0 = load global claimWidth: %r0
+    %14: %r4 = alias %0
+    %15: %r1 = load property %14.claim: %r1
+    %16: %r1 = alias %15
+    %17: %r1 = alias %16
+    %18: %r1 = alias %17
+    %19: %r0 = host host.field "length" host-range %18
+    %20: %r0 = convert %19
+    %21: %r0 = binary.add %13, %20
+    %22: %r0 = coerce %21
+    store global claimWidth: %r0, %22
+    %23: %r0 = load global claimLine: %r0
+    %24: %r4 = alias %0
+    %25: %r2 = load property %24.site: %r2
+    %26: %r0 = load property %25.line: %r0
+    %27: %r0 = binary.add %23, %26
+    %28: %r0 = coerce %27
+    store global claimLine: %r0, %28
+    return
+
+fn runMain(parts %r14) -> one %r0
+  block0(%0: %r11, %1: %r0, %2: %r0):
+    %11: %r0 = const 0
+    %12: %r0 = const 0
+    %13: %r0 = const 0
+    %14: %r0 = const 0
+    %15: %r0 = const 0
+    %16: %r0 = const 0
+    %17: %r0 = const 1
+    %18: %r0 = const 1
+    %19: %r0 = const 1
+    jump -> block1(%11, %12, %13, %14, %15, %16)
+  block1(%3: %r0, %4: %r0, %5: %r0, %6: %r0, %7: %r0, %8: %r0):
+    %20: %r7 = binary.lt %8, %1
+    branch %20 -> block3 -> block2
+  block2:
+    %21: %r0 = const 0
+    %22: %r7 = binary.gt %3, %21
+    branch %22 -> block9 -> block7
+  block3:
+    %80: %r0 = binary.add %3, %17
+    %81: %r0 = coerce %80
+    %82: %r16 = convert %8
+    %83: %r16 = convert %1
+    %84: %r7 = binary.ge %82, %83
+    branch %84 -> block13 -> block12
+  block4:
+    jump -> block5(%4)
+  block5(%9: %r0):
+    jump -> block14
+  block6:
+    %90: %r0 = binary.add %4, %18
+    %91: %r0 = coerce %90
+    jump -> block5(%91)
+  block7:
+    %51: %r0 = const 0
+    jump -> block8(%51)
+  block8(%10: %r0):
+    %53: %r0 = const 64
+    %54: %r0 = binary.mul %3, %53
+    %55: %r0 = coerce %54
+    %56: %r0 = const 32
+    %57: %r0 = binary.mul %4, %56
+    %58: %r0 = coerce %57
+    %59: %r0 = binary.add %55, %58
+    %60: %r0 = coerce %59
+    %61: %r0 = const 8
+    %62: %r0 = binary.rem %5, %61
+    %63: %r0 = coerce %62
+    %64: %r0 = const 4
+    %65: %r0 = binary.mul %63, %64
+    %66: %r0 = coerce %65
+    %67: %r0 = binary.add %60, %66
+    %68: %r0 = coerce %67
+    %69: %r0 = const 2
+    %70: %r0 = binary.mul %10, %69
+    %71: %r0 = coerce %70
+    %72: %r0 = binary.add %68, %71
+    %73: %r0 = coerce %72
+    %74: %r0 = load global failed: %r0
+    %75: %r0 = const 2
+    %76: %r0 = binary.rem %74, %75
+    %77: %r0 = coerce %76
+    %78: %r0 = binary.add %73, %77
+    %79: %r0 = coerce %78
+    return %79
+  block9:
+    %23: %r0 = const 0
+    %24: %r16 = convert %23
+    %25: %r16 = convert %1
+    %26: %r7 = binary.ge %24, %25
+    branch %26 -> block23 -> block22
+  block10:
+    %38: %r0 = const 0
+    %39: %r16 = convert %38
+    %40: %r16 = alias %25
+    %41: %r7 = binary.ge %39, %40
+    branch %41 -> block25 -> block24
+  block11:
+    %52: %r0 = const 1
+    jump -> block8(%52)
+  block12:
+    %85: %r11 = alias %0
+    %86: %r0 = binary.add %2, %8
+    %87: %r0 = coerce %86
+    %88: %r10 = load element %85[%87]: %r10
+    %89: %r7 = load property %88.aborts: %r7
+    branch %89 -> block6 -> block4
+  block13:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block14:
+    %94: %r11 = alias %0
+    %96: %r0 = alias %87
+    %97: %r10 = load element %94[%96]: %r10
+    %98: %r1 = load property %97.name: %r1
+    %99: %r1 = alias %98
+    %100: %r1 = alias %99
+    %101: %r1 = alias %100
+    %102: %r0 = host host.field "length" host-range %101
+    %103: %r0 = convert %102
+    %104: %r0 = binary.add %5, %103
+    %105: %r0 = coerce %104
+    jump -> block16
+  block15:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block16:
+    %111: %r10 = alias %97
+    %112: %r1 = load property %111.moduleName: %r1
+    %113: %r1 = alias %112
+    %114: %r1 = alias %113
+    %115: %r1 = alias %114
+    %116: %r0 = host host.field "length" host-range %115
+    %117: %r0 = convert %116
+    %118: %r0 = binary.add %6, %117
+    %119: %r0 = coerce %118
+    jump -> block18
+  block17:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block18:
+    %125: %r10 = alias %97
+    %126: %r2 = load property %125.site: %r2
+    %127: %r0 = load property %126.line: %r0
+    %128: %r0 = binary.add %7, %127
+    %129: %r0 = coerce %128
+    jump -> block20
+  block19:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block20:
+    %135: %r10 = alias %97
+    %136: %r9 = load property %135.body: %r9
+    %137: %r8 = load property %136.$c: %r8
+    %138: %r8 = load property %136.$e: %r8
+    %139: %r6 = call.value %137, %138
+    %140: %r0 = binary.add %8, %19
+    %141: %r0 = coerce %140
+    jump -> block1(%81, %9, %105, %119, %129, %141)
+  block21:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block22:
+    %27: %r11 = alias %0
+    %28: %r10 = load element %27[%2]: %r10
+    %29: %r1 = load property %28.moduleName: %r1
+    %30: %r1 = alias %29
+    %31: %r1 = alias %30
+    %32: %r1 = alias %31
+    %33: %r0 = host host.field "length" host-range %32
+    %34: %r0 = convert %33
+    %35: %r0 = binary.mul %3, %34
+    %36: %r0 = coerce %35
+    %37: %r7 = binary.eq %6, %36
+    branch %37 -> block10 -> block7
+  block23:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block24:
+    %44: %r1 = alias %29
+    %45: %r1 = alias %44
+    %46: %r1 = alias %45
+    %47: %r1 = alias %46
+    %48: %r0 = host host.field "length" host-range %47
+    %49: %r0 = const 0
+    %50: %r7 = binary.gt %48, %49
+    branch %50 -> block11 -> block7
+  block25:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+optimizer clones 5 aliased 5 forwarded 1 removed 79 adopted 0 sunk 3 numbered 18 decided 4 unboxed 0 updated 0 split 0 promoted 15
+
+shape %s0 object Failure {site: %r2, claim: %r1, detail: %r1}
+shape %s1 object Site {file: %r1, line: %r0, column: %r0, function: %r1}
+shape %s2 object Case {name: %r1, moduleName: %r1, site: %r2, aborts: %r7, body: %r9}
+shape %s3 fun {$c: %r8 code, $e: %r8 env}
+shape %s4 object ArrayView {items: %r11, length: %r0, offset: %r0}
+shape %s5 host Array {length: %r15}
+
+rep %r0 = number signed 32
+rep %r1 = string
+rep %r2 = object %s1
+rep %r3 = parts (%r1, %r0, %r0, %r1) as %r2
+rep %r4 = object %s0
+rep %r5 = number unsigned 8
+rep %r6 = nullable of %r4
+rep %r7 = number bool
+rep %r8 = erased
+rep %r9 = object %s3
+rep %r10 = object %s2
+rep %r11 = array Array of %r10
+rep %r12 = void
+rep %r13 = object %s4
+rep %r14 = parts (%r11, %r0, %r0) as %r13
+rep %r15 = number unsigned 30
+rep %r16 = number unsigned 32

@@ -5,6 +5,8 @@
 -- the lexer say so is what let the type parser stop deciding it. `parseLoanLabel` had been saving
 -- and restoring the lexer to find out, and the branch reading `v'a` was copied into `parseType` and
 -- `parseAType` because both had to make the same decision from the same two tokens.
+--
+-- # resolver: ownership
 
 data Cell {v: Int}
 
@@ -20,10 +22,6 @@ fn capitalized(c: Src'Cell) -> Int = c.v
 -- be - which makes a qualified label a group nothing can be in.
 fn qualified(c: Core.thing'Cell) -> Int = c.v
 
--- And `yield` with no marker, which is the other half of the same rule. `yield'` is a hard keyword
--- rather than a name the lexer fuses, precisely so that no program can write a label spelled that
--- way - so a bare `yield` in type position is the keyword written where a type belongs, and what a
--- reader who forgot the marker is told is about the marker rather than about an unknown name.
-fn bare(n: yield) -> Int = 0
+-- `yield` with no marker, the other half of the same rule, is `Reject.OriginLabel.Yield.yana`.
 
 fn main() -> Int = 0

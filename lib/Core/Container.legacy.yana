@@ -1,0 +1,12 @@
+{-
+   `items` under the legacy resolve stage. `Container.yana` has the contract and
+   `Container.ownership.yana` the same body with `source'` on its container and its element, which
+   this stage cannot use: it reads `self: 'c` as a reference to the container, so a window argument
+   has nowhere to go. Goes with `compiler/resolve`.
+-}
+
+pub iter fn (Chunked(c, a)) items(self: c) -> a:
+    for chunk in chunks(self):
+        let n = length(chunk)
+        for i in 0 .. n:
+            yield chunk[i]

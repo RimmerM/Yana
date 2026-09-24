@@ -1,0 +1,34 @@
+@image$base = []
+mut @dummy = [0, 0, 0, 0]
+mut @g = [0, 0, 0, 0, 0, 0, 0, 0]
+
+keep<complex>(%p: Ptr) {
+  b_0 {
+    store @g, %p, 8
+    ret 
+  }
+}
+
+poke<complex>() {
+  b_0 {
+    %v_1 = load @g, 8: Ptr
+    store %v_1, 7, 4
+    ret 
+  }
+}
+
+main$<complex>(): I32 {
+  b_0 {
+    store @g, @dummy, 8
+    %x = alloca 4, 4: Ptr
+    store %x, 1, 4
+    call_complex keep, %x
+    %before = loads %x, 4: I32
+    call_complex poke
+    %v_1 = imul %before, 10: I32
+    %v_2 = loads %x, 4: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+

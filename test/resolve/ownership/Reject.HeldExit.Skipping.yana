@@ -1,0 +1,34 @@
+{-
+   A `return` from inside a lens call that can skip, written inside an expression holding a value
+   with a teardown.
+
+   # resolver: ownership
+
+   The one shape the spill before a region does not reach: a skipping call's alternative is a
+   second place the caller carries on at, so the held value cannot be read back out on one path
+   and left in its storage on the other. Refused by name rather than reported as an owned value
+   reaching the return unconsumed. The same call with nothing held, and the same expression over a
+   transparent lens, are `HeldExit.Lens.yana`'s and compile.
+-}
+
+data Token {id: Int}
+
+instance Drop(Token):
+    fn drop(->value: Token):
+        let unused = value.id
+
+lens fn positive(n: Int) -> (Int | Int):
+    if n <= 0 then return n
+    yield n
+
+fn combine(->x: Token, ->y: Token) -> Int = x.id + y.id
+
+fn f(b: Int) -> Int:
+    let v = combine(Token {id: 10}, if b > 0 then Token {id: b} else:
+        let found = positive(b) | e -> return e in:
+            return found
+        Token {id: 5}
+    )
+    return v
+
+fn main() -> Int = f(0)

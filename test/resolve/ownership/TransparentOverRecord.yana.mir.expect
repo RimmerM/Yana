@@ -1,0 +1,579 @@
+module ResolveTest
+
+data Box {m: I32, n: I32}
+
+data W {b: Box}
+
+data V {w: W}
+
+data Named {m: I32, n: I32, s: String} reclaim derived
+
+data WN {b: Named} reclaim derived
+
+data Narrow {m: U8, n: U8}
+
+data WP {b: Narrow}
+
+data S = A {x: I32} | B {y: I32, z: I32}
+
+data WS {s: S}
+
+data WM {b: Maybe(Box)}
+
+data WI {i: Maybe(I32)}
+
+data WA {xs: Array(I32)} reclaim derived
+
+data WT {ss: Array(String)} reclaim derived
+
+data WU {t: {a: I32, b: I32}}
+
+data captureInts.lambda.env {b: Box}
+
+data captureString.lambda.env {b: 0'Named} shape2
+
+let string'142: [CodeUnit *1] = "a"
+
+let string'143: [CodeUnit *2] = "bc"
+
+let string'144: [CodeUnit *3] = "abc"
+
+let string'145: [CodeUnit *3] = "abc"
+
+fn lent(b: Box [shared call], k: I32 [shared call]) -> I32 {
+  local w: W
+  local & v: W
+
+bb0:
+  %0: Box = read copy.trivial (b)
+  %1: W = aggregate.W take %0
+  write.init borrow.unique (w) take %1
+  %3: W = read copy.trivial (w)
+  write.init borrow.unique (v) take %3
+  %5: I32 = read copy.trivial (v.b.n)
+  %6: I32 = read copy.trivial (k)
+  %7: I32 = add inspect %5 inspect %6
+  %8: I32 = read copy.trivial (v.b.m)
+  %9: I32 = add inspect %7 inspect %8
+  return take %9
+}
+
+fn twoLevels(b: Box [shared call], k: I32 [shared call]) -> I32 {
+  local v: V
+
+bb0:
+  %0: Box = read copy.trivial (b)
+  %1: W = aggregate.W take %0
+  %2: V = aggregate.V take %1
+  write.init borrow.unique (v) take %2
+  %4: I32 = read copy.trivial (v.w.b.n)
+  %5: I32 = read copy.trivial (k)
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = read copy.trivial (v.w.b.m)
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+fn overObject(b: Named, k: I32 [shared call]) -> I32 {
+  local w: WN
+  local & v: WN [unique call]
+
+bb0:
+  %0: Named = read take (b)
+  %1: WN = aggregate.WN take %0
+  write.init borrow.unique (w) take %1
+  %3: WN [unique call] = read borrow.unique (w) loan0
+  write.init borrow.unique (v) borrow.unique %3
+  %5: I32 = read copy.trivial (v.b.n)
+  %6: I32 = read copy.trivial (k)
+  %7: I32 = add inspect %5 inspect %6
+  %8: I32 = read copy.trivial (v.b.m)
+  %9: I32 = add inspect %7 inspect %8
+  %10: String [shared call] = read borrow.shared (v.b.s) loan1 roots{0}
+  %11: String [shared slot 0 view] = call.derivation view(String) borrow.shared %10 roots{0, 1}
+  %12: Size = call length(String) borrow.shared %11
+  drop (w)
+  %13: I32 = convert inspect %12
+  %14: I32 = add inspect %9 inspect %13
+  return take %14
+}
+
+fn overPacked(b: Narrow [shared call], k: I32 [shared call]) -> I32 {
+  local w: WP
+  local & v: WP
+
+bb0:
+  %0: Narrow = read copy.trivial (b)
+  %1: WP = aggregate.WP take %0
+  write.init borrow.unique (w) take %1
+  %3: WP = read copy.trivial (w)
+  write.init borrow.unique (v) take %3
+  %5: U8 = const 5
+  write.assign borrow.unique (v.b.m) take %5
+  %7: U8 = read copy.trivial (v.b.n)
+  %8: I32 = convert inspect %7
+  %9: I32 = read copy.trivial (k)
+  %10: I32 = add inspect %8 inspect %9
+  %11: U8 = read copy.trivial (v.b.m)
+  %12: I32 = convert inspect %11
+  %13: I32 = add inspect %10 inspect %12
+  return take %13
+}
+
+fn sumValue(w: WS [shared call]) -> I32 {
+  local x: I32
+  local y: I32
+  local z: I32
+
+bb0:
+  %0: U8 = read copy.trivial (w.s.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (w.s.y)
+  write.init borrow.unique (y) take %7
+  %9: I32 = read copy.trivial (w.s.z)
+  write.init borrow.unique (z) take %9
+  %11: I32 = read copy.trivial (y)
+  %12: I32 = read copy.trivial (z)
+  %13: I32 = add inspect %11 inspect %12
+  jump -> bb2(take %13)
+
+bb2(%14: I32):
+  return take %14
+
+bb3:
+  %4: I32 = read copy.trivial (w.s.x)
+  write.init borrow.unique (x) take %4
+  %6: I32 = read copy.trivial (x)
+  jump -> bb2(take %6)
+}
+
+fn overSum() -> I32 {
+  local & w: WS
+  local a: I32
+
+bb0:
+  %0: I32 = const 30
+  %1: I32 = const 2
+  %2: S = aggregate.B take %0 take %1
+  %3: WS = aggregate.WS take %2
+  write.init borrow.unique (w) take %3
+  %5: WS = read copy.trivial (w)
+  %6: I32 = call sumValue borrow.shared %5
+  write.init borrow.unique (a) take %6
+  %8: I32 = const 10
+  %9: S = aggregate.A take %8
+  write.assign borrow.unique (w.s) take %9
+  %11: I32 = read copy.trivial (a)
+  %12: WS = read copy.trivial (w)
+  %13: I32 = call sumValue borrow.shared %12
+  %14: I32 = add inspect %11 inspect %13
+  return take %14
+}
+
+fn overMaybe() -> I32 {
+  local w: WM
+  local x: WI
+  local & r: I32
+  local b: Box
+  local i: I32
+
+bb0:
+  %0: I32 = const 2
+  %1: I32 = const 30
+  %2: Box = aggregate.Box take %0 take %1
+  %3: Maybe(Box) = aggregate.Just take %2
+  %4: WM = aggregate.WM take %3
+  write.init borrow.unique (w) take %4
+  %6: I32 = const 10
+  %7: Maybe(I32) = aggregate.Just take %6
+  %8: WI = aggregate.WI take %7
+  write.init borrow.unique (x) take %8
+  %10: I32 = const 0
+  write.init borrow.unique (r) take %10
+  %12: U8 = read copy.trivial (w.b.#)
+  %13: U8 = const 1
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %25: U8 = read copy.trivial (x.i.#)
+  %26: U8 = const 1
+  %27: Bool = eq inspect %25 inspect %26
+  branch inspect %27 -> bb6 -> bb4
+
+bb3:
+  %16: Box = read copy.trivial (w.b.Just)
+  write.init borrow.unique (b) take %16
+  %18: I32 [unique call] = read borrow.unique (r) loan0
+  %19: I32 = read copy.trivial (b.m)
+  %20: I32 = read copy.trivial (b.n)
+  %21: I32 = add inspect %19 inspect %20
+  %22: {} = call +=(I32) borrow.unique %18 borrow.shared %21
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %36: I32 = read copy.trivial (r)
+  return take %36
+
+bb6:
+  %29: I32 = read copy.trivial (x.i.Just)
+  write.init borrow.unique (i) take %29
+  %31: I32 [unique call] = read borrow.unique (r) loan1
+  %32: I32 = read copy.trivial (i)
+  %33: {} = call +=(I32) borrow.unique %31 borrow.shared %32
+  jump -> bb5
+}
+
+fn overArrays() -> I32 {
+  local & local0: Array(I32)
+  local & w: WA
+  local & local2: Array(String)
+  local t: WT
+  local local4: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: I32 = const 3
+  %3: %I32 = run.slots I32 *3
+  %4: Size = bitcast inspect %3
+  %5: Size = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  %7: {} = call checkCondition borrow.shared %6
+  %8: @bits(30) U32 = const 3
+  %9: @bits(2) U32 = const 1
+  %10: Run(I32) = aggregate.Run take %3 take %8 take %9
+  %11: @bits(30) U32 = const 3
+  %12: Array(I32) = aggregate.Array take %10 take %11
+  write.init borrow.unique (local0) take %12
+  %14: Size = const 0
+  write.init borrow.unique ([%%3][0]) take %0
+  %16: Size = const 1
+  write.init borrow.unique ([%%3][1]) take %1
+  %18: Size = const 2
+  write.init borrow.unique ([%%3][2]) take %2
+  %20: Array(I32) = read take (local0)
+  %21: WA = aggregate.WA take %20
+  write.init borrow.unique (w) take %21
+  %23: Array(I32) [unique call] = read borrow.unique (w.xs) loan0
+  %24: I32 = const 36
+  %25: {} = call push(I32) borrow.unique %23 take %24
+  %26: String = const String {units: Array {run: Run {items: &string'142, capacity: 1, ownsHeap: 0}, length: 1}}
+  %27: String = const String {units: Array {run: Run {items: &string'143, capacity: 2, ownsHeap: 0}, length: 2}}
+  %28: %String = run.slots String *2
+  %29: Size = bitcast inspect %28
+  %30: Size = const 0
+  %31: Bool = eq inspect %29 inspect %30
+  %32: {} = call checkCondition borrow.shared %31
+  %33: @bits(30) U32 = const 2
+  %34: @bits(2) U32 = const 1
+  %35: Run(String) = aggregate.Run take %28 take %33 take %34
+  %36: @bits(30) U32 = const 2
+  %37: Array(String) = aggregate.Array take %35 take %36
+  write.init borrow.unique (local2) take %37
+  %39: Size = const 0
+  write.init borrow.unique ([%%28][0]) take %26
+  %41: Size = const 1
+  write.init borrow.unique ([%%28][1]) take %27
+  %43: Array(String) = read take (local2)
+  %44: WT = aggregate.WT take %43
+  write.init borrow.unique (t) take %44
+  %46: Size = const 3
+  %47: Array(I32) [shared call] = read borrow.shared (w.xs) loan1
+  %48: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %47 roots{1}
+  %49: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %48 borrow.shared %46 roots{1}
+  write.init borrow.unique (local4) borrow.shared %49
+  %51: I32 = read copy.trivial (local4)
+  %52: Array(I32) [shared call] = read borrow.shared (w.xs) loan2
+  %53: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %52 roots{2}
+  %54: Size = call length(Array(I32)) borrow.shared %53
+  drop (w)
+  %55: Array(String) [shared call] = read borrow.shared (t.ss) loan3
+  %56: Array(String) [shared slot 0 view] = call.derivation elements(Array(String), String) borrow.shared %55 roots{3}
+  %57: Size = call length(Array(String)) borrow.shared %56
+  drop (t)
+  %58: Size = add inspect %54 inspect %57
+  %59: I32 = convert inspect %58
+  %60: I32 = add inspect %51 inspect %59
+  return take %60
+}
+
+fn make(m: I32 [shared call]) -> W {
+bb0:
+  %0: I32 = read copy.trivial (m)
+  %1: I32 = const 30
+  %2: Box = aggregate.Box take %0 take %1
+  %3: W = aggregate.W take %2
+  return take %3
+}
+
+fn readW(w: W [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (w.b.m)
+  %1: I32 = read copy.trivial (w.b.n)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn bumpW(w: W [unique call]) -> {} {
+bb0:
+  %0: I32 [unique call] = read borrow.unique (w.b.n) loan0
+  %1: I32 = const 1
+  %2: {} = call +=(I32) borrow.unique %0 borrow.shared %1
+  return
+}
+
+fn acrossCalls() -> I32 {
+  local & w: W
+
+bb0:
+  %0: I32 = const 1
+  %1: W = call make borrow.shared %0
+  write.init borrow.unique (w) take %1
+  %3: W [unique call] = read borrow.unique (w) loan0
+  %4: {} = call bumpW borrow.unique %3
+  %5: W = read copy.trivial (w)
+  %6: I32 = call readW borrow.shared %5
+  %7: I32 = const 10
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+fn overTuple() -> I32 {
+  local w: WU
+
+bb0:
+  %0: I32 = const 30
+  %1: I32 = const 12
+  %2: {a: I32, b: I32} = aggregate. take %0 take %1
+  %3: WU = aggregate.WU take %2
+  write.init borrow.unique (w) take %3
+  %5: I32 = read copy.trivial (w.t.a)
+  %6: I32 = read copy.trivial (w.t.b)
+  %7: I32 = add inspect %5 inspect %6
+  return take %7
+}
+
+fn apply(g: f [shared call], x: I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type f
+  slot #1 class Call(f, (I32) -> I32)
+bb0:
+  %0: f [shared call] = read borrow.shared (g) loan0
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = call borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn captureInts() -> I32 {
+  local b: Box
+  local g: captureInts.lambda.env
+
+bb0:
+  %0: I32 = const 2
+  %1: I32 = const 30
+  %2: Box = aggregate.Box take %0 take %1
+  write.init borrow.unique (b) take %2
+  %4: Box = read copy.trivial (b)
+  %5: captureInts.lambda.env = aggregate.captureInts.lambda.env take %4
+  write.init borrow.unique (g) take %5
+  %7: captureInts.lambda.env = read copy.trivial (g)
+  %8: I32 = const 10
+  %9: I32 = call apply(captureInts.lambda.env) borrow.shared %7 borrow.shared %8
+  return take %9
+}
+
+fn captureString() -> I32 {
+  local b: Named
+  local g: captureString.lambda.env
+
+bb0:
+  %0: I32 = const 2
+  %1: I32 = const 27
+  %2: String = const String {units: Array {run: Run {items: &string'144, capacity: 3, ownsHeap: 0}, length: 3}}
+  %3: Named = aggregate.Named take %0 take %1 take %2
+  write.init borrow.unique (b) take %3
+  %5: Named [shared slot 0] = read borrow.shared (b) loan0
+  %6: captureString.lambda.env = aggregate.captureString.lambda.env borrow.shared %5 roots.0{0}
+  write.init borrow.unique (g) take %6
+  %8: captureString.lambda.env = read copy.trivial (g) roots.0{0}
+  %9: I32 = const 10
+  %10: I32 = call apply(captureString.lambda.env) borrow.shared %8 borrow.shared %9
+  drop (b)
+  return take %10
+}
+
+fn bit(ok: Bool [shared call], at: I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (ok)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %2: I32 = const 1
+  %3: I32 = read copy.trivial (at)
+  %4: I32 = shl inspect %2 inspect %3
+  jump -> bb2(take %4)
+}
+
+fn main() -> I32 {
+  local & r: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (r) take %0
+  %2: I32 [unique call] = read borrow.unique (r) loan0
+  %3: I32 = const 2
+  %4: I32 = const 30
+  %5: Box = aggregate.Box take %3 take %4
+  %6: I32 = const 10
+  %7: I32 = call lent borrow.shared %5 borrow.shared %6
+  %8: I32 = const 42
+  %9: Bool = eq inspect %7 inspect %8
+  %10: I32 = const 0
+  %11: I32 = call bit borrow.shared %9 borrow.shared %10
+  %12: {} = call +=(I32) borrow.unique %2 borrow.shared %11
+  %13: I32 [unique call] = read borrow.unique (r) loan1
+  %14: I32 = const 2
+  %15: I32 = const 30
+  %16: Box = aggregate.Box take %14 take %15
+  %17: I32 = const 10
+  %18: I32 = call twoLevels borrow.shared %16 borrow.shared %17
+  %19: I32 = const 42
+  %20: Bool = eq inspect %18 inspect %19
+  %21: I32 = const 1
+  %22: I32 = call bit borrow.shared %20 borrow.shared %21
+  %23: {} = call +=(I32) borrow.unique %13 borrow.shared %22
+  %24: I32 [unique call] = read borrow.unique (r) loan2
+  %25: I32 = const 2
+  %26: I32 = const 30
+  %27: String = const String {units: Array {run: Run {items: &string'145, capacity: 3, ownsHeap: 0}, length: 3}}
+  %28: Named = aggregate.Named take %25 take %26 take %27
+  %29: I32 = const 7
+  %30: I32 = call overObject take %28 borrow.shared %29
+  %31: I32 = const 42
+  %32: Bool = eq inspect %30 inspect %31
+  %33: I32 = const 2
+  %34: I32 = call bit borrow.shared %32 borrow.shared %33
+  %35: {} = call +=(I32) borrow.unique %24 borrow.shared %34
+  %36: I32 [unique call] = read borrow.unique (r) loan3
+  %37: U8 = const 2
+  %38: U8 = const 30
+  %39: Narrow = aggregate.Narrow take %37 take %38
+  %40: I32 = const 10
+  %41: I32 = call overPacked borrow.shared %39 borrow.shared %40
+  %42: I32 = const 45
+  %43: Bool = eq inspect %41 inspect %42
+  %44: I32 = const 3
+  %45: I32 = call bit borrow.shared %43 borrow.shared %44
+  %46: {} = call +=(I32) borrow.unique %36 borrow.shared %45
+  %47: I32 [unique call] = read borrow.unique (r) loan4
+  %48: I32 = call overSum
+  %49: I32 = const 42
+  %50: Bool = eq inspect %48 inspect %49
+  %51: I32 = const 4
+  %52: I32 = call bit borrow.shared %50 borrow.shared %51
+  %53: {} = call +=(I32) borrow.unique %47 borrow.shared %52
+  %54: I32 [unique call] = read borrow.unique (r) loan5
+  %55: I32 = call overMaybe
+  %56: I32 = const 42
+  %57: Bool = eq inspect %55 inspect %56
+  %58: I32 = const 5
+  %59: I32 = call bit borrow.shared %57 borrow.shared %58
+  %60: {} = call +=(I32) borrow.unique %54 borrow.shared %59
+  %61: I32 [unique call] = read borrow.unique (r) loan6
+  %62: I32 = call overArrays
+  %63: I32 = const 42
+  %64: Bool = eq inspect %62 inspect %63
+  %65: I32 = const 6
+  %66: I32 = call bit borrow.shared %64 borrow.shared %65
+  %67: {} = call +=(I32) borrow.unique %61 borrow.shared %66
+  %68: I32 [unique call] = read borrow.unique (r) loan7
+  %69: I32 = call acrossCalls
+  %70: I32 = const 42
+  %71: Bool = eq inspect %69 inspect %70
+  %72: I32 = const 7
+  %73: I32 = call bit borrow.shared %71 borrow.shared %72
+  %74: {} = call +=(I32) borrow.unique %68 borrow.shared %73
+  %75: I32 [unique call] = read borrow.unique (r) loan8
+  %76: I32 = call overTuple
+  %77: I32 = const 42
+  %78: Bool = eq inspect %76 inspect %77
+  %79: I32 = const 8
+  %80: I32 = call bit borrow.shared %78 borrow.shared %79
+  %81: {} = call +=(I32) borrow.unique %75 borrow.shared %80
+  %82: I32 [unique call] = read borrow.unique (r) loan9
+  %83: I32 = call captureInts
+  %84: I32 = const 42
+  %85: Bool = eq inspect %83 inspect %84
+  %86: I32 = const 9
+  %87: I32 = call bit borrow.shared %85 borrow.shared %86
+  %88: {} = call +=(I32) borrow.unique %82 borrow.shared %87
+  %89: I32 [unique call] = read borrow.unique (r) loan10
+  %90: I32 = call captureString
+  %91: I32 = const 42
+  %92: Bool = eq inspect %90 inspect %91
+  %93: I32 = const 10
+  %94: I32 = call bit borrow.shared %92 borrow.shared %93
+  %95: {} = call +=(I32) borrow.unique %89 borrow.shared %94
+  %96: I32 [unique call] = read borrow.unique (r) loan11
+  %97: I32 = const 1
+  %98: I32 = const 1
+  %99: Box = aggregate.Box take %97 take %98
+  %100: I32 = const 0
+  %101: I32 = call lent borrow.shared %99 borrow.shared %100
+  %102: I32 = const 2
+  %103: Bool = eq inspect %101 inspect %102
+  %104: I32 = const 11
+  %105: I32 = call bit borrow.shared %103 borrow.shared %104
+  %106: {} = call +=(I32) borrow.unique %96 borrow.shared %105
+  %107: I32 = read copy.trivial (r)
+  return take %107
+}
+
+fn captureInts.lambda(captureInts.lambda.env: captureInts.lambda.env [shared call], x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (captureInts.lambda.env.b.m)
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = read copy.trivial (captureInts.lambda.env.b.n)
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn captureString.lambda(captureString.lambda.env: captureString.lambda.env [shared call], x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (captureString.lambda.env.b.m)
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = read copy.trivial (captureString.lambda.env.b.n)
+  %4: I32 = add inspect %2 inspect %3
+  %5: String [shared slot 0] = read borrow.shared (captureString.lambda.env.b.s) loan0
+  %6: String [shared slot 0 view] = call.derivation view(String) borrow.shared %5 roots{0}
+  %7: Size = call length(String) borrow.shared %6
+  %8: I32 = convert inspect %7
+  %9: I32 = add inspect %4 inspect %8
+  return take %9
+}
+
+fn apply(captureInts.lambda)(g: captureInts.lambda.env [shared call], x: I32 [shared call]) -> I32 = <apply at captureInts.lambda.env>
+
+fn apply(captureString.lambda)(g: captureString.lambda.env [shared call], x: I32 [shared call]) -> I32 = <apply at captureString.lambda.env>
+
+entry main

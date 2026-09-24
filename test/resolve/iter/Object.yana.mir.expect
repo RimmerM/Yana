@@ -263,7 +263,7 @@ bb0:
 
 bb1:
   %6: upTo.Iter [unique slot 0] = read borrow.unique (it) loan0
-  %7: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(upTo.Iter, I32, {}) borrow.unique %6 roots.0{0}
+  %7: Maybe(I32) [owned here shape2 .0=shared slot 0] = call upTo$next borrow.unique %6 roots.0{0}
   write.init borrow.unique (local2) take %7
   %9: U8 = read copy.trivial (local2.#)
   %10: U8 = const 1
@@ -310,7 +310,7 @@ bb0:
 
 bb1:
   %9: upTo.Iter [unique slot 0] = read borrow.unique (left) loan0
-  %10: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(upTo.Iter, I32, {}) borrow.unique %9 roots.0{0}
+  %10: Maybe(I32) [owned here shape2 .0=shared slot 0] = call upTo$next borrow.unique %9 roots.0{0}
   write.init borrow.unique (local3) take %10
   %12: U8 = read copy.trivial (local3.#)
   %13: U8 = const 1
@@ -325,7 +325,7 @@ bb3:
   %16: I32 = read copy.trivial (local3.Just)
   write.init borrow.unique (a) take %16
   %18: doubled.Iter [unique slot 0] = read borrow.unique (right) loan1
-  %19: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(doubled.Iter, I32, {}) borrow.unique %18 roots.0{1}
+  %19: Maybe(I32) [owned here shape2 .0=shared slot 0] = call doubled$next borrow.unique %18 roots.0{1}
   write.init borrow.unique (local5) take %19
   %21: U8 = read copy.trivial (local5.#)
   %22: U8 = const 1
@@ -382,7 +382,7 @@ bb0:
   %3: I32 = const 0
   write.init borrow.unique (packed) take %3
   %5: upTo.Iter [unique slot 0] = read borrow.unique (first) loan0
-  %6: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(upTo.Iter, I32, {}) borrow.unique %5 roots.0{0}
+  %6: Maybe(I32) [owned here shape2 .0=shared slot 0] = call upTo$next borrow.unique %5 roots.0{0}
   write.init borrow.unique (local2) take %6
   %8: U8 = read copy.trivial (local2.#)
   %9: U8 = const 1
@@ -394,7 +394,7 @@ bb1:
 
 bb2:
   %20: upTo.Iter [unique slot 0] = read borrow.unique (first) loan1
-  %21: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(upTo.Iter, I32, {}) borrow.unique %20 roots.0{1}
+  %21: Maybe(I32) [owned here shape2 .0=shared slot 0] = call upTo$next borrow.unique %20 roots.0{1}
   write.init borrow.unique (local4) take %21
   %23: U8 = read copy.trivial (local4.#)
   %24: U8 = const 1
@@ -434,7 +434,7 @@ bb6:
 
 bb7:
   %43: upTo.Iter [unique slot 0] = read borrow.unique (first) loan2
-  %44: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(upTo.Iter, I32, {}) borrow.unique %43 roots.0{2}
+  %44: Maybe(I32) [owned here shape2 .0=shared slot 0] = call upTo$next borrow.unique %43 roots.0{2}
   write.init borrow.unique (local7) take %44
   %46: U8 = read copy.trivial (local7.#)
   %47: U8 = const 1
@@ -459,7 +459,7 @@ bb9:
 
 bb10:
   %62: upTo.Iter [unique slot 0] = read borrow.unique (second) loan3
-  %63: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(upTo.Iter, I32, {}) borrow.unique %62 roots.0{3}
+  %63: Maybe(I32) [owned here shape2 .0=shared slot 0] = call upTo$next borrow.unique %62 roots.0{3}
   write.init borrow.unique (local9) take %63
   %65: U8 = read copy.trivial (local9.#)
   %66: U8 = const 1
@@ -666,7 +666,7 @@ bb2:
 bb3:
   %12: steps.Iter [unique slot 0] = read borrow.unique (it) loan0
   %13: Cmd = read copy.trivial (send)
-  %14: Maybe(I32) [owned here shape2 .0=shared slot 0] = call resume(steps.Iter, I32, Cmd) borrow.unique %12 take %13 roots.0{0}
+  %14: Maybe(I32) [owned here shape2 .0=shared slot 0] = call steps$resume borrow.unique %12 take %13 roots.0{0}
   write.init borrow.unique (local4) take %14
   %16: U8 = read copy.trivial (local4.#)
   %17: U8 = const 1
@@ -962,9 +962,9 @@ fn advancing$new(cursor: Cursor [unique slot 0], n: I32) -> advancing.Iter [owne
 
 fn advancing$step($self: advancing.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
 
-fn advancing$next($self: advancing.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn advancing$next($self: advancing.Iter [unique slot 0 shape9 .2.*=unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn advancing$resume($self: advancing.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn advancing$resume($self: advancing.Iter [unique slot 0 shape9 .2.*=unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn Parser.advance(steps.Iter)(self: Parser(steps.Iter) [unique call]) -> Bool = <Parser.advance at steps.Iter>
 

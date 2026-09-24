@@ -1,17 +1,17 @@
-10:16: error: `@lazy` cannot be combined with `&` or `->` - the argument is an expression the callee may never run, so there is no caller storage to borrow or to consume
-12:11: error: `@lazy` cannot be combined with `&` or `->` - the argument is an expression the callee may never run, so there is no caller storage to borrow or to consume
-16:10: error: `@lazy` cannot be combined with `return` - an argument that may never be evaluated cannot be what a borrow in the result is rooted in
-16:10: error: `return` on I32 has nothing to root a borrow in - it arrives in a register, so the body sees a copy of its own; write `return &` when the caller's storage must be the root
-104:23: error: argument rhs is `@lazy` in class Combine and has to say so here too - the call site left it unevaluated, so this body would be handed a thunk it never runs
-105:24: error: argument rhs is `@lazy` here but not in class Combine - which arguments are evaluated is fixed by the class signature, because a call site decides it before it knows which instance it reached
-21:44: error: value is a `@lazy` parameter and may be used at most once on any path, but this path uses it again - passing it to another `@lazy` parameter counts, since the callee may be the one that runs it. Read it into a `let` and use that instead
-27:23: error: value is a `@lazy` parameter and may be used at most once on any path, but this path uses it again - passing it to another `@lazy` parameter counts, since the callee may be the one that runs it. Read it into a `let` and use that instead
-46:63: error: value is a `@lazy` parameter and may be used at most once on any path, but this path uses it again - passing it to another `@lazy` parameter counts, since the callee may be the one that runs it. Read it into a `let` and use that instead
-48:54: error: value is a `@lazy` parameter and may be used at most once on any path, but this path uses it again - passing it to another `@lazy` parameter counts, since the callee may be the one that runs it. Read it into a `let` and use that instead
-54:53: error: value is a `@lazy` parameter of the enclosing function and cannot be captured - read it into a `let` first, and capture that
-56:49: error: value is a `@lazy` parameter of the enclosing function and cannot be captured - read it into a `let` first, and capture that
-60:4: error: value is a `@lazy` parameter, which names an expression rather than storage - there is nothing to assign to
-78:11: error: a `@lazy` argument cannot consume owner yet - the callee may never run it, and the thunk would then still be holding what it moved in
-83:27: error: `return` inside a `@lazy` argument is not available yet - it would have to leave the function through the callee's frame, which needs the exit signal
-111:42: error: a `@lazy` argument inside a generic function is not available yet unless the callee can be seen through - the thunk would have to be specialized alongside its caller
-120:52: error: a `@lazy` argument inside a generic function is not available yet unless the callee can be seen through - the thunk would have to be specialized alongside its caller
+13:16: error: a `@lazy` parameter receives a thunk rather than the value, so there is nothing here for `&` to borrow from or consume
+15:11: error: a `@lazy` parameter receives a thunk rather than the value, so there is nothing here for `->` to borrow from or consume
+19:10: error: a `@lazy` parameter's value is made after the call started, so there is no caller origin for it to be published to
+110:4: error: both must be written `fn both(lhs: Mask, @lazy rhs: Mask) -> Mask`
+111:4: error: merge must be written `fn merge(lhs: Mask, rhs: Mask) -> Mask`
+24:44: error: value is `@lazy`, and a path through twice reads it twice - a deferred argument runs where it is read, so a second read would run it again
+30:23: error: value is `@lazy`, and a path through twiceAcrossBlocks reads it twice - a deferred argument runs where it is read, so a second read would run it again
+40:24: error: value is `@lazy`, and a path through inLoop reads it twice - a deferred argument runs where it is read, so a second read would run it again
+49:75: error: value is `@lazy`, and a path through forwardTwice reads it twice - a deferred argument runs where it is read, so a second read would run it again
+51:65: error: value is `@lazy`, and a path through forwardAndForce reads it twice - a deferred argument runs where it is read, so a second read would run it again
+57:53: error: a lambda cannot hand over what it captured, because this one is a callback - a closure owns its captures only where the position it fills owns the closure
+57:47: error: this closure leaves the frame it was written in, so it owns what it captured - and value is storage this function borrows rather than owns
+65:4: error: value is `@lazy`, so it is a value produced when it is read rather than storage - there is nothing here to write to or borrow
+83:21: error: a lambda cannot hand over what it captured, because this one is a callback - a closure owns its captures only where the position it fills owns the closure
+89:27: error: the ownership resolver does not implement this expression yet
+117:55: error: the ownership resolver does not implement a `@lazy` argument in a generic function yet
+126:63: error: the ownership resolver does not implement a `@lazy` argument in a generic function yet

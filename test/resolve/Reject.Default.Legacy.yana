@@ -1,0 +1,18 @@
+-- The rules of `Reject.Default.yana` the default stage does not refuse yet: an integer wider than
+-- its field, a growable array default, and an unknown constructor default. It warns and
+-- truncates `300` into a `U8`, and refuses the other two only as unbuilt ("does not implement
+-- this constant expression yet"). Move each back when it does.
+
+data Direction = North | South
+
+data TooBig {value: U8 = 300}
+
+-- A growable array allocates its run, so there is nothing constant about one: the storage would
+-- have to exist before the program starts. `[T *n]` is the shape that does have a constant form,
+-- since its elements are the value's own bytes.
+data Grown {items: Array(Int) = [1, 2]}
+
+-- A name that is no constructor at all.
+data Unknown {heading: Direction = West}
+
+fn main() -> Int = 0

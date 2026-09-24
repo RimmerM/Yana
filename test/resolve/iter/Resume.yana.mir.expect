@@ -164,7 +164,7 @@ bb2:
 bb3:
   %12: steps.Iter [unique slot 0] = read borrow.unique (it) loan0
   %13: Cmd = read copy.trivial (send)
-  %14: Maybe(I32) [owned here shape2 .0=shared slot 0] = call resume(steps.Iter, I32, Cmd) borrow.unique %12 take %13 roots.0{0}
+  %14: Maybe(I32) [owned here shape2 .0=shared slot 0] = call steps$resume borrow.unique %12 take %13 roots.0{0}
   write.init borrow.unique (local5) take %14
   %16: U8 = read copy.trivial (local5.#)
   %17: U8 = const 1
@@ -240,7 +240,7 @@ bb2:
 bb3:
   %12: iter(I32 <- Cmd) [unique slot 0] = read borrow.unique (it) loan0
   %13: Cmd = read copy.trivial (send)
-  %14: Maybe(I32) [owned here shape2 .0=shared slot 0] = call resume(iter(I32 <- Cmd), I32, Cmd) borrow.unique %12 take %13 roots.0{0}
+  %14: Maybe(I32) [owned here shape2 .0=shared slot 0] = call iter(I32 <- Cmd)$resume borrow.unique %12 take %13 roots.0{0}
   write.init borrow.unique (local5) take %14
   %16: U8 = read copy.trivial (local5.#)
   %17: U8 = const 1
@@ -438,7 +438,7 @@ bb0:
 
 bb1:
   %6: iter(I32) [unique slot 0] = read borrow.unique (it) loan0
-  %7: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(iter(I32), I32, {}) borrow.unique %6 roots.0{0}
+  %7: Maybe(I32) [owned here shape2 .0=shared slot 0] = call iter(I32)$next borrow.unique %6 roots.0{0}
   write.init borrow.unique (local3) take %7
   %9: U8 = read copy.trivial (local3.#)
   %10: U8 = const 1
@@ -582,7 +582,7 @@ bb1(%13: Outcome(Cmd, I32)):
 bb2:
   %40: steps.Iter [unique slot 0] = read borrow.unique (it) loan1
   %41: Cmd = const Skip
-  %42: Maybe(I32) [owned here shape2 .0=shared slot 0] = call resume(steps.Iter, I32, Cmd) borrow.unique %40 take %41 roots.0{1}
+  %42: Maybe(I32) [owned here shape2 .0=shared slot 0] = call steps$resume borrow.unique %40 take %41 roots.0{1}
   write.init borrow.unique (local4) take %42
   %44: U8 = read copy.trivial (local4.#)
   %45: U8 = const 1

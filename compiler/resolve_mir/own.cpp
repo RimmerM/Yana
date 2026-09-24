@@ -381,6 +381,9 @@ struct Classifier {
      */
     bool cyclic = false;
 
+    // Whether a raw pointer in a record is a host handle - JavaScript. See `Ownership::hostHandle`.
+    bool hostPointers = isJsMode(context.settings);
+
     /*
      * One member folded into its container's classification.
      *
@@ -517,7 +520,34 @@ struct Classifier {
                 continue;
             }
 
+            // A host handle - `Ownership::hostHandle`. `@local` is the view records, `ArrayView`
+            // and the window a `String` borrows as, whose pointer is a pointer on both targets.
+            if(hostPointers && !record.local && !record.lambda && !record.producer &&
+               field.occurrence.type &&
+               decl[field.occurrence.type]->kind == Type::Pointer) {
+                result.hostHandle = true;
+            }
+
             includeMember(field.occurrence.type, result);
+
+            /*
+             * Through a *declared* record's members only. A lambda's environment and an iterator's
+             * record are laid out by the compiler, and where one holds a copy of a `String` on this
+             * target it holds it *because* the type is trivially copied here - `captureKindOf` and
+             * `iterCaptureKindOf` store a shared loan of a trivially copyable value as the value,
+             * and natively the same member is a loan, which is trivial. Folding the handle up
+             * through such a member is asking the native question of a layout native never built:
+             * `iter/Signature.yana`'s `let &cursor = h.cursor` became an exclusive loan of an object
+             * natively copied, and was refused. See `countsHostHandle` for the one member of such a
+             * record that is owned on both targets.
+             *
+             * Only where handles exist, and the member's own answer before the walk: natively
+             * nothing is a host handle, and `countsHostHandle` can read a producer's whole body.
+             */
+            if(hostPointers && !result.hostHandle && ownership(field.occurrence.type).hostHandle &&
+               countsHostHandle(record, field)) {
+                result.hostHandle = true;
+            }
         }
 
         if(auto instance = declaredInstanceFor(context, program, intrinsic::Known::reclaim, asBase<Type>(&record - decl))) {
@@ -639,6 +669,111 @@ struct Classifier {
         active.pop();
     }
 
+    /*
+     * Whether a member's host handle is the record's - `Ownership::hostHandle`, folded through the
+     * members that are owned on *every* target.
+     *
+     * Every member of a declared record. Of an iterator's record, a captured argument the producer
+     * declared owning - `iter fn owning(->source: String)` holds `source` natively too, so the object
+     * is not trivially copied there and `let &c = it` then stepping `c` steps `it`; read as a copy
+     * here, `it` restarted. Nothing of a lambda's environment, and neither the hand-over slot nor
+     * the payload of an iterator's record: each of those may hold a value *because* this target
+     * copies it, where the native layout holds a loan - `let t = s` in a producer is an owned local
+     * here and a loan there.
+     *
+     * **A payload member is counted when its local owns on both.** `let &s = "x"` kept across a
+     * `yield` is an owned `String` natively too, so the object is not trivially copied there and
+     * `let &c = it` is a loan; read as a copy here, `it` would restart and a program would answer
+     * differently on the two targets. What tells it from `let t = s` is the
+     * binding and not the local's contract, which is owned in both cases on this target: `t` is
+     * initialized from a `copy.trivial` read - the copy this target makes of a shared request, which
+     * natively is the loan - and `s` from a value nothing else holds. So a member counts when every
+     * local sharing its field is owned and bound only to such values; a run address, a borrow and a
+     * nested traversal never count, as before.
+     */
+    bool countsHostHandle(RecordType& record, const RecordField& field) {
+        if(record.lambda) return false;
+        if(!record.producer) return true;
+
+        auto& producer = *decl[record.producer];
+        if(field.index >= record.payloadFirst) return payloadOwnsEverywhere(record, producer, field.index);
+        if(field.index < RecordType::kCaptureFirst) return false;
+
+        auto at = U32(field.index - RecordType::kCaptureFirst);
+        if(at >= producer.writtenArity()) return false;
+
+        // The parameter's declared contract and not `captureKinds`: `Value` there is also a shared
+        // parameter this target copies, which is exactly the member that does not count.
+        return decl[producer.args.get(decl, at)]->occurrence.contract.isOwned();
+    }
+
+    /*
+     * `payloadOwnsEverywhere`'s reading of one producer body: per local, whether it is bound at all
+     * and whether any binding is a `copy.trivial` read. One pass per producer, kept for the next
+     * question about the same one - the fold asks once per payload member with a host handle, and
+     * reruns in rounds on a cyclic program, and the pass per member it used to make was a walk of
+     * the whole body each time. One entry rather than a table per producer: the members of one
+     * record are asked about together, so a nested record's producer evicting it costs one more
+     * pass and never more than the walk per member did.
+     */
+    enum : U8 { kUnbound = 0, kBoundFresh = 1, kBoundCopied = 2 };
+    Function* bindingsOf = nullptr;
+    Array<U8> localBindings;
+
+    // `countsHostHandle`'s payload half: whether some local held in this field owns its value on
+    // every target, read off the producer's body.
+    bool payloadOwnsEverywhere(RecordType& record, Function& producer, U16 index) {
+        if(!producer.mir) return false;
+
+        auto mir = *program.mir;
+        auto& body = *mir[producer.mir];
+
+        if(bindingsOf != &producer) {
+            bindingsOf = &producer;
+            localBindings.clear();
+            for(U32 l = 0; l < body.locals.size(); l++) localBindings.push(kUnbound);
+
+            for(U32 i = 0; i < body.nodes.size(); i++) {
+                auto node = body.node(mir, NodeId(i));
+                if(!node || node->kind != Node::Write) continue;
+
+                auto& write = *(NodeWrite*)node;
+                if(write.destination.source() != SourceKind::Place) continue;
+
+                auto& place = *body.place(mir, write.destination.placeId());
+                if(place.parent || place.kind != Place::Local || place.payload >= body.locals.size()) continue;
+
+                auto value = write.value;
+                auto copied = value.mode() == UseMode::CopyTrivial;
+                if(value.source() == SourceKind::Result) {
+                    auto& producerNode = *body.node(mir, value.nodeId());
+                    copied = copied || (producerNode.kind == Node::Read &&
+                                        ((NodeRead&)producerNode).place.mode() == UseMode::CopyTrivial);
+                }
+
+                auto& state = localBindings[place.payload];
+                if(copied) state = kBoundCopied;
+                else if(state == kUnbound) state = kBoundFresh;
+            }
+        }
+
+        auto flags = RecordType::kHeapMember | RecordType::kBorrowMember | RecordType::kNestMember;
+        for(Size e = 0; e < record.payloadFields.size(); e++) {
+            if(record.payloadFields.get(decl, e) != index) continue;
+
+            auto code = record.payloadLocals.get(decl, e);
+            if(code & flags) continue;
+            if(code >= body.locals.size()) continue;
+
+            auto local = body.local(mir, LocalId(code));
+            if(!local || local->isParameter() || !local->occurrence.contract.isOwned()) continue;
+
+            if(localBindings[code] == kBoundFresh) return true;
+        }
+
+        return false;
+    }
+
     // Whether this type is a record the fold is currently inside - the same question the "contains
     // itself" report asks, asked of a member before the recursion rather than after it.
     bool onActiveStack(DeclPtr<Type> type) {
@@ -683,7 +818,8 @@ struct Classifier {
     // could reach and this is the one question that wants it.
     static bool differs(const Ownership& a, const Ownership& b) {
         return a.trivialCopy != b.trivialCopy || a.relocatable != b.relocatable ||
-               a.explicitDrop != b.explicitDrop || a.reclaim != b.reclaim || a.drop != b.drop;
+               a.explicitDrop != b.explicitDrop || a.reclaim != b.reclaim || a.drop != b.drop ||
+               a.hostHandle != b.hostHandle;
     }
 
     // Every record in the program, in one order, for the two walks below to share. Not a cached list
@@ -712,7 +848,7 @@ struct Classifier {
          * use when one of them holds a `Guard`. Re-folding until nothing moves is the least fixed
          * point, and it is reached in a bounded number of rounds because every field of every answer
          * moves in one direction only: `trivialCopy` and `relocatable` fall, the two teardown halves
-         * rise from `None`, and `explicitDrop` rises.
+         * rise from `None`, and `explicitDrop` and `hostHandle` rise.
          *
          * Nothing is paid for a program with no cycle through a box, which is nearly every program:
          * the flag is set by exactly one line and stays false otherwise.
@@ -722,9 +858,9 @@ struct Classifier {
         Size records = 0;
         eachRecord([&](RecordType&) { records++; });
 
-        // Five monotone fields per record, so a round that moves nothing is the answer and a program
+        // Six monotone fields per record, so a round that moves nothing is the answer and a program
         // cannot need more rounds than it has moves left to make.
-        auto rounds = records * 5 + 1;
+        auto rounds = records * 6 + 1;
 
         for(Size round = 0; round < rounds; round++) {
             auto moved = false;
@@ -1007,6 +1143,16 @@ bool foldRecordSchema(Context& context, Program& program, RecordType& record) {
          */
         if(schemaOf(decl, field.occurrence.type)) {
             errors++;
+
+            // A tuple has no name to put first - the sentence would begin " holds a Store" - and its
+            // source is the expression or type that wrote it, so "this tuple" is what it is.
+            if(record.tuple) {
+                context.diagnostics.error(
+                    "this tuple holds a %@, which refers to storage the tuple does not name"_v,
+                    record.source, typeText(context, decl, field.occurrence.type));
+                continue;
+            }
+
             context.diagnostics.error(
                 "%@ holds a %@, which refers to storage the record does not name"_v,
                 record.source, context.findName(record.name),

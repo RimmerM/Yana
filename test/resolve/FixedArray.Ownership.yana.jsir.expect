@@ -32,11 +32,12 @@ fn main() -> one %r0
   var $0: %r9
   var $1: %r10
   var $2: %r11
-  var $3: %r1
-  var $4: %r15
-  var $5: %r7
+  var $3: %r9
+  var $4: %r1
+  var $5: %r15
   var $6: %r7
-  var $7: %r0
+  var $7: %r7
+  var $8: %r0
   block0:
     %9: %r0 = const 1
     %10: %r0 = const 2
@@ -117,57 +118,57 @@ fn main() -> one %r0
   block9:
     %84: %r9 = alias %63
     %85: %r9 = alias %84
-    %86: %r9 = alias %85
-    %87: %r1 = alias %86
-    %88: %r0 = const 2
-    %90: %r0 = const 0
-    %91: %r1 = alias %87
-    %92: %r0 = call total %91, %88, %90
-    %93: %r0 = const 17
-    %94: %r4 = binary.ne %92, %93
-    branch %94 -> block12 -> block11
+    %86: %r1 = alias %85
+    %87: %r0 = const 2
+    %89: %r0 = const 0
+    %90: %r1 = alias %86
+    %91: %r0 = call total %90, %87, %89
+    %92: %r0 = const 17
+    %93: %r4 = binary.ne %91, %92
+    branch %93 -> block12 -> block11
   block10:
     %190: %r0 = const -5
     return %190
   block11:
-    %95: %r0 = const 0
-    %96: %r10 = array %95, %95, %95, %95, %95
-    %97: %r10 = alias %96
-    %98: %r1 = alias %97
-    %99: %r0 = const 5
-    %100: %r0 = const 0
-    %101: %r0 = call total %98, %99, %100
-    %102: %r0 = const 0
-    %103: %r4 = binary.ne %101, %102
-    branch %103 -> block14 -> block13
+    %94: %r0 = const 0
+    %95: %r10 = array %94, %94, %94, %94, %94
+    %96: %r10 = alias %95
+    %97: %r1 = alias %96
+    %98: %r0 = const 5
+    %99: %r0 = const 0
+    %100: %r0 = call total %97, %98, %99
+    %101: %r0 = const 0
+    %102: %r4 = binary.ne %100, %101
+    branch %102 -> block14 -> block13
   block12:
     %189: %r0 = const -6
     return %189
   block13:
-    %104: %r0 = const 1
-    %105: %r0 = const 2
-    %106: %r0 = const 3
-    %107: %r0 = const 4
-    %108: %r7 = array %104, %105, %106, %107
-    %109: %r0 = const 100
-    %113: %r7 = alias %108
-    %114: %r1 = alias %113
-    %115: %r0 = const 4
-    %116: %r0 = const 0
-    %117: %r0 = call total %114, %115, %116
-    %118: %r0 = alias %109
-    %119: %r0 = binary.add %117, %118
-    %120: %r0 = coerce %119
-    %121: %r0 = const 110
-    %122: %r4 = binary.ne %120, %121
-    branch %122 -> block16 -> block15
+    %103: %r0 = const 1
+    %104: %r0 = const 2
+    %105: %r0 = const 3
+    %106: %r0 = const 4
+    %107: %r7 = array %103, %104, %105, %106
+    %108: %r0 = const 100
+    %112: %r7 = alias %107
+    %113: %r1 = alias %112
+    %114: %r0 = const 4
+    %115: %r0 = const 0
+    %116: %r0 = call total %113, %114, %115
+    %117: %r0 = alias %108
+    %118: %r0 = binary.add %116, %117
+    %119: %r0 = coerce %118
+    %120: %r0 = const 110
+    %121: %r4 = binary.ne %119, %120
+    branch %121 -> block16 -> block15
   block14:
     %188: %r0 = const -7
     return %188
   block15:
+    %122: %r0 = const 5
     %123: %r0 = const 5
-    %124: %r0 = const 5
-    %125: %r9 = array %123, %124
+    %124: %r9 = array %122, %123
+    %125: %r9 = alias %124
     %126: %r1 = alias %125
     %127: %r0 = const 2
     %128: %r0 = const 0
@@ -320,7 +321,7 @@ fn main() -> one %r0
     host host.throw "yana: a runtime check failed"
     unreachable
 
-optimizer clones 4 aliased 3 forwarded 0 removed 25 adopted 0 sunk 0 numbered 8 decided 0 unboxed 1 updated 0 split 1 promoted 16
+optimizer clones 3 aliased 2 forwarded 0 removed 26 adopted 0 sunk 0 numbered 8 decided 0 unboxed 1 updated 0 split 1 promoted 17
 
 shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
 shape %s1 cell {$v: %r7 box}

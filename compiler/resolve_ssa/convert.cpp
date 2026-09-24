@@ -407,6 +407,15 @@ struct Planner {
                                   captured.contract.form()), nullptr
             };
 
+            /*
+             * And the field says it holds that **address**, which the occurrence cannot: with the
+             * form carried, `[unique slot n view]` reads natively as a writable window *by value*,
+             * and the environment was built as a sixteen-byte copy of it that `captureOf` then read
+             * one word of as a pointer - `RecordField::holdsAddress`. Dropping the form again
+             * is J70's JavaScript defect; the bit is the half that only the native layout reads.
+             */
+            field.holdsAddress = true;
+
             record->originSlots++;
             record->fields.push(program.decl, field);
         }
@@ -753,6 +762,11 @@ struct Conversion {
     Graft* grafting = nullptr;
     U32 graftDepth = 0;
 
+    // Whether a graft below this conversion was refused at the depth limit. What the refused call
+    // would have produced is then missing on purpose, so an operand naming it is that refusal's
+    // consequence and not a second fault - counted, and not reported as an internal error.
+    bool graftRefused = false;
+
     // Set where this conversion is the **step** of an iterator object - `StepPlan`, which is where
     // the three things it reads differently are written down.
     StepPlan* stepping = nullptr;
@@ -1012,6 +1026,18 @@ struct Conversion {
         return editor.use(value, isTracked(value.convention) ? UseKind::Borrow : UseKind::Inspect);
     }
 
+    /*
+     * A type with **one value** read out of storage is that value, and never a load - the rule the
+     * `Read` case gives the reason for, and a `lens.try`'s `| {}` failure the second place it
+     * applies. Null for any other type, and the caller loads. One member rather than the test
+     * written at each, since a load of zero bytes is what `lower/inst.cpp` asserts against and a
+     * site that forgot it was found only by an unoptimized build of `-> (Int | {})`.
+     */
+    Value* unitValue(LocationId at, const mir::Occurrence& held) {
+        if(decl()[held.type]->kind != mir::Type::Unit) return nullptr;
+        return editor.resultOf(*editor.addConst(at, mir::unitConstant(held.type)));
+    }
+
     Value* addressOf(mir::Place& place, LocationId at) {
         switch(place.kind) {
             case mir::Place::Global: {
@@ -1258,7 +1284,8 @@ struct Conversion {
     Value* valueProducedBy(NodeId node, LocationId at) {
         auto value = produced[node.index];
         if(!value) {
-            report(at, "internal: a place names a node that produced no value"_v);
+            if(graftRefused) errors++;
+            else report(at, "internal: a place names a node that produced no value"_v);
             return nullptr;
         }
 
@@ -1270,7 +1297,8 @@ struct Conversion {
             case mir::SourceKind::Result: {
                 auto value = produced[operand.nodeId().index];
                 if(!value) {
-                    report(at, "internal: an operand names a node that produced no value"_v);
+                    if(graftRefused) errors++;
+                    else report(at, "internal: an operand names a node that produced no value"_v);
                     return nullptr;
                 }
 
@@ -2110,6 +2138,8 @@ struct Conversion {
         // spellings of the same two instructions, because what differs between them is the index and
         // the type and nothing else.
         auto read = [&](U16 field, mir::Occurrence held) {
+            if(auto unit = unitValue(node.source, held)) return unit;
+
             auto address = editor.addFieldAddress(node.source, addressUse(*storage),
                                                   callee.result.type, field, callee.result.shape);
             return editor.resultOf(
@@ -2157,6 +2187,8 @@ struct Conversion {
         editor.setBlock(*skipping);
 
         auto failure = record.fields.get(decl(), record.cons.get(decl(), mir::kOutcomeExit).first);
+
+        // A `| {}` failure is that value and never a load of it - `unitValue`, which `read` asks.
         auto reason = read(failure.index, failure.occurrence);
         auto handed = editor.use(*reason, UseKind::Consume);
         editor.addJump(node.source, *base()[blocks[region.otherwise.index]], &handed, 1);
@@ -2370,7 +2402,20 @@ struct Conversion {
                                                                      UseKind::Inspect),
                                                       result, conventionFor(result)));
 
-        auto used = editor.use(*loaded, UseKind::Consume);
+        /*
+         * Under the result's own mode, which is a **borrow** where the function answers one - the
+         * mode an ordinary `return` of the same value carries. A slot-named hand-over returned from
+         * inside its region (`let w = firstOf(s) in: return w`, J122's rule) is the caller's storage
+         * under the named origin, so the carrier holds a loan and the value loaded out of it is
+         * guaranteed; returning it with `Consume` was the verifier's "return consumes a guaranteed
+         * value" (J131).
+         */
+        UseKind kind;
+        if(!useKindFor(mir::argumentMode(result.contract, mir::SourceKind::Result), kind)) {
+            kind = UseKind::Consume;
+        }
+
+        auto used = editor.use(*loaded, kind);
         releaseSlots(at);
         editor.addReturn(at, &used, 1);
     }
@@ -2396,6 +2441,7 @@ struct Conversion {
         if(graftDepth >= kMaxGraftDepth) {
             report(node.source,
                    "this call to an `@inline(always)` function is eight expansions deep - a body that is always expanded cannot call itself"_v);
+            graftRefused = true;
             return nullptr;
         }
 
@@ -2422,6 +2468,7 @@ struct Conversion {
         Conversion nested(context, program, arena, callee, emitted, editor, inner, none, nullptr,
                           &graft, graftDepth + 1);
         if(!nested.run()) errors++;
+        graftRefused = graftRefused || nested.graftRefused;
 
         editor.setBlock(*join);
         editor.setRegion(join->region);
@@ -3291,6 +3338,27 @@ struct Conversion {
             auto address = editor.resultOf(*editor.addFieldAddress(at, editor.use(*slot,
                                                                                   UseKind::Inspect),
                                                                    held, 1));
+
+            /*
+             * A **copying** child under a position that is a reference - `'Int` handed over by a
+             * producer whose slot holds the `Int` (`objectLends` copies a trivially copyable item),
+             * which is `items(xs)` at a scalar since J129 named its slot. What the position takes is
+             * where the value is, and that is the slot: the same bytes `f$next` lends its consumer
+             * out of a standalone record. Loading the slot and restating the loaded bytes as a
+             * reference - the row below - handed the region an `Int` read as an address, which the
+             * lowering refused as a pointer-typed immediate (J131). The address is the child's until
+             * its next step, which is the extent §2.6 gives any nested item.
+             *
+             * Not a **window**, which `referenceValued` also answers yes to: a view position takes
+             * the descriptor's own two words (`slotWindow`), which is the row below.
+             */
+            if(referenceValued(position) && position.contract.form() != mir::AccessForm::View &&
+               !referenceValued(mir::owned(item.type))) {
+                return editor.resultOf(*editor.addUnary(at, mir::UnaryOp::Represent,
+                                                        editor.use(*address, UseKind::Inspect),
+                                                        position, conventionFor(position)));
+            }
+
             carried = mir::owned(item.type);
             value = editor.resultOf(*editor.addLoad(at, editor.use(*address, UseKind::Inspect),
                                                     carried, conventionFor(carried), false));
@@ -3615,9 +3683,8 @@ struct Conversion {
                  * `makeMemoryFlags` has no encoding for and `lower/inst.cpp` asserts against by name.
                  */
                 auto held = substituted(mir::valueOccurrence(node));
-                if(decl()[held.type]->kind == mir::Type::Unit) {
-                    produced[node.id.index] = editor.resultOf(*editor.addConst(
-                        node.source, mir::unitConstant(held.type))) - base();
+                if(auto unit = unitValue(node.source, held)) {
+                    produced[node.id.index] = unit - base();
                     break;
                 }
 
@@ -4411,8 +4478,30 @@ struct Conversion {
                      */
                     if(stepping && place->payload < stepping->localField.size() &&
                        stepping->localField[place->payload] != StepPlan::kNoField) {
-                        auto slot = stepField(node.source,
-                                              U16(stepping->localField[place->payload]));
+                        auto field = U16(stepping->localField[place->payload]);
+                        auto slot = stepField(node.source, field);
+
+                        /*
+                         * And a **value** member, where the mint held the loan's bytes rather than
+                         * its address: `captureKindOf` answers `Value` for a shared call-bounded
+                         * loan of a trivially copyable aggregate - `for e in pairs(m)` over
+                         * `Entry('I32, 'I16)` - which is the calling convention's reading, and this
+                         * arm's `aliasesLender` answers "reference" for the same occurrence. The
+                         * field is the record's bytes at the local's own type and shape, so what
+                         * goes in is a copy of what the loan names, which no program can tell from
+                         * the loan. Storing the loan itself put an address in the record's first
+                         * word and the consumer read it as the entry's key (J131).
+                         */
+                        auto member = stepping->record->field(decl(), field).occurrence;
+
+                        if(!stepping->localBorrow[place->payload] &&
+                           member.type == substituted(place->occurrence).type &&
+                           referenceValued(value->occurrence) && !referenceValued(member)) {
+                            auto copied = editor.addLoad(node.source,
+                                                         editor.use(*value, UseKind::Inspect),
+                                                         member, conventionFor(member), false);
+                            value = editor.resultOf(*copied);
+                        }
 
                         editor.addStore(node.source, editor.use(*slot, UseKind::Inspect),
                                         editor.use(*value, UseKind::Inspect));

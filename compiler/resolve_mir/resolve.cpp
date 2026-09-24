@@ -1827,8 +1827,18 @@ Maybe<Constant> Resolver::resolveAggregateConstant(ast::Expr& expr, DeclPtr<Type
         /*
          * A field that holds a **loan**, which no constant can fill: what would go in the storage is
          * a reference to something, and a constant is a value with nowhere for that something to be.
+         *
+         * Except that it is not a mistake where the position has a program point: a root-level
+         * global is then built by the entry sequence like any other dynamic one, and the loan
+         * checker is what says whether what it refers to lives as long as the global does - a loan
+         * of another global does, and is the only thing that can. Placed bytes with a
+         * relocation to the lent global were the other form, and would reach only a lent global
+         * that is itself a constant; a window of a growable array, which is what a global loan field
+         * is usually for, is a run that exists only once the entry has allocated it.
          */
         if(!field.occurrence.contract.isOwned()) {
+            if(probingGlobal) { reduced = false; continue; }
+
             context.diagnostics.error(
                 "field %@ refers to storage the record does not own, so it has no constant form"_v,
                 argument.value.source, context.findName(field.name));

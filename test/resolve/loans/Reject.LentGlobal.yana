@@ -1,0 +1,28 @@
+{-
+   A write of a global another global holds a loan of (ownership.md, "Loans and globals").
+
+   # resolver: ownership
+
+   `gLoose` holds a window of `gArr` for as long as the program runs, so every point of the program
+   is one where that loan is live: a write of `gArr` anywhere - a `push`, an assignment, an
+   `exchange` - is a write under a shared loan. Unrefused, `main` answered `0 0 3` where `1 2 3` is
+   right: `grow` moved `gArr`'s run and `gLoose.held` still pointed at the old one.
+   `GlobalLoan.yana` is the neighbour that writes neither lender.
+-}
+
+data Loose {held: '[Int]}
+
+let &gArr = [1, 2, 3] :: Array(Int)
+let &gLoose = Loose {held: gArr}
+
+fn grow():
+    for i in 0..1000:
+        push(gArr, i + 100)
+
+fn reset():
+    gArr = [7] :: Array(Int)
+
+fn main() -> Int:
+    grow()
+    reset()
+    return gLoose.held[0] + gLoose.held[1]

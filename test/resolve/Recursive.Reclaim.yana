@@ -15,7 +15,7 @@ data List = Nil | Cons {head: Int, tail: List}
 
 fn sum(xs: List) -> Int = match xs:
     Nil -> 0
-    Cons(c) -> c.head + sum(c.tail)
+    Cons {head, tail} -> head + sum(tail)
 
 fn buildAndDrop() -> Int:
     let xs = Cons {head: 1, tail: Cons {head: 2, tail: Cons {head: 39, tail: Nil}}}

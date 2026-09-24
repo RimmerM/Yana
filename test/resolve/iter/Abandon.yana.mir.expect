@@ -215,7 +215,7 @@ bb0:
   %3: noisy.Iter = call noisy$new take %2
   write.init borrow.unique (it) take %3
   %5: noisy.Iter [unique slot 0] = read borrow.unique (it) loan0
-  %6: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(noisy.Iter, I32, {}) borrow.unique %5 roots.0{0}
+  %6: Maybe(I32) [owned here shape2 .0=shared slot 0] = call noisy$next borrow.unique %5 roots.0{0}
   write.init borrow.unique (local1) take %6
   %8: U8 = read copy.trivial (local1.#)
   %9: U8 = const 1

@@ -1,0 +1,162 @@
+fn total(parts %r3, one %r0) -> one %r0
+  block0(%0: %r1, %1: %r0, %2: %r0, %3: %r0):
+    %4: %r0 = const 0
+    %5: %r4 = convert %4
+    %6: %r4 = convert %1
+    %7: %r5 = binary.ge %5, %6
+    branch %7 -> block2 -> block1
+  block1:
+    %8: %r1 = alias %0
+    %9: %r0 = load element %8[%2]: %r0
+    %10: %r0 = const 100
+    %11: %r0 = binary.mul %9, %10
+    %12: %r0 = coerce %11
+    %13: %r0 = const 1
+    %14: %r4 = convert %13
+    %15: %r4 = alias %6
+    %16: %r5 = binary.ge %14, %15
+    branch %16 -> block4 -> block3
+  block2:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+  block3:
+    %17: %r1 = alias %0
+    %18: %r0 = binary.add %2, %13
+    %19: %r0 = coerce %18
+    %20: %r0 = load element %17[%19]: %r0
+    %21: %r0 = const 10
+    %22: %r0 = binary.mul %20, %21
+    %23: %r0 = coerce %22
+    %24: %r0 = binary.add %12, %23
+    %25: %r0 = coerce %24
+    %26: %r0 = binary.add %25, %3
+    %27: %r0 = coerce %26
+    return %27
+  block4:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+fn main() -> one %r0
+  var $0: %r10
+  var $1: %r11
+  var $2: %r7
+  var $3: %r7
+  var $4: %r7
+  var $5: %r7
+  var $6: %r7
+  var $7: %r9
+  var $8: %r0
+  var $9: %r7
+  var $10: %r0
+  block0:
+    %0: %r0 = const 0
+    %1: %r0 = const 0
+    %2: %r7 = array %0, %1
+    %3: %r12 = object %s4 %2
+    %30: %r0 = const 1
+    %31: %r0 = const 2
+    %32: %r7 = array %30, %31
+    %33: %r7 = alias %32
+    store property %3.$v: %r7, %33
+    %35: %r8 = const "$v"
+    %36: %r9 = object %s2 %3, %35
+    %39: %r9 = alias %36
+    %40: %r7 = load cell %39: %r7
+    %41: %r7 = load cell %39: %r7
+    %42: %r7 = clone %41
+    %43: %r7 = alias %42
+    %44: %r1 = alias %43
+    %45: %r0 = const 2
+    %47: %r0 = const 0
+    %48: %r1 = alias %44
+    %50: %r9 = alias %36
+    %51: %r0 = const 0
+    %52: %r0 = const 7
+    %53: %r7 = load cell %50: %r7
+    %54: %r7 = load cell %50: %r7
+    store element %54[%51]: %r0, %52
+    %55: %r0 = const 1
+    %56: %r0 = call total %48, %45, %47, %55
+    %57: %r0 = const 1
+    %58: %r0 = const 2
+    %59: %r7 = array %57, %58
+    %60: %r7 = alias %59
+    %62: %r7 = alias %60
+    %65: %r7 = alias %62
+    %66: %r7 = clone %65
+    %67: %r7 = alias %66
+    %68: %r1 = alias %67
+    %69: %r0 = const 2
+    %71: %r0 = const 0
+    %72: %r1 = alias %68
+    %73: %r0 = const 0
+    %74: %r0 = const 7
+    %75: %r7 = alias %60
+    %76: %r7 = alias %75
+    store element %76[%73]: %r0, %74
+    %77: %r0 = const 1
+    %78: %r0 = call total %72, %69, %71, %77
+    %79: %r0 = const 1
+    %80: %r0 = const 2
+    %81: %r7 = array %79, %80
+    %82: %r7 = alias %81
+    %84: %r7 = alias %82
+    %85: %r7 = clone %84
+    %86: %r7 = alias %85
+    %87: %r1 = alias %86
+    %88: %r0 = const 2
+    %90: %r0 = const 0
+    %91: %r1 = alias %87
+    %92: %r0 = const 0
+    %93: %r0 = const 7
+    %95: %r7 = alias %82
+    store element %95[%92]: %r0, %93
+    %96: %r0 = const 1
+    %97: %r0 = call total %91, %88, %90, %96
+    %98: %r0 = const 1
+    %99: %r0 = const 2
+    %100: %r0 = const 3
+    %101: %r14 = array %98, %99, %100
+    %102: %r0 = const 2
+    %103: %r1 = alias %101
+    %106: %r0 = const 0
+    %107: %r1 = alias %103
+    %108: %r0 = const 0
+    %109: %r0 = call total %107, %102, %106, %108
+    %110: %r0 = const 10
+    %111: %r0 = binary.div %109, %110
+    %112: %r0 = coerce %111
+    %113: %r0 = binary.add %56, %78
+    %114: %r0 = coerce %113
+    %115: %r0 = binary.add %114, %97
+    %116: %r0 = coerce %115
+    %117: %r0 = const 100
+    %118: %r0 = binary.mul %116, %117
+    %119: %r0 = coerce %118
+    %120: %r0 = binary.add %119, %112
+    %121: %r0 = coerce %120
+    return %121
+
+optimizer clones 3 aliased 0 forwarded 0 removed 53 adopted 0 sunk 0 numbered 2 decided 0 unboxed 4 updated 0 split 2 promoted 10
+
+shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
+shape %s1 object Box {cell: %r9, tag: %r0}
+shape %s2 ref {$o: %r8 owner, $k: %r8 key}
+shape %s3 object View {cell: %r7, tag: %r0}
+shape %s4 cell {$v: %r7 box}
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = object %s0
+rep %r3 = parts (%r1, %r0, %r0) as %r2
+rep %r4 = number unsigned 32
+rep %r5 = number bool
+rep %r6 = void
+rep %r7 = array Int32Array of %r0
+rep %r8 = erased
+rep %r9 = cell of %r7
+rep %r10 = object %s1
+rep %r11 = object %s3
+rep %r12 = object %s4
+rep %r13 = array Array of %r7
+rep %r14 = array Int32Array of %r0

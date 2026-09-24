@@ -381,6 +381,10 @@ LowerPtr<LowerValue> Lowering::destinationFor(LowerBlock& block, Value& value) {
             auto held = reprOf(layout, record, result->occurrence.shape).fields.get(decl, field);
             if(held.isPacked()) return nullptr;
 
+            // Nor has a field holding an address: the component is the lender's storage, and
+            // placing a value into the word would write the value's bytes over it.
+            if(declared.field(decl, field).holdsAddress) return nullptr;
+
             return offsetAddress(block, storage, held.offset);
         }
 
@@ -2261,6 +2265,23 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     if(!target) return;
 
                     install(block, target, *ssa[used.value()]);
+                    continue;
+                }
+
+                /*
+                 * A field holding the lender's **address** stores the component's address - which
+                 * is what a borrowed value's register form already is, a loan being its storage and
+                 * a window in memory being where its record sits. `install` would copy the bytes the
+                 * occurrence names instead, which for a view-form capture is the whole window into
+                 * one word: `RecordField::holdsAddress`.
+                 */
+                if(declared.field(decl, field).holdsAddress) {
+                    auto source = mapped(used.value());
+                    if(!source) return;
+
+                    block.addInst(lower, new (to.arena) LowerInstStore(
+                        offsetAddress(block, storage, held.offset), source - lower,
+                        layout.target.pointerSize));
                     continue;
                 }
 

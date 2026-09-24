@@ -1,0 +1,348 @@
+module ResolveTest
+
+data Both(k, v) {key: k, value: v} drop derived reclaim derived
+
+data Both(I32, I32) {key: I32, value: I32} of Both
+
+data both(I32, I32).Iter {$index: I32, $slot: %Both(I32, I32), keys: ArrayView(I32), values: ArrayView(I32), : Size, : Both(I32, I32), : Size, : Size} shape17
+
+instance Iterate(both(I32, I32).Iter, Both(I32, I32), {}): both(I32, I32)$next, both(I32, I32)$resume
+
+lens fn both(keys: Array(k) [shared slot 0 view], values: Array(v) [shared slot 0 view], $body: (Both(k, v)) -> I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type k
+  slot #1 type v
+  local & $yielded: I32
+  local & local4: Size
+  local i: Size
+  local local6: k [shared slot 0]
+  local local7: v [shared slot 0]
+  local local8: Both(k, v) [owned here shape5 .0=shared slot 0 .1=shared slot 0]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Array(k) [shared slot 0 view] = read borrow.shared (keys) loan0
+  %3: Size = call length(Array(k)) borrow.shared %2
+  %4: Size = const 0
+  %5: Size = const 1
+  write.init borrow.unique (local4) take %4
+  jump -> bb1(take %3, take %5)
+
+bb1(%6: Size, %7: Size):
+  %14: Size = read copy.trivial (local4)
+  %15: Bool = lt inspect %14 inspect %6
+  branch inspect %15 -> bb4(take %6, take %7) -> bb3(take %6, take %7)
+
+bb2(%8: Size, %9: Size):
+  %42: Size = read copy.trivial (local4)
+  %43: Size = add inspect %42 inspect %9
+  write.assign borrow.unique (local4) take %43
+  jump -> bb1(take %8, take %9)
+
+bb3(%10: Size, %11: Size):
+  %46: I32 = read copy.trivial ($yielded)
+  return take %46
+
+bb4(%16: Size, %17: Size):
+  %19: Size = read copy.trivial (local4)
+  write.init borrow.unique (i) take %19
+  %21: Size = read copy.trivial (i)
+  %22: Array(k) [shared slot 0 view] = read borrow.shared (keys) loan1
+  %23: k [shared slot 0] = call.subscript get(Array(k), Size, k) borrow.shared %22 borrow.shared %21 roots{1}
+  write.init borrow.unique (local6) borrow.shared %23
+  %25: k [shared slot 0] = read borrow.shared (local6) loan2 roots{1}
+  %26: Size = read copy.trivial (i)
+  %27: Array(v) [shared slot 0 view] = read borrow.shared (values) loan3
+  %28: v [shared slot 0] = call.subscript get(Array(v), Size, v) borrow.shared %27 borrow.shared %26 roots{3}
+  write.init borrow.unique (local7) borrow.shared %28
+  %30: v [shared slot 0] = read borrow.shared (local7) loan4 roots{3}
+  %31: Both(k, v) [owned here shape5 .0=shared slot 0 .1=shared slot 0] = aggregate.Both borrow.shared %25 borrow.shared %30 roots.0{1, 2} roots.1{3, 4}
+  write.init borrow.unique (local8) take %31
+  %33: Both(k, v) [owned here shape5 .0=shared slot 0 .1=shared slot 0] = read copy.trivial (local8) roots.0{1, 2} roots.1{3, 4}
+  %34: (Both(k, v)) -> I32 [shared call] = read borrow.shared ($body) loan5
+  %35: I32 = call inspect %34 borrow.shared %33
+  %36: I32 = const 0
+  %37: Bool = eq inspect %35 inspect %36
+  write.assign borrow.unique ($yielded) take %35
+  branch inspect %37 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %16, take %17)
+
+bb6:
+  jump -> bb3(take %16, take %17)
+}
+
+fn stepped() -> I32 {
+  local & local0: Map(I32, I32) object0
+  local m: Map(I32, I32) object0
+  local & it: pairs(I32, I32).Iter [owned here shape8 .2.*=shared slot 0]
+  local & total: I32
+  local e: Entry(I32, I32) [shared slot 0 shape5 .0=shared slot 0 .1=shared slot 0]
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 10
+  %2: I32 = const 2
+  %3: I32 = const 20
+  %4: Size = const 2
+  %5: Map(I32, I32) = call newMap(I32, I32) borrow.shared %4
+  write.init borrow.unique (local0) take %5
+  %7: Map(I32, I32) [unique call] = read borrow.unique (local0) loan0
+  %8: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %7 take %0 take %1
+  %9: Map(I32, I32) [unique call] = read borrow.unique (local0) loan1
+  %10: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %9 take %2 take %3
+  %11: Map(I32, I32) = read take (local0)
+  write.init borrow.unique (m) take %11
+  %13: Map(I32, I32) [shared slot 0] = read borrow.shared (m) loan2
+  %14: pairs(I32, I32).Iter [owned here shape8 .2.*=shared slot 0] = call pairs(I32, I32)$new borrow.shared %13 roots.0{2}
+  write.init borrow.unique (it) take %14
+  %16: I32 = const 0
+  write.init borrow.unique (total) take %16
+  jump -> bb1
+
+bb1:
+  %19: pairs(I32, I32).Iter [unique call shape8 .2.*=shared slot 0] = read borrow.unique (it) loan3 roots.0{2}
+  %20: I32 = const 0
+  %21: Bool = const False
+  %22: Bool = call pairs(I32, I32)$step borrow.unique %19 take %20 take %21
+  branch inspect %22 -> bb3 -> bb2
+
+bb2:
+  drop (m)
+  %35: I32 = read copy.trivial (total)
+  return take %35
+
+bb3:
+  %24: pairs(I32, I32).Iter [shared slot 0 shape8 .2.*=shared slot 0] = read borrow.shared (it) loan4 roots.0{2}
+  %25: Entry(I32, I32) [shared slot 0 shape5 .0=shared slot 0 .1=shared slot 0] = call pairs(I32, I32)$item borrow.shared %24 roots{2, 4} roots.0{2, 4} roots.1{2, 4}
+  write.init borrow.unique (e) borrow.shared %25
+  %27: I32 [unique call] = read borrow.unique (total) loan5
+  %28: I32 = read copy.trivial (e.key)
+  %29: I32 = const 100
+  %30: I32 = mul inspect %28 inspect %29
+  %31: I32 = read copy.trivial (e.value)
+  %32: I32 = add inspect %30 inspect %31
+  %33: {} = call +=(I32) borrow.unique %27 borrow.shared %32
+  jump -> bb1
+}
+
+fn nexted() -> I32 {
+  local & local0: Map(I32, I32) object0
+  local m: Map(I32, I32) object0
+  local & it: pairs(I32, I32).Iter [owned here shape8 .2.*=shared slot 0]
+  local & total: I32
+  local local4: Maybe(Entry(I32, I32)) [owned here shape10 .0=shared slot 0 .0.0=shared slot 1 .0.1=shared slot 1]
+  local e: Entry(I32, I32) [owned here shape12 .0=shared slot 1 .1=shared slot 1]
+
+bb0:
+  %0: I32 = const 3
+  %1: I32 = const 30
+  %2: I32 = const 4
+  %3: I32 = const 40
+  %4: Size = const 2
+  %5: Map(I32, I32) = call newMap(I32, I32) borrow.shared %4
+  write.init borrow.unique (local0) take %5
+  %7: Map(I32, I32) [unique call] = read borrow.unique (local0) loan0
+  %8: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %7 take %0 take %1
+  %9: Map(I32, I32) [unique call] = read borrow.unique (local0) loan1
+  %10: {} = call insertAt(Map(I32, I32), I32, I32) borrow.unique %9 take %2 take %3
+  %11: Map(I32, I32) = read take (local0)
+  write.init borrow.unique (m) take %11
+  %13: Map(I32, I32) [shared slot 0] = read borrow.shared (m) loan2
+  %14: pairs(I32, I32).Iter [owned here shape8 .2.*=shared slot 0] = call pairs(I32, I32)$new borrow.shared %13 roots.0{2}
+  write.init borrow.unique (it) take %14
+  %16: I32 = const 0
+  write.init borrow.unique (total) take %16
+  jump -> bb1
+
+bb1:
+  %19: pairs(I32, I32).Iter [unique slot 0 shape8 .2.*=shared slot 0] = read borrow.unique (it) loan3 roots.0{2}
+  %20: Maybe(Entry(I32, I32)) [owned here shape10 .0=shared slot 0 .0.0=shared slot 1 .0.1=shared slot 1] = call pairs(I32, I32)$next borrow.unique %19 roots.0{3} roots.1{2} roots.2{2}
+  write.init borrow.unique (local4) take %20
+  %22: U8 = read copy.trivial (local4.#)
+  %23: U8 = const 1
+  %24: Bool = eq inspect %22 inspect %23
+  branch inspect %24 -> bb3 -> bb2
+
+bb2:
+  drop (m)
+  %36: I32 = read copy.trivial (total)
+  return take %36
+
+bb3:
+  %26: Entry(I32, I32) [owned here shape12 .0=shared slot 1 .1=shared slot 1] = read copy.trivial (local4.Just) roots{3} roots.0{2} roots.1{2}
+  write.init borrow.unique (e) take %26
+  %28: I32 [unique call] = read borrow.unique (total) loan4
+  %29: I32 = read copy.trivial (e.key)
+  %30: I32 = const 100
+  %31: I32 = mul inspect %29 inspect %30
+  %32: I32 = read copy.trivial (e.value)
+  %33: I32 = add inspect %31 inspect %32
+  %34: {} = call +=(I32) borrow.unique %28 borrow.shared %33
+  jump -> bb1
+}
+
+fn narrow() -> I32 {
+  local & local0: Map(I16, I16) object0
+  local m: Map(I16, I16) object0
+  local & it: pairs(I16, I16).Iter [owned here shape8 .2.*=shared slot 0]
+  local & total: I32
+  local e: Entry(I16, I16) [shared slot 0 shape5 .0=shared slot 0 .1=shared slot 0]
+
+bb0:
+  %0: I16 = const 5
+  %1: I16 = const 50
+  %2: Size = const 1
+  %3: Map(I16, I16) = call newMap(I16, I16) borrow.shared %2
+  write.init borrow.unique (local0) take %3
+  %5: Map(I16, I16) [unique call] = read borrow.unique (local0) loan0
+  %6: {} = call insertAt(Map(I16, I16), I16, I16) borrow.unique %5 take %0 take %1
+  %7: Map(I16, I16) = read take (local0)
+  write.init borrow.unique (m) take %7
+  %9: Map(I16, I16) [shared slot 0] = read borrow.shared (m) loan1
+  %10: pairs(I16, I16).Iter [owned here shape8 .2.*=shared slot 0] = call pairs(I16, I16)$new borrow.shared %9 roots.0{1}
+  write.init borrow.unique (it) take %10
+  %12: I32 = const 0
+  write.init borrow.unique (total) take %12
+  jump -> bb1
+
+bb1:
+  %15: pairs(I16, I16).Iter [unique call shape8 .2.*=shared slot 0] = read borrow.unique (it) loan2 roots.0{1}
+  %16: I32 = const 0
+  %17: Bool = const False
+  %18: Bool = call pairs(I16, I16)$step borrow.unique %15 take %16 take %17
+  branch inspect %18 -> bb3 -> bb2
+
+bb2:
+  drop (m)
+  %33: I32 = read copy.trivial (total)
+  return take %33
+
+bb3:
+  %20: pairs(I16, I16).Iter [shared slot 0 shape8 .2.*=shared slot 0] = read borrow.shared (it) loan3 roots.0{1}
+  %21: Entry(I16, I16) [shared slot 0 shape5 .0=shared slot 0 .1=shared slot 0] = call pairs(I16, I16)$item borrow.shared %20 roots{1, 3} roots.0{1, 3} roots.1{1, 3}
+  write.init borrow.unique (e) borrow.shared %21
+  %23: I32 [unique call] = read borrow.unique (total) loan4
+  %24: I16 = read copy.trivial (e.key)
+  %25: I32 = convert inspect %24
+  %26: I32 = const 100
+  %27: I32 = mul inspect %25 inspect %26
+  %28: I16 = read copy.trivial (e.value)
+  %29: I32 = convert inspect %28
+  %30: I32 = add inspect %27 inspect %29
+  %31: {} = call +=(I32) borrow.unique %23 borrow.shared %30
+  jump -> bb1
+}
+
+fn generic() -> I32 {
+  local & local0: Array(I32) object1
+  local keys: Array(I32) object1
+  local & local2: Array(I32) object5
+  local values: Array(I32) object5
+  local & it: both(I32, I32).Iter [owned here shape15 .2.0.*=shared slot 0 .3.0.*=shared slot 1]
+  local & total: I32
+  local e: Both(I32, I32) [shared slot 0 shape5 .0=shared slot 0 .1=shared slot 0]
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: %I32 = run.slots I32 *2
+  %3: Size = bitcast inspect %2
+  %4: Size = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  %6: {} = call checkCondition borrow.shared %5
+  %7: @bits(30) U32 = const 2
+  %8: @bits(2) U32 = const 1
+  %9: Run(I32) = aggregate.Run take %2 take %7 take %8
+  %10: @bits(30) U32 = const 2
+  %11: Array(I32) = aggregate.Array take %9 take %10
+  write.init borrow.unique (local0) take %11
+  %13: Size = const 0
+  write.init borrow.unique ([%%2][0]) take %0
+  %15: Size = const 1
+  write.init borrow.unique ([%%2][1]) take %1
+  %17: Array(I32) = read take (local0)
+  write.init borrow.unique (keys) take %17
+  %19: I32 = const 10
+  %20: I32 = const 20
+  %21: %I32 = run.slots I32 *2
+  %22: Size = bitcast inspect %21
+  %23: Size = const 0
+  %24: Bool = eq inspect %22 inspect %23
+  %25: {} = call checkCondition borrow.shared %24
+  %26: @bits(30) U32 = const 2
+  %27: @bits(2) U32 = const 1
+  %28: Run(I32) = aggregate.Run take %21 take %26 take %27
+  %29: @bits(30) U32 = const 2
+  %30: Array(I32) = aggregate.Array take %28 take %29
+  write.init borrow.unique (local2) take %30
+  %32: Size = const 0
+  write.init borrow.unique ([%%21][0]) take %19
+  %34: Size = const 1
+  write.init borrow.unique ([%%21][1]) take %20
+  %36: Array(I32) = read take (local2)
+  write.init borrow.unique (values) take %36
+  %38: Array(I32) [shared slot 0] = read borrow.shared (keys) loan0
+  %39: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %38 roots{0}
+  %40: Array(I32) [shared slot 0] = read borrow.shared (values) loan1
+  %41: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %40 roots{1}
+  %42: both(I32, I32).Iter [owned here shape15 .2.0.*=shared slot 0 .3.0.*=shared slot 1] = call both(I32, I32)$new borrow.shared %39 borrow.shared %41 roots.0{0} roots.1{1}
+  write.init borrow.unique (it) take %42
+  %44: I32 = const 0
+  write.init borrow.unique (total) take %44
+  jump -> bb1
+
+bb1:
+  %47: both(I32, I32).Iter [unique call shape15 .2.0.*=shared slot 0 .3.0.*=shared slot 1] = read borrow.unique (it) loan2 roots.0{0} roots.1{1}
+  %48: I32 = const 0
+  %49: Bool = const False
+  %50: Bool = call both(I32, I32)$step borrow.unique %47 take %48 take %49
+  branch inspect %50 -> bb3 -> bb2
+
+bb2:
+  drop (keys)
+  drop (values)
+  %63: I32 = read copy.trivial (total)
+  return take %63
+
+bb3:
+  %52: both(I32, I32).Iter [shared slot 0 shape15 .2.0.*=shared slot 0 .3.0.*=shared slot 1] = read borrow.shared (it) loan3 roots.0{0} roots.1{1}
+  %53: Both(I32, I32) [shared slot 0 shape5 .0=shared slot 0 .1=shared slot 0] = call both(I32, I32)$item borrow.shared %52 roots{0, 1, 3} roots.0{0, 1, 3} roots.1{0, 1, 3}
+  write.init borrow.unique (e) borrow.shared %53
+  %55: I32 [unique call] = read borrow.unique (total) loan4
+  %56: I32 = read copy.trivial (e.key)
+  %57: I32 = const 100
+  %58: I32 = mul inspect %56 inspect %57
+  %59: I32 = read copy.trivial (e.value)
+  %60: I32 = add inspect %58 inspect %59
+  %61: {} = call +=(I32) borrow.unique %55 borrow.shared %60
+  jump -> bb1
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call stepped
+  %1: I32 = call nexted
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call narrow
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call generic
+  %6: I32 = add inspect %4 inspect %5
+  return take %6
+}
+
+lens fn both(I32, I32)(keys: Array(I32) [shared slot 0 view], values: Array(I32) [shared slot 0 view], $body: (Both(I32, I32)) -> I32 [shared call]) -> I32 = <both at I32, I32>
+
+fn both(I32, I32)$new(keys: Array(I32) [shared slot 0 view], values: Array(I32) [shared slot 1 view]) -> both(I32, I32).Iter [owned here shape15 .2.0.*=shared slot 0 .3.0.*=shared slot 1] = <no body>
+
+fn both(I32, I32)$step($self: both(I32, I32).Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn both(I32, I32)$item($self: both(I32, I32).Iter [shared slot 0]) -> Both(I32, I32) [shared slot 0 shape5 .0=shared slot 0 .1=shared slot 0] = <no body>
+
+fn both(I32, I32)$next($self: both(I32, I32).Iter [unique slot 0 shape16 .2.0.*=shared slot 1 .3.0.*=shared slot 1]) -> Maybe(Both(I32, I32)) [owned here shape10 .0=shared slot 0 .0.0=shared slot 1 .0.1=shared slot 1] = <no body>
+
+fn both(I32, I32)$resume($self: both(I32, I32).Iter [unique slot 0 shape16 .2.0.*=shared slot 1 .3.0.*=shared slot 1], $v: {}) -> Maybe(Both(I32, I32)) [owned here shape10 .0=shared slot 0 .0.0=shared slot 1 .0.1=shared slot 1] = <no body>
+
+entry main

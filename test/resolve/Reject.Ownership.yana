@@ -2,6 +2,9 @@ import Native
 
 -- What the borrow checker rejects. Each function is one rule; the expectation beside this file is
 -- the whole of what it reports.
+--
+-- # resolver: ownership
+-- # recover: yes - every rule below is reported in one compile, the way the command line reports them.
 
 data Buffer {bytes: %U8}
 
@@ -31,11 +34,8 @@ fn twoMutableBorrows() -> I64:
     swap(value, value)
     return value
 
--- Moving one field out of an aggregate. The slot would be half-owned afterwards, and every later
--- drop of it would have to know which half - a drop flag per field, which is not built yet.
-fn partialMove() -> I64:
-    let pair = Pair {left: Buffer {bytes: null()}, right: Buffer {bytes: null()}}
-    return take(pair.left)
+-- Moving one field out of an owned aggregate was refused here; partial moves are
+-- specified (ownership.md, "Partial ownership"), so `partialMove` and `updatePartial` are gone.
 
 -- Taking ownership out of borrowed storage and putting nothing back. The move itself is allowed
 -- through a `&` - see test/lib/BorrowUpdate.yana - because an exclusive borrow means nothing else
@@ -46,8 +46,6 @@ fn moveFromBorrow(&held: Buffer) -> I64 = take(held)
 -- A move update is a move, so it is the same three rules again rather than three of its own: the
 -- source has to be owned, whole, and unused afterwards.
 fn updateFromBorrow(&held: Pair) -> Pair = {->held | right: Buffer {bytes: null()}}
-
-fn updatePartial(->pair: Pair) -> Buffer = {->pair.left | bytes: null()}
 
 -- Reading the source *after* the update, rather than in the replacement it is allowed in.
 fn updateThenUse(->pair: Pair) -> Pair:
@@ -72,7 +70,7 @@ fn updateThenUse(->pair: Pair) -> Pair:
    value; a move out of one is the only thing in the language that could have made that false, and
    the second ownership lattice is what now tells the two apart.
 -}
-fn pick(return &a: Buffer, return &b: Buffer, first: Bool) -> &Buffer = if first then a else b
+fn pick(&a: 'Buffer, &b: 'Buffer, first: Bool) -> &'Buffer = if first then a else b
 
 fn moveFromBorrowBinding(&x: Buffer, &y: Buffer) -> I64:
     let &chosen = pick(x, y, True)
@@ -121,23 +119,8 @@ fn readsTheWindow(&held: Buffer) -> I64:
     held = old
     return n
 
-{-
-   Duplicating a value with a teardown out of raw memory.
-
-   A pointer's target has no owner, so none of the "this frame only borrows it" rules has a lender
-   to name and none of them applies. Copying it is a different question: two names now run one
-   teardown, and that is about the value rather than about whose it was.
-
-   All of it used to leave the check unexamined, on the reading that `return *p` is what Native
-   needs it to be. What that exempted was the copy and not the *move* - `let ->x = *p` is an
-   InstMove, never reaches this check at all, and is what `Reclaim(Array(a))` is written on. So the
-   escape hatch is not closed here, it is spelled, and the message names the spelling.
--}
-fn copiedOutOfMemory(p: %Buffer) -> I64:
-    let &held = *p
-    return take(held)
-
-fn returnedOutOfMemory(p: %Buffer) -> Buffer = *p
+-- Duplicating a value with a teardown out of raw memory, `let &held = *p`, is
+-- `Reject.Ownership.Legacy.yana`: the new stage does not refuse it yet.
 
 -- The move, which is the same two lines said the way Native means them, and stays accepted.
 fn takenOutOfMemory(p: %Buffer) -> I64:

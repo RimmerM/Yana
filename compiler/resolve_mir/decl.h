@@ -15,6 +15,7 @@ struct Class;
 struct Module;
 struct Program;
 struct GenEnvironment;
+struct GlobalEffects;
 
 /*
  * The declaration region - Analysis-IR.md §8.1.
@@ -556,6 +557,10 @@ static constexpr U16 kOutcomeExit = 1;
 static constexpr U16 kTryToOutcome = 0;
 static constexpr U16 kTryFromExit = 1;
 static constexpr U16 kRewrapRewrap = 0;
+
+// And `Iterate`'s two, `known.def`'s `iterate` row: `next(&self)` and `resume(&self, ->v)`.
+static constexpr U16 kIterateNext = 0;
+static constexpr U16 kIterateResume = 1;
 
 /*
  * The ownership classes the compiler itself reaches for are `reclaim`, `drop` and `copy` in
@@ -2311,6 +2316,14 @@ struct Program {
 
     IterObjects* iterObjects = nullptr;
 
+    /*
+     * What each function may do to the program's globals - `analyze_internal.h`, made by
+     * `analyzeProgram` and computed on the first question, which may come from the loan check or,
+     * much later, from `reachesGlobalState`. Owned here because the second asker outlives the pass.
+     */
+    GlobalEffects* globalEffects = nullptr;
+    ~Program();
+
     Module* addModule(StringId name);
 
     /*
@@ -2877,5 +2890,18 @@ DeclPtr<Type> fieldRecordOf(Context& context, Program& program, const Occurrence
 inline bool resumesWithValue(DeclBase base, const Function& function) {
     return function.resume.type && base[function.resume.type]->kind != Type::Unit;
 }
+
+/*
+ * Whether a call through a value is `function`'s own **continuation** - a `yield` in a `lens fn` or
+ * an `iter fn`, which reads the continuation parameter and calls it. The loan checker reads a
+ * `yield` by it and `summary.cpp` walks one for what it hands over.
+ *
+ * Asked of the generic where `function` is a specialization of one: a specialization does not carry
+ * `continuationArg` - `resolve_object.cpp` counts positions off the entry for the same reason - and
+ * it copies the generic's parameters in order, so the generic's index names the same position.
+ * Without that a `Chunked` member's `yield` read as an unattributable value call.
+ */
+U16 continuationOf(DeclBase base, const Function& function);
+bool callsOwnContinuation(DeclBase decl, MirBase base, Body& body, const Function& function, NodeCall& call);
 
 } // namespace mir

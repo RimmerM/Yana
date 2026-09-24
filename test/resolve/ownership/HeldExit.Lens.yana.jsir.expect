@@ -1,0 +1,93 @@
+fn Token.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    %1: %r0 = load global dropped: %r0
+    %3: %r0 = alias %0
+    %4: %r0 = binary.add %1, %3
+    %5: %r0 = coerce %4
+    store global dropped: %r0, %5
+    return
+
+fn main() -> one %r0
+  var $0: %r0
+  var $1: %r0
+  var $2: %r0
+  var $3: %r0
+  var $4: %r0
+  var $5: %r0
+  block0:
+    %4: %r0 = const 10
+    %5: %r0 = alias %4
+    %6: %r0 = alias %5
+    call Token.drop %6
+    %8: %r0 = load global closed: %r0
+    %9: %r0 = const 1
+    %10: %r0 = binary.add %8, %9
+    %11: %r0 = coerce %10
+    store global closed: %r0, %11
+    %12: %r0 = const 3
+    %13: %r0 = const 10
+    %14: %r0 = alias %13
+    %15: %r0 = alias %12
+    %16: %r0 = alias %14
+    call Token.drop %16
+    %17: %r0 = alias %15
+    call Token.drop %17
+    %18: %r0 = const 13
+    %21: %r0 = const 20
+    %22: %r0 = alias %21
+    %23: %r0 = const 3
+    %24: %r0 = const 0
+    %25: %r0 = const 1
+    %26: %r0 = const 1
+    %27: %r0 = const 0
+    jump -> block2(%24)
+  block1(%0: %r0):
+    %41: %r0 = load global dropped: %r0
+    %42: %r0 = const 100
+    %43: %r0 = binary.mul %41, %42
+    %44: %r0 = coerce %43
+    %45: %r0 = load global closed: %r0
+    %46: %r0 = binary.add %44, %45
+    %47: %r0 = coerce %46
+    %48: %r0 = binary.add %47, %18
+    %49: %r0 = coerce %48
+    %50: %r0 = binary.add %49, %0
+    %51: %r0 = coerce %50
+    return %51
+  block2(%1: %r0):
+    %28: %r4 = binary.lt %1, %23
+    branch %28 -> block4 -> block3
+  block3:
+    %29: %r0 = const 5
+    %30: %r0 = alias %29
+    %31: %r0 = alias %22
+    %32: %r0 = alias %31
+    %33: %r0 = alias %31
+    call Token.drop %33
+    %34: %r0 = alias %30
+    call Token.drop %34
+    %35: %r0 = binary.add %32, %29
+    %36: %r0 = coerce %35
+    jump -> block1(%36)
+  block4:
+    %37: %r4 = binary.eq %1, %26
+    branch %37 -> block6 -> block5
+  block5:
+    %38: %r0 = binary.add %1, %25
+    %39: %r0 = coerce %38
+    jump -> block2(%39)
+  block6:
+    %40: %r0 = alias %22
+    call Token.drop %40
+    jump -> block1(%27)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 13 adopted 0 sunk 0 numbered 2 decided 0 unboxed 1 updated 0 split 0 promoted 7
+
+shape %s0 cell {$v: %r0 box}
+
+rep %r0 = number signed 32
+rep %r1 = void
+rep %r2 = object %s0
+rep %r3 = array Int32Array of %r0
+rep %r4 = number bool

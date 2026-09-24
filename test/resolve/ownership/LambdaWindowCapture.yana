@@ -1,0 +1,125 @@
+{-
+   A lambda's environment holds a captured binding **at the binding's own form**.
+
+   # resolver: ownership
+
+   The shipping stage answers the window cases and refuses `Call` as a constraint over a lambda.
+
+   A window parameter `sep: [Int]` is `Array(I32) [shared call view]`, and the construction borrows
+   *that* into the environment. The field was spelled without the form - a loan of the **owner** -
+   so the lifted body read the view record as an `Array` and derived a second view from it:
+   `length(sep)` answered 1 for a three-element window, optimized and not, and the JavaScript build
+   refused the construction outright. The same fault reached every construct that lowers to a
+   lambda: a `@lazy` argument's thunk, a lambda written inside an `iter fn`, a callback generic in
+   its type and an erased `() -> Int`. On JavaScript a second one sat beside it: an environment the
+   inliner made unreachable went transparent over a *shared loan*, and its reads projected the loan
+   as a representation it is not (`resolve_ssa/js/repr.cpp`'s `transparentContentOf`) - the last
+   case below captures no window at all.
+
+   Each case compares its answer with the right one and sets one bit, so the answer is 4095 and a
+   regression names its case by the bit it clears.
+-}
+
+@noinline fn bump(&v: Int, n: Int) -> Int:
+    v = v + n
+    return n
+
+@noinline fn setAt(&xs: [Int], i: Int, v: Int) -> Int:
+    xs[i] = v
+    return v
+
+fn pick(flag: Bool, @lazy v: Int) -> Int = if flag then v else 0
+
+fn (Call(f, (Int) -> Int)) twice(g: f, x: Int) -> Int = g(x) + g(x)
+
+fn erasedTwice(g: () -> Int) -> Int = g() + g()
+
+-- A window parameter, read through the field.
+fn windowParameter(sep: [Int], k: Int) -> Int:
+    let g = (x: Int) -> length(sep) + x
+    return truncate(g(k)) :: Int
+
+-- A window local, which is the same occurrence.
+fn windowLocal(whole: [Int], k: Int) -> Int:
+    let w = whole[1..3]
+    let g = (x: Int) -> length(w) + x
+    return truncate(g(k)) :: Int
+
+-- A window beside an owned local, subscripted, so the environment has two fields.
+fn windowAndOwned(sep: [Int], k: Int) -> Int:
+    let xs = [5, 6, 7]
+    let g = (x: Int) -> (truncate(length(xs)) :: Int) + sep[x] + xs[x]
+    return g(k)
+
+-- A `let &` captured by exclusive borrow beside a shared window.
+fn writableBeside(sep: [Int]) -> Int:
+    let &n = 0
+    let add = (x: Int) -> bump(n, x + sep[x])
+    add(0)
+    add(1)
+    add(2)
+    return n
+
+-- A writable window parameter, captured exclusively and written through.
+fn writableParameter(&sep: [Int]) -> Int:
+    let put = (i: Int, v: Int) -> setAt(sep, i, v) + (truncate(length(sep)) :: Int)
+    put(0, 30)
+    put(2, 40)
+    return sep[0] + sep[2]
+
+-- A writable window local over an owner the caller reads afterwards.
+fn writableLocal() -> Int:
+    let &whole = [1, 2, 3, 4]
+    let &n = 0
+    if True:
+        let &w = whole[1..3]
+        let put = (i: Int, v: Int) -> setAt(w, i, v) + (truncate(length(w)) :: Int)
+        n = put(1, 50)
+    return whole[2] + n - 50
+
+-- A `@lazy` argument's thunk is a lambda too.
+fn lazyWindow(sep: [Int]) -> Int = pick(True, truncate(length(sep)) :: Int)
+
+-- A lambda written inside an `iter fn`, over the producer's own window parameter.
+iter fn scaled(xs: [Int]) -> Int:
+    let g = (i: Int) -> xs[i] + (truncate(length(xs)) :: Int)
+    for i in 0..2:
+        yield g(i)
+
+fn insideIter() -> Int:
+    let &s = 0
+    for v in scaled([1, 2, 3]):
+        s += v
+    return s
+
+-- A shared string, whose view and owner are one value on JavaScript and two words natively.
+fn stringParameter(s: String, k: Int) -> Int:
+    let g = (x: Int) -> (truncate(length(s)) :: Int) + x
+    return g(k)
+
+-- A callback generic in its type, and the erased pair.
+fn generic(sep: [Int]) -> Int = twice((x: Int) -> sep[x] + (truncate(length(sep)) :: Int), 0)
+fn erased(sep: [Int]) -> Int = erasedTwice(() -> truncate(length(sep)) :: Int)
+
+-- No window: one captured owned array, the environment's only field, inlined away.
+fn ownedOnly() -> Int:
+    let xs = [5, 6, 7]
+    let g = (x: Int) -> (truncate(length(xs)) :: Int) + x
+    return g(1)
+
+fn bit(value: Int, expected: Int, which: Int) -> Int = if value == expected then 1 `shl` which else 0
+
+fn main() -> Int:
+    let &xs = [1, 2, 3]
+    return bit(windowParameter([0, 1, 2], 1), 4, 0) +
+           bit(windowLocal([0, 1, 2, 3], 1), 3, 1) +
+           bit(windowAndOwned([10, 11, 12], 2), 22, 2) +
+           bit(writableBeside([1, 2, 3]), 9, 3) +
+           bit(writableParameter(xs), 70, 4) +
+           bit(writableLocal(), 52, 5) +
+           bit(lazyWindow([4, 5, 6]), 3, 6) +
+           bit(insideIter(), 9, 7) +
+           bit(stringParameter("abc", 2), 5, 8) +
+           bit(generic([1, 2, 3]), 8, 9) +
+           bit(erased([1, 2, 3]), 6, 10) +
+           bit(ownedOnly(), 4, 11)

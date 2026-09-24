@@ -1,0 +1,3 @@
+21:4: error: store.held is a shared loan, so writing through it would write storage the loan only reads. To hold a different loan, assign the record: `store = {store | held: ...}`
+24:4: error: store.held.value is reached through store.held, a shared loan, so it can be read here and not written - write it through its owner, or hold a different loan with `store = {store | held: ...}`
+28:61: error: this is reached through a shared loan a record holds, so it can be read here and not written - write it through its owner

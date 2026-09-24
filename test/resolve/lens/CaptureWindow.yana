@@ -1,0 +1,43 @@
+{-
+   A continuation capturing a *window*.
+
+   # resolver: ownership
+
+   A lens call's region is a function over an environment of the caller's storage addresses, and a
+   window binding's storage holds a view record. The capture's field says so with the binding's form,
+   which natively reads as a window *by value*: the environment was laid out and built as a sixteen-
+   byte copy while the continuation read its first word back as the address, so an unoptimized build
+   of `joined` segfaulted. The optimizer scalar-replaced the environment and hid it, which is why
+   this fixture matters under the driver's `-no-ir-opt` run rather than the optimized one.
+
+   Three bindings, one per way a window reaches a region: a parameter, a local window, and a local
+   built from one. The last is the owner-form capture the field was always a pointer for. The
+   shipping stage refuses `acc ++ copy(sep)` over a window parameter, so the fixture is this stage's.
+-}
+
+fn joined(parts: [[Int]], sep: [Int]) -> [Int]:
+    let &acc = [] :: [Int]
+    for v in items(parts):
+        acc = acc ++ copy(sep)
+    return acc
+
+fn windowed(parts: [[Int]], whole: [Int]) -> Size:
+    let sep = whole[1..3]
+    let &total = 0 :: Size
+    for v in items(parts):
+        total += length(sep) + length(v)
+    return total
+
+fn owned(parts: [[Int]]) -> Size:
+    let sep = [7, 8, 9]
+    let &total = 0 :: Size
+    for v in items(parts):
+        total += length(sep) * length(v)
+    return total
+
+fn main() -> Int:
+    let parts = [[1], [2, 3], [4]]
+    let a = length(joined(parts, [0]))
+    let b = windowed(parts, [5, 6, 7, 8])
+    let c = owned(parts)
+    return truncate(a * 10000 + b * 100 + c) :: Int

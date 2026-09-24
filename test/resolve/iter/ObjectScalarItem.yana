@@ -1,0 +1,59 @@
+{-
+   An iterator object whose item holds references to scalars - J126.
+
+   # resolver: ownership
+
+   `pairs` yields `Entry {key: keyAt(self, at), value: valueAt(self, at)}`, and at `Map(I32, I32)`
+   that local is `Entry('I32, 'I32)`: two references, sixteen bytes. The object keeps the local as a
+   payload member, and the member was laid out from its type alone - `Entry(I32, I32)`, eight bytes -
+   so the step's store ran over `$index` behind it and the next step jumped nowhere. `for e in it`
+   crashed and `while it.next() is Just(e)` crashed or answered garbage.
+
+   Only a width where the two readings differ in size shows it, which is why each case below is one:
+   `(I64, I32)` pads to sixteen bytes either way and a `String` key is a window exactly as wide as the
+   owner (`ObjectItem.yana`). `generic` is the same shape without a map - a producer generic in what
+   it lends, whose item is references only once it is specialized.
+
+   `main` answers 330 + 770 + 550 + 330 = 1980.
+-}
+
+data Both(k, v) {key: k, value: v}
+
+iter fn both(keys: '[k], values: '[v]) -> Both('k, 'v):
+    for i in 0 .. length(keys):
+        yield Both {key: keys[i], value: values[i]}
+
+fn stepped() -> I32:
+    let m = [1: 10, 2: 20]
+    let &it = pairs(m)
+    let &total = 0
+    for e in it:
+        total += e.key * 100 + e.value
+    return total
+
+fn nexted() -> I32:
+    let m = [3: 30, 4: 40]
+    let &it = pairs(m)
+    let &total = 0
+    while it.next() is Just(e):
+        total += e.key * 100 + e.value
+    return total
+
+fn narrow() -> I32:
+    let m = [5 :: I16: 50 :: I16]
+    let &it = pairs(m)
+    let &total = 0
+    for e in it:
+        total += (e.key :: I32) * 100 + (e.value :: I32)
+    return total
+
+fn generic() -> I32:
+    let keys = [1, 2]
+    let values = [10, 20]
+    let &it = both(keys, values)
+    let &total = 0
+    for e in it:
+        total += e.key * 100 + e.value
+    return total
+
+fn main() -> I32 = stepped() + nexted() + narrow() + generic()

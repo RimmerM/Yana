@@ -1,0 +1,93 @@
+{-
+   A hand-over that names one of the caller's origins and hands over something else.
+
+   # resolver: ownership
+
+   `-> a'[Int]` is a promise the caller acts on: the lens call binds the continuation's parameter to
+   what filled `a`, so a consumer may keep the value wherever `a`'s storage may be kept and read it
+   after the lens returned. Every lens and iterator below compiled before J122, and `bad` with a
+   caller storing its hand-over into a `Store(kept')` read freed memory once the call was over.
+   `checkHandoverConformance` now judges a slot-naming position the way a result's is judged, and
+   the messages are the result's refusals said of a hand-over. The fix each names for a view of the
+   callee's own frame is the bound a hand-over has without any qualifier - at an interior position,
+   `yield'`.
+
+   `relay` and `relay0` are the pointer that looks like a statement and is not: a copy of a
+   `%yield'` hand-over, whose pointee the lens-call rule fills with every argument's loans - a bound,
+   which here holds `xs`'s loan and in `relay0` nothing at all. Since J123 it also holds the call's
+   own bound, standing for the lens's frame, which no holder accepts (`loans/Reject.CallBound.yana`);
+   `leak0` is the same refusal at a result, accepted before J122 because a loan-free body skipped it.
+
+   `HandoverSlot.yana` is the other half: the element, window, reborrow, global, iterator and
+   skipping hand-overs that keep the promise.
+-}
+
+import Native
+
+lens fn bytes(xs: [I32]) -> %yield'I32:
+    let owned = [xs[0] + 41, 2] :: Array(I32)
+    yield values(owned)
+
+lens fn bytes0() -> %yield'I32:
+    let owned = [41, 2] :: Array(I32)
+    yield values(owned)
+
+lens fn held(xs: [Int]) -> [Int]:
+    let owned = [xs[0] + 41, 2] :: Array(Int)
+    yield owned
+
+-- This function's own storage.
+lens fn bad(x: a'[Int]) -> a'[Int]:
+    let owned = [x[0] + 41, 2] :: Array(Int)
+    yield owned
+
+-- A pointer bounded by a call, holding the argument's loan and then nothing.
+lens fn relay(xs: a'[I32]) -> %a'I32:
+    let p = bytes(xs) in:
+        yield p
+
+lens fn relay0(xs: a'[I32]) -> %a'I32:
+    let p = bytes0() in:
+        yield p
+
+-- The same promise from an iterator, and from a skipping lens.
+iter fn badEach(xs: a'[Int]) -> a'Int:
+    let owned = [xs[0] + 41, 2] :: Array(Int)
+    for i in 0..length(owned):
+        yield owned[i]
+
+lens fn badOr(xs: a'[Int]) -> (a'[Int] | Int):
+    if length(xs) == 0 then return 0
+    let owned = [xs[0] + 41, 2] :: Array(Int)
+    yield owned
+
+-- A parameter lent for the call only, and one in the other origin.
+lens fn unpublished(xs: a'[Int], ys: [Int]) -> a'[Int]:
+    yield ys
+
+lens fn otherOrigin(xs: a'[Int], ys: b'[Int]) -> a'[Int]:
+    yield ys
+
+-- Another lens's hand-over, and a parameter moved in.
+lens fn relayView(xs: a'[Int]) -> a'[Int]:
+    let v = held(xs) in:
+        yield v
+
+lens fn movedIn(->xs: [Int], ys: a'[Int]) -> a'[Int]:
+    yield xs
+
+-- `relay0` at a result.
+fn leak0(xs: a'[I32]) -> %a'I32:
+    let p = bytes0() in:
+        return p
+    return values(xs)
+
+-- The two cells J122 recorded as not reached, reached (J129): a temporary built at the `yield`, and a
+-- pointer whose type names no pointee origin.
+lens fn temp(xs: a'[I32]) -> a'[I32]:
+    yield [1, 2] :: Array(I32)
+
+lens fn opaque(xs: a'[I32], p: %I32) -> a'I32:
+    yield borrow(p)
+
+fn main() -> Int = 0

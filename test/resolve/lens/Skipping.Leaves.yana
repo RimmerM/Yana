@@ -1,0 +1,35 @@
+{-
+   A skipping call whose continuation and alternative both leave.
+
+   # resolver: ownership
+
+   `Skipping.Flat.yana`'s shape with nothing after it: the extent ends in `return` and so does the
+   alternative, so the block the caller would carry on at is entered by no edge. Pruning removed it,
+   and it had been made *before* the alternative's block - so the alternative moved down one index
+   while the region's `otherwise` kept the old one and named the continuation's own entry. The
+   conversion then jumped into the region ("return names 20, whose definition does not dominate
+   it", and an assertion in `build-assert`). The scoped spelling is the same region and is the
+   second function.
+
+   The answer is 60 + 0 + 70 + 1.
+-}
+
+fn parse(n: Int) -> Maybe(Int) = if n > 0 then Just(n) else Nothing
+
+lens fn firstPositive(n: Int) -> (Int | {}):
+    let Just(v) = parse(n) | return {}
+    yield v
+
+lens fn reasoned(n: Int) -> (Int | Int):
+    if n <= 0 then return 1
+    yield n
+
+fn flat(n: Int) -> Int:
+    let found = firstPositive(n) | else -> return 0
+    return found + 1
+
+fn scoped(n: Int) -> Int:
+    let found = reasoned(n) | e -> return e in:
+        return found + 2
+
+fn main() -> Int = flat(5) * 10 + flat(0 - 5) + scoped(5) * 10 + scoped(0 - 5)

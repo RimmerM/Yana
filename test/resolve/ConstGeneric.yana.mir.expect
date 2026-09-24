@@ -1,0 +1,468 @@
+module ResolveTest
+
+data Holder(a, n) {items: [a *n]} drop derived reclaim derived
+
+data Pair(a, n) {left: [a *n], right: [a *n]} drop derived reclaim derived
+
+data Narrow {bias: I32}
+
+data Wide {bias: I32}
+
+data Holder(I32, 3) {items: [I32 *3]} of Holder
+
+data Pair(I32, 2) {left: [I32 *2], right: [I32 *2]} of Pair
+
+class Sized(c -> a): firstItem
+
+class Widths(d, n): widthSum
+
+instance Sized([I32 *n], I32): [I32 *n].firstItem
+
+instance Sized([I32 *2], I32): [I32 *2].firstItem
+
+instance Widths(Narrow, 2): Narrow.widthSum
+
+instance Widths(Wide, n): Wide.widthSum
+
+fn firstItem(xs: c [shared call]) -> a = <no body>
+
+fn widthSum(self: d [shared call], xs: [I32 *n] [shared call]) -> I32 = <no body>
+
+fn countOf(xs: [I32 *n] [shared call]) -> I32 {
+  form specialized
+  slot #0 const n
+bb0:
+  %0: I32 = gen.value n
+  return take %0
+}
+
+fn firstOf(xs: [I32 *n] [shared call]) -> I32 {
+  form specialized
+  slot #0 const n
+bb0:
+  %0: Size = const 0
+  %1: I32 = gen.value n
+  %2: USize = convert inspect %1
+  %3: USize = bitcast inspect %0
+  %4: Bool = ge inspect %3 inspect %2
+  %5: {} = call checkCondition borrow.shared %4
+  %6: I32 = read copy.trivial (xs[0])
+  return take %6
+}
+
+fn sumOf(xs: [I32 *n] [shared call]) -> I32 {
+  form specialized
+  slot #0 const n
+  local & total: I32
+  local & i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: [I32 *n] = read copy.trivial (xs)
+  %7: I32 = call countOf(n) borrow.shared %6
+  %8: Bool = lt inspect %5 inspect %7
+  branch inspect %8 -> bb3 -> bb2
+
+bb2:
+  %26: I32 = read copy.trivial (total)
+  return take %26
+
+bb3:
+  %10: I32 = read copy.trivial (total)
+  %11: I32 = read copy.trivial (i)
+  %12: Size = convert inspect %11
+  %13: I32 = gen.value n
+  %14: USize = convert inspect %13
+  %15: USize = bitcast inspect %12
+  %16: Bool = ge inspect %15 inspect %14
+  %17: {} = call checkCondition borrow.shared %16
+  %18: I32 = read copy.trivial (xs[...])
+  %19: I32 = add inspect %10 inspect %18
+  write.assign borrow.unique (total) take %19
+  %21: I32 = read copy.trivial (i)
+  %22: I32 = const 1
+  %23: I32 = add inspect %21 inspect %22
+  write.assign borrow.unique (i) take %23
+  jump -> bb1
+}
+
+fn heldFirst(h: Holder(I32, n) [shared call]) -> I32 {
+  form specialized
+  slot #0 const n
+bb0:
+  %0: [I32 *n] = read copy.trivial (h.items)
+  %1: I32 = call firstOf(n) borrow.shared %0
+  return take %1
+}
+
+fn aliased(xs: [I32 *n] [shared call]) -> I32 {
+  form specialized
+  slot #0 const n
+bb0:
+  %0: [I32 *n] = read copy.trivial (xs)
+  %1: I32 = call countOf(n) borrow.shared %0
+  return take %1
+}
+
+fn three() -> Holder(I32, 3) {
+bb0:
+  %0: I32 = const 4
+  %1: I32 = const 5
+  %2: I32 = const 6
+  %3: [I32 *3] = aggregate.0 take %0 take %1 take %2
+  %4: Holder(I32, 3) = aggregate.Holder take %3
+  return take %4
+}
+
+fn both(p: Pair(I32, 2) [shared call]) -> I32 {
+bb0:
+  %0: [I32 *2] = read copy.trivial (p.left)
+  %1: I32 = call firstOf(2) borrow.shared %0
+  %2: [I32 *2] = read copy.trivial (p.right)
+  %3: I32 = call firstOf(2) borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  return take %4
+}
+
+fn [I32 *n].firstItem(xs: [I32 *n] [shared call]) -> I32 {
+  form specialized
+  slot #0 const n
+bb0:
+  %0: Size = const 0
+  %1: I32 = gen.value n
+  %2: USize = convert inspect %1
+  %3: USize = bitcast inspect %0
+  %4: Bool = ge inspect %3 inspect %2
+  %5: {} = call checkCondition borrow.shared %4
+  %6: I32 = read copy.trivial (xs[0])
+  return take %6
+}
+
+fn [I32 *2].firstItem(xs: [I32 *2] [shared call]) -> I32 {
+bb0:
+  %0: I32 = const 100
+  return take %0
+}
+
+fn Narrow.widthSum(self: Narrow [shared call], xs: [I32 *2] [shared call]) -> I32 {
+bb0:
+  %0: Size = const 0
+  %1: I32 = read copy.trivial (xs[0])
+  %2: Size = const 1
+  %3: I32 = read copy.trivial (xs[1])
+  %4: I32 = add inspect %1 inspect %3
+  %5: I32 = read copy.trivial (self.bias)
+  %6: I32 = add inspect %4 inspect %5
+  return take %6
+}
+
+fn Wide.widthSum(self: Wide [shared call], xs: [I32 *n] [shared call]) -> I32 {
+  form specialized
+  slot #0 const n
+bb0:
+  %0: I32 = gen.value n
+  %1: I32 = read copy.trivial (self.bias)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn widthThrough(s: d [shared call], xs: [I32 *n] [shared call]) -> I32 {
+  form specialized
+  slot #0 type d
+  slot #1 const n
+  slot #2 class Widths(d, n)
+bb0:
+  %0: d [shared call] = read borrow.shared (s) loan0
+  %1: [I32 *n] = read copy.trivial (xs)
+  %2: I32 = call widthSum(d, n) borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn firstThrough(xs: [I32 *n] [shared call]) -> I32 {
+  form specialized
+  slot #0 const n
+  slot #1 class Sized([I32 *n], I32)
+bb0:
+  %0: [I32 *n] = read copy.trivial (xs)
+  %1: I32 = call firstItem([I32 *n], I32) borrow.shared %0
+  return take %1
+}
+
+fn doubled(xs: [I32 *n] [shared call]) -> [I32 *n] {
+  form specialized
+  slot #0 const n
+  local & out: [I32 *n]
+  local & i: I32
+
+bb0:
+  %0: [I32 *n] = read copy.trivial (xs)
+  write.init borrow.unique (out) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = gen.value n
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %32: [I32 *n] = read copy.trivial (out)
+  return take %32
+
+bb3:
+  %9: I32 = read copy.trivial (i)
+  %10: Size = convert inspect %9
+  %11: I32 = gen.value n
+  %12: USize = convert inspect %11
+  %13: USize = bitcast inspect %10
+  %14: Bool = ge inspect %13 inspect %12
+  %15: {} = call checkCondition borrow.shared %14
+  %16: I32 = read copy.trivial (i)
+  %17: Size = convert inspect %16
+  %18: I32 = gen.value n
+  %19: USize = convert inspect %18
+  %20: USize = bitcast inspect %17
+  %21: Bool = ge inspect %20 inspect %19
+  %22: {} = call checkCondition borrow.shared %21
+  %23: I32 = read copy.trivial (out[...])
+  %24: I32 = const 2
+  %25: I32 = mul inspect %23 inspect %24
+  write.assign borrow.unique (out[...]) take %25
+  %27: I32 = read copy.trivial (i)
+  %28: I32 = const 1
+  %29: I32 = add inspect %27 inspect %28
+  write.assign borrow.unique (i) take %29
+  jump -> bb1
+}
+
+fn mutatedCopy(xs: [I32 *n] [shared call]) -> I32 {
+  form specialized
+  slot #0 const n
+  local & c: [I32 *n]
+
+bb0:
+  %0: [I32 *n] = read copy.trivial (xs)
+  write.init borrow.unique (c) take %0
+  %2: Size = const 0
+  %3: I32 = gen.value n
+  %4: USize = convert inspect %3
+  %5: USize = bitcast inspect %2
+  %6: Bool = ge inspect %5 inspect %4
+  %7: {} = call checkCondition borrow.shared %6
+  %8: Size = const 0
+  %9: I32 = gen.value n
+  %10: USize = convert inspect %9
+  %11: USize = bitcast inspect %8
+  %12: Bool = ge inspect %11 inspect %10
+  %13: {} = call checkCondition borrow.shared %12
+  %14: I32 = read copy.trivial (c[0])
+  %15: I32 = const 1
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (c[0]) take %16
+  %18: Size = const 0
+  %19: I32 = gen.value n
+  %20: USize = convert inspect %19
+  %21: USize = bitcast inspect %18
+  %22: Bool = ge inspect %21 inspect %20
+  %23: {} = call checkCondition borrow.shared %22
+  %24: I32 = read copy.trivial (c[0])
+  return take %24
+}
+
+fn filled(like: [I32 *n] [shared call]) -> I32 {
+  form specialized
+  slot #0 const n
+  local & out: [I32 *n]
+  local & total: I32
+  local & i: I32
+
+bb0:
+  %0: I32 = const 7
+  %1: [I32 *n] = aggregate.fill take %0
+  write.init borrow.unique (out) take %1
+  %3: I32 = const 0
+  write.init borrow.unique (total) take %3
+  %5: I32 = const 0
+  write.init borrow.unique (i) take %5
+  jump -> bb1
+
+bb1:
+  %8: I32 = read copy.trivial (i)
+  %9: I32 = gen.value n
+  %10: Bool = lt inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb2
+
+bb2:
+  %28: I32 = read copy.trivial (total)
+  return take %28
+
+bb3:
+  %12: I32 = read copy.trivial (total)
+  %13: I32 = read copy.trivial (i)
+  %14: Size = convert inspect %13
+  %15: I32 = gen.value n
+  %16: USize = convert inspect %15
+  %17: USize = bitcast inspect %14
+  %18: Bool = ge inspect %17 inspect %16
+  %19: {} = call checkCondition borrow.shared %18
+  %20: I32 = read copy.trivial (out[...])
+  %21: I32 = add inspect %12 inspect %20
+  write.assign borrow.unique (total) take %21
+  %23: I32 = read copy.trivial (i)
+  %24: I32 = const 1
+  %25: I32 = add inspect %23 inspect %24
+  write.assign borrow.unique (i) take %25
+  jump -> bb1
+}
+
+fn main() -> I32 {
+  local xs: [I32 *4]
+  local p: Pair(I32, 2)
+  local base: I32
+  local & ys: [I32 *4]
+  local local4: [I32 *4]
+  local twice: I32
+  local copied: I32
+  local rest: I32
+  local p2: [I32 *2]
+  local widths: I32
+
+bb0:
+  %0: I32 = const 7
+  %1: I32 = const 2
+  %2: I32 = const 3
+  %3: I32 = const 4
+  %4: [I32 *4] = aggregate.0 take %0 take %1 take %2 take %3
+  write.init borrow.unique (xs) take %4
+  %6: I32 = const 10
+  %7: I32 = const 0
+  %8: [I32 *2] = aggregate.0 take %6 take %7
+  %9: I32 = const 100
+  %10: I32 = const 0
+  %11: [I32 *2] = aggregate.0 take %9 take %10
+  %12: Pair(I32, 2) = aggregate.Pair take %8 take %11
+  write.init borrow.unique (p) take %12
+  %14: [I32 *4] = read copy.trivial (xs)
+  %15: I32 = call countOf(4) borrow.shared %14
+  %16: [I32 *4] = read copy.trivial (xs)
+  %17: I32 = call firstOf(4) borrow.shared %16
+  %18: I32 = add inspect %15 inspect %17
+  %19: [I32 *4] = read copy.trivial (xs)
+  %20: I32 = call sumOf(4) borrow.shared %19
+  %21: I32 = add inspect %18 inspect %20
+  %22: Holder(I32, 3) = call three
+  %23: I32 = call heldFirst(3) borrow.shared %22
+  %24: I32 = add inspect %21 inspect %23
+  %25: Pair(I32, 2) = read copy.trivial (p)
+  %26: I32 = call both borrow.shared %25
+  %27: I32 = add inspect %24 inspect %26
+  %28: [I32 *2] = read copy.trivial (p.left)
+  %29: I32 = call firstItem([I32 *2], I32) borrow.shared %28
+  %30: I32 = add inspect %27 inspect %29
+  %31: [I32 *4] = read copy.trivial (xs)
+  %32: I32 = call firstItem([I32 *4], I32) borrow.shared %31
+  %33: I32 = add inspect %30 inspect %32
+  %34: [I32 *4] = read copy.trivial (xs)
+  %35: I32 = call aliased(4) borrow.shared %34
+  %36: I32 = add inspect %33 inspect %35
+  %37: [I32 *2] = read copy.trivial (p.left)
+  %38: I32 = call firstThrough(2) borrow.shared %37
+  %39: I32 = add inspect %36 inspect %38
+  %40: [I32 *4] = read copy.trivial (xs)
+  %41: I32 = call firstThrough(4) borrow.shared %40
+  %42: I32 = add inspect %39 inspect %41
+  write.init borrow.unique (base) take %42
+  %44: I32 = const 7
+  %45: I32 = const 2
+  %46: I32 = const 3
+  %47: I32 = const 4
+  %48: [I32 *4] = aggregate.0 take %44 take %45 take %46 take %47
+  write.init borrow.unique (ys) take %48
+  %50: [I32 *4] = read copy.trivial (ys)
+  %51: [I32 *4] = call doubled(4) borrow.shared %50
+  write.init borrow.unique (local4) take %51
+  %53: Size = const 3
+  %54: I32 = read copy.trivial (local4[3])
+  write.init borrow.unique (twice) take %54
+  %56: [I32 *4] = read copy.trivial (ys)
+  %57: I32 = call mutatedCopy(4) borrow.shared %56
+  %58: Size = const 0
+  %59: I32 = read copy.trivial (ys[0])
+  %60: I32 = add inspect %57 inspect %59
+  write.init borrow.unique (copied) take %60
+  %62: I32 = read copy.trivial (twice)
+  %63: I32 = read copy.trivial (copied)
+  %64: I32 = add inspect %62 inspect %63
+  %65: [I32 *4] = read copy.trivial (xs)
+  %66: I32 = call filled(4) borrow.shared %65
+  %67: I32 = add inspect %64 inspect %66
+  write.init borrow.unique (rest) take %67
+  %69: I32 = const 10
+  %70: I32 = const 0
+  %71: [I32 *2] = aggregate.0 take %69 take %70
+  write.init borrow.unique (p2) take %71
+  %73: I32 = const 1
+  %74: Narrow = aggregate.Narrow take %73
+  %75: [I32 *2] = read copy.trivial (p2)
+  %76: I32 = call widthSum(Narrow, 2) borrow.shared %74 borrow.shared %75
+  %77: I32 = const 1
+  %78: Wide = aggregate.Wide take %77
+  %79: [I32 *2] = read copy.trivial (p2)
+  %80: I32 = call widthSum(Wide, 2) borrow.shared %78 borrow.shared %79
+  %81: I32 = add inspect %76 inspect %80
+  %82: I32 = const 1
+  %83: Wide = aggregate.Wide take %82
+  %84: [I32 *4] = read copy.trivial (xs)
+  %85: I32 = call widthThrough(4, Wide) borrow.shared %83 borrow.shared %84
+  %86: I32 = add inspect %81 inspect %85
+  write.init borrow.unique (widths) take %86
+  %88: I32 = read copy.trivial (base)
+  %89: I32 = read copy.trivial (rest)
+  %90: I32 = add inspect %88 inspect %89
+  %91: I32 = read copy.trivial (widths)
+  %92: I32 = add inspect %90 inspect %91
+  return take %92
+}
+
+fn countOf(4)(xs: [I32 *4] [shared call]) -> I32 = <countOf at 4>
+
+fn firstOf(4)(xs: [I32 *4] [shared call]) -> I32 = <firstOf at 4>
+
+fn sumOf(4)(xs: [I32 *4] [shared call]) -> I32 = <sumOf at 4>
+
+fn heldFirst(3)(h: Holder(I32, 3) [shared call]) -> I32 = <heldFirst at 3>
+
+fn [I32 *n].firstItem(4)(xs: [I32 *4] [shared call]) -> I32 = <[I32 *n].firstItem at 4>
+
+fn aliased(4)(xs: [I32 *4] [shared call]) -> I32 = <aliased at 4>
+
+fn firstThrough(2)(xs: [I32 *2] [shared call]) -> I32 = <firstThrough at 2>
+
+fn firstThrough(4)(xs: [I32 *4] [shared call]) -> I32 = <firstThrough at 4>
+
+fn doubled(4)(xs: [I32 *4] [shared call]) -> [I32 *4] = <doubled at 4>
+
+fn mutatedCopy(4)(xs: [I32 *4] [shared call]) -> I32 = <mutatedCopy at 4>
+
+fn filled(4)(like: [I32 *4] [shared call]) -> I32 = <filled at 4>
+
+fn Wide.widthSum(2)(self: Wide [shared call], xs: [I32 *2] [shared call]) -> I32 = <Wide.widthSum at 2>
+
+fn widthThrough(4, Wide)(s: Wide [shared call], xs: [I32 *4] [shared call]) -> I32 = <widthThrough at 4, Wide>
+
+fn firstOf(3)(xs: [I32 *3] [shared call]) -> I32 = <firstOf at 3>
+
+fn firstOf(2)(xs: [I32 *2] [shared call]) -> I32 = <firstOf at 2>
+
+fn Wide.widthSum(4)(self: Wide [shared call], xs: [I32 *4] [shared call]) -> I32 = <Wide.widthSum at 4>
+
+entry main

@@ -1,0 +1,47 @@
+module ResolveTest
+
+fn measure(x: Local [shared call]) -> I32 {
+bb0(%0: Local [shared call] guaranteed):
+  %1: I32 trivial = const 3
+  return consume %1
+}
+
+fn (Local) -> I32.==(lhs: (Local) -> I32 [shared call], rhs: (Local) -> I32 [shared call]) -> Bool {
+bb0(%0: (Local) -> I32 [shared call] guaranteed, %1: (Local) -> I32 [shared call] guaranteed):
+  %2: Bool trivial = const True
+  return consume %2
+}
+
+fn (Local) -> I32.!=(lhs: (Local) -> I32 [shared call], rhs: (Local) -> I32 [shared call]) -> Bool = <no body>
+
+fn Atomic(%Local).==(lhs: Atomic(%Local) [shared call], rhs: Atomic(%Local) [shared call]) -> Bool = <no body>
+
+fn Atomic(%Local).!=(lhs: Atomic(%Local) [shared call], rhs: Atomic(%Local) [shared call]) -> Bool = <no body>
+
+fn main() -> I32 {
+bb0:
+  %1: %(Local) -> I32 address = alloc frame (Local) -> I32 [owned here shape8 .0=unique call]
+  %2: %(Local) -> I32 address = alloc frame (Local) -> I32 [owned here shape8 .0=unique call]
+  %3: (Local) -> I32 [owned here shape8 .0=unique call] affine = fun.value measure
+  store inspect %1 consume %3
+  %4: (Local) -> I32 [shared call shape8 .0=unique call] guaranteed from{%1} = load inspect %1
+  %5: (Local) -> I32 [owned here shape8 .0=unique call] affine = fun.value measure
+  store inspect %2 consume %5
+  %6: (Local) -> I32 [shared call shape8 .0=unique call] guaranteed from{%2} = load inspect %2
+  %7: Bool trivial = call (Local) -> I32.== borrow %4 borrow %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  %8: I32 trivial = const 0
+  jump -> bb2(consume %8)
+
+bb2(%0: I32 trivial):
+  return consume %0
+
+bb3:
+  %9: Local trivial = aggregate.Local
+  %10: I32 trivial = call measure borrow %9
+  jump -> bb2(consume %10)
+}
+
+entry main

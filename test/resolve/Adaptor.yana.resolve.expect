@@ -1573,13 +1573,13 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     jmp b1
 }
 
-(Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn mapped(%xs: ArrayView(a), %f: (a) -> b, %body: (value$: b) -> Outcome((), $r)) -> Outcome((), $r) {
+(Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn mapped(%xs: ArrayView(a), %f: (a) -> b, %body: (->value$: b) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type b
     #1 type a
     #2 type $r
     #3 type Outcome((), Outcome((), $r))
-    #4 type {body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}
+    #4 type {body: '(->value$: b) -> Outcome((), $r), f: '(a) -> b}
     #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class Length(ArrayView(a))
@@ -1587,8 +1587,8 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
   }
 
   b0:
-    %v3 = alloc : {body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}
-    %v4 = borrow %body : '(value$: b) -> Outcome((), $r)
+    %v3 = alloc : {body: '(->value$: b) -> Outcome((), $r), f: '(a) -> b}
+    %v4 = borrow %body : '(->value$: b) -> Outcome((), $r)
     init %local3.body, %v4
     %v6 = borrow %f : '(a) -> b
     init %local3.f, %v6
@@ -1705,7 +1705,7 @@ fn double(%v: I32) -> I32 {
     #0 type b
     #1 type a
     #2 type {out: &Array(b)}
-    #3 type (value$: b) -> Outcome((), ())
+    #3 type (->value$: b) -> Outcome((), ())
     #4 class Bitcast(%b, %U8)
     #5 class Integral(Size)
     #6 class Bitcast(%U8, %b)
@@ -1719,7 +1719,7 @@ fn double(%v: I32) -> I32 {
     %v4 = borrow_mut %out : &Array(b)
     init %local3.out, %v4
     %v6 = addressof %local3 : %()
-    %v7 = alloc : (value$: b) -> Outcome((), ())
+    %v7 = alloc : (->value$: b) -> Outcome((), ())
     %v8 = symbol ResolveTest.continuation$26 : %()
     init %local4.code, %v8
     init %local4.env, %v6
@@ -1780,7 +1780,7 @@ fn firstOver(%xs: ArrayView(I32), %bound: I32, %marker: a) -> I32 {
     %v9 = alloc : {bound: I32}
     init %local3.bound, %bound
     %v11 = addressof %local3 : %()
-    %v12 = alloc : (value$: I32) -> Outcome((), I32)
+    %v12 = alloc : (->value$: I32) -> Outcome((), I32)
     %v13 = symbol ResolveTest.continuation$28 : %()
     init %local4.code, %v13
     init %local4.env, %v11
@@ -2003,13 +2003,13 @@ fn main() -> I32 {
     ret %v224
 }
 
-(Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$23(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$23(%env: %{body: '(->value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type b
     #1 type a
     #2 type $r
     #3 type Outcome((), Outcome((), $r))
-    #4 type {body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}
+    #4 type {body: '(->value$: b) -> Outcome((), $r), f: '(a) -> b}
     #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class Length(ArrayView(a))
@@ -2017,25 +2017,26 @@ fn main() -> I32 {
   }
 
   b0:
-    %v2 = load [%env].body : '(value$: b) -> Outcome((), $r)
-    %v3 = load [%v2] : (value$: b) -> Outcome((), $r)
+    %v2 = load [%env].body : '(->value$: b) -> Outcome((), $r)
+    %v3 = load [%v2] : (->value$: b) -> Outcome((), $r)
     %v4 = load [%env].f : '(a) -> b
     %v5 = load [%v4] : (a) -> b
     %v6 = calldyn %v5, %value$ : b
-    %v7 = calldyn %v3, %v6 : Outcome((), $r)
-    %v8 = load %local2.discriminant : I32
-    %v10 = cmp_eq %v8, 1 : Bool
-    je %v10, b1, b2
+    %v7 = move %local1 : b
+    %v8 = calldyn %v3, %v7 : Outcome((), $r)
+    %v9 = load %local2.discriminant : I32
+    %v11 = cmp_eq %v9, 1 : Bool
+    je %v11, b1, b2
 
   b1:
-    %v16 = alloc : Outcome((), Outcome((), $r))
-    aggregate %local4.discriminant = 1, %local4@Exit = %v7
-    ret %v16
+    %v17 = alloc : Outcome((), Outcome((), $r))
+    aggregate %local4.discriminant = 1, %local4@Exit = %v8
+    ret %v17
 
   b2:
-    %v12 = alloc : Outcome((), Outcome((), $r))
+    %v13 = alloc : Outcome((), Outcome((), $r))
     init %local3.discriminant, 0
-    ret %v12
+    ret %v13
 }
 
 (Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$24(%env: %{keep: '(a) -> Bool, body: '(value$: a) -> Outcome((), $r)}, %value$: a) -> Outcome((), Outcome((), $r)) {
@@ -2120,7 +2121,7 @@ fn main() -> I32 {
     #0 type b
     #1 type a
     #2 type {out: &Array(b)}
-    #3 type (value$: b) -> Outcome((), ())
+    #3 type (->value$: b) -> Outcome((), ())
     #4 class Bitcast(%b, %U8)
     #5 class Integral(Size)
     #6 class Bitcast(%U8, %b)
@@ -2247,10 +2248,10 @@ fn ResolveTest.continuation$28(%env: %{bound: I32}, %value$: I32) -> Outcome((),
     ret %v6
 }
 
-fn mapped(I32, I32, I32)(%xs: ArrayView(I32), %f: (v: I32) -> I32, %body: (value$: I32) -> Outcome((), I32)) -> Outcome((), I32) {
+fn mapped(I32, I32, I32)(%xs: ArrayView(I32), %f: (v: I32) -> I32, %body: (->value$: I32) -> Outcome((), I32)) -> Outcome((), I32) {
   b0:
-    %v3 = alloc : {body: '(value$: I32) -> Outcome((), I32), f: '(v: I32) -> I32}
-    %v4 = borrow %body : '(value$: I32) -> Outcome((), I32)
+    %v3 = alloc : {body: '(->value$: I32) -> Outcome((), I32), f: '(v: I32) -> I32}
+    %v4 = borrow %body : '(->value$: I32) -> Outcome((), I32)
     init %local3.body, %v4
     %v6 = borrow %f : '(v: I32) -> I32
     init %local3.f, %v6
@@ -2274,10 +2275,10 @@ fn mapped(I32, I32, I32)(%xs: ArrayView(I32), %f: (v: I32) -> I32, %body: (value
     ret %v20
 }
 
-fn ResolveTest.continuation$23(I32, I32, I32)(%env: %{body: '(value$: I32) -> Outcome((), I32), f: '(v: I32) -> I32}, %value$: I32) -> Outcome((), Outcome((), I32)) {
+fn ResolveTest.continuation$23(I32, I32, I32)(%env: %{body: '(->value$: I32) -> Outcome((), I32), f: '(v: I32) -> I32}, %value$: I32) -> Outcome((), Outcome((), I32)) {
   b0:
-    %v2 = load [%env].body : '(value$: I32) -> Outcome((), I32)
-    %v3 = load [%v2] : (value$: I32) -> Outcome((), I32)
+    %v2 = load [%env].body : '(->value$: I32) -> Outcome((), I32)
+    %v3 = load [%v2] : (->value$: I32) -> Outcome((), I32)
     %v4 = load [%env].f : '(v: I32) -> I32
     %v5 = load [%v4] : (v: I32) -> I32
     %v6 = calldyn %v5, %value$ : I32
@@ -2417,7 +2418,7 @@ fn collectMappedInto(I32, I32)(%out: Array(I32), %xs: ArrayView(I32), %f: (v: I3
     %v4 = borrow_mut %out : &Array(I32)
     init %local3.out, %v4
     %v6 = addressof %local3 : %()
-    %v7 = alloc : (value$: I32) -> Outcome((), ())
+    %v7 = alloc : (->value$: I32) -> Outcome((), ())
     %v8 = symbol ResolveTest.continuation$26(I32, I32) : %()
     init %local4.code, %v8
     init %local4.env, %v6
@@ -2436,10 +2437,10 @@ fn ResolveTest.continuation$26(I32, I32)(%env: %{out: &Array(I32)}, %value$: I32
     ret %v6
 }
 
-fn mapped(I32, I32, ())(%xs: ArrayView(I32), %f: (v: I32) -> I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
+fn mapped(I32, I32, ())(%xs: ArrayView(I32), %f: (v: I32) -> I32, %body: (->value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v3 = alloc : {body: '(value$: I32) -> Outcome((), ()), f: '(v: I32) -> I32}
-    %v4 = borrow %body : '(value$: I32) -> Outcome((), ())
+    %v3 = alloc : {body: '(->value$: I32) -> Outcome((), ()), f: '(v: I32) -> I32}
+    %v4 = borrow %body : '(->value$: I32) -> Outcome((), ())
     init %local3.body, %v4
     %v6 = borrow %f : '(v: I32) -> I32
     init %local3.f, %v6
@@ -2463,10 +2464,10 @@ fn mapped(I32, I32, ())(%xs: ArrayView(I32), %f: (v: I32) -> I32, %body: (value$
     ret %v20
 }
 
-fn ResolveTest.continuation$23(I32, I32, ())(%env: %{body: '(value$: I32) -> Outcome((), ()), f: '(v: I32) -> I32}, %value$: I32) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$23(I32, I32, ())(%env: %{body: '(->value$: I32) -> Outcome((), ()), f: '(v: I32) -> I32}, %value$: I32) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = load [%env].body : '(value$: I32) -> Outcome((), ())
-    %v3 = load [%v2] : (value$: I32) -> Outcome((), ())
+    %v2 = load [%env].body : '(->value$: I32) -> Outcome((), ())
+    %v3 = load [%v2] : (->value$: I32) -> Outcome((), ())
     %v4 = load [%env].f : '(v: I32) -> I32
     %v5 = load [%v4] : (v: I32) -> I32
     %v6 = calldyn %v5, %value$ : I32
@@ -2849,7 +2850,7 @@ fn firstOver(Bool)(%xs: ArrayView(I32), %bound: I32, %marker: Bool) -> I32 {
     %v9 = alloc : {bound: I32}
     init %local3.bound, %bound
     %v11 = addressof %local3 : %()
-    %v12 = alloc : (value$: I32) -> Outcome((), I32)
+    %v12 = alloc : (->value$: I32) -> Outcome((), I32)
     %v13 = symbol ResolveTest.continuation$28(Bool) : %()
     init %local4.code, %v13
     init %local4.env, %v11

@@ -1,0 +1,118 @@
+fn countA(text: String) -> I32
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+fn sumArr(xs: [I32]) -> I32
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+fn nested(xss: [Array(I32)]) -> I32
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+fn countLines(text: String) -> I32
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+fn sumMap(m: Map(String, I32)) -> I32
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+lens fn around(xs: [I32]) -> ->{}
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      specialized at 1 call site, 1 specialization
+
+fn useLens(xs: [I32]) -> I32
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+iter fn each(xs: [I32]) -> I32
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    the result's storage is the caller's, not this frame's
+  mutates:    none
+  retains:    none
+  returns:    a shared reference rooted in storage no parameter names
+  object:     no object of it is built, so it has no record
+  calls:      called at 1 site
+
+fn useEach(xs: [I32]) -> I32
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+lens fn mutWindow(&xs: [I32]) -> &[I32]
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    the result's storage is the caller's, not this frame's
+  mutates:    xs writable
+  retains:    xs
+  returns:    an exclusive reference rooted in storage no parameter names
+  calls:      specialized at 1 call site, 1 specialization
+  hint:       retains xs
+  hover:
+---
+- **retains**: xs
+
+fn bump(&xs: [I32]) -> {}
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    xs writable
+  retains:    none
+  calls:      called at 1 site
+
+fn setFirst(&xs: [I32]) -> {}
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    xs writable
+  retains:    none
+  calls:      called at 1 site
+
+fn addFirst(&xs: [I32]) -> {}
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    xs writable
+  retains:    none
+  calls:      called at 1 site
+
+fn main() -> I32
+  suspends:   no
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 0 sites

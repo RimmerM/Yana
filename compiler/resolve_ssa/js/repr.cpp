@@ -597,8 +597,26 @@ static bool isUnitType(JsTarget& target, DeclPtr<mir::Type> type) {
     return !type || target.decl[type]->kind == mir::Type::Unit;
 }
 
+static bool isStringRecord(JsTarget& target, DeclPtr<mir::Type> type);
+static bool isBoolRecord(JsTarget& target, DeclPtr<mir::Type> type);
+
+static DeclPtr<mir::Type> transparentContentAsked(JsTarget& target, DeclPtr<mir::Type> record);
+
 DeclPtr<mir::Type> transparentContentOf(JsTarget& target, DeclPtr<mir::Type> record) {
     if(!record || target.decl[record]->kind != mir::Type::Record) return nullptr;
+
+    // A record already being asked about is a cycle - see `JsTarget::transparentAsking`.
+    for(auto asking: target.transparentAsking) {
+        if(asking == U32(record.offset)) return nullptr;
+    }
+
+    target.transparentAsking.push(U32(record.offset));
+    auto content = transparentContentAsked(target, record);
+    target.transparentAsking.pop();
+    return content;
+}
+
+static DeclPtr<mir::Type> transparentContentAsked(JsTarget& target, DeclPtr<mir::Type> record) {
 
     // A lambda's environment keeps its object - see `JsTarget::environmentRecords`, where the
     // identity argument is written. The one family whose wrapper is not a cost.
@@ -636,6 +654,38 @@ DeclPtr<mir::Type> transparentContentOf(JsTarget& target, DeclPtr<mir::Type> rec
         return nullptr;
     }
 
+    /*
+     * And never over a record that is itself an object - one with properties of its own, a
+     * niche-folded sum, a flat run of parts or a packed word.
+     *
+     * Every site that takes a transparent record apart asks the *representation* whether it is an
+     * object and only then the type whether it is transparent - the aggregate, the field projection,
+     * the constant and the teardown walk. Over a leaf the two questions cannot disagree. Over a
+     * record they do: `data W {b: Box}` had `Box`'s representation, so `W {b: b}` was built as a
+     * `Box` object with the whole `b` in its `m` and a zero in its `n`, `w.b` projected `Box`'s slot
+     * zero, and `w.b.n` was "does not convert a field of this representation". The same
+     * held over a sum, a `Maybe(Box)`, a packed `Box` of two `U8`s, a typed row and a tuple, and it
+     * held in an inlined-away lambda environment whose one capture is a record. Teaching each of
+     * those sites a third case - the object is the content's, the record's field indices are not
+     * its slots - was the alternative; it is four sites for a wrapper that saves one object, and the
+     * fifth site to be written would have been the next defect. So such a record is an object
+     * holding its one field, which every site already builds.
+     *
+     * Decided on the *type*, recursively, rather than by asking `jsRep` of the content, for
+     * `isStringRecord`'s reason below: a record over a string, a `Bool`, an enum, or a record that
+     * is itself transparent over a leaf is still a leaf, and none of those needs its content
+     * interned to say so. The recursion into an inner record does reach `jsRep` for one case - an
+     * inner field that is a loan neither owned nor a view, whose rule interns - which is harmless:
+     * it interns the representation the field has anyway.
+     */
+    auto contentType = first.occurrence.type;
+    if(target.decl[contentType]->kind == mir::Type::Record &&
+       !isStringRecord(target, contentType) && !isBoolRecord(target, contentType) &&
+       ((mir::RecordType*)target.decl[contentType])->layout != mir::RecordLayout::Enum &&
+       !transparentContentOf(target, contentType)) {
+        return nullptr;
+    }
+
     auto hosted = false;
     for(U16 i = 1; i < constructor.count; i++) {
         auto field = declared.fields.get(target.decl, U16(constructor.first + i));
@@ -643,6 +693,36 @@ DeclPtr<mir::Type> transparentContentOf(JsTarget& target, DeclPtr<mir::Type> rec
         if(!field.host) return nullptr;
 
         hosted = true;
+    }
+
+    /*
+     * And a **shared** loan only where what the property holds is a primitive - a number or a host
+     * string, which a loan of and the value itself are the same host value.
+     *
+     * A transparent record's representation is its content *type's* (`jsRep` of the bare type,
+     * below and in `jsRep`'s record row), while its construction and every read hand on the
+     * component at the *field's* occurrence. For a primitive the two cannot differ; for anything
+     * else a shared capture holds they do: a captured window `sep: [a]` is
+     * `Array(a) [shared slot n view]` and holds the view's parts, and a captured owned array is a
+     * loan the SSA reads as an address and then loads through. Read back through the bare type,
+     * each was projected as a representation it is not - the inlined `length(sep)` of a lambda
+     * capturing a separator window was "does not convert a field of this representation", and so was `length(xs)` over a
+     * captured owned local. The same inlined-away environment J88 describes above, one access
+     * over. Asked after the other fields, which is a cheaper answer and one that interns nothing.
+     * Comparing `fieldRepOf` against `jsRep` was tried first and is not enough, because the
+     * owned array's two representations agree and its reads still go through an address the
+     * transparent place does not have; declining every shared loan was tried second and put an
+     * object back around `BorrowTemporary.yana`'s `Held {value: 'Int}`, which was right as it was.
+     */
+    if(!first.occurrence.contract.isOwned()) {
+        // A view is a string or a record of parts, and the string is the one of them a type names
+        // without interning anything - asking `jsRep` of an owner no value here has would put its
+        // representation in the table and renumber every golden that prints one.
+        if(first.occurrence.contract.form() == mir::AccessForm::View) {
+            if(!isStringRecord(target, first.occurrence.type)) return nullptr;
+        } else if(!target.rep(jsRep(target, first.occurrence.type, kNullLocation)).isPrimitive()) {
+            return nullptr;
+        }
     }
 
     if(!hosted) return first.occurrence.type;

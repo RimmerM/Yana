@@ -1,0 +1,425 @@
+module ResolveTest
+
+fn sides(s: Shape [shared call]) -> I32 {
+bb0(%0: Shape [shared call] guaranteed):
+  %1: %U8 address = field.addr .# inspect %0
+  %2: U8 trivial = load inspect %1
+  %3: I32 trivial = map [0 -> 1, 1 -> 4, 2 -> 0, 3 -> 2, 4 -> 5] inspect %2
+  return consume %3
+}
+
+fn closed(s: Shape [shared call]) -> Bool {
+bb0(%0: Shape [shared call] guaranteed):
+  %1: %U8 address = field.addr .# inspect %0
+  %2: U8 trivial = load inspect %1
+  %3: Bool trivial = map [0 -> True, 1 -> True, 2 -> False, 3 -> False, 4 -> True] inspect %2
+  return consume %3
+}
+
+fn isSegment(s: Shape [shared call]) -> Bool {
+bb0(%0: Shape [shared call] guaranteed):
+  %1: %U8 address = field.addr .# inspect %0
+  %2: U8 trivial = load inspect %1
+  %3: Bool trivial = map [0 -> False, 1 -> False, 2 -> False, 3 -> True, 4 -> False] inspect %2
+  return consume %3
+}
+
+fn familyOf(s: Shape [shared call]) -> Family {
+bb0(%0: Shape [shared call] guaranteed):
+  %1: %U8 address = field.addr .# inspect %0
+  %2: U8 trivial = load inspect %1
+  %3: Family trivial = map [0 -> Round, 1 -> Straight, 2 -> Degenerate, 3 -> Straight, 4 -> Straight] inspect %2
+  return consume %3
+}
+
+fn radius(s: Shape [shared call]) -> I32 {
+bb0(%0: Shape [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: %U8 address = field.addr .# inspect %0
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 0
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: I32 trivial = const 0
+  jump -> bb2(consume %7)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %8: %I32 address = field.addr .Circle inspect %0
+  %9: I32 trivial = load inspect %8
+  store inspect %2 consume %9
+  %10: I32 trivial = load inspect %2
+  jump -> bb2(consume %10)
+}
+
+fn bigCircle(s: Shape [shared call]) -> I32 {
+bb0(%0: Shape [shared call] guaranteed):
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 0
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb4 -> bb1
+
+bb1:
+  %6: %U8 address = field.addr .# inspect %0
+  %7: U8 trivial = load inspect %6
+  %8: U8 trivial = const 0
+  %9: Bool trivial = eq inspect %7 inspect %8
+  branch inspect %9 -> bb6 -> bb2
+
+bb2:
+  %10: I32 trivial = const 0
+  jump -> bb3(consume %10)
+
+bb3(%1: I32 trivial):
+  return consume %1
+
+bb4:
+  %11: %I32 address = field.addr .Circle inspect %0
+  %12: I32 trivial = load inspect %11
+  %13: I32 trivial = const 100
+  %14: Bool trivial = ge inspect %12 inspect %13
+  branch inspect %14 -> bb5 -> bb1
+
+bb5:
+  %15: I32 trivial = const 2
+  jump -> bb3(consume %15)
+
+bb6:
+  %16: I32 trivial = const 1
+  jump -> bb3(consume %16)
+}
+
+fn computed(s: Shape [shared call]) -> I32 {
+bb0(%0: Shape [shared call] guaranteed):
+  %1: Shape trivial = copy inspect %0
+  %2: I32 trivial = call sides borrow %1
+  return consume %2
+}
+
+fn mixed(s: Shape [shared call]) -> I32 {
+bb0(%0: Shape [shared call] guaranteed):
+  %2: %Shape address = alloc frame Shape
+  %3: %U8 address = field.addr .# inspect %0
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 2
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: Shape trivial = copy inspect %0
+  store inspect %2 consume %7
+  %8: Shape trivial = copy inspect %2
+  %9: I32 trivial = call computed borrow %8
+  jump -> bb2(consume %9)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %10: I32 trivial = const 0
+  jump -> bb2(consume %10)
+}
+
+fn opaque(s: Shape [shared call]) -> Shape {
+bb0(%0: Shape [shared call] guaranteed):
+  %1: Shape trivial = copy inspect %0
+  return consume %1
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: Bool trivial, %1: I32 trivial):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %5: Bool trivial = load inspect %3
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  jump -> bb2(consume %6)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %7: I32 trivial = load inspect %4
+  jump -> bb2(consume %7)
+}
+
+fn main() -> I32 {
+bb0:
+  %37: I32 trivial = const 1
+  %38: Shape trivial = aggregate.Circle consume %37
+  %39: Shape trivial = call opaque borrow %38
+  %40: I32 trivial = call sides borrow %39
+  %41: I32 trivial = const 1
+  %42: Bool trivial = eq inspect %40 inspect %41
+  branch inspect %42 -> bb3 -> bb1
+
+bb1:
+  %43: Bool trivial = const False
+  jump -> bb2(consume %43)
+
+bb2(%0: Bool trivial):
+  %44: I32 trivial = const 1
+  %45: I32 trivial = call check borrow %0 borrow %44
+  %46: I32 trivial = const 2
+  %47: I32 trivial = const 3
+  %48: Shape trivial = aggregate.Square consume %46 consume %47
+  %49: Shape trivial = call opaque borrow %48
+  %50: I32 trivial = call sides borrow %49
+  %51: I32 trivial = const 4
+  %52: Bool trivial = eq inspect %50 inspect %51
+  branch inspect %52 -> bb6(consume %45) -> bb4(consume %45)
+
+bb3:
+  %53: Shape trivial = aggregate.Point
+  %54: Shape trivial = call opaque borrow %53
+  %55: I32 trivial = call sides borrow %54
+  %56: I32 trivial = const 0
+  %57: Bool trivial = eq inspect %55 inspect %56
+  jump -> bb2(consume %57)
+
+bb4(%1: I32 trivial):
+  %58: Bool trivial = const False
+  jump -> bb5(consume %58, consume %1)
+
+bb5(%2: Bool trivial, %3: I32 trivial):
+  %59: I32 trivial = const 2
+  %60: I32 trivial = call check borrow %2 borrow %59
+  %61: I32 trivial = add inspect %3 inspect %60
+  %62: I32 trivial = const 0
+  %63: I32 trivial = const 1
+  %64: Shape trivial = aggregate.Segment consume %62 consume %63
+  %65: Shape trivial = call opaque borrow %64
+  %66: I32 trivial = call sides borrow %65
+  %67: I32 trivial = const 2
+  %68: Bool trivial = eq inspect %66 inspect %67
+  %69: I32 trivial = const 4
+  %70: I32 trivial = call check borrow %68 borrow %69
+  %71: I32 trivial = add inspect %61 inspect %70
+  %72: I32 trivial = const 1
+  %73: Shape trivial = aggregate.Circle consume %72
+  %74: Shape trivial = call opaque borrow %73
+  %75: Bool trivial = call closed borrow %74
+  branch inspect %75 -> bb9(consume %71) -> bb7(consume %71)
+
+bb6(%4: I32 trivial):
+  %76: I32 trivial = const 6
+  %77: Shape trivial = aggregate.Poly consume %76
+  %78: Shape trivial = call opaque borrow %77
+  %79: I32 trivial = call sides borrow %78
+  %80: I32 trivial = const 5
+  %81: Bool trivial = eq inspect %79 inspect %80
+  jump -> bb5(consume %81, consume %4)
+
+bb7(%5: I32 trivial):
+  %82: Bool trivial = const False
+  jump -> bb8(consume %82, consume %5)
+
+bb8(%6: Bool trivial, %7: I32 trivial):
+  %83: I32 trivial = const 8
+  %84: I32 trivial = call check borrow %6 borrow %83
+  %85: I32 trivial = add inspect %7 inspect %84
+  %86: I32 trivial = const 3
+  %87: Shape trivial = aggregate.Poly consume %86
+  %88: Shape trivial = call opaque borrow %87
+  %89: Bool trivial = call closed borrow %88
+  branch inspect %89 -> bb12(consume %85) -> bb10(consume %85)
+
+bb9(%8: I32 trivial):
+  %90: I32 trivial = const 1
+  %91: I32 trivial = const 1
+  %92: Shape trivial = aggregate.Square consume %90 consume %91
+  %93: Shape trivial = call opaque borrow %92
+  %94: Bool trivial = call closed borrow %93
+  jump -> bb8(consume %94, consume %8)
+
+bb10(%9: I32 trivial):
+  %95: Bool trivial = const False
+  jump -> bb11(consume %95, consume %9)
+
+bb11(%10: Bool trivial, %11: I32 trivial):
+  %96: I32 trivial = const 16
+  %97: I32 trivial = call check borrow %10 borrow %96
+  %98: I32 trivial = add inspect %11 inspect %97
+  %99: I32 trivial = const 0
+  %100: I32 trivial = const 1
+  %101: Shape trivial = aggregate.Segment consume %99 consume %100
+  %102: Shape trivial = call opaque borrow %101
+  %103: Bool trivial = call closed borrow %102
+  %104: Bool trivial = not inspect %103
+  %105: I32 trivial = const 32
+  %106: I32 trivial = call check borrow %104 borrow %105
+  %107: I32 trivial = add inspect %98 inspect %106
+  %108: I32 trivial = const 0
+  %109: I32 trivial = const 1
+  %110: Shape trivial = aggregate.Segment consume %108 consume %109
+  %111: Shape trivial = call opaque borrow %110
+  %112: Bool trivial = call isSegment borrow %111
+  branch inspect %112 -> bb15(consume %107) -> bb13(consume %107)
+
+bb12(%12: I32 trivial):
+  %113: Shape trivial = aggregate.Point
+  %114: Shape trivial = call opaque borrow %113
+  %115: Bool trivial = call closed borrow %114
+  %116: Bool trivial = not inspect %115
+  jump -> bb11(consume %116, consume %12)
+
+bb13(%13: I32 trivial):
+  %117: Bool trivial = const False
+  jump -> bb14(consume %117, consume %13)
+
+bb14(%14: Bool trivial, %15: I32 trivial):
+  %118: I32 trivial = const 64
+  %119: I32 trivial = call check borrow %14 borrow %118
+  %120: I32 trivial = add inspect %15 inspect %119
+  %121: I32 trivial = const 1
+  %122: Shape trivial = aggregate.Circle consume %121
+  %123: Shape trivial = call opaque borrow %122
+  %124: Family trivial = call familyOf borrow %123
+  %125: Family trivial = const Round
+  %126: Bool trivial = eq inspect %124 inspect %125
+  branch inspect %126 -> bb18(consume %120) -> bb16(consume %120)
+
+bb15(%16: I32 trivial):
+  %127: I32 trivial = const 1
+  %128: Shape trivial = aggregate.Circle consume %127
+  %129: Shape trivial = call opaque borrow %128
+  %130: Bool trivial = call isSegment borrow %129
+  %131: Bool trivial = not inspect %130
+  jump -> bb14(consume %131, consume %16)
+
+bb16(%17: I32 trivial):
+  %132: Bool trivial = const False
+  jump -> bb17(consume %132, consume %17)
+
+bb17(%18: Bool trivial, %19: I32 trivial):
+  %133: I32 trivial = const 128
+  %134: I32 trivial = call check borrow %18 borrow %133
+  %135: I32 trivial = add inspect %19 inspect %134
+  %136: I32 trivial = const 1
+  %137: I32 trivial = const 1
+  %138: Shape trivial = aggregate.Square consume %136 consume %137
+  %139: Shape trivial = call opaque borrow %138
+  %140: Family trivial = call familyOf borrow %139
+  %141: Family trivial = const Straight
+  %142: Bool trivial = eq inspect %140 inspect %141
+  branch inspect %142 -> bb21(consume %135) -> bb19(consume %135)
+
+bb18(%20: I32 trivial):
+  %143: Shape trivial = aggregate.Point
+  %144: Shape trivial = call opaque borrow %143
+  %145: Family trivial = call familyOf borrow %144
+  %146: Family trivial = const Degenerate
+  %147: Bool trivial = eq inspect %145 inspect %146
+  jump -> bb17(consume %147, consume %20)
+
+bb19(%21: I32 trivial):
+  %148: Bool trivial = const False
+  jump -> bb20(consume %148, consume %21)
+
+bb20(%22: Bool trivial, %23: I32 trivial):
+  %149: I32 trivial = const 256
+  %150: I32 trivial = call check borrow %22 borrow %149
+  %151: I32 trivial = add inspect %23 inspect %150
+  %152: I32 trivial = const 7
+  %153: Shape trivial = aggregate.Circle consume %152
+  %154: Shape trivial = call opaque borrow %153
+  %155: I32 trivial = call radius borrow %154
+  %156: I32 trivial = const 7
+  %157: Bool trivial = eq inspect %155 inspect %156
+  branch inspect %157 -> bb24(consume %151) -> bb22(consume %151)
+
+bb21(%24: I32 trivial):
+  %158: I32 trivial = const 3
+  %159: Shape trivial = aggregate.Poly consume %158
+  %160: Shape trivial = call opaque borrow %159
+  %161: Family trivial = call familyOf borrow %160
+  %162: Family trivial = const Straight
+  %163: Bool trivial = eq inspect %161 inspect %162
+  jump -> bb20(consume %163, consume %24)
+
+bb22(%25: I32 trivial):
+  %164: Bool trivial = const False
+  jump -> bb23(consume %164, consume %25)
+
+bb23(%26: Bool trivial, %27: I32 trivial):
+  %165: I32 trivial = const 512
+  %166: I32 trivial = call check borrow %26 borrow %165
+  %167: I32 trivial = add inspect %27 inspect %166
+  %168: I32 trivial = const 200
+  %169: Shape trivial = aggregate.Circle consume %168
+  %170: Shape trivial = call opaque borrow %169
+  %171: I32 trivial = call bigCircle borrow %170
+  %172: I32 trivial = const 2
+  %173: Bool trivial = eq inspect %171 inspect %172
+  branch inspect %173 -> bb27(consume %167) -> bb25(consume %167)
+
+bb24(%28: I32 trivial):
+  %174: Shape trivial = aggregate.Point
+  %175: Shape trivial = call opaque borrow %174
+  %176: I32 trivial = call radius borrow %175
+  %177: I32 trivial = const 0
+  %178: Bool trivial = eq inspect %176 inspect %177
+  jump -> bb23(consume %178, consume %28)
+
+bb25(%29: I32 trivial):
+  %179: Bool trivial = const False
+  jump -> bb26(consume %179, consume %29)
+
+bb26(%30: Bool trivial, %31: I32 trivial):
+  %180: I32 trivial = const 1024
+  %181: I32 trivial = call check borrow %30 borrow %180
+  %182: I32 trivial = add inspect %31 inspect %181
+  %183: Shape trivial = aggregate.Point
+  %184: Shape trivial = call opaque borrow %183
+  %185: I32 trivial = call bigCircle borrow %184
+  %186: I32 trivial = const 0
+  %187: Bool trivial = eq inspect %185 inspect %186
+  %188: I32 trivial = const 2048
+  %189: I32 trivial = call check borrow %187 borrow %188
+  %190: I32 trivial = add inspect %182 inspect %189
+  %191: Shape trivial = aggregate.Point
+  %192: Shape trivial = call opaque borrow %191
+  %193: I32 trivial = call mixed borrow %192
+  %194: I32 trivial = const 0
+  %195: Bool trivial = eq inspect %193 inspect %194
+  branch inspect %195 -> bb30(consume %190) -> bb28(consume %190)
+
+bb27(%32: I32 trivial):
+  %196: I32 trivial = const 2
+  %197: Shape trivial = aggregate.Circle consume %196
+  %198: Shape trivial = call opaque borrow %197
+  %199: I32 trivial = call bigCircle borrow %198
+  %200: I32 trivial = const 1
+  %201: Bool trivial = eq inspect %199 inspect %200
+  jump -> bb26(consume %201, consume %32)
+
+bb28(%33: I32 trivial):
+  %202: Bool trivial = const False
+  jump -> bb29(consume %202, consume %33)
+
+bb29(%34: Bool trivial, %35: I32 trivial):
+  %203: I32 trivial = const 4096
+  %204: I32 trivial = call check borrow %34 borrow %203
+  %205: I32 trivial = add inspect %35 inspect %204
+  return consume %205
+
+bb30(%36: I32 trivial):
+  %206: I32 trivial = const 1
+  %207: Shape trivial = aggregate.Poly consume %206
+  %208: Shape trivial = call opaque borrow %207
+  %209: I32 trivial = call mixed borrow %208
+  %210: I32 trivial = const 5
+  %211: Bool trivial = eq inspect %209 inspect %210
+  jump -> bb29(consume %211, consume %36)
+}
+
+entry main

@@ -1,0 +1,471 @@
+module ResolveTest
+
+data Noisy {n: I32} drop authored
+
+data Named {text: 0'String, n: I32} shape1
+
+data counting.Iter {$index: I32, $slot: I32, n: I32, : I32, : I32, : I32}
+
+data readingLambda.lambda.env {}
+
+instance Drop(Noisy): Noisy.drop
+
+instance Iterate(counting.Iter, I32, {}): counting$next, counting$resume
+
+let & gArr: Array(I32)
+
+let & gLog: Array(I32)
+
+let & gNamed: Named
+
+let string'104: [CodeUnit *3] = "abc"
+
+let string'143: [CodeUnit *4] = "wxyz"
+
+let string'144: [CodeUnit *4] = "made"
+
+let string'145: [CodeUnit *6] = "filled"
+
+let string'146: [CodeUnit *1] = "a"
+
+fn Noisy.drop(value: Noisy) -> {} {
+bb0:
+  %0: Array(I32) [unique call] = read borrow.unique (global gLog) loan0
+  %1: I32 = read copy.trivial (value.n)
+  %2: {} = call push(I32) borrow.unique %0 take %1
+  return
+}
+
+fn make(n: I32 [shared call]) -> Noisy {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Noisy = aggregate.Noisy take %0
+  return take %1
+}
+
+fn use(x: Noisy [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x.n)
+  return take %0
+}
+
+fn otherGlobal() -> I32 {
+  local w: Array(I32) [shared call]
+  local a: Noisy
+  local k: I32
+  local local3: I32 [shared slot 0]
+  local local4: I32 [shared slot 0]
+
+bb0:
+  %0: Array(I32) [shared call] = read borrow.shared (global gArr) loan0
+  write.init borrow.unique (w) borrow.shared %0
+  %2: I32 = const 5
+  %3: Noisy = call make borrow.shared %2
+  write.init borrow.unique (a) take %3
+  %5: Noisy [shared call] = read borrow.shared (a) loan1
+  %6: I32 = call use borrow.shared %5
+  drop (a)
+  write.init borrow.unique (k) take %6
+  %8: Size = const 0
+  %9: Array(I32) [shared call] = read borrow.shared (w) loan2 roots{0}
+  %10: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %9 roots{0, 2}
+  %11: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %10 borrow.shared %8 roots{0, 2}
+  write.init borrow.unique (local3) borrow.shared %11
+  %13: I32 = read copy.trivial (local3)
+  %14: Size = const 1
+  %15: Array(I32) [shared call] = read borrow.shared (w) loan3 roots{0}
+  %16: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %15 roots{0, 3}
+  %17: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %16 borrow.shared %14 roots{0, 3}
+  write.init borrow.unique (local4) borrow.shared %17
+  %19: I32 = read copy.trivial (local4)
+  %20: I32 = add inspect %13 inspect %19
+  %21: I32 = read copy.trivial (k)
+  %22: I32 = add inspect %20 inspect %21
+  return take %22
+}
+
+fn afterLastUse() -> I32 {
+  local a: Noisy
+  local w: Array(I32) [shared call]
+  local local2: I32 [shared slot 0]
+  local first: I32
+
+bb0:
+  %0: I32 = const 7
+  %1: Noisy = call make borrow.shared %0
+  write.init borrow.unique (a) take %1
+  %3: Array(I32) [shared call] = read borrow.shared (global gLog) loan0
+  write.init borrow.unique (w) borrow.shared %3
+  %5: Size = const 0
+  %6: Array(I32) [shared call] = read borrow.shared (w) loan1 roots{0}
+  %7: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %6 roots{0, 1}
+  %8: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %7 borrow.shared %5 roots{0, 1}
+  write.init borrow.unique (local2) borrow.shared %8
+  %10: I32 = read copy.trivial (local2)
+  write.init borrow.unique (first) take %10
+  %12: I32 = read copy.trivial (first)
+  %13: Noisy [shared call] = read borrow.shared (a) loan2
+  %14: I32 = call use borrow.shared %13
+  drop (a)
+  %15: I32 = add inspect %12 inspect %14
+  return take %15
+}
+
+lens fn counting(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local3: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 0
+  %4: I32 = const 1
+  write.init borrow.unique (local3) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local3)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %32: I32 = read copy.trivial (local3)
+  %33: I32 = add inspect %32 inspect %8
+  write.assign borrow.unique (local3) take %33
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %36: I32 = read copy.trivial ($yielded)
+  return take %36
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local3)
+  write.init borrow.unique (i) take %18
+  %20: Array(I32) [unique call] = read borrow.unique (global gLog) loan0
+  %21: I32 = read copy.trivial (i)
+  %22: {} = call push(I32) borrow.unique %20 take %21
+  %23: I32 = read copy.trivial (i)
+  %24: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %25: I32 = call inspect %24 borrow.shared %23
+  %26: I32 = const 0
+  %27: Bool = eq inspect %25 inspect %26
+  write.assign borrow.unique ($yielded) take %25
+  branch inspect %27 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %15, take %16)
+
+bb6:
+  jump -> bb3(take %15, take %16)
+}
+
+fn stepObject() -> I32 {
+  local & it: counting.Iter
+  local w: Array(I32) [shared call]
+  local local2: I32 [shared slot 0]
+  local & total: I32
+  local local4: Maybe(I32) [owned here shape2 .0=shared slot 0]
+  local x: I32
+  local local6: Maybe(I32) [owned here shape2 .0=shared slot 0]
+  local x: I32
+
+bb0:
+  %0: I32 = const 3
+  %1: counting.Iter = call counting$new take %0
+  write.init borrow.unique (it) take %1
+  %3: Array(I32) [shared call] = read borrow.shared (global gArr) loan0
+  write.init borrow.unique (w) borrow.shared %3
+  %5: Size = const 2
+  %6: Array(I32) [shared call] = read borrow.shared (w) loan1 roots{0}
+  %7: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %6 roots{0, 1}
+  %8: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %7 borrow.shared %5 roots{0, 1}
+  write.init borrow.unique (local2) borrow.shared %8
+  %10: I32 = read copy.trivial (local2)
+  %11: I32 = const 10
+  %12: I32 = mul inspect %10 inspect %11
+  write.init borrow.unique (total) take %12
+  %14: counting.Iter [unique slot 0] = read borrow.unique (it) loan2
+  %15: Maybe(I32) [owned here shape2 .0=shared slot 0] = call counting$next borrow.unique %14 roots.0{2}
+  write.init borrow.unique (local4) take %15
+  %17: U8 = read copy.trivial (local4.#)
+  %18: U8 = const 1
+  %19: Bool = eq inspect %17 inspect %18
+  branch inspect %19 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %28: counting.Iter [unique slot 0] = read borrow.unique (it) loan4
+  %29: Maybe(I32) [owned here shape2 .0=shared slot 0] = call counting$next borrow.unique %28 roots.0{4}
+  write.init borrow.unique (local6) take %29
+  %31: U8 = read copy.trivial (local6.#)
+  %32: U8 = const 1
+  %33: Bool = eq inspect %31 inspect %32
+  branch inspect %33 -> bb6 -> bb4
+
+bb3:
+  %21: I32 = read copy.trivial (local4.Just)
+  write.init borrow.unique (x) take %21
+  %23: I32 [unique call] = read borrow.unique (total) loan3
+  %24: I32 = read copy.trivial (x)
+  %25: {} = call +=(I32) borrow.unique %23 borrow.shared %24
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %42: I32 = read copy.trivial (total)
+  return take %42
+
+bb6:
+  %35: I32 = read copy.trivial (local6.Just)
+  write.init borrow.unique (x) take %35
+  %37: I32 [unique call] = read borrow.unique (total) loan5
+  %38: I32 = read copy.trivial (x)
+  %39: {} = call +=(I32) borrow.unique %37 borrow.shared %38
+  jump -> bb5
+}
+
+fn runIt(g: f [shared call]) -> I32 {
+  form specialized
+  slot #0 type f
+  slot #1 class Call(f, () -> I32)
+bb0:
+  %0: f [shared call] = read borrow.shared (g) loan0
+  %1: I32 = call borrow.shared %0
+  return take %1
+}
+
+fn readingLambda() -> I32 {
+  local w: Array(I32) [shared call]
+  local r: I32
+  local local2: I32 [shared slot 0]
+
+bb0:
+  %0: Array(I32) [shared call] = read borrow.shared (global gArr) loan0
+  write.init borrow.unique (w) borrow.shared %0
+  %2: readingLambda.lambda.env = aggregate.readingLambda.lambda.env
+  %3: I32 = call runIt(readingLambda.lambda.env) borrow.shared %2
+  write.init borrow.unique (r) take %3
+  %5: Size = const 0
+  %6: Array(I32) [shared call] = read borrow.shared (w) loan1 roots{0}
+  %7: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %6 roots{0, 1}
+  %8: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %7 borrow.shared %5 roots{0, 1}
+  write.init borrow.unique (local2) borrow.shared %8
+  %10: I32 = read copy.trivial (local2)
+  %11: I32 = read copy.trivial (r)
+  %12: I32 = add inspect %10 inspect %11
+  return take %12
+}
+
+fn rename() -> {} {
+  local & local0: Named
+  local local1: String
+
+bb0:
+  %0: Named = read copy.trivial (global gNamed)
+  write.init borrow.unique (local0) take %0
+  %2: String = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
+  write.init borrow.unique (local1) take %2
+  %4: String [shared slot 0] = read borrow.shared (local1) loan0
+  %5: String [shared slot 0 view] = call.derivation view(String) borrow.shared %4 roots{0}
+  write.init borrow.unique (local0.text) borrow.shared %5
+  %7: Named = read copy.trivial (local0) roots{0} roots.0{0}
+  write.assign borrow.unique (global gNamed) take %7
+  drop (local1)
+  return
+}
+
+fn made() -> Named {
+  local local0: String
+
+bb0:
+  %0: String = const String {units: Array {run: Run {items: &string'144, capacity: 4, ownsHeap: 0}, length: 4}}
+  write.init borrow.unique (local0) take %0
+  %2: String [shared slot 0] = read borrow.shared (local0) loan0
+  %3: String [shared slot 0 view] = call.derivation view(String) borrow.shared %2 roots{0}
+  %4: I32 = const 2
+  %5: Named = aggregate.Named borrow.shared %3 take %4 roots.0{0}
+  return take %5
+}
+
+fn fill(into: Named [unique call]) -> {} {
+  local & local1: Named
+  local local2: String
+
+bb0:
+  %0: Named = read copy.trivial (into)
+  write.init borrow.unique (local1) take %0
+  %2: String = const String {units: Array {run: Run {items: &string'145, capacity: 6, ownsHeap: 0}, length: 6}}
+  write.init borrow.unique (local2) take %2
+  %4: String [shared slot 0] = read borrow.shared (local2) loan0
+  %5: String [shared slot 0 view] = call.derivation view(String) borrow.shared %4 roots{0}
+  write.init borrow.unique (local1.text) borrow.shared %5
+  %7: Named = read copy.trivial (local1) roots{0} roots.0{0}
+  write.assign borrow.unique (into) take %7
+  drop (local2)
+  return
+}
+
+fn main() -> I32 {
+  local first: I32
+  local second: I32
+  local third: I32
+  local fourth: I32
+  local m: Named
+  local local5: String
+  local & local: Named
+  local texts: I32
+  local logged: I32
+
+bb0:
+  %0: I32 = call otherGlobal
+  write.init borrow.unique (first) take %0
+  %2: I32 = call afterLastUse
+  write.init borrow.unique (second) take %2
+  %4: I32 = call stepObject
+  write.init borrow.unique (third) take %4
+  %6: I32 = call readingLambda
+  write.init borrow.unique (fourth) take %6
+  %8: {} = call rename
+  %9: Named = call made
+  write.init borrow.unique (m) take %9
+  %11: String = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
+  write.init borrow.unique (local5) take %11
+  %13: String [shared slot 0] = read borrow.shared (local5) loan0
+  %14: String [shared slot 0 view] = call.derivation view(String) borrow.shared %13 roots{0}
+  %15: I32 = const 3
+  %16: Named = aggregate.Named borrow.shared %14 take %15 roots.0{0}
+  write.init borrow.unique (local) take %16
+  %18: Named [unique call] = read borrow.unique (local) loan1 roots.0{0}
+  %19: {} = call fill borrow.unique %18
+  %20: String [shared slot 0 view] = read borrow.shared (global gNamed.text) loan2
+  %21: Size = call length(String) borrow.shared %20
+  %22: Size = const 100
+  %23: Size = mul inspect %21 inspect %22
+  %24: String [shared slot 0 view] = read borrow.shared (m.text) loan3
+  %25: Size = call length(String) borrow.shared %24
+  %26: Size = const 10
+  %27: Size = mul inspect %25 inspect %26
+  %28: Size = add inspect %23 inspect %27
+  %29: String [shared slot 0 view] = read borrow.shared (local.text) loan4 roots{0}
+  %30: Size = call length(String) borrow.shared %29
+  drop (local5)
+  %31: Size = add inspect %28 inspect %30
+  %32: I32 = convert inspect %31
+  write.init borrow.unique (texts) take %32
+  %34: Array(I32) [shared call] = read borrow.shared (global gLog) loan5
+  %35: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %34 roots{5}
+  %36: Size = call length(Array(I32)) borrow.shared %35
+  %37: I32 = convert inspect %36
+  write.init borrow.unique (logged) take %37
+  %39: I32 = read copy.trivial (first)
+  %40: I32 = const 100000000
+  %41: I32 = mul inspect %39 inspect %40
+  %42: I32 = read copy.trivial (second)
+  %43: I32 = const 10000000
+  %44: I32 = mul inspect %42 inspect %43
+  %45: I32 = add inspect %41 inspect %44
+  %46: I32 = read copy.trivial (third)
+  %47: I32 = const 100000
+  %48: I32 = mul inspect %46 inspect %47
+  %49: I32 = add inspect %45 inspect %48
+  %50: I32 = read copy.trivial (fourth)
+  %51: I32 = const 10000
+  %52: I32 = mul inspect %50 inspect %51
+  %53: I32 = add inspect %49 inspect %52
+  %54: I32 = read copy.trivial (texts)
+  %55: I32 = const 10
+  %56: I32 = mul inspect %54 inspect %55
+  %57: I32 = add inspect %53 inspect %56
+  %58: I32 = read copy.trivial (logged)
+  %59: I32 = add inspect %57 inspect %58
+  return take %59
+}
+
+fn main$() -> I32 {
+  local & local0: Array(I32)
+  local & local1: Array(I32)
+  local local2: String
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: I32 = const 3
+  %3: %I32 = run.slots I32 *3
+  %4: Size = bitcast inspect %3
+  %5: Size = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  %7: {} = call checkCondition borrow.shared %6
+  %8: @bits(30) U32 = const 3
+  %9: @bits(2) U32 = const 1
+  %10: Run(I32) = aggregate.Run take %3 take %8 take %9
+  %11: @bits(30) U32 = const 3
+  %12: Array(I32) = aggregate.Array take %10 take %11
+  write.init borrow.unique (local0) take %12
+  %14: Size = const 0
+  write.init borrow.unique ([%%3][0]) take %0
+  %16: Size = const 1
+  write.init borrow.unique ([%%3][1]) take %1
+  %18: Size = const 2
+  write.init borrow.unique ([%%3][2]) take %2
+  %20: Array(I32) = read take (local0)
+  write.init borrow.unique (global gArr) take %20
+  %22: I32 = const 0
+  %23: %I32 = run.slots I32 *1
+  %24: Size = bitcast inspect %23
+  %25: Size = const 0
+  %26: Bool = eq inspect %24 inspect %25
+  %27: {} = call checkCondition borrow.shared %26
+  %28: @bits(30) U32 = const 1
+  %29: @bits(2) U32 = const 1
+  %30: Run(I32) = aggregate.Run take %23 take %28 take %29
+  %31: @bits(30) U32 = const 1
+  %32: Array(I32) = aggregate.Array take %30 take %31
+  write.init borrow.unique (local1) take %32
+  %34: Size = const 0
+  write.init borrow.unique ([%%23][0]) take %22
+  %36: Array(I32) = read take (local1)
+  write.init borrow.unique (global gLog) take %36
+  %38: String = const String {units: Array {run: Run {items: &string'104, capacity: 3, ownsHeap: 0}, length: 3}}
+  write.init borrow.unique (local2) take %38
+  %40: String [shared slot 0] = read borrow.shared (local2) loan0
+  %41: String [shared slot 0 view] = call.derivation view(String) borrow.shared %40 roots{0}
+  %42: I32 = const 1
+  %43: Named = aggregate.Named borrow.shared %41 take %42 roots.0{0}
+  write.init borrow.unique (global gNamed) take %43
+  drop (local2)
+  %45: I32 = call main
+  return take %45
+}
+
+fn counting$new(n: I32) -> counting.Iter = <no body>
+
+fn counting$step($self: counting.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
+
+fn counting$next($self: counting.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn counting$resume($self: counting.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+
+fn readingLambda.lambda(readingLambda.lambda.env: readingLambda.lambda.env [shared call]) -> I32 {
+  local local1: I32 [shared slot 0]
+
+bb0:
+  %0: Size = const 0
+  %1: Array(I32) [shared call] = read borrow.shared (global gArr) loan0
+  %2: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %1 roots{0}
+  %3: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %2 borrow.shared %0 roots{0}
+  write.init borrow.unique (local1) borrow.shared %3
+  %5: I32 = read copy.trivial (local1)
+  %6: I32 = const 1
+  %7: I32 = add inspect %5 inspect %6
+  return take %7
+}
+
+fn runIt(readingLambda.lambda)(g: readingLambda.lambda.env [shared call]) -> I32 = <runIt at readingLambda.lambda.env>
+
+entry main$

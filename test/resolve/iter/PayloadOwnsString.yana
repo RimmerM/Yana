@@ -1,0 +1,42 @@
+{-
+   An iterator whose *payload* owns a string is one object under `let &` on every target.
+
+   `growing` keeps `let &s = "x"` across its `yield`. Natively that member owns its string, so the
+   record is not trivially copied and `let &c = it` is a loan: stepping `c` twice and `it` once hands
+   over 2, 3 and 4. JavaScript copies a string, so the record was trivially copied there and `it`
+   restarted - 232. `viewing`'s `let t = text` is the other case and must stay one: natively `t` is a
+   loan and the record *is* a copy, so both targets restart `it` and answer 232.
+
+   # resolver: ownership
+-}
+
+iter fn growing(n: I32) -> I32:
+    let &s = "x"
+    for i in 0..n:
+        s = s ++ "y"
+        yield truncate(length(s))
+
+iter fn viewing(n: I32, text: String) -> I32:
+    let t = text
+    for i in 0..n:
+        yield i + truncate(length(t))
+
+fn grown() -> Int:
+    let &it = growing(5)
+    let &c = it
+    let &r = 0
+    if c.next() is Just(x) then r = r * 10 + x
+    if c.next() is Just(x) then r = r * 10 + x
+    if it.next() is Just(x) then r = r * 10 + x
+    return r
+
+fn viewed() -> Int:
+    let &it = viewing(5, "ab")
+    let &c = it
+    let &r = 0
+    if c.next() is Just(x) then r = r * 10 + x
+    if c.next() is Just(x) then r = r * 10 + x
+    if it.next() is Just(x) then r = r * 10 + x
+    return r
+
+fn main() -> Int = grown() * 1000 + viewed()

@@ -1,0 +1,62 @@
+{-
+   An iterator object stepped while a loan of a global is live, where what the step runs at the
+   object's own types touches nothing - J130.
+
+   # resolver: ownership
+
+   J125 made a concrete `it.next()` name the object's own step, which has no body until the
+   conversion writes one, and the confirming walk answered "yes" for any function without one. So
+   `acting` stepped at `Int` was refused because `Act(Loud)`'s member grows `gArr`, while the `for`
+   over the same call was not. The step is now read as its producer at the producer's own types,
+   which is what `for` reads. The instance at `Loud` stays refused
+   (`Reject.GlobalEffects.Objects.yana`).
+-}
+
+data Loud {n: Int}
+
+let &gArr = [1, 2, 3] :: Array(Int)
+
+fn grow():
+    for i in 0..1000:
+        push(gArr, i + 100)
+
+class Act(a):
+    fn act(x: a) -> Int
+
+instance Act(Loud):
+    fn act(x: Loud) -> Int:
+        grow()
+        return x.n
+
+instance Act(Int):
+    fn act(x: Int) -> Int = x + 1
+
+iter fn (Act(a)) acting(x: a) -> Int:
+    for i in 0..3:
+        yield act(x)
+
+-- Never called: it only makes the class member reach `grow`.
+fn other() -> Int:
+    let l = Loud {n: 1}
+    let &it2 = acting(l)
+    let &s = 0
+    if it2.next() is Just(v):
+        s += v
+    return s
+
+fn stepped() -> Int:
+    let &it = acting(5)
+    let w = gArr[0..3]
+    let &s = 0
+    while it.next() is Just(v):
+        s += v
+    return w[0] + s
+
+fn looped() -> Int:
+    let w = gArr[0..3]
+    let &s = 0
+    for v in acting(5):
+        s += v
+    return w[0] + s
+
+fn main() -> Int = stepped() + looped()

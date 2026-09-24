@@ -535,7 +535,7 @@ bb4:
 
 bb5:
   %19: evens.Iter [unique slot 0] = read borrow.unique (left) loan1
-  %20: Maybe(Size) [owned here shape2 .0=shared slot 0] = call next(evens.Iter, Size, {}) borrow.unique %19 roots.0{1}
+  %20: Maybe(Size) [owned here shape2 .0=shared slot 0] = call evens$next borrow.unique %19 roots.0{1}
   write.init borrow.unique (a) take %20
   %22: U8 = read copy.trivial (a.#)
   %23: U8 = const 0
@@ -547,7 +547,7 @@ bb6:
 
 bb7:
   %28: odds.Iter [unique slot 0] = read borrow.unique (right) loan2
-  %29: Maybe(Size) [owned here shape2 .0=shared slot 0] = call next(odds.Iter, Size, {}) borrow.unique %28 roots.0{2}
+  %29: Maybe(Size) [owned here shape2 .0=shared slot 0] = call odds$next borrow.unique %28 roots.0{2}
   write.init borrow.unique (b) take %29
   %31: U8 = read copy.trivial (b.#)
   %32: U8 = const 0
@@ -776,7 +776,7 @@ bb43:
   jump -> bb45
 
 bb44:
-  %172: words.Iter [unique call shape9 .2.0.*=shared slot 0] = read borrow.unique (spelling) loan15 roots.0{13}
+  %172: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0] = read borrow.unique (spelling) loan15 roots.0{13}
   %173: String = call words$take borrow.unique %172
   write.init borrow.unique (w) take %173
   %175: String = read take (joined)
@@ -910,26 +910,26 @@ fn words$step($self: words.Iter [unique call], $resume: I32, $cancel: Bool) -> B
 
 fn words$drop($self: words.Iter) -> {} = <no body>
 
-fn words$take($self: words.Iter [unique call]) -> String = <no body>
+fn words$take($self: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0]) -> String = <no body>
 
-fn words$next($self: words.Iter [unique slot 0]) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+fn words$next($self: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0]) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
 
-fn words$resume($self: words.Iter [unique slot 0], $v: {}) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
+fn words$resume($self: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0], $v: {}) -> Maybe(String) [owned here shape1 .0=shared slot 0 view] = <no body>
 
 fn counting$new(total: Size [unique slot 0]) -> counting.Iter [owned here shape11 .2.*=unique slot 0] = <no body>
 
 fn counting$step($self: counting.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
 
-fn counting$next($self: counting.Iter [unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+fn counting$next($self: counting.Iter [unique slot 0 shape11 .2.*=unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn counting$resume($self: counting.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+fn counting$resume($self: counting.Iter [unique slot 0 shape11 .2.*=unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn watching$new(g: Guard [shared slot 0]) -> watching.Iter [owned here shape12 .2.*=shared slot 0] = <no body>
 
 fn watching$step($self: watching.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
 
-fn watching$next($self: watching.Iter [unique slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+fn watching$next($self: watching.Iter [unique slot 0 shape12 .2.*=shared slot 0]) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn watching$resume($self: watching.Iter [unique slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
+fn watching$resume($self: watching.Iter [unique slot 0 shape12 .2.*=shared slot 0], $v: {}) -> Maybe(Size) [owned here shape2 .0=shared slot 0] = <no body>
 
 entry main

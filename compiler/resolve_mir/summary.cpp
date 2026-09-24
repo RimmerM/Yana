@@ -202,15 +202,50 @@ struct Interprocedural {
      * somewhere unattributable, so every per-argument fact for it starts at the top of its lattice.
      * That is the same fallback `bodyKnown == false` gets one level out, and it is stated here
      * because the reachability walk is where the unattributable call is recognized.
+     *
+     * Two flags in one byte per caller: `kStackOpaque` is what the stack bound reads and
+     * `kArgumentsOpaque` what the per-argument rows read, and they differ for exactly one call - a
+     * `yield`, below. One array rather than two, because every caller that has one has a byte in
+     * both and they were grown and indexed together.
      */
+    enum : U8 { kStackOpaque = 1, kArgumentsOpaque = 2 };
     Array<U8> opaque;
 
-    void markOpaque(U32 caller) {
+    void markOpaqueAs(U32 caller, U8 flags) {
         while(opaque.size() <= caller) opaque.push(0);
-        opaque[caller] = 1;
+        opaque[caller] |= flags;
     }
 
-    bool isOpaque(U32 caller) const { return caller < opaque.size() && opaque[caller] != 0; }
+    void markStackOpaque(U32 caller) { markOpaqueAs(caller, kStackOpaque); }
+    void markArgumentsOpaque(U32 caller) { markOpaqueAs(caller, kArgumentsOpaque); }
+    void markOpaque(U32 caller) { markOpaqueAs(caller, kStackOpaque | kArgumentsOpaque); }
+
+    bool isOpaque(U32 caller) const { return caller < opaque.size() && (opaque[caller] & kStackOpaque); }
+    bool isArgumentOpaque(U32 caller) const {
+        return caller < opaque.size() && (opaque[caller] & kArgumentsOpaque);
+    }
+
+    /*
+     * A body's own **`yield`s** - the calls through its continuation parameter.
+     *
+     * They are value calls and still make the body opaque to the stack bound: what runs is the
+     * caller's code, whose frame this pass does not size from here. But they are not opaque to the
+     * per-argument rows, which is what they used to be, and what made every caller of `items`,
+     * `lines` or a user's own `iter fn` report its subject mutated and retained: the fixpoint joined
+     * the top of the lattice through the `lens.call` site. The continuation is the *caller's* blocks,
+     * which `bodyArgumentFacts` walks as part of the caller's body, so what it does is already
+     * counted there - and the one thing the callee's row still owes is what it **handed** it, which
+     * `computeArgumentFacts` answers per call. See `handedEscapes`.
+     *
+     * In caller order, since the reachability walk records them one body at a time - which is what
+     * lets `computeArgumentFacts` find a body's by a start index rather than a sort.
+     */
+    struct ContinuationCall {
+        U32 caller;
+        NodeId node;
+    };
+
+    Array<ContinuationCall> continuationCalls;
 
     /*
      * Per body compiled once, the slots of its environment it reads - one bit per slot of its frozen
@@ -775,7 +810,16 @@ struct Interprocedural {
                    site.through != CallThrough::CallWitness) {
                     auto& call = *(NodeCall*)node;
                     valueCalls.push(ValueCall { caller, U32(occurrenceOf(body, call.target).type.offset) });
-                    markOpaque(caller);
+
+                    // A `yield` - see `continuationCalls`. Opaque to the stack bound, and walked
+                    // for what it hands over rather than read as the top of the per-argument rows.
+                    if(callsOwnContinuation(decl, mir, body, *function, call)) {
+                        markStackOpaque(caller);
+                        assertTrue(continuationCalls.size() == 0 || continuationCalls[continuationCalls.size() - 1].caller <= caller);
+                        continuationCalls.push(ContinuationCall { caller, NodeId(i) });
+                    } else {
+                        markOpaque(caller);
+                    }
                     continue;
                 }
 
@@ -1371,6 +1415,12 @@ struct Interprocedural {
     struct BodyRooting {
         Body& body;
         Function& owner;
+
+        // What this body's type variables are bound to, where it is a specialization - see
+        // `mentionsPointer`. Every row read of the body asks through it, so one operand is read
+        // one way whichever row is asking.
+        Substitution bound;
+
         Elaboration* elaboration = nullptr;
 
         // Per loan, the parameters its borrowed place is rooted in - empty for a loan of a local, a
@@ -1400,27 +1450,44 @@ struct Interprocedural {
      * every row. A borrow is not owned, and a raw pointer is a machine address; those two are the
      * whole of what a value can carry.
      */
-    bool carriesStorage(const Occurrence& occurrence) {
+    bool carriesStorage(BodyRooting& rooting, const Occurrence& occurrence) {
         if(!occurrence.contract.isOwned()) return true;
-        return mentionsPointer(occurrence.type, 0);
+        return mentionsPointer(rooting.bound, occurrence.type, 0);
     }
 
     // Whether a type has a raw pointer anywhere in it - `eachVariable`'s shape asked about pointers.
-    // A type variable answers yes: a body compiled once cannot see the shape it was handed, so it
-    // cannot rule one out either.
-    bool mentionsPointer(DeclPtr<Type> type, U32 depth) {
+    // A type variable answers yes unless this body's substitution binds it: a body compiled once
+    // cannot see the shape it was handed, so it cannot rule one out either.
+    bool mentionsPointer(const Substitution& bound, DeclPtr<Type> type, U32 depth) {
         if(!type) return false;
         if(depth > kRootDepth) return true;
 
         switch(decl[type]->kind) {
             case Type::Pointer:
-            case Type::Variable:
                 return true;
+
+            /*
+             * A variable **this body's substitution binds** is the type it was bound to. A
+             * specialization shares its generic's MIR, so its values carry the generic's types, and
+             * reading `a` as "may be a pointer" at `+=(I32)` put `target + amount` - an `I32` - in
+             * the row of what `target = ...` stores, which is how `xs[0] += 1` came to report
+             * `retains: xs`. An erased body binds nothing, and a variable it cannot see stays yes.
+             */
+            case Type::Variable: {
+                auto& variable = *(VariableType*)decl[type];
+                if(bound.owner && variable.owner == bound.owner && variable.index < bound.count &&
+                   bound.arguments[variable.index]) {
+                    return mentionsPointer(bound, bound.arguments[variable.index], depth + 1);
+                }
+
+                return true;
+            }
+
             case Type::Array:
-                return mentionsPointer(((ArrayType*)decl[type])->element, depth + 1);
+                return mentionsPointer(bound, ((ArrayType*)decl[type])->element, depth + 1);
             case Type::Record:
                 for(auto field: ((RecordType*)decl[type])->fields.contents(decl)) {
-                    if(mentionsPointer(field.occurrence.type, depth + 1)) return true;
+                    if(mentionsPointer(bound, field.occurrence.type, depth + 1)) return true;
                 }
                 return false;
             default:
@@ -1624,7 +1691,7 @@ struct Interprocedural {
 
         // And the pointer half. A value carrying no pointer and owning what it holds is a copy, so
         // the walk stops rather than reporting every parameter the arithmetic touched.
-        if(!carriesStorage(valueOccurrence(*node))) return set;
+        if(!carriesStorage(rooting, valueOccurrence(*node))) return set;
 
         switch(node->kind) {
             case Node::Address:
@@ -1704,7 +1771,7 @@ struct Interprocedural {
         switch(operand.source()) {
             case SourceKind::Place: {
                 auto place = rooting.body.place(mir, operand.placeId());
-                if(!carriesStorage(place->occurrence)) return ArgumentSet();
+                if(!carriesStorage(rooting, place->occurrence)) return ArgumentSet();
 
                 auto throughDeref = false;
                 return placeParameters(rooting, operand.placeId(), throughDeref, depth);
@@ -1799,7 +1866,7 @@ struct Interprocedural {
         if(depth > kRootDepth) return ArgumentSet::all();
 
         auto place = rooting.body.place(mir, id);
-        if(!carriesStorage(place->occurrence)) return ArgumentSet();
+        if(!carriesStorage(rooting, place->occurrence)) return ArgumentSet();
         if(place->parent) return ArgumentSet();
 
         switch(place->kind) {
@@ -1831,7 +1898,7 @@ struct Interprocedural {
         if(depth > kRootDepth) return ArgumentSet::all();
 
         auto node = rooting.body.node(mir, id);
-        if(!carriesStorage(valueOccurrence(*node))) return ArgumentSet();
+        if(!carriesStorage(rooting, valueOccurrence(*node))) return ArgumentSet();
 
         switch(node->kind) {
             case Node::Address:
@@ -2042,9 +2109,75 @@ struct Interprocedural {
      * nothing, which is the J48 change. A call is not here at all: it is an edge, and the fixpoint
      * below is what walks it.
      */
+    // `bodyArgumentFacts`' table of what each reference local was bound to, a member so that the
+    // bodies that fill one reuse one allocation rather than making one each.
+    Array<ArgumentSet> boundTo;
+
     BodyFacts bodyArgumentFacts(BodyRooting& rooting) {
         BodyFacts facts;
         auto& body = rooting.body;
+
+        /*
+         * **A reference local, and what it was bound to.**
+         *
+         * `xs[0] = 10` over a window is `getMut` bound to a local of the `Owner` form and a
+         * `write.assign` to that local, which writes through it. The write's destination roots in a
+         * local and not a parameter, so it answered nothing, and `fn set(&xs: [Int])` read as writing
+         * nothing at all. What the local refers to is what its binding's value reached - the loan
+         * checker's origins, through `operandParameters` - so a write to any local that does not own
+         * its value is a write to that. Every body that does this through a lens hand-over used to
+         * be opaque for another reason, which is why it went unnoticed.
+         *
+         * `atRoot` says the destination is the local itself rather than a path into it, which is
+         * what makes an `Init` of one its binding. It is answered here, after the `Place` test,
+         * because a write's destination may be a value - an address computed in the body - and
+         * asking one of those for its place is `Operand::placeId`'s assertion; the bindings walk
+         * used to ask first.
+         */
+        auto referenceLocal = [&](Operand destination, bool& atRoot) -> I64 {
+            atRoot = false;
+            if(destination.source() != SourceKind::Place) return -1;
+
+            auto& place = *body.place(mir, destination.placeId());
+            atRoot = !place.parent;
+
+            auto& root = rootPlace(mir, place);
+            if(root.kind != Place::Local) return -1;
+
+            auto local = body.local(mir, LocalId(root.payload));
+            if(!local || local->isParameter() || local->occurrence.contract.isOwned()) return -1;
+            return I64(root.payload);
+        };
+
+        /*
+         * The bindings are a walk over every node, made the first time a write *through* a
+         * reference local asks for one and not before. A body binding a reference local is most
+         * bodies - any `let x = <borrow>` makes one - and a body writing through one is few of
+         * them, so gating the walk on the locals alone (what J105 did) still walked nearly every
+         * body. Rejected: filling the table as the main loop goes, which is right only if every
+         * binding of a local comes before every write through it in node order, and nothing about
+         * the node table promises that.
+         */
+        auto boundFilled = false;
+        auto fillBoundTo = [&] {
+            boundFilled = true;
+            boundTo.clear();
+            for(U32 l = 0; l < body.locals.size(); l++) boundTo.push(ArgumentSet());
+
+            for(U32 i = 0; i < body.nodes.size(); i++) {
+                auto node = body.node(mir, NodeId(i));
+                if(!node || node->kind != Node::Write) continue;
+
+                auto& write = *(NodeWrite*)node;
+                if(write.mode != Destination::Init) continue;
+
+                auto atRoot = false;
+                auto local = referenceLocal(write.destination, atRoot);
+                if(local >= 0 && atRoot) {
+                    boundTo[U32(local)] = boundTo[U32(local)].join(operandParameters(rooting, write.value, 0));
+                }
+            }
+        };
 
         for(U32 i = 0; i < body.nodes.size(); i++) {
             auto node = body.node(mir, NodeId(i));
@@ -2057,7 +2190,21 @@ struct Interprocedural {
                     auto throughDeref = false;
                     ArgumentSet target;
 
-                    if(write.destination.source() == SourceKind::Place) {
+                    auto atRoot = false;
+                    auto reference = referenceLocal(write.destination, atRoot);
+                    auto binding = reference >= 0 && write.mode == Destination::Init && atRoot;
+
+                    if(reference >= 0 && !binding) {
+                        if(!boundFilled) fillBoundTo();
+
+                        // Outside whatever it is bound to: a reference local names storage that is
+                        // not the local, and `boundTo` says only which parameters that storage
+                        // reaches - one bound into a global has none, and a value stored through it
+                        // still outlives the call.
+                        target = boundTo[U32(reference)];
+                        throughDeref = true;
+                        outside = true;
+                    } else if(write.destination.source() == SourceKind::Place) {
                         target = writtenParameters(rooting, write.destination.placeId(), throughDeref);
                         outside = target.any() || rootsInGlobal(rooting, write.destination.placeId());
                     } else {
@@ -2238,9 +2385,12 @@ struct Interprocedural {
     // over the same positions, and resolving each once is what keeps the fixpoint set algebra.
     Array<ArgumentSet> siteAddrArgs;
 
-    // Per site, whether the callee is a block-move ladder - a site answered by `blockMoveSite` when
-    // the body was walked, and skipped by the fixpoint because it has no callee row to join.
-    Array<U8> siteBlockMove;
+    // Per site, two flags. `kSiteBlockMove`: the callee is a block-move ladder - a site answered by
+    // `blockMoveSite` when the body was walked, and skipped by the fixpoint because it has no callee
+    // row to join. `kSiteLens`: it is a `lens.call` - whose continuation is the caller's own blocks,
+    // and so joins the callee's rows without what it hands over. See `handedEscapes`.
+    enum : U8 { kSiteBlockMove = 1, kSiteLens = 2 };
+    Array<U8> siteFlags;
 
     // Both groupings, by the same counting sort `buildCallers` uses. Two rather than one because the
     // two halves of the fixpoint ask opposite questions: the base case is per *caller* body and the
@@ -2303,10 +2453,11 @@ struct Interprocedural {
     }
 
     /*
-     * The four rows, over the whole program.
+     * The two rows - `escapes` and `mutates` - over the whole program, and beside them what each
+     * body hands its continuation.
      *
      * The base case is each body's own verbs, and the top of every lattice is what a body with no
-     * body and a body that made an unattributable call both start from - `isOpaque`, whose whole
+     * body and a body that made an unattributable call both start from - `isArgumentOpaque`, whose whole
      * content is that this pass could not say *which* position an argument went to.
      *
      * The schedule is `computeSuspension`'s: monotone, so it terminates, and a function is queued
@@ -2327,17 +2478,53 @@ struct Interprocedural {
         siteArity.clear();
         siteArgs.clear();
         siteAddrArgs.clear();
-        siteBlockMove.clear();
+        siteFlags.clear();
         for(Size i = 0; i < callEdges.size(); i++) {
             siteArgStart.push(0);
             siteArity.push(0);
-            siteBlockMove.push(0);
+            siteFlags.push(0);
         }
 
         for(U32 i = 0; i < count; i++) {
             escapes.push(ArgumentSet());
             mutates.push(ArgumentSet());
         }
+
+        /*
+         * What each body hands its continuation, and the reason a `lens.call` site does not read as
+         * the top of its callee's rows.
+         *
+         * Kept beside the propagated rows rather than joined into them, because the two readers of a
+         * `yield` want different answers. The **caller** of a traversal has the continuation in its
+         * own body: a write through the handed item, or a store of it somewhere that outlives the
+         * call, is a node `bodyArgumentFacts` walks there, against the caller's own parameters. So a
+         * `lens.call` site joins the callee's rows *without* this, and `for c in items(text)` is a
+         * read of `text` and nothing else. Joining it too would say every subject a loop reads is
+         * one it keeps, and it is no more sound for being wider.
+         *
+         * The **published** row is the other reader - `resolve_ssa/opt` asking about a call that
+         * was not inlined, where the continuation is a lifted function the call site cannot see into.
+         * There the callee has to answer for it, so this is joined in at publication, and at any
+         * site that is a plain call. Its content is the conservative end of what a continuation may
+         * do with what it was given: the continuation's own position in both rows, since what it
+         * writes is the caller's frame; everything handed over in `escapes`, since a `source'`
+         * window or a `->` item outlives the call that handed it; and in `mutates`, whatever was
+         * handed with a writable or owning convention. A shared loan is left out of `mutates` because
+         * nothing but an atomic writes through one, and an atomic is never a load the optimizer
+         * forwards past a call.
+         */
+        Array<ArgumentSet> handedEscapes;
+        Array<ArgumentSet> handedMutates;
+        for(U32 i = 0; i < count; i++) {
+            handedEscapes.push(ArgumentSet());
+            handedMutates.push(ArgumentSet());
+        }
+
+        // Where each body's `yield`s start in `continuationCalls`, which is already in caller order.
+        Array<U32> handedStart;
+        for(U32 i = 0; i <= count; i++) handedStart.push(0);
+        for(auto& call: continuationCalls) handedStart[call.caller + 1]++;
+        for(U32 i = 0; i < count; i++) handedStart[i + 1] += handedStart[i];
 
         // The bodies, once each: the base rows, and every site's arguments resolved in the terms of
         // the body that wrote them.
@@ -2349,20 +2536,21 @@ struct Interprocedural {
              * both rows say every argument. An **opaque call** reaches the same place by the other
              * road - a call this pass cannot attribute could have kept or written anything.
              */
-            if((!function->summary.bodyKnown || !function->mir) || isOpaque(i)) {
+            if((!function->summary.bodyKnown || !function->mir) || isArgumentOpaque(i)) {
                 escapes[i] = ArgumentSet::all();
                 mutates[i] = ArgumentSet::all();
                 if(!function->mir) continue;
             }
 
             auto& body = *mir[function->mir];
-            BodyRooting rooting { body, *function,
+            auto bound = substitutionOf(decl, *function);
+            BodyRooting rooting { body, *function, bound,
                                   body.elaboration ? mir[body.elaboration] : nullptr, {} };
             mapJoins(rooting);
 
             // The lenders first, and with the origin half switched off: a loan's own root is a
             // *place*, so the table can be built without reading the table being built.
-            BodyRooting bare { body, *function, nullptr, {} };
+            BodyRooting bare { body, *function, bound, nullptr, {} };
             mapJoins(bare);
             for(U32 l = 0; l < body.loans.size(); l++) {
                 auto loan = body.loan(mir, LoanId(l));
@@ -2375,14 +2563,39 @@ struct Interprocedural {
             escapes[i] = escapes[i].join(facts.escapes);
             mutates[i] = mutates[i].join(facts.mutates);
 
+            if(handedStart[i] < handedStart[i + 1]) {
+                ArgumentSet own;
+                own.add(continuationOf(decl, *function));
+                handedEscapes[i] = handedEscapes[i].join(own);
+                handedMutates[i] = handedMutates[i].join(own);
+            }
+
+            for(auto slot = handedStart[i]; slot < handedStart[i + 1]; slot++) {
+                auto& call = *(NodeCall*)body.node(mir, continuationCalls[slot].node);
+
+                for(auto operand: call.arguments.contents(mir)) {
+                    auto reach = operandParameters(rooting, operand, 0);
+                    auto given = operandAddressGiven(rooting, operand, 0);
+
+                    handedEscapes[i] = handedEscapes[i].join(reach).join(given);
+
+                    auto mode = operand.mode();
+                    if(mode != UseMode::BorrowShared && mode != UseMode::Inspect &&
+                       mode != UseMode::CopyTrivial) {
+                        handedMutates[i] = handedMutates[i].join(reach).join(given);
+                    }
+                }
+            }
+
             for(auto slot = madeStart[i]; slot < madeStart[i + 1]; slot++) {
                 auto s = madeOrder[slot];
 
                 if(isBlockMove(reached[callEdges[s].callee])) {
                     blockMoveSite(rooting, callEdges[s].node, mutates[i], escapes[i]);
-                    siteBlockMove[s] = 1;
+                    siteFlags[s] |= kSiteBlockMove;
                 }
 
+                if(isLensCall(body.node(mir, callEdges[s].node)->kind)) siteFlags[s] |= kSiteLens;
                 siteArgStart[s] = U32(siteArgs.size());
                 eachCallArgument(body, callEdges[s].node, [&](U32, Operand operand) {
                     siteArgs.push(operandParameters(rooting, operand, 0));
@@ -2408,7 +2621,7 @@ struct Interprocedural {
                 // A block move was answered where the destination was visible - `blockMoveSite`,
                 // called once when the caller's body was walked. Joining the ladder's own rows on
                 // top would put back exactly the imprecision that model exists to avoid.
-                if(siteBlockMove[s]) continue;
+                if(siteFlags[s] & kSiteBlockMove) continue;
 
                 auto caller = callEdges[s].caller;
                 auto base = siteArgStart[s];
@@ -2416,8 +2629,14 @@ struct Interprocedural {
                 ArgumentSet grownEscapes;
                 ArgumentSet grownMutates;
 
+                // A `lens.call` site's continuation is the caller's own blocks - see
+                // `handedEscapes`, and why only a plain call joins what the callee handed over.
+                auto lensSite = (siteFlags[s] & kSiteLens) != 0;
+                auto calleeEscapes = lensSite ? escapes[index] : escapes[index].join(handedEscapes[index]);
+                auto calleeMutates = lensSite ? mutates[index] : mutates[index].join(handedMutates[index]);
+
                 for(U32 a = 0; a < siteArity[s]; a++) {
-                    if(mutates[index].has(a)) grownMutates = grownMutates.join(siteArgs[base + a]);
+                    if(calleeMutates.has(a)) grownMutates = grownMutates.join(siteArgs[base + a]);
 
                     /*
                      * The escape row composes over **both** reaches - J48.
@@ -2431,7 +2650,7 @@ struct Interprocedural {
                      * would have said nothing there, and the buffer that leaked would be one this
                      * frame placed.
                      */
-                    if(escapes[index].has(a)) {
+                    if(calleeEscapes.has(a)) {
                         grownEscapes = grownEscapes.join(siteAddrArgs[base + a])
                                                    .join(siteArgs[base + a]);
                     }
@@ -2456,8 +2675,8 @@ struct Interprocedural {
             auto function = decl[reached[i]];
             auto how = function->summary.bodyKnown ? Knowledge::Known : Knowledge::Assumed;
 
-            function->summary.setEscapes(escapes[i], how);
-            function->summary.setMutates(mutates[i], how);
+            function->summary.setEscapes(escapes[i].join(handedEscapes[i]), how);
+            function->summary.setMutates(mutates[i].join(handedMutates[i]), how);
         }
     }
 
@@ -2729,6 +2948,32 @@ struct Interprocedural {
 };
 
 } // namespace
+
+U16 continuationOf(DeclBase base, const Function& function) {
+    auto at = &function;
+    while(at->continuationArg == Function::kNoContinuation && at->specializes) {
+        at = base[at->specializes];
+    }
+
+    return at->continuationArg;
+}
+
+bool callsOwnContinuation(DeclBase decl, MirBase base, Body& body, const Function& function, NodeCall& call) {
+    auto continuation = continuationOf(decl, function);
+    if(continuation == Function::kNoContinuation) return false;
+    if(call.target.source() != SourceKind::Result) return false;
+
+    auto& producer = *body.node(base, call.target.nodeId());
+    if(producer.kind != Node::Read) return false;
+
+    auto& read = (NodeRead&)producer;
+    if(read.place.source() != SourceKind::Place) return false;
+
+    auto& root = rootPlace(base, *body.place(base, read.place.placeId()));
+    if(root.kind != Place::Local) return false;
+
+    return body.local(base, LocalId(root.payload))->parameter == continuation;
+}
 
 void computeSummaries(Context& context, Program& program) {
     Interprocedural pass(context, program);

@@ -166,7 +166,7 @@ bb0:
 
 bb1:
   %33: picking.Iter [unique slot 0 shape9 .2.0.*=shared slot 0] = read borrow.unique (it) loan1 roots.0{0}
-  %34: Maybe(I32) [owned here shape2 .0=shared slot 0] = call next(picking.Iter, I32, {}) borrow.unique %33 roots.0{0, 1}
+  %34: Maybe(I32) [owned here shape2 .0=shared slot 0] = call picking$next borrow.unique %33 roots.0{0, 1}
   write.init borrow.unique (local4) take %34
   %36: U8 = read copy.trivial (local4.#)
   %37: U8 = const 1
@@ -318,9 +318,9 @@ fn picking$new(xs: Array(I32) [shared slot 0 view], n: I32) -> picking.Iter [own
 
 fn picking$step($self: picking.Iter [unique call], $resume: I32, $cancel: Bool) -> Bool = <no body>
 
-fn picking$next($self: picking.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn picking$next($self: picking.Iter [unique slot 0 shape9 .2.0.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn picking$resume($self: picking.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn picking$resume($self: picking.Iter [unique slot 0 shape9 .2.0.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn counting$new(to: I32) -> counting.Iter = <no body>
 

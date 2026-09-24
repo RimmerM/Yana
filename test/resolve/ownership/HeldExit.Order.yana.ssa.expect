@@ -1,0 +1,507 @@
+module ResolveTest
+
+let & dropped: I32 = 0
+
+let & trace: I32 = 0
+
+fn Token.drop(value: Token) -> {} {
+bb0(%0: Token owned):
+  %1: %Token address = alloc frame Token
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr dropped
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .id inspect %1
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = add inspect %3 inspect %5
+  %7: %I32 address = global.addr dropped
+  store inspect %7 consume %6
+  return
+}
+
+fn Traced.drop(value: Traced) -> {} {
+bb0(%0: Traced owned):
+  %1: %Traced address = alloc frame Traced
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr trace
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 10
+  %5: I32 trivial = mul inspect %3 inspect %4
+  %6: %I32 address = field.addr .id inspect %1
+  %7: I32 trivial = load inspect %6
+  %8: I32 trivial = add inspect %5 inspect %7
+  %9: %I32 address = global.addr trace
+  store inspect %9 consume %8
+  return
+}
+
+fn maybeId(n: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 0
+  %5: Bool trivial = gt inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: Maybe(I32) trivial = aggregate.Nothing
+  jump -> bb2(consume %6)
+
+bb2(%1: Maybe(I32) trivial):
+  return consume %1
+
+bb3:
+  %7: I32 trivial = load inspect %2
+  %8: Maybe(I32) trivial = aggregate.Just consume %7
+  jump -> bb2(consume %8)
+}
+
+fn combine(x: Token, y: Token) -> I32 {
+bb0(%0: Token owned, %1: Token owned):
+  %2: %Token address = alloc frame Token
+  %3: %Token address = alloc frame Token
+  store inspect %2 consume %0
+  store inspect %3 consume %1
+  %4: %I32 address = field.addr .id inspect %2
+  %5: I32 trivial = load inspect %4
+  drop Token inspect %2
+  %6: %I32 address = field.addr .id inspect %3
+  %7: I32 trivial = load inspect %6
+  drop Token inspect %3
+  %8: I32 trivial = add inspect %5 inspect %7
+  return consume %8
+}
+
+fn f(a: I32 [shared call], b: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %10: %I32 address = alloc frame I32 [shared call]
+  %11: %I32 address = alloc frame I32 [shared call]
+  %12: %Maybe(I32) address = alloc frame Maybe(I32)
+  %13: %I32 address = alloc frame I32
+  %14: %Outcome(I32, {}) address = alloc frame Outcome(I32, {})
+  %15: %Token address = alloc frame Token
+  %16: %Token address = alloc frame Token
+  %17: %I32 address = alloc frame I32
+  store inspect %10 borrow %0
+  store inspect %11 borrow %1
+  %18: I32 trivial = const 10
+  %19: Token owned = aggregate.Token consume %18
+  %20: I32 trivial = load inspect %10
+  %21: Maybe(I32) trivial = call maybeId borrow %20
+  store inspect %12 consume %21
+  %22: %U8 address = field.addr .# inspect %12
+  %23: U8 trivial = load inspect %22
+  %24: U8 trivial = const 1
+  %25: Bool trivial = eq inspect %23 inspect %24
+  branch inspect %25 -> bb3(consume %19) -> bb1(consume %19)
+
+bb1(%2: Token owned):
+  %26: I32 trivial = load inspect %11
+  %27: Maybe(I32) trivial = call maybeId borrow %26
+  %28: Outcome(I32, {}) trivial = call Maybe(a).toOutcome(I32) consume %27
+  store inspect %14 consume %28
+  %29: %U8 address = field.addr .# inspect %14
+  %30: U8 trivial = load inspect %29
+  %31: U8 trivial = const 1
+  %32: Bool trivial = eq inspect %30 inspect %31
+  branch inspect %32 -> bb6(consume %2) -> bb4(consume %2)
+
+bb2(%3: Token owned, %4: Token owned):
+  %33: I32 trivial = call combine consume %4 consume %3
+  store inspect %17 consume %33
+  %34: I32 trivial = load inspect %17
+  %35: Maybe(I32) trivial = aggregate.Just consume %34
+  return consume %35
+
+bb3(%5: Token owned):
+  %36: %I32 address = field.addr .Just inspect %12
+  %37: I32 trivial = load inspect %36
+  store inspect %13 consume %37
+  %38: I32 trivial = load inspect %13
+  %39: Token owned = aggregate.Token consume %38
+  jump -> bb2(consume %39, consume %5)
+
+bb4(%6: Token owned):
+  %40: %I32 address = field.addr .Proceed inspect %14
+  %41: I32 trivial = load inspect %40
+  jump -> bb5(consume %41, consume %6)
+
+bb5(%7: I32 trivial, %8: Token owned):
+  %42: I32 trivial = const 100
+  %43: I32 trivial = add inspect %7 inspect %42
+  %44: Maybe(I32) trivial = aggregate.Just consume %43
+  store inspect %16 consume %8
+  drop Token inspect %16
+  return consume %44
+
+bb6(%9: Token owned):
+  %45: {} trivial = const {}
+  %46: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %45
+  store inspect %15 consume %9
+  drop Token inspect %15
+  return consume %46
+}
+
+fn traced(n: I32 [shared call]) -> Maybe(Traced) {
+bb0(%0: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 0
+  %5: Bool trivial = gt inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: Maybe(Traced) owned = aggregate.Nothing
+  jump -> bb2(consume %6)
+
+bb2(%1: Maybe(Traced) owned):
+  return consume %1
+
+bb3:
+  %7: I32 trivial = load inspect %2
+  %8: Traced owned = aggregate.Traced consume %7
+  %9: Maybe(Traced) owned = aggregate.Just consume %8
+  jump -> bb2(consume %9)
+}
+
+fn three(x: Traced, y: Traced, z: Traced) -> I32 {
+bb0(%0: Traced owned, %1: Traced owned, %2: Traced owned):
+  %3: %Traced address = alloc frame Traced
+  %4: %Traced address = alloc frame Traced
+  %5: %Traced address = alloc frame Traced
+  store inspect %3 consume %0
+  store inspect %4 consume %1
+  store inspect %5 consume %2
+  drop Traced inspect %3
+  drop Traced inspect %4
+  drop Traced inspect %5
+  %6: I32 trivial = const 0
+  return consume %6
+}
+
+fn pairIds(x: Traced, y: Traced) -> I32 {
+bb0(%0: Traced owned, %1: Traced owned):
+  %2: %Traced address = alloc frame Traced
+  %3: %Traced address = alloc frame Traced
+  store inspect %2 consume %0
+  store inspect %3 consume %1
+  drop Traced inspect %2
+  drop Traced inspect %3
+  %4: I32 trivial = const 7
+  return consume %4
+}
+
+fn tri(a: I32 [shared call], b: I32 [shared call], c: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 trivial, %1: I32 trivial, %2: I32 trivial):
+  %15: %I32 address = alloc frame I32 [shared call]
+  %16: %I32 address = alloc frame I32 [shared call]
+  %17: %I32 address = alloc frame I32 [shared call]
+  %18: %Outcome(Traced, {}) address = alloc frame Outcome(Traced, {})
+  %19: %Outcome(Traced, {}) address = alloc frame Outcome(Traced, {})
+  %20: %Traced address = alloc frame Traced
+  %21: %Outcome(Traced, {}) address = alloc frame Outcome(Traced, {})
+  %22: %Traced address = alloc frame Traced
+  %23: %Traced address = alloc frame Traced
+  store inspect %15 borrow %0
+  store inspect %16 borrow %1
+  store inspect %17 borrow %2
+  %24: I32 trivial = load inspect %15
+  %25: Maybe(Traced) owned = call traced borrow %24
+  %26: Outcome(Traced, {}) owned = call Maybe(a).toOutcome(Traced) consume %25
+  store inspect %18 consume %26
+  %27: %U8 address = field.addr .# inspect %18
+  %28: U8 trivial = load inspect %27
+  %29: U8 trivial = const 1
+  %30: Bool trivial = eq inspect %28 inspect %29
+  branch inspect %30 -> bb3 -> bb1
+
+bb1:
+  %31: %Traced address = field.addr .Proceed inspect %18
+  %32: Traced owned = load inspect %31
+  jump -> bb2(consume %32)
+
+bb2(%3: Traced owned):
+  %33: I32 trivial = load inspect %16
+  %34: Maybe(Traced) owned = call traced borrow %33
+  %35: Outcome(Traced, {}) owned = call Maybe(a).toOutcome(Traced) consume %34
+  store inspect %19 consume %35
+  %36: %U8 address = field.addr .# inspect %19
+  %37: U8 trivial = load inspect %36
+  %38: U8 trivial = const 1
+  %39: Bool trivial = eq inspect %37 inspect %38
+  branch inspect %39 -> bb6(consume %3) -> bb4(consume %3)
+
+bb3:
+  drop Outcome(Traced, {}) inspect %18
+  %40: {} trivial = const {}
+  %41: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %40
+  return consume %41
+
+bb4(%4: Traced owned):
+  %42: %Traced address = field.addr .Proceed inspect %19
+  %43: Traced owned = load inspect %42
+  jump -> bb5(consume %43, consume %4)
+
+bb5(%5: Traced owned, %6: Traced owned):
+  %44: I32 trivial = load inspect %17
+  %45: Maybe(Traced) owned = call traced borrow %44
+  %46: Outcome(Traced, {}) owned = call Maybe(a).toOutcome(Traced) consume %45
+  store inspect %21 consume %46
+  %47: %U8 address = field.addr .# inspect %21
+  %48: U8 trivial = load inspect %47
+  %49: U8 trivial = const 1
+  %50: Bool trivial = eq inspect %48 inspect %49
+  branch inspect %50 -> bb9(consume %6, consume %5) -> bb7(consume %6, consume %5)
+
+bb6(%7: Traced owned):
+  drop Outcome(Traced, {}) inspect %19
+  %51: {} trivial = const {}
+  %52: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %51
+  store inspect %20 consume %7
+  drop Traced inspect %20
+  return consume %52
+
+bb7(%8: Traced owned, %9: Traced owned):
+  %53: %Traced address = field.addr .Proceed inspect %21
+  %54: Traced owned = load inspect %53
+  jump -> bb8(consume %54, consume %8, consume %9)
+
+bb8(%10: Traced owned, %11: Traced owned, %12: Traced owned):
+  %55: I32 trivial = call three consume %11 consume %12 consume %10
+  %56: Maybe(I32) trivial = aggregate.Just consume %55
+  return consume %56
+
+bb9(%13: Traced owned, %14: Traced owned):
+  drop Outcome(Traced, {}) inspect %21
+  %57: {} trivial = const {}
+  %58: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %57
+  store inspect %22 consume %13
+  drop Traced inspect %22
+  store inspect %23 consume %14
+  drop Traced inspect %23
+  return consume %58
+}
+
+fn nested(a: I32 [shared call], b: I32 [shared call], c: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 trivial, %1: I32 trivial, %2: I32 trivial):
+  %15: %I32 address = alloc frame I32 [shared call]
+  %16: %I32 address = alloc frame I32 [shared call]
+  %17: %I32 address = alloc frame I32 [shared call]
+  %18: %Outcome(Traced, {}) address = alloc frame Outcome(Traced, {})
+  %19: %Outcome(Traced, {}) address = alloc frame Outcome(Traced, {})
+  %20: %Traced address = alloc frame Traced
+  %21: %Outcome(Traced, {}) address = alloc frame Outcome(Traced, {})
+  %22: %Traced address = alloc frame Traced
+  %23: %Traced address = alloc frame Traced
+  store inspect %15 borrow %0
+  store inspect %16 borrow %1
+  store inspect %17 borrow %2
+  %24: I32 trivial = load inspect %15
+  %25: Maybe(Traced) owned = call traced borrow %24
+  %26: Outcome(Traced, {}) owned = call Maybe(a).toOutcome(Traced) consume %25
+  store inspect %18 consume %26
+  %27: %U8 address = field.addr .# inspect %18
+  %28: U8 trivial = load inspect %27
+  %29: U8 trivial = const 1
+  %30: Bool trivial = eq inspect %28 inspect %29
+  branch inspect %30 -> bb3 -> bb1
+
+bb1:
+  %31: %Traced address = field.addr .Proceed inspect %18
+  %32: Traced owned = load inspect %31
+  jump -> bb2(consume %32)
+
+bb2(%3: Traced owned):
+  %33: I32 trivial = load inspect %16
+  %34: Maybe(Traced) owned = call traced borrow %33
+  %35: Outcome(Traced, {}) owned = call Maybe(a).toOutcome(Traced) consume %34
+  store inspect %19 consume %35
+  %36: %U8 address = field.addr .# inspect %19
+  %37: U8 trivial = load inspect %36
+  %38: U8 trivial = const 1
+  %39: Bool trivial = eq inspect %37 inspect %38
+  branch inspect %39 -> bb6(consume %3) -> bb4(consume %3)
+
+bb3:
+  drop Outcome(Traced, {}) inspect %18
+  %40: {} trivial = const {}
+  %41: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %40
+  return consume %41
+
+bb4(%4: Traced owned):
+  %42: %Traced address = field.addr .Proceed inspect %19
+  %43: Traced owned = load inspect %42
+  jump -> bb5(consume %43, consume %4)
+
+bb5(%5: Traced owned, %6: Traced owned):
+  %44: I32 trivial = load inspect %17
+  %45: Maybe(Traced) owned = call traced borrow %44
+  %46: Outcome(Traced, {}) owned = call Maybe(a).toOutcome(Traced) consume %45
+  store inspect %21 consume %46
+  %47: %U8 address = field.addr .# inspect %21
+  %48: U8 trivial = load inspect %47
+  %49: U8 trivial = const 1
+  %50: Bool trivial = eq inspect %48 inspect %49
+  branch inspect %50 -> bb9(consume %6, consume %5) -> bb7(consume %6, consume %5)
+
+bb6(%7: Traced owned):
+  drop Outcome(Traced, {}) inspect %19
+  %51: {} trivial = const {}
+  %52: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %51
+  store inspect %20 consume %7
+  drop Traced inspect %20
+  return consume %52
+
+bb7(%8: Traced owned, %9: Traced owned):
+  %53: %Traced address = field.addr .Proceed inspect %21
+  %54: Traced owned = load inspect %53
+  jump -> bb8(consume %54, consume %8, consume %9)
+
+bb8(%10: Traced owned, %11: Traced owned, %12: Traced owned):
+  %55: I32 trivial = call pairIds consume %12 consume %10
+  %56: Traced owned = aggregate.Traced consume %55
+  %57: I32 trivial = const 9
+  %58: Traced owned = aggregate.Traced consume %57
+  %59: I32 trivial = call three consume %11 consume %56 consume %58
+  %60: Maybe(I32) trivial = aggregate.Just consume %59
+  return consume %60
+
+bb9(%13: Traced owned, %14: Traced owned):
+  drop Outcome(Traced, {}) inspect %21
+  %61: {} trivial = const {}
+  %62: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %61
+  store inspect %22 consume %13
+  drop Traced inspect %22
+  store inspect %23 consume %14
+  drop Traced inspect %23
+  return consume %62
+}
+
+fn around($body: (->{}) -> $r [shared call]) -> $r = <no body>
+
+fn inLens(c: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial):
+  %8: %I32 address = alloc frame I32 [shared call]
+  %9: %Traced address = alloc frame Traced
+  %10: %Traced address = alloc frame Traced
+  %11: %I32 address = alloc frame I32
+  store inspect %8 borrow %0
+  %12: I32 trivial = const 1
+  %13: Traced owned = aggregate.Traced consume %12
+  %14: I32 trivial = const 2
+  %15: Traced owned = aggregate.Traced consume %14
+  %16: I32 trivial = load inspect %8
+  %17: I32 trivial = const 0
+  %18: Bool trivial = gt inspect %16 inspect %17
+  branch inspect %18 -> bb3(consume %13, consume %15) -> bb1(consume %13, consume %15)
+
+bb1(%1: Traced owned, %2: Traced owned):
+  store inspect %9 consume %1
+  drop Traced inspect %9
+  store inspect %10 consume %2
+  drop Traced inspect %10
+  %19: I32 [unique slot 0] guaranteed = load inspect %11
+  %20: inLens.cont.env affine = aggregate.inLens.cont.env borrow %19
+  %21: (->{}) -> I32 [owned here shape8 .0=shared call] affine = fun.value inLens.cont borrow %20
+  %22: I32 trivial = call around(I32) borrow %21
+  %23: I32 trivial = load inspect %11
+  return consume %23
+
+bb2(%3: Traced owned, %4: Traced owned, %5: Traced owned):
+  %24: I32 trivial = call pairIds consume %5 consume %3
+  %25: Traced owned = aggregate.Traced consume %24
+  %26: I32 trivial = const 9
+  %27: Traced owned = aggregate.Traced consume %26
+  %28: I32 trivial = call three consume %4 consume %25 consume %27
+  return consume %28
+
+bb3(%6: Traced owned, %7: Traced owned):
+  %29: I32 trivial = load inspect %8
+  %30: Traced owned = aggregate.Traced consume %29
+  jump -> bb2(consume %30, consume %6, consume %7)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Maybe(I32) address = alloc frame Maybe(I32)
+  %1: %Maybe(I32) address = alloc frame Maybe(I32)
+  %2: %Maybe(I32) address = alloc frame Maybe(I32)
+  %3: %I32 address = alloc frame I32
+  %4: %Maybe(I32) address = alloc frame Maybe(I32)
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = alloc frame I32
+  %7: I32 trivial = const 0
+  %8: I32 trivial = const 0
+  %9: Maybe(I32) trivial = call f borrow %7 borrow %8
+  store inspect %0 consume %9
+  %10: I32 trivial = const 0
+  %11: I32 trivial = const 5
+  %12: Maybe(I32) trivial = call f borrow %10 borrow %11
+  store inspect %1 consume %12
+  %13: I32 trivial = const 1
+  %14: I32 trivial = const 2
+  %15: I32 trivial = const 0
+  %16: Maybe(I32) trivial = call tri borrow %13 borrow %14 borrow %15
+  store inspect %2 consume %16
+  %17: %I32 address = global.addr trace
+  %18: I32 trivial = load inspect %17
+  store inspect %3 consume %18
+  %19: I32 trivial = const 0
+  %20: %I32 address = global.addr trace
+  store inspect %20 consume %19
+  %21: I32 trivial = const 1
+  %22: I32 trivial = const 2
+  %23: I32 trivial = const 0
+  %24: Maybe(I32) trivial = call nested borrow %21 borrow %22 borrow %23
+  store inspect %4 consume %24
+  %25: %I32 address = global.addr trace
+  %26: I32 trivial = load inspect %25
+  store inspect %5 consume %26
+  %27: I32 trivial = const 0
+  %28: %I32 address = global.addr trace
+  store inspect %28 consume %27
+  %29: I32 trivial = const 0
+  %30: I32 trivial = call inLens borrow %29
+  store inspect %6 consume %30
+  %31: %I32 address = global.addr dropped
+  %32: I32 trivial = load inspect %31
+  %33: I32 trivial = const 10000000
+  %34: I32 trivial = mul inspect %32 inspect %33
+  %35: I32 trivial = load inspect %3
+  %36: I32 trivial = const 100000
+  %37: I32 trivial = mul inspect %35 inspect %36
+  %38: I32 trivial = add inspect %34 inspect %37
+  %39: I32 trivial = load inspect %5
+  %40: I32 trivial = const 1000
+  %41: I32 trivial = mul inspect %39 inspect %40
+  %42: I32 trivial = add inspect %38 inspect %41
+  %43: %I32 address = global.addr trace
+  %44: I32 trivial = load inspect %43
+  %45: I32 trivial = add inspect %42 inspect %44
+  return consume %45
+}
+
+fn around(I32)($body: (->{}) -> I32 [shared call]) -> I32 {
+bb0(%0: (->{}) -> I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: (->{}) -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %3: {} trivial = const {}
+  %4: I32 trivial = call [value #0] inspect %2 consume %3
+  store inspect %1 consume %4
+  %5: I32 trivial = load inspect %1
+  return consume %5
+}
+
+fn inLens.cont(inLens.cont.env: inLens.cont.env [unique call], $handed: {}) -> I32 {
+bb0(%0: inLens.cont.env [unique call] guaranteed, %1: {} trivial):
+  %2: %I32 address = field.addr .$leaving inspect %0
+  %3: %I32 address = load inspect %2
+  %4: %{} address = alloc frame {}
+  %5: I32 trivial = const 0
+  store inspect %3 consume %5
+  %6: I32 trivial = const 1
+  return consume %6
+}
+
+entry main

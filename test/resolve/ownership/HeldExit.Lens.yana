@@ -1,0 +1,55 @@
+{-
+   A `return` inside a lens call written inside an argument.
+
+   # resolver: ownership
+
+   The region is outlined, so the `return` in it cannot name `Token {id: 10}`, which the
+   enclosing call is holding as a node of the caller's; it reached the return unconsumed on both
+   targets. The held value is now given storage before the region is entered and read back where
+   the caller carries on, so a return from inside drops it the way it drops a named local. `g` is
+   the same through an iterator's `for`.
+
+   The answer is dropped * 100 + closed + what the calls answered: f(0) drops 10, closes once and
+   answers 0; f(3) drops 13 and answers 13; g(0) drops 20 and answers 0 - so 4300 + 1 + 13.
+-}
+
+let &dropped = 0 :: Int
+let &closed = 0 :: Int
+
+data Token {id: Int}
+
+instance Drop(Token):
+    fn drop(->value: Token):
+        dropped = dropped + value.id
+
+lens fn around():
+    yield {}
+    closed = closed + 1
+
+iter fn upTo(n: Int) -> Int:
+    for i in 0..n:
+        yield i
+
+fn combine(->x: Token, ->y: Token) -> Int = x.id + y.id
+
+fn f(b: Int) -> Int:
+    let v = combine(Token {id: 10}, if b > 0 then Token {id: b} else:
+        around():
+            return 0
+        Token {id: 5}
+    )
+    return v
+
+fn g(b: Int) -> Int:
+    let v = combine(Token {id: 20}, if b > 0 then Token {id: b} else:
+        for i in upTo(3):
+            if i == 1 then return 0
+        Token {id: 5}
+    )
+    return v
+
+fn main() -> Int:
+    let a = f(0)
+    let c = f(3)
+    let d = g(0)
+    return dropped * 100 + closed + a + c + d

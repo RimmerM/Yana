@@ -159,99 +159,99 @@ words<complex>(%self: Ptr) {
     jmp b_5
   }
 
+  b_25 {
+    call_complex pushUnsigned32, %v_6, %v_1
+    jmp b_26
+  }
+
+  b_27 {
+    %v_28 = add %v_1, 12: Ptr
+    %v_29 = load %v_28, 4: I32
+    %v_30 = cast %v_29: I64
+    %v_31 = add %v_30, 1: I64
+    %v_32 = add %v_1, 8: Ptr
+    %v_33 = load %v_32, 4: I64
+    %v_34 = and %v_33, 1073741823: I64
+    %v_35 = cast %v_34: I32
+    %v_36 = cast %v_35: I64
+    %v_37 = cmp_ile %v_31, %v_36: I32
+    je %v_37, b_38, b_39
+  }
+
+  b_26 {
+    %v_40 = alloca 16, 8: Ptr
+    copy %v_40, %v_1, 16
+    %v_41 = add %self, 24: Ptr
+    call_complex teardown(Maybe(String) boxes unknown), %v_41
+    copy %v_41, %v_40, 16
+    %v_42 = add %self, 8: Ptr
+    %v_43 = load %v_42, 8: Ptr
+    %v_44 = stackswitch %v_43, %self, 1: I64
+    %v_45 = sub %v_3, %v_6: I32
+    %v_46 = cmp_ige %v_45, %v_2: I32
+    je %v_46, b_7, b_11
+  }
+
   b_24 {
     call_complex growArray(CodeUnit), %v_1, %v_4
     jmp b_23
   }
 
   b_23 {
-    %v_25 = add %v_1, 12: Ptr
-    %v_26 = load %v_25, 4: I32
-    %v_27 = cast %v_26: I64
-    %v_28 = add %v_27, 1: I64
-    %v_29 = add %v_1, 8: Ptr
-    %v_30 = load %v_29, 4: I64
-    %v_31 = and %v_30, 1073741823: I64
-    %v_32 = cast %v_31: I32
-    %v_33 = cast %v_32: I64
-    %v_34 = cmp_ilt %v_33, %v_28: I32
-    je %v_34, b_35, b_36
+    %v_47 = add %v_1, 12: Ptr
+    %v_48 = load %v_47, 4: I32
+    %v_49 = cast %v_48: I64
+    %v_50 = add %v_49, 1: I64
+    %v_51 = add %v_1, 8: Ptr
+    %v_52 = load %v_51, 4: I64
+    %v_53 = and %v_52, 1073741823: I64
+    %v_54 = cast %v_53: I32
+    %v_55 = cast %v_54: I64
+    %v_56 = cmp_ilt %v_55, %v_50: I32
+    je %v_56, b_57, b_58
   }
 
-  b_36 {
-    %v_37 = load %v_1, 8: Ptr
-    %v_38 = add %v_37, %v_27: Ptr
-    call_complex copyMemory, %v_38, @string'145, 1
-    %v_39 = cast %v_28: I32
-    %v_40 = and %v_39, 1073741823: I32
-    store %v_25, %v_40, 4
-    %v_41 = cmp_ilt %v_6, 0: I32
-    je %v_41, b_42, b_43
-  }
-
-  b_35 {
-    %v_44 = syscall 60, 134: I64
-    unreachable 
-  }
-
-  b_43 {
-    call_complex pushUnsigned32, %v_6, %v_1
-    jmp b_45
-  }
-
-  b_42 {
-    %v_46 = add %v_1, 12: Ptr
-    %v_47 = load %v_46, 4: I32
-    %v_48 = cast %v_47: I64
-    %v_49 = add %v_48, 1: I64
-    %v_50 = add %v_1, 8: Ptr
-    %v_51 = load %v_50, 4: I64
-    %v_52 = and %v_51, 1073741823: I64
-    %v_53 = cast %v_52: I32
-    %v_54 = cast %v_53: I64
-    %v_55 = cmp_ile %v_49, %v_54: I32
-    je %v_55, b_56, b_57
-  }
-
-  b_45 {
-    %v_58 = alloca 16, 8: Ptr
-    copy %v_58, %v_1, 16
-    %v_59 = add %self, 24: Ptr
-    call_complex teardown(Maybe(String) boxes unknown), %v_59
-    copy %v_59, %v_58, 16
-    %v_60 = add %self, 8: Ptr
-    %v_61 = load %v_60, 8: Ptr
-    %v_62 = stackswitch %v_61, %self, 1: I64
-    %v_63 = sub %v_3, %v_6: I32
-    %v_64 = cmp_ige %v_63, %v_2: I32
-    je %v_64, b_7, b_11
+  b_58 {
+    %v_59 = load %v_1, 8: Ptr
+    %v_60 = add %v_59, %v_49: Ptr
+    call_complex copyMemory, %v_60, @string'145, 1
+    %v_61 = cast %v_50: I32
+    %v_62 = and %v_61, 1073741823: I32
+    store %v_47, %v_62, 4
+    %v_63 = cmp_ilt %v_6, 0: I32
+    je %v_63, b_27, b_25
   }
 
   b_57 {
-    call_complex growArray(CodeUnit), %v_1, %v_49
-    %v_65 = load %v_50, 4: I64
+    %v_64 = syscall 60, 134: I64
+    unreachable 
+  }
+
+  b_39 {
+    call_complex growArray(CodeUnit), %v_1, %v_31
+    %v_65 = load %v_32, 4: I64
     %v_66 = and %v_65, 1073741823: I64
     %v_67 = cast %v_66: I32
     %v_68 = cast %v_67: I64
-    jmp b_56
+    jmp b_38
   }
 
-  b_56 {
-    %v_69 = phi [b_42, %v_54], [b_57, %v_68]: I64
-    %v_70 = cmp_ige %v_48, %v_69: I32
-    je %v_70, b_35, b_71
+  b_38 {
+    %v_69 = phi [b_27, %v_36], [b_39, %v_68]: I64
+    %v_70 = cmp_ige %v_30, %v_69: I32
+    je %v_70, b_57, b_71
   }
 
   b_71 {
     %v_72 = load %v_1, 8: Ptr
-    %v_73 = add %v_72, %v_48: Ptr
+    %v_73 = add %v_72, %v_30: Ptr
     store %v_73, 45, 1
-    %v_74 = cast %v_49: I32
+    %v_74 = cast %v_31: I32
     %v_75 = and %v_74, 1073741823: I32
-    store %v_46, %v_75, 4
+    store %v_28, %v_75, 4
     %v_76 = sub 0, %v_6: I32
     call_complex pushUnsigned32, %v_76, %v_1
-    jmp b_45
+    jmp b_26
   }
 }
 

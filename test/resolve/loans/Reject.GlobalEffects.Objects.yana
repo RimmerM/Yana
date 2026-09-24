@@ -1,0 +1,135 @@
+{-
+   A loan of a global held where an iterator object runs code it was lent when it was made - J130.
+
+   # resolver: ownership
+
+   A call of a producer lends it its arguments, and a function value or a lambda among them is
+   charged to that caller. An object's record *is* that caller from then on: it holds the captured
+   arguments and lends them to every step and to its teardown. Nothing charged them before J130 -
+   not the construction, which runs nothing, and not `it.next()`, whose operand is the record - so
+   `lambdaCapture` answered 3 where 6 is right: the step calls `grow`, which moves the run `w`
+   points into. The same `for x in runs(...)` was refused, since there the lambda is an argument of
+   the call itself.
+
+   A **generic** producer's step also releases values of its type variable, which its generic's row
+   leaves to the caller that chose the types; a step is called with no type arguments at all, so
+   `releasedInStep` answered 6 where 9 is right.
+-}
+
+data Noisy {n: Int}
+data Loud {n: Int}
+
+let &gArr = [1, 2, 3] :: Array(Int)
+
+fn grow():
+    for i in 0..1000:
+        push(gArr, i + 100)
+
+instance Drop(Noisy):
+    fn drop(->value: Noisy):
+        grow()
+
+fn make(n: Int) -> Noisy = Noisy {n: n}
+
+iter fn (Call(f, () -> {})) runsEach(g: f) -> Int:
+    for i in 0..3:
+        g()
+        yield i
+
+iter fn runs(g: () -> {}) -> Int:
+    for i in 0..3:
+        g()
+        yield i
+
+iter fn runsAfter(g: () -> {}) -> Int:
+    for i in 0..3:
+        yield i
+    g()
+
+fn (a) sink(->x: a) -> Int = 1
+
+iter fn (a) holdThenDrop(->x: a) -> Int:
+    yield 1
+    let k = sink(x)
+    yield k + 1
+
+class Act(a):
+    fn act(x: a) -> Int
+
+instance Act(Loud):
+    fn act(x: Loud) -> Int:
+        grow()
+        return x.n
+
+instance Act(Int):
+    fn act(x: Int) -> Int = x + 1
+
+iter fn (Act(a)) acting(x: a) -> Int:
+    for i in 0..3:
+        yield act(x)
+
+-- A lambda captured under a `Call` promise, run by the step.
+fn lambdaCapture() -> Int:
+    let &it = runsEach(() -> grow())
+    let w = gArr[0..3]
+    let &first = 0
+    if it.next() is Just(x):
+        first = x
+    return w[0] + w[1] + w[2] + first
+
+-- The same captured as a function value.
+fn valueCapture() -> Int:
+    let &it = runs(() -> grow())
+    let w = gArr[0..3]
+    let &first = 0
+    if it.next() is Just(x):
+        first = x
+    return w[0] + w[1] + w[2] + first
+
+-- Stepped by a body that was handed the object and holds the window itself.
+fn stepOnce(&it: runs.Iter) -> Int:
+    let w = gArr[0..3]
+    if it.next() is Just(x):
+        return w[0] + w[1] + w[2] + x
+    return 0
+
+-- The producer's cleanup calls the lambda, and the object dies while `w` is live.
+fn peekIt(it: runsAfter.Iter) -> Int = 1
+
+fn cleanupCapture() -> Int:
+    let &it = runsAfter(() -> grow())
+    let &first = 0
+    if it.next() is Just(x):
+        first = x
+    let w = gArr[0..3]
+    let n = peekIt(it)
+    return w[0] + w[1] + w[2] + n + first
+
+-- The second step releases `x`, a `Noisy`, and the third keeps the object alive past `w`, so what
+-- is asked is the step rather than the object's teardown.
+fn releasedInStep() -> Int:
+    let &it = holdThenDrop(make(1))
+    let &s = 0
+    if it.next() is Just(v):
+        s += v
+    let w = gArr[0..3]
+    if it.next() is Just(v):
+        s += v
+    let r = w[0] + w[1] + w[2] + s
+    if it.next() is Just(v):
+        s += v
+    return r
+
+-- A producer generic in a class, stepped at the instance that grows `gArr`. Its twin at `Int` is
+-- `GlobalEffects.Objects.yana`, and compiles.
+fn actingLoud() -> Int:
+    let w = gArr[0..3]
+    let &s = 0
+    let &it = acting(Loud {n: 1})
+    if it.next() is Just(v):
+        s += v
+    return w[0] + s
+
+fn main() -> Int:
+    let &it = runs(() -> grow())
+    return lambdaCapture() + valueCapture() + stepOnce(it) + cleanupCapture() + releasedInStep() + actingLoud()

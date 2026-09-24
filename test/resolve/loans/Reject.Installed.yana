@@ -1,0 +1,213 @@
+{-
+   A loan a call installs in a `&` argument, and the caller then treating it as if the call had
+   ended it.
+
+   # resolver: ownership
+
+   Each function below writes a source while a destination the call installed its loan into is
+   still read, which is refused exactly as it is when the destination is built from the source
+   directly (`direct`). The destination is a record parameter's group, a field origin, a lens, a
+   class member selected here and one dispatched from a body compiled once, a field reached through
+   a loan, a `&` binding, a returned reference and a loop. The old loan is not released by the call
+   (`oldLoan`): the signature binds the group to the *set*, and a callee may keep what was there.
+   `Installed.yana` is the half that stays legal.
+
+   The caller believes the signature, so the body is held to it: whatever a `&` parameter's
+   interior position holds at a `return` must be rooted in a parameter publishing that position's
+   slot. The `stash` functions and `Keep(Viewer)` are the body-side rules of
+   `../Reject.LoanDestination.yana` and `../Reject.ClassBorrow.yana`, which are the new stage's
+   too and add the global half of the rule.
+-}
+
+data Cell {value: Int}
+data Store {held: kept'Cell}
+data Named {first: k'Cell, second: k'Cell}
+data Owned {held: kept'Cell, name: String}
+data Pair {a: &p'Store, n: Int}
+
+fn remember(&store: Store(kept'), value: kept'Cell):
+    store = Store {held: value}
+
+fn rememberFirst(&named: Named(k'), value: k'Cell):
+    named = Named {first: value, second: named.second}
+
+fn rememberOwned(&store: Owned(kept'), value: kept'Cell):
+    store = Owned {held: value, name: "installed"}
+
+fn itself(&s: owner'Owned) -> &owner'Owned = s
+
+lens fn holding(&store: Store(kept'), value: kept'Cell):
+    store = Store {held: value}
+    yield {}
+
+class Keeps(c):
+  fn keep(self: c, &store: Store(kept'), value: kept'Cell) -> {}
+
+data Keeper {id: Int}
+
+instance Keeps(Keeper):
+    fn keep(self: Keeper, &store: Store(kept'), value: kept'Cell):
+        store = Store {held: value}
+
+fn direct() -> Int:
+    let &source = Cell {value: 7}
+    let &box = Store {held: source}
+    source.value = 9
+    return box.held.value
+
+fn recordGroup() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    remember(box, source)
+    source.value = 9
+    return box.held.value
+
+fn oldLoan() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    remember(box, source)
+    seed.value = 9
+    return box.held.value
+
+fn fieldOrigin() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &named = Named {first: seed, second: seed}
+    rememberFirst(named, source)
+    source.value = 9
+    return named.first.value
+
+fn throughLens() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    holding(box, source):
+        print("inside")
+    source.value = 9
+    return box.held.value
+
+fn throughClass() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    keep(Keeper {id: 0}, box, source)
+    source.value = 9
+    return box.held.value
+
+fn (Keeps(c)) generic(keeper: c) -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    keep(keeper, box, source)
+    source.value = 9
+    return box.held.value
+
+fn fieldThroughLoan() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    let &pair = Pair {a: box, n: 0}
+    remember(pair.a, source)
+    source.value = 9
+    return box.held.value
+
+fn writeThroughLoan() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    let &pair = Pair {a: box, n: 0}
+    pair.a = Store {held: source}
+    source.value = 9
+    return box.held.value
+
+fn throughBinding() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Owned {held: seed, name: "box"}
+    let &d = box
+    rememberOwned(d, source)
+    source.value = 9
+    return box.held.value
+
+fn throughResult() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Owned {held: seed, name: "box"}
+    rememberOwned(itself(box), source)
+    source.value = 9
+    return box.held.value
+
+fn inLoop() -> Int:
+    let &seed = Cell {value: 1}
+    let &a = Cell {value: 7}
+    let &b = Cell {value: 8}
+    let &box = Store {held: seed}
+    for i in 0..2:
+        if i == 0 then remember(box, a) else remember(box, b)
+    a.value = 9
+    return box.held.value
+
+-- A local of this frame, gone when the caller reads the destination.
+fn stashLocal(&store: Store(kept')):
+    let &tmp = Cell {value: 1}
+    store = Store {held: tmp}
+
+-- An argument in another group - the anonymous one, not `kept`.
+fn stashUngrouped(&store: Store(kept'), other: 'Cell):
+    store = Store {held: other}
+
+-- A destination whose parameter names no group for the caller to hold the loan by.
+data Bare {held: 'Cell}
+
+fn stashNoSlot(&bare: Bare, value: kept'Cell):
+    bare = Bare {held: value}
+
+-- An argument borrowed only for the call.
+fn stashCallBounded(&store: Store(kept'), value: Cell):
+    store = Store {held: value}
+
+-- A generic callee, whose signature
+-- says nothing about what is inside `a`: after `put`, `box` may hold anything `v` held, and so may
+-- what `id` hands back. The caller's write is refused as it is for `remember`, and a body stashing
+-- its own local through one is refused as `stashLocal` is.
+fn (a) put(&x: a, ->v: a):
+    x = v
+
+fn (a) id(->x: a) -> a = x
+
+fn throughGeneric() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed}
+    put(box, Store {held: source})
+    source.value = 9
+    return box.held.value
+
+fn throughGenericResult() -> Int:
+    let &source = Cell {value: 7}
+    let kept = id(Store {held: source})
+    source.value = 9
+    return kept.held.value
+
+fn stashGeneric(&store: Store(kept')):
+    let &local = Cell {value: 99}
+    put(store, Store {held: local})
+
+fn stashGenericResult(&store: Store(kept')):
+    let &local = Cell {value: 99}
+    store = id(Store {held: local})
+
+-- A class member keeping what it was lent, which a caller dispatching from a body compiled once
+-- would never be told about.
+class Keep(c):
+  fn keepInside(&self: c, xs: '[Int]) -> {}
+
+data Viewer {n: Int, view: '[Int]}
+
+instance Keep(Viewer):
+    fn keepInside(&self: Viewer, xs: '[Int]):
+        self = Viewer {n: self.n, view: xs}
+
+fn main() -> Int = 0

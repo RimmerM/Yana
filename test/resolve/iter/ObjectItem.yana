@@ -1,0 +1,110 @@
+{-
+   What an iterator object's item may be kept for - J125. The refused half is
+   `Reject.ObjectItem.yana`.
+
+   # resolver: ownership
+
+   `it.next()` borrows the item out of the object, and the object's step names where each position
+   *inside* the item is rooted: a `yield'` position - the frame that handed it over - is the object,
+   and a position the producer bound to one of its caller's origins is that storage. So:
+
+   - `fresh`'s `%yield'I32` read within the pass that received it is the ordinary borrow;
+   - its *value*, copied out before the next step, is anybody's;
+   - `pairs` over string keys reads each key's window where the record holds it. The payload used to
+     be typed without the item's interior, and the key's two words were read as an owned string.
+
+- a pointer item the producer bound to its caller's origin (`-> %a'I32`) is rooted in `xs`, not
+     in the object, so a copy of it is kept across the next `next()` and carried from pass to pass
+     (J127 - it used to land on the value's root beside the payload's own loan of the object);
+   - a plain loop's own loans: a fresh exclusive borrow each pass used within the pass, a shared
+     loan of storage outside the loop carried to the next pass (its previous generation is still a
+     loan of the same, unchanged storage), and a loop-body local read through a pointer carried from
+     the previous pass *before* the local is made again - the drop placement keeps the previous
+     one alive until that read (J127).
+
+   `main` answers 123 + 123 + (5 + 4 + 10 + 20) + 70 + 82 = 437.
+-}
+
+import Native
+
+iter fn fresh(n: I32) -> %yield'I32:
+    for i in 0..n:
+        let owned = [i + 40, 2] :: Array(I32)
+        let p = values(owned)
+        yield p
+
+fn withinPass() -> I32:
+    let &it = fresh(3)
+    let &total = 0
+    while it.next() is Just(p):
+        total += copy(borrow(p))
+    return total
+
+fn valueCarried() -> I32:
+    let &it = fresh(3)
+    let &total = 0
+    let &last = 0
+    while it.next() is Just(p):
+        total += last
+        last = copy(borrow(p))
+    return total + last
+
+fn stringKeys() -> I32:
+    let m = ["alpha": 10, "beta": 20]
+    let &it = pairs(m)
+    let &total = 0
+    while it.next() is Just(e):
+        total += (truncate(length(e.key)) :: I32) + e.value
+    return total
+
+iter fn pointers(xs: a'Array(I32)) -> %a'I32:
+    for i in 0..length(xs):
+        let p = values(xs) + i
+        yield p
+
+-- 10 + 20, then the third item read on the pass after the one that stored it: 30 + 10 + 30.
+fn callerLent() -> I32:
+    let xs = [10, 20, 30] :: Array(I32)
+    let &it = pointers(xs)
+    let &total = 0
+    if it.next() is Just(first):
+        let kept = first
+        if it.next() is Just(second):
+            total += copy(borrow(second))
+        total += copy(borrow(kept))
+    let &carried = values(xs)
+    while it.next() is Just(p):
+        total += copy(borrow(carried))
+        carried = p
+    return total + copy(borrow(carried))
+
+fn bump(&x: I32):
+    x += 10
+
+-- xs becomes 11, 12, 13; the carried loan of `b` reads 5, 6, 6; the loop-body local's previous
+-- value is read (1, 40, 41 = 82) before it is made again. 36 + 17 + 82, less the 53 below.
+fn plainLoops() -> I32:
+    let &xs = [1, 2, 3] :: Array(I32)
+    let b = [5, 6] :: Array(I32)
+    let &q = values(b)
+    let &total = 0
+    let &i = 0
+    while i < 3:
+        bump(xs[i])
+        total += copy(borrow(q))
+        q = values(b) + 1
+        i += 1
+    for j in 0..3:
+        let r = values(xs) + j
+        total += copy(borrow(r))
+
+    let a = [1] :: Array(I32)
+    let &s = values(a)
+    let &made = 0
+    for k in 0..3:
+        made += copy(borrow(s))
+        let owned = [k + 40, 2] :: Array(I32)
+        s = values(owned)
+    return total + made - 53
+
+fn main() -> I32 = withinPass() + valueCarried() + stringKeys() + callerLent() + plainLoops()

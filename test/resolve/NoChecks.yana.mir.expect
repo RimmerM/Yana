@@ -2,11 +2,12 @@ module ResolveTest
 
 fn main() -> I32 {
   local & store: [I32 *4]
+  local local1: [I32 *4]
   local window: Array(I32) [shared slot 0 view]
   local & total: I32
-  local local3: I32 [shared slot 0]
   local local4: I32 [shared slot 0]
   local local5: I32 [shared slot 0]
+  local local6: I32 [shared slot 0]
   local past: I32
 
 bb0:
@@ -19,39 +20,41 @@ bb0:
   %6: [I32 *4] = read copy.trivial (store)
   %7: Size = const 0
   %8: Size = const 2
-  %9: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *4], I32) borrow.shared %6
-  %10: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %9 borrow.shared %7 borrow.shared %8
-  write.init borrow.unique (window) borrow.shared %10
-  %12: I32 = const 0
-  write.init borrow.unique (total) take %12
-  %14: I32 = read copy.trivial (total)
-  %15: Size = const 0
-  %16: Array(I32) [shared slot 0 view] = read borrow.shared (window) loan0
-  %17: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %16 borrow.shared %15 roots{0}
-  write.init borrow.unique (local3) borrow.shared %17
-  %19: I32 = read copy.trivial (local3)
-  %20: I32 = add inspect %14 inspect %19
-  write.assign borrow.unique (total) take %20
-  %22: I32 = read copy.trivial (total)
-  %23: Size = const 1
-  %24: Array(I32) [shared slot 0 view] = read borrow.shared (window) loan1
-  %25: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %24 borrow.shared %23 roots{1}
-  write.init borrow.unique (local4) borrow.shared %25
-  %27: I32 = read copy.trivial (local4)
-  %28: I32 = add inspect %22 inspect %27
-  write.assign borrow.unique (total) take %28
-  %30: Size = const 2
-  %31: Array(I32) [shared slot 0 view] = read borrow.shared (window) loan2
-  %32: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %31 borrow.shared %30 roots{2}
-  write.init borrow.unique (local5) borrow.shared %32
-  %34: I32 = read copy.trivial (local5)
-  write.init borrow.unique (past) take %34
-  %36: I32 = read copy.trivial (total)
-  %37: I32 = read copy.trivial (past)
-  %38: I32 = const 0
-  %39: I32 = mul inspect %37 inspect %38
-  %40: I32 = add inspect %36 inspect %39
-  return take %40
+  write.init borrow.unique (local1) take %6
+  %10: [I32 *4] [shared slot 0] = read borrow.shared (local1) loan0
+  %11: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *4], I32) borrow.shared %10 roots{0}
+  %12: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %11 borrow.shared %7 borrow.shared %8 roots{0}
+  write.init borrow.unique (window) borrow.shared %12
+  %14: I32 = const 0
+  write.init borrow.unique (total) take %14
+  %16: I32 = read copy.trivial (total)
+  %17: Size = const 0
+  %18: Array(I32) [shared slot 0 view] = read borrow.shared (window) loan1 roots{0}
+  %19: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %18 borrow.shared %17 roots{0, 1}
+  write.init borrow.unique (local4) borrow.shared %19
+  %21: I32 = read copy.trivial (local4)
+  %22: I32 = add inspect %16 inspect %21
+  write.assign borrow.unique (total) take %22
+  %24: I32 = read copy.trivial (total)
+  %25: Size = const 1
+  %26: Array(I32) [shared slot 0 view] = read borrow.shared (window) loan2 roots{0}
+  %27: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %26 borrow.shared %25 roots{0, 2}
+  write.init borrow.unique (local5) borrow.shared %27
+  %29: I32 = read copy.trivial (local5)
+  %30: I32 = add inspect %24 inspect %29
+  write.assign borrow.unique (total) take %30
+  %32: Size = const 2
+  %33: Array(I32) [shared slot 0 view] = read borrow.shared (window) loan3 roots{0}
+  %34: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %33 borrow.shared %32 roots{0, 3}
+  write.init borrow.unique (local6) borrow.shared %34
+  %36: I32 = read copy.trivial (local6)
+  write.init borrow.unique (past) take %36
+  %38: I32 = read copy.trivial (total)
+  %39: I32 = read copy.trivial (past)
+  %40: I32 = const 0
+  %41: I32 = mul inspect %39 inspect %40
+  %42: I32 = add inspect %38 inspect %41
+  return take %42
 }
 
 entry main

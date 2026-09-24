@@ -86,6 +86,13 @@ void Analysis::applyBackward(U64* live, OriginCursor& cursor, Node& node) {
         auto index = operand.placeId().index;
         auto container = exact[index].valid() ? path(exact[index]).parent : cover[index];
         if(container.valid()) markUse(live, container, false);
+
+        // A write *through* a pointer needs what it points into as much as a read does - see
+        // `useThroughAddress`. `store(p, 0)` after `drop (a)` is a write into a freed run.
+        if(container.valid() || exact[index].valid()) return;
+
+        SmallArray<NodeId, 4> entered;
+        useThroughAddress(live, operand.placeId(), entered);
     });
 
     forEachOperand(base, node, [&](Operand& operand, OperandRole role) {
@@ -115,7 +122,9 @@ void Analysis::applyBackward(U64* live, OriginCursor& cursor, Node& node) {
     forEachOperand(base, node, [&](Operand& operand, OperandRole) {
         forEachOperandOrigin(cursor, operand, [&](U32, const U64* origins) {
             BitMatrix::forEach(origins, loanWords, [&](Size l) {
-                useOfPlace(live, body.loan(base, LoanId(U32(l)))->place);
+                // A call bound is the callee's frame, which is nothing this body keeps alive.
+                if(callBound(U32(l))) return;
+                useOfPlace(live, loanAt(U32(l))->place);
             });
         });
     });
@@ -127,7 +136,66 @@ void Analysis::useOfPlace(U64* live, PlaceId place) {
     auto index = place.index;
     auto exactly = exact[index].valid();
     auto id = exactly ? exact[index] : cover[index];
-    if(id.valid()) markUse(live, id, exactly);
+    if(id.valid()) {
+        markUse(live, id, exactly);
+        return;
+    }
+
+    // Storage this body tracks is not behind an address, so only an untracked place is asked.
+    SmallArray<NodeId, 4> entered;
+    useThroughAddress(live, place, entered);
+}
+
+/*
+ * A place rooted in an **address** - `[%p]`, `[%p].field`, `[%p][i]` - is storage behind the pointer
+ * value `p`, and using it is a use of that value: of every loan the pointer is rooted in, exactly as
+ * a use of a value is anywhere else in `applyBackward`.
+ *
+ * Without it a dereference kept nothing alive. The pointer is read out of the local that holds it
+ * (`read copy.trivial (q)`, which does keep the lender alive), but the dereference names the *read's
+ * result* only as the root of a place, and `forEachOperandOrigin` answers nothing for such a place -
+ * it has no state, since the storage is not this frame's. So the lender's live range ended at the
+ * copy of the pointer and `drop (a)` landed between it and the dereference: `let &q = values(a); ...
+ * copy(borrow(q))` read a freed run (J124). The same is true of a loan taken *through* the address,
+ * which is why this is here rather than at the operand walk: `read borrow.shared ([%%49])` mints a
+ * loan whose place is address-rooted, and the call that reads the borrowed value later reaches it as
+ * that loan's place.
+ *
+ * Every position of the pointer and not only the pointee's, because every position is what a use of
+ * the value reaches: position 0 is the pointer itself, which a `%T` read out of storage has no loan
+ * at, and the interior positions of what it points to are the storage a read through it reaches.
+ * An **unqualified** pointer (`%I32`, a field's `%Node`) has no position that names a loan, so it
+ * keeps nothing alive, which is `doc/spec/native.md`'s raw pointer: where it points is the
+ * program's claim.
+ *
+ * `entered` because the walk can come back to where it started. A pointer read out of a local in a
+ * loop has the local's merged state as its origins, and that state may hold a loan taken through
+ * the same read's result on an earlier pass (`p = addressOf([%p].next)`), whose place is rooted in
+ * the node being asked about.
+ */
+void Analysis::useThroughAddress(U64* live, PlaceId place, SmallArray<NodeId, 4>& entered) {
+    if(!loanCount) return;
+
+    auto root = rootOf(place);
+    if(root->kind != Place::Address) return;
+
+    auto pointer = NodeId(root->payload);
+    for(auto seen: entered) if(seen == pointer) return;
+    entered.push(pointer);
+
+    auto count = valuePositions(pointer);
+    for(U32 p = 0; p < count; p++) {
+        BitMatrix::forEach(originsOfValue(pointer, p), loanWords, [&](Size l) {
+            if(callBound(U32(l))) return;
+
+            auto lent = loanAt(U32(l))->place;
+            auto index = lent.index;
+            auto exactly = exact[index].valid();
+            auto id = exactly ? exact[index] : cover[index];
+            if(id.valid()) markUse(live, id, exactly);
+            else useThroughAddress(live, lent, entered);
+        });
+    }
 }
 
 void Analysis::computeLiveness() {

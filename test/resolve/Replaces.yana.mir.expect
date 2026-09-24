@@ -61,23 +61,23 @@ fn total(xs: Array(a) [shared call view]) -> a {
   slot #0 type a
   slot #1 class Num(a)
   local & acc: a
-  local v: a [shared call]
+  local v: a [shared slot 0]
 
 bb0:
   %0: I64 = const 0
   %1: a = call fromInt(a) borrow.shared %0
   write.init borrow.unique (acc) take %1
-  %3: Array(a) [shared call view] = read borrow.shared (xs) loan0
+  %3: Array(a) [shared slot 0 view] = read borrow.shared (xs) loan0
   lens.call items(Array(a), a) borrow.shared %3 -> bb2
 
 bb1:
   %12: a = read take (acc)
   return take %12
 
-bb2(%4: a [shared call]) handover(a [shared call]) many -> bb1:
+bb2(%4: a [shared slot 0]) handover(a [shared slot 0]) many -> bb1:
   write.init borrow.unique (v) borrow.shared %4
   %7: a [shared call] = read borrow.shared (acc) loan1
-  %8: a [shared call] = read borrow.shared (v) loan2 roots{0}
+  %8: a [shared slot 0] = read borrow.shared (v) loan2 roots{0}
   %9: a = call +(a) borrow.shared %7 borrow.shared %8
   drop (acc)
   write.reinit borrow.unique (acc) take %9
@@ -90,23 +90,23 @@ fn replaces$total(xs: Array(a) [shared call view]) -> a {
   slot #1 class Num(a)
   slot #2 class Num(Vec(a))
   local & acc: a
-  local v: a [shared call]
+  local v: a [shared slot 0]
 
 bb0:
   %0: I64 = const 1000
   %1: a = call fromInt(a) borrow.shared %0
   write.init borrow.unique (acc) take %1
-  %3: Array(a) [shared call view] = read borrow.shared (xs) loan0
+  %3: Array(a) [shared slot 0 view] = read borrow.shared (xs) loan0
   lens.call items(Array(a), a) borrow.shared %3 -> bb2
 
 bb1:
   %12: a = read take (acc)
   return take %12
 
-bb2(%4: a [shared call]) handover(a [shared call]) many -> bb1:
+bb2(%4: a [shared slot 0]) handover(a [shared slot 0]) many -> bb1:
   write.init borrow.unique (v) borrow.shared %4
   %7: a [shared call] = read borrow.shared (acc) loan1
-  %8: a [shared call] = read borrow.shared (v) loan2 roots{0}
+  %8: a [shared slot 0] = read borrow.shared (v) loan2 roots{0}
   %9: a = call +(a) borrow.shared %7 borrow.shared %8
   drop (acc)
   write.reinit borrow.unique (acc) take %9
@@ -186,6 +186,7 @@ fn main() -> I64 {
   local & local0: Array(I32) object1
   local local1: Array(I32) object1
   local wide: I32
+  local local3: [Cents *2]
   local narrow: I64
   local named: I64
   local value: () -> I64 [owned here shape8 .0=unique call]
@@ -226,55 +227,57 @@ bb0:
   %28: I64 = const 5
   %29: Cents = aggregate.Cents take %28
   %30: [Cents *2] = aggregate.0 take %27 take %29
-  %31: Array(Cents) [shared slot 0 view] = call.derivation elements([Cents *2], Cents) borrow.shared %30
-  %32: Cents = call total(Cents) borrow.shared %31
-  %33: I64 = call centsValue borrow.shared %32
-  write.init borrow.unique (narrow) take %33
-  %35: I64 = call replaces$which'2
-  write.init borrow.unique (named) take %35
-  %37: () -> I64 [owned here shape8 .0=unique call] = fun.value replaces$which'2
-  write.init borrow.unique (value) take %37
-  %39: () -> I64 [shared call shape8 .0=unique call] = read borrow.shared (value) loan1
-  %40: I64 = call inspect %39
-  write.init borrow.unique (called) take %40
-  %42: Bool = const True
-  %43: I64 = const 5
-  %44: I64 = call replaces$second(I64, Bool) borrow.shared %42 borrow.shared %43
-  write.init borrow.unique (swapped) take %44
-  %46: Bool = const True
-  %47: I64 = const 7
-  %48: Cents = aggregate.Cents take %47
-  %49: Cents = call second(Cents, Bool) borrow.shared %46 borrow.shared %48
-  %50: I64 = call centsValue borrow.shared %49
-  write.init borrow.unique (unswapped) take %50
-  %52: I32 = read copy.trivial (wide)
-  %53: I64 = read copy.trivial (narrow)
-  %54: I64 = const 10
-  %55: I64 = mul inspect %53 inspect %54
-  %56: I64 = convert inspect %52
-  %57: I64 = add inspect %56 inspect %55
-  %58: I64 = read copy.trivial (named)
-  %59: I64 = const 100
-  %60: I64 = mul inspect %58 inspect %59
-  %61: I64 = add inspect %57 inspect %60
-  %62: I64 = read copy.trivial (called)
-  %63: I64 = const 1000
-  %64: I64 = mul inspect %62 inspect %63
-  %65: I64 = add inspect %61 inspect %64
-  %66: I64 = read copy.trivial (swapped)
-  %67: I64 = const 10000
-  %68: I64 = mul inspect %66 inspect %67
-  %69: I64 = add inspect %65 inspect %68
-  %70: I64 = read copy.trivial (unswapped)
-  %71: I64 = const 1000000
-  %72: I64 = mul inspect %70 inspect %71
-  %73: I64 = add inspect %69 inspect %72
-  %74: I64 = const 1
-  %75: I64 = call replaces$late borrow.shared %74
-  %76: I64 = const 100000000
-  %77: I64 = mul inspect %75 inspect %76
-  %78: I64 = add inspect %73 inspect %77
-  return take %78
+  write.init borrow.unique (local3) take %30
+  %32: [Cents *2] [shared call] = read borrow.shared (local3) loan1
+  %33: Array(Cents) [shared slot 0 view] = call.derivation elements([Cents *2], Cents) borrow.shared %32 roots{1}
+  %34: Cents = call total(Cents) borrow.shared %33
+  %35: I64 = call centsValue borrow.shared %34
+  write.init borrow.unique (narrow) take %35
+  %37: I64 = call replaces$which'2
+  write.init borrow.unique (named) take %37
+  %39: () -> I64 [owned here shape8 .0=unique call] = fun.value replaces$which'2
+  write.init borrow.unique (value) take %39
+  %41: () -> I64 [shared call shape8 .0=unique call] = read borrow.shared (value) loan2
+  %42: I64 = call inspect %41
+  write.init borrow.unique (called) take %42
+  %44: Bool = const True
+  %45: I64 = const 5
+  %46: I64 = call replaces$second(I64, Bool) borrow.shared %44 borrow.shared %45
+  write.init borrow.unique (swapped) take %46
+  %48: Bool = const True
+  %49: I64 = const 7
+  %50: Cents = aggregate.Cents take %49
+  %51: Cents = call second(Cents, Bool) borrow.shared %48 borrow.shared %50
+  %52: I64 = call centsValue borrow.shared %51
+  write.init borrow.unique (unswapped) take %52
+  %54: I32 = read copy.trivial (wide)
+  %55: I64 = read copy.trivial (narrow)
+  %56: I64 = const 10
+  %57: I64 = mul inspect %55 inspect %56
+  %58: I64 = convert inspect %54
+  %59: I64 = add inspect %58 inspect %57
+  %60: I64 = read copy.trivial (named)
+  %61: I64 = const 100
+  %62: I64 = mul inspect %60 inspect %61
+  %63: I64 = add inspect %59 inspect %62
+  %64: I64 = read copy.trivial (called)
+  %65: I64 = const 1000
+  %66: I64 = mul inspect %64 inspect %65
+  %67: I64 = add inspect %63 inspect %66
+  %68: I64 = read copy.trivial (swapped)
+  %69: I64 = const 10000
+  %70: I64 = mul inspect %68 inspect %69
+  %71: I64 = add inspect %67 inspect %70
+  %72: I64 = read copy.trivial (unswapped)
+  %73: I64 = const 1000000
+  %74: I64 = mul inspect %72 inspect %73
+  %75: I64 = add inspect %71 inspect %74
+  %76: I64 = const 1
+  %77: I64 = call replaces$late borrow.shared %76
+  %78: I64 = const 100000000
+  %79: I64 = mul inspect %77 inspect %78
+  %80: I64 = add inspect %75 inspect %79
+  return take %80
 }
 
 fn replaces$total(I32)(xs: Array(I32) [shared call view]) -> I32 = <total at I32>

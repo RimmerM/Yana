@@ -186,18 +186,16 @@ bb10:
   return consume %117
 }
 
-fn main.cont(main.cont.env: main.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: main.cont.env [unique call] guaranteed, %1: I32 trivial):
+fn main.cont(main.cont.env: main.cont.env [unique call], $handed: I32 [shared slot 0]) -> I32 {
+bb0(%0: main.cont.env [unique call] guaranteed, %1: I32 [shared slot 0] guaranteed):
   %2: %I32 address = field.addr .total inspect %0
   %3: %I32 address = load inspect %2
-  %4: %I32 address = alloc frame I32 [shared call]
-  store inspect %4 borrow %1
-  %5: I32 trivial = load inspect %3
-  %6: I32 trivial = load inspect %4
-  %7: I32 trivial = add inspect %5 inspect %6
-  store inspect %3 consume %7
-  %8: I32 trivial = const 0
-  return consume %8
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = load inspect %1
+  %6: I32 trivial = add inspect %4 inspect %5
+  store inspect %3 consume %6
+  %7: I32 trivial = const 0
+  return consume %7
 }
 
 entry main

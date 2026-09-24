@@ -1,0 +1,60 @@
+{-
+   Two exclusive borrows of records that each hold a shared loan of one source.
+
+   # resolver: ownership
+
+   `box1` and `box2` are two objects, and each holds a *shared* loan of `source`. Borrowing both
+   exclusively at once lets a callee write either box - replace what it holds, or re-point it - and
+   write nothing it reaches through them: a shared loan hands out shared access to `source`
+   whatever capability the box holding it was reached with. So neither side can write anything the
+   other reaches, and the pair is legal - `Reject.SharedThroughExclusive.yana` is the same shape
+   with one box holding its loan exclusively, where it is not.
+
+   One source group (`sameGroup`) and two (`twoGroups`), a callee that writes through the boxes
+   (`swapInto`), and the pair taken as a binding rather than at a call (`bindings`), which was always
+   accepted. The call forms were refused while the analysis compared the two borrows' whole reach
+   against each other, which is `analyze_loan.cpp`'s `check`, "Two accesses conflict only where one
+   of them can write what the other reaches".
+-}
+
+data Cell {value: Int}
+data Store {held: kept'Cell}
+
+fn touch(&a: Store(k1'), &b: Store(k2')) -> Int = a.held.value + b.held.value
+
+fn touchSame(&a: Store(kept'), &b: Store(kept')) -> Int = a.held.value * b.held.value
+
+-- Re-points `a` at what `b` holds: a write of each box, and of nothing behind either.
+fn swapInto(&a: Store(kept'), &b: Store(kept')) -> Int:
+    a = Store {held: b.held}
+    return a.held.value
+
+fn twoGroups() -> Int:
+    let source = Cell {value: 7}
+    let &box1 = Store {held: source}
+    let &box2 = Store {held: source}
+    return touch(box1, box2)
+
+fn sameGroup() -> Int:
+    let source = Cell {value: 3}
+    let &box1 = Store {held: source}
+    let &box2 = Store {held: source}
+    return touchSame(box1, box2)
+
+fn writesBoxes() -> Int:
+    let first = Cell {value: 5}
+    let second = Cell {value: 11}
+    let &box1 = Store {held: first}
+    let &box2 = Store {held: second}
+    let moved = swapInto(box1, box2)
+    return moved + box1.held.value + first.value
+
+fn bindings() -> Int:
+    let source = Cell {value: 2}
+    let &box1 = Store {held: source}
+    let &box2 = Store {held: source}
+    let &x = box1
+    let &y = box2
+    return x.held.value + y.held.value
+
+fn main() -> Int = twoGroups() + sameGroup() + writesBoxes() + bindings()

@@ -1,17 +1,11 @@
-101:0: error: AtomicValue is decided by the compiler and has no instances to write - the family is closed because every operation on an atomic is always lock-free, which no declaration can promise of a type the target has no indivisible access for
-31:11: error: no instance of Copy for (Atomic(I32)), required by needsCopy
-31:4: error: non-unit function must return a value
-42:12: error: an atomic holds an integer, an enumeration with no payload, or a raw pointer
-46:12: error: an atomic holds an integer, an enumeration with no payload, or a raw pointer
-53:4: error: argument 3 of store is LoadOrder, which does not fit StoreOrder
-58:11: error: argument 2 of load is StoreOrder, which does not fit LoadOrder
-58:4: error: non-unit function must return a value
-61:10: error: constructor produces UpdateOrder but FenceOrder is expected
-61:4: error: cannot convert UpdateOrder to FenceOrder
-75:11: error: the order of an atomic operation must be written at the call site - an order decides which instructions are generated, so it cannot be computed at run time
-75:4: error: non-unit function must return a value
-87:10: error: the failure order of a compare-exchange may not be stronger than its success order - a failed comparison performs no write, so there is nothing for the stronger one to order
-84:0: error: not all paths return a value
-106:27: error: no instance of AtomicInteger for (Bool), required by counts
-113:11: error: value does not contain named fields
-113:4: error: non-unit function must return a value
+104:0: error: AtomicValue is a classification the compiler makes from the type, so there is no instance of it to write
+34:11: error: TrivialCopy(Atomic(I32)) does not hold - it is a classification the compiler makes from the type rather than one a program declares
+45:12: error: AtomicValue(F32) does not hold - it is a classification the compiler makes from the type rather than one a program declares
+49:12: error: AtomicValue(String) does not hold - it is a classification the compiler makes from the type rather than one a program declares
+56:15: error: this position asks for StoreOrder, and this builds LoadOrder
+61:18: error: this position asks for LoadOrder, and this builds StoreOrder
+64:10: error: this position asks for FenceOrder, and this builds UpdateOrder
+78:11: error: the order of an atomic operation is written at the call site - an order decides which instructions are generated, so it cannot be computed at run time
+90:10: error: the failure order of a compare-exchange may not be stronger than its success order - a failed comparison performs no write, so there is nothing for the stronger one to order
+109:27: error: AtomicInteger(Bool) does not hold - it is a classification the compiler makes from the type rather than one a program declares
+116:11: error: Atomic(I32) has no fields

@@ -3,43 +3,46 @@ module ResolveTest
 fn main() -> I32 {
 bb0:
   %0: %[I32 *4] address = alloc frame [I32 *4]
-  %3: I32 trivial = const 10
-  %4: I32 trivial = const 20
-  %5: I32 trivial = const 30
-  %6: I32 trivial = const 40
-  %7: [I32 *4] trivial = aggregate.0 consume %3 consume %4 consume %5 consume %6
-  store inspect %0 consume %7
-  %8: [I32 *4] trivial = copy inspect %0
-  %10: Size trivial = const 2
-  %83: [I32 *4] [shared slot 0 owner] guaranteed = load inspect %8
-  %84: %[I32 *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %83
-  %130: %I32 trivial = bitcast inspect %84
-  %86: Size trivial = const 4
-  %87: ArrayView(I32) trivial = aggregate.ArrayView consume %130 consume %86
-  %129: Size trivial = const 0
-  %109: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %130 inspect %129
-  %111: ArrayView(I32) trivial = aggregate.ArrayView consume %109 consume %10
-  %112: Array(I32) [shared slot 0 view] guaranteed = represent inspect %111
-  %16: Array(I32) [shared slot 0 view] guaranteed from{%112} = load inspect %112
-  %27: Array(I32) [shared slot 0 view] guaranteed from{%16} = load inspect %16
-  %113: %%I32 address = field.addr .items inspect %27
-  %114: %I32 trivial = load inspect %113
-  %115: %I32 [owned here shape6 .*=shared slot 0] trivial = represent inspect %114
-  %122: Size trivial = const 0
-  %32: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %115 inspect %122
-  %33: I32 [shared slot 0] guaranteed = load inspect %32
-  %34: I32 trivial = load inspect %33
-  %38: Array(I32) [shared slot 0 view] guaranteed from{%112} = load inspect %112
-  %49: Array(I32) [shared slot 0 view] guaranteed from{%38} = load inspect %38
-  %116: %%I32 address = field.addr .items inspect %49
-  %117: %I32 trivial = load inspect %116
-  %118: %I32 [owned here shape6 .*=shared slot 0] trivial = represent inspect %117
-  %52: Size trivial = metric stride I32
-  %54: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %118 inspect %52
-  %55: I32 [shared slot 0] guaranteed = load inspect %54
-  %56: I32 trivial = load inspect %55
-  %57: I32 trivial = add inspect %34 inspect %56
-  return consume %57
+  %1: %[I32 *4] address = alloc frame [I32 *4]
+  %4: I32 trivial = const 10
+  %5: I32 trivial = const 20
+  %6: I32 trivial = const 30
+  %7: I32 trivial = const 40
+  %8: [I32 *4] trivial = aggregate.0 consume %4 consume %5 consume %6 consume %7
+  store inspect %0 consume %8
+  %9: [I32 *4] trivial = copy inspect %0
+  %11: Size trivial = const 2
+  store inspect %1 consume %9
+  %12: [I32 *4] [shared slot 0] guaranteed from{%1} = load inspect %1
+  %85: [I32 *4] [shared slot 0 owner] guaranteed from{%1} = load inspect %12
+  %86: %[I32 *4] [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %85
+  %132: %I32 trivial = bitcast inspect %86
+  %88: Size trivial = const 4
+  %89: ArrayView(I32) trivial = aggregate.ArrayView consume %132 consume %88
+  %131: Size trivial = const 0
+  %111: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %132 inspect %131
+  %113: ArrayView(I32) trivial = aggregate.ArrayView consume %111 consume %11
+  %114: Array(I32) [shared slot 0 view] guaranteed = represent inspect %113
+  %18: Array(I32) [shared slot 0 view] guaranteed from{%1} = load inspect %114
+  %29: Array(I32) [shared slot 0 view] guaranteed from{%18} = load inspect %18
+  %115: %%I32 address = field.addr .items inspect %29
+  %116: %I32 trivial = load inspect %115
+  %117: %I32 [owned here shape6 .*=shared slot 0] trivial = represent inspect %116
+  %124: Size trivial = const 0
+  %34: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %117 inspect %124
+  %35: I32 [shared slot 0] guaranteed = load inspect %34
+  %36: I32 trivial = load inspect %35
+  %40: Array(I32) [shared slot 0 view] guaranteed from{%1} = load inspect %114
+  %51: Array(I32) [shared slot 0 view] guaranteed from{%40} = load inspect %40
+  %118: %%I32 address = field.addr .items inspect %51
+  %119: %I32 trivial = load inspect %118
+  %120: %I32 [owned here shape6 .*=shared slot 0] trivial = represent inspect %119
+  %54: Size trivial = metric stride I32
+  %56: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %120 inspect %54
+  %57: I32 [shared slot 0] guaranteed = load inspect %56
+  %58: I32 trivial = load inspect %57
+  %59: I32 trivial = add inspect %36 inspect %58
+  return consume %59
 }
 
 entry main

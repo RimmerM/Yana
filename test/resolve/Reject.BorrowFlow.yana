@@ -22,9 +22,11 @@
    back, so the loan on both survives to the last use of the result. That is Design.md's "the caller
    conservatively keeps every member borrowed until the last use of all result borrows", and it is
    the only way to write a long-lived borrow in the language today.
+
+   # resolver: ownership
 -}
 
-fn pick(return &a: I64, return &b: I64, first: Bool) -> &I64 = if first then a else b
+fn pick(&a: 'I64, &b: 'I64, first: Bool) -> &'I64 = if first then a else b
 
 {-
    A borrow taken before a loop and used after it, so it is live across every iteration.

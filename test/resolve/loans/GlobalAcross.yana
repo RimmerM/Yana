@@ -1,0 +1,38 @@
+{-
+   A loan of a global held across a call - the neighbours the rule accepts.
+
+   # resolver: ownership
+
+   A call is an access to every global its body, and every body it calls, may touch. A shared loan
+   of `gArr` survives a call that only reads `gArr`, one that writes a *different* global, a loan
+   that ended before the writing call, a function value that writes nothing it holds, and `||`,
+   whose thunk is this body's own. `Reject.GlobalAcross.yana` is the other half.
+-}
+
+let &gArr = [1, 2, 3] :: Array(Int)
+let &gCount = 0
+
+fn sum() -> Int:
+    let &s = 0
+    for x in items(gArr):
+        s += x
+    return s
+
+fn bump():
+    gCount += 1
+
+fn apply(f: (Int) -> Int, x: Int) -> Int = f(x)
+
+fn grow():
+    push(gArr, 4)
+
+fn main() -> Int:
+    let w = gArr
+    let a = sum()                                  -- reads gArr
+    bump()                                         -- writes another global
+    let b = apply((x: Int) -> x * 2, w[1])         -- a lambda that touches no global
+    let c = if w[0] > 5 || length(w) > 2 then 1 else 0
+    let first = w[0]
+    grow()                                         -- w is dead here
+    let n = truncate(length(gArr)) :: Int
+    return a * 1000 + b * 100 + c * 10 + first + n + gCount

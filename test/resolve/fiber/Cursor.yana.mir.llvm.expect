@@ -152,7 +152,7 @@ define fastcc void @words(ptr %self) #0 {
   %7 = zext i1 %6 to i32
   br i1 %6, label %9, label %8
 
-8:                                                ; preds = %63, %4
+8:                                                ; preds = %40, %4
   call fastcc void @"Cursor.finish(String)"(ptr %self)
   unreachable
 
@@ -174,17 +174,17 @@ define fastcc void @words(ptr %self) #0 {
   %21 = zext i32 %15 to i64
   %22 = icmp sle i64 1, %21
   %23 = zext i1 %22 to i32
-  br i1 %22, label %27, label %26
+  br i1 %22, label %49, label %48
 
-24:                                               ; preds = %63
+24:                                               ; preds = %40
   %25 = add i32 %5, 1
   br label %4
 
-26:                                               ; preds = %9
-  call fastcc void @"growArray(CodeUnit)"(ptr %2, i64 1)
-  br label %27
+26:                                               ; preds = %62
+  call fastcc void @pushUnsigned32(i32 %5, ptr %2)
+  br label %40
 
-27:                                               ; preds = %26, %9
+27:                                               ; preds = %62
   %28 = getelementptr i8, ptr %2, i64 12
   %29 = load i32, ptr %28, align 1
   %30 = zext i32 %29 to i64
@@ -195,82 +195,82 @@ define fastcc void @words(ptr %self) #0 {
   %35 = and i64 %34, 1073741823
   %36 = trunc i64 %35 to i32
   %37 = zext i32 %36 to i64
-  %38 = icmp slt i64 %37, %31
+  %38 = icmp sle i64 %31, %37
   %39 = zext i1 %38 to i32
-  br i1 %38, label %47, label %40
+  br i1 %38, label %77, label %71
 
-40:                                               ; preds = %27
-  %41 = load ptr, ptr %2, align 1
-  %42 = getelementptr i8, ptr %41, i64 %30
-  call fastcc void @copyMemory(ptr %42, ptr @"string'145", i64 1)
-  %43 = trunc i64 %31 to i32
-  %44 = and i32 %43, 1073741823
-  store i32 %44, ptr %28, align 1
-  %45 = icmp slt i32 %5, 0
-  %46 = zext i1 %45 to i32
-  br i1 %45, label %50, label %49
+40:                                               ; preds = %81, %26
+  call void @llvm.memcpy.p0.p0.i64(ptr align 1 %1, ptr align 1 %2, i64 16, i1 false)
+  %41 = getelementptr i8, ptr %self, i64 24
+  call fastcc void @"teardown(Maybe(String) boxes unknown)"(ptr %41)
+  call void @llvm.memcpy.p0.p0.i64(ptr align 1 %41, ptr align 1 %1, i64 16, i1 false)
+  %42 = getelementptr i8, ptr %self, i64 8
+  %43 = load ptr, ptr %42, align 1
+  %44 = call preserve_nonecc i64 @__yana_stack_switch(ptr %43, ptr %self, i64 1)
+  %45 = sub i32 3, %5
+  %46 = icmp sge i32 %45, 1
+  %47 = zext i1 %46 to i32
+  br i1 %46, label %24, label %8
 
-47:                                               ; preds = %77, %27
-  %48 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 60, i64 134)
+48:                                               ; preds = %9
+  call fastcc void @"growArray(CodeUnit)"(ptr %2, i64 1)
+  br label %49
+
+49:                                               ; preds = %48, %9
+  %50 = getelementptr i8, ptr %2, i64 12
+  %51 = load i32, ptr %50, align 1
+  %52 = zext i32 %51 to i64
+  %53 = add i64 %52, 1
+  %54 = getelementptr i8, ptr %2, i64 8
+  %55 = load i32, ptr %54, align 1
+  %56 = zext i32 %55 to i64
+  %57 = and i64 %56, 1073741823
+  %58 = trunc i64 %57 to i32
+  %59 = zext i32 %58 to i64
+  %60 = icmp slt i64 %59, %53
+  %61 = zext i1 %60 to i32
+  br i1 %60, label %69, label %62
+
+62:                                               ; preds = %49
+  %63 = load ptr, ptr %2, align 1
+  %64 = getelementptr i8, ptr %63, i64 %52
+  call fastcc void @copyMemory(ptr %64, ptr @"string'145", i64 1)
+  %65 = trunc i64 %53 to i32
+  %66 = and i32 %65, 1073741823
+  store i32 %66, ptr %50, align 1
+  %67 = icmp slt i32 %5, 0
+  %68 = zext i1 %67 to i32
+  br i1 %67, label %27, label %26
+
+69:                                               ; preds = %77, %49
+  %70 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 60, i64 134)
   unreachable
 
-49:                                               ; preds = %40
-  call fastcc void @pushUnsigned32(i32 %5, ptr %2)
-  br label %63
-
-50:                                               ; preds = %40
-  %51 = getelementptr i8, ptr %2, i64 12
-  %52 = load i32, ptr %51, align 1
-  %53 = zext i32 %52 to i64
-  %54 = add i64 %53, 1
-  %55 = getelementptr i8, ptr %2, i64 8
-  %56 = load i32, ptr %55, align 1
-  %57 = zext i32 %56 to i64
-  %58 = and i64 %57, 1073741823
-  %59 = trunc i64 %58 to i32
-  %60 = zext i32 %59 to i64
-  %61 = icmp sle i64 %54, %60
-  %62 = zext i1 %61 to i32
-  br i1 %61, label %77, label %71
-
-63:                                               ; preds = %81, %49
-  call void @llvm.memcpy.p0.p0.i64(ptr align 1 %1, ptr align 1 %2, i64 16, i1 false)
-  %64 = getelementptr i8, ptr %self, i64 24
-  call fastcc void @"teardown(Maybe(String) boxes unknown)"(ptr %64)
-  call void @llvm.memcpy.p0.p0.i64(ptr align 1 %64, ptr align 1 %1, i64 16, i1 false)
-  %65 = getelementptr i8, ptr %self, i64 8
-  %66 = load ptr, ptr %65, align 1
-  %67 = call preserve_nonecc i64 @__yana_stack_switch(ptr %66, ptr %self, i64 1)
-  %68 = sub i32 3, %5
-  %69 = icmp sge i32 %68, 1
-  %70 = zext i1 %69 to i32
-  br i1 %69, label %24, label %8
-
-71:                                               ; preds = %50
-  call fastcc void @"growArray(CodeUnit)"(ptr %2, i64 %54)
-  %72 = load i32, ptr %55, align 1
+71:                                               ; preds = %27
+  call fastcc void @"growArray(CodeUnit)"(ptr %2, i64 %31)
+  %72 = load i32, ptr %32, align 1
   %73 = zext i32 %72 to i64
   %74 = and i64 %73, 1073741823
   %75 = trunc i64 %74 to i32
   %76 = zext i32 %75 to i64
   br label %77
 
-77:                                               ; preds = %71, %50
-  %78 = phi i64 [ %60, %50 ], [ %76, %71 ]
-  %79 = icmp sge i64 %53, %78
+77:                                               ; preds = %71, %27
+  %78 = phi i64 [ %37, %27 ], [ %76, %71 ]
+  %79 = icmp sge i64 %30, %78
   %80 = zext i1 %79 to i32
-  br i1 %79, label %47, label %81
+  br i1 %79, label %69, label %81
 
 81:                                               ; preds = %77
   %82 = load ptr, ptr %2, align 1
-  %83 = getelementptr i8, ptr %82, i64 %53
+  %83 = getelementptr i8, ptr %82, i64 %30
   store i8 45, ptr %83, align 1
-  %84 = trunc i64 %54 to i32
+  %84 = trunc i64 %31 to i32
   %85 = and i32 %84, 1073741823
-  store i32 %85, ptr %51, align 1
+  store i32 %85, ptr %28, align 1
   %86 = sub i32 0, %5
   call fastcc void @pushUnsigned32(i32 %86, ptr %2)
-  br label %63
+  br label %40
 }
 
 define fastcc i64 @main() #0 {

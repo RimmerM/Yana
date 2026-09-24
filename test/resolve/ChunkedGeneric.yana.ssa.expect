@@ -1,7 +1,7 @@
 module ResolveTest
 
-fn Chunks.chunks(self: Chunks [shared call], $body: (Array(I32)) -> I32 [shared call]) -> I32 {
-bb0(%0: Chunks [shared call] guaranteed, %1: (Array(I32)) -> I32 [shared call] guaranteed):
+fn Chunks.chunks(self: Chunks [shared slot 0], $body: (Array(I32)) -> I32 [shared call]) -> I32 {
+bb0(%0: Chunks [shared slot 0] guaranteed, %1: (Array(I32)) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32
   %3: I32 trivial = const 0
   store inspect %2 consume %3
@@ -12,7 +12,7 @@ bb0(%0: Chunks [shared call] guaranteed, %1: (Array(I32)) -> I32 [shared call] g
 
 bb1:
   %7: %Array(I32) address = field.addr .a inspect %0
-  %8: Array(I32) [shared call] guaranteed from{%0} = load inspect %7
+  %8: Array(I32) [shared slot 0] guaranteed from{%0} = load inspect %7
   %9: Array(I32) [shared slot 0 view] guaranteed from{%0} = call Array(a).elements(I32) borrow %8
   %10: (Array(I32)) -> I32 [shared call] guaranteed from{%1} = load inspect %1
   %11: I32 trivial = call [value #0] inspect %10 borrow %9
@@ -44,7 +44,7 @@ bb6:
 
 bb7:
   %20: %Array(I32) address = field.addr .b inspect %0
-  %21: Array(I32) [shared call] guaranteed from{%0} = load inspect %20
+  %21: Array(I32) [shared slot 0] guaranteed from{%0} = load inspect %20
   %22: Array(I32) [shared slot 0 view] guaranteed from{%0} = call Array(a).elements(I32) borrow %21
   %23: (Array(I32)) -> I32 [shared call] guaranteed from{%1} = load inspect %1
   %24: I32 trivial = call [value #0] inspect %23 borrow %22
@@ -231,7 +231,7 @@ bb0(%0: Chunks [shared call] guaranteed):
   %1: %I32 address = alloc frame I32
   %2: I32 trivial = const 0
   store inspect %1 consume %2
-  %3: Chunks [shared call] guaranteed from{%0} = load inspect %0
+  %3: Chunks [shared slot 0] guaranteed from{%0} = load inspect %0
   %4: Chunks [unique slot 0] guaranteed = load inspect %0
   %5: I32 [unique slot 1] guaranteed = load inspect %1
   %6: countAll(Chunks, I32).cont'2.env affine = aggregate.countAll(Chunks, I32).cont'2.env borrow %4 borrow %5
@@ -252,7 +252,7 @@ bb0(%0: Chunks [shared call] guaranteed, %1: I32 trivial):
   store inspect %2 borrow %1
   %5: I32 trivial = const 0
   store inspect %3 consume %5
-  %6: Chunks [shared call] guaranteed from{%0} = load inspect %0
+  %6: Chunks [shared slot 0] guaranteed from{%0} = load inspect %0
   %7: Chunks [unique slot 0] guaranteed = load inspect %0
   %8: I32 [unique slot 1] guaranteed = load inspect %3
   %9: I32 [unique slot 2] guaranteed = load inspect %2
@@ -281,7 +281,7 @@ bb0(%0: Chunks [shared call] guaranteed, %1: I32 trivial):
   store inspect %2 borrow %1
   %5: I32 trivial = const 0
   store inspect %3 consume %5
-  %6: Chunks [shared call] guaranteed from{%0} = load inspect %0
+  %6: Chunks [shared slot 0] guaranteed from{%0} = load inspect %0
   %7: Chunks [unique slot 0] guaranteed = load inspect %0
   %8: I32 [unique slot 1] guaranteed = load inspect %3
   %9: I32 [unique slot 2] guaranteed = load inspect %2
@@ -307,7 +307,7 @@ bb0(%0: Array(I32) [shared call view] guaranteed):
   %1: %I32 address = alloc frame I32
   %2: I32 trivial = const 0
   store inspect %1 consume %2
-  %3: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
+  %3: Array(I32) [shared slot 0 view] guaranteed from{%0} = load inspect %0
   %4: Array(I32) [unique slot 0 view] guaranteed = load inspect %0
   %5: I32 [unique slot 1] guaranteed = load inspect %1
   %6: countAll(Array(I32), I32).cont'2.env affine = aggregate.countAll(Array(I32), I32).cont'2.env borrow %4 borrow %5
@@ -328,7 +328,7 @@ bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
   store inspect %2 borrow %1
   %5: I32 trivial = const 0
   store inspect %3 consume %5
-  %6: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
+  %6: Array(I32) [shared slot 0 view] guaranteed from{%0} = load inspect %0
   %7: Array(I32) [unique slot 0 view] guaranteed = load inspect %0
   %8: I32 [unique slot 1] guaranteed = load inspect %3
   %9: I32 [unique slot 2] guaranteed = load inspect %2
@@ -357,7 +357,7 @@ bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
   store inspect %2 borrow %1
   %5: I32 trivial = const 0
   store inspect %3 consume %5
-  %6: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
+  %6: Array(I32) [shared slot 0 view] guaranteed from{%0} = load inspect %0
   %7: Array(I32) [unique slot 0 view] guaranteed = load inspect %0
   %8: I32 [unique slot 1] guaranteed = load inspect %3
   %9: I32 [unique slot 2] guaranteed = load inspect %2
@@ -486,13 +486,13 @@ bb0(%0: countAll(Chunks, I32).cont.env [unique call] guaranteed, %1: I32 trivial
   return consume %8
 }
 
-fn countAll(Chunks, I32).cont'2(countAll(Chunks, I32).cont'2.env: countAll(Chunks, I32).cont'2.env [unique call], $handed: Array(I32) [shared call view]) -> I32 {
-bb0(%0: countAll(Chunks, I32).cont'2.env [unique call] guaranteed, %1: Array(I32) [shared call view] guaranteed):
+fn countAll(Chunks, I32).cont'2(countAll(Chunks, I32).cont'2.env: countAll(Chunks, I32).cont'2.env [unique call], $handed: Array(I32) [shared slot 0 view]) -> I32 {
+bb0(%0: countAll(Chunks, I32).cont'2.env [unique call] guaranteed, %1: Array(I32) [shared slot 0 view] guaranteed):
   %2: %Chunks address = field.addr .xs inspect %0
   %3: %Chunks address = load inspect %2
   %4: %I32 address = field.addr .n inspect %0
   %5: %I32 address = load inspect %4
-  %6: Array(I32) [shared call view] guaranteed from{%1, %3} = load inspect %1
+  %6: Array(I32) [shared slot 0 view] guaranteed from{%1, %3} = load inspect %1
   %7: I32 [unique slot 0] guaranteed = load inspect %5
   %8: countAll(Chunks, I32).cont.env affine = aggregate.countAll(Chunks, I32).cont.env borrow %7
   %9: (I32) -> I32 [owned here shape9 .0=shared call] affine = fun.value countAll(Chunks, I32).cont borrow %8
@@ -538,8 +538,8 @@ bb3:
   return consume %18
 }
 
-fn countUntil(Chunks, I32).cont'2(countUntil(Chunks, I32).cont'2.env: countUntil(Chunks, I32).cont'2.env [unique call], $handed: Array(I32) [shared call view]) -> I32 {
-bb0(%0: countUntil(Chunks, I32).cont'2.env [unique call] guaranteed, %1: Array(I32) [shared call view] guaranteed):
+fn countUntil(Chunks, I32).cont'2(countUntil(Chunks, I32).cont'2.env: countUntil(Chunks, I32).cont'2.env [unique call], $handed: Array(I32) [shared slot 0 view]) -> I32 {
+bb0(%0: countUntil(Chunks, I32).cont'2.env [unique call] guaranteed, %1: Array(I32) [shared slot 0 view] guaranteed):
   %2: %Chunks address = field.addr .xs inspect %0
   %3: %Chunks address = load inspect %2
   %4: %I32 address = field.addr .n inspect %0
@@ -548,7 +548,7 @@ bb0(%0: countUntil(Chunks, I32).cont'2.env [unique call] guaranteed, %1: Array(I
   %7: %I32 address = load inspect %6
   %8: %I32 address = field.addr .$leaving inspect %0
   %9: %I32 address = load inspect %8
-  %10: Array(I32) [shared call view] guaranteed from{%1, %3} = load inspect %1
+  %10: Array(I32) [shared slot 0 view] guaranteed from{%1, %3} = load inspect %1
   %11: I32 [unique slot 0] guaranteed = load inspect %5
   %12: I32 [unique slot 1] guaranteed = load inspect %7
   %13: I32 [unique slot 2] guaranteed = load inspect %9
@@ -602,8 +602,8 @@ bb3:
   return consume %18
 }
 
-fn countChunks(Chunks, I32).cont'2(countChunks(Chunks, I32).cont'2.env: countChunks(Chunks, I32).cont'2.env [unique call], $handed: Array(I32) [shared call view]) -> I32 {
-bb0(%0: countChunks(Chunks, I32).cont'2.env [unique call] guaranteed, %1: Array(I32) [shared call view] guaranteed):
+fn countChunks(Chunks, I32).cont'2(countChunks(Chunks, I32).cont'2.env: countChunks(Chunks, I32).cont'2.env [unique call], $handed: Array(I32) [shared slot 0 view]) -> I32 {
+bb0(%0: countChunks(Chunks, I32).cont'2.env [unique call] guaranteed, %1: Array(I32) [shared slot 0 view] guaranteed):
   %2: %Chunks address = field.addr .xs inspect %0
   %3: %Chunks address = load inspect %2
   %4: %I32 address = field.addr .n inspect %0
@@ -612,7 +612,7 @@ bb0(%0: countChunks(Chunks, I32).cont'2.env [unique call] guaranteed, %1: Array(
   %7: %I32 address = load inspect %6
   %8: %I32 address = field.addr .$leaving inspect %0
   %9: %I32 address = load inspect %8
-  %10: Array(I32) [shared call view] guaranteed from{%1, %3} = load inspect %1
+  %10: Array(I32) [shared slot 0 view] guaranteed from{%1, %3} = load inspect %1
   %11: I32 [unique slot 0] guaranteed = load inspect %5
   %12: I32 [unique slot 1] guaranteed = load inspect %7
   %13: I32 [unique slot 2] guaranteed = load inspect %9
@@ -646,13 +646,13 @@ bb0(%0: countAll(Array(I32), I32).cont.env [unique call] guaranteed, %1: I32 tri
   return consume %8
 }
 
-fn countAll(Array(I32), I32).cont'2(countAll(Array(I32), I32).cont'2.env: countAll(Array(I32), I32).cont'2.env [unique call], $handed: Array(I32) [shared call view]) -> I32 {
-bb0(%0: countAll(Array(I32), I32).cont'2.env [unique call] guaranteed, %1: Array(I32) [shared call view] guaranteed):
+fn countAll(Array(I32), I32).cont'2(countAll(Array(I32), I32).cont'2.env: countAll(Array(I32), I32).cont'2.env [unique call], $handed: Array(I32) [shared slot 0 view]) -> I32 {
+bb0(%0: countAll(Array(I32), I32).cont'2.env [unique call] guaranteed, %1: Array(I32) [shared slot 0 view] guaranteed):
   %2: %Array(I32) address = field.addr .xs inspect %0
   %3: %Array(I32) address = load inspect %2
   %4: %I32 address = field.addr .n inspect %0
   %5: %I32 address = load inspect %4
-  %6: Array(I32) [shared call view] guaranteed from{%1, %3} = load inspect %1
+  %6: Array(I32) [shared slot 0 view] guaranteed from{%1, %3} = load inspect %1
   %7: I32 [unique slot 0] guaranteed = load inspect %5
   %8: countAll(Array(I32), I32).cont.env affine = aggregate.countAll(Array(I32), I32).cont.env borrow %7
   %9: (I32) -> I32 [owned here shape9 .0=shared call] affine = fun.value countAll(Array(I32), I32).cont borrow %8
@@ -698,8 +698,8 @@ bb3:
   return consume %18
 }
 
-fn countUntil(Array(I32), I32).cont'2(countUntil(Array(I32), I32).cont'2.env: countUntil(Array(I32), I32).cont'2.env [unique call], $handed: Array(I32) [shared call view]) -> I32 {
-bb0(%0: countUntil(Array(I32), I32).cont'2.env [unique call] guaranteed, %1: Array(I32) [shared call view] guaranteed):
+fn countUntil(Array(I32), I32).cont'2(countUntil(Array(I32), I32).cont'2.env: countUntil(Array(I32), I32).cont'2.env [unique call], $handed: Array(I32) [shared slot 0 view]) -> I32 {
+bb0(%0: countUntil(Array(I32), I32).cont'2.env [unique call] guaranteed, %1: Array(I32) [shared slot 0 view] guaranteed):
   %2: %Array(I32) address = field.addr .xs inspect %0
   %3: %Array(I32) address = load inspect %2
   %4: %I32 address = field.addr .n inspect %0
@@ -708,7 +708,7 @@ bb0(%0: countUntil(Array(I32), I32).cont'2.env [unique call] guaranteed, %1: Arr
   %7: %I32 address = load inspect %6
   %8: %I32 address = field.addr .$leaving inspect %0
   %9: %I32 address = load inspect %8
-  %10: Array(I32) [shared call view] guaranteed from{%1, %3} = load inspect %1
+  %10: Array(I32) [shared slot 0 view] guaranteed from{%1, %3} = load inspect %1
   %11: I32 [unique slot 0] guaranteed = load inspect %5
   %12: I32 [unique slot 1] guaranteed = load inspect %7
   %13: I32 [unique slot 2] guaranteed = load inspect %9
@@ -762,8 +762,8 @@ bb3:
   return consume %18
 }
 
-fn countChunks(Array(I32), I32).cont'2(countChunks(Array(I32), I32).cont'2.env: countChunks(Array(I32), I32).cont'2.env [unique call], $handed: Array(I32) [shared call view]) -> I32 {
-bb0(%0: countChunks(Array(I32), I32).cont'2.env [unique call] guaranteed, %1: Array(I32) [shared call view] guaranteed):
+fn countChunks(Array(I32), I32).cont'2(countChunks(Array(I32), I32).cont'2.env: countChunks(Array(I32), I32).cont'2.env [unique call], $handed: Array(I32) [shared slot 0 view]) -> I32 {
+bb0(%0: countChunks(Array(I32), I32).cont'2.env [unique call] guaranteed, %1: Array(I32) [shared slot 0 view] guaranteed):
   %2: %Array(I32) address = field.addr .xs inspect %0
   %3: %Array(I32) address = load inspect %2
   %4: %I32 address = field.addr .n inspect %0
@@ -772,7 +772,7 @@ bb0(%0: countChunks(Array(I32), I32).cont'2.env [unique call] guaranteed, %1: Ar
   %7: %I32 address = load inspect %6
   %8: %I32 address = field.addr .$leaving inspect %0
   %9: %I32 address = load inspect %8
-  %10: Array(I32) [shared call view] guaranteed from{%1, %3} = load inspect %1
+  %10: Array(I32) [shared slot 0 view] guaranteed from{%1, %3} = load inspect %1
   %11: I32 [unique slot 0] guaranteed = load inspect %5
   %12: I32 [unique slot 1] guaranteed = load inspect %7
   %13: I32 [unique slot 2] guaranteed = load inspect %9

@@ -1,0 +1,39 @@
+{-
+   A global another global holds an *exclusive* loan of, named by its own name.
+
+   # resolver: ownership
+
+   `gTight.held` is `&'Cell` over `gCell` for as long as the program runs, so every function can
+   write `gCell` through `gTight` without being handed either. A read of `gCell` by its own name is
+   then a second path to storage the holder was promised alone - `bump` writes through one while
+   `peek` reads through the other - and a write is that and more. So a global lent exclusively is
+   reached only through its holder; the borrows that made the loans, `gTight`'s initializer and
+   `repoint`'s record, are the uses left legal. `Reject.LentGlobal.yana` is the shared loan, which
+   leaves the lender readable, and `GlobalLoanExclusive.yana` is the program that stays legal.
+-}
+
+data Cell {value: Int}
+data Tight {held: &'Cell}
+
+let &gCell = Cell {value: 1}
+let &gTight = Tight {held: gCell}
+
+fn bump():
+    gTight.held.value += 1
+
+fn repoint():
+    gTight = Tight {held: gCell}
+
+fn peek() -> Int = gCell.value
+
+fn copied() -> Cell = Cell {value: gCell.value}
+
+fn reset():
+    gCell = Cell {value: 9}
+
+print("{gCell.value}")
+
+fn main() -> Int:
+    bump()
+    repoint()
+    return peek() + gTight.held.value

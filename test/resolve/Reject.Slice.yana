@@ -6,6 +6,9 @@
    the unchecked module. What carries it instead is that a slice is a borrow - the same one `&T` is,
    with a representation that happens to be a record - so the three rules below are the three that
    already applied to `&T` and now ask about the type's capability rather than its kind.
+
+   # resolver: ownership
+   # recover: yes - every rule below is reported in one compile, the way the command line reports them.
 -}
 
 data Cursor {items: '[Int], at: Int}
@@ -23,31 +26,12 @@ fn escapeStored() -> Cursor:
     let xs = [1, 2, 3]
     return Cursor {items: xs, at: 0}
 
--- A view of an argument is fine to *make* and not to hand back unannounced: the signature is the
--- contract, so the caller has to be told which argument the result is rooted in. `return xs` is the
--- fix, and it is the same fix a `&Int` result needs.
-fn escapeUndeclared(xs: [Int]) -> '[Int] = slice(xs, 0, 1)
+-- An unqualified window parameter rooting a returned view, bare or in a record moved to
+-- `Reject.Slice.Legacy.yana`; that file says what the new stage does instead.
 
 -- A closure that outlives the frame that built it cannot hold a reference into it, and a captured
 -- slice is a captured reference however the capture convention was chosen. Design-Memory §8's rule,
 -- reaching a type it was not written for.
 fn escapeCaptured(xs: [Int]) -> () -> Int = () -> truncate(length(xs)) :: Int
-
-{-
-   And a *record* holding a slice is held to the same contract, because handing one back hands the
-   caller a reference whatever is wrapped around it. `return xs` is the fix here too.
-
-   Both halves of the check apply to a result that merely contains a reference, as long as the result
-   owns nothing: such a record has every root it has reached through a reference, so a local one is
-   the mistake with no second reading. A record holding an owned array *alongside* the slice is the
-   case provenance cannot answer for, since it is field-insensitive and the array's local roots are
-   not a mistake - see checkReturnRoots.
-
-   `escapeStored` above is that shape with the roots this frame's, and it is reported once: the
-   conversion happens at the store, so the descriptor's slot carries a `viewOf` and checkFrameExtent
-   names the container. Written `Cursor {items: elements(xs)}` there is no such slot, and
-   checkReturnRoots is what stands over it - `Reject.WindowRoot.yana` is that program.
--}
-fn wrapUndeclared(xs: [Int]) -> Cursor = Cursor {items: xs, at: 0}
 
 fn main() -> Int = 0

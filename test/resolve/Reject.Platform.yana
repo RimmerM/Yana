@@ -1,6 +1,13 @@
 -- What `@platform` rejects. A typo would otherwise delete a declaration from every build and be
 -- discovered as a missing name somewhere else entirely, so the attribute is checked where it is
 -- written rather than where its absence is felt.
+--
+-- Selection is asked once per declaration per pass, and the spelling is judged by a pass of its own
+-- before any of them, while the predicate the passes ask is silent. So three mistakes are three
+-- diagnostics by construction rather than by every caller remembering, and an `.errors.expect` of
+-- exactly three lines is what says so.
+--
+-- # resolver: ownership
 
 @platform(wasm)
 fn onlyWasm() -> Int = 1

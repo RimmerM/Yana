@@ -21,6 +21,9 @@
    **A declaration says which of its parameters is a count** (§1.5). A head must write the
    annotation, because a reader looking at `data A(width)` has no way to tell `A(4)` from a type
    application - and a use site that supplies the wrong kind is told which one the declaration meant.
+
+   # resolver: ownership
+   # recover: yes - every rule below is reported in one compile, the way the command line reports them.
 -}
 
 import Native
@@ -34,13 +37,11 @@ fn bothKinds(x: a, ys: [a *a]) -> Int = 0
 -- §2.2, from the type's side: `n` is declared a count, so it is not a type.
 fn (n: Int) countAsType(x: n) -> Int = 0
 
--- §1.6: a const parameter and an ordinary parameter of the same name are two things called `n` in
--- one signature, reported at the declaration rather than resolved by shadowing.
-fn (n: Int) twice(n: Int) -> Int = n
+-- A const parameter reused as a value parameter's name moved to `Reject.ConstGeneric.Legacy.yana`;
+-- that file says what the new stage does instead.
 
--- §2.5: arithmetic in a count position. The feature this needs is const expressions, and the
--- diagnostic says which forms exist rather than which one was written.
-fn computed(xs: [Int *(4 + 1)]) -> Int = 0
+-- §2.5's computed count, `[Int *(4 + 1)]`, is refused here; the new stage folds it
+-- (`ownership/ConstantFold.yana`).
 
 -- The same for a vector, which reaches it through the same production now that `Vec` has a
 -- parameter list of its own (Program::vectorGen): the second parameter is a const one, so the

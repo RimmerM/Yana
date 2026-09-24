@@ -211,8 +211,8 @@ fn mapped(I32, I32, I32) {
   arg body readonly
   %xs: ArrayView(I32) borrowed readonly live [0, 11)
   %f: (v: I32) -> I32 borrowed droppable readonly live [0, 11)
-  %body: (value$: I32) -> Outcome((), I32) borrowed droppable readonly live [0, 11)
-  %local3: {body: '(value$: I32) -> Outcome((), I32), f: '(v: I32) -> I32} closure writable addressed live [0, 11)
+  %body: (->value$: I32) -> Outcome((), I32) borrowed droppable readonly live [0, 11)
+  %local3: {body: '(->value$: I32) -> Outcome((), I32), f: '(v: I32) -> I32} closure writable addressed live [0, 11)
   %local4: (value$: I32) -> Outcome((), Outcome((), I32)) droppable readonly live [6, 11)
   %local5: Outcome((), Outcome((), I32)) readonly live [10, 15)
   %local6: Outcome((), I32) readonly live [16, 19)
@@ -257,7 +257,7 @@ fn collectMappedInto(I32, I32) {
   %xs: ArrayView(I32) borrowed readonly live [0, 9)
   %f: (v: I32) -> I32 borrowed droppable readonly live [0, 9)
   %local3: {out: &Array(I32)} closure writable addressed live [0, 9)
-  %local4: (value$: I32) -> Outcome((), ()) droppable readonly live [4, 9)
+  %local4: (->value$: I32) -> Outcome((), ()) droppable readonly live [4, 9)
   %local5: Outcome((), ()) readonly live [8, 9)
   %local6: Outcome((), ()) readonly live never
 }
@@ -265,7 +265,7 @@ fn collectMappedInto(I32, I32) {
 fn ResolveTest.continuation$26(I32, I32) {
   arg env readonly
   arg value$ readonly
-  %value$: I32 borrowed readonly live [0, 4)
+  %value$: I32 readonly live [0, 4)
   %local1: Outcome((), ()) readonly live [4, 7)
 }
 
@@ -275,8 +275,8 @@ fn mapped(I32, I32, ()) {
   arg body readonly
   %xs: ArrayView(I32) borrowed readonly live [0, 11)
   %f: (v: I32) -> I32 borrowed droppable readonly live [0, 11)
-  %body: (value$: I32) -> Outcome((), ()) borrowed droppable readonly live [0, 11)
-  %local3: {body: '(value$: I32) -> Outcome((), ()), f: '(v: I32) -> I32} closure writable addressed live [0, 11)
+  %body: (->value$: I32) -> Outcome((), ()) borrowed droppable readonly live [0, 11)
+  %local3: {body: '(->value$: I32) -> Outcome((), ()), f: '(v: I32) -> I32} closure writable addressed live [0, 11)
   %local4: (value$: I32) -> Outcome((), Outcome((), ())) droppable readonly live [6, 11)
   %local5: Outcome((), Outcome((), ())) readonly live [10, 15)
   %local6: Outcome((), ()) readonly live [16, 19)
@@ -439,7 +439,7 @@ fn firstOver(Bool) {
   %marker: Bool borrowed readonly live never
   %local2: (v: I32) -> I32 droppable readonly live [0, 13)
   %local3: {bound: I32} closure writable addressed live [5, 13)
-  %local4: (value$: I32) -> Outcome((), I32) droppable readonly live [8, 13)
+  %local4: (->value$: I32) -> Outcome((), I32) droppable readonly live [8, 13)
   %local5: Outcome((), I32) readonly live [12, 17)
   %local6: Outcome((), I32) readonly live never
 }

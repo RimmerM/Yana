@@ -1,0 +1,29 @@
+{-
+   An array literal's element stores under `-no-ir-opt`, where the x64 backend read a folded
+   address's computed index out of the register it had just loaded the stored value into.
+
+   # resolver: ownership
+
+   Unoptimized, element `i`'s offset is `mul i, 8` left for the backend, which pins it to rax and
+   folds it into the store's address as the index. The stored constant is read by two stores, so the
+   allocator gave it a register only over the stretch where its reads are, and the load entering that
+   stretch runs after the index's life has ended and before the store reads it: first-fit chose rax.
+   `[0]` stored 0 at offset 0 either way, which is why the reduced case answered right in
+   `build-release` while `build-assert`'s verifier refused it. `[2, 2]` stored the first 2 at
+   `base + 2` instead of `base + 0`, and the digits read back were 131072, 2, 0, 1.
+
+   The answer is the elements as decimal digits, 2201. The optimized build folds the offset and never
+   reached this; the tester compares the unoptimized build against it.
+-}
+fn boundaries(n: Size) -> [Size]:
+    let &out = [2, 2] :: [Size]
+    for k in 0 .. n:
+        push(out, k)
+    return out
+
+fn main() -> Int:
+    let xs = boundaries(2)
+    let &digits = 0 :: Size
+    for i in 0 .. length(xs):
+        digits = digits * 10 + xs[i]
+    return truncate(digits) :: Int

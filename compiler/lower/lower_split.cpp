@@ -745,6 +745,33 @@ U32 fieldAlignment(const Slot& slot, const Field& field) {
  * All of them before any access is rewritten, for the same reason and one more: a copy names two
  * slots, and the block it stands in is not required to be either allocation's.
  */
+/*
+ * The zero a cell of this register type starts from - an immediate, except where the cell holds a
+ * **pointer**, which no immediate may be (`validateImm`): there it is the integer zero restated as
+ * the pointer, the `bitcast 0` promotion already writes for a null address.
+ *
+ * A pointer cell arrives here wherever a record holding an address is zeroed before anything is
+ * stored into it - an iterator object's nested member is zeroed by `f$new` and its captured window
+ * is written only when the outer step enters the region, so a program that split the record met a
+ * pointer-typed immediate and was refused as invalid lower IR (J131).
+ */
+LowerPtr<LowerValue> zeroCell(LowerBase base, LowerModule& module, LowerBlock& block, LowerType type,
+                              LocationId source) {
+    auto immediate = isFloat(type) ? new (module.arena) LowerImm(StringId(), type, F64(0))
+                   : isPtr(type)   ? new (module.arena) LowerImm(StringId(), LowerType::Int64, U64(0))
+                                   : new (module.arena) LowerImm(StringId(), type, U64(0));
+    immediate->source = source;
+    block.addInst(base, immediate);
+
+    auto zero = immediate->created().ptr - base;
+    if(!isPtr(type)) return zero;
+
+    auto cast = new (module.arena) LowerInstUnary(LowerInst::Bitcast, StringId(), type, zero);
+    cast->source = source;
+    block.addInst(base, cast);
+    return cast->created().ptr - base;
+}
+
 void createFields(LowerBase base, LowerModule& module, LowerBlock& block, Array<Slot>& slots,
                   HashMap<U32, U32>& allocaOf) {
     SmallArray<LowerPtr<LowerInst>, 32> original;
@@ -791,12 +818,9 @@ void createFields(LowerBase base, LowerModule& module, LowerBlock& block, Array<
             auto type = field.written ? Nothing() : moveType(field);
             if(type.isNothing() || isVectorLike(type.unwrap())) continue;
 
-            auto zero = new (module.arena) LowerImm(StringId(), type.unwrap(), U64(0));
-            zero->source = inst->source;
-            block.addInst(base, zero);
+            auto zero = zeroCell(base, module, block, type.unwrap(), inst->source);
 
-            auto initial = new (module.arena) LowerInstStore(
-                field.address, zero->created().ptr - base, field.size);
+            auto initial = new (module.arena) LowerInstStore(field.address, zero, field.size);
             initial->source = inst->source;
             block.addInst(base, initial);
         }
@@ -911,14 +935,8 @@ bool expandFill(LowerBase base, LowerModule& module, LowerBlock& block, Array<Sl
 
         auto type = moveType(field);
         if(type && !isVectorLike(type.unwrap())) {
-            auto zero = isFloat(type.unwrap())
-                ? new (module.arena) LowerImm(StringId(), type.unwrap(), F64(0))
-                : new (module.arena) LowerImm(StringId(), type.unwrap(), U64(0));
-            zero->source = source;
-            block.addInst(base, zero);
-
-            auto stored = new (module.arena) LowerInstStore(field.address, zero->created().ptr - base,
-                                                            field.size);
+            auto zero = zeroCell(base, module, block, type.unwrap(), source);
+            auto stored = new (module.arena) LowerInstStore(field.address, zero, field.size);
             stored->source = source;
             block.addInst(base, stored);
             continue;

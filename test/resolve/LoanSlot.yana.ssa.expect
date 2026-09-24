@@ -1,0 +1,31 @@
+module ResolveTest
+
+fn remember(store: Store [unique call shape2 .0=shared slot 0], value: Cell [shared slot 0]) -> {} {
+bb0(%0: Store [unique call shape2 .0=shared slot 0] guaranteed, %1: Cell [shared slot 0] guaranteed):
+  %2: Cell [shared slot 0] guaranteed from{%1} = load inspect %1
+  %3: Store trivial = aggregate.Store borrow %2
+  store inspect %0 consume %3
+  return
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Cell address = alloc frame Cell
+  %1: %Store address = alloc frame Store
+  %2: I32 trivial = const 7
+  %3: Cell trivial = aggregate.Cell consume %2
+  store inspect %0 consume %3
+  %4: Cell [shared slot 0] guaranteed from{%0} = load inspect %0
+  %5: Store trivial = aggregate.Store borrow %4
+  store inspect %1 consume %5
+  %6: Store [unique call] guaranteed from{%0, %1} = load inspect %1
+  %7: Cell [shared slot 0] guaranteed from{%0} = load inspect %0
+  call remember borrow %6 borrow %7
+  %8: %Cell address = field.addr .held inspect %1
+  %9: %Cell address = load inspect %8
+  %10: %I32 address = field.addr .value inspect %9
+  %11: I32 trivial = load inspect %10
+  return consume %11
+}
+
+entry main

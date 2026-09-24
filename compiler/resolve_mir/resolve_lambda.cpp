@@ -1,5 +1,6 @@
 #include "resolve_internal.h"
 #include "own.h"
+#include "print.h"
 
 namespace mir {
 
@@ -226,10 +227,22 @@ Place* Resolver::findCapture(Builder& builder, StringId name) {
          * object: §2.2 groups fields under a name and is explicit that grouping "does not claim
          * that the members are one object", so a shared slot would make reading one capture keep
          * another's loan live.
+         *
+         * And it carries the binding's **form**, because the construction fills it with a borrow
+         * of the binding *at the binding's own occurrence*. A window parameter `sep: [a]` is
+         * `Array(a) [shared call view]`, so what goes into the field is the view record; a field
+         * spelled without the form is a loan of the **owner**, and the lifted body read the view
+         * record through it as an `Array` and derived a second view from that - `length(sep)`
+         * answered a word of the view natively, and JavaScript refused the construction.
+         * It is the continuation's J70 defect one construct over, and unlike the continuation's
+         * field this one needs no `RecordField::holdsAddress`: a lambda's external field is the
+         * borrowed *value* - a view by value is exactly what `[shared slot n view]` lays out as -
+         * and not the address of the lender's storage, which only `captureOf`'s reader wants.
          */
         auto access = kind == CaptureKind::Unique ? Access::Unique : Access::Shared;
         field.occurrence = Occurrence { outer->occurrence.type,
-                                        slotContract(access, environment.originSlots), nullptr };
+                                        slotContract(access, environment.originSlots,
+                                                     outer->occurrence.contract.form()), nullptr };
         environment.originSlots++;
     }
 
@@ -251,7 +264,7 @@ bool Resolver::rawLambdaCaptureRejected() const {
  * Only for the *message* at a position that consumes, which is the one place the difference between
  * "this frame borrows it" and "this lambda captured it" changes what an author should do about it.
  */
-bool Resolver::isCapture(Builder& builder, Place& place) {
+bool Resolver::isCapture(Builder& builder, Place& place, Place** member) {
     if(!lambdaFrames.size()) return false;
 
     auto& frame = lambdaFrames[lambdaFrames.size() - 1];
@@ -269,9 +282,108 @@ bool Resolver::isCapture(Builder& builder, Place& place) {
 
     auto base = builder.base();
     auto root = &place;
-    while(root->parent) root = base[root->parent];
+    Place* below = nullptr;
+    while(root->parent) {
+        below = root;
+        root = base[root->parent];
+    }
 
+    if(member) *member = below;
     return root->kind == Place::Local && root->payload == frame.parameter->index.index;
+}
+
+/*
+ * The capture a place is reached through, and the environment member it sits in - the one step
+ * below the root, which is a field wherever the environment is a record. Null where the place is
+ * not reached through one. The two diagnostics that name a capture share it, so that they agree on
+ * which capture a place is, and the path is walked once rather than once for `isCapture` and once
+ * more for the member.
+ */
+const Capture* Resolver::captureReaching(Builder& builder, Place& place, Place** member) {
+    Place* below = nullptr;
+    if(!isCapture(builder, place, &below)) return nullptr;
+    if(!below || below->kind != Place::Field) return nullptr;
+
+    auto& frame = lambdaFrames[lambdaFrames.size() - 1];
+    for(U32 i = frame.captureFloor; i < captures.size(); i++) {
+        if(captures[i].field != below->payload) continue;
+        if(member) *member = below;
+        return &captures[i];
+    }
+
+    return nullptr;
+}
+
+/*
+ * A place as the author wrote it - `placeText`, with a capture's environment path spelled as the
+ * captured name.
+ *
+ * Inside a lambda `box.held` is `main.lambda.env.box.held`, which is the storage and not the program:
+ * the environment is synthesized, and a sentence offering `main.lambda.env.box = {...}` as the fix
+ * offers something nobody can write. The prefix is replaced rather than the text rebuilt, because
+ * `placeText` spells the root first, so the member's own text is exactly the head of the place's.
+ */
+String Resolver::spelledPlace(Builder& builder, Place& place) {
+    auto text = placeText(context, decl(), builder.base(), builder.body, place);
+
+    Place* member = nullptr;
+    auto capture = captureReaching(builder, place, &member);
+    if(!capture) return text;
+
+    auto prefix = placeText(context, decl(), builder.base(), builder.body, *member);
+    if(prefix.size() > text.size()) return text;
+
+    return Tritium::format("%@%@", context.findName(capture->name),
+                           StringView(text.text() + prefix.size(), text.size() - prefix.size()));
+}
+
+/*
+ * A **write to a capture that is a copy** - functions.md's "a captured local that is written must be
+ * captured by reference", refused at the write with the binding's name.
+ *
+ * Captures are decided by the binding and not by the body (`captureKindOf`), so the only binding
+ * whose capture is a reference is one declared `&`, and every other capture is a member of the
+ * environment or a shared loan. Writing one would land in the closure's copy and the enclosing
+ * frame would never see it - which the environment parameter's `writable` already refuses. This is
+ * the message: the general one names `f.lambda.env.fixed` and says it is "not declared `&`", which
+ * is true of a parameter nobody wrote, where what the author has to change is the enclosing `let`.
+ *
+ * One function for the three writes - an assignment, a compound one and a `&` argument - because
+ * all three are a place that is not writable, and the capture is a fact about the place.
+ */
+bool Resolver::captureWriteRefused(Builder& builder, Place& place, LocationId source) {
+    if(place.writable) return false;
+
+    auto capture = captureReaching(builder, place);
+    if(!capture) return false;
+
+    // A capture by reference is the binding itself, so a write it refuses is refused for a reason
+    // inside the place - a shared loan field, most often - and none of the sentences below
+    // describes it. `loanFieldWriteRefused` or the general message does.
+    if(capture->kind == CaptureKind::Unique) return false;
+
+    // A closure that leaves the frame has no reference to offer - `findCapture` refuses a `&`
+    // binding there - so the usual advice would trade this error for that one.
+    if(lambdaFrames[lambdaFrames.size() - 1].owns) {
+        context.diagnostics.error(
+            "%@ is a copy this closure owns, because the closure leaves this frame - a write here would change the closure's copy and never the binding, and a closure that leaves cannot capture by reference"_v,
+            source, context.findName(capture->name));
+        return true;
+    }
+
+    // A binding with a teardown is lent rather than copied into a frame environment, and the
+    // sentence says which, because "copy" would describe something the closure does not hold.
+    if(capture->kind == CaptureKind::Shared) {
+        context.diagnostics.error(
+            "%@ is captured as a shared loan, because it is not declared `&` - the closure may read it and not write it, so declare it with `let &` to capture it by reference"_v,
+            source, context.findName(capture->name));
+        return true;
+    }
+
+    context.diagnostics.error(
+        "%@ is captured by value, because it is not declared `&` - a write here would change the closure's copy and never the binding, so declare it with `let &` to capture it by reference"_v,
+        source, context.findName(capture->name));
+    return true;
 }
 
 /*
@@ -430,7 +542,7 @@ RecordType* Resolver::objectSiteOf(DeclPtr<Type> type) {
  * while the body is walked (see the note at the top of this file). So a closure written at a
  * borrowing position and adapted at an owning one is a frame environment reaching a place it may not
  * go, and what refuses it is the loan the pair carries: `checkCarriedOrigins` at the position, or
- * `reportEnvironmentEscape` at a `return`, which are the messages that refused it before.
+ * `reportRefusal` at a `return`, which are the messages that refused it before.
  *
  * The **storage** comes from `hold`, which is the frame slot a borrowing argument already gets. A
  * record with no fields needs none of it: the word is null, which is exactly the value a named
@@ -519,6 +631,8 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
      * a `yield` calls - each of which now reports what it is, a construct written outside the
      * function it appears in.
      */
+    auto outerStranded = heldStranded;
+    heldStranded = false;
     held = nullptr;
     loops = nullptr;
     continuationLocal = nullptr;
@@ -536,6 +650,18 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
         // Raw function-pointer lambdas have no hidden parameter, so their first written argument
         // remains an ordinary source parameter.
         if(!frame.raw && local->parameter == 0) {
+            /*
+             * Held exclusively and **not a writable binding** - the pair `Place::writable` keeps
+             * apart. The access is what lets a `&` capture be written through (see `envArg`
+             * above), and that write never needed this: the external field is a `Deref` whose
+             * writability is the capture's own access. What this flag decides is the *members* -
+             * a copied or consumed capture is a field the environment holds, writable exactly
+             * when its parent is, so an exclusive binding here made `fixed = 2` over a `let fixed`
+             * compile and land in the environment's copy, which is the lost write functions.md's
+             * "Closures" forbids. Refused at the write now, by
+             * `captureWriteRefused`, with the capture's own name.
+             */
+            local->writable = false;
             frame.parameter = local;
             continue;
         }
@@ -597,6 +723,12 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
             if(answered && isConcreteType(decl(), answered)) {
                 lifted.result.type = answered;
                 open = false;
+
+                // A body answering `{}` - `(v: Int) -> setN(box, v)` over a `setN` returning
+                // nothing - decides a unit result, and a unit result returns no value: `unit` was
+                // read off the position before the body said what it answers, and leaving it
+                // false emitted `return` with the call's `{}` in it.
+                unit = decl()[answered]->kind == Type::Unit;
             } else {
                 context.diagnostics.error(
                     "this position does not say what the lambda answers, and its body does not decide one"_v,
@@ -631,6 +763,7 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
     held = outerHeld;
     loops = outerLoops;
     continuationLocal = outerContinuation;
+    heldStranded = outerStranded;
     yieldedLocal = outerYielded;
     guardYields = outerGuard;
 }

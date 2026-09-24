@@ -1,0 +1,124 @@
+{-
+   An iterator object's item, kept past the step that makes it stale - J125. The accepted half is
+   `ObjectItem.yana`.
+
+   # resolver: ownership
+   # recover: yes
+
+   `fresh` hands over `%yield'I32`, a pointer into its own frame, and an object's frame is the object:
+   the next step frees the array the previous item pointed into. `it.next()` roots the item's
+   `yield'` position in the object, so a copy of the pointer that is still live when the object is
+   stepped again, moved or dropped is the loan checker's ordinary conflict. Each of these compiled
+   before J125 and read a finished pass (`stale` answered 0).
+
+   `carried` is the same pointer carried to the next pass through an outer `let &q` (J127): the copy
+   held the very loan the next pass's `it.next()` takes, and a loan meeting itself is no conflict, so
+   it compiled and answered 84. Loans are renamed at their mint now - what a holder carried back to
+   the read that takes the loan again is the previous generation - and the next `next()` meets it.
+   `madeAgain` is the plain-loop form of the same mistake: a pointer into a loop-body local carried to
+   the next pass and read after the local was made again, which read the freed array (84 as well).
+
+   J128 changed what these say, not whether they are refused. `carried` is one report: the stale
+   copy in `q` holds the previous generation of the loan `it.next()` was refused, so the borrow
+   through `q` and `installed`'s `setPtr(q, p)` are the same mistake, and they each added a line
+   (the first as `[%%36]`, the compiler's name for a pointer's target). `madeAgain` is reported at
+   the read of `q`, the use, as the loop body's own storage is. `throughField` is `madeAgain` with the
+   pointer stored through a `&k'Inner` field's referent: the write kept only the pointer's root in
+   `o`'s row, which has no loan, so the drop of `owned` did not wait for the read back through
+   `o.held.ref` and nothing was refused (84). `installed` is `carried` through a call that installs.
+
+   A body generic in `Iterate` sees the item as a bare `%I32` and could keep one past the next step,
+   so handing it such an object is refused at the call.
+-}
+
+import Native
+
+iter fn fresh(n: I32) -> %yield'I32:
+    for i in 0..n:
+        let owned = [i + 40, 2] :: Array(I32)
+        let p = values(owned)
+        yield p
+
+fn stale() -> I32:
+    let &it = fresh(3)
+    let &total = 0
+    if it.next() is Just(p):
+        let &q = p
+        if it.next() is Just(r):
+            total += copy(borrow(r))
+        total += copy(borrow(q))
+    return total
+
+fn moved() -> I32:
+    let &it = fresh(3)
+    let &total = 0
+    if it.next() is Just(p):
+        let q = p
+        let away = it
+        total += copy(borrow(q))
+    return total
+
+fn (Iterate(s, a, {}), Copy(a)) firstThenStep(&it: s) -> Maybe(a):
+    let Just(p) = it.next() | return Nothing
+    let kept = copy(p)
+    let _ = it.next()
+    return Just(kept)
+
+fn generic() -> I32:
+    let &it = fresh(3)
+    if firstThenStep(it) is Just(q):
+        return copy(borrow(q))
+    return 0
+
+fn carried() -> I32:
+    let &it = fresh(3)
+    let a = [1] :: Array(I32)
+    let &q = values(a)
+    let &total = 0
+    while it.next() is Just(p):
+        total += copy(borrow(q))
+        q = p
+    return total
+
+fn madeAgain() -> I32:
+    let a = [1] :: Array(I32)
+    let &q = values(a)
+    let &total = 0
+    let &i = 0
+    while i < 3:
+        let owned = [i + 40, 2] :: Array(I32)
+        total += copy(borrow(q))
+        q = values(owned)
+        i += 1
+    return total
+
+fn setPtr(&q: %a'I32, p: %a'I32):
+    q = p
+
+fn installed() -> I32:
+    let &it = fresh(3)
+    let a = [1] :: Array(I32)
+    let &q = values(a)
+    let &total = 0
+    while it.next() is Just(p):
+        total += copy(borrow(q))
+        setPtr(q, p)
+    return total
+
+data Inner {ref: %kept'I32}
+data Outer {held: &k'Inner}
+
+fn throughField() -> I32:
+    let a = [1] :: Array(I32)
+    let &inner = Inner {ref: values(a)}
+    let &o = Outer {held: inner}
+    let &total = 0
+    let &i = 0
+    while i < 3:
+        let owned = [i + 40, 2] :: Array(I32)
+        total += copy(borrow(o.held.ref))
+        o.held.ref = values(owned)
+        i += 1
+    return total
+
+fn main() -> I32 = stale() + moved() + generic() + carried() + madeAgain() + installed() + throughField()

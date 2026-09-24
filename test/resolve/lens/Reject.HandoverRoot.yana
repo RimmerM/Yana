@@ -1,0 +1,63 @@
+{-
+   The root of an unqualified hand-over kept in the consumer's own storage past the call.
+
+   # resolver: ownership
+
+   `-> [I32]` names no origin, so what it hands over is a view the callee may take out of its own
+   frame - `held` below yields a local of its own, which is gone when the call returns, and `each`
+   frees each pass's before the next. Every line below compiled before J129 and read freed memory:
+   a record local written inside the region and read after it (`escape`, `copied`, `escapeFor`), the
+   same local read on the next pass (`stalePass`), and the same through a relaying lens (`relayed`).
+   The root of such a hand-over now carries its call's bound (`findCallBounds`), so J123's escape and
+   J124's stale pass refuse it at the read. A traversal that hands over the *caller's* storage says
+   so by naming the slot, as `items` does - `lens/HandoverRoot.yana` is that half.
+-}
+data Box {held: k'[I32]}
+
+lens fn held(xs: [I32]) -> [I32]:
+    let owned = [xs[0] + 41, 2] :: Array(I32)
+    yield owned
+
+iter fn each(xs: [I32]) -> [I32]:
+    for i in 0..3:
+        let owned = [xs[0] + 40 + i, 2] :: Array(I32)
+        yield owned
+
+lens fn relay(xs: [I32]) -> [I32]:
+    let v = held(xs) in:
+        yield v
+
+fn escape(xs: [I32]) -> I32:
+    let &b = Box {held: xs}
+    let v = held(xs) in:
+        b = {b | held: v}
+    return b.held[0]
+
+fn copied(xs: [I32]) -> I32:
+    let &b = Box {held: xs}
+    let v = held(xs) in:
+        let w = v
+        b = {b | held: w}
+    return b.held[0]
+
+fn escapeFor(xs: [I32]) -> I32:
+    let &b = Box {held: xs}
+    for v in each(xs):
+        b = {b | held: v}
+    return b.held[0]
+
+fn stalePass(xs: [I32]) -> I32:
+    let &b = Box {held: xs}
+    let &total = 0 :: I32
+    for v in each(xs):
+        total += b.held[0]
+        b = {b | held: v}
+    return total
+
+fn relayed(xs: [I32]) -> I32:
+    let &b = Box {held: xs}
+    let v = relay(xs) in:
+        b = {b | held: v}
+    return b.held[0]
+
+fn main() -> Int = 0

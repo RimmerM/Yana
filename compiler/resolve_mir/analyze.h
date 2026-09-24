@@ -223,11 +223,30 @@ struct Elaboration {
  * copied consumed twice - which is the one thing separating this from the verifiers: those report
  * the compiler's own mistakes as internal errors, and these are the diagnostics the language is
  * specified to give.
+ *
+ * The global effects are read off `Program::globalEffects`, which the caller has made; only the
+ * lending table is a parameter, because it is the caller's own and lives no longer than its loop.
  */
-bool analyzeBody(Context& context, Program& program, Function& function);
+struct GlobalEffects;
+struct GlobalLending;
+bool analyzeBody(Context& context, Program& program, Function& function,
+                 GlobalLending* globalLending = nullptr);
 
 // Every reachable-or-not body, in declaration order. Reachability is not known yet: this runs before
 // `computeSummaries`, because the summary's own reachability walk follows the drops this places.
 bool analyzeProgram(Context& context, Program& program);
+
+/*
+ * Whether a call of `callee` may read or write any global of the program, or reach state this
+ * program cannot see - an external function. False promises the callee can reach no storage except
+ * through its arguments, which is what lets the SSA optimizer keep a value in a register across it
+ * when the storage's address has escaped somewhere other than a global. Computed from
+ * `GlobalEffects` on the first question, which in a native build is nearly always asked; a function
+ * it has no row for - one the conversion made after the analysis - answers true, and a
+ * specialization answers for its own type arguments' teardowns as well as its generic's row.
+ */
+bool reachesGlobalState(Program& program, DeclPtr<Function> callee);
+
+void releaseGlobalEffects(GlobalEffects* effects);
 
 } // namespace mir

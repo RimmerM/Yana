@@ -601,9 +601,10 @@ fn sumChunked(%xs: Chunks) -> I32 {
     %v9 = symbol ResolveTest.continuation$23 : %()
     init %local3.code, %v9
     init %local3.env, %v7
-    %v12 = call Chunked(Chunks, I32).chunks(()), %xs, %v8 : Outcome((), ())
-    %v13 = load %total : I32
-    ret %v13
+    %v12 = borrow %xs : 'Chunks
+    %v13 = call Chunked(Chunks, I32).chunks(()), %v12, %v8 : Outcome((), ())
+    %v14 = load %total : I32
+    ret %v14
 }
 
 fn sumContiguous(%xs: Ring) -> I32 {
@@ -618,9 +619,10 @@ fn sumContiguous(%xs: Ring) -> I32 {
     %v9 = symbol ResolveTest.continuation$25 : %()
     init %local3.code, %v9
     init %local3.env, %v7
-    %v12 = call Chunked(Ring, I32).chunks(()), %xs, %v8 : Outcome((), ())
-    %v13 = load %total : I32
-    ret %v13
+    %v12 = borrow %xs : 'Ring
+    %v13 = call Chunked(Ring, I32).chunks(()), %v12, %v8 : Outcome((), ())
+    %v14 = load %total : I32
+    ret %v14
 }
 
 fn sumArray(%xs: Array(I32)) -> I32 {
@@ -642,9 +644,10 @@ fn sumArray(%xs: Array(I32)) -> I32 {
     %v16 = load [%v12]@Array.length : @bits(30) U32
     %v17 = cast %v16 : Size
     init %xs@ArrayView.length, %v17
-    %v19 = call Chunked(Array(a), a).chunks(I32, ()), %xs, %v8 : Outcome((), ())
-    %v20 = load %total : I32
-    ret %v20
+    %v19 = borrow %xs : 'ArrayView(I32)
+    %v20 = call Chunked(Array(a), a).chunks(I32, ()), %v19, %v8 : Outcome((), ())
+    %v21 = load %total : I32
+    ret %v21
 }
 
 fn total(%xs: ArrayView(I32)) -> I32 {
@@ -685,14 +688,15 @@ fn firstOver(%xs: Chunks, %bound: I32) -> I32 {
     %v6 = symbol ResolveTest.continuation$30 : %()
     init %local2.code, %v6
     init %local2.env, %v4
-    %v9 = call Chunked(Chunks, I32).chunks(I32), %xs, %v5 : Outcome((), I32)
-    %v10 = load %local3.discriminant : I32
-    %v12 = cmp_eq %v10, 1 : Bool
-    je %v12, b1, b2
+    %v9 = borrow %xs : 'Chunks
+    %v10 = call Chunked(Chunks, I32).chunks(I32), %v9, %v5 : Outcome((), I32)
+    %v11 = load %local3.discriminant : I32
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b1, b2
 
   b1:
-    %v14 = load %local3@Exit : I32
-    ret %v14
+    %v15 = load %local3@Exit : I32
+    ret %v15
 
   b2:
     ret -1
@@ -710,9 +714,10 @@ fn firstOfEachChunk(%xs: Chunks) -> I32 {
     %v9 = symbol ResolveTest.continuation$32 : %()
     init %local3.code, %v9
     init %local3.env, %v7
-    %v12 = call Chunked(Chunks, I32).chunks(()), %xs, %v8 : Outcome((), ())
-    %v13 = load %total : I32
-    ret %v13
+    %v12 = borrow %xs : 'Chunks
+    %v13 = call Chunked(Chunks, I32).chunks(()), %v12, %v8 : Outcome((), ())
+    %v14 = load %total : I32
+    ret %v14
 }
 
 fn main() -> I32 {

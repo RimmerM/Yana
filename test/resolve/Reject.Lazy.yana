@@ -4,6 +4,9 @@
 -- never run, so there is no storage to borrow, nothing to consume, no default that could stand in
 -- for it, and nothing for a returned borrow to be rooted in. The rest are this version's boundary,
 -- and each one names what it is waiting for.
+--
+-- # resolver: ownership
+-- # recover: yes - every rule below is reported in one compile, the way the command line reports them.
 
 -- A `&` parameter is a promise about storage the caller already has, and a `->` one takes that
 -- storage away. Neither exists until the expression has run.
@@ -11,9 +14,9 @@ fn writeThrough(@lazy &target: Int) -> Int = target
 
 fn consume(@lazy ->value: Int) -> Int = value
 
--- `return` says a borrow in the result may be rooted in this argument. An argument that may never
+-- `'` says a borrow in the result may be rooted in this argument. An argument that may never
 -- be evaluated cannot root anything.
-fn rooted(@lazy return value: Int) -> Int = value
+fn rooted(@lazy value: 'Int) -> Int = value
 
 -- At most once on any path. Both of these force twice on the same path, and the second is the one
 -- the rule exists for: reading a name twice is what a memoization slot would have made cheap, and
@@ -53,7 +56,9 @@ fn forwardAndForce(@lazy value: Int) -> Int = value + once(True, value)
 -- capture - which is why the second of these is rejected and `outer` in LazyUser.yana is not.
 fn captured(@lazy value: Int) -> (() -> Int) = () -> value
 
-fn wrapped(@lazy value: Int) -> Int = once(True, value + 1)
+--
+-- The second, `once(True, value + 1)`, is `Reject.Lazy.Legacy.yana`: the new stage
+-- refuses it, but as a missing `FromInt(() -> I32)` rather than as a capture.
 
 -- Reading the parameter is an effect, not a place: there is nothing to assign to.
 fn assigned(@lazy value: Int) -> Int:
@@ -77,8 +82,9 @@ fn capturesOwned() -> Int:
     let owner = Owner {handle: 1}
     return takeOwner(owner)
 
--- `return` out of a deferred argument leaves the enclosing function through the callee's live
--- frame, which is the exit signal - the same mechanism `break` out of a `for` body needs.
+-- `return` inside a deferred argument is not implemented yet, though it should leave the
+-- enclosing function through the callee's live frame, the same exit-signal mechanism `break` out
+-- of a `for` body needs.
 fn exits(flag: Bool) -> Int:
     let value = once(flag, return 1)
     return value

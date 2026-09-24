@@ -8,6 +8,9 @@
 -- before the program starts and has no place in the sequence at all, so a statement above its
 -- declaration reads exactly what it was declared as - which is why `later` and `pending` below are
 -- written as calls rather than as numbers.
+--
+-- # resolver: ownership
+-- # recover: yes - every rule below is reported in one compile, the way the command line reports them.
 
 import Startup
 
@@ -31,7 +34,7 @@ let &self = self + 1
 
 -- A borrow has an extent and a global does not. What would be stored is the address of storage in
 -- the entry function's own frame, which stops existing the moment the program starts.
-fn xOf(return p: Point) -> 'Int = p.x
+fn xOf(p: 'Point) -> 'Int = p.x
 
 let &point = Point {x: 1, y: 2}
 let &edge = xOf(point)
@@ -53,6 +56,6 @@ instance Drop(Handle):
 
 let &held = Handle {id: 4}
 
--- And the entry point takes no arguments. There is no argument or environment model to fill them
--- from, so a `main` that declares one cannot be called by anything.
-fn main(n: Int) -> Int = n + later
+-- The entry point taking an argument was the last line here; the new stage reports it only once the
+-- declarations above have none to report, so it is `ownership/Reject.MainParameters.yana`.
+fn main() -> Int = later

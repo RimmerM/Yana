@@ -9,7 +9,12 @@
 -- place the programmer can answer it. This could not be written before §2.2 permitted import
 -- cycles: two types containing each other had to be in two modules, and two modules importing each
 -- other were refused.
+--
+-- # resolver: ownership
 
 import Cell
 
-fn main(c: Cell) -> Int = 0
+-- `main` takes no parameters in the new stage, so the use of `Cell` is its own function.
+fn holds(c: Cell) -> Int = 0
+
+fn main() -> Int = 0

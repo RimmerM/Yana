@@ -18,11 +18,14 @@
 
    A prefix that names *nothing* is not an error and is not tested here: that is a plain namespace,
    and `lib/Namespace.yana` asserts it works.
+
+   # resolver: ownership
 -}
 
 fn X86.+(a: Int, b: Int) -> Int = a + b
 
-fn String.mine(self: String) -> Int = 1
+-- Adding to a type this module does not declare moved to `Reject.Namespace.Legacy.yana`;
+-- that file says what the new stage does instead.
 
 fn main():
     return

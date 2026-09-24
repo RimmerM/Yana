@@ -1,0 +1,15 @@
+-- The rule of `Reject.PackedBorrow.yana` the default stage does not refuse yet: `addressOf` a field
+-- that may share a machine word with its neighbours. It accepts the function below and hands back
+-- the address of the word. Move it back when it refuses it.
+--
+-- A raw pointer is an address and nothing else, so a field that shares a word with its neighbours
+-- cannot produce one - the shift a `&` carries is exactly what `%T` has no room for. The result is
+-- labelled with the parameter's origin so that the packed field is the only thing left to refuse.
+
+import Native
+
+data Flags {optionA: Bool, optionB: Bool}
+
+fn addressOfPacked(f: src'Flags) -> %src'Bool = addressOf(f.optionA)
+
+fn main() -> Int = 0

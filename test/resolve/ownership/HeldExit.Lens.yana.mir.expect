@@ -1,0 +1,215 @@
+module ResolveTest
+
+data Token {id: I32} drop authored
+
+instance Drop(Token): Token.drop
+
+let & dropped: I32 = 0
+
+let & closed: I32 = 0
+
+fn Token.drop(value: Token) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global dropped)
+  %1: I32 = read copy.trivial (value.id)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global dropped) take %2
+  return
+}
+
+lens fn around($body: (->{}) -> $r [shared call]) -> $r {
+  form specialized
+  slot #0 type $r
+  local $yielded: $r
+
+bb0:
+  %0: {} = const {}
+  %1: (->{}) -> $r [shared call] = read borrow.shared ($body) loan0
+  %2: $r = call inspect %1 take {}
+  write.init borrow.unique ($yielded) take %2
+  %4: I32 = read copy.trivial (global closed)
+  %5: I32 = const 1
+  %6: I32 = add inspect %4 inspect %5
+  write.assign borrow.unique (global closed) take %6
+  %8: $r = read take ($yielded)
+  return take %8
+}
+
+lens fn upTo(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & local3: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 0
+  %4: I32 = const 1
+  write.init borrow.unique (local3) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local3)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %29: I32 = read copy.trivial (local3)
+  %30: I32 = add inspect %29 inspect %8
+  write.assign borrow.unique (local3) take %30
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %33: I32 = read copy.trivial ($yielded)
+  return take %33
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local3)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %22: I32 = call inspect %21 borrow.shared %20
+  %23: I32 = const 0
+  %24: Bool = eq inspect %22 inspect %23
+  write.assign borrow.unique ($yielded) take %22
+  branch inspect %24 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %15, take %16)
+
+bb6:
+  jump -> bb3(take %15, take %16)
+}
+
+fn combine(x: Token, y: Token) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x.id)
+  drop (x)
+  %1: I32 = read copy.trivial (y.id)
+  drop (y)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn f(b: I32 [shared call]) -> I32 {
+  local local1: Token
+  local local2: {}
+  local v: I32
+
+bb0:
+  %0: I32 = const 10
+  %1: Token = aggregate.Token take %0
+  %2: I32 = read copy.trivial (b)
+  %3: I32 = const 0
+  %4: Bool = gt inspect %2 inspect %3
+  branch inspect %4 -> bb3(take %1) -> bb1(take %1)
+
+bb1(%5: Token):
+  write.init borrow.unique (local1) take %5
+  drop (local1)
+  lens.call around(I32) -> bb4
+
+bb2(%17: Token, %18: Token):
+  %20: I32 = call combine take %18 take %17
+  write.init borrow.unique (v) take %20
+  %22: I32 = read copy.trivial (v)
+  return take %22
+
+bb3(%6: Token):
+  %8: I32 = read copy.trivial (b)
+  %9: Token = aggregate.Token take %8
+  jump -> bb2(take %9, take %6)
+
+bb4(%11: {}) handover({}):
+  write.init borrow.unique (local2) take {}
+  %14: I32 = const 0
+  return take %14
+}
+
+fn g(b: I32 [shared call]) -> I32 {
+  local local1: Token
+  local i: I32 [shared call]
+  local v: I32
+
+bb0:
+  %0: I32 = const 20
+  %1: Token = aggregate.Token take %0
+  %2: I32 = read copy.trivial (b)
+  %3: I32 = const 0
+  %4: Bool = gt inspect %2 inspect %3
+  branch inspect %4 -> bb3(take %1) -> bb1(take %1)
+
+bb1(%5: Token):
+  %10: I32 = const 3
+  write.init borrow.unique (local1) take %5
+  lens.call upTo borrow.shared %10 -> bb5
+
+bb2(%26: Token, %27: Token):
+  %30: I32 = call combine take %27 take %26
+  write.init borrow.unique (v) take %30
+  %32: I32 = read copy.trivial (v)
+  return take %32
+
+bb3(%6: Token):
+  %8: I32 = read copy.trivial (b)
+  %9: Token = aggregate.Token take %8
+  jump -> bb2(take %9, take %6)
+
+bb4:
+  %23: Token = read take (local1)
+  %24: I32 = const 5
+  %25: Token = aggregate.Token take %24
+  jump -> bb2(take %25, take %23)
+
+bb5(%12: I32 [shared call]) handover(I32 [shared call]) many -> bb4:
+  write.init borrow.unique (i) borrow.shared %12
+  %15: I32 = read copy.trivial (i)
+  %16: I32 = const 1
+  %17: Bool = eq inspect %15 inspect %16
+  branch inspect %17 -> bb8 -> bb6
+
+bb6 handover(I32 [shared call]) many:
+  jump -> bb7
+
+bb7 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb8 handover(I32 [shared call]) many:
+  drop (local1)
+  %19: I32 = const 0
+  return take %19
+}
+
+fn main() -> I32 {
+  local a: I32
+  local c: I32
+  local d: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = call f borrow.shared %0
+  write.init borrow.unique (a) take %1
+  %3: I32 = const 3
+  %4: I32 = call f borrow.shared %3
+  write.init borrow.unique (c) take %4
+  %6: I32 = const 0
+  %7: I32 = call g borrow.shared %6
+  write.init borrow.unique (d) take %7
+  %9: I32 = read copy.trivial (global dropped)
+  %10: I32 = const 100
+  %11: I32 = mul inspect %9 inspect %10
+  %12: I32 = read copy.trivial (global closed)
+  %13: I32 = add inspect %11 inspect %12
+  %14: I32 = read copy.trivial (a)
+  %15: I32 = add inspect %13 inspect %14
+  %16: I32 = read copy.trivial (c)
+  %17: I32 = add inspect %15 inspect %16
+  %18: I32 = read copy.trivial (d)
+  %19: I32 = add inspect %17 inspect %18
+  return take %19
+}
+
+lens fn around(I32)($body: (->{}) -> I32 [shared call]) -> I32 = <around at I32>
+
+entry main

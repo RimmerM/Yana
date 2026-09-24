@@ -1,0 +1,93 @@
+{-
+   Re-pointing storage at a fresh loan, and a pointer written through a loan field's referent - J128.
+
+   # resolver: ownership
+
+   A write that replaces a whole owned local whose type has no teardown discards the old value
+   unread, so it reaches the local and nothing the old value referred to. `pointerWalk` re-points
+   `p` at a fresh unique loan of `xs` every pass. It compiled before J127 only because the old loan
+   and the fresh one had one id, and J127's generations refused it ("p cannot be written here,
+   because xs is borrowed exclusively"). `looped` is the same with a record holding a unique loan.
+   `straight` and `ptrStraight` are the straight-line forms, which were refused before either. At no
+   point are two unique references to `xs` in use together. Writing `prev = p` and storing through
+   `prev` after the fresh loan is taken would be, and that stays refused, as it is in straight-line
+   code (`xs cannot be borrowed here`).
+
+   `viaOuter` and `scoped` write a `%kept'I32` through `o.held`, a `&k'Inner` field, into the
+   `Inner` it names. The write mapped only the pointer's root into `o`'s `held` row, and its loan is
+   at the pointee position, so nothing kept `owned` alive to the read back through `o.held.ref`:
+   `viaOuter(True)` answered 7 for 47 under `-no-ir-opt`. `scoped` reads through `inner.ref`, which
+   J127 already got right. The loop form is refused in `../iter/Reject.ObjectItem.yana`.
+-}
+
+import Native
+
+fn pointerWalk() -> I32:
+    let &xs = [1, 2, 3, 4] :: Array(I32)
+    let &ys = [0] :: Array(I32)
+    let &p = valuesMut(ys) + 0
+    let &i = 0
+    while i < 3:
+        store(p, 9)
+        p = valuesMut(xs) + (i + 1)
+        i += 1
+    return xs[0] + xs[1] + xs[2] + xs[3] + ys[0]
+
+data Cursor {at: &kept'Array(I32), n: I32}
+
+fn bumpAt(&c: Cursor(k')):
+    c.at[0] += 1
+
+fn straight() -> I32:
+    let &xs = [1, 2] :: Array(I32)
+    let &c = Cursor {at: xs, n: 0}
+    bumpAt(c)
+    c = Cursor {at: xs, n: 1}
+    bumpAt(c)
+    return xs[0]
+
+fn looped() -> I32:
+    let &xs = [1, 2] :: Array(I32)
+    let &ys = [1, 2] :: Array(I32)
+    let &c = Cursor {at: ys, n: 0}
+    let &i = 0
+    while i < 3:
+        bumpAt(c)
+        c = Cursor {at: xs, n: i}
+        i += 1
+    return xs[0] * 10 + ys[0]
+
+fn ptrStraight() -> I32:
+    let &xs = [1, 2, 3, 4] :: Array(I32)
+    let &p = valuesMut(xs) + 0
+    store(p, 9)
+    p = valuesMut(xs) + 1
+    store(p, 8)
+    return xs[0] + xs[1]
+
+data Inner {ref: %kept'I32}
+data Outer {held: &k'Inner}
+
+fn viaOuter(flag: Bool) -> I32:
+    let a = [1] :: Array(I32)
+    let &inner = Inner {ref: values(a)}
+    let &o = Outer {held: inner}
+    if flag:
+        let owned = [40, 2] :: Array(I32)
+        o.held.ref = values(owned)
+    let junk = [7, 7, 7] :: Array(I32)
+    return copy(borrow(o.held.ref)) + junk[0]
+
+fn scoped(flag: Bool) -> I32:
+    let a = [1] :: Array(I32)
+    let &inner = Inner {ref: values(a)}
+    if flag:
+        let &o = Outer {held: inner}
+        let owned = [40, 2] :: Array(I32)
+        o.held.ref = values(owned)
+    let junk = [7, 7, 7] :: Array(I32)
+    return copy(borrow(inner.ref)) + junk[0]
+
+-- 32 + 3 + 32 + 17, then 47 + 8 + 47 + 8
+fn main() -> I32 = (pointerWalk() + straight() + looped() + ptrStraight()) * 1000 +
+    viaOuter(True) + viaOuter(False) * 10 + scoped(True) * 100 + scoped(False) * 1000

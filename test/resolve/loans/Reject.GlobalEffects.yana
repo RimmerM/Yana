@@ -1,0 +1,166 @@
+{-
+   A loan of a global held where a call runs code it does not name.
+
+   # resolver: ownership
+
+   The summary of what a call may do to a global has to account for three things: a **teardown**
+   (an authored `Drop` is a call nothing in the body wrote), the **step of an iterator object**
+   (the compiler writes it out of the producer's body), and a **lambda** handed to a body that
+   runs it through `Call` (its value is its environment record, not a `fun.value`). Missing any of
+   these lets all three compile, and `inBody` answers 24 where 4 is right: the teardown of `a`
+   pushes a thousand elements onto `gArr` and `w` reads the run that freed.
+-}
+
+data Noisy {n: Int}
+
+let &gArr = [1, 2, 3] :: Array(Int)
+
+fn grow():
+    for i in 0..1000:
+        push(gArr, i + 100)
+
+instance Drop(Noisy):
+    fn drop(->value: Noisy):
+        grow()
+
+fn make(n: Int) -> Noisy = Noisy {n: n}
+fn use(x: Noisy) -> Int = x.n
+
+-- The teardown runs in this body, where `a` dies, and `w` is read after it.
+fn inBody() -> Int:
+    let w = gArr
+    let a = make(1)
+    let k = use(a)
+    return w[0] + w[1] + k
+
+-- The teardown runs in the callee, which is what its summary now says.
+fn dropsOne():
+    let a = make(2)
+    print("{use(a)}")
+
+fn inCallee() -> Int:
+    let w = gArr
+    dropsOne()
+    return w[0] + w[1]
+
+-- An assignment tears down what it replaces.
+fn overwritten() -> Int:
+    let &a = make(3)
+    let w = gArr
+    let k = use(a)
+    a = make(4)
+    return w[0] + k + use(a)
+
+iter fn growing(n: Int) -> Int:
+    for i in 0..n:
+        grow()
+        yield i
+
+fn erasedOf(n: Int) -> iter(Int) = growing(n)
+
+-- The step of an object runs its producer: at the site type by name, at the erased type through
+-- the pair.
+fn stepSite() -> Int:
+    let &it = growing(3)
+    let w = gArr
+    let &first = 0
+    if it.next() is Just(x):
+        first = x
+    return w[0] + first
+
+fn stepErased() -> Int:
+    let &it = erasedOf(3)
+    let w = gArr
+    let &first = 0
+    if it.next() is Just(x):
+        first = x
+    return w[0] + first
+
+fn (Call(f, () -> {})) runIt(g: f):
+    g()
+
+-- A lambda is run by the body it is handed to.
+fn viaCall() -> Int:
+    let w = gArr
+    runIt(() -> grow())
+    return w[0]
+
+-- A loan held across a `yield` is live while the code yielded to runs: the region a caller wrote
+-- for a lens or an `iter fn`, which here grows `gArr`, and whatever the holder of an object does
+-- between two steps, which may be anything.
+lens fn aroundWindow() -> Int:
+    let w = gArr[0..3]
+    yield 0
+    print("{w[0]}")
+
+fn callsAround() -> Int:
+    aroundWindow():
+        grow()
+    return 1
+
+iter fn walkWindow() -> Int:
+    let w = gArr[0..3]
+    for i in 0..3:
+        yield w[i]
+
+fn callsWalk() -> Int:
+    let &s = 0
+    for x in walkWindow():
+        grow()
+        s += x
+    return s
+
+iter fn heldWindow() -> Int:
+    let w = gArr[0..3]
+    for i in 0..3:
+        yield w[i]
+
+fn stepsHeld() -> Int:
+    let &it = heldWindow()
+    let &s = 0
+    while it.next() is Just(x):
+        s += x
+    return s
+
+-- The elements of an `Array` and the values of a `Map` are torn down with them, by the container's
+-- parametric teardown at the element's type.
+fn arrayElements() -> Int:
+    let c = [make(5)]
+    let w = gArr[0..3]
+    let e = c
+    let n = 1
+    return w[0] + n
+
+fn builtMap() -> [Int: Noisy] = [1: make(6)]
+fn countMap(m: [Int: Noisy]) -> Int = 1
+
+fn mapValues() -> Int:
+    let m = builtMap()
+    let w = gArr[0..3]
+    let n = countMap(m)
+    return w[0] + n
+
+-- A generic body releasing a value of its own variable: the caller that chose `Noisy` is charged
+-- with the teardown, and cannot see the loan held in here.
+fn (a) peekAny(x: a) -> Int = 1
+
+fn (a) holdAny(->x: a) -> Int:
+    let w = gArr[0..3]
+    let n = peekAny(x)
+    return w[0] + w[1] + n
+
+fn callsHold() -> Int = holdAny(make(7))
+
+-- A value a generic body was lent under a variable `Call` requires is code it cannot see, whether it
+-- calls the value or hands it on: both read the run `grow` freed before J121.
+fn (Call(f, () -> {})) holdAndRun(g: f) -> Int:
+    let w = gArr[0..3]
+    g()
+    return w[0] + w[1]
+
+fn (Call(f, () -> {})) holdAndPass(g: f) -> Int:
+    let w = gArr[0..3]
+    runIt(g)
+    return w[0] + w[1]
+
+fn main() -> Int = 0

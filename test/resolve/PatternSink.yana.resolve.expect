@@ -422,9 +422,11 @@ fn borrowed() -> I64 {
     jmp b5
 
   b3:
-    %p = load %local0@Pair : {left: Buffer, right: Buffer}
+    %v21 = load %local0@Pair : {left: Buffer, right: Buffer}
+    %v22 = load %local0@Pair.left : Buffer
+    %v23 = load %local0@Pair.right : Buffer
     drop_derived %local0 via drop$Box
-    %v26 = sub 0, 2 : I64
+    %v28 = sub 0, 2 : I64
     jmp b5
 
   b4:
@@ -432,8 +434,8 @@ fn borrowed() -> I64 {
     jmp b5
 
   b5:
-    %v30 = phi [b2, %v11], [b4, %v20], [b3, %v26] : I64
-    ret %v30
+    %v32 = phi [b2, %v11], [b4, %v20], [b3, %v28] : I64
+    ret %v32
 
   b6:
     drop_derived %local0 via drop$Box
@@ -462,9 +464,11 @@ fn taken() -> Buffer {
     jmp b5
 
   b3:
-    %p = load %local0@Pair : {left: Buffer, right: Buffer}
+    %v17 = load %local0@Pair : {left: Buffer, right: Buffer}
+    %v18 = load %local0@Pair.left : Buffer
+    %v19 = load %local0@Pair.right : Buffer
     drop_derived %local0 via drop$Box
-    %v18 = call makeBuffer : Buffer
+    %v20 = call makeBuffer : Buffer
     jmp b5
 
   b4:
@@ -472,8 +476,8 @@ fn taken() -> Buffer {
     jmp b5
 
   b5:
-    %v22 = phi [b2, %v], [b4, %v16], [b3, %v18] : Buffer
-    ret %v22
+    %v24 = phi [b2, %v], [b4, %v16], [b3, %v20] : Buffer
+    ret %v24
 
   b6:
     drop_derived %local0 via drop$Box
@@ -504,9 +508,11 @@ fn discarded() -> I64 {
     jmp b5
 
   b3:
-    %p = load %local0@Pair : {left: Buffer, right: Buffer}
+    %v23 = load %local0@Pair : {left: Buffer, right: Buffer}
+    %v24 = load %local0@Pair.left : Buffer
+    %v25 = load %local0@Pair.right : Buffer
     drop_derived %local0 via drop$Box
-    %v28 = sub 0, 2 : I32
+    %v30 = sub 0, 2 : I32
     jmp b5
 
   b4:
@@ -514,13 +520,13 @@ fn discarded() -> I64 {
     jmp b5
 
   b5:
-    %arm = phi [b2, 0], [b4, %v22], [b3, %v28] : I32
-    %v36 = mul %before, 10 : I64
-    %v37 = load live : I64
-    %v38 = add %v36, %v37 : I64
-    %v39 = cast %arm : I64
+    %arm = phi [b2, 0], [b4, %v22], [b3, %v30] : I32
+    %v38 = mul %before, 10 : I64
+    %v39 = load live : I64
     %v40 = add %v38, %v39 : I64
-    ret %v40
+    %v41 = cast %arm : I64
+    %v42 = add %v40, %v41 : I64
+    ret %v42
 
   b6:
     drop_derived %local0 via drop$Box

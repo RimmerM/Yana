@@ -1,0 +1,817 @@
+module ResolveTest
+
+data windowParameter.lambda.env {sep: 0'Array(I32)} shape1
+
+data windowLocal.lambda.env {w: 0'Array(I32)} shape1
+
+data windowAndOwned.lambda.env {xs: 0'Array(I32), sep: 1'Array(I32)} shape8
+
+data writableBeside.lambda.env {n: &0'I32, sep: 1'Array(I32)} shape9
+
+data writableParameter.lambda.env {sep: &0'Array(I32)} shape10
+
+data writableLocal.lambda.env {w: &0'Array(I32)} shape10
+
+data lazyWindow.thunk.env {sep: 0'Array(I32)} shape1
+
+data scaled.lambda.env {xs: 0'Array(I32)} shape1
+
+data stringParameter.lambda.env {s: 0'String} shape1
+
+data generic.lambda.env {sep: 0'Array(I32)} shape1
+
+data erased.lambda.env {sep: 0'Array(I32)} shape1
+
+data ownedOnly.lambda.env {xs: 0'Array(I32)} shape2
+
+let string'142: [CodeUnit *3] = "abc"
+
+fn bump(v: I32 [unique call], n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (v)
+  %1: I32 = read copy.trivial (n)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (v) take %2
+  %4: I32 = read copy.trivial (n)
+  return take %4
+}
+
+fn setAt(xs: Array(I32) [unique call view], i: I32 [shared call], v: I32 [shared call]) -> I32 {
+  local & local3: I32 [unique slot 0 owner]
+
+bb0:
+  %0: I32 = read copy.trivial (i)
+  %1: I32 = read copy.trivial (v)
+  %2: Array(I32) [unique call view] = read borrow.unique (xs) loan0
+  %3: Size = convert inspect %0
+  %4: I32 [unique slot 0 owner] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %2 borrow.shared %3 roots{0}
+  write.init borrow.unique (local3) borrow.unique %4
+  write.assign borrow.unique (local3) take %1
+  %7: I32 = read copy.trivial (v)
+  return take %7
+}
+
+fn pick(flag: Bool [shared call], @lazy v: () -> I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %4: I32 = const 0
+  jump -> bb2(take %4)
+
+bb2(%5: I32):
+  return take %5
+
+bb3:
+  %2: () -> I32 [shared call] = read borrow.shared (v) loan0
+  %3: I32 = call inspect %2
+  jump -> bb2(take %3)
+}
+
+fn twice(g: f [shared call], x: I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type f
+  slot #1 class Call(f, (I32) -> I32)
+bb0:
+  %0: f [shared call] = read borrow.shared (g) loan0
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = call borrow.shared %0 borrow.shared %1
+  %3: f [shared call] = read borrow.shared (g) loan1
+  %4: I32 = read copy.trivial (x)
+  %5: I32 = call borrow.shared %3 borrow.shared %4
+  %6: I32 = add inspect %2 inspect %5
+  return take %6
+}
+
+fn erasedTwice(g: () -> I32 [shared call]) -> I32 {
+bb0:
+  %0: () -> I32 [shared call] = read borrow.shared (g) loan0
+  %1: I32 = call inspect %0
+  %2: () -> I32 [shared call] = read borrow.shared (g) loan1
+  %3: I32 = call inspect %2
+  %4: I32 = add inspect %1 inspect %3
+  return take %4
+}
+
+fn windowParameter(sep: Array(I32) [shared call view], k: I32 [shared call]) -> I32 {
+  local g: windowParameter.lambda.env
+
+bb0:
+  %0: Array(I32) [shared slot 0 view] = read borrow.shared (sep) loan0
+  %1: windowParameter.lambda.env = aggregate.windowParameter.lambda.env borrow.shared %0 roots.0{0}
+  write.init borrow.unique (g) take %1
+  %3: windowParameter.lambda.env = read copy.trivial (g) roots.0{0}
+  %4: I32 = read copy.trivial (k)
+  %5: Size = call borrow.shared %3 borrow.shared %4
+  %6: I32 = convert inspect %5
+  return take %6
+}
+
+fn windowLocal(whole: Array(I32) [shared call view], k: I32 [shared call]) -> I32 {
+  local w: Array(I32) [shared slot 0 view]
+  local g: windowLocal.lambda.env
+
+bb0:
+  %0: Array(I32) [shared call view] = read borrow.shared (whole) loan0
+  %1: Size = const 1
+  %2: Size = const 3
+  %3: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %0 borrow.shared %1 borrow.shared %2 roots{0}
+  write.init borrow.unique (w) borrow.shared %3
+  %5: Array(I32) [shared slot 0 view] = read borrow.shared (w) loan1 roots{0}
+  %6: windowLocal.lambda.env = aggregate.windowLocal.lambda.env borrow.shared %5 roots.0{0, 1}
+  write.init borrow.unique (g) take %6
+  %8: windowLocal.lambda.env = read copy.trivial (g) roots.0{0, 1}
+  %9: I32 = read copy.trivial (k)
+  %10: Size = call borrow.shared %8 borrow.shared %9
+  %11: I32 = convert inspect %10
+  return take %11
+}
+
+fn windowAndOwned(sep: Array(I32) [shared call view], k: I32 [shared call]) -> I32 {
+  local & local2: Array(I32) object1
+  local xs: Array(I32) object1
+  local g: windowAndOwned.lambda.env
+
+bb0:
+  %0: I32 = const 5
+  %1: I32 = const 6
+  %2: I32 = const 7
+  %3: %I32 = run.slots I32 *3
+  %4: Size = bitcast inspect %3
+  %5: Size = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  %7: {} = call checkCondition borrow.shared %6
+  %8: @bits(30) U32 = const 3
+  %9: @bits(2) U32 = const 1
+  %10: Run(I32) = aggregate.Run take %3 take %8 take %9
+  %11: @bits(30) U32 = const 3
+  %12: Array(I32) = aggregate.Array take %10 take %11
+  write.init borrow.unique (local2) take %12
+  %14: Size = const 0
+  write.init borrow.unique ([%%3][0]) take %0
+  %16: Size = const 1
+  write.init borrow.unique ([%%3][1]) take %1
+  %18: Size = const 2
+  write.init borrow.unique ([%%3][2]) take %2
+  %20: Array(I32) = read take (local2)
+  write.init borrow.unique (xs) take %20
+  %22: Array(I32) [shared slot 0] = read borrow.shared (xs) loan0
+  %23: Array(I32) [shared slot 1 view] = read borrow.shared (sep) loan1
+  %24: windowAndOwned.lambda.env = aggregate.windowAndOwned.lambda.env borrow.shared %22 borrow.shared %23 roots.0{0} roots.1{1}
+  write.init borrow.unique (g) take %24
+  %26: windowAndOwned.lambda.env = read copy.trivial (g) roots.0{0} roots.1{1}
+  %27: I32 = read copy.trivial (k)
+  %28: I32 = call borrow.shared %26 borrow.shared %27
+  drop (xs)
+  return take %28
+}
+
+fn writableBeside(sep: Array(I32) [shared call view]) -> I32 {
+  local & n: I32
+  local add: writableBeside.lambda.env
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (n) take %0
+  %2: I32 [unique slot 0] = read borrow.unique (n) loan0
+  %3: Array(I32) [shared slot 1 view] = read borrow.shared (sep) loan1
+  %4: writableBeside.lambda.env = aggregate.writableBeside.lambda.env borrow.unique %2 borrow.shared %3 roots.0{0} roots.1{1}
+  write.init borrow.unique (add) take %4
+  %6: writableBeside.lambda.env [shared call] = read borrow.shared (add) loan2 roots.0{0} roots.1{1}
+  %7: I32 = const 0
+  %8: I32 = call borrow.shared %6 borrow.shared %7
+  %9: writableBeside.lambda.env [shared call] = read borrow.shared (add) loan3 roots.0{0} roots.1{1}
+  %10: I32 = const 1
+  %11: I32 = call borrow.shared %9 borrow.shared %10
+  %12: writableBeside.lambda.env [shared call] = read borrow.shared (add) loan4 roots.0{0} roots.1{1}
+  %13: I32 = const 2
+  %14: I32 = call borrow.shared %12 borrow.shared %13
+  %15: I32 = read copy.trivial (n)
+  return take %15
+}
+
+fn writableParameter(sep: Array(I32) [unique call view]) -> I32 {
+  local put: writableParameter.lambda.env
+  local local2: I32 [shared slot 0]
+  local local3: I32 [shared slot 0]
+
+bb0:
+  %0: Array(I32) [unique slot 0 view] = read borrow.unique (sep) loan0
+  %1: writableParameter.lambda.env = aggregate.writableParameter.lambda.env borrow.unique %0 roots.0{0}
+  write.init borrow.unique (put) take %1
+  %3: writableParameter.lambda.env [shared call] = read borrow.shared (put) loan1 roots.0{0}
+  %4: I32 = const 0
+  %5: I32 = const 30
+  %6: I32 = call borrow.shared %3 borrow.shared %4 borrow.shared %5
+  %7: writableParameter.lambda.env [shared call] = read borrow.shared (put) loan2 roots.0{0}
+  %8: I32 = const 2
+  %9: I32 = const 40
+  %10: I32 = call borrow.shared %7 borrow.shared %8 borrow.shared %9
+  %11: Size = const 0
+  %12: Array(I32) [shared call view] = read borrow.shared (sep) loan3
+  %13: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %12 borrow.shared %11 roots{3}
+  write.init borrow.unique (local2) borrow.shared %13
+  %15: I32 = read copy.trivial (local2)
+  %16: Size = const 2
+  %17: Array(I32) [shared call view] = read borrow.shared (sep) loan4
+  %18: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %17 borrow.shared %16 roots{4}
+  write.init borrow.unique (local3) borrow.shared %18
+  %20: I32 = read copy.trivial (local3)
+  %21: I32 = add inspect %15 inspect %20
+  return take %21
+}
+
+fn writableLocal() -> I32 {
+  local & local0: Array(I32) object1
+  local & whole: Array(I32) object1
+  local & n: I32
+  local & w: Array(I32) [unique slot 0 view]
+  local put: writableLocal.lambda.env
+  local local5: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: I32 = const 3
+  %3: I32 = const 4
+  %4: %I32 = run.slots I32 *4
+  %5: Size = bitcast inspect %4
+  %6: Size = const 0
+  %7: Bool = eq inspect %5 inspect %6
+  %8: {} = call checkCondition borrow.shared %7
+  %9: @bits(30) U32 = const 4
+  %10: @bits(2) U32 = const 1
+  %11: Run(I32) = aggregate.Run take %4 take %9 take %10
+  %12: @bits(30) U32 = const 4
+  %13: Array(I32) = aggregate.Array take %11 take %12
+  write.init borrow.unique (local0) take %13
+  %15: Size = const 0
+  write.init borrow.unique ([%%4][0]) take %0
+  %17: Size = const 1
+  write.init borrow.unique ([%%4][1]) take %1
+  %19: Size = const 2
+  write.init borrow.unique ([%%4][2]) take %2
+  %21: Size = const 3
+  write.init borrow.unique ([%%4][3]) take %3
+  %23: Array(I32) = read take (local0)
+  write.init borrow.unique (whole) take %23
+  %25: I32 = const 0
+  write.init borrow.unique (n) take %25
+  %27: Bool = const True
+  branch inspect %27 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %45: Size = const 2
+  %46: Array(I32) [shared call] = read borrow.shared (whole) loan3
+  %47: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %46 roots{3}
+  %48: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %47 borrow.shared %45 roots{3}
+  write.init borrow.unique (local5) borrow.shared %48
+  %50: I32 = read copy.trivial (local5)
+  drop (whole)
+  %51: I32 = read copy.trivial (n)
+  %52: I32 = add inspect %50 inspect %51
+  %53: I32 = const 50
+  %54: I32 = sub inspect %52 inspect %53
+  return take %54
+
+bb3:
+  %29: Array(I32) [unique call] = read borrow.unique (whole) loan0
+  %30: Size = const 1
+  %31: Size = const 3
+  %32: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %29 roots{0}
+  %33: Array(I32) [unique slot 0 view] = call sliceMut(I32) borrow.unique %32 borrow.shared %30 borrow.shared %31 roots{0}
+  write.init borrow.unique (w) borrow.unique %33
+  %35: Array(I32) [unique slot 0 view] = read borrow.unique (w) loan1 roots{0}
+  %36: writableLocal.lambda.env = aggregate.writableLocal.lambda.env borrow.unique %35 roots.0{0, 1}
+  write.init borrow.unique (put) take %36
+  %38: writableLocal.lambda.env [shared call] = read borrow.shared (put) loan2 roots.0{0, 1}
+  %39: I32 = const 1
+  %40: I32 = const 50
+  %41: I32 = call borrow.shared %38 borrow.shared %39 borrow.shared %40
+  write.assign borrow.unique (n) take %41
+  jump -> bb2
+}
+
+fn lazyWindow(sep: Array(I32) [shared call view]) -> I32 {
+  local lazyWindow.thunk.env: lazyWindow.thunk.env
+  local local2: () -> I32 [owned here shape11 .0=shared call]
+
+bb0:
+  %0: Bool = const True
+  %1: Array(I32) [shared slot 0 view] = read borrow.shared (sep) loan0
+  %2: lazyWindow.thunk.env = aggregate.lazyWindow.thunk.env borrow.shared %1 roots.0{0}
+  write.init borrow.unique (lazyWindow.thunk.env) take %2
+  %4: lazyWindow.thunk.env [shared call] = read borrow.shared (lazyWindow.thunk.env) loan1 roots.0{0}
+  %5: () -> I32 [owned here shape11 .0=shared call] = fun.value lazyWindow.thunk inspect %4 roots.0{0, 1}
+  write.init borrow.unique (local2) take %5
+  %7: () -> I32 [shared call shape11 .0=shared call] = read borrow.shared (local2) loan2 roots.0{0, 1}
+  %8: I32 = call pick borrow.shared %0 borrow.shared %7
+  return take %8
+}
+
+lens fn scaled(xs: Array(I32) [shared call view], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local g: scaled.lambda.env
+  local & local4: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: Array(I32) [shared slot 0 view] = read borrow.shared (xs) loan0
+  %3: scaled.lambda.env = aggregate.scaled.lambda.env borrow.shared %2 roots.0{0}
+  write.init borrow.unique (g) take %3
+  %5: I32 = const 0
+  %6: I32 = const 2
+  %7: I32 = const 1
+  write.init borrow.unique (local4) take %5
+  jump -> bb1(take %6, take %7)
+
+bb1(%8: I32, %9: I32):
+  %16: I32 = read copy.trivial (local4)
+  %17: Bool = lt inspect %16 inspect %8
+  branch inspect %17 -> bb4(take %8, take %9) -> bb3(take %8, take %9)
+
+bb2(%10: I32, %11: I32):
+  %34: I32 = read copy.trivial (local4)
+  %35: I32 = add inspect %34 inspect %11
+  write.assign borrow.unique (local4) take %35
+  jump -> bb1(take %10, take %11)
+
+bb3(%12: I32, %13: I32):
+  %38: I32 = read copy.trivial ($yielded)
+  return take %38
+
+bb4(%18: I32, %19: I32):
+  %21: I32 = read copy.trivial (local4)
+  write.init borrow.unique (i) take %21
+  %23: scaled.lambda.env = read copy.trivial (g) roots.0{0}
+  %24: I32 = read copy.trivial (i)
+  %25: I32 = call borrow.shared %23 borrow.shared %24
+  %26: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %27: I32 = call inspect %26 borrow.shared %25
+  %28: I32 = const 0
+  %29: Bool = eq inspect %27 inspect %28
+  write.assign borrow.unique ($yielded) take %27
+  branch inspect %29 -> bb5 -> bb6
+
+bb5:
+  jump -> bb2(take %18, take %19)
+
+bb6:
+  jump -> bb3(take %18, take %19)
+}
+
+fn insideIter() -> I32 {
+  local & s: I32
+  local local1: [I32 *3]
+  local v: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (s) take %0
+  %2: I32 = const 1
+  %3: I32 = const 2
+  %4: I32 = const 3
+  %5: [I32 *3] = aggregate.0 take %2 take %3 take %4
+  write.init borrow.unique (local1) take %5
+  %7: [I32 *3] [shared call] = read borrow.shared (local1) loan0
+  %8: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %7 roots{0}
+  lens.call scaled borrow.shared %8 -> bb2
+
+bb1:
+  %16: I32 = read copy.trivial (s)
+  return take %16
+
+bb2(%9: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (v) borrow.shared %9
+  %12: I32 [unique call] = read borrow.unique (s) loan1
+  %13: I32 = read copy.trivial (v)
+  %14: {} = call +=(I32) borrow.unique %12 borrow.shared %13
+  jump -> bb1
+}
+
+fn stringParameter(s: String [shared call view], k: I32 [shared call]) -> I32 {
+  local g: stringParameter.lambda.env
+
+bb0:
+  %0: String [shared slot 0 view] = read borrow.shared (s) loan0
+  %1: stringParameter.lambda.env = aggregate.stringParameter.lambda.env borrow.shared %0 roots.0{0}
+  write.init borrow.unique (g) take %1
+  %3: stringParameter.lambda.env = read copy.trivial (g) roots.0{0}
+  %4: I32 = read copy.trivial (k)
+  %5: I32 = call borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn generic(sep: Array(I32) [shared call view]) -> I32 {
+bb0:
+  %0: I32 = const 0
+  %1: Array(I32) [shared slot 0 view] = read borrow.shared (sep) loan0
+  %2: generic.lambda.env = aggregate.generic.lambda.env borrow.shared %1 roots.0{0}
+  %3: I32 = call twice(generic.lambda.env) borrow.shared %2 borrow.shared %0
+  return take %3
+}
+
+fn erased(sep: Array(I32) [shared call view]) -> I32 {
+  local erased.lambda.env: erased.lambda.env
+  local local2: () -> I32 [owned here shape11 .0=shared call]
+
+bb0:
+  %0: Array(I32) [shared slot 0 view] = read borrow.shared (sep) loan0
+  %1: erased.lambda.env = aggregate.erased.lambda.env borrow.shared %0 roots.0{0}
+  write.init borrow.unique (erased.lambda.env) take %1
+  %3: erased.lambda.env [shared call] = read borrow.shared (erased.lambda.env) loan1 roots.0{0}
+  %4: () -> I32 [owned here shape11 .0=shared call] = fun.value erased.lambda inspect %3 roots.0{0, 1}
+  write.init borrow.unique (local2) take %4
+  %6: () -> I32 [shared call shape11 .0=shared call] = read borrow.shared (local2) loan2 roots.0{0, 1}
+  %7: I32 = call erasedTwice borrow.shared %6
+  return take %7
+}
+
+fn ownedOnly() -> I32 {
+  local & local0: Array(I32) object1
+  local xs: Array(I32) object1
+  local g: ownedOnly.lambda.env
+
+bb0:
+  %0: I32 = const 5
+  %1: I32 = const 6
+  %2: I32 = const 7
+  %3: %I32 = run.slots I32 *3
+  %4: Size = bitcast inspect %3
+  %5: Size = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  %7: {} = call checkCondition borrow.shared %6
+  %8: @bits(30) U32 = const 3
+  %9: @bits(2) U32 = const 1
+  %10: Run(I32) = aggregate.Run take %3 take %8 take %9
+  %11: @bits(30) U32 = const 3
+  %12: Array(I32) = aggregate.Array take %10 take %11
+  write.init borrow.unique (local0) take %12
+  %14: Size = const 0
+  write.init borrow.unique ([%%3][0]) take %0
+  %16: Size = const 1
+  write.init borrow.unique ([%%3][1]) take %1
+  %18: Size = const 2
+  write.init borrow.unique ([%%3][2]) take %2
+  %20: Array(I32) = read take (local0)
+  write.init borrow.unique (xs) take %20
+  %22: Array(I32) [shared slot 0] = read borrow.shared (xs) loan0
+  %23: ownedOnly.lambda.env = aggregate.ownedOnly.lambda.env borrow.shared %22 roots.0{0}
+  write.init borrow.unique (g) take %23
+  %25: ownedOnly.lambda.env = read copy.trivial (g) roots.0{0}
+  %26: I32 = const 1
+  %27: I32 = call borrow.shared %25 borrow.shared %26
+  drop (xs)
+  return take %27
+}
+
+fn bit(value: I32 [shared call], expected: I32 [shared call], which: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: I32 = read copy.trivial (expected)
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = const 0
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %4: I32 = const 1
+  %5: I32 = read copy.trivial (which)
+  %6: I32 = shl inspect %4 inspect %5
+  jump -> bb2(take %6)
+}
+
+fn main() -> I32 {
+  local & local0: Array(I32) object1
+  local & xs: Array(I32) object1
+  local local2: [I32 *3]
+  local local3: [I32 *4]
+  local local4: [I32 *3]
+  local local5: [I32 *3]
+  local local6: [I32 *3]
+  local local7: String
+  local local8: [I32 *3]
+  local local9: [I32 *3]
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: I32 = const 3
+  %3: %I32 = run.slots I32 *3
+  %4: Size = bitcast inspect %3
+  %5: Size = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  %7: {} = call checkCondition borrow.shared %6
+  %8: @bits(30) U32 = const 3
+  %9: @bits(2) U32 = const 1
+  %10: Run(I32) = aggregate.Run take %3 take %8 take %9
+  %11: @bits(30) U32 = const 3
+  %12: Array(I32) = aggregate.Array take %10 take %11
+  write.init borrow.unique (local0) take %12
+  %14: Size = const 0
+  write.init borrow.unique ([%%3][0]) take %0
+  %16: Size = const 1
+  write.init borrow.unique ([%%3][1]) take %1
+  %18: Size = const 2
+  write.init borrow.unique ([%%3][2]) take %2
+  %20: Array(I32) = read take (local0)
+  write.init borrow.unique (xs) take %20
+  %22: I32 = const 0
+  %23: I32 = const 1
+  %24: I32 = const 2
+  %25: [I32 *3] = aggregate.0 take %22 take %23 take %24
+  write.init borrow.unique (local2) take %25
+  %27: [I32 *3] [shared call] = read borrow.shared (local2) loan0
+  %28: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %27 roots{0}
+  %29: I32 = const 1
+  %30: I32 = call windowParameter borrow.shared %28 borrow.shared %29
+  %31: I32 = const 4
+  %32: I32 = const 0
+  %33: I32 = call bit borrow.shared %30 borrow.shared %31 borrow.shared %32
+  %34: I32 = const 0
+  %35: I32 = const 1
+  %36: I32 = const 2
+  %37: I32 = const 3
+  %38: [I32 *4] = aggregate.0 take %34 take %35 take %36 take %37
+  write.init borrow.unique (local3) take %38
+  %40: [I32 *4] [shared call] = read borrow.shared (local3) loan1
+  %41: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *4], I32) borrow.shared %40 roots{1}
+  %42: I32 = const 1
+  %43: I32 = call windowLocal borrow.shared %41 borrow.shared %42
+  %44: I32 = const 3
+  %45: I32 = const 1
+  %46: I32 = call bit borrow.shared %43 borrow.shared %44 borrow.shared %45
+  %47: I32 = add inspect %33 inspect %46
+  %48: I32 = const 10
+  %49: I32 = const 11
+  %50: I32 = const 12
+  %51: [I32 *3] = aggregate.0 take %48 take %49 take %50
+  write.init borrow.unique (local4) take %51
+  %53: [I32 *3] [shared call] = read borrow.shared (local4) loan2
+  %54: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %53 roots{2}
+  %55: I32 = const 2
+  %56: I32 = call windowAndOwned borrow.shared %54 borrow.shared %55
+  %57: I32 = const 22
+  %58: I32 = const 2
+  %59: I32 = call bit borrow.shared %56 borrow.shared %57 borrow.shared %58
+  %60: I32 = add inspect %47 inspect %59
+  %61: I32 = const 1
+  %62: I32 = const 2
+  %63: I32 = const 3
+  %64: [I32 *3] = aggregate.0 take %61 take %62 take %63
+  write.init borrow.unique (local5) take %64
+  %66: [I32 *3] [shared call] = read borrow.shared (local5) loan3
+  %67: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %66 roots{3}
+  %68: I32 = call writableBeside borrow.shared %67
+  %69: I32 = const 9
+  %70: I32 = const 3
+  %71: I32 = call bit borrow.shared %68 borrow.shared %69 borrow.shared %70
+  %72: I32 = add inspect %60 inspect %71
+  %73: Array(I32) [unique call] = read borrow.unique (xs) loan4
+  %74: Array(I32) [unique slot 0 view] = call.derivation elementsMut(Array(I32), I32) borrow.unique %73 roots{4}
+  %75: I32 = call writableParameter borrow.unique %74
+  drop (xs)
+  %76: I32 = const 70
+  %77: I32 = const 4
+  %78: I32 = call bit borrow.shared %75 borrow.shared %76 borrow.shared %77
+  %79: I32 = add inspect %72 inspect %78
+  %80: I32 = call writableLocal
+  %81: I32 = const 52
+  %82: I32 = const 5
+  %83: I32 = call bit borrow.shared %80 borrow.shared %81 borrow.shared %82
+  %84: I32 = add inspect %79 inspect %83
+  %85: I32 = const 4
+  %86: I32 = const 5
+  %87: I32 = const 6
+  %88: [I32 *3] = aggregate.0 take %85 take %86 take %87
+  write.init borrow.unique (local6) take %88
+  %90: [I32 *3] [shared call] = read borrow.shared (local6) loan5
+  %91: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %90 roots{5}
+  %92: I32 = call lazyWindow borrow.shared %91
+  %93: I32 = const 3
+  %94: I32 = const 6
+  %95: I32 = call bit borrow.shared %92 borrow.shared %93 borrow.shared %94
+  %96: I32 = add inspect %84 inspect %95
+  %97: I32 = call insideIter
+  %98: I32 = const 9
+  %99: I32 = const 7
+  %100: I32 = call bit borrow.shared %97 borrow.shared %98 borrow.shared %99
+  %101: I32 = add inspect %96 inspect %100
+  %102: String = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  write.init borrow.unique (local7) take %102
+  %104: String [shared slot 0] = read borrow.shared (local7) loan6
+  %105: String [shared slot 0 view] = call.derivation view(String) borrow.shared %104 roots{6}
+  %106: I32 = const 2
+  %107: I32 = call stringParameter borrow.shared %105 borrow.shared %106
+  drop (local7)
+  %108: I32 = const 5
+  %109: I32 = const 8
+  %110: I32 = call bit borrow.shared %107 borrow.shared %108 borrow.shared %109
+  %111: I32 = add inspect %101 inspect %110
+  %112: I32 = const 1
+  %113: I32 = const 2
+  %114: I32 = const 3
+  %115: [I32 *3] = aggregate.0 take %112 take %113 take %114
+  write.init borrow.unique (local8) take %115
+  %117: [I32 *3] [shared call] = read borrow.shared (local8) loan7
+  %118: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %117 roots{7}
+  %119: I32 = call generic borrow.shared %118
+  %120: I32 = const 8
+  %121: I32 = const 9
+  %122: I32 = call bit borrow.shared %119 borrow.shared %120 borrow.shared %121
+  %123: I32 = add inspect %111 inspect %122
+  %124: I32 = const 1
+  %125: I32 = const 2
+  %126: I32 = const 3
+  %127: [I32 *3] = aggregate.0 take %124 take %125 take %126
+  write.init borrow.unique (local9) take %127
+  %129: [I32 *3] [shared call] = read borrow.shared (local9) loan8
+  %130: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %129 roots{8}
+  %131: I32 = call erased borrow.shared %130
+  %132: I32 = const 6
+  %133: I32 = const 10
+  %134: I32 = call bit borrow.shared %131 borrow.shared %132 borrow.shared %133
+  %135: I32 = add inspect %123 inspect %134
+  %136: I32 = call ownedOnly
+  %137: I32 = const 4
+  %138: I32 = const 11
+  %139: I32 = call bit borrow.shared %136 borrow.shared %137 borrow.shared %138
+  %140: I32 = add inspect %135 inspect %139
+  return take %140
+}
+
+fn windowParameter.lambda(windowParameter.lambda.env: windowParameter.lambda.env [shared call], x: I32 [shared call]) -> Size {
+bb0:
+  %0: Array(I32) [shared slot 0 view] = read borrow.shared (windowParameter.lambda.env.sep) loan0
+  %1: Size = call length(Array(I32)) borrow.shared %0
+  %2: I32 = read copy.trivial (x)
+  %3: Size = convert inspect %2
+  %4: Size = add inspect %1 inspect %3
+  return take %4
+}
+
+fn windowLocal.lambda(windowLocal.lambda.env: windowLocal.lambda.env [shared call], x: I32 [shared call]) -> Size {
+bb0:
+  %0: Array(I32) [shared slot 0 view] = read borrow.shared (windowLocal.lambda.env.w) loan0
+  %1: Size = call length(Array(I32)) borrow.shared %0
+  %2: I32 = read copy.trivial (x)
+  %3: Size = convert inspect %2
+  %4: Size = add inspect %1 inspect %3
+  return take %4
+}
+
+fn windowAndOwned.lambda(windowAndOwned.lambda.env: windowAndOwned.lambda.env [shared call], x: I32 [shared call]) -> I32 {
+  local local2: I32 [shared slot 0]
+  local local3: I32 [shared slot 0]
+
+bb0:
+  %0: Array(I32) [shared slot 0] = read borrow.shared (windowAndOwned.lambda.env.xs) loan0
+  %1: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %0 roots{0}
+  %2: Size = call length(Array(I32)) borrow.shared %1
+  %3: I32 = convert inspect %2
+  %4: I32 = read copy.trivial (x)
+  %5: Array(I32) [shared slot 1 view] = read borrow.shared (windowAndOwned.lambda.env.sep) loan1
+  %6: Size = convert inspect %4
+  %7: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %5 borrow.shared %6 roots{1}
+  write.init borrow.unique (local2) borrow.shared %7
+  %9: I32 = read copy.trivial (local2)
+  %10: I32 = add inspect %3 inspect %9
+  %11: I32 = read copy.trivial (x)
+  %12: Array(I32) [shared slot 0] = read borrow.shared (windowAndOwned.lambda.env.xs) loan2
+  %13: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %12 roots{2}
+  %14: Size = convert inspect %11
+  %15: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %13 borrow.shared %14 roots{2}
+  write.init borrow.unique (local3) borrow.shared %15
+  %17: I32 = read copy.trivial (local3)
+  %18: I32 = add inspect %10 inspect %17
+  return take %18
+}
+
+fn writableBeside.lambda(writableBeside.lambda.env: writableBeside.lambda.env [shared call], x: I32 [shared call]) -> I32 {
+  local local2: I32 [shared slot 0]
+
+bb0:
+  %0: I32 [unique slot 0] = read borrow.unique (writableBeside.lambda.env.n) loan0
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = read copy.trivial (x)
+  %3: Array(I32) [shared slot 1 view] = read borrow.shared (writableBeside.lambda.env.sep) loan1
+  %4: Size = convert inspect %2
+  %5: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %3 borrow.shared %4 roots{1}
+  write.init borrow.unique (local2) borrow.shared %5
+  %7: I32 = read copy.trivial (local2)
+  %8: I32 = add inspect %1 inspect %7
+  %9: I32 = call bump borrow.unique %0 borrow.shared %8
+  return take %9
+}
+
+fn writableParameter.lambda(writableParameter.lambda.env: writableParameter.lambda.env [shared call], i: I32 [shared call], v: I32 [shared call]) -> I32 {
+bb0:
+  %0: Array(I32) [unique slot 0 view] = read borrow.unique (writableParameter.lambda.env.sep) loan0
+  %1: I32 = read copy.trivial (i)
+  %2: I32 = read copy.trivial (v)
+  %3: I32 = call setAt borrow.unique %0 borrow.shared %1 borrow.shared %2
+  %4: Array(I32) [shared slot 0 view] = read borrow.shared (writableParameter.lambda.env.sep) loan1
+  %5: Size = call length(Array(I32)) borrow.shared %4
+  %6: I32 = convert inspect %5
+  %7: I32 = add inspect %3 inspect %6
+  return take %7
+}
+
+fn writableLocal.lambda(writableLocal.lambda.env: writableLocal.lambda.env [shared call], i: I32 [shared call], v: I32 [shared call]) -> I32 {
+bb0:
+  %0: Array(I32) [unique slot 0 view] = read borrow.unique (writableLocal.lambda.env.w) loan0
+  %1: I32 = read copy.trivial (i)
+  %2: I32 = read copy.trivial (v)
+  %3: I32 = call setAt borrow.unique %0 borrow.shared %1 borrow.shared %2
+  %4: Array(I32) [shared slot 0 view] = read borrow.shared (writableLocal.lambda.env.w) loan1
+  %5: Size = call length(Array(I32)) borrow.shared %4
+  %6: I32 = convert inspect %5
+  %7: I32 = add inspect %3 inspect %6
+  return take %7
+}
+
+fn lazyWindow.thunk(lazyWindow.thunk.env: lazyWindow.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: Array(I32) [shared slot 0 view] = read borrow.shared (lazyWindow.thunk.env.sep) loan0
+  %1: Size = call length(Array(I32)) borrow.shared %0
+  %2: I32 = convert inspect %1
+  return take %2
+}
+
+fn scaled.lambda(scaled.lambda.env: scaled.lambda.env [shared call], i: I32 [shared call]) -> I32 {
+  local local2: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = read copy.trivial (i)
+  %1: Array(I32) [shared slot 0 view] = read borrow.shared (scaled.lambda.env.xs) loan0
+  %2: Size = convert inspect %0
+  %3: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %1 borrow.shared %2 roots{0}
+  write.init borrow.unique (local2) borrow.shared %3
+  %5: I32 = read copy.trivial (local2)
+  %6: Array(I32) [shared slot 0 view] = read borrow.shared (scaled.lambda.env.xs) loan1
+  %7: Size = call length(Array(I32)) borrow.shared %6
+  %8: I32 = convert inspect %7
+  %9: I32 = add inspect %5 inspect %8
+  return take %9
+}
+
+fn stringParameter.lambda(stringParameter.lambda.env: stringParameter.lambda.env [shared call], x: I32 [shared call]) -> I32 {
+bb0:
+  %0: String [shared slot 0 view] = read borrow.shared (stringParameter.lambda.env.s) loan0
+  %1: Size = call length(String) borrow.shared %0
+  %2: I32 = convert inspect %1
+  %3: I32 = read copy.trivial (x)
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn generic.lambda(generic.lambda.env: generic.lambda.env [shared call], x: I32 [shared call]) -> I32 {
+  local local2: I32 [shared slot 0]
+
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: Array(I32) [shared slot 0 view] = read borrow.shared (generic.lambda.env.sep) loan0
+  %2: Size = convert inspect %0
+  %3: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %1 borrow.shared %2 roots{0}
+  write.init borrow.unique (local2) borrow.shared %3
+  %5: I32 = read copy.trivial (local2)
+  %6: Array(I32) [shared slot 0 view] = read borrow.shared (generic.lambda.env.sep) loan1
+  %7: Size = call length(Array(I32)) borrow.shared %6
+  %8: I32 = convert inspect %7
+  %9: I32 = add inspect %5 inspect %8
+  return take %9
+}
+
+fn erased.lambda(erased.lambda.env: erased.lambda.env [unique call]) -> I32 {
+bb0:
+  %0: Array(I32) [shared slot 0 view] = read borrow.shared (erased.lambda.env.sep) loan0
+  %1: Size = call length(Array(I32)) borrow.shared %0
+  %2: I32 = convert inspect %1
+  return take %2
+}
+
+fn ownedOnly.lambda(ownedOnly.lambda.env: ownedOnly.lambda.env [shared call], x: I32 [shared call]) -> I32 {
+bb0:
+  %0: Array(I32) [shared slot 0] = read borrow.shared (ownedOnly.lambda.env.xs) loan0
+  %1: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %0 roots{0}
+  %2: Size = call length(Array(I32)) borrow.shared %1
+  %3: I32 = convert inspect %2
+  %4: I32 = read copy.trivial (x)
+  %5: I32 = add inspect %3 inspect %4
+  return take %5
+}
+
+fn twice(generic.lambda)(g: generic.lambda.env [shared call], x: I32 [shared call]) -> I32 = <twice at generic.lambda.env>
+
+entry main

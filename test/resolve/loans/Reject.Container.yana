@@ -1,0 +1,105 @@
+{-
+   A container of records holding loans, and the lender written while the container is still read.
+
+   # resolver: ownership
+
+   `[Store]` holds every element's `held`, and none of them is a field of `Array`: the elements are
+   behind the run's pointer, and a fixed array's are not fields at all. So the container has one
+   position more than its schema names - the element position - and whatever is written anywhere
+   under it lands there: a literal's elements, a `push` through its open group, a call installing
+   through a published one, an element assigned in place. Every function below writes a lender while that position is still read and is refused
+   in the words a record holding the loan directly is. `Container.yana` is the half that stays
+   legal.
+
+   The last two are the body side: a `&` parameter's elements and a result's are held to the
+   signature exactly as a record's field is, and neither names an origin for them here.
+-}
+
+data Cell {value: Int}
+data Store {held: kept'Cell}
+data Bag {stores: [Store], count: Int}
+
+fn pick(xs: '[Store]) -> 'Store = xs[0]
+
+fn addTo(&xs: kept'Array(Store), cell: kept'Cell):
+    push(xs, Store {held: cell})
+
+fn literal() -> Int:
+    let &source = Cell {value: 2}
+    let xs = [Store {held: source}]
+    source.value = 9
+    return xs[0].held.value
+
+fn pushed() -> Int:
+    let &source = Cell {value: 2}
+    let &xs = [] :: [Store]
+    push(xs, Store {held: source})
+    source.value = 9
+    return xs[0].held.value
+
+fn installed() -> Int:
+    let &source = Cell {value: 2}
+    let &xs = [] :: [Store]
+    addTo(xs, source)
+    source.value = 9
+    return xs[0].held.value
+
+fn fixed() -> Int:
+    let &source = Cell {value: 2}
+    let xs = [Store {held: source}, Store {held: source}] :: [Store *2]
+    source.value = 9
+    return xs[1].held.value
+
+fn fixedElement() -> Int:
+    let seed = Cell {value: 1}
+    let &source = Cell {value: 2}
+    let &xs = [Store {held: seed}, Store {held: seed}] :: [Store *2]
+    xs[1] = Store {held: source}
+    source.value = 9
+    return xs[1].held.value
+
+fn element() -> Int:
+    let &source = Cell {value: 2}
+    let xs = [Store {held: source}]
+    let s = xs[0]
+    source.value = 9
+    return s.held.value
+
+fn traversal() -> Int:
+    let &source = Cell {value: 2}
+    let xs = [Store {held: source}]
+    let &sum = 0
+    for s in items(xs):
+        source.value = 9
+        sum += s.held.value
+    return sum
+
+fn inRecord() -> Int:
+    let &source = Cell {value: 2}
+    let bag = Bag {stores: [Store {held: source}], count: 1}
+    source.value = 9
+    return bag.stores[0].held.value
+
+fn moved() -> Int:
+    let &source = Cell {value: 2}
+    let xs = [Store {held: source}]
+    let ys = xs
+    source.value = 9
+    return ys[0].held.value
+
+fn throughSignature() -> Int:
+    let &source = Cell {value: 2}
+    let xs = [Store {held: source}]
+    let s = pick(xs)
+    source.value = 9
+    return s.held.value
+
+fn stash(&xs: [Store]):
+    let local = Cell {value: 3}
+    push(xs, Store {held: local})
+
+fn build(cell: Cell) -> [Store] = [Store {held: cell}]
+
+fn main() -> Int =
+    literal() + pushed() + installed() + fixed() + fixedElement() + element() + traversal() + inRecord() +
+        moved() + throughSignature()

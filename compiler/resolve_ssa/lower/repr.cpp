@@ -262,9 +262,20 @@ static Members membersOf(Layout layout, mir::RecordType& record,
          * else's - `fieldContract`, which is the one place the two sources are read in order. That
          * is the whole physical consequence of §2.4: the logical type is unchanged and the bytes
          * are not.
+         *
+         * And the field's **own shape**, which is the same statement one level down: a field whose
+         * occurrence qualifies *its* interior holds different bytes from one that does not. An
+         * iterator object's payload member is the field that has one - the lent local of
+         * `yield Entry {key: keyAt(..), ..}` is `Entry('k, 'v)`, two references, and the member was
+         * laid out as the eight bytes of `Entry(I32, I32)`, so the sixteen the step stored ran over
+         * `$index` (J126). Only a width where the two readings differ in size showed it: `(I64, I32)`
+         * pads to sixteen either way, and a `String` key is a window as wide as its owner. The
+         * parent's own positions *below* this field are not added - a path deeper than one step
+         * reaches through the member rather than standing in for it (`qualifiesInterior`), so it
+         * never changes the member's bytes.
          */
         mir::Occurrence held { field.occurrence.type, mir::fieldContract(base, shape, field),
-                               nullptr };
+                               field.occurrence.shape };
 
         Member member;
         member.held = held;
@@ -295,6 +306,21 @@ static Members membersOf(Layout layout, mir::RecordType& record,
             member.size = layout.target.pointerSize;
             member.align = layout.target.pointerSize;
             member.niche = addressNiche(layout.target.pointerSize);
+            members.push(member);
+            continue;
+        }
+
+        /*
+         * A field holding a **lender's storage address** is a word, whatever its occurrence would
+         * lay out - `RecordField::holdsAddress`, where the reason is. Before the occurrence is
+         * asked, because a view-form capture would answer the window record inline. Its niche is
+         * the loan row's below, which is what the address is.
+         */
+        if(field.holdsAddress) {
+            member.size = layout.target.pointerSize;
+            member.align = layout.target.pointerAlign;
+            member.niche = layout.target.nonNullBorrows ? addressNiche(layout.target.pointerSize)
+                                                        : Niche {};
             members.push(member);
             continue;
         }

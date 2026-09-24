@@ -69,7 +69,7 @@ bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
   store inspect %2 borrow %1
   %4: I32 trivial = const 0
   store inspect %3 consume %4
-  %5: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
+  %5: Array(I32) [shared slot 0 view] guaranteed from{%0} = load inspect %0
   %6: I32 [unique slot 0] guaranteed = load inspect %3
   %7: I32 [unique slot 1] guaranteed = load inspect %2
   %8: Array(I32) [unique slot 2 view] guaranteed = load inspect %0
@@ -85,18 +85,21 @@ bb1:
 
 fn main() -> I32 {
 bb0:
-  %0: I32 trivial = const 5
-  %1: I32 trivial = call named borrow %0
-  %2: I32 trivial = const 1
-  %3: I32 trivial = const 2
-  %4: I32 trivial = const 3
-  %5: I32 trivial = const 4
-  %6: [I32 *4] trivial = aggregate.0 consume %2 consume %3 consume %4 consume %5
-  %7: Array(I32) [shared slot 0 view] guaranteed = call [a *n].elements(4, I32) borrow %6
-  %8: I32 trivial = const 7
-  %9: I32 trivial = call classMember borrow %7 borrow %8
-  %10: I32 trivial = add inspect %1 inspect %9
-  return consume %10
+  %0: %[I32 *4] address = alloc frame [I32 *4]
+  %1: I32 trivial = const 5
+  %2: I32 trivial = call named borrow %1
+  %3: I32 trivial = const 1
+  %4: I32 trivial = const 2
+  %5: I32 trivial = const 3
+  %6: I32 trivial = const 4
+  %7: [I32 *4] trivial = aggregate.0 consume %3 consume %4 consume %5 consume %6
+  store inspect %0 consume %7
+  %8: [I32 *4] [shared call] guaranteed from{%0} = load inspect %0
+  %9: Array(I32) [shared slot 0 view] guaranteed from{%0} = call [a *n].elements(4, I32) borrow %8
+  %10: I32 trivial = const 7
+  %11: I32 trivial = call classMember borrow %9 borrow %10
+  %12: I32 trivial = add inspect %2 inspect %11
+  return consume %12
 }
 
 fn named.cont(named.cont.env: named.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
@@ -117,8 +120,8 @@ bb0(%0: named.cont.env [unique call] guaranteed, %1: I32 trivial):
   return consume %12
 }
 
-fn classMember.cont(classMember.cont.env: classMember.cont.env [unique call], $handed: Array(I32) [shared call view]) -> I32 {
-bb0(%0: classMember.cont.env [unique call] guaranteed, %1: Array(I32) [shared call view] guaranteed):
+fn classMember.cont(classMember.cont.env: classMember.cont.env [unique call], $handed: Array(I32) [shared slot 0 view]) -> I32 {
+bb0(%0: classMember.cont.env [unique call] guaranteed, %1: Array(I32) [shared slot 0 view] guaranteed):
   %2: %I32 address = field.addr .total inspect %0
   %3: %I32 address = load inspect %2
   %4: %I32 address = field.addr .value inspect %0
@@ -128,7 +131,7 @@ bb0(%0: classMember.cont.env [unique call] guaranteed, %1: Array(I32) [shared ca
   %8: I32 trivial = load inspect %3
   %9: I32 trivial = load inspect %5
   %10: I32 trivial = add inspect %8 inspect %9
-  %11: Array(I32) [shared call view] guaranteed from{%1, %7} = load inspect %1
+  %11: Array(I32) [shared slot 0 view] guaranteed from{%1, %7} = load inspect %1
   jump -> bb1
 
 bb1:

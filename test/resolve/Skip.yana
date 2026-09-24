@@ -1,42 +1,49 @@
--- Skipping lenses - Design.md's Transparent and skipping lenses, Analysis-Lens.md's V3.
+-- Skipping lenses - Design.md's Transparent and skipping lenses, doc/spec/lenses.md.
 --
--- A lens whose result type is not its continuation's may return without calling the continuation at
--- all. The rule is that the ability to skip is exactly the presence of a wrapper: it is in the
--- signature, as the type the continuation's result is wrapped in, and it is at the call site, as the
--- `| else ->` that wrapper makes mandatory. Neither half can be left out.
+-- A lens that declares a failure channel may return without entering its continuation at all. The
+-- ability to skip is in the signature, as the `| E` of the result `-> (T | E)`, and it is at the
+-- call site, as the alternative that channel makes mandatory. Neither half can be left out.
+
+{-
+   # resolver: ownership
+
+   This fixture used to be written in the explicit-callback form with
+   a *wrapper* result - `lens fn f(n, body: (x: Int) -> a) -> Maybe(a)`, skipping with
+   `return Nothing` and proceeding with `return Just(body(...))` - which lenses.md no longer
+   specifies: skipping is the failure channel, `return e` fails, and `yield` proceeds. The shipping
+   stage builds only the old form, so this is the rewritten stage's alone;
+   `lens/Skipping*.yana` are its neighbours.
+-}
 
 let &log = 0 :: Int
 
 -- The `findChar` shape: what the lens hands over does not exist for every input, so the not-found
--- path returns the wrapper's other case and the continuation never runs. `Maybe`'s `Try` instance
--- skips with nothing carried, which is why `| else -> ...` is all a call site here can write.
-lens fn findFirst(n: Int, body: (found: Int) -> a) -> Maybe(a):
+-- path fails and the continuation never runs. It fails with `{}`, which carries nothing, and that is
+-- why `| else -> ...` is all a call site here writes. The line after the `yield` runs once the
+-- continuation is done, on every path out of it.
+lens fn findFirst(n: Int) -> (Int | {}):
     log = log + 1
+    if n <= 0: return {}
 
-    if n > 0:
-        let carried = body(n * 2)
-        log = log + 100
-        return Just(carried)
+    yield n * 2
+    log = log + 100
 
-    return Nothing
+-- A channel that says *why* it skipped. The alternatives match what the failure carried: the
+-- continuation did not run, so nothing of its shape exists here to match on.
+lens fn checked(n: Int) -> (Int | Int):
+    if n > 9: return 1
+    if n < 0: return 2
 
--- A carrier that says *why* it skipped. `Result`'s instance carries the error, so the alternatives
--- match that error rather than the `Result`: the continuation did not run, so nothing of its shape
--- exists here to match on.
-lens fn checked(n: Int, body: (value: Int) -> a) -> Result(Int, a):
-    if n > 9: return Err(1)
-    if n < 0: return Err(2)
+    yield n
 
-    return Ok(body(n))
-
--- A skipping lens that hands nothing over, which is `tryLock`'s shape. `| else ->` has a place to be
--- written only beside a `let`, so `let _ =` is how one is called - the wildcard binds nothing, and
--- the declaration exists for its alternatives alone.
-lens fn attempt(open: Bool, body: () -> a) -> Maybe(a):
-    if !open: return Nothing
+-- A skipping lens that hands nothing over, which is `tryLock`'s shape. An extent covering nothing is
+-- an error, so the extent is written - `let _ = ... in:` - and the wildcard binds nothing; the
+-- declaration exists for its block and its alternative.
+lens fn attempt(open: Bool) -> ({} | {}):
+    if !open: return {}
 
     log = log + 1000
-    return Just(body())
+    yield {}
 
 -- Every path of the block below leaves the enclosing function, so what the continuation returns is
 -- that function's own result and the alternative leaves too.
@@ -44,13 +51,18 @@ fn always(n: Int) -> Int:
     let found = findFirst(n) | else -> return 0
     return found + 1
 
--- The alternative produces a value instead of leaving, which is a rule the guard form does not have:
+-- The alternative does something instead of leaving, which is a rule the guard form does not have:
 -- there is no rest of the block for a binding to have to be live across, because the rest of the
--- block *is* the continuation and on this path it did not run.
-fn valued(n: Int) -> Int = if n < 100:
-        let found = findFirst(n) | else -> 7
-        found * 3
-    else: 0
+-- block *is* the continuation and on this path it did not run. This used to be an `if` expression
+-- whose branch's *value* was the continuation's, with `| else -> 7` producing it; the rewritten
+-- stage does not build an extent that covers the value of its block yet, so both sides assign.
+fn valued(n: Int) -> Int:
+    if n >= 100: return 0
+
+    let &result = 0 :: Int
+    let found = findFirst(n) | else -> result = 7
+    result = found * 3
+    return result
 
 -- The block below both falls through and leaves, which is the one shape the exit signal is wrapped
 -- for. The two joins then nest: the outer test asks whether the continuation ran at all, and the
@@ -65,15 +77,15 @@ fn mixed(n: Int) -> Int:
 
     return total + 1
 
--- The reason bound. A wildcard alternative would work here too; naming it is what a `Result`-shaped
--- carrier is for.
+-- The reason bound. A wildcard alternative would work here too; naming it is what a channel that
+-- carries something is for.
 fn reasoned(n: Int) -> Int:
-    let value = checked(n) | match code -> return code * 10
+    let value = checked(n) | code -> return code * 10
     return value + 1
 
 fn guarded(open: Bool) -> Int:
-    let _ = attempt(open) | else -> return 0
-    return 3
+    let _ = attempt(open) | else -> return 0 in:
+        return 3
 
 lens fn doubled(x: Int) -> Int:
     log = log + 1
@@ -88,11 +100,12 @@ fn nested(n: Int) -> Int:
     let found = findFirst(d) | else -> return 0
     return found + d
 
--- The continuation written out at the call site is an ordinary call and stays one, wrapper and all:
--- nothing is split, so nothing needs saying about where a skip goes.
-fn written(n: Int) -> Int = match findFirst(n, (found: Int) -> found * 5):
-    Just(v) -> v
-    Nothing -> 0
+-- This was the continuation written out at the call site, `findFirst(n, (found: Int) -> found * 5)`
+-- matched as a `Maybe`. A lens declared with `yield` is not called that way, and the explicit-callback
+-- form is the `Lens` gap in the rewritten stage, so the same computation is the flat form here.
+fn written(n: Int) -> Int:
+    let found = findFirst(n) | else -> return 0
+    return found * 5
 
 fn main() -> Int:
     log = 0

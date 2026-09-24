@@ -35,19 +35,20 @@ instance Chunked(Chunks, Int):
             yield self.c
 
 -- The contiguous half: a container of the program's own that promises a buffer address. One
--- instance, one line, and it is what makes `total(ring)` below compile - `[Int]` is what `elements`
--- answers, so passing this where a slice is expected is the ordinary conversion rather than a copy.
+-- instance, one line, and it is what makes `total(elements(ring))` below compile - `[Int]` is what
+-- `elements` answers, so the slice a caller passes is a view rather than a copy. The call is
+-- written: the spec's only implicit conversion is `Widen` (overloading.md), so a container does not
+-- become a slice at an argument by itself.
 data Ring {items: [Int]}
 
 instance Contiguous(Ring, Int):
     fn elements(self: 'Ring) -> '[Int] = elements(self.items)
 
--- The one hand-over in the suite still written with a tick, and deliberately: what a `lens fn` or an
--- `iter fn` writes after `->` is a *binding*, so `'[Int]` and `[Int]` are one type there and the
--- `Chunks` instance above spells it the other way against the same class. Keeping both is the
--- assertion - a fixture where every instance agreed would not notice the two drifting apart.
+-- Written `-> [Int]`, as the `Chunks` instance above is: a member that writes no origin takes the
+-- class's `self: 'c -> '[a]` (J132). A tick on the result alone would name the origin a parameter
+-- publishes, and `self: Ring` publishes none (ownership.md), so that spelling had nothing to mean.
 instance Chunked(Ring, Int):
-    iter fn chunks(self: Ring) -> '[Int]:
+    iter fn chunks(self: Ring) -> [Int]:
         yield elements(self)
 
 -- The element iterator every loop below goes through once it has a chunk. Written over `[a]`,
@@ -98,8 +99,8 @@ fn sumArray(xs: Array(Int)) -> Int:
 
     return total
 
--- A contiguous container of the program's own, passed where `[Int]` was expected. No conversion is
--- written and none is a copy: `elements` hands back a view rooted in the argument.
+-- A contiguous container of the program's own, passed where `[Int]` was expected through one call
+-- to `elements`, and none is a copy: `elements` hands back a view rooted in the argument.
 fn total(xs: [Int]) -> Int:
     let &sum = 0 :: Int
 
@@ -109,8 +110,7 @@ fn total(xs: [Int]) -> Int:
     return sum
 
 -- The same, through a signature written over a type variable, since the two bind differently: a
--- concrete `[Int]` parameter reaches the conversion at the argument, and a `[a]` one has to bind `a`
--- from the container before there is anything to convert.
+-- concrete `[Int]` parameter is checked against the view, and a `[a]` one has to bind `a` from it.
 fn count(xs: [a]) -> Int = truncate(length(xs)) :: Int
 
 -- A loop that leaves through both frames. The `return` travels out of the inner iterator's step
@@ -144,7 +144,7 @@ fn main() -> Int:
     return sumChunked(cs) +          -- 1+2+3+4+5+6 = 21
            sumContiguous(ring) +     -- 60
            sumArray(arr) +           -- 15
-           total(ring) +             -- 60
-           count(ring) +             -- 3
+           total(elements(ring)) +   -- 60
+           count(elements(ring)) +   -- 3
            firstOver(cs, 3) +        -- 4
            firstOfEachChunk(cs)      -- 1 + 3 + 5 = 9

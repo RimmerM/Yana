@@ -42,6 +42,16 @@ struct OriginCursor;
 struct Projection {
     SmallArray<U16, 8> fields;
     bool opaque = false;
+
+    /*
+     * The place is the **referent** of a loan field, copied out into an owned raw pointer (J127) - set
+     * by `projectionOf`'s caller in the `Read` rule alone. What is copied out of a loan field's
+     * object does not refer to that object: the field's slot, and everything the place sits under,
+     * say where the bytes were rather than what they point at, so `selectPositions` drops the ones
+     * it would put on the result's root. What the copy does point at is its own interior positions,
+     * which the slots below the place fill as they always have.
+     */
+    bool copiedReferent = false;
 };
 
 /*
@@ -68,6 +78,124 @@ struct PositionMap {
  * `order`. Both are one decision made in four places on purpose: these are four readings of one
  * graph, and four walks that had drifted into four shapes would be four things to keep in step.
  */
+/*
+ * Which writable globals each function may touch - read, and write - through its own body, every
+ * body it calls and every teardown it may run; the argument is at `computeGlobalEffects`. Computed
+ * on the first question (`ensure`), which comes from one of two askers: the loan check, the first
+ * time a body holds a loan of a writable global live at a call or a drop, and the SSA optimizer's
+ * `reachesGlobalState`, at any call that may reach a local whose address escaped. The second is in
+ * nearly every native build - a push onto a local array is one - so the laziness saves the walk
+ * in `-mode mir` and not in an executable (J121, correcting J113's "hello world never computes it").
+ *
+ * The rows are a **superset** that is cheap to ask. A "yes" at a check site is confirmed by
+ * `ConfirmWalk` (`confirmCall`, `confirmFunction`, `confirmTeardown`), which reads the callee's body
+ * again at the call's type arguments.
+ */
+struct GlobalEffects {
+    GlobalEffects(Context& context, Program& program): context(context), program(program) {}
+
+    Context& context;
+    Program& program;
+    bool computed = false;
+
+    HashMap<U32, U32> globalBit;       // a *writable* global's `Place::Global` payload -> its bit
+
+    // One past: the row names any global, runs code it was lent - a call through a value, a `Call`
+    // promise or a function witness, a `yield` - or calls an external function. `reachesGlobalState`
+    // reads it; the loan check does not.
+    U32 stateBit = 0;
+
+    HashMap<U32, U32> functionRow;     // a function's declaration offset -> its row
+
+    // Per row, a row's reads in its first `words` and its writes in the next: `access` joined over
+    // everything it may run, `own` what its own body names - what `ConfirmWalk` starts from.
+    BitMatrix access, own;
+    U32 words = 0;
+
+    const U64* readsOf(U32 row) const { return access.row(row); }
+    const U64* writesOf(U32 row) const { return access.row(row) + words; }
+    const U64* ownReadsOf(U32 row) const { return own.row(row); }
+    const U64* ownWritesOf(U32 row) const { return own.row(row) + words; }
+
+    U32 indirectRow = 0;               // what a call through a function value may run
+    U32 anyRow = 0;                    // every function's - what an object's holder may do
+
+    /*
+     * A dropped type's declaration offset -> the row its teardown runs. Only a type some walked body
+     * may release, and whose teardown reaches an authored member, a captured environment or an erased
+     * producer, has one; absence is read two ways. At a concrete type it means the teardown runs
+     * nothing the rows can see - the check sites skip it. Where a type is not concrete, or is one no
+     * walked body named (a substituted argument), it means "not known", and the askers use
+     * `anyTeardownRow` or answer yes.
+     */
+    HashMap<U32, U32> teardownRow;
+
+    // Every teardown the program declares, joined - what releasing a value of a type that is still
+    // a variable may run.
+    U32 anyTeardownRow = 0;
+
+    // A lens's or an `iter fn`'s function row -> what the code it yields to may run, and the part
+    // of that every one shares: the regions of lenses called through a value.
+    HashMap<U32, U32> continuationRow;
+    U32 anonymousContinuationRow = 0;
+
+    // `Iterate`, whose members at a site type run that type's producer - see `iterateCallOf`.
+    DeclPtr<Class> iterateClass = nullptr;
+
+    void ensure();
+    Maybe<U32> rowOf(DeclPtr<Function> function) const;
+
+    // Whether a call into `row` may write (or, for `anyAccess`, read or write) the global.
+    bool touches(U32 row, U32 globalPayload, bool anyAccess) const;
+
+    /*
+     * Whether a call of `callee` at `typeArguments` (the checked body's own, which the loan check
+     * reads at no substitution) may touch the global, read again at those types -
+     * `computeGlobalEffects` says why a row alone is not the answer to give an author.
+     */
+    struct Question { U32 payload; bool anyAccess; };
+    bool confirmCall(Question question, DeclPtr<Function> callee, MirList<DeclPtr<Type>>* typeArguments);
+    bool confirmFunction(Question question, DeclPtr<Function> function);
+    bool confirmTeardown(Question question, DeclPtr<Type> type);
+
+    // The walk's memo: a (function at type arguments, or a type; question) -> the answer, chained
+    // per hash in `next`. `cycleHits` counts the answers that assumed something - a cycle, or a
+    // budget run out - which are not remembered.
+    struct Confirmed {
+        U32 what, payload, argumentsAt, next;
+        U16 argumentCount;
+        U8 flags, state;
+    };
+    HashMap<U64, U32> confirmedIndex;
+    Array<Confirmed> confirmed;
+    Array<DeclPtr<Type>> confirmedArguments;
+    U32 cycleHits = 0;
+    U32 budget = 0;
+};
+
+void computeGlobalEffects(Context& context, Program& program, GlobalEffects& into);
+
+/*
+ * The globals some global holds a **loan** of, filled by `checkGlobalConformance` as each
+ * body is analysed and asked by `checkLentGlobalWrites` once every body has been - a write of one
+ * anywhere in the program is refused, because the holder's loan lasts as long as the program does.
+ */
+struct GlobalLending {
+    struct Lent {
+        String holder;                 // the global holding the loan, as the author wrote it
+        U32 holderGlobal = 0;          // its `Place::Global` payload
+        bool exclusive = false;        // whether any loan it holds of the lender is exclusive
+
+        // Where each loan stored of the lender was taken - the one use of the lender's own name an
+        // exclusive loan leaves legal, since it is the borrow that made the loan.
+        SmallArray<LocationId, 2> stores;
+    };
+
+    HashMap<U32, Lent> lent;           // a `Place::Global` payload -> who holds a loan of it
+};
+
+bool checkLentGlobalWrites(Context& context, Program& program, const GlobalLending& lending);
+
 struct Analysis {
     Context& context;
     Program& program;
@@ -76,6 +204,57 @@ struct Analysis {
     MirBase base;
     DeclBase decl;
     Elaboration& out;
+
+    // Set by `analyzeProgram` - see `GlobalEffects`. Null means no call is asked about.
+    GlobalEffects* globalEffects = nullptr;
+
+    // The loans rooted at a writable global - the only ones a call or a teardown can conflict
+    // with through a body it does not see. Filled once per body, before the first call is asked.
+    IndexSet globalLoans;
+    bool globalLoansKnown = false;
+    bool anyGlobalLoan = false;
+    const IndexSet& globalLoanSet();
+
+    // Whether a loan in `globalLoanSet` is live in `live` and not in `refused` (null for none) -
+    // what both global checks ask before anything is computed.
+    bool globalLoanLive(const U64* live, const U64* refused);
+
+    template<class Touches, class Confirm>
+    Maybe<U32> conflictingGlobalLoan(const U64* live, const U64* refused, Touches&& touches, Confirm&& confirm);
+
+    // What a report of a global's loan names: the place borrowed, and the global - "it" where the
+    // two are one.
+    struct GlobalLoanText { String named, global; };
+    GlobalLoanText globalLoanText(U32 loan);
+
+    // Where a global's loan was last reported across a call - a format hole is several calls at
+    // one location, and one expression is one mistake to its author.
+    LocationId reportedGlobalAccess = kNullLocation;
+
+    // The stores a destination refusal has been reported at - `destinationStore`. Every `return` of
+    // the body asks the check again, and one store is one mistake however many returns see it.
+    SmallArray<LocationId, 2> destinationReports;
+
+    // And where a loan stored into a global is recorded - see `GlobalLending`. Null records nothing.
+    GlobalLending* globalLending = nullptr;
+
+    // The temporaries holding a placed literal - `staticLiteralLoan`, found in one pass over the body
+    // the first time a loan of a temporary is asked about, and not before: most bodies never ask.
+    IndexSet staticLiterals;
+    bool staticLiteralsKnown = false;
+
+    // The call-bounded borrowing locals whose origins say what they refer to rather than only how
+    // long it lives - `computeExactBorrows`, the first time a loan of such a local is classified.
+    // `exactValues` is its row over the body's nodes, kept so that a body pays for it once.
+    IndexSet exactBorrows;
+    IndexSet exactValues;
+    bool exactBorrowsKnown = false;
+
+    // Each taken result's one consumer, by node - `runOwner`, filled in one pass the first time an
+    // element is stored through a run's address carrying origins, which only a container literal of
+    // loan-carrying elements does. `~0` for a result nothing takes.
+    Array<U32> takenBy;
+    bool takenByKnown = false;
 
     U32 pathCount = 0;
     U32 blockCount = 0;
@@ -152,6 +331,108 @@ struct Analysis {
     U32 loanWords = 0;
 
     /*
+     * The loans past `bodyLoans` are **call bounds** rather than borrows (J123): one per lens call
+     * whose hand-over has an interior position only the call bounds - `%yield'T`'s pointee - carried
+     * at that position of the continuation's parameter and wherever a copy of it goes, and standing
+     * for the callee's frame, which the continuation runs inside and which is gone when the call
+     * returns. `bodyLoans` is `body.loans.size()`, the loans a `Read` minted; nothing past it has a
+     * `Loan` record or a place, so whatever reads one - an exclusion check, liveness, the published
+     * environment - stops at `bodyLoans`. `boundRegions[k]` is the region of loan `bodyLoans + k`
+     * and `boundCalls[k]` the call that opens it.
+     */
+    U32 bodyLoans = 0;
+    SmallArray<U32, 2> boundRegions;
+
+    /*
+     * The **previous generation** of a loan minted inside a loop (J127) - what a holder carried
+     * around a back edge to the read that mints the loan again.
+     *
+     * One id cannot say both: the backward walk kills a loan at its mint and `checkLoans` excuses an
+     * access its conflict with itself, so a copy left over from the last pass looked exactly like the
+     * fresh loan the same read takes. `let &q` carrying `it.next()`'s item to the next pass read a
+     * finished pass (J125 §5), and the rename is what makes the next `next()` meet it.
+     *
+     * The ids sit after the MIR's own loans and before the call bounds: `mirLoans` is
+     * `body.loans.size()`, generation `g` is loan `mirLoans + g` and stands for
+     * `generationSource[g]`, and `bodyLoans` counts both - a generation has the place, capability and
+     * everything else of its source, which `loanAt` answers, so every reader of loan places reads it
+     * as the loan it is. `generationOf[l]` is MIR loan `l`'s generation, or `kNoGeneration`.
+     *
+     * Allocated only where `buildOriginLog` saw a loan held somewhere at its own mint - most bodies
+     * have none, and they pay one column test per such read and nothing else. The one thing that
+     * mints one is that read: `stepOriginsForward` renames the loan to its generation in every row
+     * holding it, before the read's own result is stored anywhere. What is published folds it back.
+     */
+    U32 mirLoans = 0;
+    static constexpr U32 kNoGeneration = ~U32(0);
+    // An `Array` on purpose: it is filled in the few bodies that have generations and nowhere else,
+    // one entry per MIR loan, so an inline buffer would be carried by every body and fit none of
+    // the ones that use it. `buildOriginLog`'s carrier rows are a local of that function.
+    Array<U32> generationOf;
+    SmallArray<U32, 2> generationSource;
+    SmallArray<U64, 2> carriedLoans;
+    bool findGenerations();
+    bool copiedReferent(NodeRead& read, const Occurrence& result);
+    void renameGeneration(OriginCursor& cursor, U32 from, U32 to);
+
+    Loan* loanAt(U32 l) {
+        return body.loan(base, LoanId(l < mirLoans ? l : generationSource[l - mirLoans]));
+    }
+    Loan* loanAt(LoanId id) { return loanAt(id.index); }
+    SmallArray<NodeId, 2> boundCalls;
+
+    /*
+     * The **previous pass** of a bound whose region runs any number of times (J124) - an `iter fn`'s
+     * `for` body, re-entered once per `yield` with a new hand-over into a frame that has moved on.
+     *
+     * `staleBounds[k]` is the loan standing for bound `k` as it was on an earlier pass, or
+     * `kNoStaleBound` for a region entered at most once. It is minted by exactly one thing: the back
+     * edge of the region's storage, `joinRepeatedPasses`, which renames bound `k` to it in every row
+     * it carries to the entry. A value holding it is a pointer the callee handed over before the
+     * `yield` that re-entered the region, and any use of one is refused - inside the region as much
+     * as after it (`reportCallBoundEscapes`). The ids follow the bounds: `bodyLoans + bounds + j`.
+     */
+    static constexpr U32 kNoStaleBound = ~U32(0);
+    SmallArray<U32, 2> staleBounds;
+
+    // The `Many` regions, found once per body so that `joinRepeatedPasses` costs nothing in the
+    // bodies that have none, which is most of them. For region `j`, the blocks that fall out of it
+    // are `repeatedExits[repeatedExitStart[j]..repeatedExitStart[j + 1]]`, and the state rows of the
+    // locals it declares are `repeatedRows[repeatedRowStart[j]..]` the same way.
+    SmallArray<U32, 2> repeatedRegions;
+    Array<U32> repeatedExitStart, repeatedExits, repeatedRowStart, repeatedRows;
+    void findRepeatedPasses();
+
+    /*
+     * A loan of this frame's **own storage** still in use where that storage is gone (J128) - one
+     * check per owned local, where J124 (`scopedLoans`) and J127 (an `Init` against a live loan) had
+     * two, and the seam between them let a stale loan through (`checkLoans`, where the rule is argued).
+     *
+     * A loan is **found** stale in three places, all of them points where the storage it was taken
+     * from has been released or made again: live across the local's `Init`; live on entry to the
+     * entry block of the continuation that declares the local; and live on entry to a block that
+     * continuation does not enclose. Once found it stays armed in every block it is live on entry
+     * to, and it is reported once, at the first node reading it - or, if no walked block reads it
+     * after that, where it was found.
+     *
+     * `scopedLoans[i]` is a loan of a local a `Handover` region declares - the conversion puts such
+     * a local in the continuation's frame, which is gone when one run of the region ends (J124) -
+     * and `scopedRegions[i]` that region. The rows are over loans: `pending` is found and not yet
+     * reported, `reported` is done, and `pass` says the loan was found where its storage is made
+     * again rather than where it ended, which is what the report's sentence says.
+     */
+    SmallArray<U32, 4> scopedLoans;
+    SmallArray<U32, 4> scopedRegions;
+
+    struct StaleLoans {
+        SmallArray<U64, 4> pending, reported, pass, hit;
+        SmallArray<U32, 2> foundLoan;
+        SmallArray<LocationId, 2> foundAt;
+    };
+
+    bool callBound(U32 loan) const { return loan >= bodyLoans; }
+
+    /*
      * The loans that can enter **storage** - the domain the local origin state is kept in.
      *
      * Every loan has a column in a value's origin row, and most loans never reach a local: an
@@ -169,9 +450,9 @@ struct Analysis {
      * end.
      *
      * A value's row stays over every loan. The two domains meet at exactly two places:
-     * `forEachOperandOrigin` hands a state row out expanded into `expanded`, and
-     * `stepOriginsForward` writes a value's row into the state compacted, asserting that nothing it
-     * compacts was classified out - which is the one claim the classification makes.
+     * `forEachOperandOrigin` hands a state row out expanded into `expanded`, and `writeStateRow`
+     * writes a value's row into the state compacted, asserting that nothing it compacts was
+     * classified out - which is the one claim the classification makes.
      */
     static constexpr U32 kNotStored = ~U32(0);
     Array<U32> stateIndex;
@@ -255,12 +536,88 @@ struct Analysis {
      */
     Array<U32> logStart;
     Array<OriginEdit> log;
+
+    /*
+     * Sized once, before the log is filled, to a bound taken while `writes` is built: every position
+     * a write names, and every lender row for a write that goes through a loan (`logBound`). A
+     * growable log would need no bound, and would reallocate a few times per body where this
+     * allocates once - the allocation count is the measure here (`compiler/util/README.md`).
+     */
     BitMatrix logPrevious;
+    U32 logBound = 0;
+
+    // A state row as it was on entry to `writeStateRow`, which the log keeps when the write moved it.
+    SmallArray<U64, 2> rowBefore;
 
     // One value's positions, gathered before a write applies them. A buffer rather than a row
     // pointer into the state, because a write whose value comes out of the storage it writes - `t`
     // assigned from itself - would otherwise read rows it had already replaced.
     Array<U64> writeScratch;
+
+    /*
+     * The full-width rows a write through a loan works in, sized once per body rather than per write
+     * since past 256 loans a per-write row is an allocation. Named because two walks share them:
+     * `applyRows` fills `Lenders` and `Written` and hands both to `applyThrough`, which uses `Own`;
+     * `forEachUniqueLender` - which `applyThrough` and `checkGlobalConformance` both run inside -
+     * clobbers `Pending`, `Visited` and `Round` and nothing else, so a caller's `Lenders` survives it.
+     */
+    enum class ThroughRow : U32 { Lenders, Written, Pending, Visited, Own, Round, Count };
+    SmallArray<U64, 12> throughScratch;
+    U64* throughRow(ThroughRow row) { return throughScratch.pointer() + Size(row) * loanWords; }
+
+    /*
+     * What each loan is, as far as a write through it asks - once per body, since every one of these
+     * is structural and `applyThrough` used to derive them per lender per visit.
+     *
+     * `loanRoots` is the root of each loan's place. `uniqueLoans` is the row of loans taken with
+     * `Access::Unique`, which is what a walk through the loans an access can *write* keeps. For a
+     * unique loan of a local with origin positions, `lent` holds the positions of that local the
+     * lent place reaches other than its root - `lentRange` is a prefix over the loans - which is
+     * where a write through the loan lands. `lenderRows` is the total width of those locals, the
+     * most rows one write through a loan can move and so its share of `logBound`.
+     */
+    SmallArray<Place*, 16> loanRoots;
+    SmallArray<U64, 4> uniqueLoans;
+    SmallArray<U32, 16> lentRange;
+    SmallArray<U16, 16> lent;
+    U32 lenderRows = 0;
+
+    /*
+     * Everything structural the walks over the state ask of a node, resolved once per body by
+     * `computeNodeTables` - where they used to derive it at every visit: the transfer on each
+     * fixpoint round, the log, the check walk and the global check. One entry per node plus a
+     * sentinel, the way `valueRow` is, so a node's entries in each table are a half-open range.
+     *
+     *  - `installs`: which positions of which argument a call may **install** into, in argument
+     *    order - `installedPositions`;
+     *  - `writes`: every write the node makes into the local origin state - `StateWrite`;
+     *  - `callStarts`: a call's group table. Argument `j`'s groups are `callGroups` from
+     *    `callStarts[calls + j]` up to the next start, one per origin position of the operand, and
+     *    the result's follow the last argument's - `callGroup`.
+     */
+    struct NodeTable {
+        U32 installs;
+        U32 writes;
+        U32 calls;
+    };
+
+    struct Installed {
+        U16 argument;
+        U16 position;
+    };
+
+    Array<NodeTable> nodeTables;
+    SmallArray<Installed, 8> installs;
+    SmallArray<U32, 32> callStarts;
+    SmallArray<U16, 64> callGroups;
+
+    // The `&` parameters that lend the caller something back - `checkDestinationConformance` asks at
+    // every `return`, and the answer is the signature's.
+    SmallArray<LocalId, 4> destinationParameters;
+
+    // The loans one conformance question has already asked about - `judgeLenders`. Sized once per
+    // body, beside `throughScratch`, and zeroed per question.
+    SmallArray<U64, 4> lendersSeen;
 
     // How many origin positions a value has, and one of them. Zero positions is a value carrying no
     // origins at all, which is most of them.
@@ -310,16 +667,12 @@ struct Analysis {
      * `t.right` says nothing about `t.left`.
      */
     void selectPositions(const Projection& projection, const Occurrence& local,
-                         const Occurrence& at, SmallArray<PositionMap, 8>& into);
+                         const Occurrence& at, SmallArray<PositionMap, 8>& into, bool writing = false);
 
     // The position in `schema` of the slot at `slot.path` with its first `from` steps removed, or
     // the root where the schema has no such position. The other half of `selectPositions`' third
     // case, and the one place a path is matched against a schema rather than against a projection.
     U32 slotAt(DeclPtr<OwnershipSchema> schema, ExternalSlot& slot, U32 from);
-
-    // A loan of a lambda's captured environment, reported as the closure it belongs to. Answers
-    // whether it applied, so that a caller falls through to its own message where it did not.
-    bool reportEnvironmentEscape(LocationId source, Place& root);
 
     // Whether an operand supplies any origins at all, asked *structurally* - from the occurrence and
     // never from the state, because the log's shape has to be the same on every visit to a block.
@@ -341,7 +694,7 @@ struct Analysis {
      * asking about the union again.
      */
     template<class F>
-    void forEachOperandOrigin(OriginCursor& cursor, Operand operand, F&& f);
+    void forEachOperandOrigin(OriginCursor& cursor, Operand operand, F&& f, bool copiedReferent = false);
 
     // The same, flattened - the loans an operand may reach at all, whichever position holds them.
     // What the extent walk and move-path liveness want, since neither asks *which* part of a value
@@ -639,32 +992,131 @@ struct Analysis {
     bool exchangeAccess(Node& node);
 
     /*
-     * One node's write into the local origin state, resolved once.
-     *
-     * The transfer and the undo log ask the same question and they have to get the same answer: the
-     * log records what a node overwrote, so a row the transfer touches and the log did not is a row
-     * a backward walk restores to the wrong contents. Resolving it in one place rather than twice is
-     * what makes that a property of the code instead of a comment.
+     * One node's write into the local origin state, resolved once per body into `writes`.
      *
      * Everything on it is **structural** - the node, the occurrences and the schema, never the state
-     * - because the log is counted before the fixpoint climbs and a shape that moved as the analysis
-     * settled would be undone against a different body.
+     * - which is what lets it be resolved before the fixpoint climbs and read at every visit after:
+     * `localWriteOf` and `installWriteOf` build it once in `computeNodeTables`, and every walk that
+     * steps the state reads the node's range of `writes`. The undo log no longer depends on it
+     * agreeing with anything: `writeStateRow` logs what the transfer actually wrote.
+     *
+     * What the builders needed only while building - the projection and the two occurrences - stays
+     * in the builders. The lists are ranges into `writePositions`, `writeThrough` and `installs`.
      */
     struct StateWrite {
         LocalId local;
-        Projection projection;
-        Occurrence localOccurrence;
-        Occurrence placeOccurrence;
+
+        // An installation whose destination is a **value** rather than a place of this frame - a
+        // `&owner'Store` a call returned. What it goes through is that value's root, and there is no
+        // row of `local` to write, so `local` is invalid.
+        NodeId throughValue;
+
+        /*
+         * For a call's **installation** - `installWriteOf` - the argument the write goes through, and
+         * `installed` the positions of it the callee may fill, a range of the node's `installs`;
+         * `argument` is `~0` for an ordinary `Write`. A `to` of zero in `positions` then means "every
+         * installed position" rather than the root, because a place inside a slot is somebody else's
+         * object and the installation reaches it whichever position it lands at.
+         */
+        U32 argument = ~U32(0);
         U32 placeCount = 0;
+
+        // The rows of `local` written, as a range of `writePositions`.
+        U32 positionsAt = 0;
+
+        /*
+         * The positions of `local` whose loans the write goes **through** - a slot the place is
+         * inside of, and the root of a local that is itself a borrow - as a range of `writeThrough`.
+         * Empty for a write into this frame's own storage, which is what makes `applyThrough` a no-op
+         * there.
+         */
+        U32 throughAt = 0;
+        U32 installedAt = 0;
+        U16 positionCount = 0;
+        U16 throughCount = 0;
+        U16 installedCount = 0;
 
         // Whether what was there is discarded - `replacedLocal`, carried so that the transfer states
         // the condition once.
         bool strong = false;
 
-        SmallArray<PositionMap, 8> positions;
+        // The interior slot rows the write replaces although the root is not - positions
+        // `[strongFirst, strongEnd)`, empty for most writes; see `localWriteOf`.
+        U16 strongFirst = 0;
+        U16 strongEnd = 0;
+
+        bool goesThrough() const { return throughCount || throughValue.valid(); }
     };
 
-    bool localWriteOf(Node& node, StateWrite& into);
+    SmallArray<StateWrite, 8> writes;
+    SmallArray<PositionMap, 16> writePositions;
+    SmallArray<U16, 8> writeThrough;
+
+    void throughPositions(bool owned, const SmallArray<PositionMap, 8>& positions,
+                          SmallArray<U16, 4>& into);
+    void gatherLenders(OriginCursor& cursor, const StateWrite& write, U64* into);
+    template<class F> void forEachUniqueLender(OriginCursor& cursor, const U64* lenders, F&& f);
+    void applyThrough(OriginCursor& cursor, const U64* lenders, const U64* written);
+
+    bool localWriteOf(Node& node, StateWrite& into, SmallArray<PositionMap, 8>& positions,
+                      SmallArray<U16, 4>& through);
+
+    // The local a fresh run ends up in, for `localWriteOf`'s container-literal case.
+    LocalId runOwner(NodeId pointer);
+
+    /*
+     * The loans a call **installs** in a `&` argument's storage - ownership.md, "External origins":
+     * at a call each group is bound to a set of concrete origins, and a group a `&` parameter holds at
+     * an interior position is one the callee may fill from any other member of it. So after
+     * `remember(box, source)` over `&store: Store(kept')` and `value: kept'Cell`, `box` holds a
+     * loan of `source` - read off the signature and nothing else, which is why a class member
+     * dispatched from a body compiled once is answered the same way.
+     *
+     * `installs` is the signature half, `installWriteOf` the storage the argument names, and both
+     * are structural for the same reason `localWriteOf` is.
+     */
+    bool callParts(Node& node, DeclPtr<Function>& callee, OperandList*& arguments);
+    U32 operandPositions(Operand operand);
+
+    /*
+     * Which group position `p` of a declared occurrence belongs to, for relating a call's arguments
+     * and result to each other: the published slot, or `kOpenGroup` for an interior position of a
+     * type the declaration left **open** - one mentioning a type variable - or `kNoOriginSlot`.
+     * See the definition.
+     */
+    static constexpr U16 kOpenGroup = kNoOriginSlot - 1;
+    U16 groupAt(const Occurrence& declared, U32 position);
+
+    // `groupAt` of argument `argument`'s declared occurrence at position `p`, read off the call's
+    // group table - or of the result's, for `argument == callArguments(node)`.
+    U16 callGroup(NodeId node, U32 argument, U32 position);
+    U32 callArguments(NodeId node);
+
+    // Whether position `p` of argument `j` fills position `at` of `&` argument `argument`, which is
+    // in group `group` - the one test an installation's three readers share.
+    bool installSource(NodeId node, U32 argument, U32 at, U16 group, U32 j, U32 p);
+    template<class F> void forEachInstallSource(OriginCursor& cursor, Node& node, U32 argument,
+                                                U32 at, F&& f);
+
+    void computeLoanTables();
+    void computeNodeTables();
+    void computeCallTables(Node& node);
+    void installedPositions(Node& node, U32 argument, SmallArray<U16, 4>& into);
+    bool installWriteOf(Operand operand, StateWrite& into, SmallArray<PositionMap, 8>& positions,
+                        SmallArray<U16, 4>& through);
+    PlaceId installDestination(Operand operand);
+    void applyWrite(OriginCursor& cursor, Node& node, const StateWrite& write);
+    void applyInstall(OriginCursor& cursor, Node& node, const StateWrite& write);
+    void applyRows(OriginCursor& cursor, const StateWrite& write);
+    bool callInstalls(Node& node);
+
+    /*
+     * The one write into the origin state: row `row` gains `full` compacted, replacing what it held
+     * for a strong update. While `buildOriginLog` replays a block the cursor is **logging**, and a
+     * row this changes is logged with what it held on entry - so the log is what the transfer did
+     * rather than a prediction of it.
+     */
+    void writeStateRow(OriginCursor& cursor, U32 row, const U64* full, bool replace);
 
     /*
      * One node's effect on local origin state - the forward transfer `computeOrigins` iterates.
@@ -692,7 +1144,93 @@ struct Analysis {
     // `applyBackward` has for move paths, and for the same reason.
     void stepLoansBackward(U64* live, OriginCursor& cursor, Node& node);
 
+    /*
+     * What a loan's storage is, for the checks that hold a loan past the point this frame can see - a
+     * result, a `&` parameter's slot, a global, and a hand-over position, unqualified or naming a slot
+     * (`Holder::HandoverSlot`). Each refuses the same kinds of lender and differs in what it accepts
+     * and in what the author is told. See `classifyLender`, and `judgeLenders` for the one walk all of
+     * them go through.
+     */
+    enum class Lender {
+        Program,        // a global, or a placed literal - lives as long as the program
+        Environment,    // a closure's environment, which this frame placed
+        Temporary,      // an unnamed owned local - `temporaryLocal`
+        Address,        // through a raw address whose pointee a signature published; followed
+        OpaqueAddress,  // through a raw address whose type names no pointee origin
+        Reborrow,       // a borrowing local whose origins say what it refers to; followed
+        Borrowed,       // a named local holding a borrow only a call bounds - a hand-over binding
+        Unnamed,        // the same unnamed, or reached through a pointer only a call bounds
+        CallBound,      // a call bound itself - `bodyLoans` - held by a copy of a `%yield'T` pointer
+        Frame,          // this frame's own local, or a parameter moved in
+        Parameter,      // a parameter the caller lent
+    };
+
+    Lender classifyLender(U32 loan);
+
+    template<class F>
+    bool judgeLenders(U32 loan, F&& judge);
+
+    template<class F>
+    bool judgeRow(const U64* row, F&& judge);
+
+    // Which of a parameter's published slots a loan of `place` inside it sits in - see the definition.
+    U16 grantedSlot(PlaceId place, const Local& root);
+
+    /*
+     * Where a refused loan was going, and why it could not - one sentence per pair, in
+     * `refusalSentences`. The first six refusals are the lender's kind; the last three are about a
+     * lent parameter's slot against the one the holder names. A hand-over is two holders, because a
+     * position it leaves unqualified and one naming a caller's origin are refused for opposite
+     * reasons and told opposite fixes: the first is missing `yield'`, the second claimed too much.
+     */
+    enum class Holder: U8 { Result, Destination, Global, Handover, HandoverSlot, Count };
+
+    enum class Refusal: U8 {
+        Environment,
+        Temporary,
+        OpaqueAddress,
+        Borrowed,
+        Unnamed,
+        Frame,
+        Unpublished,    // the holder's own type names no origin for the loan
+        CallBounded,    // a parameter lent for the call only
+        OtherOrigin,    // a parameter in another origin than the one the holder names
+        Count,
+        None,           // accepted - outside the table's dimension, which `Count` sizes
+    };
+
+    static Refusal refusalOf(Lender kind);
+    Refusal slotRefusal(U32 loan, U16 declared);
+    Refusal slotJudgement(U32 loan, Lender kind, U16 declared);
+    void reportRefusal(LocationId source, Holder holder, Refusal refusal, U32 loan,
+                       const String* holderName = nullptr);
+
     void checkReturnConformance(Node& node);
+    void checkDestinationConformance(OriginCursor& cursor, Node& node);
+    LocationId destinationStore(LocalId id, U32 position, U32 l, LocationId fallback);
+    void findCallBounds();
+    bool callBoundedAt(const Occurrence& handover, U32 position);
+    bool reportCallBoundEscapes(OriginCursor& cursor, Node& node, U64* escaped, SmallArray<U8, 2>& boundState);
+    void joinRepeatedPasses(U32 index, U64* state, SmallArray<U64, 8>& scratch);
+    bool reportStaleStorage(OriginCursor& cursor, Node& node, U64* escaped, StaleLoans& stale);
+    String accessText(PlaceId place);
+
+    // An unnamed local this frame owns, a loan of one holding a placed literal, and the borrowing
+    // locals a reborrow is followed through - see the definitions.
+    bool temporaryLocal(const Local& local);
+    bool staticLiteralLoan(const Loan& loan, Place& root);
+    void computeStaticLiterals();
+    void computeExactBorrows();
+
+    // Whether a global's loan, or a teardown's, meets a call or a release - see the definitions.
+    void checkGlobalAccessAcrossCall(Node& node, const U64* live, const U64* refused);
+    void checkGlobalAccessAtTeardowns();
+
+    // A loan stored into a global, which has to be one of storage that lives as long as the
+    // program - see the definition. `storeIntoGlobal` is the test of one loan, shared by a store into
+    // a global's own place and one through a loan of it.
+    void checkGlobalConformance(OriginCursor& cursor, Node& node);
+    bool storeIntoGlobal(Node& node, Place& global, U32 loan);
 
     // §12.3(c) at a hand-over - see the definition, which is where the narrower rule is argued.
     void checkHandoverConformance(Node& node);
@@ -714,6 +1252,7 @@ struct Analysis {
     void markUse(U64* live, MovePathId id, bool exactly);
     void markKill(U64* live, MovePathId id);
     void useOfPlace(U64* live, PlaceId place);
+    void useThroughAddress(U64* live, PlaceId place, SmallArray<NodeId, 4>& entered);
     void applyBackward(U64* live, OriginCursor& cursor, Node& node);
 
     // The name a diagnostic calls a path by: the root local's, which is what the author wrote.
@@ -782,9 +1321,9 @@ struct Analysis {
  * is spent - the state before a node is the state after it with the row that node replaced put back,
  * and that row is what the log kept.
  *
- * `revision` counts the times the state has moved. It is what `checkLoans` keys its closure cache
- * on: the closure is taken from the state, so it is the same closure until the state changes, and a
- * counter says that without the cache having to know what a run is.
+ * There used to be a `revision` here, counting the times the state moved, for a closure cache in
+ * `checkLoans` keyed on it. The cache went when `checkLoans` stopped building a closure at all
+ * (`reachFrom`), the counter outlived its one reader, and J119 took it out.
  */
 struct OriginCursor {
     explicit OriginCursor(Analysis& analysis);
@@ -801,7 +1340,10 @@ struct OriginCursor {
     // starts it at the end of the block's range and works down.
     U32 entry = 0;
 
-    U32 revision = 0;
+    // Set by `buildOriginLog` alone, around the step at `position`: `writeStateRow` then logs each
+    // row it changes. Every other walk steps the state without keeping anything.
+    bool logging = false;
+    U32 position = 0;
 
     U64* state() { return buffer.pointer(); }
 
@@ -823,7 +1365,8 @@ struct OriginCursor {
      *
      * A loop rather than an `if`, because a node replaces one row *per position*: a write to a whole
      * `Reader` replaces what the value refers to and what its `held` field refers to, which is two
-     * entries at one position and the same walk. `localWriteOf` is what decides how many.
+     * entries at one position and the same walk. How many is whatever the transfer wrote - see
+     * `writeStateRow`.
      */
     void undo(U32 position);
 };
@@ -833,7 +1376,7 @@ struct OriginCursor {
  * state through and `Analysis` cannot see one yet where it is declared.
  */
 template<class F>
-void Analysis::forEachOperandOrigin(OriginCursor& cursor, Operand operand, F&& f) {
+void Analysis::forEachOperandOrigin(OriginCursor& cursor, Operand operand, F&& f, bool copiedReferent) {
     if(!loanCount) return;
 
     if(operand.source() == SourceKind::Result) {
@@ -854,6 +1397,7 @@ void Analysis::forEachOperandOrigin(OriginCursor& cursor, Operand operand, F&& f
 
     Projection projection;
     projectionOf(place, projection);
+    projection.copiedReferent = copiedReferent;
 
     SmallArray<PositionMap, 8> map;
     selectPositions(projection, body.local(base, local)->occurrence,

@@ -1,0 +1,31 @@
+{-
+   A lambda whose body is a call answering nothing.
+
+   `let set = (v: Int) -> setN(box, v)` states no result, so the body decides it, and it decides
+   `{}`. That was read off the position before the body was resolved and emitted a `return` with the
+   call's `{}` in it, which the verifier refused on both targets. The second use is the same body at
+   a position that does say `(Int) -> {}`, which always worked.
+
+   # resolver: ownership
+-}
+
+data Box {n: Int}
+
+fn setN(&box: Box, v: Int):
+    box.n = v
+
+fn apply(f: (Int) -> {}, v: Int):
+    f(v)
+
+fn open() -> Int:
+    let &box = Box {n: 1}
+    let set = (v: Int) -> setN(box, v)
+    set(5)
+    return box.n
+
+fn stated() -> Int:
+    let &box = Box {n: 1}
+    apply((v: Int) -> setN(box, v), 9)
+    return box.n
+
+fn main() -> Int = open() * 10 + stated()

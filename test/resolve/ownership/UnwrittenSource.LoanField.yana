@@ -1,0 +1,43 @@
+{-
+   A shared window of a trivially copied value, over storage somebody else can write.
+
+   # resolver: ownership
+
+   `total(h.cell.arr[0..2], bump(h.cell))` copies `h.cell.arr` before `bump` writes it, so the
+   window sees 1 and 2. The window may be lent the source's own slot instead of a second copy only
+   where nothing can write that slot in between, and a path through a loan field is storage the
+   loan's owner writes, whatever `h` itself was declared: it was lent anyway, and the loan checker
+   then refused `bump` as a write under a live borrow. `v.cell` is the same through a shared
+   loan whose lender `bump(pair2)` writes, and `r.arr` through a local that is itself a loan.
+   `firstTwo` is the case the lend is for, a plain parameter, and still lends.
+
+   The answer is the three totals, 121 each, times 100, plus firstTwo's 12 - a lost copy would
+   read 721 in one of them.
+-}
+
+data Pair {arr: [Int *2]}
+data Box {cell: &kept'Pair, tag: Int}
+data View {cell: kept'Pair, tag: Int}
+
+fn total(xs: [Int], n: Int) -> Int = xs[0] * 100 + xs[1] * 10 + n
+
+fn bump(&p: Pair) -> Int:
+    p.arr[0] = 7
+    return 1
+
+fn firstTwo(xs: [Int *3]) -> Int = total(xs[0..2], 0) / 10
+
+fn main() -> Int:
+    let &pair = Pair {arr: [1, 2] :: [Int *2]}
+    let h = Box {cell: pair, tag: 0}
+    let a = total(h.cell.arr[0..2], bump(h.cell))
+
+    let &pair2 = Pair {arr: [1, 2] :: [Int *2]}
+    let v = View {cell: pair2, tag: 0}
+    let b = total(v.cell.arr[0..2], bump(pair2))
+
+    let &pair3 = Pair {arr: [1, 2] :: [Int *2]}
+    let c = total(pair3.arr[0..2], bump(pair3))
+
+    let d = firstTwo([1, 2, 3] :: [Int *3])
+    return (a + b + c) * 100 + d

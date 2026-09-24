@@ -1,0 +1,423 @@
+module ResolveTest
+
+data Sum = A {A: U8} | B {B: U8}
+
+data Colour = R {r: U8, g: U8, b: U8} | Gray {Gray: U8}
+
+data Five = C0 {C0: U8} | C1 {C1: U8} | C2 {C2: U8} | C3 {C3: U8} | C4 {C4: U8}
+
+data Flags {a: Bool, b: Bool}
+
+data Tagged = Set {Set: Flags} | Unset {Unset: Flags}
+
+data Wide = W1 {W1: U32} | W2 {W2: U32}
+
+fn payloadOf(s: Sum [shared call]) -> I32 {
+  local x: U8
+  local x: U8
+
+bb0:
+  %0: U8 = read copy.trivial (s.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %8: U8 = read copy.trivial (s.B)
+  write.init borrow.unique (x) take %8
+  %10: U8 = read copy.trivial (x)
+  %11: I32 = convert inspect %10
+  %12: I32 = const 1000
+  %13: I32 = add inspect %11 inspect %12
+  jump -> bb2(take %13)
+
+bb2(%14: I32):
+  return take %14
+
+bb3:
+  %4: U8 = read copy.trivial (s.A)
+  write.init borrow.unique (x) take %4
+  %6: U8 = read copy.trivial (x)
+  %7: I32 = convert inspect %6
+  jump -> bb2(take %7)
+}
+
+fn colourOf(c: Colour [shared call]) -> I32 {
+  local red: U8
+  local green: U8
+  local blue: U8
+  local level: U8
+
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %22: U8 = read copy.trivial (c.Gray)
+  write.init borrow.unique (level) take %22
+  %24: U8 = read copy.trivial (level)
+  %25: I32 = convert inspect %24
+  %26: I32 = const 1000
+  %27: I32 = mul inspect %25 inspect %26
+  jump -> bb2(take %27)
+
+bb2(%28: I32):
+  return take %28
+
+bb3:
+  %4: U8 = read copy.trivial (c.r)
+  write.init borrow.unique (red) take %4
+  %6: U8 = read copy.trivial (c.g)
+  write.init borrow.unique (green) take %6
+  %8: U8 = read copy.trivial (c.b)
+  write.init borrow.unique (blue) take %8
+  %10: U8 = read copy.trivial (red)
+  %11: I32 = convert inspect %10
+  %12: U8 = read copy.trivial (green)
+  %13: I32 = convert inspect %12
+  %14: I32 = const 10
+  %15: I32 = mul inspect %13 inspect %14
+  %16: I32 = add inspect %11 inspect %15
+  %17: U8 = read copy.trivial (blue)
+  %18: I32 = convert inspect %17
+  %19: I32 = const 100
+  %20: I32 = mul inspect %18 inspect %19
+  %21: I32 = add inspect %16 inspect %20
+  jump -> bb2(take %21)
+}
+
+fn fiveOf(f: Five [shared call]) -> I32 {
+  local x: U8
+  local x: U8
+  local x: U8
+  local x: U8
+  local x: U8
+
+bb0:
+  %0: U8 = read copy.trivial (f.#)
+  switch [0, 1, 2, 3] inspect %0 -> bb1 -> bb2 -> bb3 -> bb4 -> bb5
+
+bb1:
+  %2: U8 = read copy.trivial (f.C0)
+  write.init borrow.unique (x) take %2
+  %4: U8 = read copy.trivial (x)
+  %5: I32 = convert inspect %4
+  jump -> bb6(take %5)
+
+bb2:
+  %6: U8 = read copy.trivial (f.C1)
+  write.init borrow.unique (x) take %6
+  %8: U8 = read copy.trivial (x)
+  %9: I32 = convert inspect %8
+  %10: I32 = const 10
+  %11: I32 = mul inspect %9 inspect %10
+  jump -> bb6(take %11)
+
+bb3:
+  %12: U8 = read copy.trivial (f.C2)
+  write.init borrow.unique (x) take %12
+  %14: U8 = read copy.trivial (x)
+  %15: I32 = convert inspect %14
+  %16: I32 = const 100
+  %17: I32 = mul inspect %15 inspect %16
+  jump -> bb6(take %17)
+
+bb4:
+  %18: U8 = read copy.trivial (f.C3)
+  write.init borrow.unique (x) take %18
+  %20: U8 = read copy.trivial (x)
+  %21: I32 = convert inspect %20
+  %22: I32 = const 1000
+  %23: I32 = mul inspect %21 inspect %22
+  jump -> bb6(take %23)
+
+bb5:
+  %24: U8 = read copy.trivial (f.C4)
+  write.init borrow.unique (x) take %24
+  %26: U8 = read copy.trivial (x)
+  %27: I32 = convert inspect %26
+  %28: I32 = const 10000
+  %29: I32 = mul inspect %27 inspect %28
+  jump -> bb6(take %29)
+
+bb6(%30: I32):
+  return take %30
+}
+
+fn flagsValue(f: Flags [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (f.a)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  %7: Bool = read copy.trivial (f.b)
+  branch inspect %7 -> bb6(take %4) -> bb4(take %4)
+
+bb3:
+  %2: I32 = const 1
+  jump -> bb2(take %2)
+
+bb4(%8: I32):
+  %12: I32 = const 0
+  jump -> bb5(take %12, take %8)
+
+bb5(%13: I32, %14: I32):
+  %17: I32 = add inspect %14 inspect %13
+  return take %17
+
+bb6(%9: I32):
+  %11: I32 = const 2
+  jump -> bb5(take %11, take %9)
+}
+
+fn taggedOf(t: Tagged [shared call]) -> I32 {
+  local f: Flags
+  local f: Flags
+
+bb0:
+  %0: U8 = read copy.trivial (t.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %8: Flags = read copy.trivial (t.Unset)
+  write.init borrow.unique (f) take %8
+  %10: Flags = read copy.trivial (f)
+  %11: I32 = call flagsValue borrow.shared %10
+  %12: I32 = const 100
+  %13: I32 = add inspect %11 inspect %12
+  jump -> bb2(take %13)
+
+bb2(%14: I32):
+  return take %14
+
+bb3:
+  %4: Flags = read copy.trivial (t.Set)
+  write.init borrow.unique (f) take %4
+  %6: Flags = read copy.trivial (f)
+  %7: I32 = call flagsValue borrow.shared %6
+  jump -> bb2(take %7)
+}
+
+fn widthOf(w: Wide [shared call]) -> I32 {
+  local x: U32
+  local x: U32
+
+bb0:
+  %0: U8 = read copy.trivial (w.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %8: U32 = read copy.trivial (w.W2)
+  write.init borrow.unique (x) take %8
+  %10: U32 = read copy.trivial (x)
+  %11: I32 = convert inspect %10
+  %12: I32 = const 10
+  %13: I32 = mul inspect %11 inspect %12
+  jump -> bb2(take %13)
+
+bb2(%14: I32):
+  return take %14
+
+bb3:
+  %4: U32 = read copy.trivial (w.W1)
+  write.init borrow.unique (x) take %4
+  %6: U32 = read copy.trivial (x)
+  %7: I32 = convert inspect %6
+  jump -> bb2(take %7)
+}
+
+fn roundTrip() -> I32 {
+bb0:
+  %0: U8 = const 7
+  %1: Sum = aggregate.A take %0
+  %2: I32 = call payloadOf borrow.shared %1
+  %3: U8 = const 9
+  %4: Sum = aggregate.B take %3
+  %5: I32 = call payloadOf borrow.shared %4
+  %6: I32 = add inspect %2 inspect %5
+  return take %6
+}
+
+fn coloured() -> I32 {
+bb0:
+  %0: U8 = const 1
+  %1: U8 = const 2
+  %2: U8 = const 3
+  %3: Colour = aggregate.R take %0 take %1 take %2
+  %4: I32 = call colourOf borrow.shared %3
+  %5: U8 = const 4
+  %6: Colour = aggregate.Gray take %5
+  %7: I32 = call colourOf borrow.shared %6
+  %8: I32 = add inspect %4 inspect %7
+  return take %8
+}
+
+fn counted() -> I32 {
+bb0:
+  %0: U8 = const 1
+  %1: Five = aggregate.C0 take %0
+  %2: I32 = call fiveOf borrow.shared %1
+  %3: U8 = const 1
+  %4: Five = aggregate.C4 take %3
+  %5: I32 = call fiveOf borrow.shared %4
+  %6: I32 = add inspect %2 inspect %5
+  return take %6
+}
+
+fn packedPayload() -> I32 {
+bb0:
+  %0: Bool = const True
+  %1: Bool = const True
+  %2: Flags = aggregate.Flags take %0 take %1
+  %3: Tagged = aggregate.Set take %2
+  %4: I32 = call taggedOf borrow.shared %3
+  %5: Bool = const False
+  %6: Bool = const True
+  %7: Flags = aggregate.Flags take %5 take %6
+  %8: Tagged = aggregate.Unset take %7
+  %9: I32 = call taggedOf borrow.shared %8
+  %10: I32 = add inspect %4 inspect %9
+  return take %10
+}
+
+fn mutated() -> I32 {
+  local & s: Sum
+  local x: U8
+  local x: U8
+
+bb0:
+  %0: U8 = const 41
+  %1: Sum = aggregate.A take %0
+  write.init borrow.unique (s) take %1
+  %3: U8 = read copy.trivial (s.#)
+  %4: U8 = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %14: U8 = read copy.trivial (s.B)
+  write.init borrow.unique (x) take %14
+  %16: U8 = read copy.trivial (x)
+  %17: U8 = const 1
+  %18: U8 = add inspect %16 inspect %17
+  %19: Sum = aggregate.B take %18
+  write.assign borrow.unique (s) take %19
+  jump -> bb2
+
+bb2:
+  %23: Sum = read copy.trivial (s)
+  %24: I32 = call payloadOf borrow.shared %23
+  return take %24
+
+bb3:
+  %7: U8 = read copy.trivial (s.A)
+  write.init borrow.unique (x) take %7
+  %9: U8 = read copy.trivial (x)
+  %10: U8 = const 1
+  %11: U8 = add inspect %9 inspect %10
+  %12: Sum = aggregate.A take %11
+  write.assign borrow.unique (s) take %12
+  jump -> bb2
+}
+
+fn copied() -> I32 {
+  local f: Flags
+  local t: Tagged
+
+bb0:
+  %0: Bool = const True
+  %1: Bool = const False
+  %2: Flags = aggregate.Flags take %0 take %1
+  write.init borrow.unique (f) take %2
+  %4: Flags = read copy.trivial (f)
+  %5: Tagged = aggregate.Unset take %4
+  write.init borrow.unique (t) take %5
+  %7: Tagged = read copy.trivial (t)
+  %8: I32 = call taggedOf borrow.shared %7
+  return take %8
+}
+
+fn maybeOf(m: Maybe(Sum) [shared call]) -> I32 {
+  local s: Sum
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Sum = read copy.trivial (m.Just)
+  write.init borrow.unique (s) take %5
+  %7: Sum = read copy.trivial (s)
+  %8: I32 = call payloadOf borrow.shared %7
+  jump -> bb2(take %8)
+
+bb2(%9: I32):
+  return take %9
+
+bb3:
+  %4: I32 = const 500
+  jump -> bb2(take %4)
+}
+
+fn folded() -> I32 {
+bb0:
+  %0: Maybe(Sum) = aggregate.Nothing
+  %1: I32 = call maybeOf borrow.shared %0
+  %2: U8 = const 2
+  %3: Sum = aggregate.A take %2
+  %4: Maybe(Sum) = aggregate.Just take %3
+  %5: I32 = call maybeOf borrow.shared %4
+  %6: I32 = add inspect %1 inspect %5
+  %7: U8 = const 3
+  %8: Sum = aggregate.B take %7
+  %9: Maybe(Sum) = aggregate.Just take %8
+  %10: I32 = call maybeOf borrow.shared %9
+  %11: I32 = add inspect %6 inspect %10
+  return take %11
+}
+
+fn wide() -> I32 {
+bb0:
+  %0: U32 = const 5
+  %1: Wide = aggregate.W1 take %0
+  %2: I32 = call widthOf borrow.shared %1
+  %3: U32 = const 6
+  %4: Wide = aggregate.W2 take %3
+  %5: I32 = call widthOf borrow.shared %4
+  %6: I32 = add inspect %2 inspect %5
+  return take %6
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call roundTrip
+  %1: I32 = call coloured
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call counted
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call packedPayload
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call mutated
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call copied
+  %10: I32 = add inspect %8 inspect %9
+  %11: I32 = call folded
+  %12: I32 = add inspect %10 inspect %11
+  %13: I32 = call wide
+  %14: I32 = add inspect %12 inspect %13
+  return take %14
+}
+
+entry main

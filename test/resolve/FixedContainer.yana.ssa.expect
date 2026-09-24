@@ -81,7 +81,7 @@ bb0(%0: [I32 *3] [shared call] guaranteed):
   %1: %I32 address = alloc frame I32
   %2: I32 trivial = const 0
   store inspect %1 consume %2
-  %3: [I32 *3] [shared call] guaranteed from{%0} = load inspect %0
+  %3: [I32 *3] [shared slot 0] guaranteed from{%0} = load inspect %0
   %4: I32 [unique slot 0] guaranteed = load inspect %1
   %5: total([I32 *3]).cont.env affine = aggregate.total([I32 *3]).cont.env borrow %4
   %6: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value total([I32 *3]).cont borrow %5
@@ -93,18 +93,16 @@ bb1:
   return consume %8
 }
 
-fn total([I32 *3]).cont(total([I32 *3]).cont.env: total([I32 *3]).cont.env [unique call], $handed: I32 [shared call]) -> I32 {
-bb0(%0: total([I32 *3]).cont.env [unique call] guaranteed, %1: I32 trivial):
+fn total([I32 *3]).cont(total([I32 *3]).cont.env: total([I32 *3]).cont.env [unique call], $handed: I32 [shared slot 0]) -> I32 {
+bb0(%0: total([I32 *3]).cont.env [unique call] guaranteed, %1: I32 [shared slot 0] guaranteed):
   %2: %I32 address = field.addr .sum inspect %0
   %3: %I32 address = load inspect %2
-  %4: %I32 address = alloc frame I32 [shared call]
-  store inspect %4 borrow %1
-  %5: I32 trivial = load inspect %3
-  %6: I32 trivial = load inspect %4
-  %7: I32 trivial = add inspect %5 inspect %6
-  store inspect %3 consume %7
-  %8: I32 trivial = const 0
-  return consume %8
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = load inspect %1
+  %6: I32 trivial = add inspect %4 inspect %5
+  store inspect %3 consume %6
+  %7: I32 trivial = const 0
+  return consume %7
 }
 
 entry main

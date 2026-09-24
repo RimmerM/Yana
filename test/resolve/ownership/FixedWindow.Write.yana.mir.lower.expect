@@ -1,0 +1,45 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 12, 4: Ptr
+    %v_2 = alloca 16, 8: Ptr
+    store %v_1, 1, 4
+    %v_3 = add %v_1, 4: Ptr
+    store %v_3, 2, 4
+    %v_4 = add %v_1, 8: Ptr
+    store %v_4, 3, 4
+    store %v_2, %v_1, 8
+    %v_5 = add %v_2, 8: Ptr
+    store %v_5, 2, 8
+    %v_6 = load %v_2, 8: Ptr
+    store %v_6, 9, 4
+    %v_7 = loads %v_1, 4: I32
+    %v_8 = imul %v_7, 100: I32
+    %v_9 = add 9000, %v_8: I32
+    %v_10 = add %v_9, 50: I32
+    %v_11 = add %v_10, 9: I32
+    ret %v_11
+  }
+}
+
+@header(viaLambda.lambda) = [0, 0, 0, 0]
+viaLambda.lambda<complex>(%viaLambda.lambda.env: Ptr) {
+  b_0 {
+    %v_1 = add %viaLambda.lambda.env, 8: Ptr
+    %v_2 = loads %v_1, 8: I64
+    %v_3 = cmp_eq %v_2, 0: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = load %viaLambda.lambda.env, 8: Ptr
+    store %v_6, 9, 4
+    ret 
+  }
+
+  b_4 {
+    %v_7 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+

@@ -623,19 +623,20 @@ fn items(Array(String), String, ())(%self: Array(String), %body: (value$: String
     %v14 = load [%v10]@Array.length : @bits(30) U32
     %v15 = cast %v14 : Size
     init %self@ArrayView.length, %v15
-    %v17 = call Chunked(Array(a), a).chunks(String, Outcome((), ())), %self, %v6 : Outcome((), Outcome((), ()))
-    %v18 = load %local4.discriminant : I32
-    %v20 = cmp_eq %v18, 1 : Bool
-    je %v20, b1, b2
+    %v17 = borrow %self : 'ArrayView(String)
+    %v18 = call Chunked(Array(a), a).chunks(String, Outcome((), ())), %v17, %v6 : Outcome((), Outcome((), ()))
+    %v19 = load %local4.discriminant : I32
+    %v21 = cmp_eq %v19, 1 : Bool
+    je %v21, b1, b2
 
   b1:
-    %v22 = move %local4@Exit : Outcome((), ())
-    ret %v22
+    %v23 = move %local4@Exit : Outcome((), ())
+    ret %v23
 
   b2:
-    %v24 = alloc : Outcome((), ())
+    %v25 = alloc : Outcome((), ())
     init %local5.discriminant, 0
-    ret %v24
+    ret %v25
 }
 
 fn Core.continuation$1(Array(String), String, ())(%env: %{body: '(value$: String) -> Outcome((), ())}, %value$: ArrayView(String)) -> Outcome((), Outcome((), ())) {

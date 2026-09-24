@@ -93,11 +93,11 @@ main<complex>(): I32 {
     store %v_11, 3, 8
     %v_12 = alloca 4, 4: Ptr
     store %v_12, 0, 4
-    %v_13 = alloca 32, 8: Ptr
-    copy %v_13, %v_8, 16
-    %v_14 = add %v_13, 16: Ptr
+    %v_13 = alloca 24, 8: Ptr
+    store %v_13, %v_8, 8
+    %v_14 = add %v_13, 8: Ptr
     store %v_14, %v_10, 8
-    %v_15 = add %v_13, 24: Ptr
+    %v_15 = add %v_13, 16: Ptr
     store %v_15, %v_12, 8
     %v_16 = alloca 16, 8: Ptr
     store %v_16, countIn.cont, 8
@@ -120,11 +120,11 @@ main<complex>(): I32 {
     store %v_28, %v_24, 8
     %v_29 = alloca 4, 4: Ptr
     store %v_29, 0, 4
-    %v_30 = alloca 32, 8: Ptr
-    copy %v_30, %v_25, 16
-    %v_31 = add %v_30, 16: Ptr
+    %v_30 = alloca 24, 8: Ptr
+    store %v_30, %v_25, 8
+    %v_31 = add %v_30, 8: Ptr
     store %v_31, %v_27, 8
-    %v_32 = add %v_30, 24: Ptr
+    %v_32 = add %v_30, 16: Ptr
     store %v_32, %v_29, 8
     %v_33 = alloca 16, 8: Ptr
     store %v_33, countIn.cont, 8
@@ -143,9 +143,9 @@ main<complex>(): I32 {
 @header(countIn.cont) = [0, 0, 0, 0]
 countIn.cont<complex>(%countIn.cont.env: Ptr, %$handed: Ptr): I32 {
   b_0 {
-    %v_1 = add %countIn.cont.env, 16: Ptr
+    %v_1 = add %countIn.cont.env, 8: Ptr
     %v_2 = load %v_1, 8: Ptr
-    %v_3 = add %countIn.cont.env, 24: Ptr
+    %v_3 = add %countIn.cont.env, 16: Ptr
     %v_4 = load %v_3, 8: Ptr
     %v_5 = load %$handed, 8: Ptr
     %v_6 = add %$handed, 8: Ptr

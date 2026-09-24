@@ -25,6 +25,8 @@
    synchronizing at all, and nothing about the program says so.
 
    One line and one diagnostic each, on the terms `Reject.Atomic.yana` states.
+
+   # resolver: ownership
 -}
 
 import Atomic
@@ -86,16 +88,8 @@ fn pushThenUse() -> Int:
     push(xs, c)
     return c.load(LoadRelaxed)
 
-{-
-   Taking the atomic *out* of a record and leaving the rest.
-
-   Refused as a partial move rather than as anything about atomics, and it belongs here anyway: it
-   is what a program reaches for when it wants the teardown path off a structure that holds one, and
-   the answer is that the whole value is what moves. See Implementation-Containers.md's open
-   questions, where per-field drop flags are what would change this.
--}
-fn consumeField(->h: Holder) -> Int:
-    return intoValue(h.flag) + h.tag
+-- Taking the atomic *out* of a record and leaving the rest (`consumeField`) is refused as a
+-- partial move; partial moves are specified (ownership.md, "Partial ownership").
 
 -- Every function above is reached, so that the ownership pass sees the bodies as well as the
 -- declarations - `Reject.Atomic.yana` says why.

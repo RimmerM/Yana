@@ -1,0 +1,33 @@
+module ResolveTest
+
+data Cell {value: I32}
+
+data Store {held: 0'Cell} shape2
+
+fn remember(store: Store [unique call shape2 .0=shared slot 0], value: Cell [shared slot 0]) -> {} {
+bb0:
+  %0: Cell [shared slot 0] = read borrow.shared (value) loan0
+  %1: Store = aggregate.Store borrow.shared %0 roots.0{0}
+  write.assign borrow.unique (store) take %1
+  return
+}
+
+fn main() -> I32 {
+  local & source: Cell
+  local & box: Store
+
+bb0:
+  %0: I32 = const 7
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (source) take %1
+  %3: Cell [shared slot 0] = read borrow.shared (source) loan0
+  %4: Store = aggregate.Store borrow.shared %3 roots.0{0}
+  write.init borrow.unique (box) take %4
+  %6: Store [unique call] = read borrow.unique (box) loan1 roots.0{0}
+  %7: Cell [shared slot 0] = read borrow.shared (source) loan2
+  %8: {} = call remember borrow.unique %6 borrow.shared %7
+  %9: I32 = read copy.trivial (box.held.value)
+  return take %9
+}
+
+entry main

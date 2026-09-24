@@ -1232,7 +1232,18 @@ void forEachEdge(MirBase base, Node& node, F&& f) {
 }
 
 StringView nodeMnemonic(Node::Kind kind);
-U16 nodeFlags(Node::Kind kind);
+// A table lookup, in the header: `hasResult` is asked of every node by every pass that sizes a table
+// by value, and as an out-of-line call it was a call per node for one load.
+inline U16 nodeFlags(Node::Kind kind) {
+    switch(kind) {
+#define YANA_MIR_INST(k, Struct, mnemonic, flags) case Node::k: return flags;
+#include "inst.def"
+#undef YANA_MIR_INST
+        case Node::KindCount: break;
+    }
+
+    return 0;
+}
 
 inline bool hasResult(Node::Kind kind) { return (nodeFlags(kind) & kMirResult) != 0; }
 inline bool isTerminator(Node::Kind kind) { return (nodeFlags(kind) & kMirTerminator) != 0; }

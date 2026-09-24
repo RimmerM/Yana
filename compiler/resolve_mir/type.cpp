@@ -328,6 +328,7 @@ RecordType* Types::instantiate(DeclBase base, DeclPtr<RecordType> declaration, D
     // instantiation - see `RecordType::pin`. `Boxed(I32)` is `@layout(c)` exactly when `Boxed` is.
     record->pin = written.pin;
     record->broken = written.broken;
+    record->valuesCollide = written.valuesCollide;
 
     for(Size i = 0; i < count; i++) record->arguments.push(arena, args[i]);
 
@@ -608,6 +609,7 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
             answer.explicitDrop = element.explicitDrop;
             answer.reclaim = derived(element.reclaim);
             answer.drop = derived(element.drop);
+            answer.hostHandle = element.hostHandle;
 
             return answer;
         }
@@ -1536,6 +1538,50 @@ DeclPtr<Type> fieldRecordOf(Context& context, Program& program, const Occurrence
 DeclPtr<OwnershipSchema> schemaOf(DeclBase base, DeclPtr<Type> type) {
     if(!type || base[type]->kind != Type::Record) return nullptr;
     return ((RecordType*)base[type])->schema;
+}
+
+// `cycle` is set when an answer read a record still being asked about, whose "no" is provisional:
+// the outer question may still find a field that says yes. Only the outermost question memoizes a no
+// that such a read contributed to, since by then every record on the cycle has been decided.
+static bool hidesLoansIn(DeclBase base, DeclPtr<Type> type, bool& cycle, U32 depth) {
+    if(!type) return false;
+
+    auto held = [&](DeclPtr<Type> inner) {
+        while(inner && base[inner]->kind == Type::Pointer) inner = ((PointerType*)base[inner])->to;
+        return schemaOf(base, inner) != nullptr || hidesLoansIn(base, inner, cycle, depth + 1);
+    };
+
+    switch(base[type]->kind) {
+        case Type::Array: return held(((ArrayType*)base[type])->element);
+        case Type::Record: break;
+        default: return false;
+    }
+
+    auto& record = *(RecordType*)base[type];
+    if(record.hiddenLoans == 1) cycle = true;
+    if(record.hiddenLoans) return record.hiddenLoans == 3;
+
+    record.hiddenLoans = 1;
+    auto enclosing = cycle;
+    cycle = false;
+
+    auto hides = false;
+    for(auto field: record.fields.contents(base)) {
+        if(!ownsField(field) || field.occurrence.shape) continue;
+        if(held(field.occurrence.type)) {
+            hides = true;
+            break;
+        }
+    }
+
+    record.hiddenLoans = hides ? 3 : (!cycle || !depth ? 2 : 0);
+    cycle = cycle || enclosing;
+    return hides;
+}
+
+bool hidesLoansWalk(DeclBase base, DeclPtr<Type> type) {
+    auto cycle = false;
+    return hidesLoansIn(base, type, cycle, 0);
 }
 
 bool mentionsVariable(DeclBase base, DeclPtr<Type> type, DeclPtr<Type> variable) {

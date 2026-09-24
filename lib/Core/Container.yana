@@ -84,7 +84,10 @@ pub class Length(c):
 
    `chunks` hands over a *view*, written `'[a]` because a class member has no binding to carry the
    capability - the position rule's spelling for a shared window in a type position - and `&[a]`
-   where one is written through. What a chunk is is a window into the container's storage, so a
+   where one is written through. Under the ownership stage the tick also *publishes* the origin, on
+   `self: 'c` and on the chunk alike: a chunk is the container's storage, not a view `chunks` built
+   in its own frame, and saying so is what lets a caller keep an element past the loop (J129). An
+   instance writes the same ticks, which both stages accept. What a chunk is is a window into the container's storage, so a
    mutable one writes through and neither ever copies. The superclass is what stops a
    container from supplying half of this - a `Contiguous` instance with no `Chunked` one is rejected
    where it is declared, wherever in the program the missing one would have been written.
@@ -96,7 +99,7 @@ pub class Length(c):
    names `Chunked` as what to ask for instead.
 -}
 pub class Chunked(c -> a):
-  iter fn chunks(self: c) -> [a]
+  iter fn chunks(self: 'c) -> '[a]
 
 @builtin(contiguous)
 pub class (Chunked(c, a)) Contiguous(c -> a):
@@ -200,7 +203,7 @@ instance Chunked([a], a):
     -- *window*, so what this hands over is the argument and not a window built out of it: reaching
     -- for `elements` here asks a window to become one, and the only thing that turns an owner into
     -- a window is that member - the same recursion `Contiguous([a *n], a)` below spells out.
-    iter fn chunks(self: [a]) -> [a]:
+    iter fn chunks(self: '[a]) -> '[a]:
         yield self
 
 @platform(native) instance Contiguous([a], a):
@@ -278,28 +281,18 @@ instance (n: Int, Eq(a)) Eq([a *n]):
    for one. `Reduce.yana` reads through it, `Join.yana` copies out of it, and neither has to say
    which the protocol supports.
 
-   **And the borrow is the unmarked spelling, not `'a`.** A hand-over's default convention is a loan
-   bounded by the continuation - Analysis-Borrows-Revised.md §3.3, and `test/resolve/lens/Frame.yana`
-   says it in one line: "the unqualified hand-over is the continuation-bounded one ... which is why
-   `yield'` has nothing to add at the root". So `-> a` here is already a shared borrow whose extent
-   *is* the call, which is exactly what an iterator hands over.
-
-   This said `-> 'a` for a long time, and that spelling asks for something else and something this
-   signature has not got: a **published origin slot**. The ownership stage says so directly - "no
-   parameter publishes an origin for this to be in" - and the fix looked like `self: 'c`, which the
-   shipping stage then reads as a *reference to* the container, so a window argument (already a
-   reference) has nowhere to go and `items(window)` stops compiling. That trade was the last
-   declaration blocker `lib/` had, and it was never necessary: the tick was over-specified rather
-   than under-supported. `-> a` compiles in both stages and iterates owning elements with the same
-   answer in both. What the goldens show moving is the spelling alone: the continuation's parameter
-   reads `value$: I32` where it read `value$: 'I32`, and the second borrow the old spelling took of
-   an element the loop had already loaded is gone.
+   **Which borrow is a per-stage question** (J129), so the declaration is in `Container.ownership.yana`
+   and `Container.legacy.yana`. A hand-over's default is a loan bounded by the continuation -
+   Analysis-Borrows-Revised.md §3.3 - which the loop body may use and may not keep. That was this
+   signature's spelling in both stages for a long time, and in the ownership stage it turned out to
+   be a promise the analysis now holds a hand-over to: once the root of an unqualified hand-over
+   carried its call's bound, `best = s` inside `for s in items(xs)` and read after the loop was
+   refused, where `s` is really a loan of `xs`. So the ownership stage says so - `self: source'c`
+   and `-> source'a` - and `Chunked`'s `'[a]` above is what lets its body say it of `chunk[i]`. The
+   legacy stage keeps `-> a`: it reads `self: 'c` as a *reference to* the container, so a window
+   argument (already a reference) has nowhere to go and `items(window)` stops compiling, and it
+   refuses a named origin on any hand-over.
 -}
-pub iter fn (Chunked(c, a)) items(self: c) -> a:
-    for chunk in chunks(self):
-        let n = length(chunk)
-        for i in 0 .. n:
-            yield chunk[i]
 
 {-
    And the fixed array, which had no `length` at all.
@@ -335,7 +328,7 @@ instance (n: Int) Length([a *n]):
     fn length(self: [a *n]) -> Size = n :: Size
 
 instance (n: Int) Chunked([a *n], a):
-    iter fn chunks(self: [a *n]) -> [a]:
+    iter fn chunks(self: '[a *n]) -> '[a]:
         yield elements(self)
 
 {-

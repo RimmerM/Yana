@@ -127,7 +127,7 @@ bb2:
   return consume %17
 
 bb3:
-  %18: handing.Iter [unique call] guaranteed from{%0} = load inspect %0
+  %18: handing.Iter [unique slot 0] guaranteed from{%0} = load inspect %0
   %19: Owned owned = call handing$take borrow %18
   store inspect %2 consume %19
   %20: I32 trivial = load inspect %1
@@ -152,7 +152,7 @@ bb0:
   %4: I32 trivial = const 3
   %5: I32 [unique slot 0] guaranteed = load inspect %0
   %6: handedByLoop.cont.env affine = aggregate.handedByLoop.cont.env borrow %5
-  %7: (->Owned) -> I32 [owned here shape11 .0=shared call] affine = fun.value handedByLoop.cont borrow %6
+  %7: (->Owned) -> I32 [owned here shape12 .0=shared call] affine = fun.value handedByLoop.cont borrow %6
   %8: I32 trivial = call handing borrow %4 borrow %7
   jump -> bb1
 
@@ -195,7 +195,7 @@ bb2:
   branch inspect %13 -> bb7 -> bb8
 
 bb3:
-  %17: handing.Iter [unique call] guaranteed from{%0} = load inspect %0
+  %17: handing.Iter [unique slot 0] guaranteed from{%0} = load inspect %0
   %18: Owned owned = call handing$take borrow %17
   store inspect %1 consume %18
   %19: %I32 address = field.addr .id inspect %1
@@ -346,7 +346,7 @@ bb0:
   %11: I32 trivial = const 3
   %12: I32 [unique slot 0] guaranteed = load inspect %1
   %13: sharedByLoop.cont.env affine = aggregate.sharedByLoop.cont.env borrow %12
-  %14: (I32) -> I32 [owned here shape11 .0=shared call] affine = fun.value sharedByLoop.cont borrow %13
+  %14: (I32) -> I32 [owned here shape12 .0=shared call] affine = fun.value sharedByLoop.cont borrow %13
   %15: I32 trivial = call over borrow %10 borrow %11 borrow %14
   jump -> bb1
 
@@ -550,7 +550,7 @@ bb0:
   %28: I32 trivial = const 3
   %29: I32 [unique slot 0] guaranteed = load inspect %2
   %30: windowByLoop.cont.env affine = aggregate.windowByLoop.cont.env borrow %29
-  %31: (I32) -> I32 [owned here shape11 .0=shared call] affine = fun.value windowByLoop.cont borrow %30
+  %31: (I32) -> I32 [owned here shape12 .0=shared call] affine = fun.value windowByLoop.cont borrow %30
   %32: I32 trivial = call picking borrow %27 borrow %28 borrow %31
   jump -> bb1
 
@@ -818,8 +818,8 @@ bb0(%0: handing.Iter owned):
   return
 }
 
-fn handing$take($self: handing.Iter [unique call]) -> Owned {
-bb0(%0: handing.Iter [unique call] guaranteed):
+fn handing$take($self: handing.Iter [unique slot 0]) -> Owned {
+bb0(%0: handing.Iter [unique slot 0] guaranteed):
   %1: %Owned address = field.addr .$slot inspect %0
   %2: Owned owned = load inspect %1
   %3: Bool trivial = const False
@@ -929,9 +929,9 @@ bb11:
   branch inspect %39 -> bb9 -> bb2
 }
 
-fn over$next($self: over.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn over$next($self: over.Iter [unique slot 0 shape8 .2.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn over$resume($self: over.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn over$resume($self: over.Iter [unique slot 0 shape8 .2.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn picking$new(xs: Array(I32) [shared slot 0 view], n: I32) -> picking.Iter [owned here shape10 .2.0.*=shared slot 0] {
 bb0(%0: Array(I32) [shared slot 0 view] guaranteed, %1: I32 trivial):
@@ -1068,9 +1068,9 @@ bb18:
   branch inspect %55 -> bb16 -> bb2
 }
 
-fn picking$next($self: picking.Iter [unique slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn picking$next($self: picking.Iter [unique slot 0 shape10 .2.0.*=shared slot 0]) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn picking$resume($self: picking.Iter [unique slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
+fn picking$resume($self: picking.Iter [unique slot 0 shape10 .2.0.*=shared slot 0], $v: {}) -> Maybe(I32) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn paired$new(xs: Array(I32) [shared slot 0 view], n: I32) -> paired.Iter [owned here shape10 .2.0.*=shared slot 0] {
 bb0(%0: Array(I32) [shared slot 0 view] guaranteed, %1: I32 trivial):
@@ -1260,9 +1260,9 @@ bb0(%0: paired.Iter [shared slot 0] guaranteed):
   return consume %2
 }
 
-fn paired$next($self: paired.Iter [unique slot 0]) -> Maybe(Pair(I32, I32)) [owned here shape2 .0=shared slot 0] = <no body>
+fn paired$next($self: paired.Iter [unique slot 0 shape11 .2.0.*=shared slot 1]) -> Maybe(Pair(I32, I32)) [owned here shape2 .0=shared slot 0] = <no body>
 
-fn paired$resume($self: paired.Iter [unique slot 0], $v: {}) -> Maybe(Pair(I32, I32)) [owned here shape2 .0=shared slot 0] = <no body>
+fn paired$resume($self: paired.Iter [unique slot 0 shape11 .2.0.*=shared slot 1], $v: {}) -> Maybe(Pair(I32, I32)) [owned here shape2 .0=shared slot 0] = <no body>
 
 fn handedByLoop.cont(handedByLoop.cont.env: handedByLoop.cont.env [unique call], $handed: Owned) -> I32 {
 bb0(%0: handedByLoop.cont.env [unique call] guaranteed, %1: Owned owned):

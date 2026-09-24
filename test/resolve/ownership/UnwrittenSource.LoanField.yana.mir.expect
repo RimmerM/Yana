@@ -1,0 +1,147 @@
+module ResolveTest
+
+data Pair {arr: [I32 *2]}
+
+data Box {cell: &0'Pair, tag: I32} shape3
+
+data View {cell: 0'Pair, tag: I32} shape2
+
+fn total(xs: Array(I32) [shared call view], n: I32 [shared call]) -> I32 {
+  local local2: I32 [shared slot 0]
+  local local3: I32 [shared slot 0]
+
+bb0:
+  %0: Size = const 0
+  %1: Array(I32) [shared call view] = read borrow.shared (xs) loan0
+  %2: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %1 borrow.shared %0 roots{0}
+  write.init borrow.unique (local2) borrow.shared %2
+  %4: I32 = read copy.trivial (local2)
+  %5: I32 = const 100
+  %6: I32 = mul inspect %4 inspect %5
+  %7: Size = const 1
+  %8: Array(I32) [shared call view] = read borrow.shared (xs) loan1
+  %9: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %8 borrow.shared %7 roots{1}
+  write.init borrow.unique (local3) borrow.shared %9
+  %11: I32 = read copy.trivial (local3)
+  %12: I32 = const 10
+  %13: I32 = mul inspect %11 inspect %12
+  %14: I32 = add inspect %6 inspect %13
+  %15: I32 = read copy.trivial (n)
+  %16: I32 = add inspect %14 inspect %15
+  return take %16
+}
+
+fn bump(p: Pair [unique call]) -> I32 {
+bb0:
+  %0: Size = const 0
+  %1: I32 = const 7
+  write.assign borrow.unique (p.arr[0]) take %1
+  %3: I32 = const 1
+  return take %3
+}
+
+fn firstTwo(xs: [I32 *3] [shared call]) -> I32 {
+bb0:
+  %0: [I32 *3] = read copy.trivial (xs)
+  %1: Size = const 0
+  %2: Size = const 2
+  %3: [I32 *3] [shared slot 0] = read borrow.shared (xs) loan0
+  %4: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *3], I32) borrow.shared %3 roots{0}
+  %5: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %4 borrow.shared %1 borrow.shared %2 roots{0}
+  %6: I32 = const 0
+  %7: I32 = call total borrow.shared %5 borrow.shared %6
+  %8: I32 = const 10
+  %9: I32 = div inspect %7 inspect %8
+  return take %9
+}
+
+fn main() -> I32 {
+  local & pair: Pair
+  local h: Box
+  local local2: [I32 *2]
+  local a: I32
+  local & pair2: Pair
+  local v: View
+  local local6: [I32 *2]
+  local b: I32
+  local & pair3: Pair
+  local local9: [I32 *2]
+  local c: I32
+  local d: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: [I32 *2] = aggregate.0 take %0 take %1
+  %3: Pair = aggregate.Pair take %2
+  write.init borrow.unique (pair) take %3
+  %5: Pair [unique slot 0] = read borrow.unique (pair) loan0
+  %6: I32 = const 0
+  %7: Box = aggregate.Box borrow.unique %5 take %6 roots.0{0}
+  write.init borrow.unique (h) take %7
+  %9: [I32 *2] = read copy.trivial (h.cell.arr)
+  %10: Size = const 0
+  %11: Size = const 2
+  write.init borrow.unique (local2) take %9
+  %13: [I32 *2] [shared slot 0] = read borrow.shared (local2) loan1
+  %14: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *2], I32) borrow.shared %13 roots{1}
+  %15: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %14 borrow.shared %10 borrow.shared %11 roots{1}
+  %16: Pair [unique slot 0] = read borrow.unique (h.cell) loan2 roots{0}
+  %17: I32 = call bump borrow.unique %16
+  %18: I32 = call total borrow.shared %15 borrow.shared %17
+  write.init borrow.unique (a) take %18
+  %20: I32 = const 1
+  %21: I32 = const 2
+  %22: [I32 *2] = aggregate.0 take %20 take %21
+  %23: Pair = aggregate.Pair take %22
+  write.init borrow.unique (pair2) take %23
+  %25: Pair [shared slot 0] = read borrow.shared (pair2) loan3
+  %26: I32 = const 0
+  %27: View = aggregate.View borrow.shared %25 take %26 roots.0{3}
+  write.init borrow.unique (v) take %27
+  %29: [I32 *2] = read copy.trivial (v.cell.arr)
+  %30: Size = const 0
+  %31: Size = const 2
+  write.init borrow.unique (local6) take %29
+  %33: [I32 *2] [shared slot 0] = read borrow.shared (local6) loan4
+  %34: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *2], I32) borrow.shared %33 roots{4}
+  %35: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %34 borrow.shared %30 borrow.shared %31 roots{4}
+  %36: Pair [unique call] = read borrow.unique (pair2) loan5
+  %37: I32 = call bump borrow.unique %36
+  %38: I32 = call total borrow.shared %35 borrow.shared %37
+  write.init borrow.unique (b) take %38
+  %40: I32 = const 1
+  %41: I32 = const 2
+  %42: [I32 *2] = aggregate.0 take %40 take %41
+  %43: Pair = aggregate.Pair take %42
+  write.init borrow.unique (pair3) take %43
+  %45: [I32 *2] = read copy.trivial (pair3.arr)
+  %46: Size = const 0
+  %47: Size = const 2
+  write.init borrow.unique (local9) take %45
+  %49: [I32 *2] [shared slot 0] = read borrow.shared (local9) loan6
+  %50: Array(I32) [shared slot 0 view] = call.derivation elements([I32 *2], I32) borrow.shared %49 roots{6}
+  %51: Array(I32) [shared slot 0 view] = call slice(I32) borrow.shared %50 borrow.shared %46 borrow.shared %47 roots{6}
+  %52: Pair [unique call] = read borrow.unique (pair3) loan7
+  %53: I32 = call bump borrow.unique %52
+  %54: I32 = call total borrow.shared %51 borrow.shared %53
+  write.init borrow.unique (c) take %54
+  %56: I32 = const 1
+  %57: I32 = const 2
+  %58: I32 = const 3
+  %59: [I32 *3] = aggregate.0 take %56 take %57 take %58
+  %60: I32 = call firstTwo borrow.shared %59
+  write.init borrow.unique (d) take %60
+  %62: I32 = read copy.trivial (a)
+  %63: I32 = read copy.trivial (b)
+  %64: I32 = add inspect %62 inspect %63
+  %65: I32 = read copy.trivial (c)
+  %66: I32 = add inspect %64 inspect %65
+  %67: I32 = const 100
+  %68: I32 = mul inspect %66 inspect %67
+  %69: I32 = read copy.trivial (d)
+  %70: I32 = add inspect %68 inspect %69
+  return take %70
+}
+
+entry main

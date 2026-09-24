@@ -6,6 +6,9 @@
 -- and each one names what it is waiting for. Implementation-Lens.md part 6 asks for exactly that:
 -- phase 1's rejections are the evidence a phase 2 strategy gets chosen from, so a message that does
 -- not say which shape was reached teaches nothing.
+--
+-- # resolver: ownership
+-- # recover: yes - every rule below is reported in one compile, the way the command line reports them.
 
 data Point {x: Int, y: Int}
 
@@ -58,17 +61,8 @@ fn zeroStep(n: Int) -> Int:
 
     return total
 
--- Not a call, which is the one rejection with two readings. Here it is the second: a value that is
--- already an iterator would have to be stepped by the loop rather than run by it, which is external
--- iteration and phase 2. Unreachable except behind another error, since the line above it - binding
--- an iterator to a name - is refused where the call is written.
-fn stored(n: Int) -> Int:
-    let it = upTo(n)
-
-    for x in it:
-        return x
-
-    return 0
+-- Binding an iterator call to a name and looping over the value (`stored`) is not refused: it is
+-- an iterator object now (`iter/Object.yana`).
 
 -- And the first reading, which is the common one: a container, whose traversal simply has not been
 -- named. Nothing derives an iterator from a type - deliberately, since a container has several and
@@ -94,13 +88,8 @@ fn notAnIterator(n: Int) -> Int:
 
     return 0
 
--- One argument short of what the iterator declared, which is not the lens call site's "the block is
--- the missing argument": a loop always supplies the body.
-fn wrongArity(n: Int) -> Int:
-    for x in upTo():
-        return x
-
-    return 0
+-- A `for` over a call one argument short, and over an iterator that hands over nothing moved to
+-- `Reject.Iter.Legacy.yana`; that file says what the new stage does instead.
 
 -- A pattern that can fail has nowhere to fail into: a loop carries no alternatives, so this would
 -- have to mean "skip the elements that do not match", which is a filter written where nothing says
@@ -111,14 +100,8 @@ fn refutable(n: Int) -> Int:
 
     return 0
 
--- An iterator that hands over nothing gives the loop's pattern nothing to bind.
-fn nothingHanded(n: Int) -> Int:
-    for x in ticks(n):
-        return 1
-
-    return 0
-
--- A loop does not produce a value in this version, so `break` cannot carry one.
+-- `break x` is not implemented yet: a loop does not produce a value in this version, but nothing
+-- says one couldn't - this line asserts the gap rather than a rule.
 fn breakValue(n: Int) -> Int:
     for x in upTo(n):
         break x

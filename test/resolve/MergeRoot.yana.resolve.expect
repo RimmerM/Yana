@@ -244,19 +244,20 @@ fn vectors(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: Vec(I
     %v13 = symbol Core.continuation$6(ArrayView(I32), I32, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
-    %v16 = call Chunked(Array(a), a).chunks(I32, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
-    %v17 = load %local4.discriminant : I32
-    %v19 = cmp_eq %v17, 1 : Bool
-    je %v19, b1, b2
+    %v16 = borrow %self : 'ArrayView(I32)
+    %v17 = call Chunked(Array(a), a).chunks(I32, Outcome((), ())), %v16, %v12 : Outcome((), Outcome((), ()))
+    %v18 = load %local4.discriminant : I32
+    %v20 = cmp_eq %v18, 1 : Bool
+    je %v20, b1, b2
 
   b1:
-    %v21 = move %local4@Exit : Outcome((), ())
-    ret %v21
+    %v22 = move %local4@Exit : Outcome((), ())
+    ret %v22
 
   b2:
-    %v23 = alloc : Outcome((), ())
+    %v24 = alloc : Outcome((), ())
     init %local5.discriminant, 0
-    ret %v23
+    ret %v24
 }
 
 fn Core.continuation$6(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {

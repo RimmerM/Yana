@@ -1,4 +1,7 @@
 -- The refusals §5 is built around - Implementation-Containers.md.
+--
+-- # resolver: ownership
+-- # recover: yes - every rule below is reported in one compile, the way the command line reports them.
 
 data Chunks {a: [Int], b: [Int]}
 
@@ -33,7 +36,7 @@ fn passChunkedGeneric(cs: Chunks) -> Int = count(cs)
 data Ring {items: [Int]}
 
 instance Contiguous(Ring, Int):
-    fn elements(return self: Ring) -> '[Int] = elements(self.items)
+    fn elements(self: 'Ring) -> '[Int] = elements(self.items)
 
 -- A class member declared `iter fn` is run by a `for` loop, so calling one as an ordinary function
 -- reaches a signature that has no continuation to be given.
@@ -46,7 +49,7 @@ fn callDirectly(cs: Chunks) -> Int:
 data Pair {a: [Int]}
 
 instance Chunked(Pair, Int):
-    fn chunks(self: Pair) -> '[Int] = elements(self.a)
+    fn chunks(self: Pair) -> [Int] = elements(self.a)
 
 -- A class *can* write such a body itself, and used to be refused for it: the desugaring's result
 -- variable has nowhere to go in the class's own context, which is a fact about that context rather

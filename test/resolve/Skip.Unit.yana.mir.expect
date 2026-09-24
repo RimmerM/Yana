@@ -1,0 +1,224 @@
+module ResolveTest
+
+let & log: I32 = 0
+
+let & sideEffect: I32 = 0
+
+lens fn findFirst(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, {}) {
+  local $yielded: I32
+
+bb0:
+  %0: I32 = read copy.trivial (global log)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global log) take %2
+  %4: I32 = read copy.trivial (n)
+  %5: I32 = const 0
+  %6: Bool = le inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %12: I32 = read copy.trivial (n)
+  %13: I32 = const 2
+  %14: I32 = mul inspect %12 inspect %13
+  %15: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %16: I32 = call inspect %15 borrow.shared %14
+  write.init borrow.unique ($yielded) take %16
+  %18: I32 = read copy.trivial (global log)
+  %19: I32 = const 100
+  %20: I32 = add inspect %18 inspect %19
+  write.assign borrow.unique (global log) take %20
+  %22: I32 = read copy.trivial ($yielded)
+  %23: Outcome(I32, {}) = aggregate.Proceed take %22
+  return take %23
+
+bb3:
+  %8: {} = const {}
+  %9: Outcome(I32, {}) = aggregate.Exit take {}
+  return take %9
+}
+
+fn loopingOut(n: I32 [shared call]) -> I32 {
+  local & i: I32
+  local & seen: I32
+  local found: I32 [shared call]
+  local local4: {}
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (i) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (seen) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = const 5
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %28: I32 = read copy.trivial (seen)
+  return take %28
+
+bb3:
+  %9: I32 = read copy.trivial (i)
+  %10: I32 = const 1
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (i) take %11
+  %13: I32 = read copy.trivial (n)
+  %14: I32 = read copy.trivial (i)
+  %15: I32 = sub inspect %13 inspect %14
+  lens.try findFirst borrow.shared %15 -> bb6 -> bb5
+
+bb4:
+  jump -> bb1
+
+bb5(%16: {}):
+  write.init borrow.unique (local4) take {}
+  jump -> bb2
+
+bb6(%17: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb4:
+  write.init borrow.unique (found) borrow.shared %17
+  %20: I32 = read copy.trivial (seen)
+  %21: I32 = read copy.trivial (found)
+  %22: I32 = add inspect %20 inspect %21
+  write.assign borrow.unique (seen) take %22
+  jump -> bb4
+}
+
+fn statementTail(n: I32 [shared call]) -> I32 {
+  local & seen: I32
+  local found: I32 [shared call]
+  local local3: {}
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (seen) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 0
+  %4: Bool = ne inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %22: I32 = read copy.trivial (seen)
+  return take %22
+
+bb3:
+  %6: I32 = read copy.trivial (n)
+  lens.try findFirst borrow.shared %6 -> bb6 -> bb5
+
+bb4:
+  jump -> bb2
+
+bb5(%7: {}):
+  write.init borrow.unique (local3) take {}
+  %17: I32 = const -1
+  write.assign borrow.unique (seen) take %17
+  jump -> bb4
+
+bb6(%8: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb4:
+  write.init borrow.unique (found) borrow.shared %8
+  %11: I32 = read copy.trivial (seen)
+  %12: I32 = read copy.trivial (found)
+  %13: I32 = add inspect %11 inspect %12
+  write.assign borrow.unique (seen) take %13
+  jump -> bb4
+}
+
+fn returningNothing(n: I32 [shared call]) -> {} {
+  local found: I32 [shared call]
+  local local2: {}
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  lens.try findFirst borrow.shared %0 -> bb3 -> bb2
+
+bb1:
+  return
+
+bb2(%1: {}):
+  write.init borrow.unique (local2) take {}
+  return
+
+bb3(%2: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
+  write.init borrow.unique (found) borrow.shared %2
+  %5: I32 = read copy.trivial (global sideEffect)
+  %6: I32 = read copy.trivial (found)
+  %7: I32 = add inspect %5 inspect %6
+  write.assign borrow.unique (global sideEffect) take %7
+  jump -> bb1
+}
+
+fn leavingWithNothing(n: I32 [shared call]) -> {} {
+  local found: I32 [shared call]
+  local local2: {}
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  lens.try findFirst borrow.shared %0 -> bb3 -> bb2
+
+bb1:
+  return
+
+bb2(%1: {}):
+  write.init borrow.unique (local2) take {}
+  return
+
+bb3(%2: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
+  write.init borrow.unique (found) borrow.shared %2
+  %5: I32 = read copy.trivial (global sideEffect)
+  %6: I32 = read copy.trivial (found)
+  %7: I32 = const 10
+  %8: I32 = mul inspect %6 inspect %7
+  %9: I32 = add inspect %5 inspect %8
+  write.assign borrow.unique (global sideEffect) take %9
+  jump -> bb1
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local c: I32
+
+bb0:
+  %0: I32 = const 0
+  write.assign borrow.unique (global log) take %0
+  %2: I32 = const 0
+  write.assign borrow.unique (global sideEffect) take %2
+  %4: I32 = const 3
+  %5: I32 = call loopingOut borrow.shared %4
+  write.init borrow.unique (a) take %5
+  %7: I32 = const 5
+  %8: I32 = call statementTail borrow.shared %7
+  write.init borrow.unique (b) take %8
+  %10: I32 = const -1
+  %11: I32 = call statementTail borrow.shared %10
+  write.init borrow.unique (c) take %11
+  %13: I32 = const 7
+  %14: {} = call returningNothing borrow.shared %13
+  %15: I32 = const -1
+  %16: {} = call returningNothing borrow.shared %15
+  %17: I32 = const 2
+  %18: {} = call leavingWithNothing borrow.shared %17
+  %19: I32 = const -1
+  %20: {} = call leavingWithNothing borrow.shared %19
+  %21: I32 = read copy.trivial (a)
+  %22: I32 = read copy.trivial (b)
+  %23: I32 = add inspect %21 inspect %22
+  %24: I32 = read copy.trivial (c)
+  %25: I32 = add inspect %23 inspect %24
+  %26: I32 = read copy.trivial (global sideEffect)
+  %27: I32 = add inspect %25 inspect %26
+  %28: I32 = read copy.trivial (global log)
+  %29: I32 = add inspect %27 inspect %28
+  return take %29
+}
+
+entry main

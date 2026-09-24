@@ -101,14 +101,14 @@ bb2:
   return consume %36
 }
 
-fn main.cont(main.cont.env: main.cont.env [unique call], $handed: Array(I32) [shared call view]) -> I32 {
-bb0(%0: main.cont.env [unique call] guaranteed, %1: Array(I32) [shared call view] guaranteed):
+fn main.cont(main.cont.env: main.cont.env [unique call], $handed: Array(I32) [shared slot 0 view]) -> I32 {
+bb0(%0: main.cont.env [unique call] guaranteed, %1: Array(I32) [shared slot 0 view] guaranteed):
   %2: %I32 address = field.addr .total inspect %0
   %3: %I32 address = load inspect %2
   %4: %Array(I32) address = field.addr .xs inspect %0
   %5: %Array(I32) address = load inspect %4
   %6: I32 trivial = load inspect %3
-  %7: Array(I32) [shared call view] guaranteed from{%1, %5} = load inspect %1
+  %7: Array(I32) [shared slot 0 view] guaranteed from{%1, %5} = load inspect %1
   jump -> bb1
 
 bb1:

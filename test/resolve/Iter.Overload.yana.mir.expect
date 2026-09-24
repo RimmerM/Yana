@@ -51,7 +51,7 @@ fn main() -> I32 {
   local v: I32 [shared call]
   local & local2: Array(I32) object2
   local xs: Array(I32) object2
-  local part: Array(I32) [shared call view]
+  local part: Array(I32) [shared slot 0 view]
 
 bb0:
   %0: I32 = const 0
@@ -100,10 +100,10 @@ bb3:
   %46: I32 = read copy.trivial (total)
   return take %46
 
-bb4(%36: Array(I32) [shared call view]) handover(Array(I32) [shared call view]) many -> bb3:
+bb4(%36: Array(I32) [shared slot 0 view]) handover(Array(I32) [shared slot 0 view]) many -> bb3:
   write.init borrow.unique (part) borrow.shared %36
   %39: I32 = read copy.trivial (total)
-  %40: Array(I32) [shared call view] = read borrow.shared (part) loan1 roots{0}
+  %40: Array(I32) [shared slot 0 view] = read borrow.shared (part) loan1 roots{0}
   %41: Size = call length(Array(I32)) borrow.shared %40
   %42: I32 = convert inspect %41
   %43: I32 = add inspect %39 inspect %42

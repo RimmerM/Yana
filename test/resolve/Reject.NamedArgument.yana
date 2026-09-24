@@ -5,10 +5,12 @@
 -- default - and the point of each is that it is *one* diagnostic naming the thing that is wrong,
 -- rather than the arity message a call whose count is perfectly fine would get.
 --
--- The declaration half is the three positions a default cannot be written on, and each of those is a
--- rule about the caller rather than about the constant: a `return` parameter has no caller storage
--- when it is left out, a `&` one is written through, and one declared as a type variable has no type
--- for the constant to be of.
+-- The declaration half is the two positions a default cannot be written on, and each of those is a
+-- rule about the caller rather than about the constant: a `&` parameter is written through, and one
+-- declared as a type variable has no type for the constant to be of.
+--
+-- # resolver: ownership
+-- # recover: yes - every rule below is reported in one compile, the way the command line reports them.
 
 fn open(path: Int, mode: Int = 1, buffered: Int = 2) -> Int = path + mode + buffered
 
@@ -43,24 +45,18 @@ fn orderNotCount() -> Int = middleDefault(4)
 
 -- A call through a function *value*, which knows its parameters' names and has no defaults to fill
 -- a position with - so the same two mistakes are the same two messages, said about the type.
-fn throughValueName() -> Int:
-    let f = (from: Int, take: Int) -> from - take
-    return f(from: 1, count: 2)
+-- `throughValueName` - a wrong name through a function value - is `Reject.NamedArgument.Legacy.yana`.
 
 fn throughValueShort() -> Int:
     let f = (from: Int, take: Int) -> from - take
     return f(from: 1)
 
--- A default that is not a constant. The rule is the field default's, stated once for both.
-fn computed(x: Int, y: Int = required(1, 2)) -> Int = x + y
+-- A default that is not a constant, `computed`, is `Reject.NamedArgument.Legacy.yana`.
 
 -- A default whose constant is not a value of the parameter's type.
 fn wrongType(x: Int, flag: Bool = 3) -> Int = x
 
--- The three positions that cannot carry one at all.
-data Box {value: Int}
-
-fn returnDefault(return self: Box = 1) -> Int = self.value
+-- The two positions that cannot carry one at all.
 fn mutableDefault(&slot: Int = 1) -> Int = slot
 fn (Num(a)) genericDefault(x: a = 1) -> Int = 0
 
@@ -74,8 +70,8 @@ fn (Num(a)) genericDefault(x: a = 1) -> Int = 0
 
    The default is read at the *promised* type rather than at the thunk's, which is the only thing the
    position changes: `2` is a constant `Int` and not a constant `{} -> Int`. The non-constant case is
-   refused by the same rule as every other default, which is the first line of this file's expected
-   errors and not a rule of its own.
+   refused by the same rule as every other default - `computed` in
+   `Reject.NamedArgument.Legacy.yana` - and not by a rule of its own.
 -}
 fn lazyDefault(x: Int, @lazy y: Int = 2) -> Int = x
 
@@ -96,13 +92,7 @@ fn loopBadName() -> Int:
 
     return total
 
-fn loopTooMany() -> Int:
-    let &total = 0 :: Int
-
-    for i in steps(1, 2, 3):
-        total = total + i
-
-    return total
+-- `loopTooMany`, a `for` over `steps` given three arguments, is `Reject.NamedArgument.Legacy.yana`.
 
 class Scale(a):
     fn scale(it: a, by: Int = 2) -> Int

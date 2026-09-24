@@ -1,0 +1,22 @@
+-- The rule of `Reject.Fundep.yana` the default stage does not refuse yet: two instances
+-- disagreeing about what the determining position determines. It accepts both instances
+-- (classes.md, "Functional dependencies"). Move it back when it does.
+
+class Elem(c -> a):
+  fn head(->self: c) -> a
+
+instance Elem(Int, Bool):
+  fn head(->self: Int) -> Bool = True
+
+{-
+   The check the dependency exists for.
+
+   These two are not duplicates and neither head covers the other, so nothing else in the resolver
+   rejects them - and a call that leaves the determined position open would be answered by whichever
+   happened to be declared first. Reading a hole back off "whichever instance matched" only means
+   something because this is an error.
+-}
+instance Elem(Int, Int):
+  fn head(->self: Int) -> Int = self
+
+fn main() -> Int = 0

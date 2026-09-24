@@ -1,0 +1,43 @@
+{-
+   A writable window of a fixed array writes the array.
+
+   # resolver: ownership
+
+   `let &w = arr[0..2]` and `set(arr[1..3])` asked for the source at an exclusive request, which
+   copies a trivially copied value, so `elementsMut` windowed a temporary and every write through
+   the window was lost: both targets answered 1. The source of a writable window is borrowed now,
+   the way a growable array's always was; a shared one still copies. `viaLambda` is the window
+   written through a capture, which the native build used to crash on.
+
+   The answer is 9, 9, 5 and 9, one digit each.
+-}
+
+fn applyUnit(f: () -> {}): f()
+
+fn set(&xs: [Int]):
+    xs[0] = 9
+
+fn direct() -> Int:
+    let &arr = [1, 2, 3] :: [Int *3]
+    let &w = arr[0..2]
+    w[0] = 9
+    return arr[0]
+
+fn viaLambda() -> Int:
+    let &arr = [1, 2, 3] :: [Int *3]
+    let &w = arr[0..2]
+    applyUnit((): w[0] = 9)
+    return arr[0]
+
+fn whole() -> Int:
+    let &arr = [1, 2, 3] :: [Int *3]
+    let &w = arr[0..3]
+    w[1] = 5
+    return arr[1]
+
+fn argument() -> Int:
+    let &arr = [1, 2, 3] :: [Int *3]
+    set(arr[1..3])
+    return arr[1]
+
+fn main() -> Int = direct() * 1000 + viaLambda() * 100 + whole() * 10 + argument()

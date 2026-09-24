@@ -4,6 +4,8 @@
 -- `resolveVectorType` rather than leaving them to Repr: a lane type that has no width would
 -- otherwise fail wherever a size was first asked for, which is a different file, a different stage
 -- and a message about layout.
+--
+-- # resolver: ownership
 
 data Point {x: Int, y: Int}
 
@@ -45,6 +47,6 @@ fn number(x: Maybe(4)) -> Int = 0
 -- (Implementation-Map.md §4.1), and the internal form was always general.
 fn maskCount(m: Mask(Float, 3)) -> Int = 0
 
--- A vector arrives as a copy, so there is no caller storage for a `return` to root a borrow in -
--- §2.5's second consequence, and a new diagnostic that follows from `isDirectType` alone.
-fn rooted(return v: Vec(Float)) -> Int = 0
+-- `rooted(return v: Vec(Float))`, a register copy with nothing to root, is legal: the `return`
+-- spelling is gone and `v: 'Vec(Float)` is legal (ownership.md, "External origins and
+-- returned borrows"), as `Reject.ReturnRoot.yana`'s `copied` records.

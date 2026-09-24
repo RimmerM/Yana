@@ -4,17 +4,23 @@ import Native
    A container of the program's own, passed where a slice is *written* - Implementation-Containers.md
    §5, and the `Writable` class beside `Contiguous`.
 
-   The read half has existed since §5: `Contiguous` promises a buffer address, so a container reaches
-   `fn f(xs: [a])` through one call to `elements`, which is the only implicit conversion into a slice
-   a program can grant itself. `fn f(&xs: [a])` was refused, and not by oversight - `elements` hands
-   back a **shared** view and a conversion may not widen one, which is the rule
-   Analysis-Borrows.md §2.3 removed `applyReturnRootMutability` for.
+   `Contiguous` promises a buffer address, so a container reaches `fn f(xs: [a])` through one call
+   to `elements`. `elements` hands back a **shared** view, and nothing may widen one - the rule
+   Analysis-Borrows.md §2.3 removed `applyReturnRootMutability` for - so it cannot reach
+   `fn f(&xs: [a])`.
 
    `Writable` is the write half as a promise of its own. `elementsMut(&self: 'c) -> &Flat(a)` puts
    the exclusive window in the *instance's* signature, so nothing is promoted at the argument
    position: the container is exclusively borrowed for as long as the window lives, and the loan is
    rooted in it by the class's group. `Reject.WritableContainer.yana` is what a container that
-   implements only the read half gets, and it is a different diagnostic rather than the general one.
+   implements only the read half gets.
+
+   # resolver: ownership
+
+   Both calls are written. Implementation-Containers.md §5 made them implicit conversions at the
+   argument, but the spec's only implicit conversion is `Widen` (overloading.md), so this stage
+   spells them `elements(b)` and `elementsMut(b)`. The shipping stage refuses the second: it
+   will not pass a call's result to a `&` parameter.
 -}
 
 data Bag(a) {items: Array(a)}
@@ -42,9 +48,9 @@ fn writesOne(&xs: [Int]):
 fn main() -> I64:
     let &b = Bag {items: [1, 2, 3] :: Array(Int)}
 
-    if readsOnly(b) != 1 then return -1
+    if readsOnly(elements(b)) != 1 then return -1
 
-    writesOne(b)
+    writesOne(elementsMut(b))
     if b.items[0] != 9 then return -2
 
     -- And everything else written against a written slice, `sort` included.

@@ -77,6 +77,54 @@ Place* Resolver::hold(Builder& builder, Node& value, LocationId source) {
 }
 
 /*
+ * The held values an exit abandons - see the declaration.
+ *
+ * `abandonedHeld` keeps `isOwned` and `hasTeardown`, which is the discarded statement's test and
+ * for its reason: a loan ends where its last use is and needs nothing, and an owner with nothing to
+ * run is abandoned by doing nothing. The handle is left naming the consumed value, which nothing reads - the caller
+ * emits the exit's terminator next, and the construct that made the block re-points every handle
+ * on the next block it arrives in. That is also why every caller calls this *after* resolving what
+ * the exit carries and immediately before the terminator: a `?` inside `return e` releases the
+ * same frames on its own exit edge, and a release before `e` would have taken them on the path the
+ * `?` then continues on.
+ *
+ * **Outermost frame first**, and left to right within one, so that the temporaries are declared in
+ * the order the values were produced and dropped in that order - which is the order named locals
+ * are dropped in, and the order the other stage gives `f(g(a)?, h(b)?)`. The order is
+ * `abandonedHeld`'s, which the lens region's spill reads too.
+ */
+void Resolver::releaseHeld(Builder& builder, Held* until, LocationId source) {
+    if(!until && heldStranded) {
+        unsupported(source, "leaving the function from inside a lens call that can skip, written "
+                            "inside an expression still holding a value with a teardown"_v);
+    }
+
+    SmallArray<HeldSlot, 8> slots;
+    abandonedHeld(until, slots);
+    for(auto slot: slots) hold(builder, *slot.frame->at(slot.index), source);
+}
+
+void Resolver::abandonedHeld(Held* until, SmallArray<HeldSlot, 8>& into) {
+    SmallArray<Held*, 8> frames;
+    for(auto frame = held; frame && frame != until && frame != heldFloor; frame = frame->outer) {
+        frames.push(frame);
+    }
+
+    for(auto at = frames.size(); at > 0; at--) {
+        auto frame = frames[at - 1];
+        for(U32 index = 0; index < frame->count(); index++) {
+            auto value = frame->at(index);
+            if(!value) continue;
+
+            if(!valueOccurrence(*value).contract.isOwned()) continue;
+            if(!hasTeardown(decl(), valueType(*value))) continue;
+
+            into.push(HeldSlot { frame, index });
+        }
+    }
+}
+
+/*
  * `@local` on a `data` - `doc/spec/modules.md`'s local declarations, at the `data` placement.
  *
  * The type is exported and its *inside* is not, so what is restricted is the two positions that
@@ -997,10 +1045,18 @@ Node* Resolver::resolveSubwindow(Builder& builder, ast::Expr& expr, Request want
     auto target = projectionTarget(builder, written.callee, unique ? Access::Unique : Access::Shared);
     if(!target) return nullptr;
 
-    // Borrowed rather than copied whatever its type says, because a window describes storage that
-    // stays where it is - the position's own request, narrowed to the two accesses a window has.
-    auto source = readPlace(builder, expr.source, *target,
-                            bindingRequest(unique ? Access::Unique : Access::Shared));
+    // The position's own request, narrowed to the two accesses a window has.
+    //
+    // A **writable** window is published, so that a fixed array - which is trivially copied at an
+    // exclusive binding request - is borrowed rather than copied: `let &w = arr[0..2]` and
+    // `set(arr[1..3])` write `arr`, and over a copy the write would land in a temporary nobody
+    // reads. A shared one keeps the copy, and `adaptToView` lends the source's own slot where
+    // nothing can write it in between (`unwrittenSource`) - borrowing it here instead would hold a
+    // loan of `pair` across `total(pair.arr[0..2], bump(pair))`'s later argument and refuse it.
+    auto request = bindingRequest(unique ? Access::Unique : Access::Shared);
+    request.published = unique;
+
+    auto source = readPlace(builder, expr.source, *target, request);
     if(!source) return nullptr;
 
     auto at = resolveValue(builder, range.from, program.types.words[1], inspectRequest());
@@ -1294,14 +1350,28 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
      * answers with the mutability the program gave it.
      */
     if(mode == UseMode::BorrowUnique) {
-        if(place.occurrence.contract.access() == Access::Shared) {
+        // Before the storage half: a capture of a binding that is not `&` is a shared loan where it
+        // is not a copy, and "borrowed as shared" would describe the environment, not the binding.
+        if(captureWriteRefused(builder, place, source)) return nullptr;
+
+        // And the loan-field sentence `resolveAssign` gives, so that `x.f = v`, `x.f += v` and
+        // `bump(x.f)` read alike. Not for a `let &` establishing storage of its own out of an owned
+        // place, which the binding half below admits and which writes nothing through the loan.
+        // Both answered once: `bindsOwnStorage` climbs to the root, and three tests below read it.
+        auto shared = place.occurrence.contract.access() == Access::Shared;
+        auto unnamed = !place.writable && !bindsOwnStorage(builder, place, wanted);
+        if(!place.writable && (shared || unnamed) && loanFieldWriteRefused(builder, place, source)) {
+            return nullptr;
+        }
+
+        if(shared) {
             context.diagnostics.error(
                 "%@ is borrowed as shared here, so it cannot be handed out for writing"_v,
                 source, placeText(context, decl(), builder.base(), builder.body, place));
             return nullptr;
         }
 
-        if(!place.writable && !bindsOwnStorage(builder, place, wanted)) {
+        if(unnamed) {
             context.diagnostics.error(
                 "%@ is not declared `&`, so it cannot be handed out for writing"_v,
                 source, placeText(context, decl(), builder.base(), builder.body, place));
@@ -1846,7 +1916,9 @@ bool Resolver::initializeUpdate(Builder& builder, Place& root, Place* from, Node
  *
  * Every replacement is a `Destination::Assign` through the same `Builder::addWrite` a written
  * `v.f = x` reaches, and that is the one thing this construct owes: the copy put a live value in
- * every field, so a field being replaced has one to release. An `Init` here would leak it.
+ * every field, so a field being replaced has one to release. An `Init` here would leak it. The one
+ * exception is a loan field of the copy, which holds nothing to release and is *re-pointed* by an
+ * `Init` - see the loop below, and ownership.md's "Records holding external values".
  */
 Node* Resolver::resolveUpdate(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
     auto& written = *parse[expr.tupUpdate];
@@ -1915,6 +1987,7 @@ Node* Resolver::resolveUpdate(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
         Place* place = nullptr;
         Node* value = nullptr;
         LocationId source = kNullLocation;
+        Destination mode = Destination::Assign;
     };
 
     SmallArray<Replacement, 4> replacements;
@@ -1944,9 +2017,60 @@ Node* Resolver::resolveUpdate(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
 
         if(!place) { ok = false; continue; }
 
+        /*
+         * A **loan field of the copy** is re-pointed rather than written through, and this is the
+         * one position in the language that does it - ownership.md, "Records holding external
+         * values". Assigning to a loan-typed place writes through to the storage it lends, which is
+         * what `s.held = v` means and why it is refused over a shared loan; but the slot here is in
+         * the copy this expression just made, nobody else can see it yet, and what the author asked
+         * for is a record holding a different loan. So the write *installs* one - an `Init`, the
+         * same write that establishes a loan binding or fills a construction's component - over a
+         * slot whose old loan needs no release, because dropping a loan releases nothing but the
+         * loan.
+         *
+         * The path reaches the *referent* - a `Deref` over the field, which is what a `.` through a
+         * loan field is - so the write goes to the field under it. It has to be the copy's own
+         * slot, which is `firstBorrowedStep` answering the field itself: a loan field reached
+         * through another loan is in storage the copy does not own, and writing there is the
+         * ordinary assignment below. An `Assign` to the referent instead is a write through the
+         * loan, which the builder asserts on and which over an exclusive loan field would put the
+         * new cell's value into the old cell.
+         */
+        auto mode = Destination::Assign;
+        auto base = builder.base();
+        if(place->kind == Place::Deref && base[place->parent]->kind == Place::Field &&
+           firstBorrowedStep(base, *place) == base[place->parent]) {
+            // The slot is the field; the place a path reaches is the referent behind it.
+            place = base[place->parent];
+            mode = Destination::Init;
+        }
+
+        // A path through a loan the record holds reaches storage somebody else owns, so it is the
+        // same write `r.held.value = 1` is and is refused in the same words.
+        if(mode == Destination::Assign && !place->writable) {
+            if(!loanFieldWriteRefused(builder, *place, argument.value.source)) {
+                context.diagnostics.error("this cannot be written, so an update cannot replace it"_v,
+                                          argument.value.source);
+            }
+
+            ok = false;
+            continue;
+        }
+
         auto value = resolveValue(builder, argument.value, place->occurrence.type,
                                   requestOf(place->occurrence));
         if(!value) { ok = false; continue; }
+
+        /*
+         * A window field re-pointed at an owner - `{g | held: gOther}` over `held: '[Int]` with an
+         * `Array(Int)` - takes the view derivation a construction's component takes. Without it the
+         * owner's two words went into the view's slot as they were, which read back as a window over
+         * the wrong run.
+         */
+        if(mode == Destination::Init) {
+            value = adaptToView(builder, *value, place->occurrence, argument.value.source);
+            if(!value) { ok = false; continue; }
+        }
 
         value = coerce(builder, *value, place->occurrence.type, argument.value.source,
                        "a replaced field"_v, place->occurrence.contract.access());
@@ -1960,7 +2084,7 @@ Node* Resolver::resolveUpdate(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
             continue;
         }
 
-        replacements.push(Replacement { place, value, argument.value.source });
+        replacements.push(Replacement { place, value, argument.value.source, mode });
         values.push(value);
     }
 
@@ -1975,7 +2099,7 @@ Node* Resolver::resolveUpdate(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
 
     for(auto& replacement: replacements) {
         builder.addWrite(replacement.source, *replacement.place, *replacement.value,
-                         Destination::Assign);
+                         replacement.mode);
     }
 
     // The finished record, moved out of the local it was built in - the same read a growable array
@@ -2826,6 +2950,51 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
 }
 
 /*
+ * The storage a trivially copied value was just **copied out of**, where nothing can have written
+ * it since - so that a window of the value can be a loan of that storage instead of a second copy.
+ *
+ * `firstTwo(xs: [I32 *n]) = total(xs[0..2])` reads `xs` with `copy.trivial`, and `hold` would then
+ * park the copy in a fresh slot to have something to lend: one more `alloca` natively and a
+ * `.slice()` on JavaScript, for bytes the parameter already holds. The parameter's slot is as good
+ * a lender, and a loan of it is refused where a loan of the frame is, so nothing about what the
+ * window may do changes.
+ *
+ * **Unwritten** is the whole condition. The copy was taken where the operand was evaluated and the
+ * window is derived after the call's other arguments, so storage anything could write in between -
+ * `total(pair, bump(pair))` - could hold something else by then, and a loan taken later would read
+ * the new contents where the copy read the old (or be refused against the write, which is a false
+ * refusal of a program that only asked for a copy). Two things make storage unwritable here, and
+ * both are needed:
+ *
+ *  - **The root's binding** is not writable - a plain parameter or a `let`.
+ *  - **Every step is the root's own storage** (`firstBorrowedStep`). A path through a loan field -
+ *    `h.cell.arr` over `data Box {cell: &Pair}` - lives in somebody else's storage, which `bump(h.cell)`
+ *    or the lender itself may write whatever `h` was declared; and a root that is itself a loan is
+ *    somebody else's storage for as long as the binding lasts, which for a parameter is the whole
+ *    call and for any other local may end at the copy.
+ *
+ * A global is left to `hold`: a `let` one is unwritable too, but a loan of it is a loan of a global,
+ * with the across-a-call rule attached, for an argument that was a copy.
+ */
+Place* Resolver::unwrittenSource(Builder& builder, Node& value) {
+    if(value.kind != Node::Read) return nullptr;
+
+    auto& read = (NodeRead&)value;
+    if(read.place.source() != SourceKind::Place || read.place.mode() != UseMode::CopyTrivial) return nullptr;
+
+    auto base = builder.base();
+    auto place = builder.body.place(base, read.place.placeId());
+    auto& root = rootPlace(base, *place);
+    if(root.kind != Place::Local) return nullptr;
+
+    auto local = builder.body.local(base, LocalId(root.payload));
+    if(local->writable || firstBorrowedStep(base, *place)) return nullptr;
+    if(!root.occurrence.contract.isOwned() && !local->isParameter()) return nullptr;
+
+    return place;
+}
+
+/*
  * A value reaching a **view** position - the one adaptation site, Analysis-Manifestations.md
  * Part 8's `adaptToView`.
  *
@@ -2926,7 +3095,35 @@ Node* Resolver::adaptToView(Builder& builder, Node& value, const Occurrence& pos
         return nullptr;
     }
 
-    Node* operands[1] = { &value };
+    /*
+     * A donor with **no storage of its own** - `[n, n + 1]`, a fixed array built right here, or any
+     * other trivially copied value a node produced - is given a frame slot first, so that the view
+     * derived from it is a loan *of something*.
+     *
+     * The derivation's result is rooted in its argument by the member's own signature, and a
+     * borrow of a node result names no place, so no loan would be minted for it: the window would
+     * carry no origin at all, and every rule asked of where a loan goes - a `return`, a global, a `&`
+     * parameter's field - would be asked of a value that says it borrows nothing. `sink = {sink | view:
+     * [n]}` would compile and leave a global pointing into a dead frame. An owner with a teardown
+     * already got a slot here, from `holdBorrowed` inside the member call; one with nothing to run
+     * did not, because the slot there exists for the drop.
+     *
+     * A slot rather than a rule about temporaries. The local is an ordinary one, so the loan keeps
+     * it alive for as long as the view is used - `Holder {view: [n]}` read later in the same
+     * function is fine, as `let v = [n]` followed by a window of `v` is - and what is refused is
+     * exactly what is refused for any local of the frame, with the sentences that already exist.
+     * Shared only: a unique window of a value nothing else can see has nothing to write through
+     * to, and the slot `hold` makes of an owned value is not writable.
+     */
+    Node* donor = &value;
+    if(access == Access::Shared && held.contract.isOwned() && !isTracked(decl(), held.type)) {
+        auto place = unwrittenSource(builder, value);
+        if(!place) place = hold(builder, value, at);
+        donor = readPlace(builder, at, *place, requestOf(position));
+        if(!donor) return nullptr;
+    }
+
+    Node* operands[1] = { donor };
     auto derived = applyMember(builder, adaptor, member, operands, 1, at, position.type);
 
     // What the loan checker's element exemption follows through - `NodeCall::derivation`.
@@ -4188,9 +4385,12 @@ Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*,
     }
 
     // A member of an instance the compiler generated, at a concrete call - the node it computes,
-    // in place of the call. See `expandProvidedCall`.
-    if(auto expanded = expandProvidedCall(builder, callee, arguments, typeArguments, source)) {
-        return expanded;
+    // in place of the call, or below, the member itself. See `generatedMemberAt`.
+    auto made = generatedMemberAt(callee, typeArguments.with(), source);
+    if(made) {
+        if(auto expanded = expandProvidedCall(builder, *made, arguments, typeArguments.with(), source)) {
+            return expanded;
+        }
     }
 
     /*
@@ -4226,38 +4426,40 @@ Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*,
         }
     }
 
+    // `it.next()` on an object whose type is known names the object's own step, whose signature
+    // says where the item's interior is rooted and the class's cannot. See `stepsOwnObject`.
+    if(made && stepsOwnObject(*made)) {
+        return builder.addCall(source, *made, arguments.pointer(), arguments.size(), Substitution {});
+    }
+
     return builder.addCall(source, callee, arguments.pointer(), arguments.size(),
                            typeArguments.with());
 }
 
 /*
- * A concrete call of a class member whose selected instance the compiler generated.
+ * The member a **concrete** call of a class member reaches, where the instance its types select is
+ * one the compiler made - a `provided.def` row, or an iterator object's `Iterate` - or null.
  *
- * The rule: **a provided member expands where the call is concrete, and is called where it is
- * not.** `a + b` at two `I32`s selects `Num(I32)`, whose `+` is `provided.def`'s, and the call
- * becomes the `add` node the member computes; `x + y` in `fn (Num(a)) f(x: a, y: a)` names `Num.+`
- * with `a` open, is a call node, and `callTarget` finds the same member at the specialization -
- * which has a body the same emitter wrote, so nothing is lost but the inlining an optimizer does
- * anyway. The concrete case is the common one and is what makes an operator cost nothing without
- * an optimizer having run, which is the property the shipping stage's `Emit` hooks exist for.
+ * The rule `finishCall` applies twice: **a concrete call of a class member whose selected instance
+ * the compiler made is a call of that instance's member.** A provided member that is one node
+ * expands into it (`expandProvidedCall`), and an object's step is called by its own name
+ * (`stepsOwnObject`); any other such member is left to the call of the class's, which `callTarget`
+ * selects the same member for at the conversion.
  *
  * Selection here is the same `selectInstance` `callTarget` asks, and the two agree by construction:
  * the table is one table and the arguments are the same. `dischargeRequirements` has already
  * proved the instance exists, so a failed match is a compiler error and not a program's. A
- * generated instance is ground, so its members are never specialized and reading one off the
- * instance is reading the function itself - which is why this stays clear of `instanceMember`, a
- * specialization made here would be made before the generic's body exists.
+ * generated instance's member is read off the instance, which is reading the function itself -
+ * which is why this stays clear of `instanceMember`: a specialization made here would be made
+ * before the generic's body exists.
  *
  * Null wherever the rule does not apply - a callee that is not a class member, an argument list
- * still open, an instance an author wrote, a member that is a body rather than a node - so that
- * the caller carries on to the call it would have built anyway.
+ * still open, an instance an author wrote - so that the caller carries on to the call it would
+ * have built anyway.
  */
-Node* Resolver::expandProvidedCall(Builder& builder, Function& callee,
-                                   SmallArray<Node*, 8>& arguments, TypeArguments& typeArguments,
-                                   LocationId source) {
+Function* Resolver::generatedMemberAt(Function& callee, const Substitution& with, LocationId source) {
     if(!callee.klass) return nullptr;
 
-    auto with = typeArguments.with();
     for(Size i = 0; i < with.count; i++) {
         if(!with.arguments[i] || !isConcreteType(decl(), with.arguments[i])) return nullptr;
     }
@@ -4268,13 +4470,33 @@ Node* Resolver::expandProvidedCall(Builder& builder, Function& callee,
         return nullptr;
     }
 
-    auto& instance = *decl()[found.instance];
-    if(instance.provided == intrinsic::Provided::Count) return nullptr;
-
-    auto member = instance.members.get(decl(), callee.classMember);
+    auto member = decl()[found.instance]->members.get(decl(), callee.classMember);
     if(!member) return nullptr;
 
     auto& function = *decl()[member];
+    if(function.provided == intrinsic::Provided::Count && function.generated == Function::Generated::None) {
+        return nullptr;
+    }
+    return &function;
+}
+
+/*
+ * A provided member at a concrete call, as the node it computes - or null where the member is a body
+ * rather than a node, or is not a provided one.
+ *
+ * The rule: **a provided member expands where the call is concrete, and is called where it is
+ * not.** `a + b` at two `I32`s selects `Num(I32)`, whose `+` is `provided.def`'s, and the call
+ * becomes the `add` node the member computes; `x + y` in `fn (Num(a)) f(x: a, y: a)` names `Num.+`
+ * with `a` open, is a call node, and `callTarget` finds the same member at the specialization -
+ * which has a body the same emitter wrote, so nothing is lost but the inlining an optimizer does
+ * anyway. The concrete case is the common one and is what makes an operator cost nothing without
+ * an optimizer having run, which is the property the shipping stage's `Emit` hooks exist for.
+ * `function` is `generatedMemberAt`'s answer, so the call is concrete and the selection made.
+ */
+Node* Resolver::expandProvidedCall(Builder& builder, Function& function,
+                                   SmallArray<Node*, 8>& arguments, const Substitution& with,
+                                   LocationId source) {
+    if(function.provided == intrinsic::Provided::Count) return nullptr;
     if(!providedExpands(function.provided, function.providedMember)) return nullptr;
 
     /*
@@ -4286,7 +4508,7 @@ Node* Resolver::expandProvidedCall(Builder& builder, Function& callee,
      * reads the head for the type its node answers with, so a variable there is a `bitcast` whose
      * result type is `%b` and an ascription that then cannot be satisfied.
      *
-     * Concrete by the check above, which is what makes this the honest source: `with.arguments` is
+     * Concrete by `generatedMemberAt`'s check, which is what makes this the honest source: `with.arguments` is
      * what selection was asked with and what it matched, so reading the answer off the question is
      * reading the one list both ends agree about.
      */
@@ -5069,6 +5291,7 @@ bool Resolver::dischargeRequirements(Function& callee, TypeArguments& typeArgume
 
     for(auto requirement: decl()[callee.gen]->classes.contents(decl())) {
         ok = dischargeRequirement(requirement, with, source) && ok;
+        if(ok) ok = refuseOpaqueObjectItem(callee, requirement, with, source);
     }
 
     for(auto property: decl()[callee.gen]->properties.contents(decl())) {

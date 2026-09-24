@@ -1,0 +1,19 @@
+{-
+   `items` under the ownership resolve stage - `Container.yana` has the contract.
+
+   **Every element it hands over is the caller's storage**, and the signature says so with `source'`:
+   an element is a borrow of one of the container's members, reached through a chunk that `Chunked`
+   already publishes as the container's (`'[a]`). Unqualified, a hand-over is a view the callee may
+   take out of its own frame, which the loop body may use and may not keep - so
+   `let &best = ...; for s in items(xs): best = s` read after the loop was refused as a value `items`
+   lent for the length of its call, where it is really a loan of `xs` (J129).
+
+   `Container.legacy.yana` is the same body unqualified: that stage reads `self: 'c` as a reference to
+   the container, which a window argument cannot be, and hands over nothing with an origin.
+-}
+
+pub iter fn (Chunked(c, a)) items(self: source'c) -> source'a:
+    for chunk in chunks(self):
+        let n = length(chunk)
+        for i in 0 .. n:
+            yield chunk[i]

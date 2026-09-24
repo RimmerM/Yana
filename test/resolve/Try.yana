@@ -5,6 +5,15 @@
 -- spelling of `| else -> return` is value position, and what makes it compiler-known is that its
 -- skip destination is the enclosing return edge - which nothing written at the call site names.
 
+{-
+   # resolver: ownership
+
+   `firstPositive` was respelled: it was a wrapper-result explicit-callback lens,
+   `(n, body: (found: Int) -> a) -> Maybe(a)` returning `Just(body(v))`, and lenses.md's skipping
+   lens is a failure channel, `-> (Int | {})` with `yield`. The shipping stage builds only the old
+   form; writing it this way is what surfaced two now-fixed bugs in the rewrite.
+-}
+
 let &log = 0 :: Int
 let &dropped = 0 :: Int
 
@@ -114,10 +123,11 @@ fn throughLens(n: Int) -> Maybe(Int):
     let v = parse(d - 8)?
     return Just(v + d)
 
--- A skipping lens's own body may use `?`, because its ordinary return edge already *is* the skip.
-lens fn firstPositive(n: Int, body: (found: Int) -> a) -> Maybe(a):
+-- A skipping lens's own body may use `?`, because a `return` in it already *is* the skip: the
+-- `Nothing` `?` returns is the `{}` the lens fails with.
+lens fn firstPositive(n: Int) -> (Int | {}):
     let v = parse(n)?
-    return Just(body(v))
+    yield v
 
 fn viaSkipping(n: Int) -> Int:
     let found = firstPositive(n) | else -> return 0

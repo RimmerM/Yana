@@ -1148,6 +1148,8 @@ void Resolver::checkInstanceSuperclasses() {
  */
 bool Resolver::checkMemberSignature(Function& written, Function& expected, const Substitution& with,
                                     LocationId source) {
+    inheritMemberOrigins(written, expected, with);
+
     auto ok = written.args.size() == expected.args.size();
 
     for(Size i = 0; ok && i < expected.args.size(); i++) {
@@ -1195,6 +1197,62 @@ bool Resolver::checkMemberSignature(Function& written, Function& expected, const
     }
 
     return ok;
+}
+
+/*
+ * An instance member that writes **no origin at all** takes the class's (J132).
+ *
+ * `class Chunked(c -> a)` states `chunks(self: 'c) -> '[a]`: a chunk is the container's storage, and
+ * saying so is what lets `items` hand an element over by the caller's origin (J129). An instance
+ * that wrote `iter fn chunks(self: Chunks) -> [I32]` then differed from the class in the origins
+ * alone and was told to write them, which is the statement the class already made. The member check
+ * compares whole occurrences for a reason - a contract or a type that differs is a function every
+ * caller would call wrongly - and none of that is at stake in a position whose type and binding
+ * agree and whose origin the author left unsaid: a caller is compiled against the class's
+ * signature, so the class's origins are what every call already assumes. So such a position is
+ * given the class's occurrence before the comparison, as a position with no written *type* is given
+ * it in `declareArgs`, and the body is then held to it by the ordinary conformance checks - an
+ * instance whose chunk is a view of its own frame is refused at the `yield` for exactly what the
+ * class promised, rather than accepted for a promise it did not make.
+ *
+ * Only a member that writes none. One that writes some has chosen its own numbering, and mixing it
+ * with the class's would put two meanings on one slot index; it is compared as written. And only
+ * where the type and the binding agree, so that a member differing in anything else is still told
+ * the signature the class asks for.
+ */
+void Resolver::inheritMemberOrigins(Function& written, Function& expected, const Substitution& with) {
+    if(written.originSlots || !expected.originSlots) return;
+    if(written.args.size() != expected.args.size()) return;
+
+    auto agrees = [](const Occurrence& supplied, const Occurrence& declared) {
+        return supplied.type == declared.type && supplied.contract.origin() != Origin::Slot &&
+               supplied.contract.access() == declared.contract.access() &&
+               supplied.contract.form() == declared.contract.form();
+    };
+
+    SmallArray<Occurrence, 4> arguments;
+    for(Size i = 0; i < expected.args.size(); i++) {
+        auto declared = substituteOccurrence(context, program,
+                                             decl()[expected.args.get(decl(), U32(i))]->occurrence, with);
+        // A lens's continuation is the desugaring's and is built from the hand-over, so it follows
+        // the hand-over rather than being compared on its own.
+        if(i < expected.writtenArity() &&
+           !agrees(decl()[written.args.get(decl(), U32(i))]->occurrence, declared)) {
+            return;
+        }
+        arguments.push(declared);
+    }
+
+    auto& outgoing = expected.lens ? written.handover : written.result;
+    auto declaredOutgoing = substituteOccurrence(context, program,
+                                                 expected.lens ? expected.handover : expected.result, with);
+    if(!agrees(outgoing, declaredOutgoing)) return;
+
+    for(Size i = 0; i < arguments.size(); i++) {
+        decl()[written.args.get(decl(), U32(i))]->occurrence = arguments[i];
+    }
+    outgoing = declaredOutgoing;
+    written.originSlots = expected.originSlots;
 }
 
 /*

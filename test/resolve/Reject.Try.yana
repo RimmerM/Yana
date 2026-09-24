@@ -3,6 +3,8 @@
 -- Two of the four are about the *enclosing* signature rather than about the operand, which is what
 -- makes them worth writing down: `?`'s skip destination is the enclosing return edge, so a mistake
 -- there is a mistake about a line the reader is not looking at.
+--
+-- # resolver: ownership
 
 data Bag(a) {item: a}
 
@@ -48,12 +50,5 @@ iter fn steps(n: Int) -> Int:
     for i in 0 .. n:
         yield i
 
--- `?` needs the enclosing function's result type before it can resolve anything, and the `=` form
--- decides its result *from* the body this is in. The same cycle a recursive `=` function reports,
--- reached one step earlier.
-fn inferred(n: Int) = source()?
-
--- A lambda whose result its body decides is the same cycle with a different name for the fix.
-fn inLambda(n: Int) -> Maybe(Int):
-    let f = (x: Int) -> source()?
-    return f(n)
+-- `?` in a result being inferred, by `=` and by a lambda moved to `Reject.Try.Legacy.yana`;
+-- that file says what the new stage does instead.

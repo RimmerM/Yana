@@ -1,0 +1,33 @@
+mut @dummy = [0, 0, 0, 0]
+mut @g = [0, 0, 0, 0, 0, 0, 0, 0]
+
+keep<complex>(%p: Ptr) {
+  b_0 {
+    store @g, %p, 8
+    ret 
+  }
+}
+
+poke<complex>() {
+  b_0 {
+    %v_1 = load @g, 8: Ptr
+    store %v_1, 7, 4
+    ret 
+  }
+}
+
+main$<complex>(): I32 {
+  b_0 {
+    store @g, @dummy, 8
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 1, 4
+    call_complex keep, %v_1
+    %v_2 = loads %v_1, 4: I32
+    call_complex poke
+    %v_3 = imul %v_2, 10: I32
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = add %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+

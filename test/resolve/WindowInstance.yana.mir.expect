@@ -23,7 +23,7 @@ fn main() -> I32 {
   local owned: I32
   local & text: String
   local & total: I32
-  local v: I32 [shared call]
+  local v: I32 [shared slot 0]
 
 bb0:
   %0: I32 = const 1
@@ -180,7 +180,7 @@ bb10:
   %137: I32 = add inspect %135 inspect %136
   return take %137
 
-bb11(%118: I32 [shared call]) handover(I32 [shared call]) many -> bb10:
+bb11(%118: I32 [shared slot 0]) handover(I32 [shared slot 0]) many -> bb10:
   write.init borrow.unique (v) borrow.shared %118
   %121: I32 = read copy.trivial (total)
   %122: I32 = read copy.trivial (v)

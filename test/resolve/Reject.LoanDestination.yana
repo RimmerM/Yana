@@ -13,6 +13,14 @@ import Native
    There are two other ways out. One rule covers both, and it is the destination that states it:
    **the storage a reference is placed into decides how long that reference has to be good for.**
    This frame's own storage asks for nothing, and `checkBorrows` already bounds it.
+
+   # resolver: ownership
+
+   This is the new stage's own rule. Every write
+   into a loan field is respelled as the record update made the spelling for re-pointing one:
+   `store.held = x` writes *through* the loan in the current language (ownership.md, "Records
+   holding external values"), and over a shared loan that is a different refusal from the one each
+   line is here for.
 -}
 
 data Cell {value: Int}
@@ -30,12 +38,12 @@ let &gLoose = Loose {held: gArr}
 -- `store.held` is a loan of one of its own arguments.
 fn stashLocal(&store: Store(kept')):
     let &tmp = Cell {value: 1}
-    store.held = tmp
+    store = {store | held: tmp}
 
 -- An argument in no group at all, in a destination that publishes one. Nothing relates `other` to
 -- anything the caller can check, so the loan the caller is left holding names nothing.
 fn stashUngrouped(&store: Store(kept'), other: 'Cell):
-    store.held = other
+    store = {store | held: other}
 
 -- A destination whose type publishes no slot. `Bare` holds a reference and never says whose, so
 -- there is nothing for a caller to be checked against - which §8.2 lists as the case that used to be
@@ -43,11 +51,25 @@ fn stashUngrouped(&store: Store(kept'), other: 'Cell):
 data Bare {held: 'Cell}
 
 fn stashNoSlot(&bare: Bare, value: kept'Cell):
-    bare.held = value
+    bare = {bare | held: value}
 
 -- §7.4: the storage is not this frame's to promote, the loan ends when the call does, and the
--- global does not.
+-- global does not. The whole-record spelling is the same write.
 fn stashArgument(xs: '[Int]):
-    gLoose.held = xs
+    gLoose = {gLoose | held: xs}
+
+fn stashArgumentWhole(xs: '[Int]):
+    gLoose = Loose {held: xs}
+
+-- And a local of this frame, which is gone when the call returns.
+fn stashLocalArray():
+    let &tmp = [4, 5] :: Array(Int)
+    gLoose = {gLoose | held: tmp}
+
+-- The control's other half: another global's window may replace the one it holds.
+let &gOther = [7, 8] :: Array(Int)
+
+fn repoint():
+    gLoose = {gLoose | held: gOther}
 
 fn main() -> Int = gLoose.held[0]

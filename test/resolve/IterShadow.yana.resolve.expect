@@ -207,9 +207,10 @@ fn classMember(%xs: ArrayView(I32), %value: I32) -> I32 {
     %v12 = symbol ResolveTest.continuation$24 : %()
     init %local3.code, %v12
     init %local3.env, %v10
-    %v15 = call Chunked(Array(a), a).chunks(I32, ()), %xs, %v11 : Outcome((), ())
-    %v16 = load %total : I32
-    ret %v16
+    %v15 = borrow %xs : 'ArrayView(I32)
+    %v16 = call Chunked(Array(a), a).chunks(I32, ()), %v15, %v11 : Outcome((), ())
+    %v17 = load %total : I32
+    ret %v17
 }
 
 fn main() -> I32 {

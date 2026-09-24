@@ -1,0 +1,147 @@
+module ResolveTest
+
+fn parse(n: I32 [shared call]) -> Maybe(I32) {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %6: Maybe(I32) = aggregate.Nothing
+  jump -> bb2(take %6)
+
+bb2(%7: Maybe(I32)):
+  return take %7
+
+bb3:
+  %4: I32 = read copy.trivial (n)
+  %5: Maybe(I32) = aggregate.Just take %4
+  jump -> bb2(take %5)
+}
+
+lens fn firstPositive(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, {}) {
+  local $yielded: I32
+  local local3: Maybe(I32)
+  local v: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Maybe(I32) = call parse borrow.shared %0
+  write.init borrow.unique (local3) take %1
+  %3: U8 = read copy.trivial (local3.#)
+  %4: U8 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %7: {} = const {}
+  %8: Outcome(I32, {}) = aggregate.Exit take {}
+  return take %8
+
+bb2:
+  %10: I32 = read copy.trivial (local3.Just)
+  write.init borrow.unique (v) take %10
+  %12: I32 = read copy.trivial (v)
+  %13: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %14: I32 = call inspect %13 borrow.shared %12
+  write.init borrow.unique ($yielded) take %14
+  %16: I32 = read copy.trivial ($yielded)
+  %17: Outcome(I32, {}) = aggregate.Proceed take %16
+  return take %17
+}
+
+lens fn reasoned(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
+  local $yielded: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = le inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: I32 = read copy.trivial (n)
+  %9: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %10: I32 = call inspect %9 borrow.shared %8
+  write.init borrow.unique ($yielded) take %10
+  %12: I32 = read copy.trivial ($yielded)
+  %13: Outcome(I32, I32) = aggregate.Proceed take %12
+  return take %13
+
+bb3:
+  %4: I32 = const 1
+  %5: Outcome(I32, I32) = aggregate.Exit take %4
+  return take %5
+}
+
+fn flat(n: I32 [shared call]) -> I32 {
+  local found: I32 [shared call]
+  local local2: {}
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  lens.try firstPositive borrow.shared %0 -> bb2 -> bb1
+
+bb1(%1: {}):
+  write.init borrow.unique (local2) take {}
+  %10: I32 = const 0
+  return take %10
+
+bb2(%2: I32 [shared call]) handover(I32 [shared call]) at.most.once:
+  write.init borrow.unique (found) borrow.shared %2
+  %5: I32 = read copy.trivial (found)
+  %6: I32 = const 1
+  %7: I32 = add inspect %5 inspect %6
+  return take %7
+}
+
+fn scoped(n: I32 [shared call]) -> I32 {
+  local found: I32 [shared call]
+  local e: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  lens.try reasoned borrow.shared %0 -> bb2 -> bb1
+
+bb1(%1: I32):
+  write.init borrow.unique (e) take %1
+  %10: I32 = read copy.trivial (e)
+  return take %10
+
+bb2(%2: I32 [shared call]) handover(I32 [shared call]) at.most.once:
+  write.init borrow.unique (found) borrow.shared %2
+  %5: I32 = read copy.trivial (found)
+  %6: I32 = const 2
+  %7: I32 = add inspect %5 inspect %6
+  return take %7
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 5
+  %1: I32 = call flat borrow.shared %0
+  %2: I32 = const 10
+  %3: I32 = mul inspect %1 inspect %2
+  %4: I32 = const 0
+  %5: I32 = const 5
+  %6: I32 = sub inspect %4 inspect %5
+  %7: I32 = call flat borrow.shared %6
+  %8: I32 = add inspect %3 inspect %7
+  %9: I32 = const 5
+  %10: I32 = call scoped borrow.shared %9
+  %11: I32 = const 10
+  %12: I32 = mul inspect %10 inspect %11
+  %13: I32 = add inspect %8 inspect %12
+  %14: I32 = const 0
+  %15: I32 = const 5
+  %16: I32 = sub inspect %14 inspect %15
+  %17: I32 = call scoped borrow.shared %16
+  %18: I32 = add inspect %13 inspect %17
+  return take %18
+}
+
+entry main

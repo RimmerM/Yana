@@ -30,4 +30,7 @@ instance Eq(Atomic(%Local)):
     fn ==(lhs: Atomic(%Local), rhs: Atomic(%Local)) -> Bool = True
     fn !=(lhs: Atomic(%Local), rhs: Atomic(%Local)) -> Bool = False
 
-fn main() -> Int = if measure == measure then measure(Local) else 0
+-- The ascription states the arity: a bare `measure == measure` leaves a function value with nothing
+-- to fix which overload it names, and the rewritten stage keys an overload set by name and arity, so
+-- one side is written with its type and the other is decided by it.
+fn main() -> Int = if (measure :: (Local) -> Int) == measure then measure(Local) else 0

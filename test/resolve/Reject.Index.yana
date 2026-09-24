@@ -4,6 +4,8 @@
 -- resolved. The new one is instance selection, so the answers move: a type with no instance is
 -- rejected for not having one, and a *generic* container is rejected for a constraint the signature
 -- did not declare rather than for being the wrong shape.
+--
+-- # resolver: ownership
 
 data Point = Point {x: Int, y: Int}
 
@@ -29,8 +31,6 @@ fn undeclared(xs: c, i: k) -> v = xs[i]
 fn immutable(xs: Array(Int)):
     xs[0] = 1
 
--- A range is a value naming someone else's storage, so there is nothing to assign into.
-fn rangeWrite(&xs: Array(Int), ys: [Int]):
-    xs[0..2] = ys
+-- Assigning to a range, `xs[0..2] = ys`, is `Reject.Index.Legacy.yana`.
 
 fn twoIndices(xs: Array(Int)) -> Int = xs[0, 1]

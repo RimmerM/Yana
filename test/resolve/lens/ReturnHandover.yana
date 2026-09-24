@@ -1,0 +1,38 @@
+{-
+   Returning a slot-named hand-over from inside its region - J131, J129 §7's l4.
+
+   # resolver: ownership
+
+   `let w = firstOf(s) in: return w` and `for w in wordsAscii(s): return w` are legal by J122's
+   rule: the item is the caller's storage under the origin both signatures name. The conversion
+   parked it in the result carrier and returned the carrier's contents as a consumed value, which
+   the SSA verifier refused ("return consumes a guaranteed value"); on JavaScript the carrier of a
+   window was left `undefined`.
+-}
+
+lens fn firstOf(xs: a'[Int]) -> a'[Int]:
+    yield xs[0..1]
+
+fn viaLens(s: a'[Int]) -> a'[Int]:
+    let w = firstOf(s) in:
+        return w
+    return s
+
+fn viaIter(s: a'String) -> a'String:
+    for w in wordsAscii(s):
+        return w
+    return s
+
+fn whole(s: a'[Int]) -> a'[Int]:
+    let w = firstOf(s) in:
+        if length(w) > 0 then return s
+    return s[1..2]
+
+fn main() -> Int:
+    let a = [3, 4] :: Array(Int)
+    let first = viaLens(a)
+    let word = viaIter("hi there")
+    let all = whole(a)
+    print("{length(first)} {first[0]} {word} {length(all)} {all[1]}")
+    if length(first) != 1 || first[0] != 3 || word != "hi" || length(all) != 2 then return 1
+    return 0

@@ -1,0 +1,72 @@
+{-
+   A loan of a global held across a call that may change the global.
+
+   # resolver: ownership
+
+   The body that takes the loan cannot see what a callee does to a global, so a call is checked
+   against what its summary says it may touch: a shared loan against every global the callee may
+   write, an exclusive one against every global it may read or write, both transitively through
+   direct calls. Before this rule, `window` compiled in both stages and read a run `push` had
+   freed. A
+   function value this body did not make could be anything any function value is (`hook`), and a
+   loan handed to the call is held across it as much as one kept after it (`window`).
+-}
+
+let &gArr = [1, 2, 3] :: Array(Int)
+fn double(x: Int) -> Int = x * 2
+
+fn pushing(x: Int) -> Int:
+    push(gArr, x)
+    return x
+
+let &gHook = double :: (Int) -> Int
+
+fn grow():
+    for i in 0..100:
+        push(gArr, i)
+
+fn reset():
+    gArr = [7] :: Array(Int)
+
+fn viaHelper():
+    grow()
+
+fn readAfter(xs: '[Int]) -> Int:
+    grow()
+    return xs[0]
+
+fn peek() -> Int = gArr[0]
+
+fn setHook():
+    gHook = pushing
+
+fn heldAcross() -> Int:
+    let w = gArr
+    grow()
+    return w[0]
+
+fn heldAcrossTransitive() -> Int:
+    let w = gArr
+    viaHelper()
+    return w[0]
+
+fn heldAcrossAssign() -> Int:
+    let w = gArr
+    reset()
+    return w[0]
+
+fn window() -> Int = readAfter(gArr)
+
+fn exclusive() -> Int:
+    let &w = gArr
+    let p = peek()
+    push(w, p)
+    return p
+
+fn hook() -> Int:
+    let w = gArr
+    let f = gHook
+    let r = f(1)
+    return w[0] + r
+
+fn main() -> Int = 0

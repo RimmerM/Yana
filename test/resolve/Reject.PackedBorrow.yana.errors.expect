@@ -1,3 +1,2 @@
-20:16: error: a `return &` argument must have exactly type @bits(13) U32 - the value is converted into a temporary and back, and a borrow in the result would outlive it
-27:0: error: cannot convert @bits(13) U32 to &U32
-32:40: error: cannot take the address of this field - it may share a machine word with its neighbours, so it has no address of its own. A `&` borrow of it works, because that carries the shift as well as the address
+20:23: error: an argument must be U32, and this is @bits(13) U32 - converting it would make a value of this frame, and this position is written through, so what the callee wrote would be thrown away. Declare the storage at U32
+25:36: error: a returned value must be U32, and this is @bits(13) U32 - converting it would make a value of this frame, and this position is written through, so what the callee wrote would be thrown away. Declare the storage at U32

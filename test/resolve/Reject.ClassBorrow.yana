@@ -10,26 +10,44 @@
 
    `->` is the answer to every diagnostic below, and it is what `IndexInsert.insertAt` already writes:
    an insert that misses *stores* the key, so it asks for the key rather than borrowing it.
+
+   # resolver: ownership
+
+   This is the new stage's own rule. Two lines are
+   respelled for the current language rather than for the rule: a loan field is re-pointed by an
+   update of its record, since assigning to one writes through it (ownership.md, "Records holding
+   external values"), and `Box` holds the window itself rather than a `Holder` that does - a record
+   nesting a loan-holding record is refused at the declaration in this stage, which would have
+   been the only thing `keepInside` reported.
+
+   The messages are not the shipping stage's "this implements a class function" and that is not a
+   gap. This stage holds *every* body to what its own signature says a loan's extent is - a global
+   to the program's, a `&` parameter's field to a group the caller binds - so an
+   implementation whose signature borrows `xs` for the call cannot keep it anywhere, class member or
+   not, and a generic body that trusts the class declaration is trusting a rule that was checked.
 -}
 data Holder {view: '[Int], at: Int}
 
-let &sink = Holder {view: [0], at: 0}
+-- Over a global's run rather than a `[0]` literal, whose window would be of a temporary. That is
+-- accepted today only because a borrow of a value with no storage carries no loan.
+let &sinkRun = [0] :: Array(Int)
+let &sink = Holder {view: sinkRun, at: 0}
 
 pub class Keep(c):
   fn keepGlobally(&self: c, xs: '[Int]) -> {}
   fn keepInside(&self: c, xs: '[Int]) -> {}
   fn readOnly(&self: c, xs: '[Int]) -> Int
 
-data Box {n: Int, held: Holder}
+data Box {n: Int, view: '[Int]}
 
 instance Keep(Box):
     -- Into a global, which outlives every frame there is.
     fn keepGlobally(&self: Box, xs: '[Int]):
-        sink.view = xs
+        sink = {sink | view: xs}
 
     -- And into storage the caller passed in, which outlives this frame for the same reason.
     fn keepInside(&self: Box, xs: '[Int]):
-        self.held.view = xs
+        self = {self | view: xs}
 
     -- The control: reading through the borrow is what a borrow is for, and is not reported.
     fn readOnly(&self: Box, xs: '[Int]) -> Int = xs[0] + self.n

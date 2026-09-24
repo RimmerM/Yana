@@ -1,0 +1,58 @@
+{-
+   What a loan going somewhere that outlives the frame is really rooted in, asked the same way by
+   the result, a `&` parameter's field and a global.
+
+   # resolver: ownership
+
+   `analyze_loan.cpp`'s `judgeLenders` is the one walk behind all three. Each line below was
+   accepted by one of the checks and refused by another before they shared it:
+
+    - `viaLocal` returns a `let` bound to a global, and `stashViaLocal` stores one in a `&`
+      parameter's field. The global check already followed `let w = gArr` to `gArr`; the other two
+      called `w` this function's own storage, though `return gArr` was accepted.
+    - `pick` stores a borrow that is one global or another. The binding is a block parameter, and
+      what makes it followable is that every edge into it supplies a borrow of a place.
+    - `secondOf` returns a loan of a place *inside* a parameter's second slot. The destination check
+      read the slot the place sits in; the result check read only the parameter's root contract
+      and called `t.second` borrowed for the length of the call.
+
+   `LendersAddress.yana` is the same walk through a raw address, and `lens/HandoverReborrow.yana`
+   through a hand-over. `Reject.Lenders.yana` is what the walk still refuses: a binding that holds a
+   hand-over names the storage that must outlive the call, not the storage it points into.
+-}
+
+let gArr = [1, 2, 3] :: Array(Int)
+let gOther = [40, 50, 60] :: Array(Int)
+
+data Store {held: kept'[Int]}
+data Loose {held: '[Int]}
+data Two {first: x'[Int], second: y'[Int]}
+
+let &gLoose = Loose {held: gArr}
+
+fn direct(y: a'[Int]) -> a'[Int] = gArr
+
+fn viaLocal(y: a'[Int]) -> a'[Int]:
+    let w = gArr
+    return w
+
+fn stashViaLocal(&store: Store(kept'), value: kept'[Int]):
+    let w = gOther
+    store = {store | held: w}
+
+fn pick(first: Bool):
+    let w = if first then gArr else gOther
+    gLoose = {gLoose | held: w}
+
+fn secondOf(t: Two(p', q')) -> q'[Int] = t.second
+
+fn main() -> Int:
+    let c = [5, 6] :: Array(Int)
+    let &s = Store {held: c}
+    stashViaLocal(s, c)
+
+    let a = [7, 8] :: Array(Int)
+    let t = Two {first: c, second: a}
+
+    pick(False)
+    return direct(c)[0] + viaLocal(c)[1] + s.held[2] + gLoose.held[1] + secondOf(t)[1]

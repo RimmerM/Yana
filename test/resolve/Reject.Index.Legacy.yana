@@ -1,0 +1,9 @@
+-- The rule of `Reject.Index.yana` the default stage does not refuse yet: assigning to a range,
+-- `xs[0..2] = ys`. A range is a value naming someone else's storage, so there is nothing to
+-- assign into; it says "does not implement this expression yet" instead. Move it back when it
+-- does.
+
+fn rangeWrite(&xs: Array(Int), ys: [Int]):
+    xs[0..2] = ys
+
+fn main() -> Int = 0

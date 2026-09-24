@@ -1,0 +1,145 @@
+module ResolveTest
+
+data Cell {value: I32}
+
+data Store {held: 0'Cell} shape2
+
+fn touch(a: Store [unique call shape2 .0=shared slot 0], b: Store [unique call shape8 .0=shared slot 1]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a.held.value)
+  %1: I32 = read copy.trivial (b.held.value)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn touchSame(a: Store [unique call shape2 .0=shared slot 0], b: Store [unique call shape2 .0=shared slot 0]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a.held.value)
+  %1: I32 = read copy.trivial (b.held.value)
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn swapInto(a: Store [unique call shape2 .0=shared slot 0], b: Store [unique call shape2 .0=shared slot 0]) -> I32 {
+bb0:
+  %0: Cell [shared slot 0] = read borrow.shared (b.held) loan0
+  %1: Store = aggregate.Store borrow.shared %0 roots.0{0}
+  write.assign borrow.unique (a) take %1
+  %3: I32 = read copy.trivial (a.held.value)
+  return take %3
+}
+
+fn twoGroups() -> I32 {
+  local source: Cell
+  local & box1: Store
+  local & box2: Store
+
+bb0:
+  %0: I32 = const 7
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (source) take %1
+  %3: Cell [shared slot 0] = read borrow.shared (source) loan0
+  %4: Store = aggregate.Store borrow.shared %3 roots.0{0}
+  write.init borrow.unique (box1) take %4
+  %6: Cell [shared slot 0] = read borrow.shared (source) loan1
+  %7: Store = aggregate.Store borrow.shared %6 roots.0{1}
+  write.init borrow.unique (box2) take %7
+  %9: Store [unique call] = read borrow.unique (box1) loan2 roots.0{0}
+  %10: Store [unique call] = read borrow.unique (box2) loan3 roots.0{1}
+  %11: I32 = call touch borrow.unique %9 borrow.unique %10
+  return take %11
+}
+
+fn sameGroup() -> I32 {
+  local source: Cell
+  local & box1: Store
+  local & box2: Store
+
+bb0:
+  %0: I32 = const 3
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (source) take %1
+  %3: Cell [shared slot 0] = read borrow.shared (source) loan0
+  %4: Store = aggregate.Store borrow.shared %3 roots.0{0}
+  write.init borrow.unique (box1) take %4
+  %6: Cell [shared slot 0] = read borrow.shared (source) loan1
+  %7: Store = aggregate.Store borrow.shared %6 roots.0{1}
+  write.init borrow.unique (box2) take %7
+  %9: Store [unique call] = read borrow.unique (box1) loan2 roots.0{0}
+  %10: Store [unique call] = read borrow.unique (box2) loan3 roots.0{1}
+  %11: I32 = call touchSame borrow.unique %9 borrow.unique %10
+  return take %11
+}
+
+fn writesBoxes() -> I32 {
+  local first: Cell
+  local second: Cell
+  local & box1: Store
+  local & box2: Store
+  local moved: I32
+
+bb0:
+  %0: I32 = const 5
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (first) take %1
+  %3: I32 = const 11
+  %4: Cell = aggregate.Cell take %3
+  write.init borrow.unique (second) take %4
+  %6: Cell [shared slot 0] = read borrow.shared (first) loan0
+  %7: Store = aggregate.Store borrow.shared %6 roots.0{0}
+  write.init borrow.unique (box1) take %7
+  %9: Cell [shared slot 0] = read borrow.shared (second) loan1
+  %10: Store = aggregate.Store borrow.shared %9 roots.0{1}
+  write.init borrow.unique (box2) take %10
+  %12: Store [unique call] = read borrow.unique (box1) loan2 roots.0{0}
+  %13: Store [unique call] = read borrow.unique (box2) loan3 roots.0{1}
+  %14: I32 = call swapInto borrow.unique %12 borrow.unique %13
+  write.init borrow.unique (moved) take %14
+  %16: I32 = read copy.trivial (moved)
+  %17: I32 = read copy.trivial (box1.held.value)
+  %18: I32 = add inspect %16 inspect %17
+  %19: I32 = read copy.trivial (first.value)
+  %20: I32 = add inspect %18 inspect %19
+  return take %20
+}
+
+fn bindings() -> I32 {
+  local source: Cell
+  local & box1: Store
+  local & box2: Store
+  local & x: Store
+  local & y: Store
+
+bb0:
+  %0: I32 = const 2
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (source) take %1
+  %3: Cell [shared slot 0] = read borrow.shared (source) loan0
+  %4: Store = aggregate.Store borrow.shared %3 roots.0{0}
+  write.init borrow.unique (box1) take %4
+  %6: Cell [shared slot 0] = read borrow.shared (source) loan1
+  %7: Store = aggregate.Store borrow.shared %6 roots.0{1}
+  write.init borrow.unique (box2) take %7
+  %9: Store = read copy.trivial (box1) roots.0{0}
+  write.init borrow.unique (x) take %9
+  %11: Store = read copy.trivial (box2) roots.0{1}
+  write.init borrow.unique (y) take %11
+  %13: I32 = read copy.trivial (x.held.value)
+  %14: I32 = read copy.trivial (y.held.value)
+  %15: I32 = add inspect %13 inspect %14
+  return take %15
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call twoGroups
+  %1: I32 = call sameGroup
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call writesBoxes
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call bindings
+  %6: I32 = add inspect %4 inspect %5
+  return take %6
+}
+
+entry main

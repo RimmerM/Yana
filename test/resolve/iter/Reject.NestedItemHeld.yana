@@ -1,0 +1,45 @@
+{-
+   A borrow of a nested traversal's item, kept across the outer `yield`, where the child lends the
+   item out of its own record - J131.
+
+   # resolver: ownership
+
+   `boxes` lends `b` out of its own payload, so the loop variable in `outer` is an address inside the
+   child's record, which is a member of `outer`'s. Kept across a `yield`, the member holding that
+   address would name where the child used to be once the object moved (`relocate`). A scalar item
+   is carried as its value and is not refused (`NestedItemObject.yana`); a copy of what is needed,
+   taken before the `yield`, is the way out (`copied`).
+-}
+
+data Box {v: [I32], k: I32}
+
+iter fn boxes(n: I32) -> Box:
+    for i in 0 .. n:
+        let b = Box {v: [i, i], k: i + 1}
+        yield b
+
+iter fn outer(n: I32) -> I32:
+    for b in boxes(n):
+        yield 1
+        yield b.k * 100
+
+iter fn copied(n: I32) -> I32:
+    for b in boxes(n):
+        let k = b.k
+        yield 1
+        yield k * 100
+
+fn relocate(->x: outer.Iter) -> outer.Iter = x
+
+fn main() -> I32:
+    let &it = outer(2)
+    let &t = 0
+    if it.next() is Just(x):
+        t += x
+    let &moved = relocate(it)
+    while moved.next() is Just(x):
+        t += x
+    let &ct = copied(2)
+    for x in ct:
+        t += x
+    return t

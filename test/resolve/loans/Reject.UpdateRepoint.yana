@@ -1,0 +1,41 @@
+{-
+   Re-pointing a loan field with a record update, and what stays refused.
+
+   # resolver: ownership
+
+   An update that re-points `box.held` at `source` leaves `source` borrowed for as long as `box` is
+   live, exactly as the whole-record assignment does (`local`), and so does the same update written
+   inside a callee whose signature puts `value` in `store`'s group (`throughParameter`, an
+   installed loan). A callee re-pointing its `&` parameter at its own storage is refused at its
+   `return` (`stashLocal`). An update path *through* the shared loan is refused where the stage
+   resolves it, beside `store.held.value = 3` in `../ownership/Reject.LoanFieldAssign.yana`.
+   `UpdateRepoint.yana` is the legal half.
+-}
+
+data Cell {value: Int}
+data Store {held: kept'Cell, tag: Int}
+
+fn remember(&store: Store(kept'), value: kept'Cell):
+    store = {store | held: value}
+
+fn stashLocal(&store: Store(kept')):
+    let tmp = Cell {value: 4}
+    store = {store | held: tmp}
+
+fn local() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed, tag: 3}
+    box = {box | held: source}
+    source.value = 9
+    return box.held.value
+
+fn throughParameter() -> Int:
+    let &seed = Cell {value: 1}
+    let &source = Cell {value: 7}
+    let &box = Store {held: seed, tag: 3}
+    remember(box, source)
+    source.value = 9
+    return box.held.value
+
+fn main() -> Int = 0

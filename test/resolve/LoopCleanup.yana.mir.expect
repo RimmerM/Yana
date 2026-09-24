@@ -144,24 +144,24 @@ bb4(%23: I32, %24: I32):
 
 fn sumCells(xs: Array(Cell) [shared call view]) -> U32 {
   local & total: U32
-  local c: Cell [shared call]
+  local c: Cell [shared slot 0]
 
 bb0:
   %0: U32 = const 0
   write.init borrow.unique (total) take %0
-  %2: Array(Cell) [shared call view] = read borrow.shared (xs) loan0
+  %2: Array(Cell) [shared slot 0 view] = read borrow.shared (xs) loan0
   lens.call items(Array(Cell), Cell) borrow.shared %2 -> bb2
 
 bb1:
   %26: U32 = read copy.trivial (total)
   return take %26
 
-bb2(%3: Cell [shared call]) handover(Cell [shared call]) many -> bb1:
+bb2(%3: Cell [shared slot 0]) handover(Cell [shared slot 0]) many -> bb1:
   write.init borrow.unique (c) borrow.shared %3
   %6: Bool = read copy.trivial (c.live)
   branch inspect %6 -> bb5 -> bb3
 
-bb3 handover(Cell [shared call]) many:
+bb3 handover(Cell [shared slot 0]) many:
   %16: U32 = read copy.trivial (total)
   %17: @bits(20) U32 = read copy.trivial (c.age)
   %18: U32 = convert inspect %17
@@ -171,10 +171,10 @@ bb3 handover(Cell [shared call]) many:
   write.assign borrow.unique (total) take %21
   jump -> bb4
 
-bb4 handover(Cell [shared call]) many:
+bb4 handover(Cell [shared slot 0]) many:
   jump -> bb1
 
-bb5 handover(Cell [shared call]) many:
+bb5 handover(Cell [shared slot 0]) many:
   %8: U32 = read copy.trivial (total)
   %9: @bits(4) U32 = read copy.trivial (c.kind)
   %10: U32 = convert inspect %9
@@ -256,24 +256,24 @@ bb4(%14: Size, %15: Size):
 
 fn sumItems(xs: Array(Item) [shared call view]) -> U32 {
   local & total: U32
-  local it: Item [shared call]
+  local it: Item [shared slot 0]
 
 bb0:
   %0: U32 = const 0
   write.init borrow.unique (total) take %0
-  %2: Array(Item) [shared call view] = read borrow.shared (xs) loan0
+  %2: Array(Item) [shared slot 0 view] = read borrow.shared (xs) loan0
   lens.call items(Array(Item), Item) borrow.shared %2 -> bb2
 
 bb1:
   %24: U32 = read copy.trivial (total)
   return take %24
 
-bb2(%3: Item [shared call]) handover(Item [shared call]) many -> bb1:
+bb2(%3: Item [shared slot 0]) handover(Item [shared slot 0]) many -> bb1:
   write.init borrow.unique (it) borrow.shared %3
   %6: Bool = read copy.trivial (it.live)
   branch inspect %6 -> bb5 -> bb3
 
-bb3 handover(Item [shared call]) many:
+bb3 handover(Item [shared slot 0]) many:
   %16: U32 = read copy.trivial (total)
   %17: @bits(8) U32 = read copy.trivial (it.level)
   %18: U32 = convert inspect %17
@@ -281,10 +281,10 @@ bb3 handover(Item [shared call]) many:
   write.assign borrow.unique (total) take %19
   jump -> bb4
 
-bb4 handover(Item [shared call]) many:
+bb4 handover(Item [shared slot 0]) many:
   jump -> bb1
 
-bb5 handover(Item [shared call]) many:
+bb5 handover(Item [shared slot 0]) many:
   %8: U32 = read copy.trivial (total)
   %9: @bits(4) U32 = read copy.trivial (it.kind)
   %10: U32 = convert inspect %9
@@ -371,7 +371,7 @@ fn stamp(xs: Array(Item) [unique call view]) -> U32 {
   local i: Size
   local & local5: Item [unique slot 0 owner]
   local & total: U32
-  local it: Item [shared call]
+  local it: Item [shared slot 0]
 
 bb0:
   %0: Size = const 0
@@ -401,7 +401,7 @@ bb2(%12: Size, %13: Size):
 bb3(%14: Size, %15: Size):
   %42: U32 = const 0
   write.init borrow.unique (total) take %42
-  %44: Array(Item) [shared call view] = read borrow.shared (xs) loan3
+  %44: Array(Item) [shared slot 0 view] = read borrow.shared (xs) loan3
   lens.call items(Array(Item), Item) borrow.shared %44 -> bb6
 
 bb4(%20: Size, %21: Size):
@@ -425,7 +425,7 @@ bb5:
   %54: U32 = read copy.trivial (total)
   return take %54
 
-bb6(%45: Item [shared call]) handover(Item [shared call]) many -> bb5:
+bb6(%45: Item [shared slot 0]) handover(Item [shared slot 0]) many -> bb5:
   write.init borrow.unique (it) borrow.shared %45
   %48: U32 = read copy.trivial (total)
   %49: @bits(12) U32 = read copy.trivial (it.count)

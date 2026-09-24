@@ -165,7 +165,7 @@ fn main() -> I32 {
   local colours: Array(Colour) object1
   local & total: I64
   local & names: String
-  local c: Colour [shared call]
+  local c: Colour [shared slot 0]
   local p: Pair
   local & local6: I32
   local i: I32
@@ -213,7 +213,7 @@ bb0:
   write.init borrow.unique (total) take %34
   %36: String = const String {units: Array {run: Run {items: &string'149, capacity: 0, ownsHeap: 0}, length: 0}}
   write.init borrow.unique (names) take %36
-  %38: Array(Colour) [shared call] = read borrow.shared (colours) loan0
+  %38: Array(Colour) [shared slot 0] = read borrow.shared (colours) loan0
   %39: Array(Colour) [shared slot 0 view] = call.derivation elements(Array(Colour), Colour) borrow.shared %38 roots{0}
   lens.call items(Array(Colour), Colour) borrow.shared %39 -> bb2
 
@@ -225,7 +225,7 @@ bb1:
   write.init borrow.unique (local6) take %92
   jump -> bb6(take %93, take %94)
 
-bb2(%40: Colour [shared call]) handover(Colour [shared call]) many -> bb1:
+bb2(%40: Colour [shared slot 0]) handover(Colour [shared slot 0]) many -> bb1:
   write.init borrow.unique (c) borrow.shared %40
   %43: I64 = read copy.trivial (total)
   %44: Colour = read copy.trivial (c)
@@ -248,10 +248,10 @@ bb2(%40: Colour [shared call]) handover(Colour [shared call]) many -> bb1:
   %61: Bool = call warm borrow.shared %60
   branch inspect %61 -> bb5 -> bb3
 
-bb3 handover(Colour [shared call]) many:
+bb3 handover(Colour [shared slot 0]) many:
   jump -> bb4
 
-bb4 handover(Colour [shared call]) many:
+bb4 handover(Colour [shared slot 0]) many:
   %69: I64 = read copy.trivial (total)
   %70: Colour = read copy.trivial (c)
   %71: I64 = call wide borrow.shared %70
@@ -276,7 +276,7 @@ bb4 handover(Colour [shared call]) many:
   write.reinit borrow.unique (names) take %89
   jump -> bb1
 
-bb5 handover(Colour [shared call]) many:
+bb5 handover(Colour [shared slot 0]) many:
   %63: I64 = read copy.trivial (total)
   %64: I64 = const 1000
   %65: I64 = add inspect %63 inspect %64

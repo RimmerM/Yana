@@ -1,6 +1,13 @@
--- What §4.7's contract rejects - a loan installed in a caller-owned destination, and the caller
--- then treating it as if the call had ended it.
---
+{-
+   What §4.7's contract rejects - a loan installed in a caller-owned destination, and the caller
+   then treating it as if the call had ended it.
+
+   # resolver: ownership
+
+   The new stage's own rule, with the field assignment respelled as the whole-record one an
+   author writes.
+-}
+
 -- Returning a reference is only one way a loan can outlive a call. A function can also install one
 -- in storage the caller passed in, and then there is no result for the loan to be bounded by:
 -- bounding it by the *call* is exactly wrong, because the whole point of the signature is that the
@@ -10,7 +17,7 @@ data Cell {value: Int}
 data Store {held: kept'Cell}
 
 fn remember(&store: Store(kept'), value: kept'Cell):
-    store.held = value
+    store = Store {held: value}
 
 -- The source is installed in `box`, so writing through it while `box` still lives is two writers of
 -- one place - exactly as it would be through a reference the call had returned.

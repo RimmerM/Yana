@@ -249,7 +249,7 @@ bb0:
   store inspect %24 consume %63
   %64: String owned = const String {units: Array {run: Run {items: &string'149, capacity: 0, ownsHeap: 0}, length: 0}}
   store inspect %25 consume %64
-  %65: Array(Colour) [shared call] guaranteed from{%23} = load inspect %23
+  %65: Array(Colour) [shared slot 0] guaranteed from{%23} = load inspect %23
   %66: Array(Colour) [shared slot 0 view] guaranteed from{%23} = call Array(a).elements(Colour) borrow %65
   %67: I64 [unique slot 0] guaranteed = load inspect %24
   %68: String [unique slot 1] guaranteed = load inspect %25
@@ -397,72 +397,70 @@ bb12(%20: I32 trivial, %21: I32 trivial):
   jump -> bb10(consume %20, consume %21)
 }
 
-fn main.cont(main.cont.env: main.cont.env [unique call], $handed: Colour [shared call]) -> I32 {
-bb0(%0: main.cont.env [unique call] guaranteed, %1: Colour trivial):
+fn main.cont(main.cont.env: main.cont.env [unique call], $handed: Colour [shared slot 0]) -> I32 {
+bb0(%0: main.cont.env [unique call] guaranteed, %1: Colour [shared slot 0] guaranteed):
   %2: %I64 address = field.addr .total inspect %0
   %3: %I64 address = load inspect %2
   %4: %String address = field.addr .names inspect %0
   %5: %String address = load inspect %4
-  %6: %Colour address = alloc frame Colour [shared call]
-  %7: %Pair address = alloc frame Pair
-  store inspect %6 borrow %1
-  %8: I64 trivial = load inspect %3
-  %9: Colour trivial = load inspect %6
-  %10: I32 trivial = call wavelength borrow %9
-  %11: Colour trivial = load inspect %6
-  %12: I32 trivial = call rank borrow %11
-  %13: I32 trivial = const 3
-  %14: I32 trivial = mul inspect %12 inspect %13
-  %15: I32 trivial = add inspect %10 inspect %14
-  %16: Colour trivial = load inspect %6
-  %17: I32 trivial = call seven borrow %16
-  %18: I32 trivial = add inspect %15 inspect %17
-  %19: Colour trivial = load inspect %6
-  %20: I32 trivial = call wavelengthAgain borrow %19
-  %21: I32 trivial = add inspect %18 inspect %20
-  %22: I64 trivial = convert inspect %21
-  %23: I64 trivial = add inspect %8 inspect %22
-  store inspect %3 consume %23
-  %24: Colour trivial = load inspect %6
-  %25: Bool trivial = call warm borrow %24
-  branch inspect %25 -> bb3 -> bb1
+  %6: %Pair address = alloc frame Pair
+  %7: I64 trivial = load inspect %3
+  %8: Colour trivial = load inspect %1
+  %9: I32 trivial = call wavelength borrow %8
+  %10: Colour trivial = load inspect %1
+  %11: I32 trivial = call rank borrow %10
+  %12: I32 trivial = const 3
+  %13: I32 trivial = mul inspect %11 inspect %12
+  %14: I32 trivial = add inspect %9 inspect %13
+  %15: Colour trivial = load inspect %1
+  %16: I32 trivial = call seven borrow %15
+  %17: I32 trivial = add inspect %14 inspect %16
+  %18: Colour trivial = load inspect %1
+  %19: I32 trivial = call wavelengthAgain borrow %18
+  %20: I32 trivial = add inspect %17 inspect %19
+  %21: I64 trivial = convert inspect %20
+  %22: I64 trivial = add inspect %7 inspect %21
+  store inspect %3 consume %22
+  %23: Colour trivial = load inspect %1
+  %24: Bool trivial = call warm borrow %23
+  branch inspect %24 -> bb3 -> bb1
 
 bb1:
   jump -> bb2
 
 bb2:
-  %26: I64 trivial = load inspect %3
-  %27: Colour trivial = load inspect %6
-  %28: I64 trivial = call wide borrow %27
-  %29: I64 trivial = add inspect %26 inspect %28
-  store inspect %3 consume %29
-  %30: Colour trivial = load inspect %6
-  %31: Pair trivial = call pair borrow %30
-  store inspect %7 consume %31
-  %32: I64 trivial = load inspect %3
-  %33: %I32 address = field.addr .left inspect %7
-  %34: I32 trivial = load inspect %33
-  %35: I32 trivial = const 10
-  %36: I32 trivial = mul inspect %34 inspect %35
-  %37: %I32 address = field.addr .right inspect %7
-  %38: I32 trivial = load inspect %37
-  %39: I32 trivial = add inspect %36 inspect %38
-  %40: I64 trivial = convert inspect %39
-  %41: I64 trivial = add inspect %32 inspect %40
-  store inspect %3 consume %41
-  %42: String owned = load inspect %5
-  %43: Colour trivial = load inspect %6
-  %44: String owned = call name borrow %43
-  %45: String owned = call String.++ consume %42 consume %44
-  store inspect %5 consume %45
-  %46: I32 trivial = const 0
-  return consume %46
+  %25: I64 trivial = load inspect %3
+  %26: Colour trivial = load inspect %1
+  %27: I64 trivial = call wide borrow %26
+  %28: I64 trivial = add inspect %25 inspect %27
+  store inspect %3 consume %28
+  %29: Colour trivial = load inspect %1
+  %30: Pair trivial = call pair borrow %29
+  store inspect %6 consume %30
+  %31: I64 trivial = load inspect %3
+  %32: %I32 address = field.addr .left inspect %6
+  %33: I32 trivial = load inspect %32
+  %34: I32 trivial = const 10
+  %35: I32 trivial = mul inspect %33 inspect %34
+  %36: %I32 address = field.addr .right inspect %6
+  %37: I32 trivial = load inspect %36
+  %38: I32 trivial = add inspect %35 inspect %37
+  %39: I64 trivial = convert inspect %38
+  %40: I64 trivial = add inspect %31 inspect %39
+  store inspect %3 consume %40
+  %41: String owned = load inspect %5
+  %42: Colour trivial = load inspect %1
+  %43: String owned = call name borrow %42
+  %44: String owned = call String.++ consume %41 consume %43
+  store inspect %5 consume %44
+  %45: I32 trivial = const 0
+  return consume %45
 
 bb3:
-  %47: I64 trivial = load inspect %3
-  %48: I64 trivial = const 1000
-  %49: I64 trivial = add inspect %47 inspect %48
-  store inspect %3 consume %49
+  %46: I64 trivial = load inspect %3
+  %47: I64 trivial = const 1000
+  %48: I64 trivial = add inspect %46 inspect %47
+  store inspect %3 consume %48
   jump -> bb2
 }
 

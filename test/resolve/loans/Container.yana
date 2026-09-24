@@ -1,0 +1,75 @@
+{-
+   A container of records holding loans, used and then finished with.
+
+   # resolver: ownership
+
+   The legal neighbours of `Reject.Container.yana`: each lender is written only after the last read
+   of every container holding a loan of it, or only read while one does. The container's own
+   teardown is not a read - dropping a `Store` releases its loan without touching the cell - so
+   `source` is writable while `xs` still waits for its drop at the end of the body. A container of
+   owned values has no element position and is unaffected, and `addTo` publishes the group its
+   elements are filled from on the container's own root, which is the one spelling a signature has
+   for them.
+-}
+
+data Cell {value: Int}
+data Store {held: kept'Cell}
+data Bag {stores: [Store], count: Int}
+
+fn total(xs: [Store]) -> Int:
+    let &sum = 0
+    for s in items(xs):
+        sum += s.held.value
+    return sum
+
+fn pick(xs: '[Store]) -> 'Store = xs[0]
+
+fn addTo(&xs: kept'Array(Store), cell: kept'Cell):
+    push(xs, Store {held: cell})
+
+-- 2 + 7 = 9, then 9 + 9 - 5 = 13.
+fn literal() -> Int:
+    let &source = Cell {value: 2}
+    let &other = Cell {value: 5}
+    let xs = [Store {held: source}, Store {held: other}]
+    let first = xs[0].held.value + total(xs)
+    source.value = 9
+    return first + source.value - other.value
+
+-- 5 + 2 = 7, then 7 + 10 = 17: `addTo` put `source` at index 1.
+fn pushed() -> Int:
+    let &source = Cell {value: 2}
+    let &other = Cell {value: 5}
+    let &ys = [] :: [Store]
+    push(ys, Store {held: other})
+    addTo(ys, source)
+    let read = pick(ys).held.value + ys[1].held.value
+    source.value = 10
+    return read + source.value
+
+-- 5, then 5 + 12 = 17.
+fn fixed() -> Int:
+    let &source = Cell {value: 2}
+    let &other = Cell {value: 5}
+    let xs = [Store {held: source}, Store {held: other}] :: [Store *2]
+    let read = xs[1].held.value
+    other.value = 12
+    return read + other.value
+
+-- 2 + 1 = 3, then 3 + 13 = 16.
+fn inRecord() -> Int:
+    let &source = Cell {value: 2}
+    let bag = Bag {stores: [Store {held: source}], count: 1}
+    let read = bag.stores[0].held.value + bag.count
+    source.value = 13
+    return read + source.value
+
+-- 3 + 4 = 7: an array of owned records, with the cell written between two reads.
+fn owned() -> Int:
+    let &cells = [Cell {value: 3}]
+    let read = cells[0].value
+    cells[0].value = 4
+    return read + cells[0].value
+
+-- 13 + 17 + 17 + 16 + 7 = 70.
+fn main() -> Int = literal() + pushed() + fixed() + inRecord() + owned()

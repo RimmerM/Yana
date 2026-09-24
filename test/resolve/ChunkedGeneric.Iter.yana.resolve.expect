@@ -524,19 +524,20 @@ fn items(Chunks, I32, ())(%self: Chunks, %body: (value$: I32) -> Outcome((), ())
     %v7 = symbol ResolveTest.continuation$23(Chunks, I32, ()) : %()
     init %local3.code, %v7
     init %local3.env, %v5
-    %v10 = call Chunked(Chunks, I32).chunks(Outcome((), ())), %self, %v6 : Outcome((), Outcome((), ()))
-    %v11 = load %local4.discriminant : I32
-    %v13 = cmp_eq %v11, 1 : Bool
-    je %v13, b1, b2
+    %v10 = borrow %self : 'Chunks
+    %v11 = call Chunked(Chunks, I32).chunks(Outcome((), ())), %v10, %v6 : Outcome((), Outcome((), ()))
+    %v12 = load %local4.discriminant : I32
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b1, b2
 
   b1:
-    %v15 = move %local4@Exit : Outcome((), ())
-    ret %v15
+    %v16 = move %local4@Exit : Outcome((), ())
+    ret %v16
 
   b2:
-    %v17 = alloc : Outcome((), ())
+    %v18 = alloc : Outcome((), ())
     init %local5.discriminant, 0
-    ret %v17
+    ret %v18
 }
 
 fn ResolveTest.continuation$23(Chunks, I32, ())(%env: %{body: '(value$: I32) -> Outcome((), ())}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
@@ -709,19 +710,20 @@ fn items(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: I32) ->
     %v7 = symbol ResolveTest.continuation$23(ArrayView(I32), I32, ()) : %()
     init %local3.code, %v7
     init %local3.env, %v5
-    %v10 = call Chunked(Array(a), a).chunks(I32, Outcome((), ())), %self, %v6 : Outcome((), Outcome((), ()))
-    %v11 = load %local4.discriminant : I32
-    %v13 = cmp_eq %v11, 1 : Bool
-    je %v13, b1, b2
+    %v10 = borrow %self : 'ArrayView(I32)
+    %v11 = call Chunked(Array(a), a).chunks(I32, Outcome((), ())), %v10, %v6 : Outcome((), Outcome((), ()))
+    %v12 = load %local4.discriminant : I32
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b1, b2
 
   b1:
-    %v15 = move %local4@Exit : Outcome((), ())
-    ret %v15
+    %v16 = move %local4@Exit : Outcome((), ())
+    ret %v16
 
   b2:
-    %v17 = alloc : Outcome((), ())
+    %v18 = alloc : Outcome((), ())
     init %local5.discriminant, 0
-    ret %v17
+    ret %v18
 }
 
 fn ResolveTest.continuation$23(ArrayView(I32), I32, ())(%env: %{body: '(value$: I32) -> Outcome((), ())}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {

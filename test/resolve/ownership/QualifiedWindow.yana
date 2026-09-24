@@ -1,0 +1,37 @@
+{-
+   A window through a qualified type argument - `Named('String)`, `Named('[I32])` - J131, review 3
+   item 5.
+
+   # resolver: ownership
+
+   The argument's slot said whole value, so the field was laid out as a pointer to an owner while the
+   construction stored the view's two words, and `e.name` read back empty natively (JavaScript and
+   the shipping stage were right). A shared window-able argument is the view, as a variable position
+   bound to one already was.
+-}
+
+data Named(s) {name: s, n: I32}
+
+fn mkText(xs: '[String]) -> Named('String) = Named {name: xs[1], n: 7}
+fn mkWindow(xs: '[[I32]]) -> Named('[I32]) = Named {name: xs[1], n: 5}
+fn mkArray(xs: '[Array(I32)]) -> Named('Array(I32)) = Named {name: xs[0], n: 3}
+
+iter fn named(xs: '[String]) -> Named('String):
+    for i in 0 .. length(xs):
+        yield Named {name: xs[i], n: truncate(i)}
+
+fn main() -> I32:
+    let xs = ["ab", "cde", "f"]
+    let ys = [[1, 2], [3, 4, 5]]
+    let e = mkText(xs)
+    let a = mkWindow(ys)
+    let o = mkArray(ys)
+    print("{e.name} {length(e.name)} {e.n} {length(a.name)} {a.name[2]} {a.n} {length(o.name)} {o.name[1]} {o.n}")
+
+    let &u = 0 :: Size
+    for m in named(xs):
+        u = u * 100 + length(m.name) * 10 + (m.n :: Size)
+    print("{u}")
+
+    if e.name != "cde" || length(a.name) != 3 || o.name[1] != 2 || u != 203112 then return 1
+    return 0

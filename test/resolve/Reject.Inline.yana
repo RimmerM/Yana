@@ -1,4 +1,6 @@
 -- The ways of writing the inlining attributes that the resolver refuses.
+--
+-- # resolver: ownership
 
 -- Anything but `always` in the parentheses is not an attribute this compiler has.
 @inline(sometimes)
@@ -8,11 +10,9 @@ fn guessed(x: Int) -> Int = x + 2
 @noinline(never)
 fn qualified(x: Int) -> Int = x + 3
 
--- The two together are a contradiction rather than a precedence question, so neither applies and
--- the function is left to the ordinary heuristics.
-@inline
-@noinline
-fn undecided(x: Int) -> Int = x + 4
+-- Plain `@inline` beside `@noinline` moved to `Reject.Inline.Legacy.yana`; that file says
+-- what the new stage does instead. `@inline(always)` on a body that calls itself went there too and
+-- is `Reject.Inline.Recursive.yana`.
 
 -- And the same contradiction said with the guarantee, which is the one of the three that would
 -- otherwise have won: `@inline(always)` is a directive both passes carry out between them, so a
@@ -21,11 +21,4 @@ fn undecided(x: Int) -> Int = x + 4
 @noinline
 fn contradicted(x: Int) -> Int = x + 5
 
--- A body that calls itself is the one shape of `@inline(always)` that is still an error, and it is
--- the only one: every copy of it contains the same call, so there is no number of expansions after
--- which the attribute has been carried out. A branch or a call to something *else* is admitted now
--- and taken by compiler/opt's inliner - see AlwaysInline.Branch.yana, which is where those live.
-@inline(always)
-fn countingDown(x: Int) -> Int = if x <= 0 then 0 else countingDown(x - 1) + 1
-
-fn main() -> Int = guessed(2) + qualified(3) + undecided(4) + contradicted(5) + countingDown(6)
+fn main() -> Int = guessed(2) + qualified(3) + contradicted(5)

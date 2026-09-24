@@ -1,0 +1,31 @@
+{-
+   A write through a shared loan a record holds, refused in one set of words wherever it is
+   written.
+
+   # resolver: ownership
+
+   An assignment, a compound one and a `&` argument are the same write and read alike, each
+   naming the place and the loan. Inside a lambda the capture is `&box`, so what refuses the write
+   is the loan field and not the capture - the sentence used to say `box` was "captured by value,
+   because it is not declared `&`" - and the names are the author's rather than the environment's.
+-}
+
+data Cell {value: Int}
+data Store {held: kept'Cell, tag: Int}
+
+fn bump(&v: Int):
+    v += 1
+
+fn applyUnit(f: () -> {}): f()
+
+fn main() -> Int:
+    let &seed = Cell {value: 1}
+    let &other = Cell {value: 2}
+    let &box = Store {held: seed, tag: 3}
+    box.held.value = 2
+    box.held.value += 2
+    bump(box.held.value)
+    box.held = other
+    applyUnit((): box.held = other)
+    applyUnit((): box.held.value = 5)
+    return box.tag

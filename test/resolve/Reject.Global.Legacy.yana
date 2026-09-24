@@ -1,0 +1,21 @@
+-- The rules of `Reject.Global.yana` the default stage does not refuse yet: a number the type
+-- cannot hold, at `U8`, at `I64` and as a negative address. It warns and truncates the first
+-- three, and refuses `-1 :: %U8` only because the negation is not folded to a constant ("a
+-- literal of %U8 is a call of its FromInt instance"). Move each back when it does.
+
+-- A number the type cannot hold. The bits above the type's width used to be dropped where the
+-- constant was written into the global's storage, so this declared a `U8` holding 44 and said
+-- nothing; the same rule reads `-1 :: U8` as the negative it was written as rather than as 255.
+let &tooBig = 300 :: U8
+let &negative = -1 :: U8
+
+-- The same question at the width where the sign is the whole of the answer. `18446744073709551615`
+-- is a `U64` and not an `I64`, and folding the sign into the bits before the type was known made it
+-- indistinguishable from `-1` - which this used to accept as one.
+let &wideUnsigned = 18446744073709551615 :: I64
+
+-- An address counts up from zero, so a negative one is a number that means nothing rather than a
+-- large one. How wide it would be is the target's answer and is not what is wrong here.
+let &behind = -1 :: %U8
+
+fn main() -> Int = 0

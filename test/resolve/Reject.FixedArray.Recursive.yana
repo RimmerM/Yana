@@ -1,0 +1,16 @@
+-- `Reject.FixedArray.yana`'s last case on its own: the new stage stops at a declaration
+-- error, so beside the body rules it hid all of them.
+--
+-- # resolver: ownership
+
+{-
+   A fixed array of itself has no finite size, and there is no edge to cut.
+
+   `breakLayoutCycles` inserts an indirection at the back edge of a record cycle; a fixed array has
+   none to insert one on - boxing the element would make `[Cell *4]` four pointers, which is a
+   different type from the one that was written. So this is reported instead of silently becoming
+   something else.
+-}
+data Cell {kids: [Cell *4]}
+
+fn main() -> Int = 0

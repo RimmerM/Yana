@@ -168,6 +168,8 @@ bool Resolver::emitCarrierExit(Builder& builder, Node& reason, const TryShape& l
                                LocationId source) {
     auto& function = *currentFunction;
 
+    // What the enclosing expression holds is given up immediately before each `return` below, after
+    // the carrier is built - `releaseHeld`, where the order is argued.
     if(function.failure) {
         auto value = coerce(builder, reason, function.failure, source, "a failure value"_v);
         if(!value) return false;
@@ -176,6 +178,7 @@ bool Resolver::emitCarrierExit(Builder& builder, Node& reason, const TryShape& l
         auto wrapped = builder.addAggregate(source, function.result.type, kOutcomeExit, &only, 1);
         if(!wrapped) return false;
 
+        releaseHeld(builder, nullptr, source);
         builder.addReturn(source, *wrapped);
         return true;
     }
@@ -194,6 +197,7 @@ bool Resolver::emitCarrierExit(Builder& builder, Node& reason, const TryShape& l
 
     if(!checkResultContract(*carrier, source)) return false;
 
+    releaseHeld(builder, nullptr, source);
     builder.addReturn(source, *carrier);
     return true;
 }

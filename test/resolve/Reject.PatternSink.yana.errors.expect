@@ -1,8 +1,5 @@
-50:11: error: `->` in a pattern has to be written on a name or on `_` - taking a value out and then testing what came out would leave it moved on the path where the test failed
-57:14: error: a pattern cannot bind with `&` - matching does not establish the exclusive access that would need. Match on the value and write through the name that owns it, or write `&->` to take it out into storage this binding owns
-28:0: error: cannot move a part of a value out of it - move the whole value instead
-33:40: error: this hands ownership on out of a value that still owns it - write `->` on the name that binds it, as in `Just(->v)`, to take it out, or `let &->` where the name must also be writable
-39:47: error: cannot move a part of a value out of it - move the whole value instead
-39:47: error: cannot move a part of a value out of it - move the whole value instead
-43:34: error: this hands ownership on out of storage this frame only borrows - take the whole value with `->` in the signature, or answer a borrow instead
-66:11: error: cannot move a part of a value out of it - move the whole value instead
+36:15: error: v cannot be handed over, because this function borrows it rather than owning it
+42:15: error: v cannot be handed over, because this function borrows it rather than owning it
+48:11: error: `->` in a pattern has to be written on a name or on `_` - taking a value out and then testing what came out would leave it moved on the path where the test failed
+55:14: error: a pattern cannot bind with `&` - matching does not establish the exclusive access that would need. Write `&->` to take the value out into storage this binding owns
+64:11: error: m.Just is a `@box` field, and this stage cannot hand its value over on its own - the allocation the field is would be left with nothing owning it

@@ -1,0 +1,134 @@
+{-
+   `let &d = c` is a loan of `c` on every target.
+
+   # resolver: ownership
+
+   A binding of a place is a loan or a second value according to whether the type is `TrivialCopy`
+   (`doc/spec/ownership.md`, "A second name for an owned value"). A JavaScript string is a host
+   handle the host collects, so `String` - and every record holding one - is trivially copied on
+   that target, and the resolver read the binding's meaning off that: `let &d = s` then `d = "bcd"`
+   wrote `s` natively and a copy on JavaScript, and the program answered 3 on one and 1 on the other.
+   The exclusive request now asks whether the type is `TrivialCopy` on *every* target
+   (`resolve_mir`'s `Ownership::hostHandle`), so writing through `d` writes `c` on both.
+
+   The last two cases are the other half of the rule and must not move: a record of numbers is
+   `TrivialCopy` everywhere, so `let &d = r` over one is a second value on both targets.
+
+   Each case compares its answer with the right one and sets one bit, so the answer is 2047 and a
+   regression names its case by the bit it clears.
+-}
+
+data R {n: Int, s: String}
+data P {r: R, k: Int}
+data Plain {n: Int, m: Int}
+
+-- A string local, replaced through the loan.
+fn stringLocal() -> Int:
+    let &s = "a"
+    let &d = s
+    d = "bcd"
+    return truncate(length(s))
+
+-- A record holding a string, replaced whole through the loan.
+fn recordReplaced() -> Int:
+    let &box = R {n: 1, s: "a"}
+    let &d = box
+    d = R {n: 5, s: "b"}
+    return box.n
+
+-- The same record, written a field at a time.
+fn recordFields() -> Int:
+    let &box = R {n: 1, s: "a"}
+    let &d = box
+    d.n = 5
+    d.s = "xyz"
+    return box.n + truncate(length(box.s))
+
+-- An element of an array, a field of a record, and a `&` parameter, each lent on.
+fn element() -> Int:
+    let &xs = [R {n: 1, s: "a"}, R {n: 2, s: "b"}]
+    let &d = xs[1]
+    d.n = 20
+    return xs[1].n
+
+fn field() -> Int:
+    let &p = P {r: R {n: 3, s: "c"}, k: 4}
+    let &e = p.r
+    e = R {n: 7, s: "zz"}
+    return p.r.n + truncate(length(p.r.s))
+
+fn relend(&r: R):
+    let &d = r
+    d = R {n: 100, s: "p"}
+
+fn parameter() -> Int:
+    let &q = R {n: 0, s: ""}
+    relend(q)
+    return q.n
+
+-- A lambda that writes what it captured, which was a loan on both targets already.
+fn setN(&r: R, v: Int) -> Int:
+    r.n = v
+    return 0
+
+fn captured() -> Int:
+    let &box = R {n: 1, s: "a"}
+    let set = (v: Int) -> setN(box, v)
+    let z = set(5)
+    return box.n + z
+
+fn parked() -> Int:
+    let &box = R {n: 1, s: "a"}
+    let &d = box
+    d = R {n: 9, s: "qq"}
+    let &e = d
+    e.n = 11
+    return box.n
+
+-- A record of numbers: a second value on both targets.
+fn plainRecord() -> Int:
+    let &c = Plain {n: 1, m: 2}
+    let &d = c
+    d = Plain {n: 5, m: 6}
+    return c.n + d.n
+
+fn relendPlain(&r: Plain):
+    let &d = r
+    d = Plain {n: 100, m: 1}
+
+fn plainParameter() -> Int:
+    let &q = Plain {n: 0, m: 0}
+    relendPlain(q)
+    return q.n
+
+-- An iterator object is a record too, and one that owns a string through a captured `->` argument
+-- is lent by `let &`, so stepping `c` steps `it`.
+iter fn owning(->source: String, n: I32) -> I32:
+    for i in 0..n:
+        yield i + truncate(length(source))
+
+fn steppedOwning() -> Int:
+    let &it = owning("abc", 5)
+    let &c = it
+    let &r = 0
+    if c.next() is Just(x) then r = r * 10 + x
+    if c.next() is Just(x) then r = r * 10 + x
+    if it.next() is Just(x) then r = r * 10 + x
+    return r
+
+fn bit(ok: Bool, at: Int) -> Int = if ok then 1 `shl` at else 0
+
+fn main() -> Int:
+    let &r = 0
+    r += bit(stringLocal() == 3, 0)
+    r += bit(recordReplaced() == 5, 1)
+    r += bit(recordFields() == 8, 2)
+    r += bit(element() == 20, 3)
+    r += bit(field() == 9, 4)
+    r += bit(parameter() == 100, 5)
+    r += bit(captured() == 5, 6)
+    r += bit(parked() == 11, 7)
+    r += bit(plainRecord() == 6, 8)
+    r += bit(plainParameter() == 0, 9)
+    r += bit(steppedOwning() == 345, 10)
+    return r

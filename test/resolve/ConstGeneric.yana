@@ -10,8 +10,9 @@
 
    **The annotation is written where the parameter is introduced, and it is a type** (§1). A head
    writes it because a head is the declaration's API and `A(4)` is otherwise indistinguishable from a
-   type application; a private function may leave it to the position that uses it, which is §1.5's
-   policy and the reason `unannotated` below compiles.
+   type application. §1.5 let a private function leave it to the position that uses it; classes.md
+   §Const generic parameters does not - a const parameter is introduced by `n: Int` in the context
+   list and nowhere else - so `firstOf` below writes it too.
 
    **A const parameter is a value in an expression** (§1.6). It needs no expression form of its own -
    the parameter has a type, so every rule already applies to it - and what it produces is
@@ -42,9 +43,9 @@ alias Fixed(a, n: Int) = [a *n]
 -- reads back through the printed schema.
 pub fn (n: Int) countOf(xs: [Int *n]) -> Int = n
 
--- §1.5: the same parameter inferred rather than annotated, which a private function may do because
--- the position that uses it wants a number and no search decides that.
-fn firstOf(xs: [Int *n]) -> Int = xs[0]
+-- §1.5's case, a private function over a count. It used to leave `n` to be inferred; the spec
+-- introduces a const parameter only in the context list, so it is written there as `countOf`'s is.
+fn (n: Int) firstOf(xs: [Int *n]) -> Int = xs[0]
 
 -- The count read inside a *loop* rather than as a value, which is §4.1: the counted form of
 -- `eachFixedElement` already compares against a value, so the erased fixed array is the path that

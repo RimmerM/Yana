@@ -1,0 +1,29 @@
+-- The rules of `Reject.Closure.yana` the default stage does not refuse yet: a frame touching a
+-- binding a stored closure captured by `&`, `return` in a lambda, and a generic function used as
+-- a value. It refuses the first two only as unbuilt, and the generic value for its arity rather
+-- than for being generic. Move each back when it does.
+
+fn applyUnit(f: () -> {}): f()
+
+fn identity(->x: a) -> a = x
+
+-- The exclusivity half of the same rule: a by-reference capture is a mutable borrow live for as
+-- long as the closure, so the enclosing frame may not touch the binding while one exists.
+fn borrowedWhileCaptured() -> Int:
+    let &count = 0 :: Int
+    let bump = (): count = count + 1
+    let seen = count
+    applyUnit(bump)
+    return seen
+
+-- The result type is the body's, so there is nothing for a `return` to be checked against.
+fn returnInInferredLambda() -> Int:
+    let f = (x: Int): return x + 1
+    return 0
+
+-- A generic function reached as a value would need a witness rather than an address.
+fn genericAsValue() -> Int:
+    let f = identity
+    return 0
+
+fn main() -> Int = 0

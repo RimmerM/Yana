@@ -1,0 +1,80 @@
+{-
+   What an exit gives up of the expression it leaves, and when.
+
+   # resolver: ownership
+
+   `return Just(maybeId(b)? + 100)` written inside an argument: the `return` gives up
+   `Token {id: 10}`, and so does the `?` inside its operand, on its own edge. Releasing before
+   the operand took the token on the path the `?` then continued on, and the conversion reported
+   "branch consumes 2, which was already consumed". Released after the operand, each exit takes it
+   once. `resume` has the same shape through `continue v`.
+
+   And the order: the held values are dropped outermost first, as named locals are, so `nested`
+   with `c` failing drops 1 and then 2 - the trace reads 12 and not 21.
+
+   `inLens` is the same shape with a `return` inside a lens region instead of the `?`: the held
+   values are given storage before the region is entered, and the unnamed locals are dropped in
+   the order they are declared - so they have to be declared outermost first too. They were
+   declared innermost first, and the trace read 21 on both targets while the other stage read 12
+   (J118).
+
+   The answer is dropped (10 + 10) * 10000000 + tri's trace 12 * 100000 + nested's trace 12 * 1000
+   + inLens's trace 12.
+-}
+
+let &dropped = 0 :: Int
+let &trace = 0 :: Int
+
+data Token {id: Int}
+
+instance Drop(Token):
+    fn drop(->value: Token):
+        dropped = dropped + value.id
+
+data Traced {id: Int}
+
+instance Drop(Traced):
+    fn drop(->value: Traced):
+        trace = trace * 10 + value.id
+
+fn maybeId(n: Int) -> Maybe(Int) = if n > 0 then Just(n) else Nothing
+fn combine(->x: Token, ->y: Token) -> Int = x.id + y.id
+
+fn f(a: Int, b: Int) -> Maybe(Int):
+    let v = combine(Token {id: 10}, match maybeId(a):
+        Just(n) -> Token {id: n}
+        Nothing:
+            return Just(maybeId(b)? + 100)
+    )
+    return Just(v)
+
+fn traced(n: Int) -> Maybe(Traced) = if n > 0 then Just(Traced {id: n}) else Nothing
+fn three(->x: Traced, ->y: Traced, ->z: Traced) -> Int = 0
+fn pairIds(->x: Traced, ->y: Traced) -> Int = 7
+
+fn tri(a: Int, b: Int, c: Int) -> Maybe(Int) = Just(three(traced(a)?, traced(b)?, traced(c)?))
+
+fn nested(a: Int, b: Int, c: Int) -> Maybe(Int) =
+    Just(three(traced(a)?, Traced {id: pairIds(traced(b)?, traced(c)?)}, Traced {id: 9}))
+
+lens fn around():
+    yield {}
+
+fn inLens(c: Int) -> Int =
+    three(Traced {id: 1}, Traced {id: pairIds(Traced {id: 2}, if c > 0 then Traced {id: c} else:
+        around():
+            return 0
+        Traced {id: 5}
+    )}, Traced {id: 9})
+
+fn main() -> Int:
+    let x = f(0, 0)
+    let y = f(0, 5)
+    let r = tri(1, 2, 0)
+    let first = trace
+    trace = 0
+    let s = nested(1, 2, 0)
+    let second = trace
+    trace = 0
+    let l = inLens(0)
+    return dropped * 10000000 + first * 100000 + second * 1000 + trace

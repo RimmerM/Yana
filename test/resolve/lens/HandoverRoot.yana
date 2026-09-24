@@ -1,0 +1,67 @@
+{-
+   Items a traversal hands over out of the *caller's* storage, kept past the traversal.
+
+   # resolver: ownership
+
+   J129 gave the root of an unqualified hand-over its call's bound (`lens/Reject.HandoverRoot.yana`),
+   so a traversal that really hands over the caller's storage says so by naming the slot - `items`
+   is `self: source'c -> source'a` in the ownership stage, `Chunked.chunks` is `'c -> '[a]`, and
+   `pairs` publishes the entry's two halves. Each consumer below keeps what it was handed past the
+   loop and reads it afterwards, which is legal because what it keeps is a loan of the container:
+
+   - `longest`: a string element of `items(xs)`, over an array and over a window of one;
+   - `lastInt`: a scalar element, into a local and into a record;
+   - `sumFixed`: a fixed array, whose container is now passed as a reference;
+   - `lastKey`: `e.key` from `pairs(m)`, which is a window into the map's keys - a read at a loan slot
+     is rooted where the slot points, not in the entry record `pairs` built in its own frame;
+   - `counted`: a scalar hand-over not kept at all, inside an outer loop - the bound starts where
+     the region is entered, so the outer loop's back edge does not carry it round to the call.
+-}
+data Box {held: k'String}
+data Cell {n: I32}
+data EBox {key: k'String}
+
+fn longest(xs: [String]) -> Size:
+    let &b = Box {held: xs[0]}
+    for s in items(xs):
+        if length(s) > length(b.held) then b = {b | held: s}
+    return length(b.held)
+
+fn lastInt(xs: [I32]) -> I32:
+    let &last = 0 :: I32
+    let &c = Cell {n: 0}
+    for x in items(xs):
+        last = x
+        c = {c | n: x}
+    return last + c.n
+
+fn sumFixed(xs: [I32 *4]) -> I32:
+    let &t = 0 :: I32
+    for x in items(xs):
+        t += x
+    return t
+
+fn lastKey(m: [String: I32]) -> Size:
+    let &b = EBox {key: ""}
+    for e in pairs(m):
+        b = {b | key: e.key}
+    return length(b.key)
+
+iter fn upTo(n: I32) -> I32:
+    for i in 0..n:
+        yield i
+
+fn counted(n: I32) -> I32:
+    let &total = 0 :: I32
+    for round in 0 .. 3:
+        for c in upTo(n):
+            total = total + 1
+    return total
+
+fn main() -> Int:
+    let xs = ["a", "abc", "ab"] :: Array(String)
+    let f = [1, 2, 3, 4] :: [I32 *4]
+    let ints = [5, 6, 7] :: Array(I32)
+    let m = ["four": 4] :: [String: I32]
+    let fixed = longest(xs) + longest(xs[1..3]) + lastKey(m)
+    return (truncate(fixed) :: Int) * 1000 + sumFixed(f) * 100 + lastInt(ints) + counted(2)

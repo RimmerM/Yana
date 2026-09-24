@@ -1,0 +1,90 @@
+{-
+   What a call runs without naming it, against a loan of a global (ownership.md, "Loans and
+   globals").
+
+   # resolver: ownership
+
+   A loan of a global is checked against what runs while it is live, and three kinds of call run
+   code without naming it: a teardown, the step of an iterator object, and a lambda handed to a body
+   that runs it through `Call`. These are the neighbours that stay legal: a teardown that writes a
+   *different* global, one that runs after the loan's last use, an object whose producer writes
+   nothing the loan is of, and a lambda that only reads.
+
+   The second half is a string literal's window, which is placed static bytes and so may be held by
+   a global, returned, or left in a `&` parameter's field. Each of the three texts has a length of
+   its own and a digit of its own in the answer, so a re-point that did not happen reads as `3`.
+-}
+
+data Noisy {n: Int}
+data Named {text: 'String, n: Int}
+
+let &gArr = [1, 2, 3] :: Array(Int)
+let &gLog = [0] :: Array(Int)
+let &gNamed = Named {text: "abc", n: 1}
+
+instance Drop(Noisy):
+    fn drop(->value: Noisy):
+        push(gLog, value.n)
+
+fn make(n: Int) -> Noisy = Noisy {n: n}
+fn use(x: Noisy) -> Int = x.n
+
+-- The teardown writes `gLog`, and the loan is of `gArr`.
+fn otherGlobal() -> Int:
+    let w = gArr
+    let a = make(5)
+    let k = use(a)
+    return w[0] + w[1] + k
+
+-- The loan of `gLog` ends before `a` does.
+fn afterLastUse() -> Int:
+    let a = make(7)
+    let w = gLog
+    let first = w[0]
+    return first + use(a)
+
+iter fn counting(n: Int) -> Int:
+    for i in 0..n:
+        push(gLog, i)
+        yield i
+
+-- The producer writes `gLog`, so a loan of `gArr` may be held across a step.
+fn stepObject() -> Int:
+    let &it = counting(3)
+    let w = gArr
+    let &total = w[2] * 10
+    if it.next() is Just(x):
+        total += x
+    if it.next() is Just(x):
+        total += x
+    return total
+
+fn (Call(f, () -> Int)) runIt(g: f) -> Int = g()
+
+-- A lambda that reads `gArr` is run while a loan of it is held.
+fn readingLambda() -> Int:
+    let w = gArr
+    let r = runIt(() -> gArr[0] + 1)
+    return w[0] + r
+
+-- A string literal's window, into a global, a result and a `&` field.
+fn rename():
+    gNamed = {gNamed | text: "wxyz"}
+
+fn made() -> Named = Named {text: "made", n: 2}
+
+fn fill(&into: Named):
+    into = {into | text: "filled"}
+
+fn main() -> Int:
+    let first = otherGlobal()                     -- 1 + 2 + 5 = 8
+    let second = afterLastUse()                   -- 0 + 7 = 7
+    let third = stepObject()                      -- 30 + 0 + 1 = 31
+    let fourth = readingLambda()                  -- 1 + 2 = 3
+    rename()
+    let m = made()
+    let &local = Named {text: "a", n: 3}
+    fill(local)
+    let texts = truncate(length(gNamed.text) * 100 + length(m.text) * 10 + length(local.text)) :: Int  -- 446
+    let logged = truncate(length(gLog)) :: Int     -- the first, two teardowns and two steps: 5
+    return first * 100000000 + second * 10000000 + third * 100000 + fourth * 10000 + texts * 10 + logged
