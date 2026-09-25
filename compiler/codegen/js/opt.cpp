@@ -1,10 +1,10 @@
-#include "build.h"
+#include "shared.h"
 
 /*
  * The peephole between the tree and the text.
  *
- * The emitter one file up builds one statement per resolve instruction, because that is the only
- * shape in which a place, a projection and an ownership operation each land exactly once. What it
+ * `structure.cpp` builds one statement per JSIR instruction, because that is the only shape in
+ * which a place, a projection and an ownership operation each land exactly once. What it
  * cannot do while it is doing that is decide whether a binding is worth existing: an instruction's
  * result is named before anything has read it, and how many readers it has is a fact about the rest
  * of the block.
@@ -237,7 +237,7 @@ void eachEffectOperand(JsShared& g, Expr* expr, F&& f) {
 }
 
 /*
- * A bare identifier that names module-level storage - see Gen::mutableGlobals.
+ * A bare identifier that names module-level storage - see JsShared::mutableGlobals.
  *
  * The one `Var` whose read is a read: every other identifier in an emitted function is a parameter
  * or a local, which no callee can reach and therefore no call can change. A global is reachable from
@@ -897,10 +897,10 @@ ElementWrite elementWrite(JsShared& g, Stmt* stmt, Name name) {
  *
  * ## Why it overwrites as well as appends
  *
- * Because the write that follows a literal is usually a write *into* it. `eliminateOverwritten` in
- * opt_place.cpp deliberately leaves an element in place where removing it would leave the array with
- * a gap, so `let &xs = [1, 2, 3, 4]` followed by `xs[1] = 20` arrives here as a full literal and a
- * separate store - and merging the two is what makes the store disappear rather than the element.
+ * Because the write that follows a literal is usually a write *into* it: `let &xs = [1, 2, 3, 4]`
+ * followed by `xs[1] = 20` can arrive here as a full literal and a separate store, since removing
+ * the overwritten element above this tier would leave the array with a gap - and merging the two is
+ * what makes the store disappear rather than the element.
  * That is also what makes the array *dead* where nothing reads it, since the store was its last
  * mention and `removeDeadBinding` takes it from there.
  *
@@ -1065,11 +1065,11 @@ bool foldDiscarded(JsShared& g, StmtList& list, Size index) {
  * effects and nothing at all where it does not.
  *
  * It is not a shape anything emits on purpose. It is what the passes above *leave*: a branch whose
- * arms were two `return`s of unit becomes two empty lists once flow.cpp has recovered the structure,
- * and `Iter.yana`'s `stopAt` - a `for` loop whose body may stop early, called for its effects -
- * reaches exactly that. Removing it here rather than in `flow.cpp` is the same division the rest of
- * this file works under: the recovery builds one statement per edge, and which of them are worth
- * keeping is a question about the tree it built.
+ * arms were two `return`s of unit becomes two empty lists once `structure.cpp` has recovered the
+ * structure, and `Iter.yana`'s `stopAt` - a `for` loop whose body may stop early, called for its
+ * effects - reaches exactly that. Removing it here rather than in `structure.cpp` is the same
+ * division the rest of this file works under: the recovery builds one statement per edge, and which
+ * of them are worth keeping is a question about the tree it built.
  *
  * The condition is *not* descended into for closure bodies. A function expression inside a discarded
  * condition is still evaluated where the condition is - `effectsOf` says whether that matters - and
@@ -1096,7 +1096,7 @@ bool foldEmptyIf(JsShared& g, StmtList& list, Size index) {
  * Which way a literal condition goes, or nothing where it is not one.
  *
  * The two shapes a decided condition arrives in, and they arrive from different places: `boolean` in
- * build.h is what `foldComparison` answers when both sides of a `<` are numbers, and a bare number
+ * shared.h is what `foldComparison` answers when both sides of a `<` are numbers, and a bare number
  * is what a propagated binding leaves where the source tested an integer for truth. JavaScript's own
  * rule decides the second - zero is false, and so is a `NaN`, which is why the test is written as
  * `!= 0` on a value that is already known rather than as a range.
@@ -1359,15 +1359,11 @@ bool inlineBinding(JsShared& g, StmtList& list, Size index, Names& names) {
      * first statement of `L: { ... }` runs immediately after the declaration and the expression
      * moved into it evaluates where it already did. Without this the binding survives every region
      * the structurer opens, and since J73 that is one per join: `var v = !(m === null) ? 1 : 0;`
-     * followed by `B0: { if (v) ... }`, where the shipping backend writes the test in the `if`.
-     * The `? 1 : 0` that is then left in a condition is `simplifyCondition`'s to remove.
-     *
-     * Gated on `jsirPipeline` because this slice holds every `.js.expect` byte-identical, on J73's
-     * terms for `dropUnreachable`: the rule is sound for both tiers and taking the gate off belongs
-     * in a slice whose subject is the shipping backend.
+     * followed by `B0: { if (v) ... }`, where the test belongs in the `if`. The `? 1 : 0` that is
+     * then left in a condition is `simplifyCondition`'s to remove.
      */
     auto next = g.base[list.get(g.base, index + 1)];
-    for(auto depth = 0; g.jsirPipeline && depth < 8; depth++) {
+    for(auto depth = 0; depth < 8; depth++) {
         if(next->kind == Stmt::Labelled) {
             next = g.base[((LabelledStmt*)next)->content];
             continue;
@@ -1484,11 +1480,12 @@ bool foldConstantIndex(JsShared& g, JsPtr<Expr>& slot) {
 /*
  * Ranges, and the coercions an operand has already performed on itself.
  *
- * `Int` is a wrapping 32-bit integer and JS has no 32-bit integer, so `coerce` in type.cpp puts one
- * of `| 0`, `>>> 0`, `& mask` or `<< n >> n` on the result of every arithmetic operation in the
- * program. Analysis-JS.md §2.1 calls that the asm.js tax and says in the same breath that it is
- * "almost entirely elidable by the *same* range analysis `@bits` already requires" - which is what
- * this is, at the one place that can see the whole expression rather than one instruction of it.
+ * `Int` is a wrapping 32-bit integer and JS has no 32-bit integer, so `coerceTo` in structure.cpp
+ * puts one of `| 0`, `>>> 0`, `& mask` or `<< n >> n` on the result of every arithmetic operation
+ * in the program. Analysis-JS.md §2.1 calls that the asm.js tax and says in the same breath that it
+ * is "almost entirely elidable by the *same* range analysis `@bits` already requires" - which is
+ * what this is, at the one place that can see the whole expression rather than one instruction of
+ * it.
  *
  * It is a range rather than a type because the redundancy is arithmetic, not declarative. `x & 8191`
  * has type `Int` and values in `[0, 8191]`, and it is the second fact that says the `>>> 0` the
@@ -2010,7 +2007,7 @@ bool foldBitwiseOperand(JsShared& g, JsPtr<Expr>& slot) {
 
         /*
          * `c ? 1 : 0` on a comparison - the widening a `Bool` is given where it is produced, see
-         * boolNumber in type.cpp.
+         * boolNumber in helpers.cpp.
          *
          * The same question this file's other operand rules ask, with the same answer: a bitwise
          * operator reads its operands through ToInt32, `ToInt32(true)` is 1 and `ToInt32(false)` is
@@ -2236,9 +2233,9 @@ JsPtr<Expr> negatedCondition(JsShared& g, JsPtr<Expr> slot, Ranges& ranges) {
  * in the alternative - two braces, an `else`, and a reader who has to work out that the first arm is
  * the one that does nothing.
  *
- * Here rather than in `flow.cpp` for the reason `foldEmptyIf` above is: the recovery builds one
- * statement per edge and cannot know which of them will still hold anything once the arms have been
- * emitted, folded and had their dead bindings removed. This is stated over what that leaves.
+ * Here rather than in `structure.cpp` for the reason `foldEmptyIf` above is: the recovery builds
+ * one statement per edge and cannot know which of them will still hold anything once the arms have
+ * been emitted, folded and had their dead bindings removed. This is stated over what that leaves.
  *
  * `foldEmptyIf` is the case where *both* arms are empty and comes first, so what reaches here always
  * has something in the alternative. The condition is the same one either way round - `negatedCondition`
@@ -2742,7 +2739,7 @@ JsPtr<Expr> foldBigIntCall(JsShared& g, CallExpr& call) {
 /*
  * An integer operation whose operands have both become literals, evaluated.
  *
- * The emitter already folds what it can see - see `binary` in build.h - and this is the same rules
+ * The emitter already folds what it can see - see `binary` in shared.h - and this is the same rules
  * over what only *becomes* constant here. A coercion is what stands between them: `(2 & 3) << 2` is
  * a mask over a literal, and the mask is removed by the rule below rather than by the emitter, which
  * has no ranges to decide it with. So the two run in one loop.
@@ -2756,18 +2753,12 @@ bool foldConstantOp(JsShared& g, JsPtr<Expr>& slot) {
         if(!folded) folded = foldComparison(g, node.op, node.lhs, node.rhs);
         if(!folded) folded = foldBigIntComparison(g, node.op, node.lhs, node.rhs);
 
-        // Gated for J73's `dropUnreachable` reason: the rule is sound on both tiers, this slice
-        // holds every `.js.expect` byte-identical, and taking the gate off belongs in a slice whose
-        // subject is the shipping backend.
-        if(!folded && g.jsirPipeline) {
-            folded = foldNullComparison(g, node.op, node.lhs, node.rhs);
-        }
+        if(!folded) folded = foldNullComparison(g, node.op, node.lhs, node.rhs);
 
         // J90: a short-circuit chain whose left operand propagation decided - `true && x` is `x`
         // and `false && x` is `false`, and the same for `||` the other way round. Only a `boolean`
         // literal, since `0 && x` is `0` and not `false`.
-        if(!folded && g.jsirPipeline &&
-           (node.op == BinaryOp::LogicalAnd || node.op == BinaryOp::LogicalOr) &&
+        if(!folded && (node.op == BinaryOp::LogicalAnd || node.op == BinaryOp::LogicalOr) &&
            g.base[node.lhs]->kind == Expr::Bool) {
             auto value = ((BoolExpr*)g.base[node.lhs])->value;
             folded = (value == (node.op == BinaryOp::LogicalAnd)) ? node.rhs : node.lhs;
@@ -3150,11 +3141,10 @@ bool completesNormally(JsShared& g, JsPtr<Stmt> pointer);
  * in `pastTheLastCodePoint` alone, which is a body of five folded table lookups.
  *
  * `completesNormally` is the whole of the test and it is the same one `trimTailReturns` and
- * `stripTrailingContinue` stand on. Gated on `jsirPipeline` for the reason `JsShared` states: the
- * rule is right for both generators and this slice holds the shipping one's goldens still.
+ * `stripTrailingContinue` stand on.
  */
 bool dropUnreachable(JsShared& g, StmtList& list, Size index) {
-    if(!g.jsirPipeline || index + 1 >= list.size()) return false;
+    if(index + 1 >= list.size()) return false;
     if(completesNormally(g, list.get(g.base, index))) return false;
 
     while(list.size() > index + 1) list.remove(g.base, list.size() - 1);
@@ -3188,7 +3178,7 @@ JsPtr<Expr> logical(JsShared& g, BinaryOp op, JsPtr<Expr> lhs, JsPtr<Expr> rhs) 
 }
 
 /*
- * Short-circuit chains - J90, and JSIR's only: the shipping backend's goldens are the comparison.
+ * Short-circuit chains - J90.
  *
  * A Yana `a && b && c` is a cascade of branches by the time it reaches JSIR - SSA has no lazy
  * operator, and `resolve_ssa/opt/select.cpp` if-converts one diamond with pure arms rather than a
@@ -3413,14 +3403,14 @@ bool optimizeList(JsShared& g, StmtList& list, Names& names, Ranges& ranges) {
 
             // J90's short-circuit chains - see `mergeNestedIf`. The same position again after each,
             // since a chain is several of them.
-            if(g.jsirPipeline && (mergeNestedIf(g, list, index) || mergeSameExit(g, list, index) ||
-                                  foldAssignIf(g, list, index))) {
+            if(mergeNestedIf(g, list, index) || mergeSameExit(g, list, index) ||
+               foldAssignIf(g, list, index)) {
                 changed = true;
                 continue;
             }
         }
 
-        if(g.jsirPipeline && stmt->kind == Stmt::Labelled && foldLabelledGuard(g, list, index)) {
+        if(stmt->kind == Stmt::Labelled && foldLabelledGuard(g, list, index)) {
             changed = true;
             continue;
         }
@@ -4058,9 +4048,6 @@ void removeDeadHelpers(JsShared& g) {
  * shape that belongs to a function rather than to the program: `f.$h = g;`, a lambda's teardown
  * header, which is kept exactly while `f` is. To a fixed point, because a body that only called an
  * empty one is empty now and a function only a removed one called is unreachable.
- *
- * Asked of the JSIR pipeline only. The shipping backend's `excludeFunctions` decides what it emits
- * before the tree is built, and its goldens are the comparison this one is measured against.
  */
 template<class F>
 void eachMention(JsShared& g, JsPtr<Expr> pointer, F& f) {

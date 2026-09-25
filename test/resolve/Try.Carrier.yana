@@ -6,11 +6,11 @@
    spelling of `| else -> return` is *value position*, and what makes it compiler-known is that its
    skip destination is the enclosing return edge - which nothing written at the call site names.
 
-   Compiled by **both stages** against one run expectation, which is the point of it being here
-   rather than in `ownership/`. `Try.yana` is the older and larger fixture and cannot be: it asserts
-   `?` inside a lens continuation and inside a skipping lens written as `-> Maybe(a)`, and the
-   rewritten stage declares a skipping traversal with `| E` instead. What is here is the half both
-   stages have, and it is the half every program actually writes.
+   Used to be compiled by **both stages** against one run expectation, which was the point of it
+   being here rather than in `ownership/`. `Try.yana` is the older, larger fixture and could not be:
+   it asserts `?` inside a lens continuation and inside a skipping lens written as `-> Maybe(a)`,
+   where the rewritten stage instead declares a skipping traversal with `| E`. What is here was the
+   half both stages had, and it is the half every program actually writes.
 
    Each check contributes a distinct weight and `main` is their sum, so a failure names which.
 -}

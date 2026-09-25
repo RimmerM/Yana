@@ -1,8 +1,6 @@
 {-
    A writable window of a fixed array writes the array.
 
-   # resolver: ownership
-
    `let &w = arr[0..2]` and `set(arr[1..3])` asked for the source at an exclusive request, which
    copies a trivially copied value, so `elementsMut` windowed a temporary and every write through
    the window was lost: both targets answered 1. The source of a writable window is borrowed now,

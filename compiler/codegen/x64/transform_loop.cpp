@@ -577,13 +577,13 @@ static Maybe<RotatableLoop> rotatableLoop(LowerBase base, LowerFunction& fun, co
      * which leaves the header by a route the block of the reader does not show.
      *
      * **Relaxed and measured out twice.** The repair exists and is the one the phis above get: the
-     * reader takes a merge of the preheader's copy and the header's, which is a `RotatedPhi` with an
-     * instruction where the header phi would be, the two being the same value in the same three
+     * reader takes a merge of the preheader's copy and the header's, which is a `RotatedPhi` with
+     * an instruction where the header phi would be, the two being the same value in the same three
      * positions. §58.4 built it and measured `Sort` **217.3 -> 223.4 ms**, layout controlled; §J42
      * built it again, on top of `splitJoiningLoopExits` and with the edge asked about rather than
-     * the block, and measured `Sort` **217.8 -> 221.2 ms** on the shipping stage against `Float`
-     * 245.2 -> 241.5 the other way - **+83 bytes over the thirteen and no change in the sum**,
-     * 597.2 ms against 597.1.
+     * the block, and measured `Sort` **217.8 -> 221.2 ms** on the stage J173 deleted against
+     * `Float` 245.2 -> 241.5 the other way - **+83 bytes over the thirteen and no change in the
+     * sum**, 597.2 ms against 597.1.
      *
      * The reason is the trade rather than the repair. A rotation buys one jump per *iteration* and
      * pays a copy of the header's test per *entry*, and a scan of the form `while xs[i] < pivot: i =
@@ -968,8 +968,8 @@ static bool foldIntoPredecessor(LowerBase base, LowerFunction& fun, LowerBlock* 
  * a loop that would be declined for its preheader, its body, its header's size or what its header's
  * instructions are read by does not get an edge split on its behalf. The exception `Sieve` is: its
  * marking loop leaves into the outer loop's latch, which the SSA stage's `simplify` had already
- * folded the shipping stage's empty forwarding block out of - so the shape the rotation wants is one
- * the front end used to hand it by accident.
+ * folded the old stage's empty forwarding block out of - so the shape the rotation wants is one the
+ * front end used to hand it by accident.
  */
 static void rotateLoops(LowerBase base, LowerFunction& fun, const LoopInfo& loops);
 

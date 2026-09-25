@@ -231,14 +231,14 @@ pub fn pathTooLong(path: String) -> Bool = length(path) + 1 > maxPathBytes
    difference here is that nothing reads the count afterwards, so there is nothing to bump. The slots
    are the frame's, `CodeUnit` has no teardown, and the buffer dies with the lens. The writing
    accessor, because the copy writes: `values` is the shared one and hands out a `%source'a` the
-   caller may only read through, which is what the ownership resolver reports here and what the
-   shipping stage was never in a position to notice.
+   caller may only read through, which is what the resolver reports here and what
+   `compiler/resolve` was never in a position to notice.
 
    **`-> %yield'U8`** says whose the address is: the buffer is this lens's own frame, so the pointee
    is bounded by the hand-over rather than published to the caller - `Origin::CallBounded`. An
-   unqualified `-> %U8` claimed nothing about the pointee, which the ownership resolver reads as
-   "may reach anything" and refuses to hand out of the frame. The shipping stage reads `yield'` as
-   the no-group it reads a plain `%U8` as, so one spelling serves both (`resolveLoanGroup`).
+   unqualified `-> %U8` claimed nothing about the pointee, which the resolver reads as
+   "may reach anything" and refuses to hand out of the frame. (`compiler/resolve` read `yield'` as
+   the no-group it read a plain `%U8` as, so one spelling served both stages until J173.)
 
    **`pathTooLong` is the caller's obligation**, and this asserts it rather than trusting it: the
    copy would otherwise write the terminator one byte past a run that refuses to grow. `checkCondition`
@@ -254,17 +254,18 @@ pub fn pathTooLong(path: String) -> Bool = length(path) + 1 > maxPathBytes
    below the call - and `createDirectory` next door is *self-recursive*, so a copy per level is a
    copy of the buffer per level. A call whose next instruction is a syscall is not worth that.
 
-   And it is what keeps `-inline speed` from running away. `createDirectory` reaches itself through
-   the continuation this lens's call site lifts, so the call graph's cycle runs
-   `createDirectory -> withPathCString -> continuation$ -> createDirectory`; `findRecursion` in
-   opt_inline.cpp computes that graph **once, before the rounds**, on the argument that inlining
-   creates no cycle - and `collapsesCycle` then admits one other member of the caller's own cycle per
-   round. With the body small enough to take, the rounds do not converge: compiling
-   `test/lib/DirectoryWalkSpeed.yana`, whose whole subject is `-inline speed` over `File`, went from
-   62 MB and 0.5 s to 1.1 GB and a module arena past the 2 GB its block offsets can address, which
-   surfaces as `!(Size(value) & mask)` in `SmallList::set` from `IrEditor::retargetEdge`. That is a
-   compiler defect and not this file's - the attribute is what keeps the corpus green while it
-   stands, and removing it is the way to reproduce it in one step.
+   And it is what kept `-inline speed` from running away under `compiler/opt`, the inliner J173
+   deleted. `createDirectory` reaches itself through the continuation this lens's call site lifts,
+   so the call graph's cycle runs `createDirectory -> withPathCString -> continuation$ ->
+   createDirectory`; `findRecursion` in its opt_inline.cpp computed that graph **once, before the
+   rounds**, on the argument that inlining creates no cycle - and `collapsesCycle` then admitted one
+   other member of the caller's own cycle per round. With the body small enough to take, the rounds
+   did not converge: compiling `test/lib/DirectoryWalkSpeed.yana`, whose whole subject is
+   `-inline speed` over `File`, went from 62 MB and 0.5 s to 1.1 GB and a module arena past the
+   2 GB its block offsets could address, surfacing as `!(Size(value) & mask)` in `SmallList::set`
+   from `IrEditor::retargetEdge`. That was a compiler defect and not this file's. `collapsesCycle`
+   is not ported to `resolve_ssa/opt/inline.cpp` (its file comment says why), so the attribute
+   now stands on the first reason, and removing it would no longer reproduce that defect.
 -}
 @noinline
 pub lens fn withPathCString(path: String) -> %yield'U8:

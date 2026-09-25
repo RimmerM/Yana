@@ -27,7 +27,7 @@
    an address that may be within a vector's width of the end of the object, and the tail-read
    guarantee (§8) is what says the bytes past the end are readable. It is the *only* thing in the
    language that sets that flag, so the reasoning about when one is allowed is in one place - and it
-   is why `vectors` is written over `Flat(a)` in Core rather than over a `%a` here: a slice
+   is why `vectors` walks a container's windows in Core rather than a `%a` here: a slice
    carries the guarantee and a bare address does not, which is what the verifier's rule says from the
    other end.
 

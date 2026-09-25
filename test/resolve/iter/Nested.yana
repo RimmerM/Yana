@@ -2,8 +2,6 @@
    A **nested traversal** inside a producer built as an object -
    `doc/inflight/Design-Iterator-Objects.md` §3.2's first step.
 
-   # resolver: ownership
-
    `for x in g(...)` written inside an `iter fn` is a `lens.call` opening a region whose blocks are
    the loop body. In the continuation-passing form those blocks become a function of their own and
    `g` calls it; in a **step** there is nowhere to call from - the outer producer is suspended rather

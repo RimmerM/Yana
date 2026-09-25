@@ -56,11 +56,11 @@ pub fn volatileStore(to: %a, ->value: a) -> {}
    escape rule at a signature had nothing to follow - which is what
    `test/resolve/ownership/Reject.Pointer.yana` used to state as a cost.
 
-   The shipping stage **reads none of this**: it supplies its own definition of the role (see
-   `readIntrinsicRole` in `compiler/resolve/module_sig.cpp`), so a trivially copyable argument is
-   still copied into the call and the address is the copy's, which is what `test/resolve/Global.yana`
-   documents as the meaning of `addressOf` of a constant there. The two stages therefore disagree
-   about that one program, deliberately, and this file states what the *language* means.
+   `compiler/resolve`, deleted in J173, **read none of this**: it supplied its own definition of the
+   role (`readIntrinsicRole`), so a trivially copyable argument was still copied into the call and
+   the address was the copy's, which is what `test/resolve/Global.yana` documented as the meaning of
+   `addressOf` of a constant there. The two stages disagreed about that one program, deliberately,
+   and this file states what the *language* means.
 -}
 @builtin(addressOf)
 pub fn addressOf(it: source'a) -> %source'a

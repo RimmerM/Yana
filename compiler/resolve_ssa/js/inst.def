@@ -19,11 +19,12 @@
  *
  * ## Why the effects are here and not derived
  *
- * The shipping backend decides what may move by asking what an expression *looks like* - whether a
- * call node carries `pure`, whether a helper's name begins with `$`. That is the mechanism §4.4
- * forbids, and the reason is that it cannot be checked: a helper renamed is an optimizer silently
- * losing a fact. Here the row is the fact, a pass reads `jsInstEffects(kind)`, and a row that
- * acquires a new effect changes every reader at once.
+ * The old JavaScript backend (deleted with `compiler/resolve` in J173) decided what may move by
+ * asking what an expression *looks like* - whether a call node carries `pure`, whether a helper's
+ * name begins with `$`. That is the mechanism §4.4 forbids, and the reason is that it cannot be
+ * checked: a helper renamed is an optimizer silently losing a fact. Here the row is the fact, a
+ * pass reads `jsInstEffects(kind)`, and a row that acquires a new effect changes every reader at
+ * once.
  *
  * The one refinement a kind cannot express is `Host`, whose effects are a `resolve_mir/host.def`
  * row - `hostFixedCapacity` answers a question about a type and a `hostCall1` may do anything. The
@@ -96,9 +97,9 @@ YANA_JSIR_INST( Unary,        JsInstUnary,        "unary"_v,        kOneResult, 
  *
  * An operation of its own rather than something the emitter wraps every arithmetic result in,
  * because §6.7's range propagation removes coercions and needs a node to remove. The rule the
- * converter follows is the shipping backend's - one after every arithmetic result whose declared
- * width the host's own operator does not produce - so what this tier starts with is what that one
- * emits, and what a later slice takes away is attributable.
+ * converter follows was the old JavaScript backend's - one after every arithmetic result whose
+ * declared width the host's own operator does not produce - so what this tier started with was what
+ * that one emitted, and what a later slice took away is attributable.
  */
 YANA_JSIR_INST( Coerce,       JsInstCoerce,       "coerce"_v,       kOneResult,    kJsPure )
 

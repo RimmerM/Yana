@@ -414,7 +414,7 @@ struct Forwarder {
      * pointer loaded out of storage, a parameter, a constant - may be *any* address the program
      * made, and the global's is among them only if it was ever used as something other than the
      * place of an access: `OptContext::addressedGlobals`. A global nothing took the address of is
-     * one no raw store can name, which is the property the shipping stage's `placesMayAlias` gives
+     * one no raw store can name, which is the property the shipping stage's `placesMayAlias` gave
      * up on ("a raw pointer may name anything at all").
      */
     bool mayWriteGlobal(Value* entry, Value* written) {
@@ -456,7 +456,7 @@ struct Forwarder {
      *    table is this thread's alone;
      *  - and a **call**, every one. `mir::reachesGlobalState` says whether a callee names a global,
      *    but not whether it synchronizes: `lock(m)` over a mutex handed in as an argument names no
-     *    global and is exactly where a global it guards may change. The shipping stage ends the
+     *    global and is exactly where a global it guards may change. The shipping stage ended the
      *    table at every call too;
      *  - a drop, a native and whatever is not listed: may.
      *
@@ -1637,7 +1637,7 @@ namespace {
  *     %v = load %a         ; a tracked result, so this empties `%a`
  *     store %b, consume %v ; and this is the only thing that reads it
  *
- * `test/bench/findings.md` §102.3 is where this was measured as the last of the new stage's size
+ * `test/bench/findings.md` §102.3 is where this was measured as the last of this stage's size
  * gap that buys nothing: 468 such copies over `test/resolve`, and `Tree` in the benchmark corpus
  * running 9.2% slower than the shipping stage on four instructions per iteration doing one of them.
  * `destinationFor`'s `Store` arm in `lower/inst.cpp` is the other half - it covers the case where

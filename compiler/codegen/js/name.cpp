@@ -1,4 +1,4 @@
-#include "build.h"
+#include "shared.h"
 #include "../../resolve_ssa/js/name.h"
 
 /*
@@ -91,60 +91,6 @@ Name generatedName(JsShared& g, StringView prefix, U32 index) {
     return uniqueName(g, StringView { buffer, length }, true);
 }
 
-Name valueName(JsShared& g, Value& value) {
-    if(value.name) {
-        auto text = g.context.findName(value.name);
-        return uniqueName(g, stringView(text), true);
-    }
-
-    return generatedName(g, "v"_v, value.id);
-}
-
-/*
- * One part of a value this target carries in pieces, named after the value itself.
- *
- * `flip(p$o, p$k, p$s)` rather than three anonymous slots, and `apply(f$c, f$e, x)` rather than two,
- * so that emitted source still reads as one value taken apart rather than as several unrelated
- * parameters. Each part goes through uniqueName like any other local, since the base name it is
- * built from is already taken.
- *
- * Shared by the two multi-part representations - the reference triple and the function-value pair -
- * because naming a part is the same job in both and the suffix is the whole of the difference.
- */
-Name partName(JsShared& g, Value& value, StringView suffix) {
-    char buffer[512];
-    Size length = 0;
-
-    if(value.name) {
-        auto text = stringView(g.context.findName(value.name));
-        length = text.length < sizeof(buffer) - 16 ? text.length : sizeof(buffer) - 16;
-        copy(text.ptr, buffer, length);
-    } else {
-        buffer[length++] = 'v';
-        length += show(U64(value.id), buffer + length, sizeof(buffer) - length);
-    }
-
-    copy(suffix.ptr, buffer + length, suffix.length);
-    return uniqueName(g, StringView { buffer, length + suffix.length }, true);
-}
-
-/*
- * One lane of a vector - `x$0`, `x$1`, ... - which is the third of the multi-part representations
- * and the only one whose part count is a property of the type rather than a constant.
- *
- * Beside `partName` because it is the same job with a computed suffix, and here rather than in
- * inst.cpp because a vector phi's lanes are declared by gen.cpp and assigned by flow.cpp.
- */
-Name laneName(JsShared& g, Value& value, U32 lane) {
-    char suffix[16];
-    Size length = 0;
-
-    suffix[length++] = '$';
-    length += show(U64(lane), suffix + length, sizeof(suffix) - length);
-
-    return partName(g, value, StringView { suffix, length });
-}
-
 Name propertyName(JsShared& g, StringView text) {
     char buffer[512];
     auto length = jsSanitize(text, buffer, sizeof(buffer));
@@ -156,59 +102,12 @@ Name literalName(JsShared& g, StringView text) {
 }
 
 /*
- * The property a run of co-packed fields shares, named after where in the record it sits.
- *
- * No field's own name would be right for it: `$p0` holds `version`, `flags` and `length` at once, and
- * reading any of them is a shift and a mask of the one number. The offset is what makes it unique
- * within a record - two packed words are two words at two offsets - and stable, since it is the same
- * number the layout dump prints.
- */
-Name packedWordName(JsShared& g, U32 offset) {
-    char buffer[32];
-    buffer[0] = '$';
-    buffer[1] = 'p';
-
-    auto length = 2 + show(U64(offset), buffer + 2, sizeof(buffer) - 2);
-    return Name { internText(g, StringView { buffer, length }) };
-}
-
-Name fieldName(JsShared& g, StringId name, U16 index) {
-    if(name) {
-        auto text = g.context.findName(name);
-        return propertyName(g, stringView(text));
-    }
-
-    char buffer[32];
-    buffer[0] = 'f';
-    auto length = 1 + show(U64(index), buffer + 1, sizeof(buffer) - 1);
-    return Name { internText(g, StringView { buffer, length }) };
-}
-
-/*
- * One word of a function-value field, named after the field - `run$c` and `run$e`.
- *
- * A property rather than an identifier, so it needs no disambiguation: two fields cannot share a
- * name, so neither can their words, and the suffixes are ones `propertyName` never produces from a
- * source name because `$` is not in the sanitized alphabet.
- */
-Name fieldPartName(JsShared& g, Name field, StringView suffix) {
-    auto text = stringView(g.context.findName(field.text));
-
-    char buffer[512];
-    auto length = text.length < sizeof(buffer) - 8 ? text.length : sizeof(buffer) - 8;
-    copy(text.ptr, buffer, length);
-    copy(suffix.ptr, buffer + length, suffix.length);
-
-    return Name { internText(g, StringView { buffer, length + suffix.length }) };
-}
-
-/*
  * The property names that are the compiler's rather than the program's - `$tag`, `$p`, `$v`.
  *
- * One function rather than a line in each generator's setup, because the names are the *target's*
- * convention: two pipelines that each spelled a tag would be two hidden classes for one record the
- * day one of them was changed, and there is no diagnostic for that - a value built by one and read
- * by the other simply answers `undefined`.
+ * One function rather than a line wherever the state is built, because the names are the
+ * *target's* convention: two places that each spelled a tag would be two hidden classes for one
+ * record the day one of them was changed, and there is no diagnostic for that - a value built by
+ * one and read by the other simply answers `undefined`.
  */
 void nameSharedFields(JsShared& g) {
     g.tagField = literalName(g, jsir::key::tag);

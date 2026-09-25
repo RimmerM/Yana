@@ -4,14 +4,15 @@
  * The library's checks, taken back out for a build that does not want them - `-no-checks`, and
  * `resolve_ssa/opt/README.md`'s phase 12.
  *
- * ## What a check *is* here, which is not what it is in the shipping stage
+ * ## What a check *is* here, which is not what it was in the shipping stage
  *
- * Over there the compiler emits `checkCondition(index >= length)` at every subscript and holds a
- * pointer to that function, so `dischargeChecks` is a walk looking for a call to it. This stage
- * emits one and only one: a `[T *n]` element is a projection of the container's own place rather
- * than a call, so there is no accessor body for its bound to live in and `checkFixedBound` in
- * `resolve_mir/resolve_expr.cpp` reaches for the same `checkCondition` role. Every *other* check is
- * the library's own - `lib/Core/Array.yana`'s `Index.get` writes
+ * In `compiler/resolve` (the shipping stage until J173 deleted it) the compiler emitted
+ * `checkCondition(index >= length)` at every subscript and held a pointer to that function, so
+ * `dischargeChecks` was a walk looking for a call to it. This stage emits one and only one: a `[T
+ * *n]` element is a projection of the container's own place rather than a call, so there is no
+ * accessor body for its bound to live in and `checkFixedBound` in `resolve_mir/resolve_expr.cpp`
+ * reaches for the same `checkCondition` role. Every *other* check is the library's own -
+ * `lib/Core/Array.yana`'s `Index.get` writes
  *
  *     if (bitcast(index) :: USize) >= (bitcast(self.length) :: USize) then checkFailed()
  *
@@ -43,11 +44,11 @@
  *
  * ## Why it runs where it runs
  *
- * Above the `optimizeIr` gate, which is `opt_check.cpp`'s ruling carried over unchanged and is the
- * whole of what keeps `-no-checks` **free** rather than cheap. An ordinary pass would leave a build
- * with the optimizer off computing a length, a comparison and a branch at every subscript and then
- * keeping all three. So this runs unconditionally, and it does its own two sweeps rather than
- * leaving them to passes that do not run.
+ * Above the `optimizeIr` gate, which is the deleted `opt_check.cpp`'s ruling carried over unchanged
+ * and is the whole of what keeps `-no-checks` **free** rather than cheap. An ordinary pass would
+ * leave a build with the optimizer off computing a length, a comparison and a branch at every
+ * subscript and then keeping all three. So this runs unconditionally, and it does its own two
+ * sweeps rather than leaving them to passes that do not run.
  *
  * The two other rulings that file makes carry over as they stand: the resolved IR is the same with
  * the checks on or off - nothing above this reads `settings.checks` - so a library built checked
@@ -108,9 +109,10 @@ struct CheckDischarger {
     /*
      * The condition the branch left behind, removed as far up its chain as it is now unread.
      *
-     * A worklist over the operands of what went, which is the shipping stage's shape and its reason:
-     * what may have become dead is exactly what the branch named and what *those* named in turn, and
-     * walking the body would find every other unread pure value in an unoptimized one as well.
+     * A worklist over the operands of what went, which was the shipping stage's shape and its
+     * reason: what may have become dead is exactly what the branch named and what *those* named in
+     * turn, and walking the body would find every other unread pure value in an unoptimized one as
+     * well.
      *
      * `isRemovableIfUnread` is the ownership rule the rest of this directory uses with one kind more
      * admitted - `opt/cse.cpp` - so a borrow or a consumption stops the chain here exactly as it

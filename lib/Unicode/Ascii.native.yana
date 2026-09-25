@@ -254,7 +254,7 @@ let brokenSequence = 0xFFFFFFFF :: U32
   | _       -> 4
 
 -- Appends `text`'s units from `from` to `to`: a block copy out of the text itself. `String.slice` is a
--- copy of its own under the legacy resolve stage, so a walk that flushed through it allocated per
--- flush.
+-- copy of its own under `compiler/resolve` (deleted in J173), so a walk that flushed through it
+-- allocated per flush.
 @inline(always) fn pushSpan(&out: String, text: String, from: Size, to: Size):
     if to > from then String.appendUnits(out, units(text) + from, to - from)

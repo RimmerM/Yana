@@ -197,9 +197,10 @@ bool Resolver::tickContract(const WrittenSigils& sigils, Position position, Acce
  * | `x: 'T` / `x: a'T`     | shared | slot          |
  * | `&x: a'T` / `x: &a'T`  | unique | slot          |
  *
- * `&x: T` and `x: &T` are one declaration, and deliberately: they were two in the old stage - same
- * effect, same ABI, different function types - so a function value written one way could not be
- * passed where the other was expected, with nothing behind the difference.
+ * `&x: T` and `x: &T` are one declaration, and deliberately: they were two in `compiler/resolve`,
+ * the stage J173 deleted - same effect, same ABI, different function types - so a function value
+ * written one way could not be passed where the other was expected, with nothing behind the
+ * difference.
  *
  * What is refused is an unqualified `&` outside a parameter. "`&T` without an external-owner
  * qualifier is therefore not a stored reference spelling": a result or a field that holds an
@@ -240,9 +241,9 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
      * The **spelling** decides, and that is the one place in this function where it does: `xs: [T]`
      * is a shared element window and `xs: Array(T)` is shared access to the whole growable owner,
      * and they are the same logical type. That is exactly the distinction an access form exists to
-     * carry - the shipping stage carries it as a *second type*, `sliceCapabilityType`'s sibling
-     * record, and pays for it in `substituteType`, in `bindingType` and at every one of the sites
-     * that has to ask "or a sibling of one".
+     * carry - `compiler/resolve` (deleted in J173) carried it as a *second type*,
+     * `sliceCapabilityType`'s sibling record, and paid for it in `substituteType`, in `bindingType`
+     * and at every one of the sites that had to ask "or a sibling of one".
      *
      * A `[T *n]` is never a window and needs no clause here: its count is in its type, so the two
      * words a descriptor would carry say nothing the type did not, and building one throws the
@@ -2041,8 +2042,7 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      * later by whoever needed one - which is where two answers would come from.
      *
      * A replacement's symbol says what it is - `replaces$sum` - rather than taking the next number
-     * after its baseline's, so a dump reads the same whichever of the two was written first. The
-     * shipping stage names one the same way.
+     * after its baseline's, so a dump reads the same whichever of the two was written first.
      */
     auto symbolText = String(context.findName(name));
     for(auto attribute: declaration.attributes.contents(parse)) {
@@ -2808,11 +2808,11 @@ void Resolver::resolveSiteSignatures() {
  * different things in two files depending on what each imported. A prefix that names *nothing* is a
  * plain namespace and is fine, and so is one naming a record of this module's own.
  *
- * Only a record answers, which is `namespacedName`'s rule and the shipping stage's: a builtin width
- * has no declaration to hang a namespace on, and an alias is a second name for a type rather than
- * the place its methods are kept. The lookup is `search` with nothing reported - an ambiguity
- * between two imports is not an answer to "is this someone else's type", and a use of the name is
- * not what this is, so the semantic index is not asked to record one.
+ * Only a record answers, which is `namespacedName`'s rule: a builtin width has no declaration to
+ * hang a namespace on, and an alias is a second name for a type rather than the place its methods
+ * are kept. The lookup is `search` with nothing reported - an ambiguity between two imports is not
+ * an answer to "is this someone else's type", and a use of the name is not what this is, so the
+ * semantic index is not asked to record one.
  */
 void Resolver::checkNamespaceOwner(ast::Decl& declaration) {
     auto name = declaration.fun.name;

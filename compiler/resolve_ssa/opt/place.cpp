@@ -18,26 +18,27 @@ namespace ssa {
  * This pass reads that request. A `runSlots` whose count is a constant and whose bytes the frame
  * can prove it never lets out is frame storage: the call becomes an `Alloc` of `[a *n]`, and the
  * `runFromHeap` the library passed becomes `runBorrowed`. Nothing else changes. `resize` still
- * relocates - a borrowed run's slots are not its to move, so it allocates and copies, which is
- * what the flag has always meant - and `Reclaim` still tests the same field and now folds to
- * nothing. That the library needs no rule about literals is the point: the shipping stage has
- * produced frame-placed runs since it had literals, and every reader of `HeapFlag` was written for
+ * relocates - a borrowed run's slots are not its to move, so it allocates and copies, which is what
+ * the flag has always meant - and `Reclaim` still tests the same field and now folds to nothing.
+ * That the library needs no rule about literals is the point: the shipping stage produced
+ * frame-placed runs for as long as it had literals, and every reader of `HeapFlag` was written for
  * one.
  *
  * ## Why here and not in MIR
  *
  * `place.h` says SSA carries a placement down and does not make one, and that is still true of an
- * *object*: `analyze_escape.cpp` decides where a local lives and this pass touches none of them.
- * A run is not an object, and the reason is `analyze_escape.cpp`'s own thesis: **nothing escapes by
+ * *object*: `analyze_escape.cpp` decides where a local lives and this pass touches none of them. A
+ * run is not an object, and the reason is `analyze_escape.cpp`'s own thesis: **nothing escapes by
  * being a value**, because a returned record is copied into storage the caller passed in and its
- * storage stays behind. A run's buffer is the one counterexample in the language - the `Array` record
- * really is copied, and the bytes its `items` field points at are not - so the buffer cannot be an
- * object that walk places without the provenance dataflow that file declines by name. And the frame
- * that keeps the answer is not the one the request is written in either way: `leaving() = [7, 8, 9]`
- * is the allocator's under its own name and the frame's inside a caller that keeps what it returns.
- * So the question cannot be asked until the inliner has put the request in the frame that keeps the
- * answer, which is this tier and no earlier one. The shipping stage reaches the same conclusion from
- * the other end and re-runs its escape analysis behind `inlineCalls` for it.
+ * storage stays behind. A run's buffer is the one counterexample in the language - the `Array`
+ * record really is copied, and the bytes its `items` field points at are not - so the buffer cannot
+ * be an object that walk places without the provenance dataflow that file declines by name. And the
+ * frame that keeps the answer is not the one the request is written in either way: `leaving() = [7,
+ * 8, 9]` is the allocator's under its own name and the frame's inside a caller that keeps what it
+ * returns. So the question cannot be asked until the inliner has put the request in the frame that
+ * keeps the answer, which is this tier and no earlier one. The shipping stage (deleted in J173)
+ * reached the same conclusion from the other end and re-ran its escape analysis behind
+ * `inlineCalls` for it.
  *
  * That the *request* is a library call rather than an allocation the literal expansion emitted is a
  * separate matter, and the shape this pass would rather have - see
@@ -86,13 +87,13 @@ namespace ssa {
  * are the loan checker's three conformance failures, and until a closure environment can be heap-
  * placed those sites refuse rather than report a placement. So containment of the slot plus the
  * loan rule is the whole of that case, and it is the one thing this pass gets from being in the
- * ownership stage rather than the shipping one, where the same question costs an 800-line dataflow.
+ * ownership stage rather than the shipping one, where the same question cost an 800-line dataflow.
  *
  * **And no two lifetimes of the bytes may be live at once.** One frame slot is per activation and a
  * heap request is per execution, so a literal built in a loop and kept past the iteration would be
- * one buffer behind two live descriptors. **The shipping stage does not have this rule and
- * miscompiles for it** - a loop that keeps one iteration's array in `prev` while the next is built
- * reads the new one back through the old descriptor (`test/bench/findings.md` §91.5), which is what
+ * one buffer behind two live descriptors. **The shipping stage did not have this rule and
+ * miscompiled for it** - a loop that kept one iteration's array in `prev` while the next was built
+ * read the new one back through the old descriptor (`test/bench/findings.md` §91.5), which is what
  * says the rule is load-bearing rather than cautious. The rules above do not catch that on their
  * own: writing the array into another frame slot is admitted, and it is admitted for good reason -
  * moving a value between two of this frame's slots is not leaving the frame. What this adds is that
@@ -119,7 +120,7 @@ namespace {
  *
  * And the two answers `ownsHeap` takes here. `runBorrowed` is zero because it is the arm that
  * releases nothing, which is the same number and the same argument the shipping stage's
- * `buildRunInto` writes at every literal: a run whose flag nothing ever set is one nobody hands
+ * `buildRunInto` wrote at every literal: a run whose flag nothing ever set is one nobody hands
  * back, and that is the direction a missing decision has to fail in.
  */
 constexpr U16 kFieldCount = 3;
@@ -1228,12 +1229,12 @@ struct RunPlacement {
      * storage may still be read when control arrives at the header.
      *
      * `test/bench/findings.md` §91.5 is what says the rule is load-bearing rather than cautious -
-     * the shipping stage has no rule here and miscompiles `prev = cur` in a loop for it, reading the
-     * new iteration's array back through the old descriptor. That program fails exactly one of the
-     * two conditions: `prev`'s slot is read at the top of an iteration before anything stores to it,
-     * so it is live at the header. `for x in xs: let &row = [1, 2, 3]` passes both - the row's slot
-     * is stored before it is read and its drop runs before the back edge - and is the shape this is
-     * for.
+     * the shipping stage had no rule here and miscompiled `prev = cur` in a loop for it, reading
+     * the new iteration's array back through the old descriptor. That program fails exactly one of
+     * the two conditions: `prev`'s slot is read at the top of an iteration before anything stores
+     * to it, so it is live at the header. `for x in xs: let &row = [1, 2, 3]` passes both - the
+     * row's slot is stored before it is read and its drop runs before the back edge - and is the
+     * shape this is for.
      *
      * Asked of every loop containing the request rather than of the innermost one, because an outer
      * iteration re-runs the inner loop and a read out in the outer body is one the inner walk never

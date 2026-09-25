@@ -1,19 +1,17 @@
 {-
    What a conversion will not do, and what `::` is not.
 
-   # resolver: ownership
-
    Four refusals over one rule - `doc/spec/overloading.md`'s Implicit conversion, and
    `compiler/resolve_mir/convert.cpp`, which is the one place any of this is decided. Every case
    below has a `Widen` or a `Narrow` instance somewhere near it, which is the point: what is asserted
    is *which* of the two relates a pair and what happens when it is the lossy one, not that some
    conversion is missing.
 
-   The positive side is `resolve/Convert.yana`, compiled by both stages against one run expectation.
-   This file is only the new stage's because the shipping stage answers two of these differently: it
-   let `::` narrow - `length(xs) :: Int` cutting a sixty-four-bit length on one target and being free
-   on the other - and it has no rule at all about a converted value filling a position the callee
-   writes through.
+   The positive side is `resolve/Convert.yana`, which used to be compiled by both stages against one
+   run expectation. This file was only the new stage's because the old shipping stage answered two
+   of these differently: it let `::` narrow - `length(xs) :: Int` cutting a sixty-four-bit length on
+   one target and being free on the other - and it had no rule at all about a converted value
+   filling a position the callee writes through.
 -}
 
 fn takesByte(value: I8) -> I8 = value

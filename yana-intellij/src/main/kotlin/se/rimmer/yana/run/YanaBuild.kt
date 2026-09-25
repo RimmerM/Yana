@@ -295,25 +295,10 @@ object YanaBuild {
         // declarations exist, so the mode is part of what the program *is*.
         configuration.mode.trim().takeIf { it.isNotEmpty() }?.let { command.withParameters("-mode", it) }
 
-        // The rewritten resolve stage for **every** build - the stage the language server answers
-        // from, so what runs is the program the editor described.
-        //
-        // Still written out after the compiler's own default became `ownership` (2026-09-22): what
-        // the fallback below is the fallback *for* is a project that names a stage, and a project
-        // saying `resolver = "legacy"` is built the way it asks. Dropping the flag would leave that
-        // project building one way from the terminal and another from the run button.
-        //
-        // JavaScript used to be left out of this, because it was the one target only the shipping
-        // stage built and the driver refused the flag for it. JSIR changed that (2026-09-22, J75):
-        // the rewrite builds a JavaScript program, the language server resolves a `platform = "js"`
-        // project as one, and a run configuration that still asked the shipping stage would be
-        // running a different program from the one whose errors the editor had been showing - which
-        // is the single thing this line exists to prevent.
-        val resolver = configuration.readProjectFile()?.resolver
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: "ownership"
-        command.withParameters("-resolver", resolver)
+        // No `-resolver`: the compiler has one resolve stage since J173 (2026-09-25) and rejects
+        // the flag as unknown. Until then this passed `-resolver ownership` - or the stage a
+        // project's `yana.toml` named - on every build, so that what ran was the program the
+        // language server had described; with one stage that holds without saying anything.
 
         command.withWorkDirectory(configuration.buildWorkingDirectory())
         command.withCharset(Charsets.UTF_8)

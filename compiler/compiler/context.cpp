@@ -195,20 +195,6 @@ LinearArena::~LinearArena() {
     if(max > base) releaseMem(base, max - base);
 }
 
-void Context::addOp(StringId op, U16 prec, Assoc assoc) {
-    OpProperties prop{prec, assoc};
-    ops[op] = prop;
-}
-
-OpProperties Context::findOp(StringId op) {
-    auto res = ops.get(op);
-    if(res) {
-        return res.unwrap();
-    } else {
-        return {9, Assoc::Left};
-    }
-}
-
 StringId Context::nameHash(const char* chars, Size count) {
     Tritium::Hasher hash;
     hash.addBytes(chars, count);
@@ -319,8 +305,8 @@ StringId Context::addIdentifier(const Identifier& id) {
  *
  * This used to be `identifiers[id]`, which on a HashMap is get-or-add: every name resolution added
  * a row for a name it was only reading, checked the load factor, and could rehash the table from
- * inside a read. `search` in resolve/name.h asks this once per name and once per import of that
- * name, so it was several million inserts over a compilation.
+ * inside a read. `compiler/resolve`'s name search (deleted with that stage in J173) asked this once
+ * per name and once per import of that name, so it was several million inserts over a compilation.
  *
  * A StringId only ever comes from interning, so the miss below is unreachable in a compile that has
  * not corrupted one. It answers the way the old get-or-add did - an empty identifier, textLength

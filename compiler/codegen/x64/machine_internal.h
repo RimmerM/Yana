@@ -361,7 +361,7 @@ enum: MachineFormId {
     // The two narrow ones, which are not a convenience: `movd` and `pextrd` read *four bytes*, so a
     // byte or word lane read through them answers its 32-bit neighbourhood. Both zero-extend into
     // the destination, which is the whole answer for an unsigned lane and half of it for a signed
-    // one - see `Value::VecLane` in resolve/lower_calc.cpp for the other half.
+    // one - see `Inst::VecLane` in resolve_ssa/lower/inst.cpp for the other half.
     FormVExtract8, FormVExtract16,
     FormVExtract32, FormVExtract64,
     FormVExtract32Zero, FormVExtract64Zero,

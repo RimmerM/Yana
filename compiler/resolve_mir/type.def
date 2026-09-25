@@ -1,7 +1,7 @@
 /*
  * The roster of logical type kinds - one row per `mir::Type::Kind`, and the only place a kind is
- * written down. The enum, the cast in `visitType` and the printed name are all generated from it,
- * so a kind cannot be added without deciding all three.
+ * written down. The enum and the cast in `visitType` are both generated from it, so a kind cannot be
+ * added without deciding both.
  *
  * Deliberately short. What is *not* a kind here is as important as what is: there is no borrow type,
  * no view type, no slice sibling and no owned/shared pair, because those are ownership contracts
@@ -10,14 +10,13 @@
  *
  *  - `kind` is the enumerator, and the order of these rows is the order of the enum.
  *  - `Struct` is the concrete type a `Type` of that kind may be cast to.
- *  - `name` is what a dump and a diagnostic print for the kind itself, not for the type.
  */
 
-//            kind      struct        name
-YANA_MIR_TYPE( Unit,     UnitType,     "unit"_v    )
-YANA_MIR_TYPE( Int,      IntType,      "int"_v     )
-YANA_MIR_TYPE( Float,    FloatType,    "float"_v   )
-YANA_MIR_TYPE( Pointer,  PointerType,  "pointer"_v )
+//            kind      struct
+YANA_MIR_TYPE( Unit,     UnitType )
+YANA_MIR_TYPE( Int,      IntType )
+YANA_MIR_TYPE( Float,    FloatType )
+YANA_MIR_TYPE( Pointer,  PointerType )
 
 /*
  * A type variable - the `a` of `fn id(->x: a) -> a`, and of `data Boxed(a) {value: a}`.
@@ -33,7 +32,7 @@ YANA_MIR_TYPE( Pointer,  PointerType,  "pointer"_v )
  * write `a` bind two variables, which is what makes a constraint relate two slots of *one* context
  * rather than being ambient metadata attached to a name.
  */
-YANA_MIR_TYPE( Variable, VariableType, "variable"_v )
+YANA_MIR_TYPE( Variable, VariableType )
 
 /*
  * A constant used where a type is - the `4` of `Buf(4)`, and what a const parameter binds to.
@@ -48,7 +47,7 @@ YANA_MIR_TYPE( Variable, VariableType, "variable"_v )
  * `requireValueType`'s job to say. `Implementation-Const-Generics.md` §2.1 argues the interning key
  * is the pair - `4` as an `I32` and `4` as an `I64` are one number and two parameters.
  */
-YANA_MIR_TYPE( Const,    ConstType,    "const"_v   )
+YANA_MIR_TYPE( Const,    ConstType )
 
 /*
  * A record - one named declaration with named fields, `data Pair {x: I32, y: I32}`.
@@ -63,7 +62,7 @@ YANA_MIR_TYPE( Const,    ConstType,    "const"_v   )
  * and over the instances the program wrote - see `Ownership` and `classifyTypes`. Every kind above
  * has a constant answer, which is exactly why the fold lives on this one.
  */
-YANA_MIR_TYPE( Record,   RecordType,   "record"_v  )
+YANA_MIR_TYPE( Record,   RecordType )
 
 /*
  * A function value's type - `(I32, I32) -> I32`, and Analysis-IR.md §11.4's G7.
@@ -84,7 +83,7 @@ YANA_MIR_TYPE( Record,   RecordType,   "record"_v  )
  * same shape with different names would otherwise be two types, and which spelling won would be
  * whichever was interned first.
  */
-YANA_MIR_TYPE( Fun,      FunType,      "function"_v )
+YANA_MIR_TYPE( Fun,      FunType )
 
 /*
  * A fixed array - `[T *n]`, `doc/spec/collections.md`'s "exactly n elements, stored inline".
@@ -94,19 +93,19 @@ YANA_MIR_TYPE( Fun,      FunType,      "function"_v )
  * have to check it at every call instead of at the one place a type is compared. That is what makes
  * a `[U8 *64]` parameter one pointer with a folded length rather than a base and a count.
  *
- * It is the one kind whose ownership folds over something that is not a field. `[Guard *4]` releases
- * four guards, so `classifyTypes` walks the element exactly as it walks a record's members - and the
- * elements are reached as `Place::Index` projections of the array's own place, never as pointer
- * arithmetic. The shipping stage learned that the hard way twice: an element reached through an
- * address has no root a teardown could be placed against, and two element borrows of one container
- * had nothing to overlap.
+ * It is the one kind whose ownership folds over something that is not a field. `[Guard *4]`
+ * releases four guards, so `classifyTypes` walks the element exactly as it walks a record's
+ * members - and the elements are reached as `Place::Index` projections of the array's own place,
+ * never as pointer arithmetic. `compiler/resolve`, the stage J173 deleted, learned that the hard way twice:
+ * an element reached through an address has no root a teardown could be placed against, and two
+ * element borrows of one container had nothing to overlap.
  *
- * What is deliberately **not** a kind here is the window `[T]` is in a binding position. A window is
- * an `AccessForm` on a contract over the logical array type, which is the whole of what this file's
- * opening paragraph refuses to represent as a type - and what the shipping stage's `sliceMut`,
- * `sliceLoan` and `canonical` sibling records are.
+ * What is deliberately **not** a kind here is the window `[T]` is in a binding position. A window
+ * is an `AccessForm` on a contract over the logical array type, which is the whole of what this
+ * file's opening paragraph refuses to represent as a type - and what the old stage's `sliceMut`,
+ * `sliceLoan` and `canonical` sibling records were.
  */
-YANA_MIR_TYPE( Array,    ArrayType,    "array"_v   )
+YANA_MIR_TYPE( Array,    ArrayType )
 
 /*
  * `Vec(a, n)` and `Mask(a, n)` - Design-Vector §2, and one kind for both.
@@ -122,20 +121,20 @@ YANA_MIR_TYPE( Array,    ArrayType,    "array"_v   )
  * A mask is the same kind with `isMask` set rather than a second kind, so a switch over the kinds
  * gains one arm instead of two and the places that genuinely differ - what a lane comparison
  * answers, which register bank holds it - read the flag. A mask keeps the lane type it was made
- * from and is deliberately **not** normalized to the unsigned integer of that width: the shipping
- * stage normalized, and what it cost was a non-injective type constructor - `Mask(a)` at `a := Int`
+ * from and is deliberately **not** normalized to the unsigned integer of that width: the old stage
+ * normalized, and what it cost was a non-injective type constructor - `Mask(a)` at `a := Int`
  * giving `Mask(U32)`, which then failed to bind `a` back - in a language where every generic
  * mechanism assumes an application binds its arguments.
  *
- * Ownership is a constant and is `Bytes` in the language of the shipping stage's column: a lane is
- * an integer or a float by construction, so a vector of them duplicates freely, releases nothing and
+ * Ownership is a constant and is `Bytes` in the language of the old stage's column: a lane is an
+ * integer or a float by construction, so a vector of them duplicates freely, releases nothing and
  * relocates. That holds inside a generic body too, where `Vec(a)` is trivial whatever `a` turns out
  * to be, because a lane that was not a primitive would have been refused at the type.
  *
  * What it is *not* is a container. There is no per-lane projection and no `Place` reaching one:
  * reading a lane is an operation, which is the boundary that keeps a lane index a constant.
  */
-YANA_MIR_TYPE( Vector,   VectorType,   "vector"_v  )
+YANA_MIR_TYPE( Vector,   VectorType )
 
 /*
  * `Atomic(a)` - Analysis-Atomics.md §3.1, and the one kind whose ownership *inverts* its content's.
@@ -155,7 +154,7 @@ YANA_MIR_TYPE( Vector,   VectorType,   "vector"_v  )
  * the operation and not of the location, which is what keeps one `Atomic(Int)` usable by a relaxed
  * counter and a sequential flag in one program.
  */
-YANA_MIR_TYPE( Atomic,   AtomicType,   "atomic"_v  )
+YANA_MIR_TYPE( Atomic,   AtomicType )
 
 /*
  * `iter(T)` - the **erased** iterator object, Design-Iterator-Objects.md §2.2 and §3.4.
@@ -177,4 +176,4 @@ YANA_MIR_TYPE( Atomic,   AtomicType,   "atomic"_v  )
  * thunk all mean "callable", and an iterator object is not one. A kind makes every one of those say
  * no by construction.
  */
-YANA_MIR_TYPE( Iter,     IterType,     "iterator"_v )
+YANA_MIR_TYPE( Iter,     IterType )

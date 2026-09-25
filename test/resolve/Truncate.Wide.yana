@@ -5,11 +5,11 @@
    `Number(w) >>> 0` for it - which is not that. `Number` converts the *whole* magnitude to a double
    first, so every bit above the fifty-third is gone by the time `>>> 0` asks for the low
    thirty-two: `truncate(0x0123456789ABCDEF)` answered 0x89ABCE00 where both the specification and
-   the native build say 0x89ABCDEF. See `narrowedFromLong` in codegen/js/inst.cpp, which reduces on
-   the `bigint` and only then converts.
+   the native build say 0x89ABCDEF. The conversion in codegen/js/structure.cpp reduces on the
+   `bigint` and only then converts.
 
    **Every value here goes through a function**, and that is the whole design of this fixture. A
-   narrowing of a *constant* is folded in `compiler/opt`, in full precision, so the optimized build
+   narrowing of a *constant* folds in `resolve_ssa/opt`, in full precision, so the optimized build
    was right and only the unoptimized one was wrong - which is exactly the shape the fixture
    runner's optimizer-equivalence check exists to catch and is how this was found. Inlining is what
    would put the constant back, so the values are parameters and the checks are comparisons rather

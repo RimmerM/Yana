@@ -27,7 +27,7 @@
  * body reaches it through the same witness, and a `Function` with a body is what the erased ABI
  * hands a pointer to. What the compiler adds is that a member of one **expands where it is called**
  * when the call is concrete, so `a + b` at two `I32`s is the `add` node and never a call - which is
- * the property the old resolver's `Emit` hooks existed for, and here it is one rule in `finishCall`
+ * the property `compiler/resolve`'s `Emit` hooks existed for, and here it is one rule in `finishCall`
  * rather than a flag per method.
  *
  * The emitters are one stage's - `compiler/resolve_mir/intrinsic/expand_provided.cpp` - and they
@@ -201,10 +201,10 @@ YANA_PROVIDED_ROLE( lanewiseScalar, Known::lanewise, Family::Numbers, Heads::Mas
  * heads come from a generator, `provideEnumInstances`, and what this row is for is the *emitters*,
  * which are reached by `(role, position)`.
  *
- * Generated eagerly, after every declaration is read, where the shipping stage generates one on a
- * failed lookup. The two arrangements have to agree about one thing and do: a **declared** instance
- * wins. There it wins by being found first; here the walk skips a head the table already holds, and
- * a program may not write one anyway - which is the class's own ruling and not this table's.
+ * Generated eagerly, after every declaration is read, rather than on a failed lookup, which is how
+ * `compiler/resolve` generated one until J173 deleted it. What either arrangement has to get right
+ * is that a **declared** instance wins: here the walk skips a head the table already holds, and a
+ * program may not write one anyway - which is the class's own ruling and not this table's.
  *
  * Last in the table because nothing depends on it and it depends on everything: an enum's `Eq` and
  * `Ord` are the *comparison* rows above at a head this walk supplies, so the primitives' instances
@@ -225,6 +225,6 @@ YANA_PROVIDED_ROLE( enumeration, Known::enumeration, Family::Shapes, Heads::Each
  * checked at the same point, because a `show` that appends nothing is worse than no instance.
  *
  * A **declared** instance still wins, by `provideEnumInstances`' own rule: `Show(Bool)` is written in
- * `lib/Core/Show.yana` and is what a `Bool` gets, exactly as it is in the shipping stage.
+ * `lib/Core/Show.yana` and is what a `Bool` gets.
  */
 YANA_PROVIDED_ROLE( show, Known::show, Family::Shapes, Heads::Each )

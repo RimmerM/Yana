@@ -1,14 +1,12 @@
 {-
    The copying form of a record update over a type that does not copy for free.
 
-   # resolver: ownership
-
    `{v | f: x}` makes a *second* value of `v`'s type, so what it needs of `v` is a duplicate. Where
    the type is `TrivialCopy` the duplicate is the bytes and `Record.yana` is the whole of it; where
    it is not, the language's word for a duplicate is the `Copy` class and this emits the ordinary
-   call to it. The shipping stage copies the bytes either way, which for a value that maintains an
-   invariant across its copies is the invariant broken - so this is a fixture only the ownership
-   stage compiles.
+   call to it. The shipping stage copied the bytes either way, which for a value that maintains an
+   invariant across its copies is the invariant broken - so this was a fixture only the ownership
+   stage compiled.
 
    An authored `Copy` is also what *makes* `Pair` non-trivial: `doc/spec/ownership.md`'s "an authored
    `Copy` subtracts `TrivialCopy`", which is why one instance is both the reason a copy is needed

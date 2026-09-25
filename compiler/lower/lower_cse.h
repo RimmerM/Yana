@@ -7,22 +7,23 @@
  *
  * One computation replaced by an earlier one that dominates it. Nothing here is arithmetic the source
  * wrote twice: it is arithmetic *lowering* wrote twice, which is why this pass is here and not in
- * `compiler/opt`.
+ * `resolve_ssa/opt`.
  *
  * ## What is redundant at this altitude and not above it
  *
  * `out[row * n + column] = out[row * n + column] + left * b[k * n + column]` is one line of Yana, and
- * the two subscripts on the left of it are one index. Above the fork they already are: `row` and
- * `column` are places, and `eliminateCommonValues` in opt_value.cpp unifies two reads of one place
- * and then the `mul` and the `add` over them. What it cannot unify is what does not exist yet -
+ * the two subscripts on the left of it are one index. Above the fork they already are: `cse` in
+ * resolve_ssa/opt/cse.cpp unifies one expression spelled twice, the `mul` and the `add` included.
+ * What it cannot unify is what does not exist yet -
  *
  *  - **the address.** A place becomes `add base, offset` here, so `%out.length` read twice is two
  *    `add %frame, 12`s and the shared subexpression is one this IR invented.
  *  - **the promoted local.** `promoteStackSlots` runs immediately above this and turns a stack slot
  *    into a phi, so `row` stops being a load and starts being a value - which is what makes two
- *    `imul %row, %n` in two blocks *comparable* in the first place. Above the fork they were two
- *    loads, and opt_value.cpp deliberately declines to unify a whole scalar local because doing so
- *    costs JS a variable and buys the native target nothing that this pass does not buy it better.
+ *    `imul %row, %n` in two blocks *comparable* in the first place. Above the fork they are two
+ *    loads, and resolve_ssa/opt/cse.cpp deliberately declines to unify a read of a whole allocation
+ *    because doing so costs JS a variable and buys the native target nothing that this pass does
+ *    not buy it better.
  *  - **the reciprocal.** `strengthReduceFunction` turns `x / 7` into a five-instruction magic
  *    multiply and `x % 7` into that sequence plus two more, so a program asking for both at one
  *    divisor got the quotient twice. lower_strength.h names this as the first thing a lower-IR CSE
@@ -31,19 +32,20 @@
  * ## Two kinds it deliberately does not touch
  *
  * **An immediate.** Two `Imm`s holding one number are compared as *operands* - see `sameOperand`,
- * without which nearly nothing here matches, since `immediate()` in resolve/lower_type.cpp builds a
- * fresh one per site - but the instructions themselves are left alone. An immediate is not a value
- * the backend materializes if it can help it: `tryEmbedImm` marks one implicit when *every* one of
- * its readers can encode it inline, so giving one reader that can and one that cannot to a single
- * `Imm` takes the encoding away from both. The same argument retires `Fun`, whose address
- * `tryElideDirectCallee` elides on exactly the same all-or-nothing terms.
+ * without which nearly nothing here matches, since `Lowering::immediate` in
+ * resolve_ssa/lower/erase.cpp builds a fresh one per site - but the instructions themselves are
+ * left alone. An immediate is not a value the backend materializes if it can help it: `tryEmbedImm`
+ * marks one implicit when *every* one of its readers can encode it inline, so giving one reader
+ * that can and one that cannot to a single `Imm` takes the encoding away from both. The same
+ * argument retires `Fun`, whose address `tryElideDirectCallee` elides on exactly the same
+ * all-or-nothing terms.
  *
  * **A load.** Not because it is unsound to ask, but because the answer here is nearly always no: a
  * place is an address by this point, so "do these two touch the same storage" is pointer
- * disambiguation over `add ptr, imm` rather than the structural question opt_place.cpp answers. The
- * redundant loads §9.2 names - an array's `length` and `items`, read once per bounds check - are
- * removed above the fork, where the projection path is still there to compare. See
- * `eliminateCommonValues` in opt_value.cpp.
+ * disambiguation over `add ptr, imm` rather than the structural question a projection path answers.
+ * The redundant loads §9.2 names - an array's `length` and `items`, read once per bounds check -
+ * are removed above the fork, where the projection path is still there to compare. See the loads in
+ * resolve_ssa/opt/cse.cpp.
  *
  * ## Where it runs
  *

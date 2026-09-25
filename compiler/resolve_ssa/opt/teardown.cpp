@@ -9,13 +9,14 @@
  * itself, which is a lowering question - offsets, boxes, a sum's branch. What it cost was every
  * teardown that is **an ordinary call** by the time the machine sees it: an authored `Drop` or
  * `Reclaim` member, and above all `Reclaim(Array(a))` and `Reclaim(String)`, which is what nearly
- * every drop in a program is. The call is emitted after the optimizer, so nothing inlines it, and it
- * receives the *address* of the value, so nothing forwards through the slot either: `promote` and
- * `removeDeadStorage` decline an allocation a teardown-bearing `drop` names, and `forwardMemory`
- * treats the drop as a read and a write of it. `Dispatch.Borrow` was the case at its smallest - a
- * three-element literal placed on the frame, whose reclaim tests a flag the aggregate set to
- * "borrowed" and so does nothing, kept the literal in memory and a call to `Array.reclaim` and
- * `freeHeap` in the program: 51 instructions where the shipping stage emits `ret 12`.
+ * every drop in a program is. The call is emitted after the optimizer, so nothing inlines it, and
+ * it receives the *address* of the value, so nothing forwards through the slot either: `promote`
+ * and `removeDeadStorage` decline an allocation a teardown-bearing `drop` names, and
+ * `forwardMemory` treats the drop as a read and a write of it. `Dispatch.Borrow` was the case at
+ * its smallest - a three-element literal placed on the frame, whose reclaim tests a flag the
+ * aggregate set to "borrowed" and so does nothing, kept the literal in memory and a call to
+ * `Array.reclaim` and `freeHeap` in the program: 51 instructions where the shipping stage (deleted
+ * in J173) emitted `ret 12`.
  *
  * So the drop becomes the call it is, here, while the inliner and the folds are still ahead:
  *

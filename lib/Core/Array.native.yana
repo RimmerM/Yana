@@ -45,8 +45,8 @@ import Native
    one type". The attribute is what says which declaration that is, so the compiler holds no name
    and this one is free to be renamed.
 
-   Only the ownership stage reads it - the shipping stage looks straight past a role it does not
-   bind, which is what `findSuppliedRole` is for. What the compiler decides about this type is the
+   (`compiler/resolve`, deleted in J173, looked straight past a role it did not bind - which was
+   what its `findSuppliedRole` was for.) What the compiler decides about this type is the
    **window**: a shared or unique `[a]` in a binding position is two words, and what an *owner* holds
    is what this line declares and nobody else's business.
 -}
@@ -57,9 +57,9 @@ pub data Array(a) {run: Run(a), length: Count}
    What a shared or unique `[a]` *is* - two fields, because the base is the window.
 
    `@builtin(arrayView)` and `@local`: a representation record, on Analysis-Manifestations.md
-   Part 8's terms. The ownership stage lays a window out as this and reads no field of it; this
-   stage folds a `[a]` binding to it as the type it always was, through the role rather than the
-   name. `@local` is what keeps the name out of every other module either way - a window is written
+   Part 8's terms. The compiler lays a window out as this and reads no field of it, finding it
+   through the role rather than the name (`compiler/resolve` folded a `[a]` binding to it).
+   `@local` is what keeps the name out of every other module - a window is written
    `[a]`, never as this. `Array.js.yana` is the three-field form.
 -}
 @local @builtin(arrayView)
@@ -208,7 +208,7 @@ fn unclampedSlice(self: '[a], from: Size, count: Size) -> '[a] =
    checker treat it as one - without it this function is rejected for handing back a view of its own
    argument.
 
-   `@builtin(slice)` is what `xs[a..b]` reaches in the ownership stage - the clamping and the
+   `@builtin(slice)` is what `xs[a..b]` reaches - the clamping and the
    arithmetic are this body's, and the compiler holds the arity and nothing else.
 -}
 @builtin(slice)

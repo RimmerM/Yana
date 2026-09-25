@@ -1,15 +1,15 @@
 {-
-   The map literal, compiled by both resolve stages - Implementation-Map.md §7.
+   The map literal - Implementation-Map.md §7.
 
-   `test/resolve/MapLiteral.yana` is the whole feature and is the shipping stage's alone. This one is
-   here because `test/lib` is compiled against the real library by both stages, which is what a map
-   literal needs; it was written here when `test/resolve` still compiled the rewrite against a
-   stand-in library with no `Map` in it.
+   `test/resolve/MapLiteral.yana` is the whole feature. This one is here because `test/lib` is
+   compiled against the real library, which is what a map literal needs; it was written here
+   when `test/resolve` still compiled the rewrite against a stand-in library with no `Map` in
+   it.
 
    The compiler builds no map. `[k: v]` is `known.def`'s `mapLiteral` role - `newMap(n)`, the one
    construction site where the entry count is a compile-time constant - and one
    `IndexInsert.insertAt` per pair, left to right, which is the same member `m[k] = v` reaches. No
-   field of `Map` is read by either stage.
+   field of `Map` is read here.
 
    Four claims, each of which fails on its own:
 

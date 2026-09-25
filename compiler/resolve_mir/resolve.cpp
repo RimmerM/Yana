@@ -13,7 +13,7 @@
 namespace mir {
 
 void Resolver::unsupported(LocationId source, StringView what) {
-    context.diagnostics.error("the ownership resolver does not implement %@ yet"_v, source, what);
+    context.diagnostics.error("the compiler does not implement %@ yet"_v, source, what);
 }
 
 /*
@@ -105,9 +105,9 @@ Maybe<LowerCallType> Resolver::readFunctionConvention(ast::Type& type) {
  * `inlineArray` role, whose slots and count live inside whoever holds it (J143). It used to be
  * honoured only as a literal's capacity, because this stage had no layout for the slots.
  *
- * The pair is checked exactly as `resolveContainerRefinement` checks it in the shipping stage,
- * because the rows that spill are the ones neither stage builds and refusing them by name is what
- * keeps an author from believing in a layout.
+ * The pair is checked exactly as `compiler/resolve`'s `resolveContainerRefinement` checked it
+ * before J173 deleted that stage, because the rows that spill are the ones no stage builds and
+ * refusing them by name is what keeps an author from believing in a layout.
  *
  * Answers false having reported. `into` is left zero where nothing was written.
  */
@@ -1263,8 +1263,8 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint, bool* no
          * `-1` is a written negative number, not a negation of a positive one.
          *
          * The lexer produces the magnitude alone, so folding the sign in here is what makes
-         * `I64`'s own minimum expressible: negating it after the fact is signed overflow, and
-         * `resolve/const.cpp` records that having been the bug on the other side.
+         * `I64`'s own minimum expressible: negating it after the fact is signed overflow, which
+         * was the bug in `compiler/resolve`'s `const.cpp` (that stage was deleted in J173).
          *
          * Everything else the operator can be reaches `resolvePrefixConstant`, which is the same
          * rule the infix and call forms follow - `-(7 * 3)` is a negation of a constant, and the
@@ -2217,7 +2217,7 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
      * `bitcast` for that reason, and this is not a second spelling of it.
      *
      * The value path is untouched, so `let p = 5 :: %U8` in a body is still the `FromInt` refusal
-     * below - the shipping stage refuses the same expression in the same position.
+     * below.
      */
     if(decl()[type]->kind == Type::Pointer && written.role == intrinsic::Known::fromInt &&
        !negative && written.bits == 0) {
@@ -2387,7 +2387,7 @@ Resolver::TextTarget Resolver::textTarget(DeclPtr<Type> type) {
 
 /*
  * See the declaration - part 1.1's acceptance table, and the fold. The table and its words are
- * `intrinsic/text.h`'s, shared with the shipping stage so that the two accept the same literals.
+ * `intrinsic/text.h`'s.
  *
  * What is refused is reported at the literal and answers unset, so a position is not also told that
  * a `String` does not fit it.
@@ -2478,8 +2478,8 @@ Node* Resolver::textConversionValue(Builder& builder, StringId written, DeclPtr<
  *
  * A global per literal rather than one interned by content - the name would then have to be derived
  * from bytes that may hold a quote or a newline, which is a decision worth making once and later
- * rather than as a side effect of emitting the first one. `resolve/const.cpp`'s
- * `stringLiteralBytes` is the shipping stage's, and it records the same choice.
+ * rather than as a side effect of emitting the first one. `compiler/resolve`, deleted in J173, made
+ * the same choice.
  */
 DeclPtr<Global> Resolver::stringBytesGlobal(StringId written, LocationId source) {
     auto text = context.findName(written);
@@ -2897,8 +2897,7 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
          * between the two: the families up there are the target's widths, which no declaration can
          * add to, and these are the program's own enums - so this pass has to see every `data` *and*
          * every written `instance`, because a program that declared `instance Eq(Colour)` gets its
-         * own and not the compiler's. Skipping a head the table already holds is what states that,
-         * where the shipping stage states it by consulting its hooks only after a lookup failed.
+         * own and not the compiler's. Skipping a head the table already holds is what states that.
          */
         resolver.provideEnumInstances();
 

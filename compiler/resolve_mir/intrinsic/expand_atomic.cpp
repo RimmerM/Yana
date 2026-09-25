@@ -30,8 +30,8 @@ using namespace intrinsic;
  *
  * This family is the one `expand.h` names as the reason an intrinsic call is an ordinary call up to
  * the last step: `intoValue(->self: Atomic(a))` consumes its subject because `argumentMode` read the
- * `->` off the declaration, not because an emitter remembered to sink it. The shipping stage's four
- * emitters applied that by hand and one of them did not, so `intoValue(c)` twice compiled.
+ * `->` off the declaration, not because an emitter remembered to sink it. `compiler/resolve`'s four
+ * emitters applied that by hand and one of them did not, so `intoValue(c)` twice compiled there.
  */
 
 /*

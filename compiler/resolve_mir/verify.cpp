@@ -1615,10 +1615,10 @@ struct Verifier {
      * (`declareArgs` sets the flag, `resolveArgType` builds the thunk type), and the failure mode of
      * getting them apart is a body that reads the name as a value and a call that passes a thunk.
      *
-     * The shipping stage's `verify.cpp:653` restated. Here rather than in `resolve_sig.cpp` because
-     * it is a claim about the finished declaration and this is what runs over finished declarations;
-     * per body rather than per declaration for the same reason every check here is - a signature
-     * with no body has nothing this could be wrong about.
+     * A check `compiler/resolve`'s verifier made, restated. Here rather than in `resolve_sig.cpp`
+     * because it is a claim about the finished declaration and this is what runs over finished
+     * declarations; per body rather than per declaration for the same reason every check here is -
+     * a signature with no body has nothing this could be wrong about.
      */
     void checkSignature() {
         for(auto pointer: function.args.contents(decl)) {

@@ -7,11 +7,11 @@ namespace mir {
  *
  * One file for the whole of placement, and it is deliberately two things with a seam between them:
  * the **findings** (`Placement`), which several unrelated parts of the compiler establish, and the
- * **ranking** (`selectStorage`), which is one function nobody else duplicates. That is decision D6's
- * whole content. The shipping stage's equivalent grew the other way round - `selectStorage` there
- * reads six fields off an instruction and writes three of them back, and adding the region rung
- * would mean finding every one of those - so this stage states the split before there is a second
- * rung to get wrong.
+ * **ranking** (`selectStorage`), which is one function nobody else duplicates. That is decision
+ * D6's whole content. `compiler/resolve`'s equivalent (the stage J173 deleted) grew the other way
+ * round - `selectStorage` there read six fields off an instruction and wrote three of them back,
+ * and adding the region rung would have meant finding every one of those - so this stage states the
+ * split before there is a second rung to get wrong.
  *
  * ## What establishes a finding, and what does not
  *
@@ -20,12 +20,12 @@ namespace mir {
  * it.
  *
  * `Placement::outlivesFrame` is the escape question, and the honest statement about it in *this*
- * representation is worth writing down, because the shipping stage's 800-line dataflow does not
+ * representation is worth writing down, because the old stage's 800-line dataflow did not
  * translate: **in an ownership MIR nothing escapes by being a value.** A returned record is copied
  * into storage the caller passed in; an argument at a `->` position is moved into the callee's own
  * slot; a write into a global fills the global's storage. In every one of those the object travels
- * and its *storage* stays behind, which is the case the shipping stage spends `transferredProvenance`
- * separating out of a representation that cannot say it.
+ * and its *storage* stays behind, which is the case the old stage spent `transferredProvenance`
+ * separating out of a representation that could not say it.
  *
  * What is left is storage reached through a **reference**, and every reference here is a loan. So the
  * escape seeds are exactly the loan checker's conformance failures - a loan in a returned value

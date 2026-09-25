@@ -2,8 +2,6 @@
    **A resuming producer that owns something** - `doc/inflight/Design-Iterator-Objects.md` §3.3 and
    §2.5 together, and `../../../doc/progress/2026-09-16-J57-object-defects.md` §2.
 
-   # resolver: ownership
-
    A record owing anything gets a generated `instance Drop`, whose member is the step entered with a
    cancel request. That step is handed **what the continuation answered**, and a producer declaring
    `<- R` takes `Outcome(R, exit)` there rather than the bare signal - so the teardown, which sends a

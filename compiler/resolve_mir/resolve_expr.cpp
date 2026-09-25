@@ -136,8 +136,8 @@ Place* Resolver::hold(Builder& builder, Node& value, LocationId source) {
  *
  * **Outermost frame first**, and left to right within one, so that the temporaries are declared in
  * the order the values were produced and dropped in that order - which is the order named locals
- * are dropped in, and the order the other stage gives `f(g(a)?, h(b)?)`. The order is
- * `abandonedHeld`'s, which the lens region's spill reads too.
+ * are dropped in, and the order `compiler/resolve` (deleted in J173) gave `f(g(a)?, h(b)?)`. The
+ * order is `abandonedHeld`'s, which the lens region's spill reads too.
  */
 void Resolver::releaseHeld(Builder& builder, Held* until, LocationId source) {
     /*
@@ -1016,18 +1016,18 @@ bool Resolver::resolveIndexInsert(Builder& builder, const Subscript& subscript, 
  * `Size`, and one comparison against the length catches a negative index as well, because a negative
  * number read unsigned is larger than any length.
  *
- * **A call to `checkCondition` and not the branch**, which is the shipping stage's own indirection
- * arrived at from the other end - `known.def`'s row says why it now has one. A subscript is resolved
- * inside whatever expression contains it, and this IR hands every value that crosses a block
- * boundary over as a block argument: a branch emitted here would have to thread everything the
- * enclosing expression has already computed through two new blocks, under a construct that has
+ * **A call to `checkCondition` and not the branch**, which is the indirection `compiler/resolve`
+ * also used, arrived at from the other end - `known.def`'s row says why it now has one. A subscript
+ * is resolved inside whatever expression contains it, and this IR hands every value that crosses a
+ * block boundary over as a block argument: a branch emitted here would have to thread everything
+ * the enclosing expression has already computed through two new blocks, under a construct that has
  * already decided which blocks it owns. The branch inside the callee is the same test where nothing
  * is looking, and the inliner removes the call in an optimized build.
  *
  * **Skipped for a constant index that is in range**, which is why `[0] :: [U8 *64]` and every
  * `xs[0]` in the corpus cost nothing and change no golden. A constant that is *out* of range still
  * gets the test, and the optimizer folds it to the unconditional stop it is; refusing it at
- * compile time is a diagnostic this stage does not owe and the shipping stage does not make.
+ * compile time is a diagnostic this stage does not owe.
  */
 void Resolver::checkFixedBound(Builder& builder, const Subscript& subscript, LocationId source) {
     auto array = (ArrayType*)decl()[subscript.container->occurrence.type];
@@ -1364,8 +1364,8 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
      * `Target.byteOrder` are read the same way.
      *
      * The root only, and not a projection of one. `origin.x` of a constant record folds for exactly
-     * the same reason and is the shipping stage's `constantAt` walk; nothing in `lib/` needs it yet,
-     * so the walk is not written twice before there is a second reader.
+     * the same reason and was `compiler/resolve`'s `constantAt` walk; nothing in `lib/` needs it
+     * yet, so the walk is not written before there is a second reader.
      *
      * A **scalar** value only, which is the narrower half of that. An `Aggregate` or a `Text` global
      * has a *placement* - one run of bytes the program refers to - and a read of it is a read of
@@ -1573,9 +1573,6 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
      * value is the ordinary conversion, `convertValue`'s `refinesInteger` arm: one `convert` node,
      * at the use, to the type that use asked for. It is also one node fewer than the pair it
      * replaced, since a read widened to `U32` and then wanted at `U64` converted twice.
-     *
-     * The shipping stage reads a refinement the same way - `load %h@Header.length : @bits(30) U32`,
-     * and a `cast` at each use - which is what makes the two stages agree about `lib/Core`.
      */
     return builder.addRead(source, place, mode, wanted);
 }
@@ -2693,8 +2690,8 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
              * end of its one rule: a lossless step happens, and a lossy one is reported naming
              * `truncate`. That is the same function every implicit position goes through, which is
              * what stops `::` being the one construct in the language that can quietly remove data -
-             * the shipping stage let it narrow, and `length(xs) :: Int` cut a sixty-four-bit length
-             * on one target while being free on the other.
+             * `compiler/resolve` (deleted in J173) let it narrow, and `length(xs) :: Int` cut a
+             * sixty-four-bit length on one target while being free on the other.
              */
             auto& ascription = *parse[expr.coerce];
 
@@ -3095,7 +3092,7 @@ Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& 
         /*
          * A `@bits(n)` field at a `&` position is **refused** here, by `coerce`'s sentence, where a
          * direct call lends it through the lowering's tier-1 temporary (`prepareArgument`). J162
-         * tried lending it here on the same terms: `-no-ir-opt` agreed with the shipping stage on
+         * tried lending it here on the same terms: `-no-ir-opt` agreed with `compiler/resolve` on
          * both targets, but optimized, a lambda's call answered garbage natively and the JSIR
          * conversion refused the inlined write. Until that is built the refusal stands, and
          * `compiler/resolve_ssa/lower/README.md` and `Reject.PackedBorrow.yana` say so.
@@ -3567,7 +3564,7 @@ Node* Resolver::adaptToView(Builder& builder, Node& value, const Occurrence& pos
      * ran out (J66 §6). The value's type against the *argument* and the position against the
      * *result* is the statement the body is actually making, and it catches both.
      *
-     * Turning it on needed `Container.ownership.js.yana`'s bodies first, which build the view record
+     * Turning it on needed `Container.js.yana`'s bodies first, which build the view record
      * out of `hostRow(self)` rather than asking for one - otherwise the report is the library
      * failing to compile for that target at all. The two changes are one change.
      */
@@ -3705,10 +3702,11 @@ Maybe<ArrayLiteralShape> Resolver::arrayLiteralShape(ast::Expr& expr, DeclPtr<Ty
  * `elementBase` for where those slots start - and `known.def`'s note above `runSlots` is where the
  * argument for removing them is.
  *
- * What both arrangements have over the shipping stage is that the *field list* comes from the
- * library's own records rather than being spelled at every literal: a library that laid a run out
- * differently fails to build here and miscompiles there. What the roles bought over that was one
- * fewer reader of the field order, and the read had to happen anyway - see `RunShape`.
+ * What both arrangements had over `compiler/resolve` (deleted in J173) is that the *field list*
+ * comes from the library's own records rather than being spelled at every literal: a library that
+ * laid a run out differently fails to build here where it miscompiled there. What the roles bought
+ * over that was one fewer reader of the field order, and the read had to happen anyway - see
+ * `RunShape`.
  *
  * **The elements are resolved before the array is made**, which is the same ordering the map literal
  * has and is here for both of its reasons. The written expressions run left to right exactly once,
@@ -3783,8 +3781,8 @@ Node* Resolver::resolveGrowableLiteral(Builder& builder, ast::Expr& expr, DeclPt
  * here for both of its reasons: the written expressions run left to right exactly once, and the
  * first pair is what says what the map holds when the position did not.
  *
- * `insertAt` and not `insert`, which is the shipping stage's argument said again: `insert` hands
- * back the value it replaced, so a literal built out of it would drop a `Maybe(v)` at every entry.
+ * `insertAt` and not `insert`: `insert` hands back the value it replaced, so a literal built out of
+ * it would drop a `Maybe(v)` at every entry.
  * Two equal keys are therefore the assignment's rule and not a new one - the later entry wins.
  */
 Node* Resolver::resolveMapLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
@@ -3990,11 +3988,11 @@ Maybe<RunShape> arrayShape(Resolver& self, DeclPtr<Type> element, LocationId sou
  * *owner*, and this is the owner being built.
  *
  * **The elements are operands of the `host.array` node**, not writes after it. `[a, b, c]` is one
- * expression in the emitted source and the shipping stage already emits it that way
- * (`codegen/js/inst.cpp`'s `HostArray` arm, which is variadic); building an empty array and writing
- * past its end would also be *wrong* on the typed row, where a `Uint8Array` of no elements accepts
- * no write at all. They arrive `Take` because the array holds them afterwards, which is the same
- * hand-over `hostWrite` declares and is what keeps this frame from releasing what the array owns.
+ * expression in the emitted source, and the JSIR's `HostArray` is variadic to say so; building an
+ * empty array and writing past its end would also be *wrong* on the typed row, where a
+ * `Uint8Array` of no elements accepts no write at all. They arrive `Take` because the array holds
+ * them afterwards, which is the same hand-over `hostWrite` declares and is what keeps this frame
+ * from releasing what the array owns.
  *
  * `@capacity(n)` is **ignored here**, and that is the honest answer rather than an omission: a host
  * array grows on its own, so there is no reservation to make - `Array.js.yana`'s own `reserve`
@@ -4607,9 +4605,8 @@ void Resolver::findDotOverloads(DeclPtr<Type> receiver, StringId name, U32 arity
  *
  * Two things the form does not reach, each grammar rather than rule. A receiver whose own resolution
  * depends on the access - `xs[i].bump()` where `bump` takes `&self` - is read shared, because the
- * accessor `Index.get` had to be emitted before a candidate could say it wanted `getMut`; the
- * shipping stage refuses the same program with the same reason. And the receiver takes no type
- * pushdown, since its type is what decided this was a dot-call at all.
+ * accessor `Index.get` had to be emitted before a candidate could say it wanted `getMut`. And the
+ * receiver takes no type pushdown, since its type is what decided this was a dot-call at all.
  */
 Node* Resolver::resolveDotCall(Builder& builder, ast::AppExpr& written, ast::FieldExpr& field,
                                DeclPtr<Type> hint, LocationId source) {
@@ -4749,7 +4746,7 @@ Node* Resolver::resolveDotCall(Builder& builder, ast::AppExpr& written, ast::Fie
  * A refined array reaching a growable array's **owner** position - `push(xs, 3)` with `xs:
  * @inline(4) @capacity(4) [Int]` and `fn push(&self: Array(a), ...)` (J143, rebuilt in J146).
  *
- * The descriptor the shipping stage's glue built, said as two library calls around the one written:
+ * The descriptor `compiler/resolve`'s glue built, said as two library calls around the one written:
  * `inlineGrowable` makes a plain `Array(a)` over the record's own slots with a `runFixed` run, the
  * call is made on *that*, and `inlineCommit` writes the count back and empties the descriptor, whose
  * ordinary teardown then walks no elements and releases a `runFixed` run, which is nothing. (An
@@ -5059,7 +5056,7 @@ Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
      * tier 1 where the loan outlives the call. Tier 1 is a temporary committed when the call
      * returns (`convertValue` admits it, `materializeNarrow` builds it), so a write through the
      * result after that would land in a temporary nobody reads. Refused rather than committed at the
-     * result's last use, which is the shipping stage's answer and a second write-back rule; a
+     * result's last use, which was `compiler/resolve`'s answer and a second write-back rule; a
      * parameter declared at the refinement is tier 2 and serves it with no temporary at all.
      */
     if(position.contract.access() == Access::Unique && position.contract.origin() == Origin::Slot &&
@@ -5339,7 +5336,7 @@ Function* Resolver::generatedMemberAt(Function& callee, const Substitution& with
  * with `a` open, is a call node, and `callTarget` finds the same member at the specialization -
  * which has a body the same emitter wrote, so nothing is lost but the inlining an optimizer does
  * anyway. The concrete case is the common one and is what makes an operator cost nothing without
- * an optimizer having run, which is the property the shipping stage's `Emit` hooks exist for.
+ * an optimizer having run, which is the property `compiler/resolve`'s `Emit` hooks existed for.
  * `function` is `generatedMemberAt`'s answer, so the call is concrete and the selection made.
  */
 Node* Resolver::expandProvidedCall(Builder& builder, Function& function,
@@ -5563,7 +5560,7 @@ void TypeArguments::bind(DeclPtr<Type> declared, DeclPtr<Type> supplied) {
      * nothing else in the language converts. A variable reached *inside* a type - `Boxed(a)` given a
      * `Boxed(I32)` and a `Boxed(I64)` - is two different records and there is no conversion between
      * them; `bindResult` does not come here at all, because a result is what the call produces and a
-     * result that needs converting has not decided anything. The shipping stage draws the line in
+     * result that needs converting has not decided anything. `compiler/resolve` drew the line in
      * the same place, with `widen` false for a result and at every depth.
      */
     if(unifies && base[declared]->kind == Type::Variable) {
@@ -5579,8 +5576,7 @@ void TypeArguments::bind(DeclPtr<Type> declared, DeclPtr<Type> supplied) {
              * two that are promises rather than offers: a functional dependency or a field
              * requirement filled through `fillFromRequirements` - `class Enum(a -> w)` says what
              * width an enum's value has, and an argument is in no position to widen it - and the
-             * call's own result, which `bindResult` fills with `unifies` off for the same reason
-             * the shipping stage's `widen` is false there.
+             * call's own result, which `bindResult` fills with `unifies` off for the same reason.
              *
              * Through `canonicalInt` on the held side too, because a binding that already *accepts*
              * this argument is not two positions to unify: `Maybe(@bits(4) U32)` bound from the
@@ -5997,9 +5993,9 @@ void TypeArguments::bindResult(DeclPtr<Type> declared, DeclPtr<Type> supplied) {
     SmallArray<bool, 4> before;
     for(auto argument: arguments) before.push(bool(argument));
 
-    // With the meet off, which is the same line the shipping stage draws: a *result* that would need
-    // converting has not decided the type arguments by itself, so it fills what nothing filled and
-    // never moves what an argument did. See `bind`, where `fromArgument` is argued.
+    // With the meet off: a *result* that would need converting has not decided the type arguments
+    // by itself, so it fills what nothing filled and never moves what an argument did. See `bind`,
+    // where `fromArgument` is argued.
     auto meets = unifies;
     unifies = false;
 
@@ -6974,8 +6970,7 @@ bool Resolver::checkCallable(Function& callee, LocationId source, bool traversal
         if(callee.iterator && objectCallSource != kNullLocation) return true;
 
         // An iterator's continuation is a loop body and nothing else, so the lens spellings are the
-        // wrong advice for one. Every lens call form sends an iterator here - see `lensCallee` - and
-        // the words are the shipping stage's, so both stages refuse it alike.
+        // wrong advice for one. Every lens call form sends an iterator here - see `lensCallee`.
         if(callee.iterator) {
             context.diagnostics.error(
                 "%@ is an iterator, so this call has no body to hand its values to - write it as the "
@@ -7295,8 +7290,7 @@ bool Resolver::flattenChain(ast::Expr& expr, Chain& chain, bool report) {
  * of that division can see the other. So the scan runs forward from each operator and stops at the
  * first one that is not tighter, which is the only one it can be in conflict with. `a <+> b * c <>
  * d` is caught - the `*` between them binds tighter and the two rung-5 operators do meet - while
- * `a * b <> c * d` is not, since the two `*`s are on opposite sides of the `<>`. The shipping
- * stage's rule, word for word, since it is the chain's and not either stage's.
+ * `a * b <> c * d` is not, since the two `*`s are on opposite sides of the `<>`.
  *
  * Asked of the flattened chain, once per expression: `flattenChain` is the one walk both the value
  * and the condition paths take. Without `report` it answers false and says nothing, which a constant
@@ -7700,10 +7694,9 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
          * exactly the parser's own right-nested node for the tail (`Chain::rests`), and climbing
          * that node on its own groups it as this climb would have: every operator in it binds at
          * least as tightly as `next`, so nothing in it could have stopped the climb early. Since
-         * J139; the shipping stage's `skipPrecedence` walks the same span. A span that ends before
-         * the chain does - `a ?: b + 1 == c` - has no node, and the parenthesis is the spelling
-         * that makes one, which the message says: `(a + b)` is a single operand of this chain by
-         * construction.
+         * J139. A span that ends before the chain does - `a ?: b + 1 == c` - has no node, and the
+         * parenthesis is the spelling that makes one, which the message says: `(a + b)` is a single
+         * operand of this chain by construction.
          */
         Node* rhs = nullptr;
 

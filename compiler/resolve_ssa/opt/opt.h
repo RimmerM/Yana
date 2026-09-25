@@ -20,8 +20,7 @@ namespace ssa {
  * signatures, aggregate structure and continuation regions - and the sequence down there has the
  * machine's arithmetic and the frame. A question is answered at the tier that can state it.
  *
- * `settings.optimizeIr` (`-no-ir-opt`) switches the whole of it off, which is the same switch the
- * shipping stage's `compiler/opt` reads and means the same thing here.
+ * `settings.optimizeIr` (`-no-ir-opt`) switches the whole of it off.
  *
  * Answers whether the program still verifies. False is an internal defect - a pass produced IR the
  * tier's own rules reject - and it has already been reported by the time this returns.

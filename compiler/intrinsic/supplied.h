@@ -88,9 +88,6 @@ extern const BuiltinDef builtinTable[kBuiltinCount];
 
 inline const BuiltinDef& builtinDef(Builtin which) { return builtinTable[Size(which)]; }
 
-// Every supplied role name, comma-separated. Narrower than `roleList()` on purpose: a stage that
-// only reads `@builtin` on globals should say what it can actually accept there.
-Tritium::String suppliedRoleList();
 
 /*
  * What the compiler supplies for a `Supplied` role on this target, or nothing where this target has

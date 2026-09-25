@@ -8,7 +8,7 @@ import Native
 
    1. A stored **exclusive** window is written through from an **exclusive** binding. This fixture
       used to write one from an immutable `c: Cursor`, on the reasoning that `c.buf`'s own type is
-      what authorizes the write. The rewritten stage refuses that and is right to:
+      what authorizes the write. The resolve stage refuses that and is right to:
       a reference reached through a shared borrow is narrowed to shared, because two shared loans of
       one `Cursor` would otherwise be two writers of one exclusive capability - types.md, "record
       fields are mutable through unique access to the record". So `bump` takes `&c`.

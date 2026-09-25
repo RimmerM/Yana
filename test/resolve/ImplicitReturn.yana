@@ -8,10 +8,10 @@ fn double(x: Int) = x * 2
 
 {-
    Generic, and the result type is what is being inferred here - not the requirement. `Num(a)` is
-   **written** on all three below, because the two resolvers disagree about leaving it off: the
-   shipping stage reads a statically known callee's body and collects the requirement whether or not
-   the signature said it, and the ownership stage holds a signature to what it declared. One
-   spelling has to serve both, and it is the one the standard library already uses.
+   **written** on all three below, because the two resolvers used to disagree about leaving it off:
+   the shipping stage read a statically known callee's body and collected the requirement whether or
+   not the signature said it, while this stage holds a signature to only what it declared. That
+   spelling had to serve both, and it is the one the standard library already uses.
 
    What the three are still the fixture for is that the result type is inferred in each of them,
    however the variable was introduced - by its class alone, or declared bare beside it.
@@ -29,7 +29,7 @@ fn (Num(a)) sum(lhs: a, rhs: a) = lhs + rhs
 fn (a, Num(a)) added(lhs: a, rhs: a) = lhs + rhs
 
 -- And the same function under a second name. This one used to carry no context list at all, which
--- the shipping stage reads off the body; the ownership stage holds the signature to what it wrote,
+-- the shipping stage used to read off the body; this stage holds the signature to what it wrote,
 -- so the spelling that is left is the one above.
 fn (Num(a)) plussed(lhs: a, rhs: a) = lhs + rhs
 

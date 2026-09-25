@@ -1,9 +1,9 @@
 {-
    A role written on the wrong kind of declaration, seen by the resolver that compiles `lib/`.
 
-   `Reject.Roles.yana` beside this asks the same question of the ownership stage. Both stages bind
-   roles and both therefore have to answer it, because a `@builtin` the
-   reader looks straight past is decoration - and decoration is exactly what `compiler/intrinsic`
+   `Reject.Roles.yana` beside this asks the same question of `lib/`'s own declarations: the
+   resolver binds roles while it reads the library, because a `@builtin` the reader looks straight
+   past is decoration - and decoration is exactly what `compiler/intrinsic`
    exists to not be. The one that got away is why this fixture exists: `lib/Core/Core.yana` carried
    `@builtin(outcome)` on `Result` rather than on `Outcome` from the day the row existed, and
    nothing said so, because the stage reading that file bound no record roles and found `Outcome` by
@@ -13,8 +13,6 @@
    record, a signature, a global - and each line below writes one on something else. The message
    names what the row wants rather than what the declaration is, since what the author has to change
    is which declaration carries the attribute.
-
-   # resolver: ownership
 -}
 
 -- `drop` is a class. A function claiming it would fill nothing and be called by nobody.

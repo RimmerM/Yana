@@ -128,10 +128,10 @@ enum class JsRepKind: U8 {
 /*
  * Which numbers a `Number` holds.
  *
- * `Bool01` is the number 0 or 1 rather than a host boolean, which is measured rather than assumed -
- * `codegen/js/type.cpp`'s `isBool` carries the figures, and the deciding one is that a reference to
- * a bit of a packed word reads and writes through a mask that is the identity on 0 and 1 and turns
- * `true` into `1`.
+ * `Bool01` is the number 0 or 1 rather than a host boolean, which was measured rather than assumed
+ * (the figures were beside the old JavaScript backend's `isBool`, deleted in J173), and the
+ * deciding one is that a reference to a bit of a packed word reads and writes through a mask that
+ * is the identity on 0 and 1 and turns `true` into `1`.
  *
  * `Signed`/`Unsigned` carry the width, and the width is what says which of the host's three integer
  * domains an operation happens in: at 32 bits and below the host's operators, from 33 to 53 the
@@ -338,9 +338,10 @@ enum class JsPropertyRole: U8 {
      *
      * A role of its own rather than a `Field` with no field index, because every loop that walks a
      * shape per *field* has to meet it and do something different: the fields it holds are found
-     * through `JsShape::packedField`, and a construction supplies it as a `Pack` of them. Treating it
-     * as a field with the index `kNoField` is the shipping backend's `tally` reading `undefined` out
-     * of a key that no longer existed, which is the silent version of the same mistake.
+     * through `JsShape::packedField`, and a construction supplies it as a `Pack` of them. Treating
+     * it as a field with the index `kNoField` is the old JavaScript backend's `tally` reading
+     * `undefined` out of a key that no longer existed, which is the silent version of the same
+     * mistake.
      */
     StorageUnit,
 };
@@ -447,9 +448,9 @@ enum class JsShapeKind: U8 {
  * and a record built two ways in two places is a polymorphic call site for every reader downstream.
  *
  * The shape records the **target property** rather than the source field, which is what the four
- * consumers of the shipping backend's `fieldProperty` each re-derived. `slotOfField` is the one
- * lookup, and it is a linear scan over a handful of entries rather than a map: a record of forty
- * fields is rare and a hash per projection is not.
+ * consumers of the old JavaScript backend's `fieldProperty` each re-derived. `slotOfField` is the
+ * one lookup, and it is a linear scan over a handful of entries rather than a map: a record of
+ * forty fields is rare and a hash per projection is not.
  */
 struct JsShape {
     JsShapeKind kind = JsShapeKind::Object;
@@ -688,10 +689,10 @@ inline U32 positionCount(const JsAbi& abi) {
  * there is nothing to rebind and a whole-value store writes its properties one at a time. The other
  * five are rebindable, and a store into one is an assignment.
  *
- * Keeping the distinction in the place rather than in the store is what makes it checkable: the
- * shipping backend decides it at each write site by asking `isJsObject` of a source type, which is
- * the predicate `Implementation-JS-Repr.md` centralized once and which four writers still had to
- * remember to call.
+ * Keeping the distinction in the place rather than in the store is what makes it checkable: the old
+ * JavaScript backend (deleted with `compiler/resolve` in J173) decided it at each write site by
+ * asking `isJsObject` of a source type, which is the predicate `Implementation-JS-Repr.md`
+ * centralized once and which four writers still had to remember to call.
  */
 enum class JsPlaceKind: U8 {
     // A JSIR-local variable - what an allocation becomes when nothing takes its address away. The
@@ -928,9 +929,9 @@ struct JsInstFunCode: JsInst {
  * carries. Every cell of it is a compile-time constant - a descriptor, a witness, a number, a
  * function - because this milestone builds an environment only where the argument list at the call
  * is concrete, so a row built at the site would be an allocation per call of a table that never
- * differs. The shipping backend takes the same trade (`genEnvTable` against an interned global) and
- * `mir::GenEnvironment` is already interned on (generic, argument list), so one name per environment
- * is one table in the file.
+ * differs. The old JavaScript backend took the same trade (`genEnvTable` against an interned
+ * global) and `mir::GenEnvironment` is already interned on (generic, argument list), so one name
+ * per environment is one table in the file.
  *
  * What is in it is `assemble.cpp`'s, for the reason `JsInstTypeDrop` names a function it does not
  * write: the contents are names of other generated things, and one of them may ask for another.
@@ -1192,7 +1193,7 @@ struct JsInstHost: JsInst {
      * narrower claim written there is a value the verifier is right to refuse. And a bit rather
      * than the member name matched at the AST tier, which is where this was until 2026-09-22 (J80):
      * `codegen/js/structure.cpp`'s rule is that it switches on nothing but a `JsRep`, a `JsShape`
-     * and a `JsPlace`, and the shipping backend had to say the same sentence beside it.
+     * and a `JsPlace`, and the old JavaScript backend had to say the same sentence beside it.
      */
     bool hostRange = false;
 

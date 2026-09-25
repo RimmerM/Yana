@@ -5,32 +5,24 @@
 #include "../../compiler/context.h"
 
 // The compiler-owned property keys - `jsir::key`. A *representation* decision, so the table is in
-// the tier that records a shape's final key and both generators read it from there; see the note
+// the tier that records a shape's final key and this directory reads it from there; see the note
 // above it for what two spellings of one key cost.
 #include "../../resolve_ssa/js/name.h"
 
 /*
- * What the two JavaScript generators have in common - Analysis-IR-JS.md §8.1.
+ * What every file of the JavaScript backend works against - Analysis-IR-JS.md §8.1.
  *
- * There are two of them now: `gen.cpp` and its five files consume `resolve::` directly, and the JSIR
- * pipeline (`resolve_ssa/js` -> `structure.cpp` -> `assemble.cpp`) consumes a verified target IR. The
- * files in between - `name.cpp`, `wide.cpp`, `opt.cpp`, `format.cpp` and the runtime-helper emitters -
- * belong to neither: what they know is the syntax tree, the identifiers in it and the helper families
- * the integer tower reaches for, and none of that changes with which tier built the tree.
+ * The JSIR pipeline (`resolve_ssa/js` -> `structure.cpp` -> `assemble.cpp`) is the half that reads
+ * a program. The rest - `name.cpp`, `wide.cpp`, `bits.cpp`, `helpers.cpp`, `opt.cpp` and
+ * `format.cpp` - knows only the syntax tree, the identifiers in it and the helper families the
+ * integer tower reaches for. The state those files need is *this* struct, and `Assembly` in `jsir.h`
+ * derives from it. It was split out while a second generator, reading `compiler/resolve`, derived
+ * from it too; that generator went with its stage in J173, and the split stays for what it says
+ * about the files that take only this.
  *
- * So the state those files need is *this* struct, and `Gen` derives from it. That is the whole of the
- * decoupling and it is deliberately a base class rather than a member: every AST builder in build.h
- * takes one of these by reference, so a `Gen&` converts at the call and not one of the three hundred
- * call sites in the old generator had to move.
- *
- * The rejected alternative was a member named `shared`, which needs `g.shared` written at every use in
- * the three files that move and `g.shared` *not* written at every use in the four that do not - a
- * split readers would have to remember. A second one was leaving the files on `Gen` and giving the new
- * pipeline its own copies, which is how one target acquires two spellings of `Math.imul`.
- *
- * What is deliberately not here: anything that knows what a Yana program is. No `Program`, no
- * `TypePtr`, no `ReprTable`. A field that needed one of those would be a field the new pipeline
- * cannot fill, and the include list above is what says so.
+ * What is deliberately not here: anything that knows what a Yana program is. No `mir::Program`, no
+ * `TypePtr`, no layout table. A field that needed one of those would be a field the tree-only files
+ * could not be written against, and the include list above is what says so.
  */
 namespace js {
 
@@ -41,8 +33,7 @@ constexpr U32 kNoBlock = maxLimit<U32>;
  *
  * A `Loop` entry is its header, so reaching it is `continue`; a `Forward` entry is a labelled block
  * whose end is that block, so reaching it is `break`. Between them these are every edge JS has no
- * `goto` for. Shared, because the two structurers recover the same shapes from the same kind of
- * graph - `flow.cpp` from the resolve IR and `structure.cpp` from JSIR.
+ * `goto` for. `structure.cpp` pushes them and `Assembly::exits` holds the open ones.
  */
 struct Exit {
     U32 block;
@@ -53,11 +44,9 @@ struct Exit {
 /*
  * Which member of a bit-family helper one call wants.
  *
- * The selector the four slot functions index by, in a vocabulary neither tier's IR owns. It exists
- * because the families are *shared* and their two callers speak different languages: `gen.cpp` has a
- * `resolve::Value::Kind` and the JSIR pipeline has a `mir::BinaryOp`/`UnaryOp`, and a helper table
- * keyed on either would be a table one of them has to translate into at every call. So the table is
- * keyed on neither and both translate once, at the one site that asks.
+ * The selector the four slot functions index by, in a vocabulary no IR owns: the helper families
+ * know only the tree, so the table is keyed on this and `structure.cpp` translates its `JsHelperOp`
+ * once, at the one site that asks.
  */
 enum class BitFamily: U8 {
     CountBits, LeadingZeros, TrailingZeros,
@@ -74,7 +63,7 @@ struct WideHelper {
     bool isSigned;
 };
 
-// One saturating float-to-`bigint` conversion, per target type - see genCast in inst.cpp.
+// One saturating float-to-`bigint` conversion, per target type - see `saturatingLongHelperAt`.
 struct SatHelper {
     Name name;
     U16 bits;
@@ -82,7 +71,7 @@ struct SatHelper {
 };
 
 /*
- * One accessor for a bit range whose position is only known at run time - see place.cpp.
+ * One accessor for a bit range whose position is only known at run time - see bits.cpp.
  *
  * The static ranges are two or three operations against constants and are emitted where they are
  * used. A range reached *through a reference* is not: the scale is a variable, so the read is a
@@ -126,36 +115,10 @@ struct JsShared {
      * one. A module-level global is exactly the thing that premise is false of, and without this,
      * reading one looks as inert as reading a parameter.
      *
-     * Filled by whichever pipeline is emitting - `mutableGlobals()` in gen.cpp, `mutableGlobals()`
-     * in assemble.cpp - because which globals a program assigns is a fact about the program and the
-     * two tiers read different ones.
+     * Filled by `assemble.cpp` from `Global::isWritten`, because which globals a program assigns is
+     * a fact about the program and this is the half of the directory that does not read one.
      */
     HashSet<StringId> mutableGlobals;
-
-    /*
-     * Which of the two generators filled this - `Assembly` sets it, `Gen` does not.
-     *
-     * Read by `dropUnreachable` and three other rewrites in `opt.cpp`, and the flag is there because
-     * of a contract rather than because the rewrites are one tier's: this slice holds every
-     * `.js.expect` byte-identical, and a rule that removes statements behind a `return` would move
-     * the shipping backend's goldens as well. The rewrites are right for both and are switched on
-     * for one, which is a promise to take the flag off in a slice whose subject is the shipping
-     * backend.
-     */
-    bool jsirPipeline = false;
-
-    /*
-     * Both halves of that gate, set once.
-     *
-     * `File::terse` is the same decision said where the **formatter** can see it, since
-     * `formatFile` takes a `File` and no `JsShared` - so there are two fields and one fact, and the
-     * one site that sets them used to set them apart. A method rather than a constructor argument
-     * because `Gen` and `Assembly` build the base the same way and only one of them is this.
-     */
-    void useJsirRules() {
-        jsirPipeline = true;
-        file.terse = true;
-    }
 
     // The 33-to-53-bit helpers this file has asked for, interned per (operation, width, signedness)
     // and emitted once at the end. See wide.cpp.
@@ -163,17 +126,17 @@ struct JsShared {
     Array<WideHelper> wideHelperOrder;
 
     // The dynamic bit-range accessors, on the same terms, interned per (width, signedness,
-    // direction). See place.cpp.
+    // direction). See bits.cpp.
     HashMap<U32, Name> bitHelpers;
     Array<BitHelper> bitHelperOrder;
 
     // The saturating float-to-`bigint` conversions, interned per (width, signedness). The number
-    // case needs no helper; inst.cpp says why.
+    // case needs no helper; `saturatingToNumber` in structure.cpp is that case.
     HashMap<U32, Name> satHelpers;
     Array<SatHelper> satHelperOrder;
 
     /*
-     * The scratch pair a `Float`/`I32` bitcast goes through - see genBitcast in inst.cpp.
+     * The scratch pair a `Float`/`I32` bitcast goes through - see `floatBitsHelperAt`.
      *
      * A `Float` here is a `number` that `Math.fround` has made exactly representable, so its
      * thirty-two bits are well defined and completely unreachable: this target has no operator that
@@ -266,9 +229,8 @@ struct JsShared {
     /*
      * The property names that are the compiler's rather than the program's.
      *
-     * Shared because both pipelines spell a tag `$tag` and a box `$v`: the names are the target's
-     * convention rather than either tier's decision, and two tiers that chose separately would emit
-     * two hidden classes for one record the day one of them was changed.
+     * The names are the target's convention - `jsir::key` is the table - rather than one file's
+     * decision, and two spellings of one key are two hidden classes for one record.
      */
     Name tagField;
     Name payloadField;
@@ -277,14 +239,14 @@ struct JsShared {
     Name envField;
     Name headerField;
 
-    // Where statements being built go, and the counter the generated labels come from. Per function
-    // in both pipelines; `collect` is what swaps the first.
+    // Where statements being built go, and the counter the generated labels come from. Per function;
+    // `collect` is what swaps the first.
     StmtList* body = nullptr;
     U32 labelCounter = 0;
 };
 
-// The compiler's own property names, interned once per file. Both pipelines call it immediately
-// after constructing their state, so that `$tag` is one StringId however the tree was built.
+// The compiler's own property names, interned once per file, immediately after the state is
+// constructed, so that `$tag` is one StringId however the tree was built.
 void nameSharedFields(JsShared& g);
 
 /*
@@ -621,9 +583,9 @@ inline JsPtr<Expr> foldComparison(JsShared& g, BinaryOp op, JsPtr<Expr> lhs, JsP
  *
  * `Just(4)` is the number four on this target, so `match Just(4)` reads as `4 === null` - a test
  * whose answer is in the node and which nothing else here decides, because `constantNumber` declines
- * `null` and `null` declines every numeric rule. The shipping stage folds the same program one tier
- * up, where the constructor is still an aggregate; here the encoding is what makes it a comparison,
- * so the fold belongs beside the other comparisons rather than in the resolver.
+ * `null` and `null` declines every numeric rule. Above this tier the constructor is still an
+ * aggregate; here the encoding is what makes it a comparison, so the fold belongs beside the other
+ * comparisons rather than in the resolver.
  *
  * Only the **inert** literals, which is what lets the operand simply go: a number, a bigint, a
  * string, a boolean and `null` itself. An object or an array literal is not `null` either and is an
@@ -691,19 +653,11 @@ inline JsPtr<Expr> assign(JsShared& g, JsPtr<Expr> target, JsPtr<Expr> value) {
     return asExpr(g, make<AssignExpr>(g, target, value));
 }
 
-// The call an emitter builds when it knows its arguments: `call(g, f, a, b)`. The arity-at-runtime
-// form is below, for the instructions that forward an argument list they were handed.
+// The call an emitter builds when it knows its arguments: `call(g, f, a, b)`.
 template<class... A>
 JsPtr<Expr> call(JsShared& g, JsPtr<Expr> callee, A... args) {
     auto node = make<CallExpr>(g, callee);
     (node->args.push(g.file.arena, args), ...);
-    return asExpr(g, node);
-}
-
-inline JsPtr<Expr> callWith(JsShared& g, JsPtr<Expr> callee, Array<JsPtr<Expr>>& args) {
-    auto node = make<CallExpr>(g, callee);
-    for(auto arg: args) node->args.push(g.file.arena, arg);
-
     return asExpr(g, node);
 }
 
@@ -771,10 +725,9 @@ Name uniqueName(JsShared& g, StringView text, bool local);
  * `$div(a, b)` and `$rem(a, b)`, naming the helper on its first use - see
  * `JsShared::divideByZeroHelper` for what the two are and why one pair serves all three bands.
  *
- * Here rather than in either generator because both wrote it: `inst.cpp` and `structure.cpp` are
- * the same six lines and the same two entry points, which is the case this header's own comment
- * names - what the two generators share is everything that knows only about the syntax tree, and a
- * call to a helper named on demand is exactly that.
+ * Here rather than in `structure.cpp` because it knows only the syntax tree - a call to a helper
+ * named on demand - which is what this header is for. It came here in J80, when a second generator
+ * wrote the same six lines.
  *
  * Pure, and that is not a formality: the whole point of the ruling these implement is that an
  * integer division computes a value and does nothing else, so the emitter is free to move one.
@@ -802,11 +755,6 @@ inline JsPtr<Expr> remainderCall(JsShared& g, JsPtr<Expr> lhs, JsPtr<Expr> rhs) 
 // what to call it.
 Name generatedName(JsShared& g, StringView prefix, U32 index);
 
-// One word of a function-value field - `run$c`, `run$e`. See FieldProperty::fun.
-Name fieldPartName(JsShared& g, Name field, StringView suffix);
-
-// The property a run of co-packed fields shares - `$p0` for the word at offset zero. See name.cpp.
-Name packedWordName(JsShared& g, U32 offset);
 
 
 /*
@@ -828,8 +776,8 @@ JsPtr<Expr> wideCallAt(JsShared& g, WideOp op, U32 bits, bool isSigned, JsPtr<Ex
 JsPtr<Expr> resignExpr(JsShared& g, JsPtr<Expr> value, U32 bits);
 
 /*
- * A bit range of a packed word, taken apart and put back - `place.cpp`'s, on `JsShared` so that
- * both backends spell one layout the same way.
+ * A bit range of a packed word, taken apart and put back - `bits.cpp`, on `JsShared` so that one
+ * layout has one spelling.
  *
  * Where a range sits, as the two numbers the wide form multiplies by. `down` brings the bits at and
  * above the range to bit zero and `up` puts a field back, and the two are reciprocals - so a
@@ -849,7 +797,7 @@ struct BitPosition {
 BitPosition bitPosition(JsShared& g, U32 offset, JsPtr<Expr> scale);
 
 // `wide` is the arithmetic form, for a word wider than the host's 32-bit operators; `word` is how
-// wide that word can be, which a store needs and a load does not. See place.cpp.
+// wide that word can be, which a store needs and a load does not. See bits.cpp.
 JsPtr<Expr> decodeRange(JsShared& g, JsPtr<Expr> owner, U32 offset, U32 width, BitPosition position,
                         bool wide, bool isSigned);
 JsPtr<Expr> encodeRange(JsShared& g, JsPtr<Expr> owner, U32 offset, U32 width, U32 word,
@@ -891,8 +839,8 @@ void emitBitHelpers(JsShared& g, U32 wordBits);
 
 // A value crossing between a wide type and a narrower integer, in the widening direction.
 
-// A comparison's host boolean, as the number a `Bool` is on this target - see boolNumber in
-// type.cpp. Only the two instructions that produce a `Bool` from a test need it; everything else
+// A comparison's host boolean, as the number a `Bool` is on this target - see `boolNumber` in
+// helpers.cpp. Only the two instructions that produce a `Bool` from a test need it; everything else
 // already holds the number.
 JsPtr<Expr> boolNumber(JsShared& g, JsPtr<Expr> test);
 
@@ -903,12 +851,11 @@ JsPtr<Expr> boolNumber(JsShared& g, JsPtr<Expr> test);
 Name saturatingLongHelperAt(JsShared& g, U16 bits, bool isSigned);
 
 /*
- * inst.cpp - the helper families, named on first ask and emitted once at the end.
+ * helpers.cpp - the helper families, named on first ask and emitted once at the end.
  *
  * Each answers the *name* and reserves whatever partners the body of that helper calls; the caller
  * builds the call node and applies its own coercion, which is what lets one function serve both
- * signednesses of a width. Both generators reach these, which is why they are declared here rather
- * than beside the one that used to be the only caller.
+ * signednesses of a width.
  */
 
 // The two directions of a float reinterpretation, and the typed-array pair behind them.
@@ -932,9 +879,136 @@ Name bitOpHelperAt(JsShared& g, BitFamily of, bool wide);
 Name funDropHelperAt(JsShared& g);
 void emitFunDropHelper(JsShared& g);
 
-// The tree above as text - `format.cpp`. Here rather than in `gen.h` because both backends call it,
-// and `gen.h` is the shipping backend's, which reads `compiler/resolve`: the JSIR half of this
-// directory needs neither (J150).
+/*
+ * The range a float-to-integer conversion saturates into - Design-Vector §3.4's ruling, which is a
+ * scalar one: the native backends state the same two numbers in `lower_inst.h`'s conversions.
+ *
+ * **A value outside the target's range clamps to the nearest end of it, and NaN becomes zero.** The
+ * alternative was three answers from one source: `cvttsd2si` produces the integer indefinite value
+ * on x86, ARM saturates already, and JS wraps modulo 2^32 through `|0`. Saturation is where WASM,
+ * Rust and Swift converged, and it costs a compare and a select.
+ *
+ * The bounds are the type's own, as `F64`. Every one of them is exact except a 64-bit maximum -
+ * `2^63 - 1` and `2^64 - 1` are not doubles - so a clamp in the *float* domain must use a strict
+ * comparison against the returned high bound and produce the integer maximum itself, rather than
+ * converting the clamped float. `highIsExact` says which case it is in.
+ */
+struct SaturationRange {
+    F64 low;
+    F64 high;
+    bool highIsExact;
+};
+
+inline SaturationRange saturationRange(U32 held, bool isSigned) {
+    auto bits = held >= 64 ? 64u : held;
+
+    if(!isSigned) {
+        auto high = bits >= 64 ? 18446744073709551616.0 : F64((U64(1) << bits) - 1);
+        return SaturationRange { 0.0, high, bits <= 53 };
+    }
+
+    auto magnitude = F64(U64(1) << (bits - 1));
+    return SaturationRange { -magnitude, bits >= 64 ? magnitude : magnitude - 1.0, bits <= 54 };
+}
+
+/*
+ * The widest integer a host `number` holds every value of - above it consecutive integers stop being
+ * representable, so an integer type wider than this is a `bigint` here.
+ */
+constexpr U16 kMaxNumberBits = 53;
+
+/*
+ * helpers.cpp and wide.cpp - the runtime helpers a file declares once, emitted after its functions.
+ */
+
+// A tree of wide bitwise calls as one unpack-operate-pack, or null where this one is not that.
+// Asked at the root of a tree and never below it - see opt.cpp, which is the only caller.
+JsPtr<Expr> fuseWideBitwise(JsShared& g, JsPtr<Expr> pointer);
+
+// Every helper asked for, as function declarations. Called once, by `assemble.cpp`.
+void emitWideHelpers(JsShared& g);
+
+// The saturating float-to-`bigint` conversions a program asked for. See `saturatingLongHelperAt`.
+void emitSaturationHelpers(JsShared& g);
+
+// The typed-array pair and the two functions a `Float`/`I32` bitcast goes through, where a program
+// asked for one. See `floatBitsHelperAt`.
+void emitFloatBitsHelpers(JsShared& g);
+
+// `function $round(v) { return v < 0 ? -Math.round(-v) : Math.round(v) }` - see JsShared::roundAwayHelper.
+void emitRoundAwayHelper(JsShared& g);
+
+// The byte reversals a program asked for, one function per width. See JsShared::byteSwapHelpers.
+void emitByteSwapHelpers(JsShared& g);
+
+// The bit counts a program asked for, one function per (operation, width). See
+// JsShared::bitCountHelpers.
+void emitBitCountHelpers(JsShared& g);
+
+// The rotations a program asked for, one function per (direction, width). See JsShared::rotateHelpers.
+void emitRotateHelpers(JsShared& g);
+
+// The three BMI2 operations a program asked for, one function per (operation, width). See
+// JsShared::bitOpHelpers.
+void emitBitOpHelpers(JsShared& g);
+
+/*
+ * Which of the ten slots one (direction, width) is, or `kNoRotateHelper` for a width no instance is
+ * generated at.
+ *
+ * The five widths are the ones `defineIntegerTypes` creates plus the two canonical ones, which is
+ * where the list comes from rather than from anything about JavaScript: a `@bits` refinement
+ * dispatches to the instances of the type it refines, so a rotation of a `@bits(40) U64` arrives
+ * here as a 64-bit one and no sixth width exists.
+ */
+static const Size kNoRotateHelper = ~Size(0);
+
+inline Size rotateHelperSlot(BitFamily of, U32 bits) {
+    auto width = bits == 8 ? 0 : bits == 16 ? 1 : bits == 32 ? 2 : bits == 53 ? 3 : bits == 64 ? 4 : -1;
+    if(width < 0) return kNoRotateHelper;
+
+    return Size((of == BitFamily::Rol ? 0 : 5) + width);
+}
+
+// Which of the six slots one (operation, width) is. The operation, then the width - so the two
+// widths of a count sit beside each other and the unused slot (a 32-bit leading count, which is
+// `Math.clz32` and no helper) is simply never filled.
+inline Size bitCountHelperSlot(BitFamily of, bool wide) {
+    auto op = of == BitFamily::CountBits ? 0 : of == BitFamily::LeadingZeros ? 1 : 2;
+    return Size(op * 2 + (wide ? 1 : 0));
+}
+
+// Which of the six slots one (operation, width) is - the same shape `bitCountHelperSlot` has, and
+// the widths are the two `Core.Bits` is declared over.
+inline Size bitOpHelperSlot(BitFamily of, bool wide) {
+    auto op = of == BitFamily::BitsUpTo ? 0 : of == BitFamily::GatherBits ? 1 : 2;
+    return Size(op * 2 + (wide ? 1 : 0));
+}
+
+// `function $div(a, b) { return b ? a / b : b }` and `$rem`, where a program asked for one. See
+// JsShared::divideByZeroHelper.
+void emitDivisionHelpers(JsShared& g);
+
+// The typed array's growth, where a program asked for one. See JsShared::growHelper.
+void emitGrowHelper(JsShared& g);
+
+// The `DataView` cache and the word transfers a program asked for. See JsShared::viewHelper for
+// what the cache is and what it was measured against.
+void emitWordHelpers(JsShared& g);
+
+/*
+ * opt.cpp - the peephole between the tree and the text.
+ */
+
+// Removes the bindings nothing needed and folds the writes that build a value into the literal that
+// builds it. Runs over the finished file, because how many readers a binding has is not known until
+// the function it is in has been emitted.
+void optimizeFile(JsShared& g);
+
+// Calls to empty functions removed, and functions nothing reaches - see opt.cpp.
+void sweepFunctions(JsShared& g);
+
+// The tree above as text - `format.cpp`.
 void formatFile(Net::Writer& writer, Context& context, File& file, bool minify);
 
 } // namespace js

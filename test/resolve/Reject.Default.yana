@@ -1,14 +1,12 @@
 -- What a field default will not accept.
 --
 -- A default is the same kind of thing a global's initializer is - a constant the declaration
--- reduces to, because there is no program point at which a declaration's code would run - and since
--- compiler/resolve/const.cpp it is the same evaluator, so the two positions accept and refuse the
--- same forms. This file is the refusals; Constant.yana is what they both accept.
+-- reduces to, because there is no program point at which a declaration's code would run - and one
+-- evaluator handles both, so the two positions accept and refuse the same forms. This file is the
+-- refusals; Constant.yana is what they both accept.
 --
 -- The type is not in question here the way it is for a global: a field has one already, so a
 -- default is checked against it rather than deciding it.
---
--- # resolver: ownership
 
 data Pair {a: Int, b: Int}
 data Direction = North | South
@@ -43,7 +41,7 @@ data Partial {point: Pair = Pair {a: 1}}
 -- this is a comparison rather than an inference.
 data Short {items: [Int *3] = [1, 2]}
 
--- An expression default, `1 + 1`, is refused here; the new stage folds it
+-- An expression default, `1 + 1`, is refused here; this stage folds it
 -- (`ownership/ConstantFold.yana`).
 
 -- A field whose own type did not resolve is reported once, by the type resolution that failed. A

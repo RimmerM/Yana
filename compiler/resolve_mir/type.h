@@ -27,11 +27,11 @@ struct Function;
  * so `String` has one set of instances and one substitution however it is passed.
  *
  * Interned in the declaration region, so type identity is pointer identity and `sameType` is `==`.
- * A kind is added by adding a row to type.def and a case to the three switches it generates.
+ * A kind is added by adding a row to type.def, which generates the enum and `visitType`.
  */
 struct Type {
     enum Kind: U8 {
-#define YANA_MIR_TYPE(kind, Struct, name) kind,
+#define YANA_MIR_TYPE(kind, Struct) kind,
 #include "type.def"
 #undef YANA_MIR_TYPE
         KindCount,
@@ -497,8 +497,8 @@ struct RecordField {
 
     /*
      * The field's storage is an owning non-null pointer to a value of `occurrence.type`, rather than
-     * that value - `doc/spec/repr.md`'s `@box`, and the same statement the old stage's `Field::boxed`
-     * makes.
+     * that value - `doc/spec/repr.md`'s `@box`, and the same statement `compiler/resolve`'s
+     * `Field::boxed` made.
      *
      * Two features produce one and the spec keeps them apart on purpose:
      *
@@ -602,11 +602,11 @@ struct RecordField {
 /*
  * How a record's constructors are represented - Analysis-Language.md §5.1 and Analysis-IR.md's G7d.
  *
- * A property of the **declaration** and never of an instantiation, which is the old stage's
- * `computeRecordLayout` reasoning reproduced: a generic body projects into `Outcome(a, e)` before
- * any `a` is known, so the shape a projection is emitted against has to be the one every
- * instantiation has. Deciding it from the constructor list alone gives that - substituting an
- * argument cannot move a constructor from having a payload to not having one.
+ * A property of the **declaration** and never of an instantiation, which is the reasoning of
+ * `compiler/resolve`'s `computeRecordLayout` (deleted in J173) reproduced: a generic body projects
+ * into `Outcome(a, e)` before any `a` is known, so the shape a projection is emitted against has to
+ * be the one every instantiation has. Deciding it from the constructor list alone gives that -
+ * substituting an argument cannot move a constructor from having a payload to not having one.
  *
  * `Single` is every ordinary `data Pair {x: I32}`: one constructor, no discriminant, and the fields
  * are the record's. `Enum` is several constructors none of which carries anything - the value is a
@@ -652,14 +652,14 @@ enum class TypeLayout: U8 {
 /*
  * One constructor of a record - `Proceed` of `data Outcome(a, e) = Proceed(a) | Exit(e)`.
  *
- * **The fields stay one flat list on the record** and a constructor names a range of it. That is the
- * one decision this representation is built on, and what it buys is that every walk already written
- * against a record keeps working unchanged: the ownership fold, the schema fold, the layout prefix,
- * `RecordField::index` and the projection that names one are all about a field index, and a field
- * index here identifies its constructor as well. The alternative - a payload *type* per constructor,
- * which is what the old stage's `Constructor::content` is - makes every one of those walks either
- * two levels deep or a special case, and adds a `Downcast` step to a place path whose only job is to
- * say what the field index already said.
+ * **The fields stay one flat list on the record** and a constructor names a range of it. That is
+ * the one decision this representation is built on, and what it buys is that every walk already
+ * written against a record keeps working unchanged: the ownership fold, the schema fold, the layout
+ * prefix, `RecordField::index` and the projection that names one are all about a field index, and a
+ * field index here identifies its constructor as well. The alternative - a payload *type* per
+ * constructor, which is what `compiler/resolve`'s `Constructor::content` was - makes every one of
+ * those walks either two levels deep or a special case, and adds a `Downcast` step to a place path
+ * whose only job is to say what the field index already said.
  *
  * What the range does *not* say is where the fields sit, because the arms share their storage: two
  * constructors' fields overlap, and `fieldOffsetNative` is the one place that knows it.
@@ -1265,7 +1265,7 @@ struct RecordType: Type {
      *
      * Here rather than in a table beside the lowering, because the answer is a property of the type
      * and outlives every body that asks - and because the alternative is a map keyed by a type,
-     * which is the shape the offset walk in the shipping compiler grew out of.
+     * which is the shape `compiler/resolve`'s offset walk grew out of.
      *
      * **One slot per target family**, which is why it is named for the family rather than called
      * `repr`: a host target's answer is not a `ssa::Repr` at all, and a shared slot would be the
@@ -1356,15 +1356,16 @@ struct IterType: Type {
 /*
  * `[T *n]` - see type.def, where the argument for it being a kind is written out.
  *
- * **The count is held two ways and exactly one of them is set.** `count` names a const type variable
- * where the length is quantified (`fn (n: Int) firstOf(xs: [Int *n])`); otherwise it is null and
- * `length` is the number. The alternative - one `DeclPtr<Type>` naming either a `ConstType` or a
- * variable, which is what the shipping stage carries - has to answer "which integer type is the `4`
- * of `[I32 *4]`", and every answer to that is arbitrary: a head declared `n: I64` binds
- * `ConstType(4, I64)` and one declared `n: I32` binds `ConstType(4, I32)`, so a written `[I32 *4]`
- * would intern as a third type that matches neither. Holding the number as a number has no such
- * question - `matchType` binds a const variable to a `ConstType` of *the variable's own* declared
- * type, which is the one place the type of a count is decided and the only place it needs to be.
+ * **The count is held two ways and exactly one of them is set.** `count` names a const type
+ * variable where the length is quantified (`fn (n: Int) firstOf(xs: [Int *n])`); otherwise it is
+ * null and `length` is the number. The alternative - one `DeclPtr<Type>` naming either a
+ * `ConstType` or a variable, which is what `compiler/resolve` carried - has to answer "which
+ * integer type is the `4` of `[I32 *4]`", and every answer to that is arbitrary: a head declared
+ * `n: I64` binds `ConstType(4, I64)` and one declared `n: I32` binds `ConstType(4, I32)`, so a
+ * written `[I32 *4]` would intern as a third type that matches neither. Holding the number as a
+ * number has no such question - `matchType` binds a const variable to a `ConstType` of *the
+ * variable's own* declared type, which is the one place the type of a count is decided and the only
+ * place it needs to be.
  *
  * `kMaxFixedArrayLength` bounds the count and not the byte size, because the byte size is a target's
  * answer and this is a logical type: `[U8 *65536]` and `[Buffer *65536]` are one declaration here
@@ -1433,10 +1434,6 @@ struct VectorType: Type {
     // until a substitution supplies one, and true for the natural form, whose number is the
     // target's and is filled in as soon as the lane is known.
     bool hasFixedCount() const { return count == nullptr; }
-
-    // Whether this is the natural form still waiting for a lane to measure. Only reachable inside a
-    // generic body; `makeVectorType` is the one function that produces it and the one that spends it.
-    bool isNaturalCount() const { return count == nullptr && lanes == 0; }
 };
 
 /*
@@ -1694,7 +1691,7 @@ private:
 template<class F>
 auto visitType(Type& type, F&& f) -> decltype(f((UnitType&)type)) {
     switch(type.kind) {
-#define YANA_MIR_TYPE(kind, Struct, name) case Type::kind: return f((Struct&)type);
+#define YANA_MIR_TYPE(kind, Struct) case Type::kind: return f((Struct&)type);
 #include "type.def"
 #undef YANA_MIR_TYPE
         case Type::KindCount: break;
@@ -1703,9 +1700,6 @@ auto visitType(Type& type, F&& f) -> decltype(f((UnitType&)type)) {
     assertTrue(false);
     return f((UnitType&)type);
 }
-
-// What this kind is called in a dump and in a diagnostic.
-StringView typeKindName(Type::Kind kind);
 
 /*
  * What the source calls an integer of this shape - `intrinsic::primitiveIntName`.

@@ -23,12 +23,12 @@ namespace ssa {
  *
  * ## Why this is a family rather than a parameter
  *
- * The shipping compiler's `compiler/repr` computes both targets' layouts from one `Repr` with a
- * `ReprTarget` of numbers and flags, and the strain shows in the struct: `NicheKind::Absent` marks a
- * niche whose `offset`, `bytes` and range all mean nothing, and a JS `ReprTarget` carries
- * `pointerSize = 8` for a machine with no addresses purely so that a size computed over a
- * pointer-shaped field is not zero. Those are two readings of one struct, which is a sum type
- * spelled as a flag record.
+ * `compiler/repr`, the layout table of the stage deleted in J173, computed both targets' layouts
+ * from one `Repr` with a `ReprTarget` of numbers and flags, and the strain showed in the struct:
+ * `NicheKind::Absent` marked a niche whose `offset`, `bytes` and range all meant nothing, and a JS
+ * `ReprTarget` carried `pointerSize = 8` for a machine with no addresses purely so that a size
+ * computed over a pointer-shaped field was not zero. Those were two readings of one struct, which
+ * is a sum type spelled as a flag record.
  *
  * So the *answer* is per value model. This file is the model where a value is bytes: every number in
  * `Repr` below is a statement about addressable storage. A host target whose values are host values
@@ -48,10 +48,10 @@ namespace ssa {
  *    whether a record is an enum, a single constructor or a sum; the view table pairs an owner with
  *    its window; the containment cut is one diagnostic against source. All of them live on the
  *    logical type in `resolve_mir`, so that every family reads one statement.
- *  - **the cost model.** What an aggregate costs, and whether removing one is worth inlining for, is
- *    a question about the machine and not about a layout. It does not belong on `NativeTarget` and
- *    must not be reachable through this table - which is what a `TargetFamily` field on a repr target
- *    turns into, and the shipping compiler has four optimizer passes reading one.
+ *  - **the cost model.** What an aggregate costs, and whether removing one is worth inlining for,
+ *    is a question about the machine and not about a layout. It does not belong on `NativeTarget`
+ *    and must not be reachable through this table - which is what a `TargetFamily` field on a repr
+ *    target turns into, and `compiler/opt` (deleted in J173) had four optimizer passes reading one.
  */
 
 /*
@@ -573,7 +573,7 @@ bool hasPaddedWord(Layout layout, DeclPtr<mir::Type> type, U32 depth = 0);
  * this is what they zero once it says yes: the words themselves, at their own offsets and widths,
  * rather than the whole of the storage. A record whose one co-packed word is a flag beside a string
  * and a count was a 41-byte fill in front of the three stores that were about to write most of it,
- * and J151 counted 499 fills in `test/base` against the shipping stage's 88.
+ * and J151 counted 499 fills in `test/base` against the 88 `compiler/resolve` made.
  *
  * The same walk as `hasPaddedWord`, and it has to stay the same walk: a word this misses is one whose
  * spare bits are read as a niche. False where the answer would be more than `kMaxPaddedWords` words
@@ -598,13 +598,13 @@ bool paddedWords(Layout layout, DeclPtr<mir::Type> type, U32 at, Array<PaddedWor
  * record owns as many bits as its constructor numbers need, which for `Bool` is one, and a
  * scalarized record owns the span its fields were placed within.
  *
- * A **read of the table** and not a walk beside it, which is what the last of those makes necessary:
- * the number a callee masks a narrow reference to has to be the number the fields were laid out
- * within, and two functions answering it is two mask widths. The shipping compiler keeps them apart
- * on purpose - `valueWidth` in resolve says which types are narrow without knowing which target is
- * emitting, so that a diagnostic about a borrow reads the same on both - and this stage has one
- * family, so the pressure that split them is not here and the table is the whole answer. It comes
- * back the day a value-oriented family does.
+ * A **read of the table** and not a walk beside it, which is what the last of those makes
+ * necessary: the number a callee masks a narrow reference to has to be the number the fields were
+ * laid out within, and two functions answering it is two mask widths. `compiler/resolve` (deleted
+ * in J173) kept them apart on purpose - its `valueWidth` said which types are narrow without
+ * knowing which target was emitting, so that a diagnostic about a borrow read the same on both -
+ * and this stage has one family, so the pressure that split them is not here and the table is the
+ * whole answer. It comes back the day a value-oriented family does.
  */
 inline U32 narrowBitsOf(Layout layout, DeclPtr<mir::Type> type) {
     return reprOf(layout, type).scalarBits;

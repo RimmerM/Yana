@@ -49,8 +49,8 @@ Node* expandSyscall(Builder& builder, Function& callee, Node* const* arguments, 
  * `cloneThread(flags, stackTop, entry, argument, threadId)` - the same two lines, and the reason it
  * is worth its own function is what it does *not* do.
  *
- * The shipping stage splits the entry's `{code, env}` pair here, into two loads in front of the
- * instruction, and hands the backend six operands. This stage keeps the five the declaration wrote
+ * `compiler/resolve` split the entry's `{code, env}` pair here, into two loads in front of the
+ * instruction, and handed the backend six operands. This stage keeps the five the declaration wrote
  * and splits the pair in the lowering instead - see native.def's row, and
  * `resolve_ssa/lower/inst.cpp`, where the same pair is already read for a call through a function
  * value. What that buys is that MIR says what the author wrote, and that the one place that knows a
@@ -66,10 +66,10 @@ Node* expandCloneThread(Builder& builder, Function& callee, Node* const* argumen
  * again, and the entry pair kept whole for `expandCloneThread`'s reason directly above.
  *
  * What is worth saying here is what these do *not* do, because both are suspension points and
- * neither says so at this tier. `maySuspend` in `inst.cpp` answers a **call** from its callee's
- * published summary, and a call to one of these is exactly that: the declaration in `lib/Native` is
- * bodyless, so `summary.bodyKnown` is false, so `suspension()` has no answer, so `get(true)` is what
- * the caller reads - the conservative direction, arrived at by the rule that already covers every
+ * neither says so at this tier. A **call** is answered from its callee's published summary, and a
+ * call to one of these is exactly that: the declaration in `lib/Native` is bodyless, so
+ * `summary.bodyKnown` is false, so `suspension()` has no answer, so `get(true)` is what the caller
+ * reads - the conservative direction, arrived at by the rule that already covers every
  * foreign declaration rather than by a bit written here. A `Native` node the expansion leaves behind
  * is not itself a suspension point and does not need to be: what the across-suspend rule has to see
  * is the *call*, and the call is what the loan checker walks.

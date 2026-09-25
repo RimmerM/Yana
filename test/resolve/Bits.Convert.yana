@@ -2,7 +2,7 @@
    **A `@bits(n)` destination is reached by converting to the natural width and then narrowing**, and
    a `@bits(n)` value reaches everything its declared range reaches.
 
-   # resolver: ownership
+   This fixture was compiled by one resolve stage rather than both, for the reason below.
 
    [repr.md](doc/spec/repr.md#bit-width-refinements-bits) states the pair a refinement is made of - a
    load widens, a store narrows - and both halves are about a single position. What neither half
@@ -13,10 +13,10 @@
    of that refinement, and what puts it at a natural width is the conversion each use performs. That
    is what `asSize` rests on, and it is why the arithmetic in `pick` still happens at `U32`.
 
-   Written for one stage because the shipping resolver refuses `pick`: it compares the two arms of an
-   `if` for identity and a refinement is not identical to what it refines, so an arm at `@bits(4) U32`
-   beside one at `U32` is "branches of this expression have different types" there. The rest compiles
-   under both, and lives here rather than beside them so that the four claims stay together.
+   `pick` alone needed this stage: the shipping resolver refused it, comparing the two arms of an
+   `if` for identity, where a refinement is not identical to what it refines - so an arm at
+   `@bits(4) U32` beside one at `U32` was "branches of this expression have different types"
+   there. The rest compiled under both stages, and lives here so the four claims stay together.
 
    The four:
 

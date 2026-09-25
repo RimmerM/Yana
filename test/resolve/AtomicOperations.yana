@@ -1,13 +1,13 @@
 {-
-   The `Atomic` surface both resolve stages compile - Analysis-Atomics.md §3, and
+   The `Atomic` surface - Analysis-Atomics.md §3, and
    `doc/spec/concurrency.md` for the model these operations are written against.
 
-   `Atomic.yana` beside this is the fuller file and is the shipping stage's alone: it reaches the
-   operations through a **dot call** and it exercises `Native.atomicAt`, and the ownership stage has
-   neither - a dot call is unimplemented there for every callee, and `atomicAt` is the one signature
-   in `lib/` still written with the `return` marker. What is here is the same family in the spelling
-   both stages read, so that two implementations of one language are held to one answer about what
-   an atomic does.
+   `Atomic.yana` beside this is the fuller file: it reaches the operations through a **dot call**
+   and exercises `Native.atomicAt`. This file is the same family in the qualified spelling,
+   which used to be the one form both resolve stages could read - a dot call reaching these was
+   the rewrite's alone, and `atomicAt` is the one signature in `lib/` still written with the
+   `return` marker - so keeping this file qualified is what let one `.run.expect` hold both
+   spellings to a single answer about what an atomic does.
 
    Everything is written **qualified**. That is not a style choice: `store`, `exchange` and `load`
    are declared by `Native` as well, so a bare call is ambiguous where both modules are imported and

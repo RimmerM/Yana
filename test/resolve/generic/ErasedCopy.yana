@@ -1,8 +1,6 @@
 {-
    Duplicating a value whose type the body cannot see.
 
-   # resolver: ownership
-
    A body compiled once holds an address and a descriptor, and neither says how to duplicate what is
    behind them. The old stage answered that from the descriptor - a `TrivialCopy` bit beside the size,
    and a `copyInit` function slot on the managed target - and had to *refuse* an explicit copy at a

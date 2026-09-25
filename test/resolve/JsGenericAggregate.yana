@@ -5,8 +5,8 @@
    The JS backend used to drop the owned argument at such a call - the emitted call was
    `newBlocks({})`, so the wrapper was built over a state of no fields at all and every digest
    answered zeros. Nothing on the native side ever showed it, which is why this carries both a
-   `.js.expect` and a `.run.expect`: the assertion worth having is that the two targets agree on the
-   number, not that the JavaScript reads a particular way.
+   `.jsir.js.expect` and a `.run.expect`: the assertion worth having is that the two targets agree
+   on the number, not that the JavaScript reads a particular way.
 
    `.generic` because the erased ABI is the harder of the two forms - a specialization would have
    substituted the concrete record in and never exercised the owned-argument path at all.

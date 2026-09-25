@@ -10,8 +10,8 @@
    The claim is that a `let &` name keeps its identity: `lib/Process/Process.native.yana` writes
    `waitProcess(self.id, addressOf(status), 0)` and reads `status` back afterwards, so an address of
    a *copy* would be a child's exit code written into a temporary nobody looks at. Writing through
-   the pointer and reading the name is that program with the syscall taken out, and it is the same
-   answer the shipping stage gives - `addressof %status` - which is why this runs on both stages.
+   the pointer and reading the name is that program with the syscall taken out, and `addressof
+   %status` - taken from the pointer rather than from a copy - is the answer this compiles to.
 
    A value that is not storage keeps the other meaning, which `test/resolve/Global.yana` records:
    the address of a temporary holding it, which is the only reading available for something that

@@ -2,8 +2,6 @@
    Automatic indirection - `doc/spec/repr.md`'s "where the cycle is cut", and the half of `@box`
    nothing in the source names.
 
-   # resolver: ownership
-
    A type whose layout is cyclic through *inline containment* has no finite size, so the compiler
    breaks the cycle with a pointer and nothing in the program says so. `breakLayoutCycles` in
    `compiler/resolve_mir/own.cpp` is the walk; what it produces is `RecordField::boxed`, which is the

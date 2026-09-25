@@ -6,8 +6,8 @@
  * The calling conventions, and the one table that names them.
  *
  * Split out of `lower.h` so that the *resolver* can hold one: `@convention(clobber)` is read off a
- * declaration long before there is a lower IR, and `resolve/module.h` including the whole lower IR
- * to name an eight-valued enum would be a dependency out of all proportion to the fact.
+ * declaration long before there is a lower IR, and `resolve_mir/decl.h` including the whole lower
+ * IR to name an eight-valued enum would be a dependency out of all proportion to the fact.
  *
  * There is one name table and every reader shares it, which is the point of the split rather than a
  * tidiness argument. The names appear in three places that have to agree: the `@convention`

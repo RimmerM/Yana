@@ -47,10 +47,10 @@ fn scaled(v: Int, by: Int) -> Int = v * by + v
 
 fn scales(a: Int, b: Int) -> Int = scaled(a, b) * 100 + scaled(b, a)
 
--- A callee holding a `Drop` of an owner it built itself. The teardown travels with the body and runs
--- once per call exactly as the call did, which is `opt_inline.cpp`'s own argument for why the
--- shipping stage's refusal of ownership instructions does not carry over - and a clone that emitted
--- the drop twice takes `live` negative.
+-- A callee holding a `Drop` of an owner it built itself. The teardown travels with the body and
+-- runs once per call exactly as the call did, which is `inline.cpp`'s own argument for why the old
+-- shipping stage's refusal of ownership instructions never carried over here - and a clone that
+-- emitted the drop twice takes `live` negative.
 fn consumes(id: Int) -> Int:
     let doomed = held(id)
     return doomed.id * 2

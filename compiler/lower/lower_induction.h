@@ -31,8 +31,8 @@
  *
  * The question was live, and more so than it was for `lower_strength.h`: the arithmetic this rewrites
  * *does* exist in the resolve IR. `xs[i]` on a native target resolves - through the `Index` instance,
- * inlined - to `mul %i, strideof T` and `add %items, ...`, and `opt_loop.cpp` already runs a
- * dominator walk and a loop finder over that IR. Three things say it should still not go there:
+ * inlined - to `mul %i, strideof T` and `add %items, ...`, and resolve_ssa/opt/loop.cpp already
+ * runs a loop finder over that IR. Three things say it should still not go there:
  *
  *  1. **On JS the shape does not exist at all.** `@platform` selects a different `Index` instance
  *     there, and the same source resolves to `borrow [%items][%index]` - a place with an Index
@@ -42,13 +42,14 @@
  *     `offset + i` - is one adding a second variable to would make worse rather than better.
  *
  *  2. **Whether the rewrite pays depends on the stride, and in the resolve IR the stride is not a
- *     number.** `strideof T` is a `TypeMetric`, answered by a `ReprTable` - and an address whose
- *     scale is 1, 2, 4 or 8 is *free*, because the SIB byte holds it and `foldAddresses` already
- *     puts it there (findings item 4). Reducing one of those trades an addressing mode that costs
- *     nothing for a live pointer register and an add per iteration, which is a pessimization. So the
- *     pass has to read the stride as a literal, and a `compiler/opt` transform that reads a repr
- *     answer to decide what IR to produce is exactly what `Implementation-Module-Format.md`'s
- *     gate/refinement/transform rule disqualifies from the target-independent tier.
+ *     number.** `strideof T` is a `TypeMetric`, answered by the target's layout - and an address
+ *     whose scale is 1, 2, 4 or 8 is *free*, because the SIB byte holds it and `foldAddresses`
+ *     already puts it there (findings item 4). Reducing one of those trades an addressing mode that
+ *     costs nothing for a live pointer register and an add per iteration, which is a pessimization.
+ *     So the pass has to read the stride as a literal, and an SSA-tier transform that reads a
+ *     layout answer to decide what IR to produce is exactly what
+ *     `Implementation-Module-Format.md`'s gate/refinement/transform rule disqualifies from the
+ *     target-independent tier.
  *
  *  3. **Of the two native backends only one needs it**, which is the same reason `lower_fold.h` and
  *     `lower_strength.h` give: LLVM runs its own loop-strength-reduction pass at `-opt >= 1`. The
@@ -86,9 +87,8 @@
  *
  * A `while` loop with a counter the program advances itself has no such guard and is declined. So
  * is the fact that would otherwise bound it: a *stored* count is a `@bits(30) U32`, but the length a
- * loop compares against belongs to the borrow, and `Flat.length` is a full `Size` on purpose - see
- * the note above `Count` in resolve/native.cpp for why a borrow's length must not be the limiting
- * width in the language.
+ * loop compares against belongs to the borrow, and `Flat.length` is a full `Size` on purpose,
+ * because a borrow's length must not be the limiting width in the language.
  *
  * Everything reading the address has to be inside the loop. The pointer phi holds, after the loop,
  * whatever the last *header entry* put there rather than what the last iteration computed, and those

@@ -18,14 +18,12 @@
    rather than its safety: the write is *after* the borrow, so a live-range-aware version could alias
    it, and the whole-body walk this slice built refuses it outright.
 
-   # resolver: ownership
-
-   **The shipping stage does not agree with itself about this program**, which is why the directive
-   is here rather than the fixture being compiled by both. `-no-ir-opt` through `compiler/resolve`
-   answers 1088 where an optimized build of the same program answers 12, on both targets: the
-   unoptimized build hands `both` the caller's storage at the shared position and the optimizer is
-   what turns it back into a copy. That is a defect in that stage and not in this one - the rewrite
-   answers 12 either way - and it is recorded in
+   **The shipping stage never agreed with itself about this program**, which is why this fixture
+   was compiled by the rewrite alone rather than by both. `-no-ir-opt` through
+   `compiler/resolve` answered 1088 where an optimized build of the same program answered 12, on
+   both targets: the unoptimized build handed `both` the caller's storage at the shared
+   position, and the optimizer was what turned it back into a copy. That was a defect in that
+   stage and not in this one - the rewrite answers 12 either way - and it is recorded in
    `doc/progress/2026-09-22-J72-jsir-alias-scalarize.md` rather than being worked around here.
 -}
 

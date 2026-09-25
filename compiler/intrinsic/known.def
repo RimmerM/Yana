@@ -58,10 +58,10 @@
  * `Required`, because the classifier asks these three about every type in every program: a stage
  * whose library does not declare them cannot compile anything, so saying so once at the end of the
  * declaration passes is the whole of what a program with no `Drop` needs to hear. They were
- * *synthesized* in C++ until the ownership stage had a library at all - a second implementation of a
+ * *synthesized* in C++ until `resolve_mir` had a library at all - a second implementation of a
  * class declaration, belonging to no module so that it could be found from every one - and
- * `lib/Core` declares them instead, which is what makes both stages read one class by construction
- * rather than by agreement.
+ * `lib/Core` declares them instead, which made the two resolve stages of the time read one class by
+ * construction rather than by agreement.
  *
  * One member each: `drop(->value: a)`, `reclaim(->value: a)`, `copy(from: a) -> a`.
  */
@@ -82,8 +82,8 @@ YANA_KNOWN_ROLE( copy,    Entity::Class, 1,    1,      0,      false,   Presence
  * declared constraint is the only thing that can say otherwise.
  *
  * Zero members, exactly like the atomics' pair further down, and answered the same way -
- * `structuralAnswer`. The shipping stage reaches them through `Program::coreClasses` by name, which
- * is what these two rows replace for the stage that reads the attribute instead.
+ * `structuralAnswer`. They replaced a lookup by name, `compiler/resolve`'s `Program::coreClasses`,
+ * which went with that stage in J173.
  *
  * **`Optional`**, for the reason the atomics' rows are: a library that declares neither is one whose
  * programs may not constrain on them, which is a smaller library rather than a missing one. Nothing
@@ -182,12 +182,12 @@ YANA_KNOWN_ROLE( fromDecimal, Entity::Class, 1,    1,      0,      false,   Pres
  * `lib/Core/Core.yana`'s `class FromText(a = String)` and `lib/Core/Char.yana`'s
  * `alias qualified Char = U32`. Implementation-String.md part 1.1.
  *
- * `"," :: CodeUnit` and `"é" :: Char` are literals both stages fold to a constant of the position's
- * type, after checking that the text is one code point the type means the same thing by
- * (`intrinsic/text.h`) - which is why the compiler has to name `Char` at all: its constant is a record of one field,
- * and the check for it is "any scalar value" where an eight-bit integer's is "ASCII". One
- * constructor with one field, stated so that the fold can build it by position. The row is
- * `character` rather than the type's own name, which is a C++ keyword.
+ * `"," :: CodeUnit` and `"é" :: Char` are literals the resolver folds to a constant of the
+ * position's type, after checking that the text is one code point the type means the same thing by
+ * (`intrinsic/text.h`) - which is why the compiler has to name `Char` at all: its constant is a
+ * record of one field, and the check for it is "any scalar value" where an eight-bit integer's is
+ * "ASCII". One constructor with one field, stated so that the fold can build it by position. The
+ * row is `character` rather than the type's own name, which is a C++ keyword.
  *
  * `Optional` for both. A library without them is one in which a string literal is a `String` and
  * nothing else, which is what every literal was before these rows.
@@ -311,29 +311,19 @@ YANA_KNOWN_ROLE( viewed,     Entity::Class, 1,    1,      0,      false,   Prese
 YANA_KNOWN_ROLE( index,      Entity::Class, 3,    2,      0,      false,   Presence::Required )
 
 /*
- * The functions the compiler inserts calls to, for the two pieces of grammar that are calls.
+ * The functions the compiler inserts calls to for `xs[a..b]`.
  *
  * `slice(self: '[a], from: Size, to: Size) -> '[a]` and its unique twin are `xs[a..b]`, where the
  * clamping and the arithmetic are the body's. The compiler holds the arity and nothing else, which
  * for both of them is three.
  *
- * `stringLiteral(bytes: %CodeUnit, length: Size) -> String` is what `"abc"` used to be built by,
- * and **the ownership stage no longer calls it**: J46 §3.5 moved the three records a literal string
- * is into `Resolver::stringConstant`, which spells them from the `string` and `run` rows below.
- * The row stays because the *shipping* stage still builds a literal through this function and finds
- * it by name (`resolve/native.cpp`), which is the coupling this file exists to replace - so the row
- * is what checks the declaration's arity until that lookup becomes a read of this row.
- *
- * **`Optional` since 2026-09-21, and the target is the reason.** It forges a string over a run of
- * *addressable units*, which is a thing a host string does not have: there is no JavaScript body
- * that could be written for this signature, and the shipping stage does not ask for one either -
- * its JS path builds a literal as the host's own string and already tests `program.stringLiteral`
- * for null (`resolve/expr_map.cpp`). `Required` therefore reported a library that is missing
- * nothing, on the one target where the operation does not exist. What the row still does where it
- * *is* claimed is unchanged.
+ * There was a `stringLiteral` row here too, the function `"abc"` used to be built by. J46 §3.5
+ * moved the three records a literal string is into `Resolver::stringConstant`, which spells them
+ * from the `string` and `run` rows below, and only `compiler/resolve` still found the function by
+ * this row; it went with that stage in J173. `lib/Native/Text.native.yana`'s `stringLiteral` is an
+ * ordinary function now.
  */
 //              role          entity            arity members payload teardown presence
-YANA_KNOWN_ROLE( stringLiteral, Entity::Function, 2,   0,      0,      false,   Presence::Optional )
 YANA_KNOWN_ROLE( slice,         Entity::Function, 3,   0,      0,      false,   Presence::Required )
 YANA_KNOWN_ROLE( sliceMut,      Entity::Function, 3,   0,      0,      false,   Presence::Required )
 
@@ -380,12 +370,11 @@ YANA_KNOWN_ROLE( sliceMut,      Entity::Function, 3,   0,      0,      false,   
  * call for frame storage and pass `runBorrowed` where `newRun` passed `runFromHeap`. Neither the
  * descriptor, the growth, nor `Reclaim` learns anything - the flag they already test is what
  * carries the answer, which is why it is a field rather than a placement class (see `HeapFlag`).
- * `resolve_ssa/opt/place.cpp` is the pass; the shipping stage reads neither row, because it expands
- * `newRun` into an allocation with a count and places that the way it places every other one.
+ * `resolve_ssa/opt/place.cpp` is the pass.
  *
  * The field order is a dependency and is stated here: **items, capacity, ownsHeap**. It is the same
- * dependency `array`'s two fields are under and the same one the shipping stage's `buildRunInto`
- * has by hand; what this row buys over that is that a library which renumbers them says so at
+ * dependency `array`'s two fields are under and the same one `compiler/resolve`'s `buildRunInto`
+ * had by hand; what this row buys over that is that a library which renumbers them says so at
  * `checkRoles` rather than at a segfault.
  *
  * `Optional` on the allocator rows' terms - a library that declares neither has arrays that do not
@@ -407,9 +396,9 @@ YANA_KNOWN_ROLE( run,      Entity::Record,   1,   0,      0,      false,   Prese
  * `indexInsert` is the class `m[k] = v` already goes through. The literal is that call and `n` of
  * these, left to right, with no field of `Map` read here.
  *
- * `indexInsert` rather than `insert`, and it is the same argument the shipping stage's literal
- * makes: `insert` hands back the value it replaced, so a literal built out of it would drop a
- * `Maybe(v)` at every entry. Two equal keys are therefore the assignment's rule and not a new one.
+ * `indexInsert` rather than `insert`: `insert` hands back the value it replaced, so a literal built
+ * out of it would drop a `Maybe(v)` at every entry. Two equal keys are therefore the assignment's
+ * rule and not a new one.
  *
  * `Optional` on the array rows' terms. A library that declares no map is one without maps, and what
  * an unfilled row costs is that a map literal reports the missing role by name rather than failing
@@ -439,16 +428,14 @@ YANA_KNOWN_ROLE( indexInsert, Entity::Class,    3,   1,      0,      false,   Pr
 /*
  * Where a check that did not hold stops the program - `lib/Core/Check.yana`'s `checkFailed`.
  *
- * The role neither stage calls *directly*. The shipping stage emits `checkCondition(index >=
- * length)` at every subscript and holds a pointer to that function so it can find its own calls
- * again; the ownership stage reaches for the condition function too, but at one subscript only - a
- * `[T *n]` element, which has no accessor to write the test in - and everywhere else `Index.get`
- * writes the test itself and `@inline(always)` grafts it into the caller. What arrives either way is
- * an ordinary comparison, an ordinary branch, and an arm that calls this - so what *this* role is
- * for is *recognition* rather than emission: `-no-checks` has to be able to say which branch is a
- * check, and comparing a callee against a declaration is the only statement of that which a rename
- * cannot silently unfill. `resolve_ssa/opt/check.cpp` is the one reader, and its file comment is the
- * structural rule.
+ * The role the compiler never calls *directly*. It reaches for the condition function at one
+ * subscript only - a `[T *n]` element, which has no accessor to write the test in - and everywhere
+ * else `Index.get` writes the test itself and `@inline(always)` grafts it into the caller. What
+ * arrives either way is an ordinary comparison, an ordinary branch, and an arm that calls this - so
+ * what *this* role is for is *recognition* rather than emission: `-no-checks` has to be able to say
+ * which branch is a check, and comparing a callee against a declaration is the only statement of
+ * that which a rename cannot silently unfill. `resolve_ssa/opt/check.cpp` is the one reader, and
+ * its file comment is the structural rule.
  *
  * `arity` zero because the declaration takes nothing: a check that fails says its exit status and
  * no more, which is `lib/Core/Check.yana`'s argument - formatting a message would put the format
@@ -466,13 +453,13 @@ YANA_KNOWN_ROLE( checkFailed,   Entity::Function, 0,   0,      0,      false,   
  * The branch a check *is*, in a function of its own - `lib/Core/Check.yana`'s `checkCondition`,
  * taking the mistake (`index >= length`) rather than the invariant.
  *
- * A row here because the ownership stage now emits one call: a `[T *n]` element is a projection of
+ * A row here because the resolver emits one call: a `[T *n]` element is a projection of
  * the container's own place, so there is no library body for the test to be written in the way
  * `Index.get`'s is, and the compiler owes the bound itself. The note below this file's `Show` block
  * used to say that a condition function was a declaration this stage would never reach for; a fixed
  * array is the one subscript that has no accessor, and it is what refuted that.
  *
- * **A call and not the branch, for the reason the shipping stage has and this stage now shares.** A
+ * **A call and not the branch** - the reason `compiler/resolve` had, arrived at again here. A
  * subscript is resolved inside whatever expression contains it, and this IR hands every value that
  * crosses a block boundary over as a block argument - so a branch emitted there would have to thread
  * everything the enclosing expression had already computed through two new blocks, under a construct
@@ -506,7 +493,7 @@ YANA_KNOWN_ROLE( checkCondition, Entity::Function, 1,   0,      0,      false,  
  * **Where the substitution happens is the lowering** and not the resolver - see
  * `Lowering::locatedCheck`. That keeps the located form out of the SSA optimizer entirely, so
  * `resolve_ssa/opt/check.cpp`'s discharge rule and every bounds-check fold go on seeing the one
- * shape they were written against, which is the trap the shipping stage's `isCheckCall` exists to
+ * shape they were written against, which is the trap `compiler/resolve`'s `isCheckCall` existed to
  * work around.
  */
 YANA_KNOWN_ROLE( checkFailedAt,    Entity::Function, 0,   0,      0,      false,   Presence::Optional )
@@ -564,7 +551,7 @@ YANA_KNOWN_ROLE( releaseRun,    Entity::Function, 1,   0,      0,      false,   
 
 /*
  * `@inline(n) @capacity(n) [T]` - Implementation-Containers.md §7.1's row that never spills, as the
- * ownership stage builds it (J143). `lib/Core/InlineArray.ownership.native.yana`.
+ * resolver builds it (J143). `lib/Core/InlineArray.native.yana`.
  *
  * `inlineArray` is the **type** the refinement names: `data InlineArray(a, n: Int) {slots: [a *n],
  * length: Count}`, the elements and the count inside whoever holds it. Its first field is *storage*
@@ -900,10 +887,10 @@ YANA_KNOWN_ROLE( show, Entity::Class, 1,    2,      0,      false,   Presence::O
  * *is* stays the library's, which is what a role buys where the compiler has no shorter way to say
  * the same thing - see the note above `runSlots` for the three rows that did have one.
  *
- * `String.reserve` is deliberately **not** here. The shipping stage reads it for one optimization -
+ * `String.reserve` is deliberately **not** here. `compiler/resolve` read it for one optimization -
  * `to ++= "a{x}b"` reserving on the caller's string instead of building a temporary - and that is a
  * rewrite of a *written* operator rather than part of what a format is. A row for it would be a
- * role the ownership stage never reaches.
+ * role the compiler never reaches.
  *
  * `Optional` for the same reason `show` is: a library that declares no formatter is one where an
  * interpolation reports at the literal.
@@ -914,17 +901,17 @@ YANA_KNOWN_ROLE( stringPush,       Entity::Function, 2,    0,      0,      false
 YANA_KNOWN_ROLE( formatBound,      Entity::Function, 1,    0,      0,      false,   Presence::Optional )
 
 /*
- * What joins these when the new stage reads `lib/Core` - Analysis-IR.md §11.4's milestone 8.
+ * What joined these when `resolve_mir` read `lib/Core` - Analysis-IR.md §11.4's milestone 8.
  *
- * The classes the language's syntax is written in terms of that are not yet here (`Enum`,
- * `Chunked`, and `ByteSwap`, `BitPermute`, `Length` beside them).
+ * The classes the language's syntax is written in terms of that are not yet here: `Chunked` and
+ * `Length`. `Enum`, `ByteSwap` and `BitPermute` were on that list and are rows now.
  *
  * `Show` was on that list and is a row now, with the three functions a format expression is built
  * out of beside it - see above. **They are `Optional` rather than `Required` and that is the
  * difference from every earlier row here**: the argument against a row for an unreachable
  * declaration was that `Presence` would have to lie, and an optional row does not - it says that a
  * library without a formatter is one where `"{x}"` reports at the literal. The rows are what let the
- * ownership stage compile `lib/Core`'s formatter rather than need one written for it.
+ * resolver compile `lib/Core`'s formatter rather than need one written for it.
  *
  * `checkFailed` and `checkCondition` were both on that list and are both rows now - see above. The
  * argument for leaving the second off was that this stage's check is the branch itself, written in
@@ -932,7 +919,7 @@ YANA_KNOWN_ROLE( formatBound,      Entity::Function, 1,    0,      0,      false
  * A **fixed array** refuted it: `xs[i]` on a `[T *n]` is a projection of the container's own place
  * rather than a call, so there is no accessor body to hold the test and the compiler owes it - and
  * emitting the branch in the expression is what this IR's block-argument rule refuses, which is the
- * shipping stage's own reason for the indirection arrived at from the other end.
+ * reason `compiler/resolve` had for the indirection, arrived at from the other end.
  *
  * `TrivialCopy`, `TrivialSink` and `Bits` were on that list and are rows now. What moved the first
  * two is that they are `Ownership`'s own classification and `structuralAnswer` could answer them
@@ -943,27 +930,20 @@ YANA_KNOWN_ROLE( formatBound,      Entity::Function, 1,    0,      0,      false
  * moved them is that `lib/Native/Heap.native.yana` declares them and this stage compiles it, so they
  * are no longer roles nothing could fill.
  *
- * They are not here yet because the stage that would bind them cannot compile the parts of `lib/`
- * that declare them. Adding rows for declarations nothing can reach would be a table of roles that
- * are permanently unfilled, which is a worse statement than an absent row: `Presence` would have to
- * lie about every one of them.
+ * The two left are not here because nothing in the compiler names them yet. Adding rows for
+ * declarations nothing reaches for would be a table of roles that are permanently unfilled, which
+ * is a worse statement than an absent row: `Presence` would have to lie about every one of them.
+ * Each is a row the day something in the compiler has to name one.
  *
  * ## What is still matched by name, and where
  *
  * Written down because "no spelling outside this directory" is the rule this directory exists to
  * enforce.
  *
- * **The classes listed above**, in `core.cpp`'s `definePreludeLookups` and in the instance
- * generators beside it - `classNamed(module, "Show"_v)` and its neighbours. Nothing else: the older
- * resolver binds the class rows here now, so every one of `CoreClasses` that has a row is read out
- * of `Program::knownClasses` and the spelling of each went with the lookup. `TrivialCopy`,
- * `TrivialSink`, `Lanewise` and `Bits` were on the by-name list and came off it the day the
- * ownership stage read a library that declared them, which is what that list predicts. `Show` came off it the day the row above was
- * written, which is the other way one can go: an `Optional` row costs the shipping stage nothing and
- * is what the ownership stage reads. What is left - `Enum`, `Index`, `Contiguous`, `Chunked`,
- * `Writable`, `ByteSwap`, `BitPermute` and `Length` - is a row apiece the day something in the
- * compiler has to name one. `IndexInsert` came off that list the day the map-literal rows above were
- * written, which is what the list predicts.
+ * **No class, since J173.** The last by-name lookups were `compiler/resolve`'s - `core.cpp`'s
+ * `definePreludeLookups` and the instance generators beside it, `classNamed(module, "Show"_v)` and
+ * its neighbours - and they went with that stage. Every class the compiler dispatches through is
+ * read out of `mir::Roles` from the attribute its declaration writes.
  *
  * `Proceed` and `Exit` in `resolve_sig.cpp` were the last entry before those and went with the
  * `outcome` row above.

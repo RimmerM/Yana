@@ -7,8 +7,8 @@
    already had a spelling on its own - `let ->x` moves and leaves the binding read-only, `let &x`
    over a call result owns and is writable - so what was missing was only the pair.
 
-   `BindAxes.yana` beside this is where the two axes are argued, and it is the shipping stage's. This
-   is a fixture of its own because the *pair* is what the new stage did not implement: the sigil was
+   `BindAxes.yana` beside this is where the two axes are argued. This is a fixture of its own
+   because the *pair* is what this stage did not implement at first: the sigil was
    read as `&` alone, which asks the initializer for a mutable borrow rather than for the value, so
    `let &->acc = seed` in `lib/Core/Join.yana` was "seed is not declared `&`, so it cannot be handed
    out for writing" - about a program that asked to move it.

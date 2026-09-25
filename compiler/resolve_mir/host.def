@@ -82,9 +82,9 @@ YANA_MIR_HOST( Binary,     "host.binary"_v,     kHostReads,                 kHos
  *
  * `Control` is **data for JSIR** rather than a terminator here. A terminator would split the block
  * at every check in the program and leave an unreachable successor for the ordinary path to rejoin,
- * which is a CFG change made by a tier that cannot see whether the host catches. The shipping
- * stage's emitter writes the `throw` inline and lets what follows be dead code the formatter drops;
- * this records the same fact as a column for the tier that structures the syntax.
+ * which is a CFG change made by a tier that cannot see whether the host catches. The JavaScript
+ * emitter J173 deleted wrote the `throw` inline and let what follows be dead code the formatter
+ * dropped; this records the same fact as a column for the tier that structures the syntax.
  */
 YANA_MIR_HOST( Throw,      "host.throw"_v,      kHostThrows | kHostControl, kHostNamed   )
 

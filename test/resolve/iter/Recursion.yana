@@ -1,8 +1,6 @@
 {-
    A **recursive** traversal built as an object - `doc/inflight/Design-Iterator-Objects.md` §6.3.
 
-   # resolver: ownership
-
    `for x in walk(child)` written inside `walk` has no finite record: a member holding the child's
    own site type would be a record containing itself. So the member holds the **erased** `iter(Y)`
    instead - two words over a heap block with the child's teardown in front of it - and everything

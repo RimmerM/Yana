@@ -1348,7 +1348,7 @@ Size tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
 /*
  * The sign of a narrow value put back, in one instruction instead of two.
  *
- * `truncateToWidth` in resolve/lower_type.cpp is where every narrow signed value is re-signed - a
+ * `putInRange` in resolve_ssa/lower/width.cpp is where every narrow signed value is re-signed - a
  * lane read, a field read, the result of arithmetic at an `I8` or an `I16` - and what it writes is
  * `x << k >> k` at the distance that puts the narrow sign bit in the register's. That is the right
  * portable form: LLVM folds the pair into a `sext` for itself and `(x << 16) >> 16` is the idiom a
@@ -1427,8 +1427,8 @@ void selectSignExtends(Context&, LowerBase base, LowerFunction& fun) {
             auto source = base[up->lhs];
             if(source->inst()->kind == LowerInst::Imm) continue;
 
-            // The distance is register-relative - see `signShift` in resolve/lower_type.cpp - so
-            // what is left below it is the width being extended from.
+            // The distance is register-relative - see `putInRange` in resolve_ssa/lower/width.cpp -
+            // so what is left below it is the width being extended from.
             auto distance = immValue(count);
             if(distance == 0 || distance >= registerBytes * 8) continue;
 
@@ -1534,11 +1534,11 @@ static U64 allOnesFor(LowerType type) {
  *
  * ## And `x ^ 1`, which is a complement only in a context
  *
- * A `Bool`'s complement is **not** a complement of its word. `Bitwise(Bool).not` is `emitLogicalNot`
- * and emits `xor c, 1`, because complementing the storage of a one-bit value gives something that is
- * not a `Bool` - see the ruling in resolve/core.cpp. So `!a && b` arrives here as
- * `and (xor a, 1), b`, and the `andn` this file exists to reach was never offered it: `x ^ 1` is not
- * `~x`, and the two differ in every bit above the lowest.
+ * A `Bool`'s complement is **not** a complement of its word. `!b` at a `Bool` is lowered as
+ * `xor c, 1` (resolve_ssa/lower/inst.cpp), because complementing the storage of a one-bit value
+ * gives something that is not a `Bool`. So `!a && b` arrives here as `and (xor a, 1), b`, and the
+ * `andn` this file exists to reach was never offered it: `x ^ 1` is not `~x`, and the two differ in
+ * every bit above the lowest.
  *
  * They differ in bits the `and` may already be discarding, which is what makes the rewrite available
  * and is why `under` is a parameter. `andn a, u` is `~a & u`; the instruction being replaced computes

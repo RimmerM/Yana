@@ -220,31 +220,6 @@ UseMode readMode(DeclBase base, MirBase mir, Body& body, const Place& place, Req
     return UseMode::Forward;
 }
 
-/*
- * Whether this node may suspend the enclosing fiber - Analysis-Sharing.md §3.3.
- *
- * Asked of the node and answered by the *callee's published summary*, which is why there is no
- * `kMirSuspends` column in inst.def: a kind-level bit can only say "every call suspends" or "no call
- * does". `Fact::get(true)` is the conservative fallback where the answer has not been computed, and
- * it is the caller's rather than the summary's - a foreign declaration and a callee whose module has
- * not been read are both "no answer", and the safe reading of no answer at a suspension point is
- * that it may.
- *
- * Every other kind answers false, and will keep answering false until `yield` arrives: a suspension
- * point is a call or a yield, and neither arithmetic nor a store has ever been one.
- */
-bool maySuspend(DeclBase base, Node& node) {
-    if(node.kind != Node::Call) return false;
-
-    // A call through a function value has no declaration to publish anything, and no answer is the
-    // conservative one: what the pair points at is decided at run time, so the safest reading of a
-    // suspension point whose callee is unknown is that it may.
-    auto& call = (NodeCall&)node;
-    if(call.callsValue()) return true;
-
-    return base[call.callee]->summary.suspension().get(true);
-}
-
 StorageClass storageOf(MirBase base, Body& body, Local& local) {
     auto root = body.objectRoot(base, local.object);
     if(!root.valid()) return StorageClass::Frame;

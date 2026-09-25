@@ -6,11 +6,9 @@
 -- skip destination is the enclosing return edge - which nothing written at the call site names.
 
 {-
-   # resolver: ownership
-
    `firstPositive` was respelled: it was a wrapper-result explicit-callback lens,
    `(n, body: (found: Int) -> a) -> Maybe(a)` returning `Just(body(v))`, and lenses.md's skipping
-   lens is a failure channel, `-> (Int | {})` with `yield`. The shipping stage builds only the old
+   lens is a failure channel, `-> (Int | {})` with `yield`. The shipping stage built only the old
    form; writing it this way is what surfaced two now-fixed bugs in the rewrite.
 -}
 

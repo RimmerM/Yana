@@ -36,10 +36,6 @@ class YanaProjectFile private constructor(val file: File) {
     var platform: String = ""
         private set
 
-    // `legacy` or `ownership`, or empty where the project leaves the compiler's default alone.
-    var resolver: String = ""
-        private set
-
     /// `sources = ["src"]` - joined onto the project directory.
     val sources: MutableList<File> = mutableListOf()
 
@@ -109,7 +105,6 @@ class YanaProjectFile private constructor(val file: File) {
                     "to" -> project.to = project.directory.resolve(values[0])
                     "output" -> project.output = values[0]
                     "platform" -> project.platform = values[0]
-                    "resolver" -> project.resolver = values[0]
                     "sources" -> values.forEach { project.sources += project.directory.resolve(it) }
                 }
             }

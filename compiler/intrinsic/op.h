@@ -89,12 +89,13 @@ inline const OpDef& opDef(Op role) { return opTable[Size(role)]; }
  * expand the role* runs, which is exactly what a `Flow` role's body already is - the resolver lays
  * that operator out where it is written, and every other reach of the declaration calls the body.
  *
- * `newRun` is the same relationship along a different axis. The shipping stage expands it into an
- * allocation with a count whose **placement** its escape analysis decides; the ownership resolver
- * has no placement analysis, so every run it built would be a heap run whatever it expanded to - and
- * a heap run is something the language can say, with the allocator's refusal handled, which is what
- * `lib/Native/Run.native.yana` writes. The day that stage places allocations the body becomes dead
- * in both and this answer goes back to the form alone.
+ * `newRun` is the same relationship along a different axis. The resolver has no placement analysis,
+ * so every run it built would be a heap run whatever it expanded to - and a heap run is something
+ * the language can say, with the allocator's refusal handled, which is what
+ * `lib/Native/Run.native.yana` writes. `compiler/resolve`, deleted in J173, expanded it instead,
+ * into an allocation with a count whose **placement** its escape analysis decided; the day this
+ * stage places a run of computed size the body becomes dead and this answer goes back to the form
+ * alone.
  *
  * Optional rather than required, because the other declaration claiming the role is
  * `lib/Native/Run.js.yana`'s, where a run is a descriptor the compiler places and there is no heap

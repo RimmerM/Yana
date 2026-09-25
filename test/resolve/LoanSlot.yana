@@ -2,8 +2,6 @@
    A type that holds someone else's storage, and the signature that installs into one -
    Analysis-Borrows.md §4.3 and §4.7.
 
-   # resolver: ownership
-
    §4.3: a field names its own loan origin, and the labels are collected from the field types into
    the type's slots. There is no `data Store(kept', a)` header to write - a slot is not a type
    parameter, has no runtime existence and takes no descriptor, so writing one after the name would
@@ -14,14 +12,14 @@
    type exposes a slot, the incoming parameter is assigned to that slot's group, and the caller
    proves the owner of the value stays valid for as long as it keeps the destination.
 
-   The rewritten stage's own spelling. The install used to be `store.held = value`, which
-   re-points a loan the record holds, and
+   The install used to be `store.held = value`, which re-points a loan the record holds, and
    ownership.md has no such operation ("there is no operation that rebinds what a borrow refers
    to"): it is the whole record that is assigned, which releases the old loan with the old value.
-   The shipping stage refuses this spelling - its destination rule reads a field store and not a
-   record one - so the fixture names the stage. And the call was refused here as well, spuriously:
-   `box` holds a *shared* loan of `source`, and an exclusive loan of `box` beside a shared loan of
-   `source` is two shared accesses to the cell, which `analyze_loan.cpp`'s check now says.
+   The old stage refused this spelling - its destination rule read a field store and not a record
+   one - so this fixture was written for the rewrite alone. And the call was refused here as well,
+   spuriously: `box` holds a *shared* loan of `source`, and an exclusive loan of `box` beside a
+   shared loan of `source` is two shared accesses to the cell, which `analyze_loan.cpp`'s check now
+   says.
 -}
 
 data Cell {value: Int}

@@ -95,19 +95,10 @@ void Session::compile(CompletionRequest* completion, Cursor cursor) {
     context = Ptr(new Context(diagnostics));
     context->settings = settings;
 
-    // The rewritten stage, which is the only one with an editor surface - `ssa::Pipeline` states the
-    // same assignment for a build, and the setting is read below this.
-    //
-    // **Kept after the default flipped** (2026-09-22, J81), because what this overrides is not the
-    // default: a project whose `yana.toml` says `resolver = "legacy"` is still edited here, and a
-    // server that honoured it would have no index, no completion and no `explain` to answer from.
-    // Which stage *built* it is that project's business; which stage answers the editor is not.
-    context->settings.resolver = ResolverStage::Ownership;
-
     /*
      * **The project's own platform, since 2026-09-22 (J75).**
      *
-     * This used to force `Native` whatever the project said, because the rewritten stage did not
+     * This used to force `Native` whatever the project said, because `resolve_mir` did not yet
      * resolve a JavaScript program and a session that asked for one would have reported every
      * declaration of the library's `@platform(js)` half as not resolving. It does resolve one now -
      * JSIR's whole point - so a `platform = "js"` project is answered as the JavaScript program it

@@ -1,8 +1,6 @@
 {-
    `SharedThroughExclusive.yana`'s pair where one side *can* write what the other reaches.
 
-   # resolver: ownership
-
    `box1` holds an **exclusive** loan of `source`, and `box2` a shared loan of it taken through
    `box1` - so a callee holding `box1` exclusively may write `source`, which `box2` reads. Refused
    whichever of the two is borrowed first, and refused where both boxes borrow `source` directly

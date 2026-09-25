@@ -4,8 +4,6 @@ import Native
 -- names. A reference works wherever the field is and for as long as anything holds it, so what is
 -- rejected here is no longer about lifetime at all - it is the two places a *conversion* would have
 -- to happen and there is nowhere to put one.
---
--- # resolver: ownership
 
 data Header {version: @bits(4) U32, length: @bits(13) U32}
 
@@ -29,7 +27,7 @@ fn lengthOf(&h: 'Header) -> &'U32 = h.length
 
 -- A `@bits(n)` field lent to a `&` position of a **function value's** type (J162). A direct call
 -- lends it through a temporary and commits after the call; a call through a value does not yet, and
--- the shipping stage accepts it - `compiler/resolve_ssa/lower/README.md` says what was tried.
+-- the shipping stage accepted it - `compiler/resolve_ssa/lower/README.md` says what was tried.
 fn bumpRead(&x: U32) -> U32:
     x = x + 20
     return x

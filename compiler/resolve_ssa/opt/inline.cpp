@@ -167,13 +167,13 @@
  *
  * ## The cost model
  *
- * Two numbers and one exemption, where the shipping stage has fourteen terms and a per-target table.
- * That is a starting point rather than a claim: its numbers are calibrated against a particular
- * backend's register pressure ([[yana-inline-limits-vs-llvm]] - budget 20 against LLVM's 50, and
- * raising it is +10.7% because the graft enlarges a loop nest the allocator then spills through),
- * and `test/bench/programs` does not compile under this stage yet, so there is nothing here that
- * could rank a second term honestly. What is measurable is the fixture corpus, and the note in
- * `opt/README.md` is what it measured.
+ * Two numbers and one exemption, where the shipping stage (deleted in J173) had fourteen terms and
+ * a per-target table. That is a starting point rather than a claim: its numbers were calibrated
+ * against a particular backend's register pressure ([[yana-inline-limits-vs-llvm]] - budget 20
+ * against LLVM's 50, and raising it is +10.7% because the graft enlarges a loop nest the allocator
+ * then spills through), and `test/bench/programs` does not compile under this stage yet, so there
+ * is nothing here that could rank a second term honestly. What is measurable is the fixture corpus,
+ * and the note in `opt/README.md` is what it measured.
  *
  * **The callee is settled first.** `settleCallee` runs `optimizeBody` on it once, lazily, before any
  * site is weighed against it - [[yana-inline-size-honesty]] is the whole of the argument: a body in
@@ -200,7 +200,7 @@
  * and a hint is a reason; a third budget between the two would be a number with nothing behind it.
  * `Size` declines it, which is `limits.budget` being zero.
  *
- * ## The two terms the shipping stage has that this does not, each measured rather than argued
+ * ## The two terms the shipping stage had that this does not, each measured rather than argued
  *
  * **No accessor bonus.** [[yana-accessor-inline-bonus]] is 6 at Balanced and 12 at Speed for a body
  * whose whole content is an address crossing the call boundary, and its two callees were size 7 and
@@ -251,7 +251,7 @@ constexpr U32 kMaxChainDepth = 8;
  *
  * `budget` at `Balanced` is twenty, which is the shipping stage's `Speed` number rather than its
  * `Balanced` eight. The two are not comparable and taking the larger is the honest translation:
- * over there the eight is a base that fourteen bonuses are added to and four penalties subtracted
+ * over there the eight was a base that fourteen bonuses were added to and four penalties subtracted
  * from, and here there are none - a callee is weighed on its size and on whether it is the only
  * reference to its body. What the number cannot be here is *measured*: `test/bench/programs` does
  * not compile under this stage, so the corpus that ranks a budget is out of reach and the note in
@@ -372,11 +372,11 @@ constexpr U32 kColdResidueWeight = 2;
  * wrong bodies for +672.
  *
  * **The population matters and is part of the number.** These 392 are every program this stage
- * compiles; findings.md §104.5's `test/resolve` rows are over the *shared* corpus, the fixtures both
- * stages compile, which is smaller. On that corpus the same change reads 297,818 -> 294,682 - the
- * identical -3,136 - and the gap against the shipping stage goes +6.9% to +5.8%. The two totals are
- * not comparable and §105.5 is why: the shipping column, which no part of this round touches, does
- * not reproduce either.
+ * compiled; findings.md §104.5's `test/resolve` rows are over the *shared* corpus, the fixtures
+ * both stages compiled while there were two, which is smaller. On that corpus the same change read
+ * 297,818 -> 294,682 - the identical -3,136 - and the gap against the shipping stage went +6.9% to
+ * +5.8%. The two totals are not comparable and §105.5 is why: the shipping column, which no part of
+ * this round touched, did not reproduce either.
  */
 constexpr U32 kColdCallCost = 5;
 
@@ -1422,12 +1422,12 @@ struct Inliner {
      * two reasons are that it is a directive and that the graft is the other half of the same one.
      *
      * The graft applies no size test whatever, so a ceiling here made the directive mean one thing
-     * for a call the conversion reached and another for a call eight deep that it did not. Worse, it
-     * made it mean *nothing at all* at `-inline none`, where the ceiling is zero and the early-out
-     * above refused every callee before the attribute was read - and `-inline none` is a supported
-     * way to build, which is the whole argument `resolve/inline.h` makes for the other stage's graft
-     * living in the resolver: a body whose cost depends on an optimization flag is the thing the
-     * directive exists to prevent.
+     * for a call the conversion reached and another for a call eight deep that it did not. Worse,
+     * it made it mean *nothing at all* at `-inline none`, where the ceiling is zero and the
+     * early-out above refused every callee before the attribute was read - and `-inline none` is a
+     * supported way to build, which is the whole argument the shipping stage's `resolve/inline.h`
+     * made for its graft living in the resolver: a body whose cost depends on an optimization flag
+     * is the thing the directive exists to prevent.
      *
      * What keeps the pass finite is not this number. `clonableDeclaration` refuses a call-graph
      * cycle and `kMaxInlineRounds` caps the cascade at three, and `checkAlwaysInline` refused a
@@ -1471,9 +1471,9 @@ struct Inliner {
          * constant every threshold folds and what is left is the one arm the length selects, which
          * is worth having and is why this is not `@noinline` in the library. Two further reasons it
          * is not: the attribute would bind the JS build, where `copyMemory` claims `blockCopy`
-         * itself and is one node rather than a ladder, and it would bind the shipping stage, which
-         * already declines the same body on its ceiling and is the control this was measured
-         * against.
+         * itself and is one node rather than a ladder, and it would have bound the shipping stage,
+         * which already declined the same body on its ceiling and was the control this was
+         * measured against.
          *
          * A count that is `sizeOf(T)` does **not** read as constant here, and correctly so: it is a
          * `Metric`, `fold.cpp` declines those by ruling (J59), and until the lower tier folds it
@@ -1497,7 +1497,7 @@ struct Inliner {
          * every rule that reads a check would have to learn a second shape.
          *
          * The cost is a call per check site in a build that asked for locations, which is a debug
-         * switch, and it is the same call the shipping stage's located build makes.
+         * switch, and it is the same call the shipping stage's located build made.
          *
          * **Except a `checkCondition` the optimizer has already answered** - J168. A condition that
          * is a constant zero is a check that cannot fail, and expanding it leaves nothing, so there is
@@ -2049,7 +2049,7 @@ struct Inliner {
              *
              * A body that allocates and frees in one activation carries both ends into its caller,
              * which is what makes inlining leave the pairing intact. What it does *not* do is
-             * re-decide the placement: `escape-before-inlining` in the shipping stage is a demote
+             * re-decide the placement: `escape-before-inlining` in the shipping stage was a demote
              * pass over the copied allocation, and there is nothing to demote here until the escape
              * half selects a rung on its own.
              */
@@ -3333,7 +3333,8 @@ void inlineCalls(OptContext& opt) {
      * the conversion's graft applies no size test to it, and a call the graft declined - eight
      * expansions deep, or through a value - has only this pass left to honour it. Returning here
      * made the attribute mean nothing at `-inline none`, which is a supported way to build and is
-     * exactly the "cost depends on a flag" that `resolve/inline.h` argues a directive may not have.
+     * exactly the "cost depends on a flag" that the shipping stage's `resolve/inline.h` argued a
+     * directive may not have.
      *
      * The price is a whole-program walk at a level that will splice very little. It is paid in a
      * build that has already turned the optimizer's inliner off, and `worthInlining` refuses every

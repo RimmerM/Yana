@@ -458,11 +458,11 @@ struct Pat {
     /*
      * Set on a literal pattern written with a leading `-`.
      *
-     * The sign is carried rather than folded into the magnitude, for the reason
-     * `resolve/const.cpp`'s `WrittenNumber` gives at length: the lexer produces only the magnitude,
-     * and what the number *is* is a question about the type it will be matched against. Folded here,
-     * `-1` and `18446744073709551615` are one pattern, so a `U64` pivot cannot tell a mask it holds
-     * from a negative it does not; and folding `I64`'s own minimum is signed overflow besides.
+     * The sign is carried rather than folded into the magnitude, because the lexer produces only
+     * the magnitude and what the number *is* is a question about the type it will be matched
+     * against. Folded here, `-1` and `18446744073709551615` are one pattern, so a `U64` pivot
+     * cannot tell a mask it holds from a negative it does not; and folding `I64`'s own minimum is
+     * signed overflow besides.
      */
     bool negative = false;
 
@@ -1190,7 +1190,7 @@ struct Module {
  * The files of one module, in the order the resolver reads them.
  *
  * Non-owning: the files belong to whoever parsed them - a `SourceEntry` for a project file and
- * `Program::embeddedAsts` for a library one - and this is the grouping laid over them. The order is
+ * `LibraryModules` for a library one - and this is the grouping laid over them. The order is
  * path order, which is what makes every pass over a module deterministic and what §2.3's
  * declaration order is built on.
  */

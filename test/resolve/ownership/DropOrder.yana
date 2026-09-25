@@ -1,8 +1,6 @@
 {-
    Where a teardown runs, over every control-flow shape this stage can express.
 
-   # resolver: ownership
-
    `Baseline.Drop.yana` establishes that drops happen; this one asserts *which* drop happened *when*.
    `trace` is a decimal register - each release shifts it up one digit and adds the guard's id - so
    the number a function leaves behind names the guards it released in the order it released them,
@@ -14,7 +12,7 @@
    below its last read. Each of them is a rule in the current compiler's drop placement and none of
    them is a rule here, which is the claim this fixture exists to keep honest.
 
-   The fixture only compiles under the rewritten stage because it shares its guards with
+   The fixture only compiled under the rewritten stage because it shared its guards with
    `PartialMove.yana`'s subject: `stash` hands one field of a record over and keeps the other.
 -}
 
@@ -117,7 +115,7 @@ fn earlyExit(flag: Bool) -> I32:
 
 data Pair {left: Guard, right: Guard}
 
--- The partial move that keeps this fixture out of the old stage: one field handed over and the other
+-- The partial move that kept this fixture out of the old stage: one field handed over and the other
 -- released here, with the drop of the survivor landing at its own last use.
 fn stash() -> I32:
     let p = Pair {left: guard(5), right: guard(6)}

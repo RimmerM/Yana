@@ -390,7 +390,7 @@ struct LoopInfo {
  * consecutive, and nothing between them changes the block set - `foldFunctionConstants` runs twice
  * in the middle of them and the only thing it does to the CFG is exchange a `Je`'s two arms, which
  * reorders a postorder walk and leaves both the loop structure and the dominance relation exactly
- * as they were. So `lowerProgram` builds one of these and hands it to all five.
+ * as they were. So `optimizeLowerFunction` builds one of these and hands it to all five.
  *
  * One of the five *does* change the block graph, at the end and conditionally: `eliminateCommonValues`
  * takes the decided arm of a bounds check it has proved redundant, which removes an edge and usually
@@ -862,7 +862,8 @@ struct LowerFunction {
      * This function must be encoded without a vector prefix - the x86-64 backend's, read by it and
      * by nothing else.
      *
-     * `@x86_legacy_sse` on the declaration, carried here by resolve/lower.cpp beside `callType`.
+     * `@x86_legacy_sse` on the declaration, carried here by resolve_ssa/lower/gen.cpp beside
+     * `callType`.
      * `legacyVectorEncodings` in codegen/x64/target.h is the note on why such a decision exists at
      * all, and `checkLegacyVectorEncoding` in codegen/x64/machine_vector.cpp is what holds the
      * marked function to it.
@@ -906,8 +907,8 @@ struct LowerFunction {
      * This function releases what its arguments hold - a `Drop` or `Reclaim` member, or a teardown
      * the lowering wrote for a type. `expandTeardownCalls` (lower_teardown.h) is the one reader: a
      * call of one of these, with a body of one block, is what it may replace by that body where the
-     * subject's slot is about to be split. Set by the resolve stage that knows; false is the
-     * cautious answer and is what the shipping stage leaves.
+     * subject's slot is about to be split. Set by resolve_ssa's lowering, which knows; false is the
+     * cautious answer and is what a parsed lower-IR fixture has.
      */
     bool teardown = false;
 
@@ -916,9 +917,9 @@ struct LowerFunction {
      *
      * "Immediately" is the whole content of the field: a code generator may pad before the data but
      * never between the data and the first instruction, because what reads it computes its address
-     * by subtracting the data's size from the entry point's. A closure header is the one user, in
-     * both resolve stages - see ClosureHeaderFields in resolve/witness.h and `attachClosureHeader`
-     * in resolve_ssa/lower/fun.cpp - and prefix data is what LLVM calls the same thing.
+     * by subtracting the data's size from the entry point's. A closure header is the one user - see
+     * `attachClosureHeader` in resolve_ssa/lower/fun.cpp - and prefix data is what LLVM calls the
+     * same thing.
      *
      * It is reached through the function rather than through LowerModule::globals for the same
      * reason: a global in that list is emitted wherever the module's data goes, and these bytes
@@ -950,7 +951,8 @@ struct LowerDataRelocation {
      *
      * A table slot is four bytes holding `target - &anchor`, which is known as soon as both are
      * placed within the image - so it is written when the image is assembled and needs nothing at
-     * load time. See repr/table.h for why anchor-relative rather than absolute.
+     * load time. See the note at the top of resolve_ssa/lower/erase.cpp for why anchor-relative
+     * rather than absolute.
      *
      * A source constant's pointer - the run inside a string literal, say - is the program's own
      * pointer type, so it is the target's full width and absolute, and it stays unknown until the
@@ -979,11 +981,11 @@ struct LowerDataRelocation {
     /*
      * What `anchorRelative` measures from, or null for the module's image anchor.
      *
-     * Every table `repr/table.h` describes uses the one module-wide label, because a slot may be
-     * read out of a table built on a frame and the reader has to hold one address to add back. A
-     * jump table is the case where that is a cost rather than a property: the code reading a cell
-     * has the table's own address in a register already - it just indexed with it - so measuring the
-     * cell from the table saves materializing a second label on every dispatch.
+     * Every table resolve_ssa/lower/erase.cpp builds uses the one module-wide label, because a slot
+     * may be read out of a table built on a frame and the reader has to hold one address to add
+     * back. A jump table is the case where that is a cost rather than a property: the code reading
+     * a cell has the table's own address in a register already - it just indexed with it - so
+     * measuring the cell from the table saves materializing a second label on every dispatch.
      */
     LowerPtr<LowerGlobal> anchor = nullptr;
 };
@@ -1048,7 +1050,8 @@ struct LowerModule {
     Array<LowerPtr<LowerGlobal>> globalOrder;
     Array<LowerPtr<LowerFunction>> functionOrder;
 
-    // The label every compiler-built table's address slots are measured from - see repr/table.h.
+    // The label every compiler-built table's address slots are measured from - see the note at the
+    // top of resolve_ssa/lower/erase.cpp.
     // Null for a program with no tables, and on a target whose tables hold references rather than
     // offsets; a backend that finds relocations to write and no anchor has a real inconsistency.
     LowerPtr<LowerGlobal> imageAnchor = nullptr;
@@ -1074,8 +1077,8 @@ struct LowerModule {
     StringId name {};
 
     /*
-     * The name of the function a finished program starts at - `Program::entry`, under whatever name
-     * lowering gave it (see uniqueFunctionName, which may have had to rename it).
+     * The name of the function a finished program starts at - `mir::Program::entry`, under whatever
+     * name lowering gave it (see uniqueFunctionName, which may have had to rename it).
      *
      * A name rather than a pointer because that is what everything downstream asks with: the code
      * generator emits functions into a module and finds one again by name, and a backend that has to
@@ -1089,8 +1092,8 @@ struct LowerModule {
      * which is what an `InstAlloc` the escape analysis placed on the heap becomes a call to.
      *
      * A pointer rather than a name, because unlike `entry` this is asked about a *callee* a pass is
-     * holding: "is this call the one that hands out fresh storage". It is recorded for the reason
-     * `Program::allocateHeap` is - the compiler emits the call, so no source name reaches it - and
+     * holding: "is this call the one that hands out fresh storage". It is recorded because the
+     * compiler emits the call, so no source name reaches it - and
      * it is the one callee a lower pass is entitled to reason about, since the placement that made
      * the call was the compiler's own decision. See §27 of test/bench/findings.md, and
      * `isAllocatorCall` in lower_forward.cpp for the only thing that reads it.

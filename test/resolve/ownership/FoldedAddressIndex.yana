@@ -2,8 +2,6 @@
    An array literal's element stores under `-no-ir-opt`, where the x64 backend read a folded
    address's computed index out of the register it had just loaded the stored value into.
 
-   # resolver: ownership
-
    Unoptimized, element `i`'s offset is `mul i, 8` left for the backend, which pins it to rax and
    folds it into the store's address as the index. The stored constant is read by two stores, so the
    allocator gave it a register only over the stretch where its reads are, and the load entering that

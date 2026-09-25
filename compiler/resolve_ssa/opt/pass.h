@@ -144,11 +144,11 @@ inline bool isLinearAt(OptContext& opt, const Occurrence& held) {
 /*
  * An integer type this stage is willing to compute in, and the two things it needs to know.
  *
- * `bits` is the type's **declared** width, which is the width a result is put back into. There is no
- * register width beside it and that is the difference from the shipping stage's `IntFacts`: the
- * normal form at this tier is the declared one - `mir::reducedToWidth` states it for a constant and
- * `resolve_ssa/lower/width.cpp` for a value in a register - so how wide the register holding it
- * turns out to be is a question below this one and nothing here has to ask it.
+ * `bits` is the type's **declared** width, which is the width a result is put back into. There is
+ * no register width beside it and that is the difference from the deleted shipping stage's
+ * `IntFacts`: the normal form at this tier is the declared one - `mir::reducedToWidth` states it
+ * for a constant and `resolve_ssa/lower/width.cpp` for a value in a register - so how wide the
+ * register holding it turns out to be is a question below this one and nothing here has to ask it.
  *
  * See `foldableInt` for which types have one, and for the two that deliberately do not.
  */
@@ -278,12 +278,13 @@ Value* makeFloatConstant(OptContext& opt, Inst& at, DeclPtr<mir::Type> type, F64
  * What one instruction comes to, or null where it comes to nothing new - `opt/fold.cpp`.
  *
  * A *value*, never a rewrite in place: everything here answers with a constant it made, an operand
- * that was already standing there, or - in the one reassociation rule - the result of an instruction
- * it made in front of this one, and the caller is what points the readers at it and takes the
- * instruction out. That is what lets `simplify` drive this from a worklist: the only thing that
- * changes is which values exist. It is why the `bitsUpTo`-becomes-`and` rewrite the shipping stage's
- * folder performs is not here - that one *replaces* an instruction at a different kind, which is the
- * shape `simplify.cpp`'s own rewrites have, and `optimizeLowerFunction` makes it one tier down.
+ * that was already standing there, or - in the one reassociation rule - the result of an
+ * instruction it made in front of this one, and the caller is what points the readers at it and
+ * takes the instruction out. That is what lets `simplify` drive this from a worklist: the only
+ * thing that changes is which values exist. It is why the `bitsUpTo`-becomes-`and` rewrite the
+ * shipping stage's folder performed is not here - that one *replaces* an instruction at a different
+ * kind, which is the shape `simplify.cpp`'s own rewrites have, and `optimizeLowerFunction` makes it
+ * one tier down.
  */
 Value* foldInst(OptContext& opt, Inst& inst);
 

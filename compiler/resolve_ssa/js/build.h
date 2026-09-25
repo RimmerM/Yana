@@ -5,11 +5,12 @@
 /*
  * The typed builder surface - Analysis-IR-JS.md §8.2.
  *
- * There is deliberately **no universal `useValue` returning an expression**. The shipping backend
- * has one, and what it costs is the whole of §1.2's table: a caller that wanted a place got one that
- * happened to read correctly and wrote to a copy; a caller that wanted one value got a flattened
- * reference's first part; a caller whose value had no mapping got `null`. Each of those is a
- * function whose return type does not say what came back.
+ * There is deliberately **no universal `useValue` returning an expression**. The old JavaScript
+ * backend (deleted with `compiler/resolve` in J173) had one, and what it cost is the whole of
+ * §1.2's table: a caller that wanted a place got one that happened to read correctly and wrote to a
+ * copy; a caller that wanted one value got a flattened reference's first part; a caller whose value
+ * had no mapping got `null`. Each of those is a function whose return type does not say what came
+ * back.
  *
  * So the surface here states the form. `requireOne` answers a value or reports; `lowerPlace` answers
  * a place even when reading it would be a compound expression, so the two cannot be confused; and
@@ -104,9 +105,9 @@ struct JsBuilder {
      * A variable place - what an allocation becomes when nothing takes its address away.
      *
      * Never a box by default, which is §5.4's first bullet and the one this target has historically
-     * got wrong in the other direction: the shipping backend boxes a local the moment anything
-     * borrows it, whether or not the borrow escapes. A box that is added here is a box the demand
-     * pass proved is needed.
+     * got wrong in the other direction: the old JavaScript backend boxed a local the moment
+     * anything borrowed it, whether or not the borrow escaped. A box that is added here is a box
+     * the demand pass proved is needed.
      */
     JsPlaceId addVariable(JsRepId content) {
         JsPlace place;
@@ -265,7 +266,7 @@ struct JsBuilder {
      * a constant here as it is natively: `Flags {a: True, b: False}` is the literal `1`, and a
      * `zeroOf` a packed record is the literal `0` without asking. Each field is reduced to its own
      * `width` bits first, so a signed field contributes its pattern rather than its value - the same
-     * reduction `codegen/js/place.cpp`'s `encodeRange` makes at run time.
+     * reduction `codegen/js/bits.cpp`'s `encodeRange` makes at run time.
      */
     JsValue* pack(U32 packing, Buffer<JsValue*> values, LocationId source) {
         auto& row = target.packings[packing];

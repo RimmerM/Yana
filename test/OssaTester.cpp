@@ -2117,7 +2117,7 @@ int main() {
         Compiled compiled { StringView { kSource, stringLength(kSource) } };
 
         currentTest = "compiling the driver's own source";
-        check(compiled.ready, "the driver's source did not compile through the ownership pipeline");
+        check(compiled.ready, "the driver's source did not compile");
         if(!compiled.ready) {
             println("%@", StringView { compiled.diagnostics.recorded.pointer(),
                                        compiled.diagnostics.recorded.size() });
@@ -2136,14 +2136,14 @@ int main() {
     {
         Compiled borrowing { view(kLoanSource) };
         currentTest = "compiling the loan source";
-        check(borrowing.ready, "the loan source did not compile through the ownership pipeline");
+        check(borrowing.ready, "the loan source did not compile");
         if(borrowing.ready) testBorrowAfterRelease(borrowing);
     }
 
     {
         Compiled endpoints { view(kEndpointSource) };
         currentTest = "compiling the endpoint source";
-        check(endpoints.ready, "the endpoint source did not compile through the ownership pipeline");
+        check(endpoints.ready, "the endpoint source did not compile");
         if(!endpoints.ready) {
             println("%@", StringView { endpoints.diagnostics.recorded.pointer(),
                                        endpoints.diagnostics.recorded.size() });
@@ -2162,7 +2162,7 @@ int main() {
     {
         Compiled editing { view(kEditSource) };
         currentTest = "compiling the editor source";
-        check(editing.ready, "the editor source did not compile through the ownership pipeline");
+        check(editing.ready, "the editor source did not compile");
 
         if(!editing.ready) {
             println("%@", StringView { editing.diagnostics.recorded.pointer(),

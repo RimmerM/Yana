@@ -63,14 +63,14 @@
  *    receiving argument nothing reads; this declines every use outside, which is the simplest rule
  *    that is sound and which nothing in the corpus pays for.
  *  - **the bound is usually already outside.** `hoist` runs earlier in the same round and moves an
- *    invariant read into the preheader, so the ordinary case is now a bound defined above the loop -
- *    which is the rule the shipping stage's `eliminateDeadLoops` has, arrived at from the other end.
- *    A read left inside is still admitted, and what makes it invariant is `mayWriteStorage` asked of
- *    every instruction of the loop against the allocation the address is rooted in. Condition 2 has
- *    in fact already left nothing that could write - a `Store` is refused, a `Call`, an `Atomic` and
- *    a `Drop` are not pure, and a tracked `Load` result is refused by condition 5 - so that walk
- *    answers no every time it is asked. It is asked anyway, because the alternative is a proof that
- *    holds only for as long as condition 2 stays exactly this shape.
+ *    invariant read into the preheader, so the ordinary case is now a bound defined above the loop
+ *    - which is the rule the shipping stage's `eliminateDeadLoops` had, arrived at from the other
+ *    end. A read left inside is still admitted, and what makes it invariant is `mayWriteStorage`
+ *    asked of every instruction of the loop against the allocation the address is rooted in.
+ *    Condition 2 has in fact already left nothing that could write - a `Store` is refused, a
+ *    `Call`, an `Atomic` and a `Drop` are not pure, and a tracked `Load` result is refused by
+ *    condition 5 - so that walk answers no every time it is asked. It is asked anyway, because the
+ *    alternative is a proof that holds only for as long as condition 2 stays exactly this shape.
  *
  * **The width is not asked for, only the type.** `foldableInt` declines a target-answered width, and
  * the counter of the loop this exists for is a `Size`. That refusal is about *arithmetic*: how wide
@@ -555,7 +555,7 @@ struct LoopKiller {
  * `isRemovable`'s rule and is asked through it; a `Guaranteed` result is declined beside them and it
  * is the tempting one. Hoisting a borrow out of a loop extends its loan over iterations the borrow
  * check never agreed to, which is a decision this stage has no standing to take - the shipping
- * stage's `hoistLoopValues` declines a `Borrow` in as many words and for the same reason.
+ * stage's `hoistLoopValues` declined a `Borrow` in as many words and for the same reason.
  *
  * ## Innermost first, and what that buys
  *
@@ -564,7 +564,7 @@ struct LoopKiller {
  * next round of the driver, carries it the rest of the way out. What cannot happen is a value being
  * carried across a loop it was not already inside.
  *
- * The **cost** gate the shipping stage applies to a read out of a nested loop is deliberately not
+ * The **cost** gate the shipping stage applied to a read out of a nested loop is deliberately not
  * here. Over there it was measured against register pressure in a particular backend
  * ([[yana-inline-limits-vs-llvm]] is the same warning about the inliner's numbers), and this tier
  * has two backends and no register model at all. The lower tier keeps its own gate and applies it to

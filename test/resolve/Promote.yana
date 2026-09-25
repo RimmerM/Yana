@@ -1,14 +1,14 @@
 import Native
 
--- Stack slots that did not need to be on the stack - see lower_promote.h, and isDirectType in
--- resolve/type.h for why this is a transformation over lowered IR rather than an answer resolve
--- gives about a type.
+-- Stack slots that did not need to be on the stack - see lower_promote.h, and `isDirectType`, once
+-- `compiler/resolve/type.h`'s and deleted with that stage in J173, for why this is a transformation
+-- over lowered IR rather than an answer resolution gives about a type.
 --
 -- Every local starts as an `alloca`, a `store` and a `load`, because a place is an address and that
 -- is the only shape lowering has. What is asserted here is both halves of the decision: the slots
 -- that go away entirely and become phis, and the ones that stay because something took their
--- address. `.lower.expect` says which; the numbers below say the answers did not change while they
--- were moving.
+-- address. `.mir.lower.expect` says which; the numbers below say the answers did not change while
+-- they were moving.
 
 data Flags {a: Bool, b: Bool}
 

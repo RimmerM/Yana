@@ -26,23 +26,24 @@
  * ruling this stage has not made. `Metric` is a fourth of the same shape and is declined for the
  * same reason as the first.
  *
- * ## `@bits(n)` folds here, and does not in the shipping stage
+ * ## `@bits(n)` folds here, and did not in the shipping stage
  *
  * That difference is the decision this file makes, and it is not a change of nerve. The shipping
- * stage declines a refinement because its two backends disagree about what a refinement's
- * *arithmetic* wraps at - `narrowerThanRegister` in `resolve/lower.cpp` excludes refinements, so
- * native computes at the unrefined width, while `coerce` in `codegen/js/type.cpp` masks every
- * integer to its own `bits`. Folding one there would have been choosing a side.
+ * stage (`compiler/resolve`, deleted in J173) declined a refinement because its two backends
+ * disagreed about what a refinement's *arithmetic* wraps at - its `narrowerThanRegister` excluded
+ * refinements, so native computed at the unrefined width, while the old JavaScript generator's
+ * `coerce` masked every integer to its own `bits`. Folding one there would have been choosing a
+ * side.
  *
  * There is no such disagreement here. `resolve_ssa/lower/width.cpp` says so in as many words - "a
- * `@bits(n)` refinement is **not** a second rule here… it is an integer type whose declared width is
- * narrower than its register, which is exactly what this file is written over" - so a `convert` whose
- * result is a `@bits(20) U32` is put back into twenty bits by the same mask a `U8` addition gets, and
- * `op.def`'s width column is what decides which operations owe one. So the width a refinement wraps
- * at is stated, it is the refinement's own `n`, and folding at it reproduces what the lowering does
- * rather than approximating it. `FoldBits.yana` is the fixture, and its `.run.expect` is shared with
- * the shipping stage, which is what says the two agree about the answer even where they disagree
- * about who computes it.
+ * `@bits(n)` refinement is **not** a second rule here… it is an integer type whose declared width
+ * is narrower than its register, which is exactly what this file is written over" - so a `convert`
+ * whose result is a `@bits(20) U32` is put back into twenty bits by the same mask a `U8` addition
+ * gets, and `op.def`'s width column is what decides which operations owe one. So the width a
+ * refinement wraps at is stated, it is the refinement's own `n`, and folding at it reproduces what
+ * the lowering does rather than approximating it. `FoldBits.yana` is the fixture, and its
+ * `.run.expect` was shared with the shipping stage until J173, which is what said the two agreed
+ * about the answer even where they disagreed about who computes it.
  *
  * ## Where the arithmetic itself lives
  *
@@ -79,7 +80,7 @@ Maybe<IntFacts> foldableInt(OptContext& opt, DeclPtr<mir::Type> type) {
     if(integer.isTargetWidth()) return Nothing();
 
     // A `@bits(n)` refinement at its own `n`, which is what `bits` already holds - see the file
-    // comment for why this stage may and the shipping stage may not.
+    // comment for why this stage may and the shipping stage could not.
     if(integer.bits == 0 || integer.bits > 64) return Nothing();
 
     return Just(IntFacts { integer.bits, integer.isSigned });
@@ -411,7 +412,7 @@ struct Folder {
      *
      * The reflexive answer is given ahead of any type gate, because an ordering is reflexive whatever
      * the operands are made of and needs neither a width nor a signedness. Two exclusions, and they
-     * are the two the shipping stage's folder names:
+     * are the two the shipping stage's folder named:
      *
      *  - a **float**, for the one reason IEEE 754 gives - a NaN is not equal to itself, so none of
      *    the six is reflexive over the type as a whole;
@@ -531,11 +532,11 @@ struct Folder {
     /*
      * The integer arithmetic and the identities, at the result type's own width.
      *
-     * Each identity is written against **both** operands where the operation is commutative, which is
-     * the one place this differs from the shipping stage's folder: that one canonicalizes a constant
-     * onto the right first and then writes each rule once. Canonicalizing is a rewrite in place, and
-     * everything here answers with a value - see the file comment - so the rules are written out
-     * twice instead. The set is small enough that the trade is not close.
+     * Each identity is written against **both** operands where the operation is commutative, which
+     * is the one place this differed from the shipping stage's folder: that one canonicalized a
+     * constant onto the right first and then wrote each rule once. Canonicalizing is a rewrite in
+     * place, and everything here answers with a value - see the file comment - so the rules are
+     * written out twice instead. The set is small enough that the trade is not close.
      */
     Value* foldBinary(InstBinary& binary, const IntFacts& facts) {
         auto type = resultType();
@@ -827,10 +828,10 @@ struct Folder {
                 return constant(type, narrowToWidth(U64(0) - value, facts));
 
             /*
-             * Every type, which is where this parts company with the shipping stage's folder.
+             * Every type, which is where this parted company with the shipping stage's folder.
              *
-             * That one declines an *unsigned* type narrower than its register, because native leaves
-             * `~(0 :: U8)` as `0xFFFFFFFF` while JS coerces it to 255 - a disagreement about what a
+             * That one declined an *unsigned* type narrower than its register, because native left
+             * `~(0 :: U8)` as `0xFFFFFFFF` while JS coerced it to 255 - a disagreement about what a
              * complement is. `not` is `Wraps` in `op.def` and `lower/width.cpp` puts the answer back
              * into the declared width unconditionally, so there is one answer here and this is it.
              */
@@ -987,9 +988,9 @@ struct Folder {
      * does with a value the integer type cannot hold is the target's answer - `cvttsd2si` produces
      * the integer indefinite value, and this stage has made no ruling that says otherwise. So the
      * fold is offered only where the truncated value fits, and out of range the conversion stays and
-     * the machine answers it. The shipping stage folds those because it *has* ruled - saturation, in
-     * `saturationRange` - and the two agree on the range where anything is folded at all, which is
-     * what `FoldFloat.yana`'s shared `.run.expect` says.
+     * the machine answers it. The shipping stage folded those because it *had* ruled - saturation,
+     * which `js::saturationRange` in `codegen/js/shared.h` states now - and the two agreed on the
+     * range where anything is folded at all, which is what `FoldFloat.yana`'s `.run.expect` says.
      */
     Value* foldConvert(InstUnary& unary) {
         auto sourceType = typeOf(unary.value);

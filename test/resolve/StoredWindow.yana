@@ -8,9 +8,9 @@
    the window's two words, so the field's own address already names the object - a `Deref` of it
    reads the first element as an address, which segfaulted twenty cases of the library's suite.
 
-   Both stages compile it and both answer 60: the shipping stage has laid a stored borrow of a
-   container out this way since windows existed, so the answer is shared and the fixture is where
-   the two are held to it.
+   This answers 60. The shipping stage, deleted in J173, laid a stored borrow of a container out
+   this way since windows existed, so the answer carried over unchanged - the fixture is where the
+   layout is held to it.
 -}
 
 data Held(a) {view: 'a, tag: Int}

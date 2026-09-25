@@ -189,10 +189,10 @@ YANA_MIR_UNOP( Represent, "represent"_v, UnaryCategory::Raw,    WidthEffect::Clo
 /*
  * The magnitude, and the five operations on a float that no arrangement of the arithmetic expresses.
  *
- * Rows here rather than shapes a peephole has to find again, which is `Bswap`'s argument in the
- * shipping stage's own table: every target computes each of these in one instruction, and a shape
- * written out of the ordinary operations is one the optimizer is free to rearrange before anything
- * looks for it.
+ * Rows here rather than shapes a peephole has to find again, which is the argument
+ * `compiler/resolve`'s own table made for `Bswap`: every target computes each of these in one
+ * instruction, and a shape written out of the ordinary operations is one the optimizer is free to
+ * rearrange before anything looks for it.
  *
  * **`abs` answers the magnitude and the sign of a NaN is unspecified**, which is a ruling rather
  * than an omission. `select(v .<= 0, 0 - v, v)` computes it and, without meaning to, promises that
@@ -247,10 +247,10 @@ YANA_MIR_UNOP( TrailingZeros, "trailingzeros"_v, UnaryCategory::Bits, WidthEffec
  * The byte reversal - `Core.ByteSwap`'s one member, and the operation every binary format is read
  * through.
  *
- * A row of its own rather than a shape a backend has to recognize, which is the argument the shipping
- * stage's own table makes at the same operation: written out of shifts and masks it is eleven
- * instructions at sixty-four bits, the optimizer is free to reassociate the tree before any peephole
- * looks for it, and what every machine here has is one instruction.
+ * A row of its own rather than a shape a backend has to recognize, which is the argument the old
+ * stage's own table made at the same operation: written out of shifts and masks it is eleven
+ * instructions at sixty-four bits, the optimizer is free to reassociate the tree before any
+ * peephole looks for it, and what every machine here has is one instruction.
  *
  * `Bits` because what it reads is the operand's bytes and a float has none to reverse in any sense
  * the language could state. `Closed` because a reversal of an in-range value is in range - the bytes

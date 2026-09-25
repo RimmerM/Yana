@@ -27,7 +27,7 @@ import Native
        view of the caller's own array.
      - A call through a function value is an `InstCallDyn`, and its arguments are assumed retained -
        a function type says nothing about whether the callee keeps what it was handed, so escape
-       analysis cannot say it does not. See the note in resolve/analyze.cpp.
+       analysis cannot say it does not (`compiler/resolve`'s analysis, deleted in J173).
      - So `sortBy` retained its window, the caller's descriptor escaped, and checkEscapingViews
        reported "this borrow of xs outlives the frame that owns it" at *every* call site that owned
        the container it was sorting. Which is every real one.

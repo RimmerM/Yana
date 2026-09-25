@@ -18,24 +18,19 @@
  * repository yet - so `-repeat` is how the measurement is made long enough to be stable rather than
  * `-repeat` standing in for a bigger input.
  *
- * The phases are what a compilation is made of rather than what its entry points are called. Three
- * of them could not be timed from where they are called at all and are marked inside the compiler -
- * see compiler/compiler/stage.h - because a module is parsed wherever an import or an embedded
- * library module first reaches it, the ownership passes run at the end of resolution, and the IR
- * optimizer runs on resolve IR from inside `lowerProgram`. Timing the two entry points alone
- * reported "resolve" for a number that was a third parsing, and "lower" for a number that was mostly
- * the optimizer. Every phase's number here is its *own* cost, with whatever nested inside it
- * subtracted; see the phase stack below.
+ * The phases are what a compilation is made of rather than what its entry points are called. The
+ * parse could not be timed from where it is called at all and is marked inside the compiler - see
+ * compiler/compiler/stage.h - because a module is parsed wherever an import or an embedded library
+ * module first reaches it. Every phase's number here is its *own* cost, with whatever nested inside
+ * it subtracted; see the phase stack below.
  *
  * Run it from `test/`, like the other drivers:
  *
  *     ../build-bench/test/YanaBench -repeat 20
  *
- * **Which compiler.** The default stage - `resolve_mir` and `resolve_ssa`, natively and through JSIR
- * - since J150; `-legacy` measures `compiler/resolve`'s native and JavaScript rows instead, which is
- * what every run measured before then, and is the only way this driver reaches that stage. One or
- * the other per run and never both, because the phases below are shared. Numbers recorded before
- * J150 are the old stage's and are not comparable with a default run now.
+ * **Which compiler.** `resolve_mir` and `resolve_ssa`, natively and through JSIR, since J150. Numbers
+ * recorded before J150 are `compiler/resolve`'s, the stage J173 deleted, and are not comparable with
+ * a run now.
  *
  * ## Which build
  *
@@ -74,11 +69,8 @@
 
 #include "../compiler/compiler/stage.h"
 #include "../compiler/parse/parser.h"
-#include "../compiler/resolve/analyze.h"
-#include "../compiler/resolve/lower.h"
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/gen.h"
-#include "../compiler/codegen/js/gen.h"
 #include "../compiler/codegen/js/jsir.h"
 #include "../compiler/resolve_ssa/pipeline.h"
 #include "corpus.h"
@@ -225,7 +217,7 @@ struct Fixture {
 
     // The two backends are opted into per fixture, on exactly the terms the resolve driver uses:
     // a fixture is only put through amd64 if it has a `.run.expect` naming an answer, and only
-    // through the JavaScript backend if it has a `.js.expect`. Neither backend accepts every
+    // through the JavaScript backend if it has a `.jsir.js.expect`. Neither backend accepts every
     // program the resolver does - a fixture about a construct one of them has not reached yet is
     // not an omission here but the same opt-in the golden suite already makes.
     bool native = false;
@@ -254,25 +246,24 @@ struct Phase {
 };
 
 static Phase gPhases[] = {
-    { "parse" }, { "resolve" }, { "ownership" }, { "opt" }, { "lower" }, { "amd64" }, { "js" },
+    { "parse" }, { "resolve" }, { "opt" }, { "lower" }, { "amd64" },
 
     // The JavaScript target through JSIR - the conversion, its verifier and the emission, charged
-    // together for the reason `js` is: what a reader compares is the two pipelines' cost for one
-    // program, and splitting one of them and not the other would make the columns incomparable.
+    // together: what a reader compares is the two targets' cost for one program, and splitting one
+    // of them and not the other would make the columns incomparable.
     { "jsir" },
 };
 
-enum PhaseId { PhaseParse, PhaseResolve, PhaseOwnership, PhaseOpt, PhaseLower, PhaseX64, PhaseJs,
-               PhaseJsir, PhaseCount };
+enum PhaseId { PhaseParse, PhaseResolve, PhaseOpt, PhaseLower, PhaseX64, PhaseJsir, PhaseCount };
 
 /*
  * The phase stack, and why a phase's number is not simply its elapsed time.
  *
- * Phases nest: a module is parsed from inside resolution, the ownership passes run at the end of it,
- * and the optimizer runs from inside lowering. What a reader wants of each is its *own* cost, so an
- * entry subtracts whatever its children reported and hands its whole elapsed time up to its parent
- * to be subtracted there. The columns then add up to the total rather than double-counting the
- * inner ones - which the old flat timers did, silently, since nothing they measured nested.
+ * Phases nest: a module is parsed from inside resolution. What a reader wants of each is its *own*
+ * cost, so an entry subtracts whatever its children reported and hands its whole elapsed time up to
+ * its parent to be subtracted there. The columns then add up to the total rather than
+ * double-counting the inner ones - which the old flat timers did, silently, since nothing they
+ * measured nested.
  *
  * The depth is bounded by the pipeline itself: parse inside resolve is two, plus whatever a driver
  * brackets around them, and the assert below is what says so out loud rather than corrupting the
@@ -321,14 +312,12 @@ struct PhaseTimer {
     ~PhaseTimer() { leavePhase(); }
 };
 
-// The three stages the compiler marks for itself, mapped onto the phases above. Installed for the
-// whole run - see gStageObserver, which is null in every build that is not this one.
+// The stage the compiler marks for itself, mapped onto the phases above. Installed for the whole
+// run - see gStageObserver, which is null in every build that is not this one.
 struct BenchStages: StageObserver {
     void enterStage(CompileStage stage) override {
         switch(stage) {
             case CompileStage::Parse: enterPhase(PhaseParse); break;
-            case CompileStage::Ownership: enterPhase(PhaseOwnership); break;
-            case CompileStage::Optimize: enterPhase(PhaseOpt); break;
             default: break;
         }
     }
@@ -346,10 +335,7 @@ static ast::Module parseFixture(Context& context, Diagnostics& diagnostics, Stri
     return parser.parseModule();
 }
 
-/*
- * The amd64 backend over one lowered module - the part of a native build both stages share, since
- * the first object the two resolve stages have in common is the `LowerModule`.
- */
+// The amd64 backend over one lowered module.
 static void benchX64(Context& context, LowerModule& lowered) {
     PhaseTimer timer(PhaseX64);
     auto base = *lowered.arena;
@@ -363,9 +349,8 @@ static void benchX64(Context& context, LowerModule& lowered) {
         machine.reset();
         // Refused by the backend and already reported - see `transformFunction`. Stopped rather than
         // skipped, as `genX64Executable` does: a call into the refused function is a relocation to
-        // an offset that never existed, which `resolveRelocations` asserts on. The old stage's row
-        // never reached one; the rewrite's reaches `VecPermute2.Avx512`, whose `# enable-inst` this
-        // driver does not read.
+        // an offset that never existed, which `resolveRelocations` asserts on. `VecPermute2.Avx512`
+        // reaches one, whose `# enable-inst` this driver does not read.
         if(!transformFunction(context, base, *function, machine)) return;
 
         scratch.resetRecords();
@@ -378,122 +363,11 @@ static void benchX64(Context& context, LowerModule& lowered) {
 }
 
 /*
- * The native pipeline for one fixture, from text to machine code, through `compiler/resolve` - the
- * `-legacy` row, which is what this benchmark measured by default until J150.
- *
- * Codegen is run but nothing is executed and nothing is written: what is being measured is the
- * compiler, and a fixture's answer is the resolve suite's business. A fixture the resolver rejects
- * - there are a few, and they are as much of a compile as any other - stops after resolve rather
- * than lowering a program that has no meaning.
+ * The front half for one fixture: MIR resolution and its analyses and the SSA conversion are
+ * `resolve`, the SSA optimizer is `opt`. Before J150 the JavaScript row ran these outside every
+ * phase, so they were in `other`.
  */
-static void benchLegacyNative(const Fixture& fixture) {
-    if(gTrace) println("native %@", fixture.path);
-    TestProvider provider;
-    provider.source = StringView { fixture.source.get(), fixture.length };
-    pointProvider(provider, fixture.path);
-    Diagnostics diagnostics(provider);
-    Context context(diagnostics);
-
-    // The shipping stage, named rather than defaulted to: `CompileSettings::resolver` is the rewrite
-    // since 2026-09-22 (J81), and what this row measures is `compiler/resolve`. It never runs in the
-    // same process as `benchNative` and `benchJsir`, so `PhaseResolve` is one compiler's number.
-    //
-    // The fixture's directives first, for the reason `benchNative` gives: without them this row
-    // asserted in the backend on `VecShuffleWidth` (`# extensions: avx2`) in a build with assertions
-    // - unnoticed, because `build-bench` has none.
-    applyFixtureDirectives(context.settings, provider.source);
-    if(isJsMode(context.settings)) return;
-    context.settings.resolver = ResolverStage::Legacy;
-
-    // A `lib/` fixture is a suite with a synthesized entry rather than a program with a `main` -
-    // Design-Test.md §11.2's F1. Without this it does not resolve at all, and a fixture that does
-    // not resolve is a compile this benchmark stops half way through and therefore mistimes.
-    if(stringView(fixture.path).startsWith("lib/"_v)) context.settings.test = true;
-    provider.context = &context;
-
-    auto name = context.addUnqualifiedName("Bench", 5);
-
-    auto ast = parseFixture(context, diagnostics, provider.source, name);
-
-    Ptr<Program> module;
-    {
-        PhaseTimer timer(PhaseResolve);
-        module = resolveProgram(context, ast, &provider, Program::Specialization::Always);
-    }
-
-    if(diagnostics.errorCount()) return;
-
-    Ptr<LowerModule> lowered;
-    {
-        PhaseTimer timer(PhaseLower);
-        lowered = lowerProgram(context, *module);
-    }
-
-    if(diagnostics.errorCount() || !fixture.native) return;
-
-    // Outside any phase, and it has to be: the backend crashes rather than complains when handed IR
-    // that does not hold together, so a fixture the resolve suite is currently failing would take
-    // the benchmark with it. The same check the resolve driver makes before it generates code, for
-    // the same reason - what is being measured is the compiler working, not the compiler falling
-    // over. It costs the same on every run, so leaving it out of the phases keeps the numbers
-    // comparable with each other rather than with anything absolute.
-    if(!validateLowerModule(&diagnostics, lowered.get())) return;
-
-    benchX64(context, *lowered);
-}
-
-/*
- * The same fixture through the JavaScript backend, which needs its own resolution.
- *
- * Not an alternative to the native run but a second half of the same measurement: `@platform`
- * selects which declarations exist, so the two targets do not share a resolved program - and the
- * two backends between them are most of what a change to the shared containers touches.
- */
-static void benchLegacyJs(const Fixture& fixture) {
-    if(!fixture.js) return;
-
-    TestProvider provider;
-    provider.source = StringView { fixture.source.get(), fixture.length };
-    pointProvider(provider, fixture.path);
-    Diagnostics diagnostics(provider);
-    Context context(diagnostics);
-    context.settings.platform = TargetPlatform::Js;
-
-    // The shipping stage, for the reason `benchLegacyNative` states: this is the `-legacy` run's
-    // `js` row and `benchJsir` is the rewrite's.
-    context.settings.resolver = ResolverStage::Legacy;
-    context.settings.test = stringView(fixture.path).startsWith("lib/"_v);
-    provider.context = &context;
-
-    auto name = context.addUnqualifiedName("Bench", 5);
-
-    // Charged to the same two phases the native half is, so that the phases still add up to the
-    // total: this resolution is as much of the compiler's work as the other one, and the only
-    // thing that makes it the JavaScript build is which declarations `@platform` leaves in it.
-    auto ast = parseFixture(context, diagnostics, provider.source, name);
-
-    Ptr<Program> module;
-    {
-        PhaseTimer timer(PhaseResolve);
-        module = resolveProgram(context, ast, &provider, Program::Specialization::Always);
-    }
-
-    if(diagnostics.errorCount()) return;
-
-    {
-        PhaseTimer timer(PhaseJs);
-        auto file = js::genProgram(context, *module);
-        Net::Writer writer(16384);
-        js::formatFile(writer, context, *file, false);
-    }
-}
-
-/*
- * The rewrite's front half for one fixture, charged to the phases the old stage's rows used: MIR
- * resolution and its analyses and the SSA conversion are `resolve`, the SSA optimizer is `opt`.
- * Before J150 the JavaScript row ran these outside every phase, so they were in `other`.
- */
-static bool ownershipFront(ssa::Pipeline& pipeline, ast::Module& ast, TestProvider& provider) {
+static bool resolveFront(ssa::Pipeline& pipeline, ast::Module& ast, TestProvider& provider) {
     {
         PhaseTimer timer(PhaseResolve);
         if(!pipeline.resolve(ast, &provider)) return false;
@@ -507,14 +381,12 @@ static bool ownershipFront(ssa::Pipeline& pipeline, ast::Module& ast, TestProvid
 }
 
 /*
- * The native pipeline for one fixture, from text to machine code, through the default stage -
- * `resolve_mir`, `resolve_ssa` and its lowering, and the same amd64 backend.
+ * The native pipeline for one fixture, from text to machine code - `resolve_mir`, `resolve_ssa` and
+ * its lowering, and the amd64 backend.
  *
- * The default row since J150. This benchmark used to measure `compiler/resolve` alone on the native
- * side, which after J81 was measuring the compiler nobody runs; that is `-legacy` now.
- *
- * Every fixture rather than only those a golden says the rewrite compiles, on the old row's terms:
- * one that does not resolve stops there, and a rejection is as much of a compile as any other.
+ * Codegen is run but nothing is executed and nothing is written: what is being measured is the
+ * compiler, and a fixture's answer is the resolve suite's business. Every fixture is compiled: one
+ * that does not resolve stops there, and a rejection is as much of a compile as any other.
  */
 static void benchNative(const Fixture& fixture) {
     if(gTrace) println("native %@", fixture.path);
@@ -524,14 +396,12 @@ static void benchNative(const Fixture& fixture) {
     Diagnostics diagnostics(provider);
     Context context(diagnostics);
 
-    // The fixture's own `# extensions:`, `# target:` and the rest, as ElfTester reads them. The old
-    // stage's row never did and still does not; this one has to, because the rewrite compiles the
-    // `Avx2`/`Avx512` fixtures that stage refused, and at the default level the backend refuses or
-    // asserts on them. A JavaScript fixture is not a native build.
+    // The fixture's own `# extensions:`, `# target:` and the rest, as ElfTester reads them: at the
+    // default level the backend refuses or asserts on the `Avx2`/`Avx512` fixtures. A JavaScript
+    // fixture is not a native build.
     applyFixtureDirectives(context.settings, provider.source);
     if(isJsMode(context.settings)) return;
 
-    context.settings.resolver = ResolverStage::Ownership;
     if(stringView(fixture.path).startsWith("lib/"_v)) context.settings.test = true;
     provider.context = &context;
 
@@ -541,7 +411,7 @@ static void benchNative(const Fixture& fixture) {
     // The lowered module points into the pipeline's regions, so it is used inside this scope and
     // never returned out of it - see ElfTester.cpp's `lowerFixture`.
     ssa::Pipeline pipeline(context);
-    if(!ownershipFront(pipeline, ast, provider) || diagnostics.errorCount()) return;
+    if(!resolveFront(pipeline, ast, provider) || diagnostics.errorCount()) return;
 
     Ptr<LowerModule> lowered;
     {
@@ -551,18 +421,16 @@ static void benchNative(const Fixture& fixture) {
 
     if(!lowered || diagnostics.errorCount() || !fixture.native) return;
 
-    // Outside any phase, for the reason `benchLegacyNative` gives.
+    // Outside any phase: validation is a check the driver makes, not a phase of the compiler.
     if(!validateLowerModule(&diagnostics, lowered.get())) return;
 
     benchX64(context, *lowered);
 }
 
 /*
- * The same fixture through the ownership pipeline's JavaScript half - Analysis-IR-JS.md §7.8.
+ * The same fixture through the JavaScript half - Analysis-IR-JS.md §7.8.
  *
- * Beside `benchLegacyJs` rather than folded into it, because the two are two compilers: this one
- * resolves through `resolve_mir`, converts to SSA, optimizes it and then builds JSIR. The front half
- * is charged to `resolve` and `opt` as the native row's is (`ownershipFront`); the conversion to
+ * The front half is charged to `resolve` and `opt` as the native row's is (`resolveFront`); the conversion to
  * JSIR, its verifier and the emission are `jsir`, as one number for the reason the phase comment
  * gives.
  *
@@ -579,7 +447,6 @@ static void benchJsir(const Fixture& fixture) {
     Diagnostics diagnostics(provider);
     Context context(diagnostics);
     context.settings.platform = TargetPlatform::Js;
-    context.settings.resolver = ResolverStage::Ownership;
     context.settings.test = stringView(fixture.path).startsWith("lib/"_v);
     provider.context = &context;
 
@@ -587,7 +454,7 @@ static void benchJsir(const Fixture& fixture) {
     auto ast = parseFixture(context, diagnostics, provider.source, name);
 
     ssa::Pipeline pipeline(context);
-    if(!ownershipFront(pipeline, ast, provider)) return;
+    if(!resolveFront(pipeline, ast, provider)) return;
 
     {
         PhaseTimer timer(PhaseJsir);
@@ -699,14 +566,9 @@ static void reportSites(Size repeat) {
 int main(int argc, const char** argv) {
     Size repeat = 10;
 
-    // Which compiler is measured - the default stage, or with `-legacy` the old one, never both in
-    // one run: the phases are shared, and a column holding two compilers' costs answers nothing.
-    auto legacy = false;
-
     for(int i = 1; i < argc; i++) {
         if(String(argv[i]) == "-repeat" && i + 1 < argc) repeat = (Size)atoi(argv[++i]);
         else if(String(argv[i]) == "-trace") gTrace = true;
-        else if(String(argv[i]) == "-legacy") legacy = true;
         else if(String(argv[i]) == "-sites") {
             gProfiling = true;
 
@@ -735,7 +597,7 @@ int main(int argc, const char** argv) {
      * are hundreds of lines each. Dropping them would have moved every number in this table for a
      * reason that has nothing to do with the compiler, which is exactly what a benchmark must not
      * do. How a fixture opts a backend in is the only thing that differs: a compiler fixture names
-     * its answer in `.run.expect` and its JavaScript in `.js.expect`, and a library fixture has
+     * its answer in `.run.expect` and its JavaScript in `.jsir.js.expect`, and a library fixture has
      * neither - it runs on amd64 always and on JavaScript where the `.js` marker exists.
      */
     Array<Fixture> fixtures;
@@ -757,13 +619,9 @@ int main(int argc, const char** argv) {
             Ptr<char, HeapDeleter> source { (char*)hAlloc(size) };
             file.read({ (Byte*)source.get(), size });
 
-            // A fixture only the rewritten stage compiles - see directives.h. The `-legacy` run
-            // measures the shipping compiler, which cannot read it.
-            if(legacy && fixtureNeedsOwnershipStage({ source.get(), size })) return;
-
             auto native = library || hasContent(path + String(".run.expect"));
             auto js = library ? fileExists(path + String(".js"))
-                              : hasContent(path + String(".js.expect"));
+                              : hasContent(path + String(".jsir.js.expect"));
             fixtures.push(Fixture { path, ::move(source), size, native, js });
         });
     };
@@ -783,13 +641,8 @@ int main(int argc, const char** argv) {
     // process touches this much memory lands outside the measurement.
     auto runAll = [&]() {
         for(auto& fixture: fixtures) {
-            if(legacy) {
-                benchLegacyNative(fixture);
-                benchLegacyJs(fixture);
-            } else {
-                benchNative(fixture);
-                benchJsir(fixture);
-            }
+            benchNative(fixture);
+            benchJsir(fixture);
         }
     };
 
@@ -816,8 +669,7 @@ int main(int argc, const char** argv) {
     gStageObserver = nullptr;
     assertTrue(gPhaseDepth == 0); // a phase entered and never left
 
-    println("%@ fixtures x %@ repeats, %@", fixtures.size(), repeat,
-            legacy ? "compiler/resolve (-legacy)" : "the ownership stage");
+    println("%@ fixtures x %@ repeats", fixtures.size(), repeat);
 
     U64 phaseTime = 0;
     U64 phaseAllocations = 0;
@@ -832,7 +684,7 @@ int main(int argc, const char** argv) {
 
     // What no phase covers, printed so that the columns visibly add up to the total rather than
     // being trusted to. It is the driver's own work between the brackets - building a Context and a
-    // Program and tearing them down, reading an imported module off disk, and validateLowerModule,
+    // pipeline and tearing them down, reading an imported module off disk, and validateLowerModule,
     // which is deliberately outside the phases for the reason given in benchNative. A few percent is
     // this; more than that is a phase that stopped covering what it says it does.
     println("  other: %@ ms, %@ allocations/repeat", F64(elapsed - phaseTime) / 1000000.0,

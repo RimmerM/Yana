@@ -23,13 +23,14 @@
  *
  * ## Why here and not above the fork
  *
- * `hoistLoopValues` in compiler/opt is the same idea over the resolve IR, and it cannot reach either.
- * The read is `text.bytes.run.items`, whose place is rooted in a `borrow` of the parameter - and the
- * borrow is *re-taken inside the loop*, because that is what the resolver emits for each call that
- * reads through it. So the place's root is a value defined in the loop, the hoister's
- * `operandsOutside` refuses it before any aliasing question is asked, and hoisting the borrow itself
- * is a decision that stage declines to take (see opt_loop.cpp's header, and Analysis-Optimization.md
- * §7): a loan moved out of a loop covers iterations the borrow check never agreed to.
+ * `hoistLoopValues` in `compiler/opt` - the optimizer of the stage deleted in J173 - was the same
+ * idea over the resolve IR, and it could not reach either. The read is `text.bytes.run.items`,
+ * whose place is rooted in a `borrow` of the parameter - and the borrow is *re-taken inside the
+ * loop*, because that is what the resolver emitted for each call that read through it. So the
+ * place's root was a value defined in the loop, the hoister's `operandsOutside` refused it before
+ * any aliasing question was asked, and hoisting the borrow itself is a decision that tier declines
+ * to take (Analysis-Optimization.md §7): a loan moved out of a loop covers iterations the borrow
+ * check never agreed to.
  *
  * `row * n` is not in the resolve IR as a multiplication at all on every target. It is `row * n` on a
  * native one, and on JS the same subscript is a place with an Index projection - the same split

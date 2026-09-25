@@ -751,9 +751,9 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
      *
      * `(x) -> e` and `(x): e` are one grammar production apart and the parser records which was
      * written, because for a `fn` the two mean different things - `doc/spec/functions.md`'s rule
-     * that a `:` body returns `{}`. For a *lambda* they do not, and the shipping stage says so by
-     * ignoring the flag entirely: `(): g.id` is a closure answering `g.id` over there, and refusing
-     * it here was reading a `fn`'s rule at a position that has no declaration to read it from.
+     * that a `:` body returns `{}`. For a *lambda* they do not - `(): g.id` is a closure answering
+     * `g.id`, as it was in `compiler/resolve`, which ignored the flag entirely - and refusing it
+     * here was reading a `fn`'s rule at a position that has no declaration to read it from.
      *
      * So the rule is `resolveArm`'s, which is the one place this stage already states it: a position
      * that wants a value asks the body for one, and a body whose job is to **leave** - a `return`, or

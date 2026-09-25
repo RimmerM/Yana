@@ -12,10 +12,11 @@
  * stating what is lossless - so it belongs here beside the widths it is stated over, and not in a
  * resolver.
  *
- * Both resolve stages read this file, and that is the reason it exists rather than the reason it is
- * convenient. A fixture is compiled by both stages and the two answers are compared, so two ladders
- * that disagreed by one rung would mean one program that compiles and one that does not, from one
- * source - which is the same failure the fixity table had before `lib/Core` took it over.
+ * It was written while two resolve stages read it, and that was the reason it existed rather than
+ * the reason it was convenient: a fixture was compiled by both and the two answers compared, so two
+ * ladders that disagreed by one rung would have meant one program that compiles and one that does
+ * not, from one source - the failure the fixity table had before `lib/Core` took it over.
+ * `compiler/resolve` went in J173; the ladder stays out of `resolve_mir` for the reason above.
  *
  * ## What is *not* here
  *
@@ -25,10 +26,10 @@
  * is known. What is here is the language's question - are these two the same bits on every machine -
  * and a stage above the representation layer may ask it without knowing which machine it is for.
  *
- * Nothing about `@bits` refinements either. A refinement is a type of each stage's own making, and
- * what it needs is `integerRangeFits` applied to the range it declares - `convertRefinement` in the
- * shipping stage and `refinesInteger` in the rewritten one are the two callers that do so, and both
- * decide the pair *before* asking for a rung, since no rung was ever generated naming one.
+ * Nothing about `@bits` refinements either. A refinement is a type of the resolver's own making,
+ * and what it needs is `integerRangeFits` applied to the range it declares - `refinesInteger` in
+ * `resolve_mir` is the caller that does so, and it decides the pair *before* asking for a rung,
+ * since no rung was ever generated naming one.
  */
 namespace intrinsic {
 

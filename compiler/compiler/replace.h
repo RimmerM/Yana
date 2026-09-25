@@ -3,15 +3,15 @@
 #include "settings.h"
 
 /*
- * Ordering a baseline's replacements - Design-Replacements.md §3.5, written once for both resolve
- * stages.
+ * Ordering a baseline's replacements - Design-Replacements.md §3.5, stated outside the resolver.
  *
- * What a stage knows and this does not is its constraints: whether one replacement's extra
- * constraints are a superset of another's, up to superclass entailment, is a question about that
- * stage's classes. Everything else - what "more specific" means, which pairs are errors, and the order
- * a call walks - is here, so the two stages cannot rank one set of declarations differently. That
- * would be one source compiling to two programs, which is the risk the bulk roles this replaced
- * carried as a comment.
+ * What the resolver knows and this does not is its constraints: whether one replacement's extra
+ * constraints are a superset of another's, up to superclass entailment, is a question about its
+ * classes. Everything else - what "more specific" means, which pairs are errors, and the order a
+ * call walks - is a question about selectors and file names, and is here. It was put here so that
+ * two resolve stages could not rank one set of declarations differently, which would have been one
+ * source compiling to two programs; `compiler/resolve` was deleted in J173, and what keeps the rule
+ * here is that it needs none of the resolver's types.
  */
 
 struct ReplacementConditions {

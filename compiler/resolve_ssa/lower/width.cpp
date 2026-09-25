@@ -51,7 +51,7 @@ namespace ssa {
 /*
  * The declared width of a value that does not fill its register, or nothing.
  *
- * One question rather than the two the shipping stage asks (`narrowerThanRegister`, then the width
+ * One question rather than the two `compiler/resolve` asked (`narrowerThanRegister`, then the width
  * again at each use), because they are one question: a caller that knows a value is narrow always
  * needs to know by how much, and a second lookup is a second chance to read a different type than
  * the one that was tested.

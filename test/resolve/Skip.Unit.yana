@@ -2,12 +2,10 @@
 -- and a loop body both have.
 
 {-
-   # resolver: ownership
+   Written with the failure channel lenses.md specifies, `-> (Int | {})` with `yield`. The channel
+   builds no `Maybe({})`, so what is asserted here is the continuation that produces nothing - a
+   loop body and a statement-tailed block - and an enclosing function that returns nothing.
 
-   Written with the failure channel lenses.md specifies, `-> (Int | {})` with `yield`, which the
-   shipping stage does not build. The channel builds no `Maybe({})`, so what is asserted here is the
-   continuation that produces nothing - a loop body and a statement-tailed block - and an enclosing
-   function that returns nothing.
 -}
 
 let &log = 0 :: Int

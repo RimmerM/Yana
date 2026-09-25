@@ -271,12 +271,12 @@ void MachineFormBuilder::registerMemoryAndControlForms() {
      * the feature is tested - a target below v3 keeps the two instructions it was given, which is
      * what `requiredFeatures` here would otherwise turn into an unencodable selection.
      *
-     * **Two widths, not three.** The machine has a 16-bit `movbe` as well - the same encoding under a
-     * `66` prefix - and there is no way to reach it from this IR: a 16-bit reversal is spent above
-     * the lower IR, which has no scalar type narrower than `Int32` to carry one (see
-     * `Value::ByteSwap` in resolve/inst.def). A row nobody can select is a row nothing tests, so the
-     * width that has no producer has no form either, and adding one is part of carrying the narrow
-     * reversal down rather than something already waiting for it.
+     * **Two widths, not three.** The machine has a 16-bit `movbe` as well - the same encoding under
+     * a `66` prefix - and there is no way to reach it from this IR: a 16-bit reversal is spent
+     * above the lower IR, which has no scalar type narrower than `Int32` to carry one. A row nobody
+     * can select is a row nothing tests, so the width that has no producer has no form either, and
+     * adding one is part of carrying the narrow reversal down rather than something already waiting
+     * for it.
      */
     auto movbe = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName, U8 op,
                      U8 prefix, OperationWidth width, bool store)

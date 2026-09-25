@@ -9,29 +9,12 @@ struct CompileSettings;
  * The standard library, as files.
  *
  * Core, Native, Native.Linux, NativeText, Host, Collections and Text used to be seven raw string
- * literals inside compiler/resolve, and then seven files. They are now the files of two modules, They are now files in `lib/`, read through this, and the
- * difference is not only where the text lives: a module that is a file is a module the ordinary
- * machinery can find. `resolveImports` asks here for anything the project's own module map has no
- * file for, so `import Native` in a user program is resolved by the same lookup that builds Core -
- * and a library module that nothing implicitly imports costs nothing until something names it.
- *
- * A **module** name becomes a path by the rule the module map already uses in the other direction:
- * dots are directory separators, so the module `Native.Linux` is `Native/Linux`. A module may be
- * either a directory of files or one file - `files` below is what asks - which is the same question
- * the project's own module map answers by walking a source tree. There is no index form: a directory
- * of files is a module without any one of them being singled out, Analysis-Modules.md §2.1.2. A
- * *file* name is not a path in either direction any more, and `record` below says why.
- *
- * **Where the directory is** is answered once per compilation and cached, from three sources in
- * order: `-lib` on the command line or `library` in the project file, a path beside the running
- * executable, and the tree this compiler was built from. Each candidate is accepted only if
- * `Core/Core.yana` is in it, so a stale entry falls through to the next rather than producing a
- * compilation with half a library.
- *
- * The text of every module read is kept for as long as the compilation runs, for the reason
- * SourceEntry keeps a file's: a diagnostic quotes the line it points at, and it may be reported
- * long after the module was parsed. `librarySource` on the Context is what a diagnostic reaches it
- * through.
+ * literals inside `compiler/resolve` (the resolve stage J173 deleted), and then seven files. They
+ * are now files in `lib/`, read through this, and the difference is not only where the text lives:
+ * a module that is a file is a module the ordinary machinery can find. `LibraryModules::find` asks
+ * here for anything the project's own module map has no file for, so `import Native` in a user
+ * program is resolved by the same lookup that finds Core - and a library module that nothing
+ * implicitly imports costs nothing until something names it.
  */
 /*
  * One file the library walk found, and whether it sits directly in the module's own directory.
@@ -63,11 +46,10 @@ struct LibrarySource {
     /*
      * The source of one library module, or empty if the library has no file for it.
      *
-     * Silent on a miss, deliberately: the two callers want different things said. `defineCore` and
-     * its siblings report "the standard library could not be found" - which is a broken
-     * installation rather than a broken program - and `resolveImports` reports nothing, because a
-     * name that is neither a project module nor a library one is an unresolved import and the
-     * import statement is where that is said.
+     * Silent on a miss, deliberately: a name that is neither a project module nor a library one is
+     * an unresolved import, and the import statement is where that is said. "The standard library
+     * could not be found" - a broken installation rather than a broken program - is for a caller
+     * that knows it asked for a module every installation has, which this cannot know.
      */
     StringView source(Context& context, StringId file);
 

@@ -1,8 +1,6 @@
 {-
    A container of records holding loans, used and then finished with.
 
-   # resolver: ownership
-
    The legal neighbours of `Reject.Container.yana`: each lender is written only after the last read
    of every container holding a loan of it, or only read while one does. The container's own
    teardown is not a read - dropping a `Store` releases its loan without touching the cell - so

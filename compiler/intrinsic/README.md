@@ -142,23 +142,18 @@ and on JS `copyMemory` claims it directly, so exactly one exists in any build.
 
 ## And the classes it references
 
-The same change ran through `known.def`'s class rows, one direction over. The ownership stage bound
-them from the start; the older resolver did not, and held `classNamed(module, "Try"_v)` - one per
-field of `CoreClasses`, twenty-six in all, each asserting its way to a handle. A library that renamed
-a class the language's own syntax dispatches through tripped an assertion in a debug build and read a
-null in a release one, and the diagnostic in neither case named the class or the rename. Sixteen of
-the twenty-six have a row and are read out of `Program::knownClasses` now, filled by
-`readKnownClassRole` from the attribute the declaration writes.
+The same change ran through `known.def`'s class rows, one direction over. `resolve_mir` bound them
+from the start; `compiler/resolve`, the resolve stage deleted in J173, did not, and held
+`classNamed(module, "Try"_v)` - one per field of `CoreClasses`, twenty-six in all, each asserting
+its way to a handle. A library that renamed a class the language's own syntax dispatches through
+tripped an assertion in a debug build and read a null in a release one, and the diagnostic in
+neither case named the class or the rename. That stage came to read sixteen of the twenty-six out of
+rows before it went, and found the rest by their spelling.
 
-**Nine are still found by their spelling, and it is the table that is missing rather than the
-binding.** `Enum`, `Index`, `Show`, `TrivialCopy`, `TrivialSink`, `Contiguous`, `Chunked`,
-`Writable`, `IndexInsert` - each is as much a class the compiler dispatches through as the sixteen,
-and what none of them has is a row, because a row is written the day something in the compiler has to
-name the class and a spelling is the smaller statement until then. `ByteSwap`, `Bits`, `BitPermute`
-and `Length` are four more of the same, looked up in the instance generators rather than held in a
-field. They join one at a time; `known.def`'s tail is the list. `Lanewise` was one of them and is a
-row now - `lib/Core/Vector.yana` declares it, and the ownership stage reads the role where the
-shipping stage still reads the name.
+**No class is found by its spelling now.** Every class the compiler dispatches through is a row,
+read out of `mir::Roles` from the attribute the declaration writes; a class the language's syntax is
+written in terms of that has no row yet (`known.def`'s tail says which) is one nothing in the
+compiler names, because a row is written the day something has to.
 
 **The host is the one group whose roles are not one per operation**, and the reason is worth reading
 in `op.def`'s host block: the member's *name* is a parameter there rather than part of the role, so
@@ -167,8 +162,8 @@ spellings. That works because a role is claimed once - the alternative, an attri
 member, would need a role per method - and it costs nothing because the wrappers are
 `@inline(always)` and a string literal on that target is a constant with no storage.
 
-Those rows had **never been checked against a declaration** until the rewrite grew emitters for them
-on 2026-09-21, and four of them did not fit the library that had been written against them:
+Those rows had **never been checked against a declaration** until `resolve_mir` grew emitters for
+them on 2026-09-21, and four of them did not fit the library that had been written against them:
 `hostArray` stated `pointerAt()` at a *result* position, which no result can satisfy; `hostViewRead`
 stated `integerAt()` for a signature whose width is the accessor's; and `hostAt`/`hostAtMut` stated a
 call-bounded pointer for two declarations that publish an origin into it. That is what the warning at
@@ -180,6 +175,6 @@ is a claim that drifts. The rows are `rootedPointerAt()`, `addressAt()` and `any
 ## Who links against it
 
 `YanaIntrinsic` is a leaf beside `YanaCore` and depends on nothing else, because more than one stage
-reads it: both resolvers bind roles, `lower` carries the supplied globals across, and both native
+reads it: the resolver binds roles, `lower` carries the supplied globals across, and both native
 backends fill them. It used to be `compiler/compiler/builtin.h`, which two code generators were
 reading a role enum out of the resolver's neighbourhood.

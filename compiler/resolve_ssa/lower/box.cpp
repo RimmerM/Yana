@@ -9,8 +9,8 @@ namespace ssa {
  * The whole of the feature below the MIR is here. Above this file the indirection does not exist:
  * `fieldPlace` hands back the same owned projection an inline field gets, move paths are built over
  * it, drops are placed on it, and the loan checker sees a field of a record. That is the one thing
- * this stage does differently from the shipping one, which appends a `Deref` to the place path and
- * carries the boxed edge through every place walk in the compiler.
+ * this stage does differently from `compiler/resolve` (deleted in J173), which appended a `Deref`
+ * to the place path and carried the boxed edge through every place walk in that compiler.
  *
  * What is left is three operations, and they are the three this file is:
  *
@@ -103,8 +103,8 @@ LowerPtr<LowerGlobal> Lowering::moduleNameBytes(StringId name, U32& count) {
  * The widths are read off the parameters rather than assumed, because `Int` is a target alias and a
  * library is entitled to declare the count at a different one - and reading them is also what makes
  * a wrongly shaped declaration a report here instead of a call with the wrong registers in it. The
- * line is one-based and the column is not, which is what the shipping stage's `emitCheck` does and
- * what a reader comparing two builds' output would otherwise notice.
+ * line is one-based and the column is not, which is what `compiler/resolve`'s `emitCheck` did, so a
+ * report reads as it always has.
  */
 bool Lowering::checkLocationArguments(LowerBlock& block, mir::Function& located, U32 from,
                                       LocationId source,
@@ -436,8 +436,8 @@ LowerBlock* Lowering::emitBoxTeardown(LowerBlock& block, LowerPtr<LowerValue> ow
      *
      * The call this replaces is what made a recursive structure cost two frames per level:
      * `teardown(Maybe(Tree))` called `box(Tree)`, which called `teardown(Maybe(Tree))` twice, so a
-     * thirteen-deep tree stood twenty-six frames deep where the shipping stage's `reclaim$Tree`
-     * stands thirteen. Expanding here removes the second of each pair - the target's own teardown is
+     * thirteen-deep tree stood twenty-six frames deep where `compiler/resolve`'s `reclaim$Tree`
+     * stood thirteen. Expanding here removes the second of each pair - the target's own teardown is
      * `emitTeardown`, which never branches, and the children it reaches are calls to the per-type
      * function that is already being built.
      *

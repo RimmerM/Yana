@@ -1,8 +1,8 @@
 {-
    The block copy, on the target that has no bytes.
 
-   A declaration and not a body, where the native build's `copyMemory` is a body: `blockCopyShape`
-   in codegen/js/type.cpp recovers a *shape* from this operation - two same-typed references cast to
+   A declaration and not a body, where the native build's `copyMemory` is a body: the JavaScript
+   backend recovers a *shape* from this operation - two same-typed references cast to
    `%()` and one value's worth of bytes - which is what the compiler-generated relocation glue opens
    with. Anything else, which is every call a program could write, is excluded from that target
    rather than approximated.

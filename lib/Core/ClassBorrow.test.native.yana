@@ -2,9 +2,9 @@
    What a generic body may hand a class function.
 
    A borrow's extent is the call, and a *deferred* dispatch has no body to read that off - so it
-   reads the declaration instead, and `checkClassBorrows` holds every implementation to it. See
-   `assumedRetained` in compiler/resolve/analyze_escape.cpp, and `resolve/Reject.ClassBorrow.yana`
-   for the other half.
+   reads the declaration instead, and every implementation is held to it -
+   `resolve/Reject.ClassBorrow.yana` is that other half. (`compiler/resolve`'s `assumedRetained` and
+   `checkClassBorrows` were the rule's first home, until J173.)
 
    Every line below was rejected before that rule, and only with **specialization declined**: in a
    specialized build the dispatch is a direct call with a real summary and none of it arises, which

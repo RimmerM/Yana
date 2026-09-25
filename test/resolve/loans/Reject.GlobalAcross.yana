@@ -1,8 +1,6 @@
 {-
    A loan of a global held across a call that may change the global.
 
-   # resolver: ownership
-
    The body that takes the loan cannot see what a callee does to a global, so a call is checked
    against what its summary says it may touch: a shared loan against every global the callee may
    write, an exclusive one against every global it may read or write, both transitively through

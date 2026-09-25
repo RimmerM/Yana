@@ -7,15 +7,15 @@
 -- holds at either width. A wrong answer names its failing cases through the bitmask.
 --
 -- No import, for the reason Baseline.yana gives: the width names are builtin, so a fixture that
--- writes one is the same program to both stages - and this one is compiled by both, which is what
--- makes it a check that the ownership stage's four types are the shipping stage's four types.
--- TargetWidth.yana beside it is the shipping stage's own version, held to both *targets* instead.
+-- writes one needs no standard library. This one used to be compiled by both stages, which was
+-- what made it a check that the ownership stage's four types were the shipping stage's four types.
+-- TargetWidth.yana beside it was the shipping stage's own version, held to both *targets* instead.
 --
--- Deliberately **not** asserted: that arithmetic wraps at fifty-three bits. The ownership stage does
--- not truncate a narrow result to its declared width at all - `add(200, 100)` at `U8` answers 300
+-- Deliberately **not** asserted: that arithmetic wraps at fifty-three bits. This stage does not
+-- truncate a narrow result to its declared width at all - `add(200, 100)` at `U8` answers 300
 -- there as readily as a `WideInt` sum passes 2^53 - so that is one missing rule about every
--- sub-register width rather than anything about these four. WideInt.yana is where the shipping stage
--- asserts the wrap, and this fixture stays inside what both stages agree on.
+-- sub-register width rather than anything about these four. WideInt.yana is where the deleted
+-- shipping stage asserted the wrap, and this fixture stays inside what both stages used to agree.
 
 fn main() -> I32:
     let &mask = 0 :: I32

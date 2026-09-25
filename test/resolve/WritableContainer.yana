@@ -15,12 +15,10 @@ import Native
    rooted in it by the class's group. `Reject.WritableContainer.yana` is what a container that
    implements only the read half gets.
 
-   # resolver: ownership
-
    Both calls are written. Implementation-Containers.md §5 made them implicit conversions at the
    argument, but the spec's only implicit conversion is `Widen` (overloading.md), so this stage
-   spells them `elements(b)` and `elementsMut(b)`. The shipping stage refuses the second: it
-   will not pass a call's result to a `&` parameter.
+   spells them `elements(b)` and `elementsMut(b)`. The now-deleted shipping stage refused the
+   second: it would not pass a call's result to a `&` parameter.
 -}
 
 data Bag(a) {items: Array(a)}

@@ -2060,7 +2060,7 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst);
  * One row per operation, in one place, because four separate lists of the same five kinds is four
  * lists to keep agreeing: the peephole in transform_address.cpp asking whether an operation has such a form,
  * the form registration declaring the six of them, and the two selections naming the opcode and the
- * first form. Three of those now read this and the fourth builds from it.
+ * first form. All four read it through `storeUpdateOpFor`.
  */
 struct StoreUpdateOp {
     LowerInst::Kind op;
@@ -2070,9 +2070,6 @@ struct StoreUpdateOp {
     // qword-immediate - see the registration in machine_forms_memory.cpp, which is what lays them out that way.
     MachineFormId firstForm;
 };
-
-// Every row, for the registration that builds the forms.
-Buffer<const StoreUpdateOp> storeUpdateOps();
 
 // The row for one operation, or null where it has no in-place memory form - which is also how the
 // question "is this one of the five" is asked.

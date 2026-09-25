@@ -5,8 +5,7 @@ namespace mir {
 using namespace intrinsic;
 
 /*
- * `swap` and `exchange` - `doc/spec/core.md`'s Exchange, and the shipping stage's `emitSwap` and
- * `emitExchange` in `resolve/core.cpp`.
+ * `swap` and `exchange` - `doc/spec/core.md`'s Exchange.
  *
  * Both take a value out of a place without leaving a hole: the place holds a live value before and
  * after, so there is no state for the drop analysis to track and nothing for a move path to hold.

@@ -34,7 +34,7 @@
  *
  * ## The order is load-bearing, once
  *
- * `Program::builtins` and `LowerModule::builtins` are arrays indexed by this enum, which is
+ * `mir::Roles::supplied` and `LowerModule::builtins` are arrays indexed by this enum, which is
  * ordinary. What is not ordinary is that the LLVM backend reads the command-line three as `main`'s
  * parameters 0, 1 and 2 - so those three stay first and stay in `argc`, `argv`, `envp` order.
  * `kCommandLineGlobals` is what says so, and it is stated so that a role added below cannot quietly
@@ -106,11 +106,12 @@ YANA_SUPPLIED_ROLE( wordBits,                BuiltinKind::Supplied, BuiltinShape
  * Which end of a word the target puts the low byte at - `Core/Bits.yana`'s `Target.byteOrder`.
  *
  * `wordBits`' argument at the other fact a word has, and it arrived the same way. This used to be a
- * *global the compiler invented*: `addTargetConstant` in resolve/core.cpp built a `Target.byteOrder`
- * out of nothing, under a name written in C++, answering a `byteorder` metric that a target folded.
- * That is the arrangement this whole directory exists to remove - a name in the compiler matching a
- * declaration nothing checks - except that here there was no declaration at all, so `Core` could not
- * even say what the constant's type was without the compiler agreeing by hand.
+ * *global the compiler invented*: `addTargetConstant` in `compiler/resolve`'s `core.cpp` (deleted
+ * in J173) built a `Target.byteOrder` out of nothing, under a name written in C++, answering a
+ * `byteorder` metric that a target folded. That is the arrangement this whole directory exists to
+ * remove - a name in the compiler matching a declaration nothing checks - except that here there
+ * was no declaration at all, so `Core` could not even say what the constant's type was without the
+ * compiler agreeing by hand.
  *
  * As a supplied role it is an ordinary `pub let` of the library's own `Endian`, and the compiler
  * replaces what it holds. Everything downstream then treats it as what it is, an immutable global

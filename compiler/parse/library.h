@@ -12,8 +12,8 @@ namespace ast {
  * An interface rather than the map itself, because the three things that resolve a program hold
  * three different maps: the driver walks a source tree, the language server lays unsaved buffers
  * over one, and a test driver answers out of a fixture directory. What each of them has in common is
- * this one question, and it is asked by both resolvers - which is why it is here, beside the answer
- * for the other place a module can come from, rather than inside either of them.
+ * this one question, which the resolver asks - which is why it is here, beside the answer for the
+ * other place a module can come from, rather than inside the resolver or any one of the three.
  */
 struct ModuleProvider {
     virtual ~ModuleProvider() = default;
@@ -25,9 +25,10 @@ struct ModuleProvider {
  *
  * `LibrarySource` in `compiler/compiler` answers where a module's files *are*; this is the step
  * after it - parse each one, ask whether it joined the module the walk was looking for, and lay a
- * group over the ones that did. It lives here rather than in either resolver because both of them
- * need it and neither owns it: an `import` naming something the project's own tree has no file for
- * is answered out of `lib/`, and which stage is doing the asking has nothing to do with the answer.
+ * group over the ones that did. It lives here rather than in the resolver because the question is
+ * about files and their parse rather than about resolution: an `import` naming something the
+ * project's own tree has no file for is answered out of `lib/`, and what is doing the asking has
+ * nothing to do with the answer.
  *
  * **Owning**, and that is why it is a struct rather than a free function. The ASTs have to outlive
  * every declaration resolved against them - a diagnostic quotes a location in one long after the
@@ -74,11 +75,12 @@ private:
  * way, so under `-test` something has to name the ones that are part of the compilation anyway.
  * This is that test, and it is deliberately the narrowest one that works: a module with no `@test`
  * in it contributes nothing to a suite, and a test module's *helpers* are reached from it by
- * ordinary imports like anything else. Both resolvers take its answer as their `testRoots`.
+ * ordinary imports like anything else. The resolver takes its answer as its `testRoots`.
  *
- * Here rather than in either resolver, for the reason `ModuleProvider` is: the driver asks it before
- * choosing a stage, and the question is about the parse. It lived in `compiler/resolve/test.cpp`
- * until J150, which made every `-test` build under the default stage call into the old one.
+ * Here rather than in the resolver, for the reason `ModuleProvider` is: the driver asks it before
+ * anything is resolved, and the question is about the parse. It lived in `compiler/resolve/test.cpp`
+ * until J150, when that stage was not the default and every `-test` build called into it for this;
+ * the stage itself was deleted in J173.
  */
 bool moduleDeclaresTests(Context& context, ModuleGroup& group);
 

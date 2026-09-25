@@ -1,8 +1,6 @@
 {-
    `@lazy` - `doc/spec/functions.md`'s Deferred arguments, and Analysis-IR.md §11.4's milestone 7.
 
-   # resolver: ownership
-
    A parameter marked `@lazy` is **not evaluated at the call site**: the argument compiles to a
    nullary thunk over the caller's frame, and reading the parameter inside the callee is what runs
    it. The whole of the implementation is that sentence read twice - `declareDeferred` rewrites the

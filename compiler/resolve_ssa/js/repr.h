@@ -91,14 +91,15 @@ struct JsTarget {
     SsaBase ssa;
 
     /*
-     * The two packing switches, named after the shipping backend's `ReprTarget` knobs they port.
+     * The two packing switches, named after the `ReprTarget` knobs of the old JavaScript backend
+     * (deleted with `compiler/resolve` in J173) that they port.
      *
      * `scalarizeRecords` makes a record all of whose fields are narrow numbers one `number` - no
      * object, no hidden class, a copy that is a read. `packFields` makes the narrow fields of a
      * record that stays an object share `$pN` properties. Both **on** since J85. J83 built them
      * off and J84 added the shift-carrying narrow reference a `&` of a packed field needs: the first
      * record that packs puts a `&flags.a` in front of it, so the two had to land together or not at
-     * all, which is the shipping backend's rule for the same pair. They stay switches because a
+     * all, which was the old backend's rule for the same pair. They stay switches because a
      * `JsirTester` case builds a target with one of them off.
      */
     bool scalarizeRecords = true;
@@ -199,10 +200,11 @@ struct JsTarget {
      *
      * A property witness on this target is a *name*: the body compiled once reads `owner[key]`, so
      * the witnessed field has to be a property of its own. A field packed into a `$pN` word, or a
-     * record that is one number, has none. The shipping backend hands the body a `{read, set}` pair
-     * of accessors instead; building that here would change the erased body's read from a property
-     * access into two calls for every witness, packed or not, to serve a layout this target is free
-     * not to choose. So the witnessed field keeps its property and its neighbours still pack.
+     * record that is one number, has none. The old JavaScript backend handed the body a pair of
+     * `{read, set}` accessors instead; building that here would change the erased body's read from
+     * a property access into two calls for every witness, packed or not, to serve a layout this
+     * target is free not to choose. So the witnessed field keeps its property and its neighbours
+     * still pack.
      *
      * Collected by `planProgram` before any representation is interned, for `environmentRecords`'
      * reason: `jsRep` memoizes, and every environment is interned by the MIR stage before JSIR runs.
@@ -216,8 +218,7 @@ struct JsTarget {
      * A reference on this target is the `{$o, $k}` descriptor naming a property of something, and a
      * module-level binding is not a property of anything: there is no object to be the `$o`. So a
      * global whose address is handed anywhere gets the one object that can be, on exactly the terms
-     * the demand pass boxes an escaping local (`Conversion::escapes`). `Gen::boxedGlobals` is the
-     * shipping backend's answer to the same question and the set is computed from the same facts.
+     * the demand pass boxes an escaping local (`Conversion::escapes`).
      *
      * Whole-program and therefore `planProgram`'s, and it has to be: a global is borrowed in one
      * function and read in another, and the two never see each other, so a shape they disagree about
@@ -481,11 +482,11 @@ JsRepId jsCellRep(JsTarget& target, JsRepId content);
 /*
  * The same reference **flat** - `(owner, key)`, with `{$o, $k}` as its materialized form.
  *
- * §3.2's "a narrow reference passed flat is `(owner, key, scale)`", with the scale only where a range
- * can exist - `jsRefCarriesScale`, since J84, and on by default since J85. A reference is already a
- * pair of host values, so the object around it
- * buys nothing at a position that takes two arguments - and it costs an allocation at every mutable
- * borrow crossing a call, which is 867 of them in `Base.js` against the shipping backend's 223.
+ * §3.2's "a narrow reference passed flat is `(owner, key, scale)`", with the scale only where a
+ * range can exist - `jsRefCarriesScale`, since J84, and on by default since J85. A reference is
+ * already a pair of host values, so the object around it buys nothing at a position that takes two
+ * arguments - and it costs an allocation at every mutable borrow crossing a call, which was 867 of
+ * them in `Base.js` against the old JavaScript backend's 223 (J84).
  *
  * Interned per **content**, through the materialized form: the parts themselves are `Erased`,
  * because an owner is any host object and a key is a string or a number, and stating anything
@@ -543,10 +544,9 @@ bool jsNullIsAValue(JsTarget& target, JsRepId id);
  * A value whose representation the caller decides, and a **table** of such values.
  *
  * The second is what a generic environment, a type descriptor and a class witness all are on this
- * target: a host row whose cells are things this tier deliberately does not describe - the shipping
- * backend's representation table says the same in one line ("`TypeDesc`, `GenEnv`, class witness: an
- * array of cells"). One rep for all three, because what distinguishes them is what a *reader* of a
- * cell does with it and nothing a representation could state.
+ * target: a host row whose cells are things this tier deliberately does not describe. One rep for
+ * all three, because what distinguishes them is what a *reader* of a cell does with it and nothing
+ * a representation could state.
  */
 JsRepId jsErasedRep(JsTarget& target);
 JsRepId jsGenTableRep(JsTarget& target);
@@ -635,9 +635,8 @@ TypedArray typedArrayFor(JsTarget& target, JsRepId element);
  * The answer is the **typed row's element width** and nothing else, which is the only byte count
  * this target is entitled to state: a `Uint32Array` element is four bytes by specification, and how
  * many bytes a host object occupies is the engine's answer - it changes with its hidden class, its
- * boxing decisions and its collector, and nothing emitted here can observe it. That is the same
- * sentence `codegen/js/inst.cpp` gives for `sizeOf` and `alignOf` being `@platform(native)`, said
- * as a number where there is one.
+ * boxing decisions and its collector, and nothing emitted here can observe it - which is also why
+ * `sizeOf` and `alignOf` are `@platform(native)`.
  *
  * Zero for everything that has no typed row - a record, a string, a row, an erased type - and the
  * caller reports rather than guessing. The 33-to-53-bit band is the one scalar with no typed row and

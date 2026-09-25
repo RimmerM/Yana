@@ -8,8 +8,8 @@ namespace intrinsic {
  * The declarations the compiler references - `known.def`.
  *
  * One enumerator per row, in the table's order, because everything that holds an answer for these is
- * an array indexed by it: `Program::known` in each resolve stage is `Count` entries, and a role is
- * a subscript rather than a search.
+ * an array indexed by it: `mir::Roles::known` is `Count` entries, and a role is a subscript rather
+ * than a search.
  */
 enum class Known: U16 {
 #define YANA_KNOWN_ROLE(role, entity, arity, members, payload, teardown, presence) role,

@@ -1,8 +1,6 @@
 {-
    A result that borrows out of a parameter nobody ticked - elision rules 5 and 6.
 
-   # resolver: ownership
-
    Analysis-Borrows.md §4.8, in the form that section's own supersession block settled on. Rule 5 was
    written as a *count* - "exactly one parameter could root this, so it is that one" - and a count is
    a property of the whole signature that changes when something unrelated is added to it. A rule
@@ -20,8 +18,8 @@
    `p: Pair` is not one, so a result borrowing out of it still has to say so.
 
    `iter fn each(xs: [String]) -> 'String` in `lib/Core/BorrowUpdate.test.native.yana` is why this
-   is built at all - it is the one signature in the library with no spelling both stages accepted,
-   because the shipping stage promotes the same candidate and refuses the explicit `source'String`.
+   is built at all - it was the one signature in the library with no spelling both stages accepted,
+   because the shipping stage promoted the same candidate and refused the explicit `source'String`.
 
    The numbers are what says the loans are the ones intended: every borrow below is read after the
    call that produced it, so an extent that ended at the call would be a use-after-release rather

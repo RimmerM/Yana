@@ -472,10 +472,10 @@ static ArmLayout placeArm(Layout layout, mir::RecordType& record, const Members&
      * The niche this arm republishes - **the first one any placed component exposes**, in placement
      * order, with the offset adjusted to where that component sits.
      *
-     * First rather than best, which is the shipping compiler's rule too. What a niche is worth is
-     * how many patterns it leaves free, and the sum that will spend it has one constructor count -
-     * so a search comparing candidates would be optimizing for a number this walk does not have.
-     * What matters is that a record *containing* a niche-bearing member exposes one at all, which is
+     * First rather than best, which was `compiler/resolve`'s rule too. What a niche is worth is how
+     * many patterns it leaves free, and the sum that will spend it has one constructor count - so a
+     * search comparing candidates would be optimizing for a number this walk does not have. What
+     * matters is that a record *containing* a niche-bearing member exposes one at all, which is
      * what makes folding recursive rather than one level deep.
      */
     auto publish = [&](const Niche& found, U32 offset) {
@@ -843,11 +843,12 @@ static bool foldNiche(Layout layout, mir::RecordType& record, const SmallArray<A
  *
  * ## Why every arm has to pack, and why the tag then sits above the widest of them
  *
- * The shipping compiler puts its tag above the payload's whole *storage*, padding included, so that
- * a field written at its own width can never reach it. That is the right rule for a four-byte tag,
- * where the saving is enormous whatever it costs in density. It is worth nothing here: this stage's
- * tag is already a byte, so `alignTo(1, payloadAlign) + payloadBytes` is never more than the next
- * power of two up from `payloadBytes * 8 + 1` bits, and the bit form would tie at best.
+ * `compiler/resolve` (deleted in J173) put its tag above the payload's whole *storage*, padding
+ * included, so that a field written at its own width could never reach it. That is the right rule
+ * for a four-byte tag, where the saving is enormous whatever it costs in density. It is worth
+ * nothing here: this stage's tag is already a byte, so `alignTo(1, payloadAlign) + payloadBytes` is
+ * never more than the next power of two up from `payloadBytes * 8 + 1` bits, and the bit form would
+ * tie at best.
  *
  * So the tag goes above the bits the arms actually *spend*, and what makes that safe is the
  * condition rather than the placement: every field of every arm is co-packed, so every write to one

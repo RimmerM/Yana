@@ -10,12 +10,12 @@
 -- The scored answers say the numbers agree; that they are folded rather than computed at startup is
 -- what .mir.expect says, and is the half a run cannot see.
 --
--- **Globals only, and that is a stage difference rather than an omission.** The same forms belong in
--- a field default - the two positions are one evaluator in the ownership stage, which is what
--- Constant.yana asserts of the literal forms - but the shipping stage admits only a literal, a
--- constructor or an aggregate of those there, so a `low: Int = -(1024 / 4)` written here would be
--- rejected by the stage this fixture is compiled by first. The ownership stage folds it; there is
--- nowhere to say so that both stages read.
+-- **Globals only, which used to be a stage difference rather than an omission.** The same forms
+-- belong in a field default too - the two positions are one evaluator, which is what Constant.yana
+-- asserts of the literal forms - but while the shipping stage still existed it admitted only a
+-- literal, a constructor or an aggregate of those there, so a `low: Int = -(1024 / 4)` written here
+-- would have been rejected by that stage first. There is one stage now, and it folds this form; the
+-- fixture has simply never been extended to say so.
 
 import Native
 

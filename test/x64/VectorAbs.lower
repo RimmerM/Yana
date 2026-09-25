@@ -2,7 +2,7 @@
 # in transform.cpp, and §39.3 of test/bench/findings.md.
 #
 # `abs` is `LowerInst::Abs` here because it is `Value::Abs` above: the language rules that it answers
-# the magnitude and says nothing about the sign of a NaN (see the row in resolve/inst.def), which is
+# the magnitude and says nothing about the sign of a NaN (its row in resolve_mir/op.def), which is
 # what lets every backend use the one instruction it has. It used to be `select(v .<= 0, 0 - v, v)`
 # written out by the library and recognized back here, which worked and left the three targets
 # disagreeing about that sign - LLVM and JavaScript preserving it, this backend clearing it.

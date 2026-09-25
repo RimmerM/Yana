@@ -1,8 +1,6 @@
 {-
    Slot sharing - `doc/inflight/Design-Iterator-Objects.md` §3.2's third step, and §5's size claim.
 
-   # resolver: ownership
-
    A payload member is the local's **storage**, not a spill written at a hand-over, so two of them
    share one field exactly where neither is written while the other is live. That is the whole of
    what makes a record "the largest live-across-`yield` set" rather than the sum of its locals, and

@@ -1,8 +1,6 @@
 {-
    A continuation capturing a *window*.
 
-   # resolver: ownership
-
    A lens call's region is a function over an environment of the caller's storage addresses, and a
    window binding's storage holds a view record. The capture's field says so with the binding's form,
    which natively reads as a window *by value*: the environment was laid out and built as a sixteen-
@@ -12,7 +10,7 @@
 
    Three bindings, one per way a window reaches a region: a parameter, a local window, and a local
    built from one. The last is the owner-form capture the field was always a pointer for. The
-   shipping stage refuses `acc ++ copy(sep)` over a window parameter, so the fixture is this stage's.
+   fixture needs `acc ++ copy(sep)` over a window parameter, which only the rewrite ever accepted.
 -}
 
 fn joined(parts: [[Int]], sep: [Int]) -> [Int]:

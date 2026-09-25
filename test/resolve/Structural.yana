@@ -11,14 +11,14 @@
    a caller substitutes - so a declared constraint is the only thing that can say otherwise, and a
    class is what a signature has to write one with.
 
-   Both stages, because the point is that they agree. The shipping stage has answered these since
-   `Program::coreClasses`, which finds the two declarations **by name**; the ownership stage reads
-   `@builtin` and nothing else, so until `known.def` had rows for them `lib/Core`'s blanket
-   `instance (TrivialCopy(a)) Copy(a)` could not discharge its own context and `Copy(I32)` failed
-   with it - 27 of the 46 diagnostics that stage had left on the real library.
+   The two implementations used to be held to agreeing here. The shipping stage, since deleted,
+   answered these since `Program::coreClasses`, which found the two declarations **by name**; the
+   ownership stage - now the only one - reads `@builtin` and nothing else, so until `known.def` had
+   rows for them `lib/Core`'s blanket `instance (TrivialCopy(a)) Copy(a)` could not discharge its
+   own context and `Copy(I32)` failed with it - 27 of the 46 diagnostics that stage had left on it.
 
-   The refusing half is `ownership/Reject.Structural.yana`, which names one stage because the two
-   word the refusal differently.
+   The refusing half is `ownership/Reject.Structural.yana`, whose comment there is the fuller
+   account of what the refusal reports and why.
 -}
 
 data Guard {id: Int}

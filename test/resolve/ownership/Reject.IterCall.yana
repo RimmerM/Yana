@@ -1,14 +1,12 @@
 {-
    An `iter fn` called where only a lens call can stand. Its `lens` flag is set - it takes a
    continuation - but the only thing that supplies an iterator's is a `for` body, so every lens call
-   form refuses one with the shipping stage's message rather than running the rest of its block once
-   per element. `test/resolve/Reject.Iter.yana` asserts the shipping stage's half of this.
+   form refuses one with the old shipping stage's message rather than running the rest of its block
+   once per element. `test/resolve/Reject.Iter.yana` used to assert that stage's half of this.
 
    The flat `let x = f(...)` is the exception since 2026-09-15 and is the row below that changed:
    a `let` that keeps an iterator's result builds an **object** of it, which is what stage 3 of
    Design-Iterator-Objects.md added, so that one reports about `x`'s type instead.
-
-   # resolver: ownership
 -}
 
 iter fn upTo(limit: Int) -> Int:

@@ -2,14 +2,14 @@
    What a `String` is on this target - Implementation-String.md part 2's growable row, and exactly
    `Array(CodeUnit)`'s two words - declared as the record it is, on `Array`'s terms.
 
-   `String` is a primitive in the shipping stage (see Type::String), because on JS it is the host
-   string and a wrapper there would cost an allocation per string. That leaves the native half
+   `String` was a primitive in `compiler/resolve` (Type::String, deleted in J173), because on JS it
+   was the host string and a wrapper there would have cost an allocation. That left the native half
    needing somewhere to say what the bytes *are*, and this is it: `@builtin(string)` is how the
    compiler finds the record, and its one field is the same run-plus-count a container uses, so a
    string's capacity, its placement tag and its growth path are `Run`'s and not a second
    implementation of them. The name is the primitive's on purpose - a program that writes `String`
    means the type both targets agree on, and what this declares is what that type is made of here.
-   The ownership stage has no primitive and this *is* its `String` too.
+   The compiler has no primitive any more, and this *is* its `String` on this target.
 
    `length` is the count in native units - UTF-8 bytes here - which part 3 is careful to say is not a
    portable number. It is the run's *live prefix*; `run.capacity` is what was allocated, and the two
@@ -69,9 +69,9 @@
    **A written literal no longer comes through here.** `resolveString` emits the whole value as a
    constant global and duplicates it bitwise, which is the same two words with the call removed and,
    more to the point, with the placement flag readable as a constant by whatever tests it - see
-   `LiteralFold.yana`, and `inheritConstant` in opt_place.cpp. What still comes through here is a
-   literal whose *bytes* are chosen at run time: a constructor map's string table holds an address
-   and a length per constructor and builds the value from the pair it read (see resolve/map.h).
+   `LiteralFold.yana`. What still comes through here is a literal whose *bytes* are chosen at run
+   time: a constructor map's string table holds an address and a length per constructor and builds
+   the value from the pair it read (see `resolve_ssa/lower/map.cpp`).
 
    **`runBorrowed` is what makes a literal free, and it is also what makes it grow correctly.** The
    run does not own its slots, so `releaseRun` hands nothing back and a literal costs no teardown at
@@ -91,7 +91,6 @@
    the program paid for both. The constant global has since made that route unnecessary for a
    written literal, and the measurement stands for the callers that remain.
 -}
-@builtin(stringLiteral)
 pub fn stringLiteral(bytes: %CodeUnit, length: Int) -> String =
     String {units: Array {
         run: Run {items: bytes, capacity: truncate(length) :: Count, ownsHeap: runBorrowed},

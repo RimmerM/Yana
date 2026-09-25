@@ -13,14 +13,12 @@ import Native
    The narrow walk was right about a slice being reported *somewhere* else and wrong about where: the
    descriptor slot it meant is marked by `handedOver`, which does it for arguments and says in as many
    words that a returned one is bounded here instead.
-
-   # resolver: ownership
 -}
 
 data Holder {bytes: '[U8]}
 
 -- The shipping stage's second spelling, a window reached through a type argument
--- (`data Window {bytes: Box('[U8])}`), is gone: the new stage refuses a qualifier on a
+-- (`data Window {bytes: Box('[U8])}`), is gone: this stage refuses a qualifier on a
 -- field's type argument as a rule (`resolve_sig.cpp`, "a field cannot qualify a type argument"), so
 -- the escape it asserted cannot be written.
 

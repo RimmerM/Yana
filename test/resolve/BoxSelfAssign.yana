@@ -1,5 +1,3 @@
--- # resolver: ownership
-
 -- A value moved into a new record that is written back over the slot it came from - J148.
 --
 -- `b = Node {next: b, v: 1}` over a `@box` field is legal: the right side moves `b` out before
@@ -8,8 +6,8 @@
 -- the box pointer into the slot where the component is produced, which was before the moved-out
 -- `b` was copied into the box. The node became its own `next`: optimized, `depth` walked the cycle
 -- forever, and under `-no-ir-opt` it crashed. The same fault without a box is `nested` below: the
--- inner literal was built over `u.inner` before `n: u.inner.a` read it. The shipping stage refuses
--- the boxed program, which is why the directive is here.
+-- inner literal was built over `u.inner` before `n: u.inner.a` read it. The shipping stage refused
+-- the boxed program outright, and only this stage ever accepted it.
 
 data Boxed = Leaf | Node {next: @box Boxed, v: I32}
 

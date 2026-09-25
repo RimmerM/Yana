@@ -37,9 +37,9 @@ import Native
    so a `Joined` is a thing to hand to a format hole rather than a thing to keep - which is the same
    sentence `Format/Number.yana` writes about its own subject, with one more root in it.
 
-   `Flat(a)` in the field and `[a]` on the parameter are the same window in the two positions' own
+   `'[a]` in the field and `[a]` on the parameter are the same window in the two positions' own
    spellings, exactly as `HexFormat`'s are: `[T]` in a field is the *owner*, so a field that is a view
-   has to name the descriptor type.
+   says so with the tick.
 -}
 pub data Joined(a) {
     value: '[a],
@@ -105,8 +105,8 @@ instance (Show(a)) Show(Joined(a)):
 
    **One instance, over the container**, and its members take the *window* because that is what
    writing `value: [a]` in them asks for. An owner reaches it by converting its argument, which is
-   what `convertSlice` has always done at a `[a]` parameter; a window reaches it because a window is
-   a shared borrow of the container and `ClassInstance::windowArgs` says so. There used to be a
+   what every `[a]` parameter does; a window reaches it because a window and the container it is
+   over are one logical type. There used to be a
    second instance here, over `Array(a)`, whose whole body was `show(elements(value), to)` - the
    conversion written out by hand because instance selection would not do it.
 -}

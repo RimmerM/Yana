@@ -16,9 +16,9 @@
    encoding here and the 128-bit VEX forms are asserted by the `.lower` fixtures alone, which name
    their types and so keep them whatever the level says.
 
-   The lane count is the reason there is no `.js.expect` beside this: a directive naming an x86 level
-   says nothing to that backend, and a second JavaScript golden of the same program would assert only
-   that the directive was ignored.
+   `.jsir.js.expect` exists beside this and does not say much: the lane count is invisible to that
+   backend, and it folds these splat-only vectors down the same way `VecOps.yana`'s does, so what
+   it asserts is that a directive naming an x86 level made no difference there.
 -}
 
 -- Lanewise arithmetic through `Num`, which is the whole of what an instance over a vector type buys:

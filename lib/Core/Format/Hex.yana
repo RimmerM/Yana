@@ -61,8 +61,8 @@ import Native
    What is left is the refinement's own narrowing store, an `and $0xf` on each of the two `Just`
    arms. It is `@bits`' contract and the price of the niche, and removing it needs a range analysis
    rather than a known-bits one - the value is in range because the *branch* above it says the unit
-   was between `0` and `9`, which is a fact `opt_range.cpp` deliberately does not carry. It is not
-   costing anything against the sentinel, so it is a tidiness item rather than a performance one.
+   was between `0` and `9`, which no range analysis carries (`resolve_ssa/opt` measured one and did
+   not keep it). It costs nothing against the sentinel: a tidiness item, not a performance one.
 -}
 pub alias HexDigit = @bits(4) U32
 
@@ -135,10 +135,10 @@ pub fn hexUnit(nibble: Int) -> CodeUnit = truncate(if nibble < 10 then "0" + nib
    provenance is field-insensitive, so an aggregate argument reaching a record that holds a
    reference is read as a root of it.
 
-   **The field is a `Flat(U8)` and the parameter a `'[U8]`, which are the same window said in the two
-   positions' own spellings.** `[T]` in a field is the *owner* - `data Holder {items: Array(Int)}`
+   **The stored borrow and the parameter's `'[U8]` are the same window said in the two positions'
+   own spellings.** `[T]` in a field is the *owner* - `data Holder {items: Array(Int)}`
    holds its elements, which is Analysis-Borrows.md §2.5's rule - so a field that is a view has to
-   name the descriptor type. On a parameter `[T]` already is the window, and the `'` there is the
+   be a declared borrow. On a parameter `[T]` already is the window, and the `'` there is the
    loan marker rather than part of the type: it is what tells a caller the result is rooted in this
    argument, which is exactly what a formatter hands back.
 -}
@@ -158,8 +158,8 @@ pub data HexBytesStyle {
 
    It used to be spelled `'[U8]`, naming the descriptor type directly, because the fold happened only
    where the borrow was *written* and not where it arrived by substitution. A capability is not a
-   logical type, so that head named a type the ownership stage - where a window and the container it
-   is over are one - does not have; the two stages could not both read this file.
+   logical type, so that head named a type the resolver - where a window and the container it is
+   over are one - does not have; it could not read this file while that spelling stood.
 
    It is also why `Core/Format.yana`'s `showWith` takes the whole wrapper: a separate `value: 'a`
    parameter is a borrow in an *argument* position, where there is an owner in the caller's frame to
@@ -236,7 +236,7 @@ pub fn hexUnitCased(nibble: Int, upper: Bool) -> CodeUnit
    separator does, so `de:ad:` reads two bytes and leaves the colon.
 
    **The subject differs between the directions, and the two classes are why that is allowed.**
-   Writing takes a `Flat(U8)` window because the bytes are already somewhere; reading answers an
+   Writing takes a `[U8]` window because the bytes are already somewhere; reading answers an
    owned `Array(U8)` because there is nothing to borrow. One style, two subjects, and no class that
    has to pretend they are the same type.
 

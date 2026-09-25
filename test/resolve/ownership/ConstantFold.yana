@@ -2,12 +2,10 @@
    Arithmetic in a constant position - `Analysis-Initialization.md`'s stage A, whose one remaining
    bullet this is.
 
-   # resolver: ownership
-
-   The **rewritten stage only**, and the two halves of that are different. A global's initializer
-   compiles in both - the shipping stage makes an unfoldable one a startup initializer - but a
-   *default* does not: `fn f(size: Int = 16 * 64)` is "a default argument must be a literal" there,
-   which is the bullet this file says has been built.
+   This was the **rewritten stage only**, and the two halves of that were different. A global's
+   initializer compiled in both - the shipping stage made an unfoldable one a startup initializer -
+   but a *default* did not: `fn f(size: Int = 16 * 64)` was "a default argument must be a literal"
+   there, which is the bullet this file says has been built.
 
    What makes it foldable is not that the operands are numbers: an operator is a *call*, so what
    decides is which declaration it names and whether the instance serving that declaration **at

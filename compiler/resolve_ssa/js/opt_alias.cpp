@@ -5,15 +5,15 @@
  *
  * ## What is being removed
  *
- * `readMode`'s first clause turns a shared, call-bounded loan of a *trivially copyable* value into a
- * `copy` - Analysis-IR-JS.md §1.3.1 category 2, where the cost guard that used to stop it is
+ * `readMode`'s first clause turns a shared, call-bounded loan of a *trivially copyable* value into
+ * a `copy` - Analysis-IR-JS.md §1.3.1 category 2, where the cost guard that used to stop it is
  * surveyed. Natively that is a stack copy of a few words and `promote` takes it away again; here it
  * is a structural duplicate, property by property and recursively (`cloneOf` in
  * `codegen/js/structure.cpp`), so `showWith(s)` over a two-field record of two records writes
  * eighteen property reads at every borrow. Measured on `test/base` before this file existed: 2,954
- * of them in `Base.js`, 262 KB of object literals against the shipping backend's 5.5 KB, which is a
- * quarter of the whole size gap. The shipping backend never copies at a borrow at all - its
- * `keptValue` duplicates only at a *store* or a `return` whose source still names live storage.
+ * of them in `Base.js`, 262 KB of object literals against the old JavaScript backend's 5.5 KB,
+ * which was a quarter of the whole size gap. That backend never copied at a borrow at all - its
+ * `keptValue` duplicated only at a *store* or a `return` whose source still named live storage.
  *
  * ## The safety argument, in the order the code asks it
  *

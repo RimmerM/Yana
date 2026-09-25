@@ -2,8 +2,6 @@
    How a captured argument travels into an object's record, and what its hand-over slot holds -
    `doc/inflight/Design-Iterator-Objects.md` §3.1, and the four gaps J50 refused by name.
 
-   # resolver: ownership
-
    `IterCaptureKind` is the list and it has three rows. A parameter the producer **owns**, or a
    shared loan of something a copy cannot be told from, is held **by value**. Every other loan is
    held as the lender's **address**, and the record publishes it at an origin slot so that the
@@ -173,8 +171,8 @@ iter fn paired(xs: [Int], n: Int) -> Pair('Int, 'Int):
 
 {-
    The **object** form only, and that is a finding rather than an omission: `for p in paired(xs, 3)`
-   - the same traversal compiled continuation-passing - crashes at run time in this stage and is
-   refused outright by the shipping one ("cannot convert Pair(I32, I32) to Pair('I32, 'I32)"). A
+   - the same traversal compiled continuation-passing - crashes at run time here and used to be
+   refused outright by the shipping stage ("cannot convert Pair(I32, I32) to Pair('I32, 'I32)"). A
    qualified type argument in a hand-over is a shape the `yield` has to carry and neither `for` form
    carries it; the object's slot does, because the record is where the value lives.
 -}

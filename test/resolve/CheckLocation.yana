@@ -6,7 +6,7 @@
    Two things are asserted here and the second is the point. That the located form is *reached* -
    the IR below names `checkConditionAt` or `checkFailedAt` where an ordinary build names
    `checkCondition` or `checkFailed` - and that what it takes is **scalars**, the module's bytes and
-   their length, the line and the column, all of them immediates: the shipping stage calls
+   their length, the line and the column, all of them immediates: the shipping stage called
    `checkConditionAt` with the failure flag in front of them, and the rewritten stage expands the
    check and calls `checkFailedAt` from the arm that fails. A `String` in that position would be a
    two-word descriptor stored into a stack slot at the call, which is ahead of the branch and
@@ -18,8 +18,8 @@
    optimizer can prove is a subscript with no check in it, which would assert the wrong thing twice
    over. It used to come out of a global the program had just written, and both stages learned to
    read that write - the shipping stage folded the whole program to `ret 0`, and the rewritten one
-   left a check whose condition it had already answered (J168). Neither stage evaluates a loop at
-   compile time, so the walk's counter stays a value, and so do both subscripts it feeds.
+   left a check whose condition it had already answered (J168). This stage does not evaluate a
+   loop at compile time, so the walk's counter stays a value, and so do both subscripts it feeds.
 -}
 
 fn reachable(xs: [Int], at: Size) -> Int = xs[at]

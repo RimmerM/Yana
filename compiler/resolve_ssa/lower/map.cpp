@@ -7,17 +7,17 @@
  * property occupies, the bits of one word, the line `selector * stride + bias`, the fields of one
  * immediate, or a run of slots in read-only data - is a fact about the numbers and about nothing
  * else. It is target-independent, so it is decided once, here, immediately below the tier that
- * recognized the mapping and immediately above the two backends that would otherwise each answer it.
- * `resolve/expr_map.cpp` is the shipping stage's version of the same five, and this is that
- * reasoning ported minus its memory arm - which is the half that *is* a target question, and which
- * ends here as a global plus an indexed read that both backends already know how to emit.
+ * recognized the mapping and immediately above the two backends that would otherwise each answer
+ * it. `compiler/resolve`'s `expr_map.cpp` (deleted in J173) answered the same five, and this is
+ * that reasoning ported minus its memory arm - which is the half that *is* a target question, and
+ * which ends here as a global plus an indexed read that both backends already know how to emit.
  *
- * The size rule the shipping file has to state - "three or more constructors, a span of at most 256,
- * a span of at most eight times the count" - is **not** here, and its absence is the point of
- * carrying the mapping down as a node. That file has to promise its caller an emission before it
- * knows what it will emit, so it consults the rule twice; here the node always exists and what it
- * becomes is decided once, at the tier that owns the target question. What recognition still bounds
- * is representability and not policy - see `kMapSpanLimit` in resolve_match.cpp.
+ * The size rule that file had to state - "three or more constructors, a span of at most 256, a span
+ * of at most eight times the count" - is **not** here, and its absence is the point of carrying the
+ * mapping down as a node. That file had to promise its caller an emission before it knew what it
+ * would emit, so it consulted the rule twice; here the node always exists and what it becomes is
+ * decided once, at the tier that owns the target question. What recognition still bounds is
+ * representability and not policy - see `kMapSpanLimit` in resolve_match.cpp.
  *
  * ## Every form is total
  *
@@ -500,11 +500,11 @@ void Lowering::lowerMap(LowerBlock& block, InstMap& written) {
             }
 
             /*
-             * The **stride** is bounded before it is truncated, which is the half the shipping
-             * stage's `emitAffine` leaves out: `I32(plan.stride)` of a factor that does not fit
-             * answers a different number, and every overflow test below then passes about it.
-             * `LiteralWidth.yana`'s `castMatch` is the program - two arms over `Bool` at a `WideInt`,
-             * whose stride is 2^35 + 255 and truncates to -1.
+             * The **stride** is bounded before it is truncated, which is the half
+             * `compiler/resolve`'s `emitAffine` left out: `I32(plan.stride)` of a factor that does
+             * not fit answers a different number, and every overflow test below then passes about
+             * it. `LiteralWidth.yana`'s `castMatch` is the program - two arms over `Bool` at a
+             * `WideInt`, whose stride is 2^35 + 255 and truncates to -1.
              */
             auto narrow = selectorManifest.type == LowerType::Int32 &&
                           plan.stride >= I64(minLimit<I32>) && plan.stride <= I64(maxLimit<I32>);

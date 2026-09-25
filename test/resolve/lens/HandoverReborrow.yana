@@ -2,8 +2,6 @@
    A hand-over whose pointee is a reborrow of a parameter - `let v = xs` - rather than the
    parameter itself.
 
-   # resolver: ownership
-
    `yield values(xs)` was accepted and `yield values(v)` refused as this frame's own storage: the
    hand-over check stopped at the first local it met, where the other conformance checks follow a
    reborrow to what it holds. It takes the same walk now (`analyze_loan.cpp`'s `judgeLenders`), and

@@ -13,20 +13,20 @@ import Native
 {-
    The slice - Implementation-Containers.md §4.
 
-   What a `[a]` parameter receives. `length` is declared over the *slice* and not over the owner,
-   which is not an omission: reading is structural, so the operation that reads should ask for the
-   borrow, and an owner reaches it by the ordinary conversion at the call - see convertSlice. §5's
+   What a `[a]` parameter receives. Reading is structural, so an operation that only reads should
+   ask for the borrow - the window - and an owner reaches it by the ordinary adaptation at the call:
+   a window and its container are one logical type, so nothing converts by name. §5's
    `Chunked` is this rule generalized to containers that are not contiguous.
 
-   Reading an element lives one layer down, in `Native`'s `instance Index(Flat(a), Size, a)`, for
-   the same reason and by the same conversion. Growth is not here at all - it is nominal, and `push`
+   Reading an element is `Index`, whose instance is `Array.yana`'s, for the same reason. Growth is
+   not here at all - it is nominal, and `push`
    says `Array(a)`.
 -}
 {-
    How many elements a container holds, as a class - Implementation-Containers.md §17's reasoning
    applied to the other universal operation.
 
-   `length` was a plain function over `Flat(a)`, which served every container by the ordinary
+   `length` was a plain function over the window, which served every container by the ordinary
    owner-to-slice conversion at the call. `String` cannot reach it that way: it is not a container of
    elements with a buffer address, so there is no slice for it to convert to, and its length lives in
    a different place on each target. A second plain `fn length` is a duplicate declaration rather
@@ -36,26 +36,26 @@ import Native
    The container instances are the same set `Index` has and are there for the same reason: instance
    selection does not convert, so an `Array(a)` binds `Array(a)` and needs an instance of its own
    rather than reaching the slice's through the conversion a *call* would have performed. `Index`'s
-   own owner head is still the compiler's, and for a reason that is not `Length`'s - `Array.yana`
-   states it beside the measurement.
+   owner head is written in `Array.yana` too, and was the compiler's for longer, for a reason that
+   was not `Length`'s - `Array.yana` states it beside the measurement.
 
-   **The owner's is written - `Array.yana`, and carries `@inline(always)` since D12 made that one
-   directive across both stages. The window's is still generated**, and the split is the one thing
-   about these instances that is not a preference. Written out the window's would read:
+   **The owner's is written - `Array.yana`, with `@inline(always)` - and it is the only one.** The
+   window needs none of its own, and the reason is not a preference. Written out the window's would
+   read:
 
        instance Length('[a]):
            fn length(self: [a]) -> Size = self.length
 
-   and that head has no source spelling that both resolve stages accept. `[a]` in a head is the
-   owner, so naming the descriptor takes the capability - and to the ownership stage a window and the
-   container it is over are *one logical type*, so `'[a]` there names the instance the line above it
-   already declared and is refused as such. The shipping stage needs two instances because the window
-   is a sibling record and selection does not convert; the ownership stage needs one and cannot be
-   given two. So the owner's is the library's and the window's stays `defineContainerInstances`',
-   which is the bridge Analysis-IR.md 11.5 removes.
+   and that head has no source spelling this resolver accepts. `[a]` in a head is the
+   owner, so naming the descriptor takes the capability - and here a window and the
+   container it is over are *one logical type*, so `'[a]` names the instance the line above it
+   already declared and is refused as such. `compiler/resolve` needed two instances because the
+   window was a sibling record there and selection does not convert, and it generated the window's
+   (`defineContainerInstances`); this resolver needs one and cannot be given two, and since J173
+   deleted that stage the owner's instance is the whole of it.
 
-   One field load either way, and the owner's member writes no type on `self` at all - the two stages
-   substitute the class's `self: c` differently and each is asked for the subject it decided on. The
+   One field load, and the owner's member writes no type on `self` at all - the class's `self: c`
+   is substituted with the subject the resolver decided on, which the member is asked for. The
    note beside the instance is where that is argued. Both targets share the body, the host array's
    length being a stored field for the same reason the native one is.
 
@@ -84,10 +84,10 @@ pub class Length(c):
 
    `chunks` hands over a *view*, written `'[a]` because a class member has no binding to carry the
    capability - the position rule's spelling for a shared window in a type position - and `&[a]`
-   where one is written through. Under the ownership stage the tick also *publishes* the origin, on
+   where one is written through. The tick also *publishes* the origin, on
    `self: 'c` and on the chunk alike: a chunk is the container's storage, not a view `chunks` built
    in its own frame, and saying so is what lets a caller keep an element past the loop (J129). An
-   instance writes the same ticks, which both stages accept. What a chunk is is a window into the container's storage, so a
+   instance writes the same ticks. What a chunk is is a window into the container's storage, so a
    mutable one writes through and neither ever copies. The superclass is what stops a
    container from supplying half of this - a `Contiguous` instance with no `Chunked` one is rejected
    where it is declared, wherever in the program the missing one would have been written.
@@ -133,7 +133,7 @@ pub class (Chunked(c, a)) Contiguous(c -> a):
    slice descriptor's type somewhere to carry its capability, `-> &[a]` *was* `-> '[a]` and
    the class could not say what it wanted. The `Array` and `[a *n]` instances are one word each -
    the conversion at the return position builds the exclusive descriptor over the exclusive borrow
-   `&self` already is - and `Flat(a)`'s is the identity, since a window already is one.
+   `&self` already is - and a window needs none, since it already is one.
 -}
 @builtin(writable)
 pub class (Contiguous(c, a)) Writable(c -> a):
@@ -164,19 +164,19 @@ pub class Viewed(a):
    place a shared borrow of a container is not that container's window: `elements` reads the owner's
    fields to build the descriptor it hands back, and a body handed the descriptor would have nothing
    to build it out of. Analysis-Manifestations.md Part 8, and `ownerSubject` in
-   `compiler/resolve/module_class.cpp`.
+   `compiler/resolve_mir/resolve_sig.cpp`.
 
    **The descriptor is built here rather than reached through a call**, and that is the one thing
    about these four bodies that had to be worked out. They used to say `unclampedSlice(self, 0,
    self.length)`, which reads as the same statement and is not: `unclampedSlice` takes a *window*,
    so the argument position asks an owner to become one - and the only thing that turns an owner
-   into a window is this member. In the shipping stage the conversion was structural and the
-   recursion never appeared; in the ownership stage the adaptation is the call `known.def` says it
+   into a window is this member. In `compiler/resolve` the conversion was structural and the
+   recursion never appeared; here the adaptation is the call `known.def` says it
    is, so `elements` called itself on every path and an array literal read back segfaulted with no
    diagnostic anywhere. `adaptToView` now refuses a derivation that asks for its own view, and this
    is the form that answers it. The result is still rooted in `self` - the `source'` on the
    signature is what says so, at both ends - and it is one aggregate rather than a descriptor built
-   and then re-sliced, which is why the shipping stage's own IR got shorter.
+   and then re-sliced, which is why the old stage's own IR got shorter too.
 
    Four instances rather than two, because the view record is a *representation* and the two targets
    do not share one: `Array.native.yana` declares `ArrayView(a) {items, length}` over a run, and
@@ -186,17 +186,17 @@ pub class Viewed(a):
    library's to state. `elements` and `elementsMut` on a value that already *is* the descriptor have
    nothing behind them to build one out of, which is the same sentence the paragraph above makes
    about the owner read the other way round - so `Contiguous(ArrayView(a), a)` and its `Writable`
-   counterpart are the compiler's, beside the `Index` and `Length` over the same record that were
-   already there and for the same reason: the window is the compiler's own record, in every program,
-   and what a class member means at it is a fact about the representation. `emitWindowItself` in
-   `compiler/resolve/intrinsic.cpp` is the whole of both bodies, and the ownership stage says the
-   same thing at its adaptation site with no instance at a window at all.
+   counterpart are the compiler's rather than the library's: the window is the compiler's own
+   record, in every program, and what a class member means at it is a fact about the
+   representation. The resolver says so at its adaptation site (`adaptToView`) with no instance at
+   a window at all; `compiler/resolve`, deleted in J173, generated one (`emitWindowItself`), beside
+   the `Index` and `Length` over the same record it generated for the same reason.
 
    `Chunked` at a window is not written any more either, and for a different reason: there is one
    instance, over the container, and a window selects it. A window is a shared borrow of its
    container, so it may be given to a class that only *reads* the container - which `Chunked`, `Eq`
-   and `Show` all do and `Reclaim`, `Copy` and `Append` all do not. `ClassInstance::windowArgs` is
-   where that is decided, once, from the class's own signatures.
+   and `Show` all do and `Reclaim`, `Copy` and `Append` all do not. Here a window and its container
+   are one logical type, so the container's instance is the window's with nothing to decide.
 -}
 instance Chunked([a], a):
     -- `self` is already the chunk. A class member's subject for a container is the container's
@@ -239,13 +239,13 @@ instance Chunked([a], a):
 
    Two heads and not three. It was three: an `Array(a)`, a window and an `[a *n]` are three types
    and instance selection does not convert, so the first two carried the same line twice. A window
-   now selects the container's instance - `ClassInstance::windowArgs` - so the pair is one, and what
+   now selects the container's instance - they are one logical type - so the pair is one, and what
    the members take is the window, because they wrote `[a]`. The fixed array keeps its own, because
    its length is the type's rather than a field's.
 
    So the window head hands `self` to `itemsEqual` **as it is**: `self` is already the window and
    `elements` is what makes one out of an owner, so writing it here asked a window to become one. The
-   ownership stage says so by name; the shipping stage let the round trip through. The fixed array's
+   resolver says so by name; `compiler/resolve` let the round trip through. The fixed array's
    head does derive, because there `self` is the storage and not a description of it.
 
    The alternative that is still refused is a `Contiguous(c, a)` blanket instance, which would claim
@@ -281,18 +281,20 @@ instance (n: Int, Eq(a)) Eq([a *n]):
    for one. `Reduce.yana` reads through it, `Join.yana` copies out of it, and neither has to say
    which the protocol supports.
 
-   **Which borrow is a per-stage question** (J129), so the declaration is in `Container.ownership.yana`
-   and `Container.legacy.yana`. A hand-over's default is a loan bounded by the continuation -
-   Analysis-Borrows-Revised.md §3.3 - which the loop body may use and may not keep. That was this
-   signature's spelling in both stages for a long time, and in the ownership stage it turned out to
-   be a promise the analysis now holds a hand-over to: once the root of an unqualified hand-over
-   carried its call's bound, `best = s` inside `for s in items(xs)` and read after the loop was
-   refused, where `s` is really a loan of `xs`. So the ownership stage says so - `self: source'c`
-   and `-> source'a` - and `Chunked`'s `'[a]` above is what lets its body say it of `chunk[i]`. The
-   legacy stage keeps `-> a`: it reads `self: 'c` as a *reference to* the container, so a window
-   argument (already a reference) has nowhere to go and `items(window)` stops compiling, and it
-   refuses a named origin on any hand-over.
+   **Every element it hands over is the caller's storage** (J129), and the signature says so with
+   `source'`. A hand-over's default is a loan bounded by the continuation - Analysis-Borrows-Revised.md
+   §3.3 - which the loop body may use and may not keep. That was this signature's spelling for a long
+   time, and it turned out to be a promise the analysis holds a hand-over to: once the root of an
+   unqualified hand-over carried its call's bound, `best = s` inside `for s in items(xs)` and read
+   after the loop was refused, where `s` is really a loan of `xs`. So the signature says so -
+   `self: source'c` and `-> source'a` - and `Chunked`'s `'[a]` above is what lets its body say it of
+   `chunk[i]`, an element reached through a chunk the container publishes as its own.
 -}
+pub iter fn (Chunked(c, a)) items(self: source'c) -> source'a:
+    for chunk in chunks(self):
+        let n = length(chunk)
+        for i in 0 .. n:
+            yield chunk[i]
 
 {-
    And the fixed array, which had no `length` at all.
@@ -345,12 +347,10 @@ instance (n: Int) Chunked([a *n], a):
    what a window into one needs is where the storage starts, and `n` is the count the instance was
    selected at. `source'` at both ends roots the result in the same loan the argument was read under.
 
-   JavaScript says the same sentence without the address, and its two are in
-   `Container.ownership.js.yana` and `Container.legacy.js.yana` beside this file rather than here.
-   The two stages need different *text* there - the shipping one's conversion at a call is structural
-   and the rewrite's is this member, so a body that leans on the conversion recurses under one stage
-   and not the other - and a signature the reader has to choose between after reading both is what a
-   selector exists to avoid. `test/resolve/FixedArray.yana` is the fixture that says so.
+   JavaScript says the same sentence without the address, in `Container.js.yana` beside this file,
+   and builds the window directly for the same reason: a body that leaned on the conversion at a
+   call would recurse, because the conversion is this member. `test/resolve/FixedArray.yana` is the
+   fixture that says so.
 -}
 @platform(native) instance (n: Int) Contiguous([a *n], a):
     fn elements(self: source'[a *n]) -> source'[a] =
@@ -367,7 +367,7 @@ instance (n: Int) Chunked([a *n], a):
    Core's portable set deliberately has no load in it: `splat`, `lane` and the rearrangements are
    operations on a value, and where a value comes *from* is a question about storage. So these three
    are the crossing, and they are here rather than in `Native` because the type they take is what
-   makes them safe: a `Flat(a)` is a window into storage the language allocated, and §5.2 of
+   makes them safe: a `[a]` is a window into storage the language allocated, and §5.2 of
    Design-Vector is what says such storage is padded. A raw address promises nothing, which is why
    `Native.vectorPast` takes one and this does not.
 

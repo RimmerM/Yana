@@ -5,13 +5,11 @@
 -- call site, as the alternative that channel makes mandatory. Neither half can be left out.
 
 {-
-   # resolver: ownership
-
    This fixture used to be written in the explicit-callback form with
    a *wrapper* result - `lens fn f(n, body: (x: Int) -> a) -> Maybe(a)`, skipping with
    `return Nothing` and proceeding with `return Just(body(...))` - which lenses.md no longer
-   specifies: skipping is the failure channel, `return e` fails, and `yield` proceeds. The shipping
-   stage builds only the old form, so this is the rewritten stage's alone;
+   specifies: skipping is the failure channel, `return e` fails, and `yield` proceeds. The
+   now-deleted shipping stage only ever built the old form, and never this one;
    `lens/Skipping*.yana` are its neighbours.
 -}
 
@@ -102,7 +100,7 @@ fn nested(n: Int) -> Int:
 
 -- This was the continuation written out at the call site, `findFirst(n, (found: Int) -> found * 5)`
 -- matched as a `Maybe`. A lens declared with `yield` is not called that way, and the explicit-callback
--- form is the `Lens` gap in the rewritten stage, so the same computation is the flat form here.
+-- form is the compiler's `Lens` gap, so the same computation is the flat form here.
 fn written(n: Int) -> Int:
     let found = findFirst(n) | else -> return 0
     return found * 5

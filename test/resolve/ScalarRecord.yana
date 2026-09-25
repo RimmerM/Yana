@@ -102,7 +102,7 @@ fn borrowed() -> Int:
    `setBoth` one into the high two, and neither may touch the other's - a shift that came out zero
    would make the second call overwrite the first.
 
-   The construction is also what stops opt_scalar.cpp from splitting a *nested* aggregate write of a
+   The construction also stopped `compiler/opt` (deleted in J173) splitting a *nested* write of a
    packed value. A whole `Flags` written into `t.f` is one read-modify-write of the unit its two
    booleans share; split into `t.f.a` and `t.f.b` it is two, each reading the word back to preserve
    the bit it does not own. The expansion below is the assertion - two writes rather than four.

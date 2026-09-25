@@ -339,9 +339,9 @@ struct Context {
      * Where Core and the rest of the standard library are read from - see LibrarySource.
      *
      * On the Context rather than passed in, because every entry point into the resolver has to have
-     * one and only two of them have a command line to build one from: `resolveProgram` builds Core
-     * before it looks at the root module, so a driver that forgot to supply a library would produce
-     * a program with no `+`. A default-constructed one finds the library by itself, which is what
+     * one and only two of them have a command line to build one from: `mir::resolveProgram` seeds
+     * Core before it walks the root module's imports, so a driver that forgot to supply a library
+     * would produce a program with no `+`. A default-constructed one finds the library by itself, which is what
      * makes every test driver in test/ work unchanged.
      */
     LibrarySource library;
@@ -382,9 +382,6 @@ struct Context {
      */
     Cursor cursor;
     mir::CompletionRequest* completion = nullptr;
-
-    void addOp(StringId op, U16 prec = 9, Assoc assoc = Assoc::Left);
-    OpProperties findOp(StringId op);
 
     static StringId nameHash(const char* chars, Size count);
     static StringId nameHash(const StringView& v);
@@ -437,7 +434,6 @@ struct Context {
 
 private:
     HashMap<StringId, Identifier> identifiers;
-    HashMap<StringId, OpProperties> ops;
     Array<Location> locations;
 };
 

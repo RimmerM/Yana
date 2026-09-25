@@ -949,9 +949,9 @@ struct Verifier {
      * twice and an edit that folds one of the two arms owes exactly one removal; a check that asked
      * only whether the block appears at all would pass on a fold that removed both entries and on
      * one that removed neither. That is the same argument the def-use check makes for counting the
-     * multiplicity of a pair, and the same shape of bug: the old stage's `splitEdge` changed one arm
-     * of a branch, both edge records and every matching predecessor entry - three different answers
-     * to one question.
+     * multiplicity of a pair, and the same shape of bug: `compiler/resolve`'s `splitEdge` (the
+     * stage deleted in J173) changed one arm of a branch, both edge records and every matching
+     * predecessor entry - three different answers to one question.
      *
      * Nothing a conversion emits breaks it, which is the point: what it stands behind is the
      * destructive half of `Editor`, where every operation that moves an edge has to move both
@@ -1079,12 +1079,13 @@ struct Verifier {
      *
      * `build.cpp` asserts the `OpCategory` of every operation it makes, which is a statement about
      * the *operand type* and is made once, when the instruction is built. What that cannot catch is
-     * a later pass corrupting the shape - a fold that unified two values of different lane counts, a
-     * clone that carried a comparison's result type from a scalar site to a vector one - and those
-     * are exactly the rewrites this tier has now. So the rules below are per instruction, cheap
-     * enough to run after every pass, and they restate the shipping stage's `verify.cpp` list at the
-     * one stage where a type is still a language type: what reaches the lower validator is a lane
-     * kind, and an `i32` lane there has forgotten whether it was declared signed.
+     * a later pass corrupting the shape - a fold that unified two values of different lane counts,
+     * a clone that carried a comparison's result type from a scalar site to a vector one - and
+     * those are exactly the rewrites this tier has now. So the rules below are per instruction,
+     * cheap enough to run after every pass, and they restate the list `compiler/resolve`'s
+     * `verify.cpp` kept (deleted in J173) at the one stage where a type is still a language type:
+     * what reaches the lower validator is a lane kind, and an `i32` lane there has forgotten
+     * whether it was declared signed.
      *
      * A vector with **no fixed lane count** is a `Vec(a, n)` inside a body compiled once, and every
      * rule below says nothing about one: `vectorLanes` answers zero there, and each comparison is
@@ -1288,7 +1289,8 @@ struct Verifier {
                 /*
                  * The two saturating lane operations, which are the opposite shape to the three
                  * below: a vector of integer lanes and nothing else. A scalar is refused because
-                 * nothing declares one - see `Value::SaturatingAdd` in resolve/inst.def.
+                 * nothing declares one - see `Value::SaturatingAdd` in `compiler/resolve`'s
+                 * inst.def (deleted in J173).
                  */
                 if(binary.op == mir::BinaryOp::SaturatingAdd ||
                    binary.op == mir::BinaryOp::SaturatingSub) {
@@ -2110,8 +2112,8 @@ struct Verifier {
             auto block = body.block(base, BlockId(i));
 
             /*
-             * The block stored at the index it claims - the shipping stage's `verify.cpp:169`, which
-             * survives the move to `RegionArray` because the claim survives it.
+             * The block stored at the index it claims - a check `compiler/resolve`'s `verify.cpp`
+             * made, which survives the move to `RegionArray` because the claim survives it.
              *
              * `Block::index` is a `BlockId` handed out at creation and `Body::blocks` is indexed by
              * it, so identity is stable and no pass reorders the table - which is what made

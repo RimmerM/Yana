@@ -360,28 +360,29 @@ static constexpr U32 kFoldedUseCost = 1; // an operand read straight out of the 
 /*
  * Recreating `mov r, imm` or `lea r, [rsp + k]` at a reader that could have read a frame operand -
  * J155. Half an instruction, between the two prices either side of it, and all three were measured
- * over `test/base` in both stages.
+ * over `test/base` in both resolve stages of the time (the old one went in J173).
  *
  * At kRematCost, a whole instruction, one folded read was always the cheaper number, so a constant
  * read once or twice in straight-line code was stored to the frame at its definition and read back -
  * the store is the part the model had no reason to avoid, and 450 of them stood in the program. At
  * kFoldedUseCost the recipe won everywhere, including a compare inside a hot loop, where
- * `cmp [rsp + k], r` became `mov r11, imm ; cmp r11, r`: the shipping stage ran 23 M more
- * instructions for it. At two the recipe wins where the definition's store outweighs its readers,
- * which is straight-line code, and the frame keeps a constant read in a loop: `test/base` is a
- * little smaller in both stages, runs 17 M fewer instructions in the new one and the same number in
- * the shipping one (J155 §3).
+ * `cmp [rsp + k], r` became `mov r11, imm ; cmp r11, r`: the old stage ran 23 M more instructions
+ * for it. At two the recipe wins where the definition's store outweighs its readers, which is
+ * straight-line code, and the frame keeps a constant read in a loop: `test/base` was a little
+ * smaller in both stages, ran 17 M fewer instructions in the new one and the same number in the old
+ * one (J155 §3).
  */
 static constexpr U32 kPlainRecipeUseCost = 2;
 
 /*
  * A fixed alloca read as the base of an access, from the frame rather than from a register - see
  * frameBaseUseCost. Half an instruction where the displacement fits a byte and three quarters where
- * it takes four, which is what `[rsp + disp]` costs over `[r]` in bytes. Measured over `test/base` in
- * both stages against a flat price (J157 §2): at 0 every address went homeless and the new stage grew
- * 5.7%, since a local written ten times through `[rbx]` became ten four-byte displacements; at 1 it
- * grew 1.1% and at 2 0.1%; at 3 and 4 both stages were 1.3-1.7% smaller than before, with a third
- * fewer stack `lea`s either way. Two and three by displacement is the best of the pairs tried.
+ * it takes four, which is what `[rsp + disp]` costs over `[r]` in bytes. Measured over `test/base`
+ * in both resolve stages of the time against a flat price (J157 §2): at 0 every address went
+ * homeless and the new stage grew 5.7%, since a local written ten times through `[rbx]` became ten
+ * four-byte displacements; at 1 it grew 1.1% and at 2 0.1%; at 3 and 4 both stages were 1.3-1.7%
+ * smaller than before, with a third fewer stack `lea`s either way. Two and three by displacement is
+ * the best of the pairs tried.
  */
 static constexpr U32 kFrameBaseNearCost = 2;
 static constexpr U32 kFrameBaseFarCost = 3;

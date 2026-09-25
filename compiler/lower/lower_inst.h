@@ -530,7 +530,8 @@ inline bool isRepeatable(LowerInst* inst) {
  *
  * The distinction is not academic. `removeDeadValues` used to ask `isRepeatable`, which a load is
  * not, so every load left with no reader stayed in the function to the machine - 11,524 of them in
- * `test/base` against the shipping stage's 152, at three or four bytes each. They come from
+ * `test/base` against the 152 `compiler/resolve` left (the stage deleted in J173), at three or four
+ * bytes each. They come from
  * `Lowering::encodePacked`, which reads the word a bitfield sits in, clears the field's bits and
  * merges the new ones: where the field *fills* the word the mask is zero, the fold collapses the
  * merge to the placed value, and the read that fed it has nobody left. Emitting the general form
@@ -893,9 +894,9 @@ struct LowerInstFma: LowerInstSingle {
 /*
  * Which of the SHA extension's two-operand instructions a `ShaBinary` is.
  *
- * The same nine as `ShaOp` in resolve/inst.h and a second enum rather than that one, on
- * `LowerReduce`'s terms: the two tiers do not include each other's headers, and a seam that has to
- * translate is a seam that cannot silently drift when one side gains a member.
+ * The SHA rows of `mir::NativeOp` (resolve_mir/native.def) as a second enum rather than that one,
+ * on `LowerReduce`'s terms: the two tiers do not include each other's headers, and a seam that has
+ * to translate is a seam that cannot silently drift when one side gains a member.
  */
 enum class LowerSha: U8 {
     Sha1Msg1,
@@ -979,7 +980,7 @@ struct LowerInstSha256Rounds: LowerInstSingle {
  * the assembler's own for the four: `pclmullqhqdq` multiplies the low quadword of the first source
  * by the high one of the second.
  *
- * The mirror of `CryptoOp` in resolve/inst.h, on `LowerSha`'s terms.
+ * The mirror of the AES and carry-less multiply rows of `mir::NativeOp`, on `LowerSha`'s terms.
  */
 enum class LowerCrypto: U8 {
     AesEnc,

@@ -101,7 +101,7 @@ static void eachFamilyType(Program& program, Family family, F&& visit) {
  *
  * The pairing is `Heads`, and which pair joins which class is `intrinsic/convert.h`. Nothing here
  * decides either: this walks the family and asks, so that the ladder the compiler generates and the
- * ladder the shipping stage generates are the same set by construction rather than by agreement.
+ * ladder the language states are the same set by construction rather than by agreement.
  *
  * A **pair** head is `(from, to)` in that order, which is the order `class Widen(a, b)` declares and
  * `fn widen(from: a) -> b` reads. The identity pair is in the narrowing set and only there - see
@@ -522,8 +522,7 @@ void Resolver::provideVectorInstances() {
      * is a rung and `i8x16` to `i32x8` is not - and that is an arithmetic relation between two lane
      * widths and two counts, which no requirement of a head can express. So the head is open in all
      * four positions and the **emitter** is what holds a pair to it, at the call, where the two
-     * shapes are concrete and can be named in the message. The shipping stage checks the same thing
-     * in the same place for the same reason: its generator asks the widths rather than a head.
+     * shapes are concrete and can be named in the message.
      *
      * The **mask** rung is the same shape with the count shared. Two masks of one lane count and one
      * lane width are the same bits under two names; two of one byte width but different lane shapes
@@ -550,12 +549,12 @@ void Resolver::provideVectorInstances() {
  * and not a set of primitives the target has. What the table rows buy is the same thing they buy
  * there - a `Provided` role for the emitters to be indexed by.
  *
- * **Run after every declaration is read**, which is where this parts company with the two generators
- * above and with the shipping stage. Those run before anything is declared, so a written instance at
- * the same head is a duplicate found later; this runs after, so it can simply *skip* a head the table
- * already holds. That is what keeps a program's own `instance Eq(Colour)` winning - the rule the
- * shipping stage gets from consulting its hooks only on a failed lookup, stated here as a condition
- * instead of as an ordering.
+ * **Run after every declaration is read**, which is where this parts company with the two
+ * generators above. Those run before anything is declared, so a written instance at the same head
+ * is a duplicate found later; this runs after, so it can simply *skip* a head the table already
+ * holds. That is what keeps a program's own `instance Eq(Colour)` winning - the rule
+ * `compiler/resolve` got from consulting its hooks only on a failed lookup, stated here as a
+ * condition instead of as an ordering.
  *
  * Three classes, and the three are not the same kind of statement:
  *
@@ -670,8 +669,7 @@ void Resolver::provideInstances() {
  *
  * Not rows of `provided.def`, and the reason is that table's own shape: a row says which *family of
  * types* a class is generated over, and a pointer instance is generated over none of them - there is
- * one head, `%a`, and it is a type variable. The shipping stage draws the same line in the same
- * place, with the same set of instances, in `definePointerInstances`.
+ * one head, `%a`, and it is a type variable.
  *
  * **What comes out is a parametric instance**, which is the only reason this is short: the head binds
  * `a`, each member is an ordinary generic function over it, and selection is `matchType` producing
@@ -909,7 +907,7 @@ bool Resolver::maybeConstructors(DeclPtr<Type> answer, LocationId source, String
  * feature. A set with holes is one comparison per constructor, or-ed together: no branches, and an
  * expression the optimizer is free to make a table of.
  *
- * The `Just` payload is **two** nodes and not one, which is the mistake the shipping stage made
+ * The `Just` payload is **two** nodes and not one, which is the mistake `compiler/resolve` made
  * here and corrected: `cast I64 -> a payload-free sum` is a narrowing *and* a reinterpretation
  * stacked on each other, and asking one node for both leaves a conversion whose target has no width
  * to convert to. Split, each half is a shape that already exists - a narrowing between two integers,

@@ -13,9 +13,9 @@
 
    The walk carries a depth rather than one step, on `superclassPath`'s reading - a superclass cycle
    is caught where classes are declared. Only the one level `lib/Math` writes is asserted here,
-   because this fixture is shared and the shipping stage looks exactly one superclass deep: a body
-   constrained two classes above the dependency compiles under `-resolver ownership` and is refused
-   by the default resolver, which is a difference to settle before it is written into a golden.
+   because the old stage, deleted in J173, looked exactly one superclass deep and refused a second -
+   a body constrained two classes above the dependency compiles now, and this fixture stops at one
+   because that is what `lib/Math` asks for.
 -}
 
 pub class Lane(v -> m):

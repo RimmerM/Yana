@@ -6,7 +6,7 @@
    containing a comparison. None of that shows up in a result, which is why this fixture asserts the
    optimized resolve IR: the cost is entirely invisible in a number, which is how it went unnoticed.
 
-   Four things the `.opt.expect` beside this says, and what breaks each:
+   Four things the `.ssa.opt.expect` beside this says, and what breaks each:
 
    - **no loop.** `Int` has no teardown, so the walk over the elements reduces to a read nobody
      reads, and `eliminateDeadLoops` removes what is left. Without it every array's last use is O(n)

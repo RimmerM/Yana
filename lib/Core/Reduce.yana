@@ -186,7 +186,7 @@ pub fn (Chunked(c, a), Eq(a)) contains(xs: c, wanted: a) -> Bool = indexOf(xs, w
    ------------------------------------------------------------------------------------------
 
    The seventh operation, and the one that takes two windows rather than one - which is why it is
-   written over `Flat(a)` where the six above are written over `Chunked(c, a)`. Two containers of the
+   written over `[a]` where the six above are written over `Chunked(c, a)`. Two containers of the
    same type need not be chunked the same way, so there is no lockstep walk of two `chunks`
    iterators to write; a contiguous window is what both sides of a comparison have to be reduced to
    before any of this can be a vector loop at all, and `elements` is what reduces them.

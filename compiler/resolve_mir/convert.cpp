@@ -16,13 +16,13 @@ namespace mir {
  *
  * ## Why one function and not two
  *
- * An ascription and an argument position used to be different code in the shipping stage, and the
- * difference was a bug: `::` passed `implicit == false` and took the `Narrow` instance, which made
- * an ascription the one construct in the language that could silently remove data -
- * `length(xs) :: Int` truncating a sixty-four-bit length to thirty-two on one target and being free
- * on the other. They are one rule with one difference, and the difference is what the *message*
- * says: an implicit position tells the author what type it wanted, and an ascription tells them that
- * `::` does not narrow.
+ * An ascription and an argument position used to be different code in `compiler/resolve` (the stage
+ * J173 deleted), and the difference was a bug: `::` passed `implicit == false` and took the
+ * `Narrow` instance, which made an ascription the one construct in the language that could silently
+ * remove data - `length(xs) :: Int` truncating a sixty-four-bit length to thirty-two on one target
+ * and being free on the other. They are one rule with one difference, and the difference is what
+ * the *message* says: an implicit position tells the author what type it wanted, and an ascription
+ * tells them that `::` does not narrow.
  *
  * ## What is not here
  *
@@ -225,7 +225,7 @@ Node* Resolver::refuseConversion(DeclPtr<Type> to, DeclPtr<Type> from, LocationI
  */
 /*
  * A container that did not reach an array position, said as the capability that was missing - J94
- * §4's "an argument must be Array(I32)" collapse, fixed in J139 in the shipping stage's words.
+ * §4's "an argument must be Array(I32)" collapse, fixed in J139 in the old stage's words.
  *
  * Three shapes, and each is a sentence about what the value *is* rather than about two types that
  * failed to unify. A fixed array at a growable position cannot grow - only the operations that grow

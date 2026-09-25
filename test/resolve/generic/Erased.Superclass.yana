@@ -2,8 +2,6 @@
    A class member reached through a **superclass** of a declared requirement, from a body compiled
    once.
 
-   # resolver: ownership
-
    The promise was never in doubt - an instance of `Ord(T)` cannot be declared without one of
    `Eq(T)`, which is why `dischargeRequirements` admits the call. What was missing was somewhere to
    read the answer from: the environment slot holds `Ord`'s witness, and `Eq`'s members were not in
@@ -17,7 +15,7 @@
    `classProves` carrying the offset the proof landed at - one walk and not two, because two
    superclasses that are the same class at different arguments are two ranges of one table.
 
-   The alternative is a **pointer** per superclass, which is what the shipping stage writes. It buys
+   The alternative is a **pointer** per superclass, which is what the shipping stage wrote. It buys
    a shared grandparent being one table and costs a load per level at every dispatch; a hierarchy
    here is two or three deep with three or four cells per class, so the duplication is smaller than
    the indirection.

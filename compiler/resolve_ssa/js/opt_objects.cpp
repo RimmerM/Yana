@@ -137,8 +137,9 @@ bool Optimizer::adoptAt(JsBlock& block, Size at) {
  *
  * That is five allocations on the path that returns the string unchanged, which is the path the
  * Unicode conformance cases take most of the time: `normalizeForm` allocates **1,581 MB** over
- * `test/base` here against the shipping backend's **67 MB**, and the shipping backend's
- * difference is not an optimization - it writes the same objects *inside* the `else`.
+ * `test/base` here against the old JavaScript backend's **67 MB** (J77; that backend went with
+ * `compiler/resolve` in J173), and its difference was not an optimization - it wrote the same
+ * objects *inside* the `else`.
  *
  * The safety argument is two facts and a refusal:
  *

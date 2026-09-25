@@ -2,8 +2,8 @@
    Writing an element of a literal, and the three things that stop it folding back into one.
 
    `InstAggregate` makes a literal one instruction, so `xs[1] = 20` after it is a rewrite of that
-   instruction rather than a store to remove - `foldIntoAggregate` in opt/opt_place.cpp. The JS tree
-   peephole does the same thing one stage later for the shape the backend produces.
+   instruction rather than a store to remove - `foldIntoAggregate` in `compiler/opt`, deleted in
+   J173. The JS tree peephole does the same one stage later for the shape the backend produces.
 
    Each function below removes one of the conditions, and the two that must *not* fold are the point:
 

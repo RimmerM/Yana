@@ -1,8 +1,6 @@
 {-
    An operator whose right operand widens the left one's float type - J92's review item 13.
 
-   # resolver: ownership
-
    `a + b` at `(F32, F64)` binds `F64` from the right operand, and the left one has to be brought up
    to it afterwards - `widenPreparedArguments`, which did that for integers only. The float left
    operand reached `addBinary` as an `F32` beside an `F64`: an assertion in a checked build, and "the

@@ -26,9 +26,9 @@ namespace jsir {
  *
  * Here, in the table that records a `JsShape`'s final key, because the *representation* is what
  * decides them and two spellings of one key are two hidden classes for one record - a value built
- * by one generator and read by the other answers `undefined`, and there is no diagnostic for that.
- * Four places spelled them: `repr.cpp` interning shape properties, `codegen/js/name.cpp`'s
- * `nameSharedFields`, `gen.cpp`'s reference fields, and the two backends' argument flatteners.
+ * by one piece of code and read by another answers `undefined`, and there is no diagnostic for
+ * that. Four places spelled them: `repr.cpp` interning shape properties, `codegen/js/name.cpp`'s
+ * `nameSharedFields`, the old backend's `gen.cpp` reference fields, and two argument flatteners.
  *
  * A `constexpr` table rather than an interned set, because the two consumers intern into different
  * things - a `StringId` in the shape table, a `Name` in the file being emitted - and what has to

@@ -584,9 +584,9 @@ struct Editor {
      * from the old block to the new.
      *
      * By **ordinal**, not by target. `branch %c, X, X` is legal, so "the edge from here to X" names
-     * two of them, and the old stage's version that took a target changed one arm of the branch,
-     * both edge records and every matching predecessor entry - three different answers to one
-     * question. Told which arm, this moves exactly one of each.
+     * two of them, and `compiler/resolve`'s version (deleted in J173) that took a target changed
+     * one arm of the branch, both edge records and every matching predecessor entry - three
+     * different answers to one question. Told which arm, this moves exactly one of each.
      *
      * The new target must declare the arguments the edge already supplies. An edge whose list does
      * not match its target is IR the verifier rejects, so it is refused where it is made rather than
@@ -677,9 +677,9 @@ private:
     Value* makeBlockArgument(Block& block, const Occurrence& occurrence, Convention convention);
     void recordUse(Inst& inst, Use used);
 
-    // The half-update primitives, private for the reason the old stage's are: with them in reach,
-    // "drop the old use, repoint the operand, record the new one" is three statements a pass can get
-    // two-thirds of.
+    // The half-update primitives, private for the reason `compiler/resolve`'s were: with them in
+    // reach, "drop the old use, repoint the operand, record the new one" is three statements a pass
+    // can get two-thirds of.
     void dropUse(Value& value, Inst& user);
     void dropUses(Inst& inst);
     void unlinkInst(Inst& inst);

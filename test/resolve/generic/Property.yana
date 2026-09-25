@@ -1,8 +1,6 @@
 {-
    Structural field requirements - `a.field: b`.
 
-   # resolver: ownership
-
    A field is reached by *name* in the source and by *index* in a body, and a generic body is where
    the two part company: it is resolved once, so it cannot hold an index that differs per
    instantiation. What it holds instead is the **requirement**, as a projection step whose payload is
@@ -68,7 +66,7 @@ fn (a.size: I32) bump(&x: a) -> I32:
 
    A slot is one cell, and what a body does with it is read off the *declared field type* rather than
    out of the data. That is what keeps a field access from being a branch, and it is the same
-   argument `isNarrowRepr` makes in the old stage about which shape a `&T` takes: both ends have the
+   argument `isNarrowRepr` made in the old stage about which shape a `&T` takes: both ends have the
    declaration, so neither has to be told what the other chose.
 
     - `size: I32` fills its own storage, so the cell is a **byte offset** and the body emits the

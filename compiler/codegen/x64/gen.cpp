@@ -5390,8 +5390,8 @@ void AsmModule::resolveRelocations(LowerGlobal* anchor) {
          *
          * Both offsets are inside this image, so their difference is the same number wherever the
          * image is later mapped - which is the whole reason a slot is anchor-relative rather than
-         * absolute, and why the JIT and an ELF executable can hold identical bytes. See
-         * repr/table.h.
+         * absolute, and why the JIT and an ELF executable can hold identical bytes. See the erased
+         * ABI in resolve_ssa/lower/README.md.
          */
         if(r.anchorRelative) {
             // A slot without an anchor to measure from would be written as an offset from zero,

@@ -3,8 +3,8 @@
 
    `compiler/lower/lower_induction.h` - `base + i*stride` is replaced by a pointer advanced by
    `stride` on the back edge, wherever the stride is not one the addressing mode holds for free. The
-   `.lower.expect` beside this file records the shapes; this file's job is the part a golden cannot
-   check, which is that the answers did not move.
+   `.mir.lower.expect` beside this file records the shapes; this file's job is the part a golden
+   cannot check, which is that the answers did not move.
 
    **The counter's width, and which narrow ones are admitted.** The rewrite is only sound where the
    counter reaches the address at the width the address is computed in. An `Int` counter arrives
@@ -15,7 +15,7 @@
    counter has no such guard and is left alone, since `doc/spec/types.md` says integer overflow wraps.
 
    So the two `sumInt`/`forInt` functions below are the pair: same source but for the loop form, one
-   reduced and one not, and the `.lower.expect` is what says which.
+   reduced and one not, and the `.mir.lower.expect` is what says which.
 
    **Why the strides are 24 and 32.** A scale of 1, 2, 4 or 8 is a SIB byte and costs nothing, so
    those are declined on purpose - `sumWords` walks an `[I64]` and keeps its `base + i*8`. What is

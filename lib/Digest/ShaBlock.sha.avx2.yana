@@ -85,11 +85,11 @@ fn loadWords(from: [U8], at: Size) -> Vec(U32, 4) =
    Both are free - a bitcast between two vectors of one width moves no bits.
 
    **The pattern is written at each of the two call sites rather than passed to a shared helper**,
-   and that is forced twice over. A `[Int *16]` *parameter* is a `Flat(Int)` - `bindingType` turns
-   every fixed-array parameter into a slice, which is exactly "forget the count" - so a helper could
-   not state the result's width; and `shuffle` reads its pattern out of the literal that carried it,
-   so a pattern arriving as a parameter is not a constant this resolver can see at all. Both say the
-   same thing: a lane pattern is part of the operation, not an argument to it.
+   because `shuffle` reads its pattern out of the literal at the call: a pattern arriving as a
+   parameter is refused as "a lane pattern must be written as a literal at the call", and
+   `@inline(always)` on the helper does not change that. A lane pattern is part of the operation,
+   not an argument to it. (A `[Int *16]` parameter does keep its count now, so a helper could state
+   the result's width; that was the other half of the reason while `compiler/resolve` existed.)
 -}
 @x86_legacy_sse
 fn swapWordBytes(words: Vec(U32, 4)) -> Vec(U32, 4) =
@@ -457,7 +457,7 @@ fn sha1CompressBlocks(&h: [U32 *5], from: [U8], at: Size, blocks: Size):
    Four functions and not one with a parameter, and that is the language rather than a preference:
    the group number is `sha1rnds4`'s trailing byte, so it has to be a literal where the intrinsic
    is written - a parameter carrying it would be a value, and there is no value the instruction can
-   take. See `emitSha1Rounds` in resolve/simd.cpp, which is where that is checked.
+   take. See `x86Sha1Rounds` in compiler/resolve_mir/native.def.
 
    `carry` is where this group's `A` is kept for the group after it, and `e` is what the group
    before it left. The caller alternates the two arguments, which is the whole of what the two

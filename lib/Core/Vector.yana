@@ -203,8 +203,9 @@ pub let vectorBytes = 0 :: Size
 
    **`round` breaks a tie away from zero** - `round(2.5)` is 3 - which is C's rule and not the
    even-tie rule an FPU's default mode uses. It is the one of the four with a choice to make and the
-   one no machine here encodes directly; see resolve/inst.def, which is where the rule is stated and
-   where the reason the other three need no such paragraph is written down.
+   one no machine here encodes directly; see `compiler/resolve`'s inst.def (deleted in J173), which
+   is where the rule is stated and where the reason the other three need no such paragraph is
+   written down.
 -}
 @builtin(vecTrunc) pub fn trunc(value: a) -> a
 @builtin(vecFloor) pub fn floor(value: a) -> a
@@ -257,8 +258,8 @@ pub let vectorBytes = 0 :: Size
    every width: `shuffle(v, [1, 0])` on a four-lane vector answers a two-lane one with no ascription,
    `shuffle(v, [0,1,2,3,0,1,2,3])` answers eight, and a sixty-four-lane permutation is a
    sixty-four-entry literal. The count comes out of the literal because the literal's length is
-   syntax - see `arrayShapeFor` in resolve/expr_call.cpp, which is what lets a fixed-array literal
-   fill a parameter whose count is a variable.
+   syntax, which is what lets a fixed-array literal fill a parameter whose count is a variable.
+
 
    `reverse`, `rotate` and the interleaves are the named patterns of this, kept as their own names
    for the reason `rotate` gives: a pattern built from the lane count cannot be written wrong at a

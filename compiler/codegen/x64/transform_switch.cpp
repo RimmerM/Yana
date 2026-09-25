@@ -77,9 +77,10 @@ static constexpr U64 kJumpTableMaxSpan = 1024;
 // comparison to save at most one comparison, and the leaf's tests are the correctly-predicted kind.
 static constexpr Size kSwitchLeafCases = 3;
 
-// Four bytes, and the same four `repr/table.h` describes - a signed difference from the label the
-// table is measured from. Here that label is the table itself, which is the one departure and is
-// what makes the dispatch read one address rather than two.
+// Four bytes, and the same four an erased table's address cell is (`kSlotBytes` in
+// `resolve_ssa/lower/internal.h`) - a signed difference from the label the table is measured from.
+// Here that label is the table itself, which is the one departure and is what makes the dispatch
+// read one address rather than two.
 static constexpr U32 kJumpTableCellBytes = 4;
 
 /*
@@ -266,8 +267,9 @@ static void emitBinarySearch(LowerBase base, LowerFunction& fun, LowerBlock* ori
  * The table itself: one four-byte cell per value in the span, plus one for everything outside it.
  *
  * A cell holds `target - &table`, which is a difference between two offsets inside the image and so
- * is the same number wherever the image is mapped - the same statement `repr/table.h` makes, with
- * the table standing in for the module's image anchor. That substitution is what the dispatch is
+ * is the same number wherever the image is mapped - the same statement the erased ABI's address
+ * cells make (`resolve_ssa/lower/README.md`), with the table standing in for the module's image
+ * anchor. That substitution is what the dispatch is
  * paid in: the code reading a cell already holds the table's address, because it indexed with it.
  */
 static LowerGlobal* buildJumpTable(Context& ctx, LowerModule& module, Size cells) {

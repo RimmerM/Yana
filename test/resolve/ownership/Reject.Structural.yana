@@ -1,15 +1,13 @@
 {-
    What a structural class refuses, and how it says so.
 
-   # resolver: ownership
-
-   `Structural.yana` is the accepting half and runs in both stages; this one names a resolver because
-   the two word the refusal differently, and the difference is the point. The shipping stage reports
-   a missing instance - "no instance of TrivialCopy for (Guard)" - which is what selection says when
-   the table has nothing. This stage answers *before* the table and therefore knows the difference
-   between "nothing declares it" and "the compiler has already decided otherwise", so it says the
-   second: a classification the compiler makes from the type is not one a program can fix by writing
-   an instance.
+   `Structural.yana` is the accepting half and used to run in both stages; this one named a resolver
+   because the two worded the refusal differently, and the difference was the point. The old
+   shipping stage reported a missing instance - "no instance of TrivialCopy for (Guard)" - which is
+   what selection said when the table had nothing. This stage answers *before* the table and
+   therefore knows the difference between "nothing declares it" and "the compiler has already
+   decided otherwise", so it says the second: a classification the compiler makes from the type is
+   not one a program can fix by writing an instance.
 
    Writing the instance the message declines to suggest is refused where instances are declared, by
    `isStructuralClass`'s third reader - and it cannot be spelled here anyway, since a class with no

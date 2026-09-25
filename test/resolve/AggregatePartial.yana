@@ -3,8 +3,8 @@
    `n` - and the whole of it has to survive.
 
    `InstAggregate` makes a record's fields one instruction, so a later write to one of them is either
-   folded into it (`foldIntoAggregate` in opt/opt_place.cpp) or left where it is. Each function below
-   arranges for the fold to decline, and asserts that the construction survives it:
+   folded into it (`compiler/opt`'s `foldIntoAggregate`, deleted in J173) or left where it is. Each
+   function below arranges for the fold to decline, and asserts that the construction survives it:
 
    - `computed` writes a value the block produces *after* the construction, which cannot move into it;
    - `readBetween` reads the field before overwriting it, so the constructed value is observable;

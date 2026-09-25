@@ -1,23 +1,25 @@
 # `resolve_mir` - source to ownership MIR
 
-The front half of the rewritten resolve stage: name resolution, logical types, ownership contracts,
-MIR construction and the checking that runs over it. `resolve_ssa` is the back half.
+The front half of the resolve stage: name resolution, logical types, ownership contracts, MIR
+construction and the checking that runs over it. `resolve_ssa` is the back half.
 
 The design is [`doc/inflight/Analysis-IR.md`](../../doc/inflight/Analysis-IR.md), whose part 5 is
-this IR and whose part 11 is why this exists beside `compiler/resolve` rather than replacing it a
-piece at a time. The source model it implements is
+this IR and whose part 11 is why this was written beside `compiler/resolve`, the first resolve
+stage, rather than replacing it a piece at a time. The source model it implements is
 [`Analysis-Borrows-Revised.md`](../../doc/proposal/Analysis-Borrows-Revised.md).
 
 **The document calls the two IRs OMIR and OSSA; the code calls them MIR and SSA.** One pair of names
 that both start with `O` made `om::` and `os::` a keystroke apart in every diff, and MIR-then-SSA
 says the order without knowing this compiler. The design record keeps its own spelling.
 
-**This is a clean rewrite and it shares no code with `compiler/resolve`.** It is selected at run time
-by `-resolver ownership` and **is the default on both platforms** since 2026-09-22 (J81); both hand a
-`LowerModule` to the same backends. `-resolver legacy` is now what reaches the old stage, which is
-kept as the comparison: its `-mode ir` and `-mode drops` dumps, its library modes, and the goldens in
-`test/` that only it produces are what a disagreement between the two is visible in. Part 11.5 is
-when it is deleted, and that is not on a schedule.
+**This was a clean rewrite and it shared no code with `compiler/resolve`.** The two ran side by
+side, selected at run time by `-resolver`, and both handed a `LowerModule` to the same backends;
+this one became the default on both platforms on 2026-09-22 (J81), and the old stage stayed as the
+comparison until 2026-09-25 (J173), when it was deleted with its optimizer (`compiler/opt`), its
+layout table (`compiler/repr`), the flag and the goldens only it produced. This is now the only
+resolve stage. Where this file still says **the old stage**, it means that deleted
+`compiler/resolve`, and the comparison is kept where it is the reason a decision here was made the
+way it was.
 
 ## The three things that are separate here and were not
 
@@ -88,13 +90,14 @@ contents, and 1.4x with the in-place growth. When something *was* allocated in b
 is the old allocate-and-copy, which is the bump allocator's own bargain.
 
 Allocations here are eight-aligned. `LinearArena::alloc` bumps by the raw size and
-`compiler/util/README.md` records the misalignment that produces; the fix is held up in the old tree
-by goldens with raw arena offsets in them, and there is no reason to acquire the same debt here.
+`compiler/util/README.md` records the misalignment that produces; the fix was held up in the old
+stage by goldens with raw arena offsets in them, and there was no reason to acquire the same debt
+here.
 
 ## The files
 
 `resolve.cpp` grew past the point where one file could be read, and is split the way
-`compiler/resolve` is - by what a reader is looking for rather than by size:
+`compiler/resolve` was - by what a reader is looking for rather than by size:
 
 | File | What is in it |
 | --- | --- |
@@ -136,13 +139,13 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 
 **A recovering compile is the same order with two differences** - `mir::recovering`, which is an
 editor's compile (`Context::index`, set only by `lsp::Session`) or a build that asked for it
-(`CompileSettings::recover`, which the driver sets for every `-resolver ownership` build that is not
-`-mode ast`). It does not stop at the checkpoint after the declaration passes, so bodies are resolved
-against whichever declarations did resolve; and a body whose walk reported - or reached a placeholder
-the parser left, or used a declaration that did not resolve, `Resolver::quietErrors` - has its MIR
-handle dropped at the end of the walk, so the verifier and the analyses see it as a declaration with
-no body rather than a malformed one. Every later checkpoint compares an `ErrorMark` instead of the
-program-wide count, so a pass stops such a compile only for what that pass reported.
+(`CompileSettings::recover`, which the driver sets for every build that is not `-mode ast`). It does
+not stop at the checkpoint after the declaration passes, so bodies are resolved against whichever
+declarations did resolve; and a body whose walk reported - or reached a placeholder the parser left,
+or used a declaration that did not resolve, `Resolver::quietErrors` - has its MIR handle dropped at
+the end of the walk, so the verifier and the analyses see it as a declaration with no body rather
+than a malformed one. Every later checkpoint compares an `ErrorMark` instead of the program-wide
+count, so a pass stops such a compile only for what that pass reported.
 
 That is what makes one build report every file's mistakes rather than the first stage's: without it a
 parse error anywhere stopped the compile before resolution and a type error anywhere stopped it before
@@ -302,8 +305,9 @@ set spans every test file, so a read of a global whose file has not run yet is t
 already was inside one top level. A bare **statement** stays refused there: a test file gets
 initializers, not a second program start.
 
-`test/lib/TestFileGlobals.yana` runs under both stages, and `test/lib/modules/GlobalInit.test.yana` beside
-it is the case that says the initializer was resolved in *its* module.
+`test/lib/TestFileGlobals.yana` is the fixture, and `test/lib/modules/GlobalInit.test.yana` beside it
+is the case that says the initializer was resolved in *its* module.
+
 
 ## Milestone
 
@@ -437,14 +441,14 @@ exists - is exactly where `checkCarriedOrigins` fires, and there the environment
 block the value owns**.
 
 A block is the environment record and nothing else. What releases it is named by **four bytes in
-front of the lifted function** - prefix data, `LowerFunction::prefix`, the same mechanism the
-shipping stage uses - so the block costs no header and the pair costs no tag;
-`resolve_ssa/lower/fun.cpp` builds all of it, beside the `{code, env}` pair, which is `@box`'s
-arrangement - the ownership is decided here and the allocation lives one tier down. The captures
-themselves become the spec's fourth kind, a **consumed** capture (`CaptureKind::Owned`), so the
-enclosing binding is moved out of and the environment owns what it holds. Deciding this from the
-position rather than from the ownership analysis is forced: the analysis knows more and runs after
-the body is built, and the capture conventions are settled *while* it is built.
+front of the lifted function** - prefix data, `LowerFunction::prefix`, the same mechanism the old
+stage used - so the block costs no header and the pair costs no tag; `resolve_ssa/lower/fun.cpp`
+builds all of it, beside the `{code, env}` pair, which is `@box`'s arrangement - the ownership is
+decided here and the allocation lives one tier down. The captures themselves become the spec's
+fourth kind, a **consumed** capture (`CaptureKind::Owned`), so the enclosing binding is moved out of
+and the environment owns what it holds. Deciding this from the position rather than from the
+ownership analysis is forced: the analysis knows more and runs after the body is built, and the
+capture conventions are settled *while* it is built.
 
 **The cell in front of the code holds `teardown - &image$base`**, and a zero cell is a lambda that
 owes nothing. That is D17's one open question, and the answer moved once. J26
@@ -602,8 +606,8 @@ A **condition** is a *sequence of tests* rather than a value that is then tested
 split at its loosest operators when those are all `&&`, so the split is the *declared* fixity's answer
 and not the parser's nesting - `a == 1 && b` splits and `a && b || c` does not - and each span's failure
 edge is the whole condition's. `while` needed nothing of its own, since both go through one
-`resolveCondition`. The shipping stage does not do this; `test/resolve/Conjunction.yana` is the
-fixture, and five existing `&&` goldens shrank when the merged `Bool` stopped being built.
+`resolveCondition`. `test/resolve/Conjunction.yana` is the fixture, and five existing `&&` goldens
+shrank when the merged `Bool` stopped being built.
 
 **Conversions** - `Widen`, `Narrow` and `Bitcast`, the ladders over every ordered pair of numbers,
 `::` as the selection that may widen, and the implicit widening every declared position performs. See
@@ -612,14 +616,14 @@ fixture, and five existing `&&` goldens shrank when the merged `Bool` stopped be
 A **qualified alias** is refused for a different reason - it is a type rather than a spelling, and
 needs `deriving` as well as the conversions it now has.
 
-**Linear types**, which are this stage's alone: `@explicitDrop` withholds the compiler's permission
+**Linear types**, which were this stage's alone: `@explicitDrop` withholds the compiler's permission
 to insert a teardown, `->x` writes a disposal down, and `@local` says who may write one. See
 [The Drop, Reclaim and Copy classes](#the-drop-reclaim-and-copy-classes) below and
 `doc/proposal/Design-Linear-Types.md`, whose build order this implements the first four steps of.
-The shipping stage refuses `->x` by name and accepts both attributes without acting on them, so a
-fixture about any of this carries `# resolver: ownership`.
-**The standard library is `lib/`, and it is the only one.** `LibrarySource::directory` answers the
-same directory for both stages since 2026-09-07 (J21), and `-lib` overrides it for both the same way.
+The old stage refused `->x` by name and accepted both attributes without acting on them.
+
+**The standard library is `lib/`, and it is the only one.** `LibrarySource::directory` answers it,
+and `-lib` overrides it; since 2026-09-07 (J21) that was also the old stage's directory.
 
 *There used to be a second one, `prelude/`.* It was a directory laid out exactly like `lib/`, found
 by the same walk, judged by the same `Core/Core.yana` test, holding a *subset* of `lib/Core`'s heads
@@ -638,8 +642,9 @@ written in Yana is checked by the same front end that checks every other declara
 that would not typecheck is a build failure rather than a mismatch found at milestone 8.
 
 Anything a source file names that the library does not declare is reported by name as not
-implemented, because this stage is chosen by a flag over a corpus written for the other one and
-meeting an unimplemented construction is an ordinary event.
+implemented. That dates from when this stage was chosen by a flag over a corpus written for the old
+one and meeting an unimplemented construction was an ordinary event.
+
 
 **The builtin type names are `intrinsic/primitive.def`** and nothing else - `Types::findBuiltin` is
 the one lookup, and it turns a row of that table into this stage's representation. The eight fixed
@@ -703,8 +708,7 @@ strict order between them - `import.cpp`. `discoverModules` walks the imports tr
 the project's own files first and `lib/` second, and creates a `Module` for everything it reaches;
 `linkImports` then fills in the edges. Two passes because a cycle has to have **one** meaning: an
 import that triggered the resolution of what it named would give a two-module cycle two readings
-depending on which was compiled first. `resolve/ImportCycle.yana` is the fixture, compiled by both
-stages.
+depending on which was compiled first. `resolve/ImportCycle.yana` is the fixture.
 
 The project's files first and `lib/` second is the direction that has to work: a library is shared
 and a program is not, so the one that can be changed to resolve a collision is the program - and it
@@ -724,16 +728,17 @@ looked for in and in what order, what an import's include/exclude lists hide, an
 two imports offer the same name. A local definition shadows an import outright; two imports offering
 one name are *ambiguous* rather than resolved by import order.
 
-A name is a sequence of segments and so is a **declaration's** name, which is what makes `Maybe.Just`
-and `Hmac.sha1` one lookup rather than two: `NameRef` (in `compiler/compiler/context.h`, since both
-resolvers walk names this way) says how much of a name a step consumed, and the one place that
-matters twice is an import whose local name is also a namespace of its own declarations - `File.open`
-where `File` is both. The alias is consumed *before* the whole name is tried rather than instead of
-it, so such a namespace is reachable rather than shadowed - and each reading applies **both halves of
-visibility inside itself**, so a reading that finds a name the author may not have is "not here"
-rather than an answer that masks the next reading. A module declaring a private `f` beside a
-`pub M.f` offers the second to an importer writing `M.f`; `resolve/module/Import.yana` asserts it,
-and the shipping stage had the same masking bug and has the same fix.
+A name is a sequence of segments and so is a **declaration's** name, which is what makes
+`Maybe.Just` and `Hmac.sha1` one lookup rather than two: `NameRef` (in
+`compiler/compiler/context.h`, put there when two resolve stages walked names this way) says how
+much of a name a step consumed, and the one place that matters twice is an import whose local name
+is also a namespace of its own declarations - `File.open` where `File` is both. The alias is
+consumed *before* the whole name is tried rather than instead of it, so such a namespace is
+reachable rather than shadowed - and each reading applies **both halves of visibility inside
+itself**, so a reading that finds a name the author may not have is "not here" rather than an answer
+that masks the next reading. A module declaring a private `f` beside a `pub M.f` offers the second
+to an importer writing `M.f`; `resolve/module/Import.yana` asserts it, and the old stage had the
+same masking bug and the same fix.
 
 **`pub` has two sides and they are two files.** The reading side is one clause in the traversal: a
 symbol found in an imported module is a hit only when it was exported, and a private name is *not
@@ -758,7 +763,8 @@ diagnostic, which is
 
 `kOperators` carried a precedence column until 2026-09-02 and it *had already diverged from Core*:
 `shl` sat one rung above `and` there and beside it in Core, so `a and b shl c` was `a and (b shl c)`
-here and `(a and b) shl c` under the shipping stage - one source, two programs, nothing to say so.
+here and `(a and b) shl c` under the old stage - one source, two programs, nothing to say so.
+
 The table is gone entirely now - see "Operators are calls" below.
 
 A module's **own** declaration wins over any import's, because `name.h`'s `search` reads the module
@@ -769,8 +775,8 @@ else gets. `test/resolve/module/Fixity.yana` asserts both halves.
 before it walks a single import, because a program whose source names nothing still needs the three
 ownership classes and `[a]` to mean something - so the edge `linkImports` had written and left
 dormant went live with no change to `linkImports` at all, which is what the dormant version was for.
-The module it seeds is `lib/Core`, found by `LibrarySource::directory` - the same answer the
-shipping stage gets, since J21 retired the stand-in library this stage used to read.
+The module it seeds is `lib/Core`, found by `LibrarySource::directory` - the same answer the old
+stage got, since J21 retired the stand-in library this stage used to read.
 
 ### What a signature is here
 
@@ -817,7 +823,7 @@ its class signature's, an instance member's is inherited from it and a lens's is
 `test/resolve/ownership/ImplicitReturn.yana` and its `Reject.` half are the fixtures.
 
 One thing the demand does not reach: `checkExports` runs before any body, so a `pub fn f() = Secret
-{...}` leaks its result type without being told. That is where the shipping stage is too.
+{...}` leaks its result type without being told. That is where the old stage was too.
 
 A shared parameter of a trivially copyable type is still not a loan - the position copies, per
 `doc/spec/ownership.md`, and a trivial value's loan and its copy are physically the same thing. That
@@ -939,7 +945,7 @@ most one plain function" true where two of them could otherwise reach one call. 
 reading is asked **first**: `search` reports an ambiguity as it looks, so a bare lookup performed
 first would already have said "visible through more than one import" by the time the type's own
 function could have replaced its answer. Composed rather than registered by a declaration pass - the
-shipping stage keys a hash map on (declaring type, member) to avoid the concatenation, and here that
+old stage keyed a hash map on (declaring type, member) to avoid the concatenation, and here that
 would be a second table to keep in step with the declarations for a question `findOverloads` already
 answers.
 
@@ -951,13 +957,14 @@ report "upTo is an iterator, write it as the source of a `for` loop" - which is 
 write. `handoverCall` resolves the receiver afterwards, in the caller's block and before the
 arguments, which is where a written first argument would have been.
 
-Three things the form does not reach, each grammar rather than rule. A `@lazy` first parameter, since
-deciding the form needs the receiver evaluated and a deferred position is the one that must not be.
-Type pushdown onto the receiver, for the same reason. And a receiver whose own resolution depends on
-the access - `xs[i].bump()` where `bump` takes `&self` - is read shared, because `Index.get` had to
-be emitted before a candidate could say it wanted `getMut`; the shipping stage refuses that program
-with the same reason. `test/resolve/DotCall.yana` asserts every shape by a number and both stages run
-it against one `.run.expect`; `AtomicOwnership.yana` is the class half at `Atomic(a)`.
+Three things the form does not reach, each grammar rather than rule. A `@lazy` first parameter,
+since deciding the form needs the receiver evaluated and a deferred position is the one that must
+not be. Type pushdown onto the receiver, for the same reason. And a receiver whose own resolution
+depends on the access - `xs[i].bump()` where `bump` takes `&self` - is read shared, because
+`Index.get` had to be emitted before a candidate could say it wanted `getMut`; the old stage refused
+that program with the same reason. `test/resolve/DotCall.yana` asserts every shape by a number;
+`AtomicOwnership.yana` is the class half at `Atomic(a)`.
+
 
 ### Records, and what a type owes
 
@@ -1113,10 +1120,10 @@ set two fields of one `v.a` *by construction* rather than by a rule: both paths 
 the same local, so there is nothing for a second copy to discard, and the source expression is named
 once however many paths there are.
 
-Every replacement is a `Destination::Assign` through the same `Builder::addWrite` a written
-`v.f = x` reaches, which is the one thing this construct owes and the one thing the shipping stage
-leaves undone: the copy put a live value in every field, so a field being replaced has one to
-release. `Update.Owned.yana` counts them.
+Every replacement is a `Destination::Assign` through the same `Builder::addWrite` a written `v.f =
+x` reaches, which is the one thing this construct owes and the one thing the old stage left undone:
+the copy put a live value in every field, so a field being replaced has one to release.
+`Update.Owned.yana` counts them.
 
 **What the copy is, is the ownership rules and not this expression's business.** The source is read
 once, at an owned request, and `readMode` answers with the duplication a `TrivialCopy` type gets for
@@ -1128,9 +1135,9 @@ refusal names. A source that is *produced* - a call result, another update - is 
 either to act on and is simply the value, so `->` on one is neither an error nor a second path.
 
 The order is written rather than incidental: the replacements are resolved **before** the source
-relocates, so `{->v | x: v.x + 1}` reads `v` while it is still there, and a copy is taken as early as
-it can be because it leaves the source readable. `Record.yana` is the shared fixture,
-`ownership/Update.Copy.yana` the authored-`Copy` half the shipping stage cannot compile, and
+relocates, so `{->v | x: v.x + 1}` reads `v` while it is still there, and a copy is taken as early
+as it can be because it leaves the source readable. `Record.yana` is the shared fixture,
+`ownership/Update.Copy.yana` the authored-`Copy` half the old stage could not compile, and
 `ownership/Reject.Update.yana` the refusals.
 
 ### Containers, and why there is no slice type
@@ -1153,31 +1160,31 @@ writes it and `lib/Core/Array.native.yana` writes the same attribute on the real
 `Array(T)` intern to one handle exactly as the spec says they are one type. What the compiler decides
 about it is the *window*, whose two words are `manifest.cpp`'s answer and appear in no type.
 
-**This is the whole of what the rewrite is for, and the shipping stage is the argument.** There,
-`&[T]` and `l'[T]` are third and fourth `TypePtr`s - `sliceCapabilityType` mints a sibling
-`RecordType` carrying `canonical`, `sliceMut` and `sliceLoan` - and the cost is on the record:
-`substituteType` dropped the capability, so a class member declaring `-> &Flat(a)` specialized to a
-*shared* window and every instance was compared against the wrong one; `bindingType` has to fold the
-sibling back into a `BindType`; `sliceOf` throws the count away, so `'[Int *4]` written as a type
-loses it and such a function cannot declare its own result; and ~58 sites have to ask "or a sibling
-of one". Here the form is four bits of `Contract`, `sameType` is untouched, and `substituteType` has
-nothing extra to preserve.
+**This is the whole of what the rewrite was for, and the old stage is the argument.** There, `&[T]`
+and `l'[T]` were third and fourth `TypePtr`s - `sliceCapabilityType` minted a sibling `RecordType`
+carrying `canonical`, `sliceMut` and `sliceLoan` - and the cost was on the record: `substituteType`
+dropped the capability, so a class member declaring `-> &Flat(a)` specialized to a *shared* window
+and every instance was compared against the wrong one; `bindingType` had to fold the sibling back
+into a `BindType`; `sliceOf` threw the count away, so `'[Int *4]` written as a type lost it and such
+a function could not declare its own result; and ~58 sites had to ask "or a sibling of one". Here
+the form is four bits of `Contract`, `sameType` is untouched, and `substituteType` has nothing extra
+to preserve.
 
-**An element is a place.** `Place::Index` is a projection of the container's own place, whose payload
-is the node producing the index. The shipping stage reaches one as `borrowMut(self.run.items + index)`
-instead, and both consequences were real: a `[T *n]` local's teardown was placed *nowhere*, because
-`rootLocal` of an address is nothing and the local never became owned; and `f(&xs[i], &xs[j])` was
-accepted with no check of any kind, `xs[0], xs[0]` included, reachable in safe code as a
-use-after-free. Rooted at the parent, `place.h`'s own rule - "`Index` steps of one parent are not
+**An element is a place.** `Place::Index` is a projection of the container's own place, whose
+payload is the node producing the index. The old stage reached one as `borrowMut(self.run.items +
+index)` instead, and both consequences were real: a `[T *n]` local's teardown was placed *nowhere*,
+because `rootLocal` of an address is nothing and the local never became owned; and `f(&xs[i],
+&xs[j])` was accepted with no check of any kind, `xs[0], xs[0]` included, reachable in safe code as
+a use-after-free. Rooted at the parent, `place.h`'s own rule - "`Index` steps of one parent are not
 [disjoint] unless a separately justified rule proves it" - applies with nothing added, and
 `ownership/Reject.ArrayBorrow.yana` is the fixture.
 
 **The adaptation is a node over a borrow.** A `[T *n]` argument reaching a `[T]` position is a
 `window` node whose operand is the value the `read` produced - so the loan is the read's, the window
-carries it (`analyze_loan.cpp` unions the source's origins into the result's root), and every question
-about how long a window may live is a question about that loan. The shipping stage builds a two-word
-*record* here, which is a fresh owned value whose relationship to the container then has to be
-recovered afterwards through `Local::viewOf` and `resolveViewRoots` - and while one of those was
+carries it (`analyze_loan.cpp` unions the source's origins into the result's root), and every
+question about how long a window may live is a question about that loan. The old stage built a
+two-word *record* here, which is a fresh owned value whose relationship to the container then had to
+be recovered afterwards through `Local::viewOf` and `resolveViewRoots` - and while one of those was
 missing, `sum(slice(elements(xs), 1, 4))` released `xs` before reading through the window.
 
 `requestOf` grew a third `published` case for the same reason: a window describes the *caller's*
@@ -1214,7 +1221,8 @@ declaration binds while it is being read - its type variables, and, when later w
 the requirements its signature declared and its body inferred. A **`GenSchema`** is the canonical
 numbering derived from a *finished* context, and nothing may read a slot number before it exists.
 
-The shipping stage keeps one structure and caches the numbering on it, discarding the cache whenever
+The old stage kept one structure and cached the numbering on it, discarding the cache whenever
+
 a requirement arrives. That works only while nothing has already acted on a number: a slot number is
 what emitted code *loads*, so a body that read slot 3 and then inferred a fourth requirement holds a
 number that has silently come to mean something else. Splitting them makes that unrepresentable -
@@ -1360,8 +1368,7 @@ one table lookup that needs the table to still be filling - the same statement `
 phase order makes about `classifyTypes` waiting for the last `instance`. A parametric head still
 proves its superclasses from its own context rather than from the table, which is the second of the
 two answers below. `test/resolve/SuperclassOrder.yana` is the fixture, and it is in the shared
-corpus rather than in `ownership/` because the shipping stage answers this too - a rule two stages
-hold is tested against both.
+corpus rather than in `ownership/` because the old stage answered this too.
 
 **A requirement has three answers and deliberately no fourth** - `dischargeRequirements`. If the type
 the call chose is concrete, the instance has to exist *at the call*. If it is one of the enclosing
@@ -1397,16 +1404,15 @@ the shape: `Magnitude(a -> w)` decides `w` to `U32` one requirement earlier and 
 now sits at the top of `Selector::select`, ahead of the memo and the cycle check because it is a fold
 over the type rather than a search. `StructuralContext.yana`.
 
-**A requirement a signature can *prove* is one it can be asked to *decide* from**, and the two halves
-had to close over superclasses alike. `classProves` already walked them for the proof;
+**A requirement a signature can *prove* is one it can be asked to *decide* from**, and the two
+halves had to close over superclasses alike. `classProves` already walked them for the proof;
 `fillFromRequirement` searched the enclosing signature's clauses for the class *as written*, so
 `class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m)` - whose `m` no member of
 `Real` mentions - left every `value .<= 0.0` in a body constrained on `Real` reporting "no argument
 decides what m is", 24 times across `lib/Math`. `heldPromises` is the closure: a clause, or a
 superclass of one expressed in that clause's arguments, bounded by a depth for `superclassPath`'s
-reason. `SuperclassDecides.yana`, which asserts the one level `lib/Math` writes - the shipping stage
-looks exactly one superclass deep and refuses a second, which is a difference to settle before it is
-written into a shared golden.
+reason. `SuperclassDecides.yana` asserts the one level `lib/Math` writes; the old stage looked
+exactly one superclass deep and refused a second, which is why the fixture stops at one.
 
 **A default is a generic body, and an instance that leaves the member out gets it specialized.** So
 a default and a hand-written implementation are the same kind of thing by the time anything calls
@@ -1503,8 +1509,8 @@ emitters, which are reached by `(role, member position)`.
 `provideEnumInstances` is the second of those, and it is the one pass here that runs **after** the
 written instances rather than before them - `resolve.cpp`'s order, right after `declare`. That
 position is what makes "a declared instance wins" a condition instead of an ordering: the walk skips
-a head the table already holds, where the shipping stage gets the same rule from consulting its
-hooks only on a lookup that found nothing. Each payload-free sum gets three:
+a head the table already holds, where the old stage got the same rule from consulting its hooks only
+on a lookup that found nothing. Each payload-free sum gets three:
 
 - **`Enum`**, which nobody may write - `valueOf` is the tag read at the width `enumValueTypeOf`
   determined (`Int`, or `I64` where a `@value` needs it), and `fromValue` is a range test where the
@@ -1554,9 +1560,8 @@ value would be answering about the register's padding. Two `op.def` rows (`Gathe
 `ScatterBits`, `Closed` because the library is explicit that both are total) crossing to
 `lower/inst.def`'s own pair as themselves. `BitPermute.yana` and `BitPermute.Bmi2.yana`.
 
-Fixtures: `Operators.yana`, compiled by both stages against one run expectation,
-`ownership/CountedFor.Class.yana` for the loop the shipping stage refuses, and `EnumInstances.yana`
-and `ByteSwap.yana`, both shared.
+Fixtures: `Operators.yana`, `ownership/CountedFor.Class.yana` for the loop the old stage refused,
+`EnumInstances.yana` and `ByteSwap.yana`.
 
 ### Conversions, and where `::` stops
 
@@ -1567,11 +1572,12 @@ element type and a lambda its signature. What is left when the value still has a
 call to `convertValue`, which is the same function every implicit position goes through -
 `convert.cpp`, and the file is the argument for there being one.
 
-**Which class relates a pair is `compiler/intrinsic/convert.h`**, and it is read by *both* resolve
-stages. That is not tidiness: a fixture is compiled by both and the two answers compared, so two
-ladders that disagreed by one rung would be one source that compiles under one stage and not the
-other - the same failure the fixity table had before `lib/Core` took it over. `resolve/core.cpp`'s
-`defineRung` and this stage's `eachHead` are two walks over one rule.
+**Which class relates a pair is `compiler/intrinsic/convert.h`**, which is outside this directory
+because both resolve stages read it while there were two. That was not tidiness: a fixture was
+compiled by both and the two answers compared, so two ladders that disagreed by one rung would have
+been one source that compiled under one stage and not the other - the same failure the fixity table
+had before `lib/Core` took it over. `compiler/resolve`'s `defineRung` and this stage's `eachHead`
+were two walks over one rule.
 
 The rule, in three parts. `Widen` where every value of the source is a value of the destination -
 `integerRangeFits`, which reads the source's **maximum** and the destination's **minimum**, so a
@@ -1618,21 +1624,21 @@ by `reportOwnedSequence` rather than as a `Widen` instance nobody would write.
 **A derivation may not ask for its own view.** `fn elements(self: source'Array(a)) -> source'[a] =
 unclampedSlice(self, 0, self.length)` reads as the right statement and is not one: `unclampedSlice`
 takes a *window*, so the argument position asks an owner to become one, and the only thing that
-turns an owner into a window is this member. The shipping stage's conversion is structural there and
-the recursion never appears; here the adaptation is the call `known.def` says it is, so `elements`
+turns an owner into a window is this member. The old stage's conversion was structural there and the
+recursion never appears; here the adaptation is the call `known.def` says it is, so `elements`
 called itself on every path and `let xs = [1, 2, 3]; xs[0]` compiled against the real `lib/`
 segfaulted with no diagnostic anywhere. `Function::derivation` records the member and `adaptToView`
 refuses it - same type, same access, which is what makes it the recursion and not a neighbour, since
 a container whose `elements` derives a *different* container's view is an ordinary call and so is
 `elements` reaching the unique derivation. What a derivation has to do instead is *build* the view
-record out of the owner's fields, which is the `addRepresent` case beside it and what
-the stand-in library always did; `lib/Core/Container.yana` now writes the same four bodies,
-platform-split because the view record is a representation and the two targets do not share one.
+record out of the owner's fields, which is the `addRepresent` case beside it and what the stand-in
+library always did; `lib/Core/Container.yana` now writes the same four bodies, platform-split
+because the view record is a representation and the two targets do not share one.
 
-Fixtures: `Convert.yana`, compiled by both stages against one run expectation, and `Types.yana`,
-`Literal.yana`, `Promote.yana`, `Unsigned.yana` and `BitcastNarrow.yana` among the sixteen the
-ladder adopted. `ownership/Reject.Convert.yana` is the other side - the two refusals, the
-target-width note, and the position a converted value may not fill.
+Fixtures: `Convert.yana`, and `Types.yana`, `Literal.yana`, `Promote.yana`, `Unsigned.yana` and
+`BitcastNarrow.yana` among the sixteen the ladder adopted. `ownership/Reject.Convert.yana` is the
+other side - the two refusals, the target-width note, and the position a converted value may not
+fill.
 
 ### One branch construct, and the two forms that are not it
 
@@ -1676,8 +1682,8 @@ in the `Int` arm, and nowhere else.
 
 A `match` whose every arm is compile-time data states a **mapping**, and a mapping is a value rather
 than a shape of control flow. `matchAsMap` in resolve_match.cpp recognizes one and `mir::NodeMap`
-carries it - inventory D3, and `compiler/resolve/map.h` is the shipping stage's version of the same
-recognition, whose reasoning this inherits.
+carries it - inventory D3, and the old stage's `compiler/resolve/map.h` was the first version of the
+same recognition, whose reasoning this inherits.
 
 Two domains reach it. A **record**'s own constructors are a closed domain - a well-typed value holds
 one of them and nothing else - so there is no out-of-range case to guard and the node carries no
@@ -1698,15 +1704,16 @@ evaluated as it walked built the first arm's string literal and then found the b
 
 **Nothing about the target is decided here.** The node always exists, and which of six shapes it
 becomes - the constant, two comparisons, a bit mask, an affine step, a packed immediate, or a run of
-slots in read-only data - is answered once, at lowering, in `resolve_ssa/lower/map.cpp`. The shipping
-stage has to consult its size rule twice, once to promise and once to emit, because its recognizer
-owes its caller an emission; here the promise does not exist. The one thing recognition still bounds
+slots in read-only data - is answered once, at lowering, in `resolve_ssa/lower/map.cpp`. The old
+stage had to consult its size rule twice, once to promise and once to emit, because its recognizer
+owed its caller an emission; here the promise does not exist. The one thing recognition still bounds
 is `mapSpanAdmits`, and that is a statement about what a table may *be* rather than about whether one
 is worth having: five of the six shapes read no memory, but the sixth has to exist for every mapping
 the node admits, since there is no comparison chain left below to fall back to.
 
 A **string** result is the one exemption to "the result duplicates freely and owes nothing", and it
-is the shipping stage's: a literal's run is borrowed, so a slot holds two words describing bytes
+was the old stage's too: a literal's run is borrowed, so a slot holds two words describing bytes
+
 nobody owns and its teardown is the nothing a written literal's is. What a slot holds is what
 `stringLiteral` *returns*, built by running it - so nothing here spells a field of a `String`. The
 building is deferred to `resolveTextMaps`, beside `resolveTextGlobals` and for its reason: which
@@ -1834,10 +1841,8 @@ constructor pattern does. Four things are the file's own:
 spelling is not its class's name - `try` is a C++ keyword, and a spelling column would be the second
 name for one thing that `intrinsic/` exists to not have.
 
-Fixtures: `Try.Carrier.yana` and `OptChain.yana`, both compiled by **both stages** against one run
-expectation, and `ownership/Reject.Carrier.yana` for the twelve refusals. `Try.yana` is the shipping
-stage's own and cannot be shared: it asserts `?` inside a skipping lens written as `-> Maybe(a)`,
-where this stage declares one with `| E`.
+Fixtures: `Try.Carrier.yana` and `OptChain.yana`, and `ownership/Reject.Carrier.yana` for the twelve
+refusals.
 
 ### `intrinsic/` - the compiler's roles over this IR
 
@@ -1875,7 +1880,7 @@ is the pairing; the declaration's own body is still what a call reaches where th
 vector, so "no vector on this target" and "no compiler that picks" remain the same answer. The
 element is found by asking which of the call's *bound type arguments* has a natural vector - a bulk
 declaration binds a container and an element, and a container is a record - which is what lets the
-rule be stated without the compiler having to name `Chunked`. `VecString` went 9.00x of the shipping
+rule be stated without the compiler having to name `Chunked`. `VecString` went 9.00x of the old
 stage to 1.377x on the clock for it (`test/bench/findings.md` §81).
 
 **An intrinsic call is an ordinary call up to the last step.** Name resolution, arity, inference,
@@ -1884,10 +1889,10 @@ the role decides only which node `resolveCall` builds instead of `addCall`. So a
 values already read under the mode `argumentMode` answered for the declared contract, and cannot
 apply a convention by hand because there is none left to apply.
 
-That is not a tidiness argument. The current resolver's `expandIntrinsic` applies none of the
-declared conventions and lets each emitter decide, which is how `Atomic.intoValue(->self: Atomic(a))`
-came to consume nothing: three emitters applied the handover by hand with a comment saying so, and
-the fourth did not.
+That is not a tidiness argument. The old stage's `expandIntrinsic` applied none of the declared
+conventions and let each emitter decide, which is how `Atomic.intoValue(->self: Atomic(a))` came to
+consume nothing: three emitters applied the handover by hand with a comment saying so, and the
+fourth did not.
 
 The other half is `op.def`'s shape, checked by `checkRoles` before any body is resolved. A signature
 with no body *is* the signature - nothing duplicates it - but an emitter necessarily assumes things
@@ -1898,27 +1903,27 @@ teardown obligation with the caller and the value with the pointee, with nothing
 **The raw pointer is the family that is built**, and it is the one place where what the declaration
 says decides more than a convention. `addressOf` is declared `fn addressOf(it: source'a) ->
 %source'a`: the parameter publishes an origin and the result names it, so the argument is read as a
-*loan of a place* rather than copied, and the pointer is an ordinary member of that origin set. Every
-question about how long the storage lives is then the loan's, and §12.3(c)'s refusal of an
+*loan of a place* rather than copied, and the pointer is an ordinary member of that origin set.
+Every question about how long the storage lives is then the loan's, and §12.3(c)'s refusal of an
 unqualified frame-rooted `%T` has a relationship to compare against - which since D15 it actually
 makes, `lib/Native/Pointer.yana` having been respelled to this on 2026-09-07. Written `it: a`, which
 is what it said before and what `doc/spec/native.md` never said, `readMode` answers `CopyTrivial` at
 every scalar and what arrives is a value rather than a loan; `fn leaks() -> %I32` over this frame's
-own storage was accepted in silence. The shipping stage reads the published signature at its plain
-positions - it supplies the definition, `takeRolePositionsPlain` in `resolve/module_decl.cpp` - so
-`test/resolve/Global.yana`'s answer there is what it always was.
+own storage was accepted in silence. The old stage read the published signature at its plain
+positions - it supplied the definition, `takeRolePositionsPlain` - so `test/resolve/Global.yana`'s
+answer there was what it always had been.
 
 **Which the emitter has to have an answer for, because `addressOf` is what makes storage exist.**
-`expandAddressOf` asks two questions of an operand that arrived owned, in the order the shipping
-stage's `materialize` asks them.
+`expandAddressOf` asks two questions of an operand that arrived owned, in the order the old stage's
+`materialize` asked them.
 
 First, **the storage it was copied out of, where the copy is one this position made**: a `Read` of a
-*writable* place is the case, and the address is that place's - the same `findPlace` step
-`expr_construct.cpp` takes, and the reason both stages say one thing about
+*writable* place is the case, and the address is that place's - the same `findPlace` step old
+stage's `expr_construct.cpp` took, and the reason both stages said one thing about
 `waitProcess(self.id, addressOf(status), 0)` followed by a read of `status`. Under the unpublished
-spelling the address of a copy would be a child's exit code written into a temporary nobody looks at. A plain
-`let x` is not storage anything may write through and keeps the copy, which is the meaning
-`test/resolve/Global.yana` records for the address of a value that cannot be assigned to.
+spelling the address of a copy would be a child's exit code written into a temporary nobody looks
+at. A plain `let x` is not storage anything may write through and keeps the copy, which is the
+meaning `test/resolve/Global.yana` records for the address of a value that cannot be assigned to.
 
 Otherwise the operand really is only a value: an unnamed local of the frame, written once, and the
 address is that slot's. The read of the slot is the declared position's request with `published`
@@ -1933,7 +1938,7 @@ handed is a borrow - an owned node result is nowhere, and there would be nothing
 be the address *of* - rather than testing it.
 
 `test/resolve/AddressTemporary.yana` is the fixture, in the shared corpus because both stages
-materialize and both have to answer the same number; the *first* question is reachable only under
+materialized and both had to answer the same number; the *first* question is reachable only under
 `lib`'s spelling, so `test/lib/PointerAddress.yana` is where it is stated.
 
 Two nodes carry it. `Node::Address` reshapes a borrow the way `window` does - `Inspect`, taking no
@@ -1957,14 +1962,13 @@ has a use for its whole range, since a framebuffer held as a fixed array is mega
 in `resolve_ssa/lower/erase.cpp` is where that is argued, and storing the bias rather than the
 alignment makes a stride one instruction shorter than it was.
 
-Implementing `size` is also what found the new stage laying out records **differently from the
-shipping one**: `layoutRecord` rounded a record's size up to its alignment, so `data Pad {wide: I64,
-narrow: I8}` was sixteen bytes here and nine there, and a `data Nest {inner: Pad, tag: I8}` put its
-tag at sixteen rather than at nine. A size is not a stride - `strideOf` is the rounding, applied by
-the two readers that want the other number - and nothing had noticed because the size was only ever
-used to allocate and to copy, where the padding is harmless. `test/resolve/intrinsic/Traits.yana`
-carries no resolver directive for that reason: both stages compile it and both are held to the same
-number.
+Implementing `size` is also what found this stage laying out records **differently from the old
+one**: `layoutRecord` rounded a record's size up to its alignment, so `data Pad {wide: I64, narrow:
+I8}` was sixteen bytes here and nine there, and a `data Nest {inner: Pad, tag: I8}` put its tag at
+sixteen rather than at nine. A size is not a stride - `strideOf` is the rounding, applied by the two
+readers that want the other number - and nothing had noticed because the size was only ever used to
+allocate and to copy, where the padding is harmless. `test/resolve/intrinsic/Traits.yana` carried no
+resolver directive for that reason: both stages compiled it and both were held to the same number.
 
 ### The operations a machine has and the IR does not
 
@@ -1974,9 +1978,9 @@ walk, so what the node holds is a column and a flat operand list, and the backen
 any of them means. The declarations that reach it are `@builtin` in `Native` and their signatures are
 what checked the arguments before the node was built.
 
-Sixteen rows and not the shipping stage's whole `NativeOp`. The host operations belong to a target
-this stage does not compile for, and a row with no producer is a description checked against nothing.
-The seven `syscallN` roles are **one** row, because an arity is a declaration's - a call's argument
+Sixteen rows and not the old stage's whole `NativeOp`. The host operations belong to a target this
+stage does not compile for, and a row with no producer is a description checked against nothing. The
+seven `syscallN` roles are **one** row, because an arity is a declaration's - a call's argument
 count decides which registers the kernel reads - and one row per arity would be six rows that lower
 identically.
 
@@ -2005,9 +2009,9 @@ hand it. The declaration takes an ordinary function of the language, closure inc
 carries is the `{code, env}` value the author wrote and **the pair is split at the lowering**:
 `resolve_ssa/lower/inst.cpp` already reads exactly that pair with `wordAt` at `funCodeOffset` and
 `funEnvOffset` for a call through a function value, so the one place that knows a function value is
-two words at two offsets stays one place. The shipping stage splits it in the resolver instead and
-hands the backend six operands; both ends agree on the backend's order,
-`(flags, stackTop, code, argument, threadId, env)`.
+two words at two offsets stays one place. The old stage split it in the resolver instead and handed
+the backend six operands; both agreed on the backend's order, `(flags, stackTop, code, argument,
+threadId, env)`.
 
 **What is *not* here is the whole-vector transfer**, and that is the decision worth recording.
 `vectorAt`, `vectorPast` and `setVectorAt` are `*p` and `store(p, v)` at a vector type: the address
@@ -2025,8 +2029,8 @@ to `InstLoad::overread` and to `LowerInstLoad::isOverread`, where the three pass
 that sets it, so the reasoning about when the tail-read guarantee may be spent is in one place, and
 no write ever carries it - a store past the end of an object is not a read of unspecified bytes but
 the destruction of whatever follows. The dump prints `read.past` and `load.past`;
-`test/resolve/VectorTransfer.yana` is the fixture, and its `loadx` in both stages' lower dumps is
-what says the bit survived the seam.
+`test/resolve/VectorTransfer.yana` is the fixture, and its `loadx` in the lower dump is what says
+the bit survived the seam.
 
 The movemask is the fourth of that family and is a **reduction**: `ReduceOp::Bits`, added to
 `op.def`'s roster where its own note used to say a backend writes the kind for itself. That was true
@@ -2055,8 +2059,9 @@ something about `a` that `Num` could have promised and did not.
 
 `Eq(%a)`, `Ord(%a)` and the reinterpretation rungs are generated by `providePointerInstances` and not
 by a row of the table, for the reason that table has the shape it has: a row says which *family of
-types* a class is generated over, and there is one pointer head and it is a type variable. The
-shipping stage draws the same line in the same place, in `native.cpp`.
+types* a class is generated over, and there is one pointer head and it is a type variable. The old
+stage drew the same line in the same place, in its `native.cpp`.
+
 
 Three things had to give way for a **parametric** generated instance, and each is a place that had
 assumed a ground one:
@@ -2118,7 +2123,7 @@ expression rather than a constant - it used to fold to the natural form's zero, 
 what `lib/Core/Container.yana`'s chunk width was getting. `VecNatural.yana` is the fixture.
 
 **Masks are not normalized.** `Mask(F32)` and `Mask(I32)` are two types related by `Bitcast` at one
-shape. The shipping stage interned them as one and the bill was a non-injective type constructor -
+shape. The old stage interned them as one and the bill was a non-injective type constructor -
 substituting `a := Int` into `{Vec(a), Mask(a)}` gave `{Vec(Int), Mask(U32)}`, which then failed to
 bind `a` back - in a language where every generic mechanism assumes an application binds its
 arguments.
@@ -2173,7 +2178,7 @@ where a pair is held to it, at the call, where the two shapes are concrete and c
 `Eq` and `Ord` are deliberately absent and must stay absent: a comparison of two vectors answers a
 mask, so neither class describes what comparing them is, and generating one would typecheck and emit
 a comparison the lower IR's validator refuses. `Lanewise` is what describes it, and it is the first
-`known.def` class role this stage binds that the shipping stage still finds by name.
+`known.def` class role this stage binds that the old stage found by name.
 
 Two things `lib/Core/Vector.yana` declares that the stand-in library could not: the free `min` and `max` over
 vectors. Design.md's R1 admits one plain function per `(name, arity)` *beside* any number of class
@@ -2217,11 +2222,10 @@ does not exist. `TrivialCopy`, `TrivialSink` and - since 2026-09-15 - **`Call`**
 `Call` is the one with a *determined* position to fill in: `structuralAnswer` reads the shape off the
 subject and writes it back, which is what `Selector::match` does for a declared head.
 
-`Native.atomicAt` is **not** implemented, and it is the library's spelling rather than the stage that
-blocks it: the declaration is the one signature in `lib/` still written with the `return` marker, and
-the note above it records that the `'` spelling does not express what it needs. `test/resolve/Atomic.yana`
-stays the shipping stage's alone for that reason alone now - the dot form it reaches the operations
-with arrived 2026-09-06 and `AtomicOwnership.yana` runs here on it.
+`Native.atomicAt` was for a while the library's spelling rather than the stage blocking it: the
+declaration was the last signature in `lib/` written with the `return` marker, and
+`test/resolve/Atomic.yana` was the old stage's alone for that reason. It has a `.mir.expect` now; the
+dot form it reaches the operations with arrived 2026-09-06, and `AtomicOwnership.yana` runs on it.
 
 ### `Bool` is an ordinary enum, and so is what a bare literal settles to
 
@@ -2392,9 +2396,9 @@ the count, the flag - are the compiler's, because they are what a *literal* mean
 
 **It ran the library's own `stringLiteral` until J46 part 3**, through an interpreter in
 `evaluate.cpp`: a body of one block ending in a `return`, over constants. The argument for it was
-that the compiler should hold no second description of a type the library owns - which is what
-`resolve/const.cpp` does in the shipping stage, and why that file has a "this target's string layout
-is not the one this compiler writes" diagnostic to report.
+that the compiler should hold no second description of a type the library owns - which is what the
+old stage's `resolve/const.cpp` did, and why that file had a "this target's string layout is not the
+one this compiler writes" diagnostic to report.
 
 What retired it is that the second description already existed. `resolve_ssa/opt/place.cpp` reads a
 `Run`'s three fields by position to move a literal's slots into the frame, and `known.def`'s `run`
@@ -2455,7 +2459,7 @@ Five library declarations and five `known.def` rows: `Show` with `show` at membe
 five are `Presence::Optional`, and that is the decision the rows carry - a library without a
 formatter is a smaller library and not a broken one, so a library without one gets a `"{x}"`
 written against it is told at the literal which role is missing. `String.reserve` is deliberately not
-a row: the shipping stage reads it for the `to ++= "a{x}b"` rewrite, which is an optimization of a
+a row: the old stage read it for the `to ++= "a{x}b"` rewrite, which is an optimization of a
 *written* operator rather than part of what a format is, so this stage builds the temporary and
 appends it.
 
@@ -2489,9 +2493,9 @@ answers - and the `Run` and `Array` above it are ordinary aggregates built from 
 `run` and `array` **record** roles hand back. `RunShape` is where those field indices and types are
 read, and it is the only place in this stage that reads them.
 
-That is the difference from the shipping stage, where `buildRunInto` spells the run, the capacity
-and the placement tag out at every literal in C++ with no row saying it may: a library that
-renumbered `Run`'s fields fails to build here and miscompiles there.
+That is the difference from the old stage, where `buildRunInto` spelled the run, the capacity and the
+placement tag out at every literal in C++ with no row saying it may: a library that renumbered
+`Run`'s fields fails to build here and miscompiled there.
 
 **Three library calls stood here until J46 part 3** - `arrayLiteral(count)` for an array of `count`
 live slots, `elementBase(&self)` for where those slots start, and `arrayReserve` for `@capacity(n)`.
@@ -2544,10 +2548,9 @@ author is inserting. `resolveIndexInsert` prefers it wherever the container *has
 falls through to `getMut` where it does not, so `Array`'s assignment is unchanged. `[K: V]` is the
 same declaration written as a type.
 
-`test/lib/MapLiteral.yana` is the fixture and runs under both stages; it was written there because
-`test/resolve` compiled this stage against a library with no `Map` in it, and it stays there because
-that is where a fixture about the real containers belongs. `test/resolve/MapLiteral.yana` beside it
-is the shipping stage's.
+`test/lib/MapLiteral.yana` is the fixture; it was written there because `test/resolve` compiled this
+stage against a library with no `Map` in it, and it stays there because that is where a fixture
+about the real containers belongs. `test/resolve/MapLiteral.yana` is the other.
 
 ### A determined position is decided before the argument offers an answer
 
@@ -2587,7 +2590,8 @@ hint's answer back only where nothing answered. Binding it and leaving it wrote 
 position the dependency answers, and the lookup asked for `Enum(Whence, I64)` - a missing instance
 reported for what the author wrote as an ordinary widening. A position an **argument** filled is
 never reopened: that one is the type of a value that already exists rather than a wish about this
-call. `EnumValue.yana` is the fixture, and the shipping stage states the same rule in `solve.cpp`.
+call. `EnumValue.yana` is the fixture, and the old stage stated the same rule in its `solve.cpp`.
+
 
 ### An argument that takes its type from the position is resolved last
 
@@ -2643,8 +2647,8 @@ use, so there is one rule. Three things bound it:
   requirement filled through `fillFromRequirements` is a *promise*, and an argument is in no position
   to widen it: `class Enum(a -> w)` says what width an enum's value has, and `fn (a.mark: b) f(x: a,
   other: b)` says `b` is the field's.
-- **Never from the result.** `bindResult` runs with the meet off, which is the line the shipping
-  stage draws too: a result that would need converting has not decided the type arguments by itself.
+- **Never from the result.** `bindResult` runs with the meet off, which is the line the old stage
+  drew too: a result that would need converting has not decided the type arguments by itself.
 
 ### `@noinline`, and the one direction a declaration can insist on
 
@@ -2678,23 +2682,21 @@ with nothing saying so. `readConventionAttribute` is the reader - a word for an 
 "wrote the default" stay different statements, and `lower/gen.cpp` carries it to
 `LowerFunction::callType` beside `legacyVectors`. The name table is `lower/convention.h`'s, shared
 with the lower IR's parser and printer, and `conventionWritableInSource` is what refuses `simple`,
-`complex` and `system`. The messages are the shipping stage's word for word. One difference from it
-is deliberate: it reads the attribute on a plain `fn` only, and this stage reads it on every
+`complex` and `system`. The messages are the old stage's word for word. One difference from it
+was deliberate: it read the attribute on a plain `fn` only, and this stage reads it on every
 signature, because `readInlineAttribute` already reads the encoding marker off every signature and
 one walk for a signature's backend facts is worth more than a placement rule stated twice.
 
 `@host` on a field is the opposite kind of fact - a **JS-visible source fact with no native
 semantics**. `RecordField::host` records it and nothing here reads it: a native record with one lays
 the field out exactly as it would without it, and what elides the slot is the JS pipeline, later.
-What this stage owes is the refusals, and they are the shipping stage's: the attribute follows the
+What this stage owes is the refusals, and they were the old stage's too: the attribute follows the
 one field that stores the value and may not be that field, a record with one has exactly one stored
 field, the field has to be named (the name *is* the property), and `@bits`/`@box` cannot combine with
 it - an elided field has no word to narrow and no storage to point at. `checkHostFields` is per
 **constructor** rather than per record, because two arms of a sum are two shapes over one storage.
 
-`test/resolve/ownership/Reject.Convention.yana` is both attributes' refusals through this stage.
-A fixture of its own rather than a directive on `Reject.VectorReset.yana` and `Reject.Host.yana`,
-because a rejection fixture names *one* stage and those two are the shipping stage's.
+`test/resolve/ownership/Reject.Convention.yana` is both attributes' refusals.
 
 ### What containers still cannot do, measured
 
@@ -2710,8 +2712,9 @@ array into one is that member, and it called itself on every path. And `Chunked(
 container's window, so reaching for `elements` there asks a window to become one and the callee then
 read the owner's field offsets out of a view. `lib/Core/Container.yana` writes both out now - the
 native fixed-array pair as the view record over `bitcast(addressOf(self))`, which is what
-`lib/Core/Array.yana` writes, and `chunks` as `yield self`. Both stages got shorter
-IR out of it.
+`lib/Core/Array.yana` writes, and `chunks` as `yield self`. Both resolve stages got shorter IR out
+of it.
+
 
 
   - ~~**A shared `String` element of a container is the owner's address.**~~ Fixed 2026-09-07 (J18).
@@ -2740,7 +2743,7 @@ IR out of it.
     and that is not a preference: a subscript is resolved inside whatever expression contains it, and
     this IR hands every value that crosses a block boundary over as a block argument, so a branch
     here would have to thread the enclosing expression through two new blocks under a construct that
-    has already decided which blocks it owns. The shipping stage's indirection has exactly that
+    has already decided which blocks it owns. The old stage's indirection had exactly that
     reason, and `known.def`'s note used to say a condition function was a declaration this stage
     would never reach for. `-no-checks` discharges it with everything else, one inlining later.
     `resolve/FixedBound.yana` is the fixture; the written-count and quantified-count bounds are both
@@ -2748,12 +2751,12 @@ IR out of it.
 
 ### `@inline(n) @capacity(n)`, a type since J143
 
-`readContainerRefinement` reads the pair off a type and checks it exactly as the shipping stage does -
-both written, equal, and not zero, because the rows that spill need a discriminant neither stage
-builds. What the pair then *names* is a type: `lib/Core`'s `data InlineArray(a, n: Int) {slots: [a
-*n], length: Count}`, claimed by `known.def`'s `inlineArray` role (`Resolver::inlineArrayType`). So it
-is legal wherever a type is - a field, which is what it is for, a local, a parameter, an alias - and
-`sizeOf` of four `Int`s is the twenty bytes the shipping stage's layout gives.
+`readContainerRefinement` reads the pair off a type and checks it exactly as the old stage did -
+both written, equal, and not zero, because the rows that spill need a discriminant nothing builds.
+What the pair then *names* is a type: `lib/Core`'s `data InlineArray(a, n: Int) {slots: [a *n],
+length: Count}`, claimed by `known.def`'s `inlineArray` role (`Resolver::inlineArrayType`). So it is
+legal wherever a type is - a field, which is what it is for, a local, a parameter, an alias - and
+`sizeOf` of four `Int`s is the twenty bytes the old stage's layout gave.
 
 Until J143 this stage honoured the **capacity** alone, at the `::` of a literal: a frame run tagged
 `runFixed`, with the placement ladder deciding where the slots went. A field could not use that - a
@@ -2765,8 +2768,9 @@ first move - and was refused. The type is the answer because nothing in it point
   (`resolveInlineLiteral`) is a `[T *n]` aggregate supplying just the written elements - the one
   aggregate with fewer components than its array's length, which both verifiers and the builder
   accept for a fixed array and nothing else. An empty `@inline(4096)` buffer is one frame slot and
-  one store of the count, which is `withPathCString`'s whole construction, as it is in the shipping
+  one store of the count, which is `withPathCString`'s whole construction, as it was in the old
   stage.
+
 - **A `[T]` window position** adapts it through the library's `Contiguous`/`Writable` instances,
   which build the view from the record's address at the use (`adaptToView` accepts it where the
   elements agree, as it does a fixed array). `Length` and `Index` are instances over it; `Index`
@@ -2786,9 +2790,8 @@ first move - and was refused. The type is the answer because nothing in it point
 
 JavaScript's library declares no `InlineArray`, and the refinement there is the plain `[T]` it
 bounds - the literal's capacity was already ignored on that target, since a host array grows on its
-own. `test/resolve/InlineCapacity.yana` runs under both stages against one `.run.expect`;
-`InlineCapacity.Move.yana` is the moves and copies, and the bound is `@test(aborts)` in
-`lib/Core/InlineArray.test.ownership.native.yana`.
+own. `test/resolve/InlineCapacity.yana` is the fixture; `InlineCapacity.Move.yana` is the moves and
+copies, and the bound is `@test(aborts)` in `lib/Core/InlineArray.test.native.yana`.
 
 ### A hand-over is a parameter, and a lending one needs the same temporary
 
@@ -2808,7 +2811,7 @@ than by a test here: `-> ->T` hands the value over, so the consumer owns what it
 frame stops owing anything; a hand-over of a type with nothing to run needs no place; a `{}` needs
 neither.
 
-`resolve/IterHandover.yana` is adopted, and answers 23 on both stages.
+`resolve/IterHandover.yana` is adopted, and answered 23 on both stages while there were two.
 
 ### The `Drop`, `Reclaim` and `Copy` classes
 
@@ -2828,8 +2831,8 @@ own context asks for the same class - `instance (Copy(a)) Copy(Maybe(a))` - says
 as far as its payload does, which is the structural answer restated: where the payload is trivial the
 `Copy(a)` it requires is the blanket instance, which subtracts from nothing, and where it is not the
 member fold has already said so. So `Maybe(Int)` is `TrivialCopy` and `Maybe(String)` is not,
-`lib/Core/Core.yana`'s own comment beside those three instances is right as written, and the shipping
-stage agrees. `inheritedCopy` is the one predicate, and reading it literally - every declared `Copy`
+`lib/Core/Core.yana`'s own comment beside those three instances is right as written, and the old
+stage agreed. `inheritedCopy` is the one predicate, and reading it literally - every declared `Copy`
 subtracting - is what made `let b = x` over a `Maybe(Int)` a double consume and stopped
 `node(n)?.leaf?.value` handing a `Maybe` field out of a record with an authored teardown
 (`test/resolve/OptChain.yana`, which is back to its original form).
@@ -3271,7 +3274,7 @@ a payload out, a parameter - it takes the exclusive loan `doc/spec/ownership.md`
 = c` - an exclusive loan: writing through d writes c"). A **global** keeps the whole test, because
 the program declared whether it may be written and no frame owns it, and a shared borrow is refused
 by the row above whatever the binding says. `bindsOwnStorage` is the whole of it, and
-`test/resolve/BindAxes.yana` is the fixture both stages now compile.
+`test/resolve/BindAxes.yana` is the fixture.
 
 That one function is what makes `let x` a shared loan of what it names, `let &x` an exclusive one and
 `let ->x` a handover, without any of the three being a case: the two axes of a binding are a
@@ -3356,7 +3359,7 @@ position and no field to name it, so what is built there is `%source'a`'s slot e
 
 Only at an **owned** root, which is where the silence is: `originSlotAt`'s third case already
 answers an unbound interior position with the root's slot, so a result that borrows says something
-about everything inside it. `loans/ResultElision.yana` is the fixture, and both stages compile it.
+about everything inside it. `loans/ResultElision.yana` is the fixture.
 
 **And where the scope has no group at all, one is promoted onto the signature's candidates** - rules
 5 and 6, `Resolver::promoteLoanCandidates`, in the form §4.8's own supersession block settled on.
@@ -3377,9 +3380,10 @@ rather than as an argument for guessing. Only the **anonymous** group elides: `-
 signature that published no `a` is naming a relationship the author has not written, and promoting a
 parameter into `a` would be inventing their second one. `loans/ResultCandidate.yana` is the fixture,
 and `iter fn each(xs: [String]) -> 'String` in `lib/Core/BorrowUpdate.test.native.yana` is why it
-exists: it is the one library signature that had no spelling both stages accepted, because the
-shipping stage promotes the same candidate (`settleLoanCandidates`) and refuses the explicit
+exists: it was the one library signature that had no spelling both stages accepted, because the
+old stage promoted the same candidate (`settleLoanCandidates`) and refused the explicit
 `source'String`.
+
 
 Still refused by name: an *owned field* whose type has a schema. `data Outer {inner: Reader(a')}`
 would give `Outer`'s own schema `Reader`'s position at a deeper path, and `foldSchemas` walks the
@@ -3517,12 +3521,12 @@ Four things it does not do, each refused where it is written:
   `Reject.Shape.yana` is the fixture; before this rule the borrowed case compiled and answered zero.
 - **An instance head may not carry a capability.** `instance Chunked('[a], a)` names `Array(a)`,
   which is the same handle `[a]` and `Array(a)` intern to, so it is the unqualified head written
-  twice. That is a real difference from the shipping stage, where `Flat(a)` is a sibling record and
-  the two are two types - it is `type.def`'s "no slice sibling" met by a library written against the
-  other reading, and it is the library's line to change. **No such head is left in `lib/`.**
-  `Contiguous('[a], a)` and `Writable('[a], a)` went on 2026-09-04, generated by the shipping stage
+  twice. That was a real difference from the old stage, where `Flat(a)` was a sibling record and
+  the two were two types - it is `type.def`'s "no slice sibling" met by a library written against the
+  other reading, and it was the library's line to change. **No such head is left in `lib/`.**
+  `Contiguous('[a], a)` and `Writable('[a], a)` went on 2026-09-04, generated by the old stage
   rather than written, because the identity is a fact about the representation - `emitWindowItself`
-  there. `Chunked('[a], a)`, `Eq('[a])` and `Show('[a])` went on 2026-09-05, when the shipping stage
+  there. `Chunked('[a], a)`, `Eq('[a])` and `Show('[a])` went on 2026-09-05, when the old stage
   learned that a window selects the container's instance wherever the class only reads the container
   - `ClassInstance::windowArgs`, and the `Array(a)` heads beside them went too, since one instance
   now answers both forms. `ShowWith(Base64Style, '[U8])` and `ShowWith(HexBytesStyle, '[U8])` went
@@ -3631,7 +3635,7 @@ Three things follow from the callee being **opaque**, and each is a rule that wa
   that declaration, and it is what the region's entry parameter carries, because it is what a caller
   has instead of the callee's storage.
 - **There is one argument loop.** `resolveArguments` is shared by the ordinary call and the lens call,
-  which is the thing Analysis-Lens.md §12.1's sixth item asks for by name: the shipping stage has two,
+  which is the thing Analysis-Lens.md §12.1's sixth item asks for by name: the old stage had two,
   and rules added to one of them went missing from the other twice.
 
 `checkHandover` is the transparent rule (Analysis-Lens.md §7.1) as a forward walk over the callee's
@@ -4376,7 +4380,8 @@ handed over is the continuation parameter's type.
 The slot is what the *published* half is matched on, and an **unqualified** hand-over publishes
 nothing - so the walk keyed on it related nothing at all for `pub iter fn (Chunked(c, a)) items(self:
 c) -> a`, which is the spelling `lib/Core/Container.yana` settled on (a `-> 'a` there needs `self:
-'c`, which the shipping stage then reads as a reference *to* the container). An unqualified hand-over
+'c`, which the old stage then read as a reference *to* the container). An unqualified hand-over
+
 therefore takes **every** argument's loans rather than none: `-> a` is a loan bounded by the
 continuation, so what is behind it is anything the call was lent and the callee is still running.
 Conservative in the only direction that is safe - it keeps storage alive rather than releasing it -
@@ -4560,13 +4565,14 @@ Closing it means reading the loan off the producing **node** where the type publ
 than off the value's positions - which is a second way of asking the same question and wants
 designing before it is written.
 
-**The shipping stage now reads `yield'` as no group** (`compiler/resolve/type_ast.cpp`'s
-`resolveLoanGroup`), which is what a plain `%U8` already meant there - `kNoLoan`, read by every
-consumer as "every group". It used to refuse it, on the argument that a group numbered beside the
-author's own labels would be a lie; the lie that mattered was the other one, because refusing left
-`lib/Native/CString.native.yana`'s `withPathCString` with no spelling both stages accept. D1 says a
-`lib/` change stays accepted by the shipping stage, so the two ends had to agree on one signature and
-this is the end where admitting it costs no check.
+**The old stage came to read `yield'` as no group** (its `type_ast.cpp`'s `resolveLoanGroup`), which
+is what a plain `%U8` already meant there - `kNoLoan`, read by every consumer as "every group". It
+used to refuse it, on the argument that a group numbered beside the author's own labels would be a
+lie; the lie that mattered was the other one, because refusing left
+`lib/Native/CString.native.yana`'s `withPathCString` with no spelling both stages accepted. D1 said a
+`lib/` change stayed accepted by that stage, so the two ends had to agree on one signature and that
+was the end where admitting it cost no check.
+
 
 ### Leaving a continuation
 
@@ -4712,7 +4718,7 @@ flag says whether to release and what is missing is a value. `ownership/BorrowRe
 
 What is **not** built is the same statement about a continuation's environment - `acc` inside a `for`
 body is a field of a heap environment reached through a pointer, which is the second tier
-`lib/Core/BorrowUpdate.test.native.yana` asserts in the shipping stage. It needs a lending *path*
+`lib/Core/BorrowUpdate.test.native.yana` asserted in the old stage. It needs a lending *path*
 rooted in something other than a local, which is the same shape `Place::Address` is refused as today.
 
 ### What is refused, and why
@@ -4828,8 +4834,8 @@ is what those directories are for:
   of a declared requirement is an **offset** into the witness the caller already passed rather than a
   second load, `freezeSchema`'s "superclasses are not slots of their own" reads as "they are ranges",
   and a range of a flattened table is itself a valid table - which is what makes handing one on
-  possible at all. The alternative is a pointer per superclass, which is what the shipping stage
-  writes: it buys a shared grandparent being one table and costs a load per level at every dispatch,
+  possible at all. The alternative is a pointer per superclass, which is what the old stage
+  wrote: it buys a shared grandparent being one table and costs a load per level at every dispatch,
   and a hierarchy here is two or three deep with three or four cells per class.
   `generic/Erased.Superclass.yana` asserts it three levels deep, by arithmetic, because a wrong
   offset reaches the wrong member of the right table and returns rather than crashing. Built J27.
@@ -4918,8 +4924,8 @@ either cheap shape is free again - the layout note on `Summary` is where that is
 #### The six rows the fixpoint fills beside suspension
 
 **`retains`, `escapes`, `mutates` and `consumes`** are one walk, because they are the same question
-about four verbs. What makes them answerable here rather than by the eight hundred lines the shipping stage
-spends is `analyze_escape.cpp`'s own opening observation: nothing in an ownership MIR reaches a
+about four verbs. What makes them answerable here rather than by the eight hundred lines the old
+stage spent is `analyze_escape.cpp`'s own opening observation: nothing in an ownership MIR reaches a
 caller's storage by *being a value* - a record is copied, an owned argument is moved into the
 callee's slot, a returned value is written into storage the caller passed in. The two ways back are a
 **loan**, which the loan checker has already resolved per value and per interior position
@@ -4963,7 +4969,7 @@ allocation. It is a *peel* and not a join: nothing in a recursive cycle ever bec
 callee changing its answer, so Kahn's algorithm over the callee graph finalizes exactly the functions
 that reach no cycle and what is left over is the answer.
 
-**`diverges`** is the divergence fact - whether calling this ever comes back - and it is the shipping
+**`diverges`** is the divergence fact - whether calling this ever comes back - and it is the old
 stage's declared `Function::noReturn` inferred instead. The seed is a role and not a walk:
 `lib/Core/Check.yana`'s `checkFailed` is `abortProcess()`, which is `exitProcess(134)`, which is a
 `syscall1` followed by an ordinary `return`, so no CFG in the program says the process stopped.
@@ -4996,9 +5002,9 @@ Three things it deliberately does not do, and says so rather than guessing:
   is milestone 6. A second declaration of one name is refused at its declaration, because the name
   table would otherwise keep the first and every call would silently reach it.
 - **An `=` body does not infer its result.** `fn double(x: Int) = x * 2` gets `{}` and reports at its
-  first caller, where the shipping stage reads the result off the body. Nothing about `?` needed it -
+  first caller, where the old stage read the result off the body. Nothing about `?` needed it -
   the operator's own refusal names `{}` having no `Try` instance, which is true - but it is the one
-  place a reader might expect the third arm the other stage's `canLeaveWithCarrier` equivalent has.
+  place a reader might expect the third arm the old stage's `canLeaveWithCarrier` had.
 
 The one thing arithmetic does *not* decide is signedness: op.def has no column for it, because
 `I32` and `U32` are two logical types over one `div`, and `resolve_ssa/lower/gen.cpp` is where the
@@ -5059,7 +5065,7 @@ body, and it is a *correctness* pass rather than an optimization: `doc/spec/type
 is 0 and `minimum / -1` is `minimum`, and neither native backend provides either. `Divide.yana` is
 the fixture and it is adopted.
 
-One thing the seam decides that the shipping stage's does not: **a narrow signed division wraps**.
+One thing the seam decides that the old stage's did not: **a narrow signed division wraps**.
 `(-128 :: I8) / d` at `d == -1` is `128` in the register the guard's negation leaves it in, and `I8`
 answers `-128`. `op.def` gives `Div` the `Wraps` effect for that one pair, which costs a mask on a
 narrow *unsigned* division that both backends fold away.
@@ -5102,7 +5108,8 @@ building, in a stage that runs no pass to remove a value nothing names.
 argument whose result the candidate would have decided is then undecidable. `import Native` makes `+`
 such a set, because `lib/Native/Pointer.yana` writes a pointer `+` beside `Num`'s;
 `truncate(a) + truncate(b)` at a result of `Int` reported "no argument decides what `b` is in this
-call to `truncate`", and both stages did.
+call to `truncate`", and so did the old stage.
+
 
 **The result narrows the set** since 2026-09-07, and by *subtraction* rather than by ranking: a
 candidate whose result could not fill the position was never a candidate. `resultCouldFill` asks two
@@ -5228,13 +5235,13 @@ any library.
 
 `test/resolve/Overload.yana` asserts each rule by a **number**: every call in it reaches one of two
 bodies that answer different values, so a selection rule that broke would change what the program
-computes rather than whether it compiles, and both resolvers run it against one `.run.expect`.
-`Reject.Overload.yana` is the refusing half - R2's "an error rather than a contest", R3's own example
-from the spec, and the one set that cannot be resolved whichever candidate would win, which is two
-classes disagreeing about publishing with no plain function to decide it. `module/Overload.yana`
-asserts the set crossing a module boundary in both directions and is the traversal note above - it
-fails against a set recorded rather than gathered - and `OperatorOverload.yana` asserts the same five
-rules at an infix and a prefix operator.
+computes rather than whether it compiles. `Reject.Overload.yana` is the refusing half - R2's "an
+error rather than a contest", R3's own example from the spec, and the one set that cannot be
+resolved whichever candidate would win, which is two classes disagreeing about publishing with no
+plain function to decide it. `module/Overload.yana` asserts the set crossing a module boundary in
+both directions and is the traversal note above - it fails against a set recorded rather than
+gathered - and `OperatorOverload.yana` asserts the same five rules at an infix and a prefix
+operator.
 
 **Selecting the same way is not the whole of being the same call**, and the rest of it is the two
 steps a written call takes around selection:
@@ -5287,8 +5294,8 @@ ordinary representation, falling back to exact byte accesses when a field does n
 lower-IR word.
 
 Analysis-Manifestations.md part 10 is the argument, and `test/resolve/LayoutPin.yana` is the
-assertion: its two `.repr.expect` goldens - the shipping stage's and this one's - are byte-identical,
-and so are `Repr.yana`'s and `PackedNested.yana`'s.
+assertion: until J173 its two `.repr.expect` goldens - the old stage's and this one's
+`.mir.repr.expect` - were byte-identical, and so were `Repr.yana`'s and `PackedNested.yana`'s.
 
 ## `@box`, and where the indirection is
 
@@ -5300,9 +5307,9 @@ nothing below reads them apart.
 
 **The indirection is not in the MIR.** `fieldPlace` hands back the same owned projection an inline
 field gets, `buildPaths` builds a move path over it, `placeDrops` places a drop on it and the loan
-checker sees a field of a record. This is the one thing the stage does differently from the shipping
-one, which appends a `Deref` to the place path and carries the boxed edge through every place walk in
-the compiler - seven of them, each of which has to agree. Here the edge is a **layout** fact and
+checker sees a field of a record. This is the one thing the stage does differently from the old
+one, which appended a `Deref` to the place path and carried the boxed edge through every place walk
+in the compiler - seven of them, each of which had to agree. Here the edge is a **layout** fact and
 `compiler/resolve_ssa/lower/box.cpp` is the whole of it: three operations, one file.
 
 What that buys is that partial ownership needed no work. `p.cold` has a state of its own, moving one
@@ -5357,9 +5364,9 @@ itself.
 
 The order between the sweeps is what makes the second one safe to write as "everything left over":
 by the time it runs, everything a declaration reaches is already `layoutBroken` and stops at its
-first line, so what it cuts is exactly what nothing else could have. The shipping stage arranges the
-same thing differently - `completeInstance` breaks each instantiation as it is filled - and pays for
-it with a walk that has to notice it ran while a declaration was still incomplete.
+first line, so what it cuts is exactly what nothing else could have. The old stage arranged the
+same thing differently - `completeInstance` broke each instantiation as it was filled - and paid for
+it with a walk that had to notice it ran while a declaration was still incomplete.
 
 **What is left after both sweeps is still a diagnostic**, and it is now a narrow one: a cycle whose
 every edge is one no pointer can go in. A fixed array is the way to write one - `[T *n]` is `n` of
@@ -5409,7 +5416,8 @@ global, a borrowed `Run` over it, an `Array`, a relocation into the image - desc
 target does not have. The constant stays a `Constant::Text` at the `string` record's own type, which
 is what `constant.h` says that kind is for.
 
-What made it reachable is that the library declares the record: `lib/Core/String.ownership.js.yana`
+What made it reachable is that the library declares the record: `lib/Core/String.js.yana`
+
 writes `@builtin(string) pub data String {host: %U8}` and **no view for it**. A shared `String` there
 is the string (Analysis-IR-JS.md §3.2.2), so the `stringView` row is unclaimed and `viewRowOf` skips
 a row whose view half nothing declares - which is `known.def`'s reason for demoting that row to

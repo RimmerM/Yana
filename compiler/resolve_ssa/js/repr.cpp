@@ -295,7 +295,7 @@ TypedArray typedArrayFor(JsTarget& target, JsRepId element) {
 
         /*
          * A `Bool` is a `Uint8Array` at one byte per element against eight for a plain row, which is
-         * one of the measurements the 0/1 representation was chosen on - see `codegen/js/type.cpp`.
+         * one of the measurements the 0/1 representation was chosen on.
          */
         case NumberDomain::Bool01:  return TypedArray::Uint8;
         case NumberDomain::Signed:
@@ -444,10 +444,10 @@ JsRepId carriedRepOf(JsTarget& target, const JsPassing& passing) {
      * §3.7's table has `Parts -> Parts` for an argument and nothing for a result, and this is where
      * that gap is closed: the parts are passed flat at a call and materialized at a `return`, then
      * split again at the call site. The alternative is an out-parameter the callee writes, which is
-     * the same allocation moved to the caller plus a second convention for one value - and the
-     * shipping backend already takes this trade for a function pair and for a vector, so the two
-     * pipelines' emitted code stays comparable. §6.5's materialization sinking is what makes a
-     * `return f(x)` chain cost one row rather than one per level, and it is a later slice's.
+     * the same allocation moved to the caller plus a second convention for one value - and the old
+     * JavaScript backend (deleted with `compiler/resolve` in J173) took this trade for a function
+     * pair and for a vector too. §6.5's materialization sinking is what makes a `return f(x)` chain
+     * cost one row rather than one per level, and it is a later slice's.
      *
      * A parameter never reaches this: it occupies `positions` slots and each is read with
      * `partRepAt`, which is what `checkCall` and the entry block both do.
@@ -492,15 +492,15 @@ JsRepId jsCellRep(JsTarget& target, JsRepId content) {
 static bool packableRep(JsTarget& target, JsRepId id, U32& bits, bool& isSigned);
 
 /*
- * Whether a reference to `content` carries a **scale** - the shipping backend's
+ * Whether a reference to `content` carries a **scale** - the old JavaScript backend's
  * `narrowRefCarriesScale`, asked of the content rather than of the target alone.
  *
  * Only a content that could be a field of a packed word can be named by a range, and that is
  * exactly `packableRep`'s answer, since a range is only ever built over a field that answered yes -
  * so a `&U8` or a `&Int` stays the two-part pair even with both switches on. And nothing carries
- * one while nothing packs, for the shipping backend's reason: a target with no ranges in it has
- * every narrow value at offset zero of the storage it names, so while nothing is packed nothing may
- * pay for the arithmetic.
+ * one while nothing packs, for that backend's reason: a target with no ranges in it has every
+ * narrow value at offset zero of the storage it names, so while nothing is packed nothing may pay
+ * for the arithmetic.
  */
 bool jsRefCarriesScale(JsTarget& target, JsRepId content) {
     if(!target.packFields && !target.scalarizeRecords) return false;
@@ -515,11 +515,11 @@ bool jsRefCarriesScale(JsTarget& target, JsRepId content) {
  *
  * The scale is a float, because it is `2**offset` of a word up to 53 bits wide and a multiplier
  * rather than anything the integer tower should wrap. The materialized form is the `{$o, $k}` pair
- * in both cases, which is the J84 decision the shipping backend does not take: its one-value form is
- * `{$o, $k, $s}` and every reader of a reference reads the scale. Here a three-part reference that
- * has to become one value becomes `$bitCell`'s accessor box instead (`codegen/js/place.cpp`), so a
- * `Cell` - an erased argument, a stored or returned reference, a phi - keeps meaning `$o[$k]` and
- * the erased ABI stays one object whatever the substitution packs.
+ * in both cases, which is the J84 decision the old JavaScript backend did not take: its one-value
+ * form was `{$o, $k, $s}` and every reader of a reference read the scale. Here a three-part
+ * reference that has to become one value becomes `$bitCell`'s accessor box instead
+ * (`codegen/js/bits.cpp`), so a `Cell` - an erased argument, a stored or returned reference, a phi
+ * - keeps meaning `$o[$k]` and the erased ABI stays one object whatever the substitution packs.
  */
 JsRepId jsCellPartsRep(JsTarget& target, JsRepId content) {
     auto erased = jsErasedRep(target);
@@ -588,8 +588,8 @@ static StringId propertyKey(JsTarget& target, mir::RecordType& record, U16 index
         return jsInternText(target.context, target.interned, StringView { buffer, length });
     }
 
-    // The anonymous payload form - `Just(a)`'s one field. `f0`, `f1`, ... which is the same spelling
-    // the shipping backend gives an unnamed field, so the two goldens read alike.
+    // The anonymous payload form - `Just(a)`'s one field. `f0`, `f1`, ... which is the spelling the
+    // old JavaScript backend gave an unnamed field, kept so that its goldens and these read alike.
     buffer[0] = 'f';
     length = 1 + show(U64(index), buffer + 1, sizeof(buffer) - 1);
     return jsInternText(target.context, target.interned, StringView { buffer, length });
@@ -821,9 +821,9 @@ bool jsAdmitsAbsent(JsTarget& target, JsRepId id) {
  * zero object, so the property of an arm the tag does not name holds `null`. Neither is ever a value
  * a reader of that property gets, which is why the fold is still legal over one.
  *
- * What it refuses is the shape `Analysis-IR-JS.md` §1.2 records as a shipping-backend defect: a
- * `null` written where a number, a bigint or a string was promised, which reads back as the wrong
- * value everywhere rather than throwing at the site that wrote it.
+ * What it refuses is the shape `Analysis-IR-JS.md` §1.2 records as an old-backend defect: a `null`
+ * written where a number, a bigint or a string was promised, which reads back as the wrong value
+ * everywhere rather than throwing at the site that wrote it.
  */
 bool jsNullIsAValue(JsTarget& target, JsRepId id) {
     if(!id.valid()) return true;
@@ -843,17 +843,17 @@ bool jsNullIsAValue(JsTarget& target, JsRepId id) {
 /*
  * Whether `Maybe(Int)` - a fold whose payload is a **number** - is taken.
  *
- * On, and it is a measurement rather than a reading of the shipping backend's. That one folds it
- * (`Implementation-JS-Repr.md` §2: "a full-width `Int` reaches every pattern of its word, so
- * `Maybe(Int)` correctly falls through to `null`") and the worry this names is V8's, not the
- * encoding's: a slot holding a Smi *or* `null` is polymorphic where a slot holding an object or
- * `null` is not, so representation tracking can spend more on the number than the removed allocation
- * saves. Measured over `test/base` with this off and on, the two `Base.js` timed interleaved best of
- * nine: **2.058 s against 2.420 s** and 5,566,429 bytes against 5,582,662. So it is not marginal and
- * it is not the byte count that decides it - folding only the object payloads is *slower than
- * folding nothing*, which nothing predicted, and the reading that fits is that a `Maybe(Int)` left
- * as an object beside a folded `Maybe(Person)` makes the sites that handle both polymorphic where
- * one representation for every `Maybe` keeps them monomorphic.
+ * On, and it is a measurement rather than a reading of the old JavaScript backend's (deleted with
+ * `compiler/resolve` in J173). That one folded it (`Implementation-JS-Repr.md` §2: "a full-width
+ * `Int` reaches every pattern of its word, so `Maybe(Int)` correctly falls through to `null`") and
+ * the worry this names is V8's, not the encoding's: a slot holding a Smi *or* `null` is polymorphic
+ * where a slot holding an object or `null` is not, so representation tracking can spend more on the
+ * number than the removed allocation saves. Measured over `test/base` with this off and on, the two
+ * `Base.js` timed interleaved best of nine: **2.058 s against 2.420 s** and 5,566,429 bytes against
+ * 5,582,662. So it is not marginal and it is not the byte count that decides it - folding only the
+ * object payloads is *slower than folding nothing*, which nothing predicted, and the reading that
+ * fits is that a `Maybe(Int)` left as an object beside a folded `Maybe(Person)` makes the sites
+ * that handle both polymorphic where one representation for every `Maybe` keeps them monomorphic.
  *
  * A constant rather than a flag, because a representation decision that varies between two builds of
  * the same program is two ABIs; if it ever has to be switchable it belongs on `JsTarget`.
@@ -1407,8 +1407,8 @@ JsShapeId jsShapeOf(JsTarget& target, DeclPtr<mir::Type> record,
     }
 
     /*
-     * **The whole record first, and co-packing only for one that cannot be a number** - the
-     * shipping backend's order (`scalarizeTuple` before `placeArm`), and the one that matters: a
+     * **The whole record first, and co-packing only for one that cannot be a number** - the old
+     * JavaScript backend's order (`scalarizeTuple` before `placeArm`), and the one that matters: a
      * record co-packed first had one `$p0` property left and no longer met "at least two fields",
      * so under both switches a 37-bit `{kind, live, count, age}` became `{ $p0: n }` - an object
      * per element and a clone per update, where `scalarizeRecords` alone made it a number. The
@@ -1590,9 +1590,9 @@ JsRepId jsRep(JsTarget& target, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipS
 
                 /*
                  * A record of **narrow numbers** is one number - `JsTarget::scalarizeRecords`, and
-                 * the shipping backend's `scalarizeTuple`. Asked before the object is interned and
-                 * before `scalarizesHere`, because a packed record is a primitive and every rule
-                 * below is about something that has properties.
+                 * the old JavaScript backend's `scalarizeTuple`. Asked before the object is
+                 * interned and before `scalarizesHere`, because a packed record is a primitive and
+                 * every rule below is about something that has properties.
                  */
                 if(target.scalarizeRecords) {
                     if(auto packing = wholePackingOf(target, type, shape_, record, rep.shape)) {
@@ -1606,13 +1606,14 @@ JsRepId jsRep(JsTarget& target, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipS
                  * A **view record** is its fields, flat - §3.2's narrow-reference row read for the
                  * other multi-value thing this target carries everywhere.
                  *
-                 * `ArrayView(a)` is `{items, length, offset}`, and one was built at *every* borrow of
-                 * an array: 981 of them in `Base.js` against the shipping backend's 137, which is the
-                 * largest single line of J69 §6's size and time gap. As parts it is three values that
-                 * cross a call, an edge and a local flat, a field read of one is the part and no
-                 * object exists at all - which is the same arrangement the shipping backend reaches
-                 * by flattening `xs` into `xs$items, xs$length, xs$offset` at a direct call, taken one
-                 * step further because a block argument is a position this tier flattens too.
+                 * `ArrayView(a)` is `{items, length, offset}`, and one was built at *every* borrow
+                 * of an array: 981 of them in `Base.js` against the old JavaScript backend's 137,
+                 * which was the largest single line of J69 §6's size and time gap. As parts it is
+                 * three values that cross a call, an edge and a local flat, a field read of one is
+                 * the part and no object exists at all - which is the same arrangement the old
+                 * backend reached by flattening `xs` into `xs$items, xs$length, xs$offset` at a
+                 * direct call, taken one step further because a block argument is a position this
+                 * tier flattens too.
                  *
                  * On the *record* rather than on the occurrence, which is the half that took a
                  * measurement to see: `slice` builds an owned `ArrayView` value and a `represent`
@@ -1634,11 +1635,11 @@ JsRepId jsRep(JsTarget& target, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipS
                  * ordinary `data`, which is J72 §8's sketch and the profile's second finding.
                  *
                  * `DateStyle` is the shape: eight numbers that crossed every call as one object and
-                 * were rebuilt at every preset, where the shipping backend passes eight arguments.
-                 * `jsStoredRep` is the object again at every position that holds one host value, so
-                 * a field, a local the demand pass kept and an erased argument are unchanged, and
-                 * what becomes flat is exactly the positions this tier flattens: an argument, a
-                 * result, an edge and the aggregate that would otherwise allocate.
+                 * were rebuilt at every preset, where the old JavaScript backend passed eight
+                 * arguments. `jsStoredRep` is the object again at every position that holds one
+                 * host value, so a field, a local the demand pass kept and an erased argument are
+                 * unchanged, and what becomes flat is exactly the positions this tier flattens: an
+                 * argument, a result, an edge and the aggregate that would otherwise allocate.
                  */
                 if(scalarizesHere(target, type, declared, rep.shape)) {
                     auto& built = target.shape(rep.shape);
@@ -1675,14 +1676,14 @@ JsRepId jsRep(JsTarget& target, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipS
              * **plain** host row, and it exists only for the positions one value is the only thing
              * that fits: a field, an element, a `return`, an erased argument.
              *
-             * Plain rather than typed since J136, which is the shipping backend's choice too. A
-             * typed row bought nothing here: every lane is already coerced to its width by the
-             * operation that made it (`|0`, `>>> 0`, `Math.fround`), a host transfer reads and
+             * Plain rather than typed since J136, which was the old JavaScript backend's choice
+             * too. A typed row bought nothing here: every lane is already coerced to its width by
+             * the operation that made it (`|0`, `>>> 0`, `Math.fround`), a host transfer reads and
              * writes the *parts* rather than the row, and no bitcast reaches a row's buffer - a
              * lane-width change is refused. What it cost was V8's escape analysis, which elides a
              * `[a, b, c, d]` that a caller splits straight back into lanes and does not elide a
              * `new Int32Array([...])`: a `@noinline` `Vec(I32, 4)` round trip measured 8.5x the
-             * shipping backend's CPU for that reason alone (J94 §6.3 H).
+             * old backend's CPU for that reason alone (J94 §6.3 H).
              *
              * A **mask's** lanes are host booleans rather than the lane-width all-ones the native
              * Repr describes, in the same way and for the same reason LLVM's `<N x i1>` is - see
@@ -1706,7 +1707,7 @@ JsRepId jsRep(JsTarget& target, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipS
                  * a gap here: a `number` holds a 40-bit integer exactly but the operators stop at
                  * 32, so `wide.cpp`'s helpers are what arithmetic on one costs - `lanes` calls per
                  * operation, against one machine instruction. `Vec(WideInt)` is refused rather than
-                 * emitted, on the same terms the shipping backend refuses it.
+                 * emitted, on the same terms the old JavaScript backend refused it.
                  */
                 auto& laneRep = target.rep(lane);
                 if(laneRep.isWideNumber()) {

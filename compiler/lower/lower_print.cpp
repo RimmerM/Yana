@@ -235,8 +235,8 @@ static StringView nameForCast(LowerBase base, const LowerInstCast& inst) {
  * The base name is the row in inst.def, which is what makes a new kind printable and parseable
  * without a case of its own - this used to be a switch over every kind, and a kind missing from it
  * hit an assertion at the point somebody dumped the IR. What is left is the sixteen kinds that
- * *refine* the base name from their own fields, in the arrangement resolve/print.cpp uses one tier
- * up: which comparison, which atomic operation, which of the four minima.
+ * *refine* the base name from their own fields: which comparison, which atomic operation, which of
+ * the four minima.
  *
  * A refinement is written here rather than as more rows because the alternatives are one operation.
  * `loads` and `load` are the same instruction at two signednesses, and two rows would mean two kinds

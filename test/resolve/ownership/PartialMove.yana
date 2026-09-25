@@ -1,13 +1,11 @@
 {-
    Partial ownership: moving one field out of a record and leaving the rest where it was.
 
-   # resolver: ownership
-
-   This is the first fixture that only the rewritten stage compiles, and partial moves are why -
-   `compiler/resolve` has one initialization state per local and rejects every program below. The
-   new stage tracks a *tree* of move paths (`analyze_path.cpp`), so a record that has had one field
-   handed over is neither owned nor moved but partly each, and the drop walk descends into it to
-   find the members that are still there.
+   This was the first fixture that only the rewritten stage could compile, and partial moves are
+   why - the old `compiler/resolve` kept one initialization state per local and rejected every
+   program below. This stage tracks a *tree* of move paths (`analyze_path.cpp`), so a record that
+   has had one field handed over is neither owned nor moved but partly each, and the drop walk
+   descends into it to find the members that are still there.
 
    Every assertion here is made twice over. `trace` records which guards were released and in what
    order, one decimal digit each, so the answer pins the drops that ran; and `-mode mir`'s dump now
@@ -77,8 +75,8 @@ fn refilled() -> I32:
     return n + idOf(p.left) + idOf(p.right)
 
 -- A whole record handed to a `->` parameter after one of its fields already went. The record is not
--- there to hand over, and this is the shape the old stage cannot express at all: `p.left` is gone
--- and `p.right` is not, so what the frame still owes is one field.
+-- there to hand over, and this is the shape the old stage could not express at all: `p.left` is
+-- gone and `p.right` is not, so what the frame still owes is one field.
 fn assembled() -> I32:
     let &p = Pair {left: guard(1), right: guard(2)}
     let taken = eat(p.left)

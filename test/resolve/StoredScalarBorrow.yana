@@ -1,8 +1,6 @@
 {-
    A stored borrow of a *scalar*, filled by a value that has no storage (J141).
 
-   # resolver: ownership
-
    `data Held(a) {value: 'a}` at `a := Int` holds an address: a field that publishes an origin is a
    reference, and a reference to an `Int` is where the `Int` is. `Held {value: 5}` hands it a number
    in a register, and the SSA conversion put the number where the field says pointer - the first
@@ -12,7 +10,7 @@
    (`referenceUseOf`), and a loan of a scalar into a field that holds the number is loaded
    (`valueUseOf`) - `Pair {x: firstOf(xs)}` was "aggregate consumes a guaranteed value".
 
-   The shipping stage cannot infer `Held`'s argument from `5 :: Int`, so this is the new stage's.
+   The shipping stage, deleted in J173, could not infer `Held`'s argument from `5 :: Int`.
 -}
 
 data Held(a) {value: 'a, extra: Int}

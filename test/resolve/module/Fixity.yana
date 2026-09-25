@@ -1,8 +1,6 @@
 {-
    `infixl` and `infixr` - an operator's grouping is a declaration, looked up through the imports.
 
-   # resolver: ownership
-
    `doc/spec/declarations.md`: "An operator used infix with no fixity declaration in scope is an
    error. There is no default precedence." So there is nothing for a declaration to *override* in the
    compiler - `Core` declares a fixity for every operator this stage computes, and what is asserted
@@ -10,9 +8,9 @@
 
    **A module's own declaration wins, and every other one is an import.** `name.h`'s `search` reads
    the module itself before it reads a single import, so the four fixities below are what this file
-   groups by and Core's are what a file that declares none groups by. That is the same answer the
-   shipping stage gives for the same source, which is the property worth a fixture: the two stages
-   read one set of declarations rather than one reading a table.
+   groups by and Core's are what a file that declares none groups by. That directness is the
+   property worth a fixture: grouping comes from reading one set of declarations rather than from
+   a table, so a fixity change in `Core` or in this file is what moves the answer.
 
    What a declaration cannot change is what the operator *does*. `*` still multiplies: the form and
    the instruction are the builtin table's until an operator can dispatch to a class member, and only

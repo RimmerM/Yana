@@ -1,15 +1,13 @@
 {-
    A write through a reference a call handed back - J92.
 
-   # resolver: ownership
-
    `low` and `pick` answer a place inside their argument, and the caller writes through the answer.
    The shared optimizer's containment said `p` never escaped - true, since nothing *stores* the
-   returned address - and the walk asking "may this store reach `p`" stopped at the call's result, so
-   the two stores reached nothing and `ConstantContents` folded the later reads of `p.a` to the literal
-   `p` was built with. Both writes vanished, natively and on JavaScript alike, while `-no-ir-opt` and
-   the shipping stage kept them. A call's result is now a second name for whatever its arguments
-   named (`opt/analysis.cpp`'s `addressMayName`).
+   returned address - and the walk asking "may this store reach `p`" stopped at the call's result,
+   so the two stores reached nothing and `ConstantContents` folded the later reads of `p.a` to the
+   literal `p` was built with. Both writes vanished, natively and on JavaScript alike, while
+   `-no-ir-opt` keeps them, as the now-deleted shipping stage once did too. A call's result is now a
+   second name for whatever its arguments named (`opt/analysis.cpp`'s `addressMayName`).
 
    The second half is the same program over a record with a packed field, built by a call, in a loop.
 -}

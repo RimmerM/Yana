@@ -1,14 +1,12 @@
 {-
    A copy of a trivial record, then a write through the source - J92's review item 12.
 
-   # resolver: ownership
-
    Reported as "aborts with 134"; it does not. 134 was the program's own `r % 256`, which is 6790
-   here, and a signal's status arrived at the same number by coincidence. The shipping stage answers
-   32 (6944) because it reads `q` through `p` after `poke` and after `p.a = 7` - `t1` answers 99 and
-   `t2` 9 there. `let q = p` of a record of two `Int`s is a copy (a plain binding of an existing
-   trivial value copies), and were it a borrow instead the writes would be a loan conflict and the
-   program refused - neither stage refuses it, so the shipping stage's answer is wrong either way.
+   here, and a signal's status arrived at the same number by coincidence. The shipping stage
+   answered 32 (6944) because it read `q` through `p` after `poke` and after `p.a = 7` - `t1`
+   answered 99 and `t2` 9 there. `let q = p` of a record of two `Int`s is a copy (a plain binding of
+   an existing trivial value copies), and were it a borrow instead the writes would be a loan
+   conflict and the program refused - neither stage refused it, so the answer was wrong either way.
 -}
 
 data Rec {a: Int, b: Int}

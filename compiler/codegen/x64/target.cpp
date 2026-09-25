@@ -157,17 +157,11 @@ static RegisterUnitMask fullBank(Size count) {
     return count >= 64 ? ~RegisterUnitMask(0) : (RegisterUnitMask(1) << count) - 1;
 }
 
-// Both of these are the union of what the *bank descriptions* say rather than a second statement of
-// which registers exist and which are held back. That matters for a bank whose reservations are not
-// rsp: a mask bank cannot hand out k0, and an extended vector bank has sixteen registers no encoding
-// can name without EVEX. Deriving them here means a bank that reserves something new is one edit in
-// the constructor below rather than two that can disagree.
-RegSet allRegs() {
-    RegSet set;
-    for(auto& bank: targetRegisters().banks) set |= bank.allocatable | bank.reserved;
-    return set;
-}
-
+// The union of what the *bank descriptions* say rather than a second statement of which registers
+// exist and which are held back. That matters for a bank whose reservations are not rsp: a mask
+// bank cannot hand out k0, and an extended vector bank has sixteen registers no encoding can name
+// without EVEX. Deriving it here means a bank that reserves something new is one edit in the
+// constructor below rather than two that can disagree.
 RegSet allocatableRegs() {
     RegSet set;
     for(auto& bank: targetRegisters().banks) set |= bank.allocatable;
@@ -201,10 +195,6 @@ Size maskRegisterCountFor(FeatureSet features) {
 
 Size vectorRegisterCount() {
     return vectorRegisterCountFor(targetFeatures());
-}
-
-Size maskRegisterCount() {
-    return maskRegisterCountFor(targetFeatures());
 }
 
 RegSet upperVectorRegisters() {

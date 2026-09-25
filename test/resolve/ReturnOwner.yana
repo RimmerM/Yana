@@ -39,8 +39,8 @@ iter fn (TrivialCopy(a)) each(xs: [a]) -> a:
         i = i + 1
 
 -- `-> ->b`: each item is handed over owned, because the consumer below pushes it into an array, and
--- `push` consumes. The default hand-over is a borrow (lenses.md), which the shipping stage let through
--- here and the rewritten stage does not.
+-- `push` consumes. The default hand-over is a borrow (lenses.md), which this fixture would refuse
+-- without the second arrow.
 iter fn (TrivialCopy(a)) mapped(xs: [a], f: (a) -> b) -> ->b:
     for x in each(xs):
         yield f(x)

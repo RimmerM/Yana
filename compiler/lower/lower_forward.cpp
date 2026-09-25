@@ -911,13 +911,14 @@ bool placesApart(LowerBase base, const LowerPlace& write, const LowerPlace& read
  * stretch stores the token's two positions into `self`. This rewrite moves nothing but the *source*
  * of the second copy, so all it has to prove is that nothing in between writes the source's bytes.
  *
- * What it is worth, measured (J160): in the shipping stage, whose lowering relays a value through a
- * temporary at nearly every place it moves one, `test/base`'s `.text` went from 906,520 bytes to
- * 848,536 (-6.4%); in the new stage, which removes most of them before this tier, 942,408 to
- * 940,936. On `test/bench/lexer`'s `iter` it took one of the two 60-byte block copies of every
- * handed-over token away - 222 to 200 cycles a token - and `splitAggregateSlots`' word cut of a wide
- * unnamed cell (lower_split.cpp) is what took the rest: a block copy out of storage a callee has
- * just written a field at a time is a load the store buffer cannot forward, however many there are.
+ * What it is worth, measured (J160): in `compiler/resolve` (the stage deleted in J173), whose
+ * lowering relayed a value through a temporary at nearly every place it moved one, `test/base`'s
+ * `.text` went from 906,520 bytes to 848,536 (-6.4%); in resolve_ssa, which removes most of them
+ * before this tier, 942,408 to 940,936. On `test/bench/lexer`'s `iter` it took one of the two
+ * 60-byte block copies of every handed-over token away - 222 to 200 cycles a token - and
+ * `splitAggregateSlots`' word cut of a wide unnamed cell (lower_split.cpp) is what took the rest: a
+ * block copy out of storage a callee has just written a field at a time is a load the store buffer
+ * cannot forward, however many there are.
  *
  * Refused where anything in the stretch might write the source: a call, an access this pass cannot
  * place, a write `placesApart` cannot separate from it. And where the destination might overlap the
@@ -1011,13 +1012,14 @@ void forwardCopies(LowerBase base, LowerFunction& fun, LowerPtr<LowerValue> retu
          * whole chain was heading for, and that copy is the next one this reaches.
          *
          * After a rewrite the scan carries on from the copy it rewrote - asked again where the copy
-         * is still there, since a relay can leave it a copy `tryForward` now takes - and a pass that
-         * rewrote anything is followed by another over the whole block, which is what catches a
-         * copy below that the rewrite made possible. J166: this used to restart the block at every
-         * rewrite, renumbering all of it each time, and the shipping stage's lowering relays a value
-         * at nearly every move - a 44,547-instruction block in `test/base` was renumbered 113 M
-         * entries' worth, which was a third of that stage's whole native compile. The two orders
-         * reach the same fixpoint on every program the suite builds, byte for byte.
+         * is still there, since a relay can leave it a copy `tryForward` now takes - and a pass
+         * that rewrote anything is followed by another over the whole block, which is what catches
+         * a copy below that the rewrite made possible. J166: this used to restart the block at
+         * every rewrite, renumbering all of it each time, and `compiler/resolve`'s lowering
+         * (deleted in J173) relayed a value at nearly every move - a 44,547-instruction block in
+         * `test/base` was renumbered 113 M entries' worth, which was a third of that stage's whole
+         * native compile. The two orders reach the same fixpoint on every program the suite builds,
+         * byte for byte.
          */
         auto changed = true;
         while(changed) {

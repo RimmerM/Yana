@@ -69,8 +69,9 @@ void printRepr(ReprPrint& print, DeclPtr<mir::Type> type) {
     printNumber(print, repr.stride);
 
     /*
-     * How the constructor is told apart, in the shipping stage's exact words so that the two dumps
-     * are comparable line for line - which is the whole reason this format is not this stage's own.
+     * How the constructor is told apart, in the exact words `compiler/resolve`'s dump used so that
+     * the two dumps were comparable line for line - which is why the wording is not this stage's
+     * own.
      */
     switch(repr.discriminant) {
         case Discriminant::None:
@@ -137,10 +138,10 @@ void printRepr(ReprPrint& print, DeclPtr<mir::Type> type) {
         /*
          * The field's **occurrence**, sigil and all - `'Int` where the declaration borrowed.
          *
-         * Written here rather than by `typeText` because the two stages keep the fact in different
-         * places: the shipping one has a `BorrowType` and prints it as part of the type, and this
-         * one keeps access on the contract. Spelling it the same way is what leaves the two dumps
-         * differing only where a *layout* differs.
+         * Written here rather than by `typeText` because this stage keeps access on the contract
+         * rather than in the type. `compiler/resolve` had a `BorrowType` and printed it as part of
+         * the type, and spelling it the same way is what left the two dumps differing only where a
+         * *layout* differed.
          */
         auto access = field.occurrence.contract.access();
         if(access == mir::Access::Unique) print.writer.writeString("&"_v);
@@ -161,8 +162,8 @@ void printRepr(ReprPrint& print, DeclPtr<mir::Type> type) {
  * another module appears exactly when something here reaches it - which is what puts `Bool` in the
  * dump and leaves `Run(a)` out.
  *
- * The same rule the shipping stage's `printReprs` applies, and deliberately: these two dumps exist
- * to be diffed, so what they are *about* has to be the same question as well as the same format.
+ * The same rule `compiler/resolve`'s `printReprs` applied, and deliberately: the two dumps existed
+ * to be diffed, so what they were *about* had to be the same question as well as the same format.
  *
  * A generic declaration and an instantiation at a variable have no layout - their fields are the
  * variables - so neither is collected. `isConcreteType` is the one test for both.

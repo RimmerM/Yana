@@ -2,13 +2,11 @@
    **Folding a sum whose constructor numbers were pinned** - `@value(n)` and a niche in the same
    declaration.
 
-   # resolver: ownership
-
-   The shipping stage refuses `@value` anywhere in a record that has a payload, on the grounds that
-   a pinned number "would have been written down and never read". The rewritten front end refuses it
-   only on the *constructor* that carries one, which is the narrower rule and the right one: what
-   `Vacant` is numbered is a fact about `Vacant`, and a sum with a payload elsewhere does not make it
-   meaningless. So this fixture is one stage's, and that disagreement is why.
+   The old shipping stage refused `@value` anywhere in a record that has a payload, on the grounds
+   that a pinned number "would have been written down and never read". This stage refuses it only on
+   the *constructor* that carries one, which is the narrower rule and the right one: what `Vacant`
+   is numbered is a fact about `Vacant`, and a sum with a payload elsewhere does not make it
+   meaningless. That disagreement is why this fixture used to compile under only one stage.
 -}
 
 -- A folded tag is decoded by counting patterns away from the first one, so what the arithmetic

@@ -118,11 +118,11 @@ bool threadImpliedBranches(LowerBase base, LowerModule& module, LowerFunction& f
  *
  * **Why it is worth a pass: the backend's folds are per block.** `foldStoreUpdates` takes a load,
  * an operation on it and the store of the result only when the operation and the store share a
- * block, and the ownership resolver checks `out[i]` once for the read and once for the write in
+ * block, and the resolver checks `out[i]` once for the read and once for the write in
  * `out[i] = out[i] + x`. The second check is decided, and what is left is exactly
- * `b1 { ...; %v = add %l, %x; jmp b2 }  b2 { store %p, %v }`: the fold fired under the shipping
- * resolver, which checks the place once, and not under this one - on the same program, with
- * otherwise the same IR (§113 of test/bench/findings.md).
+ * `b1 { ...; %v = add %l, %x; jmp b2 }  b2 { store %p, %v }`: the fold fired under
+ * `compiler/resolve` (the stage deleted in J173), which checked the place once, and not under this
+ * one - on the same program, with otherwise the same IR (§113 of test/bench/findings.md).
  *
  * The successor's phis have one alternative each and are replaced by it; the terminator, and with it
  * every edge the successor had, moves up. A successor that jumps back to the block is left alone,

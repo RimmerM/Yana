@@ -1350,7 +1350,7 @@ static Maybe<ConstantStep> constantStepOf(OptContext& opt, Value& address) {
      * `test/resolve/TruthOperators.yana` gives `copy (global.addr empty)` followed by
      * `field.addr .Flags` and a `load` of that, and without this arm the walk stopped at the copy -
      * so a comparison against a global constant stayed a comparison, `main` kept every arm of a
-     * fixture the shipping stage folds to one constant, and the difference was a thousand bytes in
+     * fixture the shipping stage folded to one constant, and the difference was a thousand bytes in
      * one body.
      *
      * Sound on exactly the terms the two roots are: `constantAt` concludes nothing unless it reaches

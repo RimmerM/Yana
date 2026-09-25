@@ -507,10 +507,11 @@ LowerPtr<LowerValue> Lowering::destinationFor(LowerBlock& block, Value& value) {
          * The storage a `store` is about to copy this value into - **move elision**, and the third
          * destination beside the caller's result pointer and a field of a record being built.
          *
-         * `let tree = build(depth, round)` is a call with an address-only result followed by a store
-         * into the local's slot, and without this it is two frame slots and the value copied between
-         * them - `test/bench/findings.md` §102.3, where it is the whole of `Tree` being 3.3% smaller
-         * and 9.2% *slower* than the shipping stage, which places it.
+         * `let tree = build(depth, round)` is a call with an address-only result followed by a
+         * store into the local's slot, and without this it is two frame slots and the value copied
+         * between them - `test/bench/findings.md` §102.3, where it is the whole of `Tree` being
+         * 3.3% smaller and 9.2% *slower* than `compiler/resolve` (the stage deleted in J173), which
+         * placed it.
          *
          * Three conditions beyond the four above, and each is about what stands between the producer
          * and the store:
@@ -1058,12 +1059,13 @@ LowerBlock* Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> addre
      * **Unless the caller handed over a function to put blocks in**, and then the constructor test
      * is made here as well - `home`, and it is the whole of J58's answer to `Tree`.
      *
-     * The callee begins by deciding the same tag and returning where nothing is owed, so a sum whose
-     * value owes nothing costs a call and a `ret` to find that out. That is most of a teardown: a
-     * `Maybe(Tree)` at the bottom of the tree is `Nothing` for every leaf's two children, so a
-     * thirteen-deep tree made **32,767** calls where the shipping stage's site-side test makes
-     * 16,383 - one per node that exists rather than one per edge that might. `test/bench/findings.md`
-     * §103.4 is where that was measured as the whole of the program's remaining 9.6%.
+     * The callee begins by deciding the same tag and returning where nothing is owed, so a sum
+     * whose value owes nothing costs a call and a `ret` to find that out. That is most of a
+     * teardown: a `Maybe(Tree)` at the bottom of the tree is `Nothing` for every leaf's two
+     * children, so a thirteen-deep tree made **32,767** calls where `compiler/resolve`'s site-side
+     * test made 16,383 - one per node that exists rather than one per edge that might.
+     * `test/bench/findings.md` §103.4 is where that was measured as the whole of the program's
+     * remaining 9.6%.
      *
      * The guard is one comparison, so it is emitted only where one comparison decides it -
      * `soleOwingConstructor`. What it costs where it fires is a test the callee then repeats, on the
@@ -2089,8 +2091,9 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                  * instruction and no conversion for a sign to decide.
                  *
                  * What the *register* holds above the value is a different question and is settled
-                 * below - see the note there. `BitcastNarrow.yana` is the fixture, and the shipping
-                 * stage's arm carries the same correction with the wrong answers it produced.
+                 * below - see the note there. `BitcastNarrow.yana` is the fixture, and
+                 * `compiler/resolve`'s arm carried the same correction with the wrong answers it
+                 * produced.
                  */
                 value = block.addInst(lower, new (to.arena) LowerInstUnary(
                     LowerInst::Bitcast, StringId(), manifest.type, operand - lower));
@@ -2652,8 +2655,8 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             break;
         }
         /*
-         * An operation the machine has and this IR does not - the shipping stage's `Value::Native`,
-         * with the same three shapes and the same argument orders.
+         * An operation the machine has and this IR does not - a `mir::NativeOp`, in the three
+         * shapes and the argument orders `compiler/resolve`'s `Value::Native` had.
          *
          * Nothing about *what* these mean is decided here: the two block forms are instructions the
          * lower IR already has, and a system call is a call with its own convention, which is what
@@ -2857,8 +2860,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                  *
                  * The two loads happen in the **parent**, in front of the intrinsic, and what
                  * crosses to the child is two words the encoder writes onto its stack. The operand
-                 * order is the backend's - `(flags, stackTop, code, argument, threadId, env)` - and
-                 * is the shipping stage's, so `LowerIntrinsic::CloneThread` has one caller shape.
+                 * order is the backend's - `(flags, stackTop, code, argument, threadId, env)`.
                  */
                 case mir::NativeOp::CloneThread: {
                     auto code = wordAt(block, args[2], layout.target.funCodeOffset(),
@@ -3514,12 +3516,11 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                      * list is that a machine's atomic answers the *register* it was handed.
                      *
                      * `lock xadd byte [m], r8` writes the low byte of its operand register and
-                     * leaves that register's own high bits standing; `lock cmpxchg` at a byte leaves
-                     * the expected value's. So a `U8` at 250 less 10 came back as 0xFFFFFF04 with a
-                     * correct byte under three bytes of the operand - `Atomic.wrapping` in
-                     * `lib/Atomic/Atomic.test.native.yana`, which is the case that found it in the
-                     * shipping stage too (`lower_calc.cpp`, where the same four spellings are
-                     * listed).
+                     * leaves that register's own high bits standing; `lock cmpxchg` at a byte
+                     * leaves the expected value's. So a `U8` at 250 less 10 came back as 0xFFFFFF04
+                     * with a correct byte under three bytes of the operand - `Atomic.wrapping` in
+                     * `lib/Atomic/Atomic.test.native.yana`, which is the case that found it in
+                     * `compiler/resolve` too (the stage deleted in J173).
                      *
                      * **The load is not among them**: it states its signedness on the instruction
                      * and both backends widen as they read, which is one instruction rather than

@@ -250,7 +250,7 @@ static bool validateSqrt(Diagnostics* diagnostics, LowerBase base, LowerInstUnar
  * A float or an integer, scalar or vector, and the operand's type is the result's. The *signedness*
  * of an integer lane cannot be checked here and is not this validator's to check: a lane kind has
  * forgotten it by now, and `verifyFunction` has already refused an unsigned one - see the row in
- * resolve/inst.def.
+ * `compiler/resolve`'s inst.def (deleted in J173).
  */
 static bool validateAbs(Diagnostics* diagnostics, LowerBase base, LowerInstUnary* inst) {
     auto type = inst->result.type;
@@ -755,8 +755,9 @@ static bool validateSelect(Diagnostics* diagnostics, LowerBase base, LowerInstSe
     // Anything that lives in a register, which here is every lower type there is: an integer or a
     // pointer is a `cmov`, a float is the branch-over-a-move expansion, and all three are one
     // `select` on LLVM and one ternary on JS. What decides whether a *resolve* value may become one
-    // is `selectableType` in opt/opt_select.cpp, and it is stricter than this on purpose - a memory
-    // type also lowers to `Pointer`, and its value is the address of storage rather than a value.
+    // is `selectableType` in resolve_ssa/opt/select.cpp, and it is stricter than this on purpose -
+    // a memory type also lowers to `Pointer`, and its value is the address of storage rather than a
+    // value.
     if(!(isIntLike(lhs) || isFloat(lhs) || isVectorLike(lhs))) {
         diagnostics->error("inconsistent argument types to operation"_v, inst->source);
         return false;

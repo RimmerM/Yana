@@ -22,8 +22,8 @@ namespace ssa {
  * because the owner representation happens to be the one that exists.
  *
  * A table rather than a switch inside the lowering walk, because the first non-scalar type is where
- * the shipping compiler's equivalent decision got spread across three files and one entry point is
- * what keeps the answer in one place. The JS half of the same table belongs to JSIR
+ * `compiler/resolve`'s equivalent decision (deleted in J173) got spread across three files and one
+ * entry point is what keeps the answer in one place. The JS half of the same table belongs to JSIR
  * (Analysis-IR-JS.md §3) and is deliberately not attempted here.
  */
 struct Manifestation {
@@ -114,11 +114,11 @@ enum class PropertyForm: U8 {
 
 
 /*
- * Which shape a property slot promising this result type is in - the one place the decision is made,
- * because it is made at **both** ends: the caller writes the slot by it and the body reads the slot
- * by it, and neither is told which the other chose. `isNarrowRepr` in `repr/repr.h` is the old
- * stage's version of the same rule for a `&T`, and says why it has to be a function of the declared
- * type rather than of anything at a site.
+ * Which shape a property slot promising this result type is in - the one place the decision is
+ * made, because it is made at **both** ends: the caller writes the slot by it and the body reads
+ * the slot by it, and neither is told which the other chose - which is why it is a function of the
+ * declared type rather than of anything at a site. `isNarrowRepr` in `compiler/repr` (deleted in
+ * J173) was the same rule for a `&T`.
  */
 PropertyForm propertyFormOf(Layout layout, DeclPtr<mir::Type> result);
 
@@ -188,21 +188,14 @@ U32 elementStrideNative(Layout layout, DeclPtr<mir::Type> element);
 
 
 /*
- * Whether the value's own bytes live at the address it carries - `Manifestation::inMemory`.
- *
- * Asked directly because the conversion has to know whether reading a place produces a value or an
- * address. True for an owned record; **false for a loan**, which is the distinction below.
- */
-bool isAddressOnly(Layout layout, const mir::Occurrence& occurrence);
-
-/*
  * Whether the value *is* an address - a loan the target carries as a pointer to somebody else's
  * storage.
  *
- * The other half of the question `isAddressOnly` asks, and they are genuinely different: an owned
- * record's bytes are at the address it carries, so installing one copies them; a loan's "bytes" are
- * the pointer, so installing one stores eight. A single flag answered both until a record field held
- * a loan, and then it block-copied the lender's object into a pointer-sized slot.
+ * The other half of the question `Manifestation::inMemory` answers - whether the value's own bytes
+ * live at the address it carries - and they are genuinely different: an owned record's bytes are at
+ * the address it carries, so installing one copies them; a loan's "bytes" are the pointer, so
+ * installing one stores eight. A single flag answered both until a record field held a loan, and
+ * then it block-copied the lender's object into a pointer-sized slot.
  *
  * Not every loan is one. A shared, call-bounded loan of a trivially copyable type is a *copy* - the
  * spec copies at that position and `readMode` never produces a loan there - so `x: I32` stays a

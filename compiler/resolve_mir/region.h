@@ -138,10 +138,10 @@ template<class T, bool allowEmbed = true> using SsaList = SmallList<SsaRegion, T
  *
  * `LinearArena::alloc` bumps by the raw size, so one odd-sized node misaligns every node after it -
  * `compiler/util/README.md` records the ~4,200 misaligned accesses that produces over the current
- * fixture suite, and that the fix is held up by golden files with raw arena offsets baked into them.
- * The new stage has no such goldens to protect, so it pays the rounding from the first allocation
- * rather than acquiring the same debt: every node here is reached as a `T*` and is entitled to the
- * alignment the compiler assumes it has.
+ * fixture suite, and that the fix is held up by golden files with raw arena offsets baked into
+ * them. These regions have no such goldens to protect, so they pay the rounding from the first
+ * allocation rather than acquiring the same debt: every node here is reached as a `T*` and is
+ * entitled to the alignment the compiler assumes it has.
  *
  * Eight rather than `alignof(T)` because every node in these regions is at most eight-aligned, and a
  * single constant keeps the bump a compare and an add.

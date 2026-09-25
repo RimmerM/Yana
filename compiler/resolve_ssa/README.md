@@ -1,7 +1,8 @@
 # `resolve_ssa` - ownership SSA, and the way down to the shared lower IR
 
-The back half of the rewritten resolve stage. `resolve_mir` produces checked MIR; this converts it to
-ownership SSA, verifies that, and lowers it to the `LowerModule` both stages hand to the backends.
+The back half of the resolve stage. `resolve_mir` produces checked MIR; this converts it to
+ownership SSA, verifies that, and lowers it to the `LowerModule` the native backends read - or,
+through `js/`, to JSIR.
 
 The design is [`doc/inflight/Analysis-IR.md`](../../doc/inflight/Analysis-IR.md) part 7, and part 4's
 diagram is the order these files run in. What it calls OSSA is what `ssa::` is here - see
@@ -105,7 +106,7 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 | what the shared lower passes do to a function, and in what order | `lower/lower_pipeline.cpp` |
 | where an object lives | `resolve_mir`'s `Object`, through `storageOf`, carried to `InstAlloc` |
 | what a callee receives an argument as | `resolve_mir/inst.cpp`, `argumentMode` |
-| whether a call may suspend | the callee's `Summary`, through `resolve_mir`'s `maySuspend` |
+| whether a call may suspend | the callee's `Summary::suspension`, read with `get(true)` |
 
 `valueOccurrenceOf` is `readMode`'s first clause re-asked with the substitution in hand, and it is
 the **one decision a specialization makes for itself** - `specialize.h`'s "a
@@ -162,9 +163,9 @@ whose loads read back `Trivial`, a convention change being no substitution, and 
 `sizeOf` then counts a store and a load per parameter that is never emitted. `fn f(n: Int) = n + n`
 was an `alloc`, a `store` and a `load` in front of the add and is now `add %0, %0`; `g(10)` at a
 generic `x + x` reached the machine as `imm 10 ; add %v,%v` and is now `20`. Over the thirteen bench
-programs it is **1.0 G instructions** (0.9615 -> 0.9512 of the shipping stage, all of it `Hash`), and
-it costs bytes rather than saving them: the bodies are honestly smaller, so the inliner buys more
-with the same budget - J43 §2.
+programs it is **1.0 G instructions** (0.9615 -> 0.9512 of `compiler/resolve`, the stage deleted in
+J173, all of it `Hash`), and it costs bytes rather than saving them: the bodies are honestly
+smaller, so the inliner buys more with the same budget - J43 §2.
 
 `conventionFor` asks `isLinear` and not `hasTeardown`, and the two rows above are separate for that
 reason: they are different questions with the same answer for every type that exists, and the type
@@ -428,10 +429,11 @@ per program.
 
 `ssa::Editor` builds a body and rewrites one. Four lists are private with reading accessors and the
 editor is their only friend - `Block::instructions`, `Block::incoming`, `Block::arguments` and
-`Value::uses` - because each of them is half of a statement the IR makes twice, and a pass that could
-push into one directly is a pass that could state half of it. The old stage's experience is
-unambiguous about which half of that pays: the passes quietly maintaining half a structure were not
-found by review, they were the compile errors left after the members went private.
+`Value::uses` - because each of them is half of a statement the IR makes twice, and a pass that
+could push into one directly is a pass that could state half of it. `compiler/resolve`'s experience
+(the stage deleted in J173) was unambiguous about which half of that pays: the passes quietly
+maintaining half a structure were not found by review, they were the compile errors left after the
+members went private.
 
 The rules the destructive half keeps, each stated once beside the operation in `build.h`:
 
@@ -1011,10 +1013,10 @@ which is what `Core.mapCases` reported once `Maybe(Int)` and `Entry(Int, Int)` b
 (inventory D16). So a relocation whose place is rooted in a `Place::Address` emits the same `InstCopy`
 a `CopyTrivial` of an address-only value already emits: fresh storage with the bytes in it.
 
-At a **trivially copyable** result and no other, which is what an `InstCopy` means - a value that owes
-a teardown may not be duplicated, and a relocation of one out of a raw address is a hand-over whose
-destination write is what moves the bytes. The shipping stage has always copied here: an `InstMove`
-out of a pointer place is bytes.
+At a **trivially copyable** result and no other, which is what an `InstCopy` means - a value that
+owes a teardown may not be duplicated, and a relocation of one out of a raw address is a hand-over
+whose destination write is what moves the bytes. `compiler/resolve` (deleted in J173) always copied
+here: an `InstMove` out of a pointer place was bytes.
 
 ## A read of a type with one value is that value, at a specialization too
 
@@ -1095,14 +1097,14 @@ container is the owner however the position that hands it out is written.
 
 `Lowering::declareGlobal` carries `supplied.def`'s `BuiltinKind::Written` rows across to
 `LowerModule::builtins`, which is the three `commandLine*` cells the process entry stub stores argc,
-argv and envp into - `genCommandLine` in `codegen/x64/emit.cpp`, shared with the shipping stage. The
-lowered global and not the name, for the reason the shipping stage's own lowering gives: what a
-backend needs is the global, the name it happens to have is the library's, and this is the one place
-both halves are in hand. A `BuiltinKind::Supplied` row is not one of these - its value went into the
-initializer the moment the declaration existed. Only a reachable global gets a row, which is the
-intended answer: a program that never asks about its arguments leaves them null and the stub emits
-nothing. This is what makes the library suite's `--only`, `--isolate` and `--list` work under this
-stage, and therefore what makes a failure sweep case by case possible at all.
+argv and envp into - `genCommandLine` in `codegen/x64/emit.cpp`. The lowered global and not the
+name, because what a backend needs is the global, the name it happens to have is the library's, and
+this is the one place both halves are in hand. A `BuiltinKind::Supplied` row is not one of these -
+its value went into the initializer the moment the declaration existed. Only a reachable global gets
+a row, which is the intended answer: a program that never asks about its arguments leaves them null
+and the stub emits nothing. This is what makes the library suite's `--only`, `--isolate` and
+`--list` work under this stage, and therefore what makes a failure sweep case by case possible at
+all.
 
 ## A promoted slot may declare less than an arm hands it
 

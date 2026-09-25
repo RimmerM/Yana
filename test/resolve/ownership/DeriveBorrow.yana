@@ -1,16 +1,14 @@
 {-
    A derived member that takes its subject by **mutable borrow**.
 
-   # resolver: ownership
-
-   The one thing this stage's `deriving` accepts that the shipping stage's refuses, and the reason is
-   the unwrap rather than a rule about newtypes: `module_derive.cpp` matches - and a pattern cannot
-   hand out writable access to the content of a borrowed value - where `resolve_derive.cpp` writes
-   `into.0`, which is a place and is exactly as writable as what it is a projection of.
+   The one thing this stage's `deriving` accepted that the shipping stage's refused, and the reason
+   was the unwrap rather than a rule about newtypes: `module_derive.cpp` matches - and a pattern
+   cannot hand out writable access to the content of a borrowed value - where `resolve_derive.cpp`
+   writes `into.0`, which is a place and is exactly as writable as what it is a projection of.
 
    So the forwarding body is `fill(into.0, from.0)`, the borrow of `into.Slot` is unique, and what the
-   caller sees written is its own storage. The directive is here because the other stage reports the
-   refusal, which is a disagreement rather than a regression - see Analysis-IR.md 11.5.
+   caller sees written is its own storage. The old stage reported the refusal instead, which was a
+   disagreement between the two rather than a regression - see Analysis-IR.md 11.5.
 -}
 
 class Fill(a):

@@ -68,10 +68,11 @@ struct OverloadChoice;
  *  - `resolve_expr.cpp`  expressions, which are the things that answer;
  *  - `resolve_stmt.cpp`  statements and bodies, which are the things that happen.
  *
- * - and it follows `compiler/resolve`'s own module/expr/body split, which is the one arrangement of
- * this code that has already been read by somebody looking for something. The two extra files are
- * pass one grown too large to be one: a signature is read the same way whether a module, a class or
- * an instance is what wrote it, so it stands on its own rather than in the middle of any of them.
+ * - and it follows the module/expr/body split `compiler/resolve` had before J173 deleted it, which
+ * was the one arrangement of this code already read by somebody looking for something. The two
+ * extra files are pass one grown too large to be one: a signature is read the same way whether a
+ * module, a class or an instance is what wrote it, so it stands on its own rather than in the
+ * middle of any of them.
  */
 
 /*
@@ -105,8 +106,8 @@ enum class OperatorForm: U8 {
  *
  * Asked in two places that must agree: the constant walk, which folds the sign into the number, and
  * the expression walk, which does the same for the same reason. The reason is `I64`'s own minimum -
- * the lexer produces the magnitude alone, so negating after the fact is signed overflow, and
- * `resolve/const.cpp` records that having been the bug on the other side.
+ * the lexer produces the magnitude alone, so negating after the fact is signed overflow, which was
+ * the bug in `compiler/resolve`'s `const.cpp` (that stage was deleted in J173).
  */
 bool isNegation(Context& context, ast::ParseBase parse, ast::Expr& expr);
 
@@ -645,10 +646,10 @@ struct Receiver {
  * it, in the caller's block and before the arguments, exactly where a written first argument would
  * have been resolved.
  *
- * The probe asks the **bare** name, and that is a limitation the two forms share with the shipping
- * stage: the receiver's own namespace (`fn String.chars`) cannot be searched before the receiver has
- * a type, and giving it one is emission. The ordering is the other way round for a reason - see
- * `namedCallee`, where `upTo(n).twice()` is the case that decides it.
+ * The probe asks the **bare** name, and that is a limitation the two forms share: the receiver's
+ * own namespace (`fn String.chars`) cannot be searched before the receiver has a type, and giving
+ * it one is emission. The ordering is the other way round for a reason - see `namedCallee`, where
+ * `upTo(n).twice()` is the case that decides it.
  */
 struct NamedCall {
     Function* function = nullptr;
@@ -885,8 +886,8 @@ enum class Position: U8 {
      * A binding position, which is why it is a fourth caller of `resolveOccurrence` rather than a
      * second reading beside it: unqualified means shared and continuation-bounded exactly as a
      * parameter does, `&` means unique without having to say whose, and `->` hands the value over.
-     * The shipping stage wrote that rule twice - once for parameters and once in
-     * `resolveHandedArguments` - and twice it was changed in only one of them.
+     * `compiler/resolve` (deleted in J173) wrote that rule twice - once for parameters and once
+     * in `resolveHandedArguments` - and twice it was changed in only one of them.
      *
      * What it does *not* share with a parameter is the direction a slot travels. A parameter
      * publishes an origin and a hand-over may only name one somebody else published, on the same
@@ -1711,11 +1712,11 @@ struct Resolver {
      * there rather than warned about and truncated the way a body's literal is.
      *
      * The literal *node* rather than a flag over the whole read, because a constant read can demand
-     * a body - `stringLiteral` is run, an operator's instance is asked - and a literal inside one is
-     * ordinary code whose truncation is `foldWritten`'s warning. `declaredLiteralOf` is which node
-     * counts: the initializer itself, under any ascription, parentheses and a folded sign, which is
-     * the shipping stage's reach too. A literal inside an aggregate or an operand of arithmetic is
-     * still the warning. Set by `DeclaredLiteral` below.
+     * a body - `stringLiteral` is run, an operator's instance is asked - and a literal inside one
+     * is ordinary code whose truncation is `foldWritten`'s warning. `declaredLiteralOf` is which
+     * node counts: the initializer itself, under any ascription, parentheses and a folded sign. A
+     * literal inside an aggregate or an operand of arithmetic is still the warning. Set by
+     * `DeclaredLiteral` below.
      */
     ast::Expr* declaredLiteral = nullptr;
     LocationId declaredSource = 0;
@@ -2220,7 +2221,7 @@ struct Resolver {
 
     /*
      * Elision rules 5 and 6 - Analysis-Borrows.md §4.8, in the form that section's own supersession
-     * block settled on, and the same rule the shipping stage's `settleLoanCandidates` applies.
+     * block settled on.
      *
      * A result that carries a loan and names no published origin is not the instruction to go and
      * *pick* a parameter: rule 5's input was a count, and a count changes when something unrelated
@@ -3360,8 +3361,9 @@ struct Resolver {
      *
      * Shared by the ordinary call and the lens call, which is the point: every rule that depends on
      * a parameter's convention - what a bare name filling it does, what happens to an owner handed
-     * to a position that only borrows - is written here and nowhere else. The shipping stage has
-     * two of these loops and the rules it added to one of them are missing from the other.
+     * to a position that only borrows - is written here and nowhere else. `compiler/resolve`
+     * (deleted in J173) had two of these loops, and the rules it added to one of them went missing
+     * from the other.
      */
     bool resolveArguments(Builder& builder, ast::AppExpr& written, Function& callee,
                           const ArgMap& map, LocationId source,
@@ -3642,18 +3644,19 @@ struct Resolver {
                        Request wanted);
 
     /*
-     * Whether this `match` states a *mapping* rather than a decision - inventory D3, and
-     * `resolve/map.h` for the reasoning this stage inherits.
+     * Whether this `match` states a *mapping* rather than a decision - inventory D3.
      *
      * Answers the node, or null meaning "the ordinary path handles this". **It reports nothing about
      * the match**, ever: every refusal is a fall-through to `armsValue`, which resolves the same
      * alternatives and says whatever there is to say about them. A second opinion about a bad match
-     * would be a worse message about the same line, which is `recognizeConstructorMap`'s rule
-     * inherited literally - and is why this runs after `PatternSpace` has issued its warnings.
+     * would be a worse message about the same line, which is the rule `compiler/resolve`'s
+     * `recognizeConstructorMap` followed, inherited literally - and is why this runs after
+     * `PatternSpace` has issued its warnings.
      *
      * What it does **not** decide is which shape the mapping becomes. That is the target's question
-     * and it is answered once, at lowering (`resolve_ssa/lower/map.cpp`). The shipping stage has to
-     * ask it twice because its recognizer owes its caller an emission; here the node always exists.
+     * and it is answered once, at lowering (`resolve_ssa/lower/map.cpp`). A recognizer that owed
+     * its caller an emission would have to ask it twice, as `compiler/resolve`'s did; here the node
+     * always exists.
      */
     Node* matchAsMap(Builder& builder, ast::Expr& expr, Place& pivot, Buffer<ast::Pat> patterns,
                      DeclPtr<Type> hint, Request wanted);
@@ -4587,9 +4590,9 @@ struct TypeArguments {
      * hands `x` the hint and `x` ignores it, so `a` is still bound to `U32` by the argument and the
      * widening happens where it always did - at the return, after the call. Binding `a := U64` up
      * front instead would run `f` at a width the operand never had, and for `not` that is a
-     * different number. The shipping stage states the same rule from the other end: `bindResult`
-     * binds the result *last* and keeps its answer only where nothing decided the position or a
-     * literal did.
+     * different number. `compiler/resolve` (deleted in J173) stated the same rule from the other
+     * end: its `bindResult` bound the result *last* and kept its answer only where nothing decided
+     * the position or a literal did.
      *
      * The bindings are a copy for that reason - what this returns is an input to resolving one
      * argument, and what the call is called at stays the argument walk's answer.

@@ -88,12 +88,6 @@ struct ProjectFile {
     /// `mode = "exe"` - what the compilation produces. Nothing when unset.
     Maybe<CompileMode> mode;
 
-    /// `resolver = "legacy"` or `"ownership"` - which resolver stage compiles the project. Nothing
-    /// when unset, so the command-line default - the rewrite, since 2026-09-22 - stands. A project
-    /// that does name one has *named* it, the way `mode` and `platform` do: `applyProjectFile` sets
-    /// `explicitResolver`, which is what lets a `legacy` project ask for `-mode ir` with no flag.
-    Maybe<ResolverStage> resolver;
-
     /// `to = "build"` - where compilation results go, joined onto `directory`. Empty when unset.
     /// Named for the flag that overrides it, as every key here now is; it was `output`, which is
     /// what the artifact's *name* is called below.

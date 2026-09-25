@@ -256,14 +256,14 @@ YANA_MIR_INST( Select,       NodeSelect,       "select"_v,       kMirResult )
  * selector is an integer that has to hold every case value, which are two different verifier rules.
  *
  * `closed` says the listed selectors are the whole domain - a record's own constructors - so there
- * is no out-of-range case to guard and `fallback` is unset. That is `resolve/map.h`'s "the domain is
- * closed" carried rather than re-derived at each of the five forms below it.
+ * is no out-of-range case to guard and `fallback` is unset. "The domain is closed" is carried
+ * rather than re-derived at each of the five forms below it.
  *
  * **No size rule here.** Which shape the mapping becomes - the constant, two comparisons, a bit
  * test, an affine step, a packed immediate, or a table in static data - is the target's question and
- * is answered once, at lowering. Recognition promises nothing, so nothing is decided twice; the
- * shipping stage's `chooseForm` has to run before it answers and again while it emits, precisely
- * because its recognizer owes its caller an emission.
+ * is answered once, at lowering. Recognition promises nothing, so nothing is decided twice;
+ * `compiler/resolve`'s `chooseForm` had to run before it answered and again while it emitted,
+ * precisely because its recognizer owed its caller an emission.
  */
 YANA_MIR_INST( Map,          NodeMap,          "map"_v,          kMirResult )
 

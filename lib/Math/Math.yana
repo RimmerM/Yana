@@ -91,7 +91,8 @@ pub class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m):
   --
   -- `trunc` is not among them: it is a Core intrinsic beside `floor`, `ceil` and `round`, because
   -- every target has an instruction for it at every float width and an instance would be answering
-  -- a question the machine has already settled. See resolve/inst.def.
+  -- a question the machine has already settled. See `compiler/resolve`'s inst.def (deleted in
+  -- J173).
   fn scaleByExponent(value: a, exponent: a) -> a
   fn exponentOf(value: a) -> a
   fn significandOf(value: a) -> a
@@ -260,7 +261,7 @@ fn (Real(a, m)) maximumNumberOf(lhs: a, rhs: a) -> a =
    every half - `round(2.5)` is 3 here and 2 under round-half-even - and the ties the argument
    reductions below take are ties where the reduction is exact either way. The kernel that used to
    implement it also answered 1 for `0.49999999999999994`, which the instruction does not; see
-   resolve/inst.def.
+   `compiler/resolve`'s inst.def (deleted in J173).
 -}
 -- The truncated remainder - C's `fmod`, whose sign follows the dividend. One division and one
 -- multiply, exact only while the quotient is: a dividend many orders above the divisor answers
@@ -582,7 +583,7 @@ fn powerOfTwoFloat(exponent: Float) -> Float =
       that is set, and the loop has already ended by then.
 
    `Real(Float)` needs none of this: the 32-bit `Float`/`I32` bitcast pair *is* generated on both
-   targets, through the scratch typed-array pair codegen/js/inst.cpp emits, because there a bitcast
+   targets, through the scratch typed-array pair codegen/js/helpers.cpp emits, because there a bitcast
    is the only way to see a float's bits at all.
 -}
 @platform(native) fn powerOfTwoDouble(exponent: Double) -> Double =

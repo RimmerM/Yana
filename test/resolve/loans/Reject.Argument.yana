@@ -1,8 +1,6 @@
 {-
    What a qualified type argument refuses - the other half of `Argument.yana`.
 
-   # resolver: ownership
-
    §2.4 distributes ownership qualification "through logical type structure", and the word doing the
    work is *structure*: the qualifier names positions inside the value, so it is only writable where
    there are positions to name. Each refusal below is one of those conditions, and each has its own
@@ -64,9 +62,9 @@ fn lanes(v: a'I32) -> Vec(a'I32, 4) = splat(0)
    reached through a shared window, which is the same handle `[a]` and `Array(a)` intern to. So this
    head and the unqualified one are the same instance written twice.
 
-   It is the one refusal here that a library written against the *shipping* stage runs into, and it
-   is a decision rather than a gap - `type.def` has no slice sibling, where the old stage's `Flat(a)`
-   is a type of its own and makes the two heads two.
+   It is the one refusal here that a library written against the *old* stage would run into, and it
+   is a decision rather than a gap - `type.def` has no slice sibling, where that stage's `Flat(a)`
+   was a type of its own and made the two heads two.
 
    The member's subject is `[a]`, because the class's `self: c` at `c = Array(a)` is the view - a
    shared variable position bound to a type with a view *is* the view, which is the one form a body

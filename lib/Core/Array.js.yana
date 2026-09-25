@@ -6,7 +6,7 @@ import Native
 
    There is no run because there is no allocation to place, and no capacity because the host reports
    its own - which is §1 working exactly as stated: what varies between implementations is the
-   *owner*, and the borrow every reader was compiled against is `Flat(a)` on both targets.
+   *owner*, and the borrow every reader was compiled against is the window on both targets.
 
    `Array.yana` beside this is what both targets share; `Array.native.yana` is the same operations
    over a run of slots. Analysis-Modules.md §2.5 is why they are three files.
@@ -18,7 +18,7 @@ import Native
    The host array, and how many of its slots are live. There is no run because there is no allocation
    to place and no capacity because the host reports its own - which is §1 working exactly as stated:
    what varies between implementations is the *owner*, and the borrow every reader was compiled
-   against is `Flat(a)` on both targets.
+   against is the window on both targets.
 
    `@host` is what keeps the count from costing anything on the row that does not need it. §14 has
    two rows and the element chooses: a plain host array's `length` *is* its occupancy and assigning
@@ -28,7 +28,7 @@ import Native
    `Field::host` and `hostPropertiesElided`.
 
    So every function below has two bodies and one signature, and nothing outside this file and the
-   two compiler paths that *build* a container (`resolveArray` and `convertSlice`) knows which target
+   compiler paths that *build* a container - a literal, a window - knows which target
    it is on. A teardown is still the authored traversal over the live elements, because whether an
    element has a teardown is a question about the element rather than about where the container keeps
    it.
@@ -41,8 +41,8 @@ import Native
    one type". The attribute is what says which declaration that is, so the compiler holds no name
    and this one is free to be renamed.
 
-   Only the ownership stage reads it - the shipping stage looks straight past a role it does not
-   bind, which is what `findSuppliedRole` is for. What the compiler decides about this type is the
+   (`compiler/resolve`, deleted in J173, looked straight past a role it did not bind - which was
+   what its `findSuppliedRole` was for.) What the compiler decides about this type is the
    **window**: a shared or unique `[a]` in a binding position is two words, and what an *owner* holds
    is what this line declares and nobody else's business.
 -}

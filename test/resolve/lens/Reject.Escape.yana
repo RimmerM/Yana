@@ -1,8 +1,6 @@
 {-
    What a `return` out of a continuation may not carry - Analysis-Lens.md §11.5.
 
-   # resolver: ownership
-
    A hand-over is bounded by the call it was granted for - `Origin::CallBounded`, which is what an
    unqualified `-> T` on a `lens fn` means - so the binding that holds it is a local holding a loan,
    and a `return` of a borrow of that local is an ordinary escaping borrow. The loan pass reports it

@@ -13,18 +13,18 @@
    around a loop is `lanes` variables, because an accumulator that materialized an array would
    allocate one per iteration.
 
-   The two JavaScript goldens are where that is *pinned*, and they currently disagree - which is the
-   shipping backend's tenth known gap (`compiler/codegen/js/README.md`). A `let &acc` of vector type
-   is storage there and storage holds one value, so `.js.expect` rebuilds the row every time round
-   the loop; under JSIR the accumulator is `lanes` block arguments and `.jsir.js.expect` assigns
-   `lanes` variables and allocates nothing (`doc/progress/2026-09-21-J68-jsir-parts-vectors.md` §2).
-   So the loop body of each file is the assertion, and when the shipping path goes the gap goes with
-   it.
+   `.jsir.js.expect` is where the loop body is pinned: under JSIR the accumulator is `lanes` block
+   arguments, and it assigns `lanes` variables and allocates nothing per iteration
+   (`doc/progress/2026-09-21-J68-jsir-parts-vectors.md` §2). Before J173's deletion this disagreed
+   with the shipping backend's own golden - its tenth known gap - because a `let &acc` of vector
+   type was storage there, and storage holds one value, so it rebuilt the row every time round the
+   loop. That gap belonged to the shipping backend alone, and went with it; this file's own loop
+   body is what still asserts the fix stuck.
 
-   No `.run.expect`, and a `.js.run.expect` instead. The local x64 backend has no machine opcode for
-   the five vector instruction kinds yet - that is the rest of Implementation-Vector.md §5 - so the
-   native half of this fixture is its lowered IR and its LLVM module, and the number is asserted on
-   the target that can currently answer it.
+   Used to have no `.run.expect`, only a `.js.run.expect`: the local x64 backend had no machine
+   opcode for the five vector instruction kinds (the rest of Implementation-Vector.md §5), so the
+   native half of this fixture was its lowered IR and its LLVM module, the number asserted only on
+   the target that could answer it. x64 has them now, so this runs like any other fixture.
 -}
 
 -- Read rather than written, but mutable, which is what stops the folder from seeing through it: a

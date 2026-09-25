@@ -1902,9 +1902,9 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
              * looks right whenever the neighbouring lanes are zero.
              *
              * `pextrb`/`pextrw` zero-extend, which is the whole answer for an unsigned lane. A
-             * signed one is sign-extended by the two instructions `Value::VecLane` puts after this
-             * in resolve/lower_calc.cpp, that being where the lane's signedness still exists - a
-             * `LowerLane::Int8` states a width and nothing else.
+             * signed one is sign-extended by the two instructions `Inst::VecLane`'s lowering puts
+             * after this in resolve_ssa/lower/inst.cpp, that being where the lane's signedness
+             * still exists - a `LowerLane::Int8` states a width and nothing else.
              *
              * A **mask** keeps the 32-bit rows whatever its lanes are wide, for the reason above:
              * `scalarFormOf` makes a mask's scalar an `Int32`, so the value this defines and the one

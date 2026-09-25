@@ -1027,9 +1027,10 @@ void Editor::seal() {
  * because `contents` unmasks into a copy (`util/README.md`'s trap), so a rewrite driven from that
  * walk would assign a temporary and say nothing.
  *
- * Being a *second* statement of the operand relation is a property rather than a cost, and it is the
- * same one the old stage's `recordUses` is a switch for: `verifyBody` checks the use lists against
- * `forEachUse`, so a slot this walk invents or misses is a use count that never balances.
+ * Being a *second* statement of the operand relation is a property rather than a cost, and it is
+ * the same one `recordUses` was a switch for in `compiler/resolve` (the stage deleted in J173):
+ * `verifyBody` checks the use lists against `forEachUse`, so a slot this walk invents or misses is
+ * a use count that never balances.
  */
 template<class F>
 static void mapUses(SsaBase base, Inst& inst, F&& f) {
@@ -1576,8 +1577,8 @@ Inst* Editor::replaceTerminator(Block& block, Inst* terminator) {
     auto made = after.size();
 
     /*
-     * The multiset match, greedy by ordinal - the one idea from the old stage's `setTerminator`
-     * worth copying verbatim.
+     * The multiset match, greedy by ordinal - the one idea from `compiler/resolve`'s
+     * `setTerminator` (deleted in J173) worth copying verbatim.
      *
      * An edge present in both keeps its `incoming` entry and the arguments it was carrying, over
      * whatever the caller supplied: folding `branch %c, then, else` into `jump then` is a fold whose
@@ -1640,11 +1641,11 @@ Inst* Editor::replaceTerminator(Block& block, Inst* terminator) {
 /*
  * Constant equality, structurally and bit-exactly.
  *
- * `mir::Constant`'s own `==` is three words, and three words is the whole of a scalar - so this adds
- * exactly the case it cannot answer: an aggregate, whose handle differs per construction even where
- * the values agree. Bits rather than numbers is a requirement rather than a convenience, and the
- * reason is `resolve/expr_map.cpp`'s: `-0.0` and `0.0` are the same number and different values, and
- * collapsing them is how a table becomes a range test answering the wrong one of two constants.
+ * `mir::Constant`'s own `==` is three words, and three words is the whole of a scalar - so this
+ * adds exactly the case it cannot answer: an aggregate, whose handle differs per construction even
+ * where the values agree. Bits rather than numbers is a requirement rather than a convenience:
+ * `-0.0` and `0.0` are the same number and different values, and collapsing them is how a table
+ * becomes a range test answering the wrong one of two constants.
  *
  * Here rather than in `lower/map.cpp`, where it was written, since J88: the JavaScript target asks
  * it of a `match` whose arms are records, and `resolve_ssa/js` does not include `lower/`.

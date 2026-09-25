@@ -77,12 +77,12 @@
  * be replaced by one arriving from the head. Here the head's new edge simply supplies the select and
  * every other edge is untouched, so nothing has to be said about it.
  *
- * **A join that is a loop header needs no case either**, where the shipping stage declines an
- * alternative that is a phi of the join. Its reason is that phis happen at once and the selects
- * replacing them are instructions in a row, so one reading another would read the new value. Nothing
- * here replaces anything at the join: the select is built in the *head*, which is a predecessor, so
- * an operand that is one of the join's own arguments is the value the current iteration has - which
- * is what an edge operand means. The parallel copy stays where it was.
+ * **A join that is a loop header needs no case either**, where the shipping stage (deleted in J173)
+ * declined an alternative that was a phi of the join. Its reason was that phis happen at once and
+ * the selects replacing them are instructions in a row, so one reading another would read the new
+ * value. Nothing here replaces anything at the join: the select is built in the *head*, which is a
+ * predecessor, so an operand that is one of the join's own arguments is the value the current
+ * iteration has - which is what an edge operand means. The parallel copy stays where it was.
  *
  * What the representation makes impossible is the **triangle** with a value in it. `Editor::
  * makeBranch` pushes one argument list onto both edges - this tier's rule that a value live before a
@@ -159,7 +159,7 @@ namespace {
  * taken as the starting one rather than re-derived - the shapes this exists for are small, and both
  * of the two that dominate the corpus (`if c then a else b` over values already computed, and a
  * short-circuit `&&` whose skipped arm is a literal) compute nothing at all in either arm. Raise it
- * against a measurement, which is what the shipping stage's own comment asks for.
+ * against a measurement, which is what the shipping stage's own comment asked for.
  */
 constexpr Size kMaxSpeculated = 4;
 

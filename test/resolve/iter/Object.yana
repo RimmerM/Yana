@@ -1,8 +1,6 @@
 {-
    Iterator **objects** - `doc/inflight/Design-Iterator-Objects.md` §3, stage 3's state record.
 
-   # resolver: ownership
-
    An `iter fn` whose call result is kept is not called at all. `let it = f(...)` builds a record
    holding a resume index, the hand-over slot, the captured arguments and whatever the producer keeps
    live across a `yield`; `f$step` is the producer's own body converted a second time, and steps it.

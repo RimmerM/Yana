@@ -2,8 +2,6 @@
    A lens call nested inside *another* lens call's own argument - `hoistableLensCall`'s self-match
    raced against its own recursion.
 
-   # resolver: ownership
-
    `g(h())` where both `g` and `h` are `lens fn` puts `h()` in a position that runs before `g` is
    called, exactly as any other call's argument does. `hoistableLensCall` used to ask whether `expr`
    itself was a lens call before it asked the same question of `expr`'s own callee and arguments, so
@@ -12,10 +10,10 @@
    left `h()` behind as a plain argument of the call that replaced `g(h())`, and a raw lens call in
    an argument position is exactly what `checkCallable` refuses.
 
-   This belongs here rather than beside `LensHoist.yana`: the shipping stage cannot compile a lens
-   call that is itself the argument of another lens call at all (there a lens call must be a
-   statement or the whole right-hand side of a `let`), so there is no shared answer for it to agree
-   with the rewrite about.
+   This belongs here rather than beside `LensHoist.yana`: the old stage could not compile a lens
+   call that is itself the argument of another lens call at all (there a lens call had to be a
+   statement or the whole right-hand side of a `let`), so there was no shared answer for it to
+   agree with the rewrite about.
 
    `log` is what both lenses write into, on `LensHoist.yana`'s terms - running it is the only way to
    tell which of them ran, and in what order, from the value the function returns.

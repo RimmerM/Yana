@@ -2,9 +2,10 @@
  * The roster of lower-IR instructions - one row per `LowerInst::Kind`, and the only place a kind is
  * written down.
  *
- * `LowerInst::Kind` itself is generated from this file, on the terms resolve/inst.def states for the
- * tier above: the rows and the enumerators are one list rather than two that agree, so a kind cannot
- * be added without a row and a row cannot be added without every column below being decided for it.
+ * `LowerInst::Kind` itself is generated from this file, on the terms resolve_ssa/inst.def states
+ * for the tier above: the rows and the enumerators are one list rather than two that agree, so a
+ * kind cannot be added without a row and a row cannot be added without every column below being
+ * decided for it.
  * Everything that used to be a switch over every kind to say one thing about each - the mnemonic,
  * whether it may be recomputed, whether it touches memory, how large its allocation is - is a column
  * here instead.
@@ -96,7 +97,7 @@ YANA_LOWER_INST(Not,           LowerInstUnary,          "not"_v,             1, 
  *
  * **Int32 or Int64, and nothing narrower.** This IR has no 16-bit scalar, so `Bswap` is
  * always the whole of its register: the 16-bit swap a program can write is expanded above
- * this seam (see `Value::ByteSwap` in resolve/inst.def and its arm in lower_calc.cpp), and
+ * this seam (see `narrowByteSwap` in resolve_ssa/lower/inst.cpp), and
  * a backend never has to ask how much of the register the answer is.
  */
 YANA_LOWER_INST(Bswap,         LowerInstUnary,          "bswap"_v,           1,         1,        kLowerArith)
@@ -205,7 +206,7 @@ YANA_LOWER_INST(Xor,           LowerInstBinary,         "xor"_v,             2, 
 /*
  * The three bit operations that are one instruction on a machine with BMI2 and a sequence
  * everywhere else - `Core.Bits.bitsUpTo` and `Core.BitPermute`. See the notes in
- * resolve/inst.def, which is where each one's contract is argued.
+ * `compiler/resolve`'s inst.def (deleted in J173), which is where each one's contract is argued.
  *
  * `BitsUpTo` keeps the low `rhs` bits of `lhs` and clears the rest. **The count is read as
  * an unsigned number and saturates at the type's width**, which is the ruling and is *not*
@@ -235,10 +236,10 @@ YANA_LOWER_INST(ScatterBits,   LowerInstBinary,         "scatterbits"_v,     2, 
  * The CRC-32C step - `X86.crc32`, and the one binary here that is a named function
  * rather than an operation on bits.
  *
- * `lhs` is the running remainder and `rhs` is the chunk folded into it, both at the
- * instruction's own width, and the answer is the new remainder in the low thirty-two bits.
- * The polynomial is Castagnoli's and is not a parameter - see resolve/inst.def, where that
- * is argued, and `lib/Digest/Crc.yana`, where the IEEE one it is *not* lives.
+ * `lhs` is the running remainder and `rhs` is the chunk folded into it, both at the instruction's
+ * own width, and the answer is the new remainder in the low thirty-two bits. The polynomial is
+ * Castagnoli's and is not a parameter - see `compiler/resolve`'s inst.def (deleted in J173), where
+ * that is argued, and `lib/Digest/Crc.yana`, where the IEEE one it is *not* lives.
  *
  * A real kind rather than an intrinsic, on `BitsUpTo`'s terms: a checksum over a
  * loop-invariant word written as an intrinsic would be pinned inside the loop that reads it,
@@ -262,8 +263,8 @@ YANA_LOWER_INST(Select,        LowerInstSelect,         "select"_v,          3, 
 YANA_LOWER_INST(Fma,           LowerInstFma,            "fma"_v,             3,         1,        kLowerArith)
 
 /*
- * The SHA extension's seven instructions, as two kinds - see resolve/inst.def, where what
- * each computes is argued.
+ * The SHA extension's seven instructions, as two kinds - see `compiler/resolve`'s inst.def (deleted
+ * in J173), where what each computes is argued.
  *
  * **Deliberately not in the binary range above**, and `ShaBinary` is the reason: it carries
  * an op in `flags` and there are nine of them, so a pass that read it as an ordinary binary
@@ -279,9 +280,9 @@ YANA_LOWER_INST(ShaBinary,     LowerInstShaBinary,      "sha"_v,             2, 
 YANA_LOWER_INST(Sha256Rounds,  LowerInstSha256Rounds,   "sha256rnds2"_v,     3,         1,        kLowerArith)
 
 /*
- * AES-NI and PCLMULQDQ - Analysis-Avx512.md §4.1-4.2, written in source as `X86.aesEncrypt` and
- * its siblings and `X86.carrylessMultiply`. See `Value::CryptoBinary` in resolve/inst.def, where
- * what each computes is argued.
+ * AES-NI and PCLMULQDQ - Analysis-Avx512.md §4.1-4.2, written in source as `X86.aesEncrypt` and its
+ * siblings and `X86.carrylessMultiply`. See `Value::CryptoBinary` in `compiler/resolve`'s inst.def
+ * (deleted in J173), where what each computes is argued.
  *
  * Three kinds, and everything each carries is in `flags` so that all three are plain: which of
  * the four rounds or which pair of quadwords a `CryptoBinary` is (`LowerCrypto`), and the round
@@ -301,8 +302,8 @@ YANA_LOWER_INST(AesKeygenAssist, LowerInstAesKeygenAssist, "aeskeygenassist"_v, 
 
 /*
  * Lane-wise addition and subtraction that clamps rather than wrapping - `saturatingAdd` and
- * `saturatingSub` in `lib/Core/Vector.yana`. See `Value::SaturatingAdd` in resolve/inst.def, where
- * what each computes is argued.
+ * `saturatingSub` in `lib/Core/Vector.yana`. See `Value::SaturatingAdd` in `compiler/resolve`'s
+ * inst.def (deleted in J173), where what each computes is argued.
  *
  * **Deliberately outside the binary range above**, which is where these depart from `Crc32` and
  * `BitsUpTo`: every pass that asks `isBinary` is written for arithmetic that *wraps*, and a `lea`
@@ -328,9 +329,9 @@ YANA_LOWER_INST(SatSub,          LowerInstSaturating,      "satsub"_v,          
 YANA_LOWER_INST(ISatSub,         LowerInstSaturating,      "isatsub"_v,         2,         1,        kLowerArith)
 
 /*
- * The five AVX-512 float operations - Analysis-Avx512.md §3.7, written in source as `X86.getExponent`
- * and its four siblings. See `Value::FloatAdjust` in resolve/inst.def, where what each computes is
- * argued.
+ * The five AVX-512 float operations - Analysis-Avx512.md §3.7, written in source as
+ * `X86.getExponent` and its four siblings. See `Value::FloatAdjust` in `compiler/resolve`'s
+ * inst.def (deleted in J173), where what each computes is argued.
  *
  * **A kind per instruction and two structs**, which is where this departs from `CryptoBinary`: the
  * trailing byte is `flags`, so which operation an instruction is has nowhere left to live but the
@@ -356,7 +357,8 @@ YANA_LOWER_INST(RangeFloat,      LowerInstFloatCombine,    "vrange"_v,          
 
 /*
  * The four widening multiply-accumulates - `vpdpbusd`, `vpdpwssd`, `vpmadd52luq`, `vpmadd52huq`.
- * See `Value::MulAccumulate` in resolve/inst.def, where what each computes is argued.
+ * See `Value::MulAccumulate` in `compiler/resolve`'s inst.def (deleted in J173), where what each
+ * computes is argued.
  *
  * Three operands and one result: the accumulator is operand zero and the result is written over it,
  * which is what every one of these instructions does. **The narrow operands are a different type
@@ -391,8 +393,8 @@ YANA_LOWER_INST(MulAdd52Hi,      LowerInstMulAccumulate,   "vmadd52hi"_v,       
  * `vzeroupper` - the vector state reset, written in source as `X86.vzeroupper()`.
  *
  * No operands and no result: what it changes is processor state nothing in this IR names.
- * See `Value::VZeroUpper` in resolve/inst.def for why it is a call a program writes rather
- * than something the backend inserts at the entry of a `legacyVectors` function.
+ * It is the `VZeroUpper` row of resolve_mir/native.def: a call a program writes rather than
+ * something the backend inserts at the entry of a `legacyVectors` function.
  *
  * It has no expansion, on the SHA instructions' terms and for a different reason: there is
  * nothing for a target without AVX to do, so a build below that level drops it rather than
@@ -550,7 +552,7 @@ YANA_LOWER_INST(X86JumpTable,  LowerInstX86JumpTable,   "x86_jmptable"_v,    1, 
 
 /*
  * A block control never leaves the end of - the abort arm of a check, and nothing else
- * today. See InstUnreachable in resolve/inst.h, which is where the fact is established.
+ * today. See InstUnreachable in resolve_ssa/inst.h, which is where the fact is established.
  *
  * A terminator rather than a flag on the block, for the reason `Ret` is one: what every walk
  * below here reads is the *edges*, and having none is the whole of what this says. It
@@ -600,7 +602,7 @@ YANA_LOWER_INST(X86PushArg,    LowerInstX86PushArg,     "x86_pusharg"_v,     1, 
  * The lane-wise minimum or maximum of two vectors - `pminsd`, `pmaxub`, `minps`.
  *
  * Backend-private for the reason `LowerReduce::Bits` is: the portable spelling of a minimum
- * is a comparison and a select (`emitMinMax` in resolve/simd.cpp), which is what every
+ * is a comparison and a select, which is what every
  * target that lacks the instruction needs anyway and what LLVM's own selection folds. x86
  * has the instruction at most lane widths, so the x64 backend recognizes the pair and writes
  * this in their place - see `selectPackedMinMax` in codegen/x64/transform_constant.cpp.
@@ -821,7 +823,7 @@ YANA_LOWER_INST(X86StoreOp,    LowerInstX86StoreOp,     "x86_storeop"_v,     2, 
  * The sign of a narrow value put back into the whole register - `movsx`, `movsxd`.
  *
  * Backend-private on `X86StoreOp`'s terms: the portable spelling is the pair
- * `truncateToWidth` writes (resolve/lower_type.cpp), a left shift and an arithmetic right
+ * `putInRange` writes (resolve_ssa/lower/width.cpp), a left shift and an arithmetic right
  * shift by the same distance, and there is nothing wrong with it. LLVM folds the pair into a
  * `sext` for itself and `(x << 16) >> 16` is the idiom a JS engine recognizes, so those two
  * backends want exactly the two instructions they are given.
@@ -878,11 +880,11 @@ YANA_LOWER_INST(X86VecCount,   LowerInstX86VecCount,    "x86_veccount"_v,    1, 
  * every other operation with an r/m operand, and it needs a kind of its own only because
  * `bswap` itself has no memory form to be the twin of - the opcode is a different one.
  *
- * `getWidth` is the access, 2, 4 or 8 bytes, exactly as a `Load`'s is. There is no sign flag
- * and no narrower width: a `movbe` is the whole of its register, and a program that reversed
- * two bytes never reached this - see `Value::ByteSwap` in resolve/inst.def for where a 16-bit
- * swap is spent. `selectByteSwapMemory` in codegen/x64/transform_address.cpp is what writes
- * both of these, and the feature test is there rather than here.
+ * `getWidth` is the access, 2, 4 or 8 bytes, exactly as a `Load`'s is. There is no sign flag and no
+ * narrower width: a `movbe` is the whole of its register, and a program that reversed two bytes
+ * never reached this - see `Value::ByteSwap` in `compiler/resolve`'s inst.def (deleted in J173) for
+ * where a 16-bit swap is spent. `selectByteSwapMemory` in codegen/x64/transform_address.cpp is what
+ * writes both of these, and the feature test is there rather than here.
  */
 YANA_LOWER_INST(X86MovbeLoad,  LowerInstX86MovbeLoad,   "x86_movbe_load"_v,  1,         1,        kLowerPlain | kLowerReads)
 YANA_LOWER_INST(X86MovbeStore, LowerInstX86MovbeStore,  "x86_movbe_store"_v, 2,         0,        kLowerPlain | kLowerWrites)

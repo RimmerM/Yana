@@ -387,9 +387,9 @@ static constexpr Size kGprCount = 16;
 // and no mask registers at all until there are. Both are read from targetFeatures(), which chooses
 // between the two register descriptions this backend builds - see targetRegisters in target.cpp.
 Size vectorRegisterCount();
-Size maskRegisterCount();
 
-// The same, for a feature set other than the one in force.
+// The same, for a feature set other than the one in force - and the only form the mask count is
+// asked in, since the bank description is what everything else reads.
 Size vectorRegisterCountFor(FeatureSet features);
 Size maskRegisterCountFor(FeatureSet features);
 
@@ -798,11 +798,9 @@ struct MachineLocation {
 // rsp is never handed out: push/pop/call/ret need it to be the stack pointer, in every function.
 inline PhysicalReg stackPointerReg() { return gpr(IntRegister::rsp); }
 
-// Every register of each bank, and the ones a value can actually be given. Anything outside the
-// allocatable set either does not exist or is rsp, so a calling convention's preserved set is stated
-// relative to it: the registers a function has to give back are exactly the ones it could have taken
-// in the first place.
-RegSet allRegs();
+// The registers a value can actually be given. Anything outside it either does not exist or is
+// reserved, so a calling convention's preserved set is stated relative to it: the registers a
+// function has to give back are exactly the ones it could have taken in the first place.
 RegSet allocatableRegs();
 
 /*

@@ -74,7 +74,7 @@ U16 effectsOf(const JsInst& inst) {
      *
      * Eight of the twelve compute a number out of a number and are pure. The float pair is not: it
      * writes one typed-array buffer the whole program shares, so two of them may not be reordered
-     * against each other - which is the same reason the shipping backend's `bitcastLane` is
+     * against each other - which is also why the old JavaScript backend's `bitcastLane` was
      * deliberately not marked `pure`. `FunDrop` runs an authored teardown, so it is a call.
      */
     if(inst.kind == JsInst::Helper) {

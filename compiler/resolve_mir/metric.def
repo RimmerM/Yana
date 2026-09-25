@@ -17,15 +17,14 @@
  * which is why none of these folds in MIR: a body compiled once for every `a` has no layout to fold
  * against, and a stage that answered here would be answering a question it cannot see.
  *
- * What is deliberately *not* here: `Count`, which the shipping stage carries as a metric. A const
+ * What is deliberately *not* here: `Count`, which `compiler/resolve` carried as a metric. A const
  * parameter is `Node::GenValue` in this IR - a number has nothing to describe, so it is a slot read
  * and one step shorter rather than one longer - and it would not share this node's one operand-free
  * shape honestly.
  *
- * A **byte order** was the other, and it is now not a metric in either stage: it is a fact about the
- * machine rather than about any `of`, so it is `supplied.def`'s `byteOrder` - a global of the
- * library's own `Endian` whose constant the compiler writes, exactly as `wordBits` and
- * `vectorBytes` are.
+ * A **byte order** was the other, and it is now not a metric at all: it is a fact about the machine
+ * rather than about any `of`, so it is `supplied.def`'s `byteOrder` - a global of the library's own
+ * `Endian` whose constant the compiler writes, exactly as `wordBits` and `vectorBytes` are.
  */
 
 // What one value occupies, and what a whole-value copy moves. Not rounded up to the alignment.

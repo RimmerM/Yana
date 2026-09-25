@@ -13,9 +13,9 @@
 --
 -- Two things have to hold for this fixture to be about anything at all, and both are arranged
 -- rather than assumed. The callee has to stay a *call*, since an inlined one was never handed
--- anything - hence `@noinline`. And the record has to be passed *whole*, since opt_arg.cpp takes a
--- flattenable one apart into scalars and then there is no storage at the call either - hence a
--- packed record, which `argumentCanFlatten` declines for having no fields to pass in place of it.
+-- anything - hence `@noinline`. And the record has to be passed *whole*: `compiler/opt` (deleted in
+-- J173) took a flattenable one apart into scalars, leaving no storage at the call - hence a packed
+-- record, which its `argumentCanFlatten` declined; `resolve_ssa/opt/arg.cpp` flattens windows only.
 
 data Flags {read: Bool, write: Bool}
 

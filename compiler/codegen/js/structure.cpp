@@ -9,23 +9,22 @@
  * Two jobs, and they are the two §2.3 puts on this side of the line.
  *
  * **Control flow becomes syntax.** JS has no `goto`, so a CFG has to be recovered as `if`,
- * `for(;;)` and labelled `break`/`continue`. The algorithm is `flow.cpp`'s, which is the shipping
- * backend's and is kept deliberately: a branch becomes an `if` whose arms are emitted up to the
- * branch's post-dominator, and a block with an edge back to it becomes a labelled `for(;;)` whose
- * body is emitted up to *its* follow. Two facts make that a small pass rather than a Relooper - the
- * resolver only produces reducible graphs, and the immediate post-dominator of a branch *is* the
- * block its arms join at. Reinventing it would have been a second answer to a question that has one.
+ * `for(;;)` and labelled `break`/`continue`. The rule is the dominator-tree one (J73): a block with
+ * more than one way forward into it owns a labelled region in the scope of its immediate dominator,
+ * a loop header owns a `for(;;)`, and everything else is written where the block that branches to
+ * it is. That covers every reducible graph; an irreducible one is emitted as a state machine
+ * (`emitDispatch`). The README's "Control flow" is the account, with the refinements and their
+ * measurements.
  *
- * **Representation becomes spelling.** Every arithmetic spelling here is the one `codegen/js/inst.cpp`
- * and `type.cpp` already worked out - `Math.imul` for a 32-bit multiply, `$div` for a division the
- * host answers differently, `BigInt.asIntN` above 53 bits, `wide.cpp`'s helpers between 33 and 53.
- * They are copied rather than approximated, because the emitted arithmetic has to be at least as
- * compact and as fast as the pipeline this one replaces, and each of those spellings is a
- * measurement rather than a preference.
+ * **Representation becomes spelling.** Every arithmetic spelling here is the one the resolve-IR
+ * generator deleted in J173 had already worked out - `Math.imul` for a 32-bit multiply, `$div` for
+ * a division the host answers differently, `BigInt.asIntN` above 53 bits, `wide.cpp`'s helpers
+ * between 33 and 53. They were copied rather than approximated, because the emitted arithmetic had
+ * to be at least as compact and as fast as the pipeline this one replaced, and each of those
+ * spellings is a measurement rather than a preference.
  *
  * What this file may **not** do is ask what a value is. Everything it switches on is a `JsRep`, a
- * `JsShape` or a `JsPlace` - never a `mir::Type`, which §8.1 rules out and which is the seam the
- * shipping backend does not have.
+ * `JsShape` or a `JsPlace` - never a `mir::Type`, which §8.1 rules out.
  */
 
 namespace js {
@@ -598,8 +597,8 @@ struct Structurer {
     JsPtr<Expr> readPlace(JsPlaceId id, LocationId where) {
         auto& place = *body.place(ir, id);
 
-        // A range of a packed word: the word, decoded - `codegen/js/place.cpp`'s constant-range
-        // form, which is the shipping backend's own spelling of the same bits.
+        // A range of a packed word: the word, decoded - `bits.cpp`'s spelling of the bits the
+        // native layout places.
         if(place.kind == JsPlaceKind::BitRange && place.bitScale) {
             return noteRange(decodeScaledRange(a, placeExpr(place.word, where),
                                                valueOf(place.bitScale, where), place.bitOffset,
@@ -705,8 +704,7 @@ struct Structurer {
     // ---------------------------------------------------------------- arithmetic
 
     /*
-     * A value brought back into its representation's domain - `codegen/js/type.cpp`'s `coerce`, read
-     * off a `JsRep` instead of a `TypePtr`.
+     * A value brought back into its representation's domain, read off a `JsRep`.
      *
      * `Int` is a wrapping 32-bit integer on both targets and JS has no 32-bit integer, so every
      * arithmetic result is reduced. Analysis-JS.md §2.1 recommends exactly this and notes that a
@@ -773,7 +771,7 @@ struct Structurer {
 
         /*
          * A comparison answers the host's boolean and a `Bool` here is the number 0 or 1 - see
-         * `boolNumber` in type.cpp, where the two forms coming apart is argued.
+         * `boolNumber` in helpers.cpp, where the two forms coming apart is argued.
          *
          * A **mask lane** is the one destination that wants the boolean itself, which is the whole
          * of why `HostBool` is a representation: a comparison per lane under `boolNumber` would be
@@ -907,10 +905,9 @@ struct Structurer {
 
             /*
              * A narrow signed operand is held sign-extended and `>>>` shifts its 32-bit reading, so
-             * `-100 shr 1` at `I8` answered -50 where native answers 78 - scalar and lane alike,
-             * and in the shipping backend too (J149). Masked to the width first, which is the
-             * pattern native shifts; the coercion the converter puts after every operation then
-             * reads the result back at the type.
+             * `-100 shr 1` at `I8` answered -50 where native answers 78 - scalar and lane alike
+             * (J149). Masked to the width first, which is the pattern native shifts; the coercion
+             * the converter puts after every operation then reads the result back at the type.
              */
             case mir::BinaryOp::Shr:
                 if(to.kind == JsRepKind::Number && to.domain == NumberDomain::Signed && to.bits < 32) {
@@ -993,36 +990,15 @@ struct Structurer {
     /*
      * One representation crossing to another - the cast tower, read off two `JsRep`s.
      *
-     * `codegen/js/inst.cpp`'s `genCast` step for step, with the type questions answered from the
-     * representation instead. Four host domains meet here - the 0/1 boolean, the `number` below 33
+     * Four host domains meet here - the 0/1 boolean, the `number` below 33
      * bits, the `number` from 33 to 53 and the `bigint` above - and each crossing is a measurement
      * rather than a preference: `BigInt(NaN)` throws, `2^63 - 1` is not a double, and a widening
      * between two integers this target holds identically has to emit *nothing* or every subscript
      * with an ordinary index pays a coercion.
      */
-    // The shape of `saturationRange` in `resolve/type.h`, which this file used to include for the
-    // struct alone - a JSIR program's widths are its `JsRep`'s and never an `IntType`'s (J150).
-    struct SaturationRange {
-        F64 low;
-        F64 high;
-        bool highIsExact;
-    };
-
-    static SaturationRange saturationOf(const JsRep& rep) {
-        auto bits = rep.bits >= 64 ? 64u : U32(rep.bits);
-
-        if(rep.domain != NumberDomain::Signed) {
-            auto high = bits >= 64 ? 18446744073709551616.0 : F64((U64(1) << bits) - 1);
-            return SaturationRange { 0.0, high, bits <= 53 };
-        }
-
-        auto magnitude = F64(U64(1) << (bits - 1));
-        return SaturationRange { -magnitude, bits >= 64 ? magnitude : magnitude - 1.0, bits <= 54 };
-    }
-
     JsPtr<Expr> saturatingToNumber(const JsRep& to, JsPtr<Expr> value) {
         auto truncated = hostCall(a, "Math"_v, "trunc"_v, value);
-        auto range = saturationOf(to);
+        auto range = saturationRange(to.bits, to.domain == NumberDomain::Signed);
         if(!range.highIsExact) return truncated;
 
         return hostCall(a, "Math"_v, "min"_v,
@@ -1042,10 +1018,11 @@ struct Structurer {
         if(fromId == toId) return value;
 
         /*
-         * A **host boolean** crossing to or from a number, which is the one pair `genCast`'s tower
-         * never had: a mask lane read as the number it stands for - which is what a mask's `count`
-         * reduction sums - and a number read as a lane, which nothing produces today but which the
-         * tower answers rather than leaving to a later arm to get wrong.
+         * A **host boolean** crossing to or from a number, which is the one pair the cast tower of
+         * the generator deleted in J173 never had: a mask lane read as the number it stands for -
+         * which is what a mask's `count` reduction sums - and a number read as a lane, which
+         * nothing produces today but which the tower answers rather than leaving to a later arm to
+         * get wrong.
          */
         if(from.kind == JsRepKind::HostBool) {
             if(to.kind == JsRepKind::BigInt) {
@@ -1280,12 +1257,12 @@ struct Structurer {
              * `$readU32(a, i, le)` - a machine word out of a byte row through the row's own
              * `DataView`, and `$writeU32(a, i, v, le)` the other way.
              *
-             * The shipping backend's helpers, reached through `JsShared`'s own slots rather than
-             * restated here: what the helper *is* - one cached view per array, and why a fresh
-             * `DataView` per call is fifteen times worse than the shift chain it replaces - is
-             * `emitWordHelpers`' measurement, and two backends emitting two spellings of one
-             * `getBigUint64` is how they come to disagree about a binary format. The width comes off
-             * the accessor's name, which is what `member` carries, exactly as it does there.
+             * `helpers.cpp`'s, reached through `JsShared`'s own slots rather than restated here:
+             * what the helper *is* - one cached view per array, and why a fresh `DataView` per call
+             * is fifteen times worse than the shift chain it replaces - is `emitWordHelpers`'
+             * measurement, and two spellings of one `getBigUint64` is how two sites come to
+             * disagree about a binary format. The width comes off the accessor's name, which is
+             * what `member` carries, exactly as it does there.
              */
             case mir::HostOp::ViewRead:
             case mir::HostOp::ViewWrite: {
@@ -1437,9 +1414,9 @@ struct Structurer {
          * it. Duplicating one is duplicating the payload where there is one, and the test for that
          * is the same comparison the tag decode is.
          *
-         * The source is written twice, which is what the shipping backend's `cloneValue` does at the
-         * same shape and on the same terms: every JSIR value is bound to a `var` here and `opt.cpp`
-         * moves an expression to its use only where it reaches *every* occurrence of the name.
+         * The source is written twice, which is sound on `opt.cpp`'s terms: every JSIR value is
+         * bound to a `var` here and `opt.cpp` moves an expression to its use only where it reaches
+         * *every* occurrence of the name.
          */
         if(from.kind == JsRepKind::Nullable) {
             if(!rep(from.content).isObjectLike()) return source;
@@ -1881,7 +1858,7 @@ struct Structurer {
                 /*
                  * A **three-part** reference - `(owner, key, scale)` - is the one `Cell` that is not
                  * its parts in a shape: the scale has no property to go in, so the one value is
-                 * `$bitCell`'s accessor box (J84, `codegen/js/place.cpp`).
+                 * `$bitCell`'s accessor box (J84, `bitCellCall` in `bits.cpp`).
                  */
                 if(to.kind == JsRepKind::Cell && written.values.size() == 3) {
                     auto& content = rep(to.content);
@@ -2174,11 +2151,11 @@ struct Structurer {
      * `comparisons` in `test/base` is 1,198 bytes of the empty-`A` shape alone.
      *
      * The **non-empty** arm is J76's half and is the larger one: the region and its `break` are two
-     * whole lines per join, and `Base.js` carried 1,928 labelled regions against the shipping
-     * backend's 252. What makes it sound is where the `break` is: in tail position of the arm,
-     * leaving the region *is* falling out of the arm, so what is left of the arm and what is left of
-     * the region are the two sides of one test, and every `break L` still standing in either half
-     * names the end of the same `if`.
+     * whole lines per join, and `Base.js` carried 1,928 labelled regions against the 252 of the
+     * resolve-IR generator of the time. What makes it sound is where the `break` is: in tail
+     * position of the arm, leaving the region *is* falling out of the arm, so what is left of the
+     * arm and what is left of the region are the two sides of one test, and every `break L` still
+     * standing in either half names the end of the same `if`.
      *
      * Nothing else is asked, and the two questions the first version asked are worth writing down
      * because both were wrong. Refusing where the **remainder** still names the label - on the
@@ -2540,17 +2517,16 @@ struct Structurer {
      * The walk above covers every **reducible** graph and nothing else covers the rest:
      * `inside$step` in `test/resolve/iter/LensRegion.yana` is a resume `switch` whose arms enter a
      * cycle at three different blocks, so the cycle has three entries and no loop header - the
-     * definition of irreducible. Refusing it would make the one construct the rewrite produces that
-     * the shipping stage does not a target gap forever, so the answer is the standard one: every
-     * block becomes an arm of `for(;;)`, the state variable names which arm runs next, and an edge
-     * is an assignment plus a `continue`.
+     * definition of irreducible. Refusing it would make a construct the resolver produces a target
+     * gap forever, so the answer is the standard one: every block becomes an arm of `for(;;)`, the
+     * state variable names which arm runs next, and an edge is an assignment plus a `continue`.
      *
      * **How much this is now asked of is the measurement that matters.** Before J73 the walk above
      * was a chain of special cases and six of `test/base`'s functions fell through to here - 86,333
-     * bytes of `Base.js`, four of them the five largest per-function gaps against the shipping
-     * backend - while **every CFG in that program is reducible**. So none of those six was this
-     * lowering's business at all. What is left here is the genuinely irreducible remainder, which in
-     * the whole corpus is the bodies of one fixture.
+     * bytes of `Base.js`, four of them the five largest per-function gaps against the resolve-IR
+     * generator of the time - while **every CFG in that program is reducible**. So none of those
+     * six was this lowering's business at all. What is left here is the genuinely irreducible
+     * remainder, which in the whole corpus is the bodies of one fixture.
      *
      * **It is the whole function rather than the irreducible region**, and the measurement is why.
      * Confining it means giving the region's exits somewhere to go, which is a second dispatch after
@@ -2757,9 +2733,8 @@ struct Structurer {
                  * A multi-part parameter is `positions` emitted parameters, named `v$0`, `v$1`, ...
                  *
                  * The suffix rather than four unrelated generated names, because what a reader of
-                 * the emitted file needs is to see that the four are one argument - which is the
-                 * same thing `laneName` buys the shipping backend, here read off the plan instead of
-                 * off a vector type.
+                 * the emitted file needs is to see that the four are one argument, and the plan
+                 * says which ones are.
                  */
                 auto count = abi.parameters[i].positions;
                 for(U16 part = 0; part < count && position < body.parameters.size(); part++) {

@@ -20,11 +20,11 @@ struct Global;
  * and `growArray` ask for storage the *caller* keeps, so nothing can be decided until the inliner
  * has moved the request into that body. So `resolve_ssa/opt/place.cpp` decides that one, and it
  * decides it by answering `NodeRunSlots`' placement bit rather than by rewriting anything this file
- * placed. The shipping stage arrives at the same tier from the other end and re-runs its escape
+ * placed. `compiler/resolve` arrived at the same tier from the other end and re-ran its escape
  * analysis behind `inlineCalls`.
  *
- * Three rungs from the start, and reachable rather than reserved. The current compiler's equivalent
- * has the region enumerator and never selects it, which left the *decision* shaped like a two-way
+ * Three rungs from the start, and reachable rather than reserved. `compiler/resolve`'s equivalent
+ * had the region enumerator and never selected it, which left the *decision* shaped like a two-way
  * choice between frame and heap; stating three means the escape analysis that arrives later ranks
  * them instead of learning a third answer.
  *

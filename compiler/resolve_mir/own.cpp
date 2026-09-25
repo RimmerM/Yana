@@ -300,10 +300,11 @@ struct CycleBreaker {
          * this runs, everything a declaration reaches is already `layoutBroken` and stops here at its
          * first line. So what this sweep cuts is exactly what nothing else could have.
          *
-         * The shipping stage arranges the same thing differently - `completeInstance` breaks each
-         * instantiation as it is filled - and pays for it with a walk that has to notice it ran while
-         * a declaration was still incomplete. Here every declaration is in before either loop runs,
-         * which is what `resolveProgram` places this pass after.
+         * `compiler/resolve`, deleted in J173, arranged the same thing differently - its
+         * `completeInstance` broke each instantiation as it was filled - and paid for it with a
+         * walk that had to notice it ran while a declaration was still incomplete. Here every
+         * declaration is in before either loop runs, which is what `resolveProgram` places this
+         * pass after.
          */
         for(auto modulePointer: program.modules) {
             auto module = decl[modulePointer];
@@ -631,7 +632,7 @@ struct Classifier {
          * where the payload is trivial the `Copy(a)` it asks for is the *blanket* instance, which
          * subtracts from nothing. `lib/Core/Core.yana` says so beside the three carriers - "the two
          * are candidates only where the payload is trivial *and* the carrier is not, which cannot
-         * happen" - and the shipping stage has always agreed. Read literally, this line disagreed:
+         * happen" - and `compiler/resolve` always agreed. Read literally, this line disagreed:
          * `let b = x` over a `Maybe(Int)` became a move, `node(n)?.leaf?.value` a use after one.
          *
          * So a conditional parametric head defers to the fold above, which already has the answer:

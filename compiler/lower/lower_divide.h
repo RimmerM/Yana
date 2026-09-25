@@ -7,11 +7,11 @@
  * machine provides.
  *
  * `x / 0` is 0, `x % 0` is `x`, and the overflowing signed pair wraps - the ruling is beside `Div`
- * in resolve/inst.def and the rule is in doc/spec/types.md. x86 raises #DE on both of those
- * divisors, and LLVM calls a division by zero undefined outright, so on both native backends the
- * defined answer has to be *built*. This is where it is built, once, for the reason
- * lower_strength.cpp is here rather than in either backend: two targets want the identical rewrite
- * and neither would produce it on its own.
+ * in `compiler/resolve`'s inst.def (deleted in J173) and the rule is in doc/spec/types.md. x86
+ * raises #DE on both of those divisors, and LLVM calls a division by zero undefined outright, so on
+ * both native backends the defined answer has to be *built*. This is where it is built, once, for
+ * the reason lower_strength.cpp is here rather than in either backend: two targets want the
+ * identical rewrite and neither would produce it on its own.
  *
  * ## A correctness pass, not an optimization
  *
@@ -56,9 +56,7 @@
  *
  * The walk is four steps of immediate predecessors rather than a dominator query, because there is
  * no dominator tree built at this point in the pipeline and both shapes above put the proof in the
- * immediate predecessor. Anything deeper is the range analysis opt_range.cpp says it is not; the
- * resolve-IR half of this question is `foldProvenZeroTests` there, and it is what removes the
- * *check* that would otherwise ask what the guard above it just settled.
+ * immediate predecessor. Anything deeper is a range analysis, which this is not.
  *
  * ## What is left alone
  *

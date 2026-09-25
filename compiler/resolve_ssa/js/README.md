@@ -11,10 +11,10 @@ The design is [`doc/inflight/Analysis-IR-JS.md`](../../../doc/inflight/Analysis-
 milestone 4 is the one that made the rest of the non-vector corpus run
 (`doc/progress/2026-09-21-J66-jsir-breadth.md`, then
 `doc/progress/2026-09-21-J67-jsir-coverage.md`). **The library's own test suite compiles, runs and
-passes through this directory** since 2026-09-21 (J69) - all 342 cases of `test/base`, which is the
-same count the shipping backend's `js` row passes - **optimized and unoptimized** since J70, so
-`ownership-js` and `ownership-js-unoptimized` are both rows of `test/run-base.sh`, and with the JSIR
-optimizer switched off since J72, which is a third row.
+passes through this directory** since 2026-09-21 (J69) - all 342 cases of `test/base`, which was
+the count the old JavaScript backend (deleted with `compiler/resolve` in J173) passed - **optimized
+and unoptimized** since J70, so `js` and `js-unoptimized` are both rows of `test/run-base.sh`, and
+with the JSIR optimizer switched off since J72, which is a third row, `js-no-jsir-opt`.
 
 ## What each file owns
 
@@ -23,7 +23,7 @@ optimizer switched off since J72, which is a third row.
 | `module.h` + `inst.def` | the IR: representations, shapes, ABIs, values, places, instructions, blocks, bodies. `inst.def` is the only place an opcode is written down - the enum, the concrete-type cast, the mnemonic, the result form and the effects are generated from it |
 | `repr.h/.cpp` | `jsRep(logical type)` and `jsManifest(occurrence)` - §3.2's two layers, and the shape table under them |
 | `abi.h/.cpp` | one frozen `JsAbi` per emitted declaration, computed before any body |
-| `name.h/.cpp` | what an identifier may be on this target - sanitizing, the reserved words, interning - and `jsir::key`, the compiler-owned property spellings (`$tag`, `$v`, `$c`, `$e`, `$o`, `$k`, ...) that **both** backends read |
+| `name.h/.cpp` | what an identifier may be on this target - sanitizing, the reserved words, interning - and `jsir::key`, the compiler-owned property spellings (`$tag`, `$v`, `$c`, `$e`, `$o`, `$k`, ...) that `codegen/js` reads too |
 | `build.h` | the typed builders. There is no universal `useValue`: a function's return type says which form came back |
 | `convert_internal.h` | `Conversion` - the state the five conversion files share, and the three SSA predicates in front of it. Nothing outside this directory includes it |
 | `convert.cpp` | the demand pass, places, and the instruction switch, the terminators, the edges, aggregates and calls |
@@ -59,10 +59,10 @@ under Node.
 
 **The compiler's own property keys are one table and it is this directory's.** `$tag` is a sum's
 discriminant, `$v` the one property of a box, `$c`/`$e` a function value's two words, `$o`/`$k` a
-reference's. They were spelled in four places across the two backends until 2026-09-22 (J80), and
-what makes them a representation fact rather than a spelling is that a `JsShape` records the final
-key: two spellings of one key are two hidden classes for one record, and a value built by one
-generator and read by the other answers `undefined` with no diagnostic anywhere. `jsir::key` in
+reference's. They were spelled in four places across two JavaScript backends until 2026-09-22 (J80),
+and what makes them a representation fact rather than a spelling is that a `JsShape` records the
+final key: two spellings of one key are two hidden classes for one record, and a value built by one
+piece of code and read by another answers `undefined` with no diagnostic anywhere. `jsir::key` in
 `name.h` is the table and `codegen/js/shared.h` includes it.
 
 **Every value has a `JsRepId`, and no lowering decision reads a `mir::Type`.** `JsRep::source` exists
@@ -75,8 +75,8 @@ denote a slot on one edge and its contents on another.
 
 **An SSA value whose convention is `Address`, or whose occurrence is a loan that denotes storage,
 becomes a place; everything else becomes a value.** `loanDenotesStorage` is §1.3.1's predicate -
-`readMode`'s own decision procedure, with no layout in it. That one discriminator is what replaces
-the shipping backend's scattered "is this a reference or a box" questions.
+`readMode`'s own decision procedure, with no layout in it. That one discriminator is what replaced
+the old JavaScript backend's scattered "is this a reference or a box" questions.
 
 J65 wrote it out here, in `convert.cpp`, rather than reaching for `lower/manifest.h` - "the first
 consumer of that restatement", since the shared tier was still asking the native table the same
@@ -153,18 +153,18 @@ Seven of them are decisions rather than transcriptions of the plan:
 
 `JsRepKind::Nullable` is produced since 2026-09-22 (J74) and is the one representation here that
 removes an **allocation** rather than text: `{ $tag: ... }` literals in `Base.js` went 1,243 to 206
-against the shipping backend's 166, and `Just:` disappeared from the file entirely.
+against the old JavaScript backend's 166, and `Just:` disappeared from the file entirely.
 
 The rule is on the **logical type** and not on the name `Maybe` - `nicheFoldOf` in `repr.cpp`. Two
 constructors, one carrying nothing and the other carrying exactly one thing whose representation
 cannot already be `null`; `Nothing` is `null` and `Just(x)` is `x`. `Result(E, T)` has two payloads
-and no second pattern to tell them apart by, so it declines here exactly as `Niche::fits` declines it
-in the shipping stage, and a `@layout(js)` pin declines because that is the declaration saying what
+and no second pattern to tell them apart by, so it declines here exactly as the native niche rule
+does, and a `@layout(js)` pin declines because that is the declaration saying what
 the host sees. **Nesting is refused** - a `Maybe(Maybe(T))` keeps its `$tag` over a folded inner one -
 which is §3.2's rule and `jsAdmitsAbsent`'s single statement of it, read by `jsRep` to decide a fold
 and by `verify.cpp` to refuse one taken anyway.
 
-**A number payload folds**, and that was measured rather than read off the shipping backend: with
+**A number payload folds**, and that was measured rather than read off the old backend: with
 number payloads left tagged the suite runs in **2.420 s** against **2.058 s** with them folded,
 interleaved best of nine. Folding only the object payloads is *slower than folding nothing*, which
 nothing predicted - a `Maybe(Int)` left as an object beside a folded `Maybe(Person)` makes the sites
@@ -175,14 +175,14 @@ a change to three functions rather than to every site a sum is reached from:
 
 - **the tag read** is `v === null ? <absent> : <present>`, at `HostBool` so that the comparison the
   consumer writes folds against it (`foldTernaryCompare` in `codegen/js/opt.cpp`, which already
-  existed for the shipping backend's own folded tags). The projection of
+  existed for the old backend's own folded tags). The projection of
   `InstFieldAddress::kDiscriminant` answers that *value* rather than a place, which is the state
   `placeOf` already knows - and it is read when the projection is converted, so it is one of the
   projections J91 converts again at a use (below);
 - **the payload place** is the base's place read at the payload's representation -
   `JsBuilder::addNichePayload`, a copy of the place with `JsPlace::nichePayload` set, which is the
-  one licence `checkPlace` grants against a shape's property representation. `Downcast` being the
-  identity is the same sentence said in the shipping backend;
+  one licence `checkPlace` grants against a shape's property representation. `Downcast` is the
+  identity;
 - **the construction** is an `Alias` of the payload or a `null` - `convertAggregate` and
   `aggregateConstant`, so a constant `Just(4)` is the number four relabelled.
 
@@ -226,13 +226,14 @@ Two families are `Parts` since 2026-09-22 (J71), and neither is lanes of one val
 
 **An array window is its three fields.** A shared or unique `[a]` in a binding position is the
 library's `ArrayView(a)` record - `{items, length, offset}` - and one was built at *every* borrow of
-an array: 981 of them in `Base.js` against the shipping backend's 137, which J69 §6 measured as the
-largest single line of the size and time gap. The **record's own representation** is the `Parts`, not
-the occurrence's, which is the half that took a measurement to see: `slice` builds an owned
-`ArrayView` value and a `represent` relabels it as the window, so a rule keyed on `AccessForm::View`
-alone would have built the object at the aggregate and split it one instruction later. `jsStoredRep`
-is the object again, so a *stored* window - a field, a local the demand pass kept, an erased argument
-- is exactly what it was.
+an array: 981 of them in `Base.js` against the old JavaScript backend's 137, which J69 §6 measured
+as the largest single line of the size and time gap. The **record's own representation** is the
+`Parts`, not the occurrence's, which is the half that took a measurement to see: `slice` builds an
+owned `ArrayView` value and a `represent` relabels it as the window, so a rule keyed on
+`AccessForm::View` alone would have built the object at the aggregate and split it one instruction
+later. `jsStoredRep` is the object again, so a *stored* window - a field, a local the demand pass
+kept, an erased argument -
+is exactly what it was.
 
 Two rules follow and both are `manifestNative`'s, read here rather than invented:
 
@@ -263,8 +264,9 @@ that makes it reach a field packed into a word. A descriptor is already a pair o
 it buys nothing at a position that takes two arguments and costs one allocation at every mutable
 borrow crossing a call: 867 in `Base.js` against 223, and 819 of those were `{$o: box, $k: "$v"}` - a
 reference to a whole boxed local. It also takes a level off every read *inside* the callee, which is
-an `Element` place over the two halves: `owner[key]` where it was `x.$o[x.$k]`. This is the shipping
-backend's own arrangement, whose `showWith(v699, ..., v11, "$v", 1)` is its flattened `{$o, $k, $s}`.
+an `Element` place over the two halves: `owner[key]` where it was `x.$o[x.$k]`. This was the old
+JavaScript backend's own arrangement, whose `showWith(v699, ..., v11, "$v", 1)` was its flattened
+`{$o, $k, $s}`.
 
 **An erased position keeps the object**, which is J70's rule read one step on: a body compiled once
 reads a `Cell` argument as `x.$o[x.$k]` whatever is in it, and flattening there would need the erased
@@ -295,16 +297,16 @@ times, and a lane read, a lane write and a shuffle emit no instruction at all.
 
 Three things about it are worth knowing before reading `convertVectorInst`.
 
-**The discriminator is the representation, not the type.** The shipping backend asks `isVectorType`
-before its scalar switch; here the question is whether the value is multi-part, which is the stronger
-form of the same test and the one this tier is allowed to make. A comparison is the one operation
-asked of its *operands*, because its result is the mask. `vectorLanes`, `VectorType::isMask` and
-`isVectorType` appear nowhere below `repr.cpp`.
+**The discriminator is the representation, not the type.** The old JavaScript backend asked
+`isVectorType` before its scalar switch; here the question is whether the value is multi-part, which
+is the stronger form of the same test and the one this tier is allowed to make. A comparison is the
+one operation asked of its *operands*, because its result is the mask. `vectorLanes`,
+`VectorType::isMask` and `isVectorType` appear nowhere below `repr.cpp`.
 
 **A lane is an ordinary value, so the arithmetic is the scalar arithmetic.** `structure.cpp` spells a
 lane's multiply as `Math.imul` and its division as `$div` by reading the result's representation,
-exactly as it does for a scalar - so none of the thirty spellings the shipping backend's `laneBinary`
-restates is restated here. What is left in `laneBinary` is the four things a lane genuinely differs
+exactly as it does for a scalar - so none of the thirty spellings the old backend's `laneBinary`
+restated is restated here. What is left in `laneBinary` is the four things a lane genuinely differs
 in: the mask's bitwise operators are the logical ones, the two `Core.Bits` families are declared at
 widths the 32-bit helpers do not have and are corrected, the saturating pair has to be exact before
 it clamps, and a reduction is a tree.
@@ -312,13 +314,13 @@ it clamps, and a reduction is a tree.
 **The materialized form is a plain host row** - not a typed array, since J136: a typed row defeated
 V8's escape analysis (see the `Vector` arm of `jsRep`) - and it exists only for
 the positions one value is the only thing that fits: a field, an element, a `return`, an erased
-argument. A **block argument is deliberately not one of them**, which is what closes the shipping
+argument. A **block argument is deliberately not one of them**, which closed the old JavaScript
 backend's known gap 10 by construction - a vector carried around a loop is `lanes` block arguments
 and `lanes` edge operands, so an accumulator in a vector loop allocates nothing per iteration.
-`resolve/VecValue.yana`'s two goldens are the pin: the `.js.expect` rebuilds an array each time round
-and the `.jsir.js.expect` assigns four variables.
+`resolve/VecValue.yana`'s `.jsir.js.expect` is the pin: it assigns four variables, where the old
+backend's `.js.expect` rebuilt an array each time round.
 
-The refusals are the shipping backend's, by name: a vector of a 33-to-53-bit lane has no JavaScript
+The refusals are the old backend's, by name: a vector of a 33-to-53-bit lane has no JavaScript
 form, and a bitcast between vectors of different lane widths has none either - a lane is a number
 here rather than a run of bits.
 
@@ -381,9 +383,9 @@ var $ge$twiceMark = [$d$I32, $w$Marked];
 - **`lower/`.** This directory may include `resolve_ssa` and `resolve_mir` and may not include the
   native manifestation table, which is not a fallback for a question this one has not answered yet.
   Nothing in `resolve_ssa` outside this directory includes `js/`.
-- **`compiler/repr`.** That is the shipping stage's table, which computes both targets from one
-  struct - §3.2 quotes `lower/repr.h` on why that is two readings of one type. The rewrite reads it
-  nowhere and JSIR must not be what brings it back.
+- **One layout table for both targets.** `compiler/repr`, deleted with `compiler/resolve` in J173,
+  computed both targets from one struct - §3.2 quotes `lower/repr.h` on why that is two readings of
+  one type. JSIR must not be what brings it back.
 - **`exchange` and `swap`.** §3.5 keeps them as place operations until one late legalizer, and SSA
   has neither instruction: a swap is a pair of loads and a pair of stores by the time it reaches this
   tier. What sits between them is an `addressOf`, which `resolve_ssa/convert.cpp` writes as a
@@ -416,7 +418,7 @@ var $ge$twiceMark = [$d$I32, $w$Marked];
 
 `opt_alias.cpp` since 2026-09-22 (J72), run between the conversion and the AST builder and
 switchable off whole with **`-no-jsir-opt`** - Analysis-IR-JS.md §10.2's third configuration, which
-`test/run-base.sh`'s `ownership-js-no-jsir-opt` row and every `.jsir.expect` fixture's third Node run
+`test/run-base.sh`'s `js-no-jsir-opt` row and every `.jsir.expect` fixture's third Node run
 now exercise. The verifier runs on what the pass *returns* in every build and, in an assertion
 build, on what it was given as well, so a body this pass broke is named by the run before it.
 
@@ -424,9 +426,10 @@ build, on what it was given as well, so a body this pass broke is named by the r
 call-bounded loan of a trivially copyable value into a `copy` (§1.3.1's category 2). Natively that is
 a few words on the stack and `promote` takes it back; here `cloneOf` writes the object out property
 by property and **recursively**, so a two-field record of two records is eighteen property reads at
-every borrow. 2,954 of them in `Base.js`, 262 KB of object literals against the shipping backend's
-5.5 KB - a quarter of the whole size gap, and the shipping backend never copies at a borrow at all:
-its `keptValue` duplicates only at a *store* or a `return` whose source still names live storage.
+every borrow. 2,954 of them in `Base.js`, 262 KB of object literals against the old JavaScript
+backend's 5.5 KB - a quarter of the whole size gap, and that backend never copied at a borrow at
+all: its `keptValue` duplicated only at a *store* or a `return` whose source still named live
+storage.
 
 The elision fires when four conditions hold, and the second is what makes the first one cheap:
 
@@ -490,16 +493,16 @@ it.
 shape. A local whose address escapes becomes a `Value` place - the storage *is* the host object - so
 the conversion has to build one before anything can name it, and where the first thing that happens
 to it is a whole-value store that object is written property by property and thrown away.
-`md5Answers` in `test/base` is the shape, five times over: two allocations and two sixty-four element
-literals where one of each is owed. The place is taken from the value that was stored - the
+`md5Answers` in `test/base` is the shape, five times over: two allocations and two sixty-four
+element literals where one of each is owed. The place is taken from the value that was stored - the
 allocation goes and the store becomes `zero = alias stored`, in the store's own position - on three
 conditions: **every use of the zero comes after the store** (checked as "in this block, ahead of it,
 with nothing naming it in between", which is enough because a block is straight-line), **what is
 stored is a fresh allocation this store is the only use of**, and the representations agree. 133
-sites over `Base.js`, and the field-wise copy count went 679 to 372 against the shipping backend's
-375. The first attempt asked instead that every use of the zero be a *place* rooted at it and fired
-ten times: the uses it refused are the ones that make a `Value` place what it is, since a call taking
-the local as `&self` takes the object itself.
+sites over `Base.js`, and the field-wise copy count went 679 to 372 against the old JavaScript
+backend's 375. The first attempt asked instead that every use of the zero be a *place* rooted at it
+and fired ten times: the uses it refused are the ones that make a `Value` place what it is, since a
+call taking the local as `&self` takes the object itself.
 
 Its two conditions are **mutation tests** rather than fixtures, for the reason `JsPassing::shared` is
 one: the conversion emits the zero and the store together, so no `.yana` program varies either
@@ -532,8 +535,8 @@ function normalizeForm(text, compose, compatible) {   // before
   if (stablePrefix(text, compose, compatible) === text.length) return text;
 ```
 
-`normalizeForm` allocated **1,581 MB** over `test/base` against the shipping backend's **67 MB**,
-and the shipping backend's difference is not an optimization: it writes the same objects *inside*
+`normalizeForm` allocated **1,581 MB** over `test/base` against the old JavaScript backend's
+**67 MB**, and that backend's difference was not an optimization: it wrote the same objects *inside*
 the `else`. The whole program allocated 12.5 GB against 11.1 GB.
 
 An `Object`, an `Array` or a `Materialize` moves to the lowest common ancestor of its uses in the
@@ -665,8 +668,8 @@ reads of a captured `&` survived and the record became the *value* it captured, 
 rebound the storage wrote into a box around a copy. `test/resolve/ClosureRefCapture.yana`.
 
 **Scalar replacement of records** (J89), three rewrites at the end of each round plus a wider
-`forwardFields` - the fold the shipping stage does by forwarding a whole-record store into a field
-load, and which native gets from `splitAggregateSlots` in the lower tier this target never runs:
+`forwardFields` - the fold of forwarding a whole-record store into a field load, which native gets
+from `splitAggregateSlots` in the lower tier this target never runs:
 
 - **`splitRecordVariables`** makes a record variable one variable per property where every store
   into it is a literal nothing else names (an `object`, or a `materialize` building one host object,
@@ -742,8 +745,8 @@ here is a number: each is a call to a function out of `JsShared`'s slot table an
 conversion and the emitter branches on which one it is.
 
 The **name is never the recognizer** (§4.4) - `structure.cpp` looks the family up by tag and the
-tables are `codegen/js/inst.cpp`'s, shared with the shipping backend and keyed on a `BitFamily` that
-neither tier's IR owns. The **effects are the tag's**, through `effectsOf(const JsInst&)` on `Host`'s
+tables are `codegen/js/helpers.cpp`'s, keyed on a `BitFamily` (`codegen/js/shared.h`) that neither
+tier's IR owns. The **effects are the tag's**, through `effectsOf(const JsInst&)` on `Host`'s
 terms: eight are pure, the float pair writes one buffer the whole program shares, and `FunDrop` runs
 an authored teardown.
 
@@ -822,28 +825,27 @@ in, and hands back an object the write has already overwritten. One level is wha
 out of storage is, which is the difference from `Clone`, a second owner that recurses.
 `resolve/ExchangeStorage.yana` is the fixture, over the three storages that differ.
 
-**Packed places** (J83, on by default since J85). `JsTarget::scalarizeRecords` makes a
-record all of whose fields are narrow numbers one `Number{Unsigned, span}`, and `packFields` puts the
-narrow fields of a record that stays an object into `$pN` properties (`JsPropertyRole::StorageUnit`,
-with `JsShape::packedFields` as the per-shape field-to-(slot, range) map - `slotOfField` answers
+**Packed places** (J83, on by default since J85). `JsTarget::scalarizeRecords` makes a record all of
+whose fields are narrow numbers one `Number{Unsigned, span}`, and `packFields` puts the narrow
+fields of a record that stays an object into `$pN` properties (`JsPropertyRole::StorageUnit`, with
+`JsShape::packedFields` as the per-shape field-to-(slot, range) map - `slotOfField` answers
 `kNoField` for a packed field on purpose). Which fields are candidates is read off the `JsRep` -
 narrow, a `number`, trivially copyable, not `@host`/`@box`, and never in a pinned record or a lambda
-environment - and where they land is `resolve_ssa/packing.h`, the *rule* the native layout also uses. The two
-targets share the rule and not the layout: natively the budget is 64 bits and on this target 53,
-and candidacy differs too (a `bigint` field, a witnessed field, J86's exactly-full whole record), so
-one record may be one word natively and two here. A field
-of either is a `JsPlaceKind::BitRange` over the word's place, a construction is a `Pack` that the
-builder folds when every operand is a constant, and `codegen/js/structure.cpp` decodes and
-read-modify-writes through `place.cpp`'s shared bit helpers. A record whose run exactly fills 8, 16
-or 32 bits is one number too since J86, unlike native, because what packing saves here is the object
-rather than bits. Whole-record scalarization is asked
-first and co-packing only of a record that cannot be one number (J84), which is the shipping
-backend's order. A field a **property witness** names never packs (`JsTarget::witnessedFields`,
-J85): a body compiled once reads it as `owner[key]`, so it keeps a property of its own while its
-neighbours still pack, and a record holding one is never one number. The shipping backend hands such
-a body a `{read, set}` accessor pair instead; here the answer is the layout, because the accessor
-would turn every erased field read into two calls to serve a layout this target is free not to pick.
-`generic/PackedProperty.yana` is the fixture.
+environment - and where they land is `resolve_ssa/packing.h`, the *rule* the native layout also
+uses. The two targets share the rule and not the layout: natively the budget is 64 bits and on this
+target 53, and candidacy differs too (a `bigint` field, a witnessed field, J86's exactly-full whole
+record), so one record may be one word natively and two here. A field of either is a
+`JsPlaceKind::BitRange` over the word's place, a construction is a `Pack` that the builder folds
+when every operand is a constant, and `codegen/js/structure.cpp` decodes and read-modify-writes
+through `codegen/js/bits.cpp`'s bit helpers. A record whose run exactly fills 8, 16 or 32 bits is
+one number too since J86, unlike native, because what packing saves here is the object rather than
+bits. Whole-record scalarization is asked first and co-packing only of a record that cannot be one
+number (J84), which was the old JavaScript backend's order. A field a **property witness** names
+never packs (`JsTarget::witnessedFields`, J85): a body compiled once reads it as `owner[key]`, so it
+keeps a property of its own while its neighbours still pack, and a record holding one is never one
+number. The old backend handed such a body a `{read, set}` accessor pair instead; here the answer is
+the layout, because the accessor would turn every erased field read into two calls to serve a layout
+this target is free not to pick. `generic/PackedProperty.yana` is the fixture.
 
 **The narrow reference** (J84, on with the same switches). Where something packs, a reference whose
 content is narrow (`jsRefCarriesScale`, which is `packableRep` of the content) crosses as three

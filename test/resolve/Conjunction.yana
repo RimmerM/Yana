@@ -2,8 +2,6 @@
    A condition is a **sequence of tests**, so `if m is Just(v) && v > 0` binds `v` for what follows
    it - `doc/spec/expressions.md`'s `is`, whose "Not implemented" note this closes for this stage.
 
-   # resolver: ownership
-
    `&&` already ran its right operand in a block of its own; what it did not do was carry the left
    operand's bindings into that block. The reason was structural rather than about `&&`: `is` in a
    *value* position has no arm for a name to live in, so it discarded what it bound and merged a

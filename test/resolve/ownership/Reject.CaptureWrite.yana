@@ -2,14 +2,12 @@
    A write to a capture that is a copy - doc/spec/functions.md, "Closures": "a captured local that
    is written must be captured by reference".
 
-   # resolver: ownership
-
-   The rewritten stage's half of `resolve/Reject.Closure.yana`'s `writeToCopiedCapture`, which
-   asserts the rule for the shipping stage. A capture's convention comes from the binding, so a
-   binding not declared `&` is captured as a copy or a shared loan, and a write through it would land
-   in the closure's environment and never reach the enclosing frame. The stage accepted all of these
-   and ran them, printing the value from before the write. Each function is one
-   write; the expectation beside this file is the whole of what it reports.
+   The rewritten stage's own copy of `resolve/Reject.Closure.yana`'s `writeToCopiedCapture`, which
+   used to assert the rule for the old shipping stage. A capture's convention comes from the
+   binding, so a binding not declared `&` is captured as a copy or a shared loan, and a write
+   through it would land in the closure's environment and never reach the enclosing frame. The old
+   shipping stage accepted all of these and ran them, printing the value from before the write. Each
+   function is one write; the expectation beside this file is the whole of what it reports.
 -}
 
 data Point {x: Int, y: Int}

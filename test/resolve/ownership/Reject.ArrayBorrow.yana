@@ -1,12 +1,10 @@
 {-
    What the ownership **analysis** will not accept about elements.
 
-   # resolver: ownership
-
    A third file, and the reason is the pipeline rather than tidiness: the analysis runs over a
    program the resolver accepted, so it never sees a body with a resolve-time mistake in it. Both of
-   these are things the shipping stage accepts, and both are why `Place::Index` is a projection of
-   the container's own place here rather than arithmetic on an address.
+   these were things the old shipping stage accepted, and both are why `Place::Index` is a
+   projection of the container's own place here rather than arithmetic on an address.
 -}
 
 data Guard {n: I32}
@@ -22,12 +20,12 @@ fn overlapping() -> I32:
     {-
        Two exclusive borrows of one element.
 
-       The shipping stage reaches an element through `borrowMut(self.run.items + index)`, so what its
-       overlap test sees is a raw address - and rule one there is that two pointer-rooted places
-       never conflict. `f(&xs[i], &xs[j])` was therefore accepted with no check of any kind, `xs[0],
-       xs[0]` included, and is reachable in safe code as a use-after-free: take two `&String` on one
-       element, move out of the first, assign the second, and the assignment's teardown frees a run
-       the move now owns.
+       The old shipping stage reached an element through `borrowMut(self.run.items + index)`, so
+       what its overlap test saw was a raw address - and rule one there is that two pointer-rooted
+       places never conflict. `f(&xs[i], &xs[j])` was therefore accepted with no check of any kind,
+       `xs[0], xs[0]` included, and is reachable in safe code as a use-after-free: take two
+       `&String` on one element, move out of the first, assign the second, and the assignment's
+       teardown frees a run the move now owns.
 
        Here an element is a projection of `xs`, so `placesOverlap` sees two `Index` steps of one
        parent and `place.h`'s stated rule applies with nothing added.

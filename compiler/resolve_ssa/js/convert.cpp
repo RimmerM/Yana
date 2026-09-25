@@ -8,9 +8,10 @@
  * `vector.cpp` - which is §8.1's split; what is worth knowing before reading any of them:
  *
  * **An SSA value whose convention is `Address` becomes a place, and everything else becomes a
- * value.** That one discriminator is what replaces the shipping backend's scattered "is this a
- * reference or a box" questions: `ssa::Convention::Address` is a statement the tier above already
- * made and checked, so this file never asks a type whether something is storage.
+ * value.** That one discriminator is what replaced the scattered "is this a reference or a box"
+ * questions of the old JavaScript backend (deleted with `compiler/resolve` in J173):
+ * `ssa::Convention::Address` is a statement the tier above already made and checked, so this file
+ * never asks a type whether something is storage.
  *
  * **A place becomes one value only where it has to.** Crossing an edge, filling a `Cell` argument or
  * being returned are the three, and each of them names the value the place is rooted in rather than
@@ -716,8 +717,7 @@ void Conversion::convertCall(ssa::InstCall& call) {
      * lifted lambda already begins with its environment, and a named function that does not gets a
      * thunk at the `fun.value` that produced the pair. The alternative - two call shapes chosen from
      * what the code word turned out to be - is a decision at a site that cannot see it. It is also
-     * what the shipping backend spells (`f.$c(f.$e, ...)`), so the two generators' emitted calls are
-     * the same call.
+     * what the old JavaScript backend spelled (`f.$c(f.$e, ...)`).
      */
     auto pair = valueOf(call.target.value(), where);
     if(!pair) {
@@ -861,9 +861,9 @@ void Conversion::convertInst(ssa::Inst& inst) {
              *
              * The box is the *storage*; a reference to this local is then an ordinary descriptor
              * naming that property, which is what makes one reference form serve a local, a field
-             * and an element alike. Two objects where the shipping backend also uses two, and for
-             * the same reason: a descriptor that could only ever point at a whole local would be a
-             * second reference form for the other two to be converted into.
+             * and an element alike. Two objects where the old JavaScript backend also used two, and
+             * for the same reason: a descriptor that could only ever point at a whole local would
+             * be a second reference form for the other two to be converted into.
              */
             auto boxShape = jsBoxShape(target, manifest.rep);
             auto boxRep = jsBoxRep(target, manifest.rep);
@@ -1019,8 +1019,7 @@ void Conversion::convertInst(ssa::Inst& inst) {
              * storage back, and `nicheTags` is what keeps it.
              *
              * The payload *is* the value, so its place is the base's place read at the payload's
-             * representation - which is the same sentence `Downcast` being the identity says in the
-             * shipping backend.
+             * representation - which is what `Downcast` being the identity says.
              */
             if(auto niche = nicheOf(owner->rep)) {
                 auto nullable = owner->rep;
@@ -1342,9 +1341,9 @@ void Conversion::convertInst(ssa::Inst& inst) {
              * `number | null` and both halves of that are duplicated by being named.
              *
              * A folded value whose payload is an object still owes a duplicate, and one guarded by
-             * the absence test: `cloneExpr` is where that guard is written, for the reason the
-             * shipping backend writes it in `cloneValue` - it is an expression rather than a branch,
-             * so nothing about the block the caller is filling changes.
+             * the absence test: `cloneExpr` is where that guard is written, for the reason the old
+             * JavaScript backend wrote it in `cloneValue` - it is an expression rather than a
+             * branch, so nothing about the block the caller is filling changes.
              */
             auto niche = nicheOf(repId);
             if(target.rep(repId).isPrimitive() ||
@@ -1515,8 +1514,8 @@ void Conversion::convertInst(ssa::Inst& inst) {
                  *
                  * The helper answers the raw operation at the width and the coercion below puts it
                  * in the type's own normal form, which is what lets one function serve both
-                 * signednesses. The same division of labour the shipping backend's `rotateCall` and
-                 * `bitOpCall` make, and the reason those are now written once.
+                 * signednesses. The same division of labour the old JavaScript backend's
+                 * `rotateCall` and `bitOpCall` made.
                  */
                 case mir::BinaryOp::Rol:
                 case mir::BinaryOp::Ror:
@@ -2118,11 +2117,10 @@ void Conversion::convertInst(ssa::Inst& inst) {
          * `expand_provided.cpp` writes a target-width integer's width down without knowing the
          * target. Thirty-nine of J68 §3's 310 diagnostics were that one expression.
          *
-         * An aggregate and a type variable have none, and the sentence is the shipping backend's:
-         * how many bytes a host object occupies is the engine's answer rather than this compiler's.
-         * Align and stride are the same number as the size here, because a typed row's element is
-         * its own alignment and its own stride - there is no padding on this target to make them
-         * differ.
+         * An aggregate and a type variable have none: how many bytes a host object occupies is the
+         * engine's answer rather than this compiler's. Align and stride are the same number as the
+         * size here, because a typed row's element is its own alignment and its own stride - there
+         * is no padding on this target to make them differ.
          */
         case ssa::Inst::Metric: {
             auto& written = (ssa::InstMetric&)inst;
@@ -2207,7 +2205,7 @@ void Conversion::convertInst(ssa::Inst& inst) {
          *
          * A type variable's slot holds a descriptor a metric then indexes into; a const one holds
          * the number itself, so the erased read of a count is *shorter* than the erased read of a
-         * size rather than longer. `codegen/js/place.cpp`'s `genConstValue` says the same.
+         * size rather than longer.
          */
         case ssa::Inst::GenValue: {
             auto& written = (ssa::InstGenValue&)inst;
@@ -2469,9 +2467,10 @@ bool Conversion::run() {
 
                 /*
                  * And a **narrow** one that crossed with its scale is a range of `owner[key]` at
-                 * that scale - the shipping backend's `refShift`, as a place. Every read decodes and
-                 * every write read-modify-writes, including when the caller's storage was a whole
-                 * local, which is what a scale of one (or zero, for a signed content) says.
+                 * that scale - the old JavaScript backend's `refShift`, as a place. Every read
+                 * decodes and every write read-modify-writes, including when the caller's storage
+                 * was a whole local, which is what a scale of one (or zero, for a signed content)
+                 * says.
                  */
                 if(passing.positions == 3) {
                     auto& held = target.rep(content);
@@ -2552,13 +2551,13 @@ bool Conversion::run() {
 
             /*
              * A multi-part block argument is `parts` target arguments - §3.8, and the whole of what
-             * fixes the shipping backend's tenth known gap.
+             * fixed the old JavaScript backend's tenth known gap.
              *
              * A vector carried around a loop is `lanes` arguments and `lanes` edge operands, so an
-             * accumulator in a vector loop builds nothing per iteration. The shipping backend
-             * materializes there because storage on that target holds one value and a mutable local
-             * is storage; here the promotion above this tier has already made the accumulator a
-             * block argument, and a block argument is where this representation is at its strongest.
+             * accumulator in a vector loop builds nothing per iteration. That backend materialized
+             * there because storage on that target held one value and a mutable local was storage;
+             * here the promotion above this tier has already made the accumulator a block argument,
+             * and a block argument is where this representation is at its strongest.
              */
             if(!manifest.needsCell && multi.valid() && !carriesStorage(*argument)) {
                 auto& rep = target.rep(multi);

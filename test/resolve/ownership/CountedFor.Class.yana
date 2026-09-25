@@ -2,10 +2,8 @@
    A counted `for` over a program's own type - what an interval needs is `Ord` to test its bound
    and `Num` to step, and the stride of one is `FromInt`'s.
 
-   # resolver: ownership
-
-   The rewrite only, because the shipping stage's counted loop is written over the widths and
-   reports an internal error on a record. Here the loop's tests and strides are calls of the
+   This was the rewrite only, because the shipping stage's counted loop was written over the widths
+   and reported an internal error on a record. Here the loop's tests and strides are calls of the
    members every counted loop already reached for at a width (`applyBinary` in resolve_expr.cpp),
    and a type with instances of both classes counts exactly as `I32` does - the three spellings,
    `step`, and an empty interval included. `Operators.yana` is the shared half of the same claim.

@@ -12,10 +12,10 @@
    expression that names it and is still written once. Marked read-only, `dynamic` below read as zero
    from everywhere the optimizer could not see the store, and the store itself was removed.
 
-   **The `.llvm.expect` beside this file is the assertion**, and it is there rather than in the score
-   because the score cannot fail from this: the run is compiled by the x64 backend, which places no
-   global in read-only memory, so the wrong answer is LLVM's alone. What the number asserts is what
-   the program *means*, on x64 and under Node, which is what the emitted form is then held to.
+   **The `.mir.llvm.expect` beside this file is the assertion**, rather than the score, which cannot
+   fail from this: the run is compiled by the x64 backend, which places no global in read-only
+   memory, so the wrong answer is LLVM's alone. What the number asserts is what the program *means*,
+   on x64 and under Node, which is what the emitted form is then held to.
 
    Four globals, one per answer:
 

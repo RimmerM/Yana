@@ -1,11 +1,11 @@
 {-
    Branches whose answer the edge into them already settled - see compiler/lower/lower_thread.h.
 
-   Every function here is a shape the pass either takes or refuses, and `.lower.expect` is what says
-   which. `main` folds them all together so that `.run.expect` and the driver's optimizer-equivalence
-   check assert the answers as well as the block lists: threading is edge surgery over values in SSA
-   form, and a repair phi placed at the wrong join produces a program that still validates and
-   answers differently.
+   Every function here is a shape the pass either takes or refuses, and `.mir.lower.expect` is
+   what says which. `main` folds them all together so that `.run.expect` and the driver's
+   optimizer-equivalence check assert the answers as well as the block lists: threading is edge
+   surgery over values in SSA form, and a repair phi placed at the wrong join produces a program
+   that still validates and answers differently.
 -}
 
 data Point {x: Int, y: Int}

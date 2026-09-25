@@ -281,15 +281,15 @@ Place* Builder::propertyPlace(Place& parent, U16 property, Occurrence declared) 
  * `xs[i]` - one element of a fixed array or of a window.
  *
  * **A projection of the container's own place, and never pointer arithmetic.** That is the whole of
- * this function and it is the correction the rewrite exists to make: the shipping stage reaches an
- * element as `borrowMut(self.run.items + index)`, so what the ownership passes see is a place rooted
- * in a raw address - and rule one there is that two pointer-rooted places never conflict. The two
- * consequences were both real. A `[T *n]` local's teardown was placed nowhere, because `rootLocal`
- * of an address is nothing and the local therefore never became owned; and `f(&xs[i], &xs[j])` was
- * accepted with no check of any kind, `xs[0], xs[0]` included, which is reachable as a
- * use-after-free in safe code. Rooted at the parent, `place.h`'s stated rule applies by
- * construction: "`Index` steps of one parent are not [disjoint] unless a separately justified rule
- * proves it".
+ * this function and it is a correction this stage was written to make: `compiler/resolve`, the
+ * stage J173 deleted, reached an element as `borrowMut(self.run.items + index)`, so what the
+ * ownership passes saw was a place rooted in a raw address - and rule one there is that two
+ * pointer-rooted places never conflict. The two consequences were both real. A `[T *n]` local's
+ * teardown was placed nowhere, because `rootLocal` of an address is nothing and the local therefore
+ * never became owned; and `f(&xs[i], &xs[j])` was accepted with no check of any kind, `xs[0],
+ * xs[0]` included, which is reachable as a use-after-free in safe code. Rooted at the parent,
+ * `place.h`'s stated rule applies by construction: "`Index` steps of one parent are not [disjoint]
+ * unless a separately justified rule proves it".
  *
  * The element's qualification is the container's, which is the same sentence `fieldPlace` makes: an
  * element of an array this frame only shares is shared, and an element of one it owns is owned. The

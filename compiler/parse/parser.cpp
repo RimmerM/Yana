@@ -2335,9 +2335,8 @@ ast::Pat Parser::parseLeftPattern() {
         });
 
         // The lexer only ever produces the positive magnitude, and the sign is recorded rather than
-        // applied to it - see Pat::negative, and resolve/const.cpp for why the two have to stay
-        // apart until something knows what type the number is of. `patternBound` applies it, at the
-        // pivot's type.
+        // applied to it - see Pat::negative for why the two have to stay apart until something
+        // knows what type the number is of. `patternBound` applies it, at the pivot's type.
         return ast::Pat {
             .lit = lit.lit,
             .negative = true,

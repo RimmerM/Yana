@@ -14,14 +14,11 @@ namespace mir {
  * the failures Analysis-IR.md part 1 collects are all a relation the IR did not state, and a dump
  * that hid the modes would be a golden that could not have caught any of them.
  *
- * Deliberately not a superset of what the old resolver prints: the two representations have nothing
- * to compare line by line, so its goldens are separate files and a fixture opts into this one by
- * having a `.mir.expect` beside it (Part 11.3).
+ * A fixture opts into this dump by having a `.mir.expect` beside it (Part 11.3).
  */
 void printProgram(Net::Writer& writer, Context& context, Program& program);
 
-// One function, for a diagnostic or a debugger. `describeFunction` in the other stages is the same
-// affordance.
+// One function, for a diagnostic or a debugger.
 void printFunction(Net::Writer& writer, Context& context, Program& program, Function& function);
 
 /*

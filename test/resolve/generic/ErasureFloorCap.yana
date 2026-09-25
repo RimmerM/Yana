@@ -4,7 +4,7 @@
 -- J145's `erasureTooSmall` specializes a body of at most four MIR nodes rather than erase it, and it
 -- forced that form here too: `second` is called at forty record types, so the specializing walk made
 -- thirty-two copies and then refused the program, "specialized at more than 32 argument lists". It
--- had compiled erased before and the shipping stage compiles it. The floor applies now only where
+-- had compiled erased before and the shipping stage compiled it. The floor applies now only where
 -- every list the walk can reach is written down and there are no more of them than the cap, which
 -- is `GenericReach` counting distinct lists up to one past it.
 

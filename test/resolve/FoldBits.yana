@@ -2,27 +2,27 @@
    Constant folding **at the type's own width**, which is the one thing a folder can get wrong in a
    way no golden shows.
 
-   Every case here is arithmetic over literals, so both resolve stages answer it in their optimizers
+   Every case here is arithmetic over literals, so the resolve stage answers it in its optimizer
    rather than at run time, and every case is at a width **narrower than the register holding it**.
    That is the whole point: `200 + 100` is 300 in a thirty-two bit register and 44 in a `U8`, and a
-   folder that computes the first and stores it as the second has produced a number the machine never
-   would. `.run.expect` is shared between the two stages, so what this asserts is that the two of them
-   - which fold these through completely different code - agree with each other and with the machine.
+   folder that computes the first and stores it as the second has produced a number the machine
+   never would. `.run.expect` was once shared between two resolve stages folding through different
+   code, so it asserted that both agreed with each other and with the machine.
 
    The `-no-ir-opt` comparison the drivers make is the other half: with the optimizer off, none of
-   this folds and the answers come from `lower/width.cpp`'s masks. A fold at the wrong width shows up
-   there as two different numbers for one program. The `.js.expect` beside this file is a third
-   reading of the same claim - `codegen/js` masks narrow integers itself and folds the whole of `main`
-   to 255 - which costs a golden and covers the one target neither of the other two is.
+   this folds and the answers come from `lower/width.cpp`'s masks. A fold at the wrong width shows
+   up there as two different numbers for one program. The `.jsir.js.expect` beside this file is a
+   third reading of the same claim - `codegen/js` masks narrow integers itself and folds the whole
+   of `main` to 255 - which costs a golden and covers the one target neither of the other two is.
 
    Six of the eight cases discriminate on their own - fold them at thirty-two bits and `main` is not
    255. The two refinement cases do not, because a value on its way into a field is narrowed by the
    store whether or not anything folded it; what they assert is that the refinement's own width is
    what the fold used, which is visible in `.ssa.opt.expect` as the answer rather than as the
-   arithmetic. That is the case the two stages disagree about *who* computes: the shipping stage
-   declines refinement arithmetic outright, because its two backends spell the width differently, and
-   this stage has one backend and `resolve_ssa/lower/width.cpp` states the width - see the note in
-   `resolve_ssa/opt/fold.cpp`.
+   arithmetic. That was the case the two stages disagreed about *who* computes: the shipping stage
+   declined refinement arithmetic outright, because its two backends spelled the width differently,
+   and this stage has one backend and `resolve_ssa/lower/width.cpp` states the width - see the note
+   in `resolve_ssa/opt/fold.cpp`.
 
    Each case contributes a distinct power of two and `main` is 255 when they all pass.
 -}
@@ -33,8 +33,8 @@ fn check(ok: Bool, weight: Int) -> Int = if ok then weight else 0
 fn unsignedWrap() -> Int = check((200 :: U8) + 100 == 44, 1)
 
 -- The signed half, whose wrap goes the other way: 200 has the eighth bit set, so an `I8` reads it as
--- -56. Written as `0 - 56` rather than with a unary minus, which the shipping stage types as an `I32`
--- whatever the position wants.
+-- -56. Written as `0 - 56` rather than with a unary minus, which the shipping stage typed as an
+-- `I32` whatever the position wanted.
 fn signedWrap() -> Int = check((100 :: I8) + 100 == (0 :: I8) - 56, 2)
 
 -- A shift is `Wraps` in `op.def` for exactly this reason: the bits it moves out of the declared width

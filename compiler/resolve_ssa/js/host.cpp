@@ -27,10 +27,11 @@ void Conversion::convertHost(ssa::InstHost& host) {
      *
      * Decided here rather than at the AST tier, which is where it was until 2026-09-22 (J80):
      * `codegen/js/structure.cpp` matched the member name to claim it, in the one file whose rule is
-     * that it switches on nothing but a `JsRep`, a `JsShape` and a `JsPlace`, and the shipping
-     * backend's `inst.cpp` said the same sentence beside it. What it is *not* is a representation:
-     * `hostStringLength` is declared `-> Size`, so labelling the result unsigned makes the `return`
-     * and every edge carrying it a value the verifier is right to refuse. See `JsInstHost::hostRange`.
+     * that it switches on nothing but a `JsRep`, a `JsShape` and a `JsPlace`, and the old
+     * JavaScript backend's `inst.cpp` (deleted in J173) said the same sentence beside it. What it
+     * is *not* is a representation: `hostStringLength` is declared `-> Size`, so labelling the
+     * result unsigned makes the `return` and every edge carrying it a value the verifier is right
+     * to refuse. See `JsInstHost::hostRange`.
      */
     auto hostRange = host.op == mir::HostOp::Field && host.results.size() &&
                      stringView(target.context.findName(host.member)) == "length"_v;

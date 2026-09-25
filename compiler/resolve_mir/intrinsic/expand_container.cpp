@@ -50,8 +50,8 @@ Node* expandScanLimit(Builder& builder, Function& callee, bool unwrapEntry, Node
      *
      * The declaration two lines above the call in `lib/Core/Map.yana` is `data Entry(k, v)`, so the
      * key is argument zero of the record the pointer names - a fact about the type's parameter list
-     * and not about its layout. The shipping stage reads the first *field* instead, which is the
-     * same answer for as long as nobody reorders the record.
+     * and not about its layout. `compiler/resolve` read the first *field* instead, which is the
+     * same answer only for as long as nobody reorders the record.
      */
     auto key = pointee;
 

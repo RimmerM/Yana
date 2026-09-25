@@ -33,11 +33,12 @@
  *
  * ## Why this is the tier for it
  *
- * `opt_scalar.cpp` takes the same shape apart in the resolve IR and stops where ownership begins: a
- * field-wise write relocates each field exactly as a whole-value write relocated all of them, but
- * only where relocating is bytes rather than a call, so anything owning a resource - which every
- * container and every string does - is left whole. That test is right there and cannot be weakened,
- * because a local it split would still have its teardown.
+ * `compiler/opt`'s `opt_scalar.cpp` (deleted with its stage in J173) took the same shape apart in
+ * the resolve IR and stopped where ownership begins: a field-wise write relocates each field
+ * exactly as a whole-value write relocated all of them, but only where relocating is bytes rather
+ * than a call, so anything owning a resource - which every container and every string does - was
+ * left whole. That test was right there and could not be weakened, because a local it split would
+ * still have had its teardown.
  *
  * Here there is no ownership left to reason about. A `copy` is bytes, an `alloca` is bytes, and a
  * temporary that stops existing takes no drop with it because drops became calls several stages ago.
@@ -177,7 +178,8 @@
  * address of. A callee handed it therefore cannot reach it by any other route, which is precisely
  * what §7.4 asks and cannot otherwise get.
  *
- * What that buys is the forwarding thunk, from the other side of the fork than opt_inline.cpp's:
+ * What that buys is the forwarding thunk, from the other side of the fork than the inliner's
+ * (resolve_ssa/opt/inline.cpp):
  *
  *      f(%ret, %self):                      f(%ret, %self):
  *        %t = alloca 16                       call g, %ret, %self
@@ -194,12 +196,13 @@
  */
 //
 // **A temporary that only relays** is the same question asked from the source's end - J160,
-// `tryRelay`: `copy T <- A, n; ...; copy B <- T, n` in one block, where `T` is an allocation of exactly
-// `n` bytes and those two copies are its only uses, becomes `copy B <- A, n`, provided nothing between
-// the copies may write `A`'s bytes and `B` does not overlap `A`. `placesApart` is `mayOverlap` plus one
-// fact: a place rooted at a parameter or a global is never an allocation of this frame. It places
-// through lower_store.h's `placeOf` with a real `contained` table (J163), built lazily and marked
-// stale after every rewrite here, since redirecting a use can make a contained allocation stop being
-// one. The shipping stage's lowering relays a value through a temporary at nearly every move, which
-// is why it took that stage's `test/base` 6.4% down and the new stage's 0.2%.
+// `tryRelay`: `copy T <- A, n; ...; copy B <- T, n` in one block, where `T` is an allocation of
+// exactly `n` bytes and those two copies are its only uses, becomes `copy B <- A, n`, provided
+// nothing between the copies may write `A`'s bytes and `B` does not overlap `A`. `placesApart` is
+// `mayOverlap` plus one fact: a place rooted at a parameter or a global is never an allocation of
+// this frame. It places through lower_store.h's `placeOf` with a real `contained` table (J163),
+// built lazily and marked stale after every rewrite here, since redirecting a use can make a
+// contained allocation stop being one. It takes `test/base` 0.2% down, because resolve_ssa removes
+// most relays before this tier; the lowering of `compiler/resolve`, the stage deleted in J173,
+// relayed a value through a temporary at nearly every move, and there it was 6.4%.
 void forwardCopyDestinations(LowerBase base, LowerFunction& fun, LowerPtr<LowerValue> returnPlace);

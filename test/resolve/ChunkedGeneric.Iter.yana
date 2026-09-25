@@ -8,12 +8,12 @@
 -- functional dependency `Chunked(c -> a)` decides the rest. Without it the element type read as
 -- undecided and every adaptor over a container was rejected for not saying what it yields.
 --
--- **No `.js.expect`, and the reason is not this fixture's.** An `iter fn` that yields from inside a
--- `for` captures the continuation it was handed, and a reference to a function value the JS backend
--- flattened into two variables has no object to name - so the unoptimized JS build refuses it. That
--- is a pre-existing gap for *any* adaptor, reproducible with no class and no generic in sight, and it
--- has nothing to do with `Chunked`. `ChunkedGeneric.yana` next door asserts the two targets agree
--- about the deferred dispatch itself; this one asserts the shape compiles and runs natively.
+-- This fixture has a `.jsir.js.expect` beside it: an `iter fn` that yields from inside a `for`
+-- captures the continuation it was handed, and reaching a function value's object on this target
+-- is what the JS backend had to learn to do for *any* adaptor, reproducible with no class and no
+-- generic in sight - it has nothing to do with `Chunked` in particular. `ChunkedGeneric.yana` next
+-- door asserts the two targets agree about the deferred dispatch itself; this one asserts the
+-- shape compiles and runs on both.
 
 data Chunks {a: [Int], b: [Int], used: Int}
 

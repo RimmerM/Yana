@@ -16,13 +16,13 @@ bool opExpands(Op op) {
         /*
          * `newRun(n)` - `lib/Native/Run.native.yana`'s body.
          *
-         * The shipping stage expands it into an allocation with a count whose *placement* its escape
-         * analysis decides, writing that decision into the run's tag; this stage has no placement
-         * analysis (D6), so a run it built would always be a heap one - which is what the library
-         * body already says, in the language, with the allocator's refusal handled. Expanding it
-         * here would be the compiler spelling out a record's three fields in C++ to reach the same
-         * answer for a run whose *size is computed*, which is the one case a literal's `RunSlots`
-         * does not cover - see `known.def`'s note above `runSlots`.
+         * `compiler/resolve` expanded it into an allocation with a count whose *placement* its
+         * escape analysis decided, writing that decision into the run's tag; this stage has no
+         * placement analysis (D6), so a run it built would always be a heap one - which is what the
+         * library body already says, in the language, with the allocator's refusal handled.
+         * Expanding it here would be the compiler spelling out a record's three fields in C++ to
+         * reach the same answer for a run whose *size is computed*, which is the one case a
+         * literal's `RunSlots` does not cover - see `known.def`'s note above `runSlots`.
          */
         case Op::newRun:
             return false;
@@ -325,7 +325,7 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
          * unchecked entrance *reuses* the semantics rather than defining a second set, and there is
          * no path on which an externally provided location behaves differently from an owned one.
          *
-         * No reinterpretation of the address, which the shipping stage needs and this does not: a
+         * No reinterpretation of the address, which `compiler/resolve` needed and this does not: a
          * place here is what its *occurrence* says it is, and the pointer is a root rather than a
          * type. Keeping the argument is also what keeps the origin the signature published - a
          * bitcast's result is `owned(to)` and would have dropped the pointee's own position, so the
@@ -477,13 +477,13 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         /*
          * The roles this stage has not reached, reported at the call.
          *
-         * **Not a fallback**, and the difference is what keeps the roster a roster: each of these is
-         * written out, so a row added to `op.def` with no arm anywhere is still `-Wswitch` at this
-         * function rather than a program silently taking the "unimplemented" path. What the list
-         * says is a fact about *this stage* and not about the table - the shipping resolver
-         * implements every one of them - so it is an ordinary "not implemented yet", spelled the
-         * way every other construct this stage has not reached is spelled, and it shrinks from the
-         * top as the emitters arrive.
+         * **Not a fallback**, and the difference is what keeps the roster a roster: each of these
+         * is written out, so a row added to `op.def` with no arm anywhere is still `-Wswitch` at
+         * this function rather than a program silently taking the "unimplemented" path. What the
+         * list says is a fact about *this stage* and not about the table - `compiler/resolve`
+         * implemented every one of them before J173 deleted it - so it is an ordinary "not
+         * implemented yet", spelled the way every other construct this stage has not reached is
+         * spelled, and it shrinks from the top as the emitters arrive.
          *
          * One group now, and it is held up by a pipeline rather than by a gap.
          *

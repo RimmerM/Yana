@@ -2,19 +2,17 @@
    What `@convention` and `@host` refuse - the two attributes this stage parsed and threw away until
    2026-09-07.
 
-   # resolver: ownership
-
    That is the failure worth a fixture rather than the spellings: a convention silently dropped is a
    body entered under one its author did not write, and a `@host` field silently dropped is a record
    whose JS shape nobody has said anything about. So the subject here is that each is *read*, and the
    refusals are what reading them looks like.
 
-   The messages are the shipping stage's word for word - one language, one diagnostic - and
-   `../Reject.VectorReset.yana` and `../Reject.Host.yana` are the same programs through it. This is a
-   fixture of its own rather than a directive on those two, because a rejection fixture names one
-   stage and those two are the shipping stage's. The one rule that genuinely differs is placement:
-   that stage reads a convention off a plain `fn` only, and this one reads it off every signature,
-   beside the encoding marker `readInlineAttribute` already reads there.
+   The messages are the old shipping stage's, word for word - one language, one diagnostic - and
+   `../Reject.VectorReset.yana` and `../Reject.Host.yana` are the same programs. This was a fixture
+   of its own rather than a directive on those two, because a rejection fixture names one resolver
+   and those two were the shipping stage's. The one rule that genuinely differed is placement: that
+   stage read a convention off a plain `fn` only, and this one reads it off every signature, beside
+   the encoding marker `readInlineAttribute` already reads there.
 -}
 
 -- Two of the six conventions the lower IR has are the compiler's own choice between internal shapes,

@@ -2,12 +2,10 @@
    The `=` form is the function's result, so a body with a value returns it - and what the result
    type is when the declaration does not say is whatever the body produced.
 
-   # resolver: ownership
-
-   `resolve/ImplicitReturn.yana` is the shipping stage's copy of the same claims. It is not shared,
-   because two of its functions state a class requirement only in the body - `fn (a) added(l, r) =
-   l + r` - and collecting a requirement off a body into the signature it was not written on is a
-   separate gap in this stage. Everything else about the form is here.
+   `resolve/ImplicitReturn.yana` carries two extra functions this file leaves out, because they
+   state a class requirement only in the body - `fn (a) added(l, r) = l + r` - and collecting a
+   requirement off a body into the signature it was not written on is a gap this stage still has.
+   Everything else about the form is here.
 
    The order-independent pair is the point of the fixture: `useLater` is resolved before `later` and
    calls it, so the result type it reads is one that has not been decided yet. Nothing in the file

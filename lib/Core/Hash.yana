@@ -280,7 +280,7 @@ instance Hash(Float):
 
    So `Map(Double, v)` compiles natively and does not on JS, which is a diagnostic at the call rather
    than a wrong answer anywhere. What closes it is a `Host` primitive handing back the two halves of
-   a double as `U32`s, which is the scratch typed-array pair codegen/js/inst.cpp already emits for
+   a double as `U32`s, which is the scratch typed-array pair codegen/js/helpers.cpp already emits for
    the 32-bit rungs, read twice instead of once. `Float` needs none of this and has its instance on
    both targets above.
 -}

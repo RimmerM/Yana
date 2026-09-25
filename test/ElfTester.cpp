@@ -13,14 +13,6 @@
 // constant data. Every one of those fails as a crash rather than as a wrong answer, which is why a
 // signal is reported here as a distinct outcome rather than as a mismatched status.
 //
-// **The executables are the rewrite's** since 2026-09-24 (J133) - `compiler/resolve_mir` +
-// `compiler/resolve_ssa`, the stage `yana` builds with by default. It built them with
-// `compiler/resolve` alone until then, which made this the one driver asserting that a program runs
-// as a *file* while saying nothing about the compiler that writes the file. `resolver:legacy` is the
-// old stage, for asking the same question of it by hand; `run-tests.sh` does not run it, because what
-// the old stage computes is `YanaResolveTest`'s to assert and everything below the `LowerModule` -
-// which is all this driver is about - is shared by the two.
-//
 // **The exit status is eight bits.** A process can report 0-255, and most fixtures answer something
 // larger, so what is compared is the low byte of the expected value. That is a weaker assertion than
 // the in-process driver's and is not meant to replace it: this one is about the file, and the corpus
@@ -29,13 +21,11 @@
 //   ./YanaElfTest                 # every fixture with a .run.expect
 //   ./YanaElfTest Format          # the fixtures whose names start with Format
 //   ./YanaElfTest shard:0/8       # one process' share of the corpus
-//   ./YanaElfTest resolver:legacy # the same corpus through compiler/resolve
 #include <Core.h>
 #include <File.h>
 #include <cstdlib>
 #include <cstring>
 #include "../compiler/parse/parser.h"
-#include "../compiler/resolve/lower.h"
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/emit.h"
 #include "../compiler/resolve_ssa/pipeline.h"
@@ -223,55 +213,19 @@ static bool fileExists(const String& path) {
     return info && !info.unwrapOk().isDirectory;
 }
 
-/*
- * Whether the stage this run builds with is asserted on this fixture at all.
- *
- * The rewrite takes the corpus's own word for it rather than trying everything: a `resolve/` fixture
- * is the new stage's where it carries `# resolver: ownership` or a `.mir.expect` - the two ways
- * `YanaResolveTest` adopts one - and the rest are J94 §3.4's gaps, which the in-process driver does
- * not run through this stage either. Trying them would make this driver the place those gaps are
- * listed, a second time and in a different form. A `# platform: js` fixture has no machine program to
- * write. A `lib/` fixture is a suite, and every one of them is the rewrite's.
- *
- * The old stage skips the fixtures only the rewrite compiles, which is what it always did.
- */
-static bool stageCompiles(const String& path, StringView source, bool legacy) {
-    if(legacy) return !fixtureNeedsOwnershipStage(source);
-    if(fixtureIsJavaScript(source)) return false;
-    if(stringView(path).startsWith("lib/"_v)) return true;
-    return fixtureNeedsOwnershipStage(source) || fileExists(path + String(".mir.expect"));
-}
 
 /*
- * The fixture's `LowerModule`, through whichever stage the run asked for - the only point at which
- * the two differ - handed to `use` while everything above it is still alive. Both stages are driven
- * the way `yana -mode exe` drives them (`compiler/driver.cpp`), and the module is named the same
- * either way, since a fixture may compute with its own name.
+ * The fixture's `LowerModule`, handed to `use` while everything above it is still alive. The stage
+ * is driven the way `yana -mode exe` drives it (`compiler/driver.cpp`).
  *
  * A callback rather than a returned module, because a lowered module is not self-contained: the
- * names and declarations it refers to live in the resolved program or the pipeline's regions, and
+ * names and declarations it refers to live in the pipeline's regions, and
  * returning the module out of the scope that owns them would be exactly the dangling read an `-O2`
  * build does not show.
  */
 template<class Use>
 static bool lowerFixture(const String& path, Context& context, PrintDiagnostics& diagnostics,
-                         ast::Module& ast, TestProvider& provider, bool legacy, Use&& use) {
-    if(legacy) {
-        auto program = resolveProgram(context, ast, &provider);
-        if(!program || diagnostics.errorCount()) {
-            println("Fail (%@): the fixture did not resolve.", path);
-            return false;
-        }
-
-        auto lowered = lowerProgram(context, *program);
-        if(diagnostics.errorCount()) {
-            println("Fail (%@): the fixture did not lower.", path);
-            return false;
-        }
-
-        return use(*lowered);
-    }
-
+                         ast::Module& ast, TestProvider& provider, Use&& use) {
     ssa::Pipeline pipeline(context);
     if(!pipeline.resolve(ast, &provider) || diagnostics.errorCount()) {
         println("Fail (%@): the fixture did not resolve.", path);
@@ -299,14 +253,12 @@ static bool lowerFixture(const String& path, Context& context, PrintDiagnostics&
     return use(*lowered);
 }
 
-static bool runTest(const String& path, StringView source, const String& outputDir, bool legacy) {
+static bool runTest(const String& path, StringView source, const String& outputDir) {
     auto expected = expectedStatus(path);
     if(!expected) return true;
 
-    // A fixture the stage this run builds with is not asserted on - see `stageCompiles`. There is
-    // nothing here it could report but a diagnostic the fixture already says to expect, or a gap the
-    // corpus already lists.
-    if(!stageCompiles(path, source, legacy)) return true;
+    // A `# platform: js` fixture has no machine program to write.
+    if(fixtureIsJavaScript(source)) return true;
 
     TestProvider provider;
     provider.source = source;
@@ -353,7 +305,7 @@ static bool runTest(const String& path, StringView source, const String& outputD
     auto ast = parser.parseModule();
 
     auto executable = outputDir + String("/") + fixtureName(path);
-    auto generated = lowerFixture(path, context, diagnostics, ast, provider, legacy,
+    auto generated = lowerFixture(path, context, diagnostics, ast, provider,
                                   [&](LowerModule& lowered) {
         if(!validateLowerModule(&diagnostics, &lowered)) {
             println("Fail (%@): the fixture did not lower.", path);
@@ -423,14 +375,10 @@ int main(int argc, const char** argv) {
     // through, "does *this* fixture pass" has to stay answerable.
     String only;
 
-    // Which stage builds the executables - the rewrite unless the run says otherwise. See the header.
-    auto legacy = false;
-
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
         if(parseShard(arg, shard, shards)) { sharded = true; continue; }
         if(parseJobs(arg, jobs)) continue;
-        if(arg == "resolver:legacy") { legacy = true; continue; }
 
         // `generate` is accepted and ignored, so that a whole-suite regenerate can pass the same
         // arguments to every driver. There is nothing here to generate: the goldens this reads are
@@ -542,7 +490,7 @@ int main(int argc, const char** argv) {
         auto size = file.size();
         Ptr<char, HeapDeleter> source { (char*)hAlloc(size) };
         file.read({ (Byte*)source.get(), size });
-        pass = runTest(test, { source.get(), size }, outputDir, legacy) && pass;
+        pass = runTest(test, { source.get(), size }, outputDir) && pass;
     }
 
     return pass ? 0 : 1;

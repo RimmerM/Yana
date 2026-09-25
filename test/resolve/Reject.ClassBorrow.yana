@@ -11,16 +11,14 @@
    `->` is the answer to every diagnostic below, and it is what `IndexInsert.insertAt` already writes:
    an insert that misses *stores* the key, so it asks for the key rather than borrowing it.
 
-   # resolver: ownership
-
-   This is the new stage's own rule. Two lines are
+   This is the ownership stage's own rule. Two lines are
    respelled for the current language rather than for the rule: a loan field is re-pointed by an
    update of its record, since assigning to one writes through it (ownership.md, "Records holding
    external values"), and `Box` holds the window itself rather than a `Holder` that does - a record
    nesting a loan-holding record is refused at the declaration in this stage, which would have
    been the only thing `keepInside` reported.
 
-   The messages are not the shipping stage's "this implements a class function" and that is not a
+   The messages were not the shipping stage's "this implements a class function" and that was not a
    gap. This stage holds *every* body to what its own signature says a loan's extent is - a global
    to the program's, a `&` parameter's field to a group the caller binds - so an
    implementation whose signature borrows `xs` for the call cannot keep it anywhere, class member or

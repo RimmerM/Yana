@@ -20,7 +20,7 @@
  * LLVM's own `-Os` column does this - see §14.4 of findings.md, which sized the item at nearly the
  * whole of `Tree`'s gap - and one call per node rather than two is what the measurement is.
  *
- * ## Why here rather than in compiler/opt
+ * ## Why here rather than above the fork
  *
  * §14.4 costed the transform against the *resolve* IR and found two obstacles that are both gone by
  * this stage. The accumulator is a stack slot up there, so threading one through would be a
@@ -31,8 +31,8 @@
  * reads as a resolve-tier one is a lower-tier one whenever what it needs is registers rather than
  * types.
  *
- * The cost of that placement is that the JS backend does not get it - it reads the resolve IR and
- * never comes through here.
+ * The cost of that placement is that the JS backend does not get it - it converts the SSA to JSIR
+ * and never comes through here.
  *
  * ## What a call has to look like
  *

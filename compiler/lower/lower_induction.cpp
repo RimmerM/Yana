@@ -1246,11 +1246,11 @@ bool boundWithinLength(LowerBase base, LowerValue* bound, LowerValue* length) {
      * of the answer and both flags fall out of it. The requirement below, that the source really is
      * wider, is what makes that true and is therefore the only clause this rule needs.
      *
-     * What the strict form cost is one bounds check per subscript in every loop the **ownership**
-     * resolver writes: `truncate(length(xs)) :: Int` reaches this tier as `sext` to `I32` there and
-     * as an unsigned `cast` in the shipping stage, so the identical program had the identical proof
-     * available on one side and refused on the other (`Pipeline`, J39 §6.2). Both stages read this
-     * pass, and the fact is about the bits rather than about which front end wrote them.
+     * What the strict form cost is one bounds check per subscript in every loop resolve_ssa writes:
+     * `truncate(length(xs)) :: Int` reaches this tier as `sext` to `I32` from it, where
+     * `compiler/resolve` (the stage deleted in J173) wrote an unsigned `cast`, so the identical
+     * program had the identical proof available on one side and refused on the other (`Pipeline`,
+     * J39 §6.2). The fact is about the bits rather than about which front end wrote them.
      */
     auto cut = (LowerInstCast*)truncate;
     auto source = throughBitcasts(base, base[cut->from]);

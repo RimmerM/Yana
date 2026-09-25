@@ -1,20 +1,12 @@
 #include "../parse/parser.h"
 #include "../parse/ast_print.h"
 #include "../parse/library.h"
-#include "../resolve/module.h"
-#include "../resolve/print.h"
 #include "../resolve_mir/explain.h"
-#include "../resolve/test.h"
-#include "../resolve/lower.h"
-#include "../resolve/analyze.h"
 #include "../lower/lower_print.h"
 #include "../lower/lower_validate.h"
 #include "../codegen/llvm/gen.h"
-#include "../codegen/js/gen.h"
 #include "../codegen/js/jsir.h"
 #include "../codegen/x64/emit.h"
-#include "../opt/opt.h"
-#include "../repr/repr.h"
 #include "../resolve_ssa/pipeline.h"
 #include "../resolve_ssa/print.h"
 #include "../resolve_mir/print.h"
@@ -27,7 +19,7 @@
 /*
  * The compiler driver.
  *
- * What a project is has moved down into the resolver since this was last written: `resolveProgram`
+ * What a project is has moved down into the resolver since this was last written: `ssa::Pipeline`
  * takes the root module and asks a ModuleProvider for everything it imports, so linking modules
  * together is name resolution rather than anything the driver arranges. What is left here is the
  * three things only the driver can do - find the files, decide which module is the root, and take
@@ -91,7 +83,7 @@ static bool printAsts(Context& context, ModuleMap& map) {
  */
 
 /*
- * The JavaScript target through JSIR - `-mode exe -platform js -resolver ownership`, and the dump
+ * The JavaScript target through JSIR - `-mode exe -platform js`, and the dump
  * `-mode jsir` writes beside it.
  *
  * One function for the two because they are one pipeline: the dump is written *inside* the
@@ -109,7 +101,7 @@ static bool compileJsir(Context& context, mir::Program& program, ssa::Converted&
     }
 
     if(context.settings.mode != CompileMode::Executable) {
-        context.diagnostics.error("-resolver ownership answers -mode ast, mir, ssa, jsir and exe for -platform js"_v,
+        context.diagnostics.error("-platform js answers -mode ast, mir, ssa, jsir and exe"_v,
                                   nullptr);
         return false;
     }
@@ -120,136 +112,6 @@ static bool compileJsir(Context& context, mir::Program& program, ssa::Converted&
     return writeText(context, joinPath(outputDir, name, ".js"_v), [&](Net::Writer& writer) {
         js::formatFile(writer, context, *file, false);
     });
-}
-
-static bool compileJs(Context& context, Program& program, const String& outputDir, StringView name) {
-    auto file = js::genProgram(context, program);
-    if(context.diagnostics.errorCount()) return false;
-
-    return writeText(context, joinPath(outputDir, name, ".js"_v), [&](Net::Writer& writer) {
-        js::formatFile(writer, context, *file, false);
-    });
-}
-
-/*
- * Everything every native build shares, whichever backend then consumes it: the lowered form of the
- * program, checked, written out if it was asked for, and known to have somewhere to start.
- *
- * Above the fork rather than inside either arm, because it is the same program either way. The two
- * backends are two code generators over one IR, and the useful thing about being able to switch
- * between them with a flag is that everything before the switch is held fixed - a difference between
- * their output is then a difference between them.
- */
-static Ptr<LowerModule> lowerNative(Context& context, Program& program) {
-    auto lowered = lowerProgram(context, program);
-    if(context.diagnostics.errorCount()) return nullptr;
-
-    if(!validateLowerModule(&context.diagnostics, lowered.get())) {
-        context.diagnostics.error("lowering produced invalid IR"_v, nullptr);
-        return nullptr;
-    }
-
-    // The program's start rather than `main` by name - Analysis-Initialization.md stage B. Where the
-    // root module has top-level statements, `main` is what the synthesized entry calls last, and
-    // starting at `main` itself would start the program after its own initialization had been
-    // skipped. Asked here, so that a program with nowhere to start is reported once and by the same
-    // sentence however it was going to be compiled.
-    if(!lowered->entry) {
-        context.diagnostics.error("the program has no entry point - the module being compiled declares neither `main` nor any top-level statement"_v,
-                                  nullptr);
-        return nullptr;
-    }
-
-    return lowered;
-}
-
-/*
- * `-mode drops` - what the ownership passes concluded.
- *
- * Where each local is live and where its drop went, which is the one thing the compiler works out
- * that neither the resolve IR nor the lowered form shows on its face. It needs the live ranges,
- * which a compilation does not otherwise build - see CompileSettings::ownershipRanges - so the mode
- * is what turns them on, and `parseCommandLine` sets the flag when it reads this mode rather than
- * leaving a switch that could be forgotten.
- *
- * Before the optimizer, deliberately: these are the conclusions the *ownership passes* reached, and
- * running the optimizer first would show them after inlining had moved the code they are about.
- */
-static bool compileDrops(Context& context, Program& program, const String& outputDir, StringView name) {
-    return writeText(context, joinPath(outputDir, name, ".own"_v), [&](Net::Writer& writer) {
-        printOwnership(writer, context, program);
-    });
-}
-
-/*
- * `-mode ir` - the resolved program, as the backends read it.
- *
- * Optimized, because that is the program that is actually compiled: the optimizer rewrites the
- * resolve IR in place and both backends call it on the way in, so the unoptimized form is a program
- * no backend ever sees. `-no-opt` is what asks for that one, and it is the same switch that makes
- * every other stage skip the optimizer - so the two forms this used to write as two files are now
- * one file and a flag that composes with everything else.
- *
- * The target matters even here: `optimizeProgram` takes a ReprTarget, and a JS build and a native
- * build are two resolved programs optimized against two layouts. This is the only way to read the
- * JavaScript one, which is why the mode is available on both platforms while `-mode lower` is not.
- */
-static bool compileIr(Context& context, Program& program, const String& outputDir, StringView name) {
-    {
-        StageScope stage(CompileStage::Optimize);
-        optimizeProgram(context, program,
-                        isJsMode(context.settings) ? jsReprTarget()
-                                                   : nativeReprTarget(context.settings));
-    }
-
-    if(context.diagnostics.errorCount()) return false;
-
-    return writeText(context, joinPath(outputDir, name, ".ir"_v), [&](Net::Writer& writer) {
-        printProgram(writer, context, program);
-    });
-}
-
-/*
- * `-mode lower` - the form both native backends are generated from.
- *
- * Native only, and refused for a JavaScript build by `checkSettings` rather than here: the JS
- * backend generates straight from the resolve IR, so there is no lowered form of a JS program to
- * write. What comes out has been through `validateLowerModule` like every other native build, which
- * makes this mode also the shortest way to ask whether lowering a program produces valid IR.
- */
-static bool compileLower(Context& context, Program& program, const String& outputDir, StringView name) {
-    auto lowered = lowerNative(context, program);
-    if(!lowered) return false;
-
-    return writeText(context, joinPath(outputDir, name, ".lower"_v), [&](Net::Writer& writer) {
-        printModule(writer, context, *lowered->arena, *lowered);
-    });
-}
-
-// Everything the two LLVM modes share: the resolved program as an LLVM module, entry point and all.
-// `-mode llvm` stops at the text of it, which is why the wrapper and the optimization happen here
-// rather than in the executable path - the IR that mode writes is the IR that mode would compile,
-// and one that had been through neither would be a different program.
-static Ptr<llvm::Module> genNative(llvm::LLVMContext& llvm, Context& context, Program& program) {
-    auto lowered = lowerNative(context, program);
-    if(!lowered) return nullptr;
-
-    auto module = llvmgen::genModule(llvm, context, *lowered);
-    if(context.diagnostics.errorCount()) return nullptr;
-
-    if(!llvmgen::addNativeEntry(context, *module, *lowered)) return nullptr;
-    if(!llvmgen::verifyGenModule(context, *module)) return nullptr;
-
-    llvmgen::optimizeModule(context, *module, context.settings.optimization);
-    return module;
-}
-
-static bool compileLlvm(Context& context, Program& program, const String& outputDir, StringView name) {
-    llvm::LLVMContext llvm;
-    auto module = genNative(llvm, context, program);
-    if(!module) return false;
-
-    return llvmgen::writeIrFile(context, *module, joinPath(outputDir, name, ".ll"_v));
 }
 
 static bool finishNativeObject(Context& context, const String& objectPath, const String& outputPath) {
@@ -265,32 +127,6 @@ static bool finishNativeObject(Context& context, const String& objectPath, const
     return llvmgen::linkExecutable(context, objectPath, outputPath);
 }
 
-static bool compileNative(Context& context, Program& program, const String& outputDir, StringView name) {
-    llvm::LLVMContext llvm;
-    auto module = genNative(llvm, context, program);
-    if(!module) return false;
-
-    auto objectPath = joinPath(outputDir, name, ".o"_v);
-    if(!llvmgen::writeObjectFile(context, *module, objectPath)) return false;
-
-    return finishNativeObject(context, objectPath, joinPath(outputDir, name, ""_v));
-}
-
-/*
- * The same mode through the compiler's own backend.
- *
- * No object file and no link step, because there is nothing to link: the whole program is in one
- * lowered module, and everything it calls is in it. What comes out is the executable itself, at the
- * same path `-backend llvm` would have left one - the two differ in how the file was produced and in
- * nothing a caller has to know about.
- */
-static bool compileNativeLocal(Context& context, Program& program, const String& outputDir, StringView name) {
-    auto lowered = lowerNative(context, program);
-    if(!lowered) return false;
-
-    return genX64Executable(context, *lowered, joinPath(outputDir, name, ""_v));
-}
-
 // The output directory, made where it does not exist. Two callers now: every mode that writes a
 // program, and `-mode ast`, which stops before the rest of them and still has files to write.
 static bool ensureOutputDirectory(const String& outputDir) {
@@ -304,28 +140,15 @@ static bool ensureOutputDirectory(const String& outputDir) {
 }
 
 /*
- * The rewritten stage - `-resolver ownership`, the default since 2026-09-22 (J81), and
- * Analysis-IR.md part 11.2.
+ * The program, from the root module to whatever the mode asks for - Analysis-IR.md part 11.2.
  *
- * A path of its own beside the one below rather than a branch inside it, because the two share
- * nothing above `compiler/lower`: there is no `Program` here, no resolve IR and no `compiler/opt`.
- * What they do share is everything from the `LowerModule` down, which is the seam that makes a
- * disagreement between them a difference in what the front halves decided.
- *
- * The modes it answers are the ones that have an answer. `mir` and `ssa` are its own two dumps;
- * `lower`, `llvm` and `exe` are the shared backends reached through it. The rest - `ir`, `drops`, and
- * two library modes - are either the other stage's own output or work that has not arrived, and each
- * says which rather than producing something misleading. Reaching one of those from here means
- * `-resolver ownership` was *written*, since `checkSettings` refuses them to a command line that
- * left the stage unnamed - the sentence there is the one that names `-resolver legacy`.
- *
- * On a JavaScript target the answer stops at the fork: the two dumps are produced the same way and
- * everything below them is refused by `checkSettings`, because the other half of the fork is JSIR
- * and it is not built. See the guard above `lower` and Analysis-IR-JS.md milestone 0.
+ * `mir` and `ssa` are the resolve stage's own two dumps; `lower`, `llvm` and `exe` are the native
+ * backends reached through it, and `jsir` and `exe` the JavaScript one. The two library modes are
+ * refused by `checkSettings` before anything is read.
  */
-static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
-                                  ast::ModuleProvider& provider, const String& outputDir,
-                                  StringView name, Buffer<ast::ModuleGroup*> testRoots) {
+static bool compileProgram(Context& context, ast::ModuleGroup& root, ast::ModuleProvider& provider,
+                           const String& outputDir, StringView name,
+                           Buffer<ast::ModuleGroup*> testRoots) {
     ssa::Pipeline pipeline(context);
     if(!pipeline.resolve(root, &provider, testRoots)) return false;
 
@@ -357,13 +180,11 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
      * The optimizer, between the conversion and everything that reads its output - `resolve_ssa/opt`.
      *
      * Above the dump rather than below it, so that `-mode ssa` prints the program the backend is
-     * given and `-no-ir-opt` prints the form the conversion produced. That is exactly what
-     * `-mode ir` means for the shipping stage - see `compileIr`, where the same sentence is - and
-     * two dumps of one pipeline that disagreed about which form they show would be two flags to
-     * remember instead of one.
+     * given and `-no-ir-opt` prints the form the conversion produced: the unoptimized form is a
+     * program no backend ever sees, so it is the flag that asks for it rather than a second file.
      */
     if(!pipeline.optimize()) {
-        context.diagnostics.error("the ownership optimizer produced SSA the verifier rejects"_v, nullptr);
+        context.diagnostics.error("the optimizer produced SSA the verifier rejects"_v, nullptr);
         return false;
     }
 
@@ -391,7 +212,7 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
     if(!lowered || context.diagnostics.errorCount()) return false;
 
     if(!validateLowerModule(&context.diagnostics, lowered.get())) {
-        context.diagnostics.error("the ownership pipeline produced invalid lower IR"_v, nullptr);
+        context.diagnostics.error("lowering produced invalid lower IR"_v, nullptr);
         return false;
     }
 
@@ -401,15 +222,19 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
         });
     }
 
-    // Every other mode is `checkSettings`' refusal before anything is read (J162): `ir` and `drops`
-    // are the shipping stage's, `jsir` is the other platform's, and `shared` and `lib` neither
-    // stage's. What remains here is the modes above this line and the two below it.
+    // Every other mode is `checkSettings`' refusal before anything is read (J162): `jsir` is the
+    // other platform's, and `shared` and `lib` are not built. What remains here is the modes above
+    // this line and the two below it.
     if(settings.mode != CompileMode::Executable && settings.mode != CompileMode::Llvm) {
-        context.diagnostics.error("the native ownership pipeline answers -mode ast, mir, ssa, lower, llvm and exe"_v,
+        context.diagnostics.error("-platform native answers -mode ast, mir, ssa, lower, llvm and exe"_v,
                                   nullptr);
         return false;
     }
 
+    // The program's start rather than `main` by name - Analysis-Initialization.md stage B. Where the
+    // root module has top-level statements, `main` is what the synthesized entry calls last, and
+    // starting at `main` itself would start the program after its own initialization had been
+    // skipped.
     if(!lowered->entry) {
         context.diagnostics.error("the program has no entry point - the module being compiled declares neither `main` nor any top-level statement"_v,
                                   nullptr);
@@ -421,7 +246,8 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
     }
 
     // The module `-mode llvm` writes is the one `-backend llvm` would compile, entry and optimization
-    // included - the same rule `genNative` states for the shipping stage.
+    // included: the IR that mode writes is the IR that mode would compile, and one that had been
+    // through neither would be a different program.
     llvm::LLVMContext llvm;
     auto module = llvmgen::genModule(llvm, context, *lowered);
     if(context.diagnostics.errorCount()) return false;
@@ -447,9 +273,7 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
  * asked at a terminal rather than a build step. Everything it reads was produced by resolution, the
  * ownership analysis and the summaries, all of which have run by the time this is called.
  *
- * Always over the rewritten stage's program, whichever stage a build of the same flags would use -
- * the facts are that stage's `Summary`, and the shipping stage's editor surface is gone. See
- * `resolve_mir/explain.h`.
+ * The facts are the resolve stage's `Summary` - see `resolve_mir/explain.h`.
  *
  * The call-site index is built once for the whole query even when one function is being explained,
  * since "specialized at 3 call sites" is a fact about the program rather than about the function.
@@ -631,17 +455,13 @@ int main(int argc, const char** argv) {
     /*
      * Whether this compile reports past an error - `CompileSettings::recover`.
      *
-     * The rewritten stage does, as an editor's compile always has: a parse error in one file used to
-     * stop the compile here, which hid every type error in every other file, and a type error stopped
-     * it before the ownership analyses, which hid every use-after-move. Resolution with errors still
-     * builds nothing - `ssa::Pipeline::resolve` answers false on any - so what changes is only how
-     * much of what is wrong one build says.
-     *
-     * The shipping stage stops where it always has: it is the comparison oracle, and its own goldens
-     * are what it is compared on. So does `-mode ast`, whose whole point is the parse.
+     * It does, as an editor's compile always has: a parse error in one file used to stop the compile
+     * here, which hid every type error in every other file, and a type error stopped it before the
+     * ownership analyses, which hid every use-after-move. Resolution with errors still builds nothing
+     * - `ssa::Pipeline::resolve` answers false on any - so what changes is only how much of what is
+     * wrong one build says. `-mode ast` stops at the parse, which is its whole point.
      */
-    context.settings.recover = context.settings.resolver == ResolverStage::Ownership
-                            && context.settings.mode != CompileMode::Ast;
+    context.settings.recover = context.settings.mode != CompileMode::Ast;
 
     // Every file is parsed by `prepare`, which is what grouping them into modules needed - see
     // FileProvider::prepare. So a parse error anywhere in the tree stops a compile that does not
@@ -682,26 +502,16 @@ int main(int argc, const char** argv) {
         }
     }
 
-    auto specialization = context.settings.forceGeneric ? Program::Specialization::Generic
-                                                        : Program::Specialization::Always;
-
     /*
-     * Which stage compiles it - see ResolverStage.
-     *
-     * Before the legacy call rather than inside it, because there is no shared object for the two to
-     * produce: the rewrite has its own declarations, its own IR and its own arenas, and the first
-     * thing they have in common is the `LowerModule` each hands to the same backends.
-     */
-    /*
-     * The query, ahead of both stages and above the output directory: a query produces no output, so
+     * The query, ahead of the build and above the output directory: a query produces no output, so
      * it has no business leaving a directory behind - and it has no mode either, so `explain` leaves
      * `-mode exe` standing and would otherwise fall into a build.
      */
     if(context.settings.explaining()) {
         // **A JavaScript program is explained too, since 2026-09-22 (J75).** This used to refuse one
-        // by name, because what the query reads is resolved by the rewritten stage and that stage
-        // read no JavaScript program - the library's `@platform(js)` half would have come back as a
-        // page of unresolved declarations. It resolves one now, and `@platform` selecting which
+        // by name, because `resolve_mir`, which resolves what the query reads, read no JavaScript
+        // program then - the library's `@platform(js)` half would have come back as a page of
+        // unresolved declarations. It resolves one now, and `@platform` selecting which
         // declarations exist is exactly why the answer has to be per target: a native build and a
         // JavaScript build are two programs, and this reports whichever one the flags name.
         ssa::Pipeline pipeline(context);
@@ -709,96 +519,15 @@ int main(int argc, const char** argv) {
         return explainProgram(context, *pipeline.program) ? 0 : 1;
     }
 
-    if(context.settings.resolver == ResolverStage::Ownership) {
-        if(!ensureOutputDirectory(context.settings.outputDir)) return 1;
-
-        auto& given = context.settings.outputName;
-        auto artifact = given != "" ? StringView { given.text(), given.size() }
-                                    : StringView { root->text.text(), root->text.size() };
-
-        auto built = compileOwnershipStage(context, root->parsed, provider,
-                                           context.settings.outputDir, artifact,
-                                           toBuffer(testRoots));
-        return built && diagnostics.errorCount() == 0 ? 0 : 1;
-    }
-
-    auto program = resolveProgram(context, root->parsed, &provider, specialization,
-                                  toBuffer(testRoots));
-
-    if(!program || diagnostics.errorCount() > 0) return 1;
-
-    auto& outputDir = context.settings.outputDir;
-    if(!ensureOutputDirectory(outputDir)) return 1;
+    if(!ensureOutputDirectory(context.settings.outputDir)) return 1;
 
     // What the artifact is called - `-o`, or the root module's name. The mode adds the extension,
     // which is why this is a bare name rather than a file name.
     auto& given = context.settings.outputName;
-    auto name = given != "" ? StringView { given.text(), given.size() }
-                            : StringView { root->text.text(), root->text.size() };
-    auto built = false;
+    auto artifact = given != "" ? StringView { given.text(), given.size() }
+                                : StringView { root->text.text(), root->text.size() };
 
-    /*
-     * The mode decides what is produced and the platform decides what it is produced for, so the
-     * dispatch reads both - see TargetPlatform. Only `Executable` genuinely branches on the
-     * platform: the two text modes below it either work on both (`ir`) or were refused for one by
-     * `checkSettings` (`lower`, `llvm`), which is where a combination that does not exist is
-     * reported, rather than here where there would be nothing useful to say about it.
-     */
-    switch(context.settings.mode) {
-        case CompileMode::Executable:
-            if(isJsMode(context.settings)) {
-                built = compileJs(context, *program, outputDir, name);
-                break;
-            }
-
-            // The one output with two implementations - see NativeBackend. Which one this is came
-            // from the target unless a flag overrode it, and a flag that named a target with no code
-            // generator behind it was already refused by checkSettings, so what is left here is only
-            // the choice.
-            built = context.settings.backend == NativeBackend::Local
-                ? compileNativeLocal(context, *program, outputDir, name)
-                : compileNative(context, *program, outputDir, name);
-            break;
-        case CompileMode::Drops:
-            built = compileDrops(context, *program, outputDir, name);
-            break;
-        case CompileMode::Ir:
-            built = compileIr(context, *program, outputDir, name);
-            break;
-        case CompileMode::Lower:
-            built = compileLower(context, *program, outputDir, name);
-            break;
-        case CompileMode::Llvm:
-            built = compileLlvm(context, *program, outputDir, name);
-            break;
-
-        // Handled above, before there was a program to switch on.
-        case CompileMode::Ast:
-            break;
-
-        // The rewritten stage's own two dumps, which this stage does not produce. `parseCommandLine`
-        // selects that resolver when it reads either mode, so reaching here means the flags said
-        // both `-mode mir` and `-resolver legacy`.
-        case CompileMode::Mir:
-        case CompileMode::Ssa:
-        case CompileMode::Jsir:
-            diagnostics.error("-mode mir, -mode ssa and -mode jsir are the ownership pipeline's dumps - see -resolver"_v,
-                              nullptr);
-            break;
-
-        // The two that have no code behind them yet. Each is a different question the answer above
-        // does not contain: a library is what a program links *against*, which needs a format for
-        // the resolved declarations rather than for the code; a shared library is that plus an
-        // exported symbol table and position-independent placement.
-        case CompileMode::Library:
-            diagnostics.error(isJsMode(context.settings)
-                ? "JS library generation is not implemented yet"_v
-                : "library generation is not implemented yet"_v, nullptr);
-            break;
-        case CompileMode::Shared:
-            diagnostics.error("shared library generation is not implemented yet"_v, nullptr);
-            break;
-    }
-
+    auto built = compileProgram(context, root->parsed, provider, context.settings.outputDir, artifact,
+                                toBuffer(testRoots));
     return built && diagnostics.errorCount() == 0 ? 0 : 1;
 }

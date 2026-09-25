@@ -22,12 +22,12 @@ using namespace intrinsic;
  * The storage an operand that arrived as a *value* does not have.
  *
  * `addAddressOf` takes the value a borrowing read produced, because an address is the address of
- * somewhere and an owned node result is nowhere - the builder asserts it. That leaves the case where
- * the argument really is only a value, and this is what the language does with it: an unnamed local
- * of the frame, written once, and the address is that slot's. `resolve/expr_construct.cpp`'s
- * `materialize` is the shipping stage's same answer, and `test/resolve/Global.yana` is where the
- * meaning is written down - the address of a constant is the address of a temporary holding its
- * value, "which is the only reading available for a value that cannot be assigned to".
+ * somewhere and an owned node result is nowhere - the builder asserts it. That leaves the case
+ * where the argument really is only a value, and this is what the language does with it: an unnamed
+ * local of the frame, written once, and the address is that slot's. `compiler/resolve`'s
+ * `materialize` gave the same answer, and `test/resolve/Global.yana` is where the meaning is
+ * written down - the address of a constant is the address of a temporary holding its value, "which
+ * is the only reading available for a value that cannot be assigned to".
  *
  * Either declaration reaches it. Written `fn addressOf(it: a) -> %a`, a trivially copyable argument
  * is copied into the call and every call of it lands here. `lib/Native/Pointer.yana` writes
@@ -107,19 +107,19 @@ Node* expandAddressOf(Builder& builder, Function& callee, Node* const* arguments
          * `let &status = 0 :: Int` followed by `waitProcess(id, addressOf(status), 0)` is the
          * program, and under `lib`'s unpublished spelling the ordinary argument path answers it
          * `CopyTrivial` - so what reaches here is a scalar in a register and the address of a slot
-         * holding a *copy* of the exit code, which the callee then writes and nobody reads. The
-         * shipping stage does not do that: `resolve/expr_construct.cpp`'s `materialize` asks
-         * `findPlace` first and hands back the storage the value was loaded from. This is that same
-         * question, and it is what keeps the two stages saying one thing about one program.
+         * holding a *copy* of the exit code, which the callee then writes and nobody reads. So this
+         * asks first for the storage the value was loaded from and hands that back - the question
+         * `compiler/resolve`'s `materialize` asked through `findPlace`, which kept the two stages
+         * saying one thing about one program while both existed.
          *
          * **Storage this frame owns**, and that is the line rather than an economy: "the memory a
          * pointer names is always mutable, the pointer itself is not" is
          * `lib/Native/Pointer.yana`'s own sentence, so `let node = Node {...}` followed by
          * `copyMemory(addressOf(node), ...)` writes that record - which is
-         * `test/resolve/Pointer.yana`'s `blockOperations`, and what the shipping stage's `findPlace`
-         * has always answered. Whether the *binding* may be assigned is a different question and was
-         * the test here until 2026-09-07; it refused a plain `let` whose storage is this frame's and
-         * addressed a copy of it instead.
+         * `test/resolve/Pointer.yana`'s `blockOperations`, and what `compiler/resolve`'s
+         * `findPlace` always answered. Whether the *binding* may be assigned is a different
+         * question and was the test here until 2026-09-07; it refused a plain `let` whose storage
+         * is this frame's and addressed a copy of it instead.
          *
          * The **occurrence's access** is what decides, because the loan below is exclusive: a `%a`
          * is an address a store reaches, and an address is what a shared loan of a scalar is

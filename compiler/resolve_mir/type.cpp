@@ -414,17 +414,6 @@ StringView intTypeName(const IntType& type) {
     return intrinsic::primitiveIntName(type.bits, type.isSigned, type.target);
 }
 
-StringView typeKindName(Type::Kind kind) {
-    switch(kind) {
-#define YANA_MIR_TYPE(k, Struct, name) case Type::k: return name;
-#include "type.def"
-#undef YANA_MIR_TYPE
-        case Type::KindCount: break;
-    }
-
-    return "?"_v;
-}
-
 
 /*
  * Whether the context this variable belongs to has already promised that it duplicates by its bytes
@@ -924,9 +913,9 @@ StringView conventionMark(Contract contract, Access written) {
  * the source they wrote, and a count that is not the natural one is exactly the case where they
  * wrote one and want to see it.
  *
- * A mask is spelled by the same rule rather than always without its count, which is where this
- * departs from the shipping stage: a mask keeps the lane it was made from and may be written at a
- * count of its own, so `Mask(F32, 2)` printed as `Mask(F32)` would be naming a different type.
+ * A mask is spelled by the same rule rather than always without its count, because a mask keeps the
+ * lane it was made from and may be written at a count of its own, so `Mask(F32, 2)` printed as
+ * `Mask(F32)` would be naming a different type.
  *
  * One function because two callers print a type - a dump and a diagnostic - and a type printed two
  * ways is a reader comparing a message against a golden that disagrees with it.

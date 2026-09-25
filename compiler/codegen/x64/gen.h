@@ -1428,7 +1428,7 @@ struct AsmRelocation {
      * Note that a table slot is measured from the image anchor, not from the byte after the field -
      * unlike the rel32 above, which matches how the CPU computes a RIP-relative displacement.
      * Nothing is executing here; the reader adds the anchor's address back, so that is what it must
-     * be measured from. See repr/table.h.
+     * be measured from. See the erased ABI in resolve_ssa/lower/README.md.
      */
     bool anchorRelative = false;
 
@@ -1735,8 +1735,8 @@ struct AsmModule {
      * Patches every recorded relocation with the now-known offset of its target.
      * Must be called after every block/function referenced by any relocation has been emitted.
      *
-     * `anchor` is the global every table slot is measured from - see repr/table.h. Null is allowed
-     * only for a module that built no table, since a slot cannot be written without it.
+     * `anchor` is the global every table slot is measured from - see LowerDataRelocation. Null is
+     * allowed only for a module that built no table, since a slot cannot be written without it.
      */
     void resolveRelocations(LowerGlobal* anchor);
 };

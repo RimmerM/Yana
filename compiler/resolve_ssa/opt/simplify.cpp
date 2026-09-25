@@ -3,12 +3,13 @@
 /*
  * One walk, five rewrites, driven by the use lists - README.md's section B.
  *
- * The shipping stage runs constant folding, the algebraic identities, the `Bool` bitwise rewrite,
- * CSE and dead-value removal as five separate passes and repeats the group up to eight times,
- * because its IR has no use-list worklist and each of the five could only hear about the others'
- * work by being walked again. Every one of the five is local to an instruction and its operands, and
- * `ssa::Value` already carries `uses`, so here they are one pass: fold an operand and its readers go
- * back on the queue, erase an instruction and its operands' definers do.
+ * The shipping stage (`compiler/resolve`, deleted in J173) ran constant folding, the algebraic
+ * identities, the `Bool` bitwise rewrite, CSE and dead-value removal as five separate passes and
+ * repeated the group up to eight times, because its IR had no use-list worklist and each of the
+ * five could only hear about the others' work by being walked again. Every one of the five is local
+ * to an instruction and its operands, and `ssa::Value` already carries `uses`, so here they are one
+ * pass: fold an operand and its readers go back on the queue, erase an instruction and its
+ * operands' definers do.
  *
  * The five stay in separate functions and the fold table stays in a file of its own, because the
  * table is large and is not a walk. What is here is the walk, the queue, and the one thing all five
@@ -451,12 +452,13 @@ struct Simplifier {
     /*
      * The operand of a complement, or null where this value is not one.
      *
-     * One spelling, `UnaryOp::Not`, where the shipping stage's version reads two. Over there `!c` at
-     * a `Bool` may also arrive as `xor c, 1`, because its `reduceBooleanOperations` *builds* that
+     * One spelling, `UnaryOp::Not`, where the shipping stage's version read two. Over there `!c` at
+     * a `Bool` could also arrive as `xor c, 1`, because its `reduceBooleanOperations` *built* that
      * form; here the same rewrite builds `not` (see `tryBoolean` above, whose first rule is the one
-     * that would produce it), `op.def` gives `Bitwise(Bool).not` the same `Not`, and `lower/inst.cpp`
-     * is where a `Bool`'s complement becomes an `xor` against one. So the second spelling does not
-     * exist at this tier and reading for it would be reading for a shape nothing writes.
+     * that would produce it), `op.def` gives `Bitwise(Bool).not` the same `Not`, and
+     * `lower/inst.cpp` is where a `Bool`'s complement becomes an `xor` against one. So the second
+     * spelling does not exist at this tier and reading for it would be reading for a shape nothing
+     * writes.
      */
     Value* complementOf(Use used) {
         if(!used.isSet()) return nullptr;
@@ -489,9 +491,9 @@ struct Simplifier {
      * is the shape and F's phase 16 note is the number.
      *
      * **Both complements read once.** Otherwise the two `not`s stay standing and this adds a third
-     * instruction on top of them; `tryDead` is what removes them once their last reader is this one.
-     * The same spelling on both sides is therefore automatic here, where the shipping stage has to
-     * ask - it reads two spellings of a complement and has to rebuild the one it took apart.
+     * instruction on top of them; `tryDead` is what removes them once their last reader is this
+     * one. The same spelling on both sides is therefore automatic here, where the shipping stage
+     * had to ask - it read two spellings of a complement and had to rebuild the one it took apart.
      *
      * One type throughout, asked rather than assumed: `and` and `or` are `Closed` in `op.def` so a
      * combination is at its operands' type, but a complement's operand and result are the same type

@@ -1,4 +1,4 @@
-#include "build.h"
+#include "shared.h"
 
 /*
  * Integers of 33 to 53 bits - the band where a host `number` still holds every value exactly but
@@ -100,10 +100,6 @@ Name wideHelper(JsShared& g, WideOp op, U32 bits, bool isSigned) {
     g.wideHelpers.add(key, name);
     g.wideHelperOrder.push(WideHelper { name, op, U16(bits), isSigned });
     return name;
-}
-
-JsPtr<Expr> wideCall(Gen& g, WideOp op, IntType* type, JsPtr<Expr> a, JsPtr<Expr> b) {
-    return wideCallAt(g, op, heldBits(g, *type), type->isSigned, a, b);
 }
 
 JsPtr<Expr> wideCallAt(JsShared& g, WideOp op, U32 bits, bool isSigned, JsPtr<Expr> a, JsPtr<Expr> b) {
@@ -549,26 +545,6 @@ void emitWideHelpers(JsShared& g) {
         function->body = wideHelperBody(g, helper.op, helper.bits, helper.isSigned, function->args);
         emit(g, function);
     }
-}
-
-/*
- * A value widened into a 33-to-53-bit type from a narrower integer.
- *
- * Both sides are already the same host type, so this is only ever a question of range, and there
- * are exactly two cases where nothing has to happen:
- *
- *  - a *signed* destination holds every value of any narrower type, positive or negative, so the
- *    widening is the identity whatever the source's signedness;
- *  - an *unsigned* destination holds every value of a narrower *unsigned* type.
- *
- * What is left is a negative value widening into an unsigned type, where the two's complement
- * pattern the wider type would have held is a different number and `Wrap` is what produces it.
- */
-JsPtr<Expr> wideFromNarrow(Gen& g, IntType* to, IntType* from, JsPtr<Expr> value) {
-    if(heldBits(g, *from) >= heldBits(g, *to)) return wideCall(g, WideOp::Wrap, to, value, nullptr);
-    if(to->isSigned || !from->isSigned) return value;
-
-    return wideCall(g, WideOp::Wrap, to, value, nullptr);
 }
 
 /*

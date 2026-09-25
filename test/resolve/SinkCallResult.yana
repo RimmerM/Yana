@@ -22,10 +22,10 @@
    correct as well - the call it moves out of is still there - so `runUnoptimizedPass` reports it
    too, as the optimizer changing the answer.
 
-   **The empty `.js.expect` beside this file is load-bearing.** `runJsPass` is called only where one
-   exists, so a fixture with a `.run.expect` and no golden never has its JavaScript emitted, let
-   alone executed - which is 89 of the 237 fixtures here, and is why `SpecializedSink.yana` could
-   store a `null` into an array for as long as it had a golden that agreed with it.
+   **This fixture's `.jsir.js.expect` is not empty**, unlike this comment's original point: under
+   the shipping stage's deleted pipeline, `runJsPass` ran only where a golden existed, so a fixture
+   with a `.run.expect` and no golden never had its JavaScript emitted or checked - which is why
+   `SpecializedSink.yana` could store a `null` into an array for as long as its golden agreed.
 -}
 
 -- The thunk. One call and a `ret` of its result, with the result a memory type.

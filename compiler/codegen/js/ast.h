@@ -16,9 +16,9 @@
  * so none of them is expressible here at all; the only computed member access this tree can build
  * is an array index, which is what the compiler-built constant tables are read through.
  *
- * The tree lives in a region of its own, on the same terms as the resolve IR and the lower IR: a
- * node is a 32-bit offset rather than a pointer, nothing is freed individually, and the whole file
- * goes away at once. Two properties come with that and both are used here - a node is half the size
+ * The tree lives in a region of its own, on the same terms as the compiler's IRs: a node is a
+ * 32-bit offset rather than a pointer, nothing is freed individually, and the whole file goes away
+ * at once. Two properties come with that and both are used here - a node is half the size
  * of a pointer-linked one on 64-bit, and a JsPtr keeps meaning the same node across a rebuild.
  */
 namespace js {
@@ -56,8 +56,9 @@ enum class UnaryOp: U8 {
 /*
  * One operation on an integer of 33 to 53 bits that no host operator performs.
  *
- * Here rather than in build.h because a call node carries one: the peephole that fuses a chain of
- * these reads the tree and nothing else, so what a call *is* has to be on the node. See wide.cpp.
+ * In the tree rather than beside the helpers because a call node carries one: the peephole that
+ * fuses a chain of these reads the tree and nothing else, so what a call *is* has to be on the
+ * node. See wide.cpp.
  */
 enum class WideOp: U8 {
     Wrap,   // reduce an arbitrary value into the type's range - the general coercion
@@ -125,9 +126,9 @@ struct Expr {
      * and they are exactly where a container's count and its elements arrive - so every coercion
      * around one survived, and `xs.length`'s reader paid a `>>> 0` that can never do anything.
      *
-     * What makes this sound is the contract `coerce` exists to keep (see type.cpp): a value of an
-     * integer type is *inside* that type's range, which is why a coercion is emitted after every
-     * operation in the first place. So the declared type of a place is a statement about its
+     * What makes this sound is the contract `coerceTo` exists to keep (see structure.cpp): a value
+     * of an integer type is *inside* that type's range, which is why a coercion is emitted after
+     * every operation in the first place. So the declared type of a place is a statement about its
      * contents, and this is that statement carried to the one pass that can use it.
      *
      * Set by `noteValueType` on a read of a place, and by `asHostLength` for the one property whose
@@ -328,8 +329,8 @@ struct IfStmt: Stmt {
 /*
  * `while(cond) { ... }`, or `for(;;) { ... }` where there is no condition.
  *
- * The structurer builds the second form only, and for the reason it always did: a back edge in the
- * resolve IR is not a `while` condition, and a labelled infinite loop plus `break`/`continue` says
+ * The structurer builds the second form only, and for the reason it always did: a back edge in
+ * JSIR is not a `while` condition, and a labelled infinite loop plus `break`/`continue` says
  * exactly what the CFG says for every CFG the resolver can produce.
  *
  * The condition is put back afterwards, by `recoverLoops` in opt.cpp, and only where the emitted
@@ -422,19 +423,6 @@ struct File {
 
     Region<JsRegion> arena;
     StmtList statements;
-
-    /*
-     * Whether the formatter may spend **fewer lines** than the readable form asks for - a
-     * single-statement `if` without its block, and a run of empty `var`s as one declaration.
-     *
-     * Set by `assemble.cpp` and by nothing else, for the reason every other JSIR-only rule is gated
-     * on `JsShared::jsirPipeline`: this slice holds every `.js.expect` byte-identical, so a change
-     * of spelling that both generators would be right to make is still one generator's until a
-     * slice whose subject is the shipping backend takes it. It is a *format* flag rather than an AST
-     * node because there is nothing structural to say - `if (c) break L;` and `if (c) { break L; }`
-     * are the same tree.
-     */
-    bool terse = false;
 };
 
 } // namespace js

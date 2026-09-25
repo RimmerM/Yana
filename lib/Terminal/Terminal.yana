@@ -567,7 +567,9 @@ fn boxRule(g: Glyphs, widths: [Size], indent: Size, left: String, join: String, 
 
    A lens without the line ending, so the trimmed row is a window of the row just built rather than
    a copy of it; the caller appends the row and then the newline. Called as `Table.renderRow(self, …)`
-   because neither resolve stage takes a lens through a dot call yet.
+   because the lens call forms look a dotted name up before its receiver is resolved, which finds a
+   plain `lens fn renderRow` and not one declared in `Table`'s namespace - `self.renderRow(…)` is
+   refused as a lens with no continuation.
 -}
 lens fn Table.renderRow(self: Table, widths: [Size], cells: [String], from: Size, g: Glyphs) -> String:
     let wide = length(self.columns)

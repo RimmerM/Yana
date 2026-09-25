@@ -5,11 +5,8 @@
 #include <cstdio>
 #include <cerrno>
 #include "../compiler/parse/parser.h"
-#include "../compiler/resolve/analyze.h"
-#include "../compiler/resolve/lower.h"
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/gen.h"
-#include "../compiler/codegen/js/gen.h"
 #include "../compiler/codegen/js/jsir.h"
 #include "../compiler/resolve_ssa/pipeline.h"
 #include "Net/Stream.h"
@@ -39,17 +36,18 @@ using namespace Tritium;
  * compiler *decided* - which calls a literal desugars to, where a drop was placed, what a type's
  * layout is, which instruction an instance selected - and pins that decision in golden IR text.
  * The two corpora were one until this driver existed, and keeping them one cost the same thing
- * twice: close to 2MB of `.resolve.expect` and `.lower.expect` beside fourteen fixtures that say
- * nothing about the IR they print, regenerated in full whenever any pass changed anything.
+ * twice: close to 2MB of golden IR beside fourteen fixtures that say nothing about the IR they
+ * print, regenerated in full whenever any pass changed anything.
  *
  * So there are no golden files here at all. What a fixture has is its source, and what this driver
  * asserts is:
  *
  *  - it resolves and lowers with no diagnostics, and the lower IR validates;
  *  - `main` runs to completion on amd64 and answers **0**;
- *  - the same, with specialization declined;
- *  - the same, with the IR optimizer switched off;
  *  - and, where the fixture opts in, the same on JavaScript.
+ *
+ * The unoptimized build is `YanaResolveTest`'s to assert, which runs every `.run.expect` fixture
+ * with the optimizer on and off and compares the answers (see `BuildOptions`).
  *
  * **Zero and not a number the fixture chose**, because a library fixture states its expectations
  * with `assert` rather than by encoding them in what it hands back. A sentinel return - `return
@@ -129,9 +127,8 @@ struct RunOutcome {
  * fixture's answer is an `I64`. The status is what says whether the answer is there to be believed.
  */
 /*
- * `unitResult` and `wide` rather than the resolved program the entry came from - the one thing this
- * needs from above the `LowerModule` is how to read what the entry answered, and the two stages have
- * no type in common that could carry it. Which is the same seam `compileOwnershipStage` runs along.
+ * `unitResult` and `wide` rather than the declarations the entry came from - the one thing this
+ * needs from above the `LowerModule` is how to read what the entry answered.
  */
 static RunOutcome executeMainIsolated(Context& context, LowerModule& module, bool unitResult,
                                       bool wide) {
@@ -613,42 +610,25 @@ static RunOutcome executeJsMain(ByteBuffer emitted) {
 }
 
 /*
- * One build of one fixture, and the only assertion this driver makes about it.
+ * One build of one fixture, and the only assertion this driver makes about it: that the library's
+ * own suite passes. `which` is what tells the native and the JavaScript build apart in a failure.
  *
- * Three of these run per fixture, and two more where it opts into JavaScript. They differ only in
- * two switches, which is the point. A
- * library function's answer may not depend on whether the call site was specialized, on whether the
- * optimizer ran, or on which of the two backends is underneath it, and each of those is a build
- * here rather than a golden file. `which` is what tells the four apart in a failure.
+ * One native build rather than one per optimizer setting, because `-no-ir-opt` is asserted by
+ * `YanaResolveTest`, which runs every `.run.expect` fixture through the unoptimized pipeline as well.
  */
 struct BuildOptions {
     StringView which;
-    bool generic = false;
-    bool optimize = true;
     bool js = false;
-
-    /*
-     * The rewritten front half - `compiler/resolve_mir` + `compiler/resolve_ssa`, `-resolver
-     * ownership`.
-     *
-     * A row here rather than a driver of its own, because what a library fixture asserts is
-     * unchanged by which stage compiled it: the suite is the same source, the same runner and the
-     * same answer. The two stages share nothing above `compiler/lower`, so the branch in `runBuild`
-     * is the whole of the difference - two front halves producing one `LowerModule`, which is the
-     * seam the comparison is worth making at.
-     */
-    bool ownership = false;
 };
 
 /*
- * One fixture through the rewritten stage, down to the same `LowerModule` the shipping one produces.
- *
- * `ssa::Pipeline` rather than the four calls open-coded, because the driver has no business knowing
- * the order the rewrite's phases run in - which is the same reason the compiler's own driver uses it.
+ * One fixture down to what it answered. `ssa::Pipeline` rather than the four calls open-coded,
+ * because the driver has no business knowing the order the phases run in - which is the same reason
+ * the compiler's own driver uses it.
  */
-static bool runOwnershipBuild(const String& path, StringView source, const BuildOptions& options,
-                              Context& context, PrintDiagnostics& diagnostics,
-                              ast::ModuleGroup& ast, TestProvider& provider, RunOutcome& outcome) {
+static bool runPipeline(const String& path, const BuildOptions& options, Context& context,
+                        PrintDiagnostics& diagnostics, ast::ModuleGroup& ast, TestProvider& provider,
+                        RunOutcome& outcome) {
     ssa::Pipeline pipeline(context);
 
     if(!pipeline.resolve(ast, &provider) || diagnostics.errorCount()) {
@@ -671,8 +651,8 @@ static bool runOwnershipBuild(const String& path, StringView source, const Build
     }
 
     /*
-     * JavaScript, through JSIR - the same pipeline the compiler's own `-platform js -resolver
-     * ownership` runs, stopped at the emitted text rather than at a file.
+     * JavaScript, through JSIR - the same pipeline the compiler's own `-platform js` runs, stopped at
+     * the emitted text rather than at a file.
      *
      * Above the lower IR rather than beside it, because this target never lowers: `resolve_ssa/js`
      * consumes the optimized SSA directly, which is Analysis-IR-JS.md §2.1's fork. So the two
@@ -726,7 +706,6 @@ static bool runBuild(const String& path, StringView source, const BuildOptions& 
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
     applyFixtureDirectives(context.settings, source);
-    context.settings.optimizeIr = options.optimize;
 
     /*
      * A test build - Design-Test.md §11.2's F1, and what this corpus is written against now.
@@ -759,80 +738,12 @@ static bool runBuild(const String& path, StringView source, const BuildOptions& 
     Parser parser(context, lexer, name);
     auto ast = parser.parseModule();
 
-    /*
-     * The rewritten stage, which is a path of its own from here down - see `runOwnershipBuild`.
-     *
-     * `parseModule` answers one file; the group is what both stages take, and it is built here
-     * rather than inside the branch because the shipping one reaches it through `resolveProgram`'s
-     * single-module overload.
-     */
-    if(options.ownership) {
-        ast::ModuleGroup group { .name = name };
-        group.files.push(&ast);
-
-        RunOutcome outcome;
-        if(!runOwnershipBuild(path, source, options, context, diagnostics, group, provider,
-                              outcome)) {
-            return false;
-        }
-
-        if(outcome.kind == RunOutcome::Answered && outcome.value == 0) return true;
-
-        reportOutcome(path, options.which, outcome);
-        if(outcome.report.failures.size()) print("%@", outcome.report.failures);
-        return false;
-    }
-
-    auto module = resolveProgram(context, ast, &provider,
-                                 options.generic ? Program::Specialization::Generic
-                                                 : Program::Specialization::Always);
-
-    if(!module || diagnostics.errorCount()) {
-        println("Fail (%@): the %@ build produced %@ diagnostics.", path, options.which,
-                diagnostics.errorCount());
-        return false;
-    }
+    // `parseModule` answers one file, and the group is what the resolver takes.
+    ast::ModuleGroup group { .name = name };
+    group.files.push(&ast);
 
     RunOutcome outcome;
-
-    if(options.js) {
-        // A second resolution rather than a second walk of the first one, because `@platform`
-        // selects which declarations *exist*: a JS build and a native build do not share a resolved
-        // program. That is what the `js` switch above bought, and it is why this branch does not
-        // lower - the JavaScript backend consumes the resolved program directly.
-        auto file = js::genProgram(context, *module);
-        if(diagnostics.errorCount()) {
-            println("Fail (%@): the %@ backend produced %@ diagnostics.", path,
-                    options.which, diagnostics.errorCount());
-            return false;
-        }
-
-        Net::Writer writer(16384);
-        js::formatFile(writer, context, *file, false);
-        outcome = executeJsMain(writer.getBuffered());
-    } else {
-        auto lowered = lowerProgram(context, *module);
-        if(!validateLowerModule(&diagnostics, lowered.get())) {
-            println("Fail (%@): the %@ build produced invalid lower IR.", path,
-                    options.which);
-            return false;
-        }
-
-        /*
-         * How to read what the entry answered - the pair `executeMainIsolated` takes instead of the
-         * resolved program, since the other stage has no `Program` to hand it one.
-         */
-        if(module->entry) {
-            auto declared = (*module->arena)[module->entry]->returnType;
-            auto returnType = (*module->types)[declared];
-            auto unitResult = isUnit(*module->types, declared);
-            auto wide = returnType->kind == Type::Int &&
-                        ((IntType*)returnType)->width == IntType::Long;
-
-            outcome = executeMainIsolated(context, *lowered, unitResult, wide);
-        }
-    }
-
+    if(!runPipeline(path, options, context, diagnostics, group, provider, outcome)) return false;
     if(outcome.kind == RunOutcome::Answered && outcome.value == 0) return true;
 
     reportOutcome(path, options.which, outcome);
@@ -842,59 +753,8 @@ static bool runBuild(const String& path, StringView source, const BuildOptions& 
     return false;
 }
 
-static bool runTest(const String& path, StringView source, bool ownership) {
-    /*
-     * The rewritten stage, and only it - the default since J133, and asked for by hand with
-     * `resolver:ownership` before.
-     *
-     * One build rather than three, because the two switches the other three vary are the shipping
-     * optimizer's and the shipping specializer's: `-no-ir-opt` and the erased form are the rewrite's
-     * own and are asserted by `YanaResolveTest`, which runs every `.run.expect` fixture through the
-     * unoptimized pipeline as well. What this adds is the one thing that corpus cannot say - that
-     * the *library's* own suite passes when the rewrite compiled it.
-     *
-     * Instead of the shipping builds rather than beside them, so that a run says which stage it is
-     * about. It is the default since J133, and `run-tests.sh` runs the shipping builds as a row of
-     * their own with `resolver:legacy`.
-     */
-    if(ownership) {
-        auto pass = runBuild(path, source, { "ownership"_v, false, true, false, true });
-
-        /*
-         * And JavaScript through JSIR, where the fixture opts in - the same `<fixture>.yana.js`
-         * marker the shipping rows read, because what a fixture asserts does not depend on which
-         * stage compiled it.
-         *
-         * One row rather than two: the unoptimized JS build the shipping pair carries is asserted
-         * for this stage by `YanaResolveTest`, which runs every `.jsir.expect` fixture in both
-         * forms and compares the answers. What this adds is the one thing that corpus cannot say -
-         * that the *library's* own suite passes on this target when the rewrite compiled it.
-         */
-        if(fileExists(path + String(".js")) && nodeAvailable()) {
-            pass = runBuild(path, source, { "ownership-js"_v, false, true, true, true }) && pass;
-        }
-
-        println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
-        return pass;
-    }
-
-    /*
-     * The four builds, and what each of them is for.
-     *
-     * `amd64` is the fixture. `generic` is the same program with every concrete generic call site
-     * forced through the erased ABI rather than a specialization, which is the most direct guard
-     * against a semantic decision quietly living in the specializer - and a library is where that
-     * matters most, since almost everything in `lib/` is generic. `unoptimized` is the same program
-     * with `compiler/opt` switched off: an optimization may make a program faster and may not make
-     * it different.
-     *
-     * They are separate builds rather than one build asserted three ways because there is no way to
-     * un-optimize a resolved program - `lowerProgram` rewrites it in place - and no way to
-     * un-specialize one either.
-     */
+static bool runTest(const String& path, StringView source) {
     auto pass = runBuild(path, source, { "amd64"_v });
-    pass = runBuild(path, source, { "generic"_v, true, true, false }) && pass;
-    pass = runBuild(path, source, { "unoptimized"_v, false, false, false }) && pass;
 
     /*
      * And JavaScript, where the fixture opts in.
@@ -905,14 +765,9 @@ static bool runTest(const String& path, StringView source, bool ownership) {
      * and natively it is Ryu over a table of powers of five, so the two are different programs that
      * have to produce the same characters. The ones that do not opt in are the ones written over
      * `Native` - a JavaScript build has no descriptors and no bump allocator to count.
-     *
-     * The unoptimized JS build is run too, for the reason the native one is: every fold in
-     * `compiler/opt` that declines a case declines it because the two targets would otherwise
-     * disagree, and this is what notices if one of those judgements was wrong.
      */
     if(fileExists(path + String(".js")) && nodeAvailable()) {
-        pass = runBuild(path, source, { "js"_v, false, true, true }) && pass;
-        pass = runBuild(path, source, { "js-unoptimized"_v, false, false, true }) && pass;
+        pass = runBuild(path, source, { "js"_v, true }) && pass;
     }
 
     println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
@@ -930,23 +785,10 @@ int main(int argc, const char** argv) {
     // through, "does *this* fixture pass" has to stay answerable.
     String only;
 
-    /*
-     * Which front half compiles the corpus - see `runTest`. The rewrite unless the run says
-     * `resolver:legacy`, since 2026-09-24 (J133): until then it was the shipping stage unless the run
-     * said `resolver:ownership`, which kept this driver about the old compiler two days after the
-     * default had moved. `run-tests.sh` runs both, because the corpus is five fixtures and the old
-     * stage's five builds of each are the only place its specializer and optimizer are held to the
-     * library's own answers outside `run-base.sh`. `resolver:ownership` is still accepted, and means
-     * the default.
-     */
-    auto ownership = true;
-
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
         if(parseShard(arg, shard, shards)) { sharded = true; continue; }
         if(parseJobs(arg, jobs)) continue;
-        if(arg == "resolver:ownership") { ownership = true; continue; }
-        if(arg == "resolver:legacy") { ownership = false; continue; }
 
         // `generate` is accepted and ignored, so that a whole-suite regenerate can pass the same
         // arguments to every driver. There is nothing here to generate, and that is the design:
@@ -1024,7 +866,7 @@ int main(int argc, const char** argv) {
         auto size = file.size();
         Ptr<char, HeapDeleter> source { (char*)hAlloc(size) };
         file.read({ (Byte*)source.get(), size });
-        pass = runTest(test, { source.get(), size }, ownership) && pass;
+        pass = runTest(test, { source.get(), size }) && pass;
     }
 
 #if defined(__unix__) || defined(__APPLE__)

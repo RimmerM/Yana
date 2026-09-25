@@ -11,8 +11,8 @@
    writes `if index >= self.length then checkFailed()` as an ordinary library `if`, and
    `@inline(always)` grafts it into every subscript during SSA conversion - so what `-no-checks`
    removes is a branch whose whole taken arm calls the `checkFailed` role, and not a call the
-   compiler put there. The shipping stage arrives at the same answer by the other route, through
-   `checkCondition`, which is why this fixture is compiled by both and asserted to agree.
+   compiler put there. The shipping stage used to arrive at the same answer by the other route,
+   through `checkCondition`, which is why this fixture was compiled by both and asserted to agree.
 
    **The out-of-range read is deliberately the safe kind.** `window` is the first two elements of a
    four-element fixed array, so `window[2]` reads the third element of storage the frame owns: past

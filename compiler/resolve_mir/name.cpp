@@ -278,13 +278,13 @@ Fixity findFixity(Context& context, Program& program, DeclPtr<Module> from, Stri
  * and a plain function of the same name is what it means for every other type - which is the one
  * place two plain functions could otherwise reach one call.
  *
- * Composed and interned rather than registered by a declaration pass. The shipping stage keys a hash
- * map on (declaring type, member) precisely to avoid this concatenation at every call site; here it
- * would be a second table to fill, to keep in step with the declarations and to answer a question
- * `findOverloads` already answers - and the cost it saves is one interning lookup per dot-call on a
- * record, against a walk that resolves the whole argument list. What a composed name buys is that
- * `pub`, the import lists and `hiding` decide the dot form exactly as they decide the written
- * spelling `String.push(s, v)`, because it *is* that lookup.
+ * Composed and interned rather than registered by a declaration pass. `compiler/resolve` keyed a
+ * hash map on (declaring type, member) precisely to avoid this concatenation at every call site;
+ * here it would be a second table to fill, to keep in step with the declarations and to answer a
+ * question `findOverloads` already answers - and the cost it saves is one interning lookup per
+ * dot-call on a record, against a walk that resolves the whole argument list. What a composed name
+ * buys is that `pub`, the import lists and `hiding` decide the dot form exactly as they decide the
+ * written spelling `String.push(s, v)`, because it *is* that lookup.
  *
  * Only a record answers. A builtin width has no declaration to hang a namespace on and every other
  * kind of type is structural, so there is nothing an author could have written the prefix of.

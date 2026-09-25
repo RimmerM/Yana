@@ -1,10 +1,10 @@
 {-
    If-conversion: the branch that decides a value rather than a path becomes one `select`.
 
-   `.opt.expect` is what says which of these converted - a converted diamond is one straight-line
-   block where there were four - and `.lower.expect` and `.js.expect` are the two forms it becomes:
-   a `select` the x64 selector turns into a `cmov`, and a `? :` that collapses the `var` and the two
-   assignments an `if` statement needs on that target.
+   `.ssa.opt.expect` is what says which of these converted - a converted diamond is one
+   straight-line block where there were four - and `.mir.lower.expect` and `.jsir.js.expect` are
+   the two forms it becomes: a `select` the x64 selector turns into a `cmov`, and a `? :` that
+   collapses the `var` and the two assignments an `if` statement needs on that target.
 
    Half the functions here exist to *not* convert. Both arms of a select are evaluated, so an arm
    holding anything that may not happen on a path that would not have reached it is one this must
@@ -27,8 +27,8 @@ fn sign(value: Int) -> Int = if:
 -- `||` is a diamond whose second arm is the right operand, so a pure one converts - and short
 -- circuiting is not a promise about it: nothing observes whether `b > 0` was computed.
 --
--- What it converts *to* is not a select, which is the second half of this line and is the whole of
--- opt_bool.cpp: the diamond joins at `Bool`, both arms of the select are therefore 0 or 1, and a
+-- What it converts *to* is not a select, which is the second half of this line and is `tryBoolean`
+-- in `resolve_ssa/opt/simplify.cpp`: the diamond joins at `Bool`, so both arms are 0 or 1, and a
 -- select between those is `or`. The golden says `or %v4, %v8` and no conditional move survives.
 fn either(a: Int, b: Int) -> Int = if a > 0 || b > 0 then 1 else 0
 
@@ -82,7 +82,7 @@ fn smallest(limit: Int) -> Int:
 -- The divisor comes through `@noinline` so that the guard is asserted by *running* rather than by
 -- the IR text beside it. Written as a literal, `ratio(10, 0)` is folded at the call site and the
 -- division never reaches a machine either way - so a converted one would be caught only by this
--- fixture's `.opt.expect`, and something that has to fold to be safe is not safe.
+-- fixture's `.ssa.opt.expect`, and something that has to fold to be safe is not safe.
 @noinline
 fn zero() -> Int = 0
 

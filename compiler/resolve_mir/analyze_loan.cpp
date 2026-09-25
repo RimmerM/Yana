@@ -623,7 +623,7 @@ bool Analysis::localWriteOf(Node& node, StateWrite& into, SmallArray<PositionMap
      * `s = {s | held: xs}` over `&s: Store(kept')` left `owned`'s loan in `s.held`'s row - twice: the
      * update's own `local.held = xs` kept the copied field's loan, and the whole write through `s`
      * kept the previous contents - and the destination check refused the function for a loan the
-     * caller can no longer reach (review 2 §2.3; the legacy stage refuses it too).
+     * caller can no longer reach (review 2 §2.3).
      *
      * What stays a union: the root row (a write through a borrow does not re-point it, see
      * `replacedLocal`), an element position (one element of many), a slot the place is *inside*
@@ -2794,8 +2794,7 @@ constexpr U32 kNoReservation = ~U32(0);
  * operation that is refused whatever the subscripts say: telling `xs[i]` from `xs[j]` would take a
  * proof about two indices, and `Reject.ArrayBorrow.yana` is the record of the refusal. A swap needs
  * no such proof, because it reads both places before it writes either - so the two naming one
- * element restore what they saved - and an exchange has one place to begin with. The shipping stage
- * grants the same pair through `exchangedOnly` in `resolve/analyze_borrow.cpp`.
+ * element restore what they saved - and an exchange has one place to begin with.
  *
  * What is excused is a **pair**, and each half is asked the same question: is this loan an
  * *element's*, and is it used by nothing but a relocation? The walk is over what the loan reaches
@@ -3136,8 +3135,7 @@ bool Analysis::checkLoans() {
      *             me.other += i
      *
      * which is `doc/inflight/Analysis-External-Iterators.md`'s substrate written twice over, since
-     * every operation a fiber context performs is a borrow through the address it was handed. The
-     * shipping stage accepts all of it.
+     * every operation a fiber context performs is a borrow through the address it was handed.
      */
     Array<bool> addressable;
     for(U32 i = 0; i < body.locals.size(); i++) {
@@ -3361,7 +3359,7 @@ bool Analysis::checkLoans() {
      * `remove(self.entries, entryCount(self) - 1)` and `indexPlace(self, at, hashAt(self, at))`.
      * `doc/spec/expressions.md` evaluates arguments left to right and the callee runs after all of
      * them, so nothing writes through the exclusive borrow while the later arguments are being
-     * computed: what the author wrote is safe, and the shipping stage accepts all three.
+     * computed: what the author wrote is safe, and all three are accepted.
      *
      * So a unique loan is only a **reservation** until something uses it. Between the read that
      * minted it and the first operand naming that read's result it excludes a write and a move -
@@ -3434,7 +3432,7 @@ bool Analysis::checkLoans() {
      * through it, and the frame reading `count` is not reading through `bump` - it is the other side
      * of a borrow whose holder runs later and writes, so `let seen = count` before `bump()` would read
      * a value the closure is about to change under it. So a copy is checked against these loans and
-     * no others: `Reject.Closure.yana`'s `borrowedWhileCaptured`, which the shipping stage refuses too.
+     * no others: `Reject.Closure.yana`'s `borrowedWhileCaptured`.
      *
      * **J141 made the rule general and left this row as the sentence it picks.** A closure is one
      * holder of a unique loan, and a record field written `&'Int` is another: `let &r = Ref {p:
@@ -3467,9 +3465,9 @@ bool Analysis::checkLoans() {
      * A derivation carries the reservation of the read it adapts, and is not its activation - and
      * so does a **subscript** (J147). `addTo(xs[0], total(xs))` reads `xs` exclusively, and
      * `call.subscript getMut` of that read was the first operand naming it, so the reservation
-     * activated at the subscript and `total(xs)` met an active loan; the shipping stage accepts the
-     * line. A subscript is a path from `self` in exactly the derivation's sense - it computes where
-     * the element is and hands back a loan of it - so its result carries the reservation on to the
+     * activated at the subscript and `total(xs)` met an active loan, refusing a line that is safe.
+     * A subscript is a path from `self` in exactly the derivation's sense - it computes where the
+     * element is and hands back a loan of it - so its result carries the reservation on to the
      * call, **windowed**: the element's address is as much a snapshot of the run as a window's is,
      * so a later shared read is excused and a later exclusive loan (`addTo(xs[1], pushLen(xs))`, a
      * `push` that can move the run) stays refused. Only `self`: an index is an ordinary operand.
@@ -5103,8 +5101,8 @@ void Analysis::checkReturnConformance(Node& node) {
  *
  * `installedPositions` lets the caller believe the signature: after `remember(box, source)`, `box`
  * holds whatever `remember`'s group was bound to and nothing else. That is only true if the body
- * put nothing else there, and this is where it is held to it - the destination rule the shipping
- * stage states in `Reject.LoanDestination.yana`, over the same origin state the caller half reads.
+ * put nothing else there, and this is where it is held to it - the destination rule
+ * `Reject.LoanDestination.yana` states, over the same origin state the caller half reads.
  * Every loan an interior position of a `&` parameter holds at a `return` must be rooted in a
  * parameter publishing the slot that position names: a local of this frame is gone when the caller
  * reads it, a call-bounded parameter's loan ended with the call, and another group is a set the
@@ -5198,9 +5196,9 @@ LocationId Analysis::destinationStore(LocalId id, U32 position, U32 l, LocationI
 }
 
 /*
- * A loan **stored into a global** - ownership.md, "Globals", and the §7.4 rule the shipping stage
- * states in `Reject.LoanDestination.yana`: a global holds a loan only of storage that lives as long
- * as the program does, which is another global.
+ * A loan **stored into a global** - ownership.md, "Globals", and the §7.4 rule
+ * `Reject.LoanDestination.yana` states: a global holds a loan only of storage that lives as long as
+ * the program does, which is another global.
  *
  * The destination decides the extent, as it does for a result and for a `&` parameter's slot - and
  * a global's extent is the program, so the one lender that conforms is one whose own extent is the

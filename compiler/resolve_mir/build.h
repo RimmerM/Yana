@@ -595,9 +595,10 @@ private:
      * Flattening a lens produces them as a matter of course: a continuation every path of which
      * leaves is a hand-over nothing resumes from, so the frame's resume and the caller's join are
      * both live code that has become unreachable at exactly one call site (see `resolveLensCall`).
-     * The old resolver never built one, so nothing downstream is prepared for one either - the x64
-     * block ordering asserts that its postorder covers the function - and an unreachable block is
-     * also a hole in every dense per-block analysis, since a forward walk never assigns it a state.
+     * `compiler/resolve`, which the backends were written against, never built one, so nothing
+     * downstream is prepared for one either - the x64 block ordering asserts that its postorder
+     * covers the function - and an unreachable block is also a hole in every dense per-block
+     * analysis, since a forward walk never assigns it a state.
      *
      * At the seal because that is where the CFG stops being appended to and starts being read, which
      * makes it the one point where "reachable" is both answerable and still cheap to act on. The

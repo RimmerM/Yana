@@ -62,7 +62,7 @@ pub fn unixTimeMicros() -> I64:
        codegen/x64/constraint.cpp places the arguments by the convention on the instruction, and
        `FormCallIndirect` already reads a callee out of a register for a closure - so what is absent
        is the front half of an FFI, which doc/spec/targets.md records as an open question and
-       resolve/host.h describes in the same words. **Analysis-Function-Pointers.md is the design for
+       `compiler/resolve`'s host.h described in the same words. **Analysis-Function-Pointers.md is the design for
        it**, written from this gap: a function type that names a calling convention is one word and
        is entered under that convention, which is the whole of what has to be added.
        `test/x64/ForeignIndirect.lower` is the part that turned out to need nothing.

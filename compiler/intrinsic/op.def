@@ -89,16 +89,15 @@ YANA_INTRINSIC_OP( truthOr,  OpForm::Flow, boolAt(), valueAt(), deferredAt() )
  * to whatever position zero was - and taking it is what forces storage to exist for something that
  * would otherwise have had none.
  *
- * Its operand is `anyAt()` and stays there, which is a decision two spellings of the declaration
+ * Its operand is `anyAt()` and stays there, which is a decision two readings of the declaration
  * forced. `lib/Native/Pointer.yana` writes `it: source'a` since D15 - the argument is storage the
- * caller already has and the result names its origin - and the shipping stage reads that signature
- * at its plain positions, because it supplies the definition (`takeRolePositionsPlain` in
- * `resolve/module_decl.cpp`): a trivially copyable argument is copied into the call there and the
- * address is the copy's, which is what `test/resolve/Global.yana` documents as the meaning of
- * `addressOf` of a constant. Both are the language, and the emitter is what makes them both work -
- * `expandAddressOf` gives an operand that arrived owned a frame slot, exactly as the shipping
- * stage's `materialize` does. A shape that demanded the published spelling would have said nothing
- * either stage does not already say.
+ * caller already has and the result names its origin - and an operand may also arrive owned: a
+ * trivially copyable argument copied into the call, whose address is the copy's, which is what
+ * `test/resolve/Global.yana` documents as the meaning of `addressOf` of a constant. Both are the
+ * language, and the emitter is what makes them both work - `expandAddressOf` gives an operand that
+ * arrived owned a frame slot. The second reading was `compiler/resolve`'s (deleted in J173), which
+ * read the signature at its plain positions; a shape that demanded the published spelling would
+ * refuse a program that reading accepted.
  *
  * `borrow` and `borrowMut` are the one place the checked world is re-entered from the unchecked
  * one, and they are why `ShapeAccess` and `ShapeOrigin` are two fields. Both hand back a view of
@@ -163,9 +162,8 @@ YANA_INTRINSIC_OP( typeTraits, OpForm::Node, anyAt()                            
  * not a read of unspecified bytes but the destruction of whatever follows.
  *
  * The vector positions are `anyAt()` rather than a term of their own. A `ShapeTerm::Vector` is what
- * they want; both stages could answer one now - the ownership stage grew vector types in milestone
- * 8 - and until the term is written each emitter reports a non-vector at the call, which is
- * `pointerAsVector` in the shipping stage and `asVectorAddress` in the other.
+ * they want, and the resolver could answer one - it grew vector types in milestone 8 - but until the
+ * term is written the emitter reports a non-vector at the call, which is `asVectorAddress`.
  */
 //                 role         form          result       parameters
 YANA_INTRINSIC_OP( vectorAt,    OpForm::Node, anyAt(),     pointerAt()              )
@@ -372,11 +370,11 @@ YANA_INTRINSIC_OP( scanLimitForKeys, OpForm::Node, integerAt(), pointerAt() )
  * compile-time name: a role is claimed by one declaration. `@builtin(hostCall) @host("charCodeAt")`
  * would need a role per method, which is the thirty-three name matches with the table moved.
  *
- * **Why it costs nothing.** Each of those wrappers is `@inline(always)`, so the call is expanded
- * where it is written and the node stands in the caller with no optimizer having run - see
- * resolve/inline.h. And a string literal on this target is a `ConstString`: one value kind, no
- * global, no storage, and not an instruction in any block. Both halves are what make a wrapper free
- * rather than a call to be recovered later.
+ * **Why it costs nothing.** Each of those wrappers is `@inline(always)`, so its body is grafted into
+ * the caller when the caller is converted to SSA and the node stands where the call was written,
+ * with no optimizer having run. And a string literal on this target is the host's own string: a
+ * constant with no storage behind it. Both halves are what make a wrapper free rather than a call to
+ * be recovered later.
  *
  * ## One role per arity, and per host form
  *

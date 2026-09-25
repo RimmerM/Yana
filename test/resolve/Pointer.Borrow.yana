@@ -1,14 +1,12 @@
 {-
    A plain `let` of what a raw pointer names **borrows** it, as a plain `let` of any place does -
    J146. `copiesTeardownOutOfPointer` refused `let r = *p` from J135 to J145 because it read the text,
-   and the shipping stage compiles and runs this. A copy of the pointee with a teardown is still
+   and the shipping stage compiled and ran this. A copy of the pointee with a teardown is still
    refused (`Reject.Ownership.yana`), and `let ->` is still the move.
 
    An argument at a borrowing parameter borrows too (J162): `*t` used to be the call
    `fn *(it: %a) -> a`, whose owned copy was held for the call and released after it - a second
    drop of the `Tag` the record still holds.
-
-   # resolver: ownership
 -}
 
 import Native

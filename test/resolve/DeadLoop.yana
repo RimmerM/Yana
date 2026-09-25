@@ -238,11 +238,11 @@ fn unknownStart(from: Int) -> Int:
    The first shape phase 8 measured and did not keep: a zero test a dominating branch already
    decided.
 
-   `d != 0` guards the division and `d == 0` inside the arm asks the same question again, which over
-   in the shipping stage `foldProvenZeroTests` answers outright. Here the two tests are not tests of
-   one value: `d` lives in a slot, `forwardMemory` is a per-block scan, and the guard's block and
-   the arm's block therefore each hold their own `load`. Measured over the whole corpus, the walk
-   asked 627 times and never once found a second zero test of the same SSA value in one body.
+   `d != 0` guards the division and `d == 0` inside the arm asks the same question again, which the
+   shipping stage's `foldProvenZeroTests` answered outright. Here the two tests are not tests of one
+   value: `d` lives in a slot, `forwardMemory` is a per-block scan, and the guard's block and the
+   arm's block therefore each hold their own `load`. Measured over the whole corpus, the walk asked
+   627 times and never once found a second zero test of the same SSA value in one body.
 
    Division needs no guard in this language - `doc/spec/types.md` makes it total and
    `makeDivisionTotal` at the lower tier implements it - so this shape is one a program has to be

@@ -47,7 +47,8 @@ namespace mir {
  * declares `(Try(m, a, e))` over its own variable has a *promise* rather than an instance - reading
  * a blanket instance for `m` would commit the body to that instance and ignore the one the caller's
  * type actually has - so the enclosing context's requirements are asked first for a carrier that is
- * still a variable. `fillDependency` in the other stage splits the same way and for the same reason.
+ * still a variable. `compiler/resolve`'s `fillDependency` split the same way and for the same
+ * reason.
  */
 bool Resolver::carrierShape(DeclPtr<Type> carrier, LocationId source, TryShape& out) {
     auto klass = program.roles.klass(intrinsic::Known::carrier);
@@ -209,11 +210,11 @@ bool Resolver::emitCarrierExit(Builder& builder, Node& reason, const TryShape& l
  * takes the enclosing return edge, and a construct that answers by calling its continuation does not
  * have one to take.
  *
- * The other stage refuses a third - an `=` body, whose result its own body decides, so the type `?`
- * needs does not exist when `?` asks for it. There is no such case here: this stage does not infer a
- * result from an `=` body at all (`resolveSignature` gives one that writes no result type `{}`), so
- * what a `?` there meets is the ordinary message about `{}` having no `Try` instance, which is true.
- * The arm arrives with the inference.
+ * `compiler/resolve` refused a third - an `=` body, whose result its own body decided, so the type
+ * `?` needed did not exist when `?` asked for it. There is no such case here: this stage does not
+ * infer a result from an `=` body at all (`resolveSignature` gives one that writes no result type
+ * `{}`), so what a `?` there meets is the ordinary message about `{}` having no `Try` instance,
+ * which is true. The arm arrives with the inference.
  */
 bool Resolver::canLeaveWithCarrier(LocationId source) {
     auto& function = *currentFunction;
@@ -346,8 +347,8 @@ Node* Resolver::resolveTry(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint
  *
  * What is written *after* the `?.` never reaches `resolveUnwrap` at all. `a?.b` is a field of an
  * unwrap, `a?.[i]` a subscript of one and `a?.(x)` a call of one - three spellings, one node, and
- * `resolveField` and the rest need no case. Getting that wrong first, in the other stage, would have
- * meant a value-taking split of each of them.
+ * `resolveField` and the rest need no case. Getting that wrong would have meant a value-taking
+ * split of each of them.
  */
 
 /*

@@ -7,12 +7,12 @@
    value that cannot be assigned to" - and this is that rule for the two positions inside a body
    where nothing named the value: a literal, and a call result.
 
-   Both stages materialize, and they had better agree about it, which is why this is in the shared
-   corpus rather than beside the ownership fixtures. The shipping stage's `materialize` has done it
-   since raw pointers existed; the rewrite reached `addAddressOf` with an owned value instead and
-   asserted, because an address is the address of somewhere and a node result is nowhere. `lib/Native/Pointer.yana` writes
-   `fn addressOf(it: a) -> %a`, so *every* call of it materializes; written `it: source'a` only these
-   two would. The answer is the same either way, which is what this fixture is for.
+   Materializing here is not new: the shipping stage's `materialize` had always taken the address
+   of a literal or a call result, since raw pointers existed. The rewrite reached `addAddressOf`
+   with an owned value instead and had to learn the same thing - asserting at first, because an
+   address is the address of somewhere and a node result is nowhere. `lib/Native/Pointer.yana`
+   writes `fn addressOf(it: a) -> %a`, so *every* call of it materializes; written `it: source'a`
+   only these two would. The answer is the same either way, which is what this fixture is for.
 
    **What the answers are for.** None of this is visible in the emitted text: an address that was
    the address of a copy, or two temporaries folded onto one slot, both produce well-formed IR and a

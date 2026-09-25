@@ -3,8 +3,6 @@
    finished before it does - `doc/inflight/Design-Iterator-Objects.md` §2.4, and
    `../../../doc/progress/2026-09-16-J57-object-defects.md` §1.
 
-   # resolver: ownership
-
    `f.Iter` in a header is minted out of `f`'s own MIR, so the pass that reads a deferred header
    (`resolveSiteSignatures`) demands a body - and until 2026-09-16 it demanded one *before* the
    program was in a state a body may be resolved in. The pass order above `resolveProgram` names the

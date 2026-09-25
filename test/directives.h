@@ -148,11 +148,11 @@ inline void applyCheckLocationDirective(CompileSettings& settings, StringView co
  * `# inline: none|size|balanced|speed` - CompileSettings::inlining.
  *
  * The size-against-speed knob, and the only one this compiler has. Two things read it and a fixture
- * may be about either: how far `compiler/opt` inlines, and how far the amd64 backend straight-lines
- * a block operation with a compile-time size (see BlockExpansion in codegen/x64/target.h). The
- * second is what makes it worth a directive, because the ceiling it sets is a *number* rather than
- * a heuristic - a fixture naming a level pins exactly how many transfers a copy of a given size
- * comes to, which is not a thing a golden compiled at the default can state.
+ * may be about either: how far `resolve_ssa/opt` inlines, and how far the amd64 backend
+ * straight-lines a block operation with a compile-time size (see BlockExpansion in
+ * codegen/x64/target.h). The second is what makes it worth a directive, because the ceiling it sets
+ * is a *number* rather than a heuristic - a fixture naming a level pins exactly how many transfers a
+ * copy of a given size comes to, which is not a thing a golden compiled at the default can state.
  */
 inline void applyInliningDirective(CompileSettings& settings, StringView content) {
     static const struct { StringView name; InlineLevel level; } levels[] = {
@@ -181,52 +181,11 @@ inline void applyInliningDirective(CompileSettings& settings, StringView content
 }
 
 /*
- * `# resolver: ownership` - CompileSettings::resolver, and the one directive that is about which
- * *compiler* reads the fixture rather than what it compiles for.
- *
- * A fixture saying this is one the rewritten stage in `compiler/resolve_mir` can compile and the
- * shipping stage cannot, which is a real category while the rewrite is under way: the new stage
- * already accepts programs the old one rejects - a partial move out of a record is the first of
- * them - and there is nowhere to write such a program down otherwise. `test/resolve/ownership/` is
- * where they live and this is what makes them run, which are two different statements: the
- * directory is filing, and a fixture anywhere carrying this line is compiled the same way.
- *
- * What it does *not* do is opt a fixture into the new stage. That is the `.mir.expect` file beside
- * the source and is how the shared corpus is adopted one fixture at a time - a fixture with the
- * golden and no directive is compiled by *both* stages and asserts that they agree, which is the
- * most valuable thing either of them can say. This directive is only for the programs where that
- * comparison is not available, and it costs the comparison, so it is worth writing only when the
- * old stage genuinely cannot compile the program.
- *
- * Only the one direction, and the direction is what this pins: **a fixture's stage is the corpus's
- * to state, not the command line's**. `CompileSettings::resolver` defaults to the rewrite since
- * 2026-09-22 (J81), and every golden in this corpus that is not the rewrite's own was written by
- * `compiler/resolve` - so the baseline here is `Legacy` whatever the compiler's default is, and this
- * directive is the only thing that raises a fixture out of it. The alternative, letting the drivers
- * inherit the flag's default, is a flip of that default silently reclassifying nine hundred goldens
- * and the disagreement oracle asserting that the rewrite agrees with itself. The passes that *are*
- * the rewrite's set `ResolverStage::Ownership` after this runs - see `ownershipSettings`.
- */
-inline void applyResolverDirective(CompileSettings& settings, StringView content) {
-    settings.resolver = ResolverStage::Legacy;
-
-    auto directive = "# resolver: ownership"_v;
-    if(content.length < directive.length) return;
-
-    for(Size i = 0; i + directive.length <= content.length; i++) {
-        if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
-
-        settings.resolver = ResolverStage::Ownership;
-        return;
-    }
-}
-
-/*
  * `# test: yes` - `-test`, and Design-Test.md §11.2's F1.
  *
  * A fixture saying this has `@test` declarations and no `main`, so what runs it is the entry the
  * compiler synthesizes out of them. It needs a `Test` module to build that entry from, which is
- * `resolve/modules/Test.yana` - a minimal runner both resolve stages compile, so that the harness
+ * `resolve/modules/Test.yana` - a minimal runner, so that the harness
  * itself is a thing the shared corpus can assert rather than only the library suite.
  *
  * Only the one direction, like `# checks: off`: a build without `-test` is the default and a fixture
@@ -299,10 +258,7 @@ inline void applyAllocatorDirective(CompileSettings& settings, StringView conten
  * `lib/Native/Host.js.yana` and a native build cannot reach one to be refused.
  *
  * Only the one direction, like every directive here: `native` is the default and a fixture saying so
- * would be saying nothing. A fixture that carries it must also carry `# resolver: ownership` or have
- * a `.js.ssa.expect` beside it, because those are the two paths in `ResolveTester` that read it;
- * there is deliberately no check for that, on the grounds that the failure is the fixture reporting
- * against the wrong library rather than anything silent.
+ * would be saying nothing.
  */
 inline void applyPlatformDirective(CompileSettings& settings, StringView content) {
     auto directive = "# platform: js"_v;
@@ -342,8 +298,8 @@ inline void applyTargetDirective(CompileSettings& settings, StringView content) 
 }
 
 /*
- * `# recover: yes` - `CompileSettings::recover`, which the driver turns on for every build through
- * the rewritten stage and a fixture does not get by default.
+ * `# recover: yes` - `CompileSettings::recover`, which the driver turns on for every build and a
+ * fixture does not get by default.
  *
  * Off by default because most rejection fixtures assert *a* diagnostic rather than how far past it
  * a compile gets, and their goldens were written against the stage stopping at its first failing
@@ -370,34 +326,18 @@ inline void applyFixtureDirectives(CompileSettings& settings, StringView content
     applyChecksDirective(settings, content);
     applyCheckLocationDirective(settings, content);
     applyInliningDirective(settings, content);
-    applyResolverDirective(settings, content);
     applyTestDirective(settings, content);
     applyRecoverDirective(settings, content);
     applyAllocatorDirective(settings, content);
 }
 
 /*
- * Whether a fixture is one only the rewritten stage compiles, asked without a `CompileSettings`.
- *
- * The drivers that do not have one yet at the point they decide what to run - the ELF suite listing
- * its corpus, the benchmark collecting its fixtures - ask this, so that "what does this line mean"
- * is answered by `applyResolverDirective` above and by nothing else. Those drivers skip such a
- * fixture entirely: they compile with the shipping stage, and the fixture says that will not work.
- */
-inline bool fixtureNeedsOwnershipStage(StringView content) {
-    CompileSettings settings;
-    applyResolverDirective(settings, content);
-    return settings.resolver == ResolverStage::Ownership;
-}
-
-/*
- * And whether a fixture is a **JavaScript** program, asked the same way and for the same readers.
+ * Whether a fixture is a **JavaScript** program, asked without a `CompileSettings` - by the drivers
+ * that do not have one yet at the point they decide what to run, so that "what does this line mean"
+ * is answered by `applyPlatformDirective` above and by nothing else.
  *
  * A fixture carrying `# platform: js` is compiled for that target and nothing else: it is not run,
- * it has no native goldens, and every driver that compiles for a machine skips it. Such a fixture
- * always carries `# resolver: ownership` as well - the shipping stage compiles JavaScript too, but
- * what these fixtures are *about* is the rewrite's answer for it - so the drivers that already skip
- * on the line above skip these without a second test.
+ * it has no native goldens, and every driver that compiles for a machine skips it.
  */
 inline bool fixtureIsJavaScript(StringView content) {
     CompileSettings settings;

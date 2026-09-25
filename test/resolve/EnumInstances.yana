@@ -1,12 +1,12 @@
 {-
    The three instances a payload-free sum gets for nothing - `Enum`, `Eq` and `Ord`.
 
-   Written to be compiled by **both** resolve stages, which is what separates it from `EnumValue.yana`
-   beside it: that one asserts the shipping stage's golden IR and writes `valueOf(w)` into an `I64`
-   result, which is the dependency-beats-target rule the ownership stage does not have yet. What is
-   here is the part both agree on, and the numbers are what makes that an assertion rather than a
-   claim - each case contributes a distinct power of two, so `main` is 255 when they all pass and a
-   failure names itself in binary.
+   Used to be written to be compiled by **both** resolve stages, which is what separated it from
+   `EnumValue.yana` beside it, which asserted the shipping stage's golden IR and wrote `valueOf(w)`
+   into an `I64`, a dependency-beats-target rule the ownership stage did not have then.
+   What is here is the part both used to agree on, and the numbers are what made that an assertion
+   rather than a claim - each case contributes a distinct power of two, so `main` is 255 when they
+   all pass and a failure names itself in binary.
 
    The two membership shapes are both present, because `fromValue` compiles to different code for
    each: `Whence`'s values run consecutively and are a range test, and `Errno`'s have holes in them

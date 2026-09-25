@@ -63,8 +63,8 @@ struct Mutation;
  * both, which is the half `Trivial` was not checking.
  *
  * `Address` is a convention rather than a type so that the question "may this be dropped" has one
- * answer per value. The current resolver derives it from `isMemoryType`, which is what made a
- * pointer-loaded temporary look like a freshly owned aggregate.
+ * answer per value. `compiler/resolve` (the stage deleted in J173) derived it from `isMemoryType`,
+ * which is what made a pointer-loaded temporary look like a freshly owned aggregate.
  */
 enum class Convention: U8 {
     Owned,
@@ -1231,11 +1231,12 @@ struct Continuation {
 /*
  * A basic block, and the three lists that make it one.
  *
- * All three are private and `Editor` is the only friend, which is the discipline the old stage's
- * `Block` arrived at the hard way: each list is half of a statement the IR makes twice - an
- * instruction names its block back, a successor records which blocks its edges came from - and a
- * pass that could push into one of them directly is a pass that could state half of it. What is
- * left here is the reading half, which hands out contents rather than the list.
+ * All three are private and `Editor` is the only friend, which is the discipline
+ * `compiler/resolve`'s `Block` (the stage deleted in J173) arrived at the hard way: each list is
+ * half of a statement the IR makes twice - an instruction names its block back, a successor records
+ * which blocks its edges came from - and a pass that could push into one of them directly is a pass
+ * that could state half of it. What is left here is the reading half, which hands out contents
+ * rather than the list.
  */
 struct Block {
     Block(BlockId index, StringId name, ContinuationId region):
@@ -1255,7 +1256,7 @@ struct Block {
      * `branch %c, X, X` is legal, so a block may name the same predecessor twice, and every edit
      * that moves one edge moves exactly one entry. A list that held distinct blocks would make
      * "redirect the `then` arm" and "redirect the edge to X" two different operations with one
-     * spelling, which is the bug the old stage's `splitEdge` had.
+     * spelling, which is the bug `compiler/resolve`'s `splitEdge` had.
      */
     auto incoming(SsaBase base) { return incomingList.contents(base); }
     Size predecessorCount() { return incomingList.size(); }
@@ -1277,10 +1278,10 @@ struct Block {
      *
      * A flag rather than a removal, because `Body::blocks` is a `RegionArray` indexed by `BlockId`
      * and every side table in the verifier and the lowering is indexed by the same number: taking
-     * an entry out would renumber every block after it, which is the renumbering `reorderBlocksIn
-     * Rpo` used to cost the old stage. So the entry stays and this is what says it is no longer a
-     * block - the verifier and the lowering skip it, and nothing may enter it, which `deleteBlock`
-     * asserts before setting this.
+     * an entry out would renumber every block after it, which is the renumbering
+     * `reorderBlocksInRpo` used to cost `compiler/resolve`. So the entry stays and this is what
+     * says it is no longer a block - the verifier and the lowering skip it, and nothing may enter
+     * it, which `deleteBlock` asserts before setting this.
      *
      * A flag rather than "empty with no predecessors", which is the same state and a strictly worse
      * statement of it: an empty block the conversion built and never filled is a bug the verifier
@@ -1336,13 +1337,13 @@ private:
  * analyses over the same structure are cached independently and would each clear the other's notice.
  * A cache holds the counter it was built at and compares.
  *
- * **On the body rather than passed to the editor**, which is where the old stage put it. There is
- * one body per function and the editor is constructed per rewrite, so a counter the constructor
+ * **On the body rather than passed to the editor**, which is where `compiler/resolve` put it. There
+ * is one body per function and the editor is constructed per rewrite, so a counter the constructor
  * took would be one a caller could leave out - and an analysis stamped against a counter the editor
- * was never given is a cache that never goes stale, which is the failure that has no symptom until a
- * pass reads a dominator tree from before the branch it folded. `bool* changed` stays a constructor
- * argument for the opposite reason: "did this pass change anything" is the pass's question and there
- * is nothing about the body that answers it.
+ * was never given is a cache that never goes stale, which is the failure that has no symptom until
+ * a pass reads a dominator tree from before the branch it folded. `bool* changed` stays a
+ * constructor argument for the opposite reason: "did this pass change anything" is the pass's
+ * question and there is nothing about the body that answers it.
  *
  * A CFG edit bumps both, deliberately. Every operation that moves an edge also moves the block
  * arguments arriving over it, which are uses, and distinguishing the two that arguably do not would

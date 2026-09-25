@@ -30,8 +30,8 @@
  */
 
 // One level of the tree: the two vectors combined the way this reduction says. `min` and `max` are a
-// comparison and a select rather than an instruction, which is the same shape `emitMinMax` gives
-// them in the library - the machine has `minps` and this backend has no form for it yet.
+// comparison and a select rather than an instruction, which is the same shape an elementwise `min`
+// arrives in - the machine has `minps` and this backend has no form for it yet.
 LowerValue* reduceStep(Expansion& e, LowerReduce reduce, LowerType type,
                        LowerValue* lhs, LowerValue* rhs)
 {
@@ -204,8 +204,9 @@ static LowerValue* expandNarrowReduce(Expansion& e, LowerReduce reduce, LowerVal
      * And the bits above the lane, cleared, which is the contract rather than tidiness: a narrow
      * lane leaves this backend **zero-extended**, exactly as a lane extract does and exactly as the
      * LLVM backend's `outOfLane` writes it. `count(mask)` reads the answer as a whole `Int` and
-     * would see a sum's carry bits; a signed lane gets its sign back one tier up, in `Value::VecReduce`
-     * in resolve/lower_calc.cpp, which is the last place that knows the lane had a signedness.
+     * would see a sum's carry bits; a signed lane gets its sign back one tier up, in the lowering
+     * of `Inst::VecReduce` in resolve_ssa/lower/inst.cpp, which is the last place that knows the
+     * lane had a signedness.
      */
     return e.binary(LowerInst::And, scalar, best, e.integer(scalar, (U64(1) << bits) - 1));
 }
@@ -768,7 +769,7 @@ static void foldNegatedTruth(LowerBase base, LowerValue* value) {
 /*
  * §41.3 The live-lane range of a masked tail, taken out of the vector bank.
  *
- * Every bulk operation in `resolve/core.cpp` is written so that the last chunk contributes only the
+ * Every bulk operation in `lib/Core/Reduce.yana` is written so that the last chunk contributes only
  * lanes that are really there:
  *
  *     count(m .& maskUpTo(live))

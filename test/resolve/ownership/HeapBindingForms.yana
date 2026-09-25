@@ -3,8 +3,6 @@
    (`let @heap &x = e`), the scoped statement form (`let @heap x = e in:`) and the scoped value form
    (`let @heap x = e in x + ...`).
 
-   # resolver: ownership
-
    All three name exactly one object, so all three used to answer `@heap` differently. The flat form
    read the attribute after building its local, in `resolveDeclaration`. The scoped forms both go
    through `resolveScoped`, which never read it at all - and `resolveDeclaration`'s own `let ... in`
@@ -14,7 +12,7 @@
    branch and `resolveScoped`'s plain branch build a local from a resolved value - attribute read
    included - so a decision that used to have three call sites has one, and the three forms agree.
 
-   Marked rather than shared: the shipping stage places a *scalar* copy in a register and has
+   Marked rather than shared: the shipping stage placed a *scalar* copy in a register and had
    nothing for `@heap` to be about there ("this binding names a value that occupies no storage of
    its own"), where this stage's bindings are place-based from the start and always have a slot -
    `Reject.Heap.yana`'s own header makes the same point about a `TrivialCopy` binding.

@@ -1,8 +1,8 @@
 # The lane-wise minimum and maximum, recognized out of the comparison and the select the portable IR
 # writes them as - `selectPackedMinMax` in transform.cpp, and §39.1 of test/bench/findings.md.
 #
-# There is no minimum in the lower IR and there is deliberately not going to be one: `emitMinMax` in
-# resolve/simd.cpp emits `select(a < b, a, b)`, which is what a target without the instruction needs
+# There is no minimum in the lower IR and there is deliberately not going to be one: the resolve
+# stage emits `select(a < b, a, b)`, which is what a target without the instruction needs
 # anyway and what LLVM's own selection folds back into `minps`. So the pair is recognized here, in
 # the one backend that has the instruction, and becomes `LowerInst::X86MinMax` - which is why the
 # listings below name `x86_vmin` where the source above them says `cmp` and `select`.

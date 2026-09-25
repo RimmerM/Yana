@@ -1,8 +1,6 @@
 {-
    Sum types - Analysis-IR.md §11.4's G7d, and the declaration this stage used to refuse by name.
 
-   # resolver: ownership
-
    A `data` with several constructors is a value that is **one of** its arms, and the whole feature
    is three decisions:
 
@@ -21,7 +19,7 @@
    owning payload whose teardown reads the tag rather than releasing both arms.
 
    Written in `I32` rather than `Int` for `Baseline.yana`'s reason: this stage does not build Core,
-   so a fixture that spells the width is the same program to both stages.
+   so a fixture that spells the width directly needs no standard library at all.
 -}
 
 let &trace = 0 :: I32

@@ -67,14 +67,14 @@
  * one predicate that answers a write, shared with `forwardMemory`.
  *
  * **A read of a whole allocation is declined**, and that is a measurement rather than a shape rule.
- * It is `isScalarLocal` in the shipping stage's `opt_value.cpp`, arrived at there against the same
- * numbers: such a place is storage both targets already have a better form for, and unifying two
- * reads of one gives a value that has to exist somewhere both readers can see. Admitting it here
- * removes **541** loads at this tier and costs the lowered corpus **620 lines and 22 `alloca`s**,
- * because `promoteStackSlots` had already made every one of those reads a register. What is left
- * after the rule - a field of a record, an element behind a pointer, a payload behind a projection -
- * is **81** unifications and is where the reads worth removing are: it is what takes the lowered
- * corpus *down* rather than up.
+ * It was `isScalarLocal` in the shipping stage's `opt_value.cpp` (deleted in J173), arrived at
+ * there against the same numbers: such a place is storage both targets already have a better form
+ * for, and unifying two reads of one gives a value that has to exist somewhere both readers can
+ * see. Admitting it here removes **541** loads at this tier and costs the lowered corpus **620
+ * lines and 22 `alloca`s**, because `promoteStackSlots` had already made every one of those reads a
+ * register. What is left after the rule - a field of a record, an element behind a pointer, a
+ * payload behind a projection - is **81** unifications and is where the reads worth removing are:
+ * it is what takes the lowered corpus *down* rather than up.
  *
  * That leaves the whole-slot pair to `forwardMemory`, which is where it belongs: within one block it
  * is a fact carried across instructions, and one tier down `promoteStackSlots` takes the rest.

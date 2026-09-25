@@ -24,13 +24,14 @@ namespace {
  * A slot that holds an address holds `target - &image$base` as a **signed 32-bit** number.
  *
  * Four bytes rather than a pointer, which is what halves every table here, and anchor-relative
- * rather than absolute or self-relative - `repr/table.h` is where the three encodings are argued and
- * the short version is that both alternatives fail a case this one does not. Absolute is right for
- * an ELF image whose load address is fixed low and silently wrong for the JIT, which maps wherever
- * `mmap` chooses, and it cannot be written until the image is placed. Self-relative needs no anchor
- * and serves every table that is a *constant* - but not one built on the frame, which is what an
- * erased body forwarding its slots to another one has to build, and a frame is tens of terabytes
- * from the image. A callee reads either kind the same way, so one encoding has to serve both.
+ * rather than absolute or self-relative - the three encodings were argued in `compiler/repr`'s
+ * `table.h` (deleted in J173), and the short version is that both alternatives fail a case this one
+ * does not. Absolute is right for an ELF image whose load address is fixed low and silently wrong
+ * for the JIT, which maps wherever `mmap` chooses, and it cannot be written until the image is
+ * placed. Self-relative needs no anchor and serves every table that is a *constant* - but not one
+ * built on the frame, which is what an erased body forwarding its slots to another one has to
+ * build, and a frame is tens of terabytes from the image. A callee reads either kind the same way,
+ * so one encoding has to serve both.
  *
  * What it costs at the read is `lea` + `add`: the anchor's address is one instruction with no
  * memory traffic, and it is pure and loop-invariant, so a body reading six slots computes it once.
@@ -54,12 +55,13 @@ namespace {
  * The **metrics** cell holds all five, because none of them needs a whole one: two measurements, two
  * one-bit facts, and a stride that is the two measurements combined. See `kAlignShift`.
  *
- * **No stride cell**, which is the one place this differs from the old stage's four. A stride is
- * `alignUp(size, align)`, so the cell above answers it in five instructions that are pure,
- * loop-invariant and hoisted out of any loop that indexes with it - and the alternative is a whole
- * cell per descriptor carrying a number derivable from the one beside it. The day a target or a
- * `@repr` chooses a stride that is *not* `alignUp(size, align)`, this becomes a cell and the
- * derivation becomes a load; until then it would be a number that cannot disagree with its inputs.
+ * **No stride cell**, which is the one place this differs from the four `compiler/resolve` had (the
+ * stage deleted in J173). A stride is `alignUp(size, align)`, so the cell above answers it in five
+ * instructions that are pure, loop-invariant and hoisted out of any loop that indexes with it - and
+ * the alternative is a whole cell per descriptor carrying a number derivable from the one beside
+ * it. The day a target or a `@repr` chooses a stride that is *not* `alignUp(size, align)`, this
+ * becomes a cell and the derivation becomes a load; until then it would be a number that cannot
+ * disagree with its inputs.
  *
  * `teardown` is **never null**, and that is what makes a drop in an erased body one indirect call
  * rather than a load, a test and a branch. A type with nothing to run points at the module's one
@@ -85,9 +87,9 @@ constexpr U32 kDescriptorBytes = 8;
  *
  * `align - 1` **rather than the alignment itself**, because the bias is what both readers want:
  * rounding a size up is `(n + bias) & ~bias`, so a stride is one instruction shorter than it was
- * when the cell held the alignment, and `Align` pays the add instead. Not a *log* for the reason the
- * old stage's `NativeTypeDesc::kFlags` gives - reading one is a shift to reconstruct a number that
- * is already here - and the three bits it would buy are not wanted by anything.
+ * when the cell held the alignment, and `Align` pays the add instead. Not a *log* for the reason
+ * `compiler/resolve`'s `NativeTypeDesc::kFlags` gave - reading one is a shift to reconstruct a
+ * number that is already here - and the three bits it would buy are not wanted by anything.
  *
  * The alignment is the **top** field so that reading it is a shift and no mask, and the flags sit
  * between it and the size so that neither of those needs one either.
@@ -125,10 +127,11 @@ constexpr U32 kDescriptorHasTeardown = 1u << (kSizeBits + 1);
  * What a `Property` slot holds - **one cell**, in one of three shapes.
  *
  * Which shape is decided by the *declared result type of the requirement*, and by nothing about the
- * subject: `a.size: I32` is a promise the signature made, so both the caller filling the slot and the
- * body reading it know the field's width and its signedness before either has seen the other. That is
- * what makes this an ABI rather than a per-site choice, and it is the same argument `isNarrowRepr`
- * makes in `repr/repr.h` about which shape a `&T` takes.
+ * subject: `a.size: I32` is a promise the signature made, so both the caller filling the slot and
+ * the body reading it know the field's width and its signedness before either has seen the other.
+ * That is what makes this an ABI rather than a per-site choice, and it is the same argument
+ * `propertyFormOf` makes in manifest.h (and `compiler/repr`'s `isNarrowRepr` made) about which
+ * shape a `&T` takes.
  *
  *  - **`Offset`** - the field's byte position, and the body emits an `add` and a load or store of the
  *    field's own width. Every field whose type fills its own storage. This is the shape a property
@@ -156,8 +159,8 @@ constexpr U32 kDescriptorHasTeardown = 1u << (kSizeBits + 1);
 constexpr U32 kPropertyShiftShift = 24;
 constexpr U32 kMaxPropertyOffset = (1u << kPropertyShiftShift) - 1;
 
-// The `{read, set}` pair a `Witness` slot points at - two cells, in the order the old stage's
-// `PropertyWitnessFields` numbers them.
+// The `{read, set}` pair a `Witness` slot points at - two cells, in the order `compiler/resolve`'s
+// `PropertyWitnessFields` numbered them.
 constexpr U32 kPropertyRead = 0;
 constexpr U32 kPropertySet = kSlotBytes;
 constexpr U32 kPropertyBytes = 2 * kSlotBytes;
@@ -285,10 +288,10 @@ static U32 schemaBytes(Layout layout, mir::GenSchema& numbering) {
  * it, so what a reader wants is its *address*, which is one `lea` off the instruction pointer.
  *
  * Built on demand, and the demand is deliberately from **both** ends - `addPointer` writes a slot
- * and `cellPointer` reads one, and both come through here. The old stage records getting that wrong
- * once, by keying creation off the table *builder*: a reader in a program that happened to build no
- * table then measured from nothing. Here the two ends cannot disagree, because there is one
- * accessor and it creates.
+ * and `cellPointer` reads one, and both come through here. `compiler/resolve` recorded getting that
+ * wrong once, by keying creation off the table *builder*: a reader in a program that happened to
+ * build no table then measured from nothing. Here the two ends cannot disagree, because there is
+ * one accessor and it creates.
  */
 LowerPtr<LowerGlobal> Lowering::imageAnchor() {
     if(to.imageAnchor) return to.imageAnchor;
@@ -599,8 +602,8 @@ LowerPtr<LowerGlobal> Lowering::descriptorFor(DeclPtr<mir::Type> type, mir::Stor
      *
      * The two caps are checked rather than masked. A size or an alignment past what the cell holds
      * is a *layout* this encoding cannot describe, and truncating either produces a program that
-     * allocates the wrong number of bytes with nothing to show for it; the old stage refuses a count
-     * it cannot put in a cell the same way and with the same shape of message.
+     * allocates the wrong number of bytes with nothing to show for it; `compiler/resolve` refused a
+     * count it could not put in a cell the same way and with the same shape of message.
      */
     auto align = manifest.align ? manifest.align : 1;
 
@@ -1208,13 +1211,13 @@ LowerPtr<LowerGlobal> Lowering::propertyWitnessFor(DeclPtr<mir::Type> subject, U
      *
      * `read` hands a *second* value back to a caller that keeps neither the subject nor a borrow of
      * it, so a field whose type owns something would be duplicated by a byte copy - the one thing a
-     * copy of a non-trivial value may not be. What answers it is the scoped form the old stage
-     * describes at `PropertyWitnessFields` - a borrow of the field handed to a callback - and that
-     * needs the CPS lowering neither stage has. Refused by name rather than mis-copied.
+     * copy of a non-trivial value may not be. What answers it is the scoped form `compiler/resolve`
+     * described at `PropertyWitnessFields` - a borrow of the field handed to a callback - and that
+     * needs a CPS lowering this stage does not have. Refused by name rather than mis-copied.
      */
     if(!mir::isTriviallyCopyable(decl, declared.occurrence.type)) {
         context.diagnostics.error(
-            "the ownership resolver does not implement reading %@ through a field requirement of an unknown type yet - %@ is not trivially copyable, so a generic body would need a borrow of it rather than a copy"_v,
+            "the compiler does not implement reading %@ through a field requirement of an unknown type yet - %@ is not trivially copyable, so a generic body would need a borrow of it rather than a copy"_v,
             source, String(name), mir::typeText(context, decl, declared.occurrence.type));
         return handle;
     }
@@ -1232,7 +1235,7 @@ LowerPtr<LowerGlobal> Lowering::propertyWitnessFor(DeclPtr<mir::Type> subject, U
      */
     if(placed.isPacked()) {
         context.diagnostics.error(
-            "the ownership resolver does not implement reading %@ through a field requirement of an unknown type yet - it shares a machine word with its neighbours, so it has no address to hand over"_v,
+            "the compiler does not implement reading %@ through a field requirement of an unknown type yet - it shares a machine word with its neighbours, so it has no address to hand over"_v,
             source, String(name));
         return handle;
     }

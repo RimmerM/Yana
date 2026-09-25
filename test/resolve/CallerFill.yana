@@ -1,16 +1,16 @@
 {-
-   `@caller` parameters, through **both** resolve stages - Design-Test.md §11.1's F2.
+   `@caller` parameters - Design-Test.md §11.1's F2.
 
-   `Caller.yana` beside this file is the same feature stated against `lib/`, and it stays there: it
-   asserts through `Show` and `String.unit`, which the ownership stage could not reach while it read
-   a library of its own. What is here is the half that needs nothing but arithmetic, so that the two
-   stages are held to one answer about where a call is - which is the whole reason `.run.expect` is
-   shared.
+   `Caller.yana` beside this file is the same feature stated against `lib/`, and it stays there:
+   it asserts through `Show` and `String.unit`, which this stage could not reach at first, while
+   it still read a stand-in library of its own. What is here is the half that needs nothing but
+   arithmetic, which is why it was split out - and it has stayed split, since it is still a useful
+   check on its own terms.
 
-   Both stages fill the position with the same four values built the same way a written record of
-   them would be - a string literal is a borrowed run over a constant global, so a location costs
-   some constant data and no runtime work. What differs is the shape either stage's IR shows for it,
-   which is what the goldens on either side are.
+   The compiler fills the position with the same four values a written record of them would be
+   built with - a string literal is a borrowed run over a constant global, so a location costs
+   some constant data and no runtime work, which is what the `.mir.expect` beside this file
+   records.
 
    Asserted by arithmetic on the filled values rather than by comparing text, because a `String ==`
    between two things the compiler filled would pass with both sides empty.
@@ -77,8 +77,8 @@ fn main() -> Int:
     if textViaHelper(1) != (5 :: Size) then return 9
 
     -- A `@caller(source:)` naming a **dot-call's receiver** is `ownership/CallerReceiver.yana` and
-    -- not here: the ownership stage answers the text written to the left of the dot and the
-    -- shipping stage answers the empty string, so the two do not agree and a shared fixture must
-    -- not pretend they do.
+    -- not here: the shipping stage used to answer the empty string there, where this stage answers
+    -- the text written to the left of the dot - the two never agreed, which is why a shared
+    -- fixture must not pretend they did.
 
     return 0

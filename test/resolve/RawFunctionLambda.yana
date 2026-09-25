@@ -1,7 +1,5 @@
 -- A captureless lambda may be converted directly to a raw function pointer.
 -- The expected pointer type supplies the lambda's calling convention.
--- # resolver: ownership
-
 @noinline
 @convention(sysv)
 fn apply(callback: @convention(sysv) (U64) -> U64, value: U64) -> U64 = callback(value)

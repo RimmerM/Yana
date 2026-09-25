@@ -6,10 +6,10 @@
    literal *expression* - so it answered `[10, 20, 30][0]` and nothing else, and it answered it on
    one target.
 
-   The rule is a place rule and it is in `compiler/opt`, so what it needs is only that the write and
-   the read name the same storage. That is a question `opt_place` has always been able to ask about
-   a field and could not ask about an element, because an element address is `base + index * stride`
-   and the stride was not a number until a backend saw it.
+   The rule is a place rule - once in `compiler/opt` (deleted in J173), now `forwardMemory` in
+   `resolve_ssa/opt/memory.cpp` - so it needs only that the write and the read name the same
+   storage. The old `opt_place.cpp` could ask that of a field and not of an element: an element
+   address is `base + index * stride` and the stride was not a number until a backend saw it.
 
    Each function below removes one property from the shape the peephole needed:
 

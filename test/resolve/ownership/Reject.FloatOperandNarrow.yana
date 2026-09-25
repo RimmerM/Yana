@@ -1,11 +1,9 @@
 {-
    A float operator whose result is narrower than its widest operand - J92's review item 13.
 
-   # resolver: ownership
-
    `acc` is an `F32` - `0.0` is one - so `acc + x` is an `F64` and assigning it back loses
-   precision, which is what the shipping stage says too. This asserted in `addBinary` rather than
-   saying so; `FloatOperandWiden.yana` is the half that compiles.
+   precision, which is what the old shipping stage said too. This asserted in `addBinary` rather
+   than saying so; `FloatOperandWiden.yana` is the half that compiles.
 -}
 
 fn accumulate(x: F64) -> F64:

@@ -41,15 +41,15 @@ import Native
 {-
    Subscripting the owner - Core's `Index`.
 
-   A second instance rather than the conversion alone, and the reason is generic code. `xs[i]`
-   written against a concrete `Array(a)` could go on reaching `Index(Flat(a), Size, a)` through
-   convertSlice, exactly as it always did; `fn (Index(c, k, v)) first(xs: c)` cannot, because an
+   An instance at the owner rather than a conversion to one, and the reason is generic code. `xs[i]`
+   written against a concrete `Array(a)` could reach an instance over the window by converting, as
+   it did under `compiler/resolve`; `fn (Index(c, k, v)) first(xs: c)` cannot, because an
    instance is selected by the type `c` *binds to* and a caller passing an array binds `Array(a)`.
    Instance selection does not convert - nothing about a class says which of its parameters may be
    widened on the way in - so an owner that is to be a `c` has to be one.
 
-   **Generated rather than written, on the same terms the slice's are - see the note in `Native`.**
-   Written out, the owner's pair would read:
+   **`compiler/resolve` generated it rather than reading it, until J173 deleted that stage.** The
+   pair it generated read, written out:
 
        @platform(native) instance Index([a], Size, a):
            fn get(return self: Array(a), index: Size) -> 'a = borrow(self.run.items + index)
@@ -59,8 +59,8 @@ import Native
            fn get(return self: Array(a), index: Size) -> 'a = hostAt(self.items, index)
            fn getMut(return &self: Array(a), index: Size) -> &a = hostAtMut(self.items, index)
 
-   - each with the bound the emitters put in front of it, which the pair actually written below does
-   carry.
+   - each with the bound the emitters put in front of it, which the pair written below carries in
+   its own body.
 
    The bodies are the slice's, minus the descriptor. `self.run.items` is the base the slice would
    have copied, so this is one address computation rather than two loads and a temporary; the
@@ -73,51 +73,51 @@ import Native
    them. That is what makes `xs[i] = v` on JS the same program it is natively rather than a read
    followed by a store somebody had to remember to emit.
 
-   **The count is consulted, and the bound written below is the whole of it.** The generated emitter
-   this stage runs makes the same test - `emitArrayAt` puts `checkCondition(index >= self.length)` in
-   front of the address, against the owner's *live* count rather than the run's capacity - so the
-   written pair had to make it too, or the two stages would disagree about what `xs[9]` on a
-   three-element array *does*, which is the one thing `.run.expect` is shared to catch. It is unsigned against
-   the length, because one unsigned comparison answers a negative index as well.
+   **The count is consulted, and the bound written below is the whole of it.** The test is against
+   the owner's *live* count rather than the run's capacity, so `xs[9]` on a three-element array
+   traps. `compiler/resolve`'s generated emitter made the same test - `emitArrayAt` put
+   `checkCondition(index >= self.length)` in front of the address - and while both stages ran, the
+   shared `.run.expect` held them to agreeing about what that subscript *does*. It is unsigned
+   against the length, because one unsigned comparison answers a negative index as well.
 
    Writing it is what needed `self` to carry a type at all. `Length` below deliberately leaves it
-   off, so that each stage substitutes the subject it decided on; this member reads the length
-   *inside* the body, and `length(self)` at an untyped subject has no origin for the result tick to
-   be published from. `source'[a]` is what both stages accept here, and it is free to write because
-   this stage retires the instance before its body means anything - see below.
+   off and takes the subject the class substitutes; this member reads the length *inside* the body,
+   and `length(self)` at an untyped subject has no origin for the result tick to be published from.
+   `source'[a]` is that origin, and it was free to write while the old stage still ran because that
+   stage retired the instance before its body meant anything - see below.
 
-   **Written below, and *ignored by this stage* - the one instance in the library the compiler
-   overrides rather than stands down at.** `Length` below is written here and used here; this pair is
-   written here and used only by the ownership stage, because two obstacles stood in front of it and
-   only one of them went away:
+   **Written below and used as written - which `compiler/resolve` never did.** That stage overrode
+   this pair with its generated heads rather than standing down at it, the one instance in the
+   library it treated so, because two obstacles stood in front of the written pair there and only
+   one of them went away:
 
-   - **The cost is gone.** D12 made `@inline(always)` one directive across both stages - the graft
-     declines a body with a branch in it and `compiler/opt`'s inliner then admits it against its
-     ceiling alone - so the written pair costs nothing. Measured with it written, `-mode lower` of
+   - **The cost went.** D12 made `@inline(always)` one directive across both stages - the graft
+     declined a body with a branch in it and `compiler/opt`'s inliner then admitted it against its
+     ceiling alone - so the written pair cost nothing. Measured with it written, `-mode lower` of
      `test/resolve/ArrayRemove.yana`, `ContainerTeardown`, `Bounds` and `ArrayReclaim` against the
      generated instance: 1235 -> 1233, 1367 -> 1367, 725 -> 725, 743 -> 742, identical or *shorter*.
-     `-mode ir` carries one extra instruction per owner subscript, the pair `cast Count -> Size`
-     plus `bitcast Size -> USize` where the emitter cast `Count -> USize` in one, and lowering folds
-     it.
-   - **What blocks it is that `getMut` becomes a call.** The emitter hands back a borrow whose place
-     is `atPointer(items + i)` - an *element* - and a written member hands back one the signature
-     roots in `self`, so the caller takes an exclusive loan of the whole container for as long as
-     the element lives. Three shapes this corpus asserts are then rejected: `xs[k] = xs[k] + 1`
-     (`test/resolve/Contain.Borrow.yana` - the target's loan spans the right-hand side, which is
-     resolved after it), a subscript handed to a `lens fn` taking `&` and the container read inside
-     the extent (`Handover.yana`), and the erased build's return rooting through a written `get`
-     (`Bounds.yana`, `Index.yana`, `Dispatch.Borrow.yana`). `lib/`'s own suite goes with them. The
-     ownership stage compiles all of it, because an element borrow is a place there and the loan is
-     nested; this stage has no such form for a call result.
+     `-mode ir` carried one extra instruction per owner subscript, the pair `cast Count -> Size`
+     plus `bitcast Size -> USize` where the emitter cast `Count -> USize` in one, and lowering
+     folded it.
+   - **What blocked it was that `getMut` became a call.** The emitter handed back a borrow whose
+     place was `atPointer(items + i)` - an *element* - and a written member hands back one the
+     signature roots in `self`, so the old stage's caller took an exclusive loan of the whole
+     container for as long as the element lived. Three shapes this corpus asserts were then rejected
+     there: `xs[k] = xs[k] + 1` (`test/resolve/Contain.Borrow.yana` - the target's loan spans the
+     right-hand side, which is resolved after it), a subscript handed to a `lens fn` taking `&` and
+     the container read inside the extent (`Handover.yana`), and the erased build's return rooting
+     through a written `get` (`Bounds.yana`, `Index.yana`, `Dispatch.Borrow.yana`), and `lib/`'s own
+     suite with them. This stage compiles all of it, because an element borrow is a place here and
+     the loan is nested; the old stage had no such form for a call result.
 
-   So the *body* is written and this stage does not use it - `ClassInstance::Origin::Overriding`,
-   which is the `Length` bridge run backwards: the generator marks its `Index` heads as winning, and
-   a source instance at one of them is retired where the duplicate would have been reported. That is
-   the only direction that works, because the two stages disagree about what the written body means
-   rather than about whether it is correct: here a class call's result is rooted in the whole
-   container, and there an element borrow is a place of its own. Both halves go together when
-   Analysis-IR.md 11.5 deletes the generators; until then this file states the operation once and
-   each stage takes the form it can check.
+   So there the *body* was written and not used - `ClassInstance::Origin::Overriding`, the `Length`
+   bridge run backwards: the generator marked its `Index` heads as winning, and a source instance at
+   one of them was retired where the duplicate would have been reported. It had to run that way
+   because the two stages disagreed about what the written body means rather than about whether it
+   is correct: there a class call's result was rooted in the whole container, and here an element
+   borrow is a place of its own. J173 deleted the generators with that stage, so this file's pair
+   is now the only statement of the operation: the place `xs[i]` reaches, with the bound in front
+   of it.
 -}
 
 @platform(native) instance Index(Array(a), Size, a):
@@ -140,9 +140,9 @@ import Native
    place a native `borrow(values(self) + index)` is, reached the way this target reaches one.
 
    Two instances rather than one body with a `@platform` split inside it, because the split is in
-   how the element is *reached* and the bodies then share only the bounds test - and the shipping
-   stage retires whichever of these it reads in favour of its own generated heads, exactly as it
-   retires the native one.
+   how the element is *reached* and the bodies then share only the bounds test. (`compiler/resolve`
+   retired whichever of these it read in favour of its own generated heads, exactly as it retired
+   the native one, until J173 deleted it.)
 -}
 @platform(js) instance Index(Array(a), Size, a):
     @inline(always) fn get(self: source'[a], index: Size) -> source'a:
@@ -162,28 +162,28 @@ import Native
    behind. So there is nothing here to split by platform.
 
    **`self` carries no written type, and that is the one thing here that had to be worked out.** The
-   two resolve stages substitute the class's `self: c` differently and each is right about its own
-   model: this one hands the member the owner, whose `length` is a `Count`, and the ownership stage
-   hands it the window `[a]`, whose `length` is already a `Size` - a shared borrow of a container
-   *is* the window there. Writing either type down picks a stage. Leaving it off asks each for the
-   subject it already decided on, and `:: Size` is then a widening on one and nothing on the other,
-   which is what `::` means in both.
+   class's `self: c` is substituted with the subject the resolver decided on, which for a shared
+   borrow of a container is the window `[a]` - a shared borrow *is* the window here - whose `length`
+   is already a `Size`. `compiler/resolve`, deleted in J173, handed the member the owner instead,
+   whose `length` was a `Count`, so writing either type down picked a stage. Leaving it off asks for
+   the subject already decided on, and `:: Size` was then a widening on one stage and nothing on
+   the other, which is what `::` means in both.
 
-   The two written spellings are recorded because they look right and are not. `self: [a]` compiles
-   here too - `Length` only reads, so the window may stand in for the container
-   (`ClassInstance::windowArgs`) - but it makes every caller convert, and a caller holding a
-   `'Array(a)` *value* rather than storage cannot: `length(e.value)` over a map's entries in
-   `test/resolve/MapLiteral.yana` is "cannot convert 'Array(I32) to ArrayView(I32)". `self: Array(a)`
-   is what this stage would write and is what the ownership stage refuses.
+   The two written spellings are recorded because they look right and are not. `self: [a]` compiled
+   in the old stage too - `Length` only reads, so the window could stand in for the container
+   (`ClassInstance::windowArgs`) - but it made every caller convert there, and a caller holding a
+   `'Array(a)` *value* rather than storage could not: `length(e.value)` over a map's entries in
+   `test/resolve/MapLiteral.yana` was "cannot convert 'Array(I32) to ArrayView(I32)". And
+   `self: Array(a)` is what that stage would have written and is what this one refuses.
 
-   Written rather than generated because the ownership stage generates nothing and reads this
-   (`doc/progress/2026-09-06-inventory.md` D10); `defineContainerInstances` stands down where it
-   finds a declared head, which is the bridge until Analysis-IR.md 11.5 removes it. `@inline(always)`
-   is the same directive on both stages since D12, so it says one thing to both: this is a field load
-   and never a call. This stage's graft still declines it - a
-   field read names a place - and `compiler/opt`'s inliner takes it instead, which is why the number
+   Written rather than generated because this resolver generates no container instance and reads
+   this (`doc/progress/2026-09-06-inventory.md` D10); the old stage's `defineContainerInstances`
+   stood down where it found a declared head, until J173 deleted it. `@inline(always)` says this is
+   a field load and never a call. It was the same directive on both stages since D12; the old
+   stage's graft declined it - a
+   field read names a place - and `compiler/opt`'s inliner took it instead, which is why the number
    did not move when the attribute went on: the `-mode ir` of `test/resolve/ArrayRemove.yana` and
-   `ContainerTeardown.yana` is instruction-for-instruction what the generated instance produced,
+   `ContainerTeardown.yana` was instruction-for-instruction what the generated instance produced,
    with or without it.
 -}
 instance Length(Array(a)):
@@ -195,8 +195,8 @@ instance Length(Array(a)):
    `slice` clamps both ends because a caller may write any two numbers, and every one of those clamps
    is a branch and a merge. A *whole* container is the case where none of them can fire - `from` is
    zero and `count` is the length the descriptor was read from - and the clamped form cannot be folded
-   down to that: `start` and `end` are whole scalar locals, which opt_promote.cpp declines to promote
-   by the rule in its header, so nothing at the resolve tier ever sees the two constants meet. The
+   down to that: `start` and `end` were whole scalar locals, which `compiler/opt` (deleted in J173)
+   declined to promote by the rule in its header, so nothing at the resolve tier saw them meet. The
    callee stayed seven blocks, the inliner sized it at seven blocks, and `elements` was a real call
    with a real frame in every vector loop in the language.
 

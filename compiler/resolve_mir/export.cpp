@@ -41,8 +41,8 @@ namespace mir {
  * so the arguments are walked as well as the head.
  *
  * The switch is exhaustive with no `default`, which is the point: a type kind added without an arm
- * here is a compile error rather than a leak reported about nothing. The old stage had to assert
- * against a table for the same guarantee.
+ * here is a compile error rather than a leak reported about nothing. `compiler/resolve`, deleted in
+ * J173, had to assert against a table for the same guarantee.
  */
 static DeclPtr<Type> privateTypeIn(DeclBase base, DeclPtr<Type> type) {
     if(!type) return nullptr;

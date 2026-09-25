@@ -3,14 +3,12 @@
 
    The accepting half is `QualifiedData.yana`, and this is the sentence it cannot say: a constructor
    of a qualified record is not in the module's namespace, so writing it bare is an unknown name
-   rather than a name that resolves to the wrong thing. Both stages report it identically, which is
-   the point of the file - the ownership stage read the flag nowhere at all until 2026-09-05 and
+   rather than a name that resolves to the wrong thing. Both stages once reported it identically,
+   which was the point - the ownership stage read the flag nowhere at all until 2026-09-05 and
    accepted every bare name, which is how `lib/Date/Format.yana`'s two enums came to collide.
 
    A **newtype** is deliberately not here. `alias qualified` writes the same word and means the form
    rather than the namespace, so `StringId(4)` stays legal and `Newtype.yana` asserts it.
-
-   # resolver: ownership
 -}
 
 data qualified Unit = Nanos | Micros

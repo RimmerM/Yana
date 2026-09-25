@@ -1,14 +1,14 @@
 -- `@inline(always)` on a body the resolver's one-expression graft cannot take - inventory D12.
 --
 -- Each of these was a hard error until 2026-09-06: a branch, a call, several `return`s, a generic
--- body that is all three. The attribute now means one thing in both resolve stages, which is what
+-- body that is all three. The attribute now means one thing, which is what
 -- lets `lib/` write a container's `get` as a body rather than leaving it to a generator.
 --
--- What the fixture asserts is the *pair* of goldens. `.resolve.expect` is what the resolver
+-- What the fixture asserts is the *pair* of goldens. `.mir.expect` is what the resolver
 -- produced, and every call below is still in `main` there, because the graft declined all four.
--- `.opt.expect` is the same program after compiler/opt, and none of them is: the inliner admits an
--- `@inline(always)` callee against its ceiling alone, weighing nothing else in its table. See
--- resolve/inline.h, which argues which pass carries out which half.
+-- `.ssa.opt.expect` is the same program after the optimizer, and none of them is: the inliner
+-- admits an `@inline(always)` callee against its ceiling alone, weighing nothing else in its
+-- table. See `compiler/resolve_ssa/opt/inline.cpp`, which argues which pass carries out which half.
 --
 -- The one shape that is still refused is a body that calls itself - Reject.Inline.yana.
 

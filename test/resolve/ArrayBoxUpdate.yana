@@ -3,8 +3,8 @@
    literal. A plain host array (`[String]`, `[Cell]`) is the bare JS array, so a `&` to one needs
    somewhere to rebind only where a callee can *replace* it; growth never does on that row.
 
-   The shipping stage answers `replace` wrong on JavaScript (it drops the new array), so:
-   # resolver: ownership
+   The shipping stage answered `replace` wrong on JavaScript (it dropped the new array) -
+   this fixture is what covers the case it got wrong.
 -}
 
 data Cell {kind: @bits(4) U32, live: Bool, count: @bits(12) U32, age: @bits(20) U32}

@@ -67,160 +67,6 @@ set(PARSE_SOURCE_FILES
 add_library(YanaParse ${PARSE_SOURCE_FILES})
 target_link_libraries(YanaParse PUBLIC YanaCore)
 
-set(RESOLVE_SOURCE_FILES
-    resolve/inst.def
-    resolve/inst.h
-    resolve/inst.cpp
-    resolve/block.h
-    resolve/edit.h
-    resolve/edit.cpp
-    resolve/module.h
-    resolve/module_internal.h
-    resolve/module.cpp
-    resolve/module_decl.cpp
-    resolve/module_sig.cpp
-    resolve/module_class.cpp
-    resolve/module_default.cpp
-    resolve/module_import.cpp
-    resolve/module_reach.cpp
-    resolve/module_replace.cpp
-    resolve/module_derive.cpp
-    resolve/module_export.cpp
-    resolve/caller.h
-    resolve/caller.cpp
-    resolve/test.h
-    resolve/test.cpp
-    resolve/const.h
-    resolve/const.cpp
-    resolve/name.h
-    resolve/name.cpp
-    resolve/class.h
-    resolve/core.h
-    resolve/core.cpp
-    resolve/native.h
-    resolve/native.cpp
-    resolve/inline.h
-    resolve/inline.cpp
-    resolve/atomic.cpp
-    resolve/atomic.h
-    resolve/simd.h
-    resolve/simd.cpp
-    resolve/host.h
-    resolve/host.cpp
-    resolve/intrinsic.h
-    resolve/intrinsic.cpp
-    resolve/type.def
-    resolve/type.h
-    resolve/type_internal.h
-    resolve/type.cpp
-    resolve/type_query.cpp
-    resolve/type_ast.cpp
-    resolve/type_schema.cpp
-    resolve/type_layout.cpp
-    resolve/type_own.cpp
-    resolve/type_print.cpp
-    resolve/generic.h
-    resolve/generic.cpp
-    resolve/witness.h
-    resolve/witness.cpp
-    resolve/analyze.h
-    resolve/analyze_pass.h
-    resolve/analyze.cpp
-    resolve/analyze_effects.cpp
-    resolve/analyze_live.cpp
-    resolve/analyze_own.cpp
-    resolve/analyze_provenance.cpp
-    resolve/analyze_escape.cpp
-    resolve/analyze_demand.cpp
-    resolve/analyze_summary.cpp
-    resolve/analyze_borrow.cpp
-    resolve/analyze_drop.cpp
-    resolve/analyze_teardown.cpp
-    resolve/analyze_print.cpp
-    resolve/print.cpp
-    resolve/print.h
-    resolve/verify.h
-    resolve/verify.cpp
-    resolve/builder.h
-    resolve/clone.h
-    resolve/solve.h
-    resolve/solve.cpp
-    resolve/expr.h
-    resolve/expr.cpp
-    resolve/expr_convert.cpp
-    resolve/expr_flow.cpp
-    resolve/expr_decl.cpp
-    resolve/expr_body.cpp
-    resolve/expr_call.cpp
-    resolve/expr_construct.cpp
-    resolve/expr_fun.cpp
-    resolve/expr_lens_internal.h
-    resolve/expr_lens.cpp
-    resolve/expr_cont.cpp
-    resolve/expr_iter.cpp
-    resolve/expr_try.cpp
-    resolve/expr_map.cpp
-    resolve/expr_pat.cpp
-    resolve/lower.h
-    resolve/lower_internal.h
-    resolve/lower.cpp
-    resolve/lower_type.cpp
-    resolve/lower_gen.cpp
-    resolve/lower_place.cpp
-    resolve/lower_pack.cpp
-    resolve/lower_inst.cpp
-    resolve/lower_mem.cpp
-    resolve/lower_calc.cpp
-    resolve/lower_call.cpp
-
-    # Physical layout. Deliberately a directory of its own rather than part of resolve/: nothing in
-    # the resolver may include it, and a separate directory is what makes an accidental include
-    # visible in review. It links into YanaResolve because resolve/lower.cpp - the resolve-to-lower
-    # translation, which is already on the code generator's side of that line - is its first caller,
-    # and a library of its own would only make the dependency circular.
-    repr/repr.h
-    repr/repr.cpp
-    repr/repr_print.h
-    repr/repr_print.cpp
-    repr/table.h
-    repr/table.cpp
-    repr/constant.h
-    repr/constant.cpp
-
-    # The optimizer - see Analysis-Optimization.md. A directory of its own on exactly the terms repr/
-    # is one: it runs over the resolve IR but sits on the *emitting* side of the layout wall, so it
-    # may include compiler/repr and nothing in compiler/resolve may include it. The separate
-    # directory is what makes an accidental include visible in review. It links in here because both
-    # of its callers - resolve/lower.cpp and codegen/js - are already on that side, and a library of
-    # its own would be circular with the resolve IR it rewrites.
-    opt/opt.h
-    opt/opt_pass.h
-    opt/opt.cpp
-    opt/opt_arg.cpp
-    opt/opt_bool.cpp
-    opt/opt_borrow.cpp
-    opt/opt_branch.cpp
-    opt/opt_check.cpp
-    opt/opt_closure.cpp
-    opt/opt_discharge.cpp
-    opt/opt_flow.cpp
-    opt/opt_fold.cpp
-    opt/opt_inline.cpp
-    opt/opt_loop.cpp
-    opt/opt_range.cpp
-    opt/opt_pack.cpp
-    opt/opt_place.cpp
-    opt/opt_promote.cpp
-    opt/opt_scalar.cpp
-    opt/opt_select.cpp
-    opt/opt_value.cpp
-)
-
-set_source_files_properties(resolve/inst.def resolve/type.def PROPERTIES HEADER_FILE_ONLY TRUE)
-
-add_library(YanaResolve ${RESOLVE_SOURCE_FILES})
-target_link_libraries(YanaResolve PUBLIC YanaCore YanaParse YanaIntrinsic)
-
 set(LOWER_SOURCE_FILES
     lower/lower.h
     lower/lower.cpp
@@ -276,13 +122,13 @@ set(LOWER_SOURCE_FILES
     lower/lower_pipeline.cpp
 )
 
-# Listed for the same reason resolve/inst.def is, and never compiled on its own: it is #included
-# twice by lower/lower_inst.h - once to generate the enum and once to read the traits.
+# The instruction table is #included twice by lower/lower_inst.h - once to generate the enum and
+# once to read the traits - so it is listed for the sake of being findable and never compiled on its
+# own.
 set_source_files_properties(lower/inst.def PROPERTIES HEADER_FILE_ONLY TRUE)
 
 add_library(YanaLower ${LOWER_SOURCE_FILES})
 target_link_libraries(YanaLower PUBLIC YanaCore YanaIntrinsic)
-target_link_libraries(YanaResolve PUBLIC YanaLower)
 
 set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/region.h
@@ -515,23 +361,17 @@ separate_arguments(LLVM_DEFINITION_LIST NATIVE_COMMAND "${LLVM_DEFINITIONS}")
 target_compile_definitions(YanaLLVM PUBLIC ${LLVM_DEFINITION_LIST})
 target_link_libraries(YanaLLVM PUBLIC YanaCore YanaLower YanaRaw ${LLVM_LIBRARIES})
 
-# The pre-migration JS backend is retained, unchanged, in codegen/js_old/ and intentionally has no
-# build target: it consumes the aggregate/Value IR the old resolver produced and predates places,
-# ownership instructions, Repr and generic contexts. codegen/js is the rewrite against the current
-# resolve IR that Analysis-JS.md part 3 describes.
+# The JavaScript backend's back half: `structure.cpp` turns a verified JSIR CFG (resolve_ssa/js) into
+# the syntax tree of ast.h and `assemble.cpp` is the file the functions go into; the rest is that
+# tree's naming, runtime helpers, peephole and printing.
 set(JS_SOURCE_FILES
-    codegen/js/gen.h
+    codegen/js/ast.h
     codegen/js/shared.h
     codegen/js/jsir.h
-    codegen/js/build.h
     codegen/js/name.cpp
-    codegen/js/type.cpp
     codegen/js/wide.cpp
-    codegen/js/place.cpp
-    codegen/js/inst.cpp
-    codegen/js/flow.cpp
-    codegen/js/gen.cpp
-    codegen/js/ast.h
+    codegen/js/bits.cpp
+    codegen/js/helpers.cpp
     codegen/js/opt.cpp
     codegen/js/format.cpp
     codegen/js/structure.cpp
@@ -539,7 +379,7 @@ set(JS_SOURCE_FILES
 )
 
 add_library(YanaJS ${JS_SOURCE_FILES})
-target_link_libraries(YanaJS PUBLIC YanaCore YanaResolve YanaResolveSsa)
+target_link_libraries(YanaJS PUBLIC YanaCore YanaResolveSsa)
 
 set(ELF_SOURCE_FILES
     codegen/elf/elf.h
@@ -611,7 +451,7 @@ set(DRIVER_SOURCE_FILES
 )
 
 add_executable(Yana ${DRIVER_SOURCE_FILES})
-target_link_libraries(Yana PUBLIC YanaCore YanaIntrinsic YanaParse YanaResolve YanaResolveSsa YanaProject YanaLower YanaLLVM YanaJS YanaX64)
+target_link_libraries(Yana PUBLIC YanaCore YanaIntrinsic YanaParse YanaResolveSsa YanaProject YanaLower YanaLLVM YanaJS YanaX64)
 
 if(APPLE)
     target_link_libraries(Yana ncurses)

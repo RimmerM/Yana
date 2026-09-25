@@ -2,8 +2,6 @@
    A closure that **leaves the frame its captures were written in** - decision D17, and the second
    half of `generic/Closure.yana`.
 
-   # resolver: ownership
-
    `generic/Closure.yana` is the closure that stays: its environment is a local of the enclosing
    frame, the value borrows it, and the drop of a capture is ordered after the closure's last use.
    This is the other one. The environment is a **block of its own**, its first word is the teardown

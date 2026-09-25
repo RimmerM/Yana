@@ -48,13 +48,13 @@ static constexpr Size kMaxOperandDepth = 4;
  *
  * Identity first, then two things beside it.
  *
- * Two immediates of one type holding one number. They are not shared - `immediate()` in
- * resolve/lower_type.cpp builds a fresh `Imm` per call, and the fold and the strength reduction each
- * build their own - so comparing operands by identity alone says that the two `add %frame, 12`s
- * under two reads of one field are two different computations, which is most of what this pass
- * exists to collect. The comparison is on the immediate's stored word, which for a floating one is
- * its bits: `LowerImm` holds the two in a union, so this is a bitwise equality either way and `-0.0`
- * never reads as `0.0`.
+ * Two immediates of one type holding one number. They are not shared - `Lowering::immediate` in
+ * resolve_ssa/lower/erase.cpp builds a fresh `Imm` per call, and the fold and the strength
+ * reduction each build their own - so comparing operands by identity alone says that the two
+ * `add %frame, 12`s under two reads of one field are two different computations, which is most of
+ * what this pass exists to collect. The comparison is on the immediate's stored word, which for a
+ * floating one is its bits: `LowerImm` holds the two in a union, so this is a bitwise equality
+ * either way and `-0.0` never reads as `0.0`.
  *
  * And two *pure computations* that agree, which is the recursive half and the one the branch fold
  * and the load unification below both rest on. A checked subscript reached twice writes its index

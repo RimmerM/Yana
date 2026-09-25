@@ -98,8 +98,7 @@ struct Guard {
  *     ... after an earlier check ...  -- `cmp_eq %d, 0`, and the division is the `else` arm
  *
  * The fact belongs to the *edge*, so every block on the way up has to have that edge as its only
- * way in - the same rule `provenNonZero` in opt/opt_range.cpp states for the resolve-IR half of
- * this, and for the same reason: a second predecessor is a path the comparison was never made on.
+ * way in: a second predecessor is a path the comparison was never made on.
  */
 bool divisorKnownNonZero(LowerBase base, LowerBlock* block, LowerValue* divisor) {
     auto current = block;

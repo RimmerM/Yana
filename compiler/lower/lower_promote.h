@@ -14,14 +14,16 @@
  * ## Why here rather than in isDirectType
  *
  * The alternative was to let resolve call a scalar record a register value, and it is the wrong
- * place for four separate reasons. `isDirectType` is target-independent by contract (see
- * resolve/type.h), and whether a record fits one register is a *target's* answer that JS declines -
- * so deciding it there would make the set of accepted programs depend on which backend was running.
- * It is also the language's budget rather than a machine's: `kMaxPackBits` is 64, and a target with
- * 32-bit registers would have to decline records the resolver had already promised were registers.
- * A direct value has no address, so `&f.a` on such a record would have nowhere to point, and
- * demoting whenever an address is taken is the demand analysis - which is this pass, arrived at from
- * the other end. And it decides the calling convention, so a record's ABI would fork by target.
+ * place for four separate reasons. `isDirectType` was target-independent by contract (it was
+ * `compiler/resolve`'s, the stage deleted in J173, and resolve_ssa/lower/manifest.cpp makes the
+ * same statement now), and whether a record fits one register is a *target's* answer that JS
+ * declines - so deciding it there would make the set of accepted programs depend on which backend
+ * was running. It is also the language's budget rather than a machine's: `kMaxPackBits` is 64, and
+ * a target with 32-bit registers would have to decline records the resolver had already promised
+ * were registers. A direct value has no address, so `&f.a` on such a record would have nowhere to
+ * point, and demoting whenever an address is taken is the demand analysis - which is this pass,
+ * arrived at from the other end. And it decides the calling convention, so a record's ABI would
+ * fork by target.
  *
  * None of that applies to a transformation over lowered IR. It cannot change which programs compile,
  * what any diagnostic says, or how anything is passed; it can only remove memory traffic that the
@@ -31,14 +33,15 @@
  * ## What it does not do
  *
  * Whole slots only - apart from an integer load or store of the slot's low bytes, which is a mask
- * or a merge of its register (`isNarrowAccess`, J152). A slot whose address has arithmetic done to it - which is every aggregate whose
- * fields are at different offsets - is left alone, because splitting one is a different
- * transformation (see `scalarizable` in resolve/lower.cpp, which does exactly that for the shapes it
- * can prove safe). What this catches is the slot that is loaded and stored as one value and nothing
- * else: a scalar record, an integer local, a pointer, and the temporary `materializeScalar` allocates
- * to hand a scalar record's bits to something that wanted an address. A zero fill of the whole slot
- * counts as a store of zero - it is how lowering clears a slot with a padded word (`zeroStorage`),
- * and it names no register, so like a copy it types nothing.
+ * or a merge of its register (`isNarrowAccess`, J152). A slot whose address has arithmetic done to
+ * it - which is every aggregate whose fields are at different offsets - is left alone, because
+ * splitting one is a different transformation (`splitAggregateSlots` in lower_split.h, which runs
+ * just above this and hands it the cells it cut). What this catches is the slot that is loaded and
+ * stored as one value and nothing else: a scalar record, an integer local, a pointer, and the
+ * temporary `materializeScalar` allocates to hand a scalar record's bits to something that wanted
+ * an address. A zero fill of the whole slot counts as a store of zero - it is how lowering clears a
+ * slot with a padded word (`zeroStorage`), and it names no register, so like a copy it types
+ * nothing.
  *
  * It leaves its own litter behind - the byte count of an allocation that is gone, the mask a load
  * turned out not to need - and does not clean it up. `removeDeadValues` in lower_fold.h does, for

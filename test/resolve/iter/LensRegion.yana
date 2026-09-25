@@ -2,8 +2,6 @@
    A **lens region** inside a producer built as an object -
    `doc/inflight/Design-Iterator-Objects.md` §3.2's first step and §6.6.
 
-   # resolver: ownership
-
    `withLock(m):` written inside an `iter fn` is the same `lens.call` a `for x in g(...)` is, opening
    a `Once` region rather than a `Many` one. So it is the same payload member and the same embedding:
    the lens's own site type - `guard.Lens` - lives in a field of the outer record, the region's

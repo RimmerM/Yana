@@ -56,9 +56,9 @@ namespace mir {
  * `Proceed(Green)` and `Proceed(Blue)`, the `Proceed` column is complete even though no single
  * alternative wrote a bare `Proceed`.
  *
- * The old stage's `PatternSpace` is the same algorithm and this is not a copy of it: a constructor
- * here owns a *range of fields* rather than one payload type, so a head's arity is the arm's field
- * count and taking one apart needs no downcast column.
+ * `compiler/resolve`'s `PatternSpace` (deleted in J173) was the same algorithm and this is not a
+ * copy of it: a constructor here owns a *range of fields* rather than one payload type, so a head's
+ * arity is the arm's field count and taking one apart needs no downcast column.
  */
 
 // A pattern's head constructor, as the coverage recursion sees it.
@@ -1830,9 +1830,10 @@ bool Resolver::resolveDecomposed(Builder& builder, ast::Pat& pat, SmallArray<Pla
 /*
  * ## `match` over constants, recognized - inventory D3
  *
- * The rules below are `resolve/map.h`'s, restated for this stage. What changed is where the size
- * question lives: there is none here beyond `kMapSpanLimit`, which is about what a placed table may
- * *be* rather than about whether one is worth having.
+ * The rules below are the ones `compiler/resolve`'s `map.h` stated before J173 deleted it, restated
+ * for this stage. What changed is where the size question lives: there is none here beyond
+ * `kMapSpanLimit`, which is about what a placed table may *be* rather than about whether one is
+ * worth having.
  */
 
 // The bound - see the declaration, where it is argued.
@@ -2146,11 +2147,11 @@ Node* Resolver::matchAsMap(Builder& builder, ast::Expr& expr, Place& pivot,
      * What a table slot may hold - `map.h`'s `tableElement`, restated over a type.
      *
      * A value with a teardown produced out of static bytes would be a second owner of something the
-     * table still holds, so the ordinary rule is that the result duplicates freely and owes nothing.
-     * A **string** is the one exemption and it is the same one the shipping stage makes: a literal's
-     * run is borrowed, so what a slot holds is two words describing bytes nobody owns and its
-     * teardown is the nothing a written literal's is. `stringConstant` is where that is argued, and
-     * the constant in the slot is what that function returns.
+     * table still holds, so the ordinary rule is that the result duplicates freely and owes
+     * nothing. A **string** is the one exemption: a literal's run is borrowed, so what a slot holds
+     * is two words describing bytes nobody owns and its teardown is the nothing a written literal's
+     * is. `stringConstant` is where that is argued, and the constant in the slot is what that
+     * function returns.
      */
     auto ownership = ownershipOf(decl(), resultType);
     auto text = program.roles.record(intrinsic::Known::string);

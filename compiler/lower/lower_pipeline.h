@@ -5,13 +5,11 @@
 /*
  * The run of passes every producer of this IR owes its output, in the one order that was argued.
  *
- * The sequence used to live at the bottom of `resolve/lower.cpp`, which is where it was written and
- * not where it belongs: the order between its members is argued entirely in terms of the lower IR -
- * what promotion leaves for the forwarding to see, which passes index by block, which of them the
- * loop analysis may be shared across - and none of that mentions a resolve type. Both resolve stages
- * produce this IR, so the second one either called the same nineteen functions in the same order or
- * quietly shipped a worse program; `resolve_ssa` did the second, with one call in it and a comment
- * saying so.
+ * The order between its members is argued entirely in terms of the lower IR - what promotion leaves
+ * for the forwarding to see, which passes index by block, which of them the loop analysis may be
+ * shared across - and none of that mentions a resolve type, which is why the sequence is here
+ * rather than in the producer that calls it. It was written at the bottom of `compiler/resolve`'s
+ * `lower.cpp` (the stage deleted in J173) and moved here when a second producer needed it.
  *
  * The comments moved with the calls. They are the whole value of the sequence - each says why a pass
  * is behind the one above it - and splitting them from the calls would leave two orders to keep in
@@ -22,11 +20,9 @@
  * answers and no machine does, and `foldDecidedBranches`, because a library arm gated on a
  * compile-time constant hides code the running target cannot encode behind a branch. The reason
  * each is exempt is written where it is called; both are things without which the compiler produces
- * no program rather than a slower one. That gate is new for the shipping
- * stage - these passes ran there unconditionally, because `optimizeIr` was read only in
- * `opt/opt.cpp` - and it is the point of the move as much as the sharing is: `-no-ir-opt` now means
- * one thing on both stages, and the fixture runner's optimized/unoptimized comparison covers the
- * lower tier instead of stopping above it.
+ * no program rather than a slower one. So `-no-ir-opt` means one thing at both tiers, and the
+ * fixture runner's optimized/unoptimized comparison covers the lower tier instead of stopping above
+ * it.
  *
  * `returnPlace` is the hidden result pointer where this function has one, and null where it does
  * not. Only `forwardCopyDestinations` reads it - see lower_forward.h, which is the whole of why the

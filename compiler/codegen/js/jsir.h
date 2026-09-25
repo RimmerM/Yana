@@ -30,8 +30,8 @@ namespace js {
 /*
  * What the two files share, on top of `JsShared`.
  *
- * Deliberately not a second `Gen`: everything a JSIR body needs is on the body, so what is left is
- * the file-level naming and the one-function scratch. The scratch is reset per function rather than
+ * Deliberately small: everything a JSIR body needs is on the body, so what is left is the
+ * file-level naming and the one-function scratch. The scratch is reset per function rather than
  * rebuilt, which is `compiler/util/README.md`'s rule applied where it costs one allocation per
  * compilation instead of one per function.
  */
@@ -105,12 +105,12 @@ struct Assembly: JsShared {
     /*
      * The sentences a `throw` carries, interned - `var $t0 = "yana: a runtime check failed";`.
      *
-     * One message per *text* rather than per site, because the rewrite's checks are the library's
-     * own `if ... then checkFailed()` grafted by `@inline(always)` at every subscript: there are 936
-     * of them in `Base.js` and they all throw the same twenty-eight characters. The shipping backend
-     * has no equivalent because its resolver emits a `checkCondition` **call** at a subscript and
-     * the sentence lives once, inside that body - so this is what the two spellings cost against
-     * each other, measured at 31 KB.
+     * One message per *text* rather than per site, because a check is the library's own
+     * `if ... then checkFailed()` grafted by `@inline(always)` at every subscript: there are 936 of
+     * them in `Base.js` and they all throw the same twenty-eight characters. The generator deleted
+     * in J173 had no equivalent because its resolver emitted a `checkCondition` **call** at a
+     * subscript and the sentence lived once, inside that body - so this is what inlining the check
+     * would otherwise cost, measured at 31 KB.
      */
     Array<Name> throwOrder;
     Array<StringId> throwTexts;
@@ -234,7 +234,7 @@ JsPtr<Expr> structureConstant(Assembly& a, jsir::JsBody& body);
 JsPtr<Expr> mapLiteral(Assembly& a, const jsir::JsConstant& value);
 
 /*
- * The whole program through JSIR - the entry `-mode exe -platform js -resolver ownership` reaches.
+ * The whole program through JSIR - the entry `-mode exe -platform js` reaches.
  *
  * `dump` is `-mode jsir`: the tables once, then each function's JSIR as it is converted. It is
  * written inside the per-function loop rather than afterwards because the bodies do not survive the

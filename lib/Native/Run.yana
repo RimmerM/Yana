@@ -26,7 +26,7 @@
    How wide a *borrowed* container's length is, and why it is not `Count`.
 
    `Count` below is what an owner *stores*, and §9's whole design is that an owner's representation
-   varies - per implementation, per target, per root. A **borrow** is the opposite: `Flat(a)` is the
+   varies - per implementation, per target, per root. A **borrow** is the opposite: a window is the
    single representation every `[T]` signature in every program shares, so whatever it can describe
    is the ceiling for every container that will ever be passed as `[T]`. A thirty-one-bit borrow
    would make the *universal* thing the limiting one, which inverts §1 - an owner could be as large
@@ -126,13 +126,13 @@ pub fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, ownsHeap: runBorr
    a contradiction - the hook is what a call site expands to and the body is what a call that cannot
    be expanded reaches.
 
-   The shipping stage expands both, and the expansion is the one operation the language has no way to
-   say about itself: an ordinary allocation with a count beside it (`InstAlloc::extent`), so where
-   the slots live is decided by the same escape analysis that places every other allocation and the
-   bit it writes into `ownsHeap` is that decision reduced to what a run acts on. The ownership
-   resolver has no placement analysis, so on native it calls the body, which allocates from the heap
-   and says so in the tag; the body has to be native because a heap is what it asks for, which is why
-   the declaration could not stay here.
+   `compiler/resolve` expanded both, and the expansion is the one operation the language has no way
+   to say about itself: an ordinary allocation with a count beside it (`InstAlloc::extent`), so
+   where the slots lived was decided by the same escape analysis that placed every other allocation
+   and the bit it wrote into `ownsHeap` was that decision reduced to what a run acts on. The
+   resolver that remains has no placement analysis, so on native it calls the body, which allocates
+   from the heap and says so in the tag; the body has to be native because a heap is what it asks
+   for, which is why the declaration could not stay here.
 -}
 
 {-
@@ -147,7 +147,7 @@ pub fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, ownsHeap: runBorr
 
    A class over the two was the first answer and does not work yet, which is worth writing down
    because it looks like the obvious one (it is `doc/progress/2026-09-06-inventory.md` D5). A class
-   member's subject for a container is the container's **view** in the ownership stage - a shared
+   member's subject for a container is the container's **view** - a shared
    `[a]` in a binding position is two words - and a capacity is a fact about the *owner*, which the
    view does not carry: `instance Capacity(Array(a))` reports "a shared view of Array(a) has no field
    called run" there, whatever `self` is written as. What gets a member the owner is a `@builtin`
@@ -167,11 +167,11 @@ pub fn slots(self: source'Run(a)) -> %source'a = self.items
    narrow-element run has no element address, and a run whose count was packed into its owner has no
    self-contained descriptor to point at. So the shapes are named types, each with a coherent
    operation set, and an author dispatches on the representation rather than testing for it - a
-   UTF-8 decoder takes a `Flat(U8)`, a bitset scan will take a `Bits(Bool)`.
+   UTF-8 decoder takes a `[U8]` window, a bitset scan will take a `Bits(Bool)`.
 
-   `Flat(a)` is also what a borrow of `[a]` *is*. That is not two facts: §4's slice Repr and this
-   surface are the same shape named twice, which is the whole reason the borrow of a container never
-   dispatches. `Bits(a)` is the narrow-element form and waits on §11's fractional stride.
+   The window is also what a borrow of `[a]` *is* - `ArrayView(a)`. That is not two facts: §4's
+   slice Repr and that record are the same shape named twice, which is why the borrow of a
+   container never dispatches. `Bits(a)` is the narrow-element form and waits on §11's stride.
 
    It owns nothing. Every field is a copy of something whose lifetime belongs to whoever the slice
    was taken from, which is what makes it TrivialCopy and what the borrow at the point it was made
@@ -185,21 +185,21 @@ pub fn slots(self: source'Run(a)) -> %source'a = self.items
    two words describe it. A host array cannot be shifted - `arr.slice(a, b)` copies and there is no
    `subarray` outside the typed families - so a window there is the array plus where in it the window
    begins, and §4.3's three-component slice is what that is. Nothing above the field list changes:
-   both are the one representation every `[T]` signature shares on its own target, both are
-   TrivialCopy, and both are built by the same `convertSlice`.
+   both are the one representation every `[T]` signature shares on its own target, and both are
+   TrivialCopy.
 
-   `offset` is last rather than second, and that is load-bearing rather than tidy: `items` and
-   `length` keep the positions the compiler reads them at, so the descriptor builder and
-   `sliceLengthType` are unchanged and only the field that exists on one target is conditional.
+   `offset` is last rather than second: `items` and `length` keep one position on both targets.
+   That was load-bearing while `compiler/resolve` read the fields by position; the compiler reads
+   no field of either record now, so the order is kept rather than needed.
 
-   The record itself is `Run.native.yana` and `Run.js.yana`, on the terms §2.5 gives: two field
-   lists, and `values` on the target that has an address to hand out.
+   The record is `ArrayView` in `Core/Array.native.yana` and `Core/Array.js.yana`, on the terms §2.5
+   gives: two field lists, and `values` on the target that has an address to hand out.
 -}
 
 {-
    Subscripting a slice and a raw pointer - Core's `Index`, and where `xs[i]` on an array ends up.
 
-   **Generated rather than written, and this is what they would say if they were written:**
+   **Written in `Core` now; `compiler/resolve` generated them, and this is what it generated:**
 
        @platform(native) instance Index('[a], Size, a):
            fn get(self: '[a], index: Size) -> 'a = borrow(self.items + index)
@@ -222,41 +222,41 @@ pub fn slots(self: source'Run(a)) -> %source'a = self.items
    pointer field one would have got by writing it outside, and the marker is gone.
 
    Each of those is one address computation with nothing behind it, and every one of them is
-   expressible here - so leaving them in source is the default and the reason they are not is worth
-   stating. `xs[i]` is the most common expression the language has, and it has to cost nothing *with
-   no optimizer having run*: a source body would have to be specialized per element type and then
-   spliced at every subscript in the program before it was free, so a `-no-opt` build would pay for a
-   call at each one and the shape of the emitted code would depend on a pass rather than on what was
-   written. Nothing above the optimizer is allowed to depend on the optimizer, and the language's most
-   common operation is the last place to start. See defineNativeIndexInstances; the generated body and
-   the expansion a call site gets are the same emitter, so the two cannot disagree.
+   expressible here - so leaving them in source was the default and the reason that stage did not
+   was worth stating. `xs[i]` is the most common expression the language has, and it has to cost
+   nothing *with no optimizer having run*: a source body would have to be specialized per element
+   type and then spliced at every subscript in the program before it was free, so a `-no-opt` build
+   would pay for a call at each one and the shape of the emitted code would depend on a pass rather
+   than on what was written. Nothing above the optimizer is allowed to depend on the optimizer, and
+   the language's most common operation is the last place to start. Its generated body
+   (`defineNativeIndexInstances`) and the expansion a call site got were the same emitter.
 
-   **The ownership stage answers this the other way and it is now half built** - `Core/Array.yana`
-   writes the same six as ordinary bodies marked `@inline(always)`, which that stage grafts at SSA
-   conversion with no optimizer involved, so the cost argument above is met rather than dodged.
+   **The resolver that remains answers this the other way** - `Core/Array.yana` writes the pairs as
+   ordinary bodies marked `@inline(always)`, grafted at SSA conversion with no optimizer involved,
+   so the cost argument above is met rather than dodged; `Core/Pointer.native.yana` has the third.
 
-   **The attribute is no longer what stands between them** - inventory D12, 2026-09-06. This stage's
-   graft still takes only a single expression with no branch, no call and no field read
-   (`compiler/resolve/inline.cpp`), and what it declines is now admitted by `compiler/opt`'s inliner
+   **The attribute was not what stood between the two** - inventory D12, 2026-09-06. The old stage's
+   graft took only a single expression with no branch, no call and no field read, and what it
+   declined was admitted by `compiler/opt`'s inliner
    against its ceiling alone rather than reported as an error, so an `@inline(always)` owner-head
-   `Index` measures identical or shorter at `-mode lower` than these emitters do.
+   `Index` measured identical or shorter at `-mode lower` than its emitters did.
    `Length(Array(a))` is written in `Core/Array.yana` and carries the attribute for that reason.
 
-   What stands there instead is the **borrow checker**, and it is a fact about `getMut` rather than
-   about cost: a written member hands back a borrow the signature roots in `self`, so a call takes an
-   exclusive loan of the whole container for as long as the element lives, where these emitters
-   produce a borrow of the *element's* address. `xs[k] = xs[k] + 1` and a subscript handed to a lens
-   are then refused. `Core/Array.yana` carries the measurement and the three shapes; the four `Index`
-   heads and the window's `Contiguous`/`Writable` stay here until an element loan is expressible.
+   What stood there instead was the **borrow checker**, and it is a fact about `getMut` rather than
+   about cost: a written member hands back a borrow the signature roots in `self`, so a call there
+   took an exclusive loan of the whole container for as long as the element lived, where the
+   emitters produced a borrow of the *element's* address. `xs[k] = xs[k] + 1` and a subscript handed
+   to a lens were then refused. `Core/Array.yana` carries the measurement and the three shapes; here
+   an element borrow is a place, and J173 retired the emitters with the stage that needed them.
 
-   Declared over the slice and not over the owner, which is not an omission: reading is structural,
-   so the operation that reads asks for the borrow, and an owner reaches it by the ordinary
-   conversion at the call - see convertSlice. That is what lets one instance serve `[a]`, `Array(a)`
-   and anything else a slice can be taken of. The class buys the *generic* case - `xs[i]` inside
+   One instance serves the owner and the window, which is not an omission: a window and the
+   container it is over are one logical type here, so the instance over `Array(a)` is the window's
+   too and nothing converts at the call - it serves `[a]`, `Array(a)` and every window taken of one.
+   The class buys the *generic* case - `xs[i]` inside
    `fn (Index(c, k, v)) first(xs: c)` - and costs the concrete one nothing.
 
    The pointer instance is Implementation-Containers.md §17's "two declarations and one deletion":
-   `heapFree[sizeClass]` was `store(heapFree + sizeClass, block)` because `resolveSubscript` rejected
+   `heapFree[sizeClass]` was `store(heapFree + sizeClass, block)` because a subscript once rejected
    anything that was not an array, and under the class route it is an instance like any other with
    the unchecked-ness the pointer's rather than the subscript's.
 

@@ -45,18 +45,19 @@ namespace ssa {
  *
  * **A zero cell is a lambda with nothing to release.** Otherwise the cell holds
  * `teardown - &image$base`, the way every other address cell in this stage does (`erase.cpp`, where
- * the encoding is argued), and that difference is never zero: the anchor is placed where no function
- * can be - after all the code on the x64 backend, in a data section or at address zero under LLVM,
- * and behind `.text.entry` in a raw image. So a drop of a lambda that owes nothing is a load and a
- * not-taken branch, which is what the alternative below got right and what the old stage - always a
- * callable slot, always an indirect call, `teardown$none` where there was nothing to do - did not.
+ * the encoding is argued), and that difference is never zero: the anchor is placed where no
+ * function can be - after all the code on the x64 backend, in a data section or at address zero
+ * under LLVM, and behind `.text.entry` in a raw image. So a drop of a lambda that owes nothing is a
+ * load and a not-taken branch, which is what the alternative below got right and what
+ * `compiler/resolve` (the stage deleted in J173) - always a callable slot, always an indirect call,
+ * `teardown$none` where there was nothing to do - did not.
  *
  * **The environment word is still asked, first**, because the cell is the *lambda's* answer and a
  * value of that lambda may hold no environment at all: a lambda that captured nothing, a plain
  * function named as a value, and the empty pair a boxed iterator member holds before its region is
  * entered, which `convert.cpp`'s `stepStoreEmptyBox` builds out of the *same* shim a filled one
  * points at. So `funTeardown` asks two questions - see it, where the order is argued - and they are
- * the shipping stage's own two with one test more.
+ * `compiler/resolve`'s two with one test more.
  *
  * **What this replaced**, and why it is written down: the first form of D17 put the answer in the
  * *value* instead. The block was `[teardown][captures]` and the pair carried its address with bit
@@ -84,13 +85,13 @@ namespace ssa {
  * cell is then zero. A heap-placed one always has one, whether or not its captures owe anything,
  * because the block has to be handed back.
  *
- * **Only a lambda with an environment has a cell**, which is the shipping stage's rule too. Every
+ * **Only a lambda with an environment has a cell**, which was `compiler/resolve`'s rule too. Every
  * code word a pair may hold comes through `emitFunValue`, which calls this before it stores the
- * word, and `funTeardown` reads `[code - kSlotBytes]` only past its null test - so a plain function's
- * thunk and a lambda that captured nothing, whose pairs always hold null, would carry four bytes
- * nothing reads. The one pair with a null word *and* a cell is the empty box, whose shim is
- * heap-placed. What that makes the null test is load-bearing twice: it is what tells an empty box
- * from a filled one, and it is what keeps the read off a function with nothing in front of it.
+ * word, and `funTeardown` reads `[code - kSlotBytes]` only past its null test - so a plain
+ * function's thunk and a lambda that captured nothing, whose pairs always hold null, would carry
+ * four bytes nothing reads. The one pair with a null word *and* a cell is the empty box, whose shim
+ * is heap-placed. What that makes the null test is load-bearing twice: it is what tells an empty
+ * box from a filled one, and it is what keeps the read off a function with nothing in front of it.
  */
 void Lowering::attachClosureHeader(LowerPtr<LowerFunction> code, LowerPtr<LowerFunction> teardown) {
     auto target = lower[code];
@@ -407,9 +408,9 @@ LowerPtr<LowerFunction> Lowering::closureBlockTeardown(DeclPtr<mir::Type> enviro
  * The null test comes first, and it has to: only a lambda with an environment has a cell
  * (`attachClosureHeader`), so the order is what keeps the read off a plain function's thunk. It is
  * also the cheaper of the two - one load against the cell's two dependent ones, the code word and
- * then the bytes in front of it. What the split costs over the old stage is nothing: that one
- * tested null as well and then called through the header unconditionally, so a frame closure paid
- * an indirect call to a teardown that did nothing where this pays a not-taken branch.
+ * then the bytes in front of it. What the split costs over `compiler/resolve`'s form is nothing:
+ * that one tested null as well and then called through the header unconditionally, so a frame
+ * closure paid an indirect call to a teardown that did nothing where this pays a not-taken branch.
  *
  * The teardown is called across `kDefaultCallType` for `emitErasedTeardown`'s reason - an indirect
  * call has no callee to read a convention off, so there is one convention on this side of the

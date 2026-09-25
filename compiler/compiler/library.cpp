@@ -131,7 +131,7 @@ const String& LibrarySource::directory(Context& context) {
     }
 
     /*
-     * `lib/` is the standard library of both resolvers.
+     * `lib/` is the standard library.
      *
      * There used to be a second candidate here, `prelude/` - Core written small, so that the
      * ownership stage had a standard library it could compile while it was being built. It is gone
@@ -262,7 +262,7 @@ static void walkModuleFiles(Context& context, LibrarySource& library, const Stri
         auto selected = selectsFileName(walk.context.settings, stem, walk.scope, isTest, unknown);
 
         if(unknown.length) {
-            walk.context.diagnostics.error("%@ in the standard library names %@, which is not a selector - a file name selects a target with `native`, `js`, an operating system, an architecture, an x86-64 level or an instruction-set extension, an allocator with `allocator.<provider>`, and a resolve stage with `legacy` or `ownership`"_v,
+            walk.context.diagnostics.error("%@ in the standard library names %@, which is not a selector - a file name selects a target with `native`, `js`, an operating system, an architecture, an x86-64 level or an instruction-set extension, or an allocator with `allocator.<provider>`"_v,
                                            nullptr, formatPath("%@/%@"_v, walk.path, fileName),
                                            toString(unknown));
             return;

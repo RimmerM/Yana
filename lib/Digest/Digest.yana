@@ -37,9 +37,9 @@ import Native
    `finish` routed through `d` - `finishInto(->self: d, &pad: [U8 *64]) -> Size` - implemented
    identically in all nine instances so that `Hmac.of` could reach a digest's bytes at all.
 
-   `class (Contiguous(h, U8)) Digest(d -> h)` is the other way to have closed it and does not work:
-   it fails in a build with specialization declined, and the note beside `Length([a *n])` in
-   `Core/Container.yana` says why. Naming the width needs no instance at all.
+   `class (Contiguous(h, U8)) Digest(d -> h)` is the other way to have closed it. It was set aside
+   because it failed in a build with specialization declined, which no longer exists (J173); naming
+   the width is still the simpler of the two, since it needs no instance at all.
 
    `finish` takes `->self` deliberately: a digest state is *spent* by finalizing, and leaving a
    reusable-looking object behind is a trap.
@@ -70,13 +70,13 @@ pub alias Fingerprint = [U8 *4]
    Sixty-four bytes, as a type rather than as a buffer somebody passes a length with.
 
    `[U8 *64]` is one pointer at a call and a compile-time sixty-four inside the callee, so the loop
-   below has no length to load and its bound folds; a `Flat(U8)` would carry a second word saying
+   below has no length to load and its bound folds; a `[U8]` window would carry a second word saying
    what the type already says, and would let a caller hand over a buffer of a different size for
    these to run off the end of.
 
    What it is *not* is a way around the borrow rule. A fixed array handed to a class function is a
-   borrow like any other and the callee may not keep it - see `assumedRetained` in
-   compiler/resolve/analyze_escape.cpp - which is what `Hmac.of` relies on to hand `update` a view of
+   borrow like any other and the callee may not keep it (`test/resolve/Reject.ClassBorrow.yana`),
+   which is what `Hmac.of` relies on to hand `update` a view of
    this pad.
 
    Sixty-four because that is a block of every digest in this module and is also at least as wide as
@@ -372,7 +372,7 @@ pub fn (n: Int, w: Int) bigU32Digest(h: [U32 *w]) -> [U8 *n]:
    `test/bench/memmove/findings.md` is what each rung measured.
 
    **Two implementations, because a JS build has no bytes.** `copyMemory` and `setMemory` reach that
-   target only in the shape the relocation glue writes (`blockCopyShape` in codegen/js/type.cpp),
+   target only in the shape the relocation glue writes (see `Native/Memory.js.yana`),
    which is a whole value and not a counted run - so the loop is what that target has, and it is the
    loop this pair always was. The split is the one Analysis-Modules.md §2.5 describes and it stays
    in this file rather than becoming two: five lines apiece, one of them shared.
@@ -422,8 +422,8 @@ pub fn (n: Int, w: Int) bigU32Digest(h: [U32 *w]) -> [U8 *n]:
    borrow rule was stated: a deferred class dispatch has no summary, and assuming every argument was
    kept meant `update(inner, message)` marked the caller's slice as outliving the frame. What stands
    in for the missing summary now is the signature - a borrow's extent is the call unless a body says
-   otherwise - and `checkClassBorrows` holds every implementation of `update` to it. See
-   `assumedRetained` in `compiler/resolve/analyze_escape.cpp`.
+   otherwise - and every implementation of `update` is held to it. See
+   `test/resolve/Reject.ClassBorrow.yana`.
 
    **The class's width is what makes it generic.** `finish` answers `[U8 *n]` and `n` is a number
    this body has, so the inner digest is copied into the pad here rather than through a second class
@@ -459,7 +459,7 @@ pub fn (Digest(d, n)) Hmac.of(->state: d, key: [U8], message: [U8]) -> [U8 *n]:
     -- `&->`, which is the combination this line means: `state` arrives owned (`->state: d`) and
     -- `finish(inner)` consumes it, so a plain `let &` - a writable borrow of an existing owning
     -- value - has nothing to hand over. Writing both sigils is what `doc/Design.md` says the pair is
-    -- for, and it is the spelling both stages take.
+    -- for.
     let &->inner = state
     xorPad(pad, 54)
     update(inner, pad)

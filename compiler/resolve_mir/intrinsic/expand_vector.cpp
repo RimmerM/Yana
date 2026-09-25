@@ -424,8 +424,8 @@ Node* expandVecFma(Builder& builder, Function&, Node* const* arguments, const Su
  * arrives as a `[Int *m]` - an `aggregate` node over the entries - and this reads them.
  *
  * The aggregate is left where it stands rather than erased. Every component of it is a constant and
- * nothing names its result once this has run, so what survives is a value no pass reads; the
- * shipping stage erases the pair because there a literal is a frame slot and a run of stores, and
+ * nothing names its result once this has run, so what survives is a value no pass reads.
+ * `compiler/resolve` erased the pair because there a literal was a frame slot and a run of stores;
  * here it is one node with no storage behind it.
  */
 static bool constantPattern(Builder& builder, Node& argument, U32 sources, U32 lanes, U32 results,

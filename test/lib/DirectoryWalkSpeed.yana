@@ -3,13 +3,13 @@
 
    # inline: speed
 
-   The directive is the fixture. `spliceEmptyBlock` in opt_branch.cpp redirects each predecessor
-   edge of an empty block one at a time, so a `je` whose two arms were two empty blocks in front of
-   one join comes out of it naming that join twice. The resolve IR admits a doubled arm on purpose -
-   an arm is an edge, and two arms at one block are two edges - but the lower IR does not:
-   `LowerBlock::addInst` asserts the two targets differ and `validateLowerModule` says "same target
-   block for all branches". Nothing folded it, so the build produced no executable and blamed a
-   `yield` inside `File.entries` for it.
+   The directive is the fixture. `spliceEmptyBlock` in `compiler/opt`'s opt_branch.cpp (deleted in
+   J173) redirected each predecessor edge of an empty block one at a time, so a `je` whose two arms
+   were two empty blocks in front of one join came out of it naming that join twice. The resolve IR
+   admitted a doubled arm on purpose - an arm is an edge, and two arms at one block are two edges -
+   but the lower IR does not: `LowerBlock::addInst` asserts the two targets differ and
+   `validateLowerModule` says "same target block for all branches". Nothing folded it, so the build
+   produced no executable and blamed a `yield` inside `File.entries` for it.
 
    It takes `-inline speed` because that is what splices the whole of `entries` into its caller, and
    a body that *ignores* the `Result` rather than `?`-ing it: with the `?` the two arms are an exit

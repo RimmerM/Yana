@@ -202,8 +202,7 @@ void Resolver::readBindingAttributes(const ast::VarDecl& binding, Local* local, 
         /*
          * A binding that owns nothing has no object to place - a borrow names storage somebody else
          * owns, and a name for a constant names none at all. Saying so beats minting an object so
-         * that the attribute has something to be about, which is the shape the shipping stage's own
-         * "nothing to place" message is in.
+         * that the attribute has something to be about.
          */
         if(!local || !local->object.valid()) {
             context.diagnostics.error(
@@ -370,8 +369,9 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
          * binding of a place borrows it, as `let r = x` and `let h = (*p).h` already did (J146). As
          * a value, `*p` is the call `fn *(it: %a) -> a`, which answers an owned `a`: a copy of the
          * pointee's bytes, refused for a type with a teardown by `readPlace`'s raw-memory rule -
-         * which is why J135's rule, reading the text, refused a line the shipping stage compiles and
-         * runs. `let &` and `let ->` still ask for the value, which is a copy and a move.
+         * which is why J135's rule, reading the text, refused a line `compiler/resolve` (deleted in
+         * J173) compiled and ran. `let &` and `let ->` still ask for the value, which is a copy and
+         * a move.
          */
         auto pointerRead = !writable && !sunk ? pointeeExpr(*initializer) : nullptr;
         auto pointee = pointerRead ? resolvePlace(builder, *pointerRead, true, access) : nullptr;
@@ -691,8 +691,8 @@ NamedCall Resolver::iteratorCallee(Builder& builder, ast::Expr& expression,
  * continuation, and a `for` is the only thing that supplies an iterator's. Answering one here gave
  * every lens call form an iterator too - `let x = upTo(3)` ran the rest of its block once per element
  * under a region marked `Once`, and so did a bare call, an `in` body and a call hoisted out of an
- * argument - where the shipping stage refuses all of them. Declined, each of those reaches the
- * ordinary call path, and `checkCallable` refuses it there with that stage's message.
+ * argument - where the language refuses all of them. Declined, each of those reaches the ordinary
+ * call path, and `checkCallable` refuses it there.
  */
 NamedCall Resolver::lensCallee(ast::Expr& expression) {
     auto callee = namedCallee(expression);
@@ -1417,9 +1417,10 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& 
      * The arguments, in the caller's scope and in the caller's block, before the region is opened.
      *
      * `resolveArguments` is the one shared with every other call, which is Analysis-Lens.md §12.1's
-     * sixth item asked for by name: the shipping stage has two argument loops, and rules added to
-     * one of them went missing from the other twice. It walks the *written* arguments, so the
-     * continuation parameter the desugaring appended is simply past the end of the list it reads.
+     * sixth item asked for by name: `compiler/resolve` (deleted in J173) had two argument loops,
+     * and rules added to one of them went missing from the other twice. It walks the *written*
+     * arguments, so the continuation parameter the desugaring appended is simply past the end of
+     * the list it reads.
      */
     SmallArray<Node*, 8> arguments;
     TypeArguments typeArguments(*this, callee.gen);
@@ -3505,8 +3506,9 @@ void Resolver::resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr
  * to" ("Binding conventions") covers a field as it covers a binding. So `store.held = value` is a
  * write through a shared loan and is refused. What *re-points* a loan field is assigning its record,
  * which releases the old loan with the old value, and a record update is how one field of it is
- * spelled: `store = {store | held: value}` (`resolveUpdate`). The shipping stage read the
- * field assignment as re-pointing and admitted it; the first sentence below says which it is.
+ * spelled: `store = {store | held: value}` (`resolveUpdate`). `compiler/resolve`, deleted in J173,
+ * read the field assignment as re-pointing and admitted it; the first sentence below says which it
+ * is.
  *
  * Found by walking up from the target to the first projection whose own occurrence is a shared
  * loan under a parent that may be written: that is the one step where writability was lost, and
@@ -4263,8 +4265,8 @@ void Resolver::resolveProgramEntry() {
      * program is something the root imported, and a `main` in one of those is an ordinary function
      * of that name.
      */
-    // The spelling is `intrinsic/role.h`'s, because the shipping stage looks up the same name and
-    // the two have to move together - see `kEntryPointName`, where that argument is written.
+    // The spelling is `intrinsic/role.h`'s, because every reader of it has to move together - see
+    // `kEntryPointName`, where that argument is written.
     auto name = context.addUnqualifiedName(intrinsic::kEntryPointName);
 
     /*
@@ -4276,7 +4278,7 @@ void Resolver::resolveProgramEntry() {
      * function entered with whatever the loader left in the argument registers (a boot protocol's
      * magic and info pointer, say), and both native backends keep its signature as written for
      * exactly that. Looking for arity zero there refused the one shape such an entry has, with a
-     * sentence claiming there was no `main` at all. The shipping stage never asked the arity.
+     * sentence claiming there was no `main` at all.
      */
     auto bare = context.settings.platform == TargetPlatform::Native &&
                 context.settings.target == TargetType::Bare;
@@ -4287,8 +4289,8 @@ void Resolver::resolveProgramEntry() {
      * On a bare target, every `main` the root declares, whatever its arity - and more than one is
      * refused (J91). `functionNamed` answers *one* declaration of the name, which was the exported
      * one or else whichever registered first, so `main(magic)` beside `main(magic, info)` built with
-     * whichever came first in the file as the entry. The shipping stage calls that a duplicate, and
-     * so does this: an entry is what the loader jumps to, and there is no call site to select at.
+     * whichever came first in the file as the entry. This calls that a duplicate: an entry is what
+     * the loader jumps to, and there is no call site to select at.
      */
     auto found = program.findFunction(program.root(), name, 0);
     if(bare) {

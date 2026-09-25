@@ -264,9 +264,10 @@ bool Resolver::checkReplacementSignature(Function& baseline, Function& replaceme
 /*
  * Every replacement, attached to its baseline and ordered - §3.1, §3.2 and §3.5.
  *
- * After every signature is in, deferred headers included, because what is checked is signatures. The
- * replacements of one baseline are gathered in declaration order, checked one by one, and then
- * ordered together by `orderReplacements`, which is shared with the shipping stage.
+ * After every signature is in, deferred headers included, because what is checked is signatures.
+ * The replacements of one baseline are gathered in declaration order, checked one by one, and then
+ * ordered together by `orderReplacements`, which `compiler/compiler/replace.h` states outside the
+ * resolver.
  */
 void Resolver::linkReplacements() {
     struct Linked {

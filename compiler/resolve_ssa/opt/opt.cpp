@@ -24,8 +24,8 @@ namespace {
  * away, a block goes away - so the loop terminates on its own; the cap is what turns a future pass
  * that oscillates into a slow compile rather than a hang.
  *
- * Four, where the shipping stage's is eight. `simplify` and `cleanCfg` each collapse a fixed point
- * that driver spends rounds on - one worklist over uses and one over blocks - so the rounds here
+ * Four, where the shipping stage's was eight. `simplify` and `cleanCfg` each collapse a fixed point
+ * that driver spent rounds on - one worklist over uses and one over blocks - so the rounds here
  * exist for the passes that genuinely see a different body than the round before. Raise it if a
  * fixture is *measured* to need it.
  */
@@ -45,9 +45,9 @@ constexpr Size kMaxRounds = 4;
  * The verifier reports each rule it found broken and says nothing about who broke it, so the line
  * this adds is the attribution: the function, and what had just run over it.
  *
- * Confined to assertion builds by the same switch `assertTrue` and the shipping stage's `verifyIr`
- * use, because this is one full walk of a body per pass per round. Declared in `pass.h` rather than
- * kept here, because the inliner rewrites a body outside the loop below and owes the same line.
+ * Confined to assertion builds by the same switch `assertTrue` uses, because this is one full walk
+ * of a body per pass per round. Declared in `pass.h` rather than kept here, because the inliner
+ * rewrites a body outside the loop below and owes the same line.
  */
 #if defined(_DEBUG) || defined(DEBUG)
 
@@ -253,10 +253,10 @@ bool optimizeProgram(Context& context, mir::Program& program, Converted& convert
     OptContext opt { context, program, converted, *program.decl, *converted.arena };
 
     /*
-     * The one pass above the `-no-ir-opt` gate, and the shipping stage's reason for putting it there
-     * is the whole of why it is here too: `-no-checks` has to stay **free** rather than cheap, and
-     * the two settings are independent. An ordinary pass would leave a build with the optimizer off
-     * computing a length, a comparison and a branch at every subscript and then keeping all three.
+     * The one pass above the `-no-ir-opt` gate, because `-no-checks` has to stay **free** rather
+     * than cheap, and the two settings are independent. An ordinary pass would leave a build with
+     * the optimizer off computing a length, a comparison and a branch at every subscript and then
+     * keeping all three.
      *
      * What it removes is not a check this stage inserted - it inserts none - but the library's own,
      * which `lib/Core/Array.yana`'s `Index` instance writes and `@inline(always)` grafts into

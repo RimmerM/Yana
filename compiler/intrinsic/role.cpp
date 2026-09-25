@@ -43,16 +43,6 @@ const ProvidedDef providedTable[Size(Provided::Count)] = {
 #undef YANA_PROVIDED_ROLE
 };
 
-StringView roleKindName(RoleKind kind) {
-    switch(kind) {
-        case RoleKind::Known:    return "a declaration the compiler references"_v;
-        case RoleKind::Op:       return "an operation the compiler implements"_v;
-        case RoleKind::Supplied: return "a global the compiler fills"_v;
-    }
-
-    return "?"_v;
-}
-
 StringView entityName(Entity entity) {
     switch(entity) {
         case Entity::Class:       return "a class"_v;
@@ -103,15 +93,6 @@ Maybe<RoleRef> findRole(StringView name) {
     return found;
 }
 
-StringView roleName(RoleRef role) {
-    StringView found = "?"_v;
-    eachRole([&](RoleRef candidate, StringView text) {
-        if(candidate == role) found = text;
-    });
-
-    return found;
-}
-
 /*
  * A builder's bytes, owned.
  *
@@ -135,17 +116,6 @@ Tritium::String roleList() {
         first = false;
         list.append(text);
     });
-
-    return owned(list);
-}
-
-Tritium::String suppliedRoleList() {
-    Tritium::StringBuilder list;
-
-    for(Size i = 0; i < kBuiltinCount; i++) {
-        if(i) list.append(", ", 2);
-        list.append(builtinTable[i].role);
-    }
 
     return owned(list);
 }

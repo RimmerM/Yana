@@ -1401,9 +1401,10 @@ static bool erasableCall(Context& context, Program& program, Function& function,
      *
      * So `(I32) -> r` inside an erased body is refused and the call site specializes instead, which
      * is always available - `run(tried, 5)` compiles, it is just compiled per result type. That is
-     * exactly the line the old stage draws (`genericBodyLowerable` declines "a call through a
-     * function value at a generic signature"), and lifting it needs the callback ABI to state a
-     * result convention that both ends can read off the *value* rather than off its type.
+     * exactly the line `compiler/resolve` drew before J173 deleted it (`genericBodyLowerable`
+     * declined "a call through a function value at a generic signature"), and lifting it needs the
+     * callback ABI to state a result convention that both ends can read off the *value* rather than
+     * off its type.
      */
     if(request.callsValue) {
         // A lens call never reaches here - a lens is reached by name, and `lensCallee` is what says
@@ -1442,7 +1443,7 @@ static bool erasableCall(Context& context, Program& program, Function& function,
 
         if(report) {
             context.diagnostics.error(
-                "the ownership resolver does not implement a generic body compiled once calling a %@ yet - the value's own signature says how its result is handed back, and this one is not decided here"_v,
+                "the compiler does not implement a generic body compiled once calling a %@ yet - the value's own signature says how its result is handed back, and this one is not decided here"_v,
                 node.source, typeText(context, decl, signature));
         }
 
@@ -1480,7 +1481,7 @@ static bool erasableCall(Context& context, Program& program, Function& function,
 
         if(report) {
             context.diagnostics.error(
-                "the ownership resolver does not implement a generic body compiled once calling %@ at its own type parameters yet"_v,
+                "the compiler does not implement a generic body compiled once calling %@ at its own type parameters yet"_v,
                 node.source, context.findName(callee.name));
         }
 
@@ -1661,7 +1662,7 @@ static bool selectedMember(DeclBase base, Program& program, DeclPtr<Function> po
  * erased generic outright, because a copy of one would read a slot of an environment the copy cannot
  * bring with it. `test/resolve/WideCall.yana` is the shape: `wide` binds two variables, uses neither
  * for anything but passing, is called twice at `[Bool, {}]` and nowhere else, and cost the caller a
- * thirty-four argument call the shipping stage folds to a constant.
+ * thirty-four argument call where the specialized body folds to a constant.
  *
  * Four things are `many` rather than a list, and each is a way a body is reached that names no
  * arguments here:

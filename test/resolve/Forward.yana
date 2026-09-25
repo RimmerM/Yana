@@ -2,10 +2,10 @@
    Cross-block place forwarding: a field read in one block answered by the write in another.
 
    What every function here is really asserting is a *disappearance*. The reads go away in
-   opt_promote.cpp and then the record goes away in opt_scalar.cpp, so what `.opt.expect` should show
-   is an `alloc` that is not there and arithmetic over values that were never in storage - and
-   `.js.expect` beside it is where that is easiest to read, since a record on that target is an object
-   literal and its absence is unmistakable.
+   `promote.cpp` and then the record goes away in `memory.cpp`'s `scalarizeLocals`, so what
+   `.ssa.opt.expect` should show is an `alloc` that is not there and arithmetic over values that
+   were never in storage - and `.jsir.js.expect` beside it is where that is easiest to read, since a
+   record on that target is an object literal and its absence is unmistakable.
 
    The numbers are asserted on both targets and against the unoptimized build because the ways this
    goes wrong are ways that change one: a phi taking its alternative from the wrong edge, a read

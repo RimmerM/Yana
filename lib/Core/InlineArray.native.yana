@@ -1,0 +1,119 @@
+import Native
+
+{-
+   `@inline(n) @capacity(n) [T]` - Implementation-Containers.md §7.1's row that never spills, and
+   `known.def`'s `inlineArray` (J143).
+
+   The refinement is a **type**: the elements and the count
+   inside whoever holds them, so `data Buffer {items: @inline(4) @capacity(4) [Int], tag: Int}` is
+   sixteen bytes of `Int`s and a four-byte count between the record's own fields, and moving a
+   `Buffer` moves its elements with it. There is no run pointer and no capacity field, because
+   either would point into the record's own bytes and dangle after the first move - the capacity is
+   `n`, and the slots are where the record is.
+
+   What makes it a *refinement* rather than a second container is that everything a `[T]` does
+   reaches it through the functions already written for one:
+
+   - a `[T]` window position (`length`, `total(xs)`, `double(xs)`, `values`, `valuesMut`) adapts it
+     through `Contiguous` and `Writable` below, which build the window out of the record's address
+     at the use, exactly as the `[a *n]` instances do;
+   - an owner position - `push(&self: Array(a), ...)` - gets a **descriptor** over the same slots
+     (`growableOver`), whose `runFixed` run refuses to grow, and has the count written back
+     (`commitGrowable`) when the call returns;
+   - its teardown releases the live prefix and nothing else.
+
+   **`slots` is storage, not a value.** Only the first `length` slots hold anything, so the compiler
+   never walks the field (`RecordField::storage`) and a literal writes only the elements it has. An
+   `InlineArray` of an element with nothing to run owes nothing and copies as its bytes; one of an
+   element with a teardown owes the `Reclaim` below.
+
+   Native only: on JavaScript a host array grows on its own and the refinement reads as the `[T]` it
+   bounds. (It was an `.ownership` file until J173, because `compiler/resolve` had its own layout for
+   the refinement and generated the glue this file writes.)
+-}
+@builtin(inlineArray)
+data InlineArray(a, n: Int) {slots: [a *n], length: Count}
+
+instance (n: Int) Length(InlineArray(a, n)):
+    @inline(always) fn length(self: InlineArray(a, n)) -> Size = self.length :: Size
+
+-- The window over the live prefix, built from the record's own address at the use - the same body
+-- `Contiguous([a *n], a)` writes, with the stored count where that one has `n`.
+instance (n: Int) Contiguous(InlineArray(a, n), a):
+    fn elements(self: source'InlineArray(a, n)) -> source'[a] =
+        ArrayView {items: bitcast(addressOf(self.slots)) :: %a, length: self.length :: Size}
+
+instance (n: Int) Writable(InlineArray(a, n), a):
+    fn elementsMut(&self: source'InlineArray(a, n)) -> &source'[a] =
+        ArrayView {items: bitcast(addressOf(self.slots)) :: %a, length: self.length :: Size}
+
+instance (n: Int) Chunked(InlineArray(a, n), a):
+    iter fn chunks(self: 'InlineArray(a, n)) -> '[a]:
+        yield elements(self)
+
+-- `xs[i]`, through the window - so the bound is the one `Index(Array(a))` tests, against the count.
+instance (n: Int) Index(InlineArray(a, n), Size, a):
+    @inline(always) fn get(self: source'InlineArray(a, n), index: Size) -> source'a:
+        let view = elements(self)
+        if (bitcast(index) :: USize) >= (bitcast(length(view)) :: USize) then checkFailed()
+        return borrow(values(view) + index)
+
+    @inline(always) fn getMut(&self: source'InlineArray(a, n), index: Size) -> &source'a:
+        let &view = elementsMut(self)
+        if (bitcast(index) :: USize) >= (bitcast(length(view)) :: USize) then checkFailed()
+        return borrowMut(valuesMut(view) + index)
+
+-- `==` as `[a]` has it, over the live prefixes (J146) - without it `xs == ys` over two refined
+-- arrays compiled on JavaScript, where the refinement is the plain `[T]`, and was refused here.
+-- `Copy` is not written: a copy needs the slots made without their elements, which only the
+-- compiler's literal can say, and one of an element that owes nothing is its bytes already.
+instance (n: Int, Eq(a)) Eq(InlineArray(a, n)):
+    fn ==(self: InlineArray(a, n), other: InlineArray(a, n)) -> Bool =
+        self.length == other.length && itemsEqual(elements(self), elements(other))
+
+{-
+   The teardown: the live prefix, released in place - `Reclaim([a])`'s walk without the run.
+
+   Only where the element owes something: the classifier drops this instance for an element with
+   nothing to run (`own.cpp`), so `InlineArray(Int, 4)` is plain bytes and copies as them.
+-}
+instance (n: Int) Reclaim(InlineArray(a, n)):
+    fn reclaim(->value: InlineArray(a, n)):
+        let base = bitcast(addressOf(value.slots)) :: %a
+        let count = value.length :: Int
+        for i in 0 .. count:
+            let ->doomed = *(base + i)
+
+{-
+   The owner adaptation's two halves - `known.def`'s `inlineGrowable` and `inlineCommit`.
+
+   `growableOver` is a plain `Array(a)` over the record's slots, `runFixed` so that `resize` refuses
+   rather than relocating storage the descriptor does not own: a `push` past `n` stops the program,
+   which is §7.1's "`@capacity(n)` is enforced, not masked". The compiler reserves the record's loan
+   while the call's other arguments are evaluated, builds the descriptor just before the call, and
+   `commitGrowable` writes the count back through that loan once the call is over - a lens call's or
+   a `for`'s whole block included - and empties the descriptor, whose teardown then walks nothing and
+   releases a `runFixed` run, which is nothing, so the elements stay where they are because they were
+   never the descriptor's (J146; `Resolver::adaptInlineOwner`).
+-}
+@builtin(inlineGrowable)
+fn (a, n: Int) growableOver(&self: InlineArray(a, n)) -> Array(a) =
+    Array {run: Run {items: bitcast(addressOf(self.slots)) :: %a, capacity: truncate(n :: Size) :: Count,
+                     ownsHeap: runFixed},
+           length: self.length}
+
+@builtin(inlineCommit)
+fn (a, n: Int) commitGrowable(&self: InlineArray(a, n), &grown: Array(a)):
+    -- A callee that replaced its `&xs: Array(a)` - `xs = [7, 8, 9]`, `swap(xs, ys)` - left a
+    -- descriptor that is not over these slots, and nothing here can tell which: after an assignment
+    -- the old elements were released and the new ones are on the heap, and after a swap the slots'
+    -- elements and a `runFixed` run pointing into this record are held by somebody else. Copying the
+    -- first back would be right and the second would dangle, so both stop the program, in the tier
+    -- a push past `n` stops in (J146). One compare per adapted call.
+    if (bitcast(grown.run.items) :: USize) != (bitcast(addressOf(self.slots)) :: USize) then checkFailed()
+
+    -- The count moves back and the descriptor is left empty, so its own teardown - which runs where
+    -- the compiler's temporary dies - walks no elements and releases a `runFixed` run, which is
+    -- nothing. An `Array` cannot be taken apart past its teardown, and this is the same end state.
+    self.length = grown.length
+    grown.length = 0

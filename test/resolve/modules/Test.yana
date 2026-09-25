@@ -8,15 +8,15 @@
    report, no isolation, no filtering - because what a fixture beside this asserts is what the
    *compiler* synthesized, and a runner would put its own behaviour between the two.
 
-   It is written to what **both** resolve stages can compile, since a harness fixture is worth far
-   more compiled by each of them and held to one answer. So: no `Show`, no format holes, no
-   iterators, no `Maybe`. A `while` over an index and arithmetic.
+   It was written to compile under both resolve stages, back when the legacy stage still existed - a
+   harness fixture was worth far more compiled by each of them and held to one answer. That is why
+   it avoids `Show`, format holes, iterators and `Maybe`: a `while` over an index and arithmetic.
 
    `Test` is a sum with an `Ok` because the compiler wraps a `@test` that answers `{}` in one - see
    `wrapUnitTest`, which reads what that constructor carries rather than assuming: the library's own
    `Test` is `Result(Failure, {})` and its `Ok` carries a `{}`, and this one carries nothing. A
    fixture never spells the constructor unless it answers a `Test` outright, which is what keeps the
-   name from colliding with `Result`'s under the shipping stage's `lib/Core`.
+   name from colliding with `Result`'s under `lib/Core`.
 -}
 module Test
 

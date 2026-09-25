@@ -1,11 +1,11 @@
 # `resolve_ssa/lower` - what a value is in bytes, and the walk down to the shared lower IR
 
-The native half of the back end of the rewrite. Everything in the parent directory is the SSA
+The native half of the resolve stage's back end. Everything in the parent directory is the SSA
 representation and the transformations over it - a statement about the program rather than about a
-machine. Everything here is a statement about **one** machine: `repr.cpp` answers what a logical type
-is in addressable storage, `manifest.cpp` reads a contract on top of that to say how a value of it is
-carried, and `gen.cpp` and its five companions turn a verified `ssa::Function` into the `LowerModule`
-both resolve stages hand to the backends.
+machine. Everything here is a statement about **one** machine: `repr.cpp` answers what a logical
+type is in addressable storage, `manifest.cpp` reads a contract on top of that to say how a value of
+it is carried, and `gen.cpp` and its five companions turn a verified `ssa::Function` into the
+`LowerModule` the native backends read.
 
 The directory is the boundary rather than a naming convention. [`Analysis-IR-JS.md`
 ](../../../doc/inflight/Analysis-IR-JS.md)'s JSIR lowering is built against the same SSA and answers
@@ -47,7 +47,7 @@ the conversion decided about an entry block argument, and that is the fact any a
   parameter's *pointee* has no root in the callee, so the length a bounds test compares against is a
   load inside every loop and nothing below can hoist it. `Array(a)` under `AccessForm::View` is the
   one borrowed form whose value is a record of its own - every other shared borrow of a record
-  manifests as a pointer to the caller's storage (`isReferenceValue` against `isAddressOnly`, below)
+  manifests as a pointer to the caller's storage (`isReferenceValue` against `inMemory`, below)
   and already arrives in one register - so it is the one the split applies to. Since J37 the callee's
   entry usually puts nothing back at all: where the body reads the record one leaf at a time, the
   leaf reads *are* the new parameters, and the frame slot `promote` and `removeDeadStorage` used to
@@ -118,12 +118,13 @@ may be sparse, may be negative and may not fit in thirty-two bits.
 
 An **enum-layout** record - several arms, none carrying anything - is that tag and nothing else, so
 `manifestNative` gives it a register form rather than an address. It is the one refinement no kind
-can make and it is a *decision* rather than an observation, on the old stage's `isDirectType` terms:
-resolve states it and the calling convention is bound by it. Nothing about matching changes, because
-reading the tag is still a projection through the record's own storage and every local has some.
-`Manifestation::isSigned` exists for the same row: whether a load of those bytes sign-extends is a
-question about `@value(n)` rather than about `Type::Record`, and three sites used to derive it from
-the logical type and would all have answered `false` for an enum counting up from below zero.
+can make and it is a *decision* rather than an observation, on the terms `compiler/resolve`'s
+`isDirectType` set (the stage deleted in J173): resolve states it and the calling convention is
+bound by it. Nothing about matching changes, because reading the tag is still a projection through
+the record's own storage and every local has some. `Manifestation::isSigned` exists for the same
+row: whether a load of those bytes sign-extends is a question about `@value(n)` rather than about
+`Type::Record`, and three sites used to derive it from the logical type and would all have answered
+`false` for an enum counting up from below zero.
 
 A sum's **derived teardown is a call**, to the per-type function `teardownHalves` builds. `emitTeardown`
 is a walk with no control flow - it emits into a block its caller is in the middle of - and which arm
@@ -150,11 +151,11 @@ answer, asked once - a load of an in-memory type is the address itself, and a co
 
 ### `inMemory` and "is an address" are two questions
 
-`isAddressOnly` asks whether the value's own bytes live at the address it carries; `isReferenceValue`
-asks whether the value *is* an address. An owned record answers yes to both. A **loan** answers yes
-to the second and no to the first, and one flag answering both is a real defect this cost: a record
-field holding a shared loan of a four-byte `Cell` was installed by block-copying the lender's object
-into a pointer-sized slot.
+`Manifestation::inMemory` says whether the value's own bytes live at the address it carries;
+`isReferenceValue` asks whether the value *is* an address. An owned record answers yes to both. A
+**loan** answers yes to the second and no to the first, and one flag answering both is a real defect
+this cost: a record field holding a shared loan of a four-byte `Cell` was installed by
+block-copying the lender's object into a pointer-sized slot.
 
 A loan manifests as a pointer when the source published it - exclusive access, whose whole contract
 is writing through to the same storage, or an external-origin qualifier, which "must now retain an
@@ -173,20 +174,21 @@ translation.
 
 ## A layout table, and the four things it does that a walk does not
 
-`repr.cpp` is the native answer to `repr(logical type, target)`, and it is a **family** rather than a
-parameterized walk. The shipping compiler computes both targets' layouts from one `Repr` with a
-`ReprTarget` of numbers and flags, and the strain shows in its own struct: `NicheKind::Absent` marks
-a niche whose offset, width and range all mean nothing, and a JS `ReprTarget` carries `pointerSize =
-8` for a machine with no addresses. Those are two readings of one struct. So the answer here is per
-*value model*: every number in `Repr` is a statement about addressable storage, and a host target
-whose values are host values answers with `JsRep` (Analysis-IR-JS.md §3.2) instead - a different
-type, not this one with different numbers.
+`repr.cpp` is the native answer to `repr(logical type, target)`, and it is a **family** rather than
+a parameterized walk. `compiler/repr` - the layout table of `compiler/resolve`, the stage deleted in
+J173 - computed both targets' layouts from one `Repr` with a `ReprTarget` of numbers and flags, and
+the strain showed in its own struct: `NicheKind::Absent` marked a niche whose offset, width and
+range all meant nothing, and a JS `ReprTarget` carried `pointerSize = 8` for a machine with no
+addresses. Those were two readings of one struct. So the answer here is per *value model*: every
+number in `Repr` is a statement about addressable storage, and a host target whose values are host
+values answers with `JsRep` (Analysis-IR-JS.md §3.2) instead - a different type, not this one with
+different numbers.
 
-What is deliberately **not** per family is the key (a whole `mir::Occurrence`, on every target), what
-the language decides (`RecordType::pin`, `RecordType::layout`, the view table, the containment cut -
-all on the logical type in `resolve_mir`), and the cost model. That last one is the trap this avoids
-by name: the shipping compiler's `TargetFamily` lives *inside* `ReprTarget`, and its four readers are
-`opt_inline`, `opt_closure`, `opt_scalar` and `opt_discharge` - none of them a layout question.
+What is deliberately **not** per family is the key (a whole `mir::Occurrence`, on every target),
+what the language decides (`RecordType::pin`, `RecordType::layout`, the view table, the containment
+cut - all on the logical type in `resolve_mir`), and the cost model. That last one is the trap this
+avoids by name: that compiler's `TargetFamily` lived *inside* `ReprTarget`, and its four readers
+were `opt_inline`, `opt_closure`, `opt_scalar` and `opt_discharge` - none of them a layout question.
 `NativeTarget` has no such field.
 
 Four switches on `NativeTarget` change a layout rather than a number inside one. They are switches
@@ -199,21 +201,20 @@ because each is a claim the access path has to be able to serve, and the pairing
 | `foldNiches` | a sum's tag is a pattern its payload cannot produce - `foldNiche` | `decodeFolded` / `encodeFolded` |
 | `bitTagSums` | a sum's tag is bits above its payload - `scalarizeSum` | the first pair again, on the tag |
 
-The last one is a smaller feature here than it is in the shipping compiler and a bigger one in a
-different direction. There a tag word is four bytes, so putting the tag above the payload's whole
-*storage* is a large win and the payload keeps its own layout; here a tag word is already one byte,
+The last one is a smaller feature here than it was in `compiler/resolve` and a bigger one in a
+different direction. There a tag word was four bytes, so putting the tag above the payload's whole
+*storage* was a large win and the payload kept its own layout; here a tag word is already one byte,
 so that version never pays - `alignTo(1, payloadAlign) + payloadBytes` is never worse than the next
 power of two above `payloadBytes * 8 + 1`. What pays instead is putting the tag above the bits the
 arms actually **spend**, which needs every arm to be co-packed - and then the whole sum is a scalar,
 so it co-packs into a parent, folds into a `Maybe` and is borrowed as a bit range like any other
-narrow value. `data Pick = Left(Bool) | Right(Rank)` is one byte where the shipping stage's is two,
-and a record of two of them is one byte where the shipping stage's is four. `BitTag.yana` carries
-both dumps.
+narrow value. `data Pick = Left(Bool) | Right(Rank)` is one byte where `compiler/resolve`'s was two,
+and a record of two of them is one byte where that stage's was four. `BitTag.yana` carries the dump.
 
 The niche **search** runs whichever way the last is set, because a niche is a fact about a type and
 folding is a decision about a sum. That is what let the search be reviewed and asserted -
-`Repr.yana`'s `.repr.expect` against its `.mir.repr.expect` - before the lowering that spends it
-existed.
+`Repr.yana`'s `.mir.repr.expect`, diffed against the deleted stage's `.repr.expect` until J173 -
+before the lowering that spends it existed.
 
 ### A component with no address
 
@@ -258,23 +259,24 @@ may sit at bit six of an `int`; a `&` of one is refused, which is what C does ab
 bit-field too. `@layout(packed)` direct accesses are separate: its fields form one contiguous
 bitstream and may cross these boundaries, using exact byte accesses where no single word fits.
 
-**Design.md's tier 1 is still here, for the one boundary a shift cannot cross.** A body compiled once
-reaches a value of a type parameter through a plain address and sizes it out of a descriptor, so a
-narrow reference handed to one is copied into storage of its own and copied back when the call
+**Design.md's tier 1 is still here, for the one boundary a shift cannot cross.** A body compiled
+once reaches a value of a type parameter through a plain address and sizes it out of a descriptor,
+so a narrow reference handed to one is copied into storage of its own and copied back when the call
 returns - `materializeNarrow` and `commitPackedBorrow`, at the call argument rather than at the
-borrow, because that is where the position's declared type is. It is also the parameter declared
-at the *unrefined* type - `&x: U32` lent a `@bits(4) U32` field - where the callee works on a
+borrow, because that is where the position's declared type is. It is also the parameter declared at
+the *unrefined* type - `&x: U32` lent a `@bits(4) U32` field - where the callee works on a
 full-width temporary; since J149 that temporary is sized at `mir::canonicalInt` (the refined-from
 type) rather than at the refinement, which let a four-byte callee write three bytes past a one-byte
-slot. A call with no declaration to read
-(one through a function value) would be flattened on the same terms, which is conservative in the one
-direction that is safe: a temporary is a real address at shift zero, and a callee expecting either
-form reads it correctly. **No source program reaches that path today** (J162): the resolver refuses a
-`@bits(n)` field lent to a `&` position of a function value's type - `f(h.version)` over
-`f: (&U32) -> U32` - with `coerce`'s sentence (`Reject.PackedBorrow.yana`), where the shipping stage
-accepts it. Lending it there was tried: unoptimized it agreed on both targets, and optimized a
-lambda's call answered garbage natively and the JSIR conversion refused the inlined write. The word is re-read at the write-back, which is what stops two co-packed
-fields flattened across one call from losing an update.
+slot. A call with no declaration to read (one through a function value) would be flattened on the
+same terms, which is conservative in the one direction that is safe: a temporary is a real address
+at shift zero, and a callee expecting either form reads it correctly. **No source program reaches
+that path today** (J162): the resolver refuses a `@bits(n)` field lent to a `&` position of a
+function value's type - `f(h.version)` over `f: (&U32) -> U32` - with `coerce`'s sentence
+(`Reject.PackedBorrow.yana`), where `compiler/resolve` (deleted in J173) accepted it. Lending it
+there was tried: unoptimized it agreed on both targets, and optimized a lambda's call answered
+garbage natively and the JSIR conversion refused the inlined write. The word is re-read at the
+write-back, which is what stops two co-packed fields flattened across one call from losing an
+update.
 
 **Fresh storage is zeroed where a word has spare bits.** A packed word is filled by read-modify-
 writes that preserve everything outside the field, so the bits above the run are whatever the storage
@@ -316,9 +318,9 @@ instead of inlining forever.
 
 **Expanding is what makes one frame walk one level.** `Maybe(Tree)`'s teardown used to call
 `box(Tree)`, which called `teardown(Maybe(Tree))` twice, so a thirteen-deep tree stood twenty-six
-frames deep where the shipping stage's `reclaim$Tree` stands thirteen. Expanded, the sum's teardown
-frees the node and calls its two children's - which is a call to the function already being built, so
-`data List = Nil | Cons {tail: List}` still terminates on the memo it always did.
+frames deep where `compiler/resolve`'s `reclaim$Tree` stood thirteen. Expanded, the sum's teardown
+frees the node and calls its two children's - which is a call to the function already being built,
+so `data List = Nil | Cons {tail: List}` still terminates on the memo it always did.
 
 ### Who knows where the storage came from
 
@@ -374,7 +376,7 @@ every program that links one.
 
 That word is what `Maybe(Tree)` was paying twelve bytes a node for. A pointer with a provenance byte
 behind it is nine bytes at an alignment of eight, so the record's *stride* doubles and a `Tree` node
-is thirty-two bytes where the shipping stage's is twenty - the niche fold was never the thing that
+is thirty-two bytes where `compiler/resolve`'s was twenty - the niche fold was never the thing that
 was missing.
 
 ## Lowering is eight files
@@ -401,8 +403,8 @@ cell joins them, and the join stores them into one slot of its own - the paramet
 entry already had. It was a `Ptr` phi over one slot per predecessor, which no slot pass can take
 apart, and after an inlined `?` that was the whole of the join.
 
-Behind both of them is `lower/lower_pipeline.h`, the run of shared lower passes both resolve stages
-owe their output. This stage called one member of it - `makeDivisionTotal` - until phase 1 of
+Behind both of them is `lower/lower_pipeline.h`, the run of lower passes every producer of the lower
+IR owes its output. This stage called one member of it - `makeDivisionTotal` - until phase 1 of
 [`../opt/README.md`](../opt/README.md).
 
 **And it runs over the functions this stage *writes*, which is a tail pass rather than a call beside
@@ -439,14 +441,14 @@ interval, a shifted immediate where it is not, `selector * stride + bias` where 
 line, the fields of one packed word where they are small, and a run of slots in read-only data
 otherwise.
 
-**The algebra is here and not in a backend**, which is the whole reason the node reaches this tier at
-all: which shape a mapping *is* is a fact about the numbers, so x64 and LLVM asking separately is two
-answers to one question. What is left below is a global and an indexed read, which both backends
-already emit. `resolve/expr_map.cpp` is the shipping stage's version of the same six, and this is
-that reasoning ported minus its memory arm - and minus its size rule, which it has to state because
-its recognizer promises an emission before it knows what it will emit.
+**The algebra is here and not in a backend**, which is the whole reason the node reaches this tier
+at all: which shape a mapping *is* is a fact about the numbers, so x64 and LLVM asking separately is
+two answers to one question. What is left below is a global and an indexed read, which both backends
+already emit. `compiler/resolve`'s `expr_map.cpp` (deleted in J173) answered the same six, and this
+is that reasoning ported minus its memory arm - and minus its size rule, which it had to state
+because its recognizer promised an emission before it knew what it would emit.
 
-Three things about it are not the shipping file's. A **memory-typed** result stops at the slot's
+Three things about it were not that file's. A **memory-typed** result stops at the slot's
 address rather than loading it, because that is what a value of one *is* - the consumer copies from
 it exactly as it copies from a placed constant, so a `String` table costs the two words the consumer
 was going to copy anyway. An **open** domain - an integer pivot with a wildcard arm - is served
@@ -467,13 +469,13 @@ environment is.
 scalars and never a `String`, which is the whole of the measurement `known.def`'s row records.
 
 **Here rather than in the resolver**, and that is the one decision the feature turns on. Every rule
-that reads a check - `dischargeChecks`, the bounds fold, `clobbers` - was written against a call with
-no arguments; emitting the located form up in MIR makes each of them a second pattern to recognize,
-which is what the shipping stage's `isCheckCall` exists to paper over. Emitted after all of them, the
-optimizer only ever sees one shape. The two costs of that are stated where they are paid: the two
-roles are rooted by both reachability walks (nothing in any body names them), and
-`worthInlining` declines to expand them under the switch, because a call the lowering never sees is a
-check with no location left to give.
+that reads a check - `dischargeChecks`, the bounds fold, `clobbers` - was written against a call
+with no arguments; emitting the located form up in MIR makes each of them a second pattern to
+recognize, which is what `compiler/resolve`'s `isCheckCall` existed to paper over. Emitted after all
+of them, the optimizer only ever sees one shape. The two costs of that are stated where they are
+paid: the two roles are rooted by both reachability walks (nothing in any body names them), and
+`worthInlining` declines to expand them under the switch, because a call the lowering never sees is
+a check with no location left to give.
 
 The **location** is `Conversion::graftCall`'s, not the call's own. `Index.get` writes its own bounds
 test and `@inline(always)` grafts it, so a `checkFailed` inside it carries `lib/Core/Array.yana`'s
@@ -536,15 +538,15 @@ byte at offset 0 shifted right by 53 (`test/resolve/ownership/PropertyWholePacke
 It is also not a fold: the mask on a value already known to be in range is removed by the builders'
 own constant folding and by the backends, not by a test here.
 
-**`bitcast` needs the normal form re-established and `op.def` cannot say so**, which is the one place
-the width column and this tier's question come apart. The column asks whether the arithmetic can
-leave the type's range, and a bitcast's result is the same bits under a type of the same width - so
-`Closed` is right there. What changes is which extension the register is *required* to carry, and a
-bitcast between the two readings of one narrow width is exactly where that flips. `inst.cpp`'s unary
-arm therefore puts a bitcast in range beside the column's answer. It was invisible for as long as it
-was because a store discards the register above the byte, so writing the value to a local repaired
-it; `BitcastNarrow.yana` is the fixture, and the shipping stage carries the same correction with the
-wrong answers it produced.
+**`bitcast` needs the normal form re-established and `op.def` cannot say so**, which is the one
+place the width column and this tier's question come apart. The column asks whether the arithmetic
+can leave the type's range, and a bitcast's result is the same bits under a type of the same width -
+so `Closed` is right there. What changes is which extension the register is *required* to carry, and
+a bitcast between the two readings of one narrow width is exactly where that flips. `inst.cpp`'s
+unary arm therefore puts a bitcast in range beside the column's answer. It was invisible for as long
+as it was because a store discards the register above the byte, so writing the value to a local
+repaired it; `BitcastNarrow.yana` is the fixture, and `compiler/resolve` carried the same correction
+with the wrong answers it produced.
 
 **A conversion to the type it already has is emitted as nothing**, which is the same unary arm and is
 a rule about the *machine* rather than about widths. `foldFunctionConstants` removes the shape and
@@ -702,7 +704,7 @@ Four functions, all in `fun.cpp`:
 > block to skip the header again, all for a fact that is constant per *lambda*. `known.def`'s
 > `isHeapAddress` was the alternative ruled out before either, because the default allocator does not
 > fill that role. What the tag did get right is that a drop finding nothing to do should not make a
-> call, which the shipping stage's always-callable header slot does; the zero cell keeps that. A
+> call, which `compiler/resolve`'s always-callable header slot did; the zero cell keeps that. A
 > first version of this form also set bit zero of the cell to mark a teardown as present, which
 > needed a relocation addend in both backends and even function offsets; testing for zero needs
 > neither, because no teardown is at the anchor.
@@ -758,10 +760,10 @@ of the record being built or the box that field is. The search recurses, so
 `build` emits fourteen lower instructions where it emitted seventy-one.
 
 The alternative is what was there: `compiler/lower`'s `forwardCopyDestinations` chasing the copies
-afterwards, at **28.2 G instructions on the library suite against the shipping stage's 0.09 G**
-(findings.md §78.6). It is 0.44 G now. That pass also cannot reach the box at all - `allocateHeap` is
-emitted below the writes into the temporary, so the destination does not dominate them and the copy
-has to stay.
+afterwards, at **28.2 G instructions on the library suite against `compiler/resolve`'s 0.09 G**
+(findings.md §78.6). It is 0.44 G now. That pass also cannot reach the box at all - `allocateHeap`
+is emitted below the writes into the temporary, so the destination does not dominate them and the
+copy has to stay.
 
 Four conditions, each of which is one of the reasons a slot would otherwise be right: the value lives
 in memory and its size is a number; it has exactly one use; the use is in the same block as the
@@ -790,12 +792,13 @@ the five slot kinds. Every one of them is one cell except a **count**, which is 
 it counts in needs: `data Buf(n: I64)` is a legal declaration, and a slot narrower than the number it
 carries is one the body reads a neighbour out of.
 
-A cell that holds an **address** holds `target - &image$base` as a signed 32-bit number rather than a
-pointer, which is what keeps it four bytes - `repr/table.h` argues the encoding against the two
-alternatives, and the short version is that absolute cannot serve the JIT and self-relative cannot
-serve an environment built on the frame. It costs one `lea` per body, which is pure and shared across
-every cell it reads; it buys half the bytes and a table whose contents are final when the image is
-assembled, so identical bytes serve an ELF executable and a JIT buffer.
+A cell that holds an **address** holds `target - &image$base` as a signed 32-bit number rather than
+a pointer, which is what keeps it four bytes - `compiler/repr`'s `table.h` argued the encoding
+against the two alternatives before J173 deleted it, and the short version is that absolute cannot
+serve the JIT and self-relative cannot serve an environment built on the frame. It costs one `lea`
+per body, which is pure and shared across every cell it reads; it buys half the bytes and a table
+whose contents are final when the image is assembled, so identical bytes serve an ELF executable and
+a JIT buffer.
 
 Every number of that arrangement is in `erase.cpp`, because both ends of every one of them are:
 the caller that fills a table and the body that loads out of one are two functions in that file
@@ -834,10 +837,10 @@ storage, an offset with a bit shift above it answers it for one that does not - 
 of a byte, and every `@bits(n)` the library spells owns fewer than its unit - and only a field whose
 *type* the body cannot see needs the access handed over as a function. Which of the three a slot is
 in is read off the declaration at both ends, never out of the data, which is what keeps a field
-access from being a branch; `isNarrowRepr` in `repr/repr.h` is the old stage's version of the same
-rule for a `&T`. A specialization spends the requirement entirely - `convert.cpp` turns the place
-into a plain `field.addr` at the substituted subject - so a specialized access is the instructions a
-hand-written one compiles to, with no slot in them.
+access from being a branch; `isNarrowRepr` in the deleted `compiler/repr` was the same rule for a
+`&T`. A specialization spends the requirement entirely - `convert.cpp` turns the place into a plain
+`field.addr` at the substituted subject - so a specialized access is the instructions a hand-written
+one compiles to, with no slot in them.
 
 The accessor pair takes the **`simple`** convention, and that is what makes the one case that needs a
 call affordable. `simple` passes in three GPRs and clobbers those plus `rax` and `xmm0-2`, leaving
@@ -848,12 +851,12 @@ call is indirect through a cell and a callee's convention is not something an in
 up - see `codegen/x64/constraint.cpp`, where the tables are.
 
 **Which teardown a descriptor names is decided by how the value was allocated, not by its type
-alone.** A value in a region has had its reclaim half discharged in bulk and must not run it again; a
-boxed one has storage to hand back after its obligations are met; a frame one has neither. So the
-descriptor is interned on the pair and only its second cell differs - the old stage reached the same
-conclusion at `NativeTypeDesc::kTeardown` and called it "a second descriptor" rather than a second
-slot. `Frame` is the only placement anything selects today, and the release a `Heap` one needs is the
-single piece with no allocator behind it.
+alone.** A value in a region has had its reclaim half discharged in bulk and must not run it again;
+a boxed one has storage to hand back after its obligations are met; a frame one has neither. So the
+descriptor is interned on the pair and only its second cell differs - `compiler/resolve` reached the
+same conclusion at `NativeTypeDesc::kTeardown` and called it "a second descriptor" rather than a
+second slot. `Frame` is the only placement anything selects today, and the release a `Heap` one
+needs is the single piece with no allocator behind it.
 
 **The tiers above stay symbolic.** MIR names a requirement and never a number, and so does SSA: an
 `InstCall` carries `mir::CallThrough` and which requirement, an `InstFieldAddress` carries which
@@ -928,7 +931,6 @@ teardown while still emitting the real one - the IR text matched and the answer 
 ## Native only
 
 JavaScript is deliberately not a consumer of `gen.cpp`.
-[`Analysis-IR-JS.md`](../../../doc/inflight/Analysis-IR-JS.md)'s JSIR is built against SSA from the
-start rather than by teaching this walk a second target, which is how the current JS backend acquired
-representation questions of its own. `checkSettings` refuses `-resolver ownership` on a JS build
-rather than quietly producing a program by the other stage.
+[`Analysis-IR-JS.md`](../../../doc/inflight/Analysis-IR-JS.md)'s JSIR, in `../js`, is built against
+SSA from the start rather than by teaching this walk a second target, which is how the old JS
+backend (deleted with `compiler/resolve` in J173) acquired representation questions of its own.

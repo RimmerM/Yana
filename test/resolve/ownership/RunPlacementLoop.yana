@@ -2,13 +2,11 @@
    The two loops the placement rule tells apart - `resolve_ssa/opt/place.cpp`'s `oneAtATime`, and
    `test/bench/findings.md` §91.5, which is where the first of them came from.
 
-   # resolver: ownership
-
-   **Only this stage compiles it**, and that is the fixture rather than an exemption. `carried` below
-   is the program §91.5 records the *shipping* stage miscompiling: it places the literal inside the
-   loop with no liveness rule at all, so `prev` and `cur` end up over one buffer and the answer comes
-   out 104 instead of 74. A shared fixture would have to name one of the two numbers and would then
-   be asserting the bug on one side of it.
+   **Only this stage ever compiled it correctly**, so it is filed under `ownership/` rather than
+   shared. `carried` below is the program §91.5 records the now-deleted shipping stage miscompiling:
+   it placed the literal inside the loop with no liveness rule, so `prev` and `cur` ended up over
+   one buffer and the answer came out 104 instead of 74. A shared fixture would have had to name one
+   of the two numbers and assert the bug on one side of it.
 
    The rule is that no two lifetimes of the bytes may be live at once. `carried` fails it - `prev`'s
    slot is read at the top of an iteration before anything writes it, so the previous iteration's

@@ -1,5 +1,5 @@
--- A constructor map whose results are string literals - compiler/resolve/map.h, and the one
--- non-`TrivialCopy` result the feature serves.
+-- A constructor map whose results are string literals - compiler/resolve_ssa/lower/map.cpp, and
+-- the one non-`TrivialCopy` result the feature serves.
 --
 -- The ownership restriction is what makes every other owning type wait: reading an element of a
 -- static table produces a *value*, and a value with a teardown read out of shared storage is a
@@ -13,9 +13,9 @@
 --  - **On JS** a host string is one value with nothing underneath it, so the table is an array of
 --    them and the read is the value.
 --
--- Both are asserted below by the two emitted forms, which is why this fixture has a `.js.expect` as
--- well as a `.resolve.expect`: the divergence is the point, and a change that made one target build
--- the other's form would still produce the right answer at run time.
+-- Both are asserted below by the two emitted forms, which is why this fixture has a
+-- `.jsir.js.expect` as well as a `.mir.lower.expect`: the divergence is the point, and a change
+-- that made one target build the other's form would still produce the right answer at run time.
 
 data Colour = Red | Green | Blue | Violet | White
 

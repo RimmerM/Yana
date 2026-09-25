@@ -3,12 +3,12 @@
 /*
  * Every operation over a multi-part value - Implementation-Vector.md §7 on this tier's terms.
  *
- * `convertVectorInst` runs **before** the scalar switch rather than as arms inside it, for the
- * shipping backend's reason read one level down: `add` over two vectors and `add` over two integers
- * are one instruction, and what tells them apart is not the kind. There the discriminator is the
- * *type*; here it is the **representation**, which is the stronger form of the same test and the
- * one this tier is allowed to make - so `isVectorType`, `vectorLanes` and `VectorType::isMask`
- * appear nowhere below `repr.cpp`.
+ * `convertVectorInst` runs **before** the scalar switch rather than as arms inside it, for the old
+ * JavaScript backend's reason read one level down: `add` over two vectors and `add` over two
+ * integers are one instruction, and what tells them apart is not the kind. There the discriminator
+ * was the *type*; here it is the **representation**, which is the stronger form of the same test
+ * and the one this tier is allowed to make - so `isVectorType`, `vectorLanes` and
+ * `VectorType::isMask` appear nowhere below `repr.cpp`.
  *
  * Four of the five vector-only opcodes emit **no instruction at all**: a splat is one value named
  * `lanes` times, a lane read is one of the parts, a lane write is the parts with one replaced, and
@@ -21,13 +21,13 @@ namespace jsir {
 /*
  * Every operation over a multi-part value - Implementation-Vector.md §7 on this tier's terms.
  *
- * Asked before the scalar switch rather than as arms inside it, for the shipping backend's reason
- * read one level down: `add` over two vectors and `add` over two integers are one instruction, and
- * what tells them apart is not the kind. There the discriminator is the *type*; here it is the
- * **representation**, which is the stronger form of the same test and the one this tier is allowed
- * to make - a value is multi-part or it is not, and a mask is multi-part for the same reason a
- * vector is. So `isVectorType`, `vectorLanes` and `VectorType::isMask` appear nowhere below the
- * representation table.
+ * Asked before the scalar switch rather than as arms inside it, for the old JavaScript backend's
+ * reason read one level down: `add` over two vectors and `add` over two integers are one
+ * instruction, and what tells them apart is not the kind. There the discriminator was the *type*;
+ * here it is the **representation**, which is the stronger form of the same test and the one this
+ * tier is allowed to make - a value is multi-part or it is not, and a mask is multi-part for the
+ * same reason a vector is. So `isVectorType`, `vectorLanes` and `VectorType::isMask` appear nowhere
+ * below the representation table.
  *
  * Four of the five vector-only opcodes emit **no instruction at all**: a splat is one value named
  * `lanes` times, a lane read is one of the parts, a lane write is the parts with one replaced, and a
@@ -198,7 +198,7 @@ bool Conversion::convertVectorInst(ssa::Inst& inst) {
      *
      * The result's representation decides, except for a **comparison**, whose result is the mask and
      * whose operands are the vectors - which is the one place the question is asked of an operand,
-     * and the same exception the shipping backend's gate makes.
+     * and the same exception the old backend's gate made.
      */
     auto repId = resultParts();
 

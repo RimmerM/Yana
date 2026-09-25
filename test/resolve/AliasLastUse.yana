@@ -16,11 +16,9 @@
    independent reference: it has no clone to elide, so a wrong alias shows as a different number
    under Node and nowhere else.
 
-   # resolver: ownership
-
-   Only because the shipping stage reads `let q = p` of a small trivially copyable record as a
-   borrow rather than a copy, so `writtenAfter` and the last case of `main` see the write that
-   follows and it answers 55 on both targets. `AliasWrite.yana` is the same disagreement.
+   Only because the shipping stage read `let q = p` of a small trivially copyable record as a
+   borrow rather than a copy, so `writtenAfter` and the last case of `main` would have seen the
+   write that follows and answered 55 on both targets. `AliasWrite.yana` was the same disagreement.
 -}
 
 data Rec {weight: F64, count: Int}

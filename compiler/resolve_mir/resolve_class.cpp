@@ -226,9 +226,9 @@ bool Resolver::readClassRequirement(ast::Constraint constraint, DeclPtr<GenConte
      * **The clause and not what it proves** - `satisfiesRequirement` was what this asked, and it
      * walks the superclass closure, so `fn (Index(c, k, v), Num(v), FromInt(v))` was refused for
      * writing a superclass `Num` already implies. Writing one out is redundant and is not a mistake:
-     * it names the class a body calls a member of, the shipping stage accepts it, and
-     * `lib/`'s signatures are written that way. What is left is the literal duplicate that
-     * `generic/Reject.Class.yana` pins - `(Describe(a), Describe(a))`.
+     * it names the class a body calls a member of, and `lib/`'s signatures are written that way.
+     * What is left is the literal duplicate that `generic/Reject.Class.yana` pins -
+     * `(Describe(a), Describe(a))`.
      */
     auto held = requirementArgs(decl(), into);
 
@@ -708,9 +708,10 @@ void Resolver::declareInstance(ast::Decl& declaration) {
              * one would be a second instance for a type that already has one, and which of the two a
              * call selected would depend on how the argument happened to be spelled.
              *
-             * That is a real difference from the shipping stage, where `Flat(a)` is a sibling record
-             * and the two heads are two types - `type.def`'s "no slice sibling" is the decision, and
-             * this is where a library written against the other reading meets it.
+             * That was a real difference from `compiler/resolve` (deleted in J173), where `Flat(a)`
+             * was a sibling record and the two heads were two types - `type.def`'s "no slice
+             * sibling" is the decision, and this is where a library written against the other
+             * reading meets it.
              */
             if(argument.kind == ast::Type::Shared || argument.kind == ast::Type::Borrow) {
                 context.diagnostics.error(

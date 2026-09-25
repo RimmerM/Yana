@@ -171,7 +171,7 @@ struct IndexSet {
 
     IndexSet(IndexSet&& other) { take(other); }
 
-    // Wanted by anything that sorts a structure holding a set - see the loop list in opt_flow.cpp.
+    // Wanted by anything that sorts or moves a structure holding a set.
     IndexSet& operator = (IndexSet&& other) {
         if(this == &other) return *this;
 
@@ -639,18 +639,11 @@ private:
 };
 
 /*
- * The same arrangement for rows that are not sets: a list of arrays that keeps its rows.
- *
- * For the facts that need more than a bit each - the ownership lattice's four states - where the
- * cost being avoided is the same one. `reset` empties each row rather than destroying it, and a
- * Tritium array that has been cleared still holds the storage it grew into.
- */
-/*
  * A list of things that empty rather than free - anything with a `clear()` that keeps its storage.
  *
- * The same purpose as ArrayList for rows that are structs of arrays instead of one array: the
- * per-instruction effects the ownership passes read, where a row destroyed and rebuilt is five
- * allocations and a row emptied is none.
+ * The same purpose as ArrayList below for rows that are structs of arrays instead of one array: the
+ * per-web facts placement keeps, where a row destroyed and rebuilt is several allocations and a row
+ * emptied is none.
  */
 template<class T>
 struct PooledList {
@@ -676,8 +669,8 @@ private:
  * index no function had reached before is a fresh row, and with an ordinary array that is one
  * allocation each. A list indexed by instruction therefore paid one allocation per instruction of
  * the largest function it ever saw. Inline rows make that free for the ordinary width, which for
- * the two lists this holds - the ownership state of each local, the webs one web conflicts with -
- * is a handful of entries.
+ * the lists this holds - the webs one web conflicts with, the members of a class - is a handful of
+ * entries.
  */
 template<class T, U32 N = 8>
 struct ArrayList {
@@ -707,13 +700,6 @@ struct ArrayList {
         else entries[used].clear();
 
         return entries[used++];
-    }
-
-    // Replaces one row's contents without giving up its storage, which is what the two arrays the
-    // ownership walk carries between blocks are assigned through.
-    template<class Source>
-    void copyInto(Size index, const Source& source) {
-        replaceContents((*this)[index], source);
     }
 
     Row& operator [] (Size index) { assertTrue(index < used); return entries[index]; }
@@ -781,15 +767,6 @@ struct EmbedContents {
         Size count = 0;
         for(auto v: *this) {
             if(p(v)) count++;
-        }
-
-        return count;
-    }
-
-    Size countOf(T value) const {
-        Size count = 0;
-        for(auto v: *this) {
-            if(value == v) count++;
         }
 
         return count;

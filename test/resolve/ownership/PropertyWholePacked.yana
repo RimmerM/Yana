@@ -1,8 +1,6 @@
 {-
    A field requirement read and written through a record packed into one word - J92.
 
-   # resolver: ownership
-
    `Box` is fifty-five bits - a forty-one-bit `P` and two `Bool`s - and native placement packs all of
    it into one eight-byte word, so `flag` is bit 53 of the word at offset 0. The property slot used to
    say exactly that, and the body compiled once for `a.flag: Bool` loads what its own type is - one
@@ -10,8 +8,8 @@
    read ever saw and `getFlag` answered `False` whatever the record held. The slot is now split
    against the unit the body loads, which is `borrowNarrow`'s rule: byte 6, bit 5.
 
-   JavaScript and the shipping stage were right throughout; `PackedProperty.yana` never reached this
-   because none of its records is a whole word with the field above bit 7.
+   JavaScript and the old shipping stage were right throughout; `PackedProperty.yana` never reached
+   this because none of its records is a whole word with the field above bit 7.
 -}
 
 data P {a: @bits(20) I32, b: @bits(20) I32, c: Bool}

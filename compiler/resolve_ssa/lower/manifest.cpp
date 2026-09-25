@@ -31,10 +31,6 @@ U32 elementStrideNative(Layout layout, DeclPtr<mir::Type> element) {
     return strideOf(manifestNative(layout, mir::owned(element)));
 }
 
-bool isAddressOnly(Layout layout, const mir::Occurrence& occurrence) {
-    return manifestNative(layout, occurrence).inMemory;
-}
-
 bool isReferenceValue(Layout layout, const mir::Occurrence& occurrence) {
     auto base = layout.base;
     auto contract = occurrence.contract;
@@ -318,12 +314,12 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
              * An **enum-layout** record is its discriminant and nothing else, so it is a register
              * value - `RecordLayout::Enum`, and the one refinement no kind can make.
              *
-             * The same statement the old stage's `isDirectType` makes as "a fact about the instance
-             * rather than about `Record`", and it is a *decision* rather than an observation: the
-             * arms carry nothing, so a value of one has no bytes beyond the tag and reaching it
-             * through storage would be an address where the language has a small integer. Reading
-             * the tag out of one is still a projection through the record's own storage, which every
-             * local has, so `match` needs nothing from this row.
+             * The same statement `compiler/resolve`'s `isDirectType` made as "a fact about the
+             * instance rather than about `Record`", and it is a *decision* rather than an
+             * observation: the arms carry nothing, so a value of one has no bytes beyond the tag
+             * and reaching it through storage would be an address where the language has a small
+             * integer. Reading the tag out of one is still a projection through the record's own
+             * storage, which every local has, so `match` needs nothing from this row.
              */
             if(record.layout == mir::RecordLayout::Enum) {
                 auto range = mir::tagRangeOf(base, record);

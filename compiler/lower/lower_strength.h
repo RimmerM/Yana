@@ -13,14 +13,14 @@
  *
  * ## Why this is a lower-IR pass and not a resolve-IR one
  *
- * The question was live, because `compiler/opt` already folds constants over the resolve IR and
- * already knows every operand's width and signedness, so it *could* host this. Three things say it
+ * The question was live, because `resolve_ssa/opt` already folds constants over the SSA and already
+ * knows every operand's width and signedness, so it *could* host this. Three things say it
  * should not, and they are the three that separate a fold from a strength reduction:
  *
  *  1. **A fold states what a value is; this states which of two spellings is cheaper.** The rule
- *     `opt_fold.cpp` is written to - "where the targets could disagree about the operation itself,
- *     it is not folded" - is about the *answer*, and every rewrite here preserves that exactly. What
- *     the targets disagree about is the *cost*, and this pass has to pick a side.
+ *     the resolve-tier fold was written to - "where the targets could disagree about the operation
+ *     itself, it is not folded" - is about the *answer*, and every rewrite here preserves that
+ *     exactly. What the targets disagree about is the *cost*, and this pass has to pick a side.
  *
  *  2. **The side it would have to pick is wrong for JS.** A 33-to-53-bit division is an inline
  *     `Math.trunc(a / b)` there and a shift of one is a `$w53i$shr` *call* (`codegen/js/wide.cpp`),
@@ -49,11 +49,11 @@
  * immediately behind this pass, for exactly that reason.
  *
  * A signed division by -1 *is* rewritten, as `neg x`, and the note that used to stand here said why
- * it could not be: the machine raises on that pair whenever the dividend is the type's lowest value,
- * so a pass that rewrote it would be deciding what the answer is, silently. The language decides it
- * now - the quotient wraps back to the minimum, as all signed overflow does, and `neg` on the
- * minimum wraps to the minimum - so the rewrite states the rule instead of inventing one. See the
- * ruling beside `Div` in resolve/inst.def.
+ * it could not be: the machine raises on that pair whenever the dividend is the type's lowest
+ * value, so a pass that rewrote it would be deciding what the answer is, silently. The language
+ * decides it now - the quotient wraps back to the minimum, as all signed overflow does, and `neg`
+ * on the minimum wraps to the minimum - so the rewrite states the rule instead of inventing one.
+ * See the ruling beside `Div` in `compiler/resolve`'s inst.def (deleted in J173).
  *
  * A division by zero is still left alone here, for a reason that is not caution: lower_divide.cpp
  * guards it into a select over a constant and the fold behind this pass answers the whole thing, so

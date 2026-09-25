@@ -1320,7 +1320,7 @@ struct Conversion {
                 break;
         }
 
-        report(at, "internal: the ownership pipeline cannot lower this place yet"_v);
+        report(at, "internal: this place cannot be lowered yet"_v);
         return nullptr;
     }
 
@@ -3803,15 +3803,15 @@ struct Conversion {
                  * two a value is is the manifestation's answer and is asked here, once.
                  *
                  * **And a relocation out of a raw address**, which is the same duplication for the
-                 * other reason. A move out of a *local* leaves the address alone because nothing may
-                 * read the source again - that is what the move said - and a move out of a place
-                 * rooted in a pointer says no such thing: the storage is outside the ownership model,
-                 * so a later `store` through the same pointer is an ordinary operation and the
-                 * "moved" value would follow it. `let ->doomed = *(items + at)` followed by
-                 * `store(items + at, moved)` is `lib/Core/Map.native.yana`'s swap-remove, and read as
-                 * an alias it answers the entry that was moved *into* the gap. The shipping stage
-                 * has always copied here - `InstMove` out of a pointer place is bytes - and this is
-                 * that sentence at this tier.
+                 * other reason. A move out of a *local* leaves the address alone because nothing
+                 * may read the source again - that is what the move said - and a move out of a
+                 * place rooted in a pointer says no such thing: the storage is outside the
+                 * ownership model, so a later `store` through the same pointer is an ordinary
+                 * operation and the "moved" value would follow it. `let ->doomed = *(items + at)`
+                 * followed by `store(items + at, moved)` is `lib/Core/Map.native.yana`'s
+                 * swap-remove, and read as an alias it answers the entry that was moved *into* the
+                 * gap. `compiler/resolve` (deleted in J173) always copied here - `InstMove` out of
+                 * a pointer place was bytes - and this is that sentence at this tier.
                  *
                  * At a **trivially copyable** result and no other, which is what an `InstCopy` means:
                  * a value that owes a teardown cannot be duplicated, and a relocation of one out of
@@ -5115,8 +5115,9 @@ struct Conversion {
              * those is a handover of the bytes at that address, so the second slot this walk gives
              * the local and the store that fills it are a block copy of a record the callee already
              * owns - `->at: Site` in `lib/Test/Check.yana` is forty bytes copied on entry to every
-             * assertion, on the path a *passing* one takes. The shipping stage does not: a parameter
-             * is a place there, and the place reached through the incoming pointer is the place.
+             * assertion, on the path a *passing* one takes. `compiler/resolve` (deleted in J173)
+             * did not: a parameter was a place there, and the place reached through the incoming
+             * pointer was the place.
              *
              * What stops it is that the incoming value is `Convention::Owned`. A tracked value must
              * be consumed exactly once and may not be named by an `Inspect`, and using it as a slot

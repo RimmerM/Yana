@@ -2,12 +2,11 @@
    `traits()` - everything this compilation decided about a type, at a type it knows and at one it
    does not.
 
-   **No `# resolver: ownership` directive**, deliberately. Both stages compile this and both are held
-   to the same `.run.expect`, which is the most valuable thing either can say about a layout: the
-   numbers here are not a golden the compiler regenerated into agreeing with itself, they are two
-   independent answers that have to match. That cross-check is what caught the new stage rounding a
-   record's size up to its alignment - `Nest` below was twenty-four bytes there and ten here, and a
-   fixture written against one stage would have asserted whichever it was built against.
+   **The numbers are written by hand**, which is the most valuable thing a fixture can say about a
+   layout: they are not a golden the compiler regenerated into agreeing with itself. While
+   `compiler/resolve` still compiled this too, the two stages were held to the same `.run.expect`,
+   and that cross-check is what caught the rewrite rounding a record's size up to its alignment -
+   `Nest` below was twenty-four bytes there and ten in the old stage.
 
    Everything is written with `traits()` and the `sizeOf`/`alignOf`/`strideOf` conveniences over it,
    and nothing here uses pointer arithmetic; `intrinsic/Pointer.yana` is where that is exercised.

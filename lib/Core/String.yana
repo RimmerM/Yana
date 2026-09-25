@@ -47,10 +47,10 @@ import Native
    is a *slice*, which is the fixed point of the container design, and the string algorithms need
    the owner because growing is what they do, so `&self: String` is how they ask for it.
 
-   In Core rather than in Native, where it was until the ownership stage read `lib/`. A string is a
-   Core type: `Show`, `Format` and a dozen other files name one, and with the record in Native every
-   one of them had to `import Native` to do it - free in the shipping stage, where `String` is a
-   primitive the compiler registers, and fatal in the ownership stage, where it is an ordinary
+   In Core rather than in Native, where it was while only `compiler/resolve` read `lib/`. A string
+   is a Core type: `Show`, `Format` and a dozen other files name one, and with the record in Native
+   every one of them had to `import Native` to do it - free in that stage, where `String` was a
+   primitive the compiler registered, and fatal in this one, where it is an ordinary
    record that has to be in scope. What the unsafe import still guards is the act that deserves it:
    `stringLiteral`, which forges a string over bytes nothing validated, is Native's and stays there.
 -}
@@ -61,10 +61,10 @@ pub data String {units: Array(CodeUnit)}
    What a shared `String` is made of - the view, two words that own nothing.
 
    `@local` and `@builtin(stringView)`: a representation record on Analysis-Manifestations.md Part
-   8's terms, the string's counterpart of `Array.native.yana`'s `ArrayView`. The ownership stage lays
-   every shared `String` out as this and reads no field of it; the shipping stage keeps a shared
-   string the owner's address and reads *only* the fields, built by `view` below wherever a body
-   asks for one. Either way a program never writes the name - a shared string is written `String`.
+   8's terms, the string's counterpart of `Array.native.yana`'s `ArrayView`. The compiler lays
+   every shared `String` out as this and reads no field of it. (`compiler/resolve`, deleted in J173,
+   kept a shared string the owner's address and read *only* the fields, built wherever a body asked
+   for one.) A program never writes the name - a shared string is written `String`.
 -}
 @platform(native) @local @builtin(stringView)
 data StringView {units: %CodeUnit, length: Size}
@@ -291,16 +291,16 @@ fn compareAfterRegister(self: String, other: String, shared: Size, head: Size) -
    length(text) + 1)` is the whole string, and an empty range in either order is the empty string.
    Nothing here can read past the end.
 
-   **What comes back depends on the resolve stage**, which is why all four bodies are in files of
-   their own. Under `-resolver ownership` (`String.ownership.native.yana`) it is a **window**: a
+   **The body is per target**, which is why both are in files of their own. Natively
+   (`String.native.yana`) it is a **window**: a
    `StringView` over the same units, rooted in `text` by `source'`, with no allocation. That is the
-   form part 4 specifies, and a caller that keeps the result past `text` says `copy`. The legacy stage
-   (`String.legacy.native.yana`, `String.legacy.js.yana`) cannot represent a window over part of a
-   string, because its shared `String` is the owner's address, so there it is a **copy**. Code
-   written against the window is correct against the copy; the reverse is not true, so library code
+   form part 4 specifies, and a caller that keeps the result past `text` says `copy`.
+   (`compiler/resolve`, deleted in J173, could not represent a window over part of a string,
+   because its shared `String` was the owner's address, so there it was a **copy**.) Code
+   written against the window is correct against a copy; the reverse is not true, so library code
    is written to the window.
 
-   On JavaScript the two stages differ in the signature and agree on the body: `String.ownership.js.yana`
+   On JavaScript the signature is the same window and the body is a copy: `String.js.yana`
    declares the window and returns the host's own copy, which Analysis-IR-JS.md §3.2.2 is the
    argument for - a host string has no units to point into, so a window there would be three values
    carried everywhere to save a copy at the few places that cut.
@@ -351,8 +351,8 @@ instance Hash(String):
 {-
    Releasing a string - Implementation-Containers.md §2's placement switch, and nothing else.
 
-   An authored `Reclaim` rather than derived glue, because `String` is a primitive in the shipping
-   stage and has no members for a derived walk to recurse into. What it does is exactly `releaseRun`:
+   An authored `Reclaim` rather than derived glue, written when `String` was `compiler/resolve`'s
+   primitive, with no members for a derived walk to recurse into. It is exactly `releaseRun`:
    hand the slots back if and only if they are the allocator's. A literal's run is `runBorrowed`,
    so this folds to nothing for one; a concatenated or formatted string's is `runFromHeap`, so it
    frees once.
@@ -391,14 +391,14 @@ instance Hash(String):
 
    The JS body is the value. A host string is immutable and has no storage to share, so two names for
    one of them cannot observe each other and there is nothing to duplicate. That is not an
-   optimization of a copy; it is what a copy *is* on that target - which is why under the rewrite
+   optimization of a copy; it is what a copy *is* on that target - which is why
    there is **no JS instance at all**: a record over one host handle with no teardown is
    `TrivialCopy`, and the blanket instance beside the class is the same identity this would write.
    Writing one would *subtract* that classification, which is what an authored `Copy` does, and a
    string that is not trivially copyable needs storage at every borrowed position - including the
    member-name argument of a host operation, where the literal then reaches the emitter as a read of
-   a temporary rather than as the constant it was written as. `String.legacy.js.yana` keeps it,
-   because the shipping stage's JS string is a compiler primitive rather than this record.
+   a temporary rather than as the constant it was written as. (`compiler/resolve` had one, because
+   its JS string was a compiler primitive rather than this record.)
 -}
 @platform(native) instance Copy(String):
     fn copy(from: String) -> String:

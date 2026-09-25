@@ -13,13 +13,14 @@ namespace {
  * otherwise be added without anyone deciding. A `yield` across a **stack switch** - a fiber's, which
  * is what `lib/Fiber` keeps the switch for - is what turns a row here into a `true`; an iterator
  * object's step is an ordinary call and is not one, and neither is `lens.call`, because a lens call
- * is a call - what
- * suspends is what the callee does, which is `maySuspend` on it and is what the edge walk reads.
+ * is a call - what suspends is what the callee does, which is its own summary and is what the edge
+ * walk reads.
  *
  * A *call* is deliberately false here. Whether calling something suspends is the callee's published
- * answer - `maySuspend`, which every later pass reads - and that is the whole reason inst.def has no
- * `kMirSuspends` column: a kind-level bit could only say "every call" or "no call". The fixpoint
- * below does not ask it either: a call is an *edge*, and the propagation walks the edges.
+ * answer - `Summary::suspension`, which every later pass reads - and that is the whole reason
+ * inst.def has no `kMirSuspends` column: a kind-level bit could only say "every call" or "no
+ * call". The fixpoint below does not ask it either: a call is an *edge*, and the propagation walks
+ * the edges.
  */
 static bool suspendsAt(Node& node) {
     switch(node.kind) {
@@ -906,7 +907,7 @@ struct Interprocedural {
              * They are **call graph edges**, not merely roots. A teardown that suspends suspends the
              * body that placed it just as surely as one it wrote a call to, and a graph that held
              * only the `Call` nodes would answer no. That the old fixpoint agreed here was luck: it
-             * asked `maySuspend` per node, so it never saw a drop either.
+             * asked each call node for its callee's answer, so it never saw a drop either.
              */
             if(body.elaboration) {
                 auto& elaboration = *mir[body.elaboration];
@@ -1393,13 +1394,13 @@ struct Interprocedural {
      * `consumes` restated the signature, and J48 deleted both rather than leave rows a later reader
      * would have to find out for himself were never trusted.
      *
-     * What makes them answerable here rather than by the eight hundred lines the shipping stage
-     * spends is the observation `analyze_escape.cpp` opens with: **nothing in an ownership MIR
+     * What makes them answerable here rather than by the eight hundred lines `compiler/resolve`
+     * spent is the observation `analyze_escape.cpp` opens with: **nothing in an ownership MIR
      * reaches a caller's storage by being a value.** A record is copied, an owned argument is moved
-     * into the callee's own slot, a returned value is written into storage the caller passed in. The
-     * two ways back are a **loan**, which the loan checker has already resolved per value and per
-     * interior position (`Elaboration::rootedIn`), and a **raw address**, which takes no loan and is
-     * followed structurally here.
+     * into the callee's own slot, a returned value is written into storage the caller passed in.
+     * The two ways back are a **loan**, which the loan checker has already resolved per value and
+     * per interior position (`Elaboration::rootedIn`), and a **raw address**, which takes no loan
+     * and is followed structurally here.
      *
      * So a body's own answer is one sweep over its nodes, and the interprocedural half is a join per
      * call site over the callee's rows. That join is what the worklist is for, exactly as with

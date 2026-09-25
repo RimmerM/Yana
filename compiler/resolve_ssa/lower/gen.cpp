@@ -330,11 +330,10 @@ void Lowering::declareGlobal(DeclPtr<mir::Global> pointer) {
      * The globals the **compiler** fills - `supplied.def`'s `BuiltinKind::Written`, which is the
      * three `commandLine*` cells the process entry stub stores argc, argv and envp into.
      *
-     * Carried across rather than looked up by name, exactly as the shipping stage's lowering does
-     * it: what a backend needs is the lowered global, the name it happens to have is the library's,
-     * and this is the one place both halves are in hand. A `Supplied` role is not one of these - its
-     * value went into the initializer the moment the declaration existed (`bindSuppliedGlobal`), so
-     * there is nothing left for a backend to write.
+     * Carried across rather than looked up by name: what a backend needs is the lowered global, the
+     * name it happens to have is the library's, and this is the one place both halves are in hand.
+     * A `Supplied` role is not one of these - its value went into the initializer the moment the
+     * declaration existed (`bindSuppliedGlobal`), so there is nothing left for a backend to write.
      *
      * Only a reachable global gets here, and that is the intended answer rather than a gap: a
      * program that never asks about its arguments leaves the roles null and the stub emits nothing.
@@ -423,14 +422,15 @@ void Lowering::supplyEdge(LowerBlock& from, Edge& edge) {
  * **An unsigned integer answers its own width**, refinements included - `Repr::scalarBits` is that
  * number for every integer, which is `@bits(n)`'s whole appearance at this tier.
  *
- * **A payload-free sum answers the width its constructors need.** That one is the fact the shipping
- * stage found was worth the most: a `Bool` is `data Bool = False | True`, one bit, and without this
- * it reaches the lower passes as an `Int32` nothing can tell from a counter - which is what
- * `isBooleanValued` in `lower_fold.cpp` reconstructs by walking the instruction graph, and that walk
- * can only answer for a value some instruction *computed* as a truth value.
+ * **A payload-free sum answers the width its constructors need.** That one is the fact
+ * `compiler/resolve` (the stage deleted in J173) found was worth the most: a `Bool` is
+ * `data Bool = False | True`, one bit, and without this it reaches the lower passes as an `Int32`
+ * nothing can tell from a counter - which is what `isBooleanValued` in `lower_fold.cpp`
+ * reconstructs by walking the instruction graph, and that walk can only answer for a value some
+ * instruction *computed* as a truth value.
  *
- * The shape differs between the stages in one place worth naming. The shipping stage's `EnumRange`
- * carries the logical bit count and `mir::TagRange::bits` carries the **stored** width - 8, 16, 32
+ * The shape differed between the stages in one place worth naming. `compiler/resolve`'s `EnumRange`
+ * carried the logical bit count, and `mir::TagRange::bits` carries the **stored** width - 8, 16, 32
  * or 64 - so asking the tag range here would hint eight bits for a `Bool` and claim nothing. The
  * number this wants is the one the packer uses, `Repr::scalarBits`, which `layoutEnum` computes as
  * `bitsUpTo(highest)` for exactly that reason.
@@ -465,10 +465,10 @@ static Maybe<U32> normalFormBits(Layout layout, DeclPtr<mir::Type> type) {
  * Every value this body mapped, hinted with what its type declared.
  *
  * One walk over the finished mapping rather than a hint at each of the forty sites that fill it -
- * the shipping stage's `hintUnsignedRanges` makes the same choice for the same reason, and the map
- * is what both of them have that the individual sites do not. Several SSA values may share one
- * lower value; `hintUnsignedWidth` keeps the narrowest, which is sound because each mapping is a
- * claim that the shared value is in that type's normal form.
+ * `compiler/resolve`'s `hintUnsignedRanges` made the same choice for the same reason: the map is
+ * what the walk has that the individual sites do not. Several SSA values may share one lower value;
+ * `hintUnsignedWidth` keeps the narrowest, which is sound because each mapping is a claim that the
+ * shared value is in that type's normal form.
  *
  * A value wider than its register, one in a vector lane and one that is an address are all left
  * alone: the hint is a statement about the high bits of an integer register and there are none to
@@ -687,9 +687,9 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
      * is the order blocks were made and nothing keeps that in step with the graph: a pass that
      * appends a block and points an existing branch at it leaves a block whose values are read by a
      * block earlier in the table. This walk maps each SSA value as it goes, so in table order that
-     * is a lookup with nothing in it. The old stage restored the invariant with a pass of its own
-     * (`reorderBlocksInRpo`, which renumbered the blocks); taking the order here instead removes it
-     * from every pass author's burden rather than restating it.
+     * is a lookup with nothing in it. `compiler/resolve` restored the invariant with a pass of its
+     * own (`reorderBlocksInRpo`, which renumbered the blocks); taking the order here instead
+     * removes it from every pass author's burden rather than restating it.
      *
      * Reverse postorder is what makes the lookup answerable: a definition dominates its uses, and
      * dominance implies coming earlier in reverse postorder. A back edge is the exception and is why
@@ -917,8 +917,8 @@ void Lowering::run() {
              * And the run of passes over the lower IR every producer of it owes its output - see
              * `lower/lower_pipeline.h`, which is where the order between them is argued and where
              * it is shared from. This stage used to call one of them, `makeDivisionTotal`, and say
-             * so; the rest were written out at the bottom of the other stage's driver and were the
-             * whole of the code-quality gap between the two.
+             * so; the rest were written out at the bottom of `compiler/resolve`'s driver (the stage
+             * deleted in J173) and were the whole of the code-quality gap between the two.
              *
              * Gated on `-no-ir-opt` inside the pipeline, division totalization excepted: that one is
              * a correctness pass and not an optimization, since `doc/spec/types.md` makes integer

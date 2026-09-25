@@ -2,8 +2,6 @@
    An iterator object's step inlined into its consumer, where the producer's loop skips elements -
    the shape that makes the lowered graph irreducible. J155.
 
-   # resolver: ownership
-
    A producer whose loop can go round without reaching a `yield` has a cycle of its own inside the
    step: the loop's test, the body, the latch. The step's resume dispatch enters that cycle twice -
    at the test on the first call, and at the latch, just behind the `yield`, on every later one - so

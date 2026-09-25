@@ -95,7 +95,7 @@ pub fn blockCopy(to: %U8, from: %U8, count: Size) -> {}
    padding says a load may run up to a vector's width past storage the language allocated; *no store
    ever may*, and both of these are bound by their stores. `vectorPast` would also be wrong here for
    a second reason: it is sound only where the caller carries the guarantee, which is why
-   `loadVectorTail` takes a `Flat(a)` and these take two addresses that promise nothing. The
+   `loadVectorTail` takes a `[a]` window and these take two addresses that promise nothing. The
    overlapping load at `n - W` is an ordinary load of a place wholly inside the object and needs no
    guarantee at all - which is the technique the flag's own documentation points at.
 

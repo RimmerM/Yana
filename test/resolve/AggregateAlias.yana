@@ -23,9 +23,9 @@
    duplicated too eagerly and wrote the duplicate would fail here rather than pass quietly), and
    that it did not reach the source.
 
-   Nothing here is a constant: `seed` is `@noinline`, so the folding in `compiler/opt` cannot answer
-   any of these checks from the literals and the emitted code has to perform them. The `.js.expect`
-   beside this is the other half of the assertion and the one that bounds the *cost* - a genuine
+   Nothing here is a constant: `seed` is `@noinline`, so the folding in `resolve_ssa/opt` cannot
+   answer any of these checks from the literals and the emitted code has to perform them. The
+   `.jsir.js.expect` beside this is the other half and the one that bounds the *cost* - a genuine
    move is still free, and a fix that copied at every write rather than at the ones that need it
    would show up there as `slice()` on lines that have none.
 -}
@@ -44,8 +44,8 @@ let zeros = [0] :: [Int *4]
 fn fromGlobal() -> Buf = Buf {bytes: zeros, used: seed()}
 
 -- 3. A record field from another record's field. The source is borrowed, so nothing here may take
--- it - and after inlining this is also the shape where `compiler/opt` answers the read with the
--- value that was stored into the field, which is what Gen::keptTwice exists for.
+-- it - and after inlining this was also the shape where `compiler/opt` (deleted in J173) answered
+-- the read with the value stored into the field, which is what Gen::keptTwice existed for.
 fn fromField(w: 'Wrap) -> Buf = Buf {bytes: w.inner.bytes, used: seed() + 3}
 
 -- 5. A loaded field handed back through a `return`, which is the caller's copy to make on native
@@ -81,9 +81,9 @@ fn bytesKept(w: 'Wrap) -> [Int *4] = w.inner.bytes
    duplicate of it.
 
    Asserted the only way this direction can be: there is no source left to compare against, so what
-   the run checks is that the value arrived *intact*, and what bounds the cost is the `.js.expect`
-   beside this having no `slice()` on this function. A duplicate here would still be correct and
-   still be a needless allocation per call, and the pair is what catches it.
+   the run checks is that the value arrived *intact*, and what bounds the cost is the
+   `.jsir.js.expect` beside this having no `slice()` on this function. A duplicate here would
+   still be correct and still be a needless allocation per call, and the pair is what catches it.
 -}
 @noinline
 fn innerBytes() -> [Int *4]:

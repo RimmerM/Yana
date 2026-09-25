@@ -4,8 +4,6 @@ import Native
    **A `&` of a packed field**, through the new stage - `Packed.yana`'s borrowing half, restated in
    the form the new stage accepts.
 
-   # resolver: ownership
-
    `Packed.yana` cannot opt in: five of its calls pass a `@bits` field to `&x: U32`, which this stage
    refuses by design, since a reference's content is the field's own type. Everything else it asks
    of a borrowed narrow field is here, with the same answers, plus the three shapes JSIR's
@@ -34,7 +32,7 @@ data Outer {inner: Flags, tail: Bool, level: @bits(5) U32}
 data Quad {a: @bits(4) U32, b: @bits(4) U32, c: Bool}
 
 -- Thirty-seven bits: a record that could co-pack its fields *or* be one number, and must be the
--- number - the shipping backend decides the whole record first.
+-- number - the shipping backend used to decide the whole record first.
 data Cell {kind: @bits(4) U32, live: Bool, count: @bits(12) U32, age: @bits(20) U32}
 
 fn tick(&x: @bits(3) U32): x = x + 1
@@ -60,7 +58,7 @@ fn threaded() -> Int:
 
     return (h.length :: Int) * 10 + (h.version :: Int)
 
--- Nine references is twenty-seven positions. The shipping backend declines to flatten past 24;
+-- Nine references is twenty-seven positions. The shipping backend declined to flatten past 24;
 -- this target has no guard (`abi.cpp`), and the answer is the same. 1 + 20 + 300.
 fn nine(&a: Bool, &b: Bool, &c: Bool, &d: Bool, &e: Bool,
         &f: Bool, &g: Bool, &h: Bool, &i: Bool):

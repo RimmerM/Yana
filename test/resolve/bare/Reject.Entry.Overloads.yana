@@ -1,13 +1,11 @@
 {-
    Two bare `main`s (J91).
-
-   # resolver: ownership
    # target: bare
 
    A bare entry may have any arity, so both of these are candidates, and before J91 whichever came
    first in the file was the entry - swapping the two lines changed the program. The loader enters
    one function and there is no call site to select at, so more than one `main` is refused by name,
-   as the shipping stage refuses a duplicate.
+   as the shipping stage refused a duplicate.
 -}
 
 fn main(magic: U32) -> U32 = magic

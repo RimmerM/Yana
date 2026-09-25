@@ -163,7 +163,7 @@
    `borrow` does: the result names storage this function was handed rather than storage of its own.
    `%source'a` is that statement said on the type, which is where every origin is written now - the
    `return self` marker these carried until 2026-09-21 was the same sentence in the name area, and
-   the rewrite refuses it.
+   the resolver refuses it.
 
    `hostWrite` declares `->value` for the reason `store` does on the other target: what the array
    holds afterwards *is* that value, so the frame that owned it stops owing it a drop - and a
@@ -237,10 +237,10 @@
    own, and none of them allocates anything Yana has to account for: the collector owns every string
    these produce, which is why `Reclaim(String)` has no JS instance.
 
-   Every one of them is a `HostMember` entry in resolve/host.cpp and a declaration here, and that is
+   Every one of them is a row of compiler/resolve_mir/host.def and a declaration here, and that is
    the whole of what adding one costs. **None of them answers a `Bool`**, which is a rule rather than
    a coincidence: a host predicate hands back a host boolean and a `Bool` on this target is the number
-   0 or 1 (`boolNumber` in codegen/js/type.cpp), and the `HostCall` arm does not convert. So
+   0 or 1 (`boolNumber` in codegen/js/helpers.cpp), and the `HostCall` arm does not convert. So
    `startsWith` and `endsWith` are *not* here even though the host has both - `Core/Text.js.yana`
    spells them as a `hostSubstring` and a `hostStringEq`, which is one comparison on a short string
    and cannot go wrong in a value position.
@@ -286,8 +286,8 @@
 {-
    `self.substring(from, to)` - the units between two positions, as a string of its own.
 
-   Implementation-String.md part 4's slice on this target - a copy, because only the legacy resolve
-   stage compiles JS and it has no partial window - and the reason the library's `String.slice`
+   Implementation-String.md part 4's slice on this target - a copy, since a host string has no units
+   for a window to point into (`Core/String.js.yana`) - and the reason the library's `String.slice`
    is not a `charCodeAt` loop building a string one unit at a time: that loop is a concatenation per
    unit, so cutting one line out of a megabyte of text walked the whole rope for every line.
 
@@ -418,3 +418,23 @@
    program states an invariant.
 -}
 @inline(always) pub fn hostFail() -> {} = hostThrow("yana: a runtime check failed")
+
+{-
+   `hostRow(xs)` is a fixed array's own storage read as the row of its elements. Natively the same
+   sentence is `bitcast(addressOf(self)) :: %a` and is what `Contiguous([a *n], a).elements` writes;
+   on this target `addressOf` does not exist and there is no `Bitcast([a *n], %a)` rung, so the
+   JavaScript member was written `unclampedSlice(self, 0, n)` and leaned on the conversion at a call.
+   Under this stage that conversion *is* the member, so it called itself -
+   `test/resolve/FixedArray.yana` overflowed its stack rather than answering, which is
+   `doc/progress/2026-09-21-J66-jsir-breadth.md` §6.
+
+   **It emits nothing.** A `[a *n]` here already *is* the host row, and a `%a` on this target is an
+   opaque reference to storage (see the head of `Host.js.yana`), so the two are one host value and
+   the operation is the statement that they are. `op.def`'s row expands through `addressOf`, whose
+   result type is read off the declaration rather than off the argument - which is the whole of the
+   difference between the two roles.
+
+   `source'` at both ends is what roots the window in the same loan the array was read under, so a
+   `[Int *4]` handed to `total(xs)` is borrowed for the call and not copied into one.
+-}
+@builtin(hostRow) pub fn (n: Int) hostRow(self: source'[a *n]) -> %source'a

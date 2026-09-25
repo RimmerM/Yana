@@ -13,9 +13,9 @@
 /*
  * A comparison and the select that reads it, recognized as one minimum or maximum.
  *
- * `min` and `max` have no instruction in the portable IR - `emitMinMax` in resolve/simd.cpp writes
- * them as `select(a < b, a, b)`, which is what a target without a packed minimum needs anyway and
- * what LLVM's own selection folds back. x86 has the instruction at every lane width but the
+ * `min` and `max` have no instruction in the portable IR - they arrive written as
+ * `select(a < b, a, b)`, which is what a target without a packed minimum needs anyway and what
+ * LLVM's own selection folds back. x86 has the instruction at every lane width but the
  * quadword, so this is where the pair becomes one: three instructions (a compare, a blend, and the
  * mask register between them) down to `vpmaxsd`, and the operand it reads may then come out of
  * memory, which a blend's could not.
@@ -575,11 +575,11 @@ void removeDeadChain(LowerBase base, InstChain& chain) {
  * A mask the two constants either side of a comparison have already decided, and the two things that
  * read one.
  *
- * This is the tail mask of every bulk operation. `maximumVectors` (resolve/core.cpp) is written as
+ * This is the tail mask of every bulk operation. `maximum` (lib/Core/Reduce.yana) is written as
  *
  *     acc = max(acc, select(maskUpTo(live) :: Mask(a), v, acc))
  *
- * and `occurrencesVectors` beside it as `count(m .& maskUpTo(live))`, so that the last chunk
+ * and `occurrences` beside it as `count(m .& maskUpTo(live))`, so that the last chunk
  * contributes only its live lanes - and the *full* chunks go through the identical line with `live`
  * equal to the lane count. `maskUpTo(n)` is `iota .< splat(n)`, both of whose operands are constant
  * vectors in the full-chunk loop, so the mask is all-ones: the select is its own first arm, and the
@@ -1574,7 +1574,7 @@ void sinkVectorConstants(Context&, LowerBase base, LowerFunction& fun) {
 /*
  * A fixed frame slot's address, defined where it is first needed rather than at the entry - J155.
  *
- * The ownership stage gives every local a frame slot and its SSA conversion puts each `alloc frame`
+ * The resolve stage gives every local a frame slot and its SSA conversion puts each `alloc frame`
  * in the entry block, so the address is live from the prologue to its last reader. The allocator can
  * recreate one (`Remat::FrameAddress`), but it places webs in the order the function defines them,
  * and a web that is free to take a register over its whole life takes one: an address defined at the
@@ -1596,18 +1596,17 @@ void sinkVectorConstants(Context&, LowerBase base, LowerFunction& fun) {
  * would have been anyway, and it is a recipe there as everywhere.
  *
  * Here rather than in the shared lower tier, because only this backend reads the position: the LLVM
- * emitter moves every `alloca` back to the entry block, which is what LLVM's own `mem2reg` wants, and
- * the shipping stage already emits each one where it is used.
+ * emitter moves every `alloca` back to the entry block, which is what LLVM's own `mem2reg` wants.
  */
 void sinkFrameAddresses(Context&, LowerBase base, LowerFunction& fun) {
     /*
      * The candidates, and the cheap refusal first. An address its own block reads before anything
-     * clobbers stays where it is: a reader in the defining block makes that block the nearest common
-     * dominator, and the reader comes before the first call - which is every allocation the shipping
-     * stage emits, and a walk of a few instructions each. Asked here rather than below because the
-     * question below costs a scan of the block, and the shipping stage's `main$` is one block of
-     * seventeen thousand instructions with thousands of allocations in it: asked of every one, it was
-     * a percent of that stage's whole compile.
+     * clobbers stays where it is: a reader in the defining block makes that block the nearest
+     * common dominator, and the reader comes before the first call - which was every allocation the
+     * stage J173 deleted emitted, and a walk of a few instructions each. Asked here rather than
+     * below because the question below costs a scan of the block, and that stage's `main$` was one
+     * block of seventeen thousand instructions with thousands of allocations in it: asked of every
+     * one, it was a percent of that stage's whole compile.
      */
     SmallArray<LowerInst*, 16> allocas;
     for(auto offset: fun.blocks.contents(base)) {
@@ -1714,8 +1713,8 @@ void sinkFrameAddresses(Context&, LowerBase base, LowerFunction& fun) {
          * Within its own block only past a call, which is `sinkVectorConstants`' rule and for its
          * reason: a live range that crosses no clobber costs nothing to hold, and moving the
          * definition anyway reorders the frame objects - `collectFrameObjects` numbers them in
-         * the order the function states them - which moved the shipping stage's `main$` to worse
-         * registers for no range it shortened (+6 KB of `test/base` under `-resolver legacy`).
+         * the order the function states them - which moved the old stage's `main$` to worse
+         * registers for no range it shortened (+6 KB of `test/base` under the stage J173 deleted).
          */
         if(target == origin) {
             auto here = positionOf(base, origin, inst);

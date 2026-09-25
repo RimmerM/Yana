@@ -13,10 +13,10 @@
    `doubled` is beside it so that the fixture asserts a refusal rather than a pass that declined
    everything: it is spliced, and no call to it survives.
 
-   **No `.js.expect`**, and that is a constraint rather than a choice: a loop with no exit is control
-   flow the JS backend's structurer has no form for, and it reports so for any program holding one.
-   What this fixture is about is what the native stage's optimizer does with such a body, so the rest
-   of the file set is `InlineOwn.yana`'s and that one file is left out.
+   The old JS backend's structurer had no form for a loop with no exit and refused any program
+   holding one; `codegen/js`'s rewritten structurer does, so a `.jsir.js.expect` beside this now
+   exists. What this fixture is about is what the native stage's optimizer does with such a body, so
+   the rest of the file set is `InlineOwn.yana`'s and that one file is left out.
 
    `seed` is a writable global, so the guard is a comparison nothing can fold and the call site
    survives every round - and at run time `seed` is 3, so the loop is never entered.

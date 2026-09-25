@@ -1,12 +1,12 @@
-28:25: error: `?` needs Bag(I32) to say which of its cases means "carry on", and it has no `Try` instance
-34:13: error: `?` needs I32 to say which of its cases means "carry on", and it has no `Try` instance
-40:20: error: `?` returns from the enclosing function when it exits, so that function's result type has to be one it can rebuild - I32 has no `Try` instance
-47:20: error: the reason this function exits with must be Bool, and this is {}
-57:20: error: `?` cannot be written in a transparent `lens fn` - it answers by calling its continuation, so it has no return edge of its own for `?` to take. A lens that may skip declares the carrier it skips through with `| E`, and `?` is accepted in one of those
-56:0: error: a path through transparent reaches the end without a `yield` - a lens that may skip its continuation declares what it fails with, as `-> (T | E)`
-63:12: error: `?` leaves the enclosing function, and an `iter fn` ends by running out of values rather than by returning - what it produces is the loop's own signal, which is not a carrier `?` can rebuild
-75:37: error: `?.` produces Maybe(I32) rather than I32 - a chain containing it comes back wrapped, because the skip goes to the end of the chain and not out of this function. `?` is the operator that leaves, so write `(x?).field` if that is what was meant
-78:43: error: `?.` needs Bag(I32) to say which of its cases means "carry on", and it has no `Try` instance
-82:48: error: Node has no field called missing
-87:53: error: the reason this chain skips with must be {}, and this is I32
-100:40: error: `?.` on Box(Leaf) has to put what the rest of this chain produced - I32 - back into the same kind of wrapper, and there is no `Rewrap` instance saying which type that is
+26:25: error: `?` needs Bag(I32) to say which of its cases means "carry on", and it has no `Try` instance
+32:13: error: `?` needs I32 to say which of its cases means "carry on", and it has no `Try` instance
+38:20: error: `?` returns from the enclosing function when it exits, so that function's result type has to be one it can rebuild - I32 has no `Try` instance
+45:20: error: the reason this function exits with must be Bool, and this is {}
+55:20: error: `?` cannot be written in a transparent `lens fn` - it answers by calling its continuation, so it has no return edge of its own for `?` to take. A lens that may skip declares the carrier it skips through with `| E`, and `?` is accepted in one of those
+54:0: error: a path through transparent reaches the end without a `yield` - a lens that may skip its continuation declares what it fails with, as `-> (T | E)`
+61:12: error: `?` leaves the enclosing function, and an `iter fn` ends by running out of values rather than by returning - what it produces is the loop's own signal, which is not a carrier `?` can rebuild
+73:37: error: `?.` produces Maybe(I32) rather than I32 - a chain containing it comes back wrapped, because the skip goes to the end of the chain and not out of this function. `?` is the operator that leaves, so write `(x?).field` if that is what was meant
+76:43: error: `?.` needs Bag(I32) to say which of its cases means "carry on", and it has no `Try` instance
+80:48: error: Node has no field called missing
+85:53: error: the reason this chain skips with must be {}, and this is I32
+98:40: error: `?.` on Box(Leaf) has to put what the rest of this chain produced - I32 - back into the same kind of wrapper, and there is no `Rewrap` instance saying which type that is

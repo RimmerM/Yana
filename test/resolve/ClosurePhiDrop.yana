@@ -1,9 +1,9 @@
 -- Two lambdas reaching one drop, each capturing something with a teardown - the boundary of
--- opt_closure.cpp, from the side it declines.
+-- `compiler/opt`'s opt_closure.cpp (deleted in J173), from the side it declined.
 --
--- ClosureTeardown.yana has the case it takes: a phi of two closures over nothing droppable, whose
--- headers both read `teardown$none`, so the merged answer is "nothing to run" and the drop is
--- deleted outright. Here both headers name a real `drop${g: Guard}` and the two are *different
+-- ClosureTeardown.yana has the case it took: a phi of two closures over nothing droppable, which
+-- owes nothing and is never given a drop now (`mir::ownershipOfOccurrence`). Here both headers name
+-- a real `drop${g: Guard}` and the two are *different
 -- functions* - a lambda's environment tuple is minted fresh rather than interned (see
 -- resolveLambda), so two captures of identical shape are two types and two entries. There is no one
 -- call the merge could become, and the generic teardown is what stays.

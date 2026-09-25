@@ -1,8 +1,6 @@
 {-
    Dropping an object **mid-iteration** - `doc/inflight/Design-Iterator-Objects.md` §3.3.
 
-   # resolver: ownership
-
    A record dropped while it is suspended runs the teardown of exactly what is live at its index, and
    runs it once. There is nothing built for that: the record's `Drop` member steps it with a *cancel*
    request, the producer's own `yield` reads the answer and takes the departure it already had,

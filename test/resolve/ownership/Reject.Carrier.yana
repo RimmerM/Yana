@@ -1,14 +1,12 @@
 {-
    What `?` and `?.` will not accept, and the two operators told apart by their messages.
 
-   # resolver: ownership
-
-   The rewritten stage's own copy of `Reject.Try.yana` and `Reject.OptChain.yana`, which are the
-   shipping stage's. Separate rather than shared because a rejection fixture runs **one** resolver -
-   `runRejectionTest` reads the `# resolver:` directive and picks - and because three of the cases
-   below read differently here: this stage has no `| else ->` to point an author at, it names a
-   missing field in its own words, and it reports a reason mismatch as the ordinary conversion it is
-   rather than as a rule of its own.
+   The rewritten stage's own copy of `Reject.Try.yana` and `Reject.OptChain.yana`, which used to be
+   the old shipping stage's. They stayed separate rather than shared because a rejection fixture
+   runs **one** resolver - once picked by a `# resolver:` directive, gone with the old stage - and
+   because three of the cases below read differently here: this stage has no `| else ->` to point an
+   author at, it names a missing field in its own words, and it reports a reason mismatch as the
+   ordinary conversion it is rather than as a rule of its own.
 
    Two of these are about the *enclosing signature* rather than about the operand, and that is what
    makes them worth writing down: `?`'s skip destination is the enclosing return edge, so a mistake

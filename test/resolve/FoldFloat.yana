@@ -1,10 +1,10 @@
 {-
    Constant folding across the integer/floating boundary, and the two places it declines.
 
-   `.opt.expect` is the assertion, because what folding does is leave nothing behind: a function here
-   either returns one number by the time the optimizer is finished or it still contains the operation
-   this pass would not perform. The run value is asserted on both targets and against the unoptimized
-   build for the usual reason - a fold that picked the wrong answer is only visible as a number.
+   `.ssa.opt.expect` is the assertion, because what folding does is leave nothing behind: a function
+   here either returns one number by the time the optimizer finishes or still contains the operation
+   this pass would not perform. The run value is asserted on both targets and against the
+   unoptimized build, the usual reason: a wrong fold is only visible as a number.
 -}
 
 -- Every direction of conversion, all of them exact. `2` reaches `wideningInt` as an `Int` and leaves

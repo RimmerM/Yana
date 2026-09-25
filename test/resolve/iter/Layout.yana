@@ -1,13 +1,11 @@
 {-
    The record's layout does not depend on the optimizer - §3.2's last sentence, asserted.
 
-   # resolver: ownership
-
    "The optimizer still inlines a step whose site type it knows, so the field is a representation and
    not a call the machine must make, **and the layout does not depend on `-opt`**." That last clause
    is a promise about where the transform lives rather than about what it produces: the record is
    minted in `resolve_mir`, out of the producer's own MIR and a liveness over it, before any body has
-   been converted and long before `compiler/opt` has run. Nothing the optimizer does can reach it.
+   been converted and long before `resolve_ssa/opt` runs. Nothing the optimizer does can reach it.
 
    Two things make that checkable from inside a program:
 

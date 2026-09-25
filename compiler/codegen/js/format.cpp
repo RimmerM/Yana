@@ -47,8 +47,6 @@ struct Format {
     JsBase base;
     bool minify;
 
-    // `File::terse` - the two line-count rules below, on for the JSIR pipeline only.
-    bool terse = false;
     U32 indentation = 0;
 
     void write(StringView text) { writer.writeString(text); }
@@ -483,12 +481,12 @@ bool isEmptyVar(Format& f, JsPtr<Stmt> pointer) {
 }
 
 /*
- * One statement list, with `File::terse`'s run of empty `var`s written as one declaration.
+ * One statement list, with a run of empty `var`s written as one declaration.
  *
  * `var p1; var p2; ... var p42;` is what a function's block arguments are declared as - 3,327 lines
- * of `Base.js` against the shipping backend's 274, because that one's structurer assigns into the
- * variable the source named and this one gives every join its own. Joining a run costs five bytes a
- * name where a line costs eleven.
+ * of `Base.js` against the 274 of the generator deleted in J173, because that one's structurer
+ * assigned into the variable the source named and this one gives every join its own. Joining a run
+ * costs five bytes a name where a line costs eleven.
  *
  * A **run** rather than every empty `var` in the body, because `foldInitialValue` in `opt.cpp` has
  * already moved the ones it could join to their first write, and what is left at the top is
@@ -498,7 +496,7 @@ void writeStmts(Format& f, StmtList& body) {
     auto list = body.contents(f.base);
 
     for(Size i = 0; i < list.size();) {
-        if(!f.terse || !isEmptyVar(f, list[i])) {
+        if(!isEmptyVar(f, list[i])) {
             writeStmt(f, list[i]);
             i++;
             continue;
@@ -595,13 +593,13 @@ void writeStmt(Format& f, JsPtr<Stmt> pointer) {
             f.space();
 
             /*
-             * A single statement without its block - `File::terse`, and 1,441 sites in `Base.js`
-             * against the shipping backend's 678, because an inlined bounds check is
-             * `if (c) throw $t;` here and a `checkCondition(c)` call there. `sameLine` is the
+             * A single statement without its block - 1,441 sites in `Base.js`
+             * against the 678 of the generator deleted in J173, because an inlined bounds check is
+             * `if (c) throw $t;` here and was a `checkCondition(c)` call there. `sameLine` is the
              * mechanism a label already uses: the statement writes its own newline, so there is
              * nothing after it here.
              */
-            if(f.terse && !otherwise.list.count && standsAlone(f, then)) {
+            if(!otherwise.list.count && standsAlone(f, then)) {
                 f.sameLine = true;
                 writeStmt(f, then.get(f.base, 0));
                 break;
@@ -744,7 +742,7 @@ void writeStmt(Format& f, JsPtr<Stmt> pointer) {
 } // namespace
 
 void formatFile(Net::Writer& writer, Context& context, File& file, bool minify) {
-    Format format { writer, context, *file.arena, minify, file.terse };
+    Format format { writer, context, *file.arena, minify };
 
     // Strict mode, always: `with` and a few other things this tree cannot build are the reason,
     // and a file that opts in once is one fewer thing for every emitted function to be careful of.

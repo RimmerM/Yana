@@ -1,4 +1,4 @@
--- SROA over a phi of aggregate locals - `splitPhiOfLocals` in compiler/opt/opt_scalar.cpp.
+-- SROA over a phi of aggregate locals - `splitPhiOfLocals` in `compiler/opt` (deleted in J173).
 --
 -- Inlining a function that builds a record on one arm and a different one on the other leaves the
 -- caller holding a phi of two allocations with a whole-aggregate copy under it. Neither of the two
@@ -21,9 +21,9 @@ fn parts(flag: Bool) -> Int:
     let p = pick(flag)
     return p.x + p.y
 
--- The sum, which is the case the field-wise split cannot reach. The payload of the arm that did not
--- match is storage nothing ever wrote, and answering a read of it with zero - `fillUnwritten` in
--- opt_promote.cpp - is what lets that allocation go too. This collapses to `value > 0 ? value : 0`.
+-- The sum, which the field-wise split cannot reach. The arm that did not match leaves a payload
+-- nothing wrote, and answering a read of it with zero (`fillUnwritten`, `compiler/opt`, deleted in
+-- J173) is what let that allocation go too. This collapses to `value > 0 ? value : 0`.
 fn wrap(value: Int) -> Maybe(Int) = if value > 0 then Just(value) else Nothing
 
 fn orZero(value: Int) -> Int = if wrap(value) is Just(v) then v else 0
@@ -40,9 +40,9 @@ fn product(n: Int) -> Int:
     return p.x * p.y
 
 -- A record handed *whole* to a call, which looks like the shape the rule declines and is not: the
--- reader is the call rather than a load, so what has to happen first is `opt_arg.cpp` splitting
--- `distance`'s parameter into two scalars. Once it has, the call reads two fields like anything
--- else, and this collapses with the rest of them. Kept for the ordering as much as for the answer.
+-- reader is the call rather than a load, so what had to happen first was `compiler/opt` (deleted in
+-- J173) splitting `distance`'s parameter into two scalars; then the call read two fields like
+-- anything else and this collapsed with the rest of them. Kept for the ordering and the answer.
 fn whole(flag: Bool) -> Int:
     let p = pick(flag)
     return distance(p) + p.x
@@ -51,9 +51,9 @@ fn distance(it: Point) -> Int = it.x + it.y
 
 -- A read *below* the join, which the phi rule declines: moving that load onto the edges would hoist
 -- it above the branch that guards it, and the rule rests on the two running in exactly the same
--- cases. This is what the second half of the pair is for - `sinkWriteIntoPredecessors` moves the
--- *write* instead, which needs nothing hoisted, and the field writes it becomes are promoted across
--- the blocks by opt_promote.cpp. Also collapses to selects.
+-- cases. This is what the second half of the pair was for - `sinkWriteIntoPredecessors` moved the
+-- *write* instead, which needs nothing hoisted, and the field writes it became were promoted across
+-- the blocks by `compiler/opt`'s promotion (deleted in J173). Also collapses to selects.
 fn guarded(flag: Bool, n: Int) -> Int:
     let p = pick(flag)
 

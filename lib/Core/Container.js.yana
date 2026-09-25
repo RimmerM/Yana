@@ -1,0 +1,29 @@
+import Native
+
+{-
+   The fixed array's window, on JavaScript.
+
+   The native pair's statement with the address taken out of it: a window into a fixed array is the
+   array's own storage, its element count and a zero offset. Natively "the array's own storage as a
+   `%a`" is `bitcast(addressOf(self))`; here it is `hostRow`, which emits nothing at all because a
+   `[a *n]` on this target already *is* the host row - see `hostRow` in `lib/Native/Host.js.yana`,
+   where the role and that argument are written out.
+
+   **Built directly rather than asked for.** The conversion from `[a *n]` to `[a]` is a call of
+   `Contiguous.elements`, so a body written `unclampedSlice(self, 0, n)` - whose parameter is a
+   window - asks for the conversion that is this member, and the emitted program recursed until the
+   stack ran out (`doc/progress/2026-09-21-J66-jsir-breadth.md` §6). `Array(a)`'s own two members one
+   type over had the same defect and the same correction; `adaptToView`'s self-derivation guard now
+   catches both rather than only the owner-subject one.
+
+   `offset: 0` because the window starts where the array does. `Array.js.yana` is where the field is
+   described: a host array has no interior address, so a slice carries where in the whole row it
+   begins.
+-}
+instance (n: Int) Contiguous([a *n], a):
+    fn elements(self: source'[a *n]) -> source'[a] =
+        ArrayView {items: hostRow(self), length: n :: Size, offset: 0}
+
+instance (n: Int) Writable([a *n], a):
+    fn elementsMut(&self: source'[a *n]) -> &source'[a] =
+        ArrayView {items: hostRow(self), length: n :: Size, offset: 0}

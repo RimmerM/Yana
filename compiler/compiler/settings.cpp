@@ -41,8 +41,6 @@ struct Flag {
         library,
         package,
         allocator,
-        specialize,
-        resolver,
 
         /*
          * Boolean flags.
@@ -111,10 +109,6 @@ Flag flagTable[] = {
     // Which general heap the program is built against - see CompileSettings::allocator.
     // An opaque name: the compiler compares it and knows nothing else about it.
     { "allocator"_v, 1, Flag::allocator },
-    { "specialize"_v, 1, Flag::specialize },
-
-    // Which resolve stage compiles the program - see ResolverStage, and Analysis-IR.md part 11.
-    { "resolver"_v, 1, Flag::resolver },
 
     { "help"_v, 0, Flag::help },
     { "h"_v, 0, Flag::help },
@@ -159,19 +153,11 @@ StringView modeTable[] = {
     "shared"_v,    // Shared
     "lib"_v,       // Library
     "ast"_v,       // Ast
-    "drops"_v,     // Drops
-    "ir"_v,        // Ir
     "lower"_v,     // Lower
     "llvm"_v,      // Llvm
     "mir"_v,       // Mir
     "ssa"_v,       // Ssa
     "jsir"_v,      // Jsir
-};
-
-// ResolverStage, in declaration order.
-StringView resolverTable[] = {
-    "legacy"_v,    // Legacy
-    "ownership"_v, // Ownership
 };
 
 // TargetPlatform, in declaration order. The same two words `@platform` is written with and the same
@@ -490,21 +476,6 @@ TargetSelector allocatorSelector(const CompileSettings& settings, StringView nam
     return name == chosen ? TargetSelector::Matched : TargetSelector::Excluded;
 }
 
-/*
- * The resolve-stage axis - see the declaration. Two names, compared against the one setting.
- */
-TargetSelector resolverSelector(const CompileSettings& settings, StringView name) {
-    if(name == "legacy"_v) {
-        return settings.resolver == ResolverStage::Legacy ? TargetSelector::Matched : TargetSelector::Excluded;
-    }
-
-    if(name == "ownership"_v) {
-        return settings.resolver == ResolverStage::Ownership ? TargetSelector::Matched : TargetSelector::Excluded;
-    }
-
-    return TargetSelector::Unknown;
-}
-
 TargetSelector targetSelector(const CompileSettings& settings, StringView name, SelectorScope scope) {
     auto isJs = isJsMode(settings);
     auto answer = [](bool matched) { return matched ? TargetSelector::Matched : TargetSelector::Excluded; };
@@ -711,14 +682,12 @@ void appendFileSelectors(SelectorCondition& into, StringView stem) {
         if(!selector.length) continue;
 
         // The walk `selectsFileName` makes, and the same routing: the segment after the marker is the
-        // allocator's, the two stage names are the resolve stage's, and everything else is a machine.
+        // allocator's, and everything else is a machine.
         if(provider) {
             into.add(into.addClause(), selector, SelectorAxis::Allocator);
             provider = false;
         } else if(selector == kAllocatorMarker) {
             provider = true;
-        } else if(selector == "legacy"_v || selector == "ownership"_v) {
-            into.add(into.addClause(), selector, SelectorAxis::Resolver);
         } else if(selector != "test"_v) {
             into.add(into.addClause(), selector, SelectorAxis::Target);
         }
@@ -810,8 +779,6 @@ bool selectsFileName(const CompileSettings& settings, StringView stem, SelectorS
                 provider = false;
             } else if(selector == kAllocatorMarker) {
                 provider = true;
-            } else if(auto stage = resolverSelector(settings, selector); stage != TargetSelector::Unknown) {
-                if(stage == TargetSelector::Excluded) selected = false;
             } else {
                 auto answer = targetSelector(settings, selector, scope);
 
@@ -1355,17 +1322,13 @@ Where the output goes:
 What to build:
   -mode <m>             exe (default), or the pipeline stopped early:
                           ast        the parsed form of every source file
-                          drops      where each local is live, and where it is dropped
-                                     (-resolver legacy)
-                          ir         the resolved, optimized program as IR text
-                                     (-resolver legacy)
                           lower      the lowered program as IR text (native only)
                           llvm       LLVM IR text (native only)
                           mir        the ownership MIR
                           ssa        the optimized ownership SSA
                           jsir       the JavaScript target IR (implies -platform js)
                         shared and lib are reserved for library builds, which
-                        neither stage implements yet.
+                        are not implemented yet.
   -platform <p>         native (default) or js. Decides which @platform declarations exist.
   -main <module>        the module the program starts in, when the input holds several
   -test                 build the @test declarations into a test program
@@ -1391,13 +1354,6 @@ How hard to try:
   -no-jsir-opt          switch off the JSIR optimizer, on -platform js
   -check-locations      inserted checks report their source location
   -no-replacements      run every function's baseline body, never an @replaces one
-
-Which resolve stage:
-  -resolver <r>         ownership (default) - the rewrite in compiler/resolve_mir and
-                        compiler/resolve_ssa, which compiles both platforms and is what
-                        -mode mir, ssa and jsir dump - or legacy, compiler/resolve, which
-                        is kept for comparison and answers -mode ir and drops.
-                        See doc/inflight/Analysis-IR.md part 11.
 
 Where things are:
   -project <path>       the yana.toml to read, rather than looking in the working directory
@@ -1553,51 +1509,24 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
 
                 settings.allocator = move(value);
                 return true;
-            case Flag::specialize:
-                if(value == "always") { settings.forceGeneric = false; return true; }
-                if(value == "never") { settings.forceGeneric = true; return true; }
-                error = "Specialization is `always` or `never`.";
-                return false;
-            case Flag::resolver:
-                if(auto stage = matchString(resolverTable, sizeof(resolverTable) / sizeof(StringView), value)) {
-                    settings.resolver = (ResolverStage)stage.unwrap();
-                    settings.explicitResolver = true;
-                    return true;
-                }
-
-                error = "The resolver is `legacy` or `ownership`.";
-                return false;
             case Flag::mode:
                 if(auto mode = matchString(modeTable, sizeof(modeTable) / sizeof(StringView), value)) {
                     settings.explicitMode = true;
                     settings.mode = (CompileMode)mode.unwrap();
 
-                    // The one mode that needs something computed that a compilation does not
-                    // otherwise compute - see compileDrops.
-                    if(settings.mode == CompileMode::Drops) settings.ownershipRanges = true;
-
-                    // The two dumps only one stage produces. Selected here rather than checked
-                    // later, for the reason the line above exists: a mode that needs a switch set
-                    // should set it, not leave one that can be forgotten.
-                    // The JavaScript tier's dump is one target's as well as one stage's, so it
-                    // selects both - see CompileMode::Jsir. Written here rather than left to
-                    // `checkSettings` so that `-mode jsir` alone is a complete command line.
+                    // The JavaScript tier's dump selects its platform - see CompileMode::Jsir.
+                    // Written here rather than left to `checkSettings` so that `-mode jsir` alone is
+                    // a complete command line: a mode that needs a switch set should set it, not
+                    // leave one that can be forgotten.
                     //
                     // Not over a `-platform native` written earlier (J162): the two are a
                     // contradiction, and `checkSettings` says so whichever order they came in -
                     // rather than the later one winning, which let `-platform native -mode jsir`
                     // build JavaScript and sent `-mode jsir -platform native` to the native driver.
                     if(settings.mode == CompileMode::Jsir) {
-                        settings.resolver = ResolverStage::Ownership;
-                        settings.explicitResolver = true;
                         if(!settings.explicitPlatform || settings.platform != TargetPlatform::Native) {
                             settings.platform = TargetPlatform::Js;
                         }
-                    }
-
-                    if(settings.mode == CompileMode::Mir || settings.mode == CompileMode::Ssa) {
-                        settings.resolver = ResolverStage::Ownership;
-                        settings.explicitResolver = true;
                     }
 
                     return true;
@@ -1623,7 +1552,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     return true;
                 }
 
-                error = Tritium::format("Unrecognized compilation mode \"%@\". Valid modes are: exe|shared|lib|ast|drops|ir|lower|llvm|mir|ssa|jsir|js.",
+                error = Tritium::format("Unrecognized compilation mode \"%@\". Valid modes are: exe|shared|lib|ast|lower|llvm|mir|ssa|jsir|js.",
                                         value);
                 return false;
             case Flag::platform:
@@ -1790,47 +1719,10 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
     return Ok(move(settings));
 }
 
-/*
- * The two modes the shipping stage still answers alone - see ResolverStage, whose default is the
- * rewrite since 2026-09-22 (J81).
- *
- * `ir` and `drops` are dumps of `compiler/resolve`'s own IR, which the rewrite does not have and
- * whose replacements are `mir` and `ssa`. `shared` and `lib` used to be listed here too, because the
- * sentence saying they were not implemented was the shipping driver's - so the default stage
- * answered them with "write -resolver legacy", and that stage then resolved the whole program to
- * say it could not build one. They are refused by `checkSettings` for both stages since J150.
- */
-bool isLegacyOnlyMode(CompileMode mode) {
-    return mode == CompileMode::Ir || mode == CompileMode::Drops;
-}
-
 Result<void, String> checkSettings(const CompileSettings& settings) {
     if(settings.compileObjects.size() == 0) {
         return Err(String("Nothing to compile. Name a source file or directory, or list the sources "
                           "in a yana.toml."));
-    }
-
-    /*
-     * A mode only the old stage answers, asked of the new default.
-     *
-     * **Refused rather than quietly compiled with the old stage.** The alternative - falling back -
-     * is the mistake the JavaScript checks below already name: a person who writes `-mode ir` to look
-     * at what their program became would be shown a different compiler's answer, and nothing on the
-     * command line would say so. Nothing needs the fallback either: no `yana.toml` in the tree sets
-     * `mode` to one of these, and every test driver that wants the old stage now names it.
-     *
-     * Only when the resolver was *not* named. `-resolver legacy -mode ir` is the sentence this
-     * message asks for and must go through, and `-resolver ownership -mode ir` keeps the refusal it
-     * already had - the one below for a JavaScript build, and the driver's own for a native one,
-     * which say what the rewrite does have rather than pointing back here.
-     */
-    if(!settings.explicitResolver && isLegacyOnlyMode(settings.mode)) {
-        auto mode = modeTable[(Size)settings.mode];
-        return Err(Tritium::format("-mode %@ is a dump of compiler/resolve's IR, which is no "
-                                   "longer the default stage. Write -resolver legacy for it, or "
-                                   "%@ for this stage's own dumps.", mode,
-                                   isJsMode(settings) ? "-mode mir, -mode ssa or -mode jsir"_v
-                                                      : "-mode mir or -mode ssa"_v));
     }
 
     /*
@@ -1844,37 +1736,16 @@ Result<void, String> checkSettings(const CompileSettings& settings) {
     }
 
     /*
-     * The two library modes, which neither stage builds.
+     * The two library modes, which are not built.
      *
-     * Refused here, for every stage and before anything is compiled, rather than by whichever driver
-     * reached the end of a compile: the shipping stage resolved the whole program before its `switch`
-     * said "not implemented yet", and the default stage pointed at the shipping one as if it had an
-     * answer. What either would need is a format for resolved declarations that a later compile can
-     * link against, plus - for `shared` - an exported symbol table and position-independent
-     * placement; none of it exists in `compiler/resolve` to be moved over.
+     * Refused here, before anything is compiled, rather than at the end of a compile (J150). What
+     * either would need is a format for resolved declarations that a later compile can link
+     * against, plus - for `shared` - an exported symbol table and position-independent placement.
      */
     if(settings.mode == CompileMode::Shared || settings.mode == CompileMode::Library) {
-        return Err(Tritium::format("-mode %@ is not implemented yet, by either resolve stage: a "
-                                   "library build needs a format for resolved declarations that "
-                                   "neither one has.", modeTable[(Size)settings.mode]));
-    }
-
-    /*
-     * `-specialize never`, asked of the stage that does not read it - the refusal above, for a
-     * switch rather than a mode.
-     *
-     * It is `compiler/resolve`'s `Program::Specialization::Generic` and nothing else reads it, so
-     * the rewrite would build a byte-identical binary with it and without it: a person
-     * comparing the two forms would have compared one form with itself. Refused rather than given a
-     * meaning here, because the rewrite's answer to "which form" is per declaration - it chooses,
-     * and `@generic` pins the erased one - and a switch forcing every generic erased is a feature
-     * (Analysis-IR.md §11.4's milestone 6 remainder) that this sentence should not pretend exists.
-     * `always` is the default and the rewrite's own behaviour, so it stays accepted.
-     */
-    if(settings.forceGeneric && settings.resolver != ResolverStage::Legacy) {
-        return Err(String("-specialize never is compiler/resolve's. The ownership stage chooses each "
-                          "generic's form itself, and @generic on a declaration pins the erased "
-                          "one - write that, or -resolver legacy for the switch."));
+        return Err(Tritium::format("-mode %@ is not implemented yet: a library build needs a format "
+                                   "for resolved declarations that the compiler does not have.",
+                                   modeTable[(Size)settings.mode]));
     }
 
     // `-o` names the artifact, and `-to` is the one thing that says where a build goes. A separator
@@ -1893,7 +1764,7 @@ Result<void, String> checkSettings(const CompileSettings& settings) {
      * The mode used to answer both questions, so a combination that does not exist could not be
      * written down and needed no check. Now that it can be written down, each one is refused where
      * it would otherwise be silently reinterpreted: emitting LLVM text for a program with no machine
-     * code in it, or lowering one that never goes through `lowerProgram` at all.
+     * code in it, or lowering one whose pipeline has no lowering at all.
      */
     if(isJsMode(settings)) {
         if(settings.mode == CompileMode::Lower) {
@@ -1905,38 +1776,6 @@ Result<void, String> checkSettings(const CompileSettings& settings) {
             return Err(String("-mode llvm is native only. Use -platform native, or -mode jsir for the "
                               "JavaScript program's IR."));
         }
-    }
-
-    /*
-     * The rewritten stage on a JavaScript build - Analysis-IR-JS.md milestone 2.
-     *
-     * This used to refuse the combination outright, on the argument that `-mode mir -platform js`
-     * was a combination that did not exist; milestone 0 narrowed it to the modes below the fork,
-     * because the parse, the MIR and the optimized SSA of a JavaScript program are three things this
-     * stage genuinely has. JSIR is the other half of that fork and is now built, so `-mode jsir` and
-     * `-mode exe` have answers too and a JavaScript program comes out of this pipeline.
-     *
-     * What is left is `ir` and `drops` - the *other* stage's dumps of an IR this one does not have;
-     * the two library modes are refused for both stages above. Refused by name, saying what is
-     * missing: the alternative of quietly compiling such a build with the shipping stage is how a
-     * person ends up measuring the wrong compiler.
-     */
-    // On both platforms since J162: a native build used to reach the driver, which reported the
-    // same refusal as a `1:1:` diagnostic after reading the program.
-    if(settings.resolver == ResolverStage::Ownership &&
-       (settings.mode == CompileMode::Ir || settings.mode == CompileMode::Drops)) {
-        return Err(Tritium::format("-mode ir and -mode drops are the shipping stage's own dumps of "
-                                   "an IR the ownership pipeline does not have. Its dumps are %@.",
-                                   isJsMode(settings) ? "-mode mir, -mode ssa and -mode jsir"_v
-                                                      : "-mode mir, -mode ssa and -mode lower"_v));
-    }
-
-    if(isJsMode(settings) && settings.resolver == ResolverStage::Ownership &&
-       settings.mode != CompileMode::Ast && settings.mode != CompileMode::Mir &&
-       settings.mode != CompileMode::Ssa && settings.mode != CompileMode::Jsir &&
-       settings.mode != CompileMode::Executable) {
-        return Err(String("-resolver ownership answers -mode ast, mir, ssa, jsir and exe for "
-                          "-platform js."));
     }
 
     /*
@@ -1956,7 +1795,7 @@ Result<void, String> checkSettings(const CompileSettings& settings) {
      */
     /*
      * A named backend is checked only where a backend is what produces the output. The modes that
-     * write text about the program reach no code generator at all, so `-mode ir -backend local` is
+     * write text about the program reach no code generator at all, so `-mode mir -backend local` is
      * a flag that does not apply rather than a contradiction - and answering it with "the local
      * backend only generates executables" would be refusing a sentence nobody wrote.
      */

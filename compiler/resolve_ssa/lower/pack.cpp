@@ -642,13 +642,14 @@ static bool placedStorage(LowerBase base, LowerValue* value) {
  * A narrow reference whose construction this body can see, taken apart by reading the construction
  * rather than by running the arithmetic that undoes it.
  *
- * Only a reference that crosses a call - a parameter, a result, anything loaded back out of memory -
- * has to be decoded at run time. One `borrowNarrow` built in this frame and spent in it is either a
- * `taggedAddress` (the address and a tag, `or`ed) or, where the shift was zero, the address itself.
- * The decode below masked the one and shifted the other at run time: `Packed.ReadBack`'s `main` was
- * 126 lowered instructions where the shipping stage, which keeps the two halves apart, has 31. The
- * alternative was a rule in `lower_fold.cpp` that knows an `alloca`'s top sixteen bits are zero,
- * which would also have to see through the `or` - two rules to recover what the construction states.
+ * Only a reference that crosses a call - a parameter, a result, anything loaded back out of
+ * memory - has to be decoded at run time. One `borrowNarrow` built in this frame and spent in it is
+ * either a `taggedAddress` (the address and a tag, `or`ed) or, where the shift was zero, the
+ * address itself. The decode below masked the one and shifted the other at run time:
+ * `Packed.ReadBack`'s `main` was 126 lowered instructions where `compiler/resolve` (deleted in
+ * J173), which kept the two halves apart, had 31. The alternative was a rule in `lower_fold.cpp`
+ * that knows an `alloca`'s top sixteen bits are zero, which would also have to see through the
+ * `or` - two rules to recover what the construction states.
  *
  * The tagged form is taken apart whatever the address is, because `packNarrowRef` already required
  * its top bits to be clear; the untagged form only where the address is storage placed here, since
@@ -982,8 +983,9 @@ void Lowering::spendPlace(LowerBlock& block, Value& result, const VirtualPlace& 
  *
  * A `&` is one of them now. Tier 2 answers it - `borrowNarrow`, which puts the shift in the bits
  * above the address - so what is left here is the operations that want a *machine* address and can
- * carry nothing beside it: a `%T` taken of the field, and anything reached through one. The shipping
- * compiler reports the same thing about `%T` at the same place in the source, for the same reason.
+ * carry nothing beside it: a `%T` taken of the field, and anything reached through one.
+ * `compiler/resolve` reported the same thing about `%T` at the same place in the source, for the
+ * same reason.
  */
 bool Lowering::checkAddressable(Value& result, DeclPtr<mir::Type> record, U16 field,
                                 LocationId source) {

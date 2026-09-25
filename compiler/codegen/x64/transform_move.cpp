@@ -614,7 +614,8 @@ void lowerVectorMoves(Context& ctx, LowerBase base, LowerFunction& fun) {
  * reads only its left source's lanes, whose numbering is the same either way, and a narrowing one
  * that reads only the lanes below the result's count. So `shuffle(v, [16 .. 31])` over a 32-byte `v`
  * was the *low* half, and joining two 128-bit vectors into one 256-bit register read the first twice -
- * silently, at `avx2`, in both resolvers. Found by `moveByHalves`, which builds both.
+ * silently, at `avx2`, in both resolve stages of the time. Found by `moveByHalves`, which built
+ * both.
  *
  * Everything else goes through one frame slot: both sources stored end to end, and the answer loaded
  * back - one load where the pattern is a run of consecutive lanes (a half, a join), and a load per lane

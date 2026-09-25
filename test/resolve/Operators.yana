@@ -2,11 +2,11 @@
    An operator is a call - `doc/spec/expressions.md`'s "operators are resolved by the ordinary
    overload rules", through the classes Core declares them in.
 
-   Compiled by *both* resolve stages against the same run expectation, which is what makes it worth
-   having: the shipping stage reaches `Num`, `Eq`, `Ord`, `Bitwise`, `Integral` and `Truth` through
-   instances it generates, and the rewrite reaches the same classes through `compiler/intrinsic`'s
-   `provided.def`. Two implementations of one dispatch answering differently is the thing a shared
-   number catches, and the `.mir.expect` beside this pins which member each operator resolved to.
+   This was compiled by *both* resolve stages against the same run expectation, back when there were
+   two - the shipping stage reached `Num`, `Eq`, `Ord`, `Bitwise`, `Integral` and `Truth` through
+   instances it generated, and the rewrite reaches the same classes through `compiler/intrinsic`'s
+   `provided.def`. Two implementations of one dispatch answering differently was the thing a shared
+   number caught, and the `.mir.expect` beside this pins which member each operator resolved to.
 
    What each group asserts:
 
@@ -22,8 +22,8 @@
     - `min`, `max` and `compare` at a width, `and`/`or`/`xor`/`not` at a `Bool`, and `rol`/`ror` at
       a `U32` are the members the widths have that no fixture reached before.
    A counted `for` over `Money` is the one case not here: what an interval needs is `Ord` to test
-   its bound and `Num` to step, and a stride of one is `FromInt`'s, so the rewrite counts over it -
-   and the shipping stage does not, so that half is `ownership/CountedFor.Class.yana`.
+   its bound and `Num` to step, and a stride of one is `FromInt`'s, so the rewrite counted over it -
+   and the shipping stage did not, which is why that half is `ownership/CountedFor.Class.yana`.
 -}
 
 let &trace = 0 :: I32

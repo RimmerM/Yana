@@ -1,13 +1,13 @@
 {-
    Classes, instances, superclasses, defaults and constrained generics - milestone 6, waypoint G3.
 
-   Compiled by *both* resolve stages, which is the most valuable thing a class fixture can assert:
-   dispatch is a decision, and two implementations of one language reaching different members is
-   exactly the failure a shared run expectation catches. The `.mir.expect` beside this is where the
-   second stage's answer is pinned - the `class` and `instance` lines say which function each member
-   resolved to, so a golden diff names the member rather than the behaviour.
+   Dispatch is a decision, and a class fixture's job is to make picking the wrong member for two
+   calls that look alike visible. Used to be compiled by both resolve stages for exactly that reason
+   - two implementations of one language reaching different members is what a shared run expectation
+   catches - and now there is one: the `.mir.expect` beside this is where its answer is pinned, the
+   `class` and `instance` lines saying which function each member resolved to.
 
-   `Int`, `Eq` and the rest of Core are deliberately absent. The rewritten stage does not build Core,
+   `Int`, `Eq` and the rest of Core are deliberately absent. This resolve stage does not build Core,
    so the corpus's own `Class.yana` and `Default.yana` cannot be adopted yet however much of the
    feature exists; what is here is the same set of questions asked with `I32` and classes this file
    declares.

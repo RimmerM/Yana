@@ -71,7 +71,7 @@
  * that crosses a join is spelled as here. It cost the whole allocation rather than the edge:
  * `pick` in `test/resolve/LiveAfterLoop.yana` is inlined into a join, so `main`'s counter was
  * borrowed into a block argument, `Contained` read that as an escape, and the loop below it then
- * ran out of memory - `mov (%rax),%rdx; inc %rdx; mov %rdx,(%rax)` where the shipping stage has
+ * ran out of memory - `mov (%rax),%rdx; inc %rdx; mov %rdx,(%rax)` where the shipping stage had
  * `inc %rax`. `opt/analysis.cpp`'s arm is the containment half; `argumentsAgree` is this one.
  *
  * **This is the shape a grafted continuation leaves and it is most of what this pass is worth.** An

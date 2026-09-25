@@ -94,8 +94,8 @@ struct Constant {
          * static storage and a descriptor pointing into it, JS wants the host's own string, and a
          * position that never reads the value wants neither. `Constant::Aggregate` would have
          * decided that here by spelling the fields of a type the library owns - which is exactly
-         * what `resolve/const.cpp` does in the shipping stage, and why it has a "this target's
-         * string layout is not the one this compiler writes" diagnostic to report.
+         * what `compiler/resolve` did until J173 deleted it, and why it had a "this target's string
+         * layout is not the one this compiler writes" diagnostic to report.
          *
          * So this says what the value *is*, and `Resolver::stringConstant` is the one place that
          * says how it is built. It is what lets a string be a constant at all - a default argument,

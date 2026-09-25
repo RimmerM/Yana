@@ -5,14 +5,14 @@
  * for `markProgramReachable`, and section D's first missing piece.
  *
  * `mir::Function::reachable` is the interprocedural pass's answer, and it is the right answer until
- * something removes a reference. The inliner removes references: a call spliced into its caller is a
- * call that no longer names its callee, and a callee whose every site was spliced is a body nothing
- * can run. Leaving that stale is wrong in two directions and only one of them is harmless. It costs
- * *work* to optimize and lower a body nothing emits, which is a waste; and it feeds the sole-call-site
- * threshold, which is a **decision** - [[yana-escape-before-inlining]] item 5 is the shipping stage's
- * version of exactly that bug, where three sites became four because the fourth was in a function
- * that had already stopped existing, and a three-instruction teardown was refused by a budget that
- * had been reduced for a call site nothing could reach.
+ * something removes a reference. The inliner removes references: a call spliced into its caller is
+ * a call that no longer names its callee, and a callee whose every site was spliced is a body
+ * nothing can run. Leaving that stale is wrong in two directions and only one of them is harmless.
+ * It costs *work* to optimize and lower a body nothing emits, which is a waste; and it feeds the
+ * sole-call-site threshold, which is a **decision** - [[yana-escape-before-inlining]] item 5 is the
+ * deleted shipping stage's version of exactly that bug, where three sites became four because the
+ * fourth was in a function that had already stopped existing, and a three-instruction teardown was
+ * refused by a budget that had been reduced for a call site nothing could reach.
  *
  * So this runs at the top of every inliner round and once at the end, and it is the only thing in
  * this directory that writes a declaration.
@@ -463,9 +463,9 @@ namespace {
  *
  * The reason this is worth a walk: `lib/`'s scalar constants - `pageBytes`, `vectorBytes`,
  * `heapRegionSize`, `runFromHeap` and six more - are immutable module-level `let`s whose *reads*
- * fold to the number, in this stage as in the shipping one. What did not go away was the storage,
- * so every program that touched the heap carried ten `.data` objects each referenced exactly once,
- * by its own definition. §78.7's item 7 and 1584 bytes over the thirteen-program corpus.
+ * fold to the number. What did not go away was the storage, so every program that touched the heap
+ * carried ten `.data` objects each referenced exactly once, by its own definition. §78.7's item 7
+ * and 1584 bytes over the thirteen-program corpus.
  *
  * Two kinds of edge, and both are needed:
  *
@@ -482,10 +482,9 @@ namespace {
  * `global.addr` in the entry's own body, so the first edge finds it; a dynamic global nothing writes
  * and nothing reads is one whose initializer ran nowhere.
  *
- * The supplied roles need none either, and that is the same answer the shipping stage gives:
- * `Lowering::declareGlobal` is what fills `LowerModule::builtins`, so a global this walk drops is
- * one the entry stub then stores nothing into - which is what `commandLineCount` unread has always
- * meant.
+ * The supplied roles need none either: `Lowering::declareGlobal` is what fills
+ * `LowerModule::builtins`, so a global this walk drops is one the entry stub then stores nothing
+ * into - which is what `commandLineCount` unread has always meant.
  *
  * **Clear, never set**, for `Reachability`'s reason: MIR marked every global a body mentioned, and
  * this is that answer minus what the optimizer removed.

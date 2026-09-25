@@ -7,7 +7,7 @@
 namespace ssa {
 
 /*
- * The whole new stage, behind one type - Part 11.2's `-resolver ownership`.
+ * The whole of resolution, from source to a `LowerModule`, behind one type - Part 11.2's pipeline.
  *
  * A driver holds one of these rather than three arenas and a call order, because the order is not a
  * caller's business: MIR is verified before it is converted, SSA is verified before it is lowered,
@@ -21,18 +21,7 @@ namespace ssa {
  * handle, so holding the region any longer is a peak of three IRs where two would do.
  */
 struct Pipeline {
-    /*
-     * Constructing one *is* choosing this stage, so the setting is set here rather than by the
-     * caller.
-     *
-     * It is read below this - the stage decides how a program is resolved, and a caller that had to
-     * remember the assignment would be a second statement of which stage is running. It used to
-     * decide which *library* was read as well (`prelude/` here, `lib/` there); both stages read
-     * `lib/` since 2026-09-07 and `LibrarySource::directory` no longer asks.
-     */
-    Pipeline(Context& context): context(context) {
-        context.settings.resolver = ResolverStage::Ownership;
-    }
+    Pipeline(Context& context): context(context) {}
 
     Context& context;
 
@@ -55,9 +44,8 @@ struct Pipeline {
      *
      * Between `convert` and `lower`, and **after `releaseMir`**: the optimizer reads declarations,
      * which live in the decl region and survive, and never MIR. Which is also why the SSA dump is
-     * below this rather than above it - `-mode ssa` prints what the backend gets, exactly as
-     * `-mode ir` does for the shipping stage, and `-no-ir-opt` is how the form before it is asked
-     * for.
+     * below this rather than above it - `-mode ssa` prints what the backend gets, and `-no-ir-opt`
+     * is how the form before it is asked for.
      *
      * False if a pass produced IR the verifier rejects, which has been reported by then. A program
      * that failed above this answers true and does nothing, on the same terms as `lower`.

@@ -2,8 +2,6 @@
    A borrow of a nested traversal's item, kept across the outer `yield`, where the child lends the
    item out of its own record - J131.
 
-   # resolver: ownership
-
    `boxes` lends `b` out of its own payload, so the loop variable in `outer` is an address inside the
    child's record, which is a member of `outer`'s. Kept across a `yield`, the member holding that
    address would name where the child used to be once the object moved (`relocate`). A scalar item

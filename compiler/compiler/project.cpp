@@ -440,24 +440,10 @@ Result<ProjectFile, String> readProjectFile(const String& path) {
             else if(value == "shared") project.mode = Just(CompileMode::Shared);
             else if(value == "lib") project.mode = Just(CompileMode::Library);
             else if(value == "ast") project.mode = Just(CompileMode::Ast);
-            else if(value == "ir") project.mode = Just(CompileMode::Ir);
             else if(value == "lower") project.mode = Just(CompileMode::Lower);
             else if(value == "llvm") project.mode = Just(CompileMode::Llvm);
             else {
-                reader.fail("unknown mode: valid modes are exe|shared|lib|ast|ir|lower|llvm"_v);
-                break;
-            }
-        } else if(key == "resolver"_v) {
-            if(values.size() != 1) {
-                reader.fail("resolver names one resolve stage"_v);
-                break;
-            }
-
-            auto& value = values[0];
-            if(value == "legacy") project.resolver = Just(ResolverStage::Legacy);
-            else if(value == "ownership") project.resolver = Just(ResolverStage::Ownership);
-            else {
-                reader.fail("unknown resolver: valid resolvers are legacy|ownership"_v);
+                reader.fail("unknown mode: valid modes are exe|shared|lib|ast|lower|llvm"_v);
                 break;
             }
         } else if(key == "library"_v) {
@@ -554,14 +540,6 @@ void applyProjectFile(CompileSettings& settings, const ProjectFile& project) {
     if(!settings.explicitPlatform && project.platform) {
         settings.platform = project.platform.unwrap();
         settings.explicitPlatform = true;
-    }
-
-    // A project naming a stage counts as having named it, the same way `mode` and `platform` do -
-    // which is what lets a `resolver = "legacy"` project ask for `-mode ir` without repeating the
-    // flag on the command line. See `checkSettings`, which refuses that mode to an unnamed stage.
-    if(!settings.explicitResolver && project.resolver) {
-        settings.resolver = project.resolver.unwrap();
-        settings.explicitResolver = true;
     }
 
     // The operating system and the container. A flag still wins, one setting at a time, and the

@@ -17,13 +17,13 @@ namespace mir {
  * `ast::Decl` that goes through `declareInstance` and `resolveInstanceBody` unchanged, so a derived
  * instance is selected, specialized, inlined, printed and reported against by the passes that
  * already do all of that for a hand-written one. There is no second, IR-level path to keep honest
- * against the source one. `core.cpp`'s principle in the shipping stage says it best: everything the
- * compiler derives is something a programmer could have written, and what it derives *is* that
- * program.
+ * against the source one. The principle `compiler/resolve`'s `core.cpp` stated says it best:
+ * everything the compiler derives is something a programmer could have written, and what it derives
+ * *is* that program.
  *
- * The whole of the difference from the shipping stage's `module_derive.cpp` is the unwrap. That one
- * matches - `match lhs: N(lhs$) -> ...` - and pays for a binding name per argument and a rule about
- * what a pattern may hand out; this one writes `lhs.0`, which is what
+ * The whole of the difference from that stage's `module_derive.cpp` (deleted with it in J173) is
+ * the unwrap. That one matched - `match lhs: N(lhs$) -> ...` - and paid for a binding name per
+ * argument and a rule about what a pattern may hand out; this one writes `lhs.0`, which is what
  * `doc/spec/types.md#newtypes` says the content is reached by. A projection is a place, so a `&`
  * position forwards as one and needs no exception.
  */

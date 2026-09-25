@@ -2,8 +2,6 @@
    `@heap` on a producer's own storage - `doc/inflight/Design-Iterator-Objects.md` §6.1's second fix,
    and the accepting side of `Reject.Borrow.yana`.
 
-   # resolver: ownership
-
    A record moves with whatever holds it, because every move here is bytewise - so a borrow into its
    own bytes, or an address taken of one of them, points at where the value used to be. `@heap` is
    the way out the refusal names: the member then lives in a run of its own that does not move, and

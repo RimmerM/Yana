@@ -1,15 +1,15 @@
--- The first program the rewritten resolve stage compiles end to end - Analysis-IR.md part 11.4,
+-- The first program the rewritten resolve stage compiled end to end - Analysis-IR.md part 11.4,
 -- milestone 1. A module-level constant, and a `main` that hands it back.
 --
--- Deliberately free of everything: no import, no prelude name, no `Int`. `compiler/resolve_mir` does
--- not build Core yet, and the width names are builtin rather than declared - `Int` and `Long` are
--- Core aliases over `I32` and `I64`, so a fixture that writes the width directly is the same program
--- to both stages and needs a standard library from neither.
+-- Deliberately free of everything: no import, no prelude name, no `Int`. `compiler/resolve_mir`
+-- does not build Core yet, and the width names are builtin rather than declared - `Int` and
+-- `Long` are Core aliases over `I32` and `I64`, so a fixture that writes the width directly
+-- needs no standard library at all.
 --
--- It is an ordinary fixture as well: the current stage compiles it, and the `.run.expect` beside it
--- is what *both* are checked against. Two implementations of one language answering differently is
--- the thing the second set of goldens exists to catch, so there is deliberately only one expected
--- answer.
+-- It is an ordinary fixture as well: it compiles clean, and the `.run.expect` beside it is what
+-- every fixture that writes a width this way is checked against - the same file, because one
+-- language has one answer to give, whichever program asks, which is the point of writing the
+-- width directly instead of importing `Int`.
 
 let answer = 42 :: I32
 

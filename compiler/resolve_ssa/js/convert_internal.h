@@ -364,11 +364,11 @@ struct Conversion {
     /*
      * The demand pass's one answer per `Alloc`: does this local need a cell?
      *
-     * An allocation whose address never leaves the body is a `var`. One whose address is handed to a
-     * call, put on an edge or returned needs something a second holder can write through - and that
-     * is the object itself where the content is a host object, and a `{$v}` box otherwise. §5.4's
-     * first rule, and the direction the shipping backend gets wrong: it boxes on the first borrow,
-     * whether or not the borrow escapes.
+     * An allocation whose address never leaves the body is a `var`. One whose address is handed to
+     * a call, put on an edge or returned needs something a second holder can write through - and
+     * that is the object itself where the content is a host object, and a `{$v}` box otherwise.
+     * §5.4's first rule, and the direction the old JavaScript backend (deleted in J173) got wrong:
+     * it boxed on the first borrow, whether or not the borrow escaped.
      */
     IndexSet escapes;
 
@@ -875,7 +875,7 @@ struct Conversion {
 
     /*
      * The three parts of a reference to a **range of a packed word** - the shift-carrying narrow
-     * reference (J84), and the shipping backend's `(owner, key, scale)`.
+     * reference (J84), and the old JavaScript backend's `(owner, key, scale)`.
      *
      * The owner and key are the *word's*, and the scale is `2**offset` times whatever scale the word
      * itself was reached at: one for a word in a property or an element, the reference's own for a
@@ -1139,10 +1139,9 @@ struct Conversion {
      * One cell of a table - §3.7's erased boundary, and the whole of what a slot read is here.
      *
      * A cell is an element of a host row, so "which slot" is already an index and there is nothing
-     * to scale it by: `codegen/js/place.cpp`'s `tableCell` says the same in one line, and the reason
-     * it is that short is the same reason - a host array has no padding and a function is a name
-     * rather than eight bytes. The element representation is `Erased` because what a cell holds is
-     * exactly what this tier declines to describe.
+     * to scale it by, because a host array has no padding and a function is a name rather than
+     * eight bytes. The element representation is `Erased` because what a cell holds is exactly what
+     * this tier declines to describe.
      */
     JsValue* tableCell(JsValue* table, U32 slot, LocationId where) {
         if(!table) return nullptr;
@@ -1788,10 +1787,11 @@ struct Conversion {
     /*
      * Whether a value of this representation has to be brought back into range after an operation.
      *
-     * The same rule the shipping backend's `coerce` follows and for the same reason: `Int` is a
-     * wrapping 32-bit integer on both targets and JS has no 32-bit integer, so every arithmetic
-     * result is reduced. What is *not* coerced is what the host's own operator already produces - a
-     * `Bool01` from a bitwise operator, an `F64` from `+`, anything that is not a number at all.
+     * The same rule the old JavaScript backend's `coerce` followed and for the same reason: `Int`
+     * is a wrapping 32-bit integer on both targets and JS has no 32-bit integer, so every
+     * arithmetic result is reduced. What is *not* coerced is what the host's own operator already
+     * produces - a `Bool01` from a bitwise operator, an `F64` from `+`, anything that is not a
+     * number at all.
      */
     bool needsCoercion(JsRepId repId) {
         auto& rep = target.rep(repId);
@@ -1823,8 +1823,9 @@ struct Conversion {
      *
      * What is *not* here is the whole point: a lane is an ordinary JSIR value of an ordinary scalar
      * representation, so `structure.cpp` spells a lane's multiply as `Math.imul` and a lane's
-     * division as `$div` by reading the result's representation, exactly as it does for a scalar. So
-     * none of the thirty spellings the shipping backend's `laneBinary` restates is restated here.
+     * division as `$div` by reading the result's representation, exactly as it does for a scalar.
+     * So none of the thirty spellings the old JavaScript backend's `laneBinary` restated is
+     * restated here.
      *
      * What is left is the four things a lane genuinely differs in: the two `Core.Bits` families are
      * declared at widths the helpers do not have, a mask lane is a host boolean and its bitwise

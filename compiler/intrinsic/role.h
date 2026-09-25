@@ -42,11 +42,11 @@ using namespace Tritium;
  *
  * ## Why a top-level directory
  *
- * The tables are read by more than one stage. `resolve` and `resolve_mir` both bind roles, `lower`
- * carries the supplied globals across, both native backends fill them, and the JavaScript pipeline
- * will name the same host operations. A table inside any one of those is the others' copy - which
- * is exactly what `compiler/compiler/builtin.h` was becoming, with two code generators reading a
- * role enum out of the resolver's neighbourhood.
+ * The tables are read by more than one stage. `resolve_mir` binds roles, `lower` carries the
+ * supplied globals across, both native backends fill them, and the JavaScript pipeline names the
+ * same host operations. A table inside any one of those is the others' copy - which is exactly what
+ * `compiler/compiler/builtin.h` was becoming, with two code generators reading a role enum out of
+ * the resolver's neighbourhood.
  *
  * What is **not** here is any emitter. What a role expands to is a question about one stage's IR -
  * a MIR node, an SSA value, a JavaScript expression - so each consumer implements the roles it
@@ -62,20 +62,20 @@ namespace intrinsic {
 /*
  * The attribute's own name.
  *
- * Here rather than at each reader, because there is more than one: both resolve stages read the
- * attribute, and the day this is spelled differently they have to move together. It was written out
- * three times before, which is the same failure in miniature as the one the roles themselves exist
- * to close.
+ * Here rather than at each reader, because there is more than one: `resolve_mir` binds roles by it
+ * and prints it back, and the day this is spelled differently they have to move together. It was
+ * written out three times before, which is the same failure in miniature as the one the roles
+ * themselves exist to close.
  */
 constexpr StringView kBuiltinAttribute = YANA_ROLE_TEXT(builtin);
 
 /*
  * The name a program's entry point is written with.
  *
- * Here for the reason the attribute is, and it is the same sentence: both resolve stages look this
- * name up in the main module, and it was written out at each of them - `resolve/expr_body.cpp` and
- * `resolve_mir/resolve.cpp` - so a language that renamed its entry point would have compiled with
- * two stages disagreeing about which function starts the program.
+ * Here for the reason the attribute is: it is a spelling the language fixes, and one written out at
+ * each reader drifts. While `compiler/resolve` existed (it was deleted in J173) both resolve stages
+ * looked this name up in the main module and each spelled it, so a language that renamed its entry
+ * point would have compiled with two stages disagreeing about which function starts the program.
  *
  * **Not a role**, and it could not be one. The other four directions are couplings to a *library*
  * declaration, which is why each is claimed by an attribute the library writes; this is a coupling
@@ -87,10 +87,11 @@ constexpr StringView kEntryPointName = YANA_ROLE_TEXT(main);
 /*
  * The module every compilation implicitly imports, and the file a library directory is judged by.
  *
- * Three places agree about this name and each used to spell it: the library locator, which tests a
- * candidate directory for `Core/Core.yana`, and both resolve stages, which seed the module before
- * they walk a single import. A library whose root module were renamed would have moved one of them
- * and left the other two looking for something that is no longer there.
+ * Two places agree about this name: the library locator, which tests a candidate directory for
+ * `Core/Core.yana`, and the resolver, which seeds the module before it walks a single import. Each
+ * used to spell it - and so did `compiler/resolve`, until J173 deleted it - and a library whose
+ * root module were renamed would have moved one of them and left the others looking for something
+ * that is no longer there.
  *
  * It is the whole of what `LibrarySource::directory` judges a candidate directory by, which is what
  * makes a standard library a *directory* rather than a mode.
@@ -133,8 +134,6 @@ enum class RoleKind: U8 {
     Supplied,
 };
 
-StringView roleKindName(RoleKind kind);
-
 /*
  * One role, as the attribute reader hands it on.
  *
@@ -161,9 +160,6 @@ Maybe<RoleRef> findRole(StringView name);
 // Every role name, comma-separated, for the diagnostic that reports an unknown one. Built from the
 // tables rather than written out, so a new row is in the message the moment it exists.
 Tritium::String roleList();
-
-// What a role is called, for a diagnostic that already has one.
-StringView roleName(RoleRef role);
 
 /*
  * Asserts that no two rows anywhere share a spelling.

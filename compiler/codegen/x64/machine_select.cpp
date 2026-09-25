@@ -14,10 +14,6 @@ static const StoreUpdateOp kStoreUpdateOps[] = {
     { LowerInst::Xor, OpStoreXor, FormStoreXor8 },
 };
 
-Buffer<const StoreUpdateOp> storeUpdateOps() {
-    return Buffer<const StoreUpdateOp> { kStoreUpdateOps, sizeof(kStoreUpdateOps) / sizeof(StoreUpdateOp) };
-}
-
 const StoreUpdateOp* storeUpdateOpFor(LowerInst::Kind op) {
     for(auto& row: kStoreUpdateOps) {
         if(row.op == op) return &row;

@@ -4,15 +4,16 @@
  * The graph itself: the branches that decide nothing, the blocks nothing reaches, and the block
  * boundaries with nothing on either side of them - README.md's section B, "One `cleanCfg`".
  *
- * Three rewrites in one worklist over blocks, because each of the three produces the shape the other
- * two consume. A folded branch strands an arm; deleting the arm leaves the join it fed with one way
- * in; merging that join back leaves *its* terminator here, which may be another branch on a constant.
- * The shipping stage runs `foldBranches`, `removeUnreachableBlocks` and `mergeBlocks` as three passes
- * and re-runs the group until it settles; here they are one queue that empties.
+ * Three rewrites in one worklist over blocks, because each of the three produces the shape the
+ * other two consume. A folded branch strands an arm; deleting the arm leaves the join it fed with
+ * one way in; merging that join back leaves *its* terminator here, which may be another branch on a
+ * constant. The shipping stage (deleted in J173) ran `foldBranches`, `removeUnreachableBlocks` and
+ * `mergeBlocks` as three passes and re-ran the group until it settled; here they are one queue that
+ * empties.
  *
  * `threadBranches` is at the bottom of this file rather than inside that walk, and section B says
  * why: it *creates* edges, so it cannot run inside a loop holding a block cursor, and the shipping
- * stage deliberately puts it behind if-conversion because a diamond that can be one `select` should
+ * stage deliberately put it behind if-conversion because a diamond that can be one `select` should
  * be one.
  *
  * ## What is new here, and it is the region rule
@@ -58,11 +59,11 @@
  * a *reachable* block, which is why the sweep is driven by `reachableOf` and never by "this block
  * looks empty".
  *
- * ## What the shipping stage does here and this does not
+ * ## What the shipping stage did here and this does not
  *
- * **`reorderBlocksInRpo` has no counterpart.** Over there, `Block::index` *is* the position in
- * `Function::blocks`, the lowering walks that list in order, and a pass that moves an edge can leave
- * a block listed in front of the blocks defining the values it reads - a wrong number with no
+ * **`reorderBlocksInRpo` has no counterpart.** Over there, `Block::index` *was* the position in
+ * `Function::blocks`, the lowering walked that list in order, and a pass that moved an edge could
+ * leave a block listed in front of the blocks defining the values it reads - a wrong number with no
  * diagnostic ([[yana-resolve-cfg-invariants]]). Here `Lowering::lowerBody` takes the shared reverse
  * postorder, which phase 1 changed it to for exactly this reason, so moving an edge owes nothing.
  * That is what makes the splice below affordable at all.
@@ -142,9 +143,9 @@ namespace {
  * answers an argument only where the block has a single predecessor, which a loop header never has;
  * `removeTrivial` declined it because the conversion rather than the promotion had placed it. So
  * `deadLoops` read a bound leaving the loop over the exit edge and a step that was not a `Const`,
- * and kept a loop the shipping stage removes outright. The lower tier's own phi cleanup takes them,
- * which is why nothing was emitted for them natively - but every pass that reads OSSA sees them, and
- * so does the JavaScript backend, which never lowers.
+ * and kept a loop the shipping stage removed outright. The lower tier's own phi cleanup takes them,
+ * which is why nothing was emitted for them natively - but every pass that reads OSSA sees them,
+ * and so does the JavaScript backend, which never lowers.
  *
  * One implementation, called from the two places the shape arises: `promote`, at the end of its own
  * run, where the arguments it has just placed are the bulk of what is trivial; and `cleanCfg`, at
@@ -1201,14 +1202,15 @@ struct CfgCleaner {
  * pointed at the branch's false arm and never reach the join at all.
  *
  * **A constant on the edge, and nothing else - and that is now a measurement rather than a
- * mechanism.** The shipping stage's `threadBooleanBranches` has two shapes beside this one: a
+ * mechanism.** The shipping stage's `threadBooleanBranches` had two shapes beside this one: a
  * predecessor that ends in a `branch` and hands the join a constant on one of its edges, and one
  * whose own branch condition *is* what it hands over. Both were declined here in phase 5 because
  * `Editor::makeBranch` built one argument list and pushed it onto both edges, so a single arm could
  * not be redirected to a block of another shape. `makeBranchEdges` removed that reason in phase 10,
  * and phase 11 built both shapes on top of it and measured them: **zero firings** over the corpus,
- * and the counter that says why is that of the twelve joins reaching the shape test, **not one** has
- * a predecessor ending in a `branch` at all - forty with if-conversion switched off, and still none.
+ * and the counter that says why is that of the twelve joins reaching the shape test, **not one**
+ * has a predecessor ending in a `branch` at all - forty with if-conversion switched off, and still
+ * none.
  *
  * The reason is structural and is one block up. A branch arm never goes straight into a join that
  * declares arguments: the conversion gives every arm a block of its own, and the pass that would
@@ -1926,7 +1928,7 @@ void removeUnreachableBlocks(OptContext& opt) {
  * With the edge gone the join has one predecessor and `cleanCfg` - which the driver runs immediately
  * below this - folds all three at once.
  *
- * **The call has to be the last instruction of its block**, exactly as it does in the shipping
+ * **The call has to be the last instruction of its block**, exactly as it did in the shipping
  * stage, and here that is a *rule about this pass* rather than one the inliner maintains: what
  * follows a call in the middle of a block is equally dead, and erasing it would mean pointing the
  * readers of everything it defined somewhere, in blocks that are about to become unreachable and

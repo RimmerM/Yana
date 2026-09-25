@@ -37,10 +37,11 @@ struct Coalescer {
      *     B3: { if (c) { p6 = -2; break B3 } ... if (d) { p7 = x } else { p7 = -2 } p6 = p7 }
      *     p5 = p6;
      *
-     * The shipping backend has none of that, because its structurer assigns into the variable the
-     * source named: `Base.js` carried 3,327 `var p;` declarations against its 274 and 1,079 copies
-     * of the form `x = y;` against its 177. Naming two arguments the same variable makes the copy a
-     * self-assignment, which `emitEdge` then writes nothing for.
+     * The old JavaScript backend (deleted with `compiler/resolve` in J173) had none of that,
+     * because its structurer assigned into the variable the source named: `Base.js` carried 3,327
+     * `var p;` declarations against its 274 and 1,079 copies of the form `x = y;` against its 177.
+     * Naming two arguments the same variable makes the copy a self-assignment, which `emitEdge`
+     * then writes nothing for.
      *
      * **The condition is non-interference and nothing else**, which is the classical one and is what
      * makes this a renaming rather than a rewrite: if no program point has both values live, one

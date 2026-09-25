@@ -26,9 +26,9 @@ using mir::Symbol;
  * resolution, so a native session and a JS session do not share one and the project file's `target`
  * picks which of the two this is.
  *
- * The program is the rewritten stage's - `compiler/resolve_mir` - and nothing below its analyses runs:
- * a language server never converts, lowers or emits, so the MIR bodies stay alive for as long as the
- * compile does and the placements and summaries read off them are the ones the analyses left.
+ * The program is `compiler/resolve_mir`'s, and nothing below its analyses runs: a language server
+ * never converts, lowers or emits, so the MIR bodies stay alive for as long as the compile does and
+ * the placements and summaries read off them are the ones the analyses left.
  *
  * v1 re-resolves everything on every change, which §5.3 argues for at some length: the region arenas
  * that make the compiler fast are what make invalidating one module's results impossible, so the

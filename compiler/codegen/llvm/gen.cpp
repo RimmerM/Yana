@@ -186,7 +186,7 @@ static llvm::StringRef toRef(StringView view) {
  * table's slot is at the offset the lowering computed, and a struct LLVM is free to pad is not.
  *
  * **A site is not always a pointer.** LowerDataRelocation has two kinds and they are different
- * widths: a compiler-built table's slot is four bytes holding `target - &anchor` (repr/table.h),
+ * widths: a compiler-built table's slot is four bytes holding `target - &anchor` (`kSlotBytes`),
  * and a source constant's pointer is the target's own width and absolute. Emitting the first as a
  * pointer is not a slower spelling of the same thing - it is eight bytes where the reader expects
  * four, so the reader gets half of somebody's address and the four bytes after the slot are eaten.
@@ -299,7 +299,7 @@ static llvm::Constant* initializerOf(Gen& gen, LowerGlobal& global, bool resolve
 /*
  * Where the image anchor is, and why this backend has to place it itself.
  *
- * A table slot holds `target - &anchor` (repr/table.h), which the other backend simply subtracts:
+ * A table slot holds `target - &anchor` (`kSlotBytes`), which the other backend simply subtracts:
  * it assembles the whole image into one buffer and both offsets are in hand. Here the two ends are
  * placed by the linker, so the slot has to be a *relocation*, and ELF has none that means "the
  * distance between these two symbols". MC folds such a difference only when both ends sit in one
@@ -312,7 +312,7 @@ static llvm::Constant* initializerOf(Gen& gen, LowerGlobal& global, bool resolve
  * with nothing subtracted - one relocation, of the ordinary kind. Raw output does the same with its
  * selected image base as the absolute anchor, so a slot remains the target's offset from the start
  * of the image. Which makes the reader's `add` onto the anchor agree with the local backend in both
- * cases, and leaves both halves saying exactly what repr/table.h says they say. It is correct for
+ * cases, and leaves both halves saying exactly what the erased ABI says they say. It is correct for
  * the same reason the rest of this backend's addressing is: an executable built statically and not
  * position-independent (see createMachine), whose every address difference fits in the 32 bits a
  * slot has. A shared library needs relative tables, which is a change to the lowering.
@@ -358,10 +358,10 @@ static U64 anchorAddress(Gen& gen) {
  * one variable holding every reachable global end to end, so a read past one lands inside the pool
  * and the tail is paid once. It was built and measured against this (§114.5 of
  * test/bench/findings.md), and it saves data in only one configuration while costing more code in
- * all of them: legacy's resolve corpus at v3 was +2189 function bytes pooled against +1222 padded,
- * and +1661 against +633 at v2. What a pool takes away is the global as an object - a
- * constant global LLVM can fold a load of, and delete once nothing else reads it, is a member it
- * has to keep beside the rest of the pool.
+ * all of them: the resolve corpus at v3, built by the stage deleted in J173, was +2189 function
+ * bytes pooled against +1222 padded, and +1661 against +633 at v2. What a pool takes away is the
+ * global as an object - a constant global LLVM can fold a load of, and delete once nothing else
+ * reads it, is a member it has to keep beside the rest of the pool.
  *
  * "Can reach" is conservative, because the lower IR cannot follow an address through the storage
  * it is written to: an array's run is stored into its header and loaded back somewhere else. An

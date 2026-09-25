@@ -12,19 +12,19 @@ namespace mir {
  * than only for exclusion: a JS build that could still resolve the native `Storage.reserve` would
  * have two implementations of one name and would pick between them by accident.
  *
- * `targetSelector` is the one place a target name is decided, in `compiler/compiler/settings.h`, and
- * it is shared with the file-name selector and with the shipping stage. So an attribute, a file name
- * and `-target` can never come to disagree about what a machine is called, and this stage cannot
- * select a different set of declarations than the one beside it - which would be one source
- * compiling to two programs.
+ * `targetSelector` is the one place a target name is decided, in `compiler/compiler/settings.h`,
+ * and it is shared with the file-name selector. So an attribute, a file name and `-target` can
+ * never come to disagree about what a machine is called - which would be one source compiling to
+ * two programs.
  *
  * Names inside one attribute read as **or** and the attribute written twice reads as **and**, which
  * is the spec's rule and is why `matched` is per attribute and `enabled` is across them.
  *
  * **Silent.** Every malformed spelling this could report is reported by `checkPlatform`, once, before
  * any pass runs - see `eachDeclaration`, which is what asks this and is asked eight times per
- * declaration. A predicate that reported would say the same sentence eight times, and the shipping
- * stage carries a `report` flag through its eight call sites for exactly that reason.
+ * declaration. A predicate that reported would say the same sentence eight times, and
+ * `compiler/resolve` (deleted in J173) carried a `report` flag through its eight call sites for
+ * exactly that reason.
  */
 bool platformEnabled(Context& context, ast::ParseBase parse, const ast::Decl& declaration) {
     // Copied rather than walked through the reference: a list's walk is non-const, and this
@@ -457,7 +457,7 @@ void Resolver::readInlineAttribute(ast::Decl& declaration, bool& always, bool& h
     // A hint beside the directive that refuses it is the same contradiction one step weaker, and it
     // is reported on the same terms (functions.md, "Inlining"). It used to be answered instead -
     // `@noinline` taken and the hint dropped, on the argument that the directive is what the
-    // compiler can always carry out - but the spec says neither applies, the shipping stage refused
+    // compiler can always carry out - but the spec says neither applies, `compiler/resolve` refused
     // it, and an author who wrote both has stated no intent that picking one would honour (J134).
     if(hint && never) {
         context.diagnostics.error("`@inline` and `@noinline` say opposite things about the same function"_v,
@@ -554,13 +554,12 @@ void Resolver::declareFixities(ast::Module& file) {
  * newtype form, and on a `data` it keeps the constructors out of the module namespace. A newtype's
  * constructor is the type's own name and `doc/spec/types.md` says "there is no way to spell a
  * different constructor name", so `StringId(4)` is the only spelling there is and has to be in the
- * namespace to be written at all. The shipping stage says the same thing by passing
- * `qualified = false` from `declareNewtype`.
+ * namespace to be written at all.
  *
- * Built where it is read and never written back into the file. The parse tree is the *source*: the
- * other resolve stage reads the same declarations and an editor reads them again, and a declaration
- * that changed kind underneath them would be one program with two readings. Two small allocations
- * in the parse region per newtype per pass is what that costs.
+ * Built where it is read and never written back into the file. The parse tree is the *source*: an
+ * editor reads the same declarations again, and a declaration that changed kind underneath it would
+ * be one program with two readings. Two small allocations in the parse region per newtype per pass
+ * is what that costs.
  */
 ast::Decl& Resolver::newtypeRecord(ast::Decl& declaration) {
     auto& written = declaration.alias;
@@ -658,14 +657,15 @@ TypeLayout Resolver::readLayoutAttribute(ast::Decl& declaration) {
  * **Not every convention in that table may be written**, and `conventionWritableInSource` is where
  * the set is argued: `simple` and `complex` are the backend's choice between two internal shapes and
  * `system` describes what a syscall leaves alone, so naming one writes an implementation detail down
- * as an interface. The messages are the shipping stage's word for word - one language, one
- * diagnostic - and `Reject.VectorReset.yana` is what holds the two to it.
+ * as an interface. The messages were `compiler/resolve`'s word for word - one language, one
+ * diagnostic - and `Reject.VectorReset.yana` is what holds them.
  *
- * Read here rather than only on a plain `fn`, which is where this stage and the shipping one differ:
- * `readInlineAttribute` already reads `@x86_legacy_sse` off every signature, and one walk that reads
- * a signature's backend facts is worth more than a placement rule the two attributes would then have
- * to state separately. A class member that names a convention says something a call through the
- * class cannot honour, and that is worth a diagnostic of its own the day one is written.
+ * Read here rather than only on a plain `fn`, which is where this stage and `compiler/resolve`
+ * differed: `readInlineAttribute` already reads `@x86_legacy_sse` off every signature, and one walk
+ * that reads a signature's backend facts is worth more than a placement rule the two attributes
+ * would then have to state separately. A class member that names a convention says something a call
+ * through the class cannot honour, and that is worth a diagnostic of its own the day one is
+ * written.
  */
 void Resolver::readConventionAttribute(ast::Decl& declaration, Function& function) {
     for(auto attribute: declaration.attributes.contents(parse)) {
@@ -1189,10 +1189,10 @@ void Resolver::demandDefaults(void* resolver, DeclPtr<GenContext> gen) {
  * lowercase name in a default that the head did not bind is a name nothing declared, and one it did
  * bind is `data Pair(a, b = a)`: a *dependent* default, which `fillDefaults` substitutes with what
  * the earlier arguments turned out to be (declarations.md, "Generic parameter defaults"). J134 had
- * refused it as the shipping stage does, reading the specification's old "a default is concrete";
- * J144 made the specification say what this stage had built on purpose instead, and the shipping
- * stage's refusal is its own (`Reject.GenericDefault.Legacy.yana`). What stays refused is a default
- * naming its own parameter or a later one, which fills left to right cannot give a meaning to.
+ * refused it as `compiler/resolve` did, reading the specification's old "a default is concrete";
+ * J144 made the specification say what this stage had built on purpose instead. What stays refused
+ * is a default naming its own parameter or a later one, which fills left to right cannot give a
+ * meaning to.
  *
  * A `class` head has the two rules of "Class defaults" beyond these: only a class of exactly one
  * parameter may carry a default, since a class with two has no single variable for a literal to

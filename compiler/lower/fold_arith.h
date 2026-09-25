@@ -38,11 +38,10 @@
 
 namespace foldArith {
 
-// The low `bits` bits. The one spelling of it in the lower tier and the new stage's lowering since
+// The low `bits` bits. The one spelling of it in the lower tier and resolve_ssa's lowering since
 // J163 - lower_store.cpp's `maskOfBits`, resolve_ssa/lower/repr.h's `lowMask`, three local `maskOf`s
 // in lower_thread.cpp, lower_divide.cpp and lower_strength.cpp, and a merge in lower_promote.cpp
-// written out inline were all this. The shipping stage's `compiler/resolve` and `compiler/opt` keep
-// their own, since they go when that stage does.
+// written out inline were all this.
 inline U64 maskOf(U32 bits) {
     return bits >= 64 ? maxLimit<U64> : (U64(1) << bits) - 1;
 }
@@ -109,7 +108,8 @@ inline bool evaluateBinary(LowerInst::Kind kind, U64 a, U64 b, U32 bits, U64& in
         case LowerInst::IMul: into = a * b; break;
 
         // `x / 0` is 0 and `x % 0` is `x`, which the language answers rather than the machine - see
-        // the ruling beside `Div` in resolve/inst.def. There is no divisor these may not state.
+        // the ruling beside `Div` in `compiler/resolve`'s inst.def (deleted in J173). There is no
+        // divisor these may not state.
         case LowerInst::Div: into = b ? a / b : 0; break;
         case LowerInst::Rem: into = b ? a % b : a; break;
 

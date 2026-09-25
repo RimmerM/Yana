@@ -42,7 +42,7 @@
  * `promoteStackSlots` has turned the caller's argument and the callee's parameter slot into one
  * value. A generic `x + x` called at `10` was already folded through the integer half; called at
  * `1.5` it reached the machine as `imm 1.5 ; add %v,%v` and its `ftoi` as the whole total-conversion
- * sequence. Both stages read this file, so both gained it.
+ * sequence.
  */
 
 /*

@@ -69,8 +69,8 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
     splitAggregateSlots(base, fun);
 
     // Then which of the slots that are left actually needed memory, which is a question about the
-    // finished IR rather than about the source - see lower_promote.h, and isDirectType in
-    // resolve/type.h for why it is not asked any earlier. Behind the forwarding, so that a copy of a
+    // finished IR rather than about the source - see lower_promote.h for why it is not asked any
+    // earlier. Behind the forwarding, so that a copy of a
     // whole slot promotion would have had to reproduce as a load or a store is one the forwarding
     // has already removed.
     promoteStackSlots(base, fun);

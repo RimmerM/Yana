@@ -125,10 +125,10 @@ fn inLoop(n: Int) -> Int:
 -- The read has to be *under* the lens call, since a read above it is not a capture and never asks
 -- for the reference. And the type has to be one this target holds as a value rather than an object.
 --
--- **The unoptimized build is what asserts this**, and the `.js.expect` beside this file does not:
--- the optimizer folds the call, the local and the box away to the constant this answers, so the
--- optimized JavaScript never has the shape to get wrong. What catches it is the driver comparing the
--- two builds' answers - unoptimized returned 809 against optimized 814 while the box was missing.
+-- **The unoptimized build asserts this**, and `.jsir.js.expect` beside this file does not: the
+-- optimizer folds the call, the local and the box away to the constant this answers, so optimized
+-- JavaScript never gets the shape wrong. What catches it is the driver comparing the two builds'
+-- answers - unoptimized returned 809 against optimized 814 while the box was missing.
 fn made() -> String = "abc"
 
 fn capturedCallResult() -> Int:

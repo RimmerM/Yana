@@ -22,10 +22,10 @@
      generic in `a` could not reach `lanes` or `horizontalSum` at all until a const-generic count
      could bind against the natural form.
 
-   No `.js.expect`: both iterators yield from inside `for chunk in chunks(self)`, and an `iter fn`
-   that yields from inside a `for` captures the continuation it was handed - which the JavaScript
-   backend cannot name, since it flattens a function value into two variables. That gap is every
-   adaptor in the language and is recorded in §0.2.
+   `.jsir.js.expect` now exists: both iterators yield from inside `for chunk in chunks(self)`, and
+   an `iter fn` that yields from inside a `for` captures the continuation it was handed - which the
+   JavaScript backend once could not name, since it flattened a function value into two variables.
+   That gap used to be every adaptor in the language; §0.2 has the account of closing it.
 -}
 
 fn sumInts(xs: [Int]) -> Int:

@@ -4,11 +4,11 @@
    Every function here returns a number `main` folds together, so the assertion that matters is
    `.run.expect` on both targets plus the optimizer-equivalence check the driver runs beside it: a
    hoist that moved something it should not have changes an answer rather than only the IR text.
-   `.opt.expect` is what says *where* the instructions ended up.
+   `.ssa.opt.expect` is what says *where* the instructions ended up.
 
    The records come out of `origin()` rather than out of a parameter on purpose. A record *parameter*
-   is flattened into one parameter per field by opt_arg.cpp long before this pass runs, so a fixture
-   written against one would have no field reads left to hoist and would assert nothing.
+   was flattened into one parameter per field by `compiler/opt` (deleted in J173) before this pass
+   ran, so a fixture written against one would have had no field reads left to hoist.
 -}
 
 data Point {x: Int, y: Int}
@@ -86,7 +86,7 @@ fn written(count: Int) -> Int:
 
 -- A loop containing a call, over a record this frame built. The callee has no way to name `q`,
 -- whose address was never handed out, so the reads of it leave the loop anyway - and since
--- opt_promote.cpp has already answered them from the writes above the loop, what leaves is the
+-- `resolve_ssa/opt` has already answered them from the writes above the loop, what leaves is the
 -- multiply rather than two loads. `seen` is borrowed into the call and stays where it is.
 fn withCall(seed: Int, count: Int) -> Int:
     let q = Point {x: seed, y: seed + 1}

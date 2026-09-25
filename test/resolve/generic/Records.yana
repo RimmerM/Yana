@@ -1,12 +1,10 @@
 {-
    Generic records, and a teardown reached through a type variable - milestone 6, waypoint G2.
 
-   # resolver: ownership
-
-   The half of `Identity.yana` the shipping stage cannot compile, and the reason is one sentence:
-   with no `TrivialCopy(a)` to ask for until G3, the only way to get a value out of a generic record
-   is to move it, and a move of one field is the partial ownership `compiler/resolve` does not have.
-   So this is where the generic *ownership* questions live.
+   The half of `Identity.yana` the shipping stage could not compile, and the reason was one
+   sentence: with no `TrivialCopy(a)` to ask for until G3, the only way to get a value out of a
+   generic record is to move it, and a move of one field is the partial ownership `compiler/resolve`
+   never had. So this is where the generic *ownership* questions live.
 
    Each case is asserted twice over, on `DropOrder.yana`'s terms: `trace` records which guards were
    released and in what order, one decimal digit each, so a wrong answer is a wrong number rather

@@ -108,9 +108,9 @@ fn owning(n: Int) -> Int:
    The whole-record store is an ordinary write of the allocation and would promote on its own; the
    `field.addr` on the next line is a use of the address that is not a load or a store of the whole
    of it, and that declines the allocation. Splitting a record into one value per field is the
-   *scalarizing* half of the shipping stage's `scalarizeLocals`, which section A of the optimizer's
-   README assigns to `splitAggregateSlots` one tier down and which runs over this stage's output - so
-   what this asserts is the record surviving here, not that it survives to the machine.
+   *scalarizing* half of this stage's own `scalarizeLocals`, which section A of the optimizer's
+   README assigns to `splitAggregateSlots` one tier down and which runs over this stage's output -
+   so what this asserts is the record surviving here, not that it survives to the machine.
 -}
 data Pair {a: Int, b: Int}
 

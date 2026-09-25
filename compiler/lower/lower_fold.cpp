@@ -227,10 +227,10 @@ Folded foldCastValue(LowerBase base, LowerValue* arg, LowerType type, bool signe
      *
      * **Float to integer is the one that is bounded.** The machine truncates toward zero and answers
      * a value the integer cannot hold with whatever `cvttsd2si` produces, and this tier makes no
-     * ruling that says otherwise - the shipping resolver's saturation is decided a tier above, where
-     * `saturationRange` is. So the fold is offered only inside the range the result holds, and out
-     * of it the conversion stays and the machine answers it, which is what the two stages already
-     * agree about in `FoldFloat.yana`.
+     * ruling that says otherwise - the language's saturation is decided a tier above (Design-Vector
+     * §3.4; `js::saturationRange` in codegen/js/shared.h states it). So the fold is offered only
+     * inside the range the result holds, and out of it the conversion stays and the machine answers
+     * it, which is what `FoldFloat.yana` asserts.
      */
     if(isFloat(type)) {
         if(isFloat(arg->type)) {
@@ -755,9 +755,9 @@ Folded foldConstantCompare(LowerBase base, LowerInst* inst) {
  * and the fold above is what makes those arrive: `cmp_eq 1048575, 1048575` was three constants in
  * `WidePack.yana` and each of them left a `select 1, k, 0` standing behind it.
  *
- * `foldSelect` in opt/opt_fold.cpp is the same three rules one tier up, and both are wanted: this
- * tier is where a constant condition is *produced*, by the strength reduction, the division
- * expansion and the fold above, all of which run below the resolve optimizer entirely.
+ * `foldSelect` in resolve_ssa/opt/fold.cpp is the same three rules one tier up, and both are
+ * wanted: this tier is where a constant condition is *produced*, by the strength reduction, the
+ * division expansion and the fold above, all of which run below the SSA optimizer entirely.
  *
  * The lane-wise select is declined by asking `isInt` of the condition. A vector select's condition
  * is a mask, one lane of which decides one lane of the result, and "the condition is the constant 1"
@@ -1215,7 +1215,7 @@ bool narrowMask(LowerBase base, LowerInst* inst, Masked& into) {
  * `(p + c1) + c2` over a pointer, restated as `p + (c1 + c2)`.
  *
  * Pointer arithmetic only, and that is what makes this a separate rule rather than a line in
- * `reassociate` in opt/opt_fold.cpp. That one is gated on `foldableInt`, which declines a pointer
+ * `reassociate` in resolve_ssa/opt/fold.cpp. That one is over integers and declines a pointer
  * type outright, so an offset chain reaches the backends exactly as the front end wrote it - and the
  * front end writes it left-associatively, which is a *chain*: `p + a + b + c` is three adds each
  * reading the one above.
@@ -1765,10 +1765,10 @@ U64 knownZeroBits(LowerBase base, LowerValue* value, U32 depth) {
  *    `@bits(1)` field arrives. `Packed.yana`, `Record.yana` and `ScalarSum.yana` between them held
  *    18 sites of `and %f, 1; cast; select 1, 0` where the walk stopped at the cast and the
  *    materialization survived; all 18 fold now.
- *  - The hint, which is not an instruction at all. `normalFormBits` in resolve/lower.cpp states a
- *    `Bool`'s one bit on the value itself, so a truth value that came out of a call, a parameter,
- *    a phi or a mask reduction is one this answers for - and none of those has a definition any
- *    walk over the instruction graph could read the fact off.
+ *  - The hint, which is not an instruction at all. `normalFormBits` in resolve_ssa/lower/gen.cpp
+ *    states a `Bool`'s one bit on the value itself, so a truth value that came out of a call, a
+ *    parameter, a phi or a mask reduction is one this answers for - and none of those has a
+ *    definition any walk over the instruction graph could read the fact off.
  *
  * The bound and the recursion go with the walk. `knownZeroBits` has its own six-level bound and its
  * own argument for it, which is the one that governs now.

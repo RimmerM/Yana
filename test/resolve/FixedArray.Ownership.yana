@@ -1,8 +1,6 @@
 {-
    `[T *n]` and the window `[T]` in the ownership resolver - `doc/spec/collections.md`.
 
-   # resolver: ownership
-
    Two spellings and **one logical type each**, which is the whole of what this fixture is about.
    `[T *n]` is a type - its count is part of it - and `[T]` in a binding position is `Array(T)` under
    `AccessForm::View`, an ownership *contract*. There is no slice type, no capability sibling and no
@@ -13,8 +11,8 @@
    to `Contiguous.elements` or `Writable.elementsMut`, `length(xs)` is `Length`'s member, `xs[i]`
    is `Index`'s and `xs[a..b]` is `slice`. The compiler reads no field of the view, which is
    `doc/proposal/Analysis-Manifestations.md` Part 8's rule, and this file is the corpus's proof that
-   the calls compose: every answer below is the same one the shipping stage's `FixedArray.yana` gets
-   through `lib/`.
+   the calls compose: every answer below is the same one `FixedArray.yana` gets through `lib/`,
+   the same stage compiling both.
 
    The bounds check is `Index.get`'s: an out-of-range subscript is a trap through the library
    function, exactly as `doc/spec/collections.md` says. Every index here is in range.

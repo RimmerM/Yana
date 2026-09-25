@@ -52,8 +52,7 @@ Constant foldLiteral(DeclBase base, DeclPtr<Type> type, U64 bits, double value) 
  * `compare` is the one member of these classes that is not a single instruction: it answers an
  * `Ordering`, which is two comparisons and three constants laid out as control flow. A call to it
  * is therefore an ordinary call to the generated body rather than a graph spliced into every call
- * site - the shipping stage's `generateCompare` makes the same choice for the same reason - and
- * `provideBodies` is where that body is written.
+ * site, and `provideBodies` is where that body is written.
  */
 bool providedExpands(Provided role, U16 member) {
     if(role == Provided::ord && member == kOrdCompare) return false;

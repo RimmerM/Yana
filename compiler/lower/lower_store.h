@@ -106,11 +106,11 @@ struct LowerPlace {
     U64 bytes = 0;
 };
 
-// Shared with the loop passes in lower_licm.cpp, which ask the same aliasing question of a whole loop
-// that this pass asks of a block - J158. One statement of it rather than two. `LowerPlace` rather than
-// `Place` since it left the anonymous namespace: resolve/inst.h has a `Place` of its own, and two
-// layouts of one name are one `SmallArray<Place>` instantiation under LTO - which is how a first
-// build of this crashed in `-O3 -flto` alone.
+// Shared with the loop passes in lower_licm.cpp, which ask the same aliasing question of a whole
+// loop that this pass asks of a block - J158. One statement of it rather than two. `LowerPlace`
+// rather than `Place` since it left the anonymous namespace: `compiler/resolve`'s inst.h (deleted
+// in J173) had a `Place` of its own, and two layouts of one name are one `SmallArray<Place>`
+// instantiation under LTO - which is how a first build of this crashed in `-O3 -flto` alone.
 bool addressContained(LowerBase base, LowerValue* address, U32 depth);
 LowerPlace placeOf(LowerBase base, HashMap<U32, U8>& contained, LowerPtr<LowerValue> pointer, U64 bytes);
 

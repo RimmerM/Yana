@@ -74,8 +74,8 @@ void Optimizer::floodClean(JsBlock* from, U32 slot, bool leavesClean) {
 }
 
 /*
- * Scalar replacement of a record local - analysis category 7, and the fold the shipping stage
- * does by forwarding a whole-record store into a field load.
+ * Scalar replacement of a record local - analysis category 7, and the fold of forwarding a
+ * whole-record store into a field load.
  *
  * A `Var` is the demand pass's statement that the local's address never left the body, so the
  * one thing that can still give the *object* in it an identity is what happens to the value a

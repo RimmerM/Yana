@@ -95,10 +95,10 @@ fn appendPair(&self: Map(k, v), ->key: k, ->value: v):
    in this file is written on.
 
    Written as the field of an entry borrow natively rather than as `borrow(addressOf(entry.key))`,
-   and the difference is a target: taking an *address* of storage that is not a whole local is the
-   gap codegen/js/inst.cpp reports, because the box it would have to make is a copy and a write
-   through it would reach nobody. A *borrow* of the same place is not - it is the narrow reference
-   that backend already builds, which names the slot rather than copying it.
+   and the difference is a target: taking an *address* of storage that is not a whole local was a
+   gap of the JavaScript generator J173 deleted, because the box it would have to make is a copy and
+   a write through it would reach nobody. A *borrow* of the same place is not - it is a narrow
+   reference, which names the slot rather than copying it.
 -}
 fn keyAt(self: 'Map(k, v), at: Size) -> 'k =
     borrow(self.entries.run.items + at).key
@@ -107,10 +107,10 @@ fn keyAt(self: 'Map(k, v), at: Size) -> 'k =
    And the value inside one, borrowed - which is what `find` and the subscript hand back.
 
    Written as the field of the entry borrow rather than as `borrow(addressOf(entry.value))`, and the
-   difference is a target: taking an *address* of storage that is not a whole local is the gap
-   codegen/js/inst.cpp reports, because the box it would have to make is a copy and a write through
-   it would reach nobody. A *borrow* of the same place is not - it is the narrow reference that
-   backend already builds, which names the slot rather than copying it. So this is one body for both
+   difference is a target: taking an *address* of storage that is not a whole local was a gap of the
+   JavaScript generator J173 deleted, because the box it would have to make is a copy and a write
+   through it would reach nobody. A *borrow* of the same place is not - it is a narrow reference,
+   which names the slot rather than copying it. So this is one body for both
    targets and the other spelling is one for neither.
 -}
 fn valueAt(self: 'Map(k, v), at: Size) -> 'v =

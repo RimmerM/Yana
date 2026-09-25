@@ -456,8 +456,8 @@ struct Lowering {
      * the aggregate whose field is the destination may itself be destined for its own consumer, so
      * `Tree {left: Just(build(..))}` builds the child inside the box inside the caller's storage.
      *
-     * Left to a later pass this is `compiler/lower`'s `forwardCopyDestinations`, and it costs 28.2 G
-     * instructions on the library where the shipping stage pays 0.09 G (findings.md §78.6) - a
+     * Left to a later pass this is `compiler/lower`'s `forwardCopyDestinations`, and it costs 28.2
+     * G instructions on the library where `compiler/resolve` paid 0.09 G (findings.md §78.6) - a
      * quadratic chase after copies that were never necessary. It also cannot reach the box: the
      * allocation is emitted *after* the temporary is filled, so the destination does not dominate
      * the writes and the copy has to stay.
@@ -524,11 +524,11 @@ struct Lowering {
      * `-check-locations` - the located check this call becomes, or null.
      *
      * **The substitution is here and not in the resolver**, which is the one decision this feature
-     * turns on. A located call carries three or four constant arguments, and every rule that reads a
-     * check - the discharge of a branch whose arm calls `checkFailed`, the fold that removes a bound
-     * it has proved, the memory pass that keeps storage live across one - was written against the
-     * shape with none. Emitting the located form up in MIR makes each of those a second pattern to
-     * recognize, which is what the shipping stage's `isCheckCall` exists to paper over. Emitted
+     * turns on. A located call carries three or four constant arguments, and every rule that reads
+     * a check - the discharge of a branch whose arm calls `checkFailed`, the fold that removes a
+     * bound it has proved, the memory pass that keeps storage live across one - was written against
+     * the shape with none. Emitting the located form up in MIR makes each of those a second pattern
+     * to recognize, which is what `compiler/resolve`'s `isCheckCall` existed to paper over. Emitted
      * *here*, after every one of those passes has run, the optimizer only ever sees one shape and
      * the switch cannot change what a program computes.
      *

@@ -36,7 +36,7 @@ import Test
    Eight bodies of five checks cost a fraction of one body of forty, and `@noinline` is what keeps
    them apart afterwards - without it the inliner puts the same body back together and nothing is
    saved. **Nothing about what is asserted depends on the shape**: the vectors are built once and
-   handed over as the `Flat(U8)` every entry point in `Digest` already takes, and each check keeps a
+   handed over as the `[U8]` every entry point in `Digest` already takes, and each check keeps a
    line of its own, so a failure still names both the algorithm and the length. Undo it when the
    passes are fixed.
 -}
@@ -148,15 +148,7 @@ import Test
         for j in 0 .. size:
             update(piecemeal, elements(input)[j..j + 1])
 
-        {-
-           Bound rather than nested inside `hexOf`, so that the result type is read off the digest
-           rather than inferred from what `hexOf` wants: `finish` answers the class's `h`, and a
-           `Flat(U8)` in the expected position makes the compiler look for `Digest(Sha256, Flat(U8))`
-           instead - which is not an instance and says so.
-        -}
-        let a = finish(whole)
-        let b = finish(piecemeal)
-        checkEqual(hexOf(a), hexOf(b))
+        checkEqual(hexOf(finish(whole)), hexOf(finish(piecemeal)))
 
         push(input, truncate(size * 37 + 11) :: U8)
         size = size + 1

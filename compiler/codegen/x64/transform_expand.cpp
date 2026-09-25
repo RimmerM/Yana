@@ -64,7 +64,8 @@ static LowerValue* expandUnsignedToFloat(Expansion& e, LowerValue* value, LowerT
 }
 
 /*
- * A float truncated into a *signed* integer, saturating - see `saturationRange` for the ruling.
+ * A float truncated into a *signed* integer, saturating - Design-Vector §3.4's ruling, stated
+ * beside `js::saturationRange` in codegen/js/shared.h.
  *
  * Two comparisons and two selects, and the reason it is only two of each is that `cvttsd2si` has
  * already answered one of the three cases. Its result for a NaN, for +infinity and for anything
@@ -182,7 +183,7 @@ void expandBankConversions(Context&, LowerBase base, LowerFunction& fun) {
 
             // **Every** float-to-integer conversion is expanded, not only the unsigned ones, because
             // saturating is what one means and `cvttsd2si` alone does not saturate - see
-            // `saturationRange`. The other direction still only needs the unsigned case, which is
+            // Design-Vector §3.4. The other direction still only needs the unsigned case, which is
             // the one the machine has no instruction for.
             auto expandable = fromFloat || (toFloat && !cast->isSignedSource());
 
@@ -1355,7 +1356,7 @@ void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun) {
  * `round`, which is the one of the four roundings SSE4.1 cannot encode.
  *
  * `roundsd`'s mode field names the four IEEE directions and ties-to-even; it has no ties-**away**,
- * and ties-away is what this language's `round` is (resolve/inst.def rules on it, and
+ * and ties-away is what this language's `round` is (resolve_mir/op.def rules on it, and
  * lib/Math.yana has documented it since before there was an instruction). So this is the one
  * rounding the backend builds out of the others, and it is built here rather than in the library so
  * that LLVM and JS - both of which name it directly - do not pay for x64's gap.
@@ -1392,7 +1393,7 @@ void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun) {
  *
  * `X86.vzeroupper()` and `X86.vzeroall()` are what a program writes at the entry of a
  * legacy-encoded region so that stale vector state is gone before its first unprefixed vector
- * instruction runs - see `Value::VZeroUpper` and `Value::VZeroAll` in resolve/inst.def. Below AVX
+ * instruction runs - see the `VZeroUpper` and `VZeroAll` rows of resolve_mir/native.def. Below AVX
  * there is no encoding that could have left one non-zero and no instruction to write, so either
  * call is removed rather than standing anything in for it.
  *
@@ -1470,8 +1471,8 @@ void expandRoundAway(Context&, LowerBase base, LowerFunction& fun) {
  * The absolute value of a vector, which is one bit per lane for a float and a comparison for the one
  * integer lane width the machine has no `pabs` at.
  *
- * `LowerInst::Abs` is the magnitude and says nothing about how - see the `Abs` row in
- * resolve/inst.def, which is where the language rules that the sign of a NaN is unspecified. That
+ * `LowerInst::Abs` is the magnitude and says nothing about how - see `abs` in resolve_mir/op.def,
+ * which is where the language rules that the sign of a NaN is unspecified. That
  * ruling is what lets this be one instruction: `v & 0x7fffffff` per lane leaves the exponent and the
  * mantissa exactly where they are, so every finite value, both infinities and both zeros come out
  * with the magnitude they had, and `-0.0` becomes `+0.0`.
@@ -1640,7 +1641,7 @@ void expandVectorAbs(Context&, LowerBase base, LowerFunction& fun) {
  * still has the *scans* - `bsf` and `bsr` are baseline, and have been since the 386 - and what it
  * has no encoding for is the answer to a zero operand: a scan leaves its destination unwritten
  * there, where the language's `trailingZeros` and `leadingZeros` are defined to answer the operand's
- * width (resolve/inst.def rules on it).
+ * width (lib/Core/Bits.yana rules on it).
  *
  * So this is `expandRoundAway`'s case at an integer operation: the language committed to an answer,
  * one level of the target has the instruction for it and the floor does not, and the gap is spent

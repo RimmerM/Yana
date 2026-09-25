@@ -42,10 +42,11 @@ pub class (Num(a), Bitwise(a)) Integral(a):
   -- The two rotations, beside the three shifts and differing from them in the one way the name says:
   -- what leaves one end comes back at the other, so no bit of the value is lost at any distance.
   --
-  -- **The count is taken modulo the type's width**, which is where they part company with the shifts
-  -- above. `x \`shl\` 32` at a `U32` is whatever the target's shift does with a count its register
-  -- cannot hold; `x \`rol\` 32` is `x`, on every target, because that is what the instruction does
-  -- and what resolve/inst.def rules the operation to be.
+  -- **The count is taken modulo the type's width**, which is where they part company with the
+  -- shifts above. `x \`shl\` 32` at a `U32` is whatever the target's shift does with a count its
+  -- register cannot hold; `x \`rol\` 32` is `x`, on every target, because that is what the
+  -- instruction does and what `compiler/resolve`'s inst.def (deleted in J173) rules the operation
+  -- to be.
   --
   -- Members of this class rather than of `Bits`, and at every width rather than at the two the
   -- machine has counting instructions for: a rotation *within* a `U8`'s eight bits is a pair of
@@ -131,7 +132,7 @@ pub let wordBits = 0 :: Size
 
    **And that is why the two float bodies below subtract where every integer one writes unary `-`.**
    Unary `-` is a sign flip and not a subtraction - `Neg`, one xor against the sign mask, generated
-   by `defineNum` in resolve/intrinsic.cpp - so `-(+0.0)` is `-0.0`, which is exactly the answer the
+   from compiler/intrinsic/provided.def - so `-(+0.0)` is `-0.0`, which is exactly the answer the
    `<=` was chosen to keep out. `0.0 - x` gives `+0.0` for both zeros. At an integer width the two
    spellings are the same instruction, so those rows say the shorter thing.
 -}
@@ -148,8 +149,8 @@ pub class (Num(a), Ord(a)) Signed(a):
 -- answer, and it is `Integral` all the same. A separate class is how a width says it has one.
 --
 -- The instances for the integer types are generated - one `ByteSwap` instruction each - rather than
--- eight bodies written out below the numeric instances. See the note there, and `defineByteSwap` in
--- resolve/intrinsic.cpp.
+-- eight bodies written out below the numeric instances. See the note there, and the `byteSwap` row
+-- of compiler/intrinsic/provided.def.
 @builtin(byteSwap)
 pub class (Integral(a)) ByteSwap(a):
   fn byteSwap(value: a) -> a
@@ -334,7 +335,7 @@ pub fn (Bits(a)) bitfield(value: a, start: a, count: a) -> a = bitsUpTo(value `s
    saturate against.
 
    Instanced at 32 and 64 bits, which is `Bits`' set and for its reason. The instances are generated;
-   see `defineBitPermute` in resolve/intrinsic.cpp, and the note in inst.def for what a target
+   see compiler/intrinsic/provided.def, and the note in lower/inst.def for what a target
    without the instruction spends instead - which is a loop on JS and a parallel-suffix network on an
    x86 below v3, and is the one operation in this file whose cost differs by more than a constant
    across the feature levels.
@@ -649,7 +650,7 @@ instance Magnitude(CodeUnit, U32):
     fn magnitude(value: CodeUnit) -> U32 = widen(value)
     fn fromMagnitude(size: U32, negative: Bool) -> Maybe(CodeUnit) = fittedValue(size, negative)
 
--- The byte swaps are **generated**, one instruction each - `defineByteSwap` in resolve/intrinsic.cpp,
+-- The byte swaps are **generated**, one instruction each - from compiler/intrinsic/provided.def,
 -- beside the `Num` and `Integral` instances of the same types and for the same reason. What they
 -- would read like is what they read like until the compiler had an instruction for this:
 --
@@ -672,8 +673,8 @@ instance Magnitude(CodeUnit, U32):
 -- Eleven instructions at 64 bits, and one `bswap` on every machine this compiles for. The tree is
 -- also what a backend would have had to *recognize* to reach that instruction, and a peephole
 -- looking for a shape the optimizer may reassociate first is a peephole that stops finding it. So
--- the operation is a `ByteSwap` in the IR (resolve/inst.def rules on it), and these bodies are the
--- thing it replaced rather than the thing it is built out of.
+-- the operation is a `ByteSwap` in the IR (`resolve_mir/op.def`), and these bodies are the thing it
+-- replaced rather than the thing it is built out of.
 --
 -- The set is 16, 32 and 64 bits, which is what these instances covered: `U8` has nothing to reverse
 -- and `WideInt` has 53 bits, which are not a whole number of bytes of anything.

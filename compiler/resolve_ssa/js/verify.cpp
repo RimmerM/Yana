@@ -326,9 +326,9 @@ struct Verifier {
              * at the one node that writes one.
              *
              * What it refuses is a `null` where a number, a bigint or a string was promised - the
-             * shape §1.2 records as a shipping-backend defect, which reads back as the wrong value
-             * everywhere instead of throwing where it was written. A host object's `null` is legal
-             * and `jsNullIsAValue` is where the two reasons are written.
+             * shape §1.2 records as a defect of the old JavaScript backend, which reads back as the
+             * wrong value everywhere instead of throwing where it was written. A host object's
+             * `null` is legal and `jsNullIsAValue` is where the two reasons are written.
              */
             case JsInst::Const: {
                 auto& written = (JsInstConst&)inst;

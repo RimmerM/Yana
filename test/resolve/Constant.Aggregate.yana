@@ -9,10 +9,10 @@
    targets that disagree about every offset write the same value.
 
    Which is why it asserts values rather than text. Both backends materialize these constants
-   themselves - repr/constant.cpp writes bytes plus relocations, codegen/js/type.cpp writes host
-   values - from one description that knows neither, so a fixture holding only the emitted form would
-   be asserting each backend against itself. The `.js.expect` and `.lower.expect` beside this file
-   are where the two forms are visible; the number is what holds them to each other.
+   themselves - native lowering writes bytes plus relocations, `resolve_ssa/js/constant.cpp` writes
+   host values - from one description that knows neither, so a fixture holding only the emitted form
+   would be asserting each backend against itself. The `.jsir.js.expect` and `.mir.lower.expect`
+   beside this file are where the two forms are visible; the number holds them to each other.
 
    One number rather than seventeen tests, for the reason FloatNaN.yana gives: the score says which
    claim failed, not that one of them did. Every claim contributes a distinct power of two, so `main`

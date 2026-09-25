@@ -3,10 +3,8 @@
    `unicodeVersion` names.
 
    A cluster is a `String` window and has no type of its own: `clusters` yields them, and the
-   boundary functions answer offsets that compose with `String.slice`. `Clusters.ownership.yana`
-   and `Clusters.legacy.yana` hold the two functions that hand out a piece of the text, for the same
-   reason `Core`'s trims are split: a window is `source'` on the ownership stage and a copy on the
-   legacy one.
+   boundary functions answer offsets that compose with `String.slice`. A caller that keeps a cluster
+   past `text` writes `copy`.
 
    **Invalid text has clusters too.** A character is what `decodeChar` answers, so each invalid
    sequence is a U+FFFD, which is `Other` and is a cluster of its own unless a mark follows it.
@@ -194,3 +192,19 @@ pub fn ceilClusterBoundary(text: String, at: Size) -> Size:
 
 pub fn isClusterBoundary(text: String, at: Size) -> Bool =
     at >= 0 && at <= length(text) && floorClusterBoundary(text, at) == at
+
+-- Each extended grapheme cluster of the text, in order. The clusters tile the text: every unit is in
+-- exactly one, and the empty text has none.
+pub iter fn clusters(text: source'String) -> source'String:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        let end = clusterEnd(text, at)
+        yield text.slice(at, end)
+        at = end
+
+-- The longest prefix of whole clusters that is at most `maxUnits` long, which is what cutting a text
+-- to a limit without splitting a character or detaching its marks means.
+pub fn truncateClusters(text: source'String, maxUnits: Size) -> source'String =
+    text.slice(0, floorClusterBoundary(text, maxUnits))

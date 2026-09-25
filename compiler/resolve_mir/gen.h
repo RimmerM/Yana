@@ -19,12 +19,12 @@ struct Program;
  *  - A **`GenSchema`** is the canonical numbering derived from a *finished* context. It does not
  *    grow, and nothing may read a slot number before it exists.
  *
- * The shipping stage keeps one structure and caches the numbering on it, discarding the cache
- * whenever a requirement arrives. That works only while nothing has already acted on a number: a
- * slot number is what emitted code *loads*, so a body that read slot 3 and then inferred a fourth
- * requirement holds a number that has silently come to mean something else. Splitting them makes
- * that unrepresentable rather than merely unlikely - `freezeSchema` is called once, from one place,
- * and refuses to run twice.
+ * `compiler/resolve` (deleted in J173) kept one structure and cached the numbering on it,
+ * discarding the cache whenever a requirement arrived. That works only while nothing has already
+ * acted on a number: a slot number is what emitted code *loads*, so a body that read slot 3 and
+ * then inferred a fourth requirement holds a number that has silently come to mean something else.
+ * Splitting them makes that unrepresentable rather than merely unlikely - `freezeSchema` is called
+ * once, from one place, and refuses to run twice.
  *
  * What follows from the split is that **a body names a requirement, never a number**. `GenValue`
  * names a const parameter, `Place::Property` names a field requirement and `NodeCall::genCallable`
@@ -429,10 +429,10 @@ bool classProves(Context& context, Program& program, DeclPtr<Class> have,
  *
  * A witness table is **flattened**: `class (Eq(a)) Ord(a)` builds one table holding `Ord`'s members
  * followed by `Eq`'s, so reaching a superclass's member out of a subclass's witness is an *offset*
- * rather than a second load. The alternative - a pointer per superclass, which is what the shipping
- * stage writes - buys a shared grandparent's table being one table and costs a load per level at
- * every dispatch; a class hierarchy here is two or three deep and its tables are three or four
- * cells, so the duplication is smaller than the indirection.
+ * rather than a second load. The alternative - a pointer per superclass, which is what
+ * `compiler/resolve` wrote - buys a shared grandparent's table being one table and costs a load per
+ * level at every dispatch; a class hierarchy here is two or three deep and its tables are three or
+ * four cells, so the duplication is smaller than the indirection.
  *
  * Both ends read this: `environmentFor` fills a witness in this order and `witnessFor` writes the
  * table in it, which is the same contract `freezeSchema`'s slot numbering has.

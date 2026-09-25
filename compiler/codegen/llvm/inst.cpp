@@ -127,8 +127,8 @@ static void genCast(FunGen& f, LowerInstCast& inst) {
         value = f.builder.CreateFPCast(from, type, nameOf(f, inst.result));
     } else if(isFloatLike(source)) {
         /*
-         * Saturating, per the ruling in `saturationRange`: out of range clamps to the nearest end
-         * and NaN becomes zero.
+         * Saturating, per Design-Vector §3.4's ruling (stated beside `js::saturationRange` in
+         * codegen/js/shared.h): out of range clamps to the nearest end and NaN becomes zero.
          *
          * `fptosi` and `fptoui` are *poison* outside the range, which is the plain conversion and
          * not this one - LLVM has the saturating form as an intrinsic precisely because the plain
@@ -226,9 +226,10 @@ static void genUnary(FunGen& f, LowerInstUnary& inst) {
          * The four roundings, each of which LLVM names directly and overloads on the operand type
          * exactly as `llvm.sqrt` is overloaded - so a `<4 x double>` is the same call.
          *
-         * `llvm.round` is the ties-**away**-from-zero one, which is the rule resolve/inst.def rules
-         * on and is not `llvm.roundeven`. Picking the wrong one of that pair is invisible except at
-         * an exact half, which is why the two are named here rather than reached through a table.
+         * `llvm.round` is the ties-**away**-from-zero one, which is the rule resolve_mir/op.def
+         * rules on and is not `llvm.roundeven`. Picking the wrong one of that pair is invisible
+         * except at an exact half, which is why the two are named here rather than reached through
+         * a table.
          */
         case LowerInst::Trunc:
         case LowerInst::Floor:
@@ -247,8 +248,8 @@ static void genUnary(FunGen& f, LowerInstUnary& inst) {
          * The magnitude, which is two intrinsics rather than one because LLVM spells the integer and
          * the floating-point cases separately.
          *
-         * `llvm.fabs` clears the sign bit, which is exactly what `Value::Abs` was made a kind to
-         * state (the sign of a NaN is unspecified - see resolve/inst.def). `llvm.abs` takes a second
+         * `llvm.fabs` clears the sign bit, which is exactly what `abs` was ruled to allow (the sign
+         * of a NaN is unspecified - see resolve_mir/op.def). `llvm.abs` takes a second
          * argument saying whether the most negative integer is poison, and it is **false** here: the
          * lower IR's magnitude of `INT_MIN` is `INT_MIN`, the same wrap every other target gives,
          * and promising otherwise would let this be optimized on an assumption the language does not

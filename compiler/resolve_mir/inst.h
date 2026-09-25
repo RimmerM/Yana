@@ -148,8 +148,7 @@ StringView operandRoleName(OperandRole role);
  * worth recording: whether a call may suspend is a property of the *callee's published summary*
  * (Analysis-Sharing.md §3.3), not of the fact that the node is a call. A kind-level bit can only
  * ever answer "every call suspends" or "no call does", and both are wrong, so the question is asked
- * of `Summary::suspension` through the selected callee - see `maySuspend` on the call node when
- * calls arrive.
+ * of the selected callee's `Summary::suspension`, read with `get(true)` where it has no answer.
  */
 static constexpr U16 kMirResult = 1;
 static constexpr U16 kMirTerminator = 2;
@@ -1399,10 +1398,6 @@ UseMode readMode(DeclBase base, MirBase mir, Body& body, const Place& place, Req
  * copyable one is copied by the first arm of `readMode` long before this.
  */
 bool lendsItsContents(DeclBase base, MirBase mir, Body& body, const Place& place);
-
-// Whether this node may suspend the enclosing fiber, from the callee's published summary rather than
-// from the node's kind - Analysis-Sharing.md §3.3, and the reason inst.def has no such column.
-bool maySuspend(DeclBase base, Node& node);
 
 // What a binary operation of this category answers, given operands of `operandType`. Here rather
 // than in the resolver so that the MIR builder and the type check read one rule.

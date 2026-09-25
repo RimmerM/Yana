@@ -533,10 +533,10 @@ static void explainResult(Context& context, const Explanation& explanation, Arra
     }
 
     /*
-     * Not surprising, including where no parameter lends it - which the shipping stage flagged. That
-     * stage could return a borrow rooted in nothing a caller could name; this one refuses such a
-     * signature at its declaration, so what reaches here with no parameter is a traversal lending its
-     * own frame to the continuation, which is what every `iter fn` yielding a local does.
+     * Not surprising, including where no parameter lends it - which `compiler/resolve` flagged.
+     * That stage could return a borrow rooted in nothing a caller could name; this one refuses such
+     * a signature at its declaration, so what reaches here with no parameter is a traversal lending
+     * its own frame to the continuation, which is what every `iter fn` yielding a local does.
      */
     if(!listed) text.append("storage no parameter names"_v);
     addNote(notes, ExplainTopic::Returns, false, text);

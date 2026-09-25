@@ -253,7 +253,7 @@ fn (Random(a), Integral(a), Ord(a), Bits(a), Bounded(a), Widen(U32, a), Narrow(a
    What is left is a name, which is worth keeping: `below(rng, length(xs))` says *index* where
    `between(rng, 0, length(xs))` says range, and it is the one range a container asks for.
 
-   `Size` is the target's word rather than a fixed number of bits (`compiler/resolve/core.cpp`), so
+   `Size` is the target's word rather than a fixed number of bits (`intrinsic/supplied.h`), so
    an instance of `Random(Size)` would have to know how many draws a word takes and no portable body
    can. What a caller actually asks for is an index, so that is what this is: `below(rng, length(xs))`
    is in range for any non-empty container and answers `0` for an empty one.

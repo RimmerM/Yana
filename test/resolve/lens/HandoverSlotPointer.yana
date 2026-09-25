@@ -2,8 +2,6 @@
    `HandoverSlot.yana` through a raw pointer: `-> %a'I32` hands over an address into the caller's
    `a`, and a consumer stores it into a field in that origin and reads it after the lens returned.
 
-   # resolver: ownership
-
    `values(xs)` is `%a'T`, so its pointee is a statement about `xs` and the hand-over's slot check
    (`analyze_loan.cpp`'s `checkHandoverConformance`) accepts it, offset or not.
    `Reject.HandoverSlot.yana`'s `relay` is the pointer that looks the same and is not: a copy of a

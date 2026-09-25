@@ -1,14 +1,12 @@
 {-
    A **property witness on a field this target would pack** - J85.
 
-   # resolver: ownership
-
    On JavaScript a property witness is a *name*: a body compiled once reads `owner[key]`. A record
    whose narrow fields share a `$pN` word, or which is one number altogether, has no property of its
    own for the witnessed field, so there is no name to hand over. JSIR answers that by **not packing
    the field a property requirement names**: it keeps its own property, and the record's other narrow
-   fields still pack beside it where there are two of them. The shipping backend hands a `{read, set}`
-   pair of accessors instead, which is the native slot's third shape; here the answer is the layout.
+   fields still pack beside it where there are two of them. The shipping backend used to hand a
+   `{read, set}` pair of accessors, the native slot's third shape; here the answer is layout.
 
    `Bits` would be one number and `Mixed` would co-pack all three of its narrow fields - both with
    `flag` witnessed. `Quiet` is `Bits` with no witness on it, so it is still one number, which is what

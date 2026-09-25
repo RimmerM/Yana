@@ -36,12 +36,13 @@ static JsPassing passingOf(JsTarget& target, const mir::Occurrence& occurrence, 
      * A descriptor is already a pair of host values, so the object around it buys nothing at a
      * position that can take two arguments and costs one allocation at every mutable borrow that
      * crosses a call. It also takes a level off every read through it: the callee names
-     * `owner[key]` where it named `x.$o[x.$k]`. That is the shipping backend's own arrangement -
-     * `showWith(v699, ..., v11, "$v", 1)` is its flattened `{$o, $k, $s}`. The scale is a third
+     * `owner[key]` where it named `x.$o[x.$k]`. That was the old JavaScript backend's own
+     * arrangement (deleted with `compiler/resolve` in J173) - `showWith(v699, ..., v11, "$v", 1)`
+     * was its flattened `{$o, $k, $s}`. The scale is a third
      * position only where the content is narrow and something packs - `jsRefCarriesScale` - so
      * `positions` is read off the parts representation rather than written as two.
      *
-     * **There is no arity guard** (J84), where the shipping backend declines to flatten a signature
+     * **There is no arity guard** (J84), where the old backend declined to flatten a signature
      * past 24 arguments - `Packed.yana`'s `nine`, nine `&Bool`s and 27 arguments. Its reason is
      * native: a callee past 16-24 arguments starts spilling them. V8 passes every JavaScript
      * argument on the stack whatever the count, so there is no cliff for a guard to stand in front
@@ -110,8 +111,7 @@ JsAbiId jsAbiOf(JsTarget& target, DeclPtr<mir::Function> function, LocationId wh
     /*
      * A body compiled once takes its caller's table as argument zero - the erased ABI, which on this
      * target is one host array and an index rather than a run of four-byte cells and an anchor
-     * (`lower/erase.cpp` is where the native numbers are, and `codegen/js/place.cpp`'s `tableCell`
-     * is the shipping backend's version of this one line).
+     * (`lower/erase.cpp` is where the native numbers are).
      *
      * Read off `GenForm` rather than off "has type variables", because the two are different
      * questions and only the first is the one both ends were compiled against: a *specialization*
@@ -215,8 +215,7 @@ JsAbiId jsAbiOfType(JsTarget& target, DeclPtr<mir::Type> type, LocationId where)
 }
 
 /*
- * Which globals are stored boxed - `JsTarget::boxedGlobals`, and the same question `Gen::boxedGlobals`
- * asks of the shipping backend's program.
+ * Which globals are stored boxed - `JsTarget::boxedGlobals`.
  *
  * A global whose address is handed to anybody needs an object for a `{$o, $k}` descriptor to name,
  * and a module-level binding is not a property of anything. The test is the demand pass's, read off

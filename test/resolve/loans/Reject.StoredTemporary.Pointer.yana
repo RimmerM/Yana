@@ -1,8 +1,6 @@
 {-
    A pointer with no storage, at a `'%T` parameter whose callee keeps it (J162).
 
-   # resolver: ownership
-
    `p: '%Int` is a reference *to a pointer*, so `wrap` keeps the address of whatever holds the
    pointer. J147 left every pointer-typed position without a temporary, for the sake of `p[i]`
    (`StoredTemporary.Pointer.yana`), and the SSA conversion gave this one a frame slot instead -

@@ -6,12 +6,14 @@
 
 /*
  * Which string literals stand for one character at which types - Implementation-String.md part 1.1's
- * acceptance table, stated once for both resolve stages.
+ * acceptance table, stated once.
  *
- * `"," :: CodeUnit` is a literal both stages fold to a constant, and the question of *whether* a
- * literal may be one is the language's rather than a stage's: a program that one stage accepted and
- * the other refused would be the fixity divergence again. So the decoding, the table and the words
- * each refusal is reported in are here, and a stage supplies the target and the reporter.
+ * `"," :: CodeUnit` is a literal the resolver folds to a constant, and the question of *whether* a
+ * literal may be one is the language's rather than a stage's. It was put here while two resolve
+ * stages folded one, where a program one accepted and the other refused would have been the fixity
+ * divergence again; it stays for the same reason the fixities left the compiler. So the decoding,
+ * the table and the words each refusal is reported in are here, and the resolver supplies the
+ * target and the reporter.
  */
 namespace intrinsic {
 

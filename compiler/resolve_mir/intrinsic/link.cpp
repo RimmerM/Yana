@@ -206,10 +206,11 @@ static bool termMatches(Program& program, const PositionShape& shape, DeclPtr<Ty
         /*
          * The string whose constant the emitter reads - and this stage cannot name that type yet.
          *
-         * `String` in the ownership stage is one of the things the real `Core` is still blocked on,
-         * so a structural test here would be a term no reader could answer, which is worse than no
-         * term - the same ruling the vector positions in `op.def` are under. The day `known.def`
-         * names the string, this is the row that says so.
+         * `String` was one of the things this stage could not yet compile of the real `Core` when
+         * this term was written, so a structural test here would have been a term no reader could
+         * answer, which is worse than no term - the same ruling the vector positions in `op.def`
+         * are under. `known.def`'s `string` row names the string now, so this is the row that
+         * could say so.
          *
          * What the term is actually *for* is checked either way, and not here: whether an argument
          * is a literal is a question about a call, and `host.cpp`'s `nameAt` is what reports one

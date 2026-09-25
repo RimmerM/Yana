@@ -24,59 +24,33 @@ enum class TargetPlatform: U8 {
 /*
  * What the compilation produces - `-mode`, and `mode` in a `yana.toml`.
  *
- * The four that emit something a machine runs are the first four; the three after them are the
- * pipeline stopped early, each one stage later than the last. `-mode ast` is what the parser made,
- * `-mode ir` the resolved program the backends read, `-mode lower` the form both native backends
- * are generated from, and `-mode llvm` LLVM's own text - so the ladder from source to executable can
- * be halted anywhere and read. They replace the `-print-ast`/`-print-ir` debug flags, which wrote
- * fixed file names beside the source they came from and had no way to say "and stop here".
+ * The three that emit something a machine runs are the first three; the ones after them are the
+ * pipeline stopped early. `-mode ast` is what the parser made, `-mode mir` and `-mode ssa` the two
+ * ownership IRs, `-mode lower` the form both native backends are generated from, and `-mode llvm`
+ * LLVM's own text - so the ladder from source to executable can be halted anywhere and read. They
+ * replace the `-print-ast`/`-print-ir` debug flags, which wrote fixed file names beside the source
+ * they came from and had no way to say "and stop here".
  */
 enum class CompileMode {
     Executable, /// A program: a native executable, or a JavaScript file that runs standalone.
     Shared,     /// A native shared library for dynamic linking (.dll, .so, .dylib).
     Library,    /// A Yana library that can be included in other programs.
     Ast,        /// The parsed form of every source file, and nothing after parsing.
-    Drops,      /// What the ownership passes concluded: where each local is live, and where it is dropped.
-    Ir,         /// The resolved and optimized program, as resolve IR text.
     Lower,      /// The lowered program, as lower IR text. Native only - the JS backend never lowers.
     Llvm,       /// LLVM IR text for the program, rather than an object file built from it.
 
-    /// The two dumps of the rewritten stage - doc/inflight/Analysis-IR.md part 11. `mir` is the
-    /// checked ownership MIR - the document calls it OMIR - and `ssa` the converted ownership SSA,
-    /// its OSSA, after `resolve_ssa/opt` has run over it. Optimized for the reason `-mode ir` is:
-    /// that is the program the backend is given, and `-no-ir-opt` is how the form before it is asked
-    /// for. Both imply `-resolver ownership`, since nothing else produces either.
+    /// The resolve stage's two dumps - doc/inflight/Analysis-IR.md part 11. `mir` is the checked
+    /// ownership MIR - the document calls it OMIR - and `ssa` the converted ownership SSA, its OSSA,
+    /// after `resolve_ssa/opt` has run over it. Optimized, because that is the program the backend
+    /// is given, and `-no-ir-opt` is how the form before it is asked for.
     Mir,
     Ssa,
 
     /// The JavaScript target's own dump - Analysis-IR-JS.md §8.4. The typed managed-value IR between
     /// OSSA and the syntax tree, with its representations, its shapes, its ABIs and one body per
-    /// function. Implies `-resolver ownership -platform js`, since nothing else produces one - the
-    /// same argument `mir` and `ssa` make, which is that a tier whose dump is a driver flag is a
-    /// tier whose output is asserted from its first fixture.
+    /// function. Implies `-platform js`, since nothing else produces one - and a tier whose dump is a
+    /// driver flag is a tier whose output is asserted from its first fixture.
     Jsir,
-};
-
-/*
- * Which resolve stage compiles this program - Analysis-IR.md part 11.2.
- *
- * `Ownership` is the rewrite in `compiler/resolve_mir` and `compiler/resolve_ssa`, which shares the
- * parser and everything from `compiler/lower` down and nothing in between, and **is the default on
- * both platforms** since 2026-09-22 (J81). `Legacy` is `compiler/resolve`, which is now the
- * comparison stage: what is still only its is `-mode ir`, `-mode drops` and the goldens the test
- * drivers pin it for. `-mode shared` and `-mode lib` are neither stage's (J150).
- *
- * The default flipped rather than the old stage being deleted, deliberately: two front halves that
- * can compile one fixture is the whole value of the second set of goldens, and a default that names
- * the stage a person actually ships is what keeps the *other* one from being what they measure.
- *
- * A run-time switch rather than a build-time one, deliberately: what is worth having is one binary
- * that can compile one fixture both ways, so that a disagreement between them is a difference in
- * what the two front halves *decided* with the whole backend held fixed.
- */
-enum class ResolverStage {
-    Legacy,
-    Ownership,
 };
 
 /// Whether this compilation emits JavaScript rather than machine code - see TargetPlatform. Takes
@@ -91,16 +65,14 @@ inline bool isJsMode(const struct CompileSettings& settings);
 /// `Ast` is not among them because it stops before there is a program to be reachable in.
 /// See markProgramReachable.
 inline bool isExecutableMode(CompileMode mode) {
-    return mode == CompileMode::Executable || mode == CompileMode::Drops ||
-           mode == CompileMode::Ir || mode == CompileMode::Lower || mode == CompileMode::Llvm ||
+    return mode == CompileMode::Executable || mode == CompileMode::Lower || mode == CompileMode::Llvm ||
            mode == CompileMode::Mir || mode == CompileMode::Ssa || mode == CompileMode::Jsir;
 }
 
 /// Whether a mode writes text about the program rather than something that runs. The three that do
 /// share every step up to the point they stop at, and none of them reads a backend or a format.
 inline bool isTextMode(CompileMode mode) {
-    return mode == CompileMode::Ast || mode == CompileMode::Drops ||
-           mode == CompileMode::Ir || mode == CompileMode::Lower || mode == CompileMode::Llvm ||
+    return mode == CompileMode::Ast || mode == CompileMode::Lower || mode == CompileMode::Llvm ||
            mode == CompileMode::Mir || mode == CompileMode::Ssa || mode == CompileMode::Jsir;
 }
 
@@ -327,12 +299,12 @@ enum class FramePointerMode {
 };
 
 /*
- * How hard compiler/opt tries to inline, which is the one decision in that stage that trades size
+ * How hard resolve_ssa/opt tries to inline, which is the one decision in that stage that trades size
  * for speed rather than being a straight win.
  *
  * Its own knob rather than a reading of `optimization` below, because that one is a level handed to
  * LLVM and says nothing about the IR stage - and because the interesting axis here is the same one
- * `-Os` and `-Ofast` name in Clang. Every other pass in compiler/opt makes a program smaller and
+ * `-Os` and `-Ofast` name in Clang. Every other pass in resolve_ssa/opt makes a program smaller and
  * faster at once and has nothing to ask about.
  *
  * `Size` is not "off": inlining a callee with exactly one call site in the whole program removes a
@@ -456,7 +428,6 @@ struct CompileSettings {
      */
     bool explicitMode = false;
     bool explicitPlatform = false;
-    bool explicitResolver = false;
     bool explicitOutput = false;
     bool explicitImageBase = false;
 
@@ -551,22 +522,19 @@ struct CompileSettings {
     /// is the switch that means something on both, and is `-no-ir-opt` for exactly that reason.
     U32 optimization = 2;
 
-    /// Whether the IR optimizer runs at all - `-no-ir-opt`. Read by all three of them: `compiler/opt`
-    /// over the resolve IR, `compiler/resolve_ssa/opt` over ownership SSA, and the shared sequence
-    /// over the lower IR that both stages end with (`lower/lower_pipeline.h`), so the flag means one
-    /// thing whichever stage compiled the program.
+    /// Whether the IR optimizer runs at all - `-no-ir-opt`. Read by both of them: `resolve_ssa/opt`
+    /// over ownership SSA, and the sequence over the lower IR (`lower/lower_pipeline.h`).
     ///
     /// Distinct from `optimization`, which is a level handed to LLVM: this one is a switch on our
     /// own passes over our own IR, and it is off only to answer the question "did the optimizer
     /// change what this program does". The flag was `-no-opt`, one letter from `-opt 0` and a
     /// different optimizer - the two are now named after the thing each switches. The fixture runner compiles every runnable fixture both ways
-    /// and compares the results on both targets, which is the same equivalence check
-    /// `Program::Specialization` gets and exists for the same reason - an optimization must not be
-    /// where a semantic decision quietly moved to.
+    /// and compares the results on both targets - an optimization must not be where a semantic
+    /// decision quietly moved to.
     bool optimizeIr = true;
 
     /// Whether the **JSIR** optimizer runs - `-no-jsir-opt`, read only by `resolve_ssa/js/opt.h`'s
-    /// passes and therefore only on `-platform js -resolver ownership`.
+    /// passes and therefore only on `-platform js`.
     ///
     /// A third axis rather than a reading of `optimizeIr`, because Analysis-IR-JS.md §10.2 asks for
     /// the three configurations separately: shared OSSA optimization on and off, JSIR optimization
@@ -575,7 +543,7 @@ struct CompileSettings {
     /// above the fork, and the other way round has one below it.
     bool optimizeJsir = true;
 
-    /// How aggressively compiler/opt inlines - see InlineLevel. Read only when `optimizeIr` is on,
+    /// How aggressively resolve_ssa/opt inlines - see InlineLevel. Read only when `optimizeIr` is on,
     /// since the whole stage is off otherwise.
     InlineLevel inlining = InlineLevel::Balanced;
 
@@ -612,18 +580,19 @@ struct CompileSettings {
      * decided. There is deliberately no per-check switch: what a reader needs to know about a binary
      * is whether it is the checked one.
      *
-     * **What a check *is* differs between the two resolve stages, and the switch means the same
-     * thing either way.** `compiler/resolve` emits `checkCondition(index >= length)` at the
-     * subscript and `opt/opt_check.cpp` removes the calls it emitted. The ownership stage emits
-     * nothing at all: `lib/Core/Array.yana`'s `Index.get` writes the test as a library `if` and
-     * `@inline(always)` grafts it into the caller, so what `resolve_ssa/opt/check.cpp` removes is a
-     * branch whose whole taken arm calls the `checkFailed` role. Both are read in the optimizer and
-     * above its own gate, so a resolved program is the same either way - a library built checked
-     * links into an unchecked one - and `-no-checks` is free rather than cheap in both.
+     * **A check is library code rather than something the compiler emits.**
+     * `lib/Core/Array.yana`'s `Index.get` writes the test as a library `if` and `@inline(always)`
+     * grafts it into the caller - a `[T *n]` element, which has no accessor, calls the
+     * `checkCondition` role instead - so what `resolve_ssa/opt/check.cpp` removes is a branch whose
+     * whole taken arm calls the `checkFailed` role. It is read in the optimizer and above its own
+     * gate, so a resolved program is the same either way - a library built checked links into an
+     * unchecked one - and `-no-checks` is free rather than cheap. (`compiler/resolve`, deleted in
+     * J173, emitted `checkCondition(index >= length)` at every subscript and removed the calls it
+     * emitted.)
      *
-     * **Under the ownership stage it takes the library's other stops with it**, and that is the one
-     * place the two switches do not remove the same set. What is recognized there is the role and
-     * not the site, so every `checkFailed` the library reached for goes:
+     * **It takes the library's other stops with it**, which is where it differed from that stage's
+     * switch. What is recognized is the role and not the site, so every `checkFailed` the library
+     * reached for goes:
      * `lib/Core/Array.yana`'s `reserve` writes `if !resize(self.run, wide) then checkFailed()`,
      * so an unchecked build has no allocation-failure stop and a `push` that could not get the room
      * carries on into storage it does not have. That is the honest consequence of a library whose
@@ -685,11 +654,11 @@ struct CompileSettings {
     bool test = false;
 
     /*
-     * Whether the rewritten stage reports past an error rather than stopping at the next checkpoint
+     * Whether the resolve stage reports past an error rather than stopping at the next checkpoint
      * - `mir::recovering`, which is what reads it, along with `Context::index`.
      *
      * An editor's compile always has; this is the same behaviour for a batch compile, which the
-     * driver turns on for `-resolver ownership`. Without it a build reported one *stage's* errors
+     * driver turns on for every mode but `-mode ast`. Without it a build reported one *stage's* errors
      * and stopped: a parse error in one file hid every type error in the others, and a type error
      * hid every ownership error, so a project with mistakes in three files took three builds to see
      * them. It costs nothing on a program without errors - every site it changes is a checkpoint
@@ -734,17 +703,6 @@ struct CompileSettings {
      */
     Tritium::String allocator = Tritium::String(kDefaultAllocator.ptr, kDefaultAllocator.length);
 
-    /*
-     * Whether generic functions are specialized per instantiation, or emitted once and shared -
-     * Program::Specialization.
-     *
-     * A flag because it is a row of the test matrix: §8's `agree` asks whether a library's answer
-     * depends on how it was compiled, and "specialized" against "forced generic" is one of the pairs
-     * it asks about. It was reachable only from inside a C++ driver, which is exactly what stopped
-     * the standard library's suite from being an ordinary program.
-     */
-    bool forceGeneric = false;
-
     /// `-help`: print what this compiler takes and stop. Not an error, and not a compilation - the
     /// driver prints `helpText` and answers zero.
     bool help = false;
@@ -753,26 +711,6 @@ struct CompileSettings {
     /// The one dump that is not a `-mode`: it is about how the files were grouped rather than about
     /// the program they form, so it is a thing to ask *while* compiling rather than instead of it.
     bool printModules = false;
-
-    /*
-     * Whether the ownership passes keep each local's live ranges - OwnershipResult::ranges.
-     *
-     * Off, because `printOwnership` is the only thing in the compiler that reads one and nothing on
-     * a compilation's path to an executable calls it - `-mode drops` is what turns both on, and
-     * is the only thing on a command line that does. Building them is not free: the range builder
-     * replays the backward walk *per local per block* to recover liveness at each point inside a
-     * block, which the fixpoint only kept at the two ends - so it is the single largest item in the
-     * ownership stage, and on a small program it was 4% of the whole compile.
-     *
-     * A driver that prints the dump asks for them, which today is the resolve fixture runner. The
-     * facts every other decision is made from - the lattice, the summaries, where a drop goes - are
-     * computed either way; this is the *presentation* of liveness and only that.
-     */
-    bool ownershipRanges = false;
-
-    /// `-resolver legacy|ownership`, and implied by `-mode mir`, `-mode ssa` and `-mode jsir`. The
-    /// rewrite since 2026-09-22 (J81) - see ResolverStage for why the old stage is still reachable.
-    ResolverStage resolver = ResolverStage::Ownership;
 
     /*
      * The `explain` query - Analysis-Ambient.md §7.3.
@@ -840,7 +778,8 @@ inline bool isJsMode(const CompileSettings& settings) {
  */
 /*
  * The widths a target chooses for the three integers the language leaves abstract - `Size`, `USize`
- * and `CodeUnit`. See TargetInt in resolve/type.h, which is what states the bound they answer.
+ * and `CodeUnit`. See `TargetWidth` in `intrinsic/primitive.h`, which is what states the bound they
+ * answer.
  *
  * Here beside `targetVectorBytes` rather than with the types, because it is the same kind of fact
  * and has the same two readers: `ReprTarget::integers` carries it to everything downstream of
@@ -1072,24 +1011,6 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name,
 TargetSelector allocatorSelector(const CompileSettings& settings, StringView name);
 
 /*
- * The **resolve-stage** axis: `legacy` and `ownership` in a file name, e.g. `Text.legacy.yana`.
- *
- * It exists for one transition and should go when `compiler/resolve` does (Analysis-IR.md 11.5). The
- * two stages read one `lib/`, and a few library operations cannot have one signature both accept.
- * `String.slice` is the first of them: the rewrite hands back a borrowed window of the string, and the
- * old stage, whose shared `String` is the owner's address, has no way to represent a partial window
- * and copies instead (Implementation-String.md part 4). The two bodies then differ in their
- * *signatures*, so choosing between them after reading both is not an option; the file that is not
- * this stage's is not read at all, exactly as a `.js.yana` file is not read by a native build.
- *
- * A file-name selector only, not a `@platform` target: it is a fact about the compiler rather than
- * the machine, and keeping it off the declaration attribute keeps it out of every program that is not
- * the standard library's. Deleting the old stage is then deleting every `*.legacy.yana` file and
- * folding each `*.ownership.yana` into its module's main file.
- */
-TargetSelector resolverSelector(const CompileSettings& settings, StringView name);
-
-/*
  * The marker segment that hands a file name's next segment to the allocator axis -
  * `Heap.native.allocator.bootstrap.yana`, Design-Allocator.md §18.3.
  *
@@ -1137,15 +1058,14 @@ bool selectsFileName(const CompileSettings& settings, StringView stem, SelectorS
  * The shape is the one the spellings already have. One `@platform(a, b)` is a clause read as **or**;
  * the attribute written twice, and every dotted segment of the file name, are further clauses read
  * as **and**. So a condition is a conjunction of disjunctions, and each literal is one written name
- * on one axis - the machine axis `targetSelector` answers, the allocator axis `@allocator` and
- * `allocator.<provider>` name, or the resolve-stage axis `legacy`/`ownership` name.
+ * on one axis - the machine axis `targetSelector` answers, or the allocator axis `@allocator` and
+ * `allocator.<provider>` name.
  *
  * The names are views of interned text, which lives as long as the compilation does.
  */
 enum class SelectorAxis: U8 {
     Target,
     Allocator,
-    Resolver,
 };
 
 struct SelectorLiteral {

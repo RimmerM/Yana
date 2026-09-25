@@ -423,8 +423,8 @@ struct Summary {
     void setPlacement(StorageClass value, Knowledge how) { placed = value; write(Which::Placement, how); }
 
     /*
-     * Whether calling this ever comes back - the divergence fact, and the shipping stage's declared
-     * `Function::noReturn` **inferred** instead.
+     * Whether calling this ever comes back - the divergence fact, **inferred** rather than declared
+     * as `compiler/resolve`'s `Function::noReturn` was.
      *
      * Inferred rather than written for the reason suspension is: the seeds are the roles the library
      * claims (`checkFailed`, `abort`), and everything above them - a body whose every path ends in

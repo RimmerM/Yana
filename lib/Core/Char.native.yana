@@ -47,7 +47,7 @@ fn isContinuation(unit: CodeUnit) -> Bool = unit is 0x80..=0xBF
    **Three small functions, dispatched on by each caller**, and the size is the reason. One
    `@inline(always)` function answering the character and the offset after it - or one choosing
    among these three - is past the size ceiling the optimizer keeps even for that attribute
-   (`worthInlining` in `compiler/opt/opt_inline.cpp`), so it stayed a call, and on CJK text the call
+   (`worthInlining`, now in `resolve_ssa/opt/inline.cpp`), so it stayed a call; on CJK text the call
    was a third of what a character cost. These three are each under it, and the choice among them is
    the three lines each decoding loop below repeats.
 -}

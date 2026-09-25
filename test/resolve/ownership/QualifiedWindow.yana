@@ -2,12 +2,10 @@
    A window through a qualified type argument - `Named('String)`, `Named('[I32])` - J131, review 3
    item 5.
 
-   # resolver: ownership
-
-   The argument's slot said whole value, so the field was laid out as a pointer to an owner while the
-   construction stored the view's two words, and `e.name` read back empty natively (JavaScript and
-   the shipping stage were right). A shared window-able argument is the view, as a variable position
-   bound to one already was.
+   The argument's slot said whole value, so the field was laid out as a pointer to an owner while
+   the construction stored the view's two words, and `e.name` read back empty natively (JavaScript
+   and the old shipping stage were right). A shared window-able argument is the view, as a variable
+   position bound to one already was.
 -}
 
 data Named(s) {name: s, n: I32}

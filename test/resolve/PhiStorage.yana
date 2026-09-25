@@ -7,9 +7,9 @@
    the slot `m` names then has to say where its storage went.
 
    Repointing it at the surviving `Alloc` is a second name for storage that already had one, and
-   that is the thing most of `compiler/opt` reasons from without saying so: opt_promote.cpp's proof
-   is "the only places that can overlap one of this local's fields are other places rooted in the
-   same local", and opt_scalar.cpp removes a local whose own place is written and never read. With
+   that is the thing most of `compiler/opt` (deleted in J173) reasoned from without saying so: the
+   promotion proof was "only places rooted in the same local can overlap one of this local's
+   fields", and scalarization removed a local whose own place was written and never read. With
    two locals over one allocation the write goes through one name and the read through the other, so
    `fillUnwritten` found nothing writing `m` and answered the load with the zero an unwritten local
    holds - every such `if` came out as constructor zero, whatever it was built as. See

@@ -1,8 +1,6 @@
 {-
    Re-pointing storage at a fresh loan, and a pointer written through a loan field's referent - J128.
 
-   # resolver: ownership
-
    A write that replaces a whole owned local whose type has no teardown discards the old value
    unread, so it reaches the local and nothing the old value referred to. `pointerWalk` re-points
    `p` at a fresh unique loan of `xs` every pass. It compiled before J127 only because the old loan

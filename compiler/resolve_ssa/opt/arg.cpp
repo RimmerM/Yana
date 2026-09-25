@@ -2,15 +2,15 @@
 
 /*
  * A record parameter that becomes one parameter per field - the shipping stage's `flattenArguments`
- * (`compiler/opt/opt_arg.cpp`), built on this stage's terms.
+ * (`compiler/opt/opt_arg.cpp`, deleted with that stage in J173), built on this stage's terms.
  *
  * `fn multiply(a: [Int], b: [Int], n: Int)` takes two windows, and a window is a record of a base
  * and a length that `lower/README.md`'s first section passes **by address**. So the callee's loop
- * reads the length out of memory on every iteration, and the bounds test a subscript grafts compares
- * an induction variable against a value nothing can prove invariant - because the pointee of a
- * borrowed parameter has no root in this body, which is exactly why `hoist` declines to move the
- * read and is right to. Passing `a$items` and `a$length` instead makes both of them values, and the
- * check folds against the loop bound the way it does in the shipping stage.
+ * reads the length out of memory on every iteration, and the bounds test a subscript grafts
+ * compares an induction variable against a value nothing can prove invariant - because the pointee
+ * of a borrowed parameter has no root in this body, which is exactly why `hoist` declines to move
+ * the read and is right to. Passing `a$items` and `a$length` instead makes both of them values, and
+ * the check folds against the loop bound the way it did in the shipping stage.
  *
  * ## Why this is a calling convention rather than an optimization
  *
@@ -57,7 +57,7 @@
  * tier that asked it would be answering a representation question one tier above the one that owns
  * it.
  *
- * Nothing here asks whether the parameter's type owes a teardown, which the shipping pass does, and
+ * Nothing here asks whether the parameter's type owes a teardown, which the shipping pass did, and
  * the leaf rule is why it does not have to: a parameter only reaches the rebuild by being a *borrow*
  * whose every leaf is trivially copyable, so what the callee's slot holds is bytes and owes nothing.
  * Asking the record's own type instead would have declined every window, since `Array(a)` owes a
@@ -355,11 +355,11 @@ bool argumentCanFlatten(OptContext& opt, mir::Function& function, U32 index) {
      *
      * This is the one borrowed form whose value is a record of its own. Every other shared borrow of
      * a record manifests as a *pointer to the caller's* storage (`lower/README.md`'s
-     * `isReferenceValue` against `isAddressOnly`), so it already arrives in one register and there is
+     * `isReferenceValue` against `inMemory`), so it already arrives in one register and there is
      * nothing to take apart - and rebuilding it would be a copy of somebody else's object rather
      * than the two words a window is.
      *
-     * That is narrower than the shipping stage, which flattens `fn sum(pair: Pair)` as well. It is
+     * That is narrower than the shipping stage, which flattened `fn sum(pair: Pair)` as well. It is
      * narrower on purpose: the payoff measured over there for an ordinary record was "747 -> 714
      * allocas" on native and most of the rest was JavaScript, where the whole of what this item is
      * about - a check whose bound is a register rather than a load - is the window. Widening it
@@ -550,7 +550,7 @@ void rewriteCalls(OptContext& opt, const Plans& plans, mir::Function& function) 
  * The leaf reads a body already makes of a flattened parameter - the prologue that emits **nothing**,
  * and the answer to the compile-time half of the convention.
  *
- * Rebuilding the record in a frame slot is the shape the shipping stage's `flattenArguments` uses
+ * Rebuilding the record in a frame slot is the shape the shipping stage's `flattenArguments` used
  * and the one this pass shipped with, and it is honest work thrown away: an `alloc`, one
  * `field.addr` and one `store` per leaf, a `load` to name it again - and then `promote`,
  * `forwardMemory` and `removeDeadStorage` take all of it out in the loop below. J36 measured what
@@ -559,7 +559,7 @@ void rewriteCalls(OptContext& opt, const Plans& plans, mir::Function& function) 
  *
  * So the entry is written as block arguments outright wherever the body's every use of the
  * parameter is a projection down to a leaf and a `load` of it, which is what a body that reads a
- * window reads. That is "understanding the body", which the shipping pass declines on purpose - and
+ * window reads. That is "understanding the body", which the shipping pass declined on purpose - and
  * the whole of the understanding is here: a chain of `field.addr` whose steps are the plan's own
  * path, ending in a `load` whose occurrence is the leaf's. Anything else - a `represent`, a read of
  * the whole record, a projection the plan did not flatten - is not matched and the slot is built,

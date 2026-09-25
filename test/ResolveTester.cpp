@@ -5,15 +5,10 @@
 #include <cstdio>
 #include <cerrno>
 #include "../compiler/parse/parser.h"
-#include "../compiler/resolve/analyze.h"
 #include "../compiler/resolve_mir/explain.h"
-#include "../compiler/resolve/lower.h"
-#include "../compiler/resolve/print.h"
-#include "../compiler/repr/repr_print.h"
 #include "../compiler/lower/lower_print.h"
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/gen.h"
-#include "../compiler/codegen/js/gen.h"
 #include "../compiler/codegen/js/jsir.h"
 #include "../compiler/codegen/llvm/gen.h"
 #include "../compiler/resolve_ssa/pipeline.h"
@@ -79,9 +74,9 @@ struct RecordDiagnostics: Diagnostics {
  * The front end every pass in this file opens with - provider, diagnostics, context, directives, the
  * settings it overrides and the parse.
  *
- * Ten passes here began with the same eleven lines and differed in two things: which diagnostics they
+ * The passes here began with the same eleven lines and differed in two things: which diagnostics they
  * collect, and which settings they set. The settings went in the *middle* of the block, so a line
- * added to the front end had to be added ten times in nine functions, and one of them forgetting it
+ * added to the front end had to be added once per pass, and one of them forgetting it
  * is a fixture compiled a way nothing says out loud. The diagnostics are the template parameter -
  * two passes record what was reported and the rest print it - and `settings` is a callback that runs
  * exactly where the overrides used to, between the directives and the parse. The members are in
@@ -121,18 +116,10 @@ private:
     }
 };
 
-/*
- * The rewrite's own front end, which is the same one with the resolver set - seven of the ten.
- *
- * The native one leaves the platform alone rather than setting it to `Native`, because a fixture may
- * have said `# platform: js` and the directives have already run by the time this does.
- */
-inline void ownershipSettings(CompileSettings& settings) {
-    settings.resolver = ResolverStage::Ownership;
-}
-
-inline void ownershipJsSettings(CompileSettings& settings) {
-    settings.resolver = ResolverStage::Ownership;
+// The JavaScript passes' front end. The native passes take the default, which leaves the platform
+// alone rather than setting it to `Native`: a fixture may have said `# platform: js`, and the
+// directives have already run by the time the settings callback does.
+inline void jsSettings(CompileSettings& settings) {
     settings.platform = TargetPlatform::Js;
 }
 
@@ -197,9 +184,8 @@ static Maybe<I64> readExpectedRun(const String& path) {
 /*
  * Assembling a lowered module in memory and calling its entry point.
  *
- * `unitResult` and `wideResult` are handed in rather than read off a resolved program, because there
- * are two front halves now and they have no type in common - see `compileOwnershipStage` in the
- * driver. Everything below the `LowerModule` is what the two share, and this is the shared half.
+ * `unitResult` and `wideResult` are handed in rather than read off the lowered module, which has no
+ * types above its five machine ones - the callers read them off the entry's declaration.
  */
 static Maybe<I64> executeModule(Context& context, LowerModule& module, bool unitResult, bool wideResult) {
 #if defined(__x86_64__) && (defined(__unix__) || defined(__APPLE__))
@@ -291,19 +277,6 @@ static Maybe<I64> executeModule(Context& context, LowerModule& module, bool unit
 #endif
 }
 
-// The same, for a program the current resolver produced. How wide the result is comes off the
-// entry's own signature rather than `main`'s - the two agree by construction, since the entry
-// answers what `main` answered.
-static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& module) {
-    if(!resolved.entry) return Nothing();
-
-    auto entryType = (*resolved.arena)[resolved.entry]->returnType;
-    auto returnType = (*resolved.types)[entryType];
-    auto wide = returnType->kind == Type::Int && ((IntType*)returnType)->width == IntType::Long;
-
-    return executeModule(context, module, isUnit(*resolved.types, entryType), wide);
-}
-
 /*
  * A fixture that asserts what the resolver *rejects*.
  *
@@ -316,33 +289,27 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
  * The mode is opted into by the file's existence rather than by anything in the source, so a new
  * rejection fixture is an empty `.errors.expect` plus a `generate` run.
  *
- * *Which* resolver is expected to reject is the fixture's own `# resolver:` directive - see
- * directives.h. A rejection is the one output of the rewritten stage that has no golden of its own,
- * because a program it refuses produces no IR to print; this is where such a fixture is asserted,
- * and it is the whole reason the ownership analysis has fixtures about what it *reports* rather than
- * only about what it emits.
+ * A rejection is the one output that has no golden of its own, because a program the stage refuses
+ * produces no IR to print; this is where such a fixture is asserted, and it is the whole reason the
+ * ownership analysis has fixtures about what it *reports* rather than only about what it emits.
  */
 static bool runRejectionTest(const String& path, const String& errorPath, StringView source, bool generate) {
     FixtureFront<RecordDiagnostics> f(source);
     auto& context = f.context;
     auto& diagnostics = f.diagnostics;
 
-    if(context.settings.resolver == ResolverStage::Ownership) {
-        // Resolution, and past it only where resolution reported nothing: the pipeline's later
-        // halves assume a program the checks accepted, so running them over one that was rejected
-        // asserts nothing and asks the verifier about IR that was never meant to be complete.
-        //
-        // A clean one goes on - conversion, the optimizer and the lowering - because a few refusals
-        // are the lowering's: whether a field shares a machine word is a layout question, so
-        // `addressOf` of one escaping as a `%T` (`Reject.PackedAddress.yana`) is refused where the
-        // layout is known and nowhere earlier.
-        ssa::Pipeline pipeline(context);
-        if(pipeline.resolve(f.ast, &f.provider) && !diagnostics.errorCount() && pipeline.convert() &&
-           !diagnostics.errorCount() && pipeline.optimize() && !diagnostics.errorCount()) {
-            (void)pipeline.lower();
-        }
-    } else {
-        resolveProgram(context, f.ast, &f.provider);
+    // Resolution, and past it only where resolution reported nothing: the pipeline's later halves
+    // assume a program the checks accepted, so running them over one that was rejected asserts
+    // nothing and asks the verifier about IR that was never meant to be complete.
+    //
+    // A clean one goes on - conversion, the optimizer and the lowering - because a few refusals are
+    // the lowering's: whether a field shares a machine word is a layout question, so `addressOf` of
+    // one escaping as a `%T` (`Reject.PackedAddress.yana`) is refused where the layout is known and
+    // nowhere earlier.
+    ssa::Pipeline pipeline(context);
+    if(pipeline.resolve(f.ast, &f.provider) && !diagnostics.errorCount() && pipeline.convert() &&
+       !diagnostics.errorCount() && pipeline.optimize() && !diagnostics.errorCount()) {
+        (void)pipeline.lower();
     }
 
     if(generate) {
@@ -363,60 +330,7 @@ static bool runRejectionTest(const String& path, const String& errorPath, String
 }
 
 /*
- * The same fixture, compiled the other way.
- *
- * Design.md's "Generic and specialized code" makes both forms first-class outputs and says the
- * equivalence runs both ways: removing a specialization must only make code slower, and adding one
- * must only make it faster. Neither may change what the program does, so this compiles the whole
- * thing with specialization declined and checks that `main` still answers the same.
- *
- * A fixture whose callees have requirements no witness exists for yet falls back to specializing
- * per call site, so this passes trivially for those rather than failing - which is the honest
- * report while the witness half is being filled in.
- */
-static bool runGenericPass(const String& path, StringView source, I64 expected) {
-    FixtureFront<PrintDiagnostics> f(source);
-    auto& context = f.context;
-    auto& diagnostics = f.diagnostics;
-    auto module = resolveProgram(context, f.ast, &f.provider, Program::Specialization::Generic);
-
-    if(diagnostics.errorCount()) {
-        println("Fail (%@): forced-generic resolution produced %@ diagnostics.", path, diagnostics.errorCount());
-        return false;
-    }
-
-    auto lowered = lowerProgram(context, *module);
-    if(!validateLowerModule(&diagnostics, lowered.get())) {
-        println("Fail (%@): forced-generic lowering produced invalid lower IR.", path);
-        return false;
-    }
-
-    auto actual = executeMain(context, *module, *lowered);
-    if(!actual || actual.unwrap() != expected) {
-        println("Fail (%@): forced-generic amd64 main returned %@, expected %@.", path,
-                actual ? actual.unwrap() : I64(-1), expected);
-        return false;
-    }
-
-    return true;
-}
-
-/*
- * The same fixture, compiled for the JavaScript target.
- *
- * A second resolution rather than a second walk of the first one, because `@platform` selects which
- * declarations *exist* (Analysis-JS.md §2.4): a JS build and a native build do not share a resolved
- * program, and pretending they did would be the "the semantics are whatever the backend does" drift
- * the second target is there to prevent.
- *
- * Opted into by the `.js.expect` file, on the same terms as the ownership dump. Most fixtures reach
- * `Native` - through `[a]`, through anything heap-placed - and a JS target that has no host `Array`
- * yet has nothing useful to say about those; the ones that opt in are the ones that are about
- * something this backend implements.
- */
-
-/*
- * Runs the emitted JavaScript and compares what `main` answers with what the amd64 backend answered.
+ * Running the emitted JavaScript, to compare what `main` answers with what the amd64 backend answered.
  *
  * The gap this closes is that nothing executed the JS at all: the backend was asserted by its own
  * golden text, so the two targets could - and repeatedly did - disagree about what a program *means*
@@ -425,8 +339,7 @@ static bool runGenericPass(const String& path, StringView source, I64 expected) 
  *
  * The expected value is the one the native run is checked against, because agreeing with each other
  * is the property worth asserting; a fixture whose JS answer legitimately differs says so by putting
- * the other number in a `.js.run.expect` beside it, which today is `Platform.yana` and nothing else.
- * Opted into by `.js.expect` and `.run.expect` both existing, on the same terms as every other mode.
+ * the other number in a `.js.run.expect` beside it - see `jsirExpectedRun`.
  *
  * The text run is the text just emitted rather than the file on disk, so a stale golden cannot make
  * this pass by testing the previous compiler's output.
@@ -664,189 +577,14 @@ static Maybe<I64> executeJsMain(const String& path, ByteBuffer emitted) {
     return end == start ? Nothing() : Just(I64(value));
 }
 
-static bool runJsPass(const String& path, const String& jsPath, StringView source, bool generate,
-                      bool forceGeneric, Maybe<I64> expectedRun, Maybe<I64>& ran) {
-    FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
-        settings.platform = TargetPlatform::Js;
-    });
-
-    auto& context = f.context;
-    auto& diagnostics = f.diagnostics;
-    auto module = resolveProgram(context, f.ast, &f.provider,
-                                 forceGeneric ? Program::Specialization::Generic
-                                              : Program::Specialization::Always);
-
-    if(diagnostics.errorCount()) {
-        println("Fail (%@): resolving for the JS target produced %@ diagnostics.", path, diagnostics.errorCount());
-        return false;
-    }
-
-    auto file = js::genProgram(context, *module);
-
-    if(diagnostics.errorCount()) {
-        println("Fail (%@): the JS backend produced %@ diagnostics.", path, diagnostics.errorCount());
-        return false;
-    }
-
-    if(generate) {
-        writeText(jsPath, [&](Net::Writer& writer) {
-            js::formatFile(writer, context, *file, false);
-        });
-    }
-
-    Net::Writer writer(16384);
-    js::formatFile(writer, context, *file, false);
-    auto pass = compareText(jsPath, writer.getBuffered());
-
-    /*
-     * Run it, whichever specialization mode the fixture asked for.
-     *
-     * `!forceGeneric` used to guard this, copied from the native side where it means "do not build a
-     * second time" - `runGenericPass` is a *second* build of a fixture that is otherwise specialized,
-     * and asserting the same number twice would be nothing. It means something else here, because
-     * there is only ever one JS build and `forceGeneric` decides what it *is*: with the guard, a
-     * `.generic` fixture's JavaScript was emitted, diffed and never executed.
-     *
-     * That is the half the second target exists for. `ErasedCopy.yana` is what found it - the
-     * emitted file compared clean against its golden and answered 18 where both the fixture and the
-     * native build say 25 - and `ErasedRelocate.yana` had been in the same position since it was
-     * written.
-     */
-    if(expectedRun && nodeAvailable()) {
-        auto actual = executeJsMain(path, writer.getBuffered());
-        ran = actual;
-
-        if(!actual || actual.unwrap() != expectedRun.unwrap()) {
-            println("Fail (%@): JavaScript main returned %@, expected %@.", path,
-                    actual ? actual.unwrap() : I64(-1), expectedRun.unwrap());
-            pass = false;
-        }
-    }
-
-    return pass;
-}
-
-/*
- * The same fixture, compiled with the IR optimizer switched off, on every target that runs.
- *
- * Design.md's rule for `Program::Specialization` applied to `compiler/opt`: an optimization may make
- * a program faster and may not make it different, so the honest test is compiling it both ways and
- * comparing what it does. Only the *result* is compared, for the same reason `runGenericPass`
- * compares only the result - the two forms legitimately produce different IR, and that they do is
- * the point.
- *
- * **Against the optimized build's own answers rather than against `.run.expect`.** That is what
- * makes this an assertion of its own instead of a second copy of the run check: the expectation
- * files are the compiler's output regenerated by `generate`, and the run number is a constant a
- * human worked out by hand and could equally have worked out by running the compiler. This compares
- * the compiler against itself, and there is no file either side of it.
- *
- * Both targets rather than one, because the same program is optimized once per target and a fold
- * that is right on native and wrong on JS is precisely the shape of bug this exists for. Every fold
- * in `compiler/opt` that declines a case declines it because the two targets would otherwise
- * disagree, and this is what notices if one of those judgements was wrong.
- *
- * The whole pipeline is re-run from the source rather than from the resolved program, because the
- * optimizer rewrites that program in place: there is no way to un-optimize one, and a second
- * resolution is the only honest way to get an unoptimized build of the same fixture.
- *
- * Nothing is reported for a target whose optimized build produced no answer - that failure has
- * already been reported by whoever ran it, and a second complaint about the same thing would only
- * make the first harder to find.
- */
-static bool runUnoptimizedPass(const String& path, StringView source, bool forceGeneric,
-                               Maybe<I64> optimizedNative, Maybe<I64> optimizedJs) {
-    auto specialization = forceGeneric ? Program::Specialization::Generic
-                                       : Program::Specialization::Always;
-
-    auto resolveUnoptimized = [&](Context& context, TestProvider& provider, Diagnostics& diagnostics) {
-        auto name = context.addUnqualifiedName("ResolveTest", 11);
-        Lexer lexer(context, diagnostics, source, name);
-        Parser parser(context, lexer, name);
-        auto ast = parser.parseModule();
-        return resolveProgram(context, ast, &provider, specialization);
-    };
-
-    auto pass = true;
-
-    if(optimizedNative) {
-        FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
-            settings.optimizeIr = false;
-        });
-
-        auto& context = f.context;
-        auto& diagnostics = f.diagnostics;
-
-        auto module = resolveUnoptimized(context, f.provider, diagnostics);
-        if(diagnostics.errorCount()) {
-            println("Fail (%@): unoptimized resolution produced %@ diagnostics.", path,
-                    diagnostics.errorCount());
-            return false;
-        }
-
-        auto lowered = lowerProgram(context, *module);
-        if(!validateLowerModule(&diagnostics, lowered.get())) {
-            println("Fail (%@): unoptimized lowering produced invalid lower IR.", path);
-            return false;
-        }
-
-        auto actual = executeMain(context, *module, *lowered);
-        if(!actual || actual.unwrap() != optimizedNative.unwrap()) {
-            println("Fail (%@): the optimizer changed the answer on amd64 - unoptimized main returned %@, optimized %@.",
-                    path, actual ? actual.unwrap() : I64(-1), optimizedNative.unwrap());
-            pass = false;
-        }
-    }
-
-    // The JS half only where the optimized build ran it too: `optimizedJs` is set by `runJsPass`
-    // exactly when it ran Node, so this needs no second copy of the rules about which fixtures do.
-    if(!optimizedJs) return pass;
-
-    {
-        FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
-            settings.platform = TargetPlatform::Js;
-            settings.optimizeIr = false;
-        });
-
-        auto& context = f.context;
-        auto& diagnostics = f.diagnostics;
-
-        auto module = resolveUnoptimized(context, f.provider, diagnostics);
-        if(diagnostics.errorCount()) {
-            println("Fail (%@): unoptimized resolution for the JS target produced %@ diagnostics.",
-                    path, diagnostics.errorCount());
-            return false;
-        }
-
-        auto file = js::genProgram(context, *module);
-        if(diagnostics.errorCount()) {
-            println("Fail (%@): the unoptimized JS backend produced %@ diagnostics.", path,
-                    diagnostics.errorCount());
-            return false;
-        }
-
-        Net::Writer writer(16384);
-        js::formatFile(writer, context, *file, false);
-
-        auto actual = executeJsMain(path, writer.getBuffered());
-        if(!actual || actual.unwrap() != optimizedJs.unwrap()) {
-            println("Fail (%@): the optimizer changed the answer on JavaScript - unoptimized main returned %@, optimized %@.",
-                    path, actual ? actual.unwrap() : I64(-1), optimizedJs.unwrap());
-            pass = false;
-        }
-    }
-
-    return pass;
-}
-
 /*
  * The same fixture, handed to LLVM.
  *
  * The lowered module rather than a second resolution, unlike the JS pass: this backend and the x64
  * one consume the same IR, so what it asserts is the translation into LLVM's form and nothing about
- * the stages in front of it. Opted into by the `.llvm.expect` file, on the same terms as the rest -
- * a fixture that says nothing new about the translation would only be a second copy of what
- * `.lower.expect` already asserts.
+ * the stages in front of it. Opted into by the `.mir.llvm.expect` file, on the same terms as the
+ * rest - a fixture that says nothing new about the translation would only be a second copy of what
+ * `.mir.lower.expect` already asserts.
  *
  * The verifier runs whether or not the text matches, because a module LLVM rejects is a failure of
  * this backend even when the expect file was generated from it.
@@ -879,29 +617,24 @@ static bool runLlvmPass(const String& path, const String& llvmPath, Context& con
 }
 
 /*
- * The same fixture through the rewritten stage with its optimizer switched off.
+ * The same fixture with the optimizer switched off.
  *
- * The half `runUnoptimizedPass` does for the shipping stage, on the same argument: an optimization
- * may make a program faster and may not make it different, so the honest test is compiling it both
- * ways and comparing what it does. Only the *result* is compared - the two forms legitimately
- * produce different IR, and that they do is the point.
+ * An optimization may make a program faster and may not make it different, so the honest test is
+ * compiling it both ways and comparing what it does. Only the *result* is compared - the two forms
+ * legitimately produce different IR, and that they do is the point.
  *
  * **Against the optimized build's own answer rather than against `.run.expect`**, which is what
  * makes this an assertion of its own instead of a second copy of the run check: the expectation
  * file is a number a human worked out, and this compares the compiler with itself.
  *
- * A second `Pipeline` from the same source rather than a second lowering of the same SSA, for the
- * reason the shipping stage's version gives: the optimizer rewrites the body in place, and there is
- * no way to un-optimize one.
+ * A second `Pipeline` from the same source rather than a second lowering of the same SSA: the
+ * optimizer rewrites the body in place, and there is no way to un-optimize one.
  *
- * `-no-ir-opt` reaches the lower tier as well now (see `lower/lower_pipeline.h`), so what this
- * compares is the whole of what the flag switches off rather than this directory alone. There is no
- * JavaScript half, because this stage has no JS backend - which is most of why it is a third of the
- * size of the shipping stage's version.
+ * `-no-ir-opt` reaches the lower tier as well (see `lower/lower_pipeline.h`), so what this compares
+ * is the whole of what the flag switches off. The JavaScript half is `runJsirPass`'s.
  */
-static bool runUnoptimizedOwnershipPass(const String& path, StringView source, I64 optimized) {
+static bool runUnoptimizedPass(const String& path, StringView source, I64 optimized) {
     FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
-        ownershipSettings(settings);
         settings.optimizeIr = false;
     });
 
@@ -910,7 +643,7 @@ static bool runUnoptimizedOwnershipPass(const String& path, StringView source, I
 
     ssa::Pipeline pipeline(context);
     if(!pipeline.resolve(f.ast, &f.provider) || !pipeline.convert()) {
-        println("Fail (%@): the unoptimized ownership pipeline produced %@ diagnostics.", path,
+        println("Fail (%@): the unoptimized pipeline produced %@ diagnostics.", path,
                 diagnostics.errorCount());
         return false;
     }
@@ -930,31 +663,28 @@ static bool runUnoptimizedOwnershipPass(const String& path, StringView source, I
 
     auto lowered = pipeline.lower();
     if(!lowered || diagnostics.errorCount()) {
-        println("Fail (%@): the unoptimized ownership pipeline did not lower.", path);
+        println("Fail (%@): the unoptimized pipeline did not lower.", path);
         return false;
     }
 
     if(!validateLowerModule(&diagnostics, lowered.get())) {
-        println("Fail (%@): the unoptimized ownership pipeline produced invalid lower IR.", path);
+        println("Fail (%@): the unoptimized pipeline produced invalid lower IR.", path);
         return false;
     }
 
     auto actual = executeModule(context, *lowered, unitResult, wideResult);
     if(actual && actual.unwrap() == optimized) return true;
 
-    println("Fail (%@): the SSA optimizer changed the answer - unoptimized main returned %@, optimized %@.",
+    println("Fail (%@): the optimizer changed the answer - unoptimized main returned %@, optimized %@.",
             path, actual ? actual.unwrap() : I64(-1), optimized);
     return false;
 }
 
 /*
- * The same fixture through the rewritten stage - Analysis-IR.md part 11.3.
+ * The fixture as a native program - Analysis-IR.md part 11.3.
  *
- * Opted into by a `.mir.expect` beside the source, on the same terms as every other mode here, and
- * that file's *existence* is how the corpus is adopted one fixture at a time: the two stages print
- * completely different IR, so there is nothing to compare line by line and no existing golden moves.
- * `.ssa.expect` and `.mir.lower.expect` are separately optional, for a fixture that is about one of
- * those and not the other.
+ * `.mir.expect` is written for every fixture, and `.ssa.expect` and `.mir.lower.expect` wherever
+ * `generate` runs; a fixture that is about neither of the last two may delete them.
  *
  * `.ssa.opt.expect` is the fifth, and it is the SSA after `resolve_ssa/opt` has run. It is opt-in on
  * the stricter terms `.mir.repr.expect` has - the file exists or it does not, and `generate` never
@@ -963,26 +693,19 @@ static bool runUnoptimizedOwnershipPass(const String& path, StringView source, I
  * output, printed before the optimizer runs, so the two side by side are the before and after of the
  * whole stage.
  *
- * The run expectation is deliberately **not** a file of its own. `.run.expect` is what the current
- * stage is checked against, and the first thing worth asserting about the second stage is that it
- * agrees: two implementations of one language that answer differently is the failure this catches,
- * and a second expected value would let it pass. What it does buy is a second run: a fixture that
- * has one is also compiled with the optimizer switched off and the two answers compared - see
- * `runUnoptimizedOwnershipPass`, which is where that argument is.
- *
- * A separate `Context` rather than the one above, because the two stages resolve the same source
- * independently - the new one does not build Core, and sharing a context would mean sharing the
- * name table and the locations that the other stage's `@platform` selection had already filled in.
+ * `.run.expect` is what the program answers, shared with the JavaScript passes: two targets that
+ * answer differently is the failure it catches. A fixture that has one is also compiled with the
+ * optimizer switched off and the two answers compared - see `runUnoptimizedPass`.
  */
-static bool runOwnershipPass(const String& path, StringView source, bool generate,
-                             Maybe<I64> expectedRun) {
-    FixtureFront<PrintDiagnostics> f(source, ownershipSettings);
+static bool runNativePass(const String& path, StringView source, bool generate,
+                          Maybe<I64> expectedRun) {
+    FixtureFront<PrintDiagnostics> f(source);
     auto& context = f.context;
     auto& diagnostics = f.diagnostics;
 
     ssa::Pipeline pipeline(context);
     if(!pipeline.resolve(f.ast, &f.provider)) {
-        println("Fail (%@): the ownership resolver produced %@ diagnostics.", path, diagnostics.errorCount());
+        println("Fail (%@): the resolver produced %@ diagnostics.", path, diagnostics.errorCount());
         return false;
     }
 
@@ -1023,18 +746,18 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
     }
 
     /*
-     * The native layout this stage chose, opt-in per fixture on the same terms as the shipping
-     * stage's `.repr.expect` - and in the same format, so that the two can be diffed.
+     * The native layout this stage chose, opt-in per fixture.
      *
-     * Before conversion, because a layout is a fact about the declarations and asserting one has to
-     * be possible for a fixture whose body does something this stage cannot lower yet. Where a
-     * fixture has both goldens, the pair *is* the measurement of how far apart the two stages are.
+     * This is the only assertion that can see a layout decision nothing has consumed yet - a niche
+     * the search found and the access lowering does not use yet is invisible in emitted code. Before
+     * conversion, because a layout is a fact about the declarations and asserting one has to be
+     * possible for a fixture whose body does something this stage cannot lower yet.
      */
     auto mirReprPath = path + String(".mir.repr.expect");
     if(fileExists(mirReprPath)) {
-        // Opt-in, and **not** created by `generate` - the same terms as the shipping stage's
-        // `checkRepr`. A fixture that is not about layout should not grow a layout golden that then
-        // churns whenever the library changes; an empty file beside the source is how one opts in.
+        // Opt-in, and **not** created by `generate`. A fixture that is not about layout should not
+        // grow a layout golden that then churns whenever the library changes; an empty file beside
+        // the source is how one opts in.
         if(generate) {
             writeText(mirReprPath, [&](Net::Writer& writer) {
                 ssa::printReprs(writer, context, *pipeline.program);
@@ -1076,8 +799,8 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
      * And the optimizer over that SSA - `resolve_ssa/opt`.
      *
      * After the `.ssa.expect` comparison above, deliberately: that golden is the **conversion's**
-     * output and is the ownership fixture's assertion, so it must not move when a pass is added. The
-     * pair of goldens is then the before and after of the whole stage.
+     * output, so it must not move when a pass is added. The pair of goldens is then the before and
+     * after of the whole stage.
      */
     if(!pipeline.optimize()) {
         println("Fail (%@): the SSA optimizer produced IR the verifier rejects.", path);
@@ -1104,7 +827,7 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
     }
 
     // Whether the entry answers nothing, and whether it answers something wider than a register
-    // half - read off the declaration, which is where both stages keep it.
+    // half - read off the declaration.
     auto decl = *pipeline.program->decl;
     auto entry = pipeline.program->entry ? decl[pipeline.program->entry] : nullptr;
     auto resultType = entry ? decl[entry->result.type] : nullptr;
@@ -1114,12 +837,13 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
 
     auto lowered = pipeline.lower();
     if(!lowered || diagnostics.errorCount()) {
-        println("Fail (%@): the ownership pipeline did not lower.", path);
+        println("Fail (%@): the pipeline did not lower.", path);
         return false;
     }
 
-    // Written before it is validated, for the reason the other lowering golden is: the whole value
-    // of a validation failure is being able to look at the IR that failed.
+    // Written before it is validated, deliberately: the whole value of a validation failure is being
+    // able to look at the IR that failed, and it is exactly then that the file has not been
+    // produced yet.
     auto lowerPath = path + String(".mir.lower.expect");
     if(fileExists(lowerPath) || generate) {
         if(generate) {
@@ -1130,7 +854,7 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
     }
 
     if(!validateLowerModule(&diagnostics, lowered.get())) {
-        println("Fail (%@): the ownership pipeline produced invalid lower IR.", path);
+        println("Fail (%@): the pipeline produced invalid lower IR.", path);
         return false;
     }
 
@@ -1140,8 +864,8 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
         pass = compareText(lowerPath, lowerWriter.getBuffered()) && pass;
     }
 
-    // This stage's lowering, handed to LLVM - `runLlvmPass`, on its terms: opted into by the file,
-    // and never created by `generate`, since most fixtures say nothing new about the translation.
+    // The lowering, handed to LLVM - `runLlvmPass`, on its terms: opted into by the file, and never
+    // created by `generate`, since most fixtures say nothing new about the translation.
     auto llvmPath = path + String(".mir.llvm.expect");
     if(fileExists(llvmPath)) {
         pass = runLlvmPass(path, llvmPath, context, diagnostics, *lowered, generate) && pass;
@@ -1150,16 +874,16 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
     if(auto expected = expectedRun) {
         auto actual = executeModule(context, *lowered, unitResult, wideResult);
         if(!actual || actual.unwrap() != expected.unwrap()) {
-            println("Fail (%@): the ownership pipeline's main returned %@, expected %@.", path,
+            println("Fail (%@): amd64 main returned %@, expected %@.", path,
                     actual ? actual.unwrap() : I64(-1), expected.unwrap());
             pass = false;
         }
 
-        // And the same program with the SSA optimizer switched off, compared against what this run
-        // answered rather than against any file - see `runUnoptimizedOwnershipPass`. Only where the
-        // optimized build produced an answer at all: a second complaint about a failure already
-        // reported would only make the first harder to find.
-        if(actual) pass = runUnoptimizedOwnershipPass(path, source, actual.unwrap()) && pass;
+        // And the same program with the optimizer switched off, compared against what this run
+        // answered rather than against any file - see `runUnoptimizedPass`. Only where the optimized
+        // build produced an answer at all: a second complaint about a failure already reported would
+        // only make the first harder to find.
+        if(actual) pass = runUnoptimizedPass(path, source, actual.unwrap()) && pass;
     }
 
     return pass;
@@ -1173,15 +897,12 @@ static Maybe<I64> jsirExpectedRun(const String& path, const String& runPath) {
 }
 
 /*
- * The same fixture as a **JavaScript** program through the rewritten stage, resolver and tier alike.
+ * The same fixture as a **JavaScript** program, resolver and tier alike.
  *
  * Five goldens off one compilation, opted into one at a time. Three of them are the resolver's answer
  * for this target - `.js.mir.expect`, `.js.explain.expect` and `.js.ssa.expect`, milestone 3's and
  * additional to the native ones, so a fixture acquires one without any of its others moving - and two
- * are the tier's: `.jsir.expect` is the JSIR dump and `.jsir.js.expect` is the JavaScript it emits,
- * beside the shipping backend's `.js.expect` rather than replacing it. The asymmetry in the last pair
- * is the point: two backends emit different text for one program and there is no version of that
- * which is a defect, so the text needs two files and what they *compute* needs one.
+ * are the tier's: `.jsir.expect` is the JSIR dump and `.jsir.js.expect` is the JavaScript it emits.
  *
  * **It was two passes until 2026-09-22 (J80)** and the front half was written twice. `runOwnershipJsPass`
  * resolved, converted and optimized for this target to print the first three, and this function did
@@ -1217,13 +938,13 @@ static bool runJsirPass(const String& path, StringView source, bool generate,
     Net::Writer noJsirOpt(16384);
 
     {
-        FixtureFront<PrintDiagnostics> f(source, ownershipJsSettings);
+        FixtureFront<PrintDiagnostics> f(source, jsSettings);
         auto& context = f.context;
         auto& diagnostics = f.diagnostics;
 
         ssa::Pipeline pipeline(context);
         if(!pipeline.resolve(f.ast, &f.provider)) {
-            println("Fail (%@): the ownership resolver produced %@ diagnostics for JavaScript.", path,
+            println("Fail (%@): the resolver produced %@ diagnostics for JavaScript.", path,
                     diagnostics.errorCount());
             return false;
         }
@@ -1346,7 +1067,7 @@ static bool runJsirPass(const String& path, StringView source, bool generate,
     Net::Writer unoptimized(16384);
     {
         FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
-            ownershipJsSettings(settings);
+            jsSettings(settings);
             settings.optimizeIr = false;
         });
 
@@ -1409,7 +1130,7 @@ static bool runJsirPass(const String& path, StringView source, bool generate,
 static bool runJsirGapTest(const String& path, const String& errorPath, StringView source,
                            bool generate, bool optimized) {
     FixtureFront<RecordDiagnostics> f(source, [&](CompileSettings& settings) {
-        ownershipJsSettings(settings);
+        jsSettings(settings);
         settings.optimizeIr = optimized;
     });
     auto& context = f.context;
@@ -1451,15 +1172,6 @@ static bool runTest(const String& path, StringView source, bool generate) {
 
     auto runPath = path + String(".run.expect");
 
-    /*
-     * A fixture the shipping stage cannot compile at all - `# resolver: ownership`, see directives.h.
-     *
-     * Everything below here is the legacy stage and the eight goldens that only it produces, so
-     * a fixture that says the legacy stage cannot read it takes none of that path. What it keeps is
-     * `.run.expect`, which is read the same way and means the same thing: this program answers this.
-     * The comparison between the two stages is what such a fixture gives up, and that is the cost
-     * the directive's comment asks a fixture to be worth.
-     */
     // The same source as a JavaScript program, where a golden says so - opted into separately from
     // everything else, so that a fixture may have one, the other or both.
     auto js = fileExists(path + String(".js.ssa.expect"));
@@ -1474,226 +1186,19 @@ static bool runTest(const String& path, StringView source, bool generate) {
     /*
      * A fixture that is a JavaScript program and nothing else - `# platform: js`, see directives.h.
      *
-     * The whole of this file below is a machine: a native golden, a lowering, an `executeMain`. A
-     * fixture whose subject is a host operation has none of those, because the declarations that
-     * reach one exist on no other target, so what it asserts is the JavaScript pass and that is all
-     * it runs.
+     * The native pass is a machine: a native golden, a lowering, a run. A fixture whose subject is a
+     * host operation has none of those, because the declarations that reach one exist on no other
+     * target, so what it asserts is the JavaScript pass and that is all it runs.
      */
-    if(fixtureIsJavaScript(source)) {
-        auto pass = runJsirPass(path, source, generate, jsirExpectedRun(path, runPath), jsir,
-                           jsir && jsirGap);
-        if(jsirGap) pass = runJsirGapTest(path, jsirGapPath, source, generate, !jsir) && pass;
+    auto javaScript = fixtureIsJavaScript(source);
+    auto pass = javaScript || runNativePass(path, source, generate, readExpectedRun(runPath));
 
-        println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
-        return pass;
-    }
-
-    if(fixtureNeedsOwnershipStage(source)) {
-        auto pass = runOwnershipPass(path, source, generate, readExpectedRun(runPath));
-        if(js || jsir) {
-            pass = runJsirPass(path, source, generate, jsirExpectedRun(path, runPath), jsir,
-                           jsir && jsirGap) && pass;
-        }
-        if(jsirGap) pass = runJsirGapTest(path, jsirGapPath, source, generate, !jsir) && pass;
-
-        println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
-        return pass;
-    }
-
-    /*
-     * A fixture that is *about* the erased ABI compiles in that mode to begin with, so its expected
-     * IR is the erased form rather than a pile of specializations. Opted into by a marker file
-     * beside the source, for the same reason the ownership dump is: most fixtures are not about
-     * this, and generating the other form for all of them would assert the optimizer everywhere.
-     */
-    auto forceGeneric = fileExists(path + String(".generic"));
-
-    FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
-        // The `.own.expect` dump is the only reader of a local's live ranges, and asking for them
-        // is what makes the ownership passes build them at all - see
-        // CompileSettings::ownershipRanges. Set for every fixture rather than only the ones carrying
-        // that file, because the ranges have to be asked for before anything is resolved and which
-        // expectations exist is a question about the fixture directory that this run answers later.
-        settings.ownershipRanges = true;
-    });
-
-    auto& context = f.context;
-    auto& diagnostics = f.diagnostics;
-    auto module = resolveProgram(context, f.ast, &f.provider,
-                                 forceGeneric ? Program::Specialization::Generic
-                                              : Program::Specialization::Always);
-    if(diagnostics.errorCount()) {
-        println("Fail (%@): resolver produced %@ diagnostics.", path, diagnostics.errorCount());
-        return false;
-    }
-
-    auto resolvePath = path + String(".resolve.expect");
-    auto lowerPath = path + String(".lower.expect");
-
-    if(generate) {
-        writeText(resolvePath, [&](Net::Writer& writer) {
-            printProgram(writer, context, *module);
-        });
-    }
-
-    Net::Writer resolveWriter(16384);
-    printProgram(resolveWriter, context, *module);
-    auto pass = compareText(resolvePath, resolveWriter.getBuffered());
-
-    // The ownership dump is opt-in per fixture rather than produced for every one. Liveness of a
-    // function with nothing to own says nothing, and generating it everywhere would put a third
-    // expectation beside twenty fixtures that are not about ownership.
-    auto ownPath = path + String(".own.expect");
-    if(fileExists(ownPath)) {
-        if(generate) {
-            writeText(ownPath, [&](Net::Writer& writer) {
-                printOwnership(writer, context, *module);
-            });
-        }
-
-        Net::Writer ownWriter(16384);
-        printOwnership(ownWriter, context, *module);
-        pass = compareText(ownPath, ownWriter.getBuffered()) && pass;
-    }
-
-    /*
-     * The layout this target chose, opt-in per fixture on the same terms as the ownership dump.
-     *
-     * This is the only assertion that can see a Repr decision nothing has consumed yet - a niche the
-     * search found and the access lowering does not use yet is invisible in emitted code - so a
-     * fixture about layout asserts this and a fixture about anything else does not generate it.
-     */
-    auto checkRepr = [&](const char* suffix, const ReprTarget& target) {
-        auto reprPath = path + String(suffix);
-        if(!fileExists(reprPath)) return;
-
-        if(generate) {
-            writeText(reprPath, [&](Net::Writer& writer) {
-                printReprs(writer, context, *module, target);
-            });
-        }
-
-        Net::Writer reprWriter(16384);
-        printReprs(reprWriter, context, *module, target);
-        pass = compareText(reprPath, reprWriter.getBuffered()) && pass;
-    };
-
-    /*
-     * Both targets' answers for one source, from one resolved program.
-     *
-     * The two are separate files rather than one dump with two halves so that a fixture can assert
-     * only the one it is about - but a fixture that touches packing or niches should have both,
-     * because the interesting property is where they *differ*. `Maybe(Id)` being one word natively
-     * and `number | null` on JS is the whole argument for computing layout at emission, and it is
-     * only visible side by side.
-     */
-    checkRepr(".repr.expect", nativeReprTarget(context.settings));
-    checkRepr(".repr.js.expect", jsReprTarget());
-
-    auto expectedRun = readExpectedRun(runPath);
-
-    auto jsPath = path + String(".js.expect");
-
-    // What the JS build actually answered, where it was run at all. Held out here because the
-    // optimizer's equivalence check compares against it rather than against any file.
-    Maybe<I64> jsRan;
-
-    if(js || jsir) {
+    if(javaScript || js || jsir) {
         pass = runJsirPass(path, source, generate, jsirExpectedRun(path, runPath), jsir,
                            jsir && jsirGap) && pass;
     }
 
-    if(jsirGap) {
-        pass = runJsirGapTest(path, jsirGapPath, source, generate, !jsir) && pass;
-    }
-
-    if(fileExists(jsPath)) {
-        // A fixture whose two targets legitimately answer differently names the JS answer here.
-        // `@platform` selecting different bodies is the one case, and it is a property of the
-        // program rather than a difference of opinion between the backends.
-        auto jsRun = readExpectedRun(path + String(".js.run.expect"));
-        pass = runJsPass(path, jsPath, source, generate, forceGeneric,
-                         jsRun ? jsRun : expectedRun, jsRan) && pass;
-    }
-
-    auto lowered = lowerProgram(context, *module);
-
-    // Written before it is validated, deliberately: the whole value of a validation failure is
-    // being able to look at the IR that failed, and it is exactly then that the expect file has
-    // not been produced yet.
-    if(generate) {
-        writeText(lowerPath, [&](Net::Writer& writer) {
-            printModule(writer, context, *lowered->arena, *lowered);
-        });
-    }
-
-    if(!validateLowerModule(&diagnostics, lowered.get())) {
-        println("Fail (%@): lowering produced invalid lower IR.", path);
-        return false;
-    }
-
-    Net::Writer lowerWriter(16384);
-    printModule(lowerWriter, context, *lowered->arena, *lowered);
-    pass = compareText(lowerPath, lowerWriter.getBuffered()) && pass;
-
-    auto llvmPath = path + String(".llvm.expect");
-    if(fileExists(llvmPath)) {
-        pass = runLlvmPass(path, llvmPath, context, diagnostics, *lowered, generate) && pass;
-    }
-
-    /*
-     * The resolve IR *after* compiler/opt has rewritten it, opt-in per fixture.
-     *
-     * `lowerProgram` calls `optimizeProgram`, which rewrites `*module` in place, so the same
-     * printer that produced `.resolve.expect` above now prints the optimized form - the two files
-     * side by side are the pass's before and after. Generated after lowering for exactly that
-     * reason, and native rather than JS because this is the program lowering consumed.
-     *
-     * Opt-in because most fixtures are not about the optimizer: a fixture asserting a drop
-     * placement would gain a second copy of its IR that moves whenever any pass changes, which is
-     * the churn §7.5 of Analysis-Optimization.md warns about rather than an assertion.
-     */
-    auto optPath = path + String(".opt.expect");
-    if(fileExists(optPath)) {
-        if(generate) {
-            writeText(optPath, [&](Net::Writer& writer) {
-                printProgram(writer, context, *module);
-            });
-        }
-
-        Net::Writer optWriter(16384);
-        printProgram(optWriter, context, *module);
-        pass = compareText(optPath, optWriter.getBuffered()) && pass;
-    }
-
-    Maybe<I64> nativeRan;
-
-    if(auto expected = expectedRun) {
-        auto actual = executeMain(context, *module, *lowered);
-        nativeRan = actual;
-
-        if(!actual || actual.unwrap() != expected.unwrap()) {
-            println("Fail (%@): amd64 main returned %@, expected %@.", path,
-                    actual ? actual.unwrap() : I64(-1), expected.unwrap());
-            pass = false;
-        }
-
-        // The same program with every concrete generic call site forced through the erased ABI
-        // instead of a specialization. Implementation-Generics.md §14 asks for exactly this, and
-        // for the reason it gives: it is the most direct guard against a semantic decision quietly
-        // moving into the optimizer. Only the *result* is compared - the two forms legitimately
-        // produce different IR, and that they do is the point.
-        if(!forceGeneric) pass = runGenericPass(path, source, expected.unwrap()) && pass;
-
-        // The same program with compiler/opt switched off, on every target that ran, compared with
-        // what the optimized build answered rather than with any file - see runUnoptimizedPass.
-        pass = runUnoptimizedPass(path, source, forceGeneric, nativeRan, jsRan) && pass;
-    }
-
-    // And the same program through the rewritten stage, where a golden says it can get through it.
-    if(fileExists(path + String(".mir.expect"))) {
-        pass = runOwnershipPass(path, source, generate, expectedRun) && pass;
-    }
+    if(jsirGap) pass = runJsirGapTest(path, jsirGapPath, source, generate, !jsir) && pass;
 
     println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
     return pass;
@@ -1755,8 +1260,8 @@ int main(int argc, const char** argv) {
      * `resolve/` and the directories under it, one level deep.
      *
      * The corpus outgrew one flat directory, so a family of fixtures that belong together can be
-     * filed together - `resolve/ownership/` is the first, and holds the programs only the rewritten
-     * stage compiles. One level rather than a full walk, because a directory of fixtures is filing
+     * filed together - `resolve/ownership/`, `resolve/loans/` and the rest. One level rather than a
+     * full walk, because a directory of fixtures is filing
      * and a tree of them would be a second corpus with its own rules.
      *
      * The other drivers over this corpus - `YanaElfTest`, `YanaBench` - list one directory and stop,

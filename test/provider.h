@@ -8,8 +8,7 @@
  * third, different one for `lib/modules`, and the copies had already drifted: only LibTester's
  * loaded a library module's `.test` companion, so `YanaElfTest TestFileGlobals` built without
  * `GlobalInit.test.yana` and passed on the one case written in the fixture itself. `YanaBench` kept
- * a fourth until J165 and was benchmarking that same companion-less program. (`Tester.cpp` holds a
- * fifth, but is built by nothing and goes with `compiler/resolve` - J150 §4.)
+ * a fourth until J165 and was benchmarking that same companion-less program.
  *
  * Supplies both the source text a diagnostic quotes and the modules an `import` names, out of one
  * directory - `resolve/modules` for a compiler fixture, `lib/modules` for a library one. A name is
@@ -26,13 +25,14 @@
 #include <Core.h>
 #include <File.h>
 #include "../compiler/parse/parser.h"
+#include "../compiler/parse/library.h"
 
 // In a namespace of its own only so that the body can say `String` rather than `Tritium::String`
 // without a header putting `using namespace` into every driver that includes it.
 namespace testProvider {
 using namespace Tritium;
 
-struct TestProvider: SourceProvider, ModuleProvider {
+struct TestProvider: SourceProvider, ast::ModuleProvider {
     // `Source` rather than `File`, which is Tritium's and is what `load` below opens one with.
     struct Source {
         StringId name;
