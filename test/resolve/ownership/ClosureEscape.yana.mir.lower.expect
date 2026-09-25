@@ -5,11 +5,11 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @image$base = []
 
-Guard.drop<complex>(%v_0: I32) {
-  b_1 {
-    %v_2 = loads @dropCalls, 4: I32
-    %v_3 = add %v_2, 1: I32
-    store @dropCalls, %v_3, 4
+Guard.drop<complex>() {
+  b_0 {
+    %v_1 = loads @dropCalls, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @dropCalls, %v_2, 4
     ret 
   }
 }
@@ -65,7 +65,7 @@ round'2<complex>(): I32 {
     %v_23 = call_complex %returned.lambda, %v_21, 20: I32
     call_complex teardown(fun), %v_20
     %v_24 = add %v_19, %v_23: I32
-    call_complex Guard.drop, 6
+    call_complex Guard.drop
     %v_25 = add %v_24, 36: I32
     ret %v_25
   }
@@ -367,16 +367,15 @@ freeHeap<complex>(%allocation: Ptr) {
 
 closure(returned.lambda.env)<complex>(%v_0: Ptr) {
   b_1 {
-    call_complex teardown(returned.lambda.env), %v_0
+    call_complex teardown(returned.lambda.env)
     call_complex freeHeap, %v_0
     ret 
   }
 }
 
-teardown(returned.lambda.env)<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = load %v_0, 4: I32
-    call_complex Guard.drop, %v_2
+teardown(returned.lambda.env)<complex>() {
+  b_0 {
+    call_complex Guard.drop
     ret 
   }
 }
@@ -412,32 +411,30 @@ teardown(fun)<complex>(%v_0: Ptr) {
 
 closure(inRecord.lambda.env)<complex>(%v_0: Ptr) {
   b_1 {
-    call_complex teardown(inRecord.lambda.env), %v_0
+    call_complex teardown(inRecord.lambda.env)
     call_complex freeHeap, %v_0
     ret 
   }
 }
 
-teardown(inRecord.lambda.env)<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = load %v_0, 4: I32
-    call_complex Guard.drop, %v_2
+teardown(inRecord.lambda.env)<complex>() {
+  b_0 {
+    call_complex Guard.drop
     ret 
   }
 }
 
 closure(handedOff.lambda.env)<complex>(%v_0: Ptr) {
   b_1 {
-    call_complex teardown(handedOff.lambda.env), %v_0
+    call_complex teardown(handedOff.lambda.env)
     call_complex freeHeap, %v_0
     ret 
   }
 }
 
-teardown(handedOff.lambda.env)<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = load %v_0, 4: I32
-    call_complex Guard.drop, %v_2
+teardown(handedOff.lambda.env)<complex>() {
+  b_0 {
+    call_complex Guard.drop
     ret 
   }
 }

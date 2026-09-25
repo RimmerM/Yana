@@ -5,14 +5,14 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Guard.drop<complex>(%v_0: I32) {
-  b_1 {
-    %v_2 = loads @live, 4: I32
-    %v_3 = sub %v_2, 1: I32
-    store @live, %v_3, 4
-    %v_4 = loads @drops, 4: I32
-    %v_5 = add %v_4, 1: I32
-    store @drops, %v_5, 4
+Guard.drop<complex>() {
+  b_0 {
+    %v_1 = loads @live, 4: I32
+    %v_2 = sub %v_1, 1: I32
+    store @live, %v_2, 4
+    %v_3 = loads @drops, 4: I32
+    %v_4 = add %v_3, 1: I32
+    store @drops, %v_4, 4
     ret 
   }
 }
@@ -23,11 +23,11 @@ main<complex>(): I32 {
     %v_2 = loads @live, 4: I32
     %v_3 = add %v_2, 1: I32
     store @live, %v_3, 4
-    call_complex Guard.drop, 1
+    call_complex Guard.drop
     %v_4 = loads @live, 4: I32
     %v_5 = add %v_4, 1: I32
     store @live, %v_5, 4
-    call_complex Guard.drop, 2
+    call_complex Guard.drop
     %v_6 = loads @drops, 4: I32
     %v_7 = sub %v_6, %v_1: I32
     %v_8 = loads @live, 4: I32
@@ -37,11 +37,11 @@ main<complex>(): I32 {
 
   b_11 {
     store @live, 1, 4
-    call_complex Guard.drop, 1
+    call_complex Guard.drop
     %v_12 = loads @live, 4: I32
     %v_13 = add %v_12, 1: I32
     store @live, %v_13, 4
-    call_complex Guard.drop, 2
+    call_complex Guard.drop
     %v_14 = loads @drops, 4: I32
     %v_15 = sub %v_14, %v_6: I32
     %v_16 = add %v_7, %v_15: I32
@@ -62,11 +62,11 @@ main<complex>(): I32 {
     store @drops, %v_22, 4
     %v_23 = add %v_16, %v_21: I32
     store @live, 1, 4
-    call_complex Guard.drop, 1
+    call_complex Guard.drop
     %v_24 = loads @live, 4: I32
     %v_25 = add %v_24, 1: I32
     store @live, %v_25, 4
-    call_complex Guard.drop, 2
+    call_complex Guard.drop
     %v_26 = loads @drops, 4: I32
     %v_27 = sub %v_26, %v_22: I32
     %v_28 = add %v_23, %v_27: I32
@@ -87,11 +87,11 @@ main<complex>(): I32 {
     store @drops, %v_34, 4
     %v_35 = add %v_28, %v_33: I32
     store @live, 1, 4
-    call_complex Guard.drop, 1
+    call_complex Guard.drop
     %v_36 = loads @live, 4: I32
     %v_37 = add %v_36, 1: I32
     store @live, %v_37, 4
-    call_complex Guard.drop, 2
+    call_complex Guard.drop
     %v_38 = loads @drops, 4: I32
     %v_39 = sub %v_38, %v_34: I32
     %v_40 = add %v_35, %v_39: I32
@@ -106,11 +106,11 @@ main<complex>(): I32 {
 
   b_44 {
     store @live, 1, 4
-    call_complex Guard.drop, 1
+    call_complex Guard.drop
     %v_45 = loads @live, 4: I32
     %v_46 = add %v_45, 1: I32
     store @live, %v_46, 4
-    call_complex Guard.drop, 2
+    call_complex Guard.drop
     %v_47 = loads @drops, 4: I32
     %v_48 = sub %v_47, %v_38: I32
     %v_49 = add %v_40, %v_48: I32
@@ -125,11 +125,11 @@ main<complex>(): I32 {
 
   b_53 {
     store @live, 1, 4
-    call_complex Guard.drop, 1
+    call_complex Guard.drop
     %v_54 = loads @live, 4: I32
     %v_55 = add %v_54, 1: I32
     store @live, %v_55, 4
-    call_complex Guard.drop, 2
+    call_complex Guard.drop
     %v_56 = loads @drops, 4: I32
     %v_57 = sub %v_56, %v_47: I32
     %v_58 = add %v_49, %v_57: I32
@@ -144,11 +144,11 @@ main<complex>(): I32 {
 
   b_62 {
     store @live, 1, 4
-    call_complex Guard.drop, 1
+    call_complex Guard.drop
     %v_63 = loads @live, 4: I32
     %v_64 = add %v_63, 1: I32
     store @live, %v_64, 4
-    call_complex Guard.drop, 2
+    call_complex Guard.drop
     %v_65 = loads @drops, 4: I32
     %v_66 = sub %v_65, %v_56: I32
     %v_67 = add %v_58, %v_66: I32
@@ -164,16 +164,16 @@ main<complex>(): I32 {
   b_71 {
     store @live, 1, 4
     store @live, 2, 4
-    call_complex Guard.drop, 1
-    call_complex Guard.drop, 2
+    call_complex Guard.drop
+    call_complex Guard.drop
     %v_72 = loads @live, 4: I32
     %v_73 = add %v_72, 1: I32
     store @live, %v_73, 4
-    call_complex Guard.drop, 3
+    call_complex Guard.drop
     %v_74 = loads @live, 4: I32
     %v_75 = add %v_74, 1: I32
     store @live, %v_75, 4
-    call_complex Guard.drop, 4
+    call_complex Guard.drop
     %v_76 = loads @drops, 4: I32
     %v_77 = sub %v_76, %v_65: I32
     %v_78 = add %v_67, %v_77: I32
@@ -189,16 +189,16 @@ main<complex>(): I32 {
   b_82 {
     store @live, 1, 4
     store @live, 2, 4
-    call_complex Guard.drop, 1
-    call_complex Guard.drop, 2
+    call_complex Guard.drop
+    call_complex Guard.drop
     %v_83 = loads @live, 4: I32
     %v_84 = add %v_83, 1: I32
     store @live, %v_84, 4
-    call_complex Guard.drop, 3
+    call_complex Guard.drop
     %v_85 = loads @live, 4: I32
     %v_86 = add %v_85, 1: I32
     store @live, %v_86, 4
-    call_complex Guard.drop, 4
+    call_complex Guard.drop
     %v_87 = loads @drops, 4: I32
     %v_88 = sub %v_87, %v_76: I32
     %v_89 = add %v_78, %v_88: I32
@@ -253,37 +253,35 @@ main<complex>(): I32 {
   b_110 {
     %v_111 = call_complex allocateHeap, 4: Ptr
     %v_112 = loads @drops, 4: I32
-    %v_113 = imm 1: I32
     store @live, 1, 4
-    store %v_111, %v_113, 4
-    call_complex Guard.drop, %v_113
-    %v_114 = imm 2: I32
-    %v_115 = loads @live, 4: I32
-    %v_116 = add %v_115, 1: I32
-    store @live, %v_116, 4
-    store %v_111, %v_114, 4
-    call_complex Guard.drop, %v_114
-    %v_117 = loads @drops, 4: I32
-    %v_118 = sub %v_117, %v_112: I32
+    store %v_111, 1, 4
+    call_complex Guard.drop
+    %v_113 = loads @live, 4: I32
+    %v_114 = add %v_113, 1: I32
+    store @live, %v_114, 4
+    store %v_111, 2, 4
+    call_complex Guard.drop
+    %v_115 = loads @drops, 4: I32
+    %v_116 = sub %v_115, %v_112: I32
     call_complex freeHeap, %v_111
-    %v_119 = add %v_106, %v_118: I32
-    %v_120 = loads @live, 4: I32
-    %v_121 = cmp_neq %v_120, 0: I32
-    je %v_121, b_122, b_123
+    %v_117 = add %v_106, %v_116: I32
+    %v_118 = loads @live, 4: I32
+    %v_119 = cmp_neq %v_118, 0: I32
+    je %v_119, b_120, b_121
   }
 
   b_109 {
     ret 18446744073709551603
   }
 
-  b_123 {
-    %v_124 = loads @drops, 4: I32
-    %v_125 = cmp_neq %v_124, %v_119: I32
-    %v_126 = select %v_125, 18446744073709551601, %v_119: I32
-    ret %v_126
+  b_121 {
+    %v_122 = loads @drops, 4: I32
+    %v_123 = cmp_neq %v_122, %v_117: I32
+    %v_124 = select %v_123, 18446744073709551601, %v_117: I32
+    ret %v_124
   }
 
-  b_122 {
+  b_120 {
     ret 18446744073709551602
   }
 }

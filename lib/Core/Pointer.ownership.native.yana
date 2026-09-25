@@ -1,0 +1,22 @@
+import Native
+
+{-
+   `p[i]` - `Index` over a raw pointer, under the ownership resolve stage.
+
+   The one head of the six `Native/Run.yana`'s note writes out that had no written body anywhere: the
+   shipping stage generates it (`defineNativeIndexInstances`) and this stage generates nothing, so
+   `p[2]` here was "there is no instance of Index for %I32" until J139. In `Core` because an instance
+   lives with its class or its type and `%a` has no module, and in an `.ownership` file because the
+   shipping stage has its own and would otherwise have to retire this one.
+
+   No bound, because a pointer carries no length to test against - the unchecked-ness is the
+   pointer's rather than the subscript's. The key is `I64` on the terms `defineIndex` gives: a
+   pointer is indexed by a signed offset on every target. What the element is rooted in is the
+   variable holding the address, which is what the class's `source'c` says at `c := %a`: a pointer
+   has no owner the checker knows about, so `getMut` borrows that variable exclusively -
+   `test/resolve/Index.yana`'s `throughPointer`. Native only, because `%a` on a target with no
+   addresses is not something a program indexes.
+-}
+instance Index(%a, I64, a):
+    @inline(always) fn get(self: source'%a, index: I64) -> source'a = borrow(self + index)
+    @inline(always) fn getMut(&self: source'%a, index: I64) -> &source'a = borrowMut(self + index)

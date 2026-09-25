@@ -365,6 +365,22 @@ struct Lowering {
                              LocationId source, BoxRelease boxes = BoxRelease::Owned,
                              LowerFunction* home = nullptr);
 
+    // Whether a function is an authored `Reclaim` entered under `simple` - see the definition in
+    // convention.cpp.
+    bool releasesUnderSimple(DeclPtr<mir::Function> pointer);
+    HashMap<U32, U8> simpleReleases;
+
+    // How many calls `emitTeardown` would write for these halves of `type`, counted up to `cap` -
+    // the drop site's question of whether to call the type's own teardown instead. See the
+    // definition in inst.cpp.
+    U32 teardownCalls(DeclPtr<mir::Type> type, bool runDrop, bool runReclaim, U32 cap);
+
+    // Whether a record's drop calls the record's own teardown, from how many drops of it there are -
+    // see the definitions in inst.cpp.
+    void countRecordDrops();
+    bool sharesRecordTeardown(DeclPtr<mir::Type> type, BoxRelease boxes);
+    HashMap<U64, U32> recordDrops;
+
     // The tag of a sum at an address, and the one constructor of it that owes anything - the pair
     // the guard above is built from. See the definitions in inst.cpp.
     LowerPtr<LowerValue> discriminantOf(LowerBlock& block, LowerPtr<LowerValue> address,
@@ -907,6 +923,21 @@ struct Lowering {
     bool seeNarrowRef(LowerPtr<LowerValue> reference, VirtualPlace& place);
     VirtualPlace unpackNarrowRef(LowerBlock& block, LowerPtr<LowerValue> reference,
                                  DeclPtr<mir::Type> pointee);
+
+    /*
+     * A narrow **parameter**, taken apart once in the entry block - J168. The address and the shift
+     * a reference arrived with, keyed by the reference, which `unpackNarrowRef` fills the first time
+     * one is read and answers from after that. Only a parameter: the entry block dominates every read
+     * of one, and nothing else this body decodes has a block that is known to.
+     */
+    struct DecodedNarrow {
+        LowerPtr<LowerValue> word = nullptr;
+        LowerPtr<LowerValue> shift = nullptr;
+    };
+
+    HashMap<U32, DecodedNarrow> decodedNarrow;
+    LowerBlock* currentEntry = nullptr;
+    DecodedNarrow decodeNarrowParameter(LowerBlock& entry, LowerPtr<LowerValue> reference);
 
     // The flattening one, and the write-back that ends it - see `PackedBorrow`.
     PackedBorrow materializeNarrow(LowerBlock& block, LowerPtr<LowerValue> reference,

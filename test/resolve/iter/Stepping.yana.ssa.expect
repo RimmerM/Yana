@@ -436,126 +436,103 @@ bb39:
   %136: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 0, ownsHeap: 0}, length: 0}}
   store inspect %21 consume %136
   %137: String [shared call] guaranteed from{%20} = load inspect %20
-  %138: String [shared slot 0 view] guaranteed from{%20} = call String.view borrow %137
-  %139: words.Iter [owned here shape9 .2.0.*=shared slot 0] owned = call words$new borrow %138
-  store inspect %22 consume %139
-  jump -> bb41
+  jump -> bb52
 
 bb40:
-  %140: %Size address = field.addr .$slot inspect %16
-  %141: Size trivial = load inspect %140
-  store inspect %19 consume %141
-  %142: Size [unique call] guaranteed from{%17} = load inspect %17
-  %143: Size trivial = load inspect %19
-  %144: Size trivial = const 10
-  %145: Size trivial = mul inspect %143 inspect %144
-  call +=(Size) borrow %142 borrow %145
+  %151: %Size address = field.addr .$slot inspect %16
+  %152: Size trivial = load inspect %151
+  store inspect %19 consume %152
+  %153: Size [unique call] guaranteed from{%17} = load inspect %17
+  %154: Size trivial = load inspect %19
+  %155: Size trivial = const 10
+  %156: Size trivial = mul inspect %154 inspect %155
+  call +=(Size) borrow %153 borrow %156
   jump -> bb38
 
 bb41:
-  %146: words.Iter [unique call shape9 .2.0.*=shared slot 0] guaranteed from{%20, %22} = load inspect %22
-  %147: I32 trivial = const 0
-  %148: Bool trivial = const False
-  %149: Bool trivial = call words$step borrow %146 consume %147 consume %148
-  branch inspect %149 -> bb43 -> bb42
+  %157: words.Iter [unique call shape9 .2.0.*=shared slot 0] guaranteed from{%20, %22} = load inspect %22
+  %158: I32 trivial = const 0
+  %159: Bool trivial = const False
+  %160: Bool trivial = call words$step borrow %157 consume %158 consume %159
+  branch inspect %160 -> bb43 -> bb42
 
 bb42:
   drop words.Iter [owned here shape9 .2.0.*=shared slot 0] inspect %22
   drop String inspect %20
-  %150: Size trivial = const 0
-  store inspect %24 consume %150
-  %151: Size trivial = const 0
-  store inspect %25 consume %151
-  %152: Size [unique call] guaranteed from{%24} = load inspect %24
-  %153: counting.Iter [owned here shape11 .2.*=unique slot 0] trivial = call counting$new borrow %152
-  store inspect %26 consume %153
+  %161: Size trivial = const 0
+  store inspect %24 consume %161
+  %162: Size trivial = const 0
+  store inspect %25 consume %162
+  %163: Size [unique call] guaranteed from{%24} = load inspect %24
+  %164: counting.Iter [owned here shape11 .2.*=unique slot 0] trivial = call counting$new borrow %163
+  store inspect %26 consume %164
   jump -> bb44
 
 bb43:
-  %154: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0] guaranteed from{%20, %22} = load inspect %22
-  %155: String owned = call words$take borrow %154
-  store inspect %23 consume %155
-  %156: String owned = load inspect %21
-  %157: String owned = load inspect %23
-  %158: String owned = call String.++ consume %156 consume %157
-  %159: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
-  %160: String owned = call String.++ consume %158 consume %159
-  store inspect %21 consume %160
+  %165: words.Iter [unique slot 0 shape9 .2.0.*=shared slot 0] guaranteed from{%20, %22} = load inspect %22
+  %166: String owned = call words$take borrow %165
+  store inspect %23 consume %166
+  %167: String owned = load inspect %21
+  %168: String owned = load inspect %23
+  %169: String owned = call String.++ consume %167 consume %168
+  %170: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  %171: String owned = call String.++ consume %169 consume %170
+  store inspect %21 consume %171
   jump -> bb41
 
 bb44:
-  %161: counting.Iter [unique call shape11 .2.*=unique slot 0] guaranteed from{%24, %26} = load inspect %26
-  %162: I32 trivial = const 0
-  %163: Bool trivial = const False
-  %164: Bool trivial = call counting$step borrow %161 consume %162 consume %163
-  branch inspect %164 -> bb46 -> bb45
+  %172: counting.Iter [unique call shape11 .2.*=unique slot 0] guaranteed from{%24, %26} = load inspect %26
+  %173: I32 trivial = const 0
+  %174: Bool trivial = const False
+  %175: Bool trivial = call counting$step borrow %172 consume %173 consume %174
+  branch inspect %175 -> bb46 -> bb45
 
 bb45:
-  %165: Size trivial = const 3
-  %166: Guard owned = aggregate.Guard consume %165
-  store inspect %28 consume %166
-  %167: Guard [shared call] guaranteed from{%28} = load inspect %28
-  %168: watching.Iter [owned here shape12 .2.*=shared slot 0] trivial = call watching$new borrow %167
-  store inspect %29 consume %168
+  %176: Size trivial = const 3
+  %177: Guard owned = aggregate.Guard consume %176
+  store inspect %28 consume %177
+  %178: Guard [shared call] guaranteed from{%28} = load inspect %28
+  %179: watching.Iter [owned here shape12 .2.*=shared slot 0] trivial = call watching$new borrow %178
+  store inspect %29 consume %179
   jump -> bb47
 
 bb46:
-  %169: %Size address = field.addr .$slot inspect %26
-  %170: Size trivial = load inspect %169
-  store inspect %27 consume %170
-  %171: Size [unique call] guaranteed from{%25} = load inspect %25
-  %172: Size trivial = load inspect %27
-  call +=(Size) borrow %171 borrow %172
+  %180: %Size address = field.addr .$slot inspect %26
+  %181: Size trivial = load inspect %180
+  store inspect %27 consume %181
+  %182: Size [unique call] guaranteed from{%25} = load inspect %25
+  %183: Size trivial = load inspect %27
+  call +=(Size) borrow %182 borrow %183
   jump -> bb44
 
 bb47:
-  %173: watching.Iter [unique call shape12 .2.*=shared slot 0] guaranteed from{%28, %29} = load inspect %29
-  %174: I32 trivial = const 0
-  %175: Bool trivial = const False
-  %176: Bool trivial = call watching$step borrow %173 consume %174 consume %175
-  branch inspect %176 -> bb49 -> bb48
+  %184: watching.Iter [unique call shape12 .2.*=shared slot 0] guaranteed from{%28, %29} = load inspect %29
+  %185: I32 trivial = const 0
+  %186: Bool trivial = const False
+  %187: Bool trivial = call watching$step borrow %184 consume %185 consume %186
+  branch inspect %187 -> bb49 -> bb48
 
 bb48:
   drop Guard inspect %28
-  %177: Size [unique call] guaranteed from{%0} = load inspect %0
-  %178: Size trivial = load inspect %25
-  %179: Size trivial = load inspect %24
-  %180: Size trivial = add inspect %178 inspect %179
-  call +=(Size) borrow %177 borrow %180
-  %181: %Size address = global.addr trace
-  %182: Size trivial = load inspect %181
-  %183: Size trivial = const 100
-  %184: Size trivial = mul inspect %182 inspect %183
-  %185: String [shared call] guaranteed from{%21} = load inspect %21
-  %186: String [shared slot 0 view] guaranteed from{%21} = call String.view borrow %185
-  %187: Size trivial = call String.length borrow %186
-  drop String inspect %21
-  %188: Size trivial = add inspect %184 inspect %187
-  %189: Size trivial = const 1000
-  %190: Size trivial = mul inspect %188 inspect %189
-  %191: Size trivial = load inspect %17
-  %192: Size trivial = add inspect %190 inspect %191
-  %193: Size trivial = const 100
-  %194: Size trivial = mul inspect %192 inspect %193
-  %195: Size trivial = load inspect %8
-  %196: Size trivial = add inspect %194 inspect %195
-  %197: Size trivial = const 1000
-  %198: Size trivial = mul inspect %196 inspect %197
-  %199: Size trivial = load inspect %3
-  %200: Size trivial = add inspect %198 inspect %199
-  %201: Size trivial = const 100
-  %202: Size trivial = mul inspect %200 inspect %201
-  %203: Size trivial = load inspect %0
-  %204: Size trivial = add inspect %202 inspect %203
-  return consume %204
+  %188: Size [unique call] guaranteed from{%0} = load inspect %0
+  %189: Size trivial = load inspect %25
+  %190: Size trivial = load inspect %24
+  %191: Size trivial = add inspect %189 inspect %190
+  call +=(Size) borrow %188 borrow %191
+  %192: %Size address = global.addr trace
+  %193: Size trivial = load inspect %192
+  %194: Size trivial = const 100
+  %195: Size trivial = mul inspect %193 inspect %194
+  %196: String [shared call] guaranteed from{%21} = load inspect %21
+  jump -> bb54
 
 bb49:
-  %205: %Size address = field.addr .$slot inspect %29
-  %206: Size trivial = load inspect %205
-  store inspect %30 consume %206
-  %207: Size [unique call] guaranteed from{%25} = load inspect %25
-  %208: Size trivial = load inspect %30
-  call +=(Size) borrow %207 borrow %208
+  %227: %Size address = field.addr .$slot inspect %29
+  %228: Size trivial = load inspect %227
+  store inspect %30 consume %228
+  %229: Size [unique call] guaranteed from{%25} = load inspect %25
+  %230: Size trivial = load inspect %30
+  call +=(Size) borrow %229 borrow %230
   jump -> bb47
 
 bb50 cleanup:
@@ -575,6 +552,61 @@ bb51:
   %102: holding.Iter owned = call holding$new consume %101
   store inspect %14 consume %102
   jump -> bb29
+
+bb52:
+  %139: %Array(CodeUnit) address = field.addr .units inspect %137
+  %140: %Run(CodeUnit) address = field.addr .run inspect %139
+  %141: %%CodeUnit address = field.addr .items inspect %140
+  %142: %CodeUnit trivial = load inspect %141
+  %143: %Array(CodeUnit) address = field.addr .units inspect %137
+  %144: %@bits(30) U32 address = field.addr .length inspect %143
+  %145: @bits(30) U32 trivial = load inspect %144
+  %146: I32 trivial = convert inspect %145
+  %147: Size trivial = convert inspect %146
+  %148: StringView trivial = aggregate.StringView consume %142 consume %147
+  %149: String [shared slot 0 view] guaranteed = represent inspect %148
+  jump -> bb53(borrow %149)
+
+bb53(%138: String [shared slot 0 view] guaranteed from{%20}):
+  %150: words.Iter [owned here shape9 .2.0.*=shared slot 0] owned = call words$new borrow %138
+  store inspect %22 consume %150
+  jump -> bb41
+
+bb54:
+  %198: %Array(CodeUnit) address = field.addr .units inspect %196
+  %199: %Run(CodeUnit) address = field.addr .run inspect %198
+  %200: %%CodeUnit address = field.addr .items inspect %199
+  %201: %CodeUnit trivial = load inspect %200
+  %202: %Array(CodeUnit) address = field.addr .units inspect %196
+  %203: %@bits(30) U32 address = field.addr .length inspect %202
+  %204: @bits(30) U32 trivial = load inspect %203
+  %205: I32 trivial = convert inspect %204
+  %206: Size trivial = convert inspect %205
+  %207: StringView trivial = aggregate.StringView consume %201 consume %206
+  %208: String [shared slot 0 view] guaranteed = represent inspect %207
+  jump -> bb55(borrow %208)
+
+bb55(%197: String [shared slot 0 view] guaranteed from{%21}):
+  %209: Size trivial = call String.length borrow %197
+  drop String inspect %21
+  %210: Size trivial = add inspect %195 inspect %209
+  %211: Size trivial = const 1000
+  %212: Size trivial = mul inspect %210 inspect %211
+  %213: Size trivial = load inspect %17
+  %214: Size trivial = add inspect %212 inspect %213
+  %215: Size trivial = const 100
+  %216: Size trivial = mul inspect %214 inspect %215
+  %217: Size trivial = load inspect %8
+  %218: Size trivial = add inspect %216 inspect %217
+  %219: Size trivial = const 1000
+  %220: Size trivial = mul inspect %218 inspect %219
+  %221: Size trivial = load inspect %3
+  %222: Size trivial = add inspect %220 inspect %221
+  %223: Size trivial = const 100
+  %224: Size trivial = mul inspect %222 inspect %223
+  %225: Size trivial = load inspect %0
+  %226: Size trivial = add inspect %224 inspect %225
+  return consume %226
 }
 
 fn evens$new() -> evens.Iter {

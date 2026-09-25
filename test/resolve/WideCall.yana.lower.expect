@@ -3,16 +3,15 @@ mut @effects = [0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = bitcast 0: Ptr
-    %v_2 = call_complex ResolveTest.deferred$24, %v_1: I32
-    %v_3 = add %v_2, 38: I32
-    %v_4 = loads @effects, 4: I32
-    %v_5 = add %v_3, %v_4: I32
-    ret %v_5
+    %v_1 = call_complex ResolveTest.deferred$24: I32
+    %v_2 = add %v_1, 38: I32
+    %v_3 = loads @effects, 4: I32
+    %v_4 = add %v_2, %v_3: I32
+    ret %v_4
   }
 }
 
-ResolveTest.deferred$24<complex>(%env: Ptr): I32 {
+ResolveTest.deferred$24<complex>(): I32 {
   b_0 {
     %v_1 = loads @effects, 4: I32
     %v_2 = imm 4: I32

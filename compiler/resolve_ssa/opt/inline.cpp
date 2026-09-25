@@ -701,7 +701,7 @@ struct Inliner {
     IndexSet siteLive;
 
     // Per entry argument of the callee being weighed, the `Aggregate` the site's argument denotes -
-    // `siteContents` - or null. See `siteField`, the one reader.
+    // `builtContents` - or null. See `siteField`, the one reader.
     SmallArray<Value*, 8> siteRecords;
     Block* siteEntry = nullptr;
 
@@ -757,6 +757,21 @@ struct Inliner {
 
         U32 size = 0;
         for(auto index: sizeOrder) size += weighBlock(*body->block(base(), BlockId(index)));
+
+        return size;
+    }
+
+    // What of that is **cold** - the blocks `findColdBlocks` marked in the callee's own body, which
+    // lead nowhere but to a `@cold` call. Read only by the flat budget; see the note there.
+    U32 coldSizeOf(mir::Function& function) {
+        auto body = base()[function.ssa];
+        reversePostorder(base(), *body, sizeOrder);
+
+        U32 size = 0;
+        for(auto index: sizeOrder) {
+            auto& block = *body->block(base(), BlockId(index));
+            if(block.cold) size += weighBlock(block);
+        }
 
         return size;
     }
@@ -842,10 +857,10 @@ struct Inliner {
             auto value = used.isSet() ? base()[used.value()] : nullptr;
             if(value && constantValueOf(opt, value)) supplied = true;
 
-            // Asked of a teardown's site only: `siteContents` reads the caller's slots (`aggregateFillOf`),
-            // which every splice invalidates, and asking it at every declined site cost 48% of the
-            // compile of `test/base` in the first measurement of this.
-            auto record = function.teardown ? siteContents(value, 0) : nullptr;
+            // Asked of a teardown's site only: `builtContents` reads the caller's slots
+            // (`aggregateFillOf`), which every splice invalidates, and asking it at every declined
+            // site cost 48% of the compile of `test/base` in the first measurement of this.
+            auto record = function.teardown ? builtContents(opt, value, 0) : nullptr;
             if(record && base()[record->definer]->kind != Inst::Aggregate) record = nullptr;
             if(record) supplied = true;
             siteRecords.push(record);
@@ -912,82 +927,8 @@ struct Inliner {
     static constexpr U32 kSiteRounds = 3;
 
     /*
-     * What the **site** knows is at an address or in a value: the `Aggregate` or `Const` it was
-     * built from, read back through the storage the caller put it in - J137.
-     *
-     * The estimate above was seeded only with numbers, and the call that most needed more was the
-     * teardown `opt/teardown.cpp` writes: `releaseRun(value.run)` handed a run the caller built on
-     * its own frame reads a flag that is the constant zero in the caller's aggregate, and the whole
-     * of the callee is the arm that flag decides against. Weighed as written it is the test and a
-     * copy of `freeHeap`, above the budget; weighed at the site it is nothing.
-     *
-     * A slot is read through `aggregateFillOf`, which is what makes the answer one: its fill is
-     * the only write for the whole body. The first form of this took a slot's one whole-slot store
-     * as its contents without asking what else wrote it, and `MapLiteral.yana` grew by 7,733
-     * lowered instructions - each `insertAt` pushes through a borrow of the slot the literal
-     * filled, and a capacity read as the literal's pruned every growth arm out of the estimate.
-     */
-    Value* siteContents(Value* value, U32 depth) {
-        if(!value || !value->definer || depth > 6) return nullptr;
-        auto inst = base()[value->definer];
-
-        switch(inst->kind) {
-            case Inst::Aggregate:
-            case Inst::Const:
-                return value;
-
-            case Inst::Load:
-                return siteContents(base()[((InstLoad*)inst)->address.value()], depth + 1);
-
-            // Storage whose one write is the fill, and nothing else writes it for the whole body -
-            // `aggregateFillOf`'s reading of the caller, and the reason this is an answer at all: a
-            // slot filled once and then pushed to through a borrow holds nothing the fill says.
-            case Inst::Alloc: {
-                // One slot's answer rather than the table's: a splice moves the version, and
-                // the table rebuilt per site was J137's compile time (`aggregateFillOf`).
-                auto fill = aggregateFillOf(opt, containedOf(opt), *value);
-                if(!fill) return nullptr;
-
-                return siteContents(base()[((InstStore*)fill)->value.value()], depth + 1);
-            }
-
-            case Inst::FieldAddress: {
-                auto& projection = *(InstFieldAddress*)inst;
-                auto record = siteContents(base()[projection.base.value()], depth + 1);
-                auto component = componentOf(record, projection);
-                return siteContents(component, depth + 1);
-            }
-
-            default:
-                return nullptr;
-        }
-    }
-
-    // The component of a built record a projection names, on `forwardMemory`'s terms for the same
-    // question: a single-constructor record, the type the projection is of, a plain field.
-    Value* componentOf(Value* record, InstFieldAddress& projection) {
-        if(!record || !record->definer) return nullptr;
-
-        auto definer = base()[record->definer];
-        if(definer->kind != Inst::Aggregate) return nullptr;
-        if(projection.property != InstFieldAddress::kNoProperty) return nullptr;
-        if(projection.field == InstFieldAddress::kDiscriminant) return nullptr;
-        if(!projection.record || projection.record != record->occurrence.type) return nullptr;
-
-        auto declared = decl()[projection.record];
-        if(declared->kind != mir::Type::Record) return nullptr;
-        if(((mir::RecordType*)declared)->layout != mir::RecordLayout::Single) return nullptr;
-
-        auto& built = (InstAggregate&)*definer;
-        if(built.constructor != 0 || projection.field >= built.components.size()) return nullptr;
-
-        auto used = built.components.get(base(), projection.field);
-        return used.isSet() ? base()[used.value()] : nullptr;
-    }
-
-    /*
      * The number a callee's read of one of its **parameters' fields** takes at this site - the
-     * callee-side half of `siteContents`.
+     * callee-side half of `builtContents` (analysis.h).
      *
      * The address is walked up to the entry argument it projects - field steps, and a `Guaranteed`
      * load, which is a borrow of the same storage - and then down the site's record along the same
@@ -1028,7 +969,7 @@ struct Inliner {
         }
 
         for(Size i = path.size(); record && i-- > 0;) {
-            record = siteContents(componentOf(record, *path[i]), 0);
+            record = builtContents(opt, builtComponent(opt, record, *path[i]), 0);
         }
 
         return record ? constantValueOf(opt, record) : Nothing();
@@ -1462,7 +1403,7 @@ struct Inliner {
     }
 
     /*
-     * Whether a teardown call's subject was assembled in this body - `siteContents` finds the
+     * Whether a teardown call's subject was assembled in this body - `builtContents` finds the
      * `Aggregate` it was built from, through the storage it was kept in. See the note in
      * `worthInlining`, the one reader.
      */
@@ -1470,7 +1411,7 @@ struct Inliner {
         if(!call.arguments.size()) return false;
 
         auto used = call.arguments.get(base(), 0);
-        return used.isSet() && siteContents(base()[used.value()], 0) != nullptr;
+        return used.isSet() && builtContents(opt, base()[used.value()], 0) != nullptr;
     }
 
     /*
@@ -1557,11 +1498,25 @@ struct Inliner {
          *
          * The cost is a call per check site in a build that asked for locations, which is a debug
          * switch, and it is the same call the shipping stage's located build makes.
+         *
+         * **Except a `checkCondition` the optimizer has already answered** - J168. A condition that
+         * is a constant zero is a check that cannot fail, and expanding it leaves nothing, so there is
+         * no location to lose; refusing it left a call that does nothing and, behind it, the whole
+         * reporting path rooted for it. What `CheckLocation.yana`'s array literal's capacity check
+         * was.
          */
         if(opt.context.settings.checkLocations &&
            (pointer == opt.program.roles.function(intrinsic::Known::checkFailed) ||
             pointer == opt.program.roles.function(intrinsic::Known::checkCondition))) {
-            return false;
+            auto decided = pointer == opt.program.roles.function(intrinsic::Known::checkCondition) &&
+                           call.arguments.size() == 1 && call.arguments.get(base(), 0).isSet();
+            if(decided) {
+                auto known = constantValueOf(opt, base()[call.arguments.get(base(), 0).value()]);
+                decided = known && known.unwrap() == 0;
+            }
+
+            // Copied whatever the budgets say: what the copy folds to is nothing at all.
+            return decided;
         }
         // And the directive on the other side, above every number for the reason the note has.
         if(callee->alwaysInline) return true;
@@ -1708,7 +1663,38 @@ struct Inliner {
          */
         if(cold) return size <= kColdBudget || solelyReferenced() || coldOnlyCallee();
 
-        if(weighed <= limits.budget) return true;
+        /*
+         * The flat budget, and **what it may bring with it cold** - J171.
+         *
+         * What a copy under this budget buys is its warm path: a comparison the caller's constants
+         * decide, a call and its prologue gone. A cold arm copied with it buys nothing - it runs
+         * rarely by the author's say-so - and costs its whole weight at every site. So the copy may
+         * bring a cold arm only as large as a cold site would itself accept, `kColdBudget`: the call
+         * to `checkFailed` behind a bounds test, and not the message an assertion builds.
+         *
+         * **`-inline speed` is where this showed.** `checkEqual(I64)` settles at 38, of which the
+         * arm that formats "expected {expected}, got {actual}" is 32 and the comparison 6. Before
+         * `String.view` was grafted it settled at 50 (44 cold), just above `speed`'s 40, and the
+         * graft took twelve off the arm - so every assertion in `test/base` copied its failure
+         * message, 1,037,544 -> 1,112,120 bytes for the same time (J170 §3). Nothing about the
+         * body's warm path had changed; the budget was pricing the arm as though it were the thing
+         * being bought.
+         *
+         * `weighed < size` is the site estimate, which has already taken out the arms the site's
+         * constants decide and priced the ones left at `kColdResidueWeight` (`coldExtra`), so it is
+         * its own answer. A body that passes the flat number with too large an arm gets that estimate
+         * here instead, which is the site that decides its test at compile time.
+         *
+         * Not the J138 rule, which priced cold arms double in `sizeOf` itself and kept small callees
+         * out of line whose whole copy was no larger than the call. This reads the arm on its own and
+         * leaves a body with a one-call arm exactly where it was.
+         */
+        if(weighed <= limits.budget) {
+            if(weighed < size || coldSizeOf(*callee) <= kColdBudget) return true;
+
+            auto residue = sizeAtSite(call, *callee);
+            if(residue <= limits.budget) return true;
+        }
 
         /*
          * And the residue weighed at `soleBudget`, which is the hint's number read for the hint's own
@@ -2836,60 +2822,9 @@ struct Inliner {
         return flattened;
     }
 
-    /*
-     * A teardown call whose subject this site can name, and whose end runs nothing - erased with
-     * the read that handed the subject over, rather than copied or kept. J138.
-     *
-     * `siteContents` is the reading `subjectBuiltHere` already makes, and it is exact where it
-     * answers: every step is a slot `aggregateFillOf` says nothing but its fill writes, so what the
-     * read hands over is the component the fill built. `owesNothing` then says the teardown has
-     * nothing to do. It is `@caller`'s `Site` that this is for: `check` drops its `at`, the drop is
-     * a `String.reclaim` of each literal in it after `expandTeardowns`, and copied into a caller
-     * that built the `Site` those were releases of two literals - tested at run time through a flag
-     * the forwarding does not reach, at every assertion in the program.
-     */
-    bool literalSlotRead(Inst& read) {
-        if(read.kind != Inst::Load) return false;
-
-        auto address = base()[((InstLoad&)read).address.value()];
-        return constantHeldBy(opt, containedOf(opt), *address).isSet();
-    }
-
-    bool eraseInertTeardown(InstCall& call) {
-        if(call.arguments.size() != 1) return false;
-
-        for(auto resultPointer: call.results.contents(base())) {
-            for(auto use: base()[resultPointer]->uses(base())) { (void)use; return false; }
-        }
-
-        auto used = call.arguments.get(base(), 0);
-        if(!used.isSet()) return false;
-
-        auto argument = base()[used.value()];
-        if(!isTracked(argument->convention) || !argument->definer) return false;
-
-        Size uses = 0;
-        for(auto use: argument->uses(base())) { (void)use; uses++; }
-        if(uses != 1) return false;
-
-        auto definer = base()[argument->definer];
-        if(definer->kind == Inst::Load && ((InstLoad*)definer)->isVolatile) return false;
-        if(definer->kind != Inst::Load && definer->kind != Inst::Const) return false;
-
-        // Or a read of a slot holding a literal, which `siteContents` leaves to the table because
-        // its question costs a scan of the body - asked here, of the one slot, where it pays.
-        auto contents = siteContents(argument, 0);
-        if(contents ? !owesNothing(opt, *contents, 0) : !literalSlotRead(*definer)) return false;
-
-        auto editor = opt.ir();
-        editor.eraseInst(call);
-        editor.eraseInst(*definer);
-        return true;
-    }
-
     bool inlineSite(mir::Function& caller, InstCall& call, bool flattening = false, bool once = false) {
         if(call.through != mir::CallThrough::Declaration || !call.callee) return false;
-        if(decl()[call.callee]->teardown && eraseInertTeardown(call)) return true;
+        if(decl()[call.callee]->teardown && eraseInertTeardown(opt, call)) return true;
         if(!clonableDeclaration(caller, call.callee)) return false;
 
         /*

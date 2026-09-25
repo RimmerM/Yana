@@ -4,11 +4,11 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Guard.drop<complex>(%v_0: I32) {
-  b_1 {
-    %v_2 = loads @live, 4: I32
-    %v_3 = sub %v_2, 1: I32
-    store @live, %v_3, 4
+Guard.drop<complex>() {
+  b_0 {
+    %v_1 = loads @live, 4: I32
+    %v_2 = sub %v_1, 1: I32
+    store @live, %v_2, 4
     ret 
   }
 }
@@ -81,51 +81,47 @@ main<complex>(): I32 {
     store @live, 0, 4
     call_complex freeHeap, %v_30
     %v_31 = call_complex allocateHeap, 4: Ptr
-    %v_32 = imm 1: I32
-    %v_33 = loads @live, 4: I32
-    %v_34 = add %v_33, 1: I32
-    store @live, %v_34, 4
-    store %v_31, %v_32, 4
-    call_complex Guard.drop, %v_32
-    %v_35 = imm 2: I32
-    %v_36 = loads @live, 4: I32
-    %v_37 = add %v_36, 1: I32
-    store @live, %v_37, 4
-    store %v_31, %v_35, 4
-    call_complex Guard.drop, %v_35
+    %v_32 = loads @live, 4: I32
+    %v_33 = add %v_32, 1: I32
+    store @live, %v_33, 4
+    store %v_31, 1, 4
+    call_complex Guard.drop
+    %v_34 = loads @live, 4: I32
+    %v_35 = add %v_34, 1: I32
+    store @live, %v_35, 4
+    store %v_31, 2, 4
+    call_complex Guard.drop
     call_complex freeHeap, %v_31
-    %v_38 = call_complex allocateHeap, 4: Ptr
-    %v_39 = imm 1: I32
-    %v_40 = loads @live, 4: I32
-    %v_41 = add %v_40, 1: I32
-    store @live, %v_41, 4
-    store %v_38, %v_39, 4
-    call_complex Guard.drop, %v_39
-    %v_42 = imm 2: I32
-    %v_43 = loads @live, 4: I32
-    %v_44 = add %v_43, 1: I32
-    store @live, %v_44, 4
-    store %v_38, %v_42, 4
-    call_complex Guard.drop, %v_42
-    call_complex freeHeap, %v_38
-    %v_45 = loads @live, 4: I32
-    %v_46 = cmp_neq %v_45, 0: I32
-    je %v_46, b_47, b_48
+    %v_36 = call_complex allocateHeap, 4: Ptr
+    %v_37 = loads @live, 4: I32
+    %v_38 = add %v_37, 1: I32
+    store @live, %v_38, 4
+    store %v_36, 1, 4
+    call_complex Guard.drop
+    %v_39 = loads @live, 4: I32
+    %v_40 = add %v_39, 1: I32
+    store @live, %v_40, 4
+    store %v_36, 2, 4
+    call_complex Guard.drop
+    call_complex freeHeap, %v_36
+    %v_41 = loads @live, 4: I32
+    %v_42 = cmp_neq %v_41, 0: I32
+    je %v_42, b_43, b_44
   }
 
   b_28 {
     ret 18446744073709551613
   }
 
-  b_48 {
-    %v_49 = load @heapNext, 8: Ptr
-    %v_50 = bitcast %v_49: I64
-    %v_51 = cmp_neq %v_50, %v_10: I32
-    %v_52 = select %v_51, 18446744073709551611, 1: I32
-    ret %v_52
+  b_44 {
+    %v_45 = load @heapNext, 8: Ptr
+    %v_46 = bitcast %v_45: I64
+    %v_47 = cmp_neq %v_46, %v_10: I32
+    %v_48 = select %v_47, 18446744073709551611, 1: I32
+    ret %v_48
   }
 
-  b_47 {
+  b_43 {
     ret 18446744073709551612
   }
 }

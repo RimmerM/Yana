@@ -132,6 +132,13 @@ void optimizeBody(OptContext& opt) {
         runPass(hoist);
 
         /*
+         * A record's drop expanded where this body built the record, in front of the forwarding
+         * that answers each field's load from the component - `opt/teardown.cpp`, J172. In the loop
+         * rather than only in front of the inliner, because the `Aggregate` is often a splice's.
+         */
+        runPass(expandBuiltTeardowns);
+
+        /*
          * Then storage, and README.md's section B is the order: the store/load traffic the
          * conversion emits around every local is what hides a constant from every pass below, and
          * removing an allocation is worth asking only *after* the forwarding that makes its reads go
@@ -148,6 +155,11 @@ void optimizeBody(OptContext& opt) {
          * a block-local scan, which is why it is a pass of its own and not an arm of the forwarder.
          */
         runPass(elideMoves);
+
+        // And a copy only shared borrows read, made a read of the slot it came from - behind the
+        // forwarder, which may already have answered the copy's source, and in front of the next
+        // round's `promote` and `forwardMemory`, which take the load away where they can.
+        runPass(aliasBorrowedCopies);
 
         /*
          * Then the loops, immediately in front of the CFG cleanup, because what `deadLoops`

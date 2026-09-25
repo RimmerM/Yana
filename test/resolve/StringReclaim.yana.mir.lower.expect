@@ -43,7 +43,7 @@ buildInCallee<complex>(): I32 {
     %v_12 = load %v_1, 8: I64
     %v_13 = add %v_1, 8: Ptr
     %v_14 = load %v_13, 4: I32
-    call_complex String.reclaim, %v_12, %v_14, %v_10
+    call_complex String.reclaim, %v_12, %v_14
     %v_15 = sext %v_11: I32
     ret %v_15
   }
@@ -77,7 +77,7 @@ buildHere<complex>(): I32 {
     %v_12 = load %v_1, 8: I64
     %v_13 = add %v_1, 8: Ptr
     %v_14 = load %v_13, 4: I32
-    call_complex String.reclaim, %v_12, %v_14, %v_10
+    call_complex String.reclaim, %v_12, %v_14
     %v_15 = sext %v_11: I32
     ret %v_15
   }
@@ -111,7 +111,7 @@ buildUnnamed<complex>(): I32 {
     %v_12 = load %v_1, 8: I64
     %v_13 = add %v_1, 8: Ptr
     %v_14 = load %v_13, 4: I32
-    call_complex String.reclaim, %v_12, %v_14, %v_10
+    call_complex String.reclaim, %v_12, %v_14
     %v_15 = sext %v_11: I32
     ret %v_15
   }
@@ -130,7 +130,7 @@ main<complex>(): I32 {
     %v_7 = load %v_3, 8: I64
     %v_8 = add %v_3, 8: Ptr
     %v_9 = load %v_8, 4: I32
-    call_complex String.reclaim, %v_7, %v_9, %v_5
+    call_complex String.reclaim, %v_7, %v_9
     %v_10 = sext %v_6: I32
     %v_11 = call_complex buildUnnamed: I32
     %v_12 = load @heapNext, 8: Ptr
@@ -179,7 +179,7 @@ main<complex>(): I32 {
     %v_33 = load %v_29, 8: I64
     %v_34 = add %v_29, 8: Ptr
     %v_35 = load %v_34, 4: I32
-    call_complex String.reclaim, %v_33, %v_35, %v_31
+    call_complex String.reclaim, %v_33, %v_35
     %v_36 = sext %v_32: I32
     %v_37 = cmp_neq %v_36, %v_10: I32
     je %v_37, b_38, b_39
@@ -225,33 +225,33 @@ main<complex>(): I32 {
   }
 }
 
-String.reclaim<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
-  b_3 {
-    %v_4 = shr %v_1, 30: I32
-    %v_5 = cmp_eq %v_4, 1: I32
-    je %v_5, b_6, b_7
+String.reclaim<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = shr %v_1, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = bitcast %v_0: Ptr
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_6, b_9
   }
 
   b_6 {
-    %v_8 = bitcast %v_0: Ptr
-    %v_9 = cmp_eq %v_0, 0: I32
-    je %v_9, b_7, b_10
-  }
-
-  b_7 {
     ret 
   }
 
-  b_10 {
-    %v_11 = sub %v_8, 8: Ptr
-    %v_12 = loads %v_11, 8: I64
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %v_12, 3: I64
-    %v_15 = add %v_13, %v_14: Ptr
-    %v_16 = load %v_15, 8: Ptr
-    store %v_8, %v_16, 8
-    store %v_15, %v_8, 8
-    jmp b_7
+  b_9 {
+    %v_10 = sub %v_7, 8: Ptr
+    %v_11 = loads %v_10, 8: I64
+    %v_12 = load @heapFree, 8: Ptr
+    %v_13 = shl %v_11, 3: I64
+    %v_14 = add %v_12, %v_13: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    store %v_7, %v_15, 8
+    store %v_14, %v_7, 8
+    jmp b_6
   }
 }
 

@@ -329,6 +329,17 @@ inline LowerInst* call(LowerBase base, LowerModule& module, LowerBlock& block, S
     return block.addInst(base, inst);
 }
 
+// The function a call names through a `fun`, or null for any other call - an indirect one, a syscall,
+// a stack switch.
+inline LowerFunction* directCallee(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::Call || inst->usedCount < 1) return nullptr;
+    if(!callTypeHasCallee(((LowerInstCall*)inst)->getCallType())) return nullptr;
+
+    auto callee = base[inst->used()[0]]->inst();
+    if(callee->kind != LowerInst::Fun) return nullptr;
+    return base[((LowerInstFun*)callee)->target];
+}
+
 inline LowerInst* je(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* cond, LowerBlock* then, LowerBlock* otherwise) {
     return block.addInst(base, new (module.arena) LowerInstJe(cond - base, then - base, otherwise - base));
 }

@@ -242,6 +242,21 @@ struct SoleContents {
 SoleContents& soleContentsOf(OptContext& opt);
 
 /*
+ * Whether everything this allocation holds was written by this body's own `store`s - `soleContents`
+ * with any number of stores admitted, each of which states what it wrote: a field, an element, or
+ * the whole of an `Aggregate` or a constant. False where a callee writes through the address, and
+ * where a whole value is moved in from other storage or stored from a call's result.
+ *
+ * **A heuristic rather than a fact**, and that is why it does not ask `Contained`: the walk is over
+ * the allocation's own names, so a write through a name it does not follow is not seen. The one
+ * reader is `opt/teardown.cpp`, which asks it of a record's storage to decide whether a drop is
+ * worth writing out field by field - those are the records whose fields `forwardMemory` can answer
+ * (J172) - and either answer is a correct program. A reader that would be wrong on a missed write
+ * wants `soleContents`.
+ */
+bool writtenHere(OptContext& opt, Value& allocation);
+
+/*
  * The readers of `soleContents`, each a filter over its answer, with its own extra condition stated
  * where it is written rather than folded into a second escape rule.
  *
@@ -255,6 +270,11 @@ mir::Constant constantHeldBy(OptContext& opt, const Contained& contained, Value&
 // Whether a value's end runs nothing, and whether a slot holds only such a value - see the notes.
 bool owesNothing(OptContext& opt, Value& value, U32 depth);
 bool holdsNothingOwed(OptContext& opt, const Contained& contained, Value& value);
+
+// What this body built at an address or in a value - an `Aggregate` or a `Const` - read back
+// through the storage it was put in, and the component of one a projection names. See the note.
+Value* builtContents(OptContext& opt, Value* value, U32 depth);
+Value* builtComponent(OptContext& opt, Value* record, InstFieldAddress& projection);
 
 /*
  * The `fun.value` a function value is, where this body built it - the one walk the inliner's

@@ -18,35 +18,35 @@ raise<complex>(%b: Ptr): I32 {
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
-    %v_2 = alloca 8, 8: Ptr
-    %v_3 = alloca 8, 8: Ptr
     store %v_1, 30064771075, 8
-    %v_4 = add %v_1, 4: Ptr
-    %v_5 = load %v_4, 4: I64
-    %v_6 = and %v_5, 1048575: I64
-    %v_7 = cast %v_6: I32
-    %v_8 = add %v_7, 1: I32
-    %v_9 = and %v_8, 1048575: I32
-    %v_10 = and %v_5, 18446744073708503040: I64
-    %v_11 = add %v_9, 1: I32
-    %v_12 = and %v_11, 1048575: I32
-    %v_13 = cast %v_12: I64
-    %v_14 = or %v_10, %v_13: I64
-    store %v_4, %v_14, 4
-    store %v_2, 30064771075, 8
-    store %v_2, 5, 4
-    %v_15 = add %v_2, 4: Ptr
-    %v_16 = load %v_15, 4: I64
-    %v_17 = and %v_16, 1048575: I64
-    %v_18 = cast %v_17: I32
-    %v_19 = add %v_18, 1: I32
-    %v_20 = and %v_19, 1048575: I32
-    %v_21 = cast %v_20: I64
-    %v_22 = and %v_16, 18446744073708503040: I64
-    %v_23 = or %v_22, %v_21: I64
-    store %v_15, %v_23, 4
-    store %v_3, 30064771075, 8
-    %v_24 = add %v_3, 4: Ptr
+    %v_2 = add %v_1, 4: Ptr
+    %v_3 = load %v_2, 4: I64
+    %v_4 = and %v_3, 1048575: I64
+    %v_5 = cast %v_4: I32
+    %v_6 = add %v_5, 1: I32
+    %v_7 = and %v_6, 1048575: I32
+    %v_8 = and %v_3, 18446744073708503040: I64
+    %v_9 = add %v_7, 1: I32
+    %v_10 = and %v_9, 1048575: I32
+    %v_11 = cast %v_10: I64
+    %v_12 = or %v_8, %v_11: I64
+    store %v_2, %v_12, 4
+    %v_13 = alloca 8, 8: Ptr
+    store %v_13, 30064771075, 8
+    store %v_13, 5, 4
+    %v_14 = add %v_13, 4: Ptr
+    %v_15 = load %v_14, 4: I64
+    %v_16 = and %v_15, 1048575: I64
+    %v_17 = cast %v_16: I32
+    %v_18 = add %v_17, 1: I32
+    %v_19 = and %v_18, 1048575: I32
+    %v_20 = cast %v_19: I64
+    %v_21 = and %v_15, 18446744073708503040: I64
+    %v_22 = or %v_21, %v_20: I64
+    store %v_14, %v_22, 4
+    %v_23 = alloca 8, 8: Ptr
+    store %v_23, 30064771075, 8
+    %v_24 = add %v_23, 4: Ptr
     %v_25 = load %v_24, 4: I64
     %v_26 = and %v_25, 1048575: I64
     %v_27 = cast %v_26: I32
@@ -60,46 +60,37 @@ main<complex>(): I32 {
     %v_34 = and %v_33, 1048575: I64
     %v_35 = cast %v_34: I32
     %v_36 = cmp_eq %v_35, 3: I32
-    %v_37 = shr %v_33, 32: I64
-    %v_38 = and %v_37, 1048575: I64
-    %v_39 = cast %v_38: I32
-    %v_40 = cmp_eq %v_39, 9: I32
-    %v_41 = select %v_40, 2, 0: I32
-    %v_42 = add %v_36, %v_41: I32
-    %v_43 = load %v_2, 8: I64
-    %v_44 = and %v_43, 1048575: I64
-    %v_45 = cast %v_44: I32
-    %v_46 = cmp_eq %v_45, 5: I32
-    %v_47 = select %v_46, 4, 0: I32
-    %v_48 = add %v_42, %v_47: I32
-    %v_49 = shr %v_43, 32: I64
+    %v_37 = cmp_eq %v_10, 9: I32
+    %v_38 = select %v_37, 2, 0: I32
+    %v_39 = add %v_36, %v_38: I32
+    %v_40 = load %v_13, 8: I64
+    %v_41 = and %v_40, 1048575: I64
+    %v_42 = cast %v_41: I32
+    %v_43 = cmp_eq %v_42, 5: I32
+    %v_44 = select %v_43, 4, 0: I32
+    %v_45 = add %v_39, %v_44: I32
+    %v_46 = cmp_eq %v_19, 8: I32
+    %v_47 = select %v_46, 8, 0: I32
+    %v_48 = add %v_45, %v_47: I32
+    %v_49 = load %v_23, 8: I64
     %v_50 = and %v_49, 1048575: I64
     %v_51 = cast %v_50: I32
-    %v_52 = cmp_eq %v_51, 8: I32
-    %v_53 = select %v_52, 8, 0: I32
+    %v_52 = cmp_eq %v_51, 3: I32
+    %v_53 = select %v_52, 16, 0: I32
     %v_54 = add %v_48, %v_53: I32
-    %v_55 = load %v_3, 8: I64
-    %v_56 = and %v_55, 1048575: I64
-    %v_57 = cast %v_56: I32
-    %v_58 = cmp_eq %v_57, 3: I32
-    %v_59 = select %v_58, 16, 0: I32
-    %v_60 = add %v_54, %v_59: I32
-    %v_61 = shr %v_55, 32: I64
-    %v_62 = and %v_61, 1048575: I64
-    %v_63 = cast %v_62: I32
-    %v_64 = cmp_eq %v_63, 8: I32
-    %v_65 = select %v_64, 32, 0: I32
-    %v_66 = add %v_60, %v_65: I32
-    %v_67 = add %v_66, 704: I32
-    %v_68 = add %v_67, 80000: I32
-    ret %v_68
+    %v_55 = cmp_eq %v_29, 8: I32
+    %v_56 = select %v_55, 32, 0: I32
+    %v_57 = add %v_54, %v_56: I32
+    %v_58 = add %v_57, 704: I32
+    %v_59 = add %v_58, 80000: I32
+    ret %v_59
   }
 }
 
-funvalue(raise)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
-  b_2 {
-    %v_3 = call_complex raise, %v_1: I32
-    ret %v_3
+funvalue(raise)<complex>(%v_0: Ptr): I32 {
+  b_1 {
+    %v_2 = call_complex raise, %v_0: I32
+    ret %v_2
   }
 }
 

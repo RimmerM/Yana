@@ -1,11 +1,11 @@
 mut @gone = [0, 0, 0, 0]
 mut @trail = [0, 0, 0, 0]
 
-Box.drop<complex>(%v_0: I32) {
-  b_1 {
-    %v_2 = loads @gone, 4: I32
-    %v_3 = add %v_2, 1: I32
-    store @gone, %v_3, 4
+Box.drop<complex>() {
+  b_0 {
+    %v_1 = loads @gone, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @gone, %v_2, 4
     ret 
   }
 }
@@ -444,139 +444,122 @@ main<complex>(): I32 {
     store @trail, %v_197, 4
     %v_198 = loads %v_173, 4: I32
     %v_199 = select %v_190, %v_198, 0: I32
-    %v_200 = alloca 12, 4: Ptr
-    jmp b_201
+    jmp b_200
   }
 
-  b_201 {
-    %v_202 = phi [b_193, 0], [b_203, %v_204]: I32
-    %v_205 = phi [b_193, 0], [b_203, %v_206]: I32
-    %v_207 = cmp_ilt %v_202, 5: I32
-    je %v_207, b_203, b_208
+  b_200 {
+    %v_201 = phi [b_193, 0], [b_202, %v_203]: I32
+    %v_204 = phi [b_193, 0], [b_202, %v_205]: I32
+    %v_206 = cmp_ilt %v_201, 5: I32
+    je %v_206, b_202, b_207
   }
 
-  b_203 {
-    %v_209 = imul %v_205, 10: I32
-    %v_206 = add %v_209, %v_202: I32
-    %v_210 = add %v_200, 4: Ptr
-    %v_211 = add %v_200, 8: Ptr
-    store %v_211, 0, 4
-    store %v_210, 2, 4
-    store %v_200, 0, 1
-    %v_212 = load %v_210, 4: I32
-    %v_213 = load %v_211, 4: I32
-    call_complex Box.drop, %v_213
-    %v_204 = add %v_202, %v_212: I32
-    jmp b_201
+  b_202 {
+    %v_208 = imul %v_204, 10: I32
+    %v_205 = add %v_208, %v_201: I32
+    call_complex Box.drop
+    %v_203 = add %v_201, 2: I32
+    jmp b_200
   }
 
-  b_208 {
-    %v_214 = alloca 12, 4: Ptr
-    jmp b_215
+  b_207 {
+    jmp b_209
   }
 
-  b_215 {
-    %v_216 = phi [b_208, 0], [b_217, %v_218]: I32
-    %v_219 = phi [b_208, 0], [b_217, %v_220]: I32
-    %v_221 = phi [b_208, 0], [b_217, %v_222]: I32
-    %v_223 = phi [b_208, 0], [b_217, %v_224]: I32
-    %v_225 = cmp_ilt %v_216, 4: I32
-    je %v_225, b_217, b_226
+  b_209 {
+    %v_210 = phi [b_207, 0], [b_211, %v_212]: I32
+    %v_213 = phi [b_207, 0], [b_211, %v_214]: I32
+    %v_215 = phi [b_207, 0], [b_211, 5]: I32
+    %v_216 = cmp_ilt %v_210, 4: I32
+    je %v_216, b_211, b_217
+  }
+
+  b_211 {
+    call_complex Box.drop
+    %v_218 = add %v_210, %v_215: I32
+    %v_219 = imul %v_213, 10: I32
+    %v_214 = add %v_219, %v_218: I32
+    %v_212 = add %v_210, 1: I32
+    jmp b_209
   }
 
   b_217 {
-    call_complex Box.drop, %v_223
-    %v_227 = add %v_216, %v_221: I32
-    %v_228 = imul %v_219, 10: I32
-    %v_220 = add %v_228, %v_227: I32
-    %v_229 = add %v_214, 4: Ptr
-    %v_230 = add %v_214, 8: Ptr
-    store %v_230, 0, 4
-    store %v_229, 5, 4
-    store %v_214, 0, 1
-    %v_222 = load %v_229, 4: I32
-    %v_224 = load %v_230, 4: I32
-    %v_218 = add %v_216, 1: I32
-    jmp b_215
+    call_complex Box.drop
+    jmp b_220
   }
 
-  b_226 {
-    call_complex Box.drop, %v_223
+  b_220 {
+    %v_221 = phi [b_217, 0], [b_222, %v_223]: I32
+    %v_224 = phi [b_217, 0], [b_222, %v_225]: I32
+    %v_226 = cmp_ilt %v_221, 3: I32
+    je %v_226, b_222, b_227
+  }
+
+  b_222 {
+    %v_228 = imul %v_224, 10: I32
+    %v_225 = add %v_228, %v_221: I32
+    %v_223 = add %v_221, 1: I32
+    jmp b_220
+  }
+
+  b_227 {
+    %v_229 = add %v_224, 7: I32
+    %v_230 = select 0, %v_229, %v_224: I32
     jmp b_231
   }
 
   b_231 {
-    %v_232 = phi [b_226, 0], [b_233, %v_234]: I32
-    %v_235 = phi [b_226, 0], [b_233, %v_236]: I32
-    %v_237 = cmp_ilt %v_232, 3: I32
-    je %v_237, b_233, b_238
+    %v_232 = phi [b_227, 0], [b_233, %v_234]: I32
+    %v_235 = phi [b_227, 0], [b_233, %v_236]: I32
+    %v_237 = cmp_ilt %v_232, 9: I32
+    je %v_237, b_238, b_239
+  }
+
+  b_238 {
+    %v_240 = cmp_igt %v_232, 4: I32
+    je %v_240, b_241, b_233
   }
 
   b_233 {
-    %v_239 = imul %v_235, 10: I32
-    %v_236 = add %v_239, %v_232: I32
+    %v_242 = imul %v_235, 10: I32
+    %v_236 = add %v_242, %v_232: I32
     %v_234 = add %v_232, 1: I32
     jmp b_231
   }
 
-  b_238 {
-    %v_240 = add %v_235, 7: I32
-    %v_241 = select 0, %v_240, %v_235: I32
-    jmp b_242
+  b_239 {
+    jmp b_243
   }
 
-  b_242 {
-    %v_243 = phi [b_238, 0], [b_244, %v_245]: I32
-    %v_246 = phi [b_238, 0], [b_244, %v_247]: I32
-    %v_248 = cmp_ilt %v_243, 9: I32
-    je %v_248, b_249, b_250
+  b_241 {
+    jmp b_243
   }
 
-  b_249 {
-    %v_251 = cmp_igt %v_243, 4: I32
-    je %v_251, b_252, b_244
-  }
-
-  b_244 {
-    %v_253 = imul %v_246, 10: I32
-    %v_247 = add %v_253, %v_243: I32
-    %v_245 = add %v_243, 1: I32
-    jmp b_242
-  }
-
-  b_250 {
-    jmp b_254
-  }
-
-  b_252 {
-    jmp b_254
-  }
-
-  b_254 {
-    %v_255 = phi [b_250, 0], [b_252, 1]: I32
-    %v_256 = add %v_246, 7: I32
-    %v_257 = select %v_255, %v_256, %v_246: I32
-    %v_258 = add %v_8, %v_17: I32
-    %v_259 = add %v_258, %v_65: I32
-    %v_260 = add %v_259, %v_83: I32
-    %v_261 = add %v_260, %v_92: I32
-    %v_262 = add %v_261, %v_101: I32
-    %v_263 = add %v_262, %v_109: I32
-    %v_264 = add %v_263, %v_149: I32
-    %v_265 = add %v_264, %v_151: I32
-    %v_266 = add %v_265, %v_153: I32
-    %v_267 = add %v_266, %v_199: I32
-    %v_268 = add %v_267, %v_205: I32
-    %v_269 = add %v_268, %v_241: I32
-    %v_270 = add %v_269, %v_257: I32
-    %v_271 = add %v_270, %v_219: I32
-    %v_272 = add %v_271, %v_147: I32
-    %v_273 = loads @gone, 4: I32
-    %v_274 = imul %v_273, 100000: I32
-    %v_275 = add %v_272, %v_274: I32
-    %v_276 = loads @trail, 4: I32
-    %v_277 = add %v_275, %v_276: I32
-    ret %v_277
+  b_243 {
+    %v_244 = phi [b_239, 0], [b_241, 1]: I32
+    %v_245 = add %v_235, 7: I32
+    %v_246 = select %v_244, %v_245, %v_235: I32
+    %v_247 = add %v_8, %v_17: I32
+    %v_248 = add %v_247, %v_65: I32
+    %v_249 = add %v_248, %v_83: I32
+    %v_250 = add %v_249, %v_92: I32
+    %v_251 = add %v_250, %v_101: I32
+    %v_252 = add %v_251, %v_109: I32
+    %v_253 = add %v_252, %v_149: I32
+    %v_254 = add %v_253, %v_151: I32
+    %v_255 = add %v_254, %v_153: I32
+    %v_256 = add %v_255, %v_199: I32
+    %v_257 = add %v_256, %v_204: I32
+    %v_258 = add %v_257, %v_230: I32
+    %v_259 = add %v_258, %v_246: I32
+    %v_260 = add %v_259, %v_213: I32
+    %v_261 = add %v_260, %v_147: I32
+    %v_262 = loads @gone, 4: I32
+    %v_263 = imul %v_262, 100000: I32
+    %v_264 = add %v_261, %v_263: I32
+    %v_265 = loads @trail, 4: I32
+    %v_266 = add %v_264, %v_265: I32
+    ret %v_266
   }
 }
 
@@ -592,9 +575,7 @@ teardown(Outcome(Command, I32))<complex>(%v_0: Ptr) {
   }
 
   b_4 {
-    %v_7 = add %v_0, 8: Ptr
-    %v_8 = load %v_7, 4: I32
-    call_complex Box.drop, %v_8
+    call_complex Box.drop
     jmp b_6
   }
 
@@ -615,9 +596,7 @@ teardown(Outcome(Note, I32))<complex>(%v_0: Ptr) {
   }
 
   b_4 {
-    %v_7 = add %v_0, 8: Ptr
-    %v_8 = load %v_7, 4: I32
-    call_complex Box.drop, %v_8
+    call_complex Box.drop
     jmp b_6
   }
 

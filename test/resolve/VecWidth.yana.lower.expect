@@ -14,7 +14,7 @@ arithmetic<complex>(%a: i16x4): i16x4 {
   }
 }
 
-widths<complex>(%narrow: i8x4, %middle: i32x2): i8x4 {
+widths<complex>(%narrow: i8x4): i8x4 {
   b_0 {
     %v_1 = shl %narrow, %narrow: i8x4
     %v_2 = or %narrow, %v_1: i8x4
@@ -59,14 +59,13 @@ main$<complex>(): I32 {
     %v_2 = call_complex reinterpreting, %widened: f32x4
     %bits = call_complex aliases, %v_2: f32x4
     %v_3 = vsplat 1: i8x4
-    %v_4 = vsplat 2: i32x2
-    %narrow = call_complex widths, %v_3, %v_4: i8x4
-    %v_5 = bitcast %bits: i32x4
-    %v_6 = cast %v_5: i16x4
-    %v_7 = xor %back, %v_6: i16x4
-    %v_8 = cast %narrow: i16x4
-    %v_9 = xor %v_7, %v_8: i16x4
-    store @sink, %v_9, 8
+    %narrow = call_complex widths, %v_3: i8x4
+    %v_4 = bitcast %bits: i32x4
+    %v_5 = cast %v_4: i16x4
+    %v_6 = xor %back, %v_5: i16x4
+    %v_7 = cast %narrow: i16x4
+    %v_8 = xor %v_6, %v_7: i16x4
+    store @sink, %v_8, 8
     ret 1
   }
 }

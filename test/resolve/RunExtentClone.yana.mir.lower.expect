@@ -5,43 +5,42 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = bitcast 0: Ptr
-    jmp b_2
-  }
-
-  b_3 {
-    %v_4 = cmp_ilt %v_5, 3: I32
-    je %v_4, b_2, b_6
+    jmp b_1
   }
 
   b_2 {
-    %v_7 = phi [b_3, %v_5], [b_0, 0]: I64
-    %v_8 = phi [b_3, %v_9], [b_0, 0]: I64
-    %v_5 = add %v_7, 1: I64
-    %v_10 = imul 4, %v_5: I64
-    %v_11 = call_complex runSlots(U8), %v_1, %v_10: Ptr
-    %v_12 = bitcast %v_11: I64
-    %v_13 = cmp_eq %v_12, 0: I32
-    %v_14 = select %v_13, 0, %v_10: I64
-    %v_15 = cast %v_14: I32
-    %v_16 = and %v_15, 1073741823: I32
-    %v_17 = cast %v_16: I64
-    %v_18 = or %v_17, 1073741824: I64
-    %v_19 = cast %v_16: I64
-    %v_20 = sub %v_19, 1: I64
-    %v_21 = add %v_11, %v_20: Ptr
-    store %v_21, 42, 1
-    %v_22 = imul %v_19, 1000: I64
-    %v_23 = cast %v_18: I32
-    call_complex Run(a).reclaim(U8), %v_12, %v_23
-    %v_24 = add %v_22, 42: I64
-    %v_9 = add %v_8, %v_24: I64
-    jmp b_3
+    %v_3 = cmp_ilt %v_4, 3: I32
+    je %v_3, b_1, b_5
   }
 
-  b_6 {
-    %v_25 = sext %v_9: I32
-    ret %v_25
+  b_1 {
+    %v_6 = phi [b_2, %v_4], [b_0, 0]: I64
+    %v_7 = phi [b_2, %v_8], [b_0, 0]: I64
+    %v_4 = add %v_6, 1: I64
+    %v_9 = imul 4, %v_4: I64
+    %v_10 = call_complex runSlots(U8), %v_9: Ptr
+    %v_11 = bitcast %v_10: I64
+    %v_12 = cmp_eq %v_11, 0: I32
+    %v_13 = select %v_12, 0, %v_9: I64
+    %v_14 = cast %v_13: I32
+    %v_15 = and %v_14, 1073741823: I32
+    %v_16 = cast %v_15: I64
+    %v_17 = or %v_16, 1073741824: I64
+    %v_18 = cast %v_15: I64
+    %v_19 = sub %v_18, 1: I64
+    %v_20 = add %v_10, %v_19: Ptr
+    store %v_20, 42, 1
+    %v_21 = imul %v_18, 1000: I64
+    %v_22 = cast %v_17: I32
+    call_complex Run(a).reclaim(U8), %v_11, %v_22
+    %v_23 = add %v_21, 42: I64
+    %v_8 = add %v_7, %v_23: I64
+    jmp b_2
+  }
+
+  b_5 {
+    %v_24 = sext %v_8: I32
+    ret %v_24
   }
 }
 
@@ -161,7 +160,7 @@ Run(a).reclaim(U8)<complex>(%v_0: I64, %v_1: I32) {
   }
 }
 
-runSlots(U8)<complex>(%probe: Ptr, %capacity: I64): Ptr {
+runSlots(U8)<complex>(%capacity: I64): Ptr {
   b_0 {
     %v_1 = cmp_eq %capacity, 0: I32
     je %v_1, b_2, b_3

@@ -82,87 +82,87 @@ codeIn<complex>(%m: Ptr): I32 {
   }
 
   b_27 {
-    jmp b_35
+    jmp join
   }
 
-  b_35 {
-    %v_36 = phi [b_37, %v_38], [b_27, 0]: I32
-    %v_39 = select %v_36, 3, 4: I32
+  join {
+    %v_35 = phi [b_36, %v_37], [b_27, 0]: I32
+    %v_38 = select %v_35, 3, 4: I32
     jmp b_25
   }
 
   b_25 {
-    %v_40 = phi [b_23, 2], [b_35, %v_39]: I32
+    %v_39 = phi [b_23, 2], [join, %v_38]: I32
     jmp b_14
   }
 
   b_14 {
-    %v_15 = phi [b_11, 1], [b_25, %v_40]: I32
+    %v_15 = phi [b_11, 1], [b_25, %v_39]: I32
     jmp b_12
   }
 
   b_24 {
-    %v_41 = not %v_21: m8x16
-    %v_42 = vreduce_first %v_41: I32
-    %v_43 = sext %v_42: I64
-    %v_44 = cmp_ilt %v_43, 1: I32
-    je %v_44, b_45, b_23
+    %v_40 = not %v_21: m8x16
+    %v_41 = vreduce_first %v_40: I32
+    %v_42 = sext %v_41: I64
+    %v_43 = cmp_ilt %v_42, 1: I32
+    je %v_43, b_44, b_23
   }
 
-  b_45 {
-    %v_46 = add %v_6, %v_43: Ptr
-    %v_47 = load %v_46, 1: I32
-    %v_48 = add %string'146, %v_43: Ptr
-    %v_49 = load %v_48, 1: I32
-    %v_50 = cmp_lt %v_47, %v_49: I32
-    je %v_50, b_17, b_51
+  b_44 {
+    %v_45 = add %v_6, %v_42: Ptr
+    %v_46 = load %v_45, 1: I32
+    %v_47 = add %string'146, %v_42: Ptr
+    %v_48 = load %v_47, 1: I32
+    %v_49 = cmp_lt %v_46, %v_48: I32
+    je %v_49, b_17, b_50
   }
 
-  b_51 {
-    %v_52 = cmp_eq %v_47, %v_49: I32
-    je %v_52, b_23, b_17
+  b_50 {
+    %v_51 = cmp_eq %v_46, %v_48: I32
+    je %v_51, b_23, b_17
   }
 
-  b_37 {
-    %v_53 = phi [b_33, 1], [b_54, %v_55]: I32
-    %v_38 = cmp_eq %v_53, 1: I32
-    jmp b_35
+  b_36 {
+    %v_52 = phi [b_33, 1], [b_53, %v_54]: I32
+    %v_37 = cmp_eq %v_52, 1: I32
+    jmp join
   }
 
   b_34 {
-    %v_56 = not %v_31: m8x16
-    %v_57 = vreduce_first %v_56: I32
-    %v_58 = sext %v_57: I64
-    %v_59 = cmp_ilt %v_58, 2: I32
-    je %v_59, b_60, b_33
+    %v_55 = not %v_31: m8x16
+    %v_56 = vreduce_first %v_55: I32
+    %v_57 = sext %v_56: I64
+    %v_58 = cmp_ilt %v_57, 2: I32
+    je %v_58, b_59, b_33
   }
 
   b_33 {
-    jmp b_37
+    jmp b_36
   }
 
-  b_60 {
-    %v_61 = add %v_6, %v_58: Ptr
-    %v_62 = load %v_61, 1: I32
-    %v_63 = add %string'147, %v_58: Ptr
-    %v_64 = load %v_63, 1: I32
-    %v_65 = cmp_lt %v_62, %v_64: I32
-    je %v_65, b_66, b_67
-  }
-
-  b_67 {
-    %v_68 = cmp_eq %v_62, %v_64: I32
-    %v_69 = select %v_68, 1, 2: I32
-    jmp b_54
+  b_59 {
+    %v_60 = add %v_6, %v_57: Ptr
+    %v_61 = load %v_60, 1: I32
+    %v_62 = add %string'147, %v_57: Ptr
+    %v_63 = load %v_62, 1: I32
+    %v_64 = cmp_lt %v_61, %v_63: I32
+    je %v_64, b_65, b_66
   }
 
   b_66 {
-    jmp b_54
+    %v_67 = cmp_eq %v_61, %v_63: I32
+    %v_68 = select %v_67, 1, 2: I32
+    jmp b_53
   }
 
-  b_54 {
-    %v_55 = phi [b_67, %v_69], [b_66, 0]: I32
-    jmp b_37
+  b_65 {
+    jmp b_53
+  }
+
+  b_53 {
+    %v_54 = phi [b_66, %v_68], [b_65, 0]: I32
+    jmp b_36
   }
 }
 
@@ -517,7 +517,7 @@ main<complex>(): I32 {
     %v_111 = bitcast %v_105: Ptr
     %v_112 = sext %v_107: I64
     call_complex String.appendUnits, %v_108, %v_111, %v_112
-    call_complex String.reclaim, %v_105, %v_106, %v_107
+    call_complex String.reclaim, %v_105, %v_106
     %v_113 = load %v_108, 8: I64
     %v_114 = add %v_108, 8: Ptr
     %v_115 = load %v_114, 4: I32
@@ -548,33 +548,33 @@ main<complex>(): I32 {
   }
 }
 
-String.reclaim<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
-  b_3 {
-    %v_4 = shr %v_1, 30: I32
-    %v_5 = cmp_eq %v_4, 1: I32
-    je %v_5, b_6, b_7
+String.reclaim<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = shr %v_1, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = bitcast %v_0: Ptr
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_6, b_9
   }
 
   b_6 {
-    %v_8 = bitcast %v_0: Ptr
-    %v_9 = cmp_eq %v_0, 0: I32
-    je %v_9, b_7, b_10
-  }
-
-  b_7 {
     ret 
   }
 
-  b_10 {
-    %v_11 = sub %v_8, 8: Ptr
-    %v_12 = loads %v_11, 8: I64
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %v_12, 3: I64
-    %v_15 = add %v_13, %v_14: Ptr
-    %v_16 = load %v_15, 8: Ptr
-    store %v_8, %v_16, 8
-    store %v_15, %v_8, 8
-    jmp b_7
+  b_9 {
+    %v_10 = sub %v_7, 8: Ptr
+    %v_11 = loads %v_10, 8: I64
+    %v_12 = load @heapFree, 8: Ptr
+    %v_13 = shl %v_11, 3: I64
+    %v_14 = add %v_12, %v_13: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    store %v_7, %v_15, 8
+    store %v_14, %v_7, 8
+    jmp b_6
   }
 }
 
@@ -637,51 +637,49 @@ String.appendUnits<complex>(%self: Ptr, %from: Ptr, %count: I64) {
 
 Array(a).reclaim(Maybe(String))<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
   b_3 {
-    %v_4 = alloca 16, 8: Ptr
-    %v_5 = bitcast %v_0: Ptr
-    jmp b_6
+    %v_4 = bitcast %v_0: Ptr
+    jmp b_5
   }
 
-  b_6 {
-    %v_7 = phi [b_3, 0], [b_8, %v_9]: I32
-    %v_10 = phi [b_3, %v_5], [b_8, %v_11]: Ptr
-    %v_12 = cmp_ilt %v_7, %v_2: I32
-    je %v_12, b_8, b_13
+  b_5 {
+    %v_6 = phi [b_3, 0], [b_7, %v_8]: I32
+    %v_9 = phi [b_3, %v_4], [b_7, %v_10]: Ptr
+    %v_11 = cmp_ilt %v_6, %v_2: I32
+    je %v_11, b_7, b_12
   }
 
-  b_13 {
-    %v_14 = shr %v_1, 30: I32
-    %v_15 = cmp_eq %v_14, 1: I32
-    je %v_15, b_16, b_17
+  b_12 {
+    %v_13 = shr %v_1, 30: I32
+    %v_14 = cmp_eq %v_13, 1: I32
+    je %v_14, b_15, b_16
   }
 
-  b_8 {
-    copy %v_4, %v_10, 16
-    call_complex teardown(Maybe(String)), %v_4
-    %v_9 = add %v_7, 1: I32
-    %v_11 = add %v_10, 16: Ptr
-    jmp b_6
+  b_7 {
+    call_complex teardown(Maybe(String)), %v_9
+    %v_8 = add %v_6, 1: I32
+    %v_10 = add %v_9, 16: Ptr
+    jmp b_5
+  }
+
+  b_15 {
+    %v_17 = cmp_eq %v_0, 0: I32
+    je %v_17, b_16, b_18
   }
 
   b_16 {
-    %v_18 = cmp_eq %v_0, 0: I32
-    je %v_18, b_17, b_19
-  }
-
-  b_17 {
     ret 
   }
 
-  b_19 {
-    %v_20 = sub %v_5, 8: Ptr
-    %v_21 = loads %v_20, 8: I64
-    %v_22 = load @heapFree, 8: Ptr
-    %v_23 = shl %v_21, 3: I64
-    %v_24 = add %v_22, %v_23: Ptr
-    %v_25 = load %v_24, 8: Ptr
-    store %v_5, %v_25, 8
-    store %v_24, %v_5, 8
-    jmp b_17
+  b_18 {
+    %v_19 = sub %v_4, 8: Ptr
+    %v_20 = loads %v_19, 8: I64
+    %v_21 = load @heapFree, 8: Ptr
+    %v_22 = shl %v_20, 3: I64
+    %v_23 = add %v_21, %v_22: Ptr
+    %v_24 = load %v_23, 8: Ptr
+    store %v_4, %v_24, 8
+    store %v_23, %v_4, 8
+    jmp b_16
   }
 }
 
@@ -1230,8 +1228,7 @@ teardown(Maybe(String))<complex>(%v_0: Ptr) {
     %v_8 = load %v_0, 8: I64
     %v_9 = add %v_0, 8: Ptr
     %v_10 = load %v_9, 4: I32
-    %v_11 = load %v_2, 4: I32
-    call_complex String.reclaim, %v_8, %v_10, %v_11
+    call_complex String.reclaim, %v_8, %v_10
     jmp b_7
   }
 

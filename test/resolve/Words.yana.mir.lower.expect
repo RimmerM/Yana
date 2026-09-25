@@ -20,66 +20,44 @@ opaqueU64<complex>(%value: I64): I64 {
 
 roundTrip<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 8, 1: Ptr
-    store %v_1, 0, 1
-    %v_2 = add %v_1, 1: Ptr
-    store %v_2, 0, 1
-    %v_3 = add %v_1, 2: Ptr
-    store %v_3, 0, 1
-    %v_4 = add %v_1, 3: Ptr
-    store %v_4, 0, 1
-    %v_5 = add %v_1, 4: Ptr
-    store %v_5, 0, 1
-    %v_6 = add %v_1, 5: Ptr
-    store %v_6, 0, 1
-    %v_7 = add %v_1, 6: Ptr
-    store %v_7, 0, 1
-    %v_8 = add %v_1, 7: Ptr
-    store %v_8, 0, 1
-    %v_9 = load @Target.byteOrder, 1: I32
-    %v_10 = cmp_eq %v_9, 1: I32
-    %v_11 = select %v_10, 4660, 13330: I32
-    store %v_1, %v_11, 2
-    %v_12 = cmp_eq %v_9, 0: I32
-    %v_13 = select %v_12, 4660, 13330: I32
-    store %v_3, %v_13, 2
-    %v_14 = load %v_1, 2: I32
-    %v_15 = cmp_eq %v_9, 1: I32
+    %v_1 = load @Target.byteOrder, 1: I32
+    %v_2 = cmp_eq %v_1, 1: I32
+    %v_3 = select %v_2, 4660, 13330: I32
+    %v_4 = cmp_eq %v_1, 0: I32
+    %v_5 = select %v_4, 4660, 13330: I32
+    %v_6 = cmp_eq %v_1, 1: I32
+    %v_7 = imm 8: I32
+    %v_8 = shl %v_3, %v_7: I32
+    %v_9 = shr %v_3, %v_7: I32
+    %v_10 = or %v_8, %v_9: I32
+    %v_11 = and %v_10, 13878: I32
+    %v_12 = select %v_6, %v_3, %v_11: I32
+    %v_13 = cmp_eq %v_12, 4660: I32
+    %v_14 = select %v_13, 128, 0: I32
+    %v_15 = cmp_eq %v_1, 0: I32
     %v_16 = imm 8: I32
-    %v_17 = shl %v_14, %v_16: I32
-    %v_18 = shr %v_14, %v_16: I32
+    %v_17 = shl %v_5, %v_16: I32
+    %v_18 = shr %v_5, %v_16: I32
     %v_19 = or %v_17, %v_18: I32
-    %v_20 = and %v_19, 65535: I32
-    %v_21 = select %v_15, %v_14, %v_20: I32
+    %v_20 = and %v_19, 13878: I32
+    %v_21 = select %v_15, %v_5, %v_20: I32
     %v_22 = cmp_eq %v_21, 4660: I32
-    %v_23 = select %v_22, 128, 0: I32
-    %v_24 = load %v_3, 2: I32
-    %v_25 = cmp_eq %v_9, 0: I32
-    %v_26 = imm 8: I32
-    %v_27 = shl %v_24, %v_26: I32
-    %v_28 = shr %v_24, %v_26: I32
-    %v_29 = or %v_27, %v_28: I32
-    %v_30 = and %v_29, 65535: I32
-    %v_31 = select %v_25, %v_24, %v_30: I32
-    %v_32 = cmp_eq %v_31, 4660: I32
-    %v_33 = select %v_32, 256, 0: I32
-    %v_34 = add %v_23, %v_33: I32
-    %v_35 = cmp_eq %v_9, 0: I32
-    %v_36 = select %v_35, %v_14, %v_20: I32
-    %v_37 = cmp_eq %v_36, 13330: I32
-    %v_38 = select %v_37, 512, 0: I32
-    %v_39 = add %v_34, %v_38: I32
-    %v_40 = cmp_eq %v_9, 1: I32
-    %v_41 = select %v_40, 1311768467463790320, 17356517385562371090: I64
-    store %v_1, %v_41, 8
-    %v_42 = load %v_1, 8: I64
-    %v_43 = cmp_eq %v_9, 1: I32
-    %v_44 = bswap %v_42: I64
-    %v_45 = select %v_43, %v_42, %v_44: I64
-    %v_46 = cmp_eq %v_45, 1311768467463790320: I32
-    %v_47 = select %v_46, 1024, 0: I32
-    %v_48 = add %v_39, %v_47: I32
-    ret %v_48
+    %v_23 = select %v_22, 256, 0: I32
+    %v_24 = add %v_14, %v_23: I32
+    %v_25 = cmp_eq %v_1, 0: I32
+    %v_26 = select %v_25, %v_3, %v_11: I32
+    %v_27 = cmp_eq %v_26, 13330: I32
+    %v_28 = select %v_27, 512, 0: I32
+    %v_29 = add %v_24, %v_28: I32
+    %v_30 = cmp_eq %v_1, 1: I32
+    %v_31 = select %v_30, 1311768467463790320, 17356517385562371090: I64
+    %v_32 = cmp_eq %v_1, 1: I32
+    %v_33 = bswap %v_31: I64
+    %v_34 = select %v_32, %v_31, %v_33: I64
+    %v_35 = cmp_eq %v_34, 1311768467463790320: I32
+    %v_36 = select %v_35, 1024, 0: I32
+    %v_37 = add %v_29, %v_36: I32
+    ret %v_37
   }
 }
 
@@ -108,14 +86,14 @@ layout<complex>(): I32 {
     %v_12 = cmp_eq %v_9, 0: I32
     %v_13 = select %v_12, 305419896, 2018915346: I32
     store %v_5, %v_13, 4
-    %v_14 = load %v_1, 1: I32
+    %v_14 = and %v_11, 122: I32
     %v_15 = cmp_eq %v_14, 18: I32
     %v_16 = select %v_15, 2048, 0: I32
     %v_17 = load %v_4, 1: I32
     %v_18 = cmp_eq %v_17, 120: I32
     %v_19 = select %v_18, 4096, 0: I32
     %v_20 = add %v_16, %v_19: I32
-    %v_21 = load %v_5, 1: I32
+    %v_21 = and %v_13, 122: I32
     %v_22 = cmp_eq %v_21, 120: I32
     %v_23 = select %v_22, 8192, 0: I32
     %v_24 = add %v_20, %v_23: I32
@@ -123,14 +101,13 @@ layout<complex>(): I32 {
     %v_26 = cmp_eq %v_25, 18: I32
     %v_27 = select %v_26, 16384, 0: I32
     %v_28 = add %v_24, %v_27: I32
-    %v_29 = load %v_1, 4: I32
-    %v_30 = cmp_eq %v_9, 0: I32
-    %v_31 = bswap %v_29: I32
-    %v_32 = select %v_30, %v_29, %v_31: I32
-    %v_33 = cmp_eq %v_32, 2018915346: I32
-    %v_34 = select %v_33, 32768, 0: I32
-    %v_35 = add %v_28, %v_34: I32
-    ret %v_35
+    %v_29 = cmp_eq %v_9, 0: I32
+    %v_30 = bswap %v_11: I32
+    %v_31 = select %v_29, %v_11, %v_30: I32
+    %v_32 = cmp_eq %v_31, 2018915346: I32
+    %v_33 = select %v_32, 32768, 0: I32
+    %v_34 = add %v_28, %v_33: I32
+    ret %v_34
   }
 }
 
@@ -186,47 +163,24 @@ main<complex>(): I32 {
     %v_48 = add %v_46, %v_47: I32
     %v_49 = call_complex layout: I32
     %v_50 = add %v_48, %v_49: I32
-    %v_51 = alloca 8, 1: Ptr
-    store %v_51, 0, 1
-    %v_52 = add %v_51, 1: Ptr
-    store %v_52, 0, 1
-    %v_53 = add %v_51, 2: Ptr
-    store %v_53, 0, 1
-    %v_54 = add %v_51, 3: Ptr
-    store %v_54, 0, 1
-    %v_55 = add %v_51, 4: Ptr
-    store %v_55, 0, 1
-    %v_56 = add %v_51, 5: Ptr
-    store %v_56, 0, 1
-    %v_57 = add %v_51, 6: Ptr
-    store %v_57, 0, 1
-    %v_58 = add %v_51, 7: Ptr
-    store %v_58, 0, 1
-    %v_59 = load @Target.byteOrder, 1: I32
-    %v_60 = cmp_eq %v_59, 1: I32
-    %v_61 = select %v_60, 305419896, 2018915346: I32
-    store %v_52, %v_61, 4
-    %v_62 = load %v_52, 4: I32
-    %v_63 = cmp_eq %v_59, 1: I32
-    %v_64 = bswap %v_62: I32
-    %v_65 = select %v_63, %v_62, %v_64: I32
-    %v_66 = add %v_65, 1: I32
-    %v_67 = cmp_eq %v_59, 1: I32
-    %v_68 = bswap %v_66: I32
-    %v_69 = select %v_67, %v_66, %v_68: I32
-    store %v_52, %v_69, 4
-    %v_70 = load %v_52, 4: I32
-    %v_71 = cmp_eq %v_59, 1: I32
-    %v_72 = bswap %v_70: I32
-    %v_73 = select %v_71, %v_70, %v_72: I32
-    %v_74 = cmp_eq %v_73, 305419897: I32
-    %v_75 = select %v_74, 65536, 0: I32
-    %v_76 = load %v_51, 1: I32
-    %v_77 = cmp_eq %v_76, 0: I32
-    %v_78 = select %v_77, 131072, 0: I32
-    %v_79 = add %v_75, %v_78: I32
-    %v_80 = add %v_50, %v_79: I32
-    ret %v_80
+    %v_51 = load @Target.byteOrder, 1: I32
+    %v_52 = cmp_eq %v_51, 1: I32
+    %v_53 = select %v_52, 305419896, 2018915346: I32
+    %v_54 = cmp_eq %v_51, 1: I32
+    %v_55 = bswap %v_53: I32
+    %v_56 = select %v_54, %v_53, %v_55: I32
+    %v_57 = add %v_56, 1: I32
+    %v_58 = cmp_eq %v_51, 1: I32
+    %v_59 = bswap %v_57: I32
+    %v_60 = select %v_58, %v_57, %v_59: I32
+    %v_61 = cmp_eq %v_51, 1: I32
+    %v_62 = bswap %v_60: I32
+    %v_63 = select %v_61, %v_60, %v_62: I32
+    %v_64 = cmp_eq %v_63, 305419897: I32
+    %v_65 = select %v_64, 65536, 0: I32
+    %v_66 = add %v_65, 131072: I32
+    %v_67 = add %v_50, %v_66: I32
+    ret %v_67
   }
 }
 

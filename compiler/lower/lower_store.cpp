@@ -26,7 +26,12 @@ using foldArith::maskOf;
  *
  * Three things have to hold, and each is a way the two can name different bits of one word:
  *
- *  - the same pointer *value*, which is what makes this need no aliasing;
+ *  - the same pointer - the same *value*, or two `add %p, k` chains down to the same root at the same
+ *    offset (J168): `self.a = ..; self.b = ..` in two arms of an `if` that rejoin compute `self + 24`
+ *    once per arm and once more below the join, and the lower tier's CSE declines to unify them
+ *    across a call, so the three read-modify-writes of one packed word were three round trips
+ *    through memory in the lexer's `advance`. Two addresses that walk to one root and one offset are
+ *    one address whatever the root is, so this still needs no aliasing;
  *  - the same access width, since a narrower store under a wider load leaves the top of the answer
  *    to whatever was already in memory;
  *  - the same result type, and the load's extension already done - a four-byte load into a `Long`
@@ -34,8 +39,13 @@ using foldArith::maskOf;
  */
 LowerValue* forwardedValue(LowerBase base, LowerInstStore* store, LowerInstLoad* load) {
     if(store->isVolatile() || load->isVolatile()) return nullptr;
-    if(store->to != load->from) return nullptr;
     if(store->getWidth() != load->getWidth()) return nullptr;
+
+    if(store->to != load->from) {
+        auto written = placeOf(base, store->to, store->getWidth());
+        auto read = placeOf(base, load->from, load->getWidth());
+        if(!written.root || written.root != read.root || written.offset != read.offset) return nullptr;
+    }
 
     auto stored = base[store->value];
     if(stored->type != load->result.type) return nullptr;
@@ -304,230 +314,331 @@ void collectContainedAllocations(LowerBase base, LowerFunction& fun, HashMap<U32
     }
 }
 
-void forwardStoredValues(LowerBase base, LowerModule& module, LowerFunction& fun) {
+namespace {
+
+/*
+ * A write the walk is still inside the answer to, where it landed, and whether anything since could
+ * have read what it wrote. The last is what decides whether a later write that replaces all of its
+ * bytes makes it dead - `%c` becoming `%b` is what makes the store that produced it one.
+ */
+struct Record {
+    LowerInst* write = nullptr;
+    LowerPlace place;
+    bool observed = false;
+
+    // Whether a call has run since - see the reshaped forwarding below.
+    bool crossedCall = false;
+};
+
+struct StoreForwarder {
+    LowerBase base;
+    LowerModule& module;
+    LowerFunction& fun;
+
     // The allocations whose address never leaves, asked once per function - see `addressContained`.
     HashMap<U32, U8> contained;
-    collectContainedAllocations(base, fun, contained);
 
-    for(auto blockPtr: fun.blocks.contents(base)) {
-        auto block = base[blockPtr];
+    // What stands at the end of each block, indexed by `LowerBlock::index`: a span of `ends`.
+    Array<Record> ends;
+    Array<Size> endStart;
+    Array<Size> endCount;
+    Array<bool> done;
 
-        // Inline: one of these per block, holding the instructions of that block while the list it
-        // came from is rewritten - the same shape as foldFunctionConstants, and for the same reason.
-        SmallArray<LowerPtr<LowerInst>, 32> kept;
-        auto rewrote = false;
+    StoreForwarder(LowerBase base, LowerModule& module, LowerFunction& fun):
+        base(base), module(module), fun(fun) {}
 
-        /*
-         * The writes the walk is still inside the answer to, where each landed, and whether anything
-         * since could have read what it wrote. The last is what decides whether a later write that
-         * replaces all of its bytes makes it dead - `%c` becoming `%b` is what makes the store that
-         * produced it one.
-         *
-         * **Several rather than one** - J49, `test/bench/findings.md` §99 - and since then a copy
-         * and a fill as well as a store. A record zeroed field by field and then overwritten whole
-         * by a `copy` is how a value built in a frame slot and then replaced reaches this tier, and
-         * the zeroing was a run of stores nothing read.
-         *
-         * Bounded: the cost is a linear scan per access over a list this long, and the oldest record
-         * is dropped when it is full. Sixty-four because the run above is one record's fields, and a
-         * record of forty fields is not rare in a compiler's own data.
-         */
-        struct Record {
-            LowerInst* write = nullptr;
-            LowerPlace place;
-            bool observed = false;
+    /*
+     * What stands on entry to a block: everything that stood at the end of its one predecessor - J169.
+     *
+     * The walk used to start every block empty, so a word stored above a branch and read in the arm
+     * below it was a round trip through memory, and so was every value a block handed on through the
+     * frame to the block it jumps to. A block with one predecessor is dominated by it, so every value
+     * a record there names is defined here too, and nothing ran on the way in.
+     *
+     * Observed, because the predecessor's other successor may read the word: no write here can make
+     * a store above the edge dead.
+     *
+     * **Not at a join, and that was built and measured out.** A word every predecessor stores - the
+     * lexer's `advance` writes one byte in four arms of an `if` and reads it again below - was
+     * answered with a phi of the stored values, built by the first load that asked, with a load moved
+     * to the end of an edge that stored nothing but only jumped there (the partial redundancy
+     * `recoverPartialLoads` removes for a guard's reads). It removed the load and moved nothing: the
+     * lexer was within its control copy on three variants and `hand` 1% slower, `test/base` 64 bytes
+     * either way, and `parseSymbol`'s chain of arms storing a token kind became a 32-way phi of
+     * literals - a move per edge where there had been one load, 184 bytes. Threading the compare
+     * that phi feeds would have paid, and needs the SSA reconstruction lower_thread.h stops short of.
+     * Nor across a back edge, where what the latch leaves is not known yet; `promoteLoopCells` is
+     * what carries a word around a loop.
+     */
+    Size entryOf(LowerBlock* block, Record* records) {
+        if(block->incoming.size() != 1) return 0;
 
-            // Whether a call has run since - see the reshaped forwarding below.
-            bool crossedCall = false;
-        };
+        auto from = base[block->incoming.get(base, 0)];
+        if(from->postIndex == kNullBlock || from->postIndex <= block->postIndex) return 0;
 
-        Record records[kRecords];
-        Size recordCount = 0;
+        auto count = endCount[from->index];
+        for(Size i = 0; i < count; i++) {
+            records[i] = ends[endStart[from->index] + i];
+            records[i].observed = true;
+        }
 
-        auto drop = [&](Size index) {
-            for(auto i = index + 1; i < recordCount; i++) records[i - 1] = records[i];
-            recordCount--;
-        };
+        return count;
+    }
 
-        for(auto instPtr: block->instructions.contents(base)) {
-            auto inst = base[instPtr];
+    void walk(LowerPtr<LowerBlock> blockPtr);
+};
 
-            if(inst->kind == LowerInst::Load) {
-                auto load = (LowerInstLoad*)inst;
-                LowerValue* forwarded = nullptr;
+} // namespace
 
-                // Newest first: where two records answer, the later store is the one in the word.
-                for(auto i = recordCount; i > 0 && !forwarded; i--) {
-                    if(records[i - 1].write->kind != LowerInst::Store) continue;
-                    forwarded = forwardedValue(base, (LowerInstStore*)records[i - 1].write, load);
-                }
+void forwardStoredValues(LowerBase base, LowerModule& module, LowerFunction& fun) {
+    StoreForwarder forwarder { base, module, fun };
+    collectContainedAllocations(base, fun, forwarder.contained);
 
-                /*
-                 * Or its low bytes, in the load's register - see reshapedValue. Not across a call:
-                 * the store stays for whatever else reads the slot, so the value would be held in a
-                 * register over the call as well as in memory, and the reload was the cheaper of the
-                 * two - measured on `test/base`, where the view words re-read after a second call
-                 * were half a kilobyte of spills.
-                 */
-                for(auto i = recordCount; i > 0 && !forwarded; i--) {
-                    if(records[i - 1].write->kind != LowerInst::Store || records[i - 1].crossedCall) continue;
-                    forwarded = reshapedValue(base, module, fun, blockPtr, inst,
-                                              (LowerInstStore*)records[i - 1].write, load, kept);
-                }
+    // In reverse postorder, so that a block's predecessor has been walked before it. Renumbers
+    // `index` as well, which every pass keeps equal to the block's position anyway.
+    auto postorder = fun.buildPostorder(base);
+    auto blockCount = fun.blocks.size();
 
-                /*
-                 * Or a zero, where every byte the load reads was last written zero - a fill, or a
-                 * zero store wider than the load. A record still standing is the last write to its
-                 * bytes, since any later write that touched them dropped it.
-                 *
-                 * This is what a zeroed record's first read-modify-write of a packed word needs: it
-                 * used to read back the zero store `zeroStorage` wrote, through the identity above,
-                 * and a fill is no store. Only an integer, which is what a packed word is read as and
-                 * the one register whose zero is a literal of its own type.
-                 */
-                auto type = load->result.type;
-                if(!load->isVolatile() && !forwarded && isInt(type) && !load->isOverread()) {
-                    auto place = placeOf(base, contained, load->from, load->getWidth());
+    for(Size i = 0; i < blockCount; i++) {
+        forwarder.endStart.push(0);
+        forwarder.endCount.push(0);
+        forwarder.done.push(false);
+    }
 
-                    for(Size i = 0; i < recordCount; i++) {
-                        if(!covers(records[i].place, place) || !writesZero(base, records[i].write)) continue;
+    for(auto i = postorder.size(); i > 0; i--) forwarder.walk(fun.blocks.get(base, postorder[i - 1]));
 
-                        auto zero = new (module.arena) LowerImm(StringId(), type, U64(0));
-                        zero->block = blockPtr;
-                        zero->source = inst->source;
-                        kept.push((LowerInst*)zero - base);
-                        forwarded = &zero->result;
-                        break;
-                    }
-                }
+    // A block nothing reaches still has accesses of its own.
+    for(Size i = 0; i < blockCount; i++) {
+        if(!forwarder.done[i]) forwarder.walk(fun.blocks.get(base, i));
+    }
+}
 
-                if(forwarded) {
-                    detach(base, inst);
-                    replaceUses(base, module.arena, load->created().ptr - base, forwarded - base);
-                    rewrote = true;
-                    continue;
+void StoreForwarder::walk(LowerPtr<LowerBlock> blockPtr) {
+    auto block = base[blockPtr];
+
+    // Inline: one of these per block, holding the instructions of that block while the list it came
+    // from is rewritten - the same shape as foldFunctionConstants, and for the same reason.
+    SmallArray<LowerPtr<LowerInst>, 32> kept;
+    auto rewrote = false;
+
+    /*
+     * **Several rather than one** - J49, `test/bench/findings.md` §99 - and since then a copy and a
+     * fill as well as a store. A record zeroed field by field and then overwritten whole by a `copy`
+     * is how a value built in a frame slot and then replaced reaches this tier, and the zeroing was a
+     * run of stores nothing read.
+     *
+     * Bounded: the cost is a linear scan per access over a list this long, and the oldest record is
+     * dropped when it is full. Sixty-four because the run above is one record's fields, and a record
+     * of forty fields is not rare in a compiler's own data.
+     */
+    Record records[kRecords];
+    Size recordCount = block->postIndex == kNullBlock ? 0 : entryOf(block, records);
+
+    auto drop = [&](Size index) {
+        for(auto i = index + 1; i < recordCount; i++) records[i - 1] = records[i];
+        recordCount--;
+    };
+
+    for(auto instPtr: block->instructions.contents(base)) {
+        auto inst = base[instPtr];
+
+        if(inst->kind == LowerInst::Load) {
+            auto load = (LowerInstLoad*)inst;
+            LowerValue* forwarded = nullptr;
+
+            // Newest first: where two records answer, the later store is the one in the word.
+            for(auto i = recordCount; i > 0 && !forwarded; i--) {
+                if(records[i - 1].write->kind != LowerInst::Store) continue;
+                forwarded = forwardedValue(base, (LowerInstStore*)records[i - 1].write, load);
+            }
+
+            /*
+             * Or its low bytes, in the load's register - see reshapedValue. Not across a call: the
+             * store stays for whatever else reads the slot, so the value would be held in a register
+             * over the call as well as in memory, and the reload was the cheaper of the two -
+             * measured on `test/base`, where the view words re-read after a second call were half a
+             * kilobyte of spills.
+             */
+            for(auto i = recordCount; i > 0 && !forwarded; i--) {
+                if(records[i - 1].write->kind != LowerInst::Store || records[i - 1].crossedCall) continue;
+                forwarded = reshapedValue(base, module, fun, blockPtr, inst,
+                                          (LowerInstStore*)records[i - 1].write, load, kept);
+            }
+
+            /*
+             * Or a zero, where every byte the load reads was last written zero - a fill, or a zero
+             * store wider than the load. A record still standing is the last write to its bytes,
+             * since any later write that touched them dropped it.
+             *
+             * This is what a zeroed record's first read-modify-write of a packed word needs: it used
+             * to read back the zero store `zeroStorage` wrote, through the identity above, and a fill
+             * is no store. Only an integer, which is what a packed word is read as and the one
+             * register whose zero is a literal of its own type.
+             */
+            auto type = load->result.type;
+            if(!load->isVolatile() && !forwarded && isInt(type) && !load->isOverread()) {
+                auto place = placeOf(base, contained, load->from, load->getWidth());
+
+                for(Size i = 0; i < recordCount; i++) {
+                    if(!covers(records[i].place, place) || !writesZero(base, records[i].write)) continue;
+
+                    auto zero = new (module.arena) LowerImm(StringId(), type, U64(0));
+                    zero->block = blockPtr;
+                    zero->source = inst->source;
+                    kept.push((LowerInst*)zero - base);
+                    forwarded = &zero->result;
+                    break;
                 }
             }
 
-            LowerAccess accesses[kMaxAccesses];
-            auto accessCount = lowerInstAccesses(inst, accesses);
-            auto reads = hasLowerTrait(inst, kLowerReads);
-            auto writes = hasLowerTrait(inst, kLowerWrites);
-
-            /*
-             * Storage touched through no address - a call, an intrinsic, a fence. A write may have
-             * written any record's bytes, which ends the record outright; a read may have read
-             * them, which leaves them forwardable and only says they were observed.
-             *
-             * Asked through the traits rather than by kind, which is what brings the atomics into a
-             * pass that could not see them at all before: an `atomic_rmw` between two stores of one
-             * pointer used to be invisible here, so the first store was deleted as dead although the
-             * update had read it. Reading it as a *read* rather than as a barrier is deliberate -
-             * ordering is what an atomic does for other threads, and this pass reasons about a plain
-             * location no other thread may legally touch, so what matters is only whether the bytes
-             * may have moved.
-             */
-            if(accessCount == 0) {
-                // Except a contained allocation, which nothing reaches but its own address - and an
-                // instruction naming no address has not been given it.
-                for(auto i = recordCount; i > 0; i--) {
-                    if(inst->kind == LowerInst::Call) records[i - 1].crossedCall = true;
-                    if(records[i - 1].place.contained) continue;
-                    if(writes) drop(i - 1);
-                    else if(reads) records[i - 1].observed = true;
+            if(forwarded) {
+                /*
+                 * A literal stored in a block above gets one of its own here, for the reason
+                 * `recoverPartialLoads` gives its moved instructions one: a literal read from two
+                 * blocks is what the loop hoister lifts into a preheader and the allocator then
+                 * spills, where one placed at its reader is free.
+                 */
+                if(auto constant = forwarded->inst(); constant->kind == LowerInst::Imm && constant->block != blockPtr) {
+                    auto copy = new (module.arena) LowerImm(StringId(), forwarded->type, ((LowerImm*)constant)->i);
+                    copy->block = blockPtr;
+                    copy->source = inst->source;
+                    kept.push((LowerInst*)copy - base);
+                    forwarded = &copy->result;
                 }
 
-                kept.push(instPtr);
+                detach(base, inst);
+                replaceUses(base, module.arena, load->created().ptr - base, forwarded - base);
+                rewrote = true;
                 continue;
             }
+        }
 
-            // A copy reads its second access and writes its first. Every other kind naming an
-            // address does to each of them what its traits say.
-            auto isCopy = inst->kind == LowerInst::Copy;
-            LowerPlace written[kMaxAccesses];
-            Size writtenCount = 0;
+        LowerAccess accesses[kMaxAccesses];
+        auto accessCount = lowerInstAccesses(inst, accesses);
+        auto reads = hasLowerTrait(inst, kLowerReads);
+        auto writes = hasLowerTrait(inst, kLowerWrites);
 
-            for(Size a = 0; a < accessCount; a++) {
-                auto bytes = placeExtent(base, accesses[a]);
-                auto accessReads = isCopy ? a == 1 : reads;
-                auto accessWrites = isCopy ? a == 0 : writes;
-
-                // A load reading past its end on the tail-read guarantee reads bytes it does not
-                // name, which the place has to include - see isOverreadLoad.
-                if(inst->kind == LowerInst::Load && ((LowerInstLoad*)inst)->isOverread()) bytes = kUnbounded;
-
-                auto place = placeOf(base, contained, *accesses[a].address, bytes);
-
-                if(accessReads) {
-                    for(Size i = 0; i < recordCount; i++) {
-                        if(mayOverlap(records[i].place, place)) records[i].observed = true;
-                    }
-                }
-
-                if(accessWrites) written[writtenCount++] = place;
-            }
-
-            // Reads first, then writes: a copy whose source is the record it replaces has observed it.
-            // Only a plain write replaces what it covers - an atomic write is an ordering, and what
-            // it overwrote is something another thread may have been owed.
-            auto plainWrite = inst->kind == LowerInst::Store || isCopy || inst->kind == LowerInst::SetPattern;
-
-            /*
-             * A zero written where an earlier zero write still stands is no write at all - a record
-             * literal's zero fields in a slot `hasPaddedWord` already cleared, or a field stored zero
-             * behind the fill that cleared it. Observed or not makes no difference: whatever read
-             * the earlier one read the same zeroes. A record still standing is one no write since has
-             * touched, which is what `drop` below keeps true.
-             */
-            if(plainWrite && writtenCount == 1 && writesZero(base, inst)) {
-                auto redundant = false;
-
-                for(Size i = 0; i < recordCount && !redundant; i++) {
-                    redundant = covers(records[i].place, written[0]) && writesZero(base, records[i].write);
-                }
-
-                if(redundant) {
-                    detach(base, inst);
-                    rewrote = true;
-                    continue;
-                }
-            }
-
-            for(Size w = 0; w < writtenCount; w++) {
-                auto& place = written[w];
-
-                for(auto i = recordCount; i > 0; i--) {
-                    auto& record = records[i - 1];
-
-                    if(plainWrite && !record.observed && covers(place, record.place)) {
-                        detach(base, record.write);
-                        kept.removeFirst(record.write - base);
-                        rewrote = true;
-                        drop(i - 1);
-                        continue;
-                    }
-
-                    // A record this write may have changed a byte of is no longer the answer to a
-                    // load, and is not one a later write can be shown to replace either.
-                    if(mayOverlap(place, record.place)) drop(i - 1);
-                }
-
-                if(plainWrite && place.bytes != kUnbounded && place.bytes != 0) {
-                    if(recordCount == kRecords) drop(0);
-                    records[recordCount].write = inst;
-                    records[recordCount].place = place;
-                    records[recordCount].observed = false;
-                    records[recordCount].crossedCall = false;
-                    recordCount++;
-                }
+        /*
+         * Storage touched through no address - a call, an intrinsic, a fence. A write may have
+         * written any record's bytes, which ends the record outright; a read may have read them,
+         * which leaves them forwardable and only says they were observed.
+         *
+         * Asked through the traits rather than by kind, which is what brings the atomics into a
+         * pass that could not see them at all before: an `atomic_rmw` between two stores of one
+         * pointer used to be invisible here, so the first store was deleted as dead although the
+         * update had read it. Reading it as a *read* rather than as a barrier is deliberate -
+         * ordering is what an atomic does for other threads, and this pass reasons about a plain
+         * location no other thread may legally touch, so what matters is only whether the bytes may
+         * have moved.
+         */
+        if(accessCount == 0) {
+            // Except a contained allocation, which nothing reaches but its own address - and an
+            // instruction naming no address has not been given it.
+            for(auto i = recordCount; i > 0; i--) {
+                if(inst->kind == LowerInst::Call) records[i - 1].crossedCall = true;
+                if(records[i - 1].place.contained) continue;
+                if(writes) drop(i - 1);
+                else if(reads) records[i - 1].observed = true;
             }
 
             kept.push(instPtr);
+            continue;
         }
 
-        if(!rewrote) continue;
+        // A copy reads its second access and writes its first. Every other kind naming an address
+        // does to each of them what its traits say.
+        auto isCopy = inst->kind == LowerInst::Copy;
+        LowerPlace written[kMaxAccesses];
+        Size writtenCount = 0;
 
-        block->instructions.clear();
-        for(auto instPtr: kept) block->instructions.push(module.arena, instPtr);
+        for(Size a = 0; a < accessCount; a++) {
+            auto bytes = placeExtent(base, accesses[a]);
+            auto accessReads = isCopy ? a == 1 : reads;
+            auto accessWrites = isCopy ? a == 0 : writes;
+
+            // A load reading past its end on the tail-read guarantee reads bytes it does not name,
+            // which the place has to include - see isOverreadLoad.
+            if(inst->kind == LowerInst::Load && ((LowerInstLoad*)inst)->isOverread()) bytes = kUnbounded;
+
+            auto place = placeOf(base, contained, *accesses[a].address, bytes);
+
+            if(accessReads) {
+                for(Size i = 0; i < recordCount; i++) {
+                    if(mayOverlap(records[i].place, place)) records[i].observed = true;
+                }
+            }
+
+            if(accessWrites) written[writtenCount++] = place;
+        }
+
+        // Reads first, then writes: a copy whose source is the record it replaces has observed it.
+        // Only a plain write replaces what it covers - an atomic write is an ordering, and what it
+        // overwrote is something another thread may have been owed.
+        auto plainWrite = inst->kind == LowerInst::Store || isCopy || inst->kind == LowerInst::SetPattern;
+
+        /*
+         * A zero written where an earlier zero write still stands is no write at all - a record
+         * literal's zero fields in a slot `hasPaddedWord` already cleared, or a field stored zero
+         * behind the fill that cleared it. Observed or not makes no difference: whatever read the
+         * earlier one read the same zeroes. A record still standing is one no write since has
+         * touched, which is what `drop` below keeps true - and one from the block above stands on
+         * the only way here.
+         */
+        if(plainWrite && writtenCount == 1 && writesZero(base, inst)) {
+            auto redundant = false;
+
+            for(Size i = 0; i < recordCount && !redundant; i++) {
+                redundant = covers(records[i].place, written[0]) && writesZero(base, records[i].write);
+            }
+
+            if(redundant) {
+                detach(base, inst);
+                rewrote = true;
+                continue;
+            }
+        }
+
+        for(Size w = 0; w < writtenCount; w++) {
+            auto& place = written[w];
+
+            for(auto i = recordCount; i > 0; i--) {
+                auto& record = records[i - 1];
+
+                // Never a record from above this block, which is observed: the other way out of the
+                // block that wrote it may read it.
+                if(plainWrite && !record.observed && covers(place, record.place)) {
+                    detach(base, record.write);
+                    kept.removeFirst(record.write - base);
+                    rewrote = true;
+                    drop(i - 1);
+                    continue;
+                }
+
+                // A record this write may have changed a byte of is no longer the answer to a load,
+                // and is not one a later write can be shown to replace either.
+                if(mayOverlap(place, record.place)) drop(i - 1);
+            }
+
+            if(plainWrite && place.bytes != kUnbounded && place.bytes != 0) {
+                if(recordCount == kRecords) drop(0);
+                records[recordCount].write = inst;
+                records[recordCount].place = place;
+                records[recordCount].observed = false;
+                records[recordCount].crossedCall = false;
+                recordCount++;
+            }
+        }
+
+        kept.push(instPtr);
     }
+
+    endStart[block->index] = ends.size();
+    endCount[block->index] = recordCount;
+    done[block->index] = true;
+    for(Size i = 0; i < recordCount; i++) ends.push(records[i]);
+
+    if(!rewrote) return;
+
+    block->instructions.clear();
+    for(auto instPtr: kept) block->instructions.push(module.arena, instPtr);
 }

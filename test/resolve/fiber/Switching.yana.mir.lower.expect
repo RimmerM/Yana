@@ -58,7 +58,7 @@ main<complex>(): I64 {
     %v_10 = add %v_2, 8: Ptr
     store %v_10, 0, 8
     %v_11 = alloca 17, 8: Ptr
-    call_complex newFiber, @environment(newFiber(Counter)), %v_11, %v_7, 65536, %v_1, %v_2
+    call_complex newFiber, %v_11, %v_7, 65536, %v_1, %v_2
     copy %v_1, %v_11, 17
     jmp b_12
   }
@@ -111,19 +111,19 @@ main<complex>(): I64 {
   }
 }
 
-newFiber<complex>(%v_0: Ptr, %v_1: Ptr, %stack: Ptr, %stackBytes: I64, %context: Ptr, %entry: Ptr) {
-  b_2 {
-    %v_3 = add %stack, %stackBytes: Ptr
-    %v_4 = bitcast %v_3: I64
-    %v_5 = and %v_4, 18446744073709551600: I64
-    %v_6 = bitcast %v_5: Ptr
-    %v_7 = load %entry, 8: Ptr
-    %v_8 = add %entry, 8: Ptr
-    %v_9 = load %v_8, 8: Ptr
-    %v_10 = stackinit %v_6, %v_7, %v_9, %context: Ptr
-    %v_11 = add %v_1, 8: Ptr
-    setpattern %v_11, 9, 0
-    store %v_1, %v_10, 8
+newFiber<complex>(%v_0: Ptr, %stack: Ptr, %stackBytes: I64, %context: Ptr, %entry: Ptr) {
+  b_1 {
+    %v_2 = add %stack, %stackBytes: Ptr
+    %v_3 = bitcast %v_2: I64
+    %v_4 = and %v_3, 18446744073709551600: I64
+    %v_5 = bitcast %v_4: Ptr
+    %v_6 = load %entry, 8: Ptr
+    %v_7 = add %entry, 8: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = stackinit %v_5, %v_6, %v_8, %context: Ptr
+    %v_10 = add %v_0, 8: Ptr
+    setpattern %v_10, 9, 0
+    store %v_0, %v_9, 8
     ret 
   }
 }

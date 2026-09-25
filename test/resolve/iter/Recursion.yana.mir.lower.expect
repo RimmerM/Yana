@@ -363,7 +363,7 @@ objectBroken<complex>(%t: Ptr, %stop: I32): I32 {
   }
 
   b_11 {
-    %v_18 = call_complex marked$item, %v_1, %v_8: Ptr
+    %v_18 = call_complex marked$item, %v_8: Ptr
     %v_19 = imul %v_3, 10: I32
     %v_20 = loads %v_18, 4: I32
     %v_5 = add %v_19, %v_20: I32
@@ -458,7 +458,7 @@ rounds<complex>(%t: Ptr, %deep: Ptr, %expected: I32, %broken: I32): I32 {
   }
 
   b_19 {
-    %v_26 = call_complex walk$item, %v_6, %v_21: Ptr
+    %v_26 = call_complex walk$item, %v_21: Ptr
     %v_27 = imul %v_18, 10: I32
     %v_28 = loads %v_26, 4: I32
     %v_20 = add %v_27, %v_28: I32
@@ -490,7 +490,7 @@ rounds<complex>(%t: Ptr, %deep: Ptr, %expected: I32, %broken: I32): I32 {
   }
 
   b_30 {
-    %v_43 = call_complex walk$item, %v_14, %v_32: Ptr
+    %v_43 = call_complex walk$item, %v_32: Ptr
     %v_44 = imul %v_29, 10: I32
     %v_45 = loads %v_43, 4: I32
     %v_31 = add %v_44, %v_45: I32
@@ -555,7 +555,7 @@ main<complex>(): I32 {
   }
 
   b_22 {
-    %v_36 = call_complex walk$item, %v_19, %v_24: Ptr
+    %v_36 = call_complex walk$item, %v_24: Ptr
     %v_37 = imul %v_21, 10: I32
     %v_38 = loads %v_36, 4: I32
     %v_23 = add %v_37, %v_38: I32
@@ -615,7 +615,7 @@ main<complex>(): I32 {
   }
 
   b_40 {
-    %v_71 = call_complex evens$item, %v_34, %v_42: Ptr
+    %v_71 = call_complex evens$item, %v_42: Ptr
     %v_72 = imul %v_39, 10: I32
     %v_73 = loads %v_71, 4: I32
     %v_41 = add %v_72, %v_73: I32
@@ -637,7 +637,7 @@ main<complex>(): I32 {
   }
 
   b_75 {
-    %v_84 = call_complex walk$item, %v_69, %v_77: Ptr
+    %v_84 = call_complex walk$item, %v_77: Ptr
     %v_85 = imul %v_74, 10: I32
     %v_86 = loads %v_84, 4: I32
     %v_76 = add %v_85, %v_86: I32
@@ -682,7 +682,7 @@ main<complex>(): I32 {
   }
 
   b_104 {
-    %v_106 = call_complex marked$item, %v_94, %v_101: Ptr
+    %v_106 = call_complex marked$item, %v_101: Ptr
     %v_107 = imul %v_96, 10: I32
     %v_108 = loads %v_106, 4: I32
     %v_98 = add %v_107, %v_108: I32
@@ -1032,7 +1032,7 @@ walk$drop<complex>(%$self: Ptr) {
   }
 }
 
-walk$item<complex>(%$self: Ptr, %$at: Ptr): Ptr {
+walk$item<complex>(%$at: Ptr): Ptr {
   b_0 {
     ret %$at
   }
@@ -1571,7 +1571,7 @@ evens$drop<complex>(%$self: Ptr) {
   }
 }
 
-evens$item<complex>(%$self: Ptr, %$at: Ptr): Ptr {
+evens$item<complex>(%$at: Ptr): Ptr {
   b_0 {
     ret %$at
   }
@@ -1871,7 +1871,7 @@ marked$drop<complex>(%$self: Ptr) {
   }
 }
 
-marked$item<complex>(%$self: Ptr, %$at: Ptr): Ptr {
+marked$item<complex>(%$at: Ptr): Ptr {
   b_0 {
     ret %$at
   }

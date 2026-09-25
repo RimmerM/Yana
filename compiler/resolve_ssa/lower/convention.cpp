@@ -336,6 +336,75 @@ bool Lowering::joinCells(Value& argument, SmallArray<CarriedPart, 16>& cells) {
     return cells.size() <= kMaxJoinCells;
 }
 
+/*
+ * Whether a function is entered under `simple` because it is an authored `Reclaim` - J172.
+ *
+ * A reclaim releases storage and does nothing else (`doc/spec/ownership.md`, "Authored teardown": no
+ * call outside the release primitives and the members' own teardowns), so what one costs its caller
+ * is the call and not what the call might do. What it cost under `complex` was every register the
+ * caller held: `complex` hands the callee nine general registers and twelve vector ones, so a record
+ * torn down field by field out of registers kept each field that was still to go in a callee-saved
+ * register or on the stack across the calls in front of it - J171 §4's second answer. `simple`
+ * keeps all of that for the caller, and the callee pays instead, where the price is what it uses:
+ * `String.reclaim` is a flag test and, on the heap arm, four loads and stores into the free list,
+ * which `rax`, `rdx`, `rsi` and `rdi` cover without saving anything.
+ *
+ * Only the authored member and not the teardowns the lowering writes (`teardownHalves`), because
+ * those are also reached through a descriptor, whose indirect call is made under the default
+ * convention (`emitErasedTeardown`). Every direct call reads its callee's `callType`, so choosing it
+ * here is the whole change for the members. The local backend only: LLVM's reading of `simple` is
+ * `preserve_most`, which is measured nowhere yet.
+ */
+bool Lowering::releasesUnderSimple(DeclPtr<mir::Function> pointer) {
+    if(context.settings.backend == NativeBackend::Llvm) return false;
+
+    auto& function = *decl[pointer];
+    if(function.convention || !function.teardown || !function.ssa) return false;
+
+    auto root = function.specializes ? decl[function.specializes] : &function;
+    if(!root->authoredReclaim) return false;
+
+    // Asked once per function: every call site of it reads the answer through `callType`, and the
+    // walk below asks it of the callees in turn. A function being asked about answers no to a
+    // cycle through itself, which is the cautious direction.
+    if(auto known = simpleReleases.getValue(pointer.offset)) return known.unwrap() == 2;
+    *simpleReleases.add(pointer.offset).value = 1;
+
+    /*
+     * **A leaf release, and only that.** `simple` promises the caller almost every register, so a
+     * body that calls anything entered under `complex` - a record's teardown, `freeHeap` where it
+     * was not copied in - has to save all of what that call destroys, vector registers included, on
+     * every entry: `Array(a).reclaim(Case)` opened with eleven pushes and nine vector stores to call
+     * `teardown(fun)` once per element. So a body is admitted when its calls are to releases this
+     * admits and it has no `drop` left, since a drop is a call the lowering writes.
+     */
+    auto& body = *ssa[function.ssa];
+    auto leaf = true;
+
+    for(auto blockPointer: body.blocks.contents(ssa)) {
+        auto block = ssa[blockPointer];
+        if(block->deleted) continue;
+
+        for(auto instPointer: block->instructions(ssa)) {
+            auto& inst = *ssa[instPointer];
+            if(inst.kind == ssa::Inst::Drop) leaf = false;
+
+            if(inst.kind == ssa::Inst::Call) {
+                auto& call = (ssa::InstCall&)inst;
+                auto direct = call.callee && call.through == mir::CallThrough::Declaration;
+                if(!direct || !releasesUnderSimple(call.callee)) leaf = false;
+            }
+
+            if(!leaf) break;
+        }
+
+        if(!leaf) break;
+    }
+
+    *simpleReleases.add(pointer.offset).value = leaf ? 2 : 3;
+    return leaf;
+}
+
 // The argument is in the file comment.
 void Lowering::planCallShape(DeclPtr<mir::Function> pointer) {
     auto& function = *decl[pointer];
@@ -365,6 +434,11 @@ void Lowering::planCallShape(DeclPtr<mir::Function> pointer) {
     auto budget = context.settings.backend == NativeBackend::Llvm
         ? ConventionBudget { RegisterBudget { 6, 8 }, RegisterBudget { 4, 4 } }
         : complexBudget();
+
+    // A release is entered under `simple`, whose tables are three and three - see
+    // `releasesUnderSimple`. A record that does not fit them is handed over at its address, as it
+    // would be under any convention it overflows.
+    if(releasesUnderSimple(pointer)) budget = simpleBudget();
 
     SmallArray<CarriedPart, 16> cells;
     CallShape shape;

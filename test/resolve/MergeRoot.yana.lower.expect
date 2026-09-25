@@ -623,69 +623,68 @@ resize(I32)<complex>(%self: Ptr, %wanted: I64): I32 {
 
 owned<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = bitcast 0: Ptr
-    %v_3 = alloca 16, 8: Ptr
-    %v_4 = call_complex allocateHeap, 1: Ptr
-    store %v_3, %v_4, 8
-    %v_5 = add %v_3, 8: Ptr
-    store %v_5, 1073741824, 4
-    %v_6 = add %v_3, 12: Ptr
-    store %v_6, 0, 4
-    %v_7 = imm 4: I64
-    call_complex growArray(I32), %v_3, %v_7
-    jmp b_8
-  }
-
-  b_9 {
-    copy %v_0, %v_3, 16
-    ret 
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = call_complex allocateHeap, 1: Ptr
+    store %v_2, %v_3, 8
+    %v_4 = add %v_2, 8: Ptr
+    store %v_4, 1073741824, 4
+    %v_5 = add %v_2, 12: Ptr
+    store %v_5, 0, 4
+    %v_6 = imm 4: I64
+    call_complex growArray(I32), %v_2, %v_6
+    jmp b_7
   }
 
   b_8 {
-    %v_10 = phi [b_11, %v_12], [b_1, 0]: I64
-    %v_13 = call_complex ResolveTest.lambda$23, %v_2, %v_10: I32
-    %v_14 = add %v_3, 12: Ptr
-    %v_15 = load %v_14, 4: I32
-    %count = cast %v_15: I64
-    %v_16 = add %count, 1: I64
-    %v_17 = add %v_3, 8: Ptr
-    %v_18 = load %v_17, 4: I32
-    %v_19 = and %v_18, 1073741823: I32
-    %v_20 = cast %v_19: I64
-    %v_21 = cmp_ile %v_16, %v_20: I32
-    je %v_21, b_22, b_23
+    copy %v_0, %v_2, 16
+    ret 
   }
 
-  b_23 {
-    call_complex growArray(I32), %v_3, %v_16
-    %v_24 = load %v_17, 4: I32
-    %v_25 = and %v_24, 1073741823: I32
-    %v_26 = cast %v_25: I64
-    jmp b_22
+  b_7 {
+    %v_9 = phi [b_10, %v_11], [b_1, 0]: I64
+    %v_12 = call_complex ResolveTest.lambda$23, %v_9: I32
+    %v_13 = add %v_2, 12: Ptr
+    %v_14 = load %v_13, 4: I32
+    %count = cast %v_14: I64
+    %v_15 = add %count, 1: I64
+    %v_16 = add %v_2, 8: Ptr
+    %v_17 = load %v_16, 4: I32
+    %v_18 = and %v_17, 1073741823: I32
+    %v_19 = cast %v_18: I64
+    %v_20 = cmp_ile %v_15, %v_19: I32
+    je %v_20, b_21, b_22
   }
 
   b_22 {
-    %v_27 = phi [b_8, %v_20], [b_23, %v_26]: I64
-    %v_28 = cmp_ige %count, %v_27: I32
-    je %v_28, b_29, b_11
+    call_complex growArray(I32), %v_2, %v_15
+    %v_23 = load %v_16, 4: I32
+    %v_24 = and %v_23, 1073741823: I32
+    %v_25 = cast %v_24: I64
+    jmp b_21
   }
 
-  b_11 {
-    %v_30 = load %v_3, 8: Ptr
-    %v_31 = shl %count, 2: I64
-    %v_32 = add %v_30, %v_31: Ptr
-    store %v_32, %v_13, 4
-    %v_33 = cast %v_16: I32
-    %v_34 = and %v_33, 1073741823: I32
-    %v_35 = add %v_3, 12: Ptr
-    store %v_35, %v_34, 4
-    %v_12 = add %v_10, 1: I64
-    %v_36 = cmp_ilt %v_12, %v_7: I32
-    je %v_36, b_8, b_9
+  b_21 {
+    %v_26 = phi [b_7, %v_19], [b_22, %v_25]: I64
+    %v_27 = cmp_ige %count, %v_26: I32
+    je %v_27, b_28, b_10
   }
 
-  b_29 {
-    %v_37 = syscall 60, 134: I64
+  b_10 {
+    %v_29 = load %v_2, 8: Ptr
+    %v_30 = shl %count, 2: I64
+    %v_31 = add %v_29, %v_30: Ptr
+    store %v_31, %v_12, 4
+    %v_32 = cast %v_15: I32
+    %v_33 = and %v_32, 1073741823: I32
+    %v_34 = add %v_2, 12: Ptr
+    store %v_34, %v_33, 4
+    %v_11 = add %v_9, 1: I64
+    %v_35 = cmp_ilt %v_11, %v_6: I32
+    je %v_35, b_7, b_8
+  }
+
+  b_28 {
+    %v_36 = syscall 60, 134: I64
     unreachable 
   }
 }
@@ -794,43 +793,42 @@ main<complex>(): I32 {
   b_0 {
     %a = call_complex chosen, 1: I32
     %b = call_complex chosen, 0: I32
-    %v_1 = bitcast 0: Ptr
-    %v_2 = alloca 20, 4: Ptr
-    store %v_2, 10, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, 20, 4
-    %v_4 = add %v_2, 8: Ptr
-    store %v_4, 30, 4
-    %v_5 = add %v_2, 12: Ptr
-    store %v_5, 40, 4
-    %v_6 = add %v_2, 16: Ptr
-    store %v_6, 4, 4
+    %v_1 = alloca 20, 4: Ptr
+    store %v_1, 10, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 20, 4
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 30, 4
+    %v_4 = add %v_1, 12: Ptr
+    store %v_4, 40, 4
+    %v_5 = add %v_1, 16: Ptr
+    store %v_5, 4, 4
     %xs = alloca 16, 8: Ptr
     call_complex owned, %xs
-    call_complex teardown$@inline(4) @capacity(4) Array(I32), %v_2
-    %v_7 = alloca 16, 8: Ptr
-    %v_8 = load %xs, 8: Ptr
-    %v_9 = add %xs, 12: Ptr
-    %v_10 = load %v_9, 4: I32
-    %v_11 = cast %v_10: I64
-    store %v_7, %v_8, 8
-    %v_12 = add %v_7, 8: Ptr
-    store %v_12, %v_11, 8
-    %v_13 = call_complex ResolveTest.continuation$24, %v_1, %v_7: I32
+    call_complex teardown$@inline(4) @capacity(4) Array(I32), %v_1
+    %v_6 = alloca 16, 8: Ptr
+    %v_7 = load %xs, 8: Ptr
+    %v_8 = add %xs, 12: Ptr
+    %v_9 = load %v_8, 4: I32
+    %v_10 = cast %v_9: I64
+    store %v_6, %v_7, 8
+    %v_11 = add %v_6, 8: Ptr
+    store %v_11, %v_10, 8
+    %v_12 = call_complex ResolveTest.continuation$24, %v_6: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %xs
     %d = call_complex ownedStaysAtItsEdges, 0: I32
     %e = call_complex ownedStaysAtItsEdges, 2: I32
-    %v_14 = add %a, %b: I32
-    %v_15 = add %v_14, %v_13: I32
-    %v_16 = add %v_15, %d: I32
-    %v_17 = add %v_16, %e: I32
-    %v_18 = loads @dropCalls, 4: I32
-    %v_19 = add %v_17, %v_18: I32
-    ret %v_19
+    %v_13 = add %a, %b: I32
+    %v_14 = add %v_13, %v_12: I32
+    %v_15 = add %v_14, %d: I32
+    %v_16 = add %v_15, %e: I32
+    %v_17 = loads @dropCalls, 4: I32
+    %v_18 = add %v_16, %v_17: I32
+    ret %v_18
   }
 }
 
-ResolveTest.lambda$23<complex>(%env: Ptr, %i: I64): I32 {
+ResolveTest.lambda$23<complex>(%i: I64): I32 {
   b_0 {
     %v_1 = add %i, 1: I64
     %v_2 = cast %v_1: I32
@@ -838,7 +836,7 @@ ResolveTest.lambda$23<complex>(%env: Ptr, %i: I64): I32 {
   }
 }
 
-ResolveTest.continuation$24<complex>(%env: Ptr, %value$: Ptr): I32 {
+ResolveTest.continuation$24<complex>(%value$: Ptr): I32 {
   b_0 {
     %xs$items = load %value$, 8: Ptr
     %v_1 = add %value$, 8: Ptr

@@ -114,19 +114,18 @@ main<complex>(): I32 {
   }
 
   b_23 {
-    %v_40 = load %v_26, 8: Ptr
-    %v_41 = shl %v_37, 2: I64
-    %v_42 = add %v_40, %v_41: Ptr
-    %v_43 = loads %v_42, 4: I32
+    %v_40 = shl %v_37, 2: I64
+    %v_41 = add %v_27, %v_40: Ptr
+    %v_42 = loads %v_41, 4: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %v_26
-    %v_21 = add %v_22, %v_43: I32
+    %v_21 = add %v_22, %v_42: I32
     %v_25 = add %v_24, 1: I32
-    %v_44 = cmp_ilt %v_25, 6: I32
-    je %v_44, b_18, b_19
+    %v_43 = cmp_ilt %v_25, 6: I32
+    je %v_43, b_18, b_19
   }
 
   b_39 {
-    %v_45 = syscall 60, 134: I64
+    %v_44 = syscall 60, 134: I64
     unreachable 
   }
 }

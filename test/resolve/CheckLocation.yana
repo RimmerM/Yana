@@ -3,24 +3,34 @@
 
    What an inserted check says when it does not hold - Design-Test.md §5.4, and `-check-locations`.
 
-   Two things are asserted here and the second is the point. That the located form is *reached* - the
-   IR below calls `checkConditionAt` where an ordinary build calls `checkCondition` - and that what it
-   takes is **five scalars**, four of them immediates: the failure flag, the module's bytes and their
-   length, the line and the column. A `String` in that position would be a two-word descriptor stored
-   into a stack slot at the call, which is ahead of the branch and therefore on the path a check that
-   holds takes; that shape measured at 34% of a loop whose bounds check cannot be folded away, and
-   this one measures at nothing. The golden is where that stays true.
+   Two things are asserted here and the second is the point. That the located form is *reached* -
+   the IR below names `checkConditionAt` or `checkFailedAt` where an ordinary build names
+   `checkCondition` or `checkFailed` - and that what it takes is **scalars**, the module's bytes and
+   their length, the line and the column, all of them immediates: the shipping stage calls
+   `checkConditionAt` with the failure flag in front of them, and the rewritten stage expands the
+   check and calls `checkFailedAt` from the arm that fails. A `String` in that position would be a
+   two-word descriptor stored into a stack slot at the call, which is ahead of the branch and
+   therefore on the path a check that holds takes; that shape measured at 34% of a loop whose bounds
+   check cannot be folded away, and this one measures at nothing. The golden is where that stays
+   true.
 
-   The index comes out of a global so that nothing about it is a constant: a checked subscript the
+   The index is found by a loop, so that nothing about it is a constant: a checked subscript the
    optimizer can prove is a subscript with no check in it, which would assert the wrong thing twice
-   over.
+   over. It used to come out of a global the program had just written, and both stages learned to
+   read that write - the shipping stage folded the whole program to `ret 0`, and the rewritten one
+   left a check whose condition it had already answered (J168). Neither stage evaluates a loop at
+   compile time, so the walk's counter stays a value, and so do both subscripts it feeds.
 -}
 
-let &start = 0 :: Size
+fn reachable(xs: [Int], at: Size) -> Int = xs[at]
 
-fn reachable(xs: [Int]) -> Int = xs[start]
+-- Where the first element of at least `bound` is.
+fn firstAtLeast(xs: [Int], bound: Int) -> Size:
+    let &at = 0 :: Size
+    while xs[at] < bound:
+        at += 1
+    return at
 
 fn main() -> Int:
-    let &xs = [7, 8, 9]
-    start = 1
-    return reachable(xs) - 8
+    let xs = [7, 8, 9]
+    return reachable(xs, firstAtLeast(xs, 8)) - 8

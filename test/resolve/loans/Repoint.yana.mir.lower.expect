@@ -261,7 +261,7 @@ main<complex>(): I32 {
     %v_21 = bitcast %v_14: I64
     %v_22 = add %v_2, 8: Ptr
     %v_23 = load %v_22, 4: I32
-    call_complex Array(a).reclaim(I32), %v_21, %v_23, %v_16
+    call_complex Array(a).reclaim(I32), %v_21, %v_23
     %v_24 = add %v_1, %v_20: I32
     %v_25 = alloca 16, 8: Ptr
     %v_26 = alloca 16, 8: Ptr
@@ -326,7 +326,7 @@ main<complex>(): I32 {
     %v_56 = bitcast %v_49: I64
     %v_57 = add %v_25, 8: Ptr
     %v_58 = load %v_57, 4: I32
-    call_complex Array(a).reclaim(I32), %v_56, %v_58, %v_51
+    call_complex Array(a).reclaim(I32), %v_56, %v_58
     %v_59 = imul %v_55, 10: I32
     %v_60 = load %v_26, 8: Ptr
     %v_61 = add %v_26, 12: Ptr
@@ -341,88 +341,59 @@ main<complex>(): I32 {
     %v_67 = bitcast %v_60: I64
     %v_68 = add %v_26, 8: Ptr
     %v_69 = load %v_68, 4: I32
-    call_complex Array(a).reclaim(I32), %v_67, %v_69, %v_62
+    call_complex Array(a).reclaim(I32), %v_67, %v_69
     %v_70 = add %v_59, %v_66: I32
     %v_71 = add %v_24, %v_70: I32
-    %v_72 = alloca 16, 4: Ptr
-    %v_73 = add %v_72, 4: Ptr
-    %v_74 = add %v_72, 8: Ptr
-    store %v_74, 3, 4
-    %v_75 = add %v_72, 12: Ptr
-    store %v_75, 4, 4
-    store %v_72, 9, 4
-    store %v_73, 8, 4
-    %v_76 = loads %v_72, 4: I32
-    %v_77 = loads %v_73, 4: I32
-    %v_78 = add %v_76, %v_77: I32
-    %v_79 = add %v_71, %v_78: I32
-    %v_80 = imul %v_79, 1000: I32
-    %v_81 = call_complex viaOuter, 1: I32
-    %v_82 = add %v_80, %v_81: I32
-    %v_83 = alloca 12, 4: Ptr
-    store %v_83, 7, 4
-    %v_84 = add %v_83, 4: Ptr
-    store %v_84, 7, 4
-    %v_85 = add %v_83, 8: Ptr
-    store %v_85, 7, 4
-    %v_86 = loads %v_83, 4: I32
-    %v_87 = add 1, %v_86: I32
-    %v_88 = imul %v_87, 10: I32
-    %v_89 = add %v_82, %v_88: I32
-    %v_90 = call_complex scoped, 1: I32
-    %v_91 = imul %v_90, 100: I32
-    %v_92 = add %v_89, %v_91: I32
-    %v_93 = alloca 12, 4: Ptr
-    store %v_93, 7, 4
-    %v_94 = add %v_93, 4: Ptr
-    store %v_94, 7, 4
-    %v_95 = add %v_93, 8: Ptr
-    store %v_95, 7, 4
-    %v_96 = loads %v_93, 4: I32
-    %v_97 = add 1, %v_96: I32
-    %v_98 = imul %v_97, 1000: I32
-    %v_99 = add %v_92, %v_98: I32
-    ret %v_99
+    %v_72 = add %v_71, 17: I32
+    %v_73 = imul %v_72, 1000: I32
+    %v_74 = call_complex viaOuter, 1: I32
+    %v_75 = add %v_73, %v_74: I32
+    %v_76 = add %v_75, 80: I32
+    %v_77 = call_complex scoped, 1: I32
+    %v_78 = imul %v_77, 100: I32
+    %v_79 = add %v_76, %v_78: I32
+    %v_80 = add %v_79, 8000: I32
+    ret %v_80
   }
 
   b_44 {
-    %v_100 = phi [b_45, %v_47], [b_39, 0]: I32
+    %v_81 = phi [b_45, %v_47], [b_39, 0]: I32
     call_complex bumpAt, %v_27
     store %v_27, %v_25, 8
-    %v_101 = add %v_27, 8: Ptr
-    store %v_101, %v_100, 4
-    %v_47 = add %v_100, 1: I32
+    %v_82 = add %v_27, 8: Ptr
+    store %v_82, %v_81, 4
+    %v_47 = add %v_81, 1: I32
     jmp b_45
   }
 }
 
-Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
-  b_3 {
-    %v_4 = shr %v_1, 30: I32
-    %v_5 = cmp_eq %v_4, 1: I32
-    je %v_5, b_6, b_7
+Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = shr %v_1, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = bitcast %v_0: Ptr
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_6, b_9
   }
 
   b_6 {
-    %v_8 = bitcast %v_0: Ptr
-    %v_9 = cmp_eq %v_0, 0: I32
-    je %v_9, b_7, b_10
-  }
-
-  b_7 {
     ret 
   }
 
-  b_10 {
-    %v_11 = sub %v_8, 8: Ptr
-    %v_12 = loads %v_11, 8: I64
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %v_12, 3: I64
-    %v_15 = add %v_13, %v_14: Ptr
-    %v_16 = load %v_15, 8: Ptr
-    store %v_8, %v_16, 8
-    store %v_15, %v_8, 8
-    jmp b_7
+  b_9 {
+    %v_10 = sub %v_7, 8: Ptr
+    %v_11 = loads %v_10, 8: I64
+    %v_12 = load @heapFree, 8: Ptr
+    %v_13 = shl %v_11, 3: I64
+    %v_14 = add %v_12, %v_13: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    store %v_7, %v_15, 8
+    store %v_14, %v_7, 8
+    jmp b_6
   }
 }
 

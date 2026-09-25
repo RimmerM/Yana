@@ -22,7 +22,7 @@ carried<complex>(): I32 {
   b_9 {
     %v_10 = loads %v_11, 4: I32
     %v_12 = load %v_1, 4: I32
-    call_complex Array(a).reclaim(I32), %v_13, %v_12, 3
+    call_complex Array(a).reclaim(I32), %v_13, %v_12
     %v_14 = add %v_15, %v_10: I32
     ret %v_14
   }
@@ -51,7 +51,7 @@ carried<complex>(): I32 {
     %v_28 = bitcast %v_20: Ptr
     %v_29 = loads %v_28, 4: I32
     %v_30 = load %v_1, 4: I32
-    call_complex Array(a).reclaim(I32), %v_20, %v_30, 3
+    call_complex Array(a).reclaim(I32), %v_20, %v_30
     %v_31 = imul %v_29, 10: I32
     %v_32 = add %v_16, %v_31: I32
     %v_33 = loads %v_11, 4: I32
@@ -88,50 +88,40 @@ main<complex>(): I32 {
     %v_9 = phi [b_3, %v_8], [b_0, 0]: I32
     %v_10 = phi [b_3, %v_5], [b_0, 0]: I32
     %v_5 = add %v_10, 1: I32
-    %v_11 = add %v_10, 2: I32
-    %v_12 = add %v_10, 3: I32
-    %v_13 = alloca 12, 4: Ptr
-    store %v_13, %v_5, 4
-    %v_14 = add %v_13, 4: Ptr
-    store %v_14, %v_11, 4
-    %v_15 = add %v_13, 8: Ptr
-    store %v_15, %v_12, 4
-    %v_16 = loads %v_13, 4: I32
-    %v_17 = add %v_9, %v_16: I32
-    %v_18 = add %v_13, 8: Ptr
-    %v_19 = loads %v_18, 4: I32
-    %v_8 = add %v_17, %v_19: I32
+    %v_11 = add %v_10, 3: I32
+    %v_12 = add %v_9, %v_5: I32
+    %v_8 = add %v_12, %v_11: I32
     jmp b_3
   }
 }
 
-Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
-  b_3 {
-    %v_4 = shr %v_1, 30: I32
-    %v_5 = cmp_eq %v_4, 1: I32
-    je %v_5, b_6, b_7
+Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = shr %v_1, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = bitcast %v_0: Ptr
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_6, b_9
   }
 
   b_6 {
-    %v_8 = bitcast %v_0: Ptr
-    %v_9 = cmp_eq %v_0, 0: I32
-    je %v_9, b_7, b_10
-  }
-
-  b_7 {
     ret 
   }
 
-  b_10 {
-    %v_11 = sub %v_8, 8: Ptr
-    %v_12 = loads %v_11, 8: I64
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %v_12, 3: I64
-    %v_15 = add %v_13, %v_14: Ptr
-    %v_16 = load %v_15, 8: Ptr
-    store %v_8, %v_16, 8
-    store %v_15, %v_8, 8
-    jmp b_7
+  b_9 {
+    %v_10 = sub %v_7, 8: Ptr
+    %v_11 = loads %v_10, 8: I64
+    %v_12 = load @heapFree, 8: Ptr
+    %v_13 = shl %v_11, 3: I64
+    %v_14 = add %v_12, %v_13: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    store %v_7, %v_15, 8
+    store %v_14, %v_7, 8
+    jmp b_6
   }
 }
 

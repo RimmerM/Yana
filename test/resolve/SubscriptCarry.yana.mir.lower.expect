@@ -1,174 +1,57 @@
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 20, 4: Ptr
-    store %v_1, 0, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 0, 4
-    %v_3 = add %v_1, 8: Ptr
-    store %v_3, 0, 4
-    %v_4 = add %v_1, 12: Ptr
-    store %v_4, 0, 4
-    %v_5 = add %v_1, 16: Ptr
-    store %v_5, 0, 4
-    store %v_3, 101, 4
-    %v_6 = loads %v_3, 4: I32
-    %v_7 = loads %v_4, 4: I32
-    %v_8 = add %v_6, %v_7: I32
-    %v_9 = cmp_neq %v_8, 101: I32
-    je %v_9, b_10, b_11
+    %v_1 = alloca 8, 4: Ptr
+    setpattern %v_1, 8, 0
+    %v_2 = alloca 40, 4: Ptr
+    copy %v_2, %v_1, 8
+    %v_3 = add %v_2, 8: Ptr
+    copy %v_3, %v_1, 8
+    %v_4 = add %v_2, 16: Ptr
+    copy %v_4, %v_1, 8
+    %v_5 = add %v_2, 24: Ptr
+    copy %v_5, %v_1, 8
+    %v_6 = add %v_2, 32: Ptr
+    copy %v_6, %v_1, 8
+    store %v_3, 13, 4
+    %v_7 = add %v_2, 12: Ptr
+    %v_8 = loads %v_7, 4: I32
+    %v_9 = add 13, %v_8: I32
+    %v_10 = cmp_neq %v_9, 13: I32
+    je %v_10, b_11, b_12
+  }
+
+  b_12 {
+    %v_13 = alloca 8, 4: Ptr
+    setpattern %v_13, 8, 0
+    %v_14 = alloca 40, 4: Ptr
+    copy %v_14, %v_13, 8
+    %v_15 = add %v_14, 8: Ptr
+    copy %v_15, %v_13, 8
+    %v_16 = add %v_14, 16: Ptr
+    copy %v_16, %v_13, 8
+    %v_17 = add %v_14, 24: Ptr
+    copy %v_17, %v_13, 8
+    %v_18 = add %v_14, 32: Ptr
+    copy %v_18, %v_13, 8
+    store %v_17, 24, 4
+    %v_19 = add %v_14, 28: Ptr
+    %v_20 = loads %v_19, 4: I32
+    %v_21 = add 24, %v_20: I32
+    %v_22 = cmp_neq %v_21, 24: I32
+    je %v_22, b_23, b_24
   }
 
   b_11 {
-    %v_12 = alloca 20, 4: Ptr
-    store %v_12, 0, 4
-    %v_13 = add %v_12, 4: Ptr
-    store %v_13, 0, 4
-    %v_14 = add %v_12, 8: Ptr
-    store %v_14, 0, 4
-    %v_15 = add %v_12, 12: Ptr
-    store %v_15, 0, 4
-    %v_16 = add %v_12, 16: Ptr
-    store %v_16, 0, 4
-    store %v_16, 202, 4
-    %v_17 = loads %v_16, 4: I32
-    %v_18 = loads %v_12, 4: I32
-    %v_19 = add %v_17, %v_18: I32
-    %v_20 = cmp_neq %v_19, 202: I32
-    je %v_20, b_21, b_22
-  }
-
-  b_10 {
-    ret 18446744073709551615
-  }
-
-  b_22 {
-    %v_23 = alloca 8, 4: Ptr
-    setpattern %v_23, 8, 0
-    %v_24 = alloca 40, 4: Ptr
-    copy %v_24, %v_23, 8
-    %v_25 = add %v_24, 8: Ptr
-    copy %v_25, %v_23, 8
-    %v_26 = add %v_24, 16: Ptr
-    copy %v_26, %v_23, 8
-    %v_27 = add %v_24, 24: Ptr
-    copy %v_27, %v_23, 8
-    %v_28 = add %v_24, 32: Ptr
-    copy %v_28, %v_23, 8
-    store %v_25, 13, 4
-    %v_29 = loads %v_25, 4: I32
-    %v_30 = add %v_24, 12: Ptr
-    %v_31 = loads %v_30, 4: I32
-    %v_32 = add %v_29, %v_31: I32
-    %v_33 = cmp_neq %v_32, 13: I32
-    je %v_33, b_34, b_35
-  }
-
-  b_21 {
-    ret 18446744073709551614
-  }
-
-  b_35 {
-    %v_36 = alloca 8, 4: Ptr
-    setpattern %v_36, 8, 0
-    %v_37 = alloca 40, 4: Ptr
-    copy %v_37, %v_36, 8
-    %v_38 = add %v_37, 8: Ptr
-    copy %v_38, %v_36, 8
-    %v_39 = add %v_37, 16: Ptr
-    copy %v_39, %v_36, 8
-    %v_40 = add %v_37, 24: Ptr
-    copy %v_40, %v_36, 8
-    %v_41 = add %v_37, 32: Ptr
-    copy %v_41, %v_36, 8
-    store %v_40, 24, 4
-    %v_42 = loads %v_40, 4: I32
-    %v_43 = add %v_37, 28: Ptr
-    %v_44 = loads %v_43, 4: I32
-    %v_45 = add %v_42, %v_44: I32
-    %v_46 = cmp_neq %v_45, 24: I32
-    je %v_46, b_47, b_48
-  }
-
-  b_34 {
     ret 18446744073709551613
   }
 
-  b_48 {
-    %v_49 = alloca 20, 4: Ptr
-    store %v_49, 1, 4
-    %v_50 = add %v_49, 4: Ptr
-    store %v_50, 2, 4
-    %v_51 = add %v_49, 8: Ptr
-    store %v_51, 3, 4
-    %v_52 = add %v_49, 12: Ptr
-    store %v_52, 4, 4
-    %v_53 = add %v_49, 16: Ptr
-    store %v_53, 5, 4
-    %v_54 = loads %v_51, 4: I32
-    %v_55 = add %v_54, 1000: I32
-    store %v_51, %v_55, 4
-    %v_56 = loads %v_51, 4: I32
-    %v_57 = cmp_neq %v_56, 1003: I32
-    je %v_57, b_58, b_59
-  }
-
-  b_47 {
-    ret 18446744073709551612
-  }
-
-  b_59 {
-    %v_60 = alloca 20, 4: Ptr
-    store %v_60, 1, 4
-    %v_61 = add %v_60, 4: Ptr
-    store %v_61, 2, 4
-    %v_62 = add %v_60, 8: Ptr
-    store %v_62, 3, 4
-    %v_63 = add %v_60, 12: Ptr
-    store %v_63, 4, 4
-    %v_64 = add %v_60, 16: Ptr
-    store %v_64, 5, 4
-    %v_65 = loads %v_64, 4: I32
-    %v_66 = add %v_65, 2000: I32
-    store %v_64, %v_66, 4
-    %v_67 = loads %v_64, 4: I32
-    %v_68 = cmp_neq %v_67, 2005: I32
-    je %v_68, b_69, b_70
-  }
-
-  b_58 {
-    ret 18446744073709551611
-  }
-
-  b_70 {
-    %v_71 = alloca 20, 4: Ptr
-    store %v_71, 1, 4
-    %v_72 = add %v_71, 4: Ptr
-    store %v_72, 2, 4
-    %v_73 = add %v_71, 8: Ptr
-    store %v_73, 3, 4
-    %v_74 = add %v_71, 12: Ptr
-    store %v_74, 4, 4
-    %v_75 = add %v_71, 16: Ptr
-    store %v_75, 5, 4
-    %v_76 = loads %v_74, 4: I32
-    %v_77 = add %v_76, 3000: I32
-    store %v_74, %v_77, 4
-    %v_78 = loads %v_74, 4: I32
-    %v_79 = cmp_neq %v_78, 3004: I32
-    je %v_79, b_80, b_81
-  }
-
-  b_69 {
-    ret 18446744073709551610
-  }
-
-  b_81 {
+  b_24 {
     ret 4242
   }
 
-  b_80 {
-    ret 18446744073709551609
+  b_23 {
+    ret 18446744073709551612
   }
 }
 

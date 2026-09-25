@@ -282,19 +282,16 @@ branch<complex>(%flag: I32): I64 {
 
   b_3 {
     %counted = loads @liveBuffers, 8: I64
-    %v_5 = load %v_2, 1: I32
-    %v_6 = cast %v_5: I64
     call_complex freeHeap, %v_2
     call_complex -=(I64), @liveBuffers, 1
-    %v_7 = add %counted, %v_6: I64
-    ret %v_7
+    ret %counted
   }
 
   b_4 {
     call_complex freeHeap, %v_2
     call_complex -=(I64), @liveBuffers, 1
-    %v_8 = loads @liveBuffers, 8: I64
-    ret %v_8
+    %v_5 = loads @liveBuffers, 8: I64
+    ret %v_5
   }
 }
 

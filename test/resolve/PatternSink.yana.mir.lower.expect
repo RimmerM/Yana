@@ -161,40 +161,28 @@ main<complex>(): I64 {
     store %v_11, 1, 1
     %v_14 = loads @live, 8: I64
     call_complex teardown(Box), %v_11
-    %v_15 = alloca 24, 8: Ptr
-    %v_16 = add %v_15, 8: Ptr
-    %v_17 = call_complex makeBuffer: I64
-    store %v_16, %v_17, 8
-    store %v_15, 1, 1
+    %v_15 = call_complex makeBuffer: I64
+    %v_16 = loads @live, 8: I64
+    call_complex Buffer.drop, %v_15
+    %v_17 = imul %v_16, 10: I64
     %v_18 = loads @live, 8: I64
-    %v_19 = add %v_15, 8: Ptr
-    %v_20 = load %v_19, 8: I64
-    call_complex Buffer.drop, %v_20
-    %v_21 = imul %v_18, 10: I64
-    %v_22 = loads @live, 8: I64
-    %v_23 = add %v_21, %v_22: I64
-    %v_24 = sext 0: I64
-    %v_25 = add %v_23, %v_24: I64
-    %v_26 = alloca 24, 8: Ptr
-    %v_27 = add %v_26, 8: Ptr
-    %v_28 = call_complex makeBuffer: I64
-    store %v_27, %v_28, 8
-    store %v_26, 1, 1
-    %v_29 = add %v_26, 8: Ptr
-    %v_30 = load %v_29, 8: I64
-    %v_31 = loads @live, 8: I64
-    call_complex Buffer.drop, %v_30
-    %v_32 = imul %v_4, 100000: I64
-    %v_33 = imul %v_10, 10000: I64
-    %v_34 = add %v_32, %v_33: I64
-    %v_35 = imul %v_14, 1000: I64
-    %v_36 = add %v_34, %v_35: I64
-    %v_37 = imul %v_25, 10: I64
-    %v_38 = add %v_36, %v_37: I64
-    %v_39 = add %v_38, %v_31: I64
-    %v_40 = loads @live, 8: I64
-    %v_41 = add %v_39, %v_40: I64
-    ret %v_41
+    %v_19 = add %v_17, %v_18: I64
+    %v_20 = sext 0: I64
+    %v_21 = add %v_19, %v_20: I64
+    %v_22 = call_complex makeBuffer: I64
+    %v_23 = loads @live, 8: I64
+    call_complex Buffer.drop, %v_22
+    %v_24 = imul %v_4, 100000: I64
+    %v_25 = imul %v_10, 10000: I64
+    %v_26 = add %v_24, %v_25: I64
+    %v_27 = imul %v_14, 1000: I64
+    %v_28 = add %v_26, %v_27: I64
+    %v_29 = imul %v_21, 10: I64
+    %v_30 = add %v_28, %v_29: I64
+    %v_31 = add %v_30, %v_23: I64
+    %v_32 = loads @live, 8: I64
+    %v_33 = add %v_31, %v_32: I64
+    ret %v_33
   }
 }
 

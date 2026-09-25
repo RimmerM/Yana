@@ -4,13 +4,13 @@
 @environment(describe(Guard)) = [0, 0, 0, 0] {slot 0: @descriptor(Guard)}
 @descriptor(Guard) = [4, 0, 0, 14, 0, 0, 0, 0] {slot 4: teardown(Guard)}
 
-Guard.drop<complex>(%v_0: I32) {
-  b_1 {
+Guard.drop<complex>() {
+  b_0 {
     ret 
   }
 }
 
-describe<complex>(%v_0: Ptr, %it: Ptr): I64 {
+describe<complex>(%v_0: Ptr): I64 {
   b_1 {
     %v_2 = loads %v_0, 4: I32
     %v_3 = sext %v_2: I64
@@ -52,19 +52,12 @@ describe<complex>(%v_0: Ptr, %it: Ptr): I64 {
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 9, 8: Ptr
-    store %v_2, 1, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, 2, 1
-    store %v_1, 3, 4
-    %v_4 = call_complex describe, @environment(describe(Pad)), %v_2: I64
-    %v_5 = call_complex describe, @environment(describe(Guard)), %v_1: I64
-    %v_6 = load %v_1, 4: I32
-    call_complex Guard.drop, %v_6
-    %v_7 = add %v_4, %v_5: I64
-    %v_8 = sext %v_7: I32
-    ret %v_8
+    %v_1 = call_complex describe, @environment(describe(Pad)): I64
+    %v_2 = call_complex describe, @environment(describe(Guard)): I64
+    call_complex Guard.drop
+    %v_3 = add %v_1, %v_2: I64
+    %v_4 = sext %v_3: I32
+    ret %v_4
   }
 }
 
@@ -76,8 +69,7 @@ teardown()<complex>(%v_0: Ptr) {
 
 teardown(Guard)<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = load %v_0, 4: I32
-    call_complex Guard.drop, %v_2
+    call_complex Guard.drop
     ret 
   }
 }

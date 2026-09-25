@@ -262,21 +262,20 @@ main<complex>(): I32 {
   }
 
   b_12 {
-    %v_13 = bitcast 0: Ptr
-    %b = call_complex ResolveTest.lambda$24, %v_13: I32
-    %v_14 = loads @dropCalls, 4: I32
-    %v_15 = cmp_neq %v_14, 1: I32
-    je %v_15, b_16, b_17
+    %b = call_complex ResolveTest.lambda$24: I32
+    %v_13 = loads @dropCalls, 4: I32
+    %v_14 = cmp_neq %v_13, 1: I32
+    je %v_14, b_15, b_16
   }
 
-  b_16 {
+  b_15 {
     ret 18446744073709551614
   }
 
-  b_17 {
-    %v_18 = add %v_1, %b: I32
-    %v_19 = add %v_18, %v_14: I32
-    ret %v_19
+  b_16 {
+    %v_17 = add %v_1, %b: I32
+    %v_18 = add %v_17, %v_13: I32
+    ret %v_18
   }
 }
 
@@ -288,7 +287,7 @@ ResolveTest.lambda$23<complex>(%env: Ptr): I32 {
   }
 }
 
-ResolveTest.lambda$24<complex>(%env: Ptr): I32 {
+ResolveTest.lambda$24<complex>(): I32 {
   b_0 {
     ret 5
   }

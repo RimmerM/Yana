@@ -105,6 +105,15 @@ inline ConventionBudget complexBudget() {
     return ConventionBudget { RegisterBudget { 9, 12 }, RegisterBudget { 9, 12 } };
 }
 
+/*
+ * `simple`'s budget: three general and three vector registers for arguments, one of each for the
+ * result - the tables in `codegen/x64/constraint.cpp`, which are checked against this the way
+ * `complex`'s are.
+ */
+inline ConventionBudget simpleBudget() {
+    return ConventionBudget { RegisterBudget { 3, 3 }, RegisterBudget { 1, 1 } };
+}
+
 // In declaration order, which is what `callTypeForName` indexes by and what the lower-IR printer
 // emits. `system` rather than `syscall` because that is the spelling the fixtures already use.
 inline StringView nameForCallType(LowerCallType type) {

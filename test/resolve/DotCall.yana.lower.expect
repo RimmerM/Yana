@@ -3,67 +3,66 @@
 main<complex>(): I32 {
   b_0 {
     %v_1 = fun ResolveTest.lambda$24: Ptr
-    %v_2 = bitcast 0: Ptr
-    %v_3 = call_complex %v_1, %v_2, 10: I32
-    %v_4 = call_complex %v_1, %v_2, %v_3: I32
-    %v_5 = fun ResolveTest.lambda$25: Ptr
-    %v_6 = bitcast 0: Ptr
-    %v_7 = call_complex %v_5, %v_6, 6: I32
-    %v_8 = bitcast 0: Ptr
-    %v_9 = cmp_neq %v_6, %v_8: I32
-    je %v_9, b_10, b_11
+    %v_2 = call_complex %v_1, 10: I32
+    %v_3 = call_complex %v_1, %v_2: I32
+    %v_4 = fun ResolveTest.lambda$25: Ptr
+    %v_5 = bitcast 0: Ptr
+    %v_6 = call_complex %v_4, %v_5, 6: I32
+    %v_7 = bitcast 0: Ptr
+    %v_8 = cmp_neq %v_5, %v_7: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    %v_11 = bitcast %v_4: I64
+    %v_12 = sub %v_11, 4: I64
+    %v_13 = bitcast %v_12: Ptr
+    %v_14 = loads %v_13, 4: I32
+    %v_15 = sext %v_14: I64
+    %v_16 = add %v_15, @image$base: Ptr
+    call_complex %v_16, %v_5
+    jmp b_10
   }
 
   b_10 {
-    %v_12 = bitcast %v_5: I64
-    %v_13 = sub %v_12, 4: I64
-    %v_14 = bitcast %v_13: Ptr
-    %v_15 = loads %v_14, 4: I32
-    %v_16 = sext %v_15: I64
-    %v_17 = add %v_16, @image$base: Ptr
-    call_complex %v_17, %v_6
-    jmp b_11
-  }
-
-  b_11 {
-    %e = shl %v_7, 1: I32
-    jmp b_18
-  }
-
-  b_19 {
-    %v_20 = add %v_4, 49: I32
-    %v_21 = add %v_20, %e: I32
-    %v_22 = add %v_21, 61: I32
-    %v_23 = add %v_22, %v_24: I32
-    ret %v_23
+    %e = shl %v_6, 1: I32
+    jmp b_17
   }
 
   b_18 {
-    %v_25 = phi [b_26, %v_24], [b_11, 0]: I32
-    %v_27 = phi [b_26, %v_28], [b_11, 0]: I32
-    %v_29 = sar %v_27, 31: I32
-    %v_30 = shr %v_29, 31: I32
-    %v_31 = add %v_27, %v_30: I32
-    %v_32 = and %v_31, 4294967294: I32
-    %v_33 = sub %v_27, %v_32: I32
-    %v_34 = cmp_eq %v_33, 0: I32
-    je %v_34, b_35, b_26
+    %v_19 = add %v_3, 49: I32
+    %v_20 = add %v_19, %e: I32
+    %v_21 = add %v_20, 61: I32
+    %v_22 = add %v_21, %v_23: I32
+    ret %v_22
   }
 
-  b_35 {
-    %v_36 = add %v_25, %v_27: I32
-    jmp b_26
+  b_17 {
+    %v_24 = phi [b_25, %v_23], [b_10, 0]: I32
+    %v_26 = phi [b_25, %v_27], [b_10, 0]: I32
+    %v_28 = sar %v_26, 31: I32
+    %v_29 = shr %v_28, 31: I32
+    %v_30 = add %v_26, %v_29: I32
+    %v_31 = and %v_30, 4294967294: I32
+    %v_32 = sub %v_26, %v_31: I32
+    %v_33 = cmp_eq %v_32, 0: I32
+    je %v_33, b_34, b_25
   }
 
-  b_26 {
-    %v_24 = phi [b_18, %v_25], [b_35, %v_36]: I32
-    %v_28 = add %v_27, 1: I32
-    %v_37 = cmp_ilt %v_28, 10: I32
-    je %v_37, b_18, b_19
+  b_34 {
+    %v_35 = add %v_24, %v_26: I32
+    jmp b_25
+  }
+
+  b_25 {
+    %v_23 = phi [b_17, %v_24], [b_34, %v_35]: I32
+    %v_27 = add %v_26, 1: I32
+    %v_36 = cmp_ilt %v_27, 10: I32
+    je %v_36, b_17, b_18
   }
 }
 
-ResolveTest.lambda$24<complex>(%env: Ptr, %v: I32): I32 {
+ResolveTest.lambda$24<complex>(%v: I32): I32 {
   b_0 {
     %v_1 = add %v, 1: I32
     ret %v_1

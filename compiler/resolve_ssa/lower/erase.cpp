@@ -443,6 +443,18 @@ LowerPtr<LowerFunction> Lowering::teardownFor(DeclPtr<mir::Type> type, mir::Stor
 LowerPtr<LowerFunction> Lowering::teardownHalves(DeclPtr<mir::Type> type, bool runDrop,
                                                  bool runReclaim, bool release, LocationId source,
                                                  BoxRelease boxes) {
+    /*
+     * A half the type does not owe is the same function whether it was asked for or not, and the
+     * key has to say so: the name below is built from what is *left out*, so two keys differing
+     * only in a half the type has none of named one function, and `addFunction` answers a name it
+     * already has with the function it already built - which then took a second argument and a
+     * second body. A descriptor asks `Map(I32, I32)` for no `Drop` and a drop site asks it for
+     * both, and that was the pair (J172).
+     */
+    auto owed = mir::ownershipOf(decl, type);
+    runDrop = runDrop && owed.drop != mir::TeardownKind::None;
+    runReclaim = runReclaim && owed.reclaim != mir::TeardownKind::None;
+
     // Nothing to run *and* nothing to hand back is the empty function, which is what makes a drop in
     // an erased body one indirect call rather than a load, a test and a branch.
     if(!runDrop && !runReclaim && !release) return emptyTeardown();
@@ -476,6 +488,7 @@ LowerPtr<LowerFunction> Lowering::teardownHalves(DeclPtr<mir::Type> type, bool r
     if(boxes == BoxRelease::Foreign) text = text + String(" boxes kept");
 
     auto function = to.addFunction(erasedName(text + String(")")));
+    function->teardown = true;
 
     auto argument = function->addArg(lower, StringId(), LowerType::Pointer);
     auto handle = function - lower;

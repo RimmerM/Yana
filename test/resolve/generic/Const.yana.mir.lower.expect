@@ -3,7 +3,7 @@
 @image$base = []
 @witness(Sized(Buf(n).units(16))) = [0, 0, 0, 0] {slot 0: thunk(Buf(n).units(16))}
 
-wideCapacity<complex>(%v_0: Ptr, %b: Ptr, %t: Ptr): I64 {
+wideCapacity<complex>(%v_0: Ptr): I64 {
   b_1 {
     %v_2 = add %v_0, 4: Ptr
     %v_3 = load %v_2, 8: I64
@@ -13,26 +13,22 @@ wideCapacity<complex>(%v_0: Ptr, %b: Ptr, %t: Ptr): I64 {
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, 1, 4
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, 0, 4
-    %v_3 = call_complex wideCapacity, @environment(wideCapacity(4, Buf(16))), %v_1, %v_2: I64
-    %v_4 = cmp_neq %v_3, 4: I32
-    je %v_4, b_5, b_6
+    %v_1 = call_complex wideCapacity, @environment(wideCapacity(4, Buf(16))): I64
+    %v_2 = cmp_neq %v_1, 4: I32
+    je %v_2, b_3, b_4
   }
 
-  b_6 {
+  b_4 {
     ret 88
   }
 
-  b_5 {
+  b_3 {
     ret 18446744073709551615
   }
 }
 
-Buf(n).units(16)<complex>(%v_0: I32): I32 {
-  b_1 {
+Buf(n).units(16)<complex>(): I32 {
+  b_0 {
     ret 16
   }
 }
@@ -45,9 +41,8 @@ teardown()<complex>(%v_0: Ptr) {
 
 thunk(Buf(n).units(16))<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
   b_2 {
-    %v_3 = load %v_1, 4: I32
-    %v_4 = call_complex Buf(n).units(16), %v_3: I32
-    ret %v_4
+    %v_3 = call_complex Buf(n).units(16): I32
+    ret %v_3
   }
 }
 

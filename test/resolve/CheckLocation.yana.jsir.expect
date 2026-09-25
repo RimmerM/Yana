@@ -1,31 +1,51 @@
-fn main() -> one %r0
+fn main() -> one %r1
   var $0: %r9
   block0:
-    %0: %r0 = const 7
-    %1: %r0 = const 8
-    %2: %r0 = const 9
-    %3: %r7 = host host.array %0, %1, %2
-    %4: %r8 = const 3
-    %6: %r0 = const 1
-    store global start: %r0, %6
-    jump -> block1
-  block1:
-    %12: %r7 = alias %3
-    %14: %r0 = const 1
-    %15: %r0 = load element %12[%14]: %r0
-    %5: %r9 = object %s1 %3, %4
-    %16: %r9 = alias %5
-    call Array(a).reclaim(I32) %16
-    %17: %r0 = const 8
-    %18: %r0 = binary.sub %15, %17
-    %19: %r0 = coerce %18
-    return %19
+    %1: %r1 = const 7
+    %2: %r1 = const 8
+    %3: %r1 = const 9
+    %4: %r7 = host host.array %1, %2, %3
+    %5: %r8 = const 3
+    %10: %r1 = const 8
+    %11: %r1 = const 0
+    %12: %r1 = const 1
+    jump -> block1(%11)
+  block1(%0: %r1):
+    %13: %r12 = convert %0
+    %14: %r12 = const 3
+    %15: %r0 = binary.ge %13, %14
+    branch %15 -> block5 -> block2
   block2:
+    %16: %r7 = alias %4
+    %17: %r1 = alias %0
+    %18: %r1 = coerce %17
+    %19: %r1 = load element %16[%18]: %r1
+    %20: %r0 = binary.lt %19, %10
+    branch %20 -> block4 -> block3
+  block3:
+    jump -> block6
+  block4:
+    %31: %r1 = binary.add %0, %12
+    %32: %r1 = coerce %31
+    jump -> block1(%32)
+  block5:
+    call checkFailed
+    unreachable
+  block6:
+    %26: %r1 = alias %19
+    %6: %r9 = object %s1 %4, %5
+    %27: %r9 = alias %6
+    call Array(a).reclaim(I32) %27
+    %28: %r1 = const 8
+    %29: %r1 = binary.sub %26, %28
+    %30: %r1 = coerce %29
+    return %30
+  block7:
     call checkFailed
     unreachable
 
-fn I32.show(one %r0, parts %r5) -> omitted
-  block0(%0: %r0, %1: %r3, %2: %r3):
+fn I32.show(one %r1, parts %r5) -> omitted
+  block0(%0: %r1, %1: %r3, %2: %r3):
     %3: %r2 = host host.global "String" %0
     %4: %r2 = load element %1[%2]: %r2
     %5: %r2 = alias %4
@@ -41,19 +61,19 @@ fn checkFailed() -> omitted
     host host.throw "yana: a runtime check failed"
     return
 
-fn checkFailedAt(one %r2, one %r0, one %r0) -> omitted
-  block0(%0: %r2, %1: %r0, %2: %r0):
+fn checkFailedAt(one %r2, one %r1, one %r1) -> omitted
+  block0(%0: %r2, %1: %r1, %2: %r1):
     %3: %r2 = const ""
-    %5: %r1 = load global reporting: %r1
+    %5: %r0 = load global reporting: %r0
     branch %5 -> block2 -> block1
   block1:
-    %6: %r1 = const 1
-    store global reporting: %r1, %6
+    %6: %r0 = const 1
+    store global reporting: %r0, %6
     %7: %r2 = alias %0
     %8: %r2 = alias %7
     %9: %r2 = alias %8
     %10: %r2 = alias %9
-    %11: %r0 = host host.field "length" host-range %10
+    %11: %r1 = host host.field "length" host-range %10
     %17: %r2 = const ""
     %4: %r13 = object %s3 %3
     store property %4.$v: %r2, %17
@@ -114,109 +134,31 @@ fn checkFailedAt(one %r2, one %r0, one %r0) -> omitted
     host host.throw "yana: a runtime check failed"
     jump -> block1
 
-fn checkConditionAt(one %r1, one %r2, one %r0, one %r0) -> omitted
-  block0(%0: %r1, %1: %r2, %2: %r0, %3: %r0):
-    branch %0 -> block2 -> block1
-  block1:
-    return
-  block2:
-    %5: %r2 = const ""
-    %7: %r1 = load global reporting: %r1
-    branch %7 -> block3 -> block4
-  block3:
-    host host.throw "yana: a runtime check failed"
-    jump -> block4
-  block4:
-    %8: %r1 = const 1
-    store global reporting: %r1, %8
-    %4: %r2 = alias %1
-    %9: %r2 = alias %4
-    %10: %r2 = alias %9
-    %11: %r2 = alias %10
-    %12: %r2 = alias %11
-    %13: %r0 = host host.field "length" host-range %12
-    %19: %r2 = const ""
-    %6: %r13 = object %s3 %5
-    store property %6.$v: %r2, %19
-    %20: %r2 = const "check failed at "
-    %21: %r2 = load property %6.$v: %r2
-    %22: %r2 = alias %21
-    %23: %r2 = alias %20
-    %24: %r2 = alias %22
-    %25: %r2 = alias %23
-    %26: %r2 = host host.binary "+" %24, %25
-    store property %6.$v: %r2, %26
-    %27: %r2 = alias %4
-    %28: %r2 = alias %27
-    %29: %r2 = load property %6.$v: %r2
-    %30: %r2 = alias %29
-    %31: %r2 = alias %28
-    %32: %r2 = alias %30
-    %33: %r2 = alias %31
-    %34: %r2 = host host.binary "+" %32, %33
-    store property %6.$v: %r2, %34
-    %35: %r2 = const ":"
-    %36: %r2 = load property %6.$v: %r2
-    %37: %r2 = alias %36
-    %38: %r2 = alias %35
-    %39: %r2 = alias %37
-    %40: %r2 = alias %38
-    %41: %r2 = host host.binary "+" %39, %40
-    store property %6.$v: %r2, %41
-    %42: %r3 = const "$v"
-    call I32.show %2, %6, %42
-    %43: %r2 = const ":"
-    %44: %r2 = load property %6.$v: %r2
-    %45: %r2 = alias %44
-    %46: %r2 = alias %43
-    %47: %r2 = alias %45
-    %48: %r2 = alias %46
-    %49: %r2 = host host.binary "+" %47, %48
-    store property %6.$v: %r2, %49
-    %50: %r3 = const "$v"
-    call I32.show %3, %6, %50
-    %51: %r2 = const "
-"
-    %52: %r2 = load property %6.$v: %r2
-    %53: %r2 = alias %52
-    %54: %r2 = alias %51
-    %55: %r2 = alias %53
-    %56: %r2 = alias %54
-    %57: %r2 = host host.binary "+" %55, %56
-    store property %6.$v: %r2, %57
-    %58: %r2 = load property %6.$v: %r2
-    %59: %r2 = alias %58
-    %60: %r2 = alias %59
-    %61: %r2 = alias %60
-    host host.global "console.log" %61
-    host host.throw "yana: a runtime check failed"
-    jump -> block1
-
 fn Array(a).reclaim(I32)(one %r9) -> omitted
   var $0: %r9
   block0(%0: %r9):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 18 adopted 0 sunk 3 numbered 0 decided 1 unboxed 0 updated 0 split 0 promoted 1 folded 5
+optimizer clones 0 aliased 0 forwarded 0 removed 15 adopted 0 sunk 2 numbered 4 decided 1 unboxed 0 updated 0 split 0 promoted 1 folded 2
 
 shape %s0 ref {$o: %r3 owner, $k: %r3 key}
 shape %s1 object Array {items: %r7, length: %r8}
-shape %s2 object ArrayView {items: %r7, length: %r0, offset: %r0}
+shape %s2 object ArrayView {items: %r7, length: %r1, offset: %r1}
 shape %s3 cell {$v: %r2 box}
 
-rep %r0 = number signed 32
-rep %r1 = number bool
+rep %r0 = number bool
+rep %r1 = number signed 32
 rep %r2 = string
 rep %r3 = erased
 rep %r4 = cell of %r2
 rep %r5 = parts (%r3, %r3) as %r4
 rep %r6 = void
-rep %r7 = array Int32Array of %r0
+rep %r7 = array Int32Array of %r1
 rep %r8 = number unsigned 30
 rep %r9 = object %s1
 rep %r10 = object %s2
-rep %r11 = parts (%r7, %r0, %r0) as %r10
+rep %r11 = parts (%r7, %r1, %r1) as %r10
 rep %r12 = number unsigned 32
 rep %r13 = object %s3
 rep %r14 = number unsigned 8
-rep %r15 = nullable of %r0
+rep %r15 = nullable of %r1

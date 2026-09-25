@@ -1,29 +1,15 @@
 
-Guard.drop<complex>(%v_0: I32) {
-  b_1 {
+Guard.drop<complex>() {
+  b_0 {
     ret 
   }
 }
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 24, 8: Ptr
-    store %v_1, 1, 8
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 2, 8
-    %v_3 = add %v_1, 16: Ptr
-    store %v_3, 3, 8
-    %v_4 = imm 12: I32
-    call_complex Guard.drop, %v_4
-    store %v_1, 3, 8
-    %v_5 = loads %v_1, 8: I64
-    %v_6 = sext %v_5: I32
-    %v_7 = add %v_4, %v_6: I32
-    %v_8 = imm 15: I32
-    call_complex Guard.drop, %v_8
-    %v_9 = add %v_7, %v_8: I32
-    %v_10 = add %v_9, 122: I32
-    ret %v_10
+    call_complex Guard.drop
+    call_complex Guard.drop
+    ret 152
   }
 }
 

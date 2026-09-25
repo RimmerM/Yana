@@ -34,3 +34,10 @@
  */
 void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& fun,
                            LowerPtr<LowerValue> returnPlace, bool optimize);
+
+/*
+ * The pass that needs every function's pipeline to have run first, because it rewrites a callee and
+ * its callers together - lower_params.h. Called once per module by each producer, behind the last
+ * `optimizeLowerFunction`, and gated the same way.
+ */
+void optimizeLowerModule(LowerBase base, LowerModule& module, bool optimize);

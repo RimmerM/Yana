@@ -925,8 +925,16 @@ struct Forwarder {
         auto result = opt.base[inst.results.get(opt.base, 0)];
         auto address = opt.base[load.address.value()];
 
+        /*
+         * An entry with a **stale** field is an aggregate that no longer describes the whole of the
+         * storage - a later store replaced one field of it - so it answers a read of another field
+         * (`aggregateComponent`) and never a read of the whole. The conversion never read a whole
+         * record out of storage with a trivial load, it copied, so nothing reached this with one
+         * until `aliasBorrowedCopies` made the copy a load, and then `let &b = Big {..}; b.depth =
+         * Basic; show(b)` handed `show` the literal (J168).
+         */
         auto entry = entryFor(address);
-        if(!entry || !entry->value || !isForwardable(*result, *entry->value)) {
+        if(!entry || !entry->value || entry->stale || !isForwardable(*result, *entry->value)) {
             if(tryAggregateForward(inst)) return true;
             return tryConstantForward(inst);
         }
@@ -1072,8 +1080,10 @@ struct Forwarder {
 
         if(value->convention != Convention::Trivial) return false;
 
+        // Not over a stale field, for `tryForward`'s reason: the storage holds the aggregate with
+        // one field replaced, and storing the aggregate again is what puts that field back.
         auto entry = entryFor(address);
-        if(!entry || entry->value != value) return false;
+        if(!entry || entry->value != value || entry->stale) return false;
 
         opt.ir().eraseInst(inst);
         return true;
@@ -1678,6 +1688,35 @@ namespace {
  */
 constexpr Size kNameLimit = 64;
 
+/*
+ * Whether every argument `user` hands `value` to is a borrow at a shared, call-bounded position of a
+ * direct call - the reader condition of `aliasBorrowedCopies` and `tryElideCopy`, for one reader.
+ * Call-bounded as well as shared: a position that publishes an origin hands back a loan rooted in the
+ * argument, and over an alias a later write to the source would show through it.
+ */
+bool borrowsOnly(OptContext& opt, Inst& user, Value& value) {
+    if(user.kind != Inst::Call) return false;
+
+    auto& call = (InstCall&)user;
+    if(call.through != mir::CallThrough::Declaration) return false;
+    auto function = opt.decl[call.callee];
+
+    for(Size a = 0; a < call.arguments.size(); a++) {
+        auto used = call.arguments.get(opt.base, a);
+        if(!used.isSet() || opt.base[used.value()] != &value) continue;
+        if(used.kind() != UseKind::Borrow || a >= function->args.size()) return false;
+
+        auto& parameter = *opt.decl[function->args.get(opt.decl, a)];
+        auto contract = parameter.occurrence.contract;
+        if(parameter.lazy || contract.isOwned() || contract.access() != mir::Access::Shared ||
+           contract.origin() != mir::Origin::CallBounded) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 struct MoveElider {
     OptContext& opt;
     const Dominators& dominators;
@@ -1865,6 +1904,169 @@ struct MoveElider {
         return true;
     }
 
+    /*
+     * Whether the second slot is still live where the first is touched - a walk forward from the
+     * touch that stops at the store (the one write that starts the second slot's life) and succeeds
+     * at any other touch of the second slot. A block entered from its top is scanned once; the
+     * touch's own block is scanned from just below the touch and, if control comes back round to it,
+     * again from its top.
+     */
+    bool liveAt(Inst& touch, Inst& store, const IndexSet& intoTouches) {
+        auto touchedInto = [&](SsaPtr<Inst> pointer) {
+            return intoTouches[opt.base[pointer]->id.index];
+        };
+
+        auto& first = *opt.base[touch.block];
+        auto from = SsaPtr<Inst>(&touch - opt.base);
+        auto until = SsaPtr<Inst>(&store - opt.base);
+        auto below = false;
+
+        for(Size i = 0; i < first.instructionCount(); i++) {
+            auto at = first.instructionAt(opt.base, i);
+            if(at == from) { below = true; continue; }
+            if(!below) continue;
+            if(at == until) return false;
+            if(touchedInto(at)) return true;
+        }
+
+        ScratchSet seen(opt.sets, opt.body->blocks.size());
+        SmallArray<U32, 32> queue;
+
+        auto enqueue = [&](U32 target) {
+            if(seen->operator [] (target)) return;
+            seen->set(target, true);
+            queue.push(target);
+        };
+
+        forEachSuccessor(opt.base, first, enqueue);
+
+        while(queue.size()) {
+            auto block = opt.body->block(opt.base, BlockId(queue.pop().unwrap()));
+            if(block->deleted) continue;
+
+            auto stopped = false;
+            for(Size i = 0; i < block->instructionCount() && !stopped; i++) {
+                auto at = block->instructionAt(opt.base, i);
+                if(at == until) stopped = true;
+                else if(touchedInto(at)) return true;
+            }
+
+            if(!stopped) forEachSuccessor(opt.base, *block, enqueue);
+        }
+
+        return false;
+    }
+
+    /*
+     * The same merge for a **duplicate** - `%v = copy %a` whose one use is `store %b, %v` - J168.
+     *
+     * `let token = step(lx, command)` over an inlined `nextToken`: the callee's slot is filled a field
+     * at a time by `readToken(&token)`, and `return token` copies it into the caller's local - a
+     * 61-byte block copy whose loads the store buffer cannot serve out of the narrow stores just in
+     * front of them, which is where `test/bench/lexer`'s `hand` driver loop spent most of its time.
+     * The two slots hold one value one after the other, as a move's do.
+     *
+     * What changes against a move is the first slot's life: a copy leaves it holding the value, and
+     * a loop fills it again on the next iteration - reachable from the store, so `tryElide`'s second
+     * test refuses it. What has to hold is narrower and is a liveness question: **the second slot is
+     * dead wherever the first is touched** (`liveAt`), and nothing between the copy and the store
+     * touches the first. Then a write to the first cannot reach a read of the second, and neither
+     * slot's contents can be told apart from the merged one's. The second is also written by nothing
+     * but the store - a `let` - so the merge writes nothing into the first that the program did not
+     * write into it already.
+     */
+    bool tryElideCopy(Inst& store) {
+        auto& written = (InstStore&)store;
+        if(written.isVolatile) return false;
+
+        auto copied = opt.base[written.value.value()];
+        if(copied->convention != Convention::Trivial || !copied->definer) return false;
+
+        auto copy = opt.base[copied->definer];
+        if(copy->kind != Inst::Copy || copy->block != store.block) return false;
+
+        auto from = allocationOf(((InstCopy*)copy)->address.value());
+        auto into = allocationOf(written.address.value());
+        if(!from || !into || from == into) return false;
+
+        auto& source = (InstAlloc&)*opt.base[from->definer];
+        auto& target = (InstAlloc&)*opt.base[into->definer];
+        if(source.storage != target.storage) return false;
+        if(!source.held.sameManifestation(target.held)) return false;
+
+        auto& contained = containedOf(opt);
+        if(!contained[from] || !contained[into]) return false;
+
+        // Every touch of the second slot but the store is below it and writes nothing.
+        IndexSet intoTouches;
+        intoTouches.reset(opt.body->insts.size());
+        auto fine = true;
+        if(!eachTouch(*into, [&](Inst& use, SsaPtr<Inst>) {
+            intoTouches.set(use.id.index, true);
+            if(&use == &store) return;
+            if(!use.block || !afterStore(store, use)) fine = false;
+            else if(mayWriteStorage(opt, contained, use, *into)) fine = false;
+        })) {
+            return false;
+        }
+
+        if(!fine) return false;
+
+        /*
+         * The duplicate's other readers, where the forwarder has already answered a read of the
+         * second slot with it: each has to be one `aliasBorrowedCopies` would accept - a borrow at a
+         * shared, call-bounded position of a direct call - and below the store, and each is a read
+         * of the second slot for the liveness question, since after the merge it reads the slot.
+         */
+        for(auto userPointer: copied->uses(opt.base)) {
+            auto& user = *opt.base[userPointer];
+            if(&user == &store) continue;
+            if(!borrowsOnly(opt, user, *copied) || !user.block || !afterStore(store, user)) return false;
+            intoTouches.set(user.id.index, true);
+        }
+
+        // Nothing touches the first slot between the copy and the store, and the second is dead at
+        // every other touch of it.
+        auto& block = *opt.base[store.block];
+        auto copyAt = SsaPtr<Inst>(copy - opt.base);
+        auto storeAt = SsaPtr<Inst>(&store - opt.base);
+
+        if(!eachTouch(*from, [&](Inst& use, SsaPtr<Inst> pointer) {
+            if(!fine || &use == copy) return;
+            if(!use.block) { fine = false; return; }
+
+            if(use.block == store.block && after(block, copyAt, pointer) && !after(block, storeAt, pointer)) {
+                fine = false;
+                return;
+            }
+
+            if(liveAt(use, store, intoTouches)) fine = false;
+        })) {
+            return false;
+        }
+
+        if(!fine) return false;
+
+        auto editor = opt.ir();
+
+        // Those readers read the merged slot - the rewrite `aliasBorrowedCopies` makes.
+        if(copied->useCount() > 1) {
+            editor.setBlock(block);
+            editor.setInsertBefore(*copy);
+
+            auto load = editor.addLoad(copy->source,
+                                       ((InstCopy*)copy)->address.withKind(UseKind::Inspect),
+                                       copied->occurrence, Convention::Trivial);
+            editor.replaceAllUses(*copied, *editor.resultOf(*load));
+        }
+
+        editor.replaceAllUses(*into, *from);
+        editor.eraseInst(store);
+        editor.eraseInst(*copy);
+        editor.eraseInst(*opt.base[into->definer]);
+        return true;
+    }
+
     void run() {
         for(auto blockPointer: opt.body->blocks.contents(opt.base)) {
             auto block = opt.base[blockPointer];
@@ -1877,7 +2079,11 @@ struct MoveElider {
         }
 
         for(auto store: stores) {
-            if(store->block) tryElide(*store);
+            if(!store->block || tryElide(*store)) continue;
+
+            // Native only, for `aliasBorrowedCopies`' reason: a record on JavaScript is an object
+            // and `js/opt_alias.cpp` decides what a duplicate of one may share (J72).
+            if(!isJsMode(opt.context.settings)) tryElideCopy(*store);
         }
     }
 };
@@ -1887,6 +2093,170 @@ struct MoveElider {
 void elideMoves(OptContext& opt) {
     MoveElider elider { opt, dominatorsOf(opt) };
     elider.run();
+}
+
+/*
+ * How many scalars a value of this type is made of - the fields of a record, its nested records'
+ * fields and a fixed array's elements, each counted once. The target-independent stand-in for a size
+ * this tier does not have (`manifestNative` is one tier down), and the question it answers is the
+ * convention's: past `kAliasLeaves` a record crosses a join and, in practice, a call as its address
+ * rather than as its cells.
+ */
+static U32 scalarLeaves(OptContext& opt, DeclPtr<mir::Type> type, U32 depth = 0) {
+    constexpr U32 kMany = 1u << 16;
+    if(!type || depth > 6) return kMany;
+
+    auto declared = opt.decl[type];
+
+    if(declared->kind == mir::Type::Record) {
+        auto& record = *(mir::RecordType*)declared;
+        U32 total = 0;
+
+        for(auto field: record.fields.contents(opt.decl)) {
+            total += scalarLeaves(opt, field.occurrence.type, depth + 1);
+            if(total >= kMany) return kMany;
+        }
+
+        return total ? total : 1;
+    }
+
+    if(declared->kind == mir::Type::Array) {
+        auto& array = *(mir::ArrayType*)declared;
+        if(!array.hasFixedLength()) return 1;
+
+        auto each = scalarLeaves(opt, array.element, depth + 1);
+        return array.length >= kMany || each * array.length >= kMany ? kMany : U32(each * array.length);
+    }
+
+    return 1;
+}
+
+/*
+ * The smallest record this aliases. Below it the copy is a handful of cells that `promote`, the
+ * forwarder and the lowering's slot passes take apart anyway, and pointing a callee at the source
+ * is what would keep the *source* in memory instead: `Contain.Call.yana`'s two-flag record lost its
+ * folded field reads to it, and `ownership/PropertyWholePacked.yana`'s packed `Box` its promotion.
+ */
+constexpr U32 kAliasLeaves = 8;
+
+/*
+ * A trivial copy that only a borrow reads, made a read of the storage it was copied from - J168.
+ *
+ * `advance(d, token)` over a `let token` of a trivially copyable record reads `token` with
+ * `copy.trivial` (`readMode`), because a copy is what satisfies a shared position for such a type,
+ * and the copy is an `InstCopy` because the record lives in storage: handing the callee the caller's
+ * own record where a copy was meant is the miscompile `InstCopy` exists to prevent. Where the source
+ * is a small slot `promote` takes the copy back; where it is not - the lexer's 61-byte `Token`, whose
+ * slot `readToken` fills through `&token` - it was a second slot and every word of the record moved
+ * into it on every call, and `test/bench/lexer`'s driver loops spent 3-5% of their cycles on it.
+ *
+ * The duplicate and the source are the same program exactly when nothing can tell them apart, and
+ * that is three conditions, with one more that is about cost:
+ *
+ *  - **every reader is a borrow at a shared, call-bounded position of a direct call** - so no reader
+ *    keeps the value, stores it, returns it, projects into it, hands it to a callee that may write
+ *    it or gets back a loan rooted in it. A `borrow` at a position the callee's own declaration says
+ *    is `shared` is read-only by the language, and the only one of these whose declaration this can
+ *    read is a direct call;
+ *  - **every reader is in the copy's block and below it**, so "between the copy and its last use" is
+ *    a stretch of one block, which is what makes the next condition a walk rather than an analysis;
+ *  - **the record is more than `kAliasLeaves` scalars**, the stand-in for "large" this tier has -
+ *    below it the copy costs nothing the slot passes do not take back, and an alias would pin the
+ *    source in memory instead;
+ *  - **nothing in that stretch may write the source's allocation** - `mayWriteStorage`, over a
+ *    `Contained` allocation, the readers themselves included. What it catches at a reader is
+ *    `f(p, &p)`: the second argument is a name of `p`'s slot at a position the callee writes, and
+ *    over a copy the first argument would not see that write.
+ *
+ * **A rewrite into a load, which every pass below then sees.** A `load` of the same storage is a
+ * copy the lowering never makes - a value that lives in storage is its address (`lower/inst.cpp`'s
+ * `Load`), so every reader is handed the slot itself - and, unlike a copy, one `promote` and
+ * `forwardMemory` can take away entirely where the slot has nothing else keeping it in memory. Both
+ * alternatives were built and measured on `test/bench/lexer` (J168): marking the copy for the
+ * lowering to skip, set on a body in its final shape, left every slot that promotion would have
+ * taken apart in memory instead, and on the iterator variants it moved a block copy of the item
+ * onto the path in front of the call, which a word-at-a-time store in front of it could not forward
+ * - 7% slower than not aliasing at all, where this is 4% faster. The first build of this rewrite
+ * also found that `forwardMemory` answered a whole-record load with an aggregate one of whose fields
+ * had been written since (`Known::stale`, now asked), since nothing had ever read a record whole.
+ *
+ * Native only. On JavaScript the same copy is a `clone` that `js/opt_alias.cpp` already turns into
+ * an alias on that target's own terms (J72), and a record there is an object rather than bytes.
+ */
+void aliasBorrowedCopies(OptContext& opt) {
+    if(isJsMode(opt.context.settings)) return;
+
+    auto& contained = containedOf(opt);
+    SmallArray<Inst*, 16> copies;
+
+    for(auto blockPointer: opt.body->blocks.contents(opt.base)) {
+        auto block = opt.base[blockPointer];
+        if(block->deleted) continue;
+
+        for(auto pointer: block->instructions(opt.base)) {
+            auto inst = opt.base[pointer];
+            if(inst->kind == Inst::Copy) copies.push(inst);
+        }
+    }
+
+    for(auto inst: copies) {
+        auto& copy = (InstCopy&)*inst;
+        if(!copy.block || !copy.results.size()) continue;
+
+        auto result = opt.base[copy.results.get(opt.base, 0)];
+        if(result->convention != Convention::Trivial || !result->useCount()) continue;
+        if(scalarLeaves(opt, result->occurrence.type) <= kAliasLeaves) continue;
+
+        auto allocation = allocationRoot(opt, opt.base[copy.address.value()]);
+        if(!allocation || !contained[allocation]) continue;
+
+        auto& block = *opt.base[copy.block];
+        auto count = block.instructionCount();
+
+        // The copy's position, and then the last reader's - every reader has to be found below it.
+        Size at = count;
+        for(Size i = 0; i < count; i++) {
+            if(opt.base[block.instructionAt(opt.base, i)] == inst) { at = i; break; }
+        }
+        if(at == count) continue;
+
+        auto readers = result->useCount();
+        Size found = 0;
+        auto safe = true;
+
+        for(Size i = at + 1; i < count && found < readers && safe; i++) {
+            auto& user = *opt.base[block.instructionAt(opt.base, i)];
+
+            if(user.kind == Inst::Call) {
+                auto& call = (InstCall&)user;
+                auto named = false;
+
+                for(Size a = 0; a < call.arguments.size(); a++) {
+                    auto used = call.arguments.get(opt.base, a);
+                    if(!used.isSet() || opt.base[used.value()] != result) continue;
+                    found++;
+                    named = true;
+                }
+
+                if(named && !borrowsOnly(opt, user, *result)) safe = false;
+            }
+
+            if(safe && mayWriteStorage(opt, contained, user, *allocation)) safe = false;
+        }
+
+        // A reader somewhere else - another block, or an instruction of a kind other than a call.
+        if(!safe || found != readers) continue;
+
+        auto editor = opt.ir();
+        editor.setBlock(block);
+        editor.setInsertBefore(copy);
+
+        auto load = editor.addLoad(copy.source, copy.address.withKind(UseKind::Inspect),
+                                   result->occurrence, Convention::Trivial);
+
+        editor.replaceAllUses(*result, *editor.resultOf(*load));
+        editor.eraseInst(copy);
+    }
 }
 
 } // namespace ssa

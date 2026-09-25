@@ -861,99 +861,91 @@ resize(CodeUnit)<complex>(%self: Ptr, %wanted: I64): I32 {
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = bitcast 0: Ptr
-    %v_2 = imm 1: I32
-    store @log, %v_2, 4
-    %v_3 = call_complex ResolveTest.continuation$23, %v_1, %v_2: I32
-    %v_4 = loads @log, 4: I32
-    %v_5 = add %v_4, 10: I32
-    %v_6 = add %v_3, %v_5: I32
-    %v_7 = bitcast 0: Ptr
+    %v_1 = imm 1: I32
+    store @log, %v_1, 4
+    %v_2 = call_complex ResolveTest.continuation$23, %v_1: I32
+    %v_3 = loads @log, 4: I32
+    %v_4 = add %v_3, 10: I32
+    %v_5 = add %v_2, %v_4: I32
     store @log, 6, 4
-    %v_8 = call_complex ResolveTest.continuation$24, %v_7: I32
-    %v_9 = loads @log, 4: I32
-    %v_10 = add %v_9, 100: I32
-    store @log, %v_10, 4
-    %v_11 = bitcast 0: Ptr
-    %v_12 = call_complex ResolveTest.continuation$25, %v_11, 10: I32
-    %v_13 = bitcast 0: Ptr
-    %v_14 = alloca 8, 4: Ptr
-    store %v_14, 7, 4
-    %v_15 = add %v_14, 4: Ptr
-    store %v_15, 3, 4
-    %v_16 = call_complex ResolveTest.continuation$26, %v_13, %v_14: I32
-    %v_17 = bitcast 0: Ptr
-    %v_18 = call_complex ResolveTest.continuation$29, %v_17, 6: I32
-    %v_19 = bitcast 0: Ptr
-    %v_20 = loads @log, 4: I32
-    %v_21 = add %v_20, 1: I32
-    store @log, %v_21, 4
-    %v_22 = call_complex ResolveTest.continuation$27, %v_19, 4: I32
-    %v_23 = bitcast 0: Ptr
-    %v_24 = call_complex ResolveTest.continuation$30, %v_23, 5: I32
-    %v_25 = bitcast 0: Ptr
-    %v_26 = imm 1: I32
-    store @log, %v_26, 4
-    %v_27 = call_complex ResolveTest.continuation$31, %v_25, %v_26: I32
+    %v_6 = call_complex ResolveTest.continuation$24: I32
+    %v_7 = loads @log, 4: I32
+    %v_8 = add %v_7, 100: I32
+    store @log, %v_8, 4
+    %v_9 = call_complex ResolveTest.continuation$25, 10: I32
+    %v_10 = alloca 8, 4: Ptr
+    store %v_10, 7, 4
+    %v_11 = add %v_10, 4: Ptr
+    store %v_11, 3, 4
+    %v_12 = call_complex ResolveTest.continuation$26, %v_10: I32
+    %v_13 = call_complex ResolveTest.continuation$29, 6: I32
+    %v_14 = loads @log, 4: I32
+    %v_15 = add %v_14, 1: I32
+    store @log, %v_15, 4
+    %v_16 = call_complex ResolveTest.continuation$27, 4: I32
+    %v_17 = call_complex ResolveTest.continuation$30, 5: I32
+    %v_18 = imm 1: I32
+    store @log, %v_18, 4
+    %v_19 = call_complex ResolveTest.continuation$31, %v_18: I32
     store @log, 0, 4
-    jmp b_28
+    jmp b_20
   }
 
-  b_29 {
-    %v_30 = cmp_ilt %v_31, 3: I32
-    je %v_30, b_28, b_32
+  b_21 {
+    %v_22 = cmp_ilt %v_23, 3: I32
+    je %v_22, b_20, b_24
   }
 
-  b_32 {
+  b_24 {
     %ResolveTest.literal$1 = global @ResolveTest.literal$1: Ptr
-    %v_33 = alloca 16, 8: Ptr
-    copy %v_33, @ResolveTest.literal$3, 16
-    %v_34 = call_complex Eq(String).==, %ResolveTest.literal$1, %v_33: I32
-    %v_35 = select %v_34, 5, 0: I32
+    %v_25 = alloca 16, 8: Ptr
+    copy %v_25, @ResolveTest.literal$3, 16
+    %v_26 = call_complex Eq(String).==, %ResolveTest.literal$1, %v_25: I32
+    %v_27 = select %v_26, 5, 0: I32
     call_complex Reclaim(String).reclaim, %ResolveTest.literal$1
     %text = alloca 16, 8: Ptr
     copy %text, @ResolveTest.literal$5, 16
-    %v_36 = alloca 16, 8: Ptr
-    copy %v_36, @ResolveTest.literal$7, 16
-    call_complex ++=(String), %text, %v_36
-    %v_37 = alloca 16, 8: Ptr
-    copy %v_37, @ResolveTest.literal$9, 16
-    %v_38 = call_complex Eq(String).==, %text, %v_37: I32
-    %v_39 = select %v_38, 5, 0: I32
+    %v_28 = alloca 16, 8: Ptr
+    copy %v_28, @ResolveTest.literal$7, 16
+    call_complex ++=(String), %text, %v_28
+    %v_29 = alloca 16, 8: Ptr
+    copy %v_29, @ResolveTest.literal$9, 16
+    %v_30 = call_complex Eq(String).==, %text, %v_29: I32
+    %v_31 = select %v_30, 5, 0: I32
     call_complex Reclaim(String).reclaim, %text
-    %v_40 = add %v_6, %v_8: I32
-    %v_41 = add %v_40, %v_12: I32
-    %v_42 = add %v_41, %v_16: I32
-    %v_43 = add %v_42, %v_18: I32
-    %v_44 = add %v_43, %v_24: I32
-    %v_45 = add %v_44, %v_27: I32
-    %v_46 = add %v_45, %v_47: I32
-    %v_48 = add %v_46, %v_22: I32
-    %v_49 = add %v_48, %v_35: I32
-    %v_50 = add %v_49, %v_39: I32
-    ret %v_50
+    %v_32 = add %v_5, %v_6: I32
+    %v_33 = add %v_32, %v_9: I32
+    %v_34 = add %v_33, %v_12: I32
+    %v_35 = add %v_34, %v_13: I32
+    %v_36 = add %v_35, %v_17: I32
+    %v_37 = add %v_36, %v_19: I32
+    %v_38 = add %v_37, %v_39: I32
+    %v_40 = add %v_38, %v_16: I32
+    %v_41 = add %v_40, %v_27: I32
+    %v_42 = add %v_41, %v_31: I32
+    ret %v_42
   }
 
-  b_28 {
-    %v_51 = phi [b_29, %v_31], [b_0, 0]: I32
-    %v_52 = phi [b_29, %v_47], [b_0, 0]: I32
-    %v_31 = add %v_51, 1: I32
-    %v_53 = loads @log, 4: I32
-    %v_54 = add %v_53, 1: I32
-    %v_47 = add %v_52, %v_54: I32
-    %v_55 = add %v_53, 11: I32
-    store @log, %v_55, 4
-    jmp b_29
+  b_20 {
+    %v_43 = phi [b_21, %v_23], [b_0, 0]: I32
+    %v_44 = phi [b_21, %v_39], [b_0, 0]: I32
+    %v_23 = add %v_43, 1: I32
+    %v_45 = loads @log, 4: I32
+    %v_46 = add %v_45, 1: I32
+    %v_39 = add %v_44, %v_46: I32
+    %v_47 = add %v_45, 11: I32
+    store @log, %v_47, 4
+    jmp b_21
   }
 }
 
-ResolveTest.continuation$23<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$23<complex>(%value$: I32): I32 {
   b_0 {
     ret %value$
   }
 }
 
-ResolveTest.continuation$24<complex>(%env: Ptr): I32 {
+ResolveTest.continuation$24<complex>(): I32 {
   b_0 {
     %v_1 = loads @log, 4: I32
     %v_2 = add %v_1, 1: I32
@@ -962,14 +954,14 @@ ResolveTest.continuation$24<complex>(%env: Ptr): I32 {
   }
 }
 
-ResolveTest.continuation$25<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$25<complex>(%value$: I32): I32 {
   b_0 {
     %v_1 = shl %value$, 1: I32
     ret %v_1
   }
 }
 
-ResolveTest.continuation$26<complex>(%env: Ptr, %value$: Ptr): I32 {
+ResolveTest.continuation$26<complex>(%value$: Ptr): I32 {
   b_0 {
     %low = loads %value$, 4: I32
     %v_1 = add %value$, 4: Ptr
@@ -980,7 +972,7 @@ ResolveTest.continuation$26<complex>(%env: Ptr, %value$: Ptr): I32 {
   }
 }
 
-ResolveTest.continuation$27<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$27<complex>(%value$: I32): I32 {
   b_0 {
     %v_1 = loads @log, 4: I32
     %v_2 = add %v_1, 1: I32
@@ -990,29 +982,28 @@ ResolveTest.continuation$27<complex>(%env: Ptr, %value$: I32): I32 {
   }
 }
 
-ResolveTest.continuation$29<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$29<complex>(%value$: I32): I32 {
   b_0 {
     ret %value$
   }
 }
 
-ResolveTest.continuation$30<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$30<complex>(%value$: I32): I32 {
   b_0 {
     %v_1 = imul %value$, 3: I32
     ret %v_1
   }
 }
 
-ResolveTest.continuation$31<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$31<complex>(%value$: I32): I32 {
   b_0 {
-    %v_1 = bitcast 0: Ptr
-    %v_2 = add %value$, 1: I32
-    %v_3 = call_complex ResolveTest.continuation$32, %v_1, %v_2: I32
-    ret %v_3
+    %v_1 = add %value$, 1: I32
+    %v_2 = call_complex ResolveTest.continuation$32, %v_1: I32
+    ret %v_2
   }
 }
 
-ResolveTest.continuation$32<complex>(%env: Ptr, %value$: I32): I32 {
+ResolveTest.continuation$32<complex>(%value$: I32): I32 {
   b_0 {
     ret %value$
   }

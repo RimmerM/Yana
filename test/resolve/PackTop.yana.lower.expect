@@ -1386,25 +1386,25 @@ resize(Signed)<complex>(%self: Ptr, %wanted: I64): I32 {
   }
 }
 
-pin1<complex>(%v: Ptr) {
+pin1<complex>() {
   b_0 {
     ret 
   }
 }
 
-pin4<complex>(%v: Ptr) {
+pin4<complex>() {
   b_0 {
     ret 
   }
 }
 
-pinGap<complex>(%v: Ptr) {
+pinGap<complex>() {
   b_0 {
     ret 
   }
 }
 
-pinSigned<complex>(%v: Ptr) {
+pinSigned<complex>() {
   b_0 {
     ret 
   }
@@ -1670,7 +1670,7 @@ main<complex>(): I64 {
   b_154 {
     %v_155 = alloca 1, 1: Ptr
     store %v_155, 255, 1
-    call_complex pin1, %v_155
+    call_complex pin1
     %v_156 = load %v_155, 1: I32
     %v_157 = shr %v_156, 6: I32
     %v_158 = cmp_neq %v_157, 3: I32
@@ -1686,7 +1686,7 @@ main<complex>(): I64 {
   b_164 {
     %v_165 = alloca 4, 4: Ptr
     store %v_165, 4294967295, 4
-    call_complex pin4, %v_165
+    call_complex pin4
     %v_166 = load %v_165, 4: I32
     %v_167 = shr %v_166, 31: I32
     je %v_167, b_168, b_169
@@ -1708,7 +1708,7 @@ main<complex>(): I64 {
     %v_180 = and %v_179, 16383: I32
     %v_181 = or %v_180, 49152: I32
     store %v_174, %v_181, 2
-    call_complex pinGap, %v_174
+    call_complex pinGap
     %v_182 = load %v_174, 2: I32
     %v_183 = shr %v_182, 10: I32
     %v_184 = and %v_183, 15: I32
@@ -1734,28 +1734,26 @@ main<complex>(): I64 {
     %v_198 = and %v_197, 6143: I32
     %v_199 = or %v_198, 16384: I32
     store %v_174, %v_199, 2
-    %v_200 = load %v_174, 2: I32
-    %v_201 = shr %v_200, 14: I32
-    %v_202 = cmp_neq %v_201, 1: I32
-    je %v_202, b_203, b_204
+    %v_200 = shr %v_199, 14: I32
+    je %v_200, b_201, b_202
   }
 
-  b_204 {
-    %v_205 = alloca 4, 4: Ptr
-    store %v_205, 2148532223, 4
-    call_complex pinSigned, %v_205
-    %v_206 = load %v_205, 4: I32
-    %v_207 = shr %v_206, 20: I32
-    %v_208 = xor %v_207, 2048: I32
-    %v_209 = cmp_neq %v_208, 0: I32
-    %v_210 = and %v_206, 1048575: I32
-    %v_211 = cmp_neq %v_210, 1048575: I32
-    %v_212 = select %v_211, 18446744073709551589, 1: I64
-    %v_213 = select %v_209, 18446744073709551590, %v_212: I64
-    ret %v_213
+  b_201 {
+    %v_203 = alloca 4, 4: Ptr
+    store %v_203, 2148532223, 4
+    call_complex pinSigned
+    %v_204 = load %v_203, 4: I32
+    %v_205 = shr %v_204, 20: I32
+    %v_206 = xor %v_205, 2048: I32
+    %v_207 = cmp_neq %v_206, 0: I32
+    %v_208 = and %v_204, 1048575: I32
+    %v_209 = cmp_neq %v_208, 1048575: I32
+    %v_210 = select %v_209, 18446744073709551589, 1: I64
+    %v_211 = select %v_207, 18446744073709551590, %v_210: I64
+    ret %v_211
   }
 
-  b_203 {
+  b_202 {
     ret 18446744073709551591
   }
 
@@ -1792,13 +1790,13 @@ main<complex>(): I64 {
   }
 
   b_139 {
-    %v_214 = phi [b_142, 18446744073709551602], [b_132, 18446744073709551603]: I64
+    %v_212 = phi [b_142, 18446744073709551602], [b_132, 18446744073709551603]: I64
     call_complex Reclaim(Array(a)).reclaim(Signed), %e
-    ret %v_214
+    ret %v_212
   }
 
   b_10 {
-    %v_215 = syscall 60, 134: I64
+    %v_213 = syscall 60, 134: I64
     unreachable 
   }
 
@@ -1807,9 +1805,9 @@ main<complex>(): I64 {
   }
 
   b_112 {
-    %v_216 = phi [b_113, 18446744073709551605], [b_103, 18446744073709551606]: I64
+    %v_214 = phi [b_113, 18446744073709551605], [b_103, 18446744073709551606]: I64
     call_complex Reclaim(Array(a)).reclaim(Gap), %d
-    ret %v_216
+    ret %v_214
   }
 
   b_85 {
@@ -1817,9 +1815,9 @@ main<complex>(): I64 {
   }
 
   b_74 {
-    %v_217 = phi [b_73, 18446744073709551608], [b_68, 18446744073709551609]: I64
+    %v_215 = phi [b_73, 18446744073709551608], [b_68, 18446744073709551609]: I64
     call_complex Reclaim(Array(a)).reclaim(B4), %c
-    ret %v_217
+    ret %v_215
   }
 
   b_57 {
@@ -1836,9 +1834,9 @@ main<complex>(): I64 {
   }
 
   b_17 {
-    %v_218 = phi [b_24, 18446744073709551613], [b_18, 18446744073709551614], [b_11, 18446744073709551615]: I64
+    %v_216 = phi [b_24, 18446744073709551613], [b_18, 18446744073709551614], [b_11, 18446744073709551615]: I64
     call_complex Reclaim(Array(a)).reclaim(B1), %a
-    ret %v_218
+    ret %v_216
   }
 }
 

@@ -71,23 +71,12 @@ bb10:
 
 bb11:
   %29: String [shared call] guaranteed from{%4} = load inspect %4
-  %30: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %29
-  %31: Size trivial = call String.length borrow %30
-  drop String inspect %4
-  %32: Bool trivial = const False
-  store inspect %5 consume %32
-  %33: I32 trivial = convert inspect %31
-  %34: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
-  %35: I32 trivial = call [value #0] inspect %34 borrow %33
-  %36: I32 trivial = const 0
-  %37: Bool trivial = eq inspect %35 inspect %36
-  store inspect %3 consume %35
-  branch inspect %37 -> bb13 -> bb14
+  jump -> bb17
 
 bb12:
   drop String inspect %4
-  %38: Bool trivial = const False
-  store inspect %5 consume %38
+  %49: Bool trivial = const False
+  store inspect %5 consume %49
   jump -> bb14
 
 bb13:
@@ -105,6 +94,33 @@ bb16:
   store inspect %5 consume %12
   %13: I32 trivial = load inspect %3
   return consume %13
+
+bb17:
+  %31: %Array(CodeUnit) address = field.addr .units inspect %29
+  %32: %Run(CodeUnit) address = field.addr .run inspect %31
+  %33: %%CodeUnit address = field.addr .items inspect %32
+  %34: %CodeUnit trivial = load inspect %33
+  %35: %Array(CodeUnit) address = field.addr .units inspect %29
+  %36: %@bits(30) U32 address = field.addr .length inspect %35
+  %37: @bits(30) U32 trivial = load inspect %36
+  %38: I32 trivial = convert inspect %37
+  %39: Size trivial = convert inspect %38
+  %40: StringView trivial = aggregate.StringView consume %34 consume %39
+  %41: String [shared slot 0 view] guaranteed = represent inspect %40
+  jump -> bb18(borrow %41)
+
+bb18(%30: String [shared slot 0 view] guaranteed from{%4}):
+  %42: Size trivial = call String.length borrow %30
+  drop String inspect %4
+  %43: Bool trivial = const False
+  store inspect %5 consume %43
+  %44: I32 trivial = convert inspect %42
+  %45: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %46: I32 trivial = call [value #0] inspect %45 borrow %44
+  %47: I32 trivial = const 0
+  %48: Bool trivial = eq inspect %46 inspect %47
+  store inspect %3 consume %46
+  branch inspect %48 -> bb13 -> bb14
 }
 
 fn main() -> I32 {

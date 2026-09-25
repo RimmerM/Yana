@@ -26,55 +26,51 @@ main<complex>(): I32 {
     %v_3 = loads @effects, 4: I32
     %v_4 = add %v_3, 2: I32
     store @effects, %v_4, 4
-    %v_5 = bitcast 0: Ptr
-    %v_6 = call_complex fallbackSkipped.thunk, %v_5: I32
-    %v_7 = cmp_eq %v_6, 7: I32
-    %v_8 = select %v_7, 511, 255: I32
-    %v_9 = add %v_8, 512: I32
-    %v_10 = bitcast 0: Ptr
-    %v_11 = call_complex main.thunk'2, %v_10: I32
-    %v_12 = cmp_eq %v_11, 7: I32
-    %v_13 = add %v_8, 1536: I32
-    %v_14 = select %v_12, %v_13, %v_9: I32
-    %v_15 = add %v_14, 2048: I32
-    %v_16 = bitcast 0: Ptr
-    %v_17 = alloca 4, 4: Ptr
-    call_complex maskRuns.thunk, %v_16, %v_17
-    %v_18 = loads %v_17, 4: I32
-    %v_19 = and 7, %v_18: I32
-    %v_20 = cmp_eq %v_19, 3: I32
-    %v_21 = add %v_15, 4096: I32
-    %v_22 = select %v_20, %v_21, %v_15: I32
-    %v_23 = add %v_22, 24576: I32
-    %v_24 = bitcast 0: Ptr
-    %v_25 = call_complex main.thunk'3, %v_24: I32
-    %v_26 = cmp_eq %v_25, 7: I32
-    %v_27 = add %v_22, 57344: I32
-    %v_28 = select %v_26, %v_27, %v_23: I32
-    %v_29 = add %v_28, 65536: I32
+    %v_5 = call_complex fallbackSkipped.thunk: I32
+    %v_6 = cmp_eq %v_5, 7: I32
+    %v_7 = select %v_6, 511, 255: I32
+    %v_8 = add %v_7, 512: I32
+    %v_9 = call_complex main.thunk'2: I32
+    %v_10 = cmp_eq %v_9, 7: I32
+    %v_11 = add %v_7, 1536: I32
+    %v_12 = select %v_10, %v_11, %v_8: I32
+    %v_13 = add %v_12, 2048: I32
+    %v_14 = alloca 4, 4: Ptr
+    call_complex maskRuns.thunk, %v_14
+    %v_15 = loads %v_14, 4: I32
+    %v_16 = and 7, %v_15: I32
+    %v_17 = cmp_eq %v_16, 3: I32
+    %v_18 = add %v_13, 4096: I32
+    %v_19 = select %v_17, %v_18, %v_13: I32
+    %v_20 = add %v_19, 24576: I32
+    %v_21 = call_complex main.thunk'3: I32
+    %v_22 = cmp_eq %v_21, 7: I32
+    %v_23 = add %v_19, 57344: I32
+    %v_24 = select %v_22, %v_23, %v_20: I32
+    %v_25 = add %v_24, 65536: I32
     store %v_1, main.thunk'5, 8
-    %v_30 = add %v_1, 8: Ptr
-    store %v_30, 0, 8
-    %v_31 = call_complex onceKept, 0, %v_1: I32
-    %v_32 = cmp_eq %v_31, 0: I32
-    %v_33 = add %v_28, 196608: I32
-    %v_34 = select %v_32, %v_33, %v_29: I32
+    %v_26 = add %v_1, 8: Ptr
+    store %v_26, 0, 8
+    %v_27 = call_complex onceKept, 0, %v_1: I32
+    %v_28 = cmp_eq %v_27, 0: I32
+    %v_29 = add %v_24, 196608: I32
+    %v_30 = select %v_28, %v_29, %v_25: I32
     store %v_2, main.thunk'6, 8
-    %v_35 = add %v_2, 8: Ptr
-    store %v_35, 0, 8
-    %v_36 = call_complex onceKept, 1, %v_2: I32
-    %v_37 = cmp_eq %v_36, 8: I32
-    %v_38 = add %v_34, 262144: I32
-    %v_39 = select %v_37, %v_38, %v_34: I32
-    %v_40 = imul %v_39, 100: I32
-    %v_41 = loads @effects, 4: I32
-    %v_42 = add %v_40, %v_41: I32
-    ret %v_42
+    %v_31 = add %v_2, 8: Ptr
+    store %v_31, 0, 8
+    %v_32 = call_complex onceKept, 1, %v_2: I32
+    %v_33 = cmp_eq %v_32, 8: I32
+    %v_34 = add %v_30, 262144: I32
+    %v_35 = select %v_33, %v_34, %v_30: I32
+    %v_36 = imul %v_35, 100: I32
+    %v_37 = loads @effects, 4: I32
+    %v_38 = add %v_36, %v_37: I32
+    ret %v_38
   }
 }
 
 @header(fallbackSkipped.thunk) = [0, 0, 0, 0]
-fallbackSkipped.thunk<complex>(%fallbackSkipped.thunk.env: Ptr): I32 {
+fallbackSkipped.thunk<complex>(): I32 {
   b_0 {
     %v_1 = loads @effects, 4: I32
     %v_2 = add %v_1, 1: I32
@@ -84,7 +80,7 @@ fallbackSkipped.thunk<complex>(%fallbackSkipped.thunk.env: Ptr): I32 {
 }
 
 @header(maskSkips.thunk) = [0, 0, 0, 0]
-maskSkips.thunk<complex>(%maskSkips.thunk.env: Ptr, %v_0: Ptr) {
+maskSkips.thunk<complex>(%v_0: Ptr) {
   b_1 {
     %v_2 = loads @effects, 4: I32
     %v_3 = add %v_2, 1: I32
@@ -95,7 +91,7 @@ maskSkips.thunk<complex>(%maskSkips.thunk.env: Ptr, %v_0: Ptr) {
 }
 
 @header(maskRuns.thunk) = [0, 0, 0, 0]
-maskRuns.thunk<complex>(%maskRuns.thunk.env: Ptr, %v_0: Ptr) {
+maskRuns.thunk<complex>(%v_0: Ptr) {
   b_1 {
     %v_2 = loads @effects, 4: I32
     %v_3 = add %v_2, 1: I32
@@ -106,7 +102,7 @@ maskRuns.thunk<complex>(%maskRuns.thunk.env: Ptr, %v_0: Ptr) {
 }
 
 @header(main.thunk) = [0, 0, 0, 0]
-main.thunk<complex>(%main.thunk.env: Ptr): I32 {
+main.thunk<complex>(): I32 {
   b_0 {
     %v_1 = loads @effects, 4: I32
     %v_2 = add %v_1, 1: I32
@@ -116,7 +112,7 @@ main.thunk<complex>(%main.thunk.env: Ptr): I32 {
 }
 
 @header(main.thunk'2) = [0, 0, 0, 0]
-main.thunk'2<complex>(%main.thunk'2.env: Ptr): I32 {
+main.thunk'2<complex>(): I32 {
   b_0 {
     %v_1 = loads @effects, 4: I32
     %v_2 = add %v_1, 1: I32
@@ -132,7 +128,7 @@ defaulted.value.default<complex>(): I32 {
 }
 
 @header(main.thunk'3) = [0, 0, 0, 0]
-main.thunk'3<complex>(%main.thunk'3.env: Ptr): I32 {
+main.thunk'3<complex>(): I32 {
   b_0 {
     %v_1 = loads @effects, 4: I32
     %v_2 = add %v_1, 1: I32
@@ -142,7 +138,7 @@ main.thunk'3<complex>(%main.thunk'3.env: Ptr): I32 {
 }
 
 @header(main.thunk'4) = [0, 0, 0, 0]
-main.thunk'4<complex>(%main.thunk'4.env: Ptr): I32 {
+main.thunk'4<complex>(): I32 {
   b_0 {
     %v_1 = loads @effects, 4: I32
     %v_2 = add %v_1, 1: I32
@@ -171,10 +167,10 @@ main.thunk'6<complex>(%main.thunk'6.env: Ptr): I32 {
   }
 }
 
-funvalue(defaulted.value.default)<complex>(%v_0: Ptr): I32 {
-  b_1 {
-    %v_2 = call_complex defaulted.value.default: I32
-    ret %v_2
+funvalue(defaulted.value.default)<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex defaulted.value.default: I32
+    ret %v_1
   }
 }
 

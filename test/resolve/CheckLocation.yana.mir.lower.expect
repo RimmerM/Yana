@@ -1,4 +1,3 @@
-mut @start = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @reporting = [0]
 @string'109 = [99, 104, 101, 99, 107, 32, 102, 97, 105, 108, 101, 100, 32, 97, 116, 32]
 @string'110 = [58]
@@ -18,16 +17,51 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 12, 4: Ptr
-    call_complex checkConditionAt, 0, @checkLocation(ResolveTest), 11, 24, 14
     store %v_1, 7, 4
     %v_2 = add %v_1, 4: Ptr
     store %v_2, 8, 4
     %v_3 = add %v_1, 8: Ptr
     store %v_3, 9, 4
-    store @start, 1, 8
-    %v_4 = loads %v_2, 4: I32
-    %v_5 = sub %v_4, 8: I32
-    ret %v_5
+    %v_4 = imm 3: I64
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_7, %v_8], [b_0, 0]: I64
+    %v_9 = shl %v_6, 2: I64
+    %v_10 = add %v_1, %v_9: Ptr
+    %v_11 = loads %v_10, 4: I32
+    %v_12 = cmp_ilt %v_11, 8: I32
+    je %v_12, b_7, b_13
+  }
+
+  b_13 {
+    %v_14 = cmp_ge %v_6, %v_4: I32
+    je %v_14, b_15, b_16
+  }
+
+  b_7 {
+    %v_8 = add %v_6, 1: I64
+    %v_17 = cmp_ge %v_8, %v_4: I32
+    je %v_17, b_18, b_5
+  }
+
+  b_18 {
+    call_complex checkFailedAt, @checkLocation(ResolveTest), 11, 30, 10
+    unreachable 
+  }
+
+  b_16 {
+    %v_19 = shl %v_6, 2: I64
+    %v_20 = add %v_1, %v_19: Ptr
+    %v_21 = loads %v_20, 4: I32
+    %v_22 = sub %v_21, 8: I32
+    ret %v_22
+  }
+
+  b_15 {
+    call_complex checkFailedAt, @checkLocation(ResolveTest), 11, 25, 43
+    unreachable 
   }
 }
 
@@ -137,76 +171,74 @@ checkFailedAt<complex>(%file: Ptr, %fileLength: I32, %line: I32, %column: I32) {
     %v_7 = add 19, %v_6: I64
     %v_8 = add %v_7, 11: I64
     %v_9 = add %v_8, 11: I64
-    %v_10 = bitcast 0: Ptr
-    %v_11 = call_complex runSlots(CodeUnit), %v_10, %v_9: Ptr
-    %v_12 = bitcast %v_11: I64
-    %v_13 = cmp_eq %v_12, 0: I32
-    %v_14 = select %v_13, 0, %v_9: I64
-    %v_15 = cast %v_14: I32
-    %v_16 = and %v_15, 1073741823: I32
-    store %v_1, %v_11, 8
-    %v_17 = add %v_1, 8: Ptr
-    %v_18 = cast %v_16: I64
-    %v_19 = or %v_18, 1073741824: I64
-    store %v_17, %v_19, 4
-    %v_20 = add %v_1, 12: Ptr
-    store %v_20, 0, 4
+    %v_10 = call_complex runSlots(CodeUnit), %v_9: Ptr
+    %v_11 = bitcast %v_10: I64
+    %v_12 = cmp_eq %v_11, 0: I32
+    %v_13 = select %v_12, 0, %v_9: I64
+    %v_14 = cast %v_13: I32
+    %v_15 = and %v_14, 1073741823: I32
+    store %v_1, %v_10, 8
+    %v_16 = add %v_1, 8: Ptr
+    %v_17 = cast %v_15: I64
+    %v_18 = or %v_17, 1073741824: I64
+    store %v_16, %v_18, 4
+    %v_19 = add %v_1, 12: Ptr
+    store %v_19, 0, 4
     call_complex String.appendUnits, %v_1, @string'109, 16
     call_complex String.appendUnits, %v_1, %file, %v_6
     call_complex String.appendUnits, %v_1, @string'110, 1
-    %v_21 = cmp_ilt %line, 0: I32
-    je %v_21, b_22, b_23
+    %v_20 = cmp_ilt %line, 0: I32
+    je %v_20, b_21, b_22
   }
 
   b_3 {
-    %v_24 = syscall 60, 134: I64
+    %v_23 = syscall 60, 134: I64
     jmp b_4
   }
 
-  b_23 {
-    call_complex pushUnsigned32, %line, %v_1
-    jmp b_25
-  }
-
   b_22 {
+    call_complex pushUnsigned32, %line, %v_1
+    jmp b_24
+  }
+
+  b_21 {
     call_complex push(CodeUnit), %v_1, 45
-    %v_26 = sub 0, %line: I32
-    call_complex pushUnsigned32, %v_26, %v_1
-    jmp b_25
+    %v_25 = sub 0, %line: I32
+    call_complex pushUnsigned32, %v_25, %v_1
+    jmp b_24
   }
 
-  b_25 {
+  b_24 {
     call_complex String.appendUnits, %v_1, @string'111, 1
-    %v_27 = cmp_ilt %column, 0: I32
-    je %v_27, b_28, b_29
-  }
-
-  b_29 {
-    call_complex pushUnsigned32, %column, %v_1
-    jmp b_30
+    %v_26 = cmp_ilt %column, 0: I32
+    je %v_26, b_27, b_28
   }
 
   b_28 {
-    call_complex push(CodeUnit), %v_1, 45
-    %v_31 = sub 0, %column: I32
-    call_complex pushUnsigned32, %v_31, %v_1
-    jmp b_30
+    call_complex pushUnsigned32, %column, %v_1
+    jmp b_29
   }
 
-  b_30 {
+  b_27 {
+    call_complex push(CodeUnit), %v_1, 45
+    %v_30 = sub 0, %column: I32
+    call_complex pushUnsigned32, %v_30, %v_1
+    jmp b_29
+  }
+
+  b_29 {
     call_complex String.appendUnits, %v_1, @string'112, 1
-    %v_32 = load %v_1, 8: Ptr
-    %v_33 = add %v_1, 12: Ptr
-    %v_34 = load %v_33, 4: I32
-    %v_35 = sext %v_34: I64
-    %v_36 = bitcast %v_32: I64
-    %v_37 = syscall 1, 1, %v_36, %v_35: I64
-    %v_38 = load %v_1, 8: I64
-    %v_39 = add %v_1, 8: Ptr
-    %v_40 = load %v_39, 4: I32
-    %v_41 = load %v_33, 4: I32
-    call_complex String.reclaim, %v_38, %v_40, %v_41
-    %v_42 = syscall 60, 134: I64
+    %v_31 = load %v_1, 8: Ptr
+    %v_32 = add %v_1, 12: Ptr
+    %v_33 = load %v_32, 4: I32
+    %v_34 = sext %v_33: I64
+    %v_35 = bitcast %v_31: I64
+    %v_36 = syscall 1, 1, %v_35, %v_34: I64
+    %v_37 = load %v_1, 8: I64
+    %v_38 = add %v_1, 8: Ptr
+    %v_39 = load %v_38, 4: I32
+    call_complex String.reclaim, %v_37, %v_39
+    %v_40 = syscall 60, 134: I64
     ret 
   }
 }
@@ -241,33 +273,33 @@ checkCondition<complex>(%failed: I32) {
   }
 }
 
-String.reclaim<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
-  b_3 {
-    %v_4 = shr %v_1, 30: I32
-    %v_5 = cmp_eq %v_4, 1: I32
-    je %v_5, b_6, b_7
+String.reclaim<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = shr %v_1, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = bitcast %v_0: Ptr
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_6, b_9
   }
 
   b_6 {
-    %v_8 = bitcast %v_0: Ptr
-    %v_9 = cmp_eq %v_0, 0: I32
-    je %v_9, b_7, b_10
-  }
-
-  b_7 {
     ret 
   }
 
-  b_10 {
-    %v_11 = sub %v_8, 8: Ptr
-    %v_12 = loads %v_11, 8: I64
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %v_12, 3: I64
-    %v_15 = add %v_13, %v_14: Ptr
-    %v_16 = load %v_15, 8: Ptr
-    store %v_8, %v_16, 8
-    store %v_15, %v_8, 8
-    jmp b_7
+  b_9 {
+    %v_10 = sub %v_7, 8: Ptr
+    %v_11 = loads %v_10, 8: I64
+    %v_12 = load @heapFree, 8: Ptr
+    %v_13 = shl %v_11, 3: I64
+    %v_14 = add %v_12, %v_13: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    store %v_7, %v_15, 8
+    store %v_14, %v_7, 8
+    jmp b_6
   }
 }
 
@@ -309,7 +341,7 @@ String.appendUnits<complex>(%self: Ptr, %from: Ptr, %count: I64) {
     %v_21 = phi [b_3, %v_10], [b_13, %v_18]: I64
     %v_22 = add %self, 12: Ptr
     %v_23 = cmp_ilt %v_21, %v_20: I32
-    call_complex checkConditionAt, %v_23, @checkLocation(Core.String), 11, 488, 4
+    call_complex checkConditionAt, %v_23, @checkLocation(Core.String), 11, 498, 4
     %v_24 = load %self, 8: Ptr
     %v_25 = add %v_24, %v_19: Ptr
     call_complex copyMemory, %v_25, %from, %count
@@ -797,7 +829,7 @@ copyMemory<complex>(%to: Ptr, %from: Ptr, %count: I64) {
   }
 }
 
-runSlots(CodeUnit)<complex>(%probe: Ptr, %capacity: I64): Ptr {
+runSlots(CodeUnit)<complex>(%capacity: I64): Ptr {
   b_0 {
     %v_1 = cmp_eq %capacity, 0: I32
     je %v_1, b_2, b_3

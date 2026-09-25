@@ -3,83 +3,69 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Cell.drop<complex>(%v_0: I32) {
-  b_1 {
+Cell.drop<complex>() {
+  b_0 {
     ret 
   }
 }
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = imm 1: I32
-    %v_2 = alloca 8, 8: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    %v_4 = call_complex allocateHeap, 4: Ptr
-    %v_5 = bitcast %v_4: I64
-    jmp b_6
+    %v_1 = call_complex allocateHeap, 4: Ptr
+    %v_2 = bitcast %v_1: I64
+    jmp b_3
   }
 
-  b_6 {
-    %v_7 = phi [b_0, 0], [b_8, 2], [b_9, 1]: I32
-    switch %v_7, b_10, [b_9, 0], [b_8, 1], [b_11, 2]
-  }
-
-  b_11 {
-    call_complex freeHeap, %v_4
-    jmp b_10
-  }
-
-  b_10 {
-    %v_12 = phi [b_6, %v_7], [b_11, 2147483647]: I32
-    %v_13 = load %v_2, 8: I64
-    %v_14 = load %v_3, 4: I32
-    call_complex placed$drop, %v_5, %v_13, %v_12, %v_14, %v_1
-    ret 0
+  b_3 {
+    %v_4 = phi [b_0, 0], [b_5, 2], [b_6, 1]: I32
+    switch %v_4, b_7, [b_6, 0], [b_5, 1], [b_8, 2]
   }
 
   b_8 {
-    %v_15 = loads %v_4, 4: I32
-    %v_16 = load %v_2, 8: Ptr
-    %v_17 = loads %v_16, 4: I32
-    %v_18 = load %v_4, 4: I32
-    call_complex Cell.drop, %v_18
-    %v_19 = add %v_15, %v_17: I32
-    store %v_3, %v_19, 4
-    jmp b_6
-  }
-
-  b_9 {
-    store %v_4, %v_1, 4
-    store %v_2, %v_4, 8
-    store %v_3, %v_1, 4
-    jmp b_6
-  }
-}
-
-placed$drop<complex>(%v_0: I64, %v_1: I64, %v_2: I32, %v_3: I32, %v_4: I32) {
-  b_5 {
-    %v_6 = bitcast %v_0: Ptr
-    switch %v_2, b_7, [b_8, 0], [b_9, 1], [b_10, 2]
+    call_complex freeHeap, %v_1
+    jmp b_7
   }
 
   b_7 {
+    %v_9 = phi [b_3, %v_4], [b_8, 2147483647]: I32
+    call_complex placed$drop, %v_2, %v_9
+    ret 0
+  }
+
+  b_5 {
+    call_complex Cell.drop
+    jmp b_3
+  }
+
+  b_6 {
+    store %v_1, 1, 4
+    jmp b_3
+  }
+}
+
+placed$drop<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = bitcast %v_0: Ptr
+    switch %v_1, b_4, [b_5, 0], [b_6, 1], [b_7, 2]
+  }
+
+  b_4 {
     ret 
   }
 
-  b_9 {
-    %v_11 = load %v_6, 4: I32
-    call_complex Cell.drop, %v_11
-    jmp b_10
-  }
-
-  b_10 {
-    call_complex freeHeap, %v_6
+  b_6 {
+    call_complex Cell.drop
     jmp b_7
   }
 
-  b_8 {
-    call_complex freeHeap, %v_6
-    jmp b_7
+  b_7 {
+    call_complex freeHeap, %v_3
+    jmp b_4
+  }
+
+  b_5 {
+    call_complex freeHeap, %v_3
+    jmp b_4
   }
 }
 

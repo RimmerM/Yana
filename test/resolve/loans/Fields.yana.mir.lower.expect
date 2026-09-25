@@ -45,75 +45,68 @@ main<complex>(): I32 {
 
   b_12 {
     store @trace, 0, 4
-    %v_13 = alloca 8, 4: Ptr
-    %v_14 = imm 1: I32
-    store %v_13, %v_14, 4
-    %v_15 = add %v_13, 4: Ptr
-    store %v_15, 2, 4
-    call_complex Guard.drop, %v_14
-    %v_16 = add %v_13, 4: Ptr
-    %v_17 = load %v_16, 4: I32
-    call_complex Guard.drop, %v_17
     call_complex Guard.drop, 1
     call_complex Guard.drop, 2
-    %v_18 = loads @trace, 4: I32
-    %v_19 = cmp_neq %v_18, 1212: I32
-    je %v_19, b_20, b_21
+    call_complex Guard.drop, 1
+    call_complex Guard.drop, 2
+    %v_13 = loads @trace, 4: I32
+    %v_14 = cmp_neq %v_13, 1212: I32
+    je %v_14, b_15, b_16
   }
 
   b_11 {
     ret 18446744073709551610
   }
 
-  b_21 {
+  b_16 {
     store @trace, 0, 4
-    jmp b_22
+    jmp b_17
   }
 
-  b_20 {
+  b_15 {
     ret 18446744073709551607
   }
 
-  b_23 {
-    %v_24 = loads @trace, 4: I32
-    %v_25 = cmp_neq %v_24, 6: I32
-    je %v_25, b_26, b_27
+  b_18 {
+    %v_19 = loads @trace, 4: I32
+    %v_20 = cmp_neq %v_19, 6: I32
+    je %v_20, b_21, b_22
   }
 
-  b_28 {
+  b_23 {
     ret 18446744073709551606
   }
 
-  b_27 {
+  b_22 {
     store @trace, 0, 4
     call_complex Guard.drop, 7
-    %v_29 = loads @trace, 4: I32
-    %v_30 = cmp_neq %v_29, 7: I32
-    %v_31 = select %v_30, 18446744073709551601, 100: I32
-    ret %v_31
+    %v_24 = loads @trace, 4: I32
+    %v_25 = cmp_neq %v_24, 7: I32
+    %v_26 = select %v_25, 18446744073709551601, 100: I32
+    ret %v_26
   }
 
-  b_26 {
+  b_21 {
     ret 18446744073709551605
   }
 
-  b_32 {
-    %v_33 = cmp_ilt %v_34, 3: I32
-    je %v_33, b_22, b_35
+  b_27 {
+    %v_28 = cmp_ilt %v_29, 3: I32
+    je %v_28, b_17, b_30
   }
 
-  b_35 {
+  b_30 {
     call_complex Guard.drop, 6
-    %v_36 = cmp_neq %v_37, 183: I32
-    je %v_36, b_28, b_23
+    %v_31 = cmp_neq %v_32, 183: I32
+    je %v_31, b_23, b_18
   }
 
-  b_22 {
-    %v_38 = phi [b_32, %v_34], [b_21, 0]: I32
-    %v_39 = phi [b_32, %v_37], [b_21, 0]: I32
-    %v_37 = add %v_39, 61: I32
-    %v_34 = add %v_38, 1: I32
-    jmp b_32
+  b_17 {
+    %v_33 = phi [b_27, %v_29], [b_16, 0]: I32
+    %v_34 = phi [b_27, %v_32], [b_16, 0]: I32
+    %v_32 = add %v_34, 61: I32
+    %v_29 = add %v_33, 1: I32
+    jmp b_27
   }
 }
 

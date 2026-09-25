@@ -782,91 +782,90 @@ main<complex>(): I32 {
     copy %v_45, %v_40, 16
     copy %v_40, %v_42, 16
     copy %v_42, %v_45, 16
-    %v_46 = load %v_39, 8: Ptr
-    %v_47 = add %v_46, 32: Ptr
+    %v_46 = add %v_40, 32: Ptr
+    %v_47 = alloca 16, 8: Ptr
+    call_complex counted, %v_47, 2
     %v_48 = alloca 16, 8: Ptr
-    call_complex counted, %v_48, 2
-    %v_49 = alloca 16, 8: Ptr
-    copy %v_49, %v_47, 16
-    copy %v_47, %v_48, 16
+    copy %v_48, %v_46, 16
+    copy %v_46, %v_47, 16
     %old = alloca 16, 8: Ptr
-    copy %old, %v_49, 16
-    %v_50 = add %v_39, 12: Ptr
-    %v_51 = load %v_50, 4: I32
-    %v_52 = cast %v_51: I64
-    %v_53 = cmp_eq %v_52, 0: I32
-    je %v_53, b_54, b_55
-  }
-
-  b_55 {
-    %v_56 = load %v_39, 8: Ptr
-    %v_57 = add %v_56, 12: Ptr
-    %v_58 = load %v_57, 4: I32
-    %v_59 = imul %v_58, 1000: I32
-    %v_60 = cmp_ge 1, %v_52: I32
-    je %v_60, b_54, b_61
-  }
-
-  b_61 {
-    %v_62 = add %v_56, 28: Ptr
-    %v_63 = load %v_62, 4: I32
-    %v_64 = imul %v_63, 100: I32
-    %v_65 = add %v_59, %v_64: I32
-    %v_66 = add %old, 12: Ptr
-    %v_67 = load %v_66, 4: I32
-    call_complex Reclaim(Array(a)).reclaim(I32), %old
-    %v_68 = imul %v_67, 10: I32
-    %v_69 = add %v_65, %v_68: I32
-    %v_70 = cmp_ge 2, %v_52: I32
-    je %v_70, b_54, b_71
-  }
-
-  b_71 {
-    %v_72 = add %v_56, 44: Ptr
-    %v_73 = load %v_72, 4: I32
-    call_complex Reclaim(Array(a)).reclaim(Array(I32)), %v_39
-    %v_74 = add %v_69, %v_73: I32
-    %v_75 = cmp_neq %v_74, 8352: I32
-    je %v_75, b_76, b_77
-  }
-
-  b_77 {
-    %v_78 = alloca 16, 8: Ptr
-    call_complex counted, %v_78, 3
-    %v_79 = alloca 16, 8: Ptr
-    call_complex counted, %v_79, 8
-    %v_80 = alloca 16, 8: Ptr
-    %v_81 = alloca 32, 8: Ptr
-    store %v_80, %v_81, 8
-    %v_82 = add %v_80, 8: Ptr
-    store %v_82, 2, 4
-    copy %v_81, %v_78, 16
-    %v_83 = add %v_81, 16: Ptr
-    copy %v_83, %v_79, 16
-    %v_84 = add %v_80, 12: Ptr
-    store %v_84, 2, 4
-    %v_85 = alloca 16, 8: Ptr
-    call_complex counted, %v_85, 6
-    call_complex Reclaim(Array(a)).reclaim(I32), %v_81
-    copy %v_81, %v_85, 16
-    %v_86 = add %v_81, 12: Ptr
-    %v_87 = load %v_86, 4: I32
-    %v_88 = imul %v_87, 10: I32
-    %v_89 = add %v_81, 28: Ptr
-    %v_90 = load %v_89, 4: I32
-    call_complex Reclaim(Array(a)).reclaim(Array(I32)), %v_80
-    %v_91 = add %v_88, %v_90: I32
-    %v_92 = cmp_neq %v_91, 68: I32
-    %v_93 = select %v_92, 18446744073709551611, 1: I32
-    ret %v_93
-  }
-
-  b_76 {
-    ret 18446744073709551612
+    copy %old, %v_48, 16
+    %v_49 = add %v_39, 12: Ptr
+    %v_50 = load %v_49, 4: I32
+    %v_51 = cast %v_50: I64
+    %v_52 = cmp_eq %v_51, 0: I32
+    je %v_52, b_53, b_54
   }
 
   b_54 {
-    %v_94 = syscall 60, 134: I64
+    %v_55 = load %v_39, 8: Ptr
+    %v_56 = add %v_55, 12: Ptr
+    %v_57 = load %v_56, 4: I32
+    %v_58 = imul %v_57, 1000: I32
+    %v_59 = cmp_ge 1, %v_51: I32
+    je %v_59, b_53, b_60
+  }
+
+  b_60 {
+    %v_61 = add %v_55, 28: Ptr
+    %v_62 = load %v_61, 4: I32
+    %v_63 = imul %v_62, 100: I32
+    %v_64 = add %v_58, %v_63: I32
+    %v_65 = add %old, 12: Ptr
+    %v_66 = load %v_65, 4: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %old
+    %v_67 = imul %v_66, 10: I32
+    %v_68 = add %v_64, %v_67: I32
+    %v_69 = cmp_ge 2, %v_51: I32
+    je %v_69, b_53, b_70
+  }
+
+  b_70 {
+    %v_71 = add %v_55, 44: Ptr
+    %v_72 = load %v_71, 4: I32
+    call_complex Reclaim(Array(a)).reclaim(Array(I32)), %v_39
+    %v_73 = add %v_68, %v_72: I32
+    %v_74 = cmp_neq %v_73, 8352: I32
+    je %v_74, b_75, b_76
+  }
+
+  b_76 {
+    %v_77 = alloca 16, 8: Ptr
+    call_complex counted, %v_77, 3
+    %v_78 = alloca 16, 8: Ptr
+    call_complex counted, %v_78, 8
+    %v_79 = alloca 16, 8: Ptr
+    %v_80 = alloca 32, 8: Ptr
+    store %v_79, %v_80, 8
+    %v_81 = add %v_79, 8: Ptr
+    store %v_81, 2, 4
+    copy %v_80, %v_77, 16
+    %v_82 = add %v_80, 16: Ptr
+    copy %v_82, %v_78, 16
+    %v_83 = add %v_79, 12: Ptr
+    store %v_83, 2, 4
+    %v_84 = alloca 16, 8: Ptr
+    call_complex counted, %v_84, 6
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_80
+    copy %v_80, %v_84, 16
+    %v_85 = add %v_80, 12: Ptr
+    %v_86 = load %v_85, 4: I32
+    %v_87 = imul %v_86, 10: I32
+    %v_88 = add %v_80, 28: Ptr
+    %v_89 = load %v_88, 4: I32
+    call_complex Reclaim(Array(a)).reclaim(Array(I32)), %v_79
+    %v_90 = add %v_87, %v_89: I32
+    %v_91 = cmp_neq %v_90, 68: I32
+    %v_92 = select %v_91, 18446744073709551611, 1: I32
+    ret %v_92
+  }
+
+  b_75 {
+    ret 18446744073709551612
+  }
+
+  b_53 {
+    %v_93 = syscall 60, 134: I64
     unreachable 
   }
 

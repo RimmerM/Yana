@@ -1004,6 +1004,101 @@ Inst* soleContents(OptContext& opt, const Contained& contained, Value& allocatio
     return walk.only(allocation, 0) ? fill : nullptr;
 }
 
+namespace {
+
+/*
+ * Whether a `store` through this name of an allocation says what it wrote - `writtenHere`'s one
+ * admitted writer. A store *into* a projection writes a field or an element, and its value is the
+ * thing a later read is answered from; a store of the **whole** is the same only where the value is
+ * built here, an `Aggregate` or a constant. A whole record moved in from other storage is a value
+ * nothing at this tier can take apart, so reading it field by field is reading memory again.
+ */
+bool statedStore(OptContext& opt, InstStore& store, Value& address) {
+    if(!store.address.isSet() || opt.base[store.address.value()] != &address) return false;
+
+    auto definer = address.definer ? opt.base[address.definer] : nullptr;
+    if(definer && (definer->kind == Inst::FieldAddress || definer->kind == Inst::ElementAddress)) {
+        return true;
+    }
+
+    auto value = opt.base[store.value.value()];
+    if(!value->definer) return false;
+
+    auto kind = opt.base[value->definer]->kind;
+    return kind == Inst::Aggregate || kind == Inst::Const;
+}
+
+/*
+ * `writtenHere`'s walk over the names of one allocation - the address, its projections, and the
+ * borrows (`Guaranteed` loads) and restatements taken of it. It fails at a store that does not say
+ * what it wrote, at a callee handed a name it writes through, and at an atomic, and passes everything
+ * else: the answer is a heuristic, so a name carried off into a record or across an edge is not
+ * followed.
+ */
+bool namesWrittenHere(OptContext& opt, Value& address, U32 depth) {
+    if(depth > 6) return false;
+
+    for(auto userPointer: address.uses(opt.base)) {
+        auto& user = *opt.base[userPointer];
+
+        switch(user.kind) {
+            case Inst::Store: {
+                auto& store = (InstStore&)user;
+                if(store.value.isSet() && opt.base[store.value.value()] == &address) return false;
+                if(!statedStore(opt, store, address)) return false;
+                continue;
+            }
+
+            // A callee handed a name at a position it writes through is where the contents came
+            // from, as far as this walk can tell: the storage is somebody else's to fill.
+            case Inst::Call: {
+                auto& call = (InstCall&)user;
+                if(!call.callee || call.through != mir::CallThrough::Declaration) return false;
+
+                auto mutated = opt.decl[call.callee]->summary.mutates().get(mir::ArgumentSet::all());
+                for(Size i = 0; i < call.arguments.size(); i++) {
+                    auto used = call.arguments.get(opt.base, i);
+                    if(used.isSet() && opt.base[used.value()] == &address && mutated.has(U32(i))) return false;
+                }
+                continue;
+            }
+
+            case Inst::Atomic:
+                return false;
+
+            case Inst::Load: {
+                if(!user.results.size()) continue;
+
+                auto result = opt.base[user.results.get(opt.base, 0)];
+                if(result->convention != Convention::Guaranteed) continue;
+                if(!namesWrittenHere(opt, *result, depth + 1)) return false;
+                continue;
+            }
+
+            case Inst::FieldAddress:
+            case Inst::ElementAddress:
+            case Inst::Unary:
+                if(!user.results.size()) continue;
+                if(!namesWrittenHere(opt, *opt.base[user.results.get(opt.base, 0)], depth + 1)) return false;
+                continue;
+
+            default:
+                continue;
+        }
+    }
+
+    return true;
+}
+
+} // namespace
+
+bool writtenHere(OptContext& opt, Value& allocation) {
+    if(!allocation.definer || opt.base[allocation.definer]->kind != Inst::Alloc) return false;
+    if(!opt.base[allocation.definer]->block) return false;
+
+    return namesWrittenHere(opt, allocation, 0);
+}
+
 Inst* SoleContents::of(OptContext& opt, const Contained& contained, Value& allocation) {
     if(auto found = answers.getValue(allocation.id.index)) return found.unwrap();
 
@@ -1119,6 +1214,80 @@ bool owesNothing(OptContext& opt, Value& value, U32 depth) {
     }
 
     return true;
+}
+
+/*
+ * What is at an address or in a value where this body **built** it: the `Aggregate` or `Const` it
+ * was built from, read back through the storage it was put in - J137, and the inliner's
+ * `siteContents` until J172 moved it here for `opt/teardown.cpp` to ask of a drop's storage.
+ *
+ * The estimate the inliner seeds with it was seeded only with numbers, and the call that most needed
+ * more was a teardown: `releaseRun(value.run)` handed a run the caller built on its own frame reads a
+ * flag that is the constant zero in the caller's aggregate, and the whole of the callee is the arm
+ * that flag decides against. Weighed as written it is the test and a copy of `freeHeap`, above the
+ * budget; weighed at the site it is nothing.
+ *
+ * A slot is read through `aggregateFillOf`, which is what makes the answer one: its fill is the only
+ * write for the whole body. The first form of this took a slot's one whole-slot store as its
+ * contents without asking what else wrote it, and `MapLiteral.yana` grew by 7,733 lowered
+ * instructions - each `insertAt` pushes through a borrow of the slot the literal filled, and a
+ * capacity read as the literal's pruned every growth arm out of the estimate.
+ */
+Value* builtContents(OptContext& opt, Value* value, U32 depth) {
+    if(!value || !value->definer || depth > 6) return nullptr;
+    auto inst = opt.base[value->definer];
+
+    switch(inst->kind) {
+        case Inst::Aggregate:
+        case Inst::Const:
+            return value;
+
+        case Inst::Load:
+            return builtContents(opt, opt.base[((InstLoad*)inst)->address.value()], depth + 1);
+
+        // Storage whose one write is the fill, and nothing else writes it for the whole body -
+        // `aggregateFillOf`, and the reason this is an answer at all: a slot filled once and then
+        // pushed to through a borrow holds nothing the fill says.
+        case Inst::Alloc: {
+            // One slot's answer rather than a table's: a splice moves the version, and the table
+            // rebuilt per site was J137's compile time (`aggregateFillOf`).
+            auto fill = aggregateFillOf(opt, containedOf(opt), *value);
+            if(!fill) return nullptr;
+
+            return builtContents(opt, opt.base[((InstStore*)fill)->value.value()], depth + 1);
+        }
+
+        case Inst::FieldAddress: {
+            auto& projection = *(InstFieldAddress*)inst;
+            auto record = builtContents(opt, opt.base[projection.base.value()], depth + 1);
+            return builtContents(opt, builtComponent(opt, record, projection), depth + 1);
+        }
+
+        default:
+            return nullptr;
+    }
+}
+
+// The component of a built record a projection names, on `forwardMemory`'s terms for the same
+// question: a single-constructor record, the type the projection is of, a plain field.
+Value* builtComponent(OptContext& opt, Value* record, InstFieldAddress& projection) {
+    if(!record || !record->definer) return nullptr;
+
+    auto definer = opt.base[record->definer];
+    if(definer->kind != Inst::Aggregate) return nullptr;
+    if(projection.property != InstFieldAddress::kNoProperty) return nullptr;
+    if(projection.field == InstFieldAddress::kDiscriminant) return nullptr;
+    if(!projection.record || projection.record != record->occurrence.type) return nullptr;
+
+    auto declared = opt.decl[projection.record];
+    if(declared->kind != mir::Type::Record) return nullptr;
+    if(((mir::RecordType*)declared)->layout != mir::RecordLayout::Single) return nullptr;
+
+    auto& built = (InstAggregate&)*definer;
+    if(built.constructor != 0 || projection.field >= built.components.size()) return nullptr;
+
+    auto used = built.components.get(opt.base, projection.field);
+    return used.isSet() ? opt.base[used.value()] : nullptr;
 }
 
 /*

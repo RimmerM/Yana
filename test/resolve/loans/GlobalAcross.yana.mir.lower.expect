@@ -40,89 +40,88 @@ main<complex>(): I32 {
   b_20 {
     %v_21 = add %v_22, 4: Ptr
     %v_23 = loads %v_21, 4: I32
-    %v_24 = call_complex main.lambda, %v_25, %v_23: I32
-    %v_26 = load %gArr, 8: Ptr
-    %v_27 = add %gArr, 12: Ptr
-    %v_28 = load %v_27, 4: I32
-    %v_8 = cast %v_28: I64
-    %v_29 = cmp_eq %v_8, 0: I32
-    je %v_29, b_30, b_31
+    %v_24 = call_complex main.lambda, %v_23: I32
+    %v_25 = load %gArr, 8: Ptr
+    %v_26 = add %gArr, 12: Ptr
+    %v_27 = load %v_26, 4: I32
+    %v_8 = cast %v_27: I64
+    %v_28 = cmp_eq %v_8, 0: I32
+    je %v_28, b_29, b_30
   }
 
-  b_30 {
-    %v_32 = syscall 60, 134: I64
+  b_29 {
+    %v_31 = syscall 60, 134: I64
     unreachable 
   }
 
-  b_31 {
-    %v_33 = loads %v_26, 4: I32
-    %v_34 = cmp_igt %v_33, 5: I32
-    je %v_34, b_11, b_6
+  b_30 {
+    %v_32 = loads %v_25, 4: I32
+    %v_33 = cmp_igt %v_32, 5: I32
+    je %v_33, b_11, b_6
   }
 
   b_5 {
-    %v_35 = phi [b_0, 0], [b_36, %v_37]: I64
-    %v_38 = phi [b_0, 0], [b_36, %v_39]: I32
-    %v_40 = cmp_ilt %v_35, %v_4: I32
-    je %v_40, b_36, b_41
+    %v_34 = phi [b_0, 0], [b_35, %v_36]: I64
+    %v_37 = phi [b_0, 0], [b_35, %v_38]: I32
+    %v_39 = cmp_ilt %v_34, %v_4: I32
+    je %v_39, b_35, b_40
   }
 
-  b_36 {
-    %v_42 = shl %v_35, 2: I64
-    %v_43 = add %v_1, %v_42: Ptr
-    %v_44 = loads %v_43, 4: I32
-    %v_39 = add %v_38, %v_44: I32
-    %v_37 = add %v_35, 1: I64
+  b_35 {
+    %v_41 = shl %v_34, 2: I64
+    %v_42 = add %v_1, %v_41: Ptr
+    %v_43 = loads %v_42, 4: I32
+    %v_38 = add %v_37, %v_43: I32
+    %v_36 = add %v_34, 1: I64
     jmp b_5
   }
 
-  b_41 {
+  b_40 {
     %gCount = global @gCount: Ptr
-    %v_45 = loads %gCount, 4: I32
-    %v_46 = add %v_45, 1: I32
-    store %gCount, %v_46, 4
-    %v_25 = bitcast 0: Ptr
+    %v_44 = loads %gCount, 4: I32
+    %v_45 = add %v_44, 1: I32
+    store %gCount, %v_45, 4
     %v_22 = load %gArr, 8: Ptr
-    %v_47 = add %gArr, 12: Ptr
-    %v_48 = load %v_47, 4: I32
-    %v_49 = cast %v_48: I64
-    %v_50 = cmp_ge 1, %v_49: I32
-    je %v_50, b_30, b_20
+    %v_46 = add %gArr, 12: Ptr
+    %v_47 = load %v_46, 4: I32
+    %v_48 = cast %v_47: I64
+    %v_49 = cmp_ge 1, %v_48: I32
+    je %v_49, b_29, b_20
   }
 
   b_18 {
-    %v_51 = phi [b_9, %v_16], [b_19, %v_52]: I64
-    %v_53 = cmp_ige %v_8, %v_51: I32
-    je %v_53, b_30, b_54
+    %v_50 = phi [b_9, %v_16], [b_19, %v_51]: I64
+    %v_52 = cmp_ige %v_8, %v_50: I32
+    je %v_52, b_29, b_53
   }
 
   b_19 {
     call_complex growArray(I32), %gArr, %v_13
-    %v_55 = load %v_14, 4: I64
-    %v_52 = and %v_55, 1073741823: I64
+    %v_54 = load %v_14, 4: I64
+    %v_51 = and %v_54, 1073741823: I64
     jmp b_18
   }
 
-  b_54 {
-    %v_56 = load %gArr, 8: Ptr
-    %v_57 = shl %v_8, 2: I64
-    %v_58 = add %v_56, %v_57: Ptr
-    store %v_58, 4, 4
-    %v_59 = cast %v_13: I32
-    %v_60 = and %v_59, 1073741823: I32
-    store %v_12, %v_60, 4
-    %v_61 = cast %v_60: I64
-    %v_62 = sext %v_61: I32
-    %v_63 = imul %v_38, 1000: I32
-    %v_64 = imul %v_24, 100: I32
-    %v_65 = add %v_63, %v_64: I32
-    %v_66 = imul %v_10, 10: I32
-    %v_67 = add %v_65, %v_66: I32
-    %v_68 = add %v_67, %v_33: I32
-    %v_69 = add %v_68, %v_62: I32
-    %v_70 = loads @gCount, 4: I32
-    %v_71 = add %v_69, %v_70: I32
-    ret %v_71
+  b_53 {
+    %v_55 = load %gArr, 8: Ptr
+    %v_56 = shl %v_8, 2: I64
+    %v_57 = add %v_55, %v_56: Ptr
+    store %v_57, 4, 4
+    %v_58 = cast %v_13: I32
+    %v_59 = and %v_58, 1073741823: I32
+    store %v_12, %v_59, 4
+    %v_60 = cast %v_59: I64
+    %v_61 = sext %v_60: I32
+    %v_62 = imul %v_37, 1000: I32
+    %v_63 = imul %v_24, 100: I32
+    %v_64 = add %v_62, %v_63: I32
+    %v_65 = imul %v_10, 10: I32
+    %v_66 = add %v_64, %v_65: I32
+    %v_67 = add %v_66, %v_32: I32
+    %v_68 = add %v_67, %v_61: I32
+    %v_69 = loads @gCount, 4: I32
+    %v_70 = add %v_68, %v_69: I32
+    ret %v_70
   }
 }
 
@@ -157,7 +156,7 @@ main$<complex>(): I32 {
 }
 
 @header(main.lambda) = [0, 0, 0, 0]
-main.lambda<complex>(%main.lambda.env: Ptr, %x: I32): I32 {
+main.lambda<complex>(%x: I32): I32 {
   b_0 {
     %v_1 = shl %x, 1: I32
     ret %v_1

@@ -283,13 +283,13 @@ replaced<complex>(%c: I32): I32 {
   }
 
   b_9 {
-    call_complex Drop(Guard).drop, %g
+    call_complex Drop(Guard).drop
     jmp b_10
   }
 
   b_10 {
     store %g, 2, 4
-    call_complex Drop(Guard).drop, %g
+    call_complex Drop(Guard).drop
     %v_11 = loads @drops, 4: I32
     %v_12 = sub %v_11, %start: I32
     ret %v_12
@@ -329,13 +329,13 @@ maybeReplaced<complex>(%c: I32, %d: I32): I32 {
   }
 
   b_11 {
-    call_complex Drop(Guard).drop, %g
+    call_complex Drop(Guard).drop
     jmp b_12
   }
 
   b_12 {
     store %g, 2, 4
-    call_complex Drop(Guard).drop, %g
+    call_complex Drop(Guard).drop
     jmp b_13
   }
 
@@ -350,7 +350,7 @@ maybeReplaced<complex>(%c: I32, %d: I32): I32 {
   }
 
   b_16 {
-    call_complex Drop(Guard).drop, %g
+    call_complex Drop(Guard).drop
     jmp b_17
   }
 
@@ -402,13 +402,13 @@ nested<complex>(%c: I32, %d: I32): I32 {
   }
 
   b_14 {
-    call_complex Drop(Guard).drop, %g
+    call_complex Drop(Guard).drop
     jmp b_15
   }
 
   b_15 {
     store %g, 2, 4
-    call_complex Drop(Guard).drop, %g
+    call_complex Drop(Guard).drop
     %v_16 = loads @drops, 4: I32
     %v_17 = sub %v_16, %start: I32
     ret %v_17
@@ -447,13 +447,13 @@ pair<complex>(%c: I32): I32 {
   }
 
   b_9 {
-    call_complex Drop(Guard).drop, %x
+    call_complex Drop(Guard).drop
     jmp b_10
   }
 
   b_10 {
     store %x, 3, 4
-    call_complex Drop(Guard).drop, %x
+    call_complex Drop(Guard).drop
     %v_11 = loads @live, 4: I32
     %v_12 = add %v_11, 1: I32
     store @live, %v_12, 4
@@ -461,13 +461,13 @@ pair<complex>(%c: I32): I32 {
   }
 
   b_13 {
-    call_complex Drop(Guard).drop, %y
+    call_complex Drop(Guard).drop
     jmp b_14
   }
 
   b_14 {
     store %y, 4, 4
-    call_complex Drop(Guard).drop, %y
+    call_complex Drop(Guard).drop
     %v_15 = loads @drops, 4: I32
     %v_16 = sub %v_15, %start: I32
     ret %v_16
@@ -507,13 +507,13 @@ heaped<complex>(%c: I32, %d: I32): I32 {
   }
 
   b_11 {
-    call_complex Drop(Guard).drop, %g
+    call_complex Drop(Guard).drop
     jmp b_12
   }
 
   b_12 {
     store %g, 2, 4
-    call_complex Drop(Guard).drop, %g
+    call_complex Drop(Guard).drop
     call_complex freeHeap, %g
     jmp b_13
   }
@@ -529,7 +529,7 @@ heaped<complex>(%c: I32, %d: I32): I32 {
   }
 
   b_16 {
-    call_complex Drop(Guard).drop, %g
+    call_complex Drop(Guard).drop
     jmp b_17
   }
 
@@ -722,7 +722,7 @@ main<complex>(): I32 {
   }
 }
 
-Drop(Guard).drop<complex>(%self: Ptr) {
+Drop(Guard).drop<complex>() {
   b_0 {
     %v_1 = loads @live, 4: I32
     %v_2 = sub %v_1, 1: I32

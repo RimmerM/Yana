@@ -724,5 +724,10 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
                               lower.context.settings.optimizeIr);
     }
 
+    // And what rewrites a callee and its callers together - see lower_params.h.
+    if(context.diagnostics.errorCount() == 0) {
+        optimizeLowerModule(lower.lower, lower.to, lower.context.settings.optimizeIr);
+    }
+
     return result;
 }

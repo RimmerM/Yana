@@ -23,37 +23,34 @@ main<complex>(): I32 {
   b_10 {
     %v_11 = add %v_12, 1237: I32
     %v_13 = add %v_11, 10: I32
-    %v_14 = bitcast 0: Ptr
-    %v_15 = call_complex lazyDefault.thunk, %v_14: I32
-    %v_16 = bitcast 0: Ptr
-    %v_17 = call_complex lazyDefault.thunk'2, %v_16: I32
-    %v_18 = add 9, %v_15: I32
-    %v_19 = add %v_18, %v_17: I32
-    %v_20 = add %v_13, %v_19: I32
-    %v_21 = add %v_20, 50: I32
-    %v_22 = bitcast 0: Ptr
-    %v_23 = call_complex main.thunk, %v_22: I32
-    %v_24 = imul 3, %v_23: I32
-    %v_25 = add %v_21, %v_24: I32
-    %v_26 = add %v_25, 3: I32
-    %v_27 = add %v_26, 5: I32
-    %v_28 = add %v_27, 19: I32
-    ret %v_28
+    %v_14 = call_complex lazyDefault.thunk: I32
+    %v_15 = call_complex lazyDefault.thunk'2: I32
+    %v_16 = add 9, %v_14: I32
+    %v_17 = add %v_16, %v_15: I32
+    %v_18 = add %v_13, %v_17: I32
+    %v_19 = add %v_18, 50: I32
+    %v_20 = call_complex main.thunk: I32
+    %v_21 = imul 3, %v_20: I32
+    %v_22 = add %v_19, %v_21: I32
+    %v_23 = add %v_22, 3: I32
+    %v_24 = add %v_23, 5: I32
+    %v_25 = add %v_24, 19: I32
+    ret %v_25
   }
 
   b_6 {
-    %v_29 = phi [b_7, %v_9], [b_5, 10]: I32
-    %v_30 = phi [b_7, %v_12], [b_5, %v_31]: I32
-    %v_12 = add %v_30, %v_29: I32
-    %v_9 = add %v_29, 1: I32
+    %v_26 = phi [b_7, %v_9], [b_5, 10]: I32
+    %v_27 = phi [b_7, %v_12], [b_5, %v_28]: I32
+    %v_12 = add %v_27, %v_26: I32
+    %v_9 = add %v_26, 1: I32
     jmp b_7
   }
 
   b_1 {
-    %v_32 = phi [b_2, %v_4], [b_0, 0]: I32
-    %v_33 = phi [b_2, %v_31], [b_0, 0]: I32
-    %v_31 = add %v_33, %v_32: I32
-    %v_4 = add %v_32, 1: I32
+    %v_29 = phi [b_2, %v_4], [b_0, 0]: I32
+    %v_30 = phi [b_2, %v_28], [b_0, 0]: I32
+    %v_28 = add %v_30, %v_29: I32
+    %v_4 = add %v_29, 1: I32
     jmp b_2
   }
 }
@@ -76,14 +73,14 @@ note.why.default<complex>(): I32 {
 }
 
 @header(lazyDefault.thunk) = [0, 0, 0, 0]
-lazyDefault.thunk<complex>(%lazyDefault.thunk.env: Ptr): I32 {
+lazyDefault.thunk<complex>(): I32 {
   b_0 {
     ret 4
   }
 }
 
 @header(lazyDefault.thunk'2) = [0, 0, 0, 0]
-lazyDefault.thunk'2<complex>(%lazyDefault.thunk'2.env: Ptr): I32 {
+lazyDefault.thunk'2<complex>(): I32 {
   b_0 {
     ret 5
   }
@@ -102,30 +99,30 @@ explain.why.default<complex>(): I32 {
 }
 
 @header(main.thunk) = [0, 0, 0, 0]
-main.thunk<complex>(%main.thunk.env: Ptr): I32 {
+main.thunk<complex>(): I32 {
   b_0 {
     ret 4
   }
 }
 
-funvalue(note.why.default)<complex>(%v_0: Ptr): I32 {
-  b_1 {
-    %v_2 = call_complex note.why.default: I32
-    ret %v_2
+funvalue(note.why.default)<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex note.why.default: I32
+    ret %v_1
   }
 }
 
-funvalue(audited.fallback.default)<complex>(%v_0: Ptr): I32 {
-  b_1 {
-    %v_2 = call_complex audited.fallback.default: I32
-    ret %v_2
+funvalue(audited.fallback.default)<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex audited.fallback.default: I32
+    ret %v_1
   }
 }
 
-funvalue(explain.why.default)<complex>(%v_0: Ptr): I32 {
-  b_1 {
-    %v_2 = call_complex explain.why.default: I32
-    ret %v_2
+funvalue(explain.why.default)<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex explain.why.default: I32
+    ret %v_1
   }
 }
 

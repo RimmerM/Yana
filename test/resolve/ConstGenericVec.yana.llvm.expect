@@ -6,11 +6,11 @@ module asm "\09.set \22image$base\22, 0"
 @"image$base" = external constant [0 x i8], align 8
 @sink = global [8 x i8] zeroinitializer, align 8
 
-define fastcc i32 @quadWidth(<4 x i16> %v) #0 {
+define fastcc i32 @quadWidth() #0 {
   br label %1
 
 1:                                                ; preds = %0
-  %2 = call fastcc i32 @"widthOf(4)"(<4 x i16> %v)
+  %2 = call fastcc i32 @"widthOf(4)"()
   ret i32 %2
 }
 
@@ -24,8 +24,8 @@ define fastcc i32 @"main$"() #0 {
   %3 = call fastcc <4 x i16> @"sameCount(4)"(<4 x i16> <i16 0, i16 9, i16 0, i16 0>, <4 x i16> %wide)
   %summed = call fastcc <4 x i16> @"sameCount(4)"(<4 x i16> %2, <4 x i16> %3)
   store <4 x i16> %wide, ptr @sink, align 1
-  %4 = call fastcc i32 @"widthOf(4)"(<4 x i16> <i16 0, i16 9, i16 0, i16 0>)
-  %5 = call fastcc i32 @quadWidth(<4 x i16> <i16 0, i16 9, i16 0, i16 0>)
+  %4 = call fastcc i32 @"widthOf(4)"()
+  %5 = call fastcc i32 @quadWidth()
   %6 = add i32 %4, %5
   %7 = call fastcc i32 @"secondLane(4)"(<4 x i16> %wide)
   %8 = add i32 %6, %7
@@ -39,7 +39,7 @@ define fastcc i32 @"main$"() #0 {
   ret i32 %15
 }
 
-define fastcc i32 @"widthOf(4)"(<4 x i16> %v) #0 {
+define fastcc i32 @"widthOf(4)"() #0 {
   br label %1
 
 1:                                                ; preds = %0

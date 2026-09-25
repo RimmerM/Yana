@@ -292,23 +292,19 @@ main<complex>(): I32 {
   }
 
   b_20 {
-    %v_22 = loads %v_17, 4: I32
-    %v_23 = imul %v_22, 10: I32
-    %v_24 = loads %v_18, 4: I32
     call_complex freeHeap, %v_17
-    %v_25 = add %v_23, %v_24: I32
-    jmp b_26
+    jmp b_22
   }
 
   b_21 {
     call_complex freeHeap, %v_17
-    jmp b_26
+    jmp b_22
   }
 
-  b_26 {
-    %v_27 = phi [b_20, %v_25], [b_21, 18446744073709551615]: I32
-    %v_28 = add %d$level, %v_27: I32
-    ret %v_28
+  b_22 {
+    %v_23 = phi [b_20, 120], [b_21, 18446744073709551615]: I32
+    %v_24 = add %d$level, %v_23: I32
+    ret %v_24
   }
 
   b_15 {

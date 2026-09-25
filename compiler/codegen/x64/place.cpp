@@ -523,8 +523,12 @@ struct PlacementScratch {
     Array<FoldConflict> foldSorting;
     Array<Size> blockOrder;
 
-    // computeSpillCosts: how many values each web holds.
+    // computeSpillCosts: how many values each web holds, and per web the copy class of its members,
+    // the one member that is not a copy, and whether either of those is not one value.
     Array<U16> members;
+    Array<LiveId> webCopyClass;
+    Array<LiveId> webRoot;
+    Array<bool> webMixed;
 
     // The buffer mergeRanges merges through, and the clobber sites planSplit found a web crossing.
     Array<Range> merged;
@@ -2157,18 +2161,56 @@ static U32 frameBaseUseCost(Placer& a, const Remat& recipe, LowerInst* inst) {
 
 static void computeSpillCosts(Placer& a) {
     estimateLocalOffsets(a);
-    // A recipe reproduces one definition, so only a web that has one can have a recipe. A web with
-    // several members is several definitions of a single location, and no one of them describes it.
+    /*
+     * A recipe reproduces one definition, so only a web that holds one number can have a recipe. A web
+     * whose members a phi merged is several definitions of a single location, and no one of them
+     * describes it - but a web built by copy merges alone is one number under several names
+     * (`Placement::copyClassOf`), and the recipe of the one member that is not a copy describes every
+     * other. That is the web an alloca's address is in whenever it is also handed on as an integer:
+     * `bitcast %a: I64` is a register copy, and the case table `main$` builds in a test build had its
+     * base spilled once and reloaded in front of each of its four thousand stores for that reason.
+     */
     auto& members = a.scratch.members;
     members.clear();
     for(Size i = 0; i < a.webs.size(); i++) members.push(0);
     for(auto web: a.out.webOf) members[web]++;
 
+    // Per web: the copy class of its members, the one member that is not a copy - the definition the
+    // recipe is read off - and whether either of those turned out to be more than one (a phi's doing).
+    auto& copyClass = a.scratch.webCopyClass;
+    auto& root = a.scratch.webRoot;
+    auto& mixed = a.scratch.webMixed;
+    copyClass.clear();
+    root.clear();
+    mixed.clear();
+    for(Size i = 0; i < a.webs.size(); i++) {
+        copyClass.push(kNullLive);
+        root.push(kNullLive);
+        mixed.push(false);
+    }
+
     for(Size i = 0; i < a.out.webOf.size(); i++) {
-        auto& info = a.webs[a.out.webOf[i]];
-        if(members[a.out.webOf[i]] != 1 || info.canRemat) continue;
+        auto web = a.out.webOf[i];
+        auto own = a.out.copyClassOf[i];
+
+        if(copyClass[web] == kNullLive) copyClass[web] = own;
+        else if(copyClass[web] != own) mixed[web] = true;
 
         auto v = a.live.getValue(LiveId(i));
+        if(isImplicit(v)) continue;
+
+        auto definition = v->inst();
+        if(members[web] != 1 && definition && isRegisterCopy(a, definition)) continue;
+
+        if(root[web] == kNullLive) root[web] = LiveId(i);
+        else mixed[web] = true;
+    }
+
+    for(Size web = 0; web < a.webs.size(); web++) {
+        auto& info = a.webs[web];
+        if(info.canRemat || mixed[web] || root[web] == kNullLive) continue;
+
+        auto v = a.live.getValue(root[web]);
         if(isImplicit(v)) continue;
 
         info.canRemat = recipeFor(a, v, info.recipe);

@@ -1,52 +1,117 @@
 module ResolveTest
 
-let & start: Size = 0
-
-fn reachable(xs: Array(I32) [shared call view]) -> I32 {
-bb0(%0: Array(I32) [shared call view] guaranteed):
-  %1: %Size address = global.addr start
-  %2: Size trivial = load inspect %1
-  %3: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
+fn reachable(xs: Array(I32) [shared call view], at: Size [shared call]) -> I32 {
+bb0(%0: Array(I32) [shared call view] guaranteed, %1: Size trivial):
+  %2: %Size address = alloc frame Size [shared call]
+  store inspect %2 borrow %1
+  %3: Size trivial = load inspect %2
+  %4: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
   jump -> bb1
 
 bb1:
-  %5: %Size address = alloc frame Size [shared call]
-  store inspect %5 borrow %2
-  %6: Size trivial = load inspect %5
-  %7: USize trivial = bitcast inspect %6
-  %8: Array(I32) [shared slot 0 view] guaranteed from{%3} = load inspect %3
+  %6: %Size address = alloc frame Size [shared call]
+  store inspect %6 borrow %3
+  %7: Size trivial = load inspect %6
+  %8: USize trivial = bitcast inspect %7
+  %9: Array(I32) [shared slot 0 view] guaranteed from{%4} = load inspect %4
   jump -> bb6
 
-bb2(%4: I32 [shared slot 0] guaranteed from{%0}):
-  %21: I32 trivial = load inspect %4
-  return consume %21
+bb2(%5: I32 [shared slot 0] guaranteed from{%0}):
+  %22: I32 trivial = load inspect %5
+  return consume %22
 
 bb3:
   jump -> bb4
 
 bb4:
-  %14: Array(I32) [shared slot 0 view] guaranteed from{%3} = load inspect %3
-  %15: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %14
-  %16: Size trivial = load inspect %5
-  %17: Size trivial = metric stride I32
-  %18: Size trivial = mul inspect %16 inspect %17
-  %19: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %15 inspect %18
-  %20: I32 [shared slot 0] guaranteed = load inspect %19
-  jump -> bb2(borrow %20)
+  %15: Array(I32) [shared slot 0 view] guaranteed from{%4} = load inspect %4
+  %16: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %15
+  %17: Size trivial = load inspect %6
+  %18: Size trivial = metric stride I32
+  %19: Size trivial = mul inspect %17 inspect %18
+  %20: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %16 inspect %19
+  %21: I32 [shared slot 0] guaranteed = load inspect %20
+  jump -> bb2(borrow %21)
 
 bb5:
   call checkFailed
   jump -> bb4
 
 bb6:
-  %10: %Size address = field.addr .length inspect %8
-  %11: Size trivial = load inspect %10
-  jump -> bb7(consume %11)
+  %11: %Size address = field.addr .length inspect %9
+  %12: Size trivial = load inspect %11
+  jump -> bb7(consume %12)
 
-bb7(%9: Size trivial):
-  %12: USize trivial = bitcast inspect %9
-  %13: Bool trivial = ge inspect %7 inspect %12
-  branch inspect %13 -> bb5 -> bb3
+bb7(%10: Size trivial):
+  %13: USize trivial = bitcast inspect %10
+  %14: Bool trivial = ge inspect %8 inspect %13
+  branch inspect %14 -> bb5 -> bb3
+}
+
+fn firstAtLeast(xs: Array(I32) [shared call view], bound: I32 [shared call]) -> Size {
+bb0(%0: Array(I32) [shared call view] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %Size address = alloc frame Size
+  store inspect %2 borrow %1
+  %4: Size trivial = const 0
+  store inspect %3 consume %4
+  jump -> bb1
+
+bb1:
+  %5: Size trivial = load inspect %3
+  %6: Array(I32) [shared call view] guaranteed from{%0} = load inspect %0
+  jump -> bb4
+
+bb2:
+  %27: Size trivial = load inspect %3
+  return consume %27
+
+bb3:
+  %28: Size [unique call] guaranteed from{%3} = load inspect %3
+  %29: Size trivial = const 1
+  call +=(Size) borrow %28 borrow %29
+  jump -> bb1
+
+bb4:
+  %8: %Size address = alloc frame Size [shared call]
+  store inspect %8 borrow %5
+  %9: Size trivial = load inspect %8
+  %10: USize trivial = bitcast inspect %9
+  %11: Array(I32) [shared slot 0 view] guaranteed from{%6} = load inspect %6
+  jump -> bb9
+
+bb5(%7: I32 [shared slot 0] guaranteed from{%0}):
+  %24: I32 trivial = load inspect %7
+  %25: I32 trivial = load inspect %2
+  %26: Bool trivial = lt inspect %24 inspect %25
+  branch inspect %26 -> bb3 -> bb2
+
+bb6:
+  jump -> bb7
+
+bb7:
+  %17: Array(I32) [shared slot 0 view] guaranteed from{%6} = load inspect %6
+  %18: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %17
+  %19: Size trivial = load inspect %8
+  %20: Size trivial = metric stride I32
+  %21: Size trivial = mul inspect %19 inspect %20
+  %22: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %18 inspect %21
+  %23: I32 [shared slot 0] guaranteed = load inspect %22
+  jump -> bb5(borrow %23)
+
+bb8:
+  call checkFailed
+  jump -> bb7
+
+bb9:
+  %13: %Size address = field.addr .length inspect %11
+  %14: Size trivial = load inspect %13
+  jump -> bb10(consume %14)
+
+bb10(%12: Size trivial):
+  %15: USize trivial = bitcast inspect %12
+  %16: Bool trivial = ge inspect %10 inspect %15
+  branch inspect %16 -> bb8 -> bb6
 }
 
 fn main() -> I32 {
@@ -78,16 +143,17 @@ bb0:
   store inspect %19 consume %4
   %20: Array(I32) owned = load inspect %0
   store inspect %1 consume %20
-  %21: Size trivial = const 1
-  %22: %Size address = global.addr start
-  store inspect %22 consume %21
+  %21: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
+  %22: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %21
   %23: Array(I32) [shared call] guaranteed from{%1} = load inspect %1
   %24: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %23
-  %25: I32 trivial = call reachable borrow %24
+  %25: I32 trivial = const 8
+  %26: Size trivial = call firstAtLeast borrow %24 borrow %25
+  %27: I32 trivial = call reachable borrow %22 borrow %26
   drop Array(I32) inspect %1
-  %26: I32 trivial = const 8
-  %27: I32 trivial = sub inspect %25 inspect %26
-  return consume %27
+  %28: I32 trivial = const 8
+  %29: I32 trivial = sub inspect %27 inspect %28
+  return consume %29
 }
 
 entry main

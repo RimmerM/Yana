@@ -27,7 +27,7 @@ main<complex>(): I32 {
     store %v_13, 4, 1
     %v_14 = bitcast %v_10: I64
     %v_9 = add %v_8, 4: I64
-    call_complex Array(a).reclaim(U8), %v_14, 4, 4
+    call_complex Array(a).reclaim(U8), %v_14, 4
     %v_4 = sub %v_7, 1: I64
     jmp b_2
   }
@@ -46,15 +46,15 @@ main<complex>(): I32 {
     %v_22 = phi [b_15, %v_17], [b_5, 3]: I64
     %v_23 = phi [b_15, %v_20], [b_5, 0]: I64
     %v_24 = alloca 4, 1: Ptr
+    %v_25 = bitcast %v_24: I64
     store %v_24, 1, 1
-    %v_25 = add %v_24, 1: Ptr
-    store %v_25, 2, 1
-    %v_26 = add %v_24, 2: Ptr
-    store %v_26, 3, 1
-    %v_27 = add %v_24, 3: Ptr
-    store %v_27, 4, 1
-    %v_28 = bitcast %v_24: I64
-    call_complex Array(a).reclaim(U8), %v_28, 4, 4
+    %v_26 = add %v_24, 1: Ptr
+    store %v_26, 2, 1
+    %v_27 = add %v_24, 2: Ptr
+    store %v_27, 3, 1
+    %v_28 = add %v_24, 3: Ptr
+    store %v_28, 4, 1
+    call_complex Array(a).reclaim(U8), %v_25, 4
     %v_20 = add %v_23, 4: I64
     %v_17 = sub %v_22, 1: I64
     jmp b_15
@@ -103,33 +103,33 @@ main<complex>(): I32 {
   }
 }
 
-Array(a).reclaim(U8)<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
-  b_3 {
-    %v_4 = shr %v_1, 30: I32
-    %v_5 = cmp_eq %v_4, 1: I32
-    je %v_5, b_6, b_7
+Array(a).reclaim(U8)<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = shr %v_1, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = bitcast %v_0: Ptr
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_6, b_9
   }
 
   b_6 {
-    %v_8 = bitcast %v_0: Ptr
-    %v_9 = cmp_eq %v_0, 0: I32
-    je %v_9, b_7, b_10
-  }
-
-  b_7 {
     ret 
   }
 
-  b_10 {
-    %v_11 = sub %v_8, 8: Ptr
-    %v_12 = loads %v_11, 8: I64
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %v_12, 3: I64
-    %v_15 = add %v_13, %v_14: Ptr
-    %v_16 = load %v_15, 8: Ptr
-    store %v_8, %v_16, 8
-    store %v_15, %v_8, 8
-    jmp b_7
+  b_9 {
+    %v_10 = sub %v_7, 8: Ptr
+    %v_11 = loads %v_10, 8: I64
+    %v_12 = load @heapFree, 8: Ptr
+    %v_13 = shl %v_11, 3: I64
+    %v_14 = add %v_12, %v_13: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    store %v_7, %v_15, 8
+    store %v_14, %v_7, 8
+    jmp b_6
   }
 }
 
@@ -149,9 +149,7 @@ teardown(Result(I64, Held))<complex>(%v_0: Ptr) {
     %v_8 = load %v_7, 8: I64
     %v_9 = add %v_0, 16: Ptr
     %v_10 = load %v_9, 4: I32
-    %v_11 = add %v_0, 20: Ptr
-    %v_12 = load %v_11, 4: I32
-    call_complex Array(a).reclaim(U8), %v_8, %v_10, %v_12
+    call_complex Array(a).reclaim(U8), %v_8, %v_10
     jmp b_6
   }
 

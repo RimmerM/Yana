@@ -1,11 +1,11 @@
 mut @log = [0, 0, 0, 0]
 mut @dropped = [0, 0, 0, 0]
 
-Token.drop<complex>(%v_0: I32) {
-  b_1 {
-    %v_2 = loads @dropped, 4: I32
-    %v_3 = add %v_2, 1: I32
-    store @dropped, %v_3, 4
+Token.drop<complex>() {
+  b_0 {
+    %v_1 = loads @dropped, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @dropped, %v_2, 4
     ret 
   }
 }
@@ -109,111 +109,86 @@ main<complex>(): I32 {
     store @log, %v_42, 4
     store @dropped, 0, 4
     %v_43 = alloca 8, 4: Ptr
-    %v_44 = alloca 8, 4: Ptr
-    %v_45 = alloca 8, 4: Ptr
-    %v_46 = add %v_45, 4: Ptr
-    store %v_46, 3, 4
-    store %v_45, 1, 1
-    %v_47 = load %v_46, 4: I32
     store %v_43, 0, 1
-    %v_48 = add %v_43, 4: Ptr
-    store %v_48, %v_47, 4
+    %v_44 = add %v_43, 4: Ptr
+    store %v_44, 3, 4
+    %v_45 = load %v_44, 4: I32
+    call_complex Token.drop
+    call_complex Token.drop
+    %v_46 = add %v_45, 4: I32
+    %v_47 = loads @dropped, 4: I32
+    store @dropped, 0, 4
+    %v_48 = alloca 8, 4: Ptr
     %v_49 = alloca 8, 4: Ptr
-    %v_50 = add %v_49, 4: Ptr
-    store %v_50, 4, 4
-    store %v_49, 1, 1
-    %v_51 = load %v_50, 4: I32
-    store %v_44, 0, 1
-    %v_52 = add %v_44, 4: Ptr
-    store %v_52, %v_51, 4
-    %v_53 = load %v_48, 4: I32
-    %v_54 = load %v_52, 4: I32
-    call_complex Token.drop, %v_53
-    call_complex Token.drop, %v_54
-    %v_55 = add %v_53, %v_54: I32
-    %v_56 = loads @dropped, 4: I32
+    store %v_49, 0, 1
+    call_complex teardown(Maybe(Token)), %v_49
+    store %v_48, 1, 1
+    %v_50 = add %v_48, 4: Ptr
+    store %v_50, 0, 4
+    call_complex teardown(Outcome(Token, {})), %v_48
+    call_complex Token.drop
+    %v_51 = loads @dropped, 4: I32
     store @dropped, 0, 4
-    %v_57 = alloca 8, 4: Ptr
-    %v_58 = alloca 8, 4: Ptr
-    %v_59 = alloca 8, 4: Ptr
-    %v_60 = add %v_59, 4: Ptr
-    store %v_60, 3, 4
-    store %v_59, 1, 1
-    %v_61 = load %v_60, 4: I32
-    store %v_57, 0, 1
-    %v_62 = add %v_57, 4: Ptr
-    store %v_62, %v_61, 4
-    %v_63 = alloca 8, 4: Ptr
-    store %v_63, 0, 1
-    call_complex teardown(Maybe(Token)), %v_63
-    store %v_58, 1, 1
-    %v_64 = add %v_58, 4: Ptr
-    store %v_64, 0, 4
-    %v_65 = load %v_62, 4: I32
-    call_complex teardown(Outcome(Token, {})), %v_58
-    call_complex Token.drop, %v_65
-    %v_66 = loads @dropped, 4: I32
-    store @dropped, 0, 4
-    %v_67 = alloca 8, 4: Ptr
-    %v_68 = alloca 8, 4: Ptr
-    store %v_68, 0, 1
-    call_complex teardown(Maybe(Token)), %v_68
-    store %v_67, 1, 1
-    %v_69 = add %v_67, 4: Ptr
-    store %v_69, 0, 4
-    call_complex teardown(Outcome(Token, {})), %v_67
-    %v_70 = loads @dropped, 4: I32
-    %v_71 = add 7, 46: I32
-    %v_72 = add %v_71, 6: I32
-    %v_73 = add %v_72, 10: I32
-    %v_74 = add %v_73, 104: I32
-    %v_75 = add %v_74, 1: I32
-    %v_76 = and %v_31, 255: I32
-    %v_77 = cmp_eq %v_76, 1: I32
-    je %v_77, b_78, b_79
+    %v_52 = alloca 8, 4: Ptr
+    %v_53 = alloca 8, 4: Ptr
+    store %v_53, 0, 1
+    call_complex teardown(Maybe(Token)), %v_53
+    store %v_52, 1, 1
+    %v_54 = add %v_52, 4: Ptr
+    store %v_54, 0, 4
+    call_complex teardown(Outcome(Token, {})), %v_52
+    %v_55 = loads @dropped, 4: I32
+    %v_56 = add 7, 46: I32
+    %v_57 = add %v_56, 6: I32
+    %v_58 = add %v_57, 10: I32
+    %v_59 = add %v_58, 104: I32
+    %v_60 = add %v_59, 1: I32
+    %v_61 = and %v_31, 255: I32
+    %v_62 = cmp_eq %v_61, 1: I32
+    je %v_62, b_63, b_64
   }
 
-  b_79 {
-    jmp b_80
+  b_64 {
+    jmp b_65
   }
 
-  b_78 {
-    jmp b_80
+  b_63 {
+    jmp b_65
   }
 
-  b_80 {
-    %v_81 = phi [b_79, 0], [b_78, %v_32]: I32
-    %v_82 = add %v_75, %v_81: I32
-    %v_83 = add %v_82, 20: I32
-    %v_84 = add %v_83, 11: I32
-    %v_85 = add %v_84, %v_55: I32
-    %v_86 = neg 0: I32
-    %v_87 = add %v_86, 1: I32
-    %v_88 = add 1, %v_87: I32
-    %v_89 = add %v_88, 1: I32
-    %v_90 = and %v_33, 255: I32
-    %v_91 = neg %v_90: I32
-    %v_92 = add %v_91, 1: I32
-    %v_93 = add %v_89, %v_92: I32
-    %v_94 = add %v_93, 1: I32
-    %v_95 = add %v_94, 1: I32
-    %v_96 = neg 0: I32
-    %v_97 = add %v_96, 1: I32
-    %v_98 = add %v_95, %v_97: I32
-    %v_99 = neg 0: I32
-    %v_100 = add %v_99, 1: I32
-    %v_101 = add %v_98, %v_100: I32
-    %v_102 = imul %v_101, 1000: I32
-    %v_103 = add %v_85, %v_102: I32
-    %v_104 = imul %v_56, 100000: I32
-    %v_105 = add %v_103, %v_104: I32
-    %v_106 = imul %v_66, 10000000: I32
-    %v_107 = add %v_105, %v_106: I32
-    %v_108 = imul %v_70, 1000000000: I32
-    %v_109 = add %v_107, %v_108: I32
-    %v_110 = loads @log, 4: I32
-    %v_111 = add %v_109, %v_110: I32
-    ret %v_111
+  b_65 {
+    %v_66 = phi [b_64, 0], [b_63, %v_32]: I32
+    %v_67 = add %v_60, %v_66: I32
+    %v_68 = add %v_67, 20: I32
+    %v_69 = add %v_68, 11: I32
+    %v_70 = add %v_69, %v_46: I32
+    %v_71 = neg 0: I32
+    %v_72 = add %v_71, 1: I32
+    %v_73 = add 1, %v_72: I32
+    %v_74 = add %v_73, 1: I32
+    %v_75 = and %v_33, 255: I32
+    %v_76 = neg %v_75: I32
+    %v_77 = add %v_76, 1: I32
+    %v_78 = add %v_74, %v_77: I32
+    %v_79 = add %v_78, 1: I32
+    %v_80 = add %v_79, 1: I32
+    %v_81 = neg 0: I32
+    %v_82 = add %v_81, 1: I32
+    %v_83 = add %v_80, %v_82: I32
+    %v_84 = neg 0: I32
+    %v_85 = add %v_84, 1: I32
+    %v_86 = add %v_83, %v_85: I32
+    %v_87 = imul %v_86, 1000: I32
+    %v_88 = add %v_70, %v_87: I32
+    %v_89 = imul %v_47, 100000: I32
+    %v_90 = add %v_88, %v_89: I32
+    %v_91 = imul %v_51, 10000000: I32
+    %v_92 = add %v_90, %v_91: I32
+    %v_93 = imul %v_55, 1000000000: I32
+    %v_94 = add %v_92, %v_93: I32
+    %v_95 = loads @log, 4: I32
+    %v_96 = add %v_94, %v_95: I32
+    ret %v_96
   }
 }
 
@@ -229,9 +204,7 @@ teardown(Maybe(Token))<complex>(%v_0: Ptr) {
   }
 
   b_4 {
-    %v_7 = add %v_0, 4: Ptr
-    %v_8 = load %v_7, 4: I32
-    call_complex Token.drop, %v_8
+    call_complex Token.drop
     jmp b_6
   }
 
@@ -252,9 +225,7 @@ teardown(Outcome(Token, {}))<complex>(%v_0: Ptr) {
   }
 
   b_4 {
-    %v_7 = add %v_0, 4: Ptr
-    %v_8 = load %v_7, 4: I32
-    call_complex Token.drop, %v_8
+    call_complex Token.drop
     jmp b_6
   }
 

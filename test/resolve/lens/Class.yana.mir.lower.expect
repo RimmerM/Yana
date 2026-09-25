@@ -10,13 +10,13 @@ Gate.depth<complex>(%v_0: I32): I32 {
   }
 }
 
-Gate.hold<complex>(%v_0: I32, %$body: Ptr): I32 {
-  b_1 {
-    %v_2 = load %$body, 8: Ptr
-    %v_3 = add %$body, 8: Ptr
-    %v_4 = load %v_3, 8: Ptr
-    %v_5 = call_complex %v_2, %v_4, 0: I32
-    ret %v_5
+Gate.hold<complex>(%$body: Ptr): I32 {
+  b_0 {
+    %v_1 = load %$body, 8: Ptr
+    %v_2 = add %$body, 8: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    %v_4 = call_complex %v_1, %v_3, 0: I32
+    ret %v_4
   }
 }
 
@@ -236,9 +236,8 @@ thunk(Gate.depth)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
 
 thunk(Gate.hold)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr): I32 {
   b_3 {
-    %v_4 = load %v_1, 4: I32
-    %v_5 = call_complex Gate.hold, %v_4, %v_2: I32
-    ret %v_5
+    %v_4 = call_complex Gate.hold, %v_2: I32
+    ret %v_4
   }
 }
 

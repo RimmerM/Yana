@@ -136,6 +136,17 @@ struct Reachability {
 
         *entry.value = true;
         reached.push(function);
+
+        // Under `-check-locations` the lowering calls the located twin wherever this body calls a
+        // check role - see `run` below, where the reason the twin is rooted here is written.
+        if(opt.context.settings.checkLocations) {
+            auto& roles = opt.program.roles;
+            if(function == roles.function(intrinsic::Known::checkFailed)) {
+                root(roles.function(intrinsic::Known::checkFailedAt));
+            } else if(function == roles.function(intrinsic::Known::checkCondition)) {
+                root(roles.function(intrinsic::Known::checkConditionAt));
+            }
+        }
     }
 
     /*
@@ -369,16 +380,13 @@ struct Reachability {
         if(program.usesBoxes) rootAllocator();
 
         /*
-         * And the located check pair under `-check-locations`, for exactly the allocator's reason:
-         * the substitution happens in the lowering (`Lowering::locatedCheck`), which is after this
-         * walk, so nothing in the SSA names either declaration and a walk over calls finds neither.
+         * The located check pair under `-check-locations` is rooted by `root` itself, each where its
+         * unlocated twin is reached. The substitution happens in the lowering
+         * (`Lowering::locatedCheck`), after this walk, so nothing in the SSA names either located
+         * declaration - but every check call is built in MIR, so the walk does find the call the
+         * lowering will substitute. It used to root both whatever the program held, which kept the
+         * whole reporting path in a build none of whose checks could fail (J168).
          */
-        if(opt.context.settings.checkLocations) {
-            intrinsic::Known located[2] = { intrinsic::Known::checkFailedAt,
-                                            intrinsic::Known::checkConditionAt };
-
-            for(auto role: located) root(program.roles.function(role));
-        }
 
         narrowTeardowns = program.entry && !isJsMode(opt.context.settings);
 

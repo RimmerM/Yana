@@ -189,6 +189,7 @@ pub fn resize(&self: Run(a), wanted: Size) -> Bool:
    frame-placed array's teardown is no instructions at all. What still tests at run time is an array
    something wrote through a borrow, and a grown one - where the question is real.
 -}
+@builtin(releaseRun)
 pub fn releaseRun(self: Run(a)):
     if self.ownsHeap == runFromHeap then freeHeap(bitcast(self.items) :: %U8)
 

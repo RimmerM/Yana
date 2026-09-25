@@ -65,6 +65,11 @@ struct OptContext {
     AnalysisStamp containedStamp;
     AnalysisStamp soleStamp;
 
+    // `teardownMember` per (half, type) - `opt/teardown.cpp`'s, held here because that pass runs
+    // per body in the loop as well as once in front of the inliner, and every drop of an
+    // `Array(I32)` in the program asks the same instance search.
+    HashMap<U64, DeclPtr<mir::Function>> teardownMembers;
+
     /*
      * The globals whose address reaches anything but a load, a store or an atomic of the global
      * itself - `findAddressedGlobals`, J154. A program-wide answer, taken once in front of the
@@ -448,6 +453,7 @@ void removeDeadStorage(OptContext& opt);
  * storage passes because what makes a slot's uses few enough to compare is the forwarding above.
  */
 void elideMoves(OptContext& opt);
+void aliasBorrowedCopies(OptContext& opt);
 
 /*
  * A run of slots the frame can keep - `opt/place.cpp`, and the one placement this tier decides.
@@ -526,6 +532,16 @@ void flattenArguments(OptContext& opt);
  * the inliner is there to take.
  */
 void expandTeardowns(OptContext& opt);
+
+/*
+ * The same expansion in the per-body loop, for a record whose `Aggregate` an inlined callee brought
+ * in - and the teardown calls of what it built that owe nothing, erased. Native only. J172.
+ */
+void expandBuiltTeardowns(OptContext& opt);
+
+// A teardown call of a value whose end runs nothing, erased with the read that handed it over -
+// `opt/teardown.cpp`. The inliner asks it at every teardown site it visits.
+bool eraseInertTeardown(OptContext& opt, InstCall& call);
 
 /*
  * A call to a small callee replaced by a copy of its body - `opt/inline.cpp`.

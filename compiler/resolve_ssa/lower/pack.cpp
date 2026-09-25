@@ -697,6 +697,23 @@ Lowering::VirtualPlace Lowering::unpackNarrowRef(LowerBlock& block, LowerPtr<Low
         place.bitWidth = repr.scalarBits;
         place.isSigned = manifestNative(layout, mir::owned(pointee)).isSigned;
         if(seeNarrowRef(reference, place)) return place;
+
+        if(auto found = decodedNarrow.getValue(reference.offset)) {
+            place.word = found.unwrap().word;
+            place.shift = found.unwrap().shift;
+            return place;
+        }
+
+        // A parameter of the body being lowered, and not of a function the lowering generates
+        // while it is - a teardown built on demand has an entry of its own.
+        auto parameter = lower[reference]->inst();
+        if(currentEntry && parameter->kind == LowerInst::Arg &&
+           lower[parameter->block]->fun == currentEntry->fun) {
+            auto decoded = decodeNarrowParameter(*currentEntry, reference);
+            place.word = decoded.word;
+            place.shift = decoded.shift;
+            return place;
+        }
     }
 
     /*
@@ -724,6 +741,32 @@ Lowering::VirtualPlace Lowering::unpackNarrowRef(LowerBlock& block, LowerPtr<Low
                                          LowerType::Int64, StringId())->created().ptr - lower;
 
     return place;
+}
+
+/*
+ * A parameter's decode, written once in the entry block - `decodedNarrow`.
+ *
+ * `eliminateCommonValues` keeps no value alive across a call (`costsARegister`, lower_cse.h), which
+ * is the right rule for one instruction and the wrong one for this: the decode is a mask with a
+ * 64-bit immediate, a shift and two moves, and `Terminal.sequenceFor` wrote it eight times, once
+ * after each call of `addCode`. Carried from the entry the two halves are a register or a reload.
+ */
+Lowering::DecodedNarrow Lowering::decodeNarrowParameter(LowerBlock& entry,
+                                                        LowerPtr<LowerValue> reference) {
+    auto addressBits = layout.target.addressBits;
+    auto word = reinterpret(entry, reference, LowerType::Int64);
+
+    auto mask = immediate(entry, LowerType::Int64, maskOf(addressBits));
+    auto masked = binary<LowerInst::And>(lower, to, entry, lower[word], lower[mask],
+                                         LowerType::Int64, StringId())->created().ptr - lower;
+    auto amount = immediate(entry, LowerType::Int64, U64(addressBits));
+
+    DecodedNarrow decoded;
+    decoded.word = reinterpret(entry, masked, LowerType::Pointer);
+    decoded.shift = binary<LowerInst::Shr>(lower, to, entry, lower[word], lower[amount],
+                                           LowerType::Int64, StringId())->created().ptr - lower;
+    decodedNarrow.add(reference.offset, decoded);
+    return decoded;
 }
 
 /*

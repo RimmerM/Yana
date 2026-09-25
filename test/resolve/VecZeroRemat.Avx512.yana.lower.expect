@@ -721,159 +721,158 @@ main<complex>(): I32 {
   b_7 {
     %v_8 = load %v_1, 8: Ptr
     %v_9 = load %v_10, 4: I32
-    %v_11 = load %v_12, 4: I32
-    %v_13 = vsplat 0: i32x16
-    %v_14 = cast %v_11: I64
-    %v_15 = vwithlane %v_13, 1, 1: i32x16
-    %v_16 = vwithlane %v_15, 2, 2: i32x16
-    %v_17 = vwithlane %v_16, 3, 3: i32x16
-    %v_18 = vwithlane %v_17, 4, 4: i32x16
-    %v_19 = vwithlane %v_18, 5, 5: i32x16
-    %v_20 = vwithlane %v_19, 6, 6: i32x16
-    %v_21 = vwithlane %v_20, 7, 7: i32x16
-    %v_22 = vwithlane %v_21, 8, 8: i32x16
-    %v_23 = vwithlane %v_22, 9, 9: i32x16
-    %v_24 = vwithlane %v_23, 10, 10: i32x16
-    %v_25 = vwithlane %v_24, 11, 11: i32x16
-    %v_26 = vwithlane %v_25, 12, 12: i32x16
-    %v_27 = vwithlane %v_26, 13, 13: i32x16
-    %v_28 = vwithlane %v_27, 14, 14: i32x16
-    %v_29 = vwithlane %v_28, 15, 15: i32x16
-    %last = sub %v_14, %v_5: I64
-    %v_30 = vsplat 7: i32x16
-    %v_31 = vsplat 3: i32x16
-    jmp b_32
-  }
-
-  b_33 {
-    %v_34 = shr %v_9, 30: I32
-    %v_35 = cmp_eq %v_34, 1: I32
-    je %v_35, b_36, b_37
-  }
-
-  b_36 {
-    call_complex freeHeap, %v_8
-    jmp b_37
-  }
-
-  b_37 {
-    %v_38 = and %v_39, 65535: I32
-    ret %v_38
+    %v_11 = vsplat 0: i32x16
+    %v_12 = cast %v_13: I64
+    %v_14 = vwithlane %v_11, 1, 1: i32x16
+    %v_15 = vwithlane %v_14, 2, 2: i32x16
+    %v_16 = vwithlane %v_15, 3, 3: i32x16
+    %v_17 = vwithlane %v_16, 4, 4: i32x16
+    %v_18 = vwithlane %v_17, 5, 5: i32x16
+    %v_19 = vwithlane %v_18, 6, 6: i32x16
+    %v_20 = vwithlane %v_19, 7, 7: i32x16
+    %v_21 = vwithlane %v_20, 8, 8: i32x16
+    %v_22 = vwithlane %v_21, 9, 9: i32x16
+    %v_23 = vwithlane %v_22, 10, 10: i32x16
+    %v_24 = vwithlane %v_23, 11, 11: i32x16
+    %v_25 = vwithlane %v_24, 12, 12: i32x16
+    %v_26 = vwithlane %v_25, 13, 13: i32x16
+    %v_27 = vwithlane %v_26, 14, 14: i32x16
+    %v_28 = vwithlane %v_27, 15, 15: i32x16
+    %last = sub %v_12, %v_5: I64
+    %v_29 = vsplat 7: i32x16
+    %v_30 = vsplat 3: i32x16
+    jmp b_31
   }
 
   b_32 {
-    %v_40 = phi [b_41, %v_39], [b_7, 0]: I32
-    %v_42 = phi [b_41, %v_43], [b_7, 0]: I32
-    %v_44 = add %v_42, 1: I32
-    %v_45 = imul %v_44, 18446744072069020081: I32
-    %k = vsplat %v_45: i32x16
-    jmp b_46
+    %v_33 = shr %v_9, 30: I32
+    %v_34 = cmp_eq %v_33, 1: I32
+    je %v_34, b_35, b_36
   }
 
-  b_46 {
-    %v_47 = phi [b_32, %v_13], [b_48, %v_49]: i32x16
-    %v_50 = phi [b_32, 0], [b_48, %v_51]: I64
-    %v_52 = cmp_ile %v_50, %last: I32
-    je %v_52, b_48, b_53
+  b_35 {
+    call_complex freeHeap, %v_8
+    jmp b_36
   }
 
-  b_53 {
-    %v_54 = cmp_ilt %v_50, %v_14: I32
-    je %v_54, b_55, b_41
+  b_36 {
+    %v_37 = and %v_38, 65535: I32
+    ret %v_37
   }
 
-  b_55 {
-    %v_56 = sub %v_14, %v_50: I64
-    %v_57 = cast %v_56: I32
-    %v_58 = vsplat %v_57: i32x16
-    %live = cmp_ilt %v_29, %v_58: m32x16
-    %v_59 = shl %v_50, 2: I64
-    %v_60 = add %v_8, %v_59: Ptr
-    %v_61 = loadx %v_60, 64: i32x16
-    %v_62 = select %live, %v_61, %v_13: i32x16
-    %v_63 = imul %v_62, %k: i32x16
-    %v_64 = shr %v_62, %v_30: i32x16
-    %t = xor %v_63, %v_64: i32x16
-    %v_65 = shl %t, %v_31: i32x16
-    %v_66 = xor %t, %v_65: i32x16
-    %v_67 = add %v_47, %v_66: i32x16
-    jmp b_41
+  b_31 {
+    %v_39 = phi [b_40, %v_38], [b_7, 0]: I32
+    %v_41 = phi [b_40, %v_42], [b_7, 0]: I32
+    %v_43 = add %v_41, 1: I32
+    %v_44 = imul %v_43, 18446744072069020081: I32
+    %k = vsplat %v_44: i32x16
+    jmp b_45
   }
 
-  b_41 {
-    %v_68 = phi [b_53, %v_47], [b_55, %v_67]: i32x16
-    %v_69 = call_complex folds, %v_8, %v_14, %v_42: I32
-    %v_70 = add %v_40, %v_69: I32
-    %v_71 = vreduce_add %v_68: I32
-    %v_39 = add %v_70, %v_71: I32
-    %v_43 = add %v_42, 1: I32
-    %v_72 = cmp_ilt %v_43, 3: I32
-    je %v_72, b_32, b_33
+  b_45 {
+    %v_46 = phi [b_31, %v_11], [b_47, %v_48]: i32x16
+    %v_49 = phi [b_31, 0], [b_47, %v_50]: I64
+    %v_51 = cmp_ile %v_49, %last: I32
+    je %v_51, b_47, b_52
   }
 
-  b_48 {
-    %v_73 = shl %v_50, 2: I64
-    %v_74 = add %v_8, %v_73: Ptr
-    %v_75 = load %v_74, 64: i32x16
-    %v_76 = imul %v_75, %k: i32x16
-    %v_77 = shr %v_75, %v_30: i32x16
-    %t = xor %v_76, %v_77: i32x16
-    %v_78 = shl %t, %v_31: i32x16
-    %v_79 = xor %t, %v_78: i32x16
-    %v_49 = add %v_47, %v_79: i32x16
-    %v_51 = add %v_50, %v_5: I64
-    jmp b_46
+  b_52 {
+    %v_53 = cmp_ilt %v_49, %v_12: I32
+    je %v_53, b_54, b_40
+  }
+
+  b_54 {
+    %v_55 = sub %v_12, %v_49: I64
+    %v_56 = cast %v_55: I32
+    %v_57 = vsplat %v_56: i32x16
+    %live = cmp_ilt %v_28, %v_57: m32x16
+    %v_58 = shl %v_49, 2: I64
+    %v_59 = add %v_8, %v_58: Ptr
+    %v_60 = loadx %v_59, 64: i32x16
+    %v_61 = select %live, %v_60, %v_11: i32x16
+    %v_62 = imul %v_61, %k: i32x16
+    %v_63 = shr %v_61, %v_29: i32x16
+    %t = xor %v_62, %v_63: i32x16
+    %v_64 = shl %t, %v_30: i32x16
+    %v_65 = xor %t, %v_64: i32x16
+    %v_66 = add %v_46, %v_65: i32x16
+    jmp b_40
+  }
+
+  b_40 {
+    %v_67 = phi [b_52, %v_46], [b_54, %v_66]: i32x16
+    %v_68 = call_complex folds, %v_8, %v_12, %v_41: I32
+    %v_69 = add %v_39, %v_68: I32
+    %v_70 = vreduce_add %v_67: I32
+    %v_38 = add %v_69, %v_70: I32
+    %v_42 = add %v_41, 1: I32
+    %v_71 = cmp_ilt %v_42, 3: I32
+    je %v_71, b_31, b_32
+  }
+
+  b_47 {
+    %v_72 = shl %v_49, 2: I64
+    %v_73 = add %v_8, %v_72: Ptr
+    %v_74 = load %v_73, 64: i32x16
+    %v_75 = imul %v_74, %k: i32x16
+    %v_76 = shr %v_74, %v_29: i32x16
+    %t = xor %v_75, %v_76: i32x16
+    %v_77 = shl %t, %v_30: i32x16
+    %v_78 = xor %t, %v_77: i32x16
+    %v_48 = add %v_46, %v_78: i32x16
+    %v_50 = add %v_49, %v_5: I64
+    jmp b_45
   }
 
   b_6 {
-    %v_80 = phi [b_81, %v_82], [b_0, 0]: I32
-    %v_83 = imul %v_80, 18446744072069020081: I32
-    %v_84 = add %v_83, 7: I32
-    %v_85 = shr %v_84, 8: I32
-    %v_86 = and %v_85, 1023: I32
-    %v_87 = add %v_1, 12: Ptr
-    %v_88 = load %v_87, 4: I32
-    %count = cast %v_88: I64
-    %v_89 = add %count, 1: I64
-    %v_90 = add %v_1, 8: Ptr
-    %v_91 = load %v_90, 4: I32
-    %v_92 = and %v_91, 1073741823: I32
-    %v_93 = cast %v_92: I64
-    %v_94 = cmp_ile %v_89, %v_93: I32
-    je %v_94, b_95, b_96
-  }
-
-  b_96 {
-    call_complex growArray(I32), %v_1, %v_89
-    %v_97 = load %v_90, 4: I32
-    %v_98 = and %v_97, 1073741823: I32
-    %v_99 = cast %v_98: I64
-    jmp b_95
+    %v_79 = phi [b_80, %v_81], [b_0, 0]: I32
+    %v_82 = imul %v_79, 18446744072069020081: I32
+    %v_83 = add %v_82, 7: I32
+    %v_84 = shr %v_83, 8: I32
+    %v_85 = and %v_84, 1023: I32
+    %v_86 = add %v_1, 12: Ptr
+    %v_87 = load %v_86, 4: I32
+    %count = cast %v_87: I64
+    %v_88 = add %count, 1: I64
+    %v_89 = add %v_1, 8: Ptr
+    %v_90 = load %v_89, 4: I32
+    %v_91 = and %v_90, 1073741823: I32
+    %v_92 = cast %v_91: I64
+    %v_93 = cmp_ile %v_88, %v_92: I32
+    je %v_93, b_94, b_95
   }
 
   b_95 {
-    %v_100 = phi [b_6, %v_93], [b_96, %v_99]: I64
+    call_complex growArray(I32), %v_1, %v_88
+    %v_96 = load %v_89, 4: I32
+    %v_97 = and %v_96, 1073741823: I32
+    %v_98 = cast %v_97: I64
+    jmp b_94
+  }
+
+  b_94 {
+    %v_99 = phi [b_6, %v_92], [b_95, %v_98]: I64
     %v_10 = add %v_1, 8: Ptr
-    %v_101 = cmp_ige %count, %v_100: I32
-    je %v_101, b_102, b_81
+    %v_100 = cmp_ige %count, %v_99: I32
+    je %v_100, b_101, b_80
   }
 
-  b_81 {
-    %v_103 = load %v_1, 8: Ptr
-    %v_104 = shl %count, 2: I64
-    %v_105 = add %v_103, %v_104: Ptr
-    store %v_105, %v_86, 4
-    %v_106 = cast %v_89: I32
-    %v_107 = and %v_106, 1073741823: I32
-    %v_12 = add %v_1, 12: Ptr
-    store %v_12, %v_107, 4
-    %v_82 = add %v_80, 1: I32
-    %v_108 = cmp_ilt %v_82, 27: I32
-    je %v_108, b_6, b_7
+  b_80 {
+    %v_102 = load %v_1, 8: Ptr
+    %v_103 = shl %count, 2: I64
+    %v_104 = add %v_102, %v_103: Ptr
+    store %v_104, %v_85, 4
+    %v_105 = cast %v_88: I32
+    %v_13 = and %v_105, 1073741823: I32
+    %v_106 = add %v_1, 12: Ptr
+    store %v_106, %v_13, 4
+    %v_81 = add %v_79, 1: I32
+    %v_107 = cmp_ilt %v_81, 27: I32
+    je %v_107, b_6, b_7
   }
 
-  b_102 {
-    %v_109 = syscall 60, 134: I64
+  b_101 {
+    %v_108 = syscall 60, 134: I64
     unreachable 
   }
 }

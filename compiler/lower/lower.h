@@ -903,6 +903,15 @@ struct LowerFunction {
     bool foreignBoundary = false;
 
     /*
+     * This function releases what its arguments hold - a `Drop` or `Reclaim` member, or a teardown
+     * the lowering wrote for a type. `expandTeardownCalls` (lower_teardown.h) is the one reader: a
+     * call of one of these, with a body of one block, is what it may replace by that body where the
+     * subject's slot is about to be split. Set by the resolve stage that knows; false is the
+     * cautious answer and is what the shipping stage leaves.
+     */
+    bool teardown = false;
+
+    /*
      * Constant data emitted immediately in front of this function's entry point, or null.
      *
      * "Immediately" is the whole content of the field: a code generator may pad before the data but

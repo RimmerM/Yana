@@ -60,58 +60,90 @@ bb4(%6: I32 trivial, %7: I32 trivial):
   %39: %[String *3] address = global.addr names
   %40: %String address = element.addr inspect %39 inspect %35
   %41: String [shared call] guaranteed = load inspect %40
-  %42: String [shared slot 0 view] guaranteed = call String.view borrow %41
-  %43: Size trivial = call String.length borrow %42
-  %44: I32 trivial = convert inspect %43
-  %45: I32 trivial = add inspect %33 inspect %44
-  store inspect %16 consume %45
-  jump -> bb2(consume %6, consume %7)
+  jump -> bb9
 
 bb5(%8: I32 trivial, %9: I32 trivial):
-  %46: I32 trivial = load inspect %19
-  %47: Bool trivial = lt inspect %46 inspect %8
-  branch inspect %47 -> bb8(consume %8, consume %9) -> bb7(consume %8, consume %9)
+  %57: I32 trivial = load inspect %19
+  %58: Bool trivial = lt inspect %57 inspect %8
+  branch inspect %58 -> bb8(consume %8, consume %9) -> bb7(consume %8, consume %9)
 
 bb6(%10: I32 trivial, %11: I32 trivial):
-  %48: I32 trivial = load inspect %19
-  %49: I32 trivial = add inspect %48 inspect %11
-  store inspect %19 consume %49
+  %59: I32 trivial = load inspect %19
+  %60: I32 trivial = add inspect %59 inspect %11
+  store inspect %19 consume %60
   jump -> bb5(consume %10, consume %11)
 
 bb7(%12: I32 trivial, %13: I32 trivial):
-  %50: I32 trivial = load inspect %16
-  return consume %50
+  %61: I32 trivial = load inspect %16
+  return consume %61
 
 bb8(%14: I32 trivial, %15: I32 trivial):
-  %51: I32 trivial = load inspect %19
-  store inspect %20 consume %51
-  %52: I32 trivial = load inspect %16
-  %53: I32 trivial = load inspect %20
-  %54: Size trivial = convert inspect %53
-  %55: USize trivial = const 2
-  %56: USize trivial = bitcast inspect %54
-  %57: Bool trivial = ge inspect %56 inspect %55
-  call checkCondition borrow %57
-  %58: %[Row *2] address = global.addr rows
-  %59: %Row address = element.addr inspect %58 inspect %54
-  %60: %String address = field.addr .name inspect %59
-  %61: String [shared call] guaranteed = load inspect %60
-  %62: String [shared slot 0 view] guaranteed = call String.view borrow %61
-  %63: Size trivial = call String.length borrow %62
-  %64: I32 trivial = convert inspect %63
-  %65: I32 trivial = load inspect %20
-  %66: Size trivial = convert inspect %65
-  %67: USize trivial = const 2
-  %68: USize trivial = bitcast inspect %66
-  %69: Bool trivial = ge inspect %68 inspect %67
-  call checkCondition borrow %69
-  %70: %[Row *2] address = global.addr rows
-  %71: %Row address = element.addr inspect %70 inspect %66
-  %72: %I32 address = field.addr .rank inspect %71
-  %73: I32 trivial = load inspect %72
-  %74: I32 trivial = mul inspect %64 inspect %73
-  %75: I32 trivial = add inspect %52 inspect %74
-  store inspect %16 consume %75
+  %62: I32 trivial = load inspect %19
+  store inspect %20 consume %62
+  %63: I32 trivial = load inspect %16
+  %64: I32 trivial = load inspect %20
+  %65: Size trivial = convert inspect %64
+  %66: USize trivial = const 2
+  %67: USize trivial = bitcast inspect %65
+  %68: Bool trivial = ge inspect %67 inspect %66
+  call checkCondition borrow %68
+  %69: %[Row *2] address = global.addr rows
+  %70: %Row address = element.addr inspect %69 inspect %65
+  %71: %String address = field.addr .name inspect %70
+  %72: String [shared call] guaranteed = load inspect %71
+  jump -> bb11
+
+bb9:
+  %43: %Array(CodeUnit) address = field.addr .units inspect %41
+  %44: %Run(CodeUnit) address = field.addr .run inspect %43
+  %45: %%CodeUnit address = field.addr .items inspect %44
+  %46: %CodeUnit trivial = load inspect %45
+  %47: %Array(CodeUnit) address = field.addr .units inspect %41
+  %48: %@bits(30) U32 address = field.addr .length inspect %47
+  %49: @bits(30) U32 trivial = load inspect %48
+  %50: I32 trivial = convert inspect %49
+  %51: Size trivial = convert inspect %50
+  %52: StringView trivial = aggregate.StringView consume %46 consume %51
+  %53: String [shared slot 0 view] guaranteed = represent inspect %52
+  jump -> bb10(borrow %53)
+
+bb10(%42: String [shared slot 0 view] guaranteed):
+  %54: Size trivial = call String.length borrow %42
+  %55: I32 trivial = convert inspect %54
+  %56: I32 trivial = add inspect %33 inspect %55
+  store inspect %16 consume %56
+  jump -> bb2(consume %6, consume %7)
+
+bb11:
+  %74: %Array(CodeUnit) address = field.addr .units inspect %72
+  %75: %Run(CodeUnit) address = field.addr .run inspect %74
+  %76: %%CodeUnit address = field.addr .items inspect %75
+  %77: %CodeUnit trivial = load inspect %76
+  %78: %Array(CodeUnit) address = field.addr .units inspect %72
+  %79: %@bits(30) U32 address = field.addr .length inspect %78
+  %80: @bits(30) U32 trivial = load inspect %79
+  %81: I32 trivial = convert inspect %80
+  %82: Size trivial = convert inspect %81
+  %83: StringView trivial = aggregate.StringView consume %77 consume %82
+  %84: String [shared slot 0 view] guaranteed = represent inspect %83
+  jump -> bb12(borrow %84)
+
+bb12(%73: String [shared slot 0 view] guaranteed):
+  %85: Size trivial = call String.length borrow %73
+  %86: I32 trivial = convert inspect %85
+  %87: I32 trivial = load inspect %20
+  %88: Size trivial = convert inspect %87
+  %89: USize trivial = const 2
+  %90: USize trivial = bitcast inspect %88
+  %91: Bool trivial = ge inspect %90 inspect %89
+  call checkCondition borrow %91
+  %92: %[Row *2] address = global.addr rows
+  %93: %Row address = element.addr inspect %92 inspect %88
+  %94: %I32 address = field.addr .rank inspect %93
+  %95: I32 trivial = load inspect %94
+  %96: I32 trivial = mul inspect %86 inspect %95
+  %97: I32 trivial = add inspect %63 inspect %96
+  store inspect %16 consume %97
   jump -> bb6(consume %14, consume %15)
 }
 

@@ -1170,11 +1170,27 @@ bb0:
   %22: String owned = load inspect %1
   store inspect %2 consume %22
   %23: String [shared slot 0] guaranteed from{%2} = load inspect %2
-  %24: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %23
+  jump -> bb1
+
+bb1:
+  %25: %Array(CodeUnit) address = field.addr .units inspect %23
+  %26: %Run(CodeUnit) address = field.addr .run inspect %25
+  %27: %%CodeUnit address = field.addr .items inspect %26
+  %28: %CodeUnit trivial = load inspect %27
+  %29: %Array(CodeUnit) address = field.addr .units inspect %23
+  %30: %@bits(30) U32 address = field.addr .length inspect %29
+  %31: @bits(30) U32 trivial = load inspect %30
+  %32: I32 trivial = convert inspect %31
+  %33: Size trivial = convert inspect %32
+  %34: StringView trivial = aggregate.StringView consume %28 consume %33
+  %35: String [shared slot 0 view] guaranteed = represent inspect %34
+  jump -> bb2(borrow %35)
+
+bb2(%24: String [shared slot 0 view] guaranteed from{%2}):
   call print borrow %24
   drop String inspect %2
-  %25: I32 trivial = load inspect %0
-  return consume %25
+  %36: I32 trivial = load inspect %0
+  return consume %36
 }
 
 entry main

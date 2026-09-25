@@ -729,7 +729,9 @@ struct Verifier {
                 continue;
             }
 
-            if(rematOwner[index] != kNullLive) {
+            // Two members of one web built by copies alone hold one number and share its recipe -
+            // see `computeSpillCosts`. Anything else sharing one is two values under one name.
+            if(rematOwner[index] != kNullLive && !regs.placement.sameNumber(rematOwner[index], LiveId(i))) {
                 fail("%@: %@ and %@ share recipe %@",
                     funName, nameOf(rematOwner[index]), nameOf(LiveId(i)), U32(index));
                 continue;

@@ -13,66 +13,61 @@ main<complex>(): I32 {
     %v_2 = add %gOther, 12: Ptr
     %v_3 = load %v_2, 4: I32
     %v_4 = cast %v_3: I64
-    %v_5 = alloca 8, 4: Ptr
-    store %v_5, 7, 4
-    %v_6 = add %v_5, 4: Ptr
-    store %v_6, 8, 4
     %gOther = global @gOther: Ptr
-    %v_7 = load %gOther, 8: Ptr
-    %v_8 = add %gOther, 12: Ptr
-    %v_9 = load %v_8, 4: I32
-    %v_10 = cast %v_9: I64
+    %v_5 = load %gOther, 8: Ptr
+    %v_6 = add %gOther, 12: Ptr
+    %v_7 = load %v_6, 4: I32
+    %v_8 = cast %v_7: I64
     %gLoose = global @gLoose: Ptr
-    store %gLoose, %v_7, 8
-    %v_11 = add %gLoose, 8: Ptr
-    store %v_11, %v_10, 8
+    store %gLoose, %v_5, 8
+    %v_9 = add %gLoose, 8: Ptr
+    store %v_9, %v_8, 8
     %gArr = global @gArr: Ptr
-    %v_12 = load %gArr, 8: Ptr
-    %v_13 = add %gArr, 12: Ptr
-    %v_14 = load %v_13, 4: I32
-    %v_15 = cast %v_14: I64
-    %v_16 = cmp_eq %v_15, 0: I32
-    je %v_16, b_17, b_18
+    %v_10 = load %gArr, 8: Ptr
+    %v_11 = add %gArr, 12: Ptr
+    %v_12 = load %v_11, 4: I32
+    %v_13 = cast %v_12: I64
+    %v_14 = cmp_eq %v_13, 0: I32
+    je %v_14, b_15, b_16
   }
 
-  b_18 {
-    %v_19 = loads %v_12, 4: I32
-    %v_20 = cmp_ge 1, %v_15: I32
-    je %v_20, b_17, b_21
+  b_16 {
+    %v_17 = loads %v_10, 4: I32
+    %v_18 = cmp_ge 1, %v_13: I32
+    je %v_18, b_15, b_19
   }
 
-  b_17 {
-    %v_22 = syscall 60, 134: I64
+  b_15 {
+    %v_20 = syscall 60, 134: I64
     unreachable 
   }
 
-  b_21 {
-    %v_23 = add %v_12, 4: Ptr
-    %v_24 = loads %v_23, 4: I32
-    %v_25 = add %v_19, %v_24: I32
-    %v_26 = cmp_ge 2, %v_4: I32
-    je %v_26, b_17, b_27
+  b_19 {
+    %v_21 = add %v_10, 4: Ptr
+    %v_22 = loads %v_21, 4: I32
+    %v_23 = add %v_17, %v_22: I32
+    %v_24 = cmp_ge 2, %v_4: I32
+    je %v_24, b_15, b_25
   }
 
-  b_27 {
-    %v_28 = add %v_1, 8: Ptr
-    %v_29 = loads %v_28, 4: I32
-    %v_30 = add %v_25, %v_29: I32
+  b_25 {
+    %v_26 = add %v_1, 8: Ptr
+    %v_27 = loads %v_26, 4: I32
+    %v_28 = add %v_23, %v_27: I32
     %gLoose = global @gLoose: Ptr
-    %v_31 = add %gLoose, 8: Ptr
-    %v_32 = loads %v_31, 8: I64
-    %v_33 = cmp_ge 1, %v_32: I32
-    je %v_33, b_17, b_34
+    %v_29 = add %gLoose, 8: Ptr
+    %v_30 = loads %v_29, 8: I64
+    %v_31 = cmp_ge 1, %v_30: I32
+    je %v_31, b_15, b_32
   }
 
-  b_34 {
-    %v_35 = load %gLoose, 8: Ptr
-    %v_36 = add %v_35, 4: Ptr
-    %v_37 = loads %v_36, 4: I32
-    %v_38 = add %v_30, %v_37: I32
-    %v_39 = loads %v_6, 4: I32
-    %v_40 = add %v_38, %v_39: I32
-    ret %v_40
+  b_32 {
+    %v_33 = load %gLoose, 8: Ptr
+    %v_34 = add %v_33, 4: Ptr
+    %v_35 = loads %v_34, 4: I32
+    %v_36 = add %v_28, %v_35: I32
+    %v_37 = add %v_36, 8: I32
+    ret %v_37
   }
 }
 

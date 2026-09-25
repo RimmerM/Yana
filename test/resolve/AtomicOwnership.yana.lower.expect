@@ -41,33 +41,32 @@ main<complex>(): I32 {
     %v_22 = atomic_loads %v_17, 4, relaxed: I32
     %v_23 = atomic_loads %v_17, 4, relaxed: I32
     %v_24 = add %v_22, %v_23: I32
-    %v_25 = imm 1: I32
-    jmp b_26
-  }
-
-  b_27 {
-    %v_28 = cmp_ilt %v_29, 2: I32
-    je %v_28, b_26, b_30
-  }
-
-  b_30 {
-    %v_31 = add %v_21, %v_24: I32
-    %v_32 = add %v_16, %v_31: I32
-    %h = alloca 8, 4: Ptr
-    store %h, 8, 4
-    %v_33 = add %h, 4: Ptr
-    store %v_33, %v_25, 4
-    %v_34 = atomic_loads %h, 4, relaxed: I32
-    %v_35 = add %v_34, %v_25: I32
-    %v_36 = add %v_32, %v_35: I32
-    %v_37 = add %v_36, 7: I32
-    ret %v_37
+    jmp b_25
   }
 
   b_26 {
-    %v_38 = phi [b_27, %v_29], [b_0, 0]: I32
-    %v_29 = add %v_38, 1: I32
-    jmp b_27
+    %v_27 = cmp_ilt %v_28, 2: I32
+    je %v_27, b_25, b_29
+  }
+
+  b_29 {
+    %v_30 = add %v_21, %v_24: I32
+    %v_31 = add %v_16, %v_30: I32
+    %h = alloca 8, 4: Ptr
+    store %h, 8, 4
+    %v_32 = add %h, 4: Ptr
+    store %v_32, 1, 4
+    %v_33 = atomic_loads %h, 4, relaxed: I32
+    %v_34 = add %v_33, 1: I32
+    %v_35 = add %v_31, %v_34: I32
+    %v_36 = add %v_35, 7: I32
+    ret %v_36
+  }
+
+  b_25 {
+    %v_37 = phi [b_26, %v_28], [b_0, 0]: I32
+    %v_28 = add %v_37, 1: I32
+    jmp b_26
   }
 }
 

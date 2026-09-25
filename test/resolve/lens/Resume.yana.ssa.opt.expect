@@ -1174,16 +1174,16 @@ bb0(%0: I32 trivial, %1: (I32) -> Outcome(Command, I32) [shared call] guaranteed
   %19: U8 trivial = const 1
   jump -> bb1(inspect %9)
 
-bb1(%33: I32 trivial):
-  %12: Bool trivial = lt inspect %33 inspect %0
+bb1(%31: I32 trivial):
+  %12: Bool trivial = lt inspect %31 inspect %0
   branch inspect %12 -> bb3 -> bb2(inspect %8)
 
-bb2(%34: I32 trivial):
-  return consume %34
+bb2(%32: I32 trivial):
+  return consume %32
 
 bb3:
   %15: (I32) -> Outcome(Command, I32) [shared call] guaranteed from{%1} = load inspect %1
-  %16: Outcome(Command, I32) owned = call [value #0] inspect %15 borrow %33
+  %16: Outcome(Command, I32) owned = call [value #0] inspect %15 borrow %31
   store inspect %6 consume %16
   %17: %U8 address = field.addr .# inspect %6
   %18: U8 trivial = load inspect %17
@@ -1196,10 +1196,8 @@ bb4:
   store inspect %7 consume %22
   %26: %I32 address = field.addr .code inspect %7
   %27: I32 trivial = load inspect %26
-  %29: %Box address = field.addr .box inspect %7
-  %30: Box owned = load inspect %29
-  call Box.drop consume %30
-  %28: I32 trivial = add inspect %33 inspect %27
+  drop Command inspect %7
+  %28: I32 trivial = add inspect %31 inspect %27
   jump -> bb1(inspect %28)
 
 bb5:
@@ -1216,22 +1214,22 @@ bb0(%0: I32 trivial):
   %14: %Command address = alloc frame Command
   %16: I32 trivial = const 0
   %17: U8 trivial = const 1
-  %37: I32 trivial = const 10
-  %40: I32 trivial = const 2
-  %41: I32 trivial = const 0
+  %35: I32 trivial = const 10
+  %38: I32 trivial = const 2
+  %39: I32 trivial = const 0
   jump -> bb5(inspect %16, inspect %3)
 
-bb5(%11: I32 trivial, %47: I32 trivial):
+bb5(%11: I32 trivial, %45: I32 trivial):
   %18: Bool trivial = lt inspect %11 inspect %0
-  branch inspect %18 -> bb6 -> bb9(inspect %47)
+  branch inspect %18 -> bb6 -> bb9(inspect %45)
 
 bb6:
-  %38: I32 trivial = mul inspect %47 inspect %37
-  %39: I32 trivial = add inspect %38 inspect %11
-  %42: Box owned = aggregate.Box consume %41
-  %43: Command owned = aggregate.Command consume %40 consume %42
-  %44: Outcome(Command, I32) owned = aggregate.Proceed consume %43
-  store inspect %13 consume %44
+  %36: I32 trivial = mul inspect %45 inspect %35
+  %37: I32 trivial = add inspect %36 inspect %11
+  %40: Box owned = aggregate.Box consume %39
+  %41: Command owned = aggregate.Command consume %38 consume %40
+  %42: Outcome(Command, I32) owned = aggregate.Proceed consume %41
+  store inspect %13 consume %42
   %21: %U8 address = field.addr .# inspect %13
   %22: U8 trivial = load inspect %21
   %23: Bool trivial = eq inspect %22 inspect %17
@@ -1243,18 +1241,16 @@ bb7:
   store inspect %14 consume %25
   %26: %I32 address = field.addr .code inspect %14
   %27: I32 trivial = load inspect %26
-  %28: %Box address = field.addr .box inspect %14
-  %29: Box owned = load inspect %28
-  call Box.drop consume %29
-  %30: I32 trivial = add inspect %11 inspect %27
-  jump -> bb5(inspect %30, inspect %39)
+  drop Command inspect %14
+  %28: I32 trivial = add inspect %11 inspect %27
+  jump -> bb5(inspect %28, inspect %37)
 
 bb8:
   drop Outcome(Command, I32) inspect %13
-  jump -> bb9(inspect %39)
+  jump -> bb9(inspect %37)
 
-bb9(%48: I32 trivial):
-  return consume %48
+bb9(%46: I32 trivial):
+  return consume %46
 }
 
 fn keeping(n: I32 [shared call], $body: (I32) -> Outcome(Note, I32) [shared call]) -> I32 {
@@ -1269,26 +1265,24 @@ bb0(%0: I32 trivial, %1: (I32) -> Outcome(Note, I32) [shared call] guaranteed):
   %15: Note owned = aggregate.Note consume %12 consume %14
   store inspect %5 consume %15
   %17: I32 trivial = const 0
-  %54: Bool trivial = const True
+  %50: Bool trivial = const True
   %27: Bool trivial = const False
   %33: U8 trivial = const 1
   %42: I32 trivial = const 1
   jump -> bb1(inspect %17)
 
-bb1(%50: I32 trivial):
-  %20: Bool trivial = lt inspect %50 inspect %0
-  branch inspect %20 -> bb3 -> bb2(inspect %11, inspect %54)
+bb1(%46: I32 trivial):
+  %20: Bool trivial = lt inspect %46 inspect %0
+  branch inspect %20 -> bb3 -> bb2(inspect %11, inspect %50)
 
-bb2(%52: I32 trivial, %53: Bool trivial):
-  branch inspect %53 -> bb8 -> bb9
+bb2(%48: I32 trivial, %49: Bool trivial):
+  branch inspect %49 -> bb8 -> bb9
 
 bb3:
   %25: %I32 address = field.addr .mark inspect %5
   %26: I32 trivial = load inspect %25
-  %46: %Box address = field.addr .box inspect %5
-  %47: Box owned = load inspect %46
-  call Box.drop consume %47
-  %28: I32 trivial = add inspect %50 inspect %26
+  drop Note inspect %5
+  %28: I32 trivial = add inspect %46 inspect %26
   %29: (I32) -> Outcome(Note, I32) [shared call] guaranteed from{%1} = load inspect %1
   %30: Outcome(Note, I32) owned = call [value #0] inspect %29 borrow %28
   store inspect %7 consume %30
@@ -1303,7 +1297,7 @@ bb4:
   store inspect %8 consume %36
   %39: Note owned = load inspect %8
   store inspect %5 consume %39
-  %43: I32 trivial = add inspect %50 inspect %42
+  %43: I32 trivial = add inspect %46 inspect %42
   jump -> bb1(inspect %43)
 
 bb5:
@@ -1313,13 +1307,11 @@ bb5:
   jump -> bb2(inspect %38, inspect %27)
 
 bb8 cleanup:
-  %44: %Box address = field.addr .box inspect %5
-  %45: Box owned = load inspect %44
-  call Box.drop consume %45
+  drop Note inspect %5
   jump -> bb9
 
 bb9:
-  return consume %52
+  return consume %48
 }
 
 fn kept(n: I32 [shared call]) -> I32 {
@@ -1338,57 +1330,53 @@ bb0(%0: I32 trivial):
   %24: Bool trivial = const False
   %25: U8 trivial = const 1
   %26: I32 trivial = const 1
-  %50: I32 trivial = const 10
-  %53: I32 trivial = const 5
-  %54: I32 trivial = const 0
+  %46: I32 trivial = const 10
+  %49: I32 trivial = const 5
+  %50: I32 trivial = const 0
   jump -> bb5(inspect %22, inspect %3)
 
-bb5(%11: I32 trivial, %60: I32 trivial):
+bb5(%11: I32 trivial, %56: I32 trivial):
   %27: Bool trivial = lt inspect %11 inspect %0
-  branch inspect %27 -> bb6 -> bb9(inspect %23, inspect %60)
+  branch inspect %27 -> bb6 -> bb9(inspect %23, inspect %56)
 
 bb6:
   %28: %I32 address = field.addr .mark inspect %14
   %29: I32 trivial = load inspect %28
-  %30: %Box address = field.addr .box inspect %14
-  %31: Box owned = load inspect %30
-  call Box.drop consume %31
-  %32: I32 trivial = add inspect %11 inspect %29
-  %51: I32 trivial = mul inspect %60 inspect %50
-  %52: I32 trivial = add inspect %51 inspect %32
-  %55: Box owned = aggregate.Box consume %54
-  %56: Note owned = aggregate.Note consume %53 consume %55
-  %57: Outcome(Note, I32) owned = aggregate.Proceed consume %56
-  store inspect %15 consume %57
-  %35: %U8 address = field.addr .# inspect %15
-  %36: U8 trivial = load inspect %35
-  %37: Bool trivial = eq inspect %36 inspect %25
-  branch inspect %37 -> bb8 -> bb7
+  drop Note inspect %14
+  %30: I32 trivial = add inspect %11 inspect %29
+  %47: I32 trivial = mul inspect %56 inspect %46
+  %48: I32 trivial = add inspect %47 inspect %30
+  %51: Box owned = aggregate.Box consume %50
+  %52: Note owned = aggregate.Note consume %49 consume %51
+  %53: Outcome(Note, I32) owned = aggregate.Proceed consume %52
+  store inspect %15 consume %53
+  %33: %U8 address = field.addr .# inspect %15
+  %34: U8 trivial = load inspect %33
+  %35: Bool trivial = eq inspect %34 inspect %25
+  branch inspect %35 -> bb8 -> bb7
 
 bb7:
-  %38: %Note address = field.addr .Proceed inspect %15
-  %39: Note owned = load inspect %38
-  store inspect %16 consume %39
-  %40: Note owned = load inspect %16
-  store inspect %14 consume %40
-  %41: I32 trivial = add inspect %11 inspect %26
-  jump -> bb5(inspect %41, inspect %52)
+  %36: %Note address = field.addr .Proceed inspect %15
+  %37: Note owned = load inspect %36
+  store inspect %16 consume %37
+  %38: Note owned = load inspect %16
+  store inspect %14 consume %38
+  %39: I32 trivial = add inspect %11 inspect %26
+  jump -> bb5(inspect %39, inspect %48)
 
 bb8:
   drop Outcome(Note, I32) inspect %15
-  jump -> bb9(inspect %24, inspect %52)
+  jump -> bb9(inspect %24, inspect %48)
 
-bb9(%13: Bool trivial, %61: I32 trivial):
+bb9(%13: Bool trivial, %57: I32 trivial):
   branch inspect %13 -> bb10 -> bb11
 
 bb10 cleanup:
-  %44: %Box address = field.addr .box inspect %14
-  %45: Box owned = load inspect %44
-  call Box.drop consume %45
+  drop Note inspect %14
   jump -> bb11
 
 bb11:
-  return consume %61
+  return consume %57
 }
 
 fn guarded(n: I32 [shared call], $body: (I32) -> Outcome(I32, I32) [shared call]) -> Outcome(I32, Trouble) {
@@ -2220,7 +2208,7 @@ bb128:
   %535: I32 trivial = const 1
   %536: I32 trivial = const 7
   %537: I32 trivial = const 1
-  %825: I32 trivial = const 4
+  %819: I32 trivial = const 4
   jump -> bb132(inspect %532)
 
 bb132(%521: I32 trivial):
@@ -2230,7 +2218,7 @@ bb132(%521: I32 trivial):
 bb133:
   %540: I32 trivial = add inspect %521 inspect %42
   %541: %I32 address = represent inspect %526
-  %542: Bool trivial = gt inspect %540 inspect %825
+  %542: Bool trivial = gt inspect %540 inspect %819
   branch inspect %542 -> bb135 -> bb134
 
 bb134:
@@ -2325,11 +2313,9 @@ bb147:
   store inspect %581 consume %597
   %598: %I32 address = field.addr .code inspect %581
   %599: I32 trivial = load inspect %598
-  %600: %Box address = field.addr .box inspect %581
-  %601: Box owned = load inspect %600
-  call Box.drop consume %601
-  %602: I32 trivial = add inspect %576 inspect %599
-  jump -> bb145(inspect %602, inspect %589)
+  drop Command inspect %581
+  %600: I32 trivial = add inspect %576 inspect %599
+  jump -> bb145(inspect %600, inspect %589)
 
 bb148:
   drop Outcome(Command, I32) inspect %580
@@ -2337,188 +2323,184 @@ bb148:
 
 bb149(%578: I32 trivial):
   %46: I32 trivial = const 4
-  %608: I32 trivial = const 0
+  %606: I32 trivial = const 0
+  %607: %Note address = alloc frame Note
+  %608: %Outcome(Note, I32) address = alloc frame Outcome(Note, I32)
   %609: %Note address = alloc frame Note
-  %610: %Outcome(Note, I32) address = alloc frame Outcome(Note, I32)
-  %611: %Note address = alloc frame Note
-  %612: I32 trivial = const 0
-  %613: I32 trivial = const 0
-  %614: Box owned = aggregate.Box consume %613
-  %615: Note owned = aggregate.Note consume %612 consume %614
-  store inspect %609 consume %615
-  %616: I32 trivial = const 0
-  %617: Bool trivial = const True
-  %618: Bool trivial = const False
-  %619: U8 trivial = const 1
-  %620: I32 trivial = const 1
-  %621: I32 trivial = const 10
-  %622: I32 trivial = const 5
-  %623: I32 trivial = const 0
-  jump -> bb153(inspect %616, inspect %608)
+  %610: I32 trivial = const 0
+  %611: I32 trivial = const 0
+  %612: Box owned = aggregate.Box consume %611
+  %613: Note owned = aggregate.Note consume %610 consume %612
+  store inspect %607 consume %613
+  %614: I32 trivial = const 0
+  %615: Bool trivial = const True
+  %616: Bool trivial = const False
+  %617: U8 trivial = const 1
+  %618: I32 trivial = const 1
+  %619: I32 trivial = const 10
+  %620: I32 trivial = const 5
+  %621: I32 trivial = const 0
+  jump -> bb153(inspect %614, inspect %606)
 
-bb153(%604: I32 trivial, %605: I32 trivial):
-  %624: Bool trivial = lt inspect %604 inspect %46
-  branch inspect %624 -> bb154 -> bb157(inspect %617, inspect %605)
+bb153(%602: I32 trivial, %603: I32 trivial):
+  %622: Bool trivial = lt inspect %602 inspect %46
+  branch inspect %622 -> bb154 -> bb157(inspect %615, inspect %603)
 
 bb154:
-  %625: %I32 address = field.addr .mark inspect %609
-  %626: I32 trivial = load inspect %625
-  %627: %Box address = field.addr .box inspect %609
-  %628: Box owned = load inspect %627
-  call Box.drop consume %628
-  %629: I32 trivial = add inspect %604 inspect %626
-  %630: I32 trivial = mul inspect %605 inspect %621
-  %631: I32 trivial = add inspect %630 inspect %629
-  %632: Box owned = aggregate.Box consume %623
-  %633: Note owned = aggregate.Note consume %622 consume %632
-  %634: Outcome(Note, I32) owned = aggregate.Proceed consume %633
-  store inspect %610 consume %634
-  %635: %U8 address = field.addr .# inspect %610
-  %636: U8 trivial = load inspect %635
-  %637: Bool trivial = eq inspect %636 inspect %619
-  branch inspect %637 -> bb156 -> bb155
+  %623: %I32 address = field.addr .mark inspect %607
+  %624: I32 trivial = load inspect %623
+  drop Note inspect %607
+  %625: I32 trivial = add inspect %602 inspect %624
+  %626: I32 trivial = mul inspect %603 inspect %619
+  %627: I32 trivial = add inspect %626 inspect %625
+  %628: Box owned = aggregate.Box consume %621
+  %629: Note owned = aggregate.Note consume %620 consume %628
+  %630: Outcome(Note, I32) owned = aggregate.Proceed consume %629
+  store inspect %608 consume %630
+  %631: %U8 address = field.addr .# inspect %608
+  %632: U8 trivial = load inspect %631
+  %633: Bool trivial = eq inspect %632 inspect %617
+  branch inspect %633 -> bb156 -> bb155
 
 bb155:
-  %638: %Note address = field.addr .Proceed inspect %610
-  %639: Note owned = load inspect %638
-  store inspect %611 consume %639
-  %640: Note owned = load inspect %611
-  store inspect %609 consume %640
-  %641: I32 trivial = add inspect %604 inspect %620
-  jump -> bb153(inspect %641, inspect %631)
+  %634: %Note address = field.addr .Proceed inspect %608
+  %635: Note owned = load inspect %634
+  store inspect %609 consume %635
+  %636: Note owned = load inspect %609
+  store inspect %607 consume %636
+  %637: I32 trivial = add inspect %602 inspect %618
+  jump -> bb153(inspect %637, inspect %627)
 
 bb156:
-  drop Outcome(Note, I32) inspect %610
-  jump -> bb157(inspect %618, inspect %631)
+  drop Outcome(Note, I32) inspect %608
+  jump -> bb157(inspect %616, inspect %627)
 
-bb157(%606: Bool trivial, %607: I32 trivial):
-  branch inspect %606 -> bb158 -> bb159
+bb157(%604: Bool trivial, %605: I32 trivial):
+  branch inspect %604 -> bb158 -> bb159
 
 bb158 cleanup:
-  %642: %Box address = field.addr .box inspect %609
-  %643: Box owned = load inspect %642
-  call Box.drop consume %643
+  drop Note inspect %607
   jump -> bb159
 
 bb159:
   %48: I32 trivial = const 3
-  %651: %Outcome(I32, Trouble) address = alloc frame Outcome(I32, Trouble)
-  %652: I32 trivial = const 0
-  %653: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %654: I32 trivial = const 0
-  %655: I32 trivial = const 0
-  %656: I32 trivial = const 4
-  %657: U8 trivial = const 1
-  %658: I32 trivial = const 10
-  %659: I32 trivial = const 1
-  jump -> bb163(inspect %655, inspect %652)
+  %645: %Outcome(I32, Trouble) address = alloc frame Outcome(I32, Trouble)
+  %646: I32 trivial = const 0
+  %647: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
+  %648: I32 trivial = const 0
+  %649: I32 trivial = const 0
+  %650: I32 trivial = const 4
+  %651: U8 trivial = const 1
+  %652: I32 trivial = const 10
+  %653: I32 trivial = const 1
+  jump -> bb163(inspect %649, inspect %646)
 
-bb163(%645: I32 trivial, %646: I32 trivial):
-  %660: Bool trivial = lt inspect %645 inspect %48
-  branch inspect %660 -> bb164 -> bb168(inspect %654, inspect %646)
+bb163(%639: I32 trivial, %640: I32 trivial):
+  %654: Bool trivial = lt inspect %639 inspect %48
+  branch inspect %654 -> bb164 -> bb168(inspect %648, inspect %640)
 
 bb164:
-  %661: Bool trivial = gt inspect %645 inspect %656
-  branch inspect %661 -> bb169 -> bb165
+  %655: Bool trivial = gt inspect %639 inspect %650
+  branch inspect %655 -> bb169 -> bb165
 
 bb165:
-  %662: I32 trivial = mul inspect %646 inspect %658
-  %663: I32 trivial = add inspect %662 inspect %645
-  %664: Outcome(I32, I32) trivial = aggregate.Proceed consume %659
-  store inspect %653 consume %664
-  %665: %U8 address = field.addr .# inspect %653
-  %666: U8 trivial = load inspect %665
-  %667: Bool trivial = eq inspect %666 inspect %657
-  branch inspect %667 -> bb167 -> bb166
+  %656: I32 trivial = mul inspect %640 inspect %652
+  %657: I32 trivial = add inspect %656 inspect %639
+  %658: Outcome(I32, I32) trivial = aggregate.Proceed consume %653
+  store inspect %647 consume %658
+  %659: %U8 address = field.addr .# inspect %647
+  %660: U8 trivial = load inspect %659
+  %661: Bool trivial = eq inspect %660 inspect %651
+  branch inspect %661 -> bb167 -> bb166
 
 bb166:
-  %668: %I32 address = field.addr .Proceed inspect %653
-  %669: I32 trivial = load inspect %668
-  %670: I32 trivial = add inspect %645 inspect %669
-  jump -> bb163(inspect %670, inspect %663)
+  %662: %I32 address = field.addr .Proceed inspect %647
+  %663: I32 trivial = load inspect %662
+  %664: I32 trivial = add inspect %639 inspect %663
+  jump -> bb163(inspect %664, inspect %657)
 
 bb167:
-  %671: %I32 address = field.addr .Exit inspect %653
-  %672: I32 trivial = load inspect %671
-  jump -> bb168(inspect %672, inspect %663)
+  %665: %I32 address = field.addr .Exit inspect %647
+  %666: I32 trivial = load inspect %665
+  jump -> bb168(inspect %666, inspect %657)
 
-bb168(%647: I32 trivial, %648: I32 trivial):
-  %673: Outcome(I32, Trouble) trivial = aggregate.Proceed consume %647
-  jump -> bb170(consume %673, inspect %648)
+bb168(%641: I32 trivial, %642: I32 trivial):
+  %667: Outcome(I32, Trouble) trivial = aggregate.Proceed consume %641
+  jump -> bb170(consume %667, inspect %642)
 
 bb169:
-  %674: Trouble trivial = aggregate.TooFar
-  %675: Outcome(I32, Trouble) trivial = aggregate.Exit consume %674
-  jump -> bb170(consume %675, inspect %646)
+  %668: Trouble trivial = aggregate.TooFar
+  %669: Outcome(I32, Trouble) trivial = aggregate.Exit consume %668
+  jump -> bb170(consume %669, inspect %640)
 
-bb170(%649: Outcome(I32, Trouble) trivial, %650: I32 trivial):
-  store inspect %651 consume %649
-  %676: %U8 address = field.addr .# inspect %651
-  %677: U8 trivial = load inspect %676
-  %678: U8 trivial = const 1
-  %679: Bool trivial = eq inspect %677 inspect %678
-  %680: I32 trivial = const 7
-  %681: I32 trivial = add inspect %650 inspect %680
-  %682: I32 trivial = select inspect %679 inspect %681 inspect %650
+bb170(%643: Outcome(I32, Trouble) trivial, %644: I32 trivial):
+  store inspect %645 consume %643
+  %670: %U8 address = field.addr .# inspect %645
+  %671: U8 trivial = load inspect %670
+  %672: U8 trivial = const 1
+  %673: Bool trivial = eq inspect %671 inspect %672
+  %674: I32 trivial = const 7
+  %675: I32 trivial = add inspect %644 inspect %674
+  %676: I32 trivial = select inspect %673 inspect %675 inspect %644
   %50: I32 trivial = const 9
-  %690: %Outcome(I32, Trouble) address = alloc frame Outcome(I32, Trouble)
-  %691: I32 trivial = const 0
-  %692: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
-  %693: I32 trivial = const 0
-  %694: I32 trivial = const 0
-  %695: I32 trivial = const 4
-  %696: U8 trivial = const 1
-  %697: I32 trivial = const 10
-  %698: I32 trivial = const 1
-  jump -> bb174(inspect %694, inspect %691)
+  %684: %Outcome(I32, Trouble) address = alloc frame Outcome(I32, Trouble)
+  %685: I32 trivial = const 0
+  %686: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
+  %687: I32 trivial = const 0
+  %688: I32 trivial = const 0
+  %689: I32 trivial = const 4
+  %690: U8 trivial = const 1
+  %691: I32 trivial = const 10
+  %692: I32 trivial = const 1
+  jump -> bb174(inspect %688, inspect %685)
 
-bb174(%684: I32 trivial, %685: I32 trivial):
-  %699: Bool trivial = lt inspect %684 inspect %50
-  branch inspect %699 -> bb175 -> bb179(inspect %693, inspect %685)
+bb174(%678: I32 trivial, %679: I32 trivial):
+  %693: Bool trivial = lt inspect %678 inspect %50
+  branch inspect %693 -> bb175 -> bb179(inspect %687, inspect %679)
 
 bb175:
-  %700: Bool trivial = gt inspect %684 inspect %695
-  branch inspect %700 -> bb180 -> bb176
+  %694: Bool trivial = gt inspect %678 inspect %689
+  branch inspect %694 -> bb180 -> bb176
 
 bb176:
-  %701: I32 trivial = mul inspect %685 inspect %697
-  %702: I32 trivial = add inspect %701 inspect %684
-  %703: Outcome(I32, I32) trivial = aggregate.Proceed consume %698
-  store inspect %692 consume %703
-  %704: %U8 address = field.addr .# inspect %692
-  %705: U8 trivial = load inspect %704
-  %706: Bool trivial = eq inspect %705 inspect %696
-  branch inspect %706 -> bb178 -> bb177
+  %695: I32 trivial = mul inspect %679 inspect %691
+  %696: I32 trivial = add inspect %695 inspect %678
+  %697: Outcome(I32, I32) trivial = aggregate.Proceed consume %692
+  store inspect %686 consume %697
+  %698: %U8 address = field.addr .# inspect %686
+  %699: U8 trivial = load inspect %698
+  %700: Bool trivial = eq inspect %699 inspect %690
+  branch inspect %700 -> bb178 -> bb177
 
 bb177:
-  %707: %I32 address = field.addr .Proceed inspect %692
-  %708: I32 trivial = load inspect %707
-  %709: I32 trivial = add inspect %684 inspect %708
-  jump -> bb174(inspect %709, inspect %702)
+  %701: %I32 address = field.addr .Proceed inspect %686
+  %702: I32 trivial = load inspect %701
+  %703: I32 trivial = add inspect %678 inspect %702
+  jump -> bb174(inspect %703, inspect %696)
 
 bb178:
-  %710: %I32 address = field.addr .Exit inspect %692
-  %711: I32 trivial = load inspect %710
-  jump -> bb179(inspect %711, inspect %702)
+  %704: %I32 address = field.addr .Exit inspect %686
+  %705: I32 trivial = load inspect %704
+  jump -> bb179(inspect %705, inspect %696)
 
-bb179(%686: I32 trivial, %687: I32 trivial):
-  %712: Outcome(I32, Trouble) trivial = aggregate.Proceed consume %686
-  jump -> bb181(consume %712, inspect %687)
+bb179(%680: I32 trivial, %681: I32 trivial):
+  %706: Outcome(I32, Trouble) trivial = aggregate.Proceed consume %680
+  jump -> bb181(consume %706, inspect %681)
 
 bb180:
-  %713: Trouble trivial = aggregate.TooFar
-  %714: Outcome(I32, Trouble) trivial = aggregate.Exit consume %713
-  jump -> bb181(consume %714, inspect %685)
+  %707: Trouble trivial = aggregate.TooFar
+  %708: Outcome(I32, Trouble) trivial = aggregate.Exit consume %707
+  jump -> bb181(consume %708, inspect %679)
 
-bb181(%688: Outcome(I32, Trouble) trivial, %689: I32 trivial):
-  store inspect %690 consume %688
-  %715: %U8 address = field.addr .# inspect %690
-  %716: U8 trivial = load inspect %715
-  %717: U8 trivial = const 1
-  %718: Bool trivial = eq inspect %716 inspect %717
-  %719: I32 trivial = const 7
-  %720: I32 trivial = add inspect %689 inspect %719
-  %721: I32 trivial = select inspect %718 inspect %720 inspect %689
+bb181(%682: Outcome(I32, Trouble) trivial, %683: I32 trivial):
+  store inspect %684 consume %682
+  %709: %U8 address = field.addr .# inspect %684
+  %710: U8 trivial = load inspect %709
+  %711: U8 trivial = const 1
+  %712: Bool trivial = eq inspect %710 inspect %711
+  %713: I32 trivial = const 7
+  %714: I32 trivial = add inspect %683 inspect %713
+  %715: I32 trivial = select inspect %712 inspect %714 inspect %683
   %54: I32 trivial = add inspect %95 inspect %135
   %56: I32 trivial = add inspect %54 inspect %179
   %58: I32 trivial = add inspect %56 inspect %267
@@ -2530,9 +2512,9 @@ bb181(%688: Outcome(I32, Trouble) trivial, %689: I32 trivial):
   %70: I32 trivial = add inspect %68 inspect %480
   %72: I32 trivial = add inspect %70 inspect %574
   %74: I32 trivial = add inspect %72 inspect %578
-  %76: I32 trivial = add inspect %74 inspect %682
-  %78: I32 trivial = add inspect %76 inspect %721
-  %80: I32 trivial = add inspect %78 inspect %607
+  %76: I32 trivial = add inspect %74 inspect %676
+  %78: I32 trivial = add inspect %76 inspect %715
+  %80: I32 trivial = add inspect %78 inspect %605
   %82: I32 trivial = add inspect %80 inspect %353
   %83: %I32 address = global.addr gone
   %84: I32 trivial = load inspect %83

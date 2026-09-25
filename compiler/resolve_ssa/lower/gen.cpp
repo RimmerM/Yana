@@ -507,6 +507,7 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
     joinParts.clear();
     propertyAccesses.reset();
     virtualPlaces.reset();
+    decodedNarrow.reset();
     phis.clear();
 
     /*
@@ -569,6 +570,7 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
     auto closure = source.environment != nullptr;
 
     auto entryLower = lower[blocks.getValue(0).unwrap()];
+    currentEntry = entryLower;
 
     /*
      * A parameter the shape takes apart arrives as its parts, and the body still reads it through
@@ -781,11 +783,14 @@ void Lowering::run() {
              * of a function entered under a foreign ABI is, and nothing in source declares one yet.
              */
             target->legacyVectors = function->legacySse;
+            target->teardown = function->teardown;
 
             if(function->convention) {
                 target->callType = function->convention.unwrap();
                 target->foreignBoundary = !isExecutableMode(context.settings.mode) &&
                                           conventionIsForeignAbi(target->callType);
+            } else if(releasesUnderSimple(functionPointer)) {
+                target->callType = LowerCallType::Simple;
             }
 
             auto result = manifestNative(layout, function->result);
@@ -895,6 +900,8 @@ void Lowering::run() {
      */
     auto declaredCount = to.functionOrder.size();
 
+    countRecordDrops();
+
     for(auto modulePointer: program.modules) {
         auto module = decl[modulePointer];
 
@@ -962,6 +969,10 @@ void Lowering::run() {
         optimizeLowerFunction(lower, to, *lower[to.functionOrder[i]], LowerPtr<LowerValue>(nullptr),
                               context.settings.optimizeIr);
     }
+
+    // And what rewrites a callee and its callers together, which needs both loops above finished.
+    // Not behind a body that reported, for the reason the first loop gives.
+    if(context.diagnostics.errorCount() == 0) optimizeLowerModule(lower, to, context.settings.optimizeIr);
 }
 
 Ptr<LowerModule> lowerProgram(Context& context, mir::Program& program, Converted& converted) {

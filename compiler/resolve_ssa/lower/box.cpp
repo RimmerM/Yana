@@ -312,6 +312,7 @@ LowerPtr<LowerFunction> Lowering::boxTeardownFor(DeclPtr<mir::Type> target, bool
     }
 
     auto function = to.addFunction(erasedName(text + String(")")));
+    function->teardown = true;
     auto argument = function->addArg(lower, StringId(), LowerType::Pointer);
 
     // The provenance the caller read out of the record, where this mode has one. Declared before

@@ -2,22 +2,18 @@
 @descriptor(Vessel) = [8, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
 @image$base = []
 
-plain<complex>(%v_0: Ptr, %x: Ptr): I32 {
-  b_1 {
+plain<complex>(): I32 {
+  b_0 {
     ret 7
   }
 }
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 3, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 1, 4
-    %v_3 = call_complex plain, @environment(plain(Vessel)), %v_1: I32
-    %v_4 = add 128, %v_3: I32
-    %v_5 = add 49, %v_4: I32
-    ret %v_5
+    %v_1 = call_complex plain: I32
+    %v_2 = add 128, %v_1: I32
+    %v_3 = add 49, %v_2: I32
+    ret %v_3
   }
 }
 

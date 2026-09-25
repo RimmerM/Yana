@@ -10,12 +10,28 @@ bb0(%0: Size trivial):
   %3: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 5, ownsHeap: 0}, length: 5}}
   store inspect %2 consume %3
   %4: String [shared call] guaranteed from{%2} = load inspect %2
-  %5: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %4
-  %6: Size trivial = call String.length borrow %5
+  jump -> bb1
+
+bb1:
+  %6: %Array(CodeUnit) address = field.addr .units inspect %4
+  %7: %Run(CodeUnit) address = field.addr .run inspect %6
+  %8: %%CodeUnit address = field.addr .items inspect %7
+  %9: %CodeUnit trivial = load inspect %8
+  %10: %Array(CodeUnit) address = field.addr .units inspect %4
+  %11: %@bits(30) U32 address = field.addr .length inspect %10
+  %12: @bits(30) U32 trivial = load inspect %11
+  %13: I32 trivial = convert inspect %12
+  %14: Size trivial = convert inspect %13
+  %15: StringView trivial = aggregate.StringView consume %9 consume %14
+  %16: String [shared slot 0 view] guaranteed = represent inspect %15
+  jump -> bb2(borrow %16)
+
+bb2(%5: String [shared slot 0 view] guaranteed from{%2}):
+  %17: Size trivial = call String.length borrow %5
   drop String inspect %2
-  %7: Size trivial = load inspect %1
-  %8: Size trivial = add inspect %6 inspect %7
-  return consume %8
+  %18: Size trivial = load inspect %1
+  %19: Size trivial = add inspect %17 inspect %18
+  return consume %19
 }
 
 fn twice(n: Size [shared call]) -> Size {

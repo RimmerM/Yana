@@ -252,6 +252,10 @@ set(LOWER_SOURCE_FILES
     lower/lower_tail.cpp
     lower/lower_store.h
     lower/lower_store.cpp
+    lower/lower_params.h
+    lower/lower_params.cpp
+    lower/lower_teardown.h
+    lower/lower_teardown.cpp
     lower/lower_cse.h
     lower/lower_cse.cpp
     lower/lower_licm.h

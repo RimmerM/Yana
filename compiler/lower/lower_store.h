@@ -25,10 +25,12 @@
  *
  * ## What it is allowed to assume
  *
- * Block-local. A forwarded load has to read through the **same value** its store wrote through,
- * rather than an address that computes the same number - telling `%p` apart from some other pointer
- * is disambiguation over values, the question lower_cse.h declines to ask about loads, and for the
- * same reason.
+ * A block, and what stood at the end of a block's one predecessor when it is entered (J169) - never
+ * a join, and never a back edge; `entryOf` in lower_store.cpp says why the join was measured out. A
+ * forwarded load has to read the place its store wrote: the **same pointer value**, or two that walk
+ * to one root at one offset (J168), rather than two addresses that merely compute the same number -
+ * telling `%p` apart from some other pointer is disambiguation over values, the question lower_cse.h
+ * declines to ask about loads, and for the same reason.
  *
  * What the walk *does* compare is where each access lands relative to a root: the value reached by
  * walking back through constant `add`s, and the byte range from there. That is arithmetic on

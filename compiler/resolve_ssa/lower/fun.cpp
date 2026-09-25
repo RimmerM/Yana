@@ -419,6 +419,7 @@ LowerPtr<LowerFunction> Lowering::funTeardown(LocationId source) {
     if(funRelease) return funRelease;
 
     auto function = to.addFunction(erasedName(String("teardown(fun)")));
+    function->teardown = true;
     auto argument = function->addArg(lower, StringId(), LowerType::Pointer);
 
     funRelease = function - lower;

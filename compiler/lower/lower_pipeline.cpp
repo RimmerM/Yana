@@ -17,6 +17,8 @@
 #include "lower_merge.h"
 #include "lower_thread.h"
 #include "lower_fold.h"
+#include "lower_params.h"
+#include "lower_teardown.h"
 
 void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& fun,
                            LowerPtr<LowerValue> returnPlace, bool optimize) {
@@ -54,6 +56,11 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
     // temporary a call filled can be forwarded - see lower_forward.h, which is the whole of why this
     // pass needs to be told which parameter that is.
     forwardCopyDestinations(base, fun, returnPlace);
+
+    // Then a record's teardown put back in place of the call to it where the record's slot is one
+    // the split below takes apart - see lower_teardown.h. Behind the forwarding, which is what
+    // leaves a result slot's copy gone and the slot's other uses plain accesses.
+    expandTeardownCalls(base, module, fun);
 
     // Then the slots that are still whole aggregates, cut into the fields their own accesses name -
     // see lower_split.h. Behind the forwarding, which has already removed the copies with a
@@ -250,4 +257,9 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
     // left.
     mergeDuplicatedExits(base, module, fun);
     removeDeadValues(base, module.arena, fun);
+}
+
+void optimizeLowerModule(LowerBase base, LowerModule& module, bool optimize) {
+    if(!optimize) return;
+    removeUnusedParameters(base, module);
 }

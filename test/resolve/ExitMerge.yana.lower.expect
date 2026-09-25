@@ -110,24 +110,9 @@ main<complex>(): I32 {
   }
 
   b_22 {
-    %v_23 = add %v_8, 12: Ptr
-    %v_24 = load %v_23, 4: I32
-    %v_25 = cast %v_24: I64
-    %v_26 = cmp_eq %v_25, 0: I32
-    je %v_26, b_27, b_28
-  }
-
-  b_28 {
-    %v_29 = load %v_8, 8: Ptr
-    %v_30 = loads %v_29, 4: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %v_8
-    %v_31 = add %v_30, %v_6: I32
+    %v_23 = add 10, %v_6: I32
     jmp b_5
-  }
-
-  b_27 {
-    %v_32 = syscall 60, 134: I64
-    unreachable 
   }
 
   b_21 {
@@ -146,13 +131,13 @@ main<complex>(): I32 {
   }
 
   b_5 {
-    %v_33 = phi [b_28, %v_31], [b_21, 18446744073709551613], [b_18, 18446744073709551614], [b_15, 18446744073709551615]: I32
-    %v_34 = add %v_4, %v_33: I32
-    %v_35 = call_complex parity, %v_6, %v_6: I32
-    %v_3 = add %v_34, %v_35: I32
+    %v_24 = phi [b_22, %v_23], [b_21, 18446744073709551613], [b_18, 18446744073709551614], [b_15, 18446744073709551615]: I32
+    %v_25 = add %v_4, %v_24: I32
+    %v_26 = call_complex parity, %v_6, %v_6: I32
+    %v_3 = add %v_25, %v_26: I32
     %v_7 = add %v_6, 1: I32
-    %v_36 = cmp_ilt %v_7, 5: I32
-    je %v_36, b_1, b_2
+    %v_27 = cmp_ilt %v_7, 5: I32
+    je %v_27, b_1, b_2
   }
 }
 

@@ -15,7 +15,7 @@ define fastcc <4 x i16> @arithmetic(<4 x i16> %a) #0 {
   ret <4 x i16> %6
 }
 
-define fastcc <4 x i8> @widths(<4 x i8> %narrow, <2 x i32> %middle) #0 {
+define fastcc <4 x i8> @widths(<4 x i8> %narrow) #0 {
   br label %1
 
 1:                                                ; preds = %0
@@ -65,7 +65,7 @@ define fastcc i32 @main() #0 {
   %5 = call fastcc <4 x i16> @narrowing(<4 x i32> %4)
   %6 = call fastcc <4 x float> @reinterpreting(<4 x i32> %4)
   %7 = call fastcc <4 x float> @aliases(<4 x float> %6)
-  %8 = call fastcc <4 x i8> @widths(<4 x i8> splat (i8 1), <2 x i32> splat (i32 2))
+  %8 = call fastcc <4 x i8> @widths(<4 x i8> splat (i8 1))
   %9 = bitcast <4 x float> %7 to <4 x i32>
   %10 = trunc <4 x i32> %9 to <4 x i16>
   %11 = xor <4 x i16> %5, %10

@@ -368,33 +368,49 @@ bb11(%18: I32 trivial, %19: I32 trivial):
   %135: I64 trivial = load inspect %24
   %136: I32 trivial = convert inspect %135
   %137: String [shared call] guaranteed from{%25} = load inspect %25
-  %138: String [shared slot 0 view] guaranteed from{%25} = call String.view borrow %137
-  %139: Size trivial = call String.length borrow %138
-  drop String inspect %25
-  %140: I32 trivial = convert inspect %139
-  %141: I32 trivial = const 3
-  %142: I32 trivial = mul inspect %140 inspect %141
-  %143: I32 trivial = add inspect %136 inspect %142
-  return consume %143
+  jump -> bb13
 
 bb12(%20: I32 trivial, %21: I32 trivial):
-  %144: I32 trivial = load inspect %30
-  store inspect %31 consume %144
-  %145: I64 trivial = load inspect %24
-  %146: I64 trivial = const 7
-  %147: I64 trivial = mul inspect %145 inspect %146
-  %148: I32 trivial = const 1000000006
-  %149: I32 trivial = load inspect %31
-  %150: I32 trivial = add inspect %148 inspect %149
-  %151: I32 trivial = call bigStep borrow %150
-  %152: I64 trivial = convert inspect %151
-  %153: I64 trivial = add inspect %147 inspect %152
-  store inspect %24 consume %153
-  %154: I64 trivial = load inspect %24
-  %155: I64 trivial = const 1000000007
-  %156: I64 trivial = rem inspect %154 inspect %155
-  store inspect %24 consume %156
+  %155: I32 trivial = load inspect %30
+  store inspect %31 consume %155
+  %156: I64 trivial = load inspect %24
+  %157: I64 trivial = const 7
+  %158: I64 trivial = mul inspect %156 inspect %157
+  %159: I32 trivial = const 1000000006
+  %160: I32 trivial = load inspect %31
+  %161: I32 trivial = add inspect %159 inspect %160
+  %162: I32 trivial = call bigStep borrow %161
+  %163: I64 trivial = convert inspect %162
+  %164: I64 trivial = add inspect %158 inspect %163
+  store inspect %24 consume %164
+  %165: I64 trivial = load inspect %24
+  %166: I64 trivial = const 1000000007
+  %167: I64 trivial = rem inspect %165 inspect %166
+  store inspect %24 consume %167
   jump -> bb10(consume %20, consume %21)
+
+bb13:
+  %139: %Array(CodeUnit) address = field.addr .units inspect %137
+  %140: %Run(CodeUnit) address = field.addr .run inspect %139
+  %141: %%CodeUnit address = field.addr .items inspect %140
+  %142: %CodeUnit trivial = load inspect %141
+  %143: %Array(CodeUnit) address = field.addr .units inspect %137
+  %144: %@bits(30) U32 address = field.addr .length inspect %143
+  %145: @bits(30) U32 trivial = load inspect %144
+  %146: I32 trivial = convert inspect %145
+  %147: Size trivial = convert inspect %146
+  %148: StringView trivial = aggregate.StringView consume %142 consume %147
+  %149: String [shared slot 0 view] guaranteed = represent inspect %148
+  jump -> bb14(borrow %149)
+
+bb14(%138: String [shared slot 0 view] guaranteed from{%25}):
+  %150: Size trivial = call String.length borrow %138
+  drop String inspect %25
+  %151: I32 trivial = convert inspect %150
+  %152: I32 trivial = const 3
+  %153: I32 trivial = mul inspect %151 inspect %152
+  %154: I32 trivial = add inspect %136 inspect %153
+  return consume %154
 }
 
 fn main.cont(main.cont.env: main.cont.env [unique call], $handed: Colour [shared slot 0]) -> I32 {

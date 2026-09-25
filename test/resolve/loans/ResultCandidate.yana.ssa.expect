@@ -244,50 +244,66 @@ bb0:
   %28: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 4, ownsHeap: 0}, length: 4}}
   store inspect %2 consume %28
   %29: String [shared slot 0] guaranteed from{%2} = load inspect %2
-  %30: String [shared slot 0 view] guaranteed from{%2} = call String.view borrow %29
-  %31: String [shared slot 0 view] guaranteed from{%2} = call itself borrow %30
-  %32: I32 trivial = const 11
-  %33: Guard trivial = aggregate.Guard consume %32
-  store inspect %3 consume %33
-  %34: Guard [unique slot 0] guaranteed from{%3} = load inspect %3
-  %35: Guard [unique slot 0 owner] guaranteed from{%3} = call held borrow %34
-  %36: I32 trivial = const 0
-  store inspect %4 consume %36
-  %37: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
-  %38: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 2, ownsHeap: 0}, length: 2}}
-  %39: [String *2] owned = aggregate.0 consume %37 consume %38
-  store inspect %5 consume %39
-  %40: [String *2] [shared slot 0] guaranteed from{%5} = load inspect %5
-  %41: Array(String) [shared slot 0 view] guaranteed from{%5} = call [a *n].elements(2, String) borrow %40
-  %42: I32 [unique slot 0] guaranteed = load inspect %4
-  %43: [String *2] [unique slot 1] guaranteed = load inspect %5
-  %44: main.cont.env affine = aggregate.main.cont.env borrow %42 borrow %43
-  %45: (String) -> I32 [owned here shape9 .0=shared call] affine = fun.value main.cont borrow %44
-  %46: I32 trivial = call each borrow %41 borrow %45
-  jump -> bb1
+  jump -> bb2
 
 bb1:
   drop [String *2] inspect %5
-  %47: Array(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
-  %48: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %47
-  %49: Array(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
-  %50: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %49
-  %51: I32 [shared slot 0] guaranteed from{%1} = call leftmost borrow %48 borrow %50
-  %52: I32 trivial = load inspect %27
-  %53: String [shared slot 0 view] guaranteed from{%2} = load inspect %31
-  %54: Size trivial = call String.length borrow %53
+  %58: Array(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
+  %59: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %58
+  %60: Array(I32) [shared slot 0] guaranteed from{%1} = load inspect %1
+  %61: Array(I32) [shared slot 0 view] guaranteed from{%1} = call Array(a).elements(I32) borrow %60
+  %62: I32 [shared slot 0] guaranteed from{%1} = call leftmost borrow %59 borrow %61
+  %63: I32 trivial = load inspect %27
+  %64: String [shared slot 0 view] guaranteed from{%2} = load inspect %42
+  %65: Size trivial = call String.length borrow %64
   drop String inspect %2
-  %55: I32 trivial = convert inspect %54
-  %56: I32 trivial = add inspect %52 inspect %55
-  %57: %I32 address = field.addr .id inspect %35
-  %58: I32 trivial = load inspect %57
-  %59: I32 trivial = add inspect %56 inspect %58
-  %60: I32 trivial = load inspect %4
-  %61: I32 trivial = add inspect %59 inspect %60
-  %62: I32 trivial = load inspect %51
+  %66: I32 trivial = convert inspect %65
+  %67: I32 trivial = add inspect %63 inspect %66
+  %68: %I32 address = field.addr .id inspect %46
+  %69: I32 trivial = load inspect %68
+  %70: I32 trivial = add inspect %67 inspect %69
+  %71: I32 trivial = load inspect %4
+  %72: I32 trivial = add inspect %70 inspect %71
+  %73: I32 trivial = load inspect %62
   drop Array(I32) inspect %1
-  %63: I32 trivial = add inspect %61 inspect %62
-  return consume %63
+  %74: I32 trivial = add inspect %72 inspect %73
+  return consume %74
+
+bb2:
+  %31: %Array(CodeUnit) address = field.addr .units inspect %29
+  %32: %Run(CodeUnit) address = field.addr .run inspect %31
+  %33: %%CodeUnit address = field.addr .items inspect %32
+  %34: %CodeUnit trivial = load inspect %33
+  %35: %Array(CodeUnit) address = field.addr .units inspect %29
+  %36: %@bits(30) U32 address = field.addr .length inspect %35
+  %37: @bits(30) U32 trivial = load inspect %36
+  %38: I32 trivial = convert inspect %37
+  %39: Size trivial = convert inspect %38
+  %40: StringView trivial = aggregate.StringView consume %34 consume %39
+  %41: String [shared slot 0 view] guaranteed = represent inspect %40
+  jump -> bb3(borrow %41)
+
+bb3(%30: String [shared slot 0 view] guaranteed from{%2}):
+  %42: String [shared slot 0 view] guaranteed from{%2} = call itself borrow %30
+  %43: I32 trivial = const 11
+  %44: Guard trivial = aggregate.Guard consume %43
+  store inspect %3 consume %44
+  %45: Guard [unique slot 0] guaranteed from{%3} = load inspect %3
+  %46: Guard [unique slot 0 owner] guaranteed from{%3} = call held borrow %45
+  %47: I32 trivial = const 0
+  store inspect %4 consume %47
+  %48: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  %49: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 2, ownsHeap: 0}, length: 2}}
+  %50: [String *2] owned = aggregate.0 consume %48 consume %49
+  store inspect %5 consume %50
+  %51: [String *2] [shared slot 0] guaranteed from{%5} = load inspect %5
+  %52: Array(String) [shared slot 0 view] guaranteed from{%5} = call [a *n].elements(2, String) borrow %51
+  %53: I32 [unique slot 0] guaranteed = load inspect %4
+  %54: [String *2] [unique slot 1] guaranteed = load inspect %5
+  %55: main.cont.env affine = aggregate.main.cont.env borrow %53 borrow %54
+  %56: (String) -> I32 [owned here shape9 .0=shared call] affine = fun.value main.cont borrow %55
+  %57: I32 trivial = call each borrow %52 borrow %56
+  jump -> bb1
 }
 
 fn main.cont(main.cont.env: main.cont.env [unique call], $handed: String [shared slot 0 view]) -> I32 {

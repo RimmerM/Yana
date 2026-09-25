@@ -3,11 +3,11 @@ target triple = "x86_64-unknown-linux-gnu"
 
 @sink = global [8 x i8] zeroinitializer, align 8
 
-define fastcc i32 @quadWidth(<4 x i16> %v) #0 {
+define fastcc i32 @quadWidth() #0 {
   br label %1
 
 1:                                                ; preds = %0
-  %2 = call fastcc i32 @"widthOf(4)"(<4 x i16> %v)
+  %2 = call fastcc i32 @"widthOf(4)"()
   ret i32 %2
 }
 
@@ -22,8 +22,8 @@ define fastcc i32 @main() #0 {
   %6 = call fastcc <4 x i16> @"sameCount(4)"(<4 x i16> %3, <4 x i16> %4)
   %7 = call fastcc <4 x i16> @"sameCount(4)"(<4 x i16> %5, <4 x i16> %6)
   store <4 x i16> %4, ptr @sink, align 1
-  %8 = call fastcc i32 @"widthOf(4)"(<4 x i16> %3)
-  %9 = call fastcc i32 @quadWidth(<4 x i16> %3)
+  %8 = call fastcc i32 @"widthOf(4)"()
+  %9 = call fastcc i32 @quadWidth()
   %10 = add i32 %8, %9
   %11 = call fastcc i32 @"secondLane(4)"(<4 x i16> %4)
   %12 = add i32 %10, %11
@@ -63,7 +63,7 @@ define fastcc <4 x i16> @"sameCount(4)"(<4 x i16> %v, <4 x i16> %w) #0 {
   ret <4 x i16> %2
 }
 
-define fastcc i32 @"widthOf(4)"(<4 x i16> %v) #0 {
+define fastcc i32 @"widthOf(4)"() #0 {
   br label %1
 
 1:                                                ; preds = %0

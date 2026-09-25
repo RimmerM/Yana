@@ -999,170 +999,154 @@ main<complex>(): I32 {
     store %v_59, 3, 4
     %v_60 = add %v_51, 28: Ptr
     store %v_60, 3, 4
-    %v_61 = load %v_51, 8: Ptr
-    %v_62 = add %v_61, 4: Ptr
-    %v_63 = loads %v_62, 4: I32
-    %v_64 = load %v_60, 4: I32
-    %v_65 = cast %v_64: I64
-    %v_66 = cmp_ge 2, %v_65: I32
-    je %v_66, b_21, b_67
+    jmp b_61
   }
 
-  b_67 {
-    %v_68 = load %v_58, 8: Ptr
-    %v_69 = add %v_68, 8: Ptr
-    %v_70 = loads %v_69, 4: I32
-    %v_71 = add %v_63, %v_70: I32
-    jmp b_72
+  b_62 {
+    %v_63 = cmp_ilt %v_64, 2: I32
+    je %v_63, b_61, b_65
   }
 
-  b_73 {
-    %v_74 = cmp_ilt %v_75, 2: I32
-    je %v_74, b_72, b_76
+  b_65 {
+    %v_66 = alloca 16, 8: Ptr
+    %v_67 = alloca 16, 4: Ptr
+    store %v_66, %v_67, 8
+    %v_68 = add %v_66, 8: Ptr
+    store %v_68, 4, 4
+    store %v_67, 1, 4
+    %v_69 = add %v_67, 4: Ptr
+    store %v_69, 2, 4
+    %v_70 = add %v_67, 8: Ptr
+    store %v_70, 3, 4
+    %v_71 = add %v_67, 12: Ptr
+    store %v_71, 4, 4
+    %v_72 = add %v_66, 12: Ptr
+    store %v_72, 4, 4
+    %v_73 = alloca 8, 4: Ptr
+    call_complex remove(I32), %v_73, %v_66, 1
+    %v_74 = loads %v_73, 4: I32
+    %v_75 = cmp_eq %v_74, 1: I32
+    %v_76 = add %v_73, 4: Ptr
+    %v = loads %v_76, 4: I32
+    %taken = select %v_75, %v, 0: I32
+    %v_77 = alloca 8, 4: Ptr
+    call_complex remove(I32), %v_77, %v_66, 9
+    %v_78 = loads %v_77, 4: I32
+    %v_79 = cmp_eq %v_78, 1: I32
+    %v_80 = add %v_77, 4: Ptr
+    %v = loads %v_80, 4: I32
+    %absent = select %v_79, %v, 7: I32
+    %v_81 = imul %taken, 100: I32
+    %v_82 = imul %absent, 10: I32
+    %v_83 = add %v_81, %v_82: I32
+    %v_84 = add %v_66, 12: Ptr
+    %v_85 = load %v_84, 4: I32
+    %v_86 = cast %v_85: I64
+    %v_87 = cmp_ge 1, %v_86: I32
+    je %v_87, b_21, b_88
   }
 
-  b_76 {
-    %v_77 = add %v_71, %v_64: I32
-    %v_78 = alloca 16, 8: Ptr
-    %v_79 = alloca 16, 4: Ptr
-    store %v_78, %v_79, 8
-    %v_80 = add %v_78, 8: Ptr
-    store %v_80, 4, 4
-    store %v_79, 1, 4
-    %v_81 = add %v_79, 4: Ptr
-    store %v_81, 2, 4
-    %v_82 = add %v_79, 8: Ptr
-    store %v_82, 3, 4
-    %v_83 = add %v_79, 12: Ptr
-    store %v_83, 4, 4
-    %v_84 = add %v_78, 12: Ptr
-    store %v_84, 4, 4
-    %v_85 = alloca 8, 4: Ptr
-    call_complex remove(I32), %v_85, %v_78, 1
-    %v_86 = loads %v_85, 4: I32
-    %v_87 = cmp_eq %v_86, 1: I32
-    %v_88 = add %v_85, 4: Ptr
-    %v = loads %v_88, 4: I32
-    %taken = select %v_87, %v, 0: I32
-    %v_89 = alloca 8, 4: Ptr
-    call_complex remove(I32), %v_89, %v_78, 9
-    %v_90 = loads %v_89, 4: I32
-    %v_91 = cmp_eq %v_90, 1: I32
-    %v_92 = add %v_89, 4: Ptr
-    %v = loads %v_92, 4: I32
-    %absent = select %v_91, %v, 7: I32
-    %v_93 = imul %taken, 100: I32
-    %v_94 = imul %absent, 10: I32
-    %v_95 = add %v_93, %v_94: I32
-    %v_96 = add %v_78, 12: Ptr
-    %v_97 = load %v_96, 4: I32
-    %v_98 = cast %v_97: I64
-    %v_99 = cmp_ge 1, %v_98: I32
-    je %v_99, b_21, b_100
+  b_88 {
+    %v_89 = load %v_66, 8: Ptr
+    %v_90 = add %v_89, 4: Ptr
+    %v_91 = loads %v_90, 4: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_66
+    %v_92 = add %v_83, %v_91: I32
+    %v_93 = alloca 16, 8: Ptr
+    %v_94 = alloca 16, 4: Ptr
+    store %v_93, %v_94, 8
+    %v_95 = add %v_93, 8: Ptr
+    store %v_95, 4, 4
+    store %v_94, %v_20, 4
+    %v_96 = add %v_94, 4: Ptr
+    store %v_96, 2, 4
+    %v_97 = add %v_94, 8: Ptr
+    store %v_97, 3, 4
+    %v_98 = add %v_94, 12: Ptr
+    store %v_98, 4, 4
+    %v_99 = add %v_93, 12: Ptr
+    store %v_99, 4, 4
+    jmp b_100
   }
 
-  b_100 {
-    %v_101 = load %v_78, 8: Ptr
-    %v_102 = add %v_101, 4: Ptr
-    %v_103 = loads %v_102, 4: I32
-    call_complex Reclaim(Array(a)).reclaim(I32), %v_78
-    %v_104 = add %v_95, %v_103: I32
-    %v_105 = alloca 16, 8: Ptr
-    %v_106 = alloca 16, 4: Ptr
-    store %v_105, %v_106, 8
-    %v_107 = add %v_105, 8: Ptr
-    store %v_107, 4, 4
-    store %v_106, %v_20, 4
-    %v_108 = add %v_106, 4: Ptr
-    store %v_108, 2, 4
-    %v_109 = add %v_106, 8: Ptr
-    store %v_109, 3, 4
-    %v_110 = add %v_106, 12: Ptr
-    store %v_110, 4, 4
-    %v_111 = add %v_105, 12: Ptr
-    store %v_111, 4, 4
-    jmp b_112
+  b_101 {
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_93
+    %v_102 = add %v_103, %v_20: I32
+    %v_104 = alloca 12, 4: Ptr
+    store %v_104, 2, 4
+    %v_105 = add %v_104, 4: Ptr
+    store %v_105, 3, 4
+    %v_106 = add %v_104, 8: Ptr
+    store %v_106, 4, 4
+    jmp b_107
   }
 
-  b_113 {
-    call_complex Reclaim(Array(a)).reclaim(I32), %v_105
-    %v_114 = add %v_115, %v_20: I32
-    %v_116 = alloca 12, 4: Ptr
-    store %v_116, 2, 4
-    %v_117 = add %v_116, 4: Ptr
-    store %v_117, 3, 4
-    %v_118 = add %v_116, 8: Ptr
-    store %v_118, 4, 4
-    jmp b_119
+  b_108 {
+    %v_109 = imul %v_29, 13: I32
+    %v_110 = add %v_109, 183: I32
+    %v_111 = imul %v_43, 17: I32
+    %v_112 = add %v_110, %v_111: I32
+    %v_113 = imul %v_49, 23: I32
+    %v_114 = add %v_112, %v_113: I32
+    %v_115 = add %v_114, 290: I32
+    %v_116 = imul %v_92, 31: I32
+    %v_117 = add %v_115, %v_116: I32
+    %v_118 = imul %v_102, 37: I32
+    %v_119 = add %v_117, %v_118: I32
+    %v_120 = imul %v_121, 41: I32
+    %v_122 = add %v_119, %v_120: I32
+    ret %v_122
   }
 
-  b_120 {
-    %v_121 = imul %v_29, 13: I32
-    %v_122 = add %v_121, 183: I32
-    %v_123 = imul %v_43, 17: I32
-    %v_124 = add %v_122, %v_123: I32
-    %v_125 = imul %v_49, 23: I32
-    %v_126 = add %v_124, %v_125: I32
-    %v_127 = imul %v_77, 29: I32
-    %v_128 = add %v_126, %v_127: I32
-    %v_129 = imul %v_104, 31: I32
-    %v_130 = add %v_128, %v_129: I32
-    %v_131 = imul %v_114, 37: I32
-    %v_132 = add %v_130, %v_131: I32
-    %v_133 = imul %v_134, 41: I32
-    %v_135 = add %v_132, %v_133: I32
-    ret %v_135
+  b_123 {
+    %v_124 = cmp_ge %v_125, 3: I32
+    je %v_124, b_21, b_107
   }
 
-  b_136 {
-    %v_137 = cmp_ge %v_138, 3: I32
-    je %v_137, b_21, b_119
-  }
-
-  b_119 {
-    %v_139 = phi [b_136, %v_134], [b_113, 0]: I32
-    %v_140 = phi [b_136, %v_138], [b_113, 0]: I64
-    %v_141 = shl %v_140, 2: I64
-    %v_142 = add %v_116, %v_141: Ptr
-    %v_143 = loads %v_142, 4: I32
-    %v_134 = add %v_139, %v_143: I32
-    %v_138 = add %v_140, 1: I64
-    %v_144 = cmp_ilt %v_138, 3: I32
-    je %v_144, b_136, b_120
+  b_107 {
+    %v_126 = phi [b_123, %v_121], [b_101, 0]: I32
+    %v_127 = phi [b_123, %v_125], [b_101, 0]: I64
+    %v_128 = shl %v_127, 2: I64
+    %v_129 = add %v_104, %v_128: Ptr
+    %v_130 = loads %v_129, 4: I32
+    %v_121 = add %v_126, %v_130: I32
+    %v_125 = add %v_127, 1: I64
+    %v_131 = cmp_ilt %v_125, 3: I32
+    je %v_131, b_123, b_108
   }
 
   b_21 {
-    %v_145 = syscall 60, 134: I64
+    %v_132 = syscall 60, 134: I64
     unreachable 
   }
 
-  b_146 {
-    %v_147 = cmp_ge %v_148, 4: I32
-    je %v_147, b_21, b_112
+  b_133 {
+    %v_134 = cmp_ge %v_135, 4: I32
+    je %v_134, b_21, b_100
   }
 
-  b_112 {
-    %v_149 = phi [b_146, %v_115], [b_100, 0]: I32
-    %v_150 = phi [b_146, %v_148], [b_100, 0]: I64
-    %v_151 = shl %v_150, 2: I64
-    %v_152 = add %v_106, %v_151: Ptr
-    %v_153 = loads %v_152, 4: I32
-    %v_115 = add %v_149, %v_153: I32
-    %v_148 = add %v_150, 1: I64
-    %v_154 = cmp_ilt %v_148, 4: I32
-    je %v_154, b_146, b_113
+  b_100 {
+    %v_136 = phi [b_133, %v_103], [b_88, 0]: I32
+    %v_137 = phi [b_133, %v_135], [b_88, 0]: I64
+    %v_138 = shl %v_137, 2: I64
+    %v_139 = add %v_94, %v_138: Ptr
+    %v_140 = loads %v_139, 4: I32
+    %v_103 = add %v_136, %v_140: I32
+    %v_135 = add %v_137, 1: I64
+    %v_141 = cmp_ilt %v_135, 4: I32
+    je %v_141, b_133, b_101
   }
 
-  b_72 {
-    %v_155 = phi [b_73, %v_75], [b_67, 0]: I32
-    %v_156 = sext %v_155: I64
-    %v_157 = shl %v_156, 4: I64
-    %v_158 = add %v_51, %v_157: Ptr
+  b_61 {
+    %v_142 = phi [b_62, %v_64], [b_26, 0]: I32
+    %v_143 = sext %v_142: I64
+    %v_144 = shl %v_143, 4: I64
+    %v_145 = add %v_51, %v_144: Ptr
     %doomed = alloca 16, 8: Ptr
-    copy %doomed, %v_158, 16
+    copy %doomed, %v_145, 16
     call_complex Reclaim(Array(a)).reclaim(I32), %doomed
-    %v_75 = add %v_155, 1: I32
-    jmp b_73
+    %v_64 = add %v_142, 1: I32
+    jmp b_62
   }
 }
 

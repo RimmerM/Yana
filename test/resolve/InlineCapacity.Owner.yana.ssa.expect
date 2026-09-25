@@ -323,502 +323,854 @@ bb0:
   %66: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 14, ownsHeap: 0}, length: 14}}
   store inspect %6 consume %66
   %67: String [shared slot 0] guaranteed from{%6} = load inspect %6
-  %68: String [shared slot 0 view] guaranteed from{%6} = call String.view borrow %67
-  call String.push borrow %65 borrow %68
-  drop String inspect %6
-  %69: %I64 address = global.addr live
-  %70: I64 trivial = load inspect %69
-  %71: String [unique call] guaranteed from{%5} = load inspect %5
-  call I64.show borrow %70 borrow %71
-  %72: String [unique call] guaranteed from{%5} = load inspect %5
-  %73: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %7 consume %73
-  %74: String [shared slot 0] guaranteed from{%7} = load inspect %7
-  %75: String [shared slot 0 view] guaranteed from{%7} = call String.view borrow %74
-  call String.push borrow %72 borrow %75
-  drop String inspect %7
-  %76: String owned = load inspect %5
-  store inspect %8 consume %76
-  %77: String [shared slot 0] guaranteed from{%8} = load inspect %8
-  %78: String [shared slot 0 view] guaranteed from{%8} = call String.view borrow %77
-  call print borrow %78
-  drop String inspect %8
-  %79: %I64 address = global.addr live
-  %80: I64 trivial = load inspect %79
-  %81: I64 trivial = const 2
-  %82: Bool trivial = ne inspect %80 inspect %81
-  branch inspect %82 -> bb3 -> bb1
+  jump -> bb33
 
 bb1:
   jump -> bb2
 
 bb2:
-  %83: %InlineArray(Handle, 4) address = field.addr .hs inspect %4
-  %84: InlineArray(Handle, 4) [shared call] guaranteed from{%4} = load inspect %83
-  jump -> bb33
+  %116: %InlineArray(Handle, 4) address = field.addr .hs inspect %4
+  %117: InlineArray(Handle, 4) [shared call] guaranteed from{%4} = load inspect %116
+  jump -> bb39
 
 bb3:
   drop Holder inspect %4
-  %128: I32 trivial = const 1
-  return consume %128
+  %205: I32 trivial = const 1
+  return consume %205
 
 bb4:
-  %129: Holder [shared call] guaranteed from{%4} = load inspect %4
-  %130: I32 trivial = call ids borrow %129
-  %131: I32 trivial = const 12
-  %132: Bool trivial = ne inspect %130 inspect %131
-  jump -> bb5(consume %132)
+  %206: Holder [shared call] guaranteed from{%4} = load inspect %4
+  %207: I32 trivial = call ids borrow %206
+  %208: I32 trivial = const 12
+  %209: Bool trivial = ne inspect %207 inspect %208
+  jump -> bb5(consume %209)
 
 bb5(%0: Bool trivial):
   branch inspect %0 -> bb9 -> bb7
 
 bb6:
-  %133: Bool trivial = const True
-  jump -> bb5(consume %133)
+  %210: Bool trivial = const True
+  jump -> bb5(consume %210)
 
 bb7:
   jump -> bb8
 
 bb8:
-  %134: I32 trivial = const 0
-  store inspect %16 consume %134
-  %135: %InlineArray(Handle, 4) address = field.addr .hs inspect %4
-  %136: InlineArray(Handle, 4) [unique call] guaranteed from{%4} = load inspect %135
-  %137: I32 trivial = const 3
-  %138: InlineArray(Handle, 4) [unique call] guaranteed from{%4} = load inspect %136
-  %139: Array(Handle) owned = call growableOver(4, Handle) borrow %138
-  store inspect %17 consume %139
-  %140: Array(Handle) [unique call] guaranteed from{%17} = load inspect %17
-  %141: I32 [unique slot 0] guaranteed = load inspect %16
-  %142: handles.cont'2.env affine = aggregate.handles.cont'2.env borrow %141
-  %143: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value handles.cont'2 borrow %142
-  %144: I32 trivial = call grow borrow %140 borrow %137 borrow %143
+  %211: I32 trivial = const 0
+  store inspect %16 consume %211
+  %212: %InlineArray(Handle, 4) address = field.addr .hs inspect %4
+  %213: InlineArray(Handle, 4) [unique call] guaranteed from{%4} = load inspect %212
+  %214: I32 trivial = const 3
+  %215: InlineArray(Handle, 4) [unique call] guaranteed from{%4} = load inspect %213
+  %216: Array(Handle) owned = call growableOver(4, Handle) borrow %215
+  store inspect %17 consume %216
+  %217: Array(Handle) [unique call] guaranteed from{%17} = load inspect %17
+  %218: I32 [unique slot 0] guaranteed = load inspect %16
+  %219: handles.cont'2.env affine = aggregate.handles.cont'2.env borrow %218
+  %220: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value handles.cont'2 borrow %219
+  %221: I32 trivial = call grow borrow %217 borrow %214 borrow %220
   jump -> bb10
 
 bb9:
   drop Holder inspect %4
-  %145: I32 trivial = const 2
-  return consume %145
+  %222: I32 trivial = const 2
+  return consume %222
 
 bb10:
-  %146: InlineArray(Handle, 4) [unique call] guaranteed from{%4} = load inspect %136
-  %147: Array(Handle) [unique call] guaranteed from{%17} = load inspect %17
-  call commitGrowable(4, Handle) borrow %146 borrow %147
+  %223: InlineArray(Handle, 4) [unique call] guaranteed from{%4} = load inspect %213
+  %224: Array(Handle) [unique call] guaranteed from{%17} = load inspect %17
+  call commitGrowable(4, Handle) borrow %223 borrow %224
   drop Array(Handle) inspect %17
-  %148: Size trivial = const 20
-  %149: %I64 address = global.addr live
-  %150: I64 trivial = load inspect %149
-  %151: Maybe(Size) trivial = call I64.showBound borrow %150
-  %152: Size trivial = call formatBound borrow %151
-  %153: Size trivial = add inspect %148 inspect %152
-  %154: I32 trivial = load inspect %16
-  %155: Maybe(Size) trivial = call I32.showBound borrow %154
-  %156: Size trivial = call formatBound borrow %155
-  %157: Size trivial = add inspect %153 inspect %156
-  %158: String owned = call String.ofCapacity borrow %157
-  store inspect %18 consume %158
-  %159: String [unique call] guaranteed from{%18} = load inspect %18
-  %160: String owned = const String {units: Array {run: Run {items: &string'147, capacity: 16, ownsHeap: 0}, length: 16}}
-  store inspect %19 consume %160
-  %161: String [shared slot 0] guaranteed from{%19} = load inspect %19
-  %162: String [shared slot 0 view] guaranteed from{%19} = call String.view borrow %161
-  call String.push borrow %159 borrow %162
-  drop String inspect %19
-  %163: %I64 address = global.addr live
-  %164: I64 trivial = load inspect %163
-  %165: String [unique call] guaranteed from{%18} = load inspect %18
-  call I64.show borrow %164 borrow %165
-  %166: String [unique call] guaranteed from{%18} = load inspect %18
-  %167: String owned = const String {units: Array {run: Run {items: &string'148, capacity: 3, ownsHeap: 0}, length: 3}}
-  store inspect %20 consume %167
-  %168: String [shared slot 0] guaranteed from{%20} = load inspect %20
-  %169: String [shared slot 0 view] guaranteed from{%20} = call String.view borrow %168
-  call String.push borrow %166 borrow %169
-  drop String inspect %20
-  %170: I32 trivial = load inspect %16
-  %171: String [unique call] guaranteed from{%18} = load inspect %18
-  call I32.show borrow %170 borrow %171
-  %172: String [unique call] guaranteed from{%18} = load inspect %18
-  %173: String owned = const String {units: Array {run: Run {items: &string'149, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %21 consume %173
-  %174: String [shared slot 0] guaranteed from{%21} = load inspect %21
-  %175: String [shared slot 0 view] guaranteed from{%21} = call String.view borrow %174
-  call String.push borrow %172 borrow %175
-  drop String inspect %21
-  %176: String owned = load inspect %18
-  store inspect %22 consume %176
-  %177: String [shared slot 0] guaranteed from{%22} = load inspect %22
-  %178: String [shared slot 0 view] guaranteed from{%22} = call String.view borrow %177
-  call print borrow %178
-  drop String inspect %22
-  %179: %I64 address = global.addr live
-  %180: I64 trivial = load inspect %179
-  %181: I64 trivial = const 4
-  %182: Bool trivial = ne inspect %180 inspect %181
-  branch inspect %182 -> bb13 -> bb11
+  %225: Size trivial = const 20
+  %226: %I64 address = global.addr live
+  %227: I64 trivial = load inspect %226
+  %228: Maybe(Size) trivial = call I64.showBound borrow %227
+  %229: Size trivial = call formatBound borrow %228
+  %230: Size trivial = add inspect %225 inspect %229
+  %231: I32 trivial = load inspect %16
+  %232: Maybe(Size) trivial = call I32.showBound borrow %231
+  %233: Size trivial = call formatBound borrow %232
+  %234: Size trivial = add inspect %230 inspect %233
+  %235: String owned = call String.ofCapacity borrow %234
+  store inspect %18 consume %235
+  %236: String [unique call] guaranteed from{%18} = load inspect %18
+  %237: String owned = const String {units: Array {run: Run {items: &string'147, capacity: 16, ownsHeap: 0}, length: 16}}
+  store inspect %19 consume %237
+  %238: String [shared slot 0] guaranteed from{%19} = load inspect %19
+  jump -> bb51
 
 bb11:
-  %183: I32 trivial = load inspect %16
-  %184: I32 trivial = const 3
-  %185: Bool trivial = ne inspect %183 inspect %184
-  jump -> bb12(consume %185)
+  %304: I32 trivial = load inspect %16
+  %305: I32 trivial = const 3
+  %306: Bool trivial = ne inspect %304 inspect %305
+  jump -> bb12(consume %306)
 
 bb12(%1: Bool trivial):
   branch inspect %1 -> bb16 -> bb14
 
 bb13:
-  %186: Bool trivial = const True
-  jump -> bb12(consume %186)
+  %307: Bool trivial = const True
+  jump -> bb12(consume %307)
 
 bb14:
   jump -> bb15
 
 bb15:
-  %187: %InlineArray(Handle, 4) address = field.addr .hs inspect %4
-  %188: InlineArray(Handle, 4) [shared call] guaranteed from{%4} = load inspect %187
-  jump -> bb37
+  %308: %InlineArray(Handle, 4) address = field.addr .hs inspect %4
+  %309: InlineArray(Handle, 4) [shared call] guaranteed from{%4} = load inspect %308
+  jump -> bb59
 
 bb16:
   drop Holder inspect %4
-  %232: I32 trivial = const 3
-  return consume %232
+  %397: I32 trivial = const 3
+  return consume %397
 
 bb17:
-  %233: Holder [shared call] guaranteed from{%4} = load inspect %4
-  %234: I32 trivial = call ids borrow %233
+  %398: Holder [shared call] guaranteed from{%4} = load inspect %4
+  %399: I32 trivial = call ids borrow %398
   drop Holder inspect %4
-  %235: I32 trivial = const 1234
-  %236: Bool trivial = ne inspect %234 inspect %235
-  jump -> bb18(consume %236)
+  %400: I32 trivial = const 1234
+  %401: Bool trivial = ne inspect %399 inspect %400
+  jump -> bb18(consume %401)
 
 bb18(%2: Bool trivial):
   branch inspect %2 -> bb22 -> bb20
 
 bb19:
   drop Holder inspect %4
-  %237: Bool trivial = const True
-  jump -> bb18(consume %237)
+  %402: Bool trivial = const True
+  jump -> bb18(consume %402)
 
 bb20:
   jump -> bb21
 
 bb21:
-  %238: I32 trivial = const 6
-  %239: Handle owned = call openHandle borrow %238
-  %240: [Handle *4] owned = aggregate.0 consume %239
-  %241: @bits(30) U32 trivial = const 1
-  %242: InlineArray(Handle, 4) owned = aggregate.InlineArray consume %240 consume %241
-  %243: I32 trivial = const 1
-  %244: Holder owned = aggregate.Holder consume %242 consume %243
-  store inspect %30 consume %244
-  %245: %InlineArray(Handle, 4) address = field.addr .hs inspect %30
-  %246: InlineArray(Handle, 4) [unique call] guaranteed from{%30} = load inspect %245
-  %247: I32 trivial = const 7
-  %248: InlineArray(Handle, 4) [unique call] guaranteed from{%30} = load inspect %246
-  %249: Array(Handle) owned = call growableOver(4, Handle) borrow %248
-  store inspect %31 consume %249
-  %250: Array(Handle) [unique call] guaranteed from{%31} = load inspect %31
-  %251: handles.cont.env trivial = aggregate.handles.cont.env
-  %252: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value handles.cont inspect %251
-  %253: I32 trivial = call grow borrow %250 borrow %247 borrow %252
+  %403: I32 trivial = const 6
+  %404: Handle owned = call openHandle borrow %403
+  %405: [Handle *4] owned = aggregate.0 consume %404
+  %406: @bits(30) U32 trivial = const 1
+  %407: InlineArray(Handle, 4) owned = aggregate.InlineArray consume %405 consume %406
+  %408: I32 trivial = const 1
+  %409: Holder owned = aggregate.Holder consume %407 consume %408
+  store inspect %30 consume %409
+  %410: %InlineArray(Handle, 4) address = field.addr .hs inspect %30
+  %411: InlineArray(Handle, 4) [unique call] guaranteed from{%30} = load inspect %410
+  %412: I32 trivial = const 7
+  %413: InlineArray(Handle, 4) [unique call] guaranteed from{%30} = load inspect %411
+  %414: Array(Handle) owned = call growableOver(4, Handle) borrow %413
+  store inspect %31 consume %414
+  %415: Array(Handle) [unique call] guaranteed from{%31} = load inspect %31
+  %416: handles.cont.env trivial = aggregate.handles.cont.env
+  %417: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value handles.cont inspect %416
+  %418: I32 trivial = call grow borrow %415 borrow %412 borrow %417
   jump -> bb23
 
 bb22:
-  %254: I32 trivial = const 4
-  return consume %254
+  %419: I32 trivial = const 4
+  return consume %419
 
 bb23:
-  %255: InlineArray(Handle, 4) [unique call] guaranteed from{%30} = load inspect %246
-  %256: Array(Handle) [unique call] guaranteed from{%31} = load inspect %31
-  call commitGrowable(4, Handle) borrow %255 borrow %256
+  %420: InlineArray(Handle, 4) [unique call] guaranteed from{%30} = load inspect %411
+  %421: Array(Handle) [unique call] guaranteed from{%31} = load inspect %31
+  call commitGrowable(4, Handle) borrow %420 borrow %421
   drop Array(Handle) inspect %31
-  %257: Size trivial = const 19
-  %258: %I64 address = global.addr live
-  %259: I64 trivial = load inspect %258
-  %260: Maybe(Size) trivial = call I64.showBound borrow %259
-  %261: Size trivial = call formatBound borrow %260
-  %262: Size trivial = add inspect %257 inspect %261
-  %263: String owned = call String.ofCapacity borrow %262
-  store inspect %32 consume %263
-  %264: String [unique call] guaranteed from{%32} = load inspect %32
-  %265: String owned = const String {units: Array {run: Run {items: &string'153, capacity: 18, ownsHeap: 0}, length: 18}}
-  store inspect %33 consume %265
-  %266: String [shared slot 0] guaranteed from{%33} = load inspect %33
-  %267: String [shared slot 0 view] guaranteed from{%33} = call String.view borrow %266
-  call String.push borrow %264 borrow %267
-  drop String inspect %33
-  %268: %I64 address = global.addr live
-  %269: I64 trivial = load inspect %268
-  %270: String [unique call] guaranteed from{%32} = load inspect %32
-  call I64.show borrow %269 borrow %270
-  %271: String [unique call] guaranteed from{%32} = load inspect %32
-  %272: String owned = const String {units: Array {run: Run {items: &string'154, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %34 consume %272
-  %273: String [shared slot 0] guaranteed from{%34} = load inspect %34
-  %274: String [shared slot 0 view] guaranteed from{%34} = call String.view borrow %273
-  call String.push borrow %271 borrow %274
-  drop String inspect %34
-  %275: String owned = load inspect %32
-  store inspect %35 consume %275
-  %276: String [shared slot 0] guaranteed from{%35} = load inspect %35
-  %277: String [shared slot 0 view] guaranteed from{%35} = call String.view borrow %276
-  call print borrow %277
-  drop String inspect %35
-  %278: %I64 address = global.addr live
-  %279: I64 trivial = load inspect %278
-  %280: I64 trivial = const 3
-  %281: Bool trivial = ne inspect %279 inspect %280
-  branch inspect %281 -> bb26 -> bb24
+  %422: Size trivial = const 19
+  %423: %I64 address = global.addr live
+  %424: I64 trivial = load inspect %423
+  %425: Maybe(Size) trivial = call I64.showBound borrow %424
+  %426: Size trivial = call formatBound borrow %425
+  %427: Size trivial = add inspect %422 inspect %426
+  %428: String owned = call String.ofCapacity borrow %427
+  store inspect %32 consume %428
+  %429: String [unique call] guaranteed from{%32} = load inspect %32
+  %430: String owned = const String {units: Array {run: Run {items: &string'153, capacity: 18, ownsHeap: 0}, length: 18}}
+  store inspect %33 consume %430
+  %431: String [shared slot 0] guaranteed from{%33} = load inspect %33
+  jump -> bb71
 
 bb24:
   jump -> bb25
 
 bb25:
-  %282: %InlineArray(Handle, 4) address = field.addr .hs inspect %30
-  %283: InlineArray(Handle, 4) [shared call] guaranteed from{%30} = load inspect %282
-  jump -> bb41
+  %480: %InlineArray(Handle, 4) address = field.addr .hs inspect %30
+  %481: InlineArray(Handle, 4) [shared call] guaranteed from{%30} = load inspect %480
+  jump -> bb77
 
 bb26:
   drop Holder inspect %30
-  %327: I32 trivial = const 5
-  return consume %327
+  %569: I32 trivial = const 5
+  return consume %569
 
 bb27:
-  %328: Holder [shared call] guaranteed from{%30} = load inspect %30
-  %329: I32 trivial = call ids borrow %328
+  %570: Holder [shared call] guaranteed from{%30} = load inspect %30
+  %571: I32 trivial = call ids borrow %570
   drop Holder inspect %30
-  %330: I32 trivial = const 678
-  %331: Bool trivial = ne inspect %329 inspect %330
-  jump -> bb28(consume %331)
+  %572: I32 trivial = const 678
+  %573: Bool trivial = ne inspect %571 inspect %572
+  jump -> bb28(consume %573)
 
 bb28(%3: Bool trivial):
   branch inspect %3 -> bb32 -> bb30
 
 bb29:
   drop Holder inspect %30
-  %332: Bool trivial = const True
-  jump -> bb28(consume %332)
+  %574: Bool trivial = const True
+  jump -> bb28(consume %574)
 
 bb30:
   jump -> bb31
 
 bb31:
-  %333: I32 trivial = const 0
-  return consume %333
+  %575: I32 trivial = const 0
+  return consume %575
 
 bb32:
-  %334: I32 trivial = const 6
-  return consume %334
+  %576: I32 trivial = const 6
+  return consume %576
 
 bb33:
-  %86: %@bits(30) U32 address = field.addr .length inspect %84
-  %87: @bits(30) U32 trivial = load inspect %86
-  %88: Size trivial = convert inspect %87
-  jump -> bb34(consume %88)
+  %69: %Array(CodeUnit) address = field.addr .units inspect %67
+  %70: %Run(CodeUnit) address = field.addr .run inspect %69
+  %71: %%CodeUnit address = field.addr .items inspect %70
+  %72: %CodeUnit trivial = load inspect %71
+  %73: %Array(CodeUnit) address = field.addr .units inspect %67
+  %74: %@bits(30) U32 address = field.addr .length inspect %73
+  %75: @bits(30) U32 trivial = load inspect %74
+  %76: I32 trivial = convert inspect %75
+  %77: Size trivial = convert inspect %76
+  %78: StringView trivial = aggregate.StringView consume %72 consume %77
+  %79: String [shared slot 0 view] guaranteed = represent inspect %78
+  jump -> bb34(borrow %79)
 
-bb34(%85: Size trivial):
-  store inspect %9 consume %85
-  %89: Holder [shared call] guaranteed from{%4} = load inspect %4
-  %90: I32 trivial = call ids borrow %89
-  store inspect %10 consume %90
-  %91: Size trivial = const 11
-  %92: Size trivial = load inspect %9
-  %93: Maybe(Size) trivial = call Size.showBound borrow %92
-  %94: Size trivial = call formatBound borrow %93
-  %95: Size trivial = add inspect %91 inspect %94
-  %96: I32 trivial = load inspect %10
-  %97: Maybe(Size) trivial = call I32.showBound borrow %96
-  %98: Size trivial = call formatBound borrow %97
-  %99: Size trivial = add inspect %95 inspect %98
-  %100: String owned = call String.ofCapacity borrow %99
-  store inspect %11 consume %100
-  %101: String [unique call] guaranteed from{%11} = load inspect %11
-  %102: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 9, ownsHeap: 0}, length: 9}}
-  store inspect %12 consume %102
-  %103: String [shared slot 0] guaranteed from{%12} = load inspect %12
-  %104: String [shared slot 0 view] guaranteed from{%12} = call String.view borrow %103
-  call String.push borrow %101 borrow %104
-  drop String inspect %12
-  %105: Size trivial = load inspect %9
-  %106: String [unique call] guaranteed from{%11} = load inspect %11
-  call Size.show borrow %105 borrow %106
-  %107: String [unique call] guaranteed from{%11} = load inspect %11
-  %108: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %13 consume %108
-  %109: String [shared slot 0] guaranteed from{%13} = load inspect %13
-  %110: String [shared slot 0 view] guaranteed from{%13} = call String.view borrow %109
-  call String.push borrow %107 borrow %110
-  drop String inspect %13
-  %111: I32 trivial = load inspect %10
-  %112: String [unique call] guaranteed from{%11} = load inspect %11
-  call I32.show borrow %111 borrow %112
-  %113: String [unique call] guaranteed from{%11} = load inspect %11
-  %114: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %14 consume %114
-  %115: String [shared slot 0] guaranteed from{%14} = load inspect %14
-  %116: String [shared slot 0 view] guaranteed from{%14} = call String.view borrow %115
-  call String.push borrow %113 borrow %116
-  drop String inspect %14
-  %117: String owned = load inspect %11
-  store inspect %15 consume %117
-  %118: String [shared slot 0] guaranteed from{%15} = load inspect %15
-  %119: String [shared slot 0 view] guaranteed from{%15} = call String.view borrow %118
-  call print borrow %119
-  drop String inspect %15
-  %120: %InlineArray(Handle, 4) address = field.addr .hs inspect %4
-  %121: InlineArray(Handle, 4) [shared call] guaranteed from{%4} = load inspect %120
+bb34(%68: String [shared slot 0 view] guaranteed from{%6}):
+  call String.push borrow %65 borrow %68
+  drop String inspect %6
+  %80: %I64 address = global.addr live
+  %81: I64 trivial = load inspect %80
+  %82: String [unique call] guaranteed from{%5} = load inspect %5
+  call I64.show borrow %81 borrow %82
+  %83: String [unique call] guaranteed from{%5} = load inspect %5
+  %84: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %7 consume %84
+  %85: String [shared slot 0] guaranteed from{%7} = load inspect %7
   jump -> bb35
 
 bb35:
-  %123: %@bits(30) U32 address = field.addr .length inspect %121
-  %124: @bits(30) U32 trivial = load inspect %123
-  %125: Size trivial = convert inspect %124
-  jump -> bb36(consume %125)
+  %87: %Array(CodeUnit) address = field.addr .units inspect %85
+  %88: %Run(CodeUnit) address = field.addr .run inspect %87
+  %89: %%CodeUnit address = field.addr .items inspect %88
+  %90: %CodeUnit trivial = load inspect %89
+  %91: %Array(CodeUnit) address = field.addr .units inspect %85
+  %92: %@bits(30) U32 address = field.addr .length inspect %91
+  %93: @bits(30) U32 trivial = load inspect %92
+  %94: I32 trivial = convert inspect %93
+  %95: Size trivial = convert inspect %94
+  %96: StringView trivial = aggregate.StringView consume %90 consume %95
+  %97: String [shared slot 0 view] guaranteed = represent inspect %96
+  jump -> bb36(borrow %97)
 
-bb36(%122: Size trivial):
-  %126: Size trivial = const 2
-  %127: Bool trivial = ne inspect %122 inspect %126
-  branch inspect %127 -> bb6 -> bb4
+bb36(%86: String [shared slot 0 view] guaranteed from{%7}):
+  call String.push borrow %83 borrow %86
+  drop String inspect %7
+  %98: String owned = load inspect %5
+  store inspect %8 consume %98
+  %99: String [shared slot 0] guaranteed from{%8} = load inspect %8
+  jump -> bb37
 
 bb37:
-  %190: %@bits(30) U32 address = field.addr .length inspect %188
-  %191: @bits(30) U32 trivial = load inspect %190
-  %192: Size trivial = convert inspect %191
-  jump -> bb38(consume %192)
+  %101: %Array(CodeUnit) address = field.addr .units inspect %99
+  %102: %Run(CodeUnit) address = field.addr .run inspect %101
+  %103: %%CodeUnit address = field.addr .items inspect %102
+  %104: %CodeUnit trivial = load inspect %103
+  %105: %Array(CodeUnit) address = field.addr .units inspect %99
+  %106: %@bits(30) U32 address = field.addr .length inspect %105
+  %107: @bits(30) U32 trivial = load inspect %106
+  %108: I32 trivial = convert inspect %107
+  %109: Size trivial = convert inspect %108
+  %110: StringView trivial = aggregate.StringView consume %104 consume %109
+  %111: String [shared slot 0 view] guaranteed = represent inspect %110
+  jump -> bb38(borrow %111)
 
-bb38(%189: Size trivial):
-  store inspect %23 consume %189
-  %193: Holder [shared call] guaranteed from{%4} = load inspect %4
-  %194: I32 trivial = call ids borrow %193
-  store inspect %24 consume %194
-  %195: Size trivial = const 13
-  %196: Size trivial = load inspect %23
-  %197: Maybe(Size) trivial = call Size.showBound borrow %196
-  %198: Size trivial = call formatBound borrow %197
-  %199: Size trivial = add inspect %195 inspect %198
-  %200: I32 trivial = load inspect %24
-  %201: Maybe(Size) trivial = call I32.showBound borrow %200
-  %202: Size trivial = call formatBound borrow %201
-  %203: Size trivial = add inspect %199 inspect %202
-  %204: String owned = call String.ofCapacity borrow %203
-  store inspect %25 consume %204
-  %205: String [unique call] guaranteed from{%25} = load inspect %25
-  %206: String owned = const String {units: Array {run: Run {items: &string'150, capacity: 11, ownsHeap: 0}, length: 11}}
-  store inspect %26 consume %206
-  %207: String [shared slot 0] guaranteed from{%26} = load inspect %26
-  %208: String [shared slot 0 view] guaranteed from{%26} = call String.view borrow %207
-  call String.push borrow %205 borrow %208
-  drop String inspect %26
-  %209: Size trivial = load inspect %23
-  %210: String [unique call] guaranteed from{%25} = load inspect %25
-  call Size.show borrow %209 borrow %210
-  %211: String [unique call] guaranteed from{%25} = load inspect %25
-  %212: String owned = const String {units: Array {run: Run {items: &string'151, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %27 consume %212
-  %213: String [shared slot 0] guaranteed from{%27} = load inspect %27
-  %214: String [shared slot 0 view] guaranteed from{%27} = call String.view borrow %213
-  call String.push borrow %211 borrow %214
-  drop String inspect %27
-  %215: I32 trivial = load inspect %24
-  %216: String [unique call] guaranteed from{%25} = load inspect %25
-  call I32.show borrow %215 borrow %216
-  %217: String [unique call] guaranteed from{%25} = load inspect %25
-  %218: String owned = const String {units: Array {run: Run {items: &string'152, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %28 consume %218
-  %219: String [shared slot 0] guaranteed from{%28} = load inspect %28
-  %220: String [shared slot 0 view] guaranteed from{%28} = call String.view borrow %219
-  call String.push borrow %217 borrow %220
-  drop String inspect %28
-  %221: String owned = load inspect %25
-  store inspect %29 consume %221
-  %222: String [shared slot 0] guaranteed from{%29} = load inspect %29
-  %223: String [shared slot 0 view] guaranteed from{%29} = call String.view borrow %222
-  call print borrow %223
-  drop String inspect %29
-  %224: %InlineArray(Handle, 4) address = field.addr .hs inspect %4
-  %225: InlineArray(Handle, 4) [shared call] guaranteed from{%4} = load inspect %224
-  jump -> bb39
+bb38(%100: String [shared slot 0 view] guaranteed from{%8}):
+  call print borrow %100
+  drop String inspect %8
+  %112: %I64 address = global.addr live
+  %113: I64 trivial = load inspect %112
+  %114: I64 trivial = const 2
+  %115: Bool trivial = ne inspect %113 inspect %114
+  branch inspect %115 -> bb3 -> bb1
 
 bb39:
-  %227: %@bits(30) U32 address = field.addr .length inspect %225
-  %228: @bits(30) U32 trivial = load inspect %227
-  %229: Size trivial = convert inspect %228
-  jump -> bb40(consume %229)
+  %119: %@bits(30) U32 address = field.addr .length inspect %117
+  %120: @bits(30) U32 trivial = load inspect %119
+  %121: Size trivial = convert inspect %120
+  jump -> bb40(consume %121)
 
-bb40(%226: Size trivial):
-  %230: Size trivial = const 4
-  %231: Bool trivial = ne inspect %226 inspect %230
-  branch inspect %231 -> bb19 -> bb17
+bb40(%118: Size trivial):
+  store inspect %9 consume %118
+  %122: Holder [shared call] guaranteed from{%4} = load inspect %4
+  %123: I32 trivial = call ids borrow %122
+  store inspect %10 consume %123
+  %124: Size trivial = const 11
+  %125: Size trivial = load inspect %9
+  %126: Maybe(Size) trivial = call Size.showBound borrow %125
+  %127: Size trivial = call formatBound borrow %126
+  %128: Size trivial = add inspect %124 inspect %127
+  %129: I32 trivial = load inspect %10
+  %130: Maybe(Size) trivial = call I32.showBound borrow %129
+  %131: Size trivial = call formatBound borrow %130
+  %132: Size trivial = add inspect %128 inspect %131
+  %133: String owned = call String.ofCapacity borrow %132
+  store inspect %11 consume %133
+  %134: String [unique call] guaranteed from{%11} = load inspect %11
+  %135: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 9, ownsHeap: 0}, length: 9}}
+  store inspect %12 consume %135
+  %136: String [shared slot 0] guaranteed from{%12} = load inspect %12
+  jump -> bb41
 
 bb41:
-  %285: %@bits(30) U32 address = field.addr .length inspect %283
-  %286: @bits(30) U32 trivial = load inspect %285
-  %287: Size trivial = convert inspect %286
-  jump -> bb42(consume %287)
+  %138: %Array(CodeUnit) address = field.addr .units inspect %136
+  %139: %Run(CodeUnit) address = field.addr .run inspect %138
+  %140: %%CodeUnit address = field.addr .items inspect %139
+  %141: %CodeUnit trivial = load inspect %140
+  %142: %Array(CodeUnit) address = field.addr .units inspect %136
+  %143: %@bits(30) U32 address = field.addr .length inspect %142
+  %144: @bits(30) U32 trivial = load inspect %143
+  %145: I32 trivial = convert inspect %144
+  %146: Size trivial = convert inspect %145
+  %147: StringView trivial = aggregate.StringView consume %141 consume %146
+  %148: String [shared slot 0 view] guaranteed = represent inspect %147
+  jump -> bb42(borrow %148)
 
-bb42(%284: Size trivial):
-  store inspect %36 consume %284
-  %288: Holder [shared call] guaranteed from{%30} = load inspect %30
-  %289: I32 trivial = call ids borrow %288
-  store inspect %37 consume %289
-  %290: Size trivial = const 15
-  %291: Size trivial = load inspect %36
-  %292: Maybe(Size) trivial = call Size.showBound borrow %291
-  %293: Size trivial = call formatBound borrow %292
-  %294: Size trivial = add inspect %290 inspect %293
-  %295: I32 trivial = load inspect %37
-  %296: Maybe(Size) trivial = call I32.showBound borrow %295
-  %297: Size trivial = call formatBound borrow %296
-  %298: Size trivial = add inspect %294 inspect %297
-  %299: String owned = call String.ofCapacity borrow %298
-  store inspect %38 consume %299
-  %300: String [unique call] guaranteed from{%38} = load inspect %38
-  %301: String owned = const String {units: Array {run: Run {items: &string'155, capacity: 13, ownsHeap: 0}, length: 13}}
-  store inspect %39 consume %301
-  %302: String [shared slot 0] guaranteed from{%39} = load inspect %39
-  %303: String [shared slot 0 view] guaranteed from{%39} = call String.view borrow %302
-  call String.push borrow %300 borrow %303
-  drop String inspect %39
-  %304: Size trivial = load inspect %36
-  %305: String [unique call] guaranteed from{%38} = load inspect %38
-  call Size.show borrow %304 borrow %305
-  %306: String [unique call] guaranteed from{%38} = load inspect %38
-  %307: String owned = const String {units: Array {run: Run {items: &string'156, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %40 consume %307
-  %308: String [shared slot 0] guaranteed from{%40} = load inspect %40
-  %309: String [shared slot 0 view] guaranteed from{%40} = call String.view borrow %308
-  call String.push borrow %306 borrow %309
-  drop String inspect %40
-  %310: I32 trivial = load inspect %37
-  %311: String [unique call] guaranteed from{%38} = load inspect %38
-  call I32.show borrow %310 borrow %311
-  %312: String [unique call] guaranteed from{%38} = load inspect %38
-  %313: String owned = const String {units: Array {run: Run {items: &string'157, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %41 consume %313
-  %314: String [shared slot 0] guaranteed from{%41} = load inspect %41
-  %315: String [shared slot 0 view] guaranteed from{%41} = call String.view borrow %314
-  call String.push borrow %312 borrow %315
-  drop String inspect %41
-  %316: String owned = load inspect %38
-  store inspect %42 consume %316
-  %317: String [shared slot 0] guaranteed from{%42} = load inspect %42
-  %318: String [shared slot 0 view] guaranteed from{%42} = call String.view borrow %317
-  call print borrow %318
-  drop String inspect %42
-  %319: %InlineArray(Handle, 4) address = field.addr .hs inspect %30
-  %320: InlineArray(Handle, 4) [shared call] guaranteed from{%30} = load inspect %319
+bb42(%137: String [shared slot 0 view] guaranteed from{%12}):
+  call String.push borrow %134 borrow %137
+  drop String inspect %12
+  %149: Size trivial = load inspect %9
+  %150: String [unique call] guaranteed from{%11} = load inspect %11
+  call Size.show borrow %149 borrow %150
+  %151: String [unique call] guaranteed from{%11} = load inspect %11
+  %152: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %13 consume %152
+  %153: String [shared slot 0] guaranteed from{%13} = load inspect %13
   jump -> bb43
 
 bb43:
-  %322: %@bits(30) U32 address = field.addr .length inspect %320
-  %323: @bits(30) U32 trivial = load inspect %322
-  %324: Size trivial = convert inspect %323
-  jump -> bb44(consume %324)
+  %155: %Array(CodeUnit) address = field.addr .units inspect %153
+  %156: %Run(CodeUnit) address = field.addr .run inspect %155
+  %157: %%CodeUnit address = field.addr .items inspect %156
+  %158: %CodeUnit trivial = load inspect %157
+  %159: %Array(CodeUnit) address = field.addr .units inspect %153
+  %160: %@bits(30) U32 address = field.addr .length inspect %159
+  %161: @bits(30) U32 trivial = load inspect %160
+  %162: I32 trivial = convert inspect %161
+  %163: Size trivial = convert inspect %162
+  %164: StringView trivial = aggregate.StringView consume %158 consume %163
+  %165: String [shared slot 0 view] guaranteed = represent inspect %164
+  jump -> bb44(borrow %165)
 
-bb44(%321: Size trivial):
-  %325: Size trivial = const 3
-  %326: Bool trivial = ne inspect %321 inspect %325
-  branch inspect %326 -> bb29 -> bb27
+bb44(%154: String [shared slot 0 view] guaranteed from{%13}):
+  call String.push borrow %151 borrow %154
+  drop String inspect %13
+  %166: I32 trivial = load inspect %10
+  %167: String [unique call] guaranteed from{%11} = load inspect %11
+  call I32.show borrow %166 borrow %167
+  %168: String [unique call] guaranteed from{%11} = load inspect %11
+  %169: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %14 consume %169
+  %170: String [shared slot 0] guaranteed from{%14} = load inspect %14
+  jump -> bb45
+
+bb45:
+  %172: %Array(CodeUnit) address = field.addr .units inspect %170
+  %173: %Run(CodeUnit) address = field.addr .run inspect %172
+  %174: %%CodeUnit address = field.addr .items inspect %173
+  %175: %CodeUnit trivial = load inspect %174
+  %176: %Array(CodeUnit) address = field.addr .units inspect %170
+  %177: %@bits(30) U32 address = field.addr .length inspect %176
+  %178: @bits(30) U32 trivial = load inspect %177
+  %179: I32 trivial = convert inspect %178
+  %180: Size trivial = convert inspect %179
+  %181: StringView trivial = aggregate.StringView consume %175 consume %180
+  %182: String [shared slot 0 view] guaranteed = represent inspect %181
+  jump -> bb46(borrow %182)
+
+bb46(%171: String [shared slot 0 view] guaranteed from{%14}):
+  call String.push borrow %168 borrow %171
+  drop String inspect %14
+  %183: String owned = load inspect %11
+  store inspect %15 consume %183
+  %184: String [shared slot 0] guaranteed from{%15} = load inspect %15
+  jump -> bb47
+
+bb47:
+  %186: %Array(CodeUnit) address = field.addr .units inspect %184
+  %187: %Run(CodeUnit) address = field.addr .run inspect %186
+  %188: %%CodeUnit address = field.addr .items inspect %187
+  %189: %CodeUnit trivial = load inspect %188
+  %190: %Array(CodeUnit) address = field.addr .units inspect %184
+  %191: %@bits(30) U32 address = field.addr .length inspect %190
+  %192: @bits(30) U32 trivial = load inspect %191
+  %193: I32 trivial = convert inspect %192
+  %194: Size trivial = convert inspect %193
+  %195: StringView trivial = aggregate.StringView consume %189 consume %194
+  %196: String [shared slot 0 view] guaranteed = represent inspect %195
+  jump -> bb48(borrow %196)
+
+bb48(%185: String [shared slot 0 view] guaranteed from{%15}):
+  call print borrow %185
+  drop String inspect %15
+  %197: %InlineArray(Handle, 4) address = field.addr .hs inspect %4
+  %198: InlineArray(Handle, 4) [shared call] guaranteed from{%4} = load inspect %197
+  jump -> bb49
+
+bb49:
+  %200: %@bits(30) U32 address = field.addr .length inspect %198
+  %201: @bits(30) U32 trivial = load inspect %200
+  %202: Size trivial = convert inspect %201
+  jump -> bb50(consume %202)
+
+bb50(%199: Size trivial):
+  %203: Size trivial = const 2
+  %204: Bool trivial = ne inspect %199 inspect %203
+  branch inspect %204 -> bb6 -> bb4
+
+bb51:
+  %240: %Array(CodeUnit) address = field.addr .units inspect %238
+  %241: %Run(CodeUnit) address = field.addr .run inspect %240
+  %242: %%CodeUnit address = field.addr .items inspect %241
+  %243: %CodeUnit trivial = load inspect %242
+  %244: %Array(CodeUnit) address = field.addr .units inspect %238
+  %245: %@bits(30) U32 address = field.addr .length inspect %244
+  %246: @bits(30) U32 trivial = load inspect %245
+  %247: I32 trivial = convert inspect %246
+  %248: Size trivial = convert inspect %247
+  %249: StringView trivial = aggregate.StringView consume %243 consume %248
+  %250: String [shared slot 0 view] guaranteed = represent inspect %249
+  jump -> bb52(borrow %250)
+
+bb52(%239: String [shared slot 0 view] guaranteed from{%19}):
+  call String.push borrow %236 borrow %239
+  drop String inspect %19
+  %251: %I64 address = global.addr live
+  %252: I64 trivial = load inspect %251
+  %253: String [unique call] guaranteed from{%18} = load inspect %18
+  call I64.show borrow %252 borrow %253
+  %254: String [unique call] guaranteed from{%18} = load inspect %18
+  %255: String owned = const String {units: Array {run: Run {items: &string'148, capacity: 3, ownsHeap: 0}, length: 3}}
+  store inspect %20 consume %255
+  %256: String [shared slot 0] guaranteed from{%20} = load inspect %20
+  jump -> bb53
+
+bb53:
+  %258: %Array(CodeUnit) address = field.addr .units inspect %256
+  %259: %Run(CodeUnit) address = field.addr .run inspect %258
+  %260: %%CodeUnit address = field.addr .items inspect %259
+  %261: %CodeUnit trivial = load inspect %260
+  %262: %Array(CodeUnit) address = field.addr .units inspect %256
+  %263: %@bits(30) U32 address = field.addr .length inspect %262
+  %264: @bits(30) U32 trivial = load inspect %263
+  %265: I32 trivial = convert inspect %264
+  %266: Size trivial = convert inspect %265
+  %267: StringView trivial = aggregate.StringView consume %261 consume %266
+  %268: String [shared slot 0 view] guaranteed = represent inspect %267
+  jump -> bb54(borrow %268)
+
+bb54(%257: String [shared slot 0 view] guaranteed from{%20}):
+  call String.push borrow %254 borrow %257
+  drop String inspect %20
+  %269: I32 trivial = load inspect %16
+  %270: String [unique call] guaranteed from{%18} = load inspect %18
+  call I32.show borrow %269 borrow %270
+  %271: String [unique call] guaranteed from{%18} = load inspect %18
+  %272: String owned = const String {units: Array {run: Run {items: &string'149, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %21 consume %272
+  %273: String [shared slot 0] guaranteed from{%21} = load inspect %21
+  jump -> bb55
+
+bb55:
+  %275: %Array(CodeUnit) address = field.addr .units inspect %273
+  %276: %Run(CodeUnit) address = field.addr .run inspect %275
+  %277: %%CodeUnit address = field.addr .items inspect %276
+  %278: %CodeUnit trivial = load inspect %277
+  %279: %Array(CodeUnit) address = field.addr .units inspect %273
+  %280: %@bits(30) U32 address = field.addr .length inspect %279
+  %281: @bits(30) U32 trivial = load inspect %280
+  %282: I32 trivial = convert inspect %281
+  %283: Size trivial = convert inspect %282
+  %284: StringView trivial = aggregate.StringView consume %278 consume %283
+  %285: String [shared slot 0 view] guaranteed = represent inspect %284
+  jump -> bb56(borrow %285)
+
+bb56(%274: String [shared slot 0 view] guaranteed from{%21}):
+  call String.push borrow %271 borrow %274
+  drop String inspect %21
+  %286: String owned = load inspect %18
+  store inspect %22 consume %286
+  %287: String [shared slot 0] guaranteed from{%22} = load inspect %22
+  jump -> bb57
+
+bb57:
+  %289: %Array(CodeUnit) address = field.addr .units inspect %287
+  %290: %Run(CodeUnit) address = field.addr .run inspect %289
+  %291: %%CodeUnit address = field.addr .items inspect %290
+  %292: %CodeUnit trivial = load inspect %291
+  %293: %Array(CodeUnit) address = field.addr .units inspect %287
+  %294: %@bits(30) U32 address = field.addr .length inspect %293
+  %295: @bits(30) U32 trivial = load inspect %294
+  %296: I32 trivial = convert inspect %295
+  %297: Size trivial = convert inspect %296
+  %298: StringView trivial = aggregate.StringView consume %292 consume %297
+  %299: String [shared slot 0 view] guaranteed = represent inspect %298
+  jump -> bb58(borrow %299)
+
+bb58(%288: String [shared slot 0 view] guaranteed from{%22}):
+  call print borrow %288
+  drop String inspect %22
+  %300: %I64 address = global.addr live
+  %301: I64 trivial = load inspect %300
+  %302: I64 trivial = const 4
+  %303: Bool trivial = ne inspect %301 inspect %302
+  branch inspect %303 -> bb13 -> bb11
+
+bb59:
+  %311: %@bits(30) U32 address = field.addr .length inspect %309
+  %312: @bits(30) U32 trivial = load inspect %311
+  %313: Size trivial = convert inspect %312
+  jump -> bb60(consume %313)
+
+bb60(%310: Size trivial):
+  store inspect %23 consume %310
+  %314: Holder [shared call] guaranteed from{%4} = load inspect %4
+  %315: I32 trivial = call ids borrow %314
+  store inspect %24 consume %315
+  %316: Size trivial = const 13
+  %317: Size trivial = load inspect %23
+  %318: Maybe(Size) trivial = call Size.showBound borrow %317
+  %319: Size trivial = call formatBound borrow %318
+  %320: Size trivial = add inspect %316 inspect %319
+  %321: I32 trivial = load inspect %24
+  %322: Maybe(Size) trivial = call I32.showBound borrow %321
+  %323: Size trivial = call formatBound borrow %322
+  %324: Size trivial = add inspect %320 inspect %323
+  %325: String owned = call String.ofCapacity borrow %324
+  store inspect %25 consume %325
+  %326: String [unique call] guaranteed from{%25} = load inspect %25
+  %327: String owned = const String {units: Array {run: Run {items: &string'150, capacity: 11, ownsHeap: 0}, length: 11}}
+  store inspect %26 consume %327
+  %328: String [shared slot 0] guaranteed from{%26} = load inspect %26
+  jump -> bb61
+
+bb61:
+  %330: %Array(CodeUnit) address = field.addr .units inspect %328
+  %331: %Run(CodeUnit) address = field.addr .run inspect %330
+  %332: %%CodeUnit address = field.addr .items inspect %331
+  %333: %CodeUnit trivial = load inspect %332
+  %334: %Array(CodeUnit) address = field.addr .units inspect %328
+  %335: %@bits(30) U32 address = field.addr .length inspect %334
+  %336: @bits(30) U32 trivial = load inspect %335
+  %337: I32 trivial = convert inspect %336
+  %338: Size trivial = convert inspect %337
+  %339: StringView trivial = aggregate.StringView consume %333 consume %338
+  %340: String [shared slot 0 view] guaranteed = represent inspect %339
+  jump -> bb62(borrow %340)
+
+bb62(%329: String [shared slot 0 view] guaranteed from{%26}):
+  call String.push borrow %326 borrow %329
+  drop String inspect %26
+  %341: Size trivial = load inspect %23
+  %342: String [unique call] guaranteed from{%25} = load inspect %25
+  call Size.show borrow %341 borrow %342
+  %343: String [unique call] guaranteed from{%25} = load inspect %25
+  %344: String owned = const String {units: Array {run: Run {items: &string'151, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %27 consume %344
+  %345: String [shared slot 0] guaranteed from{%27} = load inspect %27
+  jump -> bb63
+
+bb63:
+  %347: %Array(CodeUnit) address = field.addr .units inspect %345
+  %348: %Run(CodeUnit) address = field.addr .run inspect %347
+  %349: %%CodeUnit address = field.addr .items inspect %348
+  %350: %CodeUnit trivial = load inspect %349
+  %351: %Array(CodeUnit) address = field.addr .units inspect %345
+  %352: %@bits(30) U32 address = field.addr .length inspect %351
+  %353: @bits(30) U32 trivial = load inspect %352
+  %354: I32 trivial = convert inspect %353
+  %355: Size trivial = convert inspect %354
+  %356: StringView trivial = aggregate.StringView consume %350 consume %355
+  %357: String [shared slot 0 view] guaranteed = represent inspect %356
+  jump -> bb64(borrow %357)
+
+bb64(%346: String [shared slot 0 view] guaranteed from{%27}):
+  call String.push borrow %343 borrow %346
+  drop String inspect %27
+  %358: I32 trivial = load inspect %24
+  %359: String [unique call] guaranteed from{%25} = load inspect %25
+  call I32.show borrow %358 borrow %359
+  %360: String [unique call] guaranteed from{%25} = load inspect %25
+  %361: String owned = const String {units: Array {run: Run {items: &string'152, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %28 consume %361
+  %362: String [shared slot 0] guaranteed from{%28} = load inspect %28
+  jump -> bb65
+
+bb65:
+  %364: %Array(CodeUnit) address = field.addr .units inspect %362
+  %365: %Run(CodeUnit) address = field.addr .run inspect %364
+  %366: %%CodeUnit address = field.addr .items inspect %365
+  %367: %CodeUnit trivial = load inspect %366
+  %368: %Array(CodeUnit) address = field.addr .units inspect %362
+  %369: %@bits(30) U32 address = field.addr .length inspect %368
+  %370: @bits(30) U32 trivial = load inspect %369
+  %371: I32 trivial = convert inspect %370
+  %372: Size trivial = convert inspect %371
+  %373: StringView trivial = aggregate.StringView consume %367 consume %372
+  %374: String [shared slot 0 view] guaranteed = represent inspect %373
+  jump -> bb66(borrow %374)
+
+bb66(%363: String [shared slot 0 view] guaranteed from{%28}):
+  call String.push borrow %360 borrow %363
+  drop String inspect %28
+  %375: String owned = load inspect %25
+  store inspect %29 consume %375
+  %376: String [shared slot 0] guaranteed from{%29} = load inspect %29
+  jump -> bb67
+
+bb67:
+  %378: %Array(CodeUnit) address = field.addr .units inspect %376
+  %379: %Run(CodeUnit) address = field.addr .run inspect %378
+  %380: %%CodeUnit address = field.addr .items inspect %379
+  %381: %CodeUnit trivial = load inspect %380
+  %382: %Array(CodeUnit) address = field.addr .units inspect %376
+  %383: %@bits(30) U32 address = field.addr .length inspect %382
+  %384: @bits(30) U32 trivial = load inspect %383
+  %385: I32 trivial = convert inspect %384
+  %386: Size trivial = convert inspect %385
+  %387: StringView trivial = aggregate.StringView consume %381 consume %386
+  %388: String [shared slot 0 view] guaranteed = represent inspect %387
+  jump -> bb68(borrow %388)
+
+bb68(%377: String [shared slot 0 view] guaranteed from{%29}):
+  call print borrow %377
+  drop String inspect %29
+  %389: %InlineArray(Handle, 4) address = field.addr .hs inspect %4
+  %390: InlineArray(Handle, 4) [shared call] guaranteed from{%4} = load inspect %389
+  jump -> bb69
+
+bb69:
+  %392: %@bits(30) U32 address = field.addr .length inspect %390
+  %393: @bits(30) U32 trivial = load inspect %392
+  %394: Size trivial = convert inspect %393
+  jump -> bb70(consume %394)
+
+bb70(%391: Size trivial):
+  %395: Size trivial = const 4
+  %396: Bool trivial = ne inspect %391 inspect %395
+  branch inspect %396 -> bb19 -> bb17
+
+bb71:
+  %433: %Array(CodeUnit) address = field.addr .units inspect %431
+  %434: %Run(CodeUnit) address = field.addr .run inspect %433
+  %435: %%CodeUnit address = field.addr .items inspect %434
+  %436: %CodeUnit trivial = load inspect %435
+  %437: %Array(CodeUnit) address = field.addr .units inspect %431
+  %438: %@bits(30) U32 address = field.addr .length inspect %437
+  %439: @bits(30) U32 trivial = load inspect %438
+  %440: I32 trivial = convert inspect %439
+  %441: Size trivial = convert inspect %440
+  %442: StringView trivial = aggregate.StringView consume %436 consume %441
+  %443: String [shared slot 0 view] guaranteed = represent inspect %442
+  jump -> bb72(borrow %443)
+
+bb72(%432: String [shared slot 0 view] guaranteed from{%33}):
+  call String.push borrow %429 borrow %432
+  drop String inspect %33
+  %444: %I64 address = global.addr live
+  %445: I64 trivial = load inspect %444
+  %446: String [unique call] guaranteed from{%32} = load inspect %32
+  call I64.show borrow %445 borrow %446
+  %447: String [unique call] guaranteed from{%32} = load inspect %32
+  %448: String owned = const String {units: Array {run: Run {items: &string'154, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %34 consume %448
+  %449: String [shared slot 0] guaranteed from{%34} = load inspect %34
+  jump -> bb73
+
+bb73:
+  %451: %Array(CodeUnit) address = field.addr .units inspect %449
+  %452: %Run(CodeUnit) address = field.addr .run inspect %451
+  %453: %%CodeUnit address = field.addr .items inspect %452
+  %454: %CodeUnit trivial = load inspect %453
+  %455: %Array(CodeUnit) address = field.addr .units inspect %449
+  %456: %@bits(30) U32 address = field.addr .length inspect %455
+  %457: @bits(30) U32 trivial = load inspect %456
+  %458: I32 trivial = convert inspect %457
+  %459: Size trivial = convert inspect %458
+  %460: StringView trivial = aggregate.StringView consume %454 consume %459
+  %461: String [shared slot 0 view] guaranteed = represent inspect %460
+  jump -> bb74(borrow %461)
+
+bb74(%450: String [shared slot 0 view] guaranteed from{%34}):
+  call String.push borrow %447 borrow %450
+  drop String inspect %34
+  %462: String owned = load inspect %32
+  store inspect %35 consume %462
+  %463: String [shared slot 0] guaranteed from{%35} = load inspect %35
+  jump -> bb75
+
+bb75:
+  %465: %Array(CodeUnit) address = field.addr .units inspect %463
+  %466: %Run(CodeUnit) address = field.addr .run inspect %465
+  %467: %%CodeUnit address = field.addr .items inspect %466
+  %468: %CodeUnit trivial = load inspect %467
+  %469: %Array(CodeUnit) address = field.addr .units inspect %463
+  %470: %@bits(30) U32 address = field.addr .length inspect %469
+  %471: @bits(30) U32 trivial = load inspect %470
+  %472: I32 trivial = convert inspect %471
+  %473: Size trivial = convert inspect %472
+  %474: StringView trivial = aggregate.StringView consume %468 consume %473
+  %475: String [shared slot 0 view] guaranteed = represent inspect %474
+  jump -> bb76(borrow %475)
+
+bb76(%464: String [shared slot 0 view] guaranteed from{%35}):
+  call print borrow %464
+  drop String inspect %35
+  %476: %I64 address = global.addr live
+  %477: I64 trivial = load inspect %476
+  %478: I64 trivial = const 3
+  %479: Bool trivial = ne inspect %477 inspect %478
+  branch inspect %479 -> bb26 -> bb24
+
+bb77:
+  %483: %@bits(30) U32 address = field.addr .length inspect %481
+  %484: @bits(30) U32 trivial = load inspect %483
+  %485: Size trivial = convert inspect %484
+  jump -> bb78(consume %485)
+
+bb78(%482: Size trivial):
+  store inspect %36 consume %482
+  %486: Holder [shared call] guaranteed from{%30} = load inspect %30
+  %487: I32 trivial = call ids borrow %486
+  store inspect %37 consume %487
+  %488: Size trivial = const 15
+  %489: Size trivial = load inspect %36
+  %490: Maybe(Size) trivial = call Size.showBound borrow %489
+  %491: Size trivial = call formatBound borrow %490
+  %492: Size trivial = add inspect %488 inspect %491
+  %493: I32 trivial = load inspect %37
+  %494: Maybe(Size) trivial = call I32.showBound borrow %493
+  %495: Size trivial = call formatBound borrow %494
+  %496: Size trivial = add inspect %492 inspect %495
+  %497: String owned = call String.ofCapacity borrow %496
+  store inspect %38 consume %497
+  %498: String [unique call] guaranteed from{%38} = load inspect %38
+  %499: String owned = const String {units: Array {run: Run {items: &string'155, capacity: 13, ownsHeap: 0}, length: 13}}
+  store inspect %39 consume %499
+  %500: String [shared slot 0] guaranteed from{%39} = load inspect %39
+  jump -> bb79
+
+bb79:
+  %502: %Array(CodeUnit) address = field.addr .units inspect %500
+  %503: %Run(CodeUnit) address = field.addr .run inspect %502
+  %504: %%CodeUnit address = field.addr .items inspect %503
+  %505: %CodeUnit trivial = load inspect %504
+  %506: %Array(CodeUnit) address = field.addr .units inspect %500
+  %507: %@bits(30) U32 address = field.addr .length inspect %506
+  %508: @bits(30) U32 trivial = load inspect %507
+  %509: I32 trivial = convert inspect %508
+  %510: Size trivial = convert inspect %509
+  %511: StringView trivial = aggregate.StringView consume %505 consume %510
+  %512: String [shared slot 0 view] guaranteed = represent inspect %511
+  jump -> bb80(borrow %512)
+
+bb80(%501: String [shared slot 0 view] guaranteed from{%39}):
+  call String.push borrow %498 borrow %501
+  drop String inspect %39
+  %513: Size trivial = load inspect %36
+  %514: String [unique call] guaranteed from{%38} = load inspect %38
+  call Size.show borrow %513 borrow %514
+  %515: String [unique call] guaranteed from{%38} = load inspect %38
+  %516: String owned = const String {units: Array {run: Run {items: &string'156, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %40 consume %516
+  %517: String [shared slot 0] guaranteed from{%40} = load inspect %40
+  jump -> bb81
+
+bb81:
+  %519: %Array(CodeUnit) address = field.addr .units inspect %517
+  %520: %Run(CodeUnit) address = field.addr .run inspect %519
+  %521: %%CodeUnit address = field.addr .items inspect %520
+  %522: %CodeUnit trivial = load inspect %521
+  %523: %Array(CodeUnit) address = field.addr .units inspect %517
+  %524: %@bits(30) U32 address = field.addr .length inspect %523
+  %525: @bits(30) U32 trivial = load inspect %524
+  %526: I32 trivial = convert inspect %525
+  %527: Size trivial = convert inspect %526
+  %528: StringView trivial = aggregate.StringView consume %522 consume %527
+  %529: String [shared slot 0 view] guaranteed = represent inspect %528
+  jump -> bb82(borrow %529)
+
+bb82(%518: String [shared slot 0 view] guaranteed from{%40}):
+  call String.push borrow %515 borrow %518
+  drop String inspect %40
+  %530: I32 trivial = load inspect %37
+  %531: String [unique call] guaranteed from{%38} = load inspect %38
+  call I32.show borrow %530 borrow %531
+  %532: String [unique call] guaranteed from{%38} = load inspect %38
+  %533: String owned = const String {units: Array {run: Run {items: &string'157, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %41 consume %533
+  %534: String [shared slot 0] guaranteed from{%41} = load inspect %41
+  jump -> bb83
+
+bb83:
+  %536: %Array(CodeUnit) address = field.addr .units inspect %534
+  %537: %Run(CodeUnit) address = field.addr .run inspect %536
+  %538: %%CodeUnit address = field.addr .items inspect %537
+  %539: %CodeUnit trivial = load inspect %538
+  %540: %Array(CodeUnit) address = field.addr .units inspect %534
+  %541: %@bits(30) U32 address = field.addr .length inspect %540
+  %542: @bits(30) U32 trivial = load inspect %541
+  %543: I32 trivial = convert inspect %542
+  %544: Size trivial = convert inspect %543
+  %545: StringView trivial = aggregate.StringView consume %539 consume %544
+  %546: String [shared slot 0 view] guaranteed = represent inspect %545
+  jump -> bb84(borrow %546)
+
+bb84(%535: String [shared slot 0 view] guaranteed from{%41}):
+  call String.push borrow %532 borrow %535
+  drop String inspect %41
+  %547: String owned = load inspect %38
+  store inspect %42 consume %547
+  %548: String [shared slot 0] guaranteed from{%42} = load inspect %42
+  jump -> bb85
+
+bb85:
+  %550: %Array(CodeUnit) address = field.addr .units inspect %548
+  %551: %Run(CodeUnit) address = field.addr .run inspect %550
+  %552: %%CodeUnit address = field.addr .items inspect %551
+  %553: %CodeUnit trivial = load inspect %552
+  %554: %Array(CodeUnit) address = field.addr .units inspect %548
+  %555: %@bits(30) U32 address = field.addr .length inspect %554
+  %556: @bits(30) U32 trivial = load inspect %555
+  %557: I32 trivial = convert inspect %556
+  %558: Size trivial = convert inspect %557
+  %559: StringView trivial = aggregate.StringView consume %553 consume %558
+  %560: String [shared slot 0 view] guaranteed = represent inspect %559
+  jump -> bb86(borrow %560)
+
+bb86(%549: String [shared slot 0 view] guaranteed from{%42}):
+  call print borrow %549
+  drop String inspect %42
+  %561: %InlineArray(Handle, 4) address = field.addr .hs inspect %30
+  %562: InlineArray(Handle, 4) [shared call] guaranteed from{%30} = load inspect %561
+  jump -> bb87
+
+bb87:
+  %564: %@bits(30) U32 address = field.addr .length inspect %562
+  %565: @bits(30) U32 trivial = load inspect %564
+  %566: Size trivial = convert inspect %565
+  jump -> bb88(consume %566)
+
+bb88(%563: Size trivial):
+  %567: Size trivial = const 3
+  %568: Bool trivial = ne inspect %563 inspect %567
+  branch inspect %568 -> bb29 -> bb27
 }
 
 fn numbers() -> I32 {
@@ -870,235 +1222,200 @@ bb0:
   jump -> bb32
 
 bb1:
-  %229: Size trivial = const 1
-  %230: %InlineArray(I32, 4) address = field.addr .items inspect %7
-  %231: InlineArray(I32, 4) [shared call] guaranteed from{%7} = load inspect %230
-  jump -> bb66
+  %295: Size trivial = const 1
+  %296: %InlineArray(I32, 4) address = field.addr .items inspect %7
+  %297: InlineArray(I32, 4) [shared call] guaranteed from{%7} = load inspect %296
+  jump -> bb78
 
 bb2(%0: Bool trivial):
   branch inspect %0 -> bb6 -> bb4
 
 bb3:
-  %254: Bool trivial = const True
-  jump -> bb2(consume %254)
+  %320: Bool trivial = const True
+  jump -> bb2(consume %320)
 
 bb4:
-  %255: Size trivial = const 2
-  %256: %InlineArray(I32, 4) address = field.addr .items inspect %7
-  %257: InlineArray(I32, 4) [shared call] guaranteed from{%7} = load inspect %256
-  jump -> bb73
+  %321: Size trivial = const 2
+  %322: %InlineArray(I32, 4) address = field.addr .items inspect %7
+  %323: InlineArray(I32, 4) [shared call] guaranteed from{%7} = load inspect %322
+  jump -> bb85
 
 bb5(%1: Bool trivial):
   branch inspect %1 -> bb9 -> bb7
 
 bb6:
-  %280: Bool trivial = const True
-  jump -> bb5(consume %280)
+  %346: Bool trivial = const True
+  jump -> bb5(consume %346)
 
 bb7:
-  %281: Size trivial = const 3
-  %282: %InlineArray(I32, 4) address = field.addr .items inspect %7
-  %283: InlineArray(I32, 4) [shared call] guaranteed from{%7} = load inspect %282
-  jump -> bb80
+  %347: Size trivial = const 3
+  %348: %InlineArray(I32, 4) address = field.addr .items inspect %7
+  %349: InlineArray(I32, 4) [shared call] guaranteed from{%7} = load inspect %348
+  jump -> bb92
 
 bb8(%2: Bool trivial):
   branch inspect %2 -> bb12 -> bb10
 
 bb9:
-  %306: Bool trivial = const True
-  jump -> bb8(consume %306)
+  %372: Bool trivial = const True
+  jump -> bb8(consume %372)
 
 bb10:
   jump -> bb11
 
 bb11:
-  %307: I32 trivial = const 1
-  %308: [I32 *4] trivial = aggregate.0 consume %307
-  %309: @bits(30) U32 trivial = const 1
-  %310: InlineArray(I32, 4) trivial = aggregate.InlineArray consume %308 consume %309
-  %311: I32 trivial = const 0
-  %312: Buffer trivial = aggregate.Buffer consume %310 consume %311
-  store inspect %19 consume %312
-  %313: I32 trivial = const 0
-  store inspect %20 consume %313
-  %314: %InlineArray(I32, 4) address = field.addr .items inspect %19
-  %315: InlineArray(I32, 4) [unique call] guaranteed from{%19} = load inspect %314
-  %316: InlineArray(I32, 4) [unique call] guaranteed from{%19} = load inspect %315
-  %317: Array(I32) owned = call growableOver(4, I32) borrow %316
-  store inspect %21 consume %317
-  %318: Array(I32) [unique call] guaranteed from{%21} = load inspect %21
-  %319: I32 [unique slot 0] guaranteed = load inspect %20
-  %320: numbers.cont.env affine = aggregate.numbers.cont.env borrow %319
-  %321: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value numbers.cont borrow %320
-  %322: I32 trivial = call opened(I32) borrow %318 borrow %321
+  %373: I32 trivial = const 1
+  %374: [I32 *4] trivial = aggregate.0 consume %373
+  %375: @bits(30) U32 trivial = const 1
+  %376: InlineArray(I32, 4) trivial = aggregate.InlineArray consume %374 consume %375
+  %377: I32 trivial = const 0
+  %378: Buffer trivial = aggregate.Buffer consume %376 consume %377
+  store inspect %19 consume %378
+  %379: I32 trivial = const 0
+  store inspect %20 consume %379
+  %380: %InlineArray(I32, 4) address = field.addr .items inspect %19
+  %381: InlineArray(I32, 4) [unique call] guaranteed from{%19} = load inspect %380
+  %382: InlineArray(I32, 4) [unique call] guaranteed from{%19} = load inspect %381
+  %383: Array(I32) owned = call growableOver(4, I32) borrow %382
+  store inspect %21 consume %383
+  %384: Array(I32) [unique call] guaranteed from{%21} = load inspect %21
+  %385: I32 [unique slot 0] guaranteed = load inspect %20
+  %386: numbers.cont.env affine = aggregate.numbers.cont.env borrow %385
+  %387: (I32) -> I32 [owned here shape8 .0=shared call] affine = fun.value numbers.cont borrow %386
+  %388: I32 trivial = call opened(I32) borrow %384 borrow %387
   jump -> bb13
 
 bb12:
-  %323: I32 trivial = const 11
-  return consume %323
+  %389: I32 trivial = const 11
+  return consume %389
 
 bb13:
-  %324: InlineArray(I32, 4) [unique call] guaranteed from{%19} = load inspect %315
-  %325: Array(I32) [unique call] guaranteed from{%21} = load inspect %21
-  call commitGrowable(4, I32) borrow %324 borrow %325
+  %390: InlineArray(I32, 4) [unique call] guaranteed from{%19} = load inspect %381
+  %391: Array(I32) [unique call] guaranteed from{%21} = load inspect %21
+  call commitGrowable(4, I32) borrow %390 borrow %391
   drop Array(I32) inspect %21
-  %326: %InlineArray(I32, 4) address = field.addr .items inspect %19
-  %327: InlineArray(I32, 4) trivial = copy inspect %326
-  jump -> bb87
+  %392: %InlineArray(I32, 4) address = field.addr .items inspect %19
+  %393: InlineArray(I32, 4) trivial = copy inspect %392
+  jump -> bb99
 
 bb14:
-  %433: Size trivial = const 1
-  %434: %InlineArray(I32, 4) address = field.addr .items inspect %19
-  %435: InlineArray(I32, 4) [shared call] guaranteed from{%19} = load inspect %434
-  jump -> bb105
+  %565: Size trivial = const 1
+  %566: %InlineArray(I32, 4) address = field.addr .items inspect %19
+  %567: InlineArray(I32, 4) [shared call] guaranteed from{%19} = load inspect %566
+  jump -> bb129
 
 bb15(%3: Bool trivial):
   branch inspect %3 -> bb19 -> bb17
 
 bb16:
-  %458: Bool trivial = const True
-  jump -> bb15(consume %458)
+  %590: Bool trivial = const True
+  jump -> bb15(consume %590)
 
 bb17:
-  %459: Size trivial = const 2
-  %460: %InlineArray(I32, 4) address = field.addr .items inspect %19
-  %461: InlineArray(I32, 4) [shared call] guaranteed from{%19} = load inspect %460
-  jump -> bb112
+  %591: Size trivial = const 2
+  %592: %InlineArray(I32, 4) address = field.addr .items inspect %19
+  %593: InlineArray(I32, 4) [shared call] guaranteed from{%19} = load inspect %592
+  jump -> bb136
 
 bb18(%4: Bool trivial):
   branch inspect %4 -> bb22 -> bb20
 
 bb19:
-  %484: Bool trivial = const True
-  jump -> bb18(consume %484)
+  %616: Bool trivial = const True
+  jump -> bb18(consume %616)
 
 bb20:
-  %485: I32 trivial = load inspect %20
-  %486: I32 trivial = const 1
-  %487: Bool trivial = ne inspect %485 inspect %486
-  jump -> bb21(consume %487)
+  %617: I32 trivial = load inspect %20
+  %618: I32 trivial = const 1
+  %619: Bool trivial = ne inspect %617 inspect %618
+  jump -> bb21(consume %619)
 
 bb21(%5: Bool trivial):
   branch inspect %5 -> bb25 -> bb23
 
 bb22:
-  %488: Bool trivial = const True
-  jump -> bb21(consume %488)
+  %620: Bool trivial = const True
+  jump -> bb21(consume %620)
 
 bb23:
   jump -> bb24
 
 bb24:
-  %489: I32 trivial = const 1
-  %490: I32 trivial = const 5
-  %491: I32 trivial = const 6
-  %492: [I32 *4] trivial = aggregate.0 consume %489 consume %490 consume %491
-  %493: @bits(30) U32 trivial = const 3
-  %494: InlineArray(I32, 4) trivial = aggregate.InlineArray consume %492 consume %493
-  %495: I32 trivial = const 9
-  %496: Buffer trivial = aggregate.Buffer consume %494 consume %495
-  store inspect %30 consume %496
-  %497: I32 trivial = const 1
-  %498: I32 trivial = const 5
-  %499: [I32 *4] trivial = aggregate.0 consume %497 consume %498
-  %500: @bits(30) U32 trivial = const 2
-  %501: InlineArray(I32, 4) trivial = aggregate.InlineArray consume %499 consume %500
-  %502: I32 trivial = const 9
-  %503: Buffer trivial = aggregate.Buffer consume %501 consume %502
-  store inspect %31 consume %503
-  %504: %InlineArray(I32, 4) address = field.addr .items inspect %19
-  %505: InlineArray(I32, 4) trivial = copy inspect %504
-  %506: %InlineArray(I32, 4) address = field.addr .items inspect %30
-  %507: InlineArray(I32, 4) trivial = copy inspect %506
-  %508: Bool trivial = call InlineArray(a, n).==(4, I32) borrow %505 borrow %507
-  store inspect %32 consume %508
-  %509: %InlineArray(I32, 4) address = field.addr .items inspect %19
-  %510: InlineArray(I32, 4) trivial = copy inspect %509
-  %511: %InlineArray(I32, 4) address = field.addr .items inspect %31
-  %512: InlineArray(I32, 4) trivial = copy inspect %511
-  %513: Bool trivial = call InlineArray(a, n).==(4, I32) borrow %510 borrow %512
-  store inspect %33 consume %513
-  %514: Size trivial = const 9
-  %515: Bool trivial = load inspect %32
-  %516: Maybe(Size) trivial = call Bool.showBound borrow %515
-  %517: Size trivial = call formatBound borrow %516
-  %518: Size trivial = add inspect %514 inspect %517
-  %519: Bool trivial = load inspect %33
-  %520: Maybe(Size) trivial = call Bool.showBound borrow %519
-  %521: Size trivial = call formatBound borrow %520
-  %522: Size trivial = add inspect %518 inspect %521
-  %523: String owned = call String.ofCapacity borrow %522
-  store inspect %34 consume %523
-  %524: String [unique call] guaranteed from{%34} = load inspect %34
-  %525: String owned = const String {units: Array {run: Run {items: &string'168, capacity: 7, ownsHeap: 0}, length: 7}}
-  store inspect %35 consume %525
-  %526: String [shared slot 0] guaranteed from{%35} = load inspect %35
-  %527: String [shared slot 0 view] guaranteed from{%35} = call String.view borrow %526
-  call String.push borrow %524 borrow %527
-  drop String inspect %35
-  %528: Bool trivial = load inspect %32
-  %529: String [unique call] guaranteed from{%34} = load inspect %34
-  call Bool.show borrow %528 borrow %529
-  %530: String [unique call] guaranteed from{%34} = load inspect %34
-  %531: String owned = const String {units: Array {run: Run {items: &string'169, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %36 consume %531
-  %532: String [shared slot 0] guaranteed from{%36} = load inspect %36
-  %533: String [shared slot 0 view] guaranteed from{%36} = call String.view borrow %532
-  call String.push borrow %530 borrow %533
-  drop String inspect %36
-  %534: Bool trivial = load inspect %33
-  %535: String [unique call] guaranteed from{%34} = load inspect %34
-  call Bool.show borrow %534 borrow %535
-  %536: String [unique call] guaranteed from{%34} = load inspect %34
-  %537: String owned = const String {units: Array {run: Run {items: &string'170, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %37 consume %537
-  %538: String [shared slot 0] guaranteed from{%37} = load inspect %37
-  %539: String [shared slot 0 view] guaranteed from{%37} = call String.view borrow %538
-  call String.push borrow %536 borrow %539
-  drop String inspect %37
-  %540: String owned = load inspect %34
-  store inspect %38 consume %540
-  %541: String [shared slot 0] guaranteed from{%38} = load inspect %38
-  %542: String [shared slot 0 view] guaranteed from{%38} = call String.view borrow %541
-  call print borrow %542
-  drop String inspect %38
-  %543: %InlineArray(I32, 4) address = field.addr .items inspect %19
-  %544: InlineArray(I32, 4) trivial = copy inspect %543
-  %545: %InlineArray(I32, 4) address = field.addr .items inspect %30
-  %546: InlineArray(I32, 4) trivial = copy inspect %545
-  %547: Bool trivial = call InlineArray(a, n).==(4, I32) borrow %544 borrow %546
-  %548: Bool trivial = not inspect %547
-  branch inspect %548 -> bb28 -> bb26
+  %621: I32 trivial = const 1
+  %622: I32 trivial = const 5
+  %623: I32 trivial = const 6
+  %624: [I32 *4] trivial = aggregate.0 consume %621 consume %622 consume %623
+  %625: @bits(30) U32 trivial = const 3
+  %626: InlineArray(I32, 4) trivial = aggregate.InlineArray consume %624 consume %625
+  %627: I32 trivial = const 9
+  %628: Buffer trivial = aggregate.Buffer consume %626 consume %627
+  store inspect %30 consume %628
+  %629: I32 trivial = const 1
+  %630: I32 trivial = const 5
+  %631: [I32 *4] trivial = aggregate.0 consume %629 consume %630
+  %632: @bits(30) U32 trivial = const 2
+  %633: InlineArray(I32, 4) trivial = aggregate.InlineArray consume %631 consume %632
+  %634: I32 trivial = const 9
+  %635: Buffer trivial = aggregate.Buffer consume %633 consume %634
+  store inspect %31 consume %635
+  %636: %InlineArray(I32, 4) address = field.addr .items inspect %19
+  %637: InlineArray(I32, 4) trivial = copy inspect %636
+  %638: %InlineArray(I32, 4) address = field.addr .items inspect %30
+  %639: InlineArray(I32, 4) trivial = copy inspect %638
+  %640: Bool trivial = call InlineArray(a, n).==(4, I32) borrow %637 borrow %639
+  store inspect %32 consume %640
+  %641: %InlineArray(I32, 4) address = field.addr .items inspect %19
+  %642: InlineArray(I32, 4) trivial = copy inspect %641
+  %643: %InlineArray(I32, 4) address = field.addr .items inspect %31
+  %644: InlineArray(I32, 4) trivial = copy inspect %643
+  %645: Bool trivial = call InlineArray(a, n).==(4, I32) borrow %642 borrow %644
+  store inspect %33 consume %645
+  %646: Size trivial = const 9
+  %647: Bool trivial = load inspect %32
+  %648: Maybe(Size) trivial = call Bool.showBound borrow %647
+  %649: Size trivial = call formatBound borrow %648
+  %650: Size trivial = add inspect %646 inspect %649
+  %651: Bool trivial = load inspect %33
+  %652: Maybe(Size) trivial = call Bool.showBound borrow %651
+  %653: Size trivial = call formatBound borrow %652
+  %654: Size trivial = add inspect %650 inspect %653
+  %655: String owned = call String.ofCapacity borrow %654
+  store inspect %34 consume %655
+  %656: String [unique call] guaranteed from{%34} = load inspect %34
+  %657: String owned = const String {units: Array {run: Run {items: &string'168, capacity: 7, ownsHeap: 0}, length: 7}}
+  store inspect %35 consume %657
+  %658: String [shared slot 0] guaranteed from{%35} = load inspect %35
+  jump -> bb143
 
 bb25:
-  %549: I32 trivial = const 12
-  return consume %549
+  %725: I32 trivial = const 12
+  return consume %725
 
 bb26:
-  %550: %InlineArray(I32, 4) address = field.addr .items inspect %19
-  %551: InlineArray(I32, 4) trivial = copy inspect %550
-  %552: %InlineArray(I32, 4) address = field.addr .items inspect %31
-  %553: InlineArray(I32, 4) trivial = copy inspect %552
-  %554: Bool trivial = call InlineArray(a, n).==(4, I32) borrow %551 borrow %553
-  jump -> bb27(consume %554)
+  %726: %InlineArray(I32, 4) address = field.addr .items inspect %19
+  %727: InlineArray(I32, 4) trivial = copy inspect %726
+  %728: %InlineArray(I32, 4) address = field.addr .items inspect %31
+  %729: InlineArray(I32, 4) trivial = copy inspect %728
+  %730: Bool trivial = call InlineArray(a, n).==(4, I32) borrow %727 borrow %729
+  jump -> bb27(consume %730)
 
 bb27(%6: Bool trivial):
   branch inspect %6 -> bb31 -> bb29
 
 bb28:
-  %555: Bool trivial = const True
-  jump -> bb27(consume %555)
+  %731: Bool trivial = const True
+  jump -> bb27(consume %731)
 
 bb29:
   jump -> bb30
 
 bb30:
-  %556: I32 trivial = const 0
-  return consume %556
+  %732: I32 trivial = const 0
+  return consume %732
 
 bb31:
-  %557: I32 trivial = const 13
-  return consume %557
+  %733: I32 trivial = const 13
+  return consume %733
 
 bb32:
   %51: %Size address = alloc frame Size [shared call]
@@ -1323,57 +1640,6 @@ bb58(%153: I32 [shared slot 0] guaranteed from{%7}):
   %191: String owned = const String {units: Array {run: Run {items: &string'158, capacity: 11, ownsHeap: 0}, length: 11}}
   store inspect %13 consume %191
   %192: String [shared slot 0] guaranteed from{%13} = load inspect %13
-  %193: String [shared slot 0 view] guaranteed from{%13} = call String.view borrow %192
-  call String.push borrow %190 borrow %193
-  drop String inspect %13
-  %194: Size trivial = load inspect %11
-  %195: String [unique call] guaranteed from{%12} = load inspect %12
-  call Size.show borrow %194 borrow %195
-  %196: String [unique call] guaranteed from{%12} = load inspect %12
-  %197: String owned = const String {units: Array {run: Run {items: &string'159, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %14 consume %197
-  %198: String [shared slot 0] guaranteed from{%14} = load inspect %14
-  %199: String [shared slot 0 view] guaranteed from{%14} = call String.view borrow %198
-  call String.push borrow %196 borrow %199
-  drop String inspect %14
-  %200: I32 trivial = load inspect %109
-  %201: String [unique call] guaranteed from{%12} = load inspect %12
-  call I32.show borrow %200 borrow %201
-  %202: String [unique call] guaranteed from{%12} = load inspect %12
-  %203: String owned = const String {units: Array {run: Run {items: &string'160, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %15 consume %203
-  %204: String [shared slot 0] guaranteed from{%15} = load inspect %15
-  %205: String [shared slot 0 view] guaranteed from{%15} = call String.view borrow %204
-  call String.push borrow %202 borrow %205
-  drop String inspect %15
-  %206: I32 trivial = load inspect %131
-  %207: String [unique call] guaranteed from{%12} = load inspect %12
-  call I32.show borrow %206 borrow %207
-  %208: String [unique call] guaranteed from{%12} = load inspect %12
-  %209: String owned = const String {units: Array {run: Run {items: &string'161, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %16 consume %209
-  %210: String [shared slot 0] guaranteed from{%16} = load inspect %16
-  %211: String [shared slot 0 view] guaranteed from{%16} = call String.view borrow %210
-  call String.push borrow %208 borrow %211
-  drop String inspect %16
-  %212: I32 trivial = load inspect %153
-  %213: String [unique call] guaranteed from{%12} = load inspect %12
-  call I32.show borrow %212 borrow %213
-  %214: String [unique call] guaranteed from{%12} = load inspect %12
-  %215: String owned = const String {units: Array {run: Run {items: &string'162, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %17 consume %215
-  %216: String [shared slot 0] guaranteed from{%17} = load inspect %17
-  %217: String [shared slot 0 view] guaranteed from{%17} = call String.view borrow %216
-  call String.push borrow %214 borrow %217
-  drop String inspect %17
-  %218: String owned = load inspect %12
-  store inspect %18 consume %218
-  %219: String [shared slot 0] guaranteed from{%18} = load inspect %18
-  %220: String [shared slot 0 view] guaranteed from{%18} = call String.view borrow %219
-  call print borrow %220
-  drop String inspect %18
-  %221: %InlineArray(I32, 4) address = field.addr .items inspect %7
-  %222: InlineArray(I32, 4) trivial = copy inspect %221
   jump -> bb64
 
 bb59:
@@ -1404,411 +1670,753 @@ bb63(%160: Size trivial):
   branch inspect %164 -> bb61 -> bb59
 
 bb64:
-  %224: %@bits(30) U32 address = field.addr .length inspect %222
-  %225: @bits(30) U32 trivial = load inspect %224
-  %226: Size trivial = convert inspect %225
-  jump -> bb65(consume %226)
+  %194: %Array(CodeUnit) address = field.addr .units inspect %192
+  %195: %Run(CodeUnit) address = field.addr .run inspect %194
+  %196: %%CodeUnit address = field.addr .items inspect %195
+  %197: %CodeUnit trivial = load inspect %196
+  %198: %Array(CodeUnit) address = field.addr .units inspect %192
+  %199: %@bits(30) U32 address = field.addr .length inspect %198
+  %200: @bits(30) U32 trivial = load inspect %199
+  %201: I32 trivial = convert inspect %200
+  %202: Size trivial = convert inspect %201
+  %203: StringView trivial = aggregate.StringView consume %197 consume %202
+  %204: String [shared slot 0 view] guaranteed = represent inspect %203
+  jump -> bb65(borrow %204)
 
-bb65(%223: Size trivial):
-  %227: Size trivial = const 4
-  %228: Bool trivial = ne inspect %223 inspect %227
-  branch inspect %228 -> bb3 -> bb1
+bb65(%193: String [shared slot 0 view] guaranteed from{%13}):
+  call String.push borrow %190 borrow %193
+  drop String inspect %13
+  %205: Size trivial = load inspect %11
+  %206: String [unique call] guaranteed from{%12} = load inspect %12
+  call Size.show borrow %205 borrow %206
+  %207: String [unique call] guaranteed from{%12} = load inspect %12
+  %208: String owned = const String {units: Array {run: Run {items: &string'159, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %14 consume %208
+  %209: String [shared slot 0] guaranteed from{%14} = load inspect %14
+  jump -> bb66
 
 bb66:
-  %233: %Size address = alloc frame Size [shared call]
-  store inspect %233 borrow %229
-  %234: InlineArray(I32, 4) [shared slot 0] guaranteed from{%231} = load inspect %231
-  %235: Array(I32) [shared slot 0 view] guaranteed from{%231} = call InlineArray(a, n).elements(4, I32) borrow %234
-  %236: Size trivial = load inspect %233
-  %237: USize trivial = bitcast inspect %236
-  %238: Array(I32) [shared slot 0 view] guaranteed from{%231} = load inspect %235
-  jump -> bb71
+  %211: %Array(CodeUnit) address = field.addr .units inspect %209
+  %212: %Run(CodeUnit) address = field.addr .run inspect %211
+  %213: %%CodeUnit address = field.addr .items inspect %212
+  %214: %CodeUnit trivial = load inspect %213
+  %215: %Array(CodeUnit) address = field.addr .units inspect %209
+  %216: %@bits(30) U32 address = field.addr .length inspect %215
+  %217: @bits(30) U32 trivial = load inspect %216
+  %218: I32 trivial = convert inspect %217
+  %219: Size trivial = convert inspect %218
+  %220: StringView trivial = aggregate.StringView consume %214 consume %219
+  %221: String [shared slot 0 view] guaranteed = represent inspect %220
+  jump -> bb67(borrow %221)
 
-bb67(%232: I32 [shared slot 0] guaranteed from{%7}):
-  %251: I32 trivial = load inspect %232
-  %252: I32 trivial = const 6
-  %253: Bool trivial = ne inspect %251 inspect %252
-  jump -> bb2(consume %253)
+bb67(%210: String [shared slot 0 view] guaranteed from{%14}):
+  call String.push borrow %207 borrow %210
+  drop String inspect %14
+  %222: I32 trivial = load inspect %109
+  %223: String [unique call] guaranteed from{%12} = load inspect %12
+  call I32.show borrow %222 borrow %223
+  %224: String [unique call] guaranteed from{%12} = load inspect %12
+  %225: String owned = const String {units: Array {run: Run {items: &string'160, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %15 consume %225
+  %226: String [shared slot 0] guaranteed from{%15} = load inspect %15
+  jump -> bb68
 
 bb68:
-  jump -> bb69
+  %228: %Array(CodeUnit) address = field.addr .units inspect %226
+  %229: %Run(CodeUnit) address = field.addr .run inspect %228
+  %230: %%CodeUnit address = field.addr .items inspect %229
+  %231: %CodeUnit trivial = load inspect %230
+  %232: %Array(CodeUnit) address = field.addr .units inspect %226
+  %233: %@bits(30) U32 address = field.addr .length inspect %232
+  %234: @bits(30) U32 trivial = load inspect %233
+  %235: I32 trivial = convert inspect %234
+  %236: Size trivial = convert inspect %235
+  %237: StringView trivial = aggregate.StringView consume %231 consume %236
+  %238: String [shared slot 0 view] guaranteed = represent inspect %237
+  jump -> bb69(borrow %238)
 
-bb69:
-  %244: Array(I32) [shared slot 0 view] guaranteed from{%231} = load inspect %235
-  %245: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %244
-  %246: Size trivial = load inspect %233
-  %247: Size trivial = metric stride I32
-  %248: Size trivial = mul inspect %246 inspect %247
-  %249: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %245 inspect %248
-  %250: I32 [shared slot 0] guaranteed = load inspect %249
-  jump -> bb67(borrow %250)
+bb69(%227: String [shared slot 0 view] guaranteed from{%15}):
+  call String.push borrow %224 borrow %227
+  drop String inspect %15
+  %239: I32 trivial = load inspect %131
+  %240: String [unique call] guaranteed from{%12} = load inspect %12
+  call I32.show borrow %239 borrow %240
+  %241: String [unique call] guaranteed from{%12} = load inspect %12
+  %242: String owned = const String {units: Array {run: Run {items: &string'161, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %16 consume %242
+  %243: String [shared slot 0] guaranteed from{%16} = load inspect %16
+  jump -> bb70
 
 bb70:
-  call checkFailed
-  jump -> bb69
+  %245: %Array(CodeUnit) address = field.addr .units inspect %243
+  %246: %Run(CodeUnit) address = field.addr .run inspect %245
+  %247: %%CodeUnit address = field.addr .items inspect %246
+  %248: %CodeUnit trivial = load inspect %247
+  %249: %Array(CodeUnit) address = field.addr .units inspect %243
+  %250: %@bits(30) U32 address = field.addr .length inspect %249
+  %251: @bits(30) U32 trivial = load inspect %250
+  %252: I32 trivial = convert inspect %251
+  %253: Size trivial = convert inspect %252
+  %254: StringView trivial = aggregate.StringView consume %248 consume %253
+  %255: String [shared slot 0 view] guaranteed = represent inspect %254
+  jump -> bb71(borrow %255)
 
-bb71:
-  %240: %Size address = field.addr .length inspect %238
-  %241: Size trivial = load inspect %240
-  jump -> bb72(consume %241)
+bb71(%244: String [shared slot 0 view] guaranteed from{%16}):
+  call String.push borrow %241 borrow %244
+  drop String inspect %16
+  %256: I32 trivial = load inspect %153
+  %257: String [unique call] guaranteed from{%12} = load inspect %12
+  call I32.show borrow %256 borrow %257
+  %258: String [unique call] guaranteed from{%12} = load inspect %12
+  %259: String owned = const String {units: Array {run: Run {items: &string'162, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %17 consume %259
+  %260: String [shared slot 0] guaranteed from{%17} = load inspect %17
+  jump -> bb72
 
-bb72(%239: Size trivial):
-  %242: USize trivial = bitcast inspect %239
-  %243: Bool trivial = ge inspect %237 inspect %242
-  branch inspect %243 -> bb70 -> bb68
+bb72:
+  %262: %Array(CodeUnit) address = field.addr .units inspect %260
+  %263: %Run(CodeUnit) address = field.addr .run inspect %262
+  %264: %%CodeUnit address = field.addr .items inspect %263
+  %265: %CodeUnit trivial = load inspect %264
+  %266: %Array(CodeUnit) address = field.addr .units inspect %260
+  %267: %@bits(30) U32 address = field.addr .length inspect %266
+  %268: @bits(30) U32 trivial = load inspect %267
+  %269: I32 trivial = convert inspect %268
+  %270: Size trivial = convert inspect %269
+  %271: StringView trivial = aggregate.StringView consume %265 consume %270
+  %272: String [shared slot 0 view] guaranteed = represent inspect %271
+  jump -> bb73(borrow %272)
 
-bb73:
-  %259: %Size address = alloc frame Size [shared call]
-  store inspect %259 borrow %255
-  %260: InlineArray(I32, 4) [shared slot 0] guaranteed from{%257} = load inspect %257
-  %261: Array(I32) [shared slot 0 view] guaranteed from{%257} = call InlineArray(a, n).elements(4, I32) borrow %260
-  %262: Size trivial = load inspect %259
-  %263: USize trivial = bitcast inspect %262
-  %264: Array(I32) [shared slot 0 view] guaranteed from{%257} = load inspect %261
-  jump -> bb78
+bb73(%261: String [shared slot 0 view] guaranteed from{%17}):
+  call String.push borrow %258 borrow %261
+  drop String inspect %17
+  %273: String owned = load inspect %12
+  store inspect %18 consume %273
+  %274: String [shared slot 0] guaranteed from{%18} = load inspect %18
+  jump -> bb74
 
-bb74(%258: I32 [shared slot 0] guaranteed from{%7}):
-  %277: I32 trivial = load inspect %258
-  %278: I32 trivial = const 2
-  %279: Bool trivial = ne inspect %277 inspect %278
-  jump -> bb5(consume %279)
+bb74:
+  %276: %Array(CodeUnit) address = field.addr .units inspect %274
+  %277: %Run(CodeUnit) address = field.addr .run inspect %276
+  %278: %%CodeUnit address = field.addr .items inspect %277
+  %279: %CodeUnit trivial = load inspect %278
+  %280: %Array(CodeUnit) address = field.addr .units inspect %274
+  %281: %@bits(30) U32 address = field.addr .length inspect %280
+  %282: @bits(30) U32 trivial = load inspect %281
+  %283: I32 trivial = convert inspect %282
+  %284: Size trivial = convert inspect %283
+  %285: StringView trivial = aggregate.StringView consume %279 consume %284
+  %286: String [shared slot 0 view] guaranteed = represent inspect %285
+  jump -> bb75(borrow %286)
 
-bb75:
+bb75(%275: String [shared slot 0 view] guaranteed from{%18}):
+  call print borrow %275
+  drop String inspect %18
+  %287: %InlineArray(I32, 4) address = field.addr .items inspect %7
+  %288: InlineArray(I32, 4) trivial = copy inspect %287
   jump -> bb76
 
 bb76:
-  %270: Array(I32) [shared slot 0 view] guaranteed from{%257} = load inspect %261
-  %271: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %270
-  %272: Size trivial = load inspect %259
-  %273: Size trivial = metric stride I32
-  %274: Size trivial = mul inspect %272 inspect %273
-  %275: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %271 inspect %274
-  %276: I32 [shared slot 0] guaranteed = load inspect %275
-  jump -> bb74(borrow %276)
+  %290: %@bits(30) U32 address = field.addr .length inspect %288
+  %291: @bits(30) U32 trivial = load inspect %290
+  %292: Size trivial = convert inspect %291
+  jump -> bb77(consume %292)
 
-bb77:
-  call checkFailed
-  jump -> bb76
+bb77(%289: Size trivial):
+  %293: Size trivial = const 4
+  %294: Bool trivial = ne inspect %289 inspect %293
+  branch inspect %294 -> bb3 -> bb1
 
 bb78:
-  %266: %Size address = field.addr .length inspect %264
-  %267: Size trivial = load inspect %266
-  jump -> bb79(consume %267)
+  %299: %Size address = alloc frame Size [shared call]
+  store inspect %299 borrow %295
+  %300: InlineArray(I32, 4) [shared slot 0] guaranteed from{%297} = load inspect %297
+  %301: Array(I32) [shared slot 0 view] guaranteed from{%297} = call InlineArray(a, n).elements(4, I32) borrow %300
+  %302: Size trivial = load inspect %299
+  %303: USize trivial = bitcast inspect %302
+  %304: Array(I32) [shared slot 0 view] guaranteed from{%297} = load inspect %301
+  jump -> bb83
 
-bb79(%265: Size trivial):
-  %268: USize trivial = bitcast inspect %265
-  %269: Bool trivial = ge inspect %263 inspect %268
-  branch inspect %269 -> bb77 -> bb75
+bb79(%298: I32 [shared slot 0] guaranteed from{%7}):
+  %317: I32 trivial = load inspect %298
+  %318: I32 trivial = const 6
+  %319: Bool trivial = ne inspect %317 inspect %318
+  jump -> bb2(consume %319)
 
 bb80:
-  %285: %Size address = alloc frame Size [shared call]
-  store inspect %285 borrow %281
-  %286: InlineArray(I32, 4) [shared slot 0] guaranteed from{%283} = load inspect %283
-  %287: Array(I32) [shared slot 0 view] guaranteed from{%283} = call InlineArray(a, n).elements(4, I32) borrow %286
-  %288: Size trivial = load inspect %285
-  %289: USize trivial = bitcast inspect %288
-  %290: Array(I32) [shared slot 0 view] guaranteed from{%283} = load inspect %287
-  jump -> bb85
+  jump -> bb81
 
-bb81(%284: I32 [shared slot 0] guaranteed from{%7}):
-  %303: I32 trivial = load inspect %284
-  %304: I32 trivial = const 3
-  %305: Bool trivial = ne inspect %303 inspect %304
-  jump -> bb8(consume %305)
+bb81:
+  %310: Array(I32) [shared slot 0 view] guaranteed from{%297} = load inspect %301
+  %311: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %310
+  %312: Size trivial = load inspect %299
+  %313: Size trivial = metric stride I32
+  %314: Size trivial = mul inspect %312 inspect %313
+  %315: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %311 inspect %314
+  %316: I32 [shared slot 0] guaranteed = load inspect %315
+  jump -> bb79(borrow %316)
 
 bb82:
-  jump -> bb83
+  call checkFailed
+  jump -> bb81
 
 bb83:
-  %296: Array(I32) [shared slot 0 view] guaranteed from{%283} = load inspect %287
-  %297: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %296
-  %298: Size trivial = load inspect %285
-  %299: Size trivial = metric stride I32
-  %300: Size trivial = mul inspect %298 inspect %299
-  %301: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %297 inspect %300
-  %302: I32 [shared slot 0] guaranteed = load inspect %301
-  jump -> bb81(borrow %302)
+  %306: %Size address = field.addr .length inspect %304
+  %307: Size trivial = load inspect %306
+  jump -> bb84(consume %307)
 
-bb84:
-  call checkFailed
-  jump -> bb83
+bb84(%305: Size trivial):
+  %308: USize trivial = bitcast inspect %305
+  %309: Bool trivial = ge inspect %303 inspect %308
+  branch inspect %309 -> bb82 -> bb80
 
 bb85:
-  %292: %Size address = field.addr .length inspect %290
-  %293: Size trivial = load inspect %292
-  jump -> bb86(consume %293)
+  %325: %Size address = alloc frame Size [shared call]
+  store inspect %325 borrow %321
+  %326: InlineArray(I32, 4) [shared slot 0] guaranteed from{%323} = load inspect %323
+  %327: Array(I32) [shared slot 0 view] guaranteed from{%323} = call InlineArray(a, n).elements(4, I32) borrow %326
+  %328: Size trivial = load inspect %325
+  %329: USize trivial = bitcast inspect %328
+  %330: Array(I32) [shared slot 0 view] guaranteed from{%323} = load inspect %327
+  jump -> bb90
 
-bb86(%291: Size trivial):
-  %294: USize trivial = bitcast inspect %291
-  %295: Bool trivial = ge inspect %289 inspect %294
-  branch inspect %295 -> bb84 -> bb82
+bb86(%324: I32 [shared slot 0] guaranteed from{%7}):
+  %343: I32 trivial = load inspect %324
+  %344: I32 trivial = const 2
+  %345: Bool trivial = ne inspect %343 inspect %344
+  jump -> bb5(consume %345)
 
 bb87:
-  %329: %@bits(30) U32 address = field.addr .length inspect %327
-  %330: @bits(30) U32 trivial = load inspect %329
-  %331: Size trivial = convert inspect %330
-  jump -> bb88(consume %331)
+  jump -> bb88
 
-bb88(%328: Size trivial):
-  store inspect %22 consume %328
-  %332: Size trivial = const 1
-  %333: %InlineArray(I32, 4) address = field.addr .items inspect %19
-  %334: InlineArray(I32, 4) [shared call] guaranteed from{%19} = load inspect %333
-  jump -> bb89
+bb88:
+  %336: Array(I32) [shared slot 0 view] guaranteed from{%323} = load inspect %327
+  %337: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %336
+  %338: Size trivial = load inspect %325
+  %339: Size trivial = metric stride I32
+  %340: Size trivial = mul inspect %338 inspect %339
+  %341: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %337 inspect %340
+  %342: I32 [shared slot 0] guaranteed = load inspect %341
+  jump -> bb86(borrow %342)
 
 bb89:
-  %336: %Size address = alloc frame Size [shared call]
-  store inspect %336 borrow %332
-  %337: InlineArray(I32, 4) [shared slot 0] guaranteed from{%334} = load inspect %334
-  %338: Array(I32) [shared slot 0 view] guaranteed from{%334} = call InlineArray(a, n).elements(4, I32) borrow %337
-  %339: Size trivial = load inspect %336
-  %340: USize trivial = bitcast inspect %339
-  %341: Array(I32) [shared slot 0 view] guaranteed from{%334} = load inspect %338
-  jump -> bb94
+  call checkFailed
+  jump -> bb88
 
-bb90(%335: I32 [shared slot 0] guaranteed from{%19}):
-  %354: Size trivial = const 2
-  %355: %InlineArray(I32, 4) address = field.addr .items inspect %19
-  %356: InlineArray(I32, 4) [shared call] guaranteed from{%19} = load inspect %355
-  jump -> bb96
+bb90:
+  %332: %Size address = field.addr .length inspect %330
+  %333: Size trivial = load inspect %332
+  jump -> bb91(consume %333)
 
-bb91:
-  jump -> bb92
+bb91(%331: Size trivial):
+  %334: USize trivial = bitcast inspect %331
+  %335: Bool trivial = ge inspect %329 inspect %334
+  branch inspect %335 -> bb89 -> bb87
 
 bb92:
-  %347: Array(I32) [shared slot 0 view] guaranteed from{%334} = load inspect %338
-  %348: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %347
-  %349: Size trivial = load inspect %336
-  %350: Size trivial = metric stride I32
-  %351: Size trivial = mul inspect %349 inspect %350
-  %352: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %348 inspect %351
-  %353: I32 [shared slot 0] guaranteed = load inspect %352
-  jump -> bb90(borrow %353)
+  %351: %Size address = alloc frame Size [shared call]
+  store inspect %351 borrow %347
+  %352: InlineArray(I32, 4) [shared slot 0] guaranteed from{%349} = load inspect %349
+  %353: Array(I32) [shared slot 0 view] guaranteed from{%349} = call InlineArray(a, n).elements(4, I32) borrow %352
+  %354: Size trivial = load inspect %351
+  %355: USize trivial = bitcast inspect %354
+  %356: Array(I32) [shared slot 0 view] guaranteed from{%349} = load inspect %353
+  jump -> bb97
 
-bb93:
-  call checkFailed
-  jump -> bb92
+bb93(%350: I32 [shared slot 0] guaranteed from{%7}):
+  %369: I32 trivial = load inspect %350
+  %370: I32 trivial = const 3
+  %371: Bool trivial = ne inspect %369 inspect %370
+  jump -> bb8(consume %371)
 
 bb94:
-  %343: %Size address = field.addr .length inspect %341
-  %344: Size trivial = load inspect %343
-  jump -> bb95(consume %344)
+  jump -> bb95
 
-bb95(%342: Size trivial):
-  %345: USize trivial = bitcast inspect %342
-  %346: Bool trivial = ge inspect %340 inspect %345
-  branch inspect %346 -> bb93 -> bb91
+bb95:
+  %362: Array(I32) [shared slot 0 view] guaranteed from{%349} = load inspect %353
+  %363: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %362
+  %364: Size trivial = load inspect %351
+  %365: Size trivial = metric stride I32
+  %366: Size trivial = mul inspect %364 inspect %365
+  %367: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %363 inspect %366
+  %368: I32 [shared slot 0] guaranteed = load inspect %367
+  jump -> bb93(borrow %368)
 
 bb96:
-  %358: %Size address = alloc frame Size [shared call]
-  store inspect %358 borrow %354
-  %359: InlineArray(I32, 4) [shared slot 0] guaranteed from{%356} = load inspect %356
-  %360: Array(I32) [shared slot 0 view] guaranteed from{%356} = call InlineArray(a, n).elements(4, I32) borrow %359
-  %361: Size trivial = load inspect %358
-  %362: USize trivial = bitcast inspect %361
-  %363: Array(I32) [shared slot 0 view] guaranteed from{%356} = load inspect %360
-  jump -> bb101
+  call checkFailed
+  jump -> bb95
 
-bb97(%357: I32 [shared slot 0] guaranteed from{%19}):
-  %376: Size trivial = const 10
-  %377: Size trivial = load inspect %22
-  %378: Maybe(Size) trivial = call Size.showBound borrow %377
-  %379: Size trivial = call formatBound borrow %378
-  %380: Size trivial = add inspect %376 inspect %379
-  %381: I32 trivial = load inspect %335
-  %382: Maybe(Size) trivial = call I32.showBound borrow %381
-  %383: Size trivial = call formatBound borrow %382
-  %384: Size trivial = add inspect %380 inspect %383
-  %385: I32 trivial = load inspect %357
-  %386: Maybe(Size) trivial = call I32.showBound borrow %385
-  %387: Size trivial = call formatBound borrow %386
-  %388: Size trivial = add inspect %384 inspect %387
-  %389: I32 trivial = load inspect %20
-  %390: Maybe(Size) trivial = call I32.showBound borrow %389
-  %391: Size trivial = call formatBound borrow %390
-  %392: Size trivial = add inspect %388 inspect %391
-  %393: String owned = call String.ofCapacity borrow %392
-  store inspect %23 consume %393
-  %394: String [unique call] guaranteed from{%23} = load inspect %23
-  %395: String owned = const String {units: Array {run: Run {items: &string'163, capacity: 6, ownsHeap: 0}, length: 6}}
-  store inspect %24 consume %395
-  %396: String [shared slot 0] guaranteed from{%24} = load inspect %24
-  %397: String [shared slot 0 view] guaranteed from{%24} = call String.view borrow %396
-  call String.push borrow %394 borrow %397
-  drop String inspect %24
-  %398: Size trivial = load inspect %22
-  %399: String [unique call] guaranteed from{%23} = load inspect %23
-  call Size.show borrow %398 borrow %399
-  %400: String [unique call] guaranteed from{%23} = load inspect %23
-  %401: String owned = const String {units: Array {run: Run {items: &string'164, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %25 consume %401
-  %402: String [shared slot 0] guaranteed from{%25} = load inspect %25
-  %403: String [shared slot 0 view] guaranteed from{%25} = call String.view borrow %402
-  call String.push borrow %400 borrow %403
-  drop String inspect %25
-  %404: I32 trivial = load inspect %335
-  %405: String [unique call] guaranteed from{%23} = load inspect %23
-  call I32.show borrow %404 borrow %405
-  %406: String [unique call] guaranteed from{%23} = load inspect %23
-  %407: String owned = const String {units: Array {run: Run {items: &string'165, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %26 consume %407
-  %408: String [shared slot 0] guaranteed from{%26} = load inspect %26
-  %409: String [shared slot 0 view] guaranteed from{%26} = call String.view borrow %408
-  call String.push borrow %406 borrow %409
-  drop String inspect %26
-  %410: I32 trivial = load inspect %357
-  %411: String [unique call] guaranteed from{%23} = load inspect %23
-  call I32.show borrow %410 borrow %411
-  %412: String [unique call] guaranteed from{%23} = load inspect %23
-  %413: String owned = const String {units: Array {run: Run {items: &string'166, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %27 consume %413
-  %414: String [shared slot 0] guaranteed from{%27} = load inspect %27
-  %415: String [shared slot 0 view] guaranteed from{%27} = call String.view borrow %414
-  call String.push borrow %412 borrow %415
-  drop String inspect %27
-  %416: I32 trivial = load inspect %20
-  %417: String [unique call] guaranteed from{%23} = load inspect %23
-  call I32.show borrow %416 borrow %417
-  %418: String [unique call] guaranteed from{%23} = load inspect %23
-  %419: String owned = const String {units: Array {run: Run {items: &string'167, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %28 consume %419
-  %420: String [shared slot 0] guaranteed from{%28} = load inspect %28
-  %421: String [shared slot 0 view] guaranteed from{%28} = call String.view borrow %420
-  call String.push borrow %418 borrow %421
-  drop String inspect %28
-  %422: String owned = load inspect %23
-  store inspect %29 consume %422
-  %423: String [shared slot 0] guaranteed from{%29} = load inspect %29
-  %424: String [shared slot 0 view] guaranteed from{%29} = call String.view borrow %423
-  call print borrow %424
-  drop String inspect %29
-  %425: %InlineArray(I32, 4) address = field.addr .items inspect %19
-  %426: InlineArray(I32, 4) trivial = copy inspect %425
-  jump -> bb103
+bb97:
+  %358: %Size address = field.addr .length inspect %356
+  %359: Size trivial = load inspect %358
+  jump -> bb98(consume %359)
 
-bb98:
-  jump -> bb99
+bb98(%357: Size trivial):
+  %360: USize trivial = bitcast inspect %357
+  %361: Bool trivial = ge inspect %355 inspect %360
+  branch inspect %361 -> bb96 -> bb94
 
 bb99:
-  %369: Array(I32) [shared slot 0 view] guaranteed from{%356} = load inspect %360
-  %370: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %369
-  %371: Size trivial = load inspect %358
-  %372: Size trivial = metric stride I32
-  %373: Size trivial = mul inspect %371 inspect %372
-  %374: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %370 inspect %373
-  %375: I32 [shared slot 0] guaranteed = load inspect %374
-  jump -> bb97(borrow %375)
+  %395: %@bits(30) U32 address = field.addr .length inspect %393
+  %396: @bits(30) U32 trivial = load inspect %395
+  %397: Size trivial = convert inspect %396
+  jump -> bb100(consume %397)
 
-bb100:
-  call checkFailed
-  jump -> bb99
+bb100(%394: Size trivial):
+  store inspect %22 consume %394
+  %398: Size trivial = const 1
+  %399: %InlineArray(I32, 4) address = field.addr .items inspect %19
+  %400: InlineArray(I32, 4) [shared call] guaranteed from{%19} = load inspect %399
+  jump -> bb101
 
 bb101:
-  %365: %Size address = field.addr .length inspect %363
-  %366: Size trivial = load inspect %365
-  jump -> bb102(consume %366)
+  %402: %Size address = alloc frame Size [shared call]
+  store inspect %402 borrow %398
+  %403: InlineArray(I32, 4) [shared slot 0] guaranteed from{%400} = load inspect %400
+  %404: Array(I32) [shared slot 0 view] guaranteed from{%400} = call InlineArray(a, n).elements(4, I32) borrow %403
+  %405: Size trivial = load inspect %402
+  %406: USize trivial = bitcast inspect %405
+  %407: Array(I32) [shared slot 0 view] guaranteed from{%400} = load inspect %404
+  jump -> bb106
 
-bb102(%364: Size trivial):
-  %367: USize trivial = bitcast inspect %364
-  %368: Bool trivial = ge inspect %362 inspect %367
-  branch inspect %368 -> bb100 -> bb98
+bb102(%401: I32 [shared slot 0] guaranteed from{%19}):
+  %420: Size trivial = const 2
+  %421: %InlineArray(I32, 4) address = field.addr .items inspect %19
+  %422: InlineArray(I32, 4) [shared call] guaranteed from{%19} = load inspect %421
+  jump -> bb108
 
 bb103:
-  %428: %@bits(30) U32 address = field.addr .length inspect %426
-  %429: @bits(30) U32 trivial = load inspect %428
-  %430: Size trivial = convert inspect %429
-  jump -> bb104(consume %430)
+  jump -> bb104
 
-bb104(%427: Size trivial):
-  %431: Size trivial = const 3
-  %432: Bool trivial = ne inspect %427 inspect %431
-  branch inspect %432 -> bb16 -> bb14
+bb104:
+  %413: Array(I32) [shared slot 0 view] guaranteed from{%400} = load inspect %404
+  %414: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %413
+  %415: Size trivial = load inspect %402
+  %416: Size trivial = metric stride I32
+  %417: Size trivial = mul inspect %415 inspect %416
+  %418: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %414 inspect %417
+  %419: I32 [shared slot 0] guaranteed = load inspect %418
+  jump -> bb102(borrow %419)
 
 bb105:
-  %437: %Size address = alloc frame Size [shared call]
-  store inspect %437 borrow %433
-  %438: InlineArray(I32, 4) [shared slot 0] guaranteed from{%435} = load inspect %435
-  %439: Array(I32) [shared slot 0 view] guaranteed from{%435} = call InlineArray(a, n).elements(4, I32) borrow %438
-  %440: Size trivial = load inspect %437
-  %441: USize trivial = bitcast inspect %440
-  %442: Array(I32) [shared slot 0 view] guaranteed from{%435} = load inspect %439
-  jump -> bb110
+  call checkFailed
+  jump -> bb104
 
-bb106(%436: I32 [shared slot 0] guaranteed from{%19}):
-  %455: I32 trivial = load inspect %436
-  %456: I32 trivial = const 5
-  %457: Bool trivial = ne inspect %455 inspect %456
-  jump -> bb15(consume %457)
+bb106:
+  %409: %Size address = field.addr .length inspect %407
+  %410: Size trivial = load inspect %409
+  jump -> bb107(consume %410)
 
-bb107:
-  jump -> bb108
+bb107(%408: Size trivial):
+  %411: USize trivial = bitcast inspect %408
+  %412: Bool trivial = ge inspect %406 inspect %411
+  branch inspect %412 -> bb105 -> bb103
 
 bb108:
-  %448: Array(I32) [shared slot 0 view] guaranteed from{%435} = load inspect %439
-  %449: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %448
-  %450: Size trivial = load inspect %437
-  %451: Size trivial = metric stride I32
-  %452: Size trivial = mul inspect %450 inspect %451
-  %453: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %449 inspect %452
-  %454: I32 [shared slot 0] guaranteed = load inspect %453
-  jump -> bb106(borrow %454)
+  %424: %Size address = alloc frame Size [shared call]
+  store inspect %424 borrow %420
+  %425: InlineArray(I32, 4) [shared slot 0] guaranteed from{%422} = load inspect %422
+  %426: Array(I32) [shared slot 0 view] guaranteed from{%422} = call InlineArray(a, n).elements(4, I32) borrow %425
+  %427: Size trivial = load inspect %424
+  %428: USize trivial = bitcast inspect %427
+  %429: Array(I32) [shared slot 0 view] guaranteed from{%422} = load inspect %426
+  jump -> bb113
 
-bb109:
-  call checkFailed
-  jump -> bb108
+bb109(%423: I32 [shared slot 0] guaranteed from{%19}):
+  %442: Size trivial = const 10
+  %443: Size trivial = load inspect %22
+  %444: Maybe(Size) trivial = call Size.showBound borrow %443
+  %445: Size trivial = call formatBound borrow %444
+  %446: Size trivial = add inspect %442 inspect %445
+  %447: I32 trivial = load inspect %401
+  %448: Maybe(Size) trivial = call I32.showBound borrow %447
+  %449: Size trivial = call formatBound borrow %448
+  %450: Size trivial = add inspect %446 inspect %449
+  %451: I32 trivial = load inspect %423
+  %452: Maybe(Size) trivial = call I32.showBound borrow %451
+  %453: Size trivial = call formatBound borrow %452
+  %454: Size trivial = add inspect %450 inspect %453
+  %455: I32 trivial = load inspect %20
+  %456: Maybe(Size) trivial = call I32.showBound borrow %455
+  %457: Size trivial = call formatBound borrow %456
+  %458: Size trivial = add inspect %454 inspect %457
+  %459: String owned = call String.ofCapacity borrow %458
+  store inspect %23 consume %459
+  %460: String [unique call] guaranteed from{%23} = load inspect %23
+  %461: String owned = const String {units: Array {run: Run {items: &string'163, capacity: 6, ownsHeap: 0}, length: 6}}
+  store inspect %24 consume %461
+  %462: String [shared slot 0] guaranteed from{%24} = load inspect %24
+  jump -> bb115
 
 bb110:
-  %444: %Size address = field.addr .length inspect %442
-  %445: Size trivial = load inspect %444
-  jump -> bb111(consume %445)
+  jump -> bb111
 
-bb111(%443: Size trivial):
-  %446: USize trivial = bitcast inspect %443
-  %447: Bool trivial = ge inspect %441 inspect %446
-  branch inspect %447 -> bb109 -> bb107
+bb111:
+  %435: Array(I32) [shared slot 0 view] guaranteed from{%422} = load inspect %426
+  %436: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %435
+  %437: Size trivial = load inspect %424
+  %438: Size trivial = metric stride I32
+  %439: Size trivial = mul inspect %437 inspect %438
+  %440: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %436 inspect %439
+  %441: I32 [shared slot 0] guaranteed = load inspect %440
+  jump -> bb109(borrow %441)
 
 bb112:
-  %463: %Size address = alloc frame Size [shared call]
-  store inspect %463 borrow %459
-  %464: InlineArray(I32, 4) [shared slot 0] guaranteed from{%461} = load inspect %461
-  %465: Array(I32) [shared slot 0 view] guaranteed from{%461} = call InlineArray(a, n).elements(4, I32) borrow %464
-  %466: Size trivial = load inspect %463
-  %467: USize trivial = bitcast inspect %466
-  %468: Array(I32) [shared slot 0 view] guaranteed from{%461} = load inspect %465
-  jump -> bb117
+  call checkFailed
+  jump -> bb111
 
-bb113(%462: I32 [shared slot 0] guaranteed from{%19}):
-  %481: I32 trivial = load inspect %462
-  %482: I32 trivial = const 6
-  %483: Bool trivial = ne inspect %481 inspect %482
-  jump -> bb18(consume %483)
+bb113:
+  %431: %Size address = field.addr .length inspect %429
+  %432: Size trivial = load inspect %431
+  jump -> bb114(consume %432)
 
-bb114:
-  jump -> bb115
+bb114(%430: Size trivial):
+  %433: USize trivial = bitcast inspect %430
+  %434: Bool trivial = ge inspect %428 inspect %433
+  branch inspect %434 -> bb112 -> bb110
 
 bb115:
-  %474: Array(I32) [shared slot 0 view] guaranteed from{%461} = load inspect %465
-  %475: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %474
-  %476: Size trivial = load inspect %463
-  %477: Size trivial = metric stride I32
-  %478: Size trivial = mul inspect %476 inspect %477
-  %479: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %475 inspect %478
-  %480: I32 [shared slot 0] guaranteed = load inspect %479
-  jump -> bb113(borrow %480)
+  %464: %Array(CodeUnit) address = field.addr .units inspect %462
+  %465: %Run(CodeUnit) address = field.addr .run inspect %464
+  %466: %%CodeUnit address = field.addr .items inspect %465
+  %467: %CodeUnit trivial = load inspect %466
+  %468: %Array(CodeUnit) address = field.addr .units inspect %462
+  %469: %@bits(30) U32 address = field.addr .length inspect %468
+  %470: @bits(30) U32 trivial = load inspect %469
+  %471: I32 trivial = convert inspect %470
+  %472: Size trivial = convert inspect %471
+  %473: StringView trivial = aggregate.StringView consume %467 consume %472
+  %474: String [shared slot 0 view] guaranteed = represent inspect %473
+  jump -> bb116(borrow %474)
 
-bb116:
-  call checkFailed
-  jump -> bb115
+bb116(%463: String [shared slot 0 view] guaranteed from{%24}):
+  call String.push borrow %460 borrow %463
+  drop String inspect %24
+  %475: Size trivial = load inspect %22
+  %476: String [unique call] guaranteed from{%23} = load inspect %23
+  call Size.show borrow %475 borrow %476
+  %477: String [unique call] guaranteed from{%23} = load inspect %23
+  %478: String owned = const String {units: Array {run: Run {items: &string'164, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %25 consume %478
+  %479: String [shared slot 0] guaranteed from{%25} = load inspect %25
+  jump -> bb117
 
 bb117:
-  %470: %Size address = field.addr .length inspect %468
-  %471: Size trivial = load inspect %470
-  jump -> bb118(consume %471)
+  %481: %Array(CodeUnit) address = field.addr .units inspect %479
+  %482: %Run(CodeUnit) address = field.addr .run inspect %481
+  %483: %%CodeUnit address = field.addr .items inspect %482
+  %484: %CodeUnit trivial = load inspect %483
+  %485: %Array(CodeUnit) address = field.addr .units inspect %479
+  %486: %@bits(30) U32 address = field.addr .length inspect %485
+  %487: @bits(30) U32 trivial = load inspect %486
+  %488: I32 trivial = convert inspect %487
+  %489: Size trivial = convert inspect %488
+  %490: StringView trivial = aggregate.StringView consume %484 consume %489
+  %491: String [shared slot 0 view] guaranteed = represent inspect %490
+  jump -> bb118(borrow %491)
 
-bb118(%469: Size trivial):
-  %472: USize trivial = bitcast inspect %469
-  %473: Bool trivial = ge inspect %467 inspect %472
-  branch inspect %473 -> bb116 -> bb114
+bb118(%480: String [shared slot 0 view] guaranteed from{%25}):
+  call String.push borrow %477 borrow %480
+  drop String inspect %25
+  %492: I32 trivial = load inspect %401
+  %493: String [unique call] guaranteed from{%23} = load inspect %23
+  call I32.show borrow %492 borrow %493
+  %494: String [unique call] guaranteed from{%23} = load inspect %23
+  %495: String owned = const String {units: Array {run: Run {items: &string'165, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %26 consume %495
+  %496: String [shared slot 0] guaranteed from{%26} = load inspect %26
+  jump -> bb119
+
+bb119:
+  %498: %Array(CodeUnit) address = field.addr .units inspect %496
+  %499: %Run(CodeUnit) address = field.addr .run inspect %498
+  %500: %%CodeUnit address = field.addr .items inspect %499
+  %501: %CodeUnit trivial = load inspect %500
+  %502: %Array(CodeUnit) address = field.addr .units inspect %496
+  %503: %@bits(30) U32 address = field.addr .length inspect %502
+  %504: @bits(30) U32 trivial = load inspect %503
+  %505: I32 trivial = convert inspect %504
+  %506: Size trivial = convert inspect %505
+  %507: StringView trivial = aggregate.StringView consume %501 consume %506
+  %508: String [shared slot 0 view] guaranteed = represent inspect %507
+  jump -> bb120(borrow %508)
+
+bb120(%497: String [shared slot 0 view] guaranteed from{%26}):
+  call String.push borrow %494 borrow %497
+  drop String inspect %26
+  %509: I32 trivial = load inspect %423
+  %510: String [unique call] guaranteed from{%23} = load inspect %23
+  call I32.show borrow %509 borrow %510
+  %511: String [unique call] guaranteed from{%23} = load inspect %23
+  %512: String owned = const String {units: Array {run: Run {items: &string'166, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %27 consume %512
+  %513: String [shared slot 0] guaranteed from{%27} = load inspect %27
+  jump -> bb121
+
+bb121:
+  %515: %Array(CodeUnit) address = field.addr .units inspect %513
+  %516: %Run(CodeUnit) address = field.addr .run inspect %515
+  %517: %%CodeUnit address = field.addr .items inspect %516
+  %518: %CodeUnit trivial = load inspect %517
+  %519: %Array(CodeUnit) address = field.addr .units inspect %513
+  %520: %@bits(30) U32 address = field.addr .length inspect %519
+  %521: @bits(30) U32 trivial = load inspect %520
+  %522: I32 trivial = convert inspect %521
+  %523: Size trivial = convert inspect %522
+  %524: StringView trivial = aggregate.StringView consume %518 consume %523
+  %525: String [shared slot 0 view] guaranteed = represent inspect %524
+  jump -> bb122(borrow %525)
+
+bb122(%514: String [shared slot 0 view] guaranteed from{%27}):
+  call String.push borrow %511 borrow %514
+  drop String inspect %27
+  %526: I32 trivial = load inspect %20
+  %527: String [unique call] guaranteed from{%23} = load inspect %23
+  call I32.show borrow %526 borrow %527
+  %528: String [unique call] guaranteed from{%23} = load inspect %23
+  %529: String owned = const String {units: Array {run: Run {items: &string'167, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %28 consume %529
+  %530: String [shared slot 0] guaranteed from{%28} = load inspect %28
+  jump -> bb123
+
+bb123:
+  %532: %Array(CodeUnit) address = field.addr .units inspect %530
+  %533: %Run(CodeUnit) address = field.addr .run inspect %532
+  %534: %%CodeUnit address = field.addr .items inspect %533
+  %535: %CodeUnit trivial = load inspect %534
+  %536: %Array(CodeUnit) address = field.addr .units inspect %530
+  %537: %@bits(30) U32 address = field.addr .length inspect %536
+  %538: @bits(30) U32 trivial = load inspect %537
+  %539: I32 trivial = convert inspect %538
+  %540: Size trivial = convert inspect %539
+  %541: StringView trivial = aggregate.StringView consume %535 consume %540
+  %542: String [shared slot 0 view] guaranteed = represent inspect %541
+  jump -> bb124(borrow %542)
+
+bb124(%531: String [shared slot 0 view] guaranteed from{%28}):
+  call String.push borrow %528 borrow %531
+  drop String inspect %28
+  %543: String owned = load inspect %23
+  store inspect %29 consume %543
+  %544: String [shared slot 0] guaranteed from{%29} = load inspect %29
+  jump -> bb125
+
+bb125:
+  %546: %Array(CodeUnit) address = field.addr .units inspect %544
+  %547: %Run(CodeUnit) address = field.addr .run inspect %546
+  %548: %%CodeUnit address = field.addr .items inspect %547
+  %549: %CodeUnit trivial = load inspect %548
+  %550: %Array(CodeUnit) address = field.addr .units inspect %544
+  %551: %@bits(30) U32 address = field.addr .length inspect %550
+  %552: @bits(30) U32 trivial = load inspect %551
+  %553: I32 trivial = convert inspect %552
+  %554: Size trivial = convert inspect %553
+  %555: StringView trivial = aggregate.StringView consume %549 consume %554
+  %556: String [shared slot 0 view] guaranteed = represent inspect %555
+  jump -> bb126(borrow %556)
+
+bb126(%545: String [shared slot 0 view] guaranteed from{%29}):
+  call print borrow %545
+  drop String inspect %29
+  %557: %InlineArray(I32, 4) address = field.addr .items inspect %19
+  %558: InlineArray(I32, 4) trivial = copy inspect %557
+  jump -> bb127
+
+bb127:
+  %560: %@bits(30) U32 address = field.addr .length inspect %558
+  %561: @bits(30) U32 trivial = load inspect %560
+  %562: Size trivial = convert inspect %561
+  jump -> bb128(consume %562)
+
+bb128(%559: Size trivial):
+  %563: Size trivial = const 3
+  %564: Bool trivial = ne inspect %559 inspect %563
+  branch inspect %564 -> bb16 -> bb14
+
+bb129:
+  %569: %Size address = alloc frame Size [shared call]
+  store inspect %569 borrow %565
+  %570: InlineArray(I32, 4) [shared slot 0] guaranteed from{%567} = load inspect %567
+  %571: Array(I32) [shared slot 0 view] guaranteed from{%567} = call InlineArray(a, n).elements(4, I32) borrow %570
+  %572: Size trivial = load inspect %569
+  %573: USize trivial = bitcast inspect %572
+  %574: Array(I32) [shared slot 0 view] guaranteed from{%567} = load inspect %571
+  jump -> bb134
+
+bb130(%568: I32 [shared slot 0] guaranteed from{%19}):
+  %587: I32 trivial = load inspect %568
+  %588: I32 trivial = const 5
+  %589: Bool trivial = ne inspect %587 inspect %588
+  jump -> bb15(consume %589)
+
+bb131:
+  jump -> bb132
+
+bb132:
+  %580: Array(I32) [shared slot 0 view] guaranteed from{%567} = load inspect %571
+  %581: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %580
+  %582: Size trivial = load inspect %569
+  %583: Size trivial = metric stride I32
+  %584: Size trivial = mul inspect %582 inspect %583
+  %585: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %581 inspect %584
+  %586: I32 [shared slot 0] guaranteed = load inspect %585
+  jump -> bb130(borrow %586)
+
+bb133:
+  call checkFailed
+  jump -> bb132
+
+bb134:
+  %576: %Size address = field.addr .length inspect %574
+  %577: Size trivial = load inspect %576
+  jump -> bb135(consume %577)
+
+bb135(%575: Size trivial):
+  %578: USize trivial = bitcast inspect %575
+  %579: Bool trivial = ge inspect %573 inspect %578
+  branch inspect %579 -> bb133 -> bb131
+
+bb136:
+  %595: %Size address = alloc frame Size [shared call]
+  store inspect %595 borrow %591
+  %596: InlineArray(I32, 4) [shared slot 0] guaranteed from{%593} = load inspect %593
+  %597: Array(I32) [shared slot 0 view] guaranteed from{%593} = call InlineArray(a, n).elements(4, I32) borrow %596
+  %598: Size trivial = load inspect %595
+  %599: USize trivial = bitcast inspect %598
+  %600: Array(I32) [shared slot 0 view] guaranteed from{%593} = load inspect %597
+  jump -> bb141
+
+bb137(%594: I32 [shared slot 0] guaranteed from{%19}):
+  %613: I32 trivial = load inspect %594
+  %614: I32 trivial = const 6
+  %615: Bool trivial = ne inspect %613 inspect %614
+  jump -> bb18(consume %615)
+
+bb138:
+  jump -> bb139
+
+bb139:
+  %606: Array(I32) [shared slot 0 view] guaranteed from{%593} = load inspect %597
+  %607: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %606
+  %608: Size trivial = load inspect %595
+  %609: Size trivial = metric stride I32
+  %610: Size trivial = mul inspect %608 inspect %609
+  %611: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %607 inspect %610
+  %612: I32 [shared slot 0] guaranteed = load inspect %611
+  jump -> bb137(borrow %612)
+
+bb140:
+  call checkFailed
+  jump -> bb139
+
+bb141:
+  %602: %Size address = field.addr .length inspect %600
+  %603: Size trivial = load inspect %602
+  jump -> bb142(consume %603)
+
+bb142(%601: Size trivial):
+  %604: USize trivial = bitcast inspect %601
+  %605: Bool trivial = ge inspect %599 inspect %604
+  branch inspect %605 -> bb140 -> bb138
+
+bb143:
+  %660: %Array(CodeUnit) address = field.addr .units inspect %658
+  %661: %Run(CodeUnit) address = field.addr .run inspect %660
+  %662: %%CodeUnit address = field.addr .items inspect %661
+  %663: %CodeUnit trivial = load inspect %662
+  %664: %Array(CodeUnit) address = field.addr .units inspect %658
+  %665: %@bits(30) U32 address = field.addr .length inspect %664
+  %666: @bits(30) U32 trivial = load inspect %665
+  %667: I32 trivial = convert inspect %666
+  %668: Size trivial = convert inspect %667
+  %669: StringView trivial = aggregate.StringView consume %663 consume %668
+  %670: String [shared slot 0 view] guaranteed = represent inspect %669
+  jump -> bb144(borrow %670)
+
+bb144(%659: String [shared slot 0 view] guaranteed from{%35}):
+  call String.push borrow %656 borrow %659
+  drop String inspect %35
+  %671: Bool trivial = load inspect %32
+  %672: String [unique call] guaranteed from{%34} = load inspect %34
+  call Bool.show borrow %671 borrow %672
+  %673: String [unique call] guaranteed from{%34} = load inspect %34
+  %674: String owned = const String {units: Array {run: Run {items: &string'169, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %36 consume %674
+  %675: String [shared slot 0] guaranteed from{%36} = load inspect %36
+  jump -> bb145
+
+bb145:
+  %677: %Array(CodeUnit) address = field.addr .units inspect %675
+  %678: %Run(CodeUnit) address = field.addr .run inspect %677
+  %679: %%CodeUnit address = field.addr .items inspect %678
+  %680: %CodeUnit trivial = load inspect %679
+  %681: %Array(CodeUnit) address = field.addr .units inspect %675
+  %682: %@bits(30) U32 address = field.addr .length inspect %681
+  %683: @bits(30) U32 trivial = load inspect %682
+  %684: I32 trivial = convert inspect %683
+  %685: Size trivial = convert inspect %684
+  %686: StringView trivial = aggregate.StringView consume %680 consume %685
+  %687: String [shared slot 0 view] guaranteed = represent inspect %686
+  jump -> bb146(borrow %687)
+
+bb146(%676: String [shared slot 0 view] guaranteed from{%36}):
+  call String.push borrow %673 borrow %676
+  drop String inspect %36
+  %688: Bool trivial = load inspect %33
+  %689: String [unique call] guaranteed from{%34} = load inspect %34
+  call Bool.show borrow %688 borrow %689
+  %690: String [unique call] guaranteed from{%34} = load inspect %34
+  %691: String owned = const String {units: Array {run: Run {items: &string'170, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %37 consume %691
+  %692: String [shared slot 0] guaranteed from{%37} = load inspect %37
+  jump -> bb147
+
+bb147:
+  %694: %Array(CodeUnit) address = field.addr .units inspect %692
+  %695: %Run(CodeUnit) address = field.addr .run inspect %694
+  %696: %%CodeUnit address = field.addr .items inspect %695
+  %697: %CodeUnit trivial = load inspect %696
+  %698: %Array(CodeUnit) address = field.addr .units inspect %692
+  %699: %@bits(30) U32 address = field.addr .length inspect %698
+  %700: @bits(30) U32 trivial = load inspect %699
+  %701: I32 trivial = convert inspect %700
+  %702: Size trivial = convert inspect %701
+  %703: StringView trivial = aggregate.StringView consume %697 consume %702
+  %704: String [shared slot 0 view] guaranteed = represent inspect %703
+  jump -> bb148(borrow %704)
+
+bb148(%693: String [shared slot 0 view] guaranteed from{%37}):
+  call String.push borrow %690 borrow %693
+  drop String inspect %37
+  %705: String owned = load inspect %34
+  store inspect %38 consume %705
+  %706: String [shared slot 0] guaranteed from{%38} = load inspect %38
+  jump -> bb149
+
+bb149:
+  %708: %Array(CodeUnit) address = field.addr .units inspect %706
+  %709: %Run(CodeUnit) address = field.addr .run inspect %708
+  %710: %%CodeUnit address = field.addr .items inspect %709
+  %711: %CodeUnit trivial = load inspect %710
+  %712: %Array(CodeUnit) address = field.addr .units inspect %706
+  %713: %@bits(30) U32 address = field.addr .length inspect %712
+  %714: @bits(30) U32 trivial = load inspect %713
+  %715: I32 trivial = convert inspect %714
+  %716: Size trivial = convert inspect %715
+  %717: StringView trivial = aggregate.StringView consume %711 consume %716
+  %718: String [shared slot 0 view] guaranteed = represent inspect %717
+  jump -> bb150(borrow %718)
+
+bb150(%707: String [shared slot 0 view] guaranteed from{%38}):
+  call print borrow %707
+  drop String inspect %38
+  %719: %InlineArray(I32, 4) address = field.addr .items inspect %19
+  %720: InlineArray(I32, 4) trivial = copy inspect %719
+  %721: %InlineArray(I32, 4) address = field.addr .items inspect %30
+  %722: InlineArray(I32, 4) trivial = copy inspect %721
+  %723: Bool trivial = call InlineArray(a, n).==(4, I32) borrow %720 borrow %722
+  %724: Bool trivial = not inspect %723
+  branch inspect %724 -> bb28 -> bb26
 }
 
 fn main() -> I32 {
@@ -1863,71 +2471,135 @@ bb5:
   %30: String owned = const String {units: Array {run: Run {items: &string'171, capacity: 10, ownsHeap: 0}, length: 10}}
   store inspect %4 consume %30
   %31: String [shared slot 0] guaranteed from{%4} = load inspect %4
-  %32: String [shared slot 0 view] guaranteed from{%4} = call String.view borrow %31
-  call String.push borrow %29 borrow %32
-  drop String inspect %4
-  %33: %I64 address = global.addr live
-  %34: I64 trivial = load inspect %33
-  %35: String [unique call] guaranteed from{%3} = load inspect %3
-  call I64.show borrow %34 borrow %35
-  %36: String [unique call] guaranteed from{%3} = load inspect %3
-  %37: String owned = const String {units: Array {run: Run {items: &string'172, capacity: 7, ownsHeap: 0}, length: 7}}
-  store inspect %5 consume %37
-  %38: String [shared slot 0] guaranteed from{%5} = load inspect %5
-  %39: String [shared slot 0 view] guaranteed from{%5} = call String.view borrow %38
-  call String.push borrow %36 borrow %39
-  drop String inspect %5
-  %40: %I64 address = global.addr drops
-  %41: I64 trivial = load inspect %40
-  %42: String [unique call] guaranteed from{%3} = load inspect %3
-  call I64.show borrow %41 borrow %42
-  %43: String [unique call] guaranteed from{%3} = load inspect %3
-  %44: String owned = const String {units: Array {run: Run {items: &string'173, capacity: 1, ownsHeap: 0}, length: 1}}
-  store inspect %6 consume %44
-  %45: String [shared slot 0] guaranteed from{%6} = load inspect %6
-  %46: String [shared slot 0 view] guaranteed from{%6} = call String.view borrow %45
-  call String.push borrow %43 borrow %46
-  drop String inspect %6
-  %47: String owned = load inspect %3
-  store inspect %7 consume %47
-  %48: String [shared slot 0] guaranteed from{%7} = load inspect %7
-  %49: String [shared slot 0 view] guaranteed from{%7} = call String.view borrow %48
-  call print borrow %49
-  drop String inspect %7
-  %50: %I64 address = global.addr live
-  %51: I64 trivial = load inspect %50
-  %52: I64 trivial = const 0
-  %53: Bool trivial = ne inspect %51 inspect %52
-  branch inspect %53 -> bb9 -> bb7
+  jump -> bb13
 
 bb6:
-  %54: I32 trivial = load inspect %2
-  return consume %54
+  %98: I32 trivial = load inspect %2
+  return consume %98
 
 bb7:
-  %55: %I64 address = global.addr drops
-  %56: I64 trivial = load inspect %55
-  %57: I64 trivial = const 7
-  %58: Bool trivial = ne inspect %56 inspect %57
-  jump -> bb8(consume %58)
+  %99: %I64 address = global.addr drops
+  %100: I64 trivial = load inspect %99
+  %101: I64 trivial = const 7
+  %102: Bool trivial = ne inspect %100 inspect %101
+  jump -> bb8(consume %102)
 
 bb8(%0: Bool trivial):
   branch inspect %0 -> bb12 -> bb10
 
 bb9:
-  %59: Bool trivial = const True
-  jump -> bb8(consume %59)
+  %103: Bool trivial = const True
+  jump -> bb8(consume %103)
 
 bb10:
   jump -> bb11
 
 bb11:
-  %60: I32 trivial = const 777
-  return consume %60
+  %104: I32 trivial = const 777
+  return consume %104
 
 bb12:
-  %61: I32 trivial = const 21
-  return consume %61
+  %105: I32 trivial = const 21
+  return consume %105
+
+bb13:
+  %33: %Array(CodeUnit) address = field.addr .units inspect %31
+  %34: %Run(CodeUnit) address = field.addr .run inspect %33
+  %35: %%CodeUnit address = field.addr .items inspect %34
+  %36: %CodeUnit trivial = load inspect %35
+  %37: %Array(CodeUnit) address = field.addr .units inspect %31
+  %38: %@bits(30) U32 address = field.addr .length inspect %37
+  %39: @bits(30) U32 trivial = load inspect %38
+  %40: I32 trivial = convert inspect %39
+  %41: Size trivial = convert inspect %40
+  %42: StringView trivial = aggregate.StringView consume %36 consume %41
+  %43: String [shared slot 0 view] guaranteed = represent inspect %42
+  jump -> bb14(borrow %43)
+
+bb14(%32: String [shared slot 0 view] guaranteed from{%4}):
+  call String.push borrow %29 borrow %32
+  drop String inspect %4
+  %44: %I64 address = global.addr live
+  %45: I64 trivial = load inspect %44
+  %46: String [unique call] guaranteed from{%3} = load inspect %3
+  call I64.show borrow %45 borrow %46
+  %47: String [unique call] guaranteed from{%3} = load inspect %3
+  %48: String owned = const String {units: Array {run: Run {items: &string'172, capacity: 7, ownsHeap: 0}, length: 7}}
+  store inspect %5 consume %48
+  %49: String [shared slot 0] guaranteed from{%5} = load inspect %5
+  jump -> bb15
+
+bb15:
+  %51: %Array(CodeUnit) address = field.addr .units inspect %49
+  %52: %Run(CodeUnit) address = field.addr .run inspect %51
+  %53: %%CodeUnit address = field.addr .items inspect %52
+  %54: %CodeUnit trivial = load inspect %53
+  %55: %Array(CodeUnit) address = field.addr .units inspect %49
+  %56: %@bits(30) U32 address = field.addr .length inspect %55
+  %57: @bits(30) U32 trivial = load inspect %56
+  %58: I32 trivial = convert inspect %57
+  %59: Size trivial = convert inspect %58
+  %60: StringView trivial = aggregate.StringView consume %54 consume %59
+  %61: String [shared slot 0 view] guaranteed = represent inspect %60
+  jump -> bb16(borrow %61)
+
+bb16(%50: String [shared slot 0 view] guaranteed from{%5}):
+  call String.push borrow %47 borrow %50
+  drop String inspect %5
+  %62: %I64 address = global.addr drops
+  %63: I64 trivial = load inspect %62
+  %64: String [unique call] guaranteed from{%3} = load inspect %3
+  call I64.show borrow %63 borrow %64
+  %65: String [unique call] guaranteed from{%3} = load inspect %3
+  %66: String owned = const String {units: Array {run: Run {items: &string'173, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %6 consume %66
+  %67: String [shared slot 0] guaranteed from{%6} = load inspect %6
+  jump -> bb17
+
+bb17:
+  %69: %Array(CodeUnit) address = field.addr .units inspect %67
+  %70: %Run(CodeUnit) address = field.addr .run inspect %69
+  %71: %%CodeUnit address = field.addr .items inspect %70
+  %72: %CodeUnit trivial = load inspect %71
+  %73: %Array(CodeUnit) address = field.addr .units inspect %67
+  %74: %@bits(30) U32 address = field.addr .length inspect %73
+  %75: @bits(30) U32 trivial = load inspect %74
+  %76: I32 trivial = convert inspect %75
+  %77: Size trivial = convert inspect %76
+  %78: StringView trivial = aggregate.StringView consume %72 consume %77
+  %79: String [shared slot 0 view] guaranteed = represent inspect %78
+  jump -> bb18(borrow %79)
+
+bb18(%68: String [shared slot 0 view] guaranteed from{%6}):
+  call String.push borrow %65 borrow %68
+  drop String inspect %6
+  %80: String owned = load inspect %3
+  store inspect %7 consume %80
+  %81: String [shared slot 0] guaranteed from{%7} = load inspect %7
+  jump -> bb19
+
+bb19:
+  %83: %Array(CodeUnit) address = field.addr .units inspect %81
+  %84: %Run(CodeUnit) address = field.addr .run inspect %83
+  %85: %%CodeUnit address = field.addr .items inspect %84
+  %86: %CodeUnit trivial = load inspect %85
+  %87: %Array(CodeUnit) address = field.addr .units inspect %81
+  %88: %@bits(30) U32 address = field.addr .length inspect %87
+  %89: @bits(30) U32 trivial = load inspect %88
+  %90: I32 trivial = convert inspect %89
+  %91: Size trivial = convert inspect %90
+  %92: StringView trivial = aggregate.StringView consume %86 consume %91
+  %93: String [shared slot 0 view] guaranteed = represent inspect %92
+  jump -> bb20(borrow %93)
+
+bb20(%82: String [shared slot 0 view] guaranteed from{%7}):
+  call print borrow %82
+  drop String inspect %7
+  %94: %I64 address = global.addr live
+  %95: I64 trivial = load inspect %94
+  %96: I64 trivial = const 0
+  %97: Bool trivial = ne inspect %95 inspect %96
+  branch inspect %97 -> bb9 -> bb7
 }
 
 fn opened(I32)(xs: Array(I32) [unique call owner], $body: (I32) -> I32 [shared call]) -> I32 {

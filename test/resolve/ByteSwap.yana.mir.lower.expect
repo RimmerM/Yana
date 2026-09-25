@@ -88,37 +88,28 @@ main<complex>(): I32 {
     %v_49 = add %v_39, %v_48: I32
     %v_50 = call_complex opaqueU64, 1311768467463790320: I64
     %v_51 = add %v_49, 256: I32
-    %v_52 = alloca 8, 4: Ptr
-    store %v_52, 0, 4
-    %v_53 = add %v_52, 4: Ptr
-    store %v_53, 0, 4
-    %v_54 = call_complex opaqueU32, 305419896: I32
-    store %v_52, %v_54, 4
-    %v_55 = load %v_52, 4: I32
-    %v_56 = bswap %v_55: I32
-    %v_57 = cmp_eq %v_56, 2018915346: I32
-    %v_58 = select %v_57, 512, 0: I32
-    %v_59 = call_complex opaqueU32, 305419896: I32
-    %v_60 = bswap %v_59: I32
-    %v_61 = add %v_52, 4: Ptr
-    store %v_61, %v_60, 4
-    %v_62 = load %v_61, 4: I32
-    %v_63 = cmp_eq %v_62, 2018915346: I32
-    %v_64 = select %v_63, 1024, 0: I32
-    %v_65 = add %v_58, %v_64: I32
-    %v_66 = add %v_51, %v_65: I32
-    %v_67 = add %v_66, 2048: I32
-    %v_68 = call_complex opaqueU32, 305419896: I32
-    %v_69 = call_complex swapVia(U32), %v_68: I32
-    %v_70 = cmp_eq %v_69, 2018915346: I32
-    %v_71 = select %v_70, 4096, 0: I32
-    %v_72 = call_complex opaqueU64, 1: I64
-    %v_73 = call_complex swapVia(U64), %v_72: I64
-    %v_74 = cmp_eq %v_73, 72057594037927936: I32
-    %v_75 = select %v_74, 8192, 0: I32
-    %v_76 = add %v_71, %v_75: I32
-    %v_77 = add %v_67, %v_76: I32
-    ret %v_77
+    %v_52 = call_complex opaqueU32, 305419896: I32
+    %v_53 = bswap %v_52: I32
+    %v_54 = cmp_eq %v_53, 2018915346: I32
+    %v_55 = select %v_54, 512, 0: I32
+    %v_56 = call_complex opaqueU32, 305419896: I32
+    %v_57 = bswap %v_56: I32
+    %v_58 = cmp_eq %v_57, 2018915346: I32
+    %v_59 = select %v_58, 1024, 0: I32
+    %v_60 = add %v_55, %v_59: I32
+    %v_61 = add %v_51, %v_60: I32
+    %v_62 = add %v_61, 2048: I32
+    %v_63 = call_complex opaqueU32, 305419896: I32
+    %v_64 = call_complex swapVia(U32), %v_63: I32
+    %v_65 = cmp_eq %v_64, 2018915346: I32
+    %v_66 = select %v_65, 4096, 0: I32
+    %v_67 = call_complex opaqueU64, 1: I64
+    %v_68 = call_complex swapVia(U64), %v_67: I64
+    %v_69 = cmp_eq %v_68, 72057594037927936: I32
+    %v_70 = select %v_69, 8192, 0: I32
+    %v_71 = add %v_66, %v_70: I32
+    %v_72 = add %v_62, %v_71: I32
+    ret %v_72
   }
 }
 

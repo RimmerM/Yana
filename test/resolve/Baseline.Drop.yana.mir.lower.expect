@@ -1,10 +1,10 @@
 mut @live = [0, 0, 0, 0]
 
-Guard.drop<complex>(%v_0: I32) {
-  b_1 {
-    %v_2 = loads @live, 4: I32
-    %v_3 = sub %v_2, 1: I32
-    store @live, %v_3, 4
+Guard.drop<complex>() {
+  b_0 {
+    %v_1 = loads @live, 4: I32
+    %v_2 = sub %v_1, 1: I32
+    store @live, %v_2, 4
     ret 
   }
 }
@@ -47,56 +47,55 @@ main<complex>(): I32 {
     store @live, 0, 4
     %v_12 = add %v_13, 12: I32
     store @live, 1, 4
-    call_complex Guard.drop, 1
-    %v_14 = imm 2: I32
-    %v_15 = loads @live, 4: I32
-    %v_16 = add %v_15, 1: I32
-    store @live, %v_16, 4
-    %v_17 = add 2, %v_16: I32
-    call_complex Guard.drop, %v_14
-    %v_18 = add %v_17, %v_14: I32
-    %v_19 = add %v_12, %v_18: I32
-    %v_20 = loads @live, 4: I32
-    %v_21 = cmp_neq %v_20, 0: I32
-    je %v_21, b_22, b_23
-  }
-
-  b_24 {
-    ret 18446744073709551611
+    call_complex Guard.drop
+    %v_14 = loads @live, 4: I32
+    %v_15 = add %v_14, 1: I32
+    store @live, %v_15, 4
+    %v_16 = add 2, %v_15: I32
+    call_complex Guard.drop
+    %v_17 = add %v_16, 2: I32
+    %v_18 = add %v_12, %v_17: I32
+    %v_19 = loads @live, 4: I32
+    %v_20 = cmp_neq %v_19, 0: I32
+    je %v_20, b_21, b_22
   }
 
   b_23 {
-    store @live, 1, 4
-    store @live, 0, 4
-    ret %v_19
+    ret 18446744073709551611
   }
 
   b_22 {
+    store @live, 1, 4
+    store @live, 0, 4
+    ret %v_18
+  }
+
+  b_21 {
     ret 18446744073709551608
   }
 
-  b_25 {
-    %v_26 = cmp_ilt %v_27, 3: I32
-    je %v_26, b_10, b_28
+  b_24 {
+    %v_25 = cmp_ilt %v_26, 3: I32
+    je %v_25, b_10, b_27
   }
 
-  b_28 {
-    %v_29 = loads @live, 4: I32
-    %v_30 = sub %v_29, 1: I32
-    store @live, %v_30, 4
-    %v_13 = add %v_9, %v_31: I32
-    %v_32 = cmp_neq %v_30, 0: I32
-    je %v_32, b_24, b_11
+  b_27 {
+    %v_28 = loads @live, 4: I32
+    %v_29 = sub %v_28, 1: I32
+    store @live, %v_29, 4
+    %v_13 = add %v_9, %v_30: I32
+    %v_31 = cmp_neq %v_29, 0: I32
+    je %v_31, b_23, b_11
   }
 
   b_10 {
-    %v_33 = phi [b_25, %v_31], [b_8, 0]: I32
-    %v_34 = phi [b_25, %v_27], [b_8, 0]: I32
-    %v_35 = add %v_33, 1: I32
-    %v_36 = loads @live, 4: I32
-    %v_31 = add %v_35, %v_36: I32
-    %v_27 = add %v_34, 1: I32
-    jmp b_25
+    %v_32 = phi [b_24, %v_30], [b_8, 0]: I32
+    %v_33 = phi [b_24, %v_26], [b_8, 0]: I32
+    %v_34 = add %v_32, 1: I32
+    %v_35 = loads @live, 4: I32
+    %v_30 = add %v_34, %v_35: I32
+    %v_26 = add %v_33, 1: I32
+    jmp b_24
   }
 }
 

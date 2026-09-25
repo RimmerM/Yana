@@ -582,20 +582,36 @@ bb0:
   %146: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 4, ownsHeap: 0}, length: 4}}
   store inspect %19 consume %146
   %147: String [shared slot 0] guaranteed from{%19} = load inspect %19
-  %148: String [shared slot 0 view] guaranteed from{%19} = call String.view borrow %147
-  %149: I32 trivial = call labelled borrow %145 borrow %148
+  jump -> bb1
+
+bb1:
+  %149: %Array(CodeUnit) address = field.addr .units inspect %147
+  %150: %Run(CodeUnit) address = field.addr .run inspect %149
+  %151: %%CodeUnit address = field.addr .items inspect %150
+  %152: %CodeUnit trivial = load inspect %151
+  %153: %Array(CodeUnit) address = field.addr .units inspect %147
+  %154: %@bits(30) U32 address = field.addr .length inspect %153
+  %155: @bits(30) U32 trivial = load inspect %154
+  %156: I32 trivial = convert inspect %155
+  %157: Size trivial = convert inspect %156
+  %158: StringView trivial = aggregate.StringView consume %152 consume %157
+  %159: String [shared slot 0 view] guaranteed = represent inspect %158
+  jump -> bb2(borrow %159)
+
+bb2(%148: String [shared slot 0 view] guaranteed from{%19}):
+  %160: I32 trivial = call labelled borrow %145 borrow %148
   drop String inspect %19
-  %150: I32 trivial = add inspect %144 inspect %149
-  %151: I32 trivial = const 1
-  %152: I32 trivial = const 2
-  %153: I32 trivial = const 3
-  %154: I32 trivial = call <+> borrow %151 borrow %152 borrow %153
-  %155: I32 trivial = add inspect %150 inspect %154
-  %156: I32 trivial = const 5
-  %157: I32 trivial = const 2
-  %158: I32 trivial = call <-> borrow %156 borrow %157
-  %159: I32 trivial = add inspect %155 inspect %158
-  return consume %159
+  %161: I32 trivial = add inspect %144 inspect %160
+  %162: I32 trivial = const 1
+  %163: I32 trivial = const 2
+  %164: I32 trivial = const 3
+  %165: I32 trivial = call <+> borrow %162 borrow %163 borrow %164
+  %166: I32 trivial = add inspect %161 inspect %165
+  %167: I32 trivial = const 5
+  %168: I32 trivial = const 2
+  %169: I32 trivial = call <-> borrow %167 borrow %168
+  %170: I32 trivial = add inspect %166 inspect %169
+  return consume %170
 }
 
 fn lazyNamed.thunk(lazyNamed.thunk.env: lazyNamed.thunk.env [unique call]) -> I32 {

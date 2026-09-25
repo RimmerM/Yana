@@ -1,10 +1,10 @@
 mut @dropped = [0, 0, 0, 0]
 
-Token.drop<complex>(%v_0: I32) {
-  b_1 {
-    %v_2 = loads @dropped, 4: I32
-    %v_3 = add %v_2, 1: I32
-    store @dropped, %v_3, 4
+Token.drop<complex>() {
+  b_0 {
+    %v_1 = loads @dropped, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store @dropped, %v_2, 4
     ret 
   }
 }
@@ -17,19 +17,17 @@ main<complex>(): I32 {
     store %v_1, 1, 1
     %v_3 = alloca 4, 4: Ptr
     copy %v_3, %v_2, 4
-    %v_4 = bitcast 0: Ptr
-    %v_5 = call_complex identify.lambda, %v_4, %v_3: I32
-    %v_6 = load %v_3, 4: I32
-    call_complex Token.drop, %v_6
-    %v_7 = add 15, %v_5: I32
-    %v_8 = alloca 8, 4: Ptr
-    store %v_8, 0, 1
-    call_complex teardown(Maybe(Token)), %v_8
-    %v_9 = add %v_7, 100: I32
-    %v_10 = imul %v_9, 10: I32
-    %v_11 = loads @dropped, 4: I32
-    %v_12 = add %v_10, %v_11: I32
-    ret %v_12
+    %v_4 = call_complex identify.lambda, %v_3: I32
+    call_complex Token.drop
+    %v_5 = add 15, %v_4: I32
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 0, 1
+    call_complex teardown(Maybe(Token)), %v_6
+    %v_7 = add %v_5, 100: I32
+    %v_8 = imul %v_7, 10: I32
+    %v_9 = loads @dropped, 4: I32
+    %v_10 = add %v_8, %v_9: I32
+    ret %v_10
   }
 }
 
@@ -43,7 +41,7 @@ offsetBy.lambda<complex>(%offsetBy.lambda.env: Ptr, %at: I32): I32 {
 }
 
 @header(identify.lambda) = [0, 0, 0, 0]
-identify.lambda<complex>(%identify.lambda.env: Ptr, %t: Ptr): I32 {
+identify.lambda<complex>(%t: Ptr): I32 {
   b_0 {
     %v_1 = loads %t, 4: I32
     ret %v_1
@@ -62,9 +60,7 @@ teardown(Maybe(Token))<complex>(%v_0: Ptr) {
   }
 
   b_4 {
-    %v_7 = add %v_0, 4: Ptr
-    %v_8 = load %v_7, 4: I32
-    call_complex Token.drop, %v_8
+    call_complex Token.drop
     jmp b_6
   }
 

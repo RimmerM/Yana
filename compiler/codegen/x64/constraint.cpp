@@ -291,6 +291,7 @@ Constraints::Constraints() {
         addXmmClobber(simple.clobber, 0, 3);
         addEvexClobber(simple.clobber);
         addMaskRegs(simple);
+        checkBudget(simple, simpleBudget());
         finish(simple);
     }
 

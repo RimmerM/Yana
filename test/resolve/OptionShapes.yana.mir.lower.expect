@@ -23,155 +23,154 @@ main<complex>(): I32 {
     %v_10 = bitcast %v_5: Ptr
     %v_11 = sext %v_9: I64
     %v_12 = alloca 16, 8: Ptr
-    %v_13 = bitcast 0: Ptr
-    %v_14 = call_complex runSlots(CodeUnit), %v_13, %v_11: Ptr
-    %v_15 = bitcast %v_14: I64
-    %v_16 = cmp_eq %v_15, 0: I32
-    %v_17 = select %v_16, 0, %v_11: I64
-    %v_18 = cast %v_17: I32
-    %v_19 = and %v_18, 1073741823: I32
-    store %v_12, %v_14, 8
-    %v_20 = add %v_12, 8: Ptr
-    %v_21 = cast %v_19: I64
-    %v_22 = or %v_21, 1073741824: I64
-    store %v_20, %v_22, 4
-    %v_23 = add %v_12, 12: Ptr
-    store %v_23, 0, 4
-    %v_24 = cmp_ile %v_11, 0: I32
-    je %v_24, b_25, b_26
-  }
-
-  b_27 {
-    %v_28 = loads %v_1, 4: I32
-    %v_29 = shl %v_28, 1: I32
-    store %v_1, %v_29, 4
-    %constant$1 = global @constant$1: Ptr
-    %v_30 = load %constant$1, 8: I64
-    %v_31 = add %constant$1, 8: Ptr
-    %v_32 = load %v_31, 4: I32
-    %v_33 = add %constant$1, 12: Ptr
-    %v_34 = load %v_33, 4: I32
-    call_complex String.reclaim, %v_5, %v_7, %v_9
-    %v_35 = loads %v_1, 4: I32
-    %v_36 = add %v_37, %v_35: I32
-    %v_38 = sext %v_34: I64
-    call_complex String.reclaim, %v_30, %v_32, %v_34
-    %v_39 = sext %v_38: I32
-    %v_40 = add %v_36, %v_39: I32
-    %v_41 = add %v_40, 25: I32
-    %v_42 = add %v_41, 6: I32
-    ret %v_42
-  }
-
-  b_43 {
-    %v_44 = loads %v_1, 4: I32
-    %v_45 = add %v_44, 10: I32
-    store %v_1, %v_45, 4
-    jmp b_27
-  }
-
-  b_46 {
-    %v_47 = load %v_48, 4: I32
-    %v_49 = sext %v_47: I64
-    %v_50 = sext %v_49: I32
-    jmp b_51
-  }
-
-  b_52 {
-    jmp b_51
-  }
-
-  b_51 {
-    %v_53 = phi [b_46, %v_50], [b_52, 0]: I32
-    call_complex teardown(Maybe(String)), %v_2
-    %v_54 = add %v_4, %v_53: I32
-    %v_55 = add %v_54, 11: I32
-    %v_56 = add %v_3, 12: Ptr
-    store %v_56, 1073741824, 4
-    call_complex teardown(Maybe(String)), %v_3
-    %v_57 = add %v_55, 0: I32
-    %v_58 = add %v_57, 1: I32
-    %v_59 = add %v_58, 2: I32
-    %v_37 = add %v_59, 10: I32
-    %v_60 = bitcast %v_1: I64
-    %v_61 = cmp_neq %v_60, 0: I32
-    je %v_61, b_43, b_27
-  }
-
-  b_25 {
-    copy %v_2, %v_12, 16
-    %v_48 = add %v_2, 12: Ptr
-    %v_62 = load %v_48, 4: I64
-    %v_63 = cmp_le %v_62, 1073741823: I32
-    je %v_63, b_46, b_52
+    %v_13 = call_complex runSlots(CodeUnit), %v_11: Ptr
+    %v_14 = bitcast %v_13: I64
+    %v_15 = cmp_eq %v_14, 0: I32
+    %v_16 = select %v_15, 0, %v_11: I64
+    %v_17 = cast %v_16: I32
+    %v_18 = and %v_17, 1073741823: I32
+    store %v_12, %v_13, 8
+    %v_19 = add %v_12, 8: Ptr
+    %v_20 = cast %v_18: I64
+    %v_21 = or %v_20, 1073741824: I64
+    store %v_19, %v_21, 4
+    %v_22 = add %v_12, 12: Ptr
+    store %v_22, 0, 4
+    %v_23 = cmp_ile %v_11, 0: I32
+    je %v_23, b_24, b_25
   }
 
   b_26 {
-    %v_64 = cast %v_19: I64
-    %v_65 = cmp_ile %v_11, %v_64: I32
-    je %v_65, b_66, b_67
+    %v_27 = loads %v_1, 4: I32
+    %v_28 = shl %v_27, 1: I32
+    store %v_1, %v_28, 4
+    %constant$1 = global @constant$1: Ptr
+    %v_29 = load %constant$1, 8: I64
+    %v_30 = add %constant$1, 8: Ptr
+    %v_31 = load %v_30, 4: I32
+    %v_32 = add %constant$1, 12: Ptr
+    %v_33 = load %v_32, 4: I32
+    call_complex String.reclaim, %v_5, %v_7
+    %v_34 = loads %v_1, 4: I32
+    %v_35 = add %v_36, %v_34: I32
+    %v_37 = sext %v_33: I64
+    call_complex String.reclaim, %v_29, %v_31
+    %v_38 = sext %v_37: I32
+    %v_39 = add %v_35, %v_38: I32
+    %v_40 = add %v_39, 25: I32
+    %v_41 = add %v_40, 6: I32
+    ret %v_41
   }
 
-  b_67 {
-    call_complex growArray(CodeUnit), %v_12, %v_11
-    jmp b_66
+  b_42 {
+    %v_43 = loads %v_1, 4: I32
+    %v_44 = add %v_43, 10: I32
+    store %v_1, %v_44, 4
+    jmp b_26
+  }
+
+  b_45 {
+    %v_46 = load %v_47, 4: I32
+    %v_48 = sext %v_46: I64
+    %v_49 = sext %v_48: I32
+    jmp b_50
+  }
+
+  b_51 {
+    jmp b_50
+  }
+
+  b_50 {
+    %v_52 = phi [b_45, %v_49], [b_51, 0]: I32
+    call_complex teardown(Maybe(String)), %v_2
+    %v_53 = add %v_4, %v_52: I32
+    %v_54 = add %v_53, 11: I32
+    %v_55 = add %v_3, 12: Ptr
+    store %v_55, 1073741824, 4
+    call_complex teardown(Maybe(String)), %v_3
+    %v_56 = add %v_54, 0: I32
+    %v_57 = add %v_56, 1: I32
+    %v_58 = add %v_57, 2: I32
+    %v_36 = add %v_58, 10: I32
+    %v_59 = bitcast %v_1: I64
+    %v_60 = cmp_neq %v_59, 0: I32
+    je %v_60, b_42, b_26
+  }
+
+  b_24 {
+    copy %v_2, %v_12, 16
+    %v_47 = add %v_2, 12: Ptr
+    %v_61 = load %v_47, 4: I64
+    %v_62 = cmp_le %v_61, 1073741823: I32
+    je %v_62, b_45, b_51
+  }
+
+  b_25 {
+    %v_63 = cast %v_18: I64
+    %v_64 = cmp_ile %v_11, %v_63: I32
+    je %v_64, b_65, b_66
   }
 
   b_66 {
-    %v_68 = add %v_12, 12: Ptr
-    %v_69 = load %v_68, 4: I32
-    %v_70 = cast %v_69: I64
-    %v_71 = add %v_70, %v_11: I64
-    %v_72 = add %v_12, 8: Ptr
-    %v_73 = load %v_72, 4: I64
-    %v_74 = and %v_73, 1073741823: I64
-    %v_75 = cmp_ilt %v_74, %v_71: I32
-    je %v_75, b_76, b_77
+    call_complex growArray(CodeUnit), %v_12, %v_11
+    jmp b_65
   }
 
-  b_77 {
-    %v_78 = load %v_12, 8: Ptr
-    %v_79 = add %v_78, %v_70: Ptr
-    call_complex copyMemory, %v_79, %v_10, %v_11
-    %v_80 = cast %v_71: I32
-    %v_81 = and %v_80, 1073741823: I32
-    store %v_68, %v_81, 4
-    jmp b_25
+  b_65 {
+    %v_67 = add %v_12, 12: Ptr
+    %v_68 = load %v_67, 4: I32
+    %v_69 = cast %v_68: I64
+    %v_70 = add %v_69, %v_11: I64
+    %v_71 = add %v_12, 8: Ptr
+    %v_72 = load %v_71, 4: I64
+    %v_73 = and %v_72, 1073741823: I64
+    %v_74 = cmp_ilt %v_73, %v_70: I32
+    je %v_74, b_75, b_76
   }
 
   b_76 {
-    %v_82 = syscall 60, 134: I64
+    %v_77 = load %v_12, 8: Ptr
+    %v_78 = add %v_77, %v_69: Ptr
+    call_complex copyMemory, %v_78, %v_10, %v_11
+    %v_79 = cast %v_70: I32
+    %v_80 = and %v_79, 1073741823: I32
+    store %v_67, %v_80, 4
+    jmp b_24
+  }
+
+  b_75 {
+    %v_81 = syscall 60, 134: I64
     unreachable 
   }
 }
 
-String.reclaim<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
-  b_3 {
-    %v_4 = shr %v_1, 30: I32
-    %v_5 = cmp_eq %v_4, 1: I32
-    je %v_5, b_6, b_7
+String.reclaim<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = shr %v_1, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = bitcast %v_0: Ptr
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_6, b_9
   }
 
   b_6 {
-    %v_8 = bitcast %v_0: Ptr
-    %v_9 = cmp_eq %v_0, 0: I32
-    je %v_9, b_7, b_10
-  }
-
-  b_7 {
     ret 
   }
 
-  b_10 {
-    %v_11 = sub %v_8, 8: Ptr
-    %v_12 = loads %v_11, 8: I64
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %v_12, 3: I64
-    %v_15 = add %v_13, %v_14: Ptr
-    %v_16 = load %v_15, 8: Ptr
-    store %v_8, %v_16, 8
-    store %v_15, %v_8, 8
-    jmp b_7
+  b_9 {
+    %v_10 = sub %v_7, 8: Ptr
+    %v_11 = loads %v_10, 8: I64
+    %v_12 = load @heapFree, 8: Ptr
+    %v_13 = shl %v_11, 3: I64
+    %v_14 = add %v_12, %v_13: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    store %v_7, %v_15, 8
+    store %v_14, %v_7, 8
+    jmp b_6
   }
 }
 
@@ -618,7 +617,7 @@ copyMemory<complex>(%to: Ptr, %from: Ptr, %count: I64) {
   }
 }
 
-runSlots(CodeUnit)<complex>(%probe: Ptr, %capacity: I64): Ptr {
+runSlots(CodeUnit)<complex>(%capacity: I64): Ptr {
   b_0 {
     %v_1 = cmp_eq %capacity, 0: I32
     je %v_1, b_2, b_3
@@ -656,8 +655,7 @@ teardown(Maybe(String))<complex>(%v_0: Ptr) {
     %v_8 = load %v_0, 8: I64
     %v_9 = add %v_0, 8: Ptr
     %v_10 = load %v_9, 4: I32
-    %v_11 = load %v_2, 4: I32
-    call_complex String.reclaim, %v_8, %v_10, %v_11
+    call_complex String.reclaim, %v_8, %v_10
     jmp b_7
   }
 

@@ -81,9 +81,19 @@ data StringView {units: %CodeUnit, length: Size}
    The two steps of the count are `length`'s below, for the same reason: the stored count is a
    `@bits(30) U32` and `Size` is `I64` here, and a cast straight between them is not one the lower
    IR accepts.
+
+   `@inline(always)` because the body is two loads, smaller than the call to it, and the inliner does
+   not see that: at a cold site it copies only bodies weighing `kColdBudget` or less, and this one
+   weighs more at that tier than it costs in machine code. 162 cold sites in `test/base` called it,
+   and at `-inline none` it was 5,033 calls and 160 KB (J170, J171). The other accessors of this
+   shape - `elements`, `elementsMut`, `Length(String)`, `values` - are not marked, and that was
+   measured: no call to any of them survives `balanced`, so the directive only moves them earlier,
+   and a body grafted at conversion weighs more to the inliner than the call it replaced. Marked,
+   they were `balanced` +1,536 bytes and `speed` +6,400 for the same time, and -24 KB only at
+   `-inline none`.
 -}
 @platform(native) instance Viewed(String):
-    fn view(self: source'String) -> source'String =
+    @inline(always) fn view(self: source'String) -> source'String =
         StringView {units: self.units.run.items, length: (self.units.length :: Int) :: Size}
 
 {-

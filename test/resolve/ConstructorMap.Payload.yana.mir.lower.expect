@@ -1,11 +1,11 @@
 
-computed<complex>(%v_0: I32, %v_1: I32, %v_2: I32): I32 {
-  b_3 {
-    %v_4 = and %v_0, 255: I32
-    %v_5 = shl %v_4, 2: I32
-    %v_6 = shr 335937, %v_5: I32
-    %v_7 = and %v_6, 15: I32
-    ret %v_7
+computed<complex>(%v_0: I32): I32 {
+  b_1 {
+    %v_2 = and %v_0, 255: I32
+    %v_3 = shl %v_2, 2: I32
+    %v_4 = shr 335937, %v_3: I32
+    %v_5 = and %v_4, 15: I32
+    ret %v_5
   }
 }
 
@@ -324,7 +324,7 @@ main<complex>(): I32 {
   }
 
   b_240 {
-    %v_241 = call_complex computed, %v_238, %v_236, %v_237: I32
+    %v_241 = call_complex computed, %v_238: I32
     %v_242 = cmp_eq %v_241, 0: I32
     je %v_242, b_217, b_209
   }
@@ -350,7 +350,7 @@ main<complex>(): I32 {
   }
 
   b_224 {
-    %v_247 = call_complex computed, %v_221, %v_219, %v_220: I32
+    %v_247 = call_complex computed, %v_221: I32
     jmp b_212
   }
 

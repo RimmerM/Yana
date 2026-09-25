@@ -825,6 +825,20 @@ LowerPtr<LowerValue> Lowering::elementAddress(LowerBlock& block, LowerPtr<LowerV
 
     auto stride = elementStrideNative(layout, mir::elementTypeOf(decl, program, container));
 
+    /*
+     * A constant index is a constant offset, written as one. Every element of an array literal is
+     * stored through one of these, and `mul 3, 40` is not a field to the lower tier's one address
+     * walk (`walkPlace`, lower_store.cpp), which folds `add x, imm` and nothing else - so each
+     * element's address was a place with no root, the relay through the temporary the element was
+     * built in could not be told apart from the constant it was filled from, and every string of a
+     * literal table was copied twice. The fold that would have made it `add` runs after the
+     * forwarding and the split that needed it.
+     */
+    if(auto known = lower[index]->inst(); known && known->kind == LowerInst::Imm) {
+        auto offset = U64(((LowerImm*)known)->i) * U64(stride);
+        if(offset < (U64(1) << 31)) return offsetAddress(block, base, U32(offset));
+    }
+
     auto scale = block.addInst(lower, new (to.arena) LowerImm(
         StringId(), LowerType::Int64, U64(stride)));
 
@@ -1118,6 +1132,118 @@ LowerBlock* Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> addre
     }
 
     return current;
+}
+
+// `recordDrops`' key: the record, and how its boxes are released - the two things that name the
+// function a drop of it would call.
+static U64 recordDropKey(DeclPtr<mir::Type> type, BoxRelease boxes) {
+    return (U64(type.offset) << 8) | U64(boxes);
+}
+
+/*
+ * Every drop of a record the optimizer left whole, counted by what it would call - J172, and what
+ * `sharesRecordTeardown` weighs a record's own teardown function against. Counted over the SSA
+ * before any body is lowered, because the answer has to be the same at the first site as at the
+ * last.
+ */
+void Lowering::countRecordDrops() {
+    recordDrops.clear();
+
+    for(auto modulePointer: program.modules) {
+        for(auto functionPointer: decl[modulePointer]->functions.contents(decl)) {
+            auto function = decl[functionPointer];
+            if(!function->reachable || !function->ssa) continue;
+
+            auto& body = *ssa[function->ssa];
+            for(auto blockPointer: body.blocks.contents(ssa)) {
+                auto block = ssa[blockPointer];
+                if(block->deleted) continue;
+
+                for(auto instPointer: block->instructions(ssa)) {
+                    auto inst = ssa[instPointer];
+                    if(inst->kind != Inst::Drop) continue;
+
+                    auto& dropped = (InstDrop&)*inst;
+                    if(decl[dropped.held.type]->kind != mir::Type::Record) continue;
+
+                    auto boxes = dropped.boxesVisible ? BoxRelease::Owned : BoxRelease::Unknown;
+                    auto entry = recordDrops.add(recordDropKey(dropped.held.type, boxes));
+                    if(!entry.existed) *entry.value = 0;
+                    (*entry.value)++;
+                }
+            }
+        }
+    }
+}
+
+/*
+ * Whether a drop of this record is a call of its own teardown rather than the walk written in place.
+ *
+ * J171's count, asked of a function that is built rather than of a run that was found: a site of
+ * `n` calls is about `4n` instructions written out (a `fun`, a `call` and the words each call
+ * reads) and two as a call, and the function is the `4n` once. So the function is built where
+ * `sites * (4n - 2) > 4n + 4` - two calls and three sites, three calls and two, and never one call.
+ */
+bool Lowering::sharesRecordTeardown(DeclPtr<mir::Type> type, BoxRelease boxes) {
+    if(decl[type]->kind != mir::Type::Record) return false;
+
+    auto calls = teardownCalls(type, true, true, 64);
+    if(calls < 2) return false;
+
+    auto found = recordDrops.getValue(recordDropKey(type, boxes));
+    auto sites = found ? U64(found.unwrap()) : U64(1);
+
+    auto walk = U64(calls) * 4;
+    return sites * (walk - 2) > walk + 4;
+}
+
+/*
+ * How many calls `emitTeardown` writes for these halves of `type` - counted rather than emitted, and
+ * only as far as `cap`, because the one reader wants to know whether it is more than one. Every arm
+ * is `emitTeardown`'s own: an authored half is a call, a function value or iterator object is one,
+ * a sum or a boxed field is one, and a fixed array or a plain record is what its members make.
+ */
+U32 Lowering::teardownCalls(DeclPtr<mir::Type> type, bool runDrop, bool runReclaim, U32 cap) {
+    auto ownership = mir::ownershipOf(decl, type);
+    U32 count = 0;
+
+    if(runDrop && ownership.drop == mir::TeardownKind::Authored) count++;
+    if(runReclaim && ownership.reclaim == mir::TeardownKind::Authored) count++;
+
+    auto childDrop = runDrop && ownership.drop == mir::TeardownKind::Derived;
+    auto childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived;
+    if(!childDrop && !childReclaim) return count;
+    if(count >= cap) return count;
+
+    auto kind = decl[type]->kind;
+    if(kind == mir::Type::Fun || kind == mir::Type::Iter) return count + 1;
+
+    if(kind == mir::Type::Array) {
+        auto& array = *(mir::ArrayType*)decl[type];
+        if(!array.hasFixedLength() || !mir::hasTeardown(decl, array.element)) return count;
+
+        auto each = teardownCalls(array.element, childDrop, childReclaim, cap);
+        return each ? count + U32(min(U64(array.length) * each, U64(cap))) : count;
+    }
+
+    if(kind != mir::Type::Record) return count;
+
+    auto record = (mir::RecordType*)decl[type];
+    if(record->layout != mir::RecordLayout::Single) return count + 1;
+
+    for(auto field: record->fields.contents(decl)) {
+        if(count >= cap) break;
+        if(!mir::tearsDownField(decl, field)) continue;
+
+        if(mir::indirectField(decl, field)) {
+            count++;
+            continue;
+        }
+
+        count += teardownCalls(field.occurrence.type, childDrop, childReclaim, cap - count);
+    }
+
+    return count;
 }
 
 /*
@@ -2457,8 +2583,39 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * not hand back to. Which of the two ways it asks is the build's, and `storesBoxProvenance`
              * decides it - a stored bit, or a question put to the allocator about the address.
              */
-            emitTeardown(block, address - lower, written.held.type, true, true, inst.source,
-                         written.boxesVisible ? BoxRelease::Owned : BoxRelease::Unknown);
+            auto boxes = written.boxesVisible ? BoxRelease::Owned : BoxRelease::Unknown;
+
+            /*
+             * A record whose walk makes more than one call is **one call of its own teardown**,
+             * handed the address - `teardownHalves`, the function a sum's drop and a descriptor
+             * already call. J172, and it replaces two things: J137 writing the walk out at every
+             * drop, and J171's `shareTeardownRuns` finding those walks again at the lower tier and
+             * putting them back into one function per pattern.
+             *
+             * What reaches here is a record the optimizer did not see built: `expandTeardowns`
+             * expands a drop wherever the body assembled the record, which is where the fields
+             * fold. Everywhere else the record is in storage somebody else filled, and the walk
+             * would have been a load and a call per field against that storage. Where the storage
+             * is a frame slot the lower tier is about to take apart, `lower_teardown.cpp` puts the
+             * walk back in place of the call - the one site that can see the split coming.
+             *
+             * Where the function pays is a count - `sharesRecordTeardown`: one call and no more
+             * stays the walk, since the function would be that call and a `ret`, and so does a type
+             * dropped at too few sites for one body to be smaller than the walks it replaces.
+             */
+            auto type = written.held.type;
+            if(sharesRecordTeardown(type, boxes)) {
+                auto callee = teardownHalves(type, true, true, false, inst.source, boxes);
+                auto name = block.addInst(lower, new (to.arena) LowerInstFun(StringId(), callee));
+
+                call(lower, to, block, 0, 2, lower[callee]->callType, [&](LowerInstCall* built) {
+                    built->used()[0] = ((LowerInstSingle*)name)->created().ptr - lower;
+                    built->used()[1] = address - lower;
+                });
+                break;
+            }
+
+            emitTeardown(block, address - lower, type, true, true, inst.source, boxes);
             break;
         }
         case Inst::FunValue: {

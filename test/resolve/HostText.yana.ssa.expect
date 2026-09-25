@@ -22,10 +22,26 @@ bb0:
   %1: String owned = call greeting
   store inspect %0 consume %1
   %2: String [shared call] guaranteed from{%0} = load inspect %0
-  %3: String [shared slot 0 view] guaranteed from{%0} = call String.view borrow %2
-  %4: I32 trivial = call width borrow %3
+  jump -> bb1
+
+bb1:
+  %4: %Array(CodeUnit) address = field.addr .units inspect %2
+  %5: %Run(CodeUnit) address = field.addr .run inspect %4
+  %6: %%CodeUnit address = field.addr .items inspect %5
+  %7: %CodeUnit trivial = load inspect %6
+  %8: %Array(CodeUnit) address = field.addr .units inspect %2
+  %9: %@bits(30) U32 address = field.addr .length inspect %8
+  %10: @bits(30) U32 trivial = load inspect %9
+  %11: I32 trivial = convert inspect %10
+  %12: Size trivial = convert inspect %11
+  %13: StringView trivial = aggregate.StringView consume %7 consume %12
+  %14: String [shared slot 0 view] guaranteed = represent inspect %13
+  jump -> bb2(borrow %14)
+
+bb2(%3: String [shared slot 0 view] guaranteed from{%0}):
+  %15: I32 trivial = call width borrow %3
   drop String inspect %0
-  return consume %4
+  return consume %15
 }
 
 entry main

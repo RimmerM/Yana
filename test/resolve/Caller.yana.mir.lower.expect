@@ -111,7 +111,7 @@ main<complex>(): I32 {
     %v_40 = bitcast %v_27: I64
     %v_41 = add %v_9, 8: Ptr
     %v_42 = load %v_41, 4: I32
-    call_complex String.reclaim, %v_40, %v_42, %v_29
+    call_complex String.reclaim, %v_40, %v_42
     ret 9
   }
 
@@ -121,7 +121,7 @@ main<complex>(): I32 {
     %v_45 = bitcast %v_27: I64
     %v_46 = add %v_9, 8: Ptr
     %v_47 = load %v_46, 4: I32
-    call_complex String.reclaim, %v_45, %v_47, %v_29
+    call_complex String.reclaim, %v_45, %v_47
     %v_48 = cmp_neq %v_44, 64: I32
     %v_49 = select %v_48, 11, 0: I32
     ret %v_49
@@ -131,7 +131,7 @@ main<complex>(): I32 {
     %v_50 = bitcast %v_27: I64
     %v_51 = add %v_9, 8: Ptr
     %v_52 = load %v_51, 4: I32
-    call_complex String.reclaim, %v_50, %v_52, %v_29
+    call_complex String.reclaim, %v_50, %v_52
     ret 10
   }
 
@@ -190,33 +190,33 @@ main<complex>(): I32 {
   }
 }
 
-String.reclaim<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
-  b_3 {
-    %v_4 = shr %v_1, 30: I32
-    %v_5 = cmp_eq %v_4, 1: I32
-    je %v_5, b_6, b_7
+String.reclaim<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = shr %v_1, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = bitcast %v_0: Ptr
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_6, b_9
   }
 
   b_6 {
-    %v_8 = bitcast %v_0: Ptr
-    %v_9 = cmp_eq %v_0, 0: I32
-    je %v_9, b_7, b_10
-  }
-
-  b_7 {
     ret 
   }
 
-  b_10 {
-    %v_11 = sub %v_8, 8: Ptr
-    %v_12 = loads %v_11, 8: I64
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %v_12, 3: I64
-    %v_15 = add %v_13, %v_14: Ptr
-    %v_16 = load %v_15, 8: Ptr
-    store %v_8, %v_16, 8
-    store %v_15, %v_8, 8
-    jmp b_7
+  b_9 {
+    %v_10 = sub %v_7, 8: Ptr
+    %v_11 = loads %v_10, 8: I64
+    %v_12 = load @heapFree, 8: Ptr
+    %v_13 = shl %v_11, 3: I64
+    %v_14 = add %v_12, %v_13: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    store %v_7, %v_15, 8
+    store %v_14, %v_7, 8
+    jmp b_6
   }
 }
 

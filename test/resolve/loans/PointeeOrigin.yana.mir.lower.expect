@@ -11,22 +11,11 @@ Guard.drop<complex>(%v_0: I32) {
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 4: Ptr
-    %v_2 = imm 1: I32
-    store %v_1, %v_2, 4
-    %v_3 = add %v_1, 4: Ptr
-    store %v_3, 10, 4
-    %v_4 = add %v_1, 8: Ptr
-    store %v_4, 2, 4
-    %v_5 = add %v_1, 12: Ptr
-    store %v_5, 20, 4
-    call_complex Guard.drop, %v_2
-    %v_6 = add %v_1, 8: Ptr
-    %v_7 = load %v_6, 4: I32
-    call_complex Guard.drop, %v_7
-    %v_8 = loads @trace, 4: I32
-    %v_9 = add 31, %v_8: I32
-    ret %v_9
+    call_complex Guard.drop, 1
+    call_complex Guard.drop, 2
+    %v_1 = loads @trace, 4: I32
+    %v_2 = add 31, %v_1: I32
+    ret %v_2
   }
 }
 

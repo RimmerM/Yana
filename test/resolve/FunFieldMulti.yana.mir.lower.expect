@@ -54,18 +54,19 @@ main<complex>(): I32 {
     %v_12 = load %v_11, 8: Ptr
     %v_13 = call_complex %v_10, %v_12, 10: I32
     call_complex teardown(fun), %v_1
-    call_complex teardown(fun), %v_4
-    %v_14 = add %v_13, 100: I32
-    %v_15 = add %v_7, 80: I32
-    %v_16 = add %v_15, %v_14: I32
-    ret %v_16
+    %v_14 = add %v_1, 16: Ptr
+    call_complex teardown(fun), %v_14
+    %v_15 = add %v_13, 100: I32
+    %v_16 = add %v_7, 80: I32
+    %v_17 = add %v_16, %v_15: I32
+    ret %v_17
   }
 }
 
-funvalue(double)<complex>(%v_0: Ptr, %v_1: I32): I32 {
-  b_2 {
-    %v_3 = call_complex double, %v_1: I32
-    ret %v_3
+funvalue(double)<complex>(%v_0: I32): I32 {
+  b_1 {
+    %v_2 = call_complex double, %v_0: I32
+    ret %v_2
   }
 }
 

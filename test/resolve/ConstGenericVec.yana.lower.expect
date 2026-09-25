@@ -1,9 +1,9 @@
 @image$base = []
 mut @sink = [0, 0, 0, 0, 0, 0, 0, 0]
 
-quadWidth<complex>(%v: i16x4): I32 {
+quadWidth<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex widthOf(4), %v: I32
+    %v_1 = call_complex widthOf(4): I32
     ret %v_1
   }
 }
@@ -18,8 +18,8 @@ main$<complex>(): I32 {
     %v_3 = call_complex sameCount(4), %v, %wide: i16x4
     %summed = call_complex sameCount(4), %v_2, %v_3: i16x4
     store @sink, %wide, 8
-    %v_4 = call_complex widthOf(4), %v: I32
-    %v_5 = call_complex quadWidth, %v: I32
+    %v_4 = call_complex widthOf(4): I32
+    %v_5 = call_complex quadWidth: I32
     %v_6 = add %v_4, %v_5: I32
     %v_7 = call_complex secondLane(4), %wide: I32
     %v_8 = add %v_6, %v_7: I32
@@ -34,7 +34,7 @@ main$<complex>(): I32 {
   }
 }
 
-widthOf(4)<complex>(%v: i16x4): I32 {
+widthOf(4)<complex>(): I32 {
   b_0 {
     ret 4
   }

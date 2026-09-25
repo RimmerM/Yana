@@ -10,52 +10,50 @@ main<complex>(): I32 {
     %v_1 = load %constant$0, 8: I64
     %v_2 = add %constant$0, 8: Ptr
     %v_3 = load %v_2, 4: I32
-    %v_4 = add %constant$0, 12: Ptr
-    %v_5 = load %v_4, 4: I32
     %constant$1 = global @constant$1: Ptr
-    %v_6 = load %constant$1, 8: I64
-    %v_7 = add %constant$1, 8: Ptr
+    %v_4 = load %constant$1, 8: I64
+    %v_5 = add %constant$1, 8: Ptr
+    %v_6 = load %v_5, 4: I32
+    %v_7 = add %constant$1, 12: Ptr
     %v_8 = load %v_7, 4: I32
-    %v_9 = add %constant$1, 12: Ptr
-    %v_10 = load %v_9, 4: I32
-    call_complex String.reclaim, %v_1, %v_3, %v_5
-    %v_11 = sext %v_10: I64
-    call_complex String.reclaim, %v_6, %v_8, %v_10
-    %v_12 = sext %v_11: I32
-    %v_13 = add %v_12, 80: I32
-    %v_14 = add %v_13, 100: I32
-    %v_15 = add %v_14, 7: I32
-    ret %v_15
+    call_complex String.reclaim, %v_1, %v_3
+    %v_9 = sext %v_8: I64
+    call_complex String.reclaim, %v_4, %v_6
+    %v_10 = sext %v_9: I32
+    %v_11 = add %v_10, 80: I32
+    %v_12 = add %v_11, 100: I32
+    %v_13 = add %v_12, 7: I32
+    ret %v_13
   }
 }
 
-String.reclaim<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
-  b_3 {
-    %v_4 = shr %v_1, 30: I32
-    %v_5 = cmp_eq %v_4, 1: I32
-    je %v_5, b_6, b_7
+String.reclaim<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = shr %v_1, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = bitcast %v_0: Ptr
+    %v_8 = cmp_eq %v_0, 0: I32
+    je %v_8, b_6, b_9
   }
 
   b_6 {
-    %v_8 = bitcast %v_0: Ptr
-    %v_9 = cmp_eq %v_0, 0: I32
-    je %v_9, b_7, b_10
-  }
-
-  b_7 {
     ret 
   }
 
-  b_10 {
-    %v_11 = sub %v_8, 8: Ptr
-    %v_12 = loads %v_11, 8: I64
-    %v_13 = load @heapFree, 8: Ptr
-    %v_14 = shl %v_12, 3: I64
-    %v_15 = add %v_13, %v_14: Ptr
-    %v_16 = load %v_15, 8: Ptr
-    store %v_8, %v_16, 8
-    store %v_15, %v_8, 8
-    jmp b_7
+  b_9 {
+    %v_10 = sub %v_7, 8: Ptr
+    %v_11 = loads %v_10, 8: I64
+    %v_12 = load @heapFree, 8: Ptr
+    %v_13 = shl %v_11, 3: I64
+    %v_14 = add %v_12, %v_13: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    store %v_7, %v_15, 8
+    store %v_14, %v_7, 8
+    jmp b_6
   }
 }
 

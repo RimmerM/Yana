@@ -57,26 +57,42 @@ bb2(%0: I32 trivial):
   %29: I32 trivial = load inspect %2
   %30: I32 trivial = add inspect %0 inspect %29
   %31: String [shared call] guaranteed from{%3} = load inspect %3
-  %32: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %31
-  %33: Size trivial = call String.length borrow %32
-  drop String inspect %3
-  %34: I32 trivial = convert inspect %33
-  %35: I32 trivial = add inspect %30 inspect %34
-  %36: %I32 address = field.addr .x inspect %4
-  %37: I32 trivial = load inspect %36
-  %38: I32 trivial = add inspect %35 inspect %37
-  %39: %I32 address = field.addr .y inspect %4
-  %40: I32 trivial = load inspect %39
-  %41: I32 trivial = add inspect %38 inspect %40
-  %42: I32 trivial = load inspect %6
-  %43: I32 trivial = add inspect %41 inspect %42
-  %44: I32 trivial = load inspect %5
-  %45: I32 trivial = add inspect %43 inspect %44
-  return consume %45
+  jump -> bb4
 
 bb3:
-  %46: I32 trivial = const 1
-  jump -> bb2(consume %46)
+  %57: I32 trivial = const 1
+  jump -> bb2(consume %57)
+
+bb4:
+  %33: %Array(CodeUnit) address = field.addr .units inspect %31
+  %34: %Run(CodeUnit) address = field.addr .run inspect %33
+  %35: %%CodeUnit address = field.addr .items inspect %34
+  %36: %CodeUnit trivial = load inspect %35
+  %37: %Array(CodeUnit) address = field.addr .units inspect %31
+  %38: %@bits(30) U32 address = field.addr .length inspect %37
+  %39: @bits(30) U32 trivial = load inspect %38
+  %40: I32 trivial = convert inspect %39
+  %41: Size trivial = convert inspect %40
+  %42: StringView trivial = aggregate.StringView consume %36 consume %41
+  %43: String [shared slot 0 view] guaranteed = represent inspect %42
+  jump -> bb5(borrow %43)
+
+bb5(%32: String [shared slot 0 view] guaranteed from{%3}):
+  %44: Size trivial = call String.length borrow %32
+  drop String inspect %3
+  %45: I32 trivial = convert inspect %44
+  %46: I32 trivial = add inspect %30 inspect %45
+  %47: %I32 address = field.addr .x inspect %4
+  %48: I32 trivial = load inspect %47
+  %49: I32 trivial = add inspect %46 inspect %48
+  %50: %I32 address = field.addr .y inspect %4
+  %51: I32 trivial = load inspect %50
+  %52: I32 trivial = add inspect %49 inspect %51
+  %53: I32 trivial = load inspect %6
+  %54: I32 trivial = add inspect %52 inspect %53
+  %55: I32 trivial = load inspect %5
+  %56: I32 trivial = add inspect %54 inspect %55
+  return consume %56
 }
 
 fn put(Bool)(slot: Bool [unique call], value: Bool) -> {} {

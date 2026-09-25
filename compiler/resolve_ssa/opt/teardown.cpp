@@ -26,7 +26,12 @@
  *     flag test folds against the aggregate the caller built.
  *   - **a derived walk over a plain record** becomes one `drop` per field it descends into, which
  *     is `emitTeardown`'s own loop moved up a tier; each of those is then expanded in turn. This is
- *     what brings an `Array` held in a record to the first rule.
+ *     what brings an `Array` held in a record to the first rule - and since J172 it is done only
+ *     where this body assembled the record, which is where a field's teardown has something to
+ *     fold against (`expandFields`). Elsewhere the drop stays whole and the lowering calls the
+ *     record's own teardown.
+ *   - **a value moved out of storage only to be dropped** is dropped where it was
+ *     (`fuseMoveDrop`, J172) - an element in a container's reclaim.
  *
  * Everything else stays a `drop` and keeps its lowering: a sum (the walk is a branch on the tag, and
  * a call to the per-type function is what `emitTeardown` makes of it), a boxed field (the recursion
@@ -35,10 +40,12 @@
  * through the descriptor), and the one mixed shape - an authored half beside a derived one, whose
  * derived walk runs *one* half over the members, which no `drop` instruction can say.
  *
- * **Why before the inliner and not inside `optimizeBody`.** What the expansion buys is a call the
- * inliner can take, and `inlineCalls` runs once, in front of the per-body loop. A teardown member's
- * own body is expanded by the same walk, so a callee the inliner settles and copies has already had
- * its drops turned into calls - `Array(Array(I32))`'s reclaim reaches the inner one as a call.
+ * **Why before the inliner, and inside `optimizeBody` as well.** What the expansion buys is a call
+ * the inliner can take, and `inlineCalls` runs once, in front of the per-body loop. A teardown
+ * member's own body is expanded by the same walk, so a callee the inliner settles and copies has
+ * already had its drops turned into calls - `Array(Array(I32))`'s reclaim reaches the inner one as a
+ * call. The per-body run (`expandBuiltTeardowns`, J172) is for a record whose `Aggregate` a splice
+ * brought in: the settle behind the splice expands it, and the inliner's next round sees the calls.
  *
  * **Native only**, beside `flattenArguments` and for a reason of the same shape: a teardown on
  * JavaScript is `jsTeardownStep`'s answer, and it is not this one - `Reclaim` is nothing on a managed
@@ -58,20 +65,26 @@ namespace {
 struct TeardownExpander {
     OptContext& opt;
 
-    // `teardownMember` per (half, type), because every drop of an `Array(I32)` in the program asks
-    // the same question and the answer is an instance search.
-    HashMap<U64, DeclPtr<mir::Function>> members;
+    // A drop still to be expanded, and what this body built in its storage - the `Aggregate` or
+    // `Const` `builtContents` found, and null where nothing was found. See `expandFields`.
+    struct Pending {
+        Inst* drop;
+        Value* contents;
 
-    SmallArray<Inst*, 16> work;
+        // Whether the storage is one `writtenHere` says this body filled with its own stores, which
+        // a field drop made from it inherits: it is the same storage one projection down.
+        bool written;
+    };
 
+    SmallArray<Pending, 16> work;
 
     DeclPtr<mir::Function> memberFor(intrinsic::Known klass, DeclPtr<mir::Type> type,
                                      LocationId source) {
         auto key = (U64(type.offset) << 8) | U64(klass);
-        if(auto found = members.getValue(key)) return found.unwrap();
+        if(auto found = opt.teardownMembers.getValue(key)) return found.unwrap();
 
         auto member = mir::teardownMember(opt.context, opt.program, klass, type, source);
-        *members.add(key).value = member;
+        *opt.teardownMembers.add(key).value = member;
         return member;
     }
 
@@ -144,10 +157,63 @@ struct TeardownExpander {
         return true;
     }
 
-    // The derived rule over a plain record: one `drop` per field `emitTeardown` would descend into.
-    bool expandFields(InstDrop& drop) {
+    /*
+     * The component a field of a built record holds, where it is itself built - an `Aggregate` or a
+     * `Const` - and null otherwise. Read off the `Aggregate` rather than through `builtContents`,
+     * because that walk asks `Contained`, and the body has already been edited by the time a field
+     * drop is expanded: the answer would be recomputed per field. A component that is a `load` is
+     * one this does not chase, and its drop stays whole.
+     */
+    Value* componentAt(Value* contents, U16 index) {
+        if(!contents || !contents->definer) return nullptr;
+
+        auto definer = opt.base[contents->definer];
+        if(definer->kind != Inst::Aggregate) return nullptr;
+
+        auto& built = (InstAggregate&)*definer;
+        if(built.constructor != 0 || index >= built.components.size()) return nullptr;
+
+        auto used = built.components.get(opt.base, index);
+        if(!used.isSet()) return nullptr;
+
+        auto component = opt.base[used.value()];
+        if(!component->definer) return nullptr;
+
+        auto kind = opt.base[component->definer]->kind;
+        return kind == Inst::Aggregate || kind == Inst::Const ? component : nullptr;
+    }
+
+    /*
+     * The derived rule over a plain record: one `drop` per field `emitTeardown` would descend into -
+     * **where this body built the record**, and nowhere else (J172).
+     *
+     * J137 expanded every such drop, so that a record assembled here folds: a literal's
+     * `String.reclaim` tests a flag the aggregate set, and the field's drop is nothing once the load
+     * is answered from the component. That is the whole of what the expansion buys, and it needs
+     * the component. Where the record arrived from somewhere else - a call's result slot, a field of
+     * `self`, an element - the expansion bought nothing and wrote the walk out at every drop:
+     * twelve bytes a field, which J171's `shareTeardownRuns` then had to find again at the lower
+     * tier and put back into one function. So the drop now stays whole there, and the lowering
+     * calls the record's own teardown (`Lowering::teardownHalves`) - one call handed the address,
+     * which is the per-type function by construction rather than by recognition.
+     *
+     * "Built here" is either of two answers about the storage. `contents` is `builtContents`': the
+     * one `Aggregate` or constant the slot holds for the whole body, and a field's contents are the
+     * component that `Aggregate` holds. `written` is `writtenHere`'s: every store into the slot is
+     * this body's and says what it wrote, which catches a record assembled field by field or lent
+     * to a callee that only reads it - the shapes `soleContents` refuses and `forwardMemory` still
+     * answers a field's load in. A slot a call's result was stored into, or that a callee writes
+     * through, is neither. Asked here and in the per-body loop (`expandBuiltTeardowns`), so a
+     * record an inlined callee built is expanded after the splice that brought its `Aggregate` in.
+     *
+     * Measured over `test/base` against expanding every drop: 5.0 KB smaller at the default level
+     * together with the lowering's half (`sharesRecordTeardown`), and the corpus's lowering goldens
+     * 0.9884x -> 0.9867x of the shipping stage's.
+     */
+    bool expandFields(InstDrop& drop, Value* contents, bool written) {
         auto type = drop.held.type;
         if(opt.decl[type]->kind != mir::Type::Record) return false;
+        if(!contents && !written) return false;
 
         auto& record = *(mir::RecordType*)opt.decl[type];
         if(record.layout != mir::RecordLayout::Single) return false;
@@ -186,7 +252,7 @@ struct TeardownExpander {
             auto made = editor.addDrop(drop.source,
                                        editor.use(*editor.resultOf(*address), UseKind::Inspect),
                                        mir::owned(field.occurrence.type), drop.boxesVisible);
-            work.push(made);
+            work.push(Pending { made, componentAt(contents, index), written });
         }
 
         editor.eraseInst(drop);
@@ -213,7 +279,7 @@ struct TeardownExpander {
         return holdsNothingOwed(opt, contained, *root);
     }
 
-    void expand(InstDrop& drop) {
+    void expand(InstDrop& drop, Value* contents, bool written) {
         auto type = drop.held.type;
         if(opt.decl[type]->kind == mir::Type::Variable) return;
 
@@ -225,7 +291,55 @@ struct TeardownExpander {
             return;
         }
 
-        expandFields(drop);
+        expandFields(drop, contents, written);
+    }
+
+    /*
+     * A value moved out of storage only to be dropped, dropped where it was - J172.
+     *
+     * `let ->doomed = *(value.run.items + i)` in `Reclaim(Array(a))` is a take out of the element, a
+     * store into the local, and the local's drop at the end of the iteration, three instructions in
+     * a row. Where the element is a record in memory that is a copy of the whole element into a
+     * frame temporary - `Array(a).reclaim(Case)` moved 89 bytes per element - and the temporary is
+     * what the teardown then reads. The lower tier cannot take the copy away, since the calls the
+     * teardown makes are calls, and nothing there says what they may write.
+     *
+     * Dropping the element where it is ends the same life at the same point: the take leaves the
+     * element's storage empty, and so does the drop, and between the three nothing else runs. The
+     * local then has no use left and `removeDeadStorage` takes it.
+     */
+    bool fuseMoveDrop(Block& block, Size index) {
+        if(index < 2) return false;
+
+        auto drop = opt.base[block.instructionAt(opt.base, index)];
+        auto store = opt.base[block.instructionAt(opt.base, index - 1)];
+        auto load = opt.base[block.instructionAt(opt.base, index - 2)];
+        if(drop->kind != Inst::Drop || store->kind != Inst::Store || load->kind != Inst::Load) return false;
+
+        auto& dropped = (InstDrop&)*drop;
+        auto& written = (InstStore&)*store;
+        auto& taken = (InstLoad&)*load;
+        if(written.isVolatile || taken.isVolatile || !load->results.size()) return false;
+
+        auto slot = opt.base[dropped.address.value()];
+        if(opt.base[written.address.value()] != slot) return false;
+        if(!slot->definer || opt.base[slot->definer]->kind != Inst::Alloc) return false;
+
+        auto value = opt.base[load->results.get(opt.base, 0)];
+        if(opt.base[written.value.value()] != value || !isTracked(value->convention)) return false;
+        if(!mir::sameType(value->occurrence.type, dropped.held.type)) return false;
+
+        if(value->useCount() != 1 || slot->useCount() != 2) return false;
+
+        auto editor = opt.ir();
+        editor.setInsertBefore(*drop);
+        editor.addDrop(drop->source, taken.address.withKind(UseKind::Inspect), dropped.held,
+                       dropped.boxesVisible);
+
+        editor.eraseInst(*drop);
+        editor.eraseInst(*store);
+        editor.eraseInst(*load);
+        return true;
     }
 
     void run() {
@@ -235,38 +349,60 @@ struct TeardownExpander {
             auto block = opt.base[pointer];
             if(block->deleted) continue;
 
-            for(Size i = 0; i < block->instructionCount(); i++) {
-                auto inst = opt.base[block->instructionAt(opt.base, i)];
-                if(inst->kind == Inst::Drop) work.push(inst);
+            for(Size i = 2; i < block->instructionCount(); i++) {
+                if(fuseMoveDrop(*block, i)) i -= 2;
             }
         }
+
+        for(auto pointer: opt.body->blocks.contents(opt.base)) {
+            auto block = opt.base[pointer];
+            if(block->deleted) continue;
+
+            for(Size i = 0; i < block->instructionCount(); i++) {
+                auto inst = opt.base[block->instructionAt(opt.base, i)];
+                if(inst->kind == Inst::Drop) work.push(Pending { inst, nullptr, false });
+            }
+        }
+
+        if(!work.size()) return;
 
         /*
          * The drops of a constant whose teardown is nothing are settled first, against the body as
          * it arrived, and erased together: the answer is about the slot's root, which a field drop
          * made below shares with the drop it came from, so asking before any rewrite is asking
          * every drop - and it keeps `Contained` from being read across edits that add values.
+         *
+         * What each remaining drop's storage was built from is asked in the same sweep and for the
+         * same reason: `builtContents` reads `Contained`, and the first rewrite below makes it stale.
          */
-        if(work.size()) {
-            auto& contained = containedOf(opt);
-            SmallArray<Inst*, 16> erased;
+        auto& contained = containedOf(opt);
+        SmallArray<Inst*, 16> erased;
 
-            Size kept = 0;
-            for(Size i = 0; i < work.size(); i++) {
-                if(erasesNothing((InstDrop&)*work[i], contained)) erased.push(work[i]);
-                else work[kept++] = work[i];
+        Size kept = 0;
+        for(Size i = 0; i < work.size(); i++) {
+            auto& drop = (InstDrop&)*work[i].drop;
+            if(erasesNothing(drop, contained)) {
+                erased.push(work[i].drop);
+                continue;
             }
 
-            while(work.size() > kept) work.pop();
-            for(auto inst: erased) opt.ir().eraseInst(*inst);
+            auto address = opt.base[drop.address.value()];
+            work[i].contents = builtContents(opt, address, 0);
+
+            auto root = allocationRoot(opt, address);
+            work[i].written = root && writtenHere(opt, *root);
+            work[kept++] = work[i];
         }
+
+        while(work.size() > kept) work.pop();
+        for(auto inst: erased) opt.ir().eraseInst(*inst);
 
         // A field drop made here is pushed and expanded in turn, so a record holding a record
         // holding an `Array` reaches the array's reclaim.
         while(work.size()) {
-            auto inst = work[work.size() - 1];
+            auto pending = work[work.size() - 1];
             work.pop();
-            expand((InstDrop&)*inst);
+            expand((InstDrop&)*pending.drop, pending.contents, pending.written);
         }
     }
 };
@@ -311,6 +447,85 @@ void expandTeardowns(OptContext& opt) {
             checkpoint(opt, "after expandTeardowns"_v);
         }
     }
+}
+
+void expandBuiltTeardowns(OptContext& opt) {
+    if(isJsMode(opt.context.settings)) return;
+
+    TeardownExpander expander { opt };
+    expander.run();
+
+    /*
+     * And a teardown call whose subject owes nothing, which the expansion above leaves wherever a
+     * field's component is a literal. The inliner erases these at the sites it visits
+     * (`eraseInertTeardown`); a record whose `Aggregate` only became visible in this loop - behind
+     * the inliner's last round - reaches the call here instead.
+     */
+    SmallArray<InstCall*, 16> calls;
+    for(auto pointer: opt.body->blocks.contents(opt.base)) {
+        auto block = opt.base[pointer];
+        if(block->deleted) continue;
+
+        for(auto instPointer: block->instructions(opt.base)) {
+            auto inst = opt.base[instPointer];
+            if(inst->kind != Inst::Call) continue;
+
+            auto& call = (InstCall&)*inst;
+            if(call.through != mir::CallThrough::Declaration || !call.callee) continue;
+            if(opt.decl[call.callee]->teardown) calls.push(&call);
+        }
+    }
+
+    for(auto call: calls) eraseInertTeardown(opt, *call);
+}
+
+/*
+ * A teardown call whose subject this site can name, and whose end runs nothing - erased with the
+ * read that handed the subject over, rather than copied or kept. J138; the inliner's until J172,
+ * which moved it here for `expandBuiltTeardowns` to ask as well.
+ *
+ * `builtContents` is exact where it answers: every step is a slot `aggregateFillOf` says nothing but
+ * its fill writes, so what the read hands over is the component the fill built. `owesNothing` then
+ * says the teardown has nothing to do. It is `@caller`'s `Site` that this is for: `check` drops its
+ * `at`, the drop is a `String.reclaim` of each literal in it after `expandTeardowns`, and copied into
+ * a caller that built the `Site` those were releases of two literals - tested at run time through a
+ * flag the forwarding does not reach, at every assertion in the program.
+ */
+static bool literalSlotRead(OptContext& opt, Inst& read) {
+    if(read.kind != Inst::Load) return false;
+
+    auto address = opt.base[((InstLoad&)read).address.value()];
+    return constantHeldBy(opt, containedOf(opt), *address).isSet();
+}
+
+bool eraseInertTeardown(OptContext& opt, InstCall& call) {
+    if(call.arguments.size() != 1) return false;
+
+    for(auto resultPointer: call.results.contents(opt.base)) {
+        if(opt.base[resultPointer]->useCount()) return false;
+    }
+
+    auto used = call.arguments.get(opt.base, 0);
+    if(!used.isSet()) return false;
+
+    auto argument = opt.base[used.value()];
+    if(!isTracked(argument->convention) || !argument->definer) return false;
+
+    if(argument->useCount() != 1) return false;
+
+    auto definer = opt.base[argument->definer];
+    if(definer->kind == Inst::Load && ((InstLoad*)definer)->isVolatile) return false;
+    if(definer->kind != Inst::Load && definer->kind != Inst::Const) return false;
+
+    // Or a read of a slot holding a literal, which `builtContents` leaves to the table because its
+    // question costs a scan of the body - asked here, of the one slot, where it pays.
+    auto contents = builtContents(opt, argument, 0);
+    if(contents ? !owesNothing(opt, *contents, 0) : !literalSlotRead(opt, *definer)) return false;
+
+    auto editor = opt.ir();
+    editor.eraseInst(call);
+    editor.eraseInst(*definer);
+    return true;
 }
 
 } // namespace ssa

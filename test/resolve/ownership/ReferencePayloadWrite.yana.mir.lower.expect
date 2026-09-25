@@ -13,17 +13,16 @@ main<complex>(): I32 {
   }
 
   b_4 {
-    %v_7 = loads %v_1, 4: I32
-    %v_8 = add %v_7, 37: I32
-    store %v_1, %v_8, 4
+    %v_7 = imm 42: I32
+    store %v_1, %v_7, 4
     jmp b_6
   }
 
   b_6 {
-    %v_9 = phi [b_5, 0], [b_4, %v_8]: I32
-    %v_10 = loads %v_1, 4: I32
-    %v_11 = add %v_9, %v_10: I32
-    ret %v_11
+    %v_8 = phi [b_5, 0], [b_4, %v_7]: I32
+    %v_9 = loads %v_1, 4: I32
+    %v_10 = add %v_8, %v_9: I32
+    ret %v_10
   }
 }
 

@@ -117,107 +117,105 @@ main<complex>(): I32 {
     store %v_3, 4, 4
     %v_4 = add %xs, 16: Ptr
     store %v_4, 4, 4
-    %v_5 = bitcast 0: Ptr
     %xs = alloca 16, 8: Ptr
     store %xs, %xs, 8
-    %v_6 = add %xs, 8: Ptr
-    store %v_6, 4, 8
-    %v_7 = call_complex ResolveTest.continuation$24, %v_5, %xs: I32
+    %v_5 = add %xs, 8: Ptr
+    store %v_5, 4, 8
+    %v_6 = call_complex ResolveTest.continuation$24, %xs: I32
     call_complex teardown$@inline(4) @capacity(4) Array(I32), %xs
-    %v_8 = alloca 20, 4: Ptr
-    store %v_8, 1, 4
-    %v_9 = add %v_8, 4: Ptr
-    store %v_9, 2, 4
-    %v_10 = add %v_8, 8: Ptr
-    store %v_10, 3, 4
-    %v_11 = add %v_8, 12: Ptr
+    %v_7 = alloca 20, 4: Ptr
+    store %v_7, 1, 4
+    %v_8 = add %v_7, 4: Ptr
+    store %v_8, 2, 4
+    %v_9 = add %v_7, 8: Ptr
+    store %v_9, 3, 4
+    %v_10 = add %v_7, 12: Ptr
+    store %v_10, 4, 4
+    %v_11 = add %v_7, 16: Ptr
     store %v_11, 4, 4
-    %v_12 = add %v_8, 16: Ptr
-    store %v_12, 4, 4
-    %v_13 = alloca 16, 8: Ptr
-    store %v_13, %v_8, 8
-    %v_14 = add %v_13, 8: Ptr
-    store %v_14, 4, 8
-    %v_15 = bitcast 0: Ptr
-    %v_16 = call_complex ResolveTest.continuation$23, %v_15, %v_13: I32
-    %v_17 = vsplat 0: i32x4
-    %v_18 = add %v_8, 16: Ptr
-    %v_19 = load %v_18, 4: I32
-    %v_20 = cast %v_19: I64
-    %v_21 = imm 4: I64
-    %last = sub %v_20, %v_21: I64
-    jmp b_22
+    %v_12 = alloca 16, 8: Ptr
+    store %v_12, %v_7, 8
+    %v_13 = add %v_12, 8: Ptr
+    store %v_13, 4, 8
+    %v_14 = call_complex ResolveTest.continuation$23, %v_12: I32
+    %v_15 = vsplat 0: i32x4
+    %v_16 = add %v_7, 16: Ptr
+    %v_17 = load %v_16, 4: I32
+    %v_18 = cast %v_17: I64
+    %v_19 = imm 4: I64
+    %last = sub %v_18, %v_19: I64
+    jmp b_20
   }
 
-  b_22 {
-    %v_23 = phi [b_0, %v_17], [b_24, %v_25]: i32x4
-    %v_26 = phi [b_0, 0], [b_24, %v_27]: I64
-    %v_28 = cmp_ile %v_26, %last: I32
-    je %v_28, b_24, b_29
+  b_20 {
+    %v_21 = phi [b_0, %v_15], [b_22, %v_23]: i32x4
+    %v_24 = phi [b_0, 0], [b_22, %v_25]: I64
+    %v_26 = cmp_ile %v_24, %last: I32
+    je %v_26, b_22, b_27
+  }
+
+  b_27 {
+    %v_28 = cmp_ilt %v_24, %v_18: I32
+    je %v_28, b_29, b_30
   }
 
   b_29 {
-    %v_30 = cmp_ilt %v_26, %v_20: I32
-    je %v_30, b_31, b_32
+    %v_31 = sub %v_18, %v_24: I64
+    %v_32 = cast %v_31: I32
+    %v_33 = vwithlane %v_15, 1, 1: i32x4
+    %v_34 = vwithlane %v_33, 2, 2: i32x4
+    %v_35 = vwithlane %v_34, 3, 3: i32x4
+    %v_36 = vsplat %v_32: i32x4
+    %live = cmp_ilt %v_35, %v_36: m32x4
+    %v_37 = shl %v_24, 2: I64
+    %v_38 = add %v_7, %v_37: Ptr
+    %v_39 = loadx %v_38, 16: i32x4
+    %v_40 = select %live, %v_39, %v_15: i32x4
+    %v_41 = add %v_21, %v_40: i32x4
+    jmp b_30
   }
 
-  b_31 {
-    %v_33 = sub %v_20, %v_26: I64
-    %v_34 = cast %v_33: I32
-    %v_35 = vwithlane %v_17, 1, 1: i32x4
-    %v_36 = vwithlane %v_35, 2, 2: i32x4
-    %v_37 = vwithlane %v_36, 3, 3: i32x4
-    %v_38 = vsplat %v_34: i32x4
-    %live = cmp_ilt %v_37, %v_38: m32x4
-    %v_39 = shl %v_26, 2: I64
-    %v_40 = add %v_8, %v_39: Ptr
-    %v_41 = loadx %v_40, 16: i32x4
-    %v_42 = select %live, %v_41, %v_17: i32x4
-    %v_43 = add %v_23, %v_42: i32x4
-    jmp b_32
-  }
-
-  b_32 {
-    %v_44 = phi [b_29, %v_23], [b_31, %v_43]: i32x4
-    %v_45 = vreduce_add %v_44: I32
-    call_complex teardown$@inline(4) @capacity(4) Array(I32), %v_8
-    %v_46 = add %v_16, %v_45: I32
-    %v_47 = add %v_7, %v_46: I32
-    %v_48 = alloca 16, 8: Ptr
-    %v_49 = alloca 12, 4: Ptr
-    store %v_48, %v_49, 8
-    %v_50 = add %v_48, 8: Ptr
+  b_30 {
+    %v_42 = phi [b_27, %v_21], [b_29, %v_41]: i32x4
+    %v_43 = vreduce_add %v_42: I32
+    call_complex teardown$@inline(4) @capacity(4) Array(I32), %v_7
+    %v_44 = add %v_14, %v_43: I32
+    %v_45 = add %v_6, %v_44: I32
+    %v_46 = alloca 16, 8: Ptr
+    %v_47 = alloca 12, 4: Ptr
+    store %v_46, %v_47, 8
+    %v_48 = add %v_46, 8: Ptr
+    store %v_48, 3, 4
+    store %v_47, 1, 4
+    %v_49 = add %v_47, 4: Ptr
+    store %v_49, 2, 4
+    %v_50 = add %v_47, 8: Ptr
     store %v_50, 3, 4
-    store %v_49, 1, 4
-    %v_51 = add %v_49, 4: Ptr
-    store %v_51, 2, 4
-    %v_52 = add %v_49, 8: Ptr
-    store %v_52, 3, 4
-    %v_53 = add %v_48, 12: Ptr
-    store %v_53, 3, 4
-    %v_54 = alloca 8, 8: Ptr
-    store %v_54, %v_48, 8
-    %v_55 = alloca 16, 8: Ptr
-    store %v_55, ResolveTest.continuation$25, 8
-    %v_56 = add %v_55, 8: Ptr
-    store %v_56, %v_54, 8
-    %v_57 = call_complex bumpOne(I32), %v_49, %v_55: I32
-    call_complex Reclaim(Array(a)).reclaim(I32), %v_48
-    %v_58 = add %v_47, %v_57: I32
-    ret %v_58
+    %v_51 = add %v_46, 12: Ptr
+    store %v_51, 3, 4
+    %v_52 = alloca 8, 8: Ptr
+    store %v_52, %v_46, 8
+    %v_53 = alloca 16, 8: Ptr
+    store %v_53, ResolveTest.continuation$25, 8
+    %v_54 = add %v_53, 8: Ptr
+    store %v_54, %v_52, 8
+    %v_55 = call_complex bumpOne(I32), %v_47, %v_53: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_46
+    %v_56 = add %v_45, %v_55: I32
+    ret %v_56
   }
 
-  b_24 {
-    %v_59 = shl %v_26, 2: I64
-    %v_60 = add %v_8, %v_59: Ptr
-    %v_61 = load %v_60, 16: i32x4
-    %v_25 = add %v_23, %v_61: i32x4
-    %v_27 = add %v_26, %v_21: I64
-    jmp b_22
+  b_22 {
+    %v_57 = shl %v_24, 2: I64
+    %v_58 = add %v_7, %v_57: Ptr
+    %v_59 = load %v_58, 16: i32x4
+    %v_23 = add %v_21, %v_59: i32x4
+    %v_25 = add %v_24, %v_19: I64
+    jmp b_20
   }
 }
 
-ResolveTest.continuation$23<complex>(%env: Ptr, %value$: Ptr): I32 {
+ResolveTest.continuation$23<complex>(%value$: Ptr): I32 {
   b_0 {
     %v_1 = add %value$, 8: Ptr
     %v_2 = loads %v_1, 8: I64
@@ -240,7 +238,7 @@ ResolveTest.continuation$23<complex>(%env: Ptr, %value$: Ptr): I32 {
   }
 }
 
-ResolveTest.continuation$24<complex>(%env: Ptr, %value$: Ptr): I32 {
+ResolveTest.continuation$24<complex>(%value$: Ptr): I32 {
   b_0 {
     %xs$items = load %value$, 8: Ptr
     %v_1 = add %value$, 8: Ptr
