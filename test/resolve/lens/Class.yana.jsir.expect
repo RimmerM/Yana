@@ -87,32 +87,7 @@ fn main() -> one %r0
   var $8: %r0
   block0:
     %6: %r0 = const 2
-    %7: %r0 = alias %6
-    %19: %r0 = const 11
-    %20: %r0 = alias %7
-    %21: %r0 = alias %20
-    %24: %r0 = const 2
-    %25: %r0 = binary.mul %21, %24
-    %26: %r0 = coerce %25
-    %27: %r0 = binary.add %19, %26
-    %28: %r0 = coerce %27
-    %31: %r0 = const 6
-    %32: %r0 = alias %31
-    %33: %r0 = const 2
-    %34: %r0 = binary.mul %32, %33
-    %35: %r0 = coerce %34
-    %36: %r0 = binary.add %28, %35
-    %37: %r0 = coerce %36
-    %38: %r0 = alias %7
-    %39: %r0 = alias %38
-    %42: %r0 = const 2
-    %43: %r0 = binary.mul %39, %42
-    %44: %r0 = coerce %43
-    %45: %r0 = const 1
-    %46: %r0 = binary.add %44, %45
-    %47: %r0 = coerce %46
-    %48: %r0 = binary.add %37, %47
-    %49: %r0 = coerce %48
+    %49: %r0 = const 32
     %50: %r0 = const 0
     %51: %r0 = const 4
     %52: %r0 = alias %51
@@ -125,6 +100,7 @@ fn main() -> one %r0
   block2:
     %56: %r0 = binary.add %49, %1
     %57: %r0 = coerce %56
+    %7: %r0 = alias %6
     %58: %r0 = alias %7
     %59: %r0 = alias %58
     %60: %r0 = const 0
@@ -144,13 +120,8 @@ fn main() -> one %r0
   block5(%2: %r0):
     %84: %r0 = binary.add %66, %2
     %85: %r0 = coerce %84
-    %91: %r0 = const 0
     %93: %r0 = const 5
-    %94: %r3 = const 1
-    %98: %r3 = alias %94
-    %99: %r3 = const 1
-    %100: %r9 = binary.eq %98, %99
-    branch %100 -> block6 -> block7(%91)
+    jump -> block6
   block6:
     %102: %r0 = alias %93
     jump -> block7(%102)
@@ -195,12 +166,7 @@ fn main() -> one %r0
     %65: %r0 = binary.add %57, %5
     %66: %r0 = coerce %65
     %73: %r0 = const 21
-    %75: %r3 = const 0
-    %76: %r0 = const 0
-    %79: %r3 = alias %75
-    %80: %r3 = const 1
-    %81: %r9 = binary.eq %79, %80
-    branch %81 -> block4 -> block5(%73)
+    jump -> block5(%73)
 
 fn deferredSkip(Gate)(one %r0) -> one %r0
   var $0: %r4
@@ -299,7 +265,7 @@ fn erasedIter.cont(one %r7, one %r0) -> one %r0 env
     %7: %r0 = const 0
     return %7
 
-optimizer clones 0 aliased 0 forwarded 0 removed 62 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 10
+optimizer clones 0 aliased 0 forwarded 0 removed 96 adopted 0 sunk 0 numbered 0 decided 2 unboxed 0 updated 0 split 2 promoted 10 folded 16
 
 shape %s0 fun {$c: %r1 code, $e: %r1 env}
 shape %s1 object Outcome {$tag: %r3 tag, Proceed: %r0, Exit: %r0}

@@ -13,55 +13,39 @@ main<complex>(): I32 {
   }
 
   b_9 {
-    %v_10 = alloca 8, 4: Ptr
-    store %v_10, 1, 1
-    jmp b_11
+    jmp b_10
   }
 
   b_8 {
-    %v_12 = alloca 8, 4: Ptr
-    store %v_12, 0, 1
-    %v_13 = add %v_12, 4: Ptr
-    store %v_13, %v_2, 4
-    jmp b_11
+    jmp b_10
   }
 
-  b_11 {
-    %v_14 = phi [b_9, %v_10], [b_8, %v_12]: Ptr
-    %v_15 = load %v_14, 1: I32
-    %v_16 = add %v_14, 4: Ptr
-    %v_17 = load %v_16, 4: I32
-    %v_18 = cmp_eq %v_15, 0: I32
-    je %v_18, b_19, b_20
+  b_10 {
+    %v_11 = phi [b_9, 1], [b_8, 0]: I32
+    %v_12 = phi [b_9, 0], [b_8, %v_2]: I32
+    je %v_11, b_13, b_14
   }
 
-  b_19 {
-    %v_21 = cmp_igt %v_17, 2: I32
-    je %v_21, b_3, b_20
+  b_14 {
+    %v_15 = cmp_igt %v_12, 2: I32
+    je %v_15, b_3, b_13
   }
 
-  b_20 {
-    %v_22 = cmp_eq %v_5, 7: I32
-    %v_23 = select %v_22, 4095, 2047: I32
-    %v_24 = loads @trace, 4: I32
-    %v_25 = add %v_24, 1: I32
-    store @trace, %v_25, 4
-    %v_26 = loads @trace, 4: I32
-    %v_27 = add %v_26, 2: I32
-    store @trace, %v_27, 4
-    %v_28 = loads @trace, 4: I32
-    %v_29 = add %v_28, 4: I32
-    store @trace, %v_29, 4
-    %v_30 = add %v_23, 126976: I32
-    %v_31 = loads @trace, 4: I32
-    %v_32 = cmp_eq %v_31, 7: I32
-    %v_33 = add %v_23, 258048: I32
-    %v_34 = select %v_32, %v_33, %v_30: I32
-    ret %v_34
+  b_13 {
+    %v_16 = cmp_eq %v_5, 7: I32
+    %v_17 = select %v_16, 4095, 2047: I32
+    %v_18 = loads @trace, 4: I32
+    %v_19 = add %v_18, 7: I32
+    store @trace, %v_19, 4
+    %v_20 = add %v_17, 126976: I32
+    %v_21 = cmp_eq %v_19, 7: I32
+    %v_22 = add %v_17, 258048: I32
+    %v_23 = select %v_21, %v_22, %v_20: I32
+    ret %v_23
   }
 
   b_3 {
-    %v_6 = add %v_5, %v_17: I32
+    %v_6 = add %v_5, %v_12: I32
     %v_4 = sub %v_2, 1: I32
     jmp b_1
   }

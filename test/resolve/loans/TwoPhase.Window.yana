@@ -1,0 +1,87 @@
+{-
+   The argument lists `TwoPhase.yana` could not reach - through a window, a dot call, a lens call
+   and a branch among the later arguments (J140).
+
+   # resolver: ownership
+
+   `doc/spec/ownership.md`, "Borrows at a call": an exclusive loan taken for an argument is reserved
+   where the argument is evaluated and activated at the call, and between the two a later argument
+   may read what it reserved. `TwoPhase.yana` is the plain shape; each function below is one the
+   checker refused while the rule was already built, because something other than the call was
+   read as the activation.
+
+   `Reject.TwoPhase.yana` is what stays refused, and `Recursive.Borrow.yana` and `Words.yana` are
+   the two corpus fixtures that were this line.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+fn size(g: Guard) -> I32 = g.id
+fn bump(&g: Guard, by: I32, extra: I32): g.id = g.id + by + extra
+
+-- A nested exclusive loan that ends inside the argument: harmless against the address of `g`.
+fn grow(&g: Guard) -> I32:
+    g.id = g.id + 10
+    return g.id
+
+fn setAt(&xs: [I32], at: I32, v: I32): xs[at] = v
+
+fn total(xs: [I32]) -> I32:
+    let &sum = 0 :: I32
+    for x in items(xs):
+        sum += x
+    return sum
+
+-- `&xs: [I32]` is a window, and the derivation that turns the owner into one sat between the read
+-- and the call. It was the first thing naming the read, so it was taken for the activation.
+fn window(&xs: Array(I32)) -> I32:
+    setAt(xs, 0, truncate(length(xs)))
+    setAt(xs, 1, total(xs) - xs[2])
+    return xs[0] * 100 + xs[1]
+
+-- The same line through a dot call over the owner, `push(&self, ->item)`.
+fn dotCall(&xs: Array(I32)) -> I32:
+    xs.push(truncate(length(xs)))
+    xs.push(xs[0] + xs[3])
+    return total(xs)
+
+-- A lens call's arguments are an argument list like any other.
+lens fn at(&xs: [I32], i: I32):
+    xs[i] = xs[i] + 1000
+    yield {}
+
+fn lensCall(&xs: Array(I32)) -> I32:
+    at(xs, truncate(length(xs)) - 1):
+        trace = trace + 0
+    return xs[length(xs) - 1]
+
+-- A branch among the later arguments: the activation is in the block after it, and `size(g)`'s
+-- loan is dead before the block ends.
+fn branch(&g: Guard, c: Bool) -> I32:
+    bump(g, size(g), if c then 1 else 2)
+    return g.id
+
+-- A nested exclusive loan of the storage itself, which the callee sees after it.
+fn nested(&g: Guard) -> I32:
+    bump(g, grow(g), 0)
+    return g.id
+
+fn main() -> I32:
+    let &xs = [5 :: I32, 3, 9]
+    let w = window(xs)                  -- xs = [3, 6, 9]: 306
+    let d = dotCall(xs)                 -- xs = [3, 6, 9, 3, 6]: 27
+    let l = lensCall(xs)                -- xs[4] = 1006
+
+    let &g = Guard {id: 4}
+    let b = branch(g, True)             -- 4 + 4 + 1 = 9
+    let n = nested(g)                   -- 19 + 19 = 38
+
+    -- 306 + 27 + 1006 + 9 + 38, and `trace` is 38 too: `g` is torn down after its last use, which
+    -- is `nested(g)`. 1424.
+    return w + d + l + b + n + trace

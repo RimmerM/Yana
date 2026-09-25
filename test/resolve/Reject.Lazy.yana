@@ -57,8 +57,7 @@ fn forwardAndForce(@lazy value: Int) -> Int = value + once(True, value)
 fn captured(@lazy value: Int) -> (() -> Int) = () -> value
 
 --
--- The second, `once(True, value + 1)`, is `Reject.Lazy.Legacy.yana`: the new stage
--- refuses it, but as a missing `FromInt(() -> I32)` rather than as a capture.
+-- The second, `once(True, value + 1)`, is `wrapped` at the end of this file (since J135).
 
 -- Reading the parameter is an effect, not a place: there is nothing to assign to.
 fn assigned(@lazy value: Int) -> Int:
@@ -124,3 +123,8 @@ fn (Eq(a)) inGeneric(x: a, y: a) -> Int = once(x == y, 1)
 fn (Truth(a), Truth(b)) userAnd(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then truthy(rhs) else False
 
 fn (Truth(a)) callsUserAnd(x: a, y: Bool) -> Bool = userAnd(x, y)
+
+-- Since J135, which enforces these in the new stage; they were `Reject.Lazy.Legacy.yana`.
+-- A `@lazy` parameter handed into another deferred argument inside an expression is a capture,
+-- because the inner thunk would hold the outer one.
+fn wrapped(@lazy value: Int) -> Int = once(True, value + 1)

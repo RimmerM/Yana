@@ -16,12 +16,12 @@ Guard.drop<complex>(%v_0: I32) {
 main<complex>(): I32 {
   b_0 {
     %v_1 = call_complex allocateHeap, 4: Ptr
-    %v_2 = imm 1: I32
-    %v_3 = loads @live, 4: I32
-    %v_4 = add %v_3, 1: I32
+    %v_2 = loads @live, 4: I32
+    %v_3 = add %v_2, 1: I32
+    store @live, %v_3, 4
+    store %v_1, 1, 4
+    %v_4 = sub %v_3, 1: I32
     store @live, %v_4, 4
-    store %v_1, %v_2, 4
-    call_complex Guard.drop, %v_2
     call_complex freeHeap, %v_1
     %v_5 = loads @live, 4: I32
     %v_6 = cmp_neq %v_5, 0: I32
@@ -31,104 +31,101 @@ main<complex>(): I32 {
   b_8 {
     %v_9 = load @heapNext, 8: Ptr
     %v_10 = bitcast %v_9: I64
-    %v_11 = imm 1: I32
-    jmp b_12
+    jmp b_11
   }
 
   b_7 {
     ret 18446744073709551615
   }
 
-  b_13 {
-    %v_14 = cmp_ilt %v_15, 100: I32
-    je %v_14, b_12, b_16
-  }
-
-  b_16 {
-    %v_17 = loads @live, 4: I32
-    %v_18 = cmp_neq %v_17, 0: I32
-    je %v_18, b_19, b_20
-  }
-
   b_12 {
-    %v_21 = phi [b_13, %v_15], [b_8, 0]: I32
-    %v_22 = call_complex allocateHeap, 4: Ptr
-    %v_23 = loads @live, 4: I32
-    %v_24 = add %v_23, 1: I32
-    store @live, %v_24, 4
-    store %v_22, %v_11, 4
-    call_complex Guard.drop, %v_11
-    call_complex freeHeap, %v_22
-    %v_15 = add %v_21, 1: I32
-    jmp b_13
+    %v_13 = cmp_ilt %v_14, 100: I32
+    je %v_13, b_11, b_15
   }
 
-  b_20 {
+  b_15 {
+    %v_16 = loads @live, 4: I32
+    %v_17 = cmp_neq %v_16, 0: I32
+    je %v_17, b_18, b_19
+  }
+
+  b_11 {
+    %v_20 = phi [b_12, %v_14], [b_8, 0]: I32
+    %v_21 = call_complex allocateHeap, 4: Ptr
+    %v_22 = loads @live, 4: I32
+    %v_23 = add %v_22, 1: I32
+    store @live, %v_23, 4
+    store %v_21, 1, 4
+    %v_24 = sub %v_23, 1: I32
+    store @live, %v_24, 4
+    call_complex freeHeap, %v_21
+    %v_14 = add %v_20, 1: I32
+    jmp b_12
+  }
+
+  b_19 {
     %v_25 = load @heapNext, 8: Ptr
     %v_26 = bitcast %v_25: I64
     %v_27 = cmp_neq %v_26, %v_10: I32
     je %v_27, b_28, b_29
   }
 
-  b_19 {
+  b_18 {
     ret 18446744073709551614
   }
 
   b_29 {
     %v_30 = call_complex allocateHeap, 4: Ptr
-    %v_31 = imm 1: I32
-    %v_32 = loads @live, 4: I32
-    %v_33 = add %v_32, 1: I32
-    store @live, %v_33, 4
-    store %v_30, %v_31, 4
-    call_complex Guard.drop, %v_31
+    store @live, 1, 4
+    store %v_30, 1, 4
+    store @live, 0, 4
     call_complex freeHeap, %v_30
-    %v_34 = call_complex allocateHeap, 4: Ptr
-    %v_35 = imm 1: I32
+    %v_31 = call_complex allocateHeap, 4: Ptr
+    %v_32 = imm 1: I32
+    %v_33 = loads @live, 4: I32
+    %v_34 = add %v_33, 1: I32
+    store @live, %v_34, 4
+    store %v_31, %v_32, 4
+    call_complex Guard.drop, %v_32
+    %v_35 = imm 2: I32
     %v_36 = loads @live, 4: I32
     %v_37 = add %v_36, 1: I32
     store @live, %v_37, 4
-    store %v_34, %v_35, 4
+    store %v_31, %v_35, 4
     call_complex Guard.drop, %v_35
-    %v_38 = imm 2: I32
-    %v_39 = loads @live, 4: I32
-    %v_40 = add %v_39, 1: I32
-    store @live, %v_40, 4
-    store %v_34, %v_38, 4
-    call_complex Guard.drop, %v_38
-    call_complex freeHeap, %v_34
-    %v_41 = call_complex allocateHeap, 4: Ptr
-    %v_42 = imm 1: I32
+    call_complex freeHeap, %v_31
+    %v_38 = call_complex allocateHeap, 4: Ptr
+    %v_39 = imm 1: I32
+    %v_40 = loads @live, 4: I32
+    %v_41 = add %v_40, 1: I32
+    store @live, %v_41, 4
+    store %v_38, %v_39, 4
+    call_complex Guard.drop, %v_39
+    %v_42 = imm 2: I32
     %v_43 = loads @live, 4: I32
     %v_44 = add %v_43, 1: I32
     store @live, %v_44, 4
-    store %v_41, %v_42, 4
+    store %v_38, %v_42, 4
     call_complex Guard.drop, %v_42
-    %v_45 = imm 2: I32
-    %v_46 = loads @live, 4: I32
-    %v_47 = add %v_46, 1: I32
-    store @live, %v_47, 4
-    store %v_41, %v_45, 4
-    call_complex Guard.drop, %v_45
-    call_complex freeHeap, %v_41
-    %v_48 = loads @live, 4: I32
-    %v_49 = cmp_neq %v_48, 0: I32
-    je %v_49, b_50, b_51
+    call_complex freeHeap, %v_38
+    %v_45 = loads @live, 4: I32
+    %v_46 = cmp_neq %v_45, 0: I32
+    je %v_46, b_47, b_48
   }
 
   b_28 {
     ret 18446744073709551613
   }
 
-  b_51 {
-    %v_52 = load @heapNext, 8: Ptr
-    %v_53 = bitcast %v_52: I64
-    %v_54 = cmp_neq %v_53, %v_10: I32
-    %v_55 = select %v_54, 18446744073709551611, 1: I32
-    ret %v_55
+  b_48 {
+    %v_49 = load @heapNext, 8: Ptr
+    %v_50 = bitcast %v_49: I64
+    %v_51 = cmp_neq %v_50, %v_10: I32
+    %v_52 = select %v_51, 18446744073709551611, 1: I32
+    ret %v_52
   }
 
-  b_50 {
+  b_47 {
     ret 18446744073709551612
   }
 }
@@ -266,41 +263,39 @@ allocateHeap<complex>(%size: I64): Ptr {
 
   b_22 {
     %v_30 = load %v_18, 8: Ptr
-    %v_31 = load @heapFree, 8: Ptr
-    %v_32 = add %v_31, %v_15: Ptr
-    store %v_32, %v_30, 8
+    store %v_17, %v_30, 8
     ret %v_18
   }
 
   b_29 {
-    %v_33 = load @heapNext, 8: Ptr
-    %v_34 = add %v_33, %v_23: Ptr
-    store @heapNext, %v_34, 8
-    store %v_33, %v_16, 8
-    %v_35 = add %v_33, 8: Ptr
-    ret %v_35
+    %v_31 = load @heapNext, 8: Ptr
+    %v_32 = add %v_31, %v_23: Ptr
+    store @heapNext, %v_32, 8
+    store %v_31, %v_16, 8
+    %v_33 = add %v_31, 8: Ptr
+    ret %v_33
   }
 
   b_28 {
-    %v_36 = call_complex growHeap, %v_23: I32
-    je %v_36, b_29, b_11
+    %v_34 = call_complex growHeap, %v_23: I32
+    je %v_34, b_29, b_11
   }
 
   b_7 {
-    %v_37 = phi [b_5, 16], [b_38, %v_39]: I64
-    %v_16 = phi [b_5, 0], [b_38, %v_40]: I64
-    %v_41 = cmp_ilt %v_37, %v_6: I32
-    je %v_41, b_38, b_42
+    %v_35 = phi [b_5, 16], [b_36, %v_37]: I64
+    %v_16 = phi [b_5, 0], [b_36, %v_38]: I64
+    %v_39 = cmp_ilt %v_35, %v_6: I32
+    je %v_39, b_36, b_40
   }
 
-  b_42 {
-    %v_43 = cmp_ige %v_16, 32: I32
-    je %v_43, b_11, b_13
+  b_40 {
+    %v_41 = cmp_ige %v_16, 32: I32
+    je %v_41, b_11, b_13
   }
 
-  b_38 {
-    %v_39 = add %v_37, %v_37: I64
-    %v_40 = add %v_16, 1: I64
+  b_36 {
+    %v_37 = add %v_35, %v_35: I64
+    %v_38 = add %v_16, 1: I64
     jmp b_7
   }
 }
@@ -320,9 +315,7 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_9 = add %v_7, %v_8: Ptr
     %v_10 = load %v_9, 8: Ptr
     store %allocation, %v_10, 8
-    %v_11 = load @heapFree, 8: Ptr
-    %v_12 = add %v_11, %v_8: Ptr
-    store %v_12, %allocation, 8
+    store %v_9, %allocation, 8
     ret 
   }
 

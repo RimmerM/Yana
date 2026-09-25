@@ -36,19 +36,21 @@ function main() {
   var p3 = !(s17 === null) ? s17.m + s17.n | 0 : 0;
   p3 = p3 + 10 | 0;
   var v219 = v163 + (p3 === 42 ? 32 : 0);
-  var v229 = { items: new Int32Array([1, 2, 3]), length: 3 };
-  if (4 > v229.items.length) growJsArray_I32(v229, 4);
+  var v227 = new Int32Array([1, 2, 3]);
+  var v240 = 4 <= v227.length ? 1 : 0;
+  var v229 = { items: v227, length: 3 };
+  if (!v240) growJsArray_I32(v229, 4);
   v229.items[3] = 36;
   v229.length = 4;
-  var v251 = ["a", "bc"];
-  var v258 = v229.items;
-  if (3 >= v229.length) throw $t;
-  var v298 = v219 + ((v258[3] + (v229.length + v251.length) | 0) === 42 ? 64 : 0);
-  var v302 = { b: { m: 0, n: 0 } };
-  var v304 = make(1);
-  v302.b = v304.b;
-  bumpW(v302);
-  return v298 + ((readW({ b: { m: v302.b.m, n: v302.b.n } }) + 10 | 0) === 42 ? 128 : 0) + 256 + 512 + ((39 + "abc".length | 0) === 42 ? 1024 : 0) + (lent({ m: 1, n: 1 }, 0) === 2 ? 2048 : 0);
+  var v255 = v229.items;
+  var v258 = v229.length;
+  if (3 >= v258) throw $t;
+  var v284 = v219 + ((v255[3] + (v258 + 2) | 0) === 42 ? 64 : 0);
+  var v288 = { b: { m: 0, n: 0 } };
+  var v290 = make(1);
+  v288.b = v290.b;
+  bumpW(v288);
+  return v284 + ((readW({ b: { m: v288.b.m, n: v288.b.n } }) + 10 | 0) === 42 ? 128 : 0) + 256 + 512 + ((39 + "abc".length | 0) === 42 ? 1024 : 0) + (lent({ m: 1, n: 1 }, 0) === 2 ? 2048 : 0);
 }
 
 function growJsArray_I32(self, wanted) {

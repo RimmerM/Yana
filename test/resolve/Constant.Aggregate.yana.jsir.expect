@@ -188,18 +188,9 @@ fn main() -> one %r0
     %140: %r0 = binary.add %125, %139
     %141: %r0 = coerce %140
     %142: %r0 = select %138, %141, %128
-    %143: %r0 = const 2
-    %144: %r0 = const 3
     %146: %r5 = const "ok"
-    %147: %r2 = const 1
-    %148: %r0 = const 0
-    %149: %r0 = const 2
-    %150: %r0 = const 5
     %152: %r0 = const 4
-    %158: %r0 = alias %143
-    %159: %r0 = alias %144
-    %160: %r0 = binary.add %158, %159
-    %161: %r0 = coerce %160
+    %161: %r0 = const 5
     %163: %r5 = alias %146
     %164: %r5 = alias %163
     %165: %r5 = alias %164
@@ -208,15 +199,9 @@ fn main() -> one %r0
     %168: %r0 = convert %167
     %169: %r0 = binary.add %161, %168
     %170: %r0 = coerce %169
-    %174: %r2 = alias %147
-    %175: %r2 = const 0
-    %176: %r9 = binary.eq %174, %175
-    branch %176 -> block11 -> block10
+    jump -> block10
   block10:
-    %177: %r0 = alias %149
-    %178: %r0 = alias %150
-    %179: %r0 = binary.mul %177, %178
-    %180: %r0 = coerce %179
+    %180: %r0 = const 10
     jump -> block12(%180)
   block11:
     %181: %r0 = alias %148
@@ -250,24 +235,13 @@ fn main() -> one %r0
     %201: %r0 = binary.add %142, %200
     %202: %r0 = coerce %201
     %203: %r0 = select %199, %202, %142
-    %204: %r0 = const 2
-    %205: %r0 = const 6
-    %206: %r0 = const 7
-    %208: %r0 = alias %205
-    %209: %r0 = alias %206
-    %210: %r0 = binary.add %208, %209
-    %211: %r0 = coerce %210
-    %212: %r0 = binary.mul %211, %204
-    %213: %r0 = coerce %212
-    %214: %r0 = const 26
-    %215: %r9 = binary.eq %213, %214
     %216: %r0 = const 32768
     %217: %r0 = binary.add %203, %216
     %218: %r0 = coerce %217
-    %219: %r0 = select %215, %218, %203
+    %219: %r0 = alias %218
     return %219
 
-optimizer clones 7 aliased 3 forwarded 2 removed 35 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 3 promoted 8
+optimizer clones 7 aliased 3 forwarded 2 removed 61 adopted 0 sunk 0 numbered 1 decided 1 unboxed 0 updated 0 split 3 promoted 8 folded 11
 
 shape %s0 object Point {x: %r0, y: %r0}
 shape %s1 object Shape {$tag: %r2 tag, Circle: %r0, w: %r0, h: %r0}

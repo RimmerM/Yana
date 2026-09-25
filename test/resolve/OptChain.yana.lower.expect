@@ -17,12 +17,10 @@ Try(Maybe(a), a, ()).toOutcome(Node)<complex>(%v_0: Ptr, %value: Ptr) {
 
   b_4 {
     %v_8 = add %value, 4: Ptr
-    %inner = alloca 16, 4: Ptr
-    copy %inner, %v_8, 16
     %v_9 = alloca 20, 4: Ptr
     store %v_9, 0, 4
     %v_10 = add %v_9, 4: Ptr
-    copy %v_10, %inner, 16
+    copy %v_10, %v_8, 16
     jmp b_7
   }
 
@@ -48,12 +46,10 @@ Try(Maybe(a), a, ()).toOutcome(Leaf)<complex>(%v_0: Ptr, %value: Ptr) {
 
   b_4 {
     %v_8 = add %value, 4: Ptr
-    %inner = alloca 4, 4: Ptr
-    copy %inner, %v_8, 4
     %v_9 = alloca 8, 4: Ptr
     store %v_9, 0, 4
     %v_10 = add %v_9, 4: Ptr
-    copy %v_10, %inner, 4
+    copy %v_10, %v_8, 4
     jmp b_7
   }
 
@@ -83,12 +79,10 @@ Try(Result(e, a), a, e).toOutcome(I32, Node)<complex>(%v_0: Ptr, %value: Ptr) {
 
   b_4 {
     %v_11 = add %value, 4: Ptr
-    %inner = alloca 16, 4: Ptr
-    copy %inner, %v_11, 16
     %v_12 = alloca 20, 4: Ptr
     store %v_12, 0, 4
     %v_13 = add %v_12, 4: Ptr
-    copy %v_13, %inner, 16
+    copy %v_13, %v_11, 16
     jmp b_10
   }
 
@@ -114,12 +108,10 @@ Try(Maybe(a), a, ()).toOutcome((I32) -> I32)<complex>(%v_0: Ptr, %value: Ptr) {
 
   b_4 {
     %v_8 = add %value, 8: Ptr
-    %inner = alloca 16, 8: Ptr
-    copy %inner, %v_8, 16
     %v_9 = alloca 24, 8: Ptr
     store %v_9, 0, 4
     %v_10 = add %v_9, 8: Ptr
-    copy %v_10, %inner, 16
+    copy %v_10, %v_8, 16
     jmp b_7
   }
 
@@ -205,7 +197,6 @@ tail<complex>(%v_0: Ptr, %n: I32) {
 
   b_6 {
     call_complex drop$Outcome(Node, ()), %v_3
-    %v_15 = alloca 1, 1: Ptr
     %v_14 = alloca 8, 4: Ptr
     store %v_14, 0, 4
     jmp b_12
@@ -236,34 +227,32 @@ twoChecks<complex>(%v_0: Ptr, %n: I32) {
   }
 
   b_13 {
-    %v_15 = alloca 1, 1: Ptr
-    %v_16 = alloca 8, 4: Ptr
-    store %v_16, 0, 4
-    jmp b_17
+    %v_15 = alloca 8, 4: Ptr
+    store %v_15, 0, 4
+    jmp b_16
   }
 
   b_14 {
-    %v_18 = add %v_10, 4: Ptr
-    %v_19 = loads %v_18, 4: I32
-    %v_20 = alloca 8, 4: Ptr
-    store %v_20, 1, 4
-    %v_21 = add %v_20, 4: Ptr
-    store %v_21, %v_19, 4
-    jmp b_17
+    %v_17 = add %v_10, 4: Ptr
+    %v_18 = loads %v_17, 4: I32
+    %v_19 = alloca 8, 4: Ptr
+    store %v_19, 1, 4
+    %v_20 = add %v_19, 4: Ptr
+    store %v_20, %v_18, 4
+    jmp b_16
   }
 
-  b_17 {
-    %v_22 = phi [b_14, %v_20], [b_6, %v_23], [b_13, %v_16]: Ptr
-    copy %v_0, %v_22, 8
+  b_16 {
+    %v_21 = phi [b_14, %v_19], [b_6, %v_22], [b_13, %v_15]: Ptr
+    copy %v_0, %v_21, 8
     ret 
   }
 
   b_6 {
     call_complex drop$Outcome(Node, ()), %v_3
-    %v_24 = alloca 1, 1: Ptr
-    %v_23 = alloca 8, 4: Ptr
-    store %v_23, 0, 4
-    jmp b_17
+    %v_22 = alloca 8, 4: Ptr
+    store %v_22, 0, 4
+    jmp b_16
   }
 }
 
@@ -375,31 +364,29 @@ both<complex>(%v_0: Ptr, %n: I32) {
   }
 
   b_13 {
-    %v_15 = alloca 1, 1: Ptr
-    %v_16 = alloca 8, 4: Ptr
-    store %v_16, 0, 4
-    jmp b_17
+    %v_15 = alloca 8, 4: Ptr
+    store %v_15, 0, 4
+    jmp b_16
   }
 
   b_14 {
-    %v_18 = add %v_10, 4: Ptr
-    %v_19 = loads %v_18, 4: I32
-    %v_20 = alloca 8, 4: Ptr
-    store %v_20, 1, 4
-    %v_21 = add %v_20, 4: Ptr
-    store %v_21, %v_19, 4
-    jmp b_17
+    %v_17 = add %v_10, 4: Ptr
+    %v_18 = loads %v_17, 4: I32
+    %v_19 = alloca 8, 4: Ptr
+    store %v_19, 1, 4
+    %v_20 = add %v_19, 4: Ptr
+    store %v_20, %v_18, 4
+    jmp b_16
   }
 
-  b_17 {
-    %v_22 = phi [b_14, %v_20], [b_13, %v_16]: Ptr
-    copy %v_0, %v_22, 8
+  b_16 {
+    %v_21 = phi [b_14, %v_19], [b_13, %v_15]: Ptr
+    copy %v_0, %v_21, 8
     ret 
   }
 
   b_6 {
     call_complex drop$Outcome(Node, ()), %v_3
-    %v_23 = alloca 1, 1: Ptr
     store %v_0, 0, 4
     ret 
   }
@@ -428,7 +415,6 @@ parenthesized<complex>(%v_0: Ptr, %n: I32) {
 
   b_6 {
     call_complex drop$Outcome(Node, ()), %v_3
-    %v_11 = alloca 1, 1: Ptr
     store %v_0, 0, 4
     ret 
   }
@@ -478,15 +464,14 @@ called<complex>(%v_0: Ptr, %n: I32) {
   }
 
   b_13 {
-    %v_23 = alloca 1, 1: Ptr
-    %v_24 = alloca 8, 4: Ptr
-    store %v_24, 0, 4
+    %v_23 = alloca 8, 4: Ptr
+    store %v_23, 0, 4
     jmp b_22
   }
 
   b_22 {
-    %v_25 = phi [b_14, %v_20], [b_13, %v_24]: Ptr
-    copy %v_0, %v_25, 8
+    %v_24 = phi [b_14, %v_20], [b_13, %v_23]: Ptr
+    copy %v_0, %v_24, 8
     ret 
   }
 }
@@ -566,126 +551,124 @@ main<complex>(): I32 {
 
   b_40 {
     call_complex drop$Outcome(Node, ()), %v_37
-    %v_47 = alloca 1, 1: Ptr
-    %v_48 = alloca 8, 4: Ptr
-    store %v_48, 0, 4
+    %v_47 = alloca 8, 4: Ptr
+    store %v_47, 0, 4
     jmp b_46
   }
 
   b_46 {
-    %v_49 = phi [b_41, %v_44], [b_40, %v_48]: Ptr
+    %v_48 = phi [b_41, %v_44], [b_40, %v_47]: Ptr
+    %v_49 = alloca 20, 4: Ptr
+    call_complex node, %v_49, 7
     %v_50 = alloca 20, 4: Ptr
-    call_complex node, %v_50, 7
-    %v_51 = alloca 20, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(Node), %v_51, %v_50
-    %v_52 = loads %v_51, 4: I32
-    %v_53 = cmp_eq %v_52, 1: I32
-    je %v_53, b_54, b_55
-  }
-
-  b_55 {
-    %v_56 = add %v_51, 16: Ptr
-    %v_57 = loads %v_56, 4: I32
-    call_complex drop$Outcome(Node, ()), %v_51
-    %v_58 = alloca 8, 4: Ptr
-    store %v_58, 1, 4
-    %v_59 = add %v_58, 4: Ptr
-    store %v_59, %v_57, 4
-    jmp b_60
+    call_complex Try(Maybe(a), a, ()).toOutcome(Node), %v_50, %v_49
+    %v_51 = loads %v_50, 4: I32
+    %v_52 = cmp_eq %v_51, 1: I32
+    je %v_52, b_53, b_54
   }
 
   b_54 {
-    call_complex drop$Outcome(Node, ()), %v_51
-    %v_61 = alloca 1, 1: Ptr
-    %v_62 = alloca 8, 4: Ptr
-    store %v_62, 0, 4
-    jmp b_60
+    %v_55 = add %v_50, 16: Ptr
+    %v_56 = loads %v_55, 4: I32
+    call_complex drop$Outcome(Node, ()), %v_50
+    %v_57 = alloca 8, 4: Ptr
+    store %v_57, 1, 4
+    %v_58 = add %v_57, 4: Ptr
+    store %v_58, %v_56, 4
+    jmp b_59
   }
 
-  b_60 {
-    %v_63 = phi [b_55, %v_58], [b_54, %v_62]: Ptr
-    %v_64 = loads %v_49, 4: I32
-    %v_65 = cmp_eq %v_64, 1: I32
-    %v_66 = add %v_49, 4: Ptr
-    %v = loads %v_66, 4: I32
-    %v_67 = select %v_65, %v, 0: I32
-    %v_68 = loads %v_63, 4: I32
-    %v_69 = cmp_eq %v_68, 1: I32
-    %v_70 = add %v_63, 4: Ptr
-    %v = loads %v_70, 4: I32
-    %v_71 = select %v_69, %v, 0: I32
-    %v_72 = imul %v_71, 100: I32
-    %v_73 = add %v_67, %v_72: I32
-    %v_74 = alloca 8, 4: Ptr
-    call_complex both, %v_74, 8
-    %v_75 = loads %v_74, 4: I32
-    %v_76 = cmp_eq %v_75, 1: I32
-    %v_77 = add %v_74, 4: Ptr
-    %v = loads %v_77, 4: I32
-    %v_78 = select %v_76, %v, 0: I32
-    %v_79 = alloca 8, 4: Ptr
-    call_complex both, %v_79, 2
-    %v_80 = loads %v_79, 4: I32
-    %v_81 = cmp_eq %v_80, 1: I32
-    %v_82 = add %v_79, 4: Ptr
-    %v = loads %v_82, 4: I32
-    %v_83 = select %v_81, %v, 0: I32
-    %v_84 = alloca 8, 4: Ptr
-    call_complex both, %v_84, 18446744073709551615
-    %v_85 = loads %v_84, 4: I32
-    %v_86 = cmp_eq %v_85, 1: I32
-    %v_87 = add %v_84, 4: Ptr
-    %v = loads %v_87, 4: I32
-    %v_88 = select %v_86, %v, 0: I32
-    %v_89 = alloca 8, 4: Ptr
-    call_complex parenthesized, %v_89, 5
-    %v_90 = loads %v_89, 4: I32
-    %v_91 = cmp_eq %v_90, 1: I32
-    %v_92 = add %v_89, 4: Ptr
-    %v = loads %v_92, 4: I32
-    %v_93 = select %v_91, %v, 0: I32
-    %v_94 = alloca 8, 4: Ptr
-    call_complex parenthesized, %v_94, 18446744073709551615
-    %v_95 = loads %v_94, 4: I32
-    %v_96 = cmp_eq %v_95, 1: I32
-    %v_97 = add %v_94, 4: Ptr
-    %v = loads %v_97, 4: I32
-    %v_98 = select %v_96, %v, 0: I32
-    %v_99 = alloca 8, 4: Ptr
-    call_complex called, %v_99, 1
-    %v_100 = loads %v_99, 4: I32
-    %v_101 = cmp_eq %v_100, 1: I32
-    %v_102 = add %v_99, 4: Ptr
-    %v = loads %v_102, 4: I32
-    %v_103 = select %v_101, %v, 0: I32
-    %v_104 = alloca 8, 4: Ptr
-    call_complex called, %v_104, 18446744073709551615
-    %v_105 = loads %v_104, 4: I32
-    %v_106 = cmp_eq %v_105, 1: I32
-    %v_107 = add %v_104, 4: Ptr
-    %v = loads %v_107, 4: I32
-    %v_108 = select %v_106, %v, 0: I32
-    %v_109 = add %v_5, %v_10: I32
-    %v_110 = add %v_109, %v_15: I32
-    %v_111 = add %v_110, %v_20: I32
-    %v_112 = add %v_111, %v_25: I32
-    %v_113 = add %v_112, %v_30: I32
-    %v_114 = add %v_113, %v_35: I32
-    %v_115 = add %v_114, %v_73: I32
-    %v_116 = add %v_115, %v_78: I32
-    %v_117 = add %v_116, %v_83: I32
-    %v_118 = add %v_117, %v_88: I32
-    %v_119 = add %v_118, %v_93: I32
-    %v_120 = add %v_119, %v_98: I32
-    %v_121 = add %v_120, %v_103: I32
-    %sum = add %v_121, %v_108: I32
-    %v_122 = loads @dropped, 4: I32
-    %v_123 = imul %v_122, 1000: I32
-    %v_124 = add %sum, %v_123: I32
-    %v_125 = loads @log, 4: I32
-    %v_126 = imul %v_125, 100000: I32
-    %v_127 = add %v_124, %v_126: I32
-    ret %v_127
+  b_53 {
+    call_complex drop$Outcome(Node, ()), %v_50
+    %v_60 = alloca 8, 4: Ptr
+    store %v_60, 0, 4
+    jmp b_59
+  }
+
+  b_59 {
+    %v_61 = phi [b_54, %v_57], [b_53, %v_60]: Ptr
+    %v_62 = loads %v_48, 4: I32
+    %v_63 = cmp_eq %v_62, 1: I32
+    %v_64 = add %v_48, 4: Ptr
+    %v = loads %v_64, 4: I32
+    %v_65 = select %v_63, %v, 0: I32
+    %v_66 = loads %v_61, 4: I32
+    %v_67 = cmp_eq %v_66, 1: I32
+    %v_68 = add %v_61, 4: Ptr
+    %v = loads %v_68, 4: I32
+    %v_69 = select %v_67, %v, 0: I32
+    %v_70 = imul %v_69, 100: I32
+    %v_71 = add %v_65, %v_70: I32
+    %v_72 = alloca 8, 4: Ptr
+    call_complex both, %v_72, 8
+    %v_73 = loads %v_72, 4: I32
+    %v_74 = cmp_eq %v_73, 1: I32
+    %v_75 = add %v_72, 4: Ptr
+    %v = loads %v_75, 4: I32
+    %v_76 = select %v_74, %v, 0: I32
+    %v_77 = alloca 8, 4: Ptr
+    call_complex both, %v_77, 2
+    %v_78 = loads %v_77, 4: I32
+    %v_79 = cmp_eq %v_78, 1: I32
+    %v_80 = add %v_77, 4: Ptr
+    %v = loads %v_80, 4: I32
+    %v_81 = select %v_79, %v, 0: I32
+    %v_82 = alloca 8, 4: Ptr
+    call_complex both, %v_82, 18446744073709551615
+    %v_83 = loads %v_82, 4: I32
+    %v_84 = cmp_eq %v_83, 1: I32
+    %v_85 = add %v_82, 4: Ptr
+    %v = loads %v_85, 4: I32
+    %v_86 = select %v_84, %v, 0: I32
+    %v_87 = alloca 8, 4: Ptr
+    call_complex parenthesized, %v_87, 5
+    %v_88 = loads %v_87, 4: I32
+    %v_89 = cmp_eq %v_88, 1: I32
+    %v_90 = add %v_87, 4: Ptr
+    %v = loads %v_90, 4: I32
+    %v_91 = select %v_89, %v, 0: I32
+    %v_92 = alloca 8, 4: Ptr
+    call_complex parenthesized, %v_92, 18446744073709551615
+    %v_93 = loads %v_92, 4: I32
+    %v_94 = cmp_eq %v_93, 1: I32
+    %v_95 = add %v_92, 4: Ptr
+    %v = loads %v_95, 4: I32
+    %v_96 = select %v_94, %v, 0: I32
+    %v_97 = alloca 8, 4: Ptr
+    call_complex called, %v_97, 1
+    %v_98 = loads %v_97, 4: I32
+    %v_99 = cmp_eq %v_98, 1: I32
+    %v_100 = add %v_97, 4: Ptr
+    %v = loads %v_100, 4: I32
+    %v_101 = select %v_99, %v, 0: I32
+    %v_102 = alloca 8, 4: Ptr
+    call_complex called, %v_102, 18446744073709551615
+    %v_103 = loads %v_102, 4: I32
+    %v_104 = cmp_eq %v_103, 1: I32
+    %v_105 = add %v_102, 4: Ptr
+    %v = loads %v_105, 4: I32
+    %v_106 = select %v_104, %v, 0: I32
+    %v_107 = add %v_5, %v_10: I32
+    %v_108 = add %v_107, %v_15: I32
+    %v_109 = add %v_108, %v_20: I32
+    %v_110 = add %v_109, %v_25: I32
+    %v_111 = add %v_110, %v_30: I32
+    %v_112 = add %v_111, %v_35: I32
+    %v_113 = add %v_112, %v_71: I32
+    %v_114 = add %v_113, %v_76: I32
+    %v_115 = add %v_114, %v_81: I32
+    %v_116 = add %v_115, %v_86: I32
+    %v_117 = add %v_116, %v_91: I32
+    %v_118 = add %v_117, %v_96: I32
+    %v_119 = add %v_118, %v_101: I32
+    %sum = add %v_119, %v_106: I32
+    %v_120 = loads @dropped, 4: I32
+    %v_121 = imul %v_120, 1000: I32
+    %v_122 = add %sum, %v_121: I32
+    %v_123 = loads @log, 4: I32
+    %v_124 = imul %v_123, 100000: I32
+    %v_125 = add %v_122, %v_124: I32
+    ret %v_125
   }
 }
 

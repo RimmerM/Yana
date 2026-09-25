@@ -1,6 +1,8 @@
 #include "lower_store.h"
 #include "lower_fold.h"
 #include "lower_builder.h"
+#include "lower_promote.h"
+#include "fold_arith.h"
 
 namespace {
 
@@ -15,13 +17,9 @@ namespace {
  */
 constexpr Size kRecords = 64;
 
-U64 maskOfBits(U32 bits) {
-    return bits >= 64 ? maxLimit<U64> : (U64(1) << bits) - 1;
-}
-
-U32 typeBits(LowerType type) {
-    return type == LowerType::Int32 ? 32 : 64;
-}
+// The mask is fold_arith.h's and the width lower_promote.h's `registerBits` - J163; this file had a
+// copy of each (`maskOfBits`, and `typeBits`, which is `registerBits` for the integers it is asked of).
+using foldArith::maskOf;
 
 /*
  * The value a load of this store's pointer answers, or nothing.
@@ -43,45 +41,98 @@ LowerValue* forwardedValue(LowerBase base, LowerInstStore* store, LowerInstLoad*
     if(stored->type != load->result.type) return nullptr;
 
     auto accessed = load->getWidth() * 8;
-    auto bits = typeBits(load->result.type);
+    auto bits = registerBits(load->result.type);
     if(accessed >= bits) return stored;
 
     // The load extends and the store did not, so the answer is the stored value only where the bits
     // above the access are already what the extension would put there. A signed load would need them
     // to be copies of a sign bit, which nothing here can say - only the zeroes are asked for.
     if(load->isSigned()) return nullptr;
-    return (knownZeroBits(base, stored) & ~maskOfBits(accessed)) == ~maskOfBits(accessed)
+    return (knownZeroBits(base, stored) & ~maskOf(accessed)) == ~maskOf(accessed)
         ? stored : nullptr;
 }
 
 /*
- * Where an access lands, as far as this pass can name it: a root value, a constant byte offset from
- * it, and how many bytes the access reaches.
+ * The low bytes of what a store wrote, read back at another width or into the other integer register
+ * - J152. `forwardedValue` answers only a load that reads exactly what was written, in the register
+ * it was written from; this answers the two shapes beside it that the lowering produces in the same
+ * block:
  *
- * `add %slot, 8` is how every field past the first is addressed, so the root is found by walking
- * through the constant offsets that name a field. The walk stops at *any* value - an `Alloca`, a
- * parameter, a call's result - and what it reached is the root either way: two accesses under one
- * root value are the same object, and their offsets can be compared as numbers. Two under different
- * roots are only known apart where both roots are allocations.
+ *  - **a narrower load** of the pointer a store wrote - a sum's error byte read out of the word its
+ *    value arm was stored as, or a tag read out of a word stored whole;
+ *  - **the other register** at the same width - a four-byte field stored from an `I32` and read into
+ *    an `I64`, which is what a `@bits` record's word is when a packed field is read out of it.
  *
- * It used to be the allocation alone, and two fields of one record aliased as far as this pass was
- * concerned. That made every store to a record forget every other store to it, so a record zeroed
- * field by field and then written again - which is what a fresh value built in a frame slot is - kept
- * the whole first run.
+ * Both are the stored value masked to the width the load reads and moved into the load's register,
+ * extended the way the load extends. A constant is answered with a constant; anything else with the
+ * `and` and the `cast` that say the same, placed where the load was. Integers only.
  */
-constexpr U64 kUnbounded = maxLimit<U64>;
+LowerValue* reshapedValue(LowerBase base, LowerModule& module, LowerFunction& fun,
+                          LowerPtr<LowerBlock> blockPtr, LowerInst* at, LowerInstStore* store,
+                          LowerInstLoad* load, SmallArray<LowerPtr<LowerInst>, 32>& kept) {
+    if(store->isVolatile() || load->isVolatile() || load->isOverread()) return nullptr;
+    if(store->to != load->from || load->getWidth() > store->getWidth()) return nullptr;
 
-struct Place {
-    // Null where the walk could not finish - a place that may be anywhere.
-    LowerValue* root = nullptr;
-    bool allocation = false;
+    auto stored = base[store->value];
+    auto type = load->result.type;
 
-    // An allocation whose address is only ever used to reach its own bytes - see `addressContained`.
-    bool contained = false;
+    auto emit = [&](LowerInst* made) {
+        made->block = blockPtr;
+        made->source = at->source;
+        for(auto use: made->used()) base[use]->uses.push(fun.arena, made - base);
+        kept.push(made - base);
+        return &((LowerInstSingle*)made)->result;
+    };
 
-    U64 offset = 0;
-    U64 bytes = 0;
-};
+    // One register's bits read back as another's, whole - an address stored and read as the integer
+    // of its width, which is how the aggregate convention carries a pointer field, or a float's bits.
+    if(!isInt(stored->type) || !isInt(type)) {
+        if(isVectorLike(stored->type) || isVectorLike(type) || stored->type == type) return nullptr;
+        if(load->getWidth() != store->getWidth()) return nullptr;
+        if(load->getWidth() * 8 != registerBits(type) || store->getWidth() * 8 != registerBits(stored->type)) {
+            return nullptr;
+        }
+
+        return emit(new (module.arena) LowerInstUnary(LowerInst::Bitcast, StringId(), type, stored - base));
+    }
+
+    auto accessed = load->getWidth() * 8;
+    auto bits = registerBits(type);
+    auto signedLoad = load->isSigned() && accessed < bits;
+
+    if(auto constant = stored->inst(); constant && constant->kind == LowerInst::Imm) {
+        auto value = ((LowerImm*)constant)->i & maskOf(accessed);
+        if(signedLoad && (value >> (accessed - 1)) & 1) value |= ~maskOf(accessed);
+
+        return emit(new (module.arena) LowerImm(StringId(), type, value & maskOf(bits)));
+    }
+
+    auto value = stored;
+
+    // The bytes the load reads, and nothing above them - unless nothing above them is set anyway.
+    if(accessed < registerBits(stored->type) &&
+       (knownZeroBits(base, stored) & ~maskOf(accessed)) != (~maskOf(accessed) & maskOf(registerBits(stored->type)))) {
+        auto mask = emit(new (module.arena) LowerImm(StringId(), stored->type, maskOf(accessed)));
+        value = emit(new (module.arena) LowerInstBinary(StringId(), stored->type, value - base, mask - base,
+                                                        LowerInst::And));
+    }
+
+    if(value->type != type) {
+        value = emit(new (module.arena) LowerInstCast(StringId(), type, value - base, false, false));
+    }
+
+    if(signedLoad) {
+        auto shift = emit(new (module.arena) LowerImm(StringId(), type, U64(bits - accessed)));
+        auto up = emit(new (module.arena) LowerInstBinary(StringId(), type, value - base, shift - base,
+                                                          LowerInst::Shl));
+        value = emit(new (module.arena) LowerInstBinary(StringId(), type, up - base, shift - base,
+                                                        LowerInst::Sar));
+    }
+
+    return value == stored ? nullptr : value;
+}
+
+} // namespace
 
 /*
  * Whether every use of an address, through constant offsets, is the address of an access.
@@ -131,7 +182,9 @@ bool addressContained(LowerBase base, LowerValue* address, U32 depth) {
     return true;
 }
 
-Place placeOf(LowerBase base, HashMap<U32, U8>& contained, LowerPtr<LowerValue> pointer, U64 bytes) {
+namespace {
+
+LowerPlace walkPlace(LowerBase base, HashMap<U32, U8>* contained, LowerPtr<LowerValue> pointer, U64 bytes) {
     auto value = base[pointer];
     U64 offset = 0;
 
@@ -150,25 +203,37 @@ Place placeOf(LowerBase base, HashMap<U32, U8>& contained, LowerPtr<LowerValue> 
 
         // An offset this far from its root is a negative one, or one about to wrap - neither is a
         // field, and a range compared across the wrap would be a wrong answer rather than a cautious
-        // one. Nor is a chain deeper than `addressContained` follows one it may be compared under.
+        // one. Nor is a chain deeper than `addressContained` follows one it may be compared under:
+        // a pointer this far from its root is not a shape lowering emits, and a budget is what keeps
+        // one question from walking a dataflow graph.
         offset += amount->i;
-        if(depth == 8 || amount->i > (U64(1) << 32) || offset > (U64(1) << 32)) return Place { .bytes = bytes };
+        if(depth == 8 || amount->i > (U64(1) << 32) || offset > (U64(1) << 32)) return LowerPlace { .bytes = bytes };
     }
 
     auto inst = value->inst();
     auto allocation = inst && inst->kind == LowerInst::Alloca;
 
-    return Place {
+    return LowerPlace {
         .root = value,
         .allocation = allocation,
-        .contained = allocation && contained.getValue(U32(value - base)).isJust(),
+        .contained = allocation && contained && contained->getValue(U32(value - base)).isJust(),
         .offset = offset,
         .bytes = bytes,
     };
 }
 
+} // namespace
+
+LowerPlace placeOf(LowerBase base, HashMap<U32, U8>& contained, LowerPtr<LowerValue> pointer, U64 bytes) {
+    return walkPlace(base, &contained, pointer, bytes);
+}
+
+LowerPlace placeOf(LowerBase base, LowerPtr<LowerValue> pointer, U64 bytes) {
+    return walkPlace(base, nullptr, pointer, bytes);
+}
+
 // The extent an access states, where it states one.
-U64 accessBytes(LowerBase base, const LowerAccess& access) {
+U64 placeExtent(LowerBase base, const LowerAccess& access) {
     if(access.bytes) return access.bytes;
     if(!access.count) return kUnbounded;
 
@@ -176,7 +241,7 @@ U64 accessBytes(LowerBase base, const LowerAccess& access) {
     return count && count->kind == LowerInst::Imm ? ((LowerImm*)count)->i : kUnbounded;
 }
 
-U64 placeEnd(const Place& place) {
+U64 placeEnd(const LowerPlace& place) {
     return place.bytes == kUnbounded ? kUnbounded : place.offset + place.bytes;
 }
 
@@ -188,15 +253,17 @@ U64 placeEnd(const Place& place) {
  * anything at all: a parameter can point into a record whose address escaped, so a pair under two
  * roots that are neither is reported as possibly overlapping - and so is a place with no root.
  */
-bool mayOverlap(const Place& a, const Place& b) {
+bool mayOverlap(const LowerPlace& a, const LowerPlace& b) {
     if(!a.root || !b.root) return true;
     if(a.root != b.root) return !(a.allocation && b.allocation) && !a.contained && !b.contained;
     if(a.bytes == 0 || b.bytes == 0) return false;
     return a.offset < placeEnd(b) && b.offset < placeEnd(a);
 }
 
+namespace {
+
 // Whether a write to `outer` replaces every byte of `inner`.
-bool covers(const Place& outer, const Place& inner) {
+bool covers(const LowerPlace& outer, const LowerPlace& inner) {
     if(!outer.root || outer.root != inner.root || inner.bytes == kUnbounded || outer.bytes == kUnbounded) return false;
     return outer.offset <= inner.offset && placeEnd(inner) <= placeEnd(outer);
 }
@@ -220,24 +287,27 @@ bool writesZero(LowerBase base, LowerInst* inst) {
     if(inst->kind != LowerInst::Store) return false;
 
     auto store = (LowerInstStore*)inst;
-    return literal(store->value, maskOfBits(store->getWidth() * 8));
+    return literal(store->value, maskOf(store->getWidth() * 8));
 }
 
 } // namespace
 
-void forwardStoredValues(LowerBase base, LowerModule& module, LowerFunction& fun) {
-    // The allocations whose address never leaves, asked once per function - see `addressContained`.
-    HashMap<U32, U8> contained;
-
+void collectContainedAllocations(LowerBase base, LowerFunction& fun, HashMap<U32, U8>& into) {
     for(auto blockPtr: fun.blocks.contents(base)) {
         for(auto instPtr: base[blockPtr]->instructions.contents(base)) {
             auto inst = base[instPtr];
             if(inst->kind != LowerInst::Alloca) continue;
 
             auto address = &((LowerInstSingle*)inst)->result;
-            if(addressContained(base, address, 0)) contained.add(U32(address - base), 1);
+            if(addressContained(base, address, 0)) into.add(U32(address - base), 1);
         }
     }
+}
+
+void forwardStoredValues(LowerBase base, LowerModule& module, LowerFunction& fun) {
+    // The allocations whose address never leaves, asked once per function - see `addressContained`.
+    HashMap<U32, U8> contained;
+    collectContainedAllocations(base, fun, contained);
 
     for(auto blockPtr: fun.blocks.contents(base)) {
         auto block = base[blockPtr];
@@ -264,8 +334,11 @@ void forwardStoredValues(LowerBase base, LowerModule& module, LowerFunction& fun
          */
         struct Record {
             LowerInst* write = nullptr;
-            Place place;
+            LowerPlace place;
             bool observed = false;
+
+            // Whether a call has run since - see the reshaped forwarding below.
+            bool crossedCall = false;
         };
 
         Record records[kRecords];
@@ -287,6 +360,19 @@ void forwardStoredValues(LowerBase base, LowerModule& module, LowerFunction& fun
                 for(auto i = recordCount; i > 0 && !forwarded; i--) {
                     if(records[i - 1].write->kind != LowerInst::Store) continue;
                     forwarded = forwardedValue(base, (LowerInstStore*)records[i - 1].write, load);
+                }
+
+                /*
+                 * Or its low bytes, in the load's register - see reshapedValue. Not across a call:
+                 * the store stays for whatever else reads the slot, so the value would be held in a
+                 * register over the call as well as in memory, and the reload was the cheaper of the
+                 * two - measured on `test/base`, where the view words re-read after a second call
+                 * were half a kilobyte of spills.
+                 */
+                for(auto i = recordCount; i > 0 && !forwarded; i--) {
+                    if(records[i - 1].write->kind != LowerInst::Store || records[i - 1].crossedCall) continue;
+                    forwarded = reshapedValue(base, module, fun, blockPtr, inst,
+                                              (LowerInstStore*)records[i - 1].write, load, kept);
                 }
 
                 /*
@@ -345,6 +431,7 @@ void forwardStoredValues(LowerBase base, LowerModule& module, LowerFunction& fun
                 // Except a contained allocation, which nothing reaches but its own address - and an
                 // instruction naming no address has not been given it.
                 for(auto i = recordCount; i > 0; i--) {
+                    if(inst->kind == LowerInst::Call) records[i - 1].crossedCall = true;
                     if(records[i - 1].place.contained) continue;
                     if(writes) drop(i - 1);
                     else if(reads) records[i - 1].observed = true;
@@ -357,11 +444,11 @@ void forwardStoredValues(LowerBase base, LowerModule& module, LowerFunction& fun
             // A copy reads its second access and writes its first. Every other kind naming an
             // address does to each of them what its traits say.
             auto isCopy = inst->kind == LowerInst::Copy;
-            Place written[kMaxAccesses];
+            LowerPlace written[kMaxAccesses];
             Size writtenCount = 0;
 
             for(Size a = 0; a < accessCount; a++) {
-                auto bytes = accessBytes(base, accesses[a]);
+                auto bytes = placeExtent(base, accesses[a]);
                 auto accessReads = isCopy ? a == 1 : reads;
                 auto accessWrites = isCopy ? a == 0 : writes;
 
@@ -430,6 +517,7 @@ void forwardStoredValues(LowerBase base, LowerModule& module, LowerFunction& fun
                     records[recordCount].write = inst;
                     records[recordCount].place = place;
                     records[recordCount].observed = false;
+                    records[recordCount].crossedCall = false;
                     recordCount++;
                 }
             }

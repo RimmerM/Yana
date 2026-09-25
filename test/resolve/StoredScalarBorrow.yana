@@ -1,0 +1,42 @@
+{-
+   A stored borrow of a *scalar*, filled by a value that has no storage (J141).
+
+   # resolver: ownership
+
+   `data Held(a) {value: 'a}` at `a := Int` holds an address: a field that publishes an origin is a
+   reference, and a reference to an `Int` is where the `Int` is. `Held {value: 5}` hands it a number
+   in a register, and the SSA conversion put the number where the field says pointer - the first
+   read through it segfaulted, and a class default reaching the record through the substituted head
+   was how J139 found it. A record's field is a position exactly as a call's parameter is, so it
+   adapts the same two ways: a value into a reference field is given a frame slot of its own
+   (`referenceUseOf`), and a loan of a scalar into a field that holds the number is loaded
+   (`valueUseOf`) - `Pair {x: firstOf(xs)}` was "aggregate consumes a guaranteed value".
+
+   The shipping stage cannot infer `Held`'s argument from `5 :: Int`, so this is the new stage's.
+-}
+
+data Held(a) {value: 'a, extra: Int}
+
+class Sized(a):
+  fn measure(subject: Held(a)) -> Int
+  fn twice(subject: Held(a)) -> Int = measure(subject) * 2
+
+instance Sized(Int):
+    fn measure(subject: Held(Int)) -> Int = subject.value + subject.extra
+
+fn heldOf(x: 'Int, extra: Int) -> Held(Int) = Held {value: x, extra: extra}
+
+data Pair {x: Int, y: Int}
+data Ref {v: 'Int}
+
+fn firstOf(xs: '[Int]) -> 'Int = xs[0]
+
+fn main() -> Int:
+    let x = 3 :: Int
+    let owned = heldOf(x, 10)
+    let direct = Held {value: 5 :: Int, extra: 20}
+    let xs = [7, 8]
+    let pair = Pair {x: firstOf(xs), y: 1}
+    let computed = Ref {v: firstOf(xs) + 1}
+    -- 3 + 10 = 13, (5 + 20) * 2 = 50, 7 + 1 and 8.
+    return measure(owned) + twice(direct) + pair.x + pair.y + computed.v

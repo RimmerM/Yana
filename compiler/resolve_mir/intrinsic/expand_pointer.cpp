@@ -29,13 +29,13 @@ using namespace intrinsic;
  * meaning is written down - the address of a constant is the address of a temporary holding its
  * value, "which is the only reading available for a value that cannot be assigned to".
  *
- * Either declaration reaches it. `lib/Native/Pointer.yana` writes `fn addressOf(it: a) -> %a`, so a
- * trivially copyable argument is copied into the call and every call of it lands here; written
- * `it: source'a` an argument that names storage would arrive as a loan of it and only a literal or a
- * call result would land here. The published spelling says *whose* storage the pointer is in and
- * the library deliberately does not use it (`test/resolve/Global.yana` is what pins the other
- * meaning); what this function supplies is that there *is* storage, which both spellings need and
- * neither can state.
+ * Either declaration reaches it. Written `fn addressOf(it: a) -> %a`, a trivially copyable argument
+ * is copied into the call and every call of it lands here. `lib/Native/Pointer.yana` writes
+ * `it: source'a`, where an argument that names storage arrives as a loan of it - and since J147 so
+ * does a literal or a call result, because the argument path gives a value with no storage its
+ * temporary at any shared position that names an origin (`Resolver::lentPastPosition`). So under
+ * the library's spelling nothing lands here any more; this is the unpublished spelling's answer,
+ * and what it supplies is that there *is* storage, which both spellings need.
  *
  * The read is the **declared parameter's own request, published**, and both halves of that are
  * load-bearing. Published, because an unpublished request is answered `CopyTrivial` at every scalar

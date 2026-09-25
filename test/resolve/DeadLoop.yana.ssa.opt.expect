@@ -76,12 +76,13 @@ fn owning(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
   %3: %Held address = alloc frame Held
   %4: I32 trivial = const 0
-  %16: I32 trivial = const 1
+  %17: I32 trivial = const 1
+  %24: I32 trivial = const 1
   %12: I32 trivial = const 1
   jump -> bb1(inspect %4)
 
-bb1(%21: I32 trivial):
-  %7: Bool trivial = lt inspect %21 inspect %0
+bb1(%28: I32 trivial):
+  %7: Bool trivial = lt inspect %28 inspect %0
   branch inspect %7 -> bb3 -> bb2
 
 bb2:
@@ -89,15 +90,20 @@ bb2:
   return consume %8
 
 bb3:
-  %14: %I32 address = global.addr live
-  %15: I32 trivial = load inspect %14
-  %17: I32 trivial = add inspect %15 inspect %16
-  %18: %I32 address = global.addr live
-  store inspect %18 consume %17
-  %19: Held owned = aggregate.Held consume %21
-  store inspect %3 consume %19
-  drop Held inspect %3
-  %13: I32 trivial = add inspect %21 inspect %12
+  %15: %I32 address = global.addr live
+  %16: I32 trivial = load inspect %15
+  %18: I32 trivial = add inspect %16 inspect %17
+  %19: %I32 address = global.addr live
+  store inspect %19 consume %18
+  %20: Held owned = aggregate.Held consume %28
+  store inspect %3 consume %20
+  %14: Held owned = load inspect %3
+  %21: %Held address = alloc frame Held
+  store inspect %21 consume %14
+  %25: I32 trivial = sub inspect %18 inspect %24
+  %26: %I32 address = global.addr live
+  store inspect %26 consume %25
+  %13: I32 trivial = add inspect %28 inspect %12
   jump -> bb1(inspect %13)
 }
 
@@ -301,7 +307,7 @@ bb3:
 
 fn main() -> I32 {
 bb0:
-  %201: I32 trivial = const 6
+  %206: I32 trivial = const 6
   %5: I32 trivial = const 5
   %90: I32 trivial = const 0
   %91: I32 trivial = const 0
@@ -315,7 +321,7 @@ bb4(%88: I32 trivial, %89: I32 trivial):
 bb5:
   %7: I32 trivial = const 3
   %8: I32 trivial = mul inspect %88 inspect %7
-  %9: I32 trivial = add inspect %201 inspect %8
+  %9: I32 trivial = add inspect %206 inspect %8
   %10: I32 trivial = const 6
   %98: I32 trivial = const 0
   %99: I32 trivial = const 1
@@ -339,6 +345,7 @@ bb11:
   %105: I32 trivial = const 0
   %106: I32 trivial = const 1
   %107: I32 trivial = const 1
+  %108: I32 trivial = const 1
   jump -> bb16(inspect %105)
 
 bb12:
@@ -346,169 +353,174 @@ bb12:
   jump -> bb10(inspect %101)
 
 bb16(%103: I32 trivial):
-  %108: Bool trivial = lt inspect %103 inspect %15
-  branch inspect %108 -> bb18 -> bb17
+  %109: Bool trivial = lt inspect %103 inspect %15
+  branch inspect %109 -> bb18 -> bb17
 
 bb17:
   %20: I32 trivial = const 9
   %21: I32 trivial = const 4
-  %118: I32 trivial = const 0
-  %119: I32 trivial = const 1
-  jump -> bb22(inspect %118)
+  %123: I32 trivial = const 0
+  %124: I32 trivial = const 1
+  jump -> bb22(inspect %123)
 
 bb18:
-  %110: %I32 address = global.addr live
-  %111: I32 trivial = load inspect %110
-  %112: I32 trivial = add inspect %111 inspect %106
-  %113: %I32 address = global.addr live
-  store inspect %113 consume %112
-  %114: Held owned = aggregate.Held consume %103
-  store inspect %104 consume %114
-  drop Held inspect %104
-  %115: I32 trivial = add inspect %103 inspect %107
-  jump -> bb16(inspect %115)
+  %111: %I32 address = global.addr live
+  %112: I32 trivial = load inspect %111
+  %113: I32 trivial = add inspect %112 inspect %106
+  %114: %I32 address = global.addr live
+  store inspect %114 consume %113
+  %115: Held owned = aggregate.Held consume %103
+  store inspect %104 consume %115
+  %116: Held owned = load inspect %104
+  %117: %Held address = alloc frame Held
+  store inspect %117 consume %116
+  %118: I32 trivial = sub inspect %113 inspect %107
+  %119: %I32 address = global.addr live
+  store inspect %119 consume %118
+  %120: I32 trivial = add inspect %103 inspect %108
+  jump -> bb16(inspect %120)
 
-bb22(%117: I32 trivial):
-  %120: Bool trivial = lt inspect %117 inspect %20
-  branch inspect %120 -> bb23 -> bb25
+bb22(%122: I32 trivial):
+  %125: Bool trivial = lt inspect %122 inspect %20
+  branch inspect %125 -> bb23 -> bb25
 
 bb23:
-  %121: Bool trivial = eq inspect %117 inspect %21
-  branch inspect %121 -> bb25 -> bb24
+  %126: Bool trivial = eq inspect %122 inspect %21
+  branch inspect %126 -> bb25 -> bb24
 
 bb24:
-  %122: I32 trivial = add inspect %117 inspect %119
-  jump -> bb22(inspect %122)
+  %127: I32 trivial = add inspect %122 inspect %124
+  jump -> bb22(inspect %127)
 
 bb25:
   %23: I32 trivial = const 11
-  %24: I32 trivial = mul inspect %117 inspect %23
+  %24: I32 trivial = mul inspect %122 inspect %23
   %25: I32 trivial = add inspect %14 inspect %24
   %26: I32 trivial = const 3
-  %126: I32 trivial = const 0
-  %127: I32 trivial = const 0
-  %128: I32 trivial = const 1
-  jump -> bb29(inspect %126, inspect %127)
+  %131: I32 trivial = const 0
+  %132: I32 trivial = const 0
+  %133: I32 trivial = const 1
+  jump -> bb29(inspect %131, inspect %132)
 
-bb29(%124: I32 trivial, %125: I32 trivial):
-  %129: Bool trivial = lt inspect %125 inspect %26
-  branch inspect %129 -> bb31 -> bb30
+bb29(%129: I32 trivial, %130: I32 trivial):
+  %134: Bool trivial = lt inspect %130 inspect %26
+  branch inspect %134 -> bb31 -> bb30
 
 bb30:
   %29: I32 trivial = const 13
-  %30: I32 trivial = mul inspect %124 inspect %29
+  %30: I32 trivial = mul inspect %129 inspect %29
   %31: I32 trivial = add inspect %25 inspect %30
-  %218: I32 trivial = const 585
-  %219: I32 trivial = add inspect %31 inspect %218
+  %223: I32 trivial = const 585
+  %224: I32 trivial = add inspect %31 inspect %223
   %45: %I32 address = global.addr live
   %46: I32 trivial = load inspect %45
   %47: I32 trivial = const 23
   %48: I32 trivial = mul inspect %46 inspect %47
-  %49: I32 trivial = add inspect %219 inspect %48
-  %205: I32 trivial = const 87
-  %55: I32 trivial = add inspect %49 inspect %205
+  %49: I32 trivial = add inspect %224 inspect %48
+  %210: I32 trivial = const 87
+  %55: I32 trivial = add inspect %49 inspect %210
   %56: I32 trivial = const 5
-  %152: I32 trivial = const 0
-  %153: I32 trivial = const 0
-  %154: I32 trivial = const 1
-  jump -> bb45(inspect %152, inspect %153)
+  %157: I32 trivial = const 0
+  %158: I32 trivial = const 0
+  %159: I32 trivial = const 1
+  jump -> bb45(inspect %157, inspect %158)
 
 bb31:
-  %130: I32 trivial = add inspect %124 inspect %125
-  %131: I32 trivial = add inspect %125 inspect %128
-  jump -> bb29(inspect %130, inspect %131)
+  %135: I32 trivial = add inspect %129 inspect %130
+  %136: I32 trivial = add inspect %130 inspect %133
+  jump -> bb29(inspect %135, inspect %136)
 
-bb45(%150: I32 trivial, %151: I32 trivial):
-  %155: Bool trivial = lt inspect %151 inspect %56
-  branch inspect %155 -> bb47 -> bb46
+bb45(%155: I32 trivial, %156: I32 trivial):
+  %160: Bool trivial = lt inspect %156 inspect %56
+  branch inspect %160 -> bb47 -> bb46
 
 bb46:
   %58: I32 trivial = const 31
-  %59: I32 trivial = mul inspect %150 inspect %58
+  %59: I32 trivial = mul inspect %155 inspect %58
   %60: I32 trivial = add inspect %55 inspect %59
   %61: I32 trivial = const 9
   %62: I32 trivial = const 4
-  %161: I32 trivial = const 0
-  %162: I32 trivial = const 0
-  %163: I32 trivial = const 1
-  jump -> bb51(inspect %162)
+  %166: I32 trivial = const 0
+  %167: I32 trivial = const 0
+  %168: I32 trivial = const 1
+  jump -> bb51(inspect %167)
 
 bb47:
-  %156: I32 trivial = add inspect %150 inspect %151
-  %157: I32 trivial = add inspect %151 inspect %154
-  jump -> bb45(inspect %156, inspect %157)
+  %161: I32 trivial = add inspect %155 inspect %156
+  %162: I32 trivial = add inspect %156 inspect %159
+  jump -> bb45(inspect %161, inspect %162)
 
-bb51(%159: I32 trivial):
-  %164: Bool trivial = lt inspect %159 inspect %61
-  branch inspect %164 -> bb52 -> bb55(inspect %161)
+bb51(%164: I32 trivial):
+  %169: Bool trivial = lt inspect %164 inspect %61
+  branch inspect %169 -> bb52 -> bb55(inspect %166)
 
 bb52:
-  %165: Bool trivial = eq inspect %159 inspect %62
-  branch inspect %165 -> bb54 -> bb53
+  %170: Bool trivial = eq inspect %164 inspect %62
+  branch inspect %170 -> bb54 -> bb53
 
 bb53:
-  %166: I32 trivial = add inspect %159 inspect %163
-  jump -> bb51(inspect %166)
+  %171: I32 trivial = add inspect %164 inspect %168
+  jump -> bb51(inspect %171)
 
 bb54:
-  %213: I32 trivial = const 4
-  jump -> bb55(inspect %213)
+  %218: I32 trivial = const 4
+  jump -> bb55(inspect %218)
 
-bb55(%160: I32 trivial):
+bb55(%165: I32 trivial):
   %64: I32 trivial = const 37
-  %65: I32 trivial = mul inspect %160 inspect %64
+  %65: I32 trivial = mul inspect %165 inspect %64
   %66: I32 trivial = add inspect %60 inspect %65
-  %212: I32 trivial = const 410
-  %71: I32 trivial = add inspect %66 inspect %212
+  %217: I32 trivial = const 410
+  %71: I32 trivial = add inspect %66 inspect %217
   %72: I32 trivial = const 2
-  %172: I32 trivial = const 0
-  %173: I32 trivial = const 0
-  %174: I32 trivial = const 4
-  %175: I32 trivial = const 1
-  %176: I32 trivial = const 1
-  jump -> bb59(inspect %172, inspect %173)
+  %177: I32 trivial = const 0
+  %178: I32 trivial = const 0
+  %179: I32 trivial = const 4
+  %180: I32 trivial = const 1
+  %181: I32 trivial = const 1
+  jump -> bb59(inspect %177, inspect %178)
 
-bb59(%169: I32 trivial, %170: I32 trivial):
-  %177: Bool trivial = lt inspect %169 inspect %174
-  branch inspect %177 -> bb60 -> bb63(inspect %170)
+bb59(%174: I32 trivial, %175: I32 trivial):
+  %182: Bool trivial = lt inspect %174 inspect %179
+  branch inspect %182 -> bb60 -> bb63(inspect %175)
 
 bb60:
-  %178: %I32 address = global.addr visits
-  %179: I32 trivial = load inspect %178
-  %180: I32 trivial = add inspect %179 inspect %175
-  %181: %I32 address = global.addr visits
-  store inspect %181 consume %180
-  %182: I32 trivial = add inspect %170 inspect %169
-  %183: Bool trivial = eq inspect %169 inspect %72
-  branch inspect %183 -> bb62 -> bb61
+  %183: %I32 address = global.addr visits
+  %184: I32 trivial = load inspect %183
+  %185: I32 trivial = add inspect %184 inspect %180
+  %186: %I32 address = global.addr visits
+  store inspect %186 consume %185
+  %187: I32 trivial = add inspect %175 inspect %174
+  %188: Bool trivial = eq inspect %174 inspect %72
+  branch inspect %188 -> bb62 -> bb61
 
 bb61:
-  %184: I32 trivial = add inspect %169 inspect %176
-  jump -> bb59(inspect %184, inspect %182)
+  %189: I32 trivial = add inspect %174 inspect %181
+  jump -> bb59(inspect %189, inspect %187)
 
 bb62:
-  jump -> bb63(inspect %182)
+  jump -> bb63(inspect %187)
 
-bb63(%171: I32 trivial):
-  %185: I32 trivial = add inspect %171 inspect %169
+bb63(%176: I32 trivial):
+  %190: I32 trivial = add inspect %176 inspect %174
   %74: I32 trivial = const 43
-  %75: I32 trivial = mul inspect %185 inspect %74
+  %75: I32 trivial = mul inspect %190 inspect %74
   %76: I32 trivial = add inspect %71 inspect %75
   %77: I32 trivial = const 1
-  %189: I32 trivial = const 0
-  %190: I32 trivial = const 4
-  %191: I32 trivial = const 1
-  %192: I32 trivial = const 1
-  jump -> bb67(inspect %77, inspect %189)
+  %194: I32 trivial = const 0
+  %195: I32 trivial = const 4
+  %196: I32 trivial = const 1
+  %197: I32 trivial = const 1
+  jump -> bb67(inspect %77, inspect %194)
 
-bb67(%187: I32 trivial, %188: I32 trivial):
-  %193: Bool trivial = lt inspect %187 inspect %190
-  branch inspect %193 -> bb69 -> bb68
+bb67(%192: I32 trivial, %193: I32 trivial):
+  %198: Bool trivial = lt inspect %192 inspect %195
+  branch inspect %198 -> bb69 -> bb68
 
 bb68:
-  %194: I32 trivial = add inspect %188 inspect %187
+  %199: I32 trivial = add inspect %193 inspect %192
   %79: I32 trivial = const 47
-  %80: I32 trivial = mul inspect %194 inspect %79
+  %80: I32 trivial = mul inspect %199 inspect %79
   %81: I32 trivial = add inspect %76 inspect %80
   %82: %I32 address = global.addr visits
   %83: I32 trivial = load inspect %82
@@ -518,14 +530,14 @@ bb68:
   return consume %86
 
 bb69:
-  %195: %I32 address = global.addr visits
-  %196: I32 trivial = load inspect %195
-  %197: I32 trivial = add inspect %196 inspect %191
-  %198: %I32 address = global.addr visits
-  store inspect %198 consume %197
-  %199: I32 trivial = add inspect %188 inspect %187
-  %200: I32 trivial = add inspect %187 inspect %192
-  jump -> bb67(inspect %200, inspect %199)
+  %200: %I32 address = global.addr visits
+  %201: I32 trivial = load inspect %200
+  %202: I32 trivial = add inspect %201 inspect %196
+  %203: %I32 address = global.addr visits
+  store inspect %203 consume %202
+  %204: I32 trivial = add inspect %193 inspect %192
+  %205: I32 trivial = add inspect %192 inspect %197
+  jump -> bb67(inspect %205, inspect %204)
 }
 
 entry main

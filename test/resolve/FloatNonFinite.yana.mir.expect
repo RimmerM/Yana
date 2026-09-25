@@ -1,0 +1,177 @@
+module ResolveTest
+
+fn above(x: F32 [shared call], limit: F32 [shared call]) -> Bool {
+bb0:
+  %0: F32 = read copy.trivial (x)
+  %1: F32 = read copy.trivial (limit)
+  %2: Bool = gt inspect %0 inspect %1
+  return take %2
+}
+
+fn below(x: F64 [shared call], limit: F64 [shared call]) -> Bool {
+bb0:
+  %0: F64 = read copy.trivial (x)
+  %1: F64 = read copy.trivial (limit)
+  %2: Bool = lt inspect %0 inspect %1
+  return take %2
+}
+
+fn unequal(x: F32 [shared call]) -> Bool {
+bb0:
+  %0: F32 = read copy.trivial (x)
+  %1: F32 = read copy.trivial (x)
+  %2: Bool = ne inspect %0 inspect %1
+  return take %2
+}
+
+fn main() -> I32 {
+  local big: F32
+  local low: F32
+  local wide: F64
+  local negativeZero: F64
+  local & bits: I32
+
+bb0:
+  %0: F32 = const 3E38
+  %1: F32 = const 10
+  %2: F32 = mul inspect %0 inspect %1
+  write.init borrow.unique (big) take %2
+  %4: F32 = const 0
+  %5: F32 = read copy.trivial (big)
+  %6: F32 = sub inspect %4 inspect %5
+  write.init borrow.unique (low) take %6
+  %8: F64 = const 1E308
+  %9: F64 = const 10
+  %10: F64 = mul inspect %8 inspect %9
+  write.init borrow.unique (wide) take %10
+  %12: F64 = const 0
+  %13: F64 = const 0
+  %14: F64 = const 1
+  %15: F64 = sub inspect %13 inspect %14
+  %16: F64 = mul inspect %12 inspect %15
+  write.init borrow.unique (negativeZero) take %16
+  %18: I32 = const 0
+  write.init borrow.unique (bits) take %18
+  %20: F32 = read copy.trivial (big)
+  %21: F32 = const 3E38
+  %22: Bool = call above borrow.shared %20 borrow.shared %21
+  branch inspect %22 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %29: F32 = read copy.trivial (low)
+  %30: F32 = const 0
+  %31: F32 = const 3E38
+  %32: F32 = sub inspect %30 inspect %31
+  %33: Bool = call above borrow.shared %29 borrow.shared %32
+  %34: Bool = not inspect %33
+  branch inspect %34 -> bb6 -> bb4
+
+bb3:
+  %24: I32 [unique call] = read borrow.unique (bits) loan0
+  %25: I32 = const 1
+  %26: {} = call +=(I32) borrow.unique %24 borrow.shared %25
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %41: F32 = read copy.trivial (big)
+  %42: F32 = read copy.trivial (low)
+  %43: F32 = add inspect %41 inspect %42
+  %44: Bool = call unequal borrow.shared %43
+  branch inspect %44 -> bb9 -> bb7
+
+bb6:
+  %36: I32 [unique call] = read borrow.unique (bits) loan1
+  %37: I32 = const 2
+  %38: {} = call +=(I32) borrow.unique %36 borrow.shared %37
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %51: F64 = read copy.trivial (wide)
+  %52: F64 = const 1E308
+  %53: Bool = call below borrow.shared %51 borrow.shared %52
+  %54: Bool = not inspect %53
+  branch inspect %54 -> bb12 -> bb10
+
+bb9:
+  %46: I32 [unique call] = read borrow.unique (bits) loan2
+  %47: I32 = const 4
+  %48: {} = call +=(I32) borrow.unique %46 borrow.shared %47
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %61: F64 = const 0
+  %62: F64 = read copy.trivial (wide)
+  %63: F64 = sub inspect %61 inspect %62
+  %64: F64 = const 0
+  %65: F64 = const 1E308
+  %66: F64 = sub inspect %64 inspect %65
+  %67: Bool = call below borrow.shared %63 borrow.shared %66
+  branch inspect %67 -> bb15 -> bb13
+
+bb12:
+  %56: I32 [unique call] = read borrow.unique (bits) loan3
+  %57: I32 = const 8
+  %58: {} = call +=(I32) borrow.unique %56 borrow.shared %57
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %74: F64 = const 1
+  %75: F64 = read copy.trivial (negativeZero)
+  %76: F64 = div inspect %74 inspect %75
+  %77: F64 = const 0
+  %78: F64 = const 1E308
+  %79: F64 = sub inspect %77 inspect %78
+  %80: Bool = call below borrow.shared %76 borrow.shared %79
+  branch inspect %80 -> bb18 -> bb16
+
+bb15:
+  %69: I32 [unique call] = read borrow.unique (bits) loan4
+  %70: I32 = const 16
+  %71: {} = call +=(I32) borrow.unique %69 borrow.shared %70
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %87: F32 = read copy.trivial (big)
+  %88: Bool = call unequal borrow.shared %87
+  %89: Bool = not inspect %88
+  branch inspect %89 -> bb21 -> bb19
+
+bb18:
+  %82: I32 [unique call] = read borrow.unique (bits) loan5
+  %83: I32 = const 32
+  %84: {} = call +=(I32) borrow.unique %82 borrow.shared %83
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %96: I32 = read copy.trivial (bits)
+  return take %96
+
+bb21:
+  %91: I32 [unique call] = read borrow.unique (bits) loan6
+  %92: I32 = const 64
+  %93: {} = call +=(I32) borrow.unique %91 borrow.shared %92
+  jump -> bb20
+}
+
+entry main

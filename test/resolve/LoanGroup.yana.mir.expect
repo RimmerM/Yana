@@ -1,0 +1,146 @@
+module ResolveTest
+
+data Cell {value: I32}
+
+fn keepsBoth(a: Cell [unique slot 0], b: Cell [unique slot 0]) -> Cell [unique slot 0 owner] {
+bb0:
+  %0: I32 = read copy.trivial (a.value)
+  %1: I32 = read copy.trivial (b.value)
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Cell [unique slot 0] = read borrow.unique (b) loan1
+  jump -> bb2(borrow.unique %5)
+
+bb2(%6: Cell [unique slot 0]):
+  return borrow.unique %6
+
+bb3:
+  %4: Cell [unique slot 0] = read borrow.unique (a) loan0
+  jump -> bb2(borrow.unique %4)
+}
+
+fn keepsBothMarked(a: Cell [unique slot 0], b: Cell [unique slot 0]) -> Cell [unique slot 0 owner] {
+bb0:
+  %0: I32 = read copy.trivial (a.value)
+  %1: I32 = read copy.trivial (b.value)
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Cell [unique slot 0] = read borrow.unique (b) loan1
+  jump -> bb2(borrow.unique %5)
+
+bb2(%6: Cell [unique slot 0]):
+  return borrow.unique %6
+
+bb3:
+  %4: Cell [unique slot 0] = read borrow.unique (a) loan0
+  jump -> bb2(borrow.unique %4)
+}
+
+fn keepsLeft(a: Cell [unique slot 0], b: Cell [unique slot 1]) -> Cell [unique slot 0 owner] {
+bb0:
+  %0: Cell [unique slot 0] = read borrow.unique (a) loan0
+  return borrow.unique %0
+}
+
+fn keepsRight(left: Cell [shared slot 0], right: Cell [shared slot 1]) -> Cell [shared slot 1] {
+bb0:
+  %0: Cell [shared slot 1] = read borrow.shared (right) loan0
+  return borrow.shared %0
+}
+
+fn viaValue(f: (&Cell, &Cell) -> &Cell [shared call]) -> I32 {
+  local & first: Cell
+  local & second: Cell
+  local & picked: Cell [unique slot 0 owner]
+
+bb0:
+  %0: I32 = const 3
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (first) take %1
+  %3: I32 = const 4
+  %4: Cell = aggregate.Cell take %3
+  write.init borrow.unique (second) take %4
+  %6: (&Cell, &Cell) -> &Cell [shared call] = read borrow.shared (f) loan0
+  %7: Cell [unique slot 0] = read borrow.unique (first) loan1
+  %8: Cell [unique slot 1] = read borrow.unique (second) loan2
+  %9: Cell [unique slot 0 owner] = call inspect %6 borrow.unique %7 borrow.unique %8 roots{1}
+  write.init borrow.unique (picked) borrow.unique %9
+  %11: I32 = const 7
+  write.assign borrow.unique (second.value) take %11
+  %13: I32 = read copy.trivial (picked.value)
+  %14: I32 = read copy.trivial (second.value)
+  %15: I32 = add inspect %13 inspect %14
+  return take %15
+}
+
+fn main() -> I32 {
+  local & first: Cell
+  local & second: Cell
+  local & picked: Cell [unique slot 0 owner]
+  local & third: Cell
+  local & fourth: Cell
+  local chosen: Cell [shared slot 1]
+  local & fifth: Cell
+  local & sixth: Cell
+  local & larger: Cell [unique slot 0 owner]
+  local local9: (&Cell, &Cell) -> &Cell [owned here shape8 .0=unique call]
+
+bb0:
+  %0: I32 = const 3
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (first) take %1
+  %3: I32 = const 4
+  %4: Cell = aggregate.Cell take %3
+  write.init borrow.unique (second) take %4
+  %6: Cell [unique slot 0] = read borrow.unique (first) loan0
+  %7: Cell [unique slot 1] = read borrow.unique (second) loan1
+  %8: Cell [unique slot 0 owner] = call keepsLeft borrow.unique %6 borrow.unique %7 roots{0}
+  write.init borrow.unique (picked) borrow.unique %8
+  %10: I32 = const 7
+  write.assign borrow.unique (second.value) take %10
+  %12: I32 = read copy.trivial (picked.value)
+  %13: I32 = read copy.trivial (second.value)
+  %14: I32 = add inspect %12 inspect %13
+  write.assign borrow.unique (picked.value) take %14
+  %16: I32 = const 1
+  %17: Cell = aggregate.Cell take %16
+  write.init borrow.unique (third) take %17
+  %19: I32 = const 2
+  %20: Cell = aggregate.Cell take %19
+  write.init borrow.unique (fourth) take %20
+  %22: Cell [shared slot 0] = read borrow.shared (third) loan2
+  %23: Cell [shared slot 1] = read borrow.shared (fourth) loan3
+  %24: Cell [shared slot 1] = call keepsRight borrow.shared %22 borrow.shared %23 roots{3}
+  write.init borrow.unique (chosen) borrow.shared %24
+  %26: I32 = const 9
+  write.assign borrow.unique (third.value) take %26
+  %28: I32 = const 6
+  %29: Cell = aggregate.Cell take %28
+  write.init borrow.unique (fifth) take %29
+  %31: I32 = const 8
+  %32: Cell = aggregate.Cell take %31
+  write.init borrow.unique (sixth) take %32
+  %34: Cell [unique slot 0] = read borrow.unique (fifth) loan4
+  %35: Cell [unique slot 0] = read borrow.unique (sixth) loan5
+  %36: Cell [unique slot 0 owner] = call keepsBothMarked borrow.unique %34 borrow.unique %35 roots{4, 5}
+  write.init borrow.unique (larger) borrow.unique %36
+  %38: I32 = read copy.trivial (picked.value)
+  %39: I32 = read copy.trivial (chosen.value)
+  %40: I32 = add inspect %38 inspect %39
+  %41: I32 = read copy.trivial (third.value)
+  %42: I32 = add inspect %40 inspect %41
+  %43: I32 = read copy.trivial (larger.value)
+  %44: I32 = add inspect %42 inspect %43
+  %45: (&Cell, &Cell) -> &Cell [owned here shape8 .0=unique call] = fun.value keepsLeft
+  write.init borrow.unique (local9) take %45
+  %47: (&Cell, &Cell) -> &Cell [shared call shape8 .0=unique call] = read borrow.shared (local9) loan6
+  %48: I32 = call viaValue borrow.shared %47
+  %49: I32 = add inspect %44 inspect %48
+  return take %49
+}
+
+entry main

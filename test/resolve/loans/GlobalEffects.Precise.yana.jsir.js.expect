@@ -4,21 +4,17 @@ var gArr = { items: new Int32Array([]), length: 0 };
 var gLog = { items: new Int32Array([]), length: 0 };
 
 // 
-function grow() {
-  var p0 = 0;
-  while (p0 < 1000) {
-    var v9 = p0 + 100 | 0;
-    var v12 = gArr.length;
-    var v14 = v12 + 1;
-    if (v14 > gArr.items.length) growJsArray_I32(gArr, v14);
-    gArr.items[v12] = v9;
-    gArr.length = v14 & 1073741823;
-    p0 = p0 + 1 | 0;
-  }
-}
-
 function Noisy_drop(value) {
-  grow();
+  var p1 = 0;
+  while (p1 < 1000) {
+    var v10 = p1 + 100 | 0;
+    var v13 = gArr.length;
+    var v15 = v13 + 1;
+    if (v15 > gArr.items.length) growJsArray_I32(gArr, v15);
+    gArr.items[v13] = v10;
+    gArr.length = v15 & 1073741823;
+    p1 = p1 + 1 | 0;
+  }
 }
 
 function makeGrower() {
@@ -56,13 +52,13 @@ function main() {
   var v92 = gArr.length;
   var v96 = 0 > v92 ? v92 : 0;
   var v98 = 3 < v96 ? v96 : 3;
-  var v106 = (v98 > v92 ? v92 : v98) - v96 >>> 0;
-  if (0 >= v106) throw $t;
-  var v109 = v89[v96];
-  if (1 >= v106) throw $t;
-  var v121 = (v109 + v89[v96 + 1] | 0) + 1 | 0;
+  var v105 = (v98 > v92 ? v92 : v98) - v96 >>> 0;
+  if (0 >= v105) throw $t;
+  var v108 = v89[v96];
+  if (1 >= v105) throw $t;
+  var v118 = v108 + v89[v96 + 1] | 0;
   Noisy_drop(1);
-  return v84 + (v121 + 1 | 0) | 0;
+  return v84 + (v118 + 2 | 0) | 0;
 }
 
 function main$() {
@@ -74,7 +70,16 @@ function main$() {
 }
 
 function makeGrower_lambda(makeGrower_lambda_env) {
-  grow();
+  var p1 = 0;
+  while (p1 < 1000) {
+    var v10 = p1 + 100 | 0;
+    var v13 = gArr.length;
+    var v15 = v13 + 1;
+    if (v15 > gArr.items.length) growJsArray_I32(gArr, v15);
+    gArr.items[v13] = v10;
+    gArr.length = v15 & 1073741823;
+    p1 = p1 + 1 | 0;
+  }
 }
 
 function growJsArray_I32(self, wanted) {

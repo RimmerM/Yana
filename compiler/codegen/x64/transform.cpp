@@ -738,6 +738,11 @@ static const TransformPass kTransformPipeline[] = {
     // has an address that would have to travel with it.
     { "sinkVectorConstants"_v,         sinkVectorConstants,         0, true },
 
+    // Beside it and for the same reason, over a frame slot's address rather than a constant: what
+    // stands where it stands is what the allocator's walk sees first. Below every pass that makes or
+    // reads a block, so the dominator tree it asks is the one the function keeps.
+    { "sinkFrameAddresses"_v,          sinkFrameAddresses,          0 },
+
     { "canonicalizeOperands"_v,        canonicalizeOperands,        0 },
     { "selectStoreUpdates"_v,          selectStoreUpdates,          0 },
 

@@ -48,20 +48,16 @@ fn main() -> one %r0
     %23: %r0 = load global dropCalls: %r0
     %24: %r0 = const 1
     %25: %r6 = binary.ne %23, %24
-    branch %25 -> block4 -> block3
+    %26: %r0 = const -2
+    %27: %r0 = binary.add %15, %22
+    %28: %r0 = coerce %27
+    %29: %r0 = binary.add %28, %23
+    %30: %r0 = coerce %29
+    %31: %r0 = select %25, %26, %30
+    return %31
   block2:
     %32: %r0 = const -1
     return %32
-  block3:
-    %26: %r0 = binary.add %15, %22
-    %27: %r0 = coerce %26
-    %28: %r0 = load global dropCalls: %r0
-    %29: %r0 = binary.add %27, %28
-    %30: %r0 = coerce %29
-    return %30
-  block4:
-    %31: %r0 = const -2
-    return %31
 
 fn guarded.lambda(one %r4) -> one %r0 env
   block0(%0: %r4):
@@ -80,7 +76,7 @@ fn plain.lambda(one %r5) -> one %r0 env
     %1: %r0 = const 5
     return %1
 
-optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 1 sunk 1 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 2
+optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 1 sunk 1 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 2 folded 0
 
 shape %s0 fun {$c: %r2 code, $e: %r2 env}
 shape %s1 object guarded.lambda.env {g: %r0}

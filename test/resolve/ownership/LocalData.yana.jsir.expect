@@ -18,13 +18,7 @@ fn main() -> one %r0
   var $3: %r0
   var $4: %r0
   block0:
-    %0: %r0 = const 4
-    %1: %r0 = alias %0
-    %2: %r0 = alias %1
-    %3: %r0 = alias %2
-    %4: %r0 = const 4
-    %5: %r3 = binary.ne %3, %4
-    branch %5 -> block2 -> block1
+    jump -> block1
   block1:
     %6: %r0 = const 5
     %7: %r0 = alias %6
@@ -40,17 +34,11 @@ fn main() -> one %r0
   block3:
     %12: %r0 = const 0
     store global trace: %r0, %12
-    %16: %r0 = const 7
     %17: %r0 = const 3
-    %18: %r0 = alias %16
     %19: %r0 = alias %17
-    %22: %r0 = alias %18
-    %23: %r0 = alias %22
     %25: %r0 = alias %19
     call Guard.drop %25
-    %26: %r0 = const 7
-    %27: %r3 = binary.ne %23, %26
-    branch %27 -> block6 -> block5
+    jump -> block5
   block4:
     %35: %r0 = const -2
     return %35
@@ -66,7 +54,7 @@ fn main() -> one %r0
     %34: %r0 = const -3
     return %34
 
-optimizer clones 0 aliased 0 forwarded 0 removed 14 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 5
+optimizer clones 0 aliased 0 forwarded 0 removed 26 adopted 0 sunk 0 numbered 0 decided 2 unboxed 0 updated 0 split 1 promoted 5 folded 2
 
 shape %s0 object Session {handle: %r0, guard: %r0}
 

@@ -87,11 +87,13 @@ StringView jsPassingKindName(JsPassingKind kind) {
 
 void JsTarget::notYet(StringView what, LocationId where) {
     reported = true;
+    refused = true;
     context.diagnostics.error("JSIR does not convert %@ yet"_v, where, what);
 }
 
 void JsTarget::notYet(StringView what, DeclPtr<mir::Type> type, LocationId where) {
     reported = true;
+    refused = true;
     if(!type) return notYet(what, where);
 
     context.diagnostics.error("JSIR does not convert %@ yet (%@)"_v, where, what,
@@ -346,11 +348,11 @@ U32 jsScalarBytes(JsTarget& target, JsRepId rep) {
     return 0;
 }
 
-JsRepId jsHostArrayRep(JsTarget& target, JsRepId element, U32 length) {
+JsRepId jsHostArrayRep(JsTarget& target, JsRepId element, U32 length, bool typed) {
     JsRep rep;
     rep.kind = JsRepKind::HostArray;
     rep.content = element;
-    rep.typedArray = typedArrayFor(target, element);
+    rep.typedArray = typed ? typedArrayFor(target, element) : TypedArray::Plain;
     rep.length = length;
     return internRep(target, rep);
 }
@@ -679,6 +681,19 @@ static DeclPtr<mir::Type> transparentContentAsked(JsTarget& target, DeclPtr<mir:
      * it interns the representation the field has anyway.
      */
     auto contentType = first.occurrence.type;
+
+    /*
+     * And never over a **function value** or an erased iterator, for the same reason - J145, J144
+     * §5. Both are the two-property `FunPair` object (`jsFunRep`), so a transparent `data Handler
+     * {run: (Int, Int) -> Int}` *was* a `GcObject`, the field projection took the object path, and
+     * `h.run` read the pair's code word as if it were the field - the verifier's "a property read
+     * out of something that is not a host object" at the call through it. Declined here rather than
+     * taught at the projection, for the reason above: the aggregate, the constant and the teardown
+     * walk ask the same question in the same order.
+     */
+    auto contentKind = target.decl[contentType]->kind;
+    if(contentKind == mir::Type::Fun || contentKind == mir::Type::Iter) return nullptr;
+
     if(target.decl[contentType]->kind == mir::Type::Record &&
        !isStringRecord(target, contentType) && !isBoolRecord(target, contentType) &&
        ((mir::RecordType*)target.decl[contentType])->layout != mir::RecordLayout::Enum &&
@@ -1656,10 +1671,18 @@ JsRepId jsRep(JsTarget& target, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipS
              *
              * What that buys is that no operation over a vector builds anything: an add is `lanes`
              * additions over `lanes` variables, a splat is one value named `lanes` times, and a lane
-             * read, a lane write and a shuffle emit nothing at all. The materialized form is a host
-             * row - typed where the lane has a row, which is what lets `hostVector` read one out of
-             * a `Uint8Array` by index - and it exists only for the positions one value is the only
-             * thing that fits: a field, an element, a `return`, an erased argument.
+             * read, a lane write and a shuffle emit nothing at all. The materialized form is a
+             * **plain** host row, and it exists only for the positions one value is the only thing
+             * that fits: a field, an element, a `return`, an erased argument.
+             *
+             * Plain rather than typed since J136, which is the shipping backend's choice too. A
+             * typed row bought nothing here: every lane is already coerced to its width by the
+             * operation that made it (`|0`, `>>> 0`, `Math.fround`), a host transfer reads and
+             * writes the *parts* rather than the row, and no bitcast reaches a row's buffer - a
+             * lane-width change is refused. What it cost was V8's escape analysis, which elides a
+             * `[a, b, c, d]` that a caller splits straight back into lanes and does not elide a
+             * `new Int32Array([...])`: a `@noinline` `Vec(I32, 4)` round trip measured 8.5x the
+             * shipping backend's CPU for that reason alone (J94 §6.3 H).
              *
              * A **mask's** lanes are host booleans rather than the lane-width all-ones the native
              * Repr describes, in the same way and for the same reason LLVM's `<N x i1>` is - see
@@ -1696,7 +1719,7 @@ JsRepId jsRep(JsTarget& target, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipS
                 for(U32 i = 0; i < lanes; i++) parts.push(lane);
 
                 return jsPartsRep(target, held(parts),
-                                  jsHostArrayRep(target, lane, lanes), true);
+                                  jsHostArrayRep(target, lane, lanes, false), true);
             }
 
             case mir::Type::Atomic:

@@ -69,11 +69,11 @@ main<complex>(): I32 {
 
   b_20 {
     store @trace, 0, 4
-    call_complex Guard.drop, 1
-    call_complex Guard.drop, 3
+    store @trace, 0, 4
     call_complex Guard.drop, 2
+    call_complex Guard.drop, 9
     %v_21 = loads @trace, 4: I32
-    %v_22 = cmp_neq %v_21, 3: I32
+    %v_22 = cmp_neq %v_21, 2: I32
     je %v_22, b_23, b_24
   }
 
@@ -83,23 +83,10 @@ main<complex>(): I32 {
 
   b_24 {
     store @trace, 0, 4
-    call_complex Guard.drop, 2
-    call_complex Guard.drop, 9
-    %v_25 = loads @trace, 4: I32
-    %v_26 = cmp_neq %v_25, 2: I32
-    je %v_26, b_27, b_28
-  }
-
-  b_23 {
-    ret 18446744073709551603
-  }
-
-  b_28 {
-    store @trace, 0, 4
     ret 100
   }
 
-  b_27 {
+  b_23 {
     ret 18446744073709551600
   }
 }

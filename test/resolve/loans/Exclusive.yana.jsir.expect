@@ -27,12 +27,7 @@ fn main() -> one %r0
   var $15: %r0
   var $16: %r0
   block0:
-    %3: %r0 = const 41
-    %5: %r0 = alias %3
-    %6: %r0 = alias %5
-    %7: %r0 = const 41
-    %8: %r3 = binary.ne %6, %7
-    branch %8 -> block2 -> block1
+    jump -> block1
   block1:
     %31: %r0 = const 10
     store var $15: %r0, %31
@@ -45,20 +40,13 @@ fn main() -> one %r0
     %41: %r3 = binary.ne %39, %40
     branch %41 -> block4 -> block3
   block2:
-    %124: %r0 = const -2
-    return %124
+    %122: %r0 = const -2
+    return %122
   block3:
-    %52: %r0 = const 6
-    %54: %r0 = alias %52
-    %55: %r0 = alias %54
-    %56: %r0 = alias %55
-    %57: %r0 = alias %56
-    %58: %r0 = const 6
-    %59: %r3 = binary.ne %57, %58
-    branch %59 -> block6 -> block5
+    jump -> block5
   block4:
-    %123: %r0 = const -5
-    return %123
+    %121: %r0 = const -5
+    return %121
   block5:
     %62: %r0 = const 9
     %64: %r0 = alias %62
@@ -68,8 +56,8 @@ fn main() -> one %r0
     %67: %r3 = binary.ne %65, %66
     branch %67 -> block8 -> block7
   block6:
-    %122: %r0 = const -7
-    return %122
+    %120: %r0 = const -7
+    return %120
   block7:
     %68: %r0 = const 2
     %69: %r0 = alias %68
@@ -80,8 +68,8 @@ fn main() -> one %r0
     %73: %r3 = binary.ne %71, %72
     branch %73 -> block10 -> block9
   block8:
-    %121: %r0 = const -9
-    return %121
+    %119: %r0 = const -9
+    return %119
   block9:
     %80: %r0 = const 0
     %81: %r0 = alias %80
@@ -92,29 +80,27 @@ fn main() -> one %r0
     %85: %r0 = const 1
     jump -> block13(%82)
   block10:
-    %120: %r0 = const -11
-    return %120
+    %118: %r0 = const -11
+    return %118
   block11:
     %99: %r0 = load global counter: %r0
     %100: %r0 = const 1
     %101: %r0 = binary.add %99, %100
     %102: %r0 = coerce %101
     store global counter: %r0, %102
-    %103: %r0 = const 10
-    %104: %r0 = load global counter: %r0
-    %105: %r0 = binary.add %104, %103
-    %106: %r0 = coerce %105
-    store global counter: %r0, %106
-    %107: %r0 = load global counter: %r0
-    %108: %r0 = const 11
-    %109: %r3 = binary.ne %107, %108
-    %110: %r0 = const -16
-    %111: %r0 = const 100
-    %112: %r0 = select %109, %110, %111
-    return %112
+    %103: %r0 = const 11
+    %104: %r0 = binary.add %99, %103
+    %105: %r0 = coerce %104
+    store global counter: %r0, %105
+    %106: %r0 = const 11
+    %107: %r3 = binary.ne %105, %106
+    %108: %r0 = const -16
+    %109: %r0 = const 100
+    %110: %r0 = select %107, %108, %109
+    return %110
   block12:
-    %113: %r0 = const -13
-    return %113
+    %111: %r0 = const -13
+    return %111
   block13(%0: %r0):
     %86: %r3 = binary.lt %0, %83
     branch %86 -> block15 -> block14
@@ -124,15 +110,15 @@ fn main() -> one %r0
     %90: %r3 = binary.ne %88, %89
     branch %90 -> block12 -> block11
   block15:
-    %115: %r0 = load var $12: %r0
-    %116: %r0 = binary.add %115, %84
+    %113: %r0 = load var $12: %r0
+    %114: %r0 = binary.add %113, %84
+    %115: %r0 = coerce %114
+    store var $12: %r0, %115
+    %116: %r0 = binary.add %0, %85
     %117: %r0 = coerce %116
-    store var $12: %r0, %117
-    %118: %r0 = binary.add %0, %85
-    %119: %r0 = coerce %118
-    jump -> block13(%119)
+    jump -> block13(%117)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 88 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 1 promoted 6
+optimizer clones 0 aliased 0 forwarded 0 removed 100 adopted 0 sunk 0 numbered 1 decided 2 unboxed 0 updated 0 split 1 promoted 6 folded 2
 
 shape %s0 object Pair {left: %r0, right: %r0}
 

@@ -7,21 +7,6 @@ fn main() -> one %r0
   var $5: %r6
   var $6: %r4
   block0:
-    %3: %r0 = const 5
-    %8: %r0 = const 1
-    %9: %r0 = alias %3
-    %10: %r0 = binary.add %8, %9
-    %11: %r0 = coerce %10
-    %12: %r0 = const 3
-    %17: %r0 = const 10
-    %18: %r0 = alias %12
-    %19: %r0 = binary.add %17, %18
-    %20: %r0 = coerce %19
-    %21: %r0 = const 7
-    %26: %r0 = const 10
-    %27: %r0 = alias %21
-    %28: %r0 = binary.mul %26, %27
-    %29: %r0 = coerce %28
     %30: %r0 = const 100
     %31: %r4 = object %s3 %30
     %32: %r4 = alias %31
@@ -31,10 +16,7 @@ fn main() -> one %r0
     %37: %r5 = alias %34
     %38: %r5 = alias %33
     %39: %r0 = call.value %37, %38, %36
-    %40: %r0 = binary.add %11, %20
-    %41: %r0 = coerce %40
-    %42: %r0 = binary.add %41, %29
-    %43: %r0 = coerce %42
+    %43: %r0 = const 89
     %44: %r0 = binary.add %43, %39
     %45: %r0 = coerce %44
     return %45
@@ -67,7 +49,7 @@ fn escaping.lambda(one %r4, one %r0) -> one %r0 env
     %4: %r0 = coerce %3
     return %4
 
-optimizer clones 1 aliased 1 forwarded 5 removed 23 adopted 1 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 4
+optimizer clones 1 aliased 1 forwarded 5 removed 41 adopted 1 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 4 folded 10
 
 shape %s0 object direct.lambda.env {base: %r0}
 shape %s1 object either.lambda.env {a: %r0}

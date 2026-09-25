@@ -6,14 +6,9 @@ fn main() -> one %r0
     %7: %r0 = const 3
     %8: %r1 = host host.array %5, %6, %7
     %9: %r2 = const 3
-    %11: %r0 = const 0
     %12: %r0 = const 10
-    %13: %r0 = const 3
     %14: %r0 = const 0
-    %15: %r9 = convert %11
-    %16: %r9 = convert %13
-    %17: %r10 = binary.ge %15, %16
-    branch %17 -> block2 -> block1
+    jump -> block1
   block1:
     %18: %r1 = alias %8
     store element %18[%14]: %r0, %12
@@ -43,76 +38,58 @@ fn main() -> one %r0
     %34: %r10 = binary.lt %1, %29
     branch %34 -> block5 -> block4
   block4:
-    %35: %r1 = load property %4.items: %r1
-    %36: %r2 = load property %4.length: %r2
-    %37: %r0 = convert %36
     call Array(a).reclaim(I32) %4
-    %39: %r0 = convert %37
-    %40: %r0 = binary.add %0, %39
-    %41: %r0 = coerce %40
-    %42: %r0 = const 7
-    %43: %r0 = const 8
-    %44: %r0 = const 9
-    %45: %r1 = host host.array %42, %43, %44
-    %46: %r2 = const 3
-    %48: %r0 = const 0
-    %49: %r0 = const 3
-    %50: %r0 = const 0
-    %51: %r9 = convert %48
-    %52: %r9 = convert %49
-    %53: %r10 = binary.ge %51, %52
-    branch %53 -> block13 -> block8
+    %36: %r0 = convert %29
+    %37: %r0 = binary.add %0, %36
+    %38: %r0 = coerce %37
+    %39: %r0 = const 7
+    %40: %r0 = const 8
+    %41: %r0 = const 9
+    %42: %r1 = host host.array %39, %40, %41
+    %43: %r2 = const 3
+    %47: %r0 = const 0
+    jump -> block8
   block5:
-    %81: %r9 = convert %1
-    %82: %r9 = convert %29
-    %83: %r10 = binary.ge %81, %82
-    branch %83 -> block7 -> block6
+    %78: %r9 = convert %1
+    %79: %r9 = convert %29
+    %80: %r10 = binary.ge %78, %79
+    branch %80 -> block7 -> block6
   block6:
-    %84: %r1 = alias %27
-    %85: %r0 = alias %1
+    %81: %r1 = alias %27
+    %82: %r0 = alias %1
+    %83: %r0 = coerce %82
+    %84: %r0 = load element %81[%83]: %r0
+    %85: %r0 = binary.add %0, %84
     %86: %r0 = coerce %85
-    %87: %r0 = load element %84[%86]: %r0
-    %88: %r0 = binary.add %0, %87
-    %89: %r0 = coerce %88
-    %90: %r0 = binary.add %1, %33
-    %91: %r0 = coerce %90
-    jump -> block3(%89, %91)
+    %87: %r0 = binary.add %1, %33
+    %88: %r0 = coerce %87
+    jump -> block3(%86, %88)
   block7:
     host host.throw "yana: a runtime check failed"
     unreachable
   block8:
-    %54: %r1 = alias %45
-    %55: %r0 = load element %54[%50]: %r0
-    %56: %r0 = const 1
-    %58: %r9 = convert %56
-    %59: %r9 = convert %49
-    %60: %r10 = binary.ge %58, %59
-    branch %60 -> block12 -> block9
+    %51: %r1 = alias %42
+    %52: %r0 = load element %51[%47]: %r0
+    jump -> block9
   block9:
-    %61: %r1 = alias %45
-    %62: %r0 = alias %56
+    %58: %r1 = alias %42
+    %60: %r0 = const 1
+    %61: %r0 = load element %58[%60]: %r0
+    %62: %r0 = binary.add %52, %61
     %63: %r0 = coerce %62
-    %64: %r0 = load element %61[%63]: %r0
-    %65: %r0 = binary.add %55, %64
-    %66: %r0 = coerce %65
-    %67: %r0 = const 2
-    %69: %r9 = convert %67
-    %70: %r9 = convert %49
-    %71: %r10 = binary.ge %69, %70
-    branch %71 -> block11 -> block10
+    jump -> block10
   block10:
-    %72: %r1 = alias %45
-    %73: %r0 = alias %67
-    %74: %r0 = coerce %73
-    %75: %r0 = load element %72[%74]: %r0
-    %47: %r3 = object %s0 %45, %46
-    %76: %r3 = alias %47
-    call Array(a).reclaim(I32) %76
-    %77: %r0 = binary.add %66, %75
-    %78: %r0 = coerce %77
-    %79: %r0 = binary.add %41, %78
-    %80: %r0 = coerce %79
-    return %80
+    %69: %r1 = alias %42
+    %71: %r0 = const 2
+    %72: %r0 = load element %69[%71]: %r0
+    %44: %r3 = object %s0 %42, %43
+    %73: %r3 = alias %44
+    call Array(a).reclaim(I32) %73
+    %74: %r0 = binary.add %63, %72
+    %75: %r0 = coerce %74
+    %76: %r0 = binary.add %38, %75
+    %77: %r0 = coerce %76
+    return %77
   block11:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -199,7 +176,7 @@ fn growJsArray(I32)(one %r3, one %r0) -> omitted
     store property %0.items: %r1, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 11 adopted 1 sunk 2 numbered 6 decided 1 unboxed 0 updated 0 split 0 promoted 1
+optimizer clones 0 aliased 0 forwarded 0 removed 31 adopted 1 sunk 2 numbered 4 decided 5 unboxed 0 updated 0 split 0 promoted 1 folded 16
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

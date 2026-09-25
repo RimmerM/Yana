@@ -2,95 +2,71 @@
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
     store %v_1, 4294963001033704, 8
-    %v_2 = add %v_1, 4: Ptr
-    %v_3 = bitcast %v_2: I64
-    %v_4 = and %v_3, 281474976710655: I64
-    %v_5 = bitcast %v_4: Ptr
-    %v_6 = shr %v_3, 48: I64
-    %v_7 = load %v_5, 4: I64
-    %v_8 = shr %v_7, %v_6: I64
-    %v_9 = and %v_8, 1048575: I64
-    %v_10 = cast %v_9: I32
-    %v_11 = add %v_10, 1: I32
-    %v_12 = and %v_11, 1048575: I32
-    %v_13 = cast %v_12: I64
-    %v_14 = shl %v_13, %v_6: I64
-    %v_15 = shl 1048575, %v_6: I64
-    %v_16 = not %v_15: I64
-    %v_17 = and %v_7, %v_16: I64
-    %v_18 = or %v_17, %v_14: I64
-    store %v_5, %v_18, 4
-    %v_19 = load %v_1, 8: I64
-    %v_20 = shr %v_19, 32: I64
+    %v_3 = add %v_1, 4: Ptr
+    %v_4 = load %v_3, 4: I64
+    %v_5 = and %v_4, 1048575: I64
+    %v_6 = cast %v_5: I32
+    %v_7 = add %v_6, 1: I32
+    %v_8 = and %v_7, 1048575: I32
+    %v_9 = cast %v_8: I64
+    %v_10 = and %v_4, 18446744073708503040: I64
+    %v_11 = or %v_10, %v_9: I64
+    store %v_3, %v_11, 4
+    %v_12 = load %v_1, 8: I64
+    %v_13 = shr %v_12, 32: I64
+    %v_14 = and %v_13, 1048575: I64
+    %v_15 = cast %v_14: I32
+    %v_16 = cmp_eq %v_15, 1000000: I32
+    %v_17 = select %v_16, 16, 0: I32
+    %v_18 = add 15, %v_17: I32
+    store %v_2, 4294963001033704, 8
+    %v_19 = add %v_2, 4: Ptr
+    %v_20 = load %v_19, 4: I64
     %v_21 = and %v_20, 1048575: I64
     %v_22 = cast %v_21: I32
-    %v_23 = cmp_eq %v_22, 1000000: I32
-    %v_24 = select %v_23, 16, 0: I32
-    %v_25 = add 15, %v_24: I32
-    %v_26 = alloca 8, 8: Ptr
-    store %v_26, 4294963001033704, 8
-    %v_27 = add %v_26, 4: Ptr
-    %v_28 = bitcast %v_27: I64
-    %v_29 = and %v_28, 281474976710655: I64
-    %v_30 = bitcast %v_29: Ptr
-    %v_31 = shr %v_28, 48: I64
-    %v_32 = load %v_30, 4: I64
-    %v_33 = shr %v_32, %v_31: I64
-    %v_34 = and %v_33, 1048575: I64
-    %v_35 = cast %v_34: I32
-    %v_36 = add %v_35, 1: I32
-    %v_37 = and %v_36, 1048575: I32
-    %v_38 = cast %v_37: I64
-    %v_39 = shl %v_38, %v_31: I64
-    %v_40 = shl 1048575, %v_31: I64
-    %v_41 = not %v_40: I64
-    %v_42 = and %v_32, %v_41: I64
-    %v_43 = or %v_42, %v_39: I64
-    store %v_30, %v_43, 4
-    %v_44 = load %v_26, 8: I64
-    %v_45 = and %v_44, 1048575: I64
-    %v_46 = cast %v_45: I32
-    %v_47 = cmp_eq %v_46, 1000: I32
-    %v_48 = select %v_47, 32, 0: I32
-    %v_49 = add %v_25, %v_48: I32
-    %v_50 = add %v_49, 64: I32
-    %v_51 = add %v_50, 128: I32
-    %v_52 = add %v_51, 768: I32
-    %v_53 = add %v_52, 1024: I32
-    %v_54 = add %v_53, 2048: I32
-    %v_55 = alloca 8, 4: Ptr
-    store %v_55, 7, 4
-    %v_56 = add %v_55, 4: Ptr
-    store %v_56, 4293918721, 4
-    %v_57 = add %v_55, 6: Ptr
-    %v_58 = bitcast %v_57: I64
-    %v_59 = or %v_58, 1125899906842624: I64
-    %v_60 = and %v_59, 281474976710655: I64
-    %v_61 = bitcast %v_60: Ptr
-    %v_62 = shr %v_59, 48: I64
-    %v_63 = load %v_61, 2: I64
-    %v_64 = shr %v_63, %v_62: I64
-    %v_65 = and %v_64, 4095: I64
-    %v_66 = cast %v_65: I32
-    %v_67 = add %v_66, 1: I32
-    %v_68 = and %v_67, 4095: I32
-    %v_69 = cast %v_68: I64
-    %v_70 = shl %v_69, %v_62: I64
-    %v_71 = shl 4095, %v_62: I64
-    %v_72 = not %v_71: I64
-    %v_73 = and %v_63, %v_72: I64
-    %v_74 = or %v_73, %v_70: I64
-    store %v_61, %v_74, 2
-    %v_75 = load %v_56, 4: I64
-    %v_76 = shr %v_75, 20: I64
-    %v_77 = cast %v_76: I32
-    %v_78 = cmp_eq %v_77, 0: I32
-    %v_79 = select %v_78, 4096, 0: I32
-    %v_80 = add %v_54, %v_79: I32
-    %v_81 = add %v_80, 8192: I32
-    %v_82 = add %v_81, 16384: I32
-    ret %v_82
+    %v_23 = add %v_22, 1: I32
+    %v_24 = and %v_23, 1048575: I32
+    %v_25 = cast %v_24: I64
+    %v_26 = and %v_20, 18446744073708503040: I64
+    %v_27 = or %v_26, %v_25: I64
+    store %v_19, %v_27, 4
+    %v_28 = load %v_2, 8: I64
+    %v_29 = and %v_28, 1048575: I64
+    %v_30 = cast %v_29: I32
+    %v_31 = cmp_eq %v_30, 1000: I32
+    %v_32 = select %v_31, 32, 0: I32
+    %v_33 = add %v_18, %v_32: I32
+    %v_34 = add %v_33, 64: I32
+    %v_35 = add %v_34, 128: I32
+    %v_36 = add %v_35, 768: I32
+    %v_37 = add %v_36, 1024: I32
+    %v_38 = add %v_37, 2048: I32
+    %v_39 = alloca 8, 4: Ptr
+    store %v_39, 7, 4
+    %v_40 = add %v_39, 4: Ptr
+    store %v_40, 4293918721, 4
+    %v_41 = add %v_39, 6: Ptr
+    %v_42 = load %v_41, 2: I64
+    %v_43 = shr %v_42, 4: I64
+    %v_44 = cast %v_43: I32
+    %v_45 = add %v_44, 1: I32
+    %v_46 = and %v_45, 4095: I32
+    %v_47 = cast %v_46: I64
+    %v_48 = shl %v_47, 4: I64
+    %v_49 = and %v_42, 15: I64
+    %v_50 = or %v_49, %v_48: I64
+    store %v_41, %v_50, 2
+    %v_51 = load %v_40, 4: I64
+    %v_52 = shr %v_51, 20: I64
+    %v_53 = cast %v_52: I32
+    %v_54 = cmp_eq %v_53, 0: I32
+    %v_55 = select %v_54, 4096, 0: I32
+    %v_56 = add %v_38, %v_55: I32
+    %v_57 = add %v_56, 8192: I32
+    %v_58 = add %v_57, 16384: I32
+    ret %v_58
   }
 }
 

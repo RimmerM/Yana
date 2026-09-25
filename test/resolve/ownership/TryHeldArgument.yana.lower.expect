@@ -16,12 +16,10 @@ Try(Maybe(a), a, ()).toOutcome(Token)<complex>(%v_0: Ptr, %value: Ptr) {
 
   b_4 {
     %v_8 = add %value, 4: Ptr
-    %inner = alloca 4, 4: Ptr
-    copy %inner, %v_8, 4
     %v_9 = alloca 8, 4: Ptr
     store %v_9, 0, 4
     %v_10 = add %v_9, 4: Ptr
-    copy %v_10, %inner, 4
+    copy %v_10, %v_8, 4
     jmp b_7
   }
 
@@ -104,7 +102,6 @@ paired<complex>(%v_0: Ptr, %a: I32, %b: I32) {
 
   b_6 {
     call_complex drop$Outcome(Token, ()), %v_3
-    %v_18 = alloca 1, 1: Ptr
     store %v_0, 0, 4
     ret 
   }
@@ -112,7 +109,6 @@ paired<complex>(%v_0: Ptr, %a: I32, %b: I32) {
   b_12 {
     call_complex drop$Outcome(Token, ()), %v_3
     call_complex drop$Outcome(Token, ()), %v_9
-    %v_19 = alloca 1, 1: Ptr
     store %v_0, 0, 4
     ret 
   }

@@ -27,15 +27,15 @@ struct Verifier {
 
     void fail(StringView what, LocationId where) {
         ok = false;
-        target.reported = true;
 
+        // Held rather than printed - see `JsTarget::refused`.
         if(at) {
-            target.context.diagnostics.error("internal: JSIR verification failed at `%@` - %@"_v,
-                                             where, jsInstMnemonic(at->kind), what);
+            target.verifierFailed(where, "internal: JSIR verification failed at `%@` - %@"_v,
+                                  jsInstMnemonic(at->kind), what);
             return;
         }
 
-        target.context.diagnostics.error("internal: JSIR verification failed - %@"_v, where, what);
+        target.verifierFailed(where, "internal: JSIR verification failed - %@"_v, what);
     }
 
     StringView functionName() {
@@ -442,11 +442,10 @@ struct Verifier {
                         auto& want = target.rep(shape.properties[i].rep);
                         auto& got = target.rep(base[supplied]->rep);
 
-                        target.reported = true;
                         ok = false;
-                        target.context.diagnostics.error(
+                        target.verifierFailed(inst.source,
                             "internal: JSIR verification failed at `object` - the property %@ of %@ "
-                            "wants %@(%@) and was supplied %@(%@)"_v, inst.source,
+                            "wants %@(%@) and was supplied %@(%@)"_v,
                             stringView(target.context.findName(shape.properties[i].key)),
                             mir::typeText(target.context, target.decl, shape.source),
                             jsRepKindName(want.kind),
@@ -575,12 +574,11 @@ struct Verifier {
                     auto& want = target.rep(parts.content);
                     auto& got = target.rep(base[written.from]->rep);
 
-                    target.reported = true;
                     ok = false;
-                    target.context.diagnostics.error(
+                    target.verifierFailed(inst.source,
                         "internal: JSIR verification failed at `split` - a split of something that "
                         "is not its parts' single-value form: %@ wants %@(%@) and was given "
-                        "%@(%@)"_v, inst.source,
+                        "%@(%@)"_v,
                         mir::typeText(target.context, target.decl, target.rep(written.parts).source),
                         jsRepKindName(want.kind),
                         mir::typeText(target.context, target.decl, want.source),

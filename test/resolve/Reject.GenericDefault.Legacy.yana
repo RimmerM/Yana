@@ -1,23 +1,10 @@
--- The rules of `Reject.GenericDefault.yana` the default stage does not refuse yet: a default
--- naming another parameter, a default on a two-parameter class, and a class default with no
--- instance of its class. It accepts the first and the third (declarations.md, "Generic parameter
--- defaults" and "Class defaults"), and refuses the second only by the suffix rule. Move each
--- back when it does.
+-- The part of `Reject.GenericDefault.yana` only the shipping stage refuses, and the one remainder
+-- that is not waiting for the rewrite: a default naming an *earlier* parameter is part of the
+-- language since J144 (declarations.md, "Generic parameter defaults"), and the rewrite accepts it
+-- and substitutes the earlier argument into it - `generic/Forms.yana` and `DependentDefault.yana`
+-- run it. The shipping stage still reads the older "a default is concrete" and refuses it. This
+-- records that disagreement rather than a rule, so it goes when that stage does, not back.
 
-data Wrapper(a) {value: a}
-
--- A default that names another parameter of the same list. What `b` meant would depend on the order
--- the arguments were filled in, and there is no reading of that worth having.
 data Chained(a, b = a) {left: a, right: b}
-
--- A class default on a head with two parameters. What a default answers is which type an
--- unconstrained variable settles to, and a class with two has no single variable to settle.
-class Pairwise(a = Int, b):
-  fn pair(x: a, y: b) -> Int
-
--- And one that names a type with no instance of its own class, which is a default nothing could
--- ever take.
-class Unimplemented(a = Wrapper(Int)):
-  fn use(x: a) -> Int
 
 fn main() -> Int = 0

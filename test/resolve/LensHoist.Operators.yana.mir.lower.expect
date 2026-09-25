@@ -1,73 +1,23 @@
 mut @log = [0, 0, 0, 0]
 
-beforeShortCircuit<complex>(%b: I32): I32 {
-  b_0 {
-    store @log, 0, 4
-    %v_1 = loads @log, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store @log, %v_2, 4
-    %v_3 = loads @log, 4: I32
-    %v_4 = cmp_igt %v_3, 0: I32
-    %v_5 = and %v_4, %b: I32
-    %v_6 = select %v_5, 1, 2: I32
-    %v_7 = loads @log, 4: I32
-    %v_8 = add %v_6, %v_7: I32
-    %v_9 = loads @log, 4: I32
-    %v_10 = add %v_9, 100: I32
-    store @log, %v_10, 4
-    ret %v_8
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
     store @log, 0, 4
-    %v_1 = loads @log, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store @log, %v_2, 4
-    %v_3 = loads @log, 4: I32
-    %v_4 = add %v_3, 3: I32
-    %v_5 = loads @log, 4: I32
-    %v_6 = add %v_4, %v_5: I32
-    %v_7 = loads @log, 4: I32
-    %v_8 = add %v_7, 100: I32
-    store @log, %v_8, 4
+    store @log, 1, 4
+    store @log, 101, 4
     store @log, 0, 4
-    %v_9 = loads @log, 4: I32
-    %v_10 = add %v_9, 1: I32
-    store @log, %v_10, 4
-    %v_11 = loads @log, 4: I32
-    %v_12 = shl %v_11, 1: I32
-    %v_13 = add 3, %v_12: I32
-    %v_14 = loads @log, 4: I32
-    %v_15 = add %v_13, %v_14: I32
-    %v_16 = loads @log, 4: I32
-    %v_17 = add %v_16, 100: I32
-    store @log, %v_17, 4
+    store @log, 1, 4
+    store @log, 101, 4
     store @log, 0, 4
-    %v_18 = loads @log, 4: I32
-    %v_19 = add %v_18, 1: I32
-    store @log, %v_19, 4
-    %v_20 = loads @log, 4: I32
-    %v_21 = cmp_igt %v_20, 0: I32
-    %v_22 = xor %v_21, 1: I32
-    %v_23 = select %v_22, 1, 2: I32
-    %v_24 = loads @log, 4: I32
-    %v_25 = add %v_23, %v_24: I32
-    %v_26 = loads @log, 4: I32
-    %v_27 = add %v_26, 100: I32
-    store @log, %v_27, 4
-    %v_28 = call_complex beforeShortCircuit, 1: I32
-    %v_29 = call_complex beforeShortCircuit, 0: I32
-    %v_30 = imul %v_6, 10000: I32
-    %v_31 = imul %v_15, 1000: I32
-    %v_32 = add %v_30, %v_31: I32
-    %v_33 = imul %v_25, 100: I32
-    %v_34 = add %v_32, %v_33: I32
-    %v_35 = imul %v_28, 10: I32
-    %v_36 = add %v_34, %v_35: I32
-    %v_37 = add %v_36, %v_29: I32
-    ret %v_37
+    store @log, 1, 4
+    store @log, 101, 4
+    store @log, 0, 4
+    store @log, 1, 4
+    store @log, 101, 4
+    store @log, 0, 4
+    store @log, 1, 4
+    store @log, 101, 4
+    ret 56323
   }
 }
 

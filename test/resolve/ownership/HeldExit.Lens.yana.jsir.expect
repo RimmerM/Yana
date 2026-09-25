@@ -43,18 +43,18 @@ fn main() -> one %r0
     %27: %r0 = const 0
     jump -> block2(%24)
   block1(%0: %r0):
-    %41: %r0 = load global dropped: %r0
-    %42: %r0 = const 100
-    %43: %r0 = binary.mul %41, %42
+    %38: %r0 = load global dropped: %r0
+    %39: %r0 = const 100
+    %40: %r0 = binary.mul %38, %39
+    %41: %r0 = coerce %40
+    %42: %r0 = load global closed: %r0
+    %43: %r0 = binary.add %41, %42
     %44: %r0 = coerce %43
-    %45: %r0 = load global closed: %r0
-    %46: %r0 = binary.add %44, %45
-    %47: %r0 = coerce %46
-    %48: %r0 = binary.add %47, %18
-    %49: %r0 = coerce %48
-    %50: %r0 = binary.add %49, %0
-    %51: %r0 = coerce %50
-    return %51
+    %45: %r0 = binary.add %44, %18
+    %46: %r0 = coerce %45
+    %47: %r0 = binary.add %46, %0
+    %48: %r0 = coerce %47
+    return %48
   block2(%1: %r0):
     %28: %r4 = binary.lt %1, %23
     branch %28 -> block4 -> block3
@@ -62,27 +62,24 @@ fn main() -> one %r0
     %29: %r0 = const 5
     %30: %r0 = alias %29
     %31: %r0 = alias %22
-    %32: %r0 = alias %31
-    %33: %r0 = alias %31
-    call Token.drop %33
-    %34: %r0 = alias %30
-    call Token.drop %34
-    %35: %r0 = binary.add %32, %29
-    %36: %r0 = coerce %35
-    jump -> block1(%36)
+    call Token.drop %31
+    %32: %r0 = alias %30
+    call Token.drop %32
+    %33: %r0 = const 25
+    jump -> block1(%33)
   block4:
-    %37: %r4 = binary.eq %1, %26
-    branch %37 -> block6 -> block5
+    %34: %r4 = binary.eq %1, %26
+    branch %34 -> block6 -> block5
   block5:
-    %38: %r0 = binary.add %1, %25
-    %39: %r0 = coerce %38
-    jump -> block2(%39)
+    %35: %r0 = binary.add %1, %25
+    %36: %r0 = coerce %35
+    jump -> block2(%36)
   block6:
-    %40: %r0 = alias %22
-    call Token.drop %40
+    %37: %r0 = alias %22
+    call Token.drop %37
     jump -> block1(%27)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 13 adopted 0 sunk 0 numbered 2 decided 0 unboxed 1 updated 0 split 0 promoted 7
+optimizer clones 0 aliased 0 forwarded 0 removed 13 adopted 0 sunk 0 numbered 0 decided 0 unboxed 1 updated 0 split 0 promoted 7 folded 0
 
 shape %s0 cell {$v: %r0 box}
 

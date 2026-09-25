@@ -101,15 +101,25 @@ bb0(%0: I32 trivial):
 fn owning(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
   %2: %Held address = alloc frame Held
-  %8: %I32 address = global.addr live
-  %9: I32 trivial = load inspect %8
-  %10: I32 trivial = const 1
-  %11: I32 trivial = add inspect %9 inspect %10
-  %12: %I32 address = global.addr live
-  store inspect %12 consume %11
-  %13: Held owned = aggregate.Held consume %0
-  store inspect %2 consume %13
-  drop Held inspect %2
+  %9: %I32 address = global.addr live
+  %10: I32 trivial = load inspect %9
+  %11: I32 trivial = const 1
+  %12: I32 trivial = add inspect %10 inspect %11
+  %13: %I32 address = global.addr live
+  store inspect %13 consume %12
+  %14: Held owned = aggregate.Held consume %0
+  store inspect %2 consume %14
+  %18: I32 trivial = const 1
+  %19: I32 trivial = sub inspect %12 inspect %18
+  %20: %I32 address = global.addr live
+  store inspect %20 consume %19
+  %21: %I32 address = global.addr trace
+  %22: I32 trivial = load inspect %21
+  %23: I32 trivial = const 10
+  %24: I32 trivial = mul inspect %22 inspect %23
+  %27: I32 trivial = add inspect %24 inspect %0
+  %28: %I32 address = global.addr trace
+  store inspect %28 consume %27
   %6: I32 trivial = const 2
   %7: I32 trivial = mul inspect %0 inspect %6
   return consume %7
@@ -217,27 +227,33 @@ bb5:
   store inspect %140 consume %139
   %141: Held owned = aggregate.Held consume %34
   store inspect %135 consume %141
-  drop Held inspect %135
+  %142: I32 trivial = const 1
+  %143: I32 trivial = sub inspect %139 inspect %142
+  %144: %I32 address = global.addr live
+  store inspect %144 consume %143
+  %145: %I32 address = global.addr trace
+  %146: I32 trivial = load inspect %145
+  %147: I32 trivial = const 10
+  %148: I32 trivial = mul inspect %146 inspect %147
+  %149: I32 trivial = add inspect %148 inspect %34
+  %150: %I32 address = global.addr trace
+  store inspect %150 consume %149
   %40: I32 trivial = const 2
-  %201: I32 trivial = const 3
-  %148: Pair trivial = aggregate.Pair consume %40 consume %201
-  %170: @bits(4) U32 trivial = const 3
-  %171: Packed trivial = aggregate.Packed consume %170
-  %174: @bits(4) U32 trivial = const 10
-  %175: Packed trivial = aggregate.Packed consume %174
-  %212: I32 trivial = const 3
-  %76: I32 trivial = add inspect %212 inspect %129
+  %210: I32 trivial = const 3
+  %157: Pair trivial = aggregate.Pair consume %40 consume %210
+  %179: @bits(4) U32 trivial = const 3
+  %180: Packed trivial = aggregate.Packed consume %179
+  %183: @bits(4) U32 trivial = const 10
+  %184: Packed trivial = aggregate.Packed consume %183
+  %221: I32 trivial = const 3
+  %76: I32 trivial = add inspect %221 inspect %129
   %78: I32 trivial = add inspect %76 inspect %134
-  %224: I32 trivial = const 1008
-  %225: I32 trivial = add inspect %78 inspect %224
-  %91: %I32 address = global.addr live
-  %92: I32 trivial = load inspect %91
+  %233: I32 trivial = const 1008
+  %234: I32 trivial = add inspect %78 inspect %233
   %93: I32 trivial = const 10000
-  %94: I32 trivial = mul inspect %92 inspect %93
-  %95: I32 trivial = add inspect %225 inspect %94
-  %96: %I32 address = global.addr trace
-  %97: I32 trivial = load inspect %96
-  %98: I32 trivial = add inspect %95 inspect %97
+  %94: I32 trivial = mul inspect %143 inspect %93
+  %95: I32 trivial = add inspect %234 inspect %94
+  %98: I32 trivial = add inspect %95 inspect %149
   return consume %98
 
 bb6:

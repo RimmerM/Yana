@@ -277,6 +277,36 @@ void Analysis::selectPositions(const Projection& projection, const Occurrence& l
     auto& slots = *decl[schema];
     auto target = shapeOf(decl, at);
 
+    // Whether the schema has a slot one pointee step below `slot` - an explicit `%a'T` inside the
+    // field - and the value's own pointee position, for the copied-referent case below.
+    auto pointeeSlotBelow = [&](OwnershipSchema& schema, ExternalSlot& slot) {
+        auto depth = slot.path.size();
+        for(U32 j = 0; j < schema.slots.size(); j++) {
+            auto& other = *decl[schema.slots.get(decl, j)];
+            if(other.path.size() != depth + 1) continue;
+            if(!PathStep::isPointee(other.path.get(decl, depth))) continue;
+
+            auto same = true;
+            for(Size step = 0; step < depth; step++) {
+                if(other.path.get(decl, step) != slot.path.get(decl, step)) same = false;
+            }
+            if(same) return true;
+        }
+        return false;
+    };
+
+    auto pointeePosition = [&](const Occurrence& value) -> U32 {
+        auto shape = shapeOf(decl, value);
+        if(!shape) return 0;
+
+        auto& found = *decl[shape];
+        for(U32 j = 0; j < found.slots.size(); j++) {
+            auto& other = *decl[found.slots.get(decl, j)];
+            if(other.path.size() == 1 && PathStep::isPointee(other.path.get(decl, 0))) return 1 + j;
+        }
+        return 0;
+    };
+
     for(U32 i = 0; i < slots.slots.size(); i++) {
         auto& slot = *decl[slots.slots.get(decl, i)];
         auto depth = U32(slot.path.size());
@@ -315,6 +345,19 @@ void Analysis::selectPositions(const Projection& projection, const Occurrence& l
                 for(U32 p = 0; p < count; p++) into.push(PositionMap { U16(1 + i), U16(p) });
             } else if(!projection.copiedReferent) {
                 into.push(PositionMap { U16(1 + i), 0 });
+            } else if(depth == walked && !pointeeSlotBelow(slots, slot)) {
+                /*
+                 * A pointer copied out of a loan field whose pointee has **no slot of its own** -
+                 * `data RP {r: '%Int}`, where `'%Int` is `'%'Int` (J164): the pointee is in the
+                 * field's own origin, so the copy's pointee position is rooted where the field's
+                 * loan is. `copiedReferent` takes the root off because the copy does not refer to
+                 * the object; what it does refer to was, until this, nowhere - so `let q = r.r`
+                 * let the array `q` points into be released before `*q` read it (J162 §5).
+                 * Where the schema has a pointee slot below the field (`%a'I32` in `Just`'s
+                 * payload, J125) the branch below maps it and this one stays out of the way.
+                 */
+                auto pointee = pointeePosition(at);
+                if(pointee) into.push(PositionMap { U16(1 + i), U16(pointee) });
             }
             continue;
         }
@@ -711,13 +754,36 @@ U16 Analysis::callGroup(NodeId node, U32 argument, U32 position) {
      * walk asks this; answered from the declaration anyway rather than as "no group", because a
      * wrong "no group" is a loan silently not related.
      */
+    Occurrence declared;
+    auto found = callPosition(*body.node(base, node), argument, callArguments(node), declared);
+    assertTrue(found);
+    return found ? groupAt(declared, position) : kNoOriginSlot;
+}
+
+bool Analysis::callPosition(Node& node, U32 argument, U32 count, Occurrence& into) {
     DeclPtr<Function> callee;
     OperandList* arguments;
-    callParts(*body.node(base, node), callee, arguments);
+    if(callParts(node, callee, arguments)) {
+        auto& function = *decl[callee];
+        if(argument == count) { into = function.result; return true; }
+        if(argument >= function.args.size()) return false;
 
-    auto& function = *decl[callee];
-    if(argument == callArguments(node)) return groupAt(function.result, position);
-    return groupAt(decl[function.args.get(decl, argument)]->occurrence, position);
+        into = decl[function.args.get(decl, argument)]->occurrence;
+        return true;
+    }
+
+    // A value call, which `callParts` refuses - see `valueCallType`.
+    if(node.kind != Node::Call) return false;
+
+    auto type = valueCallType((NodeCall&)node);
+    if(!type) return false;
+
+    auto& fun = *(FunType*)decl[type];
+    if(argument == count) { into = fun.result; return true; }
+    if(argument >= fun.params.size()) return false;
+
+    into = fun.params.get(decl, argument).occurrence;
+    return true;
 }
 
 bool Analysis::installSource(NodeId node, U32 argument, U32 at, U16 group, U32 j, U32 p) {
@@ -820,6 +886,70 @@ void Analysis::computeCallTables(Node& node) {
 }
 
 /*
+ * The same table for a call through a function **value** whose type publishes origins (J141, J94
+ * §3.4's `LoanGroup`) - `f: (&a: l'Cell, &b: r'Cell) -> &l'Cell`.
+ *
+ * A function type numbers its origins in a scope of its own, which is the value's signature, so its
+ * parameters and result are read exactly as a declaration's are and the call-result rule relates
+ * them the same way: `f(first, second)` is rooted in `first` and not in `second`. A type that
+ * publishes nothing gets no table, and the rule leaves such a result rooted in nothing - the
+ * conservative answer, and the true one, since a result with no slot is owned.
+ *
+ * No installation: `resolveType` refuses a function type whose `&` parameter has an interior
+ * position in a group another position shares, which is the one thing an install needs.
+ */
+void Analysis::computeValueCallTables(Node& node) {
+    if(node.kind != Node::Call) return;
+
+    auto& call = (NodeCall&)node;
+    auto type = valueCallType(call);
+    if(!type) return;
+
+    auto operands = call.arguments.contents(base);
+    auto count = min(U32(operands.size()), U32(((FunType*)decl[type])->params.size()));
+
+    // Read through `callPosition`, which is also what `callGroup` answers a position past the table
+    // from - one reading of a function type's positions rather than two.
+    for(U32 j = 0; j < count; j++) {
+        callStarts.push(U32(callGroups.size()));
+
+        Occurrence declared;
+        callPosition(node, j, count, declared);
+        auto width = operandPositions(*operands.pointerAt(j));
+        for(U32 p = 0; p < width; p++) callGroups.push(groupAt(declared, p));
+    }
+
+    callStarts.push(U32(callGroups.size()));
+    Occurrence result;
+    callPosition(node, count, count, result);
+    auto positions = valuePositions(node.id);
+    for(U32 p = 0; p < positions; p++) callGroups.push(groupAt(result, p));
+    callStarts.push(U32(callGroups.size()));
+}
+
+/*
+ * The function type a value call goes through, where it publishes an origin - see
+ * `computeValueCallTables`. Null for every other call, which is nearly all of them.
+ */
+DeclPtr<Type> Analysis::valueCallType(NodeCall& call) {
+    if(!call.callsValue() || !call.targetType) return nullptr;
+    if(decl[call.targetType]->kind != Type::Fun) return nullptr;
+
+    auto& fun = *(FunType*)decl[call.targetType];
+    auto publishes = [&](const Occurrence& occurrence) {
+        if(occurrence.contract.origin() == Origin::Slot) return true;
+        if(!occurrence.shape) return false;
+        for(auto slot: decl[occurrence.shape]->slots.contents(decl)) {
+            if(decl[slot]->contract.origin() == Origin::Slot) return true;
+        }
+        return false;
+    };
+
+    if(publishes(fun.result)) return call.targetType;
+    return nullptr;
+}
+
+/*
  * Everything structural the walks over the state ask of a node, once per body - see `nodeTables`.
  *
  * The state writes are resolved here from `localWriteOf` and `installWriteOf`, which used to run at
@@ -871,7 +1001,10 @@ void Analysis::computeNodeTables() {
 
         DeclPtr<Function> callee;
         OperandList* arguments;
-        if(!callParts(node, callee, arguments)) continue;
+        if(!callParts(node, callee, arguments)) {
+            computeValueCallTables(node);
+            continue;
+        }
 
         computeCallTables(node);
 
@@ -1880,14 +2013,35 @@ void Analysis::computeOrigins() {
                     // else, which is the conservative answer.
                     auto unnamed = elementPosition(decl, valueOccurrence(node));
 
+                    /*
+                     * Component `i` is field `first + i` of the constructor built, which is the index
+                     * a schema path names - a sum's second constructor starts past the first one's
+                     * fields. A record type and a matching arity are the case with a declaration to
+                     * read; anything else keeps the component index, which is what it always was.
+                     */
+                    U32 first = 0;
+                    if(auto type = valueOccurrence(node).type; type && decl[type]->kind == Type::Record) {
+                        auto& record = *(RecordType*)decl[type];
+                        if(built.constructor < record.cons.size()) {
+                            auto con = record.cons.get(decl, built.constructor);
+                            if(con.count == components.size()) first = con.first;
+                        }
+                    }
+
+                    auto startsAt = [&](ExternalSlot& slot, U32 field) {
+                        return slot.path.size() >= 1 &&
+                               slot.path.get(decl, 0) == PathStep::field(U16(field));
+                    };
+
                     for(U32 i = 0; i < components.size(); i++) {
                         U32 into = unnamed;
+                        auto field = first + i;
 
                         if(schema) {
                             auto& slots = *decl[schema];
                             for(U32 j = 0; j < slots.slots.size(); j++) {
                                 auto& slot = *decl[slots.slots.get(decl, j)];
-                                if(slot.path.size() != 1 || slot.path.get(decl, 0) != i) continue;
+                                if(slot.path.size() != 1 || !startsAt(slot, field)) continue;
 
                                 into = 1 + j;
                                 break;
@@ -1896,8 +2050,72 @@ void Analysis::computeOrigins() {
 
                         auto row = originsOfValue(node.id, into < positions ? into : 0);
                         auto& component = *components.pointerAt(i);
-                        forEachOperandOrigin(cursor, component, [&](U32, const U64* from) {
-                            BitMatrix::unionInto(row, from, loanWords);
+
+                        /*
+                         * A component that is itself a record holding references - `L2 {a:
+                         * wrap1(n)}` (J141). Its positions are the result's at `[field]` followed by
+                         * the component's own path, which is how `foldRecordSchema` placed them, so
+                         * each goes where its path says rather than all of them into one row. The
+                         * root and anything unmatched keep the answer above.
+                         */
+                        // A record component only: an interior position the field's own
+                        // occurrence named - `at: %buf'U8` - is at the root's row as it was.
+                        DeclPtr<OwnershipSchema> nested = nullptr;
+                        if(schema && into == unnamed) {
+                            const Occurrence* held = nullptr;
+                            if(component.source() == SourceKind::Result) {
+                                held = &valueOccurrence(*body.node(base, component.nodeId()));
+                            } else if(component.source() == SourceKind::Place) {
+                                held = &body.place(base, component.placeId())->occurrence;
+                            }
+
+                            if(held && held->type && decl[held->type]->kind == Type::Record) {
+                                nested = shapeOf(decl, *held);
+                            }
+                        }
+
+                        /*
+                         * Where each of the component's own positions lands: `nestedAt[k]` is the
+                         * result position of the component's slot `k`, or zero for its root row.
+                         * One merge walk, because `foldRecordSchema` pushes a nested field's slots
+                         * contiguously and in the inner schema's order (skipping the ones that name
+                         * no set) - so each inner slot is found at or after where the last was,
+                         * rather than by a search of the whole schema per position.
+                         */
+                        SmallArray<U32, 8> nestedAt;
+                        if(nested) {
+                            auto& inner = *decl[nested];
+                            auto& outer = *decl[schema];
+                            U32 j = 0;
+
+                            for(U32 k = 0; k < inner.slots.size(); k++) {
+                                auto& want = *decl[inner.slots.get(decl, k)];
+                                nestedAt.push(0);
+
+                                for(U32 at = j; at < outer.slots.size(); at++) {
+                                    auto& slot = *decl[outer.slots.get(decl, at)];
+                                    if(slot.path.size() != 1 + want.path.size() || !startsAt(slot, field)) continue;
+
+                                    auto same = true;
+                                    for(Size step = 0; step < want.path.size() && same; step++) {
+                                        same = slot.path.get(decl, 1 + step) == want.path.get(decl, step);
+                                    }
+                                    if(!same) continue;
+
+                                    if(1 + at < positions) nestedAt[k] = 1 + at;
+                                    j = at + 1;
+                                    break;
+                                }
+                            }
+                        }
+
+                        forEachOperandOrigin(cursor, component, [&](U32 p, const U64* from) {
+                            auto target = row;
+                            if(p && p <= nestedAt.size() && nestedAt[p - 1]) {
+                                target = originsOfValue(node.id, nestedAt[p - 1]);
+                            }
+
+                            BitMatrix::unionInto(target, from, loanWords);
                         });
 
                         /*
@@ -2010,15 +2228,14 @@ void Analysis::computeOrigins() {
                     auto& call = (NodeCall&)node;
 
                     /*
-                     * A call through a function **value** publishes no origin relationships.
+                     * A call through a function **value** relates only what its type publishes.
                      *
-                     * There is no declaration to read them off, and a function type does not carry
-                     * them: what a value of `(a'T) -> 'T` would mean is a slot scope of its own, and
-                     * `resolveType` refuses one for exactly that reason. So a result comes back
-                     * rooted in nothing, which is the conservative answer and the true one until a
-                     * function type can publish a slot.
+                     * A function type numbers its origins in a scope of its own (J141), and
+                     * `computeValueCallTables` reads it as a declaration is read. A type publishing
+                     * nothing in its result has no table, and its result comes back rooted in
+                     * nothing - the true answer, since that result is owned.
                      */
-                    if(call.callsValue()) break;
+                    if(call.callsValue() && !valueCallType(call)) break;
 
                     auto positions = valuePositions(node.id);
                     if(!positions) break;
@@ -3165,26 +3382,219 @@ bool Analysis::checkLoans() {
      * at the activation if it survives - `holds(g, peek(g))` in `Reject.TwoPhase.yana` - because a
      * read cannot be the mistake: what is wrong there is handing the borrow on, which is the call.
      *
-     * Per block and cleared at every entry, which is the conservative direction: a reservation that
-     * crosses a branch is treated as already active, and the argument lists this exists for are
-     * straight-line by construction.
+     * **Carried across blocks as a must-fact** (J141): a block starts with what every predecessor
+     * left reserved, so the arms of a later argument that branches - `f(xs, if c then length(xs)
+     * else 0)` - still see the reservation, and the activation in the join block is checked as it
+     * would be in one. Until J141 it was per block and cleared at every entry, which refused that
+     * read. **Past a branch the block's exit is the activation** (J140): a take meeting a
+     * reservation whose activation is not in this block is judged against the block's live-out.
+     * Before J140 the shared read was excused outright there and the activation never checked it -
+     * `holds3(g, peek(g), if c then 1 else 2)` compiled, and the callee wrote through `g` while
+     * reading `peek`'s borrow of the same field (`Reject.TwoPhase.yana`). A loan dead at the block's
+     * exit is dead at the activation too, so that is where such a take is judged; one live there is
+     * refused where it is taken, which keeps the blame on the argument rather than the call.
+     *
+     * **A window is a reservation too** (J140). `setAt(xs, 0, length(xs))` over `&xs: [I32]` reads
+     * `xs` and then calls the derivation `adaptToView` placed in front of the call to turn the owner
+     * into the window the parameter takes - and the derivation was the first operand naming the
+     * read, so the reservation activated there, one node after it was made, and `length(xs)` met an
+     * active loan. `Recursive.Borrow.yana` and `Words.yana` were that line. A derivation is a path
+     * from `self` and nothing else (Manifestations §5.4, `NodeCall::derivation`), so it is not a use:
+     * its result carries the reservation on and the call naming *it* is the activation.
+     *
+     * What the derivation does compute is the window itself - where the elements are and how many -
+     * and that is what the plain reservation's one concession cannot survive. A second exclusive
+     * loan that ends before the call (`readColor(options, takeValue(options, ...))`) is harmless
+     * against the address of `options`, which no write through a borrow can move; against a window
+     * already read out of `xs` it is `push` reallocating the run the window points into. So a
+     * **windowed** reservation excludes every exclusive loan outright, and only a shared read is
+     * excused - `setAt(xs, 0, pushLen(xs))` in `Reject.TwoPhase.yana`.
      */
-    Array<U32> loanOfNode;
-    for(Size i = 0; i < body.nodes.size(); i++) loanOfNode.push(kNoReservation);
+    Array<U32> loanOfNode, readOfNode;
+    loanOfNode.reserve(U32(body.nodes.size()));
+    readOfNode.reserve(U32(body.nodes.size()));
+    for(Size i = 0; i < body.nodes.size(); i++) {
+        loanOfNode.push(kNoReservation);
+        readOfNode.push(kNoReservation);
+    }
+
+    SmallArray<U64, 4> windowed;
+    for(U32 w = 0; w < loanWords; w++) windowed.push(0);
+
+    /*
+     * The unique loans a **closure environment** holds - a `&` capture (J140).
+     *
+     * `doc/spec/functions.md`, Closures: a by-reference capture is a mutable borrow that stays alive
+     * as long as the closure does, and while it is alive the enclosing frame may not touch the
+     * binding. The loan was always there - the environment's aggregate names it and the origin
+     * analysis keeps it live for as long as the closure value is - and it already excluded a borrow
+     * or a write. What it did not exclude is the **copy**: `AccessKind::Copy` conflicts with nothing,
+     * because reading a `TrivialCopy` value out *through* a live `&` is legal (ownership.md), and a
+     * capture is nearly always an `Int` counter. That exemption is about the borrow's holder reading
+     * through it, and the frame reading `count` is not reading through `bump` - it is the other side
+     * of a borrow whose holder runs later and writes, so `let seen = count` before `bump()` would read
+     * a value the closure is about to change under it. So a copy is checked against these loans and
+     * no others: `Reject.Closure.yana`'s `borrowedWhileCaptured`, which the shipping stage refuses too.
+     *
+     * **J141 made the rule general and left this row as the sentence it picks.** A closure is one
+     * holder of a unique loan, and a record field written `&'Int` is another: `let &r = Ref {p:
+     * count}`, then `let seen = count`, then `r.p = r.p + 10` read `count` while `r` held it
+     * exclusively and was about to write it. So a copy now meets every live unique loan of the
+     * storage it names *directly* - see `uniqueLoans` - and this row only decides whether the report
+     * says "a closure captured" or "is borrowed exclusively".
+     */
+    SmallArray<U64, 4> captured;
+    for(U32 w = 0; w < loanWords; w++) captured.push(0);
+
+    /*
+     * Every unique loan of the body - the loans a **copy** can meet (J141).
+     *
+     * A copy meets a unique loan only of the storage it *names*: a place whose root is this frame's
+     * local or a global, overlapping the loan's place. Reading through a reference or a pointer - a
+     * place rooted in a loan or an address, or `r.p` below a `Deref` of the field holding it - is
+     * reading through the borrow, which ownership.md makes legal for a `TrivialCopy` value, so it is
+     * the lender's own name that is excluded and not the holder's path to it. A reservation excuses
+     * a copy outright: a copied value is gone before the activation, so it can observe nothing the
+     * callee does (`bump(r, r.p)`).
+     */
+    SmallArray<U64, 4> uniqueLoans;
+    for(U32 w = 0; w < loanWords; w++) uniqueLoans.push(0);
+    for(U32 l = 0; l < bodyLoans; l++) {
+        if(loanAt(l)->capability == Access::Unique) BitMatrix::set(uniqueLoans.pointer(), l);
+    }
+
+    /*
+     * A derivation carries the reservation of the read it adapts, and is not its activation - and
+     * so does a **subscript** (J147). `addTo(xs[0], total(xs))` reads `xs` exclusively, and
+     * `call.subscript getMut` of that read was the first operand naming it, so the reservation
+     * activated at the subscript and `total(xs)` met an active loan; the shipping stage accepts the
+     * line. A subscript is a path from `self` in exactly the derivation's sense - it computes where
+     * the element is and hands back a loan of it - so its result carries the reservation on to the
+     * call, **windowed**: the element's address is as much a snapshot of the run as a window's is,
+     * so a later shared read is excused and a later exclusive loan (`addTo(xs[1], pushLen(xs))`, a
+     * `push` that can move the run) stays refused. Only `self`: an index is an ordinary operand.
+     */
+    auto derivesFromSelf = [&](Node& node) {
+        return node.kind == Node::Call &&
+               (((NodeCall&)node).derivation || ((NodeCall&)node).subscript);
+    };
+
+    /*
+     * A place argument (`&a: Int`) reaches the call through a **temporary** the subscript's loan is
+     * written into and read back out of - `write.init (local2) borrow.unique %sub`, then
+     * `read borrow.unique (local2) loan1` - so the write would be the first operand naming the
+     * subscript and activate the reservation there. The write is a forwarding node too, and the
+     * read's own loan is **chained** to the reservation: where `loan1` activates, so does what it
+     * was filled from. `chainOf` is by loan, and `forwarding` marks the write.
+     */
+    Array<U32> chainOf;
+    IndexSet forwarding, chainedLocal;
+    Array<U32> chainedFrom;
+
+    auto forwardsReservation = [&](Node& node) {
+        if(forwarding.size() && forwarding.get(node.id.index)) return true;
+        return derivesFromSelf(node) && loanOfNode[node.id.index] != kNoReservation;
+    };
 
     for(U32 index = 0; index < blockCount; index++) {
         auto block = this->block(index);
         for(U32 position = 0; position < block->nodes.size(); position++) {
             auto& node = nodeAt(index, position);
+
+            if(derivesFromSelf(node)) {
+                auto& call = (NodeCall&)node;
+                if(call.arguments.size() == 0 || (call.derivation && call.arguments.size() != 1)) continue;
+
+                auto self = call.arguments.get(base, 0);
+                if(self.source() != SourceKind::Result) continue;
+
+                auto minted = loanOfNode[self.nodeId().index];
+                if(minted == kNoReservation) continue;
+
+                // Marked whatever the loan's capability: only a unique loan is ever reserved, so
+                // the mark on a shared one is read by nothing.
+                loanOfNode[node.id.index] = minted;
+                readOfNode[node.id.index] = readOfNode[self.nodeId().index];
+                BitMatrix::set(windowed.pointer(), minted);
+                continue;
+            }
+
+            if(node.kind == Node::Aggregate) {
+                auto type = ((NodeAggregate&)node).occurrence.type;
+                if(!type || decl[type]->kind != Type::Record || !((RecordType*)decl[type])->lambda) continue;
+
+                auto& components = ((NodeAggregate&)node).components;
+                for(U32 i = 0; i < components.size(); i++) {
+                    auto component = components.get(base, i);
+                    if(component.source() != SourceKind::Result) continue;
+
+                    auto minted = loanOfNode[component.nodeId().index];
+                    if(minted != kNoReservation && loanAt(minted)->capability == Access::Unique) {
+                        BitMatrix::set(captured.pointer(), minted);
+                    }
+                }
+
+                continue;
+            }
+
+            if(node.kind == Node::Write) {
+                auto& write = (NodeWrite&)node;
+                if(write.mode != Destination::Init || write.value.source() != SourceKind::Result ||
+                   write.destination.source() != SourceKind::Place) {
+                    continue;
+                }
+
+                auto from = body.node(base, write.value.nodeId());
+                auto minted = loanOfNode[write.value.nodeId().index];
+                if(minted == kNoReservation || !derivesFromSelf(*from)) continue;
+
+                auto root = rootOf(write.destination.placeId());
+                if(root->kind != Place::Local || body.place(base, write.destination.placeId()) != root) continue;
+                if(body.local(base, LocalId(root->payload))->name) continue;
+
+                if(!forwarding.size()) {
+                    forwarding.reset(U32(body.nodes.size()));
+                    chainedLocal.reset(U32(body.locals.size()));
+                    for(Size i = 0; i < body.locals.size(); i++) chainedFrom.push(kNoReservation);
+                    for(U32 l = 0; l < loanCount; l++) chainOf.push(kNoReservation);
+                }
+
+                forwarding.add(node.id.index);
+                chainedLocal.add(root->payload);
+                chainedFrom[root->payload] = minted;
+                continue;
+            }
+
             if(node.kind != Node::Read) continue;
 
             auto& read = (NodeRead&)node;
-            if(read.loan.valid()) loanOfNode[node.id.index] = read.loan.index;
+            if(read.loan.valid()) {
+                loanOfNode[node.id.index] = read.loan.index;
+                readOfNode[node.id.index] = node.id.index;
+
+                // The temporary's read-back - see `chainOf`.
+                if(chainedLocal.size() && read.place.source() == SourceKind::Place) {
+                    auto root = rootOf(read.place.placeId());
+                    if(root->kind == Place::Local && chainedLocal.get(root->payload) &&
+                       body.place(base, read.place.placeId()) == root) {
+                        chainOf[read.loan.index] = chainedFrom[root->payload];
+                    }
+                }
+            }
         }
     }
 
+    // A reservation's chained predecessor, or `kNoReservation`.
+    auto chained = [&](U32 minted) {
+        return chainOf.size() && minted < chainOf.size() ? chainOf[minted] : kNoReservation;
+    };
+
     SmallArray<U64, 4> reserved;
     for(U32 w = 0; w < loanWords; w++) reserved.push(0);
+
+    // What each block leaves reserved at its exit, allocated the first time one does - J141.
+    Array<U64> reservedOut;
+    auto reservationsOut = false;
 
     /*
      * Where each reservation of the block being walked **activates**, as a position in it.
@@ -3198,8 +3608,10 @@ bool Analysis::checkLoans() {
     for(U32 l = 0; l < loanCount; l++) activationOf.push(kNoReservation);
 
     // The loans live after each node, and the loans live *before* it - declared here because the
-    // take-side question above reads the second of them at another node's position.
+    // take-side question above reads the second of them at another node's position. `blockExit` is
+    // the block's live-out, which stands in for an activation past it.
     BitMatrix after, before;
+    const U64* blockExit = nullptr;
 
     /*
      * The live loans one access conflicts with, given the places it reaches - into `out`. A lambda
@@ -3389,22 +3801,47 @@ bool Analysis::checkLoans() {
      */
     auto check = [&](OriginCursor& cursor, Node& node, PlaceId place, AccessKind kind,
                      const U64* live, const U64* skip, LoanId taken = LoanId(), bool discards = false) {
-        if(kind == AccessKind::Copy) return;
-        if(!BitMatrix::any(live, loanWords)) return;
+        // A copy meets the unique loans of the storage it names and nothing else - see `uniqueLoans`.
+        if(kind == AccessKind::Copy) {
+            if(!BitMatrix::intersects(live, uniqueLoans.pointer(), loanWords)) return;
 
-        if(discards) {
+            auto root = rootOf(place);
+            if(root->kind == Place::Loan || root->kind == Place::Address) return;
+
+            auto held = loansByRoot.get(rootKey(root->kind, root->payload));
+            if(!held) return;
+
+            BitMatrix::zero(conflict.pointer(), loanWords);
+            auto any = false;
+            for(auto l: held.unwrap()) {
+                if(!BitMatrix::test(live, l) || !BitMatrix::test(uniqueLoans.pointer(), l)) continue;
+                if(BitMatrix::test(refused.pointer(), l)) continue;
+                if(!placesOverlap(base, decl, body, place, loanAt(U32(l))->place)) continue;
+
+                BitMatrix::set(conflict.pointer(), l);
+                any = true;
+            }
+
+            if(!any) return;
             reached.clear();
             reached.push(place);
-            BitMatrix::zero(reachedSet.pointer(), loanWords);
+        } else if(!BitMatrix::any(live, loanWords)) {
+            return;
         } else {
-            reachFrom(cursor, place, reached);
+            if(discards) {
+                reached.clear();
+                reached.push(place);
+                BitMatrix::zero(reachedSet.pointer(), loanWords);
+            } else {
+                reachFrom(cursor, place, reached);
+            }
+
+            // Through a loan already refused - see `refused`. `reachedSet` is what `reachFrom` left:
+            // the loans this place's origins reach, closure included.
+            if(BitMatrix::intersects(refused.pointer(), reachedSet.pointer(), loanWords)) return;
+
+            conflictsOf(cursor, reached, live, conflict.pointer());
         }
-
-        // Through a loan already refused - see `refused`. `reachedSet` is what `reachFrom` left:
-        // the loans this place's origins reach, closure included.
-        if(BitMatrix::intersects(refused.pointer(), reachedSet.pointer(), loanWords)) return;
-
-        conflictsOf(cursor, reached, live, conflict.pointer());
 
         /*
          * Whether this access **excludes** - an exclusive loan or a write - which is what decides
@@ -3425,6 +3862,8 @@ bool Analysis::checkLoans() {
 
         for(auto l: candidates) {
             if(skip && BitMatrix::test(skip, l)) continue;
+            // A copy is gone before a reservation activates - see `uniqueLoans`.
+            if(kind == AccessKind::Copy && BitMatrix::test(reserved.pointer(), l)) continue;
 
             auto& other = *loanAt(U32(l));
 
@@ -3459,7 +3898,8 @@ bool Analysis::checkLoans() {
              * (`loans/SharedThroughExclusive.yana`). The last was refused while the rule was two
              * one-sided excuses, which left that pair comparing whole reach against whole reach.
              */
-            if(excluding || other.capability == Access::Unique) {
+            // A copy's candidates overlap the place it names, which is already the meeting.
+            if(kind != AccessKind::Copy && (excluding || other.capability == Access::Unique)) {
                 auto meets = false;
 
                 if(excluding) {
@@ -3522,13 +3962,24 @@ bool Analysis::checkLoans() {
                  * begins - see `reserved`, where both halves are argued.
                  */
                 if(BitMatrix::test(reserved.pointer(), l)) {
-                    if(capability == Access::Shared) continue;
-
+                    /*
+                     * An activation past this block stands in as the block's exit: a loan dead
+                     * there is dead at the activation too, and one live there is refused here. Since
+                     * J141 the reservation is carried to the join as a must-fact and the join
+                     * checks the activation itself, so the exit matters where the must-fact *drops*
+                     * a reservation (a predecessor not walked yet) and for keeping the blame on the
+                     * argument rather than the call (J140, `holds3` in `Reject.TwoPhase`).
+                     */
                     auto activation = activationOf[l];
-                    if(activation != kNoReservation &&
-                       !BitMatrix::test(before.row(activation), taking.index)) {
+                    auto survives = activation != kNoReservation
+                        ? BitMatrix::test(before.row(activation), taking.index)
+                        : BitMatrix::test(blockExit, taking.index);
+
+                    if(capability == Access::Shared && (activation != kNoReservation || !survives)) {
                         continue;
                     }
+
+                    if(!BitMatrix::test(windowed.pointer(), l) && !survives) continue;
                 }
             }
 
@@ -3546,7 +3997,13 @@ bool Analysis::checkLoans() {
             auto there = accessText(other.place);
             auto exclusive = other.capability == Access::Unique;
 
-            if(kind == AccessKind::Write) {
+            if(kind == AccessKind::Copy) {
+                report(node.source,
+                       BitMatrix::test(captured.pointer(), l)
+                           ? "%@ cannot be read here, because a closure captured %@ by reference and that closure is still in use - a `&` capture is exclusive for as long as the closure lives"_v
+                           : "%@ cannot be read here, because %@ is borrowed exclusively and that borrow is still in use"_v,
+                       here, there);
+            } else if(kind == AccessKind::Write) {
                 report(node.source,
                        exclusive
                            ? "%@ cannot be written here, because %@ is borrowed exclusively and that borrow is still in use"_v
@@ -3648,6 +4105,7 @@ bool Analysis::checkLoans() {
 
         after.reset(count, loanCount);
         before.reset(count, loanCount);
+        blockExit = loansAt(loanOut, index);
         BitMatrix::copy(live.pointer(), loansAt(loanOut, index), loanWords);
         backward.enterAtExit(index);
 
@@ -3660,7 +4118,29 @@ bool Analysis::checkLoans() {
         }
 
         forward.enter(index);
+
+        /*
+         * The reservations still waiting on entry - those every predecessor left reserved (J141).
+         *
+         * A must-fact, so the join is an intersection, and a predecessor not walked yet - a back
+         * edge, or a block later in the list - contributes nothing, which is the conservative
+         * direction: a reservation it drops is treated as already active, as every reservation was
+         * before J141. What this lifts is a later argument that *branches* - `f(xs, if c then
+         * length(xs) else 0)` - whose arms were walked with the first argument's loan active and
+         * refused the read. `forEachPredecessor` rather than `incoming`, because a `Many` region's
+         * back edge and skip edges are missing from the second and a must-fact over a missing edge
+         * is unsound. Asked only once some block has left a reservation standing.
+         */
         BitMatrix::zero(reserved.pointer(), loanWords);
+        if(reservationsOut) {
+            auto first = true;
+            forEachPredecessor(index, [&](U32 from) {
+                auto out = reservedOut.pointer() + Size(from) * loanWords;
+                if(first) BitMatrix::copy(reserved.pointer(), out, loanWords);
+                else for(U32 w = 0; w < loanWords; w++) reserved[w] &= out[w];
+                first = false;
+            });
+        }
 
         auto escaping = false;
         for(U32 k = 0; k < boundRegions.size(); k++) {
@@ -3709,12 +4189,16 @@ bool Analysis::checkLoans() {
         for(U32 l = 0; l < loanCount; l++) activationOf[l] = kNoReservation;
 
         for(U32 position = 0; position < count; position++) {
-            forEachOperand(base, nodeAt(index, position), [&](Operand& operand, OperandRole) {
+            auto& node = nodeAt(index, position);
+            if(forwardsReservation(node)) continue;
+
+            forEachOperand(base, node, [&](Operand& operand, OperandRole) {
                 if(operand.source() != SourceKind::Result) return;
 
                 auto minted = loanOfNode[operand.nodeId().index];
-                if(minted == kNoReservation) return;
-                if(activationOf[minted] == kNoReservation) activationOf[minted] = position;
+                for(; minted != kNoReservation; minted = chained(minted)) {
+                    if(activationOf[minted] == kNoReservation) activationOf[minted] = position;
+                }
             });
         }
 
@@ -3729,22 +4213,28 @@ bool Analysis::checkLoans() {
              * judged with the first one active; and checked here as the take itself would have been,
              * because that is the point at which the exclusion begins.
              */
-            forEachOperand(base, node, [&](Operand& operand, OperandRole) {
+            if(!forwardsReservation(node)) forEachOperand(base, node, [&](Operand& operand, OperandRole) {
                 if(operand.source() != SourceKind::Result) return;
 
                 auto minted = loanOfNode[operand.nodeId().index];
-                if(minted == kNoReservation) return;
-                if(!BitMatrix::test(reserved.pointer(), minted)) return;
+                auto read = readOfNode[operand.nodeId().index];
 
-                BitMatrix::clear(reserved.pointer(), minted);
+                for(; minted != kNoReservation; minted = chained(minted)) {
+                    if(!BitMatrix::test(reserved.pointer(), minted)) continue;
 
-                // A loan whose taking was already reported is a loan the program does not have -
-                // `refused`, and checking its activation would be the same mistake read twice.
-                if(BitMatrix::test(refused.pointer(), minted)) return;
+                    BitMatrix::clear(reserved.pointer(), minted);
 
-                auto& loan = *loanAt(U32(minted));
-                check(forward, node, loan.place, AccessKind::TakeLoan, before.row(position),
-                      skipOfValue(operand.nodeId()), LoanId(minted));
+                    // A loan whose taking was already reported is a loan the program does not have -
+                    // `refused`, and checking its activation would be the same mistake read twice.
+                    if(BitMatrix::test(refused.pointer(), minted)) continue;
+
+                    // The operand's own read is the skip for every link: what it reaches includes
+                    // each loan the chain was filled from, and the temporary's own loan is one of
+                    // them rather than a conflict with the reservation behind it.
+                    auto& loan = *loanAt(U32(minted));
+                    check(forward, node, loan.place, AccessKind::TakeLoan, before.row(position),
+                          skipOfValue(NodeId(read)), LoanId(minted));
+                }
             });
 
             if(escaping) {
@@ -3862,6 +4352,17 @@ bool Analysis::checkLoans() {
             // After the checks and outside the switch, because every case above asks what storage
             // held on *entry* to the node and two of them leave the switch early.
             stepOriginsForward(forward, node);
+        }
+
+        // What this block leaves reserved - see the entry, above.
+        if(BitMatrix::any(reserved.pointer(), loanWords)) {
+            if(!reservationsOut) {
+                reservedOut.clear();
+                for(Size w = 0; w < Size(blockCount) * loanWords; w++) reservedOut.push(0);
+                reservationsOut = true;
+            }
+
+            BitMatrix::copy(reservedOut.pointer() + Size(index) * loanWords, reserved.pointer(), loanWords);
         }
 
         BitMatrix::zero(escaped.pointer(), loanWords);
@@ -4389,6 +4890,23 @@ void Analysis::reportRefusal(LocationId source, Holder holder, Refusal refusal, 
     assertTrue(sentence.text.size() != 0);
     assertTrue(!sentence.holder || holderName);
 
+    /*
+     * A **record that holds loans**, built here and returned at `o'R` (J164, review 3 §2.2).
+     *
+     * `o'SView` is an `SView` that lives in `o`'s storage - `source'Maybe(T)` is "itself reached
+     * through that external access", ownership.md - so a new one is a temporary and the refusal is
+     * right. What the author meant is almost always the record by value with its *fields'* loans in
+     * `o`, which is the loan argument, and the owner-or-loan advice in the table names neither.
+     */
+    if(holder == Holder::Result && refusal == Refusal::Temporary && function.result.type &&
+       !function.result.contract.isOwned() && decl[function.result.type]->kind == Type::Record &&
+       ((RecordType*)decl[function.result.type])->schema) {
+        auto name = typeText(context, decl, function.result.type);
+        report(source, "this returns a new %@ at a loan of one, which would be a temporary of this frame - a record that holds loans is returned by value with its loans published as its loan argument: write `-> %@(source')` rather than `-> source'%@`"_v,
+               name, name, name);
+        return;
+    }
+
     if(!sentence.lender) {
         if(sentence.holder) report(source, sentence.text, *holderName);
         else report(source, sentence.text);
@@ -4396,6 +4914,23 @@ void Analysis::reportRefusal(LocationId source, Holder holder, Refusal refusal, 
     }
 
     auto lender = placeText(context, decl, base, body, *body.place(base, loanAt(U32(l))->place));
+
+    /*
+     * A **capture** returned from the lambda's body. Its environment is a parameter like any other
+     * and the loan is call-bounded like any other, but "publish an origin on it" names a fix the
+     * author cannot write - the environment has no written type to put the `'` on.
+     */
+    if(holder == Holder::Result && refusal == Refusal::CallBounded) {
+        auto root = rootOf(loanAt(U32(l))->place);
+        auto environment = function.environment && root->kind == Place::Local &&
+                           body.local(base, LocalId(root->payload))->parameter == 0;
+        if(environment) {
+            report(source, "this closure returns a borrow of %@, which it captured - a closure's environment is lent to it for the length of each call, so a result cannot refer to a capture. Pass the storage as an argument in the result's origin instead"_v,
+                   lender);
+            return;
+        }
+    }
+
     if(sentence.holder) report(source, sentence.text, *holderName, lender);
     else report(source, sentence.text, lender);
 }

@@ -1,0 +1,49 @@
+@image$base = []
+mut @counter = [1, 0, 0, 0]
+mut @pair = [1, 0, 0, 0, 2, 0, 0, 0]
+mut @kept = [0, 0, 0, 0]
+mut @untouched = [0, 0, 0, 0]
+mut @cell = [0, 0, 0, 0, 0, 0, 0, 0]
+
+aim<complex>(%p: Ptr) {
+  b_0 {
+    store @cell, %p, 8
+    ret 
+  }
+}
+
+main$<complex>(): I32 {
+  b_0 {
+    store @cell, @kept, 8
+    store @counter, 2, 4
+    store @untouched, 3, 4
+    store @counter, 5, 4
+    %v_1 = loads @counter, 4: I32
+    %v_2 = loads @untouched, 4: I32
+    %a = add %v_1, %v_2: I32
+    %v_3 = add @pair, 4: Ptr
+    store %v_3, 20, 4
+    %v_4 = add @pair, 4: Ptr
+    store %v_4, 40, 4
+    %v_5 = loads @pair, 4: I32
+    %v_6 = add @pair, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %b = add %v_5, %v_7: I32
+    call_complex aim, @kept
+    store @kept, 7, 4
+    %v_8 = loads @untouched, 4: I32
+    %v_9 = add %v_8, 1: I32
+    store @untouched, %v_9, 4
+    %v_10 = load @cell, 8: Ptr
+    store %v_10, 70, 4
+    %v_11 = loads @kept, 4: I32
+    %v_12 = loads @untouched, 4: I32
+    %c = add %v_11, %v_12: I32
+    %v_13 = imul %a, 10000: I32
+    %v_14 = imul %b, 100: I32
+    %v_15 = add %v_13, %v_14: I32
+    %v_16 = add %v_15, %c: I32
+    ret %v_16
+  }
+}
+

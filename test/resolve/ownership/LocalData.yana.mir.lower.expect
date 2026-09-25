@@ -12,22 +12,24 @@ Guard.drop<complex>(%v_0: I32) {
 
 main<complex>(): I32 {
   b_0 {
-    call_complex Guard.drop, 5
     %v_1 = loads @trace, 4: I32
-    %v_2 = cmp_neq %v_1, 5: I32
-    je %v_2, b_3, b_4
+    %v_2 = imul %v_1, 10: I32
+    %v_3 = add %v_2, 5: I32
+    store @trace, %v_3, 4
+    %v_4 = cmp_neq %v_3, 5: I32
+    je %v_4, b_5, b_6
   }
 
-  b_4 {
+  b_6 {
     store @trace, 0, 4
     call_complex Guard.drop, 3
-    %v_5 = loads @trace, 4: I32
-    %v_6 = cmp_neq %v_5, 3: I32
-    %v_7 = select %v_6, 18446744073709551612, 0: I32
-    ret %v_7
+    %v_7 = loads @trace, 4: I32
+    %v_8 = cmp_neq %v_7, 3: I32
+    %v_9 = select %v_8, 18446744073709551612, 0: I32
+    ret %v_9
   }
 
-  b_3 {
+  b_5 {
     ret 18446744073709551614
   }
 }

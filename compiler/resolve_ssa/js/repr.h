@@ -249,6 +249,46 @@ struct JsTarget {
     bool reported = false;
 
     /*
+     * Whether a construct was refused by name (`notYet`), and the verifier's failures held until
+     * the program is done - printed only where nothing was refused (`releaseVerifierReports`).
+     *
+     * A refusal leaves the bodies around it converted against a representation that was never
+     * built - an erased `iter(Int)` whose step hands over an address is refused in the step, and the
+     * item accessor beside it then returns at a representation its plan does not have - so an
+     * internal line beside a refusal was the refusal's echo rather than a second defect, and read
+     * as one (J149). Held rather than checked against `refused` at the time, because the body that
+     * echoes may be verified before the one that is refused. A program with no refusal prints every
+     * one of them, which is where one means a defect.
+     */
+    bool refused = false;
+
+    struct HeldReport {
+        LocationId where;
+        String text;
+    };
+
+    Array<HeldReport> heldVerifierReports;
+
+    template<class... T>
+    void verifierFailed(LocationId where, StringView text, T&&... format) {
+        reported = true;
+
+        char buffer[4000];
+        auto length = Tritium::format(toBuffer(buffer), toString(text), forward<T>(format)...);
+        heldVerifierReports.push(HeldReport { where, ownedString(buffer, length) });
+    }
+
+    void releaseVerifierReports() {
+        if(!refused) {
+            for(auto& held: heldVerifierReports) {
+                context.diagnostics.error("%@"_v, held.where, stringView(held.text));
+            }
+        }
+
+        heldVerifierReports.clear();
+    }
+
+    /*
      * Whether any **lambda environment** in this program owes an authored teardown - §3.9 asked of
      * the one value a collected target could not otherwise answer for.
      *
@@ -474,7 +514,11 @@ JsRepId carriedRepOf(JsTarget& target, const JsPassing& passing);
 JsRepId jsVoidRep(JsTarget& target);
 JsRepId jsNumberRep(JsTarget& target, NumberDomain domain, U8 bits);
 JsRepId jsStringRep(JsTarget& target);
-JsRepId jsHostArrayRep(JsTarget& target, JsRepId element, U32 length = 0);
+/*
+ * `typed` false is a plain row whatever the element - a vector's materialized form, which nothing
+ * reads as a typed row (see the `Vector` arm of `jsRep`).
+ */
+JsRepId jsHostArrayRep(JsTarget& target, JsRepId element, U32 length = 0, bool typed = true);
 
 // A host `true`/`false` - the lane of a mask and nothing else. See `JsRepKind::HostBool`.
 JsRepId jsHostBoolRep(JsTarget& target);

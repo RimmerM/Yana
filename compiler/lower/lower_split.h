@@ -37,6 +37,11 @@
  * pair reaches this stage as - is not, and dropping it out changes what its copy partners may do, so
  * the partition is recomputed and the whole thing settles rather than being decided once.
  *
+ * An integer access that starts where a wider one does - here or across a copy - does not cut where
+ * it ends: it is the low bytes of the wider cell (`isPrefixAccess`, J152), which is what a sum's
+ * narrower arm is beside its wider one. It stays a narrow access of the cell's own allocation, and
+ * `promoteStackSlots` reads it as a mask or writes it as a merge.
+ *
  * ## The cells that carry nothing, and the one rule that keeps them safe
  *
  * A record has padding, and after the partition the padding is a cell nothing in the program reads
@@ -69,6 +74,13 @@
  * register the cell is moved through. The cuts matter beyond the fill itself: a temporary a duplicate
  * is copied through names no field of its own, and the fill in front of the copy is the only
  * structure it has.
+ *
+ * Since J152 a record is zeroed by its padded words rather than as a whole value, so that structure
+ * is often not there, and J160 puts it back where it is wanted: a cell **wider than 32 bytes** that no
+ * access of the slot, or of a slot a copy relates it to, starts inside (`namesCell`) is cut where a
+ * word-at-a-time zeroing would cut it, and the cuts are mirrored across the copies - not where the
+ * words would take the slot past `kMaxFields`. Every cell above 8 bytes cost 37 KB of `test/base`;
+ * above 32 is neutral there, and the lexer's 60-byte token is what needed it.
  *
  * ## A move is a load and a store, not a copy
  *

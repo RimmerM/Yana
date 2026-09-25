@@ -183,60 +183,111 @@ struct Contained {
 Contained& containedOf(OptContext& opt);
 
 /*
- * Per `Alloc`, the constant its storage holds - for the whole of the body, not for a block.
+ * The one value an allocation holds for the whole body - the store that put it there, and null
+ * where there is no such store. J148: one query where there were five, each with its own escape rule.
  *
- * A **string literal** is what this exists for. `Resolver::textValue` builds the value the library's
- * `stringLiteral` describes, so a literal arrives as `const String {...}` stored into a frame slot,
- * and every question a program asks of a literal is then a read of that slot: its length, the
- * pointer to its bytes, and the `ownsHeap` flag its teardown tests. Block-local forwarding loses all
- * three at the first call, because a literal is always lent to something - `==`, `length`, a
- * formatter - on the way to the teardown that reads its flag. This is the same fact asked of the
- * **function** instead, and it rests on nothing being able to write the storage:
+ * A **string literal** is what the question first existed for. `Resolver::textValue` builds the
+ * value the library's `stringLiteral` describes, so a literal arrives as `const String {...}` stored
+ * into a frame slot, and every question a program asks of a literal is then a read of that slot: its
+ * length, the pointer to its bytes, and the `ownsHeap` flag its teardown tests. Block-local
+ * forwarding loses all three at the first call, because a literal is always lent to something -
+ * `==`, `length`, a formatter - on the way to the teardown that reads its flag. The same fact
+ * answers a container's header across a branch (`[5, 6, 7]` is an `Aggregate` stored once, J137),
+ * the site estimate's view of a record the caller built, and which declaration a call through a
+ * function value kept in a slot names. It rests on nothing being able to write the storage:
  *
- *  - the allocation is `Contained`, so no callee was handed a way back to it that it kept;
- *  - exactly one instruction writes it, a whole-slot `Store` of a value an `InstConst` defines;
- *  - and every other instruction of the body is asked `mayWriteStorage` and says no - which is one
- *    question rather than an allowlist of readers, so a kind nobody has looked at yet is a barrier
- *    rather than an omission.
+ *  - the allocation is `Contained`, so no callee was handed a way back to it that it kept, and every
+ *    name of the storage is a projection of its own address;
+ *  - exactly one instruction writes it whole, a `Store` of a constant, an `Aggregate`, a
+ *    `fun.value` or a value *moved* out of other storage (a tracked `load`, which the conversion
+ *    writes for `store %xs (load %literal)`);
+ *  - and every use reached from the address - through the names `Contained` follows: projections,
+ *    `Guaranteed` loads (how a borrow is spelled here), `represent`s and the block arguments an
+ *    edge fills with one - is asked `mayWriteStorage` and says no. That is one question rather than
+ *    an allowlist of readers, so a kind nobody has looked at yet is a barrier; and because it
+ *    follows a borrowing load *into* its users, a borrow handed to a callee that writes through it
+ *    (`replaceFn(&f)`) is the write it is.
  *
- * **A `Drop` of the slot is admitted**, and it is the one exception. A teardown is handed the
+ * **The use walk replaced three other rules.** `ConstantContents` scanned the whole body with
+ * `mayWriteStorage` per candidate; the inliner's `soleStoredValue` read the slot's direct use list
+ * and took every `load` for a read, which is how a call through `f` became a direct call to the
+ * `double` first stored in it after `replaceFn(f, k)` had put `neg` there (`FunSlotWrite.yana`);
+ * and `forwardMemory` and the inliner each walked to a `fun.value` with their own step limits.
+ * `Contained` is what makes the uses enough: nothing names the storage except by projecting its
+ * address, so the writers are among the instructions reached from it, and a use that carries the
+ * address somewhere the walk does not follow declines.
+ *
+ * **A `Drop` of the slot is admitted**, and so is a hand-over out of it. A teardown is handed the
  * address and `mayWriteStorage` therefore says it may write - correctly - but a drop is the end of
  * the value's life: nothing may read the storage after it without something re-filling it first,
- * and a re-fill is a second write this rule has already excluded. So whatever a teardown writes
- * cannot be read, and admitting it is what lets the flag its own body tests be answered by the
- * constant that was put there. That is the shipping stage's `constantLocalContents` ruling, arriving
- * with the containment and the mutation rows inferred rather than declared.
+ * and a re-fill is a second write this rule has already excluded. That is the shipping stage's
+ * `constantLocalContents` ruling, arriving with the containment and the mutation rows inferred
+ * rather than declared. Whether the slot *was* dropped is the caller's to ask where it matters
+ * (`funValueBehind`).
  *
- * A statement about **values**, so its stamp passes `overValues` for `Contained`'s reason.
+ * A statement about **values**: `soleContentsOf` stamps its memo with `overValues` for
+ * `Contained`'s reason. A pass that holds its own `Contained` across its rewrites holds a
+ * `SoleContents` beside it, on the same argument (`forwardMemory`).
  */
-struct ConstantContents {
-    // Indexed by `ValueId`. Unset for every value that is not an allocation holding a constant,
-    // which is nearly all of them - the same shape `Contained` uses, with a value instead of a bit.
-    Array<mir::Constant> held;
+Inst* soleContents(OptContext& opt, const Contained& contained, Value& allocation);
 
-    mir::Constant operator [] (const Value& value) const {
-        return value.id.index < held.size() ? held[value.id.index] : mir::Constant();
-    }
+// `soleContents`, asked once per allocation - see the note above for who holds one.
+struct SoleContents {
+    HashMap<U32, Inst*> answers;
 
-    void build(OptContext& opt, const Contained& contained);
+    Inst* of(OptContext& opt, const Contained& contained, Value& allocation);
 };
 
-ConstantContents& constantContentsOf(OptContext& opt);
+// The memo for the body as it is now, against `containedOf` - the inliner's reading.
+SoleContents& soleContentsOf(OptContext& opt);
+
+/*
+ * The readers of `soleContents`, each a filter over its answer, with its own extra condition stated
+ * where it is written rather than folded into a second escape rule.
+ *
+ * `aggregateFillOf` is every fill but a constant - the store itself rather than the value, because
+ * a value is only an answer where the store stands above the read (`forwardMemory`'s
+ * `storedAggregate` asks the dominator tree). `constantHeldBy` is a constant whose teardown does
+ * nothing, which is the one `expandTeardowns` may erase the drop of.
+ */
+Inst* aggregateFillOf(OptContext& opt, const Contained& contained, Value& value);
+mir::Constant constantHeldBy(OptContext& opt, const Contained& contained, Value& value);
+// Whether a value's end runs nothing, and whether a slot holds only such a value - see the notes.
+bool owesNothing(OptContext& opt, Value& value, U32 depth);
+bool holdsNothingOwed(OptContext& opt, const Contained& contained, Value& value);
+
+/*
+ * The `fun.value` a function value is, where this body built it - the one walk the inliner's
+ * `devirtualizeSite` and `forwardMemory`'s direct readers share (J148; they were two, with step
+ * limits of 12 and 4).
+ *
+ * Three steps, each a restatement of one value rather than a guess about which of several it might
+ * be: a **`represent`** (a borrowed function value, a pointer to the pair and the pair are one word
+ * with three readings); a **`load`**, either through a borrow of the pair or of a slot, both
+ * answered by walking to the address; and a **frame slot** `soleContents` answers. A block argument
+ * stops it: two edges carry two values.
+ *
+ * `dropped` is set where a slot on the way is dropped: that slot owned its value, and an owned
+ * capturing value consumed its environment, which a direct call cannot name (J145).
+ */
+InstFunValue* funValueBehind(OptContext& opt, SoleContents& slots, const Contained& contained,
+                             Value& value, bool& dropped);
 
 /*
  * What a read of this address answers, where that is settled before the program runs - and unset
  * where it is not.
  *
  * Two roots and one walk. An **immutable global** holds its own initializer, which is what makes a
- * read out of a placed constant a number; an `Alloc` in `ConstantContents` holds what was stored
- * into it. Between the root and the address are the field and element projections, indexed through
+ * read out of a placed constant a number; an `Alloc` `soleContents` answers with a constant holds
+ * what was stored into it. Between the root and the address are the field and element projections, indexed through
  * `mir::constantField` so that "which value of the list is field `n`" has one answer at both tiers.
  *
  * A `Guaranteed` load is walked through, because at this tier that is how a borrow of a slot is
  * spelled and it names the same storage. A `represent` is **not**: it hands back the same bytes at a
  * different type, and a constant indexed past one would be read at the wrong shape.
  */
-Maybe<mir::Constant> constantAt(OptContext& opt, const ConstantContents& contents, Value* address);
+Maybe<mir::Constant> constantAt(OptContext& opt, SoleContents& slots, const Contained& contained,
+                                Value* address);
 
 /*
  * The allocation an address is rooted in, or null where this body cannot name one.
@@ -259,8 +310,8 @@ Value* allocationRoot(OptContext& opt, Value* address);
  * to mean "not this allocation" of a contained slot therefore missed every write and read through
  * such a borrow: `text.push(if c then "e" else "x")` borrows `text` before the branch and pushes
  * through the join's argument, and once the branch folded and the slot was merged with its
- * destination, `ConstantContents` called the slot the empty literal for its whole life and
- * `forwardMemory` answered the interpolation's read of it with that literal.
+ * destination, `ConstantContents` (`soleContents` since J148) called the slot the empty literal for
+ * its whole life and `forwardMemory` answered the interpolation's read of it with that literal.
  *
  * The walk follows arguments back through every incoming edge, as far as arguments lead; an entry
  * block's arguments have no incoming edge and so name nothing of this body's.
@@ -364,6 +415,5 @@ bool separateAddressStep(OptContext& opt, const AddressStep& left, const Address
  * substitutes. A pass that ever forwarded an address would have to re-ask rather than hold.
  */
 bool mayWriteStorage(OptContext& opt, const Contained& contained, Inst& inst, Value& allocation);
-
 
 } // namespace ssa

@@ -24,18 +24,10 @@ fn main() -> one %r3
     %1: %r0 = const 1
     %2: %r0 = const 2
     %3: %r0 = const 3
-    %5: %r0 = const 1
-    %6: %r0 = const 2
-    %7: %r0 = const 3
-    %8: %r0 = const 10
-    %9: %r0 = alias %8
-    %10: %r0 = coerce %9
-    %11: %r0 = binary.add %5, %8
-    %12: %r0 = coerce %11
-    %13: %r0 = binary.add %6, %8
-    %14: %r0 = coerce %13
-    %15: %r0 = binary.add %7, %8
-    %16: %r0 = coerce %15
+    %10: %r0 = const 10
+    %12: %r0 = const 11
+    %14: %r0 = const 12
+    %16: %r0 = const 13
     %17: %r3 = call digits %10, %12, %14, %16
     %18: %r3 = const 11233
     %19: %r4 = binary.ne %17, %18
@@ -73,29 +65,17 @@ fn main() -> one %r3
     %63: %r3 = const -4
     return %63
   block9:
-    %32: %r5 = const 7
-    %38: %r5 = const 5
-    %48: %r5 = const 15
-    %49: %r3 = convert %38
-    %50: %r3 = const 5
-    %51: %r4 = binary.ne %49, %50
-    branch %51 -> block12 -> block11
+    jump -> block11
   block10:
     %62: %r3 = const -5
     return %62
   block11:
-    %52: %r3 = convert %48
-    %53: %r3 = const 15
-    %54: %r4 = binary.ne %52, %53
-    branch %54 -> block14 -> block13
+    jump -> block13
   block12:
     %61: %r3 = const -6
     return %61
   block13:
-    %55: %r3 = convert %32
-    %56: %r3 = const 7
-    %57: %r4 = binary.ne %55, %56
-    branch %57 -> block16 -> block15
+    jump -> block15
   block14:
     %60: %r3 = const -7
     return %60
@@ -106,13 +86,13 @@ fn main() -> one %r3
     %59: %r3 = const -8
     return %59
 
-optimizer clones 0 aliased 0 forwarded 0 removed 15 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 35 adopted 0 sunk 0 numbered 0 decided 3 unboxed 0 updated 0 split 0 promoted 0 folded 14
 
 rep %r0 = number unsigned 32
-rep %r1 = array Uint32Array of %r0
+rep %r1 = array Array of %r0
 rep %r2 = parts (%r0, %r0, %r0, %r0) as %r1
 rep %r3 = number signed 32
 rep %r4 = number bool
 rep %r5 = number unsigned 8
-rep %r6 = array Uint8Array of %r5
+rep %r6 = array Array of %r5
 rep %r7 = parts (%r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5, %r5) as %r6

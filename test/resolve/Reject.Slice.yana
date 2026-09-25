@@ -26,8 +26,11 @@ fn escapeStored() -> Cursor:
     let xs = [1, 2, 3]
     return Cursor {items: xs, at: 0}
 
--- An unqualified window parameter rooting a returned view, bare or in a record moved to
--- `Reject.Slice.Legacy.yana`; that file says what the new stage does instead.
+-- An unqualified *window* parameter rooting a returned view, bare or in a record, is accepted since
+-- J135 removed `Reject.Slice.Legacy.yana`: it is the elision of Analysis-Borrows.md §4.8 rules 5
+-- and 6 (`Resolver::promoteLoanCandidates`), under which a `&` or view parameter joins the one
+-- anonymous group a result names. A plain `p: Pair` is not a candidate, which is
+-- `loans/Reject.Signature.yana`.
 
 -- A closure that outlives the frame that built it cannot hold a reference into it, and a captured
 -- slice is a captured reference however the capture convention was chosen. Design-Memory §8's rule,

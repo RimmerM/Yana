@@ -1,0 +1,136 @@
+module ResolveTest
+
+let & sink: Vec(I32) = [0, 0, 0, 0]
+
+fn four(a: I32 [shared call], b: I32 [shared call], c: I32 [shared call], d: I32 [shared call]) -> Vec(I32) {
+bb0:
+  %0: Vec(I32) = read copy.trivial (global sink)
+  %1: I32 = const 0
+  %2: I32 = read copy.trivial (a)
+  %3: Vec(I32) = vec.withlane #0 inspect %0 inspect %2
+  %4: I32 = const 1
+  %5: I32 = read copy.trivial (b)
+  %6: Vec(I32) = vec.withlane #1 inspect %3 inspect %5
+  %7: I32 = const 2
+  %8: I32 = read copy.trivial (c)
+  %9: Vec(I32) = vec.withlane #2 inspect %6 inspect %8
+  %10: I32 = const 3
+  %11: I32 = read copy.trivial (d)
+  %12: Vec(I32) = vec.withlane #3 inspect %9 inspect %11
+  return take %12
+}
+
+fn rotated(v: Vec(I32, n) [shared call]) -> Vec(I32, n) {
+  form specialized
+  slot #0 const n
+bb0:
+  %0: Vec(I32, n) = read copy.trivial (v)
+  %1: I32 = const 1
+  %2: Vec(I32, n) = vec.shuffle [rotated 1] inspect %0 inspect %0
+  return take %2
+}
+
+fn windowed(above: Vec(I32, n) [shared call], below: Vec(I32, n) [shared call]) -> Vec(I32, n) {
+  form specialized
+  slot #0 const n
+bb0:
+  %0: Vec(I32, n) = read copy.trivial (above)
+  %1: Vec(I32, n) = read copy.trivial (below)
+  %2: I32 = const 1
+  %3: Vec(I32, n) = vec.shuffle [aligned 1] inspect %0 inspect %1
+  return take %3
+}
+
+fn mixedLow(v: Vec(I32, n) [shared call], w: Vec(I32, n) [shared call]) -> Vec(I32, n) {
+  form specialized
+  slot #0 const n
+bb0:
+  %0: Vec(I32, n) = read copy.trivial (v)
+  %1: Vec(I32, n) = read copy.trivial (w)
+  %2: Vec(I32, n) = vec.shuffle [interleaved low] inspect %0 inspect %1
+  return take %2
+}
+
+fn mixedHigh(v: Vec(I32, n) [shared call], w: Vec(I32, n) [shared call]) -> Vec(I32, n) {
+  form specialized
+  slot #0 const n
+bb0:
+  %0: Vec(I32, n) = read copy.trivial (v)
+  %1: Vec(I32, n) = read copy.trivial (w)
+  %2: Vec(I32, n) = vec.shuffle [interleaved high] inspect %0 inspect %1
+  return take %2
+}
+
+fn weigh(v: Vec(I32) [shared call]) -> I32 {
+bb0:
+  %0: Vec(I32) = read copy.trivial (v)
+  %1: I32 = const 0
+  %2: I32 = vec.lane #0 inspect %0
+  %3: Vec(I32) = read copy.trivial (v)
+  %4: I32 = const 1
+  %5: I32 = vec.lane #1 inspect %3
+  %6: I32 = const 2
+  %7: I32 = mul inspect %6 inspect %5
+  %8: I32 = add inspect %2 inspect %7
+  %9: Vec(I32) = read copy.trivial (v)
+  %10: I32 = const 2
+  %11: I32 = vec.lane #2 inspect %9
+  %12: I32 = const 3
+  %13: I32 = mul inspect %12 inspect %11
+  %14: I32 = add inspect %8 inspect %13
+  %15: Vec(I32) = read copy.trivial (v)
+  %16: I32 = const 3
+  %17: I32 = vec.lane #3 inspect %15
+  %18: I32 = const 4
+  %19: I32 = mul inspect %18 inspect %17
+  %20: I32 = add inspect %14 inspect %19
+  return take %20
+}
+
+fn main() -> I32 {
+  local v: Vec(I32)
+  local w: Vec(I32)
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 1
+  %2: I32 = const 2
+  %3: I32 = const 3
+  %4: Vec(I32) = call four borrow.shared %0 borrow.shared %1 borrow.shared %2 borrow.shared %3
+  write.init borrow.unique (v) take %4
+  %6: I32 = const 10
+  %7: I32 = const 11
+  %8: I32 = const 12
+  %9: I32 = const 13
+  %10: Vec(I32) = call four borrow.shared %6 borrow.shared %7 borrow.shared %8 borrow.shared %9
+  write.init borrow.unique (w) take %10
+  %12: Vec(I32) = read copy.trivial (v)
+  %13: Vec(I32) = call rotated(4) borrow.shared %12
+  %14: I32 = call weigh borrow.shared %13
+  %15: Vec(I32) = read copy.trivial (v)
+  %16: Vec(I32) = read copy.trivial (w)
+  %17: Vec(I32) = call windowed(4) borrow.shared %15 borrow.shared %16
+  %18: I32 = call weigh borrow.shared %17
+  %19: I32 = add inspect %14 inspect %18
+  %20: Vec(I32) = read copy.trivial (v)
+  %21: Vec(I32) = read copy.trivial (w)
+  %22: Vec(I32) = call mixedLow(4) borrow.shared %20 borrow.shared %21
+  %23: I32 = call weigh borrow.shared %22
+  %24: I32 = add inspect %19 inspect %23
+  %25: Vec(I32) = read copy.trivial (v)
+  %26: Vec(I32) = read copy.trivial (w)
+  %27: Vec(I32) = call mixedHigh(4) borrow.shared %25 borrow.shared %26
+  %28: I32 = call weigh borrow.shared %27
+  %29: I32 = add inspect %24 inspect %28
+  return take %29
+}
+
+fn rotated(4)(v: Vec(I32) [shared call]) -> Vec(I32) = <rotated at 4>
+
+fn windowed(4)(above: Vec(I32) [shared call], below: Vec(I32) [shared call]) -> Vec(I32) = <windowed at 4>
+
+fn mixedLow(4)(v: Vec(I32) [shared call], w: Vec(I32) [shared call]) -> Vec(I32) = <mixedLow at 4>
+
+fn mixedHigh(4)(v: Vec(I32) [shared call], w: Vec(I32) [shared call]) -> Vec(I32) = <mixedHigh at 4>
+
+entry main

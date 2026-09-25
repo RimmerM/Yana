@@ -198,13 +198,11 @@ fn main() -> one %r0
     %120: %r0 = const 6
     %121: %r0 = alias %120
     %124: %r0 = alias %119
-    %126: %r0 = alias %124
     %127: %r0 = alias %124
     call Guard.drop %127
     %129: %r0 = alias %121
     call Guard.drop %129
-    %130: %r0 = binary.add %126, %120
-    %131: %r0 = coerce %130
+    %131: %r0 = const 11
     %132: %r0 = binary.add %110, %131
     %133: %r0 = coerce %132
     %134: %r0 = load global trace: %r0
@@ -315,7 +313,7 @@ fn main() -> one %r0
     %177: %r0 = coerce %176
     jump -> block33(%177)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 47 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 21
+optimizer clones 0 aliased 0 forwarded 0 removed 49 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 21 folded 2
 
 shape %s0 object Pair {left: %r0, right: %r0}
 

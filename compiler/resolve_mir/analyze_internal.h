@@ -1092,6 +1092,11 @@ struct Analysis {
     U16 callGroup(NodeId node, U32 argument, U32 position);
     U32 callArguments(NodeId node);
 
+    // The declared occurrence the group table reads for argument `argument` of a call - the
+    // parameter's, or the result's for `argument == count` - off the declaration a call names or the
+    // function type a value call goes through. False for anything else, which has no table.
+    bool callPosition(Node& node, U32 argument, U32 count, Occurrence& into);
+
     // Whether position `p` of argument `j` fills position `at` of `&` argument `argument`, which is
     // in group `group` - the one test an installation's three readers share.
     bool installSource(NodeId node, U32 argument, U32 at, U16 group, U32 j, U32 p);
@@ -1101,6 +1106,8 @@ struct Analysis {
     void computeLoanTables();
     void computeNodeTables();
     void computeCallTables(Node& node);
+    void computeValueCallTables(Node& node);
+    DeclPtr<Type> valueCallType(NodeCall& call);
     void installedPositions(Node& node, U32 argument, SmallArray<U16, 4>& into);
     bool installWriteOf(Operand operand, StateWrite& into, SmallArray<PositionMap, 8>& positions,
                         SmallArray<U16, 4>& through);

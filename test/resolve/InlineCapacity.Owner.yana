@@ -1,0 +1,119 @@
+{-
+   An `@inline(n) @capacity(n) [T]` at a growable array's **owner** position, on every way a call can
+   end - J146.
+
+   The adaptation lends the callee a descriptor over the record's slots and writes the count back
+   afterwards (`lib/Core/InlineArray.ownership.native.yana`). Each case below is one of the ways the
+   review of J143 found the two halves apart: a `?` in a later argument leaving before the call, a
+   later argument reading the same array, a lens call and a `for` over an `iter fn` whose callee
+   pushes before and after its `yield`, and a `break` out of that `for`. `Handle` counts what is
+   alive, so an element released twice or not at all shows up in the last line. (A record is released
+   at its last use, so `live` is printed on a line of its own before the record is read.)
+
+   # resolver: ownership
+-}
+
+import Native
+
+let &live = 0 :: I64
+let &drops = 0 :: I64
+
+data Handle {slot: %U8, id: Int}
+
+fn openHandle(id: Int) -> Handle:
+    live += 1
+    return Handle {slot: allocateHeap(16), id: id}
+
+instance Drop(Handle):
+    fn drop(->value: Handle):
+        freeHeap(value.slot)
+        live -= 1
+        drops += 1
+
+data Holder {hs: @inline(4) @capacity(4) [Handle], tag: Int}
+data Buffer {items: @inline(4) @capacity(4) [Int], tag: Int}
+
+fn maybeHandle(ok: Bool, id: Int) -> Maybe(Handle):
+    if ok then return Just(openHandle(id))
+    return Nothing
+
+-- The `?` leaves before `push` is called, so nothing was lent and nothing is written back.
+fn fill(&h: Holder, ok: Bool, id: Int) -> Maybe(Int):
+    push(h.hs, maybeHandle(ok, id)?)
+    return Just(1)
+
+iter fn grow(&xs: Array(Handle), from: Int) -> Int:
+    push(xs, openHandle(from))
+    yield 1
+    push(xs, openHandle(from + 1))
+    yield 2
+
+lens fn opened(&xs: Array(Int)) -> Int:
+    push(xs, 5)
+    yield 1
+    push(xs, 6)
+
+fn ids(h: Holder) -> Int:
+    let &sum = 0
+    for x in items(h.hs):
+        sum = sum * 10 + x.id
+    return sum
+
+-- Each check answers its own number when it fails, so the answer names the first one that did; 777
+-- is every one holding. The lines printed say the same thing for a person reading a run.
+fn handles() -> Int:
+    let &h = Holder {hs: [openHandle(1)], tag: 7}
+    fill(h, False, 9)
+    fill(h, True, 2)
+    print("after ?: live {live}\n")
+    if live != 2 then return 1
+    print("after ?: {length(h.hs)} {ids(h)}\n")
+    if length(h.hs) != 2 || ids(h) != 12 then return 2
+
+    let &n = 0
+    for x in grow(h.hs, 3):
+        n += x
+    print("after for: live {live} n {n}\n")
+    if live != 4 || n != 3 then return 3
+    print("after for: {length(h.hs)} {ids(h)}\n")
+    if length(h.hs) != 4 || ids(h) != 1234 then return 4
+
+    let &k = Holder {hs: [openHandle(6)], tag: 1}
+    for x in grow(k.hs, 7):
+        break
+    print("after break: live {live}\n")
+    if live != 3 then return 5
+    print("after break: {length(k.hs)} {ids(k)}\n")
+    if length(k.hs) != 3 || ids(k) != 678 then return 6
+    return 0
+
+fn numbers() -> Int:
+    let &b = Buffer {items: [5], tag: 3}
+    push(b.items, b.items[0] + 1)
+    b.items.push(truncate(length(b.items)) :: Int)
+    push(b.items, b.tag)
+    print("two-phase: {length(b.items)} {b.items[1]} {b.items[2]} {b.items[3]}\n")
+    if length(b.items) != 4 || b.items[1] != 6 || b.items[2] != 2 || b.items[3] != 3 then return 11
+
+    let &c = Buffer {items: [1], tag: 0}
+    let &seen = 0
+    opened(c.items):
+        seen = 1
+    print("lens: {length(c.items)} {c.items[1]} {c.items[2]} {seen}\n")
+    if length(c.items) != 3 || c.items[1] != 5 || c.items[2] != 6 || seen != 1 then return 12
+
+    -- `==` as a `[T]` has it (the JavaScript target always had it, the refinement being `[T]` there).
+    let d = Buffer {items: [1, 5, 6], tag: 9}
+    let e = Buffer {items: [1, 5], tag: 9}
+    print("equal: {c.items == d.items} {c.items == e.items}\n")
+    if !(c.items == d.items) || c.items == e.items then return 13
+    return 0
+
+fn main() -> Int:
+    let first = handles()
+    if first != 0 then return first
+    let second = numbers()
+    if second != 0 then return second
+    print("end: live {live} drops {drops}\n")
+    if live != 0 || drops != 7 then return 21
+    return 777

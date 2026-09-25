@@ -267,92 +267,39 @@ main<complex>(): I32 {
     %v_23 = call_complex taggedOf, %v_22: I32
     %v_24 = add %v_21, %v_23: I32
     %v_25 = add %v_19, %v_24: I32
-    %v_26 = alloca 2, 2: Ptr
-    store %v_26, 0, 2
-    store %v_26, 41, 1
-    %v_27 = load %v_26, 2: I64
-    %v_28 = shr %v_27, 8: I64
-    %v_29 = and %v_28, 1: I64
-    %v_30 = cast %v_29: I32
-    je %v_30, b_31, b_32
-  }
-
-  b_31 {
-    %x = load %v_26, 1: I32
-    %v_33 = alloca 2, 2: Ptr
-    %v_34 = add %x, 1: I32
-    %v_35 = and %v_34, 255: I32
-    store %v_33, 256, 2
-    store %v_33, %v_35, 1
-    copy %v_26, %v_33, 2
-    jmp b_36
-  }
-
-  b_32 {
-    %x = load %v_26, 1: I32
-    %v_37 = alloca 2, 2: Ptr
-    %v_38 = add %x, 1: I32
-    %v_39 = and %v_38, 255: I32
-    store %v_37, 0, 2
-    store %v_37, %v_39, 1
-    copy %v_26, %v_37, 2
-    jmp b_36
-  }
-
-  b_36 {
-    %v_40 = load %v_26, 2: I64
-    %v_41 = shr %v_40, 8: I64
-    %v_42 = and %v_41, 1: I64
-    %v_43 = cast %v_42: I32
-    je %v_43, b_44, b_45
-  }
-
-  b_44 {
-    %x = load %v_26, 1: I32
-    %v_46 = add %x, 1000: I32
-    jmp b_47
-  }
-
-  b_45 {
-    %x = load %v_26, 1: I32
-    jmp b_47
-  }
-
-  b_47 {
-    %v_48 = phi [b_45, %x], [b_44, %v_46]: I32
-    %v_49 = add %v_25, %v_48: I32
+    %v_26 = add %v_25, 42: I32
     %t = alloca 2, 2: Ptr
     store %t, 256, 2
     store %t, 1, 1
-    %v_50 = call_complex taggedOf, %t: I32
-    %v_51 = add %v_49, %v_50: I32
-    %v_52 = alloca 2, 2: Ptr
-    store %v_52, 512, 2
-    %v_53 = call_complex maybeOf, %v_52: I32
-    %v_54 = alloca 2, 2: Ptr
-    store %v_54, 0, 2
-    store %v_54, 2, 1
-    %v_55 = call_complex maybeOf, %v_54: I32
-    %v_56 = add %v_53, %v_55: I32
-    %v_57 = alloca 2, 2: Ptr
-    store %v_57, 256, 2
-    store %v_57, 3, 1
-    %v_58 = call_complex maybeOf, %v_57: I32
-    %v_59 = add %v_56, %v_58: I32
-    %v_60 = add %v_51, %v_59: I32
-    %v_61 = alloca 8, 4: Ptr
-    store %v_61, 0, 4
-    %v_62 = add %v_61, 4: Ptr
-    store %v_62, 5, 4
-    %v_63 = call_complex widthOf, %v_61: I32
-    %v_64 = alloca 8, 4: Ptr
-    store %v_64, 1, 4
-    %v_65 = add %v_64, 4: Ptr
-    store %v_65, 6, 4
-    %v_66 = call_complex widthOf, %v_64: I32
-    %v_67 = add %v_63, %v_66: I32
-    %v_68 = add %v_60, %v_67: I32
-    ret %v_68
+    %v_27 = call_complex taggedOf, %t: I32
+    %v_28 = add %v_26, %v_27: I32
+    %v_29 = alloca 2, 2: Ptr
+    store %v_29, 512, 2
+    %v_30 = call_complex maybeOf, %v_29: I32
+    %v_31 = alloca 2, 2: Ptr
+    store %v_31, 0, 2
+    store %v_31, 2, 1
+    %v_32 = call_complex maybeOf, %v_31: I32
+    %v_33 = add %v_30, %v_32: I32
+    %v_34 = alloca 2, 2: Ptr
+    store %v_34, 256, 2
+    store %v_34, 3, 1
+    %v_35 = call_complex maybeOf, %v_34: I32
+    %v_36 = add %v_33, %v_35: I32
+    %v_37 = add %v_28, %v_36: I32
+    %v_38 = alloca 8, 4: Ptr
+    store %v_38, 0, 4
+    %v_39 = add %v_38, 4: Ptr
+    store %v_39, 5, 4
+    %v_40 = call_complex widthOf, %v_38: I32
+    %v_41 = alloca 8, 4: Ptr
+    store %v_41, 1, 4
+    %v_42 = add %v_41, 4: Ptr
+    store %v_42, 6, 4
+    %v_43 = call_complex widthOf, %v_41: I32
+    %v_44 = add %v_40, %v_43: I32
+    %v_45 = add %v_37, %v_44: I32
+    ret %v_45
   }
 }
 

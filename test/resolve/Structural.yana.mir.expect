@@ -15,7 +15,7 @@ bb0:
 }
 
 fn copyable(x: a [shared call], n: I32 [shared call]) -> I32 {
-  form erased
+  form specialized
   slot #0 type a
   slot #1 class TrivialCopy(a)
 bb0:
@@ -24,7 +24,7 @@ bb0:
 }
 
 fn movable(x: a [shared call], n: I32 [shared call]) -> I32 {
-  form erased
+  form specialized
   slot #0 type a
   slot #1 class TrivialSink(a)
 bb0:
@@ -62,5 +62,13 @@ bb0:
   %22: I32 = add inspect %20 inspect %21
   return take %22
 }
+
+fn copyable(I32)(x: I32 [shared call], n: I32 [shared call]) -> I32 = <copyable at I32>
+
+fn movable(I32)(x: I32 [shared call], n: I32 [shared call]) -> I32 = <movable at I32>
+
+fn copyable(Point)(x: Point [shared call], n: I32 [shared call]) -> I32 = <copyable at Point>
+
+fn movable(Point)(x: Point [shared call], n: I32 [shared call]) -> I32 = <movable at Point>
 
 entry main

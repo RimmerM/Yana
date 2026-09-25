@@ -42,7 +42,128 @@ bool jsAddressEscapes(JsTarget& target, ssa::Body& from, SsaPtr<ssa::Value> addr
  * keeps the arity agreeing without a mapping table.
  */
 static bool keepsArgument(Conversion& c, ssa::Value& argument) {
-    return !c.isVoidRep(c.repOf(argument));
+    return !c.isVoidRep(c.repOf(argument)) && c.at(argument).sameAs == ~0u;
+}
+
+/*
+ * Whether a value is a **reference** as this tier carries one - storage a place reads, or a value
+ * that is a `{$o, $k}` cell. The two ends of `findSameReferenceArguments` ask it.
+ */
+bool Conversion::isReferenceArgument(ssa::Value& value) {
+    if(isVoidRep(repOf(value))) return false;
+    return carriesStorage(value) || jsManifest(target, value.occurrence, kNullLocation).needsCell;
+}
+
+/*
+ * A **reference block argument that every edge hands the same reference** is that reference - the
+ * trivial-phi rule, asked of the one kind of argument where keeping the phi costs an allocation
+ * (J136, J94 §6.3 C).
+ *
+ * `bump(t, if c then 3 else 5)` borrows `t` before the condition, so the loan crosses the join the
+ * condition makes as a block argument - on both arms, and one level further for each nested
+ * conditional. The shared tier keeps those arguments on purpose: a loan's extent is what the
+ * ownership passes read, and it is carried by the argument. Here it is a representation question
+ * only. A reference argument is one host value, so each edge built a `{$o, $k}` descriptor over the
+ * same `(owner, key)` and the call took it apart again: two objects per iteration of a loop that
+ * natively does nothing but an add. With the argument gone the call site reads the place of the
+ * value itself, which is the flat `(owner, key)` a direct `bump(t, 3)` passes.
+ *
+ * An optimistic fixpoint over the three-point lattice - no answer yet, one value, more than one -
+ * so a loan carried around a loop is found too: the back edge hands the argument itself, which
+ * contributes nothing. Every argument that settles on one value is redirected; the rest stay real.
+ * The value an argument settles on dominates the argument's block, because it reaches the end of
+ * every predecessor - so it is converted before that block in reverse postorder, which is where its
+ * row is copied. Only blocks the order reaches are asked, for the same reason: a block converted
+ * after the order in table order has no such guarantee.
+ *
+ * Asked of references and nothing else, because nothing else pays for the argument: a scalar or a
+ * part crossing an edge is a variable assignment, and the shared optimizer already removes the
+ * trivial phis of ordinary values. The redirect copies the row rather than resolving each read,
+ * which is what keeps it one line at the block's start instead of a lookup at every operand.
+ */
+void Conversion::findSameReferenceArguments(Array<U32>& order, ssa::Block* entry) {
+    constexpr U32 kTop = ~0u - 1;
+    constexpr U32 kBottom = ~0u - 2;
+
+    SmallArray<ssa::Value*, 16> candidates;
+    SmallArray<ssa::Block*, 16> owners;
+
+    for(auto i: order) {
+        auto block = from->block(ssa, BlockId(i));
+        if(block == entry) continue;
+
+        for(auto pointer: block->arguments(ssa)) {
+            auto argument = ssa[pointer];
+            if(!isReferenceArgument(*argument)) continue;
+
+            at(*argument).sameAs = kTop;
+            candidates.push(argument);
+            owners.push(block);
+        }
+    }
+
+    if(!candidates.size()) return;
+
+    IndexSet candidate;
+    candidate.reset(from->values.size());
+    for(auto argument: candidates) candidate.set(argument->id.index, true);
+
+    // What one edge operand says the argument is, under the current answers.
+    auto resolve = [&](ssa::Value& operand) -> U32 {
+        if(!candidate[operand.id.index]) {
+            return isReferenceArgument(operand) ? operand.id.index : kBottom;
+        }
+
+        auto state = at(operand).sameAs;
+        if(state == kTop) return kTop;
+        if(state == kBottom) return operand.id.index;
+        return state;
+    };
+
+    for(auto changed = true; changed;) {
+        changed = false;
+
+        for(U32 k = 0; k < candidates.size(); k++) {
+            auto argument = candidates[k];
+            auto& row = at(*argument);
+            if(row.sameAs == kBottom) continue;
+
+            auto target_ = owners[k];
+            auto position = ~0u;
+            for(U32 p = 0; p < target_->argumentCount(); p++) {
+                if(ssa[target_->argumentAt(ssa, p)] == argument) position = p;
+            }
+
+            auto meet = kTop;
+            for(auto i: order) {
+                auto last = from->block(ssa, BlockId(i))->terminator(ssa);
+                if(!last) continue;
+
+                ssa::forEachEdge(ssa, *last, [&](ssa::Edge& edge) {
+                    if(meet == kBottom || ssa[edge.target] != target_) return;
+                    if(position >= edge.arguments.size()) {
+                        meet = kBottom;
+                        return;
+                    }
+
+                    auto said = resolve(*ssa[edge.arguments.get(ssa, position).value()]);
+                    if(said == kTop || said == argument->id.index) return;
+                    if(said == kBottom || (meet != kTop && meet != said)) meet = kBottom;
+                    else meet = said;
+                });
+            }
+
+            if(meet != row.sameAs) {
+                row.sameAs = meet;
+                changed = true;
+            }
+        }
+    }
+
+    for(auto argument: candidates) {
+        auto& row = at(*argument);
+        if(row.sameAs == kTop || row.sameAs == kBottom) row.sameAs = ~0u;
+    }
 }
 
 /*
@@ -421,6 +542,18 @@ void Conversion::convertCall(ssa::InstCall& call) {
     SmallArray<JsValue*, 8> arguments;
     auto index = U32(0);
 
+    // The tier-1 temporaries this call's arguments were given, each written back into its field
+    // once the call has returned - native's `commitPackedBorrow`, re-reading the word at that
+    // moment so two co-packed fields lent to one call both keep their update.
+    struct PackedCommit { JsPlaceId field; JsPlaceId temporary; };
+    SmallArray<PackedCommit, 2> commits;
+    auto commit = [&] {
+        for(auto& c: commits) {
+            auto narrow = builder.place(c.field).content;
+            builder.store(c.field, convertedTo(builder.load(c.temporary, where), narrow, where), where);
+        }
+    };
+
     for(auto used: call.arguments.contents(ssa)) {
         if(index >= abi.parameters.size()) {
             internal("met a call with more arguments than its callee declares"_v, where);
@@ -452,6 +585,39 @@ void Conversion::convertCall(ssa::InstCall& call) {
         if(passing.kind == JsPassingKind::Parts && isCellParts(passing.rep)) {
             auto place = placeOrFail(used.value(), where);
             if(!place.valid()) return;
+
+            /*
+             * A `@bits(n)` place into a `&` of what it refines - repr.md's tier 1, which MIR
+             * admits unconverted (`fillsParameter`). The callee takes `(owner, key)` and the place
+             * is three parts, so it gets what native's `materializeNarrow` gives it: a temporary
+             * of the full width - here a one-slot box holding the field's value - that it reads and
+             * writes as any other `&U32`, committed back masked after the call (`commits`, below).
+             *
+             * Not `$bitCell`'s accessor box, which is what this was until J149: its setter masks
+             * at every write, so a callee that reads `x` back after writing a value the field
+             * cannot hold saw the narrowed value (`x = x + 20; return x` answered 7 where native
+             * answers 23 - `Packed.ReadBack.yana`). Repr.md's step 2 is that the callee works on the
+             * hidden local exactly as on any other `&Int`, and only the commit narrows.
+             */
+            if(target.reps[passing.rep.index].partCount == 2 &&
+               jsRefCarriesScale(target, builder.place(place).content)) {
+                auto wide = target.reps[target.reps[passing.rep.index].content.index].content;
+                auto current = convertedTo(builder.load(place, where), wide, where);
+
+                auto boxShape = jsBoxShape(target, wide);
+                auto box = builder.add<JsInstObject>(jsBoxRep(target, wide), where, boxShape);
+                box->values.push(target.arena, current - base());
+                current->uses++;
+
+                auto temporary = builder.addProperty(base()[box->result], boxShape, 0);
+                if(!pairParts(temporary, where, arguments)) {
+                    internal("could not take a temporary's reference apart"_v, where);
+                    return;
+                }
+
+                commits.push(PackedCommit { place, temporary });
+                continue;
+            }
 
             if(!referencePartsOf(place, where, arguments)) return;
             continue;
@@ -509,6 +675,7 @@ void Conversion::convertCall(ssa::InstCall& call) {
         slotCallee->uses++;
 
         finishCall(inst, call, arguments, resultRep);
+        commit();
         return;
     }
 
@@ -538,6 +705,7 @@ void Conversion::convertCall(ssa::InstCall& call) {
         }
 
         finishCall(inst, call, arguments, resultRep);
+        commit();
         return;
     }
 
@@ -567,6 +735,7 @@ void Conversion::convertCall(ssa::InstCall& call) {
     environment->uses++;
 
     finishCall(inst, call, arguments, resultRep);
+    commit();
 }
 
 
@@ -995,6 +1164,15 @@ void Conversion::convertInst(ssa::Inst& inst) {
         case ssa::Inst::Load: {
             auto& written = (ssa::InstLoad&)inst;
 
+            // A read of a pointer slot whose one store kept a place is that place - `pointerSlots`.
+            {
+                auto& slot = at(*ssa[written.address.value()]);
+                if(slot.pointee.valid()) {
+                    definePlace(inst, slot.pointee);
+                    return;
+                }
+            }
+
             /*
              * A reborrow of a value that is already carried as **parts** - the parts, unchanged.
              *
@@ -1184,6 +1362,19 @@ void Conversion::convertInst(ssa::Inst& inst) {
         case ssa::Inst::Store: {
             auto& written = (ssa::InstStore&)inst;
 
+            // A pointer slot written once with a *place* keeps the place rather than a value -
+            // see `pointerSlots`. A `Place` form and not a memo, so a pointer that is a host row
+            // still goes through the store below.
+            {
+                auto& slot = *ssa[written.address.value()];
+                auto& stored = at(*ssa[written.value.value()]);
+                if(pointerSlots[slot.id.index] && stored.form == JsTargetValue::Form::Place &&
+                   stored.place.valid()) {
+                    at(slot).pointee = stored.place;
+                    return;
+                }
+            }
+
             /*
              * A write of a **niche-folded** discriminant, which is the encode half of `nicheOf`.
              *
@@ -1266,6 +1457,22 @@ void Conversion::convertInst(ssa::Inst& inst) {
             if(value->rep != content && at(*ssa[written.value.value()]).place.valid()) {
                 report("a reference to storage written into a pointer field"_v, where);
                 return;
+            }
+
+            /*
+             * A number stored at another number's width - a `U32` written through a `&U32` that is
+             * lent a `@bits(n) U32` place, repr.md's tier 1, where the callee's store has reached
+             * the caller. The store narrows, which is the same step `convertValue` builds for every
+             * other store into a refinement. Narrowing at each store is the call's answer only
+             * because, since J149, the shared inliner splices such a call just where the callee
+             * never reads the parameter after writing it (`storesThenNeverReads`); a callee that
+             * reads back what it wrote stays a call and gets the temporary above.
+             */
+            if(value->rep != content && target.rep(value->rep).kind == JsRepKind::Number &&
+               target.rep(content).kind == JsRepKind::Number &&
+               mir::fillsParameter(decl, ssa[written.address.value()]->type(),
+                                   ssa[written.value.value()]->type())) {
+                value = base()[builder.add<JsInstConvert>(content, where, value - base())->result];
             }
 
             builder.store(place, value, where);
@@ -2316,6 +2523,14 @@ bool Conversion::run() {
         setPlace(argument->id.index, builder.addProperty(base()[box->result], boxShape, 0));
     }
 
+    /*
+     * The order first, because which reference arguments are only a name for one value is decided
+     * over the blocks it reaches - see `findSameReferenceArguments`.
+     */
+    Array<U32> order;
+    reversePostorder(ssa, *from, order);
+    findSameReferenceArguments(order, entrySource);
+
     // And every other block's, one per SSA argument that is not a void.
     for(U32 i = 0; i < from->blocks.size(); i++) {
         auto source = from->block(ssa, BlockId(i));
@@ -2374,9 +2589,6 @@ bool Conversion::run() {
      * the same two-pass shape `lower/gen.cpp` uses, and for the same reason: a block nothing reaches
      * still has to exist so that an edge naming it is not dangling.
      */
-    Array<U32> order;
-    reversePostorder(ssa, *from, order);
-
     IndexSet reached;
     reached.reset(from->blocks.size());
 
@@ -2384,6 +2596,25 @@ bool Conversion::run() {
         auto source = from->block(ssa, BlockId(i));
         auto block = blockFor(i);
         builder.switchTo(block);
+
+        // A reference argument that is a name for one value is that value's row - re-projected
+        // here first when it was a projection, which is the load a use in this block would do.
+        for(auto argumentPointer: source->arguments(ssa)) {
+            auto argument = ssa[argumentPointer];
+            auto same = at(*argument).sameAs;
+            if(same == ~0u) continue;
+
+            auto value = from->value(ssa, ValueId(same));
+            reprojectIfStale(*value);
+
+            auto& was = at(*value);
+            auto& row = at(*argument);
+            row.form = was.form;
+            row.one = was.one;
+            row.place = was.place;
+            row.parts = was.parts;
+            row.nicheTag = was.nicheTag;
+        }
 
         for(auto instPointer: source->instructions(ssa)) {
             auto inst = ssa[instPointer];

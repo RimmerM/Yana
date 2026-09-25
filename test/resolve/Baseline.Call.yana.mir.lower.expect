@@ -29,16 +29,13 @@ fib<complex>(%n: I32): I32 {
 main<complex>(): I32 {
   b_0 {
     %v_1 = loads @counter, 4: I32
-    %v_2 = add %v_1, 4: I32
+    %v_2 = add %v_1, 10: I32
     store @counter, %v_2, 4
-    %v_3 = loads @counter, 4: I32
-    %v_4 = add %v_3, 6: I32
-    store @counter, %v_4, 4
-    %v_5 = call_complex fib, 10: I32
-    %v_6 = add 37, %v_5: I32
-    %v_7 = loads @counter, 4: I32
-    %v_8 = add %v_6, %v_7: I32
-    ret %v_8
+    %v_3 = call_complex fib, 10: I32
+    %v_4 = add 37, %v_3: I32
+    %v_5 = loads @counter, 4: I32
+    %v_6 = add %v_4, %v_5: I32
+    ret %v_6
   }
 }
 

@@ -153,7 +153,6 @@ fn main() -> one %r3
     %68: %r0 = alias %66
     %69: %r0 = host host.binary "+" %67, %68
     %70: %r2 = alias %69
-    %71: %r3 = const 2
     store var $17: %r2, %70
     %74: %r2 = const null
     %75: %r2 = load var $17: %r2
@@ -172,10 +171,7 @@ fn main() -> one %r3
     %88: %r3 = coerce %87
     %89: %r3 = binary.add %81, %88
     %90: %r3 = coerce %89
-    %92: %r3 = alias %71
-    %93: %r3 = const 100
-    %94: %r3 = binary.mul %92, %93
-    %95: %r3 = coerce %94
+    %95: %r3 = const 200
     %96: %r3 = binary.add %90, %95
     %97: %r3 = coerce %96
     %98: %r3 = const 100000
@@ -375,7 +371,7 @@ fn growJsArray(Maybe(String))(parts %r7, one %r3) -> omitted
     store element %0[%1]: %r4, %15
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 36 adopted 0 sunk 0 numbered 9 decided 1 unboxed 0 updated 0 split 1 promoted 18
+optimizer clones 0 aliased 0 forwarded 0 removed 40 adopted 0 sunk 0 numbered 9 decided 1 unboxed 0 updated 0 split 1 promoted 18 folded 2
 
 shape %s0 ref {$o: %r5 owner, $k: %r5 key}
 shape %s1 object Row {name: %r2, id: %r3}

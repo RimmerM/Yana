@@ -216,6 +216,7 @@ struct Lowering {
     HashMap<U32, U32> shapeIndex;
 
     bool carriedCells(const mir::Occurrence& occurrence, SmallArray<CarriedPart, 16>& cells);
+    bool joinCells(Value& argument, SmallArray<CarriedPart, 16>& cells);
     void planCallShape(DeclPtr<mir::Function> function);
     const CallShape* callShapeOf(DeclPtr<mir::Function> function);
 
@@ -265,6 +266,19 @@ struct Lowering {
 
     // SSA block argument value ID to its index in `phis`.
     HashMap<U32, U32> phiOf;
+
+    /*
+     * A block argument held in memory that crosses its edges as its cells - `gen.cpp`'s
+     * `joinCells`, which is where the argument is. Its phis are `count` consecutive entries of
+     * `phis` from the one `phiOf` names, and its cells are the same run of `joinParts`.
+     */
+    struct JoinSplit {
+        U32 start = 0;
+        U32 count = 0;
+    };
+
+    HashMap<U32, JoinSplit> joinSplits;
+    Array<CarriedPart> joinParts;
 
     // The hidden result pointer of the function being lowered, or null where its result fits a
     // register. Set by `lowerBody`, read by every `ret` in it.
@@ -406,7 +420,8 @@ struct Lowering {
     // it, which is what makes the `hasPaddedWord` zeroing a write nothing could read.
     LowerPtr<LowerValue> frameStorage(LowerBlock& block, const mir::Occurrence& occurrence,
                                       bool whole = false);
-    void zeroStorage(LowerBlock& block, LowerPtr<LowerValue> storage, U32 size);
+    void zeroStorage(LowerBlock& block, LowerPtr<LowerValue> storage, U32 size,
+                     DeclPtr<mir::Type> type = nullptr);
 
     /*
      * Where a memory-resident value is **going**, decided before its producer runs - §5.6's
@@ -433,6 +448,7 @@ struct Lowering {
      */
     LowerPtr<LowerValue> storageFor(LowerBlock& block, Value& value);
     LowerPtr<LowerValue> destinationFor(LowerBlock& block, Value& value);
+    bool readInsidePlacement(Block& block, Value& value, SsaPtr<Value> root);
 
     /*
      * The values `storageFor` placed at a destination rather than in a slot of their own, and where.
@@ -888,6 +904,7 @@ struct Lowering {
                                        LowerPtr<LowerValue> shift);
     LowerPtr<LowerValue> taggedAddress(LowerBlock& block, LowerPtr<LowerValue> address,
                                        LowerPtr<LowerValue> tag);
+    bool seeNarrowRef(LowerPtr<LowerValue> reference, VirtualPlace& place);
     VirtualPlace unpackNarrowRef(LowerBlock& block, LowerPtr<LowerValue> reference,
                                  DeclPtr<mir::Type> pointee);
 

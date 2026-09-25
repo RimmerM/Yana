@@ -24,6 +24,7 @@
 #include "Net/File.h"
 #include "shard.h"
 #include "directives.h"
+#include "provider.h"
 
 #if defined(__unix__) || defined(__APPLE__)
 #include <sys/mman.h>
@@ -37,157 +38,11 @@ extern char** environ;
 
 using namespace Tritium;
 
-// Where an `import` finds its module. Named once because two things read it: the provider below,
-// which answers imports out of it, and the fixture listing in `main`, which must not mistake the
-// modules for fixtures - they are the *inputs* of fixtures elsewhere in the corpus, and compiling
-// one on its own reports the diagnostics of a program with no `main`.
+// Where an `import` finds its module. Named once because two things read it: the provider
+// (`provider.h`), which answers imports out of it, and the fixture listing in `main`, which must not
+// mistake the modules for fixtures - they are the *inputs* of fixtures elsewhere in the corpus, and
+// compiling one on its own reports the diagnostics of a program with no `main`.
 static const char* kModuleDirectory = "resolve/modules";
-
-/*
- * Supplies both the source text diagnostics quote and the modules an `import` names.
- *
- * An imported module is `resolve/modules/<Name>.yana` where that file exists, and every `.yana` file
- * in `resolve/modules/<Name>/` where the directory does. The second form is what a *grouped* module
- * is - a module is a directory of files, Analysis-Modules.md §2.1 - and it is here so that a fixture
- * can exercise file-scoped imports, which are only observable across two files of one module.
- *
- * A file's own name is `<Name>.<Base>`, which is what the module map gives a project file and what a
- * `LocationId` is quoted through. It has to differ per file: which file a declaration was written in
- * is read back off its location, and two files sharing a name would be one file to that lookup.
- */
-struct TestProvider: SourceProvider, ModuleProvider {
-    // `Source` rather than `File`, which is Tritium's and is what `load` below opens one with.
-    struct Source {
-        StringId name;
-        Ptr<char, HeapDeleter> text;
-        Size length;
-        ast::Module* ast;
-    };
-
-    struct Loaded {
-        StringId name;
-        Array<Source> files;
-        ast::ModuleGroup* group;
-    };
-
-    StringView source;
-    Context* context = nullptr;
-    Array<Loaded> loaded;
-
-    /*
-     * The bytes behind every file name this provider interns.
-     *
-     * **An interned name borrows its text**, so a `StringId` made from a `String` that goes out of
-     * scope leaves the name table pointing at freed memory - and what comes out afterwards is
-     * whatever is there now, which the lexer then reports as unknown tokens in a file that is
-     * perfectly fine. A heap buffer that is never moved and never freed until this is.
-     */
-    Array<Ptr<char, HeapDeleter>> names;
-
-    StringId intern(const String& text) {
-        auto bytes = Ptr<char, HeapDeleter> { (char*)hAlloc(text.size()) };
-        copy(text.text(), bytes.get(), text.size());
-
-        auto id = context->addQualifiedName(bytes.get(), text.size());
-        names.push(::move(bytes));
-        return id;
-    }
-
-    ~TestProvider() override {
-        for(auto& entry: loaded) {
-            delete entry.group;
-            for(auto& file: entry.files) delete file.ast;
-        }
-    }
-
-    StringView getSource(StringId id) override {
-        for(auto& entry: loaded) {
-            for(auto& file: entry.files) {
-                if(file.name == id) return StringView { file.text.get(), file.length };
-            }
-        }
-
-        return source;
-    }
-
-    const Location* getNode(LocationId id) override {
-        return context ? context->getLocation(id) : nullptr;
-    }
-
-    // One file, parsed into `into`. False where it could not be read - which for the single-file
-    // form is how "this directory does not answer that name" is said.
-    bool load(Loaded& into, const String& path, StringId name) {
-        // `OpenExisting`, which is not a detail: the default mode *creates* the file, so an import
-        // this directory does not answer used to leave an empty module behind - and an empty module
-        // then shadows the library one of that name on every run afterwards, silently, since the
-        // project's own files are looked at first. `import Math` is what found it.
-        auto opened = File::openFile(path, readAccess(), File::OpenExisting);
-        if(opened.isErr()) return false;
-
-        auto file = opened.moveUnwrapOk();
-        auto size = file.size();
-        Ptr<char, HeapDeleter> text { (char*)hAlloc(size) };
-        file.read({ (Byte*)text.get(), size });
-
-        Lexer lexer(*context, context->diagnostics, StringView { text.get(), size }, name);
-        Parser parser(*context, lexer, name);
-        auto ast = new ast::Module(parser.parseModule());
-
-        into.group->files.push(ast);
-        into.files.push(Source { name, ::move(text), size, ast });
-        return true;
-    }
-
-    ast::ModuleGroup* getModule(StringId name) override {
-        for(auto& entry: loaded) {
-            if(entry.name == name) return entry.group;
-        }
-
-        auto text = context->findName(name);
-        auto directory = String(kModuleDirectory) + String("/") + text;
-
-        auto& entry = *loaded.push();
-        entry.name = name;
-        entry.group = new ast::ModuleGroup { .name = name };
-
-        // The directory form first, because a module that is a directory is the general case and the
-        // single file is the one-file spelling of it. The names are sorted, which is what makes the
-        // order the declaration passes read a grouped module in the same on every file system.
-        Array<String> bases;
-        listDirectory(directory, [&](const String& file, bool isDirectory) {
-            if(isDirectory) return;
-            auto dot = findLastChar(stringView(file), '.');
-            if(!dot || String(dot + 1, file.text() + file.size() - dot - 1) != "yana") return;
-
-            // Concatenated rather than sliced, because `String(pointer, length)` is a **view** and
-            // `file` is the callback's parameter: a base name kept past the callback has to own its
-            // bytes. The empty left operand is what makes `operator +` allocate one.
-            bases.push(String("") + String(file.text(), Size(dot - file.text())));
-        });
-
-        for(Size i = 1; i < bases.size(); i++) {
-            for(Size j = i; j > 0 && stringView(bases[j]) < stringView(bases[j - 1]); j--) {
-                swap(bases[j], bases[j - 1]);
-            }
-        }
-
-        for(auto& base: bases) {
-            load(entry, directory + String("/") + base + String(".yana"),
-                 intern(text + String(".") + base));
-        }
-
-        if(bases.isEmpty()) load(entry, directory + String(".yana"), name);
-
-        // Cached either way, including the empty answer: a name this directory does not hold is
-        // asked about once per import that writes it, and each of those would otherwise be a walk.
-        if(entry.group->files.isEmpty()) {
-            delete entry.group;
-            entry.group = nullptr;
-        }
-
-        return entry.group;
-    }
-};
 
 /*
  * A diagnostics sink that keeps what was reported instead of printing it.
@@ -254,6 +109,7 @@ private:
     template<class Settings>
     ast::Module open(StringView source, Settings&& settings) {
         provider.source = source;
+        provider.moduleRoot = String(kModuleDirectory);
         applyFixtureDirectives(context.settings, source);
         settings(context.settings);
         provider.context = &context;
@@ -472,11 +328,19 @@ static bool runRejectionTest(const String& path, const String& errorPath, String
     auto& diagnostics = f.diagnostics;
 
     if(context.settings.resolver == ResolverStage::Ownership) {
-        // Resolution alone, and deliberately not conversion: the pipeline's later halves assume a
-        // program the checks accepted, so running them over one that was rejected asserts nothing
-        // and asks the verifier about IR that was never meant to be complete.
+        // Resolution, and past it only where resolution reported nothing: the pipeline's later
+        // halves assume a program the checks accepted, so running them over one that was rejected
+        // asserts nothing and asks the verifier about IR that was never meant to be complete.
+        //
+        // A clean one goes on - conversion, the optimizer and the lowering - because a few refusals
+        // are the lowering's: whether a field shares a machine word is a layout question, so
+        // `addressOf` of one escaping as a `%T` (`Reject.PackedAddress.yana`) is refused where the
+        // layout is known and nowhere earlier.
         ssa::Pipeline pipeline(context);
-        pipeline.resolve(f.ast, &f.provider);
+        if(pipeline.resolve(f.ast, &f.provider) && !diagnostics.errorCount() && pipeline.convert() &&
+           !diagnostics.errorCount() && pipeline.optimize() && !diagnostics.errorCount()) {
+            (void)pipeline.lower();
+        }
     } else {
         resolveProgram(context, f.ast, &f.provider);
     }
@@ -1342,7 +1206,7 @@ static Maybe<I64> jsirExpectedRun(const String& path, const String& runPath) {
  * being assumed to agree.
  */
 static bool runJsirPass(const String& path, StringView source, bool generate,
-                        Maybe<I64> expectedRun, bool emitJsir) {
+                        Maybe<I64> expectedRun, bool emitJsir, bool unoptimizedReports = false) {
     auto pass = true;
 
     // The dump first, because it is what `-mode jsir` writes and it is written *inside* the
@@ -1474,7 +1338,11 @@ static bool runJsirPass(const String& path, StringView source, bool generate,
     }
 
     // And `-no-ir-opt`, which is a different program above the fork and therefore its own
-    // compilation rather than a second emission of the one above.
+    // compilation rather than a second emission of the one above. A fixture whose unoptimized
+    // program is a target gap the optimizer removes carries `.jsir.errors.expect` beside its dump,
+    // and that build is `runJsirGapTest`'s instead - see there.
+    if(unoptimizedReports) return pass;
+
     Net::Writer unoptimized(16384);
     {
         FixtureFront<PrintDiagnostics> f(source, [](CompileSettings& settings) {
@@ -1532,12 +1400,18 @@ static bool runJsirPass(const String& path, StringView source, bool generate,
  * pins is the sentence: it fails when the construct stops being reported, when it starts being
  * reported somewhere else, and when the sentence changes.
  *
- * Mutually exclusive with `.jsir.expect` by construction, since a fixture that converts has a dump
- * and one that reports has none. `runTest` reads this one first.
+ * Beside `.jsir.expect` it is the **unoptimized** build's gap (J165): the optimized program
+ * converts and is held to its dump and its answer, and the `-no-ir-opt` one - which keeps a
+ * construct the optimizer removed - is expected to report this sentence instead of being run.
+ * `Instance.yana` is the case: an address stored into a pointer field that only the optimized
+ * program forwards away. Alone, the file pins the optimized build, which then has no dump.
  */
 static bool runJsirGapTest(const String& path, const String& errorPath, StringView source,
-                           bool generate) {
-    FixtureFront<RecordDiagnostics> f(source, ownershipJsSettings);
+                           bool generate, bool optimized) {
+    FixtureFront<RecordDiagnostics> f(source, [&](CompileSettings& settings) {
+        ownershipJsSettings(settings);
+        settings.optimizeIr = optimized;
+    });
     auto& context = f.context;
     auto& diagnostics = f.diagnostics;
 
@@ -1580,7 +1454,7 @@ static bool runTest(const String& path, StringView source, bool generate) {
     /*
      * A fixture the shipping stage cannot compile at all - `# resolver: ownership`, see directives.h.
      *
-     * Everything below this point is the legacy stage and the six goldens that only it produces, so
+     * Everything below here is the legacy stage and the eight goldens that only it produces, so
      * a fixture that says the legacy stage cannot read it takes none of that path. What it keeps is
      * `.run.expect`, which is read the same way and means the same thing: this program answers this.
      * The comparison between the two stages is what such a fixture gives up, and that is the cost
@@ -1606,8 +1480,9 @@ static bool runTest(const String& path, StringView source, bool generate) {
      * it runs.
      */
     if(fixtureIsJavaScript(source)) {
-        auto pass = runJsirPass(path, source, generate, jsirExpectedRun(path, runPath), jsir);
-        if(jsirGap) pass = runJsirGapTest(path, jsirGapPath, source, generate) && pass;
+        auto pass = runJsirPass(path, source, generate, jsirExpectedRun(path, runPath), jsir,
+                           jsir && jsirGap);
+        if(jsirGap) pass = runJsirGapTest(path, jsirGapPath, source, generate, !jsir) && pass;
 
         println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
         return pass;
@@ -1616,9 +1491,10 @@ static bool runTest(const String& path, StringView source, bool generate) {
     if(fixtureNeedsOwnershipStage(source)) {
         auto pass = runOwnershipPass(path, source, generate, readExpectedRun(runPath));
         if(js || jsir) {
-            pass = runJsirPass(path, source, generate, jsirExpectedRun(path, runPath), jsir) && pass;
+            pass = runJsirPass(path, source, generate, jsirExpectedRun(path, runPath), jsir,
+                           jsir && jsirGap) && pass;
         }
-        if(jsirGap) pass = runJsirGapTest(path, jsirGapPath, source, generate) && pass;
+        if(jsirGap) pass = runJsirGapTest(path, jsirGapPath, source, generate, !jsir) && pass;
 
         println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
         return pass;
@@ -1723,11 +1599,12 @@ static bool runTest(const String& path, StringView source, bool generate) {
     Maybe<I64> jsRan;
 
     if(js || jsir) {
-        pass = runJsirPass(path, source, generate, jsirExpectedRun(path, runPath), jsir) && pass;
+        pass = runJsirPass(path, source, generate, jsirExpectedRun(path, runPath), jsir,
+                           jsir && jsirGap) && pass;
     }
 
     if(jsirGap) {
-        pass = runJsirGapTest(path, jsirGapPath, source, generate) && pass;
+        pass = runJsirGapTest(path, jsirGapPath, source, generate, !jsir) && pass;
     }
 
     if(fileExists(jsPath)) {

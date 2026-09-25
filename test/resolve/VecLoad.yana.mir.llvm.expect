@@ -1,0 +1,308 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+define fastcc i32 @sumInts(ptr %"xs$items", i64 %"xs$length") #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = trunc i64 %"xs$length" to i32
+  br label %3
+
+3:                                                ; preds = %12, %1
+  %4 = phi <4 x i32> [ zeroinitializer, %1 ], [ %17, %12 ]
+  %5 = phi i32 [ 0, %1 ], [ %6, %12 ]
+  %6 = add i32 %5, 4
+  %7 = icmp sle i32 %6, %2
+  %8 = zext i1 %7 to i32
+  br i1 %7, label %12, label %9
+
+9:                                                ; preds = %3
+  %10 = icmp slt i32 %5, %2
+  %11 = zext i1 %10 to i32
+  br i1 %10, label %22, label %18
+
+12:                                               ; preds = %3
+  %13 = sext i32 %5 to i64
+  %14 = shl i64 %13, 2
+  %15 = getelementptr i8, ptr %"xs$items", i64 %14
+  %16 = load <4 x i32>, ptr %15, align 1
+  %17 = add <4 x i32> %4, %16
+  br label %3
+
+18:                                               ; preds = %9
+  br label %19
+
+19:                                               ; preds = %22, %18
+  %20 = phi <4 x i32> [ %4, %18 ], [ %30, %22 ]
+  %21 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %20)
+  ret i32 %21
+
+22:                                               ; preds = %9
+  %23 = sub i32 %2, %5
+  %.splatinsert = insertelement <4 x i32> poison, i32 %23, i64 0
+  %.splat = shufflevector <4 x i32> %.splatinsert, <4 x i32> poison, <4 x i32> zeroinitializer
+  %24 = icmp slt <4 x i32> <i32 0, i32 1, i32 2, i32 3>, %.splat
+  %25 = sext i32 %5 to i64
+  %26 = shl i64 %25, 2
+  %27 = getelementptr i8, ptr %"xs$items", i64 %26
+  %28 = load <4 x i32>, ptr %27, align 1
+  %29 = select <4 x i1> %24, <4 x i32> %28, <4 x i32> zeroinitializer
+  %30 = add <4 x i32> %4, %29
+  br label %19
+}
+
+define fastcc i32 @main() #0 {
+  %1 = alloca i8, i64 43, align 4
+  %2 = alloca i8, i64 35, align 4
+  %3 = alloca i8, i64 35, align 4
+  %4 = alloca i8, i64 59, align 4
+  %5 = alloca i8, i64 27, align 4
+  br label %6
+
+6:                                                ; preds = %0
+  store i32 1, ptr %4, align 1
+  %7 = getelementptr i8, ptr %4, i64 4
+  store i32 2, ptr %7, align 1
+  %8 = getelementptr i8, ptr %4, i64 8
+  store i32 3, ptr %8, align 1
+  %9 = getelementptr i8, ptr %4, i64 12
+  store i32 4, ptr %9, align 1
+  %10 = getelementptr i8, ptr %4, i64 16
+  store i32 5, ptr %10, align 1
+  %11 = getelementptr i8, ptr %4, i64 20
+  store i32 6, ptr %11, align 1
+  %12 = getelementptr i8, ptr %4, i64 24
+  store i32 7, ptr %12, align 1
+  %13 = getelementptr i8, ptr %4, i64 28
+  store i32 8, ptr %13, align 1
+  %14 = getelementptr i8, ptr %4, i64 32
+  store i32 9, ptr %14, align 1
+  %15 = getelementptr i8, ptr %4, i64 36
+  store i32 10, ptr %15, align 1
+  %16 = getelementptr i8, ptr %4, i64 40
+  store i32 11, ptr %16, align 1
+  store float 1.000000e+00, ptr %3, align 1
+  %17 = getelementptr i8, ptr %3, i64 4
+  store float 2.000000e+00, ptr %17, align 1
+  %18 = getelementptr i8, ptr %3, i64 8
+  store float 3.000000e+00, ptr %18, align 1
+  %19 = getelementptr i8, ptr %3, i64 12
+  store float 4.000000e+00, ptr %19, align 1
+  %20 = getelementptr i8, ptr %3, i64 16
+  store float 5.000000e+00, ptr %20, align 1
+  store float 2.000000e+00, ptr %2, align 1
+  %21 = getelementptr i8, ptr %2, i64 4
+  store float 2.000000e+00, ptr %21, align 1
+  %22 = getelementptr i8, ptr %2, i64 8
+  store float 2.000000e+00, ptr %22, align 1
+  %23 = getelementptr i8, ptr %2, i64 12
+  store float 2.000000e+00, ptr %23, align 1
+  %24 = getelementptr i8, ptr %2, i64 16
+  store float 2.000000e+00, ptr %24, align 1
+  store i32 0, ptr %1, align 1
+  %25 = getelementptr i8, ptr %1, i64 4
+  store i32 0, ptr %25, align 1
+  %26 = getelementptr i8, ptr %1, i64 8
+  store i32 0, ptr %26, align 1
+  %27 = getelementptr i8, ptr %1, i64 12
+  store i32 0, ptr %27, align 1
+  %28 = getelementptr i8, ptr %1, i64 16
+  store i32 0, ptr %28, align 1
+  %29 = getelementptr i8, ptr %1, i64 20
+  store i32 0, ptr %29, align 1
+  %30 = getelementptr i8, ptr %1, i64 24
+  store i32 0, ptr %30, align 1
+  br label %31
+
+31:                                               ; preds = %59, %6
+  %32 = phi i32 [ 0, %6 ], [ %33, %59 ]
+  %33 = add i32 %32, 4
+  %34 = icmp sle i32 %33, 7
+  %35 = zext i1 %34 to i32
+  br i1 %34, label %59, label %36
+
+36:                                               ; preds = %31
+  %37 = sext i32 %32 to i64
+  br label %38
+
+38:                                               ; preds = %53, %36
+  %39 = phi i64 [ %37, %36 ], [ %56, %53 ]
+  %40 = icmp slt i64 %39, 7
+  %41 = zext i1 %40 to i32
+  br i1 %40, label %50, label %42
+
+42:                                               ; preds = %38
+  %43 = call fastcc i32 @sumInts(ptr %4, i64 11)
+  %44 = mul i32 %43, 100000
+  store i32 1, ptr %5, align 1
+  %45 = getelementptr i8, ptr %5, i64 4
+  store i32 2, ptr %45, align 1
+  %46 = getelementptr i8, ptr %5, i64 8
+  store i32 3, ptr %46, align 1
+  %47 = call fastcc i32 @sumInts(ptr %5, i64 3)
+  %48 = mul i32 %47, 10000
+  %49 = add i32 %44, %48
+  br label %63
+
+50:                                               ; preds = %38
+  %51 = icmp uge i64 %39, 7
+  %52 = zext i1 %51 to i32
+  br i1 %51, label %57, label %53
+
+53:                                               ; preds = %50
+  %54 = shl i64 %39, 2
+  %55 = getelementptr i8, ptr %1, i64 %54
+  store i32 3, ptr %55, align 1
+  %56 = add i64 %39, 1
+  br label %38
+
+57:                                               ; preds = %50
+  %58 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 60, i64 134)
+  unreachable
+
+59:                                               ; preds = %31
+  %60 = sext i32 %32 to i64
+  %61 = shl i64 %60, 2
+  %62 = getelementptr i8, ptr %1, i64 %61
+  store <4 x i32> splat (i32 3), ptr %62, align 1
+  br label %31
+
+63:                                               ; preds = %100, %42
+  %64 = phi <4 x float> [ zeroinitializer, %42 ], [ %108, %100 ]
+  %65 = phi i32 [ 0, %42 ], [ %66, %100 ]
+  %66 = add i32 %65, 4
+  %67 = icmp sle i32 %66, 5
+  %68 = zext i1 %67 to i32
+  br i1 %67, label %100, label %69
+
+69:                                               ; preds = %63
+  %70 = icmp slt i32 %65, 5
+  %71 = zext i1 %70 to i32
+  br i1 %70, label %73, label %72
+
+72:                                               ; preds = %69
+  br label %86
+
+73:                                               ; preds = %69
+  %74 = sub i32 5, %65
+  %.splatinsert = insertelement <4 x i32> poison, i32 %74, i64 0
+  %.splat = shufflevector <4 x i32> %.splatinsert, <4 x i32> poison, <4 x i32> zeroinitializer
+  %75 = icmp slt <4 x i32> <i32 0, i32 1, i32 2, i32 3>, %.splat
+  %76 = sext i32 %65 to i64
+  %77 = shl i64 %76, 2
+  %78 = getelementptr i8, ptr %3, i64 %77
+  %79 = load <4 x float>, ptr %78, align 1
+  %80 = select <4 x i1> %75, <4 x float> %79, <4 x float> zeroinitializer
+  %81 = getelementptr i8, ptr %2, i64 %77
+  %82 = load <4 x float>, ptr %81, align 1
+  %83 = select <4 x i1> %75, <4 x float> %82, <4 x float> zeroinitializer
+  %84 = fmul <4 x float> %80, %83
+  %85 = fadd <4 x float> %84, %64
+  br label %86
+
+86:                                               ; preds = %73, %72
+  %87 = phi <4 x float> [ %64, %72 ], [ %85, %73 ]
+  %88 = shufflevector <4 x float> %87, <4 x float> poison, <2 x i32> <i32 0, i32 2>
+  %89 = shufflevector <4 x float> %87, <4 x float> poison, <2 x i32> <i32 1, i32 3>
+  %90 = fadd <2 x float> %88, %89
+  %91 = shufflevector <2 x float> %90, <2 x float> poison, <1 x i32> zeroinitializer
+  %92 = shufflevector <2 x float> %90, <2 x float> poison, <1 x i32> <i32 1>
+  %93 = fadd <1 x float> %91, %92
+  %94 = extractelement <1 x float> %93, i64 0
+  %95 = fcmp oeq float %94, 3.000000e+01
+  %96 = zext i1 %95 to i32
+  %97 = select i1 %95, i32 30, i32 0
+  %98 = mul i32 %97, 100
+  %99 = add i32 %49, %98
+  br label %115
+
+100:                                              ; preds = %63
+  %101 = sext i32 %65 to i64
+  %102 = shl i64 %101, 2
+  %103 = getelementptr i8, ptr %3, i64 %102
+  %104 = load <4 x float>, ptr %103, align 1
+  %105 = getelementptr i8, ptr %2, i64 %102
+  %106 = load <4 x float>, ptr %105, align 1
+  %107 = fmul <4 x float> %104, %106
+  %108 = fadd <4 x float> %107, %64
+  br label %63
+
+109:                                              ; preds = %150, %135, %134
+  %110 = phi i32 [ -1, %134 ], [ %140, %135 ], [ %155, %150 ]
+  %111 = mul i32 %110, 10
+  %112 = add i32 %99, %111
+  %113 = call fastcc i32 @sumInts(ptr %1, i64 7)
+  %114 = add i32 %112, %113
+  ret i32 %114
+
+115:                                              ; preds = %149, %86
+  %116 = phi i32 [ 0, %86 ], [ %117, %149 ]
+  %117 = add i32 %116, 4
+  %118 = icmp sle i32 %117, 11
+  %119 = zext i1 %118 to i32
+  br i1 %118, label %141, label %120
+
+120:                                              ; preds = %115
+  %121 = icmp slt i32 %116, 11
+  %122 = zext i1 %121 to i32
+  br i1 %121, label %123, label %134
+
+123:                                              ; preds = %120
+  %124 = sub i32 11, %116
+  %.splatinsert1 = insertelement <4 x i32> poison, i32 %124, i64 0
+  %.splat2 = shufflevector <4 x i32> %.splatinsert1, <4 x i32> poison, <4 x i32> zeroinitializer
+  %125 = icmp slt <4 x i32> <i32 0, i32 1, i32 2, i32 3>, %.splat2
+  %126 = sext i32 %116 to i64
+  %127 = shl i64 %126, 2
+  %128 = getelementptr i8, ptr %4, i64 %127
+  %129 = load <4 x i32>, ptr %128, align 1
+  %130 = icmp eq <4 x i32> %129, splat (i32 8)
+  %131 = and <4 x i1> %130, %125
+  %132 = call i1 @llvm.vector.reduce.or.v4i1(<4 x i1> %131)
+  %133 = zext i1 %132 to i32
+  br i1 %132, label %135, label %134
+
+134:                                              ; preds = %123, %120
+  br label %109
+
+135:                                              ; preds = %123
+  %136 = bitcast <4 x i1> %131 to i4
+  %137 = zext i4 %136 to i32
+  %138 = or i32 %137, 16
+  %139 = call i32 @llvm.cttz.i32(i32 %138, i1 true)
+  %140 = add i32 %116, %139
+  br label %109
+
+141:                                              ; preds = %115
+  %142 = sext i32 %116 to i64
+  %143 = shl i64 %142, 2
+  %144 = getelementptr i8, ptr %4, i64 %143
+  %145 = load <4 x i32>, ptr %144, align 1
+  %146 = icmp eq <4 x i32> %145, splat (i32 8)
+  %147 = call i1 @llvm.vector.reduce.or.v4i1(<4 x i1> %146)
+  %148 = zext i1 %147 to i32
+  br i1 %147, label %150, label %149
+
+149:                                              ; preds = %141
+  br label %115
+
+150:                                              ; preds = %141
+  %151 = bitcast <4 x i1> %146 to i4
+  %152 = zext i4 %151 to i32
+  %153 = or i32 %152, 16
+  %154 = call i32 @llvm.cttz.i32(i32 %153, i1 true)
+  %155 = add i32 %116, %154
+  br label %109
+}
+
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32>) #1
+
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare i1 @llvm.vector.reduce.or.v4i1(<4 x i1>) #1
+
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare i32 @llvm.cttz.i32(i32, i1 immarg) #1
+
+attributes #0 = { "probe-stack"="inline-asm" }
+attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }

@@ -1,53 +1,7 @@
-@environment(copyable(I32)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(I32), slot 4: @witness(TrivialCopy())}
-@descriptor(I32) = [4, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
-@image$base = []
-@witness(TrivialCopy()) = []
-@environment(movable(I32)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(I32), slot 4: @witness(TrivialSink())}
-@witness(TrivialSink()) = []
-@environment(copyable(Point)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Point), slot 4: @witness(TrivialCopy())}
-@descriptor(Point) = [8, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
-@environment(movable(Point)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Point), slot 4: @witness(TrivialSink())}
-
-copyable<complex>(%v_0: Ptr, %x: Ptr, %n: I32): I32 {
-  b_1 {
-    ret %n
-  }
-}
-
-movable<complex>(%v_0: Ptr, %x: Ptr, %n: I32): I32 {
-  b_1 {
-    ret %n
-  }
-}
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, 7, 4
-    %v_2 = call_complex copyable, @environment(copyable(I32)), %v_1, 1: I32
-    %v_3 = alloca 4, 4: Ptr
-    store %v_3, 9, 4
-    %v_4 = call_complex movable, @environment(movable(I32)), %v_3, 2: I32
-    %v_5 = add %v_2, %v_4: I32
-    %v_6 = alloca 8, 4: Ptr
-    store %v_6, 1, 4
-    %v_7 = add %v_6, 4: Ptr
-    store %v_7, 2, 4
-    %v_8 = call_complex copyable, @environment(copyable(Point)), %v_6, 4: I32
-    %v_9 = alloca 8, 4: Ptr
-    store %v_9, 3, 4
-    %v_10 = add %v_9, 4: Ptr
-    store %v_10, 4, 4
-    %v_11 = call_complex movable, @environment(movable(Point)), %v_9, 8: I32
-    %v_12 = add %v_8, %v_11: I32
-    %v_13 = add %v_5, %v_12: I32
-    ret %v_13
-  }
-}
-
-teardown()<complex>(%v_0: Ptr) {
-  b_1 {
-    ret 
+    ret 15
   }
 }
 

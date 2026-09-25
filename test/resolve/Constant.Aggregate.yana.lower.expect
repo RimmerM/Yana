@@ -253,65 +253,63 @@ main<complex>(): I32 {
   b_74 {
     %v_76 = phi [b_65, %v_68], [b_73, %v_75]: I32
     %s = alloca 44, 8: Ptr
-    %v_77 = alloca 16, 8: Ptr
-    copy %v_77, @ResolveTest.literal$3, 16
-    %v_78 = alloca 12, 4: Ptr
-    store %v_78, 1, 4
-    %v_79 = add %v_78, 4: Ptr
-    store %v_79, 2, 4
-    %v_80 = add %v_78, 8: Ptr
-    store %v_80, 5, 4
-    %v_81 = add %s, 28: Ptr
-    store %v_81, 2, 4
-    %v_82 = add %s, 32: Ptr
-    store %v_82, 3, 4
-    copy %s, %v_77, 16
-    %v_83 = add %s, 16: Ptr
-    copy %v_83, %v_78, 12
-    %v_84 = add %s, 36: Ptr
-    store %v_84, 1, 4
-    %v_85 = add %s, 40: Ptr
-    store %v_85, 4, 4
-    %v_86 = add %s, 12: Ptr
-    %v_87 = load %v_86, 4: I32
-    %v_88 = add %v_87, 5: I32
-    %v_89 = call_complex area, %v_78: I32
-    %v_90 = add %v_88, %v_89: I32
-    %v_91 = add %s, 36: Ptr
-    %v_92 = loads %v_91, 4: I32
-    %v_93 = cmp_eq %v_92, 1: I32
-    %v_94 = add %s, 40: Ptr
-    %v = loads %v_94, 4: I32
-    %v_95 = select %v_93, %v, 0: I32
-    %v_96 = add %s, 8: Ptr
-    %v_97 = load %v_96, 4: I64
-    %v_98 = shr %v_97, 30: I64
-    %v_99 = cast %v_98: I32
-    %v_100 = cmp_eq %v_99, 1: I32
-    je %v_100, b_101, b_102
+    %v_77 = alloca 12, 4: Ptr
+    store %v_77, 1, 4
+    %v_78 = add %v_77, 4: Ptr
+    store %v_78, 2, 4
+    %v_79 = add %v_77, 8: Ptr
+    store %v_79, 5, 4
+    %v_80 = add %s, 28: Ptr
+    store %v_80, 2, 4
+    %v_81 = add %s, 32: Ptr
+    store %v_81, 3, 4
+    copy %s, @ResolveTest.literal$3, 16
+    %v_82 = add %s, 16: Ptr
+    copy %v_82, %v_77, 12
+    %v_83 = add %s, 36: Ptr
+    store %v_83, 1, 4
+    %v_84 = add %s, 40: Ptr
+    store %v_84, 4, 4
+    %v_85 = add %s, 12: Ptr
+    %v_86 = load %v_85, 4: I32
+    %v_87 = add %v_86, 5: I32
+    %v_88 = call_complex area, %v_77: I32
+    %v_89 = add %v_87, %v_88: I32
+    %v_90 = add %s, 36: Ptr
+    %v_91 = loads %v_90, 4: I32
+    %v_92 = cmp_eq %v_91, 1: I32
+    %v_93 = add %s, 40: Ptr
+    %v = loads %v_93, 4: I32
+    %v_94 = select %v_92, %v, 0: I32
+    %v_95 = add %s, 8: Ptr
+    %v_96 = load %v_95, 4: I64
+    %v_97 = shr %v_96, 30: I64
+    %v_98 = cast %v_97: I32
+    %v_99 = cmp_eq %v_98, 1: I32
+    je %v_99, b_100, b_101
+  }
+
+  b_100 {
+    %v_102 = load %s, 8: Ptr
+    call_complex freeHeap, %v_102
+    jmp b_101
   }
 
   b_101 {
-    %v_103 = load %s, 8: Ptr
-    call_complex freeHeap, %v_103
-    jmp b_102
+    %defaults = add %v_89, %v_94: I32
+    %v_103 = cmp_eq %defaults, 21: I32
+    je %v_103, b_104, b_105
   }
 
-  b_102 {
-    %defaults = add %v_90, %v_95: I32
-    %v_104 = cmp_eq %defaults, 21: I32
-    je %v_104, b_105, b_106
+  b_104 {
+    %v_106 = add %v_76, 16384: I32
+    jmp b_105
   }
 
   b_105 {
-    %v_107 = add %v_76, 16384: I32
-    jmp b_106
-  }
-
-  b_106 {
-    %v_108 = phi [b_102, %v_76], [b_105, %v_107]: I32
-    %v_109 = add %v_108, 32768: I32
-    ret %v_109
+    %v_107 = phi [b_101, %v_76], [b_104, %v_106]: I32
+    %v_108 = add %v_107, 32768: I32
+    ret %v_108
   }
 }
 

@@ -94,21 +94,19 @@ fn main() -> one %r0
     %104: %r0 = const 10
     %105: %r0 = binary.mul %103, %104
     %106: %r0 = coerce %105
-    %107: %r0 = const 1
     %108: %r6 = load var $4: %r6
     %109: %r3 = load property %108.items: %r3
     %110: %r1 = load property %109.items: %r1
     %111: %r3 = alias %109
     %112: %r2 = load property %111.length: %r2
     %113: %r0 = convert %112
-    %115: %r13 = convert %107
+    %115: %r13 = const 1
     %116: %r13 = convert %113
     %117: %r14 = binary.ge %115, %116
     branch %117 -> block2 -> block1
   block1:
     %118: %r1 = alias %110
-    %119: %r0 = alias %107
-    %120: %r0 = coerce %119
+    %120: %r0 = const 1
     %121: %r0 = load element %118[%120]: %r0
     %122: %r6 = load var $4: %r6
     %123: %r3 = load property %122.items: %r3
@@ -230,7 +228,7 @@ fn Array(a).reclaim(I32)(one %r3) -> omitted
   block0(%0: %r3):
     return
 
-optimizer clones 4 aliased 2 forwarded 0 removed 83 adopted 1 sunk 0 numbered 6 decided 0 unboxed 7 updated 2 split 0 promoted 15
+optimizer clones 4 aliased 2 forwarded 0 removed 85 adopted 1 sunk 0 numbered 5 decided 0 unboxed 7 updated 2 split 0 promoted 15 folded 3
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object Store {held: %r0, tag: %r0}

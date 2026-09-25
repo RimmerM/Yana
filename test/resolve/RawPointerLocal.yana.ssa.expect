@@ -1,0 +1,299 @@
+module ResolveTest
+
+let & calls: I32 = 0
+
+fn setViaBox(into: Cell [unique call]) -> I32 {
+bb0(%0: Cell [unique call] guaranteed):
+  %1: %PBox address = alloc frame PBox
+  %2: %I64 address = field.addr .value inspect %0
+  %3: I64 [shared slot 0] guaranteed from{%0} = load inspect %2
+  %4: %I64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %3
+  %5: I32 trivial = const 0
+  %6: PBox trivial = aggregate.PBox consume %4 consume %5
+  store inspect %1 consume %6
+  %7: I32 trivial = const 1
+  %8: %I32 address = field.addr .pad inspect %1
+  store inspect %8 consume %7
+  %9: %%I64 address = field.addr .p inspect %1
+  %10: %I64 trivial = load inspect %9
+  %11: I64 trivial = const 42
+  store inspect %10 consume %11
+  %12: %I32 address = field.addr .pad inspect %1
+  %13: I32 trivial = load inspect %12
+  return consume %13
+}
+
+fn setViaArray(into: Cell [unique call]) -> I32 {
+bb0(%0: Cell [unique call] guaranteed):
+  %1: %[%I64 *2] address = alloc frame [%I64 *2]
+  jump -> bb1
+
+bb1:
+  %3: Size trivial = const 0
+  %4: %I64 trivial = call Size.%a.bitcast(I64) borrow %3
+  jump -> bb2(consume %4)
+
+bb2(%2: %I64 trivial):
+  jump -> bb3
+
+bb3:
+  %6: Size trivial = const 0
+  %7: %I64 trivial = call Size.%a.bitcast(I64) borrow %6
+  jump -> bb4(consume %7)
+
+bb4(%5: %I64 trivial):
+  %8: [%I64 *2] trivial = aggregate.0 consume %2 consume %5
+  store inspect %1 consume %8
+  %9: Size trivial = const 1
+  %10: %I64 address = field.addr .other inspect %0
+  %11: I64 [shared slot 0] guaranteed from{%0} = load inspect %10
+  %12: %I64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %11
+  %13: %%I64 address = element.addr inspect %1 inspect %9
+  store inspect %13 consume %12
+  %14: Size trivial = const 1
+  %15: %%I64 address = element.addr inspect %1 inspect %14
+  %16: %I64 trivial = load inspect %15
+  %17: I64 trivial = const 7
+  store inspect %16 consume %17
+  %18: I32 trivial = const 1
+  return consume %18
+}
+
+fn setP(b: PBox [unique call], p: %I64 [shared call]) -> {} {
+bb0(%0: PBox [unique call] guaranteed, %1: %I64 trivial):
+  %2: %%I64 address = alloc frame %I64 [shared call]
+  store inspect %2 borrow %1
+  %3: %I64 trivial = load inspect %2
+  %4: %%I64 address = field.addr .p inspect %0
+  store inspect %4 consume %3
+  return
+}
+
+fn setViaCall(into: Cell [unique call]) -> I32 {
+bb0(%0: Cell [unique call] guaranteed):
+  %1: %PBox address = alloc frame PBox
+  jump -> bb1
+
+bb1:
+  %3: Size trivial = const 0
+  %4: %I64 trivial = call Size.%a.bitcast(I64) borrow %3
+  jump -> bb2(consume %4)
+
+bb2(%2: %I64 trivial):
+  %5: I32 trivial = const 0
+  %6: PBox trivial = aggregate.PBox consume %2 consume %5
+  store inspect %1 consume %6
+  %7: PBox [unique call] guaranteed from{%1} = load inspect %1
+  %8: %I64 address = field.addr .other inspect %0
+  %9: I64 [shared slot 0] guaranteed from{%0} = load inspect %8
+  %10: %I64 [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %9
+  call setP borrow %7 borrow %10
+  %11: %%I64 address = field.addr .p inspect %1
+  %12: %I64 trivial = load inspect %11
+  %13: I64 trivial = const 66
+  store inspect %12 consume %13
+  %14: I32 trivial = const 1
+  return consume %14
+}
+
+fn viaBox() -> I64 {
+bb0:
+  %0: %Cell address = alloc frame Cell
+  %1: %I32 address = global.addr calls
+  %2: I32 [unique call] guaranteed = load inspect %1
+  %3: I32 trivial = const 1
+  call +=(I32) borrow %2 borrow %3
+  %4: I64 trivial = const 0
+  %5: I64 trivial = const 0
+  %6: Cell trivial = aggregate.Cell consume %4 consume %5
+  store inspect %0 consume %6
+  %7: Cell [unique call] guaranteed from{%0} = load inspect %0
+  %8: I32 trivial = call setViaBox borrow %7
+  %9: I32 trivial = const 0
+  %10: Bool trivial = lt inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: %I64 address = field.addr .value inspect %0
+  %12: I64 trivial = load inspect %11
+  return consume %12
+
+bb3:
+  %13: I64 trivial = const -1
+  return consume %13
+}
+
+fn viaArray() -> I64 {
+bb0:
+  %0: %Cell address = alloc frame Cell
+  %1: %I32 address = global.addr calls
+  %2: I32 [unique call] guaranteed = load inspect %1
+  %3: I32 trivial = const 1
+  call +=(I32) borrow %2 borrow %3
+  %4: I64 trivial = const 0
+  %5: I64 trivial = const 0
+  %6: Cell trivial = aggregate.Cell consume %4 consume %5
+  store inspect %0 consume %6
+  %7: Cell [unique call] guaranteed from{%0} = load inspect %0
+  %8: I32 trivial = call setViaArray borrow %7
+  %9: I32 trivial = const 0
+  %10: Bool trivial = lt inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: %I64 address = field.addr .other inspect %0
+  %12: I64 trivial = load inspect %11
+  return consume %12
+
+bb3:
+  %13: I64 trivial = const -1
+  return consume %13
+}
+
+fn sameBlock() -> I64 {
+bb0:
+  %0: %Cell address = alloc frame Cell
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = global.addr calls
+  %3: I32 [unique call] guaranteed = load inspect %2
+  %4: I32 trivial = const 1
+  call +=(I32) borrow %3 borrow %4
+  %5: I64 trivial = const 0
+  %6: I64 trivial = const 0
+  %7: Cell trivial = aggregate.Cell consume %5 consume %6
+  store inspect %0 consume %7
+  %8: Cell [unique call] guaranteed from{%0} = load inspect %0
+  %9: I32 trivial = call setViaBox borrow %8
+  store inspect %1 consume %9
+  %10: %I64 address = field.addr .value inspect %0
+  %11: I64 trivial = load inspect %10
+  %12: I32 trivial = load inspect %1
+  %13: I64 trivial = convert inspect %12
+  %14: I64 trivial = const 0
+  %15: I64 trivial = mul inspect %13 inspect %14
+  %16: I64 trivial = add inspect %11 inspect %15
+  return consume %16
+}
+
+fn viaCall() -> I64 {
+bb0:
+  %0: %Cell address = alloc frame Cell
+  %1: %I32 address = global.addr calls
+  %2: I32 [unique call] guaranteed = load inspect %1
+  %3: I32 trivial = const 1
+  call +=(I32) borrow %2 borrow %3
+  %4: I64 trivial = const 0
+  %5: I64 trivial = const 0
+  %6: Cell trivial = aggregate.Cell consume %4 consume %5
+  store inspect %0 consume %6
+  %7: Cell [unique call] guaranteed from{%0} = load inspect %0
+  %8: I32 trivial = call setViaCall borrow %7
+  %9: I32 trivial = const 0
+  %10: Bool trivial = lt inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: %I64 address = field.addr .other inspect %0
+  %12: I64 trivial = load inspect %11
+  return consume %12
+
+bb3:
+  %13: I64 trivial = const -1
+  return consume %13
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: I32 trivial = const 0
+  store inspect %0 consume %1
+  %2: I64 trivial = call viaBox
+  %3: I64 trivial = const 42
+  %4: Bool trivial = ne inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %5: I64 trivial = call viaArray
+  %6: I64 trivial = const 7
+  %7: Bool trivial = ne inspect %5 inspect %6
+  branch inspect %7 -> bb6 -> bb4
+
+bb3:
+  %8: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %9: I32 trivial = const 1
+  call +=(I32) borrow %8 borrow %9
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %10: I64 trivial = call sameBlock
+  %11: I64 trivial = const 42
+  %12: Bool trivial = ne inspect %10 inspect %11
+  branch inspect %12 -> bb9 -> bb7
+
+bb6:
+  %13: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %14: I32 trivial = const 2
+  call +=(I32) borrow %13 borrow %14
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %15: I64 trivial = call viaCall
+  %16: I64 trivial = const 66
+  %17: Bool trivial = ne inspect %15 inspect %16
+  branch inspect %17 -> bb12 -> bb10
+
+bb9:
+  %18: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %19: I32 trivial = const 4
+  call +=(I32) borrow %18 borrow %19
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %20: %I32 address = global.addr calls
+  %21: I32 trivial = load inspect %20
+  %22: I32 trivial = const 4
+  %23: Bool trivial = ne inspect %21 inspect %22
+  branch inspect %23 -> bb15 -> bb13
+
+bb12:
+  %24: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %25: I32 trivial = const 8
+  call +=(I32) borrow %24 borrow %25
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %26: I32 trivial = load inspect %0
+  return consume %26
+
+bb15:
+  %27: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %28: I32 trivial = const 16
+  call +=(I32) borrow %27 borrow %28
+  jump -> bb14
+}
+
+entry main

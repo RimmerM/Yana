@@ -1,56 +1,16 @@
 fn main() -> one %r0
-  var $0: %r4
-  var $1: %r0
-  var $2: %r1
-  var $3: %r2
-  var $4: %r3
   block0:
-    %6: %r0 = const 1
-    %7: %r1 = const 0
-    %8: %r1 = const 1
-    %9: %r1 = binary.sub %7, %8
-    %10: %r1 = coerce %9
-    %11: %r1 = const 0
-    %12: %r6 = binary.gt %10, %11
-    %13: %r0 = const 3
-    %14: %r0 = select %12, %13, %6
-    %17: %r2 = const 5
-    %18: %r3 = const 6
-    %20: %r0 = const 60
-    %21: %r0 = binary.or %14, %20
-    %22: %r0 = coerce %21
-    %24: %r2 = const 1
-    %25: %r2 = binary.add %17, %24
-    %26: %r2 = coerce %25
-    %27: %r2 = const 6
-    %28: %r6 = binary.eq %26, %27
-    branch %28 -> block3 -> block1
-  block1:
-    jump -> block2(%22)
-  block2(%0: %r0):
-    return %0
-  block3:
-    %30: %r3 = alias %18
-    %31: %r3 = const 1
-    %32: %r3 = binary.add %30, %31
-    %33: %r3 = coerce %32
-    %34: %r3 = const 7
-    %35: %r6 = binary.eq %33, %34
-    branch %35 -> block4 -> block1
-  block4:
-    %36: %r0 = const 124
-    %37: %r0 = binary.or %14, %36
-    %38: %r0 = coerce %37
-    jump -> block2(%38)
+    %15: %r0 = const 127
+    return %15
 
-optimizer clones 0 aliased 0 forwarded 0 removed 18 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 1
+optimizer clones 0 aliased 0 forwarded 0 removed 15 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 6
 
-shape %s0 object Widths {index: %r0, count: %r1, unit: %r2, wide: %r3}
+shape %s0 object Widths {index: %r0, count: %r1, unit: %r3, wide: %r4}
 
 rep %r0 = number signed 32
 rep %r1 = number unsigned 32
-rep %r2 = number unsigned 16
-rep %r3 = number signed 53
-rep %r4 = object %s0
-rep %r5 = parts (%r0, %r1, %r2, %r3) as %r4
-rep %r6 = number bool
+rep %r2 = number bool
+rep %r3 = number unsigned 16
+rep %r4 = number signed 53
+rep %r5 = object %s0
+rep %r6 = parts (%r0, %r1, %r3, %r4) as %r5

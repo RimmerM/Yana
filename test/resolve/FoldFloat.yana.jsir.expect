@@ -15,17 +15,9 @@ fn infinite() -> one %r0
 fn main() -> one %r1
   block0:
     %2: %r1 = const 60
-    %3: %r0 = const 1E30
-    %4: %r1 = convert %3
-    %5: %r1 = const 2.147483647E9
-    %6: %r2 = binary.eq %4, %5
-    branch %6 -> block1 -> block2
+    jump -> block1
   block1:
-    %7: %r0 = const -1E30
-    %8: %r1 = convert %7
-    %9: %r1 = const -2.147483647E9
-    %10: %r2 = binary.lt %8, %9
-    branch %10 -> block3 -> block2
+    jump -> block3
   block2:
     %11: %r1 = const 0
     jump -> block4(%11)
@@ -67,7 +59,7 @@ fn main() -> one %r1
     %36: %r1 = coerce %35
     return %36
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0 numbered 0 decided 2 unboxed 0 updated 0 split 0 promoted 0 folded 4
 
 rep %r0 = number f64
 rep %r1 = number signed 32

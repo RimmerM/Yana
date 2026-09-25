@@ -6,6 +6,7 @@
    quietly stopped being what was written is the one failure a Repr refinement must not have.
 
    # resolver: ownership
+   # recover: yes
 -}
 
 import Native
@@ -29,7 +30,71 @@ fn notAContainer(x: @inline(4) @capacity(4) Int) -> Int = x
 -- array that allocates is spelled.
 data Empty {xs: @inline(0) @capacity(0) [Int]}
 
--- A literal longer than `@capacity(n)` moved to `Reject.InlineCapacity.Legacy.yana`; that
--- file says what the new stage does instead.
-
 fn main() -> Int = 0
+
+-- Since J135, which enforces these in the new stage; they were `Reject.InlineCapacity.Legacy.yana`.
+-- `@capacity(n)` is a bound rather than a starting size, so a literal past it has nowhere to go. The
+-- push that would exceed it fails at run time; the literal that does is a resolve error, because the
+-- length is written down.
+fn tooLong():
+    let xs = [1, 2, 3, 4, 5] :: @inline(4) @capacity(4) [Int]
+
+-- Since J146: the owner adaptation lends a descriptor that is written back where the call finishes -
+-- after a lens's or an iterator's cleanup - so leaving the function from inside the block has nowhere
+-- to write it back, and neither has an object, which keeps what it is lent, nor a skipping lens,
+-- whose alternative runs before the join.
+data Owned {items: @inline(4) @capacity(4) [Int], tag: Int}
+
+iter fn growing(&xs: Array(Int)) -> Int:
+    push(xs, 1)
+    yield 1
+
+lens fn maybeOpened(&xs: Array(Int)) -> (Int | {}):
+    push(xs, 1)
+    yield 1
+
+fn lastOf(&xs: s'Array(Int)) -> &s'Int = xs[length(xs) - 1]
+
+fn returnsInside(&o: Owned) -> Int:
+    for x in growing(o.items):
+        return x
+    return 0
+
+fn triesInside(&o: Owned) -> Maybe(Int):
+    for x in growing(o.items):
+        let y = (Nothing :: Maybe(Int))?
+    return Just(0)
+
+fn keepsObject(&o: Owned) -> Int:
+    let &it = growing(o.items)
+    return 0
+
+fn skips(&o: Owned) -> Int:
+    let k = maybeOpened(o.items) | else -> print("skipped") in:
+        o.tag = k
+    return 0
+
+-- A borrow the callee hands back is rooted in the descriptor, which the write-back then takes.
+fn keepsElement(&o: Owned):
+    let &e = lastOf(o.items)
+    e = 99
+
+-- Through a function value (J162): the adaptation is a direct call's, so a shared position is not a
+-- growable array's owner there either.
+
+fn valueShared(&o: Owned, f: (Array(Int)) -> Size) -> Size = f(o.items)
+
+-- A producer whose own `for` lends the array, held as an object (J162): the descriptor is the
+-- compiler's local and cannot be kept across a `yield`, which is what the message says - once,
+-- though both objects below mint the producer. It used to say "traverse a parameter instead".
+iter fn outerGrowing(&o: Owned) -> Int:
+    for x in growing(o.items):
+        yield x * 10
+
+fn heldOuter(&o: Owned) -> Int:
+    let &it = outerGrowing(o)
+    return 0
+
+fn heldOuterAgain(&o: Owned) -> Int:
+    let &again = outerGrowing(o)
+    return 1

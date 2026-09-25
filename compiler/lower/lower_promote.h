@@ -30,7 +30,8 @@
  *
  * ## What it does not do
  *
- * Whole slots only. A slot whose address has arithmetic done to it - which is every aggregate whose
+ * Whole slots only - apart from an integer load or store of the slot's low bytes, which is a mask
+ * or a merge of its register (`isNarrowAccess`, J152). A slot whose address has arithmetic done to it - which is every aggregate whose
  * fields are at different offsets - is left alone, because splitting one is a different
  * transformation (see `scalarizable` in resolve/lower.cpp, which does exactly that for the shapes it
  * can prove safe). What this catches is the slot that is loaded and stored as one value and nothing

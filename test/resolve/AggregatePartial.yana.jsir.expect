@@ -1,63 +1,70 @@
-fn opaque(one %r0) -> one %r0
-  block0(%0: %r0):
-    %1: %r0 = load global log: %r0
-    %2: %r0 = binary.add %1, %0
-    %3: %r0 = coerce %2
-    store global log: %r0, %3
-    %4: %r0 = load global log: %r0
-    %5: %r0 = const 1000
-    %6: %r1 = binary.gt %4, %5
-    %7: %r0 = const 0
-    %8: %r0 = select %6, %7, %0
-    return %8
-
 fn main() -> one %r0
-  var $0: %r2
-  var $1: %r3
+  var $0: %r1
+  var $1: %r2
   var $2: %r0
-  var $3: %r2
+  var $3: %r1
   block0:
     %0: %r0 = const 5
-    %4: %r0 = call opaque %0
-    %8: %r0 = const 1349
-    %9: %r0 = binary.add %4, %8
-    %10: %r0 = coerce %9
-    %11: %r0 = const 6
-    %17: %r0 = const 1
-    %18: %r0 = const 2
-    %24: %r0 = call opaque %11
-    %28: %r0 = alias %17
-    %29: %r0 = const 100
-    %30: %r0 = binary.mul %28, %29
-    %31: %r0 = coerce %30
-    %33: %r0 = alias %18
-    %34: %r0 = const 10
-    %35: %r0 = binary.mul %33, %34
-    %36: %r0 = coerce %35
-    %37: %r0 = binary.add %31, %36
-    %38: %r0 = coerce %37
-    %39: %r0 = binary.add %38, %24
-    %40: %r0 = coerce %39
-    %41: %r0 = binary.add %10, %40
-    %42: %r0 = coerce %41
-    %43: %r0 = const 7
-    %49: %r0 = call opaque %43
-    %50: %r0 = const 127
-    %51: %r0 = binary.add %49, %50
+    %4: %r0 = load global log: %r0
+    %5: %r0 = binary.add %4, %0
+    %6: %r0 = coerce %5
+    store global log: %r0, %6
+    %7: %r0 = const 1000
+    %8: %r3 = binary.gt %6, %7
+    %9: %r0 = const 0
+    %10: %r0 = select %8, %9, %0
+    %14: %r0 = const 1349
+    %15: %r0 = binary.add %10, %14
+    %16: %r0 = coerce %15
+    %17: %r0 = const 6
+    %23: %r0 = const 1
+    %24: %r0 = const 2
+    %30: %r0 = const 11
+    %31: %r0 = binary.add %4, %30
+    %32: %r0 = coerce %31
+    store global log: %r0, %32
+    %33: %r0 = const 1000
+    %34: %r3 = binary.gt %32, %33
+    %35: %r0 = const 0
+    %36: %r0 = select %34, %35, %17
+    %40: %r0 = alias %23
+    %41: %r0 = const 100
+    %42: %r0 = binary.mul %40, %41
+    %43: %r0 = coerce %42
+    %45: %r0 = alias %24
+    %46: %r0 = const 10
+    %47: %r0 = binary.mul %45, %46
+    %48: %r0 = coerce %47
+    %49: %r0 = binary.add %43, %48
+    %50: %r0 = coerce %49
+    %51: %r0 = binary.add %50, %36
     %52: %r0 = coerce %51
-    %53: %r0 = binary.add %42, %52
+    %53: %r0 = binary.add %16, %52
     %54: %r0 = coerce %53
-    %55: %r0 = load global log: %r0
-    %56: %r0 = binary.add %54, %55
-    %57: %r0 = coerce %56
-    return %57
+    %55: %r0 = const 7
+    %61: %r0 = const 18
+    %62: %r0 = binary.add %4, %61
+    %63: %r0 = coerce %62
+    store global log: %r0, %63
+    %64: %r0 = const 1000
+    %65: %r3 = binary.gt %63, %64
+    %66: %r0 = const 0
+    %67: %r0 = select %65, %66, %55
+    %68: %r0 = const 127
+    %69: %r0 = binary.add %67, %68
+    %70: %r0 = coerce %69
+    %71: %r0 = binary.add %54, %70
+    %72: %r0 = coerce %71
+    %73: %r0 = binary.add %72, %63
+    %74: %r0 = coerce %73
+    return %74
 
-optimizer clones 1 aliased 1 forwarded 2 removed 31 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 1 promoted 2
+optimizer clones 1 aliased 1 forwarded 2 removed 31 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 1 promoted 2 folded 0
 
-shape %s0 object Held {tag: %r0, held: %r2}
+shape %s0 object Held {tag: %r0, held: %r1}
 shape %s1 object Pair {a: %r0, b: %r0}
 
 rep %r0 = number signed 32
-rep %r1 = number bool
-rep %r2 = object %s1
-rep %r3 = object %s0
+rep %r1 = object %s1
+rep %r2 = object %s0
+rep %r3 = number bool

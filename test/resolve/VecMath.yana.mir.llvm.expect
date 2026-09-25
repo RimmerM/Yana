@@ -1,0 +1,152 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+define fastcc i32 @"lanes'2"() #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = call <4 x float> @llvm.sqrt.v4f32(<4 x float> splat (float 6.250000e+00))
+  %3 = extractelement <4 x float> %2, i32 0
+  %4 = fcmp une float %3, 2.500000e+00
+  %5 = zext i1 %4 to i32
+  br i1 %4, label %10, label %6
+
+6:                                                ; preds = %1
+  %7 = call float @llvm.vector.reduce.fmin.v4f32(<4 x float> %2)
+  %8 = fcmp une float %7, 2.500000e+00
+  %9 = zext i1 %8 to i32
+  br i1 %8, label %12, label %11
+
+10:                                               ; preds = %1
+  ret i32 -1
+
+11:                                               ; preds = %6
+  br i1 false, label %14, label %13
+
+12:                                               ; preds = %6
+  ret i32 -2
+
+13:                                               ; preds = %11
+  br i1 false, label %16, label %15
+
+14:                                               ; preds = %11
+  ret i32 -3
+
+15:                                               ; preds = %13
+  br i1 false, label %18, label %17
+
+16:                                               ; preds = %13
+  ret i32 -4
+
+17:                                               ; preds = %15
+  ret i32 0
+
+18:                                               ; preds = %15
+  ret i32 -5
+}
+
+define fastcc i32 @main() #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = call double @llvm.sqrt.f64(double 1.600000e+01)
+  %3 = fcmp une double %2, 4.000000e+00
+  %4 = zext i1 %3 to i32
+  br i1 %3, label %9, label %16
+
+5:                                                ; preds = %25
+  %6 = call fastcc i32 @"lanes'2"()
+  %7 = icmp ne i32 %6, 0
+  %8 = zext i1 %7 to i32
+  br i1 %7, label %13, label %12
+
+9:                                                ; preds = %25, %21, %20, %16, %1
+  %10 = fcmp une double %2, 4.000000e+00
+  %11 = zext i1 %10 to i32
+  br i1 %10, label %50, label %32
+
+12:                                               ; preds = %5
+  ret i32 7
+
+13:                                               ; preds = %5
+  %14 = call fastcc i32 @"lanes'2"()
+  %15 = mul i32 %14, 10
+  ret i32 %15
+
+16:                                               ; preds = %1
+  %17 = call double @llvm.sqrt.f64(double 2.250000e+00)
+  %18 = fcmp une double %17, 1.500000e+00
+  %19 = zext i1 %18 to i32
+  br i1 %18, label %9, label %20
+
+20:                                               ; preds = %16
+  br i1 false, label %9, label %21
+
+21:                                               ; preds = %20
+  %22 = call float @llvm.sqrt.f32(float 6.250000e+00)
+  %23 = fcmp une float %22, 2.500000e+00
+  %24 = zext i1 %23 to i32
+  br i1 %23, label %9, label %25
+
+25:                                               ; preds = %21
+  %26 = call float @llvm.sqrt.f32(float 0.000000e+00)
+  %27 = fdiv float 1.000000e+00, %26
+  %28 = fcmp une float %27, 0x7FF0000000000000
+  %29 = zext i1 %28 to i32
+  br i1 %28, label %9, label %5
+
+30:                                               ; preds = %50, %49, %48, %47, %41
+  %31 = phi i32 [ %46, %41 ], [ -4, %47 ], [ -3, %48 ], [ -2, %49 ], [ -1, %50 ]
+  ret i32 %31
+
+32:                                               ; preds = %9
+  %33 = call double @llvm.sqrt.f64(double 2.250000e+00)
+  %34 = fcmp une double %33, 1.500000e+00
+  %35 = zext i1 %34 to i32
+  br i1 %34, label %49, label %36
+
+36:                                               ; preds = %32
+  br i1 false, label %48, label %37
+
+37:                                               ; preds = %36
+  %38 = call float @llvm.sqrt.f32(float 6.250000e+00)
+  %39 = fcmp une float %38, 2.500000e+00
+  %40 = zext i1 %39 to i32
+  br i1 %39, label %47, label %41
+
+41:                                               ; preds = %37
+  %42 = call float @llvm.sqrt.f32(float 0.000000e+00)
+  %43 = fdiv float 1.000000e+00, %42
+  %44 = fcmp une float %43, 0x7FF0000000000000
+  %45 = zext i1 %44 to i32
+  %46 = select i1 %44, i32 -5, i32 0
+  br label %30
+
+47:                                               ; preds = %37
+  br label %30
+
+48:                                               ; preds = %36
+  br label %30
+
+49:                                               ; preds = %32
+  br label %30
+
+50:                                               ; preds = %9
+  br label %30
+}
+
+; Function Attrs: nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none)
+declare <4 x float> @llvm.sqrt.v4f32(<4 x float>) #1
+
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare float @llvm.vector.reduce.fmin.v4f32(<4 x float>) #2
+
+; Function Attrs: nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none)
+declare double @llvm.sqrt.f64(double) #1
+
+; Function Attrs: nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none)
+declare float @llvm.sqrt.f32(float) #1
+
+attributes #0 = { "probe-stack"="inline-asm" }
+attributes #1 = { nocallback nocreateundeforpoison nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #2 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }

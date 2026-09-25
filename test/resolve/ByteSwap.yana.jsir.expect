@@ -124,24 +124,15 @@ fn main() -> one %r4
     %96: %r0 = const 0
     %97: %r6 = host host.array %95, %96
     %98: %r7 = const 2
-    %100: %r4 = const 0
     %101: %r0 = const 3.05419896E8
     %102: %r0 = call opaqueU32 %101
-    %103: %r4 = const 2
     %104: %r4 = const 0
-    %105: %r0 = convert %100
-    %106: %r0 = convert %103
-    %107: %r10 = binary.ge %105, %106
-    branch %107 -> block8 -> block1
+    jump -> block1
   block1:
     %108: %r6 = alias %97
     store element %108[%104]: %r0, %102
-    %109: %r4 = const 0
     %110: %r4 = const 0
-    %111: %r0 = convert %109
-    %112: %r0 = convert %103
-    %113: %r10 = binary.ge %111, %112
-    branch %113 -> block7 -> block2
+    jump -> block2
   block2:
     %114: %r6 = alias %97
     %115: %r0 = load element %114[%110]: %r0
@@ -152,29 +143,19 @@ fn main() -> one %r4
     %120: %r4 = const 512
     %121: %r4 = const 0
     %122: %r4 = select %119, %120, %121
-    %123: %r4 = const 1
     %124: %r0 = const 3.05419896E8
     %125: %r0 = call opaqueU32 %124
     %126: %r0 = helper.byteswap %125
     %127: %r0 = coerce %126
-    %129: %r0 = convert %123
-    %130: %r0 = convert %103
-    %131: %r10 = binary.ge %129, %130
-    branch %131 -> block6 -> block3
+    jump -> block3
   block3:
     %132: %r6 = alias %97
-    %133: %r4 = alias %123
-    %134: %r4 = coerce %133
+    %134: %r4 = const 1
     store element %132[%134]: %r0, %127
-    %135: %r4 = const 1
-    %137: %r0 = convert %135
-    %138: %r0 = convert %103
-    %139: %r10 = binary.ge %137, %138
-    branch %139 -> block5 -> block4
+    jump -> block4
   block4:
     %140: %r6 = alias %97
-    %141: %r4 = alias %135
-    %142: %r4 = coerce %141
+    %142: %r4 = const 1
     %143: %r0 = load element %140[%142]: %r0
     %99: %r8 = object %s0 %97, %98
     %144: %r8 = alias %99
@@ -242,7 +223,7 @@ fn Array(a).reclaim(U32)(one %r8) -> omitted
   block0(%0: %r8):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 1 numbered 2 decided 0 unboxed 0 updated 0 split 0 promoted 1
+optimizer clones 0 aliased 0 forwarded 0 removed 23 adopted 0 sunk 1 numbered 0 decided 4 unboxed 0 updated 0 split 0 promoted 1 folded 16
 
 shape %s0 object Array {items: %r6, length: %r7}
 shape %s1 object ArrayView {items: %r6, length: %r4, offset: %r4}

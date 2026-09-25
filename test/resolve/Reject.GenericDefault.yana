@@ -14,9 +14,22 @@ data Wrapper(a) {value: a}
 class Hidden(a):
   fn conceal(value: a) -> Int
 
--- A default naming another parameter, a default on a two-parameter class and a class default with
--- no instance of its class moved to `Reject.GenericDefault.Legacy.yana`; that file says
--- what the new stage does instead.
+-- A default that names its own parameter, or one after it. A default may name the parameters
+-- *before* it - `data Two(a, b = a)` is `Two(Int, Int)` written `Two(Int)` - because an application
+-- fills left to right and those are the arguments already in hand; these two would be a variable
+-- nothing has bound when the default is read.
+data Itself(a = Wrapper(a)) {value: a}
+data Forward(a = b, b = Int) {left: a, right: b}
+
+-- A class default on a head with two parameters. What a default answers is which type an
+-- unconstrained variable settles to, and a class with two has no single variable to settle.
+class Pairwise(a = Int, b):
+  fn pair(x: a, y: b) -> Int
+
+-- And one that names a type with no instance of its own class, which is a default nothing could
+-- ever take.
+class Unimplemented(a = Wrapper(Int)):
+  fn use(x: a) -> Int
 
 -- The two kinds crossed: a const parameter takes a number, a type parameter takes a type, and which
 -- is which is what the annotation says. `A(4)` and `A(Int)` are told apart by the declaration, so a
@@ -27,3 +40,19 @@ data TypeAsCount(a = 4) {value: Int}
 -- A defaulted parameter followed by one without a default. An application omits its *last*
 -- arguments, so there is no spelling that reaches `b` while leaving `a` to its default.
 data NotASuffix(a = Int, b) {left: a, right: b}
+
+-- A default that leaves out a parameter of its own head, directly or through another head's default
+-- (J146): the defaults are read on demand, and one found still being read is a cycle. These used to
+-- assert, and crash in the unchecked build.
+data Looping(a, b = Looping(a)) {value: a}
+data Ping(a, b = Pong(a)) {value: a}
+data Pong(x, y = Ping(x)) {value: x}
+
+-- The cycle is the one message: an application leaving out the lost default's position, here or
+-- through an alias, used to add "Looping takes 2 type arguments and this names 1" after it (J162).
+alias Looped(a) = Looping(a)
+fn looped(v: Looping(Int)) -> Int = 0
+
+-- A type parameter defaulted to a count (J146) - accepted at the head before, and refused only at
+-- the first application that used the default.
+data CountForType(n: Int, a = n) {value: a}

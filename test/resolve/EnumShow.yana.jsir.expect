@@ -6,10 +6,9 @@ fn main() -> one %r0
   var $4: %r1
   var $5: %r3
   block0:
-    %1: %r1 = const 1
     %4: %r3 = const ""
     store var $3: %r3, %4
-    %5: %r1 = convert %1
+    %5: %r1 = const 1
     %6: %r3 = map %5 [0 => "Red", 1 => "Green", else "Blue"]
     %7: %r3 = load var $3: %r3
     %8: %r3 = alias %7
@@ -29,10 +28,9 @@ fn main() -> one %r0
     %21: %r4 = unary.not %20
     branch %21 -> block2 -> block1
   block1:
-    %22: %r1 = const 1
     %25: %r3 = const ""
     store var $0: %r3, %25
-    %26: %r1 = convert %22
+    %26: %r1 = const 1
     %27: %r3 = map %26 [0 => "FromStart", 1 => "FromCurrent", else "FromEnd"]
     %28: %r3 = load var $0: %r3
     %29: %r3 = alias %28
@@ -103,10 +101,9 @@ fn main() -> one %r0
     return %0
   block9:
     %77: %r0 = load var $2: %r0
-    %78: %r1 = const 0
     %81: %r3 = const ""
     store var $5: %r3, %81
-    %82: %r1 = convert %78
+    %82: %r1 = const 0
     %83: %r3 = map %82 [0 => "Red", 1 => "Green", else "Blue"]
     %84: %r3 = load var $5: %r3
     %85: %r3 = alias %84
@@ -125,7 +122,7 @@ fn main() -> one %r0
     %97: %r0 = convert %96
     jump -> block8(%97)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 11 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 1
+optimizer clones 0 aliased 0 forwarded 0 removed 14 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 1 folded 3
 
 rep %r0 = number signed 32
 rep %r1 = number unsigned 8

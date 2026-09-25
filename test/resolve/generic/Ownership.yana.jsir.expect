@@ -49,8 +49,8 @@ fn main() -> one %r0
     %11: %r2 = binary.ne %9, %10
     branch %11 -> block4 -> block3
   block2:
-    %35: %r0 = const -1
-    return %35
+    %31: %r0 = const -1
+    return %31
   block3:
     %12: %r0 = const 3
     %13: %r0 = alias %12
@@ -61,8 +61,8 @@ fn main() -> one %r0
     %17: %r2 = binary.ne %15, %16
     branch %17 -> block6 -> block5
   block4:
-    %34: %r0 = const -2
-    return %34
+    %30: %r0 = const -2
+    return %30
   block5:
     %18: %r0 = const 4
     %19: %r0 = alias %18
@@ -73,23 +73,15 @@ fn main() -> one %r0
     %23: %r0 = load global trace: %r0
     %24: %r0 = const 1234
     %25: %r2 = binary.ne %23, %24
-    branch %25 -> block8 -> block7
+    %26: %r0 = const -5
+    %27: %r0 = const 4244
+    %28: %r0 = select %25, %26, %27
+    return %28
   block6:
-    %33: %r0 = const -3
-    return %33
-  block7:
-    %26: %r0 = load global trace: %r0
-    %27: %r0 = const 1234
-    %28: %r2 = binary.ne %26, %27
-    %29: %r0 = const -6
-    %30: %r0 = const 4244
-    %31: %r0 = select %28, %29, %30
-    return %31
-  block8:
-    %32: %r0 = const -5
-    return %32
+    %29: %r0 = const -3
+    return %29
 
-optimizer clones 0 aliased 0 forwarded 0 removed 9 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 7
+optimizer clones 0 aliased 0 forwarded 0 removed 9 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 7 folded 0
 
 rep %r0 = number signed 32
 rep %r1 = void

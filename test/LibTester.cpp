@@ -16,6 +16,7 @@
 #include "Net/File.h"
 #include "shard.h"
 #include "directives.h"
+#include "provider.h"
 #include "corpus.h"
 #include "report.h"
 
@@ -68,112 +69,6 @@ using namespace Tritium;
  * asserts it, in the source, beside the reason.
  */
 
-// Supplies the source text a diagnostic quotes, and the modules an `import` names. A library
-// fixture imports library modules - `Math`, `File`, `Native` - which the compiler finds in `lib/`
-// on its own; this answers `lib/modules/<Name>.yana` for the same reason the resolve driver answers
-// `resolve/modules/`, so a fixture that needs a second module of its own can have one.
-struct TestProvider: SourceProvider, ModuleProvider {
-    struct Loaded {
-        StringId name;
-        Ptr<char, HeapDeleter> text;
-        Size length;
-        ast::Module* ast;
-        ast::ModuleGroup* group;
-    };
-
-    StringView source;
-    Context* context = nullptr;
-    Array<Loaded> loaded;
-
-    ~TestProvider() override {
-        for(auto& entry: loaded) {
-            // Null for the second file of a module - see `read`, which records one entry per *file*
-            // and hangs the group off the first.
-            delete entry.group;
-            delete entry.ast;
-        }
-    }
-
-    /*
-     * One file of a provided module, parsed and remembered.
-     *
-     * The text is kept because a diagnostic quotes the line it points at long after the parse, which
-     * is what `getSource` answers from - so an entry is per file and not per module, and the group
-     * belongs to whichever entry made it.
-     */
-    ast::Module* read(StringId fileName, const String& path, bool test) {
-        auto opened = File::openFile(path, readAccess(), File::OpenExisting);
-        if(opened.isErr()) return nullptr;
-
-        auto file = opened.moveUnwrapOk();
-        auto size = file.size();
-        Ptr<char, HeapDeleter> text { (char*)hAlloc(size) };
-        file.read({ (Byte*)text.get(), size });
-
-        Lexer lexer(*context, context->diagnostics, StringView { text.get(), size }, fileName);
-        Parser parser(*context, lexer, fileName);
-        auto ast = new ast::Module(parser.parseModule());
-
-        // What the library walk records from the file's name, said here instead because these
-        // modules have no directory to walk - see ast::Module::test.
-        ast->test = test;
-
-        loaded.push(Loaded { fileName, ::move(text), size, ast, nullptr });
-        return ast;
-    }
-
-    StringView getSource(StringId id) override {
-        for(auto& entry: loaded) {
-            if(entry.name == id) return StringView { entry.text.get(), entry.length };
-        }
-
-        return source;
-    }
-
-    const Location* getNode(LocationId id) override {
-        return context ? context->getLocation(id) : nullptr;
-    }
-
-    ast::ModuleGroup* getModule(StringId name) override {
-        for(auto& entry: loaded) {
-            if(entry.name == name && entry.group) return entry.group;
-        }
-
-        // `OpenExisting`, which is not a detail: the default mode *creates* the file, so an import
-        // this directory does not answer would leave an empty module behind - and an empty module
-        // shadows the library one of that name on every run afterwards, since the project's own
-        // files are looked at first. That is precisely what a fixture importing `File` or `Math`
-        // would hit here, where every import is a library module.
-        auto written = context->findName(name);
-        auto ast = read(name, String("lib/modules/") + written + String(".yana"), false);
-        if(!ast) return nullptr;
-
-        // These fixtures name a module per file, which is what a file that wrote `module` would be
-        // under the directory rule too - Analysis-Modules.md §2.1.
-        auto group = new ast::ModuleGroup { .name = name };
-        group->files.push(ast);
-        loaded[loaded.size() - 1].group = group;
-
-        /*
-         * And its test file, if it has one - Design-Test.md §3.1.
-         *
-         * Under `-test` only, which is the selector rule these two files stand in for: the walk that
-         * would decide it reads a directory, and there is no directory here. This is the only way
-         * the corpus can reach a *library* module holding a test, which is where a dynamic global is
-         * a thing the compiler had to be taught rather than something it already did.
-         */
-        if(context->settings.test) {
-            auto testName = written + String(".test");
-            auto id = context->addQualifiedName(testName.text(), testName.size());
-
-            if(auto tests = read(id, String("lib/modules/") + testName + String(".yana"), true)) {
-                group->files.push(tests);
-            }
-        }
-
-        return group;
-    }
-};
 
 // `lib/Map.yana` becomes `Map`: the directory and the extension off, and the selector segments left
 // on, which is what makes `CopyMemory.Avx2` name itself rather than colliding with `CopyMemory`.
@@ -826,6 +721,8 @@ static bool runOwnershipBuild(const String& path, StringView source, const Build
 static bool runBuild(const String& path, StringView source, const BuildOptions& options) {
     TestProvider provider;
     provider.source = source;
+    provider.moduleRoot = String("lib/modules");
+    provider.testCompanions = true;
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
     applyFixtureDirectives(context.settings, source);
@@ -947,7 +844,8 @@ static bool runBuild(const String& path, StringView source, const BuildOptions& 
 
 static bool runTest(const String& path, StringView source, bool ownership) {
     /*
-     * The rewritten stage, and only it, where the run asked for it - `resolver:ownership`.
+     * The rewritten stage, and only it - the default since J133, and asked for by hand with
+     * `resolver:ownership` before.
      *
      * One build rather than three, because the two switches the other three vary are the shipping
      * optimizer's and the shipping specializer's: `-no-ir-opt` and the erased form are the rewrite's
@@ -956,8 +854,8 @@ static bool runTest(const String& path, StringView source, bool ownership) {
      * the *library's* own suite passes when the rewrite compiled it.
      *
      * Instead of the shipping builds rather than beside them, so that a run says which stage it is
-     * about. `run-tests.sh` runs the shipping ones; this is asked for by hand while the rewrite is
-     * still reaching the library.
+     * about. It is the default since J133, and `run-tests.sh` runs the shipping builds as a row of
+     * their own with `resolver:legacy`.
      */
     if(ownership) {
         auto pass = runBuild(path, source, { "ownership"_v, false, true, false, true });
@@ -1032,15 +930,23 @@ int main(int argc, const char** argv) {
     // through, "does *this* fixture pass" has to stay answerable.
     String only;
 
-    // Which front half compiles the corpus - see `runTest`. The shipping one unless the run says
-    // otherwise, which is what keeps `run-tests.sh` meaning what it has always meant.
-    auto ownership = false;
+    /*
+     * Which front half compiles the corpus - see `runTest`. The rewrite unless the run says
+     * `resolver:legacy`, since 2026-09-24 (J133): until then it was the shipping stage unless the run
+     * said `resolver:ownership`, which kept this driver about the old compiler two days after the
+     * default had moved. `run-tests.sh` runs both, because the corpus is five fixtures and the old
+     * stage's five builds of each are the only place its specializer and optimizer are held to the
+     * library's own answers outside `run-base.sh`. `resolver:ownership` is still accepted, and means
+     * the default.
+     */
+    auto ownership = true;
 
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
         if(parseShard(arg, shard, shards)) { sharded = true; continue; }
         if(parseJobs(arg, jobs)) continue;
         if(arg == "resolver:ownership") { ownership = true; continue; }
+        if(arg == "resolver:legacy") { ownership = false; continue; }
 
         // `generate` is accepted and ignored, so that a whole-suite regenerate can pass the same
         // arguments to every driver. There is nothing here to generate, and that is the design:

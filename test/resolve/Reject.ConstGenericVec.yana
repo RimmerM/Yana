@@ -1,0 +1,23 @@
+{-
+   The lane-count conversions in a body that cannot count its lanes - refused by name (J143).
+
+   `unpackLow`, `unpackHigh` and `packLanes` relate two lane counts, one twice the other, and a
+   signature can state that only as a computed count, which const generics leave open. Where the
+   count is a variable - the natural form of a variable lane type, here - there is no body in which
+   the pattern could ever be written, so the call is refused where it is made. They used to answer
+   nothing with no diagnostic. The four pure rearrangements are deferred instead -
+   `ConstGenericVec.Rearrange.yana`.
+
+   # resolver: ownership
+-}
+
+@noinline
+fn (a, b) widened(v: Vec(a)) -> Vec(b) = unpackLow(v)
+
+@noinline
+fn (a, b) widenedHigh(v: Vec(a)) -> Vec(b) = unpackHigh(v)
+
+@noinline
+fn (a, b) narrowed(v: Vec(a), w: Vec(a)) -> Vec(b) = packLanes(v, w)
+
+fn main() -> Int = 0

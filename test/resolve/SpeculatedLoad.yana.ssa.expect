@@ -1,0 +1,151 @@
+module ResolveTest
+
+fn hoist(p: %I64 [shared call], n: I32 [shared call]) -> I64 {
+bb0(%0: %I64 trivial, %1: I32 trivial):
+  %2: %%I64 address = alloc frame %I64 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %I64 address = alloc frame I64
+  %5: %I32 address = alloc frame I32
+  %6: %I64 address = alloc frame I64
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %7: %I64 trivial = load inspect %2
+  %8: Size trivial = const -2
+  %9: Size trivial = metric stride I64
+  %10: Size trivial = mul inspect %8 inspect %9
+  %11: %I64 [owned here shape6 .*=shared slot 0] trivial = add inspect %7 inspect %10
+  %12: I64 trivial = load inspect %11
+  store inspect %4 consume %12
+  %13: I32 trivial = const 0
+  store inspect %5 consume %13
+  %14: I64 trivial = const 0
+  store inspect %6 consume %14
+  jump -> bb1
+
+bb1:
+  %15: I32 trivial = load inspect %5
+  %16: I32 trivial = load inspect %3
+  %17: Bool trivial = lt inspect %15 inspect %16
+  branch inspect %17 -> bb3 -> bb2
+
+bb2:
+  %18: I64 trivial = load inspect %4
+  %19: I64 trivial = load inspect %6
+  %20: I64 trivial = add inspect %18 inspect %19
+  return consume %20
+
+bb3:
+  %21: I64 trivial = load inspect %6
+  %22: %I64 trivial = load inspect %2
+  %23: I64 trivial = load inspect %22
+  %24: I64 trivial = add inspect %21 inspect %23
+  store inspect %6 consume %24
+  %25: I32 [unique call] guaranteed from{%5} = load inspect %5
+  %26: I32 trivial = const 1
+  call +=(I32) borrow %25 borrow %26
+  jump -> bb1
+}
+
+fn cell(p: %I64 [shared call], n: I32 [shared call]) -> I64 {
+bb0(%0: %I64 trivial, %1: I32 trivial):
+  %2: %%I64 address = alloc frame %I64 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %I64 address = alloc frame I64
+  %5: %I32 address = alloc frame I32
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %6: %I64 trivial = load inspect %2
+  %7: Size trivial = const -2
+  %8: Size trivial = metric stride I64
+  %9: Size trivial = mul inspect %7 inspect %8
+  %10: %I64 [owned here shape6 .*=shared slot 0] trivial = add inspect %6 inspect %9
+  %11: I64 trivial = load inspect %10
+  store inspect %4 consume %11
+  %12: I32 trivial = const 0
+  store inspect %5 consume %12
+  jump -> bb1
+
+bb1:
+  %13: I32 trivial = load inspect %5
+  %14: I32 trivial = load inspect %3
+  %15: Bool trivial = lt inspect %13 inspect %14
+  branch inspect %15 -> bb3 -> bb2
+
+bb2:
+  %16: I64 trivial = load inspect %4
+  return consume %16
+
+bb3:
+  %17: %I64 trivial = load inspect %2
+  %18: %I64 trivial = load inspect %2
+  %19: I64 trivial = load inspect %18
+  %20: I64 trivial = load inspect %4
+  %21: I64 trivial = add inspect %19 inspect %20
+  store inspect %17 consume %21
+  %22: I32 [unique call] guaranteed from{%5} = load inspect %5
+  %23: I32 trivial = const 1
+  call +=(I32) borrow %22 borrow %23
+  jump -> bb1
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Size address = alloc frame Size
+  %1: %Size address = alloc frame Size
+  %2: %%I64 address = alloc frame %I64
+  %3: USize trivial = const 9
+  %4: USize trivial = const 0
+  %5: USize trivial = const 8192
+  %6: USize trivial = const 3
+  %7: USize trivial = const 34
+  %8: Size trivial = const -1
+  %9: USize trivial = bitcast inspect %8
+  %10: USize trivial = const 0
+  %11: Size trivial = native syscall inspect %3 inspect %4 inspect %5 inspect %6 inspect %7 inspect %9 inspect %10
+  store inspect %0 consume %11
+  %12: USize trivial = const 10
+  %13: Size trivial = load inspect %0
+  %14: Size trivial = const 4096
+  %15: Size trivial = add inspect %13 inspect %14
+  %16: USize trivial = bitcast inspect %15
+  %17: USize trivial = const 4096
+  %18: USize trivial = const 0
+  %19: Size trivial = native syscall inspect %12 inspect %16 inspect %17 inspect %18
+  store inspect %1 consume %19
+  %20: Size trivial = load inspect %1
+  %21: Size trivial = const 0
+  %22: Bool trivial = ne inspect %20 inspect %21
+  branch inspect %22 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %23: Size trivial = load inspect %0
+  %24: Size trivial = const 4096
+  %25: Size trivial = add inspect %23 inspect %24
+  %26: %I64 trivial = bitcast inspect %25
+  store inspect %2 consume %26
+  %27: %I64 trivial = load inspect %2
+  %28: Size trivial = const -2
+  %29: Size trivial = metric stride I64
+  %30: Size trivial = mul inspect %28 inspect %29
+  %31: %I64 [owned here shape6 .*=shared slot 0] trivial = add inspect %27 inspect %30
+  %32: I64 trivial = const 5
+  store inspect %31 consume %32
+  %33: %I64 trivial = load inspect %2
+  %34: I32 trivial = const 0
+  %35: I64 trivial = call hoist borrow %33 borrow %34
+  %36: %I64 trivial = load inspect %2
+  %37: I32 trivial = const 0
+  %38: I64 trivial = call cell borrow %36 borrow %37
+  %39: I64 trivial = add inspect %35 inspect %38
+  %40: I32 trivial = convert inspect %39
+  return consume %40
+
+bb3:
+  %41: I32 trivial = const 1
+  return consume %41
+}
+
+entry main

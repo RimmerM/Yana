@@ -1,0 +1,318 @@
+mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+
+swapAt<complex>(%xs: Ptr, %a: I32, %b: I32) {
+  b_0 {
+    %v_1 = sext %a: I64
+    %v_2 = add %xs, 8: Ptr
+    %v_3 = loads %v_2, 8: I64
+    %v_4 = cmp_ge %v_1, %v_3: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = load %xs, 8: Ptr
+    %v_8 = shl %v_1, 2: I64
+    %v_9 = add %v_7, %v_8: Ptr
+    %v_10 = loads %v_9, 4: I32
+    %v_11 = sext %b: I64
+    %v_12 = cmp_ge %v_11, %v_3: I32
+    je %v_12, b_5, b_13
+  }
+
+  b_5 {
+    %v_14 = syscall 60, 134: I64
+    unreachable 
+  }
+
+  b_13 {
+    %v_15 = shl %v_11, 2: I64
+    %v_16 = add %v_7, %v_15: Ptr
+    %v_17 = loads %v_16, 4: I32
+    store %v_9, %v_17, 4
+    %v_18 = loads %v_2, 8: I64
+    %v_19 = cmp_ge %v_11, %v_18: I32
+    je %v_19, b_5, b_20
+  }
+
+  b_20 {
+    %v_21 = load %xs, 8: Ptr
+    %v_22 = add %v_21, %v_15: Ptr
+    store %v_22, %v_10, 4
+    ret 
+  }
+}
+
+quicksort<complex>(%xs: Ptr, %lo: I32, %hi: I32) {
+  b_0 {
+    %v_1 = cmp_ige %lo, %hi: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = sext %hi: I64
+    %v_5 = add %xs, 8: Ptr
+    %v_6 = loads %v_5, 8: I64
+    %v_7 = cmp_ge %v_4, %v_6: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_2 {
+    ret 
+  }
+
+  b_9 {
+    %v_10 = load %xs, 8: Ptr
+    %v_11 = shl %v_4, 2: I64
+    %v_12 = add %v_10, %v_11: Ptr
+    %v_13 = loads %v_12, 4: I32
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_9, %lo], [b_16, %v_17]: I32
+    %v_18 = phi [b_9, %lo], [b_16, %v_19]: I32
+    %v_20 = cmp_ilt %v_18, %hi: I32
+    je %v_20, b_21, b_22
+  }
+
+  b_22 {
+    call_complex swapAt, %xs, %v_15, %hi
+    %v_23 = sub %v_15, 1: I32
+    call_complex quicksort, %xs, %lo, %v_23
+    %v_24 = add %v_15, 1: I32
+    call_complex quicksort, %xs, %v_24, %hi
+    ret 
+  }
+
+  b_21 {
+    %v_25 = sext %v_18: I64
+    %v_26 = add %xs, 8: Ptr
+    %v_27 = loads %v_26, 8: I64
+    %v_28 = cmp_ge %v_25, %v_27: I32
+    je %v_28, b_8, b_29
+  }
+
+  b_29 {
+    %v_30 = load %xs, 8: Ptr
+    %v_31 = shl %v_25, 2: I64
+    %v_32 = add %v_30, %v_31: Ptr
+    %v_33 = loads %v_32, 4: I32
+    %v_34 = cmp_ile %v_33, %v_13: I32
+    je %v_34, b_35, b_36
+  }
+
+  b_36 {
+    jmp b_16
+  }
+
+  b_35 {
+    call_complex swapAt, %xs, %v_18, %v_15
+    %v_37 = add %v_15, 1: I32
+    jmp b_16
+  }
+
+  b_16 {
+    %v_17 = phi [b_36, %v_15], [b_35, %v_37]: I32
+    %v_19 = add %v_18, 1: I32
+    jmp b_14
+  }
+
+  b_8 {
+    %v_38 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+
+reverseInto<complex>(%xs: Ptr, %lo: I32, %hi: I32) {
+  b_0 {
+    %v_1 = cmp_ige %lo, %hi: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    call_complex swapAt, %xs, %lo, %hi
+    %v_4 = add %lo, 1: I32
+    %v_5 = sub %hi, 1: I32
+    call_complex sortDescending, %xs, %v_4, %v_5
+    ret 
+  }
+
+  b_2 {
+    ret 
+  }
+}
+
+sortDescending<complex>(%xs: Ptr, %lo: I32, %hi: I32) {
+  b_0 {
+    %v_1 = cmp_ige %lo, %hi: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    call_complex reverseInto, %xs, %lo, %hi
+    ret 
+  }
+
+  b_2 {
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 8: Ptr
+    %v_2 = alloca 28, 4: Ptr
+    %v_3 = bitcast %v_2: I64
+    store %v_1, 7, 4
+    %v_4 = imm 7: I32
+    store %v_2, 5, 4
+    %v_5 = add %v_2, 4: Ptr
+    store %v_5, 3, 4
+    %v_6 = add %v_2, 8: Ptr
+    store %v_6, 9, 4
+    %v_7 = add %v_2, 12: Ptr
+    store %v_7, 1, 4
+    %v_8 = add %v_2, 16: Ptr
+    store %v_8, 7, 4
+    %v_9 = add %v_2, 20: Ptr
+    store %v_9, 2, 4
+    %v_10 = add %v_2, 24: Ptr
+    store %v_10, 8, 4
+    %v_11 = imm 7: I64
+    %v_12 = alloca 16, 8: Ptr
+    store %v_12, %v_2, 8
+    %v_13 = add %v_12, 8: Ptr
+    store %v_13, %v_11, 8
+    %v_14 = imm 6: I32
+    call_complex quicksort, %v_12, 0, %v_14
+    %v_15 = loads %v_2, 4: I32
+    %v_16 = cmp_neq %v_15, 1: I32
+    je %v_16, b_17, b_18
+  }
+
+  b_18 {
+    %v_19 = add %v_2, 12: Ptr
+    %v_20 = loads %v_19, 4: I32
+    %v_21 = cmp_neq %v_20, 5: I32
+    je %v_21, b_22, b_23
+  }
+
+  b_17 {
+    %v_24 = load %v_1, 4: I32
+    call_complex Array(a).reclaim(I32), %v_3, %v_24, %v_4
+    ret 18446744073709551615
+  }
+
+  b_23 {
+    %v_25 = add %v_2, 24: Ptr
+    %v_26 = loads %v_25, 4: I32
+    %v_27 = cmp_neq %v_26, 9: I32
+    je %v_27, b_28, b_29
+  }
+
+  b_22 {
+    %v_30 = load %v_1, 4: I32
+    call_complex Array(a).reclaim(I32), %v_3, %v_30, %v_4
+    ret 18446744073709551614
+  }
+
+  b_29 {
+    %v_31 = alloca 16, 8: Ptr
+    store %v_31, %v_2, 8
+    %v_32 = add %v_31, 8: Ptr
+    store %v_32, %v_11, 8
+    call_complex sortDescending, %v_31, 0, %v_14
+    %v_33 = loads %v_2, 4: I32
+    %v_34 = cmp_neq %v_33, 9: I32
+    je %v_34, b_35, b_36
+  }
+
+  b_28 {
+    %v_37 = load %v_1, 4: I32
+    call_complex Array(a).reclaim(I32), %v_3, %v_37, %v_4
+    ret 18446744073709551613
+  }
+
+  b_36 {
+    %v_38 = add %v_2, 24: Ptr
+    %v_39 = loads %v_38, 4: I32
+    %v_40 = cmp_neq %v_39, 1: I32
+    je %v_40, b_41, b_42
+  }
+
+  b_35 {
+    %v_43 = load %v_1, 4: I32
+    call_complex Array(a).reclaim(I32), %v_3, %v_43, %v_4
+    ret 18446744073709551612
+  }
+
+  b_42 {
+    jmp b_44
+  }
+
+  b_41 {
+    %v_45 = load %v_1, 4: I32
+    call_complex Array(a).reclaim(I32), %v_3, %v_45, %v_4
+    ret 18446744073709551611
+  }
+
+  b_46 {
+    %v_47 = load %v_1, 4: I32
+    call_complex Array(a).reclaim(I32), %v_3, %v_47, %v_4
+    ret %v_48
+  }
+
+  b_44 {
+    %v_49 = phi [b_50, %v_48], [b_42, 0]: I32
+    %v_51 = phi [b_50, %v_52], [b_42, 0]: I32
+    %v_53 = sext %v_51: I64
+    %v_54 = cmp_ge %v_53, %v_11: I32
+    je %v_54, b_55, b_50
+  }
+
+  b_50 {
+    %v_56 = shl %v_53, 2: I64
+    %v_57 = add %v_2, %v_56: Ptr
+    %v_58 = loads %v_57, 4: I32
+    %v_48 = add %v_49, %v_58: I32
+    %v_52 = add %v_51, 1: I32
+    %v_59 = cmp_ilt %v_52, 7: I32
+    je %v_59, b_44, b_46
+  }
+
+  b_55 {
+    %v_60 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+
+Array(a).reclaim(I32)<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
+  b_3 {
+    %v_4 = shr %v_1, 30: I32
+    %v_5 = cmp_eq %v_4, 1: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    %v_8 = bitcast %v_0: Ptr
+    %v_9 = cmp_eq %v_0, 0: I32
+    je %v_9, b_7, b_10
+  }
+
+  b_7 {
+    ret 
+  }
+
+  b_10 {
+    %v_11 = sub %v_8, 8: Ptr
+    %v_12 = loads %v_11, 8: I64
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = shl %v_12, 3: I64
+    %v_15 = add %v_13, %v_14: Ptr
+    %v_16 = load %v_15, 8: Ptr
+    store %v_8, %v_16, 8
+    store %v_15, %v_8, 8
+    jmp b_7
+  }
+}
+

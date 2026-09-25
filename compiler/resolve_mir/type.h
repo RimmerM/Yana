@@ -112,6 +112,21 @@ inline DeclPtr<Type> canonicalInt(DeclBase base, DeclPtr<Type> type) {
     return canonical ? canonical : type;
 }
 
+/*
+ * Whether a call argument of `supplied` fills a parameter declared `declared` - the same type, or a
+ * `@bits(n)` place lent to a `&` of exactly what it refines (repr.md's tier 1). The second is not a
+ * conversion: the refinement is storage alone, and the lowering puts a narrow reference through a
+ * temporary at a position that cannot hold one. `convertValue` admits it at a `&` position only;
+ * the builder and both verifiers ask this rather than `sameType` so the three agree.
+ */
+inline bool fillsParameter(DeclBase base, DeclPtr<Type> supplied, DeclPtr<Type> declared) {
+    if(supplied == declared) return true;
+    if(!supplied || base[supplied]->kind != Type::Int) return false;
+
+    auto canonical = ((IntType*)base[supplied])->canonical;
+    return canonical && canonical == declared;
+}
+
 // Whether this is a `@bits(n)` refinement - the question `canonicalInt` cannot answer, since a
 // refinement of a type and that type are equally "themselves" once it has run.
 inline bool isRefinedInt(DeclBase base, DeclPtr<Type> type) {
@@ -433,11 +448,40 @@ struct Ownership {
  * level further in. The pair had nowhere to keep the third part, and the readers that needed it
  * rebuilt an `Occurrence` with a null shape - which is the shape being dropped rather than absent.
  */
+/*
+ * The parameter names a function type was **written** with at one declared position - `cb: (count:
+ * Int) -> {}` - which is what a call through the value that position holds may name
+ * (`Resolver::valueCallNames`; doc/spec/types.md, "Function types").
+ *
+ * Beside the position and not in the type, deliberately. `FunType` is interned on identity and a
+ * parameter name is not part of it, so `(count: Int) -> {}` and `(n: Int) -> {}` are one pointer:
+ * names stored on it would be whichever spelling was interned first, read back by every other (J139).
+ * Interning a names-annotated view equal to it for identity was the alternative, and it is two
+ * pointers for one type everywhere a pointer comparison *is* the type comparison - specialization
+ * keys, instance selection, `sameType` - which is every reader this stage has. So the type stays
+ * name-free, unification and interning never see a name, and the names travel with what an author
+ * wrote a type *at*: an `Arg`, a `RecordField`, a function's result, a `Global` and a body `Local`.
+ * A read of one of those carries them to the call; a `let` or a capture copies them on.
+ *
+ * Empty for a position whose type is not a function type written out - including one written
+ * without names, `(Int, Int) -> Int`, which is how a type says its arguments are positional. One
+ * entry per parameter otherwise, the empty name standing for a position written without one. Only
+ * the *outermost* function type of a position is read: `(x: Int) -> (y: Int) -> Int` names `x`, and
+ * what its call returns is a value no declaration wrote.
+ */
+using CallNames = DeclList<StringId, false>;
+
 struct RecordField {
     StringId name {};
     Occurrence occurrence;
     LocationId source = kNullLocation;
     U16 index = 0;
+
+    // The names the field's function type was written with - `CallNames`. Set for a declared
+    // record's field only: a tuple's fields are part of its interned identity, so names on one would
+    // be the first spelling's (`tupleType` clears them). A lambda's environment copies them from
+    // the binding it captured.
+    CallNames callNames;
 
     /*
      * Whether the *declaration* named this field - false for the one-payload form, `Proceed(a)` and
@@ -500,6 +544,21 @@ struct RecordField {
      * changes nothing on this one.
      */
     bool host = false;
+
+    /*
+     * The field is **storage** a record keeps its own occupancy of - `InlineArray`'s `slots`, the
+     * elements of an `@inline(n) @capacity(n) [T]` (`known.def`'s `inlineArray`, J143).
+     *
+     * Only a prefix of it holds values, and which prefix is the record's other field. So no derived
+     * walk descends into it - `tearsDownField` answers false - and the record's own `Reclaim`
+     * releases exactly the live elements; the classifier reads what the element owes from it and
+     * nothing else (`own.cpp`). A literal writes only the elements it has, which is the one
+     * aggregate that supplies fewer components than a fixed array's length (`verify.cpp`).
+     *
+     * Set where the fields of the declaration claiming the role are read, and copied into every
+     * instantiation with the rest of the field.
+     */
+    bool storage = false;
 
     /*
      * The field holds the **address of the lender's storage**, whatever its occurrence says about
@@ -758,6 +817,13 @@ struct RecordType: Type {
      */
     U16 originSlots = 0;
     DeclPtr<OwnershipSchema> schema = nullptr;
+
+    // `foldRecordSchema`'s state: 0 not folded, 1 being folded, 2 folded, 3 folded and refused. A
+    // field whose type is another record contributes that record's slots (J141), so the fold asks
+    // for the inner one on demand, and `foldSchemas` skips a record some other record's fold already
+    // reached. It starts every other record over, but not a refused one: its sentence is out, and a
+    // second fold would print it again.
+    U8 schemaFolded = 0;
 
     // `hidesLoans`' memo: 0 not asked yet, 1 being asked, 2 no, 3 yes. Filled on demand rather than
     // by `foldSchemas`, whose walk is flat and would see `Array(Store)` before `Run(Store)`.
@@ -1958,7 +2024,7 @@ inline bool indirectField(DeclBase base, const RecordField& field) {
  * that this walk then declines to emit.
  */
 inline bool tearsDownField(DeclBase base, const RecordField& field) {
-    if(!ownsField(field)) return false;
+    if(!ownsField(field) || field.storage) return false;
     return indirectField(base, field) || hasTeardown(base, field.occurrence.type);
 }
 

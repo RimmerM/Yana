@@ -37,8 +37,6 @@ fn total(one %r1) -> one %r0
 
 fn main() -> one %r0
   block0:
-    %2: %r7 = const 2
-    %6: %r7 = const 6
     %50: %r0 = const 4
     %51: %r0 = const 1
     %52: %r0 = const 5
@@ -55,21 +53,15 @@ fn main() -> one %r0
     %63: %r0 = coerce %62
     %64: %r0 = binary.add %55, %63
     %65: %r0 = coerce %64
-    %66: %r0 = convert %6
-    %67: %r0 = const 10000
-    %68: %r0 = binary.mul %66, %67
-    %69: %r0 = coerce %68
+    %69: %r0 = const 60000
     %70: %r0 = binary.add %65, %69
     %71: %r0 = coerce %70
-    %72: %r0 = convert %2
-    %73: %r0 = const 100000
-    %74: %r0 = binary.mul %72, %73
-    %75: %r0 = coerce %74
+    %75: %r0 = const 200000
     %76: %r0 = binary.add %71, %75
     %77: %r0 = coerce %76
     return %77
 
-optimizer clones 0 aliased 0 forwarded 0 removed 48 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 56 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 6
 
 rep %r0 = number signed 32
 rep %r1 = array Int32Array of %r0
@@ -79,7 +71,7 @@ rep %r4 = number unsigned 32
 rep %r5 = number bool
 rep %r6 = void
 rep %r7 = number unsigned 8
-rep %r8 = array Uint8Array of %r7
+rep %r8 = array Array of %r7
 rep %r9 = parts (%r7, %r7, %r7, %r7, %r7, %r7, %r7, %r7, %r7, %r7, %r7, %r7, %r7, %r7, %r7, %r7) as %r8
 rep %r10 = array Int32Array of %r0
 rep %r11 = array Int32Array of %r0

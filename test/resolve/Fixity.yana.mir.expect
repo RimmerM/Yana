@@ -1,0 +1,356 @@
+module ResolveTest
+
+data firstWins.thunk.env {}
+
+data firstWins.thunk.thunk.env {}
+
+data lastWins.thunk.env {}
+
+data lastWins.thunk.thunk.env {}
+
+data noneEvaluated.thunk.env {}
+
+data noneEvaluated.thunk.thunk.env {}
+
+data allEvaluated.thunk.env {}
+
+data allEvaluated.thunk.thunk.env {}
+
+let & counter: I32 = 0
+
+fn >-<(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = read copy.trivial (b)
+  %2: I32 = sub inspect %0 inspect %1
+  return take %2
+}
+
+fn <->(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = read copy.trivial (b)
+  %2: I32 = sub inspect %0 inspect %1
+  return take %2
+}
+
+fn left() -> I32 {
+bb0:
+  %0: I32 = const 10
+  %1: I32 = const 3
+  %2: I32 = call >-< borrow.shared %0 borrow.shared %1
+  %3: I32 = const 2
+  %4: I32 = call >-< borrow.shared %2 borrow.shared %3
+  return take %4
+}
+
+fn right() -> I32 {
+bb0:
+  %0: I32 = const 10
+  %1: I32 = const 3
+  %2: I32 = const 2
+  %3: I32 = call <-> borrow.shared %1 borrow.shared %2
+  %4: I32 = call <-> borrow.shared %0 borrow.shared %3
+  return take %4
+}
+
+fn leftLong() -> I32 {
+bb0:
+  %0: I32 = const 20
+  %1: I32 = const 8
+  %2: I32 = call >-< borrow.shared %0 borrow.shared %1
+  %3: I32 = const 3
+  %4: I32 = call >-< borrow.shared %2 borrow.shared %3
+  %5: I32 = const 1
+  %6: I32 = call >-< borrow.shared %4 borrow.shared %5
+  return take %6
+}
+
+fn rightLong() -> I32 {
+bb0:
+  %0: I32 = const 20
+  %1: I32 = const 8
+  %2: I32 = const 3
+  %3: I32 = const 1
+  %4: I32 = call <-> borrow.shared %2 borrow.shared %3
+  %5: I32 = call <-> borrow.shared %1 borrow.shared %4
+  %6: I32 = call <-> borrow.shared %0 borrow.shared %5
+  return take %6
+}
+
+fn leftTighter() -> I32 {
+bb0:
+  %0: I32 = const 100
+  %1: I32 = const 3
+  %2: I32 = const 4
+  %3: I32 = mul inspect %1 inspect %2
+  %4: I32 = call >-< borrow.shared %0 borrow.shared %3
+  %5: I32 = const 5
+  %6: I32 = call >-< borrow.shared %4 borrow.shared %5
+  return take %6
+}
+
+fn rightTighter() -> I32 {
+bb0:
+  %0: I32 = const 100
+  %1: I32 = const 3
+  %2: I32 = const 4
+  %3: I32 = mul inspect %1 inspect %2
+  %4: I32 = const 5
+  %5: I32 = call <-> borrow.shared %3 borrow.shared %4
+  %6: I32 = call <-> borrow.shared %0 borrow.shared %5
+  return take %6
+}
+
+fn rightInside() -> Bool {
+bb0:
+  %0: I32 = const 10
+  %1: I32 = const 3
+  %2: I32 = const 2
+  %3: I32 = call <-> borrow.shared %1 borrow.shared %2
+  %4: I32 = call <-> borrow.shared %0 borrow.shared %3
+  %5: I32 = const 1
+  %6: I32 = add inspect %5 inspect %4
+  %7: I32 = const 10
+  %8: Bool = eq inspect %6 inspect %7
+  return take %8
+}
+
+fn ?:(value: Maybe(I32), @lazy fallback: () -> I32 [shared call]) -> I32 {
+  local inner: I32
+
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: () -> I32 [shared call] = read borrow.shared (fallback) loan0
+  %8: I32 = call inspect %7
+  jump -> bb2(take %8)
+
+bb2(%9: I32):
+  return take %9
+
+bb3:
+  %4: I32 = read copy.trivial (value.Just)
+  write.init borrow.unique (inner) take %4
+  %6: I32 = read copy.trivial (inner)
+  jump -> bb2(take %6)
+}
+
+fn some(value: I32 [shared call]) -> Maybe(I32) {
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: Maybe(I32) = aggregate.Just take %0
+  return take %1
+}
+
+fn none'2() -> Maybe(I32) {
+bb0:
+  %0: Maybe(I32) = aggregate.Nothing
+  return take %0
+}
+
+fn firstWins() -> I32 {
+  local local0: () -> I32 [owned here shape8 .0=unique call]
+
+bb0:
+  %0: I32 = const 7
+  %1: Maybe(I32) = call some borrow.shared %0
+  %2: () -> I32 [owned here shape8 .0=unique call] = fun.value firstWins.thunk
+  write.init borrow.unique (local0) take %2
+  %4: () -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local0) loan0
+  %5: I32 = call ?: take %1 borrow.shared %4
+  return take %5
+}
+
+fn lastWins() -> I32 {
+  local local0: () -> I32 [owned here shape8 .0=unique call]
+
+bb0:
+  %0: Maybe(I32) = call none'2
+  %1: () -> I32 [owned here shape8 .0=unique call] = fun.value lastWins.thunk
+  write.init borrow.unique (local0) take %1
+  %3: () -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local0) loan0
+  %4: I32 = call ?: take %0 borrow.shared %3
+  return take %4
+}
+
+fn bumpNone() -> Maybe(I32) {
+bb0:
+  %0: I32 [unique call] = read borrow.unique (global counter) loan0
+  %1: I32 = const 1
+  %2: {} = call +=(I32) borrow.unique %0 borrow.shared %1
+  %3: Maybe(I32) = aggregate.Nothing
+  return take %3
+}
+
+fn bumpValue(value: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 [unique call] = read borrow.unique (global counter) loan0
+  %1: I32 = const 1
+  %2: {} = call +=(I32) borrow.unique %0 borrow.shared %1
+  %3: I32 = read copy.trivial (value)
+  return take %3
+}
+
+fn noneEvaluated() -> I32 {
+  local local0: () -> I32 [owned here shape8 .0=unique call]
+
+bb0:
+  %0: I32 = const 1
+  %1: Maybe(I32) = call some borrow.shared %0
+  %2: () -> I32 [owned here shape8 .0=unique call] = fun.value noneEvaluated.thunk
+  write.init borrow.unique (local0) take %2
+  %4: () -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local0) loan0
+  %5: I32 = call ?: take %1 borrow.shared %4
+  return take %5
+}
+
+fn allEvaluated() -> I32 {
+  local local0: () -> I32 [owned here shape8 .0=unique call]
+
+bb0:
+  %0: Maybe(I32) = call none'2
+  %1: () -> I32 [owned here shape8 .0=unique call] = fun.value allEvaluated.thunk
+  write.init borrow.unique (local0) take %1
+  %3: () -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local0) loan0
+  %4: I32 = call ?: take %0 borrow.shared %3
+  return take %4
+}
+
+fn main() -> I32 {
+  local simple: I32
+  local long: I32
+  local tighter: I32
+  local lazy: I32
+  local effects: I32
+  local inside: I32
+
+bb0:
+  %0: I32 = call left
+  %1: I32 = call right
+  %2: I32 = add inspect %0 inspect %1
+  write.init borrow.unique (simple) take %2
+  %4: I32 = call leftLong
+  %5: I32 = call rightLong
+  %6: I32 = add inspect %4 inspect %5
+  write.init borrow.unique (long) take %6
+  %8: I32 = call leftTighter
+  %9: I32 = call rightTighter
+  %10: I32 = add inspect %8 inspect %9
+  write.init borrow.unique (tighter) take %10
+  %12: I32 = call firstWins
+  %13: I32 = call lastWins
+  %14: I32 = add inspect %12 inspect %13
+  write.init borrow.unique (lazy) take %14
+  %16: I32 = call noneEvaluated
+  %17: I32 = call allEvaluated
+  %18: I32 = add inspect %16 inspect %17
+  %19: I32 = read copy.trivial (global counter)
+  %20: I32 = add inspect %18 inspect %19
+  write.init borrow.unique (effects) take %20
+  %22: Bool = call rightInside
+  branch inspect %22 -> bb3 -> bb1
+
+bb1:
+  %25: I32 = const 0
+  jump -> bb2(take %25)
+
+bb2(%26: I32):
+  write.init borrow.unique (inside) take %26
+  %30: I32 = read copy.trivial (simple)
+  %31: I32 = read copy.trivial (long)
+  %32: I32 = add inspect %30 inspect %31
+  %33: I32 = read copy.trivial (tighter)
+  %34: I32 = add inspect %32 inspect %33
+  %35: I32 = read copy.trivial (lazy)
+  %36: I32 = add inspect %34 inspect %35
+  %37: I32 = read copy.trivial (effects)
+  %38: I32 = add inspect %36 inspect %37
+  %39: I32 = read copy.trivial (inside)
+  %40: I32 = add inspect %38 inspect %39
+  return take %40
+
+bb3:
+  %24: I32 = const 1
+  jump -> bb2(take %24)
+}
+
+fn firstWins.thunk(firstWins.thunk.env: firstWins.thunk.env [unique call]) -> I32 {
+  local local1: () -> I32 [owned here shape8 .0=unique call]
+
+bb0:
+  %0: Maybe(I32) = call none'2
+  %1: () -> I32 [owned here shape8 .0=unique call] = fun.value firstWins.thunk.thunk
+  write.init borrow.unique (local1) take %1
+  %3: () -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local1) loan0
+  %4: I32 = call ?: take %0 borrow.shared %3
+  return take %4
+}
+
+fn firstWins.thunk.thunk(firstWins.thunk.thunk.env: firstWins.thunk.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 3
+  return take %0
+}
+
+fn lastWins.thunk(lastWins.thunk.env: lastWins.thunk.env [unique call]) -> I32 {
+  local local1: () -> I32 [owned here shape8 .0=unique call]
+
+bb0:
+  %0: Maybe(I32) = call none'2
+  %1: () -> I32 [owned here shape8 .0=unique call] = fun.value lastWins.thunk.thunk
+  write.init borrow.unique (local1) take %1
+  %3: () -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local1) loan0
+  %4: I32 = call ?: take %0 borrow.shared %3
+  return take %4
+}
+
+fn lastWins.thunk.thunk(lastWins.thunk.thunk.env: lastWins.thunk.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 3
+  return take %0
+}
+
+fn noneEvaluated.thunk(noneEvaluated.thunk.env: noneEvaluated.thunk.env [unique call]) -> I32 {
+  local local1: () -> I32 [owned here shape8 .0=unique call]
+
+bb0:
+  %0: Maybe(I32) = call bumpNone
+  %1: () -> I32 [owned here shape8 .0=unique call] = fun.value noneEvaluated.thunk.thunk
+  write.init borrow.unique (local1) take %1
+  %3: () -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local1) loan0
+  %4: I32 = call ?: take %0 borrow.shared %3
+  return take %4
+}
+
+fn noneEvaluated.thunk.thunk(noneEvaluated.thunk.thunk.env: noneEvaluated.thunk.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 20
+  %1: I32 = call bumpValue borrow.shared %0
+  return take %1
+}
+
+fn allEvaluated.thunk(allEvaluated.thunk.env: allEvaluated.thunk.env [unique call]) -> I32 {
+  local local1: () -> I32 [owned here shape8 .0=unique call]
+
+bb0:
+  %0: Maybe(I32) = call bumpNone
+  %1: () -> I32 [owned here shape8 .0=unique call] = fun.value allEvaluated.thunk.thunk
+  write.init borrow.unique (local1) take %1
+  %3: () -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local1) loan0
+  %4: I32 = call ?: take %0 borrow.shared %3
+  return take %4
+}
+
+fn allEvaluated.thunk.thunk(allEvaluated.thunk.thunk.env: allEvaluated.thunk.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 20
+  %1: I32 = call bumpValue borrow.shared %0
+  return take %1
+}
+
+entry main

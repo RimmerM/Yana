@@ -1,0 +1,68 @@
+module ResolveTest
+
+fn wrap1(n: I32 [shared slot 0]) -> L1 [owned here shape2 .0=shared slot 0] {
+bb0(%0: I32 [shared slot 0] guaranteed):
+  %1: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %2: L1 [owned here shape2 .0=shared slot 0] trivial = aggregate.L1 borrow %1
+  return consume %2
+}
+
+fn wrap2(n: I32 [shared slot 0]) -> L2 [owned here shape3 .0.0=shared slot 0] {
+bb0(%0: I32 [shared slot 0] guaranteed):
+  %1: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %2: L1 [owned here shape2 .0=shared slot 0] trivial = call wrap1 borrow %1
+  %3: L2 [owned here shape3 .0.0=shared slot 0] trivial = aggregate.L2 consume %2
+  return consume %3
+}
+
+fn wrap3(n: I32 [shared slot 0]) -> L3 [owned here shape4 .0.0.0=shared slot 0] {
+bb0(%0: I32 [shared slot 0] guaranteed):
+  %1: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %2: L2 [owned here shape3 .0.0=shared slot 0] trivial = call wrap2 borrow %1
+  %3: L3 [owned here shape4 .0.0.0=shared slot 0] trivial = aggregate.L3 consume %2
+  return consume %3
+}
+
+fn wrap4(n: I32 [shared slot 0]) -> L4 [owned here shape5 .0.0.0.0=shared slot 0] {
+bb0(%0: I32 [shared slot 0] guaranteed):
+  %1: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %2: L3 [owned here shape4 .0.0.0=shared slot 0] trivial = call wrap3 borrow %1
+  %3: L4 [owned here shape5 .0.0.0.0=shared slot 0] trivial = aggregate.L4 consume %2
+  return consume %3
+}
+
+fn wrap5(n: I32 [shared slot 0]) -> L5 [owned here shape6 .0.0.0.0.0=shared slot 0] {
+bb0(%0: I32 [shared slot 0] guaranteed):
+  %1: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %2: L4 [owned here shape5 .0.0.0.0=shared slot 0] trivial = call wrap4 borrow %1
+  %3: L5 [owned here shape6 .0.0.0.0.0=shared slot 0] trivial = aggregate.L5 consume %2
+  return consume %3
+}
+
+fn readBack(v: L5 [shared call]) -> I32 {
+bb0(%0: L5 [shared call] guaranteed):
+  %1: %L4 address = field.addr .a inspect %0
+  %2: %L3 address = field.addr .a inspect %1
+  %3: %L2 address = field.addr .a inspect %2
+  %4: %L1 address = field.addr .a inspect %3
+  %5: %I32 address = field.addr .r inspect %4
+  %6: %I32 address = load inspect %5
+  %7: I32 trivial = load inspect %6
+  return consume %7
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %L5 address = alloc frame L5 [owned here shape6 .0.0.0.0.0=shared slot 0]
+  %2: I32 trivial = const 7
+  store inspect %0 consume %2
+  %3: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
+  %4: L5 [owned here shape6 .0.0.0.0.0=shared slot 0] trivial = call wrap5 borrow %3
+  store inspect %1 consume %4
+  %5: L5 [owned here shape6 .0.0.0.0.0=shared slot 0] trivial = copy inspect %1
+  %6: I32 trivial = call readBack borrow %5
+  return consume %6
+}
+
+entry main

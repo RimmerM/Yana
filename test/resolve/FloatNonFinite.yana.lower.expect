@@ -1,0 +1,139 @@
+@image$base = []
+
+above<complex>(%x: F32, %limit: F32): I32 {
+  b_0 {
+    %v_1 = cmp_gt %x, %limit: I32
+    ret %v_1
+  }
+}
+
+below<complex>(%x: F64, %limit: F64): I32 {
+  b_0 {
+    %v_1 = cmp_lt %x, %limit: I32
+    ret %v_1
+  }
+}
+
+unequal<complex>(%x: F32): I32 {
+  b_0 {
+    %v_1 = cmp_neq %x, %x: I32
+    ret %v_1
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = imm Inf: F32
+    %low = sub 0, %v_1: F32
+    %wide = mul 1E308, 10: F64
+    %v_2 = call_complex above, %v_1, 3.0000000054977558E38: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_3, 1], [b_4, 0]: I32
+    %v_7 = call_complex above, %low, -3.0000000054977558E38: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    %v_10 = add %v_6, 2: I32
+    jmp b_11
+  }
+
+  b_8 {
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = phi [b_9, %v_10], [b_8, %v_6]: I32
+    %v_13 = add %v_1, %low: F32
+    %v_14 = call_complex unequal, %v_13: I32
+    je %v_14, b_15, b_16
+  }
+
+  b_15 {
+    %v_17 = add %v_12, 4: I32
+    jmp b_18
+  }
+
+  b_16 {
+    jmp b_18
+  }
+
+  b_18 {
+    %v_19 = phi [b_15, %v_17], [b_16, %v_12]: I32
+    %v_20 = call_complex below, %wide, 1E308: I32
+    je %v_20, b_21, b_22
+  }
+
+  b_22 {
+    %v_23 = add %v_19, 8: I32
+    jmp b_24
+  }
+
+  b_21 {
+    jmp b_24
+  }
+
+  b_24 {
+    %v_25 = phi [b_22, %v_23], [b_21, %v_19]: I32
+    %v_26 = sub 0, %wide: F64
+    %v_27 = call_complex below, %v_26, -1E308: I32
+    je %v_27, b_28, b_29
+  }
+
+  b_28 {
+    %v_30 = add %v_25, 16: I32
+    jmp b_31
+  }
+
+  b_29 {
+    jmp b_31
+  }
+
+  b_31 {
+    %v_32 = phi [b_28, %v_30], [b_29, %v_25]: I32
+    %v_33 = div 1, -0: F64
+    %v_34 = call_complex below, %v_33, -1E308: I32
+    je %v_34, b_35, b_36
+  }
+
+  b_35 {
+    %v_37 = add %v_32, 32: I32
+    jmp b_38
+  }
+
+  b_36 {
+    jmp b_38
+  }
+
+  b_38 {
+    %v_39 = phi [b_35, %v_37], [b_36, %v_32]: I32
+    %v_40 = call_complex unequal, %v_1: I32
+    je %v_40, b_41, b_42
+  }
+
+  b_42 {
+    %v_43 = add %v_39, 64: I32
+    jmp b_44
+  }
+
+  b_41 {
+    jmp b_44
+  }
+
+  b_44 {
+    %v_45 = phi [b_42, %v_43], [b_41, %v_39]: I32
+    ret %v_45
+  }
+}
+

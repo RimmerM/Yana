@@ -1,0 +1,45 @@
+"use strict";
+// ResolveTest
+function opaque(n) {
+  return n + 1 | 0;
+}
+
+function bumpRead(x$o, x$k, x$s) {
+  var v3 = x$o[x$k] + 20 >>> 0;
+  x$o[x$k] = v3;
+  return v3;
+}
+
+function twiceWrite(x$o, x$k, x$s) {
+  x$o[x$k] = 101;
+  return 100;
+}
+
+function bumpLoop(x$o, x$k, x$s, n) {
+  var v5 = 0;
+  while (v5 < n) {
+    var i = v5;
+    x$o[x$k] = x$o[x$k] + 10 >>> 0;
+    if (opaque(i) > 100) {
+      x$o[x$k] = x$o[x$k] + 1 >>> 0;
+    }
+    v5 = v5 + 1 | 0;
+  }
+  return x$o[x$k];
+}
+
+function main() {
+  var v18 = { $v: 3 };
+  var r1 = bumpRead(v18, "$v", 1);
+  var v105 = (v18.$v & 15) + 20;
+  var v40 = v105 & 15;
+  var v44 = { $v: 5 };
+  var r3 = twiceWrite(v44, "$v", 1);
+  var v53 = v44.$v & 7;
+  var v58 = { $v: 1000 };
+  var r4 = bumpLoop(v58, "$v", 1, 3);
+  var v67 = v58.$v & 8191;
+  var v72 = { $v: v40 };
+  return (Math.imul((((r1 + v105 >>> 0) + r3 >>> 0) + r4 >>> 0) + bumpLoop(v72, "$v", 1, 2) >>> 0, 10000) >>> 0) + ((v72.$v & 15) + v53 + v67) | 0;
+}
+main();

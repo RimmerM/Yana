@@ -13,107 +13,49 @@ main<complex>(): I32 {
     %v_4 = add %constant$0, 12: Ptr
     %v_5 = load %v_4, 4: I32
     %constant$1 = global @constant$1: Ptr
-    %v_6 = alloca 8, 8: Ptr
-    copy %v_6, %constant$1, 8
+    %v_6 = load %constant$1, 8: I64
     %v_7 = add %constant$1, 8: Ptr
     %v_8 = load %v_7, 4: I32
     %v_9 = add %constant$1, 12: Ptr
     %v_10 = load %v_9, 4: I32
     call_complex String.reclaim, %v_1, %v_3, %v_5
-    %v_11 = load %v_6, 8: I64
-    %v_12 = sext %v_10: I64
-    call_complex String.reclaim, %v_11, %v_8, %v_10
-    %v_13 = sext %v_12: I32
-    %v_14 = add %v_13, 80: I32
-    %v_15 = add %v_14, 100: I32
-    %v_16 = add %v_15, 7: I32
-    ret %v_16
+    %v_11 = sext %v_10: I64
+    call_complex String.reclaim, %v_6, %v_8, %v_10
+    %v_12 = sext %v_11: I32
+    %v_13 = add %v_12, 80: I32
+    %v_14 = add %v_13, 100: I32
+    %v_15 = add %v_14, 7: I32
+    ret %v_15
   }
 }
 
 String.reclaim<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
   b_3 {
-    %v_4 = cast %v_1: I64
-    %v_5 = shr %v_4, 30: I64
-    %v_6 = cast %v_5: I32
-    %v_7 = cmp_eq %v_6, 1: I32
-    je %v_7, b_8, b_9
+    %v_4 = shr %v_1, 30: I32
+    %v_5 = cmp_eq %v_4, 1: I32
+    je %v_5, b_6, b_7
   }
 
-  b_8 {
-    %v_10 = bitcast %v_0: Ptr
-    call_complex freeHeap, %v_10
-    jmp b_9
-  }
-
-  b_9 {
-    ret 
-  }
-}
-
-Array(a).reclaim(CodeUnit)<complex>(%v_0: I64, %v_1: I32, %v_2: I32) {
-  b_3 {
-    %v_4 = cast %v_1: I64
-    %v_5 = shr %v_4, 30: I64
-    %v_6 = cast %v_5: I32
-    %v_7 = cmp_eq %v_6, 1: I32
-    je %v_7, b_8, b_9
-  }
-
-  b_8 {
-    %v_10 = bitcast %v_0: Ptr
-    call_complex freeHeap, %v_10
-    jmp b_9
-  }
-
-  b_9 {
-    ret 
-  }
-}
-
-freeHeap<complex>(%allocation: Ptr) {
-  b_0 {
-    %v_1 = bitcast %allocation: I64
-    %v_2 = cmp_eq %v_1, 0: I32
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = sub %allocation, 8: Ptr
-    %v_6 = loads %v_5, 8: I64
-    %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %v_6, 3: I64
-    %v_9 = add %v_7, %v_8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    store %allocation, %v_10, 8
-    %v_11 = load @heapFree, 8: Ptr
-    %v_12 = add %v_11, %v_8: Ptr
-    store %v_12, %allocation, 8
-    ret 
-  }
-
-  b_3 {
-    ret 
-  }
-}
-
-Run(a).reclaim(CodeUnit)<complex>(%v_0: I64, %v_1: I32) {
-  b_2 {
-    %v_3 = cast %v_1: I64
-    %v_4 = shr %v_3, 30: I64
-    %v_5 = cast %v_4: I32
-    %v_6 = cmp_eq %v_5, 1: I32
-    je %v_6, b_7, b_8
+  b_6 {
+    %v_8 = bitcast %v_0: Ptr
+    %v_9 = cmp_eq %v_0, 0: I32
+    je %v_9, b_7, b_10
   }
 
   b_7 {
-    %v_9 = bitcast %v_0: Ptr
-    call_complex freeHeap, %v_9
-    jmp b_8
+    ret 
   }
 
-  b_8 {
-    ret 
+  b_10 {
+    %v_11 = sub %v_8, 8: Ptr
+    %v_12 = loads %v_11, 8: I64
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = shl %v_12, 3: I64
+    %v_15 = add %v_13, %v_14: Ptr
+    %v_16 = load %v_15, 8: Ptr
+    store %v_8, %v_16, 8
+    store %v_15, %v_8, 8
+    jmp b_7
   }
 }
 

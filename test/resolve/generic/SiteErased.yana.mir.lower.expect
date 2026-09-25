@@ -188,8 +188,13 @@ main<complex>(): I32 {
     call_complex bump, @environment(bump((&I32) -> {})), %v_6, %v_5
     %v_32 = loads %v_5, 4: I32
     %v_33 = add %v_30, %v_32: I32
-    %v_34 = add %v_33, 8: I32
-    ret %v_34
+    %v_34 = load %v_1, 8: Ptr
+    %v_35 = add %v_1, 8: Ptr
+    %v_36 = load %v_35, 8: Ptr
+    %v_37 = call_complex %v_34, %v_36, 1: I32
+    %v_38 = add %v_37, 6: I32
+    %v_39 = add %v_33, %v_38: I32
+    ret %v_39
   }
 }
 

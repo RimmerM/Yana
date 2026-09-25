@@ -7,7 +7,7 @@ target_link_libraries(YanaLibTest YanaParse YanaResolve YanaResolveSsa YanaLower
 # can see - see the header comment in BenchTester.cpp. Not a test: it asserts nothing and is not run
 # by anything automatically.
 add_executable(YanaBench BenchTester.cpp)
-target_link_libraries(YanaBench YanaParse YanaResolve YanaLower YanaX64 YanaJS YanaLLVM)
+target_link_libraries(YanaBench YanaParse YanaResolve YanaResolveSsa YanaLower YanaX64 YanaJS YanaLLVM)
 
 add_executable(YanaParseTest ParserTester.cpp)
 target_link_libraries(YanaParseTest YanaParse)
@@ -22,7 +22,7 @@ add_executable(YanaLlvmTest LlvmTester.cpp)
 target_link_libraries(YanaLlvmTest YanaLLVM)
 
 add_executable(YanaElfTest ElfTester.cpp)
-target_link_libraries(YanaElfTest YanaParse YanaResolve YanaLower YanaX64)
+target_link_libraries(YanaElfTest YanaParse YanaResolve YanaResolveSsa YanaLower YanaX64)
 
 add_executable(YanaEditTest EditTester.cpp)
 target_link_libraries(YanaEditTest YanaResolve)

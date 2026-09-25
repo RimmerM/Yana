@@ -1,0 +1,288 @@
+fn main() -> one %r0
+  var $0: %r10
+  var $1: %r10
+  var $2: %r10
+  var $3: %r10
+  block0:
+    %7: %r0 = const 7
+    %8: %r10 = alias %7
+    %9: %r11 = fun.code firstWins.thunk
+    %10: %r11 = const null
+    store var $0: %r10, %8
+    %12: %r10 = load var $0: %r10
+    %13: %r10 = const null
+    %14: %r13 = binary.eq %12, %13
+    %15: %r9 = const 1
+    %16: %r9 = const 0
+    %17: %r9 = select %14, %16, %15
+    %18: %r9 = const 1
+    %19: %r14 = binary.eq %17, %18
+    branch %19 -> block2 -> block1
+  block1:
+    %20: %r11 = alias %9
+    %21: %r11 = alias %10
+    %22: %r0 = call.value %20, %21
+    jump -> block3(%22)
+  block2:
+    %24: %r0 = load var $0: %r0
+    jump -> block3(%24)
+  block3(%0: %r0):
+    %28: %r10 = const null
+    %29: %r11 = fun.code lastWins.thunk
+    %30: %r11 = const null
+    store var $1: %r10, %28
+    %32: %r10 = load var $1: %r10
+    %33: %r10 = const null
+    %34: %r13 = binary.eq %32, %33
+    %35: %r9 = const 1
+    %36: %r9 = const 0
+    %37: %r9 = select %34, %36, %35
+    %38: %r9 = const 1
+    %39: %r14 = binary.eq %37, %38
+    branch %39 -> block5 -> block4
+  block4:
+    %40: %r11 = alias %29
+    %41: %r11 = alias %30
+    %42: %r0 = call.value %40, %41
+    jump -> block6(%42)
+  block5:
+    %44: %r0 = load var $1: %r0
+    jump -> block6(%44)
+  block6(%1: %r0):
+    %45: %r0 = binary.add %0, %1
+    %46: %r0 = coerce %45
+    %50: %r0 = const 1
+    %51: %r10 = alias %50
+    %52: %r11 = fun.code noneEvaluated.thunk
+    %53: %r11 = const null
+    store var $2: %r10, %51
+    %55: %r10 = load var $2: %r10
+    %56: %r10 = const null
+    %57: %r13 = binary.eq %55, %56
+    %58: %r9 = const 1
+    %59: %r9 = const 0
+    %60: %r9 = select %57, %59, %58
+    %61: %r9 = const 1
+    %62: %r14 = binary.eq %60, %61
+    branch %62 -> block8 -> block7
+  block7:
+    %63: %r11 = alias %52
+    %64: %r11 = alias %53
+    %65: %r0 = call.value %63, %64
+    jump -> block9(%65)
+  block8:
+    %67: %r0 = load var $2: %r0
+    jump -> block9(%67)
+  block9(%2: %r0):
+    %71: %r10 = const null
+    %72: %r11 = fun.code allEvaluated.thunk
+    %73: %r11 = const null
+    store var $3: %r10, %71
+    %75: %r10 = load var $3: %r10
+    %76: %r10 = const null
+    %77: %r13 = binary.eq %75, %76
+    %78: %r9 = const 1
+    %79: %r9 = const 0
+    %80: %r9 = select %77, %79, %78
+    %81: %r9 = const 1
+    %82: %r14 = binary.eq %80, %81
+    branch %82 -> block11 -> block10
+  block10:
+    %83: %r11 = alias %72
+    %84: %r11 = alias %73
+    %85: %r0 = call.value %83, %84
+    jump -> block12(%85)
+  block11:
+    %87: %r0 = load var $3: %r0
+    jump -> block12(%87)
+  block12(%3: %r0):
+    %88: %r0 = binary.add %2, %3
+    %89: %r0 = coerce %88
+    %90: %r0 = load global counter: %r0
+    %91: %r0 = binary.add %89, %90
+    %92: %r0 = coerce %91
+    %93: %r0 = const 1
+    %94: %r0 = const 212
+    %95: %r0 = binary.add %94, %46
+    %96: %r0 = coerce %95
+    %97: %r0 = binary.add %96, %92
+    %98: %r0 = coerce %97
+    %99: %r0 = binary.add %98, %93
+    %100: %r0 = coerce %99
+    return %100
+
+fn firstWins.thunk(one %r1) -> one %r0 env
+  var $0: %r10
+  block0(%0: %r1):
+    %5: %r10 = const null
+    %6: %r11 = fun.code firstWins.thunk.thunk
+    %7: %r11 = const null
+    store var $0: %r10, %5
+    %9: %r10 = load var $0: %r10
+    %10: %r10 = const null
+    %11: %r13 = binary.eq %9, %10
+    %12: %r9 = const 1
+    %13: %r9 = const 0
+    %14: %r9 = select %11, %13, %12
+    %15: %r9 = const 1
+    %16: %r14 = binary.eq %14, %15
+    branch %16 -> block2 -> block1
+  block1:
+    %17: %r11 = alias %6
+    %18: %r11 = alias %7
+    %19: %r0 = call.value %17, %18
+    jump -> block3(%19)
+  block2:
+    %21: %r0 = load var $0: %r0
+    jump -> block3(%21)
+  block3(%1: %r0):
+    return %1
+
+fn firstWins.thunk.thunk(one %r2) -> one %r0 env
+  block0(%0: %r2):
+    %1: %r0 = const 3
+    return %1
+
+fn lastWins.thunk(one %r3) -> one %r0 env
+  var $0: %r10
+  block0(%0: %r3):
+    %5: %r10 = const null
+    %6: %r11 = fun.code lastWins.thunk.thunk
+    %7: %r11 = const null
+    store var $0: %r10, %5
+    %9: %r10 = load var $0: %r10
+    %10: %r10 = const null
+    %11: %r13 = binary.eq %9, %10
+    %12: %r9 = const 1
+    %13: %r9 = const 0
+    %14: %r9 = select %11, %13, %12
+    %15: %r9 = const 1
+    %16: %r14 = binary.eq %14, %15
+    branch %16 -> block2 -> block1
+  block1:
+    %17: %r11 = alias %6
+    %18: %r11 = alias %7
+    %19: %r0 = call.value %17, %18
+    jump -> block3(%19)
+  block2:
+    %21: %r0 = load var $0: %r0
+    jump -> block3(%21)
+  block3(%1: %r0):
+    return %1
+
+fn lastWins.thunk.thunk(one %r4) -> one %r0 env
+  block0(%0: %r4):
+    %1: %r0 = const 3
+    return %1
+
+fn noneEvaluated.thunk(one %r5) -> one %r0 env
+  var $0: %r10
+  block0(%0: %r5):
+    %5: %r0 = const 1
+    %6: %r0 = load global counter: %r0
+    %7: %r0 = binary.add %6, %5
+    %8: %r0 = coerce %7
+    store global counter: %r0, %8
+    %9: %r10 = const null
+    %10: %r11 = fun.code noneEvaluated.thunk.thunk
+    %11: %r11 = const null
+    store var $0: %r10, %9
+    %13: %r10 = load var $0: %r10
+    %14: %r10 = const null
+    %15: %r13 = binary.eq %13, %14
+    %16: %r9 = const 1
+    %17: %r9 = const 0
+    %18: %r9 = select %15, %17, %16
+    %19: %r9 = const 1
+    %20: %r14 = binary.eq %18, %19
+    branch %20 -> block2 -> block1
+  block1:
+    %21: %r11 = alias %10
+    %22: %r11 = alias %11
+    %23: %r0 = call.value %21, %22
+    jump -> block3(%23)
+  block2:
+    %25: %r0 = load var $0: %r0
+    jump -> block3(%25)
+  block3(%1: %r0):
+    return %1
+
+fn noneEvaluated.thunk.thunk(one %r6) -> one %r0 env
+  block0(%0: %r6):
+    %1: %r0 = const 20
+    %2: %r0 = const 1
+    %3: %r0 = load global counter: %r0
+    %4: %r0 = binary.add %3, %2
+    %5: %r0 = coerce %4
+    store global counter: %r0, %5
+    return %1
+
+fn allEvaluated.thunk(one %r7) -> one %r0 env
+  var $0: %r10
+  block0(%0: %r7):
+    %5: %r0 = const 1
+    %6: %r0 = load global counter: %r0
+    %7: %r0 = binary.add %6, %5
+    %8: %r0 = coerce %7
+    store global counter: %r0, %8
+    %9: %r10 = const null
+    %10: %r11 = fun.code allEvaluated.thunk.thunk
+    %11: %r11 = const null
+    store var $0: %r10, %9
+    %13: %r10 = load var $0: %r10
+    %14: %r10 = const null
+    %15: %r13 = binary.eq %13, %14
+    %16: %r9 = const 1
+    %17: %r9 = const 0
+    %18: %r9 = select %15, %17, %16
+    %19: %r9 = const 1
+    %20: %r14 = binary.eq %18, %19
+    branch %20 -> block2 -> block1
+  block1:
+    %21: %r11 = alias %10
+    %22: %r11 = alias %11
+    %23: %r0 = call.value %21, %22
+    jump -> block3(%23)
+  block2:
+    %25: %r0 = load var $0: %r0
+    jump -> block3(%25)
+  block3(%1: %r0):
+    return %1
+
+fn allEvaluated.thunk.thunk(one %r8) -> one %r0 env
+  block0(%0: %r8):
+    %1: %r0 = const 20
+    %2: %r0 = const 1
+    %3: %r0 = load global counter: %r0
+    %4: %r0 = binary.add %3, %2
+    %5: %r0 = coerce %4
+    store global counter: %r0, %5
+    return %1
+
+optimizer clones 0 aliased 0 forwarded 16 removed 40 adopted 8 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 0
+
+shape %s0 object firstWins.thunk.env {}
+shape %s1 object firstWins.thunk.thunk.env {}
+shape %s2 object lastWins.thunk.env {}
+shape %s3 object lastWins.thunk.thunk.env {}
+shape %s4 object noneEvaluated.thunk.env {}
+shape %s5 object noneEvaluated.thunk.thunk.env {}
+shape %s6 object allEvaluated.thunk.env {}
+shape %s7 object allEvaluated.thunk.thunk.env {}
+shape %s8 fun {$c: %r11 code, $e: %r11 env}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = object %s1
+rep %r3 = object %s2
+rep %r4 = object %s3
+rep %r5 = object %s4
+rep %r6 = object %s5
+rep %r7 = object %s6
+rep %r8 = object %s7
+rep %r9 = number unsigned 8
+rep %r10 = nullable of %r0
+rep %r11 = erased
+rep %r12 = object %s8
+rep %r13 = boolean
+rep %r14 = number bool

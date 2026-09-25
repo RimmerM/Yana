@@ -795,18 +795,21 @@ bool Resolver::checkObjectBody(Function& producer, Body& body, const LiveAcross&
      *
      * A value live across a `yield` is spilled into a field at the hand-over and read back where the
      * next step resumes - see `LiveAcross`, where the counted `for`'s own block arguments are why
-     * there are any. Two limits, both stated here rather than met:
+     * there are any. One limit, stated here rather than met:
      *
      *  - it must be **trivially copyable**. A store and a load either side of a suspension are a
      *    move through memory for anything else, and the drop elaboration the producer's body carries
      *    knows nothing about a field this transform invented - so an owner spilled here would be one
      *    nothing releases. Nothing in the language produces one today: what crosses is a loop's
      *    bound, its step and its counter.
-     *  - every block that **names** it has to be converted after the `yield`'s own. The reload
-     *    replaces the value for everything the conversion emits from that point on, and the
-     *    conversion emits blocks in index order, so a use in an earlier block would read the value
-     *    from before the suspension. The SSA verifier reports the dominance failure either way; this
-     *    is the same fact with a message about the producer.
+     *
+     * There used to be a second: every block that **names** it had to be converted after the
+     * `yield`'s own, because the reload replaced the value for everything converted from that point
+     * on, in index order. That refused `yield a; yield a` in a loop body and missed `yield a; if c:
+     * yield a`, which reached the verifier as "jump names N, whose definition does not dominate it".
+     * The step conversion now works out which definition reaches each block and reads the field
+     * where more than one does (`resolve_ssa/convert.cpp`'s `planSpillReach`, J164), so there is
+     * nothing left to refuse.
      */
     Array<U32> definedIn;
     for(U32 i = 0; i < body.nodes.size(); i++) definedIn.push(kNoLocal);
@@ -838,40 +841,6 @@ bool Resolver::checkObjectBody(Function& producer, Body& body, const LiveAcross&
                         "%@ keeps a value that is not trivially copyable across a `yield` without naming it - an iterator object spills what crosses a hand-over into its record, and only a copy may be spilled; bind it to a name"_v,
                         defined.source, context.findName(producer.name));
                     ok = false;
-                    continue;
-                }
-
-                for(U32 user = 0; user < b; user++) {
-                    if(user == definedIn[v]) continue;
-
-                    auto& used = *body.block(mir, BlockId(user));
-                    auto names = false;
-
-                    for(auto pointer: used.nodes.contents(mir)) {
-                        auto& reader = *mir[pointer];
-
-                        forEachOperand(mir, reader, [&](Operand& operand, OperandRole) {
-                            if(operand.source() == SourceKind::Result &&
-                               operand.nodeId().index == v) names = true;
-                        });
-
-                        forEachEdge(mir, reader, [&](Edge& edge) {
-                            auto items = edge.arguments.contents(mir);
-                            for(Size a = 0; a < items.size(); a++) {
-                                auto& operand = *items.pointerAt(a);
-                                if(operand.source() == SourceKind::Result &&
-                                   operand.nodeId().index == v) names = true;
-                            }
-                        });
-                    }
-
-                    if(!names) continue;
-
-                    context.diagnostics.error(
-                        "%@ reads a value from before a `yield` on a path an object's step cannot reconstruct - bind it to a name so that it lives in the record"_v,
-                        defined.source, context.findName(producer.name));
-                    ok = false;
-                    break;
                 }
             }
         }
@@ -2430,6 +2399,7 @@ DeclPtr<Type> Resolver::mintIterSite(Function& producer, Function& owner, Body& 
             auto& position = *decl()[slotPointer];
             auto wanted = position.contract.originSlot();
             auto lender = kNoOriginSlot;
+            auto descriptor = false;
 
             /*
              * Which argument of the child's constructor publishes the set, and which local of this
@@ -2450,6 +2420,7 @@ DeclPtr<Type> Resolver::mintIterSite(Function& producer, Function& owner, Body& 
                 if(root == kNoLocal) break;
 
                 auto local = body.local(mir, LocalId(root));
+                descriptor = local->inlineDescriptor;
 
                 if(local->isParameter() && local->parameter < captureSlot.size()) {
                     lender = captureSlot[local->parameter];
@@ -2501,9 +2472,27 @@ DeclPtr<Type> Resolver::mintIterSite(Function& producer, Function& owner, Body& 
             }
 
             if(lender == kNoOriginSlot) {
+                /*
+                 * Once per written call, though every mint of the producer's object reaches it: the
+                 * refusal is about the producer's body, and `objectDropped` and `objectFull` each
+                 * minting `outer` printed it twice (J162).
+                 */
+                auto reported = false;
+                for(auto at: objectRefusals) reported |= at == call.source;
+                if(!reported) objectRefusals.push(call.source);
+
                 // The same refusal in the two spellings a region has, because what an author has to
-                // change differs: a nested traversal walks the storage and a lens is handed it.
-                if(child.lensSite) {
+                // change differs: a nested traversal walks the storage and a lens is handed it. And
+                // a third where the storage is an `@inline` array's descriptor: the author did
+                // traverse a parameter, and what the object would hold is the compiler's local.
+                if(reported) {
+                } else if(descriptor) {
+                    context.diagnostics.error(
+                        "%@ lends %@ an `@inline(n) @capacity(n)` array as a growable array, and the descriptor that stands for it is a local of the object's step that cannot be held across a `yield` - copy the array into a `[T]` first, or call %@ outside an object"_v,
+                        call.source, context.findName(producer.name),
+                        context.findName(decl()[call.callee]->name),
+                        context.findName(producer.name));
+                } else if(child.lensSite) {
                     context.diagnostics.error(
                         "%@ runs %@ over part of its own body and lends it storage the object itself holds, and a record moves with whatever holds it - so the lens's borrow would point at where the value used to be; write `@heap` on the binding, or lend it a parameter instead"_v,
                         call.source, context.findName(producer.name),

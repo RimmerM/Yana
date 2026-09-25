@@ -1,317 +1,304 @@
 fn main() -> one %r0
   var $0: %r1
+  var $1: %r1
+  var $2: %r1
   block0:
-    %20: %r1 = const ""
-    store var $0: %r1, %20
-    %21: %r1 = const "99"
-    %22: %r0 = const 2
-    %23: %r1 = const ""
-    %24: %r5 = object %s1 %23
-    %25: %r1 = const ""
-    store property %24.$v: %r1, %25
-    %26: %r0 = const 0
-    %27: %r1 = alias %21
-    %28: %r1 = alias %27
-    %29: %r1 = alias %28
-    %30: %r0 = host host.field "length" host-range %29
-    %31: %r0 = convert %30
-    %32: %r4 = const 57
-    %33: %r0 = const 1
-    jump -> block2(%26)
+    %14: %r1 = const ""
+    store var $0: %r1, %14
+    %15: %r1 = const "99"
+    %16: %r0 = const 2
+    %19: %r1 = const ""
+    store var $1: %r1, %19
+    %20: %r0 = const 0
+    %21: %r1 = alias %15
+    %22: %r1 = alias %21
+    %23: %r1 = alias %22
+    %24: %r0 = host host.field "length" host-range %23
+    %25: %r0 = convert %24
+    %26: %r2 = const 57
+    %27: %r0 = const 1
+    jump -> block2(%20)
   block1(%0: %r0):
-    %79: %r1 = const "19"
-    %80: %r0 = const 2
-    %81: %r1 = const ""
-    %82: %r5 = object %s1 %81
-    %83: %r1 = const ""
-    store property %82.$v: %r1, %83
-    %84: %r0 = const 0
-    %85: %r1 = alias %79
-    %86: %r1 = alias %85
-    %87: %r1 = alias %86
-    %88: %r0 = host host.field "length" host-range %87
-    %89: %r0 = convert %88
-    %90: %r4 = const 57
-    %91: %r0 = const 1
-    jump -> block21(%84)
+    %73: %r1 = const "19"
+    %74: %r0 = const 2
+    %77: %r1 = const ""
+    store var $2: %r1, %77
+    %78: %r0 = const 0
+    %79: %r1 = alias %73
+    %80: %r1 = alias %79
+    %81: %r1 = alias %80
+    %82: %r0 = host host.field "length" host-range %81
+    %83: %r0 = convert %82
+    %84: %r2 = const 57
+    %85: %r0 = const 1
+    jump -> block21(%78)
   block2(%1: %r0):
-    %34: %r6 = binary.lt %1, %22
-    branch %34 -> block16 -> block3
+    %28: %r4 = binary.lt %1, %16
+    branch %28 -> block16 -> block3
   block3:
-    %35: %r0 = const 0
-    %36: %r0 = const 1
-    %37: %r4 = const 57
-    jump -> block4(%22)
+    %29: %r0 = const 0
+    %30: %r0 = const 1
+    %31: %r2 = const 57
+    jump -> block4(%16)
   block4(%2: %r0):
-    %38: %r6 = binary.gt %2, %35
-    branch %38 -> block5 -> block6
+    %32: %r4 = binary.gt %2, %29
+    branch %32 -> block5 -> block6
   block5:
-    %39: %r1 = load property %24.$v: %r1
-    %40: %r1 = alias %39
-    %41: %r0 = binary.sub %2, %36
-    %42: %r0 = coerce %41
-    %43: %r0 = convert %42
-    %44: %r1 = alias %40
-    %45: %r1 = alias %44
-    %46: %r4 = host host.call "charCodeAt" %45, %43
-    %47: %r6 = binary.eq %46, %37
-    branch %47 -> block15 -> block6
+    %33: %r1 = load var $1: %r1
+    %34: %r1 = alias %33
+    %35: %r0 = binary.sub %2, %30
+    %36: %r0 = coerce %35
+    %37: %r0 = convert %36
+    %38: %r1 = alias %34
+    %39: %r1 = alias %38
+    %40: %r2 = host host.call "charCodeAt" %39, %37
+    %41: %r4 = binary.eq %40, %31
+    branch %41 -> block15 -> block6
   block6:
-    %48: %r0 = const 0
-    %49: %r6 = binary.eq %2, %48
-    branch %49 -> block11 -> block7
+    %42: %r0 = const 0
+    %43: %r4 = binary.eq %2, %42
+    branch %43 -> block11 -> block7
   block7:
-    %50: %r0 = const 0
-    %51: %r0 = const 1
-    jump -> block8(%50)
+    %44: %r0 = const 0
+    %45: %r0 = const 1
+    jump -> block8(%44)
   block8(%3: %r0):
-    %52: %r6 = binary.lt %3, %22
-    branch %52 -> block10 -> block9
+    %46: %r4 = binary.lt %3, %16
+    branch %46 -> block10 -> block9
   block9:
     jump -> block1(%2)
   block10:
-    %53: %r1 = load property %24.$v: %r1
+    %47: %r1 = load var $1: %r1
+    %48: %r1 = alias %47
+    %49: %r0 = convert %3
+    %50: %r1 = alias %48
+    %51: %r1 = alias %50
+    %52: %r2 = host host.call "charCodeAt" %51, %49
+    %53: %r1 = load var $0: %r1
     %54: %r1 = alias %53
-    %55: %r0 = convert %3
+    %55: %r1 = host host.global "String.fromCharCode" %52
     %56: %r1 = alias %54
-    %57: %r1 = alias %56
-    %58: %r4 = host host.call "charCodeAt" %57, %55
-    %59: %r1 = load var $0: %r1
-    %60: %r1 = alias %59
-    %61: %r1 = host host.global "String.fromCharCode" %58
-    %62: %r1 = alias %60
-    %63: %r1 = alias %61
-    %64: %r1 = host host.binary "+" %62, %63
-    store var $0: %r1, %64
-    %65: %r0 = binary.add %3, %51
-    %66: %r0 = coerce %65
-    jump -> block8(%66)
+    %57: %r1 = alias %55
+    %58: %r1 = host host.binary "+" %56, %57
+    store var $0: %r1, %58
+    %59: %r0 = binary.add %3, %45
+    %60: %r0 = coerce %59
+    jump -> block8(%60)
   block11:
-    %67: %r4 = const 49
-    %68: %r1 = load var $0: %r1
-    %69: %r1 = alias %68
-    %70: %r1 = host host.global "String.fromCharCode" %67
-    %71: %r1 = alias %69
-    %72: %r1 = alias %70
-    %73: %r1 = host host.binary "+" %71, %72
-    store var $0: %r1, %73
-    %74: %r0 = const 0
-    %75: %r4 = const 48
-    %76: %r0 = const 1
-    jump -> block12(%74)
+    %61: %r2 = const 49
+    %62: %r1 = load var $0: %r1
+    %63: %r1 = alias %62
+    %64: %r1 = host host.global "String.fromCharCode" %61
+    %65: %r1 = alias %63
+    %66: %r1 = alias %64
+    %67: %r1 = host host.binary "+" %65, %66
+    store var $0: %r1, %67
+    %68: %r0 = const 0
+    %69: %r2 = const 48
+    %70: %r0 = const 1
+    jump -> block12(%68)
   block12(%4: %r0):
-    %77: %r6 = binary.lt %4, %22
-    branch %77 -> block14 -> block13
+    %71: %r4 = binary.lt %4, %16
+    branch %71 -> block14 -> block13
   block13:
-    %78: %r0 = const 3
-    jump -> block1(%78)
+    %72: %r0 = const 3
+    jump -> block1(%72)
   block14:
-    %195: %r1 = load var $0: %r1
-    %196: %r1 = alias %195
-    %197: %r1 = host host.global "String.fromCharCode" %75
-    %198: %r1 = alias %196
-    %199: %r1 = alias %197
-    %200: %r1 = host host.binary "+" %198, %199
-    store var $0: %r1, %200
-    %201: %r0 = binary.add %4, %76
-    %202: %r0 = coerce %201
-    jump -> block12(%202)
+    %185: %r1 = load var $0: %r1
+    %186: %r1 = alias %185
+    %187: %r1 = host host.global "String.fromCharCode" %69
+    %188: %r1 = alias %186
+    %189: %r1 = alias %187
+    %190: %r1 = host host.binary "+" %188, %189
+    store var $0: %r1, %190
+    %191: %r0 = binary.add %4, %70
+    %192: %r0 = coerce %191
+    jump -> block12(%192)
   block15:
-    jump -> block4(%42)
+    jump -> block4(%36)
   block16:
-    %203: %r6 = binary.lt %1, %31
-    %204: %r2 = const "$v"
-    %205: %r3 = object %s0 %24, %204
-    %206: %r2 = const "$v"
-    %207: %r3 = object %s0 %24, %206
-    branch %203 -> block18(%205) -> block17(%207)
-  block17(%5: %r3):
-    jump -> block19(%32, %5)
-  block18(%6: %r3):
-    %208: %r1 = alias %21
-    %209: %r0 = convert %1
-    %210: %r1 = alias %208
-    %211: %r1 = alias %210
-    %212: %r4 = host host.call "charCodeAt" %211, %209
-    jump -> block19(%212, %6)
-  block19(%7: %r4, %8: %r3):
-    %213: %r1 = load cell %8: %r1
-    %214: %r1 = alias %213
-    %215: %r1 = host host.global "String.fromCharCode" %7
-    %216: %r1 = alias %214
-    %217: %r1 = alias %215
-    %218: %r1 = host host.binary "+" %216, %217
-    store cell %8: %r1, %218
-    %219: %r0 = binary.add %1, %33
-    %220: %r0 = coerce %219
-    jump -> block2(%220)
-  block20(%9: %r0):
-    %137: %r0 = binary.add %0, %9
-    %138: %r0 = coerce %137
-    %139: %r1 = load var $0: %r1
-    %140: %r1 = alias %139
-    %141: %r1 = alias %140
-    %142: %r1 = alias %141
-    %143: %r0 = host host.field "length" host-range %142
-    %144: %r0 = convert %143
-    %145: %r0 = binary.add %138, %144
-    %146: %r0 = coerce %145
-    %147: %r0 = const 12
-    %148: %r0 = const 0
-    %149: %r0 = const 100
-    %150: %r0 = const 1
-    jump -> block39(%147)
-  block21(%10: %r0):
-    %92: %r6 = binary.lt %10, %80
-    branch %92 -> block35 -> block22
+    %193: %r4 = binary.lt %1, %25
+    branch %193 -> block18 -> block17
+  block17:
+    jump -> block19(%26)
+  block18:
+    %194: %r1 = alias %15
+    %195: %r0 = convert %1
+    %196: %r1 = alias %194
+    %197: %r1 = alias %196
+    %198: %r2 = host host.call "charCodeAt" %197, %195
+    jump -> block19(%198)
+  block19(%5: %r2):
+    %199: %r1 = load var $1: %r1
+    %200: %r1 = alias %199
+    %201: %r1 = host host.global "String.fromCharCode" %5
+    %202: %r1 = alias %200
+    %203: %r1 = alias %201
+    %204: %r1 = host host.binary "+" %202, %203
+    store var $1: %r1, %204
+    %205: %r0 = binary.add %1, %27
+    %206: %r0 = coerce %205
+    jump -> block2(%206)
+  block20(%6: %r0):
+    %131: %r0 = binary.add %0, %6
+    %132: %r0 = coerce %131
+    %133: %r1 = load var $0: %r1
+    %134: %r1 = alias %133
+    %135: %r1 = alias %134
+    %136: %r1 = alias %135
+    %137: %r0 = host host.field "length" host-range %136
+    %138: %r0 = convert %137
+    %139: %r0 = binary.add %132, %138
+    %140: %r0 = coerce %139
+    %141: %r0 = const 12
+    %142: %r0 = const 0
+    %143: %r0 = const 100
+    %144: %r0 = const 1
+    jump -> block39(%141)
+  block21(%7: %r0):
+    %86: %r4 = binary.lt %7, %74
+    branch %86 -> block35 -> block22
   block22:
-    %93: %r0 = const 0
-    %94: %r0 = const 1
-    %95: %r4 = const 57
-    jump -> block23(%80)
-  block23(%11: %r0):
-    %96: %r6 = binary.gt %11, %93
-    branch %96 -> block24 -> block25
+    %87: %r0 = const 0
+    %88: %r0 = const 1
+    %89: %r2 = const 57
+    jump -> block23(%74)
+  block23(%8: %r0):
+    %90: %r4 = binary.gt %8, %87
+    branch %90 -> block24 -> block25
   block24:
-    %97: %r1 = load property %82.$v: %r1
-    %98: %r1 = alias %97
-    %99: %r0 = binary.sub %11, %94
-    %100: %r0 = coerce %99
-    %101: %r0 = convert %100
-    %102: %r1 = alias %98
-    %103: %r1 = alias %102
-    %104: %r4 = host host.call "charCodeAt" %103, %101
-    %105: %r6 = binary.eq %104, %95
-    branch %105 -> block34 -> block25
+    %91: %r1 = load var $2: %r1
+    %92: %r1 = alias %91
+    %93: %r0 = binary.sub %8, %88
+    %94: %r0 = coerce %93
+    %95: %r0 = convert %94
+    %96: %r1 = alias %92
+    %97: %r1 = alias %96
+    %98: %r2 = host host.call "charCodeAt" %97, %95
+    %99: %r4 = binary.eq %98, %89
+    branch %99 -> block34 -> block25
   block25:
-    %106: %r0 = const 0
-    %107: %r6 = binary.eq %11, %106
-    branch %107 -> block30 -> block26
+    %100: %r0 = const 0
+    %101: %r4 = binary.eq %8, %100
+    branch %101 -> block30 -> block26
   block26:
-    %108: %r0 = const 0
-    %109: %r0 = const 1
-    jump -> block27(%108)
-  block27(%12: %r0):
-    %110: %r6 = binary.lt %12, %80
-    branch %110 -> block29 -> block28
+    %102: %r0 = const 0
+    %103: %r0 = const 1
+    jump -> block27(%102)
+  block27(%9: %r0):
+    %104: %r4 = binary.lt %9, %74
+    branch %104 -> block29 -> block28
   block28:
-    jump -> block20(%11)
+    jump -> block20(%8)
   block29:
-    %111: %r1 = load property %82.$v: %r1
+    %105: %r1 = load var $2: %r1
+    %106: %r1 = alias %105
+    %107: %r0 = convert %9
+    %108: %r1 = alias %106
+    %109: %r1 = alias %108
+    %110: %r2 = host host.call "charCodeAt" %109, %107
+    %111: %r1 = load var $0: %r1
     %112: %r1 = alias %111
-    %113: %r0 = convert %12
+    %113: %r1 = host host.global "String.fromCharCode" %110
     %114: %r1 = alias %112
-    %115: %r1 = alias %114
-    %116: %r4 = host host.call "charCodeAt" %115, %113
-    %117: %r1 = load var $0: %r1
-    %118: %r1 = alias %117
-    %119: %r1 = host host.global "String.fromCharCode" %116
-    %120: %r1 = alias %118
-    %121: %r1 = alias %119
-    %122: %r1 = host host.binary "+" %120, %121
-    store var $0: %r1, %122
-    %123: %r0 = binary.add %12, %109
-    %124: %r0 = coerce %123
-    jump -> block27(%124)
+    %115: %r1 = alias %113
+    %116: %r1 = host host.binary "+" %114, %115
+    store var $0: %r1, %116
+    %117: %r0 = binary.add %9, %103
+    %118: %r0 = coerce %117
+    jump -> block27(%118)
   block30:
-    %125: %r4 = const 49
-    %126: %r1 = load var $0: %r1
-    %127: %r1 = alias %126
-    %128: %r1 = host host.global "String.fromCharCode" %125
-    %129: %r1 = alias %127
-    %130: %r1 = alias %128
-    %131: %r1 = host host.binary "+" %129, %130
-    store var $0: %r1, %131
-    %132: %r0 = const 0
-    %133: %r4 = const 48
-    %134: %r0 = const 1
-    jump -> block31(%132)
-  block31(%13: %r0):
-    %135: %r6 = binary.lt %13, %80
-    branch %135 -> block33 -> block32
+    %119: %r2 = const 49
+    %120: %r1 = load var $0: %r1
+    %121: %r1 = alias %120
+    %122: %r1 = host host.global "String.fromCharCode" %119
+    %123: %r1 = alias %121
+    %124: %r1 = alias %122
+    %125: %r1 = host host.binary "+" %123, %124
+    store var $0: %r1, %125
+    %126: %r0 = const 0
+    %127: %r2 = const 48
+    %128: %r0 = const 1
+    jump -> block31(%126)
+  block31(%10: %r0):
+    %129: %r4 = binary.lt %10, %74
+    branch %129 -> block33 -> block32
   block32:
-    %136: %r0 = const 3
-    jump -> block20(%136)
+    %130: %r0 = const 3
+    jump -> block20(%130)
   block33:
-    %169: %r1 = load var $0: %r1
-    %170: %r1 = alias %169
-    %171: %r1 = host host.global "String.fromCharCode" %133
-    %172: %r1 = alias %170
-    %173: %r1 = alias %171
-    %174: %r1 = host host.binary "+" %172, %173
-    store var $0: %r1, %174
-    %175: %r0 = binary.add %13, %134
-    %176: %r0 = coerce %175
-    jump -> block31(%176)
+    %163: %r1 = load var $0: %r1
+    %164: %r1 = alias %163
+    %165: %r1 = host host.global "String.fromCharCode" %127
+    %166: %r1 = alias %164
+    %167: %r1 = alias %165
+    %168: %r1 = host host.binary "+" %166, %167
+    store var $0: %r1, %168
+    %169: %r0 = binary.add %10, %128
+    %170: %r0 = coerce %169
+    jump -> block31(%170)
   block34:
-    jump -> block23(%100)
+    jump -> block23(%94)
   block35:
-    %177: %r6 = binary.lt %10, %89
-    %178: %r2 = const "$v"
-    %179: %r3 = object %s0 %82, %178
-    %180: %r2 = const "$v"
-    %181: %r3 = object %s0 %82, %180
-    branch %177 -> block37(%179) -> block36(%181)
-  block36(%14: %r3):
-    jump -> block38(%90, %14)
-  block37(%15: %r3):
-    %182: %r1 = alias %79
-    %183: %r0 = convert %10
-    %184: %r1 = alias %182
-    %185: %r1 = alias %184
-    %186: %r4 = host host.call "charCodeAt" %185, %183
-    jump -> block38(%186, %15)
-  block38(%16: %r4, %17: %r3):
-    %187: %r1 = load cell %17: %r1
-    %188: %r1 = alias %187
-    %189: %r1 = host host.global "String.fromCharCode" %16
-    %190: %r1 = alias %188
-    %191: %r1 = alias %189
-    %192: %r1 = host host.binary "+" %190, %191
-    store cell %17: %r1, %192
-    %193: %r0 = binary.add %10, %91
-    %194: %r0 = coerce %193
-    jump -> block21(%194)
-  block39(%18: %r0):
-    %151: %r6 = binary.ne %18, %148
-    %152: %r6 = binary.lt %18, %149
-    %153: %r6 = binary.and %151, %152
-    branch %153 -> block41 -> block40
+    %171: %r4 = binary.lt %7, %83
+    branch %171 -> block37 -> block36
+  block36:
+    jump -> block38(%84)
+  block37:
+    %172: %r1 = alias %73
+    %173: %r0 = convert %7
+    %174: %r1 = alias %172
+    %175: %r1 = alias %174
+    %176: %r2 = host host.call "charCodeAt" %175, %173
+    jump -> block38(%176)
+  block38(%11: %r2):
+    %177: %r1 = load var $2: %r1
+    %178: %r1 = alias %177
+    %179: %r1 = host host.global "String.fromCharCode" %11
+    %180: %r1 = alias %178
+    %181: %r1 = alias %179
+    %182: %r1 = host host.binary "+" %180, %181
+    store var $2: %r1, %182
+    %183: %r0 = binary.add %7, %85
+    %184: %r0 = coerce %183
+    jump -> block21(%184)
+  block39(%12: %r0):
+    %145: %r4 = binary.ne %12, %142
+    %146: %r4 = binary.lt %12, %143
+    %147: %r4 = binary.and %145, %146
+    branch %147 -> block41 -> block40
   block40:
-    %154: %r0 = binary.add %146, %18
-    %155: %r0 = coerce %154
-    %156: %r0 = const 15
-    %157: %r0 = const 10
-    %158: %r0 = const 0
-    %159: %r0 = const 1
-    jump -> block42(%156)
+    %148: %r0 = binary.add %140, %12
+    %149: %r0 = coerce %148
+    %150: %r0 = const 15
+    %151: %r0 = const 10
+    %152: %r0 = const 0
+    %153: %r0 = const 1
+    jump -> block42(%150)
   block41:
-    %167: %r0 = binary.add %18, %150
-    %168: %r0 = coerce %167
-    jump -> block39(%168)
-  block42(%19: %r0):
-    %160: %r6 = binary.gt %19, %157
-    %161: %r6 = binary.lt %19, %158
-    %162: %r6 = binary.or %160, %161
-    branch %162 -> block44 -> block43
+    %161: %r0 = binary.add %12, %144
+    %162: %r0 = coerce %161
+    jump -> block39(%162)
+  block42(%13: %r0):
+    %154: %r4 = binary.gt %13, %151
+    %155: %r4 = binary.lt %13, %152
+    %156: %r4 = binary.or %154, %155
+    branch %156 -> block44 -> block43
   block43:
-    %163: %r0 = binary.add %155, %19
-    %164: %r0 = coerce %163
-    return %164
+    %157: %r0 = binary.add %149, %13
+    %158: %r0 = coerce %157
+    return %158
   block44:
-    %165: %r0 = binary.sub %19, %159
-    %166: %r0 = coerce %165
-    jump -> block42(%166)
+    %159: %r0 = binary.sub %13, %153
+    %160: %r0 = coerce %159
+    jump -> block42(%160)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 0 numbered 0 decided 0 unboxed 2 updated 0 split 0 promoted 0 folded 0
 
-shape %s0 ref {$o: %r2 owner, $k: %r2 key}
-shape %s1 cell {$v: %r1 box}
+shape %s0 cell {$v: %r1 box}
 
 rep %r0 = number signed 32
 rep %r1 = string
-rep %r2 = erased
-rep %r3 = cell of %r1
-rep %r4 = number unsigned 16
-rep %r5 = object %s1
-rep %r6 = number bool
+rep %r2 = number unsigned 16
+rep %r3 = object %s0
+rep %r4 = number bool

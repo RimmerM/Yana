@@ -1,4 +1,5 @@
 #include "lower_thread.h"
+#include "fold_arith.h"
 #include "lower_builder.h"
 
 /*
@@ -32,15 +33,18 @@ U32 widthOf(LowerType type) {
     return type == LowerType::Int32 ? 32 : 64;
 }
 
-U64 maskOf(U32 bits) {
-    return bits >= 64 ? maxLimit<U64> : (U64(1) << bits) - 1;
-}
+// fold_arith.h's, the one spelling of the low-bits mask - J163.
+using foldArith::maskOf;
 
-bool constantOf(LowerBase base, LowerValue* value, U64& into) {
-    auto inst = value->inst();
-    if(inst->kind != LowerInst::Imm || !isInt(value->type)) return false;
+// An integer literal as the pattern of its own register's width - `constantOf` (lower_inst.h), which
+// answers any literal's raw bits, narrowed to what this pass compares.
+bool integerConstant(LowerBase base, LowerValue* value, U64& into) {
+    if(!isInt(value->type)) return false;
 
-    into = ((LowerImm*)inst)->i & maskOf(widthOf(value->type));
+    auto constant = constantOf(base, value - base);
+    if(constant.isNothing()) return false;
+
+    into = constant.unwrap() & maskOf(widthOf(value->type));
     return true;
 }
 
@@ -55,7 +59,7 @@ I64 signedValue(U64 value, U32 bits) {
  * Whether the relation holds between two literals of a given width.
  *
  * The two float codes are declined rather than answered: `uno` and `ord` are questions about a NaN,
- * and `constantOf` never hands over a float in the first place - so a branch on one of them reaches
+ * and `integerConstant` never hands over a float in the first place - so a branch on one of them reaches
  * here only if something above changed, and refusing is the answer that cannot be wrong.
  */
 bool compareConstants(LowerCmp cmp, U64 a, U64 b, U32 bits, bool& into) {
@@ -132,10 +136,10 @@ bool readCondition(LowerBase base, LowerBlock* block, Condition& into) {
     auto rhs = base[compare->rhs];
 
     if(isPhiOf(base, block, lhs, into.phi)) {
-        if(!constantOf(base, rhs, into.constant)) return false;
+        if(!integerConstant(base, rhs, into.constant)) return false;
         into.phiOnLeft = true;
     } else if(isPhiOf(base, block, rhs, into.phi)) {
-        if(!constantOf(base, lhs, into.constant)) return false;
+        if(!integerConstant(base, lhs, into.constant)) return false;
         into.phiOnLeft = false;
     } else {
         return false;
@@ -177,7 +181,7 @@ bool canRedirect(LowerBase base, LowerBlock* from, LowerBlock* block, LowerBlock
 // value is not a literal.
 bool decideEdge(LowerBase base, const Condition& condition, LowerValue* incoming, bool& taken) {
     U64 value;
-    if(!constantOf(base, incoming, value)) return false;
+    if(!integerConstant(base, incoming, value)) return false;
 
     if(!condition.compare) {
         taken = value != 0;
@@ -357,7 +361,7 @@ bool collapseTrivialPhis(LowerBase base, LowerModule& module, LowerFunction& fun
                     if(base[value] == result) continue;
 
                     U64 held;
-                    auto isConstant = constantOf(base, base[value], held) &&
+                    auto isConstant = integerConstant(base, base[value], held) &&
                                       base[value]->type == result->type;
 
                     if(!only) {
@@ -439,7 +443,7 @@ bool foldConstantBranches(LowerBase base, LowerModule& module, LowerFunction& fu
         U64 value;
         bool answer;
 
-        if(constantOf(base, cond, value)) {
+        if(integerConstant(base, cond, value)) {
             answer = value != 0;
         } else if(cond->inst()->kind == LowerInst::Cmp) {
             auto compare = (LowerInstCmp*)cond->inst();
@@ -447,7 +451,7 @@ bool foldConstantBranches(LowerBase base, LowerModule& module, LowerFunction& fu
             auto rhs = base[compare->rhs];
 
             U64 a, b;
-            if(!constantOf(base, lhs, a) || !constantOf(base, rhs, b)) continue;
+            if(!integerConstant(base, lhs, a) || !integerConstant(base, rhs, b)) continue;
             if(!compareConstants(compare->getCmp(), a, b, widthOf(lhs->type), answer)) continue;
         } else {
             continue;
@@ -925,8 +929,8 @@ bool readRangeTest(LowerBase base, LowerValue* cond, RangeTest& into) {
     auto cmp = compare->getCmp();
 
     U64 left, right;
-    auto leftConstant = constantOf(base, lhs, left);
-    auto rightConstant = constantOf(base, rhs, right);
+    auto leftConstant = integerConstant(base, lhs, left);
+    auto rightConstant = integerConstant(base, rhs, right);
     if(leftConstant == rightConstant) return false;
 
     auto subject = rightConstant ? lhs : rhs;
@@ -945,8 +949,8 @@ bool readRangeTest(LowerBase base, LowerValue* cond, RangeTest& into) {
         auto unmoved = base[binary->lhs];
         U64 offset;
 
-        if(unmoved->type == subject->type && !constantOf(base, unmoved, offset) &&
-           constantOf(base, base[binary->rhs], offset)) {
+        if(unmoved->type == subject->type && !integerConstant(base, unmoved, offset) &&
+           integerConstant(base, base[binary->rhs], offset)) {
             // `x - k` in the interval is `x` in the interval moved up by `k`, and `x + k` down.
             auto shift = moved->kind == LowerInst::Sub ? offset : (0 - offset);
             into.holds.start = (into.holds.start + shift) & mask;

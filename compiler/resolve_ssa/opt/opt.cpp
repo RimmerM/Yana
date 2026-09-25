@@ -326,6 +326,17 @@ bool optimizeProgram(Context& context, mir::Program& program, Converted& convert
         checkpoint(body, "after endNonReturningBlocks"_v);
     });
 
+    /*
+     * Every teardown that is an ordinary call made into one, immediately in front of the pass that
+     * copies calls - `opt/teardown.cpp`, J137. Native only, for the reason that file gives: a managed
+     * target's reclaim is nothing, and its drops are `resolve_ssa/js`'s to decide.
+     */
+    if(!isJsMode(context.settings)) expandTeardowns(opt);
+
+    // Ahead of the inliner, whose settling runs `forwardMemory` over every callee it weighs - and
+    // after `expandTeardowns`, which turns a global's drop into a call handed its address.
+    findAddressedGlobals(opt);
+
     inlineCalls(opt);
 
     for(auto modulePointer: program.modules) {

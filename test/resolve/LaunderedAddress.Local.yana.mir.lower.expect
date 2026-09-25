@@ -1,0 +1,417 @@
+mut @reader = [0, 0, 0, 0]
+mut @reads = [0, 0, 0, 0]
+
+fillLet<complex>(%handle: I32, %into: Ptr): I64 {
+  b_0 {
+    %v_1 = bitcast %into: I64
+    %v_2 = syscall 0, 1000, %v_1, 16: I64
+    ret %v_2
+  }
+}
+
+fillArray<complex>(%handle: I32, %into: Ptr): I64 {
+  b_0 {
+    %v_1 = bitcast %into: I64
+    %v_2 = syscall 0, 1000, %v_1, 16: I64
+    ret %v_2
+  }
+}
+
+fillBoxed<complex>(%handle: I32, %into: Ptr): I64 {
+  b_0 {
+    %v_1 = bitcast %into: I64
+    %v_2 = syscall 0, 1000, %v_1, 16: I64
+    ret %v_2
+  }
+}
+
+fillPointerField<complex>(%handle: I32, %into: Ptr): I64 {
+  b_0 {
+    %v_1 = bitcast %into: I64
+    %v_2 = syscall 0, 1000, %v_1, 16: I64
+    ret %v_2
+  }
+}
+
+fillVector<complex>(%handle: I32, %into: Ptr): I64 {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = bitcast %into: I64
+    store %v_1, %v_2, 8
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 16, 8
+    %v_4 = bitcast %v_1: I64
+    %v_5 = syscall 19, 1000, %v_4, 1: I64
+    ret %v_5
+  }
+}
+
+fillLoop<complex>(%handle: I32, %into: Ptr, %n: I32): I64 {
+  b_0 {
+    %v_1 = sub %n, 1: I32
+    %v_2 = bitcast %into: I64
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = phi [b_0, 0], [b_5, %v_6]: I64
+    %v_7 = phi [b_0, 0], [b_5, %v_8]: I32
+    %v_9 = cmp_ilt %v_7, %n: I32
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    %v_12 = syscall 0, 1000, %v_4, 16: I64
+    ret %v_12
+  }
+
+  b_10 {
+    %v_13 = cmp_eq %v_7, %v_1: I32
+    je %v_13, b_14, b_15
+  }
+
+  b_15 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_15, %v_4], [b_14, %v_2]: I64
+    %v_8 = add %v_7, 1: I32
+    jmp b_3
+  }
+
+  b_14 {
+    jmp b_5
+  }
+}
+
+keep<complex>(%h: Ptr, %n: I64) {
+  b_0 {
+    store %h, %n, 8
+    ret 
+  }
+}
+
+poke<complex>(%v_0: I64, %v_1: I32) {
+  b_2 {
+    %v_3 = bitcast %v_0: Ptr
+    store %v_3, 55, 8
+    ret 
+  }
+}
+
+handOver<complex>(%into: Ptr, %h: Ptr): I32 {
+  b_0 {
+    %v_1 = bitcast %into: I64
+    call_complex keep, %h, %v_1
+    ret 1
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    setpattern %v_1, 8, 0
+    %v_2 = bitcast %v_1: I64
+    %v_3 = syscall 22, %v_2: I64
+    %v_4 = cmp_ilt %v_3, 0: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = loads %v_1, 4: I32
+    store @reader, %v_7, 4
+    %v_8 = sext %v_7: I64
+    %v_9 = syscall 33, %v_8, 1000: I64
+    %v_10 = cmp_neq %v_9, 1000: I32
+    je %v_10, b_5, b_11
+  }
+
+  b_5 {
+    ret 1
+  }
+
+  b_11 {
+    %v_12 = add %v_1, 4: Ptr
+    %v_13 = loads %v_12, 4: I32
+    %v_14 = alloca 16, 8: Ptr
+    store %v_14, 3, 8
+    %v_15 = add %v_14, 8: Ptr
+    store %v_15, 4, 8
+    %v_16 = sext %v_13: I64
+    %v_17 = bitcast %v_14: I64
+    %v_18 = syscall 1, %v_16, %v_17, 16: I64
+    %v_19 = loads @reader, 4: I32
+    %v_20 = alloca 16, 8: Ptr
+    %reads = global @reads: Ptr
+    %v_21 = loads %reads, 4: I32
+    %v_22 = add %v_21, 1: I32
+    store %reads, %v_22, 4
+    setpattern %v_20, 16, 0
+    %v_23 = call_complex fillLet, %v_19, %v_20: I64
+    %v_24 = cmp_ilt %v_23, 0: I32
+    je %v_24, b_25, b_26
+  }
+
+  b_27 {
+    jmp b_28
+  }
+
+  b_28 {
+    %v_29 = phi [b_27, 0], [b_25, 1]: I32
+    %v_30 = alloca 16, 8: Ptr
+    store %v_30, 5, 8
+    %v_31 = add %v_30, 8: Ptr
+    store %v_31, 6, 8
+    %v_32 = bitcast %v_30: I64
+    %v_33 = syscall 1, %v_16, %v_32, 16: I64
+    %v_34 = loads @reader, 4: I32
+    %v_35 = alloca 16, 8: Ptr
+    %reads = global @reads: Ptr
+    %v_36 = loads %reads, 4: I32
+    %v_37 = add %v_36, 1: I32
+    store %reads, %v_37, 4
+    setpattern %v_35, 16, 0
+    %v_38 = call_complex fillArray, %v_34, %v_35: I64
+    %v_39 = cmp_ilt %v_38, 0: I32
+    je %v_39, b_40, b_41
+  }
+
+  b_25 {
+    jmp b_28
+  }
+
+  b_42 {
+    jmp b_43
+  }
+
+  b_43 {
+    %v_44 = phi [b_42, %v_29], [b_40, %v_45]: I32
+    %v_46 = alloca 16, 8: Ptr
+    store %v_46, 7, 8
+    %v_47 = add %v_46, 8: Ptr
+    store %v_47, 8, 8
+    %v_48 = bitcast %v_46: I64
+    %v_49 = syscall 1, %v_16, %v_48, 16: I64
+    %v_50 = loads @reader, 4: I32
+    %v_51 = alloca 16, 8: Ptr
+    %reads = global @reads: Ptr
+    %v_52 = loads %reads, 4: I32
+    %v_53 = add %v_52, 1: I32
+    store %reads, %v_53, 4
+    setpattern %v_51, 16, 0
+    %v_54 = call_complex fillBoxed, %v_50, %v_51: I64
+    %v_55 = cmp_ilt %v_54, 0: I32
+    je %v_55, b_56, b_57
+  }
+
+  b_40 {
+    %v_45 = add %v_29, 2: I32
+    jmp b_43
+  }
+
+  b_58 {
+    jmp b_59
+  }
+
+  b_59 {
+    %v_60 = phi [b_58, %v_44], [b_56, %v_61]: I32
+    %v_62 = alloca 16, 8: Ptr
+    store %v_62, 9, 8
+    %v_63 = add %v_62, 8: Ptr
+    store %v_63, 1, 8
+    %v_64 = bitcast %v_62: I64
+    %v_65 = syscall 1, %v_16, %v_64, 16: I64
+    %v_66 = loads @reader, 4: I32
+    %v_67 = alloca 16, 8: Ptr
+    %reads = global @reads: Ptr
+    %v_68 = loads %reads, 4: I32
+    %v_69 = add %v_68, 1: I32
+    store %reads, %v_69, 4
+    setpattern %v_67, 16, 0
+    %v_70 = call_complex fillPointerField, %v_66, %v_67: I64
+    %v_71 = cmp_ilt %v_70, 0: I32
+    je %v_71, b_72, b_73
+  }
+
+  b_56 {
+    %v_61 = add %v_44, 4: I32
+    jmp b_59
+  }
+
+  b_74 {
+    jmp b_75
+  }
+
+  b_75 {
+    %v_76 = phi [b_74, %v_60], [b_72, %v_77]: I32
+    %v_78 = alloca 16, 8: Ptr
+    store %v_78, 2, 8
+    %v_79 = add %v_78, 8: Ptr
+    store %v_79, 3, 8
+    %v_80 = bitcast %v_78: I64
+    %v_81 = syscall 1, %v_16, %v_80, 16: I64
+    %v_82 = loads @reader, 4: I32
+    %v_83 = alloca 16, 8: Ptr
+    %reads = global @reads: Ptr
+    %v_84 = loads %reads, 4: I32
+    %v_85 = add %v_84, 1: I32
+    store %reads, %v_85, 4
+    setpattern %v_83, 16, 0
+    %v_86 = call_complex fillVector, %v_82, %v_83: I64
+    %v_87 = cmp_ilt %v_86, 0: I32
+    je %v_87, b_88, b_89
+  }
+
+  b_72 {
+    %v_77 = add %v_60, 8: I32
+    jmp b_75
+  }
+
+  b_90 {
+    jmp b_91
+  }
+
+  b_91 {
+    %v_92 = phi [b_90, %v_76], [b_88, %v_93]: I32
+    %v_94 = alloca 16, 8: Ptr
+    store %v_94, 4, 8
+    %v_95 = add %v_94, 8: Ptr
+    store %v_95, 5, 8
+    %v_96 = bitcast %v_94: I64
+    %v_97 = syscall 1, %v_16, %v_96, 16: I64
+    %v_98 = loads @reader, 4: I32
+    %v_99 = alloca 16, 8: Ptr
+    %reads = global @reads: Ptr
+    %v_100 = loads %reads, 4: I32
+    %v_101 = add %v_100, 1: I32
+    store %reads, %v_101, 4
+    setpattern %v_99, 16, 0
+    %v_102 = call_complex fillLoop, %v_98, %v_99, 3: I64
+    %v_103 = cmp_ilt %v_102, 0: I32
+    je %v_103, b_104, b_105
+  }
+
+  b_88 {
+    %v_93 = add %v_76, 16: I32
+    jmp b_91
+  }
+
+  b_106 {
+    jmp b_107
+  }
+
+  b_107 {
+    %v_108 = phi [b_106, %v_92], [b_104, %v_109]: I32
+    %v_110 = alloca 16, 8: Ptr
+    %v_111 = alloca 12, 8: Ptr
+    %reads = global @reads: Ptr
+    %v_112 = loads %reads, 4: I32
+    %v_113 = add %v_112, 1: I32
+    store %reads, %v_113, 4
+    setpattern %v_110, 16, 0
+    setpattern %v_111, 12, 0
+    %v_114 = call_complex handOver, %v_110, %v_111: I32
+    %v_115 = cmp_ilt %v_114, 0: I32
+    je %v_115, b_116, b_117
+  }
+
+  b_104 {
+    %v_109 = add %v_92, 32: I32
+    jmp b_107
+  }
+
+  b_118 {
+    jmp b_119
+  }
+
+  b_119 {
+    %v_120 = phi [b_118, %v_108], [b_116, %v_121]: I32
+    %v_122 = loads @reads, 4: I32
+    %v_123 = cmp_neq %v_122, 7: I32
+    %v_124 = add %v_120, 128: I32
+    %v_125 = select %v_123, %v_124, %v_120: I32
+    %v_126 = syscall 3, 1000: I64
+    %v_127 = loads @reader, 4: I32
+    %v_128 = sext %v_127: I64
+    %v_129 = syscall 3, %v_128: I64
+    %v_130 = syscall 3, %v_16: I64
+    ret %v_125
+  }
+
+  b_116 {
+    %v_121 = add %v_108, 64: I32
+    jmp b_119
+  }
+
+  b_26 {
+    %v_131 = loads %v_20, 8: I64
+    %v_132 = imul %v_131, 100: I64
+    %v_133 = add %v_20, 8: Ptr
+    %v_134 = loads %v_133, 8: I64
+    %v_135 = add %v_132, %v_134: I64
+    %v_136 = cmp_neq %v_135, 304: I32
+    je %v_136, b_25, b_27
+  }
+
+  b_41 {
+    %v_137 = loads %v_35, 8: I64
+    %v_138 = imul %v_137, 100: I64
+    %v_139 = add %v_35, 8: Ptr
+    %v_140 = loads %v_139, 8: I64
+    %v_141 = add %v_138, %v_140: I64
+    %v_142 = cmp_neq %v_141, 506: I32
+    je %v_142, b_40, b_42
+  }
+
+  b_57 {
+    %v_143 = loads %v_51, 8: I64
+    %v_144 = imul %v_143, 100: I64
+    %v_145 = add %v_51, 8: Ptr
+    %v_146 = loads %v_145, 8: I64
+    %v_147 = add %v_144, %v_146: I64
+    %v_148 = cmp_neq %v_147, 708: I32
+    je %v_148, b_56, b_58
+  }
+
+  b_73 {
+    %v_149 = loads %v_67, 8: I64
+    %v_150 = imul %v_149, 100: I64
+    %v_151 = add %v_67, 8: Ptr
+    %v_152 = loads %v_151, 8: I64
+    %v_153 = add %v_150, %v_152: I64
+    %v_154 = cmp_neq %v_153, 901: I32
+    je %v_154, b_72, b_74
+  }
+
+  b_89 {
+    %v_155 = loads %v_83, 8: I64
+    %v_156 = imul %v_155, 100: I64
+    %v_157 = add %v_83, 8: Ptr
+    %v_158 = loads %v_157, 8: I64
+    %v_159 = add %v_156, %v_158: I64
+    %v_160 = cmp_neq %v_159, 203: I32
+    je %v_160, b_88, b_90
+  }
+
+  b_105 {
+    %v_161 = loads %v_99, 8: I64
+    %v_162 = imul %v_161, 100: I64
+    %v_163 = add %v_99, 8: Ptr
+    %v_164 = loads %v_163, 8: I64
+    %v_165 = add %v_162, %v_164: I64
+    %v_166 = cmp_neq %v_165, 405: I32
+    je %v_166, b_104, b_106
+  }
+
+  b_117 {
+    %v_167 = load %v_111, 8: I64
+    %v_168 = add %v_111, 8: Ptr
+    %v_169 = load %v_168, 4: I32
+    call_complex poke, %v_167, %v_169
+    %v_170 = loads %v_110, 8: I64
+    %v_171 = cmp_neq %v_170, 55: I32
+    je %v_171, b_116, b_118
+  }
+}
+

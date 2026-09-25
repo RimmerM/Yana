@@ -1,0 +1,55 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 12, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 2, 4
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 3, 4
+    %v_4 = imm 3: I64
+    jmp b_5
+  }
+
+  b_6 {
+    %v_7 = cmp_ge %v_8, %v_4: I32
+    je %v_7, b_9, b_5
+  }
+
+  b_5 {
+    %v_10 = phi [b_6, %v_8], [b_0, 0]: I64
+    %v_11 = phi [b_6, %v_12], [b_0, 0]: I32
+    %v_13 = shl %v_10, 2: I64
+    %v_14 = add %v_1, %v_13: Ptr
+    %v_15 = loads %v_14, 4: I32
+    %v_12 = add %v_11, %v_15: I32
+    %v_8 = add %v_10, 1: I64
+    %v_16 = cmp_ilt %v_8, %v_4: I32
+    je %v_16, b_6, b_17
+  }
+
+  b_17 {
+    %v_18 = loads %v_1, 4: I32
+    %v_19 = add %v_18, %v_12: I32
+    store %v_1, %v_19, 4
+    %v_20 = loads %v_1, 4: I32
+    %v_21 = add %v_20, 3: I32
+    %v_22 = loads %v_3, 4: I32
+    %v_23 = add %v_22, %v_21: I32
+    store %v_3, %v_23, 4
+    %v_24 = loads %v_1, 4: I32
+    %v_25 = imul %v_24, 100: I32
+    %v_26 = loads %v_2, 4: I32
+    %v_27 = imul %v_26, 10: I32
+    %v_28 = add %v_25, %v_27: I32
+    %v_29 = loads %v_3, 4: I32
+    %v_30 = add %v_28, %v_29: I32
+    ret %v_30
+  }
+
+  b_9 {
+    %v_31 = syscall 60, 134: I64
+    unreachable 
+  }
+}
+

@@ -1596,6 +1596,19 @@ struct JsTargetValue {
      */
     JsirPtr<JsBlock> projectedIn = nullptr;
     U32 projectedAt = 0;
+
+    /*
+     * For a block argument that carries a **reference**: the SSA value every edge hands it, when
+     * there is exactly one (J136). Such an argument becomes no JSIR argument at all - its row is
+     * that value's row, copied in where its block starts - so a `&` that crossed a join names the
+     * owner it names on every edge rather than a `{$o, $k}` descriptor built per edge. See
+     * `Conversion::findSameReferenceArguments`.
+     */
+    U32 sameAs = ~0u;
+
+    // For a `Conversion::pointerSlots` local: the place its one store wrote, which every load of it
+    // answers. Invalid until that store is converted, and forever when what it wrote was a value.
+    JsPlaceId pointee;
 };
 
 /*
@@ -2012,6 +2025,9 @@ struct JsOptCounts {
     // into a variable nothing reads before the next write counts under `removed`.
     U32 split = 0;
     U32 promoted = 0;
+
+    // Operations over literals made literals - `foldConstants` (J136).
+    U32 folded = 0;
 };
 
 StringView jsInstMnemonic(JsInst::Kind kind);

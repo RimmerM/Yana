@@ -9,12 +9,14 @@
    ambiguous or not, it is what the call compiles to, and an ambiguity there is a real mistake and
    not a candidate about to be discarded. Two modules answering `Widget.describe` used to compile
    silently into whichever one the import order happened to visit first; `Widget.yana` and
-   `WidgetExtra.yana` are that pair.
+   `WidgetExtra.yana` are that pair. Each declares its own `Widget`, since adding to another
+   module's type is refused on its own terms (`Reject.Namespace.Foreign.yana`), which is also why
+   the value is built by `widget` rather than by a constructor both modules answer.
 -}
 
 import Widget
 import WidgetExtra
 
 fn main() -> Int:
-    let w = Widget {size: 4}
+    let w = widget(4)
     return w.describe()

@@ -49,8 +49,10 @@ fn assigned(@lazy v: I32) -> I32:
     return 0
 
 -- The two shapes a closure cannot have in this stage, reached through the thunk rather than through
--- a written lambda. Both name the milestone they wait for.
-fn nested() -> I32 = passed(True, passed(True, bump(1)))
+-- a written lambda. A thunk inside a thunk is built since J139 where what it names is the enclosing
+-- thunk's own - `passed(True, passed(True, bump(1)))` compiles - so the nested case here names a
+-- parameter from outside both, which would be a capture of a capture.
+fn nested(n: I32) -> I32 = passed(True, passed(True, n))
 
 fn inGeneric(x: a) -> I32 = passed(True, bump(2))
 

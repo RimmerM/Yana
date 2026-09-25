@@ -24,14 +24,9 @@ fn main() -> one %r0
     %41: %r1 = const 3
     %42: %r1 = const 0
     %43: %r1 = const 0
-    %44: %r1 = const 1
-    %45: %r1 = binary.sub %41, %44
-    %46: %r1 = coerce %45
+    %46: %r1 = const 2
     %47: %r1 = const 2
-    %48: %r1 = const 3
-    %49: %r1 = const 4
-    %50: %r1 = binary.shl %49, %48
-    %51: %r1 = coerce %50
+    %51: %r1 = const 32
     %52: %r1 = helper.leadingzeros %41
     %53: %r1 = coerce %52
     %54: %r1 = binary.sub %51, %53
@@ -73,7 +68,7 @@ fn main() -> one %r0
     branch %28 -> block5 -> block3
   block5:
     %80: %r10 = convert %0
-    %81: %r10 = convert %23
+    %81: %r10 = const 3
     %82: %r9 = binary.ge %80, %81
     branch %82 -> block7 -> block6
   block6:
@@ -652,7 +647,7 @@ fn siftDown(I32)(parts %r4, one %r1, one %r1, one %r1) -> omitted
     host host.throw "yana: a runtime check failed"
     unreachable
 
-optimizer clones 1 aliased 1 forwarded 0 removed 77 adopted 0 sunk 2 numbered 78 decided 18 unboxed 2 updated 0 split 0 promoted 3
+optimizer clones 1 aliased 1 forwarded 0 removed 82 adopted 0 sunk 2 numbered 78 decided 18 unboxed 2 updated 0 split 0 promoted 3 folded 5
 
 shape %s0 object ArrayView {items: %r2, length: %r1, offset: %r1}
 shape %s1 cell {$v: %r6 box}

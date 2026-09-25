@@ -810,7 +810,14 @@ void Resolver::failIfNot(Builder& builder, Node& condition, Block& onFail, Carry
 }
 
 /*
- * The value a pattern compares against - a range's bound, or a literal.
+ * The value a pattern compares against - a range's bound, a section's operand: a literal, or a name.
+ *
+ * A **name** here is read rather than bound - `>limit`, `==a` - which is the one position in a
+ * pattern where a lowercase name does not introduce one (`doc/spec/patterns.md`: the operator is what
+ * says the pattern compares). What it reads is first a name this same pattern bound to its left -
+ * `{a, ==a}`, whose binding is recorded in `bound` and not yet in scope, since names only reach the
+ * arm - and otherwise the name in the scope the match is written in. Since J139; it was refused as
+ * unbuilt before.
  *
  * Typed at the **pivot's** type rather than at its own, which is the whole of what makes a negative
  * literal work: the lexer produces a magnitude and a separate `-`, and what the number *is* is a
@@ -819,7 +826,23 @@ void Resolver::failIfNot(Builder& builder, Node& condition, Block& onFail, Carry
  * a declared `FromInt` that answer is the call the literal is everywhere else, so `5` against a
  * `Money` pivot compares what the program's own `fromInt` builds.
  */
-Node* Resolver::patternBound(Builder& builder, ast::Pat& pat, DeclPtr<Type> type) {
+Node* Resolver::patternBound(Builder& builder, ast::Pat& pat, DeclPtr<Type> type,
+                             const SmallArray<PatternBinding, 4>& bound, Request wanted) {
+    if(pat.kind == ast::Pat::Var) {
+        // The latest binding of the name, for the reason a scope answers with its innermost one.
+        for(Size i = bound.size(); i > 0; i--) {
+            auto& binding = bound[i - 1];
+            if(binding.name != pat.var) continue;
+            return readPlace(builder, pat.source, *binding.place, wanted);
+        }
+
+        ast::Expr name {};
+        name.var = pat.var;
+        name.source = pat.source;
+        name.kind = ast::Expr::Var;
+        return resolveValue(builder, name, type, wanted);
+    }
+
     if(pat.kind < ast::Pat::Lit) {
         unsupported(pat.source, "a pattern that compares against anything but a literal or `_`"_v);
         return nullptr;
@@ -845,7 +868,8 @@ Node* Resolver::patternBound(Builder& builder, ast::Pat& pat, DeclPtr<Type> type
  * type runs the `==` it declared, and against a width it is the one instruction it always was.
  */
 bool Resolver::comparePattern(Builder& builder, BinaryOp op, Place& pivot, ast::Pat& bound,
-                              Block* onFail, Carry& carry, LocationId source) {
+                              Block* onFail, Carry& carry, LocationId source,
+                              const SmallArray<PatternBinding, 4>& into) {
     if(bound.kind == ast::Pat::Any) return true;
 
     // The pivot before the bound, so that a dump reads in the order the comparison is written -
@@ -854,7 +878,7 @@ bool Resolver::comparePattern(Builder& builder, BinaryOp op, Place& pivot, ast::
     auto read = readPlace(builder, source, pivot, inspectRequest());
     if(!read) return false;
 
-    auto value = patternBound(builder, bound, pivot.occurrence.type);
+    auto value = patternBound(builder, bound, pivot.occurrence.type, into, inspectRequest());
     if(!value) return false;
 
     auto condition = applyBinary(builder, source, op, *read, *value);
@@ -885,7 +909,7 @@ bool Resolver::comparePattern(Builder& builder, BinaryOp op, Place& pivot, ast::
  * arm's own alternative is the only path left.
  */
 bool Resolver::sectionPattern(Builder& builder, ast::Pat& pat, Place& pivot, Block* onFail,
-                              Carry& carry) {
+                              Carry& carry, const SmallArray<PatternBinding, 4>& into) {
     auto& bound = *parse[pat.section.bound];
 
     // `>_` - a section with nothing on its right. The bound is what the operator is applied to, so
@@ -914,7 +938,7 @@ bool Resolver::sectionPattern(Builder& builder, ast::Pat& pat, Place& pivot, Blo
 
     // At the pivot's type, for `patternBound`'s reason: what `0` *is* is a question about the type
     // it is being compared with, and the selection below is then made over two settled operands.
-    auto value = patternBound(builder, bound, pivot.occurrence.type);
+    auto value = patternBound(builder, bound, pivot.occurrence.type, into, requests[1]);
     if(!value) return false;
 
     Node* values[2] = { read, value };
@@ -1041,23 +1065,23 @@ bool Resolver::resolvePattern(Builder& builder, ast::Pat& pat, Place& pivot,
         case ast::Pat::Range: {
             auto& range = pat.range;
             auto lower = comparePattern(builder, BinaryOp::Ge, pivot, *parse[range.from], onFail,
-                                        carry, pat.source);
+                                        carry, pat.source, into);
             auto upper = comparePattern(builder, range.inclusive ? BinaryOp::Le : BinaryOp::Lt,
-                                        pivot, *parse[range.to], onFail, carry, pat.source);
+                                        pivot, *parse[range.to], onFail, carry, pat.source, into);
             return lower && upper;
         }
 
         // `>0`, `<=x` - the operator is the program's own, so this is a selection rather than a
         // member the compiler names. See `sectionPattern`.
         case ast::Pat::Section:
-            return sectionPattern(builder, pat, pivot, onFail, carry);
+            return sectionPattern(builder, pat, pivot, onFail, carry, into);
 
         default:
             break;
     }
 
     if(pat.kind >= ast::Pat::Lit) {
-        return comparePattern(builder, BinaryOp::Eq, pivot, pat, onFail, carry, pat.source);
+        return comparePattern(builder, BinaryOp::Eq, pivot, pat, onFail, carry, pat.source, into);
     }
 
     unsupported(pat.source, pat.kind == ast::Pat::Arr || pat.kind == ast::Pat::Rest

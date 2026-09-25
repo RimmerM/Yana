@@ -2,6 +2,7 @@
 
 #include "../../resolve_mir/type.h"
 #include "../../compiler/settings.h"
+#include "../../lower/fold_arith.h"
 
 namespace ssa {
 
@@ -64,7 +65,7 @@ namespace ssa {
 static constexpr U32 kMaxPackBits = 64;
 
 /*
- * The low `bits` set, saturating at the whole word.
+ * The low `bits` set, saturating at the whole word - `foldArith::maskOf` (compiler/lower/fold_arith.h).
  *
  * The value mask of a narrow field, the top of a niche's valid range, and the constant every packed
  * read and write is built out of - one function because `1 << 64` is undefined and a second spelling
@@ -72,7 +73,9 @@ static constexpr U32 kMaxPackBits = 64;
  * lowering, because both of them compute it and a mask the layout published has to be the mask the
  * access applies.
  */
-inline U64 lowMask(U32 bits) { return bits >= 64 ? ~U64(0) : (U64(1) << bits) - 1; }
+//
+// This was `lowMask` until J163, a third spelling of the one the lower tier's folders use.
+using foldArith::maskOf;
 
 /*
  * The bit patterns one word of a representation can never legally hold.
@@ -564,6 +567,27 @@ Repr reprOf(Layout layout, DeclPtr<mir::Type> type,
  * the allocation only has to know the answer.
  */
 bool hasPaddedWord(Layout layout, DeclPtr<mir::Type> type, U32 depth = 0);
+
+/*
+ * **Which** words those are - J152. `hasPaddedWord` is the question the allocation sites ask, and
+ * this is what they zero once it says yes: the words themselves, at their own offsets and widths,
+ * rather than the whole of the storage. A record whose one co-packed word is a flag beside a string
+ * and a count was a 41-byte fill in front of the three stores that were about to write most of it,
+ * and J151 counted 499 fills in `test/base` against the shipping stage's 88.
+ *
+ * The same walk as `hasPaddedWord`, and it has to stay the same walk: a word this misses is one whose
+ * spare bits are read as a niche. False where the answer would be more than `kMaxPaddedWords` words
+ * - a long fixed array of such records - and then the caller fills the whole value, as before.
+ */
+struct PaddedWord {
+    U32 offset = 0;
+    U32 bytes = 0;
+};
+
+constexpr Size kMaxPaddedWords = 4;
+
+bool paddedWords(Layout layout, DeclPtr<mir::Type> type, U32 at, Array<PaddedWord>& words,
+                 U32 depth = 0);
 
 /*
  * How many bits of its storage a value of this type owns, or zero where the question does not apply.

@@ -1,0 +1,53 @@
+{-
+   A call through a function value whose type publishes origins (J141).
+
+   # resolver: ownership
+   # recover: yes
+
+   `LoanGroup.yana`'s `viaValue` is the accepting half: `f: (&a: l'Cell, &b: r'Cell) -> &l'Cell` numbers
+   its origins in the function type's own scope, and a call through `f` relates its result to the
+   argument in `l` and to nothing else. So the one in `l` stays borrowed while the result lives - in
+   either capability - and the other is free. Until J141 the type was refused, and a value call's
+   result was rooted in nothing, which was true only while no function type could publish a slot.
+-}
+
+data Cell {value: Int}
+
+fn writeHeld(f: (&a: l'Cell, &b: r'Cell) -> &l'Cell) -> Int:
+    let &first = Cell {value: 3}
+    let &second = Cell {value: 4}
+    let &picked = f(first, second)
+    first.value = 7
+    return picked.value
+
+-- Shared, and in the *second* group: `first` is free and `second` is not.
+fn shared(f: (a: l'Cell, b: r'Cell) -> r'Cell) -> Int:
+    let &first = Cell {value: 3}
+    let &second = Cell {value: 4}
+    let picked = f(first, second)
+    second.value = 7
+    first.value = 8
+    return picked.value
+
+-- What a call through a value does not apply is an installation, so the type that would ask for
+-- one is refused where it is written.
+data Holder {held: 'Int}
+
+fn installs(f: (&h: Holder(k'), x: k'Int) -> {}) -> Int = 0
+
+-- A lambda returning its capture where the result is in the first argument's origin (J147). The
+-- environment is lent to the lambda for one call, and the sentence says so rather than naming the
+-- environment record's field (`outer.lambda.env.mine`) and asking for a `'` it has no type to hold.
+fn viaValue(f: (&a: l'Cell, &b: r'Cell) -> &l'Cell) -> Int:
+    let &first = Cell {value: 3}
+    let &second = Cell {value: 4}
+    let &picked = f(first, second)
+    picked.value = picked.value + 100
+    return picked.value
+
+fn returnsCapture() -> Int:
+    let &mine = Cell {value: 1}
+    let r = viaValue((a, b) -> mine)
+    return r + mine.value
+
+fn main() -> Int = 0

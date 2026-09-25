@@ -167,6 +167,15 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
     // reads the value it forwards is the mask folding in the last fold below.
     forwardStoredValues(base, module, fun);
 
+    // And the promotion once more, for the slots the three passes above left with nothing but a
+    // store and its loads - J153. A slot the first promotion refused because a copy or a second
+    // spelling of one of its addresses still named it is an ordinary local once the copy forwarding
+    // and the CSE have taken those away, and nothing after this point asks again: `go` in J151's
+    // `Fmt.yana` stored a view's items pointer before a call and read it back after, and `test/base`
+    // held 180 such slots, 1,472 bytes of `.text`. The block set is unchanged, so the loop analysis
+    // built above still describes it.
+    promoteStackSlots(base, fun);
+
     // And the pair again where the CSE took a decided arm, which is the one thing in this run that
     // removes an edge and renumbers the blocks the two are indexed by. Conditional rather than
     // unconditional because most functions have no such branch in them, and the four passes below
@@ -178,6 +187,17 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
     // all. See lower_licm.h, and §10 item 1 and §50.2 of test/bench/findings.md for why the
     // resolve-tier hoister above cannot reach either. Behind the CSE so that a loop reading one
     // address twice is shown one load.
+    // A location the loop both reads and writes, carried in a register across it - see
+    // lower_licm.h. In front of the hoister, which then takes the preheader reads this leaves further
+    // out where the enclosing loop does not write them. Where it moved a contained slot's stores out
+    // of a loop the slot is accessed only outside loops now, and one more forwarding and promotion
+    // turn it into values - `[Int *3]` counters indexed by literals are the shape. Neither changes
+    // the block set.
+    if(promoteLoopCells(base, module, fun, analysis)) {
+        forwardStoredValues(base, module, fun);
+        promoteStackSlots(base, fun);
+    }
+
     hoistLoopInvariants(base, module, fun, analysis);
 
     // The index arithmetic a loop recomputes from its counter every iteration - `row * n + column` -

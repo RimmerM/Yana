@@ -718,13 +718,18 @@ own back edge as block arguments, so the block a `yield` sits in has values live
 local names - and splitting that block leaves a resume block naming a value nothing on the way in
 defines. `RecordType::payloadLocals` carries them as node indices with the high bit set, and
 `RecordType::keepsAcross` says which hand-overs each has to survive; the store is at the `yield` and
-the reload replaces what the conversion holds for the value from the resume block on. Two limits are
-held at the *mint* rather than met here: such a value must be trivially copyable, because the drop
-elaboration the producer's body carries knows nothing about a field this transform invented; and
-every block naming it has to be converted after the `yield`'s own, because the conversion emits
-blocks in index order - a spill *none* of whose hand-overs the conversion reaches before the value
-exists is left out of the record entirely, which is where J51's "a member that is never written"
-went.
+the resume block reloads it. Which definition a later block reads - the value's own or one of the
+reloads - is `planSpillReach`'s forward walk over the MIR graph (J164): a block that one definition
+reaches takes that one's value, and a block that several reach, or that is converted before the one
+that reaches it, loads the field, which the definition then also writes. Until J164 the reload
+replaced the value for every block converted after it in index order, which is not dominance order
+once a loop body has two hand-overs: `yield a; if c: yield a` rejoined with a different reload on
+each arm and failed the verifier, and `yield a; yield a` was refused at the mint.
+`test/resolve/iter/SeveralYields.yana` is the fixture. One limit is held at the *mint* rather than
+met here: such a value must be trivially copyable, because the drop elaboration the producer's body
+carries knows nothing about a field this transform invented - and a spill *none* of whose hand-overs
+the conversion reaches before the value exists is left out of the record entirely, which is where
+J51's "a member that is never written" went.
 
 **Which field a payload entry lives in is read and not derived.** Slot sharing (§3.2's third step)
 puts two members whose live ranges never meet in one field, so there are more entries than fields and

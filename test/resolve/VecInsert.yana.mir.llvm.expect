@@ -1,0 +1,78 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+define fastcc i32 @main() #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  br i1 false, label %3, label %6
+
+2:                                                ; preds = %8
+  br i1 false, label %5, label %9
+
+3:                                                ; preds = %8, %7, %6, %1
+  br i1 false, label %19, label %14
+
+4:                                                ; preds = %10
+  ret i32 7955
+
+5:                                                ; preds = %10, %9, %2
+  br i1 false, label %26, label %23
+
+6:                                                ; preds = %1
+  br i1 false, label %3, label %7
+
+7:                                                ; preds = %6
+  br i1 false, label %3, label %8
+
+8:                                                ; preds = %7
+  br i1 false, label %3, label %2
+
+9:                                                ; preds = %2
+  br i1 false, label %5, label %10
+
+10:                                               ; preds = %9
+  br i1 false, label %5, label %4
+
+11:                                               ; preds = %19, %18, %17, %16
+  %12 = phi i32 [ 0, %16 ], [ -3, %17 ], [ -2, %18 ], [ -1, %19 ]
+  %13 = mul i32 %12, 10
+  ret i32 %13
+
+14:                                               ; preds = %3
+  br i1 false, label %18, label %15
+
+15:                                               ; preds = %14
+  br i1 false, label %17, label %16
+
+16:                                               ; preds = %15
+  br label %11
+
+17:                                               ; preds = %15
+  br label %11
+
+18:                                               ; preds = %14
+  br label %11
+
+19:                                               ; preds = %3
+  br label %11
+
+20:                                               ; preds = %26, %25, %24
+  %21 = phi i32 [ 0, %24 ], [ -2, %25 ], [ -1, %26 ]
+  %22 = mul i32 %21, 100
+  ret i32 %22
+
+23:                                               ; preds = %5
+  br i1 false, label %25, label %24
+
+24:                                               ; preds = %23
+  br label %20
+
+25:                                               ; preds = %23
+  br label %20
+
+26:                                               ; preds = %5
+  br label %20
+}
+
+attributes #0 = { "probe-stack"="inline-asm" }

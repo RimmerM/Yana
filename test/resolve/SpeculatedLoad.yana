@@ -1,0 +1,47 @@
+{-
+   J163: a read at a negative offset from a pointer is no statement that the bytes above it exist -
+   review r5/p3's `spec3` and `spec4`.
+
+   `p` is the first word of a page whose predecessor is mapped and which is itself `PROT_NONE`, so
+   `*(p - 2)` reads the last word of the mapped page and `*p` faults. Both loops run zero times, so
+   neither program reads `*p` at all - unless a loop pass moves the read into the preheader, which
+   it may only do where something in front of the loop already touched those bytes.
+
+   The loop passes used to place `p + (-2 :: Size)`, which is `add %p, -16`, at offset 2^64-16 from
+   `%p`, and read its eight bytes as reaching `%p + 0 .. 8` because the sum wrapped. `hoist` is the
+   hoister's copy of that - its loop reads `*p` and writes nothing, so the load was taken out whole -
+   and `cell` is `promoteLoopCells`', whose loop reads and writes `*p` and whose preheader loaded the
+   cell. Both faulted on the local backend; the lowered goldens beside this keep both loads inside
+   their loops. `safeToSpeculate` in compiler/lower/lower_licm.cpp places both sides with `placeOf`,
+   which refuses an offset past 2^32.
+-}
+
+import Native
+
+@noinline fn hoist(p: %I64, n: Int) -> I64:
+    let h = *(p + (-2 :: Size))
+    let &i = 0
+    let &t = 0 :: I64
+    while i < n:
+        t = t + *p
+        i += 1
+    return h + t
+
+@noinline fn cell(p: %I64, n: Int) -> I64:
+    let h = *(p + (-2 :: Size))
+    let &i = 0
+    while i < n:
+        store(p, *p + h)
+        i += 1
+    return h
+
+fn main() -> Int:
+    -- Two pages, read and write; then the second one taken away.
+    let base = syscall6(9, 0, 8192, 3, 0x22, bitcast(-1 :: Size), 0)
+    let protect = syscall3(10, bitcast(base + 4096), 4096, 0)
+    if protect != 0 then return 1
+
+    let p = bitcast(base + 4096) :: %I64
+    store(p + (-2 :: Size), 5 :: I64)
+
+    return truncate(hoist(p, 0) + cell(p, 0))

@@ -1,4 +1,5 @@
 #include "lower_strength.h"
+#include "fold_arith.h"
 #include "lower_builder.h"
 
 namespace {
@@ -40,9 +41,8 @@ bool hasWideningProduct(LowerType type) {
     return bits == 16 || bits == 32 || bits == 64;
 }
 
-U64 maskOf(U32 bits) {
-    return bits >= 64 ? maxLimit<U64> : (U64(1) << bits) - 1;
-}
+// fold_arith.h's, the one spelling of the low-bits mask - J163.
+using foldArith::maskOf;
 
 I64 signedValue(U64 value, U32 bits) {
     if(bits >= 64) return I64(value);

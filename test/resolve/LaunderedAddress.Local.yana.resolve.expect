@@ -1,0 +1,689 @@
+let image$base: () = <none>
+
+let &reader: I32 = 0
+
+let &reads: I32 = 0
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn +=(I32)(%target: I32, %amount: I32) -> () {
+  b0:
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
+    assign %target, %v3
+    ret
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn numberOf(%call: Syscall) -> USize {
+  b0:
+    %v1 = cast %call : I32
+    %v2 = cast %v1 : USize
+    ret %v2
+}
+
+fn closeFile(%handle: Size) -> Size {
+  b0:
+    %v2 = call numberOf, SysClose : USize
+    %v3 = bitcast %handle : USize
+    %v4 = syscall %v2, %v3 : Size
+    ret %v4
+}
+
+fn writeFile(%handle: Size, %from: %U8, %count: Size) -> Size {
+  b0:
+    %v4 = call numberOf, SysWrite : USize
+    %v5 = bitcast %handle : USize
+    %v6 = bitcast %from : USize
+    %v7 = bitcast %count : USize
+    %v8 = syscall %v4, %v5, %v6, %v7 : Size
+    ret %v8
+}
+
+fn exitProcess(%status: Size) -> () {
+  b0:
+    %v2 = call numberOf, 60 : USize
+    %v3 = bitcast %status : USize
+    %v4 = syscall %v2, %v3 : Size
+    ret
+}
+
+fn makePipe(%into: %I32) -> Size {
+  b0:
+    %v2 = call numberOf, SysKill : USize
+    %v3 = bitcast %into : USize
+    %v4 = syscall %v2, %v3 : Size
+    ret %v4
+}
+
+fn cellAddress(%into: Cell) -> USize {
+  b0:
+    %v1 = load %into : Cell
+    %v2 = addressof %into : %Cell
+    %v3 = bitcast %v2 : USize
+    ret %v3
+}
+
+fn fillLet(%handle: I32, %into: Cell) -> Size {
+  b0:
+    %v2 = load %into : Cell
+    %v3 = borrow_mut %into : &Cell
+    %addr = call cellAddress, %v3 : USize
+    %v6 = call numberOf, SysRead : USize
+    %v9 = syscall %v6, 1000, %addr, 16 : Size
+    ret %v9
+}
+
+fn fillArray(%handle: I32, %into: Cell) -> Size {
+  b0:
+    %v4 = alloc : [USize *2]
+    aggregate %box[0] = 0, %box[1] = 0
+    %v8 = load %box : [USize *2]
+    %v10 = borrow_mut %box : &[USize *2]
+    %v11 = alloc : ArrayView(USize)
+    %v12 = addressof [%v10] : %USize
+    init %local2@ArrayView.items, %v12
+    %v14 = countof 2 : Size
+    init %local2@ArrayView.length, %v14
+    %v17 = borrow_mut %local2 : &ArrayView(USize)
+    %v18 = load [%v17]@ArrayView.length : Size
+    %v19 = cast 1 : USize
+    %v20 = cast %v18 : USize
+    %v21 = cmp_ge %v19, %v20 : Bool
+    call checkCondition, %v21
+    %v23 = load [%v17]@ArrayView.items : %USize
+    %v24 = strideof USize : I64
+    %v25 = mul 1, %v24 : I64
+    %v26 = add %v23, %v25 : %USize
+    %v27 = borrow_mut [%v26] : &1'USize
+    %v28 = load %into : Cell
+    %v29 = borrow_mut %into : &Cell
+    %v30 = call cellAddress, %v29 : USize
+    assign [%v27], %v30
+    %v33 = call numberOf, SysRead : USize
+    %v35 = load %box : [USize *2]
+    %v37 = borrow %box : '[USize *2]
+    %v38 = alloc : ArrayView(USize)
+    %v39 = addressof [%v37] : %USize
+    init %local3@ArrayView.items, %v39
+    %v41 = countof 2 : Size
+    init %local3@ArrayView.length, %v41
+    %v44 = borrow %local3 : 'ArrayView(USize)
+    %v45 = load [%v44]@ArrayView.length : Size
+    %v46 = cast 1 : USize
+    %v47 = cast %v45 : USize
+    %v48 = cmp_ge %v46, %v47 : Bool
+    call checkCondition, %v48
+    %v50 = load [%v44]@ArrayView.items : %USize
+    %v51 = strideof USize : I64
+    %v52 = mul 1, %v51 : I64
+    %v53 = add %v50, %v52 : %USize
+    %v54 = borrow [%v53] : 1'USize
+    %v55 = load [%v54] : USize
+    %v57 = syscall %v33, 1000, %v55, 16 : Size
+    ret %v57
+}
+
+fn fillBoxed(%handle: I32, %into: Cell) -> Size {
+  b0:
+    %v2 = alloc : Box
+    %v3 = load %into : Cell
+    %v4 = borrow_mut %into : &Cell
+    %v5 = call cellAddress, %v4 : USize
+    aggregate %b@Box.n = %v5, %b@Box.pad = 0
+    assign %b@Box.pad, 1
+    %v11 = call numberOf, SysRead : USize
+    %v13 = load %b : Box
+    %v14 = load %b@Box.n : USize
+    %v16 = syscall %v11, 1000, %v14, 16 : Size
+    ret %v16
+}
+
+fn fillPointerField(%handle: I32, %into: Cell) -> Size {
+  b0:
+    %v2 = alloc : PBox
+    %v3 = load %into : Cell
+    %v4 = addressof %into : %Cell
+    aggregate %b@PBox.p = %v4, %b@PBox.pad = 0
+    assign %b@PBox.pad, 1
+    %v10 = call numberOf, SysRead : USize
+    %v12 = load %b : PBox
+    %v13 = load %b@PBox.p : %Cell
+    %v14 = bitcast %v13 : USize
+    %v16 = syscall %v10, 1000, %v14, 16 : Size
+    ret %v16
+}
+
+fn fillVector(%handle: I32, %into: Cell) -> Size {
+  b0:
+    %v2 = alloc : Iov
+    %v3 = load %into : Cell
+    %v4 = addressof %into : %Cell
+    %v5 = bitcast %v4 : USize
+    aggregate %iov@Iov.base = %v5, %iov@Iov.len = 16
+    %v10 = load %iov : Iov
+    %v11 = addressof %iov : %Iov
+    %v12 = bitcast %v11 : USize
+    %v14 = syscall 19, 1000, %v12, 1 : Size
+    ret %v14
+}
+
+fn fillLoop(%handle: I32, %into: Cell, %n: I32) -> Size {
+  b0:
+    %addr = alloc : USize
+    init %addr, 0
+    %v9 = alloc : I32
+    init %local2, 0
+    jmp b1
+
+  b1:
+    %i = load %local2 : I32
+    %v13 = cmp_lt %i, %n : Bool
+    je %v13, b2, b8
+
+  b2:
+    %v16 = sub %n, 1 : I32
+    %v17 = cmp_eq %i, %v16 : Bool
+    je %v17, b3, b4
+
+  b3:
+    %v19 = load %into : Cell
+    %v20 = borrow_mut %into : &Cell
+    %v21 = call cellAddress, %v20 : USize
+    assign %addr, %v21
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    jmp b6
+
+  b6:
+    %v25 = load %local2 : I32
+    jmp b7
+
+  b7:
+    %v27 = add %v25, 1 : I32
+    assign %local2, %v27
+    jmp b1
+
+  b8:
+    %v33 = call numberOf, SysRead : USize
+    %v35 = load %addr : USize
+    %v37 = syscall %v33, 1000, %v35, 16 : Size
+    ret %v37
+}
+
+fn keep(%h: Holder, %n: USize) -> () {
+  b0:
+    assign %h@Holder.addr, %n
+    ret
+}
+
+fn poke(%h: Holder) -> () {
+  b0:
+    %v1 = load %h@Holder.addr : USize
+    %v2 = bitcast %v1 : %I64
+    assign [%v2], 55
+    ret
+}
+
+fn handOver(%into: Cell, %h: Holder) -> I32 {
+  b0:
+    %v2 = load %h : Holder
+    %v3 = load %into : Cell
+    %v4 = borrow_mut %into : &Cell
+    %v5 = call cellAddress, %v4 : USize
+    %v6 = borrow_mut %h : &Holder
+    call keep, %v6, %v5
+    ret 1
+}
+
+fn viaLet(%handle: I32) -> I64 {
+  b0:
+    %v1 = load reads : I32
+    %v4 = borrow_mut reads : &I32
+    call +=(I32), %v4, 1
+    %v6 = alloc : Cell
+    aggregate %cell@Cell.value = 0, %cell@Cell.other = 0
+    %v10 = load %cell : Cell
+    %v11 = borrow_mut %cell : &Cell
+    %v12 = call fillLet, %handle, %v11 : Size
+    %v15 = cmp_lt %v12, 0 : Bool
+    je %v15, b1, b2
+
+  b1:
+    ret -1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v20 = load %cell : Cell
+    %v21 = load %cell@Cell.value : I64
+    %v24 = mul %v21, 100 : I64
+    %v25 = load %cell : Cell
+    %v26 = load %cell@Cell.other : I64
+    %v27 = add %v24, %v26 : I64
+    ret %v27
+}
+
+fn viaArray(%handle: I32) -> I64 {
+  b0:
+    %v1 = load reads : I32
+    %v4 = borrow_mut reads : &I32
+    call +=(I32), %v4, 1
+    %v6 = alloc : Cell
+    aggregate %cell@Cell.value = 0, %cell@Cell.other = 0
+    %v10 = load %cell : Cell
+    %v11 = borrow_mut %cell : &Cell
+    %v12 = call fillArray, %handle, %v11 : Size
+    %v15 = cmp_lt %v12, 0 : Bool
+    je %v15, b1, b2
+
+  b1:
+    ret -1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v20 = load %cell : Cell
+    %v21 = load %cell@Cell.value : I64
+    %v24 = mul %v21, 100 : I64
+    %v25 = load %cell : Cell
+    %v26 = load %cell@Cell.other : I64
+    %v27 = add %v24, %v26 : I64
+    ret %v27
+}
+
+fn viaBoxed(%handle: I32) -> I64 {
+  b0:
+    %v1 = load reads : I32
+    %v4 = borrow_mut reads : &I32
+    call +=(I32), %v4, 1
+    %v6 = alloc : Cell
+    aggregate %cell@Cell.value = 0, %cell@Cell.other = 0
+    %v10 = load %cell : Cell
+    %v11 = borrow_mut %cell : &Cell
+    %v12 = call fillBoxed, %handle, %v11 : Size
+    %v15 = cmp_lt %v12, 0 : Bool
+    je %v15, b1, b2
+
+  b1:
+    ret -1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v20 = load %cell : Cell
+    %v21 = load %cell@Cell.value : I64
+    %v24 = mul %v21, 100 : I64
+    %v25 = load %cell : Cell
+    %v26 = load %cell@Cell.other : I64
+    %v27 = add %v24, %v26 : I64
+    ret %v27
+}
+
+fn viaPointerField(%handle: I32) -> I64 {
+  b0:
+    %v1 = load reads : I32
+    %v4 = borrow_mut reads : &I32
+    call +=(I32), %v4, 1
+    %v6 = alloc : Cell
+    aggregate %cell@Cell.value = 0, %cell@Cell.other = 0
+    %v10 = load %cell : Cell
+    %v11 = borrow_mut %cell : &Cell
+    %v12 = call fillPointerField, %handle, %v11 : Size
+    %v15 = cmp_lt %v12, 0 : Bool
+    je %v15, b1, b2
+
+  b1:
+    ret -1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v20 = load %cell : Cell
+    %v21 = load %cell@Cell.value : I64
+    %v24 = mul %v21, 100 : I64
+    %v25 = load %cell : Cell
+    %v26 = load %cell@Cell.other : I64
+    %v27 = add %v24, %v26 : I64
+    ret %v27
+}
+
+fn viaVector(%handle: I32) -> I64 {
+  b0:
+    %v1 = load reads : I32
+    %v4 = borrow_mut reads : &I32
+    call +=(I32), %v4, 1
+    %v6 = alloc : Cell
+    aggregate %cell@Cell.value = 0, %cell@Cell.other = 0
+    %v10 = load %cell : Cell
+    %v11 = borrow_mut %cell : &Cell
+    %v12 = call fillVector, %handle, %v11 : Size
+    %v15 = cmp_lt %v12, 0 : Bool
+    je %v15, b1, b2
+
+  b1:
+    ret -1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v20 = load %cell : Cell
+    %v21 = load %cell@Cell.value : I64
+    %v24 = mul %v21, 100 : I64
+    %v25 = load %cell : Cell
+    %v26 = load %cell@Cell.other : I64
+    %v27 = add %v24, %v26 : I64
+    ret %v27
+}
+
+fn viaLoop(%handle: I32) -> I64 {
+  b0:
+    %v1 = load reads : I32
+    %v4 = borrow_mut reads : &I32
+    call +=(I32), %v4, 1
+    %v6 = alloc : Cell
+    aggregate %cell@Cell.value = 0, %cell@Cell.other = 0
+    %v10 = load %cell : Cell
+    %v12 = borrow_mut %cell : &Cell
+    %v13 = call fillLoop, %handle, %v12, 3 : Size
+    %v16 = cmp_lt %v13, 0 : Bool
+    je %v16, b1, b2
+
+  b1:
+    ret -1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v21 = load %cell : Cell
+    %v22 = load %cell@Cell.value : I64
+    %v25 = mul %v22, 100 : I64
+    %v26 = load %cell : Cell
+    %v27 = load %cell@Cell.other : I64
+    %v28 = add %v25, %v27 : I64
+    ret %v28
+}
+
+fn keepThenPoke() -> I64 {
+  b0:
+    %v0 = load reads : I32
+    %v3 = borrow_mut reads : &I32
+    call +=(I32), %v3, 1
+    %v5 = alloc : Cell
+    aggregate %cell@Cell.value = 0, %cell@Cell.other = 0
+    %v9 = alloc : Holder
+    aggregate %h@Holder.addr = 0, %h@Holder.pad = 0
+    %v13 = load %cell : Cell
+    %v14 = load %h : Holder
+    %v15 = borrow_mut %cell : &Cell
+    %v16 = borrow_mut %h : &Holder
+    %v17 = call handOver, %v15, %v16 : I32
+    %v20 = cmp_lt %v17, 0 : Bool
+    je %v20, b1, b2
+
+  b1:
+    ret -1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v25 = load %h : Holder
+    call poke, %v25
+    %v27 = load %cell : Cell
+    %v28 = load %cell@Cell.value : I64
+    ret %v28
+}
+
+fn send(%handle: I32, %value: I64, %other: I64) -> () {
+  b0:
+    %v3 = alloc : Cell
+    aggregate %cell@Cell.value = %value, %cell@Cell.other = %other
+    %v5 = cast %handle : Size
+    %v6 = load %cell : Cell
+    %v7 = addressof %cell : %Cell
+    %v8 = bitcast %v7 : %U8
+    %v10 = call writeFile, %v5, %v8, 16 : Size
+    ret
+}
+
+fn main() -> I32 {
+  b0:
+    %v2 = alloc : [I32 *2]
+    aggregate %ends[0] = 0, %ends[1] = 0
+    %v6 = load %ends : [I32 *2]
+    %v7 = addressof %ends : %[I32 *2]
+    %v8 = bitcast %v7 : %I32
+    %v9 = call makePipe, %v8 : Size
+    %v12 = cmp_lt %v9, 0 : Bool
+    je %v12, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v17 = load %ends : [I32 *2]
+    %v19 = borrow %ends : '[I32 *2]
+    %v20 = alloc : ArrayView(I32)
+    %v21 = addressof [%v19] : %I32
+    init %local1@ArrayView.items, %v21
+    %v23 = countof 2 : Size
+    init %local1@ArrayView.length, %v23
+    %v26 = borrow %local1 : 'ArrayView(I32)
+    %v27 = load [%v26]@ArrayView.length : Size
+    %v28 = cast 0 : USize
+    %v29 = cast %v27 : USize
+    %v30 = cmp_ge %v28, %v29 : Bool
+    call checkCondition, %v30
+    %v32 = load [%v26]@ArrayView.items : %I32
+    %v33 = strideof I32 : I64
+    %v34 = mul 0, %v33 : I64
+    %v35 = add %v32, %v34 : %I32
+    %v36 = borrow [%v35] : 1'I32
+    %v37 = load [%v36] : I32
+    assign reader, %v37
+    %v40 = load reader : I32
+    %v41 = cast %v40 : Size
+    %v42 = bitcast %v41 : USize
+    %v44 = syscall 33, %v42, 1000 : Size
+    %v47 = cmp_ne %v44, 1000 : Bool
+    je %v47, b4, b5
+
+  b4:
+    ret 1
+
+  b5:
+    jmp b6
+
+  b6:
+    %v52 = load %ends : [I32 *2]
+    %v54 = borrow %ends : '[I32 *2]
+    %v55 = alloc : ArrayView(I32)
+    %v56 = addressof [%v54] : %I32
+    init %local2@ArrayView.items, %v56
+    %v58 = countof 2 : Size
+    init %local2@ArrayView.length, %v58
+    %v61 = borrow %local2 : 'ArrayView(I32)
+    %v62 = load [%v61]@ArrayView.length : Size
+    %v63 = cast 1 : USize
+    %v64 = cast %v62 : USize
+    %v65 = cmp_ge %v63, %v64 : Bool
+    call checkCondition, %v65
+    %v67 = load [%v61]@ArrayView.items : %I32
+    %v68 = strideof I32 : I64
+    %v69 = mul 1, %v68 : I64
+    %v70 = add %v67, %v69 : %I32
+    %v71 = borrow [%v70] : 1'I32
+    %writer = load [%v71] : I32
+    %failed = alloc : I32
+    init %failed, 0
+    call send, %writer, 3, 4
+    %v80 = load reader : I32
+    %v81 = call viaLet, %v80 : I64
+    %v84 = cmp_ne %v81, 304 : Bool
+    je %v84, b7, b8
+
+  b7:
+    %v86 = load %failed : I32
+    %v89 = borrow_mut %failed : &I32
+    call +=(I32), %v89, 1
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    call send, %writer, 5, 6
+    %v96 = load reader : I32
+    %v97 = call viaArray, %v96 : I64
+    %v100 = cmp_ne %v97, 506 : Bool
+    je %v100, b10, b11
+
+  b10:
+    %v102 = load %failed : I32
+    %v105 = borrow_mut %failed : &I32
+    call +=(I32), %v105, 2
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    call send, %writer, 7, 8
+    %v112 = load reader : I32
+    %v113 = call viaBoxed, %v112 : I64
+    %v116 = cmp_ne %v113, 708 : Bool
+    je %v116, b13, b14
+
+  b13:
+    %v118 = load %failed : I32
+    %v121 = borrow_mut %failed : &I32
+    call +=(I32), %v121, 4
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    call send, %writer, 9, 1
+    %v128 = load reader : I32
+    %v129 = call viaPointerField, %v128 : I64
+    %v132 = cmp_ne %v129, 901 : Bool
+    je %v132, b16, b17
+
+  b16:
+    %v134 = load %failed : I32
+    %v137 = borrow_mut %failed : &I32
+    call +=(I32), %v137, 8
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    call send, %writer, 2, 3
+    %v144 = load reader : I32
+    %v145 = call viaVector, %v144 : I64
+    %v148 = cmp_ne %v145, 203 : Bool
+    je %v148, b19, b20
+
+  b19:
+    %v150 = load %failed : I32
+    %v153 = borrow_mut %failed : &I32
+    call +=(I32), %v153, 16
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    call send, %writer, 4, 5
+    %v160 = load reader : I32
+    %v161 = call viaLoop, %v160 : I64
+    %v164 = cmp_ne %v161, 405 : Bool
+    je %v164, b22, b23
+
+  b22:
+    %v166 = load %failed : I32
+    %v169 = borrow_mut %failed : &I32
+    call +=(I32), %v169, 32
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v173 = call keepThenPoke : I64
+    %v176 = cmp_ne %v173, 55 : Bool
+    je %v176, b25, b26
+
+  b25:
+    %v178 = load %failed : I32
+    %v181 = borrow_mut %failed : &I32
+    call +=(I32), %v181, 64
+    jmp b27
+
+  b26:
+    jmp b27
+
+  b27:
+    %v185 = load reads : I32
+    %v188 = cmp_ne %v185, 7 : Bool
+    je %v188, b28, b29
+
+  b28:
+    %v190 = load %failed : I32
+    %v193 = borrow_mut %failed : &I32
+    call +=(I32), %v193, 128
+    jmp b30
+
+  b29:
+    jmp b30
+
+  b30:
+    %v198 = call closeFile, 1000 : Size
+    %v199 = load reader : I32
+    %v200 = cast %v199 : Size
+    %v201 = call closeFile, %v200 : Size
+    %v202 = cast %writer : Size
+    %v203 = call closeFile, %v202 : Size
+    %v204 = load %failed : I32
+    ret %v204
+}

@@ -1,0 +1,99 @@
+mut @counter = [0, 0, 0, 0]
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = bitcast 0: Ptr
+    %v_2 = call_complex lastWins.thunk, %v_1: I32
+    %v_3 = add 7, %v_2: I32
+    %v_4 = bitcast 0: Ptr
+    %v_5 = call_complex allEvaluated.thunk, %v_4: I32
+    %v_6 = add 1, %v_5: I32
+    %v_7 = loads @counter, 4: I32
+    %v_8 = add %v_6, %v_7: I32
+    %v_9 = add 212, %v_3: I32
+    %v_10 = add %v_9, %v_8: I32
+    %v_11 = add %v_10, 1: I32
+    ret %v_11
+  }
+}
+
+@header(firstWins.thunk) = [0, 0, 0, 0]
+firstWins.thunk<complex>(%firstWins.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = bitcast 0: Ptr
+    %v_2 = call_complex firstWins.thunk.thunk, %v_1: I32
+    ret %v_2
+  }
+}
+
+@header(firstWins.thunk.thunk) = [0, 0, 0, 0]
+firstWins.thunk.thunk<complex>(%firstWins.thunk.thunk.env: Ptr): I32 {
+  b_0 {
+    ret 3
+  }
+}
+
+@header(lastWins.thunk) = [0, 0, 0, 0]
+lastWins.thunk<complex>(%lastWins.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = bitcast 0: Ptr
+    %v_2 = call_complex lastWins.thunk.thunk, %v_1: I32
+    ret %v_2
+  }
+}
+
+@header(lastWins.thunk.thunk) = [0, 0, 0, 0]
+lastWins.thunk.thunk<complex>(%lastWins.thunk.thunk.env: Ptr): I32 {
+  b_0 {
+    ret 3
+  }
+}
+
+@header(noneEvaluated.thunk) = [0, 0, 0, 0]
+noneEvaluated.thunk<complex>(%noneEvaluated.thunk.env: Ptr): I32 {
+  b_0 {
+    %counter = global @counter: Ptr
+    %v_1 = loads %counter, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store %counter, %v_2, 4
+    %v_3 = bitcast 0: Ptr
+    %v_4 = call_complex noneEvaluated.thunk.thunk, %v_3: I32
+    ret %v_4
+  }
+}
+
+@header(noneEvaluated.thunk.thunk) = [0, 0, 0, 0]
+noneEvaluated.thunk.thunk<complex>(%noneEvaluated.thunk.thunk.env: Ptr): I32 {
+  b_0 {
+    %counter = global @counter: Ptr
+    %v_1 = loads %counter, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store %counter, %v_2, 4
+    ret 20
+  }
+}
+
+@header(allEvaluated.thunk) = [0, 0, 0, 0]
+allEvaluated.thunk<complex>(%allEvaluated.thunk.env: Ptr): I32 {
+  b_0 {
+    %counter = global @counter: Ptr
+    %v_1 = loads %counter, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store %counter, %v_2, 4
+    %v_3 = bitcast 0: Ptr
+    %v_4 = call_complex allEvaluated.thunk.thunk, %v_3: I32
+    ret %v_4
+  }
+}
+
+@header(allEvaluated.thunk.thunk) = [0, 0, 0, 0]
+allEvaluated.thunk.thunk<complex>(%allEvaluated.thunk.thunk.env: Ptr): I32 {
+  b_0 {
+    %counter = global @counter: Ptr
+    %v_1 = loads %counter, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store %counter, %v_2, 4
+    ret 20
+  }
+}
+

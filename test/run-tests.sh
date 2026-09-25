@@ -64,13 +64,22 @@ for i in $(seq 0 $((parserJobs - 1))); do
     echo "parser.$i|$build/test/YanaParseTest shard:$i/$parserJobs" >> "$jobfile"
 done
 
-# The library suite: every fixture compiled four or five times and run. Sharded on the same terms the
-# two large drivers are, and never into more shards than there are fixtures - counted rather than
-# written down, because the corpus grows and a stale number here silently caps the parallelism.
+# The library suite: every fixture compiled natively, and to JavaScript where it opts in, and run.
+# Sharded on the same terms the two large drivers are, and never into more shards than there are
+# fixtures - counted rather than written down, because the corpus grows and a stale number here
+# silently caps the parallelism.
 libFixtures=$(find lib -maxdepth 1 -name '*.yana' | wc -l)
 libJobs=$((jobs < libFixtures ? jobs : libFixtures))
 for i in $(seq 0 $((libJobs - 1))); do
     echo "lib.$i|$build/test/YanaLibTest shard:$i/$libJobs" >> "$jobfile"
+done
+
+# And the same corpus through the old stage, since J133 made the rewrite the driver's default. Kept
+# because it is cheap - five fixtures, a second or two - and because these five builds of each are
+# where the shipping specializer and optimizer are held to the library's answers outside
+# `run-base.sh`'s `legacy-*` rows. It goes when `compiler/resolve` does.
+for i in $(seq 0 $((libJobs - 1))); do
+    echo "lib-legacy.$i|$build/test/YanaLibTest resolver:legacy shard:$i/$libJobs" >> "$jobfile"
 done
 
 echo "lower|$build/test/YanaLowerTest" >> "$jobfile"
@@ -79,6 +88,9 @@ echo "llvm|$build/test/YanaLlvmTest" >> "$jobfile"
 
 # Source to executable file to running process, over both fixture corpora - the resolve driver's and
 # the library one. It compiles every runnable fixture, so it is sharded on the same terms they are.
+# Through the rewrite since J133; `resolver:legacy` is the old stage by hand, and is not a row, because
+# what that stage computes is `YanaResolveTest`'s to assert and everything this driver is about is
+# below the `LowerModule` the two share.
 for i in $(seq 0 $((jobs - 1))); do
     echo "elf.$i|$build/test/YanaElfTest shard:$i/$jobs" >> "$jobfile"
 done
@@ -136,8 +148,10 @@ fi
 
 passed=$(cat "$logs"/*.log 2>/dev/null | grep -c "Pass\.$")
 echo
+# `awk` rather than `bc`, which is not installed everywhere this runs - and a missing `bc` printed
+# "0.0s" under a `printf` complaint rather than failing, so the wall time silently went missing.
 printf 'ran %s jobs in %.1fs - %s passing\n' "$(wc -l < "$jobfile")" \
-       "$(echo "$finished - $started" | bc)" "$passed"
+       "$(awk "BEGIN { print $finished - $started }")" "$passed"
 
 if [ ${#failed[@]} -ne 0 ]; then
     echo "FAILED: ${failed[*]}"

@@ -1,0 +1,132 @@
+module ResolveTest
+
+data Held(a) {value: 0'a, extra: I32} shape2
+
+data Pair {x: I32, y: I32}
+
+data Ref {v: 0'I32} shape2
+
+data Held(I32) {value: 0'I32, extra: I32} of Held shape2
+
+class Sized(a): measure, twice
+
+instance Sized(I32): I32.measure, Sized.twice
+
+fn measure(subject: Held(a) [shared call]) -> I32 = <no body>
+
+fn twice(subject: Held(a) [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Sized(a)
+bb0:
+  %0: Held(a) = read copy.trivial (subject)
+  %1: I32 = call measure(a) borrow.shared %0
+  %2: I32 = const 2
+  %3: I32 = mul inspect %1 inspect %2
+  return take %3
+}
+
+fn I32.measure(subject: Held(I32) [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (subject.value)
+  %1: I32 = read copy.trivial (subject.extra)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn heldOf(x: I32 [shared slot 0], extra: I32 [shared call]) -> Held(I32) [owned here shape2 .0=shared slot 0] {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (x) loan0
+  %1: I32 = read copy.trivial (extra)
+  %2: Held(I32) [owned here shape2 .0=shared slot 0] = aggregate.Held borrow.shared %0 take %1 roots.0{0}
+  return take %2
+}
+
+fn firstOf(xs: Array(I32) [shared slot 0 view]) -> I32 [shared slot 0] {
+  local local1: I32 [shared slot 0]
+
+bb0:
+  %0: Size = const 0
+  %1: Array(I32) [shared slot 0 view] = read borrow.shared (xs) loan0
+  %2: I32 [shared slot 0] = call.subscript get(Array(I32), Size, I32) borrow.shared %1 borrow.shared %0 roots{0}
+  write.init borrow.unique (local1) borrow.shared %2
+  %4: I32 [shared slot 0] = read borrow.shared (local1) loan1 roots{0}
+  return borrow.shared %4
+}
+
+fn main() -> I32 {
+  local x: I32
+  local owned: Held(I32) [owned here shape2 .0=shared slot 0]
+  local local2: I32
+  local direct: Held(I32)
+  local & local4: Array(I32) object5
+  local xs: Array(I32) object5
+  local pair: Pair
+  local local7: I32
+  local computed: Ref
+
+bb0:
+  %0: I32 = const 3
+  write.init borrow.unique (x) take %0
+  %2: I32 [shared slot 0] = read borrow.shared (x) loan0
+  %3: I32 = const 10
+  %4: Held(I32) [owned here shape2 .0=shared slot 0] = call heldOf borrow.shared %2 borrow.shared %3 roots.0{0}
+  write.init borrow.unique (owned) take %4
+  %6: I32 = const 5
+  write.init borrow.unique (local2) take %6
+  %8: I32 [shared slot 0] = read borrow.shared (local2) loan1
+  %9: I32 = const 20
+  %10: Held(I32) = aggregate.Held borrow.shared %8 take %9 roots.0{1}
+  write.init borrow.unique (direct) take %10
+  %12: I32 = const 7
+  %13: I32 = const 8
+  %14: %I32 = run.slots I32 *2
+  %15: Size = bitcast inspect %14
+  %16: Size = const 0
+  %17: Bool = eq inspect %15 inspect %16
+  %18: {} = call checkCondition borrow.shared %17
+  %19: @bits(30) U32 = const 2
+  %20: @bits(2) U32 = const 1
+  %21: Run(I32) = aggregate.Run take %14 take %19 take %20
+  %22: @bits(30) U32 = const 2
+  %23: Array(I32) = aggregate.Array take %21 take %22
+  write.init borrow.unique (local4) take %23
+  %25: Size = const 0
+  write.init borrow.unique ([%%14][0]) take %12
+  %27: Size = const 1
+  write.init borrow.unique ([%%14][1]) take %13
+  %29: Array(I32) = read take (local4)
+  write.init borrow.unique (xs) take %29
+  %31: Array(I32) [shared slot 0] = read borrow.shared (xs) loan2
+  %32: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %31 roots{2}
+  %33: I32 [shared slot 0] = call firstOf borrow.shared %32 roots{2}
+  %34: I32 = const 1
+  %35: Pair = aggregate.Pair take %33 take %34
+  write.init borrow.unique (pair) take %35
+  %37: Array(I32) [shared slot 0] = read borrow.shared (xs) loan3
+  %38: Array(I32) [shared slot 0 view] = call.derivation elements(Array(I32), I32) borrow.shared %37 roots{3}
+  %39: I32 [shared slot 0] = call firstOf borrow.shared %38 roots{3}
+  %40: I32 = const 1
+  %41: I32 = add inspect %39 inspect %40
+  drop (xs)
+  write.init borrow.unique (local7) take %41
+  %43: I32 [shared slot 0] = read borrow.shared (local7) loan4
+  %44: Ref = aggregate.Ref borrow.shared %43 roots.0{4}
+  write.init borrow.unique (computed) take %44
+  %46: Held(I32) [owned here shape2 .0=shared slot 0] = read copy.trivial (owned) roots.0{0}
+  %47: I32 = call measure(I32) borrow.shared %46
+  %48: Held(I32) = read copy.trivial (direct) roots.0{1}
+  %49: I32 = call twice(I32) borrow.shared %48
+  %50: I32 = add inspect %47 inspect %49
+  %51: I32 = read copy.trivial (pair.x)
+  %52: I32 = add inspect %50 inspect %51
+  %53: I32 = read copy.trivial (pair.y)
+  %54: I32 = add inspect %52 inspect %53
+  %55: I32 = read copy.trivial (computed.v)
+  %56: I32 = add inspect %54 inspect %55
+  return take %56
+}
+
+fn twice(I32)(subject: Held(I32) [shared call]) -> I32 = <twice at I32>
+
+entry main

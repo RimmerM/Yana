@@ -5,10 +5,9 @@ opaque<complex>(%n: I32): I32 {
     %v_1 = loads @counter, 4: I32
     %v_2 = add %v_1, 1: I32
     store @counter, %v_2, 4
-    %v_3 = loads @counter, 4: I32
-    %v_4 = cmp_igt %v_3, 1000: I32
-    %v_5 = select %v_4, 1, %n: I32
-    ret %v_5
+    %v_3 = cmp_igt %v_2, 1000: I32
+    %v_4 = select %v_3, 1, %n: I32
+    ret %v_4
   }
 }
 

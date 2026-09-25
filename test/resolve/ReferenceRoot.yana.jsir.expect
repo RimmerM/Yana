@@ -7,7 +7,6 @@ fn main() -> one %r0
   var $5: %r0
   block0:
     %8: %r0 = const 3
-    %9: %r0 = const 4
     %10: %r0 = alias %8
     %13: %r0 = alias %10
     %14: %r3 = alias %13
@@ -25,14 +24,7 @@ fn main() -> one %r0
     %23: %r0 = const 0
     jump -> block2(%23)
   block2(%0: %r0):
-    %27: %r0 = alias %10
-    %11: %r0 = alias %9
-    %29: %r0 = alias %11
-    %30: %r0 = binary.add %27, %29
-    %31: %r0 = coerce %30
-    %32: %r0 = alias %8
-    %33: %r0 = binary.add %31, %32
-    %34: %r0 = coerce %33
+    %34: %r0 = const 10
     %35: %r0 = binary.add %34, %0
     %36: %r0 = coerce %35
     return %36
@@ -40,7 +32,7 @@ fn main() -> one %r0
     %25: %r0 = load var $1: %r0
     jump -> block2(%25)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 17 adopted 0 sunk 0 numbered 1 decided 0 unboxed 2 updated 0 split 1 promoted 5
+optimizer clones 0 aliased 0 forwarded 0 removed 25 adopted 0 sunk 0 numbered 1 decided 0 unboxed 2 updated 0 split 1 promoted 5 folded 4
 
 shape %s0 object Pair {first: %r0, second: %r0}
 shape %s1 cell {$v: %r0 box}

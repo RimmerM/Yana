@@ -23,7 +23,6 @@ fn main() -> one %r0
     %27: %r0 = const 0
     %28: %r0 = const 3
     %29: %r0 = const 0
-    %30: %r0 = const 3
     jump -> block2
   block1:
     %33: %r7 = const 0
@@ -89,7 +88,7 @@ fn main() -> one %r0
     branch %106 -> block9 -> block7
   block9:
     %122: %r9 = convert %2
-    %123: %r9 = convert %26
+    %123: %r9 = const 3
     %124: %r7 = binary.ge %122, %123
     branch %124 -> block11 -> block10
   block10:
@@ -120,15 +119,13 @@ fn main() -> one %r0
     jump -> block21(%43)
   block16:
     %44: %r9 = convert %4
-    %45: %r9 = convert %26
+    %45: %r9 = const 3
     %46: %r7 = binary.ge %44, %45
     branch %46 -> block24 -> block17
   block17:
     %48: %r0 = alias %4
     %49: %r0 = coerce %48
-    %50: %r9 = convert %30
-    %51: %r7 = binary.ge %44, %50
-    branch %51 -> block23 -> block18
+    jump -> block18
   block18:
     %52: %r1 = alias %23
     %54: %r0 = alias %49
@@ -195,8 +192,7 @@ fn main() -> one %r0
     jump -> block29
   block29:
     %142: %r9 = convert %7
-    %143: %r0 = alias %26
-    %144: %r9 = convert %143
+    %144: %r9 = const 3
     %145: %r7 = binary.ge %142, %144
     branch %145 -> block31 -> block30
   block30:
@@ -271,7 +267,7 @@ fn itemsEqual(I32)(parts %r6, parts %r6) -> one %r7
     host host.throw "yana: a runtime check failed"
     unreachable
 
-optimizer clones 0 aliased 0 forwarded 5 removed 18 adopted 0 sunk 3 numbered 4 decided 3 unboxed 0 updated 0 split 0 promoted 3
+optimizer clones 0 aliased 0 forwarded 5 removed 22 adopted 0 sunk 3 numbered 4 decided 4 unboxed 0 updated 0 split 0 promoted 3 folded 7
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

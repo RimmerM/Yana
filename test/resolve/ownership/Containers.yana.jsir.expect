@@ -46,13 +46,11 @@ fn main() -> one %r0
     call push(I32) %2, %9
     %10: %r0 = const 9
     call push(I32) %2, %10
-    %11: %r0 = const 0
-    %12: %r0 = const 0
     %13: %r1 = load property %2.items: %r1
     %14: %r4 = load property %2.length: %r4
     %15: %r0 = convert %14
     %16: %r0 = const 0
-    %17: %r8 = convert %12
+    %17: %r8 = const 0
     %18: %r8 = convert %15
     %19: %r7 = binary.ge %17, %18
     branch %19 -> block2 -> block1
@@ -62,102 +60,98 @@ fn main() -> one %r0
     %22: %r0 = const 1
     %23: %r0 = binary.add %21, %22
     %24: %r0 = coerce %23
-    %28: %r0 = const 0
-    %29: %r8 = convert %11
-    %30: %r8 = alias %18
-    %31: %r7 = binary.ge %29, %30
-    branch %31 -> block4 -> block3
+    %25: %r0 = const 0
+    jump -> block3
   block2:
     host host.throw "yana: a runtime check failed"
     unreachable
   block3:
-    %25: %r1 = alias %13
-    %32: %r1 = alias %25
-    store element %32[%28]: %r0, %24
-    %33: %r0 = const 1
-    %34: %r0 = const 3
-    %35: %r1 = load property %2.items: %r1
-    %36: %r4 = load property %2.length: %r4
-    %37: %r0 = convert %36
-    %39: %r7 = binary.gt %33, %37
-    %40: %r0 = select %39, %37, %33
-    %41: %r7 = binary.lt %34, %40
-    %42: %r0 = select %41, %40, %34
-    %43: %r7 = binary.gt %42, %37
-    %44: %r0 = select %43, %37, %42
-    %45: %r0 = binary.sub %44, %40
-    %46: %r0 = coerce %45
-    %47: %r0 = call total %35, %46, %40
-    %48: %r9 = const ""
-    store var $0: %r9, %48
-    %49: %r10 = const 65
-    %50: %r9 = load var $0: %r9
-    %51: %r9 = alias %50
-    %52: %r9 = host host.global "String.fromCharCode" %49
-    %53: %r9 = alias %51
-    %54: %r9 = alias %52
-    %55: %r9 = host host.binary "+" %53, %54
-    store var $0: %r9, %55
-    %56: %r9 = const "bc"
-    %57: %r9 = load var $0: %r9
-    %58: %r9 = alias %57
-    %59: %r9 = alias %56
-    %60: %r9 = alias %58
-    %61: %r9 = alias %59
-    %62: %r9 = host host.binary "+" %60, %61
-    store var $0: %r9, %62
-    %63: %r9 = const "hello"
-    %64: %r1 = load property %2.items: %r1
-    %65: %r4 = load property %2.length: %r4
-    %66: %r0 = convert %65
-    %67: %r0 = const 0
-    %68: %r0 = call total %64, %66, %67
-    %69: %r1 = load property %2.items: %r1
-    %70: %r4 = load property %2.length: %r4
-    %71: %r0 = convert %70
+    %29: %r1 = alias %13
+    store element %29[%25]: %r0, %24
+    %30: %r0 = const 1
+    %31: %r0 = const 3
+    %32: %r1 = load property %2.items: %r1
+    %33: %r4 = load property %2.length: %r4
+    %34: %r0 = convert %33
+    %36: %r7 = binary.gt %30, %34
+    %37: %r0 = select %36, %34, %30
+    %38: %r7 = binary.lt %31, %37
+    %39: %r0 = select %38, %37, %31
+    %40: %r7 = binary.gt %39, %34
+    %41: %r0 = select %40, %34, %39
+    %42: %r0 = binary.sub %41, %37
+    %43: %r0 = coerce %42
+    %44: %r0 = call total %32, %43, %37
+    %45: %r9 = const ""
+    store var $0: %r9, %45
+    %46: %r10 = const 65
+    %47: %r9 = load var $0: %r9
+    %48: %r9 = alias %47
+    %49: %r9 = host host.global "String.fromCharCode" %46
+    %50: %r9 = alias %48
+    %51: %r9 = alias %49
+    %52: %r9 = host host.binary "+" %50, %51
+    store var $0: %r9, %52
+    %53: %r9 = const "bc"
+    %54: %r9 = load var $0: %r9
+    %55: %r9 = alias %54
+    %56: %r9 = alias %53
+    %57: %r9 = alias %55
+    %58: %r9 = alias %56
+    %59: %r9 = host host.binary "+" %57, %58
+    store var $0: %r9, %59
+    %60: %r9 = const "hello"
+    %61: %r1 = load property %2.items: %r1
+    %62: %r4 = load property %2.length: %r4
+    %63: %r0 = convert %62
+    %64: %r0 = const 0
+    %65: %r0 = call total %61, %63, %64
+    %66: %r1 = load property %2.items: %r1
+    %67: %r4 = load property %2.length: %r4
+    %68: %r0 = convert %67
     call Array(a).reclaim(I32) %2
-    %73: %r0 = convert %71
-    %74: %r9 = load var $0: %r9
+    %70: %r0 = convert %68
+    %71: %r9 = load var $0: %r9
+    %72: %r9 = alias %71
+    %73: %r9 = alias %72
+    %74: %r9 = alias %73
     %75: %r9 = alias %74
-    %76: %r9 = alias %75
-    %77: %r9 = alias %76
-    %78: %r9 = alias %77
-    %79: %r0 = host host.field "length" host-range %78
-    %80: %r0 = convert %79
-    %81: %r9 = load var $0: %r9
+    %76: %r0 = host host.field "length" host-range %75
+    %77: %r0 = convert %76
+    %78: %r9 = load var $0: %r9
+    %79: %r9 = alias %78
+    %80: %r0 = const 2
+    %81: %r9 = alias %79
     %82: %r9 = alias %81
-    %83: %r0 = const 2
-    %84: %r9 = alias %82
-    %85: %r9 = alias %84
-    %86: %r10 = host host.call "charCodeAt" %85, %83
-    %87: %r0 = convert %86
-    %88: %r9 = alias %63
+    %83: %r10 = host host.call "charCodeAt" %82, %80
+    %84: %r0 = convert %83
+    %85: %r9 = alias %60
+    %86: %r9 = alias %85
+    %87: %r9 = alias %86
+    %88: %r9 = alias %87
     %89: %r9 = alias %88
-    %90: %r9 = alias %89
-    %91: %r9 = alias %90
-    %92: %r9 = alias %91
-    %93: %r0 = host host.field "length" host-range %92
-    %94: %r0 = convert %93
-    %95: %r9 = alias %63
+    %90: %r0 = host host.field "length" host-range %89
+    %91: %r0 = convert %90
+    %92: %r9 = alias %60
+    %93: %r9 = alias %92
+    %94: %r0 = const 1
+    %95: %r9 = alias %93
     %96: %r9 = alias %95
-    %97: %r0 = const 1
-    %98: %r9 = alias %96
-    %99: %r9 = alias %98
-    %100: %r10 = host host.call "charCodeAt" %99, %97
-    %101: %r0 = convert %100
-    %102: %r0 = binary.add %68, %73
-    %103: %r0 = coerce %102
-    %104: %r0 = binary.add %103, %80
-    %105: %r0 = coerce %104
-    %106: %r0 = binary.add %105, %87
-    %107: %r0 = coerce %106
-    %108: %r0 = binary.add %107, %94
-    %109: %r0 = coerce %108
-    %110: %r0 = binary.add %109, %101
-    %111: %r0 = coerce %110
-    %112: %r0 = binary.add %111, %47
-    %113: %r0 = coerce %112
-    return %113
+    %97: %r10 = host host.call "charCodeAt" %96, %94
+    %98: %r0 = convert %97
+    %99: %r0 = binary.add %65, %70
+    %100: %r0 = coerce %99
+    %101: %r0 = binary.add %100, %77
+    %102: %r0 = coerce %101
+    %103: %r0 = binary.add %102, %84
+    %104: %r0 = coerce %103
+    %105: %r0 = binary.add %104, %91
+    %106: %r0 = coerce %105
+    %107: %r0 = binary.add %106, %98
+    %108: %r0 = coerce %107
+    %109: %r0 = binary.add %108, %44
+    %110: %r0 = coerce %109
+    return %110
   block4:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -209,7 +203,7 @@ fn growJsArray(I32)(one %r5, one %r0) -> omitted
     store property %0.items: %r1, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 11 adopted 1 sunk 0 numbered 6 decided 1 unboxed 0 updated 0 split 0 promoted 2
+optimizer clones 0 aliased 0 forwarded 0 removed 14 adopted 1 sunk 0 numbered 3 decided 2 unboxed 0 updated 0 split 0 promoted 2 folded 2
 
 shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
 shape %s1 object Array {items: %r1, length: %r4}

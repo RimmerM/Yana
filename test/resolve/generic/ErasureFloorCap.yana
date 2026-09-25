@@ -1,0 +1,96 @@
+-- A generic too small to erase, reached at more argument lists than one generic may be specialized
+-- at - J148.
+--
+-- J145's `erasureTooSmall` specializes a body of at most four MIR nodes rather than erase it, and it
+-- forced that form here too: `second` is called at forty record types, so the specializing walk made
+-- thirty-two copies and then refused the program, "specialized at more than 32 argument lists". It
+-- had compiled erased before and the shipping stage compiles it. The floor applies now only where
+-- every list the walk can reach is written down and there are no more of them than the cap, which
+-- is `GenericReach` counting distinct lists up to one past it.
+
+fn (a) second(x: a, n: I32) -> I32 = n
+
+data T0 {v: I32}
+data T1 {v: I32}
+data T2 {v: I32}
+data T3 {v: I32}
+data T4 {v: I32}
+data T5 {v: I32}
+data T6 {v: I32}
+data T7 {v: I32}
+data T8 {v: I32}
+data T9 {v: I32}
+data T10 {v: I32}
+data T11 {v: I32}
+data T12 {v: I32}
+data T13 {v: I32}
+data T14 {v: I32}
+data T15 {v: I32}
+data T16 {v: I32}
+data T17 {v: I32}
+data T18 {v: I32}
+data T19 {v: I32}
+data T20 {v: I32}
+data T21 {v: I32}
+data T22 {v: I32}
+data T23 {v: I32}
+data T24 {v: I32}
+data T25 {v: I32}
+data T26 {v: I32}
+data T27 {v: I32}
+data T28 {v: I32}
+data T29 {v: I32}
+data T30 {v: I32}
+data T31 {v: I32}
+data T32 {v: I32}
+data T33 {v: I32}
+data T34 {v: I32}
+data T35 {v: I32}
+data T36 {v: I32}
+data T37 {v: I32}
+data T38 {v: I32}
+data T39 {v: I32}
+
+fn main() -> I32:
+    let &s = 0
+    s += second(T0 {v: 0}, 0)
+    s += second(T1 {v: 1}, 1)
+    s += second(T2 {v: 2}, 2)
+    s += second(T3 {v: 3}, 3)
+    s += second(T4 {v: 4}, 4)
+    s += second(T5 {v: 5}, 5)
+    s += second(T6 {v: 6}, 6)
+    s += second(T7 {v: 7}, 7)
+    s += second(T8 {v: 8}, 8)
+    s += second(T9 {v: 9}, 9)
+    s += second(T10 {v: 10}, 10)
+    s += second(T11 {v: 11}, 11)
+    s += second(T12 {v: 12}, 12)
+    s += second(T13 {v: 13}, 13)
+    s += second(T14 {v: 14}, 14)
+    s += second(T15 {v: 15}, 15)
+    s += second(T16 {v: 16}, 16)
+    s += second(T17 {v: 17}, 17)
+    s += second(T18 {v: 18}, 18)
+    s += second(T19 {v: 19}, 19)
+    s += second(T20 {v: 20}, 20)
+    s += second(T21 {v: 21}, 21)
+    s += second(T22 {v: 22}, 22)
+    s += second(T23 {v: 23}, 23)
+    s += second(T24 {v: 24}, 24)
+    s += second(T25 {v: 25}, 25)
+    s += second(T26 {v: 26}, 26)
+    s += second(T27 {v: 27}, 27)
+    s += second(T28 {v: 28}, 28)
+    s += second(T29 {v: 29}, 29)
+    s += second(T30 {v: 30}, 30)
+    s += second(T31 {v: 31}, 31)
+    s += second(T32 {v: 32}, 32)
+    s += second(T33 {v: 33}, 33)
+    s += second(T34 {v: 34}, 34)
+    s += second(T35 {v: 35}, 35)
+    s += second(T36 {v: 36}, 36)
+    s += second(T37 {v: 37}, 37)
+    s += second(T38 {v: 38}, 38)
+    s += second(T39 {v: 39}, 39)
+    return s

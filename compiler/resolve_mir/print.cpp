@@ -400,7 +400,7 @@ struct Printer {
      * costs; a dump is not on any path where that has ever mattered.
      */
     void place(Body& body, Place& value) {
-        auto text = placeText(context, decl, mir, body, value);
+        auto text = placeText(context, decl, mir, body, value, true);
         writer.writeString(StringView { text.text(), text.size() });
     }
 
@@ -593,6 +593,25 @@ struct Printer {
             case Node::VecShuffle: {
                 // The pattern, one entry per lane of the result. Printed before the operands, which
                 // is where every other static field of a node goes.
+                // A deferred pattern prints what it is, since there is no list yet -
+                // `NodeVecShuffle::Deferred`.
+                switch(((NodeVecShuffle&)value).deferred) {
+                    case NodeVecShuffle::Deferred::None: break;
+                    case NodeVecShuffle::Deferred::Reverse: writer.writeString(" [reversed]"_v); break;
+                    case NodeVecShuffle::Deferred::Rotate: writer.writeString(" [rotated "_v); break;
+                    case NodeVecShuffle::Deferred::Align: writer.writeString(" [aligned "_v); break;
+                    case NodeVecShuffle::Deferred::InterleaveLow: writer.writeString(" [interleaved low]"_v); break;
+                    case NodeVecShuffle::Deferred::InterleaveHigh: writer.writeString(" [interleaved high]"_v); break;
+                }
+
+                if(((NodeVecShuffle&)value).deferred == NodeVecShuffle::Deferred::Rotate ||
+                   ((NodeVecShuffle&)value).deferred == NodeVecShuffle::Deferred::Align) {
+                    writeInt(writer, ((NodeVecShuffle&)value).amount);
+                    writer.writeString("]"_v);
+                }
+
+                if(((NodeVecShuffle&)value).deferred != NodeVecShuffle::Deferred::None) break;
+
                 writer.writeString(" ["_v);
                 auto first = true;
 
@@ -1615,15 +1634,45 @@ String appliedClassText(Context& context, DeclBase base, DeclPtr<Class> klass,
     return Tritium::format("%@)", text);
 }
 
+namespace {
+
 /*
- * A place as text - print.h says what it is for.
- *
- * The recursion is over the *parent chain*, so a projection reads left to right the way it is
- * written. A local with no name is `localN`, matching the declaration list in a dump, because a
- * reader who sees one in a message and one in the IR has to be able to pair them.
+ * Whether a place is the environment a lifted lambda's body receives its captures in: argument zero,
+ * named after its record (`outer.lambda.env: outer.lambda.env`, `resolveLambda`). A body does not
+ * know its function here, and a name with a dot in it is one no program can write, so the pair is
+ * the environment and nothing else.
  */
-String placeText(Context& context, DeclBase base, MirBase mir, Body& body, const Place& value) {
-    String text = value.parent ? placeText(context, base, mir, body, *mir[value.parent]) : String();
+bool environmentLocal(DeclBase base, Body& body, MirBase mir, const Place& value) {
+    if(value.kind != Place::Local) return false;
+
+    auto local = body.local(mir, LocalId(value.payload));
+    if(local->parameter != 0 || !local->name) return false;
+
+    auto type = base[local->occurrence.type];
+    return type && type->kind == Type::Record && ((RecordType*)type)->name == local->name;
+}
+
+/*
+ * The recursion is over the *parent chain*, so a projection reads left to right the way it is
+ * written. `temporary` is set where the root is a local the author never named.
+ */
+String placePath(Context& context, DeclBase base, MirBase mir, Body& body, const Place& value,
+                 bool dump, bool& temporary) {
+    /*
+     * A **capture**, in a message: `mine` rather than `outer.lambda.env.mine`. The environment is a
+     * local the author never wrote and its field is named after the binding they did write, so the
+     * capture's own name is the whole of what the message can usefully say. The dump keeps the
+     * path, which is what pairs it with the environment parameter it declares.
+     */
+    if(!dump && value.kind == Place::Field && value.parent &&
+       environmentLocal(base, body, mir, *mir[value.parent])) {
+        auto record = (RecordType*)base[mir[value.parent]->occurrence.type];
+        auto field = record->field(base, U16(value.payload));
+        if(field.name != StringId()) return Tritium::format("%@", stringView(context.findName(field.name)));
+    }
+
+    String text = value.parent
+        ? placePath(context, base, mir, body, *mir[value.parent], dump, temporary) : String();
 
     auto named = [&](StringId id) {
         auto view = stringView(context.findName(id));
@@ -1634,6 +1683,13 @@ String placeText(Context& context, DeclBase base, MirBase mir, Body& body, const
         case Place::Local: {
             auto local = body.local(mir, LocalId(value.payload));
             if(local->name) return named(local->name);
+
+            // `localN` in a dump, matching its declaration list; the compiler's name for it is
+            // nothing a program wrote, so a message says what it is instead (`placeText`).
+            if(!dump && !local->isParameter()) {
+                temporary = true;
+                return text;
+            }
             return Tritium::format("%@local%@", text, U64(local->index.index));
         }
         case Place::Global:
@@ -1718,6 +1774,26 @@ String placeText(Context& context, DeclBase base, MirBase mir, Body& body, const
     }
 
     return text;
+}
+
+} // namespace
+
+/*
+ * A place as text - print.h says what it is for.
+ *
+ * A local with no name is `localN` in a **dump**, matching the declaration list, because a reader
+ * who sees one there and one in an instruction has to be able to pair them. In a **message** it is
+ * "a temporary" - `local4` is the compiler's name, and the sentence that printed it (J147's
+ * `push(hs, Held {value: i + 1})`, "referring to local4") read as a mistake in the author's program
+ * about a binding it does not have - with the projection, if any, in front: `.value of a temporary`.
+ */
+String placeText(Context& context, DeclBase base, MirBase mir, Body& body, const Place& value,
+                 bool dump) {
+    auto temporary = false;
+    auto text = placePath(context, base, mir, body, value, dump, temporary);
+    if(!temporary) return text;
+    if(text.size() == 0) return String("a temporary");
+    return Tritium::format("%@ of a temporary", text);
 }
 
 } // namespace mir

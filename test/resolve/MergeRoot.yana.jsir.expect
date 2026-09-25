@@ -7,55 +7,53 @@ fn owned() -> one %r3
     %12: %r2 = const 0
     jump -> block5
   block1(%0: %r0):
-    %24: %r12 = binary.lt %0, %4
-    branch %24 -> block3 -> block2
+    %23: %r12 = binary.lt %0, %4
+    branch %23 -> block3 -> block2
   block2:
-    %25: %r1 = load property %10.items: %r1
-    %26: %r2 = load property %10.length: %r2
-    %27: %r3 = object %s0 %25, %26
-    return %27
+    %24: %r1 = load property %10.items: %r1
+    %25: %r2 = load property %10.length: %r2
+    %26: %r3 = object %s0 %24, %25
+    return %26
   block3:
-    %28: %r10 = alias %5
-    %29: %r10 = alias %6
-    %30: %r0 = call.value %28, %29, %0
-    %31: %r2 = load property %10.length: %r2
-    %32: %r0 = convert %31
-    %33: %r0 = binary.add %32, %22
-    %34: %r0 = coerce %33
-    %35: %r1 = load property %10.items: %r1
+    %27: %r10 = alias %5
+    %28: %r10 = alias %6
+    %29: %r0 = call.value %27, %28, %0
+    %30: %r2 = load property %10.length: %r2
+    %31: %r0 = convert %30
+    %32: %r0 = binary.add %31, %21
+    %33: %r0 = coerce %32
+    %34: %r1 = load property %10.items: %r1
     jump -> block7
   block4:
-    %20: %r0 = const 0
+    %19: %r0 = const 0
+    %20: %r0 = const 1
     %21: %r0 = const 1
-    %22: %r0 = const 1
-    jump -> block1(%20)
+    jump -> block1(%19)
   block5:
+    %17: %r0 = host host.field "length" host-range %11
+    %18: %r12 = binary.le %4, %17
     %13: %r3 = object %s0 %11, %12
     %10: %r3 = alias %13
-    %17: %r1 = load property %10.items: %r1
-    %18: %r0 = host host.field "length" host-range %17
-    %19: %r12 = binary.le %4, %18
-    branch %19 -> block4 -> block6
+    branch %18 -> block4 -> block6
   block6:
     call growJsArray(I32) %10, %4
     jump -> block4
   block7:
-    %38: %r1 = alias %35
-    %39: %r0 = host host.field "length" host-range %38
-    %40: %r12 = binary.le %34, %39
-    branch %40 -> block9 -> block8
+    %37: %r0 = host host.field "length" host-range %34
+    %38: %r12 = binary.le %33, %37
+    branch %38 -> block9 -> block8
   block8:
-    call growJsArray(I32) %10, %34
+    call growJsArray(I32) %10, %33
     jump -> block9
   block9:
-    %41: %r1 = load property %10.items: %r1
-    store element %41[%32]: %r0, %30
-    %42: %r13 = convert %34
-    %43: %r2 = convert %42
-    store property %10.length: %r2, %43
-    %44: %r0 = binary.add %0, %21
-    %45: %r0 = coerce %44
-    jump -> block1(%45)
+    %39: %r1 = load property %10.items: %r1
+    store element %39[%31]: %r0, %29
+    %40: %r13 = convert %33
+    %41: %r2 = convert %40
+    store property %10.length: %r2, %41
+    %42: %r0 = binary.add %0, %20
+    %43: %r0 = coerce %42
+    jump -> block1(%43)
 
 fn Guard.drop(one %r0) -> omitted
   var $0: %r0
@@ -137,19 +135,13 @@ fn main() -> one %r0
     %57: %r0 = const 7
     %58: %r0 = alias %57
     %59: %r0 = alias %58
-    %64: %r0 = const 10
-    %65: %r0 = alias %59
-    %66: %r0 = binary.add %64, %65
-    %67: %r0 = coerce %66
+    %67: %r0 = const 17
     %68: %r0 = alias %59
     call Guard.drop %68
     %71: %r0 = const 7
     %72: %r0 = alias %71
     %73: %r0 = alias %72
-    %78: %r0 = const 10
-    %79: %r0 = alias %73
-    %80: %r0 = binary.mul %78, %79
-    %81: %r0 = coerce %80
+    %81: %r0 = const 70
     %82: %r0 = alias %73
     call Guard.drop %82
     %83: %r0 = binary.add %10, %30
@@ -307,7 +299,7 @@ fn growJsArray(I32)(one %r3, one %r0) -> omitted
     store property %0.items: %r1, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 4 removed 49 adopted 2 sunk 1 numbered 4 decided 2 unboxed 2 updated 0 split 0 promoted 14
+optimizer clones 0 aliased 0 forwarded 4 removed 55 adopted 2 sunk 1 numbered 3 decided 2 unboxed 2 updated 0 split 0 promoted 14 folded 4
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object owned.lambda.env {}
@@ -332,7 +324,7 @@ rep %r11 = object %s5
 rep %r12 = number bool
 rep %r13 = number unsigned 32
 rep %r14 = object %s6
-rep %r15 = array Int32Array of %r0
+rep %r15 = array Array of %r0
 rep %r16 = parts (%r0, %r0, %r0, %r0) as %r15
 rep %r17 = boolean
 rep %r18 = array Array of %r17

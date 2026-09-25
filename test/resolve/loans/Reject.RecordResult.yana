@@ -1,0 +1,26 @@
+{-
+   **A new record that holds loans, returned at a loan of one** - J164, review 3 §2.2.
+
+   # resolver: ownership
+
+   `o'SView` is an `SView` living in `o`'s storage, so the record built here is a temporary of the
+   frame. Before J162 these compiled and failed in the lowering ("incorrect number of values
+   returned from function"); J162 refused them with the table's temporary sentence, whose advice -
+   return an owner, or a loan the caller lent - names neither fix. The sentence now says the one the
+   author meant: the loan argument, `SView(o')`, which `RecordResult.yana` runs.
+-}
+
+data SView {s: 'String, n: I32}
+data Piece = PText {s: 'String} | PNum(I64) | PNone
+
+fn sview(s: o'String) -> o'SView = SView {s: s, n: truncate(length(s)) :: I32}
+
+fn piece(s: o'String, k: Int) -> o'Piece:
+    if k > 0 then return PText {s: s}
+    return PNone
+
+fn main() -> Int:
+    let s = "hello"
+    let v = sview(s)
+    let p = piece(s, 1)
+    return v.n

@@ -112,7 +112,8 @@ DominatorTree LowerFunction::buildDominatorTree(LowerBase base) {
 /*
  * Loops.
  *
- * A back edge is one to a block the depth-first walk is still inside, and the loop it closes is the
+ * A back edge is one to a block that dominates its source - which the depth-first walk proposes as
+ * every edge to a block it is still inside, and `addLatch` confirms - and the loop it closes is the
  * natural loop of that edge: the header, plus everything the latch is reachable from without passing
  * back through the header. Two back edges to one header describe one loop with two latches rather
  * than two loops, so they are grouped by header and their bodies unioned - a block in such a loop is
@@ -131,8 +132,9 @@ struct BackEdge {
 static constexpr U32 kOnStack = 1;
 static constexpr U32 kFinished = 2;
 
-// An edge to a block still on the walk's own stack is one that closes a cycle, which is the whole of
-// what makes it a back edge. Blocks the entry cannot reach are never visited and belong to no loop.
+// An edge to a block still on the walk's own stack is one that closes a cycle. That is every back
+// edge and, in an irreducible graph, more than them - see `addLatch` for the test that separates the
+// two. Blocks the entry cannot reach are never visited and belong to no loop.
 static void findBackEdges(LowerBase base, LowerBlock* b, SmallArray<BackEdge, 8>& out) {
     b->marker = kOnStack;
 
@@ -151,16 +153,41 @@ struct LoopBody {
     BlockIndex header = kNullBlock;
     IndexSet members;
     Size size = 0;
+
+    // How many of the cycle edges into the header were back edges. A header none of them was is not
+    // one, and the body is dropped before anything reads it.
+    Size latches = 0;
 };
 
-// Adds one back edge's natural loop to `loop`: everything the latch is reachable from backwards,
-// stopping at the header, which is marked before the walk starts precisely so that it bounds it -
-// a predecessor reached through the header is outside the loop.
-static void addLatch(LowerBase base, LoopBody& loop, LowerBlock* latch) {
+/*
+ * Adds one back edge's natural loop to `loop`: everything the latch is reachable from backwards,
+ * stopping at the header, which is marked before the walk starts precisely so that it bounds it -
+ * a predecessor reached through the header is outside the loop.
+ *
+ * The same walk is the dominance test, and it answers whether the edge was a back edge at all - J155.
+ * A cycle edge whose target does not dominate its source is what an irreducible graph has, and the
+ * shape this compiler makes is an iterator object's step inlined into its consumer: the resume
+ * switch enters a loop in the middle. The "loop" behind such an edge holds a block control reaches
+ * without passing the header, and every reader of this structure - the loop-invariant hoister, the
+ * induction rewrites, the bounds-check elimination, the x64 block order and spill weights - is
+ * stated in terms of a header that dominates its body. J154 caught the hoister moving an
+ * instruction out of such a block into a preheader its other path does not pass, and guarded that
+ * one reader; this is the guard for all of them, and the hoister's own check was removed once it
+ * was in place.
+ *
+ * The header dominates the latch exactly when the entry cannot reach the latch without passing it,
+ * which is exactly when this walk - backwards from the latch, stopped at the header - does not
+ * arrive at the entry. So the test costs nothing a reducible loop did not already pay, and where it
+ * fails the blocks this edge added are taken back out: one added by an earlier latch of the same
+ * header is dominated by it and is never reached here, so what is undone is this edge's alone.
+ */
+static bool addLatch(LowerBase base, LoopBody& loop, LowerBlock* latch, LowerBlock* entry) {
     Array<LowerBlock*> pending;
+    auto reachedEntry = false;
 
     auto visit = [&](LowerBlock* b) {
         if(loop.members[b->index]) return;
+        if(b == entry) reachedEntry = true;
 
         loop.members.set(b->index, true);
         loop.size++;
@@ -170,17 +197,26 @@ static void addLatch(LowerBase base, LoopBody& loop, LowerBlock* latch) {
     visit(latch);
 
     // Walked as a queue rather than popped, so that `pending` doubles as the visited list.
-    for(Size i = 0; i < pending.size(); i++) {
+    for(Size i = 0; i < pending.size() && !reachedEntry; i++) {
         for(auto p: pending[i]->incoming.contents(base)) visit(base[p]);
     }
+
+    if(!reachedEntry) {
+        loop.latches++;
+        return true;
+    }
+
+    for(auto b: pending) loop.members.set(b->index, false);
+    loop.size -= pending.size();
+    return false;
 }
 
 bool LoopInfo::contains(BlockIndex loop, BlockIndex block) const {
     auto h = header[block];
 
     // Bounded rather than run to the end of the chain: `parent` points strictly outward for the
-    // properly nested loops a reducible CFG produces, and an irreducible one is the single shape
-    // that could close the chain into a cycle. A bound costs nothing and beats proving it cannot.
+    // properly nested natural loops `buildLoops` keeps, and the bound is what would stop a walk if a
+    // change to it ever let an irreducible cycle's edges back in. It costs nothing.
     for(Size step = 0; h != kNullBlock && step <= header.size(); step++) {
         if(h == loop) return true;
         h = parent[h];
@@ -247,7 +283,19 @@ LoopInfo LowerFunction::buildLoops(LowerBase base) {
             loops.push(::move(loop));
         }
 
-        addLatch(base, loops[found], edge.latch);
+        addLatch(base, loops[found], edge.latch, base[blocks.get(base, 0)]);
+    }
+
+    // A header every one of whose cycle edges failed `addLatch`'s test heads nothing.
+    {
+        Size kept = 0;
+        for(Size i = 0; i < loops.size(); i++) {
+            if(loops[i].latches == 0) continue;
+            if(kept != i) loops[kept] = ::move(loops[i]);
+            kept++;
+        }
+
+        while(loops.size() > kept) loops.pop();
     }
 
     // Smallest first, so that the first loop to claim a block is the innermost one containing it and

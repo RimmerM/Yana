@@ -62,52 +62,51 @@ fn main() -> one %r0
     %57: %r10 = alias %50
     %58: %r10 = alias %51
     %59: %r0 = call.value %57, %58, %54
-    %61: %r0 = alias %49
-    %62: %r0 = binary.mul %59, %61
-    %63: %r0 = coerce %62
-    %65: %r0 = const 1
-    %66: %r10 = fun.code main.lambda'6
-    %67: %r10 = const null
-    %69: %r10 = alias %66
-    %70: %r10 = alias %67
-    %71: %r0 = call.value %69, %70, %65
-    %72: %r10 = alias %66
-    %73: %r10 = alias %67
-    %74: %r0 = call.value %72, %73, %71
-    %78: %r0 = const 1
-    %79: %r0 = const 2
-    %80: %r0 = const 3
-    %81: %r1 = host host.array %78, %79, %80
-    %82: %r2 = const 3
-    %83: %r3 = object %s0 %81, %82
-    %86: %r3 = alias %83
-    call Array(a).reclaim(I32) %86
-    %87: %r0 = const 3
-    %88: %r0 = const 100
-    store property %18.$v: %r0, %88
-    %89: %r10 = fun.code main.lambda'7
-    %90: %r10 = const null
-    %92: %r10 = const "$v"
-    %93: %r10 = alias %89
-    %94: %r10 = alias %90
-    call.value %93, %94, %18, %92
-    %95: %r0 = const 65
-    %96: %r0 = binary.add %28, %95
+    %60: %r0 = binary.mul %59, %49
+    %61: %r0 = coerce %60
+    %63: %r0 = const 1
+    %64: %r10 = fun.code main.lambda'6
+    %65: %r10 = const null
+    %67: %r10 = alias %64
+    %68: %r10 = alias %65
+    %69: %r0 = call.value %67, %68, %63
+    %70: %r10 = alias %64
+    %71: %r10 = alias %65
+    %72: %r0 = call.value %70, %71, %69
+    %76: %r0 = const 1
+    %77: %r0 = const 2
+    %78: %r0 = const 3
+    %79: %r1 = host host.array %76, %77, %78
+    %80: %r2 = const 3
+    %81: %r3 = object %s0 %79, %80
+    %84: %r3 = alias %81
+    call Array(a).reclaim(I32) %84
+    %85: %r0 = const 3
+    %86: %r0 = const 100
+    store property %18.$v: %r0, %86
+    %87: %r10 = fun.code main.lambda'7
+    %88: %r10 = const null
+    %90: %r10 = const "$v"
+    %91: %r10 = alias %87
+    %92: %r10 = alias %88
+    call.value %91, %92, %18, %90
+    %93: %r0 = const 65
+    %94: %r0 = binary.add %28, %93
+    %95: %r0 = coerce %94
+    %96: %r0 = binary.add %95, %41
     %97: %r0 = coerce %96
-    %98: %r0 = binary.add %97, %41
+    %98: %r0 = binary.add %97, %48
     %99: %r0 = coerce %98
-    %100: %r0 = binary.add %99, %48
+    %100: %r0 = binary.add %99, %61
     %101: %r0 = coerce %100
-    %102: %r0 = binary.add %101, %63
+    %102: %r0 = binary.add %101, %72
     %103: %r0 = coerce %102
-    %104: %r0 = binary.add %103, %74
+    %104: %r0 = binary.add %103, %85
     %105: %r0 = coerce %104
-    %106: %r0 = binary.add %105, %87
-    %107: %r0 = coerce %106
-    %108: %r0 = load property %18.$v: %r0
-    %109: %r0 = binary.add %107, %108
-    %110: %r0 = coerce %109
-    return %110
+    %106: %r0 = load property %18.$v: %r0
+    %107: %r0 = binary.add %105, %106
+    %108: %r0 = coerce %107
+    return %108
 
 fn main.lambda(one %r4, one %r0) -> one %r0 env
   block0(%0: %r4, %1: %r0):
@@ -158,7 +157,7 @@ fn Array(a).reclaim(I32)(one %r3) -> omitted
   block0(%0: %r3):
     return
 
-optimizer clones 0 aliased 0 forwarded 14 removed 56 adopted 5 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 4 promoted 7
+optimizer clones 0 aliased 0 forwarded 14 removed 55 adopted 5 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 4 promoted 6 folded 0
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object main.lambda.env {}

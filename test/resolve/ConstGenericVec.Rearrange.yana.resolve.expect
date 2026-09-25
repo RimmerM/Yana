@@ -1,0 +1,118 @@
+let image$base: () = <none>
+
+let &sink: Vec(I32) = <startup>
+
+fn four(%a: I32, %b: I32, %c: I32, %d: I32) -> Vec(I32) {
+  b0:
+    %v4 = load sink : Vec(I32)
+    %v7 = vwithlane %v4, %a, 0 : Vec(I32)
+    %v10 = vwithlane %v7, %b, 1 : Vec(I32)
+    %v13 = vwithlane %v10, %c, 2 : Vec(I32)
+    %v16 = vwithlane %v13, %d, 3 : Vec(I32)
+    ret %v16
+}
+
+fn rotated(%v: Vec(I32, n)) -> Vec(I32, n) {
+  schema {
+    #0 const n: I32
+  }
+
+  b0:
+    %v3 = gencall rotate(n, I32), %v, 1 : Vec(I32, n)
+    ret %v3
+}
+
+fn windowed(%above: Vec(I32, n), %below: Vec(I32, n)) -> Vec(I32, n) {
+  schema {
+    #0 const n: I32
+  }
+
+  b0:
+    %v4 = gencall alignLanes(n, I32), %above, %below, 1 : Vec(I32, n)
+    ret %v4
+}
+
+fn mixedLow(%v: Vec(I32, n), %w: Vec(I32, n)) -> Vec(I32, n) {
+  schema {
+    #0 const n: I32
+  }
+
+  b0:
+    %v2 = gencall interleaveLow(n, I32), %v, %w : Vec(I32, n)
+    ret %v2
+}
+
+fn mixedHigh(%v: Vec(I32, n), %w: Vec(I32, n)) -> Vec(I32, n) {
+  schema {
+    #0 const n: I32
+  }
+
+  b0:
+    %v2 = gencall interleaveHigh(n, I32), %v, %w : Vec(I32, n)
+    ret %v2
+}
+
+fn weigh(%v: Vec(I32)) -> I32 {
+  b0:
+    %v3 = vlane %v, 0 : I32
+    %v7 = vlane %v, 1 : I32
+    %v9 = mul 2, %v7 : I32
+    %v10 = add %v3, %v9 : I32
+    %v14 = vlane %v, 2 : I32
+    %v16 = mul 3, %v14 : I32
+    %v17 = add %v10, %v16 : I32
+    %v21 = vlane %v, 3 : I32
+    %v23 = mul 4, %v21 : I32
+    %v24 = add %v17, %v23 : I32
+    ret %v24
+}
+
+fn main() -> I32 {
+  b0:
+    %v = call four, 0, 1, 2, 3 : Vec(I32)
+    %w = call four, 10, 11, 12, 13 : Vec(I32)
+    %v10 = call rotated(4), %v : Vec(I32)
+    %v11 = call weigh, %v10 : I32
+    %v12 = call windowed(4), %v, %w : Vec(I32)
+    %v13 = call weigh, %v12 : I32
+    %v14 = add %v11, %v13 : I32
+    %v15 = call mixedLow(4), %v, %w : Vec(I32)
+    %v16 = call weigh, %v15 : I32
+    %v17 = add %v14, %v16 : I32
+    %v18 = call mixedHigh(4), %v, %w : Vec(I32)
+    %v19 = call weigh, %v18 : I32
+    %v20 = add %v17, %v19 : I32
+    ret %v20
+}
+
+fn main$() -> I32 {
+  b0:
+    %v3 = vsplat 0 : Vec(I32)
+    init sink, %v3
+    %v5 = call main : I32
+    ret %v5
+}
+
+fn rotated(4)(%v: Vec(I32)) -> Vec(I32) {
+  b0:
+    %v2 = vshuffle %v, %v, 1, 2, 3, 0 : Vec(I32)
+    ret %v2
+}
+
+fn windowed(4)(%above: Vec(I32), %below: Vec(I32)) -> Vec(I32) {
+  b0:
+    %v3 = vshuffle %above, %below, 5, 6, 7, 0 : Vec(I32)
+    ret %v3
+}
+
+fn mixedLow(4)(%v: Vec(I32), %w: Vec(I32)) -> Vec(I32) {
+  b0:
+    %v2 = vshuffle %v, %w, 0, 4, 1, 5 : Vec(I32)
+    ret %v2
+}
+
+fn mixedHigh(4)(%v: Vec(I32), %w: Vec(I32)) -> Vec(I32) {
+  b0:
+    %v2 = vshuffle %v, %w, 2, 6, 3, 7 : Vec(I32)
+    ret %v2
+}

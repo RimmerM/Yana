@@ -341,6 +341,29 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
                               contract.slot() };
     }
 
+    /*
+     * A **published loan of a pointer** whose pointee says nothing - `'%T` - has its pointee in the
+     * same origin: `'%Int` is read as `'%'Int`. J164, and J162 §5's open finding.
+     *
+     * The loan names the storage the pointer is *in*, and nothing named the storage it points
+     * *into*, so the pointer copied out of one - `let q = r.r` over `data RP {r: '%Int}`, or out of
+     * `id(p)`'s `'%Int` - was an owned scalar with no origin and the array it pointed into was
+     * released at its last syntactic use, before the load through `q`. `-no-ir-opt` read the freed
+     * block. The implied-outlives reading is the one a type that refers to something has everywhere
+     * else in the language: whatever lends the reference also lends what it refers to, as a record
+     * holding a loan holds what the loan holds at the same positions one field deeper. A caller's
+     * argument binds the slot to the union of the two - the pointer's storage and its pointee's -
+     * which is every origin the result could need, and what an unpublished pointee would have to be
+     * proved not to need.
+     *
+     * Only where the tick publishes a slot: `yield'%T`'s bound is a frame's and not a set, and an
+     * explicit pointee (`'%src'T`, `'%yield'T`) says what it says. And only where it is *written* -
+     * `impliedPointeeOrigin` says why a substitution does not apply it.
+     */
+    if(tick && !shape) {
+        shape = impliedPointeeOrigin(program, Occurrence { logical, contract, shape }).shape;
+    }
+
     // A bracket spelling at an access the type has no view for - `&s: [CodeUnit]` over a string,
     // once a string is spelled that way at all. Said as what is missing rather than laid out as a
     // view that has no record.
@@ -1684,6 +1707,25 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
             break;
         }
 
+        /*
+         * A parameter named like one of the signature's const parameters - `fn (n: Int) twice(n:
+         * Int)`. The two are different numbers under one name: the const one is decided by the
+         * call's types and the argument by its value, and a mention of `n` in the body would have to
+         * pick one. Refused at the declaration, where the mistake is, rather than left for a call to
+         * fail at with "no argument decides what n is".
+         */
+        if(genContext) {
+            for(auto variable: decl()[genContext]->variables.contents(decl())) {
+                auto& declared = *(VariableType*)decl()[variable];
+                if(!declared.isConst() || declared.name != argument.name) continue;
+
+                context.diagnostics.error("%@ is already a const parameter of this signature, so it cannot also be an argument - the two would be different numbers under one name"_v,
+                                          argument.source, context.findName(argument.name));
+                duplicate = true;
+                break;
+            }
+        }
+
         if(duplicate) {
             ok = false;
             continue;
@@ -1720,6 +1762,14 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
         declared->index = U32(function.args.size());
         declared->lazy = deferred;
         declared->def = def;
+
+        // `CallNames` - the written function type's, or the inherited position's where the
+        // implementation wrote none, which is the class member's.
+        if(argument.type) {
+            declared->callNames = writtenCallNames(*parse[argument.type]);
+        } else if(inherited && declared->index < inherited->args.size()) {
+            declared->callNames = decl()[inherited->args.get(decl(), declared->index)]->callNames;
+        }
 
         if(argument.caller) callerPositions.push(CallerPosition { declared->index, argument });
 
@@ -1950,9 +2000,10 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      *
      * One construct with one flag between them - Analysis-Lens.md §7.3 - so everything below is
      * written once: the hand-over position, the continuation parameter, the call site's region. The
-     * explicit callback form (`body: (P) -> r`) needs `r` free in the signature and is milestone
-     * 6's, which is where §12.4 puts it; a function-typed parameter is refused by `declareArgs` in
-     * any case, so what reaches here is the sugar.
+     * explicit callback form (`body: (P) -> r`) is legacy syntax this stage does not build - the
+     * `yield` form and a failure channel say everything it did (J135, lenses.md) - and a
+     * function-typed parameter of a lens is refused by `declareArgs` in any case, so what reaches
+     * here is the `yield` form.
      */
     auto iterator = written.kind == ast::FunKind::Iter;
     auto lens = iterator || written.kind == ast::FunKind::Lens;
@@ -2038,7 +2089,19 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
 
     GenScope generics(*this, function->gen);
 
+    /*
+     * Two passes, and the first declares the **const** parameters alone - Implementation-Const-
+     * Generics.md §10.3. A constraint may mention a count as a type argument, `Num(Vec(I16, n))`,
+     * and a count has to be declared as one to be read as one: met first, `n` would be introduced
+     * as an ordinary type variable by being named and `Vec` would refuse it. So `fn (Num(Vec(I16,
+     * n)), n: Int)` and `fn (n: Int, Num(Vec(I16, n)))` are one context. Only `Const` entries move:
+     * a plain `(a)` keeps its written position, so the numbering of every signature without a count
+     * is what it was.
+     */
+    for(U32 pass = 0; pass < 2; pass++)
     for(auto constraint: written.constraints.contents(parse)) {
+        if((constraint.kind == ast::Constraint::Const) != (pass == 0)) continue;
+
         /*
          * The five written forms, and what each one puts in the environment.
          *
@@ -2199,7 +2262,12 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      * the two spellings differ, with nothing to say when.
      */
     if(!lens && written.retBind != ast::BindType::Borrow) {
-        unsupported(declaration.source, "a written result convention"_v);
+        if(written.retBind == ast::BindType::Sink) {
+            context.diagnostics.error("`-> ->` says how what this hands over is received, and only a `lens fn` or an `iter fn` hands anything over - an ordinary function's result is the caller's already"_v,
+                                      declaration.source);
+        } else {
+            unsupported(declaration.source, "a written result convention"_v);
+        }
         return nullptr;
     }
 
@@ -2243,6 +2311,13 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
         outgoing = owned(program.types.unit);
     }
 
+    // `CallNames`, from wherever the result came from. A lens's written type is its hand-over,
+    // which is a binding position and not a callee; nothing reads names off it.
+    if(!handsOver) {
+        if(written.ret) function->resultNames = writtenCallNames(*parse[written.ret]);
+        else if(inherited) function->resultNames = inherited->resultNames;
+    }
+
     // The interior positions the result's own type has and nobody labelled - `elideResultOrigins`,
     // where rule 1 is argued. After every source of a result and before anything reads one, so that
     // an inherited signature and a written one are elided by the same line.
@@ -2250,6 +2325,18 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
 
     elisionSubject = outerElision;
     if(!outgoingOk) return nullptr;
+
+    // `-> ->{}` - the convention written on a hand-over of nothing. There is a continuation to
+    // receive it and nothing to receive, so the marker is a sentence somebody meant something by
+    // and is said rather than ignored.
+    if(lens && written.ret && written.retBind == ast::BindType::Sink &&
+       sameType(outgoing.type, program.types.unit)) {
+        context.diagnostics.error(iterator
+            ? "an iterator that hands over nothing has no value for `->` to be about"_v
+            : "a lens that hands over nothing has no value for `->` to be about"_v,
+            declaration.source);
+        return nullptr;
+    }
 
     function->originSlots = slots.count();
 
@@ -2471,9 +2558,19 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
              * expansion, because by the time `expandSwap` has its operands the derivation is a node
              * in the body.
              */
+            /*
+             * And `addressOf`'s operand, for the same reason said about a read (J162): the address
+             * is of the storage the argument *is*, and at `a := String` or `Array(I32)` the view a
+             * `WholeValue` position becomes is a temporary built for the call - so
+             * `bitcast(addressOf(s)) :: %String` named a view record that died with the statement,
+             * `length(*p)` read its words as `{run, length}`, and two `addressOf(s)` differed. Not
+             * a place shape in `op.def`, because a value with no storage is still an argument there
+             * (`AddressTemporary.yana`).
+             */
             auto& def = intrinsic::opDef(function->intrinsic);
             for(U32 i = 0; i < function->args.size() && i < def.count; i++) {
-                if(!intrinsic::isPlaceShape(def.params[i])) continue;
+                auto addressed = function->intrinsic == intrinsic::Op::addressOf && i == 0;
+                if(!addressed && !intrinsic::isPlaceShape(def.params[i])) continue;
 
                 auto& argument = *decl()[function->args.get(decl(), i)];
                 auto held = argument.occurrence.contract;
@@ -2703,6 +2800,44 @@ void Resolver::resolveSiteSignatures() {
     if(filled && program.typesClassified) reclassifyTypes(context, program);
 }
 
+/*
+ * `fn String.mine` in a module that does not declare `String` - modules.md, "Namespaces".
+ *
+ * The orphan rule's reasoning rather than a spelling rule: a dot-call reaches the receiver's own
+ * namespace (`namespacedName`), so a type's methods have to be one set, or `x.f(y)` would mean
+ * different things in two files depending on what each imported. A prefix that names *nothing* is a
+ * plain namespace and is fine, and so is one naming a record of this module's own.
+ *
+ * Only a record answers, which is `namespacedName`'s rule and the shipping stage's: a builtin width
+ * has no declaration to hang a namespace on, and an alias is a second name for a type rather than
+ * the place its methods are kept. The lookup is `search` with nothing reported - an ambiguity
+ * between two imports is not an answer to "is this someone else's type", and a use of the name is
+ * not what this is, so the semantic index is not asked to record one.
+ */
+void Resolver::checkNamespaceOwner(ast::Decl& declaration) {
+    auto name = declaration.fun.name;
+
+    // From the text rather than the segment table: a declaration's name may have been interned
+    // whole before anything asked for its segments, and the last dot is the whole of the question.
+    auto& identifier = context.find(name);
+    auto text = identifier.text;
+    auto length = Size(identifier.textLength);
+    while(length > 0 && text[length - 1] != '.') length--;
+    if(length < 2) return;
+
+    auto prefix = context.addQualifiedName(text, length - 1);
+
+    auto found = search<DeclPtr<RecordType>>(context, program, here(), prefix, declaration.source,
+                                             [&](DeclPtr<Module> in, NameRef reference) {
+        return program.findRecord(in, reference.rest());
+    }, false);
+
+    if(!found.found || found.module == here()) return;
+
+    context.diagnostics.error("%@ adds to the namespace of a type this module does not declare - a type's methods have to be one set, or `x.f(y)` would mean different things in two files. Write a plain function and call it with a dot"_v,
+                              declaration.source, context.findName(name));
+}
+
 void Resolver::declareFunction(ast::Decl& declaration, Size slot) {
     // A header naming `f.Iter` or `f.Result` waits for every other declaration - see
     // `deferSignature`, which is what takes the slot this pass would have appended.
@@ -2735,6 +2870,7 @@ void Resolver::declareFunction(ast::Decl& declaration, Size slot) {
     // `Resolver::demandBody`, which is what an iterator object's payload needs of its producer.
     record(pointer, &declaration);
     recordDefinition(context, functionSymbol(decl(), pointer));
+    checkNamespaceOwner(declaration);
 
     /*
      * `@replaces fn` - another body of a function rather than a function, so it takes no name.

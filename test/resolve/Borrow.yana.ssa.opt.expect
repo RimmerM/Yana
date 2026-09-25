@@ -1,0 +1,71 @@
+module ResolveTest
+
+fn bump(counter: I32 [unique call], by: I32 [shared call]) -> {} {
+bb0(%0: I32 [unique call] guaranteed, %1: I32 trivial):
+  %3: I32 trivial = load inspect %0
+  %5: I32 trivial = add inspect %3 inspect %1
+  store inspect %0 consume %5
+  return
+}
+
+fn swap'2(a: I32 [unique call], b: I32 [unique call]) -> {} {
+bb0(%0: I32 [unique call] guaranteed, %1: I32 [unique call] guaranteed):
+  %3: I32 trivial = load inspect %0
+  %4: I32 trivial = load inspect %1
+  store inspect %0 consume %4
+  store inspect %1 consume %3
+  return
+}
+
+fn moveBy(p: Point [unique call], dx: I32 [shared call], dy: I32 [shared call]) -> {} {
+bb0(%0: Point [unique call] guaranteed, %1: I32 trivial, %2: I32 trivial):
+  %5: %I32 address = field.addr .x inspect %0
+  %6: I32 [unique call] guaranteed from{%0} = load inspect %5
+  %11: I32 trivial = load inspect %6
+  %12: I32 trivial = call I32.+ borrow %11 borrow %1
+  store inspect %6 consume %12
+  %8: %I32 address = field.addr .y inspect %0
+  %9: I32 [unique call] guaranteed from{%0} = load inspect %8
+  %13: I32 trivial = load inspect %9
+  %14: I32 trivial = call I32.+ borrow %13 borrow %2
+  store inspect %9 consume %14
+  return
+}
+
+fn copyThroughBorrow(target: I32 [unique call], amount: I32 [shared call]) -> {} {
+bb0(%0: I32 [unique call] guaranteed, %1: I32 trivial):
+  %3: I32 trivial = load inspect %0
+  %5: I32 trivial = add inspect %3 inspect %1
+  store inspect %0 consume %5
+  return
+}
+
+fn main() -> I32 {
+bb0:
+  %3: %Point address = alloc frame Point
+  %15: I32 trivial = const 10
+  %16: I32 trivial = const 20
+  %17: Point trivial = aggregate.Point consume %15 consume %16
+  store inspect %3 consume %17
+  %18: Point [unique call] guaranteed from{%3} = load inspect %3
+  %19: I32 trivial = const 1
+  %20: I32 trivial = const 2
+  %42: %I32 address = field.addr .x inspect %18
+  %43: I32 [unique call] guaranteed from{%3} = load inspect %42
+  %44: I32 trivial = load inspect %43
+  %56: I32 trivial = add inspect %44 inspect %19
+  store inspect %43 consume %56
+  %46: %I32 address = field.addr .y inspect %18
+  %47: I32 [unique call] guaranteed from{%3} = load inspect %46
+  %48: I32 trivial = load inspect %47
+  %57: I32 trivial = add inspect %48 inspect %20
+  store inspect %47 consume %57
+  %61: I32 trivial = const 33
+  %28: %I32 address = field.addr .x inspect %3
+  %29: I32 trivial = load inspect %28
+  %30: I32 trivial = add inspect %61 inspect %29
+  %33: I32 trivial = add inspect %30 inspect %57
+  return consume %33
+}
+
+entry main

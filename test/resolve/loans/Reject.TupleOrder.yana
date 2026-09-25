@@ -1,0 +1,16 @@
+{-
+   A tuple type written before the record it holds (J147).
+
+   # resolver: ownership
+   # recover: yes
+
+   `{wrap1(n), 1}` in a body is refused - a tuple has no declaration to publish an origin set in, so
+   it cannot hold a record that refers to storage (`NestedBorrow.yana`'s header). The same tuple
+   written as a field's type *above* `L1` was folded while `L1` had no fields yet, came out with an
+   empty schema, and was accepted: `foldSchemas` started every record over but not the tuples.
+-}
+
+data H {t: {L1, Int}}
+data L1 {r: 'Int}
+
+fn main() -> Int = 0

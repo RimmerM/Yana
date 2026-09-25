@@ -185,6 +185,20 @@ static void reportUnsupportedFrame(Context& ctx, LowerFunction& fun) {
 }
 
 /*
+ * A frame whose fixed part does not fit a signed 32-bit displacement - J163.
+ *
+ * Every offset in the layout is an `I32`, because that is what an amd64 memory operand and a `lea`
+ * hold, and the region is summed in a `U32`; past 2 GiB both wrap and every slot is addressed
+ * somewhere else. Refused in every build, on `reportUnsupportedFrame`'s terms. It is not reached by
+ * any program this compiler has been given - a 3 GB `alloca` is placed dynamically - so this is the
+ * statement that the limit exists rather than a path anything takes.
+ */
+static void reportOversizedFrame(Context& ctx, LowerFunction& fun, U64 bytes) {
+    ctx.diagnostics.error("x64: %@ needs a frame of %@ bytes, and this backend addresses a frame with 32-bit displacements"_v,
+                          nullptr, ctx.findName(fun.name), bytes);
+}
+
+/*
  * What the *mode* asks for, with nothing about this function's frame in it.
  *
  * Split out of `functionNeedsFramePointer` because the layout asks it again. The two questions
@@ -249,6 +263,18 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
     // everything below that region is known.
     Array<U32> offsetInRegion;
     for(Size i = 0; i < frame.slots.size(); i++) offsetInRegion.push(0);
+
+    // The whole of what is placed below, summed where it cannot wrap - see `reportOversizedFrame`.
+    // Each slot's alignment is counted as padding it may need, and the argument area and the vector
+    // saves go on top. A field's displacement added to a slot's offset is `Emitter::frameResolved`'s
+    // to check. The layout is still built after a report, wrapped, so that everything downstream
+    // finds one; nothing runs it.
+    U64 bound = U64(frame.argAreaSize) + U64(vectorSaveSize()) * layout.savedVectors.count();
+    for(auto& slot: frame.slots) bound += U64(slot.size) + slot.alignment;
+    if(bound > U64(maxLimit<I32>)) {
+        reportOversizedFrame(ctx, fun, bound);
+        layout.oversized = true;
+    }
 
     U32 size = 0;
     U32 maxAlign = 8;

@@ -28,28 +28,19 @@ main<complex>(): I32 {
   b_15 {
     %v_16 = shl %v_10, 1: I32
     %v_17 = add %v_5, %v_16: I32
-    %v_18 = loads @log, 4: I32
-    %v_19 = add %v_18, 100: I32
-    store @log, %v_19, 4
-    %v_20 = alloca 8, 4: Ptr
-    store %v_20, 0, 1
-    %v_21 = add %v_20, 4: Ptr
-    store %v_21, 0, 4
-    jmp b_22
+    %v_18 = add %v_11, 101: I32
+    store @log, %v_18, 4
+    jmp b_19
   }
 
   b_14 {
-    %v_23 = alloca 8, 4: Ptr
-    store %v_23, 1, 1
-    jmp b_22
+    jmp b_19
   }
 
-  b_22 {
-    %v_24 = phi [b_15, %v_20], [b_14, %v_23]: Ptr
+  b_19 {
+    %v_20 = phi [b_15, 0], [b_14, 1]: I32
     %v_6 = phi [b_15, %v_17], [b_14, %v_5]: I32
-    %v_25 = load %v_24, 1: I32
-    %v_26 = cmp_eq %v_25, 1: I32
-    je %v_26, b_9, b_3
+    je %v_20, b_9, b_3
   }
 
   b_3 {
@@ -57,47 +48,34 @@ main<complex>(): I32 {
   }
 
   b_9 {
-    %v_27 = phi [b_1, %v_5], [b_22, %v_6]: I32
-    %v_28 = loads @log, 4: I32
-    %v_29 = add %v_28, 1: I32
+    %v_21 = phi [b_1, %v_5], [b_19, %v_6]: I32
+    %v_22 = loads @log, 4: I32
+    %v_23 = add %v_22, 101: I32
+    store @log, %v_23, 4
+    %v_24 = add %v_22, 102: I32
+    store @log, %v_24, 4
+    %v_25 = add %v_22, 103: I32
+    store @log, %v_25, 4
+    %v_26 = loads @sideEffect, 4: I32
+    %v_27 = add %v_26, 14: I32
+    store @sideEffect, %v_27, 4
+    %v_28 = add %v_22, 203: I32
+    store @log, %v_28, 4
+    %v_29 = add %v_22, 204: I32
     store @log, %v_29, 4
-    %v_30 = loads @log, 4: I32
-    %v_31 = add %v_30, 100: I32
-    store @log, %v_31, 4
-    %v_32 = loads @log, 4: I32
-    %v_33 = add %v_32, 1: I32
+    %v_30 = add %v_22, 205: I32
+    store @log, %v_30, 4
+    %v_31 = add %v_26, 54: I32
+    store @sideEffect, %v_31, 4
+    %v_32 = add %v_22, 305: I32
+    store @log, %v_32, 4
+    %v_33 = add %v_22, 306: I32
     store @log, %v_33, 4
-    %v_34 = loads @log, 4: I32
-    %v_35 = add %v_34, 1: I32
-    store @log, %v_35, 4
-    %v_36 = loads @sideEffect, 4: I32
-    %v_37 = add %v_36, 14: I32
-    store @sideEffect, %v_37, 4
-    %v_38 = loads @log, 4: I32
-    %v_39 = add %v_38, 100: I32
-    store @log, %v_39, 4
-    %v_40 = loads @log, 4: I32
-    %v_41 = add %v_40, 1: I32
-    store @log, %v_41, 4
-    %v_42 = loads @log, 4: I32
-    %v_43 = add %v_42, 1: I32
-    store @log, %v_43, 4
-    %v_44 = loads @sideEffect, 4: I32
-    %v_45 = add %v_44, 40: I32
-    store @sideEffect, %v_45, 4
-    %v_46 = loads @log, 4: I32
-    %v_47 = add %v_46, 100: I32
-    store @log, %v_47, 4
-    %v_48 = loads @log, 4: I32
-    %v_49 = add %v_48, 1: I32
-    store @log, %v_49, 4
-    %v_50 = add %v_27, 10: I32
-    %v_51 = add %v_50, 18446744073709551615: I32
-    %v_52 = loads @sideEffect, 4: I32
-    %v_53 = add %v_51, %v_52: I32
-    %v_54 = loads @log, 4: I32
-    %v_55 = add %v_53, %v_54: I32
-    ret %v_55
+    %v_34 = add %v_21, 10: I32
+    %v_35 = add %v_34, 18446744073709551615: I32
+    %v_36 = add %v_35, %v_31: I32
+    %v_37 = add %v_36, %v_33: I32
+    ret %v_37
   }
 }
 

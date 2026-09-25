@@ -66,4 +66,20 @@ private:
     Array<ModuleGroup*> groups;
 };
 
+/*
+ * Whether any file of this module declares a `@test` - asked of the parse tree, before anything is
+ * resolved.
+ *
+ * A test module is not reached from the program it tests, because the dependency runs the other
+ * way, so under `-test` something has to name the ones that are part of the compilation anyway.
+ * This is that test, and it is deliberately the narrowest one that works: a module with no `@test`
+ * in it contributes nothing to a suite, and a test module's *helpers* are reached from it by
+ * ordinary imports like anything else. Both resolvers take its answer as their `testRoots`.
+ *
+ * Here rather than in either resolver, for the reason `ModuleProvider` is: the driver asks it before
+ * choosing a stage, and the question is about the parse. It lived in `compiler/resolve/test.cpp`
+ * until J150, which made every `-test` build under the default stage call into the old one.
+ */
+bool moduleDeclaresTests(Context& context, ModuleGroup& group);
+
 } // namespace ast

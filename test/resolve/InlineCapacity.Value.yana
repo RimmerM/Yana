@@ -1,0 +1,47 @@
+{-
+   An `@inline(n) @capacity(n) [T]` lent through a **function value** and a **lambda** (J162).
+
+   # resolver: ownership
+
+   A direct call adapts the record to a `&Array(a)` owner by lending a descriptor and committing the
+   count after the call (`InlineCapacity.Owner.yana`). A call through a function value never reached
+   that step and was refused natively - "an argument must be Array(I32), and this is
+   InlineArray(I32, 4)" - where the shipping stage and JavaScript answered 22. The function type
+   states the position as a declaration does, and the call has an end, so the same reservation,
+   descriptor and commit are built there - including a later argument reading the array, which the
+   reservation admits as a direct call's does (`viaNamed`), and a shared position, which is refused
+   by the same sentence (`Reject.InlineCapacity.yana`).
+-}
+
+data Buffer {items: @inline(4) @capacity(4) [Int], tag: Int}
+
+fn addOne(&xs: Array(Int)):
+    push(xs, 1)
+
+fn addTwice(&xs: Array(Int), n: Int):
+    push(xs, n)
+    push(xs, n)
+
+fn viaValue(f: (&Array(Int)) -> {}) -> Int:
+    let &b = Buffer {items: [7], tag: 0}
+    f(b.items)
+    return (truncate(length(b.items)) :: Int) * 100 + b.items[1]
+
+fn viaNamed(f: (&Array(Int), Int) -> {}) -> Int:
+    let &b = Buffer {items: [7], tag: 3}
+    f(b.items, (truncate(length(b.items)) :: Int) + b.tag - 1)
+    return (truncate(length(b.items)) :: Int) * 100 + b.items[2]
+
+fn viaLambda() -> Int:
+    let &b = Buffer {items: [7], tag: 0}
+    let g = (&xs: Array(Int)) -> push(xs, 2)
+    g(b.items)
+    g(b.items)
+    return (truncate(length(b.items)) :: Int) * 100 + b.items[2]
+
+fn main() -> Int:
+    let a = viaValue(addOne)
+    let b = viaNamed(addTwice)
+    let c = viaLambda()
+    print("{a} {b} {c}\n")
+    return a * 1000000 + b * 1000 + c

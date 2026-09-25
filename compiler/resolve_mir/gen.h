@@ -274,7 +274,9 @@ struct GenContext {
      *
      * Written in this context's own terms, so `data Pair(a, b = a)` is admitted and `fillDefaults`
      * substitutes the arguments already supplied into it. That is why they are resolved after the
-     * whole parameter list is read rather than beside each one.
+     * whole parameter list is read rather than beside each one. (J134 refused it for a while; J144
+     * made declarations.md say this instead, and refuses only a default naming its own parameter or
+     * a later one - `Resolver::declareDefaults`.)
      */
     DeclList<DeclPtr<Type>, false> defaults;
 
@@ -335,6 +337,15 @@ struct GenContext {
      * of the difference and a second field naming which of them set it described nothing.
      */
     bool open = false;
+
+    /*
+     * Whether this head's default list was **abandoned** at a cycle - `data P(a, b = P(a))`
+     * (`Resolver::demandDefaults`). The cycle is reported where it is written; every application
+     * that leaves out the position the lost default was for is that same mistake, and saying "P
+     * takes 2 type arguments and this names 1" at each (and at an alias over it) only restated it
+     * (J162). So the arity sentence is not said for such a head.
+     */
+    bool defaultsAbandoned = false;
 };
 
 /*
@@ -539,6 +550,18 @@ DeclPtr<Type> erasedIterTypeOf(Context& context, Program& program, const Occurre
 // type variable turned out to be.
 Occurrence substituteOccurrence(Context& context, Program& program, const Occurrence& occurrence,
                                 const Substitution& with);
+
+/*
+ * `'%T` read as `'%'T` - a published loan of a pointer whose pointee names no origin has its pointee
+ * in the loan's own slot (J164). The occurrence unchanged where it is not one: an owned or call-bounded
+ * root, a type that is not a pointer, or a shape that already says something.
+ *
+ * Applied where an occurrence is *written* (`resolveOccurrence`) and nowhere else. A substitution
+ * does not apply it: `source'v` at `v := %Int` is `Index(Array(a)).get`'s result, and a pointer copied
+ * out of that would keep the container borrowed while holding nothing of what the container's
+ * elements point into, since a container does not carry a pointer element's pointee (J164 §3).
+ */
+Occurrence impliedPointeeOrigin(Program& program, const Occurrence& occurrence);
 
 // Whether this type mentions any variable at all - what a call site asks before it may specialize,
 // and what a signature asks to know whether it needs an environment.

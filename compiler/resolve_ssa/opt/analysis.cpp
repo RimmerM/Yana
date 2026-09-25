@@ -402,6 +402,41 @@ bool separateAddressStep(OptContext& opt, const AddressStep& left, const Address
 namespace {
 
 /*
+ * Every block argument an edge terminator fills with `address`, on every edge - the walk
+ * `Containment::admits` and `ReadWalk::only` share, which each had a copy of until J163.
+ *
+ * Every position is asked, on every edge, because a terminator can hand the same value to two arms
+ * and a `branch %c, X, X` is two edges into one block. `visit` answers whether to go on. An edge
+ * with no target, or one longer than its target declares - what `checkEdge` reports - has no
+ * argument to ask about, and stops the walk as a refusal would. Answers whether it went through.
+ */
+template<class Visit>
+bool forEachEdgeSlotOf(OptContext& opt, Inst& user, Value& address, Visit&& visit) {
+    auto held = true;
+
+    forEachEdge(opt.base, user, [&](Edge& edge) {
+        if(!held) return;
+        if(!edge.target) { held = false; return; }
+
+        auto target = opt.base[edge.target];
+        Size position = 0;
+
+        for(auto used: edge.arguments.contents(opt.base)) {
+            auto at = position++;
+            if(!used.isSet() || opt.base[used.value()] != &address) continue;
+            if(at >= target->argumentCount()) { held = false; return; }
+
+            if(!visit(*opt.base[target->argumentAt(opt.base, at)])) {
+                held = false;
+                return;
+            }
+        }
+    });
+
+    return held;
+}
+
+/*
  * Whether one use of an address keeps it in this frame - `Contained`'s rule, one operand at a time.
  *
  * The operand is compared by identity rather than by position, because a kind that reads a value
@@ -444,6 +479,27 @@ struct Containment {
 
         if(index < visiting.size()) visiting.set(index, false);
         return out;
+    }
+
+    // Whether a window is bytes read out of a slot - a `Guaranteed` load, through `represent`s -
+    // rather than a value a call answered, which may point into the slot's own storage. See the
+    // `Aggregate` arm.
+    bool windowReadOutOfLine(Value& window) {
+        auto value = &window;
+
+        for(U32 depth = 0; depth < 16; depth++) {
+            if(!value->definer) return false;
+
+            auto& definer = *opt.base[value->definer];
+            if(definer.kind == Inst::Load) return value->convention == Convention::Guaranteed;
+            if(definer.kind != Inst::Unary || ((InstUnary&)definer).op != mir::UnaryOp::Represent) return false;
+
+            auto operand = ((InstUnary&)definer).value;
+            if(!operand.isSet()) return false;
+            value = opt.base[operand.value()];
+        }
+
+        return false;
     }
 
     bool admits(Inst& user, Value& address) {
@@ -581,7 +637,24 @@ struct Containment {
                 // The summary is the *callee's*, so it may be read only where `callee` is who runs.
                 // Through a slot or a value it is the signature the call was checked against, which
                 // has no body and publishes nothing - see `InstCall::callee`.
-                if(!call.callee || call.through != mir::CallThrough::Declaration) return false;
+                //
+                // One such call is admitted, and only as its **target**: a call through a function
+                // value read out of this slot - J148. What it reads there is the pair, and the callee
+                // is handed the environment the pair holds and the arguments, never the address of
+                // the slot; a capture of the slot would have been an escape at the `fun.value`
+                // already. Refused where the slot is also an argument, since nothing says what an
+                // unknown callee keeps; and its result is not followed, because a callee never
+                // handed the address cannot answer with it. It is what lets `soleContents` answer a
+                // function slot at all.
+                if(!call.callee || call.through != mir::CallThrough::Declaration) {
+                    if(call.through != mir::CallThrough::Value || !named(call.target)) return false;
+
+                    for(auto used: call.arguments.contents(opt.base)) {
+                        if(named(used)) return false;
+                    }
+
+                    return true;
+                }
                 if(named(call.target)) return false;
 
                 auto kept = opt.decl[call.callee]->summary.escapes().get(mir::ArgumentSet::all());
@@ -631,36 +704,68 @@ struct Containment {
              * `forwardMemory`, `promote`, `place` - then had to leave it in memory for the whole
              * body. The counterpart in `opt/promote.cpp` is what turns the answer into instructions.
              *
-             * Every position the address fills is asked, on every edge, because a terminator can
-             * hand the same value to two arms and a `branch %c, X, X` is two edges into one block.
+             * Every position the address fills is asked, on every edge - `forEachEdgeSlotOf`.
              */
             case Inst::Jump:
             case Inst::Branch:
-            case Inst::Switch: {
-                auto held = true;
+            case Inst::Switch:
+                return forEachEdgeSlotOf(opt, user, address, [&](Value& argument) { return !escapes(argument); });
 
-                forEachEdge(opt.base, user, [&](Edge& edge) {
-                    if(!held) return;
-                    if(!edge.target) { held = false; return; }
+            /*
+             * A **window** installed as a field - J153. A view-form occurrence manifests as its
+             * view record, before anything asks whether it is a reference (`manifestNative`), so the
+             * aggregate copies the record's bytes - the items pointer and the length - and holds no
+             * name for the storage the window was read out of. What the items pointer names is the
+             * owner's run, which is `opt/place.cpp`'s question and not this one's.
+             *
+             * Only into a field that holds the window *as* a window: its own contract a view too, and
+             * not `holdsAddress`, which is a capture of the lender's storage whatever its occurrence
+             * would lay out. One record constructor with a single layout, where the components are
+             * the fields in order; anything else still refuses.
+             *
+             * It is what `data Cursor {buf: &'[Int]}` read back into `View {buf: c.buf}` was costing:
+             * the cursor's slot read as escaping, so the run stored in it could not be placed in the
+             * frame (`test/resolve/SliceCapability.yana`, 211 lowered instructions against 38).
+             *
+             * **Only a window read out of a slot** - J161, `windowReadOutOfLine`. "What the items
+             * pointer names is the owner's run" is true of an `Array`/`String` owner and of a
+             * window stored in a field, and false of a window a *call* answered: `elementsMut` of a
+             * `[T *n]`, an `InlineArray`'s accessor and any `fn f(&self: s'R) -> &s'[T] =
+             * self.fixed` hand back a window whose items pointer is the slot's own storage, and
+             * admitting it put `win2.yana`'s `Quad` in `Contained` while `pokeMove` wrote through
+             * the record it was handed (4 where 77 is right; `-inline none` lost the same writes to
+             * a plain `[Int *4]`). So the component must be a `Guaranteed` load - through any
+             * number of `represent`s - and the two types with a view row, `Array` and `String`, are
+             * both owners whose elements are a separate run. `addressMayName` does not look through
+             * an aggregate for the same reason: nothing this arm admits holds a name for the slot.
+             */
+            case Inst::Aggregate: {
+                if(address.convention != Convention::Guaranteed) return false;
+                if(!mir::viewRecordOf(opt.context, opt.program, address.occurrence)) return false;
+                if(!windowReadOutOfLine(address)) return false;
 
-                    auto target = opt.base[edge.target];
-                    Size position = 0;
+                auto& aggregate = (InstAggregate&)user;
+                if(aggregate.constructor != 0 || !user.results.size()) return false;
 
-                    for(auto used: edge.arguments.contents(opt.base)) {
-                        auto at = position++;
-                        if(!used.isSet() || opt.base[used.value()] != &address) continue;
+                auto& made = *opt.base[user.results.get(opt.base, 0)];
+                auto declared = made.occurrence.type ? opt.decl[made.occurrence.type] : nullptr;
+                if(!declared || declared->kind != mir::Type::Record) return false;
 
-                        // An edge longer than its target declares is what `checkEdge` reports; there
-                        // is no argument to ask about, so there is nothing this may admit.
-                        if(at >= target->argumentCount()) { held = false; return; }
-                        if(escapes(*opt.base[target->argumentAt(opt.base, at)])) {
-                            held = false;
-                            return;
-                        }
-                    }
-                });
+                auto& record = *(mir::RecordType*)declared;
+                if(record.layout != mir::RecordLayout::Single) return false;
+                if(aggregate.components.size() != record.fields.size()) return false;
 
-                return held;
+                for(Size i = 0; i < aggregate.components.size(); i++) {
+                    if(!named(aggregate.components.get(opt.base, i))) continue;
+
+                    auto field = record.field(opt.decl, U16(i));
+                    if(field.holdsAddress || mir::indirectField(opt.decl, field)) return false;
+
+                    auto contract = mir::fieldContract(opt.decl, made.occurrence.shape, field);
+                    if(contract.form() != mir::AccessForm::View) return false;
+                }
+
+                return true;
             }
 
             // And no default that admits. An aggregate component, a native operand, a returned
@@ -698,8 +803,8 @@ void Contained::build(OptContext& opt) {
 namespace {
 
 /*
- * Whether one instruction is the `Drop` of this allocation - the one writer `ConstantContents`
- * admits, for the reason `analysis.h` gives.
+ * Whether one instruction is the `Drop` of this allocation - the one writer `soleContents` admits,
+ * for the reason `analysis.h` gives.
  */
 bool isDropOf(OptContext& opt, Inst& inst, Value& allocation) {
     if(inst.kind != Inst::Drop) return false;
@@ -709,14 +814,49 @@ bool isDropOf(OptContext& opt, Inst& inst, Value& allocation) {
 }
 
 /*
- * The one whole-slot `Store` of a constant into this allocation, and null where there is no such
- * store or where the allocation is written more than once.
+ * Whether one instruction is a **hand-over out of** this allocation - a `load` whose result is
+ * tracked, which takes the object out and leaves the storage empty (`verify.cpp`'s loan rule reads
+ * it the same way).
+ *
+ * Admitted beside the drop and on the drop's own argument: it ends the life of what the storage
+ * held, so nothing may read the storage after it without something re-filling it first, and a
+ * re-fill is the second write the rule has already excluded. It is also what a drop *becomes* since
+ * J137 - `opt/teardown.cpp` writes an authored teardown as `load` and `call` - so a rule that
+ * admitted the one and not the other would have stopped answering a string literal's reads at the
+ * very rewrite that was meant to let its reclaim fold.
+ */
+bool isHandoverOf(OptContext& opt, Inst& inst, Value& allocation) {
+    if(inst.kind != Inst::Load || !inst.results.size()) return false;
+    if(!isTracked(opt.base[inst.results.get(opt.base, 0)]->convention)) return false;
+
+    auto address = opt.base[((InstLoad&)inst).address.value()];
+    return allocationRoot(opt, address) == &allocation;
+}
+
+// Whether a stored value is a `fun.value`, through the `represent`s a function value is restated
+// across - the pair is one word whichever reading the store was written at.
+bool isFunValue(OptContext& opt, Value* value) {
+    for(U32 step = 0; value && value->definer && step < 4; step++) {
+        auto inst = opt.base[value->definer];
+        if(inst->kind == Inst::FunValue) return true;
+        if(inst->kind != Inst::Unary || ((InstUnary*)inst)->op != mir::UnaryOp::Represent) return false;
+
+        value = opt.base[((InstUnary*)inst)->value.value()];
+    }
+
+    return false;
+}
+
+/*
+ * The one whole-slot `Store` into this allocation of a constant, an `Aggregate`, a `fun.value` or a
+ * value moved out of other storage, and null where there is no such store or where the allocation
+ * is written whole more than once.
  *
  * The **direct** use list is enough for the store to be found, because a whole-slot write names the
- * allocation itself; a write through a projection is a different instruction and is what the scan
- * over the body catches.
+ * allocation itself; a write through a projection is a different instruction and is what
+ * `ReadWalk` catches.
  */
-Inst* constantFill(OptContext& opt, Value& allocation) {
+Inst* soleFill(OptContext& opt, Value& allocation) {
     Inst* fill = nullptr;
 
     for(auto userPointer: allocation.uses(opt.base)) {
@@ -727,7 +867,17 @@ Inst* constantFill(OptContext& opt, Value& allocation) {
         if(fill) return nullptr;
 
         auto stored = opt.base[((InstStore&)user).value.value()];
-        if(!stored->definer || opt.base[stored->definer]->kind != Inst::Const) return nullptr;
+        if(!stored->definer) return nullptr;
+
+        // A tracked load is the move chain the conversion writes - `store %xs (load %literal)` -
+        // and is followed by the readers that walk values (the site estimate, `funValueBehind`);
+        // `forwardMemory` reads an `Aggregate` or a constant out of a fill and nothing else.
+        auto definer = opt.base[stored->definer];
+        auto moved = definer->kind == Inst::Load && isTracked(stored->convention);
+        auto kind = definer->kind;
+        if(kind != Inst::Const && kind != Inst::Aggregate && !moved && !isFunValue(opt, stored)) {
+            return nullptr;
+        }
 
         fill = &user;
     }
@@ -735,63 +885,256 @@ Inst* constantFill(OptContext& opt, Value& allocation) {
     return fill;
 }
 
-} // namespace
+/*
+ * Whether every use reached from `address` - a projection chain of `allocation` - leaves the storage
+ * as it was, apart from `fill`, the drops and the hand-overs `soleContents` admits. The escape rule
+ * of the whole query; see the header.
+ *
+ * It follows every name `Contained` follows - a projection, a `Guaranteed` load, a `represent` and
+ * a block argument an edge fills with one - so that what the containment walk admitted as a second
+ * name is a name this walk asks about rather than a refusal. The edge is the one that mattered for
+ * a string literal: a borrow of the slot that crosses a join (`ArmBinding.yana`'s arms) was a
+ * refusal here where the body scan this replaced had answered it.
+ */
+struct ReadWalk {
+    OptContext& opt;
+    const Contained& contained;
+    Value& allocation;
+    Inst& fill;
 
-void ConstantContents::build(OptContext& opt, const Contained& contained) {
-    auto count = opt.body->values.size();
+    // The block arguments already entered - an edge round a back edge names the argument it came
+    // from, and a name already being walked is being answered by the frame that entered it.
+    SmallArray<Value*, 8> entered;
 
-    held.clear();
-    held.reserve(count);
-    for(Size i = 0; i < count; i++) held.push(mir::Constant());
+    bool only(Value& address, U32 depth) {
+        if(depth > 6) return false;
 
-    for(auto valuePointer: opt.body->values.contents(opt.base)) {
-        auto value = opt.base[valuePointer];
-        if(!value->definer || opt.base[value->definer]->kind != Inst::Alloc) continue;
-        if(!opt.base[value->definer]->block) continue;
-        if(!contained[value]) continue;
-
-        auto fill = constantFill(opt, *value);
-        if(!fill) continue;
-
-        /*
-         * Every other instruction of the body asked the one question that answers it - "may this
-         * write that storage" - rather than an allowlist of the kinds that read. A kind nobody has
-         * looked at yet is then a barrier, which is the direction this has to fail in.
-         *
-         * It is a scan of the body per candidate, and a candidate is an allocation something stored
-         * a constant into whole: a handful per function, against a body that is being walked by
-         * every pass in this directory already.
-         */
-        auto written = false;
-        for(auto blockPointer: opt.body->blocks.contents(opt.base)) {
-            auto block = opt.base[blockPointer];
-
-            for(auto instPointer: block->instructions(opt.base)) {
-                auto& inst = *opt.base[instPointer];
-                if(&inst == fill || isDropOf(opt, inst, *value)) continue;
-                if(!mayWriteStorage(opt, contained, inst, *value)) continue;
-
-                written = true;
-                break;
+        for(auto userPointer: address.uses(opt.base)) {
+            auto& user = *opt.base[userPointer];
+            if(&user == &fill || isDropOf(opt, user, allocation) || isHandoverOf(opt, user, allocation)) {
+                continue;
             }
 
-            if(written) break;
+            switch(user.kind) {
+                case Inst::FieldAddress:
+                case Inst::ElementAddress:
+                case Inst::Load: {
+                    // A load hands on a *borrow* of the storage where its result is `Guaranteed`,
+                    // and that is followed like a projection - into the call it is lent to, which
+                    // is where a `&f` parameter writes; a trivial load is a read and ends here.
+                    if(mayWriteStorage(opt, contained, user, allocation)) return false;
+                    if(!user.results.size()) continue;
+
+                    auto result = opt.base[user.results.get(opt.base, 0)];
+                    if(user.kind == Inst::Load && result->convention != Convention::Guaranteed) continue;
+                    if(!only(*result, depth + 1)) return false;
+                    continue;
+                }
+
+                // A `represent` restates the same bytes at another type, and a function value is
+                // carried across one between its three readings (the pair, a borrow of it, a
+                // pointer to it). A second name, followed like a projection; any other unary of an
+                // address is one `Contained` has already refused.
+                case Inst::Unary: {
+                    if(((InstUnary&)user).op != mir::UnaryOp::Represent) continue;
+                    if(!user.results.size()) continue;
+
+                    if(!only(*opt.base[user.results.get(opt.base, 0)], depth + 1)) return false;
+                    continue;
+                }
+
+                // A name handed over an edge is the block argument at the other end of it. A
+                // write through that argument roots nowhere, which `mayWriteStorage` answers
+                // through `addressMayName`, so every user of the argument is asked here.
+                case Inst::Jump:
+                case Inst::Branch:
+                case Inst::Switch: {
+                    auto held = forEachEdgeSlotOf(opt, user, address, [&](Value& argument) {
+                        for(auto known: entered) if(known == &argument) return true;
+
+                        entered.push(&argument);
+                        return only(argument, depth + 1);
+                    });
+
+                    if(!held) return false;
+                    continue;
+                }
+
+                default:
+                    if(mayWriteStorage(opt, contained, user, allocation)) return false;
+
+                    // A value that carries the address on - a call's result - is a second name
+                    // this walk does not follow.
+                    for(auto resultPointer: user.results.contents(opt.base)) {
+                        auto result = opt.base[resultPointer];
+
+                        auto read = false;
+                        for(auto use: result->uses(opt.base)) { (void)use; read = true; break; }
+                        if(!read) continue;
+
+                        // A comparison or an arithmetic result is a number. A call's is a number
+                        // too unless it is a loan or a raw pointer, which is J92's "a call's result
+                        // is a second name for whatever its arguments named".
+                        if(user.kind == Inst::Binary) continue;
+                        if(user.kind != Inst::Call) return false;
+                        if(result->convention == Convention::Guaranteed) return false;
+                        if(opt.decl[result->occurrence.type]->kind == mir::Type::Pointer) return false;
+                    }
+
+                    if(isTerminator(user.kind)) return false;
+                    continue;
+            }
         }
 
-        if(written) continue;
-
-        auto stored = opt.base[((InstStore&)*fill).value.value()];
-        held[value->id.index] = ((InstConst&)*opt.base[stored->definer]).constant;
+        return true;
     }
+};
+
+} // namespace
+
+Inst* soleContents(OptContext& opt, const Contained& contained, Value& allocation) {
+    if(!allocation.definer || opt.base[allocation.definer]->kind != Inst::Alloc) return nullptr;
+    if(!opt.base[allocation.definer]->block) return nullptr;
+    if(!contained[&allocation]) return nullptr;
+
+    auto fill = soleFill(opt, allocation);
+    if(!fill) return nullptr;
+
+    ReadWalk walk { opt, contained, allocation, *fill };
+    return walk.only(allocation, 0) ? fill : nullptr;
 }
 
-ConstantContents& constantContentsOf(OptContext& opt) {
-    if(!opt.constantStamp.holds(opt.function, opt.body->version, true)) {
-        opt.constantContents.build(opt, containedOf(opt));
-        opt.constantStamp.take(opt.function, opt.body->version);
+Inst* SoleContents::of(OptContext& opt, const Contained& contained, Value& allocation) {
+    if(auto found = answers.getValue(allocation.id.index)) return found.unwrap();
+
+    auto fill = soleContents(opt, contained, allocation);
+    *answers.add(allocation.id.index).value = fill;
+    return fill;
+}
+
+SoleContents& soleContentsOf(OptContext& opt) {
+    if(!opt.soleStamp.holds(opt.function, opt.body->version, true)) {
+        opt.soleContents.answers.clear();
+        opt.soleStamp.take(opt.function, opt.body->version);
     }
 
-    return opt.constantContents;
+    return opt.soleContents;
+}
+
+// The stored value's definer, for the filters below.
+static Inst* filledWith(OptContext& opt, Inst* fill) {
+    if(!fill) return nullptr;
+    return opt.base[opt.base[((InstStore&)*fill).value.value()]->definer];
+}
+
+// A constant fill is `constantHeldBy`'s, and `forwardMemory` reads it through `constantAt`.
+Inst* aggregateFillOf(OptContext& opt, const Contained& contained, Value& value) {
+    auto fill = soleContents(opt, contained, value);
+    auto definer = filledWith(opt, fill);
+    return definer && definer->kind != Inst::Const ? fill : nullptr;
+}
+
+// Only a constant whose teardown is nothing, because the one reader erases the slot's drop.
+mir::Constant constantHeldBy(OptContext& opt, const Contained& contained, Value& value) {
+    auto definer = filledWith(opt, soleContents(opt, contained, value));
+    if(!definer || definer->kind != Inst::Const) return {};
+
+    auto constant = ((InstConst*)definer)->constant;
+    return opt.program.teardownIsNothing(constant) ? constant : mir::Constant();
+}
+
+InstFunValue* funValueBehind(OptContext& opt, SoleContents& slots, const Contained& contained,
+                             Value& target, bool& dropped) {
+    static constexpr U32 kMaxSteps = 12;
+
+    auto value = &target;
+
+    for(U32 step = 0; step < kMaxSteps; step++) {
+        if(!value->definer) return nullptr;
+
+        auto inst = opt.base[value->definer];
+
+        switch(inst->kind) {
+            case Inst::FunValue:
+                return (InstFunValue*)inst;
+
+            case Inst::Unary:
+                if(((InstUnary&)*inst).op != mir::UnaryOp::Represent) return nullptr;
+                value = opt.base[((InstUnary&)*inst).value.value()];
+                continue;
+
+            case Inst::Load:
+                value = opt.base[((InstLoad&)*inst).address.value()];
+                continue;
+
+            case Inst::Alloc: {
+                auto fill = slots.of(opt, contained, *value);
+                if(!fill) return nullptr;
+
+                for(auto userPointer: value->uses(opt.base)) {
+                    if(opt.base[userPointer]->kind == Inst::Drop) dropped = true;
+                }
+
+                value = opt.base[((InstStore*)fill)->value.value()];
+                continue;
+            }
+
+            default:
+                return nullptr;
+        }
+    }
+
+    return nullptr;
+}
+
+/*
+ * Whether the end of this value runs nothing - J138. A constant `mir::Program::teardownIsNothing`
+ * says so of, a value that owes no teardown at all, or an `Aggregate` of such values whose type
+ * leaves both halves to the derived walk (an authored `Drop` is an effect whatever the fields hold).
+ *
+ * It is `@caller`'s `Site` above all: every `check` builds one out of two string literals and two
+ * numbers, and its drop was a `String.reclaim` per literal at every assertion in the program.
+ */
+bool owesNothing(OptContext& opt, Value& value, U32 depth) {
+    if(!isTracked(value.convention)) return true;
+    if(!value.definer || depth > 4) return false;
+
+    auto definer = opt.base[value.definer];
+    if(definer->kind == Inst::Const) return opt.program.teardownIsNothing(((InstConst*)definer)->constant);
+
+    // A function value with no environment is `{thunk, null}`, and `teardown(fun)` of a null
+    // environment does nothing - J145, J94 §6.2 E. A record literal holding a callback is the shape.
+    if(definer->kind == Inst::FunValue) return !((InstFunValue*)definer)->capturing;
+
+    if(definer->kind != Inst::Aggregate) return false;
+
+    if(isLinearAt(opt, value.occurrence)) return false;
+    auto ownership = mir::ownershipOf(opt.decl, value.occurrence.type);
+    if(ownership.drop == mir::TeardownKind::Authored) return false;
+    if(ownership.reclaim == mir::TeardownKind::Authored) return false;
+
+    for(auto used: ((InstAggregate*)definer)->components.contents(opt.base)) {
+        if(!used.isSet()) continue;
+        if(!owesNothing(opt, *opt.base[used.value()], depth + 1)) return false;
+    }
+
+    return true;
+}
+
+/*
+ * Whether this allocation holds, for the whole body, a value whose end runs nothing - so a `drop`
+ * of it, or of any part of it, may be erased: `soleContents` names a constant whose teardown is
+ * nothing (`constantHeldBy`'s filter) or an aggregate that owes nothing (`owesNothing`).
+ */
+bool holdsNothingOwed(OptContext& opt, const Contained& contained, Value& value) {
+    auto fill = soleContents(opt, contained, value);
+    auto definer = filledWith(opt, fill);
+    if(!definer) return false;
+
+    if(definer->kind == Inst::Const) return opt.program.teardownIsNothing(((InstConst*)definer)->constant);
+
+    auto stored = opt.base[((InstStore*)fill)->value.value()];
+    return definer->kind == Inst::Aggregate && owesNothing(opt, *stored, 0);
 }
 
 /*
@@ -842,7 +1185,7 @@ static Maybe<ConstantStep> constantStepOf(OptContext& opt, Value& address) {
      * one body.
      *
      * Sound on exactly the terms the two roots are: `constantAt` concludes nothing unless it reaches
-     * a global `isWritten` says nothing writes, or an allocation `ConstantContents` says holds one
+     * a global `isWritten` says nothing writes, or an allocation `soleContents` says holds one
      * value throughout. Against either of those a snapshot and a name are the same answer.
      */
     if(inst->kind == Inst::Copy) {
@@ -863,7 +1206,8 @@ static Maybe<ConstantStep> constantStepOf(OptContext& opt, Value& address) {
     return Nothing();
 }
 
-Maybe<mir::Constant> constantAt(OptContext& opt, const ConstantContents& contents, Value* address) {
+Maybe<mir::Constant> constantAt(OptContext& opt, SoleContents& slots, const Contained& contained,
+                                Value* address) {
     SmallArray<U32, 8> path;
 
     while(address) {
@@ -871,8 +1215,8 @@ Maybe<mir::Constant> constantAt(OptContext& opt, const ConstantContents& content
             auto inst = opt.base[definer];
 
             if(inst->kind == Inst::Alloc) {
-                auto held = contents[*address];
-                if(!held.isSet()) return Nothing();
+                auto definer = filledWith(opt, slots.of(opt, contained, *address));
+                if(!definer || definer->kind != Inst::Const) return Nothing();
 
                 break;
             }
@@ -901,7 +1245,7 @@ Maybe<mir::Constant> constantAt(OptContext& opt, const ConstantContents& content
 
     auto root = opt.base[address->definer];
     auto value = root->kind == Inst::Alloc
-        ? contents[*address]
+        ? ((InstConst*)filledWith(opt, slots.of(opt, contained, *address)))->constant
         : opt.decl[((InstGlobalAddress*)root)->global]->initial;
 
     if(!value.isSet()) return Nothing();
@@ -1002,6 +1346,22 @@ bool mayWriteStorage(OptContext& opt, const Contained& contained, Inst& inst,
         case Inst::Alloc:
             return false;
 
+        /*
+         * A value built out of values - it consumes its components and writes no storage at all.
+         * Not `kSsaPure` only because of the consume, so the default below made it a barrier for
+         * every allocation that is not contained: `length(stack)` builds an `ArrayView` between two
+         * reads of the length, and the second was never answered by the first (J153, `Sort`).
+         */
+        case Inst::Aggregate:
+            return false;
+
+        // An edge hands values to a block and writes nothing - which only mattered once a block's
+        // facts could outlive it (`forwardMemory`'s `ends`, J153).
+        case Inst::Jump:
+        case Inst::Branch:
+        case Inst::Switch:
+            return false;
+
         // A duplicate: it reads its address and writes storage of its own that nothing else names
         // yet - `lower/inst.cpp`'s `Copy` arm is the allocation that makes the second owner a second
         // object.
@@ -1037,9 +1397,16 @@ bool mayWriteStorage(OptContext& opt, const Contained& contained, Inst& inst,
          */
         case Inst::Call: {
             auto& call = (InstCall&)inst;
-            if(!call.callee || call.through != mir::CallThrough::Declaration) return true;
+            auto direct = call.callee && call.through == mir::CallThrough::Declaration;
+            if(!direct && !contained[allocation]) return true;
 
-            auto mutated = opt.decl[call.callee]->summary.mutates().get(mir::ArgumentSet::all());
+            // A call that runs something this body cannot name writes through every argument it
+            // was handed - and through nothing else of a contained allocation: its target is the
+            // pair it reads, which `Contained` admits for that reason (J148), not an address the
+            // callee is given.
+            auto mutated = direct
+                ? opt.decl[call.callee]->summary.mutates().get(mir::ArgumentSet::all())
+                : mir::ArgumentSet::all();
             if(!contained[allocation]) return mutated.any() || mir::reachesGlobalState(opt.program, call.callee);
 
             for(Size i = 0; i < call.arguments.size(); i++) {

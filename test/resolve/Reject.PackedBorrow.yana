@@ -24,5 +24,16 @@ fn loanedConversion() -> Int:
 -- exactly one type. There is no call here for a conversion to be bracketed by.
 fn lengthOf(&h: 'Header) -> &'U32 = h.length
 
--- The unsafe half - `addressOf` a field sharing a word with its neighbours - is
--- `Reject.PackedBorrow.Legacy.yana`, because the default stage does not refuse it yet.
+-- The unsafe half - `addressOf` a field sharing a word with its neighbours - is the lowering's
+-- refusal, since packing is decided there: `Reject.PackedAddress.yana`.
+
+-- A `@bits(n)` field lent to a `&` position of a **function value's** type (J162). A direct call
+-- lends it through a temporary and commits after the call; a call through a value does not yet, and
+-- the shipping stage accepts it - `compiler/resolve_ssa/lower/README.md` says what was tried.
+fn bumpRead(&x: U32) -> U32:
+    x = x + 20
+    return x
+
+fn throughValue(&h: Header) -> U32:
+    let f = bumpRead :: (&U32) -> U32
+    return f(h.version)

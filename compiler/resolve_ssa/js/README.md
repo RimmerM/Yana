@@ -33,7 +33,7 @@ optimizer switched off since J72, which is a third row.
 | `vector.cpp` | every operation over a multi-part value - asked **before** the scalar switch, on the representation rather than on the type |
 | `cfg.h/.cpp` | `JsCfg` - reverse postorder, immediate dominators, loop membership and reachability, computed **once** per body and read by the verifier, the optimizer and the AST tier alike |
 | `verify.cpp` | construction, finished-CFG and representation verification - on in every build |
-| `opt.h`, `opt_internal.h` + `opt_*.cpp` | the JSIR optimizer, one `Optimizer` split by the question each pass answers (J93): `opt_analysis` the indexes (uses, dominance, positions, variable touches) and the editing helpers, `opt_alias` §6.3's copy-to-alias elision and the literal forwarding beside it, `opt_move` a copy at the last use, `opt_number` value numbering and decided branches, `opt_objects` where an object is built and whether it needs to be one, `opt_variables` scalar replacement and dead stores, `opt_driver` the order. Switchable off whole with `-no-jsir-opt` |
+| `opt.h`, `opt_internal.h` + `opt_*.cpp` | the JSIR optimizer, one `Optimizer` split by the question each pass answers (J93): `opt_analysis` the indexes (uses, dominance, positions, variable touches) and the editing helpers, `opt_alias` §6.3's copy-to-alias elision and the literal forwarding beside it, `opt_move` a copy at the last use, `opt_number` value numbering, constant folding (J136) and decided branches, `opt_objects` where an object is built and whether it needs to be one, `opt_variables` scalar replacement and dead stores, `opt_driver` the order. Switchable off whole with `-no-jsir-opt` |
 | `opt_coalesce.h/.cpp` | §6.8's block-argument coalescing - *which* arguments may share a variable. What one is called is still `codegen/js/structure.cpp`'s |
 | `print.cpp` | `-mode jsir` - the bodies, then the representation and shape declarations, which are only complete once every body has asked for one |
 
@@ -309,7 +309,8 @@ in: the mask's bitwise operators are the logical ones, the two `Core.Bits` famil
 widths the 32-bit helpers do not have and are corrected, the saturating pair has to be exact before
 it clamps, and a reduction is a tree.
 
-**The materialized form is a host row**, typed where the lane has a typed row, and it exists only for
+**The materialized form is a plain host row** - not a typed array, since J136: a typed row defeated
+V8's escape analysis (see the `Vector` arm of `jsRep`) - and it exists only for
 the positions one value is the only thing that fits: a field, an element, a `return`, an erased
 argument. A **block argument is deliberately not one of them**, which is what closes the shipping
 backend's known gap 10 by construction - a vector carried around a loop is `lanes` block arguments

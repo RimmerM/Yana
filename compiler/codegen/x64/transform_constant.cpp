@@ -1571,6 +1571,183 @@ void sinkVectorConstants(Context&, LowerBase base, LowerFunction& fun) {
     }
 }
 
+/*
+ * A fixed frame slot's address, defined where it is first needed rather than at the entry - J155.
+ *
+ * The ownership stage gives every local a frame slot and its SSA conversion puts each `alloc frame`
+ * in the entry block, so the address is live from the prologue to its last reader. The allocator can
+ * recreate one (`Remat::FrameAddress`), but it places webs in the order the function defines them,
+ * and a web that is free to take a register over its whole life takes one: an address defined at the
+ * entry and read at the end of the function holds a callee-saved register across everything between,
+ * and the loops in between are what pay for it. `validUtf8Edges` in `lib/Core/Encoding.test.yana`
+ * held five array literals' addresses in `rbx` and `r12`-`r15` from its prologue and kept every one
+ * of its twenty-three loops' counters and bounds in the frame around the call inside them.
+ *
+ * So the address moves to the nearest block that dominates every reader - a phi reads on its edge,
+ * at the end of the predecessor - and in that block to just above the first reader, or above the
+ * terminator where the readers are all below. What moves is only the address computation: a fixed
+ * allocation is a frame object whatever block states it (`collectFrameObjects`), so its storage and
+ * its offset are the same wherever the `lea` stands, and running it twice produces the same pointer.
+ *
+ * **Not into a loop the definition was outside.** The nearest common dominator of readers inside a
+ * loop is inside it, and one `lea` per iteration is what the address would then cost; the block the
+ * definition goes to is walked up the dominator tree until it is no deeper than where it was, which
+ * is the loop's own dominator outside it. The address is then live across that loop, which is what it
+ * would have been anyway, and it is a recipe there as everywhere.
+ *
+ * Here rather than in the shared lower tier, because only this backend reads the position: the LLVM
+ * emitter moves every `alloca` back to the entry block, which is what LLVM's own `mem2reg` wants, and
+ * the shipping stage already emits each one where it is used.
+ */
+void sinkFrameAddresses(Context&, LowerBase base, LowerFunction& fun) {
+    /*
+     * The candidates, and the cheap refusal first. An address its own block reads before anything
+     * clobbers stays where it is: a reader in the defining block makes that block the nearest common
+     * dominator, and the reader comes before the first call - which is every allocation the shipping
+     * stage emits, and a walk of a few instructions each. Asked here rather than below because the
+     * question below costs a scan of the block, and the shipping stage's `main$` is one block of
+     * seventeen thousand instructions with thousands of allocations in it: asked of every one, it was
+     * a percent of that stage's whole compile.
+     */
+    SmallArray<LowerInst*, 16> allocas;
+    for(auto offset: fun.blocks.contents(base)) {
+        auto list = base[offset]->instructions.contents(base);
+
+        for(Size k = 0; k < list.size(); k++) {
+            auto inst = base[list[k]];
+
+            // A literal size, which is what makes it a frame object; `isImm` is not the question
+            // yet, since what it adds - that the literal is embedded - is selection's to decide.
+            if(inst->kind != LowerInst::Alloca) continue;
+            if(base[((LowerInstAlloca*)inst)->byteCount]->inst()->kind != LowerInst::Imm) continue;
+
+            auto value = &((LowerInstAlloca*)inst)->result;
+            auto readFirst = false;
+
+            for(auto j = k + 1; j < list.size() && !readFirst; j++) {
+                auto next = base[list[j]];
+                if(next->kind == LowerInst::Call) break;
+
+                for(auto used: next->used()) {
+                    if(base[used] == value) { readFirst = true; break; }
+                }
+            }
+
+            if(!readFirst) allocas.push(inst);
+        }
+    }
+
+    if(allocas.size() == 0) return;
+
+    // Both number the blocks the same way; see LoopAnalysis in lower.h. `buildLoops` is what writes
+    // each block's `loopDepth`, which is the only thing read of it here.
+    fun.buildLoops(base);
+    auto dominators = fun.buildDominatorTree(base);
+    auto blockList = fun.blocks.contents(base);
+
+    auto intersect = [&](BlockIndex a, BlockIndex b) {
+        while(a != b) {
+            while(a < b) a = dominators.tree[a];
+            while(b < a) b = dominators.tree[b];
+        }
+
+        return a;
+    };
+
+    auto blockAt = [&](BlockIndex post) { return base[blockList[dominators.postorder[post]]]; };
+
+    for(auto inst: allocas) {
+        auto origin = base[inst->block];
+        if(origin->postIndex == kNullBlock) continue;
+
+        auto value = &((LowerInstAlloca*)inst)->result;
+        BlockIndex common = kNullBlock;
+        auto reachable = true;
+
+        auto join = [&](LowerBlock* block) {
+            if(block->postIndex == kNullBlock) { reachable = false; return; }
+            common = common == kNullBlock ? block->postIndex : intersect(common, block->postIndex);
+        };
+
+        for(auto userPtr: value->uses.contents(base)) {
+            auto user = base[userPtr];
+
+            if(user->kind == LowerInst::Phi) {
+                auto phi = (LowerInstPhi*)user;
+                auto used = phi->used();
+                auto sources = phi->sources();
+
+                for(Size k = 0; k < used.size(); k++) {
+                    if(base[used[k]] == value) join(base[sources[k]]);
+                }
+            } else {
+                join(base[user->block]);
+            }
+        }
+
+        // A reader control never reaches is dominated by anything, and the validator says so; but it
+        // is not a block this should be deciding a position by, so such an address is left alone.
+        if(!reachable || common == kNullBlock) continue;
+
+        auto target = blockAt(common);
+        while(target->loopDepth > origin->loopDepth && target != origin) {
+            target = blockAt(dominators.tree[target->postIndex]);
+        }
+
+        // The first reader in the target block, if any; phis read on their edges and are not in it.
+        auto list = target->instructions.contents(base);
+        auto at = list.size();
+
+        for(Size k = 0; k < list.size(); k++) {
+            auto candidate = base[list[k]];
+            if(candidate == inst) continue;
+
+            auto reads = false;
+            for(auto used: candidate->used()) {
+                if(base[used] == value) { reads = true; break; }
+            }
+
+            if(reads) { at = k; break; }
+        }
+
+        /*
+         * Within its own block only past a call, which is `sinkVectorConstants`' rule and for its
+         * reason: a live range that crosses no clobber costs nothing to hold, and moving the
+         * definition anyway reorders the frame objects - `collectFrameObjects` numbers them in
+         * the order the function states them - which moved the shipping stage's `main$` to worse
+         * registers for no range it shortened (+6 KB of `test/base` under `-resolver legacy`).
+         */
+        if(target == origin) {
+            auto here = positionOf(base, origin, inst);
+            if(!here) continue;
+
+            auto crossesCall = false;
+            for(auto k = here.unwrap() + 1; k < at; k++) {
+                if(base[list[k]]->kind == LowerInst::Call) { crossesCall = true; break; }
+            }
+
+            if(!crossesCall) continue;
+        }
+
+        auto from = positionOf(base, origin, inst);
+        if(!from) continue;
+
+        origin->instructions.remove(base, from.unwrap());
+        if(target == origin && from.unwrap() < at) at--;
+
+        // Moved rather than reinserted: `insertInstAt` records the instruction's operands as read
+        // again, and the size it reads is still read exactly once.
+        inst->block = target - base;
+        target->instructions.push(fun.arena, inst - base);
+
+        for(auto k = target->instructions.size() - 1; k > at; k--) {
+            target->instructions.set(base, k, target->instructions.get(base, k - 1));
+        }
+
+        target->instructions.set(base, at, inst - base);
+    }
+}
+
 void poolFloatConstants(Context& ctx, LowerBase base, LowerFunction& fun) {
     auto& module = *fun.module;
 

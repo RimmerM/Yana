@@ -1,14 +1,5 @@
 mut @live = [0, 0, 0, 0]
 
-Held.drop<complex>(%v_0: I32) {
-  b_1 {
-    %v_2 = loads @live, 4: I32
-    %v_3 = sub %v_2, 1: I32
-    store @live, %v_3, 4
-    ret 
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
     jmp b_1
@@ -36,7 +27,8 @@ main<complex>(): I32 {
     %v_15 = imul %v_11, 3: I32
     %v_16 = add %v_11, %v_14: I32
     %v_17 = add %v_16, %v_15: I32
-    call_complex Held.drop, %v_11
+    %v_18 = sub %v_13, 1: I32
+    store @live, %v_18, 4
     %v_7 = add %v_10, %v_17: I32
     %v_4 = add %v_11, 1: I32
     jmp b_2

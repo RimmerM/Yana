@@ -1,0 +1,45 @@
+{-
+   The rearrangements over a const lane count - J142's `reverse`, finished for the other three (J143).
+
+   `rotate`, `alignLanes`, `interleaveLow` and `interleaveHigh` each rearrange by a pattern that is a
+   function of the lane count and one constant, so in a body compiled once over `Vec(a, n)` the count
+   is not there to write it. They used to answer nothing with no diagnostic - which surfaced as "reaches
+   the end without returning" - and now carry what the pattern *is*
+   (`NodeVecShuffle::Deferred`); the SSA conversion writes it once the substitution has made `n` a
+   number, exactly as `reverse`'s is written in `ConstGenericVec.yana`.
+
+   Four lanes of `I32`, a whole register natively, so this one runs on x64 as well as on JavaScript.
+   `unpackLow`, `unpackHigh` and `packLanes` relate two counts and are refused by name in such a body -
+   `Reject.ConstGenericVec.yana`.
+-}
+
+import Native
+
+let &sink = 0 :: Vec(I32, 4)
+
+fn four(a: I32, b: I32, c: I32, d: I32) -> Vec(I32, 4) =
+    withLane(withLane(withLane(withLane(sink, 0, a), 1, b), 2, c), 3, d)
+
+-- Lane `i` of the result is lane `i + 1` of the source.
+@noinline
+fn (n: Int) rotated(v: Vec(I32, n)) -> Vec(I32, n) = rotate(v, 1)
+
+-- `below` supplies the low lanes of the pair and `above` the high ones; the window starts at 1.
+@noinline
+fn (n: Int) windowed(above: Vec(I32, n), below: Vec(I32, n)) -> Vec(I32, n) = alignLanes(above, below, 1)
+
+@noinline
+fn (n: Int) mixedLow(v: Vec(I32, n), w: Vec(I32, n)) -> Vec(I32, n) = interleaveLow(v, w)
+
+@noinline
+fn (n: Int) mixedHigh(v: Vec(I32, n), w: Vec(I32, n)) -> Vec(I32, n) = interleaveHigh(v, w)
+
+-- Each lane weighted by its position, so a pattern off by one lane is a different number.
+fn weigh(v: Vec(I32, 4)) -> Int = lane(v, 0) + 2 * lane(v, 1) + 3 * lane(v, 2) + 4 * lane(v, 3)
+
+fn main() -> Int:
+    let v = four(0, 1, 2, 3)
+    let w = four(10, 11, 12, 13)
+
+    -- [1, 2, 3, 0] is 14, [11, 12, 13, 0] is 74, [0, 10, 1, 11] is 67 and [2, 12, 3, 13] is 87.
+    return weigh(rotated(v)) + weigh(windowed(v, w)) + weigh(mixedLow(v, w)) + weigh(mixedHigh(v, w))

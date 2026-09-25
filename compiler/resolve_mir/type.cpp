@@ -1407,8 +1407,27 @@ bool isDerivationMember(intrinsic::Known role, U32 index) {
     return false;
 }
 
+Maybe<InlineArrayParts> inlineArrayParts(DeclBase base, Program& program, DeclPtr<Type> type) {
+    auto declaration = program.roles.record(intrinsic::Known::inlineArray);
+    if(!declaration || !type || base[type]->kind != Type::Record) return Nothing();
+
+    auto& record = *(RecordType*)base[type];
+    if(record.instanceOf != declaration || record.fields.size() != 2) return Nothing();
+
+    auto slots = record.field(base, 0).occurrence.type;
+    if(!slots || base[slots]->kind != Type::Array) return Nothing();
+
+    auto& array = *(ArrayType*)base[slots];
+    if(!array.hasFixedLength()) return Nothing();
+
+    return Just(InlineArrayParts { array.element, array.length });
+}
+
 DeclPtr<Type> donorElementOf(DeclBase base, Program& program, DeclPtr<Type> type) {
     if(auto element = elementTypeOf(base, program, type)) return element;
+
+    // A refined array gives its element to a `[a]` position as a fixed one does - `adaptToView`.
+    if(auto parts = inlineArrayParts(base, program, type)) return parts.unwrap().element;
 
     auto row = viewRowOfRecord(base, program, type);
     if(!row) return nullptr;

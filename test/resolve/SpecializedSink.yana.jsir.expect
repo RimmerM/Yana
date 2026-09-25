@@ -23,8 +23,7 @@ fn main() -> one %r0
   block1:
     %47: %r2 = alias %46
     %60: %r2 = alias %47
-    %61: %r0 = alias %55
-    %62: %r0 = coerce %61
+    %62: %r0 = const 2
     %63: %r1 = load element %60[%62]: %r1
     %64: %r1 = alias %63
     %65: %r2 = alias %46
@@ -63,11 +62,11 @@ fn main() -> one %r0
     %24: %r1 = const "ab"
     jump -> block6(%22)
   block5:
-    %109: %r8 = const "$v"
-    call push(String) %5, %109, %10
-    %110: %r0 = binary.add %0, %11
-    %111: %r0 = coerce %110
-    jump -> block3(%111)
+    %107: %r8 = const "$v"
+    call push(String) %5, %107, %10
+    %108: %r0 = binary.add %0, %11
+    %109: %r0 = coerce %108
+    jump -> block3(%109)
   block6(%1: %r0):
     %25: %r15 = binary.lt %1, %13
     branch %25 -> block8 -> block7
@@ -81,11 +80,11 @@ fn main() -> one %r0
     %35: %r0 = const 1
     jump -> block9(%32)
   block8:
-    %106: %r8 = const "$v"
-    call push(String) %18, %106, %24
-    %107: %r0 = binary.add %1, %23
-    %108: %r0 = coerce %107
-    jump -> block6(%108)
+    %104: %r8 = const "$v"
+    call push(String) %18, %104, %24
+    %105: %r0 = binary.add %1, %23
+    %106: %r0 = coerce %105
+    jump -> block6(%106)
   block9(%2: %r0):
     %37: %r15 = binary.lt %2, %26
     branch %37 -> block11 -> block10
@@ -104,8 +103,7 @@ fn main() -> one %r0
     %52: %r0 = convert %50
     %53: %r0 = binary.add %45, %52
     %54: %r0 = coerce %53
-    %55: %r0 = const 2
-    %57: %r19 = convert %55
+    %57: %r19 = const 2
     %58: %r19 = convert %50
     %59: %r15 = binary.ge %57, %58
     branch %59 -> block2 -> block1
@@ -118,26 +116,24 @@ fn main() -> one %r0
     %88: %r0 = coerce %87
     jump -> block12
   block12:
-    %99: %r7 = alias %84
+    %97: %r7 = alias %84
     %83: %r6 = object %s0 %82, %33
-    %100: %r6 = alias %83
-    store element %99[%86]: %r6, %100
-    %101: %r19 = convert %88
-    %102: %r5 = convert %101
-    %103: %r7 = alias %31
-    store property %103.length: %r5, %102
-    %104: %r0 = binary.add %2, %35
-    %105: %r0 = coerce %104
-    jump -> block9(%105)
+    %98: %r6 = alias %83
+    store element %97[%86]: %r6, %98
+    %99: %r19 = convert %88
+    %100: %r5 = convert %99
+    %101: %r7 = alias %31
+    store property %101.length: %r5, %100
+    %102: %r0 = binary.add %2, %35
+    %103: %r0 = coerce %102
+    jump -> block9(%103)
   block13:
-    %93: %r7 = load property %28.$v: %r7
-    %94: %r7 = load property %28.$v: %r7
-    %95: %r0 = host host.field "length" host-range %94
-    %96: %r15 = binary.le %88, %95
-    branch %96 -> block12 -> block14
+    %93: %r0 = host host.field "length" host-range %90
+    %94: %r15 = binary.le %88, %93
+    branch %94 -> block12 -> block14
   block14:
-    %97: %r8 = const "$v"
-    call growJsArray(Array(I32)) %28, %97, %88
+    %95: %r8 = const "$v"
+    call growJsArray(Array(I32)) %28, %95, %88
     jump -> block12
 
 fn Array(a).reclaim(String)(one %r2) -> omitted
@@ -240,7 +236,7 @@ fn growJsArray(Array(I32))(parts %r12, one %r0) -> omitted
     store element %0[%1]: %r7, %15
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 35 adopted 0 sunk 1 numbered 22 decided 2 unboxed 1 updated 0 split 1 promoted 7
+optimizer clones 0 aliased 0 forwarded 0 removed 37 adopted 0 sunk 1 numbered 21 decided 2 unboxed 1 updated 0 split 1 promoted 7 folded 3
 
 shape %s0 object Array {items: %r4, length: %r5}
 shape %s1 ref {$o: %r8 owner, $k: %r8 key}

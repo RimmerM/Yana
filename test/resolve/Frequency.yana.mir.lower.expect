@@ -79,15 +79,14 @@ main<complex>(): I32 {
     %v_1 = loads @given, 4: I32
     call_complex checked, %v_1, 1
     %v_2 = loads @given, 4: I32
+    call_complex checked, %v_2, %v_2
     %v_3 = loads @given, 4: I32
-    call_complex checked, %v_2, %v_3
-    %v_4 = loads @given, 4: I32
-    call_complex checkedAgain, %v_4, 9
-    %v_5 = loads @failures, 4: I32
-    %v_6 = loads @given, 4: I32
-    %v_7 = call_complex stepped, %v_6: I32
-    %v_8 = add %v_5, %v_7: I32
-    ret %v_8
+    call_complex checkedAgain, %v_3, 9
+    %v_4 = loads @failures, 4: I32
+    %v_5 = loads @given, 4: I32
+    %v_6 = call_complex stepped, %v_5: I32
+    %v_7 = add %v_4, %v_6: I32
+    ret %v_7
   }
 }
 

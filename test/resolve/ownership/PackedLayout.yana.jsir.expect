@@ -44,112 +44,54 @@ fn offsetWideRoundTrip(one %r3) -> one %r3
     return %9
 
 fn main() -> one %r7
-  var $0: %r11
-  var $1: %r13
-  var $2: %r8
-  var $3: %r8
-  var $4: %r8
-  var $5: %r8
-  var $6: %r8
-  var $7: %r8
-  var $8: %r8
-  var $9: %r8
-  var $10: %r8
-  var $11: %r9
-  var $12: %r0
-  var $13: %r10
-  var $14: %r8
-  var $15: %r12
-  var $16: %r12
-  var $17: %r12
-  var $18: %r12
-  var $19: %r12
-  var $20: %r12
-  var $21: %r12
-  var $22: %r1
-  var $23: %r12
-  var $24: %r1
-  var $25: %r0
-  var $26: %r10
-  var $27: %r12
   block0:
-    %43: %r3 = const 78187493530n
-    %44: %r3 = call wideRoundTrip %43
-    %45: %r3 = const 151488268715n
-    %46: %r3 = call offsetWideRoundTrip %45
-    %66: %r8 = const 1
-    %82: %r12 = const 1
-    %84: %r1 = const 1
-    %86: %r1 = const 0
-    %88: %r0 = const 7.818749353E10
-    %90: %r12 = const 1
-    %91: %r7 = const 155
-    %92: %r3 = const 78187493530n
-    %93: %r12 = binary.eq %44, %92
-    %94: %r7 = const 1
-    %95: %r7 = const 0
-    %96: %r7 = select %93, %94, %95
-    %97: %r7 = binary.add %91, %96
-    %98: %r7 = coerce %97
-    %99: %r3 = const 151488268715n
-    %100: %r12 = binary.eq %46, %99
-    %101: %r7 = const 1
-    %102: %r7 = const 0
-    %103: %r7 = select %100, %101, %102
-    %104: %r7 = binary.add %98, %103
-    %105: %r7 = coerce %104
-    %108: %r8 = alias %66
-    %109: %r3 = convert %108
-    %110: %r3 = const 1n
-    %111: %r12 = binary.eq %109, %110
-    %112: %r7 = const 2
-    %113: %r7 = const 0
-    %114: %r7 = select %111, %112, %113
-    jump -> block1(%114)
-  block1(%0: %r7):
-    %115: %r7 = binary.add %105, %0
-    %116: %r7 = coerce %115
-    %118: %r12 = alias %82
-    branch %118 -> block4 -> block2
-  block2:
-    %134: %r7 = const 0
-    jump -> block3(%134)
-  block3(%1: %r7):
-    %136: %r7 = binary.add %116, %1
-    %137: %r7 = coerce %136
-    return %137
+    %14: %r3 = const 78187493530n
+    %15: %r3 = call wideRoundTrip %14
+    %16: %r3 = const 151488268715n
+    %17: %r3 = call offsetWideRoundTrip %16
+    %51: %r7 = const 155
+    %52: %r3 = const 78187493530n
+    %53: %r9 = binary.eq %15, %52
+    %54: %r7 = const 1
+    %55: %r7 = const 0
+    %56: %r7 = select %53, %54, %55
+    %57: %r7 = binary.add %51, %56
+    %58: %r7 = coerce %57
+    %59: %r3 = const 151488268715n
+    %60: %r9 = binary.eq %17, %59
+    %61: %r7 = const 1
+    %62: %r7 = const 0
+    %63: %r7 = select %60, %61, %62
+    %64: %r7 = binary.add %58, %63
+    %65: %r7 = coerce %64
+    %66: %r7 = const 2
+    %67: %r7 = binary.add %65, %66
+    %68: %r7 = coerce %67
+    jump -> block3
+  block1:
+    %76: %r7 = const 0
+    jump -> block2(%76)
+  block2(%0: %r7):
+    %78: %r7 = binary.add %68, %0
+    %79: %r7 = coerce %78
+    return %79
+  block3:
+    jump -> block4
   block4:
-    %120: %r1 = alias %84
-    %121: %r1 = const 1
-    %122: %r12 = binary.eq %120, %121
-    branch %122 -> block5 -> block2
+    jump -> block5
   block5:
-    %124: %r1 = alias %86
-    %125: %r1 = const 0
-    %126: %r12 = binary.eq %124, %125
-    branch %126 -> block6 -> block2
-  block6:
-    %128: %r0 = alias %88
-    %129: %r3 = convert %128
-    %130: %r3 = const 78187493530n
-    %131: %r12 = binary.eq %129, %130
-    branch %131 -> block7 -> block2
-  block7:
-    %133: %r12 = alias %90
-    branch %133 -> block8 -> block2
-  block8:
-    %135: %r7 = const 2
-    jump -> block3(%135)
+    %77: %r7 = const 2
+    jump -> block2(%77)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 151 adopted 2 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 6
+optimizer clones 0 aliased 0 forwarded 0 removed 58 adopted 2 sunk 0 numbered 0 decided 3 unboxed 0 updated 0 split 0 promoted 0 folded 4
 
 shape %s0 object WideBits {value: %r0, tail: %r1}
 shape %s1 object OffsetWide {prefix: %r5, value: %r0, suffix: %r5}
-shape %s2 object PageTableEntry {present: %r8, writable: %r8, user: %r8, writeThrough: %r8, cacheDisable: %r8, accessed: %r8, dirty: %r8, huge: %r8, globalPage: %r8, available: %r9, address: %r0, reserved: %r10, executeDisable: %r8}
-shape %s3 object TypedPageTableEntry {present: %r12, writable: %r12, user: %r12, writeThrough: %r12, cacheDisable: %r12, accessed: %r12, dirty: %r12, huge: %r1, globalPage: %r12, available: %r1, address: %r0, reserved: %r10, executeDisable: %r12}
-shape %s4 object Header {a: %r5, b: %r9, c: %r12, d: %r14, e: %r15}
-shape %s5 object WithMode {mode: %r1, padding: %r17}
-shape %s6 object Crosses {first: %r19, second: %r20, padding: %r19}
+shape %s2 object Header {a: %r5, b: %r8, c: %r9, d: %r10, e: %r11}
+shape %s3 object WithMode {mode: %r1, padding: %r13}
+shape %s4 object Crosses {first: %r15, second: %r16, padding: %r15}
+shape %s5 object PageTableEntry {present: %r18, writable: %r18, user: %r18, writeThrough: %r18, cacheDisable: %r18, accessed: %r18, dirty: %r18, huge: %r18, globalPage: %r18, available: %r8, address: %r0, reserved: %r19, executeDisable: %r18}
+shape %s6 object TypedPageTableEntry {present: %r9, writable: %r9, user: %r9, writeThrough: %r9, cacheDisable: %r9, accessed: %r9, dirty: %r9, huge: %r1, globalPage: %r9, available: %r1, address: %r0, reserved: %r19, executeDisable: %r9}
 
 rep %r0 = number unsigned 40
 rep %r1 = number unsigned 8
@@ -159,17 +101,17 @@ rep %r4 = void
 rep %r5 = number unsigned 4
 rep %r6 = object %s1
 rep %r7 = number signed 32
-rep %r8 = number unsigned 1
-rep %r9 = number unsigned 3
-rep %r10 = number unsigned 11
-rep %r11 = object %s2
-rep %r12 = number bool
-rep %r13 = object %s3
-rep %r14 = number unsigned 16
-rep %r15 = number unsigned 32
-rep %r16 = object %s4
-rep %r17 = number unsigned 5
-rep %r18 = object %s5
-rep %r19 = number unsigned 7
-rep %r20 = number unsigned 2
+rep %r8 = number unsigned 3
+rep %r9 = number bool
+rep %r10 = number unsigned 16
+rep %r11 = number unsigned 32
+rep %r12 = object %s2
+rep %r13 = number unsigned 5
+rep %r14 = object %s3
+rep %r15 = number unsigned 7
+rep %r16 = number unsigned 2
+rep %r17 = object %s4
+rep %r18 = number unsigned 1
+rep %r19 = number unsigned 11
+rep %r20 = object %s5
 rep %r21 = object %s6

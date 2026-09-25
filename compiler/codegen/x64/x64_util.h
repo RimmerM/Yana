@@ -56,3 +56,41 @@ inline U64 immValue(LowerValue* v) {
     assertTrue(v->inst()->kind == LowerInst::Imm);
     return ((LowerImm*)v->inst())->i;
 }
+
+/*
+ * The constant an immediate field carries for operand `v` of `user` - J157.
+ *
+ * A 32-bit operation sign-extends its immediate to 32 bits rather than to 64, so an `I32` constant
+ * with its top bit set is an ordinary small immediate there: `0xfffffffe` is `and r32, -2`, one byte.
+ * Read as the 64-bit number `immValue` answers it fits no immediate field at all, and such a constant
+ * was materialized into a register at every use - `mov $0xffffffff, %r11d ; cmp %r11d, %eax`. So the
+ * legality checks, the selector and legalization all ask here, and agree.
+ *
+ * Only for the kinds whose operation is exactly as wide as the constant. A cast materializes its
+ * source at another width, an outgoing argument is stored as eight bytes, and a store or an update
+ * narrower or wider than four bytes is not reading an `I32` at its own width.
+ */
+inline U64 embeddedImmValue(LowerBase base, LowerInst* user, LowerValue* v) {
+    auto raw = immValue(v);
+    if(v->type != LowerType::Int32 || (raw >> 31) == 0) return raw;
+
+    auto signExtended = U64(I64(I32(U32(raw))));
+
+    switch(user->kind) {
+        case LowerInst::Add:
+        case LowerInst::Sub:
+        case LowerInst::And:
+        case LowerInst::Or:
+        case LowerInst::Xor:
+        case LowerInst::Cmp:
+            return signExtended;
+
+        case LowerInst::Store: {
+            auto store = (LowerInstStore*)user;
+            return base[store->value] == v && store->getWidth() == 4 ? signExtended : raw;
+        }
+
+        default:
+            return raw;
+    }
+}

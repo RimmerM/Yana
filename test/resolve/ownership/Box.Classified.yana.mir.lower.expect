@@ -219,36 +219,32 @@ allocateHeap<complex>(%size: I64): Ptr {
 
   b_22 {
     %v_29 = load %v_18, 8: Ptr
-    %v_30 = load @heapWindowFree, 8: Ptr
-    %v_31 = add %v_30, %v_15: Ptr
-    store %v_31, %v_29, 8
+    store %v_17, %v_29, 8
     ret %v_18
   }
 
   b_28 {
-    %v_32 = load @heapWindowNext, 8: Ptr
-    %v_33 = add %v_32, %v_23: Ptr
-    store @heapWindowNext, %v_33, 8
-    store %v_32, %v_16, 8
-    %v_34 = add %v_32, 8: Ptr
-    ret %v_34
+    store @heapWindowNext, %v_25, 8
+    store %v_24, %v_16, 8
+    %v_30 = add %v_24, 8: Ptr
+    ret %v_30
   }
 
   b_7 {
-    %v_35 = phi [b_5, 16], [b_36, %v_37]: I64
-    %v_16 = phi [b_5, 0], [b_36, %v_38]: I64
-    %v_39 = cmp_ilt %v_35, %v_6: I32
-    je %v_39, b_36, b_40
-  }
-
-  b_40 {
-    %v_41 = cmp_ige %v_16, 32: I32
-    je %v_41, b_11, b_13
+    %v_31 = phi [b_5, 16], [b_32, %v_33]: I64
+    %v_16 = phi [b_5, 0], [b_32, %v_34]: I64
+    %v_35 = cmp_ilt %v_31, %v_6: I32
+    je %v_35, b_32, b_36
   }
 
   b_36 {
-    %v_37 = add %v_35, %v_35: I64
-    %v_38 = add %v_16, 1: I64
+    %v_37 = cmp_ige %v_16, 32: I32
+    je %v_37, b_11, b_13
+  }
+
+  b_32 {
+    %v_33 = add %v_31, %v_31: I64
+    %v_34 = add %v_16, 1: I64
     jmp b_7
   }
 }
@@ -268,9 +264,7 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_9 = add %v_7, %v_8: Ptr
     %v_10 = load %v_9, 8: Ptr
     store %allocation, %v_10, 8
-    %v_11 = load @heapWindowFree, 8: Ptr
-    %v_12 = add %v_11, %v_8: Ptr
-    store %v_12, %allocation, 8
+    store %v_9, %allocation, 8
     ret 
   }
 
@@ -288,19 +282,18 @@ isHeapAddress<complex>(%address: Ptr): I32 {
   }
 
   b_5 {
-    %v_6 = load @heapWindowBase, 8: Ptr
-    %v_7 = cmp_lt %address, %v_6: I32
-    je %v_7, b_4, b_8
+    %v_6 = cmp_lt %address, %v_1: I32
+    je %v_6, b_4, b_7
   }
 
   b_4 {
     ret 0
   }
 
-  b_8 {
-    %v_9 = load @heapWindowLimit, 8: Ptr
-    %v_10 = cmp_lt %address, %v_9: I32
-    ret %v_10
+  b_7 {
+    %v_8 = load @heapWindowLimit, 8: Ptr
+    %v_9 = cmp_lt %address, %v_8: I32
+    ret %v_9
   }
 }
 

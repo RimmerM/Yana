@@ -32,28 +32,19 @@ fn main() -> one %r0
   var $9: %r8
   var $10: %r8
   block0:
-    %4: %r0 = const 0
     %5: %r0 = const 1
     %12: %r0 = alias %5
     %13: %r0 = load global effects: %r0
     %14: %r0 = binary.add %13, %12
     %15: %r0 = coerce %14
     store global effects: %r0, %15
-    %16: %r0 = const 1
-    %17: %r10 = binary.eq %12, %16
-    %18: %r0 = const 1
-    %19: %r0 = select %17, %18, %4
-    %34: %r0 = const 6
-    %35: %r0 = binary.add %19, %34
-    %36: %r0 = coerce %35
+    %36: %r0 = const 7
     %37: %r0 = const 3
     %38: %r0 = const 8
     %39: %r0 = call inherited %37, %38
     %40: %r0 = const 8
     %41: %r10 = binary.eq %39, %40
-    %42: %r0 = const 14
-    %43: %r0 = binary.add %19, %42
-    %44: %r0 = coerce %43
+    %44: %r0 = const 15
     %45: %r0 = select %41, %44, %36
     %46: %r0 = const 0
     %47: %r0 = const 16
@@ -64,13 +55,9 @@ fn main() -> one %r0
     %52: %r0 = binary.add %45, %51
     %53: %r0 = coerce %52
     %54: %r0 = select %50, %53, %45
-    %55: %r0 = const 1
-    %56: %r0 = alias %55
     %57: %r8 = fun.code main.thunk
     %58: %r8 = const null
-    %60: %r0 = const 0
-    %61: %r10 = binary.gt %56, %60
-    branch %61 -> block3 -> block2
+    jump -> block3
   block1(%0: %r0):
     %66: %r0 = const 32
     %67: %r10 = binary.eq %0, %66
@@ -161,7 +148,7 @@ fn main.thunk'2(one %r7) -> one %r0 env
     store global effects: %r0, %4
     return %1
 
-optimizer clones 0 aliased 0 forwarded 4 removed 52 adopted 1 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 5
+optimizer clones 0 aliased 0 forwarded 4 removed 65 adopted 1 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 1 promoted 5 folded 7
 
 shape %s0 object taken.thunk.env {mark: %r0}
 shape %s1 object skipped.thunk.env {mark: %r0}

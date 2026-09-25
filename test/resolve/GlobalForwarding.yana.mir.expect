@@ -1,0 +1,99 @@
+module ResolveTest
+
+data Pair {left: I32, right: I32}
+
+data Cell {p: %I32}
+
+let & counter: I32 = 1
+
+let & pair: Pair = Pair {left: 1, right: 2}
+
+let & kept: I32 = 0
+
+let & untouched: I32 = 0
+
+let & cell: Cell
+
+fn aim(p: %I32 [shared call]) -> {} {
+bb0:
+  %0: %I32 = read copy.trivial (p)
+  write.assign borrow.unique (global cell.p) take %0
+  return
+}
+
+fn main() -> I32 {
+  local p: %I32 [owned here shape6 .*=shared slot 0]
+  local a: I32
+  local q: %I32 [owned here shape6 .*=shared slot 0]
+  local b: I32
+  local c: I32
+
+bb0:
+  %0: I32 = const 2
+  write.assign borrow.unique (global counter) take %0
+  %2: I32 = const 3
+  write.assign borrow.unique (global untouched) take %2
+  %4: I32 [shared slot 0] = read borrow.shared (global counter) loan0
+  %5: %I32 [owned here shape6 .*=shared slot 0] = address inspect %4 roots.0{0}
+  write.init borrow.unique (p) take %5
+  %7: %I32 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %8: I32 = const 5
+  write.assign borrow.unique ([%%7]) take %8
+  %10: {} = const {}
+  %11: I32 = read copy.trivial (global counter)
+  %12: I32 = read copy.trivial (global untouched)
+  %13: I32 = add inspect %11 inspect %12
+  write.init borrow.unique (a) take %13
+  %15: I32 = const 20
+  write.assign borrow.unique (global pair.right) take %15
+  %17: I32 [shared slot 0] = read borrow.shared (global pair.right) loan1
+  %18: %I32 [owned here shape6 .*=shared slot 0] = address inspect %17 roots.0{1}
+  write.init borrow.unique (q) take %18
+  %20: %I32 [owned here shape6 .*=shared slot 0] = read copy.trivial (q) roots.0{1}
+  %21: I32 = const 40
+  write.assign borrow.unique ([%%20]) take %21
+  %23: {} = const {}
+  %24: I32 = read copy.trivial (global pair.left)
+  %25: I32 = read copy.trivial (global pair.right)
+  %26: I32 = add inspect %24 inspect %25
+  write.init borrow.unique (b) take %26
+  %28: I32 [shared slot 0] = read borrow.shared (global kept) loan2
+  %29: %I32 [owned here shape6 .*=shared slot 0] = address inspect %28 roots.0{2}
+  %30: {} = call aim borrow.shared %29
+  %31: I32 = const 7
+  write.assign borrow.unique (global kept) take %31
+  %33: I32 = read copy.trivial (global untouched)
+  %34: I32 = const 1
+  %35: I32 = add inspect %33 inspect %34
+  write.assign borrow.unique (global untouched) take %35
+  %37: %I32 = read copy.trivial (global cell.p)
+  %38: I32 = const 70
+  write.assign borrow.unique ([%%37]) take %38
+  %40: {} = const {}
+  %41: I32 = read copy.trivial (global kept)
+  %42: I32 = read copy.trivial (global untouched)
+  %43: I32 = add inspect %41 inspect %42
+  write.init borrow.unique (c) take %43
+  %45: I32 = read copy.trivial (a)
+  %46: I32 = const 10000
+  %47: I32 = mul inspect %45 inspect %46
+  %48: I32 = read copy.trivial (b)
+  %49: I32 = const 100
+  %50: I32 = mul inspect %48 inspect %49
+  %51: I32 = add inspect %47 inspect %50
+  %52: I32 = read copy.trivial (c)
+  %53: I32 = add inspect %51 inspect %52
+  return take %53
+}
+
+fn main$() -> I32 {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (global kept) loan0
+  %1: %I32 [owned here shape6 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %2: Cell = aggregate.Cell take %1
+  write.init borrow.unique (global cell) take %2
+  %4: I32 = call main
+  return take %4
+}
+
+entry main$

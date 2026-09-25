@@ -1,0 +1,73 @@
+module ResolveTest
+
+data L1 {r: 0'I32} shape2
+
+data L2 {a: L1} shape3
+
+data L3 {a: L2} shape4
+
+data L4 {a: L3} shape5
+
+data L5 {a: L4} shape6
+
+fn wrap1(n: I32 [shared slot 0]) -> L1 [owned here shape2 .0=shared slot 0] {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (n) loan0
+  %1: L1 [owned here shape2 .0=shared slot 0] = aggregate.L1 borrow.shared %0 roots.0{0}
+  return take %1
+}
+
+fn wrap2(n: I32 [shared slot 0]) -> L2 [owned here shape3 .0.0=shared slot 0] {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (n) loan0
+  %1: L1 [owned here shape2 .0=shared slot 0] = call wrap1 borrow.shared %0 roots.0{0}
+  %2: L2 [owned here shape3 .0.0=shared slot 0] = aggregate.L2 take %1 roots.0{0}
+  return take %2
+}
+
+fn wrap3(n: I32 [shared slot 0]) -> L3 [owned here shape4 .0.0.0=shared slot 0] {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (n) loan0
+  %1: L2 [owned here shape3 .0.0=shared slot 0] = call wrap2 borrow.shared %0 roots.0{0}
+  %2: L3 [owned here shape4 .0.0.0=shared slot 0] = aggregate.L3 take %1 roots.0{0}
+  return take %2
+}
+
+fn wrap4(n: I32 [shared slot 0]) -> L4 [owned here shape5 .0.0.0.0=shared slot 0] {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (n) loan0
+  %1: L3 [owned here shape4 .0.0.0=shared slot 0] = call wrap3 borrow.shared %0 roots.0{0}
+  %2: L4 [owned here shape5 .0.0.0.0=shared slot 0] = aggregate.L4 take %1 roots.0{0}
+  return take %2
+}
+
+fn wrap5(n: I32 [shared slot 0]) -> L5 [owned here shape6 .0.0.0.0.0=shared slot 0] {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (n) loan0
+  %1: L4 [owned here shape5 .0.0.0.0=shared slot 0] = call wrap4 borrow.shared %0 roots.0{0}
+  %2: L5 [owned here shape6 .0.0.0.0.0=shared slot 0] = aggregate.L5 take %1 roots.0{0}
+  return take %2
+}
+
+fn readBack(v: L5 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (v.a.a.a.a.r)
+  return take %0
+}
+
+fn main() -> I32 {
+  local & n: I32
+  local deep: L5 [owned here shape6 .0.0.0.0.0=shared slot 0]
+
+bb0:
+  %0: I32 = const 7
+  write.init borrow.unique (n) take %0
+  %2: I32 [shared slot 0] = read borrow.shared (n) loan0
+  %3: L5 [owned here shape6 .0.0.0.0.0=shared slot 0] = call wrap5 borrow.shared %2 roots.0{0}
+  write.init borrow.unique (deep) take %3
+  %5: L5 [owned here shape6 .0.0.0.0.0=shared slot 0] = read copy.trivial (deep) roots.0{0}
+  %6: I32 = call readBack borrow.shared %5
+  return take %6
+}
+
+entry main

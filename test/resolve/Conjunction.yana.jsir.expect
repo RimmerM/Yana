@@ -397,40 +397,29 @@ fn main() -> one %r0
     %273: %r0 = binary.add %250, %272
     %274: %r0 = coerce %273
     %275: %r0 = select %271, %274, %250
-    %276: %r0 = const 1
-    %277: %r0 = load global trace: %r0
-    %278: %r0 = binary.add %277, %276
+    %276: %r0 = load global trace: %r0
+    %277: %r0 = const 7
+    %278: %r0 = binary.add %276, %277
     %279: %r0 = coerce %278
     store global trace: %r0, %279
-    %280: %r0 = const 2
-    %281: %r0 = load global trace: %r0
-    %282: %r0 = binary.add %281, %280
-    %283: %r0 = coerce %282
-    store global trace: %r0, %283
-    %284: %r0 = const 4
-    %285: %r0 = load global trace: %r0
-    %286: %r0 = binary.add %285, %284
+    %280: %r0 = const 126976
+    %281: %r0 = binary.add %275, %280
+    %282: %r0 = coerce %281
+    %283: %r0 = const 7
+    %284: %r4 = binary.eq %279, %283
+    %285: %r0 = const 258048
+    %286: %r0 = binary.add %275, %285
     %287: %r0 = coerce %286
-    store global trace: %r0, %287
-    %288: %r0 = const 126976
-    %289: %r0 = binary.add %275, %288
-    %290: %r0 = coerce %289
-    %291: %r0 = load global trace: %r0
-    %292: %r0 = const 7
-    %293: %r4 = binary.eq %291, %292
-    %294: %r0 = const 258048
-    %295: %r0 = binary.add %275, %294
-    %296: %r0 = coerce %295
-    %297: %r0 = select %293, %296, %290
-    return %297
+    %288: %r0 = select %284, %287, %282
+    return %288
   block41:
-    %298: %r0 = binary.add %9, %268
-    %299: %r0 = coerce %298
-    %300: %r0 = binary.sub %8, %256
-    %301: %r0 = coerce %300
-    jump -> block35(%301, %299)
+    %289: %r0 = binary.add %9, %268
+    %290: %r0 = coerce %289
+    %291: %r0 = binary.sub %8, %256
+    %292: %r0 = coerce %291
+    jump -> block35(%292, %290)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 0
 
 shape %s0 object Pair {left: %r0, right: %r0}
 

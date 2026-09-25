@@ -29,8 +29,7 @@ fn main() -> one %r0
     return %30
   block3:
     %32: %r8 = convert %1
-    %33: %r0 = alias %15
-    %34: %r8 = convert %33
+    %34: %r8 = const 4
     %35: %r7 = binary.ge %32, %34
     branch %35 -> block5 -> block4
   block4:
@@ -49,7 +48,7 @@ fn main() -> one %r0
     host host.throw "yana: a runtime check failed"
     unreachable
 
-optimizer clones 1 aliased 1 forwarded 4 removed 15 adopted 0 sunk 0 numbered 0 decided 0 unboxed 1 updated 0 split 1 promoted 4
+optimizer clones 1 aliased 1 forwarded 4 removed 16 adopted 0 sunk 0 numbered 0 decided 0 unboxed 1 updated 0 split 1 promoted 4 folded 1
 
 shape %s0 cell {$v: %r1 box}
 shape %s1 object Held {view: %r4, tag: %r0}

@@ -262,6 +262,18 @@ struct Request {
     bool establishes = false;
 
     /*
+     * Whether the position **relocates** its value - `let ->x = e` and `{->e | ...}`, the two
+     * spellings that say "move this out" rather than "give me an owner".
+     *
+     * One reader: `Resolver::readPlace`'s raw-memory rule. An owned read of the object a pointer
+     * names is a copy of its bytes everywhere else, and for a type with a teardown that is two names
+     * running it; these two are the spellings that mean the move, and they are what the refusal
+     * tells the author to write. It travels wherever the request does, so an arm of an `if` that
+     * fills a `let ->` is a relocation too.
+     */
+    bool relocates = false;
+
+    /*
      * The **type the position declared**, where it declared one - null for a `let`, a condition, an
      * operand, and for every request built out of a bare contract.
      *
@@ -347,9 +359,10 @@ inline Contract grantedContract(Contract storage, Access access, Request wanted)
  * is a second value. What each one *becomes* depends on whether the initializer produced storage or
  * named it, and that is `readMode`'s answer rather than this one.
  */
-inline Request bindingRequest(Access access, bool establishes = false) {
+inline Request bindingRequest(Access access, bool establishes = false, bool relocates = false) {
     Request request { access, false };
     request.establishes = establishes;
+    request.relocates = relocates;
     return request;
 }
 

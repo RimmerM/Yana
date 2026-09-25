@@ -361,51 +361,48 @@ fn checks(one %r0) -> one %r0
     %6: %r3 = const "checks"
     branch %2 -> block1 -> block2
   block1:
-    %21: %r0 = const 100
-    %22: %r2 = binary.lt %0, %21
-    %23: %r3 = const "ResolveTest"
-    %24: %r0 = const 149
-    %26: %r3 = const "checks"
-    branch %22 -> block3 -> block4
+    %19: %r0 = const 100
+    %20: %r2 = binary.lt %0, %19
+    %21: %r3 = const "ResolveTest"
+    %22: %r0 = const 149
+    %24: %r3 = const "checks"
+    branch %20 -> block3 -> block4
   block2:
     %14: %r3 = alias %3
     %15: %r3 = alias %14
-    %17: %r0 = alias %4
-    %19: %r3 = alias %6
-    %20: %r3 = alias %19
-    call report %15, %17, %20
+    %17: %r3 = alias %6
+    %18: %r3 = alias %17
+    call report %15, %4, %18
     jump -> block1
   block3:
-    %41: %r0 = const 5
-    %42: %r2 = binary.eq %0, %41
-    %43: %r3 = const "ResolveTest"
-    %44: %r0 = const 150
-    %46: %r3 = const "checks"
-    branch %42 -> block5 -> block6
+    %37: %r0 = const 5
+    %38: %r2 = binary.eq %0, %37
+    %39: %r3 = const "ResolveTest"
+    %40: %r0 = const 150
+    %42: %r3 = const "checks"
+    branch %38 -> block5 -> block6
   block4:
-    %34: %r3 = alias %23
-    %35: %r3 = alias %34
-    %37: %r0 = alias %24
-    %39: %r3 = alias %26
-    %40: %r3 = alias %39
-    call report %35, %37, %40
+    %32: %r3 = alias %21
+    %33: %r3 = alias %32
+    %35: %r3 = alias %24
+    %36: %r3 = alias %35
+    call report %33, %22, %36
     jump -> block3
   block5:
-    %61: %r0 = load global failures: %r0
-    %62: %r0 = const 1000
-    %63: %r0 = binary.mul %61, %62
-    %64: %r0 = coerce %63
-    %65: %r0 = load global lastLine: %r0
-    %66: %r0 = binary.add %64, %65
-    %67: %r0 = coerce %66
-    return %67
+    %55: %r0 = load global failures: %r0
+    %56: %r0 = const 1000
+    %57: %r0 = binary.mul %55, %56
+    %58: %r0 = coerce %57
+    %59: %r0 = load global lastLine: %r0
+    %60: %r0 = binary.add %58, %59
+    %61: %r0 = coerce %60
+    return %61
   block6:
-    %54: %r3 = alias %43
-    %55: %r3 = alias %54
-    %57: %r0 = alias %44
-    %59: %r3 = alias %46
-    %60: %r3 = alias %59
-    call report %55, %57, %60
+    %50: %r3 = alias %39
+    %51: %r3 = alias %50
+    %53: %r3 = alias %42
+    %54: %r3 = alias %53
+    call report %51, %40, %54
     jump -> block5
 
 fn main() -> one %r0
@@ -524,7 +521,7 @@ fn captured.lambda(one %r9, one %r1) -> one %r1 env
     %7: %r1 = binary.add %6, %1
     return %7
 
-optimizer clones 11 aliased 7 forwarded 4 removed 167 adopted 2 sunk 1 numbered 2 decided 0 unboxed 0 updated 4 split 8 promoted 20
+optimizer clones 11 aliased 7 forwarded 4 removed 164 adopted 2 sunk 1 numbered 2 decided 0 unboxed 0 updated 4 split 8 promoted 17 folded 0
 
 shape %s0 object Point {x: %r1, y: %r1, name: %r3}
 shape %s1 fun {$c: %r6 code, $e: %r6 env}

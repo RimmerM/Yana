@@ -7,26 +7,35 @@ function fallbackSkipped(m) {
   return !(m === null) ? m : fallbackSkipped_thunk(null);
 }
 
+function bothSet(lhs, rhs) {
+  return lhs === 0 ? lhs : lhs & rhs.$c(rhs.$e);
+}
+
 function onceKept(flag, value) {
   if (flag) return value.$c(value.$e) + 1 | 0;
   return 0;
 }
 
 function main() {
-  effects = effects + 1 | 0;
-  effects = effects + 1 | 0;
-  var v33 = fallbackSkipped(5) === 5 ? 255 : 127;
-  var v41 = fallbackSkipped(null) === 7 ? v33 + 256 : v33;
-  var v88 = ((main_thunk_2(null) + 1 | 0) === 8 ? v41 + 1536 : v41 + 512) + 2048;
-  var v114 = (7 & maskRuns_thunk(null)) === 3 ? v88 + 4096 : v88;
-  var v138 = (main_thunk_3(null) + 1 | 0) === 8 ? v114 + 57344 : v114 + 24576;
-  var v155 = onceKept(0, { $c: main_thunk_5, $e: null }) === 0 ? v138 + 196608 : v138 + 65536;
-  return Math.imul(onceKept(1, { $c: main_thunk_6, $e: null }) === 8 ? v155 + 262144 : v155, 100) + effects | 0;
+  effects = effects + 2 | 0;
+  var v27 = fallbackSkipped(5) === 5 ? 255 : 127;
+  var v35 = fallbackSkipped(null) === 7 ? v27 + 256 : v27;
+  var v56 = (main_thunk_2(null) + 1 | 0) === 8 ? v35 + 1536 : v35 + 512;
+  var v73 = bothSet(0, { $c: maskSkips_thunk, $e: null }) === 0 ? v56 + 2048 : v56;
+  var v90 = bothSet(7, { $c: maskRuns_thunk, $e: null }) === 3 ? v73 + 4096 : v73;
+  var v114 = (main_thunk_3(null) + 1 | 0) === 8 ? v90 + 57344 : v90 + 24576;
+  var v131 = onceKept(0, { $c: main_thunk_5, $e: null }) === 0 ? v114 + 196608 : v114 + 65536;
+  return Math.imul(onceKept(1, { $c: main_thunk_6, $e: null }) === 8 ? v131 + 262144 : v131, 100) + effects | 0;
 }
 
 function fallbackSkipped_thunk(fallbackSkipped_thunk_env) {
   effects = effects + 1 | 0;
   return 7;
+}
+
+function maskSkips_thunk(maskSkips_thunk_env) {
+  effects = effects + 1 | 0;
+  return 3;
 }
 
 function maskRuns_thunk(maskRuns_thunk_env) {

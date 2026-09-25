@@ -1,0 +1,66 @@
+{-
+   A later argument that branches, and a copy beside a reservation (J141).
+
+   # resolver: ownership
+
+   `doc/spec/ownership.md`, "Borrows at a call": the reservation an exclusive argument makes lasts
+   until the call, and the later arguments may read what it reserved - *in every block they
+   compile to*. Until J141 the reservation was a fact of one block, so a later argument written as
+   an `if` walked its arms with the first argument's loan already active and `size(g)` in an arm
+   was refused. It is carried across the arms now, as what every path into a block left reserved.
+
+   The copies are the other half. Since J141 a copy of storage meets every live exclusive loan of
+   it - `Reject.HeldCopy.yana` - and a reservation is what excuses one: `bump(g, g.id)` copies `g.id`
+   before the call can write it, in a straight line and inside an arm alike. And reading *through*
+   the holder is not reading the lender: `r.p` below is a copy through `r`'s own loan of `count`.
+   `Reject.TwoPhase.yana` is what stays refused across a branch.
+-}
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard): {}
+
+fn size(g: Guard) -> I32 = g.id
+
+fn bump(&g: Guard, by: I32): g.id = g.id + by
+
+fn setAt(&xs: [Size], at: I32, v: Size): xs[at] = v
+
+-- A shared loan and a copy inside the arms of a later argument.
+fn arms(&g: Guard, c: Bool) -> I32:
+    bump(g, if c then size(g) else 0)
+    bump(g, if c then g.id else 1)
+    return g.id
+
+-- Through a window, where the derivation carries the reservation to the call.
+fn windowArms(&xs: [Size], c: Bool) -> Size:
+    setAt(xs, 0, if c then length(xs) else 0)
+    return xs[0]
+
+-- An arm inside an arm: the join of the inner `if` is itself an arm of the outer one.
+fn nested(&g: Guard, c: Bool, d: Bool) -> I32:
+    bump(g, if c then (if d then size(g) else g.id * 2) else 0)
+    return g.id
+
+data Ref {p: &'I32}
+
+fn add(&r: Ref, by: I32): r.p = r.p + by
+
+-- The holder read through, reserved and copied, and the lender read once the holder is done.
+fn held() -> I32:
+    let &count = 1 :: I32
+    let &r = Ref {p: count}
+    let first = r.p
+    r.p = r.p + 10
+    add(r, r.p)
+    let after = count
+    return first * 100 + after
+
+fn main() -> I32:
+    let &g = Guard {id: 3}
+    let &xs = [1, 2, 3] :: [Size]
+    let &h = Guard {id: 5}
+
+    -- 3 + 3 = 6, then 6 + 6 = 12; 3; 5 + 10 = 15; 1 * 100 + 22 = 122.
+    return arms(g, True) + truncate(windowArms(xs, True)) + nested(h, True, False) + held()

@@ -1,5 +1,5 @@
 52:4: error: chunks is declared `iter fn` and this implementation is `fn`
 38:0: error: Contiguous requires Chunked(Ring, I32), and there is no instance of it
-23:42: error: an argument must be Array(I32), and this is Chunks
-29:49: error: an argument must be Array(a), and this is Chunks
+23:42: error: Chunks is not `Contiguous`, so it cannot be passed as [I32] - its elements are not one buffer, and flattening them would be a copy this position does not say it makes. A function that only reads elements should take `fn (Chunked(c, a)) f(xs: c)` instead
+29:49: error: Chunks is not `Contiguous`, so it cannot be passed as [a] - its elements are not one buffer, and flattening them would be a copy this position does not say it makes. A function that only reads elements should take `fn (Chunked(c, a)) f(xs: c)` instead
 44:4: error: chunks is an iterator, so this call has no body to hand its values to - write it as the source of a `for` loop, which is the only thing that supplies one

@@ -45,13 +45,12 @@ fn orderNotCount() -> Int = middleDefault(4)
 
 -- A call through a function *value*, which knows its parameters' names and has no defaults to fill
 -- a position with - so the same two mistakes are the same two messages, said about the type.
--- `throughValueName` - a wrong name through a function value - is `Reject.NamedArgument.Legacy.yana`.
+-- The names are the parameter's written type's (J142 - a function type carries none of its own).
+fn throughValueName(f: (from: Int, take: Int) -> Int) -> Int = f(from: 1, count: 2)
 
 fn throughValueShort() -> Int:
     let f = (from: Int, take: Int) -> from - take
     return f(from: 1)
-
--- A default that is not a constant, `computed`, is `Reject.NamedArgument.Legacy.yana`.
 
 -- A default whose constant is not a value of the parameter's type.
 fn wrongType(x: Int, flag: Bool = 3) -> Int = x
@@ -70,8 +69,8 @@ fn (Num(a)) genericDefault(x: a = 1) -> Int = 0
 
    The default is read at the *promised* type rather than at the thunk's, which is the only thing the
    position changes: `2` is a constant `Int` and not a constant `{} -> Int`. The non-constant case is
-   refused by the same rule as every other default - `computed` in
-   `Reject.NamedArgument.Legacy.yana` - and not by a rule of its own.
+   refused by the same rule as every other default - `computed`, at the end
+   of this file - and not by a rule of its own.
 -}
 fn lazyDefault(x: Int, @lazy y: Int = 2) -> Int = x
 
@@ -92,8 +91,6 @@ fn loopBadName() -> Int:
 
     return total
 
--- `loopTooMany`, a `for` over `steps` given three arguments, is `Reject.NamedArgument.Legacy.yana`.
-
 class Scale(a):
     fn scale(it: a, by: Int = 2) -> Int
 
@@ -108,3 +105,38 @@ instance Scale(Int):
 fn classBadName() -> Int = scale(2, times: 3)
 
 fn main() -> Int = open(1)
+
+-- Since J135, which enforces these in the new stage; they were `Reject.NamedArgument.Legacy.yana`.
+-- A default that is a call, and a `for` given more arguments than the iterator declares.
+fn computed(x: Int, y: Int = required(1, 2)) -> Int = x + y
+
+fn loopTooMany() -> Int:
+    let &total = 0 :: Int
+
+    for i in steps(1, 2, 3):
+        total = total + i
+
+    return total
+
+-- Since J144, the names of a function type are wherever it was written, so a wrong one is said
+-- against the names that position gave - a field's here - and a type written without names takes
+-- none: two spellings of one type meet by identity, and this one chose positions.
+data Callback {notify: (count: Int, total: Int) -> Int, tag: Int}
+
+fn fieldWrongName(c: Callback) -> Int = c.notify(count: 1, sum: 2)
+
+fn unnamedType(f: (Int, Int) -> Int) -> Int = f(from: 1, take: 2)
+
+fn ascribedUnnamed() -> Int:
+    let f = ((from: Int, take: Int) -> from - take) :: (Int, Int) -> Int
+    return f(from: 1, take: 2)
+
+-- A name given twice in a function type (J146) - refused where the type is written, since no call by
+-- name through it could say which parameter an argument was for.
+fn repeatedName(f: (x: Int, x: Int) -> Int) -> Int = f(1, 2)
+
+-- A positional field left out has no name to write it by, so it is counted (J146 - this printed an
+-- empty name).
+data Positional = Positional {I64, I64}
+
+fn leavesOutPositional() -> Positional = Positional {1}

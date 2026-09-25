@@ -213,6 +213,7 @@ DeclPtr<Function> Resolver::wrapUnitTest(DeclPtr<Function> test, DeclPtr<Type> r
     wrapper->source = source;
     wrapper->result = owned(resultType);
     wrapper->summary.bodyKnown = true;
+    wrapper->once = true;
 
     auto pointer = DeclPtr<Function>(wrapper - *program.decl);
     decl()[module]->functions.push(program.decl, pointer);
@@ -383,6 +384,7 @@ void Resolver::resolveTestFileInitializers(Builder& entry) {
             init->source = source;
             init->result = owned(program.types.unit);
             init->summary.bodyKnown = true;
+            init->once = true;
 
             auto pointer = DeclPtr<Function>(init - *program.decl);
             decl()[module]->functions.push(program.decl, pointer);
@@ -442,6 +444,7 @@ void Resolver::resolveTestEntry() {
     auto entry = new (program.decl) Function(symbol, program.root());
     entry->source = source;
     entry->summary.bodyKnown = true;
+    entry->once = true;
     entry->result = owned(decl()[library.runMain]->result.type);
 
     auto pointer = DeclPtr<Function>(entry - *program.decl);
@@ -466,6 +469,9 @@ void Resolver::resolveTestEntry() {
 
     for(auto& test: tests) {
         if(builder.isTerminated()) break;
+
+        // The case's own body runs once, from the runner - see `Function::once`.
+        decl()[test.function]->once = true;
         if(auto value = buildTestCase(builder, library, test)) cases.push(value);
     }
 

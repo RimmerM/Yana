@@ -39,9 +39,8 @@ main<complex>(): I32 {
     %v_11 = shl %v_10, 1: I32
     %v_12 = add %v_11, 1: I32
     %v_13 = add %v_9, %v_12: I32
-    %v_14 = loads @seed, 4: I32
-    %v_15 = cmp_igt %v_14, 1000000: I32
-    je %v_15, b_16, b_17
+    %v_14 = cmp_igt %v_10, 1000000: I32
+    je %v_14, b_15, b_16
   }
 
   b_4 {
@@ -54,14 +53,14 @@ main<complex>(): I32 {
     jmp b_5
   }
 
-  b_17 {
-    %v_18 = imul %v_14, 15: I32
-    %v_19 = add %v_13, %v_18: I32
-    ret %v_19
+  b_16 {
+    %v_17 = imul %v_10, 15: I32
+    %v_18 = add %v_13, %v_17: I32
+    ret %v_18
   }
 
-  b_16 {
-    %v_20 = call_complex spins: I32
+  b_15 {
+    %v_19 = call_complex spins: I32
     unreachable 
   }
 }

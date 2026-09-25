@@ -15,23 +15,19 @@ fn main() -> one %r0
   var $0: %r0
   var $1: %r0
   block0:
-    %7: %r0 = const 7
-    %8: %r0 = alias %7
-    %9: %r0 = alias %8
-    jump -> block7(%9)
+    %5: %r0 = const 7
+    jump -> block7
   block1:
-    %16: %r0 = load global trace: %r0
-    %17: %r0 = const 7
-    %18: %r4 = binary.ne %16, %17
-    branch %18 -> block4 -> block3
+    %15: %r0 = load global trace: %r0
+    %16: %r0 = const 7
+    %17: %r4 = binary.ne %15, %16
+    branch %17 -> block4 -> block3
   block2:
     %38: %r0 = const -12
     return %38
   block3:
-    %21: %r0 = const 7
-    %22: %r0 = alias %21
-    %23: %r0 = alias %22
-    jump -> block8(%23)
+    %20: %r0 = const 7
+    jump -> block8
   block4:
     %37: %r0 = const -13
     return %37
@@ -46,26 +42,20 @@ fn main() -> one %r0
   block6:
     %36: %r0 = const -14
     return %36
-  block7(%0: %r0):
-    %10: %r0 = const 100
-    %11: %r0 = binary.add %0, %10
-    %12: %r0 = coerce %11
-    %13: %r0 = alias %9
-    call Guard.drop %13
-    %14: %r0 = const 107
-    %15: %r4 = binary.ne %12, %14
-    branch %15 -> block2 -> block1
-  block8(%1: %r0):
-    %24: %r0 = const 200
-    %25: %r0 = binary.add %1, %24
-    %26: %r0 = coerce %25
+  block7:
+    %6: %r0 = alias %5
+    %8: %r0 = alias %6
+    %12: %r0 = alias %8
+    call Guard.drop %12
+    jump -> block1
+  block8:
+    %21: %r0 = alias %20
+    %23: %r0 = alias %21
     %27: %r0 = alias %23
     call Guard.drop %27
-    %28: %r0 = const 207
-    %29: %r4 = binary.ne %26, %28
-    branch %29 -> block6 -> block5
+    jump -> block5
 
-optimizer clones 0 aliased 0 forwarded 0 removed 11 adopted 0 sunk 0 numbered 2 decided 0 unboxed 2 updated 0 split 0 promoted 3
+optimizer clones 0 aliased 0 forwarded 0 removed 23 adopted 0 sunk 0 numbered 4 decided 2 unboxed 2 updated 0 split 0 promoted 3 folded 6
 
 shape %s0 object Pair {a: %r0, b: %r0}
 shape %s1 cell {$v: %r0 box}

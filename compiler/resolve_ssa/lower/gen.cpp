@@ -79,7 +79,7 @@ static void mergePackedConstant(Byte* at, U32 wordBytes, U32 bitOffset, U32 bitW
             if(overlapStart >= overlapEnd) continue;
 
             auto width = overlapEnd - overlapStart;
-            auto mask = lowMask(width);
+            auto mask = maskOf(width);
             auto part = (value >> (overlapStart - fieldStart)) & mask;
             auto local = overlapStart - byteStart;
             auto byteMask = mask << local;
@@ -94,7 +94,7 @@ static void mergePackedConstant(Byte* at, U32 wordBytes, U32 bitOffset, U32 bitW
         word |= U64(U8(at[byte])) << (byte * 8);
     }
 
-    auto mask = lowMask(bitWidth);
+    auto mask = maskOf(bitWidth);
     word = (word & ~(mask << bitOffset)) | ((value & mask) << bitOffset);
     writePackedBytes(at, wordBytes, word);
 }
@@ -383,6 +383,22 @@ void Lowering::supplyEdge(LowerBlock& from, Edge& edge) {
         auto index = phiOf.getValue(argument->id.index);
         if(!index) continue;
 
+        // An argument that crosses as its cells - `joinCells`: each one loaded here, out of the
+        // storage this predecessor's value is in, into the phi it owns.
+        if(auto split = joinSplits.getValue(argument->id.index)) {
+            for(U32 k = 0; k < split.unwrap().count; k++) {
+                auto part = loadCarried(from, joinParts[split.unwrap().start + k], value - lower);
+                auto& pending = phis[index.unwrap() + k];
+                assertTrue(pending.filled < pending.phi->usedCount);
+
+                pending.phi->used()[pending.filled] = part;
+                pending.phi->sources()[pending.filled] = &from - lower;
+                pending.filled++;
+            }
+
+            continue;
+        }
+
         // One alternative per incoming edge, and the phi was sized from the SSA predecessor count.
         // More arriving than that means the two disagree about the CFG, which is a conversion bug
         // rather than a program error - and writing past the allocation is what it would otherwise be.
@@ -487,6 +503,8 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
     blocks.reset();
     destinations.reset();
     phiOf.reset();
+    joinSplits.reset();
+    joinParts.clear();
     propertyAccesses.reset();
     virtualPlaces.reset();
     phis.clear();
@@ -601,6 +619,8 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
      * terminators this walk is about to add, so it is empty right now and asking it would size every
      * phi at zero.
      */
+    SmallArray<CarriedPart, 16> cells;
+
     for(U32 i = 0; i < body.blocks.size(); i++) {
         auto block = body.block(ssa, BlockId(i));
         if(i == 0 || !block->argumentCount()) continue;
@@ -612,20 +632,49 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
             auto argument = ssa[argumentPointer];
             auto manifest = manifestOf(*argument);
 
-            auto storage = allocTrailing<LowerInstPhi, LowerPtr<LowerValue>, LowerPtr<LowerBlock>>(
-                to.arena, sizeof(LowerPtr<LowerValue>) * incoming + sizeof(LowerPtr<LowerBlock>) * incoming);
+            auto makePhi = [&](LowerType type) {
+                auto storage = allocTrailing<LowerInstPhi, LowerPtr<LowerValue>, LowerPtr<LowerBlock>>(
+                    to.arena, sizeof(LowerPtr<LowerValue>) * incoming + sizeof(LowerPtr<LowerBlock>) * incoming);
 
-            auto phi = new (storage) LowerInstPhi(StringId(), manifest.type);
-            phi->usedCount = U8(incoming);
+                auto phi = new (storage) LowerInstPhi(StringId(), type);
+                phi->usedCount = U8(incoming);
 
-            // Zeroed rather than left as the arena found it: an alternative that is still null is
-            // what says this phi is not answerable yet, and reading whatever the arena last held
-            // there is a wild pointer. `lower_promote.cpp` records that having happened.
-            for(Size u = 0; u < incoming; u++) phi->used()[u] = nullptr;
+                // Zeroed rather than left as the arena found it: an alternative that is still null
+                // is what says this phi is not answerable yet, and reading whatever the arena last
+                // held there is a wild pointer. `lower_promote.cpp` records that having happened.
+                for(Size u = 0; u < incoming; u++) phi->used()[u] = nullptr;
+
+                phis.push(PendingPhi { phi, into - lower, 0 });
+                return &((LowerInstSingle*)phi)->result - lower;
+            };
+
+            /*
+             * A value held in memory, crossing as its cells - `joinCells`, which is where the
+             * argument is. A phi per cell, and one slot the join stores them into: the value this
+             * block reads is that slot, exactly as an entry parameter carried in parts is.
+             *
+             * Stored whole rather than zeroed first: every cell is written, a co-packed word
+             * included, and its spare bits are the ones the predecessor's own storage held.
+             */
+            if(joinCells(*argument, cells)) {
+                phiOf.add(argument->id.index, U32(phis.size()));
+                joinSplits.add(argument->id.index, JoinSplit { U32(joinParts.size()), U32(cells.size()) });
+
+                auto owned = argument->occurrence.contract.isOwned() ? argument->occurrence
+                                                                     : mir::owned(argument->occurrence.type);
+                auto slot = frameStorage(*into, owned, true);
+
+                for(auto& part: cells) {
+                    joinParts.push(part);
+                    storeCarried(*into, part, makePhi(part.type), slot);
+                }
+
+                values.add(argument->id.index, slot);
+                continue;
+            }
 
             phiOf.add(argument->id.index, U32(phis.size()));
-            phis.push(PendingPhi { phi, into - lower, 0 });
-            values.add(argument->id.index, &((LowerInstSingle*)phi)->result - lower);
+            values.add(argument->id.index, makePhi(manifest.type));
         }
     }
 
@@ -854,6 +903,7 @@ void Lowering::run() {
             if(!function->reachable || !function->ssa) continue;
 
             auto& target = *lower[functions.getValue(functionPointer.offset).unwrap()];
+            auto errorsBefore = context.diagnostics.errorCount();
             lowerBody(*function, target);
 
             /*
@@ -871,6 +921,13 @@ void Lowering::run() {
              * loop, because there is nothing in between the two that could care: what it reads is
              * the function's own blocks.
              */
+            // Not over a body lowering refused part of - `checkAddressable` stops a function
+            // mid-block, and the passes assume one that was finished. The program is rejected
+            // either way; this keeps the rejection a diagnostic rather than a fold over half a body.
+            // Asked of *this* body's errors: a count over the whole context also switched the
+            // passes off for every body after an unrelated earlier error (J148).
+            if(context.diagnostics.errorCount() != errorsBefore) continue;
+
             auto place = returnPlaces.getValue(functionPointer.offset);
             optimizeLowerFunction(lower, to, target,
                                   place ? place.unwrap() : LowerPtr<LowerValue>(nullptr),

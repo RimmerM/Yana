@@ -58,21 +58,19 @@ freeHeap<complex>(%allocation: Ptr) {
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    copy %v_1, @ResolveTest.literal$1, 16
     %name = alloca 16, 8: Ptr
+    copy %name, @ResolveTest.literal$1, 16
+    %v_1 = alloca 16, 8: Ptr
+    copy %v_1, @ResolveTest.literal$3, 16
+    call_complex Reclaim(String).reclaim, %name
     copy %name, %v_1, 16
-    %v_2 = alloca 16, 8: Ptr
-    copy %v_2, @ResolveTest.literal$3, 16
+    %v_2 = add %name, 12: Ptr
+    %v_3 = load %v_2, 4: I32
     call_complex Reclaim(String).reclaim, %name
-    copy %name, %v_2, 16
-    %v_3 = add %name, 12: Ptr
-    %v_4 = load %v_3, 4: I32
-    call_complex Reclaim(String).reclaim, %name
-    %v_5 = add %v_4, 80: I32
-    %v_6 = add %v_5, 100: I32
-    %v_7 = add %v_6, 7: I32
-    ret %v_7
+    %v_4 = add %v_3, 80: I32
+    %v_5 = add %v_4, 100: I32
+    %v_6 = add %v_5, 7: I32
+    ret %v_6
   }
 }
 

@@ -51,7 +51,16 @@
  *  - **the allocator**, where `Program::usesBoxes`. `allocateHeap`, `freeHeap` and `isHeapAddress`
  *    are called by the *lowering* - `lower/box.cpp` - so no instruction here names them and no edge
  *    could find them.
- *  - **every teardown**, and this is the one place the walk is deliberately blunter than the MIR
+ *  - **every teardown, where the program has no entry or is JavaScript** - and, since J138, a
+ *    native program roots a teardown only where a `drop`, a closure environment or a witness
+ *    descriptor still left in the SSA can run it (`reachTeardown`, which follows the lowering's own
+ *    halves so that `teardownMember` is asked nothing the summary walk did not already mint). A
+ *    teardown whose last drop the optimizer erased or copied away is then not lowered - cause D of
+ *    J94 §6.2, `LiteralFold.yana` 43 lowered instructions to 1. What follows is the reasoning for
+ *    the blunt root the other two kinds of compilation keep; the note about `reachTeardown` is
+ *    where the type walk's own terms are.
+ *
+ *    Blunt, and this is the one place the walk is deliberately blunter than the MIR
  *    one. `mir::summary.cpp`'s `reachTeardown` follows an `instance Drop(T)` from the type being
  *    dropped, recursing through fields, array elements and boxes; reproducing it here would be a
  *    second statement of a rule that has one, and calling the real one is worse than that - it goes
@@ -111,6 +120,14 @@ struct Reachability {
     HashMap<U32, bool> seen;
     Size next = 0;
 
+    /*
+     * Whether a teardown is rooted only where something can still run it - J138 - rather than every
+     * declaration that is one. Native only: the JavaScript backend builds its teardowns out of its
+     * own walk (`js/teardown.cpp`), which this has not been checked against, and a library with no
+     * entry keeps every one, since what drops its values is a program this build has not seen.
+     */
+    bool narrowTeardowns = false;
+
     void root(DeclPtr<mir::Function> function) {
         if(!function) return;
 
@@ -155,6 +172,25 @@ struct Reachability {
 
         for(auto witness: opt.decl[environment]->slots.contents(opt.decl)) {
             for(auto member: witness.functions.contents(opt.decl)) root(member);
+            if(!narrowTeardowns || !witness.type) continue;
+
+            // A descriptor's teardown - `Lowering::teardownFor`'s halves for the placement - and a
+            // property writer's teardown of the field it overwrites (`erase.cpp`'s `set(...)`).
+            if(witness.kind == mir::GenSlotKind::Type) {
+                auto ownership = mir::ownershipOf(opt.decl, witness.type);
+                reachTeardown(witness.type, ownership.drop != mir::TeardownKind::None,
+                              witness.storage != mir::StorageClass::Region &&
+                              ownership.reclaim != mir::TeardownKind::None, LocationId());
+            } else if(witness.kind == mir::GenSlotKind::Property &&
+                      opt.decl[witness.type]->kind == mir::Type::Record) {
+                auto& record = *(mir::RecordType*)opt.decl[witness.type];
+                if(witness.field >= record.fields.size()) continue;
+
+                auto declared = record.fields.get(opt.decl, witness.field);
+                if(mir::tearsDownField(opt.decl, declared)) {
+                    reachTeardown(declared.occurrence.type, true, true, LocationId());
+                }
+            }
         }
     }
 
@@ -169,6 +205,67 @@ struct Reachability {
         if(constant.kind != mir::Constant::Aggregate) return;
         for(auto part: opt.decl[constant.aggregate()]->values.contents(opt.decl)) {
             rootConstant(part);
+        }
+    }
+
+    /*
+     * The teardowns a `drop` of `type` runs, found from the type - J138, and cause D of
+     * `doc/progress/2026-09-23-J94-legacy-comparison.md` §6.2. This is `Lowering::emitTeardown`'s
+     * recursion restated over declarations rather than emitted: the authored member of each half
+     * the walk runs, and the members' own halves where the half is derived - fields that
+     * `tearsDownField`, a boxed field's target, a fixed array's element and a sum's alternatives.
+     * A function value or an iterator ends it, because what runs there is the closure's own
+     * teardown and `FunValue` roots that where the closure is built.
+     *
+     * It follows the lowering's halves exactly rather than a superset of them, because
+     * `teardownMember` mints a specialization on a miss and the MIR it would mint from is gone: a
+     * type the lowering asks about is one the summary walk already asked about, and a type only
+     * a looser walk visited is not.
+     */
+    HashMap<U64, bool> tornDown;
+
+    void reachTeardown(DeclPtr<mir::Type> type, bool runDrop, bool runReclaim, LocationId source) {
+        if(!type || !runDrop && !runReclaim) return;
+
+        auto key = (U64(type.offset) << 2) | (U64(runDrop) << 1) | U64(runReclaim);
+        auto entry = tornDown.add(key);
+        if(entry.existed) return;
+        *entry.value = true;
+
+        auto& decl = opt.decl;
+        auto kind = decl[type]->kind;
+        if(kind == mir::Type::Variable) return;
+
+        auto ownership = mir::ownershipOf(decl, type);
+
+        if(runDrop && ownership.drop == mir::TeardownKind::Authored) {
+            root(mir::teardownMember(opt.context, opt.program, intrinsic::Known::drop, type, source));
+        }
+
+        if(runReclaim && ownership.reclaim == mir::TeardownKind::Authored) {
+            root(mir::teardownMember(opt.context, opt.program, intrinsic::Known::reclaim, type,
+                                     source));
+        }
+
+        auto childDrop = runDrop && ownership.drop == mir::TeardownKind::Derived;
+        auto childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived;
+        if(!childDrop && !childReclaim) return;
+
+        if(kind == mir::Type::Array) {
+            auto& array = *(mir::ArrayType*)decl[type];
+            if(!array.hasFixedLength() || !mir::hasTeardown(decl, array.element)) return;
+
+            reachTeardown(array.element, childDrop, childReclaim, source);
+            return;
+        }
+
+        if(kind != mir::Type::Record) return;
+
+        // Every field of every alternative, which is `emitSumTeardown`'s arms and the single
+        // constructor's walk alike; a boxed field's target is the field's own type.
+        for(auto field: ((mir::RecordType*)decl[type])->fields.contents(decl)) {
+            if(!mir::tearsDownField(decl, field)) continue;
+            reachTeardown(field.occurrence.type, childDrop, childReclaim, source);
         }
     }
 
@@ -191,9 +288,23 @@ struct Reachability {
                     continue;
                 }
 
+                if(inst->kind == Inst::Drop) {
+                    if(narrowTeardowns) {
+                        reachTeardown(((InstDrop&)*inst).held.type, true, true, inst->source);
+                    }
+
+                    continue;
+                }
+
                 if(inst->kind == Inst::FunValue) {
                     auto callee = ((InstFunValue&)*inst).callee;
                     root(callee);
+
+                    // `closureBlockTeardown`, which the lowering builds for the environment of a
+                    // closure that leaves its frame and runs both halves of.
+                    if(narrowTeardowns && callee && opt.decl[callee]->environment) {
+                        reachTeardown(opt.decl[callee]->environment, true, true, inst->source);
+                    }
 
                     /*
                      * And the block a closure that leaves its frame carries -
@@ -269,6 +380,8 @@ struct Reachability {
             for(auto role: located) root(program.roles.function(role));
         }
 
+        narrowTeardowns = program.entry && !isJsMode(opt.context.settings);
+
         if(program.entry) {
             root(program.entry);
         } else {
@@ -282,13 +395,15 @@ struct Reachability {
             }
         }
 
-        // And the teardowns - see the file comment for why this is a flag on the declaration rather
-        // than the type walk `mir::summary.cpp` performs.
-        for(auto modulePointer: program.modules) {
-            auto module = opt.decl[modulePointer];
+        // And the teardowns - every one where the walk is not narrowed, which the file comment
+        // argues; where it is, the drops, closures and descriptors the walk finds root them.
+        if(!narrowTeardowns) {
+            for(auto modulePointer: program.modules) {
+                auto module = opt.decl[modulePointer];
 
-            for(auto pointer: module->functions.contents(opt.decl)) {
-                if(opt.decl[pointer]->teardown) root(pointer);
+                for(auto pointer: module->functions.contents(opt.decl)) {
+                    if(opt.decl[pointer]->teardown) root(pointer);
+                }
             }
         }
 

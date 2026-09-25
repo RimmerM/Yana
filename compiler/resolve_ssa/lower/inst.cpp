@@ -149,7 +149,7 @@ LowerPtr<LowerValue> Lowering::heapStorage(LowerBlock& block, const mir::Occurre
         return address;
     }
 
-    zeroStorage(block, address, manifest.size);
+    zeroStorage(block, address, manifest.size, occurrence.type);
     return address;
 }
 
@@ -186,19 +186,30 @@ LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurr
      * manifestation's width. The zeroing is then a write of bytes the very next instruction
      * replaces.
      *
-     * A duplicate's slot is *not* one of those, although its copy writes every byte: the fill is
-     * what gives the slot the word boundaries `splitAggregateSlots` cuts it at, and a temporary
-     * with none is one cell that stays a block move. `forwardStoredValues` removes the fill once
-     * the split has used it.
+     * A duplicate's slot is *not* one of those, although its copy writes every byte: the zeroing
+     * used to be a fill of the whole value and was what gave the slot the word boundaries
+     * `splitAggregateSlots` cuts it at. Since J152 it is the padded words alone, and the
+     * boundaries arrive across the copy; the words are kept because the rule is the storage's.
      */
     if(whole || !manifest.inMemory || !hasPaddedWord(layout, occurrence.type)) return storage;
 
-    zeroStorage(block, storage, manifest.size);
+    zeroStorage(block, storage, manifest.size, occurrence.type);
     return storage;
 }
 
 /*
- * `size` bytes of storage written to zero, as one fill.
+ * The words of `size` bytes of storage whose spare bits nothing writes, written to zero - J152.
+ *
+ * **The words, not the storage**, where `paddedWords` can name them: a store of zero at each one's
+ * offset and width. That is all the rule below asks for - a co-packed run's read-modify-writes read
+ * the bits above them from *that word* - and the fill of the whole value it replaced was a write of
+ * every field the construction was about to write again, which `forwardStoredValues` could remove
+ * only where the construction wrote all of it, in the same block. What the words do not do is cut
+ * the storage for `splitAggregateSlots` the way the fill did, and it no longer needs them to: the cut
+ * points of a duplicate's temporary arrive across its copy, and a narrower access inside a cell is
+ * its low bytes rather than a cut (`isPrefixAccess`).
+ *
+ * The whole fill stays where the words would be many - a fixed array of such records.
  *
  * Four callers, and they are the places a value with a padded word comes to occupy storage:
  * `frameStorage` and `heapStorage` above, where the storage is fresh, `destinationFor`'s `Store`
@@ -206,15 +217,42 @@ LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurr
  * function because the rule they are serving is one rule - see `hasPaddedWord` - and two spellings
  * of it is how one of them comes to stop at four bytes.
  *
- * **A `setpattern` rather than a store per word**, which it was. The fill is what the zeroing *is*,
- * and every consumer below has a better answer for it than for a run of stores:
+ * **A `setpattern` where the words are many**, and for a bit-tagged record's word, which is the
+ * record and need not be a width a store names. Before J152 the fill was the only spelling - it had
+ * replaced a store per word of the *whole value*, and every consumer below takes one:
  * `expandBlockOperations` writes a short one as the widest transfers the machine has, LLVM reads
- * `llvm.memset`, `forwardStoredValues` sees one write that a copy of the whole value replaces, and
- * the two passes that turn slots into registers take a zero fill for the zero it writes -
- * `promoteStackSlots` over a whole slot, `splitAggregateSlots` cell by cell.
+ * `llvm.memset`, and the two passes that turn slots into registers take a zero fill for the zero it
+ * writes. A store per *padded* word is fewer writes than either, and each is a store those passes
+ * already read.
  */
-void Lowering::zeroStorage(LowerBlock& block, LowerPtr<LowerValue> storage, U32 size) {
+void Lowering::zeroStorage(LowerBlock& block, LowerPtr<LowerValue> storage, U32 size,
+                           DeclPtr<mir::Type> type) {
     if(!size) return;
+
+    Array<PaddedWord> words;
+    if(type && paddedWords(layout, type, 0, words)) {
+        for(auto& word: words) {
+            if(word.offset + word.bytes > size) { words.clear(); break; }
+        }
+
+        if(words.size()) {
+            for(auto& word: words) {
+                auto at = offsetAddress(block, storage, word.offset);
+
+                // A bit-tagged record's word is the record, which need not be a width a store names.
+                if(word.bytes != 1 && word.bytes != 2 && word.bytes != 4 && word.bytes != 8) {
+                    block.addInst(lower, new (to.arena) LowerInstSetPattern(
+                        at, immediate(block, LowerType::Int64, word.bytes), immediate(block, LowerType::Int32, 0)));
+                    continue;
+                }
+
+                block.addInst(lower, new (to.arena) LowerInstStore(
+                    at, immediate(block, word.bytes > 4 ? LowerType::Int64 : LowerType::Int32, 0), word.bytes));
+            }
+
+            return;
+        }
+    }
 
     block.addInst(lower, new (to.arena) LowerInstSetPattern(
         storage, immediate(block, LowerType::Int64, size), immediate(block, LowerType::Int32, 0)));
@@ -293,6 +331,83 @@ static bool directlyFollows(SsaBase ssa, Block& block, SsaPtr<Inst> definer,
     }
 
     return false;
+}
+
+/*
+ * Whether placing `value` into storage rooted at `root` would move a write of that storage in front
+ * of a read of it - J148.
+ *
+ * Placement writes the destination where the *producer* runs, and an aggregate's components are
+ * placed into the aggregate's storage in turn: a nested record literal is built where its own
+ * instruction stands, a `@box` field's box is allocated and its slot written where the component is
+ * produced (`createBox`), and a component moved out of memory is copied where its `load` stands. So
+ * the first write of the destination is the first such component, not the producer, and everything
+ * from there to the producer runs with the destination already partly written.
+ *
+ * `let &b = Leaf; b = Node {next: b, v: 1}` over `next: @box Boxed` is the shape that found it: the
+ * box's slot is the first word of `b`, `createBox` wrote it before the moved-out `b` was copied into
+ * the box, and the node became its own `next` - a cycle, which `depth` walked forever. The nested
+ * form is the same fault without a box: `u = Wrap {inner: Big {...}, n: u.inner.a}` read `n` after
+ * the inner literal had been built over `u.inner`.
+ *
+ * The run is found structurally rather than by asking which components *were* placed, because this is
+ * asked before they are lowered: a component that may be placed is one `destinationFor`'s own four
+ * conditions admit (in memory, one use, this block), followed through an aggregate's components. A
+ * component that turns out not to be placed only starts the run early, which declines a placement
+ * that was safe - the direction to fail in. Within the run, any operand rooted in the destination's
+ * allocation declines: a `load` of it is a read, and a borrow of it is a callee reading it.
+ */
+bool Lowering::readInsidePlacement(Block& block, Value& value, SsaPtr<Value> root) {
+    SmallArray<SsaPtr<Inst>, 16> placed;
+    SmallArray<Value*, 16> pending;
+    pending.push(&value);
+
+    while(pending.size() && placed.size() < 64) {
+        auto produced = pending[pending.size() - 1];
+        pending.pop();
+        placed.push(produced->definer);
+
+        auto definer = ssa[produced->definer];
+        if(definer->kind != Inst::Aggregate) continue;
+
+        for(auto used: ((InstAggregate*)definer)->components.contents(ssa)) {
+            if(!used.isSet()) continue;
+
+            auto component = ssa[used.value()];
+            if(!component->definer || ssa[component->definer]->block != definer->block) continue;
+            if(component->useCount() != 1) continue;
+
+            auto manifest = manifestOf(*component);
+            if(!manifest.inMemory || manifest.dynamic) continue;
+
+            pending.push(component);
+        }
+    }
+
+    // A run longer than the bound is not one this can see the start of.
+    if(pending.size()) return true;
+
+    auto inside = false;
+    auto count = block.instructionCount();
+
+    for(Size i = 0; i < count; i++) {
+        auto at = block.instructionAt(ssa, i);
+
+        if(!inside) {
+            for(auto writer: placed) inside = inside || writer == at;
+            if(!inside) continue;
+        }
+
+        auto reads = false;
+        forEachUse(ssa, *ssa[at], [&](Use used) {
+            if(used.isSet() && allocationRoot(ssa, used.value()) == root) reads = true;
+        });
+
+        if(reads) return true;
+        if(at == value.definer) return false;
+    }
+
+    return true;
 }
 
 /*
@@ -410,7 +525,10 @@ LowerPtr<LowerValue> Lowering::destinationFor(LowerBlock& block, Value& value) {
          *    as an argument, or a component read out of it, would see the write land while it is
          *    still reading - so no operand of the producing instruction may be rooted in the
          *    destination's allocation. A destination with no allocation root of this frame is
-         *    declined outright, because then there is nothing to separate it from.
+         *    declined outright, because then there is nothing to separate it from. Nor may any
+         *    instruction the placement moves the write in front of: a component placed into a
+         *    record placed here writes *at the component*, so the rule is asked of the whole run
+         *    from the first such component to the producer - `readInsidePlacement`, J148.
          *
          * The destination has to be **lowered already**, which is `mapped` answering: an address
          * computed between the producer and the store is one the producer cannot write through, and
@@ -438,12 +556,7 @@ LowerPtr<LowerValue> Lowering::destinationFor(LowerBlock& block, Value& value) {
             auto root = allocationRoot(ssa, written.address.value());
             if(!root) return nullptr;
 
-            auto shared = false;
-            forEachUse(ssa, *ssa[value.definer], [&](Use used) {
-                if(used.isSet() && allocationRoot(ssa, used.value()) == root) shared = true;
-            });
-
-            if(shared) return nullptr;
+            if(readInsidePlacement(*ssa[consumer->block], value, root)) return nullptr;
 
             auto place = mapped(written.address.value());
             if(!place) return nullptr;
@@ -454,11 +567,14 @@ LowerPtr<LowerValue> Lowering::destinationFor(LowerBlock& block, Value& value) {
              *
              * They decline because their storage is not this rewrite's to prepare: a `return` writes
              * the caller's slot, which the caller zeroed when it made it, and an aggregate component
-             * writes into a record whose own storage `storageFor` has already zeroed as a whole. A
+             * writes into a record whose own storage `storageFor` has already zeroed - its padded
+             * words, the component's among them, since `paddedWords` walks into nested fields. A
              * `store`'s destination is neither - it is a slot that has held other values, so the
              * bits above a co-packed run hold whatever the last one left there. The store this
-             * replaces wrote every byte, padding included; zeroing first is what keeps that true,
-             * and it is strictly cheaper than the copy, which wrote those bytes *and* read them.
+             * replaces wrote every byte; zeroing those words first is what keeps the ones that
+             * matter true, and it is strictly cheaper than the copy, which wrote them *and* read
+             * them. The padding between fields is not among them and never was for a type with no
+             * padded word, so nothing may read it.
              */
             /*
              * Unless the producer writes every byte, which a **duplicate** does: `Inst::Copy` is a
@@ -468,7 +584,7 @@ LowerPtr<LowerValue> Lowering::destinationFor(LowerBlock& block, Value& value) {
              * last held.
              */
             if(padded && ssa[value.definer]->kind != Inst::Copy) {
-                zeroStorage(block, place - lower, manifest.size);
+                zeroStorage(block, place - lower, manifest.size, value.occurrence.type);
             }
 
             return place - lower;
@@ -854,6 +970,14 @@ LowerBlock* Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> addre
      * the whole suite and `test/base` without it ever firing unequal. So this stays the one shared
      * function and the assertion is the fence around the assumption, not a proof of it.
      *
+     * > **J146:** the assertion is gone, because a record with an **authored** half reaches it
+     * > unequal: `data R {p: %U8, cb: () -> {}}` with an authored `Reclaim` releases a value by one
+     * > request carrying both halves, and the record's own flags turn that into a drop-only request
+     * > for `cb` (the review's `reclaim.yana`, which asserted here). That request is the one that
+     * > owes the function value - the author's `Reclaim` has no way to name a closure's block - and
+     * > it runs the shared teardown once, which is right. What stays unbuilt is the region's split,
+     * > where the two halves of one value are asked at two times: nothing builds it for a `Fun`.
+     *
      * A site that can see which lambda this is does not reach here at all: `ownershipOfOccurrence`
      * answers "nothing to release" for a value carrying `Shapes::closure`, so a frame-placed
      * closure's drop is never emitted rather than emitted and folded.
@@ -862,7 +986,6 @@ LowerBlock* Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> addre
      * same way and by the same function - see `mir::IterType`, where the representation is argued.
      */
     if(decl[type]->kind == mir::Type::Fun || decl[type]->kind == mir::Type::Iter) {
-        assertTrue(childDrop == childReclaim);
 
         auto callee = funTeardown(source);
         auto name = block.addInst(lower, new (to.arena) LowerInstFun(StringId(), callee));
@@ -3583,10 +3706,24 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
 
                 built->used()[0] = callee;
 
+                /*
+                 * A **lifted lambda's** environment goes in front of the hidden result pointer, as
+                 * `run` declares it (`gen.cpp`): it is the callee's argument zero, which the argument
+                 * loop put first among the *declared* ones and so after the result pointer. The two
+                 * orders agree unless the lambda returns in memory, which is how `pick(a, b)` over a
+                 * `(a: Cell, b: Cell) -> b` returned whatever was in its landing pad under
+                 * `-no-ir-opt` - the callee wrote its result through the environment pointer, four
+                 * bytes into a one-byte slot - and the optimizer hid it by inlining (J147). A closure
+                 * has no call shape (`planCallShape`), so the environment is exactly `passed[0]`.
+                 */
+                Size first = 0;
+                auto closure = declared && declared->environment && passed.size() != 0;
+
                 Size index = 1;
                 if(environment) built->used()[index++] = environment;
+                if(closure) built->used()[index++] = passed[first++];
                 if(returnPlace) built->used()[index++] = returnPlace;
-                for(Size i = 0; i < passed.size(); i++) built->used()[index++] = passed[i];
+                for(Size i = first; i < passed.size(); i++) built->used()[index++] = passed[i];
             });
 
             // What the callee wrote into a flattened reference, put back - and here because a write

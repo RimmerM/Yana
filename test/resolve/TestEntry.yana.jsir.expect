@@ -300,17 +300,12 @@ fn runMain(parts %r14) -> one %r0
     %79: %r0 = coerce %78
     return %79
   block9:
-    %23: %r0 = const 0
-    %24: %r16 = convert %23
+    %24: %r16 = const 0
     %25: %r16 = convert %1
     %26: %r7 = binary.ge %24, %25
     branch %26 -> block23 -> block22
   block10:
-    %38: %r0 = const 0
-    %39: %r16 = convert %38
-    %40: %r16 = alias %25
-    %41: %r7 = binary.ge %39, %40
-    branch %41 -> block25 -> block24
+    jump -> block24
   block11:
     %52: %r0 = const 1
     jump -> block8(%52)
@@ -405,7 +400,7 @@ fn runMain(parts %r14) -> one %r0
     host host.throw "yana: a runtime check failed"
     unreachable
 
-optimizer clones 5 aliased 5 forwarded 1 removed 79 adopted 0 sunk 3 numbered 18 decided 4 unboxed 0 updated 0 split 0 promoted 15
+optimizer clones 5 aliased 5 forwarded 1 removed 84 adopted 0 sunk 3 numbered 18 decided 5 unboxed 0 updated 0 split 0 promoted 15 folded 2
 
 shape %s0 object Failure {site: %r2, claim: %r1, detail: %r1}
 shape %s1 object Site {file: %r1, line: %r0, column: %r0, function: %r1}

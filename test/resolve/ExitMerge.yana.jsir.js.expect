@@ -10,7 +10,7 @@ function main() {
   var p0 = 0;
   var p1 = 0;
   while (p1 < 5) {
-    var v25 = { items: new Int32Array([10, 20, 30]), length: 3 };
+    var v22 = new Int32Array([10, 20, 30]);
     B1: {
       if (p1 === 0) {
         p2 = -1;
@@ -23,9 +23,7 @@ function main() {
           p2 = -3;
           break B1;
         }
-        var v30 = v25.items;
-        if (0 >= v25.length) throw $t;
-        p2 = v30[0] + p1 | 0;
+        p2 = v22[0] + p1 | 0;
       }
     }
     p0 = (p0 + p2 | 0) + parity(p1, p1) | 0;
@@ -33,5 +31,4 @@ function main() {
   }
   return p0;
 }
-var $t = "yana: a runtime check failed";
 main();

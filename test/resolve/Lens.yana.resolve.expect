@@ -1552,27 +1552,29 @@ fn scope(%body: () -> $r) -> $r {
     ret %v6
 }
 
-fn plusOne(%x: I32, %body: (I32) -> a) -> a {
+fn plusOne(%x: I32, %body: (value$: I32) -> $r) -> $r {
   schema {
-    #0 type a
+    #0 type $r
   }
 
   b0:
     %v4 = add %x, 1 : I32
-    %v5 = calldyn %body, %v4 : a
+    %v5 = calldyn %body, %v4 : $r
     ret %v5
 }
 
-fn split(%x: I32, %body: (low: I32, high: I32) -> a) -> a {
+fn split(%x: I32, %body: (value$: {low: I32, high: I32}) -> $r) -> $r {
   schema {
-    #0 type a
+    #0 type $r
   }
 
   b0:
-    %v4 = rem %x, 10 : I32
-    %v7 = div %x, 10 : I32
-    %v8 = calldyn %body, %v4, %v7 : a
-    ret %v8
+    %v2 = alloc : {low: I32, high: I32}
+    %v5 = rem %x, 10 : I32
+    %v8 = div %x, 10 : I32
+    aggregate %local1.low = %v5, %local1.high = %v8
+    %v10 = calldyn %body, %v2 : $r
+    ret %v10
 }
 
 fn twiceOver(%value: a, %body: (value$: a) -> $r) -> $r {
@@ -1653,7 +1655,7 @@ fn explicit() -> I32 {
 
 fn destructured() -> I32 {
   b0:
-    %v1 = alloc : (low: I32, high: I32) -> I32
+    %v1 = alloc : (value$: {low: I32, high: I32}) -> I32
     %v2 = symbol ResolveTest.continuation$26 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
@@ -1691,12 +1693,12 @@ fn borrowed() -> I32 {
 fn written() -> I32 {
   b0:
     %v1 = alloc : (value$: I32) -> I32
-    %v2 = symbol ResolveTest.lambda$30 : %()
+    %v2 = symbol ResolveTest.continuation$30 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
-    %v8 = call plusOne(I32), 4, %v1 : I32
-    ret %v8
+    %v7 = call plusOne(I32), 4, %v1 : I32
+    ret %v7
 }
 
 fn nested() -> I32 {
@@ -1865,9 +1867,9 @@ fn scope(I32)(%body: () -> I32) -> I32 {
     ret %v5
 }
 
-fn ResolveTest.continuation$25(%env: %{}, %n: I32) -> I32 {
+fn ResolveTest.continuation$25(%env: %{}, %value$: I32) -> I32 {
   b0:
-    %v4 = mul %n, 2 : I32
+    %v4 = mul %value$, 2 : I32
     ret %v4
 }
 
@@ -1878,24 +1880,23 @@ fn plusOne(I32)(%x: I32, %body: (value$: I32) -> I32) -> I32 {
     ret %v4
 }
 
-fn ResolveTest.continuation$26(%env: %{}, %low: I32, %high: I32) -> I32 {
+fn ResolveTest.continuation$26(%env: %{}, %value$: {low: I32, high: I32}) -> I32 {
   b0:
-    %v3 = alloc : {low: I32, high: I32}
-    init %local0.low, %low
-    init %local0.high, %high
-    %low = load %local0.low : I32
-    %high = load %local0.high : I32
-    %v10 = mul %low, 100 : I32
-    %v11 = add %v10, %high : I32
-    ret %v11
+    %low = load %value$.low : I32
+    %high = load %value$.high : I32
+    %v6 = mul %low, 100 : I32
+    %v7 = add %v6, %high : I32
+    ret %v7
 }
 
-fn split(I32)(%x: I32, %body: (low: I32, high: I32) -> I32) -> I32 {
+fn split(I32)(%x: I32, %body: (value$: {low: I32, high: I32}) -> I32) -> I32 {
   b0:
-    %v3 = rem %x, 10 : I32
-    %v5 = div %x, 10 : I32
-    %v6 = calldyn %body, %v3, %v5 : I32
-    ret %v6
+    %v2 = alloc : {low: I32, high: I32}
+    %v4 = rem %x, 10 : I32
+    %v6 = div %x, 10 : I32
+    aggregate %local1.low = %v4, %local1.high = %v6
+    %v8 = calldyn %body, %v2 : I32
+    ret %v8
 }
 
 fn ResolveTest.continuation$27(%env: %{}, %value$: I32) -> I32 {
@@ -1967,9 +1968,9 @@ fn bumped(I32)(%c: Counter, %body: (value$: I32) -> I32) -> I32 {
     ret %v9
 }
 
-fn ResolveTest.lambda$30(%env: %{}, %n: I32) -> I32 {
+fn ResolveTest.continuation$30(%env: %{}, %value$: I32) -> I32 {
   b0:
-    %v4 = mul %n, 3 : I32
+    %v4 = mul %value$, 3 : I32
     ret %v4
 }
 
@@ -1984,9 +1985,9 @@ fn ResolveTest.continuation$31(%env: %{}, %value$: I32) -> I32 {
     ret %v8
 }
 
-fn ResolveTest.continuation$32(%env: %{}, %b: I32) -> I32 {
+fn ResolveTest.continuation$32(%env: %{}, %value$: I32) -> I32 {
   b0:
-    ret %b
+    ret %value$
 }
 
 fn ResolveTest.continuation$33(%env: %{total: &I32}, %value$: I32) -> () {
@@ -2012,7 +2013,7 @@ fn logged(())(%body: (value$: I32) -> ()) -> () {
     ret %v6
 }
 
-fn ResolveTest.continuation$34(%env: %{text: 'String}, %n: I32) -> I32 {
+fn ResolveTest.continuation$34(%env: %{text: 'String}, %value$: I32) -> I32 {
   b0:
     %v2 = load [%env].text : 'String
     %v3 = load [%v2] : String
@@ -2028,11 +2029,11 @@ fn ResolveTest.continuation$34(%env: %{text: 'String}, %n: I32) -> I32 {
     jmp b3
 
   b3:
-    %v10 = phi [b1, %n], [b2, 0] : I32
+    %v10 = phi [b1, %value$], [b2, 0] : I32
     ret %v10
 }
 
-fn ResolveTest.continuation$35(%env: %{text: 'String}, %n: I32) -> I32 {
+fn ResolveTest.continuation$35(%env: %{text: 'String}, %value$: I32) -> I32 {
   b0:
     %v2 = load [%env].text : 'String
     %v3 = load [%v2] : String
@@ -2048,6 +2049,6 @@ fn ResolveTest.continuation$35(%env: %{text: 'String}, %n: I32) -> I32 {
     jmp b3
 
   b3:
-    %v10 = phi [b1, %n], [b2, 0] : I32
+    %v10 = phi [b1, %value$], [b2, 0] : I32
     ret %v10
 }

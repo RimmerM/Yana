@@ -38,7 +38,7 @@ void printFunction(Net::Writer& writer, Context& context, Program& program, Func
  * text nothing looks up.
  */
 String placeText(Context& context, DeclBase base, MirBase mir, Body& body,
-                 const Place& place);
+                 const Place& place, bool dump = false);
 
 /*
  * `Eq(Array(I32))` - one class applied to an argument list, for a diagnostic.

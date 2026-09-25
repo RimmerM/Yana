@@ -56,20 +56,16 @@ freeHeap<complex>(%allocation: Ptr) {
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    copy %v_1, @ResolveTest.literal$1, 16
     %held = alloca 16, 8: Ptr
-    copy %held, %v_1, 16
-    %v_2 = add %held, 12: Ptr
-    %v_3 = load %v_2, 4: I32
+    copy %held, @ResolveTest.literal$1, 16
+    %v_1 = add %held, 12: Ptr
+    %v_2 = load %v_1, 4: I32
     call_complex Reclaim(String).reclaim, %held
-    %v_4 = alloca 16, 8: Ptr
-    copy %v_4, @ResolveTest.literal$1, 16
     %held = alloca 16, 8: Ptr
-    copy %held, %v_4, 16
+    copy %held, @ResolveTest.literal$1, 16
     call_complex Reclaim(String).reclaim, %held
-    %v_5 = add %v_3, 18446744073709551615: I32
-    ret %v_5
+    %v_3 = add %v_2, 18446744073709551615: I32
+    ret %v_3
   }
 }
 

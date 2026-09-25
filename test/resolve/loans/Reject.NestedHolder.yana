@@ -1,0 +1,53 @@
+{-
+   A record holding a record that holds a reference, and what the holder keeps borrowed (J141).
+
+   # resolver: ownership
+
+   `NestedBorrow.yana` is the accepting half: since J141 `data L2 {a: L1}` over `data L1 {r: 'Int}`
+   inherits `L1`'s position at `[a, r]`, in an origin set of its own, and a constructor fills it from
+   the component's own position. What that has to keep is everything a direct `'Int` field keeps:
+   the lender stays borrowed while any holder at any depth is live, a holder cannot leave the frame
+   that owns the lender, and two nested fields are two relations - the second field's lender is
+   borrowed as long as the record is, and a field assigned later adds its lender.
+-}
+
+data L1 {r: 'Int}
+data L2 {a: L1}
+data Two {x: L1, y: L1}
+
+fn wrap1(n: 'Int) -> L1 = L1 {r: n}
+fn wrap2(n: 'Int) -> L2 = L2 {a: wrap1(n)}
+
+fn writeWhileHeld() -> Int:
+    let &n = 7 :: Int
+    let deep = wrap2(n)
+    n = 8
+    return deep.a.r
+
+fn escapes() -> L2:
+    let n = 7 :: Int
+    return wrap2(n)
+
+fn secondField() -> Int:
+    let &a = 1 :: Int
+    let &b = 2 :: Int
+    let t = Two {x: wrap1(a), y: wrap1(b)}
+    b = 3
+    return t.x.r + t.y.r
+
+fn reassigned() -> Int:
+    let &a = 1 :: Int
+    let &c = 5 :: Int
+    let &t = Two {x: wrap1(a), y: wrap1(a)}
+    t.y = wrap1(c)
+    c = 6
+    return t.y.r
+
+fn copiedOut() -> Int:
+    let &a = 1 :: Int
+    let t = Two {x: wrap1(a), y: wrap1(a)}
+    let inner = t.y
+    a = 4
+    return inner.r
+
+fn main() -> Int = 0

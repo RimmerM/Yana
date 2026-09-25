@@ -47,12 +47,10 @@ Try(Maybe(a), a, ()).toOutcome(Token)<complex>(%v_0: Ptr, %value: Ptr) {
 
   b_4 {
     %v_8 = add %value, 4: Ptr
-    %inner = alloca 4, 4: Ptr
-    copy %inner, %v_8, 4
     %v_9 = alloca 8, 4: Ptr
     store %v_9, 0, 4
     %v_10 = add %v_9, 4: Ptr
-    copy %v_10, %inner, 4
+    copy %v_10, %v_8, 4
     jmp b_7
   }
 
@@ -98,18 +96,17 @@ oneStep<complex>(%v_0: Ptr, %n: I32) {
   }
 
   b_6 {
-    %v_8 = alloca 1, 1: Ptr
     store %v_0, 0, 4
     ret 
   }
 
   b_7 {
-    %v_9 = add %v_3, 4: Ptr
-    %v = loads %v_9, 4: I32
-    %v_10 = add %v, 1: I32
+    %v_8 = add %v_3, 4: Ptr
+    %v = loads %v_8, 4: I32
+    %v_9 = add %v, 1: I32
     store %v_0, 1, 4
-    %v_11 = add %v_0, 4: Ptr
-    store %v_11, %v_10, 4
+    %v_10 = add %v_0, 4: Ptr
+    store %v_10, %v_9, 4
     ret 
   }
 }
@@ -126,37 +123,30 @@ twoSteps<complex>(%v_0: Ptr, %n: I32) {
   }
 
   b_6 {
-    %v_8 = alloca 1, 1: Ptr
     store %v_0, 0, 4
     ret 
   }
 
   b_7 {
-    %v_9 = add %v_3, 4: Ptr
-    %a = loads %v_9, 4: I32
-    %v_10 = sub %a, 10: I32
+    %v_8 = add %v_3, 4: Ptr
+    %a = loads %v_8, 4: I32
+    %v_9 = sub %a, 10: I32
+    %v_10 = alloca 8, 4: Ptr
+    call_complex parse, %v_10, %v_9
     %v_11 = alloca 8, 4: Ptr
-    call_complex parse, %v_11, %v_10
-    %v_12 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(I32), %v_12, %v_11
-    %v_13 = loads %v_12, 4: I32
-    %v_14 = cmp_eq %v_13, 1: I32
-    je %v_14, b_15, b_16
+    call_complex Try(Maybe(a), a, ()).toOutcome(I32), %v_11, %v_10
+    %v_12 = loads %v_11, 4: I32
+    %v_13 = cmp_eq %v_12, 1: I32
+    je %v_13, b_6, b_14
   }
 
-  b_15 {
-    %v_17 = alloca 1, 1: Ptr
-    store %v_0, 0, 4
-    ret 
-  }
-
-  b_16 {
-    %v_18 = add %v_12, 4: Ptr
-    %b = loads %v_18, 4: I32
-    %v_19 = add %a, %b: I32
+  b_14 {
+    %v_15 = add %v_11, 4: Ptr
+    %b = loads %v_15, 4: I32
+    %v_16 = add %a, %b: I32
     store %v_0, 1, 4
-    %v_20 = add %v_0, 4: Ptr
-    store %v_20, %v_19, 4
+    %v_17 = add %v_0, 4: Ptr
+    store %v_17, %v_16, 4
     ret 
   }
 }
@@ -261,30 +251,23 @@ bothTokens<complex>(%v_0: Ptr, %a: I32, %b: I32) {
     call_complex Try(Maybe(a), a, ()).toOutcome(Token), %v_11, %v_10
     %v_12 = loads %v_11, 4: I32
     %v_13 = cmp_eq %v_12, 1: I32
-    je %v_13, b_14, b_15
+    je %v_13, b_6, b_14
   }
 
-  b_15 {
-    %v_16 = add %v_11, 4: Ptr
-    %v_17 = loads %v_16, 4: I32
+  b_14 {
+    %v_15 = add %v_11, 4: Ptr
+    %v_16 = loads %v_15, 4: I32
     call_complex drop$Outcome(Token, ()), %v_11
-    %v_18 = add %v_9, %v_17: I32
+    %v_17 = add %v_9, %v_16: I32
     store %v_0, 1, 4
-    %v_19 = add %v_0, 4: Ptr
-    store %v_19, %v_18, 4
+    %v_18 = add %v_0, 4: Ptr
+    store %v_18, %v_17, 4
     ret 
   }
 
   b_6 {
-    call_complex drop$Outcome(Token, ()), %v_3
-    %v_20 = alloca 1, 1: Ptr
-    store %v_0, 0, 4
-    ret 
-  }
-
-  b_14 {
-    call_complex drop$Outcome(Token, ()), %v_11
-    %v_21 = alloca 1, 1: Ptr
+    %v_19 = phi [b_1, %v_3], [b_7, %v_11]: Ptr
+    call_complex drop$Outcome(Token, ()), %v_19
     store %v_0, 0, 4
     ret 
   }
@@ -302,36 +285,29 @@ operands<complex>(%v_0: Ptr, %a: I32, %b: I32) {
   }
 
   b_6 {
-    %v_8 = alloca 1, 1: Ptr
     store %v_0, 0, 4
     ret 
   }
 
   b_7 {
-    %v_9 = add %v_3, 4: Ptr
-    %v_10 = loads %v_9, 4: I32
+    %v_8 = add %v_3, 4: Ptr
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = alloca 8, 4: Ptr
+    call_complex parse, %v_10, %b
     %v_11 = alloca 8, 4: Ptr
-    call_complex parse, %v_11, %b
-    %v_12 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(I32), %v_12, %v_11
-    %v_13 = loads %v_12, 4: I32
-    %v_14 = cmp_eq %v_13, 1: I32
-    je %v_14, b_15, b_16
+    call_complex Try(Maybe(a), a, ()).toOutcome(I32), %v_11, %v_10
+    %v_12 = loads %v_11, 4: I32
+    %v_13 = cmp_eq %v_12, 1: I32
+    je %v_13, b_6, b_14
   }
 
-  b_15 {
-    %v_17 = alloca 1, 1: Ptr
-    store %v_0, 0, 4
-    ret 
-  }
-
-  b_16 {
-    %v_18 = add %v_12, 4: Ptr
-    %v_19 = loads %v_18, 4: I32
-    %v_20 = add %v_10, %v_19: I32
+  b_14 {
+    %v_15 = add %v_11, 4: Ptr
+    %v_16 = loads %v_15, 4: I32
+    %v_17 = add %v_9, %v_16: I32
     store %v_0, 1, 4
-    %v_21 = add %v_0, 4: Ptr
-    store %v_21, %v_20, 4
+    %v_18 = add %v_0, 4: Ptr
+    store %v_18, %v_17, 4
     ret 
   }
 }

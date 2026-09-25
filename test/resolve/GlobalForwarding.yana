@@ -1,0 +1,58 @@
+{-
+   A mutable global's store answering the load after it - and the three writes that must stop it.
+
+   J154 taught `forwardMemory` (`resolve_ssa/opt/memory.cpp`) to keep a fact about a global past
+   instructions that cannot change it, where it used to forget every global at every instruction
+   that was not pure. What can change one is a store to it, a call, an atomic - and a store through
+   a raw pointer that *points at it*, which the pass cannot place. The rule for that last one is
+   that such a pointer exists only if the global's address was used as something other than the
+   place of an access somewhere in the program (`findAddressedGlobals`), so each global below is
+   addressed a different way and each is written through a pointer between a store and a load.
+   Every answer changes if the load is answered from the store instead, and the fixture runner holds
+   the optimized and unoptimized builds to the same number.
+
+   `untouched`'s address is never taken, so its reads are answered across the raw stores - which is
+   what the `.mir.lower.expect` shows - and still come out right.
+
+   Native only: a raw pointer is what the fixture is about.
+-}
+import Native
+
+data Pair {left: Int, right: Int}
+
+data Cell {p: %Int}
+
+let &counter = 1
+let &pair = Pair {left: 1, right: 2}
+let &kept = 0
+let &untouched = 0
+let &cell = Cell {p: addressOf(kept)}
+
+-- The address kept in another global by a body that is not inlined, so `main` sees only a
+-- pointer loaded out of storage - a root it cannot place.
+@noinline
+fn aim(p: %Int):
+    cell.p = p
+
+fn main() -> Int:
+    -- An address taken in this body, between the store and the load, and written through at once.
+    counter = 2
+    untouched = 3
+    let p = addressOf(counter)
+    store(p, 5)
+    let a = counter + untouched                  -- 5 + 3
+
+    -- A field's address: the global is addressed through a projection of it.
+    pair.right = 20
+    let q = addressOf(pair.right)
+    store(q, 40)
+    let b = pair.left + pair.right               -- 1 + 40
+
+    -- A pointer read out of a global, which a call put there.
+    aim(addressOf(kept))
+    kept = 7
+    untouched = untouched + 1
+    store(cell.p, 70)
+    let c = kept + untouched                     -- 70 + 4
+
+    return a * 10000 + b * 100 + c               -- 80000 + 4100 + 74

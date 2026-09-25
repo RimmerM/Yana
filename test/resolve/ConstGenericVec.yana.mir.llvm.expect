@@ -1,0 +1,84 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+@sink = global [8 x i8] zeroinitializer, align 8
+
+define fastcc i32 @quadWidth(<4 x i16> %v) #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = call fastcc i32 @"widthOf(4)"(<4 x i16> %v)
+  ret i32 %2
+}
+
+define fastcc i32 @main() #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = load <4 x i16>, ptr @sink, align 1
+  %3 = insertelement <4 x i16> %2, i16 9, i32 1
+  %4 = call fastcc <4 x i16> @"doubled(4)"(<4 x i16> %3)
+  %5 = call fastcc <4 x i16> @"twice(4)"(<4 x i16> %3)
+  %6 = call fastcc <4 x i16> @"sameCount(4)"(<4 x i16> %3, <4 x i16> %4)
+  %7 = call fastcc <4 x i16> @"sameCount(4)"(<4 x i16> %5, <4 x i16> %6)
+  store <4 x i16> %4, ptr @sink, align 1
+  %8 = call fastcc i32 @"widthOf(4)"(<4 x i16> %3)
+  %9 = call fastcc i32 @quadWidth(<4 x i16> %3)
+  %10 = add i32 %8, %9
+  %11 = call fastcc i32 @"secondLane(4)"(<4 x i16> %4)
+  %12 = add i32 %10, %11
+  %13 = call fastcc i32 @"secondLane(4)"(<4 x i16> %7)
+  %14 = add i32 %12, %13
+  %15 = extractelement <4 x i16> %7, i32 2
+  %16 = zext i16 %15 to i32
+  %17 = shl i32 %16, 16
+  %18 = ashr i32 %17, 16
+  %19 = add i32 %14, %18
+  ret i32 %19
+}
+
+define fastcc <4 x i16> @"doubled(4)"(<4 x i16> %v) #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = shufflevector <4 x i16> %v, <4 x i16> %v, <4 x i32> <i32 3, i32 2, i32 1, i32 0>
+  %3 = icmp sgt <4 x i16> %2, %v
+  %4 = select <4 x i1> %3, <4 x i16> %2, <4 x i16> %v
+  ret <4 x i16> %4
+}
+
+define fastcc <4 x i16> @"twice(4)"(<4 x i16> %v) #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = add <4 x i16> %v, %v
+  ret <4 x i16> %2
+}
+
+define fastcc <4 x i16> @"sameCount(4)"(<4 x i16> %v, <4 x i16> %w) #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = add <4 x i16> %v, %w
+  ret <4 x i16> %2
+}
+
+define fastcc i32 @"widthOf(4)"(<4 x i16> %v) #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  ret i32 4
+}
+
+define fastcc i32 @"secondLane(4)"(<4 x i16> %v) #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = extractelement <4 x i16> %v, i32 1
+  %3 = zext i16 %2 to i32
+  %4 = shl i32 %3, 16
+  %5 = ashr i32 %4, 16
+  ret i32 %5
+}
+
+attributes #0 = { "probe-stack"="inline-asm" }

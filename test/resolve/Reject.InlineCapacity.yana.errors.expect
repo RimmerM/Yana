@@ -1,5 +1,13 @@
-15:19: error: only `@inline(n) @capacity(n)` is built - the rows that spill need a discriminant saying whether the inline bytes hold elements or a pointer to them
-19:18: error: only `@inline(n) @capacity(n)` is built - the rows that spill need a discriminant saying whether the inline bytes hold elements or a pointer to them
-22:27: error: only `@inline(n) @capacity(n)` is built - the rows that spill need a discriminant saying whether the inline bytes hold elements or a pointer to them
-30:27: error: `@inline(0) @capacity(0)` is an array that can hold nothing - write `[T]` for one that allocates, or a larger bound
-26:20: error: `@inline(n) @capacity(n)` is honoured on the `::` of an array literal, which is what builds the container - written here it names a capacity nothing would give it
+16:19: error: only `@inline(n) @capacity(n)` is built - the rows that spill need a discriminant saying whether the inline bytes hold elements or a pointer to them
+20:18: error: only `@inline(n) @capacity(n)` is built - the rows that spill need a discriminant saying whether the inline bytes hold elements or a pointer to them
+23:27: error: only `@inline(n) @capacity(n)` is built - the rows that spill need a discriminant saying whether the inline bytes hold elements or a pointer to them
+31:27: error: `@inline(0) @capacity(0)` is an array that can hold nothing - write `[T]` for one that allocates, or a larger bound
+27:20: error: `@inline` and `@capacity` refine a growable array - `[T]`
+40:13: error: this array holds 5 elements and its type bounds it at 4 - `@capacity(n)` is a bound rather than a starting size
+60:8: error: this leaves the function from inside the block of a call that was lent an `@inline(n) @capacity(n)` array as a growable array, whose count is written back only where the call finishes - move the `return` after the block, or copy the array into a `[T]`
+65:39: error: this leaves the function from inside the block of a call that was lent an `@inline(n) @capacity(n)` array as a growable array, whose count is written back only where the call finishes - move the `return` after the block, or copy the array into a `[T]`
+69:22: error: growing keeps what it is lent in an object, and an `@inline(n) @capacity(n)` array is lent as a growable array only to a call whose end is where its count can be written back - an ordinary call, a lens that cannot skip, or a `for`; copy it into a `[T]`
+73:24: error: maybeOpened can finish without handing over, and an `@inline(n) @capacity(n)` array is lent as a growable array only to a call whose end is where its count can be written back - an ordinary call, a lens that cannot skip, or a `for`; copy it into a `[T]`
+85:63: error: an `@inline(n) @capacity(n)` array reaches a growable array's owner only through `&` - this parameter takes it shared, which is not built; pass a window (`[T]`) or copy it into a `[T]`
+91:13: error: outerGrowing lends growing an `@inline(n) @capacity(n)` array as a growable array, and the descriptor that stands for it is a local of the object's step that cannot be held across a `yield` - copy the array into a `[T]` first, or call outerGrowing outside an object
+79:20: error: o.items cannot be borrowed here, because o.items is already borrowed exclusively and that borrow is still in use

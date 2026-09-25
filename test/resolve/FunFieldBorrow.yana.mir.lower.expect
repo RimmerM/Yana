@@ -24,41 +24,19 @@ negate<complex>(%x: I32): I32 {
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 20, 8: Ptr
-    %funvalue(double) = fun funvalue(double): Ptr
     %v_2 = add %v_1, 16: Ptr
-    store %v_2, 1, 4
-    store %v_1, %funvalue(double), 8
     %v_3 = add %v_1, 8: Ptr
     store %v_3, 0, 8
-    %v_4 = load %v_3, 8: Ptr
-    %v_5 = call_complex %funvalue(double), %v_4, 10: I32
-    %v_6 = add %v_1, 16: Ptr
-    %v_7 = loads %v_6, 4: I32
-    %v_8 = imul %v_5, %v_7: I32
-    %funvalue(triple) = fun funvalue(triple): Ptr
+    store %v_1, funvalue(triple), 8
+    store %v_2, 4, 4
     call_complex teardown(fun), %v_1
-    store %v_1, %funvalue(triple), 8
-    %v_9 = add %v_1, 8: Ptr
-    store %v_9, 0, 8
-    %v_10 = load %v_9, 8: Ptr
-    %v_11 = call_complex %funvalue(triple), %v_10, 10: I32
-    %v_12 = loads %v_6, 4: I32
-    %v_13 = imul %v_11, %v_12: I32
-    %v_14 = add %v_1, 16: Ptr
-    store %v_14, 4, 4
-    %funvalue(negate) = fun funvalue(negate): Ptr
-    call_complex teardown(fun), %v_1
-    store %v_1, %funvalue(negate), 8
-    %v_15 = add %v_1, 8: Ptr
-    store %v_15, 0, 8
-    %v_16 = load %v_15, 8: Ptr
-    %v_17 = call_complex %funvalue(negate), %v_16, 10: I32
-    %v_18 = loads %v_6, 4: I32
-    call_complex teardown(fun), %v_1
-    %v_19 = imul %v_17, %v_18: I32
-    %v_20 = add %v_8, %v_13: I32
-    %v_21 = add %v_20, %v_19: I32
-    ret %v_21
+    store %v_1, funvalue(negate), 8
+    %v_4 = add %v_1, 8: Ptr
+    store %v_4, 0, 8
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = imul 18446744073709551606, %v_5: I32
+    %v_7 = add 50, %v_6: I32
+    ret %v_7
   }
 }
 
@@ -72,6 +50,13 @@ funvalue(double)<complex>(%v_0: Ptr, %v_1: I32): I32 {
 funvalue(triple)<complex>(%v_0: Ptr, %v_1: I32): I32 {
   b_2 {
     %v_3 = call_complex triple, %v_1: I32
+    ret %v_3
+  }
+}
+
+funvalue(negate)<complex>(%v_0: Ptr, %v_1: I32): I32 {
+  b_2 {
+    %v_3 = call_complex negate, %v_1: I32
     ret %v_3
   }
 }
@@ -102,13 +87,6 @@ teardown(fun)<complex>(%v_0: Ptr) {
 
   b_5 {
     ret 
-  }
-}
-
-funvalue(negate)<complex>(%v_0: Ptr, %v_1: I32): I32 {
-  b_2 {
-    %v_3 = call_complex negate, %v_1: I32
-    ret %v_3
   }
 }
 

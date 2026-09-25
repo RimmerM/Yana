@@ -49,56 +49,48 @@ main<complex>(): I32 {
 
   b_12 {
     store @trace, 0, 4
-    %v_13 = alloca 4, 4: Ptr
-    %v_14 = alloca 4, 4: Ptr
-    store %v_13, 1, 4
-    store %v_14, 2, 4
-    jmp b_15
+    %v_13 = imm 2: I32
+    jmp b_14
   }
 
   b_11 {
     ret 18446744073709551609
   }
 
-  b_16 {
-    %v_17 = loads @trace, 4: I32
-    %v_18 = cmp_neq %v_17, 2: I32
-    %v_19 = select %v_18, 18446744073709551607, 100: I32
-    ret %v_19
+  b_15 {
+    %v_16 = loads @trace, 4: I32
+    %v_17 = cmp_neq %v_16, 2: I32
+    %v_18 = select %v_17, 18446744073709551607, 100: I32
+    ret %v_18
   }
 
-  b_20 {
+  b_19 {
     ret 18446744073709551608
   }
 
-  b_21 {
-    %v_22 = cmp_ilt %v_23, 3: I32
-    je %v_22, b_15, b_24
+  b_20 {
+    %v_21 = cmp_ilt %v_22, 3: I32
+    je %v_21, b_14, b_23
   }
 
-  b_24 {
-    %v_25 = load %v_14, 4: I32
-    call_complex Guard.drop, %v_25
-    %v_26 = imul %v_27, 10: I32
-    %v_28 = loads %v_13, 4: I32
-    %v_29 = load %v_13, 4: I32
-    call_complex Guard.drop, %v_29
-    %v_30 = add %v_26, %v_28: I32
-    %v_31 = cmp_neq %v_30, 94: I32
-    je %v_31, b_20, b_16
+  b_23 {
+    call_complex Guard.drop, %v_13
+    %v_24 = imul %v_25, 10: I32
+    call_complex Guard.drop, %v_26
+    %v_27 = add %v_24, %v_26: I32
+    %v_28 = cmp_neq %v_27, 94: I32
+    je %v_28, b_19, b_15
   }
 
-  b_15 {
-    %v_32 = phi [b_21, %v_23], [b_12, 0]: I32
-    %v_33 = phi [b_21, %v_27], [b_12, 0]: I32
-    %v_34 = loads %v_13, 4: I32
-    %v_35 = add %v_34, 1: I32
-    store %v_13, %v_35, 4
-    %v_36 = loads %v_14, 4: I32
-    %v_37 = add %v_33, %v_36: I32
-    %v_27 = add %v_37, %v_32: I32
-    %v_23 = add %v_32, 1: I32
-    jmp b_21
+  b_14 {
+    %v_29 = phi [b_20, %v_22], [b_12, 0]: I32
+    %v_30 = phi [b_20, %v_25], [b_12, 0]: I32
+    %v_31 = phi [b_20, %v_26], [b_12, 1]: I32
+    %v_26 = add %v_31, 1: I32
+    %v_32 = add %v_30, %v_13: I32
+    %v_25 = add %v_32, %v_29: I32
+    %v_22 = add %v_29, 1: I32
+    jmp b_20
   }
 }
 

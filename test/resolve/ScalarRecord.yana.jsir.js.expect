@@ -4,18 +4,8 @@ var dropped = { $v: 0n };
 
 // 
 function Owned_drop(value) {
-  var p2;
-  var v5 = dropped;
-  var v6 = value & 1;
-  var p3 = { $o: v5, $k: "$v" };
-  var v10 = { $o: v5, $k: "$v" };
-  if (v6) {
-    p2 = 1n;
-  } else {
-    p3 = v10;
-    p2 = 2n;
-  }
-  p3.$o[p3.$k] = BigInt.asIntN(64, p3.$o[p3.$k] + p2);
+  var v2 = dropped;
+  v2.$v = BigInt.asIntN(64, v2.$v + (value & 1 ? 1n : 2n));
 }
 
 function tagOf(m) {
@@ -48,6 +38,6 @@ function main() {
   var v271 = (112 + (v205 + Math.imul((v206 & 1) + (v206 >>> 1 ? 2 : 0), 10) | 0) | 0) + 32 | 0;
   Owned_drop(1);
   Owned_drop(2);
-  return (((((v271 + (Number(BigInt.asIntN(32, dropped.$v)) | 0) | 0) + ((tagOf(null) + Math.imul(tagOf(3), 10) | 0) + Math.imul(tagOf(2), 100) | 0) | 0) + ((heldValue({ $tag: 0, a: 1, b: 0, Wide: 0 }) + Math.imul(heldValue({ $tag: 1, a: 0, b: 0, Wide: 5 }), 100) | 0) + Math.imul(heldValue({ $tag: 2, a: 0, b: 0, Wide: 0 }), 10000) | 0) | 0) + (((((1 + Math.imul(Number(BigInt.asIntN(32, BigInt.asUintN(64, 9n + 1n))) | 0, 10) | 0) + 300 | 0) + 6000 | 0) + 400000 | 0) + 7000000 | 0) | 0) + (((((1 + Math.imul(Number(BigInt.asIntN(32, BigInt.asUintN(64, 9n + 1n))) | 0, 10) | 0) + 300 | 0) + 6000 | 0) + 400000 | 0) + 7000000 | 0) | 0) + 7406403 | 0;
+  return (((((v271 + (Number(BigInt.asIntN(32, dropped.$v)) | 0) | 0) + ((tagOf(null) + Math.imul(tagOf(3), 10) | 0) + Math.imul(tagOf(2), 100) | 0) | 0) + ((heldValue({ $tag: 0, a: 1, b: 0, Wide: 0 }) + Math.imul(heldValue({ $tag: 1, a: 0, b: 0, Wide: 5 }), 100) | 0) + Math.imul(heldValue({ $tag: 2, a: 0, b: 0, Wide: 0 }), 10000) | 0) | 0) + 7406401 | 0) + 7406401 | 0) + 7406403 | 0;
 }
 main();

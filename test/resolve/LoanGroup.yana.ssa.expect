@@ -1,0 +1,131 @@
+module ResolveTest
+
+fn keepsBoth(a: Cell [unique slot 0], b: Cell [unique slot 0]) -> Cell [unique slot 0 owner] = <no body>
+
+fn keepsBothMarked(a: Cell [unique slot 0], b: Cell [unique slot 0]) -> Cell [unique slot 0 owner] {
+bb0(%0: Cell [unique slot 0] guaranteed, %1: Cell [unique slot 0] guaranteed):
+  %3: %I32 address = field.addr .value inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: %I32 address = field.addr .value inspect %1
+  %6: I32 trivial = load inspect %5
+  %7: Bool trivial = gt inspect %4 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  %8: Cell [unique slot 0] guaranteed from{%1} = load inspect %1
+  jump -> bb2(borrow %8)
+
+bb2(%2: Cell [unique slot 0] guaranteed):
+  return borrow %2
+
+bb3:
+  %9: Cell [unique slot 0] guaranteed from{%0} = load inspect %0
+  jump -> bb2(borrow %9)
+}
+
+fn keepsLeft(a: Cell [unique slot 0], b: Cell [unique slot 1]) -> Cell [unique slot 0 owner] {
+bb0(%0: Cell [unique slot 0] guaranteed, %1: Cell [unique slot 1] guaranteed):
+  %2: Cell [unique slot 0] guaranteed from{%0} = load inspect %0
+  return borrow %2
+}
+
+fn keepsRight(left: Cell [shared slot 0], right: Cell [shared slot 1]) -> Cell [shared slot 1] {
+bb0(%0: Cell [shared slot 0] guaranteed, %1: Cell [shared slot 1] guaranteed):
+  %2: Cell [shared slot 1] guaranteed from{%1} = load inspect %1
+  return borrow %2
+}
+
+fn viaValue(f: (&Cell, &Cell) -> &Cell [shared call]) -> I32 {
+bb0(%0: (&Cell, &Cell) -> &Cell [shared call] guaranteed):
+  %1: %Cell address = alloc frame Cell
+  %2: %Cell address = alloc frame Cell
+  %3: I32 trivial = const 3
+  %4: Cell trivial = aggregate.Cell consume %3
+  store inspect %1 consume %4
+  %5: I32 trivial = const 4
+  %6: Cell trivial = aggregate.Cell consume %5
+  store inspect %2 consume %6
+  %7: (&Cell, &Cell) -> &Cell [shared call] guaranteed from{%0} = load inspect %0
+  %8: Cell [unique slot 0] guaranteed from{%1} = load inspect %1
+  %9: Cell [unique slot 1] guaranteed from{%2} = load inspect %2
+  %10: Cell [unique slot 0 owner] guaranteed from{%1} = call [value #0] inspect %7 borrow %8 borrow %9
+  %11: I32 trivial = const 7
+  %12: %I32 address = field.addr .value inspect %2
+  store inspect %12 consume %11
+  %13: %I32 address = field.addr .value inspect %10
+  %14: I32 trivial = load inspect %13
+  %15: %I32 address = field.addr .value inspect %2
+  %16: I32 trivial = load inspect %15
+  %17: I32 trivial = add inspect %14 inspect %16
+  return consume %17
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Cell address = alloc frame Cell
+  %1: %Cell address = alloc frame Cell
+  %2: %Cell address = alloc frame Cell
+  %3: %Cell address = alloc frame Cell
+  %4: %Cell address = alloc frame Cell
+  %5: %Cell address = alloc frame Cell
+  %6: %(&Cell, &Cell) -> &Cell address = alloc frame (&Cell, &Cell) -> &Cell [owned here shape8 .0=unique call]
+  %7: I32 trivial = const 3
+  %8: Cell trivial = aggregate.Cell consume %7
+  store inspect %0 consume %8
+  %9: I32 trivial = const 4
+  %10: Cell trivial = aggregate.Cell consume %9
+  store inspect %1 consume %10
+  %11: Cell [unique slot 0] guaranteed from{%0} = load inspect %0
+  %12: Cell [unique slot 1] guaranteed from{%1} = load inspect %1
+  %13: Cell [unique slot 0 owner] guaranteed from{%0} = call keepsLeft borrow %11 borrow %12
+  %14: I32 trivial = const 7
+  %15: %I32 address = field.addr .value inspect %1
+  store inspect %15 consume %14
+  %16: %I32 address = field.addr .value inspect %13
+  %17: I32 trivial = load inspect %16
+  %18: %I32 address = field.addr .value inspect %1
+  %19: I32 trivial = load inspect %18
+  %20: I32 trivial = add inspect %17 inspect %19
+  %21: %I32 address = field.addr .value inspect %13
+  store inspect %21 consume %20
+  %22: I32 trivial = const 1
+  %23: Cell trivial = aggregate.Cell consume %22
+  store inspect %2 consume %23
+  %24: I32 trivial = const 2
+  %25: Cell trivial = aggregate.Cell consume %24
+  store inspect %3 consume %25
+  %26: Cell [shared slot 0] guaranteed from{%2} = load inspect %2
+  %27: Cell [shared slot 1] guaranteed from{%3} = load inspect %3
+  %28: Cell [shared slot 1] guaranteed from{%3} = call keepsRight borrow %26 borrow %27
+  %29: I32 trivial = const 9
+  %30: %I32 address = field.addr .value inspect %2
+  store inspect %30 consume %29
+  %31: I32 trivial = const 6
+  %32: Cell trivial = aggregate.Cell consume %31
+  store inspect %4 consume %32
+  %33: I32 trivial = const 8
+  %34: Cell trivial = aggregate.Cell consume %33
+  store inspect %5 consume %34
+  %35: Cell [unique slot 0] guaranteed from{%4} = load inspect %4
+  %36: Cell [unique slot 0] guaranteed from{%5} = load inspect %5
+  %37: Cell [unique slot 0 owner] guaranteed from{%4, %5} = call keepsBothMarked borrow %35 borrow %36
+  %38: %I32 address = field.addr .value inspect %13
+  %39: I32 trivial = load inspect %38
+  %40: %I32 address = field.addr .value inspect %28
+  %41: I32 trivial = load inspect %40
+  %42: I32 trivial = add inspect %39 inspect %41
+  %43: %I32 address = field.addr .value inspect %2
+  %44: I32 trivial = load inspect %43
+  %45: I32 trivial = add inspect %42 inspect %44
+  %46: %I32 address = field.addr .value inspect %37
+  %47: I32 trivial = load inspect %46
+  %48: I32 trivial = add inspect %45 inspect %47
+  %49: (&Cell, &Cell) -> &Cell [owned here shape8 .0=unique call] affine = fun.value keepsLeft
+  store inspect %6 consume %49
+  %50: (&Cell, &Cell) -> &Cell [shared call shape8 .0=unique call] guaranteed from{%6} = load inspect %6
+  %51: I32 trivial = call viaValue borrow %50
+  %52: I32 trivial = add inspect %48 inspect %51
+  return consume %52
+}
+
+entry main

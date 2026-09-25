@@ -1,0 +1,73 @@
+{-
+   Named arguments through a function *value*, wherever its type was written with names -
+   doc/spec/types.md's "Function types" and expressions.md's Calls.
+
+   # resolver: ownership
+
+   The names belong to the position the type was written at and not to the type: `(from: Int,
+   take: Int) -> Int` and `(whole: Int, part: Int) -> Int` are one type, so a value moves between the
+   two spellings freely and each binding is called with the names its own spelling gave. Every kind
+   of position is here - a local declared by ascription, a parameter, a record field, a global, a
+   capture of each, a class member's parameter an instance inherits, a lambda's own parameter and a
+   function's result - plus a binding that copies another's, which keeps what it copied.
+
+   `NamedArgument.Value.yana` is the part both stages compile.
+-}
+
+fn subtract(from: Int, take: Int) -> Int = from - take
+
+data Handler {run: (count: Int, scale: Int) -> Int}
+
+class Folder(a):
+    fn fold(x: a, step: (acc: Int, item: Int) -> Int) -> Int
+
+-- The instance writes no types, so the parameter is the class's - names included.
+instance Folder(Int):
+    fn fold(x, step) = step(item: x, acc: 100)
+
+-- A global declared the only way a binding is given a type: by ascription.
+let difference = subtract :: (whole: Int, part: Int) -> Int
+
+fn ascribed() -> Int:
+    let f = subtract :: (from: Int, take: Int) -> Int
+    -- The same type spelled with other names: one type, so the ascription is free, and the new
+    -- binding answers to the new names.
+    let g = f :: (big: Int, small: Int) -> Int
+    return f(take: 2, from: 10) * 100 + g(small: 1, big: 5)          -- 804
+
+fn parameter(op: (from: Int, take: Int) -> Int) -> Int = op(take: 1, from: 8)   -- 7
+
+fn field(h: Handler) -> Int:
+    let copied = h.run
+    return h.run(scale: 3, count: 4) * 100 + copied(count: 2, scale: 5)  -- 4325
+
+fn global() -> Int = difference(part: 1, whole: 30)                              -- 29
+
+fn captured(op: (from: Int, take: Int) -> Int, h: Handler) -> Int:
+    let f = subtract :: (left: Int, right: Int) -> Int
+    let inner = () -> op(take: 3, from: 9) * 10000 + f(right: 1, left: 7) * 100 +
+                      h.run(scale: 1, count: 2)
+    return inner()                                                               -- 60621
+
+fn maker() -> (base: Int, bump: Int) -> Int = subtract
+
+fn result() -> Int = maker()(bump: 5, base: 50)                                  -- 45
+
+fn member() -> Int = fold(7, (a: Int, b: Int) -> a - b)                          -- 93
+
+-- A lambda's own parameter, written with a function type.
+fn lambdaParameter() -> Int:
+    let twice = (f: (n: Int) -> Int) -> f(n: 2) * 2
+    return twice((x: Int) -> x + 1)                                              -- 6
+
+-- An alias of a function type carries the names its target wrote (J146): an alias is the usual way a
+-- callback type is spelled, and it is transparent.
+alias Take = (from: Int, take: Int) -> Int
+
+fn viaAlias(op: Take) -> Int = op(take: 1, from: 10)
+
+fn main() -> Int:
+    let h = Handler {run: (a: Int, b: Int) -> a * 10 + b}
+    let total = ascribed() + parameter(subtract) + field(h) + global() + captured(subtract, h) +
+                result() + member() + lambdaParameter()
+    return total * 100 + viaAlias(subtract)

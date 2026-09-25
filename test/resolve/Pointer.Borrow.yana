@@ -1,0 +1,53 @@
+{-
+   A plain `let` of what a raw pointer names **borrows** it, as a plain `let` of any place does -
+   J146. `copiesTeardownOutOfPointer` refused `let r = *p` from J135 to J145 because it read the text,
+   and the shipping stage compiles and runs this. A copy of the pointee with a teardown is still
+   refused (`Reject.Ownership.yana`), and `let ->` is still the move.
+
+   An argument at a borrowing parameter borrows too (J162): `*t` used to be the call
+   `fn *(it: %a) -> a`, whose owned copy was held for the call and released after it - a second
+   drop of the `Tag` the record still holds.
+
+   # resolver: ownership
+-}
+
+import Native
+
+let &drops = 0 :: I64
+
+data Tag {n: Int}
+instance Drop(Tag):
+    fn drop(->value: Tag):
+        drops += 1
+
+data Rec {name: String, tag: Tag, n: Int}
+data Small {a: Int, b: Int}
+
+fn whole(p: %Rec) -> Int:
+    let r = *p
+    let again = (*p)
+    return r.n + (truncate(length(r.name)) :: Int) + again.tag.n
+
+fn part(p: %Rec) -> Int:
+    let t = (*p).tag
+    return t.n
+
+fn tagOf(t: Tag) -> Int = t.n
+
+fn byArgument(p: %Rec, t: %Tag) -> Int = tagOf((*p).tag) + tagOf(*t)
+
+-- A trivially copied pointee is copied, as `let s = x` of one is.
+fn small(p: %Small) -> Int:
+    let s = *p
+    return s.a * 10 + s.b
+
+fn main() -> Int:
+    let &r = Rec {name: "abc" ++ "", tag: Tag {n: 5}, n: 4}
+    let &q = Small {a: 1, b: 2}
+    let a = whole(addressOf(r))
+    let b = part(addressOf(r))
+    let c = small(addressOf(q))
+    let d = byArgument(addressOf(r), addressOf(r.tag))
+    print("{a} {b} {c} {d} drops {drops}\n")
+    -- Nothing was dropped through a borrow, and the record is still whole.
+    return d * 10000000 + a * 100000 + b * 10000 + c * 100 + (truncate(drops) :: Int) * 10 + r.n

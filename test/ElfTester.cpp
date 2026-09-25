@@ -13,6 +13,14 @@
 // constant data. Every one of those fails as a crash rather than as a wrong answer, which is why a
 // signal is reported here as a distinct outcome rather than as a mismatched status.
 //
+// **The executables are the rewrite's** since 2026-09-24 (J133) - `compiler/resolve_mir` +
+// `compiler/resolve_ssa`, the stage `yana` builds with by default. It built them with
+// `compiler/resolve` alone until then, which made this the one driver asserting that a program runs
+// as a *file* while saying nothing about the compiler that writes the file. `resolver:legacy` is the
+// old stage, for asking the same question of it by hand; `run-tests.sh` does not run it, because what
+// the old stage computes is `YanaResolveTest`'s to assert and everything below the `LowerModule` -
+// which is all this driver is about - is shared by the two.
+//
 // **The exit status is eight bits.** A process can report 0-255, and most fixtures answer something
 // larger, so what is compared is the low byte of the expected value. That is a weaker assertion than
 // the in-process driver's and is not meant to replace it: this one is about the file, and the corpus
@@ -21,6 +29,7 @@
 //   ./YanaElfTest                 # every fixture with a .run.expect
 //   ./YanaElfTest Format          # the fixtures whose names start with Format
 //   ./YanaElfTest shard:0/8       # one process' share of the corpus
+//   ./YanaElfTest resolver:legacy # the same corpus through compiler/resolve
 #include <Core.h>
 #include <File.h>
 #include <cstdlib>
@@ -29,8 +38,10 @@
 #include "../compiler/resolve/lower.h"
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/emit.h"
+#include "../compiler/resolve_ssa/pipeline.h"
 #include "shard.h"
 #include "directives.h"
+#include "provider.h"
 #include "corpus.h"
 #include "report.h"
 
@@ -48,76 +59,6 @@ extern char** environ;
 
 using namespace Tritium;
 
-// Supplies both the source text a diagnostic quotes and the modules an `import` names, out of the
-// same directory ResolveTester.cpp reads them from - the fixtures are shared, so the way their
-// imports are found has to be too.
-struct TestProvider: SourceProvider, ModuleProvider {
-    struct Loaded {
-        StringId name;
-        Ptr<char, HeapDeleter> text;
-        Size length;
-        ast::Module* ast;
-        ast::ModuleGroup* group;
-    };
-
-    StringView source;
-    Context* context = nullptr;
-    Array<Loaded> loaded;
-
-    // Which directory an `import` this driver has to answer is looked for in - `resolve/modules/`
-    // for a compiler fixture and `lib/modules/` for a library one. Set per fixture, since this
-    // driver runs over both corpora.
-    String moduleRoot = String("resolve/modules/");
-
-    ~TestProvider() override {
-        for(auto& entry: loaded) {
-            delete entry.group;
-            delete entry.ast;
-        }
-    }
-
-    StringView getSource(StringId id) override {
-        for(auto& entry: loaded) {
-            if(entry.name == id) return StringView { entry.text.get(), entry.length };
-        }
-
-        return source;
-    }
-
-    const Location* getNode(LocationId id) override {
-        return context ? context->getLocation(id) : nullptr;
-    }
-
-    ast::ModuleGroup* getModule(StringId name) override {
-        for(auto& entry: loaded) {
-            if(entry.name == name) return entry.group;
-        }
-
-        // `OpenExisting`, for the reason ResolveTester gives: the default mode *creates* the file,
-        // so an import this directory does not answer leaves an empty module behind - which then
-        // shadows the library module of that name on every run afterwards, silently.
-        auto path = moduleRoot + context->findName(name) + String(".yana");
-        auto opened = File::openFile(path, readAccess(), File::OpenExisting);
-        if(opened.isErr()) return nullptr;
-
-        auto file = opened.moveUnwrapOk();
-        auto size = file.size();
-        Ptr<char, HeapDeleter> text { (char*)hAlloc(size) };
-        file.read({ (Byte*)text.get(), size });
-
-        Lexer lexer(*context, context->diagnostics, StringView { text.get(), size }, name);
-        Parser parser(*context, lexer, name);
-        auto ast = new ast::Module(parser.parseModule());
-
-        // A group of one file. These fixtures name a module per file, which is what a file that
-        // wrote `module` would be under the directory rule too - Analysis-Modules.md §2.1.
-        auto group = new ast::ModuleGroup { .name = name };
-        group->files.push(ast);
-
-        loaded.push(Loaded { name, ::move(text), size, ast, group });
-        return group;
-    }
-};
 
 static Maybe<I64> readExpectedRun(const String& path) {
     auto info = File::info(path);
@@ -166,7 +107,9 @@ static String fixtureName(const String& path) {
     // Without the extension, so that `Format.yana` produces `Format` rather than a file whose name
     // says it is source.
     auto view = StringView { start, length };
-    if(auto dot = findLastChar(view, '.')) length = dot - start - 1;
+    // (`findLastChar` answers the dot itself, so the stem is everything before it - this said
+    // `dot - start - 1` until J133 and wrote `Forma`.)
+    if(auto dot = findLastChar(view, '.')) length = dot - start;
 
     return String(start, length);
 }
@@ -275,18 +218,102 @@ static Maybe<I64> expectedStatus(const String& path) {
     return readExpectedRun(path + String(".run.expect"));
 }
 
-static bool runTest(const String& path, StringView source, const String& outputDir) {
+static bool fileExists(const String& path) {
+    auto info = File::info(path);
+    return info && !info.unwrapOk().isDirectory;
+}
+
+/*
+ * Whether the stage this run builds with is asserted on this fixture at all.
+ *
+ * The rewrite takes the corpus's own word for it rather than trying everything: a `resolve/` fixture
+ * is the new stage's where it carries `# resolver: ownership` or a `.mir.expect` - the two ways
+ * `YanaResolveTest` adopts one - and the rest are J94 §3.4's gaps, which the in-process driver does
+ * not run through this stage either. Trying them would make this driver the place those gaps are
+ * listed, a second time and in a different form. A `# platform: js` fixture has no machine program to
+ * write. A `lib/` fixture is a suite, and every one of them is the rewrite's.
+ *
+ * The old stage skips the fixtures only the rewrite compiles, which is what it always did.
+ */
+static bool stageCompiles(const String& path, StringView source, bool legacy) {
+    if(legacy) return !fixtureNeedsOwnershipStage(source);
+    if(fixtureIsJavaScript(source)) return false;
+    if(stringView(path).startsWith("lib/"_v)) return true;
+    return fixtureNeedsOwnershipStage(source) || fileExists(path + String(".mir.expect"));
+}
+
+/*
+ * The fixture's `LowerModule`, through whichever stage the run asked for - the only point at which
+ * the two differ - handed to `use` while everything above it is still alive. Both stages are driven
+ * the way `yana -mode exe` drives them (`compiler/driver.cpp`), and the module is named the same
+ * either way, since a fixture may compute with its own name.
+ *
+ * A callback rather than a returned module, because a lowered module is not self-contained: the
+ * names and declarations it refers to live in the resolved program or the pipeline's regions, and
+ * returning the module out of the scope that owns them would be exactly the dangling read an `-O2`
+ * build does not show.
+ */
+template<class Use>
+static bool lowerFixture(const String& path, Context& context, PrintDiagnostics& diagnostics,
+                         ast::Module& ast, TestProvider& provider, bool legacy, Use&& use) {
+    if(legacy) {
+        auto program = resolveProgram(context, ast, &provider);
+        if(!program || diagnostics.errorCount()) {
+            println("Fail (%@): the fixture did not resolve.", path);
+            return false;
+        }
+
+        auto lowered = lowerProgram(context, *program);
+        if(diagnostics.errorCount()) {
+            println("Fail (%@): the fixture did not lower.", path);
+            return false;
+        }
+
+        return use(*lowered);
+    }
+
+    ssa::Pipeline pipeline(context);
+    if(!pipeline.resolve(ast, &provider) || diagnostics.errorCount()) {
+        println("Fail (%@): the fixture did not resolve.", path);
+        return false;
+    }
+
+    if(!pipeline.convert()) {
+        println("Fail (%@): the fixture did not convert to SSA.", path);
+        return false;
+    }
+
+    pipeline.releaseMir();
+
+    if(!pipeline.optimize()) {
+        println("Fail (%@): the optimizer produced SSA the verifier rejects.", path);
+        return false;
+    }
+
+    auto lowered = pipeline.lower();
+    if(!lowered || diagnostics.errorCount()) {
+        println("Fail (%@): the fixture did not lower.", path);
+        return false;
+    }
+
+    return use(*lowered);
+}
+
+static bool runTest(const String& path, StringView source, const String& outputDir, bool legacy) {
     auto expected = expectedStatus(path);
     if(!expected) return true;
 
-    // A fixture only the rewritten stage compiles - see directives.h. This driver builds with the
-    // shipping one, so there is nothing here it could report but a diagnostic the fixture already
-    // says to expect.
-    if(fixtureNeedsOwnershipStage(source)) return true;
+    // A fixture the stage this run builds with is not asserted on - see `stageCompiles`. There is
+    // nothing here it could report but a diagnostic the fixture already says to expect, or a gap the
+    // corpus already lists.
+    if(!stageCompiles(path, source, legacy)) return true;
 
     TestProvider provider;
     provider.source = source;
-    if(stringView(path).startsWith("lib/"_v)) provider.moduleRoot = String("lib/modules/");
+    if(stringView(path).startsWith("lib/"_v)) {
+        provider.moduleRoot = String("lib/modules");
+        provider.testCompanions = true;
+    }
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
     applyFixtureDirectives(context.settings, source);
@@ -313,28 +340,35 @@ static bool runTest(const String& path, StringView source, const String& outputD
      */
     context.settings.test = context.settings.test || stringView(path).startsWith("lib/"_v);
 
-    auto name = context.addUnqualifiedName("ElfTest", 7);
+    /*
+     * `ResolveTest`, the name `YanaResolveTest` gives the same fixture, because the two drivers share
+     * the fixture's `.run.expect` and a program may compute with the name of its own module - `@caller`
+     * fills a `Site` with it, and `RecordFields` adds its length into the answer. This said `ElfTest`
+     * until J133, which answered four less there; the old stage never compiled that fixture, so the
+     * difference had never come up. A `lib/` fixture answers 0 whatever it is called.
+     */
+    auto name = context.addUnqualifiedName("ResolveTest", 11);
     Lexer lexer(context, diagnostics, source, name);
     Parser parser(context, lexer, name);
     auto ast = parser.parseModule();
 
-    auto program = resolveProgram(context, ast, &provider);
-    if(!program || diagnostics.errorCount()) {
-        println("Fail (%@): the fixture did not resolve.", path);
-        return false;
-    }
-
-    auto lowered = lowerProgram(context, *program);
-    if(diagnostics.errorCount() || !validateLowerModule(&diagnostics, lowered.get())) {
-        println("Fail (%@): the fixture did not lower.", path);
-        return false;
-    }
-
     auto executable = outputDir + String("/") + fixtureName(path);
-    if(!genX64Executable(context, *lowered, executable)) {
-        println("Fail (%@): no executable was generated.", path);
-        return false;
-    }
+    auto generated = lowerFixture(path, context, diagnostics, ast, provider, legacy,
+                                  [&](LowerModule& lowered) {
+        if(!validateLowerModule(&diagnostics, &lowered)) {
+            println("Fail (%@): the fixture did not lower.", path);
+            return false;
+        }
+
+        if(!genX64Executable(context, lowered, executable)) {
+            println("Fail (%@): no executable was generated.", path);
+            return false;
+        }
+
+        return true;
+    });
+
+    if(!generated) return false;
 
 #ifdef YANA_CAN_RUN_ELF
     // The low byte, because that is all a process can report - see the header comment.
@@ -389,10 +423,14 @@ int main(int argc, const char** argv) {
     // through, "does *this* fixture pass" has to stay answerable.
     String only;
 
+    // Which stage builds the executables - the rewrite unless the run says otherwise. See the header.
+    auto legacy = false;
+
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
         if(parseShard(arg, shard, shards)) { sharded = true; continue; }
         if(parseJobs(arg, jobs)) continue;
+        if(arg == "resolver:legacy") { legacy = true; continue; }
 
         // `generate` is accepted and ignored, so that a whole-suite regenerate can pass the same
         // arguments to every driver. There is nothing here to generate: the goldens this reads are
@@ -432,7 +470,7 @@ int main(int argc, const char** argv) {
     // fixture goes through exactly as much of that as a compiler one. `File.yana` in particular is
     // the only fixture anywhere that touches the file system, so the half of its path that a JIT
     // never reaches is worth walking.
-    auto collect = [&](const char* directory) {
+    auto collect = [&](const String& directory) {
         listDirectory(directory, [&](const String& name, bool isDirectory) {
             if(isDirectory) return;
             auto dot = findLastChar(stringView(name), '.');
@@ -440,15 +478,30 @@ int main(int argc, const char** argv) {
             if(String(dot + 1, name.text() + name.size() - dot - 1) != "yana") return;
             if(only.size() && !stringView(name).startsWith(stringView(only))) return;
 
-            tests.push(String(directory) + String("/") + name);
+            tests.push(directory + String("/") + name);
         });
     };
 
     // `lib/` has to be the fixture corpus and not the standard library of that name - see corpus.h.
     if(reportWrongDirectory()) return 1;
 
-    collect("resolve");
-    collect("lib");
+    collect(String("resolve"));
+    collect(String("lib"));
+
+    /*
+     * And `resolve/`'s subdirectories, one level down, since J133 - the families `YanaResolveTest`
+     * files together (`ownership/`, `loans/`, `lens/`, `iter/` and the rest). ResolveTester.cpp's
+     * listing leaves them for this driver to opt into, and it did not while it built with the old
+     * stage, because almost all of them are the rewrite's alone and there was nothing it could have
+     * said about them. `resolve/modules/` is the one that is not fixtures.
+     */
+    Array<String> subdirectories;
+    listDirectory("resolve", [&](const String& name, bool isDirectory) {
+        if(!isDirectory || name == "." || name == ".." || name == "modules") return;
+        subdirectories.push(String("resolve/") + name);
+    });
+
+    for(auto& directory: subdirectories) collect(directory);
 
     if(tests.isEmpty()) {
         // Only the first shard, since every one of them has the same listing at this point -
@@ -489,7 +542,7 @@ int main(int argc, const char** argv) {
         auto size = file.size();
         Ptr<char, HeapDeleter> source { (char*)hAlloc(size) };
         file.read({ (Byte*)source.get(), size });
-        pass = runTest(test, { source.get(), size }, outputDir) && pass;
+        pass = runTest(test, { source.get(), size }, outputDir, legacy) && pass;
     }
 
     return pass ? 0 : 1;

@@ -633,6 +633,13 @@ void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
                 return;
             }
 
+            // A narrow signed operand is held sign-extended, and `>>>` shifts the 32-bit reading
+            // of it: `-100 shr 1` at `I8` came out -50 where native answers 78. Masked to the
+            // width first, so what is shifted is the pattern native shifts (J149).
+            if(integer && integer->isSigned && heldBits(g, *integer) < 32) {
+                lhs = binary(g, BinaryOp::And, lhs, number(g, F64((U64(1) << heldBits(g, *integer)) - 1)));
+            }
+
             simple(BinaryOp::Shr);
             return;
         case Value::Sar: simple(BinaryOp::Sar); return;
@@ -3559,6 +3566,12 @@ static JsPtr<Expr> laneBinary(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr
             if(isLong(g, type)) {
                 auto unsignedValue = hostCall(g, "BigInt"_v, "asUintN"_v, number(g, 64), lhs);
                 return coerce(g, type, binary(g, BinaryOp::Sar, unsignedValue, rhs));
+            }
+
+            // The pattern of a narrow signed lane rather than its sign-extended reading - the
+            // scalar path's mask, for the same reason.
+            if(integer && integer->isSigned && heldBits(g, *integer) < 32) {
+                lhs = binary(g, BinaryOp::And, lhs, number(g, F64((U64(1) << heldBits(g, *integer)) - 1)));
             }
 
             return simple(BinaryOp::Shr);

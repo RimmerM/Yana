@@ -4,14 +4,7 @@ fn main() -> one %r0
   var $2: %r1
   var $3: %r1
   block0:
-    %3: %r0 = const 10n
-    %4: %r0 = alias %3
-    %5: %r0 = alias %4
-    %6: %r0 = alias %5
-    %8: %r0 = alias %6
-    %9: %r0 = const 10n
-    %10: %r2 = binary.ne %8, %9
-    branch %10 -> block2 -> block1
+    jump -> block1
   block1:
     %11: %r0 = const 20n
     %12: %r0 = alias %11
@@ -38,7 +31,7 @@ fn main() -> one %r0
     %31: %r0 = const -2n
     return %31
 
-optimizer clones 1 aliased 1 forwarded 2 removed 14 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 5
+optimizer clones 1 aliased 1 forwarded 2 removed 21 adopted 0 sunk 0 numbered 1 decided 1 unboxed 0 updated 0 split 0 promoted 5 folded 1
 
 shape %s0 object Pair {left: %r0, right: %r0}
 

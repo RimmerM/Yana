@@ -654,6 +654,40 @@ struct StepPlan {
     Array<U32> spillField;
     Array<U32> spillEntry;
 
+    /*
+     * Which definition of each spilled value a block **uses** - `planSpillReach`, J164.
+     *
+     * A spilled value has one definition in MIR and one more per hand-over that keeps it: the reload
+     * the resume block makes. Replacing the value "for everything converted from here on" was right
+     * only while the last reload converted dominated every later block, which a second `yield` in
+     * one loop body breaks - `yield a; if c: yield a` rejoins with the first reload on one arm and
+     * the second on the other, and the verifier said "jump names N, whose definition does not
+     * dominate it". So the reaching definition is computed per block, over the MIR graph the step
+     * converts, and a block whose uses see one definition takes that one's value while a block that
+     * sees several, or one converted after it, reads the field - which the definition then also
+     * writes, so that every path into the block has put the value there.
+     *
+     * One entry per spill and block, `spillBlocks` to a row: `kSpillNothing` where the block does
+     * not use the value or defines it, `kSpillFromDefinition`, `kSpillLoad`, or the hand-over whose
+     * reload it takes.
+     */
+    static constexpr U32 kSpillNothing = ~U32(0);
+    static constexpr U32 kSpillFromDefinition = ~U32(1);
+    static constexpr U32 kSpillLoad = ~U32(2);
+
+    U32 spillBlocks = 0;
+    Array<U32> spillAction;
+    Array<U8> spillStoreAtDefinition;
+
+    // Where each is defined, and whether as that block's argument rather than by one of its nodes.
+    Array<U32> spillDefinedIn;
+    Array<U8> spillIsArgument;
+
+    // And what the conversion made for each, filled as it goes: the definition's value, and one
+    // reload per spill and hand-over (`yields` to a row). Zero where it has not been made.
+    Array<SsaPtr<Value>> spillDefined;
+    Array<SsaPtr<Value>> spillReloaded;
+
     U32 continuationArg = 0;
     U32 yields = 0;
 
@@ -1262,8 +1296,24 @@ struct Conversion {
              * Nothing is loaded and nothing is computed: a `%T` in a register is the address, which
              * is the same identity `mir::Node::Address` relies on from the other direction.
              */
-            case mir::Place::Address:
-                return valueProducedBy(NodeId(place.payload), at);
+            case mir::Place::Address: {
+                auto pointer = valueProducedBy(NodeId(place.payload), at);
+                if(!pointer) return nullptr;
+
+                /*
+                 * Except a **loan of a pointer**, which is where the pointer is and not where it
+                 * points: `*id(p)` over `fn id(p: '%Int) -> '%Int` names the call's result, a
+                 * `%I32 [shared slot 0]`, and taking that as the address read the pointer's own
+                 * bytes as the `Int` (J164). A binding in between loaded it - `let q = id(p)` is a
+                 * copy out of the loan - so only a place rooted straight in such a value met it.
+                 */
+                if(!referenceValued(pointer->occurrence)) return pointer;
+
+                auto held = mir::owned(pointer->occurrence.type);
+                auto loaded = editor.addLoad(at, editor.use(*pointer, UseKind::Inspect), held,
+                                             conventionFor(held), false);
+                return editor.resultOf(*loaded);
+            }
 
             case mir::Place::Loan:
             case mir::Place::KindCount:
@@ -1390,9 +1440,17 @@ struct Conversion {
      * and it segfaulted at every optimization level above none.
      *
      * So the slot is made here, where the call is still one, and by the time anything splices the
-     * callee in the two sides already agree. The rule the slot does not weaken is the one that
-     * fixture states: it is this frame's storage like any other local, so a borrow of it may not
-     * leave through a result.
+     * callee in the two sides already agree.
+     *
+     * **A raw pointer only, since J147.** Every other value reaching a position that names an origin
+     * is given its temporary by the resolver (`Resolver::lentPastPosition`), where the loan analysis
+     * sees it: a slot made here is after the loan check, so nothing kept a result rooted in it from
+     * outliving it, and `push(hs, keep(i + 1))` in a loop left every element pointing at one slot. A
+     * pointer at `self: source'%a` is the one position the resolver leaves alone, because what the
+     * callee answers is an address *through* the pointer rather than of the slot it sits in - so the
+     * slot here is representation and nothing outlives it. Since J162 that is `p[i]`'s call alone
+     * (`Resolver::subscriptingPointer`): J147 left every pointer-typed position here, and a user's
+     * `wrap(p: '%Int) -> RP {r: p}` kept this slot's address, one slot for every pass of a loop.
      *
      * Concrete positions of the argument's own type only. An **erased** position takes an address
      * whatever it was bound to and its declared type is a variable this body cannot allocate, so it
@@ -1407,6 +1465,7 @@ struct Conversion {
 
         if(reachedAsAddress(held)) return true;
         if(!mir::sameType(held.type, position.type)) return true;
+        assertTrue(decl()[held.type]->kind == mir::Type::Pointer);
 
         auto slot = editor.resultOf(*editor.addAlloc(at, mir::owned(held.type),
                                                      mir::StorageClass::Frame));
@@ -3550,6 +3609,8 @@ struct Conversion {
                                              held, conventionFor(held), false);
 
                 produced[stepping->spillValue[j]] = editor.resultOf(*loaded) - base();
+                stepping->spillReloaded[Size(j) * stepping->yields + index] =
+                    produced[stepping->spillValue[j]];
             }
 
             produced[node.id.index] = stepping->resumeValue - base();
@@ -3830,14 +3891,59 @@ struct Conversion {
             case mir::Node::Aggregate: {
                 auto& written = (mir::NodeAggregate&)node;
 
+                auto result = substituted(mir::valueOccurrence(node));
+
+                /*
+                 * A record's fields are positions exactly as a call's parameters are, and they
+                 * have the same manifestation mismatch `valueUseOf` adapts (J141):
+                 * `P {x: firstOf(xs)}` is a loan of a scalar - an address - into a field that holds
+                 * the number, which reached the verifier as an aggregate consuming a guaranteed
+                 * value. The instantiation's own fields are the substituted positions, so a generic
+                 * record is asked at the type it was built at.
+                 *
+                 * The other direction - `Held {value: 5}`, a number into a field declared `'a` at
+                 * `a := I32`, which holds an *address* - used to be `referenceUseOf` here, and a
+                 * frame slot made after the loan check was a slot nothing kept the record from
+                 * outliving (J147: returned, it read a dead frame; pushed in a loop, every element
+                 * pointed at one slot). The resolver gives such a value its temporary now
+                 * (`Resolver::lentPastPosition`), so the component arrives as a loan of it and a
+                 * reference field is a plain use.
+                 */
+                auto fields = [&]() -> mir::RecordType* {
+                    if(written.fill || !result.type) return nullptr;
+                    if(decl()[result.type]->kind != mir::Type::Record) return nullptr;
+
+                    auto record = (mir::RecordType*)decl()[result.type];
+                    if(record->lambda || written.constructor >= record->cons.size()) return nullptr;
+
+                    auto con = record->cons.get(decl(), written.constructor);
+                    return con.count == written.components.size() ? record : nullptr;
+                }();
+
                 SmallArray<Use, 8> components;
                 for(auto operand: written.components.contents(mir)) {
                     Use used;
-                    if(!useOf(operand, node.source, used)) return;
+                    if(fields) {
+                        auto con = fields->cons.get(decl(), written.constructor);
+                        auto field = fields->field(decl(), U16(con.first + components.size()));
+
+                        /*
+                         * Only a position the *declaration* settled. A field declared at a bare
+                         * variable and qualified by the application - `Pair('I32, 'I32)`,
+                         * `Entry('k, 'v)` - is a reference because of the result's shape and not
+                         * its own occurrence, and its component already arrives as one; so an
+                         * owned field is adapted only where the result carries no shape at all.
+                         */
+                        auto adapts = mir::ownsField(field) && !result.shape
+                            ? valueUseOf(operand, node.source, used)
+                            : useOf(operand, node.source, used);
+                        if(!adapts) return;
+                    } else if(!useOf(operand, node.source, used)) {
+                        return;
+                    }
+
                     components.push(used);
                 }
-
-                auto result = substituted(mir::valueOccurrence(node));
 
                 /*
                  * `[0] :: [U8 *n]` - the fill whose count arrives with the substitution.
@@ -4130,6 +4236,25 @@ struct Conversion {
                 for(auto lane: written.pattern.contents(mir)) pattern.push(lane);
 
                 auto result = substituted(mir::valueOccurrence(node));
+
+                // A rearrangement the body could not count - `NodeVecShuffle::Deferred`, written
+                // now that the substitution has made the count a number.
+                if(written.deferred != mir::NodeVecShuffle::Deferred::None) {
+                    auto& vector = *(mir::VectorType*)decl()[result.type];
+                    auto lanes = vector.hasFixedCount() ? vector.lanes : 0;
+                    if(!lanes) {
+                        report(node.source, "internal: a vector's lane count is still open at the SSA conversion"_v);
+                        return;
+                    }
+
+                    if(!mir::deferredLanePattern(written.deferred, lanes, written.amount,
+                                                 [&](U8 lane) { pattern.push(lane); })) {
+                        errors++;
+                        context.diagnostics.error("a window of %@ lanes starting at %@ runs past the end of the pair - the start is between 0 and %@"_v,
+                                                  node.source, U32(lanes), I32(written.amount), U32(lanes));
+                        return;
+                    }
+                }
                 auto inst = editor.addVecShuffle(node.source, left, right, pattern.pointer(),
                                                  pattern.size(), result);
 
@@ -5132,6 +5257,16 @@ struct Conversion {
             }
         }
 
+        // A spilled value that is a block's argument exists from here on: every block argument was
+        // made above, before any block is converted and so before any reload replaced it.
+        if(stepping) {
+            for(U32 j = 0; j < stepping->spillValue.size(); j++) {
+                if(stepping->spillIsArgument[j]) {
+                    stepping->spillDefined[j] = produced[stepping->spillValue[j]];
+                }
+            }
+        }
+
         for(U32 i = 0; i < source.blocks.size(); i++) {
             auto block = source.block(mir, BlockId(i));
             if(!inScope(BlockId(i))) continue;
@@ -5139,6 +5274,8 @@ struct Conversion {
             editor.setBlock(*base()[blocks[i]]);
             editor.setRegion(base()[blocks[i]]->region);
             emitting = block->region;
+
+            if(stepping) stepSpillsOnEntry(i);
 
             auto count = block->nodes.size();
             for(U32 n = 0; n < count; n++) {
@@ -5149,6 +5286,8 @@ struct Conversion {
 
                 auto& node = *mir[block->nodes.get(mir, n)];
                 convertNode(node);
+
+                if(stepping) stepSpillDefined(node);
 
                 // The dependency, once the value exists - see `attachLoan`. After the node rather
                 // than inside each case of it, so that a kind added to the switch cannot be the one
@@ -5165,6 +5304,81 @@ struct Conversion {
         // caller's, and sealing them here as well would count every edge twice.
         if(!grafting) editor.seal();
         return errors == 0;
+    }
+
+    /*
+     * Which definition of each spilled value this block's uses read - `StepPlan::spillAction`.
+     *
+     * Set on entry to every block that uses one, so that no block inherits whatever the block
+     * converted before it in index order left in `produced`: that was the whole of the defect, since
+     * index order is not dominance order once a loop body has two hand-overs in it.
+     */
+    void stepSpillsOnEntry(U32 block) {
+        auto at = emitted.source;
+
+        for(U32 j = 0; j < stepping->spillValue.size(); j++) {
+            auto value = stepping->spillValue[j];
+            auto action = stepping->spillAction[Size(j) * stepping->spillBlocks + block];
+
+            // The definition's own block, where it is a block argument: written to the field before
+            // anything else, where some later block reads it back from there.
+            if(stepping->spillDefinedIn[j] == block) {
+                if(stepping->spillIsArgument[j]) stepSpillStore(at, j);
+                continue;
+            }
+
+            if(action == StepPlan::kSpillNothing) continue;
+
+            SsaPtr<Value> known;
+            if(action == StepPlan::kSpillFromDefinition) {
+                known = stepping->spillDefined[j];
+            } else if(action != StepPlan::kSpillLoad) {
+                known = stepping->spillReloaded[Size(j) * stepping->yields + action];
+            }
+
+            if(known) {
+                produced[value] = known;
+                continue;
+            }
+
+            // A hand-over that was never converted - one inside a delegated region, whose blocks
+            // this level does not run - leaves the value as the order of conversion had it.
+            if(action != StepPlan::kSpillLoad) continue;
+
+            // Several definitions reach this block, or the one that does is converted after it -
+            // so the field is where the value is, which every one of them has written.
+            assertTrue(stepping->spillStoreAtDefinition[j]);
+
+            auto held = mir::owned(stepping->record->field(decl(),
+                                   U16(stepping->spillField[j])).occurrence.type);
+            auto address = stepField(at, U16(stepping->spillField[j]));
+            auto loaded = editor.addLoad(at, editor.use(*address, UseKind::Inspect), held,
+                                         conventionFor(held), false);
+
+            produced[value] = editor.resultOf(*loaded) - base();
+        }
+    }
+
+    // A node that is a spilled value's definition: its value, kept for the blocks that take it,
+    // and into the field where a block reads it back from there.
+    void stepSpillDefined(mir::Node& node) {
+        for(U32 j = 0; j < stepping->spillValue.size(); j++) {
+            if(stepping->spillValue[j] != node.id.index || stepping->spillIsArgument[j]) continue;
+
+            stepping->spillDefined[j] = produced[node.id.index];
+            stepSpillStore(node.source, j);
+        }
+    }
+
+    void stepSpillStore(LocationId at, U32 j) {
+        if(!stepping->spillStoreAtDefinition[j]) return;
+
+        auto value = produced[stepping->spillValue[j]];
+        if(!value) return;
+
+        auto address = stepField(at, U16(stepping->spillField[j]));
+        editor.addStore(at, editor.use(*address, UseKind::Inspect),
+                        editor.use(*base()[value], UseKind::Consume));
     }
 
     /*
@@ -5281,6 +5495,187 @@ struct Conversion {
         }
     }
 };
+
+/*
+ * `StepPlan::spillAction` - which definition of each spilled value reaches each block, J164.
+ *
+ * A forward walk per spill over the MIR graph, whose lattice is one definition or several: the value's
+ * own definition, and each hand-over that keeps it, whose resume block reloads it. A hand-over that
+ * does not keep it ends it - the value is dead below that `yield`, so nothing reached from there reads
+ * it before it is defined again - and is the walk's bottom rather than a definition.
+ *
+ * The graph is the one the step is converted from, with the two edges it has that MIR's terminators
+ * do not state: a `Many` region's fall-out back to its entry (`LiveAcross::meetSuccessors`), and a
+ * nested traversal's call straight to its region's destination, which is the path of a child that
+ * hands over nothing (`convertStepNest`'s advance). Where one hand-over rejoins another, or a block
+ * reads a definition converted after it in index order, the block reads the field, and the
+ * definition writes it - which is the only cost, and is paid only by a producer that has such a
+ * block; every other one converts exactly as it did before.
+ */
+static void planSpillReach(DeclBase decl, MirBase mir, mir::Body& body, StepPlan& plan) {
+    constexpr U32 kUndefined = ~U32(0);
+    constexpr U32 kSeveral = ~U32(1);
+    constexpr U32 kDefinition = ~U32(2);
+
+    auto blockCount = U32(body.blocks.size());
+    auto spills = U32(plan.spillValue.size());
+    plan.spillBlocks = blockCount;
+
+    Array<U32> definedIn;
+    Array<U8> isArgument;
+    for(U32 i = 0; i < body.nodes.size(); i++) { definedIn.push(kUndefined); isArgument.push(0); }
+
+    for(U32 b = 0; b < blockCount; b++) {
+        auto block = body.block(mir, BlockId(b));
+        for(auto argument: block->arguments.contents(mir)) {
+            definedIn[mir[argument]->id.index] = b;
+            isArgument[mir[argument]->id.index] = 1;
+        }
+        for(auto node: block->nodes.contents(mir)) definedIn[mir[node]->id.index] = b;
+    }
+
+    auto successors = [&](U32 b, auto&& f) {
+        auto block = body.block(mir, BlockId(b));
+        auto count = block->nodes.size();
+        if(!count) return;
+
+        auto& last = *mir[block->nodes.get(mir, count - 1)];
+        mir::forEachEdge(mir, last, [&](mir::Edge& edge) {
+            if(edge.target) f(mir[edge.target]->index.index);
+        });
+
+        if(mir::isLensCall(last.kind)) {
+            auto region = body.region(mir, ((mir::NodeLensCall&)last).region);
+            if(region && region->destination.valid()) f(region->destination.index);
+            return;
+        }
+
+        if(last.kind != mir::Node::Jump) return;
+
+        auto region = body.region(mir, block->region);
+        if(!region || region->multiplicity != mir::Continuation::Many) return;
+
+        auto leaves = false;
+        mir::forEachEdge(mir, last, [&](mir::Edge& edge) {
+            if(edge.target && mir[edge.target]->region != block->region) leaves = true;
+        });
+
+        if(leaves) f(region->entry.index);
+    };
+
+    auto join = [](U32 a, U32 b) {
+        if(a == kUndefined) return b;
+        if(b == kUndefined || a == b) return a;
+        return kSeveral;
+    };
+
+    Array<U32> entry;
+    for(U32 b = 0; b < blockCount; b++) entry.push(kUndefined);
+
+    for(U32 j = 0; j < spills; j++) {
+        auto value = plan.spillValue[j];
+        auto home = definedIn[value];
+
+        plan.spillDefinedIn.push(home);
+        plan.spillIsArgument.push(isArgument[value]);
+        plan.spillStoreAtDefinition.push(0);
+        plan.spillDefined.push(nullptr);
+        for(U32 k = 0; k < plan.yields; k++) plan.spillReloaded.push(nullptr);
+
+        for(U32 b = 0; b < blockCount; b++) entry[b] = kUndefined;
+
+        // Where a hand-over sits, for "converted after this block": the block that holds it.
+        auto yieldBlock = [&](U32 k) {
+            for(U32 i = 0; i < body.nodes.size(); i++) {
+                if(plan.yieldOf[i] == k) return definedIn[i];
+            }
+            return kUndefined;
+        };
+
+        for(auto changed = true; changed;) {
+            changed = false;
+
+            for(U32 b = 0; b < blockCount; b++) {
+                auto state = entry[b];
+                if(b == home && isArgument[value]) state = kDefinition;
+
+                auto block = body.block(mir, BlockId(b));
+                for(auto pointer: block->nodes.contents(mir)) {
+                    auto& node = *mir[pointer];
+                    if(node.id.index == value) state = kDefinition;
+
+                    auto k = plan.yieldOf[node.id.index];
+                    if(k != StepPlan::kNotAYield) {
+                        state = plan.record->keepsAcross(decl, plan.spillEntry[j], k) ? k
+                                                                                    : kUndefined;
+                    }
+                }
+
+                successors(b, [&](U32 target) {
+                    auto joined = join(entry[target], state);
+                    if(joined == entry[target]) return;
+
+                    entry[target] = joined;
+                    changed = true;
+                });
+            }
+        }
+
+        for(U32 b = 0; b < blockCount; b++) {
+            auto action = StepPlan::kSpillNothing;
+            auto block = body.block(mir, BlockId(b));
+
+            // A use is what `LiveAcross` counts as one: an operand naming the value, an index or a
+            // raw address a place is reached through, and an edge's argument - and a hand-over that
+            // keeps it, which stores it into its field.
+            auto uses = false;
+            auto useOf = [&](mir::Operand& operand) {
+                if(operand.source() == mir::SourceKind::Result) {
+                    if(operand.nodeId().index == value) uses = true;
+                    return;
+                }
+                if(operand.source() != mir::SourceKind::Place) return;
+
+                for(auto step = body.place(mir, operand.placeId()); step;
+                    step = step->parent ? mir[step->parent] : nullptr) {
+                    if((step->kind == mir::Place::Index || step->kind == mir::Place::Address) &&
+                       step->payload == value) {
+                        uses = true;
+                    }
+                }
+            };
+
+            for(auto pointer: block->nodes.contents(mir)) {
+                auto& node = *mir[pointer];
+                auto k = plan.yieldOf[node.id.index];
+                if(k != StepPlan::kNotAYield && plan.record->keepsAcross(decl, plan.spillEntry[j], k)) {
+                    uses = true;
+                }
+
+                mir::forEachOperand(mir, node, [&](mir::Operand& operand, mir::OperandRole) {
+                    useOf(operand);
+                });
+                mir::forEachEdge(mir, node, [&](mir::Edge& edge) {
+                    for(auto operand: edge.arguments.contents(mir)) useOf(operand);
+                });
+            }
+
+            auto state = entry[b];
+            if(b != home && uses && state != kUndefined) {
+                if(state == kDefinition && home < b) {
+                    action = StepPlan::kSpillFromDefinition;
+                } else if(state != kDefinition && state != kSeveral && yieldBlock(state) < b) {
+                    action = state;
+                } else {
+                    action = StepPlan::kSpillLoad;
+                    plan.spillStoreAtDefinition[j] = 1;
+                }
+            }
+
+            plan.spillAction.push(action);
+        }
+    }
+}
 
 /*
  * The two generated bodies that are **not** a reading of the producer - `f$new` and `f$drop`.
@@ -7083,6 +7478,8 @@ static bool convertGenerated(Context& context, mir::Program& program, Converted&
 
 
     for(U32 i = 0; i < plan.yields; i++) plan.resume.push(nullptr);
+
+    planSpillReach(decl, mir, body, plan);
 
     Editor editor(context, program, into.arena, function);
     Conversion conversion(context, program, into.arena, producer, function, editor, scratch,

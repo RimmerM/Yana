@@ -13,17 +13,9 @@ fn main() -> one %r1
     %10: %r2 = binary.eq %8, %9
     %11: %r1 = const 1
     %12: %r1 = select %10, %11, %0
-    %13: %r1 = const 0
-    %14: %r3 = const 5
-    %15: %r3 = convert %13
-    %16: %r2 = binary.ge %15, %14
-    branch %16 -> block2 -> block1
+    jump -> block1
   block1:
-    %17: %r1 = const 4
-    %18: %r3 = const 5
-    %19: %r3 = convert %17
-    %20: %r2 = binary.ge %19, %18
-    branch %20 -> block4 -> block3
+    jump -> block3
   block2:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -48,7 +40,7 @@ fn main() -> one %r1
     host host.throw "yana: a runtime check failed"
     unreachable
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 8 adopted 0 sunk 0 numbered 0 decided 2 unboxed 0 updated 0 split 0 promoted 0 folded 4
 
 rep %r0 = string
 rep %r1 = number signed 32

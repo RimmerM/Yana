@@ -1,5 +1,6 @@
 #include "../parse/parser.h"
 #include "../parse/ast_print.h"
+#include "../parse/library.h"
 #include "../resolve/module.h"
 #include "../resolve/print.h"
 #include "../resolve_mir/explain.h"
@@ -400,8 +401,11 @@ static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
         });
     }
 
+    // Every other mode is `checkSettings`' refusal before anything is read (J162): `ir` and `drops`
+    // are the shipping stage's, `jsir` is the other platform's, and `shared` and `lib` neither
+    // stage's. What remains here is the modes above this line and the two below it.
     if(settings.mode != CompileMode::Executable && settings.mode != CompileMode::Llvm) {
-        context.diagnostics.error("-resolver ownership implements -mode mir, ssa, lower, llvm and exe so far - -mode ir, drops, shared and lib are -resolver legacy's"_v,
+        context.diagnostics.error("the native ownership pipeline answers -mode ast, mir, ssa, lower, llvm and exe"_v,
                                   nullptr);
         return false;
     }

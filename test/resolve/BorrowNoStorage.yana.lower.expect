@@ -214,65 +214,57 @@ countIn<complex>(%xs$items: Ptr, %xs$length: I64, %wanted: Ptr): I32 {
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
+    %v_1 = alloca 64, 8: Ptr
     copy %v_1, @ResolveTest.literal$1, 16
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = add %v_1, 16: Ptr
     copy %v_2, @ResolveTest.literal$3, 16
-    %v_3 = alloca 16, 8: Ptr
+    %v_3 = add %v_1, 32: Ptr
     copy %v_3, @ResolveTest.literal$5, 16
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = add %v_1, 48: Ptr
     copy %v_4, @ResolveTest.literal$7, 16
-    %v_5 = alloca 64, 8: Ptr
-    copy %v_5, %v_1, 16
-    %v_6 = add %v_5, 16: Ptr
-    copy %v_6, %v_2, 16
-    %v_7 = add %v_5, 32: Ptr
-    copy %v_7, %v_3, 16
-    %v_8 = add %v_5, 48: Ptr
-    copy %v_8, %v_4, 16
-    %v_9 = alloca 16, 8: Ptr
-    copy %v_9, @ResolveTest.literal$9, 16
-    %byLiteral = call_complex countIn, %v_5, 4, %v_9: I32
-    %v_10 = add %v_5, 32: Ptr
-    %byTemporary = call_complex countIn, %v_5, 4, %v_10: I32
-    jmp b_11
+    %v_5 = alloca 16, 8: Ptr
+    copy %v_5, @ResolveTest.literal$9, 16
+    %byLiteral = call_complex countIn, %v_1, 4, %v_5: I32
+    %v_6 = add %v_1, 32: Ptr
+    %byTemporary = call_complex countIn, %v_1, 4, %v_6: I32
+    jmp b_7
+  }
+
+  b_8 {
+    %v_9 = imul %byLiteral, 10: I32
+    %v_10 = add %v_9, %byTemporary: I32
+    ret %v_10
+  }
+
+  b_7 {
+    %v_11 = phi [b_12, %v_13], [b_0, 0]: I32
+    %v_14 = sext %v_11: I64
+    %v_15 = shl %v_14, 4: I64
+    %v_16 = add %v_1, %v_15: Ptr
+    %doomed = alloca 16, 8: Ptr
+    copy %doomed, %v_16, 16
+    %v_17 = add %doomed, 8: Ptr
+    %v_18 = load %v_17, 4: I64
+    %v_19 = shr %v_18, 30: I64
+    %v_20 = cast %v_19: I32
+    %v_21 = cmp_eq %v_20, 1: I32
+    je %v_21, b_22, b_23
+  }
+
+  b_23 {
+    jmp b_12
+  }
+
+  b_22 {
+    %v_24 = load %doomed, 8: Ptr
+    call_complex freeHeap, %v_24
+    jmp b_12
   }
 
   b_12 {
-    %v_13 = imul %byLiteral, 10: I32
-    %v_14 = add %v_13, %byTemporary: I32
-    ret %v_14
-  }
-
-  b_11 {
-    %v_15 = phi [b_16, %v_17], [b_0, 0]: I32
-    %v_18 = sext %v_15: I64
-    %v_19 = shl %v_18, 4: I64
-    %v_20 = add %v_5, %v_19: Ptr
-    %doomed = alloca 16, 8: Ptr
-    copy %doomed, %v_20, 16
-    %v_21 = add %doomed, 8: Ptr
-    %v_22 = load %v_21, 4: I64
-    %v_23 = shr %v_22, 30: I64
-    %v_24 = cast %v_23: I32
-    %v_25 = cmp_eq %v_24, 1: I32
-    je %v_25, b_26, b_27
-  }
-
-  b_27 {
-    jmp b_16
-  }
-
-  b_26 {
-    %v_28 = load %doomed, 8: Ptr
-    call_complex freeHeap, %v_28
-    jmp b_16
-  }
-
-  b_16 {
-    %v_17 = add %v_15, 1: I32
-    %v_29 = cmp_ilt %v_17, 4: I32
-    je %v_29, b_11, b_12
+    %v_13 = add %v_11, 1: I32
+    %v_25 = cmp_ilt %v_13, 4: I32
+    je %v_25, b_7, b_8
   }
 }
 

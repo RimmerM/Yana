@@ -1,0 +1,158 @@
+module ResolveTest
+
+fn viaCell() -> I32 {
+bb0:
+  %0: %viaCell.lambda.env address = alloc frame viaCell.lambda.env
+  %1: %Cell address = alloc frame Cell
+  %2: viaCell.lambda.env trivial = aggregate.viaCell.lambda.env
+  store inspect %0 consume %2
+  %3: viaCell.lambda.env trivial = copy inspect %0
+  %4: I32 trivial = const 3
+  %5: Cell trivial = aggregate.Cell consume %4
+  %6: I32 trivial = const 4
+  %7: Cell trivial = aggregate.Cell consume %6
+  %8: Cell trivial = call viaCell.lambda borrow %3 borrow %5 borrow %7
+  store inspect %1 consume %8
+  %9: %I32 address = field.addr .value inspect %1
+  %10: I32 trivial = load inspect %9
+  return consume %10
+}
+
+fn viaBig() -> I32 {
+bb0:
+  %0: %viaBig.lambda.env address = alloc frame viaBig.lambda.env
+  %1: %Big address = alloc frame Big
+  %2: viaBig.lambda.env trivial = aggregate.viaBig.lambda.env
+  store inspect %0 consume %2
+  %3: viaBig.lambda.env trivial = copy inspect %0
+  %4: I32 trivial = const 1
+  %5: I32 trivial = const 2
+  %6: I32 trivial = const 3
+  %7: I32 trivial = const 4
+  %8: I32 trivial = const 5
+  %9: Big trivial = aggregate.Big consume %4 consume %5 consume %6 consume %7 consume %8
+  %10: I32 trivial = const 6
+  %11: I32 trivial = const 7
+  %12: I32 trivial = const 8
+  %13: I32 trivial = const 9
+  %14: I32 trivial = const 10
+  %15: Big trivial = aggregate.Big consume %10 consume %11 consume %12 consume %13 consume %14
+  %16: Big trivial = call viaBig.lambda borrow %3 borrow %9 borrow %15
+  store inspect %1 consume %16
+  %17: %I32 address = field.addr .e inspect %1
+  %18: I32 trivial = load inspect %17
+  %19: I32 trivial = const 10
+  %20: I32 trivial = mul inspect %18 inspect %19
+  %21: %I32 address = field.addr .a inspect %1
+  %22: I32 trivial = load inspect %21
+  %23: I32 trivial = add inspect %20 inspect %22
+  return consume %23
+}
+
+fn capturing() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %capturing.lambda.env address = alloc frame capturing.lambda.env
+  %2: %Cell address = alloc frame Cell
+  %3: I32 trivial = const 5
+  store inspect %0 consume %3
+  %4: I32 trivial = const 5
+  %5: capturing.lambda.env trivial = aggregate.capturing.lambda.env consume %4
+  store inspect %1 consume %5
+  %6: capturing.lambda.env trivial = copy inspect %1
+  %7: I32 trivial = const 2
+  %8: Cell trivial = call capturing.lambda borrow %6 borrow %7
+  store inspect %2 consume %8
+  %9: %I32 address = field.addr .value inspect %2
+  %10: I32 trivial = load inspect %9
+  return consume %10
+}
+
+fn capturingBig() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %capturingBig.lambda.env address = alloc frame capturingBig.lambda.env
+  %2: %Big address = alloc frame Big
+  %3: I32 trivial = const 100
+  store inspect %0 consume %3
+  %4: I32 trivial = const 100
+  %5: capturingBig.lambda.env trivial = aggregate.capturingBig.lambda.env consume %4
+  store inspect %1 consume %5
+  %6: capturingBig.lambda.env trivial = copy inspect %1
+  %7: I32 trivial = const 3
+  %8: Big trivial = call capturingBig.lambda borrow %6 borrow %7
+  store inspect %2 consume %8
+  %9: %I32 address = field.addr .a inspect %2
+  %10: I32 trivial = load inspect %9
+  %11: %I32 address = field.addr .e inspect %2
+  %12: I32 trivial = load inspect %11
+  %13: I32 trivial = sub inspect %10 inspect %12
+  %14: %I32 address = field.addr .c inspect %2
+  %15: I32 trivial = load inspect %14
+  %16: I32 trivial = add inspect %13 inspect %15
+  return consume %16
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call viaCell
+  %1: I32 trivial = const 1000000
+  %2: I32 trivial = mul inspect %0 inspect %1
+  %3: I32 trivial = call viaBig
+  %4: I32 trivial = const 1000
+  %5: I32 trivial = mul inspect %3 inspect %4
+  %6: I32 trivial = add inspect %2 inspect %5
+  %7: I32 trivial = call capturing
+  %8: I32 trivial = const 100
+  %9: I32 trivial = mul inspect %7 inspect %8
+  %10: I32 trivial = add inspect %6 inspect %9
+  %11: I32 trivial = call capturingBig
+  %12: I32 trivial = add inspect %10 inspect %11
+  return consume %12
+}
+
+fn viaCell.lambda(viaCell.lambda.env: viaCell.lambda.env [shared call], a: Cell [shared call], b: Cell [shared call]) -> Cell {
+bb0(%0: viaCell.lambda.env [shared call] guaranteed, %1: Cell [shared call] guaranteed, %2: Cell [shared call] guaranteed):
+  %3: Cell trivial = copy inspect %2
+  return consume %3
+}
+
+fn viaBig.lambda(viaBig.lambda.env: viaBig.lambda.env [shared call], x: Big [shared call], y: Big [shared call]) -> Big {
+bb0(%0: viaBig.lambda.env [shared call] guaranteed, %1: Big [shared call] guaranteed, %2: Big [shared call] guaranteed):
+  %3: Big trivial = copy inspect %2
+  return consume %3
+}
+
+fn capturing.lambda(capturing.lambda.env: capturing.lambda.env [shared call], x: I32 [shared call]) -> Cell {
+bb0(%0: capturing.lambda.env [shared call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .k inspect %0
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = add inspect %3 inspect %5
+  %7: Cell trivial = aggregate.Cell consume %6
+  return consume %7
+}
+
+fn capturingBig.lambda(capturingBig.lambda.env: capturingBig.lambda.env [shared call], x: I32 [shared call]) -> Big {
+bb0(%0: capturingBig.lambda.env [shared call] guaranteed, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: %I32 address = field.addr .base inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = load inspect %2
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: %I32 address = field.addr .base inspect %0
+  %8: I32 trivial = load inspect %7
+  %9: I32 trivial = load inspect %2
+  %10: I32 trivial = const 0
+  %11: %I32 address = field.addr .base inspect %0
+  %12: I32 trivial = load inspect %11
+  %13: I32 trivial = load inspect %2
+  %14: I32 trivial = sub inspect %12 inspect %13
+  %15: Big trivial = aggregate.Big consume %6 consume %8 consume %9 consume %10 consume %14
+  return consume %15
+}
+
+entry main

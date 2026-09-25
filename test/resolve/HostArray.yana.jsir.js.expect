@@ -23,54 +23,55 @@ function idsOf(xs$0, xs$1, xs$2) {
 
 function container() {
   var p0;
+  var v6 = live;
+  live = v6 + 1 | 0;
+  live = v6 + 2 | 0;
+  var v17 = { items: new Int32Array([1, 2]), length: 2 };
   live = live + 1 | 0;
+  var v25 = v17.length;
+  var v28 = v25 + 1;
+  if (v28 > v17.items.length) growJsArray_Handle(v17, v28);
+  v17.items[v25] = 3;
+  v17.length = v28 & 1073741823;
   live = live + 1 | 0;
-  var v18 = { items: new Int32Array([1, 2]), length: 2 };
-  live = live + 1 | 0;
-  var v26 = v18.length;
-  var v29 = v26 + 1;
-  if (v29 > v18.items.length) growJsArray_Handle(v18, v29);
-  v18.items[v26] = 3;
-  v18.length = v29 & 1073741823;
-  live = live + 1 | 0;
-  var v48 = v18.items;
-  if (0 >= v18.length) throw $t;
-  Handle_drop(v48[0]);
-  v48[0] = 4;
+  var v46 = v17.items;
+  if (0 >= v17.length) throw $t;
+  Handle_drop(v46[0]);
+  v46[0] = 4;
   if (live !== 3) {
-    Array_a_reclaim_Handle(v18);
+    Array_a_reclaim_Handle(v17);
     return -1;
   }
   if (closed !== 1) {
-    Array_a_reclaim_Handle(v18);
+    Array_a_reclaim_Handle(v17);
     return -2;
   }
-  var v64 = v18.length;
-  if (1 >= v64) {
+  var v62 = v17.length;
+  if (1 >= v62) {
     p0 = null;
   } else {
-    var v69 = v18.items;
-    var v70 = v69[1];
-    v69.copyWithin(1, 2, v64);
-    v18.length = v64 - 1 & 1073741823;
-    p0 = v70;
+    var v67 = v17.items;
+    var v68 = v67[1];
+    v67.copyWithin(1, 2, v62);
+    v17.length = v62 - 1 & 1073741823;
+    p0 = v68;
   }
   if (!(p0 === null)) {
     Handle_drop(p0);
     if (live !== 2) {
-      Array_a_reclaim_Handle(v18);
+      Array_a_reclaim_Handle(v17);
       return -4;
     }
-    var v103 = idsOf(v18.items, v18.length, 0);
-    var v104 = v18.items;
-    var v106 = v18.length;
-    var v111 = 1 > v106 ? v106 : 1;
-    var v113 = 2 < v111 ? v111 : 2;
-    var v118 = idsOf(v104, (v113 > v106 ? v106 : v113) - v111, v111);
-    Array_a_reclaim_Handle(v18);
-    return (Math.imul(p0, 1000) + Math.imul(v103, 10) | 0) + v118 | 0;
+    var v101 = idsOf(v17.items, v17.length, 0);
+    var v102 = v17.items;
+    var v104 = v17.length;
+    var v109 = 1 > v104 ? v104 : 1;
+    var v111 = 2 < v109 ? v109 : 2;
+    var v116 = idsOf(v102, (v111 > v104 ? v104 : v111) - v109, v109);
+    Array_a_reclaim_Handle(v17);
+    return (Math.imul(p0, 1000) + Math.imul(v101, 10) | 0) + v116 | 0;
   }
-  Array_a_reclaim_Handle(v18);
+  Array_a_reclaim_Handle(v17);
   $td$Maybe_Handle(p0);
   return -3;
 }

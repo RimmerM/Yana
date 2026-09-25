@@ -2,95 +2,62 @@ mut @trace = [0, 0, 0, 0]
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = imm 15: I64
-    %v_2 = loads @trace, 4: I32
-    %v_3 = or %v_2, 1: I32
-    store @trace, %v_3, 4
-    %v_4 = loads @trace, 4: I32
-    %v_5 = or %v_4, 2: I32
-    store @trace, %v_5, 4
-    %v_6 = alloca 8, 8: Ptr
-    store %v_6, %v_1, 8
-    %v_7 = loads %v_6, 8: I64
-    %v_8 = cmp_eq %v_7, %v_1: I32
-    je %v_8, b_9, b_10
-  }
-
-  b_10 {
+    %v_1 = loads @trace, 4: I32
+    %v_2 = or %v_1, 1: I32
+    store @trace, %v_2, 4
+    %v_3 = loads @trace, 4: I32
+    %v_4 = or %v_3, 2: I32
+    store @trace, %v_4, 4
+    %v_5 = loads @trace, 4: I32
+    %v_6 = or %v_5, 4: I32
+    store @trace, %v_6, 4
+    %v_7 = loads @trace, 4: I32
+    %v_8 = or %v_7, 8: I32
+    store @trace, %v_8, 4
+    %v_9 = loads @trace, 4: I32
+    %v_10 = or %v_9, 16: I32
+    store @trace, %v_10, 4
     %v_11 = loads @trace, 4: I32
-    %v_12 = or %v_11, 8: I32
+    %v_12 = or %v_11, 96: I32
     store @trace, %v_12, 4
-    %v_13 = loads @trace, 4: I32
-    %v_14 = or %v_13, 16: I32
-    store @trace, %v_14, 4
-    %v_15 = loads @trace, 4: I32
-    %v_16 = or %v_15, 32: I32
-    store @trace, %v_16, 4
-    %v_17 = loads @trace, 4: I32
-    %v_18 = or %v_17, 64: I32
-    store @trace, %v_18, 4
-    %v_19 = loads @trace, 4: I32
-    %v_20 = or %v_19, 128: I32
-    store @trace, %v_20, 4
-    %v_21 = loads @trace, 4: I32
-    %v_22 = or %v_21, 256: I32
-    store @trace, %v_22, 4
-    %v_23 = loads @trace, 4: I32
-    %v_24 = or %v_23, 512: I32
-    store @trace, %v_24, 4
-    %v_25 = loads @trace, 4: I32
-    %v_26 = or %v_25, 1024: I32
-    store @trace, %v_26, 4
+    %v_13 = or %v_11, 224: I32
+    store @trace, %v_13, 4
+    %v_14 = loads @trace, 4: I32
+    %v_15 = or %v_14, 16128: I32
+    store @trace, %v_15, 4
+    jmp b_16
+  }
+
+  b_17 {
+    %v_18 = cmp_ilt %v_19, 5: I32
+    je %v_18, b_16, b_20
+  }
+
+  b_20 {
+    %v_21 = cmp_eq %v_22, 3: I32
+    je %v_21, b_23, b_24
+  }
+
+  b_16 {
+    %v_25 = phi [b_17, %v_22], [b_0, 0]: I32
+    %v_26 = phi [b_17, %v_19], [b_0, 2]: I32
+    %v_22 = add %v_25, 1: I32
+    %v_19 = add %v_26, 1: I32
+    jmp b_17
+  }
+
+  b_24 {
     %v_27 = loads @trace, 4: I32
-    %v_28 = or %v_27, 2048: I32
+    %v_28 = or %v_27, 32768: I32
     store @trace, %v_28, 4
+    ret %v_28
+  }
+
+  b_23 {
     %v_29 = loads @trace, 4: I32
-    %v_30 = or %v_29, 4096: I32
+    %v_30 = or %v_29, 16384: I32
     store @trace, %v_30, 4
-    %v_31 = loads @trace, 4: I32
-    %v_32 = or %v_31, 8192: I32
-    store @trace, %v_32, 4
-    jmp b_33
-  }
-
-  b_9 {
-    %v_34 = loads @trace, 4: I32
-    %v_35 = or %v_34, 4: I32
-    store @trace, %v_35, 4
-    jmp b_10
-  }
-
-  b_36 {
-    %v_37 = cmp_ilt %v_38, 5: I32
-    je %v_37, b_33, b_39
-  }
-
-  b_39 {
-    %v_40 = cmp_eq %v_41, 3: I32
-    je %v_40, b_42, b_43
-  }
-
-  b_33 {
-    %v_44 = phi [b_36, %v_41], [b_10, 0]: I32
-    %v_45 = phi [b_36, %v_38], [b_10, 2]: I32
-    %v_41 = add %v_44, 1: I32
-    %v_38 = add %v_45, 1: I32
-    jmp b_36
-  }
-
-  b_43 {
-    %v_46 = loads @trace, 4: I32
-    %v_47 = or %v_46, 32768: I32
-    store @trace, %v_47, 4
-    %v_48 = loads @trace, 4: I32
-    ret %v_48
-  }
-
-  b_42 {
-    %v_49 = loads @trace, 4: I32
-    %v_50 = or %v_49, 16384: I32
-    store @trace, %v_50, 4
-    jmp b_43
+    jmp b_24
   }
 }
 

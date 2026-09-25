@@ -7,54 +7,46 @@ mut @second = [0, 0, 0, 0]
 
 main$<complex>(): I32 {
   b_0 {
-    store @seed, 20, 4
-    %v_1 = loads @counter, 4: I32
-    %v_2 = loads @seed, 4: I32
-    %v_3 = add %v_1, %v_2: I32
+    %v_1 = imm 20: I32
+    store @seed, %v_1, 4
+    %v_2 = loads @counter, 4: I32
+    %v_3 = add %v_2, %v_1: I32
     store @counter, %v_3, 4
-    %v_4 = loads @counter, 4: I32
     %shape = global @shape: Ptr
-    %v_5 = load %shape, 1: I32
-    %v_6 = add %shape, 4: Ptr
-    %v_7 = load %v_6, 4: I32
-    %v_8 = cmp_eq %v_5, 0: I32
-    je %v_8, b_9, b_10
-  }
-
-  b_11 {
-    %v_12 = phi [b_10, %v_13], [b_9, %v_14]: I32
-    %v_15 = add %v_4, %v_12: I32
-    store @counter, %v_15, 4
-    %v_16 = loads @counter, 4: I32
-    store @recorded, %v_16, 4
-    %v_17 = loads @counter, 4: I32
-    %v_18 = add %v_17, 1: I32
-    store @first, %v_18, 4
-    %v_19 = loads @first, 4: I32
-    %v_20 = add %v_19, 1: I32
-    store @second, %v_20, 4
-    %v_21 = loads @counter, 4: I32
-    %v_22 = add 3, %v_21: I32
-    %v_23 = loads @recorded, 4: I32
-    %v_24 = imul %v_23, 100: I32
-    %v_25 = add %v_22, %v_24: I32
-    %v_26 = loads @first, 4: I32
-    %v_27 = imul %v_26, 10000: I32
-    %v_28 = add %v_25, %v_27: I32
-    %v_29 = loads @second, 4: I32
-    %v_30 = imul %v_29, 1000000: I32
-    %v_31 = add %v_28, %v_30: I32
-    ret %v_31
+    %v_4 = load %shape, 1: I32
+    %v_5 = add %shape, 4: Ptr
+    %v_6 = load %v_5, 4: I32
+    %v_7 = cmp_eq %v_4, 0: I32
+    je %v_7, b_8, b_9
   }
 
   b_10 {
-    %v_13 = imul %v_7, %v_7: I32
-    jmp b_11
+    %v_11 = phi [b_9, %v_12], [b_8, %v_13]: I32
+    %v_14 = add %v_3, %v_11: I32
+    store @counter, %v_14, 4
+    store @recorded, %v_14, 4
+    %v_15 = add %v_14, 1: I32
+    store @first, %v_15, 4
+    %v_16 = add %v_14, 2: I32
+    store @second, %v_16, 4
+    %v_17 = add 3, %v_14: I32
+    %v_18 = imul %v_14, 100: I32
+    %v_19 = add %v_17, %v_18: I32
+    %v_20 = imul %v_15, 10000: I32
+    %v_21 = add %v_19, %v_20: I32
+    %v_22 = imul %v_16, 1000000: I32
+    %v_23 = add %v_21, %v_22: I32
+    ret %v_23
   }
 
   b_9 {
-    %v_14 = imul %v_7, %v_7: I32
-    jmp b_11
+    %v_12 = imul %v_6, %v_6: I32
+    jmp b_10
+  }
+
+  b_8 {
+    %v_13 = imul %v_6, %v_6: I32
+    jmp b_10
   }
 }
 

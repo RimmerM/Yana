@@ -88,9 +88,6 @@ fn notAnIterator(n: Int) -> Int:
 
     return 0
 
--- A `for` over a call one argument short, and over an iterator that hands over nothing moved to
--- `Reject.Iter.Legacy.yana`; that file says what the new stage does instead.
-
 -- A pattern that can fail has nowhere to fail into: a loop carries no alternatives, so this would
 -- have to mean "skip the elements that do not match", which is a filter written where nothing says
 -- one is there.
@@ -128,3 +125,19 @@ fn inGeneric(->value: a, n: Int) -> a:
         return x
 
     return value
+
+-- Since J135, which enforces these in the new stage; they were `Reject.Iter.Legacy.yana`.
+-- One argument short of what the iterator declared, which is not the lens call site's "the block is
+-- the missing argument": a loop always supplies the body.
+fn wrongArity(n: Int) -> Int:
+    for x in upTo():
+        return x
+
+    return 0
+
+-- An iterator that hands over nothing gives the loop's pattern nothing to bind.
+fn nothingHanded(n: Int) -> Int:
+    for x in ticks(n):
+        return 1
+
+    return 0

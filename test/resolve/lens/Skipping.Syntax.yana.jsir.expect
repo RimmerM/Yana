@@ -137,80 +137,48 @@ fn main() -> one %r0
   var $39: %r0
   block0:
     %8: %r0 = const 3
-    %14: %r1 = const 0
-    %15: %r0 = const 0
-    %18: %r1 = alias %14
-    %19: %r1 = const 1
-    %20: %r3 = binary.eq %18, %19
-    branch %20 -> block1 -> block2(%8)
+    jump -> block2(%8)
   block1:
     %22: %r0 = alias %15
-    %23: %r0 = binary.add %8, %22
-    %24: %r0 = coerce %23
+    %23: %r0 = const 3
+    %24: %r0 = const 3
     jump -> block2(%24)
   block2(%0: %r0):
-    %29: %r0 = const 0
     %30: %r0 = const 4
-    %31: %r1 = const 1
-    %35: %r1 = alias %31
-    %36: %r1 = const 1
-    %37: %r3 = binary.eq %35, %36
-    branch %37 -> block9 -> block10(%29)
+    jump -> block9
   block3:
     %56: %r0 = alias %49
-    %57: %r0 = binary.add %42, %56
-    %58: %r0 = coerce %57
+    %57: %r0 = const 3
+    %58: %r0 = const 3
     jump -> block4(%58)
   block4(%1: %r0):
     %59: %r0 = binary.add %41, %1
     %60: %r0 = coerce %59
-    %65: %r0 = const 0
     %66: %r0 = const 4
-    %67: %r1 = const 1
-    %71: %r1 = alias %67
-    %72: %r1 = const 1
-    %73: %r3 = binary.eq %71, %72
-    branch %73 -> block11 -> block12(%65)
+    jump -> block11
   block5:
     %112: %r0 = alias %105
-    %113: %r0 = binary.add %98, %112
-    %114: %r0 = coerce %113
+    %113: %r0 = const 3
+    %114: %r0 = const 3
     jump -> block6(%114)
   block6(%2: %r0):
     %115: %r0 = binary.add %97, %2
     %116: %r0 = coerce %115
-    %121: %r0 = const 0
     %122: %r0 = const 4
-    %123: %r1 = const 1
-    %127: %r1 = alias %123
-    %128: %r1 = const 1
-    %129: %r3 = binary.eq %127, %128
-    branch %129 -> block13 -> block14(%121)
+    jump -> block13
   block7:
     %152: %r0 = alias %145
-    %153: %r0 = binary.add %134, %152
-    %154: %r0 = coerce %153
+    %153: %r0 = const 3
+    %154: %r0 = const 3
     jump -> block8(%154)
   block8(%3: %r0):
     %155: %r0 = binary.add %3, %134
     %156: %r0 = coerce %155
-    %158: %r1 = const 0
-    %162: %r1 = alias %158
-    %163: %r1 = const 1
-    %164: %r3 = binary.eq %162, %163
-    %165: %r0 = const 4
-    %166: %r0 = binary.add %3, %165
-    %167: %r0 = coerce %166
-    %168: %r0 = select %164, %167, %156
+    %168: %r0 = alias %156
     %169: %r0 = binary.add %133, %168
     %170: %r0 = coerce %169
-    %179: %r0 = const 0
     %180: %r0 = const 4
-    %181: %r1 = const 1
-    %185: %r1 = alias %181
-    %186: %r1 = const 1
-    %187: %r3 = binary.eq %185, %186
-    branch %187 -> block15 -> block16(%179)
+    jump -> block15
   block9:
     %39: %r0 = alias %30
     jump -> block10(%39)
@@ -218,12 +186,7 @@ fn main() -> one %r0
     %40: %r0 = binary.add %0, %4
     %41: %r0 = coerce %40
     %42: %r0 = const 3
-    %48: %r1 = const 0
-    %49: %r0 = const 0
-    %52: %r1 = alias %48
-    %53: %r1 = const 1
-    %54: %r3 = binary.eq %52, %53
-    branch %54 -> block3 -> block4(%42)
+    jump -> block4(%42)
   block11:
     %75: %r0 = alias %66
     jump -> block12(%75)
@@ -251,12 +214,7 @@ fn main() -> one %r0
     %96: %r0 = binary.add %92, %95
     %97: %r0 = coerce %96
     %98: %r0 = const 3
-    %104: %r1 = const 0
-    %105: %r0 = const 0
-    %108: %r1 = alias %104
-    %109: %r1 = const 1
-    %110: %r3 = binary.eq %108, %109
-    branch %110 -> block5 -> block6(%98)
+    jump -> block6(%98)
   block13:
     %131: %r0 = alias %122
     jump -> block14(%131)
@@ -264,29 +222,20 @@ fn main() -> one %r0
     %132: %r0 = binary.add %116, %6
     %133: %r0 = coerce %132
     %134: %r0 = const 3
-    %144: %r1 = const 0
-    %145: %r0 = const 0
-    %148: %r1 = alias %144
-    %149: %r1 = const 1
-    %150: %r3 = binary.eq %148, %149
-    branch %150 -> block7 -> block8(%134)
+    jump -> block8(%134)
   block15:
     %189: %r0 = alias %180
     jump -> block16(%189)
   block16(%7: %r0):
-    %191: %r1 = const 1
-    %195: %r1 = alias %191
-    %196: %r1 = const 1
-    %197: %r3 = binary.eq %195, %196
     %198: %r0 = const 1
     %199: %r0 = binary.add %7, %198
     %200: %r0 = coerce %199
-    %201: %r0 = select %197, %200, %7
+    %201: %r0 = alias %200
     %202: %r0 = binary.add %170, %201
     %203: %r0 = coerce %202
     return %203
 
-optimizer clones 0 aliased 0 forwarded 0 removed 152 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 10 promoted 22
+optimizer clones 0 aliased 0 forwarded 0 removed 203 adopted 0 sunk 0 numbered 0 decided 8 unboxed 0 updated 0 split 10 promoted 22 folded 20
 
 shape %s0 object Outcome {$tag: %r1 tag, Proceed: %r0, Exit: %r0}
 

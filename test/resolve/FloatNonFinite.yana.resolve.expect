@@ -1,0 +1,140 @@
+let image$base: () = <none>
+
+fn +=(I32)(%target: I32, %amount: I32) -> () {
+  b0:
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
+    assign %target, %v3
+    ret
+}
+
+fn above(%x: F32, %limit: F32) -> Bool {
+  b0:
+    %v2 = cmp_gt %x, %limit : Bool
+    ret %v2
+}
+
+fn below(%x: F64, %limit: F64) -> Bool {
+  b0:
+    %v2 = cmp_lt %x, %limit : Bool
+    ret %v2
+}
+
+fn unequal(%x: F32) -> Bool {
+  b0:
+    %v1 = cmp_ne %x, %x : Bool
+    ret %v1
+}
+
+fn main() -> I32 {
+  b0:
+    %big = mul 3.0000000054977558E38, 10 : F32
+    %low = sub 0, %big : F32
+    %wide = mul 1E308, 10 : F64
+    %v11 = sub 0, 1 : F64
+    %negativeZero = mul 0, %v11 : F64
+    %bits = alloc : I32
+    init %bits, 0
+    %v18 = call above, %big, 3.0000000054977558E38 : Bool
+    je %v18, b1, b2
+
+  b1:
+    %v20 = load %bits : I32
+    %v23 = borrow_mut %bits : &I32
+    call +=(I32), %v23, 1
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v30 = sub 0, 3.0000000054977558E38 : F32
+    %v31 = call above, %low, %v30 : Bool
+    %v33 = xor %v31, True : Bool
+    je %v33, b4, b5
+
+  b4:
+    %v35 = load %bits : I32
+    %v38 = borrow_mut %bits : &I32
+    call +=(I32), %v38, 2
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v42 = add %big, %low : F32
+    %v43 = call unequal, %v42 : Bool
+    je %v43, b7, b8
+
+  b7:
+    %v45 = load %bits : I32
+    %v48 = borrow_mut %bits : &I32
+    call +=(I32), %v48, 4
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v53 = call below, %wide, 1E308 : Bool
+    %v55 = xor %v53, True : Bool
+    je %v55, b10, b11
+
+  b10:
+    %v57 = load %bits : I32
+    %v60 = borrow_mut %bits : &I32
+    call +=(I32), %v60, 8
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v65 = sub 0, %wide : F64
+    %v69 = sub 0, 1E308 : F64
+    %v70 = call below, %v65, %v69 : Bool
+    je %v70, b13, b14
+
+  b13:
+    %v72 = load %bits : I32
+    %v75 = borrow_mut %bits : &I32
+    call +=(I32), %v75, 16
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v80 = div 1, %negativeZero : F64
+    %v84 = sub 0, 1E308 : F64
+    %v85 = call below, %v80, %v84 : Bool
+    je %v85, b16, b17
+
+  b16:
+    %v87 = load %bits : I32
+    %v90 = borrow_mut %bits : &I32
+    call +=(I32), %v90, 32
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v94 = call unequal, %big : Bool
+    %v96 = xor %v94, True : Bool
+    je %v96, b19, b20
+
+  b19:
+    %v98 = load %bits : I32
+    %v101 = borrow_mut %bits : &I32
+    call +=(I32), %v101, 64
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v105 = load %bits : I32
+    ret %v105
+}

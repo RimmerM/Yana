@@ -30,6 +30,14 @@ struct Local {
     LocalId index;
 
     /*
+     * The parameter names a call through this binding may use - `CallNames`, in the declaration
+     * region. A parameter's are its `Arg`'s; a `let`'s are its initializer's, which is an ascription
+     * `f :: (x: Int) -> Int` or a read of another position that carries them (`Resolver::
+     * writtenNamesOf`), so `let g = r.callback` keeps the field's names.
+     */
+    CallNames callNames;
+
+    /*
      * The continuation region this storage was declared in - `Continuation`.
      *
      * Which scope of the body owns it, which the CFG cannot say. Read by the conversion: a local
@@ -122,6 +130,13 @@ struct Local {
      * ...; let b = a` places the one object once.
      */
     bool demandsHeap = false;
+
+    /*
+     * Whether this local is the growable descriptor an `@inline(n) @capacity(n)` array is lent as
+     * (`Resolver::lendInlineDescriptor`). Read by one message: an object holding a nested traversal
+     * over one says what the storage is rather than "storage the object itself holds" (J162).
+     */
+    bool inlineDescriptor = false;
 
     /*
      * The constant this binding was established with, or `Constant::None` - what makes

@@ -1588,6 +1588,39 @@ static bool erasureFits(GenCost cost) {
 }
 
 /*
+ * The third term - J145, J94 §6.2 G: a body too small to be worth erasing.
+ *
+ * An erased call hands over an environment address beside the arguments and names a body the
+ * inliner may not copy (`inline.cpp`: its slots are numbered against its own schema), so a body no
+ * larger than that call's own setup costs more erased than copied - once per call site, where a
+ * specialized copy is inlined away. `Structural.yana`'s `copyable(x: a, n: Int) = n` is the shape:
+ * its environment is read by nothing, so `erasureFits` said yes, and every site then paid a call and
+ * a placed environment for a function that returns its second argument.
+ *
+ * Counted in MIR nodes and elaboration drops, the same units `measureGenCost` counts `total` in. Four
+ * is a read, a return and room for one operation between them. An `exported` generic stays erased
+ * whatever its size, for the reason `erasureSavesCopies` gives.
+ *
+ * **And only where the specializing walk will not refuse it** - J148 (`reachedUnderCap`). A generic
+ * the form decision forces to `Specialized` is held to `kSpecializationsPerGeneric` like any other,
+ * and that refusal is an error rather than a fallback (see `specializationPermitted`), so the floor
+ * as J145 built it turned `second(x: a, n: I32) = n` called at 40 record types - erased and correct
+ * before - into "specialized at more than 32 argument lists" (`generic/ErasureFloorCap.yana`).
+ * Exempting a floor-chosen copy from the cap was the other way to it and was not taken: the cap is
+ * the only thing that ends a polymorphic recursion, and a four-node body can be one
+ * (`fn (a) f(x: a) = f({x})`).
+ */
+static constexpr U32 kErasureFloor = 4;
+
+static bool erasureTooSmall(Program& program, Body& body) {
+    auto mir = *program.mir;
+
+    auto total = Size(body.nodes.size());
+    if(body.elaboration) total += mir[body.elaboration]->drops.size();
+    return total <= kErasureFloor;
+}
+
+/*
  * Whether this declaration is reached by **selection** rather than by a call naming it.
  *
  * A class member and an instance member are both: what runs is chosen from the instance table, and
@@ -1649,22 +1682,32 @@ static bool selectedMember(DeclBase base, Program& program, DeclPtr<Function> po
  */
 struct GenericReach {
     /*
-     * The one list seen so far, held **inline and by value**: a written argument list is short, and
-     * the arena pointers are interned, so `DeclPtr<Type>` equality is the identity test -
+     * The distinct lists seen so far, as the written lists themselves: a written argument list is
+     * short and lives in the MIR arena, which nothing rewrites before the specializing walk, and
+     * the arena pointers in it are interned, so `DeclPtr<Type>` equality is the identity test -
      * `internSpecialization` re-checks a hashed key against exactly these offsets.
      *
-     * A fixed row rather than an array, because this lives in a `HashMap` whose slots are raw
-     * storage the caller fills; a member that owns a buffer would be one nothing here destroys. A
-     * context binding more variables than this holds is `many`, which is the answer the count gives
-     * to everything it cannot read.
+     * Up to one past `kSpecializationsPerGeneric` - J148. The first two answer `erasureSavesCopies`
+     * (one list or several); the rest are what lets `erasureTooSmall` specialize only a generic the
+     * specializing walk cannot then refuse for being reached at too many. A fixed row rather than
+     * an array, because this lives in a `HashMap` whose slots are raw storage the caller fills; a
+     * member that owns a buffer would be one nothing here destroys.
      */
     static constexpr Size kMaxVariables = 8;
+    static constexpr Size kMaxLists = kSpecializationsPerGeneric + 1;
 
-    DeclPtr<Type> arguments[kMaxVariables] = {};
-    U32 count = 0;
+    MirList<DeclPtr<Type>>* lists[kMaxLists] = {};
+    U32 distinct = 0;
 
-    bool seen = false;
-    bool many = false;
+    // Reached in a way that names no list here - the four `many`s above but the second list. A
+    // context binding more variables than `kMaxVariables` is read the same way.
+    bool unreadable = false;
+
+    bool seen() const { return distinct > 0; }
+    bool many() const { return unreadable || distinct > 1; }
+
+    // Whether every specialization the walk can make of it fits under the cap.
+    bool underCap() const { return !unreadable && distinct <= kSpecializationsPerGeneric; }
 };
 
 /*
@@ -1689,36 +1732,34 @@ static void noteArgumentList(DeclBase base, HashMap<U32, GenericReach>& lists,
                              DeclPtr<Function> callee, MirList<DeclPtr<Type>>* arguments,
                              MirBase mir) {
     auto& reach = reachFor(lists, callee);
-    if(reach.many) return;
+    if(reach.unreadable || reach.distinct >= GenericReach::kMaxLists) return;
 
     if(!arguments || !arguments->size() ||
        arguments->size() > GenericReach::kMaxVariables) {
-        reach.many = true;
+        reach.unreadable = true;
         return;
     }
 
     auto written = arguments->contents(mir);
 
     for(auto type: written) {
-        if(!isConcreteType(base, type)) { reach.many = true; return; }
+        if(!isConcreteType(base, type)) { reach.unreadable = true; return; }
     }
 
-    if(!reach.seen) {
-        reach.seen = true;
-        reach.count = U32(written.size());
-        for(Size i = 0; i < written.size(); i++) reach.arguments[i] = written[i];
-        return;
+    for(U32 known = 0; known < reach.distinct; known++) {
+        auto seen = reach.lists[known]->contents(mir);
+        if(seen.size() != written.size()) continue;
+
+        auto same = true;
+        for(Size i = 0; i < written.size() && same; i++) same = seen[i] == written[i];
+        if(same) return;
     }
 
-    if(reach.count != written.size()) { reach.many = true; return; }
-
-    for(Size i = 0; i < written.size(); i++) {
-        if(reach.arguments[i] != written[i]) { reach.many = true; return; }
-    }
+    reach.lists[reach.distinct++] = arguments;
 }
 
 static void markMany(HashMap<U32, GenericReach>& lists, DeclPtr<Function> callee) {
-    reachFor(lists, callee).many = true;
+    reachFor(lists, callee).unreadable = true;
 }
 
 // Every body in the program, once. `module->functions` is the whole list - `verifyProgram` walks the
@@ -1772,12 +1813,20 @@ static void countArgumentLists(Program& program, HashMap<U32, GenericReach>& lis
  * generic with no entry is one no call node named, which is the library case the struct's note
  * argues, and `many` is the ordinary generic erasure exists for.
  */
+// Whether every argument list the generic can be specialized at is one written here, and there are
+// no more of them than the cap - so `erasureTooSmall` may choose the specialized form (J148). No
+// entry is no call node, and so no specialization at all.
+static bool reachedUnderCap(HashMap<U32, GenericReach>& lists, DeclPtr<Function> pointer) {
+    auto reach = lists.get(pointer.offset);
+    return reach.isNothing() || reach.unwrap().underCap();
+}
+
 static bool erasureSavesCopies(HashMap<U32, GenericReach>& lists, DeclPtr<Function> pointer) {
     auto reach = lists.get(pointer.offset);
     if(reach.isNothing()) return true;
 
     auto& counted = reach.unwrap();
-    return counted.many || !counted.seen;
+    return counted.many() || !counted.seen();
 }
 
 void selectGenForms(Context& context, Program& program) {
@@ -1862,9 +1911,10 @@ void selectGenForms(Context& context, Program& program) {
             auto written = function.form != GenForm::Auto;
 
             /*
-             * The measured answer, and the second term J52 gave it - see `GenericReach`.
+             * The measured answer, the second term J52 gave it - see `GenericReach` - and the third
+             * J145 gave it, `erasureTooSmall`.
              *
-             * Both have to say yes. `erasureFits` is about what the erased body would *cost*, and
+             * All three have to say yes. `erasureFits` is about what the erased body would *cost*, and
              * `erasureSavesCopies` is about what it would *save*: a generic this compilation reaches
              * at exactly one argument list is compiled once either way, so erasing it buys nothing
              * and gives up a concrete ABI, a body the folder can see through and a body the inliner
@@ -1878,8 +1928,10 @@ void selectGenForms(Context& context, Program& program) {
                 auto fits = erasureFits(function.summary.genCost().value);
                 auto saves = function.exported ||
                              erasureSavesCopies(argumentLists, functionPointer);
+                auto worth = function.exported || !erasureTooSmall(program, *mir[function.mir]) ||
+                             !reachedUnderCap(argumentLists, functionPointer);
 
-                function.form = fits && saves ? GenForm::Erased : GenForm::Specialized;
+                function.form = fits && saves && worth ? GenForm::Erased : GenForm::Specialized;
             }
 
             /*

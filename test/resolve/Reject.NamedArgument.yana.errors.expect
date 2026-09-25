@@ -1,7 +1,9 @@
-57:34: error: a literal of Bool is a call of its FromInt instance rather than a constant, and this position needs a constant
-60:18: error: slot is written through, so a call that left it out would be handed a temporary nothing reads afterwards
-61:34: error: x is declared as a, so a default here would be a constant of a type each call decides
-103:22: error: an instance may not write a default - a call reads what it may leave out off the class's signature, before an instance is selected
+56:34: error: a literal of Bool is a call of its FromInt instance rather than a constant, and this position needs a constant
+59:18: error: slot is written through, so a call that left it out would be handed a temporary nothing reads afterwards
+60:34: error: x is declared as a, so a default here would be a constant of a type each call decides
+100:22: error: an instance may not write a default - a call reads what it may leave out off the class's signature, before an instance is selected
+111:29: error: a default must be a constant - a literal, a constructor, an aggregate of those, or arithmetic that folds - and this calls a function: there is no program point at which a declaration's own code would run
+136:31: error: x names two parameters of this function type, so a call through it could not say which one an argument by that name is for
 18:42: error: open has no parameter called format
 21:37: error: mode is given twice
 25:49: error: this is written by position and follows one written by name, so which parameter it fills would depend on the names before it - write the positional ones first
@@ -9,6 +11,12 @@
 35:32: error: no required takes 1 arguments
 38:22: error: no required takes 4 arguments
 44:28: error: middleDefault leaves out b, which has no default - write it as `b: value`
-52:11: error: this takes 2 arguments and 1 were written
-90:25: error: steps has no parameter called upto
-108:43: error: scale has no parameter called times
+49:81: error: f has no parameter called count - its type names from and take
+53:11: error: this takes 2 arguments and 1 were written
+89:25: error: steps has no parameter called upto
+105:43: error: scale has no parameter called times
+116:13: error: no steps takes 3 arguments - a `for` supplies the loop body itself, so every argument the iterator declares is written in the call
+126:64: error: notify has no parameter called sum - its type names count and total
+128:54: error: f is (I32, I32) -> I32, and no function type naming its parameters was written where it was declared, so a call through it takes its arguments by position
+132:19: error: f is (I32, I32) -> I32, and no function type naming its parameters was written where it was declared, so a call through it takes its arguments by position
+142:41: error: Positional leaves out its field 1, which has no default - it takes 2 values

@@ -4,16 +4,18 @@ var dropCalls = 0;
 
 // 
 function owned() {
-  var v13 = { items: new Int32Array([]), length: 0 };
-  if (4 > v13.items.length) growJsArray_I32(v13, 4);
+  var v11 = new Int32Array([]);
+  var v18 = 4 <= v11.length ? 1 : 0;
+  var v13 = { items: v11, length: 0 };
+  if (!v18) growJsArray_I32(v13, 4);
   var p0 = 0;
   while (p0 < 4) {
-    var v30 = owned_lambda(null, p0);
-    var v32 = v13.length;
-    var v34 = v32 + 1;
-    if (v34 > v13.items.length) growJsArray_I32(v13, v34);
-    v13.items[v32] = v30;
-    v13.length = v34 & 1073741823;
+    var v29 = owned_lambda(null, p0);
+    var v31 = v13.length;
+    var v33 = v31 + 1;
+    if (v33 > v13.items.length) growJsArray_I32(v13, v33);
+    v13.items[v31] = v29;
+    v13.length = v33 & 1073741823;
     p0 = p0 + 1 | 0;
   }
   return { items: v13.items, length: v13.length };

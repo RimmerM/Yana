@@ -1,33 +1,25 @@
 fn main() -> one %r0
-  var $0: %r1
+  var $0: %r2
   block0:
-    %4: %r1 = const 5n
-    %5: %r1 = alias %4
-    %6: %r1 = alias %5
-    %7: %r1 = alias %6
-    %8: %r1 = const 4n
-    %9: %r1 = alias %8
-    %10: %r2 = binary.lt %7, %9
-    branch %10 -> block1 -> block3
+    jump -> block1
   block1:
-    %20: %r0 = const 0
-    return %20
+    %14: %r1 = const 2
+    %15: %r1 = alias %14
+    jump -> block3(%15)
   block2:
-    %18: %r1 = alias %5
-    %19: %r0 = convert %18
-    return %19
-  block3:
-    %11: %r2 = binary.eq %7, %9
-    %12: %r3 = const 1
-    %13: %r3 = const 2
-    %14: %r3 = select %11, %12, %13
-    %15: %r3 = const 2
-    %16: %r2 = binary.eq %14, %15
-    branch %16 -> block2 -> block1
+    %16: %r1 = const 0
+    jump -> block3(%16)
+  block3(%0: %r1):
+    %17: %r1 = const 2
+    %18: %r3 = binary.eq %0, %17
+    %19: %r0 = const 5
+    %20: %r0 = const 0
+    %21: %r0 = select %18, %19, %20
+    return %21
 
-optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 2
+optimizer clones 0 aliased 0 forwarded 0 removed 14 adopted 0 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 0 promoted 1 folded 3
 
 rep %r0 = number signed 32
-rep %r1 = bigint signed
-rep %r2 = number bool
-rep %r3 = number unsigned 8
+rep %r1 = number unsigned 8
+rep %r2 = bigint signed
+rep %r3 = number bool

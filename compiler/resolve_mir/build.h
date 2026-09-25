@@ -216,7 +216,8 @@ struct Builder {
      */
     Node* addAggregate(LocationId source, DeclPtr<Type> record, U16 constructor,
                        Node* const* components, Size count,
-                       DeclPtr<OwnershipSchema> shape = nullptr, bool fill = false);
+                       DeclPtr<OwnershipSchema> shape = nullptr, bool fill = false,
+                       bool prefix = false);
 
     /*
      * A function value - a named function, or a lambda that has already been lifted.
@@ -379,7 +380,9 @@ struct Builder {
      * pattern's meaning independent of how many sources the author meant.
      */
     Node* addVecShuffle(LocationId source, Node& left, Node& right, const U8* pattern, Size count,
-                        DeclPtr<Type> result);
+                        DeclPtr<Type> result,
+                        NodeVecShuffle::Deferred deferred = NodeVecShuffle::Deferred::None,
+                        I64 amount = 0);
 
     // Every lane folded into one - `result` because `firstset` answers a lane index rather than a
     // lane, which `reducesToIndex` is the question about.

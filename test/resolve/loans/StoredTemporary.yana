@@ -1,0 +1,47 @@
+{-
+   A value with no storage, given a temporary where a reference field or a published reference
+   parameter takes it - the accepting half of `Reject.StoredTemporary.yana` (J147).
+
+   # resolver: ownership
+
+   The temporary is an ordinary unnamed local of the frame, made by the resolver where the loan is
+   taken, so it lives as long as the loan does: `h` below is read after two calls that would reuse a
+   frame slot made for the statement alone, and a record built in a loop pass is used inside that
+   pass. `-no-ir-opt` is what this is about - the optimizer forwarded the stored value and hid a
+   read of a dead slot - and the run is repeated there.
+
+   Also here: a generic record holding a record that holds a reference, which used to be refused
+   with a sentence about lambdas. `StoredTemporary.Pointer.yana` is the one position left alone.
+-}
+
+data Held(a) {value: 'a, extra: Int}
+
+fn keep(x: 'Int) -> Held(Int) = Held {value: x, extra: 0}
+
+fn clobber(a: Int, b: Int, c: Int) -> Int = a * b + c
+
+fn laterRead() -> Int:
+    let h = keep(40 + 2)
+    let literal = Held {value: 7 :: Int, extra: 1}
+    let z = clobber(7, 8, 9)
+    return h.value * 1000 + literal.value * 100 + z
+
+fn perPass() -> Int:
+    let &sum = 0 :: Int
+    for i in 0..3:
+        let h = Held {value: i + 1, extra: 0}
+        let k = keep(i + 4)
+        sum = sum * 100 + h.value * 10 + k.value
+    return sum
+
+data L1 {r: 'Int}
+data Box2(t) {v: t}
+
+fn wrap1(n: 'Int) -> L1 = L1 {r: n}
+
+fn nestedGeneric() -> Int:
+    let &n = 7 :: Int
+    let b = Box2 {v: wrap1(n)}
+    return b.v.r
+
+fn main() -> Int = laterRead() + perPass() + nestedGeneric() * 1000000

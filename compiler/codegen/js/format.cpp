@@ -1,4 +1,4 @@
-#include "gen.h"
+#include "shared.h"
 
 /*
  * The JS AST as text.
@@ -96,6 +96,26 @@ void writeNumber(Format& f, F64 value, bool integral) {
         return;
     }
 
+    /*
+     * The three values Tritium's `show` spells as C does rather than as JavaScript does: `Inf` is an
+     * unbound name in Node, so a folded `(3.0e38 :: F32) * 10.0` was a `ReferenceError` (J149).
+     * `NaN` happens to agree and is written here anyway, so the spelling does not rest on that.
+     */
+    if(value != value) {
+        f.write("NaN"_v);
+        return;
+    }
+
+    if(value == __builtin_inf() || value == -__builtin_inf()) {
+        f.write(value < 0 ? "-Infinity"_v : "Infinity"_v);
+        return;
+    }
+
+    if(value == 0 && __builtin_signbit(value)) {
+        f.write("-0"_v);
+        return;
+    }
+
     f.writer.writeBytes(64, [&](Byte* buffer) { return show(value, (char*)buffer, 64); });
 }
 
@@ -189,7 +209,7 @@ bool startsWithMinus(Format& f, JsPtr<Expr> pointer) {
     auto expr = f.base[pointer];
 
     switch(expr->kind) {
-        case Expr::Number: return ((NumberExpr*)expr)->value < 0;
+        case Expr::Number: return __builtin_signbit(((NumberExpr*)expr)->value);
         case Expr::BigInt: {
             auto value = (BigIntExpr*)expr;
             return value->isSigned && I64(value->value) < 0;

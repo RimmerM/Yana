@@ -2,6 +2,8 @@
 #include "lower_inst.h"
 #include "lower_builder.h"
 #include "lower_promote.h"
+#include "lower_store.h"
+#include "fold_arith.h"
 
 namespace {
 
@@ -19,13 +21,8 @@ constexpr Size kNoSlot = maxLimit<Size>;
 constexpr U32 kMaxSlotBytes = 512;
 constexpr Size kMaxFields = 16;
 
-// The constant an operand carries, where it is one.
-Maybe<U64> constantOf(LowerBase base, LowerPtr<LowerValue> value) {
-    auto inst = base[value]->inst();
-    if(!inst || inst->kind != LowerInst::Imm) return Nothing();
-
-    return Just(((LowerImm*)inst)->i);
-}
+// The widest cell nothing names that is left whole - see the end of `computePoints`.
+constexpr U32 kWordCutAbove = 32;
 
 // One load or store of a slot, at the offset the address walk arrived at it with. A copy is not one
 // of these - it names two places and belongs to both of them, so it is an Edge below.
@@ -69,6 +66,12 @@ struct Field {
      * on the arm that never had a value.
      */
     bool written = false;
+
+    // Whether an access narrower than the cell writes it - `isPrefixAccess`. Such a store is a
+    // read-modify-write of the cell once `promoteStackSlots` holds it in a register, so the cell is
+    // given a value where it is allocated whatever else writes it.
+    bool narrowWrite = false;
+
     LowerType type = LowerType::Int64;
 
     // The allocation this cell became, once the rewrite has made one. Null while the cell is dead.
@@ -99,6 +102,10 @@ struct Slot {
     Array<Access> accesses;
     Array<Fill> fills;
     Array<U32> points;                   // the cut offsets, ascending, 0 and `size` included
+
+    // The widest integer access at each offset, here or through a copy - see coveredByWider.
+    struct Wide { U32 offset; U32 size; };
+    Array<Wide> wide;
     Array<Field> fields;
 };
 
@@ -117,12 +124,20 @@ struct Edge {
  * Every use of a slot's address, checked for being one this pass can account for and rewrite in
  * full, and recorded as it goes.
  *
- * The shape is `walkAddress` in lower_forward.cpp and the conclusion is the same: an access through
- * the address is what the storage is for, a constant offset from it is a further address and is
- * followed, and everything else is the address leaving - as a call argument, as a value stored into
- * memory, as a copy's byte count, as an operand of arithmetic that is not a constant offset. What
- * differs is that this one keeps what it saw, because the offsets are what the partition is made of
- * and the accesses are what has to fit inside it.
+ * Whether the address leaves at all - as a call argument, as a value stored into memory, as a copy's
+ * byte count, as an operand of arithmetic that is not a constant offset - is `addressContained`'s
+ * question (lower_store.h), which `collectSlots` asks beside this walk since J163 and which is the
+ * slot's answer. What this walk adds is what the partition is made of: it keeps the offsets and the
+ * accesses it saw, refuses an access that does not fit inside the slot, and refuses what it could
+ * not rewrite - a volatile or overreading access, a copy of run-time length, a fill of anything but
+ * zero.
+ *
+ * It still **stops** at the uses that are the address leaving, although `addressContained` has
+ * refused the slot for them already, because where it stops decides which addresses `location`
+ * names. J163 first dropped those three tests as redundant, and the walk then went on past an
+ * escape and recorded more of a refused slot's closure: `test/base` changed in three functions,
+ * since a copy between a refused slot's address and an accepted slot is an edge the partition
+ * reads. The closure recorded is exactly the one before J163.
  *
  * `location` is written into as the walk goes and is *not* undone when the walk then refuses. An
  * entry naming a slot that turned out not to be split is read everywhere as "ordinary memory",
@@ -184,8 +199,9 @@ bool collectUses(LowerBase base, Slot& slot, Size which, HashMap<U32, U64>& loca
             // Device writes must remain memory accesses in their original order.
             if(storeInst->isVolatile()) return false;
 
-            // Storing the address *into* the slot is the address escaping into memory, and is not
-            // the same thing as writing the slot.
+            // Not the address stored *as* a value - `addressContained` refuses that too, and it is
+            // asked here as well because where this walk stops decides which addresses `location`
+            // names, and the partition reads those (see the comment above).
             if(storeInst->to != self || storeInst->value == self) return false;
 
             auto width = storeInst->getWidth();
@@ -199,8 +215,8 @@ bool collectUses(LowerBase base, Slot& slot, Size which, HashMap<U32, U64>& loca
         if(user->kind == LowerInst::Copy) {
             auto copyInst = (LowerInstCopy*)user;
 
-            // The address used as a *number* is an address that outlives the storage, and a copy of
-            // a place onto itself is not a move between two of them.
+            // The address as the byte count is the address leaving (and stops the walk, as above),
+            // and a copy of a place onto itself is not a move between two of them.
             if(copyInst->count == self) return false;
             if(copyInst->to == self && copyInst->from == self) return false;
 
@@ -237,7 +253,8 @@ bool collectUses(LowerBase base, Slot& slot, Size which, HashMap<U32, U64>& loca
             continue;
         }
 
-        // Everything else, which is the address leaving.
+        // Everything else - which `addressContained` has already refused as the address leaving, and
+        // which this pass could not rewrite either.
         return false;
     }
 
@@ -272,9 +289,14 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& slots,
             slot.size = U32(size.unwrap());
             slot.alignment = allocation->alignment;
 
+            // Whether the address leaves is `addressContained`'s question (lower_store.h), asked
+            // first; `collectUses` keeps the part of the walk that is this pass's own - every
+            // access inside the slot, a constant copy length and a zero fill. It still walks a
+            // refused slot, so that the addresses in its closure resolve (see the comment above).
             auto which = slots.size();
+            auto contained = addressContained(base, allocation->created().ptr, 0);
             slot.active = collectUses(base, slot, which, location,
-                                      allocation->created().ptr, 0, 0);
+                                      allocation->created().ptr, 0, 0) && contained;
             slots.push(::move(slot));
         }
     }
@@ -324,6 +346,96 @@ void collectEdges(LowerBase base, LowerFunction& fun, Array<Slot>& slots,
     }
 }
 
+using foldArith::isPowerOfTwo;
+
+/*
+ * Whether an access is the low bytes of a wider cell rather than a cell of its own - J152.
+ *
+ * A sum's arms name the same bytes at different widths: `Result(FileError, I64)` is a one-byte error
+ * at eight and an eight-byte value at eight. Cutting at every access's end made that a one-byte cell
+ * and a seven-byte one, so the value arm was carried as a byte and a `copy 7` and read back as one
+ * eight-byte load over both - a store-forwarding stall, and a slot promotion could not take. Where an
+ * access starts where a wider one of the same slot starts, its end is not a cut: it reads or writes
+ * the low bytes of that cell, which is what a narrower access is on this little-endian machine, and
+ * `promoteStackSlots` answers it with a mask (a load) or a merge into the register (a store).
+ *
+ * Only integers, of power-of-two widths, within one register - the shapes a mask describes.
+ */
+bool isPrefixAccess(const Access& access, U32 cellSize) {
+    return access.size < cellSize && cellSize <= 8 && isPowerOfTwo(cellSize) &&
+           isPowerOfTwo(access.size) && isInt(access.type);
+}
+
+/*
+ * Whether a wider integer access starts where this one does - in this slot, or in one a copy relates
+ * it to at the same relative offset.
+ *
+ * The copies matter as much as the slot. A sum is built in one slot and read in another: the join
+ * that stores `Result(FileError, FileInfo)`'s value word, and the temporary a `match` copies it into
+ * and reads the error byte of. Asked of the temporary alone, the byte is not covered and cuts at
+ * nine, the cut crosses the copy, and the join's word straddles it - so the question is asked of the
+ * widths the copies carry, to the same fixpoint the cut points reach.
+ */
+bool raiseWide(Array<Slot::Wide>& wide, U32 offset, U32 size) {
+    for(auto& entry: wide) {
+        if(entry.offset != offset) continue;
+        if(entry.size >= size) return false;
+
+        entry.size = size;
+        return true;
+    }
+
+    wide.push(Slot::Wide { offset, size });
+    return true;
+}
+
+bool carryWide(Slot& from, U32 fromOffset, Slot& to, U32 toOffset, U32 count) {
+    auto changed = false;
+
+    for(Size i = 0; i < from.wide.size(); i++) {
+        auto entry = from.wide[i];
+        if(entry.offset < fromOffset || entry.offset + entry.size > fromOffset + count) continue;
+
+        changed |= raiseWide(to.wide, toOffset + (entry.offset - fromOffset), entry.size);
+    }
+
+    return changed;
+}
+
+void computeWide(Array<Slot>& slots, Array<Edge>& edges) {
+    for(auto& slot: slots) {
+        slot.wide.clear();
+        if(!slot.active) continue;
+
+        for(auto& access: slot.accesses) {
+            if(isInt(access.type) && access.size <= 8 && isPowerOfTwo(access.size)) {
+                raiseWide(slot.wide, access.offset, access.size);
+            }
+        }
+    }
+
+    auto changed = true;
+    while(changed) {
+        changed = false;
+
+        for(auto& edge: edges) {
+            if(edge.to == kNoSlot || edge.from == kNoSlot) continue;
+            if(!slots[edge.to].active || !slots[edge.from].active) continue;
+
+            changed |= carryWide(slots[edge.from], edge.fromOffset, slots[edge.to], edge.toOffset, edge.count);
+            changed |= carryWide(slots[edge.to], edge.toOffset, slots[edge.from], edge.fromOffset, edge.count);
+        }
+    }
+}
+
+bool coveredByWider(const Slot& slot, const Access& access) {
+    for(auto& entry: slot.wide) {
+        if(entry.offset == access.offset) return isPrefixAccess(access, entry.size);
+    }
+
+    return false;
+}
+
 // One cut offset, kept in ascending order so that a cell is a pair of neighbours.
 bool addPoint(Array<U32>& points, U32 at) {
     for(Size i = 0; i < points.size(); i++) {
@@ -353,6 +465,37 @@ bool mirrorPoints(Slot& from, U32 fromOffset, Slot& to, U32 toOffset, U32 count)
     return changed;
 }
 
+// Whether an access of this slot, or of a slot a copy relates `[at, end)` to, starts inside that
+// range, or a fill covers it - the cell is then a field something names.
+bool namesCell(Array<Slot>& slots, Array<Edge>& edges, Size which, U32 at, U32 end) {
+    auto& slot = slots[which];
+    for(auto& access: slot.accesses) {
+        if(access.offset >= at && access.offset < end) return true;
+    }
+
+    for(auto& fill: slot.fills) {
+        if(fill.offset < end && fill.offset + fill.size > at) return true;
+    }
+
+    for(auto& edge: edges) {
+        if(edge.to != which && edge.from != which) continue;
+
+        auto mine = edge.to == which ? edge.toOffset : edge.fromOffset;
+        auto other = edge.to == which ? edge.from : edge.to;
+        auto theirs = edge.to == which ? edge.fromOffset : edge.toOffset;
+        if(other == kNoSlot || other == which || !slots[other].active) continue;
+        if(mine > at || mine + edge.count < end) continue;
+
+        auto from = theirs + (at - mine);
+        auto to = from + (end - at);
+        for(auto& access: slots[other].accesses) {
+            if(access.offset >= from && access.offset < to) return true;
+        }
+    }
+
+    return false;
+}
+
 /*
  * The partition, as the least fixpoint of "a cut point on either end of a copy is a cut point on
  * the other".
@@ -363,6 +506,8 @@ bool mirrorPoints(Slot& from, U32 fromOffset, Slot& to, U32 toOffset, U32 count)
  * that had nothing wrong with it.
  */
 void computePoints(Array<Slot>& slots, Array<Edge>& edges) {
+    computeWide(slots, edges);
+
     for(auto& slot: slots) {
         slot.points.clear();
         if(!slot.active) continue;
@@ -372,7 +517,7 @@ void computePoints(Array<Slot>& slots, Array<Edge>& edges) {
 
         for(auto& access: slot.accesses) {
             addPoint(slot.points, access.offset);
-            addPoint(slot.points, access.offset + access.size);
+            if(!coveredByWider(slot, access)) addPoint(slot.points, access.offset + access.size);
         }
 
         /*
@@ -422,6 +567,78 @@ void computePoints(Array<Slot>& slots, Array<Edge>& edges) {
             changed |= mirrorPoints(from, edge.fromOffset, to, edge.toOffset, edge.count);
         }
     }
+
+    /*
+     * A wide cell nothing names a field of - J160.
+     *
+     * A cell no access reads or writes is only ever copied: the bytes of a value moved between
+     * places that are not slots here - an out-parameter a call filled, a field of a record behind a
+     * pointer - through a temporary, and cut from the rest only where something touched one field of
+     * it (a padded word's zero, a tag). Left whole it is an allocation of its own and a block copy in
+     * and out, and `expandBlockOperations` writes those as the widest transfers the machine has. For
+     * a value that was just written a field at a time that is a 32-byte load over eight narrow
+     * stores, which the store buffer cannot forward - the load waits for all of them to retire - and
+     * the next copy of the same temporary reads it across the overlapping tail the last one left,
+     * which is a second wait. `test/bench/lexer`'s iterator variants paid that on every token an
+     * `iter fn` handed over and its consumer copied on: `iter` went from 160 to 222 cycles a token
+     * and `idiom/iter` from 176 to 206 (`doc/progress/2026-09-25-J160-iter-regression.md`).
+     *
+     * Before J152 the whole-value zero fill gave such a slot its words; since the fill became the
+     * padded words alone the boundaries were meant to "arrive across the copy", which they do only
+     * where a partner has fields to give. So such a cell gets the words a zeroing would have written
+     * - the fills' rule above - and crosses in registers, as it did before.
+     *
+     * **Only above 32 bytes**, which is where a block copy stops being one vector transfer. Cutting
+     * every unnamed cell wider than a register - a 16-byte view moved as one `movdqu` - grew
+     * `test/base`'s `.text` by 37 KB; above 32 it moved it by nothing measurable and above 16 it
+     * shrank it by 256 bytes, while the lexer's 60-byte token needs the words either way. Not where
+     * an access *is* the cell - a vector - here or in a slot a copy relates it to, whose access the
+     * words would straddle; and not where the words would take the slot past `kMaxFields`, which
+     * would refuse the whole slot rather than keep one wide cell.
+     */
+    auto added = false;
+    for(Size i = 0; i < slots.size(); i++) {
+        auto& slot = slots[i];
+        if(!slot.active) continue;
+
+        for(Size k = 0; k + 1 < slot.points.size(); k++) {
+            auto at = slot.points[k];
+            auto end = slot.points[k + 1];
+            if(end - at <= kWordCutAbove || namesCell(slots, edges, i, at, end)) continue;
+
+            // Whole words and a narrowing tail - never more than four pieces past the words.
+            auto pieces = (end - at) / 8 + 3;
+            if(slot.points.size() - 1 + pieces > kMaxFields + 1) continue;
+
+            auto step = at;
+            while(step < end) {
+                auto left = end - step;
+                step += left >= 8 ? 8 : left >= 4 ? 4 : left >= 2 ? 2 : 1;
+                addPoint(slot.points, step);
+            }
+
+            added = true;
+            k = slot.points.findIndex(end).unwrap() - 1;
+        }
+    }
+
+    // And across the copies once more, to the partners the words were cut for - which are cells
+    // nothing names either, or `namesCell` would have said so.
+    changed = added;
+    while(changed) {
+        changed = false;
+
+        for(auto& edge: edges) {
+            if(edge.to == kNoSlot || edge.from == kNoSlot) continue;
+            if(!slots[edge.to].active || !slots[edge.from].active) continue;
+
+            auto& to = slots[edge.to];
+            auto& from = slots[edge.from];
+
+            changed |= mirrorPoints(to, edge.toOffset, from, edge.fromOffset, edge.count);
+            changed |= mirrorPoints(from, edge.fromOffset, to, edge.toOffset, edge.count);
+        }
+    }
 }
 
 /*
@@ -444,8 +661,11 @@ bool validateSlots(Array<Slot>& slots) {
         for(Size i = 0; usable && i < slot.accesses.size(); i++) {
             auto& access = slot.accesses[i];
             auto found = slot.points.findIndex(access.offset);
+            if(found.isNothing()) { usable = false; break; }
 
-            usable = found.isJust() && slot.points[found.unwrap() + 1] == access.offset + access.size;
+            // Exactly one cell, or the low bytes of one - see isPrefixAccess.
+            auto cell = slot.points[found.unwrap() + 1] - access.offset;
+            usable = cell == access.size || isPrefixAccess(access, cell);
         }
 
         if(usable) continue;
@@ -590,6 +810,17 @@ void computeFields(Array<Slot>& slots, Array<Edge>& edges) {
             auto& field = slot.fields[fieldAt(slot, access.offset)];
             field.live = true;
             field.written |= access.writes;
+
+            // A prefix access says the cell is an integer of the cell's width, and nothing about
+            // which of the two - the wide access beside it says that.
+            if(access.size < field.size) {
+                field.narrowWrite |= access.writes;
+                if(!field.typed && !field.conflicted) {
+                    mergeFieldType(field, field.size > 4 ? LowerType::Int64 : LowerType::Int32);
+                }
+                continue;
+            }
+
             mergeFieldType(field, access.type);
         }
 
@@ -815,7 +1046,7 @@ void createFields(LowerBase base, LowerModule& module, LowerBlock& block, Array<
             // an initializer promotion declines is a store this pass has added for nothing. And a
             // scalar one: a vector zero is a `vsplat` rather than an immediate, and a vector cell
             // nothing writes is not a shape any of this arose from.
-            auto type = field.written ? Nothing() : moveType(field);
+            auto type = field.written && !field.narrowWrite ? Nothing() : moveType(field);
             if(type.isNothing() || isVectorLike(type.unwrap())) continue;
 
             auto zero = zeroCell(base, module, block, type.unwrap(), inst->source);

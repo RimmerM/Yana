@@ -6,28 +6,18 @@ fn main() -> one %r0
     %2: %r0 = const 7
     %3: %r1 = host host.array %0, %1, %2
     %4: %r2 = const 3
-    %6: %r0 = const 3
     %7: %r0 = const 0
-    %8: %r0 = const 0
-    %9: %r7 = convert %8
-    %10: %r7 = convert %6
-    %11: %r8 = binary.ge %9, %10
-    branch %11 -> block6 -> block5
+    jump -> block5
   block1:
     %22: %r1 = alias %3
     %23: %r0 = load element %22[%18]: %r0
-    %24: %r0 = const 1
-    %26: %r7 = convert %24
-    %27: %r7 = convert %6
-    %28: %r8 = binary.ge %26, %27
-    branch %28 -> block4 -> block3
+    jump -> block3
   block2:
     host host.throw "yana: a runtime check failed"
     unreachable
   block3:
     %29: %r1 = alias %3
-    %30: %r0 = alias %24
-    %31: %r0 = coerce %30
+    %31: %r0 = const 1
     %32: %r0 = load element %29[%31]: %r0
     %5: %r3 = object %s0 %3, %4
     %33: %r3 = alias %5
@@ -45,12 +35,8 @@ fn main() -> one %r0
     %15: %r0 = binary.add %14, %13
     %16: %r0 = coerce %15
     store element %12[%7]: %r0, %16
-    %17: %r0 = const 0
     %18: %r0 = const 0
-    %19: %r7 = convert %17
-    %20: %r7 = convert %6
-    %21: %r8 = binary.ge %19, %20
-    branch %21 -> block2 -> block1
+    jump -> block1
   block6:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -60,7 +46,7 @@ fn Array(a).reclaim(I32)(one %r3) -> omitted
   block0(%0: %r3):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 3 adopted 0 sunk 1 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 1
+optimizer clones 0 aliased 0 forwarded 0 removed 17 adopted 0 sunk 1 numbered 0 decided 3 unboxed 0 updated 0 split 0 promoted 1 folded 11
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

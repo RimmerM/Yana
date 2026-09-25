@@ -15,37 +15,36 @@ function main() {
   live = BigInt.asIntN(64, live + 1n);
   Counted_drop(1n);
   if (live !== 0n) return -1;
-  live = BigInt.asIntN(64, live + 1n);
+  live = 1n;
   Counted_drop(2n);
   if (live !== 0n) return -2;
-  if (live !== 0n) return -3;
-  live = BigInt.asIntN(64, live + 1n);
-  var v36 = live;
+  live = 1n;
   Counted_drop(3n);
-  if (BigInt.asIntN(64, BigInt.asIntN(64, v36 * 10n) + live) !== 10n) return -4;
-  if (live !== 0n) return -5;
-  var v51 = { items: new BigInt64Array([]), length: 0 };
+  var v29 = live;
+  if (BigInt.asIntN(64, 10n + v29) !== 10n) return -4;
+  if (v29 !== 0n) return -5;
+  var v38 = { items: new BigInt64Array([]), length: 0 };
   live = BigInt.asIntN(64, live + 1n);
-  push_Counted(v51, 5n);
+  push_Counted(v38, 5n);
   live = BigInt.asIntN(64, live + 1n);
-  push_Counted(v51, 6n);
+  push_Counted(v38, 6n);
   live = BigInt.asIntN(64, live + 1n);
-  push_Counted(v51, 7n);
+  push_Counted(v38, 7n);
   if (live !== 3n) {
-    Array_a_reclaim_Counted(v51);
+    Array_a_reclaim_Counted(v38);
     return -6;
   }
-  Array_a_reclaim_Counted(v51);
+  Array_a_reclaim_Counted(v38);
   if (live !== 0n) return -7;
-  live = BigInt.asIntN(64, live + 1n);
+  live = 1n;
   Holder_drop({ items: { items: new Int32Array([1, 2, 3]), length: 3 }, tag: 11n });
   if (live !== 0n) return -11;
-  var v97 = ["ab", "cd", "ef"];
+  var v81 = ["ab", "cd", "ef"];
   var p2 = 0;
   var p3 = "";
   while (p2 < 3) {
     if (p2 >>> 0 >= 3) throw $t;
-    p3 = p3 + v97[p2 | 0];
+    p3 = p3 + v81[p2 | 0];
     p2 = p2 + 1 | 0;
   }
   if (p3 === "abcdef" ^ 1) return -8;

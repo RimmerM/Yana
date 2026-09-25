@@ -23,12 +23,16 @@ lens fn scope():
     yield {}
     log = log + 100
 
--- The explicit-callback form, written out. Transparent because the declared result *is* the
--- continuation's result, which is what makes the two forms one declaration.
-lens fn plusOne(x: Int, body: (Int) -> a) -> a = body(x + 1)
+-- A lens handing over a value computed from its argument and doing nothing after it. This was the
+-- explicit-callback form, `lens fn plusOne(x: Int, body: (Int) -> a) -> a = body(x + 1)`, until
+-- that form was dropped as legacy syntax (lenses.md has one form, the `yield` one); the cases that
+-- called it keep their answers.
+lens fn plusOne(x: Int) -> Int:
+    yield x + 1
 
 -- A lens handing over several values, which a `let` destructures as the record they read as.
-lens fn split(x: Int, body: (low: Int, high: Int) -> a) -> a = body(x % 10, x / 10)
+lens fn split(x: Int) -> {low: Int, high: Int}:
+    yield {low: x % 10, high: x / 10}
 
 -- A generic lens. The continuation's parameter type is one of the lens's *own* variables, so the
 -- written argument is what decides it before the block below can be lifted against it.
@@ -82,9 +86,11 @@ fn borrowed() -> Int:
     let seen = bumped(c)
     return seen
 
--- The continuation written out at the call site is an ordinary call and stays one, which is what
--- makes the sugar sugar rather than the only way in.
-fn written() -> Int = plusOne(4, (n: Int) -> n * 3)
+-- The continuation written out at the call site as a block, which is the one way to write it now
+-- that a lens is not an ordinary function taking a callback.
+fn written() -> Int:
+    let n = plusOne(4) in:
+        return n * 3
 
 -- Nesting: the second lens call is a statement of the first one's continuation, so the two frames
 -- are live at once and the cleanups run in the reverse order.

@@ -382,7 +382,8 @@ void Resolver::readFrequencyAttributes(ast::Decl& declaration, bool& cold, bool&
  * contradiction is only visible to something that has read both. `@inline(always) @noinline` is
  * that contradiction, and it is reported here with neither answer taken - a declaration that says
  * two opposite things has stated no intent for the compiler to follow, and picking the one written
- * first would make the answer depend on the order.
+ * first would make the answer depend on the order. A bare `@inline` beside `@noinline` is the same
+ * contradiction and is reported the same way.
  *
  * The one argument `@inline` takes is the word `always`; a number or a second word is reported,
  * because an attribute that is silently misread is a declaration whose author believes something
@@ -449,13 +450,22 @@ void Resolver::readInlineAttribute(ast::Decl& declaration, bool& always, bool& h
             declaration.source);
 
         always = false;
+        hint = false;
         never = false;
     }
 
     // A hint beside the directive that refuses it is the same contradiction one step weaker, and it
-    // is answered rather than reported: `@noinline` is what the compiler can always carry out, so a
-    // hint under it is a term that would be weighed and then thrown away.
-    if(never) hint = false;
+    // is reported on the same terms (functions.md, "Inlining"). It used to be answered instead -
+    // `@noinline` taken and the hint dropped, on the argument that the directive is what the
+    // compiler can always carry out - but the spec says neither applies, the shipping stage refused
+    // it, and an author who wrote both has stated no intent that picking one would honour (J134).
+    if(hint && never) {
+        context.diagnostics.error("`@inline` and `@noinline` say opposite things about the same function"_v,
+                                  declaration.source);
+
+        hint = false;
+        never = false;
+    }
 }
 
 /*
@@ -779,33 +789,13 @@ void Resolver::declareTypes(ast::Module& file) {
          * know that happened.
          */
 
-        auto shaped = true;
-        for(auto constructor: written.cons.contents(parse)) {
-            /*
-             * What a constructor may carry - named fields, one unnamed payload, or nothing.
-             *
-             * `Proceed(a)` is the one-payload form and is the shape `Outcome` and `Maybe` are
-             * written in; it becomes a constructor with a single field, so that everything below is
-             * about a field list and the spelling is not a second representation. `Proceed(a, b)` -
-             * a positional list of several - is a *tuple type* as the content, which this stage has
-             * no type for at all, and is refused where the tuple would be.
-             */
-            if(!constructor.content) continue;
-
-            auto& content = *parse[constructor.content];
-            if(content.kind == ast::Type::Tup) {
-                if(!content.tup.fields.size()) continue;
-                if(content.tup.fields.get(parse, 0).name) continue;
-
-                unsupported(constructor.source, "a constructor with positional fields"_v);
-                shaped = false;
-            }
-        }
-
-        if(!shaped) {
-            push(nullptr);
-            continue;
-        }
+        /*
+         * What a constructor may carry - named fields, positional ones, one unnamed payload, or
+         * nothing. `Proceed(a)` is the one-payload form and `Two {I64, I64}` the positional one
+         * (`doc/spec/declarations.md`'s "braced tuple type ... named or positional"); both become a
+         * field list in `declareFields`, so nothing below is about the spelling. Since J139 - the
+         * positional form was refused here as unbuilt before.
+         */
 
         auto record = program.types.recordType(written.type.name, here(), declaration.source);
         auto pointer = DeclPtr<RecordType>(record - *program.decl);
@@ -964,8 +954,10 @@ DeclPtr<Type> Resolver::applyAlias(DeclPtr<Alias> pointer, DeclPtr<Type>* args, 
     for(Size i = 0; i < count; i++) supplied.push(args[i]);
 
     if(!alias.gen ? count != 0 : !fillDefaults(context, program, alias.gen, supplied)) {
-        context.diagnostics.error("%@ takes %@ type arguments and this names %@"_v, source,
-                                  context.findName(alias.name), U64(arity), U64(count));
+        if(!alias.gen || !decl()[alias.gen]->defaultsAbandoned) {
+            context.diagnostics.error("%@ takes %@ type arguments and this names %@"_v, source,
+                                      context.findName(alias.name), U64(arity), U64(count));
+        }
         return nullptr;
     }
 
@@ -1008,7 +1000,21 @@ DeclPtr<Type> Resolver::aliasTarget(DeclPtr<Alias> pointer) {
                           decl()[alias.module]->fileOf(decl(), context, alias.source));
 
         GenScope generics(*this, alias.gen);
-        alias.target = resolveType(writtenAliasDecls[alias.written]->alias.target);
+        auto& target = writtenAliasDecls[alias.written]->alias.target;
+
+        /*
+         * A loan group written in the alias's own target - `alias Loose = src'Cell`. A group names
+         * one of a *signature's* loan relationships, and an alias has no signature: a label here
+         * would be numbered in the alias's environment and collide with the groups of whichever
+         * signature used it. Said as that rather than as a type form this stage lacks.
+         */
+        if((target.kind == ast::Type::Shared || target.kind == ast::Type::Borrow) && target.ref.group) {
+            context.diagnostics.error("a loan group can only be written inside a declaration - it names one of that signature's loan relationships, and there is no signature here for it to belong to"_v,
+                                      target.source);
+            alias.target = nullptr;
+        } else {
+            alias.target = resolveType(target);
+        }
     }
 
     alias.state = Alias::State::Read;
@@ -1041,7 +1047,7 @@ void Resolver::resolveAliasTargets() {
  * annotation is one the head did not bind, and that is true whenever it is read.
  */
 void Resolver::declareHead(ast::ParseList<ast::GenParam> parameters, DeclPtr<GenContext> gen,
-                           StringId owner) {
+                           StringId owner, bool classHead) {
     if(!gen) return;
 
     for(auto parameter: parameters.contents(parse)) {
@@ -1067,7 +1073,7 @@ void Resolver::declareHead(ast::ParseList<ast::GenParam> parameters, DeclPtr<Gen
     }
 
     closeContext(decl(), gen);
-    pendingHeads.push(PendingHead { here(), current->activeFile, gen, parameters });
+    pendingHeads.push(PendingHead { here(), current->activeFile, gen, parameters, classHead });
 }
 
 /*
@@ -1112,30 +1118,112 @@ void Resolver::resolveHeads() {
         }
     }
 
-    for(auto& pending: pendingHeads) {
-        ModuleScope scope(*this, pending.module, pending.file);
-        declareDefaults(pending.parameters, pending.gen);
-    }
+    /*
+     * In source order, but **on demand** past it (J146): a default applying another head - `data
+     * A(a, b = B(a))` with `B` below it - fills that application with `B`'s defaults, so reading
+     * `A`'s asks for `B`'s first (`demandDefaults`, through `fillDefaults`). Before that, the
+     * application indexed a list not filled yet: an assertion in the checked build and a read past
+     * the end in the other.
+     */
+    pendingHeadState.clear();
+    for(Size i = 0; i < pendingHeads.size(); i++) pendingHeadState.push(0);
+
+    program.demandDefaults = &Resolver::demandDefaults;
+    program.demandResolver = this;
+
+    for(Size i = 0; i < pendingHeads.size(); i++) declarePendingDefaults(i);
+
+    program.demandDefaults = nullptr;
+    program.demandResolver = nullptr;
 
     pendingHeads.clear();
+    pendingHeadState.clear();
+}
+
+void Resolver::declarePendingDefaults(Size index) {
+    if(pendingHeadState[index] != 0) return;
+    pendingHeadState[index] = 1;
+
+    auto& pending = pendingHeads[index];
+    ModuleScope scope(*this, pending.module, pending.file);
+    declareDefaults(pending.parameters, pending.gen, pending.classHead);
+
+    pendingHeadState[index] = 2;
 }
 
 /*
- * `data Boxed(a = I32)`, `class C(a, b = Bool)` - the head's defaults, once every parameter is bound.
+ * A head's defaults, asked for by an application inside another default - see `resolveHeads`.
  *
- * A second loop over the same list rather than a field filled beside each parameter, and the reason
- * is what a default is allowed to say: `data Pair(a, b = a)` names a parameter of the same head, so
- * every one of them has to exist before any default is read. Resolved against the **closed** context
- * for the same reason a field type is - a lowercase name in a default that the head did not bind is
- * a name nothing declared.
+ * One still being read is a **cycle**: `data W(a, b = W(a))` applies `W` inside its own default,
+ * and `data P(a, b = Q(a))` with `data Q(x, y = P(x))` applies each inside the other. Either would
+ * be a type defined in terms of itself with a position left out, so it is refused where the
+ * application is written, and the head is marked `defaultsAbandoned` so that no application of it
+ * then reports its argument count as well (J162).
+ */
+void Resolver::demandDefaults(void* resolver, DeclPtr<GenContext> gen) {
+    auto& self = *(Resolver*)resolver;
+    for(Size i = 0; i < self.pendingHeads.size(); i++) {
+        if(self.pendingHeads[i].gen != gen) continue;
+
+        if(self.pendingHeadState[i] == 1) {
+            if(!self.defaultCycleReported) {
+                self.context.diagnostics.error(
+                    "this default applies a head whose own defaults are being read - a default cannot leave out a parameter of its own head, directly or through another head's default"_v,
+                    self.defaultBeingRead);
+            }
+            self.defaultCycleReported = true;
+            self.decl()[gen]->defaultsAbandoned = true;
+            return;
+        }
+
+        self.declarePendingDefaults(i);
+        return;
+    }
+}
+
+/*
+ * `data Boxed(a = I32)`, `data Buf(n: Int = 4)` - the head's defaults, once every parameter is bound.
+ *
+ * A second loop over the same list rather than a field filled beside each parameter, because a
+ * default is resolved against the **closed** context for the same reason a field type is - a
+ * lowercase name in a default that the head did not bind is a name nothing declared, and one it did
+ * bind is `data Pair(a, b = a)`: a *dependent* default, which `fillDefaults` substitutes with what
+ * the earlier arguments turned out to be (declarations.md, "Generic parameter defaults"). J134 had
+ * refused it as the shipping stage does, reading the specification's old "a default is concrete";
+ * J144 made the specification say what this stage had built on purpose instead, and the shipping
+ * stage's refusal is its own (`Reject.GenericDefault.Legacy.yana`). What stays refused is a default
+ * naming its own parameter or a later one, which fills left to right cannot give a meaning to.
+ *
+ * A `class` head has the two rules of "Class defaults" beyond these: only a class of exactly one
+ * parameter may carry a default, since a class with two has no single variable for a literal to
+ * settle - reported instead of the suffix rule, which would otherwise say something true about a
+ * head that is wrong for a different reason - and the default must have an instance of the class,
+ * which is `checkClassDefaultInstances`, once every instance exists.
  *
  * A gap is filled with null, so `defaults` stays the same length as `variables` and `fillDefaults`
  * indexes one with the other. A head that defaults a parameter and then leaves a later one bare is
  * refused: every position after the first default has to have one, or an application supplying a
  * prefix could not say which parameter it meant.
  */
-void Resolver::declareDefaults(ast::ParseList<ast::GenParam> parameters, DeclPtr<GenContext> gen) {
+void Resolver::declareDefaults(ast::ParseList<ast::GenParam> parameters, DeclPtr<GenContext> gen,
+                               bool classHead) {
     if(!gen) return;
+
+    if(classHead && decl()[gen]->variables.size() != 1) {
+        for(auto parameter: parameters.contents(parse)) {
+            if(!parameter.def) continue;
+
+            context.diagnostics.error("only a class with one type argument can have a default"_v,
+                                      parameter.source);
+            break;
+        }
+
+        while(decl()[gen]->defaults.size() < decl()[gen]->variables.size()) {
+            decl()[gen]->defaults.push(program.decl, nullptr);
+        }
+
+        return;
+    }
 
     GenScope generics(*this, gen);
     auto seen = false;
@@ -1164,12 +1252,59 @@ void Resolver::declareDefaults(ast::ParseList<ast::GenParam> parameters, DeclPtr
          * parameter exactly as a written `Buf(4)` does. It is also what reports a type written where
          * a count belongs and a count written where a type belongs, in one place for both.
          */
+        auto outerDefault = defaultBeingRead;
+        auto outerReported = defaultCycleReported;
+        defaultBeingRead = parse[parameter.def]->source;
+        defaultCycleReported = false;
         auto written = resolveTypeArgument(*parse[parameter.def], gen, position);
+        if(defaultCycleReported) written = nullptr;
+        defaultBeingRead = outerDefault;
+        defaultCycleReported = outerReported;
 
-        if(written && decl()[written]->kind != Type::Const) {
+        /*
+         * A default may name the parameters *before* it and nothing else of this list: those are the
+         * arguments `fillDefaults` already holds when it reaches this position, so `b = a` is
+         * `Two(Int)` filling `b` with `Int`. The parameter itself or one after it would be a
+         * variable nothing has bound yet - substitution is partial by construction and would leave
+         * it standing in the application, a type made of a name its own use site cannot see.
+         */
+        for(auto later = position; written && later < decl()[gen]->variables.size(); later++) {
+            auto variable = decl()[gen]->variables.get(decl(), later);
+            if(!mentionsVariable(decl(), written, variable)) continue;
+
+            auto name = ((VariableType*)decl()[variable])->name;
+            if(later == position) {
+                context.diagnostics.error("the default for %@ names %@ itself - a default may name only the parameters before it"_v,
+                                          parse[parameter.def]->source, context.findName(parameter.name),
+                                          context.findName(name));
+            } else {
+                context.diagnostics.error("the default for %@ names %@, which comes after it - a default may name only the parameters before it"_v,
+                                          parse[parameter.def]->source, context.findName(parameter.name),
+                                          context.findName(name));
+            }
+            written = nullptr;
+        }
+
+        // A parameter named where a count belongs is a count: `m: Int = n` is the variable, not a
+        // literal, and is exactly as much a number as a written `Grid(3, n)` would be there.
+        auto isCount = [&](DeclPtr<Type> type) {
+            return decl()[type]->kind == Type::Const ||
+                   (decl()[type]->kind == Type::Variable && ((VariableType*)decl()[type])->isConst());
+        };
+
+        // And the other direction (J146): `data K(n: Int, a = n)` defaults a type to a count, which
+        // was accepted here and refused only at the first `K(4)` that used it.
+        if(written) {
             auto declared = decl()[gen]->variables.get(decl(), position);
-            if(declared && ((VariableType*)decl()[declared])->isConst()) {
+            auto counts = declared && ((VariableType*)decl()[declared])->isConst();
+
+            if(counts && !isCount(written)) {
                 context.diagnostics.error("%@ counts, so its default is a number"_v,
+                                          parse[parameter.def]->source,
+                                          context.findName(parameter.name));
+                written = nullptr;
+            } else if(declared && !counts && isCount(written)) {
+                context.diagnostics.error("%@ is a type, so its default is a type and not a number"_v,
                                           parse[parameter.def]->source,
                                           context.findName(parameter.name));
                 written = nullptr;
@@ -1415,7 +1550,7 @@ void Resolver::declareFieldsOf(ast::Decl& declaration, DeclPtr<RecordType> point
              * a projection means is settled by the match that reached it.
              */
             for(U16 i = declared.first; i < U16(record->fields.size()); i++) {
-                if(record->fields.get(decl(), i).name != name) continue;
+                if(!name || record->fields.get(decl(), i).name != name) continue;
 
                 context.diagnostics.error("%@ already has a field called %@"_v, source,
                                           context.findName(declared.name), context.findName(name));
@@ -1428,6 +1563,7 @@ void Resolver::declareFieldsOf(ast::Decl& declaration, DeclPtr<RecordType> point
             built.source = source;
             built.index = U16(record->fields.size());
             built.anonymous = anonymous;
+            built.callNames = writtenCallNames(type);
 
             /*
              * `@box` - the field's storage is a pointer to its value rather than the value.
@@ -1443,6 +1579,11 @@ void Resolver::declareFieldsOf(ast::Decl& declaration, DeclPtr<RecordType> point
             // `@host`, read in the same position and spent the same way - `RecordField::host`, where
             // the reason this stage records a fact it never reads is written.
             built.host = readHostAttribute(type);
+
+            // `InlineArray`'s slots - `RecordField::storage`. The role was bound by `declareTypes`,
+            // which runs before any field is read.
+            built.storage = built.index == 0 &&
+                            program.roles.record(intrinsic::Known::inlineArray) == pointer;
 
             record->fields.push(program.decl, built);
 
@@ -1464,7 +1605,20 @@ void Resolver::declareFieldsOf(ast::Decl& declaration, DeclPtr<RecordType> point
         if(named) {
             for(auto written: content->tup.fields.contents(parse)) {
                 if(!written.name) {
-                    unsupported(constructor.source, "a positional field"_v);
+                    // A positional `@host` field is refused for what it is: the name is the
+                    // property, so there would be nothing to ask the host for.
+                    if(readHostAttribute(written.type)) {
+                        context.diagnostics.error("a `@host` field is reached by its own name and so has to have one"_v,
+                                                  written.type.source);
+                        continue;
+                    }
+
+                    /*
+                     * `Two {I64, I64}` - a positional field, which is a tuple's: no name, and
+                     * reached by `.0` or by position in a construction or a pattern. The parser
+                     * refuses a list that mixes the two, and has nowhere to put a default on one.
+                     */
+                    field(StringId(), written.type, nullptr, written.type.source, true);
                     continue;
                 }
 
@@ -1672,6 +1826,7 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
         global->source = binding.pat.source;
         global->writable = binding.bind == ast::BindType::Ref;
         global->exported = declaration.exported;
+        if(binding.content) global->callNames = ascribedNames(*parse[binding.content]);
 
         auto pointer = global - *program.decl;
         current->globals.push(program.decl, pointer);

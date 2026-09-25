@@ -10,48 +10,40 @@ fn main() -> one %r0
     %17: %r0 = const 1
     jump -> block10(%16, %6)
   block1:
-    %58: %r3 = load global gArr: %r3
-    %59: %r1 = load property %58.items: %r1
-    %60: %r3 = load global gArr: %r3
-    %61: %r2 = load property %60.length: %r2
-    %62: %r0 = convert %61
-    %64: %r0 = const 2
-    %65: %r6 = binary.gt %62, %64
-    jump -> block2(%65)
+    %59: %r0 = const 2
+    %60: %r6 = binary.gt %49, %59
+    jump -> block2(%60)
   block2(%0: %r6):
-    %67: %r0 = const 1
-    %68: %r0 = const 0
-    %69: %r0 = select %0, %67, %68
-    %70: %r0 = const 0
-    %71: %r3 = load global gArr: %r3
-    %72: %r1 = load property %71.items: %r1
-    %73: %r3 = load global gArr: %r3
-    %74: %r2 = load property %73.length: %r2
-    %75: %r0 = convert %74
-    %76: %r0 = const 0
-    %77: %r12 = convert %70
-    %78: %r12 = convert %75
-    %79: %r6 = binary.ge %77, %78
-    branch %79 -> block9 -> block8
+    %62: %r0 = const 1
+    %63: %r0 = const 0
+    %64: %r0 = select %0, %62, %63
+    %66: %r3 = load global gArr: %r3
+    %67: %r1 = load property %66.items: %r1
+    %68: %r3 = load global gArr: %r3
+    %69: %r2 = load property %68.length: %r2
+    %70: %r0 = convert %69
+    %71: %r0 = const 0
+    %72: %r12 = const 0
+    %73: %r12 = convert %70
+    %74: %r6 = binary.ge %72, %73
+    branch %74 -> block9 -> block8
   block3:
-    %66: %r6 = const 1
-    jump -> block2(%66)
+    %61: %r6 = const 1
+    jump -> block2(%61)
   block4:
     %37: %r1 = alias %29
-    %38: %r0 = alias %27
-    %39: %r0 = coerce %38
+    %39: %r0 = const 1
     %40: %r0 = load element %37[%39]: %r0
     %41: %r7 = alias %24
     %42: %r7 = alias %25
     %43: %r0 = call.value %41, %42, %40
-    %44: %r0 = const 0
     %45: %r3 = load global gArr: %r3
     %46: %r1 = load property %45.items: %r1
     %47: %r3 = load global gArr: %r3
     %48: %r2 = load property %47.length: %r2
     %49: %r0 = convert %48
     %50: %r0 = const 0
-    %51: %r12 = convert %44
+    %51: %r12 = const 0
     %52: %r12 = convert %49
     %53: %r6 = binary.ge %51, %52
     branch %53 -> block7 -> block6
@@ -68,17 +60,13 @@ fn main() -> one %r0
     host host.throw "yana: a runtime check failed"
     unreachable
   block8:
-    %80: %r1 = alias %72
-    %81: %r0 = load element %80[%76]: %r0
-    %82: %r0 = const 4
-    %83: %r3 = load global gArr: %r3
-    %84: %r2 = load property %83.length: %r2
-    %85: %r0 = convert %84
-    %86: %r0 = const 1
-    %87: %r0 = binary.add %85, %86
-    %88: %r0 = coerce %87
-    %89: %r3 = load global gArr: %r3
-    %90: %r1 = load property %89.items: %r1
+    %75: %r1 = alias %67
+    %76: %r0 = load element %75[%71]: %r0
+    %77: %r0 = const 4
+    %78: %r3 = load global gArr: %r3
+    %79: %r0 = const 1
+    %80: %r0 = binary.add %70, %79
+    %81: %r0 = coerce %80
     jump -> block16
   block9:
     host host.throw "yana: a runtime check failed"
@@ -87,20 +75,20 @@ fn main() -> one %r0
     %19: %r6 = binary.lt %1, %11
     branch %19 -> block11 -> block13
   block11:
-    %131: %r12 = convert %1
-    %132: %r12 = convert %11
-    %133: %r6 = binary.ge %131, %132
-    branch %133 -> block14 -> block12
+    %118: %r12 = convert %1
+    %119: %r12 = convert %11
+    %120: %r6 = binary.ge %118, %119
+    branch %120 -> block14 -> block12
   block12:
-    %134: %r1 = alias %8
-    %135: %r0 = alias %1
-    %136: %r0 = coerce %135
-    %137: %r0 = load element %134[%136]: %r0
-    %138: %r0 = binary.add %2, %137
-    %139: %r0 = coerce %138
-    %140: %r0 = binary.add %1, %17
-    %141: %r0 = coerce %140
-    jump -> block10(%141, %139)
+    %121: %r1 = alias %8
+    %122: %r0 = alias %1
+    %123: %r0 = coerce %122
+    %124: %r0 = load element %121[%123]: %r0
+    %125: %r0 = binary.add %2, %124
+    %126: %r0 = coerce %125
+    %127: %r0 = binary.add %1, %17
+    %128: %r0 = coerce %127
+    jump -> block10(%128, %126)
   block13:
     %20: %r0 = const 1
     %21: %r0 = load global gCount: %r0
@@ -109,13 +97,12 @@ fn main() -> one %r0
     store global gCount: %r0, %23
     %24: %r7 = fun.code main.lambda
     %25: %r7 = const null
-    %27: %r0 = const 1
     %28: %r3 = load global gArr: %r3
     %29: %r1 = load property %28.items: %r1
     %30: %r3 = load global gArr: %r3
     %31: %r2 = load property %30.length: %r2
     %32: %r0 = convert %31
-    %34: %r12 = convert %27
+    %34: %r12 = const 1
     %35: %r12 = convert %32
     %36: %r6 = binary.ge %34, %35
     branch %36 -> block5 -> block4
@@ -123,49 +110,45 @@ fn main() -> one %r0
     host host.throw "yana: a runtime check failed"
     unreachable
   block15:
-    %99: %r3 = load global gArr: %r3
-    %100: %r1 = load property %99.items: %r1
-    store element %100[%85]: %r0, %82
-    %101: %r12 = convert %88
-    %102: %r2 = convert %101
-    %103: %r3 = load global gArr: %r3
-    store property %103.length: %r2, %102
-    %104: %r3 = load global gArr: %r3
-    %105: %r1 = load property %104.items: %r1
-    %106: %r3 = load global gArr: %r3
-    %107: %r2 = load property %106.length: %r2
-    %108: %r0 = convert %107
-    %110: %r0 = convert %108
-    %111: %r0 = const 1000
-    %112: %r0 = binary.mul %2, %111
-    %113: %r0 = coerce %112
-    %114: %r0 = const 100
-    %115: %r0 = binary.mul %43, %114
-    %116: %r0 = coerce %115
-    %117: %r0 = binary.add %113, %116
-    %118: %r0 = coerce %117
-    %119: %r0 = const 10
-    %120: %r0 = binary.mul %69, %119
-    %121: %r0 = coerce %120
-    %122: %r0 = binary.add %118, %121
-    %123: %r0 = coerce %122
-    %124: %r0 = binary.add %123, %81
-    %125: %r0 = coerce %124
-    %126: %r0 = binary.add %125, %110
-    %127: %r0 = coerce %126
-    %128: %r0 = load global gCount: %r0
-    %129: %r0 = binary.add %127, %128
-    %130: %r0 = coerce %129
-    return %130
+    %88: %r3 = load global gArr: %r3
+    %89: %r1 = load property %88.items: %r1
+    store element %89[%70]: %r0, %77
+    %90: %r12 = convert %81
+    %91: %r2 = convert %90
+    %92: %r3 = load global gArr: %r3
+    store property %92.length: %r2, %91
+    %93: %r3 = load global gArr: %r3
+    %94: %r1 = load property %93.items: %r1
+    %95: %r0 = convert %91
+    %97: %r0 = convert %95
+    %98: %r0 = const 1000
+    %99: %r0 = binary.mul %2, %98
+    %100: %r0 = coerce %99
+    %101: %r0 = const 100
+    %102: %r0 = binary.mul %43, %101
+    %103: %r0 = coerce %102
+    %104: %r0 = binary.add %100, %103
+    %105: %r0 = coerce %104
+    %106: %r0 = const 10
+    %107: %r0 = binary.mul %64, %106
+    %108: %r0 = coerce %107
+    %109: %r0 = binary.add %105, %108
+    %110: %r0 = coerce %109
+    %111: %r0 = binary.add %110, %76
+    %112: %r0 = coerce %111
+    %113: %r0 = binary.add %112, %97
+    %114: %r0 = coerce %113
+    %115: %r0 = load global gCount: %r0
+    %116: %r0 = binary.add %114, %115
+    %117: %r0 = coerce %116
+    return %117
   block16:
-    %94: %r3 = load global gArr: %r3
-    %95: %r1 = load property %94.items: %r1
-    %96: %r0 = host host.field "length" host-range %95
-    %97: %r6 = binary.le %88, %96
-    branch %97 -> block15 -> block17
+    %85: %r0 = host host.field "length" host-range %67
+    %86: %r6 = binary.le %81, %85
+    branch %86 -> block15 -> block17
   block17:
-    %98: %r3 = load global gArr: %r3
-    call growJsArray(I32) %98, %88
+    %87: %r3 = load global gArr: %r3
+    call growJsArray(I32) %87, %81
     jump -> block15
 
 fn main$() -> one %r0
@@ -204,7 +187,7 @@ fn growJsArray(I32)(one %r3, one %r0) -> omitted
     store property %0.items: %r1, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 2 removed 17 adopted 1 sunk 1 numbered 3 decided 1 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 2 removed 21 adopted 1 sunk 1 numbered 2 decided 1 unboxed 0 updated 0 split 0 promoted 0 folded 5
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object main.lambda.env {}

@@ -1,6 +1,10 @@
 -- See `Widget.yana`: a second `Widget.describe`, so an importer of both has an ambiguity rather
 -- than an import order - the namespaced half of `findDotOverloads`'s own answer.
+--
+-- Over a `Widget` of this module's own. Adding to `Widget.yana`'s would be the namespace rule's
+-- refusal (modules.md, "Namespaces", `Reject.Namespace.Foreign.yana`) rather than an ambiguity, and
+-- a module is allowed to declare a type whose name another module also uses.
 
-import Widget
+pub data Widget {size: Int}
 
 pub fn Widget.describe(self: Widget) -> Int = 2

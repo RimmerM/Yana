@@ -1,0 +1,24 @@
+
+sum'2<complex>(%v_0: I32, %v_1: I32): I32 {
+  b_2 {
+    %v_3 = add %v_0, %v_1: I32
+    ret %v_3
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    ret 7784
+  }
+}
+
+funvalue(sum'2)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
+  b_2 {
+    %v_3 = load %v_1, 4: I32
+    %v_4 = add %v_1, 4: Ptr
+    %v_5 = load %v_4, 4: I32
+    %v_6 = call_complex sum'2, %v_3, %v_5: I32
+    ret %v_6
+  }
+}
+

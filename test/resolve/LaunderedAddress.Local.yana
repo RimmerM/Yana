@@ -1,0 +1,178 @@
+{-
+   An address that leaves as a number and is **kept in the body's own storage** on the way - J161.
+
+   `LaunderedAddress.yana` is J159's shape: `cellAddress(into)` handed straight to `read`. J159
+   followed a laundered number to a system call operand, a store and a call argument, and every other
+   route it took on the way read as going nowhere, so `fill` published `mutates: none` for a body
+   that had the kernel write its parameter - and the caller's two field reads after the call were
+   answered from the record's initial `{0, 0}`. The rule is now stated about where the number goes
+   (`resolve_mir/summary.cpp`, `Laundered`): this body's own storage reaches whatever was written into
+   it, and a number reaching a system call, a store that outlives the frame, a cast back or a callee
+   that does one of those makes the address it encodes written and kept.
+
+   Each `fill*` below is out of line so that its caller is optimized against its summary, and reads a
+   record back from a pipe through the address it launders:
+
+    - `fillLet` - a `let`-bound number;
+    - `fillArray` - a number stored into a local `[USize *2]` and read back out;
+    - `fillBoxed` - a number in a field of a local record;
+    - `fillPointerField` - a raw *pointer* in a field of a local record, cast at the call;
+    - `fillVector` - `readv`: the address in an `Iov` whose own address is the operand;
+    - `fillLoop` - the number assigned to a local inside a loop.
+
+   And `keepThenPoke`, which reaches no system call: a setter stores the number a caller handed it
+   into a holder, and a second callee writes through it. The setter's `n` is a number parameter, so
+   what makes `into` kept is the caller answering "what did I put in that argument" - the `numbers`
+   row - rather than `n` being reported written (which is what put every system call wrapper's file
+   descriptor in `mutates`).
+
+   The file descriptor is the literal `1000` - `main` puts the pipe's reader there with `dup2`, since
+   a harness running this in its own process has descriptors of its own below it - for two reasons
+   that each hid all of these. A `handle` parameter handed to
+   the system call used to be a mutated position, so every call to `fill*` was a barrier anyway; and
+   a descriptor read out of a global made each `fill*` read global state, which kept its caller's
+   record out of the forwarding the bug needed.
+-}
+
+import Native
+
+data Cell {value: I64, other: I64}
+data Box {n: USize, pad: I32}
+data PBox {p: %Cell, pad: I32}
+data Iov {base: USize, len: USize}
+data Holder {addr: USize, pad: I32}
+
+-- Writable globals, which are what make `mir::reachesGlobalState` a question with an answer - see
+-- `LaunderedAddress.yana`. `reads` is also what keeps each reader out of `main`: without a write of
+-- its own, each was inlined there and optimized after its `fill` had been, which hid all of these.
+let &reader = 0 :: I32
+let &reads = 0
+
+fn cellAddress(&into: Cell) -> USize = bitcast(addressOf(into)) :: USize
+
+@noinline
+fn fillLet(handle: I32, &into: Cell) -> Size:
+    let addr = cellAddress(into)
+    return syscall3(numberOf(SysRead), 1000, addr, 16)
+
+@noinline
+fn fillArray(handle: I32, &into: Cell) -> Size:
+    let &box = [0, 0] :: [USize *2]
+    box[1] = cellAddress(into)
+    return syscall3(numberOf(SysRead), 1000, box[1], 16)
+
+@noinline
+fn fillBoxed(handle: I32, &into: Cell) -> Size:
+    let &b = Box {n: cellAddress(into), pad: 0}
+    b.pad = 1
+    return syscall3(numberOf(SysRead), 1000, b.n, 16)
+
+@noinline
+fn fillPointerField(handle: I32, &into: Cell) -> Size:
+    let &b = PBox {p: addressOf(into), pad: 0}
+    b.pad = 1
+    return syscall3(numberOf(SysRead), 1000, bitcast(b.p) :: USize, 16)
+
+-- `readv(fd, iov, 1)` - system call 19 on x86-64.
+@noinline
+fn fillVector(handle: I32, &into: Cell) -> Size:
+    let &iov = Iov {base: bitcast(addressOf(into)) :: USize, len: 16}
+    return syscall3(19, 1000, bitcast(addressOf(iov)) :: USize, 1)
+
+@noinline
+fn fillLoop(handle: I32, &into: Cell, n: I32) -> Size:
+    let &addr = 0 :: USize
+    for i in 0..n:
+        if i == n - 1 then addr = cellAddress(into)
+    return syscall3(numberOf(SysRead), 1000, addr, 16)
+
+@noinline
+fn keep(&h: Holder, n: USize):
+    h.addr = n
+
+@noinline
+fn poke(h: Holder):
+    store(bitcast(h.addr) :: %I64, 55)
+
+@noinline
+fn handOver(&into: Cell, &h: Holder) -> I32:
+    keep(h, cellAddress(into))
+    return 1
+
+fn viaLet(handle: I32) -> I64:
+    reads += 1
+    let &cell = Cell {value: 0, other: 0}
+    if fillLet(handle, cell) < 0 then return -1
+    return cell.value * 100 + cell.other
+
+fn viaArray(handle: I32) -> I64:
+    reads += 1
+    let &cell = Cell {value: 0, other: 0}
+    if fillArray(handle, cell) < 0 then return -1
+    return cell.value * 100 + cell.other
+
+fn viaBoxed(handle: I32) -> I64:
+    reads += 1
+    let &cell = Cell {value: 0, other: 0}
+    if fillBoxed(handle, cell) < 0 then return -1
+    return cell.value * 100 + cell.other
+
+fn viaPointerField(handle: I32) -> I64:
+    reads += 1
+    let &cell = Cell {value: 0, other: 0}
+    if fillPointerField(handle, cell) < 0 then return -1
+    return cell.value * 100 + cell.other
+
+fn viaVector(handle: I32) -> I64:
+    reads += 1
+    let &cell = Cell {value: 0, other: 0}
+    if fillVector(handle, cell) < 0 then return -1
+    return cell.value * 100 + cell.other
+
+fn viaLoop(handle: I32) -> I64:
+    reads += 1
+    let &cell = Cell {value: 0, other: 0}
+    if fillLoop(handle, cell, 3) < 0 then return -1
+    return cell.value * 100 + cell.other
+
+fn keepThenPoke() -> I64:
+    reads += 1
+    let &cell = Cell {value: 0, other: 0}
+    let &h = Holder {addr: 0, pad: 0}
+    if handOver(cell, h) < 0 then return -1
+    poke(h)
+    return cell.value
+
+fn send(handle: I32, value: I64, other: I64):
+    let &cell = Cell {value: value, other: other}
+    writeFile(widen(handle) :: Size, bitcast(addressOf(cell)) :: %U8, 16)
+
+fn main() -> I32:
+    let &ends = [0, 0] :: [I32 *2]
+    if makePipe(bitcast(addressOf(ends)) :: %Int) < 0 then return 1
+
+    reader = ends[0]
+    if syscall2(33, bitcast(widen(reader) :: Size) :: USize, 1000) != 1000 then return 1
+    let writer = ends[1]
+
+    -- One bit per shape, so a failing run names every shape that failed rather than the first.
+    let &failed = 0
+    send(writer, 3, 4)
+    if viaLet(reader) != 304 then failed += 1
+    send(writer, 5, 6)
+    if viaArray(reader) != 506 then failed += 2
+    send(writer, 7, 8)
+    if viaBoxed(reader) != 708 then failed += 4
+    send(writer, 9, 1)
+    if viaPointerField(reader) != 901 then failed += 8
+    send(writer, 2, 3)
+    if viaVector(reader) != 203 then failed += 16
+    send(writer, 4, 5)
+    if viaLoop(reader) != 405 then failed += 32
+    if keepThenPoke() != 55 then failed += 64
+    if reads != 7 then failed += 128
+
+    closeFile(1000)
+    closeFile(widen(reader) :: Size)
+    closeFile(widen(writer) :: Size)
+    return failed

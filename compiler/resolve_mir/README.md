@@ -881,8 +881,9 @@ marker and the default say nothing about each other for the reason a default is 
 no expression, so there is nothing that could run at a moment the marker promised it would not, and
 nothing to observe if the callee never forces it. Two things follow from the thunk being built rather
 than lifted. The constant is made **inside** it, so nothing of the caller's frame is handed out of a
-call; and it captures nothing, so the two refusals `liftFunction` makes - no lambda inside a lambda,
-none in a generic body - do not reach it. That second one is the point rather than a detail:
+call; and it captures nothing, so the two refusals `liftFunction` makes - no lambda inside a lambda
+reaching past the enclosing one (J139 narrowed the first to that), none in a generic body - do not
+reach it. That second one is the point rather than a detail:
 `check(x)` inside a generic function is exactly what an assertion is, and a *written* `@lazy` argument
 there is still refused.
 
@@ -2657,8 +2658,8 @@ never be refused, because declining to expand a body is always possible.
 `readInlineAttribute` reads all three in one walk, since the contradiction between them is only
 visible to something that has read both; a declaration saying two opposite things has stated no
 intent, so neither answer is taken and the pair is reported. A hint written beside `@noinline` is
-the same contradiction one step weaker and is answered rather than reported - the directive is what
-the compiler can always carry out, so the hint under it would be a term weighed and thrown away.
+the same contradiction one step weaker and is reported on the same terms since 2026-09-24 (J134),
+as functions.md says; it used to be answered, with the directive taken and the hint dropped.
 
 `resolve_ssa/opt/inline.cpp` is the one reader, and it asks before the numbers rather than after:
 this is a directive and not a weight. Nineteen fixtures in the corpus depend on the boundary
@@ -2745,35 +2746,49 @@ IR out of it.
     `resolve/FixedBound.yana` is the fixture; the written-count and quantified-count bounds are both
     in its `.mir.lower.expect`.
 
-### `@inline(n) @capacity(n)`, and the half of it this stage has
+### `@inline(n) @capacity(n)`, a type since J143
 
 `readContainerRefinement` reads the pair off a type and checks it exactly as the shipping stage does -
 both written, equal, and not zero, because the rows that spill need a discriminant neither stage
-builds. What it then honours is the **capacity** and not the placement: the request is sized to
-`max(written, bound)` and the array's `length` stays the written count, because sizing *both* from
-the bound would make the literal claim elements it never wrote.
+builds. What the pair then *names* is a type: `lib/Core`'s `data InlineArray(a, n: Int) {slots: [a
+*n], length: Count}`, claimed by `known.def`'s `inlineArray` role (`Resolver::inlineArrayType`). So it
+is legal wherever a type is - a field, which is what it is for, a local, a parameter, an alias - and
+`sizeOf` of four `Int`s is the twenty bytes the shipping stage's layout gives.
 
-It was a `reserve` call after the fact until J46 part 3 - a run built at the written count and then
-grown - which is the same guarantee with a relocation in it. Choosing the size once is available
-because the request is an instruction this function fills in rather than a call whose argument is
-the count.
+Until J143 this stage honoured the **capacity** alone, at the `::` of a literal: a frame run tagged
+`runFixed`, with the placement ladder deciding where the slots went. A field could not use that - a
+record is relocated by copying bytes, so a run pointer into its own storage would dangle after the
+first move - and was refused. The type is the answer because nothing in it points anywhere:
 
-`@inline(n)` asks for those slots in the **frame**, and this stage still does not give them - but the
-reason is not the placement ladder, which J24 built. It is a **layout**: the shipping stage's
-`repr.cpp::computeInlineContainer` replaces the container's `Run(a)` field with `n` slots of the
-element's stride, so there is no run pointer and no capacity word, and the tag the construction
-writes is `runFixed`. Nothing in `resolve_ssa/lower/repr.cpp` has that rung, and `resolveType` refuses
-the refinement anywhere but the two `::` positions - so `data Buffer {items: @inline(4) @capacity(4)
-[Int]}` does not resolve here at all. `newRun` being a library call rather than a placed allocation
-is the second half of the same gap: expanding it would need an allocation with an **extent**, which
-`Inst::Alloc` does not carry. So a refined array costs an allocation and a free the shipping stage
-does not pay and means the same thing; `withPathCString` and every path-taking `File` call run
-correctly and not for free.
+- **The slots are storage** (`RecordField::storage`). Only a prefix holds values, so no derived walk
+  descends into the field, the classifier reads only what the element owes (`own.cpp`), and a literal
+  (`resolveInlineLiteral`) is a `[T *n]` aggregate supplying just the written elements - the one
+  aggregate with fewer components than its array's length, which both verifiers and the builder
+  accept for a fixed array and nothing else. An empty `@inline(4096)` buffer is one frame slot and
+  one store of the count, which is `withPathCString`'s whole construction, as it is in the shipping
+  stage.
+- **A `[T]` window position** adapts it through the library's `Contiguous`/`Writable` instances,
+  which build the view from the record's address at the use (`adaptToView` accepts it where the
+  elements agree, as it does a fixed array). `Length` and `Index` are instances over it; `Index`
+  goes through the window, so the bound is `Array`'s.
+- **A `&self: Array(a)` position** - `push`, `reserve` - gets a **descriptor** (`adaptInlineOwner`):
+  `inlineGrowable` builds a plain `Array(a)` over the slots with a `runFixed` run, the call is made
+  on it, and `inlineCommit` - emitted by `finishCall` once the call is in the block - writes the count
+  back and empties the descriptor, whose own teardown then walks nothing. The record's unique loan
+  is held in a local across the call and used by the commit, so the loan checker sees the record
+  borrowed for as long as the descriptor stands in for it. A commit is filed under the call being
+  prepared (`preparingCall`), because an argument written after the adapted one is resolved after
+  it - `push(h.hs, openHandle())` - and that nested call's `finishCall` must not flush it. A shared
+  or owning `Array(a)` position is refused by name.
+- **A trivially copied `InlineArray`** - any element with nothing to run - is read by *copy* under a
+  binding request, so the subscript's container read asks with `published` set, as a `&` argument
+  does, or a write through `getMut` would land in a temporary.
 
-The two positions that honour a refinement are the `::` of an array literal in a body and in a
-constant, and both read it off and resolve the type without the attributes the way the `@bits` arm
-does. Anywhere else - a field, a parameter, a result - `resolveType` **reports** it: an ABI
-annotation silently ignored is a representation its author believes in.
+JavaScript's library declares no `InlineArray`, and the refinement there is the plain `[T]` it
+bounds - the literal's capacity was already ignored on that target, since a host array grows on its
+own. `test/resolve/InlineCapacity.yana` runs under both stages against one `.run.expect`;
+`InlineCapacity.Move.yana` is the moves and copies, and the bound is `@test(aborts)` in
+`lib/Core/InlineArray.test.ownership.native.yana`.
 
 ### A hand-over is a parameter, and a lending one needs the same temporary
 
@@ -3065,7 +3080,31 @@ holds what was last written into it. The other four answers are all this table:
   if it survives, since a read cannot be the mistake. The activation is checked as the take would have
   been, against the loans live *before* that node - `loans/TwoPhase.yana` and `Reject.TwoPhase.yana`
   are the pair, and `ownership/Reject.Exchange.yana`'s `swap(x, x)` is the whole-place case that is
-  refused where it is written.
+  refused where it is written. Since J140 a **derivation** (`adaptToView` turning the owner into a
+  `[T]` window) carries the reservation on rather than activating it, and such a *windowed*
+  reservation refuses every exclusive loan outright, because the window already points into the
+  elements a `push` would move; and a reservation whose activation lies past a branch is judged
+  against the block's live-out, where before its shared reads were excused and never judged -
+  `loans/TwoPhase.Window.yana`, and the rule in `doc/spec/ownership.md`, "Borrows at a call".
+  Since J141 the reservation is **carried across blocks** as a must-fact (`reservedOut`, the
+  intersection over `forEachPredecessor`), so a later argument that branches -
+  `f(xs, if c then length(xs) else 0)` - sees it in its arms (`loans/TwoPhase.Branch.yana`).
+- **A copy meets every live unique loan of the storage it names** (J141; J140 had it for a closure's
+  `&` capture only). `AccessKind::Copy` is checked against the unique loans on the place's own root
+  that overlap it (`uniqueLoans` in `checkLoans`) - not through `reachFrom`, because reading
+  *through* the holder (`r.p`, a place under a `Deref` or rooted in a loan or an address) is the
+  legal read and the lender's own name is what is excluded. A reservation excuses a copy outright.
+  `let seen = count` while `r = Ref {p: count}` still writes through it is `loans/Reject.HeldCopy.yana`,
+  and the closure case keeps its own sentence (`captured`).
+- **A record owning a reference-holding record inherits its positions** (J141). `foldRecordSchema`
+  folds the inner record on demand (`RecordType::schemaFolded`) and prefixes its slots with the
+  field's index, numbered after the record's own `originSlots`; the aggregate transfer puts a
+  record component's positions where their paths say. An iterator object's record is still refused
+  as a field (`iter/Reject.Name.yana`). `NestedBorrow.yana`, `loans/Reject.NestedHolder.yana`.
+- **A function type may publish origins** (J141). They are numbered in the type's own scope, and a
+  call through a value of it is related by `computeValueCallTables` exactly as a declaration's call
+  is; a type whose `&` parameter holds an interior origin (an installation) is refused in
+  `resolveType`. `LoanGroup.yana`, `loans/Reject.ValueGroup.yana`.
 - **A subscript written to takes its accessor after the right-hand side.** `xs[i] = xs[i] + 1` reads
   through `get` and writes through `getMut`, and the exclusive loan the second takes has to start
   after the first has ended - so `resolveAssign` resolves the container and the index, then the

@@ -15,14 +15,7 @@ fn scalars() -> one %r0
     %37: %r0 = const -1
     return %37
   block3:
-    %8: %r1 = const 2
-    %9: %r1 = const 3
-    %10: %r1 = const 4
-    %11: %r1 = binary.mul %8, %9
-    %12: %r1 = binary.add %11, %10
-    %13: %r1 = const 10
-    %14: %r2 = binary.ne %12, %13
-    branch %14 -> block6 -> block5
+    jump -> block5
   block4:
     %36: %r0 = const -2
     return %36
@@ -81,60 +74,23 @@ fn lanes() -> one %r0
     %59: %r0 = const -1
     return %59
   block3:
-    %16: %r3 = const 0
-    %17: %r3 = const 1
-    %18: %r3 = const 2
-    %19: %r3 = const 3
-    %20: %r3 = const 3
-    %21: %r3 = const 1
-    %22: %r3 = binary.mul %16, %20
-    %23: %r3 = coerce %22
-    %24: %r3 = binary.add %23, %21
-    %25: %r3 = coerce %24
-    %26: %r3 = binary.mul %17, %20
-    %27: %r3 = coerce %26
-    %28: %r3 = binary.add %27, %21
-    %29: %r3 = coerce %28
-    %30: %r3 = binary.mul %18, %20
-    %31: %r3 = coerce %30
-    %32: %r3 = binary.add %31, %21
-    %33: %r3 = coerce %32
-    %34: %r3 = binary.mul %19, %20
-    %35: %r3 = coerce %34
-    %36: %r3 = binary.add %35, %21
-    %37: %r3 = coerce %36
-    %38: %r3 = const 1
-    %39: %r2 = binary.ne %25, %38
-    branch %39 -> block6 -> block5
+    jump -> block5
   block4:
     %58: %r0 = const -2
     return %58
   block5:
-    %40: %r3 = const 4
-    %41: %r2 = binary.ne %29, %40
-    branch %41 -> block8 -> block7
+    jump -> block7
   block6:
     %57: %r0 = const -3
     return %57
   block7:
-    %42: %r3 = const 7
-    %43: %r2 = binary.ne %33, %42
-    branch %43 -> block10 -> block9
+    jump -> block9
   block8:
     %56: %r0 = const -4
     return %56
   block9:
-    %44: %r3 = binary.add %25, %29
-    %45: %r3 = coerce %44
-    %46: %r3 = binary.add %33, %37
-    %47: %r3 = coerce %46
-    %48: %r3 = binary.add %45, %47
-    %49: %r3 = coerce %48
-    %50: %r3 = const 22
-    %51: %r2 = binary.ne %49, %50
-    %52: %r0 = const -6
     %53: %r0 = const 0
-    %54: %r0 = select %51, %52, %53
+    %54: %r0 = alias %53
     return %54
   block10:
     %55: %r0 = const -5
@@ -164,11 +120,11 @@ fn main() -> one %r0
     %10: %r0 = coerce %9
     return %10
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 44 adopted 0 sunk 0 numbered 0 decided 4 unboxed 0 updated 0 split 0 promoted 0 folded 30
 
 rep %r0 = number signed 32
 rep %r1 = number f64
 rep %r2 = number bool
 rep %r3 = number f32
-rep %r4 = array Float32Array of %r3
+rep %r4 = array Array of %r3
 rep %r5 = parts (%r3, %r3, %r3, %r3) as %r4

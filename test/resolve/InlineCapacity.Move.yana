@@ -1,0 +1,100 @@
+{-
+   A record holding an `@inline(n) @capacity(n) [T]` field, **moved and copied** - J143.
+
+   The elements are the record's own bytes, so relocating the record relocates them: nothing inside
+   the record points into the record, and every window, subscript and `push` builds its descriptor
+   from the address the record has *now*. Each function below moves a record to a different address
+   between writing it and reading it back, which is what a stored run pointer would get wrong - the
+   read would reach the frame the record was built in.
+
+   `InlineCapacity.yana` is the refinement itself; this is what holding one costs nothing to move.
+
+   The default stage alone: the shipping stage's refined array carries generated teardown glue
+   whatever its element, so it refuses the trivially copied `Buffer` in `relay` and `copied` below
+   ("hands ownership on out of storage this frame only borrows"), where here an array of `Int`s is
+   the bytes it is.
+
+   # resolver: ownership
+-}
+
+import Native
+
+data Buffer {items: @inline(4) @capacity(4) [Int], tag: Int}
+
+-- Built in this frame and handed out: the caller's copy is at a different address.
+fn made(tag: Int) -> Buffer:
+    let &b = Buffer {items: [10, 20], tag: tag}
+    push(b.items, 30)
+    return b
+
+fn total(xs: [Int]) -> Int:
+    let &sum = 0 :: Int
+    for x in items(xs):
+        sum += x
+    return sum
+
+-- Moved out of the callee, grown in the caller, read through a window.
+fn movedOut() -> Int:
+    let &b = made(1)
+    push(b.items, 40)
+    return total(b.items) + (truncate(length(b.items)) :: Int) * 1000
+
+-- Moved through a parameter and back.
+fn relay(->b: Buffer) -> Buffer:
+    let &kept = b
+    kept.items[0] = 11
+    return kept
+
+fn movedThrough() -> Int:
+    let b = relay(made(2))
+    return total(b.items) + b.tag * 1000
+
+-- Copied by an update: the copy has its own elements, and writing one leaves the other as it was.
+fn copied() -> Int:
+    let &original = made(3)
+    let &copy = {original | tag: 4}
+    push(copy.items, 99)
+    copy.items[1] = 21
+    return total(original.items) + (truncate(length(original.items)) :: Int) * 1000 +
+           total(copy.items) * 100000 + (truncate(length(copy.items)) :: Int) * 10000000
+
+-- Elements with a teardown, moved inside their record: each released exactly once.
+let &live = 0 :: I64
+
+data Handle {slot: %U8}
+
+fn openHandle() -> Handle:
+    live += 1
+    return Handle {slot: allocateHeap(16)}
+
+instance Drop(Handle):
+    fn drop(->value: Handle):
+        freeHeap(value.slot)
+        live -= 1
+
+data Holder {hs: @inline(3) @capacity(3) [Handle], tag: Int}
+
+fn holder() -> Holder:
+    let &h = Holder {hs: [openHandle()], tag: 7}
+    push(h.hs, openHandle())
+    return h
+
+fn heldAndMoved() -> Int:
+    let h = holder()
+    let moved = relayHolder(h)
+
+    -- Read before `moved`'s last use, which is where its teardown runs.
+    let alive = truncate(live) :: Int
+    return alive * 100 + (truncate(length(moved.hs)) :: Int) + moved.tag * 10
+
+fn relayHolder(->h: Holder) -> Holder = h
+
+fn main() -> Int:
+    if movedOut() != 4100 then return -1
+    if movedThrough() != 2061 then return -2
+    if copied() != 56003060 then return -3
+
+    if heldAndMoved() != 272 then return -4
+    if live != 0 then return -5
+
+    return 1

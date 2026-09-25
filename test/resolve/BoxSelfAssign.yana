@@ -1,0 +1,46 @@
+-- # resolver: ownership
+
+-- A value moved into a new record that is written back over the slot it came from - J148.
+--
+-- `b = Node {next: b, v: 1}` over a `@box` field is legal: the right side moves `b` out before
+-- the assignment, so the store is an initialization of an empty slot. The lowering built the
+-- record *in* `b`'s slot (move elision) and the box as a component of it - and `createBox` writes
+-- the box pointer into the slot where the component is produced, which was before the moved-out
+-- `b` was copied into the box. The node became its own `next`: optimized, `depth` walked the cycle
+-- forever, and under `-no-ir-opt` it crashed. The same fault without a box is `nested` below: the
+-- inner literal was built over `u.inner` before `n: u.inner.a` read it. The shipping stage refuses
+-- the boxed program, which is why the directive is here.
+
+data Boxed = Leaf | Node {next: @box Boxed, v: I32}
+
+data Big {a: I64, b: I64, c: I64, d: I64}
+data Wrap {inner: Big, n: I64}
+
+fn depth(b: Boxed) -> I32 = match b:
+    Leaf -> 0
+    Node {next, v} -> 1 + depth(next)
+
+fn sum(b: Boxed) -> I32 = match b:
+    Leaf -> 0
+    Node {next, v} -> v + sum(next)
+
+fn once() -> I32:
+    let &b = Leaf
+    b = Node {next: b, v: 1}
+    return depth(b)
+
+fn chain(n: I32) -> Boxed:
+    let &b = Leaf
+    for i in 0..n:
+        b = Node {next: b, v: i}
+    return b
+
+fn nested() -> I64:
+    let &u = Wrap {inner: Big {a: 1, b: 2, c: 3, d: 4}, n: 0}
+    u = Wrap {inner: Big {a: u.inner.d, b: u.inner.c, c: u.inner.b, d: u.inner.a}, n: u.inner.a}
+    return u.inner.a * 1000 + u.inner.b * 100 + u.inner.c * 10 + u.inner.d + u.n * 10000
+
+fn main() -> I32:
+    let c = chain(5)
+    -- 1, then 5 deep holding 0 + 1 + 2 + 3 + 4, then 14321
+    return once() * 1000000 + depth(c) * 100000 + sum(c) * 1000 + truncate(nested() - 14000)

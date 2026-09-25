@@ -354,8 +354,12 @@ inline bool takesInPlace(const DirectMemoryChoice& choice, MachineLocation opera
  * can only be a base through a SIB byte, rbp and r13 have no displacement-free encoding, a missing
  * base is a SIB form of its own, and REX.B/REX.X extend the base and index independently.
  *
- * A frame slot is the one memory reference not described here: its address is not known until frame
- * layout has run, so it stays a location and the encoder builds the address from the layout.
+ * A frame slot's address is not known until frame layout has run, which is after all of this. A value
+ * spilled to one stays a location and the encoder builds the address from the layout; a *fixed
+ * alloca* read as an address - `[a + k]`, `[a + i*4]`, the pointer a load dereferences - is described
+ * here with `frameRelative` set, its slot named and its base left for the emitter to fill in from the
+ * same layout (`Emitter::frameResolved`). Asking the layout for one number at emission is what lets
+ * the access be `mov [rsp + slot + k], r` instead of `lea r11, [rsp + slot] ; mov [r11 + k], r`.
  */
 
 // A complete AMD64 memory reference: `[base + index*scale + displacement]`, `[rip + displacement]`,
@@ -382,6 +386,11 @@ struct MachineAddress {
     // Exactly one of the two may be set, and only on a RIP-relative address.
     LowerFunction* relocFunction = nullptr;
     LowerGlobal* relocGlobal = nullptr;
+
+    // `[frame base + offset of frameSlot + displacement]`, with `hasBase` clear until emission sets
+    // it - see the comment above. Never RIP-relative; may carry an index.
+    bool frameRelative = false;
+    StackSlotId frameSlot = 0;
 
     // `[reg]` - a pointer the allocator left in a register.
     static MachineAddress atRegister(U8 base) {
@@ -742,7 +751,8 @@ struct Remat {
         Immediate,       // mov r, imm
         GlobalAddress,   // lea r, [rip + global]
         FunctionAddress, // lea r, [rip + function]
-        FrameAddress,    // lea r, [base + slot]
+        FrameAddress,    // lea r, [base + slot] - or nothing, where it is read as an address's base
+                         // and the access addresses the frame itself (isFrameAddressBase, J157)
 
         // mov/movss/movsd r, [rip + global] - the *contents* of an immutable global rather than its
         // address, which is the one load that reproduces. `mut` clear is a promise that nothing
@@ -1336,6 +1346,10 @@ struct FrameLayout {
     // distance from one to the other unknown until run time.
     Array<PhysicalReg> slotBase;
 
+    // Set where the layout reported a frame too large to address (`reportOversizedFrame` in
+    // frame.cpp). The offsets are then wrapped, and `verifyFrameLayout` would say so a second time.
+    bool oversized = false;
+
     // Whether the function needs any prologue at all.
     bool isEmpty() const {
         return savedRegs.isEmpty() && savedVectors.isEmpty() && !framePointer && fixedSize == 0;
@@ -1857,6 +1871,17 @@ struct UseSite {
 
 UseSite useSiteOf(LowerBase base, const MachineFunction& machine, const Placement& placement,
     LowerInst* inst, const InstShape& shape, Size i, U32 index, MachineLocation destructiveReg, bool memoryDest);
+
+/*
+ * Whether operand `i` of `inst` is read as the base of the address the instruction references or
+ * computes: the pointer a load, a store or any form with an `Address` operand dereferences directly,
+ * or the base of an X86Address or an X86Lea. A fixed alloca in that position needs no register - its
+ * address is `[frame base + offset]`, which the addressing unit adds for nothing - so a web whose
+ * recipe is `Remat::FrameAddress` is read there in place rather than recreated (J157). Asked by
+ * legalization, which resolves the address, by placement, which prices the read at nothing, and by
+ * the verifier, which accepts a recipe as an operand's location in exactly this position.
+ */
+bool isFrameAddressBase(LowerBase base, const MachineFunction& machine, LowerInst* inst, Size i);
 
 // Allocates `fun` into `result`, which is emptied first: a FunctionRegs that has already described
 // another function hands this one every buffer it grew, which is what makes allocating a module

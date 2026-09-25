@@ -1,0 +1,90 @@
+fn sum(one %r1) -> one %r0
+  block0(%0: %r1):
+    %1: %r0 = load property %0.left: %r0
+    %2: %r0 = load property %0.right: %r0
+    %3: %r0 = binary.add %1, %2
+    %4: %r0 = coerce %3
+    return %4
+
+fn main() -> one %r0
+  var $0: %r1
+  var $1: %r1
+  var $2: %r2
+  var $3: %r4
+  var $4: %r6
+  var $5: %r1
+  var $6: %r0
+  var $7: %r0
+  var $8: %r0
+  var $9: %r0
+  var $10: %r1
+  var $11: %r3
+  var $12: %r3
+  var $13: %r5
+  var $14: %r5
+  block0:
+    %0: %r0 = const 3
+    %1: %r0 = const 4
+    %9: %r0 = alias %1
+    %11: %r0 = alias %0
+    %19: %r0 = const 10
+    %20: %r0 = const 20
+    %21: %r3 = array %19, %20
+    %22: %r0 = const 3
+    %23: %r0 = const 7
+    %24: %r3 = array %22, %23
+    %28: %r0 = alias %0
+    %29: %r0 = alias %1
+    %30: %r0 = binary.add %28, %29
+    %31: %r0 = coerce %30
+    %32: %r0 = const 1000
+    %33: %r0 = binary.mul %31, %32
+    %34: %r0 = coerce %33
+    %41: %r0 = alias %9
+    %42: %r0 = alias %11
+    %43: %r0 = binary.add %41, %42
+    %44: %r0 = coerce %43
+    %45: %r0 = const 100
+    %46: %r0 = binary.mul %44, %45
+    %47: %r0 = coerce %46
+    %48: %r0 = binary.add %34, %47
+    %49: %r0 = coerce %48
+    %63: %r0 = const 33
+    %64: %r0 = binary.add %49, %63
+    %65: %r0 = coerce %64
+    %68: %r0 = const 0
+    %69: %r3 = alias %21
+    %70: %r0 = load element %69[%68]: %r0
+    %71: %r0 = const 1
+    %72: %r3 = alias %69
+    %73: %r0 = load element %72[%71]: %r0
+    %74: %r0 = binary.add %70, %73
+    %75: %r0 = coerce %74
+    %76: %r0 = const 0
+    %77: %r3 = alias %24
+    %78: %r0 = load element %77[%76]: %r0
+    %79: %r0 = const 1
+    %80: %r3 = alias %77
+    %81: %r0 = load element %80[%79]: %r0
+    %82: %r0 = binary.mul %78, %81
+    %83: %r0 = coerce %82
+    %84: %r0 = binary.add %75, %83
+    %85: %r0 = coerce %84
+    %86: %r0 = binary.add %65, %85
+    %87: %r0 = coerce %86
+    return %87
+
+optimizer clones 6 aliased 6 forwarded 6 removed 51 adopted 0 sunk 0 numbered 3 decided 0 unboxed 0 updated 0 split 4 promoted 11 folded 6
+
+shape %s0 object Two {left: %r0, right: %r0}
+shape %s1 object Three {first: %r0, second: %r0, rest: %r1}
+shape %s2 object Square {rows: %r3, columns: %r3}
+shape %s3 fun {$c: %r5 code, $e: %r5 env}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = object %s1
+rep %r3 = array Int32Array of %r0
+rep %r4 = object %s2
+rep %r5 = erased
+rep %r6 = object %s3

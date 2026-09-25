@@ -95,7 +95,15 @@ static Maybe<U16> constantLane(Builder& builder, Node& argument, DeclPtr<Type> v
         return Nothing();
     }
 
+    /*
+     * A vector this body cannot count - a const-generic `Vec(a, n)` - takes any lane index here, and
+     * the bound is asked again where the substitution has settled the count: the lowering's
+     * verifier holds a lane read to its vector, which is `expandVecLookup`'s rule. Refusing it here
+     * measured the count as zero and refused every lane of every such body.
+     */
     auto lanes = vectorLanes(builder.declBase(), vector);
+    if(!lanes && index.unwrap() >= 0 && index.unwrap() < 256) return Just(U16(index.unwrap()));
+
     if(index.unwrap() < 0 || U64(index.unwrap()) >= lanes) {
         builder.context.diagnostics.error("lane %@ is past the end of a vector of %@ lanes"_v, source,
                                           I32(index.unwrap()), U32(lanes));
@@ -469,16 +477,35 @@ Node* expandVecShuffle(Builder& builder, Function& callee, U32 sources, Node* co
     return shuffleBy(builder, type, *arguments[0], *arguments[sources - 1], pattern, source);
 }
 
+/*
+ * A rearrangement whose pattern is a function of the lane count and one constant - `reverse`,
+ * `rotate`, `alignLanes` and `interleave`.
+ *
+ * Where the body can count the lanes the pattern is written here; where it cannot - a const-generic
+ * `Vec(a, n)` - the node carries what the pattern *is* and the SSA conversion writes it once the
+ * substitution has made the count a number (`NodeVecShuffle::Deferred`, J142 for `reverse` and J143
+ * for the other three). These used to answer null with no diagnostic in such a body, which surfaced
+ * as "reaches the end without returning".
+ */
+static Node* deferrableShuffle(Builder& builder, DeclPtr<Type> type, U32 lanes,
+                               NodeVecShuffle::Deferred kind, I64 amount, Node& left, Node& right,
+                               LocationId source) {
+    if(!lanes) {
+        return builder.addVecShuffle(source, left, right, nullptr, 0, type, kind, amount);
+    }
+
+    LanePattern pattern;
+    deferredLanePattern(kind, lanes, amount, [&](U8 lane) { pattern.push(lane); });
+    return shuffleBy(builder, type, left, right, pattern, source);
+}
+
 Node* expandVecReverse(Builder& builder, Function& callee, Node* const* arguments,
                        const Substitution& with, LocationId source) {
     auto type = resultType(builder, callee, with);
     auto lanes = vectorLanes(builder.declBase(), type);
-    if(!lanes) return nullptr;
 
-    LanePattern pattern;
-    for(U32 i = 0; i < lanes; i++) pattern.push(U8(lanes - 1 - i));
-
-    return shuffleBy(builder, type, *arguments[0], *arguments[0], pattern, source);
+    return deferrableShuffle(builder, type, lanes, NodeVecShuffle::Deferred::Reverse, 0,
+                             *arguments[0], *arguments[0], source);
 }
 
 /*
@@ -492,7 +519,6 @@ Node* expandVecRotate(Builder& builder, Function& callee, Node* const* arguments
                       const Substitution& with, LocationId source) {
     auto type = resultType(builder, callee, with);
     auto lanes = vectorLanes(builder.declBase(), type);
-    if(!lanes) return nullptr;
 
     auto distance = constantInteger(builder, *arguments[1]);
     if(!distance) {
@@ -501,13 +527,8 @@ Node* expandVecRotate(Builder& builder, Function& callee, Node* const* arguments
         return nullptr;
     }
 
-    auto by = distance.unwrap() % I64(lanes);
-    if(by < 0) by += I64(lanes);
-
-    LanePattern pattern;
-    for(U32 i = 0; i < lanes; i++) pattern.push(U8((I64(i) + by) % I64(lanes)));
-
-    return shuffleBy(builder, type, *arguments[0], *arguments[0], pattern, source);
+    return deferrableShuffle(builder, type, lanes, NodeVecShuffle::Deferred::Rotate,
+                             distance.unwrap(), *arguments[0], *arguments[0], source);
 }
 
 /*
@@ -525,7 +546,6 @@ Node* expandVecAlignLanes(Builder& builder, Function& callee, Node* const* argum
                           const Substitution& with, LocationId source) {
     auto type = resultType(builder, callee, with);
     auto lanes = vectorLanes(builder.declBase(), type);
-    if(!lanes) return nullptr;
 
     auto from = constantInteger(builder, *arguments[2]);
     if(!from) {
@@ -534,21 +554,16 @@ Node* expandVecAlignLanes(Builder& builder, Function& callee, Node* const* argum
         return nullptr;
     }
 
-    if(from.unwrap() < 0 || from.unwrap() > I64(lanes)) {
+    // A negative start is past the pair at every count; one past the count is checked where the
+    // count is a number - here, or at the SSA conversion for a count that arrives later.
+    if(from.unwrap() < 0 || (lanes && from.unwrap() > I64(lanes))) {
         builder.context.diagnostics.error("a window of %@ lanes starting at %@ runs past the end of the pair - the start is between 0 and %@"_v,
                                           source, U32(lanes), I32(from.unwrap()), U32(lanes));
         return nullptr;
     }
 
-    // `above` is operand zero and `below` is operand one, so the concatenation's lane `k` is pattern
-    // entry `k + lanes` below the count and `k - lanes` above it.
-    LanePattern pattern;
-    for(U32 i = 0; i < lanes; i++) {
-        auto k = I64(i) + from.unwrap();
-        pattern.push(U8(k < I64(lanes) ? k + I64(lanes) : k - I64(lanes)));
-    }
-
-    return shuffleBy(builder, type, *arguments[0], *arguments[1], pattern, source);
+    return deferrableShuffle(builder, type, lanes, NodeVecShuffle::Deferred::Align, from.unwrap(),
+                             *arguments[0], *arguments[1], source);
 }
 
 // The two halves of a merge: the low halves of both sources interleaved, and the high halves. Which
@@ -557,17 +572,11 @@ Node* expandVecInterleave(Builder& builder, Function& callee, bool high, Node* c
                           const Substitution& with, LocationId source) {
     auto type = resultType(builder, callee, with);
     auto lanes = vectorLanes(builder.declBase(), type);
-    if(!lanes) return nullptr;
 
-    auto start = high ? lanes / 2 : 0;
-
-    LanePattern pattern;
-    for(U32 i = 0; i < lanes; i++) {
-        auto half = start + i / 2;
-        pattern.push(U8(i % 2 ? lanes + half : half));
-    }
-
-    return shuffleBy(builder, type, *arguments[0], *arguments[1], pattern, source);
+    return deferrableShuffle(builder, type, lanes,
+                             high ? NodeVecShuffle::Deferred::InterleaveHigh
+                                  : NodeVecShuffle::Deferred::InterleaveLow,
+                             0, *arguments[0], *arguments[1], source);
 }
 
 /*
@@ -590,6 +599,20 @@ static bool halfWidthShapes(Builder& builder, DeclPtr<Type> wide, DeclPtr<Type> 
 
     wideLanes = vectorLanes(base, wide);
     narrowLanes = vectorLanes(base, narrow);
+
+    /*
+     * A count this body cannot know - a const-generic `Vec(a, n)`, or the natural form of a variable
+     * lane. **Refused by name** (J143) rather than deferred as the rearrangements are: the two shapes
+     * are two counts, one twice the other, and a signature can only state that as a computed count
+     * (`Vec(I16, n)` against `Vec(I32, n / 2)`), which Implementation-Const-Generics.md leaves open.
+     * So there is no body in which the deferral would ever be written, and the check below would
+     * otherwise report a shape mismatch at zero lanes.
+     */
+    if(!wideLanes || !narrowLanes) {
+        builder.context.diagnostics.error("a lane-count conversion (`unpackLow`, `unpackHigh`, `packLanes`) needs both lane counts, and this body cannot count one of its vectors - its count is a const parameter or its lane type a variable; write it at a written count"_v,
+                                          source);
+        return false;
+    }
 
     auto wideStride = laneBytes(base, widths, laneTypeOf(base, wide));
     auto narrowStride = laneBytes(base, widths, laneTypeOf(base, narrow));

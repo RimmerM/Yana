@@ -33,18 +33,15 @@ fn colourOf(one %r0) -> one %r2
     %24: %r2 = const null
     jump -> block1(%24)
   block5:
-    %25: %r1 = const 2
-    %26: %r1 = convert %25
+    %26: %r1 = const 2
     %27: %r2 = alias %26
     jump -> block1(%27)
   block6:
-    %28: %r1 = const 1
-    %29: %r1 = convert %28
+    %29: %r1 = const 1
     %30: %r2 = alias %29
     jump -> block1(%30)
   block7:
-    %31: %r1 = const 0
-    %32: %r1 = convert %31
+    %32: %r1 = const 0
     %33: %r2 = alias %32
     jump -> block1(%33)
 
@@ -83,18 +80,15 @@ fn signalOf(one %r0) -> one %r2
     %24: %r2 = const null
     jump -> block1(%24)
   block5:
-    %25: %r1 = const 122
-    %26: %r1 = convert %25
+    %26: %r1 = const 122
     %27: %r2 = alias %26
     jump -> block1(%27)
   block6:
-    %28: %r1 = const 13
-    %29: %r1 = convert %28
+    %29: %r1 = const 13
     %30: %r2 = alias %29
     jump -> block1(%30)
   block7:
-    %31: %r1 = const 2
-    %32: %r1 = convert %31
+    %32: %r1 = const 2
     %33: %r2 = alias %32
     jump -> block1(%33)
 
@@ -104,8 +98,7 @@ fn main() -> one %r3
   var $2: %r2
   var $3: %r2
   block0:
-    %1: %r1 = const 0
-    %2: %r1 = convert %1
+    %2: %r1 = const 0
     %3: %r0 = map %2 [0 => "Red", 1 => "Green", else "Blue"]
     %4: %r0 = const "Red"
     %5: %r0 = alias %3
@@ -116,8 +109,7 @@ fn main() -> one %r3
     %10: %r4 = unary.not %9
     branch %10 -> block2 -> block1
   block1:
-    %11: %r1 = const 2
-    %12: %r1 = convert %11
+    %12: %r1 = const 2
     %13: %r0 = map %12 [0 => "Red", 1 => "Green", else "Blue"]
     %14: %r0 = const "Blue"
     %15: %r0 = alias %13
@@ -131,17 +123,12 @@ fn main() -> one %r3
     %108: %r3 = const 1
     return %108
   block3:
-    %21: %r1 = const 13
-    %22: %r1 = convert %21
-    %23: %r1 = const 2
-    %24: %r4 = binary.eq %22, %23
-    branch %24 -> block23 -> block20
+    jump -> block20
   block4:
     %107: %r3 = const 2
     return %107
   block5:
-    %37: %r1 = const 1
-    %38: %r1 = convert %37
+    %38: %r1 = const 1
     %39: %r0 = map %38 [0 => "Red", 1 => "Green", else "Blue"]
     %40: %r0 = const "Green"
     %41: %r0 = alias %39
@@ -247,9 +234,7 @@ fn main() -> one %r3
     %36: %r4 = unary.not %35
     branch %36 -> block6 -> block5
   block20:
-    %25: %r1 = const 13
-    %26: %r4 = binary.eq %22, %25
-    branch %26 -> block22 -> block21
+    jump -> block22
   block21:
     %27: %r0 = const "Go"
     jump -> block19(%27)
@@ -260,7 +245,7 @@ fn main() -> one %r3
     %29: %r0 = const "Stop"
     jump -> block19(%29)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 2
+optimizer clones 0 aliased 0 forwarded 0 removed 19 adopted 0 sunk 0 numbered 0 decided 2 unboxed 0 updated 0 split 0 promoted 2 folded 12
 
 rep %r0 = string
 rep %r1 = number unsigned 8

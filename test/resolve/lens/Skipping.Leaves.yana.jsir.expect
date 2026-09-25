@@ -76,11 +76,7 @@ fn main() -> one %r0
     %88: %r0 = binary.add %69, %87
     %89: %r0 = coerce %88
     %94: %r0 = const 1
-    %95: %r1 = const 1
-    %99: %r1 = alias %95
-    %100: %r1 = const 1
-    %101: %r7 = binary.eq %99, %100
-    branch %101 -> block12 -> block11
+    jump -> block12
   block5:
     jump -> block4(%74)
   block6:
@@ -113,12 +109,7 @@ fn main() -> one %r0
     %68: %r0 = binary.add %37, %67
     %69: %r0 = coerce %68
     %74: %r0 = const 7
-    %76: %r1 = const 0
-    %77: %r0 = const 0
-    %80: %r1 = alias %76
-    %81: %r1 = const 1
-    %82: %r7 = binary.eq %80, %81
-    branch %82 -> block6 -> block5
+    jump -> block5
   block10(%3: %r0):
     %105: %r0 = binary.add %89, %3
     %106: %r0 = coerce %105
@@ -130,7 +121,7 @@ fn main() -> one %r0
     %104: %r0 = alias %94
     jump -> block10(%104)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 32 adopted 0 sunk 0 numbered 0 decided 0 unboxed 2 updated 0 split 2 promoted 6
+optimizer clones 0 aliased 0 forwarded 0 removed 41 adopted 0 sunk 0 numbered 0 decided 2 unboxed 2 updated 0 split 2 promoted 6 folded 2
 
 shape %s0 object Outcome {$tag: %r1 tag, Proceed: %r0, Exit: %r0}
 shape %s1 cell {$v: %r0 box}

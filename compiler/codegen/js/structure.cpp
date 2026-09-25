@@ -2,7 +2,6 @@
 #include <cmath>
 #include <cstring>
 #include "../../resolve_ssa/js/name.h"
-#include "../../resolve/type.h"
 
 /*
  * JSIR -> structured JavaScript - Analysis-IR-JS.md §2.3's boundary, from below.
@@ -905,7 +904,22 @@ struct Structurer {
             case mir::BinaryOp::Or:  return plain(BinaryOp::Or);
             case mir::BinaryOp::Xor: return plain(BinaryOp::Xor);
             case mir::BinaryOp::Shl: return plain(BinaryOp::Shl);
-            case mir::BinaryOp::Shr: return plain(BinaryOp::Shr);
+
+            /*
+             * A narrow signed operand is held sign-extended and `>>>` shifts its 32-bit reading, so
+             * `-100 shr 1` at `I8` answered -50 where native answers 78 - scalar and lane alike,
+             * and in the shipping backend too (J149). Masked to the width first, which is the
+             * pattern native shifts; the coercion the converter puts after every operation then
+             * reads the result back at the type.
+             */
+            case mir::BinaryOp::Shr:
+                if(to.kind == JsRepKind::Number && to.domain == NumberDomain::Signed && to.bits < 32) {
+                    return binary(a, BinaryOp::Shr,
+                                  binary(a, BinaryOp::And, lhs, number(a, F64((U64(1) << to.bits) - 1))),
+                                  rhs);
+                }
+
+                return plain(BinaryOp::Shr);
             case mir::BinaryOp::Sar: return plain(BinaryOp::Sar);
             default: break;
         }
@@ -986,6 +1000,14 @@ struct Structurer {
      * between two integers this target holds identically has to emit *nothing* or every subscript
      * with an ordinary index pays a coercion.
      */
+    // The shape of `saturationRange` in `resolve/type.h`, which this file used to include for the
+    // struct alone - a JSIR program's widths are its `JsRep`'s and never an `IntType`'s (J150).
+    struct SaturationRange {
+        F64 low;
+        F64 high;
+        bool highIsExact;
+    };
+
     static SaturationRange saturationOf(const JsRep& rep) {
         auto bits = rep.bits >= 64 ? 64u : U32(rep.bits);
 

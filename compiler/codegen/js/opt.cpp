@@ -291,12 +291,25 @@ struct Names {
     HashMap<U32, U32> uses;
     HashSet<U32> assigned;
 
+    /*
+     * Which names own the target of a property or element write - `v.k = x`, `v[i] = x` - J156.
+     *
+     * What `foldInitializers` and `foldArrayElements` look for, as `assigned` is what
+     * `foldInitialValue` looks for: a declaration no write names cannot fold, and the three walks
+     * forward to find one were a quarter of `test/base`'s JavaScript compile - `mentionsStmt` over
+     * every statement to the name's first use, for every `var` of a long straight-line body.
+     * Asked before the walk and never instead of it. A rewrite in this round that creates a write
+     * the counts have not seen costs the fold one round, since the round that made it repeats.
+     */
+    HashSet<U32> stored;
+
     // Empties both tables, keeping what they grew into. The counting loops below run this to a
     // fixpoint and each round wants the counts from nothing - which used to mean a fresh pair of
     // tables per round per function, and this is the same statement without the allocations.
     void reset() {
         uses.reset();
         assigned.reset();
+        stored.reset();
     }
 
     U32 useCount(Name name) {
@@ -322,6 +335,11 @@ void countExpr(JsShared& g, JsPtr<Expr> pointer, Names& names) {
     } else if(expr->kind == Expr::Assign) {
         auto target = g.base[((AssignExpr*)expr)->target];
         if(target->kind == Expr::Var) names.assigned.add(((VarExpr*)target)->name.text);
+
+        auto owner = target->kind == Expr::Field ? g.base[((FieldExpr*)target)->object]
+                   : target->kind == Expr::Index ? g.base[((IndexExpr*)target)->array]
+                   : nullptr;
+        if(owner && owner->kind == Expr::Var) names.stored.add(((VarExpr*)owner)->name.text);
     }
 
     eachOperand(g, expr, [&](JsPtr<Expr>& operand, bool) { countExpr(g, operand, names); });
@@ -689,12 +707,13 @@ bool mentionsStmt(JsShared& g, JsPtr<Stmt> pointer, Name name);
  *    `var v = {a: x}` above `var x` is hoisted but unassigned, so the object holds `undefined`
  *    rather than the program failing.
  */
-bool foldInitializers(JsShared& g, StmtList& list, Size index) {
+bool foldInitializers(JsShared& g, StmtList& list, Size index, Names& names) {
     auto declaration = g.base[list.get(g.base, index)];
     if(declaration->kind != Stmt::Decl) return false;
 
     auto& decl = *(DeclStmt*)declaration;
     if(!decl.value || g.base[decl.value]->kind != Expr::Object) return false;
+    if(!names.stored.contains(decl.name.text)) return false;
 
     auto& object = *(ObjectExpr*)g.base[decl.value];
     auto changed = false;
@@ -897,12 +916,13 @@ ElementWrite elementWrite(JsShared& g, Stmt* stmt, Name name) {
  * routinely declared between the two - `foldInitialValue` crosses them for the same reason. A
  * statement with a body is where that stops: pricing what it does is a walk of its own.
  */
-bool foldArrayElements(JsShared& g, StmtList& list, Size index) {
+bool foldArrayElements(JsShared& g, StmtList& list, Size index, Names& names) {
     auto declaration = g.base[list.get(g.base, index)];
     if(declaration->kind != Stmt::Decl) return false;
 
     auto& decl = *(DeclStmt*)declaration;
     if(!decl.value || g.base[decl.value]->kind != Expr::Array) return false;
+    if(!names.stored.contains(decl.name.text)) return false;
 
     auto& array = *(ArrayExpr*)g.base[decl.value];
     auto changed = false;
@@ -1204,12 +1224,13 @@ bool mentionsStmt(JsShared& g, JsPtr<Stmt> pointer, Name name) {
  * expression, in any nested body, or in any closure. The assigned value does not move, so nothing
  * has to be said about what it would have crossed.
  */
-bool foldInitialValue(JsShared& g, StmtList& list, Size index) {
+bool foldInitialValue(JsShared& g, StmtList& list, Size index, Names& names) {
     auto declaration = g.base[list.get(g.base, index)];
     if(declaration->kind != Stmt::Decl) return false;
 
     auto& decl = *(DeclStmt*)declaration;
     if(decl.constant) return false;
+    if(!names.assigned.contains(decl.name.text)) return false;
     if(decl.value && !effectsOf(g, decl.value).inert()) return false;
 
     for(Size at = index + 1; at < list.size(); at++) {
@@ -3416,8 +3437,8 @@ bool optimizeList(JsShared& g, StmtList& list, Names& names, Ranges& ranges) {
             continue;
         }
 
-        if(foldInitializers(g, list, index) || foldArrayElements(g, list, index) ||
-           foldInitialValue(g, list, index)) {
+        if(foldInitializers(g, list, index, names) || foldArrayElements(g, list, index, names) ||
+           foldInitialValue(g, list, index, names)) {
             changed = true;
             continue;
         }

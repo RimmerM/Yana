@@ -237,6 +237,7 @@ Local* Resolver::bindPlainLocal(Builder& builder, const ast::VarDecl& binding, S
      * - which is a teardown of the lender's value at the end of this one.
      */
     auto local = builder.addLocal(name, valueOccurrence(value), binding.pat.source, writable);
+    if(binding.content) local->callNames = writtenNamesOf(builder, *parse[binding.content], &value);
 
     /*
      * And the constant it was established with, where it was one - see `Local::initial`. Only
@@ -364,9 +365,21 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
         auto initializer = parse[binding.content];
         Node* value = nullptr;
 
-        {
+        /*
+         * `let r = *p` - the pointee is a **place** (`resolvePlace`'s `Prefix` case), and a plain
+         * binding of a place borrows it, as `let r = x` and `let h = (*p).h` already did (J146). As
+         * a value, `*p` is the call `fn *(it: %a) -> a`, which answers an owned `a`: a copy of the
+         * pointee's bytes, refused for a type with a teardown by `readPlace`'s raw-memory rule -
+         * which is why J135's rule, reading the text, refused a line the shipping stage compiles and
+         * runs. `let &` and `let ->` still ask for the value, which is a copy and a move.
+         */
+        auto pointerRead = !writable && !sunk ? pointeeExpr(*initializer) : nullptr;
+        auto pointee = pointerRead ? resolvePlace(builder, *pointerRead, true, access) : nullptr;
+        if(pointerRead) {
+            if(pointee) value = readPlace(builder, initializer->source, *pointee, bindingRequest(access, writable));
+        } else {
             ObjectScope object(*this, initializer->source);
-            value = resolveValue(builder, *initializer, nullptr, bindingRequest(access, writable));
+            value = resolveValue(builder, *initializer, nullptr, bindingRequest(access, writable, sunk));
         }
 
         if(!value) {
@@ -419,6 +432,29 @@ static void mentioned(ast::ParseBase parse, ast::Expr& expr, HashMap<U32, U8>& s
     ast::visitChildren(parse, expr, [&](ast::Expr& child) {
         mentioned(parse, child, seen, into);
     });
+}
+
+/*
+ * Every name a pattern binds, its `as` names included - what a `let` of it puts in scope.
+ */
+static void patternNames(ast::ParseBase parse, ast::Pat& pat, SmallArray<StringId, 4>& into) {
+    if(pat.asVar) into.push(pat.asVar);
+
+    switch(pat.kind) {
+        case ast::Pat::Var: into.push(pat.var); break;
+        case ast::Pat::Tup:
+            for(auto field: pat.tup.contents(parse)) {
+                if(field.pat) patternNames(parse, *parse[field.pat], into);
+            }
+            break;
+        case ast::Pat::Con:
+            if(pat.con.pats) patternNames(parse, *parse[pat.con.pats], into);
+            break;
+        case ast::Pat::Arr:
+            for(auto element: pat.arr.contents(parse)) patternNames(parse, element, into);
+            break;
+        default: break;
+    }
 }
 
 /*
@@ -478,24 +514,32 @@ void Resolver::reportEmptyExtent(LocationId source, Function& callee) {
  * ownership passes report in the words they already have; it is not something an extent should
  * silently stretch to accommodate.
  */
-U32 Resolver::flatExtent(ast::ParseList<ast::Expr> statements, U32 count, U32 at, StringId handed) {
-    // Nothing was bound, so nothing can use it: `let _ = f(...)` and a bare `f(...)` are §11.3's
-    // empty extent, which the caller reports.
-    if(!handed) return at;
-
+U32 Resolver::flatExtent(ast::ParseList<ast::Expr> statements, U32 count, U32 at,
+                         const ast::Pat& handed) {
     HashMap<U32, U8> tracked;
     auto track = [&](StringId name) { (void)tracked.add(U32(name)); };
-    track(handed);
 
-    // What a statement binds for the block after it - null where it binds nothing. A `let ... in`
+    // Every name the hand-over's pattern binds, so `let {low, high} = split(x)` runs to the last use
+    // of either half. A name or `_` alone is the common case, and `_` binds nothing.
+    SmallArray<StringId, 4> handedNames;
+    patternNames(parse, const_cast<ast::Pat&>(handed), handedNames);
+
+    // Nothing was bound, so nothing can use it: `let _ = f(...)` and a bare `f(...)` are §11.3's
+    // empty extent, which the caller reports.
+    if(!handedNames.size()) return at;
+    for(auto name: handedNames) track(name);
+
+    // What a statement binds for the block after it - nothing where it binds nothing. A `let ... in`
     // scopes its name to its own body, so it binds nothing this block goes on to see, and a name
-    // that leaves no trace after the statement cannot be what a later one is reading.
+    // that leaves no trace after the statement cannot be what a later one is reading. A pattern
+    // binds every name under it, which over-approximates where a refutable one does not match and
+    // is safe for the reason `mentioned` gives.
     auto bound = [&](ast::Expr& statement, SmallArray<StringId, 4>& into) {
         if(statement.kind != ast::Expr::Decl) return;
 
         for(auto binding: statement.decl.contents(parse)) {
-            if(binding.in || binding.pat.kind != ast::Pat::Var) continue;
-            into.push(binding.pat.var);
+            if(binding.in) continue;
+            patternNames(parse, binding.pat, into);
         }
     };
 
@@ -690,8 +734,9 @@ Node* Resolver::resolveStatements(Builder& builder, ast::ParseList<ast::Expr> st
         if(statement.kind == ast::Expr::Decl && statement.decl.size() == 1) {
             auto& binding = *statement.decl.pointer(parse);
 
-            if(!binding.in && binding.content &&
-               (binding.pat.kind == ast::Pat::Var || binding.pat.kind == ast::Pat::Any)) {
+            // Any pattern: a destructuring `let {low, high} = split(x)` is a flat call whose
+            // continuation binds the pattern over what was handed across (`resolveLensCall`).
+            if(!binding.in && binding.content) {
                 auto& initializer = *parse[binding.content];
 
                 if(auto callee = lensCallee(initializer)) {
@@ -1013,8 +1058,7 @@ U32 Resolver::resolveBareLensCall(Builder& builder, ast::ParseList<ast::Expr> st
 U32 Resolver::resolveFlatLensCall(Builder& builder, ast::ParseList<ast::Expr> statements, U32 to,
                                   U32 at, const ast::VarDecl& binding, ast::Expr& call,
                                   const NamedCall& callee, bool wantValue) {
-    auto named = binding.pat.kind == ast::Pat::Var;
-    auto last = flatExtent(statements, to, at, named ? binding.pat.var : StringId());
+    auto last = flatExtent(statements, to, at, binding.pat);
 
     // §11.3 - an extent that covers nothing, which `reportEmptyExtent` states the rule of.
     if(last == at) {
@@ -1113,7 +1157,7 @@ Node* Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding, Dec
                     : writable  ? Access::Unique
                                 : Access::Shared;
 
-        auto value = resolveValue(builder, initializer, nullptr, bindingRequest(access, writable));
+        auto value = resolveValue(builder, initializer, nullptr, bindingRequest(access, writable, sunk));
         if(!value) return nullptr;
 
         // Storage even for `_`, because an owner lives in a place: the value is evaluated and its
@@ -1180,9 +1224,20 @@ bool Resolver::resolveLensCall(Builder& builder, const ast::VarDecl& binding, as
 
     auto named = binding.pat.kind == ast::Pat::Var;
 
+    // A pattern over what was handed across is bound inside the continuation, as a `for`'s is: the
+    // hand-over is the continuation's storage, and `bindIrrefutable` takes it apart through it.
     return handoverCall(builder, call, callee, Continuation::Once,
                         named ? binding.pat.var : StringId(), binding.pat.source, binding.alts,
-                        [&](ContinuationId, Block&, Local&) { resolveExtent(builder, extent); });
+                        [&](ContinuationId, Block&, Local& bound) {
+        if(!named && binding.pat.kind != ast::Pat::Any) {
+            if(!bindIrrefutable(builder, const_cast<ast::Pat&>(binding.pat), *builder.localPlace(bound),
+                                "a lens binding"_v)) {
+                return;
+            }
+        }
+
+        resolveExtent(builder, extent);
+    });
 }
 
 /*
@@ -1225,9 +1280,21 @@ bool Resolver::checkAlternatives(Function& callee, ast::ParseList<ast::Alt> alte
         return false;
     }
 
+    /*
+     * A pattern that takes the failure apart - `| Err {code, reason} -> ...` - since J139. It is
+     * held to the one-arm rule above by `resolveAlternative`'s `bindIrrefutable`: the arm has to
+     * cover everything the failure can be, since there is no second arm for the rest to go to.
+     *
+     * A failure of `{}` - `-> (T | {})`, which is what a `Maybe`-shaped skip is - carries nothing, so
+     * a pattern other than a name or `_` has no value to test and is reported for that rather than
+     * as a pattern that failed to cover one.
+     */
     auto only = alternatives.get(parse, 0);
-    if(only.pat.kind != ast::Pat::Var && only.pat.kind != ast::Pat::Any) {
-        unsupported(only.pat.source, "destructuring what a traversal failed with"_v);
+    if(only.pat.kind != ast::Pat::Var && only.pat.kind != ast::Pat::Any &&
+       callee.failure == program.types.unit) {
+        context.diagnostics.error(
+            "%@ fails with nothing, so there is no value for this pattern to test - write `| else -> ...`"_v,
+            only.pat.source, context.findName(callee.name));
         return false;
     }
 
@@ -1246,6 +1313,15 @@ void Resolver::resolveAlternative(Builder& builder, ast::Alt& alternative, Node&
 
     auto scope = bindings.size();
     if(named) bindLocal(alternative.pat.var, local);
+
+    // A destructuring arm - `checkAlternatives`. The reason is held in the unnamed local above and
+    // taken apart where it lies, exactly as a `for` binding takes apart what an iterator handed over.
+    if(!named && alternative.pat.kind != ast::Pat::Any &&
+       !bindIrrefutable(builder, alternative.pat, *builder.localPlace(*local),
+                        "a failure arm"_v)) {
+        bindings.resize(U32(scope));
+        return;
+    }
 
     resolveStatement(builder, alternative.expr);
 
@@ -1367,6 +1443,15 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& 
         return false;
     }
 
+    /*
+     * The descriptors an `@inline(n) @capacity(n)` array lent to a `&self: Array(a)` parameter
+     * needs, built now that every argument is (`buildInlineOwners`) and committed where the caller
+     * carries on - after the callee's cleanup, on falling out and on `break` alike. A `return`
+     * inside the region would leave before that, so `releaseHeld` refuses one.
+     */
+    SmallArray<InlineCommit, 2> commits;
+    if(!buildInlineOwners(builder, callee, arguments, typeArguments, source, commits, true)) return false;
+
     // What the arguments bound, which is what names the instance a class member's traversal is
     // served by - `namedCallee` recorded the declaration before there were any.
     recordCallee(nameSource, &callee - *program.decl, &typeArguments);
@@ -1471,6 +1556,7 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& 
 
     auto region = builder.enterRegion(Continuation::Handover, multiplicity);
     auto entry = builder.addBlock(StringId());
+    if(commits.size()) inlineRegions.push(&builder);
 
     // Nothing the enclosing expression is holding crosses into the region - `Resolver::heldFloor`,
     // where the reason is written. Restored below, immediately after `leaveRegion`, so that the
@@ -1563,6 +1649,7 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& 
     builder.leaveRegion();
     heldFloor = outerHeld;
     heldStranded = outerStranded;
+    if(commits.size()) inlineRegions.pop();
 
     /*
      * Falling off the end of the extent - the implicit `continue`, and the one place a resume
@@ -1622,6 +1709,9 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, const NamedCall& 
                                                      bindingRequest(Access::Owned));
         }
     }
+
+    // The count back into the record, after the callee's cleanup - see above.
+    if(commits.size() && !builder.isTerminated() && !flushInlineCommits(builder, commits)) return false;
 
     // A departure inside the region left the region and no more, so the iterator asks again here -
     // one level of loops per rejoin, which is what makes a departure through three adaptors leave
@@ -2298,6 +2388,17 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
 
     auto subscripted = under->kind == ast::Expr::Sub && !parse[under->sub]->args.isEmpty() &&
                        parse[under->sub]->args.get(parse, 0).value.kind != ast::Expr::Range;
+
+    // `xs[a..b] = ys`, the target itself a range. A range of an array is a window - a value naming
+    // someone else's storage - so there is no place for the assignment to write. Refused by that
+    // rather than reached as an expression with no assignment form; a *path* under one,
+    // `xs[a..b].f = v`, is the same mistake one step removed and is left to the place walk.
+    if(steps.isEmpty() && under->kind == ast::Expr::Sub && !parse[under->sub]->args.isEmpty() &&
+       parse[under->sub]->args.get(parse, 0).value.kind == ast::Expr::Range) {
+        context.diagnostics.error("a range of an array cannot be assigned to - `xs[a..b]` produces a slice, which is a value naming someone else's storage"_v,
+                                  written.target.source);
+        return;
+    }
 
     // The element type the right-hand side is read against, which for a bare subscript is the
     // element's own. Null where the steps say nothing this walk can follow.
@@ -3013,6 +3114,17 @@ void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExp
         // nothing the name reaches is a traversal at all.
         if(context.diagnostics.errorCount() != before) return;
 
+        // The right name at the wrong arity, which is the ordinary call's second message: the name
+        // is a traversal's and the count is what is wrong. Said with the loop's own reason, since a
+        // lens call site's "the block is the missing argument" does not apply - a loop always
+        // supplies its body, so every argument the iterator declares is written in the call.
+        if(site && hasFunctionName(context, program, here(), site.name)) {
+            context.diagnostics.error(
+                "no %@ takes %@ arguments - a `for` supplies the loop body itself, so every argument the iterator declares is written in the call"_v,
+                loop.from.source, context.findName(site.name), U64(site.arity));
+            return;
+        }
+
         context.diagnostics.error(
             "`for` runs a call of a named `iter fn`, and no rule finds one from the type of a value - name the traversal, as in `for x in items(xs)`"_v,
             loop.from.source);
@@ -3034,6 +3146,15 @@ void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExp
                 loop.from.source, name);
         }
 
+        return;
+    }
+
+    // A traversal that hands over nothing gives the loop's pattern nothing to bind. `_` asks for
+    // nothing and is the spelling of a loop run for its steps alone.
+    if(loop.pat.kind != ast::Pat::Any && sameType(callee->handover.type, program.types.unit)) {
+        context.diagnostics.error(
+            "this iterator hands over nothing, so the loop's pattern has nothing to bind - write `for _ in %@(...)` to run it for its steps, or declare what it yields"_v,
+            loop.pat.source, context.findName(callee->name));
         return;
     }
 
@@ -3592,6 +3713,8 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
         return;
     }
 
+    value = holdReturned(builder, *value, expr.source);
+
     if(!checkResultContract(*value, expr.source)) {
         builder.addUnreachable(expr.source);
         return;
@@ -3601,6 +3724,29 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
     // `releaseHeld`, where the order is argued.
     releaseHeld(builder, nullptr, expr.source);
     builder.addReturn(expr.source, *value);
+}
+
+/*
+ * A value with no storage at a result naming an origin - `return copy(xs[0]) + 1` or `return 5`
+ * under `-> s'Int` - held in the temporary an argument at such a position gets (`holdBorrowed`), so
+ * that the loan checker sees the result rooted in it and says "this result refers to a temporary"
+ * (J162). Without it the loan check saw a bare register rooted in nothing, accepted it, and the
+ * native lowering then failed on the address it could not take - an internal error at 1:1.
+ *
+ * Two values are left as they are. A **host handle** (`Ownership::hostHandle`, JavaScript only):
+ * `String.slice`'s JavaScript body answers the host's own copy at `-> source'String`, which
+ * Analysis-IR-JS.md §3.2.2 argues is unobservable - an immutable value aliases less than the window
+ * it stands for, and the host collects it - and `checkResultContract` accepts it. And a value that
+ * owes a **teardown**, which `checkResultContract` refuses with the sentence that says what is wrong
+ * with it: nothing would release it. Natively a `String` is the second, so the same body is refused
+ * there as it always was.
+ */
+Node* Resolver::holdReturned(Builder& builder, Node& value, LocationId source) {
+    auto& function = *currentFunction;
+    auto& occurrence = valueOccurrence(value);
+    if(ownershipOf(decl(), function.result.type).hostHandle) return &value;
+    if(occurrence.contract.isOwned() && hasTeardown(decl(), occurrence.type)) return &value;
+    return holdBorrowed(builder, value, requestOf(function.result), function.result.type, source);
 }
 
 /*
@@ -3630,6 +3776,11 @@ bool Resolver::checkResultContract(Node& value, LocationId source) {
     /*
      * An **owned value at a borrowed result** - Analysis-IR-JS.md part 12.3's second open question,
      * settled here on 2026-09-21.
+     *
+     * Since J162 only a **host handle** reaches this with no teardown: every other owned value at a
+     * result naming an origin was held in a temporary by `holdReturned`, and the loan checker says
+     * the result refers to it - a scalar at `-> s'Int` is an address natively, and a value with no
+     * storage has none to give (J147's "Temporaries").
      *
      * Accepted where the value owes **no teardown**, and refused otherwise. The caller receives what
      * it believes is a loan of `source`, so it releases nothing; a value with a teardown would
@@ -3788,6 +3939,7 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
         readingConstant = !startup;
         auto outerProbing = probingGlobal;
         probingGlobal = startup;
+        DeclaredLiteral declared { *this, *parse[binding.content], "a global's initializer"_v };
         auto constant = resolveConstant(*parse[binding.content], nullptr, &notConstant);
         readingConstant = false;
         probingGlobal = outerProbing;
@@ -4225,6 +4377,7 @@ void Resolver::resolveProgramEntry() {
     auto entry = new (program.decl) Function(symbol, program.root());
     entry->source = topLevel[0].source;
     entry->summary.bodyKnown = true;
+    entry->once = true;
     entry->result = owned(main ? decl()[main]->result.type : program.types.unit);
 
     auto pointer = DeclPtr<Function>(entry - *program.decl);
@@ -4295,6 +4448,11 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
      */
     if(function.bodyState != Function::BodyState::Unread) return;
     function.bodyState = Function::BodyState::Reading;
+
+    // A reservation `adaptInlineOwner` filed is built by the call it belongs to - only a call that
+    // failed part way leaves one, and it is this body's to discard (a body demanded in the middle of
+    // another's argument list returns to that list's own).
+    auto inlineOwnersAtEntry = inlineOwners.size();
 
     // What this body reports, told apart from what the file reported before it - see `ErrorMark`.
     BodyQuiet quiet(*this);
@@ -4475,6 +4633,7 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
                       (value = coerce(builder, *value, function.result.type, expr.source,
                                       "a returned value"_v,
                                       function.result.contract.access())) &&
+                      (value = holdReturned(builder, *value, expr.source)) &&
                       checkResultContract(*value, expr.source)) {
                 builder.addReturn(expr.source, *value);
             }
@@ -4516,6 +4675,8 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     // not a property of the text.
     checkForced(builder, function);
 
+    if(function.authoredReclaim) checkReclaimShape(function);
+
     builder.seal();
 
     bindings.resize(outerBindings);
@@ -4544,6 +4705,9 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     if(recovering(context) && (mark.reported() || quietErrors != mark.quietErrorsBefore)) {
         function.mir = nullptr;
     }
+
+    assertTrue(inlineOwners.size() >= inlineOwnersAtEntry);
+    inlineOwners.resize(U32(inlineOwnersAtEntry));
 }
 
 /*
@@ -4692,6 +4856,191 @@ void Resolver::resolveInstanceBody(Instance& instance, ast::Decl& declaration) {
  * at the declaration, so that the attribute is a directive: a body that carries it grafts at every
  * call, or does not compile.
  */
+/*
+ * An authored `Reclaim` - ownership.md's "Authored teardown": control flow, arithmetic over its own
+ * metadata, reads of storage it owns, the per-member teardown, and storage release, **and no other
+ * call**.
+ *
+ * The reason is the region: closing one discharges every `Reclaim` inside it in bulk, and on the
+ * JavaScript target a `Reclaim` compiles to nothing, so an effect in one would run at a point the
+ * program never chose - or not at all. The author is trusted about "I call nothing else" and this is
+ * the walk that holds them to it, over the callees of the resolved body rather than over the text:
+ *
+ *  - a **teardown** - `Drop` or `Reclaim` of a member, which the element types decide;
+ *  - **storage release** - the `releaseRun` and `freeHeap` roles, `known.def`;
+ *  - anything the **compiler provides** that stays inside the program's memory - an intrinsic
+ *    (`*p`, `p + i`, `hostRead`) or a generated instance at a width (`value.length :: Int`), which is
+ *    arithmetic and reading. The intrinsics that reach *outside* it - a system call, a host call, a
+ *    thread or stack switch, port I/O, a privileged instruction, a volatile access - are effects
+ *    and are refused like any other (`reachesOutside`, J146);
+ *  - a **class member**, selected at the instance: the operators a body generic in its element
+ *    type writes. What a member does is the instance's business and not this body's, which is the
+ *    same trust the spec extends to the members' own teardowns.
+ *
+ * Refused besides a callee outside the set (J146, which found the first version looked at direct
+ * calls only): a **lens call**, whose callee's own body runs around the block; a call through a
+ * **function value** - a closure, a field holding one - whose callee nothing here can name; and a
+ * **write to a global**, which is the effect "somewhere the program never asked for" in its plainest
+ * form.
+ *
+ * A helper of the container's own is not a way through - `closeLedger(value)` is one more callee
+ * outside the set, which is `Reject.Container.yana`'s second case. The check is one level deep for
+ * that reason: a walk into callees would have to decide which helpers are "release", which is the
+ * question the roles answer.
+ */
+static bool reachesOutside(intrinsic::Op op) {
+    using intrinsic::Op;
+    switch(op) {
+        case Op::syscall0: case Op::syscall1: case Op::syscall2: case Op::syscall3:
+        case Op::syscall4: case Op::syscall5: case Op::syscall6:
+        case Op::cloneThread: case Op::stackInit: case Op::stackSwitch:
+        case Op::hostCall0: case Op::hostCall1: case Op::hostCall2: case Op::hostCall3:
+        case Op::hostThrow: case Op::volatileLoad: case Op::volatileStore:
+        case Op::x86Lretq: case Op::x86Invlpg: case Op::x86Hlt: case Op::x86Cli: case Op::x86Sti:
+        case Op::x86Swapgs: case Op::x86Rdmsr: case Op::x86Wrmsr:
+        case Op::x86In8: case Op::x86In16: case Op::x86In32:
+        case Op::x86Out8: case Op::x86Out16: case Op::x86Out32: case Op::x86Ins32: case Op::x86Outs32:
+        case Op::x86Interrupt: case Op::x86Lidt: case Op::x86Lgdt:
+        case Op::x86MovDs: case Op::x86MovEs: case Op::x86MovFs: case Op::x86MovGs: case Op::x86MovSs:
+        case Op::x86WriteCr0: case Op::x86WriteCr3: case Op::x86WriteCr4:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// The same, for what an intrinsic call became - a `Native` node for a `Node`-form role such as
+// `syscall1`, a `Host` node for a JavaScript host operation.
+static bool reachesOutside(NativeOp op) {
+    switch(op) {
+        case NativeOp::Syscall: case NativeOp::CloneThread: case NativeOp::StackInit:
+        case NativeOp::StackSwitch: case NativeOp::X86Lretq: case NativeOp::X86Clflush:
+        case NativeOp::X86Invlpg: case NativeOp::X86Hlt: case NativeOp::X86Cli: case NativeOp::X86Sti:
+        case NativeOp::X86Swapgs: case NativeOp::X86Rdmsr: case NativeOp::X86Wrmsr:
+        case NativeOp::X86In8: case NativeOp::X86In16: case NativeOp::X86In32:
+        case NativeOp::X86Out8: case NativeOp::X86Out16: case NativeOp::X86Out32:
+        case NativeOp::X86Ins32: case NativeOp::X86Outs32: case NativeOp::X86Interrupt:
+        case NativeOp::X86Lidt: case NativeOp::X86Lgdt: case NativeOp::X86MovDs: case NativeOp::X86MovEs:
+        case NativeOp::X86MovFs: case NativeOp::X86MovGs: case NativeOp::X86MovSs:
+        case NativeOp::X86WriteCr0: case NativeOp::X86WriteCr3: case NativeOp::X86WriteCr4:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static bool reachesOutside(HostOp op) {
+    return op == HostOp::Call || op == HostOp::Global || op == HostOp::Throw;
+}
+
+void Resolver::checkReclaimShape(Function& function) {
+    if(!function.mir) return;
+
+    auto& body = *(*program.mir)[function.mir];
+    auto base = *program.mir;
+
+    auto refuse = [&](LocationId source, const String& what) {
+        context.diagnostics.error(
+            "an authored `Reclaim` may only release storage - it cannot %@, because a region discharges every `Reclaim` inside it in bulk and this would then run somewhere the program never asked for. Write a `Drop` for an effect that has to happen at last use"_v,
+            source, what);
+    };
+
+    /*
+     * The storage an operand names, when it is a global's - directly or through the `Read` a call
+     * argument is. `unique` asks for an exclusive loan of it as well, which is a write by whoever it
+     * is lent to.
+     *
+     * **An effect, not a statement** (J162). J146 refused a `Write` rooted in a global and nothing
+     * else, so `counter += 1` - a call to `+=`, which takes its left side `&` - was "cannot call +="
+     * and `*(bitcast(addressOf(counter)) :: %I64) = ...` got through altogether. The two doors a
+     * write reaches a global by are an exclusive loan handed to a callee and an address taken of it,
+     * and both are refused here as the write they are.
+     */
+    auto globalOperand = [&](Operand operand, bool unique) -> bool {
+        if(operand.source() == SourceKind::Result) {
+            auto producer = body.node(base, operand.nodeId());
+            if(!producer || producer->kind != Node::Read) return false;
+            operand = ((NodeRead*)producer)->place;
+        }
+
+        if(operand.source() != SourceKind::Place) return false;
+        if(unique && operand.mode() != UseMode::BorrowUnique) return false;
+
+        auto place = body.place(base, operand.placeId());
+        return place && rootPlace(base, *place).kind == Place::Global;
+    };
+
+    for(U32 i = 0; i < body.blocks.size(); i++) {
+        auto block = body.block(base, BlockId(i));
+        for(auto pointer: block->nodes.contents(base)) {
+            auto& node = *base[pointer];
+
+            if(isLensCall(node.kind)) {
+                auto& call = (NodeLensCall&)node;
+                refuse(call.source, Tritium::format("call the lens %@", context.findName(decl()[call.callee]->name)));
+                continue;
+            }
+
+            if(node.kind == Node::Address && globalOperand(((NodeAddress&)node).of, false)) {
+                refuse(node.source, String("take the address of a global, which writes it by another name"));
+                continue;
+            }
+
+            if(node.kind == Node::Write) {
+                auto& write = (NodeWrite&)node;
+                if(write.destination.source() != SourceKind::Place) continue;
+
+                auto& root = rootPlace(base, *body.place(base, write.destination.placeId()));
+                if(root.kind == Place::Global) refuse(write.source, String("write a global"));
+                continue;
+            }
+
+            if(node.kind == Node::Native && reachesOutside(((NodeNative&)node).op)) {
+                refuse(node.source, Tritium::format("run `%@`", nativeOpName(((NodeNative&)node).op)));
+                continue;
+            }
+
+            if(node.kind == Node::Host && reachesOutside(((NodeHost&)node).op)) {
+                refuse(node.source, Tritium::format("run `%@`", hostOpName(((NodeHost&)node).op)));
+                continue;
+            }
+
+            if(node.kind != Node::Call) continue;
+
+            auto& call = (NodeCall&)node;
+
+            auto lendsGlobal = false;
+            for(auto argument: call.arguments.contents(base)) lendsGlobal |= globalOperand(argument, true);
+            if(lendsGlobal) {
+                refuse(call.source, String("write a global"));
+                continue;
+            }
+
+            auto callee = call.callee ? decl()[call.callee] : nullptr;
+            if(!callee) {
+                refuse(call.source, String("call a function value, whose callee nothing names"));
+                continue;
+            }
+
+            auto released = program.roles.function(intrinsic::Known::releaseRun) == call.callee ||
+                            program.roles.function(intrinsic::Known::freeHeap) == call.callee;
+
+            if(callee->intrinsic != intrinsic::Op::Count && reachesOutside(callee->intrinsic)) {
+                refuse(call.source, Tritium::format("call %@", context.findName(callee->name)));
+                continue;
+            }
+
+            if(released || callee->teardown || callee->klass ||
+               callee->intrinsic != intrinsic::Op::Count ||
+               callee->provided != intrinsic::Provided::Count) {
+                continue;
+            }
+
+            refuse(call.source, Tritium::format("call %@", context.findName(callee->name)));
+        }
+    }
+}
+
 void Resolver::checkAlwaysInline(Function& function, LocationId source) {
     auto refuse = [&](StringView what) {
         context.diagnostics.error("`@inline(always)` cannot expand %@ where it is called"_v,

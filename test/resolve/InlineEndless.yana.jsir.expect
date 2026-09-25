@@ -37,10 +37,9 @@ fn main() -> one %r0
     %17: %r0 = coerce %16
     %18: %r0 = binary.add %10, %17
     %19: %r0 = coerce %18
-    %20: %r0 = load global seed: %r0
-    %21: %r0 = const 1000000
-    %22: %r1 = binary.gt %20, %21
-    branch %22 -> block5 -> block4
+    %20: %r0 = const 1000000
+    %21: %r1 = binary.gt %11, %20
+    branch %21 -> block5 -> block4
   block2:
     %4: %r0 = const 2
     %5: %r0 = binary.mul %1, %4
@@ -50,17 +49,17 @@ fn main() -> one %r0
     %7: %r0 = call endless %1
     jump -> block1(%7)
   block4:
-    %23: %r0 = const 15
-    %24: %r0 = binary.mul %20, %23
-    %25: %r0 = coerce %24
-    %26: %r0 = binary.add %19, %25
-    %27: %r0 = coerce %26
-    return %27
+    %22: %r0 = const 15
+    %23: %r0 = binary.mul %11, %22
+    %24: %r0 = coerce %23
+    %25: %r0 = binary.add %19, %24
+    %26: %r0 = coerce %25
+    return %26
   block5:
-    %28: %r0 = call spins
+    %27: %r0 = call spins
     unreachable
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 0
 
 rep %r0 = number signed 32
 rep %r1 = number bool

@@ -1,0 +1,16 @@
+-- Adding to a type this module does not declare - doc/spec/modules.md, "Namespaces", and the second
+-- half of `Reject.Namespace.yana`, whose other line is a parse error and would hide this one.
+--
+-- `String` is Core's, so this module may not add to it: a dot-call reaches the receiver's own
+-- namespace, and a type's methods have to be one set, or `x.f(y)` would mean different things in
+-- two files depending on what each imported. The plain dot-call form, which is scoped to the file
+-- that wrote the import, is what remains for adding an operation to a foreign type.
+--
+-- # resolver: ownership
+
+fn String.mine(self: String) -> Int = 1
+
+-- Not an error: a prefix that names nothing is a plain namespace (`lib/Namespace.yana`).
+fn Mine.twice(x: Int) -> Int = x * 2
+
+fn main() -> Int = Mine.twice(0)

@@ -12,27 +12,14 @@ bb0(%0: Point [unique call] guaranteed):
 
 fn branched(a: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
-  %2: %Point address = alloc frame Point
   %5: I32 trivial = const 1
   %6: I32 trivial = add inspect %0 inspect %5
   %7: Point trivial = aggregate.Point consume %0 consume %6
-  store inspect %2 consume %7
   %9: I32 trivial = const 0
   %10: Bool trivial = gt inspect %0 inspect %9
-  branch inspect %10 -> bb3 -> bb1
-
-bb1:
-  %11: %I32 address = field.addr .y inspect %2
-  %12: I32 trivial = load inspect %11
-  return consume %12
-
-bb3:
-  %13: %I32 address = field.addr .x inspect %2
-  %14: I32 trivial = load inspect %13
-  %15: %I32 address = field.addr .y inspect %2
-  %16: I32 trivial = load inspect %15
-  %17: I32 trivial = add inspect %14 inspect %16
-  return consume %17
+  %17: I32 trivial = add inspect %0 inspect %6
+  %18: I32 trivial = select inspect %10 inspect %17 inspect %6
+  return consume %18
 }
 
 fn partial(a: I32 [shared call]) -> I32 {
@@ -155,33 +142,17 @@ bb3:
 
 fn nested(a: I32 [shared call]) -> I32 {
 bb0(%0: I32 trivial):
-  %2: %Outer address = alloc frame Outer
   %5: I32 trivial = const 1
   %6: I32 trivial = add inspect %0 inspect %5
   %7: Point trivial = aggregate.Point consume %0 consume %6
   %8: I32 trivial = const 5
   %9: Outer trivial = aggregate.Outer consume %7 consume %8
-  store inspect %2 consume %9
   %11: I32 trivial = const 0
   %12: Bool trivial = gt inspect %0 inspect %11
-  branch inspect %12 -> bb3 -> bb1
-
-bb1:
-  %13: %I32 address = field.addr .tag inspect %2
-  %14: I32 trivial = load inspect %13
-  return consume %14
-
-bb3:
-  %15: %Point address = field.addr .inner inspect %2
-  %16: %I32 address = field.addr .x inspect %15
-  %17: I32 trivial = load inspect %16
-  %19: %I32 address = field.addr .y inspect %15
-  %20: I32 trivial = load inspect %19
-  %21: I32 trivial = add inspect %17 inspect %20
-  %22: %I32 address = field.addr .tag inspect %2
-  %23: I32 trivial = load inspect %22
-  %24: I32 trivial = add inspect %21 inspect %23
-  return consume %24
+  %21: I32 trivial = add inspect %0 inspect %6
+  %24: I32 trivial = add inspect %21 inspect %8
+  %25: I32 trivial = select inspect %12 inspect %24 inspect %8
+  return consume %25
 }
 
 fn escaped(a: I32 [shared call]) -> I32 {
@@ -205,9 +176,8 @@ bb2:
 bb3:
   %14: Point [unique call] guaranteed from{%2} = load inspect %2
   %15: %I32 address = field.addr .x inspect %14
-  %16: I32 trivial = load inspect %15
   %17: I32 trivial = const 1
-  %18: I32 trivial = add inspect %16 inspect %17
+  %18: I32 trivial = add inspect %0 inspect %17
   store inspect %15 consume %18
   jump -> bb2
 }
@@ -215,81 +185,81 @@ bb3:
 fn main() -> I32 {
 bb0:
   %0: I32 trivial = const 2
-  %132: I32 trivial = const 3
-  %24: Point trivial = aggregate.Point consume %0 consume %132
-  %36: I32 trivial = const 1
-  %37: I32 trivial = const 2
-  %38: Point trivial = aggregate.Point consume %36 consume %37
-  %50: I32 trivial = const 0
-  %51: I32 trivial = const 7
-  %52: Point trivial = aggregate.Point consume %50 consume %51
-  %144: I32 trivial = const 53
+  %114: I32 trivial = const 3
+  %22: Point trivial = aggregate.Point consume %0 consume %114
+  %29: I32 trivial = const 1
+  %30: I32 trivial = const 2
+  %31: Point trivial = aggregate.Point consume %29 consume %30
+  %43: I32 trivial = const 0
+  %44: I32 trivial = const 7
+  %45: Point trivial = aggregate.Point consume %43 consume %44
+  %129: I32 trivial = const 53
   %8: I32 trivial = const 3
-  %69: I32 trivial = const 3
-  %70: I32 trivial = const 4
-  %71: Point trivial = aggregate.Point consume %69 consume %70
-  %72: I32 trivial = const 0
-  %73: I32 trivial = const 0
-  %74: I32 trivial = const 12
-  %75: I32 trivial = const 1
-  jump -> bb21(inspect %72, inspect %73)
+  %62: I32 trivial = const 3
+  %63: I32 trivial = const 4
+  %64: Point trivial = aggregate.Point consume %62 consume %63
+  %65: I32 trivial = const 0
+  %66: I32 trivial = const 0
+  %67: I32 trivial = const 12
+  %68: I32 trivial = const 1
+  jump -> bb16(inspect %65, inspect %66)
 
-bb21(%67: I32 trivial, %68: I32 trivial):
-  %76: Bool trivial = lt inspect %68 inspect %8
-  branch inspect %76 -> bb23 -> bb22
+bb16(%60: I32 trivial, %61: I32 trivial):
+  %69: Bool trivial = lt inspect %61 inspect %8
+  branch inspect %69 -> bb18 -> bb17
 
-bb22:
-  %10: I32 trivial = add inspect %144 inspect %67
+bb17:
+  %10: I32 trivial = add inspect %129 inspect %60
   %11: I32 trivial = const 4
-  %81: %Point address = alloc frame Point
-  %82: I32 trivial = const 0
-  %83: I32 trivial = const 5
-  %84: Point trivial = aggregate.Point consume %82 consume %83
-  store inspect %81 consume %84
-  %85: I32 trivial = const 0
-  %86: I32 trivial = const 1
-  jump -> bb27(inspect %85)
+  %74: %Point address = alloc frame Point
+  %75: I32 trivial = const 0
+  %76: I32 trivial = const 5
+  %77: Point trivial = aggregate.Point consume %75 consume %76
+  store inspect %74 consume %77
+  %78: I32 trivial = const 0
+  %79: I32 trivial = const 1
+  jump -> bb22(inspect %78)
+
+bb18:
+  %70: I32 trivial = add inspect %60 inspect %67
+  %71: I32 trivial = add inspect %61 inspect %68
+  jump -> bb16(inspect %70, inspect %71)
+
+bb22(%73: I32 trivial):
+  %80: Bool trivial = lt inspect %73 inspect %11
+  branch inspect %80 -> bb24 -> bb23
 
 bb23:
-  %77: I32 trivial = add inspect %67 inspect %74
-  %78: I32 trivial = add inspect %68 inspect %75
-  jump -> bb21(inspect %77, inspect %78)
-
-bb27(%80: I32 trivial):
-  %87: Bool trivial = lt inspect %80 inspect %11
-  branch inspect %87 -> bb29 -> bb28
-
-bb28:
-  %88: %I32 address = field.addr .x inspect %81
-  %89: I32 trivial = load inspect %88
-  %13: I32 trivial = add inspect %10 inspect %89
+  %81: %I32 address = field.addr .x inspect %74
+  %82: I32 trivial = load inspect %81
+  %13: I32 trivial = add inspect %10 inspect %82
   %14: I32 trivial = const 2
-  %137: I32 trivial = const 3
-  %100: Point trivial = aggregate.Point consume %14 consume %137
-  %101: I32 trivial = const 5
-  %102: Outer trivial = aggregate.Outer consume %100 consume %101
+  %120: I32 trivial = const 3
+  %91: Point trivial = aggregate.Point consume %14 consume %120
+  %92: I32 trivial = const 5
+  %93: Outer trivial = aggregate.Outer consume %91 consume %92
   %17: I32 trivial = const 5
-  %117: %Point address = alloc frame Point
-  %118: I32 trivial = const 1
-  %119: Point trivial = aggregate.Point consume %17 consume %118
-  store inspect %117 consume %119
-  %122: Point [unique call] guaranteed from{%117} = load inspect %117
-  %123: %I32 address = field.addr .x inspect %122
-  %147: I32 trivial = const 6
-  store inspect %123 consume %147
-  %149: I32 trivial = const 17
-  %150: I32 trivial = add inspect %13 inspect %149
-  return consume %150
+  %100: %Point address = alloc frame Point
+  %101: I32 trivial = const 1
+  %102: Point trivial = aggregate.Point consume %17 consume %101
+  store inspect %100 consume %102
+  %105: Point [unique call] guaranteed from{%100} = load inspect %100
+  %106: %I32 address = field.addr .x inspect %105
+  %125: I32 trivial = const 6
+  store inspect %106 consume %125
+  %131: I32 trivial = const 17
+  %132: I32 trivial = add inspect %13 inspect %131
+  return consume %132
 
-bb29:
-  %90: %I32 address = field.addr .x inspect %81
-  %91: I32 trivial = load inspect %90
-  %92: %I32 address = field.addr .y inspect %81
-  %93: I32 trivial = load inspect %92
-  %94: I32 trivial = add inspect %91 inspect %93
-  store inspect %90 consume %94
-  %95: I32 trivial = add inspect %80 inspect %86
-  jump -> bb27(inspect %95)
+bb24:
+  %83: %I32 address = field.addr .x inspect %74
+  %84: I32 trivial = load inspect %83
+  %85: %I32 address = field.addr .y inspect %74
+  %86: I32 trivial = load inspect %85
+  %87: I32 trivial = add inspect %84 inspect %86
+  store inspect %83 consume %87
+  %88: I32 trivial = add inspect %73 inspect %79
+  jump -> bb22(inspect %88)
 }
 
 entry main

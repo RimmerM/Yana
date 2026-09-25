@@ -35,6 +35,11 @@ fn deep1(n: 'Int) -> L1 = L1 {r: n}
 fn deep2(n: Cell) -> L2 = L2 {a: deep1(n.value)}
 
 -- The same through two calls, so the relation is transitive rather than one level deep.
+--
+-- `deep3` itself is refused too, since J147, and rightly: `L2 {a: 'L1}` refers to an `L1`, and the
+-- one `deep1(n)` answers has no storage of its own - it is a temporary of `deep3`'s frame, which is
+-- gone when `deep3` returns. Before J147 that temporary was made after the loan check and this line
+-- returned the address of a dead slot. `deep4` is still reported for its own reason.
 fn deep3(n: 'Int) -> L2 = L2 {a: deep1(n)}
 
 fn deep4(n: Cell) -> L3 = L3 {a: deep3(n.value)}

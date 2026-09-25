@@ -428,6 +428,21 @@ struct NodeVecShuffle: NodeResult {
     // number past the first vector's lanes means is stated.
     MirList<U8, false> pattern;
 
+    /*
+     * A rearrangement in a body that cannot count its lanes - a const-generic `Vec(a, n)`, or the
+     * natural form of a variable lane. The pattern is empty and the SSA conversion writes it once
+     * the substitution has made the count a number, as it does `VecIota`'s chain: `reverse` since
+     * J142, and the three other pure rearrangements whose pattern is a function of the count and a
+     * constant since J143 (`deferredLanePattern`, which both ends call). `amount` is the constant -
+     * a rotation's distance, an aligned window's start.
+     */
+    enum class Deferred: U8 { None, Reverse, Rotate, Align, InterleaveLow, InterleaveHigh };
+
+    Deferred deferred = Deferred::None;
+    I64 amount = 0;
+
+    bool reversed() const { return deferred == Deferred::Reverse; }
+
     template<class F> void eachOperand(MirBase, F&& f) {
         f(left, OperandRole::Argument);
         f(right, OperandRole::Argument);
@@ -435,6 +450,53 @@ struct NodeVecShuffle: NodeResult {
 
     template<class F> void eachEdge(MirBase, F&&) {}
 };
+
+/*
+ * The pattern of a deferred rearrangement at `lanes` - `NodeVecShuffle::Deferred`. One function
+ * because the expansion writes the same pattern where the count is known and the SSA conversion
+ * where it arrives with the substitution, and two spellings of a rotation could come to disagree.
+ *
+ * False where the pattern names lanes that are not there - an aligned window starting past the pair,
+ * which the expansion reports where the count is known and the conversion where it is not.
+ */
+template<class F>
+bool deferredLanePattern(NodeVecShuffle::Deferred kind, U32 lanes, I64 amount, F&& push) {
+    using D = NodeVecShuffle::Deferred;
+
+    switch(kind) {
+        case D::None:
+            return true;
+        case D::Reverse:
+            for(U32 i = 0; i < lanes; i++) push(U8(lanes - 1 - i));
+            return true;
+        case D::Rotate: {
+            auto by = amount % I64(lanes);
+            if(by < 0) by += I64(lanes);
+            for(U32 i = 0; i < lanes; i++) push(U8((I64(i) + by) % I64(lanes)));
+            return true;
+        }
+        case D::Align:
+            // `above` is operand zero and `below` operand one, so the concatenation's lane `k` is
+            // pattern entry `k + lanes` below the count and `k - lanes` above it.
+            if(amount < 0 || amount > I64(lanes)) return false;
+            for(U32 i = 0; i < lanes; i++) {
+                auto k = I64(i) + amount;
+                push(U8(k < I64(lanes) ? k + I64(lanes) : k - I64(lanes)));
+            }
+            return true;
+        case D::InterleaveLow:
+        case D::InterleaveHigh: {
+            auto start = kind == D::InterleaveHigh ? lanes / 2 : 0;
+            for(U32 i = 0; i < lanes; i++) {
+                auto half = start + i / 2;
+                push(U8(i % 2 ? lanes + half : half));
+            }
+            return true;
+        }
+    }
+
+    return false;
+}
 
 /*
  * The lane numbers `0, 1, ... n - 1` of a vector this body cannot count - inst.def's `VecIota` row.
@@ -625,6 +687,11 @@ struct NodeAggregate: NodeResult {
      * conversion is the first point that can count the slots, and it repeats the one operand there.
      */
     bool fill = false;
+
+    // A fixed array supplied only its first components - `InlineArray`'s slots, built by
+    // `resolveInlineLiteral` and nowhere else (J146). What the builder and the verifier accept a
+    // short list for; every other aggregate supplies all of them.
+    bool prefix = false;
 
     // By reference, for the reason `NodeCall::eachOperand` gives: a `Forward` in a component is
     // rewritten in place by liveness, and a masked list has no address to rewrite through.

@@ -37,9 +37,6 @@ fn bothKinds(x: a, ys: [a *a]) -> Int = 0
 -- §2.2, from the type's side: `n` is declared a count, so it is not a type.
 fn (n: Int) countAsType(x: n) -> Int = 0
 
--- A const parameter reused as a value parameter's name moved to `Reject.ConstGeneric.Legacy.yana`;
--- that file says what the new stage does instead.
-
 -- §2.5's computed count, `[Int *(4 + 1)]`, is refused here; the new stage folds it
 -- (`ownership/ConstantFold.yana`).
 
@@ -83,3 +80,8 @@ fn main() -> Int:
     let b = [1, 2, 3] :: [Int *3]
 
     return twoArrays(a, b) + nothingDecides()
+
+-- Since J135, which enforces these in the new stage; they were `Reject.ConstGeneric.Legacy.yana`.
+-- §1.6: a const parameter and an ordinary parameter of the same name are two things called `n` in
+-- one signature, reported at the declaration rather than resolved by shadowing.
+fn (n: Int) twice(n: Int) -> Int = n

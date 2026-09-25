@@ -9,8 +9,16 @@ class Elem(c -> a):
 instance Elem(Int, Bool):
   fn head(->self: Int) -> Bool = True
 
--- Two instances disagreeing about what the determining position determines moved to
--- `Reject.Fundep.Legacy.yana`; that file says what the new stage does instead.
+{-
+   The check the dependency exists for.
+
+   These two are not duplicates and neither head covers the other, so nothing else in the resolver
+   rejects them - and a call that leaves the determined position open would be answered by whichever
+   happened to be declared first. Reading a hole back off "whichever instance matched" only means
+   something because this is an error.
+-}
+instance Elem(Int, Int):
+  fn head(->self: Int) -> Int = self
 
 -- An arrow with nothing after it declares no dependency, and a head that means less than it looks
 -- like is worse than one that does not parse.

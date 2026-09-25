@@ -56,8 +56,7 @@ fn main() -> one %r0
     %23: %r0 = const 4
     %25: %r0 = const 1
     %26: %r0 = const 3
-    %27: %r4 = binary.gt %25, %23
-    branch %27 -> block26 -> block25
+    jump -> block25
   block2:
     %216: %r0 = const -1
     return %216
@@ -226,14 +225,7 @@ fn main() -> one %r0
     %185: %r0 = const -10
     return %185
   block21:
-    %170: %r0 = const 4
-    %172: %r0 = binary.add %170, %170
-    %173: %r0 = coerce %172
-    %174: %r0 = binary.add %173, %170
-    %175: %r0 = coerce %174
-    %176: %r0 = const 12
-    %177: %r4 = binary.ne %175, %176
-    branch %177 -> block24 -> block23
+    jump -> block23
   block22:
     %184: %r0 = const -11
     return %184
@@ -286,7 +278,7 @@ fn main() -> one %r0
     branch %51 -> block6 -> block5
   block33:
     %193: %r5 = convert %2
-    %194: %r5 = convert %40
+    %194: %r5 = const 4
     %195: %r4 = binary.ge %193, %194
     branch %195 -> block39 -> block34
   block34:
@@ -294,16 +286,12 @@ fn main() -> one %r0
     %197: %r0 = alias %2
     %198: %r0 = coerce %197
     %199: %r0 = load element %196[%198]: %r0
-    %200: %r5 = convert %40
-    %201: %r4 = binary.ge %193, %200
-    branch %201 -> block38 -> block35
+    jump -> block35
   block35:
     %205: %r0 = alias %199
     %206: %r0 = binary.add %199, %205
     %207: %r0 = coerce %206
-    %208: %r5 = convert %40
-    %209: %r4 = binary.ge %193, %208
-    branch %209 -> block37 -> block36
+    jump -> block36
   block36:
     %210: %r1 = alias %39
     %212: %r0 = alias %198
@@ -321,7 +309,7 @@ fn main() -> one %r0
     host host.throw "yana: a runtime check failed"
     unreachable
 
-optimizer clones 3 aliased 2 forwarded 0 removed 26 adopted 0 sunk 0 numbered 8 decided 0 unboxed 1 updated 0 split 1 promoted 17
+optimizer clones 3 aliased 2 forwarded 0 removed 38 adopted 0 sunk 0 numbered 8 decided 4 unboxed 1 updated 0 split 1 promoted 17 folded 9
 
 shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
 shape %s1 cell {$v: %r7 box}

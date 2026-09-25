@@ -5,122 +5,109 @@ fn main() -> one %r0
   var $3: %r3
   var $4: %r0
   block0:
-    %15: %r0 = const 1
-    %16: %r0 = const 2
-    %17: %r1 = host host.array %15, %16
-    %18: %r2 = const 2
-    %20: %r0 = const 3
-    %21: %r0 = const 4
-    %22: %r1 = host host.array %20, %21
-    %23: %r2 = const 2
-    %25: %r0 = const 2
+    %6: %r0 = const 1
+    %7: %r0 = const 2
+    %8: %r1 = host host.array %6, %7
+    %9: %r2 = const 2
+    %11: %r0 = const 3
+    %12: %r0 = const 4
+    %13: %r1 = host host.array %11, %12
+    %14: %r2 = const 2
+    %18: %r0 = const 0
+    %21: %r0 = const 0
+    %22: %r0 = const 2
+    %23: %r0 = const 1
+    jump -> block1(%21, %18)
+  block1(%0: %r0, %1: %r0):
+    %24: %r9 = binary.lt %0, %22
+    branch %24 -> block2 -> block4
+  block2:
+    %76: %r0 = convert %0
+    %77: %r11 = convert %76
+    %78: %r11 = const 2
+    %79: %r9 = binary.ge %77, %78
+    branch %79 -> block10 -> block3
+  block3:
+    %80: %r1 = alias %8
+    %81: %r0 = alias %76
+    %82: %r0 = coerce %81
+    %83: %r0 = load element %80[%82]: %r0
+    %84: %r0 = binary.add %1, %83
+    %85: %r0 = coerce %84
+    %86: %r0 = binary.add %0, %23
+    %87: %r0 = coerce %86
+    jump -> block1(%87, %85)
+  block4:
     %27: %r0 = const 0
     %28: %r0 = const 2
-    %30: %r0 = const 0
-    %31: %r0 = convert %28
-    %32: %r0 = const 1
-    jump -> block1(%30, %27)
-  block1(%0: %r0, %1: %r0):
-    %33: %r9 = binary.lt %0, %31
-    branch %33 -> block2 -> block4
-  block2:
-    %94: %r0 = convert %0
-    %95: %r11 = convert %94
-    %96: %r11 = convert %28
-    %97: %r9 = binary.ge %95, %96
-    branch %97 -> block11 -> block3
-  block3:
-    %98: %r1 = alias %17
-    %99: %r0 = alias %94
-    %100: %r0 = coerce %99
-    %101: %r0 = load element %98[%100]: %r0
-    %102: %r0 = binary.add %1, %101
-    %103: %r0 = coerce %102
-    %104: %r0 = binary.add %0, %32
-    %105: %r0 = coerce %104
-    jump -> block1(%105, %103)
-  block4:
-    %35: %r0 = alias %25
-    %36: %r0 = const 1
-    %37: %r9 = binary.gt %35, %36
-    %24: %r3 = object %s0 %22, %23
-    branch %37 -> block5 -> block9(%1)
-  block5:
-    %39: %r3 = alias %24
-    %40: %r1 = load property %39.items: %r1
-    %41: %r3 = alias %39
-    %42: %r2 = load property %41.length: %r2
-    %43: %r0 = convert %42
-    %45: %r0 = const 0
-    %46: %r0 = convert %43
-    %47: %r0 = const 1
-    jump -> block6(%45, %1)
-  block6(%2: %r0, %3: %r0):
-    %48: %r9 = binary.lt %2, %46
-    branch %48 -> block7 -> block9(%3)
+    %29: %r0 = const 1
+    jump -> block5(%27, %1)
+  block5(%2: %r0, %3: %r0):
+    %30: %r9 = binary.lt %2, %28
+    branch %30 -> block6 -> block8
+  block6:
+    %64: %r0 = convert %2
+    %65: %r11 = convert %64
+    %66: %r11 = const 2
+    %67: %r9 = binary.ge %65, %66
+    branch %67 -> block9 -> block7
   block7:
-    %82: %r0 = convert %2
-    %83: %r11 = convert %82
-    %84: %r11 = convert %43
-    %85: %r9 = binary.ge %83, %84
-    branch %85 -> block10 -> block8
+    %68: %r1 = alias %13
+    %69: %r0 = alias %64
+    %70: %r0 = coerce %69
+    %71: %r0 = load element %68[%70]: %r0
+    %72: %r0 = binary.add %3, %71
+    %73: %r0 = coerce %72
+    %74: %r0 = binary.add %2, %29
+    %75: %r0 = coerce %74
+    jump -> block5(%75, %73)
   block8:
-    %86: %r1 = alias %40
-    %87: %r0 = alias %82
-    %88: %r0 = coerce %87
-    %89: %r0 = load element %86[%88]: %r0
-    %90: %r0 = binary.add %3, %89
-    %91: %r0 = coerce %90
-    %92: %r0 = binary.add %2, %47
-    %93: %r0 = coerce %92
-    jump -> block6(%93, %91)
-  block9(%4: %r0):
-    %19: %r3 = object %s0 %17, %18
-    %50: %r3 = alias %19
-    call Array(a).reclaim(I32) %50
-    %51: %r3 = alias %24
-    call Array(a).reclaim(I32) %51
-    %52: %r0 = const 10
-    %53: %r0 = const 20
-    %54: %r6 = array %52, %53
-    %55: %r6 = alias %54
-    %56: %r1 = alias %55
-    %57: %r0 = const 2
-    %59: %r0 = const 0
-    %63: %r0 = const 0
-    %64: %r0 = convert %57
-    %65: %r0 = const 1
-    jump -> block12(%63, %59)
+    %10: %r3 = object %s0 %8, %9
+    %32: %r3 = alias %10
+    call Array(a).reclaim(I32) %32
+    %15: %r3 = object %s0 %13, %14
+    %33: %r3 = alias %15
+    call Array(a).reclaim(I32) %33
+    %34: %r0 = const 10
+    %35: %r0 = const 20
+    %36: %r6 = array %34, %35
+    %37: %r6 = alias %36
+    %38: %r1 = alias %37
+    %41: %r0 = const 0
+    %45: %r0 = const 0
+    %46: %r0 = const 2
+    %47: %r0 = const 1
+    jump -> block11(%45, %41)
+  block9:
+    host host.throw "yana: a runtime check failed"
+    unreachable
   block10:
     host host.throw "yana: a runtime check failed"
     unreachable
-  block11:
-    host host.throw "yana: a runtime check failed"
-    unreachable
-  block12(%5: %r0, %6: %r0):
-    %67: %r9 = binary.lt %5, %64
-    branch %67 -> block13 -> block15
+  block11(%4: %r0, %5: %r0):
+    %49: %r9 = binary.lt %4, %46
+    branch %49 -> block12 -> block14
+  block12:
+    %52: %r0 = convert %4
+    %53: %r11 = convert %52
+    %54: %r11 = const 2
+    %55: %r9 = binary.ge %53, %54
+    branch %55 -> block15 -> block13
   block13:
-    %70: %r0 = convert %5
-    %71: %r11 = convert %70
-    %72: %r11 = convert %57
-    %73: %r9 = binary.ge %71, %72
-    branch %73 -> block16 -> block14
+    %56: %r1 = alias %38
+    %57: %r0 = alias %52
+    %58: %r0 = coerce %57
+    %59: %r0 = load element %56[%58]: %r0
+    %60: %r0 = binary.add %5, %59
+    %61: %r0 = coerce %60
+    %62: %r0 = binary.add %4, %47
+    %63: %r0 = coerce %62
+    jump -> block11(%63, %61)
   block14:
-    %74: %r1 = alias %56
-    %75: %r0 = alias %70
-    %76: %r0 = coerce %75
-    %77: %r0 = load element %74[%76]: %r0
-    %78: %r0 = binary.add %6, %77
-    %79: %r0 = coerce %78
-    %80: %r0 = binary.add %5, %65
-    %81: %r0 = coerce %80
-    jump -> block12(%81, %79)
+    %50: %r0 = binary.add %3, %5
+    %51: %r0 = coerce %50
+    return %51
   block15:
-    %68: %r0 = binary.add %4, %6
-    %69: %r0 = coerce %68
-    return %69
-  block16:
     host host.throw "yana: a runtime check failed"
     unreachable
 
@@ -129,7 +116,7 @@ fn Array(a).reclaim(I32)(one %r3) -> omitted
   block0(%0: %r3):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 29 adopted 0 sunk 2 numbered 4 decided 0 unboxed 0 updated 0 split 1 promoted 5
+optimizer clones 0 aliased 0 forwarded 0 removed 20 adopted 0 sunk 2 numbered 3 decided 0 unboxed 0 updated 0 split 1 promoted 3 folded 6
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object Chunks {a: %r3, b: %r3, used: %r0}

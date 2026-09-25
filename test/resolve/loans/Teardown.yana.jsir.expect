@@ -50,19 +50,11 @@ fn main() -> one %r0
     %7: %r0 = const 3
     %8: %r0 = alias %7
     %9: %r0 = alias %6
-    %12: %r0 = alias %9
-    %13: %r0 = const 10
-    %14: %r0 = binary.mul %12, %13
-    %15: %r0 = coerce %14
-    %16: %r0 = binary.add %15, %7
-    %17: %r0 = coerce %16
     %18: %r0 = alias %9
     call Guard.drop %18
     %20: %r0 = alias %8
     call Guard.drop %20
-    %21: %r0 = const 23
-    %22: %r9 = binary.ne %17, %21
-    branch %22 -> block2 -> block1
+    jump -> block1
   block1:
     %23: %r0 = load global trace: %r0
     %24: %r0 = const 2
@@ -99,28 +91,13 @@ fn main() -> one %r0
     %54: %r0 = const 3
     %55: %r0 = alias %54
     %56: %r0 = alias %51
-    %57: %r0 = alias %53
-    %60: %r0 = alias %56
-    %61: %r0 = const 100
-    %62: %r0 = binary.mul %60, %61
-    %63: %r0 = coerce %62
-    %65: %r0 = alias %57
-    %66: %r0 = const 10
-    %67: %r0 = binary.mul %65, %66
-    %68: %r0 = coerce %67
-    %69: %r0 = binary.add %63, %68
-    %70: %r0 = coerce %69
-    %71: %r0 = binary.add %70, %54
-    %72: %r0 = coerce %71
     %73: %r0 = alias %56
     call Guard.drop %73
     %74: %r0 = alias %53
     call Guard.drop %74
     %76: %r0 = alias %55
     call Guard.drop %76
-    %77: %r0 = const 123
-    %78: %r9 = binary.ne %72, %77
-    branch %78 -> block8 -> block7
+    jump -> block7
   block6:
     %188: %r0 = const -4
     return %188
@@ -142,10 +119,7 @@ fn main() -> one %r0
     %94: %r0 = const 3
     %95: %r0 = alias %94
     %98: %r0 = alias %91
-    %101: %r0 = alias %98
-    %102: %r0 = const 100
-    %103: %r0 = binary.mul %101, %102
-    %104: %r0 = coerce %103
+    %104: %r0 = const 100
     %107: %r0 = alias %93
     %108: %r0 = alias %107
     %109: %r0 = const 10
@@ -216,20 +190,10 @@ fn main() -> one %r0
     store global trace: %r0, %155
     %158: %r0 = const 6
     %159: %r0 = alias %158
-    %160: %r0 = const 7
     %161: %r0 = alias %159
-    %165: %r0 = alias %161
-    %166: %r0 = const 10
-    %167: %r0 = binary.mul %165, %166
-    %168: %r0 = coerce %167
-    %169: %r0 = alias %160
-    %170: %r0 = binary.add %168, %169
-    %171: %r0 = coerce %170
     %172: %r0 = alias %161
     call Guard.drop %172
-    %173: %r0 = const 67
-    %174: %r9 = binary.ne %171, %173
-    branch %174 -> block20 -> block19
+    jump -> block19
   block18:
     %182: %r0 = const -10
     return %182
@@ -245,7 +209,7 @@ fn main() -> one %r0
     %181: %r0 = const -11
     return %181
 
-optimizer clones 1 aliased 1 forwarded 4 removed 81 adopted 0 sunk 0 numbered 8 decided 0 unboxed 7 updated 0 split 5 promoted 22
+optimizer clones 1 aliased 1 forwarded 4 removed 117 adopted 0 sunk 0 numbered 8 decided 3 unboxed 7 updated 0 split 5 promoted 22 folded 21
 
 shape %s0 object Tracked {watched: %r0, own: %r0}
 shape %s1 object Held {borrowed: %r0, owned: %r0}

@@ -431,6 +431,23 @@ static void collectEdgeTransitions(LowerBase base, LowerFunction& fun, Liveness&
     }
 }
 
+// Whether `at` is a recipe recreating a fixed frame object's address.
+static bool isFrameAddressRecipe(const Placement& placement, MachineLocation at) {
+    return at.isRemat() && placement.remats[at.rematId()].kind == Remat::FrameAddress;
+}
+
+bool isFrameAddressBase(LowerBase base, const MachineFunction& machine, LowerInst* inst, Size i) {
+    if(inst->kind == LowerInst::X86Address || inst->kind == LowerInst::X86Lea) {
+        auto& addr = *(LowerInstX86Address*)inst;
+        return i == 0 && addr.hasBase && !addr.symbol;
+    }
+
+    // A pointer dereferenced as it stands. An X86Address in the same position was resolved at its
+    // own instruction, and its base is the case above.
+    auto operand = machine.formOf(inst).addressOperand();
+    return operand >= 0 && Size(operand) == i && !isMem(base[inst->used()[i]]);
+}
+
 /*
  * Where one operand is read.
  *
@@ -461,6 +478,12 @@ UseSite useSiteOf(LowerBase base, const MachineFunction& machine, const Placemen
     assertTrue(home.isValid()); // an operand whose web placement never reached
     if(home.isPhysical()) return UseSite { home };
 
+    // A fixed alloca read as an address's base is read where it lives, which is nowhere: the
+    // address is resolved against the frame and the recipe is never materialized (J157).
+    if(isFrameAddressRecipe(placement, home) && isFrameAddressBase(base, machine, inst, i)) {
+        return UseSite { home };
+    }
+
     // A slot this instruction can address directly stays where it is: the encoder takes the memory
     // form of the operation and the reload never exists. `memoryDest` says the result is being
     // written straight into the slot operand zero occupies, which takes the one r/m field this
@@ -487,13 +510,28 @@ UseSite useSiteOf(LowerBase base, const MachineFunction& machine, const Placemen
  *   - a global's or a function's address, which is RIP-relative against a symbol whose offset is
  *     not known until everything has been emitted.
  *
- * A frame slot is deliberately not one of these: its address depends on a layout that has not run
- * yet, so it stays a location and the encoder builds the address from the frame.
+ * A frame slot's address depends on a layout that has not run yet. A spilled value's slot stays a
+ * location and the encoder builds the address from the frame; a fixed alloca read as a base (see
+ * isFrameAddressBase) becomes a `frameRelative` address naming its slot, which the emitter completes
+ * from the same layout.
  */
+
+// The frame address a recipe describes, as the base of an address with `displacement` on top.
+static MachineAddress frameAddress(const Placement& placement, MachineLocation at, I32 displacement) {
+    auto& ref = placement.remats[at.rematId()].frame;
+
+    MachineAddress out;
+    out.frameRelative = true;
+    out.frameSlot = ref.slot;
+    out.displacement = ref.addend + displacement;
+    return out;
+}
 
 // The address an X86Address or X86Lea computes, with its operands resolved. The base and index each
 // occupy one operand slot, in that order, and either may be absent.
-static MachineAddress computedAddress(LowerBase base, LowerInstX86Address& addr, const Array<ResolvedOperand>& uses) {
+static MachineAddress computedAddress(LowerBase base, const Placement& placement, LowerInstX86Address& addr,
+    const Array<ResolvedOperand>& uses)
+{
     // A symbol is the whole address rather than a part of one: `[rip + g]` has no base, index or
     // scale field to combine it with, which is why the fold that builds one requires the other two
     // to be absent.
@@ -512,9 +550,18 @@ static MachineAddress computedAddress(LowerBase base, LowerInstX86Address& addr,
         return U8(at.index);
     };
 
-    if(addr.hasBase) {
-        out.hasBase = true;
-        out.base = physical(operand++);
+    // A fixed alloca as the base - see isFrameAddressBase. Its slot's offset joins the displacement
+    // once the frame is laid out, and the index, if any, is an ordinary register beside it.
+    if(addr.hasBase && isFrameAddressRecipe(placement, uses[0].at)) {
+        out = frameAddress(placement, uses[0].at, I32(addr.displacement));
+        operand++;
+    } else {
+        if(addr.hasBase) {
+            out.hasBase = true;
+            out.base = physical(operand++);
+        }
+
+        out.displacement = I32(addr.displacement);
     }
 
     if(addr.hasIndex) {
@@ -523,7 +570,6 @@ static MachineAddress computedAddress(LowerBase base, LowerInstX86Address& addr,
         out.scale = addr.scale;
     }
 
-    out.displacement = I32(addr.displacement);
     return out;
 }
 
@@ -849,6 +895,9 @@ struct Legalizer {
             return MachineAddress::atSymbol(nullptr, base[((LowerInstGlobal*)value->inst())->target]);
         }
 
+        // A fixed alloca, addressed through the frame - see isFrameAddressBase.
+        if(isFrameAddressRecipe(placement, direct.at)) return frameAddress(placement, direct.at, 0);
+
         auto at = direct.at;
         assertTrue(at.isPhysical() && at.bank == BankGpr); // a pointer operand that is not a register
         return MachineAddress::atRegister(U8(at.index));
@@ -878,11 +927,11 @@ struct Legalizer {
             case LowerInst::X86Address:
                 // Emits nothing itself: it is resolved so that whichever access folds it in can name
                 // the answer rather than working it out again.
-                addresses.add(inst, computedAddress(base, *(LowerInstX86Address*)inst, out.uses));
+                addresses.add(inst, computedAddress(base, placement, *(LowerInstX86Address*)inst, out.uses));
                 break;
 
             case LowerInst::X86Lea:
-                set(computedAddress(base, *(LowerInstX86Address*)inst, out.uses));
+                set(computedAddress(base, placement, *(LowerInstX86Address*)inst, out.uses));
                 break;
 
             case LowerInst::X86PushArg:
@@ -990,7 +1039,7 @@ struct Legalizer {
             // is resolved here so that emission reads it from the operand record rather than
             // reaching back into the IR to find out that this operand was an immediate.
             if(isImm(v)) {
-                out.uses.push(ResolvedOperand::constant(((LowerImm*)v->inst())->i));
+                out.uses.push(ResolvedOperand::constant(embeddedImmValue(base, inst, v)));
                 continue;
             }
 

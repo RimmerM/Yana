@@ -223,6 +223,80 @@ Node* Resolver::refuseConversion(DeclPtr<Type> to, DeclPtr<Type> from, LocationI
  *  4. **Nothing relates them.** The ordinary "wrong type here" message, which is the one almost
  *     every reader of it will be looking at.
  */
+/*
+ * A container that did not reach an array position, said as the capability that was missing - J94
+ * §4's "an argument must be Array(I32)" collapse, fixed in J139 in the shipping stage's words.
+ *
+ * Three shapes, and each is a sentence about what the value *is* rather than about two types that
+ * failed to unify. A fixed array at a growable position cannot grow - only the operations that grow
+ * say `Array`. A container with no `Contiguous` instance has no one buffer to be a window of, and a
+ * function that only reads should ask for `Chunked` instead. One with `Contiguous` but no `Writable`
+ * can be read as a window and not written through one. A `Contiguous` container at a *reading*
+ * position is not said to be wrong in capability, since it is not: this stage converts an owner to a
+ * window only for `Array` itself (J94 §3.1 respelled the rest as `elements(x)`), so the sentence
+ * there says to write that.
+ */
+bool Resolver::explainNoWindow(DeclPtr<Type> from, DeclPtr<Type> to, Access access,
+                               LocationId source) {
+    if(!from || !to || !isSequenceType(decl(), program, to)) return false;
+
+    auto fromText = typeText(context, decl(), from);
+    auto toText = typeText(context, decl(), to);
+
+    /*
+     * A fixed array whose elements *agree* - or meet the position's still-open element - so that
+     * growth is the one thing missing. Where they disagree the position may well be a window, and
+     * `[I64 *2]` at `[I32]` is the ordinary mismatch the message naming both types describes.
+     */
+    auto wanted = elementTypeOf(decl(), program, to);
+    if(decl()[from]->kind == Type::Array && ((ArrayType*)decl()[from])->hasFixedLength() &&
+       (!isConcreteType(decl(), wanted) || sameType(wanted, ((ArrayType*)decl()[from])->element))) {
+        context.diagnostics.error(
+            "%@ cannot be passed as %@, which asks for a growable array - a fixed array holds exactly the elements its type names and cannot grow. Only the operations that grow say `Array`; everything that reads says `[T]` and accepts this"_v,
+            source, fromText, toText);
+        return true;
+    }
+
+    if(decl()[from]->kind != Type::Record || isSequenceType(decl(), program, from)) return false;
+    if(viewRowOfRecord(decl(), program, from)) return false;
+
+    // A refined array reaches every `[T]` position its element fits (J143), so one that did not is
+    // the element mismatch the message naming both types describes - as for a fixed array.
+    if(inlineArrayParts(decl(), program, from)) return false;
+
+    auto element = elementTypeOf(decl(), program, to);
+    auto has = [&](intrinsic::Known role) {
+        auto klass = program.roles.klass(role);
+        if(!klass) return false;
+
+        DeclPtr<Type> query[2] = { from, nullptr };
+        InstanceMatch match;
+        return selectInstance(context, program, klass, query, 2, source, false, match);
+    };
+
+    auto viewText = element ? Tritium::format("[%@]", typeText(context, decl(), element))
+                            : Tritium::format("[T]");
+
+    if(!has(intrinsic::Known::contiguous)) {
+        context.diagnostics.error(
+            "%@ is not `Contiguous`, so it cannot be passed as %@ - its elements are not one buffer, and flattening them would be a copy this position does not say it makes. A function that only reads elements should take `fn (Chunked(c, a)) f(xs: c)` instead"_v,
+            source, fromText, viewText);
+        return true;
+    }
+
+    if(access == Access::Unique && !has(intrinsic::Known::writable)) {
+        context.diagnostics.error(
+            "%@ is `Contiguous` and not `Writable`, so it can be read as %@ but not written through one - `elements` promises a buffer address to read and says nothing about writing through it. Declare `instance Writable(%@, ...)` with `elementsMut`, or take the parameter without `&`"_v,
+            source, fromText, viewText, fromText);
+        return true;
+    }
+
+    context.diagnostics.error(
+        "%@ is not %@ - a container reaches a window position through the member that makes its view, so write `%@(x)` here"_v,
+        source, fromText, viewText, access == Access::Unique ? "elementsMut"_v : "elements"_v);
+    return true;
+}
+
 Node* Resolver::convertValue(Builder& builder, Node& value, DeclPtr<Type> to, LocationId source,
                              bool implicit, StringView what, Access access, bool establishes) {
     auto from = valueType(value);
@@ -353,6 +427,18 @@ Node* Resolver::convertValue(Builder& builder, Node& value, DeclPtr<Type> to, Lo
      */
     if(access == Access::Owned && isSequenceType(decl(), program, to)) {
         reportOwnedSequence(source);
+        return nullptr;
+    }
+
+    if(implicit && explainNoWindow(from, to, access, source)) return nullptr;
+
+    /*
+     * A value whose type is the **unnamed** variable a lambda's open result is - one whose body was
+     * to decide it and was refused before it did (`Reject.Try`'s `inLambda`, the `?` refusal). The
+     * producer reported already, and no source can spell such a variable, so "and this is" with
+     * nothing after it was only ever this cascade - J94 §4's, stopped here in J139.
+     */
+    if(!from || (decl()[from]->kind == Type::Variable && !((VariableType*)decl()[from])->name)) {
         return nullptr;
     }
 

@@ -1,15 +1,6 @@
 mut @live = [0, 0, 0, 0]
 mut @calls = [0, 0, 0, 0]
 
-Held.drop<complex>(%v_0: I32) {
-  b_1 {
-    %v_2 = loads @live, 4: I32
-    %v_3 = sub %v_2, 1: I32
-    store @live, %v_3, 4
-    ret 
-  }
-}
-
 doubled<complex>(%value: I32): I32 {
   b_0 {
     %v_1 = shl %value, 1: I32
@@ -59,26 +50,24 @@ main<complex>(): I32 {
     %v_22 = loads @live, 4: I32
     %v_23 = add %v_22, 1: I32
     store @live, %v_23, 4
-    call_complex Held.drop, 3
-    %v_24 = loads @live, 4: I32
+    %v_24 = sub %v_23, 1: I32
+    store @live, %v_24, 4
     %v_25 = add %v_24, 1: I32
     store @live, %v_25, 4
-    call_complex Held.drop, 4
-    %v_26 = loads @live, 4: I32
+    %v_26 = sub %v_25, 1: I32
     %v_27 = add %v_26, 1: I32
     store @live, %v_27, 4
-    call_complex Held.drop, 7
-    %v_28 = add %v_21, 1178: I32
-    %v_29 = loads @live, 4: I32
-    %v_30 = add %v_29, 1: I32
+    %v_28 = sub %v_27, 1: I32
+    %v_29 = add %v_21, 1178: I32
+    %v_30 = add %v_28, 1: I32
     store @live, %v_30, 4
-    call_complex Held.drop, 7
-    %v_31 = imul %v_28, 1000: I32
-    %v_32 = loads @calls, 4: I32
-    %v_33 = imul %v_32, 10: I32
-    %v_34 = add %v_31, %v_33: I32
-    %v_35 = loads @live, 4: I32
-    %v_36 = add %v_34, %v_35: I32
+    %v_31 = sub %v_30, 1: I32
+    store @live, %v_31, 4
+    %v_32 = imul %v_29, 1000: I32
+    %v_33 = loads @calls, 4: I32
+    %v_34 = imul %v_33, 10: I32
+    %v_35 = add %v_32, %v_34: I32
+    %v_36 = add %v_35, %v_31: I32
     ret %v_36
   }
 }

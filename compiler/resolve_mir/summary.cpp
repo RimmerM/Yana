@@ -1438,6 +1438,20 @@ struct Interprocedural {
          */
         Array<U32> argumentBlock;
         Array<U8> visiting;
+
+        // Per loan, the local of this body's own it borrowed, or `kNoLocal` - what the loan half of
+        // `nodeParameters` reads the private storage table through (J161). Beside `lender` rather
+        // than in it, because `lender` is built before the table and a loan of a local is exactly
+        // the entry that would need it.
+        SmallArray<U32, 8> lenderLocal;
+
+        // Whether reads of this body's own storage answer what was stored there (`holds`). Off for
+        // the bare rooting the lenders are built with, and while nothing has filled the table.
+        bool useHolds = false;
+
+        // `mentionsPointer` of an owned occurrence's type under `bound`, by type: 1 no, 2 yes. Every
+        // walk asks it at every node it enters, of a handful of types (J166).
+        HashMap<U32, U8> pointerTypes;
     };
 
     static constexpr U32 kNoBlock = ~U32(0);
@@ -1452,7 +1466,13 @@ struct Interprocedural {
      */
     bool carriesStorage(BodyRooting& rooting, const Occurrence& occurrence) {
         if(!occurrence.contract.isOwned()) return true;
-        return mentionsPointer(rooting.bound, occurrence.type, 0);
+
+        auto key = U32(occurrence.type);
+        if(auto known = rooting.pointerTypes.getValue(key)) return known.unwrap() == 2;
+
+        auto answer = mentionsPointer(rooting.bound, occurrence.type, 0);
+        rooting.pointerTypes.add(key, answer ? 2 : 1);
+        return answer;
     }
 
     // Whether a type has a raw pointer anywhere in it - `eachVariable`'s shape asked about pointers.
@@ -1493,6 +1513,680 @@ struct Interprocedural {
             default:
                 return false;
         }
+    }
+
+    /*
+     * ------------------------------------------------------------ where an address goes - J161
+     *
+     * Every walk in this file follows a value only while its type can carry storage
+     * (`carriesStorage` is the gate at the top of each), and follows storage only while it is a
+     * parameter's. Both are right for what the walks were written for and both leave a way out: an
+     * address **turned into a number** (`bitcast(addressOf(into)) :: USize`, J159's `clockAddress`)
+     * and an address **put down in this body's own storage** and read back - a `let`, a field of a
+     * local record, an element of a local `[%T *n]`, an `Iov` whose address is then handed to
+     * `readv`. J159 followed the first to a system call operand, a store and a call argument, and each
+     * shape it did not name (review J161: a `let`-bound number, a number in a local array, a pointer in
+     * a local record read back and stored through) was a summary saying `mutates: none` for a body
+     * that wrote its parameter.
+     *
+     * So the rule is stated about where the address **goes**, not about how it was spelled, and it is
+     * one rule with two tables:
+     *
+     * - **Storage private to this body reaches whatever was ever written into it** (`holds`). A
+     *   read of a local - any projection of it, through a loan of it, or through a pointer whose
+     *   loan roots in it - answers the union of everything stored into that local, flow-insensitively
+     *   and to a fixpoint (`buildHolds`); a write through a raw pointer that names no parameter lands
+     *   in one pool every such local and every raw read shares. A store into a local is therefore
+     *   not an escape - the value is still in the frame - and neither is it forgotten.
+     * - **A number that may be an address is followed to what it is handed to** (`launderedOrigins`),
+     *   through arithmetic, a choice, a construction, a join, a local (by the table above) and a call -
+     *   the last by the callee's own **result row** (`resultRow`), which says which parameters' addresses or
+     *   contents its result may carry. It escapes, and is written through, where it reaches a
+     *   system call, a store into storage that outlives the frame, a cast back to a pointer, or a
+     *   call argument at a position the callee's own rows say it does one of those with.
+     *
+     * Where it goes and nothing else: a pointer difference, an alignment test, a length computed
+     * from two pointers and compared - the integer ends in arithmetic and the address has gone
+     * nowhere. That is what the rejected J159 attempt ("the cast is the escape") could not tell
+     * apart, and it cost 126 lowering goldens 9%: `%a.Size.bitcast(%U8)` is how every pointer is
+     * measured, and every caller of a pointer difference read as letting its subject go. A call to
+     * that instance now answers a result row saying "the address of argument 0", and the caller
+     * decides by what it does with the number.
+     *
+     * A laundered value has **two channels**, because a number reaches a caller two ways. `address`
+     * is the parameters whose *storage* it may be the address of - `addressOf(into)` cast. `numbers`
+     * is the parameters whose *bytes* it may have been copied out of - a number parameter itself, or
+     * a count read out of `self` - which a caller may have filled with an address it laundered. The
+     * first is a write and an escape of that parameter. The second is not a fact about the parameter
+     * at all: it is carried in its own row (`numbersRow`) and a caller answers it with what *it*
+     * stored in the argument. That is what keeps a system call wrapper's `handle` out of `mutates`
+     * (review J161 #12: every fd read as a written position, which made every call to a wrapper a
+     * barrier for every uncontained allocation) while a caller handing it a laundered address still
+     * reports the address.
+     */
+    struct Laundered {
+        ArgumentSet address;
+        ArgumentSet numbers;
+
+        /*
+         * The part of `numbers` read out of a parameter's *storage* rather than being the parameter's
+         * own value - `h.addr`, not `handle`. A stored number may be an address somebody laundered
+         * and stored earlier; that somebody reported the escape, and what is left for the body that
+         * reads it back and writes through it - a cast back, a system call - is to be a write at
+         * all, which a caller asks as "does this call write anything" of an allocation that
+         * escaped. So it joins `mutates` at those two sinks and nowhere else.
+         */
+        ArgumentSet stored;
+
+        static Laundered all() {
+            return Laundered { ArgumentSet::all(), ArgumentSet::all(), ArgumentSet::all() };
+        }
+
+        Laundered join(Laundered other) const {
+            return Laundered { address.join(other.address), numbers.join(other.numbers), stored.join(other.stored) };
+        }
+
+        bool any() const { return address.any() || numbers.any(); }
+        bool operator == (const Laundered& other) const {
+            return address == other.address && numbers == other.numbers && stored == other.stored;
+        }
+        bool operator != (const Laundered& other) const { return !(*this == other); }
+    };
+
+    bool typeMentionsPointer(BodyRooting& rooting, const Occurrence& occurrence) {
+        return mentionsPointer(rooting.bound, occurrence.type, 0);
+    }
+
+    const Occurrence* operandOccurrence(BodyRooting& rooting, Operand operand) {
+        switch(operand.source()) {
+            case SourceKind::Place: return &rooting.body.place(mir, operand.placeId())->occurrence;
+            case SourceKind::Result: return &valueOccurrence(*rooting.body.node(mir, operand.nodeId()));
+            default: return nullptr;
+        }
+    }
+
+    // A pointer-to-integer cast: the operand may be an address and the result is not followed.
+    bool launders(BodyRooting& rooting, Node& node) {
+        if(node.kind != Node::Unary || ((NodeUnary&)node).op != UnaryOp::Bitcast) return false;
+
+        auto from = operandOccurrence(rooting, ((NodeUnary&)node).value);
+        if(!from || !typeMentionsPointer(rooting, *from)) return false;
+        return !typeMentionsPointer(rooting, valueOccurrence(node));
+    }
+
+    static bool takesAddressNumbers(NativeOp op) {
+        return op == NativeOp::Syscall || op == NativeOp::CloneThread || op == NativeOp::StackInit ||
+               op == NativeOp::StackSwitch;
+    }
+
+    // An integer-to-pointer cast of something that is not a constant: the pointer names whatever the
+    // number was laundered from, a caller's address among them where the number is a parameter.
+    bool unlaunders(BodyRooting& rooting, Node& node) {
+        if(node.kind != Node::Unary || ((NodeUnary&)node).op != UnaryOp::Bitcast) return false;
+
+        auto value = ((NodeUnary&)node).value;
+        if(value.source() != SourceKind::Place && value.source() != SourceKind::Result) return false;
+        if(value.source() == SourceKind::Result &&
+           rooting.body.node(mir, value.nodeId())->kind == Node::Const) return false;
+
+        auto from = operandOccurrence(rooting, value);
+        if(!from || typeMentionsPointer(rooting, *from)) return false;
+        return typeMentionsPointer(rooting, valueOccurrence(node));
+    }
+
+    /*
+     * Per function, what its **result** may carry of its arguments as a number - positions in the
+     * callee's own order. Filled by `computeResultRows` before any body's own rows are walked, since
+     * `launderedOrigins` reads it at every call.
+     */
+    Array<Laundered> resultRow;
+
+    // Per function, the positions whose *bytes* its body uses as an address - `Laundered::numbers`
+    // at a sink. Internal to this pass: a caller reads it as "what I put in this argument may be
+    // written through", and it is never published, because it is no fact about the argument.
+    Array<ArgumentSet> numbersRow;
+
+    // The body being walked: which function each call node reaches (an index into `reached`), the
+    // memo of `launderedOrigins`, and the private storage table.
+    static constexpr U32 kNoCallee = ~U32(0);
+    Array<U32> siteCallee;
+    Array<Laundered> launderedMemo;
+    Array<U8> launderedState;
+
+    /*
+     * What each non-parameter local has had written into it, and one more entry at the end - the
+     * **pool** that a write through a raw pointer naming no parameter lands in, and that every such
+     * local reads as well. `reach` is what a pointer read back out of it may point into (the value
+     * walk's answer about everything stored there); `laundered` is what a number read back out of it
+     * may carry.
+     */
+    struct Held {
+        ArgumentSet reach;
+        Laundered laundered;
+    };
+
+    Array<Held> holds;
+
+    // Which entries of `holds` a walk has read during the current round of `buildHolds` - J166. An
+    // entry that grows after it was read in the same round is the only reason another round can
+    // find anything new, since every other read already saw the value the round ended with.
+    Array<U8> holdsRead;
+
+    void noteHoldsRead(U32 slot) {
+        if(slot < holdsRead.size()) holdsRead[slot] = 1;
+    }
+
+    /*
+     * Which locals' storage this body hands out by address - an `addressOf`, or a borrow passed to a
+     * call - and which a raw write naming no parameter may therefore have landed in. Only those read
+     * the pool as well as their own entry. Every local reading it was the first version, and it put
+     * `resize`'s copy of `self`'s elements into the fresh block into `let fresh`, so the block read
+     * as reaching `self` and the copy into it as a store that outlives the frame: every container
+     * kept its subject.
+     */
+    Array<U8> addressTaken;
+
+    U32 poolIndex(BodyRooting& rooting) { return U32(rooting.body.locals.size()); }
+
+    Held heldBy(BodyRooting& rooting, U32 local) {
+        if(!rooting.useHolds || local >= holds.size()) return Held {};
+
+        auto& own = holds[local];
+        noteHoldsRead(local);
+        if(local >= addressTaken.size() || !addressTaken[local]) return own;
+
+        noteHoldsRead(poolIndex(rooting));
+        auto& pool = holds[poolIndex(rooting)];
+        return Held { own.reach.join(pool.reach), own.laundered.join(pool.laundered) };
+    }
+
+    void markAddressTaken(BodyRooting& rooting) {
+        auto& body = rooting.body;
+        addressTaken.clear();
+        for(U32 l = 0; l < body.locals.size(); l++) addressTaken.push(0);
+
+        auto mark = [&](Operand operand, bool anyMode) {
+            PlaceId place;
+            if(operand.source() == SourceKind::Place) {
+                if(!anyMode && operand.mode() != UseMode::BorrowShared && operand.mode() != UseMode::BorrowUnique &&
+                   operand.mode() != UseMode::Inspect) return;
+                place = operand.placeId();
+            } else if(operand.source() == SourceKind::Result) {
+                auto node = body.node(mir, operand.nodeId());
+                if(!node || node->kind != Node::Read) return;
+
+                auto read = ((NodeRead*)node)->place;
+                if(read.source() != SourceKind::Place) return;
+                if(read.mode() != UseMode::BorrowShared && read.mode() != UseMode::BorrowUnique &&
+                   read.mode() != UseMode::Inspect) return;
+                place = read.placeId();
+            } else {
+                return;
+            }
+
+            auto local = privateLocalOf(rooting, place);
+            if(local != kNoLocal && local < addressTaken.size()) addressTaken[local] = 1;
+        };
+
+        for(U32 i = 0; i < body.nodes.size(); i++) {
+            auto node = body.node(mir, NodeId(i));
+            if(!node) continue;
+
+            if(node->kind == Node::Address) {
+                mark(((NodeAddress*)node)->of, true);
+            } else if(node->kind == Node::Call || isLensCall(node->kind)) {
+                eachCallArgument(body, NodeId(i), [&](U32, Operand operand) { mark(operand, false); });
+            }
+        }
+    }
+
+    // The private local a place is storage of - through its parents and through a loan of it - or
+    // `kNoLocal` where its root is a parameter, a global or an address.
+    static constexpr U32 kNoLocal = ~U32(0);
+
+    U32 privateLocalOf(BodyRooting& rooting, PlaceId id, U32 depth = 0) {
+        if(depth > kRootDepth) return kNoLocal;
+
+        auto& root = rootPlace(mir, *rooting.body.place(mir, id));
+        if(root.kind == Place::Loan) {
+            auto loan = rooting.body.loan(mir, LoanId(root.payload));
+            return loan ? privateLocalOf(rooting, loan->place, depth + 1) : kNoLocal;
+        }
+
+        if(root.kind != Place::Local) return kNoLocal;
+
+        auto local = rooting.body.local(mir, LocalId(root.payload));
+        if(!local || local->isParameter()) return kNoLocal;
+        return root.payload;
+    }
+
+    // What a read of a place finds in this body's own storage: the local's table where it roots in
+    // one, the pool where it roots in an address.
+    Held heldAt(BodyRooting& rooting, PlaceId id) {
+        if(!rooting.useHolds) return Held {};
+
+        auto local = privateLocalOf(rooting, id);
+        if(local != kNoLocal) return heldBy(rooting, local);
+
+        auto& root = rootPlace(mir, *rooting.body.place(mir, id));
+        if(root.kind == Place::Address) return heldThrough(rooting, Operand(SourceKind::Result, root.payload, UseMode::Inspect));
+        return Held {};
+    }
+
+    /*
+     * What is held in the storage an operand names or points into, where that is this body's own:
+     * the local a place roots in, the locals whose loans a value is rooted in (the loan checker's
+     * origins, which follow a pointer made by `addressOf` through arithmetic), and always the pool
+     * - raw storage whose writes named no parameter. Only those: the union of every local's table
+     * was the first version, and a `String` a witness call built out of `expected` then read as an
+     * address held behind every pointer `checkEqual` passed anywhere.
+     */
+    /*
+     * The loans one origin position of `node` may be rooted in, in ascending order - the set bits of
+     * its row rather than `rootedInPosition` asked of every loan the body took (J166). The two walks
+     * below ask it of every node they pass, and a body with a few hundred loans made each visit a
+     * few hundred bit tests; `origins` is laid out as words for exactly this.
+     */
+    template<class F>
+    void eachRootingLoan(const Elaboration& elaboration, NodeId node, U32 position, F&& f) {
+        auto row = Size(elaboration.originRows.get(mir, node.index) + position);
+
+        for(U32 w = 0; w < elaboration.loanWords; w++) {
+            auto word = elaboration.origins.get(mir, row * elaboration.loanWords + w);
+
+            while(word) {
+                auto l = w * 64 + U32(__builtin_ctzll(word));
+                word &= word - 1;
+                if(l >= elaboration.loanCount) return;
+                f(l);
+            }
+        }
+    }
+
+    Held heldThrough(BodyRooting& rooting, Operand operand) {
+        if(!rooting.useHolds) return Held {};
+
+        auto held = holds[poolIndex(rooting)];
+        noteHoldsRead(poolIndex(rooting));
+        auto add = [&](U32 local) {
+            if(local == kNoLocal) return;
+            auto more = heldBy(rooting, local);
+            held = Held { held.reach.join(more.reach), held.laundered.join(more.laundered) };
+        };
+
+        if(operand.source() == SourceKind::Place) {
+            add(privateLocalOf(rooting, operand.placeId()));
+            return held;
+        }
+
+        if(operand.source() != SourceKind::Result) return held;
+
+        auto id = operand.nodeId();
+        auto node = rooting.body.node(mir, id);
+        if(node && node->kind == Node::Read && ((NodeRead*)node)->place.source() == SourceKind::Place) {
+            add(privateLocalOf(rooting, ((NodeRead*)node)->place.placeId()));
+        }
+
+        if(rooting.elaboration && rooting.elaboration->loanCount) {
+            auto& elaboration = *rooting.elaboration;
+            auto positions = elaboration.originPositionCount(mir, id);
+
+            // Each loan once, in ascending order, however many positions are rooted in it.
+            SmallArray<U64, 4> any;
+            for(U32 w = 0; w < elaboration.loanWords; w++) any.push(0);
+
+            for(U32 p = 0; p < positions; p++) {
+                eachRootingLoan(elaboration, id, p, [&](U32 l) { any[l / 64] |= U64(1) << (l % 64); });
+            }
+
+            for(U32 w = 0; w < elaboration.loanWords; w++) {
+                for(auto word = any[w]; word; word &= word - 1) {
+                    auto l = w * 64 + U32(__builtin_ctzll(word));
+                    if(l >= elaboration.loanCount || l >= rooting.lenderLocal.size()) break;
+                    if(rooting.lenderLocal[l] != kNoLocal) add(rooting.lenderLocal[l]);
+                }
+            }
+        }
+
+        return held;
+    }
+
+    void resetLaundered(BodyRooting& rooting) {
+        launderedMemo.clear();
+        launderedState.clear();
+        for(U32 i = 0; i < rooting.body.nodes.size(); i++) {
+            launderedMemo.push(Laundered());
+            launderedState.push(0);
+        }
+    }
+
+    /*
+     * The parameters an integer (or any) operand may carry as a number - see `Laundered`.
+     *
+     * Memoized per node for the body: a hash round is a DAG of arithmetic, and the unmemoized walk
+     * is exponential. A node being answered reads as nothing, which is the least fixpoint round a
+     * loop's block argument.
+     */
+    Laundered launderedOrigins(BodyRooting& rooting, Operand operand, U32 depth) {
+        if(depth > 512) return Laundered::all();
+
+        switch(operand.source()) {
+            case SourceKind::Result: {
+                auto id = operand.nodeId().index;
+                if(id >= launderedState.size()) return launderedNode(rooting, operand.nodeId(), depth);
+                if(launderedState[id]) return launderedMemo[id];
+
+                launderedState[id] = 1;
+                auto answer = launderedNode(rooting, operand.nodeId(), depth);
+                launderedMemo[id] = answer;
+                launderedState[id] = 2;
+                return answer;
+            }
+
+            case SourceKind::Place:
+                return launderedPlace(rooting, operand.placeId(), depth);
+
+            default:
+                return Laundered();
+        }
+    }
+
+    /*
+     * A number read out of storage. Out of a **parameter** - any projection, through any `Deref` -
+     * it is that parameter's bytes, which a caller may have filled with an address: the `numbers`
+     * channel. Out of this body's **own** storage it is what was stored there (`holds`). Out of a
+     * global it is nothing, because a store into a global is a store that outlives the frame and was
+     * answered where it was made. Through a raw pointer it is the contents of whatever the pointer
+     * reaches, and the pool.
+     */
+    Laundered launderedPlace(BodyRooting& rooting, PlaceId id, U32 depth) {
+        auto& root = rootPlace(mir, *rooting.body.place(mir, id));
+
+        switch(root.kind) {
+            case Place::Local: {
+                auto local = rooting.body.local(mir, LocalId(root.payload));
+                if(!local) return Laundered::all();
+
+                if(local->isParameter()) {
+                    Laundered own;
+                    own.numbers.add(local->parameter);
+                    if(rooting.body.place(mir, id)->parent) own.stored.add(local->parameter);
+                    return own;
+                }
+
+                return heldBy(rooting, root.payload).laundered;
+            }
+
+            case Place::Loan: {
+                auto loan = rooting.body.loan(mir, LoanId(root.payload));
+                if(!loan) return Laundered::all();
+                return launderedPlace(rooting, loan->place, depth + 1);
+            }
+
+            case Place::Address: {
+                auto reached = nodeParameters(rooting, NodeId(root.payload), 0);
+                auto held = heldThrough(rooting, Operand(SourceKind::Result, root.payload, UseMode::Inspect)).laundered;
+                return Laundered { held.address, reached.join(held.numbers), reached.join(held.stored) };
+            }
+
+            default:
+                return Laundered();
+        }
+    }
+
+    /*
+     * What a call argument's **contents** may carry as a number, at a position the callee reads its
+     * bytes out of (`Laundered::numbers` of the callee): the argument's own value, plus whatever is
+     * stored in the storage it reaches - the parameters it reaches, as their bytes, and the numbers
+     * held in this body's own storage, as themselves.
+     */
+    Laundered launderedArgument(BodyRooting& rooting, Operand operand, U32 depth) {
+        auto answer = launderedOrigins(rooting, operand, depth);
+
+        auto occurrence = operandOccurrence(rooting, operand);
+        if(occurrence && carriesStorage(rooting, *occurrence)) {
+            auto held = heldThrough(rooting, operand).laundered;
+            answer.address = answer.address.join(held.address);
+            answer.numbers = answer.numbers.join(operandParameters(rooting, operand, 0)).join(held.numbers);
+        }
+
+        return answer;
+    }
+
+    Laundered launderedNode(BodyRooting& rooting, NodeId id, U32 depth) {
+        auto node = rooting.body.node(mir, id);
+        Laundered set;
+
+        switch(node->kind) {
+            case Node::Unary: {
+                auto value = ((NodeUnary*)node)->value;
+
+                // The laundering itself: the address of whatever the pointer reaches, and what that
+                // storage holds.
+                if(launders(rooting, *node)) {
+                    auto reached = operandParameters(rooting, value, 0)
+                        .join(operandAddressGiven(rooting, value, 0))
+                        .join(operandAddressCarried(rooting, value, 0));
+                    auto held = heldThrough(rooting, value).laundered;
+                    return Laundered { reached.join(held.address), reached.join(held.numbers), held.stored };
+                }
+
+                return launderedOrigins(rooting, value, depth + 1);
+            }
+
+            case Node::Binary:
+            case Node::Select:
+            case Node::Aggregate:
+                forEachOperand(mir, *node, [&](Operand& used, OperandRole) {
+                    set = set.join(launderedOrigins(rooting, used, depth + 1));
+                });
+                return set;
+
+            case Node::Read:
+                return launderedOrigins(rooting, ((NodeRead*)node)->place, depth + 1);
+
+            /*
+             * A number carried round a join, followed through every edge that supplies it. Where no
+             * edge is in this body - a continuation's entry, whose values the lens or traversal
+             * hands in - it is some argument's bytes as far as this body can tell: the `numbers`
+             * channel at the top, which is a row callers answer with what they stored, rather than
+             * `address` at the top, which is every parameter written and kept. The second was the
+             * answer J159 avoided by not crossing joins at a store, and it turned every body with a
+             * `for` over a traversal opaque (`iter/TraversalFacts`).
+             */
+            case Node::Argument:
+                return joinOver<Laundered>(rooting, id, depth, Laundered { ArgumentSet(), ArgumentSet::all() },
+                                           [&](Operand used, U32 at) {
+                    return launderedOrigins(rooting, used, at);
+                });
+
+            /*
+             * What a callee answered, by its own result row: the address of an argument where it
+             * launders one, the argument's contents where it hands back a number it read. A call this
+             * pass has no row for - through a value, or to a declaration with no body - may answer
+             * any of its arguments either way.
+             */
+            case Node::Call:
+            case Node::LensCall:
+            case Node::LensTry: {
+                if(answersFreshStorage(*node)) return set;
+
+                auto row = Laundered::all();
+                if(node->kind == Node::Call && id.index < siteCallee.size() && siteCallee[id.index] < reached.size()) {
+                    row = resultRow[siteCallee[id.index]];
+                }
+
+                if(!row.any()) return set;
+
+                eachCallArgument(rooting.body, id, [&](U32 position, Operand used) {
+                    if(row.address.has(position)) {
+                        set.address = set.address.join(operandParameters(rooting, used, 0))
+                                                 .join(operandAddressGiven(rooting, used, 0));
+                    }
+
+                    if(row.numbers.has(position)) set = set.join(launderedArgument(rooting, used, depth + 1));
+                });
+
+                return set;
+            }
+
+            default:
+                return set;
+        }
+    }
+
+    /*
+     * The private storage table, to a fixpoint - see `Held`.
+     *
+     * Every write whose destination is this body's own storage adds what it stored; a block move
+     * into it adds what the source reaches. The walks that answer a stored value read the table
+     * being built, so it is iterated until nothing grows - two rounds for nearly every body, since a
+     * local filled from another local is the only thing that needs the second. The laundered memo is
+     * a function of the table and is cleared with every round.
+     *
+     * What does **not** add to it, and why that is sound: a call handed a local's address that
+     * stores another argument into it. That callee's `escapes` row has the other position, the site
+     * joins the argument into this body's `escapes`, and an escaped `&` or raw-pointer position is
+     * a mutated one (`writablePositions`), so a read-back through the local and a write through it
+     * are already answered at the top.
+     */
+    void buildHolds(BodyRooting& rooting) {
+        auto& body = rooting.body;
+
+        holds.clear();
+        holdsRead.clear();
+        for(U32 l = 0; l <= body.locals.size(); l++) {
+            holds.push(Held {});
+            holdsRead.push(0);
+        }
+
+        // Whether an entry grew after a walk in this round had read it - see `holdsRead`.
+        auto stale = false;
+        markAddressTaken(rooting);
+        rooting.useHolds = true;
+
+        // Which slot a destination is private storage of, or `kNoLocal` for one that outlives the
+        // frame - which the `Write` arm answers as an escape instead.
+        auto slotOfDestination = [&](NodeWrite& write) -> U32 {
+            if(write.destination.source() == SourceKind::Place) {
+                auto id = write.destination.placeId();
+                auto& place = *body.place(mir, id);
+                auto& root = rootPlace(mir, place);
+
+                if(root.kind == Place::Local) {
+                    auto local = body.local(mir, LocalId(root.payload));
+                    if(!local || local->isParameter()) return kNoLocal;
+
+                    /*
+                     * A reference local is not storage of its own: a write through it lands in
+                     * what it refers to (the `Write` arm's `boundTo`), and what a read of it
+                     * reaches is the loan checker's origins for it, which name the referent. So its
+                     * binding is not recorded either - reading a handover's structural reach into
+                     * it put the top of the lattice under every `let w = lens(...)`.
+                     */
+                    if(!local->occurrence.contract.isOwned()) return kNoLocal;
+                    return root.payload;
+                }
+
+                if(root.kind == Place::Loan) return privateLocalOf(rooting, id);
+
+                if(root.kind == Place::Address) {
+                    if(nodeParameters(rooting, NodeId(root.payload), 0).any()) return kNoLocal;
+                    return poolIndex(rooting);
+                }
+
+                return kNoLocal;
+            }
+
+            return operandParameters(rooting, write.destination, 0).any() ? kNoLocal : poolIndex(rooting);
+        };
+
+        auto stored = [&](Operand value) {
+            auto laundered = launderedOrigins(rooting, value, 0);
+            auto reach = operandParameters(rooting, value, 0)
+                .join(operandAddressCarried(rooting, value, 0))
+                .join(laundered.address);
+            return Held { reach, laundered };
+        };
+
+        auto moved = [&](Operand destination, Operand from) -> bool {
+            if(operandParameters(rooting, destination, 0).any()) return false;
+            if(destination.source() == SourceKind::Place && rootsInGlobal(rooting, destination.placeId())) return false;
+
+            auto into = poolIndex(rooting);
+            auto source = operandParameters(rooting, from, 0).join(operandAddressGiven(rooting, from, 0));
+            auto contents = launderedArgument(rooting, from, 0);
+            Held next { holds[into].reach.join(source).join(contents.address),
+                        holds[into].laundered.join(contents) };
+            if(next.reach == holds[into].reach && next.laundered == holds[into].laundered) return false;
+
+            if(holdsRead[into]) stale = true;
+            holds[into] = next;
+            return true;
+        };
+
+        for(U32 round = 0;; round++) {
+            resetLaundered(rooting);
+
+            // A table that has not settled in this many rounds is one no body writes; answer the
+            // top rather than keep going.
+            if(round == 16) {
+                for(auto& held: holds) held = Held { ArgumentSet::all(), Laundered::all() };
+                break;
+            }
+
+            auto grew = false;
+            stale = false;
+            for(auto& read: holdsRead) read = 0;
+
+            for(U32 i = 0; i < body.nodes.size(); i++) {
+                auto node = body.node(mir, NodeId(i));
+                if(!node) continue;
+
+                if(node->kind == Node::Write) {
+                    auto& write = *(NodeWrite*)node;
+                    auto slot = slotOfDestination(write);
+                    if(slot == kNoLocal) continue;
+
+                    auto value = stored(write.value);
+                    Held next { holds[slot].reach.join(value.reach), holds[slot].laundered.join(value.laundered) };
+                    if(next.reach == holds[slot].reach && next.laundered == holds[slot].laundered) continue;
+
+                    if(holdsRead[slot]) stale = true;
+                    holds[slot] = next;
+                    grew = true;
+                } else if(node->kind == Node::Native) {
+                    auto op = ((NodeNative*)node)->op;
+                    if(op != NativeOp::CopyMemory) continue;
+
+                    auto items = ((NodeNative*)node)->arguments.contents(mir);
+                    if(items.size() >= 2 && moved(items[0], items[1])) grew = true;
+                } else if(node->kind == Node::Call && i < siteCallee.size() && siteCallee[i] < reached.size() &&
+                          isBlockMove(reached[siteCallee[i]])) {
+                    Operand to, from;
+                    U32 position = 0;
+                    eachCallArgument(body, NodeId(i), [&](U32, Operand operand) {
+                        if(position == 0) to = operand;
+                        else if(position == 1) from = operand;
+                        position++;
+                    });
+
+                    if(position >= 2 && moved(to, from)) grew = true;
+                }
+            }
+
+            if(!grew) break;
+
+            /*
+             * J166: a round in which nothing grew after being read already read every entry at the
+             * value it ended with, so the next one would walk the same nodes to the same answers
+             * and grow nothing - it is skipped. Not where that next round is the cap above, which
+             * answers the top rather than walking, and has to be reached exactly as before.
+             */
+            if(!stale && round + 1 < 16) break;
+        }
+
+        resetLaundered(rooting);
     }
 
     /*
@@ -1611,22 +2305,29 @@ struct Interprocedural {
      */
     template<class F>
     ArgumentSet joinParameters(BodyRooting& rooting, NodeId id, U32 depth, F&& follow) {
+        return joinOver<ArgumentSet>(rooting, id, depth, ArgumentSet::all(), follow);
+    }
+
+    // The same walk for any lattice with a join - `Laundered` is the other one - answering `top`
+    // where it cannot see an edge.
+    template<class T, class F>
+    T joinOver(BodyRooting& rooting, NodeId id, U32 depth, T top, F&& follow) {
         auto index = id.index;
-        if(index >= rooting.argumentBlock.size()) return ArgumentSet::all();
+        if(index >= rooting.argumentBlock.size()) return top;
 
         auto owner = rooting.argumentBlock[index];
-        if(owner == kNoBlock) return ArgumentSet::all();
+        if(owner == kNoBlock) return top;
 
-        if(rooting.visiting[index]) return ArgumentSet();
+        if(rooting.visiting[index]) return T();
 
         auto block = rooting.body.block(mir, BlockId(owner));
-        if(!block || !block->incoming.size()) return ArgumentSet::all();
+        if(!block || !block->incoming.size()) return top;
 
         auto position = ((NodeArgument*)rooting.body.node(mir, id))->index;
 
         rooting.visiting[index] = 1;
 
-        ArgumentSet set;
+        T set;
         auto known = true;
 
         for(auto predecessorPointer: block->incoming.contents(mir)) {
@@ -1647,7 +2348,7 @@ struct Interprocedural {
         }
 
         rooting.visiting[index] = 0;
-        return known ? set : ArgumentSet::all();
+        return known ? set : top;
     }
 
     /*
@@ -1682,10 +2383,14 @@ struct Interprocedural {
             auto positions = elaboration.originPositionCount(mir, id);
 
             for(U32 p = 0; p < positions; p++) {
-                for(U32 l = 0; l < elaboration.loanCount; l++) {
-                    if(!elaboration.rootedInPosition(mir, id, p, LoanId(l))) continue;
+                eachRootingLoan(elaboration, id, p, [&](U32 l) {
                     set = set.join(rooting.lender[l]);
-                }
+
+                    // A loan of this body's own storage reaches whatever was stored in it - J161.
+                    if(l < rooting.lenderLocal.size() && rooting.lenderLocal[l] != kNoLocal) {
+                        set = set.join(heldBy(rooting, rooting.lenderLocal[l]).reach);
+                    }
+                });
             }
         }
 
@@ -1707,6 +2412,11 @@ struct Interprocedural {
             case Node::Binary:
             case Node::Select:
             case Node::Aggregate:
+                // A pointer made out of a number names whatever the number encoded - J159.
+                if(unlaunders(rooting, *node)) {
+                    return launderedOrigins(rooting, ((NodeUnary*)node)->value, depth + 1).address;
+                }
+
                 forEachOperand(mir, *node, [&](Operand& operand, OperandRole) {
                     set = set.join(operandParameters(rooting, operand, depth + 1));
                 });
@@ -1773,8 +2483,12 @@ struct Interprocedural {
                 auto place = rooting.body.place(mir, operand.placeId());
                 if(!carriesStorage(rooting, place->occurrence)) return ArgumentSet();
 
+                // What is read out of this body's own storage is whatever was put there - J161. Only
+                // here, at a *read*: a write's destination is `writtenParameters`, which must not
+                // read a local holding a parameter's pointer as the parameter itself.
                 auto throughDeref = false;
-                return placeParameters(rooting, operand.placeId(), throughDeref, depth);
+                return placeParameters(rooting, operand.placeId(), throughDeref, depth)
+                    .join(heldAt(rooting, operand.placeId()).reach);
             }
 
             case SourceKind::Result:
@@ -1913,6 +2627,10 @@ struct Interprocedural {
             case Node::Binary:
             case Node::Select:
             case Node::Aggregate: {
+                if(unlaunders(rooting, *node)) {
+                    return launderedOrigins(rooting, ((NodeUnary*)node)->value, depth + 1).address;
+                }
+
                 ArgumentSet set;
                 forEachOperand(mir, *node, [&](Operand& operand, OperandRole) {
                     set = set.join(operandAddressCarried(rooting, operand, depth + 1));
@@ -2093,10 +2811,123 @@ struct Interprocedural {
         if(outside) left = left.join(moved);
     }
 
+    /*
+     * The per-body state every walk of one body reads: where each block argument belongs, the
+     * lenders, which function each call node reaches, and the private storage table - in that
+     * order, since each is read by the next.
+     */
+    static constexpr U32 kAmbiguousCallee = ~U32(0) - 1;
+
+    void prepareBody(BodyRooting& rooting, U32 index) {
+        auto& body = rooting.body;
+        mapJoins(rooting);
+
+        // The lenders first, and with the origin half switched off: a loan's own root is a
+        // *place*, so the table can be built without reading the table being built.
+        BodyRooting bare { body, rooting.owner, rooting.bound, nullptr, {} };
+        mapJoins(bare);
+        for(U32 l = 0; l < body.loans.size(); l++) {
+            auto loan = body.loan(mir, LoanId(l));
+            auto throughDeref = false;
+            rooting.lender.push(loan ? placeParameters(bare, loan->place, throughDeref, 0)
+                                     : ArgumentSet());
+            rooting.lenderLocal.push(loan ? privateLocalOf(bare, loan->place) : kNoLocal);
+        }
+
+        // A call node reaches one function, except where the edges say several - a call through
+        // a value, attributed to every function of its type - which reads as no row at all.
+        siteCallee.clear();
+        for(U32 n = 0; n < body.nodes.size(); n++) siteCallee.push(kNoCallee);
+        for(auto slot = madeStart[index]; slot < madeStart[index + 1]; slot++) {
+            auto& site = callEdges[madeOrder[slot]];
+            auto at = site.node.index;
+            if(at >= siteCallee.size()) continue;
+
+            auto node = body.node(mir, site.node);
+            if(node->kind == Node::Call && ((NodeCall*)node)->callsValue()) {
+                siteCallee[at] = kAmbiguousCallee;
+                continue;
+            }
+
+            siteCallee[at] = siteCallee[at] == kNoCallee || siteCallee[at] == site.callee
+                ? site.callee : kAmbiguousCallee;
+        }
+
+        resetLaundered(rooting);
+        buildHolds(rooting);
+    }
+
+    /*
+     * `resultRow` for every function, to a fixpoint over the call graph - J161.
+     *
+     * Before the body rows, because every one of those asks it at every call whose result is a
+     * number. The least fixpoint: every row starts empty, a function with no body or an
+     * unattributable call starts at the top, and a row that grew requeues the functions calling it.
+     * Rows only grow, so it ends. A body returning nothing is never walked.
+     */
+    void computeResultRows() {
+        auto count = U32(reached.size());
+
+        resultRow.clear();
+        Array<U32> work;
+        Array<U8> queued;
+
+        for(U32 i = 0; i < count; i++) {
+            auto function = decl[reached[i]];
+            auto known = function->summary.bodyKnown && function->mir && !isArgumentOpaque(i);
+
+            resultRow.push(known ? Laundered() : Laundered::all());
+            queued.push(known ? 1 : 0);
+            if(known) work.push(i);
+        }
+
+        Size next = 0;
+        while(next < work.size()) {
+            auto index = work[next++];
+            queued[index] = 0;
+
+            auto function = decl[reached[index]];
+            auto& body = *mir[function->mir];
+
+            auto returnsValue = false;
+            for(U32 n = 0; n < body.nodes.size() && !returnsValue; n++) {
+                auto node = body.node(mir, NodeId(n));
+                returnsValue = node && node->kind == Node::Return && ((NodeReturn*)node)->hasValue;
+            }
+
+            if(!returnsValue) continue;
+
+            auto bound = substitutionOf(decl, *function);
+            BodyRooting rooting { body, *function, bound,
+                                  body.elaboration ? mir[body.elaboration] : nullptr, {} };
+            prepareBody(rooting, index);
+
+            auto row = resultRow[index];
+            for(U32 n = 0; n < body.nodes.size(); n++) {
+                auto node = body.node(mir, NodeId(n));
+                if(!node || node->kind != Node::Return || !((NodeReturn*)node)->hasValue) continue;
+
+                row = row.join(launderedOrigins(rooting, ((NodeReturn*)node)->value, 0));
+            }
+
+            if(row == resultRow[index]) continue;
+            resultRow[index] = row;
+
+            for(auto slot = siteStart[index]; slot < siteStart[index + 1]; slot++) {
+                auto caller = callEdges[siteOrder[slot]].caller;
+                if(queued[caller] || !(resultRow[caller] != Laundered::all())) continue;
+
+                queued[caller] = 1;
+                work.push(caller);
+            }
+        }
+    }
+
     // One body's own rows, before anything it calls is joined in - one per verb.
     struct BodyFacts {
         ArgumentSet escapes;
         ArgumentSet mutates;
+        ArgumentSet numbers;
     };
 
     /*
@@ -2115,6 +2946,7 @@ struct Interprocedural {
 
     BodyFacts bodyArgumentFacts(BodyRooting& rooting) {
         BodyFacts facts;
+        resetLaundered(rooting);
         auto& body = rooting.body;
 
         /*
@@ -2181,6 +3013,18 @@ struct Interprocedural {
 
         for(U32 i = 0; i < body.nodes.size(); i++) {
             auto node = body.node(mir, NodeId(i));
+
+            /*
+             * A number made back into a pointer - J161. The pointer's own reach is the `address`
+             * channel, which `nodeParameters` answers wherever the pointer is used; the parameters
+             * whose *bytes* the number came out of are used as an address here, which is the one
+             * thing a caller has to hear about them.
+             */
+            if(unlaunders(rooting, *node)) {
+                auto laundered = launderedOrigins(rooting, ((NodeUnary*)node)->value, 0);
+                facts.numbers = facts.numbers.join(laundered.numbers);
+                facts.mutates = facts.mutates.join(laundered.stored);
+            }
 
             switch(node->kind) {
                 case Node::Write: {
@@ -2261,6 +3105,18 @@ struct Interprocedural {
                         facts.escapes = facts.escapes
                             .join(operandAddressCarried(rooting, write.value, 0))
                             .join(stored);
+
+                        /*
+                         * And a number that may be an address, stored where it outlives the frame -
+                         * J159's sink, J161's rule: whoever reads it next may write through it, so
+                         * the storage it names is kept and written. Only here, where the destination
+                         * is not this body's own: a number stored in a local is in `holds` and is
+                         * answered where it goes next.
+                         */
+                        auto laundered = launderedOrigins(rooting, write.value, 0);
+                        facts.escapes = facts.escapes.join(laundered.address);
+                        facts.mutates = facts.mutates.join(laundered.address);
+                        facts.numbers = facts.numbers.join(laundered.numbers);
                     }
 
                     break;
@@ -2339,6 +3195,19 @@ struct Interprocedural {
                     forEachOperand(mir, *node, [&](Operand& operand, OperandRole) {
                         reached = reached.join(operandParameters(rooting, operand, 0));
                         handed = handed.join(operandAddressGiven(rooting, operand, 0));
+
+                        // A number that may be an address - J159, `launderedOrigins`. Only an
+                        // operation that is handed addresses as numbers: a system call and the three
+                        // that set up a stack. A host operation has no addresses at all, and the
+                        // register arithmetic rows (`crc32`, `rdtsc`) read none. What the kernel is
+                        // handed is also followed into: an `Iov` whose address is the operand is a
+                        // record of addresses (`launderedArgument`).
+                        if(node->kind == Node::Native && takesAddressNumbers(((NodeNative*)node)->op)) {
+                            auto laundered = launderedArgument(rooting, operand, 0);
+                            reached = reached.join(laundered.address);
+                            facts.numbers = facts.numbers.join(laundered.numbers);
+                            facts.mutates = facts.mutates.join(laundered.stored);
+                        }
                     });
 
                     facts.mutates = facts.mutates.join(reached);
@@ -2361,7 +3230,29 @@ struct Interprocedural {
             }
         }
 
+        // An address that escaped may be written through by whoever holds it - this body too, after
+        // reading it back out of storage the tables above do not follow - so an escaped position is
+        // a mutated one where anything may write through it (J161, `writablePositions`).
+        facts.mutates = facts.mutates.join(ArgumentSet { facts.escapes.bits & writablePositions(rooting.owner).bits });
         return facts;
+    }
+
+    /*
+     * The positions an escaped address may be written through: a `&` borrow, and a raw pointer. A
+     * shared borrow is written by nothing but an atomic, and a consumed argument is the caller's no
+     * longer, so neither is made a written position by having escaped: every function that keeps
+     * what it was lent for a report (`checkEqual`) would otherwise read as writing it.
+     */
+    ArgumentSet writablePositions(Function& function) {
+        ArgumentSet set;
+        for(auto pointer: function.args.contents(decl)) {
+            auto arg = decl[pointer];
+            auto type = arg->occurrence.type;
+            if(arg->occurrence.contract.access() == Access::Unique ||
+               (type && decl[type]->kind == Type::Pointer)) set.add(arg->index);
+        }
+
+        return set;
     }
 
     /*
@@ -2384,6 +3275,11 @@ struct Interprocedural {
     // hands over. Beside `siteArgs` rather than folded into it because the two are different sets
     // over the same positions, and resolving each once is what keeps the fixpoint set algebra.
     Array<ArgumentSet> siteAddrArgs;
+
+    // And the same positions as numbers - `launderedArgument`'s two channels, per site argument.
+    Array<ArgumentSet> siteLaunderedAddress;
+    Array<ArgumentSet> siteLaunderedNumbers;
+    Array<ArgumentSet> siteLaunderedStored;
 
     // Per site, two flags. `kSiteBlockMove`: the callee is a block-move ladder - a site answered by
     // `blockMoveSite` when the body was walked, and skipped by the fixpoint because it has no callee
@@ -2473,11 +3369,18 @@ struct Interprocedural {
 
         Array<ArgumentSet> escapes;
         Array<ArgumentSet> mutates;
+        Array<ArgumentSet>& numbers = numbersRow;
+        numbers.clear();
+
+        computeResultRows();
 
         siteArgStart.clear();
         siteArity.clear();
         siteArgs.clear();
         siteAddrArgs.clear();
+        siteLaunderedAddress.clear();
+        siteLaunderedNumbers.clear();
+        siteLaunderedStored.clear();
         siteFlags.clear();
         for(Size i = 0; i < callEdges.size(); i++) {
             siteArgStart.push(0);
@@ -2488,6 +3391,7 @@ struct Interprocedural {
         for(U32 i = 0; i < count; i++) {
             escapes.push(ArgumentSet());
             mutates.push(ArgumentSet());
+            numbers.push(ArgumentSet());
         }
 
         /*
@@ -2539,6 +3443,7 @@ struct Interprocedural {
             if((!function->summary.bodyKnown || !function->mir) || isArgumentOpaque(i)) {
                 escapes[i] = ArgumentSet::all();
                 mutates[i] = ArgumentSet::all();
+                numbers[i] = ArgumentSet::all();
                 if(!function->mir) continue;
             }
 
@@ -2546,22 +3451,12 @@ struct Interprocedural {
             auto bound = substitutionOf(decl, *function);
             BodyRooting rooting { body, *function, bound,
                                   body.elaboration ? mir[body.elaboration] : nullptr, {} };
-            mapJoins(rooting);
-
-            // The lenders first, and with the origin half switched off: a loan's own root is a
-            // *place*, so the table can be built without reading the table being built.
-            BodyRooting bare { body, *function, bound, nullptr, {} };
-            mapJoins(bare);
-            for(U32 l = 0; l < body.loans.size(); l++) {
-                auto loan = body.loan(mir, LoanId(l));
-                auto throughDeref = false;
-                rooting.lender.push(loan ? placeParameters(bare, loan->place, throughDeref, 0)
-                                         : ArgumentSet());
-            }
+            prepareBody(rooting, i);
 
             auto facts = bodyArgumentFacts(rooting);
             escapes[i] = escapes[i].join(facts.escapes);
             mutates[i] = mutates[i].join(facts.mutates);
+            numbers[i] = numbers[i].join(facts.numbers);
 
             if(handedStart[i] < handedStart[i + 1]) {
                 ArgumentSet own;
@@ -2598,11 +3493,26 @@ struct Interprocedural {
                 if(isLensCall(body.node(mir, callEdges[s].node)->kind)) siteFlags[s] |= kSiteLens;
                 siteArgStart[s] = U32(siteArgs.size());
                 eachCallArgument(body, callEdges[s].node, [&](U32, Operand operand) {
+                    // What the argument may carry as a number, for a callee that stores it, writes
+                    // through it or hands it to a native - J161, `Laundered`.
+                    auto laundered = launderedArgument(rooting, operand, 0);
+
                     siteArgs.push(operandParameters(rooting, operand, 0));
                     siteAddrArgs.push(operandAddressGiven(rooting, operand, 0));
+                    siteLaunderedAddress.push(laundered.address);
+                    siteLaunderedNumbers.push(laundered.numbers);
+                    siteLaunderedStored.push(laundered.stored);
                     siteArity[s]++;
                 });
             }
+        }
+
+        // An escaped position is a mutated one - `bodyArgumentFacts`' last line, restated over
+        // what `blockMoveSite` joined into the rows directly.
+        Array<ArgumentSet> writable;
+        for(U32 i = 0; i < count; i++) {
+            writable.push(writablePositions(*decl[reached[i]]));
+            mutates[i] = mutates[i].join(ArgumentSet { escapes[i].bits & writable[i].bits });
         }
 
         Array<U32> work;
@@ -2634,8 +3544,29 @@ struct Interprocedural {
                 auto lensSite = (siteFlags[s] & kSiteLens) != 0;
                 auto calleeEscapes = lensSite ? escapes[index] : escapes[index].join(handedEscapes[index]);
                 auto calleeMutates = lensSite ? mutates[index] : mutates[index].join(handedMutates[index]);
+                auto calleeNumbers = numbers[index];
+                ArgumentSet grownNumbers;
 
                 for(U32 a = 0; a < siteArity[s]; a++) {
+                    /*
+                     * A number handed to a position the callee stores, writes through or uses as an
+                     * address - J161. What the argument carried as an address is written and kept
+                     * here too; what it carried of this body's own parameters' bytes is this body's
+                     * `numbers` row, for its callers to answer the same way.
+                     */
+                    if(calleeMutates.has(a) || calleeEscapes.has(a) || calleeNumbers.has(a)) {
+                        grownEscapes = grownEscapes.join(siteLaunderedAddress[base + a]);
+                        grownNumbers = grownNumbers.join(siteLaunderedNumbers[base + a]);
+                    }
+
+                    // Written, and not only kept, where the callee writes through the position or
+                    // uses its bytes as an address; a callee that only keeps it leaves the write to
+                    // whoever reads it back, which answers for it at its own cast.
+                    if(calleeMutates.has(a) || calleeNumbers.has(a)) {
+                        grownMutates = grownMutates.join(siteLaunderedAddress[base + a])
+                                                   .join(siteLaunderedStored[base + a]);
+                    }
+
                     if(calleeMutates.has(a)) grownMutates = grownMutates.join(siteArgs[base + a]);
 
                     /*
@@ -2657,11 +3588,15 @@ struct Interprocedural {
                 }
 
                 auto joinedEscapes = escapes[caller].join(grownEscapes);
-                auto joinedMutates = mutates[caller].join(grownMutates);
-                if(joinedEscapes == escapes[caller] && joinedMutates == mutates[caller]) continue;
+                auto joinedMutates = mutates[caller].join(grownMutates)
+                    .join(ArgumentSet { joinedEscapes.bits & writable[caller].bits });
+                auto joinedNumbers = numbers[caller].join(grownNumbers);
+                if(joinedEscapes == escapes[caller] && joinedMutates == mutates[caller] &&
+                   joinedNumbers == numbers[caller]) continue;
 
                 escapes[caller] = joinedEscapes;
                 mutates[caller] = joinedMutates;
+                numbers[caller] = joinedNumbers;
 
                 if(queued[caller]) continue;
                 queued[caller] = 1;

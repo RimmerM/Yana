@@ -50,10 +50,8 @@ Try(Maybe(a), a, ()).toOutcome(Array(I32))<complex>(%v_0: Ptr, %value: Ptr) {
   }
 
   b_5 {
-    %inner = alloca 16, 8: Ptr
-    copy %inner, %value, 16
     %v_21 = alloca 16, 8: Ptr
-    copy %v_21, %inner, 16
+    copy %v_21, %value, 16
     jmp b_20
   }
 
@@ -368,15 +366,14 @@ indexed<complex>(%v_0: Ptr, %n: I32) {
 
   b_8 {
     call_complex reclaim$Outcome(Array(I32), ()), %v_3
-    %v_22 = alloca 1, 1: Ptr
-    %v_23 = alloca 8, 4: Ptr
-    store %v_23, 0, 4
+    %v_22 = alloca 8, 4: Ptr
+    store %v_22, 0, 4
     jmp b_20
   }
 
   b_20 {
-    %v_24 = phi [b_14, %v_18], [b_8, %v_23]: Ptr
-    copy %v_0, %v_24, 8
+    %v_23 = phi [b_14, %v_18], [b_8, %v_22]: Ptr
+    copy %v_0, %v_23, 8
     ret 
   }
 }
@@ -419,15 +416,14 @@ sum<complex>(%v_0: Ptr, %n: I32) {
 
   b_8 {
     call_complex reclaim$Outcome(Array(I32), ()), %v_3
-    %v_21 = alloca 1, 1: Ptr
-    %v_22 = alloca 8, 4: Ptr
-    store %v_22, 0, 4
+    %v_21 = alloca 8, 4: Ptr
+    store %v_21, 0, 4
     jmp b_19
   }
 
   b_19 {
-    %v_23 = phi [b_14, %v_17], [b_8, %v_22]: Ptr
-    copy %v_0, %v_23, 8
+    %v_22 = phi [b_14, %v_17], [b_8, %v_21]: Ptr
+    copy %v_0, %v_22, 8
     ret 
   }
 }

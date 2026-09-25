@@ -20,50 +20,55 @@ function discarded() {
 
 function displaced() {
   var p0, p1, p5;
-  var v28 = { keys: { items: new Int32Array([]), length: 0 }, values: [], index: { items: new Int32Array([]), length: 0 }, live: 0, mask: 0 };
-  var v29 = v28.keys;
-  if (0 > v29.items.length) growJsArray_I32(v29, 0);
+  var v17 = new Int32Array([]);
+  var v20 = [];
+  var v23 = new Int32Array([]);
+  var v33 = 0 <= v17.length ? 1 : 0;
+  var v28 = { keys: { items: v17, length: 0 }, values: v20, index: { items: v23, length: 0 }, live: 0, mask: 0 };
+  if (!v33) growJsArray_I32(v28.keys, 0);
   insert_I32_Array_I32(v28, 1, { items: new Int32Array([1, 2]), length: 2 });
   insert_I32_Array_I32(v28, 1, { items: new Int32Array([3, 4, 5]), length: 3 });
-  var v68 = hashKey_I32(1);
-  var v69 = v28.mask;
-  if (v69 === 0) {
-    var v119 = v28.keys.length;
+  var v63 = hashKey_I32(1);
+  var v64 = v28.mask;
+  if (v64 === 0) {
+    var v108 = v28.keys;
+    var v109 = v108.items;
+    var v112 = v108.length;
     p5 = 0;
     B2: {
-      while (p5 < v119) {
-        if (v28.keys.items[p5] === 1) break B2;
+      while (p5 < v112) {
+        if (v109[p5] === 1) break B2;
         p5 = p5 + 1 | 0;
       }
       p5 = -1;
     }
   } else {
-    p0 = v68 & v69;
+    p0 = v63 & v64;
     p1 = 0;
     B4: {
-      while (p1 <= v69) {
-        var v88 = v28.index;
-        var v89 = v88.items;
-        if (p0 >>> 0 >= v88.length) throw $t;
-        var v100 = v89[p0 | 0];
-        if (v100 === -1) {
+      while (p1 <= v64) {
+        var v81 = v28.index;
+        var v82 = v81.items;
+        if (p0 >>> 0 >= v81.length) throw $t;
+        var v93 = v82[p0 | 0];
+        if (v93 === -1) {
           p5 = -1;
           break B4;
         }
-        if (v100 >= 0 && v28.keys.items[v100] === 1) {
-          p5 = v100;
+        if (v93 >= 0 && v28.keys.items[v93] === 1) {
+          p5 = v93;
           break B4;
         }
-        p0 = p0 + 1 & v69;
+        p0 = p0 + 1 & v64;
         p1 = p1 + 1 | 0;
       }
       p5 = -1;
     }
   }
   if (p5 < 0) throw $t;
-  var v141 = v28.values[p5].length;
+  var v132 = v28.values[p5].length;
   Array_a_reclaim_Array_I32(v28.values);
-  return v141;
+  return v132;
 }
 
 function swapped(n) {
@@ -176,84 +181,78 @@ function push_I32(self, item) {
 }
 
 function insert_I32_Array_I32(self, key, value) {
-  var p3, p7, p6, p9, p10, p13;
-  var v20 = Math.imul((2166136261 ^ key) >>> 0, 16777619) >>> 0;
-  var v28 = Math.imul((v20 ^ v20 >>> 16) >>> 0, 2246822507) >>> 0;
-  var v36 = Math.imul((v28 ^ v28 >>> 13) >>> 0, 3266489909) >>> 0;
-  var v41 = (v36 ^ v36 >>> 16) >>> 0;
-  var v42 = self.mask;
-  if (v42 === 0) {
-    var v92 = self.keys.length;
+  var p3, p4, p6, p7, p10;
+  var v17 = Math.imul((2166136261 ^ key) >>> 0, 16777619) >>> 0;
+  var v25 = Math.imul((v17 ^ v17 >>> 16) >>> 0, 2246822507) >>> 0;
+  var v33 = Math.imul((v25 ^ v25 >>> 13) >>> 0, 3266489909) >>> 0;
+  var v38 = (v33 ^ v33 >>> 16) >>> 0;
+  var v39 = self.mask;
+  if (v39 === 0) {
+    var v89 = self.keys.length;
     p3 = 0;
     B1: {
-      while (p3 < v92) {
+      while (p3 < v89) {
         if (self.keys.items[p3] === key) break B1;
         p3 = p3 + 1 | 0;
       }
       p3 = -1;
     }
   } else {
-    p9 = v41 & v42;
-    p10 = 0;
+    p6 = v38 & v39;
+    p7 = 0;
     B3: {
-      while (p10 <= v42) {
-        var v61 = self.index;
-        var v62 = v61.items;
-        if (p9 >>> 0 >= v61.length) throw $t;
-        var v73 = v62[p9 | 0];
-        if (v73 === -1) {
+      while (p7 <= v39) {
+        var v58 = self.index;
+        var v59 = v58.items;
+        if (p6 >>> 0 >= v58.length) throw $t;
+        var v70 = v59[p6 | 0];
+        if (v70 === -1) {
           p3 = -1;
           break B3;
         }
-        if (v73 >= 0 && self.keys.items[v73] === key) {
-          p3 = v73;
+        if (v70 >= 0 && self.keys.items[v70] === key) {
+          p3 = v70;
           break B3;
         }
-        p9 = p9 + 1 & v42;
-        p10 = p10 + 1 | 0;
+        p6 = p6 + 1 & v39;
+        p7 = p7 + 1 | 0;
       }
       p3 = -1;
     }
   }
   if (p3 >= 0) {
-    var v181 = self.values;
-    var v185 = v181[p3];
-    v181[p3] = value;
-    return v185;
+    var v178 = self.values;
+    var v182 = v178[p3];
+    v178[p3] = value;
+    return v182;
   }
-  var v107 = self.keys;
-  var v111 = v107.length;
-  push_I32(v107, key);
-  var v114 = self.values;
-  var v116 = v114.length;
-  var v119 = v116 + 1;
-  v114[v116] = value;
-  self.values.length = v119 & 1073741823;
-  var v136 = self.mask;
+  var v104 = self.keys;
+  var v108 = v104.length;
+  push_I32(v104, key);
+  var v111 = self.values;
+  var v113 = v111.length;
+  var v116 = v113 + 1;
+  v111[v113] = value;
+  self.values.length = v116 & 1073741823;
+  var v133 = self.mask;
   B6: {
-    if (v136 === 0) {
-      var v168 = v111 + 1;
-      if (v168 > 64) {
-        p13 = 16;
-        while ((p13 - (p13 >>> 3) | 0) < v168) {
-          p13 = p13 + p13 | 0;
+    if (v133 === 0) {
+      var v165 = v108 + 1;
+      if (v165 > 64) {
+        p10 = 16;
+        while ((p10 - (p10 >>> 3) | 0) < v165) {
+          p10 = p10 + p10 | 0;
         }
-        indexRebuild_I32_Array_I32(self, p13);
+        indexRebuild_I32_Array_I32(self, p10);
       }
     } else {
-      var v144 = v136 + 1;
-      if (self.live + 1 > v144 - (v144 >>> 3)) {
-        if (Math.imul(v111 + 1, 2) > v144) {
-          p7 = self;
-          p6 = v144 + v144 | 0;
-        } else {
-          p7 = self;
-          p6 = v144;
-        }
-        indexRebuild_I32_Array_I32(p7, p6);
+      var v141 = v133 + 1;
+      if (self.live + 1 > v141 - (v141 >>> 3)) {
+        p4 = Math.imul(v108 + 1, 2) > v141 ? v141 + v141 | 0 : v141;
+        indexRebuild_I32_Array_I32(self, p4);
         break B6;
       }
-      indexPlace($ge$indexPlace, self, v111, v41);
+      indexPlace($ge$indexPlace, self, v108, v38);
     }
   }
   return null;

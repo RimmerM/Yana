@@ -346,9 +346,13 @@ static constexpr U32 kMaxEdgeWeight = 1 << 20;
  * rather than two. Loops found this way are properly nested or disjoint, which is what lets the
  * innermost one containing a block name the whole chain.
  *
- * A CFG with an irreducible loop has no such structure. Nothing here fails on one - the back edges a
- * depth-first walk happens to find are still grouped and still nest - but the answer is then one
- * possible reading of the loop rather than the only one, which is all a heuristic needs.
+ * A back edge is an edge to a block that dominates its source, and nothing else is one. A cycle an
+ * irreducible graph has - entered at more than one block, as an inlined iterator object's resume
+ * switch enters its loop - is no loop here: its blocks are in whatever natural loops contain them
+ * and in none of their own. So every header dominates every block of its loop, which is what the
+ * hoister, the induction rewrites and the bounds-check elimination rely on. Until J155 the cycle's
+ * edges were taken as back edges, which was "one possible reading of the loop" - enough for a
+ * heuristic, and J154 found a pass for which it was not.
  */
 struct LoopInfo {
     // The innermost loop containing each block, named by its header, or kNullBlock for a block in no

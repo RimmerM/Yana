@@ -16,8 +16,8 @@ fn main() -> one %r0
     %13: %r0 = const 0
     %14: %r0 = const 2
     %15: %r0 = const 0
-    %16: %r0 = const 100
-    %17: %r1 = const 1
+    %16: %r1 = const 1
+    %17: %r0 = const 101
     jump -> block1(%8, %9)
   block1(%0: %r0, %1: %r0):
     %18: %r4 = binary.lt %0, %10
@@ -38,120 +38,104 @@ fn main() -> one %r0
     %28: %r0 = coerce %27
     %29: %r0 = binary.add %1, %28
     %30: %r0 = coerce %29
-    %31: %r0 = load global log: %r0
-    %32: %r0 = binary.add %31, %16
-    %33: %r0 = coerce %32
-    store global log: %r0, %33
-    %34: %r2 = alias %15
-    jump -> block5(%34, %30)
+    %31: %r0 = binary.add %23, %17
+    %32: %r0 = coerce %31
+    store global log: %r0, %32
+    %33: %r2 = alias %15
+    jump -> block5(%33, %30)
   block4:
-    %35: %r2 = const null
-    jump -> block5(%35, %1)
+    %34: %r2 = const null
+    jump -> block5(%34, %1)
   block5(%2: %r2, %3: %r0):
-    %36: %r2 = alias %2
-    %37: %r2 = const null
-    %38: %r5 = binary.eq %36, %37
-    %39: %r1 = const 0
-    %40: %r1 = const 1
-    %41: %r1 = select %38, %40, %39
-    %42: %r4 = binary.eq %41, %17
-    branch %42 -> block7(%3) -> block6
+    %35: %r2 = alias %2
+    %36: %r2 = const null
+    %37: %r5 = binary.eq %35, %36
+    %38: %r1 = const 0
+    %39: %r1 = const 1
+    %40: %r1 = select %37, %39, %38
+    %41: %r4 = binary.eq %40, %16
+    branch %41 -> block7(%3) -> block6
   block6:
     jump -> block1(%20, %3)
   block7(%4: %r0):
-    %43: %r0 = load global log: %r0
-    %44: %r0 = const 1
-    %45: %r0 = binary.add %43, %44
-    %46: %r0 = coerce %45
-    store global log: %r0, %46
-    %47: %r0 = const 10
-    %48: %r0 = const 0
-    %49: %r0 = load global log: %r0
-    %50: %r0 = const 100
-    %51: %r0 = binary.add %49, %50
-    %52: %r0 = coerce %51
-    store global log: %r0, %52
-    %53: %r2 = alias %48
-    %54: %r2 = alias %53
-    %55: %r2 = const null
-    %56: %r5 = binary.eq %54, %55
-    %57: %r1 = const 0
-    %58: %r1 = const 1
-    %59: %r1 = select %56, %58, %57
-    %60: %r1 = const 1
-    %61: %r4 = binary.eq %59, %60
-    %62: %r0 = const -1
-    %63: %r0 = select %61, %62, %47
-    %64: %r0 = const 0
-    %65: %r0 = load global log: %r0
-    %66: %r0 = const 1
-    %67: %r0 = binary.add %65, %66
-    %68: %r0 = coerce %67
-    store global log: %r0, %68
-    %69: %r2 = const null
-    %70: %r2 = alias %69
-    %71: %r2 = const null
-    %72: %r5 = binary.eq %70, %71
-    %73: %r1 = const 0
-    %74: %r1 = const 1
-    %75: %r1 = select %72, %74, %73
-    %76: %r1 = const 1
-    %77: %r4 = binary.eq %75, %76
-    %78: %r0 = const -1
-    %79: %r0 = select %77, %78, %64
-    %80: %r0 = load global log: %r0
-    %81: %r0 = const 1
-    %82: %r0 = binary.add %80, %81
-    %83: %r0 = coerce %82
-    store global log: %r0, %83
-    %84: %r0 = const 14
-    %85: %r0 = load global sideEffect: %r0
-    %86: %r0 = binary.add %85, %84
-    %87: %r0 = coerce %86
-    store global sideEffect: %r0, %87
-    %89: %r0 = load global log: %r0
-    %90: %r0 = const 100
-    %91: %r0 = binary.add %89, %90
+    %42: %r0 = load global log: %r0
+    %43: %r0 = const 10
+    %44: %r0 = const 0
+    %45: %r0 = const 101
+    %46: %r0 = binary.add %42, %45
+    %47: %r0 = coerce %46
+    store global log: %r0, %47
+    %48: %r2 = alias %44
+    %49: %r2 = alias %48
+    %50: %r2 = const null
+    %51: %r5 = binary.eq %49, %50
+    %52: %r1 = const 0
+    %53: %r1 = const 1
+    %54: %r1 = select %51, %53, %52
+    %55: %r1 = const 1
+    %56: %r4 = binary.eq %54, %55
+    %57: %r0 = const -1
+    %58: %r0 = select %56, %57, %43
+    %59: %r0 = const 0
+    %60: %r0 = const 102
+    %61: %r0 = binary.add %42, %60
+    %62: %r0 = coerce %61
+    store global log: %r0, %62
+    %63: %r2 = const null
+    %64: %r2 = alias %63
+    %65: %r2 = const null
+    %66: %r5 = binary.eq %64, %65
+    %67: %r1 = const 0
+    %68: %r1 = const 1
+    %69: %r1 = select %66, %68, %67
+    %70: %r1 = const 1
+    %71: %r4 = binary.eq %69, %70
+    %72: %r0 = const -1
+    %73: %r0 = select %71, %72, %59
+    %74: %r0 = const 103
+    %75: %r0 = binary.add %42, %74
+    %76: %r0 = coerce %75
+    store global log: %r0, %76
+    %77: %r0 = const 14
+    %78: %r0 = load global sideEffect: %r0
+    %79: %r0 = binary.add %78, %77
+    %80: %r0 = coerce %79
+    store global sideEffect: %r0, %80
+    %82: %r0 = const 203
+    %83: %r0 = binary.add %42, %82
+    %84: %r0 = coerce %83
+    store global log: %r0, %84
+    %86: %r0 = const 204
+    %87: %r0 = binary.add %42, %86
+    %88: %r0 = coerce %87
+    store global log: %r0, %88
+    %90: %r0 = const 205
+    %91: %r0 = binary.add %42, %90
     %92: %r0 = coerce %91
     store global log: %r0, %92
-    %94: %r0 = load global log: %r0
-    %95: %r0 = const 1
-    %96: %r0 = binary.add %94, %95
-    %97: %r0 = coerce %96
-    store global log: %r0, %97
-    %99: %r0 = load global log: %r0
-    %100: %r0 = const 1
-    %101: %r0 = binary.add %99, %100
-    %102: %r0 = coerce %101
-    store global log: %r0, %102
-    %103: %r0 = load global sideEffect: %r0
-    %104: %r0 = const 40
-    %105: %r0 = binary.add %103, %104
+    %93: %r0 = const 54
+    %94: %r0 = binary.add %78, %93
+    %95: %r0 = coerce %94
+    store global sideEffect: %r0, %95
+    %97: %r0 = const 305
+    %98: %r0 = binary.add %42, %97
+    %99: %r0 = coerce %98
+    store global log: %r0, %99
+    %101: %r0 = const 306
+    %102: %r0 = binary.add %42, %101
+    %103: %r0 = coerce %102
+    store global log: %r0, %103
+    %105: %r0 = binary.add %4, %58
     %106: %r0 = coerce %105
-    store global sideEffect: %r0, %106
-    %108: %r0 = load global log: %r0
-    %109: %r0 = const 100
-    %110: %r0 = binary.add %108, %109
-    %111: %r0 = coerce %110
-    store global log: %r0, %111
-    %113: %r0 = load global log: %r0
-    %114: %r0 = const 1
-    %115: %r0 = binary.add %113, %114
-    %116: %r0 = coerce %115
-    store global log: %r0, %116
-    %118: %r0 = binary.add %4, %63
-    %119: %r0 = coerce %118
-    %120: %r0 = binary.add %119, %79
-    %121: %r0 = coerce %120
-    %122: %r0 = load global sideEffect: %r0
-    %123: %r0 = binary.add %121, %122
-    %124: %r0 = coerce %123
-    %125: %r0 = load global log: %r0
-    %126: %r0 = binary.add %124, %125
-    %127: %r0 = coerce %126
-    return %127
+    %107: %r0 = binary.add %106, %73
+    %108: %r0 = coerce %107
+    %109: %r0 = binary.add %108, %95
+    %110: %r0 = coerce %109
+    %111: %r0 = binary.add %110, %103
+    %112: %r0 = coerce %111
+    return %112
 
-optimizer clones 0 aliased 0 forwarded 0 removed 9 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 3
+optimizer clones 0 aliased 0 forwarded 0 removed 9 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 3 folded 0
 
 rep %r0 = number signed 32
 rep %r1 = number unsigned 8

@@ -1,0 +1,201 @@
+mut @calls = [0, 0, 0, 0]
+
+poke<complex>(%h: Ptr) {
+  b_0 {
+    %v_1 = add %h, 8: Ptr
+    %v_2 = loads %v_1, 8: I64
+    %v_3 = cmp_eq %v_2, 0: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = call_complex valuesMut(I32), %h: Ptr
+    store %v_6, 99, 4
+    ret 
+  }
+
+  b_4 {
+    call_complex checkFailed
+    unreachable 
+  }
+}
+
+pokeMove<complex>(%v_0: I64, %v_1: I64, %v_2: I32) {
+  b_3 {
+    %v_4 = alloca 20, 8: Ptr
+    store %v_4, %v_0, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_1, 8
+    %v_6 = add %v_4, 16: Ptr
+    store %v_6, %v_2, 4
+    %v_7 = cmp_ge 1, %v_1: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    %v_10 = call_complex valuesMut(I32), %v_4: Ptr
+    %v_11 = add %v_10, 4: Ptr
+    store %v_11, 77, 4
+    ret 
+  }
+
+  b_8 {
+    call_complex checkFailed
+    unreachable 
+  }
+}
+
+viaRecord<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 4: Ptr
+    %v_2 = alloca 20, 8: Ptr
+    call_complex +=(I32), @calls, 1
+    setpattern %v_1, 16, 0
+    store %v_1, 5, 4
+    %v_3 = add %v_1, 4: Ptr
+    store %v_3, 6, 4
+    %v_4, %v_5 = call_complex [a *n].elementsMut(4, I32), %v_1: I64, I64
+    store %v_2, %v_4, 8
+    %v_6 = add %v_2, 8: Ptr
+    store %v_6, %v_5, 8
+    %v_7 = add %v_2, 16: Ptr
+    store %v_7, 1, 4
+    call_complex poke, %v_2
+    %v_8 = load %v_2, 8: I64
+    %v_9 = add %v_2, 8: Ptr
+    %v_10 = load %v_9, 8: I64
+    %v_11 = add %v_2, 16: Ptr
+    %v_12 = load %v_11, 4: I32
+    call_complex pokeMove, %v_8, %v_10, %v_12
+    %v_13 = loads %v_1, 4: I32
+    %v_14 = imul %v_13, 100: I32
+    %v_15 = loads %v_3, 4: I32
+    %v_16 = add %v_14, %v_15: I32
+    ret %v_16
+  }
+}
+
+viaRecordSameBlock<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 4: Ptr
+    call_complex +=(I32), @calls, 1
+    setpattern %v_1, 16, 0
+    store %v_1, 5, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 4, 4
+    %v_3, %v_4 = call_complex [a *n].elementsMut(4, I32), %v_1: I64, I64
+    call_complex pokeMove, %v_3, %v_4, 1
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = sub %v_5, 72: I32
+    ret %v_6
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = call_complex viaRecord: I32
+    %v_3 = cmp_neq %v_2, 9977: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = call_complex viaRecordSameBlock: I32
+    %v_7 = cmp_neq %v_6, 5: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_4 {
+    call_complex +=(I32), %v_1, 1
+    jmp b_5
+  }
+
+  b_9 {
+    %v_10 = loads @calls, 4: I32
+    %v_11 = cmp_neq %v_10, 2: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_8 {
+    call_complex +=(I32), %v_1, 2
+    jmp b_9
+  }
+
+  b_13 {
+    %v_14 = loads %v_1, 4: I32
+    ret %v_14
+  }
+
+  b_12 {
+    call_complex +=(I32), %v_1, 4
+    jmp b_13
+  }
+}
+
+I32.+<complex>(%lhs: I32, %rhs: I32): I32 {
+  b_0 {
+    %v_1 = add %lhs, %rhs: I32
+    ret %v_1
+  }
+}
+
+checkFailed<complex>() {
+  b_0 {
+    call_complex abortProcess
+    ret 
+  }
+}
+
++=(I32)<complex>(%target: Ptr, %amount: I32) {
+  b_0 {
+    %v_1 = loads %target, 4: I32
+    %v_2 = call_complex I32.+, %v_1, %amount: I32
+    store %target, %v_2, 4
+    ret 
+  }
+}
+
+[a *n].elementsMut(4, I32)<complex>(%self: Ptr): I64, I64 {
+  b_0 {
+    %v_1 = call_complex %a.%b.bitcast([I32 *4], I32), %self: Ptr
+    %v_2 = bitcast %v_1: I64
+    ret %v_2, 4
+  }
+}
+
+%a.%b.bitcast([I32 *4], I32)<complex>(%from: Ptr): Ptr {
+  b_0 {
+    ret %from
+  }
+}
+
+valuesMut(I32)<complex>(%self: Ptr): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    ret %v_1
+  }
+}
+
+abortProcess<complex>() {
+  b_0 {
+    call_complex exitProcess, 134
+    ret 
+  }
+}
+
+numberOf<complex>(%call: I32): I64 {
+  b_0 {
+    %v_1 = cast %call: I64
+    ret %v_1
+  }
+}
+
+exitProcess<complex>(%status: I64) {
+  b_0 {
+    %v_1 = call_complex numberOf, 60: I64
+    %v_2 = syscall %v_1, %status: I64
+    ret 
+  }
+}
+

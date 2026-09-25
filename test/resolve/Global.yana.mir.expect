@@ -67,13 +67,13 @@ bb0:
 }
 
 fn addressOfConstant() -> I64 {
-  local & local0: I64
+  local local0: I64
   local p: %I64 [owned here shape6 .*=shared slot 0]
 
 bb0:
   %0: I64 = const 4194304
   write.init borrow.unique (local0) take %0
-  %2: I64 [unique slot 0] = read borrow.unique (local0) loan0
+  %2: I64 [shared slot 0] = read borrow.shared (local0) loan0
   %3: %I64 [owned here shape6 .*=shared slot 0] = address inspect %2 roots.0{0}
   write.init borrow.unique (p) take %3
   %5: %I64 [owned here shape6 .*=shared slot 0] = read copy.trivial (p) roots.0{0}

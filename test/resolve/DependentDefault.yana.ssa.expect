@@ -1,0 +1,127 @@
+module ResolveTest
+
+fn sum'2(t: Two(I32, I32) [shared call]) -> I32 {
+bb0(%0: Two(I32, I32) [shared call] guaranteed):
+  %1: %I32 address = field.addr .left inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: %I32 address = field.addr .right inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = add inspect %2 inspect %4
+  return consume %5
+}
+
+fn apply(f: (Two(I32, I32)) -> I32 [shared call], t: Two(I32, I32) [shared call]) -> I32 {
+bb0(%0: (Two(I32, I32)) -> I32 [shared call] guaranteed, %1: Two(I32, I32) [shared call] guaranteed):
+  %2: (Two(I32, I32)) -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %3: Two(I32, I32) trivial = copy inspect %1
+  %4: I32 trivial = call [value #0] inspect %2 borrow %3
+  return consume %4
+}
+
+fn swap'2(t: Two(a, a)) -> Two(a, a) = <no body>
+
+fn deep(t: Three(I32, I32, Two(I32, I32)) [shared call]) -> I32 {
+bb0(%0: Three(I32, I32, Two(I32, I32)) [shared call] guaranteed):
+  %1: %I32 address = field.addr .first inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: %I32 address = field.addr .second inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = add inspect %2 inspect %4
+  %6: %Two(I32, I32) address = field.addr .rest inspect %0
+  %7: %I32 address = field.addr .left inspect %6
+  %8: I32 trivial = load inspect %7
+  %9: %Two(I32, I32) address = field.addr .rest inspect %0
+  %10: %I32 address = field.addr .right inspect %9
+  %11: I32 trivial = load inspect %10
+  %12: I32 trivial = mul inspect %8 inspect %11
+  %13: I32 trivial = add inspect %5 inspect %12
+  return consume %13
+}
+
+fn width(s: Square(2, 2) [shared call]) -> I32 {
+bb0(%0: Square(2, 2) [shared call] guaranteed):
+  %1: Size trivial = const 0
+  %2: %[I32 *2] address = field.addr .rows inspect %0
+  %3: %I32 address = element.addr inspect %2 inspect %1
+  %4: I32 trivial = load inspect %3
+  %5: Size trivial = const 1
+  %6: %[I32 *2] address = field.addr .rows inspect %0
+  %7: %I32 address = element.addr inspect %6 inspect %5
+  %8: I32 trivial = load inspect %7
+  %9: I32 trivial = add inspect %4 inspect %8
+  %10: Size trivial = const 0
+  %11: %[I32 *2] address = field.addr .columns inspect %0
+  %12: %I32 address = element.addr inspect %11 inspect %10
+  %13: I32 trivial = load inspect %12
+  %14: Size trivial = const 1
+  %15: %[I32 *2] address = field.addr .columns inspect %0
+  %16: %I32 address = element.addr inspect %15 inspect %14
+  %17: I32 trivial = load inspect %16
+  %18: I32 trivial = mul inspect %13 inspect %17
+  %19: I32 trivial = add inspect %9 inspect %18
+  return consume %19
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Two(I32, I32) address = alloc frame Two(I32, I32)
+  %1: %Two(I32, I32) address = alloc frame Two(I32, I32)
+  %2: %Three(I32, I32, Two(I32, I32)) address = alloc frame Three(I32, I32, Two(I32, I32))
+  %3: %Square(2, 2) address = alloc frame Square(2, 2)
+  %4: %(Two(I32, I32)) -> I32 address = alloc frame (Two(I32, I32)) -> I32 [owned here shape8 .0=unique call]
+  %5: I32 trivial = const 3
+  %6: I32 trivial = const 4
+  %7: Two(I32, I32) trivial = aggregate.Two consume %5 consume %6
+  store inspect %0 consume %7
+  %8: Two(I32, I32) trivial = copy inspect %0
+  %9: Two(I32, I32) trivial = call swap'2(I32) consume %8
+  store inspect %1 consume %9
+  %10: I32 trivial = const 1
+  %11: I32 trivial = const 2
+  %12: I32 trivial = const 5
+  %13: I32 trivial = const 6
+  %14: Two(I32, I32) trivial = aggregate.Two consume %12 consume %13
+  %15: Three(I32, I32, Two(I32, I32)) trivial = aggregate.Three consume %10 consume %11 consume %14
+  store inspect %2 consume %15
+  %16: I32 trivial = const 10
+  %17: I32 trivial = const 20
+  %18: [I32 *2] trivial = aggregate.0 consume %16 consume %17
+  %19: I32 trivial = const 3
+  %20: I32 trivial = const 7
+  %21: [I32 *2] trivial = aggregate.0 consume %19 consume %20
+  %22: Square(2, 2) trivial = aggregate.Square consume %18 consume %21
+  store inspect %3 consume %22
+  %23: Two(I32, I32) trivial = copy inspect %0
+  %24: I32 trivial = call sum'2 borrow %23
+  %25: I32 trivial = const 1000
+  %26: I32 trivial = mul inspect %24 inspect %25
+  %27: (Two(I32, I32)) -> I32 [owned here shape8 .0=unique call] affine = fun.value sum'2
+  store inspect %4 consume %27
+  %28: (Two(I32, I32)) -> I32 [shared call shape8 .0=unique call] guaranteed from{%4} = load inspect %4
+  %29: Two(I32, I32) trivial = copy inspect %1
+  %30: I32 trivial = call apply borrow %28 borrow %29
+  %31: I32 trivial = const 100
+  %32: I32 trivial = mul inspect %30 inspect %31
+  %33: I32 trivial = add inspect %26 inspect %32
+  %34: Three(I32, I32, Two(I32, I32)) trivial = copy inspect %2
+  %35: I32 trivial = call deep borrow %34
+  %36: I32 trivial = add inspect %33 inspect %35
+  %37: Square(2, 2) trivial = copy inspect %3
+  %38: I32 trivial = call width borrow %37
+  %39: I32 trivial = add inspect %36 inspect %38
+  return consume %39
+}
+
+fn swap'2(I32)(t: Two(I32, I32)) -> Two(I32, I32) {
+bb0(%0: Two(I32, I32) trivial):
+  %1: %Two(I32, I32) address = alloc frame Two(I32, I32)
+  store inspect %1 consume %0
+  %2: %I32 address = field.addr .right inspect %1
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .left inspect %1
+  %5: I32 trivial = load inspect %4
+  %6: Two(I32, I32) trivial = aggregate.Two consume %3 consume %5
+  return consume %6
+}
+
+entry main

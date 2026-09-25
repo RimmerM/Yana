@@ -22,12 +22,8 @@ fn main() -> one %r0
     %18: %r2 = const 4
     %20: %r0 = const 4
     %21: %r0 = const 0
-    %24: %r0 = const 0
     %25: %r0 = const 10
-    %26: %r8 = convert %24
-    %27: %r8 = convert %20
-    %28: %r9 = binary.ge %26, %27
-    branch %28 -> block2 -> block1
+    jump -> block1
   block1:
     %29: %r1 = alias %17
     store element %29[%21]: %r0, %25
@@ -46,13 +42,8 @@ fn main() -> one %r0
     %45: %r0 = const 3
     %46: %r1 = host host.array %43, %44, %45
     %47: %r2 = const 3
-    %49: %r0 = const 0
-    %50: %r0 = const 3
     %51: %r0 = const 0
-    %52: %r8 = convert %49
-    %53: %r8 = convert %50
-    %54: %r9 = binary.ge %52, %53
-    branch %54 -> block4 -> block3
+    jump -> block3
   block2:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -63,17 +54,15 @@ fn main() -> one %r0
     %58: %r0 = binary.add %56, %57
     %59: %r0 = coerce %58
     store element %55[%51]: %r0, %59
+    %60: %r0 = const 3
+    %61: %r0 = const 0
+    %62: %r0 = call replaces$sum(Array(I32), I32) %46, %60, %61
     %48: %r3 = object %s0 %46, %47
     %40: %r3 = alias %48
-    %60: %r1 = load property %40.items: %r1
-    %61: %r2 = load property %40.length: %r2
-    %62: %r0 = convert %61
-    %63: %r0 = const 0
-    %64: %r0 = call replaces$sum(Array(I32), I32) %60, %62, %63
     call Array(a).reclaim(I32) %40
-    %65: %r0 = binary.add %37, %64
-    %66: %r0 = coerce %65
-    return %66
+    %63: %r0 = binary.add %37, %62
+    %64: %r0 = coerce %63
+    return %64
   block4:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -181,7 +170,7 @@ fn replaces$sum(Array(I32), I32)(parts %r6) -> one %r0
     %95: %r0 = coerce %94
     jump -> block2(%95, %87, %89, %91, %93)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 14 adopted 1 sunk 4 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 2
+optimizer clones 0 aliased 0 forwarded 0 removed 23 adopted 1 sunk 4 numbered 0 decided 2 unboxed 0 updated 0 split 0 promoted 2 folded 6
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}
@@ -198,7 +187,7 @@ rep %r7 = object %s2
 rep %r8 = number unsigned 32
 rep %r9 = number bool
 rep %r10 = array Array of %r3
-rep %r11 = array Int32Array of %r0
+rep %r11 = array Array of %r0
 rep %r12 = parts (%r0, %r0, %r0, %r0) as %r11
 rep %r13 = boolean
 rep %r14 = array Array of %r13

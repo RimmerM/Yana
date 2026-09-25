@@ -19,71 +19,69 @@ function collect(xs$0, xs$1, xs$2) {
 }
 
 function main() {
-  var v12 = new Int32Array([1, 2, 3, 4]);
-  var v17 = collect(v12, 4, 0);
-  var v20 = v17.items;
-  var v23 = v17.length;
+  var v9 = new Int32Array([1, 2, 3, 4]);
+  var v14 = collect(v9, 4, 0);
+  var v17 = v14.items;
+  var v23 = v14.length;
   if (0 >= v23) throw $t;
-  var v29 = v20[0];
+  var v26 = v17[0];
   if (1 >= v23) throw $t;
-  var v43 = v29 + Math.imul(v20[1], 2) | 0;
+  var v40 = v26 + Math.imul(v17[1], 2) | 0;
   if (2 >= v23) throw $t;
-  var v57 = v43 + Math.imul(v20[2], 4) | 0;
+  var v54 = v40 + Math.imul(v17[2], 4) | 0;
   if (3 >= v23) throw $t;
-  var v72 = v57 + Math.imul(v20[3], 8) | 0;
-  var v79 = { items: new Int32Array([]), length: 0 };
+  var v69 = v54 + Math.imul(v17[3], 8) | 0;
+  var v76 = { items: new Int32Array([]), length: 0 };
   var p0 = 0;
   while (p0 < 4) {
     if (p0 >>> 0 >= 4) throw $t;
-    push_I32(v79, v12[p0 | 0]);
+    push_I32(v76, v9[p0 | 0]);
     p0 = p0 + 1 | 0;
   }
-  var v85 = v79.items;
-  var v87 = v79.length;
+  var v82 = v76.items;
+  var v87 = v76.length;
   if (0 >= v87) throw $t;
-  var v95 = v72 + v85[0] | 0;
+  var v92 = v69 + v82[0] | 0;
   if (1 >= v87) throw $t;
-  var v109 = v95 + Math.imul(v85[1], 2) | 0;
+  var v106 = v92 + Math.imul(v82[1], 2) | 0;
   if (2 >= v87) throw $t;
-  var v123 = v109 + Math.imul(v85[2], 4) | 0;
+  var v120 = v106 + Math.imul(v82[2], 4) | 0;
   if (3 >= v87) throw $t;
-  var v137 = v123 + Math.imul(v85[3], 8) | 0;
-  var v147 = { items: new Int32Array([]), length: 0 };
+  var v134 = v120 + Math.imul(v82[3], 8) | 0;
+  var v144 = { items: new Int32Array([]), length: 0 };
   var p1 = 0;
   while (p1 < 4) {
     if (p1 >>> 0 >= 4) throw $t;
-    push_I32(v147, Math.imul(v12[p1 | 0], 2));
+    push_I32(v144, Math.imul(v9[p1 | 0], 2));
     p1 = p1 + 1 | 0;
   }
-  var v158 = v147.items;
-  var v160 = v147.length;
+  var v155 = v144.items;
+  var v160 = v144.length;
   if (0 >= v160) throw $t;
-  var v168 = v137 + v158[0] | 0;
+  var v165 = v134 + v155[0] | 0;
   if (1 >= v160) throw $t;
-  var v182 = v168 + Math.imul(v158[1], 2) | 0;
+  var v179 = v165 + Math.imul(v155[1], 2) | 0;
   if (2 >= v160) throw $t;
-  var v196 = v182 + Math.imul(v158[2], 4) | 0;
+  var v193 = v179 + Math.imul(v155[2], 4) | 0;
   if (3 >= v160) throw $t;
-  var v210 = v196 + Math.imul(v158[3], 8) | 0;
-  var v215 = new Int32Array([5, 6, 7, 8]);
-  var v270 = (((v210 + v215[0] | 0) + Math.imul(v215[1], 2) | 0) + Math.imul(v215[2], 4) | 0) + Math.imul(v215[3], 8) | 0;
-  var v273 = reclaims ? 1 : 0;
-  var v14 = { items: v12, length: 4 };
-  if (v273) return -1;
-  var v285 = { slots: collect(v14.items, v14.length, 0) };
+  var v207 = v193 + Math.imul(v155[3], 8) | 0;
+  var v212 = new Int32Array([5, 6, 7, 8]);
+  var v267 = (((v207 + v212[0] | 0) + Math.imul(v212[1], 2) | 0) + Math.imul(v212[2], 4) | 0) + Math.imul(v212[3], 8) | 0;
+  if (reclaims) return -1;
+  var v277 = { slots: collect(v9, 4, 0) };
   if (reclaims) {
-    Cell_drop(v285);
+    Cell_drop(v277);
     return -2;
   }
-  var v292 = v285.slots;
-  var v293 = v292.items;
-  var v296 = v292.length;
-  if (0 >= v296) throw $t;
-  var v304 = v270 + v293[0] | 0;
-  if (3 >= v296) throw $t;
-  var v313 = v293[3];
-  Cell_drop(v285);
-  return v304 + v313 | 0;
+  var v284 = v277.slots;
+  var v285 = v284.items;
+  var v291 = v284.length;
+  if (0 >= v291) throw $t;
+  var v296 = v267 + v285[0] | 0;
+  if (3 >= v291) throw $t;
+  var v305 = v285[3];
+  Cell_drop(v277);
+  return v296 + v305 | 0;
 }
 
 function push_I32(self, item) {

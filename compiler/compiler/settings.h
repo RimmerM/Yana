@@ -63,8 +63,8 @@ enum class CompileMode {
  * `Ownership` is the rewrite in `compiler/resolve_mir` and `compiler/resolve_ssa`, which shares the
  * parser and everything from `compiler/lower` down and nothing in between, and **is the default on
  * both platforms** since 2026-09-22 (J81). `Legacy` is `compiler/resolve`, which is now the
- * comparison stage: what is still only its is `-mode ir`, `-mode drops`, `-mode shared`,
- * `-mode lib` and the goldens the test drivers pin it for.
+ * comparison stage: what is still only its is `-mode ir`, `-mode drops` and the goldens the test
+ * drivers pin it for. `-mode shared` and `-mode lib` are neither stage's (J150).
  *
  * The default flipped rather than the old stage being deleted, deliberately: two front halves that
  * can compile one fixture is the whole value of the second set of goldens, and a default that names

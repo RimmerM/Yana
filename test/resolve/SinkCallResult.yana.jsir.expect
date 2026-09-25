@@ -89,13 +89,12 @@ fn main() -> one %r1
     %51: %r0 = call joined %48, %50
     %52: %r3 = const "$v"
     call push(String) %1, %52, %51
-    %53: %r1 = const 0
     %54: %r2 = load property %1.$v: %r2
     %56: %r2 = alias %54
     %57: %r9 = load property %56.length: %r9
     %58: %r1 = convert %57
     %59: %r1 = const 0
-    %60: %r12 = convert %53
+    %60: %r12 = const 0
     %61: %r12 = convert %58
     %62: %r8 = binary.ge %60, %61
     branch %62 -> block10 -> block9
@@ -103,8 +102,7 @@ fn main() -> one %r1
     %127: %r1 = const -2
     return %127
   block5:
-    %73: %r1 = const 1
-    %80: %r12 = convert %73
+    %80: %r12 = const 1
     %81: %r12 = alias %61
     %82: %r8 = binary.ge %80, %81
     branch %82 -> block12 -> block11
@@ -120,11 +118,7 @@ fn main() -> one %r1
     %98: %r0 = alias %97
     %99: %r1 = host host.field "length" host-range %98
     %100: %r1 = convert %99
-    %101: %r1 = const 1
-    %108: %r12 = convert %101
-    %109: %r12 = alias %61
-    %110: %r8 = binary.ge %108, %109
-    branch %110 -> block14 -> block13
+    jump -> block13
   block8:
     %123: %r2 = alias %54
     call Array(a).reclaim(String) %123
@@ -149,8 +143,7 @@ fn main() -> one %r1
   block11:
     %75: %r2 = alias %54
     %83: %r2 = alias %75
-    %84: %r1 = alias %73
-    %85: %r1 = coerce %84
+    %85: %r1 = const 1
     %86: %r0 = load element %83[%85]: %r0
     %87: %r0 = alias %86
     %88: %r0 = const "pqr"
@@ -167,8 +160,7 @@ fn main() -> one %r1
   block13:
     %103: %r2 = alias %54
     %111: %r2 = alias %103
-    %112: %r1 = alias %101
-    %113: %r1 = coerce %112
+    %113: %r1 = const 1
     %114: %r0 = load element %111[%113]: %r0
     %115: %r0 = alias %114
     %116: %r2 = alias %54
@@ -235,7 +227,7 @@ fn growJsArray(String)(parts %r5, one %r1) -> omitted
     store element %0[%1]: %r2, %15
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 30 adopted 0 sunk 2 numbered 25 decided 1 unboxed 0 updated 0 split 0 promoted 13
+optimizer clones 0 aliased 0 forwarded 0 removed 38 adopted 0 sunk 2 numbered 23 decided 2 unboxed 0 updated 0 split 0 promoted 13 folded 7
 
 shape %s0 ref {$o: %r3 owner, $k: %r3 key}
 shape %s1 cell {$v: %r2 box}

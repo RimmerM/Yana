@@ -1,0 +1,37 @@
+{-
+   A generic parameter's default naming an earlier parameter of the same head - declarations.md,
+   "Generic parameter defaults". An application fills its arguments left to right and a default is
+   substituted with the ones already filled, so `Two(I32)` *is* `Two(I32, I32)`: one type, whichever
+   way it is spelled, in a field, a parameter, a function type and a generic body.
+
+   # resolver: ownership
+
+   The shipping stage refuses the heads (`Reject.GenericDefault.Legacy.yana`).
+-}
+
+data Two(a, b = a) {left: a, right: b}
+
+-- A default built from an earlier one, and a count defaulted to a count.
+data Three(a, b = a, c = Two(b)) {first: a, second: b, rest: c}
+data Square(n: Int, m: Int = n) {rows: [I32 *n], columns: [I32 *m]}
+
+alias Same(a, b = a) = Two(a, b)
+
+fn sum(t: Two(I32)) -> I32 = t.left + t.right
+
+-- Written both ways: the function type's `Two(I32)` meets the argument's `Two(I32, I32)` by identity.
+fn apply(f: (Two(I32)) -> I32, t: Two(I32, I32)) -> I32 = f(t)
+
+-- Under a variable: `Two(a)` is `Two(a, a)` for whatever `a` the call decides.
+fn (a) swap(->t: Two(a)) -> Two(a, a) = Two {left: t.right, right: t.left}
+
+fn deep(t: Three(I32)) -> I32 = t.first + t.second + t.rest.left * t.rest.right
+
+fn width(s: Square(2)) -> I32 = s.rows[0] + s.rows[1] + s.columns[0] * s.columns[1]
+
+fn main() -> I32:
+    let pair = Two {left: 3 :: I32, right: 4 :: I32}
+    let same = swap(pair) :: Same(I32)
+    let three = Three {first: 1 :: I32, second: 2 :: I32, rest: Two {left: 5 :: I32, right: 6 :: I32}}
+    let square = Square {rows: [10, 20] :: [I32 *2], columns: [3, 7] :: [I32 *2]}
+    return sum(pair) * 1000 + apply(sum, same) * 100 + deep(three) + width(square)

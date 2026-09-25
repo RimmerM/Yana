@@ -554,6 +554,39 @@ YANA_KNOWN_ROLE( freeHeap,      Entity::Function, 1,   0,      0,      false,   
 YANA_KNOWN_ROLE( isHeapAddress, Entity::Function, 1,   0,      0,      false,   Presence::Optional )
 
 /*
+ * `releaseRun(self: Run(a))` - **storage release**, the call an authored `Reclaim` is written to make
+ * (ownership.md, "Authored teardown"). A role so that the shape check can name it: the rule is a set
+ * of callees - teardowns, what the compiler provides, and storage release - and without the row the
+ * last of those was a plain `lib/Native` function the check could only have recognised by its name.
+ * `freeHeap` above is the other member of the set. Optional for the reason the heap rows are.
+ */
+YANA_KNOWN_ROLE( releaseRun,    Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+
+/*
+ * `@inline(n) @capacity(n) [T]` - Implementation-Containers.md §7.1's row that never spills, as the
+ * ownership stage builds it (J143). `lib/Core/InlineArray.ownership.native.yana`.
+ *
+ * `inlineArray` is the **type** the refinement names: `data InlineArray(a, n: Int) {slots: [a *n],
+ * length: Count}`, the elements and the count inside whoever holds it. Its first field is *storage*
+ * (`RecordField::storage`): only the first `length` slots hold values, so no derived walk descends
+ * into it and the library's `Reclaim` releases exactly the live prefix. There is no pointer into the
+ * record anywhere in it, so a move is its bytes.
+ *
+ * The two functions are the **owner adaptation** - a `&self: Array(a)` position (`push`, `reserve`)
+ * reached with one. `inlineGrowable(&self) -> Array(a)` builds a plain descriptor over the record's
+ * own slots with a `runFixed` run, so a growth past `n` is refused where it would relocate; the call
+ * is made on it, and `inlineCommit(&self, &grown)` writes the count back and empties the descriptor,
+ * whose own teardown then releases nothing. The loan of the record is held across the call, so nothing
+ * else can reach it while the descriptor stands in for it.
+ *
+ * `Optional`: a target whose library declares none - JavaScript, where a host array grows on its own
+ * - reads the refinement as the plain `[T]` it bounds, which is what the literal did there already.
+ */
+YANA_KNOWN_ROLE( inlineArray,   Entity::Record,   2,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( inlineGrowable, Entity::Function, 1,  0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( inlineCommit,  Entity::Function, 2,   0,      0,      false,   Presence::Optional )
+
+/*
  * The two block moves, by name - `lib/Native/Memory.native.yana`.
  *
  * `blockCopy` above is the *operation* and these are the **ladders over it**, which is why naming

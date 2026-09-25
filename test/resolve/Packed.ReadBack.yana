@@ -1,0 +1,47 @@
+-- **A `&U32` callee lent a `@bits(n)` field reads back what it wrote** - repr.md's tier 1, step 2:
+-- the callee works on a full-width temporary exactly as on any other `&U32`, and only the commit
+-- after the call narrows. So `x = x + 20; return x` over a four-bit field answers 23 and leaves 7
+-- in the field. Every other packed fixture reads the field after the call, where narrowing at each
+-- store and narrowing at the commit agree; this one reads `x` inside the callee, where they do not.
+--
+-- J149: JavaScript passed `$bitCell`'s box, whose setter masks at every write (7 under
+-- `-no-ir-opt`), and the shared inliner spliced the callee's stores into the field itself, which
+-- narrowed each of them on both targets once forwarding did not carry the value to the read
+-- (`bumpLoop`, 1 optimized).
+
+data Header {version: @bits(4) U32, flags: @bits(3) U32, length: @bits(13) U32}
+
+@noinline fn opaque(n: Int) -> Int = n + 1
+
+@noinline fn bumpRead(&x: U32) -> U32:
+    x = x + (20 :: U32)
+    return x
+
+fn bumpInline(&x: U32) -> U32:
+    x = x + (20 :: U32)
+    return x
+
+@noinline fn twiceWrite(&x: U32) -> U32:
+    x = 100 :: U32
+    let seen = x
+    x = seen + (1 :: U32)
+    return seen
+
+fn bumpLoop(&x: U32, n: Int) -> U32:
+    for i in 0..n:
+        x = x + (10 :: U32)
+        if opaque(i) > 100 then x = x + (1 :: U32)
+    return x
+
+-- The answer is the five results and the three fields after the last call: 23 + 27 + 100 + 1030 +
+-- 31, and 15 + 5 + 1030 - narrowing at each store makes the first sum 7 + 11 + 100 + 1030 + 1.
+fn main() -> Int:
+    let &h = Header {version: 3 :: U32, flags: 5 :: U32, length: 1000 :: U32}
+    let r1 = bumpRead(h.version)
+    let r2 = bumpInline(h.version)
+    let r3 = twiceWrite(h.flags)
+    let r4 = bumpLoop(h.length, 3)
+    let r5 = bumpLoop(h.version, 2)
+    let results = r1 + r2 + r3 + r4 + r5
+    let fields = h.version + h.flags + h.length
+    return bitcast(results * (10000 :: U32) + fields) :: I32

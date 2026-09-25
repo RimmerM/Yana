@@ -424,6 +424,19 @@ bool mentionsContext(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> cont
             return mentionsContext(base, ((AtomicType*)base[type])->content, context);
         case Type::Record: {
             auto& record = *(RecordType*)base[type];
+
+            // A tuple is made of its fields and has no arguments - `substituteType`'s own tuple arm
+            // - so `{slot: a, index: Int}` mentions `a` there. Missing until J139, which made that
+            // position a hint naming the callee's variable. It terminates: a tuple is structural,
+            // so what could make it recursive is a named record, which is walked by argument.
+            if(record.tuple) {
+                for(auto field: record.fields.contents(base)) {
+                    if(mentionsContext(base, field.occurrence.type, context)) return true;
+                }
+
+                return false;
+            }
+
             for(auto argument: record.arguments.contents(base)) {
                 if(mentionsContext(base, argument, context)) return true;
             }
@@ -487,6 +500,16 @@ bool isConcreteType(DeclBase base, DeclPtr<Type> type) {
             // substituted into, so a walk over them would be the same question asked one level
             // deeper and would not terminate on a recursive generic.
             auto& record = *(RecordType*)base[type];
+
+            // A tuple's fields are its arguments - see `mentionsContext`.
+            if(record.tuple) {
+                for(auto field: record.fields.contents(base)) {
+                    if(!isConcreteType(base, field.occurrence.type)) return false;
+                }
+
+                return true;
+            }
+
             for(auto argument: record.arguments.contents(base)) {
                 if(!isConcreteType(base, argument)) return false;
             }
@@ -626,13 +649,22 @@ bool fillDefaults(Context& context, Program& program, DeclPtr<GenContext> owner,
 
     if(arguments.size() >= arity) return arguments.size() == arity;
 
+    // A head whose defaults are still being read - applied from a default of another head, or of
+    // itself - is asked for them first (`Program::demandDefaults`). Still short after that is the
+    // cycle the demand reported, and not an index past the end of the list.
+    if(into.defaults.size() < arity && program.demandDefaults) {
+        program.demandDefaults(program.demandResolver, owner);
+    }
+    if(base[owner]->defaults.size() < arity) return false;
+
     while(arguments.size() < arity) {
         auto declared = into.defaults.get(base, arguments.size());
         if(!declared) return false;
 
         // Substituted through the arguments *so far*, which is what makes `Pair(a, b = a)` fill `b`
         // with what `a` turned out to be. The substitution is partial by construction - the
-        // positions after this one are still empty - and `substituteType` leaves those alone.
+        // positions after this one are still empty - and `substituteType` leaves those alone, which
+        // is why `declareDefaults` refuses a default naming its own position or a later one.
         Substitution with { owner, arguments.pointer(), arguments.size() };
         arguments.push(substituteType(context, program, declared, with));
     }
@@ -777,7 +809,15 @@ bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
         return sameType(into[index], concrete);
     }
 
-    if(sameType(pattern, concrete)) return true;
+    /*
+     * Identical types match - unless the pattern mentions the context being bound, which is the
+     * case where the concrete side is *made of the same variables*: a class default calling a
+     * sibling member, `twice(subject: Held(a)) = measure(subject)`, matches `measure`'s `Held(a)`
+     * against its own `Held(a)`, and the shortcut answered "yes" without binding `a` to anything.
+     * A bare `a` never reached it (the arm above binds it to itself); the walk below does the same at
+     * depth. J139.
+     */
+    if(sameType(pattern, concrete) && !mentionsContext(base, pattern, owner)) return true;
 
     auto& supplied = *base[concrete];
     if(written.kind != supplied.kind) return false;
@@ -1374,6 +1414,20 @@ Occurrence substituteOccurrence(Context& context, Program& program, const Occurr
                         substituteShape(program, occurrence.type, substituted, occurrence.shape) };
 }
 
+Occurrence impliedPointeeOrigin(Program& program, const Occurrence& occurrence) {
+    auto base = *program.decl;
+    if(!Shapes::isEmpty(occurrence.shape) || occurrence.contract.origin() != Origin::Slot) {
+        return occurrence;
+    }
+    if(!occurrence.type || base[occurrence.type]->kind != Type::Pointer) return occurrence;
+
+    ExternalSlot pointee {};
+    pointee.path.push(program.decl, PathStep::pointee());
+    pointee.contract = slotContract(Access::Shared, occurrence.contract.slot());
+
+    return Occurrence { occurrence.type, occurrence.contract, program.shapes.intern(&pointee, 1) };
+}
+
 /*
  * One instantiation's fields, constructors and layout, from the declaration it came from.
  *
@@ -1470,8 +1524,11 @@ DeclPtr<Type> instantiateRecord(Context& context, Program& program, DeclPtr<Reco
     for(Size i = 0; i < count; i++) supplied.push(args[i]);
 
     if(!fillDefaults(context, program, written.gen, supplied)) {
-        context.diagnostics.error("%@ takes %@ type arguments and this names %@"_v, source,
-                                  context.findName(written.name), U64(parameters), U64(count));
+        // Quiet for a head whose defaults a cycle abandoned - `GenContext::defaultsAbandoned`.
+        if(!base[written.gen]->defaultsAbandoned) {
+            context.diagnostics.error("%@ takes %@ type arguments and this names %@"_v, source,
+                                      context.findName(written.name), U64(parameters), U64(count));
+        }
         return nullptr;
     }
 
@@ -1549,6 +1606,9 @@ DeclPtr<Type> tupleType(Context& context, Program& program, const RecordField* f
     for(Size i = 0; i < count; i++) {
         auto field = fields[i];
         field.index = U16(i);
+        // Not part of the identity, so not carried into it: whichever spelling interned the tuple
+        // first would otherwise name every other's parameters - `CallNames`.
+        field.callNames = CallNames();
         record->fields.push(program.decl, field);
     }
 

@@ -1,0 +1,122 @@
+module ResolveTest
+
+data Two(a, b) {left: a, right: b} drop derived reclaim derived
+
+data Three(a, b, c) {first: a, second: b, rest: c} drop derived reclaim derived
+
+data Square(n, m) {rows: [I32 *n], columns: [I32 *m]}
+
+data Two(I32, I32) {left: I32, right: I32} of Two
+
+data Three(I32, I32, Two(I32, I32)) {first: I32, second: I32, rest: Two(I32, I32)} of Three
+
+data Square(2, 2) {rows: [I32 *2], columns: [I32 *2]} of Square
+
+fn sum'2(t: Two(I32, I32) [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (t.left)
+  %1: I32 = read copy.trivial (t.right)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn apply(f: (Two(I32, I32)) -> I32 [shared call], t: Two(I32, I32) [shared call]) -> I32 {
+bb0:
+  %0: (Two(I32, I32)) -> I32 [shared call] = read borrow.shared (f) loan0
+  %1: Two(I32, I32) = read copy.trivial (t)
+  %2: I32 = call inspect %0 borrow.shared %1
+  return take %2
+}
+
+fn swap'2(t: Two(a, a)) -> Two(a, a) {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: a = read take (t.right)
+  %1: a = read take (t.left)
+  %2: Two(a, a) = aggregate.Two take %0 take %1
+  return take %2
+}
+
+fn deep(t: Three(I32, I32, Two(I32, I32)) [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (t.first)
+  %1: I32 = read copy.trivial (t.second)
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = read copy.trivial (t.rest.left)
+  %4: I32 = read copy.trivial (t.rest.right)
+  %5: I32 = mul inspect %3 inspect %4
+  %6: I32 = add inspect %2 inspect %5
+  return take %6
+}
+
+fn width(s: Square(2, 2) [shared call]) -> I32 {
+bb0:
+  %0: Size = const 0
+  %1: I32 = read copy.trivial (s.rows[0])
+  %2: Size = const 1
+  %3: I32 = read copy.trivial (s.rows[1])
+  %4: I32 = add inspect %1 inspect %3
+  %5: Size = const 0
+  %6: I32 = read copy.trivial (s.columns[0])
+  %7: Size = const 1
+  %8: I32 = read copy.trivial (s.columns[1])
+  %9: I32 = mul inspect %6 inspect %8
+  %10: I32 = add inspect %4 inspect %9
+  return take %10
+}
+
+fn main() -> I32 {
+  local pair: Two(I32, I32)
+  local same: Two(I32, I32)
+  local three: Three(I32, I32, Two(I32, I32))
+  local square: Square(2, 2)
+  local local4: (Two(I32, I32)) -> I32 [owned here shape8 .0=unique call]
+
+bb0:
+  %0: I32 = const 3
+  %1: I32 = const 4
+  %2: Two(I32, I32) = aggregate.Two take %0 take %1
+  write.init borrow.unique (pair) take %2
+  %4: Two(I32, I32) = read copy.trivial (pair)
+  %5: Two(I32, I32) = call swap'2(I32) take %4
+  write.init borrow.unique (same) take %5
+  %7: I32 = const 1
+  %8: I32 = const 2
+  %9: I32 = const 5
+  %10: I32 = const 6
+  %11: Two(I32, I32) = aggregate.Two take %9 take %10
+  %12: Three(I32, I32, Two(I32, I32)) = aggregate.Three take %7 take %8 take %11
+  write.init borrow.unique (three) take %12
+  %14: I32 = const 10
+  %15: I32 = const 20
+  %16: [I32 *2] = aggregate.0 take %14 take %15
+  %17: I32 = const 3
+  %18: I32 = const 7
+  %19: [I32 *2] = aggregate.0 take %17 take %18
+  %20: Square(2, 2) = aggregate.Square take %16 take %19
+  write.init borrow.unique (square) take %20
+  %22: Two(I32, I32) = read copy.trivial (pair)
+  %23: I32 = call sum'2 borrow.shared %22
+  %24: I32 = const 1000
+  %25: I32 = mul inspect %23 inspect %24
+  %26: (Two(I32, I32)) -> I32 [owned here shape8 .0=unique call] = fun.value sum'2
+  write.init borrow.unique (local4) take %26
+  %28: (Two(I32, I32)) -> I32 [shared call shape8 .0=unique call] = read borrow.shared (local4) loan0
+  %29: Two(I32, I32) = read copy.trivial (same)
+  %30: I32 = call apply borrow.shared %28 borrow.shared %29
+  %31: I32 = const 100
+  %32: I32 = mul inspect %30 inspect %31
+  %33: I32 = add inspect %25 inspect %32
+  %34: Three(I32, I32, Two(I32, I32)) = read copy.trivial (three)
+  %35: I32 = call deep borrow.shared %34
+  %36: I32 = add inspect %33 inspect %35
+  %37: Square(2, 2) = read copy.trivial (square)
+  %38: I32 = call width borrow.shared %37
+  %39: I32 = add inspect %36 inspect %38
+  return take %39
+}
+
+fn swap'2(I32)(t: Two(I32, I32)) -> Two(I32, I32) = <swap at I32>
+
+entry main

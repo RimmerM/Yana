@@ -62,15 +62,10 @@ fn main() -> one %r2
     %20: %r6 = object %s1 %19, %18
     %21: %r2 = call eachOf %4, %7, %8, %20
     %22: %r2 = load property %11.$v: %r2
-    %23: %r2 = const 2
-    %25: %r12 = convert %23
-    %26: %r12 = convert %7
-    %27: %r11 = binary.ge %25, %26
-    branch %27 -> block2 -> block1
+    jump -> block1
   block1:
     %28: %r1 = alias %4
-    %29: %r2 = alias %23
-    %30: %r2 = coerce %29
+    %30: %r2 = const 2
     %31: %r0 = load element %28[%30]: %r0
     %32: %r0 = alias %31
     %33: %r2 = const 0
@@ -132,7 +127,7 @@ fn Array(a).reclaim(String)(one %r1) -> omitted
   block0(%0: %r1):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 5 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 0 split 0 promoted 2
+optimizer clones 0 aliased 0 forwarded 0 removed 10 adopted 0 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 0 promoted 2 folded 5
 
 shape %s0 object ArrayView {items: %r1, length: %r2, offset: %r2}
 shape %s1 fun {$c: %r5 code, $e: %r5 env}

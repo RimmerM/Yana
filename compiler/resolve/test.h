@@ -92,14 +92,4 @@ void readTestAttribute(Module& module, const ast::Decl& decl, Function& function
 // ordinary search for `main` - a test build runs tests.
 void resolveTestEntry(Program& program);
 
-/*
- * Whether any file of this module declares a `@test` - asked of the parse tree, before anything is
- * resolved.
- *
- * A test module is not reached from the program it tests, because the dependency runs the other
- * way, so under `-test` something has to name the ones that are part of the compilation anyway.
- * This is that test, and it is deliberately the narrowest one that works: a module with no `@test`
- * in it contributes nothing to a suite, and a test module's *helpers* are reached from it by
- * ordinary imports like anything else. See resolveProgram's `testRoots`.
- */
-bool moduleDeclaresTests(Context& context, ast::ModuleGroup& group);
+// `moduleDeclaresTests` is `ast::`'s since J150 - see compiler/parse/library.h.

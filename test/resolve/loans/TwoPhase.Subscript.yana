@@ -1,0 +1,27 @@
+{-
+   A subscript at a `&` parameter, with a later argument reading the same array (J147).
+
+   # resolver: ownership
+
+   `addTo(xs[0], total(xs))`: the subscript takes `xs` exclusively and the later argument reads it.
+   The subscript was the first operand naming the read, so the reservation activated there and the
+   read was refused; the shipping stage accepts the line. A subscript is a path from `self` the way a
+   derivation is (J140's `TwoPhase.Window.yana`), so it carries the reservation on to the call - and
+   through the temporary the element's place is written into - **windowed**, because the element's
+   address is a snapshot of the run: a later read is admitted and a later `push` is still refused
+   (`Reject.TwoPhase.yana`'s `subscriptThenPush`).
+-}
+
+fn addTo(&a: Int, by: Int): a = a + by
+
+fn total(xs: [Int]) -> Int:
+    let &sum = 0 :: Int
+    for x in items(xs):
+        sum += x
+    return sum
+
+fn main() -> Int:
+    let &xs = [1, 2, 3]
+    addTo(xs[0], total(xs))
+    addTo(xs[2], xs[0] + truncate(length(xs)))
+    return xs[0] * 100 + xs[1] * 10 + xs[2]

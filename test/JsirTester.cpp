@@ -153,7 +153,13 @@ struct JsirScratch {
     bool verify() {
         diagnostics.reset();
         target.reported = false;
-        return verifyBody(target, body);
+        target.refused = false;
+
+        // The verifier holds what it finds until the program is done (`JsTarget::refused`), and a
+        // case here is a program of one body.
+        auto ok = verifyBody(target, body);
+        target.releaseVerifierReports();
+        return ok;
     }
 };
 

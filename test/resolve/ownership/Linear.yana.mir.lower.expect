@@ -1,124 +1,34 @@
 mut @trace = [0, 0, 0, 0]
 
-Guard.drop<complex>(%v_0: I32) {
-  b_1 {
-    %v_2 = loads @trace, 4: I32
-    %v_3 = imul %v_2, 10: I32
-    %v_4 = add %v_3, %v_0: I32
-    store @trace, %v_4, 4
-    ret 
-  }
-}
-
-Pool.drop<complex>(%v_0: I32) {
-  b_1 {
-    %v_2 = loads @trace, 4: I32
-    %v_3 = imul %v_2, 10: I32
-    %v_4 = add %v_3, 1: I32
-    store @trace, %v_4, 4
-    call_complex Guard.drop, %v_0
-    ret 
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
-    call_complex Guard.drop, 1
     %v_1 = loads @trace, 4: I32
-    %v_2 = cmp_neq %v_1, 1: I32
-    je %v_2, b_3, b_4
+    %v_2 = imul %v_1, 10: I32
+    %v_3 = add %v_2, 1: I32
+    store @trace, %v_3, 4
+    %v_4 = cmp_neq %v_3, 1: I32
+    je %v_4, b_5, b_6
   }
 
-  b_4 {
+  b_6 {
     store @trace, 0, 4
-    call_complex Guard.drop, 3
-    call_complex Guard.drop, 2
-    %v_5 = loads @trace, 4: I32
-    %v_6 = cmp_neq %v_5, 32: I32
-    je %v_6, b_7, b_8
+    store @trace, 0, 4
+    store @trace, 0, 4
+    store @trace, 0, 4
+    store @trace, 0, 4
+    store @trace, 6, 4
+    store @trace, 67, 4
+    store @trace, 0, 4
+    store @trace, 8, 4
+    store @trace, 89, 4
+    store @trace, 0, 4
+    store @trace, 1, 4
+    store @trace, 12, 4
+    ret 0
   }
 
-  b_3 {
+  b_5 {
     ret 18446744073709551614
-  }
-
-  b_8 {
-    store @trace, 0, 4
-    %v_9 = loads @trace, 4: I32
-    %v_10 = imul %v_9, 10: I32
-    %v_11 = add %v_10, 9: I32
-    store @trace, %v_11, 4
-    call_complex Guard.drop, 4
-    %v_12 = loads @trace, 4: I32
-    %v_13 = cmp_neq %v_12, 94: I32
-    je %v_13, b_14, b_15
-  }
-
-  b_7 {
-    ret 18446744073709551612
-  }
-
-  b_15 {
-    store @trace, 0, 4
-    call_complex Guard.drop, 5
-    %v_16 = loads @trace, 4: I32
-    %v_17 = cmp_neq %v_16, 5: I32
-    je %v_17, b_18, b_19
-  }
-
-  b_14 {
-    ret 18446744073709551610
-  }
-
-  b_19 {
-    store @trace, 0, 4
-    call_complex Guard.drop, 1
-    %v_20 = loads @trace, 4: I32
-    %v_21 = cmp_neq %v_20, 1: I32
-    je %v_21, b_22, b_23
-  }
-
-  b_18 {
-    ret 18446744073709551608
-  }
-
-  b_23 {
-    store @trace, 0, 4
-    call_complex Guard.drop, 6
-    call_complex Guard.drop, 7
-    %v_24 = loads @trace, 4: I32
-    %v_25 = cmp_neq %v_24, 67: I32
-    je %v_25, b_26, b_27
-  }
-
-  b_22 {
-    ret 18446744073709551600
-  }
-
-  b_27 {
-    store @trace, 0, 4
-    call_complex Guard.drop, 8
-    call_complex Guard.drop, 9
-    %v_28 = loads @trace, 4: I32
-    %v_29 = cmp_neq %v_28, 89: I32
-    je %v_29, b_30, b_31
-  }
-
-  b_26 {
-    ret 18446744073709551606
-  }
-
-  b_31 {
-    store @trace, 0, 4
-    call_complex Pool.drop, 2
-    %v_32 = loads @trace, 4: I32
-    %v_33 = cmp_neq %v_32, 12: I32
-    %v_34 = select %v_33, 18446744073709551602, 0: I32
-    ret %v_34
-  }
-
-  b_30 {
-    ret 18446744073709551604
   }
 }
 

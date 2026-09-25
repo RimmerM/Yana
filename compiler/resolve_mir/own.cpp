@@ -499,6 +499,11 @@ struct Classifier {
 
         Ownership result;
 
+        // `InlineArray`'s slots - `RecordField::storage`. Whether the elements owe anything, which
+        // is the one thing the field says about the record's teardown.
+        auto storage = false;
+        auto storageOwes = false;
+
         for(auto field: record.fields.contents(decl)) {
             /*
              * An external field is not a member: the record reaches it through one of its own origin
@@ -510,6 +515,22 @@ struct Classifier {
              */
             if(!ownsField(field)) {
                 if(field.occurrence.contract.access() == Access::Unique) result.trivialCopy = false;
+                continue;
+            }
+
+            /*
+             * **Storage** - only a prefix of it holds values, so it is never walked. What it
+             * contributes is what copying and relocating the bytes need, and whether the record's
+             * authored `Reclaim` has anything to do: an element with nothing to run leaves the record
+             * plain bytes, which is the whole reason `InlineArray(Int, 4)` copies as a value.
+             */
+            if(field.storage) {
+                auto inner = ownership(field.occurrence.type);
+                result.trivialCopy = result.trivialCopy && inner.trivialCopy;
+                result.relocatable = result.relocatable && inner.relocatable;
+                result.explicitDrop = result.explicitDrop || inner.explicitDrop;
+                storage = true;
+                storageOwes = inner.reclaim != TeardownKind::None || inner.drop != TeardownKind::None;
                 continue;
             }
 
@@ -579,6 +600,12 @@ struct Classifier {
          * See `../../doc/progress/2026-09-16-J57-object-defects.md` §2.
          */
         if(record.producer && result.drop == TeardownKind::Authored) {
+            result.reclaim = TeardownKind::None;
+        }
+
+        // An `InlineArray` whose elements owe nothing has no teardown at all, whatever the library's
+        // one parametric `Reclaim` says - the walk it writes would release nothing.
+        if(storage && !storageOwes && result.reclaim == TeardownKind::Authored) {
             result.reclaim = TeardownKind::None;
         }
 
@@ -1087,9 +1114,17 @@ bool foldRecordSchema(Context& context, Program& program, RecordType& record) {
     auto decl = *program.decl;
     U32 errors = 0;
 
+    // See `RecordType::schemaFolded`. A record reached while it is being folded is one holding
+    // itself, which it can only do through a pointer - and a pointer is not folded through.
+    record.schemaFolded = 1;
+
     // One slot per external field, at the path that reaches it. In field order, which is the
     // order `Analysis::slotAt` and `selectPositions` compare paths in.
     SmallArray<ExternalSlot, 8> slots;
+
+    // The next origin set a **nested** record's slots take - after every set the record's own
+    // fields publish, which are `originSlots` - see the fold below.
+    auto nextSlot = U32(record.originSlots);
 
     for(auto field: record.fields.contents(decl)) {
         if(!ownsField(field)) {
@@ -1131,15 +1166,63 @@ bool foldRecordSchema(Context& context, Program& program, RecordType& record) {
         }
 
         /*
-         * An owned field whose *type* refers to storage somebody else keeps.
+         * An owned field whose *type* is a record holding a reference - `data L2 {a: L1}` over
+         * `data L1 {r: 'Int}` (J141, J94 §3.4's `NestedBorrow`).
          *
-         * `data Outer {inner: Reader}` where `Reader` has an external position: the outer record
-         * inherits an origin requirement it does not name, and there is nowhere for a use site to
-         * say what fills it. The spelling that would is a loan argument on the field's type -
-         * `inner: Reader(a')` - which a *signature* reads now and a field does not: the record's own
-         * schema would gain `Reader`'s slots at a deeper path, so the fold would have to run on
-         * demand over a graph this pass walks flat. Refused by name rather than accepted with the
-         * slot silently dropped.
+         * The outer record holds what the inner one refers to, so it inherits the inner record's
+         * positions at the field's path, one step deeper - `[Field(a), Field(r)]` - exactly as the
+         * `interior` case above does for a position the occurrence named. What the field does not
+         * say is *which* of the outer record's origin sets fills them, so each nested field gets
+         * sets of its own, numbered after every set the record's own fields publish and in the
+         * inner record's order: two fields of one reference-holding type are two relations, as two
+         * unlabelled fields of a signature's parameters would be one only because a signature's
+         * silence means one group. A use site cannot bind them with a loan argument
+         * (`originSlots` still counts the written ones), and does not need to - a result's elided
+         * positions and a parameter's unbound ones are read off the schema, which has them.
+         *
+         * Until J141 this was refused, because the flat walk of `foldSchemas` could meet `L2`
+         * before `L1`. The inner record is folded on demand now, and `foldSchemas` skips it after.
+         */
+        if(auto type = field.occurrence.type; type && decl[type]->kind == Type::Record) {
+            auto& inner = *(RecordType*)decl[type];
+            if(!inner.schemaFolded && inner.fields.size()) foldRecordSchema(context, program, inner);
+        }
+
+        /*
+         * Not an iterator object's record (`advancing.Iter`), whose positions are what the
+         * producer captured: Design-Iterator-Objects.md has a holder name them - `src'advancing.Iter`
+         * - and `iter/Reject.Name.yana` asserts it, so that rule stands until the design says
+         * otherwise.
+         */
+        if(auto nested = schemaOf(decl, field.occurrence.type);
+           nested && decl[field.occurrence.type]->kind == Type::Record && !record.tuple &&
+           !((RecordType*)decl[field.occurrence.type])->producerNew) {
+            U32 used = 0;
+
+            for(auto slotPointer: decl[nested]->slots.contents(decl)) {
+                auto& inside = *decl[slotPointer];
+                if(inside.contract.origin() != Origin::Slot) continue;
+
+                ExternalSlot slot;
+                slot.path.push(program.decl, PathStep::field(field.index));
+                for(auto step: inside.path.contents(decl)) slot.path.push(program.decl, step);
+
+                slot.contract = slotContract(inside.contract.access(),
+                                             U16(nextSlot + inside.contract.slot()),
+                                             inside.contract.form());
+                slots.push(slot);
+
+                if(U32(inside.contract.slot()) + 1 > used) used = inside.contract.slot() + 1;
+            }
+
+            nextSlot += used;
+            continue;
+        }
+
+        /*
+         * An owned field whose *type* refers to storage somebody else keeps, and which the fold
+         * above does not name - a tuple, which has no declaration to publish a set in, and an
+         * iterator object's record.
          */
         if(schemaOf(decl, field.occurrence.type)) {
             errors++;
@@ -1161,6 +1244,7 @@ bool foldRecordSchema(Context& context, Program& program, RecordType& record) {
     }
 
     record.schema = program.shapes.intern(slots.pointer(), slots.size());
+    record.schemaFolded = errors ? 3 : 2;
     return errors == 0;
 }
 
@@ -1250,12 +1334,39 @@ bool foldSchemas(Context& context, Program& program) {
     auto decl = *program.decl;
     auto ok = true;
 
+    /*
+     * Anything folded before this pass was folded with whatever fields it had then - an
+     * instantiation made while the declarations were being read reaches its arguments' records
+     * on demand - so the pass starts every record over. A module's `records` holds its
+     * **instantiations** too (`instantiateRecord` registers `Box2(L1)` in `Box2`'s module), so they
+     * are covered; a **tuple** is not in any module's list (`Program::tuples`), and one written
+     * before the record it holds - `data H {t: {L1, Int}}` above `data L1 {r: 'Int}` - was folded
+     * while `L1` had no fields, kept an empty schema, and lost the "this tuple holds a L1" refusal
+     * the same tuple written in a body gets (J147).
+     */
+    for(auto modulePointer: program.modules) {
+        for(auto recordPointer: decl[modulePointer]->records.contents(decl)) {
+            if(decl[recordPointer]->schemaFolded != 3) decl[recordPointer]->schemaFolded = 0;
+        }
+    }
+
+    for(auto tuple: program.tuples) {
+        if(decl[tuple]->schemaFolded != 3) decl[tuple]->schemaFolded = 0;
+    }
+
     for(auto modulePointer: program.modules) {
         auto module = decl[modulePointer];
 
         for(auto recordPointer: module->records.contents(decl)) {
+            // Folded already, in this pass, by a record holding it - see `RecordType::schemaFolded`.
+            if(decl[recordPointer]->schemaFolded >= 2) continue;
             ok = foldRecordSchema(context, program, *decl[recordPointer]) && ok;
         }
+    }
+
+    for(auto tuple: program.tuples) {
+        if(decl[tuple]->schemaFolded >= 2) continue;
+        ok = foldRecordSchema(context, program, *decl[tuple]) && ok;
     }
 
     return ok;

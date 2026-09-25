@@ -22,6 +22,15 @@ boundaries<complex>(%n: I64): I64, I32, I32 {
     %v_4 = alloca 8, 8: Ptr
     %v_5 = alloca 8, 8: Ptr
     store %v_1, %n, 8
+    store %v_2, %n, 8
+    store %v_3, %n, 8
+    store %v_4, %n, 8
+    store %v_5, %n, 8
+    %k_1 = add %n, 1: I64
+    %k_2 = add %n, 2: I64
+    %k_3 = add %n, 3: I64
+    %k_4 = add %n, 4: I64
+    %k_5 = add %n, 5: I64
     %v_6 = call_complex allocateHeap, 8: Ptr
     store %v_2, %v_6, 8
     %v_26 = mul 0, 8: I64
@@ -47,7 +56,12 @@ boundaries<complex>(%n: I64): I64, I32, I32 {
   }
 
   b_33 {
-    %v_37 = load %v_3, 8: I64
+    %v_36a = load %v_3, 8: I64
+    %s_1 = add %v_36a, %k_1: I64
+    %s_2 = add %s_1, %k_2: I64
+    %s_3 = add %s_2, %k_3: I64
+    %s_4 = add %s_3, %k_4: I64
+    %v_37 = add %s_4, %k_5: I64
     %v_38 = add %v_3, 8: Ptr
     %v_39 = load %v_38, 4: I32
     %v_40 = add %v_3, 12: Ptr
@@ -80,60 +94,79 @@ block b_0:
   ret uses=[] creates=[]  => c3
 
 --- codegen: boundaries ---
-  prologue  => 5341544155415641574883ec38
+  prologue  => 5341544155415641574883ec58
 block #0:
   jmp uses=[] creates=[]  => 
 block b_0:
   imm uses=[] creates=[remat:0]  => 
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rbx]  => 488d1c24
+  alloca uses=[-] creates=[remat:1]  => 
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[r12]  => 4c8d642408
+  alloca uses=[-] creates=[remat:2]  => 
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[r13]  => 4c8d6c2418
+  alloca uses=[-] creates=[rbx]  => 488d5c2418
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[r14]  => 4c8d742428
+  alloca uses=[-] creates=[r12]  => 4c8d642428
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[r15]  => 4c8d7c2430
+  alloca uses=[-] creates=[r13]  => 4c8d6c2430
+  store uses=[remat:1, rdi] creates=[] post=[remat:2->r15]  => 48893c244c8d7c2408
+  store uses=[r15, rdi] creates=[]  => 49893f
   store uses=[rbx, rdi] creates=[]  => 48893b
+  store uses=[r12, rdi] creates=[]  => 49893c24
+  store uses=[r13, rdi] creates=[]  => 49897d00
+  imm uses=[] creates=[-]  => 
+  add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 4c8d7701
+  imm uses=[] creates=[-]  => 
+  add uses=[r11, -] creates=[r11] pre=[rdi->r11] post=[r11->stack:5]  => 4c8bdf4983c3024c895c2438
+  imm uses=[] creates=[-]  => 
+  add uses=[r11, -] creates=[r11] pre=[rdi->r11] post=[r11->stack:6]  => 4c8bdf4983c3034c895c2440
+  imm uses=[] creates=[-]  => 
+  add uses=[r11, -] creates=[r11] pre=[rdi->r11] post=[r11->stack:7]  => 4c8bdf4983c3044c895c2448
+  imm uses=[] creates=[-]  => 
+  add uses=[r11, -] creates=[r11] pre=[rdi->r11] post=[r11->stack:8]  => 4c8bdf4983c3054c895c2450
   fun uses=[] creates=[-]  => 
-  imm uses=[] creates=[remat:1]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[remat:1->rdi] post=[rax->rcx]  => bf08000000e8aeffffff488bc8
-  store uses=[r12, rcx] creates=[]  => 49890c24
-  imm uses=[] creates=[remat:2]  => 
   imm uses=[] creates=[remat:3]  => 
-  mul uses=[rax, r11] creates=[rax] pre=[remat:3->rax, remat:2->r11]  => b80800000041bb0000000049f7e3
+  call_complex uses=[-, rdi] creates=[rax] pre=[remat:3->rdi] post=[rax->rcx]  => bf08000000e86fffffff488bc8
+  store uses=[r15, rcx] creates=[]  => 49890f
+  imm uses=[] creates=[remat:4]  => 
+  imm uses=[] creates=[remat:5]  => 
+  mul uses=[rax, r11] creates=[rax] pre=[remat:5->rax, remat:4->r11]  => b80800000041bb0000000049f7e3
   x86_addr scale=1 disp=0 uses=[rcx, rax] creates=[-] post=[remat:0->rdx]  => ba00000000
   store uses=[-, rdx] creates=[]  => 48891401
   imm uses=[] creates=[-]  => 
-  load uses=[r12] creates=[xmm0]  => f3410f6f0424
-  store uses=[r13, xmm0] creates=[]  => f3410f7f4500
-  loads uses=[rbx] creates=[rbx]  => 488b1b
-  store uses=[r14, rdx] creates=[]  => 498916
-  loads uses=[r14] creates=[rax]  => 498b06
-  cmp_ilt uses=[rax, rbx] creates=[-]  => 4839d8
-  je uses=[-] creates=[]  => 7d22
+  load uses=[r15] creates=[xmm0]  => f3410f6f07
+  store uses=[rbx, xmm0] creates=[]  => f30f7f03
+  loads uses=[remat:1] creates=[r15]  => 4c8b3c24
+  store uses=[r12, rdx] creates=[]  => 49891424
+  loads uses=[r12] creates=[rax]  => 498b0424
+  cmp_ilt uses=[rax, r15] creates=[-]  => 4c39f8
+  je uses=[-] creates=[]  => 7d28
 block b_32:
-  loads uses=[r14] creates=[rax]  => 498b06
-  store uses=[r15, rax] creates=[]  => 498907
-  loads uses=[r15] creates=[rsi]  => 498b37
+  loads uses=[r12] creates=[rax]  => 498b0424
+  store uses=[r13, rax] creates=[]  => 49894500
+  loads uses=[r13] creates=[rsi]  => 498b7500
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[] pre=[r13->rdi]  => 498bfde875ffffff
+  call_complex uses=[-, rdi, rsi] creates=[] pre=[rbx->rdi]  => 488bfbe834ffffff
   jmp uses=[] creates=[]  => 
 block b_34:
-  loads uses=[r14] creates=[rax]  => 498b06
+  loads uses=[r12] creates=[rax]  => 498b0424
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => 48ffc0
-  store uses=[r14, rax] creates=[]  => 498906
-  loads uses=[r14] creates=[rax]  => 498b06
-  cmp_ilt uses=[rax, rbx] creates=[-]  => 4839d8
-  je uses=[-] creates=[]  => 7cde
+  store uses=[r12, rax] creates=[]  => 49890424
+  loads uses=[r12] creates=[rax]  => 498b0424
+  cmp_ilt uses=[rax, r15] creates=[-]  => 4c39f8
+  je uses=[-] creates=[]  => 7cd8
 block b_33:
-  load uses=[r13] creates=[rax]  => 498b4500
+  x86_addr scale=1 disp=0 uses=[rbx] creates=[-]  => 
+  add uses=[r14, -] creates=[r14]  => 4c0333
+  add uses=[r14, stack:5] creates=[r14]  => 4c03742438
+  add uses=[r14, stack:6] creates=[r14]  => 4c03742440
+  add uses=[r14, stack:7] creates=[r14]  => 4c03742448
+  add uses=[rax, stack:8] creates=[rax] pre=[r14->rax]  => 498bc64803442450
   imm uses=[] creates=[-]  => 
-  x86_addr scale=1 disp=8 uses=[r13] creates=[-]  => 
-  load uses=[-] creates=[rdx]  => 418b5508
+  x86_addr scale=1 disp=8 uses=[rbx] creates=[-]  => 
+  load uses=[-] creates=[rdx]  => 8b5308
   imm uses=[] creates=[-]  => 
-  x86_addr scale=1 disp=12 uses=[r13] creates=[-]  => 
-  load uses=[-] creates=[rcx]  => 418b4d0c
-  ret uses=[rax, rdx, rcx] creates=[]  => 4883c438415f415e415d415c5bc3
+  x86_addr scale=1 disp=12 uses=[rbx] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 8b4b0c
+  ret uses=[rax, rdx, rcx] creates=[]  => 4883c458415f415e415d415c5bc3

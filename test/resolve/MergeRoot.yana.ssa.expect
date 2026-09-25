@@ -16,60 +16,37 @@ bb0:
 fn chosen(fromFrame: Bool [shared call]) -> I32 {
 bb0(%0: Bool trivial):
   %2: %Bool address = alloc frame Bool [shared call]
-  %3: %Array(I32) address = alloc frame Array(I32)
+  %3: %InlineArray(I32, 4) address = alloc frame InlineArray(I32, 4)
   %4: %Array(I32) address = alloc frame Array(I32)
-  %5: %Array(I32) address = alloc frame Array(I32)
   store inspect %2 borrow %0
-  %6: I32 trivial = const 10
-  %7: I32 trivial = const 20
-  %8: I32 trivial = const 30
-  %9: I32 trivial = const 40
-  %10: %I32 trivial = run.slots I32 *4 heap
-  %11: Size trivial = bitcast inspect %10
-  %12: Size trivial = const 0
-  %13: Bool trivial = eq inspect %11 inspect %12
-  call checkCondition borrow %13
-  %14: @bits(30) U32 trivial = const 4
-  %15: @bits(2) U32 trivial = const 1
-  %16: Run(I32) owned = aggregate.Run consume %10 consume %14 consume %15
-  %17: @bits(30) U32 trivial = const 4
-  %18: Array(I32) owned = aggregate.Array consume %16 consume %17
-  store inspect %3 consume %18
-  %19: Size trivial = const 0
-  %20: %I32 address = element.addr inspect %10 inspect %19
-  store inspect %20 consume %6
-  %21: Size trivial = const 1
-  %22: %I32 address = element.addr inspect %10 inspect %21
-  store inspect %22 consume %7
-  %23: Size trivial = const 2
-  %24: %I32 address = element.addr inspect %10 inspect %23
-  store inspect %24 consume %8
-  %25: Size trivial = const 3
-  %26: %I32 address = element.addr inspect %10 inspect %25
-  store inspect %26 consume %9
-  %27: Array(I32) owned = load inspect %3
-  store inspect %4 consume %27
-  %28: Array(I32) owned = call owned
-  store inspect %5 consume %28
-  %29: Bool trivial = load inspect %2
-  branch inspect %29 -> bb3 -> bb1
+  %5: I32 trivial = const 10
+  %6: I32 trivial = const 20
+  %7: I32 trivial = const 30
+  %8: I32 trivial = const 40
+  %9: [I32 *4] trivial = aggregate.0 consume %5 consume %6 consume %7 consume %8
+  %10: @bits(30) U32 trivial = const 4
+  %11: InlineArray(I32, 4) trivial = aggregate.InlineArray consume %9 consume %10
+  store inspect %3 consume %11
+  %12: Array(I32) owned = call owned
+  store inspect %4 consume %12
+  %13: Bool trivial = load inspect %2
+  branch inspect %13 -> bb3 -> bb1
 
 bb1:
-  %30: Array(I32) [shared slot 0] guaranteed from{%5} = load inspect %5
-  %31: Array(I32) [shared slot 0 view] guaranteed from{%5} = call Array(a).elements(I32) borrow %30
-  jump -> bb2(borrow %31)
+  %14: Array(I32) [shared slot 0] guaranteed from{%4} = load inspect %4
+  %15: Array(I32) [shared slot 0 view] guaranteed from{%4} = call Array(a).elements(I32) borrow %14
+  jump -> bb2(borrow %15)
 
 bb2(%1: Array(I32) [shared slot 0 view] guaranteed):
-  %32: Array(I32) [shared slot 0 view] guaranteed from{%1, %4, %5} = load inspect %1
-  %33: I32 trivial = call replaces$sum(Array(I32), I32) borrow %32
+  %16: Array(I32) [shared slot 0 view] guaranteed from{%1, %3, %4} = load inspect %1
+  %17: I32 trivial = call replaces$sum(Array(I32), I32) borrow %16
   drop Array(I32) inspect %4
-  drop Array(I32) inspect %5
-  return consume %33
+  return consume %17
 
 bb3:
-  %34: Array(I32) [shared slot 0] guaranteed from{%4} = load inspect %4
-  %35: Array(I32) [shared slot 0 view] guaranteed from{%4} = call Array(a).elements(I32) borrow %34
-  jump -> bb2(borrow %35)
+  %18: InlineArray(I32, 4) [shared slot 0] guaranteed from{%3} = load inspect %3
+  %19: Array(I32) [shared slot 0 view] guaranteed from{%3} = call InlineArray(a, n).elements(4, I32) borrow %18
+  jump -> bb2(borrow %19)
 }
 
 fn borrowed(fromFrame: Bool [shared call], $body: (Array(I32)) -> $r [shared call]) -> $r = <no body>
@@ -220,62 +197,39 @@ fn borrowed(I32)(fromFrame: Bool [shared call], $body: (Array(I32)) -> I32 [shar
 bb0(%0: Bool trivial, %1: (Array(I32)) -> I32 [shared call] guaranteed):
   %3: %Bool address = alloc frame Bool [shared call]
   %4: %I32 address = alloc frame I32
-  %5: %Array(I32) address = alloc frame Array(I32)
+  %5: %InlineArray(I32, 4) address = alloc frame InlineArray(I32, 4)
   %6: %Array(I32) address = alloc frame Array(I32)
-  %7: %Array(I32) address = alloc frame Array(I32)
   store inspect %3 borrow %0
-  %8: I32 trivial = const 10
-  %9: I32 trivial = const 20
-  %10: I32 trivial = const 30
-  %11: I32 trivial = const 40
-  %12: %I32 trivial = run.slots I32 *4 heap
-  %13: Size trivial = bitcast inspect %12
-  %14: Size trivial = const 0
-  %15: Bool trivial = eq inspect %13 inspect %14
-  call checkCondition borrow %15
-  %16: @bits(30) U32 trivial = const 4
-  %17: @bits(2) U32 trivial = const 1
-  %18: Run(I32) owned = aggregate.Run consume %12 consume %16 consume %17
-  %19: @bits(30) U32 trivial = const 4
-  %20: Array(I32) owned = aggregate.Array consume %18 consume %19
-  store inspect %5 consume %20
-  %21: Size trivial = const 0
-  %22: %I32 address = element.addr inspect %12 inspect %21
-  store inspect %22 consume %8
-  %23: Size trivial = const 1
-  %24: %I32 address = element.addr inspect %12 inspect %23
-  store inspect %24 consume %9
-  %25: Size trivial = const 2
-  %26: %I32 address = element.addr inspect %12 inspect %25
-  store inspect %26 consume %10
-  %27: Size trivial = const 3
-  %28: %I32 address = element.addr inspect %12 inspect %27
-  store inspect %28 consume %11
-  %29: Array(I32) owned = load inspect %5
-  store inspect %6 consume %29
-  %30: Array(I32) owned = call owned
-  store inspect %7 consume %30
-  %31: Bool trivial = load inspect %3
-  branch inspect %31 -> bb3 -> bb1
+  %7: I32 trivial = const 10
+  %8: I32 trivial = const 20
+  %9: I32 trivial = const 30
+  %10: I32 trivial = const 40
+  %11: [I32 *4] trivial = aggregate.0 consume %7 consume %8 consume %9 consume %10
+  %12: @bits(30) U32 trivial = const 4
+  %13: InlineArray(I32, 4) trivial = aggregate.InlineArray consume %11 consume %12
+  store inspect %5 consume %13
+  %14: Array(I32) owned = call owned
+  store inspect %6 consume %14
+  %15: Bool trivial = load inspect %3
+  branch inspect %15 -> bb3 -> bb1
 
 bb1:
-  %32: Array(I32) [shared slot 0] guaranteed from{%7} = load inspect %7
-  %33: Array(I32) [shared slot 0 view] guaranteed from{%7} = call Array(a).elements(I32) borrow %32
-  jump -> bb2(borrow %33)
+  %16: Array(I32) [shared slot 0] guaranteed from{%6} = load inspect %6
+  %17: Array(I32) [shared slot 0 view] guaranteed from{%6} = call Array(a).elements(I32) borrow %16
+  jump -> bb2(borrow %17)
 
 bb2(%2: Array(I32) [shared slot 0 view] guaranteed):
-  %34: (Array(I32)) -> I32 [shared call] guaranteed from{%1} = load inspect %1
-  %35: I32 trivial = call [value #0] inspect %34 borrow %2
+  %18: (Array(I32)) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %19: I32 trivial = call [value #0] inspect %18 borrow %2
   drop Array(I32) inspect %6
-  drop Array(I32) inspect %7
-  store inspect %4 consume %35
-  %36: I32 trivial = load inspect %4
-  return consume %36
+  store inspect %4 consume %19
+  %20: I32 trivial = load inspect %4
+  return consume %20
 
 bb3:
-  %37: Array(I32) [shared slot 0] guaranteed from{%6} = load inspect %6
-  %38: Array(I32) [shared slot 0 view] guaranteed from{%6} = call Array(a).elements(I32) borrow %37
-  jump -> bb2(borrow %38)
+  %21: InlineArray(I32, 4) [shared slot 0] guaranteed from{%5} = load inspect %5
+  %22: Array(I32) [shared slot 0 view] guaranteed from{%5} = call InlineArray(a, n).elements(4, I32) borrow %21
+  jump -> bb2(borrow %22)
 }
 
 fn throughALens.cont(throughALens.cont.env: throughALens.cont.env [unique call], $handed: Array(I32) [shared call view]) -> I32 {

@@ -1,0 +1,50 @@
+-- A `&` of a narrow field of a `@layout(js)` record - what `Reject.HostBorrow.yana` refused, and what
+-- the default stage serves (J142).
+--
+-- The refusal was about a representation this stage does not have: a pinned field held the host's
+-- form - a host `boolean` - and a reference reads and writes through a mask, which destroys one.
+-- Here a `Bool` is 0 or 1 on JavaScript for every record (repr.md, "`Bool` is 0 or 1 on this
+-- target"), and what the pin turns off is exactly co-packing, scalarization and niche folding, so a
+-- narrow field of a pinned record is one property holding the number a reference reads. A reference
+-- to it is `(owner, key, scale)` with a scale of one, and the answers below are the proof: a flip, a
+-- `@bits(4)` field wrapping at its width across two calls, and a reference that outlives the call
+-- that made it. The emitted object keeps its declared property names, which is what the pin is for.
+--
+-- # resolver: ownership
+
+import Native
+
+@layout(js)
+data Config {verbose: Bool, level: @bits(4) U32, name: Int}
+
+-- Out of line, so that the reference crosses a call rather than being folded into the caller.
+@noinline
+fn flip(&b: Bool): b = !b
+
+@noinline
+fn bump(&x: @bits(4) U32): x = x + 1
+
+fn borrowFlag() -> Int:
+    let &c = Config {verbose: True, level: 1, name: 0}
+    flip(c.verbose)
+    return if c.verbose then 1 else 2
+
+-- 15 + 1 wraps to 0 at four bits, and 0 + 1 is 1.
+fn borrowBits() -> Int:
+    let &c = Config {verbose: True, level: 15, name: 0}
+    bump(c.level)
+    bump(c.level)
+    return c.level :: Int
+
+-- A reference handed back through a published origin - `return &c` in the spelling this replaced.
+@noinline
+fn flagOf(&c: 'Config) -> &'Bool = c.verbose
+
+fn returned() -> Int:
+    let &c = Config {verbose: False, level: 3, name: 7}
+    let &v = flagOf(c)
+    v = True
+    return (if c.verbose then 100 else 0) + (c.level :: Int) * 10 + c.name
+
+-- 2 + 1 * 1000 + 137 * 10000
+fn main() -> Int = borrowFlag() + borrowBits() * 1000 + returned() * 10000

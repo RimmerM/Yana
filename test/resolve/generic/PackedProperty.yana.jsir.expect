@@ -41,8 +41,8 @@ fn main() -> one %r2
     %23: %r1 = binary.eq %21, %22
     branch %23 -> block4 -> block3
   block2:
-    %98: %r2 = const -1
-    return %98
+    %95: %r2 = const -1
+    return %95
   block3:
     %24: %r8 = load property %3.$v: %r8
     %25: %r1 = load property %24.flag: %r1
@@ -50,8 +50,8 @@ fn main() -> one %r2
     %27: %r1 = binary.eq %25, %26
     branch %27 -> block6 -> block5
   block4:
-    %97: %r2 = const -2
-    return %97
+    %94: %r2 = const -2
+    return %94
   block5:
     %28: %r2 = const 20000
     %29: %r1 = const 0
@@ -66,8 +66,8 @@ fn main() -> one %r2
     %37: %r1 = call readFlag %36, %35
     branch %37 -> block8 -> block7
   block6:
-    %96: %r2 = const -3
-    return %96
+    %93: %r2 = const -3
+    return %93
   block7:
     %38: %r0 = const "$v"
     %39: %r13 = object %s0 %8, %38
@@ -77,8 +77,8 @@ fn main() -> one %r2
     %43: %r1 = binary.eq %41, %42
     branch %43 -> block10 -> block9
   block8:
-    %95: %r2 = const -4
-    return %95
+    %92: %r2 = const -4
+    return %92
   block9:
     %44: %r9 = load property %8.$v: %r9
     %45: %r1 = load property %44.flag: %r1
@@ -86,8 +86,8 @@ fn main() -> one %r2
     %47: %r1 = binary.eq %45, %46
     branch %47 -> block12 -> block11
   block10:
-    %94: %r2 = const -5
-    return %94
+    %91: %r2 = const -5
+    return %91
   block11:
     %52: %r8 = load property %3.$v: %r8
     %53: %r1 = load property %52.flag: %r1
@@ -109,32 +109,30 @@ fn main() -> one %r2
     %69: %r2 = load property %68.size: %r2
     %70: %r2 = binary.add %67, %69
     %71: %r2 = coerce %70
-    %73: %r1 = alias %45
+    %72: %r9 = alias %44
+    %73: %r1 = load bits @4:1 of (property %72.$p0: %r7): %r1
     %74: %r9 = alias %44
-    %75: %r1 = load bits @4:1 of (property %74.$p0: %r7): %r1
-    %76: %r9 = alias %44
-    %77: %r6 = load bits @0:4 of (property %76.$p0: %r7): %r6
-    %78: %r4 = convert %77
-    %79: %r2 = convert %78
-    %80: %r2 = const 100
-    %81: %r2 = binary.add %79, %80
-    %82: %r2 = coerce %81
-    %83: %r2 = select %73, %82, %79
-    %84: %r2 = const 1000
-    %85: %r2 = binary.add %83, %84
+    %75: %r6 = load bits @0:4 of (property %74.$p0: %r7): %r6
+    %76: %r4 = convert %75
+    %77: %r2 = convert %76
+    %78: %r2 = const 100
+    %79: %r2 = binary.add %77, %78
+    %80: %r2 = coerce %79
+    %81: %r2 = const 1100
+    %82: %r2 = binary.add %77, %81
+    %83: %r2 = coerce %82
+    %84: %r2 = select %73, %83, %80
+    %85: %r2 = binary.add %71, %84
     %86: %r2 = coerce %85
-    %87: %r2 = select %75, %86, %83
-    %88: %r2 = binary.add %71, %87
+    %87: %r2 = const 1003
+    %88: %r2 = binary.add %86, %87
     %89: %r2 = coerce %88
-    %90: %r2 = const 1003
-    %91: %r2 = binary.add %89, %90
-    %92: %r2 = coerce %91
-    return %92
+    return %89
   block12:
-    %93: %r2 = const -6
-    return %93
+    %90: %r2 = const -6
+    return %90
 
-optimizer clones 2 aliased 0 forwarded 0 removed 9 adopted 0 sunk 2 numbered 7 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 2 aliased 0 forwarded 0 removed 8 adopted 0 sunk 2 numbered 5 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 0
 
 shape %s0 ref {$o: %r0 owner, $k: %r0 key}
 shape %s1 object Bits {flag: %r1, $p0: %r7 unit #0}

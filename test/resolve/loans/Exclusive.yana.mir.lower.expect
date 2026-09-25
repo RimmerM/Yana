@@ -19,57 +19,44 @@ main<complex>(): I32 {
   }
 
   b_4 {
-    call_complex Held.drop, 2
-    %v_5 = loads @trace, 4: I32
-    %v_6 = cmp_neq %v_5, 2: I32
-    je %v_6, b_7, b_8
+    store @trace, 2, 4
+    jmp b_5
   }
 
   b_3 {
     ret 18446744073709551607
   }
 
-  b_8 {
-    jmp b_9
-  }
-
-  b_7 {
-    ret 18446744073709551605
-  }
-
-  b_10 {
+  b_6 {
     %counter = global @counter: Ptr
-    %v_11 = loads %counter, 4: I32
-    %v_12 = add %v_11, 1: I32
-    store %counter, %v_12, 4
-    %counter = global @counter: Ptr
-    %v_13 = loads %counter, 4: I32
-    %v_14 = add %v_13, 10: I32
-    store %counter, %v_14, 4
-    %v_15 = loads @counter, 4: I32
-    %v_16 = cmp_neq %v_15, 11: I32
-    %v_17 = select %v_16, 18446744073709551600, 100: I32
-    ret %v_17
+    %v_7 = loads %counter, 4: I32
+    %v_8 = add %v_7, 1: I32
+    store %counter, %v_8, 4
+    %v_9 = add %v_7, 11: I32
+    store @counter, %v_9, 4
+    %v_10 = cmp_neq %v_9, 11: I32
+    %v_11 = select %v_10, 18446744073709551600, 100: I32
+    ret %v_11
   }
 
-  b_18 {
+  b_12 {
     ret 18446744073709551603
   }
 
-  b_19 {
-    %v_20 = cmp_ilt %v_21, 4: I32
-    je %v_20, b_9, b_22
+  b_13 {
+    %v_14 = cmp_ilt %v_15, 4: I32
+    je %v_14, b_5, b_16
   }
 
-  b_22 {
-    %v_23 = cmp_neq %v_21, 4: I32
-    je %v_23, b_18, b_10
+  b_16 {
+    %v_17 = cmp_neq %v_15, 4: I32
+    je %v_17, b_12, b_6
   }
 
-  b_9 {
-    %v_24 = phi [b_19, %v_21], [b_8, 0]: I32
-    %v_21 = add %v_24, 1: I32
-    jmp b_19
+  b_5 {
+    %v_18 = phi [b_13, %v_15], [b_4, 0]: I32
+    %v_15 = add %v_18, 1: I32
+    jmp b_13
   }
 }
 

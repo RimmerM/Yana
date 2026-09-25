@@ -14,6 +14,13 @@
 # address reads; collectTieConflicts in place.cpp is the rule, and `checkFoldedAddress` in verify.cpp
 # names this case exactly without it.
 #
+# The four stores above the call and the five `%k` values are not the ownership stage's; they are
+# what keeps the callee-saved registers busy across the call, as the frame slots' addresses did when
+# this was cut. `sinkFrameAddresses` (J155) defines each address below the call, and since J157 an
+# address read only as a base needs no register at all (`[rsp + slot]`), so without the `%k` values
+# the callee-saved registers are free and `%zero` takes one of them instead of being the recipe this
+# case is about.
+#
 # extensions: sse4
 
 allocateHeap<complex>(%size: I64): Ptr {
@@ -39,6 +46,15 @@ boundaries<complex>(%n: I64): I64, I32, I32 {
     %v_4 = alloca 8, 8: Ptr
     %v_5 = alloca 8, 8: Ptr
     store %v_1, %n, 8
+    store %v_2, %n, 8
+    store %v_3, %n, 8
+    store %v_4, %n, 8
+    store %v_5, %n, 8
+    %k_1 = add %n, 1L: I64
+    %k_2 = add %n, 2L: I64
+    %k_3 = add %n, 3L: I64
+    %k_4 = add %n, 4L: I64
+    %k_5 = add %n, 5L: I64
     %v_6 = call_complex allocateHeap, 8L: Ptr
     store %v_2, %v_6, 8
     %v_26 = mul 0L, 8L: I64
@@ -64,7 +80,12 @@ boundaries<complex>(%n: I64): I64, I32, I32 {
   }
 
   b_33 {
-    %v_37 = load %v_3, 8: I64
+    %v_36a = load %v_3, 8: I64
+    %s_1 = add %v_36a, %k_1: I64
+    %s_2 = add %s_1, %k_2: I64
+    %s_3 = add %s_2, %k_3: I64
+    %s_4 = add %s_3, %k_4: I64
+    %v_37 = add %s_4, %k_5: I64
     %v_38 = add %v_3, 8: Ptr
     %v_39 = load %v_38, 4: I32
     %v_40 = add %v_3, 12: Ptr

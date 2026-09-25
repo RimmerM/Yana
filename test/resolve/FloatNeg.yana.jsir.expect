@@ -59,17 +59,13 @@ fn main() -> one %r2
     %48: %r2 = binary.add %39, %47
     %49: %r2 = coerce %48
     %50: %r2 = select %46, %49, %39
-    %51: %r0 = const 2.5
-    %52: %r0 = unary.neg %51
-    %53: %r0 = const -2.5
-    %54: %r3 = binary.eq %52, %53
     %55: %r2 = const 32
     %56: %r2 = binary.add %50, %55
     %57: %r2 = coerce %56
-    %58: %r2 = select %54, %57, %50
+    %58: %r2 = alias %57
     return %58
 
-optimizer clones 0 aliased 0 forwarded 0 removed 0 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 4 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 3
 
 rep %r0 = number f64
 rep %r1 = number f32

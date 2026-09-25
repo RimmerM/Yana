@@ -158,6 +158,35 @@ inline bool walkAddress(JsTarget& target, ssa::Body& from, SsaPtr<ssa::Value> ro
                 }
             }
 
+            /*
+             * And into a **transparent** record's stored field, which is not a different place at
+             * all: the conversion answers the base's own place for it (`FieldAddress`'s transparent
+             * arm), so a `&` of it that leaves is the root leaving. `setThrough(b.only, n)` over a
+             * one-field `@bits` record is the shape - inlined it never asks, and under `-no-ir-opt`
+             * the call kept the borrow of a `Var` the walk had not followed (J136).
+             */
+            if(user.kind == ssa::Inst::FieldAddress && user.results.size() &&
+               ((ssa::InstFieldAddress&)user).base.value() == address) {
+                auto& projection = (ssa::InstFieldAddress&)user;
+                if(projection.property == ssa::InstFieldAddress::kNoProperty &&
+                   projection.field != ssa::InstFieldAddress::kDiscriminant && projection.record &&
+                   target.decl[projection.record]->kind == mir::Type::Record &&
+                   target.rep(jsRep(target, projection.record, user.source)).kind !=
+                       JsRepKind::GcObject &&
+                   transparentContentOf(target, projection.record)) {
+                    auto& record = *(mir::RecordType*)target.decl[projection.record];
+                    if(!record.fields.get(target.decl, projection.field).host) {
+                        auto field = ssa[user.results.get(ssa, 0)];
+                        if(!seen[field->id.index]) {
+                            seen.set(field->id.index, true);
+                            pending.push(user.results.get(ssa, 0));
+                        }
+
+                        continue;
+                    }
+                }
+            }
+
             if(user.kind == ssa::Inst::Load && user.results.size()) {
                 auto read = ssa[user.results.get(ssa, 0)];
 
@@ -362,6 +391,19 @@ struct Conversion {
      */
     IndexSet descriptors;
 
+    /*
+     * And whether a local is a **pointer slot written once**: a `%T` local whose address is used
+     * by exactly one store and otherwise only read (J136).
+     *
+     * `let at = addressOf(p)` under `-no-ir-opt` is the shape. On this target the pointer is the
+     * *place* of `p` (`Bitcast`'s `addressOf` arm) and there is no one host value for it to be -
+     * a `%T` is a host row, a place is `(owner, key)` - so storing it was "a reference to storage
+     * written into a pointer field". The optimizer forwards the store to the loads and never asks;
+     * this is the same forwarding, and it is sound for the reason a `let` is: one store, and no
+     * read of storage nobody has written, so the store dominates every load.
+     */
+    IndexSet pointerSlots;
+
     bool failed = false;
 
     JsirBase base() { return builder.base; }
@@ -417,12 +459,76 @@ struct Conversion {
 
     // ---------------------------------------------------------------- demand
 
+    /*
+     * Whether a pointer read out of a slot is only ever **dereferenced** - the base of a projection
+     * or the address of a load or a store - which is what a place can answer. A pointer that is
+     * passed on, compared or converted wants one host value, and forwarding a place to that use
+     * turned `Instance.yana`'s refusal into a verifier failure; such a slot keeps the store, and
+     * the store reports.
+     */
+    bool onlyReadThrough(SsaPtr<ssa::Value> pointer) {
+        for(auto userPointer: ssa[pointer]->uses(ssa)) {
+            auto& user = *ssa[userPointer];
+            switch(user.kind) {
+                case ssa::Inst::FieldAddress:
+                    if(((ssa::InstFieldAddress&)user).base.value() != pointer) return false;
+                    break;
+                case ssa::Inst::ElementAddress:
+                    if(((ssa::InstElementAddress&)user).base.value() != pointer) return false;
+                    break;
+                case ssa::Inst::Load:
+                    if(((ssa::InstLoad&)user).address.value() != pointer) return false;
+                    break;
+                case ssa::Inst::Store:
+                    if(((ssa::InstStore&)user).address.value() != pointer ||
+                       ((ssa::InstStore&)user).value.value() == pointer) {
+                        return false;
+                    }
+                    break;
+                default:
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    // `pointerSlots`' question, of one allocation.
+    bool isPointerSlotWrittenOnce(ssa::InstAlloc& alloc) {
+        auto type = alloc.held.type;
+        if(!type || decl[type]->kind != mir::Type::Pointer) return false;
+
+        auto address = alloc.results.get(ssa, 0);
+        auto stores = 0u;
+
+        for(auto userPointer: ssa[address]->uses(ssa)) {
+            auto& user = *ssa[userPointer];
+
+            if(user.kind == ssa::Inst::Load && ((ssa::InstLoad&)user).address.value() == address) {
+                if(!user.results.size() || !onlyReadThrough(user.results.get(ssa, 0))) return false;
+                continue;
+            }
+
+            if(user.kind == ssa::Inst::Store &&
+               ((ssa::InstStore&)user).address.value() == address &&
+               ((ssa::InstStore&)user).value.value() != address) {
+                stores++;
+                continue;
+            }
+
+            return false;
+        }
+
+        return stores == 1;
+    }
+
     // The two demand answers, over every allocation in this body - `walkAddress` above is the walk
     // and `escapes`/`projects` are what the two bits it answers are for.
     void planDemand() {
         escapes.reset(from->values.size());
         projects.reset(from->values.size());
         descriptors.reset(from->values.size());
+        pointerSlots.reset(from->values.size());
 
         Array<SsaPtr<ssa::Value>> pending;
         IndexSet seen;
@@ -455,6 +561,9 @@ struct Conversion {
                 if(inst->kind != ssa::Inst::Alloc || !inst->results.size()) continue;
 
                 ask(inst->results.get(ssa, 0));
+                if(isPointerSlotWrittenOnce(*(ssa::InstAlloc*)inst)) {
+                    pointerSlots.set(ssa[inst->results.get(ssa, 0)]->id.index, true);
+                }
             }
         }
 
@@ -2207,10 +2316,11 @@ struct Conversion {
             // `tearsDownField` and not `hasTeardown` on the type: a field in an origin slot is
             // storage somebody else owns.
             if(!mir::tearsDownField(decl, field)) continue;
-            if(field.boxed) {
-                report("a teardown through a boxed field"_v, type, where);
-                return false;
-            }
+            // A `@box` field holds its content in the property itself - the box is the collector's
+            // on this target, which is what `fieldRepOf` says by not distinguishing one - so what
+            // a teardown owes through it is the content's, reached the way an unboxed field's is.
+            // It was refused by name until J136, whatever the content owed; `Box.yana`'s
+            // `Diagnostics` owes nothing, and its record's teardown was never going to reach it.
 
             auto slot = target.shape(rep.shape).slotOfField(i);
             if(slot == JsProperty::kNoField) continue;
@@ -2265,6 +2375,8 @@ struct Conversion {
     void convertAggregate(ssa::InstAggregate& aggregate);
     void convertHost(ssa::InstHost& host);
     void collectEdge(ssa::Edge& source, LocationId where, SmallArray<JsValue*, 8>& into);
+    void findSameReferenceArguments(Array<U32>& order, ssa::Block* entry);
+    bool isReferenceArgument(ssa::Value& value);
     void supplyEdge(JsEdge& edge, JsBlock* from, ssa::Edge& source, LocationId where,
                     Buffer<JsValue*> values);
 

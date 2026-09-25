@@ -8,14 +8,9 @@ fn main() -> one %r0
     %5: %r0 = const 1
     %6: %r0 = const 2
     %7: %r0 = const 3
-    %9: %r0 = const 2
     %14: %r0 = const 0
-    %16: %r0 = const 0
     %17: %r0 = const 9
-    %18: %r8 = convert %16
-    %19: %r8 = convert %9
-    %20: %r9 = binary.ge %18, %19
-    branch %20 -> block2 -> block1
+    jump -> block1
   block1:
     %8: %r6 = array %5, %6, %7
     %10: %r6 = alias %8
@@ -34,9 +29,8 @@ fn main() -> one %r0
     %40: %r0 = const 3
     %42: %r0 = const 2
     %47: %r0 = const 0
-    %53: %r0 = const 0
     %54: %r0 = const 9
-    %56: %r8 = convert %53
+    %56: %r8 = const 0
     %57: %r0 = alias %42
     %58: %r8 = convert %57
     %59: %r9 = binary.ge %56, %58
@@ -64,13 +58,8 @@ fn main() -> one %r0
     %76: %r0 = const 1
     %77: %r0 = const 2
     %78: %r0 = const 3
-    %82: %r0 = const 3
-    %86: %r0 = const 1
     %87: %r0 = const 5
-    %88: %r8 = convert %86
-    %89: %r8 = convert %82
-    %90: %r9 = binary.ge %88, %89
-    branch %90 -> block6 -> block5
+    jump -> block5
   block4:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -80,8 +69,7 @@ fn main() -> one %r0
     %81: %r1 = alias %80
     %85: %r1 = alias %81
     %91: %r1 = alias %85
-    %92: %r0 = alias %86
-    %93: %r0 = coerce %92
+    %93: %r0 = const 1
     store element %91[%93]: %r0, %87
     %94: %r0 = const 1
     %95: %r6 = alias %79
@@ -95,13 +83,8 @@ fn main() -> one %r0
     %108: %r0 = const 2
     %109: %r0 = const 3
     %111: %r0 = const 1
-    %117: %r0 = const 2
-    %118: %r0 = const 0
     %119: %r0 = const 9
-    %120: %r8 = convert %118
-    %121: %r8 = convert %117
-    %122: %r9 = binary.ge %120, %121
-    branch %122 -> block8 -> block7
+    jump -> block7
   block6:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -124,10 +107,9 @@ fn main() -> one %r0
 
 fn viaLambda.lambda(one %r4) -> omitted env
   block0(%0: %r4):
-    %1: %r0 = const 0
     %2: %r0 = const 9
     %3: %r2 = load property %0.w: %r2
-    %4: %r8 = convert %1
+    %4: %r8 = const 0
     %5: %r0 = load property %3.length: %r0
     %6: %r8 = convert %5
     %7: %r9 = binary.ge %4, %6
@@ -142,7 +124,7 @@ fn viaLambda.lambda(one %r4) -> omitted env
     host host.throw "yana: a runtime check failed"
     unreachable
 
-optimizer clones 0 aliased 0 forwarded 4 removed 43 adopted 1 sunk 4 numbered 1 decided 0 unboxed 4 updated 0 split 0 promoted 8
+optimizer clones 0 aliased 0 forwarded 4 removed 61 adopted 1 sunk 4 numbered 0 decided 3 unboxed 4 updated 0 split 0 promoted 8 folded 13
 
 shape %s0 object viaLambda.lambda.env {w: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

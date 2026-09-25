@@ -4,42 +4,12 @@ fn main() -> one %r0
   var $2: %r1
   var $3: %r1
   block0:
-    %3: %r1 = const 5n
-    %4: %r1 = alias %3
-    %5: %r1 = alias %4
-    %6: %r1 = alias %5
-    %7: %r1 = binary.add %6, %6
-    %8: %r1 = coerce %7
-    %10: %r1 = alias %4
-    %11: %r1 = alias %10
-    %12: %r1 = const 1n
-    %14: %r1 = binary.add %11, %12
-    %15: %r1 = coerce %14
-    %17: %r1 = binary.add %8, %15
-    %18: %r1 = coerce %17
-    %20: %r1 = const 1n
-    %22: %r1 = binary.sub %18, %20
-    %23: %r1 = coerce %22
-    %24: %r1 = alias %23
-    %25: %r1 = alias %24
-    %26: %r1 = alias %25
-    %27: %r1 = const 15n
-    %29: %r2 = binary.eq %26, %27
-    branch %29 -> block2 -> block1
+    %23: %r1 = const 15n
+    jump -> block2
   block1:
-    %39: %r1 = alias %24
-    %40: %r1 = alias %39
-    %41: %r1 = alias %4
-    %42: %r1 = alias %41
-    %43: %r2 = binary.lt %40, %42
-    branch %43 -> block4 -> block19
+    jump -> block19
   block2:
-    %30: %r1 = alias %4
-    %31: %r1 = alias %30
-    %32: %r1 = alias %24
-    %33: %r1 = alias %32
-    %34: %r2 = binary.lt %31, %33
-    branch %34 -> block3 -> block1
+    jump -> block3
   block3:
     %35: %r0 = load global trace: %r0
     %36: %r0 = const 1
@@ -48,14 +18,7 @@ fn main() -> one %r0
     store global trace: %r0, %38
     jump -> block1
   block4:
-    %54: %r1 = alias %4
-    %55: %r1 = alias %54
-    %56: %r1 = alias %24
-    %57: %r1 = alias %56
-    %58: %r1 = alias %57
-    %59: %r1 = alias %55
-    %60: %r2 = binary.lt %58, %59
-    branch %60 -> block20 -> block22
+    jump -> block22
   block5:
     %50: %r0 = load global trace: %r0
     %51: %r0 = const 2
@@ -64,152 +27,98 @@ fn main() -> one %r0
     store global trace: %r0, %53
     jump -> block4
   block6:
-    %70: %r1 = alias %4
-    %71: %r1 = alias %70
-    %72: %r1 = const 0n
-    %73: %r2 = binary.ne %71, %72
-    branch %73 -> block9 -> block8
+    jump -> block9
   block7:
-    %66: %r0 = load global trace: %r0
-    %67: %r0 = const 4
-    %68: %r0 = binary.or %66, %67
-    %69: %r0 = coerce %68
-    store global trace: %r0, %69
+    %64: %r0 = load global trace: %r0
+    %65: %r0 = const 4
+    %66: %r0 = binary.or %64, %65
+    %67: %r0 = coerce %66
+    store global trace: %r0, %67
     jump -> block6
   block8:
-    %78: %r1 = alias %4
-    %79: %r1 = alias %78
-    %80: %r1 = alias %4
-    %81: %r1 = alias %80
-    %82: %r1 = binary.sub %79, %81
-    %83: %r1 = coerce %82
-    %85: %r1 = const 0n
-    %86: %r2 = binary.ne %83, %85
-    %87: %r2 = unary.not %86
-    branch %87 -> block11 -> block10
+    jump -> block11
   block9:
-    %74: %r0 = load global trace: %r0
-    %75: %r0 = const 8
-    %76: %r0 = binary.or %74, %75
-    %77: %r0 = coerce %76
-    store global trace: %r0, %77
+    %72: %r0 = load global trace: %r0
+    %73: %r0 = const 8
+    %74: %r0 = binary.or %72, %73
+    %75: %r0 = coerce %74
+    store global trace: %r0, %75
     jump -> block8
   block10:
-    %92: %r0 = load global trace: %r0
-    %93: %r0 = const 32
-    %94: %r0 = binary.or %92, %93
-    %95: %r0 = coerce %94
-    store global trace: %r0, %95
-    %96: %r0 = load global trace: %r0
-    %97: %r0 = const 64
-    %98: %r0 = binary.or %96, %97
-    %99: %r0 = coerce %98
-    store global trace: %r0, %99
-    %100: %r1 = alias %4
-    %101: %r1 = alias %100
-    %102: %r1 = const 0n
-    %103: %r2 = binary.ne %101, %102
-    branch %103 -> block13 -> block12
+    %90: %r0 = load global trace: %r0
+    %91: %r0 = const 96
+    %92: %r0 = binary.or %90, %91
+    %93: %r0 = coerce %92
+    store global trace: %r0, %93
+    jump -> block13
   block11:
-    %88: %r0 = load global trace: %r0
-    %89: %r0 = const 16
-    %90: %r0 = binary.or %88, %89
-    %91: %r0 = coerce %90
-    store global trace: %r0, %91
+    %86: %r0 = load global trace: %r0
+    %87: %r0 = const 16
+    %88: %r0 = binary.or %86, %87
+    %89: %r0 = coerce %88
+    store global trace: %r0, %89
     jump -> block10
   block12:
-    %108: %r0 = load global trace: %r0
-    %109: %r0 = const 256
-    %110: %r0 = binary.or %108, %109
-    %111: %r0 = coerce %110
-    store global trace: %r0, %111
-    %112: %r0 = load global trace: %r0
-    %113: %r0 = const 512
-    %114: %r0 = binary.or %112, %113
-    %115: %r0 = coerce %114
-    store global trace: %r0, %115
-    %116: %r0 = load global trace: %r0
-    %117: %r0 = const 1024
-    %118: %r0 = binary.or %116, %117
-    %119: %r0 = coerce %118
-    store global trace: %r0, %119
-    %120: %r0 = load global trace: %r0
-    %121: %r0 = const 2048
-    %122: %r0 = binary.or %120, %121
-    %123: %r0 = coerce %122
-    store global trace: %r0, %123
-    %124: %r0 = load global trace: %r0
-    %125: %r0 = const 4096
-    %126: %r0 = binary.or %124, %125
-    %127: %r0 = coerce %126
-    store global trace: %r0, %127
-    %128: %r0 = load global trace: %r0
-    %129: %r0 = const 8192
-    %130: %r0 = binary.or %128, %129
-    %131: %r0 = coerce %130
-    store global trace: %r0, %131
-    %132: %r0 = const 0
-    %133: %r0 = const 2
-    %134: %r0 = const 1
-    %135: %r0 = const 5
-    %136: %r0 = const 1
-    jump -> block14(%132, %133)
+    %101: %r0 = load global trace: %r0
+    %102: %r0 = const 16128
+    %103: %r0 = binary.or %101, %102
+    %104: %r0 = coerce %103
+    store global trace: %r0, %104
+    %105: %r0 = const 0
+    %106: %r0 = const 2
+    %107: %r0 = const 1
+    %108: %r0 = const 5
+    %109: %r0 = const 1
+    jump -> block14(%105, %106)
   block13:
-    %104: %r0 = load global trace: %r0
-    %105: %r0 = const 128
-    %106: %r0 = binary.or %104, %105
-    %107: %r0 = coerce %106
-    store global trace: %r0, %107
+    %98: %r0 = const 224
+    %99: %r0 = binary.or %90, %98
+    %100: %r0 = coerce %99
+    store global trace: %r0, %100
     jump -> block12
   block14(%0: %r0, %1: %r0):
-    %137: %r2 = binary.lt %1, %135
-    branch %137 -> block16 -> block15
+    %110: %r2 = binary.lt %1, %108
+    branch %110 -> block16 -> block15
   block15:
-    %138: %r0 = const 3
-    %139: %r2 = binary.eq %0, %138
-    branch %139 -> block18 -> block17
+    %111: %r0 = const 3
+    %112: %r2 = binary.eq %0, %111
+    branch %112 -> block18 -> block17
   block16:
-    %149: %r0 = binary.add %0, %136
-    %150: %r0 = coerce %149
-    %151: %r0 = binary.add %1, %134
-    %152: %r0 = coerce %151
-    jump -> block14(%150, %152)
+    %121: %r0 = binary.add %0, %109
+    %122: %r0 = coerce %121
+    %123: %r0 = binary.add %1, %107
+    %124: %r0 = coerce %123
+    jump -> block14(%122, %124)
   block17:
-    %144: %r0 = load global trace: %r0
-    %145: %r0 = const 32768
-    %146: %r0 = binary.or %144, %145
-    %147: %r0 = coerce %146
-    store global trace: %r0, %147
-    %148: %r0 = load global trace: %r0
-    return %148
+    %117: %r0 = load global trace: %r0
+    %118: %r0 = const 32768
+    %119: %r0 = binary.or %117, %118
+    %120: %r0 = coerce %119
+    store global trace: %r0, %120
+    return %120
   block18:
-    %140: %r0 = load global trace: %r0
-    %141: %r0 = const 16384
-    %142: %r0 = binary.or %140, %141
-    %143: %r0 = coerce %142
-    store global trace: %r0, %143
+    %113: %r0 = load global trace: %r0
+    %114: %r0 = const 16384
+    %115: %r0 = binary.or %113, %114
+    %116: %r0 = coerce %115
+    store global trace: %r0, %116
     jump -> block17
   block19:
-    %44: %r2 = binary.eq %40, %42
-    %45: %r3 = const 1
-    %46: %r3 = const 2
-    %47: %r3 = select %44, %45, %46
-    %48: %r3 = const 2
-    %49: %r2 = binary.eq %47, %48
-    branch %49 -> block5 -> block4
+    jump -> block5
   block20:
-    %62: %r1 = alias %55
-    jump -> block21(%62)
+    jump -> block21(%55)
   block21(%2: %r1):
-    %63: %r1 = alias %24
-    %64: %r1 = alias %63
-    %65: %r2 = binary.eq %2, %64
-    branch %65 -> block7 -> block6
+    %61: %r1 = alias %24
+    %62: %r1 = alias %61
+    %63: %r2 = binary.eq %2, %62
+    branch %63 -> block7 -> block6
   block22:
-    %61: %r1 = alias %57
-    jump -> block21(%61)
+    %24: %r1 = alias %23
+    %56: %r1 = alias %24
+    %57: %r1 = alias %56
+    jump -> block21(%57)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 11 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 18
+optimizer clones 0 aliased 0 forwarded 0 removed 68 adopted 0 sunk 0 numbered 0 decided 8 unboxed 0 updated 0 split 0 promoted 16 folded 21
 
 rep %r0 = number signed 32
 rep %r1 = bigint signed

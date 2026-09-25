@@ -1,0 +1,57 @@
+fn main() -> one %r0
+  var $0: %r4
+  var $1: %r0
+  block0:
+    %15: %r5 = fun.code main.lambda
+    %16: %r5 = const null
+    %18: %r5 = alias %15
+    %19: %r5 = alias %16
+    %20: %r0 = call.value %18, %19
+    %21: %r5 = fun.code main.lambda'2
+    %22: %r5 = const null
+    %24: %r5 = alias %21
+    %25: %r5 = alias %22
+    %26: %r0 = call.value %24, %25
+    %37: %r0 = const 34
+    %38: %r0 = binary.add %37, %20
+    %39: %r0 = coerce %38
+    %40: %r0 = binary.add %39, %26
+    %41: %r0 = coerce %40
+    %42: %r0 = const 37
+    %43: %r0 = binary.add %41, %42
+    %44: %r0 = coerce %43
+    return %44
+
+fn main.lambda(one %r1, omitted) -> one %r0 env
+  block0(%0: %r1):
+    %1: %r0 = const 6
+    return %1
+
+fn main.lambda'2(one %r3, omitted) -> one %r0 env
+  block0(%0: %r3):
+    %1: %r0 = const 7
+    return %1
+
+optimizer clones 1 aliased 1 forwarded 4 removed 28 adopted 2 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 1 folded 2
+
+shape %s0 object main.lambda.env {}
+shape %s1 object main.lambda'2.env {}
+shape %s2 object Box {tag: %r0}
+shape %s3 fun {$c: %r5 code, $e: %r5 env}
+shape %s4 object Maybe {$tag: %r7 tag}
+shape %s5 object <tuple> {index: %r0}
+shape %s6 object capturing.lambda.env {}
+shape %s7 object Empty {}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = void
+rep %r3 = object %s1
+rep %r4 = object %s2
+rep %r5 = erased
+rep %r6 = object %s3
+rep %r7 = number unsigned 8
+rep %r8 = object %s4
+rep %r9 = object %s5
+rep %r10 = object %s6
+rep %r11 = object %s7

@@ -1,0 +1,49 @@
+{-
+   A window into a slot's **own** storage, installed as a field of a record handed to a callee that
+   writes through it - J161.
+
+   J153 let `ssa::Containment` admit a `Guaranteed` window as an aggregate component, on the reading
+   that the aggregate copies the view record's bytes and "what the items pointer names is the owner's
+   run". That holds for an `Array`/`String` owner and for a window stored in a field. It does not for
+   a window a *call* answered: `valuesOf` below hands back a window whose items pointer is `q`'s own
+   inline storage, `Quad` read as contained, `pokeMove` was not asked about it, and the read after
+   the call was answered from the `4` stored before it. The arm now admits only a window loaded out
+   of a slot (`resolve_ssa/opt/analysis.cpp`, `windowReadOutOfLine`).
+
+   `WindowComponent.NoInline.yana` is the plain `[Int *4]` form, which the default inliner hides.
+-}
+
+data Holder {w: &'[Int], n: Int}
+data Quad {values: [Int *4], tag: Int}
+
+let &calls = 0
+
+@noinline
+fn pokeMove(->h: Holder):
+    h.w[1] = 77
+
+-- An accessor left out of line, answering a window into its argument's inline storage.
+@noinline
+fn valuesOf(&self: source'Quad) -> &source'[Int] = self.values
+
+fn viaAccessor() -> Int:
+    calls += 1
+    let &q = Quad {values: [0, 0, 0, 0], tag: 1}
+    q.values[1] = 4
+    pokeMove(Holder {w: valuesOf(q), n: 1})
+    return q.values[1]
+
+-- The owner, whose window does point at a separate run: still right, and still the admitted case.
+fn viaOwned() -> Int:
+    calls += 1
+    let &xs = [5, 6, 7] :: Array(Int)
+    xs[1] = 2
+    pokeMove(Holder {w: xs, n: 1})
+    return xs[1]
+
+fn main() -> Int:
+    let &failed = 0
+    if viaAccessor() != 77 then failed += 1
+    if viaOwned() != 77 then failed += 2
+    if calls != 2 then failed += 4
+    return failed

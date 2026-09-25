@@ -1,0 +1,337 @@
+module ResolveTest
+
+data Shape = Circle {Circle: I32} | Square {width: I32, height: I32}
+
+fn sign(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 0
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (x)
+  %6: I32 = const 0
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb5 -> bb2
+
+bb2:
+  %10: I32 = const 0
+  jump -> bb3(take %10)
+
+bb3(%11: I32):
+  return take %11
+
+bb4:
+  %4: I32 = const 1
+  jump -> bb3(take %4)
+
+bb5:
+  %9: I32 = const -1
+  jump -> bb3(take %9)
+}
+
+fn clampedTo(x: I32 [shared call], limit: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (limit)
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (x)
+  %6: I32 = read copy.trivial (limit)
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb5 -> bb2
+
+bb2:
+  %10: I32 = read copy.trivial (x)
+  jump -> bb3(take %10)
+
+bb3(%11: I32):
+  return take %11
+
+bb4:
+  %4: I32 = read copy.trivial (limit)
+  jump -> bb3(take %4)
+
+bb5:
+  %9: I32 = const 0
+  jump -> bb3(take %9)
+}
+
+fn shadowing(x: I32 [shared call], limit: I32 [shared call]) -> I32 {
+  local limit: I32
+
+bb0:
+  %0: I32 = read copy.trivial (x)
+  write.init borrow.unique (limit) take %0
+  %2: I32 = read copy.trivial (limit)
+  %3: I32 = const 1
+  %4: I32 = add inspect %2 inspect %3
+  jump -> bb1(take %4)
+
+bb1(%5: I32):
+  return take %5
+}
+
+fn doubleIfPositive(x: I32 [shared call]) -> I32 {
+  local a: I32
+  local a: I32
+
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 0
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %9: I32 = read copy.trivial (x)
+  write.init borrow.unique (a) take %9
+  %11: I32 = read copy.trivial (a)
+  jump -> bb2(take %11)
+
+bb2(%12: I32):
+  return take %12
+
+bb3:
+  %4: I32 = read copy.trivial (x)
+  write.init borrow.unique (a) take %4
+  %6: I32 = read copy.trivial (a)
+  %7: I32 = const 2
+  %8: I32 = mul inspect %6 inspect %7
+  jump -> bb2(take %8)
+}
+
+fn area(s: Shape [shared call]) -> I32 {
+  local r: I32
+  local h: I32
+  local w: I32
+
+bb0:
+  %0: U8 = read copy.trivial (s.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb5 -> bb1
+
+bb1:
+  %9: U8 = read copy.trivial (s.#)
+  %10: U8 = const 0
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb7 -> bb2
+
+bb2:
+  %16: U8 = read copy.trivial (s.#)
+  %17: U8 = const 1
+  %18: Bool = eq inspect %16 inspect %17
+  branch inspect %18 -> bb8 -> bb3
+
+bb3:
+  %29: I32 = read copy.trivial (s.width)
+  write.init borrow.unique (w) take %29
+  %31: I32 = read copy.trivial (w)
+  jump -> bb4(take %31)
+
+bb4(%32: I32):
+  return take %32
+
+bb5:
+  %4: I32 = read copy.trivial (s.Circle)
+  %5: I32 = const 10
+  %6: Bool = gt inspect %4 inspect %5
+  branch inspect %6 -> bb6 -> bb1
+
+bb6:
+  %8: I32 = const 100
+  jump -> bb4(take %8)
+
+bb7:
+  %13: I32 = read copy.trivial (s.Circle)
+  write.init borrow.unique (r) take %13
+  %15: I32 = read copy.trivial (r)
+  jump -> bb4(take %15)
+
+bb8:
+  %20: I32 = read copy.trivial (s.width)
+  %21: I32 = const 10
+  %22: Bool = gt inspect %20 inspect %21
+  branch inspect %22 -> bb9 -> bb3
+
+bb9:
+  %24: I32 = read copy.trivial (s.height)
+  write.init borrow.unique (h) take %24
+  %26: I32 = read copy.trivial (h)
+  %27: I32 = const 10
+  %28: I32 = add inspect %26 inspect %27
+  jump -> bb4(take %28)
+}
+
+fn firstIfEqual(p: {I32, I32} [shared call]) -> I32 {
+  local a: I32
+  local a: I32
+  local b: I32
+
+bb0:
+  %0: I32 = read copy.trivial (p.1)
+  %1: I32 = read copy.trivial (p.0)
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (p.0)
+  write.init borrow.unique (a) take %7
+  %9: I32 = read copy.trivial (p.1)
+  write.init borrow.unique (b) take %9
+  %11: I32 = read copy.trivial (a)
+  %12: I32 = read copy.trivial (b)
+  %13: I32 = add inspect %11 inspect %12
+  jump -> bb2(take %13)
+
+bb2(%14: I32):
+  return take %14
+
+bb3:
+  %4: I32 = read copy.trivial (p.0)
+  write.init borrow.unique (a) take %4
+  %6: I32 = read copy.trivial (a)
+  jump -> bb2(take %6)
+}
+
+fn near(a: I32 [shared call], b: I32 [shared call]) -> Bool {
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = read copy.trivial (b)
+  %2: I32 = sub inspect %0 inspect %1
+  %3: I32 = const 2
+  %4: Bool = lt inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %11: Bool = const False
+  jump -> bb2(take %11)
+
+bb2(%12: Bool):
+  return take %12
+
+bb3:
+  %6: I32 = read copy.trivial (b)
+  %7: I32 = read copy.trivial (a)
+  %8: I32 = sub inspect %6 inspect %7
+  %9: I32 = const 2
+  %10: Bool = lt inspect %8 inspect %9
+  jump -> bb2(take %10)
+}
+
+fn isNearTen(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 10
+  %2: Bool = call near borrow.shared %0 borrow.shared %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+}
+
+fn positiveOr(x: I32 [shared call], fallback: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 0
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %4: I32 = read copy.trivial (fallback)
+  return take %4
+
+bb2:
+  %6: I32 = read copy.trivial (x)
+  return take %6
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 5
+  %1: I32 = call sign borrow.shared %0
+  %2: I32 = const -5
+  %3: I32 = call sign borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  %5: I32 = const 0
+  %6: I32 = call sign borrow.shared %5
+  %7: I32 = add inspect %4 inspect %6
+  %8: I32 = const 20
+  %9: I32 = const 10
+  %10: I32 = call clampedTo borrow.shared %8 borrow.shared %9
+  %11: I32 = add inspect %7 inspect %10
+  %12: I32 = const 10
+  %13: I32 = const 10
+  %14: I32 = call clampedTo borrow.shared %12 borrow.shared %13
+  %15: I32 = add inspect %11 inspect %14
+  %16: I32 = const 3
+  %17: I32 = const 10
+  %18: I32 = call clampedTo borrow.shared %16 borrow.shared %17
+  %19: I32 = add inspect %15 inspect %18
+  %20: I32 = const 7
+  %21: I32 = const 100
+  %22: I32 = call shadowing borrow.shared %20 borrow.shared %21
+  %23: I32 = add inspect %19 inspect %22
+  %24: I32 = const 4
+  %25: I32 = call doubleIfPositive borrow.shared %24
+  %26: I32 = add inspect %23 inspect %25
+  %27: I32 = const -4
+  %28: I32 = call doubleIfPositive borrow.shared %27
+  %29: I32 = add inspect %26 inspect %28
+  %30: I32 = const 20
+  %31: Shape = aggregate.Circle take %30
+  %32: I32 = call area borrow.shared %31
+  %33: I32 = add inspect %29 inspect %32
+  %34: I32 = const 3
+  %35: Shape = aggregate.Circle take %34
+  %36: I32 = call area borrow.shared %35
+  %37: I32 = add inspect %33 inspect %36
+  %38: I32 = const 20
+  %39: I32 = const 2
+  %40: Shape = aggregate.Square take %38 take %39
+  %41: I32 = call area borrow.shared %40
+  %42: I32 = add inspect %37 inspect %41
+  %43: I32 = const 3
+  %44: I32 = const 9
+  %45: Shape = aggregate.Square take %43 take %44
+  %46: I32 = call area borrow.shared %45
+  %47: I32 = add inspect %42 inspect %46
+  %48: I32 = const 6
+  %49: I32 = const 6
+  %50: {I32, I32} = aggregate. take %48 take %49
+  %51: I32 = call firstIfEqual borrow.shared %50
+  %52: I32 = add inspect %47 inspect %51
+  %53: I32 = const 1
+  %54: I32 = const 2
+  %55: {I32, I32} = aggregate. take %53 take %54
+  %56: I32 = call firstIfEqual borrow.shared %55
+  %57: I32 = add inspect %52 inspect %56
+  %58: I32 = const 11
+  %59: I32 = call isNearTen borrow.shared %58
+  %60: I32 = add inspect %57 inspect %59
+  %61: I32 = const 50
+  %62: I32 = call isNearTen borrow.shared %61
+  %63: I32 = add inspect %60 inspect %62
+  %64: I32 = const 9
+  %65: I32 = const -1
+  %66: I32 = call positiveOr borrow.shared %64 borrow.shared %65
+  %67: I32 = add inspect %63 inspect %66
+  %68: I32 = const -9
+  %69: I32 = const -1
+  %70: I32 = call positiveOr borrow.shared %68 borrow.shared %69
+  %71: I32 = add inspect %67 inspect %70
+  return take %71
+}
+
+entry main

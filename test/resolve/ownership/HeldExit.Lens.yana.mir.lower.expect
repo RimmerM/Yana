@@ -12,49 +12,50 @@ Token.drop<complex>(%v_0: I32) {
 
 main<complex>(): I32 {
   b_0 {
-    call_complex Token.drop, 10
-    %v_1 = loads @closed, 4: I32
-    %v_2 = add %v_1, 1: I32
-    store @closed, %v_2, 4
-    %v_3 = alloca 4, 4: Ptr
-    call_complex Token.drop, 10
-    call_complex Token.drop, 3
-    %v_4 = imm 20: I32
-    jmp b_5
-  }
-
-  b_6 {
-    %v_7 = phi [b_8, 25], [b_9, 0]: I32
-    %v_10 = loads @dropped, 4: I32
-    %v_11 = imul %v_10, 100: I32
-    %v_12 = loads @closed, 4: I32
-    %v_13 = add %v_11, %v_12: I32
-    %v_14 = add %v_13, 13: I32
-    %v_15 = add %v_14, %v_7: I32
-    ret %v_15
-  }
-
-  b_8 {
-    call_complex Token.drop, %v_4
-    call_complex Token.drop, 5
+    %v_1 = loads @dropped, 4: I32
+    %v_2 = add %v_1, 10: I32
+    store @dropped, %v_2, 4
+    %v_3 = loads @closed, 4: I32
+    %v_4 = add %v_3, 1: I32
+    store @closed, %v_4, 4
+    %v_5 = add %v_1, 23: I32
+    store @dropped, %v_5, 4
     jmp b_6
   }
 
-  b_16 {
-    %v_17 = cmp_eq %v_18, 1: I32
-    je %v_17, b_9, b_5
-  }
-
-  b_5 {
-    %v_19 = phi [b_16, %v_18], [b_0, 0]: I32
-    %v_18 = add %v_19, 1: I32
-    %v_20 = cmp_ilt %v_18, 3: I32
-    je %v_20, b_16, b_8
+  b_7 {
+    %v_8 = phi [b_9, 25], [b_10, 0]: I32
+    %v_11 = loads @dropped, 4: I32
+    %v_12 = imul %v_11, 100: I32
+    %v_13 = loads @closed, 4: I32
+    %v_14 = add %v_12, %v_13: I32
+    %v_15 = add %v_14, 13: I32
+    %v_16 = add %v_15, %v_8: I32
+    ret %v_16
   }
 
   b_9 {
-    call_complex Token.drop, %v_4
-    jmp b_6
+    %v_17 = loads @dropped, 4: I32
+    %v_18 = add %v_17, 25: I32
+    store @dropped, %v_18, 4
+    jmp b_7
+  }
+
+  b_19 {
+    %v_20 = cmp_eq %v_21, 1: I32
+    je %v_20, b_10, b_6
+  }
+
+  b_6 {
+    %v_22 = phi [b_19, %v_21], [b_0, 0]: I32
+    %v_21 = add %v_22, 1: I32
+    %v_23 = cmp_ilt %v_21, 3: I32
+    je %v_23, b_19, b_9
+  }
+
+  b_10 {
+    call_complex Token.drop, 20
+    jmp b_7
   }
 }
 

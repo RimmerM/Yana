@@ -1,0 +1,148 @@
+module ResolveTest
+
+fn hoist(p: %I64 [shared call], n: I32 [shared call]) -> I64 {
+  local h: I64
+  local & i: I32
+  local & t: I64
+
+bb0:
+  %0: %I64 = read copy.trivial (p)
+  %1: Size = const -2
+  %2: Size = metric stride I64
+  %3: Size = mul inspect %1 inspect %2
+  %4: %I64 [owned here shape6 .*=shared slot 0] = add inspect %0 inspect %3
+  %5: I64 = read copy.trivial ([%%4])
+  write.init borrow.unique (h) take %5
+  %7: I32 = const 0
+  write.init borrow.unique (i) take %7
+  %9: I64 = const 0
+  write.init borrow.unique (t) take %9
+  jump -> bb1
+
+bb1:
+  %12: I32 = read copy.trivial (i)
+  %13: I32 = read copy.trivial (n)
+  %14: Bool = lt inspect %12 inspect %13
+  branch inspect %14 -> bb3 -> bb2
+
+bb2:
+  %25: I64 = read copy.trivial (h)
+  %26: I64 = read copy.trivial (t)
+  %27: I64 = add inspect %25 inspect %26
+  return take %27
+
+bb3:
+  %16: I64 = read copy.trivial (t)
+  %17: %I64 = read copy.trivial (p)
+  %18: I64 = read copy.trivial ([%%17])
+  %19: I64 = add inspect %16 inspect %18
+  write.assign borrow.unique (t) take %19
+  %21: I32 [unique call] = read borrow.unique (i) loan0
+  %22: I32 = const 1
+  %23: {} = call +=(I32) borrow.unique %21 borrow.shared %22
+  jump -> bb1
+}
+
+fn cell(p: %I64 [shared call], n: I32 [shared call]) -> I64 {
+  local h: I64
+  local & i: I32
+
+bb0:
+  %0: %I64 = read copy.trivial (p)
+  %1: Size = const -2
+  %2: Size = metric stride I64
+  %3: Size = mul inspect %1 inspect %2
+  %4: %I64 [owned here shape6 .*=shared slot 0] = add inspect %0 inspect %3
+  %5: I64 = read copy.trivial ([%%4])
+  write.init borrow.unique (h) take %5
+  %7: I32 = const 0
+  write.init borrow.unique (i) take %7
+  jump -> bb1
+
+bb1:
+  %10: I32 = read copy.trivial (i)
+  %11: I32 = read copy.trivial (n)
+  %12: Bool = lt inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb2
+
+bb2:
+  %25: I64 = read copy.trivial (h)
+  return take %25
+
+bb3:
+  %14: %I64 = read copy.trivial (p)
+  %15: %I64 = read copy.trivial (p)
+  %16: I64 = read copy.trivial ([%%15])
+  %17: I64 = read copy.trivial (h)
+  %18: I64 = add inspect %16 inspect %17
+  write.assign borrow.unique ([%%14]) take %18
+  %20: {} = const {}
+  %21: I32 [unique call] = read borrow.unique (i) loan0
+  %22: I32 = const 1
+  %23: {} = call +=(I32) borrow.unique %21 borrow.shared %22
+  jump -> bb1
+}
+
+fn main() -> I32 {
+  local base: Size
+  local protect: Size
+  local p: %I64
+
+bb0:
+  %0: USize = const 9
+  %1: USize = const 0
+  %2: USize = const 8192
+  %3: USize = const 3
+  %4: USize = const 34
+  %5: Size = const -1
+  %6: USize = bitcast inspect %5
+  %7: USize = const 0
+  %8: Size = native syscall inspect %0 inspect %1 inspect %2 inspect %3 inspect %4 inspect %6 inspect %7
+  write.init borrow.unique (base) take %8
+  %10: USize = const 10
+  %11: Size = read copy.trivial (base)
+  %12: Size = const 4096
+  %13: Size = add inspect %11 inspect %12
+  %14: USize = bitcast inspect %13
+  %15: USize = const 4096
+  %16: USize = const 0
+  %17: Size = native syscall inspect %10 inspect %14 inspect %15 inspect %16
+  write.init borrow.unique (protect) take %17
+  %19: Size = read copy.trivial (protect)
+  %20: Size = const 0
+  %21: Bool = ne inspect %19 inspect %20
+  branch inspect %21 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %26: Size = read copy.trivial (base)
+  %27: Size = const 4096
+  %28: Size = add inspect %26 inspect %27
+  %29: %I64 = bitcast inspect %28
+  write.init borrow.unique (p) take %29
+  %31: %I64 = read copy.trivial (p)
+  %32: Size = const -2
+  %33: Size = metric stride I64
+  %34: Size = mul inspect %32 inspect %33
+  %35: %I64 [owned here shape6 .*=shared slot 0] = add inspect %31 inspect %34
+  %36: I64 = const 5
+  write.assign borrow.unique ([%%35]) take %36
+  %38: {} = const {}
+  %39: %I64 = read copy.trivial (p)
+  %40: I32 = const 0
+  %41: I64 = call hoist borrow.shared %39 borrow.shared %40
+  %42: %I64 = read copy.trivial (p)
+  %43: I32 = const 0
+  %44: I64 = call cell borrow.shared %42 borrow.shared %43
+  %45: I64 = add inspect %41 inspect %44
+  %46: I32 = convert inspect %45
+  return take %46
+
+bb3:
+  %23: I32 = const 1
+  return take %23
+}
+
+entry main

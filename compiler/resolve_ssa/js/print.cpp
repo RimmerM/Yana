@@ -595,6 +595,8 @@ void printTables(Net::Writer& writer, JsTarget& target) {
     printer.uint(target.optimizer.split);
     printer.text(" promoted "_v);
     printer.uint(target.optimizer.promoted);
+    printer.text(" folded "_v);
+    printer.uint(target.optimizer.folded);
     printer.text("\n\n"_v);
 
     for(U32 i = 0; i < target.shapes.size(); i++) printer.shapeDeclaration(JsShapeId(i));

@@ -17,12 +17,7 @@ fn main() -> one %r0
     %0: %r0 = const 3
     %3: %r0 = alias %0
     %4: %r0 = alias %3
-    %5: %r0 = alias %4
-    %6: %r0 = alias %5
-    %7: %r0 = alias %6
-    %8: %r0 = const 10
-    %9: %r0 = binary.add %8, %7
-    %10: %r0 = coerce %9
+    %10: %r0 = const 13
     %11: %r0 = alias %4
     call Guard.drop %11
     %12: %r0 = const 5
@@ -59,7 +54,7 @@ fn handedOff.lambda(one %r2) -> omitted
     call Guard.drop %1
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 9 adopted 1 sunk 0 numbered 2 decided 0 unboxed 1 updated 0 split 0 promoted 4
+optimizer clones 0 aliased 0 forwarded 0 removed 14 adopted 1 sunk 0 numbered 2 decided 0 unboxed 1 updated 0 split 0 promoted 4 folded 2
 
 shape %s0 object handedOff.lambda.env {g: %r0}
 shape %s1 cell {$v: %r0 box}

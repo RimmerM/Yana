@@ -400,6 +400,7 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/opt/analysis.h
     resolve_ssa/opt/analysis.cpp
     resolve_ssa/opt/arg.cpp
+    resolve_ssa/opt/teardown.cpp
     resolve_ssa/opt/promote.cpp
     resolve_ssa/opt/simplify.cpp
     resolve_ssa/opt/cse.cpp

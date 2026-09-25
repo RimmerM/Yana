@@ -1,0 +1,120 @@
+fn depth(one %r1) -> one %r2
+  block0(%0: %r1):
+    %2: %r0 = load property %0.$tag: %r0
+    %3: %r0 = const 0
+    %4: %r3 = binary.eq %2, %3
+    branch %4 -> block3 -> block1
+  block1:
+    %5: %r2 = const 1
+    %6: %r1 = load property %0.next: %r1
+    %7: %r2 = call depth %6
+    %8: %r2 = binary.add %5, %7
+    %9: %r2 = coerce %8
+    jump -> block2(%9)
+  block2(%1: %r2):
+    return %1
+  block3:
+    %10: %r2 = const 0
+    jump -> block2(%10)
+
+fn sum(one %r1) -> one %r2
+  block0(%0: %r1):
+    %2: %r0 = load property %0.$tag: %r0
+    %3: %r0 = const 0
+    %4: %r3 = binary.eq %2, %3
+    branch %4 -> block3 -> block1
+  block1:
+    %5: %r2 = load property %0.v: %r2
+    %6: %r1 = load property %0.next: %r1
+    %7: %r2 = call sum %6
+    %8: %r2 = binary.add %5, %7
+    %9: %r2 = coerce %8
+    jump -> block2(%9)
+  block2(%1: %r2):
+    return %1
+  block3:
+    %10: %r2 = const 0
+    jump -> block2(%10)
+
+fn main() -> one %r2
+  block0:
+    %1: %r2 = const 5
+    %6: %r0 = const 0
+    %7: %r0 = const 0
+    %8: %r1 = const null
+    %9: %r2 = const 0
+    %10: %r1 = object %s0 %7, %8, %9
+    %11: %r2 = const 0
+    %12: %r1 = object %s0 %6, %10, %11
+    %5: %r1 = alias %12
+    %13: %r2 = const 0
+    %14: %r2 = const 1
+    jump -> block1(%13)
+  block1(%0: %r2):
+    %15: %r3 = binary.lt %0, %1
+    branch %15 -> block3 -> block2
+  block2:
+    %20: %r0 = const 0
+    %21: %r0 = const 0
+    %22: %r1 = const null
+    %23: %r2 = const 0
+    %24: %r1 = object %s0 %21, %22, %23
+    %25: %r2 = const 0
+    %26: %r1 = object %s0 %20, %24, %25
+    %19: %r1 = alias %26
+    %27: %r0 = load property %19.$tag: %r0
+    %28: %r1 = load property %19.next: %r1
+    %29: %r2 = load property %19.v: %r2
+    %30: %r1 = object %s0 %27, %28, %29
+    %31: %r2 = const 1
+    %32: %r0 = const 1
+    store property %19.$tag: %r0, %32
+    store property %19.next: %r1, %30
+    store property %19.v: %r2, %31
+    %34: %r2 = call depth %19
+    %35: %r2 = const 1000000
+    %36: %r2 = binary.mul %34, %35
+    %37: %r2 = coerce %36
+    %38: %r2 = call depth %5
+    %39: %r2 = const 100000
+    %40: %r2 = binary.mul %38, %39
+    %41: %r2 = coerce %40
+    %42: %r2 = binary.add %37, %41
+    %43: %r2 = coerce %42
+    %44: %r2 = call sum %5
+    %45: %r2 = const 1000
+    %46: %r2 = binary.mul %44, %45
+    %47: %r2 = coerce %46
+    %48: %r2 = binary.add %43, %47
+    %49: %r2 = coerce %48
+    %59: %r2 = const 321
+    %60: %r2 = binary.add %49, %59
+    %61: %r2 = coerce %60
+    return %61
+  block3:
+    %62: %r0 = load property %5.$tag: %r0
+    %63: %r1 = load property %5.next: %r1
+    %64: %r2 = load property %5.v: %r2
+    %65: %r1 = object %s0 %62, %63, %64
+    %66: %r0 = const 1
+    store property %5.$tag: %r0, %66
+    store property %5.next: %r1, %65
+    store property %5.v: %r2, %0
+    %68: %r2 = binary.add %0, %14
+    %69: %r2 = coerce %68
+    jump -> block1(%69)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 17 adopted 2 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 0 folded 0
+
+shape %s0 object Boxed {$tag: %r0 tag, next: %r1, v: %r2}
+shape %s1 object Big {a: %r4, b: %r4, c: %r4, d: %r4}
+shape %s2 object Wrap {inner: %r5, n: %r4}
+
+rep %r0 = number unsigned 8
+rep %r1 = object %s0
+rep %r2 = number signed 32
+rep %r3 = number bool
+rep %r4 = bigint signed
+rep %r5 = object %s1
+rep %r6 = parts (%r4, %r4, %r4, %r4) as %r5
+rep %r7 = object %s2

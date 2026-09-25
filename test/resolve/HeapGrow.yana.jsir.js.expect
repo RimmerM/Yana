@@ -4,11 +4,11 @@ function main() {
   var v8 = { items: new Int32Array([]), length: 0 };
   var p0 = 0;
   while (p0 < 200000) {
-    var v103 = v8.length;
-    var v105 = v103 + 1;
-    if (v105 > v8.items.length) growJsArray_I32(v8, v105);
-    v8.items[v103] = p0;
-    v8.length = v105 & 1073741823;
+    var v88 = v8.length;
+    var v90 = v88 + 1;
+    if (v90 > v8.items.length) growJsArray_I32(v8, v90);
+    v8.items[v88] = p0;
+    v8.length = v90 & 1073741823;
     p0 = p0 + 1 | 0;
   }
   var v15 = v8.items;
@@ -25,9 +25,8 @@ function main() {
   var p1 = 0;
   var p2 = 0;
   while (p2 < 200000) {
-    var v82 = v8.items;
-    if (p2 >>> 0 >= v8.length) throw $t;
-    p1 = p1 + v82[p2 | 0] | 0;
+    if (p2 >>> 0 >= v17) throw $t;
+    p1 = p1 + v15[p2 | 0] | 0;
     p2 = p2 + 100 | 0;
   }
   return p1;

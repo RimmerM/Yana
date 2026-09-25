@@ -5,16 +5,15 @@ main<complex>(): I32 {
     %v_1 = loads @effects, 4: I32
     %v_2 = add %v_1, 1: I32
     store @effects, %v_2, 4
-    %v_3 = loads @effects, 4: I32
-    %v_4 = cmp_neq %v_3, 1: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    ret 3
+    %v_3 = cmp_neq %v_2, 1: I32
+    je %v_3, b_4, b_5
   }
 
   b_5 {
+    ret 3
+  }
+
+  b_4 {
     ret 12
   }
 }

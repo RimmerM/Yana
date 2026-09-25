@@ -1,7 +1,6 @@
 fn total(parts %r3, one %r0) -> one %r0
   block0(%0: %r1, %1: %r0, %2: %r0, %3: %r0):
-    %4: %r0 = const 0
-    %5: %r4 = convert %4
+    %5: %r4 = const 0
     %6: %r4 = convert %1
     %7: %r5 = binary.ge %5, %6
     branch %7 -> block2 -> block1
@@ -12,7 +11,7 @@ fn total(parts %r3, one %r0) -> one %r0
     %11: %r0 = binary.mul %9, %10
     %12: %r0 = coerce %11
     %13: %r0 = const 1
-    %14: %r4 = convert %13
+    %14: %r4 = const 1
     %15: %r4 = alias %6
     %16: %r5 = binary.ge %14, %15
     branch %16 -> block4 -> block3
@@ -137,7 +136,7 @@ fn main() -> one %r0
     %121: %r0 = coerce %120
     return %121
 
-optimizer clones 3 aliased 0 forwarded 0 removed 53 adopted 0 sunk 0 numbered 2 decided 0 unboxed 4 updated 0 split 2 promoted 10
+optimizer clones 3 aliased 0 forwarded 0 removed 54 adopted 0 sunk 0 numbered 2 decided 0 unboxed 4 updated 0 split 2 promoted 10 folded 2
 
 shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
 shape %s1 object Box {cell: %r9, tag: %r0}

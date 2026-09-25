@@ -1,0 +1,86 @@
+{-
+   J158: a location a loop both reads and writes, carried in a register across it - `promoteLoopCells`
+   in compiler/lower/lower_licm.cpp - and the loads the hoister may now take out of a loop that
+   writes something else.
+
+   `step` is the shape the pass is for: a generator's state reached through a `&` parameter, every
+   word read and written back once per iteration. The reads become the values the stores above them
+   wrote, carried round the back edge in phis; the stores stay, because a parameter's storage is
+   storage the caller can see. `first` is what lets the preheader read the state at all: a read of
+   its last word above the loop is what says all sixteen bytes exist on the path where the loop runs
+   zero times.
+
+   `tally` is the contained case: a fixed array of counters indexed by literals, which nothing but its
+   own accesses reaches. Its stores move to the loop's exits as well, and the loop has two - the test
+   and a `break` - so the block they meet in merges what the counters hold on each edge and writes
+   that back once.
+
+   The other three are what must not happen. `aliased` writes through an element pointer between two
+   reads of a field of the same record, `called` hands the record to a call inside the loop, and
+   `never` runs its loop zero times, so the preheader's read is the answer.
+-}
+
+data State {a: U32, b: U32, c: U32, d: U32}
+
+@noinline fn step(&s: State, rounds: Int) -> U32:
+    let first = s.d
+    let &i = 0 :: Int
+    while i < rounds:
+        let t = s.b `shl` 9
+        s.c = s.c `xor` s.a
+        s.d = s.d `xor` s.b
+        s.b = s.b `xor` s.c
+        s.a = s.a `xor` s.d
+        s.c = s.c `xor` t
+        s.d = s.d `rol` 11
+        i = i + 1
+    return s.a + s.b + first
+
+@noinline fn tally(n: Int, stop: Int) -> Int:
+    let &counts = [0, 0, 0] :: [Int *3]
+    let &i = 0 :: Int
+    while i < n:
+        if i == stop then break
+        counts[0] = counts[0] + 1
+        if i % 2 == 0 then counts[1] = counts[1] + i
+        counts[2] = counts[2] + counts[1]
+        i = i + 1
+    return counts[0] * 10000 + counts[1] * 100 + counts[2]
+
+data Box {items: [Int], total: Int}
+
+@noinline fn aliased(&box: Box) -> Int:
+    let &i = 0 :: Int
+    while i < (truncate(length(box.items)) :: Int):
+        box.items[i] = box.items[i] + box.total
+        box.total = box.total + 1
+        i = i + 1
+    return box.total + box.items[0]
+
+@noinline fn bump(&box: Box):
+    box.total = box.total * 2
+
+@noinline fn called(&box: Box, n: Int) -> Int:
+    let &i = 0 :: Int
+    while i < n:
+        box.total = box.total + 1
+        bump(box)
+        i = i + 1
+    return box.total
+
+@noinline fn never(&s: State, n: Int) -> U32:
+    let &i = 0 :: Int
+    while i < n:
+        s.a = s.a + 1
+        i = i + 1
+    return s.a
+
+fn main() -> Int:
+    let &s = State {a: 1, b: 2, c: 3, d: 4}
+    let r = step(s, 5)
+    let &box = Box {items: [1, 2, 3], total: 5}
+    let x = aliased(box)
+    let y = called(box, 3)
+    let z = never(s, 0)
+    let words = (truncate(r `xor` s.a `xor` s.d `xor` z) :: Int) `and` 0x3ff
+    return words * 1000000 + tally(10, 7) * 10 + tally(4, 99) % 7 + x * 100 + y

@@ -79,15 +79,7 @@ fn main() -> one %r0
     %63: %r0 = coerce %62
     %64: %r0 = binary.add %35, %63
     %65: %r0 = coerce %64
-    %76: %r0 = const 7
-    %77: %r0 = alias %76
-    %81: %r0 = alias %77
-    %82: %r0 = alias %81
-    %83: %r0 = alias %82
-    %84: %r0 = alias %83
-    %85: %r0 = const 10
-    %87: %r0 = binary.add %84, %85
-    %88: %r0 = coerce %87
+    %88: %r0 = const 17
     %89: %r0 = binary.add %65, %88
     %90: %r0 = coerce %89
     %95: %r0 = const 1
@@ -212,13 +204,8 @@ fn main() -> one %r0
     %239: %r0 = alias %231
     %240: %r0 = alias %239
     store var $8: %r0, %240
-    %241: %r0 = const 2
     %242: %r0 = const 0
-    %243: %r0 = const 0
-    %244: %r12 = convert %243
-    %245: %r12 = convert %241
-    %246: %r9 = binary.ge %244, %245
-    branch %246 -> block8 -> block7
+    jump -> block7
   block3:
     %255: %r9 = binary.eq %1, %152
     branch %255 -> block5 -> block4
@@ -265,7 +252,7 @@ fn Array(a).reclaim(Cell)(one %r5) -> omitted
   block0(%0: %r5):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 126 adopted 1 sunk 1 numbered 7 decided 0 unboxed 22 updated 0 split 3 promoted 23
+optimizer clones 0 aliased 0 forwarded 0 removed 139 adopted 1 sunk 1 numbered 7 decided 1 unboxed 22 updated 0 split 3 promoted 23 folded 5
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object Array {items: %r1, length: %r2}

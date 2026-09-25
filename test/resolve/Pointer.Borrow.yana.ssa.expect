@@ -1,0 +1,263 @@
+module ResolveTest
+
+let & drops: I64 = 0
+
+let string'142: [CodeUnit *3] = "abc"
+
+let string'143: [CodeUnit *0] = ""
+
+let string'144: [CodeUnit *1] = " "
+
+let string'145: [CodeUnit *1] = " "
+
+let string'146: [CodeUnit *1] = " "
+
+let string'147: [CodeUnit *7] = " drops "
+
+let string'148: [CodeUnit *1] = "
+"
+
+fn Tag.drop(value: Tag) -> {} {
+bb0(%0: Tag owned):
+  %1: %Tag address = alloc frame Tag
+  store inspect %1 consume %0
+  %2: %I64 address = global.addr drops
+  %3: I64 [unique call] guaranteed = load inspect %2
+  %4: I64 trivial = const 1
+  call +=(I64) borrow %3 borrow %4
+  return
+}
+
+fn whole(p: %Rec [shared call]) -> I32 {
+bb0(%0: %Rec trivial):
+  %1: %%Rec address = alloc frame %Rec [shared call]
+  store inspect %1 borrow %0
+  %2: %Rec trivial = load inspect %1
+  %3: Rec [shared call] guaranteed = load inspect %2
+  %4: %Rec trivial = load inspect %1
+  %5: Rec [shared call] guaranteed = load inspect %4
+  %6: %I32 address = field.addr .n inspect %3
+  %7: I32 trivial = load inspect %6
+  %8: %String address = field.addr .name inspect %3
+  %9: String [shared call] guaranteed from{%3} = load inspect %8
+  %10: String [shared slot 0 view] guaranteed from{%3} = call String.view borrow %9
+  %11: Size trivial = call String.length borrow %10
+  %12: I32 trivial = convert inspect %11
+  %13: I32 trivial = add inspect %7 inspect %12
+  %14: %Tag address = field.addr .tag inspect %5
+  %15: %I32 address = field.addr .n inspect %14
+  %16: I32 trivial = load inspect %15
+  %17: I32 trivial = add inspect %13 inspect %16
+  return consume %17
+}
+
+fn part(p: %Rec [shared call]) -> I32 {
+bb0(%0: %Rec trivial):
+  %1: %%Rec address = alloc frame %Rec [shared call]
+  store inspect %1 borrow %0
+  %2: %Rec trivial = load inspect %1
+  %3: %Tag address = field.addr .tag inspect %2
+  %4: Tag [shared call] guaranteed = load inspect %3
+  %5: %I32 address = field.addr .n inspect %4
+  %6: I32 trivial = load inspect %5
+  return consume %6
+}
+
+fn tagOf'2(t: Tag [shared call]) -> I32 {
+bb0(%0: Tag [shared call] guaranteed):
+  %1: %I32 address = field.addr .n inspect %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn byArgument(p: %Rec [shared call], t: %Tag [shared call]) -> I32 {
+bb0(%0: %Rec trivial, %1: %Tag trivial):
+  %2: %%Rec address = alloc frame %Rec [shared call]
+  %3: %%Tag address = alloc frame %Tag [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: %Rec trivial = load inspect %2
+  %5: %Tag address = field.addr .tag inspect %4
+  %6: Tag [shared call] guaranteed = load inspect %5
+  %7: I32 trivial = call tagOf'2 borrow %6
+  %8: %Tag trivial = load inspect %3
+  %9: Tag [shared call] guaranteed = load inspect %8
+  %10: I32 trivial = call tagOf'2 borrow %9
+  %11: I32 trivial = add inspect %7 inspect %10
+  return consume %11
+}
+
+fn small(p: %Small [shared call]) -> I32 {
+bb0(%0: %Small trivial):
+  %1: %%Small address = alloc frame %Small [shared call]
+  %2: %Small address = alloc frame Small
+  store inspect %1 borrow %0
+  %3: %Small trivial = load inspect %1
+  %4: Small trivial = copy inspect %3
+  store inspect %2 consume %4
+  %5: %I32 address = field.addr .a inspect %2
+  %6: I32 trivial = load inspect %5
+  %7: I32 trivial = const 10
+  %8: I32 trivial = mul inspect %6 inspect %7
+  %9: %I32 address = field.addr .b inspect %2
+  %10: I32 trivial = load inspect %9
+  %11: I32 trivial = add inspect %8 inspect %10
+  return consume %11
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Rec address = alloc frame Rec
+  %1: %Small address = alloc frame Small
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = alloc frame I32
+  %6: %String address = alloc frame String
+  %7: %String address = alloc frame String
+  %8: %String address = alloc frame String
+  %9: %String address = alloc frame String
+  %10: %String address = alloc frame String
+  %11: %String address = alloc frame String
+  %12: %String address = alloc frame String
+  %13: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 3, ownsHeap: 0}, length: 3}}
+  %14: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 0, ownsHeap: 0}, length: 0}}
+  %15: String owned = call String.++ consume %13 consume %14
+  %16: I32 trivial = const 5
+  %17: Tag owned = aggregate.Tag consume %16
+  %18: I32 trivial = const 4
+  %19: Rec owned = aggregate.Rec consume %15 consume %17 consume %18
+  store inspect %0 consume %19
+  %20: I32 trivial = const 1
+  %21: I32 trivial = const 2
+  %22: Small trivial = aggregate.Small consume %20 consume %21
+  store inspect %1 consume %22
+  %23: Rec [shared slot 0] guaranteed from{%0} = load inspect %0
+  %24: %Rec [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %23
+  %25: I32 trivial = call whole borrow %24
+  store inspect %2 consume %25
+  %26: Rec [shared slot 0] guaranteed from{%0} = load inspect %0
+  %27: %Rec [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %26
+  %28: I32 trivial = call part borrow %27
+  store inspect %3 consume %28
+  %29: Small [shared slot 0] guaranteed from{%1} = load inspect %1
+  %30: %Small [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %29
+  %31: I32 trivial = call small borrow %30
+  store inspect %4 consume %31
+  %32: Rec [shared slot 0] guaranteed from{%0} = load inspect %0
+  %33: %Rec [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %32
+  %34: %Tag address = field.addr .tag inspect %0
+  %35: Tag [shared slot 0] guaranteed from{%0} = load inspect %34
+  %36: %Tag [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %35
+  %37: I32 trivial = call byArgument borrow %33 borrow %36
+  store inspect %5 consume %37
+  %38: Size trivial = const 11
+  %39: I32 trivial = load inspect %2
+  %40: Maybe(Size) trivial = call I32.showBound borrow %39
+  %41: Size trivial = call formatBound borrow %40
+  %42: Size trivial = add inspect %38 inspect %41
+  %43: I32 trivial = load inspect %3
+  %44: Maybe(Size) trivial = call I32.showBound borrow %43
+  %45: Size trivial = call formatBound borrow %44
+  %46: Size trivial = add inspect %42 inspect %45
+  %47: I32 trivial = load inspect %4
+  %48: Maybe(Size) trivial = call I32.showBound borrow %47
+  %49: Size trivial = call formatBound borrow %48
+  %50: Size trivial = add inspect %46 inspect %49
+  %51: I32 trivial = load inspect %5
+  %52: Maybe(Size) trivial = call I32.showBound borrow %51
+  %53: Size trivial = call formatBound borrow %52
+  %54: Size trivial = add inspect %50 inspect %53
+  %55: %I64 address = global.addr drops
+  %56: I64 trivial = load inspect %55
+  %57: Maybe(Size) trivial = call I64.showBound borrow %56
+  %58: Size trivial = call formatBound borrow %57
+  %59: Size trivial = add inspect %54 inspect %58
+  %60: String owned = call String.ofCapacity borrow %59
+  store inspect %6 consume %60
+  %61: I32 trivial = load inspect %2
+  %62: String [unique call] guaranteed from{%6} = load inspect %6
+  call I32.show borrow %61 borrow %62
+  %63: String [unique call] guaranteed from{%6} = load inspect %6
+  %64: String owned = const String {units: Array {run: Run {items: &string'144, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %7 consume %64
+  %65: String [shared slot 0] guaranteed from{%7} = load inspect %7
+  %66: String [shared slot 0 view] guaranteed from{%7} = call String.view borrow %65
+  call String.push borrow %63 borrow %66
+  drop String inspect %7
+  %67: I32 trivial = load inspect %3
+  %68: String [unique call] guaranteed from{%6} = load inspect %6
+  call I32.show borrow %67 borrow %68
+  %69: String [unique call] guaranteed from{%6} = load inspect %6
+  %70: String owned = const String {units: Array {run: Run {items: &string'145, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %8 consume %70
+  %71: String [shared slot 0] guaranteed from{%8} = load inspect %8
+  %72: String [shared slot 0 view] guaranteed from{%8} = call String.view borrow %71
+  call String.push borrow %69 borrow %72
+  drop String inspect %8
+  %73: I32 trivial = load inspect %4
+  %74: String [unique call] guaranteed from{%6} = load inspect %6
+  call I32.show borrow %73 borrow %74
+  %75: String [unique call] guaranteed from{%6} = load inspect %6
+  %76: String owned = const String {units: Array {run: Run {items: &string'146, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %9 consume %76
+  %77: String [shared slot 0] guaranteed from{%9} = load inspect %9
+  %78: String [shared slot 0 view] guaranteed from{%9} = call String.view borrow %77
+  call String.push borrow %75 borrow %78
+  drop String inspect %9
+  %79: I32 trivial = load inspect %5
+  %80: String [unique call] guaranteed from{%6} = load inspect %6
+  call I32.show borrow %79 borrow %80
+  %81: String [unique call] guaranteed from{%6} = load inspect %6
+  %82: String owned = const String {units: Array {run: Run {items: &string'147, capacity: 7, ownsHeap: 0}, length: 7}}
+  store inspect %10 consume %82
+  %83: String [shared slot 0] guaranteed from{%10} = load inspect %10
+  %84: String [shared slot 0 view] guaranteed from{%10} = call String.view borrow %83
+  call String.push borrow %81 borrow %84
+  drop String inspect %10
+  %85: %I64 address = global.addr drops
+  %86: I64 trivial = load inspect %85
+  %87: String [unique call] guaranteed from{%6} = load inspect %6
+  call I64.show borrow %86 borrow %87
+  %88: String [unique call] guaranteed from{%6} = load inspect %6
+  %89: String owned = const String {units: Array {run: Run {items: &string'148, capacity: 1, ownsHeap: 0}, length: 1}}
+  store inspect %11 consume %89
+  %90: String [shared slot 0] guaranteed from{%11} = load inspect %11
+  %91: String [shared slot 0 view] guaranteed from{%11} = call String.view borrow %90
+  call String.push borrow %88 borrow %91
+  drop String inspect %11
+  %92: String owned = load inspect %6
+  store inspect %12 consume %92
+  %93: String [shared slot 0] guaranteed from{%12} = load inspect %12
+  %94: String [shared slot 0 view] guaranteed from{%12} = call String.view borrow %93
+  call print borrow %94
+  drop String inspect %12
+  %95: I32 trivial = load inspect %5
+  %96: I32 trivial = const 10000000
+  %97: I32 trivial = mul inspect %95 inspect %96
+  %98: I32 trivial = load inspect %2
+  %99: I32 trivial = const 100000
+  %100: I32 trivial = mul inspect %98 inspect %99
+  %101: I32 trivial = add inspect %97 inspect %100
+  %102: I32 trivial = load inspect %3
+  %103: I32 trivial = const 10000
+  %104: I32 trivial = mul inspect %102 inspect %103
+  %105: I32 trivial = add inspect %101 inspect %104
+  %106: I32 trivial = load inspect %4
+  %107: I32 trivial = const 100
+  %108: I32 trivial = mul inspect %106 inspect %107
+  %109: I32 trivial = add inspect %105 inspect %108
+  %110: %I64 address = global.addr drops
+  %111: I64 trivial = load inspect %110
+  %112: I32 trivial = convert inspect %111
+  %113: I32 trivial = const 10
+  %114: I32 trivial = mul inspect %112 inspect %113
+  %115: I32 trivial = add inspect %109 inspect %114
+  %116: %I32 address = field.addr .n inspect %0
+  %117: I32 trivial = load inspect %116
+  drop Rec inspect %0
+  %118: I32 trivial = add inspect %115 inspect %117
+  return consume %118
+}
+
+entry main

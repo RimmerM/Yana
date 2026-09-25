@@ -146,15 +146,7 @@ fn main() -> one %r3
     %122: %r3 = binary.add %118, %121
     %123: %r3 = coerce %122
     %142: %r0 = const 2
-    %143: %r0 = const 1
-    %144: %r4 = const 0
-    %147: %r4 = const 0
-    %148: %r0 = const 0
-    %149: %r0 = const 0
-    %156: %r0 = alias %143
-    %157: %r0 = const 0
-    %158: %r4 = binary.eq %156, %157
-    branch %158 -> block8 -> block7
+    jump -> block7
   block7:
     %159: %r0 = alias %142
     %161: %r0 = alias %159
@@ -164,26 +156,21 @@ fn main() -> one %r3
     %163: %r4 = alias %144
     %164: %r3 = const 1
     %165: %r3 = const 2
-    %166: %r3 = select %163, %164, %165
+    %166: %r3 = alias %165
     jump -> block9(%166)
   block9(%2: %r3):
     %167: %r3 = const 10
     %168: %r3 = binary.mul %2, %167
     %169: %r3 = coerce %168
-    %172: %r0 = alias %148
-    %173: %r0 = const 0
-    %174: %r4 = binary.eq %172, %173
-    branch %174 -> block11 -> block10
+    jump -> block11
   block10:
     %175: %r0 = alias %149
     %177: %r0 = alias %175
     %178: %r3 = map %177 [0 => 3, 1 => 4, else 5]
     jump -> block12(%178)
   block11:
-    %179: %r4 = alias %147
-    %180: %r3 = const 1
     %181: %r3 = const 2
-    %182: %r3 = select %179, %180, %181
+    %182: %r3 = alias %181
     jump -> block12(%182)
   block12(%3: %r3):
     %183: %r3 = binary.add %169, %3
@@ -200,7 +187,7 @@ fn main() -> one %r3
     %194: %r3 = coerce %193
     return %194
 
-optimizer clones 7 aliased 6 forwarded 4 removed 78 adopted 0 sunk 0 numbered 1 decided 0 unboxed 0 updated 1 split 3 promoted 10
+optimizer clones 7 aliased 6 forwarded 4 removed 91 adopted 0 sunk 0 numbered 1 decided 2 unboxed 0 updated 1 split 3 promoted 10 folded 4
 
 shape %s0 object Level {$tag: %r0 tag, Low: %r1, High: %r1}
 shape %s1 object Board {left: %r5, right: %r5}

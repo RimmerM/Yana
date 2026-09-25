@@ -1,0 +1,150 @@
+
+opaque<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = add %n, 1: I32
+    ret %v_1
+  }
+}
+
+bumpRead<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = load %x, 4: I32
+    %v_2 = add %v_1, 20: I32
+    store %x, %v_2, 4
+    ret %v_2
+  }
+}
+
+twiceWrite<complex>(%x: Ptr): I32 {
+  b_0 {
+    store %x, 101, 4
+    ret 100
+  }
+}
+
+bumpLoop<complex>(%x: Ptr, %n: I32): I32 {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I32
+    %v_5 = cmp_ilt %v_2, %n: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    %v_8 = load %x, 4: I32
+    ret %v_8
+  }
+
+  b_6 {
+    %v_9 = load %x, 4: I32
+    %v_10 = add %v_9, 10: I32
+    store %x, %v_10, 4
+    %v_11 = call_complex opaque, %v_2: I32
+    %v_12 = cmp_igt %v_11, 100: I32
+    je %v_12, b_13, b_3
+  }
+
+  b_3 {
+    %v_4 = add %v_2, 1: I32
+    jmp b_1
+  }
+
+  b_13 {
+    %v_14 = load %x, 4: I32
+    %v_15 = add %v_14, 1: I32
+    store %x, %v_15, 4
+    jmp b_3
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 5440488, 4
+    %v_2 = add %v_1, 2: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = load %v_2, 1: I64
+    %v_5 = and %v_4, 15: I64
+    %v_6 = cast %v_5: I32
+    store %v_3, %v_6, 4
+    %v_7 = call_complex bumpRead, %v_3: I32
+    %v_8 = load %v_3, 4: I32
+    %v_9 = load %v_2, 1: I64
+    %v_10 = cast %v_8: I64
+    %v_11 = and %v_10, 15: I64
+    %v_12 = and %v_9, 18446744073709551600: I64
+    %v_13 = or %v_12, %v_11: I64
+    store %v_2, %v_13, 1
+    %v_14 = add %v_1, 2: Ptr
+    %v_15 = load %v_14, 1: I64
+    %v_16 = and %v_15, 15: I64
+    %v_17 = cast %v_16: I32
+    %v_18 = add %v_17, 20: I32
+    %v_19 = cast %v_18: I64
+    %v_20 = and %v_19, 15: I64
+    %v_21 = and %v_15, 18446744073709551600: I64
+    %v_22 = or %v_21, %v_20: I64
+    %v_23 = alloca 4, 4: Ptr
+    %v_24 = shr %v_22, 4: I64
+    %v_25 = and %v_24, 7: I64
+    %v_26 = cast %v_25: I32
+    store %v_23, %v_26, 4
+    %v_27 = call_complex twiceWrite, %v_23: I32
+    %v_28 = load %v_23, 4: I32
+    %v_29 = cast %v_28: I64
+    %v_30 = and %v_29, 7: I64
+    %v_31 = shl %v_30, 4: I64
+    %v_32 = and %v_22, 18446744073709551503: I64
+    %v_33 = or %v_32, %v_31: I64
+    store %v_14, %v_33, 1
+    %v_34 = alloca 4, 4: Ptr
+    %v_35 = load %v_1, 2: I64
+    %v_36 = and %v_35, 8191: I64
+    %v_37 = cast %v_36: I32
+    store %v_34, %v_37, 4
+    %v_38 = call_complex bumpLoop, %v_34, 3: I32
+    %v_39 = load %v_34, 4: I32
+    %v_40 = load %v_1, 2: I64
+    %v_41 = cast %v_39: I64
+    %v_42 = and %v_41, 8191: I64
+    %v_43 = and %v_40, 18446744073709543424: I64
+    %v_44 = or %v_43, %v_42: I64
+    store %v_1, %v_44, 2
+    %v_45 = add %v_1, 2: Ptr
+    %v_46 = alloca 4, 4: Ptr
+    %v_47 = load %v_45, 1: I64
+    %v_48 = and %v_47, 15: I64
+    %v_49 = cast %v_48: I32
+    store %v_46, %v_49, 4
+    %v_50 = call_complex bumpLoop, %v_46, 2: I32
+    %v_51 = load %v_46, 4: I32
+    %v_52 = load %v_45, 1: I64
+    %v_53 = cast %v_51: I64
+    %v_54 = and %v_53, 15: I64
+    %v_55 = and %v_52, 18446744073709551600: I64
+    %v_56 = or %v_55, %v_54: I64
+    store %v_45, %v_56, 1
+    %v_57 = add %v_7, %v_18: I32
+    %v_58 = add %v_57, %v_27: I32
+    %v_59 = add %v_58, %v_38: I32
+    %v_60 = add %v_59, %v_50: I32
+    %v_61 = load %v_1, 4: I64
+    %v_62 = shr %v_61, 16: I64
+    %v_63 = and %v_62, 15: I64
+    %v_64 = cast %v_63: I32
+    %v_65 = shr %v_61, 20: I64
+    %v_66 = and %v_65, 7: I64
+    %v_67 = cast %v_66: I32
+    %v_68 = add %v_64, %v_67: I32
+    %v_69 = and %v_61, 8191: I64
+    %v_70 = cast %v_69: I32
+    %v_71 = add %v_68, %v_70: I32
+    %v_72 = mul %v_60, 10000: I32
+    %v_73 = add %v_72, %v_71: I32
+    ret %v_73
+  }
+}
+

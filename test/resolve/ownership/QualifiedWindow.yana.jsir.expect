@@ -36,172 +36,167 @@ fn main() -> one %r0
     %34: %r6 = object %s0 %32, %33
     %35: %r7 = host host.array %28, %34
     %38: %r0 = const 3
-    %40: %r0 = const 1
-    %41: %r17 = convert %40
-    %42: %r17 = convert %38
-    %43: %r10 = binary.ge %41, %42
-    branch %43 -> block12 -> block11
+    jump -> block11
   block1:
-    %310: %r0 = const 3
-    %311: %r10 = binary.ne %95, %310
-    branch %311 -> block4 -> block2
+    %300: %r0 = const 3
+    %301: %r10 = binary.ne %91, %300
+    branch %301 -> block4 -> block2
   block2:
-    %312: %r0 = const 1
-    %313: %r17 = convert %312
-    %314: %r10 = binary.ge %313, %112
-    branch %314 -> block10 -> block9
+    jump -> block9
   block3(%0: %r10):
-    %321: %r0 = const 203112
-    %322: %r10 = binary.ne %2, %321
-    %323: %r10 = binary.or %0, %322
-    %324: %r0 = const 1
-    %325: %r0 = const 0
-    %326: %r0 = select %323, %324, %325
-    return %326
+    %311: %r0 = const 203112
+    %312: %r10 = binary.ne %2, %311
+    %313: %r10 = binary.or %0, %312
+    %314: %r0 = const 1
+    %315: %r0 = const 0
+    %316: %r0 = select %313, %314, %315
+    return %316
   block4:
-    %319: %r7 = alias %37
-    call Array(a).reclaim(Array(I32)) %319
-    %320: %r10 = const 1
-    jump -> block3(%320)
+    %309: %r7 = alias %37
+    call Array(a).reclaim(Array(I32)) %309
+    %310: %r10 = const 1
+    jump -> block3(%310)
   block5:
-    %103: %r0 = alias %68
-    %104: %r0 = binary.add %103, %96
-    %105: %r0 = coerce %104
-    %108: %r0 = alias %82
-    %109: %r0 = const 1
-    %111: %r17 = convert %109
-    %112: %r17 = convert %108
-    %113: %r10 = binary.ge %111, %112
-    branch %113 -> block8 -> block7
+    %101: %r0 = const 2
+    %104: %r0 = alias %78
+    %107: %r17 = const 1
+    %108: %r17 = convert %104
+    %109: %r10 = binary.ge %107, %108
+    branch %109 -> block8 -> block7
   block6:
     host host.throw "yana: a runtime check failed"
     unreachable
   block7:
-    %114: %r4 = alias %79
-    %115: %r4 = alias %114
-    %116: %r0 = alias %83
-    %117: %r0 = binary.add %116, %109
-    %118: %r0 = coerce %117
-    %120: %r1 = alias %48
-    %121: %r1 = alias %120
-    %122: %r1 = alias %121
-    %123: %r1 = alias %122
-    %124: %r1 = alias %123
-    %125: %r0 = host host.field "length" host-range %124
-    %143: %r1 = const ""
-    store var $5: %r1, %143
-    %145: %r1 = alias %48
-    %146: %r1 = alias %145
-    %147: %r1 = alias %146
-    %148: %r1 = load var $5: %r1
-    %149: %r1 = alias %148
-    %150: %r1 = alias %147
-    %151: %r1 = alias %149
-    %152: %r1 = alias %150
-    %153: %r1 = host host.binary "+" %151, %152
-    store var $5: %r1, %153
-    %154: %r1 = const " "
-    %155: %r1 = load var $5: %r1
-    %156: %r1 = alias %155
-    %157: %r1 = alias %154
-    %158: %r1 = alias %156
-    %159: %r1 = alias %157
-    %160: %r1 = host host.binary "+" %158, %159
-    store var $5: %r1, %160
-    %161: %r1 = host host.global "String" %92
-    %162: %r1 = load var $5: %r1
-    %163: %r1 = alias %162
-    %164: %r1 = alias %161
-    %165: %r1 = alias %163
-    %166: %r1 = alias %164
-    %167: %r1 = host host.binary "+" %165, %166
-    store var $5: %r1, %167
-    %168: %r1 = const " "
-    %169: %r1 = load var $5: %r1
-    %170: %r1 = alias %169
-    %171: %r1 = alias %168
-    %172: %r1 = alias %170
-    %173: %r1 = alias %171
-    %174: %r1 = host host.binary "+" %172, %173
-    store var $5: %r1, %174
-    %176: %r0 = alias %47
-    %177: %r1 = host host.global "String" %176
-    %178: %r1 = load var $5: %r1
-    %179: %r1 = alias %178
-    %180: %r1 = alias %177
-    %181: %r1 = alias %179
+    %110: %r4 = alias %75
+    %111: %r4 = alias %110
+    %114: %r0 = const 1
+    %116: %r1 = alias %48
+    %117: %r1 = alias %116
+    %118: %r1 = alias %117
+    %119: %r1 = alias %118
+    %120: %r1 = alias %119
+    %121: %r0 = host host.field "length" host-range %120
+    %139: %r1 = const ""
+    store var $5: %r1, %139
+    %141: %r1 = alias %48
+    %142: %r1 = alias %141
+    %143: %r1 = alias %142
+    %144: %r1 = load var $5: %r1
+    %145: %r1 = alias %144
+    %146: %r1 = alias %143
+    %147: %r1 = alias %145
+    %148: %r1 = alias %146
+    %149: %r1 = host host.binary "+" %147, %148
+    store var $5: %r1, %149
+    %150: %r1 = const " "
+    %151: %r1 = load var $5: %r1
+    %152: %r1 = alias %151
+    %153: %r1 = alias %150
+    %154: %r1 = alias %152
+    %155: %r1 = alias %153
+    %156: %r1 = host host.binary "+" %154, %155
+    store var $5: %r1, %156
+    %157: %r1 = host host.global "String" %88
+    %158: %r1 = load var $5: %r1
+    %159: %r1 = alias %158
+    %160: %r1 = alias %157
+    %161: %r1 = alias %159
+    %162: %r1 = alias %160
+    %163: %r1 = host host.binary "+" %161, %162
+    store var $5: %r1, %163
+    %164: %r1 = const " "
+    %165: %r1 = load var $5: %r1
+    %166: %r1 = alias %165
+    %167: %r1 = alias %164
+    %168: %r1 = alias %166
+    %169: %r1 = alias %167
+    %170: %r1 = host host.binary "+" %168, %169
+    store var $5: %r1, %170
+    %171: %r1 = host host.global "String" %47
+    %172: %r1 = load var $5: %r1
+    %173: %r1 = alias %172
+    %174: %r1 = alias %171
+    %175: %r1 = alias %173
+    %176: %r1 = alias %174
+    %177: %r1 = host host.binary "+" %175, %176
+    store var $5: %r1, %177
+    %178: %r1 = const " "
+    %179: %r1 = load var $5: %r1
+    %180: %r1 = alias %179
+    %181: %r1 = alias %178
     %182: %r1 = alias %180
-    %183: %r1 = host host.binary "+" %181, %182
-    store var $5: %r1, %183
-    %184: %r1 = const " "
-    %185: %r1 = load var $5: %r1
-    %186: %r1 = alias %185
-    %187: %r1 = alias %184
-    %188: %r1 = alias %186
+    %183: %r1 = alias %181
+    %184: %r1 = host host.binary "+" %182, %183
+    store var $5: %r1, %184
+    %185: %r1 = host host.global "String" %91
+    %186: %r1 = load var $5: %r1
+    %187: %r1 = alias %186
+    %188: %r1 = alias %185
     %189: %r1 = alias %187
-    %190: %r1 = host host.binary "+" %188, %189
-    store var $5: %r1, %190
-    %191: %r1 = host host.global "String" %95
-    %192: %r1 = load var $5: %r1
-    %193: %r1 = alias %192
-    %194: %r1 = alias %191
-    %195: %r1 = alias %193
+    %190: %r1 = alias %188
+    %191: %r1 = host host.binary "+" %189, %190
+    store var $5: %r1, %191
+    %192: %r1 = const " "
+    %193: %r1 = load var $5: %r1
+    %194: %r1 = alias %193
+    %195: %r1 = alias %192
     %196: %r1 = alias %194
-    %197: %r1 = host host.binary "+" %195, %196
-    store var $5: %r1, %197
-    %198: %r1 = const " "
-    %199: %r1 = load var $5: %r1
-    %200: %r1 = alias %199
-    %201: %r1 = alias %198
-    %202: %r1 = alias %200
-    %203: %r1 = alias %201
-    %204: %r1 = host host.binary "+" %202, %203
-    store var $5: %r1, %204
-    %101: %r4 = alias %64
-    %102: %r4 = alias %101
-    %205: %r0 = load element %102[%105]: %r0
-    %206: %r1 = host host.global "String" %205
-    %207: %r1 = load var $5: %r1
-    %208: %r1 = alias %207
-    %209: %r1 = alias %206
-    %210: %r1 = alias %208
+    %197: %r1 = alias %195
+    %198: %r1 = host host.binary "+" %196, %197
+    store var $5: %r1, %198
+    %97: %r4 = alias %60
+    %98: %r4 = alias %97
+    %199: %r0 = load element %98[%101]: %r0
+    %200: %r1 = host host.global "String" %199
+    %201: %r1 = load var $5: %r1
+    %202: %r1 = alias %201
+    %203: %r1 = alias %200
+    %204: %r1 = alias %202
+    %205: %r1 = alias %203
+    %206: %r1 = host host.binary "+" %204, %205
+    store var $5: %r1, %206
+    %207: %r1 = const " "
+    %208: %r1 = load var $5: %r1
+    %209: %r1 = alias %208
+    %210: %r1 = alias %207
     %211: %r1 = alias %209
-    %212: %r1 = host host.binary "+" %210, %211
-    store var $5: %r1, %212
-    %213: %r1 = const " "
-    %214: %r1 = load var $5: %r1
-    %215: %r1 = alias %214
-    %216: %r1 = alias %213
-    %217: %r1 = alias %215
+    %212: %r1 = alias %210
+    %213: %r1 = host host.binary "+" %211, %212
+    store var $5: %r1, %213
+    %214: %r1 = host host.global "String" %65
+    %215: %r1 = load var $5: %r1
+    %216: %r1 = alias %215
+    %217: %r1 = alias %214
     %218: %r1 = alias %216
-    %219: %r1 = host host.binary "+" %217, %218
-    store var $5: %r1, %219
-    %221: %r0 = alias %69
-    %222: %r1 = host host.global "String" %221
-    %223: %r1 = load var $5: %r1
-    %224: %r1 = alias %223
-    %225: %r1 = alias %222
+    %219: %r1 = alias %217
+    %220: %r1 = host host.binary "+" %218, %219
+    store var $5: %r1, %220
+    %221: %r1 = const " "
+    %222: %r1 = load var $5: %r1
+    %223: %r1 = alias %222
+    %224: %r1 = alias %221
+    %225: %r1 = alias %223
     %226: %r1 = alias %224
-    %227: %r1 = alias %225
-    %228: %r1 = host host.binary "+" %226, %227
-    store var $5: %r1, %228
-    %229: %r1 = const " "
-    %230: %r1 = load var $5: %r1
-    %231: %r1 = alias %230
-    %232: %r1 = alias %229
+    %227: %r1 = host host.binary "+" %225, %226
+    store var $5: %r1, %227
+    %228: %r1 = host host.global "String" %104
+    %229: %r1 = load var $5: %r1
+    %230: %r1 = alias %229
+    %231: %r1 = alias %228
+    %232: %r1 = alias %230
     %233: %r1 = alias %231
-    %234: %r1 = alias %232
-    %235: %r1 = host host.binary "+" %233, %234
-    store var $5: %r1, %235
-    %236: %r1 = host host.global "String" %108
-    %237: %r1 = load var $5: %r1
-    %238: %r1 = alias %237
-    %239: %r1 = alias %236
+    %234: %r1 = host host.binary "+" %232, %233
+    store var $5: %r1, %234
+    %235: %r1 = const " "
+    %236: %r1 = load var $5: %r1
+    %237: %r1 = alias %236
+    %238: %r1 = alias %235
+    %239: %r1 = alias %237
     %240: %r1 = alias %238
-    %241: %r1 = alias %239
-    %242: %r1 = host host.binary "+" %240, %241
-    store var $5: %r1, %242
-    %243: %r1 = const " "
+    %241: %r1 = host host.binary "+" %239, %240
+    store var $5: %r1, %241
+    %242: %r0 = load element %111[%114]: %r0
+    %243: %r1 = host host.global "String" %242
     %244: %r1 = load var $5: %r1
     %245: %r1 = alias %244
     %246: %r1 = alias %243
@@ -209,178 +204,151 @@ fn main() -> one %r0
     %248: %r1 = alias %246
     %249: %r1 = host host.binary "+" %247, %248
     store var $5: %r1, %249
-    %250: %r0 = load element %115[%118]: %r0
-    %251: %r1 = host host.global "String" %250
-    %252: %r1 = load var $5: %r1
-    %253: %r1 = alias %252
-    %254: %r1 = alias %251
+    %250: %r1 = const " "
+    %251: %r1 = load var $5: %r1
+    %252: %r1 = alias %251
+    %253: %r1 = alias %250
+    %254: %r1 = alias %252
     %255: %r1 = alias %253
-    %256: %r1 = alias %254
-    %257: %r1 = host host.binary "+" %255, %256
-    store var $5: %r1, %257
-    %258: %r1 = const " "
-    %259: %r1 = load var $5: %r1
-    %260: %r1 = alias %259
-    %261: %r1 = alias %258
+    %256: %r1 = host host.binary "+" %254, %255
+    store var $5: %r1, %256
+    %257: %r1 = host host.global "String" %80
+    %258: %r1 = load var $5: %r1
+    %259: %r1 = alias %258
+    %260: %r1 = alias %257
+    %261: %r1 = alias %259
     %262: %r1 = alias %260
-    %263: %r1 = alias %261
-    %264: %r1 = host host.binary "+" %262, %263
-    store var $5: %r1, %264
-    %266: %r0 = alias %84
-    %267: %r1 = host host.global "String" %266
-    %268: %r1 = load var $5: %r1
-    %269: %r1 = alias %268
-    %270: %r1 = alias %267
-    %271: %r1 = alias %269
-    %272: %r1 = alias %270
-    %273: %r1 = host host.binary "+" %271, %272
-    store var $5: %r1, %273
-    %274: %r1 = load var $5: %r1
-    %275: %r1 = alias %274
-    %276: %r1 = alias %275
-    %277: %r1 = alias %276
-    host host.global "console.log" %277
-    %278: %r0 = const 0
-    %280: %r0 = const 0
-    %281: %r0 = const 1
-    %282: %r0 = const 100
-    %283: %r0 = const 10
-    jump -> block17(%280, %278)
+    %263: %r1 = host host.binary "+" %261, %262
+    store var $5: %r1, %263
+    %264: %r1 = load var $5: %r1
+    %265: %r1 = alias %264
+    %266: %r1 = alias %265
+    %267: %r1 = alias %266
+    host host.global "console.log" %267
+    %268: %r0 = const 0
+    %270: %r0 = const 0
+    %271: %r0 = const 1
+    %272: %r0 = const 100
+    %273: %r0 = const 10
+    jump -> block17(%270, %268)
   block8:
     host host.throw "yana: a runtime check failed"
     unreachable
   block9:
-    %315: %r0 = load element %115[%118]: %r0
-    %316: %r7 = alias %37
-    call Array(a).reclaim(Array(I32)) %316
-    %317: %r0 = const 2
-    %318: %r10 = binary.ne %315, %317
-    jump -> block3(%318)
+    %305: %r0 = load element %111[%114]: %r0
+    %306: %r7 = alias %37
+    call Array(a).reclaim(Array(I32)) %306
+    %307: %r0 = const 2
+    %308: %r10 = binary.ne %305, %307
+    jump -> block3(%308)
   block10:
     host host.throw "yana: a runtime check failed"
     unreachable
   block11:
     %44: %r2 = alias %21
-    %45: %r0 = alias %40
-    %46: %r0 = coerce %45
+    %46: %r0 = const 1
     %47: %r0 = const 7
     %48: %r1 = load element %44[%46]: %r1
-    %37: %r7 = alias %35
-    %52: %r7 = alias %37
-    %53: %r5 = load property %52.length: %r5
-    %54: %r0 = convert %53
-    %56: %r0 = const 1
-    %57: %r17 = convert %56
-    %58: %r17 = convert %54
-    %59: %r10 = binary.ge %57, %58
-    branch %59 -> block14 -> block13
+    jump -> block13
   block12:
     host host.throw "yana: a runtime check failed"
     unreachable
   block13:
-    %51: %r7 = alias %37
-    %60: %r7 = alias %51
-    %61: %r0 = alias %56
-    %62: %r0 = coerce %61
-    %63: %r6 = load element %60[%62]: %r6
-    %64: %r4 = load property %63.items: %r4
-    %65: %r6 = alias %63
-    %66: %r5 = load property %65.length: %r5
-    %67: %r0 = convert %66
+    %56: %r7 = alias %35
+    %58: %r0 = const 1
+    %59: %r6 = load element %56[%58]: %r6
+    %60: %r4 = load property %59.items: %r4
+    %61: %r6 = alias %59
+    %62: %r5 = load property %61.length: %r5
+    %63: %r0 = convert %62
+    %65: %r0 = const 5
     %68: %r0 = const 0
-    %69: %r0 = const 5
-    %72: %r0 = const 0
-    %73: %r0 = const 0
-    %74: %r17 = convert %73
-    %75: %r17 = alias %58
-    %76: %r10 = binary.ge %74, %75
-    branch %76 -> block16 -> block15
+    jump -> block15
   block14:
     host host.throw "yana: a runtime check failed"
     unreachable
   block15:
-    %77: %r7 = alias %51
-    %78: %r6 = load element %77[%72]: %r6
-    %79: %r4 = load property %78.items: %r4
-    %80: %r6 = alias %78
-    %81: %r5 = load property %80.length: %r5
-    %82: %r0 = convert %81
-    %83: %r0 = const 0
-    %84: %r0 = const 3
-    %88: %r1 = alias %48
-    %89: %r1 = alias %88
-    %90: %r1 = alias %89
-    %91: %r1 = alias %90
-    %92: %r0 = host host.field "length" host-range %91
-    %95: %r0 = alias %67
-    %96: %r0 = const 2
-    %98: %r17 = convert %96
-    %99: %r17 = convert %95
-    %100: %r10 = binary.ge %98, %99
-    branch %100 -> block6 -> block5
+    %73: %r7 = alias %35
+    %74: %r6 = load element %73[%68]: %r6
+    %75: %r4 = load property %74.items: %r4
+    %76: %r6 = alias %74
+    %77: %r5 = load property %76.length: %r5
+    %78: %r0 = convert %77
+    %80: %r0 = const 3
+    %84: %r1 = alias %48
+    %85: %r1 = alias %84
+    %86: %r1 = alias %85
+    %87: %r1 = alias %86
+    %88: %r0 = host host.field "length" host-range %87
+    %91: %r0 = alias %63
+    %94: %r17 = const 2
+    %95: %r17 = convert %91
+    %96: %r10 = binary.ge %94, %95
+    branch %96 -> block6 -> block5
   block16:
     host host.throw "yana: a runtime check failed"
     unreachable
   block17(%1: %r0, %2: %r0):
-    %284: %r10 = binary.lt %1, %38
-    branch %284 -> block18 -> block20
+    %274: %r10 = binary.lt %1, %38
+    branch %274 -> block18 -> block20
   block18:
-    %327: %r17 = convert %1
-    %328: %r17 = convert %38
-    %329: %r10 = binary.ge %327, %328
-    branch %329 -> block21 -> block19
+    %317: %r17 = convert %1
+    %318: %r17 = const 3
+    %319: %r10 = binary.ge %317, %318
+    branch %319 -> block21 -> block19
   block19:
-    %330: %r2 = alias %21
-    %331: %r0 = alias %1
-    %332: %r0 = coerce %331
-    %333: %r0 = convert %1
-    %334: %r1 = load element %330[%332]: %r1
-    %336: %r0 = binary.mul %2, %282
-    %337: %r0 = coerce %336
-    %338: %r1 = alias %334
-    %339: %r1 = alias %338
-    %340: %r1 = alias %339
-    %341: %r1 = alias %340
-    %342: %r0 = host host.field "length" host-range %341
-    %343: %r0 = binary.mul %342, %283
-    %344: %r0 = coerce %343
-    %345: %r0 = binary.add %337, %344
-    %346: %r0 = coerce %345
-    %347: %r0 = convert %333
-    %348: %r0 = binary.add %346, %347
-    %349: %r0 = coerce %348
-    %350: %r0 = binary.add %1, %281
-    %351: %r0 = coerce %350
-    jump -> block17(%351, %349)
+    %320: %r2 = alias %21
+    %321: %r0 = alias %1
+    %322: %r0 = coerce %321
+    %323: %r0 = convert %1
+    %324: %r1 = load element %320[%322]: %r1
+    %326: %r0 = binary.mul %2, %272
+    %327: %r0 = coerce %326
+    %328: %r1 = alias %324
+    %329: %r1 = alias %328
+    %330: %r1 = alias %329
+    %331: %r1 = alias %330
+    %332: %r0 = host host.field "length" host-range %331
+    %333: %r0 = binary.mul %332, %273
+    %334: %r0 = coerce %333
+    %335: %r0 = binary.add %327, %334
+    %336: %r0 = coerce %335
+    %337: %r0 = convert %323
+    %338: %r0 = binary.add %336, %337
+    %339: %r0 = coerce %338
+    %340: %r0 = binary.add %1, %271
+    %341: %r0 = coerce %340
+    jump -> block17(%341, %339)
   block20:
-    %287: %r1 = const ""
-    store var $6: %r1, %287
-    %288: %r1 = host host.global "String" %2
-    %289: %r1 = load var $6: %r1
-    %290: %r1 = alias %289
-    %291: %r1 = alias %288
-    %292: %r1 = alias %290
-    %293: %r1 = alias %291
-    %294: %r1 = host host.binary "+" %292, %293
-    store var $6: %r1, %294
-    %295: %r1 = load var $6: %r1
-    %296: %r1 = alias %295
-    %297: %r1 = alias %296
-    %298: %r1 = alias %297
-    host host.global "console.log" %298
-    %300: %r1 = alias %48
-    %301: %r1 = alias %300
+    %277: %r1 = const ""
+    store var $6: %r1, %277
+    %278: %r1 = host host.global "String" %2
+    %279: %r1 = load var $6: %r1
+    %280: %r1 = alias %279
+    %281: %r1 = alias %278
+    %282: %r1 = alias %280
+    %283: %r1 = alias %281
+    %284: %r1 = host host.binary "+" %282, %283
+    store var $6: %r1, %284
+    %285: %r1 = load var $6: %r1
+    %286: %r1 = alias %285
+    %287: %r1 = alias %286
+    %288: %r1 = alias %287
+    host host.global "console.log" %288
+    %290: %r1 = alias %48
+    %291: %r1 = alias %290
     %23: %r2 = alias %21
-    %302: %r2 = alias %23
-    call Array(a).reclaim(String) %302
-    %303: %r1 = const "cde"
-    %304: %r1 = alias %301
-    %305: %r1 = alias %303
-    %306: %r1 = alias %304
-    %307: %r1 = alias %305
-    %308: %r10 = host host.binary "===" %306, %307
-    %309: %r10 = unary.not %308
-    branch %309 -> block4 -> block1
+    %292: %r2 = alias %23
+    call Array(a).reclaim(String) %292
+    %293: %r1 = const "cde"
+    %294: %r1 = alias %291
+    %295: %r1 = alias %293
+    %296: %r1 = alias %294
+    %297: %r1 = alias %295
+    %298: %r10 = host host.binary "===" %296, %297
+    %299: %r10 = unary.not %298
+    %37: %r7 = alias %35
+    branch %299 -> block4 -> block1
   block21:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -420,7 +388,7 @@ fn Array(a).reclaim(I32)(one %r6) -> omitted
   block0(%0: %r6):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 82 adopted 0 sunk 0 numbered 9 decided 0 unboxed 0 updated 0 split 5 promoted 21
+optimizer clones 0 aliased 0 forwarded 0 removed 104 adopted 0 sunk 0 numbered 6 decided 4 unboxed 0 updated 0 split 5 promoted 16 folded 21
 
 shape %s0 object Array {items: %r4, length: %r5}
 shape %s1 object Named {name: %r1, n: %r0}
@@ -429,8 +397,8 @@ shape %s3 object Named {name: %r1, n: %r0}
 shape %s4 object Named {name: %r12, n: %r0}
 shape %s5 object ArrayView {items: %r4, length: %r0, offset: %r0}
 shape %s6 object ArrayView {items: %r2, length: %r0, offset: %r0}
-shape %s7 host Array {length: %r5}
-shape %s8 object ArrayView {items: %r7, length: %r0, offset: %r0}
+shape %s7 object ArrayView {items: %r7, length: %r0, offset: %r0}
+shape %s8 host Array {length: %r5}
 
 rep %r0 = number signed 32
 rep %r1 = string
@@ -450,7 +418,7 @@ rep %r14 = object %s4
 rep %r15 = object %s6
 rep %r16 = parts (%r2, %r0, %r0) as %r15
 rep %r17 = number unsigned 32
-rep %r18 = object %s8
+rep %r18 = object %s7
 rep %r19 = parts (%r7, %r0, %r0) as %r18
 rep %r20 = number unsigned 8
 rep %r21 = nullable of %r0

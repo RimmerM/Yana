@@ -86,22 +86,19 @@ main<complex>(): I32 {
     %v_38 = loads @copyCalls, 4: I32
     %v_39 = add %v_38, 1: I32
     store @copyCalls, %v_39, 4
-    %v_40 = loads @copyCalls, 4: I32
-    %v_41 = cmp_neq %v_40, 1: I32
-    je %v_41, b_42, b_43
+    %v_40 = cmp_neq %v_39, 1: I32
+    je %v_40, b_41, b_42
   }
 
   b_36 {
     ret 18446744073709551608
   }
 
-  b_43 {
-    %v_44 = loads @copyCalls, 4: I32
-    %v_45 = add 24, %v_44: I32
-    ret %v_45
+  b_42 {
+    ret 25
   }
 
-  b_42 {
+  b_41 {
     ret 18446744073709551614
   }
 }

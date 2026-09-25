@@ -7,6 +7,12 @@ function Guard_drop(value) {
   trace = trace + 1 | 0;
 }
 
+function armThenLender(flag) {
+  var v14 = Math.imul(flag ? 1 : 0, 10);
+  Guard_drop(1);
+  return v14 + 9 | 0;
+}
+
 function main() {
   var p6;
   var p0 = 0;
@@ -18,12 +24,12 @@ function main() {
   Guard_drop(1);
   if (p1 !== 3) return -1;
   Guard_drop(1);
-  var s18 = 0;
+  var s16 = 0;
   var p2 = 0;
-  while (s18 < 3) {
-    var v45 = s18;
-    p2 = p2 + v45 | 0;
-    s18 = v45 + 1 | 0;
+  while (s16 < 3) {
+    var v40 = s16;
+    p2 = p2 + v40 | 0;
+    s16 = v40 + 1 | 0;
   }
   Guard_drop(1);
   if (p2 !== 3) return -3;
@@ -41,8 +47,8 @@ function main() {
   if (p5 !== 6) return -4;
   Guard_drop(1);
   Guard_drop(1);
-  Guard_drop(1);
-  Guard_drop(1);
+  if (armThenLender(1) !== 19) return -7;
+  if (armThenLender(0) !== 9) return -8;
   Guard_drop(1);
   Guard_drop(2);
   Guard_drop(1);

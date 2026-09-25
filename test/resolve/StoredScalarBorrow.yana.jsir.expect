@@ -1,0 +1,80 @@
+fn firstOf(parts %r3) -> one %r0
+  block0(%0: %r1, %1: %r0, %2: %r0):
+    %4: %r7 = const 0
+    %5: %r7 = convert %1
+    %6: %r8 = binary.ge %4, %5
+    branch %6 -> block2 -> block1
+  block1:
+    %7: %r1 = alias %0
+    %8: %r0 = load element %7[%2]: %r0
+    return %8
+  block2:
+    host host.throw "yana: a runtime check failed"
+    unreachable
+
+fn main() -> one %r0
+  var $0: %r10
+  var $1: %r10
+  var $2: %r5
+  var $3: %r0
+  var $4: %r0
+  var $5: %r0
+  var $6: %r0
+  var $7: %r0
+  var $8: %r0
+  var $9: %r0
+  var $10: %r0
+  block0:
+    %14: %r0 = const 7
+    %15: %r0 = const 8
+    %16: %r1 = host host.array %14, %15
+    %17: %r4 = const 2
+    %18: %r5 = object %s1 %16, %17
+    %19: %r0 = const 2
+    %20: %r0 = const 0
+    %21: %r0 = call firstOf %16, %19, %20
+    %22: %r0 = const 1
+    %24: %r0 = const 0
+    %25: %r0 = call firstOf %16, %19, %24
+    %26: %r0 = const 1
+    %27: %r0 = binary.add %25, %26
+    %28: %r0 = coerce %27
+    %29: %r5 = alias %18
+    call Array(a).reclaim(I32) %29
+    %30: %r0 = alias %28
+    %31: %r0 = alias %30
+    %49: %r0 = const 63
+    %50: %r0 = binary.add %49, %21
+    %51: %r0 = coerce %50
+    %52: %r0 = binary.add %51, %22
+    %53: %r0 = coerce %52
+    %55: %r0 = alias %31
+    %56: %r0 = binary.add %53, %55
+    %57: %r0 = coerce %56
+    return %57
+
+fn Array(a).reclaim(I32)(one %r5) -> omitted
+  var $0: %r5
+  block0(%0: %r5):
+    return
+
+optimizer clones 3 aliased 3 forwarded 0 removed 44 adopted 0 sunk 0 numbered 0 decided 0 unboxed 3 updated 0 split 2 promoted 9 folded 9
+
+shape %s0 object ArrayView {items: %r1, length: %r0, offset: %r0}
+shape %s1 object Array {items: %r1, length: %r4}
+shape %s2 cell {$v: %r0 box}
+shape %s3 object Held {value: %r0, extra: %r0}
+shape %s4 object Pair {x: %r0, y: %r0}
+
+rep %r0 = number signed 32
+rep %r1 = array Int32Array of %r0
+rep %r2 = object %s0
+rep %r3 = parts (%r1, %r0, %r0) as %r2
+rep %r4 = number unsigned 30
+rep %r5 = object %s1
+rep %r6 = void
+rep %r7 = number unsigned 32
+rep %r8 = number bool
+rep %r9 = object %s2
+rep %r10 = object %s3
+rep %r11 = object %s4

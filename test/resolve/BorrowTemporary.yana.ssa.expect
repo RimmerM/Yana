@@ -17,10 +17,10 @@ bb0(%0: Held [shared call] guaranteed):
 
 fn ofLiteral() -> I32 {
 bb0:
-  %0: I32 trivial = const 9
-  %1: %I32 address = alloc frame I32
-  store inspect %1 borrow %0
-  %2: I32 [shared slot 0] guaranteed from{%1} = load inspect %1
+  %0: %I32 address = alloc frame I32
+  %1: I32 trivial = const 9
+  store inspect %0 consume %1
+  %2: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
   %3: Held [owned here shape2 .0=shared slot 0] trivial = call hold borrow %2
   %4: I32 trivial = call readBack borrow %3
   return consume %4
@@ -55,10 +55,10 @@ bb0:
 
 fn ofCall() -> I32 {
 bb0:
-  %0: I32 trivial = call thirty
-  %1: %I32 address = alloc frame I32
-  store inspect %1 borrow %0
-  %2: I32 [shared slot 0] guaranteed from{%1} = load inspect %1
+  %0: %I32 address = alloc frame I32
+  %1: I32 trivial = call thirty
+  store inspect %0 consume %1
+  %2: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
   %3: Held [owned here shape2 .0=shared slot 0] trivial = call hold borrow %2
   %4: I32 trivial = call readBack borrow %3
   return consume %4
@@ -66,14 +66,14 @@ bb0:
 
 fn ofLetBorrow() -> I32 {
 bb0:
-  %0: %Held address = alloc frame Held [owned here shape2 .0=shared slot 0]
-  %1: I32 trivial = const 40
-  %2: %I32 address = alloc frame I32
-  store inspect %2 borrow %1
-  %3: I32 [shared slot 0] guaranteed from{%2} = load inspect %2
+  %0: %I32 address = alloc frame I32
+  %1: %Held address = alloc frame Held [owned here shape2 .0=shared slot 0]
+  %2: I32 trivial = const 40
+  store inspect %0 consume %2
+  %3: I32 [shared slot 0] guaranteed from{%0} = load inspect %0
   %4: Held [owned here shape2 .0=shared slot 0] trivial = call hold borrow %3
-  store inspect %0 consume %4
-  %5: Held [owned here shape2 .0=shared slot 0] trivial = copy inspect %0
+  store inspect %1 consume %4
+  %5: Held [owned here shape2 .0=shared slot 0] trivial = copy inspect %1
   %6: I32 trivial = call readBack borrow %5
   return consume %6
 }

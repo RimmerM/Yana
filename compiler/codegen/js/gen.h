@@ -28,7 +28,7 @@ namespace js {
 // plus the surrounding code is more use than nothing.
 Ptr<File> genProgram(Context& context, Program& program);
 
-void formatFile(Net::Writer& writer, Context& context, File& file, bool minify);
+// `formatFile` is in shared.h - both backends write their tree with it.
 
 // The two together, for a caller that only wants the text.
 void printProgramJs(Net::Writer& writer, Context& context, Program& program, bool minify = false);

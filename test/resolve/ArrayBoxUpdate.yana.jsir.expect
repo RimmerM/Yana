@@ -312,24 +312,22 @@ fn boxes() -> one %r0
     host host.throw "yana: a runtime check failed"
     unreachable
   block9:
-    %191: %r18 = alias %176
-    store element %191[%178]: %r17, %175
-    %192: %r28 = convert %180
-    %193: %r25 = convert %192
-    %194: %r18 = alias %19
-    store property %194.length: %r25, %193
-    %195: %r0 = binary.add %0, %21
-    %196: %r0 = coerce %195
-    jump -> block1(%196)
+    %189: %r18 = alias %176
+    store element %189[%178]: %r17, %175
+    %190: %r28 = convert %180
+    %191: %r25 = convert %190
+    %192: %r18 = alias %19
+    store property %192.length: %r25, %191
+    %193: %r0 = binary.add %0, %21
+    %194: %r0 = coerce %193
+    jump -> block1(%194)
   block10:
-    %185: %r18 = load property %4.$v: %r18
-    %186: %r18 = load property %4.$v: %r18
-    %187: %r0 = host host.field "length" host-range %186
-    %188: %r10 = binary.le %180, %187
-    branch %188 -> block9 -> block11
+    %185: %r0 = host host.field "length" host-range %182
+    %186: %r10 = binary.le %180, %185
+    branch %186 -> block9 -> block11
   block11:
-    %189: %r3 = const "$v"
-    call growJsArray(Cell) %4, %189, %180
+    %187: %r3 = const "$v"
+    call growJsArray(Cell) %4, %187, %180
     jump -> block9
 
 fn updates() -> one %r0
@@ -374,21 +372,21 @@ fn updates() -> one %r0
     %68: %r28 = const 4096
     jump -> block4(%62)
   block3:
-    %331: %r28 = convert %0
-    %332: %r28 = binary.rem %331, %51
-    %333: %r28 = coerce %332
-    %334: %r10 = binary.eq %333, %52
-    %335: %r11 = convert %331
-    %336: %r28 = binary.mul %331, %54
-    %337: %r28 = coerce %336
-    %338: %r12 = convert %337
-    %339: %r13 = pack #0 %334, %53, %338
-    %340: %r14 = object %s2 %50, %335, %339
-    %341: %r3 = const "$v"
-    call push(Item) %6, %341, %340
-    %342: %r0 = binary.add %0, %48
-    %343: %r0 = coerce %342
-    jump -> block1(%343)
+    %316: %r28 = convert %0
+    %317: %r28 = binary.rem %316, %51
+    %318: %r28 = coerce %317
+    %319: %r10 = binary.eq %318, %52
+    %320: %r11 = convert %316
+    %321: %r28 = binary.mul %316, %54
+    %322: %r28 = coerce %321
+    %323: %r12 = convert %322
+    %324: %r13 = pack #0 %319, %53, %323
+    %325: %r14 = object %s2 %50, %320, %324
+    %326: %r3 = const "$v"
+    call push(Item) %6, %326, %325
+    %327: %r0 = binary.add %0, %48
+    %328: %r0 = coerce %327
+    jump -> block1(%328)
   block4(%1: %r0):
     %70: %r10 = binary.lt %1, %60
     branch %70 -> block6 -> block5
@@ -428,44 +426,42 @@ fn updates() -> one %r0
     host host.throw "yana: a runtime check failed"
     unreachable
   block9:
-    %294: %r14 = alias %282
-    %295: %r10 = load bits @13:1 of (property %294.$p0: %r13): %r10
-    %296: %r10 = unary.not %295
+    %289: %r14 = alias %282
+    %290: %r10 = load bits @13:1 of (property %289.$p0: %r13): %r10
+    %291: %r10 = unary.not %290
     jump -> block11
   block10:
     host host.throw "yana: a runtime check failed"
     unreachable
   block11:
-    %307: %r14 = alias %282
-    %308: %r12 = load bits @0:12 of (property %307.$p0: %r13): %r12
-    %309: %r28 = convert %308
-    %310: %r28 = binary.add %309, %67
-    %311: %r28 = coerce %310
-    %312: %r28 = binary.rem %311, %68
-    %313: %r28 = coerce %312
-    %314: %r12 = convert %313
-    %344: %r13 = load property %282.$p0: %r13
-    store var $10: %r13, %344
-    store bits @13:1 of (var $10: %r13): %r10, %296
-    store bits @0:12 of (var $10: %r13): %r12, %314
-    %345: %r9 = load property %282.weight: %r9
-    %346: %r11 = load property %282.level: %r11
-    %347: %r13 = load var $10: %r13
+    %297: %r14 = alias %282
+    %298: %r12 = load bits @0:12 of (property %297.$p0: %r13): %r12
+    %299: %r28 = convert %298
+    %300: %r28 = binary.add %299, %67
+    %301: %r28 = coerce %300
+    %302: %r28 = binary.rem %301, %68
+    %303: %r28 = coerce %302
+    %304: %r12 = convert %303
+    %329: %r13 = load property %282.$p0: %r13
+    store var $10: %r13, %329
+    store bits @13:1 of (var $10: %r13): %r10, %291
+    store bits @0:12 of (var $10: %r13): %r12, %304
+    %330: %r9 = load property %282.weight: %r9
+    %331: %r11 = load property %282.level: %r11
+    %332: %r13 = load var $10: %r13
     jump -> block13
   block12:
     host host.throw "yana: a runtime check failed"
     unreachable
   block13:
-    %319: %r19 = alias %271
-    %320: %r19 = alias %319
-    %326: %r19 = alias %320
-    %328: %r0 = alias %281
-    %317: %r14 = object %s2 %345, %346, %347
-    %318: %r14 = alias %317
-    store element %326[%328]: %r14, %318
-    %329: %r0 = binary.add %1, %63
-    %330: %r0 = coerce %329
-    jump -> block4(%330)
+    %311: %r19 = alias %272
+    %313: %r0 = alias %281
+    %307: %r14 = object %s2 %330, %331, %332
+    %308: %r14 = alias %307
+    store element %311[%313]: %r14, %308
+    %314: %r0 = binary.add %1, %63
+    %315: %r0 = coerce %314
+    jump -> block4(%315)
   block14:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -551,11 +547,11 @@ fn updates() -> one %r0
     %260: %r14 = alias %249
     %261: %r10 = load bits @12:1 of (property %260.$p0: %r13): %r10
     %262: %r10 = unary.not %261
-    %348: %r13 = load property %249.$p0: %r13
-    store var $11: %r13, %348
+    %333: %r13 = load property %249.$p0: %r13
+    store var $11: %r13, %333
     store bits @12:1 of (var $11: %r13): %r10, %262
-    %349: %r13 = load var $11: %r13
-    %266: %r14 = object %s2 %259, %256, %349
+    %334: %r13 = load var $11: %r13
+    %266: %r14 = object %s2 %259, %256, %334
     %267: %r14 = alias %266
     %268: %r3 = const "$v"
     call push(Item) %12, %268, %267
@@ -805,7 +801,7 @@ fn growJsArray(Item)(parts %r21, one %r0) -> omitted
     store element %0[%1]: %r19, %15
     return
 
-optimizer clones 11 aliased 6 forwarded 1 removed 165 adopted 0 sunk 11 numbered 76 decided 6 unboxed 1 updated 2 split 1 promoted 24
+optimizer clones 11 aliased 6 forwarded 1 removed 152 adopted 0 sunk 11 numbered 61 decided 6 unboxed 1 updated 2 split 1 promoted 24 folded 0
 
 shape %s0 ref {$o: %r3 owner, $k: %r3 key}
 shape %s1 object ArrayView {items: %r2, length: %r0, offset: %r0}

@@ -192,4 +192,14 @@
  * Null where the function returns in a register or returns nothing, which makes the rule above
  * unreachable for every function that has no such parameter.
  */
+//
+// **A temporary that only relays** is the same question asked from the source's end - J160,
+// `tryRelay`: `copy T <- A, n; ...; copy B <- T, n` in one block, where `T` is an allocation of exactly
+// `n` bytes and those two copies are its only uses, becomes `copy B <- A, n`, provided nothing between
+// the copies may write `A`'s bytes and `B` does not overlap `A`. `placesApart` is `mayOverlap` plus one
+// fact: a place rooted at a parameter or a global is never an allocation of this frame. It places
+// through lower_store.h's `placeOf` with a real `contained` table (J163), built lazily and marked
+// stale after every rewrite here, since redirecting a use can make a contained allocation stop being
+// one. The shipping stage's lowering relays a value through a temporary at nearly every move, which
+// is why it took that stage's `test/base` 6.4% down and the new stage's 0.2%.
 void forwardCopyDestinations(LowerBase base, LowerFunction& fun, LowerPtr<LowerValue> returnPlace);

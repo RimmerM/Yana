@@ -5,26 +5,19 @@ main<complex>(): I32 {
     %v_1 = loads @effects, 4: I32
     %v_2 = add %v_1, 1: I32
     store @effects, %v_2, 4
-    %v_3 = alloca 4, 4: Ptr
-    store %v_3, 8, 4
-    %v_4 = loads %v_3, 4: I32
-    %v_5 = loads @effects, 4: I32
-    %v_6 = add %v_5, %v_4: I32
-    store @effects, %v_6, 4
-    %v_7 = cmp_eq %v_4, 8: I32
-    %v_8 = select %v_7, 15, 7: I32
-    %v_9 = add %v_8, 16: I32
-    %v_10 = bitcast 0: Ptr
-    %v_11 = call_complex main.thunk, %v_10: I32
-    %v_12 = cmp_eq %v_11, 32: I32
-    %v_13 = add %v_9, 32: I32
-    %v_14 = select %v_12, %v_13, %v_9: I32
-    %v_15 = add %v_14, 192: I32
-    %v_16 = loads @effects, 4: I32
-    %v_17 = cmp_eq %v_16, 41: I32
-    %v_18 = add %v_14, 448: I32
-    %v_19 = select %v_17, %v_18, %v_15: I32
-    ret %v_19
+    %v_3 = loads @effects, 4: I32
+    %v_4 = add %v_3, 8: I32
+    store @effects, %v_4, 4
+    %v_5 = bitcast 0: Ptr
+    %v_6 = call_complex main.thunk, %v_5: I32
+    %v_7 = cmp_eq %v_6, 32: I32
+    %v_8 = select %v_7, 63, 31: I32
+    %v_9 = add %v_8, 192: I32
+    %v_10 = loads @effects, 4: I32
+    %v_11 = cmp_eq %v_10, 41: I32
+    %v_12 = add %v_8, 448: I32
+    %v_13 = select %v_11, %v_12, %v_9: I32
+    ret %v_13
   }
 }
 

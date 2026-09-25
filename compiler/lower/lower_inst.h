@@ -2825,3 +2825,17 @@ inline LiveId LowerValue::liveId() {
 
     return first + (this - i->created().ptr);
 }
+
+/*
+ * The literal an operand carries, where it is one - the raw pattern, unmasked and whatever the type.
+ *
+ * One definition for the tier since J163: lower_forward.cpp, lower_split.cpp and lower_thread.cpp
+ * each had their own, the last with an out-parameter and a mask. A reader that wants the integer
+ * pattern at its register's width (lower_thread.cpp's `integerConstant`) masks what this answers.
+ */
+inline Maybe<U64> constantOf(LowerBase base, LowerPtr<LowerValue> value) {
+    auto inst = base[value]->inst();
+    if(inst->kind != LowerInst::Imm) return Nothing();
+
+    return Just(((LowerImm*)inst)->i);
+}

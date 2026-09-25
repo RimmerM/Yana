@@ -1,0 +1,76 @@
+module ResolveTest
+
+fn newtypeContent(f: Flags [shared call]) -> I64 {
+bb0(%0: Flags [shared call] guaranteed):
+  %1: %I64 address = field.addr .Flags inspect %0
+  %2: I64 trivial = load inspect %1
+  return consume %2
+}
+
+fn wrappedContent(w: Wrapped [shared call]) -> I64 = <no body>
+
+fn tupleFirst(t: {I64, Bool} [shared call]) -> I64 {
+bb0(%0: {I64, Bool} [shared call] guaranteed):
+  %1: %I64 address = field.addr . inspect %0
+  %2: I64 trivial = load inspect %1
+  return consume %2
+}
+
+fn tupleSecond(t: {I64, Bool} [shared call]) -> Bool = <no body>
+
+fn recordSecond(t: Two [shared call]) -> I64 = <no body>
+
+fn throughPointer(p: %Two [shared call]) -> I64 = <no body>
+
+fn callsIndexedField(t: {(I64) -> I64, Bool} [shared call]) -> I64 = <no body>
+
+fn writesIndex() -> I64 {
+bb0:
+  %0: %{I64, I64} address = alloc frame {I64, I64}
+  %1: I64 trivial = const 1
+  %2: I64 trivial = const 2
+  %3: {I64, I64} trivial = aggregate. consume %1 consume %2
+  store inspect %0 consume %3
+  %4: I64 trivial = const 7
+  %5: %I64 address = field.addr . inspect %0
+  store inspect %5 consume %4
+  %6: %I64 address = field.addr . inspect %0
+  %7: I64 trivial = load inspect %6
+  %8: %I64 address = field.addr . inspect %0
+  %9: I64 trivial = load inspect %8
+  %10: I64 trivial = add inspect %7 inspect %9
+  return consume %10
+}
+
+fn writesContent() -> I64 {
+bb0:
+  %0: %Flags address = alloc frame Flags
+  %1: I64 trivial = const 3
+  %2: Flags trivial = aggregate.Flags consume %1
+  store inspect %0 consume %2
+  %3: I64 trivial = const 9
+  %4: %I64 address = field.addr .Flags inspect %0
+  store inspect %4 consume %3
+  %5: %I64 address = field.addr .Flags inspect %0
+  %6: I64 trivial = load inspect %5
+  return consume %6
+}
+
+fn main() -> I64 {
+bb0:
+  %0: I64 trivial = call writesIndex
+  %1: I64 trivial = call writesContent
+  %2: I64 trivial = add inspect %0 inspect %1
+  %3: I64 trivial = const 4
+  %4: Bool trivial = const True
+  %5: {I64, Bool} trivial = aggregate. consume %3 consume %4
+  %6: I64 trivial = call tupleFirst borrow %5
+  %7: I64 trivial = add inspect %2 inspect %6
+  %8: I64 trivial = const 20
+  %9: Flags trivial = aggregate.Flags consume %8
+  %10: I64 trivial = call newtypeContent borrow %9
+  %11: I64 trivial = add inspect %7 inspect %10
+  return consume %11
+}
+
+entry main

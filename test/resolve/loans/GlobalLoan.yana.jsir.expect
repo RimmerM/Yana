@@ -50,10 +50,9 @@ fn main() -> one %r0
     %21: %r6 = object %s1 %20
     %22: %r6 = clone %21
     store global gLoose: %r6, %22
-    %23: %r0 = const 0
     %24: %r6 = load global gLoose: %r6
     %25: %r4 = load property %24.held: %r4
-    %26: %r9 = convert %23
+    %26: %r9 = const 0
     %27: %r0 = load property %25.length: %r0
     %28: %r9 = convert %27
     %29: %r8 = binary.ge %26, %28
@@ -87,10 +86,9 @@ fn main() -> one %r0
     %55: %r0 = split %53 #1 of %r5
     %56: %r0 = split %53 #2 of %r5
     %57: %r0 = call total %54, %55, %56
-    %58: %r0 = const 0
     %59: %r6 = load global gLoose: %r6
     %60: %r4 = load property %59.held: %r4
-    %61: %r9 = convert %58
+    %61: %r9 = const 0
     %62: %r0 = load property %60.length: %r0
     %63: %r9 = convert %62
     %64: %r8 = binary.ge %61, %63
@@ -117,7 +115,7 @@ fn main() -> one %r0
     %86: %r0 = const 2
     %87: %r6 = load global gLoose: %r6
     %88: %r4 = load property %87.held: %r4
-    %89: %r9 = convert %86
+    %89: %r9 = const 2
     %90: %r0 = load property %88.length: %r0
     %91: %r9 = convert %90
     %92: %r8 = binary.ge %89, %91
@@ -212,7 +210,7 @@ fn main$() -> one %r0
     %23: %r0 = call main
     return %23
 
-optimizer clones 4 aliased 0 forwarded 0 removed 18 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 2 split 0 promoted 0
+optimizer clones 4 aliased 0 forwarded 0 removed 20 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 2 split 0 promoted 0 folded 3
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object Loose {held: %r4}

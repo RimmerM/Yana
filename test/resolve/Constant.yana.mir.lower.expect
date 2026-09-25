@@ -36,22 +36,21 @@ main<complex>(): I32 {
     %v_24 = cmp_eq %v_23, -1: I32
     %v_25 = add %v_22, 65536: I32
     %v_26 = select %v_24, %v_25, %v_22: I32
-    %v_27 = load @fell, 4: F32
-    %v_28 = cmp_eq -1, %v_27: I32
-    %v_29 = add %v_26, 1048576: I32
-    %v_30 = select %v_28, %v_29, %v_26: I32
-    %v_31 = load @state, 1: I32
-    %v_32 = add %v_30, 131072: I32
-    %v_33 = select %v_31, %v_32, %v_30: I32
-    %v_34 = loads @minimum, 8: I64
-    %v_35 = cmp_ilt %v_34, 0: I32
-    %v_36 = add %v_33, 262144: I32
-    %v_37 = select %v_35, %v_36, %v_33: I32
-    %v_38 = load @mask, 8: I64
-    %v_39 = cmp_neq %v_38, 0: I32
-    %v_40 = add %v_37, 524288: I32
-    %v_41 = select %v_39, %v_40, %v_37: I32
-    ret %v_41
+    %v_27 = cmp_eq -1, %v_23: I32
+    %v_28 = add %v_26, 1048576: I32
+    %v_29 = select %v_27, %v_28, %v_26: I32
+    %v_30 = load @state, 1: I32
+    %v_31 = add %v_29, 131072: I32
+    %v_32 = select %v_30, %v_31, %v_29: I32
+    %v_33 = loads @minimum, 8: I64
+    %v_34 = cmp_ilt %v_33, 0: I32
+    %v_35 = add %v_32, 262144: I32
+    %v_36 = select %v_34, %v_35, %v_32: I32
+    %v_37 = load @mask, 8: I64
+    %v_38 = cmp_neq %v_37, 0: I32
+    %v_39 = add %v_36, 524288: I32
+    %v_40 = select %v_38, %v_39, %v_36: I32
+    ret %v_40
   }
 }
 

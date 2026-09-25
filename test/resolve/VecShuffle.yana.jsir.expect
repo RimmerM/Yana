@@ -1,6 +1,5 @@
 fn oneSource() -> one %r0
   block0:
-    %3: %r1 = const 3
     jump -> block1
   block1:
     jump -> block3
@@ -33,11 +32,8 @@ fn oneSource() -> one %r0
     %37: %r0 = const -6
     return %37
   block13:
-    %31: %r1 = const 3
-    %32: %r5 = binary.ne %3, %31
-    %33: %r0 = const -8
     %34: %r0 = const 0
-    %35: %r0 = select %32, %33, %34
+    %35: %r0 = alias %34
     return %35
   block14:
     %36: %r0 = const -7
@@ -45,15 +41,6 @@ fn oneSource() -> one %r0
 
 fn twoSources() -> one %r0
   block0:
-    %2: %r1 = const 2
-    %3: %r1 = const 3
-    %4: %r1 = const 10
-    %5: %r1 = alias %4
-    %6: %r1 = coerce %5
-    %9: %r1 = binary.add %4, %2
-    %10: %r1 = coerce %9
-    %11: %r1 = binary.add %4, %3
-    %12: %r1 = coerce %11
     jump -> block1
   block1:
     jump -> block3
@@ -61,16 +48,12 @@ fn twoSources() -> one %r0
     %43: %r0 = const -1
     return %43
   block3:
-    %22: %r1 = const 13
-    %23: %r5 = binary.ne %12, %22
-    branch %23 -> block6 -> block5
+    jump -> block5
   block4:
     %42: %r0 = const -2
     return %42
   block5:
-    %24: %r1 = const 12
-    %25: %r5 = binary.ne %10, %24
-    branch %25 -> block8 -> block7
+    jump -> block7
   block6:
     %41: %r0 = const -3
     return %41
@@ -80,17 +63,13 @@ fn twoSources() -> one %r0
     %40: %r0 = const -4
     return %40
   block9:
-    %32: %r5 = binary.ne %6, %6
-    branch %32 -> block12 -> block11
+    jump -> block11
   block10:
     %39: %r0 = const -5
     return %39
   block11:
-    %33: %r1 = const 10
-    %34: %r5 = binary.ne %6, %33
-    %35: %r0 = const -7
     %36: %r0 = const 0
-    %37: %r0 = select %34, %35, %36
+    %37: %r0 = alias %36
     return %37
   block12:
     %38: %r0 = const -6
@@ -98,7 +77,6 @@ fn twoSources() -> one %r0
 
 fn byteLane() -> one %r0
   block0:
-    %0: %r6 = const 0
     jump -> block1
   block1:
     jump -> block3
@@ -121,11 +99,8 @@ fn byteLane() -> one %r0
     %49: %r0 = const -4
     return %49
   block9:
-    %43: %r6 = const 0
-    %44: %r5 = binary.ne %0, %43
-    %45: %r0 = const -6
     %46: %r0 = const 0
-    %47: %r0 = select %44, %45, %46
+    %47: %r0 = alias %46
     return %47
   block10:
     %48: %r0 = const -5
@@ -133,17 +108,10 @@ fn byteLane() -> one %r0
 
 fn floatLane() -> one %r0
   block0:
-    %0: %r10 = const 0
-    %3: %r10 = const 3
-    %9: %r10 = const 3
-    %10: %r5 = binary.ne %3, %9
-    branch %10 -> block2 -> block1
+    jump -> block1
   block1:
-    %11: %r10 = const 0
-    %12: %r5 = binary.ne %0, %11
-    %13: %r0 = const -2
     %14: %r0 = const 0
-    %15: %r0 = select %12, %13, %14
+    %15: %r0 = alias %14
     return %15
   block2:
     %16: %r0 = const -1
@@ -245,18 +213,18 @@ fn main() -> one %r0
     %33: %r0 = coerce %32
     return %33
 
-optimizer clones 0 aliased 0 forwarded 0 removed 109 adopted 0 sunk 0 numbered 2 decided 15 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 141 adopted 0 sunk 0 numbered 1 decided 19 unboxed 0 updated 0 split 0 promoted 0 folded 35
 
 rep %r0 = number signed 32
 rep %r1 = number unsigned 32
-rep %r2 = array Uint32Array of %r1
+rep %r2 = array Array of %r1
 rep %r3 = parts (%r1, %r1, %r1, %r1) as %r2
 rep %r4 = array Int32Array of %r0
 rep %r5 = number bool
 rep %r6 = number unsigned 8
-rep %r7 = array Uint8Array of %r6
+rep %r7 = array Array of %r6
 rep %r8 = parts (%r6, %r6, %r6, %r6, %r6, %r6, %r6, %r6, %r6, %r6, %r6, %r6, %r6, %r6, %r6, %r6) as %r7
 rep %r9 = array Int32Array of %r0
 rep %r10 = number f32
-rep %r11 = array Float32Array of %r10
+rep %r11 = array Array of %r10
 rep %r12 = parts (%r10, %r10, %r10, %r10) as %r11

@@ -191,10 +191,11 @@ bool Conversion::runTypeTeardown(DeclPtr<mir::Type> type, bool runDrop, bool run
             auto field = record.fields.get(decl, U16(arm.first + f));
             if(!mir::tearsDownField(decl, field)) continue;
 
-            if(field.boxed) {
-                report("a teardown through a boxed field"_v, type, where);
-                return false;
-            }
+            // A `@box` field holds its content in the property itself - the box is the collector's
+            // on this target, which is what `fieldRepOf` says by not distinguishing one - so what
+            // a teardown owes through it is the content's, reached the way an unboxed field's is.
+            // It was refused by name until J136, whatever the content owed; `Box.yana`'s
+            // `Diagnostics` owes nothing, and its record's teardown was never going to reach it.
 
             auto slot = shape.slotOfField(U16(arm.first + f));
             if(slot == JsProperty::kNoField) continue;

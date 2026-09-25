@@ -1,0 +1,116 @@
+{-
+   A record filled by a **system call** that was handed its address **as a number** - J159.
+
+   `lib/Native`'s `readClock(clock, &into)` passes `clockAddress(into)`, which is
+   `bitcast(addressOf(into)) :: USize`, to `syscall2`. The rewrite's call summary
+   (`resolve_mir/summary.cpp`) follows an address only while its type can carry one, so the walk
+   stopped at the integer and `readClock` reported that it neither kept nor wrote `into`. The
+   optimizer then admitted `monotonicNanos`' `ClockTime` as contained at the call, and J153's
+   cross-block forwarding answered the two field reads after the call's branch from the `{0, 0}`
+   that initialized the record: every clock read was zero, and `test/bench/lexer` timed itself at
+   `ns 0`. The checksum was right; only the timing was gone.
+
+   A pipe is the deterministic stand-in for the clock here: two records are written into it, and each
+   `readCounter` is a `read` into a frame record through an address laundered exactly the way
+   `clockAddress` launders it. With the bug each read answered the record's initial zero.
+
+   Three shapes, each of which the bug turned into its initializer:
+
+    - `readCounter` - the field reads in the block after the call's `if`, which is `monotonicNanos`;
+    - `between` - two reads around work, whose difference must be the difference of what was written,
+      which is the lexer bench's `took`;
+    - `loopRead` - the call inside a loop, read in the loop and after it, which is what loop cell
+      promotion and invariant hoisting ask about.
+
+   And `pointerParameter`, where the laundering is in `lib/`'s own `readFile(handle, to: %U8, count)`
+   - a *pointer* parameter cast to `USize` - rather than in a helper that took the address.
+-}
+
+import Native
+
+data Cell {value: I64, other: I64}
+
+-- A writable global, which is what makes `mir::reachesGlobalState` a question with an answer: in a
+-- program with none, every callee reads as reaching global state and every call is a barrier, which
+-- hid the bug from every smaller reproduction than the lexer bench.
+let &reads = 0
+
+-- The address leaves as a number, which is `clockAddress`'s shape.
+fn cellAddress(&into: Cell) -> USize = bitcast(addressOf(into)) :: USize
+
+-- Out of line, so that its callers are optimized against its summary rather than against its body -
+-- which is where `monotonicNanos` met `readClock`: the inliner settles a caller before it has decided
+-- to copy the callee into it.
+@noinline
+fn fill(handle: I32, &into: Cell) -> Size =
+    syscall3(numberOf(SysRead), widen(bitcast(handle) :: U32) :: USize, cellAddress(into), 16)
+
+fn readCounter(handle: I32) -> I64:
+    reads += 1
+    let &cell = Cell {value: 0, other: 0}
+    if fill(handle, cell) < 0 then return -1
+    return cell.value * 100 + cell.other
+
+fn work(n: I32) -> I32:
+    let &s = 0
+    for i in 0..n:
+        s = s `xor` (i * 7)
+    return s
+
+fn between(handle: I32) -> I64:
+    let started = readCounter(handle)
+    let spent = work(1000)
+    let took = readCounter(handle) - started
+    return took + (widen(spent `and` 0) :: I64)
+
+fn loopRead(handle: I32) -> I64:
+    let &cell = Cell {value: 0, other: 0}
+    let &sum = 0 :: I64
+
+    for i in 0..3:
+        if fill(handle, cell) < 0 then return -1
+        sum += cell.value
+
+    return sum * 100 + cell.other
+
+fn pointerParameter(handle: I32) -> I64:
+    let &cell = Cell {value: 0, other: 0}
+    if readFile(widen(handle) :: Size, bitcast(addressOf(cell)) :: %U8, 16) < 0 then return -1
+    return cell.value + cell.other
+
+fn send(handle: I32, value: I64, other: I64):
+    let &cell = Cell {value: value, other: other}
+    writeFile(widen(handle) :: Size, bitcast(addressOf(cell)) :: %U8, 16)
+
+fn main() -> I32:
+    let &ends = [0, 0] :: [I32 *2]
+    if makePipe(bitcast(addressOf(ends)) :: %Int) < 0 then return 1
+
+    let reader = ends[0]
+    let writer = ends[1]
+
+    send(writer, 3, 4)
+    let first = readCounter(reader)
+
+    send(writer, 10, 1)
+    send(writer, 17, 2)
+    let took = between(reader)
+
+    send(writer, 1, 5)
+    send(writer, 2, 6)
+    send(writer, 4, 7)
+    let looped = loopRead(reader)
+
+    send(writer, 20, 22)
+    let viaPointer = pointerParameter(reader)
+
+    closeFile(widen(reader) :: Size)
+    closeFile(widen(writer) :: Size)
+
+    -- 304, 701 (1702 - 1001), 707 and 42.
+    if reads != 3 then return 6
+    if first != 304 then return 2
+    if took != 701 then return 3
+    if looped != 707 then return 4
+    if viaPointer != 42 then return 5
+    return 0

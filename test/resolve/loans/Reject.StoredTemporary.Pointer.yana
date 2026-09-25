@@ -1,0 +1,30 @@
+{-
+   A pointer with no storage, at a `'%T` parameter whose callee keeps it (J162).
+
+   # resolver: ownership
+
+   `p: '%Int` is a reference *to a pointer*, so `wrap` keeps the address of whatever holds the
+   pointer. J147 left every pointer-typed position without a temporary, for the sake of `p[i]`
+   (`StoredTemporary.Pointer.yana`), and the SSA conversion gave this one a frame slot instead -
+   one slot for every pass of the loop, so all three `RP`s named the last pointer and the program
+   printed 303030 for 102030. The temporary is the resolver's now, and the loan checker refuses the
+   element that outlives it. Native only: `values` is.
+-}
+
+import Native
+
+data RP {r: '%Int}
+
+fn wrap(p: '%Int) -> RP = RP {r: p}
+
+fn offsetBy(xs: s'[Int], i: Int) -> %s'Int = values(xs) + (i :: Size)
+
+fn main() -> Int:
+    let xs = [10, 20, 30]
+    let &keep = [] :: [RP]
+    for i in 0..3:
+        push(keep, wrap(offsetBy(xs, i)))
+    let &s = 0
+    for k in items(keep):
+        s = s * 100 + *k.r
+    return s

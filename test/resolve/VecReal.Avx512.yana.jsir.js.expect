@@ -337,7 +337,7 @@ function powerOfTwoVecDouble(exponent$0, exponent$1) {
   var v7 = v4 + 4.503599627370496E15;
   var v9 = BigInt.asIntN(64, $bc$d2l(v6));
   var v11 = BigInt.asIntN(64, $bc$d2l(v7));
-  return new Float64Array([$bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, v9 & 4503599627370495n) << 52n)), $bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, v11 & 4503599627370495n) << 52n))]);
+  return [$bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, v9 & 4503599627370495n) << 52n)), $bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, v11 & 4503599627370495n) << 52n))];
 }
 
 function scaleByExponentVecFloat(value$0, value$1, value$2, value$3, exponent$0, exponent$1, exponent$2, exponent$3) {
@@ -393,7 +393,7 @@ function scaleByExponentVecFloat(value$0, value$1, value$2, value$3, exponent$0,
   var v77 = Math.fround($bc$i2f(v69));
   var v79 = Math.fround($bc$i2f(v71));
   var v81 = Math.fround($bc$i2f(v73));
-  return new Float32Array([Math.fround(Math.fround(value$0 * v75) * Math.fround($bc$i2f((Math.min(Math.max(Math.trunc(v48), -2.147483648E9), 2.147483647E9) | 0) + 127 << 23))), Math.fround(Math.fround(value$1 * v77) * Math.fround($bc$i2f((Math.min(Math.max(Math.trunc(v49), -2.147483648E9), 2.147483647E9) | 0) + 127 << 23))), Math.fround(Math.fround(value$2 * v79) * Math.fround($bc$i2f((Math.min(Math.max(Math.trunc(v50), -2.147483648E9), 2.147483647E9) | 0) + 127 << 23))), Math.fround(Math.fround(value$3 * v81) * Math.fround($bc$i2f((Math.min(Math.max(Math.trunc(v51), -2.147483648E9), 2.147483647E9) | 0) + 127 << 23)))]);
+  return [Math.fround(Math.fround(value$0 * v75) * Math.fround($bc$i2f((Math.min(Math.max(Math.trunc(v48), -2.147483648E9), 2.147483647E9) | 0) + 127 << 23))), Math.fround(Math.fround(value$1 * v77) * Math.fround($bc$i2f((Math.min(Math.max(Math.trunc(v49), -2.147483648E9), 2.147483647E9) | 0) + 127 << 23))), Math.fround(Math.fround(value$2 * v79) * Math.fround($bc$i2f((Math.min(Math.max(Math.trunc(v50), -2.147483648E9), 2.147483647E9) | 0) + 127 << 23))), Math.fround(Math.fround(value$3 * v81) * Math.fround($bc$i2f((Math.min(Math.max(Math.trunc(v51), -2.147483648E9), 2.147483647E9) | 0) + 127 << 23)))];
 }
 
 function scaleByExponentVecDouble(value$0, value$1, exponent$0, exponent$1) {
@@ -421,13 +421,13 @@ function scaleByExponentVecDouble(value$0, value$1, exponent$0, exponent$1) {
   var v29 = value$0 * v27;
   var v30 = value$1 * v28;
   var v31 = powerOfTwoVecDouble(v24, v25);
-  return new Float64Array([v29 * v31[0], v30 * v31[1]]);
+  return [v29 * v31[0], v30 * v31[1]];
 }
 
 function exponentOfVecDouble(value$0, value$1) {
   var v3 = BigInt.asIntN(64, $bc$d2l(value$0));
   var v5 = BigInt.asIntN(64, $bc$d2l(value$1));
-  return new Float64Array([$bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asUintN(64, v3) >> 52n) & 2047n) | 4841369599423283200n)) - 4.503599627370496E15 - 1023, $bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asUintN(64, v5) >> 52n) & 2047n) | 4841369599423283200n)) - 4.503599627370496E15 - 1023]);
+  return [$bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asUintN(64, v3) >> 52n) & 2047n) | 4841369599423283200n)) - 4.503599627370496E15 - 1023, $bc$l2d(BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asUintN(64, v5) >> 52n) & 2047n) | 4841369599423283200n)) - 4.503599627370496E15 - 1023];
 }
 
 // a float's bits, which no host operator reaches - see codegen/js/inst.cpp

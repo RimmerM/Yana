@@ -357,6 +357,35 @@ static constexpr U32 kStoreCost = 4;     // a result that has to be carried back
 static constexpr U32 kRematCost = 4;     // recreating the value where it is read
 static constexpr U32 kFoldedUseCost = 1; // an operand read straight out of the frame
 
+/*
+ * Recreating `mov r, imm` or `lea r, [rsp + k]` at a reader that could have read a frame operand -
+ * J155. Half an instruction, between the two prices either side of it, and all three were measured
+ * over `test/base` in both stages.
+ *
+ * At kRematCost, a whole instruction, one folded read was always the cheaper number, so a constant
+ * read once or twice in straight-line code was stored to the frame at its definition and read back -
+ * the store is the part the model had no reason to avoid, and 450 of them stood in the program. At
+ * kFoldedUseCost the recipe won everywhere, including a compare inside a hot loop, where
+ * `cmp [rsp + k], r` became `mov r11, imm ; cmp r11, r`: the shipping stage ran 23 M more
+ * instructions for it. At two the recipe wins where the definition's store outweighs its readers,
+ * which is straight-line code, and the frame keeps a constant read in a loop: `test/base` is a
+ * little smaller in both stages, runs 17 M fewer instructions in the new one and the same number in
+ * the shipping one (J155 §3).
+ */
+static constexpr U32 kPlainRecipeUseCost = 2;
+
+/*
+ * A fixed alloca read as the base of an access, from the frame rather than from a register - see
+ * frameBaseUseCost. Half an instruction where the displacement fits a byte and three quarters where
+ * it takes four, which is what `[rsp + disp]` costs over `[r]` in bytes. Measured over `test/base` in
+ * both stages against a flat price (J157 §2): at 0 every address went homeless and the new stage grew
+ * 5.7%, since a local written ten times through `[rbx]` became ten four-byte displacements; at 1 it
+ * grew 1.1% and at 2 0.1%; at 3 and 4 both stages were 1.3-1.7% smaller than before, with a third
+ * fewer stack `lea`s either way. Two and three by displacement is the best of the pairs tried.
+ */
+static constexpr U32 kFrameBaseNearCost = 2;
+static constexpr U32 kFrameBaseFarCost = 3;
+
 // How much a split has to save before it is taken. Nothing beyond being cheaper, which is already a
 // margin of one whole instruction: a window costs two - a store and a reload - and buys back one per
 // read the web would otherwise have had to bring into a register, so the smallest split this accepts
@@ -514,6 +543,10 @@ struct PlacementScratch {
     // each web in instruction order, and the windows it decided on for one web.
     Array<LiveId> clusterWebs;
     Array<U8> clusterWanted;
+
+    // Where each fixed local is expected to land, as a displacement from the frame's base register -
+    // see estimateLocalOffsets.
+    Array<I32> localOffset;
     Array<BlockSpan> spans;
     ArrayList<WebRead, 4> reads;
     Array<ClusterWindow> clusterWindows;
@@ -691,6 +724,10 @@ struct Placer {
     // register a sibling operand of that instruction cannot be read out of.
     const TemporaryReserve& temporaries;
 
+    // Whether the frame is addressed through rbp, which puts every local at a negative displacement
+    // below it rather than a positive one above rsp - see frameBaseUseCost.
+    bool framePointer = false;
+
     Placer(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
         const Constraints& constraints, const FunctionFrequencyInfo& frequency, bool framePointer,
         const TemporaryReserve& temporaries, const Array<RegSet>& displacedFrom,
@@ -702,7 +739,7 @@ struct Placer {
         frame(out.frame), slotOccupants(scratch.slotOccupants), slotWebs(scratch.slotWebs),
         clobberSites(scratch.clobberSites),
         remats(out.remats), incomingArgs(out.incomingArgs), displacedFrom(displacedFrom),
-        displacementRequests(out.displacementRequests), temporaries(temporaries)
+        displacementRequests(out.displacementRequests), temporaries(temporaries), framePointer(framePointer)
     {
         // Whatever is held back - the scratch registers, and rbp in a function that establishes a
         // frame pointer - is not available to hand out as a home.
@@ -2071,7 +2108,55 @@ static bool recipeFor(Placer& a, LowerValue* v, Remat& out) {
     }
 }
 
+/*
+ * Where each fixed local will be, before frame layout has said so.
+ *
+ * Layout puts the locals first, in the order the function states them, directly above the outgoing
+ * argument area (frame.cpp), so with rsp as the base a local's displacement is known here to within
+ * the alignment of what is above it. Under a frame pointer the locals hang below rbp by an amount the
+ * spill slots and the saved registers add to, and the estimate is the part of that known now - which
+ * errs towards the far encoding, the cheap direction to be wrong in.
+ */
+static void estimateLocalOffsets(Placer& a) {
+    auto& out = a.scratch.localOffset;
+    out.clear();
+
+    U32 size = 0;
+    for(auto& slot: a.frame.slots) {
+        if(slot.kind != StackSlotKind::Local) {
+            out.push(0);
+            continue;
+        }
+
+        size = (size + slot.alignment - 1) / slot.alignment * slot.alignment;
+        out.push(I32(size));
+        size += slot.size;
+    }
+
+    for(Size i = 0; i < out.size(); i++) {
+        out[i] = a.framePointer ? out[i] - I32(size) - 8 : out[i] + I32(a.frame.argAreaSize);
+    }
+}
+
+/*
+ * What reading a fixed alloca's address as the base of an access costs, when the web has no register
+ * and the access addresses the frame directly (J157). No instruction - that is the point - but a
+ * longer one than `[r]`: rsp as a base needs a SIB byte, and the displacement is the slot's offset
+ * on top of the access's own, one byte where that fits and four where it does not. So it is priced
+ * as a longer encoding, by which of the two it will be.
+ */
+static U32 frameBaseUseCost(Placer& a, const Remat& recipe, LowerInst* inst) {
+    auto displacement = I64(recipe.frame.addend);
+    if(recipe.frame.slot < a.scratch.localOffset.size()) displacement += a.scratch.localOffset[recipe.frame.slot];
+    if(inst->kind == LowerInst::X86Address || inst->kind == LowerInst::X86Lea) {
+        displacement += I64(I32(((LowerInstX86Address*)inst)->displacement));
+    }
+
+    return displacement >= -128 && displacement <= 127 ? kFrameBaseNearCost : kFrameBaseFarCost;
+}
+
 static void computeSpillCosts(Placer& a) {
+    estimateLocalOffsets(a);
     // A recipe reproduces one definition, so only a web that has one can have a recipe. A web with
     // several members is several definitions of a single location, and no one of them describes it.
     auto& members = a.scratch.members;
@@ -2117,9 +2202,28 @@ static void computeSpillCosts(Placer& a) {
                 auto constrained = shape.uses[i].kind == ArgLocation::Register;
                 auto free = constrained || I32(i) == folded;
 
+                /*
+                 * A recipe that is one register write with no input - `mov r, imm`, `lea r, [rsp +
+                 * k]` - read where the instruction could have taken a frame operand: see
+                 * kPlainRecipeUseCost.
+                 */
                 auto& web = a.webFor(v);
+                auto plainRecipe = web.canRemat && I32(i) == folded
+                    && (web.recipe.kind == Remat::Immediate || web.recipe.kind == Remat::FrameAddress);
+
+                /*
+                 * And a fixed alloca read as the base of an address costs its recipe nothing at all:
+                 * the access addresses the frame directly and the `lea` never exists (J157). A
+                 * register would buy a shorter encoding - `[r]` where the frame needs a SIB byte and a
+                 * displacement - which is not worth a register anywhere, so the read is not priced
+                 * against the frame home either way.
+                 */
+                auto frameBase = web.canRemat && web.recipe.kind == Remat::FrameAddress
+                    && isFrameAddressBase(a.base, a.machine, inst, i);
+
                 web.spillCost += weight * (free ? kFoldedUseCost : kReloadCost);
-                web.rematCost += weight * (constrained ? kFoldedUseCost : kRematCost);
+                web.rematCost += weight * (constrained ? kFoldedUseCost : frameBase ? frameBaseUseCost(a, web.recipe, inst)
+                    : plainRecipe ? kPlainRecipeUseCost : kRematCost);
             }
 
             auto created = inst->created();
@@ -2648,7 +2752,14 @@ static void collectWebReads(Placer& a, const Array<LiveId>& candidates) {
                 // What it pays today. A read the encoding pins to a register, or one an addressing
                 // form takes straight out of the frame, costs a longer encoding rather than an
                 // instruction - so a cluster of those alone never pays for its load.
-                auto saving = home.isStack()
+                //
+                // A fixed alloca's recipe read as an address's base is not recreated at all (J157),
+                // so a window buys that read nothing.
+                auto frameBase = home.isRemat() && a.remats[home.rematId()].kind == Remat::FrameAddress
+                    && isFrameAddressBase(a.base, a.machine, inst, k);
+
+                auto saving = frameBase ? frameBaseUseCost(a, a.remats[home.rematId()], inst)
+                    : home.isStack()
                     ? ((constrained || I32(k) == folded) ? kFoldedUseCost : kReloadCost)
                     : (constrained ? kFoldedUseCost : kRematCost);
 

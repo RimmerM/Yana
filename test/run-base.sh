@@ -183,25 +183,35 @@ hostHasAll() {
     for flag in "$@"; do hostHas "$flag" || return 1; done
 }
 
-if hostHasAll avx2 aes pclmulqdq; then
-    start_row legacy-avx2 -mode exe -backend local -enable-inst avx2 -resolver legacy
+# The ladder for one stage - the stage is the rows' prefix and the last flag of each, which is how
+# every row here names its stage. A function since J133, when the rewrite got the same ladder: the
+# host checks are the part worth writing once, because two copies of them that disagreed would run a
+# row for one stage that the other skipped in silence.
+start_levels() {
+    local stage="$1"
 
-    if hostHas sha_ni; then
-        start_row legacy-sha -mode exe -backend local -enable-inst avx2 -enable-inst sha -resolver legacy
-    else
-        note legacy-sha "== legacy-sha: this machine has no SHA-NI, so that row is not being run."
-    fi
+    if hostHasAll avx2 aes pclmulqdq; then
+        start_row "$stage-avx2" -mode exe -backend local -enable-inst avx2 -resolver "$stage"
 
-    # shellcheck disable=SC2086 # the list is words on purpose
-    if hostHasAll $avx512Flags; then
-        start_row legacy-avx512 -mode exe -backend local -enable-inst avx512 -resolver legacy
-        start_row legacy-avx512-256 -mode exe -backend local -enable-inst avx512 -vector-width 256 -resolver legacy
+        if hostHas sha_ni; then
+            start_row "$stage-sha" -mode exe -backend local -enable-inst avx2 -enable-inst sha -resolver "$stage"
+        else
+            note "$stage-sha" "== $stage-sha: this machine has no SHA-NI, so that row is not being run."
+        fi
+
+        # shellcheck disable=SC2086 # the list is words on purpose
+        if hostHasAll $avx512Flags; then
+            start_row "$stage-avx512" -mode exe -backend local -enable-inst avx512 -resolver "$stage"
+            start_row "$stage-avx512-256" -mode exe -backend local -enable-inst avx512 -vector-width 256 -resolver "$stage"
+        else
+            note "$stage-avx512" "== $stage-avx512, $stage-avx512-256: this machine is not an Ice Lake or Zen 4 or later, so neither row is being run."
+        fi
     else
-        note legacy-avx512 "== legacy-avx512, legacy-avx512-256: this machine is not an Ice Lake or Zen 4 or later, so neither row is being run."
+        note "$stage-avx2" "== $stage-avx2, $stage-sha, $stage-avx512: this machine has no AVX2 with AES-NI, so none of those rows is being run."
     fi
-else
-    note legacy-avx2 "== legacy-avx2, legacy-sha, legacy-avx512: this machine has no AVX2 with AES-NI, so none of those rows is being run."
-fi
+}
+
+start_levels legacy
 
 start_row legacy-js      -mode js -resolver legacy
 start_row legacy-js-unoptimized -mode js -no-ir-opt -resolver legacy
@@ -209,10 +219,21 @@ start_row legacy-js-unoptimized -mode js -no-ir-opt -resolver legacy
 # **The same suite through the rewritten resolver, natively.** It was deliberately kept out of this
 # file while it was red - a row that always fails is a row everybody learns to ignore - and it has
 # passed every case in both build trees since 2026-09-21 (J70), so since 2026-09-22 (J81, the day the
-# rewrite became the default) it is a row. One row rather than the legacy ladder above: the ladder
-# exists to hold the *replacement* bodies to their portable baselines, and those bodies are the
-# library's, selected the same way by either stage - the `legacy-*` rows already assert them.
+# rewrite became the default) it is a row. It was one row rather than the ladder above until J133 -
+# see below for why that argument did not hold.
 start_row ownership      -mode exe -backend local -enable-inst sse4 -resolver ownership
+
+# **And the ladder**, since 2026-09-24 (J133) - the rows above the floor and the one without
+# replacements, each the partner of the `legacy-*` row of its name. Until then the rewrite had one row
+# here, on the argument that the ladder holds the library's *replacement* bodies to their baselines
+# and those are selected the same way by either stage, so the `legacy-*` rows already asserted them.
+# That was true of the selection and not of the code: the bodies a replacement selects are compiled by
+# whichever stage is running, and every vector width, every EVEX encoding and every `sha` round the
+# ladder reaches was reaching the x64 backend through the old stage's lowering alone. J94 §5 ran all
+# five by hand and they passed; they are rows so that they keep passing. `-specialize never` has no
+# partner, because the rewrite refuses it (J98): it has no erased mode to force.
+start_row ownership-no-replacements -mode exe -backend local -no-replacements -resolver ownership
+start_levels ownership
 
 # **And unoptimized**, since 2026-09-23 (J95) - the native half of the differential the two JSIR rows
 # below already ask. Without it a representation defect the optimizer folds away has nowhere to show,

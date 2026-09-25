@@ -36,12 +36,23 @@ inline bool modifiesFlags(LowerBase base, LowerInst* inst) {
 // A one-byte immediate is always cheaper embedded. A four-byte one is cheaper only while it is read
 // a couple of times; past that, one materialization into a register beats repeating four bytes at
 // every use.
-static bool isEmbeddableImm(LowerImm* imm) {
+static bool isEmbeddableImm(LowerBase base, LowerImm* imm) {
     // Floats can never be embedded.
     if(!isIntLike(imm->result.type)) return false;
 
-    if(fitsImmediate(ImmediateWidth::Imm8, imm->i)) return true;
-    return fitsImmediate(ImmediateWidth::Imm32, imm->i) && imm->result.uses.size() <= 2;
+    // As each reader's immediate field would carry it - see embeddedImmValue. Where the readers
+    // disagree the raw number is the one every one of them can be asked about.
+    auto value = imm->i;
+    auto uses = imm->result.uses.contents(base);
+    if(uses.size() > 0) {
+        value = embeddedImmValue(base, base[uses[0]], &imm->result);
+        for(auto use: uses) {
+            if(embeddedImmValue(base, base[use], &imm->result) != value) value = imm->i;
+        }
+    }
+
+    if(fitsImmediate(ImmediateWidth::Imm8, value)) return true;
+    return fitsImmediate(ImmediateWidth::Imm32, value) && imm->result.uses.size() <= 2;
 }
 
 // Checks if this specific instruction can embed the provided embeddable immediate operand.
@@ -70,7 +81,7 @@ static bool canEmbedImm(LowerBase base, LowerInst* inst, LowerValue* op) {
     if(splatIsMachineConstant(base, inst)) return true;
 
     auto opcode = opcodeFor(base, inst);
-    auto value = immValue(op);
+    auto value = embeddedImmValue(base, inst, op);
     auto used = inst->used();
     bool found = false;
 
@@ -172,7 +183,7 @@ static bool storesPreferRegister(LowerBase base, LowerImm* imm) {
 // Tries to embed this immediate into any instructions that use it.
 bool tryEmbedImm(LowerBase base, LowerImm* imm) {
     if(storesPreferRegister(base, imm)) return false;
-    if(!isEmbeddableImm(imm) && !onlyFeedsMachineSplats(base, imm)) return false;
+    if(!isEmbeddableImm(base, imm) && !onlyFeedsMachineSplats(base, imm)) return false;
 
     for(auto use: imm->result.uses.contents(base)) {
         if(!canEmbedImm(base, base[use], &imm->result)) return false;

@@ -132,6 +132,10 @@ struct Arg {
      */
     DeclPtr<Function> defThunk = nullptr;
 
+    // The names this parameter's function type was written with - `CallNames`. Inherited with the
+    // position where an instance member takes its signature from the class.
+    CallNames callNames;
+
     /*
      * `@lazy` - `doc/spec/functions.md`'s Deferred arguments.
      *
@@ -1184,6 +1188,10 @@ struct Function {
      */
     Occurrence result;
 
+    // The names the result's function type was written with - `CallNames` - so that `make()(count:
+    // 3)` reads them off the declaration that wrote `-> (count: Int) -> {}`.
+    CallNames resultNames;
+
     /*
      * What a `lens fn`'s `yield` hands over, and empty on every other function.
      *
@@ -1588,6 +1596,21 @@ struct Function {
     bool hot = false;
 
     /*
+     * Whether this body **runs once per program** - the entry (`main$`), a test file's
+     * `testInit$`, and a `@test` case together with the `$case` wrapper around one that answers `{}`.
+     * J154.
+     *
+     * Set where the compiler synthesizes the call that runs it, and nowhere else, because that is
+     * the only place the claim is known rather than guessed: a function *referenced* once may be
+     * called from a loop, and the author's `main` is called once and is where a benchmark's loops
+     * live. What the flag says is about the body's straight-line code only - a loop inside one runs
+     * as often as it runs - and `resolve_ssa/opt/inline.cpp`, the one reader, asks it of each
+     * block that is in no loop, on native only (J156: on JavaScript a call left out of line shares
+     * its callee's type feedback with the hot callers).
+     */
+    bool once = false;
+
+    /*
      * `@convention(clobber)` - see the attribute's row.
      *
      * A `Maybe` rather than a `LowerCallType` initialized to the default, because "wrote nothing"
@@ -1647,6 +1670,11 @@ struct Function {
      * teardown is that destruction, so the subject is not an ownership root of this frame at all.
      */
     bool teardown = false;
+
+    // Whether this is the member of an **authored** `instance Reclaim(T)` - the body
+    // `checkReclaimShape` holds to ownership.md's "Authored teardown": no call but a teardown,
+    // storage release, or what the compiler provides.
+    bool authoredReclaim = false;
 
     /*
      * Whether this function *is* a derivation - the member that turns an owner into its view,
@@ -1789,6 +1817,9 @@ struct Global {
     Occurrence occurrence;
     StringId name {};
     LocationId source = kNullLocation;
+
+    // `let op = add :: (x: Int, y: Int) -> Int` - `CallNames`, from the ascription that typed it.
+    CallNames callNames;
 
     // By value. A global outlives every body, so its initializer belongs to it rather than to a
     // region-allocated node that would have to be kept alive for its sake - see `Constant`.
@@ -2069,6 +2100,15 @@ struct Program {
     Shapes shapes { decl };
 
     Array<DeclPtr<Module>> modules;
+
+    /*
+     * Asked by `fillDefaults` for a head whose defaults are not declared yet - `Resolver::
+     * demandDefaults`, set while `resolveHeads` reads them, and null after (J146). A default may
+     * apply another head, `data A(a, b = B(a))`, and that head's own defaults are read on demand
+     * rather than in source order; one the demand finds still being read is a cycle, reported there.
+     */
+    void (*demandDefaults)(void* resolver, DeclPtr<GenContext> gen) = nullptr;
+    void* demandResolver = nullptr;
 
     /*
      * The module the program was asked to compile, which is the first one discovered.
@@ -2839,6 +2879,17 @@ bool isDerivationMember(intrinsic::Known role, U32 index);
  * A view whose owner is not a container of anything answers null, so nothing here names a row.
  */
 DeclPtr<Type> donorElementOf(DeclBase base, Program& program, DeclPtr<Type> type);
+
+/*
+ * `InlineArray(element, capacity)` taken apart - `known.def`'s `inlineArray`, J143. Nothing where the
+ * type is not an instantiation of the role, or its slots are not a counted fixed array.
+ */
+struct InlineArrayParts {
+    DeclPtr<Type> element;
+    U64 capacity;
+};
+
+Maybe<InlineArrayParts> inlineArrayParts(DeclBase base, Program& program, DeclPtr<Type> type);
 
 /*
  * How a binding position is spelled in source: the type, with the form written where the form has a

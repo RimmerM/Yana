@@ -1,0 +1,36 @@
+fn main() -> one %r0
+  var $0: %r2
+  var $1: %r3
+  var $2: %r0
+  var $3: %r1
+  var $4: %r0
+  var $5: %r2
+  block0:
+    %6: %r0 = const 5
+    %7: %r0 = const 6
+    %8: %r0 = const 7
+    %25: %r0 = const 7000
+    %31: %r0 = const 400
+    %34: %r0 = alias %6
+    %36: %r0 = alias %7
+    %38: %r0 = alias %8
+    %39: %r0 = binary.mul %36, %38
+    %40: %r0 = coerce %39
+    %41: %r0 = binary.add %34, %40
+    %42: %r0 = coerce %41
+    %43: %r0 = binary.add %31, %42
+    %44: %r0 = coerce %43
+    %45: %r0 = binary.add %25, %44
+    %46: %r0 = coerce %45
+    return %46
+
+optimizer clones 3 aliased 3 forwarded 6 removed 35 adopted 0 sunk 0 numbered 2 decided 0 unboxed 0 updated 0 split 2 promoted 4 folded 8
+
+shape %s0 object Node {value: %r0, link: %r1}
+shape %s1 object Link {head: %r0, weight: %r0}
+shape %s2 object Chain {start: %r0, rest: %r2}
+
+rep %r0 = number signed 32
+rep %r1 = object %s1
+rep %r2 = object %s0
+rep %r3 = object %s2

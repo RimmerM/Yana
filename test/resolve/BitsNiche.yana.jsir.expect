@@ -1,0 +1,40 @@
+fn main() -> one %r0
+  var $0: %r1
+  var $1: %r1
+  var $2: %r1
+  var $3: %r1
+  var $4: %r1
+  var $5: %r1
+  var $6: %r1
+  var $7: %r1
+  block0:
+    %35: %r1 = const 3616
+    %36: %r1 = alias %35
+    store var $4: %r1, %36
+    %37: %r1 = const 2
+    %38: %r1 = alias %37
+    store var $5: %r1, %38
+    %39: %r1 = load var $4: %r1
+    %40: %r1 = alias %39
+    %41: %r1 = alias %40
+    %42: %r1 = alias %41
+    %43: %r1 = load var $5: %r1
+    %44: %r1 = alias %43
+    store var $4: %r1, %44
+    store var $5: %r1, %42
+    %59: %r0 = const 255
+    return %59
+
+optimizer clones 0 aliased 0 forwarded 0 removed 60 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 1 folded 0
+
+shape %s0 object Pair {a: %r1, b: %r4}
+
+packing #0 %r5 Pair {a @0:13, b @13:3}
+
+rep %r0 = number signed 32
+rep %r1 = number unsigned 13
+rep %r2 = number unsigned 8
+rep %r3 = nullable of %r1
+rep %r4 = number unsigned 3
+rep %r5 = number unsigned 16
+rep %r6 = array Uint16Array of %r1

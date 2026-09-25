@@ -368,12 +368,12 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rax]  => 488d0424
+  alloca uses=[-] creates=[remat:0]  => 
   imm uses=[] creates=[-]  => 
-  x86_addr scale=4 disp=0 uses=[rax, rdi] creates=[-]  => 
-  store uses=[-, rsi] creates=[]  => 8934b8
-  x86_addr scale=4 disp=0 uses=[rax, rdi] creates=[-]  => 
-  load uses=[-] creates=[rax]  => 8b04b8
+  x86_addr scale=4 disp=0 uses=[remat:0, rdi] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 8934bc
+  x86_addr scale=4 disp=0 uses=[remat:0, rdi] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 8b04bc
   ret uses=[rax] creates=[]  => 4883c440c3
 
 --- codegen: acrossBlocks ---

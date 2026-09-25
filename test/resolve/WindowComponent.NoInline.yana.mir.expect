@@ -1,0 +1,158 @@
+module ResolveTest
+
+data Holder {w: &0'Array(I32), n: I32} shape3
+
+let & calls: I32 = 0
+
+fn poke(h: Holder [unique call]) -> {} {
+  local & local1: I32 [unique slot 0 owner]
+
+bb0:
+  %0: Size = const 0
+  %1: I32 = const 99
+  %2: Array(I32) [unique slot 0 view] = read borrow.unique (h.w) loan0
+  %3: I32 [unique slot 0 owner] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %2 borrow.shared %0 roots{0}
+  write.init borrow.unique (local1) borrow.unique %3
+  write.assign borrow.unique (local1) take %1
+  return
+}
+
+fn pokeMove(h: Holder) -> {} {
+  local & local1: I32 [unique slot 0 owner]
+
+bb0:
+  %0: Size = const 1
+  %1: I32 = const 77
+  %2: Array(I32) [unique slot 0 view] = read borrow.unique (h.w) loan0
+  %3: I32 [unique slot 0 owner] = call.subscript getMut(Array(I32), Size, I32) borrow.unique %2 borrow.shared %0 roots{0}
+  write.init borrow.unique (local1) borrow.unique %3
+  write.assign borrow.unique (local1) take %1
+  return
+}
+
+fn viaRecord() -> I32 {
+  local & arr: [I32 *4]
+  local & h: Holder
+
+bb0:
+  %0: I32 [unique call] = read borrow.unique (global calls) loan0
+  %1: I32 = const 1
+  %2: {} = call +=(I32) borrow.unique %0 borrow.shared %1
+  %3: I32 = const 0
+  %4: I32 = const 0
+  %5: I32 = const 0
+  %6: I32 = const 0
+  %7: [I32 *4] = aggregate.0 take %3 take %4 take %5 take %6
+  write.init borrow.unique (arr) take %7
+  %9: Size = const 0
+  %10: I32 = const 5
+  write.assign borrow.unique (arr[0]) take %10
+  %12: Size = const 1
+  %13: I32 = const 6
+  write.assign borrow.unique (arr[1]) take %13
+  %15: [I32 *4] [unique slot 0] = read borrow.unique (arr) loan1
+  %16: Array(I32) [unique slot 0 view] = call.derivation elementsMut([I32 *4], I32) borrow.unique %15 roots{1}
+  %17: I32 = const 1
+  %18: Holder = aggregate.Holder borrow.unique %16 take %17 roots.0{1}
+  write.init borrow.unique (h) take %18
+  %20: Holder [unique call] = read borrow.unique (h) loan2 roots.0{1}
+  %21: {} = call poke borrow.unique %20
+  %22: Holder = read take (h) roots.0{1}
+  %23: {} = call pokeMove take %22
+  %24: Size = const 0
+  %25: I32 = read copy.trivial (arr[0])
+  %26: I32 = const 100
+  %27: I32 = mul inspect %25 inspect %26
+  %28: Size = const 1
+  %29: I32 = read copy.trivial (arr[1])
+  %30: I32 = add inspect %27 inspect %29
+  return take %30
+}
+
+fn viaRecordSameBlock() -> I32 {
+  local & arr: [I32 *4]
+
+bb0:
+  %0: I32 [unique call] = read borrow.unique (global calls) loan0
+  %1: I32 = const 1
+  %2: {} = call +=(I32) borrow.unique %0 borrow.shared %1
+  %3: I32 = const 0
+  %4: I32 = const 0
+  %5: I32 = const 0
+  %6: I32 = const 0
+  %7: [I32 *4] = aggregate.0 take %3 take %4 take %5 take %6
+  write.init borrow.unique (arr) take %7
+  %9: Size = const 0
+  %10: I32 = const 5
+  write.assign borrow.unique (arr[0]) take %10
+  %12: Size = const 1
+  %13: I32 = const 4
+  write.assign borrow.unique (arr[1]) take %13
+  %15: [I32 *4] [unique slot 0] = read borrow.unique (arr) loan1
+  %16: Array(I32) [unique slot 0 view] = call.derivation elementsMut([I32 *4], I32) borrow.unique %15 roots{1}
+  %17: I32 = const 1
+  %18: Holder = aggregate.Holder borrow.unique %16 take %17 roots.0{1}
+  %19: {} = call pokeMove take %18
+  %20: Size = const 1
+  %21: I32 = read copy.trivial (arr[1])
+  %22: I32 = const 72
+  %23: I32 = sub inspect %21 inspect %22
+  return take %23
+}
+
+fn main() -> I32 {
+  local & failed: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (failed) take %0
+  %2: I32 = call viaRecord
+  %3: I32 = const 9977
+  %4: Bool = ne inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: I32 = call viaRecordSameBlock
+  %12: I32 = const 5
+  %13: Bool = ne inspect %11 inspect %12
+  branch inspect %13 -> bb6 -> bb4
+
+bb3:
+  %6: I32 [unique call] = read borrow.unique (failed) loan0
+  %7: I32 = const 1
+  %8: {} = call +=(I32) borrow.unique %6 borrow.shared %7
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %20: I32 = read copy.trivial (global calls)
+  %21: I32 = const 2
+  %22: Bool = ne inspect %20 inspect %21
+  branch inspect %22 -> bb9 -> bb7
+
+bb6:
+  %15: I32 [unique call] = read borrow.unique (failed) loan1
+  %16: I32 = const 2
+  %17: {} = call +=(I32) borrow.unique %15 borrow.shared %16
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %29: I32 = read copy.trivial (failed)
+  return take %29
+
+bb9:
+  %24: I32 [unique call] = read borrow.unique (failed) loan2
+  %25: I32 = const 4
+  %26: {} = call +=(I32) borrow.unique %24 borrow.shared %25
+  jump -> bb8
+}
+
+entry main

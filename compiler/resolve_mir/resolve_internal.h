@@ -202,6 +202,11 @@ struct Chain {
     SmallArray<ast::Expr*, 8> operands;
     SmallArray<Operator, 8> operators;
     SmallArray<LocationId, 8> sources;
+
+    // Per operator, the written expression to its right - the parser's own right-nested node, so
+    // `rests[i]` is operands `i + 1` onward with operators `i + 1` onward as one expression. What a
+    // `@lazy` right operand that is a whole tail of the chain is lifted from (`climb`).
+    SmallArray<ast::Expr*, 8> rests;
 };
 
 /*
@@ -383,6 +388,14 @@ struct LambdaFrame {
     // *outside* rather than what is being built. A thunk is a lifted body like a lambda, and an
     // author who wrote neither of the words "lambda" would not recognize the message otherwise.
     bool thunk = false;
+
+    // Whether the position left the lambda's result open, so its body decides it - which `?` needs
+    // to know, since it cannot rebuild an exit into a type that does not exist yet.
+    bool openResult = false;
+
+    // The function the lambda is written in, whose parameters the capture walk reaches - so that a
+    // `@lazy` one is refused by name rather than captured as the thunk it is.
+    Function* enclosing = nullptr;
 
     // A raw function-pointer lambda has no environment parameter or record. Its body still uses
     // this frame to stop name lookup at the lambda boundary, but an enclosing binding is an error
@@ -568,6 +581,10 @@ struct ArgSite {
     // The call or the construction as a whole, for the messages that are about neither one argument
     // nor one position.
     LocationId source = kNullLocation;
+
+    // The names the site *does* take, said after "has no parameter called" - set by a call through a
+    // function value, whose names are a type's rather than a declaration an author can go and read.
+    StringView known;
 
     /*
      * Whether a mapping that does not work out is *reported*.
@@ -1217,6 +1234,25 @@ struct Resolver {
     U32 quietErrors = 0;
 
     /*
+     * Set while `elementAccess` prepares the operands of `p[i]` over a **raw pointer** - the one
+     * position `lentPastPosition` leaves without a temporary (J162).
+     *
+     * A flag rather than a test of the position's type, which is what J147 wrote and which was
+     * wider than the case it served: every `'%T` parameter is a pointer-typed position with an
+     * origin, and a user's `wrap(p: '%Int) -> RP {r: p}` keeps the *address of the pointer*, so a
+     * value with no storage there needs the temporary as much as a `'Int` does. Only `Index(%a)`'s
+     * `get` answers an address *through* the pointer - and the respelling that would say so in the
+     * signature, `self: %source'a`, is not an instance of the class's `source'c`. So the exemption
+     * is keyed on the one call that needs it, which `applyMember` makes with nothing else in
+     * flight: its operands are resolved before, and nothing it does resolves another expression.
+     */
+    bool subscriptingPointer = false;
+
+    // The written calls `mintIterSite` has refused a nested traversal at - each is reported once,
+    // though every mint of the producer's object reaches it (J162).
+    SmallArray<LocationId, 4> objectRefusals;
+
+    /*
      * The names of module-level functions whose signature did not resolve, and so were never
      * declared - which makes every call of one "unknown function", in files that did nothing wrong.
      * By name rather than by declaration, because there is no declaration: this is asked only once a
@@ -1288,6 +1324,20 @@ struct Resolver {
     // does. Swapped for the length of a lifted body - `resolveLiftedBody` - which is the one walk
     // that resolves two functions at once.
     Function* currentFunction = nullptr;
+
+    // The parameter names a call through this value may use - `CallNames`, empty where no position
+    // the value was written at names them. See the definition.
+    CallNames valueCallNames(Builder& builder, ast::Expr& callee, Node& target, DeclPtr<Type> type);
+
+    // The names a written function type gives its parameters, and empty for any other type.
+    CallNames writtenCallNames(const ast::Type& written);
+    U32 aliasNamesDepth = 0;
+    SmallArray<LocationId, 2> repeatedCallNames;   // reported once each - `writtenCallNames`
+
+    // The names an initializer or a callee carries from the position it was written at - an
+    // ascription, a binding, a field, a global or a call's declared result. See the definition.
+    CallNames writtenNamesOf(Builder& builder, ast::Expr& expr, Node* value);
+    CallNames ascribedNames(ast::Expr& expr);
 
     /*
      * The two locals a `lens fn`'s desugaring adds, and null in every other body.
@@ -1655,6 +1705,29 @@ struct Resolver {
     bool probingGlobal = false;
 
     /*
+     * The literal a **declaration** is written as - `let &tooBig = 300 :: U8`, `value: U8 = 300` -
+     * and what that declaration is, for the message. declarations.md, "Field defaults": a
+     * declaration takes the value it is written as, so a number its type cannot hold is refused
+     * there rather than warned about and truncated the way a body's literal is.
+     *
+     * The literal *node* rather than a flag over the whole read, because a constant read can demand
+     * a body - `stringLiteral` is run, an operator's instance is asked - and a literal inside one is
+     * ordinary code whose truncation is `foldWritten`'s warning. `declaredLiteralOf` is which node
+     * counts: the initializer itself, under any ascription, parentheses and a folded sign, which is
+     * the shipping stage's reach too. A literal inside an aggregate or an operand of arithmetic is
+     * still the warning. Set by `DeclaredLiteral` below.
+     */
+    ast::Expr* declaredLiteral = nullptr;
+    LocationId declaredSource = 0;
+    StringView declaredWhat;
+
+    ast::Expr* declaredLiteralOf(ast::Expr& expr);
+
+    // `300 :: U8` in a declaration - the refusal, at the declaration's expression. See
+    // `declaredLiteral`.
+    void outOfRangeDeclaration(DeclPtr<Type> type);
+
+    /*
      * A written type in a position that classifies a *value* - a parameter, a result, a field.
      *
      * A const parameter and a number stand for a count, so they are type arguments and expressions
@@ -1959,9 +2032,21 @@ struct Resolver {
         U16 file = 0;
         DeclPtr<GenContext> gen;
         ast::ParseList<ast::GenParam> parameters;
+
+        // A `class` head, which has the two rules of declarations.md's "Class defaults" beyond the
+        // general ones - see `declareDefaults`.
+        bool classHead = false;
     };
 
     Array<PendingHead> pendingHeads;
+
+    // `resolveHeads`' progress through `pendingHeads`, one per entry: unread, being read, read - so
+    // `demandDefaults` can read a head out of order and tell a cycle from a head not reached yet.
+    Array<U8> pendingHeadState;
+    void declarePendingDefaults(Size index);
+    static void demandDefaults(void* resolver, DeclPtr<GenContext> gen);
+    LocationId defaultBeingRead = kNullLocation;
+    bool defaultCycleReported = false;
 
     // The phases, in the order the dependencies between them force - `declare` says what each one
     // has to be able to assume about the ones before it.
@@ -1988,13 +2073,17 @@ struct Resolver {
      * the declaration and is what a duplicate parameter is reported against.
      */
     void declareHead(ast::ParseList<ast::GenParam> parameters, DeclPtr<GenContext> gen,
-                     StringId owner);
+                     StringId owner, bool classHead = false);
 
     // Every head's annotations and defaults, once every type in the program is a name - `PendingHead`.
     void resolveHeads();
 
     // `data Boxed(a = I32)` - the head's defaults, read once every parameter of it is bound.
-    void declareDefaults(ast::ParseList<ast::GenParam> parameters, DeclPtr<GenContext> gen);
+    void declareDefaults(ast::ParseList<ast::GenParam> parameters, DeclPtr<GenContext> gen,
+                         bool classHead);
+
+    // `class C(a = T)` where `T` has no instance of `C` - see the definition.
+    void checkClassDefaultInstances();
 
     // `data (Eq(a)) Set(a)` - the head's own constraints, which every application has to prove.
     void declareHeadConstraints(ast::Decl& declaration, RecordType& record);
@@ -2067,6 +2156,11 @@ struct Resolver {
     void readFrequencyAttributes(ast::Decl& declaration, bool& cold, bool& hot);
 
     // `@inline(always)`, or false for a bare `@inline` or none - resolve_decl.cpp.
+    // Two instances disagreeing about what a class head's `->` determines - see the definition.
+    bool breaksDependency(DeclPtr<Instance> instance, LocationId source);
+
+    // `fn String.mine` where this module does not declare `String` - see the definition.
+    void checkNamespaceOwner(ast::Decl& declaration);
     void readInlineAttribute(ast::Decl& declaration, bool& always, bool& hint, bool& never,
                              bool& legacySse);
 
@@ -2076,6 +2170,7 @@ struct Resolver {
 
     // Whether a body may be grafted where it is called - resolve_stmt.cpp, beside `resolveBody`.
     void checkAlwaysInline(Function& function, LocationId source);
+    void checkReclaimShape(Function& function);
 
     // Whether a flag attribute was written without arguments, reporting where it was not - see the
     // definition, and `readValueAttribute` for the one attribute this is not asked about.
@@ -2849,6 +2944,60 @@ struct Resolver {
     Node* resolveFormat(Builder& builder, ast::Expr& expr);
 
     // A container reaching a `[T]` position - the one implicit adaptation. See the definition.
+    // `@inline(n) @capacity(n)` at a `&self: Array(a)` position, and the write-backs it owes - J143,
+    // and J146's split of it into the argument (`InlineOwner`) and the call (`InlineCommit`).
+    struct InlineOwner {
+        Node* value;       // the record's reserved loan, which the argument list holds until the call
+        Arg* parameter;
+        LocationId source;
+        LocationId call;   // the call the argument belongs to - see `finishCall`
+    };
+
+    struct InlineCommit {
+        Place* loan;
+        Place* grown;
+        LocationId source;
+    };
+
+    // Adapted arguments whose descriptor is not built yet - asserted empty at the end of a body.
+    SmallArray<InlineOwner, 2> inlineOwners;
+
+    // The lens and `for` regions open, by the body building each, whose call was lent a
+    // descriptor - a `return` inside one is refused (`releaseHeld`), since the commit waits at the
+    // join and the callee's cleanup runs after the continuation.
+    SmallArray<Builder*, 2> inlineRegions;
+
+    // The call whose arguments are being prepared - what an `InlineOwner` is filed under. Set for
+    // the length of an argument walk and restored after it, so a call written inside an argument
+    // files its own.
+    LocationId preparingCall = kNullLocation;
+
+    struct PreparingCall {
+        Resolver& resolver;
+        LocationId saved;
+        PreparingCall(Resolver& resolver, LocationId call): resolver(resolver), saved(resolver.preparingCall) {
+            resolver.preparingCall = call;
+        }
+        ~PreparingCall() { resolver.preparingCall = saved; }
+    };
+
+    Node* adaptInlineOwner(Builder& builder, Node& value, Arg& parameter,
+                           TypeArguments& typeArguments, LocationId source);
+    Node* lendInlineDescriptor(Builder& builder, Node& reserved, LocationId source,
+                               SmallArray<InlineCommit, 2>& commits);
+    Node* reserveInlineValueArgument(Builder& builder, Node& value, const Occurrence& declared,
+                                     LocationId source, bool& inline_);
+    bool buildInlineOwners(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
+                           TypeArguments& typeArguments, LocationId call,
+                           SmallArray<InlineCommit, 2>& commits, bool region);
+    bool flushInlineCommits(Builder& builder, SmallArray<InlineCommit, 2>& pending);
+
+    Node* resolveInlineLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
+                               const InlineArrayParts& parts);
+
+    // `@inline(n) @capacity(n) [element]` as the type it names - J143, `known.def`'s `inlineArray`.
+    DeclPtr<Type> inlineArrayType(DeclPtr<Type> element, U64 capacity, LocationId source);
+
     Node* adaptToView(Builder& builder, Node& value, const Occurrence& position, LocationId at);
 
     // `xs[a..b]` - part of a container, as a window. See the definition.
@@ -2953,6 +3102,8 @@ struct Resolver {
      * `+` at an `I32` and a `+` at a `Money` one path.
      */
     Node* finishCall(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
+                     TypeArguments& typeArguments, DeclPtr<Type> hint, LocationId source);
+    Node* finishCallBody(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
                      TypeArguments& typeArguments, DeclPtr<Type> hint, LocationId source);
 
     // The member of a compiler-made instance a concrete class-member call reaches, and the
@@ -3141,7 +3292,7 @@ struct Resolver {
     Place* findCapture(Builder& builder, StringId name);
 
     // Whether the current lifted raw lambda rejected an enclosing binding as captured state.
-    bool rawLambdaCaptureRejected() const;
+    bool lambdaCaptureRejected() const;
 
     // Whether a place is reached through the innermost lambda's environment - for the message at a
     // position that consumes, and for nothing else. `member` receives the place one step below the
@@ -3355,7 +3506,7 @@ struct Resolver {
     // Whether a value of one type fills a position of another - the accepting half of
     // `convertValue`, asked without reporting. See the definition.
     bool acceptsType(DeclPtr<Type> from, DeclPtr<Type> to, LocationId source);
-    Node* resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+    Node* resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted);
     Node* resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted);
     Node* resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
                     Request wanted);
@@ -3387,13 +3538,18 @@ struct Resolver {
                            SmallArray<PatternBinding, 4>& into, Block* onFail, Carry& carry);
     void constructorFields(ast::Pat& pat, RecordType& record, const RecordCon& arm,
                            SmallArray<ast::Pat*, 4>& into, bool report);
-    Node* patternBound(Builder& builder, ast::Pat& pat, DeclPtr<Type> type);
+    // Why a container did not reach an array position, in capability words - convert.cpp.
+    bool explainNoWindow(DeclPtr<Type> from, DeclPtr<Type> to, Access access, LocationId source);
+
+    Node* patternBound(Builder& builder, ast::Pat& pat, DeclPtr<Type> type,
+                       const SmallArray<PatternBinding, 4>& bound, Request wanted);
     bool comparePattern(Builder& builder, BinaryOp op, Place& pivot, ast::Pat& bound, Block* onFail,
-                        Carry& carry, LocationId source);
+                        Carry& carry, LocationId source, const SmallArray<PatternBinding, 4>& into);
 
     // `>0` - an operator section, which is the one pattern whose test is a written name rather than
     // a member the compiler picked. See resolve_match.cpp, where the two are told apart.
-    bool sectionPattern(Builder& builder, ast::Pat& pat, Place& pivot, Block* onFail, Carry& carry);
+    bool sectionPattern(Builder& builder, ast::Pat& pat, Place& pivot, Block* onFail, Carry& carry,
+                        const SmallArray<PatternBinding, 4>& into);
     void failIfNot(Builder& builder, Node& condition, Block& onFail, Carry& carry,
                    LocationId source);
     // `from` is how much of the list is already in scope, which a conjunction needs: it binds
@@ -3539,6 +3695,10 @@ struct Resolver {
      */
     bool flattenChain(ast::Expr& expr, Chain& chain, bool report = true);
 
+    // Two operators of one precedence and opposite associativity meeting in a chain - see the
+    // definition. False after reporting.
+    bool groupsOneWay(Chain& chain, bool report);
+
     // Whether a flattened chain is a conjunction at its top level - the question `resolveCondition`
     // splits on. See resolve_expr.cpp.
     bool splitsAtConjunction(Chain& chain);
@@ -3613,6 +3773,15 @@ struct Resolver {
     // that rule is written, for the reason the definition gives.
     Node* holdBorrowed(Builder& builder, Node& value, Request wanted, DeclPtr<Type> expected,
                        LocationId source);
+
+    // `holdBorrowed` at the function's own result - see the definition, where the host-handle
+    // exception is argued.
+    Node* holdReturned(Builder& builder, Node& value, LocationId source);
+
+    // Whether a shared position's loan may outlive it - one naming an origin set - so that a value
+    // with no storage is given a temporary there even when it owes no teardown. See the definition.
+    bool lentPastPosition(Builder& builder, Node& value, Request wanted, DeclPtr<Type> expected);
+    bool staticText(Builder& builder, Node& value);
 
     /*
      * A chain of guarded arms and one merge - what `match` is, what `if` is with two of them, and
@@ -3934,7 +4103,7 @@ struct Resolver {
      * Answers the index of the last statement inside the extent, which is `at` itself when the
      * extent is empty and the call is therefore §11.3's diagnostic.
      */
-    U32 flatExtent(ast::ParseList<ast::Expr> statements, U32 count, U32 at, StringId handed);
+    U32 flatExtent(ast::ParseList<ast::Expr> statements, U32 count, U32 at, const ast::Pat& handed);
 
     /*
      * A lens call written *inside* a statement, lifted out in front of it - Analysis-Lens.md §11.2's
@@ -4175,6 +4344,8 @@ struct Resolver {
     // `fn f(x) = expr` with no `-> T` - the body's answer, and the two halves of settling it. See
     // `Function::inferResult`.
     bool inferResultType(Function& function, Node* value, LocationId source);
+    // `let x = *p` of a value with a teardown - see the definition, in resolve_stmt.cpp.
+    ast::Expr* pointeeExpr(ast::Expr& written);
     bool requireResult(Function& callee, LocationId source);
     void resolveInstanceBody(Instance& instance, ast::Decl& declaration);
 
@@ -4661,6 +4832,35 @@ struct ConstantScope {
     Resolver& resolver;
     bool outer;
     bool outerProbing;
+};
+
+/*
+ * The declaration a constant is being read for, for the length of reading it - see
+ * `Resolver::declaredLiteral`. Restored rather than cleared for `ConstantScope`'s reason.
+ */
+struct DeclaredLiteral {
+    DeclaredLiteral(Resolver& resolver, ast::Expr& expr, StringView what):
+        resolver(resolver), outer(resolver.declaredLiteral), outerSource(resolver.declaredSource),
+        outerWhat(resolver.declaredWhat)
+    {
+        resolver.declaredLiteral = resolver.declaredLiteralOf(expr);
+        resolver.declaredSource = expr.source;
+        resolver.declaredWhat = what;
+    }
+
+    ~DeclaredLiteral() {
+        resolver.declaredLiteral = outer;
+        resolver.declaredSource = outerSource;
+        resolver.declaredWhat = outerWhat;
+    }
+
+    DeclaredLiteral(const DeclaredLiteral&) = delete;
+    DeclaredLiteral& operator = (const DeclaredLiteral&) = delete;
+
+    Resolver& resolver;
+    ast::Expr* outer;
+    LocationId outerSource;
+    StringView outerWhat;
 };
 
 /*

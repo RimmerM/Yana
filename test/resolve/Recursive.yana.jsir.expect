@@ -1,0 +1,287 @@
+fn sum(one %r2) -> one %r0
+  block0(%0: %r2):
+    %2: %r1 = load property %0.$tag: %r1
+    %3: %r1 = const 0
+    %4: %r7 = binary.eq %2, %3
+    branch %4 -> block3 -> block1
+  block1:
+    %5: %r0 = load property %0.head: %r0
+    %6: %r2 = load property %0.tail: %r2
+    %7: %r0 = call sum %6
+    %8: %r0 = binary.add %5, %7
+    %9: %r0 = coerce %8
+    jump -> block2(%9)
+  block2(%1: %r0):
+    return %1
+  block3:
+    %10: %r0 = const 0
+    jump -> block2(%10)
+
+fn total(one %r3) -> one %r0
+  block0(%0: %r3):
+    %2: %r1 = load property %0.$tag: %r1
+    %3: %r1 = const 0
+    %4: %r7 = binary.eq %2, %3
+    branch %4 -> block3 -> block1
+  block1:
+    %5: %r0 = load property %0.label: %r0
+    %6: %r4 = load property %0.left: %r4
+    %7: %r0 = call totalOf %6
+    %8: %r0 = binary.add %5, %7
+    %9: %r0 = coerce %8
+    %10: %r4 = load property %0.right: %r4
+    %11: %r0 = call totalOf %10
+    %12: %r0 = binary.add %9, %11
+    %13: %r0 = coerce %12
+    jump -> block2(%13)
+  block2(%1: %r0):
+    return %1
+  block3:
+    %14: %r0 = load property %0.Leaf: %r0
+    jump -> block2(%14)
+
+fn totalOf(one %r4) -> one %r0
+  block0(%0: %r4):
+    %2: %r1 = load property %0.$tag: %r1
+    %3: %r1 = const 0
+    %4: %r7 = binary.eq %2, %3
+    branch %4 -> block3 -> block1
+  block1:
+    %5: %r3 = load property %0.Just: %r3
+    %6: %r0 = call total %5
+    jump -> block2(%6)
+  block2(%1: %r0):
+    return %1
+  block3:
+    %7: %r0 = const 0
+    jump -> block2(%7)
+
+fn Tracked.drop(one %r0) -> omitted
+  var $0: %r0
+  block0(%0: %r0):
+    %1: %r0 = const 1
+    %2: %r0 = load global liveNodes: %r0
+    %3: %r0 = binary.sub %2, %1
+    %4: %r0 = coerce %3
+    store global liveNodes: %r0, %4
+    return
+
+fn idsOf(one %r6) -> one %r0
+  block0(%0: %r6):
+    %2: %r1 = load property %0.$tag: %r1
+    %3: %r1 = const 0
+    %4: %r7 = binary.eq %2, %3
+    branch %4 -> block3 -> block1
+  block1:
+    %5: %r0 = load property %0.payload: %r0
+    %6: %r0 = alias %5
+    %7: %r6 = load property %0.rest: %r6
+    %8: %r0 = call idsOf %7
+    %9: %r0 = binary.add %6, %8
+    %10: %r0 = coerce %9
+    jump -> block2(%10)
+  block2(%1: %r0):
+    return %1
+  block3:
+    %11: %r0 = const 0
+    jump -> block2(%11)
+
+fn main() -> one %r0
+  var $0: %r3
+  block0:
+    %6: %r0 = const 1
+    %7: %r0 = const 2
+    %8: %r0 = const 39
+    %9: %r1 = const 0
+    %10: %r0 = const 0
+    %11: %r1 = const 0
+    %12: %r0 = const 0
+    %13: %r2 = const null
+    %14: %r2 = object %s0 %11, %12, %13
+    %15: %r2 = object %s0 %9, %10, %14
+    %16: %r1 = const 1
+    %17: %r2 = object %s0 %16, %8, %15
+    %18: %r1 = const 1
+    %19: %r2 = object %s0 %18, %7, %17
+    %20: %r1 = const 1
+    %21: %r2 = object %s0 %20, %6, %19
+    %5: %r2 = alias %21
+    %22: %r0 = call sum %5
+    %33: %r1 = const 0
+    %34: %r1 = const 0
+    %35: %r0 = const 0
+    %36: %r1 = const 0
+    %37: %r3 = const null
+    %38: %r4 = object %s2 %36, %37
+    %39: %r1 = const 0
+    %40: %r3 = const null
+    %41: %r4 = object %s2 %39, %40
+    %42: %r0 = const 0
+    %43: %r3 = object %s1 %34, %35, %38, %41, %42
+    %44: %r4 = object %s2 %33, %43
+    %45: %r0 = const 20
+    %46: %r1 = const 0
+    %47: %r1 = const 0
+    %48: %r1 = const 0
+    %49: %r0 = const 0
+    %50: %r4 = const null
+    %51: %r4 = const null
+    %52: %r0 = const 0
+    %53: %r3 = object %s1 %48, %49, %50, %51, %52
+    %54: %r4 = object %s2 %47, %53
+    %55: %r1 = const 0
+    %56: %r1 = const 0
+    %57: %r0 = const 0
+    %58: %r4 = const null
+    %59: %r4 = const null
+    %60: %r0 = const 0
+    %61: %r3 = object %s1 %56, %57, %58, %59, %60
+    %62: %r4 = object %s2 %55, %61
+    %63: %r0 = const 0
+    %64: %r3 = object %s1 %46, %45, %54, %62, %63
+    %65: %r1 = const 1
+    %66: %r4 = object %s2 %65, %64
+    %67: %r0 = const 5
+    %68: %r1 = const 1
+    %69: %r0 = const 0
+    %70: %r3 = object %s1 %68, %69, %44, %66, %67
+    %71: %r0 = const 10
+    %72: %r1 = const 0
+    %73: %r1 = const 0
+    %74: %r1 = const 0
+    %75: %r0 = const 0
+    %76: %r4 = const null
+    %77: %r4 = const null
+    %78: %r0 = const 0
+    %79: %r3 = object %s1 %74, %75, %76, %77, %78
+    %80: %r4 = object %s2 %73, %79
+    %81: %r1 = const 0
+    %82: %r1 = const 0
+    %83: %r0 = const 0
+    %84: %r4 = const null
+    %85: %r4 = const null
+    %86: %r0 = const 0
+    %87: %r3 = object %s1 %82, %83, %84, %85, %86
+    %88: %r4 = object %s2 %81, %87
+    %89: %r0 = const 0
+    %90: %r3 = object %s1 %72, %71, %80, %88, %89
+    %91: %r1 = const 1
+    %92: %r4 = object %s2 %91, %90
+    %93: %r3 = alias %70
+    %94: %r1 = const 1
+    %95: %r4 = object %s2 %94, %93
+    %96: %r0 = const 7
+    %97: %r1 = const 1
+    %98: %r0 = const 0
+    %99: %r3 = object %s1 %97, %98, %92, %95, %96
+    %32: %r3 = alias %99
+    %100: %r0 = call total %32
+    %111: %r0 = const 0
+    %112: %r1 = const 0
+    %113: %r1 = const 0
+    %114: %r1 = const 0
+    %115: %r0 = const 0
+    %116: %r4 = const null
+    %117: %r4 = const null
+    %118: %r0 = const 0
+    %121: %r1 = const 0
+    %122: %r1 = const 0
+    %123: %r0 = const 0
+    %124: %r4 = const null
+    %125: %r4 = const null
+    %126: %r0 = const 0
+    %129: %r0 = const 0
+    jump -> block1
+  block1:
+    %134: %r4 = alias %92
+    %135: %r1 = load property %134.$tag: %r1
+    %136: %r1 = const 0
+    %137: %r7 = binary.eq %135, %136
+    branch %137 -> block3 -> block2
+  block2:
+    %138: %r4 = alias %134
+    %139: %r3 = load property %138.Just: %r3
+    jump -> block4(%139)
+  block3:
+    %127: %r3 = object %s1 %122, %123, %124, %125, %126
+    %128: %r4 = object %s2 %121, %127
+    %119: %r3 = object %s1 %114, %115, %116, %117, %118
+    %120: %r4 = object %s2 %113, %119
+    %130: %r3 = object %s1 %112, %111, %120, %128, %129
+    %110: %r3 = alias %130
+    jump -> block4(%110)
+  block4(%0: %r3):
+    %140: %r0 = call total %0
+    jump -> block6(%140)
+  block5:
+    %141: %r0 = alias %98
+    jump -> block6(%141)
+  block6(%1: %r0):
+    %142: %r0 = binary.add %100, %1
+    %143: %r0 = coerce %142
+    %144: %r0 = binary.add %22, %143
+    %145: %r0 = coerce %144
+    %150: %r0 = const 4
+    %151: %r0 = const 1
+    %152: %r0 = load global liveNodes: %r0
+    %153: %r0 = binary.add %152, %151
+    %154: %r0 = coerce %153
+    store global liveNodes: %r0, %154
+    %155: %r0 = alias %150
+    %156: %r0 = const 5
+    %157: %r0 = const 2
+    %158: %r0 = binary.add %152, %157
+    %159: %r0 = coerce %158
+    store global liveNodes: %r0, %159
+    %160: %r0 = alias %156
+    %161: %r1 = const 0
+    %162: %r0 = const 0
+    %163: %r1 = const 0
+    %164: %r0 = const 0
+    %165: %r6 = const null
+    %166: %r6 = object %s3 %163, %164, %165
+    %167: %r6 = object %s3 %161, %162, %166
+    %168: %r1 = const 1
+    %169: %r6 = object %s3 %168, %160, %167
+    %170: %r1 = const 1
+    %171: %r6 = object %s3 %170, %155, %169
+    %149: %r6 = alias %171
+    %172: %r0 = call idsOf %149
+    type.drop %149
+    %173: %r0 = load global liveNodes: %r0
+    %174: %r0 = const 0
+    %175: %r7 = binary.ne %173, %174
+    %176: %r0 = const -1
+    %177: %r0 = binary.add %145, %172
+    %178: %r0 = coerce %177
+    %179: %r0 = select %175, %176, %178
+    return %179
+
+optimizer clones 0 aliased 0 forwarded 3 removed 29 adopted 4 sunk 5 numbered 2 decided 1 unboxed 0 updated 0 split 0 promoted 1 folded 1
+
+shape %s0 object List {$tag: %r1 tag, head: %r0, tail: %r2}
+shape %s1 object Tree {$tag: %r1 tag, Leaf: %r0, left: %r4, right: %r4, label: %r0}
+shape %s2 object Maybe {$tag: %r1 tag, Just: %r3}
+shape %s3 object Chain {$tag: %r1 tag, payload: %r0, rest: %r6}
+
+rep %r0 = number signed 32
+rep %r1 = number unsigned 8
+rep %r2 = object %s0
+rep %r3 = object %s1
+rep %r4 = object %s2
+rep %r5 = void
+rep %r6 = object %s3
+rep %r7 = number bool
+fn (one %r6) -> omitted
+  block0(%0: %r6):
+    %1: %r1 = load property %0.$tag: %r1
+    switch %1 case 1 -> block2 else -> block1
+  block1:
+    return
+  block2:
+    %2: %r0 = load property %0.payload: %r0
+    call Tracked.drop %2
+    %3: %r6 = load property %0.rest: %r6
+    type.drop %3
+    jump -> block1
+

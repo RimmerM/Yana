@@ -1,0 +1,26 @@
+-- **A logical right shift of a negative narrow signed value** - `shr` at `I8` and `I16`, as a scalar
+-- behind `@noinline` and as a vector lane. A narrow signed value is held sign-extended on
+-- JavaScript and `>>>` shifts its 32-bit reading, so `-100 shr 1` at `I8` answered -50 on both
+-- JavaScript backends where native answers 78; the operand is masked to its width first (J149).
+-- `sar` beside it is the control, and `I32` is the width that needed no mask.
+
+@noinline fn shr8(x: I8, n: I8) -> I8 = x `shr` n
+@noinline fn shr16(x: I16, n: I16) -> I16 = x `shr` n
+@noinline fn shr32(x: I32, n: I32) -> I32 = x `shr` n
+@noinline fn sar8(x: I8, n: I8) -> I8 = x `sar` n
+
+-- The answer is the nine results summed: 78 + 1 + 32718 + 1 + 4095 - 50 + 78 - 50 + 8179. Each
+-- `I8` 78 was -50 and the `I16` 32718 was -50 before the mask.
+fn main() -> Int:
+    let m8 = (0 :: I8) - (100 :: I8)
+    let m16 = (0 :: I16) - (100 :: I16)
+    let scalars = (shr8(m8, 1 :: I8) :: I32) + (shr8(m8, 7 :: I8) :: I32) +
+        (shr16(m16, 1 :: I16) :: I32) + (shr16(m16, 15 :: I16) :: I32)
+    let controls = shr32(0 - 100, 20) + (sar8(m8, 1 :: I8) :: I32)
+    let s = splat(m8) :: Vec(I8, 16)
+    let t = splat(m16) :: Vec(I16, 8)
+    let one = splat(1 :: I8) :: Vec(I8, 16)
+    let three = splat(3 :: I16) :: Vec(I16, 8)
+    let lanes = (lane(s `shr` one, 0) :: I32) + (lane(s `sar` one, 15) :: I32) +
+        (lane(t `shr` three, 7) :: I32)
+    return scalars + controls + lanes

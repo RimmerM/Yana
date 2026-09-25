@@ -1,0 +1,39 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 12, 4: Ptr
+    store %v_1, 10, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 20, 4
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 30, 4
+    store %v_3, 40, 4
+    %v_4 = alloca 16, 4: Ptr
+    store %v_4, 1, 4
+    %v_5 = add %v_4, 4: Ptr
+    store %v_5, 2, 4
+    %v_6 = add %v_4, 8: Ptr
+    store %v_6, 3, 4
+    %v_7 = add %v_4, 12: Ptr
+    store %v_7, 4, 4
+    store %v_4, 7, 4
+    store %v_5, 8, 4
+    store %v_6, 9, 4
+    %v_8 = loads %v_1, 4: I32
+    %v_9 = loads %v_3, 4: I32
+    %v_10 = add %v_8, %v_9: I32
+    %v_11 = loads %v_2, 4: I32
+    %v_12 = add %v_8, %v_11: I32
+    %v_13 = add %v_10, %v_12: I32
+    %v_14 = loads %v_4, 4: I32
+    %v_15 = loads %v_7, 4: I32
+    %v_16 = add %v_14, %v_15: I32
+    %v_17 = add %v_13, %v_16: I32
+    %v_18 = add %v_17, 5: I32
+    %v_19 = add %v_18, 2: I32
+    %v_20 = loads %v_1, 4: I32
+    %v_21 = add %v_19, %v_20: I32
+    ret %v_21
+  }
+}
+

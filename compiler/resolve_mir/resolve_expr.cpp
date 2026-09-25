@@ -46,10 +46,56 @@ Node* Resolver::holdBorrowed(Builder& builder, Node& value, Request wanted, Decl
                              LocationId source) {
     if(wanted.access == Access::Owned) return &value;
     if(!valueOccurrence(value).contract.isOwned()) return &value;
-    if(!isTracked(decl(), expected)) return &value;
+    if(!isTracked(decl(), expected) && !lentPastPosition(builder, value, wanted, expected)) {
+        return &value;
+    }
 
     auto place = hold(builder, value, source);
     return readPlace(builder, source, *place, wanted);
+}
+
+/*
+ * A shared position that **names an origin set** - `'Int`, `value: 'a` - where the loan it is given
+ * may outlive the position: the callee may hand it back in its result, and a record holds it for as
+ * long as the record lives.
+ *
+ * Such a position takes an *address*, so a value with no storage - `5`, `i + 1`, a call's result -
+ * needs a slot for it to be the address of, and ownership.md's "Temporaries" says what that slot is:
+ * the frame's, living as long as the loan taken of it. It used to be made one tier down, where the
+ * SSA conversion gave the register a frame slot at the call or the aggregate (`referenceUseOf`, J141
+ * §2) - after the loan check, so in MIR the component was a bare register rooted in nothing and every
+ * rule about storage outliving its holder was skipped: `fn make() -> Held(Int) = Held {value: 5}`
+ * returned the address of a dead frame, and `push(hs, keep(i + 1))` in a loop left every element
+ * pointing at the one slot the conversion made (J147). Made here, the temporary is an ordinary
+ * unnamed local and its loan is an ordinary loan, so the result's origin reaches it.
+ *
+ * Not at a `&'T` position, which a temporary cannot serve (`BorrowTemporary.yana`'s last paragraph),
+ * and not at a shared position with no origin, whose loan ends with the call and which takes the
+ * scalar itself. Nor for a **text constant**, whose storage is the program's (`staticLiteralLoan`):
+ * a string type with a teardown - native's - is held by the rule above anyway, and one without -
+ * JavaScript's, where the constant is the host string - has nothing a slot would add.
+ *
+ * And not at the **raw pointer `p[i]` subscripts** - `Index(%a)`'s `get(self: source'%a, ...)`.
+ * What the origin names there is what the pointer points *at*, which the value carries in its own
+ * shape (`.*=shared slot 0`); `p[2]` answers `self + 2`, which is not an address of anything in
+ * this frame. A temporary here would root that answer in the frame as well, and
+ * `let p = values(xs); return p[2]` under `-> s'Int` - accepted and correct before - was refused as
+ * returning a temporary. That position still takes an address, and the SSA conversion's slot
+ * (`referenceUseOf`) is what gives it one. **That call only** since J162: J147 exempted every
+ * pointer-typed position, and a user's `p: '%Int` is a reference to a pointer whose callee may keep
+ * it - `subscriptingPointer` is where the choice is argued.
+ */
+bool Resolver::lentPastPosition(Builder& builder, Node& value, Request wanted,
+                                DeclPtr<Type> expected) {
+    if(wanted.access != Access::Shared || wanted.origin == kNoOriginSlot) return false;
+    if(staticText(builder, value)) return false;
+    return !subscriptingPointer || !expected || decl()[expected]->kind != Type::Pointer;
+}
+
+// Whether a value is a text constant - bytes placed with the program.
+bool Resolver::staticText(Builder& builder, Node& value) {
+    if(value.kind != Node::Const) return false;
+    return builder.body.constant(builder.base(), ((NodeConst&)value).constant).kind == Constant::Text;
 }
 
 /*
@@ -94,6 +140,23 @@ Place* Resolver::hold(Builder& builder, Node& value, LocationId source) {
  * `abandonedHeld`'s, which the lens region's spill reads too.
  */
 void Resolver::releaseHeld(Builder& builder, Held* until, LocationId source) {
+    /*
+     * Leaving the function from inside the block of a lens call or a `for` that was lent an
+     * `@inline(n) @capacity(n)` array's descriptor (`handoverCall`). Its count is written back where
+     * the caller carries on, after the callee's own cleanup has run, and a `return` from here reaches
+     * neither - it would leave the record counting what the descriptor had before the call and the
+     * descriptor still counting the elements, both of which drop them. Refused by name.
+     */
+    if(!until) {
+        for(auto open: inlineRegions) {
+            if(open != &builder) continue;
+            context.diagnostics.error(
+                "this leaves the function from inside the block of a call that was lent an `@inline(n) @capacity(n)` array as a growable array, whose count is written back only where the call finishes - move the `return` after the block, or copy the array into a `[T]`"_v,
+                source);
+            break;
+        }
+    }
+
     if(!until && heldStranded) {
         unsupported(source, "leaving the function from inside a lens call that can skip, written "
                             "inside an expression still holding a value with a teardown"_v);
@@ -254,7 +317,7 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain, 
                 return captured;
             }
 
-            if(rawLambdaCaptureRejected()) return nullptr;
+            if(lambdaCaptureRejected()) return nullptr;
 
             auto found = findGlobal(context, program, here(), expr.var, expr.source);
             if(found) {
@@ -304,8 +367,13 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain, 
 
             // Its initializer was rejected, so it has no type. Every path that produces this has
             // already reported; what this stops is the second failure, which is a read with nothing
-            // to read.
-            if(!decl()[found]->occurrence.type) return nullptr;
+            // to read. Counted as a quiet error, as the parser's placeholder is, so the body reading
+            // it is not then told a path "reaches the end without returning" - J94 §4's cascade
+            // after a failed global, stopped in J139.
+            if(!decl()[found]->occurrence.type) {
+                quietErrors++;
+                return nullptr;
+            }
 
             return builder.globalPlace(found);
         }
@@ -523,6 +591,22 @@ Place* Resolver::pointeeAt(Builder& builder, Node& address, LocationId source, b
     }
 
     return builder.addressPlace(address, owned(((PointerType*)decl()[type])->to), true);
+}
+
+// `*p` written where `pointerLoad` is the sole `*` - the expression `resolvePlace` answers as the
+// pointee's place - with any brackets around it taken off, or null.
+ast::Expr* Resolver::pointeeExpr(ast::Expr& written) {
+    auto expr = &written;
+    while(expr->kind == ast::Expr::Nested) expr = parse[expr->nested];
+    if(expr->kind != ast::Expr::Prefix) return nullptr;
+
+    auto& prefix = *parse[expr->prefix];
+    if(prefix.op.kind != ast::Expr::Var) return nullptr;
+
+    OverloadSet set;
+    findOverloads(context, program, here(), prefix.op.var, 1, prefix.op.source, set);
+    auto found = set.sole();
+    return found && decl()[found]->intrinsic == intrinsic::Op::pointerLoad ? expr : nullptr;
 }
 
 /*
@@ -1001,13 +1085,22 @@ Place* Resolver::elementAccess(Builder& builder, const Subscript& subscript, Acc
      * naming `exchange`.
      */
     auto unique = access == Access::Unique;
-    auto container = readPlace(builder, source, *subscript.container,
-                               bindingRequest(unique ? Access::Unique : Access::Shared));
+    auto request = bindingRequest(unique ? Access::Unique : Access::Shared);
+
+    // A refined array is trivially copied where its elements are, and a binding request would hand
+    // the accessor a *copy* to subscript - so a write would land in a temporary. The accessor's
+    // `source'c` is what the request says instead (J143).
+    if(inlineArrayParts(decl(), program, subscript.container->occurrence.type)) request.published = true;
+
+    auto container = readPlace(builder, source, *subscript.container, request);
     if(!container) return nullptr;
 
     Node* operands[2] = { container, subscript.index };
+    auto previous = subscriptingPointer;
+    subscriptingPointer = decl()[valueType(*container)]->kind == Type::Pointer;
     auto element = applyMember(builder, intrinsic::Known::index, unique ? 1 : 0, operands, 2,
                                source);
+    subscriptingPointer = previous;
     if(!element) return nullptr;
 
     // What the loan checker's element exemption follows - `NodeCall::subscript`. A provided
@@ -1168,6 +1261,7 @@ Node* Resolver::callFunction(Builder& builder, Function& callee, Node* const* op
     for(U32 i = 0; i < map.count(); i++) arguments.push(nullptr);
 
     HeldList<SmallArray<Node*, 8>> held(*this, arguments);
+    PreparingCall preparing(*this, source);
 
     for(Size i = 0; i < count; i++) {
         auto position = map.position(U32(i));
@@ -1427,6 +1521,39 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
     }
 
     /*
+     * A value with a teardown **copied out of raw memory** - `consume((*p).s)`, `x = (*p).s`,
+     * `return (*p).s`, an arm of an `if` or a `match` filling an owned result, `let &held = *p`.
+     *
+     * `*p` answers the object a pointer names (native.md), and that object has no owner the frame
+     * could be borrowing from - so none of the "this frame only borrows it" rules above has a lender
+     * to name. What is left is the value: an owned read of the pointee, or of a part of it, is a
+     * second name for bytes the memory still holds, and both would run the teardown. A borrow of
+     * either is the borrow rules' business, which is why `let r = *p` and `let h = (*p).h` are
+     * legal. `let ->x = *p` and `{-> *p | ...}` say the relocation out of the memory is meant - it is
+     * what `Reclaim(Array(a))` is written with - so they are exempt and are the spelling the message
+     * names.
+     *
+     * **A rule over the read, not the syntax** (J162). J135 matched a written `*p` at three
+     * statements and J146 read the value at the same three - `let`, `return` and an `=` body - so an
+     * argument to a `->` parameter, an assignment and an arm yielding into an owned result all
+     * copied the teardown and released it twice. Every owned read of a place reaches this line, so
+     * asking here is asking everywhere.
+     *
+     * A **concrete** type only: a variable's teardown is whatever the instantiation brings, and a
+     * body generic in `a` reading `*(base + 1)` - `intrinsic/Pointer.yana`'s `secondOf` - is a copy
+     * of a value the caller may well have made trivially copyable.
+     */
+    if(wanted.access == Access::Owned && !wanted.relocates && mode == UseMode::Forward &&
+       rootPlace(builder.base(), place).kind == Place::Address) {
+        auto type = place.occurrence.type;
+        if(type && isConcreteType(decl(), type) && hasTeardown(decl(), type)) {
+            context.diagnostics.error("this copies the bytes of a value with a teardown out of raw memory, so both names would run it - bind it with `let ->` to move it instead, borrow it, or use `swap` or `exchange` to write into a place that already holds one"_v,
+                                      source);
+            return nullptr;
+        }
+    }
+
+    /*
      * A `@bits(n)` place is read **at its own type**, and the widening happens at the use rather
      * than here.
      *
@@ -1676,13 +1803,37 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
                        member.contract.access());
         if(!value) { ok = false; continue; }
 
-        // A closure into a field the record owns - `checkCarriedOrigins`, which is `own.cpp`'s
-        // declaration-time refusal applied to a value whose interior shape the declaration cannot
-        // see.
-        if(!checkCarriedOrigins(*value, member, argument.value.source,
+        /*
+         * A closure into a field the record owns - `checkCarriedOrigins`, which is `own.cpp`'s
+         * declaration-time refusal applied to a value whose interior shape the declaration cannot
+         * see.
+         *
+         * At the **bound** type, not the declared one. A field declared at a variable - `v: t` in
+         * `data Box2(t) {v: t}` - has no schema of its own, so a record holding a reference
+         * (`Box2 {v: wrap1(n)}`, `L1 {r: 'Int}`) met an empty shape there and was refused as a
+         * closure (J147). The instantiation this builds folds `L1`'s positions in at `.v`
+         * (`foldRecordSchema`), which is the same relation a field declared `v: L1` states - and
+         * that one was always checked against `L1`'s schema, because its declared type *is* `L1`.
+         */
+        auto bound = Occurrence { expected, member.contract, member.shape };
+        if(!checkCarriedOrigins(*value, bound, argument.value.source,
                                 stringView(context.findName(declared->name)))) {
             ok = false;
             continue;
+        }
+
+        /*
+         * A field that refers to a value - `value: 'a` - given one with no storage: the temporary a
+         * call's argument gets at the same position (`lentPastPosition`), so that the record's
+         * origin is rooted in it and the record may not outlive it. A raw pointer included, which
+         * the call's rule leaves out: the record keeps the address of the slot the pointer is in,
+         * where a callee reading `self: source'%a` only reads through it.
+         */
+        auto wanted = requestOf(member);
+        if(wanted.access == Access::Shared && wanted.origin != kNoOriginSlot &&
+           valueOccurrence(*value).contract.isOwned() && !staticText(builder, *value)) {
+            value = readPlace(builder, argument.value.source,
+                              *hold(builder, *value, argument.value.source), wanted);
         }
 
         values[index] = value;
@@ -1874,7 +2025,10 @@ bool Resolver::initializeUpdate(Builder& builder, Place& root, Place* from, Node
             Node* of[1] = { shared };
             value = applyMember(builder, intrinsic::Known::copy, 0, of, 1, source);
         } else {
-            value = readPlace(builder, source, *from, requestOf(ownedContract()));
+            // `{-> *p | ...}` is the relocation out of raw memory the rule in `readPlace` names.
+            auto request = requestOf(ownedContract());
+            request.relocates = sink;
+            value = readPlace(builder, source, *from, request);
         }
     }
 
@@ -2422,7 +2576,7 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
              */
             if(!local) {
                 auto captured = findCapture(builder, expr.var);
-                if(rawLambdaCaptureRejected()) return nullptr;
+                if(lambdaCaptureRejected()) return nullptr;
 
                 if(!captured && !findGlobal(context, program, here(), expr.var, expr.source) &&
                    hasFunctionName(context, program, here(), expr.var)) {
@@ -2545,14 +2699,31 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             auto& ascription = *parse[expr.coerce];
 
             /*
-             * `@inline(n) @capacity(n) [T]` - read off here and the type resolved without it, the
-             * way the `@bits` arm does one level down. This is one of the two positions that honour
-             * a container refinement, and `resolveType` reports it anywhere else.
+             * `@inline(n) @capacity(n) [T]` - read off here for the literal's own bound. Where the
+             * library declares `InlineArray` the type is resolved *with* it and names that type
+             * (J143); where it does not - JavaScript - it is resolved without it, the way the `@bits`
+             * arm does one level down, and the literal is the plain array with its capacity.
              */
             U64 capacity = 0;
             auto written = ascription.type;
             if(!readContainerRefinement(written, capacity)) return nullptr;
-            if(capacity) written.attributes = nullptr;
+
+            // A target whose library declares `InlineArray` builds the refined type itself, through
+            // `resolveType` and the literal's hint (J143); the capacity below is the JavaScript
+            // reading, where the refinement is the plain array it bounds.
+            auto inlineType = capacity && program.roles.record(intrinsic::Known::inlineArray);
+            if(capacity && !inlineType) written.attributes = nullptr;
+
+            // A literal longer than the bound it is written at. `@capacity(n)` is a bound rather than
+            // a starting size, so the push that would pass it fails at run time - and a literal that
+            // does is refused here, because its length is written down.
+            if(capacity && ascription.target.kind == ast::Expr::Array &&
+               ascription.target.arr.contents(parse).size() > capacity) {
+                context.diagnostics.error("this array holds %@ elements and its type bounds it at %@ - `@capacity(n)` is a bound rather than a starting size"_v,
+                                          ascription.target.source,
+                                          U64(ascription.target.arr.contents(parse).size()), capacity);
+                return nullptr;
+            }
 
             auto type = resolveAscribedType(written, ascription.target);
             if(!type) return nullptr;
@@ -2582,7 +2753,7 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
              * `resolveValue` would reach the same literal with the capacity dropped on the way, so
              * the array arm is called with it rather than the number travelling in a `Request`.
              */
-            if(capacity) {
+            if(capacity && !inlineType) {
                 if(ascription.target.kind != ast::Expr::Array) {
                     context.diagnostics.error(
                         "`@inline(n) @capacity(n)` says how much room an array literal starts with, "
@@ -2655,7 +2826,7 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         case ast::Expr::Infix:
             return resolveInfix(builder, expr, hint, wanted);
         case ast::Expr::Prefix:
-            return resolvePrefix(builder, expr, hint);
+            return resolvePrefix(builder, expr, hint, wanted);
         case ast::Expr::App:
             return resolveCall(builder, expr, hint);
         case ast::Expr::If:
@@ -2824,18 +2995,111 @@ Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& 
         return nullptr;
     }
 
-    SmallArray<Node*, 8> arguments;
-    auto index = U32(0);
+    /*
+     * Named arguments - `f(take: 4, from: 30)` through a value. The names are the *written
+     * position's* (`valueCallNames`), and the mapping is the declaration's own `mapArguments` with
+     * no position defaulted: a default belongs to one declaration, and two functions of one type do
+     * not agree about it. Evaluation still follows the source; each value lands in its slot.
+     */
+    auto anyNamed = false;
+    for(auto argument: written.args.contents(parse)) anyNamed |= argument.name != StringId();
 
-    for(auto argument: written.args.contents(parse)) {
-        if(argument.name != StringId()) {
-            unsupported(argument.value.source, "a named argument"_v);
+    ArgMap map;
+    if(anyNamed) {
+        auto names = valueCallNames(builder, written.callee, target, type);
+
+        // What the messages call the callee: the binding or the field it was read from.
+        auto subject = written.callee.kind == ast::Expr::Var ? written.callee.var : StringId();
+        if(written.callee.kind == ast::Expr::Field &&
+           parse[written.callee.field]->field.kind == ast::Expr::Var) {
+            subject = parse[written.callee.field]->field.var;
+        }
+        if(!subject) subject = context.addUnqualifiedName("this", 4);
+
+        /*
+         * A type written without names - or a value no written type reached - takes its arguments by
+         * position, and that is a statement about the type rather than a gap in this call: two
+         * spellings of one function type are one type, and the one this value was written at chose
+         * not to name its parameters. The sentence says where names come from rather than that the
+         * type "was written" without them (J146): an inferred `let f = add`, a tuple field and an
+         * `if` have no written type at all.
+         */
+        if(names.size() != shape.params.size()) {
+            for(auto argument: written.args.contents(parse)) {
+                if(!argument.name) continue;
+                auto text = Tritium::format(
+                    "%@ is %@, and no function type naming its parameters was written where it was declared, so a call through it takes its arguments by position",
+                    context.findName(subject),
+                    typeText(context, decl(), type));
+                context.diagnostics.error(stringView(text), argument.value.source);
+                break;
+            }
             return nullptr;
         }
 
-        auto declared = shape.params.get(decl(), index++).occurrence;
+        SmallArray<ArgPosition, 8> positions;
+        String known;
+        U32 named = 0, total = 0;
+        for(auto name: names.contents(decl())) {
+            positions.push(ArgPosition { name, false });
+            if(name) total++;
+        }
+        for(auto name: names.contents(decl())) {
+            if(!name) continue;
+            known = Tritium::format("%@%@%@", known,
+                                    named == 0 ? ""_v : named + 1 == total ? " and "_v : ", "_v,
+                                    context.findName(name));
+            named++;
+        }
+
+        ArgSite site;
+        site.declared = positions.pointer();
+        site.count = positions.size();
+        site.subject = subject;
+        site.one = "parameter"_v;
+        site.many = "arguments"_v;
+        site.source = source;
+        site.known = stringView(known);
+        if(!mapArguments(written.args, site, map)) return nullptr;
+    }
+
+    SmallArray<Node*, 8> slots;
+    for(U32 i = 0; i < shape.params.size(); i++) slots.push(nullptr);
+
+    SmallArray<Node*, 8> arguments;
+    auto written_ = U32(0);
+
+    struct InlinePosition { U32 index; LocationId source; };
+    SmallArray<InlinePosition, 2> inlinePositions;
+
+    for(auto argument: written.args.contents(parse)) {
+        auto at = written_++;
+        auto index = anyNamed ? map.positions[at] : at;
+
+        auto declared = shape.params.get(decl(), index).occurrence;
         auto value = resolveValue(builder, argument.value, declared.type, requestOf(declared));
         if(!value) return nullptr;
+
+        // An `@inline` array at a `&Array(a)` position - `reserveInlineValueArgument`. The
+        // descriptor is built below, after every argument.
+        auto inline_ = false;
+        auto reserved = reserveInlineValueArgument(builder, *value, declared, argument.value.source,
+                                                   inline_);
+        if(inline_) {
+            if(!reserved) return nullptr;
+            slots[index] = reserved;
+            inlinePositions.push(InlinePosition { index, argument.value.source });
+            continue;
+        }
+
+        /*
+         * A `@bits(n)` field at a `&` position is **refused** here, by `coerce`'s sentence, where a
+         * direct call lends it through the lowering's tier-1 temporary (`prepareArgument`). J162
+         * tried lending it here on the same terms: `-no-ir-opt` agreed with the shipping stage on
+         * both targets, but optimized, a lambda's call answered garbage natively and the JSIR
+         * conversion refused the inlined write. Until that is built the refusal stands, and
+         * `compiler/resolve_ssa/lower/README.md` and `Reject.PackedBorrow.yana` say so.
+         */
         value = coerce(builder, *value, declared.type, argument.value.source, "an argument"_v,
                        declared.contract.access());
         if(!value) return nullptr;
@@ -2844,10 +3108,199 @@ Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& 
             return nullptr;
         }
 
-        arguments.push(value);
+        slots[index] = value;
     }
 
-    return builder.addCallValue(source, callee, signature, arguments.pointer(), arguments.size());
+    SmallArray<InlineCommit, 2> commits;
+    for(auto& position: inlinePositions) {
+        auto declared = shape.params.get(decl(), position.index).occurrence;
+        auto read = lendInlineDescriptor(builder, *slots[position.index], position.source, commits);
+        if(read) read = coerce(builder, *read, declared.type, position.source, "an argument"_v,
+                               declared.contract.access());
+        if(!read) return nullptr;
+        slots[position.index] = read;
+    }
+
+    for(auto slot: slots) arguments.push(slot);
+
+    auto call = builder.addCallValue(source, callee, signature, arguments.pointer(), arguments.size());
+    if(commits.size() && !flushInlineCommits(builder, commits)) return nullptr;
+    return call;
+}
+
+/*
+ * The names a call through a function value may use - doc/spec/types.md's "Function types" and
+ * `CallNames`, which is where the representation is argued: the names are not on the type, they are
+ * on the position the value was written at, and this is the walk from a callee back to that position.
+ *
+ *  - a **site type** - a lambda bound to a local, or a capture of one - names its parameters in its
+ *    lifted function, whose first parameter is the environment and is not the caller's to name.
+ *    Asked second, so that `let f = ((x: Int) -> x) :: (n: Int) -> Int` is called with `n`: an
+ *    ascription is the author re-typing the value, and what they wrote last is what they meant;
+ *  - everything else is `writtenNamesOf` - a binding, a parameter, a capture, a field, a global, a
+ *    call's declared result or an ascription written at the callee itself.
+ *
+ * Empty where none of those wrote names, which the caller reports as a positional type.
+ */
+CallNames Resolver::valueCallNames(Builder& builder, ast::Expr& callee, Node& target,
+                                   DeclPtr<Type> type) {
+    auto names = writtenNamesOf(builder, callee, &target);
+    if(names.size()) return names;
+
+    if(auto site = siteTypeOf(type); site && site->lambda) {
+        auto& lifted = *decl()[site->lambda];
+        auto first = true;
+        auto any = false;
+
+        CallNames fromLambda;
+        for(auto argument: lifted.args.contents(decl())) {
+            if(first) { first = false; continue; }
+            fromLambda.push(program.decl, decl()[argument]->name);
+            any |= decl()[argument]->name != StringId();
+        }
+
+        if(any) return fromLambda;
+    }
+
+    return CallNames();
+}
+
+CallNames Resolver::writtenCallNames(const ast::Type& written) {
+    CallNames names;
+
+    /*
+     * An **alias** naming a function type carries the names its target wrote (J146), since an alias
+     * is the usual way a callback type is spelled and one is transparent - `alias Op = (from: Int,
+     * take: Int) -> Int` makes `op: Op` a position that names `from` and `take`, exactly as writing
+     * the target there would. The target's own names and not the use's: an alias is one spelling,
+     * and a use has nowhere to write others. J144 carried none, and the call said the type "names no
+     * parameters", which was false. A generic alias's target is read the same way - names are not
+     * types, so no substitution touches them. Bounded, so an alias cycle (reported where the targets
+     * are read) cannot recurse here.
+     */
+    if(written.kind == ast::Type::Con) {
+        auto alias = findAlias(context, program, here(), written.name, kNullLocation);
+        if(!alias || aliasNamesDepth >= 16) return names;
+
+        aliasNamesDepth++;
+        names = writtenCallNames(writtenAliasDecls[decl()[alias]->written]->alias.target);
+        aliasNamesDepth--;
+        return names;
+    }
+
+    if(written.kind != ast::Type::Fun) return names;
+
+    auto any = false;
+    for(auto position: parse[written.fun]->args.contents(parse)) any |= position.name != StringId();
+    if(!any) return names;
+
+    /*
+     * A name given twice (J146) - `(x: Int, x: Int) -> Int` - is refused where the type is written,
+     * as a declaration's repeated parameter is: every call by name through it would be told the
+     * name "is given twice", and none could succeed. Reported once per written type, which is the
+     * reason for the set.
+     */
+    auto args = parse[written.fun]->args.contents(parse);
+    for(Size i = 0; i < args.size(); i++) {
+        auto name = args.pointerAt(i)->name;
+        if(!name) continue;
+
+        for(Size j = 0; j < i; j++) {
+            if(args.pointerAt(j)->name != name) continue;
+
+            auto source = args.pointerAt(i)->type.source;
+            auto reported = false;
+            for(auto at: repeatedCallNames) reported |= at == source;
+            if(!reported) {
+                repeatedCallNames.push(source);
+                context.diagnostics.error(
+                    "%@ names two parameters of this function type, so a call through it could not say which one an argument by that name is for"_v,
+                    source, context.findName(name));
+            }
+
+            return CallNames();
+        }
+    }
+
+    for(auto position: args) names.push(program.decl, position.name);
+    return names;
+}
+
+// `f :: (x: Int) -> Int`, through any brackets - the one form of a *local* declared with a function
+// type, since a `let` has no type annotation of its own and ascription is how one is written.
+CallNames Resolver::ascribedNames(ast::Expr& expr) {
+    auto at = &expr;
+    while(at->kind == ast::Expr::Nested) at = parse[at->nested];
+    if(at->kind != ast::Expr::Coerce) return CallNames();
+    return writtenCallNames(parse[at->coerce]->type);
+}
+
+/*
+ * The names the value of `expr` carries from where it was written - what a `let` copies onto its
+ * local and what a call through the value reads.
+ *
+ * Syntax first, for the two things the resolved node cannot say: an ascription, which may produce
+ * the very node it ascribes, and a binding, whose read may have been folded to its constant. Then
+ * the node, for what is reached through storage or returned: a read of a local or a global is that
+ * binding's names, a read of a field is the declared field's (a lambda's environment field is the
+ * captured binding's, which is how a capture of any of these keeps them), and a call is its
+ * callee's declared result's. A binding shadowed by a capture is found as the capture's read rather
+ * than by name, so a global of the same name cannot answer for it.
+ */
+CallNames Resolver::writtenNamesOf(Builder& builder, ast::Expr& expr, Node* value) {
+    auto at = &expr;
+    while(at->kind == ast::Expr::Nested) at = parse[at->nested];
+
+    if(at->kind == ast::Expr::Coerce) return ascribedNames(*at);
+
+    if(at->kind == ast::Expr::Var) {
+        if(auto local = findLocal(at->var)) return local->callNames;
+    }
+
+    if(value && value->kind == Node::Call) {
+        auto callee = ((NodeCall*)value)->callee;
+        return callee ? decl()[callee]->resultNames : CallNames();
+    }
+
+    if(value && value->kind == Node::Read) {
+        auto& read = *(NodeRead*)value;
+        if(read.place.source() == SourceKind::Place) {
+            auto base = builder.base();
+            auto place = builder.body.place(base, read.place.placeId());
+
+            // Through a borrow to what holds it: a lambda reads a binding it captured shared through
+            // the environment field's loan, and the field is the position.
+            while(place->kind == Place::Deref && place->parent) place = base[place->parent];
+
+            switch(place->kind) {
+                case Place::Local:
+                    return builder.body.local(base, LocalId(place->payload))->callNames;
+                case Place::Global:
+                    return decl()[DeclPtr<Global>(U32(place->payload))]->callNames;
+                case Place::Field: {
+                    auto parent = base[place->parent];
+                    auto type = parent->occurrence.type;
+                    if(!type || decl()[type]->kind != Type::Record) return CallNames();
+
+                    auto& record = *(RecordType*)decl()[type];
+                    if(place->payload >= record.fields.size()) return CallNames();
+                    return record.fields.get(decl(), place->payload).callNames;
+                }
+                default:
+                    return CallNames();
+            }
+        }
+    }
+
+    // A global read as its constant - an immutable one folds - and not shadowed, since a local was
+    // asked first and a capture is a read.
+    if(at->kind == ast::Expr::Var && value && value->kind == Node::Const) {
+        if(auto global = findGlobal(context, program, here(), at->var, kNullLocation)) {
+            return decl()[global]->callNames;
+        }
+    }
+
+    return CallNames();
 }
 
 /*
@@ -2862,6 +3315,36 @@ Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& 
 Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> hint,
                                 LocationId source) {
     if(!hint || decl()[hint]->kind != Type::Fun) {
+        /*
+         * What the name reaches, when it reaches one declaration, decides which sentence is true: a
+         * lens or an iterator has no value form at all, and a generic function would need a witness
+         * rather than an address, so either is said as that - the arity is not what is missing, and
+         * writing the type would only move the refusal.
+         */
+        auto named = search<DeclPtr<Function>>(context, program, here(), name, kNullLocation,
+                                               [&](DeclPtr<Module> in, NameRef reference) {
+            return program.functionNamed(in, reference.rest());
+        }, false);
+
+        if(named) {
+            auto& function = *decl()[*named];
+
+            if(function.lens || function.iterator) {
+                context.diagnostics.error(
+                    "%@ is %@, so it cannot be used as a function value - the block its call splits is decided where the call is written"_v,
+                    source, context.findName(name),
+                    function.iterator ? "an `iter fn`"_v : "a lens"_v);
+                return nullptr;
+            }
+
+            if(isGeneric(decl(), function.gen)) {
+                context.diagnostics.error(
+                    "%@ is generic, and a generic function cannot be used as a function value yet - it would need a witness rather than an address"_v,
+                    source, context.findName(name));
+                return nullptr;
+            }
+        }
+
         context.diagnostics.error(
             "%@ is a function, and a value of one needs a position that says which arity - write the type"_v,
             source, context.findName(name));
@@ -3041,6 +3524,10 @@ Node* Resolver::adaptToView(Builder& builder, Node& value, const Occurrence& pos
         // is the ordinary mismatch, and the message that names both types is the one to give.
         auto& array = *(ArrayType*)decl()[held.type];
         if(!sameType(array.element, elementTypeOf(decl(), program, position.type))) return &value;
+    } else if(auto parts = inlineArrayParts(decl(), program, held.type)) {
+        // A refined array - `InlineArray`'s own `Contiguous` and `Writable` build the window out of
+        // the record's address at this use (J143), on the fixed array's terms.
+        if(!sameType(parts.unwrap().element, elementTypeOf(decl(), program, position.type))) return &value;
     } else if(!sameType(held.type, position.type)) {
         return &value;
     }
@@ -3757,6 +4244,10 @@ Node* Resolver::resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<T
         return resolveGrowableLiteral(builder, expr, hint, capacity);
     }
 
+    if(auto inline_ = inlineArrayParts(decl(), program, hint)) {
+        return resolveInlineLiteral(builder, expr, hint, inline_.unwrap());
+    }
+
     /*
      * A capacity written at a literal that is not a growable array - `[0] :: @inline(4) @capacity(4)
      * [Int *4]`. Reported rather than dropped, on `readContainerRefinement`'s own terms: a fixed
@@ -3814,6 +4305,54 @@ Node* Resolver::resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<T
 
     return builder.addAggregate(expr.source, hint, 0, components.pointer(), components.size(),
                                 nullptr, shaped.unwrap().quantified);
+}
+
+/*
+ * `[a, b] :: @inline(4) @capacity(4) [T]` - an `InlineArray(T, 4)`, built in place (J143).
+ *
+ * The slots are a `[T *4]` aggregate supplying only the elements written, which is the one aggregate
+ * with fewer components than its array's length: the rest is storage nobody reads - `RecordField::
+ * storage`, and the relaxed count in both verifiers - so an empty `@inline(4096)` buffer is a frame
+ * slot and one store of the count, and never four thousand bytes of zeroes. The count is the written
+ * length at the record's own `length` type.
+ *
+ * A literal longer than the bound is the ascription's diagnostic when it is written there, and this
+ * one's when the hint came from a field or a parameter.
+ */
+Node* Resolver::resolveInlineLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
+                                     const InlineArrayParts& parts) {
+    auto written = expr.arr.contents(parse);
+
+    if(written.size() > parts.capacity) {
+        context.diagnostics.error("this array holds %@ elements and its type bounds it at %@ - `@capacity(n)` is a bound rather than a starting size"_v,
+                                  expr.source, U64(written.size()), parts.capacity);
+        return nullptr;
+    }
+
+    SmallArray<Node*, 8> components;
+    for(Size i = 0; i < written.size(); i++) {
+        auto& item = *written.pointerAt(i);
+        auto value = resolveValue(builder, item, parts.element, requestOf(ownedContract()));
+        if(!value) return nullptr;
+
+        value = coerce(builder, *value, parts.element, item.source, "an element"_v);
+        if(!value) return nullptr;
+
+        components.push(value);
+    }
+
+    auto& record = *(RecordType*)decl()[hint];
+    auto slots = builder.addAggregate(expr.source, record.field(decl(), 0).occurrence.type, 0,
+                                      components.pointer(), components.size(), nullptr, false, true);
+    if(!slots) return nullptr;
+
+    Node* fields[2];
+    fields[0] = slots;
+    fields[1] = builder.addConst(expr.source, intConstant(record.field(decl(), 1).occurrence.type,
+                                                         U64(written.size())));
+    if(!fields[1]) return nullptr;
+
+    return builder.addAggregate(expr.source, hint, 0, fields, 2);
 }
 
 /*
@@ -3875,7 +4414,7 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
                    (findLocal(written.callee.var) || findCapture(builder, written.callee.var) ||
                     globalCallee);
 
-    if(rawLambdaCaptureRejected()) return nullptr;
+    if(lambdaCaptureRejected()) return nullptr;
 
     if(written.callee.kind != ast::Expr::Var || storage) {
         auto target = resolveValue(builder, written.callee, nullptr, bindingRequest(Access::Shared));
@@ -4206,10 +4745,260 @@ Node* Resolver::resolveDotCall(Builder& builder, ast::AppExpr& written, ast::Fie
     return call;
 }
 
+/*
+ * A refined array reaching a growable array's **owner** position - `push(xs, 3)` with `xs:
+ * @inline(4) @capacity(4) [Int]` and `fn push(&self: Array(a), ...)` (J143, rebuilt in J146).
+ *
+ * The descriptor the shipping stage's glue built, said as two library calls around the one written:
+ * `inlineGrowable` makes a plain `Array(a)` over the record's own slots with a `runFixed` run, the
+ * call is made on *that*, and `inlineCommit` writes the count back and empties the descriptor, whose
+ * ordinary teardown then walks no elements and releases a `runFixed` run, which is nothing. (An
+ * `Array` cannot be taken apart past its authored `Reclaim`, so emptying it is how it is made
+ * harmless.) So `push`, `reserve` and every other owner operation are the library's own bodies
+ * compiled against the plain layout, and growth past `n` is the run's refusal rather than a
+ * relocation into storage the descriptor does not own.
+ *
+ * **Two halves, at two times** (J146). Here, at the argument, only the record's unique loan is
+ * taken, and it stays in the argument list unused - a two-phase **reservation**, like any `&`
+ * argument's - with the type the descriptor will have bound into the call. The descriptor itself is
+ * built by `buildInlineOwners` at the call, after every later argument, and committed right after
+ * it. J143 built it here, and between the two every exit of a later argument tore down a descriptor
+ * that still counted the record's elements - `push(h.hs, maybeHandle(ok)?)` dropped each of them
+ * twice - and the held loan activated at once, so `h.hs.push(length(h.hs))` and `push(b.items,
+ * b.items[0] + 1)` were refused where the same line over a `[T]` is not. Rejected: a drop flag on
+ * the descriptor (J143's value is still wrong to hand to anything before the call), and a
+ * descriptor built with `length: 0` (the callee would see an empty array).
+ *
+ * **The record's loan is held across the call** - it is used again by the commit - so the loan
+ * checker sees the record borrowed exclusively for as long as the descriptor stands in for it. The
+ * descriptor itself is built from an address and carries no origin, which is exactly why the loan
+ * has to be the thing that is kept.
+ *
+ * Only the `&` position. A shared owner position would need the same pair with nothing to write back,
+ * and an owning one - `->xs: [T]` - would need the elements copied onto the heap; neither is written
+ * anywhere in the library or the corpus, so both are refused by name rather than guessed at.
+ */
+// A `&` argument's request, which a trivially copied record answers with a loan rather than a copy -
+// `requestOf`'s "whose whole contract is writing through to the same storage".
+static Request lentRequest() {
+    auto request = bindingRequest(Access::Unique);
+    request.published = true;
+    return request;
+}
+
+Node* Resolver::adaptInlineOwner(Builder& builder, Node& value, Arg& parameter,
+                                 TypeArguments& typeArguments, LocationId source) {
+    auto access = parameter.occurrence.contract.access();
+    if(access != Access::Unique) {
+        context.diagnostics.error(
+            "an `@inline(n) @capacity(n)` array reaches a growable array's owner only through `&` - "
+            "this parameter takes it %@, which is not built; pass a window (`[T]`) or copy it into "
+            "a `[T]`"_v, source, accessName(access));
+        return nullptr;
+    }
+
+    // Filed under the call being prepared, which every argument walk states - one that does not
+    // would leave the reservation with no call to build the descriptor at.
+    if(preparingCall == kNullLocation) {
+        unsupported(source, "an `@inline(n) @capacity(n)` array at a growable array's owner position here"_v);
+        return nullptr;
+    }
+
+    auto growable = program.roles.function(intrinsic::Known::inlineGrowable);
+    if(!growable || !program.roles.function(intrinsic::Known::inlineCommit)) {
+        reportMissingRole(growable ? intrinsic::Known::inlineCommit : intrinsic::Known::inlineGrowable,
+                          "a refined array at a growable array's owner position"_v, source);
+        return nullptr;
+    }
+
+    // The type the descriptor will have - `inlineGrowable`'s result at this record - bound into the
+    // call now, as the descriptor itself would have bound it, so the positions after this one read
+    // `a` decided.
+    auto& function = *decl()[growable];
+    TypeArguments own(*this, function.gen);
+    own.bind(decl()[function.args.get(decl(), 0)]->occurrence.type, valueType(value));
+    auto descriptor = own.expected(function.result.type);
+
+    auto declared = parameter.occurrence.type;
+    if(mentionsContext(decl(), typeArguments.expected(declared), typeArguments.owner)) {
+        typeArguments.fillFromRequirements(source);
+    }
+    typeArguments.bind(declared, descriptor);
+
+    // Read as a `&` argument's loan, which a trivially copied record would otherwise answer with a
+    // copy - and that loan is the reservation the argument list holds until the call.
+    auto lent = &value;
+    if(value.kind != Node::Read || !((NodeRead&)value).loan.valid()) {
+        auto loan = hold(builder, value, source);
+        lent = readPlace(builder, source, *loan, lentRequest());
+        if(!lent) return nullptr;
+    }
+
+    inlineOwners.push(InlineOwner { lent, &parameter, source, preparingCall });
+    return lent;
+}
+
+/*
+ * The descriptors this call's adapted arguments owe, built now that every argument is - see
+ * `adaptInlineOwner`. The reservation activates here, one node before the call, and each commit is
+ * returned for the caller to emit once the call is in the block.
+ */
+bool Resolver::buildInlineOwners(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
+                                 TypeArguments& typeArguments, LocationId call,
+                                 SmallArray<InlineCommit, 2>& commits, bool region) {
+    SmallArray<InlineOwner, 2> mine;
+    SmallArray<InlineOwner, 2> others;
+    for(auto& owner: inlineOwners) (owner.call == call ? mine : others).push(owner);
+    if(!mine.size()) return true;
+
+    // Set aside while the descriptors' own calls are made, which are `finishCall`s too: an outer
+    // call's reservations are not this one's to build.
+    inlineOwners.resize(0);
+
+    auto ok = true;
+    for(auto& owner: mine) {
+        /*
+         * An `iter fn` reaching `finishCall` is an object, whose record would keep the descriptor
+         * across its suspensions with the commit owed at a teardown the object does not know about
+         * - and a skipping lens has a second place the caller carries on at, the alternative, which
+         * runs before the join the commit waits at. Refused by name.
+         */
+        if((!region && (callee.iterator || callee.lens)) || callee.failure) {
+            context.diagnostics.error(
+                "%@ %@, and an `@inline(n) @capacity(n)` array is lent as a growable array only to a call whose end is where its count can be written back - an ordinary call, a lens that cannot skip, or a `for`; copy it into a `[T]`"_v,
+                owner.source, context.findName(callee.name),
+                callee.failure ? "can finish without handing over"_v : "keeps what it is lent in an object"_v);
+            ok = false;
+            continue;
+        }
+
+        U32 position = 0;
+        while(position < arguments.size() && decl()[callee.args.get(decl(), position)] != owner.parameter) {
+            position++;
+        }
+
+        if(position == arguments.size() || !arguments[position]) {
+            unsupported(owner.source, "an `@inline(n) @capacity(n)` array at a growable array's owner position here"_v);
+            ok = false;
+            continue;
+        }
+
+        auto read = lendInlineDescriptor(builder, *arguments[position], owner.source, commits);
+        auto prepared = read ? prepareArgument(builder, *read, *owner.parameter, typeArguments, owner.source)
+                             : nullptr;
+        if(!prepared) { ok = false; continue; }
+        arguments[position] = prepared;
+    }
+
+    for(auto& owner: others) inlineOwners.push(owner);
+    return ok;
+}
+
+/*
+ * The descriptor one reserved `@inline` array is lent as, built one node before the call: the
+ * record's loan held (the activation), `inlineGrowable` over it into a writable local, the commit
+ * filed, and the local read exclusively for the argument. `buildInlineOwners` prepares that read
+ * against the callee's declared parameter; a call through a function value coerces it to the
+ * function type's position (J162).
+ */
+Node* Resolver::lendInlineDescriptor(Builder& builder, Node& reserved, LocationId source,
+                                     SmallArray<InlineCommit, 2>& commits) {
+    // Named after what was written, so a loan message about the descriptor says `h.hs` rather than
+    // an unnamed local's number.
+    StringId name;
+    if(reserved.kind == Node::Read && ((NodeRead&)reserved).place.source() == SourceKind::Place) {
+        auto base = builder.base();
+        auto place = builder.body.place(base, ((NodeRead&)reserved).place.placeId());
+        if(place) {
+            auto text = placeText(context, decl(), base, builder.body, *place);
+            name = program.internName(context, StringView(text.text(), text.size()));
+        }
+    }
+
+    auto loan = hold(builder, reserved, source);
+    auto lent = readPlace(builder, source, *loan, lentRequest());
+    if(!lent) return nullptr;
+
+    Node* operands[1] = { lent };
+    auto descriptor = callKnown(builder, intrinsic::Known::inlineGrowable, operands, 1, source);
+    if(!descriptor) return nullptr;
+
+    // Writable: the call is about to write through it, and the descriptor is this frame's own value
+    // that no other name can see.
+    auto local = builder.addLocal(name, valueOccurrence(*descriptor), source, true);
+    local->inlineDescriptor = true;
+    auto grown = builder.localPlace(*local);
+    builder.addWrite(source, *grown, *descriptor, Destination::Init);
+    commits.push(InlineCommit { loan, grown, source });
+
+    return readPlace(builder, source, *grown, bindingRequest(Access::Unique));
+}
+
+/*
+ * An `@inline(n) @capacity(n)` array at a `&Array(a)` position of a **function value's** type -
+ * `f(b.items)` over `f: (&Array(Int)) -> {}`, or a lambda's own parameter (J162).
+ *
+ * The same reservation `adaptInlineOwner` files for a declared callee: the record's exclusive loan,
+ * read now and left in the argument list, so an argument after it that reads the array is refused
+ * by the loan checker; `resolveValueCall` then builds the descriptors after every argument and
+ * commits them after the call. A call through a value has an end the way a direct call does - it is
+ * never a lens region or an object - so the commit is always reached. The position's type is the
+ * function type's, known here as a declared parameter's is at a direct call. Answers null with
+ * nothing reported where the position is not one, and `inline_` says whether it was.
+ */
+Node* Resolver::reserveInlineValueArgument(Builder& builder, Node& value, const Occurrence& declared,
+                                           LocationId source, bool& inline_) {
+    inline_ = false;
+    if(declared.contract.form() == AccessForm::View) return nullptr;
+    if(!inlineArrayParts(decl(), program, valueType(value))) return nullptr;
+    if(!isSequenceType(decl(), program, declared.type)) return nullptr;
+
+    inline_ = true;
+    auto access = declared.contract.access();
+    if(access != Access::Unique) {
+        context.diagnostics.error(
+            "an `@inline(n) @capacity(n)` array reaches a growable array's owner only through `&` - "
+            "this parameter takes it %@, which is not built; pass a window (`[T]`) or copy it into "
+            "a `[T]`"_v, source, accessName(access));
+        return nullptr;
+    }
+
+    if(value.kind == Node::Read && ((NodeRead&)value).loan.valid()) return &value;
+
+    auto loan = hold(builder, value, source);
+    return readPlace(builder, source, *loan, lentRequest());
+}
+
+/*
+ * The write-backs `buildInlineOwners` returned, emitted after the call they were made for - by
+ * `finishCall` once the call is in the block, and by `handoverCall` where the caller carries on.
+ */
+bool Resolver::flushInlineCommits(Builder& builder, SmallArray<InlineCommit, 2>& pending) {
+    auto ok = true;
+
+    for(auto& commit: pending) {
+        auto self = readPlace(builder, commit.source, *commit.loan, lentRequest());
+        auto grown = readPlace(builder, commit.source, *commit.grown, lentRequest());
+        if(!self || !grown) { ok = false; continue; }
+
+        Node* operands[2] = { self, grown };
+        if(!callKnown(builder, intrinsic::Known::inlineCommit, operands, 2, commit.source)) ok = false;
+    }
+
+    return ok;
+}
+
 Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
                                 TypeArguments& typeArguments, LocationId source) {
     auto declared = parameter.occurrence.type;
     auto held = valueType(value);
+
+    // A refined array at a growable array's owner position - `adaptInlineOwner`.
+    if(parameter.occurrence.contract.form() != AccessForm::View &&
+       inlineArrayParts(decl(), program, held) &&
+       isSequenceType(decl(), program, typeArguments.expected(declared))) {
+        return adaptInlineOwner(builder, value, parameter, typeArguments, source);
+    }
 
     /*
      * A donor that is not the position's type binds the position's *element*: `[I32 *3]` or an
@@ -4265,9 +5054,50 @@ Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
     auto adapted = adaptToView(builder, value, position, source);
     if(!adapted) return nullptr;
 
-    adapted = coerce(builder, *adapted, expected, source, "an argument"_v,
-                     position.contract.access());
-    if(!adapted) return nullptr;
+    /*
+     * A `@bits(n)` place lent to a `&` of what it refines *through a published origin* - repr.md's
+     * tier 1 where the loan outlives the call. Tier 1 is a temporary committed when the call
+     * returns (`convertValue` admits it, `materializeNarrow` builds it), so a write through the
+     * result after that would land in a temporary nobody reads. Refused rather than committed at the
+     * result's last use, which is the shipping stage's answer and a second write-back rule; a
+     * parameter declared at the refinement is tier 2 and serves it with no temporary at all.
+     */
+    if(position.contract.access() == Access::Unique && position.contract.origin() == Origin::Slot &&
+       isRefinedInt(decl(), valueType(*adapted)) &&
+       fillsParameter(decl(), valueType(*adapted), expected) && !sameType(valueType(*adapted), expected)) {
+        context.diagnostics.error(
+            "this field is %@ and the parameter is %@ - lent through a temporary that is written back when the call returns, and this parameter's loan outlives the call, so a write through what it returns would be lost. Declare the parameter at %@"_v,
+            source, typeText(context, decl(), valueType(*adapted)), typeText(context, decl(), expected),
+            typeText(context, decl(), valueType(*adapted)));
+        return nullptr;
+    }
+
+    /*
+     * A `@bits(n)` place lent to a `&` of the type it refines - repr.md's **tier 1**, `bump(h.version)`
+     * with `fn bump(&x: U32)`.
+     *
+     * Not a conversion, and that is why it is not asked of `coerce`, which would refuse it as one:
+     * nothing is made of this frame. The position receives the place itself, and the refinement is
+     * Repr-only (repr.md, "Bit-width refinements"), so the callee's `U32` and the caller's
+     * `@bits(4) U32` are one logical type that differ in storage alone. The storage is the
+     * lowering's question: a field that shares a word crosses as a narrow reference, and a position
+     * that cannot hold one - a plain `&U32` - gets it through a temporary of the natural width that
+     * is committed back, masked, when the call returns (`resolve_ssa/lower`'s `materializeNarrow`;
+     * the JavaScript target a one-slot box committed the same way). A field with a word of its own is tier 0 and
+     * its plain address. The exact canonical and nothing wider: `&U64` of a `@bits(4) U32` would be
+     * a store of eight bytes where four were declared, which `coerce` refuses. A call argument only -
+     * a *returned* `&U32` of a packed field would hand the caller a shifted reference at a type that
+     * carries no shift, which is the refusal `coerce` gives there.
+     */
+    auto lent = position.contract.access() == Access::Unique &&
+                isRefinedInt(decl(), valueType(*adapted)) &&
+                fillsParameter(decl(), valueType(*adapted), expected);
+
+    if(!lent) {
+        adapted = coerce(builder, *adapted, expected, source, "an argument"_v,
+                         position.contract.access());
+        if(!adapted) return nullptr;
+    }
 
     // A closure into a position the callee *owns* - `checkCarriedOrigins`. After the type, as at
     // every other position that asks: what a value refers to is only worth a message once the
@@ -4321,6 +5151,25 @@ void Resolver::recordCallee(LocationId nameSource, DeclPtr<Function> callee,
 
 Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
                            TypeArguments& typeArguments, DeclPtr<Type> hint, LocationId source) {
+    // `adaptInlineOwner`'s descriptors for *this* call, built after every argument and committed
+    // once the call is in the block. Told apart by the call's source, because an argument written
+    // after the adapted one is resolved after it was adapted - `push(h.hs, openHandle())` - and that
+    // nested call's own `finishCall` runs while this one's reservation is still pending.
+    SmallArray<InlineCommit, 2> commits;
+    if(!buildInlineOwners(builder, callee, arguments, typeArguments, source, commits, false)) return nullptr;
+
+    if(commits.size()) {
+        auto made = finishCallBody(builder, callee, arguments, typeArguments, hint, source);
+        if(!made) return nullptr;
+        if(!flushInlineCommits(builder, commits)) return nullptr;
+        return made;
+    }
+
+    return finishCallBody(builder, callee, arguments, typeArguments, hint, source);
+}
+
+Node* Resolver::finishCallBody(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
+                               TypeArguments& typeArguments, DeclPtr<Type> hint, LocationId source) {
     /*
      * `f(...)` over an `iter fn` at a position that **keeps** the result - the **state record**,
      * resolve_object.cpp, and §2.1's third row.
@@ -4544,6 +5393,7 @@ Node* Resolver::applyMember(Builder& builder, intrinsic::Known klass, U16 member
 
     SmallArray<Node*, 8> arguments;
     HeldList<SmallArray<Node*, 8>> held(*this, arguments);
+    PreparingCall preparing(*this, source);
 
     for(Size i = 0; i < count; i++) {
         auto prepared = prepareArgument(builder, *operands[i],
@@ -5567,6 +6417,7 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
                                 const ArgMap& map, LocationId source, SmallArray<Node*, 8>& into,
                                 TypeArguments& typeArguments, DeclPtr<Type> hint,
                                 Receiver receiver) {
+    PreparingCall preparing(*this, source);
     /*
      * One slot per declared position, filled in **written** order.
      *
@@ -6017,7 +6868,11 @@ bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& 
         }
 
         if(found == site.count) {
-            if(site.report) {
+            if(site.report && site.known.size()) {
+                context.diagnostics.error("%@ has no %@ called %@ - its type names %@"_v,
+                                          argument.value.source, context.findName(site.subject),
+                                          site.one, context.findName(argument.name), site.known);
+            } else if(site.report) {
                 context.diagnostics.error("%@ has no %@ called %@"_v, argument.value.source,
                                           context.findName(site.subject), site.one,
                                           context.findName(argument.name));
@@ -6057,7 +6912,13 @@ bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& 
     for(U32 i = 0; ok && i < site.count; i++) {
         if(!into.omitted(i) || site.declared[i].defaulted) continue;
 
-        if(site.report) {
+        if(site.report && !site.declared[i].name) {
+            // A positional field has no name to write it by (J146: `Two {1}` for `data Two = Two
+            // {I64, I64}` printed "leaves out ,"), so it is counted instead.
+            context.diagnostics.error("%@ leaves out its field %@, which has no default - it takes %@ values"_v,
+                                      site.source, context.findName(site.subject), U64(i),
+                                      U64(site.count));
+        } else if(site.report) {
             context.diagnostics.error("%@ leaves out %@, which has no default - write it as `%@: value`"_v,
                                       site.source, context.findName(site.subject),
                                       context.findName(site.declared[i].name),
@@ -6178,7 +7039,7 @@ bool Resolver::checkCallShape(ast::AppExpr& written, Function& callee, LocationI
  * expansion of a `Node` role is handed values already selected. Everything else is `Num.-` or
  * whatever the name reached, called at one operand.
  */
-Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
+Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted) {
     auto& written = *parse[expr.prefix];
 
     if(written.op.kind != ast::Expr::Var) {
@@ -6230,6 +7091,26 @@ Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
     }
 
     if(!checkCallable(callee, expr.source)) return nullptr;
+
+    /*
+     * `*p` as a value is a **read of the place** it names, under the position's own request - not
+     * the call `fn *(it: %a) -> a`, whose owned result is a copy of the pointee's bytes at every
+     * position (J162).
+     *
+     * The call answered an owner even where the position only borrowed, so `peek(*p)` over a type
+     * with a teardown held a copy in a temporary and released it after the call, and the rule about
+     * copying one out of raw memory had to be asked of the statement that received it - which is
+     * how an argument and an assignment got past it. Read as the place, a shared position borrows
+     * the pointee and an owning one is `readPlace`'s refusal, wherever it is written. The expansion
+     * the call would have made is the same `Read` of the same address place, so a scalar reads
+     * exactly as before.
+     */
+    if(callee.intrinsic == intrinsic::Op::pointerLoad) {
+        auto place = resolvePlace(builder, expr, true, wanted.access);
+        if(!place) return nullptr;
+
+        return readPlace(builder, expr.source, *place, wanted);
+    }
 
     /*
      * What the operand is expected to be, asked as `resolveArguments` asks it of a written
@@ -6386,6 +7267,7 @@ bool Resolver::flattenChain(ast::Expr& expr, Chain& chain, bool report) {
         chain.operands.push(&node->lhs);
         chain.operators.push(found.unwrap());
         chain.sources.push(LocationId(node->op.source));
+        chain.rests.push(&node->rhs);
 
         if(node->rhs.kind != ast::Expr::Infix) {
             chain.operands.push(&node->rhs);
@@ -6393,6 +7275,53 @@ bool Resolver::flattenChain(ast::Expr& expr, Chain& chain, bool report) {
         }
 
         node = parse[node->rhs.infix];
+    }
+
+    return groupsOneWay(chain, report);
+}
+
+/*
+ * Two operators of one precedence that disagree about which way they group - declarations.md,
+ * "Fixity".
+ *
+ * `a <> b <+> c` for an `infixl 5 <>` and an `infixr 5 <+>` has two readings and no reason to prefer
+ * either, so it is reported rather than decided. Taking the leftmost operator's word for it would
+ * make the grouping of a chain depend on an operator somewhere else in it, which is the one thing
+ * fixity exists to stop a reader having to work out - and `climb` would otherwise do exactly that,
+ * silently, since its rung for the right operand is read off whichever operator it is standing on.
+ *
+ * Two operators meet at the same rung exactly when everything strictly between them binds tighter:
+ * an operator of lower or equal precedence in between is where the chain divides, and neither side
+ * of that division can see the other. So the scan runs forward from each operator and stops at the
+ * first one that is not tighter, which is the only one it can be in conflict with. `a <+> b * c <>
+ * d` is caught - the `*` between them binds tighter and the two rung-5 operators do meet - while
+ * `a * b <> c * d` is not, since the two `*`s are on opposite sides of the `<>`. The shipping
+ * stage's rule, word for word, since it is the chain's and not either stage's.
+ *
+ * Asked of the flattened chain, once per expression: `flattenChain` is the one walk both the value
+ * and the condition paths take. Without `report` it answers false and says nothing, which a constant
+ * reads as "not a constant" - so a root-level global is then resolved as code and reported there.
+ */
+bool Resolver::groupsOneWay(Chain& chain, bool report) {
+    for(Size i = 0; i + 1 < chain.operators.size(); i++) {
+        auto& fixity = chain.operators[i];
+
+        for(Size j = i + 1; j < chain.operators.size(); j++) {
+            auto& other = chain.operators[j];
+            if(other.precedence > fixity.precedence) continue;
+            if(other.precedence < fixity.precedence || other.assoc == fixity.assoc) break;
+
+            if(report) {
+                context.diagnostics.error("%@ is `infix%@ %@` and %@ is `infix%@ %@`, so this expression has no grouping - parenthesize one of them"_v,
+                                          chain.sources[j],
+                                          context.findName(fixity.name),
+                                          fixity.assoc == Assoc::Right ? "r"_v : "l"_v, U64(fixity.precedence),
+                                          context.findName(other.name),
+                                          other.assoc == Assoc::Right ? "r"_v : "l"_v, U64(other.precedence));
+            }
+
+            return false;
+        }
     }
 
     return true;
@@ -6745,6 +7674,7 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
         for(U32 i = 0; i < map.count(); i++) arguments.push(nullptr);
 
         HeldList<SmallArray<Node*, 8>> held(*this, arguments);
+        PreparingCall preparing(*this, source);
 
         if(lhs) {
             auto prepared = prepareArgument(builder, *lhs, left, typeArguments, source);
@@ -6764,9 +7694,16 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
          *
          * **Only where the operand is one written expression**, because that is the only place there
          * is an AST node to lift: the right operand of a rung is a *span* of the chain, and a span
-         * that re-associates into a call has no expression anybody can point at. The parenthesis is
-         * the spelling that makes one, and the message says so - it is a real form and not a
-         * workaround, since `(a + b)` is a single operand of this chain by construction.
+         * that re-associates into a call has no expression anybody can point at. There are two
+         * such places. One operand standing alone is the first. The second is a span that runs to
+         * the **end of the chain** - `a ?: b ?: c` under `infixr`, `0 |? f() + g() * 2` - which is
+         * exactly the parser's own right-nested node for the tail (`Chain::rests`), and climbing
+         * that node on its own groups it as this climb would have: every operator in it binds at
+         * least as tightly as `next`, so nothing in it could have stopped the climb early. Since
+         * J139; the shipping stage's `skipPrecedence` walks the same span. A span that ends before
+         * the chain does - `a ?: b + 1 == c` - has no node, and the parenthesis is the spelling
+         * that makes one, which the message says: `(a + b)` is a single operand of this chain by
+         * construction.
          */
         Node* rhs = nullptr;
 
@@ -6777,15 +7714,28 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
                         (operatorIndex >= chain.operators.size() ||
                          chain.operators[operatorIndex].precedence < next);
 
-            if(!lone) {
+            auto tail = !lone && operatorIndex > 0 && operatorIndex < chain.operators.size();
+            for(auto i = operatorIndex; tail && i < chain.operators.size(); i++) {
+                tail = chain.operators[i].precedence >= next;
+            }
+
+            if(!lone && !tail) {
                 context.diagnostics.error(
                     "%@ defers its right operand, and this writes an operator chain there - a deferred operand has to be one expression, so put it in brackets"_v,
                     source, context.findName(callee.name));
                 return nullptr;
             }
 
-            rhs = resolveDeferred(builder, *chain.operands[operandIndex++],
-                                  typeArguments.expected(right.occurrence.type));
+            if(lone) {
+                rhs = resolveDeferred(builder, *chain.operands[operandIndex++],
+                                      typeArguments.expected(right.occurrence.type));
+            } else {
+                // The whole tail is spent: the node to this operator's right is all of it.
+                rhs = resolveDeferred(builder, *chain.rests[operatorIndex - 1],
+                                      typeArguments.expected(right.occurrence.type));
+                operandIndex = chain.operands.size();
+                operatorIndex = chain.operators.size();
+            }
         } else {
             rhs = climb(builder, chain, operandIndex, operatorIndex, next,
                         typeArguments.hint(right.occurrence.type),

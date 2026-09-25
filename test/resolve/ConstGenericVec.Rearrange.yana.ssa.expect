@@ -1,0 +1,152 @@
+module ResolveTest
+
+let & sink: Vec(I32) = [0, 0, 0, 0]
+
+fn four(a: I32 [shared call], b: I32 [shared call], c: I32 [shared call], d: I32 [shared call]) -> Vec(I32) {
+bb0(%0: I32 trivial, %1: I32 trivial, %2: I32 trivial, %3: I32 trivial):
+  %4: %I32 address = alloc frame I32 [shared call]
+  %5: %I32 address = alloc frame I32 [shared call]
+  %6: %I32 address = alloc frame I32 [shared call]
+  %7: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %0
+  store inspect %5 borrow %1
+  store inspect %6 borrow %2
+  store inspect %7 borrow %3
+  %8: %Vec(I32) address = global.addr sink
+  %9: Vec(I32) trivial = load inspect %8
+  %10: I32 trivial = const 0
+  %11: I32 trivial = load inspect %4
+  %12: Vec(I32) trivial = vec.withlane #0 inspect %9 inspect %11
+  %13: I32 trivial = const 1
+  %14: I32 trivial = load inspect %5
+  %15: Vec(I32) trivial = vec.withlane #1 inspect %12 inspect %14
+  %16: I32 trivial = const 2
+  %17: I32 trivial = load inspect %6
+  %18: Vec(I32) trivial = vec.withlane #2 inspect %15 inspect %17
+  %19: I32 trivial = const 3
+  %20: I32 trivial = load inspect %7
+  %21: Vec(I32) trivial = vec.withlane #3 inspect %18 inspect %20
+  return consume %21
+}
+
+fn rotated(v: Vec(I32, n) [shared call]) -> Vec(I32, n) = <no body>
+
+fn windowed(above: Vec(I32, n) [shared call], below: Vec(I32, n) [shared call]) -> Vec(I32, n) = <no body>
+
+fn mixedLow(v: Vec(I32, n) [shared call], w: Vec(I32, n) [shared call]) -> Vec(I32, n) = <no body>
+
+fn mixedHigh(v: Vec(I32, n) [shared call], w: Vec(I32, n) [shared call]) -> Vec(I32, n) = <no body>
+
+fn weigh(v: Vec(I32) [shared call]) -> I32 {
+bb0(%0: Vec(I32) trivial):
+  %1: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(I32) trivial = load inspect %1
+  %3: I32 trivial = const 0
+  %4: I32 trivial = vec.lane #0 inspect %2
+  %5: Vec(I32) trivial = load inspect %1
+  %6: I32 trivial = const 1
+  %7: I32 trivial = vec.lane #1 inspect %5
+  %8: I32 trivial = const 2
+  %9: I32 trivial = mul inspect %8 inspect %7
+  %10: I32 trivial = add inspect %4 inspect %9
+  %11: Vec(I32) trivial = load inspect %1
+  %12: I32 trivial = const 2
+  %13: I32 trivial = vec.lane #2 inspect %11
+  %14: I32 trivial = const 3
+  %15: I32 trivial = mul inspect %14 inspect %13
+  %16: I32 trivial = add inspect %10 inspect %15
+  %17: Vec(I32) trivial = load inspect %1
+  %18: I32 trivial = const 3
+  %19: I32 trivial = vec.lane #3 inspect %17
+  %20: I32 trivial = const 4
+  %21: I32 trivial = mul inspect %20 inspect %19
+  %22: I32 trivial = add inspect %16 inspect %21
+  return consume %22
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Vec(I32) address = alloc frame Vec(I32)
+  %1: %Vec(I32) address = alloc frame Vec(I32)
+  %2: I32 trivial = const 0
+  %3: I32 trivial = const 1
+  %4: I32 trivial = const 2
+  %5: I32 trivial = const 3
+  %6: Vec(I32) trivial = call four borrow %2 borrow %3 borrow %4 borrow %5
+  store inspect %0 consume %6
+  %7: I32 trivial = const 10
+  %8: I32 trivial = const 11
+  %9: I32 trivial = const 12
+  %10: I32 trivial = const 13
+  %11: Vec(I32) trivial = call four borrow %7 borrow %8 borrow %9 borrow %10
+  store inspect %1 consume %11
+  %12: Vec(I32) trivial = load inspect %0
+  %13: Vec(I32) trivial = call rotated(4) borrow %12
+  %14: I32 trivial = call weigh borrow %13
+  %15: Vec(I32) trivial = load inspect %0
+  %16: Vec(I32) trivial = load inspect %1
+  %17: Vec(I32) trivial = call windowed(4) borrow %15 borrow %16
+  %18: I32 trivial = call weigh borrow %17
+  %19: I32 trivial = add inspect %14 inspect %18
+  %20: Vec(I32) trivial = load inspect %0
+  %21: Vec(I32) trivial = load inspect %1
+  %22: Vec(I32) trivial = call mixedLow(4) borrow %20 borrow %21
+  %23: I32 trivial = call weigh borrow %22
+  %24: I32 trivial = add inspect %19 inspect %23
+  %25: Vec(I32) trivial = load inspect %0
+  %26: Vec(I32) trivial = load inspect %1
+  %27: Vec(I32) trivial = call mixedHigh(4) borrow %25 borrow %26
+  %28: I32 trivial = call weigh borrow %27
+  %29: I32 trivial = add inspect %24 inspect %28
+  return consume %29
+}
+
+fn rotated(4)(v: Vec(I32) [shared call]) -> Vec(I32) {
+bb0(%0: Vec(I32) trivial):
+  %1: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(I32) trivial = load inspect %1
+  %3: I32 trivial = const 1
+  %4: Vec(I32) trivial = vec.shuffle [1, 2, 3, 0] inspect %2 inspect %2
+  return consume %4
+}
+
+fn windowed(4)(above: Vec(I32) [shared call], below: Vec(I32) [shared call]) -> Vec(I32) {
+bb0(%0: Vec(I32) trivial, %1: Vec(I32) trivial):
+  %2: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  %3: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: Vec(I32) trivial = load inspect %2
+  %5: Vec(I32) trivial = load inspect %3
+  %6: I32 trivial = const 1
+  %7: Vec(I32) trivial = vec.shuffle [5, 6, 7, 0] inspect %4 inspect %5
+  return consume %7
+}
+
+fn mixedLow(4)(v: Vec(I32) [shared call], w: Vec(I32) [shared call]) -> Vec(I32) {
+bb0(%0: Vec(I32) trivial, %1: Vec(I32) trivial):
+  %2: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  %3: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: Vec(I32) trivial = load inspect %2
+  %5: Vec(I32) trivial = load inspect %3
+  %6: Vec(I32) trivial = vec.shuffle [0, 4, 1, 5] inspect %4 inspect %5
+  return consume %6
+}
+
+fn mixedHigh(4)(v: Vec(I32) [shared call], w: Vec(I32) [shared call]) -> Vec(I32) {
+bb0(%0: Vec(I32) trivial, %1: Vec(I32) trivial):
+  %2: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  %3: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: Vec(I32) trivial = load inspect %2
+  %5: Vec(I32) trivial = load inspect %3
+  %6: Vec(I32) trivial = vec.shuffle [2, 6, 3, 7] inspect %4 inspect %5
+  return consume %6
+}
+
+entry main

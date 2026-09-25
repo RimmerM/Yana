@@ -384,12 +384,7 @@ fn main() -> one %r0
     store global log: %r0, %98
     %99: %r0 = const 16
     %102: %r2 = const null
-    %104: %r1 = const 1
-    %105: %r0 = const 0
-    %115: %r1 = alias %104
-    %116: %r1 = const 1
-    %117: %r7 = binary.eq %115, %116
-    branch %117 -> block17 -> block16
+    jump -> block17
   block16:
     %119: %r0 = alias %105
     %120: %r1 = const 1
@@ -454,14 +449,7 @@ fn main() -> one %r0
     %170: %r0 = binary.add %168, %169
     %171: %r0 = coerce %170
     store global log: %r0, %171
-    %172: %r1 = const 0
-    %173: %r0 = const 0
-    %174: %r2 = const null
-    %175: %r0 = const 0
-    %186: %r1 = alias %172
-    %187: %r1 = const 1
-    %188: %r7 = binary.eq %186, %187
-    branch %188 -> block26 -> block25
+    jump -> block25
   block25:
     %190: %r0 = alias %156
     %191: %r1 = const 1
@@ -472,7 +460,6 @@ fn main() -> one %r0
     %196: %r10 = object %s1 %191, %195, %190
     jump -> block27(%196)
   block26:
-    %176: %r3 = object %s0 %173, %174, %175
     %198: %r3 = alias %176
     %199: %r3 = alias %198
     %200: %r1 = const 0
@@ -914,7 +901,7 @@ fn Maybe(a).toOutcome(Node)(one %r5) -> one %r6
     %15: %r6 = alias %14
     jump -> block2(%15)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 126 adopted 0 sunk 4 numbered 2 decided 0 unboxed 0 updated 0 split 2 promoted 37
+optimizer clones 0 aliased 0 forwarded 0 removed 139 adopted 0 sunk 3 numbered 2 decided 2 unboxed 0 updated 0 split 2 promoted 37 folded 2
 
 shape %s0 object Node {inner: %r0, leaf: %r2, id: %r0}
 shape %s1 object Outcome {$tag: %r1 tag, Proceed: %r3, Exit: %r0}

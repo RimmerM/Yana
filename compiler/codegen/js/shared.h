@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ast.h"
+#include "Net/Stream.h"
 #include "../../compiler/context.h"
 
 // The compiler-owned property keys - `jsir::key`. A *representation* decision, so the table is in
@@ -930,5 +931,10 @@ Name bitOpHelperAt(JsShared& g, BitFamily of, bool wide);
 // `$fd(p)` - a function value's release, which is the pair's two questions. See `emitFunDropHelper`.
 Name funDropHelperAt(JsShared& g);
 void emitFunDropHelper(JsShared& g);
+
+// The tree above as text - `format.cpp`. Here rather than in `gen.h` because both backends call it,
+// and `gen.h` is the shipping backend's, which reads `compiler/resolve`: the JSIR half of this
+// directory needs neither (J150).
+void formatFile(Net::Writer& writer, Context& context, File& file, bool minify);
 
 } // namespace js

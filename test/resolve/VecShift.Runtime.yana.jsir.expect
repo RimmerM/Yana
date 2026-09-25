@@ -1,62 +1,60 @@
-fn opaque(one %r0) -> one %r0
-  block0(%0: %r0):
-    %1: %r0 = load global counter: %r0
-    %2: %r0 = binary.add %1, %0
-    %3: %r0 = coerce %2
-    store global counter: %r0, %3
-    %4: %r0 = load global counter: %r0
-    %5: %r0 = const 1000
-    %6: %r1 = binary.gt %4, %5
-    %7: %r0 = const 1
-    %8: %r0 = select %6, %7, %0
-    return %8
-
 fn main() -> one %r0
   block0:
     %1: %r0 = const 5
     %2: %r0 = const 100
     %3: %r0 = const -32
-    %4: %r4 = const 3n
+    %4: %r3 = const 3n
     %5: %r0 = const 2
-    %6: %r0 = call opaque %5
-    %7: %r0 = const 3
-    %8: %r0 = call opaque %7
-    %9: %r4 = convert %8
-    %10: %r0 = binary.shl %1, %6
-    %11: %r0 = coerce %10
-    %20: %r0 = binary.shr %2, %6
-    %21: %r0 = coerce %20
-    %30: %r0 = binary.sar %3, %6
-    %31: %r0 = coerce %30
-    %34: %r0 = binary.add %11, %21
-    %35: %r0 = coerce %34
-    %36: %r0 = binary.add %35, %31
-    %37: %r0 = coerce %36
-    %38: %r4 = binary.shl %4, %9
-    %39: %r4 = coerce %38
-    %42: %r4 = const 1n
-    %43: %r4 = binary.sub %9, %42
-    %44: %r4 = coerce %43
-    %45: %r4 = binary.shr %39, %44
-    %46: %r4 = coerce %45
-    %49: %r4 = const 0n
-    %50: %r4 = binary.sub %49, %4
-    %51: %r4 = coerce %50
-    %54: %r4 = binary.sar %51, %9
-    %55: %r4 = coerce %54
-    %58: %r4 = binary.add %46, %55
-    %59: %r4 = coerce %58
-    %60: %r0 = convert %59
-    %61: %r0 = binary.add %37, %60
-    %62: %r0 = coerce %61
-    return %62
+    %6: %r0 = load global counter: %r0
+    %7: %r0 = binary.add %6, %5
+    %8: %r0 = coerce %7
+    %9: %r0 = const 1000
+    %10: %r6 = binary.gt %8, %9
+    %11: %r0 = const 1
+    %12: %r0 = select %10, %11, %5
+    %13: %r0 = const 3
+    %14: %r0 = const 5
+    %15: %r0 = binary.add %6, %14
+    %16: %r0 = coerce %15
+    store global counter: %r0, %16
+    %17: %r0 = const 1000
+    %18: %r6 = binary.gt %16, %17
+    %19: %r0 = const 1
+    %20: %r0 = select %18, %19, %13
+    %21: %r3 = convert %20
+    %22: %r0 = binary.shl %1, %12
+    %23: %r0 = coerce %22
+    %32: %r0 = binary.shr %2, %12
+    %33: %r0 = coerce %32
+    %42: %r0 = binary.sar %3, %12
+    %43: %r0 = coerce %42
+    %46: %r0 = binary.add %23, %33
+    %47: %r0 = coerce %46
+    %48: %r0 = binary.add %47, %43
+    %49: %r0 = coerce %48
+    %50: %r3 = binary.shl %4, %21
+    %51: %r3 = coerce %50
+    %54: %r3 = const 1n
+    %55: %r3 = binary.sub %21, %54
+    %56: %r3 = coerce %55
+    %57: %r3 = binary.shr %51, %56
+    %58: %r3 = coerce %57
+    %63: %r3 = const -3n
+    %66: %r3 = binary.sar %63, %21
+    %67: %r3 = coerce %66
+    %70: %r3 = binary.add %58, %67
+    %71: %r3 = coerce %70
+    %72: %r0 = convert %71
+    %73: %r0 = binary.add %49, %72
+    %74: %r0 = coerce %73
+    return %74
 
-optimizer clones 0 aliased 0 forwarded 0 removed 27 adopted 0 sunk 0 numbered 4 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 29 adopted 0 sunk 0 numbered 4 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 4
 
 rep %r0 = number signed 32
-rep %r1 = number bool
-rep %r2 = array Int32Array of %r0
-rep %r3 = parts (%r0, %r0, %r0, %r0) as %r2
-rep %r4 = bigint signed
-rep %r5 = array BigInt64Array of %r4
-rep %r6 = parts (%r4, %r4) as %r5
+rep %r1 = array Array of %r0
+rep %r2 = parts (%r0, %r0, %r0, %r0) as %r1
+rep %r3 = bigint signed
+rep %r4 = array Array of %r3
+rep %r5 = parts (%r3, %r3) as %r4
+rep %r6 = number bool

@@ -596,7 +596,7 @@ struct Verifier {
                 continue;
             }
 
-            if(!mir::sameType(supplied->type(), parameter.occurrence.type)) {
+            if(!mir::fillsParameter(decl, supplied->type(), parameter.occurrence.type)) {
                 report(inst.source,
                        "internal: call to %@ supplies argument %@ of type %@, and it declares %@"_v,
                        context.findName(callee->name), i,
@@ -656,7 +656,10 @@ struct Verifier {
         // verifier and the builder ask it too, so the three cannot disagree about how many
         // components a type has.
         auto expected = mir::aggregateComponentCount(decl, type, written.constructor);
-        if(written.components.size() != expected) {
+        // `InlineArray`'s slots, a fixed array's prefix - the MIR verifier's same exception.
+        auto prefix = decl[type]->kind == mir::Type::Array && written.components.size() < expected;
+
+        if(written.components.size() != expected && !prefix) {
             report(inst.source, "internal: aggregate supplies %@ components, and %@ holds %@"_v,
                    written.components.size(), mir::typeText(context, decl, type), U64(expected));
             return;

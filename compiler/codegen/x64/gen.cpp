@@ -169,6 +169,7 @@ static EncodedAddress encodeAddress(const MachineAddress& a) {
     // same three bits and *is* a legal index, because REX.X tells the two apart.
     assertTrue(!a.hasIndex || a.index != U8(IntRegister::rsp));
     assertTrue(!a.ripRelative || (!a.hasBase && !a.hasIndex));
+    assertTrue(!a.frameRelative); // an alloca's address the emitter never completed - Emitter::frameResolved
     assertTrue(a.ripRelative || (!a.relocFunction && !a.relocGlobal));
 
     // [rip + disp32] is mod=00 rm=101 - which is exactly the encoding an rbp/r13 base would
@@ -1619,6 +1620,12 @@ struct Emitter {
     const FrameLayout& frame;
     const FrameObjects& objects;
 
+    // Where `frameResolved` reports a displacement the encoding cannot hold - the one failure the
+    // emitter has that is the program's rather than this compiler's - and the function it is in.
+    Context& context;
+    LowerFunction& function;
+    mutable bool reportedFrame = false;
+
     // The block laid out immediately after the one being emitted, which is what lets a branch to it
     // become a fallthrough. Null at the end of the function. This is the next block that is
     // *emitted*, so a block skipped by the bypass below is never something to fall into.
@@ -1635,6 +1642,40 @@ struct Emitter {
 
     LowerBlock* branchTarget(LowerPtr<LowerBlock> block) {
         return bypass[base[block]->index];
+    }
+
+    /*
+     * An address whose base is a fixed alloca, completed from the layout that now exists - see
+     * MachineAddress::frameRelative. Every other address is already whole.
+     *
+     * A displacement past 32 bits is **reported**, in every build - J163. It used to be an
+     * `assertTrue` alone, so a release build encoded the wrapped displacement and the access landed
+     * gigabytes away from its slot. The frame layout refuses a frame that large before this runs
+     * (`reportOversizedFrame` in frame.cpp), so what is left to reach here is a field offset on top
+     * of a slot near the limit; nothing is emitted that runs, since the compilation has failed.
+     */
+    MachineAddress frameResolved(const MachineAddress& address) const {
+        if(!address.frameRelative) return address;
+
+        auto ref = FrameReference { .slot = address.frameSlot, .addend = 0 };
+        auto displacement = I64(address.displacement) + frame.offsetOf(ref);
+
+        if(displacement < I64(minLimit<I32>) || displacement > I64(maxLimit<I32>)) {
+            if(!reportedFrame) {
+                context.diagnostics.error("x64: %@ addresses a frame slot %@ bytes from its base, and an amd64 memory operand holds 32 bits of displacement"_v,
+                                          nullptr, context.findName(function.name), displacement);
+                reportedFrame = true;
+            }
+
+            displacement = 0;
+        }
+
+        auto out = address;
+        out.frameRelative = false;
+        out.hasBase = true;
+        out.base = reg(frame.baseOf(ref));
+        out.displacement = I32(displacement);
+        return out;
     }
 
     // Every jump this function emits, in the order they were written - the input to relaxBranches.
@@ -2068,7 +2109,7 @@ struct Emitter {
     void emitLea(const EncodingDescriptor& e, const InstRegs& regs, bool is64) {
         assertTrue(regs.hasAddress); // an address encoding with no address resolved for it
 
-        genMemory(to, regs.address, reg(field(regs, e.regField)), MemForm {
+        genMemory(to, frameResolved(regs.address), reg(field(regs, e.regField)), MemForm {
             .opCode = e.opcode, .escape = e.escape, .prefix = e.prefix, .is64 = is64,
         });
     }
@@ -2109,7 +2150,7 @@ struct Emitter {
         memForm.byteRegField = e.byteRegField;
         if(!e.immField.isNone()) memForm.trailing = immediateBytes;
 
-        genMemory(to, regs.address, regField, memForm);
+        genMemory(to, frameResolved(regs.address), regField, memForm);
 
         if(!e.immField.isNone()) {
             auto& immOp = field(regs, e.immField);
@@ -3119,11 +3160,11 @@ struct Emitter {
         };
 
         if(load) {
-            genMemory(to, regs.address, scratch, transfer);
+            genMemory(to, frameResolved(regs.address), scratch, transfer);
             genRegRegPrefixed(to, prefix, scratch, mask, crossing);
         } else {
             genRegRegPrefixed(to, prefix, mask, scratch, crossing);
-            genMemory(to, regs.address, scratch, transfer);
+            genMemory(to, frameResolved(regs.address), scratch, transfer);
         }
     }
 
@@ -4926,7 +4967,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
     // going to move, how much room the locals need), and every frame reference in the body needs
     // the same answers. See frame.cpp.
     auto frame = computeFrameLayout(context, base, fun, targetConstraints(), regs);
-    assertTrue(verifyFrameLayout(context, fun, objects, frame)); // debug builds only
+    assertTrue(frame.oversized || verifyFrameLayout(context, fun, objects, frame)); // debug builds only
 
     // §5.4 Whether the upper halves can be dirty at a foreign boundary in this function, which is a
     // question about the whole module - see moduleDirtiesUpperHalves.
@@ -5062,7 +5103,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         sharedEpilogue = false;
     }
 
-    Emitter emitter { to, base, machine, frame, objects };
+    Emitter emitter { to, base, machine, frame, objects, context, fun };
     emitter.interrupt = fun.callType == LowerCallType::X86Interrupt;
     emitter.interruptErrorCode = emitter.interrupt && fun.args.size() == 2;
     emitter.bypass = Buffer<LowerBlock*> { bypass.pointer(), bypass.size() };

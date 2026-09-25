@@ -391,8 +391,8 @@ static bool hasEmbeddedRhs(LowerBase base, LowerInst* inst) {
 
 // The value of an embedded immediate operand. Only asked about operands hasEmbeddedRhs has already
 // answered for, so the instruction behind it is an Imm by construction.
-static U64 embeddedValue(LowerBase base, LowerPtr<LowerValue> operand) {
-    return ((LowerImm*)base[operand]->inst())->i;
+static U64 embeddedValue(LowerBase base, LowerInst* inst, LowerPtr<LowerValue> operand) {
+    return embeddedImmValue(base, inst, base[operand]);
 }
 
 LowerType operationType(LowerBase base, const MachineForm& form, LowerInst* inst) {
@@ -904,7 +904,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
                 auto reg = inst->kind == LowerInst::Add ? FormAddReg : FormSubReg;
                 if(!hasEmbeddedRhs(base, inst)) return reg;
 
-                auto value = embeddedValue(base, ((LowerInstBinary*)inst)->rhs);
+                auto value = embeddedValue(base, inst, ((LowerInstBinary*)inst)->rhs);
                 auto up = inst->kind == LowerInst::Add ? FormAddInc : FormSubInc;
                 auto down = inst->kind == LowerInst::Add ? FormAddDec : FormSubDec;
 
@@ -969,7 +969,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
 
             auto& forms = shifts[inst->kind - LowerInst::Shl];
             if(!hasEmbeddedRhs(base, inst)) return forms.cl;
-            return embeddedValue(base, ((LowerInstBinary*)inst)->rhs) == 1 ? forms.one : forms.imm;
+            return embeddedValue(base, inst, ((LowerInstBinary*)inst)->rhs) == 1 ? forms.one : forms.imm;
         }
 
         case LowerInst::Select: {
@@ -1047,7 +1047,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             // `canEmbedImm` has already accepted - which it has to, since by here the operand may
             // have been taken out of allocation and have no register to fall back to.
             if(isImm(base[store->value]) &&
-               fitsImmediate(ImmediateWidth::Imm32, embeddedValue(base, store->value)))
+               fitsImmediate(ImmediateWidth::Imm32, embeddedValue(base, inst, store->value)))
             {
                 switch(store->getWidth()) {
                     case 1: return FormStore8Imm;
@@ -1093,7 +1093,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             auto store = (LowerInstAtomicStore*)inst;
 
             if(isImm(base[store->value]) &&
-               fitsImmediate(ImmediateWidth::Imm32, embeddedValue(base, store->value)))
+               fitsImmediate(ImmediateWidth::Imm32, embeddedValue(base, inst, store->value)))
             {
                 switch(store->getWidth()) {
                     case 1: return FormStore8Imm;
@@ -1163,7 +1163,7 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             auto width = update->getWidth();
 
             if(width >= 4 && isImm(base[update->value])
-               && fitsImmediate(ImmediateWidth::Imm8OrImm32, embeddedValue(base, update->value)))
+               && fitsImmediate(ImmediateWidth::Imm8OrImm32, embeddedValue(base, inst, update->value)))
             {
                 return MachineFormId(first + (width == 4 ? 4 : 5));
             }

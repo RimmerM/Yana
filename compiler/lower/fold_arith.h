@@ -38,8 +38,18 @@
 
 namespace foldArith {
 
+// The low `bits` bits. The one spelling of it in the lower tier and the new stage's lowering since
+// J163 - lower_store.cpp's `maskOfBits`, resolve_ssa/lower/repr.h's `lowMask`, three local `maskOf`s
+// in lower_thread.cpp, lower_divide.cpp and lower_strength.cpp, and a merge in lower_promote.cpp
+// written out inline were all this. The shipping stage's `compiler/resolve` and `compiler/opt` keep
+// their own, since they go when that stage does.
 inline U64 maskOf(U32 bits) {
     return bits >= 64 ? maxLimit<U64> : (U64(1) << bits) - 1;
+}
+
+// Whether exactly one bit is set - lower_split.cpp and resolve_ssa/lower/convention.cpp each had one.
+inline bool isPowerOfTwo(U64 value) {
+    return value && (value & (value - 1)) == 0;
 }
 
 // The same pattern read as a signed number of that width, which is what every operation that has a

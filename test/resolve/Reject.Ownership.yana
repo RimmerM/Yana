@@ -119,9 +119,6 @@ fn readsTheWindow(&held: Buffer) -> I64:
     held = old
     return n
 
--- Duplicating a value with a teardown out of raw memory, `let &held = *p`, is
--- `Reject.Ownership.Legacy.yana`: the new stage does not refuse it yet.
-
 -- The move, which is the same two lines said the way Native means them, and stays accepted.
 fn takenOutOfMemory(p: %Buffer) -> I64:
     let ->held = *p
@@ -129,3 +126,54 @@ fn takenOutOfMemory(p: %Buffer) -> I64:
 
 -- A scalar is duplicated by reading it, so there is nothing here to be two owners of.
 fn scalarOutOfMemory(p: %I64) -> I64 = *p
+
+-- Since J135, which enforces these in the new stage; they were `Reject.Ownership.Legacy.yana`.
+{-
+   Duplicating a value with a teardown out of raw memory.
+
+   A pointer's target has no owner, so none of the "this frame only borrows it" rules has a lender
+   to name and none of them applies. Copying it is a different question: two names now run one
+   teardown, and that is about the value rather than about whose it was.
+
+   All of it used to leave the check unexamined, on the reading that `return *p` is what Native
+   needs it to be. What that exempted was the copy and not the *move* - `let ->x = *p` is an
+   InstMove, never reaches this check at all, and is what `Reclaim(Array(a))` is written on. So the
+   escape hatch is not closed here, it is spelled, and the message names the spelling.
+-}
+-- `let &held = *p` is an exclusive loan of the pointee since J162, as `let &d = c` is of any
+-- place, so what is refused is the `->` handover out of the loan below it.
+fn copiedOutOfMemory(p: %Buffer) -> I64:
+    let &held = *p
+    return take(held)
+
+fn returnedOutOfMemory(p: %Buffer) -> Buffer = *p
+
+-- A part of the pointee copies the same way (J146) - the rule reads the value and not the text, so
+-- `(*p).field` is a copy wherever the position owns it. A plain `let` of either borrows, and is
+-- `Pointer.Borrow.yana`.
+data Wrapped {inner: Buffer, tag: I64}
+
+fn returnedFieldOutOfMemory(p: %Wrapped) -> Buffer = (*p).inner
+
+-- The rule is over the read, not the statement (J162): J146 asked at a `let`, a `return` and an `=`
+-- body, so an argument to a `->` parameter, an assignment and an arm yielding into an owned result
+-- all copied the teardown and ran it twice. Each is refused where the owned read is.
+fn consumeBuffer(->b: Buffer) -> I64 = take(b)
+fn peekBuffer(b: Buffer) -> U8 = *b.bytes
+
+fn consumedOutOfMemory(p: %Wrapped) -> I64 = consumeBuffer((*p).inner)
+
+fn assignedOutOfMemory(p: %Wrapped, &into: Buffer):
+    into = (*p).inner
+
+fn armOutOfMemory(p: %Wrapped, ->other: Buffer) -> Buffer:
+    return if (*p).tag > 0 then (*p).inner else other
+
+fn matchedOutOfMemory(p: %Wrapped) -> Buffer:
+    return match (*p).tag:
+        _ -> (*p).inner
+
+-- A borrow of the part is legal, and so is the relocation spelled as an update.
+fn borrowedFromMemory(p: %Wrapped) -> U8 = peekBuffer((*p).inner)
+fn relocatedByUpdate(p: %Wrapped) -> Wrapped = {-> *p | tag: 1}
+fn borrowedWholeFromMemory(p: %Buffer) -> U8 = peekBuffer(*p)

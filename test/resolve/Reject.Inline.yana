@@ -10,9 +10,13 @@ fn guessed(x: Int) -> Int = x + 2
 @noinline(never)
 fn qualified(x: Int) -> Int = x + 3
 
--- Plain `@inline` beside `@noinline` moved to `Reject.Inline.Legacy.yana`; that file says
--- what the new stage does instead. `@inline(always)` on a body that calls itself went there too and
--- is `Reject.Inline.Recursive.yana`.
+-- The two together are a contradiction rather than a precedence question, so neither applies and
+-- the function is left to the ordinary heuristics.
+@inline
+@noinline
+fn undecided(x: Int) -> Int = x + 4
+
+-- `@inline(always)` on a body that calls itself is `Reject.Inline.Recursive.yana`.
 
 -- And the same contradiction said with the guarantee, which is the one of the three that would
 -- otherwise have won: `@inline(always)` is a directive both passes carry out between them, so a
@@ -21,4 +25,4 @@ fn qualified(x: Int) -> Int = x + 3
 @noinline
 fn contradicted(x: Int) -> Int = x + 5
 
-fn main() -> Int = guessed(2) + qualified(3) + contradicted(5)
+fn main() -> Int = guessed(2) + qualified(3) + undecided(4) + contradicted(5)

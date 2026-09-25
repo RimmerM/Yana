@@ -87,18 +87,11 @@ fn main() -> one %r0
     %55: %r0 = const 4
     %56: %r0 = alias %55
     %57: %r0 = alias %54
-    %58: %r0 = alias %56
-    %61: %r0 = alias %57
     %62: %r0 = alias %57
     call Guard.drop %62
-    %63: %r0 = const 10
-    %64: %r0 = binary.mul %61, %63
-    %65: %r0 = coerce %64
-    %67: %r0 = alias %58
     %68: %r0 = alias %56
     call Guard.drop %68
-    %69: %r0 = binary.add %65, %67
-    %70: %r0 = coerce %69
+    %70: %r0 = const 34
     %71: %r0 = const 0
     %72: %r5 = object %s1 %71
     %73: %r0 = const 5
@@ -244,17 +237,9 @@ fn main() -> one %r0
     %178: %r0 = const 8
     %179: %r0 = alias %178
     %180: %r0 = alias %179
-    %181: %r0 = alias %180
-    %182: %r0 = alias %181
-    %183: %r0 = alias %182
-    %185: %r0 = alias %183
-    %186: %r0 = alias %181
-    %187: %r0 = alias %186
-    %189: %r0 = alias %187
     %190: %r0 = alias %180
     call Guard.drop %190
-    %191: %r0 = binary.add %185, %189
-    %192: %r0 = coerce %191
+    %192: %r0 = const 16
     %193: %r0 = binary.add %0, %1
     %194: %r0 = coerce %193
     %195: %r0 = binary.add %194, %70
@@ -272,7 +257,7 @@ fn main() -> one %r0
     %207: %r0 = coerce %206
     return %207
 
-optimizer clones 0 aliased 0 forwarded 0 removed 47 adopted 0 sunk 0 numbered 6 decided 0 unboxed 7 updated 0 split 1 promoted 21
+optimizer clones 0 aliased 0 forwarded 0 removed 62 adopted 0 sunk 0 numbered 6 decided 0 unboxed 7 updated 0 split 1 promoted 21 folded 6
 
 shape %s0 object Entry {key: %r0, value: %r0}
 shape %s1 cell {$v: %r0 box}

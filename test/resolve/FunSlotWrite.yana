@@ -1,0 +1,67 @@
+-- A function value in a slot that something writes through a borrow - J148.
+--
+-- The inliner's `devirtualizeSite` made a call through `f` a direct call to the one value stored in
+-- `f`'s slot, and it decided "one value" from the slot's use list alone: every `load` was a read. A
+-- load whose result is a unique borrow lent to `replaceFn(&f)` is a write, and so is a mutable
+-- capture, so each function below called `double` where `replaceFn` had put `neg` there - and
+-- `-inline none` did not help, because a devirtualization is not an inlining. `movedOut` is the
+-- one J145 broke: the drop of the slot `apply`'s copied parameter lands in had stopped the walk.
+--
+-- `soleContents` is what answers now, and it follows a borrowing load into the call it is lent to.
+-- Each function is asked at a `k` that replaces (3, giving -3) and one that does not (4, giving 8),
+-- and the answers are weighed so that any one of them wrong moves the total.
+
+data Step {run: (I32) -> I32, n: I32}
+
+fn double(x: I32) -> I32 = x * 2
+fn neg(x: I32) -> I32 = 0 - x
+
+@noinline
+fn replaceFn(&f: (I32) -> I32, k: I32):
+    if k % 3 == 0:
+        f = neg
+
+fn apply(->f: (I32) -> I32, k: I32) -> I32 = f(k)
+
+@noinline
+fn run(g: () -> {}):
+    g()
+
+fn viaBorrow(k: I32) -> I32:
+    let &f = double :: (I32) -> I32
+    replaceFn(f, k)
+    return f(k)
+
+fn movedOut(k: I32) -> I32:
+    let &f = double :: (I32) -> I32
+    replaceFn(f, k)
+    return apply(f, k)
+
+fn capturing(k: I32) -> I32:
+    let &f = ((x: I32) -> x * 2 + k - k) :: (I32) -> I32
+    replaceFn(f, k)
+    return f(k)
+
+fn inRecord(k: I32) -> I32:
+    let &s = Step {run: double, n: 1}
+    replaceFn(s.run, k)
+    return s.run(k)
+
+fn viaClosure(k: I32) -> I32:
+    let &f = double :: (I32) -> I32
+    run(() -> replaceFn(f, k))
+    return f(k)
+
+-- And the slot nothing writes, which is still a direct call.
+fn untouched(k: I32) -> I32:
+    let f = double :: (I32) -> I32
+    return f(k)
+
+fn both(g: (I32) -> I32) -> I32 = g(3) * 100 + g(4)
+
+fn main() -> I32:
+    -- Each `both` is -300 + 8 = -292 where it replaces and 6 * 100 + 8 = 608 where it wrongly does
+    -- not; `untouched` is 608.
+    let total = both(viaBorrow) + 2 * both(movedOut) + 4 * both(capturing) + 8 * both(inRecord)
+        + 16 * both(viaClosure) + 32 * both(untouched)
+    return total + 20000

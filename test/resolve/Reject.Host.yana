@@ -15,8 +15,6 @@ data First {length: @host Int, items: Int}
 -- nothing for the elided field to be reached through.
 data Two {items: Int, count: Int, length: @host Int}
 
--- A positional `@host` field is `Reject.Host.Legacy.yana`.
-
 -- `@bits` narrows a field into a word it shares with its neighbours and an elided field has no word;
 -- `@box` makes a field an address and an elided one has no storage to take the address of.
 data Narrow {items: Int, length: @host @bits(30) Int}
@@ -26,3 +24,7 @@ data Boxed {items: Int, length: @host @box Int}
 data Argued {items: Int, length: @host(size) Int}
 
 fn main() -> Int = 0
+
+-- Since J135, which enforces these in the new stage; they were `Reject.Host.Legacy.yana`.
+-- The name is the property, so a positional `@host` field has nothing to ask the host for.
+data Unnamed {items: Int, @host Int}

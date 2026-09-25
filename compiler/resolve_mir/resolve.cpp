@@ -99,17 +99,11 @@ Maybe<LowerCallType> Resolver::readFunctionConvention(ast::Type& type) {
 }
 
 /*
- * `@inline(n) @capacity(n)` on a container type - Implementation-Containers.md §7, as far as this
- * stage can carry it.
+ * `@inline(n) @capacity(n)` on a container type - Implementation-Containers.md §7.
  *
- * **Only the capacity is honoured here, and the placement is not.** `@capacity(n)` says the
- * container starts with room for `n` elements, which is a statement about the container and is what
- * the one caller in `lib/` depends on: `withPathCString` writes `PATH_MAX` bytes through
- * `valuesMut` into slots above the length. `@inline(n)` says those slots live in the frame, and that
- * is a *placement*, which this stage decides nowhere - `newRun` puts every run on the heap here, for
- * the reason Analysis-Manifestations.md §9.3 gives: the escape analysis that would place one in the
- * frame is unbuilt. So a refined array costs an allocation and a free that the shipping stage does
- * not pay, and means the same thing.
+ * Read here and *named* by `resolveType`: the pair is `InlineArray(T, n)`, the library's
+ * `inlineArray` role, whose slots and count live inside whoever holds it (J143). It used to be
+ * honoured only as a literal's capacity, because this stage had no layout for the slots.
  *
  * The pair is checked exactly as `resolveContainerRefinement` checks it in the shipping stage,
  * because the rows that spill are the ones neither stage builds and refusing them by name is what
@@ -358,23 +352,46 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
     }
 
     /*
-     * A container refinement that reached *here* is one written somewhere it means nothing.
+     * `@inline(n) @capacity(n) [T]` - a **type** since J143: `InlineArray(T, n)`, the library's
+     * `@builtin(inlineArray)`, whose elements and count are inside whoever holds it. So it is legal
+     * wherever a type is - a field, which is what it is for, a local, a parameter, an alias - and
+     * the `::` of an array literal is one more position rather than the only one.
      *
-     * The two positions that honour it - the `::` of an array literal in a body and in a constant -
-     * read it themselves and resolve the type without the attributes, exactly as the `@bits` arm
-     * above does. So anything left is a field, a parameter or a result asking for a capacity the
-     * thing that fills it will not have, and that is reported rather than dropped: an annotation
-     * silently ignored is a representation its author believes in.
+     * A library that declares no such type is a target with nowhere to put the slots: JavaScript,
+     * where a host array grows on its own and the refinement reads as the `[T]` it bounds - which
+     * is what the literal already did there. A native library without it keeps the refusal this
+     * used to be everywhere.
      */
     U64 capacity = 0;
     if(!readContainerRefinement(type, capacity)) return nullptr;
 
     if(capacity) {
-        context.diagnostics.error(
-            "`@inline(n) @capacity(n)` is honoured on the `::` of an array literal, which is what "
-            "builds the container - written here it names a capacity nothing would give it"_v,
-            type.source);
-        return nullptr;
+        auto plain = type;
+        plain.attributes = nullptr;
+
+        if(plain.kind != ast::Type::Arr || plain.arr.length) {
+            context.diagnostics.error(
+                "`@inline` and `@capacity` refine a growable array - `[T]`"_v, type.source);
+            return nullptr;
+        }
+
+        auto role = program.roles.record(intrinsic::Known::inlineArray);
+        if(!role && isJsMode(context.settings)) return resolveType(plain);
+
+        // A library without the role - since J143 the literal goes through this same path, so the
+        // refinement is refused everywhere by the role's own sentence (J146; this used to say the
+        // literal honoured it).
+        if(!role) {
+            reportMissingRole(intrinsic::Known::inlineArray, "an `@inline(n) @capacity(n)` array"_v,
+                              type.source);
+            return nullptr;
+        }
+
+        auto element = resolveType(*parse[plain.arr.type]);
+        if(!element) return nullptr;
+        if(!requireValueType(element, parse[plain.arr.type]->source)) return nullptr;
+
+        return inlineArrayType(element, capacity, type.source);
     }
 
     switch(type.kind) {
@@ -480,12 +497,11 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
              * parameter default to a borrow and the result to an owner, which is the same pair of
              * defaults a `fn` header has.
              *
-             * The slot scope is **fresh and then required to be empty**. An origin published inside
-             * a function type is numbered in that type's own scope - the value's signature is what
-             * relates its parameters to its result - and a scope that is a local of this function
-             * would be a numbering nothing carries. Refusing it here is one message at the position
-             * that wrote it; letting it through would be a slot index meaning one thing in the type
-             * and another in whatever declaration the type appears in.
+             * The slot scope is **fresh**. An origin published inside a function type is numbered in
+             * that type's own scope - the value's signature is what relates its parameters to its
+             * result - and a scope that is a local of the enclosing declaration would be a
+             * numbering nothing carries: a slot index meaning one thing in the type and another in
+             * whatever declaration the type appears in.
              */
             auto& written = *parse[type.fun];
             if(written.kind != ast::FunKind::Plain) {
@@ -511,9 +527,23 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
                 return nullptr;
             }
 
-            if(slots.count()) {
-                unsupported(type.source, "an origin published inside a function type"_v);
-                return nullptr;
+            /*
+             * An origin **may** be published here since J141 (J94 §3.4's `LoanGroup`): the scope
+             * is the function type's own, so its numbering is the value's signature and means the
+             * same thing wherever the type is written - which is what a call through the value
+             * reads (`Analysis::computeValueCallTables`). What is still refused is the one relation
+             * a call through a value does not apply: an **installation**, where a `&` parameter's
+             * interior position shares a group with another position and the callee may put that
+             * position's loan into it.
+             */
+            for(auto& param: params) {
+                if(param.occurrence.contract.access() != Access::Unique || !param.occurrence.shape) continue;
+
+                for(auto slot: decl()[param.occurrence.shape]->slots.contents(decl())) {
+                    if(decl()[slot]->contract.origin() != Origin::Slot) continue;
+                    unsupported(type.source, "a function type whose `&` parameter holds an origin"_v);
+                    return nullptr;
+                }
             }
 
             auto convention = readFunctionConvention(type);
@@ -683,6 +713,30 @@ DeclPtr<Type> Resolver::sequenceType(DeclPtr<Type> element, LocationId source) {
     }
 
     return instantiateRecord(context, program, declaration, &element, 1, source);
+}
+
+/*
+ * `InlineArray(element, n)` - what `@inline(n) @capacity(n) [element]` names (J143).
+ *
+ * The count is the head's own const parameter's type, read off the declaration, so the handle is
+ * the one `InlineArray(Int, 4)` written by name would intern to.
+ */
+DeclPtr<Type> Resolver::inlineArrayType(DeclPtr<Type> element, U64 capacity, LocationId source) {
+    auto role = program.roles.record(intrinsic::Known::inlineArray);
+    if(!role) return nullptr;
+
+    auto head = decl()[role]->gen;
+    auto parameter = head ? headParameterOf(decl(), head, 1) : nullptr;
+    auto annotation = parameter ? ((VariableType*)decl()[parameter])->constType : nullptr;
+
+    if(!annotation) {
+        context.diagnostics.error(
+            "this library's `InlineArray` is not the `(a, n: Int)` record a refined array is"_v, source);
+        return nullptr;
+    }
+
+    DeclPtr<Type> arguments[2] = { element, program.types.constType(capacity, annotation) };
+    return instantiateRecord(context, program, role, arguments, 2, source);
 }
 
 /*
@@ -1262,8 +1316,43 @@ Constant Resolver::declareDefault(ast::Expr& expr, DeclPtr<Type> type, StringId 
         return Constant();
     }
 
+    /*
+     * A growable array literal, refused by what it is rather than as a form this stage lacks:
+     * `Array(a)` allocates its run, so there is nothing constant about one - the storage would have
+     * to exist before the program starts. `[T *n]` is the shape that has a constant form, since its
+     * elements are the value's own bytes. A fixed array is `Type::Array`; the growable one is a
+     * record, which is the whole test.
+     */
+    if(expr.kind == ast::Expr::Array && type && decl()[type]->kind != Type::Array) {
+        context.diagnostics.error("a %@ default is written as an array literal, but %@ has no constant form - only a fixed array `[T *n]` does, since its elements are the value's own storage rather than a run it allocates"_v,
+                                  expr.source, what, typeText(context, decl(), type));
+        return Constant();
+    }
+
     ConstantScope reading { *this };
-    auto value = resolveConstant(expr, type);
+    DeclaredLiteral declared { *this, expr, what == "field"_v ? "a field default"_v : "a parameter default"_v };
+
+    // Asked as a probe, so that a form that is not a constant is named here, where the rule is known,
+    // rather than as a form the constant reader has not built.
+    auto notConstant = false;
+    auto value = resolveConstant(expr, type, &notConstant);
+
+    if(notConstant) {
+        // A call that did not fold is code, and a declaration has no program point for its own code
+        // to run at - the default is built afresh at every site that leaves the position out.
+        if(expr.kind == ast::Expr::App) {
+            context.diagnostics.error("a default must be a constant - a literal, a constructor, an aggregate of those, or arithmetic that folds - and this calls a function: there is no program point at which a declaration's own code would run"_v,
+                                      expr.source);
+        } else if(expr.kind == ast::Expr::Con && parse[expr.con]->type.kind == ast::Type::Con &&
+                  !findConstructor(context, program, here(), parse[expr.con]->type.name, expr.source)) {
+            context.diagnostics.error("no constructor named %@ is visible here"_v, expr.source,
+                                      context.findName(parse[expr.con]->type.name));
+        } else {
+            unsupported(expr.source, "this constant expression"_v);
+        }
+        return Constant();
+    }
+
     if(!value.isSet()) return Constant();
 
     if(type && !sameType(value.type, type)) {
@@ -2135,6 +2224,15 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
         return intConstant(type, 0);
     }
 
+    // `let &behind = -1 :: %U8` - an address counts up from zero, so a negative one is a number that
+    // means nothing rather than a large one, and a declaration written as one says so in those words
+    // rather than in the `FromInt` refusal below, which is about the positive ones.
+    if(decl()[type]->kind == Type::Pointer && written.role == intrinsic::Known::fromInt &&
+       negative && written.magnitude != 0 && &expr == declaredLiteral) {
+        outOfRangeDeclaration(type);
+        return Constant();
+    }
+
     /*
      * `let &sink = 0 :: Vec(I32, 4)` - a literal at a **vector**, which is the same number in every
      * lane and therefore an aggregate of `lanes` constants.
@@ -2175,7 +2273,51 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
         return Constant();
     }
 
+    // A declaration's own literal is refused where a body's is warned about - see `declaredLiteral`.
+    if(&expr == declaredLiteral && written.role == intrinsic::Known::fromInt &&
+       decl()[type]->kind == Type::Int &&
+       !integerHolds(*(IntType*)decl()[type], written.magnitude, written.negative)) {
+        outOfRangeDeclaration(type);
+        return Constant();
+    }
+
     return foldWritten(written, type, expr.source);
+}
+
+/*
+ * Which node a declaration's literal is, if it is one: the expression itself under any number of
+ * ascriptions, parentheses and one folded sign - the forms `resolveConstant` passes straight through
+ * to `resolveLiteral`. Anything else answers null, and its literals are a body's.
+ */
+ast::Expr* Resolver::declaredLiteralOf(ast::Expr& expr) {
+    auto at = &expr;
+    auto negated = false;
+
+    for(;;) {
+        if(at->kind >= ast::Expr::Lit) return at;
+
+        switch(at->kind) {
+            case ast::Expr::Coerce:
+                at = &parse[at->coerce]->target;
+                continue;
+            case ast::Expr::Nested:
+                at = parse[at->nested];
+                continue;
+            case ast::Expr::Prefix:
+                if(negated || !isNegation(context, parse, *at)) return nullptr;
+                negated = true;
+                at = &parse[at->prefix]->on;
+                continue;
+            default:
+                return nullptr;
+        }
+    }
+}
+
+void Resolver::outOfRangeDeclaration(DeclPtr<Type> type) {
+    context.diagnostics.error(
+        "%@ is out of range for type %@ - a declaration takes the value it is written as, and this is not one of them"_v,
+        declaredSource, declaredWhat, typeText(context, decl(), type));
 }
 
 /*
@@ -2770,6 +2912,7 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
          * in. `checkInstanceSuperclasses` is where that is argued.
          */
         resolver.checkInstanceSuperclasses();
+        resolver.checkClassDefaultInstances();
     };
 
     /*

@@ -42,25 +42,23 @@ fn makeItems(one %r0) -> one %r8
     %39: %r0 = coerce %38
     jump -> block4
   block4:
-    %50: %r8 = alias %35
+    %48: %r8 = alias %35
     %34: %r7 = object %s0 %9, %29, %33
-    store element %50[%37]: %r7, %34
-    %51: %r20 = convert %39
-    %52: %r19 = convert %51
-    %53: %r8 = alias %6
-    store property %53.length: %r19, %52
-    %54: %r0 = binary.add %1, %8
-    %55: %r0 = coerce %54
-    jump -> block1(%55)
+    store element %48[%37]: %r7, %34
+    %49: %r20 = convert %39
+    %50: %r19 = convert %49
+    %51: %r8 = alias %6
+    store property %51.length: %r19, %50
+    %52: %r0 = binary.add %1, %8
+    %53: %r0 = coerce %52
+    jump -> block1(%53)
   block5:
-    %44: %r8 = load property %3.$v: %r8
-    %45: %r8 = load property %3.$v: %r8
-    %46: %r0 = host host.field "length" host-range %45
-    %47: %r3 = binary.le %39, %46
-    branch %47 -> block4 -> block6
+    %44: %r0 = host host.field "length" host-range %41
+    %45: %r3 = binary.le %39, %44
+    branch %45 -> block4 -> block6
   block6:
-    %48: %r13 = const "$v"
-    call growJsArray(Item) %3, %48, %39
+    %46: %r13 = const "$v"
+    call growJsArray(Item) %3, %46, %39
     jump -> block4
 
 fn deadArm(one %r0, one %r0) -> one %r0
@@ -133,8 +131,7 @@ fn main() -> one %r0
     %77: %r19 = load property %76.length: %r19
     %78: %r0 = convert %77
     %79: %r0 = const 0
-    %84: %r0 = const 0
-    %85: %r20 = convert %84
+    %85: %r20 = const 0
     %86: %r20 = convert %78
     %87: %r3 = binary.ge %85, %86
     branch %87 -> block18 -> block7
@@ -372,18 +369,18 @@ fn main() -> one %r0
     %245: %r20 = binary.rem %244, %55
     %246: %r20 = coerce %245
     %247: %r5 = convert %246
-    %330: %r6 = load property %225.$p0: %r6
-    store var $5: %r6, %330
+    %328: %r6 = load property %225.$p0: %r6
+    store var $5: %r6, %328
     store bits @17:1 of (var $5: %r6): %r3, %234
     store bits @0:12 of (var $5: %r6): %r5, %247
-    %331: %r1 = load property %225.weight: %r1
-    %332: %r4 = load property %225.level: %r4
-    %333: %r6 = load var $5: %r6
+    %329: %r1 = load property %225.weight: %r1
+    %330: %r4 = load property %225.level: %r4
+    %331: %r6 = load var $5: %r6
     jump -> block36
   block36:
     %254: %r8 = alias %47
     %256: %r0 = alias %224
-    %250: %r7 = object %s0 %331, %332, %333
+    %250: %r7 = object %s0 %329, %330, %331
     %251: %r7 = alias %250
     store element %254[%256]: %r7, %251
     %257: %r0 = binary.add %7, %53
@@ -492,24 +489,22 @@ fn main() -> one %r0
     %195: %r0 = coerce %194
     jump -> block46(%195, %13)
   block57:
-    %324: %r11 = alias %309
-    store element %324[%311]: %r10, %308
-    %325: %r20 = convert %313
-    %326: %r19 = convert %325
-    %327: %r11 = alias %19
-    store property %327.length: %r19, %326
-    %328: %r0 = binary.add %2, %21
-    %329: %r0 = coerce %328
-    jump -> block4(%329)
+    %322: %r11 = alias %309
+    store element %322[%311]: %r10, %308
+    %323: %r20 = convert %313
+    %324: %r19 = convert %323
+    %325: %r11 = alias %19
+    store property %325.length: %r19, %324
+    %326: %r0 = binary.add %2, %21
+    %327: %r0 = coerce %326
+    jump -> block4(%327)
   block58:
-    %318: %r11 = load property %16.$v: %r11
-    %319: %r11 = load property %16.$v: %r11
-    %320: %r0 = host host.field "length" host-range %319
-    %321: %r3 = binary.le %313, %320
-    branch %321 -> block57 -> block59
+    %318: %r0 = host host.field "length" host-range %315
+    %319: %r3 = binary.le %313, %318
+    branch %319 -> block57 -> block59
   block59:
-    %322: %r13 = const "$v"
-    call growJsArray(Cell) %16, %322, %313
+    %320: %r13 = const "$v"
+    call growJsArray(Cell) %16, %320, %313
     jump -> block57
 
 fn Array(a).reclaim(Cell)(one %r11) -> omitted
@@ -560,7 +555,7 @@ fn growJsArray(Item)(parts %r17, one %r0) -> omitted
     store element %0[%1]: %r8, %15
     return
 
-optimizer clones 4 aliased 1 forwarded 0 removed 85 adopted 0 sunk 2 numbered 47 decided 9 unboxed 2 updated 1 split 0 promoted 15
+optimizer clones 4 aliased 1 forwarded 0 removed 86 adopted 0 sunk 2 numbered 47 decided 9 unboxed 2 updated 1 split 0 promoted 15 folded 1
 
 shape %s0 object Item {weight: %r1, level: %r4, $p0: %r6 unit #0}
 shape %s1 object Cell {kind: %r2, live: %r3, count: %r5, age: %r9}

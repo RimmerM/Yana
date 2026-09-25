@@ -41,28 +41,18 @@ tried<complex>(%x: I32): I32, I32 {
 
   b_3 {
     %v_4 = sub 0, %x: I32
-    %v_5 = alloca 8, 4: Ptr
-    store %v_5, 1, 1
-    %v_6 = add %v_5, 4: Ptr
-    store %v_6, %v_4, 4
-    jmp b_7
+    jmp b_5
   }
 
   b_2 {
-    %v_8 = add %x, %x: I32
-    %v_9 = alloca 8, 4: Ptr
-    store %v_9, 0, 1
-    %v_10 = add %v_9, 4: Ptr
-    store %v_10, %v_8, 4
-    jmp b_7
+    %v_6 = add %x, %x: I32
+    jmp b_5
   }
 
-  b_7 {
-    %v_11 = phi [b_3, %v_5], [b_2, %v_9]: Ptr
-    %v_12 = load %v_11, 1: I32
-    %v_13 = add %v_11, 4: Ptr
-    %v_14 = load %v_13, 4: I32
-    ret %v_12, %v_14
+  b_5 {
+    %v_7 = phi [b_3, 1], [b_2, 0]: I32
+    %v_8 = phi [b_3, %v_4], [b_2, %v_6]: I32
+    ret %v_7, %v_8
   }
 }
 

@@ -228,7 +228,7 @@ LowerPtr<LowerValue> Lowering::createBox(LowerBlock& block, LowerPtr<LowerValue>
      * the second allocation site in the stage and therefore the second place the rule has to be
      * stated - through `zeroStorage`, so that it is stated once; there is no third.
      */
-    if(hasPaddedWord(layout, held.occurrence.type)) zeroStorage(block, address, bytes);
+    if(hasPaddedWord(layout, held.occurrence.type)) zeroStorage(block, address, bytes, held.occurrence.type);
 
     // The pointer into the field's own slot, which is what the field *is*.
     block.addInst(lower, new (to.arena) LowerInstStore(slot, address, layout.target.pointerSize));

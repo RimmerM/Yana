@@ -684,7 +684,7 @@ struct Verifier {
             Occurrence supplied;
             if(!occurrenceOf(operand, supplied)) continue;
 
-            if(!sameType(supplied.type, declared)) {
+            if(!fillsParameter(decl, supplied.type, declared)) {
                 report(node.source,
                        "internal: call to %@ supplies argument %@ of type %@, and it declares %@"_v,
                        context.findName(callee->name), i, typeText(context, decl, supplied.type),
@@ -817,7 +817,12 @@ struct Verifier {
             return;
         }
 
-        if(written.components.size() != expected) {
+        // A fixed array's prefix is `InlineArray`'s slots - `RecordField::storage` - and the only
+        // aggregate that supplies fewer components than it holds, marked where it is built (J146).
+        auto prefix = written.prefix && kind == Type::Array && !written.fill &&
+                      written.components.size() < expected;
+
+        if(written.components.size() != expected && !prefix) {
             report(node.source, "internal: aggregate supplies %@ components, and %@ holds %@"_v,
                    written.components.size(), typeText(context, decl, type), U64(expected));
             return;

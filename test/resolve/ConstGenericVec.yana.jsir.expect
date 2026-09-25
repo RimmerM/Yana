@@ -1,0 +1,107 @@
+fn quadWidth(parts %r2) -> one %r3
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0):
+    %4: %r3 = call widthOf(4) %0, %1, %2, %3
+    return %4
+
+fn main() -> one %r3
+  block0:
+    %0: %r1 = load global sink: %r1
+    %1: %r0 = const 9
+    %2: %r0 = split %0 #0 of %r2
+    %4: %r0 = split %0 #2 of %r2
+    %5: %r0 = split %0 #3 of %r2
+    %6: %r1 = call doubled(4) %2, %1, %4, %5
+    %7: %r1 = call twice(4) %2, %1, %4, %5
+    %8: %r0 = split %6 #0 of %r2
+    %9: %r0 = split %6 #1 of %r2
+    %10: %r0 = split %6 #2 of %r2
+    %11: %r0 = split %6 #3 of %r2
+    %12: %r1 = call sameCount(4) %2, %1, %4, %5, %8, %9, %10, %11
+    %13: %r0 = split %7 #0 of %r2
+    %14: %r0 = split %7 #1 of %r2
+    %15: %r0 = split %7 #2 of %r2
+    %16: %r0 = split %7 #3 of %r2
+    %17: %r0 = split %12 #0 of %r2
+    %18: %r0 = split %12 #1 of %r2
+    %19: %r0 = split %12 #2 of %r2
+    %20: %r0 = split %12 #3 of %r2
+    %21: %r1 = call sameCount(4) %13, %14, %15, %16, %17, %18, %19, %20
+    store global sink: %r1, %6
+    %22: %r3 = call widthOf(4) %2, %1, %4, %5
+    %23: %r3 = call quadWidth %2, %1, %4, %5
+    %24: %r3 = binary.add %22, %23
+    %25: %r3 = coerce %24
+    %26: %r0 = call secondLane(4) %8, %9, %10, %11
+    %27: %r3 = convert %26
+    %28: %r3 = binary.add %25, %27
+    %29: %r3 = coerce %28
+    %30: %r0 = split %21 #0 of %r2
+    %31: %r0 = split %21 #1 of %r2
+    %32: %r0 = split %21 #2 of %r2
+    %33: %r0 = split %21 #3 of %r2
+    %34: %r0 = call secondLane(4) %30, %31, %32, %33
+    %35: %r3 = convert %34
+    %36: %r3 = binary.add %29, %35
+    %37: %r3 = coerce %36
+    %38: %r3 = convert %32
+    %39: %r3 = binary.add %37, %38
+    %40: %r3 = coerce %39
+    return %40
+
+fn doubled(4)(parts %r2) -> parts %r2
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0):
+    %4: %r4 = binary.gt %3, %0
+    %5: %r4 = binary.gt %2, %1
+    %6: %r4 = binary.gt %1, %2
+    %7: %r4 = binary.gt %0, %3
+    %8: %r0 = select %4, %3, %0
+    %9: %r0 = select %5, %2, %1
+    %10: %r0 = select %6, %1, %2
+    %11: %r0 = select %7, %0, %3
+    %12: %r1 = materialize %r2 %8, %9, %10, %11
+    return %12
+
+fn twice(4)(parts %r2) -> parts %r2
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0):
+    %4: %r0 = binary.add %0, %0
+    %5: %r0 = coerce %4
+    %6: %r0 = binary.add %1, %1
+    %7: %r0 = coerce %6
+    %8: %r0 = binary.add %2, %2
+    %9: %r0 = coerce %8
+    %10: %r0 = binary.add %3, %3
+    %11: %r0 = coerce %10
+    %12: %r1 = materialize %r2 %5, %7, %9, %11
+    return %12
+
+fn sameCount(4)(parts %r2, parts %r2) -> parts %r2
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0, %4: %r0, %5: %r0, %6: %r0, %7: %r0):
+    %8: %r0 = binary.add %0, %4
+    %9: %r0 = coerce %8
+    %10: %r0 = binary.add %1, %5
+    %11: %r0 = coerce %10
+    %12: %r0 = binary.add %2, %6
+    %13: %r0 = coerce %12
+    %14: %r0 = binary.add %3, %7
+    %15: %r0 = coerce %14
+    %16: %r1 = materialize %r2 %9, %11, %13, %15
+    return %16
+
+fn widthOf(4)(parts %r2) -> one %r3
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0):
+    %4: %r3 = const 4
+    return %4
+
+fn secondLane(4)(parts %r2) -> one %r0
+  block0(%0: %r0, %1: %r0, %2: %r0, %3: %r0):
+    return %1
+
+optimizer clones 0 aliased 0 forwarded 0 removed 1 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 0
+
+rep %r0 = number signed 16
+rep %r1 = array Array of %r0
+rep %r2 = parts (%r0, %r0, %r0, %r0) as %r1
+rep %r3 = number signed 32
+rep %r4 = boolean
+rep %r5 = array Array of %r4
+rep %r6 = parts (%r4, %r4, %r4, %r4) as %r5

@@ -31,6 +31,8 @@ fn undeclared(xs: c, i: k) -> v = xs[i]
 fn immutable(xs: Array(Int)):
     xs[0] = 1
 
--- Assigning to a range, `xs[0..2] = ys`, is `Reject.Index.Legacy.yana`.
-
 fn twoIndices(xs: Array(Int)) -> Int = xs[0, 1]
+
+-- Since J135, which enforces these in the new stage; they were `Reject.Index.Legacy.yana`.
+fn rangeWrite(&xs: Array(Int), ys: [Int]):
+    xs[0..2] = ys

@@ -235,25 +235,23 @@ String.appendUnits<complex>(%self: Ptr, %from: Ptr, %count: I64) {
     %v_9 = add %self, 8: Ptr
     %v_10 = load %v_9, 4: I64
     %v_11 = and %v_10, 1073741823: I64
-    %v_12 = cast %v_11: I32
-    %v_13 = cast %v_12: I64
-    %v_14 = cmp_ilt %v_13, %wanted: I32
-    je %v_14, b_15, b_16
+    %v_12 = cmp_ilt %v_11, %wanted: I32
+    je %v_12, b_13, b_14
   }
 
-  b_16 {
-    %v_17 = load %self, 8: Ptr
-    %v_18 = add %v_17, %have: Ptr
-    call_complex copyMemory, %v_18, %from, %count
-    %v_19 = cast %wanted: I32
-    %v_20 = and %v_19, 1073741823: I32
-    %v_21 = add %self, 12: Ptr
-    store %v_21, %v_20, 4
+  b_14 {
+    %v_15 = load %self, 8: Ptr
+    %v_16 = add %v_15, %have: Ptr
+    call_complex copyMemory, %v_16, %from, %count
+    %v_17 = cast %wanted: I32
+    %v_18 = and %v_17, 1073741823: I32
+    %v_19 = add %self, 12: Ptr
+    store %v_19, %v_18, 4
     ret 
   }
 
-  b_15 {
-    %v_22 = syscall 60, 134: I64
+  b_13 {
+    %v_20 = syscall 60, 134: I64
     unreachable 
   }
 
@@ -348,17 +346,15 @@ reserve(CodeUnit)<complex>(%self: Ptr, %wanted: I64) {
     %v_1 = add %self, 8: Ptr
     %v_2 = load %v_1, 4: I64
     %v_3 = and %v_2, 1073741823: I64
-    %v_4 = cast %v_3: I32
-    %v_5 = cast %v_4: I64
-    %v_6 = cmp_ile %wanted, %v_5: I32
-    je %v_6, b_7, b_8
+    %v_4 = cmp_ile %wanted, %v_3: I32
+    je %v_4, b_5, b_6
   }
 
-  b_7 {
+  b_5 {
     ret 
   }
 
-  b_8 {
+  b_6 {
     call_complex growArray(CodeUnit), %self, %wanted
     ret 
   }
@@ -369,38 +365,36 @@ growArray(CodeUnit)<complex>(%self: Ptr, %wanted: I64) {
     %v_1 = add %self, 8: Ptr
     %v_2 = load %v_1, 4: I64
     %v_3 = and %v_2, 1073741823: I64
-    %v_4 = cast %v_3: I32
-    %room = cast %v_4: I64
-    %v_5 = add %room, %room: I64
-    %v_6 = cmp_ilt %v_5, %wanted: I32
-    je %v_6, b_7, b_8
+    %v_4 = add %v_3, %v_3: I64
+    %v_5 = cmp_ilt %v_4, %wanted: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    jmp b_8
   }
 
   b_7 {
-    jmp b_9
+    jmp b_8
   }
 
   b_8 {
-    jmp b_9
+    %v_9 = phi [b_6, %wanted], [b_7, %v_4]: I64
+    %v_10 = cmp_ilt %v_9, 4: I32
+    je %v_10, b_11, b_12
   }
 
-  b_9 {
-    %v_10 = phi [b_7, %wanted], [b_8, %v_5]: I64
-    %v_11 = cmp_ilt %v_10, 4: I32
-    je %v_11, b_12, b_13
+  b_11 {
+    jmp b_13
   }
 
   b_12 {
-    jmp b_14
+    jmp b_13
   }
 
   b_13 {
-    jmp b_14
-  }
-
-  b_14 {
-    %v_15 = phi [b_12, 4], [b_13, %v_10]: I64
-    %v_16 = call_complex resize(CodeUnit), %self, %v_15: I32
+    %v_14 = phi [b_11, 4], [b_12, %v_9]: I64
+    %v_15 = call_complex resize(CodeUnit), %self, %v_14: I32
     ret 
   }
 }
@@ -414,44 +408,40 @@ push(CodeUnit)<complex>(%self: Ptr, %item: I32) {
     %v_4 = add %self, 8: Ptr
     %v_5 = load %v_4, 4: I64
     %v_6 = and %v_5, 1073741823: I64
-    %v_7 = cast %v_6: I32
-    %v_8 = cast %v_7: I64
-    %v_9 = cmp_ile %v_3, %v_8: I32
-    je %v_9, b_10, b_11
+    %v_7 = cmp_ile %v_3, %v_6: I32
+    je %v_7, b_8, b_9
   }
 
-  b_11 {
+  b_9 {
     call_complex growArray(CodeUnit), %self, %v_3
-    %v_12 = load %v_4, 4: I64
-    %v_13 = and %v_12, 1073741823: I64
-    %v_14 = cast %v_13: I32
-    %v_15 = cast %v_14: I64
-    jmp b_16
+    %v_10 = load %v_4, 4: I64
+    %v_11 = and %v_10, 1073741823: I64
+    jmp b_12
   }
 
-  b_10 {
-    jmp b_16
+  b_8 {
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = phi [b_8, %v_6], [b_9, %v_11]: I64
+    %v_14 = cmp_ige %count, %v_13: I32
+    je %v_14, b_15, b_16
   }
 
   b_16 {
-    %v_17 = phi [b_10, %v_8], [b_11, %v_15]: I64
-    %v_18 = cmp_ige %count, %v_17: I32
-    je %v_18, b_19, b_20
-  }
-
-  b_20 {
-    %v_21 = load %self, 8: Ptr
-    %v_22 = add %v_21, %count: Ptr
-    store %v_22, %item, 1
-    %v_23 = cast %v_3: I32
-    %v_24 = and %v_23, 1073741823: I32
-    %v_25 = add %self, 12: Ptr
-    store %v_25, %v_24, 4
+    %v_17 = load %self, 8: Ptr
+    %v_18 = add %v_17, %count: Ptr
+    store %v_18, %item, 1
+    %v_19 = cast %v_3: I32
+    %v_20 = and %v_19, 1073741823: I32
+    %v_21 = add %self, 12: Ptr
+    store %v_21, %v_20, 4
     ret 
   }
 
-  b_19 {
-    %v_26 = syscall 60, 134: I64
+  b_15 {
+    %v_22 = syscall 60, 134: I64
     unreachable 
   }
 }
@@ -891,81 +881,79 @@ resize(CodeUnit)<complex>(%self: Ptr, %wanted: I64): I32 {
     %v_1 = add %self, 8: Ptr
     %v_2 = load %v_1, 4: I64
     %v_3 = and %v_2, 1073741823: I64
-    %v_4 = cast %v_3: I32
-    %room = cast %v_4: I64
-    %v_5 = cmp_ile %wanted, %room: I32
-    je %v_5, b_6, b_7
+    %v_4 = cmp_ile %wanted, %v_3: I32
+    je %v_4, b_5, b_6
   }
 
-  b_6 {
+  b_5 {
     ret 1
   }
 
-  b_7 {
-    %v_8 = shr %v_2, 30: I64
-    %v_9 = cast %v_8: I32
-    %v_10 = cmp_eq %v_9, 2: I32
-    je %v_10, b_11, b_12
+  b_6 {
+    %v_7 = shr %v_2, 30: I64
+    %v_8 = cast %v_7: I32
+    %v_9 = cmp_eq %v_8, 2: I32
+    je %v_9, b_10, b_11
   }
 
-  b_11 {
+  b_10 {
     ret 0
   }
 
-  b_12 {
-    %v_13 = cmp_igt %wanted, 1073741823: I32
-    je %v_13, b_11, b_14
+  b_11 {
+    %v_12 = cmp_igt %wanted, 1073741823: I32
+    je %v_12, b_10, b_13
   }
 
-  b_14 {
-    %v_15 = call_complex allocateHeap, %wanted: Ptr
-    %v_16 = bitcast %v_15: I64
-    %v_17 = cmp_eq %v_16, 0: I32
-    je %v_17, b_11, b_18
+  b_13 {
+    %v_14 = call_complex allocateHeap, %wanted: Ptr
+    %v_15 = bitcast %v_14: I64
+    %v_16 = cmp_eq %v_15, 0: I32
+    je %v_16, b_10, b_17
   }
 
-  b_18 {
-    %v_19 = cmp_igt %room, 0: I32
-    je %v_19, b_20, b_21
+  b_17 {
+    %v_18 = cmp_igt %v_3, 0: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    %v_21 = load %self, 8: Ptr
+    call_complex copyMemory, %v_14, %v_21, %v_3
+    jmp b_22
   }
 
   b_20 {
-    %v_22 = load %self, 8: Ptr
-    call_complex copyMemory, %v_15, %v_22, %room
-    jmp b_23
+    jmp b_22
   }
 
-  b_21 {
-    jmp b_23
+  b_22 {
+    %v_23 = add %self, 8: Ptr
+    %v_24 = load %v_23, 4: I64
+    %v_25 = shr %v_24, 30: I64
+    %v_26 = cast %v_25: I32
+    %v_27 = cmp_eq %v_26, 1: I32
+    je %v_27, b_28, b_29
   }
 
-  b_23 {
-    %v_24 = add %self, 8: Ptr
-    %v_25 = load %v_24, 4: I64
-    %v_26 = shr %v_25, 30: I64
-    %v_27 = cast %v_26: I32
-    %v_28 = cmp_eq %v_27, 1: I32
-    je %v_28, b_29, b_30
+  b_28 {
+    %v_30 = load %self, 8: Ptr
+    call_complex freeHeap, %v_30
+    jmp b_31
   }
 
   b_29 {
-    %v_31 = load %self, 8: Ptr
-    call_complex freeHeap, %v_31
-    jmp b_32
+    jmp b_31
   }
 
-  b_30 {
-    jmp b_32
-  }
-
-  b_32 {
-    store %self, %v_15, 8
-    %v_33 = cast %wanted: I32
-    %v_34 = and %v_33, 1073741823: I32
-    %v_35 = add %self, 8: Ptr
-    %v_36 = cast %v_34: I64
-    %v_37 = or %v_36, 1073741824: I64
-    store %v_35, %v_37, 4
+  b_31 {
+    store %self, %v_14, 8
+    %v_32 = cast %wanted: I32
+    %v_33 = and %v_32, 1073741823: I32
+    %v_34 = add %self, 8: Ptr
+    %v_35 = cast %v_33: I64
+    %v_36 = or %v_35, 1073741824: I64
+    store %v_34, %v_36, 4
     ret 1
   }
 }
@@ -1173,171 +1161,158 @@ main<complex>(): I32 {
     %v_59 = alloca 16, 8: Ptr
     copy %v_59, @Core.literal$82, 16
     call_complex String.push, %v_54, %v_59
-    %v_60 = alloca 1, 1: Ptr
-    %v_61 = add %v_54, 12: Ptr
-    %v_62 = load %v_61, 4: I32
+    %v_60 = add %v_54, 12: Ptr
+    %v_61 = load %v_60, 4: I32
     call_complex Reclaim(String).reclaim, %v_54
-    %v_63 = add %v_53, %v_62: I32
-    %v_64 = alloca 16, 8: Ptr
-    copy %v_64, @ResolveTest.literal$31, 16
+    %v_62 = add %v_53, %v_61: I32
     %out = alloca 16, 8: Ptr
-    copy %out, %v_64, 16
-    %v_65 = add %out, 12: Ptr
-    %v_66 = load %v_65, 4: I32
-    %have = cast %v_66: I64
-    %v_67 = add %have, 13: I64
-    call_complex reserve(CodeUnit), %out, %v_67
-    %v_68 = alloca 16, 8: Ptr
-    copy %v_68, @ResolveTest.literal$33, 16
-    call_complex String.push, %out, %v_68
+    copy %out, @ResolveTest.literal$31, 16
+    %v_63 = add %out, 12: Ptr
+    %v_64 = load %v_63, 4: I32
+    %have = cast %v_64: I64
+    %v_65 = add %have, 13: I64
+    call_complex reserve(CodeUnit), %out, %v_65
+    %v_66 = alloca 16, 8: Ptr
+    copy %v_66, @ResolveTest.literal$33, 16
+    call_complex String.push, %out, %v_66
     call_complex Show(I32).show, 2, %out
-    %v_69 = alloca 16, 8: Ptr
-    copy %v_69, @ResolveTest.literal$35, 16
-    call_complex String.push, %out, %v_69
-    %v_70 = alloca 1, 1: Ptr
-    %v_71 = alloca 16, 8: Ptr
-    copy %v_71, @ResolveTest.literal$37, 16
-    call_complex ++=(String), %out, %v_71
+    %v_67 = alloca 16, 8: Ptr
+    copy %v_67, @ResolveTest.literal$35, 16
+    call_complex String.push, %out, %v_67
+    %v_68 = alloca 16, 8: Ptr
+    copy %v_68, @ResolveTest.literal$37, 16
+    call_complex ++=(String), %out, %v_68
+    %v_69 = add %out, 12: Ptr
+    %v_70 = load %v_69, 4: I32
+    %have = cast %v_70: I64
+    %v_71 = add %have, 11: I64
+    call_complex reserve(CodeUnit), %out, %v_71
+    call_complex Show(I32).show, 3, %out
     %v_72 = add %out, 12: Ptr
     %v_73 = load %v_72, 4: I32
-    %have = cast %v_73: I64
-    %v_74 = add %have, 11: I64
-    call_complex reserve(CodeUnit), %out, %v_74
-    call_complex Show(I32).show, 3, %out
-    %v_75 = alloca 1, 1: Ptr
-    %v_76 = add %out, 12: Ptr
-    %v_77 = load %v_76, 4: I32
     call_complex Reclaim(String).reclaim, %out
-    %v_78 = add %v_63, %v_77: I32
-    %v_79 = alloca 16, 8: Ptr
-    copy %v_79, @ResolveTest.literal$39, 16
+    %v_74 = add %v_62, %v_73: I32
     %out = alloca 16, 8: Ptr
-    copy %out, %v_79, 16
-    %v_80 = add %out, 12: Ptr
-    %v_81 = load %v_80, 4: I32
-    %have = cast %v_81: I64
-    %v_82 = add %have, 12: I64
-    call_complex reserve(CodeUnit), %out, %v_82
-    %v_83 = alloca 16, 8: Ptr
-    copy %v_83, @ResolveTest.literal$41, 16
-    call_complex String.push, %out, %v_83
+    copy %out, @ResolveTest.literal$39, 16
+    %v_75 = add %out, 12: Ptr
+    %v_76 = load %v_75, 4: I32
+    %have = cast %v_76: I64
+    %v_77 = add %have, 12: I64
+    call_complex reserve(CodeUnit), %out, %v_77
+    %v_78 = alloca 16, 8: Ptr
+    copy %v_78, @ResolveTest.literal$41, 16
+    call_complex String.push, %out, %v_78
     call_complex Show(I32).show, 9, %out
-    %v_84 = alloca 1, 1: Ptr
-    %v_85 = add %out, 12: Ptr
-    %v_86 = load %v_85, 4: I32
-    %v_87 = cmp_neq %v_86, 2: I32
-    je %v_87, b_88, b_89
+    %v_79 = add %out, 12: Ptr
+    %v_80 = load %v_79, 4: I32
+    %v_81 = cmp_neq %v_80, 2: I32
+    je %v_81, b_82, b_83
   }
 
-  b_89 {
-    %v_90 = load %out, 8: Ptr
+  b_83 {
+    %v_84 = load %out, 8: Ptr
+    %v_85 = load %v_84, 1: I32
+    %v_86 = cmp_eq %v_85, 120: I32
+    je %v_86, b_87, b_88
+  }
+
+  b_87 {
+    jmp b_88
+  }
+
+  b_88 {
+    %v_89 = phi [b_83, 0], [b_87, 1]: I32
+    %v_90 = add %v_84, 1: Ptr
     %v_91 = load %v_90, 1: I32
-    %v_92 = cmp_eq %v_91, 120: I32
+    call_complex Reclaim(String).reclaim, %out
+    %v_92 = cmp_eq %v_91, 57: I32
     je %v_92, b_93, b_94
   }
 
   b_93 {
+    %v_95 = add %v_89, 1: I32
     jmp b_94
   }
 
   b_94 {
-    %v_95 = phi [b_89, 0], [b_93, 1]: I32
-    %v_96 = add %v_90, 1: Ptr
-    %v_97 = load %v_96, 1: I32
+    %v_96 = phi [b_88, %v_89], [b_93, %v_95]: I32
+    jmp b_97
+  }
+
+  b_82 {
     call_complex Reclaim(String).reclaim, %out
-    %v_98 = cmp_eq %v_97, 57: I32
-    je %v_98, b_99, b_100
+    jmp b_97
   }
 
-  b_99 {
-    %v_101 = add %v_95, 1: I32
-    jmp b_100
-  }
-
-  b_100 {
-    %v_102 = phi [b_94, %v_95], [b_99, %v_101]: I32
-    jmp b_103
-  }
-
-  b_88 {
-    call_complex Reclaim(String).reclaim, %out
-    jmp b_103
-  }
-
-  b_103 {
-    %v_104 = phi [b_100, %v_102], [b_88, 0]: I32
-    %v_105 = add %v_78, %v_104: I32
-    %v_106 = alloca 16, 8: Ptr
-    %v_107 = alloca 16, 8: Ptr
-    copy %v_107, @ResolveTest.literal$43, 16
-    copy %v_106, %v_107, 16
-    call_complex String.reserve, %v_106, 12
-    call_complex Show(I32).show, 12, %v_106
-    %v_108 = alloca 16, 8: Ptr
-    copy %v_108, @ResolveTest.literal$45, 16
-    call_complex String.push, %v_106, %v_108
-    %v_109 = alloca 1, 1: Ptr
-    %v_110 = add %v_106, 12: Ptr
-    %v_111 = load %v_110, 4: I32
-    call_complex Reclaim(String).reclaim, %v_106
-    %v_112 = add %v_105, %v_111: I32
-    %v_113 = alloca 16, 8: Ptr
-    copy %v_113, @ResolveTest.literal$47, 16
+  b_97 {
+    %v_98 = phi [b_94, %v_96], [b_82, 0]: I32
+    %v_99 = add %v_74, %v_98: I32
+    %v_100 = alloca 16, 8: Ptr
+    copy %v_100, @ResolveTest.literal$43, 16
+    call_complex String.reserve, %v_100, 12
+    call_complex Show(I32).show, 12, %v_100
+    %v_101 = alloca 16, 8: Ptr
+    copy %v_101, @ResolveTest.literal$45, 16
+    call_complex String.push, %v_100, %v_101
+    %v_102 = add %v_100, 12: Ptr
+    %v_103 = load %v_102, 4: I32
+    call_complex Reclaim(String).reclaim, %v_100
+    %v_104 = add %v_99, %v_103: I32
     %out = alloca 16, 8: Ptr
-    copy %out, %v_113, 16
-    %v_114 = alloca 16, 8: Ptr
-    call_complex String.ofCapacity, %v_114, 11
-    call_complex Show(I32).show, 1, %v_114
-    %v_115 = alloca 16, 8: Ptr
-    copy %v_115, @ResolveTest.literal$49, 16
-    %v_116 = alloca 16, 8: Ptr
-    call_complex Append(String).++, %v_116, %v_114, %v_115
-    call_complex ++=(String), %out, %v_116
-    %v_117 = add %out, 12: Ptr
-    %v_118 = load %v_117, 4: I32
+    copy %out, @ResolveTest.literal$47, 16
+    %v_105 = alloca 16, 8: Ptr
+    call_complex String.ofCapacity, %v_105, 11
+    call_complex Show(I32).show, 1, %v_105
+    %v_106 = alloca 16, 8: Ptr
+    copy %v_106, @ResolveTest.literal$49, 16
+    %v_107 = alloca 16, 8: Ptr
+    call_complex Append(String).++, %v_107, %v_105, %v_106
+    call_complex ++=(String), %out, %v_107
+    %v_108 = add %out, 12: Ptr
+    %v_109 = load %v_108, 4: I32
     call_complex Reclaim(String).reclaim, %out
-    %v_119 = add %v_112, %v_118: I32
+    %v_110 = add %v_104, %v_109: I32
     %name = alloca 16, 8: Ptr
     copy %name, @ResolveTest.literal$51, 16
-    %v_120 = alloca 16, 8: Ptr
-    call_complex String.ofCapacity, %v_120, 31
-    %v_121 = alloca 16, 8: Ptr
-    copy %v_121, @ResolveTest.literal$53, 16
-    call_complex String.push, %v_120, %v_121
-    call_complex String.push, %v_120, %name
-    %v_122 = alloca 16, 8: Ptr
-    copy %v_122, @ResolveTest.literal$55, 16
-    call_complex String.push, %v_120, %v_122
-    call_complex Show(I32).show, 2, %v_120
-    %v_123 = alloca 16, 8: Ptr
-    copy %v_123, @ResolveTest.literal$57, 16
-    call_complex String.push, %v_120, %v_123
-    %v_124 = load %v_120, 8: Ptr
-    %v_125 = add %v_120, 12: Ptr
-    %v_126 = load %v_125, 4: I32
-    %v_127 = sext %v_126: I64
-    %v_128 = bitcast %v_124: I64
-    %v_129 = syscall 1, 1, %v_128, %v_127: I64
-    call_complex Reclaim(String).reclaim, %v_120
-    ret %v_119
+    %v_111 = alloca 16, 8: Ptr
+    call_complex String.ofCapacity, %v_111, 31
+    %v_112 = alloca 16, 8: Ptr
+    copy %v_112, @ResolveTest.literal$53, 16
+    call_complex String.push, %v_111, %v_112
+    call_complex String.push, %v_111, %name
+    %v_113 = alloca 16, 8: Ptr
+    copy %v_113, @ResolveTest.literal$55, 16
+    call_complex String.push, %v_111, %v_113
+    call_complex Show(I32).show, 2, %v_111
+    %v_114 = alloca 16, 8: Ptr
+    copy %v_114, @ResolveTest.literal$57, 16
+    call_complex String.push, %v_111, %v_114
+    %v_115 = load %v_111, 8: Ptr
+    %v_116 = add %v_111, 12: Ptr
+    %v_117 = load %v_116, 4: I32
+    %v_118 = sext %v_117: I64
+    %v_119 = bitcast %v_115: I64
+    %v_120 = syscall 1, 1, %v_119, %v_118: I64
+    call_complex Reclaim(String).reclaim, %v_111
+    ret %v_110
   }
 
   b_31 {
-    %v_130 = phi [b_32, %v_37], [b_0, 0]: I32
-    %v_131 = phi [b_32, %v_34], [b_0, 0]: I32
-    %v_132 = alloca 16, 8: Ptr
-    call_complex String.ofCapacity, %v_132, 21
-    %v_133 = alloca 16, 8: Ptr
-    copy %v_133, %v_132, 16
-    %v_134 = alloca 16, 8: Ptr
-    copy %v_134, @ResolveTest.literal$23, 16
-    call_complex String.push, %v_133, %v_134
-    call_complex Show(I32).show, %v_131, %v_133
-    %v_135 = add %v_133, 12: Ptr
-    %v_136 = load %v_135, 4: I32
-    call_complex Reclaim(String).reclaim, %v_133
-    %v_37 = add %v_130, %v_136: I32
-    %v_34 = add %v_131, 1: I32
+    %v_121 = phi [b_32, %v_37], [b_0, 0]: I32
+    %v_122 = phi [b_32, %v_34], [b_0, 0]: I32
+    %v_123 = alloca 16, 8: Ptr
+    call_complex String.ofCapacity, %v_123, 21
+    %v_124 = alloca 16, 8: Ptr
+    copy %v_124, %v_123, 16
+    %v_125 = alloca 16, 8: Ptr
+    copy %v_125, @ResolveTest.literal$23, 16
+    call_complex String.push, %v_124, %v_125
+    call_complex Show(I32).show, %v_122, %v_124
+    %v_126 = add %v_124, 12: Ptr
+    %v_127 = load %v_126, 4: I32
+    call_complex Reclaim(String).reclaim, %v_124
+    %v_37 = add %v_121, %v_127: I32
+    %v_34 = add %v_122, 1: I32
     jmp b_32
   }
 }

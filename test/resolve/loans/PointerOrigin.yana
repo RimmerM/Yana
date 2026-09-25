@@ -1,0 +1,52 @@
+{-
+   **A pointer read out of a `'%T` loan keeps what it points into alive** - J164, J162 §5.
+
+   # resolver: ownership
+
+   `'%Int` publishes the origin of the storage the pointer is *in* and said nothing of the storage
+   it points *into*, so the pointer copied out of one - `r.r` over `data RP {r: '%Int}`, `id(p)`'s
+   result bound to `q` - was an owned scalar with no origin, and `xs` was dropped at its last
+   syntactic use, before the load through the copy. The optimizer happened to forward the value;
+   `-no-ir-opt` read the freed block and returned 0. `'%T` is `'%'T` now: the pointee is in the
+   loan's own origin, so `drop (xs)` in the `.mir.expect` is after the last load.
+
+   `*id(p)`, the call's result dereferenced with no binding in between, is the second defect: the
+   result is a loan of the pointer, and the place rooted in it took the loan's address for the
+   pointer's value, reading the pointer's own bytes as the `Int`.
+-}
+
+import Native
+
+data RP {r: '%Int}
+
+fn wrap(p: '%Int) -> RP = RP {r: p}
+@noinline fn id(p: '%Int) -> '%Int = p
+@noinline fn pick(a: s'%Int, b: s'%Int, k: Int) -> s'%Int = if k > 0 then a else b
+
+fn throughField() -> Int:
+    let xs = [10, 20, 30]
+    let p = values(xs) + (1 :: Size)
+    let r = wrap(p)
+    let q = r.r
+    return *q
+
+fn throughResult() -> Int:
+    let xs = [40, 50, 60]
+    let p = values(xs) + (2 :: Size)
+    let q = id(p)
+    return *q
+
+fn direct() -> Int:
+    let xs = [7, 8, 9]
+    let p = values(xs)
+    return *id(p)
+
+fn named() -> Int:
+    let xs = [1, 2, 3]
+    let ys = [4, 5, 6]
+    let p = values(xs)
+    let q = values(ys) + (1 :: Size)
+    let w = pick(p, q, 0)
+    return *w
+
+fn main() -> Int = throughField() * 1000000 + throughResult() * 10000 + direct() * 100 + named()

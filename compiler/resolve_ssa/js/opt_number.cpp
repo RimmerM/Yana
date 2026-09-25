@@ -1,5 +1,8 @@
 #include "opt_internal.h"
 
+#include <cmath>
+#include <cstdint>
+
 namespace jsir {
 
 /*
@@ -676,6 +679,398 @@ void Optimizer::unlinkEdge(JsBlock* from, JsBlock* to, Array<U32>& orphans) {
     }
 
     if(!to->incomingList.size() && to != base[body.entry]) orphans.push(to->index.index);
+}
+
+/*
+ * **Constant folding** - an operation whose operands are all literals becomes its literal (J136,
+ * J94 §6.3 A).
+ *
+ * Native folds these in the shared lower tier, which this target never reaches, and `-mode ssa`
+ * leaves them unfolded on both platforms - so `2 + 122` over `Long` reached Node as
+ * `BigInt.asIntN(64, 2n + 122n)` and a float-to-int as a `Math.min(Math.max(Math.trunc(...)))`.
+ * What each operation *means* is `codegen/js/structure.cpp`'s spelling of it, and this evaluates
+ * that spelling rather than the source language's: the host's `+` before the `coerce` that wraps
+ * it, `Math.imul`, the saturating `trunc` of a float conversion, `BigInt.asIntN`.
+ *
+ * **Exact or not at all.** A number result is folded only where it is finite and, for an integer
+ * representation, a safe integer; a `bigint` result only where it fits the sixty-four bits a
+ * `JsConstant` holds, computed at 128 bits so an intermediate the host would have held unbounded
+ * is never a wrapped one here. Everything else - a float `rem`, a wide integer, a shift of a
+ * `bigint`, a string compared unequal by id - is left to the host, and costs what it cost before.
+ */
+namespace {
+    // A literal as the folder reads it: a double, or a `bigint` widened to 128 bits.
+    struct Folded {
+        bool isBig = false;
+        F64 number = 0;
+        __int128 big = 0;
+    };
+
+    bool isSafeInteger(F64 value) {
+        return value == value && value >= -9007199254740991.0 && value <= 9007199254740991.0 &&
+               value == F64(I64(value));
+    }
+
+    // `ToInt32`, for a double that is already a safe integer.
+    I32 toInt32(F64 value) { return I32(U32(U64(I64(value)))); }
+}
+
+// `constantOf` through the `alias` chains the conversion leaves between a literal and its use.
+const JsConstant* Optimizer::literalOf(JsValue* value) {
+    for(U32 depth = 0; value && value->definer && depth < 16; depth++) {
+        auto& definer = *base[value->definer];
+        if(definer.kind == JsInst::Const) return &((JsInstConst&)definer).constant;
+        if(definer.kind != JsInst::Alias) return nullptr;
+        value = base[((JsInstAlias&)definer).from];
+    }
+
+    return nullptr;
+}
+
+bool Optimizer::foldedValueOf(JsInst& inst, JsConstant& out) {
+    if(!inst.result) return false;
+
+    auto& to = target.rep(base[inst.result]->rep);
+
+    auto read = [&](JsirPtr<JsValue> pointer, Folded& into) -> bool {
+        if(!pointer) return false;
+        auto constant = literalOf(base[pointer]);
+        if(!constant) return false;
+
+        switch(constant->kind) {
+            case JsConstant::Number:
+            case JsConstant::Bool:
+                into.number = constant->number;
+                return constant->number == constant->number;
+            case JsConstant::BigInt:
+                into.isBig = true;
+                into.big = constant->isSigned ? __int128(I64(constant->bits)) : __int128(constant->bits);
+                return true;
+            default:
+                return false;
+        }
+    };
+
+    // A number of `to`'s representation, where it is exact.
+    auto number = [&](F64 value) -> bool {
+        if(value != value || value - value != 0) return false;
+        if(to.kind == JsRepKind::HostBool) {
+            out.kind = JsConstant::Bool;
+            out.number = value != 0 ? 1 : 0;
+            return true;
+        }
+
+        if(to.kind != JsRepKind::Number) return false;
+        if(!to.isFloat() && !isSafeInteger(value)) return false;
+        if(to.isFloat() && value == 0 && std::signbit(value)) return false;
+
+        out.kind = JsConstant::Number;
+        out.number = value;
+        out.integral = !to.isFloat();
+        return true;
+    };
+
+    auto bigint = [&](__int128 value) -> bool {
+        if(to.kind != JsRepKind::BigInt) return false;
+        auto isSigned = to.domain == NumberDomain::Signed;
+        if(isSigned ? (value < __int128(INT64_MIN) || value > __int128(INT64_MAX))
+                    : (value < 0 || value > __int128(UINT64_MAX))) {
+            return false;
+        }
+
+        out.kind = JsConstant::BigInt;
+        out.bits = U64(value);
+        out.isSigned = isSigned;
+        return true;
+    };
+
+    // `coerceTo` evaluated - the wrap a representation's own width makes.
+    auto coerced = [&](Folded value) -> bool {
+        if(to.kind == JsRepKind::BigInt) {
+            if(!value.isBig) return false;
+            auto bits = to.bits >= 64 ? 64u : U32(to.bits);
+            auto wrapped = U64(value.big) & (bits >= 64 ? ~U64(0) : (U64(1) << bits) - 1);
+            if(to.domain == NumberDomain::Signed && bits < 64 && (wrapped >> (bits - 1)) & 1) {
+                return bigint(__int128(I64(wrapped | ~((U64(1) << bits) - 1))));
+            }
+
+            return bigint(to.domain == NumberDomain::Signed ? __int128(I64(wrapped))
+                                                           : __int128(wrapped));
+        }
+
+        if(value.isBig || to.kind != JsRepKind::Number) return false;
+
+        switch(to.domain) {
+            case NumberDomain::Bool01:
+            case NumberDomain::Float64:
+                return number(value.number);
+            case NumberDomain::Float32:
+                return number(F64(F32(value.number)));
+            default:
+                break;
+        }
+
+        if(to.bits > 32 || !isSafeInteger(value.number)) return false;
+
+        auto word = U32(U64(I64(value.number)));
+        if(to.bits == 32) return number(to.domain == NumberDomain::Signed ? F64(I32(word)) : F64(word));
+
+        auto mask = (U32(1) << to.bits) - 1;
+        if(to.domain != NumberDomain::Signed) return number(F64(word & mask));
+
+        auto shift = 32 - to.bits;
+        return number(F64(I32(word << shift) >> shift));
+    };
+
+    switch(inst.kind) {
+        case JsInst::Coerce: {
+            Folded value;
+            return read(((JsInstCoerce&)inst).value, value) && coerced(value);
+        }
+
+        case JsInst::Unary: {
+            auto& unary = (JsInstUnary&)inst;
+            Folded value;
+            if(!read(unary.value, value) || value.isBig) return false;
+
+            if(unary.op == mir::UnaryOp::Not) {
+                if(to.kind == JsRepKind::HostBool ||
+                   (to.kind == JsRepKind::Number && to.domain == NumberDomain::Bool01)) {
+                    return number(value.number != 0 ? 0 : 1);
+                }
+
+                if(to.kind == JsRepKind::Number && !to.isFloat() && !to.isWideNumber() &&
+                   isSafeInteger(value.number)) {
+                    return number(F64(~toInt32(value.number)));
+                }
+
+                return false;
+            }
+
+            if(unary.op == mir::UnaryOp::Neg && to.kind == JsRepKind::Number && value.number != 0) {
+                return number(-value.number);
+            }
+
+            return false;
+        }
+
+        case JsInst::Binary: {
+            auto& binary = (JsInstBinary&)inst;
+            Folded lhs, rhs;
+
+            // Two texts are equal when they are one interned id; unequal ids are left alone.
+            {
+                auto left = binary.lhs ? literalOf(base[binary.lhs]) : nullptr;
+                auto right = binary.rhs ? literalOf(base[binary.rhs]) : nullptr;
+                if(left && right && left->kind == JsConstant::Text && right->kind == JsConstant::Text) {
+                    if(left->text != right->text) return false;
+                    if(binary.op == mir::BinaryOp::Eq) return number(1);
+                    if(binary.op == mir::BinaryOp::Ne) return number(0);
+                    return false;
+                }
+            }
+
+            if(!read(binary.lhs, lhs) || !read(binary.rhs, rhs) || lhs.isBig != rhs.isBig) return false;
+
+            auto compare = [&](int order) -> bool {
+                switch(binary.op) {
+                    case mir::BinaryOp::Eq: return number(order == 0);
+                    case mir::BinaryOp::Ne: return number(order != 0);
+                    case mir::BinaryOp::Lt: return number(order < 0);
+                    case mir::BinaryOp::Le: return number(order <= 0);
+                    case mir::BinaryOp::Gt: return number(order > 0);
+                    case mir::BinaryOp::Ge: return number(order >= 0);
+                    default: return false;
+                }
+            };
+
+            switch(binary.op) {
+                case mir::BinaryOp::Eq: case mir::BinaryOp::Ne: case mir::BinaryOp::Lt:
+                case mir::BinaryOp::Le: case mir::BinaryOp::Gt: case mir::BinaryOp::Ge:
+                    if(lhs.isBig) return compare(lhs.big < rhs.big ? -1 : lhs.big > rhs.big ? 1 : 0);
+                    return compare(lhs.number < rhs.number ? -1 : lhs.number > rhs.number ? 1 : 0);
+                default:
+                    break;
+            }
+
+            if(lhs.isBig) {
+                if(to.kind != JsRepKind::BigInt) return false;
+                switch(binary.op) {
+                    case mir::BinaryOp::Add: return bigint(lhs.big + rhs.big);
+                    case mir::BinaryOp::Sub: return bigint(lhs.big - rhs.big);
+                    case mir::BinaryOp::Mul: {
+                        // Both fit sixty-four bits, so the product fits 128 unless both are at
+                        // the far end, which is refused rather than reasoned about.
+                        auto limit = __int128(1) << 62;
+                        if(lhs.big > limit || lhs.big < -limit || rhs.big > limit || rhs.big < -limit) {
+                            return false;
+                        }
+                        return bigint(lhs.big * rhs.big);
+                    }
+                    case mir::BinaryOp::And: return bigint(lhs.big & rhs.big);
+                    case mir::BinaryOp::Or:  return bigint(lhs.big | rhs.big);
+                    case mir::BinaryOp::Xor: return bigint(lhs.big ^ rhs.big);
+                    default: return false;
+                }
+            }
+
+            if(to.kind != JsRepKind::Number || to.isWideNumber()) return false;
+
+            auto a = lhs.number;
+            auto b = rhs.number;
+
+            if(to.isFloat()) {
+                switch(binary.op) {
+                    case mir::BinaryOp::Add: return number(a + b);
+                    case mir::BinaryOp::Sub: return number(a - b);
+                    case mir::BinaryOp::Mul: return number(a * b);
+                    case mir::BinaryOp::Div: return b != 0 && number(a / b);
+                    default: return false;
+                }
+            }
+
+            if(!isSafeInteger(a) || !isSafeInteger(b)) return false;
+
+            switch(binary.op) {
+                case mir::BinaryOp::Add: return number(a + b);
+                case mir::BinaryOp::Sub: return number(a - b);
+                case mir::BinaryOp::Mul:
+                    if(to.domain == NumberDomain::Bool01) return false;
+                    return number(F64(I32(U32(toInt32(a)) * U32(toInt32(b)))));
+                case mir::BinaryOp::And: return number(F64(toInt32(a) & toInt32(b)));
+                case mir::BinaryOp::Or:  return number(F64(toInt32(a) | toInt32(b)));
+                case mir::BinaryOp::Xor: return number(F64(toInt32(a) ^ toInt32(b)));
+                case mir::BinaryOp::Shl:
+                    return number(F64(I32(U32(toInt32(a)) << (U32(toInt32(b)) & 31))));
+                case mir::BinaryOp::Sar: return number(F64(toInt32(a) >> (U32(toInt32(b)) & 31)));
+                case mir::BinaryOp::Shr: {
+                    // What `structure.cpp` spells: a narrow signed operand masked to its width
+                    // before `>>>`, since it is held sign-extended (J149).
+                    auto pattern = U32(toInt32(a));
+                    if(to.domain == NumberDomain::Signed && to.bits < 32) pattern &= (U32(1) << to.bits) - 1;
+                    return number(F64(pattern >> (U32(toInt32(b)) & 31)));
+                }
+                default: return false;
+            }
+        }
+
+        case JsInst::Convert: {
+            auto& convert = (JsInstConvert&)inst;
+            Folded value;
+            if(!read(convert.value, value)) return false;
+
+            auto& from = target.rep(base[convert.value]->rep);
+            if(from.kind == JsRepKind::HostBool) return false;
+
+            // A value that did not change representation, or a boolean, or a truth test.
+            if(to.kind == JsRepKind::HostBool) {
+                return number(value.isBig ? value.big != 0 : value.number != 0);
+            }
+
+            if(to.kind == JsRepKind::Number && to.domain == NumberDomain::Bool01) {
+                return number(value.isBig ? value.big != 0 : value.number != 0);
+            }
+
+            if(to.kind == JsRepKind::BigInt) {
+                if(value.isBig) return coerced(value);
+                if(from.isFloat() || !isSafeInteger(value.number)) return false;
+
+                Folded wide;
+                wide.isBig = true;
+                wide.big = __int128(I64(value.number));
+                return coerced(wide);
+            }
+
+            if(to.kind != JsRepKind::Number || to.isWideNumber()) return false;
+
+            if(value.isBig) {
+                if(to.isFloat()) return number(F64(value.big));
+                if(to.bits > 32) return false;
+
+                Folded low;
+                low.number = F64(I64(U64(value.big) & 0xFFFFFFFFull));
+                return coerced(low);
+            }
+
+            // Float to integer: `Math.trunc`, clamped to the destination's range, then wrapped.
+            if(from.isFloat() && !to.isFloat()) {
+                if(to.bits > 32 || to.domain == NumberDomain::Bool01) return false;
+
+                auto v = value.number;
+                if(v != v) return number(0);
+
+                auto isSigned = to.domain == NumberDomain::Signed;
+                auto low = isSigned ? -F64(U64(1) << (to.bits - 1)) : 0.0;
+                auto high = isSigned ? F64(U64(1) << (to.bits - 1)) - 1 : F64((U64(1) << to.bits) - 1);
+                v = std::trunc(v);
+                if(v < low) v = low;
+                if(v > high) v = high;
+
+                Folded clamped;
+                clamped.number = v;
+                return coerced(clamped);
+            }
+
+            return coerced(value);
+        }
+
+        default:
+            return false;
+    }
+}
+
+void Optimizer::foldConstants() {
+    // To a fixed point over the table, because an operand defined in a later block of the table is
+    // a literal only after that block's turn. Bounded, since each round only ever turns
+    // instructions into literals.
+    for(U32 round = 0; round < 8; round++) {
+        auto changed = false;
+
+        for(U32 i = 0; i < body.blocks.size(); i++) {
+            auto block = body.block(base, JsBlockId(i));
+            if(block->deleted) continue;
+
+            for(Size at = 0; at < block->instructionList.size(); at++) {
+                auto inst = base[block->instructionList.get(base, at)];
+
+                // A `select` over a literal condition is the arm it names, under the result's
+                // name - an `alias`, which the passes after this one already read through.
+                if(inst->kind == JsInst::Select && inst->result) {
+                    auto& select = (JsInstSelect&)*inst;
+                    auto condition = select.condition ? literalOf(base[select.condition]) : nullptr;
+                    if(!condition || (condition->kind != JsConstant::Number &&
+                                      condition->kind != JsConstant::Bool)) {
+                        continue;
+                    }
+
+                    auto chosen = condition->number != 0 ? select.whenTrue : select.whenFalse;
+                    if(!chosen || base[chosen]->rep != base[inst->result]->rep) continue;
+
+                    base[chosen]->uses++;
+                    auto alias = makeInst<JsInstAlias>(block, JsRepId(), inst->source, chosen);
+                    replaceInst(inst, alias);
+                    target.optimizer.folded++;
+                    changed = true;
+                    continue;
+                }
+
+                if(inst->kind != JsInst::Binary && inst->kind != JsInst::Unary &&
+                   inst->kind != JsInst::Coerce && inst->kind != JsInst::Convert) {
+                    continue;
+                }
+
+                JsConstant constant;
+                if(!foldedValueOf(*inst, constant)) continue;
+
+                auto folded = makeInst<JsInstConst>(block, JsRepId(), inst->source, constant);
+                replaceInst(inst, folded);
+                target.optimizer.folded++;
+                changed = true;
+            }
+        }
+
+        if(!changed) break;
+    }
 }
 
 /*

@@ -3,12 +3,16 @@
 var log = 0;
 
 // 
-function opaque(n) {
-  log = log + n | 0;
-  return log > 1000 ? 0 : n;
-}
-
 function main() {
-  return (((opaque(5) + 1349 | 0) + (120 + opaque(6) | 0) | 0) + (opaque(7) + 127 | 0) | 0) + log | 0;
+  var v4 = log;
+  var v6 = v4 + 5 | 0;
+  log = v6;
+  var v16 = (v6 > 1000 ? 0 : 5) + 1349;
+  var v32 = v4 + 11 | 0;
+  log = v32;
+  var v54 = v16 + (120 + (v32 > 1000 ? 0 : 6));
+  var v63 = v4 + 18 | 0;
+  log = v63;
+  return v54 + ((v63 > 1000 ? 0 : 7) + 127) + v63 | 0;
 }
 main();

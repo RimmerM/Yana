@@ -1,0 +1,100 @@
+module ResolveTest
+
+data Flags {Flags: I64}
+
+data Wrapped {Wrapped: I64}
+
+data Two {: I64, : I64}
+
+fn newtypeContent(f: Flags [shared call]) -> I64 {
+bb0:
+  %0: I64 = read copy.trivial (f.Flags)
+  return take %0
+}
+
+fn wrappedContent(w: Wrapped [shared call]) -> I64 {
+bb0:
+  %0: I64 = read copy.trivial (w.Wrapped)
+  return take %0
+}
+
+fn tupleFirst(t: {I64, Bool} [shared call]) -> I64 {
+bb0:
+  %0: I64 = read copy.trivial (t.0)
+  return take %0
+}
+
+fn tupleSecond(t: {I64, Bool} [shared call]) -> Bool {
+bb0:
+  %0: Bool = read copy.trivial (t.1)
+  return take %0
+}
+
+fn recordSecond(t: Two [shared call]) -> I64 {
+bb0:
+  %0: I64 = read copy.trivial (t.1)
+  return take %0
+}
+
+fn throughPointer(p: %Two [shared call]) -> I64 {
+bb0:
+  %0: %Two = read copy.trivial (p)
+  %1: I64 = read copy.trivial ([%%0].1)
+  return take %1
+}
+
+fn callsIndexedField(t: {(I64) -> I64, Bool} [shared call]) -> I64 {
+bb0:
+  %0: (I64) -> I64 [shared call] = read borrow.shared (t.0) loan0
+  %1: I64 = const 3
+  %2: I64 = call inspect %0 borrow.shared %1
+  return take %2
+}
+
+fn writesIndex() -> I64 {
+  local & t: {I64, I64}
+
+bb0:
+  %0: I64 = const 1
+  %1: I64 = const 2
+  %2: {I64, I64} = aggregate. take %0 take %1
+  write.init borrow.unique (t) take %2
+  %4: I64 = const 7
+  write.assign borrow.unique (t.0) take %4
+  %6: I64 = read copy.trivial (t.0)
+  %7: I64 = read copy.trivial (t.1)
+  %8: I64 = add inspect %6 inspect %7
+  return take %8
+}
+
+fn writesContent() -> I64 {
+  local & f: Flags
+
+bb0:
+  %0: I64 = const 3
+  %1: Flags = aggregate.Flags take %0
+  write.init borrow.unique (f) take %1
+  %3: I64 = const 9
+  write.assign borrow.unique (f.Flags) take %3
+  %5: I64 = read copy.trivial (f.Flags)
+  return take %5
+}
+
+fn main() -> I64 {
+bb0:
+  %0: I64 = call writesIndex
+  %1: I64 = call writesContent
+  %2: I64 = add inspect %0 inspect %1
+  %3: I64 = const 4
+  %4: Bool = const True
+  %5: {I64, Bool} = aggregate. take %3 take %4
+  %6: I64 = call tupleFirst borrow.shared %5
+  %7: I64 = add inspect %2 inspect %6
+  %8: I64 = const 20
+  %9: Flags = aggregate.Flags take %8
+  %10: I64 = call newtypeContent borrow.shared %9
+  %11: I64 = add inspect %7 inspect %10
+  return take %11
+}
+
+entry main

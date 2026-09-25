@@ -14,9 +14,10 @@ data Pair {a: Int, b: Int}
 data Direction = North | South
 data Shape = Circle(Int) | Square(Int)
 
--- A number that is not one of the type's: a decimal for an integer field. (The other direction, an
--- integer wider than the field, is in `Reject.Default.Legacy.yana`.)
+-- A number that is not one of the type's: a decimal for an integer field, and the other direction,
+-- an integer wider than the field.
 data Rounded {value: Int = 2.5}
+data TooBig {value: U8 = 300}
 -- A record is written out rather than written as a number, which is the same answer a global of one
 -- gets: zero is not one of a `Pair`'s values however many bytes it would have filled.
 data Nested {inner: Pair = 0}
@@ -38,9 +39,6 @@ data Held {shape: Shape = Circle(2.5)}
 -- the error it would be anywhere else.
 data Partial {point: Pair = Pair {a: 1}}
 
--- An integer wider than its field, a growable array and an unknown constructor as defaults moved to
--- `Reject.Default.Legacy.yana`; that file says what the new stage does instead.
-
 -- And a fixed array whose literal is not as long as the type says. The length is in the type, so
 -- this is a comparison rather than an inference.
 data Short {items: [Int *3] = [1, 2]}
@@ -53,3 +51,12 @@ data Short {items: [Int *3] = [1, 2]}
 data Broken {value: Nope = 0}
 
 fn main() -> Int = 0
+
+-- Since J135, which enforces these in the new stage; they were `Reject.Default.Legacy.yana`.
+-- A growable array allocates its run, so there is nothing constant about one: the storage would
+-- have to exist before the program starts. `[T *n]` is the shape that does have a constant form,
+-- since its elements are the value's own bytes.
+data Grown {items: Array(Int) = [1, 2]}
+
+-- A name that is no constructor at all.
+data Unknown {heading: Direction = West}

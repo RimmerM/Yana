@@ -1,0 +1,349 @@
+module ResolveTest
+
+let & counter: I32 = 0
+
+fn >-<(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
+  %6: I32 trivial = sub inspect %4 inspect %5
+  return consume %6
+}
+
+fn <->(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
+  %6: I32 trivial = sub inspect %4 inspect %5
+  return consume %6
+}
+
+fn left() -> I32 {
+bb0:
+  %0: I32 trivial = const 10
+  %1: I32 trivial = const 3
+  %2: I32 trivial = call >-< borrow %0 borrow %1
+  %3: I32 trivial = const 2
+  %4: I32 trivial = call >-< borrow %2 borrow %3
+  return consume %4
+}
+
+fn right() -> I32 {
+bb0:
+  %0: I32 trivial = const 10
+  %1: I32 trivial = const 3
+  %2: I32 trivial = const 2
+  %3: I32 trivial = call <-> borrow %1 borrow %2
+  %4: I32 trivial = call <-> borrow %0 borrow %3
+  return consume %4
+}
+
+fn leftLong() -> I32 {
+bb0:
+  %0: I32 trivial = const 20
+  %1: I32 trivial = const 8
+  %2: I32 trivial = call >-< borrow %0 borrow %1
+  %3: I32 trivial = const 3
+  %4: I32 trivial = call >-< borrow %2 borrow %3
+  %5: I32 trivial = const 1
+  %6: I32 trivial = call >-< borrow %4 borrow %5
+  return consume %6
+}
+
+fn rightLong() -> I32 {
+bb0:
+  %0: I32 trivial = const 20
+  %1: I32 trivial = const 8
+  %2: I32 trivial = const 3
+  %3: I32 trivial = const 1
+  %4: I32 trivial = call <-> borrow %2 borrow %3
+  %5: I32 trivial = call <-> borrow %1 borrow %4
+  %6: I32 trivial = call <-> borrow %0 borrow %5
+  return consume %6
+}
+
+fn leftTighter() -> I32 {
+bb0:
+  %0: I32 trivial = const 100
+  %1: I32 trivial = const 3
+  %2: I32 trivial = const 4
+  %3: I32 trivial = mul inspect %1 inspect %2
+  %4: I32 trivial = call >-< borrow %0 borrow %3
+  %5: I32 trivial = const 5
+  %6: I32 trivial = call >-< borrow %4 borrow %5
+  return consume %6
+}
+
+fn rightTighter() -> I32 {
+bb0:
+  %0: I32 trivial = const 100
+  %1: I32 trivial = const 3
+  %2: I32 trivial = const 4
+  %3: I32 trivial = mul inspect %1 inspect %2
+  %4: I32 trivial = const 5
+  %5: I32 trivial = call <-> borrow %3 borrow %4
+  %6: I32 trivial = call <-> borrow %0 borrow %5
+  return consume %6
+}
+
+fn rightInside() -> Bool {
+bb0:
+  %0: I32 trivial = const 10
+  %1: I32 trivial = const 3
+  %2: I32 trivial = const 2
+  %3: I32 trivial = call <-> borrow %1 borrow %2
+  %4: I32 trivial = call <-> borrow %0 borrow %3
+  %5: I32 trivial = const 1
+  %6: I32 trivial = add inspect %5 inspect %4
+  %7: I32 trivial = const 10
+  %8: Bool trivial = eq inspect %6 inspect %7
+  return consume %8
+}
+
+fn ?:(value: Maybe(I32), fallback: () -> I32 [shared call]) -> I32 {
+bb0(%0: Maybe(I32) trivial, %1: () -> I32 [shared call] guaranteed):
+  %3: %Maybe(I32) address = alloc frame Maybe(I32)
+  %4: %I32 address = alloc frame I32
+  store inspect %3 consume %0
+  %5: %U8 address = field.addr .# inspect %3
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 1
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  %9: () -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %10: I32 trivial = call [value #0] inspect %9
+  jump -> bb2(consume %10)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %11: %I32 address = field.addr .Just inspect %3
+  %12: I32 trivial = load inspect %11
+  store inspect %4 consume %12
+  %13: I32 trivial = load inspect %4
+  jump -> bb2(consume %13)
+}
+
+fn some(value: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: Maybe(I32) trivial = aggregate.Just consume %2
+  return consume %3
+}
+
+fn none'2() -> Maybe(I32) {
+bb0:
+  %0: Maybe(I32) trivial = aggregate.Nothing
+  return consume %0
+}
+
+fn firstWins() -> I32 {
+bb0:
+  %0: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=unique call]
+  %1: I32 trivial = const 7
+  %2: Maybe(I32) trivial = call some borrow %1
+  %3: () -> I32 [owned here shape8 .0=unique call] affine = fun.value firstWins.thunk
+  store inspect %0 consume %3
+  %4: () -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
+  %5: I32 trivial = call ?: consume %2 borrow %4
+  return consume %5
+}
+
+fn lastWins() -> I32 {
+bb0:
+  %0: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=unique call]
+  %1: Maybe(I32) trivial = call none'2
+  %2: () -> I32 [owned here shape8 .0=unique call] affine = fun.value lastWins.thunk
+  store inspect %0 consume %2
+  %3: () -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
+  %4: I32 trivial = call ?: consume %1 borrow %3
+  return consume %4
+}
+
+fn bumpNone() -> Maybe(I32) {
+bb0:
+  %0: %I32 address = global.addr counter
+  %1: I32 [unique call] guaranteed = load inspect %0
+  %2: I32 trivial = const 1
+  call +=(I32) borrow %1 borrow %2
+  %3: Maybe(I32) trivial = aggregate.Nothing
+  return consume %3
+}
+
+fn bumpValue(value: I32 [shared call]) -> I32 {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: %I32 address = global.addr counter
+  %3: I32 [unique call] guaranteed = load inspect %2
+  %4: I32 trivial = const 1
+  call +=(I32) borrow %3 borrow %4
+  %5: I32 trivial = load inspect %1
+  return consume %5
+}
+
+fn noneEvaluated() -> I32 {
+bb0:
+  %0: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=unique call]
+  %1: I32 trivial = const 1
+  %2: Maybe(I32) trivial = call some borrow %1
+  %3: () -> I32 [owned here shape8 .0=unique call] affine = fun.value noneEvaluated.thunk
+  store inspect %0 consume %3
+  %4: () -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
+  %5: I32 trivial = call ?: consume %2 borrow %4
+  return consume %5
+}
+
+fn allEvaluated() -> I32 {
+bb0:
+  %0: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=unique call]
+  %1: Maybe(I32) trivial = call none'2
+  %2: () -> I32 [owned here shape8 .0=unique call] affine = fun.value allEvaluated.thunk
+  store inspect %0 consume %2
+  %3: () -> I32 [shared call shape8 .0=unique call] guaranteed from{%0} = load inspect %0
+  %4: I32 trivial = call ?: consume %1 borrow %3
+  return consume %4
+}
+
+fn main() -> I32 {
+bb0:
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = alloc frame I32
+  %7: I32 trivial = call left
+  %8: I32 trivial = call right
+  %9: I32 trivial = add inspect %7 inspect %8
+  store inspect %1 consume %9
+  %10: I32 trivial = call leftLong
+  %11: I32 trivial = call rightLong
+  %12: I32 trivial = add inspect %10 inspect %11
+  store inspect %2 consume %12
+  %13: I32 trivial = call leftTighter
+  %14: I32 trivial = call rightTighter
+  %15: I32 trivial = add inspect %13 inspect %14
+  store inspect %3 consume %15
+  %16: I32 trivial = call firstWins
+  %17: I32 trivial = call lastWins
+  %18: I32 trivial = add inspect %16 inspect %17
+  store inspect %4 consume %18
+  %19: I32 trivial = call noneEvaluated
+  %20: I32 trivial = call allEvaluated
+  %21: I32 trivial = add inspect %19 inspect %20
+  %22: %I32 address = global.addr counter
+  %23: I32 trivial = load inspect %22
+  %24: I32 trivial = add inspect %21 inspect %23
+  store inspect %5 consume %24
+  %25: Bool trivial = call rightInside
+  branch inspect %25 -> bb3 -> bb1
+
+bb1:
+  %26: I32 trivial = const 0
+  jump -> bb2(consume %26)
+
+bb2(%0: I32 trivial):
+  store inspect %6 consume %0
+  %27: I32 trivial = load inspect %1
+  %28: I32 trivial = load inspect %2
+  %29: I32 trivial = add inspect %27 inspect %28
+  %30: I32 trivial = load inspect %3
+  %31: I32 trivial = add inspect %29 inspect %30
+  %32: I32 trivial = load inspect %4
+  %33: I32 trivial = add inspect %31 inspect %32
+  %34: I32 trivial = load inspect %5
+  %35: I32 trivial = add inspect %33 inspect %34
+  %36: I32 trivial = load inspect %6
+  %37: I32 trivial = add inspect %35 inspect %36
+  return consume %37
+
+bb3:
+  %38: I32 trivial = const 1
+  jump -> bb2(consume %38)
+}
+
+fn firstWins.thunk(firstWins.thunk.env: firstWins.thunk.env [unique call]) -> I32 {
+bb0(%0: firstWins.thunk.env [unique call] guaranteed):
+  %1: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=unique call]
+  %2: Maybe(I32) trivial = call none'2
+  %3: () -> I32 [owned here shape8 .0=unique call] affine = fun.value firstWins.thunk.thunk
+  store inspect %1 consume %3
+  %4: () -> I32 [shared call shape8 .0=unique call] guaranteed from{%1} = load inspect %1
+  %5: I32 trivial = call ?: consume %2 borrow %4
+  return consume %5
+}
+
+fn firstWins.thunk.thunk(firstWins.thunk.thunk.env: firstWins.thunk.thunk.env [unique call]) -> I32 {
+bb0(%0: firstWins.thunk.thunk.env [unique call] guaranteed):
+  %1: I32 trivial = const 3
+  return consume %1
+}
+
+fn lastWins.thunk(lastWins.thunk.env: lastWins.thunk.env [unique call]) -> I32 {
+bb0(%0: lastWins.thunk.env [unique call] guaranteed):
+  %1: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=unique call]
+  %2: Maybe(I32) trivial = call none'2
+  %3: () -> I32 [owned here shape8 .0=unique call] affine = fun.value lastWins.thunk.thunk
+  store inspect %1 consume %3
+  %4: () -> I32 [shared call shape8 .0=unique call] guaranteed from{%1} = load inspect %1
+  %5: I32 trivial = call ?: consume %2 borrow %4
+  return consume %5
+}
+
+fn lastWins.thunk.thunk(lastWins.thunk.thunk.env: lastWins.thunk.thunk.env [unique call]) -> I32 {
+bb0(%0: lastWins.thunk.thunk.env [unique call] guaranteed):
+  %1: I32 trivial = const 3
+  return consume %1
+}
+
+fn noneEvaluated.thunk(noneEvaluated.thunk.env: noneEvaluated.thunk.env [unique call]) -> I32 {
+bb0(%0: noneEvaluated.thunk.env [unique call] guaranteed):
+  %1: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=unique call]
+  %2: Maybe(I32) trivial = call bumpNone
+  %3: () -> I32 [owned here shape8 .0=unique call] affine = fun.value noneEvaluated.thunk.thunk
+  store inspect %1 consume %3
+  %4: () -> I32 [shared call shape8 .0=unique call] guaranteed from{%1} = load inspect %1
+  %5: I32 trivial = call ?: consume %2 borrow %4
+  return consume %5
+}
+
+fn noneEvaluated.thunk.thunk(noneEvaluated.thunk.thunk.env: noneEvaluated.thunk.thunk.env [unique call]) -> I32 {
+bb0(%0: noneEvaluated.thunk.thunk.env [unique call] guaranteed):
+  %1: I32 trivial = const 20
+  %2: I32 trivial = call bumpValue borrow %1
+  return consume %2
+}
+
+fn allEvaluated.thunk(allEvaluated.thunk.env: allEvaluated.thunk.env [unique call]) -> I32 {
+bb0(%0: allEvaluated.thunk.env [unique call] guaranteed):
+  %1: %() -> I32 address = alloc frame () -> I32 [owned here shape8 .0=unique call]
+  %2: Maybe(I32) trivial = call bumpNone
+  %3: () -> I32 [owned here shape8 .0=unique call] affine = fun.value allEvaluated.thunk.thunk
+  store inspect %1 consume %3
+  %4: () -> I32 [shared call shape8 .0=unique call] guaranteed from{%1} = load inspect %1
+  %5: I32 trivial = call ?: consume %2 borrow %4
+  return consume %5
+}
+
+fn allEvaluated.thunk.thunk(allEvaluated.thunk.thunk.env: allEvaluated.thunk.thunk.env [unique call]) -> I32 {
+bb0(%0: allEvaluated.thunk.thunk.env [unique call] guaranteed):
+  %1: I32 trivial = const 20
+  %2: I32 trivial = call bumpValue borrow %1
+  return consume %2
+}
+
+entry main

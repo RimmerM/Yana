@@ -55,13 +55,19 @@
  *
  * ## The two things that have to be true, for a load
  *
- * **Nothing in the loop writes storage.** Asked as a property of the whole loop rather than per
- * candidate, and answered by kind: a store, a block copy, a pattern fill, a call and an intrinsic all
- * decline it. That is far cruder than the structural aliasing `opt_place.cpp` performs, and
- * deliberately so - a place is an address by this point, so telling `%v_1 + 12` apart from
- * `(load %v_1) + %i` is pointer disambiguation over values rather than a question about fields, and
- * the escape information that would settle it lives a stage above. What is left is the loops that
- * only read, which is where the item's largest single row was.
+ * **Nothing in the loop writes the bytes it reads.** Asked once per loop as a list of the places the
+ * loop writes (`LoopWrites` in lower_licm.cpp, J158), and each candidate is compared against it with
+ * `forwardStoredValues`' own aliasing rule (`mayOverlap` in lower_store.h): two allocations are two
+ * objects, a contained allocation is reached by nothing but its own address, and one root is compared
+ * by byte range. A write naming no address - a call, an intrinsic - may write anything but a
+ * contained allocation, and anything ordered or volatile in the loop ends the question. Until J158
+ * this was "nothing in the loop writes at all", which refused every loop that stored anything.
+ *
+ * What that still cannot tell apart is the commonest pair: an element store through a pointer
+ * loaded out of a record, against a read of that record's header - `xs[j + 1] = xs[j]` in `Sort`'s
+ * insertion loop beside `xs.length`. Two roots neither of which is an allocation may be anything,
+ * and the fact that would separate them - that an exclusive borrow's referent is reached through no
+ * other pointer - lives a stage above, in the ownership types this IR does not carry.
  *
  * **The read cannot fault where it is being moved to.** The preheader runs when the loop is entered
  * and the body runs only if the test passes, so a load moved from one to the other happens on a path
@@ -121,3 +127,53 @@
  */
 void hoistLoopInvariants(LowerBase base, LowerModule& module, LowerFunction& fun,
                          const LoopAnalysis& analysis);
+
+/*
+ * A location a loop both reads and writes, carried in a register across it - J158, the scalar
+ * promotion of a loop-carried memory cell.
+ *
+ * `hoistLoopInvariants` takes a read whose bytes the loop does not write out of the loop. A read of
+ * bytes the loop *does* write is the other half: the value it answers is available - it is whatever
+ * the last store in the loop wrote, or what the cell held when the loop was entered - so the read is
+ * redundant on the back edge and only partially redundant at the header, where the entry edge has
+ * not got it. The rewrite is the classic one: the preheader reads the cell once, the header merges
+ * that with what the latch ends with, and every read in the loop becomes the value the cell holds
+ * above it.
+ *
+ * **The stores stay.** A promotion that also sinks the stores to the exits writes on a path that did
+ * not write before - the exit a loop leaves by before its first store - and for storage anything
+ * outside this function can reach that is a store another thread may observe. Keeping them costs a
+ * store per iteration and needs no argument at all: memory is exactly what it was at every point,
+ * and a read outside the loop, or a call inside it that reads, still sees the cell. What goes is the
+ * reads, which are the latency; a store retires into the store buffer.
+ *
+ * What has to hold, for one cell:
+ *
+ *  - its address is a root defined outside the loop plus a constant offset (`placeOf`), and every
+ *    read of it in the loop reads the same width into the same type with the same extension;
+ *  - every store to it writes the read's type at that width - the value a read returns is then the
+ *    stored value itself, with nothing to rebuild (`storedAnswer`);
+ *  - **nothing else in the loop may write a byte of it**, which is `LoopWrites` with its own stores
+ *    excepted: another store under the same root at an overlapping range, a copy or a fill, a store
+ *    through a root that is not provably another object, a call - unless the cell is in a contained
+ *    allocation, which no call was handed - and anything ordered or volatile, which ends the loop;
+ *  - the preheader's read cannot fault: `safeToSpeculate`, the hoister's rule;
+ *  - the loop has a preheader and one latch, and every block of it but the header is entered from
+ *    inside it.
+ *
+ * Innermost loops first, so a cell promoted in an inner loop leaves one read in that loop's
+ * preheader, which the enclosing loop's promotion then answers in turn.
+ *
+ * **Capped by its phis** (J160): a cell read once in a state machine's loop needs a phi at every
+ * join the machine has, so `CellRewrite::plan` counts the phis that survive the collapse, the
+ * header's own excepted, and declines where they outnumber the loads they replace. `test/base` and
+ * the bench binaries are byte-identical either way; the iterator goldens are what it shrinks.
+ *
+ * In front of the hoister, which then finds the reads this left - the preheader's own among them -
+ * and takes what the enclosing loop does not write further out.
+ */
+//
+// Answers whether it moved the stores of a contained cell out of a loop, which leaves that slot with
+// no access inside the loop at all - the shape `promoteStackSlots` takes whole, and the caller runs it
+// again for exactly that reason.
+bool promoteLoopCells(LowerBase base, LowerModule& module, LowerFunction& fun, const LoopAnalysis& analysis);

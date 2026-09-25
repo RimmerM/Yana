@@ -1,4 +1,6 @@
 #include "lower_promote.h"
+#include "lower_store.h"
+#include "fold_arith.h"
 #include "lower_inst.h"
 #include "lower_builder.h"
 
@@ -37,6 +39,9 @@ struct Slot {
     LowerPtr<LowerValue> address = nullptr;
     U32 width = 0;
     LowerType type = LowerType::Int64;
+
+    // Whether a load or a store narrower than the slot names it - `isNarrowAccess`.
+    bool narrow = false;
 
     // Which candidate this was while the survey ran, and therefore which column of its
     // availability answers for this slot - see `surveySlots`, which keeps that table per block
@@ -153,6 +158,22 @@ void reconcileCopiedSlots(LowerBase base, LowerFunction& fun, Array<Slot>& slots
 }
 
 /*
+ * Whether an access reads or writes the low bytes of an integer slot rather than the whole of it -
+ * J152.
+ *
+ * `splitAggregateSlots` leaves these where a sum's arms name one cell at two widths (its
+ * `isPrefixAccess`): `Result(FileError, I64)`'s error byte and its value word. A load is the value
+ * masked (or sign-extended) to its width, which is what memory would have done; a store is a merge,
+ * the low bytes replaced and the rest kept - so it *reads* the slot as well as writing it, and
+ * `readSlot` counts it as a read. Integers only, and a power-of-two width, which is what a mask
+ * states. Whether the slot's own register is an integer is only known once every access has been
+ * walked, so the collection records that it saw one and decides after.
+ */
+static bool isNarrowAccess(U32 accessWidth, U32 slotWidth, LowerType type) {
+    return accessWidth < slotWidth && foldArith::isPowerOfTwo(accessWidth) && isInt(type);
+}
+
+/*
  * The slots worth trying, which are the ones the whole of whose use is a load or a store of the whole
  * thing.
  *
@@ -160,6 +181,12 @@ void reconcileCopiedSlots(LowerBase base, LowerFunction& fun, Array<Slot>& slots
  * the slot is memory something else can see, and no amount of dataflow makes it not so. The width and
  * register type have to be the same at every access for the same reason a phi's alternatives do: what
  * replaces the slot is one register, and one register has one type.
+ *
+ * Two questions, asked separately since J163. Whether the address leaves at all is
+ * `addressContained`'s (lower_store.h), the one statement of it the lower tier has; what the walk
+ * below adds is the *shape* - every use at offset zero, a copy or fill of exactly the slot, one
+ * register type - which is stricter than contained, since a contained record whose fields are read
+ * at offsets is `splitAggregateSlots`' and not one register.
  */
 void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap<U32, U32>& index) {
     for(auto blockPtr: fun.blocks.contents(base)) {
@@ -189,6 +216,8 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
                 continue;
             }
 
+            if(!addressContained(base, address, 0)) continue;
+
             Slot slot;
             slot.address = address - base;
             slot.width = width;
@@ -203,21 +232,25 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
                 if(user->kind == LowerInst::Load) {
                     auto loadInst = (LowerInstLoad*)user;
                     if(loadInst->isVolatile()) { usable = false; break; }
-                    if(loadInst->getWidth() != width) { usable = false; break; }
                     type = loadInst->created().ptr->type;
+
+                    if(loadInst->getWidth() != width) {
+                        if(!isNarrowAccess(loadInst->getWidth(), width, type)) { usable = false; break; }
+                        slot.narrow = true;
+                        continue;
+                    }
                 } else if(user->kind == LowerInst::Store) {
                     auto storeInst = (LowerInstStore*)user;
                     if(storeInst->isVolatile()) { usable = false; break; }
 
-                    // Storing the address *into* the slot is the address escaping into memory, and
-                    // is not the same thing as writing the slot.
-                    if(storeInst->to != slot.address || storeInst->value == slot.address) {
-                        usable = false;
-                        break;
-                    }
-
-                    if(storeInst->getWidth() != width) { usable = false; break; }
+                    // Not the address stored *as* a value - `addressContained` refused that.
                     type = base[storeInst->value]->type;
+
+                    if(storeInst->getWidth() != width) {
+                        if(!isNarrowAccess(storeInst->getWidth(), width, type)) { usable = false; break; }
+                        slot.narrow = true;
+                        continue;
+                    }
                 } else if(user->kind == LowerInst::Copy) {
                     /*
                      * A copy of exactly this slot, which is how a value built in a temporary reaches
@@ -231,14 +264,7 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
                     auto copyInst = (LowerInstCopy*)user;
                     auto count = base[copyInst->count]->inst();
 
-                    // One of the two ends, and not the byte count: an address used as a *number* is
-                    // an address that outlives the storage, which is the one thing promoting it
-                    // cannot survive.
-                    if(copyInst->to != slot.address && copyInst->from != slot.address) {
-                        usable = false;
-                        break;
-                    }
-
+                    // One of the two ends and not the byte count, which `addressContained` refused.
                     if(count->kind != LowerInst::Imm || U32(((LowerImm*)count)->i) != width) {
                         usable = false;
                         break;
@@ -258,9 +284,7 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
                     auto count = base[fill->count]->inst();
                     auto pattern = base[fill->pattern]->inst();
 
-                    if(fill->to != slot.address || fill->count == slot.address ||
-                       fill->pattern == slot.address ||
-                       !count || count->kind != LowerInst::Imm || ((LowerImm*)count)->i != width ||
+                    if(!count || count->kind != LowerInst::Imm || ((LowerImm*)count)->i != width ||
                        !pattern || pattern->kind != LowerInst::Imm || (((LowerImm*)pattern)->i & 0xff) != 0) {
                         usable = false;
                         break;
@@ -334,6 +358,9 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
             // reserved it, which is a decision for a dead-code pass rather than for this one.
             if(!usable || !typed) continue;
 
+            // A narrow access is a mask of the slot's register, so that register is an integer.
+            if(slot.narrow && !isInt(slot.type)) continue;
+
             // And now that there is a type, whether a register of that kind holds this many bytes,
             // and whether the storage is the width the register reads back whole - see
             // `promotableSlot` in lower_promote.h, which `splitAggregateSlots` asks the same
@@ -351,9 +378,17 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
 // Which slot an instruction reads and which it writes - a copy out of one and into another does
 // both, of two different slots, so the two questions are asked separately rather than as a kind.
 // `maxLimit<Size>` for an instruction that does neither, which is most of them.
-Size readSlot(HashMap<U32, U32>& index, LowerInst* inst) {
+Size readSlot(LowerBase base, HashMap<U32, U32>& index, Array<Slot>& slots, LowerInst* inst) {
     if(inst->kind == LowerInst::Load) return slotOf(index, ((LowerInstLoad*)inst)->from);
     if(inst->kind == LowerInst::Copy) return slotOf(index, ((LowerInstCopy*)inst)->from);
+
+    // A narrow store keeps the bytes above it, so it reads what the slot held - isNarrowAccess.
+    if(inst->kind == LowerInst::Store) {
+        auto store = (LowerInstStore*)inst;
+        auto which = slotOf(index, store->to);
+        if(which != maxLimit<Size> && store->getWidth() < slots[which].width) return which;
+    }
+
     return maxLimit<Size>;
 }
 
@@ -475,7 +510,7 @@ void surveySlots(LowerBase base, LowerFunction& fun, HashMap<U32, U32>& index,
         for(auto instPtr: block->instructions.contents(base)) {
             auto inst = base[instPtr];
 
-            auto read = readSlot(index, inst);
+            auto read = readSlot(base, index, candidates, inst);
             if(read != maxLimit<Size> && !written[read]) usable.set(read, false);
 
             auto write = writtenSlot(index, inst);
@@ -494,9 +529,9 @@ void surveySlots(LowerBase base, LowerFunction& fun, HashMap<U32, U32>& index,
  */
 LowerPtr<LowerValue> narrowedTo(LowerBase base, LowerModule& module, LowerBlock& block,
                                 LowerPtr<LowerValue> stored, const Slot& slot, bool isSigned,
-                                StringId name) {
+                                StringId name, U32 accessWidth = 0) {
     auto bits = registerBits(slot.type);
-    auto width = slot.width * 8;
+    auto width = (accessWidth ? accessWidth : slot.width) * 8;
     if(width >= bits) return stored;
 
     if(isSigned) {
@@ -638,7 +673,28 @@ void rewriteBlock(LowerBase base, LowerModule& module, LowerBlock& block, Array<
                 // In the slot's own register, which is the store's own type except where the slot
                 // carries two - see collectSlots. Nothing is masked, for the reason a copy between
                 // two promoted slots masks nothing: every load of a slot this narrow narrows.
-                current[which] = carriedInto(base, module, block, store->value, slots[which].type);
+                auto value = carriedInto(base, module, block, store->value, slots[which].type);
+
+                // A narrow store is a merge: its bytes replace the low ones and the rest are kept -
+                // isNarrowAccess. `readSlot` made sure there is something to keep.
+                if(store->getWidth() < slots[which].width) {
+                    auto type = slots[which].type;
+                    auto low = foldArith::maskOf(store->getWidth() * 8);
+                    auto all = foldArith::maskOf(registerBits(type));
+                    auto keep = new (module.arena) LowerImm(StringId(), type, all & ~low);
+                    block.addInst(base, keep);
+                    auto mask = new (module.arena) LowerImm(StringId(), type, low);
+                    block.addInst(base, mask);
+
+                    auto kept = binary<LowerInst::And>(base, module, block, base[current[which]],
+                                                       keep->created().ptr, type, StringId());
+                    auto placed = binary<LowerInst::And>(base, module, block, base[value],
+                                                         mask->created().ptr, type, StringId());
+                    value = binary<LowerInst::Or>(base, module, block, kept->created().ptr,
+                                                  placed->created().ptr, type, StringId())->created().ptr - base;
+                }
+
+                current[which] = value;
                 detach(base, inst);
                 continue;
             }
@@ -723,7 +779,8 @@ void rewriteBlock(LowerBase base, LowerModule& module, LowerBlock& block, Array<
                  */
                 auto value = narrowedTo(base, module, block, current[which], slot,
                                         loadInst->isSigned(),
-                                        result->type == slot.type ? result->name : StringId());
+                                        result->type == slot.type ? result->name : StringId(),
+                                        loadInst->getWidth());
 
                 value = carriedInto(base, module, block, value, result->type);
                 replaceUses(base, module.arena, result - base, value);

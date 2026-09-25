@@ -45,6 +45,7 @@ void Optimizer::run() {
     // The capacity question answered before anything asks about the box its guarded call
     // names - see `foldConstantBranches`.
     buildUses();
+    foldConstants();
     foldConstantBranches();
     countPlaceRefs();
 
@@ -107,6 +108,16 @@ void Optimizer::run() {
         countPlaceRefs();
         buildUses();
         forwardVariables();
+        countPlaceRefs();
+
+        /*
+         * Folding again, and the branches it decides, because a forwarded variable is the other
+         * way a literal reaches an operation: `let x = 7` then `f(x)` is a load of `$0` until the
+         * line above, and the first `foldConstants` saw the load (J136).
+         */
+        buildUses();
+        foldConstants();
+        foldConstantBranches();
         countPlaceRefs();
 
         buildUses();

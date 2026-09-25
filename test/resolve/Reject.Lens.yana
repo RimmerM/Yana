@@ -1,5 +1,8 @@
 -- What a lens will not accept, and why each one is a rule rather than an omission.
 --
+-- # resolver: ownership
+-- # recover: yes
+--
 -- The first group is permanent: the transparent/skipping split is what makes "the ability to skip
 -- is exactly the presence of a wrapper" checkable, and the exactly-once rule is what a call site
 -- relies on when it hands over the whole rest of its block. The rest are this version's boundary -
@@ -9,29 +12,12 @@ data Lock {held: Int}
 data Bag(a) {item: a}
 
 -- Reading the declaration.
-
--- A skipping lens - one whose result is not its continuation's - is checked against the `Try`
--- instance that says which of its cases means the continuation ran. A result with no such instance
--- is a wrapper nothing can read.
-lens fn opaqueWrapper(x: Int, body: (Int) -> a) -> Bag(a) = Bag {item: body(x)}
-
--- An instance exists, and it proceeds with something other than what the continuation produced.
--- The wrapper has to carry the continuation's own result or there is nothing for the call site's
--- proceeding path to bind.
-lens fn wrongPayload(x: Int, body: (Int) -> a) -> Maybe(Int) = Just(x)
-
--- A result that is itself a type variable is `?`'s shape: the instance cannot be selected from the
--- signature and would have to travel with the call as a witness. (A lens whose result is the
--- continuation's *own* variable is not this - that is the transparent case, and it is what `named`
--- below is.)
-lens fn (Try(m, a, e)) fullyGeneric(x: Int, ->spare: m, body: (Int) -> a) -> m = spare
-
--- A continuation that returns a concrete type is not a continuation: what it produces is whatever
--- the rest of the caller's block produces, which no signature can name.
-lens fn fixedResult(x: Int, body: (Int) -> Int) -> Int = body(x)
-
--- The continuation is called, not stored, so it carries no binding convention of its own.
-lens fn consumed(x: Int, ->body: (Int) -> a) -> a = body(x)
+--
+-- The explicit-callback form - a continuation named as a final `body: (P) -> a` parameter - is gone:
+-- the `yield` form and a failure channel (`-> (T | E)`) say everything it did (lenses.md, J135). Its
+-- five refusals (a wrapper with no `Try`, a wrapper not carrying the continuation's result, a result
+-- that is a type variable, a continuation with a concrete result, a continuation with a convention)
+-- went with it. What a failure channel refuses is `lens/Reject.Skipping.yana`.
 
 -- `iter` is the resumable generalization, and it is built - what it will not accept is in
 -- Reject.Iter.yana.
@@ -63,11 +49,8 @@ lens fn perStep(n: Int) -> Int:
         yield i
         i = i + 1
 
--- `yield` outside a lens, and inside a lens that named its continuation itself.
+-- `yield` outside a lens.
 fn notALens(x: Int) -> Int:
-    yield x
-
-lens fn named(x: Int, body: (Int) -> a) -> a:
     yield x
 
 -- Reading the call site.
@@ -78,13 +61,18 @@ lens fn scope():
 lens fn handing(x: Int) -> Int:
     yield x * 2
 
-lens fn maybeHanding(x: Int, body: (Int) -> a) -> Maybe(a):
-    if x > 0: return Just(body(x))
-    return Nothing
+-- Skipping lenses, one whose skip carries nothing and one whose skip carries a number.
+lens fn maybeHanding(x: Int) -> (Int | {}):
+    if x > 0:
+        yield x
+    else:
+        return {}
 
-lens fn maybeChecked(x: Int, body: (Int) -> a) -> Result(Int, a):
-    if x > 0: return Ok(body(x))
-    return Err(1)
+lens fn maybeChecked(x: Int) -> (Int | Int):
+    if x > 0:
+        yield x
+    else:
+        return 1
 
 -- A skipping lens without alternatives is a call that may silently not continue into the block
 -- below it, which is the one thing the wrapper exists to make impossible.
@@ -105,12 +93,12 @@ fn refutablePattern(x: Int) -> Int:
 
 -- A `Maybe` skip carries nothing, so there is no pivot for a pattern to test.
 fn nothingToMatch(x: Int) -> Int:
-    let seen = maybeHanding(x) | match 0 -> return 0
+    let seen = maybeHanding(x) | 0 -> return 0
     return seen
 
 -- A skip that does carry something still has to be covered.
 fn uncovered(x: Int) -> Int:
-    let seen = maybeChecked(x) | match 1 -> return 0
+    let seen = maybeChecked(x) | 1 -> return 0
     return seen
 
 -- A lens call that is not a statement of a block has no rest-of-block to hand its values to. An `=`
@@ -189,7 +177,8 @@ fn classLensWithoutInstance(u: Unguarded) -> Int:
 -- the thunk was built out of a value that had already been computed - the argument ran whether or
 -- not the callee forced it, which is the one thing `@lazy` promises. Everything else about these
 -- two is well formed, so the only diagnostic each draws is the one about the parameter.
-lens fn lazyLens(@lazy x: Int, body: (Int) -> a) -> a = body(x)
+lens fn lazyLens(@lazy x: Int) -> Int:
+    yield x
 
 iter fn lazyIter(@lazy x: Int) -> Int:
     yield x

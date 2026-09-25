@@ -1,0 +1,58 @@
+{-
+   **A record or a sum holding a window, returned by value** - J164, review 3 §2.2.
+
+   # resolver: ownership
+
+   `-> SView(o')` is the record by value with its field's loan in `o`, and `-> o'SView` is a loan of
+   an `SView` that lives in `o`'s storage. The review's probes wrote the second for the first and
+   reached "incorrect number of values returned from function" in the lowering; J162's rule for a
+   temporary at a reference result refuses them now (`Reject.RecordResult.yana`), and this is the
+   program they meant, on both targets: construction, a sum whose arms hold different windows, a
+   reference result that really is rooted in a parameter, and a record copied out of a field.
+-}
+
+data SView {s: 'String, n: I32}
+data Holder {v: SView, tag: I64}
+data R {a: I64, b: U8}
+data Piece = PText {s: 'String} | PRecs {xs: '[R]} | PNum(I64) | PNone
+
+@noinline fn sview(s: o'String) -> SView(o') = SView {s: s, n: truncate(length(s)) :: I32}
+
+@noinline fn piece(xs: o'[R], s: o'String, k: Int) -> Piece(o'):
+    if:
+        k % 4 == 0 -> return PText {s: s}
+        k % 4 == 1 -> return PRecs {xs: xs}
+        k % 4 == 2 -> return PNum((k :: I64) * -99)
+        else -> return PNone
+
+@noinline fn pick(a: o'SView, b: o'SView, k: Int) -> o'SView = if k > 0 then a else b
+@noinline fn inner(h: o'Holder) -> o'SView = h.v
+@noinline fn copyOut(h: o'Holder) -> SView(o') = h.v
+@noinline fn field(v: o'SView) -> o'String = v.s
+
+fn score(p: Piece) -> I64 = match p:
+    PText {s} -> (length(s) :: I64) * 3
+    PRecs {xs} -> (length(xs) :: I64) * 5 + xs[0].a
+    PNum(n) -> n
+    PNone -> 42
+
+fn main() -> Int:
+    let owned = "abc" ++ "def"
+    let short = "xy"
+    let xs = [R {a: 1, b: 2}, R {a: -5, b: 255}]
+
+    let &acc = 0 :: I64
+    for k in 0..5:
+        acc = acc * 7 + score(piece(xs, owned, k))
+
+    let a = sview(owned)
+    let b = sview(short)
+    let w = pick(a, b, 0)
+    let h = Holder {v: a, tag: 9}
+    let c = inner(h)
+    let d = copyOut(h)
+    acc = acc * 10 + (w.n :: I64)
+    acc = acc * 10 + (length(field(w)) :: I64)
+    acc = acc * 10 + (length(c.s) :: I64)
+    acc = acc * 10 + (d.n :: I64)
+    return truncate(acc % 1000000) :: Int

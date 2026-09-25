@@ -1,0 +1,23 @@
+{-
+   `addressOf` of an owned `String` or `[T]` is the address of the owner (J162).
+
+   `addressOf(it: source'a)` at `a := String` read its argument at a shared position, and a shared
+   position of a type with a view becomes the view under substitution - so the rewritten stage
+   answered the address of a view record built for the call and dead after the statement: `length`
+   through it read the view's words as the owner's `{run, length}` (0 here), and two `addressOf(s)`
+   were two addresses. The shipping stage always answered the owner's storage. The operand's form is
+   `Owner` now, as a place parameter's is.
+-}
+
+import Native
+
+fn main() -> Int:
+    let &s = "hello" ++ " world"
+    let p = bitcast(addressOf(s)) :: %String
+    let q = bitcast(addressOf(s)) :: %String
+    let same = if (bitcast(p) :: USize) == (bitcast(q) :: USize) then 1 else 0
+    let &xs = [1, 2, 3]
+    let r = bitcast(addressOf(xs)) :: %[Int]
+    push(*r, 4)
+    return (truncate(length(*p)) :: Int) * 1000 + same * 100 + (truncate(length(xs)) :: Int) * 10 +
+           xs[3]

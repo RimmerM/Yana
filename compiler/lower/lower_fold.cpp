@@ -1306,6 +1306,81 @@ bool negatedBranchCondition(LowerBase base, LowerInst* terminator, LowerValue*& 
     return true;
 }
 
+/*
+ * A truncation undone by the extension that reads it - `cast (cast %x : I32) : I64` over an `%x` of
+ * the wider type whose dropped bits are known to be zero - which is `%x`. J145, J94 §6.2 F.
+ *
+ * It is the packed capacity word's unpack: `ArrayHeader`'s capacity is the low 30 bits of an `I64`,
+ * the library narrows the masked word to the `Int` it declares and every reader widens it back to
+ * the `I64` a count is, so `and; cast; cast` stood at every capacity read in the corpus. The bits
+ * the truncation drops are compared together with the narrow sign bit, which is what makes either
+ * extension - zero or sign - hand back the bits the truncation kept and nothing else.
+ */
+static Folded foldCastRoundTrip(LowerBase base, LowerInstCast* cast) {
+    auto from = base[cast->from];
+    auto type = cast->result.type;
+    if(!isInt(type) || !isInt(from->type)) return Folded::nothing();
+
+    auto narrow = widthOf(from->type);
+    auto wide = widthOf(type);
+    if(narrow >= wide || narrow == 0) return Folded::nothing();
+
+    auto inner = from->inst();
+    if(inner->kind != LowerInst::Cast) return Folded::nothing();
+
+    auto source = base[((LowerInstCast*)inner)->from];
+    if(source->type != type) return Folded::nothing();
+
+    auto dropped = maskOf(wide) & ~maskOf(narrow - 1);
+    if((knownZeroBits(base, source) & dropped) != dropped) return Folded::nothing();
+
+    return Folded::forward(source);
+}
+
+/*
+ * `cast (shr (cast %x : W) k : W) : N` over an `%x` of the narrow type - a shift done at the wide
+ * width only because the operand was widened for it - restated as `shr %x, k` at `N`, or `sar` where
+ * the widening copied a sign bit that is not known to be zero. J145, J94 §6.2 F: the packed
+ * capacity word's flag is `word >> 30` read as an `Int`, and where the word arrives narrow (a
+ * flattened `String` argument) the unpack widened it, shifted, and narrowed again.
+ *
+ * Exact for every `k < N`: the bits the narrow result keeps are `%x`'s from `k` up and then what the
+ * extension brought in, which is zero for a zero extension and the narrow sign bit for a sign one.
+ * Only where the wide shift has no other reader, so the rewrite never adds an instruction.
+ */
+static bool narrowShift(LowerBase base, LowerInst* inst, LowerValue*& value, U64& amount,
+                        bool& arithmetic) {
+    if(inst->kind != LowerInst::Cast) return false;
+
+    auto cast = (LowerInstCast*)inst;
+    auto type = cast->result.type;
+    auto from = base[cast->from];
+    if(!isInt(type) || !isInt(from->type)) return false;
+
+    auto narrow = widthOf(type);
+    if(narrow == 0 || narrow >= widthOf(from->type)) return false;
+
+    auto shift = from->inst();
+    if(shift->kind != LowerInst::Shr || from->uses.size() != 1) return false;
+
+    auto binary = (LowerInstBinary*)shift;
+    if(!lowerConstantOf(base, base[binary->rhs], amount) || amount == 0 || amount >= narrow) {
+        return false;
+    }
+
+    auto widened = base[binary->lhs]->inst();
+    if(widened->kind != LowerInst::Cast) return false;
+
+    auto extension = (LowerInstCast*)widened;
+    auto source = base[extension->from];
+    if(source->type != type) return false;
+
+    arithmetic = extension->isSignedSource()
+              && !(knownZeroBits(base, source) & (U64(1) << (narrow - 1)));
+    value = source;
+    return true;
+}
+
 // What an instruction that is already in a block comes to, for the pass below. One switch over the
 // three shapes the folds above cover; everything else answers nothing.
 Folded foldInstruction(LowerBase base, LowerInst* inst) {
@@ -1323,6 +1398,8 @@ Folded foldInstruction(LowerBase base, LowerInst* inst) {
         }
 
         auto cast = (LowerInstCast*)inst;
+        if(auto trip = foldCastRoundTrip(base, cast); trip.kind != Folded::None) return trip;
+
         return foldCastValue(base, base[cast->from], cast->result.type, cast->isSignedSource(),
                              cast->isSignedResult());
     }
@@ -1905,6 +1982,37 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
                     rewrote = true;
                 }
 
+                // And a shift done at the wide width only because its operand was widened for it,
+                // which is a new instruction rather than a `Folded` answer - see `narrowShift`.
+                LowerValue* shifted;
+                U64 amount;
+                bool arithmetic;
+                if(narrowShift(base, inst, shifted, amount, arithmetic)) {
+                    auto cast = (LowerInstCast*)inst;
+                    auto type = cast->result.type;
+
+                    auto imm = new (module.arena) LowerImm(StringId(), type, amount);
+                    imm->block = blockPtr;
+                    imm->source = inst->source;
+                    kept.push(imm - base);
+
+                    auto shift = new (module.arena) LowerInstBinary(
+                        cast->result.name, type, shifted - base, &imm->result - base,
+                        arithmetic ? LowerInst::Sar : LowerInst::Shr);
+                    shift->block = blockPtr;
+                    shift->source = inst->source;
+                    shifted->uses.push(module.arena, (LowerInst*)shift - base);
+                    imm->result.uses.push(module.arena, (LowerInst*)shift - base);
+                    kept.push((LowerInst*)shift - base);
+
+                    detach(base, inst);
+                    replaceUses(base, module.arena, &cast->result - base, &shift->result - base);
+
+                    rewrote = true;
+                    changed = true;
+                    continue;
+                }
+
                 auto folded = foldInstruction(base, inst);
 
                 if(folded.kind == Folded::None) {
@@ -2043,7 +2151,17 @@ static bool removeWriteOnlySlots(LowerBase base, Region<LowerRegion>& arena, Low
             if(inst->kind != LowerInst::Alloca) continue;
 
             auto address = ((LowerInstSingle*)inst)->created().ptr - base;
-            if(base[address]->uses.isEmpty()) continue;
+
+            // And one with no use at all, which is the same slot after its writes went some other
+            // way: `promoteLoopCells` sinks a contained cell's stores to the loop's exits and needs
+            // none where every exit ends the frame, which leaves the slot read by nothing but the
+            // preheader's own read - and that is dead once the loop's reads stop needing it. An
+            // `alloca` is not removable when unused by the ordinary rule, so it is taken here.
+            if(base[address]->uses.isEmpty()) {
+                doomed.add(U32(instPtr), 1);
+                found = true;
+                continue;
+            }
 
             SmallArray<LowerPtr<LowerInst>, 16> gathered;
             if(!onlyWrittenThrough(base, address, gathered, 0)) continue;

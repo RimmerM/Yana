@@ -49,9 +49,9 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rax]  => 488d45f8
-  store uses=[rax, rdi] creates=[]  => 488938
-  load uses=[rax] creates=[rax]  => 488b00
+  alloca uses=[-] creates=[remat:0]  => 
+  store uses=[remat:0, rdi] creates=[]  => 48897df8
+  load uses=[remat:0] creates=[rax]  => 488b45f8
   ret uses=[rax] creates=[]  => c9c3
 
 --- codegen: callerNoFrame ---
@@ -65,15 +65,15 @@ block #1:
   ret uses=[rax] creates=[]  => 488d65f85b5dc3
 
 --- codegen: callerWithLocal ---
-  prologue  => 55488bec534883ec08
+  prologue  => 55488bec4883ec08
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rbx]  => 488d5df0
-  store uses=[rbx, rdi] creates=[]  => 48893b
+  alloca uses=[-] creates=[remat:0]  => 
+  store uses=[remat:0, rdi] creates=[]  => 48897df8
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rdi->rsi]  => 8bf7e899ffffff
-  load uses=[rbx] creates=[rbx]  => 488b1b
-  add uses=[rax, rbx] creates=[rax]  => 01d8
-  ret uses=[rax] creates=[]  => 488d65f85b5dc3
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rdi->rsi]  => 8bf7e89dffffff
+  load uses=[remat:0] creates=[rcx]  => 488b4df8
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => c9c3

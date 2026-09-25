@@ -50,5 +50,14 @@ iter fn steps(n: Int) -> Int:
     for i in 0 .. n:
         yield i
 
--- `?` in a result being inferred, by `=` and by a lambda moved to `Reject.Try.Legacy.yana`;
--- that file says what the new stage does instead.
+
+-- Since J135, which enforces these in the new stage; they were `Reject.Try.Legacy.yana`.
+-- `?` needs the enclosing function's result type before it can resolve anything, and the `=` form
+-- decides its result *from* the body this is in. The same cycle a recursive `=` function reports,
+-- reached one step earlier.
+fn inferred(n: Int) = source()?
+
+-- A lambda whose result its body decides is the same cycle with a different name for the fix.
+fn inLambda(n: Int) -> Maybe(Int):
+    let f = (x: Int) -> source()?
+    return f(n)

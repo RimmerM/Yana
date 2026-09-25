@@ -1,0 +1,835 @@
+module ResolveTest
+
+fn tick(x: @bits(3) U32 [unique call]) -> {} {
+bb0(%0: @bits(3) U32 [unique call] guaranteed):
+  %1: @bits(3) U32 trivial = load inspect %0
+  %2: U32 trivial = convert inspect %1
+  %3: U32 trivial = const 1
+  %4: U32 trivial = add inspect %2 inspect %3
+  %5: @bits(3) U32 trivial = convert inspect %4
+  store inspect %0 consume %5
+  return
+}
+
+fn bump(x: U32 [unique call]) -> {} {
+bb0(%0: U32 [unique call] guaranteed):
+  %1: U32 trivial = load inspect %0
+  %2: U32 trivial = const 1
+  %3: U32 trivial = add inspect %1 inspect %2
+  store inspect %0 consume %3
+  return
+}
+
+fn flip(b: Bool [unique call]) -> {} {
+bb0(%0: Bool [unique call] guaranteed):
+  %1: Bool trivial = load inspect %0
+  %2: Bool trivial = not inspect %1
+  store inspect %0 consume %2
+  return
+}
+
+fn scale(x: U32 [unique call], by: U32 [shared call]) -> {} {
+bb0(%0: U32 [unique call] guaranteed, %1: U32 trivial):
+  %3: U32 trivial = load inspect %0
+  %5: U32 trivial = mul inspect %3 inspect %1
+  store inspect %0 consume %5
+  return
+}
+
+fn direct() -> I32 {
+bb0:
+  %1: @bits(4) U32 trivial = const 1
+  %2: @bits(3) U32 trivial = const 2
+  %3: @bits(13) U32 trivial = const 3
+  %4: Header trivial = aggregate.Header consume %1 consume %2 consume %3
+  %30: I32 trivial = const 924000
+  return consume %30
+}
+
+fn borrowed() -> I32 {
+bb0:
+  %0: %Header address = alloc frame Header
+  %1: @bits(4) U32 trivial = const 1
+  %2: @bits(3) U32 trivial = const 2
+  %3: @bits(13) U32 trivial = const 3
+  %4: Header trivial = aggregate.Header consume %1 consume %2 consume %3
+  store inspect %0 consume %4
+  %5: %@bits(4) U32 address = field.addr .version inspect %0
+  %6: @bits(4) U32 [unique call] guaranteed from{%0} = load inspect %5
+  %18: U32 trivial = load inspect %6
+  %19: U32 trivial = const 1
+  %20: U32 trivial = add inspect %18 inspect %19
+  store inspect %6 consume %20
+  %7: %@bits(13) U32 address = field.addr .length inspect %0
+  %8: @bits(13) U32 [unique call] guaranteed from{%0} = load inspect %7
+  %21: U32 trivial = load inspect %8
+  %22: U32 trivial = const 1
+  %23: U32 trivial = add inspect %21 inspect %22
+  store inspect %8 consume %23
+  %10: @bits(4) U32 trivial = load inspect %5
+  %11: I32 trivial = convert inspect %10
+  %12: I32 trivial = const 100
+  %13: I32 trivial = mul inspect %11 inspect %12
+  %15: @bits(13) U32 trivial = load inspect %7
+  %16: I32 trivial = convert inspect %15
+  %17: I32 trivial = add inspect %13 inspect %16
+  return consume %17
+}
+
+fn neighbours() -> I32 {
+bb0:
+  %0: %Header address = alloc frame Header
+  %1: @bits(4) U32 trivial = const 1
+  %2: @bits(3) U32 trivial = const 0
+  %3: @bits(13) U32 trivial = const 100
+  %4: Header trivial = aggregate.Header consume %1 consume %2 consume %3
+  store inspect %0 consume %4
+  %5: %@bits(4) U32 address = field.addr .version inspect %0
+  %6: @bits(4) U32 [unique call] guaranteed from{%0} = load inspect %5
+  %19: U32 trivial = load inspect %6
+  %20: U32 trivial = const 1
+  %21: U32 trivial = add inspect %19 inspect %20
+  store inspect %6 consume %21
+  %7: %@bits(13) U32 address = field.addr .length inspect %0
+  %8: @bits(13) U32 [unique call] guaranteed from{%0} = load inspect %7
+  %9: U32 trivial = const 3
+  %22: U32 trivial = load inspect %8
+  %23: U32 trivial = mul inspect %22 inspect %9
+  store inspect %8 consume %23
+  %11: @bits(4) U32 trivial = load inspect %5
+  %12: I32 trivial = convert inspect %11
+  %13: I32 trivial = const 1000
+  %14: I32 trivial = mul inspect %12 inspect %13
+  %16: @bits(13) U32 trivial = load inspect %7
+  %17: I32 trivial = convert inspect %16
+  %18: I32 trivial = add inspect %14 inspect %17
+  return consume %18
+}
+
+fn together() -> I32 {
+bb0:
+  %5: %Flags address = alloc frame Flags
+  %6: Bool trivial = const False
+  %7: Bool trivial = const False
+  %8: Flags trivial = aggregate.Flags consume %6 consume %7
+  store inspect %5 consume %8
+  %9: %Bool address = field.addr .optionA inspect %5
+  %10: Bool [unique call] guaranteed from{%5} = load inspect %9
+  %22: Bool trivial = load inspect %10
+  %23: Bool trivial = not inspect %22
+  store inspect %10 consume %23
+  %11: %Bool address = field.addr .optionB inspect %5
+  %12: Bool [unique call] guaranteed from{%5} = load inspect %11
+  %24: Bool trivial = load inspect %12
+  %25: Bool trivial = not inspect %24
+  store inspect %12 consume %25
+  %14: Bool trivial = load inspect %9
+  %18: I32 trivial = const 1
+  %15: I32 trivial = const 0
+  %26: I32 trivial = select inspect %14 inspect %18 inspect %15
+  %21: I32 trivial = const 2
+  %19: I32 trivial = const 0
+  %27: I32 trivial = select inspect %25 inspect %21 inspect %19
+  %20: I32 trivial = add inspect %26 inspect %27
+  return consume %20
+}
+
+fn unpacked() -> I32 {
+bb0:
+  %0: %Mixed address = alloc frame Mixed
+  %1: @bits(5) U32 trivial = const 7
+  %2: I32 trivial = const 5
+  %3: Mixed trivial = aggregate.Mixed consume %1 consume %2
+  store inspect %0 consume %3
+  %4: %@bits(5) U32 address = field.addr .only inspect %0
+  %5: @bits(5) U32 [unique call] guaranteed from{%0} = load inspect %4
+  %14: U32 trivial = load inspect %5
+  %15: U32 trivial = const 1
+  %16: U32 trivial = add inspect %14 inspect %15
+  store inspect %5 consume %16
+  %7: @bits(5) U32 trivial = load inspect %4
+  %8: I32 trivial = convert inspect %7
+  %9: I32 trivial = const 10
+  %10: I32 trivial = mul inspect %8 inspect %9
+  %11: %I32 address = field.addr .wide inspect %0
+  %12: I32 trivial = load inspect %11
+  %13: I32 trivial = add inspect %10 inspect %12
+  return consume %13
+}
+
+fn pick(flag: Bool [shared call], a: Bool [unique slot 0], b: Bool [unique slot 0]) -> Bool [unique slot 0 owner] {
+bb0(%0: Bool trivial, %1: Bool [unique slot 0] guaranteed, %2: Bool [unique slot 0] guaranteed):
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %6: Bool [unique slot 0] guaranteed from{%2} = load inspect %2
+  jump -> bb2(borrow %6)
+
+bb2(%3: Bool [unique slot 0] guaranteed):
+  return borrow %3
+
+bb3:
+  %7: Bool [unique slot 0] guaranteed from{%1} = load inspect %1
+  jump -> bb2(borrow %7)
+}
+
+fn loaned() -> I32 {
+bb0:
+  %5: %Flags address = alloc frame Flags
+  %6: Bool trivial = const True
+  %7: Bool trivial = const True
+  %8: Flags trivial = aggregate.Flags consume %6 consume %7
+  store inspect %5 consume %8
+  %10: %Bool address = field.addr .optionA inspect %5
+  %11: Bool [unique slot 0] guaranteed from{%5} = load inspect %10
+  %12: %Bool address = field.addr .optionB inspect %5
+  %28: Bool [unique slot 0] guaranteed from{%5} = load inspect %11
+  jump -> bb12(borrow %28)
+
+bb12(%26: Bool [unique slot 0] guaranteed):
+  %29: Bool [unique slot 0 owner] guaranteed = represent inspect %26
+  %15: Bool trivial = const False
+  store inspect %29 consume %15
+  %17: Bool trivial = load inspect %10
+  %21: I32 trivial = const 1
+  %18: I32 trivial = const 0
+  %31: I32 trivial = select inspect %17 inspect %21 inspect %18
+  %20: Bool trivial = load inspect %12
+  %24: I32 trivial = const 2
+  %22: I32 trivial = const 0
+  %30: I32 trivial = select inspect %20 inspect %24 inspect %22
+  %23: I32 trivial = add inspect %31 inspect %30
+  return consume %23
+}
+
+fn optionOf(f: Flags [unique slot 0]) -> Bool [unique slot 0 owner] {
+bb0(%0: Flags [unique slot 0] guaranteed):
+  %1: %Bool address = field.addr .optionA inspect %0
+  %2: Bool [unique slot 0] guaranteed from{%0} = load inspect %1
+  return borrow %2
+}
+
+fn returned() -> I32 {
+bb0:
+  %5: %Flags address = alloc frame Flags
+  %6: Bool trivial = const False
+  %7: Bool trivial = const True
+  %8: Flags trivial = aggregate.Flags consume %6 consume %7
+  store inspect %5 consume %8
+  %9: Flags [unique slot 0] guaranteed from{%5} = load inspect %5
+  %21: %Bool address = field.addr .optionA inspect %9
+  %22: Bool [unique slot 0] guaranteed from{%5} = load inspect %21
+  %23: Bool [unique slot 0 owner] guaranteed = represent inspect %22
+  %11: Bool trivial = const True
+  store inspect %23 consume %11
+  %17: I32 trivial = const 1
+  %15: %Bool address = field.addr .optionB inspect %5
+  %16: Bool trivial = load inspect %15
+  %20: I32 trivial = const 2
+  %18: I32 trivial = const 0
+  %24: I32 trivial = select inspect %16 inspect %20 inspect %18
+  %19: I32 trivial = add inspect %17 inspect %24
+  return consume %19
+}
+
+fn swapBools(a: Bool [unique call], b: Bool [unique call]) -> {} {
+bb0(%0: Bool [unique call] guaranteed, %1: Bool [unique call] guaranteed):
+  %3: Bool trivial = load inspect %0
+  %4: Bool trivial = load inspect %1
+  store inspect %0 consume %4
+  store inspect %1 consume %3
+  return
+}
+
+fn interleaved() -> I32 {
+bb0:
+  %5: %Flags address = alloc frame Flags
+  %6: Bool trivial = const True
+  %7: Bool trivial = const False
+  %8: Flags trivial = aggregate.Flags consume %6 consume %7
+  store inspect %5 consume %8
+  %9: %Bool address = field.addr .optionA inspect %5
+  %10: Bool [unique call] guaranteed from{%5} = load inspect %9
+  %11: %Bool address = field.addr .optionB inspect %5
+  %12: Bool [unique call] guaranteed from{%5} = load inspect %11
+  %22: Bool trivial = load inspect %10
+  %23: Bool trivial = load inspect %12
+  store inspect %10 consume %23
+  store inspect %12 consume %22
+  %14: Bool trivial = load inspect %9
+  %18: I32 trivial = const 1
+  %15: I32 trivial = const 0
+  %24: I32 trivial = select inspect %14 inspect %18 inspect %15
+  %21: I32 trivial = const 2
+  %19: I32 trivial = const 0
+  %25: I32 trivial = select inspect %22 inspect %21 inspect %19
+  %20: I32 trivial = add inspect %24 inspect %25
+  return consume %20
+}
+
+fn nudge(x: @bits(13) U32 [unique call]) -> {} {
+bb0(%0: @bits(13) U32 [unique call] guaranteed):
+  %1: @bits(13) U32 trivial = load inspect %0
+  %2: U32 trivial = convert inspect %1
+  %3: U32 trivial = const 1
+  %4: U32 trivial = add inspect %2 inspect %3
+  %5: @bits(13) U32 trivial = convert inspect %4
+  store inspect %0 consume %5
+  return
+}
+
+fn nudgeTwice(x: @bits(13) U32 [unique call]) -> {} {
+bb0(%0: @bits(13) U32 [unique call] guaranteed):
+  %1: @bits(13) U32 [unique call] guaranteed from{%0} = load inspect %0
+  %3: @bits(13) U32 trivial = load inspect %1
+  %4: U32 trivial = convert inspect %3
+  %5: U32 trivial = const 1
+  %6: U32 trivial = add inspect %4 inspect %5
+  %7: @bits(13) U32 trivial = convert inspect %6
+  store inspect %1 consume %7
+  %2: @bits(13) U32 [unique call] guaranteed from{%0} = load inspect %0
+  %8: @bits(13) U32 trivial = load inspect %2
+  %9: U32 trivial = convert inspect %8
+  %10: U32 trivial = const 1
+  %11: U32 trivial = add inspect %9 inspect %10
+  %12: @bits(13) U32 trivial = convert inspect %11
+  store inspect %2 consume %12
+  return
+}
+
+fn threaded() -> I32 {
+bb0:
+  %0: %Header address = alloc frame Header
+  %1: @bits(4) U32 trivial = const 1
+  %2: @bits(3) U32 trivial = const 2
+  %3: @bits(13) U32 trivial = const 100
+  %4: Header trivial = aggregate.Header consume %1 consume %2 consume %3
+  store inspect %0 consume %4
+  %5: %@bits(13) U32 address = field.addr .length inspect %0
+  %6: @bits(13) U32 [unique call] guaranteed from{%0} = load inspect %5
+  %16: @bits(13) U32 [unique call] guaranteed from{%0} = load inspect %6
+  %17: @bits(13) U32 trivial = load inspect %16
+  %18: U32 trivial = convert inspect %17
+  %19: U32 trivial = const 1
+  %20: U32 trivial = add inspect %18 inspect %19
+  %21: @bits(13) U32 trivial = convert inspect %20
+  store inspect %16 consume %21
+  %22: @bits(13) U32 [unique call] guaranteed from{%0} = load inspect %6
+  %24: U32 trivial = convert inspect %21
+  %25: U32 trivial = const 1
+  %26: U32 trivial = add inspect %24 inspect %25
+  %27: @bits(13) U32 trivial = convert inspect %26
+  store inspect %22 consume %27
+  %9: I32 trivial = convert inspect %27
+  %10: I32 trivial = const 10
+  %11: I32 trivial = mul inspect %9 inspect %10
+  %12: %@bits(4) U32 address = field.addr .version inspect %0
+  %13: @bits(4) U32 trivial = load inspect %12
+  %14: I32 trivial = convert inspect %13
+  %15: I32 trivial = add inspect %11 inspect %14
+  return consume %15
+}
+
+fn nine(a: Bool [unique call], b: Bool [unique call], c: Bool [unique call], d: Bool [unique call], e: Bool [unique call], f: Bool [unique call], g: Bool [unique call], h: Bool [unique call], i: Bool [unique call]) -> {} {
+bb0(%0: Bool [unique call] guaranteed, %1: Bool [unique call] guaranteed, %2: Bool [unique call] guaranteed, %3: Bool [unique call] guaranteed, %4: Bool [unique call] guaranteed, %5: Bool [unique call] guaranteed, %6: Bool [unique call] guaranteed, %7: Bool [unique call] guaranteed, %8: Bool [unique call] guaranteed):
+  %9: Bool trivial = const True
+  store inspect %0 consume %9
+  %10: Bool trivial = const True
+  store inspect %1 consume %10
+  %11: Bool trivial = const True
+  store inspect %2 consume %11
+  %12: Bool trivial = const True
+  store inspect %3 consume %12
+  %13: Bool trivial = const True
+  store inspect %4 consume %13
+  %14: Bool trivial = const True
+  store inspect %5 consume %14
+  %15: Bool trivial = const True
+  store inspect %6 consume %15
+  %16: Bool trivial = const True
+  store inspect %7 consume %16
+  %17: Bool trivial = const True
+  store inspect %8 consume %17
+  return
+}
+
+fn wide() -> I32 {
+bb0:
+  %9: %Nine address = alloc frame Nine
+  %10: Bool trivial = const False
+  %11: Bool trivial = const False
+  %12: Bool trivial = const False
+  %13: Bool trivial = const False
+  %14: Bool trivial = const False
+  %15: Bool trivial = const False
+  %16: Bool trivial = const False
+  %17: Bool trivial = const False
+  %18: Bool trivial = const False
+  %19: Nine trivial = aggregate.Nine consume %10 consume %11 consume %12 consume %13 consume %14 consume %15 consume %16 consume %17 consume %18
+  store inspect %9 consume %19
+  %20: %Bool address = field.addr .a inspect %9
+  %21: Bool [unique call] guaranteed from{%9} = load inspect %20
+  %22: %Bool address = field.addr .b inspect %9
+  %23: Bool [unique call] guaranteed from{%9} = load inspect %22
+  %24: %Bool address = field.addr .c inspect %9
+  %25: Bool [unique call] guaranteed from{%9} = load inspect %24
+  %26: %Bool address = field.addr .d inspect %9
+  %27: Bool [unique call] guaranteed from{%9} = load inspect %26
+  %28: %Bool address = field.addr .e inspect %9
+  %29: Bool [unique call] guaranteed from{%9} = load inspect %28
+  %30: %Bool address = field.addr .f inspect %9
+  %31: Bool [unique call] guaranteed from{%9} = load inspect %30
+  %32: %Bool address = field.addr .g inspect %9
+  %33: Bool [unique call] guaranteed from{%9} = load inspect %32
+  %34: %Bool address = field.addr .h inspect %9
+  %35: Bool [unique call] guaranteed from{%9} = load inspect %34
+  %36: %Bool address = field.addr .i inspect %9
+  %37: Bool [unique call] guaranteed from{%9} = load inspect %36
+  %52: Bool trivial = const True
+  store inspect %21 consume %52
+  %53: Bool trivial = const True
+  store inspect %23 consume %53
+  %54: Bool trivial = const True
+  store inspect %25 consume %54
+  %55: Bool trivial = const True
+  store inspect %27 consume %55
+  %56: Bool trivial = const True
+  store inspect %29 consume %56
+  %57: Bool trivial = const True
+  store inspect %31 consume %57
+  %58: Bool trivial = const True
+  store inspect %33 consume %58
+  %59: Bool trivial = const True
+  store inspect %35 consume %59
+  %60: Bool trivial = const True
+  store inspect %37 consume %60
+  %39: Bool trivial = load inspect %20
+  %43: I32 trivial = const 1
+  %40: I32 trivial = const 0
+  %61: I32 trivial = select inspect %39 inspect %43 inspect %40
+  %42: Bool trivial = load inspect %28
+  %48: I32 trivial = const 20
+  %44: I32 trivial = const 0
+  %62: I32 trivial = select inspect %42 inspect %48 inspect %44
+  %45: I32 trivial = add inspect %61 inspect %62
+  %51: I32 trivial = const 300
+  %50: I32 trivial = add inspect %45 inspect %51
+  return consume %50
+}
+
+fn tally() -> I32 {
+bb0:
+  %1: %Entry address = alloc frame Entry
+  %2: Bool trivial = const False
+  %3: @bits(3) U32 trivial = const 2
+  %4: I32 trivial = const 7
+  %5: Entry trivial = aggregate.Entry consume %2 consume %3 consume %4
+  store inspect %1 consume %5
+  %6: %Bool address = field.addr .live inspect %1
+  %7: Bool [unique call] guaranteed from{%1} = load inspect %6
+  %30: Bool trivial = load inspect %7
+  %31: Bool trivial = not inspect %30
+  store inspect %7 consume %31
+  %8: %@bits(3) U32 address = field.addr .kind inspect %1
+  %9: @bits(3) U32 [unique call] guaranteed from{%1} = load inspect %8
+  %32: @bits(3) U32 trivial = load inspect %9
+  %33: U32 trivial = convert inspect %32
+  %34: U32 trivial = const 1
+  %35: U32 trivial = add inspect %33 inspect %34
+  %36: @bits(3) U32 trivial = convert inspect %35
+  store inspect %9 consume %36
+  %10: %I32 address = field.addr .count inspect %1
+  %11: I32 trivial = load inspect %10
+  %12: I32 trivial = const 1
+  %13: I32 trivial = add inspect %11 inspect %12
+  store inspect %10 consume %13
+  %16: Bool trivial = load inspect %6
+  %29: I32 trivial = const 1
+  %17: I32 trivial = const 0
+  %37: I32 trivial = select inspect %16 inspect %29 inspect %17
+  %19: @bits(3) U32 trivial = load inspect %8
+  %20: I32 trivial = convert inspect %19
+  %21: I32 trivial = const 10
+  %22: I32 trivial = mul inspect %20 inspect %21
+  %23: I32 trivial = add inspect %37 inspect %22
+  %26: I32 trivial = const 100
+  %27: I32 trivial = mul inspect %13 inspect %26
+  %28: I32 trivial = add inspect %23 inspect %27
+  return consume %28
+}
+
+fn liveOf(e: Entry [unique slot 0]) -> Bool [unique slot 0 owner] {
+bb0(%0: Entry [unique slot 0] guaranteed):
+  %1: %Bool address = field.addr .live inspect %0
+  %2: Bool [unique slot 0] guaranteed from{%0} = load inspect %1
+  return borrow %2
+}
+
+fn kept() -> I32 {
+bb0:
+  %1: %Entry address = alloc frame Entry
+  %2: Bool trivial = const False
+  %3: @bits(3) U32 trivial = const 1
+  %4: I32 trivial = const 2
+  %5: Entry trivial = aggregate.Entry consume %2 consume %3 consume %4
+  store inspect %1 consume %5
+  %6: Entry [unique slot 0] guaranteed from{%1} = load inspect %1
+  %24: %Bool address = field.addr .live inspect %6
+  %25: Bool [unique slot 0] guaranteed from{%1} = load inspect %24
+  %26: Bool [unique slot 0 owner] guaranteed = represent inspect %25
+  %8: Bool trivial = const True
+  store inspect %26 consume %8
+  %23: I32 trivial = const 1
+  %12: %@bits(3) U32 address = field.addr .kind inspect %1
+  %13: @bits(3) U32 trivial = load inspect %12
+  %14: I32 trivial = convert inspect %13
+  %15: I32 trivial = const 10
+  %16: I32 trivial = mul inspect %14 inspect %15
+  %17: I32 trivial = add inspect %23 inspect %16
+  %18: %I32 address = field.addr .count inspect %1
+  %19: I32 trivial = load inspect %18
+  %20: I32 trivial = const 100
+  %21: I32 trivial = mul inspect %19 inspect %20
+  %22: I32 trivial = add inspect %17 inspect %21
+  return consume %22
+}
+
+fn dispatch() -> I32 {
+bb0:
+  %2: Bool trivial = const True
+  %3: @bits(3) U32 trivial = const 5
+  %4: I32 trivial = const 0
+  %5: Entry trivial = aggregate.Entry consume %2 consume %3 consume %4
+  %72: I32 trivial = const 80
+  return consume %72
+}
+
+fn main() -> I32 {
+bb0:
+  %25: @bits(4) U32 trivial = const 1
+  %26: @bits(3) U32 trivial = const 2
+  %27: @bits(13) U32 trivial = const 3
+  %28: Header trivial = aggregate.Header consume %25 consume %26 consume %27
+  %29: I32 trivial = const 924000
+  %30: %Header address = alloc frame Header
+  %31: @bits(4) U32 trivial = const 1
+  %32: @bits(3) U32 trivial = const 2
+  %33: @bits(13) U32 trivial = const 3
+  %34: Header trivial = aggregate.Header consume %31 consume %32 consume %33
+  store inspect %30 consume %34
+  %35: %@bits(4) U32 address = field.addr .version inspect %30
+  %36: @bits(4) U32 [unique call] guaranteed from{%30} = load inspect %35
+  %37: U32 trivial = load inspect %36
+  %38: U32 trivial = const 1
+  %39: U32 trivial = add inspect %37 inspect %38
+  store inspect %36 consume %39
+  %40: %@bits(13) U32 address = field.addr .length inspect %30
+  %41: @bits(13) U32 [unique call] guaranteed from{%30} = load inspect %40
+  %42: U32 trivial = load inspect %41
+  %43: U32 trivial = const 1
+  %44: U32 trivial = add inspect %42 inspect %43
+  store inspect %41 consume %44
+  %45: @bits(4) U32 trivial = load inspect %35
+  %46: I32 trivial = convert inspect %45
+  %47: I32 trivial = const 100
+  %48: I32 trivial = mul inspect %46 inspect %47
+  %49: @bits(13) U32 trivial = load inspect %40
+  %50: I32 trivial = convert inspect %49
+  %51: I32 trivial = add inspect %48 inspect %50
+  %2: I32 trivial = add inspect %29 inspect %51
+  %52: %Header address = alloc frame Header
+  %53: @bits(4) U32 trivial = const 1
+  %54: @bits(3) U32 trivial = const 0
+  %55: @bits(13) U32 trivial = const 100
+  %56: Header trivial = aggregate.Header consume %53 consume %54 consume %55
+  store inspect %52 consume %56
+  %57: %@bits(4) U32 address = field.addr .version inspect %52
+  %58: @bits(4) U32 [unique call] guaranteed from{%52} = load inspect %57
+  %59: U32 trivial = load inspect %58
+  %60: U32 trivial = const 1
+  %61: U32 trivial = add inspect %59 inspect %60
+  store inspect %58 consume %61
+  %62: %@bits(13) U32 address = field.addr .length inspect %52
+  %63: @bits(13) U32 [unique call] guaranteed from{%52} = load inspect %62
+  %64: U32 trivial = const 3
+  %65: U32 trivial = load inspect %63
+  %66: U32 trivial = mul inspect %65 inspect %64
+  store inspect %63 consume %66
+  %67: @bits(4) U32 trivial = load inspect %57
+  %68: I32 trivial = convert inspect %67
+  %69: I32 trivial = const 1000
+  %70: I32 trivial = mul inspect %68 inspect %69
+  %71: @bits(13) U32 trivial = load inspect %62
+  %72: I32 trivial = convert inspect %71
+  %73: I32 trivial = add inspect %70 inspect %72
+  %4: I32 trivial = add inspect %2 inspect %73
+  %74: %Flags address = alloc frame Flags
+  %75: Bool trivial = const False
+  %76: Bool trivial = const False
+  %77: Flags trivial = aggregate.Flags consume %75 consume %76
+  store inspect %74 consume %77
+  %78: %Bool address = field.addr .optionA inspect %74
+  %79: Bool [unique call] guaranteed from{%74} = load inspect %78
+  %80: Bool trivial = load inspect %79
+  %81: Bool trivial = not inspect %80
+  store inspect %79 consume %81
+  %82: %Bool address = field.addr .optionB inspect %74
+  %83: Bool [unique call] guaranteed from{%74} = load inspect %82
+  %84: Bool trivial = load inspect %83
+  %85: Bool trivial = not inspect %84
+  store inspect %83 consume %85
+  %86: Bool trivial = load inspect %78
+  %87: I32 trivial = const 1
+  %88: I32 trivial = const 0
+  %89: I32 trivial = select inspect %86 inspect %87 inspect %88
+  %90: I32 trivial = const 2
+  %91: I32 trivial = const 0
+  %92: I32 trivial = select inspect %85 inspect %90 inspect %91
+  %93: I32 trivial = add inspect %89 inspect %92
+  %6: I32 trivial = add inspect %4 inspect %93
+  %94: %Mixed address = alloc frame Mixed
+  %95: @bits(5) U32 trivial = const 7
+  %96: I32 trivial = const 5
+  %97: Mixed trivial = aggregate.Mixed consume %95 consume %96
+  store inspect %94 consume %97
+  %98: %@bits(5) U32 address = field.addr .only inspect %94
+  %99: @bits(5) U32 [unique call] guaranteed from{%94} = load inspect %98
+  %100: U32 trivial = load inspect %99
+  %101: U32 trivial = const 1
+  %102: U32 trivial = add inspect %100 inspect %101
+  store inspect %99 consume %102
+  %103: @bits(5) U32 trivial = load inspect %98
+  %104: I32 trivial = convert inspect %103
+  %105: I32 trivial = const 10
+  %106: I32 trivial = mul inspect %104 inspect %105
+  %107: %I32 address = field.addr .wide inspect %94
+  %108: I32 trivial = load inspect %107
+  %109: I32 trivial = add inspect %106 inspect %108
+  %8: I32 trivial = add inspect %6 inspect %109
+  %112: %Flags address = alloc frame Flags
+  %113: Bool trivial = const True
+  %114: Bool trivial = const True
+  %115: Flags trivial = aggregate.Flags consume %113 consume %114
+  store inspect %112 consume %115
+  %116: %Bool address = field.addr .optionA inspect %112
+  %117: Bool [unique slot 0] guaranteed from{%112} = load inspect %116
+  %118: %Bool address = field.addr .optionB inspect %112
+  %119: Bool [unique slot 0] guaranteed from{%112} = load inspect %117
+  jump -> bb4(borrow %119)
+
+bb4(%111: Bool [unique slot 0] guaranteed):
+  %120: Bool [unique slot 0 owner] guaranteed = represent inspect %111
+  %121: Bool trivial = const False
+  store inspect %120 consume %121
+  %122: Bool trivial = load inspect %116
+  %123: I32 trivial = const 1
+  %124: I32 trivial = const 0
+  %125: I32 trivial = select inspect %122 inspect %123 inspect %124
+  %126: Bool trivial = load inspect %118
+  %127: I32 trivial = const 2
+  %128: I32 trivial = const 0
+  %129: I32 trivial = select inspect %126 inspect %127 inspect %128
+  %130: I32 trivial = add inspect %125 inspect %129
+  %10: I32 trivial = add inspect %8 inspect %130
+  %131: %Flags address = alloc frame Flags
+  %132: Bool trivial = const False
+  %133: Bool trivial = const True
+  %134: Flags trivial = aggregate.Flags consume %132 consume %133
+  store inspect %131 consume %134
+  %135: Flags [unique slot 0] guaranteed from{%131} = load inspect %131
+  %136: %Bool address = field.addr .optionA inspect %135
+  %137: Bool [unique slot 0] guaranteed from{%131} = load inspect %136
+  %138: Bool [unique slot 0 owner] guaranteed = represent inspect %137
+  %139: Bool trivial = const True
+  store inspect %138 consume %139
+  %140: I32 trivial = const 1
+  %141: %Bool address = field.addr .optionB inspect %131
+  %142: Bool trivial = load inspect %141
+  %143: I32 trivial = const 2
+  %144: I32 trivial = const 0
+  %145: I32 trivial = select inspect %142 inspect %143 inspect %144
+  %146: I32 trivial = add inspect %140 inspect %145
+  %12: I32 trivial = add inspect %10 inspect %146
+  %147: %Flags address = alloc frame Flags
+  %148: Bool trivial = const True
+  %149: Bool trivial = const False
+  %150: Flags trivial = aggregate.Flags consume %148 consume %149
+  store inspect %147 consume %150
+  %151: %Bool address = field.addr .optionA inspect %147
+  %152: Bool [unique call] guaranteed from{%147} = load inspect %151
+  %153: %Bool address = field.addr .optionB inspect %147
+  %154: Bool [unique call] guaranteed from{%147} = load inspect %153
+  %155: Bool trivial = load inspect %152
+  %156: Bool trivial = load inspect %154
+  store inspect %152 consume %156
+  store inspect %154 consume %155
+  %157: Bool trivial = load inspect %151
+  %158: I32 trivial = const 1
+  %159: I32 trivial = const 0
+  %160: I32 trivial = select inspect %157 inspect %158 inspect %159
+  %161: I32 trivial = const 2
+  %162: I32 trivial = const 0
+  %163: I32 trivial = select inspect %155 inspect %161 inspect %162
+  %164: I32 trivial = add inspect %160 inspect %163
+  %14: I32 trivial = add inspect %12 inspect %164
+  %165: %Header address = alloc frame Header
+  %166: @bits(4) U32 trivial = const 1
+  %167: @bits(3) U32 trivial = const 2
+  %168: @bits(13) U32 trivial = const 100
+  %169: Header trivial = aggregate.Header consume %166 consume %167 consume %168
+  store inspect %165 consume %169
+  %170: %@bits(13) U32 address = field.addr .length inspect %165
+  %171: @bits(13) U32 [unique call] guaranteed from{%165} = load inspect %170
+  %172: @bits(13) U32 [unique call] guaranteed from{%165} = load inspect %171
+  %173: @bits(13) U32 trivial = load inspect %172
+  %174: U32 trivial = convert inspect %173
+  %175: U32 trivial = const 1
+  %176: U32 trivial = add inspect %174 inspect %175
+  %177: @bits(13) U32 trivial = convert inspect %176
+  store inspect %172 consume %177
+  %178: @bits(13) U32 [unique call] guaranteed from{%165} = load inspect %171
+  %179: U32 trivial = convert inspect %177
+  %180: U32 trivial = const 1
+  %181: U32 trivial = add inspect %179 inspect %180
+  %182: @bits(13) U32 trivial = convert inspect %181
+  store inspect %178 consume %182
+  %183: I32 trivial = convert inspect %182
+  %184: I32 trivial = const 10
+  %185: I32 trivial = mul inspect %183 inspect %184
+  %186: %@bits(4) U32 address = field.addr .version inspect %165
+  %187: @bits(4) U32 trivial = load inspect %186
+  %188: I32 trivial = convert inspect %187
+  %189: I32 trivial = add inspect %185 inspect %188
+  %16: I32 trivial = add inspect %14 inspect %189
+  %190: %Nine address = alloc frame Nine
+  %191: Bool trivial = const False
+  %192: Bool trivial = const False
+  %193: Bool trivial = const False
+  %194: Bool trivial = const False
+  %195: Bool trivial = const False
+  %196: Bool trivial = const False
+  %197: Bool trivial = const False
+  %198: Bool trivial = const False
+  %199: Bool trivial = const False
+  %200: Nine trivial = aggregate.Nine consume %191 consume %192 consume %193 consume %194 consume %195 consume %196 consume %197 consume %198 consume %199
+  store inspect %190 consume %200
+  %201: %Bool address = field.addr .a inspect %190
+  %202: Bool [unique call] guaranteed from{%190} = load inspect %201
+  %203: %Bool address = field.addr .b inspect %190
+  %204: Bool [unique call] guaranteed from{%190} = load inspect %203
+  %205: %Bool address = field.addr .c inspect %190
+  %206: Bool [unique call] guaranteed from{%190} = load inspect %205
+  %207: %Bool address = field.addr .d inspect %190
+  %208: Bool [unique call] guaranteed from{%190} = load inspect %207
+  %209: %Bool address = field.addr .e inspect %190
+  %210: Bool [unique call] guaranteed from{%190} = load inspect %209
+  %211: %Bool address = field.addr .f inspect %190
+  %212: Bool [unique call] guaranteed from{%190} = load inspect %211
+  %213: %Bool address = field.addr .g inspect %190
+  %214: Bool [unique call] guaranteed from{%190} = load inspect %213
+  %215: %Bool address = field.addr .h inspect %190
+  %216: Bool [unique call] guaranteed from{%190} = load inspect %215
+  %217: %Bool address = field.addr .i inspect %190
+  %218: Bool [unique call] guaranteed from{%190} = load inspect %217
+  %219: Bool trivial = const True
+  store inspect %202 consume %219
+  %220: Bool trivial = const True
+  store inspect %204 consume %220
+  %221: Bool trivial = const True
+  store inspect %206 consume %221
+  %222: Bool trivial = const True
+  store inspect %208 consume %222
+  %223: Bool trivial = const True
+  store inspect %210 consume %223
+  %224: Bool trivial = const True
+  store inspect %212 consume %224
+  %225: Bool trivial = const True
+  store inspect %214 consume %225
+  %226: Bool trivial = const True
+  store inspect %216 consume %226
+  %227: Bool trivial = const True
+  store inspect %218 consume %227
+  %228: Bool trivial = load inspect %201
+  %229: I32 trivial = const 1
+  %230: I32 trivial = const 0
+  %231: I32 trivial = select inspect %228 inspect %229 inspect %230
+  %232: Bool trivial = load inspect %209
+  %233: I32 trivial = const 20
+  %234: I32 trivial = const 0
+  %235: I32 trivial = select inspect %232 inspect %233 inspect %234
+  %236: I32 trivial = add inspect %231 inspect %235
+  %237: I32 trivial = const 300
+  %238: I32 trivial = add inspect %236 inspect %237
+  %18: I32 trivial = add inspect %16 inspect %238
+  %239: %Entry address = alloc frame Entry
+  %240: Bool trivial = const False
+  %241: @bits(3) U32 trivial = const 2
+  %242: I32 trivial = const 7
+  %243: Entry trivial = aggregate.Entry consume %240 consume %241 consume %242
+  store inspect %239 consume %243
+  %244: %Bool address = field.addr .live inspect %239
+  %245: Bool [unique call] guaranteed from{%239} = load inspect %244
+  %246: Bool trivial = load inspect %245
+  %247: Bool trivial = not inspect %246
+  store inspect %245 consume %247
+  %248: %@bits(3) U32 address = field.addr .kind inspect %239
+  %249: @bits(3) U32 [unique call] guaranteed from{%239} = load inspect %248
+  %250: @bits(3) U32 trivial = load inspect %249
+  %251: U32 trivial = convert inspect %250
+  %252: U32 trivial = const 1
+  %253: U32 trivial = add inspect %251 inspect %252
+  %254: @bits(3) U32 trivial = convert inspect %253
+  store inspect %249 consume %254
+  %255: %I32 address = field.addr .count inspect %239
+  %256: I32 trivial = load inspect %255
+  %257: I32 trivial = const 1
+  %258: I32 trivial = add inspect %256 inspect %257
+  store inspect %255 consume %258
+  %259: Bool trivial = load inspect %244
+  %260: I32 trivial = const 1
+  %261: I32 trivial = const 0
+  %262: I32 trivial = select inspect %259 inspect %260 inspect %261
+  %263: @bits(3) U32 trivial = load inspect %248
+  %264: I32 trivial = convert inspect %263
+  %265: I32 trivial = const 10
+  %266: I32 trivial = mul inspect %264 inspect %265
+  %267: I32 trivial = add inspect %262 inspect %266
+  %268: I32 trivial = const 100
+  %269: I32 trivial = mul inspect %258 inspect %268
+  %270: I32 trivial = add inspect %267 inspect %269
+  %20: I32 trivial = add inspect %18 inspect %270
+  %271: %Entry address = alloc frame Entry
+  %272: Bool trivial = const False
+  %273: @bits(3) U32 trivial = const 1
+  %274: I32 trivial = const 2
+  %275: Entry trivial = aggregate.Entry consume %272 consume %273 consume %274
+  store inspect %271 consume %275
+  %276: Entry [unique slot 0] guaranteed from{%271} = load inspect %271
+  %277: %Bool address = field.addr .live inspect %276
+  %278: Bool [unique slot 0] guaranteed from{%271} = load inspect %277
+  %279: Bool [unique slot 0 owner] guaranteed = represent inspect %278
+  %280: Bool trivial = const True
+  store inspect %279 consume %280
+  %281: I32 trivial = const 1
+  %282: %@bits(3) U32 address = field.addr .kind inspect %271
+  %283: @bits(3) U32 trivial = load inspect %282
+  %284: I32 trivial = convert inspect %283
+  %285: I32 trivial = const 10
+  %286: I32 trivial = mul inspect %284 inspect %285
+  %287: I32 trivial = add inspect %281 inspect %286
+  %288: %I32 address = field.addr .count inspect %271
+  %289: I32 trivial = load inspect %288
+  %290: I32 trivial = const 100
+  %291: I32 trivial = mul inspect %289 inspect %290
+  %292: I32 trivial = add inspect %287 inspect %291
+  %22: I32 trivial = add inspect %20 inspect %292
+  %293: Bool trivial = const True
+  %294: @bits(3) U32 trivial = const 5
+  %295: I32 trivial = const 0
+  %296: Entry trivial = aggregate.Entry consume %293 consume %294 consume %295
+  %297: I32 trivial = const 80
+  %24: I32 trivial = add inspect %22 inspect %297
+  return consume %24
+}
+
+entry main

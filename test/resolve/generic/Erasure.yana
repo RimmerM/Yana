@@ -55,8 +55,12 @@ fn (a.size: I32) scaled(x: a, n: I32) -> I32:
     let a4 = a3 + a3
     return base + a4
 
--- A generic reached at an argument list a caller knows. Erased on its own terms - it never touches
--- what it was given - and it is what `carried` below hands its own type parameter to.
+-- A generic reached at an argument list a caller knows, and what `carried` below hands its own type
+-- parameter to. It never touches what it was given, so the density says erase. J145's
+-- `erasureTooSmall` specialized it, because a body this small costs more as an erased call than as
+-- the copy the inliner then removes; since J148 that floor applies only where every list the
+-- specializing walk can reach is written down, and `carried`'s call at its own `a` is not one - so
+-- it is erased again, as it was before J145 (`ErasureFloorCap.yana` is why).
 fn (a) plain(x: a) -> I32 = 7 :: I32
 
 {-

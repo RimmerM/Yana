@@ -1,4 +1,4 @@
-@environment(wideCapacity(Buf(16), 4)) = [0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Buf(16)), slot 12: @witness(Sized(Buf(n).units(16)))}
+@environment(wideCapacity(4, Buf(16))) = [0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Buf(16)), slot 12: @witness(Sized(Buf(n).units(16)))}
 @descriptor(Buf(16)) = [4, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
 @image$base = []
 @witness(Sized(Buf(n).units(16))) = [0, 0, 0, 0] {slot 0: thunk(Buf(n).units(16))}
@@ -17,7 +17,7 @@ main<complex>(): I32 {
     store %v_1, 1, 4
     %v_2 = alloca 4, 4: Ptr
     store %v_2, 0, 4
-    %v_3 = call_complex wideCapacity, @environment(wideCapacity(Buf(16), 4)), %v_1, %v_2: I64
+    %v_3 = call_complex wideCapacity, @environment(wideCapacity(4, Buf(16))), %v_1, %v_2: I64
     %v_4 = cmp_neq %v_3, 4: I32
     je %v_4, b_5, b_6
   }

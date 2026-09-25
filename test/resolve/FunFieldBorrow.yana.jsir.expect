@@ -23,53 +23,27 @@ fn main() -> one %r0
   var $0: %r3
   var $1: %r0
   var $2: %r2
-  var $3: %r1
-  var $4: %r1
   block0:
     %5: %r0 = const 1
-    %6: %r1 = fun.code double
-    %7: %r1 = const null
     store var $1: %r0, %5
-    store var $3: %r1, %6
-    store var $4: %r1, %7
-    %11: %r0 = const 10
-    %13: %r1 = load var $3: %r1
-    %14: %r1 = load var $4: %r1
-    %15: %r0 = call.value %13, %14, %11
-    %17: %r0 = load var $1: %r0
-    %18: %r0 = binary.mul %15, %17
-    %19: %r0 = coerce %18
-    %21: %r1 = fun.code triple
-    %22: %r1 = const null
-    store var $3: %r1, %21
-    store var $4: %r1, %22
-    %25: %r0 = const 10
-    %27: %r1 = load var $3: %r1
-    %28: %r1 = load var $4: %r1
-    %29: %r0 = call.value %27, %28, %25
-    %31: %r0 = load var $1: %r0
-    %32: %r0 = binary.mul %29, %31
-    %33: %r0 = coerce %32
-    %34: %r0 = const 4
-    store var $1: %r0, %34
-    %36: %r1 = fun.code negate
-    %37: %r1 = const null
-    store var $3: %r1, %36
-    store var $4: %r1, %37
-    %41: %r0 = const 10
-    %43: %r1 = load var $3: %r1
-    %44: %r1 = load var $4: %r1
-    %45: %r0 = call.value %43, %44, %41
-    %47: %r0 = load var $1: %r0
-    %49: %r0 = binary.mul %45, %47
-    %50: %r0 = coerce %49
-    %51: %r0 = binary.add %19, %33
-    %52: %r0 = coerce %51
-    %53: %r0 = binary.add %52, %50
-    %54: %r0 = coerce %53
-    return %54
+    %11: %r0 = const 20
+    %16: %r0 = const 30
+    %18: %r0 = load var $1: %r0
+    %19: %r0 = binary.mul %16, %18
+    %20: %r0 = coerce %19
+    %21: %r0 = const 4
+    store var $1: %r0, %21
+    %27: %r0 = const -10
+    %29: %r0 = load var $1: %r0
+    %31: %r0 = binary.mul %27, %29
+    %32: %r0 = coerce %31
+    %33: %r0 = binary.add %11, %20
+    %34: %r0 = coerce %33
+    %35: %r0 = binary.add %34, %32
+    %36: %r0 = coerce %35
+    return %36
 
-optimizer clones 0 aliased 0 forwarded 0 removed 24 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 27 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 0 folded 0
 
 shape %s0 object Step {weight: %r0, run: %r2}
 shape %s1 fun {$c: %r1 code, $e: %r1 env}

@@ -811,11 +811,7 @@ fn main() -> one %r0
     %785: %r0 = coerce %784
     %786: %r2 = const 0
     %787: %r2 = call opaque %786
-    %790: %r0 = const 9
-    %794: %r0 = alias %790
-    %795: %r0 = const 9
-    %796: %r4 = binary.eq %794, %795
-    branch %796 -> block31 -> block29
+    jump -> block31
   block27:
     %776: %r0 = load var $18: %r0
     %777: %r0 = const 2
@@ -845,10 +841,7 @@ fn main() -> one %r0
   block31:
     %798: %r2 = const 3
     %799: %r2 = call opaque %798
-    %803: %r0 = const 9
-    %806: %r0 = alias %803
-    %807: %r0 = const 9
-    %808: %r4 = binary.eq %806, %807
+    %808: %r4 = const 1
     jump -> block30(%808)
   block32:
     %822: %r4 = const 0
@@ -918,7 +911,7 @@ fn main() -> one %r0
     %830: %r4 = binary.eq %827, %829
     jump -> block33(%830)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 192 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 2 promoted 47
+optimizer clones 0 aliased 0 forwarded 0 removed 199 adopted 0 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 2 promoted 47 folded 2
 
 shape %s0 object Point {x: %r0, y: %r0}
 shape %s1 object <tuple> {f0: %r0, f1: %r4, f2: %r5}

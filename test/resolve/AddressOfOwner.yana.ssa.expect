@@ -1,0 +1,151 @@
+module ResolveTest
+
+let string'142: [CodeUnit *5] = "hello"
+
+let string'143: [CodeUnit *6] = " world"
+
+fn main() -> I32 {
+bb0:
+  %1: %String address = alloc frame String
+  %2: %%String address = alloc frame %String [owned here shape6 .*=shared slot 0]
+  %3: %%String address = alloc frame %String [owned here shape6 .*=shared slot 0]
+  %4: %I32 address = alloc frame I32
+  %5: %Array(I32) address = alloc frame Array(I32)
+  %6: %Array(I32) address = alloc frame Array(I32)
+  %7: %%Array(I32) address = alloc frame %Array(I32) [owned here shape6 .*=shared slot 0]
+  %8: String owned = const String {units: Array {run: Run {items: &string'142, capacity: 5, ownsHeap: 0}, length: 5}}
+  %9: String owned = const String {units: Array {run: Run {items: &string'143, capacity: 6, ownsHeap: 0}, length: 6}}
+  %10: String owned = call String.++ consume %8 consume %9
+  store inspect %1 consume %10
+  %11: String [shared slot 0] guaranteed from{%1} = load inspect %1
+  %12: %String [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %11
+  %13: %String [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %12
+  store inspect %2 consume %13
+  %14: String [shared slot 0] guaranteed from{%1} = load inspect %1
+  %15: %String [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %14
+  %16: %String [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %15
+  store inspect %3 consume %16
+  %17: %String [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %18: USize trivial = bitcast inspect %17
+  %19: %String [owned here shape6 .*=shared slot 0] trivial = load inspect %3
+  %20: USize trivial = bitcast inspect %19
+  %21: Bool trivial = eq inspect %18 inspect %20
+  branch inspect %21 -> bb3 -> bb1
+
+bb1:
+  %22: I32 trivial = const 0
+  jump -> bb2(consume %22)
+
+bb2(%0: I32 trivial):
+  store inspect %4 consume %0
+  %23: I32 trivial = const 1
+  %24: I32 trivial = const 2
+  %25: I32 trivial = const 3
+  %26: %I32 trivial = run.slots I32 *3 heap
+  %27: Size trivial = bitcast inspect %26
+  %28: Size trivial = const 0
+  %29: Bool trivial = eq inspect %27 inspect %28
+  call checkCondition borrow %29
+  %30: @bits(30) U32 trivial = const 3
+  %31: @bits(2) U32 trivial = const 1
+  %32: Run(I32) owned = aggregate.Run consume %26 consume %30 consume %31
+  %33: @bits(30) U32 trivial = const 3
+  %34: Array(I32) owned = aggregate.Array consume %32 consume %33
+  store inspect %5 consume %34
+  %35: Size trivial = const 0
+  %36: %I32 address = element.addr inspect %26 inspect %35
+  store inspect %36 consume %23
+  %37: Size trivial = const 1
+  %38: %I32 address = element.addr inspect %26 inspect %37
+  store inspect %38 consume %24
+  %39: Size trivial = const 2
+  %40: %I32 address = element.addr inspect %26 inspect %39
+  store inspect %40 consume %25
+  %41: Array(I32) owned = load inspect %5
+  store inspect %6 consume %41
+  %42: Array(I32) [shared slot 0] guaranteed from{%6} = load inspect %6
+  %43: %Array(I32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %42
+  %44: %Array(I32) [owned here shape6 .*=shared slot 0] trivial = bitcast inspect %43
+  store inspect %7 consume %44
+  %45: %Array(I32) [owned here shape6 .*=shared slot 0] trivial = load inspect %7
+  %46: Array(I32) [unique call] guaranteed = load inspect %45
+  %47: I32 trivial = const 4
+  call push(I32) borrow %46 consume %47
+  %48: %String [owned here shape6 .*=shared slot 0] trivial = load inspect %2
+  %49: String [shared call] guaranteed = load inspect %48
+  %50: String [shared slot 0 view] guaranteed = call String.view borrow %49
+  %51: Size trivial = call String.length borrow %50
+  drop String inspect %1
+  %52: I32 trivial = convert inspect %51
+  %53: I32 trivial = const 1000
+  %54: I32 trivial = mul inspect %52 inspect %53
+  %55: I32 trivial = load inspect %4
+  %56: I32 trivial = const 100
+  %57: I32 trivial = mul inspect %55 inspect %56
+  %58: I32 trivial = add inspect %54 inspect %57
+  %59: Array(I32) [shared call] guaranteed from{%6} = load inspect %6
+  %60: Array(I32) [shared slot 0 view] guaranteed from{%6} = call Array(a).elements(I32) borrow %59
+  jump -> bb4
+
+bb3:
+  %90: I32 trivial = const 1
+  jump -> bb2(consume %90)
+
+bb4:
+  %62: %Size address = field.addr .length inspect %60
+  %63: Size trivial = load inspect %62
+  jump -> bb5(consume %63)
+
+bb5(%61: Size trivial):
+  %64: I32 trivial = convert inspect %61
+  %65: I32 trivial = const 10
+  %66: I32 trivial = mul inspect %64 inspect %65
+  %67: I32 trivial = add inspect %58 inspect %66
+  %68: Size trivial = const 3
+  %69: Array(I32) [shared call] guaranteed from{%6} = load inspect %6
+  %70: Array(I32) [shared slot 0 view] guaranteed from{%6} = call Array(a).elements(I32) borrow %69
+  jump -> bb6
+
+bb6:
+  %72: %Size address = alloc frame Size [shared call]
+  store inspect %72 borrow %68
+  %73: Size trivial = load inspect %72
+  %74: USize trivial = bitcast inspect %73
+  %75: Array(I32) [shared slot 0 view] guaranteed from{%70} = load inspect %70
+  jump -> bb11
+
+bb7(%71: I32 [shared slot 0] guaranteed from{%6}):
+  %88: I32 trivial = load inspect %71
+  drop Array(I32) inspect %6
+  %89: I32 trivial = add inspect %67 inspect %88
+  return consume %89
+
+bb8:
+  jump -> bb9
+
+bb9:
+  %81: Array(I32) [shared slot 0 view] guaranteed from{%70} = load inspect %70
+  %82: %I32 [owned here shape6 .*=shared slot 0] trivial = call values(I32) borrow %81
+  %83: Size trivial = load inspect %72
+  %84: Size trivial = metric stride I32
+  %85: Size trivial = mul inspect %83 inspect %84
+  %86: %I32 [owned here shape6 .*=shared slot 0] trivial = add inspect %82 inspect %85
+  %87: I32 [shared slot 0] guaranteed = load inspect %86
+  jump -> bb7(borrow %87)
+
+bb10:
+  call checkFailed
+  jump -> bb9
+
+bb11:
+  %77: %Size address = field.addr .length inspect %75
+  %78: Size trivial = load inspect %77
+  jump -> bb12(consume %78)
+
+bb12(%76: Size trivial):
+  %79: USize trivial = bitcast inspect %76
+  %80: Bool trivial = ge inspect %74 inspect %79
+  branch inspect %80 -> bb10 -> bb8
+}
+
+entry main

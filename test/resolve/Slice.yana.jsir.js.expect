@@ -25,9 +25,9 @@ function main() {
   var p2 = 0;
   while (p2 < v38) {
     if (p2 >>> 0 >= v38) throw $t;
-    var v128 = p2 | 0;
-    var v129 = v36[v128];
-    v36[v128] = v129 + v129 | 0;
+    var v123 = p2 | 0;
+    var v124 = v36[v123];
+    v36[v123] = v124 + v124 | 0;
     p2 = p2 + 1 | 0;
   }
   if (total(v13.items, v13.length, 0) !== 20) return -3;
@@ -35,27 +35,27 @@ function main() {
   var v55 = v52 + 1;
   if (v55 > v13.items.length) growJsArray_I32(v13, v55);
   v13.items[v52] = 5;
-  var v65 = v55 & 1073741823;
-  v13.length = v65;
-  var v66 = v13.items;
-  if (v65 !== 5) return -4;
-  var v83 = { items: { items: v66, length: v13.length, offset: 0 }, at: 1 };
+  var v64 = v55 & 1073741823;
+  v13.length = v64;
+  var v65 = v13.items;
+  if (v64 !== 5) return -4;
+  var v80 = { items: { items: v65, length: 5, offset: 0 }, at: 1 };
   var p3 = 0;
   L4: for (;;) {
-    var v87 = v83.at;
-    if (v87 < v83.items.length) {
-      var v102 = { items: { items: v83.items.items.slice(), length: v83.items.length, offset: v83.items.offset }, at: v83.at };
-      var v103 = v102.at;
-      var v104 = v102.items;
-      if (v103 >>> 0 >= v104.length >>> 0) throw $t;
-      p3 = p3 + v104.items[v104.offset + v103 | 0] | 0;
-      v83.at = v87 + 1 | 0;
+    var v84 = v80.at;
+    if (v84 < v80.items.length) {
+      var v97 = { items: { items: v80.items.items.slice(), length: v80.items.length, offset: v80.items.offset }, at: v80.at };
+      var v98 = v97.at;
+      var v99 = v97.items;
+      if (v98 >>> 0 >= v99.length >>> 0) throw $t;
+      p3 = p3 + v99.items[v99.offset + v98 | 0] | 0;
+      v80.at = v84 + 1 | 0;
       continue L4;
     }
     break L4;
   }
   if (p3 !== 23) return -5;
-  return total(v13.items, v13.length, 0);
+  return total(v65, 5, 0);
 }
 
 function growJsArray_I32(self, wanted) {

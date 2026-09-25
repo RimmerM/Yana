@@ -1,0 +1,107 @@
+fn flip(parts %r4) -> omitted
+  block0(%0: %r1, %1: %r1, %2: %r2):
+    %3: %r0 = load bits @0:1 whole scaled %2 of (element %0[%1]: %r2): %r0
+    %4: %r0 = unary.not %3
+    store bits @0:1 whole scaled %2 of (element %0[%1]: %r2): %r0, %4
+    return
+
+fn bump(parts %r8) -> omitted
+  block0(%0: %r1, %1: %r1, %2: %r2):
+    %3: %r6 = load bits @0:4 whole scaled %2 of (element %0[%1]: %r2): %r6
+    %4: %r11 = convert %3
+    %5: %r11 = const 1
+    %6: %r11 = binary.add %4, %5
+    %7: %r11 = coerce %6
+    %8: %r6 = convert %7
+    store bits @0:4 whole scaled %2 of (element %0[%1]: %r2): %r6, %8
+    return
+
+fn flagOf(one %r10) -> parts %r4
+  block0(%0: %r10):
+    %1: %r1 = const "verbose"
+    %2: %r3 = object %s0 %0, %1
+    return %2
+
+fn main() -> one %r9
+  var $0: %r10
+  var $1: %r10
+  block0:
+    %4: %r0 = const 1
+    %5: %r6 = const 1
+    %6: %r9 = const 0
+    %7: %r10 = object %s1 %4, %5, %6
+    %8: %r10 = alias %7
+    %9: %r1 = const "verbose"
+    %10: %r2 = const 1
+    call flip %8, %9, %10
+    %11: %r10 = alias %7
+    %12: %r0 = load property %11.verbose: %r0
+    %13: %r9 = const 1
+    %14: %r9 = const 2
+    %15: %r9 = select %12, %13, %14
+    %20: %r0 = const 1
+    %21: %r6 = const 15
+    %22: %r9 = const 0
+    %23: %r10 = object %s1 %20, %21, %22
+    %24: %r10 = alias %23
+    %25: %r1 = const "level"
+    %26: %r2 = const 1
+    call bump %24, %25, %26
+    %27: %r10 = alias %23
+    %28: %r1 = const "level"
+    %29: %r2 = const 1
+    call bump %27, %28, %29
+    %30: %r10 = alias %23
+    %31: %r6 = load property %30.level: %r6
+    %32: %r9 = convert %31
+    %33: %r9 = const 1000
+    %34: %r9 = binary.mul %32, %33
+    %35: %r9 = coerce %34
+    %36: %r9 = binary.add %15, %35
+    %37: %r9 = coerce %36
+    %42: %r0 = const 0
+    %43: %r6 = const 3
+    %44: %r9 = const 7
+    %45: %r10 = object %s1 %42, %43, %44
+    %41: %r10 = alias %45
+    %46: %r3 = call flagOf %41
+    %47: %r0 = const 1
+    store cell %46: %r0, %47
+    %48: %r0 = load property %41.verbose: %r0
+    %49: %r9 = const 100
+    %50: %r9 = const 0
+    %51: %r9 = select %48, %49, %50
+    %52: %r6 = load property %41.level: %r6
+    %53: %r9 = convert %52
+    %54: %r9 = const 10
+    %55: %r9 = binary.mul %53, %54
+    %56: %r9 = coerce %55
+    %57: %r9 = binary.add %51, %56
+    %58: %r9 = coerce %57
+    %59: %r9 = load property %41.name: %r9
+    %60: %r9 = binary.add %58, %59
+    %61: %r9 = coerce %60
+    %62: %r9 = const 10000
+    %63: %r9 = binary.mul %61, %62
+    %64: %r9 = coerce %63
+    %65: %r9 = binary.add %37, %64
+    %66: %r9 = coerce %65
+    return %66
+
+optimizer clones 0 aliased 0 forwarded 0 removed 15 adopted 1 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 5 folded 0
+
+shape %s0 ref {$o: %r1 owner, $k: %r1 key}
+shape %s1 object Config {verbose: %r0, level: %r6, name: %r9}
+
+rep %r0 = number bool
+rep %r1 = erased
+rep %r2 = number f64
+rep %r3 = cell of %r0
+rep %r4 = parts (%r1, %r1, %r2) as %r3
+rep %r5 = void
+rep %r6 = number unsigned 4
+rep %r7 = cell of %r6
+rep %r8 = parts (%r1, %r1, %r2) as %r7
+rep %r9 = number signed 32
+rep %r10 = object %s1
+rep %r11 = number unsigned 32

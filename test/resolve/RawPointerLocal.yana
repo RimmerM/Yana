@@ -1,0 +1,84 @@
+{-
+   A raw pointer to a parameter **kept in a local** and written through after it is read back - J161.
+
+   The call summary (`resolve_mir/summary.cpp`) follows a pointer by the loan checker's origins and
+   by its own structural walk, and a pointer stored into a field declared `%I64` - which names no
+   origin - or into an element of a `[%I64 *2]` is followed by neither: the read of `b.p` rooted in a
+   local, and a local was "nobody's argument". So `setViaBox` published `mutates: none`, its caller's
+   `Cell` read as untouched by the call, and the read after it was answered from the `{0, 0}` that
+   built it. The rule now: this body's own storage reaches whatever was written into it.
+
+   - `setViaBox` and `setViaArray` - the pointer in a local record and a local array;
+   - `sameBlock` - the same with the caller's read in the call's own block, which is not J153's
+     cross-block seeding but the fact the call crossed;
+   - `setViaCall` - the pointer is stored into the local by a *callee*, which keeps it (`setP`'s
+     `escapes` row) - and an escaped position is a mutated one.
+
+   A writable global is here for `LaunderedAddress.yana`'s reason.
+-}
+
+import Native
+
+data Cell {value: I64, other: I64}
+data PBox {p: %I64, pad: I32}
+
+let &calls = 0
+
+@noinline
+fn setViaBox(&into: Cell) -> I32:
+    let &b = PBox {p: addressOf(into.value), pad: 0}
+    b.pad = 1
+    store(b.p, 42)
+    return b.pad
+
+@noinline
+fn setViaArray(&into: Cell) -> I32:
+    let &a = [null(), null()] :: [%I64 *2]
+    a[1] = addressOf(into.other)
+    store(a[1], 7)
+    return 1
+
+@noinline
+fn setP(&b: PBox, p: %I64):
+    b.p = p
+
+@noinline
+fn setViaCall(&into: Cell) -> I32:
+    let &b = PBox {p: null(), pad: 0}
+    setP(b, addressOf(into.other))
+    store(b.p, 66)
+    return 1
+
+fn viaBox() -> I64:
+    calls += 1
+    let &cell = Cell {value: 0, other: 0}
+    if setViaBox(cell) < 0 then return -1
+    return cell.value
+
+fn viaArray() -> I64:
+    calls += 1
+    let &cell = Cell {value: 0, other: 0}
+    if setViaArray(cell) < 0 then return -1
+    return cell.other
+
+fn sameBlock() -> I64:
+    calls += 1
+    let &cell = Cell {value: 0, other: 0}
+    let r = setViaBox(cell)
+    return cell.value + (widen(r) :: I64) * 0
+
+fn viaCall() -> I64:
+    calls += 1
+    let &cell = Cell {value: 0, other: 0}
+    if setViaCall(cell) < 0 then return -1
+    return cell.other
+
+-- One bit per shape, so a failing run names every shape that failed rather than the first.
+fn main() -> I32:
+    let &failed = 0
+    if viaBox() != 42 then failed += 1
+    if viaArray() != 7 then failed += 2
+    if sameBlock() != 42 then failed += 4
+    if viaCall() != 66 then failed += 8
+    if calls != 4 then failed += 16
+    return failed

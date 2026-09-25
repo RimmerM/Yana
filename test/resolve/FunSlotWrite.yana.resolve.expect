@@ -1,0 +1,319 @@
+let image$base: () = <none>
+
+table closure$ResolveTest.lambda$23 before ResolveTest.lambda$23 {
+  .0 teardown$none
+}
+
+table closure$ResolveTest.lambda$24 before ResolveTest.lambda$24 {
+  .0 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn double(%x: I32) -> I32 {
+  b0:
+    %v3 = mul %x, 2 : I32
+    ret %v3
+}
+
+fn neg(%x: I32) -> I32 {
+  b0:
+    %v3 = sub 0, %x : I32
+    ret %v3
+}
+
+fn replaceFn(%f: (I32) -> I32, %k: I32) -> () {
+  b0:
+    %v4 = rem %k, 3 : I32
+    %v7 = cmp_eq %v4, 0 : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v9 = alloc : (I32) -> I32
+    %v10 = symbol funvalue$neg : %()
+    init %local1.code, %v10
+    %v13 = cast 0 : %()
+    init %local1.env, %v13
+    drop_derived %f via teardown$(I32) -> I32
+    assign %f, %v9
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn apply(%f: (I32) -> I32, %k: I32) -> I32 {
+  b0:
+    %v2 = calldyn %f, %k : I32
+    drop_derived %f via teardown$(I32) -> I32
+    ret %v2
+}
+
+fn run(%g: () -> ()) -> () {
+  b0:
+    calldyn %g
+    ret
+}
+
+fn viaBorrow(%k: I32) -> I32 {
+  b0:
+    %v1 = alloc : (I32) -> I32
+    %v2 = symbol funvalue$double : %()
+    init %f.code, %v2
+    %v5 = cast 0 : %()
+    init %f.env, %v5
+    %v7 = load %f : (I32) -> I32
+    %v8 = borrow_mut %f : &(I32) -> I32
+    call replaceFn, %v8, %k
+    %v10 = load %f : (I32) -> I32
+    %v11 = calldyn %v10, %k : I32
+    ret %v11
+}
+
+fn movedOut(%k: I32) -> I32 {
+  b0:
+    %v1 = alloc : (I32) -> I32
+    %v2 = symbol funvalue$double : %()
+    init %f.code, %v2
+    %v5 = cast 0 : %()
+    init %f.env, %v5
+    %v7 = load %f : (I32) -> I32
+    %v8 = borrow_mut %f : &(I32) -> I32
+    call replaceFn, %v8, %k
+    %v10 = load %f : (I32) -> I32
+    %v11 = move %f : (I32) -> I32
+    %v12 = call apply, %v11, %k : I32
+    ret %v12
+}
+
+fn capturing(%k: I32) -> I32 {
+  b0:
+    %v1 = alloc : {k: I32}
+    init %local0.k, %k
+    %v3 = addressof %local0 : %()
+    %v4 = alloc : (I32) -> I32
+    %v5 = symbol ResolveTest.lambda$23 : %()
+    init %f.code, %v5
+    init %f.env, %v3
+    %v8 = load %f : (I32) -> I32
+    %v9 = borrow_mut %f : &(I32) -> I32
+    call replaceFn, %v9, %k
+    %v11 = load %f : (I32) -> I32
+    %v12 = calldyn %v11, %k : I32
+    ret %v12
+}
+
+fn inRecord(%k: I32) -> I32 {
+  b0:
+    %v1 = alloc : Step
+    %v2 = alloc : (I32) -> I32
+    %v3 = symbol funvalue$double : %()
+    init %local1.code, %v3
+    %v6 = cast 0 : %()
+    init %local1.env, %v6
+    aggregate %s@Step.run = %v2, %s@Step.n = 1
+    %v10 = load %s : Step
+    %v11 = load %s@Step.run : (I32) -> I32
+    %v12 = borrow_mut %s@Step.run : &(I32) -> I32
+    call replaceFn, %v12, %k
+    %v14 = load %s : Step
+    %v15 = load %s@Step.run : (I32) -> I32
+    %v16 = calldyn %v15, %k : I32
+    drop_derived %s via teardown$Step
+    ret %v16
+}
+
+fn viaClosure(%k: I32) -> I32 {
+  b0:
+    %v1 = alloc : (I32) -> I32
+    %v2 = symbol funvalue$double : %()
+    init %f.code, %v2
+    %v5 = cast 0 : %()
+    init %f.env, %v5
+    %v7 = alloc : {f: &(I32) -> I32, k: I32}
+    %v8 = borrow_mut %f : &(I32) -> I32
+    init %local1.f, %v8
+    init %local1.k, %k
+    %v11 = addressof %local1 : %()
+    %v12 = alloc : () -> ()
+    %v13 = symbol ResolveTest.lambda$24 : %()
+    init %local2.code, %v13
+    init %local2.env, %v11
+    call run, %v12
+    %v17 = load %f : (I32) -> I32
+    %v18 = calldyn %v17, %k : I32
+    ret %v18
+}
+
+fn untouched(%k: I32) -> I32 {
+  b0:
+    %f = alloc : (I32) -> I32
+    %v2 = symbol funvalue$double : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %v7 = calldyn %f, %k : I32
+    ret %v7
+}
+
+fn both(%g: (I32) -> I32) -> I32 {
+  b0:
+    %v2 = calldyn %g, 3 : I32
+    %v5 = mul %v2, 100 : I32
+    %v7 = calldyn %g, 4 : I32
+    %v8 = add %v5, %v7 : I32
+    ret %v8
+}
+
+fn main() -> I32 {
+  b0:
+    %v0 = alloc : (I32) -> I32
+    %v1 = symbol funvalue$viaBorrow : %()
+    init %local0.code, %v1
+    %v4 = cast 0 : %()
+    init %local0.env, %v4
+    %v6 = call both, %v0 : I32
+    %v8 = alloc : (I32) -> I32
+    %v9 = symbol funvalue$movedOut : %()
+    init %local1.code, %v9
+    %v12 = cast 0 : %()
+    init %local1.env, %v12
+    %v14 = call both, %v8 : I32
+    %v16 = mul 2, %v14 : I32
+    %v17 = add %v6, %v16 : I32
+    %v19 = alloc : (I32) -> I32
+    %v20 = symbol funvalue$capturing : %()
+    init %local2.code, %v20
+    %v23 = cast 0 : %()
+    init %local2.env, %v23
+    %v25 = call both, %v19 : I32
+    %v27 = mul 4, %v25 : I32
+    %v28 = add %v17, %v27 : I32
+    %v30 = alloc : (I32) -> I32
+    %v31 = symbol funvalue$inRecord : %()
+    init %local3.code, %v31
+    %v34 = cast 0 : %()
+    init %local3.env, %v34
+    %v36 = call both, %v30 : I32
+    %v38 = mul 8, %v36 : I32
+    %v39 = add %v28, %v38 : I32
+    %v41 = alloc : (I32) -> I32
+    %v42 = symbol funvalue$viaClosure : %()
+    init %local4.code, %v42
+    %v45 = cast 0 : %()
+    init %local4.env, %v45
+    %v47 = call both, %v41 : I32
+    %v49 = mul 16, %v47 : I32
+    %v50 = add %v39, %v49 : I32
+    %v52 = alloc : (I32) -> I32
+    %v53 = symbol funvalue$untouched : %()
+    init %local5.code, %v53
+    %v56 = cast 0 : %()
+    init %local5.env, %v56
+    %v58 = call both, %v52 : I32
+    %v60 = mul 32, %v58 : I32
+    %total = add %v50, %v60 : I32
+    %v64 = add %total, 20000 : I32
+    ret %v64
+}
+
+fn funvalue$neg(%env: %(), %x: I32) -> I32 {
+  b0:
+    %v2 = call neg, %x : I32
+    ret %v2
+}
+
+fn funvalue$double(%env: %(), %x: I32) -> I32 {
+  b0:
+    %v2 = call double, %x : I32
+    ret %v2
+}
+
+fn ResolveTest.lambda$23(%env: %{k: I32}, %x: I32) -> I32 {
+  b0:
+    %v4 = mul %x, 2 : I32
+    %v5 = load [%env].k : I32
+    %v6 = add %v4, %v5 : I32
+    %v7 = load [%env].k : I32
+    %v8 = sub %v6, %v7 : I32
+    ret %v8
+}
+
+fn ResolveTest.lambda$24(%env: %{f: &(I32) -> I32, k: I32}) -> () {
+  b0:
+    %v1 = load [%env].f : &(I32) -> I32
+    %v2 = load [%v1] : (I32) -> I32
+    %v3 = load [%env].k : I32
+    %v4 = borrow_mut [%v1] : &(I32) -> I32
+    call replaceFn, %v4, %v3
+    ret
+}
+
+fn funvalue$viaBorrow(%env: %(), %k: I32) -> I32 {
+  b0:
+    %v2 = call viaBorrow, %k : I32
+    ret %v2
+}
+
+fn funvalue$movedOut(%env: %(), %k: I32) -> I32 {
+  b0:
+    %v2 = call movedOut, %k : I32
+    ret %v2
+}
+
+fn funvalue$capturing(%env: %(), %k: I32) -> I32 {
+  b0:
+    %v2 = call capturing, %k : I32
+    ret %v2
+}
+
+fn funvalue$inRecord(%env: %(), %k: I32) -> I32 {
+  b0:
+    %v2 = call inRecord, %k : I32
+    ret %v2
+}
+
+fn funvalue$viaClosure(%env: %(), %k: I32) -> I32 {
+  b0:
+    %v2 = call viaClosure, %k : I32
+    ret %v2
+}
+
+fn funvalue$untouched(%env: %(), %k: I32) -> I32 {
+  b0:
+    %v2 = call untouched, %k : I32
+    ret %v2
+}
+
+fn teardown$(I32) -> I32(%value: (I32) -> I32) -> () {
+  b0:
+    %v1 = load %value.env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load %value.code : %()
+    %v7 = cast %v6 : I64
+    %v8 = sizeof {slot: I32} : I64
+    %v9 = sub %v7, %v8 : I64
+    %v10 = cast %v9 : %()
+    %v11 = tableslot : %()
+    calldyn %v11, %v1
+    jmp b2
+
+  b2:
+    ret
+}
+
+fn teardown$Step(%value: Step) -> () {
+  b0:
+    drop_derived %value@Step.run via teardown$(I32) -> I32
+    ret
+}

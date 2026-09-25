@@ -1,5 +1,6 @@
 #include "library.h"
 #include "parser.h"
+#include "../compiler/context.h"
 
 namespace ast {
 
@@ -81,6 +82,21 @@ ModuleGroup* LibraryModules::find(Context& context, StringId name) {
 
     entry.group = group;
     return group;
+}
+
+bool moduleDeclaresTests(Context& context, ModuleGroup& group) {
+    ParseBase parse(*context.parseRegion);
+    auto testName = context.addUnqualifiedName("test", 4);
+
+    for(auto file: group.files) {
+        for(auto decl: file->decls.contents(parse)) {
+            for(auto attribute: decl.attributes.contents(parse)) {
+                if(attribute.name == testName) return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 } // namespace ast

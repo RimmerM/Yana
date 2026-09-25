@@ -1,0 +1,48 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+define fastcc i32 @main() #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  br i1 false, label %3, label %4
+
+2:                                                ; preds = %6
+  ret i32 301174
+
+3:                                                ; preds = %6, %5, %4, %1
+  br i1 false, label %14, label %9
+
+4:                                                ; preds = %1
+  br i1 false, label %3, label %5
+
+5:                                                ; preds = %4
+  br i1 false, label %3, label %6
+
+6:                                                ; preds = %5
+  br i1 false, label %3, label %2
+
+7:                                                ; preds = %14, %13, %12, %11
+  %8 = phi i32 [ 0, %11 ], [ -3, %12 ], [ -2, %13 ], [ -1, %14 ]
+  ret i32 %8
+
+9:                                                ; preds = %3
+  br i1 false, label %13, label %10
+
+10:                                               ; preds = %9
+  br i1 false, label %12, label %11
+
+11:                                               ; preds = %10
+  br label %7
+
+12:                                               ; preds = %10
+  br label %7
+
+13:                                               ; preds = %9
+  br label %7
+
+14:                                               ; preds = %3
+  br label %7
+}
+
+attributes #0 = { "probe-stack"="inline-asm" }

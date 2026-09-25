@@ -1,0 +1,35 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+define fastcc i32 @main() #0 {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = call i1 @llvm.vector.reduce.or.v4i1(<4 x i1> <i1 true, i1 true, i1 true, i1 false>)
+  %3 = zext i1 %2 to i32
+  br i1 %2, label %7, label %12
+
+4:                                                ; preds = %7, %12
+  %5 = phi i32 [ %11, %7 ], [ -1, %12 ]
+  %6 = add i32 710000, %5
+  ret i32 %6
+
+7:                                                ; preds = %1
+  %8 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> <i32 0, i32 1, i32 2, i32 0>)
+  %9 = mul i32 %8, 10
+  %10 = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> <i32 1, i32 1, i32 1, i32 0>)
+  %11 = add i32 %9, %10
+  br label %4
+
+12:                                               ; preds = %1
+  br label %4
+}
+
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare i1 @llvm.vector.reduce.or.v4i1(<4 x i1>) #1
+
+; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare i32 @llvm.vector.reduce.add.v4i32(<4 x i32>) #1
+
+attributes #0 = { "probe-stack"="inline-asm" }
+attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }

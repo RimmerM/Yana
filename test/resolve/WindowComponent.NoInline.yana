@@ -1,0 +1,48 @@
+{-
+   `WindowComponent.yana`'s window through a plain `[Int *4]` slot - J161.
+
+   `Holder {w: arr}` converts through `elementsMut(arr)`, a call answering a window into `arr`'s own
+   storage. At the default level that call is inlined into a `bitcast` before `Containment` asks, and
+   a `bitcast` is refused - so the default build was right and only a build that keeps the call saw
+   the J153 arm admit it: `viaRecord` lost both writes (506 for 9977) and `viaRecordSameBlock` folded
+   `arr[1] - 72` to `-68`. Hence the directive.
+
+   # inline: none
+-}
+
+data Holder {w: &'[Int], n: Int}
+
+let &calls = 0
+
+@noinline
+fn poke(&h: Holder):
+    h.w[0] = 99
+
+@noinline
+fn pokeMove(->h: Holder):
+    h.w[1] = 77
+
+fn viaRecord() -> Int:
+    calls += 1
+    let &arr = [0, 0, 0, 0] :: [Int *4]
+    arr[0] = 5
+    arr[1] = 6
+    let &h = Holder {w: arr, n: 1}
+    poke(h)
+    pokeMove(h)
+    return arr[0] * 100 + arr[1]
+
+fn viaRecordSameBlock() -> Int:
+    calls += 1
+    let &arr = [0, 0, 0, 0] :: [Int *4]
+    arr[0] = 5
+    arr[1] = 4
+    pokeMove(Holder {w: arr, n: 1})
+    return arr[1] - 72
+
+fn main() -> Int:
+    let &failed = 0
+    if viaRecord() != 9977 then failed += 1
+    if viaRecordSameBlock() != 5 then failed += 2
+    if calls != 2 then failed += 4
+    return failed

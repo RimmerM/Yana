@@ -168,7 +168,56 @@ Place* Resolver::findCapture(Builder& builder, StringId name) {
         break;
     }
 
+    /*
+     * A **nested** lift naming a binding from beyond the lift around it - since J139, which built
+     * nesting for the one case that needs no chain: the inner body's captures are the *enclosing
+     * lift's* own locals and parameters, which are ordinary locals of the builder the inner
+     * environment is constructed in, so the one-level machinery is the whole of it. A name from
+     * further out would be reached through the enclosing lift's environment - a capture of a capture,
+     * a chain of places - and that is still unbuilt, so it is refused by name here rather than left
+     * to fall through to the globals, where a shadowed global of the same name would silently answer.
+     */
+    if(!outer && lambdaFrames.size() > lambdaFloor + 1) {
+        auto outermost = lambdaFrames[lambdaFloor].outerFloor;
+
+        for(U32 i = frame.outerFloor; i > outermost; i--) {
+            if(bindings[i - 1].name != name) continue;
+
+            if(!frame.captureRejected) {
+                auto& around = lambdaFrames[lambdaFrames.size() - 2];
+                auto text = Tritium::format(
+                    "%@ inside %@ that names %@ from outside both",
+                    frame.thunk ? "a `@lazy` argument"_v : "a lambda"_v,
+                    around.thunk ? "a `@lazy` argument"_v : "another lambda"_v,
+                    context.findName(name));
+                unsupported(frame.lifted->source, stringView(text));
+                frame.captureRejected = true;
+            }
+
+            return nullptr;
+        }
+    }
+
     if(!outer) return nullptr;
+
+    /*
+     * A `@lazy` parameter of the enclosing function. Its storage holds the thunk and not the value
+     * its name means there, so capturing it would hand the inner body `() -> T` where the author
+     * wrote `T` - and forcing it inside would run the argument wherever the inner body runs, which
+     * is the evaluation `@lazy` exists to leave to the callee. Refused by name, with the fix.
+     */
+    if(frame.enclosing && outer->isParameter() && outer->parameter < frame.enclosing->args.size() &&
+       decl()[frame.enclosing->args.get(decl(), outer->parameter)]->lazy) {
+        // Once per frame, and the name then stops here - `lambdaCaptureRejected` - rather than
+        // going on to be an unknown one.
+        if(!frame.captureRejected) {
+            context.diagnostics.error(
+                "%@ is a `@lazy` parameter of the enclosing function and cannot be captured - read it into a `let` first, and capture that"_v,
+                frame.lifted->source, context.findName(name));
+            frame.captureRejected = true;
+        }
+        return nullptr;
+    }
 
     if(frame.raw) {
         if(!frame.captureRejected) {
@@ -246,16 +295,24 @@ Place* Resolver::findCapture(Builder& builder, StringId name) {
         environment.originSlots++;
     }
 
+    // What a call through the captured binding may name travels with it - `CallNames`. The
+    // environment is this lambda's own record rather than an interned tuple, so the names are the
+    // binding's and nobody else's.
+    field.callNames = outer->callNames;
+
     environment.fields.push(program.decl, field);
     captures.push(Capture { name, outer, field.index, kind });
 
     return builder.fieldPlace(*builder.localPlace(*frame.parameter), field.index);
 }
 
-bool Resolver::rawLambdaCaptureRejected() const {
+bool Resolver::lambdaCaptureRejected() const {
     if(lambdaFrames.size() <= lambdaFloor) return false;
     auto& frame = lambdaFrames[lambdaFrames.size() - 1];
-    return frame.raw && frame.captureRejected;
+    // A raw lambda's refused capture, and a `@lazy` parameter's - both reported by `findCapture` and
+    // both a name that must not go on to be reported as unknown. The flag is read for the teardown
+    // of a raw frame only, so setting it on a closure frame changes nothing else.
+    return frame.captureRejected;
 }
 
 /*
@@ -606,6 +663,7 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
     frame.outerFloor = bindingFloor;
     frame.floor = U32(bindings.size());
     frame.captureFloor = U32(captures.size());
+    frame.enclosing = currentFunction;
 
     auto outerFunction = currentFunction;
     auto outerHeld = held;
@@ -684,6 +742,7 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
      * is a join over types this stage does not do anywhere else.
      */
     auto open = !isConcreteType(decl(), lifted.result.type);
+    lambdaFrames[lambdaFrames.size() - 1].openResult = open;
     auto unit = !open && decl()[lifted.result.type]->kind == Type::Unit;
 
     /*
@@ -702,10 +761,35 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
      * wants no value at all and takes the statement path unchanged, which is where every `:` lambda
      * written for its effect already was.
      */
+    /*
+     * A `:` body whose last statement is one that produces nothing - an assignment, a `let`, a
+     * `while` - where the position left the result open. There is no value for the body to answer,
+     * so it decides `{}`: `let bump = (): count += 1` is a lambda run for its effect, and asking the
+     * assignment for a value reported it as an expression this stage does not implement.
+     */
+    if(open && !implicitReturn) {
+        auto written = &body;
+        while(written->kind == ast::Expr::Nested) written = parse[written->nested];
+        auto kind = written->kind;
+        if(kind == ast::Expr::Multi && written->multi.size()) {
+            kind = written->multi.get(parse, U32(written->multi.size() - 1)).kind;
+        }
+
+        if(kind == ast::Expr::Assign || kind == ast::Expr::Decl || kind == ast::Expr::While) {
+            lifted.result = owned(program.types.unit);
+            open = false;
+            unit = true;
+            lambdaFrames[lambdaFrames.size() - 1].openResult = false;
+        }
+    }
+
     auto answers = implicitReturn || (!unit && !leavesBlock(body));
 
     if(open && !answers) {
-        unsupported(source, "a lambda whose body only returns in a position that leaves the result open"_v);
+        // The result is the body's to decide and a `return` decides nothing a join would not have
+        // to: so the rule, with the fix, rather than a form this stage lacks.
+        context.diagnostics.error("this lambda's result type is decided by its body, so it cannot use `return` - write it where a function type is expected"_v,
+                                  source);
     } else if(answers) {
         auto value = resolveValue(builder, body, (unit || open) ? nullptr : lifted.result.type,
                                   unit ? inspectRequest() : requestOf(lifted.result));
@@ -1007,26 +1091,20 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
     auto& shape = *(FunType*)decl()[hint];
 
     /*
-     * The two shapes whose environment would have to be somewhere this stage cannot put one, each
-     * refused by name.
+     * The shape whose environment would have to be somewhere this stage cannot put one, refused by
+     * name: a lambda in a **generic** body would want argument zero for a generic environment and
+     * for captures at once, which is the one thing that position cannot hold (see
+     * `Function::environment`).
      *
-     * A **nested** lambda reaches its captures through the enclosing lambda's environment, which is
-     * a chain of places rather than one; a lambda in a **generic** body would want argument zero for
-     * a generic environment and for captures at once, which is the one thing that position cannot
-     * hold (see `Function::environment`).
+     * A **nested** lambda was a second until J139. It is built where its captures are the enclosing
+     * lambda's own bindings - which is every `a ?: b ?: c` chain, whose inner thunk is written
+     * inside the outer one - and refused in `findCapture` where one would have to be reached through
+     * the enclosing lambda's environment, which is a chain of places rather than one.
      *
      * A lambda inside a **lens** call was a third and is not one any more: a lens is a function, so
      * a lambda written in a continuation is a lambda written in an ordinary block of an ordinary
      * body, and which frame its environment belongs to is the frame it is standing in.
      */
-    if(lambdaFrames.size()) {
-        auto enclosing = lambdaFrames[lambdaFrames.size() - 1].thunk ? "a `@lazy` argument"_v
-                                                                     : "another lambda"_v;
-        auto text = Tritium::format("%@ inside %@", what, enclosing);
-        unsupported(source, stringView(text));
-        return nullptr;
-    }
-
     if(currentFunction && isGeneric(decl(), currentFunction->gen)) {
         auto text = Tritium::format("%@ in a generic function", what);
         unsupported(source, stringView(text));
@@ -1167,6 +1245,7 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
         declaredArg->occurrence = declared;
         declaredArg->source = argument.source;
         declaredArg->index = U32(lifted->args.size());
+        if(argument.type) declaredArg->callNames = writtenCallNames(*parse[argument.type]);
         lifted->args.push(program.decl, declaredArg - *program.decl);
     }
 

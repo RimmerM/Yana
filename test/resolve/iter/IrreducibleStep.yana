@@ -1,0 +1,62 @@
+{-
+   An iterator object's step inlined into its consumer, where the producer's loop skips elements -
+   the shape that makes the lowered graph irreducible. J155.
+
+   # resolver: ownership
+
+   A producer whose loop can go round without reaching a `yield` has a cycle of its own inside the
+   step: the loop's test, the body, the latch. The step's resume dispatch enters that cycle twice -
+   at the test on the first call, and at the latch, just behind the `yield`, on every later one - so
+   once the step is inlined into the consumer's loop the cycle has two ways in and no header that
+   dominates it. Until J155 `buildLoops` took whichever block the depth-first walk reached first as
+   the header anyway, and the "loop" collected behind it held a block control reaches without
+   passing it; J154 caught the loop-invariant hoister moving an instruction out of such a block
+   (`NestedItemObject` at `-inline speed`), and this is the same graph with the things the other
+   loop readers act on in it - a counted index, a bounds-checked subscript and an invariant product
+   in the skipped iterations.
+
+   It does not miscompile on the J154 compiler: the hoister was guarded there and the induction
+   rewrites ask for dominance themselves. It is here so that the irreducible shape is compiled and
+   run at every level the suite builds, whatever reads the loops next.
+-}
+
+iter fn multiplesOf(xs: [Int], k: Int, scale: Int) -> Int:
+    let &i = 0 :: Int
+    while i < length(xs):
+        let x = xs[i]
+        let weighted = x * (scale * 3 + k)
+
+        if x % k == 0:
+            yield weighted + i
+
+        i = i + 1
+
+fn stepped(xs: [Int], k: Int) -> Int:
+    let &it = multiplesOf(xs, k, 2)
+    let &packed = 0 :: Int
+    let &steps = 0 :: Int
+
+    while it.next() is Just(v):
+        packed = packed * 7 + v
+        steps = steps + 1
+
+    return packed * 10 + steps
+
+fn looped(xs: [Int], k: Int) -> Int:
+    let &total = 0 :: Int
+
+    for v in multiplesOf(xs, k, 1):
+        total = total * 3 + v
+
+    return total
+
+fn main() -> Int:
+    let xs = [3, 4, 6, 7, 9, 10, 12, 15, 16, 18]
+
+    -- 9x + i over the multiples of three, packed base 7, and the count of them.
+    if stepped(xs, 3) != 6241516 then return 1
+    if stepped(xs, 5) != 9772 then return 2
+    if stepped(xs, 11) != 0 then return 3
+    if looped(xs, 2) != 10137 then return 4
+
+    return 0

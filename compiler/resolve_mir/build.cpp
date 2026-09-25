@@ -150,6 +150,7 @@ Local* Builder::addParameter(Arg& declared) {
     assertTrue(local->index.index == declared.index);
 
     local->parameter = declared.index;
+    local->callNames = declared.callNames;
     return local;
 }
 
@@ -1142,7 +1143,8 @@ Node* Builder::addVecSplat(LocationId source, Node& from, DeclPtr<Type> vector) 
 
 Node* Builder::addVecLane(LocationId source, Node& from, U16 lane) {
     auto vector = valueType(from);
-    assertTrue(lane < vectorLanes(declBase(), vector));
+    // A vector this body cannot count takes any lane - `constantLane` says where it is checked.
+    assertTrue(!vectorLanes(declBase(), vector) || lane < vectorLanes(declBase(), vector));
 
     auto node = new (arena()) NodeVecLane(Node::VecLane, source, resultOf(from, UseMode::Inspect),
                                           lane);
@@ -1154,7 +1156,8 @@ Node* Builder::addVecLane(LocationId source, Node& from, U16 lane) {
 
 Node* Builder::addVecWithLane(LocationId source, Node& from, U16 lane, Node& value) {
     auto vector = valueType(from);
-    assertTrue(lane < vectorLanes(declBase(), vector));
+    // A vector this body cannot count takes any lane - `constantLane` says where it is checked.
+    assertTrue(!vectorLanes(declBase(), vector) || lane < vectorLanes(declBase(), vector));
     assertTrue(sameType(valueType(value), laneTypeOf(declBase(), vector)));
 
     auto node = new (arena()) NodeVecLane(Node::VecWithLane, source,
@@ -1167,12 +1170,17 @@ Node* Builder::addVecWithLane(LocationId source, Node& from, U16 lane, Node& val
 }
 
 Node* Builder::addVecShuffle(LocationId source, Node& left, Node& right, const U8* pattern,
-                             Size count, DeclPtr<Type> result) {
-    assertTrue(count == vectorLanes(declBase(), result));
+                             Size count, DeclPtr<Type> result, NodeVecShuffle::Deferred deferred,
+                             I64 amount) {
+    // An empty pattern is a deferred one - see `NodeVecShuffle::Deferred` - and only that (J146).
+    assertTrue(count == vectorLanes(declBase(), result) ||
+               (!count && deferred != NodeVecShuffle::Deferred::None));
 
     auto node = new (arena()) NodeVecShuffle(source, resultOf(left, UseMode::Inspect),
                                              resultOf(right, UseMode::Inspect));
     node->occurrence = owned(result);
+    node->deferred = deferred;
+    node->amount = amount;
     node->pattern.reserve(arena(), count);
     for(Size i = 0; i < count; i++) node->pattern.push(arena(), pattern[i]);
 
@@ -1306,7 +1314,9 @@ Node* Builder::addCall(LocationId source, Function& callee, Node* const* argumen
     for(Size i = 0; i < count; i++) {
         auto& parameter = *declBase()[callee.args.get(declBase(), U32(i))];
         auto declared = substituteType(context, program, parameter.occurrence.type, with);
-        assertTrue(sameType(valueType(*arguments[i]), declared));
+        // Equal, or a `@bits(n)` place lent to a `&` of what it refines - repr.md's tier 1, which
+        // `convertValue` passes through unconverted because the refinement is storage alone.
+        assertTrue(fillsParameter(declBase(), valueType(*arguments[i]), declared));
 
         auto mode = argumentMode(parameter.occurrence.contract, SourceKind::Result);
         node->arguments.push(arena(), resultOf(*arguments[i], mode));
@@ -1366,7 +1376,7 @@ Node* Builder::addRequiredCall(LocationId source, DeclPtr<Function> callee, U16 
  */
 Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constructor,
                             Node* const* components, Size count, DeclPtr<OwnershipSchema> shape,
-                            bool fill) {
+                            bool fill, bool prefix) {
     auto kind = declBase()[record]->kind;
     assertTrue(kind == Type::Record || kind == Type::Array);
 
@@ -1378,7 +1388,12 @@ Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constru
     // elements themselves, which is what the component count is checked against.
     assertTrue(!fill || (count == 1 && kind == Type::Array &&
                          !((ArrayType*)declBase()[record])->hasFixedLength()));
-    assertTrue(fill || count == aggregateComponentCount(declBase(), record, constructor));
+    // A fixed array may be supplied a *prefix* - `InlineArray`'s slots, where the rest is storage
+    // (`RecordField::storage`), and only there: `prefix` is set by `resolveInlineLiteral` alone
+    // (J146), so a short `[T *n]` built anywhere else is still the mistake it would be.
+    assertTrue(fill || count == aggregateComponentCount(declBase(), record, constructor) ||
+               (prefix && kind == Type::Array &&
+                count < aggregateComponentCount(declBase(), record, constructor)));
 
     auto node = new (arena()) NodeAggregate(source);
 
@@ -1392,6 +1407,7 @@ Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constru
     node->occurrence = Occurrence { record, ownedContract(), shape };
     node->constructor = constructor;
     node->fill = fill;
+    node->prefix = prefix;
     node->components.reserve(arena(), count);
 
     for(Size i = 0; i < count; i++) {

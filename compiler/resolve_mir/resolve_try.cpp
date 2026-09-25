@@ -278,6 +278,25 @@ Node* Resolver::resolveTry(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint
     TryShape leaving;
     auto& function = *currentFunction;
 
+    /*
+     * A result still being decided, which is a cycle rather than a type without an instance: `?`
+     * needs the result type to rebuild its exit, and the `=` form and a lambda whose position leaves
+     * the result open both take theirs *from* the body this is in. Said as that, with the fix, where
+     * the check below would name `{}` or an empty type.
+     */
+    if(!function.failure && function.inferResult) {
+        context.diagnostics.error("`?` returns from the enclosing function, so it needs that function's result type - and the `=` form infers its result from the body this is written in. Write the result type out, as in `-> Maybe(Int)`"_v,
+                                  source);
+        return nullptr;
+    }
+
+    if(!function.failure && lambdaFrames.size() && lambdaFrames[lambdaFrames.size() - 1].lifted == &function &&
+       lambdaFrames[lambdaFrames.size() - 1].openResult) {
+        context.diagnostics.error("this lambda's result type is decided by its body, so `?` cannot be written in it - `?` returns from the enclosing function, and that needs the type first. Write the lambda where a function type is expected"_v,
+                                  source);
+        return nullptr;
+    }
+
     if(!function.failure && !carrierShape(function.result.type, source, leaving)) {
         context.diagnostics.error("`?` returns from the enclosing function when it exits, so that function's result type has to be one it can rebuild - %@ has no `Try` instance"_v,
                                   source, typeText(context, decl(), function.result.type));

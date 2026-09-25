@@ -4,7 +4,6 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @effects = [0, 0, 0, 0]
-mut @released = [0, 0, 0, 0]
 
 initHeap<complex>() {
   b_0 {
@@ -245,16 +244,13 @@ useSession<complex>(%s: Ptr): I32 {
   b_0 {
     %v_1 = add %s, 12: Ptr
     %v_2 = loads %v_1, 4: I32
-    %v_3 = loads @released, 4: I32
-    %v_4 = add %v_3, 1: I32
-    store @released, %v_4, 4
-    %v_5 = load %s, 8: Ptr
-    call_complex freeHeap, %v_5
-    %v_6 = loads @effects, 4: I32
-    %v_7 = add %s, 12: Ptr
-    %v_8 = loads %v_7, 4: I32
-    %v_9 = add %v_6, %v_8: I32
-    store @effects, %v_9, 4
+    %v_3 = load %s, 8: Ptr
+    call_complex freeHeap, %v_3
+    %v_4 = loads @effects, 4: I32
+    %v_5 = add %s, 12: Ptr
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = add %v_4, %v_6: I32
+    store @effects, %v_7, 4
     ret %v_2
   }
 }
@@ -272,9 +268,7 @@ main<complex>(): I32 {
     %v_4 = add %used, 35: I32
     %v_5 = loads @effects, 4: I32
     %v_6 = add %v_4, %v_5: I32
-    %v_7 = loads @released, 4: I32
-    %v_8 = sub %v_6, %v_7: I32
-    ret %v_8
+    ret %v_6
   }
 }
 

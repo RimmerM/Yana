@@ -73,7 +73,6 @@ swapBools<complex>(%a: Ptr, %b: Ptr) {
     %v_5 = load %v_3, 1: I64
     %v_6 = shr %v_5, %v_4: I64
     %v_7 = and %v_6, 1: I64
-    %t = cast %v_7: I32
     %v_8 = bitcast %b: I64
     %v_9 = and %v_8, 281474976710655: I64
     %v_10 = bitcast %v_9: Ptr
@@ -81,22 +80,19 @@ swapBools<complex>(%a: Ptr, %b: Ptr) {
     %v_12 = load %v_10, 1: I64
     %v_13 = shr %v_12, %v_11: I64
     %v_14 = and %v_13, 1: I64
-    %v_15 = cast %v_14: I32
-    %v_16 = cast %v_15: I64
-    %v_17 = shl %v_16, %v_4: I64
-    %v_18 = shl 1, %v_4: I64
-    %v_19 = not %v_18: I64
-    %v_20 = and %v_5, %v_19: I64
-    %v_21 = or %v_20, %v_17: I64
-    store %v_3, %v_21, 1
-    %v_22 = load %v_10, 1: I64
-    %v_23 = cast %t: I64
-    %v_24 = shl %v_23, %v_11: I64
-    %v_25 = shl 1, %v_11: I64
-    %v_26 = not %v_25: I64
-    %v_27 = and %v_22, %v_26: I64
-    %v_28 = or %v_27, %v_24: I64
-    store %v_10, %v_28, 1
+    %v_15 = shl %v_14, %v_4: I64
+    %v_16 = shl 1, %v_4: I64
+    %v_17 = not %v_16: I64
+    %v_18 = and %v_5, %v_17: I64
+    %v_19 = or %v_18, %v_15: I64
+    store %v_3, %v_19, 1
+    %v_20 = load %v_10, 1: I64
+    %v_21 = shl %v_7, %v_11: I64
+    %v_22 = shl 1, %v_11: I64
+    %v_23 = not %v_22: I64
+    %v_24 = and %v_20, %v_23: I64
+    %v_25 = or %v_24, %v_21: I64
+    store %v_10, %v_25, 1
     ret 
   }
 }

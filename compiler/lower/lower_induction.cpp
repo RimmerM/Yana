@@ -68,12 +68,11 @@ struct ReducibleLoop {
 /*
  * Whether the header dominates a block the rewrite is going to rely on it dominating.
  *
- * Asked rather than assumed, and the reason is in LoopInfo's own header: a natural loop's members are
- * dominated by its header only where the graph is reducible, and `buildLoops` says in as many words
- * that for an irreducible one its answer is "one possible reading of the loop rather than the only
- * one, which is all a heuristic needs". It is not all this needs - a phi placed in the header is read
- * where the header dominates the reader and nowhere else, and the failure of that is a value read
- * before it is defined rather than a worse decision.
+ * Asked rather than assumed, although since J155 `buildLoops` keeps natural loops only and so every
+ * member is dominated by its header. It was written when an irreducible cycle's edges were taken as
+ * back edges, and the failure it stops is a phi placed in the header read where the header does not
+ * dominate the reader - a value read before it is defined rather than a worse decision - so it stays
+ * as the check nearest the rewrite that depends on it. It is one tree walk per question.
  */
 bool headerDominates(const ReducibleLoop& loop, const DominatorTree& dominators, LowerBlock* block) {
     return loop.header->dominates(block, dominators);
@@ -1187,7 +1186,7 @@ void widenLoopCounters(LowerBase base, LowerModule& module, LowerFunction& fun, 
 // A value read past the bitcasts standing in front of it, where each of them keeps every bit: the
 // lowering writes one wherever a `Size` meets an `I64` or a pointer meets an integer, so a length
 // and the counter compared against it usually arrive here through one each. Bounded rather than
-// followed to the end, for the reason `allocationBase` in lower_forward.cpp gives.
+// followed to the end, for the reason `placeOf` in lower_store.cpp gives for its depth.
 LowerValue* throughBitcasts(LowerBase base, LowerValue* value) {
     for(auto steps = 0; steps < 4; steps++) {
         auto inst = value->inst();

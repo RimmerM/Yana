@@ -560,7 +560,7 @@ bool verifySelection(Context& ctx, LowerBase base, LowerFunction& fun, const Mac
                     // to fall back to, and the only remaining outcome is an assertion.
                     if(value->inst()->kind != LowerInst::Imm) {
                         fail("carries an immediate that is not a constant"_v);
-                    } else if(!fitsImmediate(form.uses[i].immediate, immValue(value))) {
+                    } else if(!fitsImmediate(form.uses[i].immediate, embeddedImmValue(base, inst, value))) {
                         fail("carries a constant wider than its immediate field"_v);
                     }
                     break;
@@ -871,6 +871,8 @@ struct Verifier {
             }
         };
 
+        // A fixed alloca as the base names no register at all - see isFrameAddressBase.
+        if(instRegs.address.frameRelative && part < parts.size()) part++;
         if(instRegs.address.hasBase) holds(instRegs.address.base, "base"_v);
         if(instRegs.address.hasIndex) holds(instRegs.address.index, "index"_v);
     }
@@ -962,7 +964,15 @@ struct Verifier {
             }
 
             // Nothing holds a rematerialized value, so nothing can read one in place: the recipe is
-            // materialized into a register by the copies in front of the instruction instead.
+            // materialized into a register by the copies in front of the instruction instead. The
+            // one exception is a frame object's address read as a base, which the addressing unit
+            // adds to the frame's own base register (J157).
+            if(at.isRemat() && regs.placement.remats[at.rematId()].kind == Remat::FrameAddress
+                && isFrameAddressBase(base, machine, inst, i))
+            {
+                continue;
+            }
+
             if(at.isRemat()) {
                 fail("%@: %@: operand %@ is read from %@, which holds nothing at any point",
                     funName, name, nameOf(v), locationName(at));

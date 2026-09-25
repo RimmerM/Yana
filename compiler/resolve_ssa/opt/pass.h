@@ -58,12 +58,26 @@ struct OptContext {
     Dominators dominators;
     Loops loops;
     Contained contained;
-    ConstantContents constantContents;
+    SoleContents soleContents;
 
     AnalysisStamp dominanceStamp;
     AnalysisStamp loopStamp;
     AnalysisStamp containedStamp;
-    AnalysisStamp constantStamp;
+    AnalysisStamp soleStamp;
+
+    /*
+     * The globals whose address reaches anything but a load, a store or an atomic of the global
+     * itself - `findAddressedGlobals`, J154. A program-wide answer, taken once in front of the
+     * inliner; until then `globalsScanned` is false and every global counts as addressed.
+     *
+     * What it buys is `forwardMemory`'s answer to a store through a pointer it cannot place: such a
+     * pointer names this global only if the global's address went somewhere, and for one whose
+     * address never did the fact about the global survives the store. Taken once rather than per
+     * round, which is conservative in the direction the passes edit: they erase and copy uses and
+     * make no new kind of one, so a global the scan found unaddressed stays that way.
+     */
+    HashMap<U32, bool> addressedGlobals;
+    bool globalsScanned = false;
 
     // Set by any rewrite, through the editor. The driver runs the passes to a fixed point over one
     // body, because folding exposes identities and identities leave values unread.
@@ -417,6 +431,10 @@ void endNonReturningBlocks(OptContext& opt);
 // and README.md's section B for why it is a scan rather than a worklist.
 void forwardMemory(OptContext& opt);
 
+// Which globals have their address used as anything but the place of a load, a store or an
+// atomic - `OptContext::addressedGlobals`, filled once for the program. `opt/memory.cpp`.
+void findAddressedGlobals(OptContext& opt);
+
 // An allocation nothing reads, with the writes into it - `opt/memory.cpp`, beside the forwarder
 // because it is what makes an allocation's reads go away in the first place.
 void removeDeadStorage(OptContext& opt);
@@ -501,6 +519,15 @@ void hoist(OptContext& opt);
 void flattenArguments(OptContext& opt);
 
 /*
+ * A `drop` whose teardown is an ordinary call - an authored `Drop` or `Reclaim`, and the derived
+ * walk over a plain record that reaches one - made into that call - `opt/teardown.cpp`.
+ *
+ * Program-wide, native only, and in front of the inliner, because the call it writes is the one
+ * the inliner is there to take.
+ */
+void expandTeardowns(OptContext& opt);
+
+/*
  * A call to a small callee replaced by a copy of its body - `opt/inline.cpp`.
  *
  * Program-wide and run once, before the per-function loop, for the reason README.md's section B
@@ -508,6 +535,10 @@ void flattenArguments(OptContext& opt);
  * see through it. It runs its own rounds, and `markProgramReachable` at the top of each.
  */
 void inlineCalls(OptContext& opt);
+
+// A call through a function value made a direct call to the declaration `made` names - J145. False
+// where the declaration cannot take the call's operands as they are (see `inline.cpp`).
+bool callDeclarationDirectly(OptContext& opt, InstCall& call, InstFunValue& made);
 
 /*
  * Which functions the program can still arrive at, with `reachable` cleared on the ones it cannot -

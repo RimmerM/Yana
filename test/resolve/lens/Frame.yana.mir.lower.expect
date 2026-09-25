@@ -1,62 +1,20 @@
 mut @trace = [0, 0, 0, 0]
 
-Guard.drop<complex>(%v_0: I32) {
-  b_1 {
-    %v_2 = loads @trace, 4: I32
-    %v_3 = add %v_2, %v_0: I32
-    store @trace, %v_3, 4
-    ret 
-  }
-}
-
 main<complex>(): I32 {
   b_0 {
     store @trace, 0, 4
-    %v_1 = imm 4: I32
-    %v_2 = loads @trace, 4: I32
-    call_complex Guard.drop, %v_1
-    %v_3 = loads @trace, 4: I32
-    %v_4 = add %v_3, 100: I32
-    store @trace, %v_4, 4
-    %v_5 = shl %v_2, 1: I32
-    %v_6 = add %v_1, %v_5: I32
-    %v_7 = loads @trace, 4: I32
-    %v_8 = add %v_6, %v_7: I32
     store @trace, 0, 4
     store @trace, 0, 4
-    call_complex Guard.drop, 6
-    %v_9 = loads @trace, 4: I32
-    %v_10 = add 18, %v_9: I32
+    store @trace, 6, 4
     store @trace, 0, 4
-    call_complex Guard.drop, 1000
-    call_complex Guard.drop, 7
-    %v_11 = loads @trace, 4: I32
-    %v_12 = add %v_11, 100: I32
-    store @trace, %v_12, 4
-    %v_13 = loads @trace, 4: I32
+    store @trace, 1000, 4
     store @trace, 0, 4
-    call_complex Guard.drop, 1000
-    call_complex Guard.drop, 7
-    %v_14 = loads @trace, 4: I32
-    %v_15 = add %v_14, 100: I32
-    store @trace, %v_15, 4
-    %v_16 = loads @trace, 4: I32
+    store @trace, 1000, 4
+    store @trace, 1107, 4
     store @trace, 1, 4
-    %v_17 = imm 5: I32
-    call_complex Guard.drop, %v_17
-    %v_18 = loads @trace, 4: I32
-    %v_19 = imul %v_18, 3: I32
-    store @trace, %v_19, 4
-    %v_20 = loads @trace, 4: I32
-    %v_21 = add %v_17, %v_20: I32
-    %v_22 = add %v_8, 216: I32
-    %v_23 = add %v_22, %v_10: I32
-    %v_24 = add %v_23, 1007: I32
-    %v_25 = add %v_24, %v_13: I32
-    %v_26 = add %v_25, 1001: I32
-    %v_27 = add %v_26, %v_16: I32
-    %v_28 = add %v_27, %v_21: I32
-    ret %v_28
+    store @trace, 6, 4
+    store @trace, 18, 4
+    ret 4593
   }
 }
 

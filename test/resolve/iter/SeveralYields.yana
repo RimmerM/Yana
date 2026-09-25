@@ -1,0 +1,121 @@
+{-
+   **Several `yield`s in one loop body, held as an object** - J164.
+
+   # resolver: ownership
+
+   A counted `for` hands its bound and its step along its back edge as block arguments, so they
+   cross every `yield` in the body without a name and the step spills them into the record. The
+   step used to replace the spilled value with the reload "for everything converted from here on",
+   which is right only while the last reload converted dominates every later block: `yield a` then
+   `if c: yield a` rejoins with one reload on each arm, and the verifier said "jump names N, whose
+   definition does not dominate it"; `yield a; yield a` was refused outright as reading "a value
+   from before a `yield` on a path an object's step cannot reconstruct". The consumer's `for x in
+   gen(...)` runs the continuation-passing form and never met either, which is what every function
+   below is checked against.
+-}
+
+-- Two in a row: the second reads the counter the first one's resume reloaded.
+iter fn twice(n: Int) -> I64:
+    let &a = 0 :: I64
+    for i in 0..n:
+        yield a
+        yield a * 10
+        a = a + 1
+
+-- The second behind a condition, so the two resumes rejoin below it.
+iter fn sometimes(n: Int) -> I64:
+    let &a = 0 :: I64
+    for i in 0..n:
+        yield a
+        if i % 5 == 3:
+            yield -a
+        let t = a + 1
+        a = t
+
+-- One in each arm and one after the join, with a `continue` past the rest of the body.
+iter fn arms(n: Int) -> I64:
+    let &a = 1 :: I64
+    for i in 0..n:
+        if i % 2 == 0:
+            yield a
+        else:
+            yield a * 2
+            if i % 3 == 1:
+                continue
+        yield a + 100
+        a = a + (i :: I64)
+
+-- Two loops, each with its own counter crossing a `yield` in the other.
+iter fn grid(rows: Int, cols: Int) -> I64:
+    for r in 0..rows:
+        yield (r :: I64) * 1000
+        for c in 0..cols:
+            if c % 2 == 1:
+                yield (r * 10 + c) :: I64
+            yield -1
+        yield (r :: I64) * -1000
+
+fn mix(acc: I64, x: I64) -> I64 = (acc * 31 + x) % 1000000007
+
+fn byNext(n: Int) -> I64:
+    let &acc = 0 :: I64
+    let &it = twice(n)
+    while it.next() is Just(x):
+        acc = mix(acc, x)
+    let &other = sometimes(n)
+    while other.next() is Just(x):
+        acc = mix(acc, x)
+    let &third = arms(n)
+    while third.next() is Just(x):
+        acc = mix(acc, x)
+    let &fourth = grid(3, n)
+    while fourth.next() is Just(x):
+        acc = mix(acc, x)
+    return acc
+
+fn byHeld(n: Int) -> I64:
+    let &acc = 0 :: I64
+    let &it = twice(n)
+    for x in it:
+        acc = mix(acc, x)
+    let &other = sometimes(n)
+    for x in other:
+        acc = mix(acc, x)
+    let &third = arms(n)
+    for x in third:
+        acc = mix(acc, x)
+    let &fourth = grid(3, n)
+    for x in fourth:
+        acc = mix(acc, x)
+    return acc
+
+fn byCall(n: Int) -> I64:
+    let &acc = 0 :: I64
+    for x in twice(n):
+        acc = mix(acc, x)
+    for x in sometimes(n):
+        acc = mix(acc, x)
+    for x in arms(n):
+        acc = mix(acc, x)
+    for x in grid(3, n):
+        acc = mix(acc, x)
+    return acc
+
+-- Left partway: the object is dropped suspended at whichever `yield` it reached.
+fn partial(n: Int, stop: Int) -> I64:
+    let &acc = 0 :: I64
+    let &count = 0
+    let &it = sometimes(n)
+    while it.next() is Just(x):
+        acc = mix(acc, x)
+        count += 1
+        if count == stop then break
+    return acc
+
+fn main() -> Int:
+    let expected = byCall(9)
+    if byNext(9) != expected then return 1
+    if byHeld(9) != expected then return 2
+    if byNext(0) != byCall(0) then return 3
+    if partial(9, 5) == partial(9, 6) then return 4
+    return truncate(expected % 100000) :: Int

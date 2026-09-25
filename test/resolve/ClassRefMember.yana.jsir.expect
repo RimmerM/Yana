@@ -3,37 +3,20 @@ fn main() -> one %r0
   var $1: %r1
   var $2: %r1
   block0:
-    %3: %r1 = const 3
-    %4: %r1 = const 7
-    store var $1: %r1, %3
-    %7: %r1 = load var $1: %r1
-    %9: %r1 = const 1
-    %10: %r1 = binary.add %7, %9
-    %11: %r1 = coerce %10
-    store var $1: %r1, %11
-    %12: %r1 = const 3
-    %13: %r3 = binary.ne %7, %12
-    branch %13 -> block2 -> block1
+    jump -> block1
   block1:
-    %15: %r1 = load var $1: %r1
-    %16: %r1 = const 4
-    %17: %r3 = binary.ne %15, %16
-    branch %17 -> block4 -> block3
+    jump -> block3
   block2:
-    %31: %r0 = const -1n
-    return %31
-  block3:
-    %25: %r1 = alias %4
-    %26: %r1 = const 16
-    %27: %r1 = binary.add %26, %25
-    %28: %r1 = coerce %27
-    %29: %r0 = convert %28
+    %29: %r0 = const -1n
     return %29
+  block3:
+    %27: %r0 = const 23n
+    return %27
   block4:
-    %30: %r0 = const -2n
-    return %30
+    %28: %r0 = const -2n
+    return %28
 
-optimizer clones 0 aliased 0 forwarded 0 removed 20 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 1 promoted 1
+optimizer clones 0 aliased 0 forwarded 0 removed 35 adopted 0 sunk 0 numbered 0 decided 2 unboxed 0 updated 0 split 1 promoted 2 folded 7
 
 shape %s0 object Boxed {value: %r1, tag: %r1}
 

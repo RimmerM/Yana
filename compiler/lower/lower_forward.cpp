@@ -1,16 +1,9 @@
 #include "lower_forward.h"
 #include "lower_inst.h"
 #include "lower_builder.h"
+#include "lower_store.h"
 
 namespace {
-
-// The constant an operand carries, where it is one.
-Maybe<U64> constantOf(LowerBase base, LowerPtr<LowerValue> value) {
-    auto inst = base[value]->inst();
-    if(inst->kind != LowerInst::Imm) return Nothing();
-
-    return Just(((LowerImm*)inst)->i);
-}
 
 /*
  * How far one access reaches, as a number this pass can use.
@@ -238,28 +231,13 @@ bool addressHiddenBefore(LowerBase base, LowerBlock& block, HashMap<U32, U32>& p
  * cannot reach a destination that resolves to another.
  */
 LowerValue* allocationBase(LowerBase base, LowerPtr<LowerValue> pointer) {
-    auto value = base[pointer];
+    // `placeOf` (lower_store.h) is the walk down to the root - J163; this used to be a copy of it that
+    // took any immediate as an offset. What is asked here is only whether the root is an allocation
+    // of a known size, so the walk needs no `contained` table.
+    auto place = placeOf(base, pointer, 0);
+    if(!place.allocation) return nullptr;
 
-    // Down to the allocation through the constant offsets, which is the chain walkAddress climbs the
-    // other way. Bounded rather than followed to the end: a pointer this far from its allocation is
-    // not a shape lowering emits, and a budget is what keeps one question from walking a dataflow
-    // graph.
-    for(auto steps = 0; steps < 8; steps++) {
-        auto inst = value->inst();
-
-        if(inst->kind == LowerInst::Alloca) {
-            return constantOf(base, ((LowerInstAlloca*)inst)->byteCount) ? value : nullptr;
-        }
-
-        if(inst->kind != LowerInst::Add) return nullptr;
-
-        auto add = (LowerInstBinary*)inst;
-        if(constantOf(base, add->rhs).isJust()) value = base[add->lhs];
-        else if(constantOf(base, add->lhs).isJust()) value = base[add->rhs];
-        else return nullptr;
-    }
-
-    return nullptr;
+    return constantOf(base, ((LowerInstAlloca*)place.root->inst())->byteCount) ? place.root : nullptr;
 }
 
 /*
@@ -295,10 +273,14 @@ bool isAllocatorCall(LowerBase base, LowerFunction& fun, LowerInst* inst) {
  * from elsewhere can be it.
  */
 bool allocationEscapes(LowerBase base, LowerValue* allocation) {
-    auto size = constantOf(base, ((LowerInstAlloca*)allocation->inst())->byteCount);
-    if(size.isNothing()) return true;
+    if(constantOf(base, ((LowerInstAlloca*)allocation->inst())->byteCount).isNothing()) return true;
 
-    return !walkAddress(base, allocation, size.unwrap(), 0, false, [](LowerInst*, U64) { return true; });
+    // The question `addressContained` (lower_store.h) answers for `placeOf`'s `contained`, so it is
+    // asked there - J163. This used to be `walkAddress` with a visitor accepting everything, which
+    // differs in two places and neither is about escaping: it refused a constant offset past the
+    // end of the allocation, which is not the address going anywhere, and it accepted every kind
+    // declaring the address as an access - an atomic among them - which `addressContained` does not.
+    return !addressContained(base, allocation, 0);
 }
 
 // Where each instruction of a block sits in it, so that "before the copy" is a comparison rather than
@@ -335,6 +317,61 @@ void eraseInst(LowerBase base, LowerInst* inst) {
         }
     }
 }
+
+/*
+ * What one rewrite did to the block `forwardCopies` is scanning, so that the scan can carry on from the
+ * copy it rewrote rather than starting the block again - J166.
+ *
+ * `touched` is the lowest index the rewrite changed: every instruction it removed or rotated is at or
+ * above it and at or below the copy, so the positions from there to the copy are the only ones that
+ * have to be taken again. The ones below the copy keep the numbers they had, which are too large by
+ * what was removed and therefore still in order with everything above - and order is all that is
+ * asked of them. `kept` says whether the copy is still in the list (a relay leaves it, reading from
+ * the relay's source).
+ *
+ * An allocation the rewrite empties is detached at once and taken out of this block's list only once
+ * the block is done, since its index is usually near the top and removing it would renumber the whole
+ * block; one in another block is erased as before. An `alloca` has no storage traits, so the scans
+ * over a stretch step over one that is waiting to go.
+ */
+struct BlockEdits {
+    LowerPtr<LowerBlock> block;
+    SmallArray<LowerInst*, 16> retired;
+    Size touched = 0;
+    bool kept = false;
+
+    void retire(LowerBase base, LowerInst* allocation) {
+        if(allocation->block != block) {
+            eraseInst(base, allocation);
+            return;
+        }
+
+        detach(base, allocation);
+        retired.push(allocation);
+    }
+
+    // The retired allocations leave the list in one pass - `eraseInst` is a search of the block each.
+    void flush(LowerBase base) {
+        if(retired.size() == 0) return;
+
+        HashMap<U32, U8> gone;
+        for(auto inst: retired) gone.add(U32(inst - base), 1);
+
+        auto list = &base[block]->instructions;
+        auto count = list->size();
+        Size kept = 0;
+
+        for(Size i = 0; i < count; i++) {
+            auto instPtr = list->get(base, i);
+            if(gone.getValue(U32(instPtr))) continue;
+            if(kept != i) list->set(base, kept, instPtr);
+            kept++;
+        }
+
+        for(auto i = count; i-- > kept;) list->remove(base, i);
+        retired.clear();
+    }
+};
 
 /*
  * Every use of a slot inside the block that hands it over, so that the edge is the last thing that
@@ -439,7 +476,8 @@ bool tiedToBlock(LowerBase base, LowerValue* address, LowerInst* phi, LowerPtr<L
  * is one of those.
  */
 bool tryAdoptPhi(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U32, U32>& position,
-                 HashMap<U32, U32>& reaching, const DominatorTree& dominators, LowerInstCopy& copy) {
+                 HashMap<U32, U32>& reaching, const DominatorTree& dominators, BlockEdits& edits,
+                 LowerInstCopy& copy) {
     auto source = base[copy.from];
     auto destination = base[copy.to];
     if(source == destination) return false;
@@ -528,7 +566,9 @@ bool tryAdoptPhi(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<
     block.instructions.remove(base, Size(here.unwrap()));
 
     replaceUses(base, fun.module->arena, copy.to, copy.from);
-    eraseInst(base, slot);
+    edits.retire(base, slot);
+    edits.touched = Size(here.unwrap());
+    edits.kept = false;
     return true;
 }
 
@@ -540,7 +580,8 @@ bool tryAdoptPhi(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<
  * the copy. The last is the only part that walks instructions the copy does not name.
  */
 bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U32, U32>& position,
-                HashMap<U32, U32>& reaching, LowerPtr<LowerValue> returnPlace, LowerInstCopy& copy) {
+                HashMap<U32, U32>& reaching, LowerPtr<LowerValue> returnPlace, BlockEdits& edits,
+                LowerInstCopy& copy) {
     auto source = base[copy.from];
     auto destination = base[copy.to];
     if(source == destination) return false;
@@ -795,7 +836,9 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
     block.instructions.remove(base, Size(here.unwrap()));
 
     replaceUses(base, fun.module->arena, source - base, copy.to);
-    eraseInst(base, allocation);
+    edits.retire(base, allocation);
+    edits.touched = first;
+    edits.kept = false;
 
     // The destination now holds what the temporary held, so it has to be aligned as the temporary
     // was. Only an allocation can be told so; a pointer from outside already satisfies whatever its
@@ -808,25 +851,173 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
     return true;
 }
 
+/*
+ * `collectContainedAllocations` for `tryRelay`, taken when a relay first gets as far as placing its
+ * accesses and again after any `tryForward` or `tryAdoptPhi` of the function - J163. It used to pass
+ * `placeOf` an empty table, which is safe and never tells a contained source apart from a pointer a
+ * parameter or a call holds. Not once per function: `tryForward` redirects a temporary's uses - a call
+ * it was handed to among them - to the destination, which can make an allocation that was contained
+ * stop being so. A relay does not (J166, `forwardCopies`), and rebuilding after each of those was a
+ * walk of the whole function per relay.
+ */
+struct ContainedTable {
+    HashMap<U32, U8> table;
+    bool fresh = false;
+
+    HashMap<U32, U8>& get(LowerBase base, LowerFunction& fun) {
+        if(!fresh) {
+            table.clear();
+            collectContainedAllocations(base, fun, table);
+            fresh = true;
+        }
+
+        return table;
+    }
+};
+
+/*
+ * Whether a write to `write` cannot reach a byte of `read` - J160.
+ *
+ * `mayOverlap` (lower_store.h), and one fact it does not state: storage outside this frame - a place
+ * rooted at a parameter or a global - is never an allocation of it. A pointer the caller passed
+ * existed before this call's frame did, so it cannot point into a slot the frame allocates, whether
+ * or not that slot's address has since been handed to a callee.
+ */
+bool placesApart(LowerBase base, const LowerPlace& write, const LowerPlace& read) {
+    if(!mayOverlap(write, read)) return true;
+    if(!write.root || !read.root || write.root == read.root) return false;
+
+    auto outside = [&](const LowerPlace& place) {
+        auto inst = place.root->inst();
+        return inst && (inst->kind == LowerInst::Arg || inst->kind == LowerInst::Global);
+    };
+
+    return (write.allocation && outside(read)) || (read.allocation && outside(write));
+}
+
+/*
+ * A temporary that only relays - J160: a copy fills the whole of it from somewhere and a later copy in
+ * the same block moves the whole of it on, and nothing else names it.
+ *
+ *      copy %t, %a, 60                      ..
+ *      ..                            ->     copy %b, %a, 60
+ *      copy %b, %t, 60
+ *
+ * `tryForward` is the same shape asked from the other end - build the value where the second copy
+ * was going to put it - and it has to move the first copy's write down to where the destination is
+ * known to be unobserved, so it needs the destination defined above the first copy and every access
+ * between to resolve to an allocation. The token an `iter fn` hands over fails both: the destination
+ * is the record's hand-over slot, `self + 152`, computed after the callee filled the source, and the
+ * stretch stores the token's two positions into `self`. This rewrite moves nothing but the *source*
+ * of the second copy, so all it has to prove is that nothing in between writes the source's bytes.
+ *
+ * What it is worth, measured (J160): in the shipping stage, whose lowering relays a value through a
+ * temporary at nearly every place it moves one, `test/base`'s `.text` went from 906,520 bytes to
+ * 848,536 (-6.4%); in the new stage, which removes most of them before this tier, 942,408 to
+ * 940,936. On `test/bench/lexer`'s `iter` it took one of the two 60-byte block copies of every
+ * handed-over token away - 222 to 200 cycles a token - and `splitAggregateSlots`' word cut of a wide
+ * unnamed cell (lower_split.cpp) is what took the rest: a block copy out of storage a callee has
+ * just written a field at a time is a load the store buffer cannot forward, however many there are.
+ *
+ * Refused where anything in the stretch might write the source: a call, an access this pass cannot
+ * place, a write `placesApart` cannot separate from it. And where the destination might overlap the
+ * source, which the two copies kept apart and one would not.
+ */
+bool tryRelay(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U32, U32>& position,
+              ContainedTable& contained, BlockEdits& edits, LowerInstCopy& copy) {
+    auto temporary = base[copy.from];
+    auto allocation = temporary->inst();
+    if(!allocation || allocation->kind != LowerInst::Alloca || copy.to == copy.from) return false;
+
+    auto size = constantOf(base, ((LowerInstAlloca*)allocation)->byteCount);
+    auto count = constantOf(base, copy.count);
+    if(size.isNothing() || count.isNothing()) return false;
+    if(size.unwrap() == 0 || size.unwrap() != count.unwrap()) return false;
+
+    // Two uses: this copy's source, and the source-less end of one copy that writes all of it.
+    LowerInstCopy* filler = nullptr;
+    Size uses = 0;
+
+    for(auto userPtr: temporary->uses.contents(base)) {
+        auto user = base[userPtr];
+        uses++;
+        if(user == (LowerInst*)&copy) continue;
+        if(user->kind != LowerInst::Copy || filler) return false;
+
+        auto other = (LowerInstCopy*)user;
+        if(other->to != copy.from || other->from == copy.from) return false;
+
+        auto filled = constantOf(base, other->count);
+        if(filled.isNothing() || filled.unwrap() != size.unwrap()) return false;
+
+        filler = other;
+    }
+
+    if(uses != 2 || !filler || filler->block != &block - base) return false;
+
+    auto here = position.getValue(U32((LowerInst*)&copy - base));
+    auto there = position.getValue(U32((LowerInst*)filler - base));
+    if(!here || !there || there.unwrap() >= here.unwrap()) return false;
+
+    auto& table = contained.get(base, fun);
+    auto source = placeOf(base, table, filler->from, size.unwrap());
+    auto destination = placeOf(base, table, copy.to, size.unwrap());
+    if(!placesApart(base, destination, source)) return false;
+
+    for(auto i = Size(there.unwrap()) + 1; i < Size(here.unwrap()); i++) {
+        auto inst = base[block.instructions.get(base, i)];
+        if(hasLowerTrait(inst, kLowerOrdered) || isVolatileMemoryAccess(inst)) return false;
+        if(!hasLowerTrait(inst, kLowerWrites)) continue;
+
+        LowerAccess accesses[kMaxAccesses];
+        auto written = lowerInstAccesses(inst, accesses);
+        if(written == 0 || inst->kind == LowerInst::Call) return false;
+
+        // A copy writes its first access and reads its second - see `gatherLoopWrites`.
+        if(inst->kind == LowerInst::Copy) written = 1;
+
+        for(Size a = 0; a < written; a++) {
+            auto place = placeOf(base, table, *accesses[a].address, placeExtent(base, accesses[a]));
+            if(!placesApart(base, place, source)) return false;
+        }
+    }
+
+    // The filler goes, the copy reads what the filler read, and the temporary has no use left.
+    auto from = filler->from;
+    eraseInst(base, (LowerInst*)filler);
+    replaceUses(base, fun.module->arena, temporary - base, from);
+    edits.retire(base, allocation);
+    edits.touched = Size(there.unwrap());
+    edits.kept = true;
+    return true;
+}
+
 // The two rewrites over one function, with the dominator tree `tryAdoptPhi` reads already built or
 // already known to be unnecessary - see `forwardCopyDestinations`, which is the split's whole reason.
 void forwardCopies(LowerBase base, LowerFunction& fun, LowerPtr<LowerValue> returnPlace,
                    const DominatorTree& dominators) {
     HashMap<U32, U32> position;
     HashMap<U32, U32> reaching;
+    ContainedTable contained;
+    BlockEdits edits;
 
     for(auto blockPtr: fun.blocks.contents(base)) {
         auto block = base[blockPtr];
+        edits.block = blockPtr;
 
         /*
          * From the bottom up, so that a chain of temporaries collapses without needing a walk per
          * link: forwarding the copy nearest the end gives the copy above it the destination the
          * whole chain was heading for, and that copy is the next one this reaches.
          *
-         * The scan restarts after a rewrite rather than resuming, because a rewrite removes two
-         * instructions from the list and the positions every later question is asked in terms of
-         * are the ones it invalidates. Restarting is what makes that a reindex rather than an
-         * argument about which indices moved.
+         * After a rewrite the scan carries on from the copy it rewrote - asked again where the copy
+         * is still there, since a relay can leave it a copy `tryForward` now takes - and a pass that
+         * rewrote anything is followed by another over the whole block, which is what catches a
+         * copy below that the rewrite made possible. J166: this used to restart the block at every
+         * rewrite, renumbering all of it each time, and the shipping stage's lowering relays a value
+         * at nearly every move - a 44,547-instruction block in `test/base` was renumbered 113 M
+         * entries' worth, which was a third of that stage's whole native compile. The two orders
+         * reach the same fixpoint on every program the suite builds, byte for byte.
          */
         auto changed = true;
         while(changed) {
@@ -842,13 +1033,32 @@ void forwardCopies(LowerBase base, LowerFunction& fun, LowerPtr<LowerValue> retu
                 // The phi case first, because it is the cheaper question and the two are disjoint:
                 // `tryForward` needs the copy's source to be an allocation this block writes, and
                 // this one needs it to be a block argument.
-                if(tryAdoptPhi(base, fun, *block, position, reaching, dominators, moved) ||
-                   tryForward(base, fun, *block, position, reaching, returnPlace, moved)) {
-                    changed = true;
-                    break;
+                auto rewrote = tryAdoptPhi(base, fun, *block, position, reaching, dominators, edits, moved) ||
+                               tryForward(base, fun, *block, position, reaching, returnPlace, edits, moved);
+
+                // A relay moves nothing but the second copy's source, which leaves every allocation
+                // as contained as it was - so it is the one rewrite that keeps `contained` fresh.
+                if(rewrote) {
+                    contained.fresh = false;
+                } else if(tryRelay(base, fun, *block, position, contained, edits, moved)) {
+                    rewrote = true;
+                } else {
+                    continue;
                 }
+
+                changed = true;
+
+                // Renumber what the rewrite moved - see `BlockEdits` - and go on from the copy.
+                auto end = min(i + 1, block->instructions.size());
+                for(auto at = edits.touched; at < end; at++) {
+                    position.add(U32(block->instructions.get(base, at)), U32(at));
+                }
+
+                i = edits.kept ? Size(position.getValue(U32(inst - base)).unwrap()) + 1 : min(i, end);
             }
         }
+
+        edits.flush(base);
     }
 }
 

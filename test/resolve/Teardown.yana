@@ -8,15 +8,15 @@
 import Native
 
 let &effects = 0 :: Int
-let &released = 0 :: Int
 
 -- Storage and nothing else: releasing it is `Reclaim`, so this type has no `Drop` at all and its
--- bytes could be arena-placed with nothing left over to run at last use.
+-- bytes could be arena-placed with nothing left over to run at last use. (It counted its releases in a
+-- global until J146, when the ownership stage began refusing a write to one in an authored `Reclaim`
+-- - the effect a region's bulk release would skip - so the answer is one more than it was.)
 data Buffer {cells: %I64, count: Int}
 
 instance Reclaim(Buffer):
     fn reclaim(->value: Buffer):
-        released = released + 1
         freeHeap(bitcast(value.cells) :: %U8)
 
 -- An effect at last use: `Drop`, which is never elided on any target.
@@ -50,4 +50,4 @@ fn main() -> Int:
     let used = useSession(session)
 
     let pair = duplicate(35)
-    return used + pair.left + effects - released
+    return used + pair.left + effects

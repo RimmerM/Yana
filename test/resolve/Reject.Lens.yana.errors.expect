@@ -1,35 +1,23 @@
-16:0: error: this lens returns Bag(a) rather than its continuation's a, so it may skip the continuation - which needs an instance of `Try` for Bag(a) saying which of its cases means the continuation ran
-21:0: error: this lens returns Maybe(I32), whose `Try` instance proceeds with I32 rather than with its continuation's a - a skipping lens's wrapper has to carry what its continuation produced
-27:0: error: a skipping lens whose result is the type variable m is not available yet - the `Try` instance would have to travel with the call as a witness rather than be selected from the signature, which is the erased callback ABI
-31:28: error: a lens's continuation must return a type variable - it produces whatever the rest of the caller's block produces, which the lens cannot name
-34:25: error: a lens's continuation parameter cannot carry `&`, `->` or `return` - it is called, not stored, and its extent is the call
-192:17: error: a `lens fn` cannot declare a `@lazy` parameter - the call site resolves the arguments before it lifts the rest of the block into the continuation, so the argument would run whether or not the lens forced it. Take a function and call it, which is what the thunk would have been
-194:17: error: an `iter fn` cannot declare a `@lazy` parameter - a `for` loop resolves the arguments before it lifts its body into the continuation, so the argument would run whether or not the iterator forced it. Take a function and call it, which is what the thunk would have been
-42:0: error: a `lens fn` in `yield` form must `yield` - this one never hands anything over, so the call site's block below it would never run
-50:4: error: this path leaves a `lens fn` without yielding - the continuation would never run, so the block below the call site would be skipped
-55:4: error: a `lens fn` may contain only one `yield` in this version - the cleanup after it already runs on every path, so a second one would need the two results joined
-63:8: error: this `yield` can run twice - a `lens fn` hands over exactly once on every path that does not diverge
-68:4: error: `yield` is only available inside a `lens fn` or `iter fn` that declares what it hands over - one that named its continuation parameter calls it by name instead
-67:0: error: not all paths return a value
-71:4: error: `yield` is only available inside a `lens fn` or `iter fn` that declares what it hands over - one that named its continuation parameter calls it by name instead
-70:0: error: not all paths return a value
-92:15: error: maybeHanding returns Maybe(a) rather than what its continuation returns, so it may not continue into the block below - this call needs an alternative saying what happens then, written `| reason -> ...` after the call, or `| reason:` after the block where the extent is written out
-91:0: error: not all paths return a value
-97:4: error: maybeHanding may skip its continuation, so this call has to say where the skip goes - write it as `let pat = maybeHanding(...) | reason -> ...`. An alternative has a place to be written only beside a `let`, which is why a call made for its skip alone is still written `let _ = ...`
-96:0: error: not all paths return a value
-103:8: error: this pattern can fail - it does not match _ - and the alternative beside a skipping lens call says where the skip goes, so there is nothing left for a pattern that does not match what it handed over
-108:39: error: this lens's skip carries nothing to match, so `| else -> ...` is the only alternative it can have
-113:8: error: the alternatives of this lens call do not cover _ - a skip carrying it has nowhere to go
-120:36: error: handing is a lens, so this call needs the rest of a block to hand its values to - write it as a statement of its own or as the whole right-hand side of a `let`, or pass the continuation as a final argument
-126:16: error: handing is a lens, so this call needs the rest of a block to hand its values to - write it as a statement of its own or as the whole right-hand side of a `let`, or pass the continuation as a final argument
-135:21: error: handing is a lens, so this call needs the rest of a block to hand its values to - write it as a statement of its own or as the whole right-hand side of a `let`, or pass the continuation as a final argument
-139:8: error: this lens hands over nothing, so there is nothing for `let` to bind - write the call as a statement of its own, or `let _ =` it if the alternatives are what the `let` is for
-147:8: error: `break` and `continue` cannot cross a lens call yet - the loop is in the function this block was split out of, and only `return` carries the exit signal past a lens
-154:12: error: scope is a lens, so it cannot be used as a function value yet - the block a lens call splits is decided where the call is written
-160:12: error: a lambda inside a generic function is not available yet - the lifted body would have to be specialized alongside its caller
-161:11: error: unknown function f
-161:4: error: non-unit function must return a value
-181:43: error: around is a `lens fn` of class Scoped, so the rest of the block is its continuation - write it as a statement of its own, or as `let pat = around(...)`, rather than in the middle of an expression
-184:15: error: no instance of Scoped for (Unguarded), required by around
-183:0: error: not all paths return a value
-59:0: error: this value may have been moved out of on some paths reaching here
+180:17: error: a lens resolves its arguments before it hands over, so a `@lazy` parameter here would be evaluated whether or not it was read - take a function and call it
+183:17: error: an iterator resolves its arguments before it hands over, so a `@lazy` parameter here would be evaluated whether or not it was read - take a function and call it
+28:0: error: a path through silent reaches the end without a `yield` - a lens that may skip its continuation declares what it fails with, as `-> (T | E)`
+36:4: error: oneBranch answers what its continuation answered, so `return` here carries no value
+39:0: error: a path through twice hands over twice, and one continuation runs once
+45:0: error: a path through perStep hands over twice, and one continuation runs once
+54:4: error: `yield` hands a value to a lens's continuation, and this is not inside a `lens fn` or an `iter fn`
+80:15: error: maybeHanding can fail with {}, so this call needs `| reason -> ...` for the path where it never hands over
+85:4: error: maybeHanding can fail with {}, so this call needs `| reason -> ...` for the path where it never hands over
+91:12: error: nothing uses what maybeHanding hands over, so its continuation would be empty - write `maybeHanding(...):` with a block if the scope is what was meant
+96:33: error: maybeHanding fails with nothing, so there is no value for this pattern to test - write `| else -> ...`
+101:33: error: this pattern can fail - it does not match _ - and a failure arm has no alternative for a value it does not match
+108:36: error: handing is a lens, so it needs a continuation - write `handing(...):` with a block under it, or `let x = handing(...)` where what it hands over is used
+114:16: error: handing is a lens, so it needs a continuation - write `handing(...):` with a block under it, or `let x = handing(...)` where what it hands over is used
+114:29: error: there is no instance of FromInt(Bool)
+123:21: error: handing is a lens, so it needs a continuation - write `handing(...):` with a block under it, or `let x = handing(...)` where what it hands over is used
+127:18: error: nothing uses what scope hands over, so its continuation would be empty - write `scope(...):` with a block if the scope is what was meant
+135:8: error: the ownership resolver does not implement `break` out of a lens call yet
+142:12: error: scope is a lens, so it cannot be used as a function value - the block its call splits is decided where the call is written
+148:12: error: the ownership resolver does not implement a lambda in a generic function yet
+149:11: error: unknown function f
+169:43: error: around is a lens, so it needs a continuation - write `around(...):` with a block under it, or `let x = around(...)` where what it hands over is used
+172:15: error: there is no instance of Scoped(Unguarded)

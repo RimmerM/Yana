@@ -1,0 +1,202 @@
+module ResolveTest
+
+fn depth(b: Boxed [shared call]) -> I32 {
+bb0(%0: Boxed [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: %U8 address = field.addr .# inspect %0
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 0
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: %Boxed address = field.addr .next inspect %0
+  %8: Boxed [shared call] guaranteed from{%0} = load inspect %7
+  %9: %I32 address = field.addr .v inspect %0
+  %10: I32 trivial = load inspect %9
+  store inspect %2 consume %10
+  %11: I32 trivial = const 1
+  %12: Boxed [shared call] guaranteed from{%0} = load inspect %8
+  %13: I32 trivial = call depth borrow %12
+  %14: I32 trivial = add inspect %11 inspect %13
+  jump -> bb2(consume %14)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %15: I32 trivial = const 0
+  jump -> bb2(consume %15)
+}
+
+fn sum'2(b: Boxed [shared call]) -> I32 {
+bb0(%0: Boxed [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: %U8 address = field.addr .# inspect %0
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 0
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: %Boxed address = field.addr .next inspect %0
+  %8: Boxed [shared call] guaranteed from{%0} = load inspect %7
+  %9: %I32 address = field.addr .v inspect %0
+  %10: I32 trivial = load inspect %9
+  store inspect %2 consume %10
+  %11: I32 trivial = load inspect %2
+  %12: Boxed [shared call] guaranteed from{%0} = load inspect %8
+  %13: I32 trivial = call sum'2 borrow %12
+  %14: I32 trivial = add inspect %11 inspect %13
+  jump -> bb2(consume %14)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %15: I32 trivial = const 0
+  jump -> bb2(consume %15)
+}
+
+fn once() -> I32 {
+bb0:
+  %0: %Boxed address = alloc frame Boxed
+  %1: Boxed owned = aggregate.Leaf
+  store inspect %0 consume %1
+  %2: Boxed owned = load inspect %0
+  %3: I32 trivial = const 1
+  %4: Boxed owned = aggregate.Node consume %2 consume %3
+  store inspect %0 consume %4
+  %5: Boxed [shared call] guaranteed from{%0} = load inspect %0
+  %6: I32 trivial = call depth borrow %5
+  drop Boxed inspect %0
+  return consume %6
+}
+
+fn chain(n: I32 [shared call]) -> Boxed {
+bb0(%0: I32 trivial):
+  %9: %I32 address = alloc frame I32 [shared call]
+  %10: %Boxed address = alloc frame Boxed
+  %11: %I32 address = alloc frame I32
+  %12: %I32 address = alloc frame I32
+  store inspect %9 borrow %0
+  %13: Boxed owned = aggregate.Leaf
+  store inspect %10 consume %13
+  %14: I32 trivial = load inspect %9
+  %15: I32 trivial = const 0
+  %16: I32 trivial = const 1
+  store inspect %11 consume %15
+  jump -> bb1(consume %14, consume %16)
+
+bb1(%1: I32 trivial, %2: I32 trivial):
+  %17: I32 trivial = load inspect %11
+  %18: Bool trivial = lt inspect %17 inspect %1
+  branch inspect %18 -> bb4(consume %1, consume %2) -> bb3(consume %1, consume %2)
+
+bb2(%3: I32 trivial, %4: I32 trivial):
+  %19: I32 trivial = load inspect %11
+  %20: I32 trivial = add inspect %19 inspect %4
+  store inspect %11 consume %20
+  jump -> bb1(consume %3, consume %4)
+
+bb3(%5: I32 trivial, %6: I32 trivial):
+  %21: Boxed owned = load inspect %10
+  return consume %21
+
+bb4(%7: I32 trivial, %8: I32 trivial):
+  %22: I32 trivial = load inspect %11
+  store inspect %12 consume %22
+  %23: Boxed owned = load inspect %10
+  %24: I32 trivial = load inspect %12
+  %25: Boxed owned = aggregate.Node consume %23 consume %24
+  store inspect %10 consume %25
+  jump -> bb2(consume %7, consume %8)
+}
+
+fn nested() -> I64 {
+bb0:
+  %0: %Wrap address = alloc frame Wrap
+  %1: I64 trivial = const 1
+  %2: I64 trivial = const 2
+  %3: I64 trivial = const 3
+  %4: I64 trivial = const 4
+  %5: Big trivial = aggregate.Big consume %1 consume %2 consume %3 consume %4
+  %6: I64 trivial = const 0
+  %7: Wrap trivial = aggregate.Wrap consume %5 consume %6
+  store inspect %0 consume %7
+  %8: %Big address = field.addr .inner inspect %0
+  %9: %I64 address = field.addr .d inspect %8
+  %10: I64 trivial = load inspect %9
+  %11: %Big address = field.addr .inner inspect %0
+  %12: %I64 address = field.addr .c inspect %11
+  %13: I64 trivial = load inspect %12
+  %14: %Big address = field.addr .inner inspect %0
+  %15: %I64 address = field.addr .b inspect %14
+  %16: I64 trivial = load inspect %15
+  %17: %Big address = field.addr .inner inspect %0
+  %18: %I64 address = field.addr .a inspect %17
+  %19: I64 trivial = load inspect %18
+  %20: Big trivial = aggregate.Big consume %10 consume %13 consume %16 consume %19
+  %21: %Big address = field.addr .inner inspect %0
+  %22: %I64 address = field.addr .a inspect %21
+  %23: I64 trivial = load inspect %22
+  %24: Wrap trivial = aggregate.Wrap consume %20 consume %23
+  store inspect %0 consume %24
+  %25: %Big address = field.addr .inner inspect %0
+  %26: %I64 address = field.addr .a inspect %25
+  %27: I64 trivial = load inspect %26
+  %28: I64 trivial = const 1000
+  %29: I64 trivial = mul inspect %27 inspect %28
+  %30: %Big address = field.addr .inner inspect %0
+  %31: %I64 address = field.addr .b inspect %30
+  %32: I64 trivial = load inspect %31
+  %33: I64 trivial = const 100
+  %34: I64 trivial = mul inspect %32 inspect %33
+  %35: I64 trivial = add inspect %29 inspect %34
+  %36: %Big address = field.addr .inner inspect %0
+  %37: %I64 address = field.addr .c inspect %36
+  %38: I64 trivial = load inspect %37
+  %39: I64 trivial = const 10
+  %40: I64 trivial = mul inspect %38 inspect %39
+  %41: I64 trivial = add inspect %35 inspect %40
+  %42: %Big address = field.addr .inner inspect %0
+  %43: %I64 address = field.addr .d inspect %42
+  %44: I64 trivial = load inspect %43
+  %45: I64 trivial = add inspect %41 inspect %44
+  %46: %I64 address = field.addr .n inspect %0
+  %47: I64 trivial = load inspect %46
+  %48: I64 trivial = const 10000
+  %49: I64 trivial = mul inspect %47 inspect %48
+  %50: I64 trivial = add inspect %45 inspect %49
+  return consume %50
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Boxed address = alloc frame Boxed
+  %1: I32 trivial = const 5
+  %2: Boxed owned = call chain borrow %1
+  store inspect %0 consume %2
+  %3: I32 trivial = call once
+  %4: I32 trivial = const 1000000
+  %5: I32 trivial = mul inspect %3 inspect %4
+  %6: Boxed [shared call] guaranteed from{%0} = load inspect %0
+  %7: I32 trivial = call depth borrow %6
+  %8: I32 trivial = const 100000
+  %9: I32 trivial = mul inspect %7 inspect %8
+  %10: I32 trivial = add inspect %5 inspect %9
+  %11: Boxed [shared call] guaranteed from{%0} = load inspect %0
+  %12: I32 trivial = call sum'2 borrow %11
+  drop Boxed inspect %0
+  %13: I32 trivial = const 1000
+  %14: I32 trivial = mul inspect %12 inspect %13
+  %15: I32 trivial = add inspect %10 inspect %14
+  %16: I64 trivial = call nested
+  %17: I64 trivial = const 14000
+  %18: I64 trivial = sub inspect %16 inspect %17
+  %19: I32 trivial = convert inspect %18
+  %20: I32 trivial = add inspect %15 inspect %19
+  return consume %20
+}
+
+entry main

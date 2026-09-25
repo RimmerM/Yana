@@ -56,39 +56,38 @@ fn main() -> one %r5
     %55: %r5 = binary.add %50, %54
     %56: %r5 = coerce %55
     %57: %r5 = select %53, %56, %50
-    %58: %r3 = load global fell: %r3
-    %59: %r1 = binary.eq %7, %58
-    %60: %r5 = const 1048576
-    %61: %r5 = binary.add %57, %60
-    %62: %r5 = coerce %61
-    %63: %r5 = select %59, %62, %57
-    %64: %r0 = load global state: %r0
-    %66: %r0 = alias %64
-    %67: %r5 = map %66 [0 => 0, else 1]
-    %69: %r0 = alias %6
-    %70: %r5 = map %69 [0 => 0, else 1]
-    %71: %r1 = binary.eq %67, %70
-    %72: %r5 = const 131072
-    %73: %r5 = binary.add %63, %72
-    %74: %r5 = coerce %73
-    %75: %r5 = select %71, %74, %63
-    %76: %r2 = load global minimum: %r2
-    %77: %r2 = const 0n
-    %78: %r1 = binary.lt %76, %77
-    %79: %r5 = const 262144
-    %80: %r5 = binary.add %75, %79
-    %81: %r5 = coerce %80
-    %82: %r5 = select %78, %81, %75
-    %83: %r4 = load global mask: %r4
-    %84: %r4 = const 0n
-    %85: %r1 = binary.ne %83, %84
-    %86: %r5 = const 524288
-    %87: %r5 = binary.add %82, %86
-    %88: %r5 = coerce %87
-    %89: %r5 = select %85, %88, %82
-    return %89
+    %58: %r1 = binary.eq %7, %51
+    %59: %r5 = const 1048576
+    %60: %r5 = binary.add %57, %59
+    %61: %r5 = coerce %60
+    %62: %r5 = select %58, %61, %57
+    %63: %r0 = load global state: %r0
+    %65: %r0 = alias %63
+    %66: %r5 = map %65 [0 => 0, else 1]
+    %68: %r0 = alias %6
+    %69: %r5 = map %68 [0 => 0, else 1]
+    %70: %r1 = binary.eq %66, %69
+    %71: %r5 = const 131072
+    %72: %r5 = binary.add %62, %71
+    %73: %r5 = coerce %72
+    %74: %r5 = select %70, %73, %62
+    %75: %r2 = load global minimum: %r2
+    %76: %r2 = const 0n
+    %77: %r1 = binary.lt %75, %76
+    %78: %r5 = const 262144
+    %79: %r5 = binary.add %74, %78
+    %80: %r5 = coerce %79
+    %81: %r5 = select %77, %80, %74
+    %82: %r4 = load global mask: %r4
+    %83: %r4 = const 0n
+    %84: %r1 = binary.ne %82, %83
+    %85: %r5 = const 524288
+    %86: %r5 = binary.add %81, %85
+    %87: %r5 = coerce %86
+    %88: %r5 = select %84, %87, %81
+    return %88
 
-optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 4
+optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 4 folded 0
 
 shape %s0 object Config {heading: %r0, ready: %r1, limit: %r2, ratio: %r3, link: %r6, offset: %r5, state: %r0, fell: %r3}
 

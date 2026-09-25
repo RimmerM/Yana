@@ -112,6 +112,23 @@ struct Known {
      * dropping the entry outright.
      */
     U32 stale = 0;
+
+    // Whether the fact came in from the block's sole predecessor rather than being established
+    // here - see `Forwarder::ends`, which is why a call ends it.
+    bool inherited = false;
+
+    // Whether a call has run since the fact was established - `tryForward`, J154.
+    bool crossed = false;
+
+    /*
+     * Where `address` is rooted, found once when the fact is made (`Forwarder::remember`) - J163.
+     * `forgetWritten` asks it of every entry at every instruction that is not pure, and used to walk
+     * `allocationRoot` and then `globalRootOf` each time. The address of an entry never changes, so
+     * neither does its root; a rewrite later in the pass can only make a walk find a root it did not
+     * find before, and the answer kept is then the cautious one.
+     */
+    Value* root = nullptr;
+    bool global = false;
 };
 
 struct Forwarder {
@@ -129,18 +146,22 @@ struct Forwarder {
     const Contained& contained;
 
     /*
-     * What is settled before the program runs, read on the same terms and held for the same reason.
+     * What is settled before the program runs, read on the same terms and held for the same reason:
+     * `soleContents`, once per slot for the pass.
      *
      * The block table below is what one write above a read establishes; this is what a *slot* holds
      * for the whole of its life, which is the fact a call in between destroys and the one a string
      * literal's teardown needs. Two tables rather than one because they are two facts with two
      * lifetimes - one is emptied at every barrier and the other cannot be - and one rule reads them
-     * in order (`tryForward`).
+     * in order (`tryForward`). The answer is read against the body as the first question found it,
+     * the way `contained` is: what this pass erases is reads, which cannot make a slot written by
+     * more than its fill.
      */
-    const ConstantContents& constants;
+    SoleContents slots;
 
     // One block's worth. Inline, because a block holds a handful of distinct pieces of storage and
-    // this is emptied at every block boundary and at every barrier.
+    // this is emptied at every block boundary and at every barrier - except into a block with one
+    // way in, which starts from its predecessor's (`ends`).
     SmallArray<Known, 16> known;
 
     /*
@@ -211,30 +232,53 @@ struct Forwarder {
      */
     bool sameAddress(Value* left, Value* right) {
         while(left && right) {
-            /*
-             * The second names taken off first - `throughNames`, and the same pair `allocationRoot`
-             * walks. A borrow of a slot and the slot are one piece of storage, so a fact recorded
-             * under one of them answers a read through the other; without this every write through a
-             * `&` parameter established a fact nothing could find again, because the write named the
-             * borrow and the read named the slot.
-             */
-            left = throughNames(left);
-            right = throughNames(right);
-            if(!left || !right) return false;
+            auto a = linkOf(left);
+            auto b = linkOf(right);
+            if(!a.address || !b.address) return false;
 
-            if(left == right) return true;
+            if(a.address == b.address) return true;
 
-            Value* leftBase = nullptr;
-            Value* rightBase = nullptr;
-            auto a = addressStepOf(opt, *left, leftBase);
-            auto b = addressStepOf(opt, *right, rightBase);
-            if(!a || !b || !sameAddressStep(opt, a.unwrap(), b.unwrap())) return false;
+            // Two `global.addr`s of one global, which the conversion writes one per access.
+            if(auto global = globalNamed(a.address)) return global == globalNamed(b.address);
 
-            left = leftBase;
-            right = rightBase;
+            if(!stepOf(a) || !stepOf(b) || !sameAddressStep(opt, a.step.unwrap(), b.step.unwrap())) return false;
+
+            left = a.base;
+            right = b.base;
         }
 
         return false;
+    }
+
+    /*
+     * One link of an address chain, which `sameAddress` walks two of in step and `globalRootOf` one
+     * of to its end - J163, where each had its own copy of the walk.
+     *
+     * The second names taken off first - `throughNames`, and the same pair `allocationRoot` walks. A
+     * borrow of a slot and the slot are one piece of storage, so a fact recorded under one of them
+     * answers a read through the other; without this every write through a `&` parameter
+     * established a fact nothing could find again, because the write named the borrow and the read
+     * named the slot. `stepOf` is then the projection the address is, and what it projects from,
+     * asked separately because the commonest answer - the two addresses are one value - needs none.
+     */
+    struct Link {
+        Value* address = nullptr;
+        Maybe<AddressStep> step;
+        Value* base = nullptr;
+    };
+
+    Link linkOf(Value* address) {
+        Link link;
+        link.address = throughNames(address);
+        return link;
+    }
+
+    // No step for a `global.addr`, which is a root, nor for anything else that is not a projection.
+    bool stepOf(Link& link) {
+        if(globalNamed(link.address)) return false;
+
+        link.step = addressStepOf(opt, *link.address, link.base);
+        return link.step.isJust();
     }
 
     /*
@@ -279,9 +323,18 @@ struct Forwarder {
             if(leftAlloc != rightAlloc) return false;
         }
 
-        // From the root down, which is the order the paths were pushed in reverse. A prefix is not a
-        // separation: the walk stops at the shorter path, and everything up to there having been the
-        // same step is what makes a whole-record write reach every field of it.
+        return pathsMayOverlap(leftPath, rightPath);
+    }
+
+    /*
+     * Whether two paths from one root may reach overlapping storage - the step-by-step half of
+     * `mayAlias` and of `mayWriteGlobal`, which had a copy each until J163.
+     *
+     * From the root down, which is the order the paths were pushed in reverse. A prefix is not a
+     * separation: the walk stops at the shorter path, and everything up to there having been the
+     * same step is what makes a whole-record write reach every field of it.
+     */
+    bool pathsMayOverlap(const SmallArray<AddressStep, 8>& leftPath, const SmallArray<AddressStep, 8>& rightPath) {
         auto depth = min(leftPath.size(), rightPath.size());
         for(Size i = 0; i < depth; i++) {
             auto& a = leftPath[leftPath.size() - 1 - i];
@@ -303,8 +356,9 @@ struct Forwarder {
      * here, and the allocation rather than the address is what this is asked about.
      *
      * Edge operands are not walked, and that costs nothing rather than being an omission: the only
-     * instruction that has one is a terminator, and the table is emptied at every block boundary, so
-     * a fact this failed to mark read is a fact nothing reaches afterwards.
+     * instruction that has one is a terminator, and a pending store never crosses a block boundary -
+     * a successor inherits the facts and not the stores (`ends`) - so a store this failed to mark read
+     * is one nothing can remove afterwards.
      */
     bool touches(Inst& inst, Value* address) {
         auto root = allocationRoot(opt, address);
@@ -321,6 +375,119 @@ struct Forwarder {
         return found;
     }
 
+    // The global a `global.addr` names, or null for any other value.
+    DeclPtr<mir::Global> globalNamed(Value* address) {
+        if(!address || !address->definer) return nullptr;
+
+        auto inst = opt.base[address->definer];
+        if(inst->kind != Inst::GlobalAddress) return nullptr;
+        return ((InstGlobalAddress*)inst)->global;
+    }
+
+    /*
+     * The `global.addr` an address is a projection of, through the second names `throughNames`
+     * peels - and the steps from it, root last, where `path` is given. Null where the address is
+     * rooted anywhere else, and past `kAggregateDepth * 4` steps, which no access in the corpus
+     * approaches.
+     */
+    Value* globalRootOf(Value* address, SmallArray<AddressStep, 8>* path) {
+        for(U32 i = 0; address && i < kAggregateDepth * 4; i++) {
+            auto link = linkOf(address);
+            if(!link.address) return nullptr;
+            if(globalNamed(link.address)) return link.address;
+            if(!stepOf(link)) return nullptr;
+
+            if(path) path->push(link.step.unwrap());
+            address = link.base;
+        }
+
+        return nullptr;
+    }
+
+    /*
+     * Whether a write through `written` may reach the storage of a **global** entry - `mayAlias`'s
+     * question for the one root it cannot bound, answered with the one fact that bounds it. J154.
+     *
+     * Three roots a write can have. Another global's is other storage, and the same global's is
+     * compared step by step exactly as `mayAlias` compares two paths into one allocation. An
+     * allocation of this body is a frame slot or a run, and no global is either. What is left - a
+     * pointer loaded out of storage, a parameter, a constant - may be *any* address the program
+     * made, and the global's is among them only if it was ever used as something other than the
+     * place of an access: `OptContext::addressedGlobals`. A global nothing took the address of is
+     * one no raw store can name, which is the property the shipping stage's `placesMayAlias` gives
+     * up on ("a raw pointer may name anything at all").
+     */
+    bool mayWriteGlobal(Value* entry, Value* written) {
+        SmallArray<AddressStep, 8> entryPath;
+        SmallArray<AddressStep, 8> writtenPath;
+
+        auto entryRoot = globalRootOf(entry, &entryPath);
+        if(!entryRoot) return true;
+
+        auto global = globalNamed(entryRoot);
+        auto writtenRoot = globalRootOf(written, &writtenPath);
+
+        if(!writtenRoot) {
+            if(allocationRoot(opt, written)) return false;
+            if(!opt.globalsScanned) return true;
+
+            auto addressed = opt.addressedGlobals.get(global.offset);
+            return !addressed || addressed.unwrap();
+        }
+
+        if(globalNamed(writtenRoot) != global) return false;
+        return pathsMayOverlap(entryPath, writtenPath);
+    }
+
+    /*
+     * Whether an instruction may change what a **global** entry says - J154, J94 §6.2's B.
+     *
+     * The table used to drop every fact about storage with no allocation root at every instruction
+     * that was not pure, so `seen = seen + 5; return seen` read the global back after writing it and
+     * so did every read-modify-write of one - `GlobalOrder`, `Operators`' `@trace`. What may change
+     * a global is narrower than that:
+     *
+     *  - a **store** and a handover through the place they name, which `mayWriteGlobal`
+     *    separates;
+     *  - an **atomic** of any location, whatever it names - an atomic write through the global's
+     *    own place included, which is why there is no `Atomic` arm. It is where another thread's writes
+     *    become visible to this one, so a fact about a global read before it may be stale after it.
+     *    A plain read racing a write is undefined, so between two synchronizing operations the
+     *    table is this thread's alone;
+     *  - and a **call**, every one. `mir::reachesGlobalState` says whether a callee names a global,
+     *    but not whether it synchronizes: `lock(m)` over a mutex handed in as an argument names no
+     *    global and is exactly where a global it guards may change. The shipping stage ends the
+     *    table at every call too;
+     *  - a drop, a native and whatever is not listed: may.
+     *
+     * A read, an allocation, an aggregate, an edge and a copy (which reads its address and writes
+     * storage of its own) change no global.
+     */
+    bool globalWritten(Inst& inst, Value* entry) {
+        switch(inst.kind) {
+            case Inst::Load: {
+                if(!inst.results.size()) return false;
+                if(!isTracked(opt.base[inst.results.get(opt.base, 0)]->convention)) return false;
+
+                return mayWriteGlobal(entry, opt.base[((InstLoad&)inst).address.value()]);
+            }
+
+            case Inst::Store:
+                return mayWriteGlobal(entry, opt.base[((InstStore&)inst).address.value()]);
+
+            case Inst::Alloc:
+            case Inst::Aggregate:
+            case Inst::Jump:
+            case Inst::Branch:
+            case Inst::Switch:
+            case Inst::Copy:
+                return false;
+
+            default:
+                return true;
+        }
+    }
+
     /*
      * Everything this instruction may have written, taken out of the table - and everything it may
      * have read, left in it with its store no longer removable.
@@ -333,7 +500,9 @@ struct Forwarder {
      * neighbour; a call, a native and a teardown reach whatever the address they were handed some
      * instructions ago still names, which is why neither narrows.
      *
-     * An entry with no allocation root of this body's has only the first question, and it answers
+     * An entry with no allocation root of this body's is a **global**'s or nobody's. A global's is
+     * asked `globalWritten` instead (J154), which answers the address-level question for a store and
+     * a handover and yes for a call, an atomic, a native and a drop; an entry rooted nowhere answers
      * yes to every instruction that is not pure.
      */
     void forgetWritten(Inst& inst) {
@@ -342,7 +511,25 @@ struct Forwarder {
         auto written = writtenThrough(inst);
 
         for(Size i = known.size(); i-- > 0;) {
-            auto root = allocationRoot(opt, known[i].address);
+            auto root = known[i].root;
+
+            // A global's entry has a rule of its own - `globalWritten`, J154.
+            if(known[i].global) {
+                if(!globalWritten(inst, known[i].address)) {
+                    if(touches(inst, known[i].address)) known[i].pending = nullptr;
+                    continue;
+                }
+
+                U32 field = 0;
+                if(written && narrowWritten(known[i], written, field)) {
+                    known[i].stale |= U32(1) << field;
+                    known[i].pending = nullptr;
+                    continue;
+                }
+
+                known.remove(i);
+                continue;
+            }
 
             if(!root || mayWriteStorage(opt, contained, inst, *root)) {
                 if(!root || !written || mayAlias(known[i].address, written)) {
@@ -413,7 +600,10 @@ struct Forwarder {
             if(sameAddress(known[i].address, address)) known.remove(i);
         }
 
-        known.push(Known { address, value, pending, 0 });
+        Known entry { address, value, pending, 0 };
+        entry.root = allocationRoot(opt, address);
+        entry.global = !entry.root && globalRootOf(address, nullptr);
+        known.push(entry);
     }
 
     Known* entryFor(Value* address) {
@@ -424,14 +614,6 @@ struct Forwarder {
         return nullptr;
     }
 
-    /*
-     * A read answered by a value already in hand - the store-to-load and load-to-load rules, which
-     * are one rewrite because the fact they read is one fact.
-     *
-     * A load that is answered this way stops being an access at all, so the store it would have read
-     * stays removable - which is what makes a read-modify-write chain collapse rather than merely
-     * shorten.
-     */
     /*
      * A read whose answer was settled before the program ran - a literal's length, the pointer to
      * its bytes, the flag its teardown tests, a number read out of a placed constant.
@@ -453,7 +635,7 @@ struct Forwarder {
         auto result = opt.base[inst.results.get(opt.base, 0)];
         if(result->convention != Convention::Trivial) return false;
 
-        auto held = constantAt(opt, constants, opt.base[load.address.value()]);
+        auto held = constantAt(opt, slots, contained, opt.base[load.address.value()]);
         if(!held) return false;
         if(held.unwrap().type != result->occurrence.type) return false;
 
@@ -557,8 +739,10 @@ struct Forwarder {
         auto entry = entryFor(base);
         if(entry && entry->stale & (U32(1) << (projection.field & 31))) return nullptr;
         if(entry && projection.field >= 32 && entry->stale) return nullptr;
+        if(entry && entry->crossed) componentCrossed = true;
 
         auto held = entry ? entry->value : aggregateComponent(base, depth + 1);
+        if(!entry && !held) held = storedAggregate(base);
         if(!held || !held->definer) return nullptr;
 
         auto definer = opt.base[held->definer];
@@ -579,16 +763,130 @@ struct Forwarder {
         auto used = built.components.get(opt.base, projection.field);
         if(!used.isSet()) return nullptr;
 
+        if(undecidedFlag(built, projection.field)) return nullptr;
+
         return opt.base[used.value()];
     }
+
+    /*
+     * The `ownsHeap` of a run whose placement `placeRuns` has not decided yet - J137.
+     *
+     * The flag is the one component of a descriptor another pass rewrites in place: a placement
+     * turns `runFromHeap` into `runBorrowed` in the aggregate, and it is sound only because the
+     * reclaim reads the flag at run time. A read answered before the decision keeps the old
+     * answer, so a frame placement after it hands a frame address to an unconditional `freeHeap`.
+     * That could not happen while every reclaim was a call the lowering emitted; the first J137
+     * build inlined one into the block that built the literal, folded its test to "heap", placed
+     * the run on the frame a round later, and `iter/Inline.yana` crashed in `freeHeap`.
+     *
+     * A request with `placed` set has been decided and its flag is final. One without it may still
+     * be placed, and its flag is answered by the storage rather than by the component until the
+     * pass has run over the body for the last time - which is the answer the field had before.
+     */
+    bool undecidedFlag(InstAggregate& built, U16 field) {
+        if(field != kRunOwnsHeap || !built.results.size()) return false;
+
+        // The run row names the generic declaration and a descriptor is one of its instances -
+        // `place.cpp`'s `isDescriptor` asks it the same two ways.
+        auto type = opt.base[built.results.get(opt.base, 0)]->occurrence.type;
+        auto descriptor = opt.program.roles.record(intrinsic::Known::run);
+        if(!type || opt.decl[type]->kind != mir::Type::Record) return false;
+
+        auto& record = *(mir::RecordType*)opt.decl[type];
+        if(record.instanceOf != descriptor && &record != opt.decl[descriptor]) return false;
+        if(!built.components.size()) return false;
+
+        auto items = built.components.get(opt.base, 0);
+        auto slots = items.isSet() ? opt.base[items.value()] : nullptr;
+        if(!slots || !slots->definer) return false;
+
+        auto request = opt.base[slots->definer];
+        return request->kind == Inst::RunSlots && !((InstRunSlots*)request)->placed;
+    }
+
+    // `place.cpp`'s `kOwnsHeap`, and `known.def`'s `run` row is where the order is stated.
+    static constexpr U16 kRunOwnsHeap = 2;
+
+    /*
+     * The fourth answer, and the one that crosses blocks: an allocation `aggregateFillOf` saw filled
+     * exactly once, whole, by an `Aggregate`, and written by nothing else for the whole body - J137.
+     *
+     * The block table ends at every join and at every barrier, which is right for what it
+     * holds and wrong for this: the fill is the *only* write, so no barrier can have changed what it
+     * put there. What is left to ask is whether the fill has happened at all where the read is, and
+     * that is dominance - the store standing above the read on every path in. A read it does not
+     * dominate reads storage something may not have filled yet, and nothing is concluded.
+     *
+     * The components the aggregate was built from are defined above it and it is defined above the
+     * store, so every value this hands back dominates the read as well. It is `[5, 6, 7]`'s case:
+     * the literal is filled once in the entry, three bounds checks later its reclaim - copied in by
+     * the inliner since `opt/teardown.cpp` made it a call - reads `.run.ownsHeap`, and that is the
+     * constant zero `placeRuns` wrote into the aggregate.
+     */
+    Value* storedAggregate(Value* base) {
+        if(!base || !reading || !base->definer) return nullptr;
+        if(opt.base[base->definer]->kind != Inst::Alloc) return nullptr;
+
+        auto fill = fillOf(*base);
+        if(!fill || !fill->block || !reading->block) return nullptr;
+        if(!storeReaches(*fill, *reading)) return nullptr;
+
+        return opt.base[((InstStore*)fill)->value.value()];
+    }
+
+    // `aggregateFillOf`'s filter over the pass's memo - J138 memoized it here, J148 moved the memo
+    // under `constantAt` too.
+    Inst* fillOf(Value& allocation) {
+        auto fill = slots.of(opt, contained, allocation);
+        if(!fill) return nullptr;
+
+        auto stored = opt.base[((InstStore*)fill)->value.value()];
+        return opt.base[stored->definer]->kind == Inst::Const ? nullptr : fill;
+    }
+
+    bool storeReaches(Inst& store, Inst& read) {
+        auto from = opt.base[store.block];
+        auto to = opt.base[read.block];
+
+        if(from != to) {
+            if(!dominators) dominators = &dominatorsOf(opt);
+            return dominators->dominates(from->index.index, to->index.index);
+        }
+
+        for(auto pointer: from->instructions(opt.base)) {
+            auto inst = opt.base[pointer];
+            if(inst == &store) return true;
+            if(inst == &read) return false;
+        }
+
+        return false;
+    }
+
+    // The load `tryAggregateForward` is answering, for `storedAggregate`'s dominance question, and
+    // the tree it asks - read the first time a fill is in play, since the pass edits no edge.
+    Inst* reading = nullptr;
+    Dominators* dominators = nullptr;
+
+    // Whether the record `aggregateComponent` last answered from was a fact that crossed a call.
+    bool componentCrossed = false;
 
     bool tryAggregateForward(Inst& inst) {
         auto& load = (InstLoad&)inst;
         if(!inst.results.size()) return false;
 
         auto result = opt.base[inst.results.get(opt.base, 0)];
+        reading = &inst;
+        componentCrossed = false;
         auto component = aggregateComponent(opt.base[load.address.value()], 0);
+        reading = nullptr;
         if(!component || !isForwardable(*result, *component)) return false;
+
+        // J154's reload rule, for a field of a record the table holds as well as for the whole
+        // slot (J161): a component that crossed a call is read again unless it is a constant.
+        // It used to be asked on the exact-address path only, which is how J159's `{0, 0}` reached
+        // the reads after `readClock` - the wrong `mutates` row was the bug, but "a value that
+        // crossed a call is reloaded" was not what happened to a field.
+        if(componentCrossed && keepsReloads() && !isConstantValue(*component)) return false;
 
         auto editor = opt.ir();
         editor.replaceAllUses(*result, *component);
@@ -596,6 +894,29 @@ struct Forwarder {
         return true;
     }
 
+    /*
+     * Whether a read after a call is left to read the storage again rather than answered by what
+     * was there before the call - J154, the within-block half of `ends`' rule.
+     *
+     * Native only. There the answer that crossed the call is a value held in a register over it,
+     * and a register over a call is a callee-saved one or a spill slot: a store and a load of a
+     * second copy of what the slot the load reads already holds. On JavaScript a forwarded value is
+     * a `var` and the reload a property read, and nothing is spilled.
+     */
+    bool keepsReloads() { return !isJsMode(opt.context.settings); }
+
+    bool isConstantValue(Value& value) {
+        return value.definer && opt.base[value.definer]->kind == Inst::Const;
+    }
+
+    /*
+     * A read answered by a value already in hand - the store-to-load and load-to-load rules, which
+     * are one rewrite because the fact they read is one fact.
+     *
+     * A load that is answered this way stops being an access at all, so the store it would have read
+     * stays removable - which is what makes a read-modify-write chain collapse rather than merely
+     * shorten.
+     */
     bool tryForward(Inst& inst) {
         auto& load = (InstLoad&)inst;
         if(load.isVolatile) return false;
@@ -607,6 +928,10 @@ struct Forwarder {
         auto entry = entryFor(address);
         if(!entry || !entry->value || !isForwardable(*result, *entry->value)) {
             if(tryAggregateForward(inst)) return true;
+            return tryConstantForward(inst);
+        }
+
+        if(entry->crossed && keepsReloads() && !isConstantValue(*entry->value)) {
             return tryConstantForward(inst);
         }
 
@@ -625,6 +950,108 @@ struct Forwarder {
         auto editor = opt.ir();
         editor.replaceAllUses(*result, *entry->value);
         editor.eraseInst(inst);
+        return true;
+    }
+
+    /*
+     * The value this address holds where a fact above names it: a store to the same address in
+     * this block, or a field of an aggregate `aggregateComponent` answers. Unlike `tryForward`, the
+     * convention is not asked - this is for a reader that wants to know *what* is there rather than
+     * to be handed it, which is why a tracked value may answer.
+     */
+    Value* heldAt(Value* address, Inst& at) {
+        // `stale` is not asked here: it marks fields of an `Aggregate` entry a later write replaced,
+        // and the one reader of this wants a function value, which is never an aggregate - a stale
+        // record answers `constantFunValue` nothing. A field read goes through `aggregateComponent`,
+        // which does ask it.
+        auto entry = entryFor(address);
+        if(entry && entry->value) return entry->value;
+
+        // A borrow of the slot names the slot: `retarget(s.run)` inlined drops and writes through
+        // a `Guaranteed` load of the field address rather than through the address itself.
+        address = throughNames(address);
+
+        entry = entryFor(address);
+        if(entry && entry->value) return entry->value;
+
+        reading = &at;
+        auto component = aggregateComponent(address, 0);
+        reading = nullptr;
+        return component;
+    }
+
+    /*
+     * A **non-capturing** `fun.value` behind a held value - J145, J94 §6.2 E - through
+     * `funValueBehind`, the walk the inliner reads too. Non-capturing is the whole condition: such a
+     * value is a constant pair, `{thunk, null}`, so which declaration it names is all a call through
+     * it or a drop of it needs, and where the `fun.value` stands does not matter. A capturing one
+     * names an environment, which only the inliner's `devirtualizeSite` passes on.
+     */
+    InstFunValue* constantFunValue(Value* value) {
+        if(!value) return nullptr;
+
+        auto dropped = false;
+        auto made = funValueBehind(opt, slots, contained, *value, dropped);
+        return !made || made->capturing || !made->callee ? nullptr : made;
+    }
+
+    /*
+     * A call through a function value read out of storage that holds a known non-capturing one,
+     * made a direct call to the declaration - J145, J94 §6.2 E. The load itself is not forwarded
+     * (its result is a borrow, and substituting one is the loan rule's, see the file comment); what
+     * changes is only which callee its readers name, and the load is left for the dead-value rules
+     * once no call reads it.
+     *
+     * The inliner's `devirtualizeSite` answers the same question where the body built the pair and
+     * stored it once. This is the rest: `data Step {run: (Int) -> Int}` built by a literal and
+     * called through `s.run(10)`, and a slot written again before the call.
+     */
+    bool tryDirectReaders(Inst& inst) {
+        if(!inst.results.size()) return false;
+
+        auto result = opt.base[inst.results.get(opt.base, 0)];
+        if(result->convention == Convention::Trivial) return false;
+
+        SmallArray<InstCall*, 4> calls;
+
+        for(auto pointer: result->uses(opt.base)) {
+            auto user = opt.base[pointer];
+            if(user->kind != Inst::Call) continue;
+
+            auto& call = (InstCall&)*user;
+            if(call.through != mir::CallThrough::Value || !call.target.isSet()) continue;
+            if(opt.base[call.target.value()] != result) continue;
+
+            calls.push(&call);
+        }
+
+        if(!calls.size()) return false;
+
+        auto made = constantFunValue(heldAt(opt.base[((InstLoad&)inst).address.value()], inst));
+        if(!made) return false;
+
+        auto changed = false;
+        for(auto call: calls) {
+            // A call naming the value twice is on the list twice, and the first rewrite erased it.
+            if(!call->block) continue;
+            changed = callDeclarationDirectly(opt, *call, *made) || changed;
+        }
+        return changed;
+    }
+
+    /*
+     * A drop of storage holding a known non-capturing function value, which lowers to
+     * `teardown(fun)` of a null environment - erased. J145, J94 §6.2 E: `s.run = triple` drops the
+     * `double` the record literal put there, and the teardown call it became was the one instruction
+     * left of the old value.
+     */
+    bool tryInertDrop(Inst& inst) {
+        auto& drop = (InstDrop&)inst;
+        if(!drop.address.isSet()) return false;
+
+        if(!constantFunValue(heldAt(opt.base[drop.address.value()], inst))) return false;
+
+        opt.ir().eraseInst(inst);
         return true;
     }
 
@@ -689,9 +1116,62 @@ struct Forwarder {
         return true;
     }
 
-    void run(Block& block) {
+    /*
+     * Each block's table as it stood at the end, for a successor that has that block as its only
+     * way in - J153.
+     *
+     * The table used to start empty at every block, so a read in a block entered from one place was
+     * answered by nothing written above it: `while length(stack) > 0: let high = stack[length(stack)
+     * - 1]` read the length in the loop header and again in the body the header branches to, and
+     * `test/bench/programs/Sort`'s partition loop kept both loads. A block with **one incoming
+     * edge** starts where that edge left, because every execution of it has just run its
+     * predecessor to the end and a terminator writes nothing. What is carried is the facts and not
+     * the pending stores: a store the predecessor made may be read on the other edge out of it, so
+     * the dead-store rule stays inside the block that wrote it.
+     *
+     * The values the facts name dominate the successor, since its predecessor does. Blocks are
+     * walked in reverse postorder so that a predecessor is finished before its sole successor starts;
+     * a back edge's target has two ways in and is never seeded.
+     *
+     * **An inherited fact ends at the first call**, whatever the call writes - `J152`'s
+     * `crossedCall` rule one tier down, and measured the same way: forwarded past a call, a value
+     * read in one block is held in a register over a call in the next, beside the copy in memory,
+     * and the reload was cheaper. Carried across calls, `test/base` was 1,392 bytes larger than
+     * without the seeding at all; ended at them, it is 16 smaller.
+     */
+    Array<Known> ends;
+    Array<U32> endFirst;
+    Array<U32> endCount;
+    IndexSet ended;
+
+    void seed(Block& block) {
         known.clear();
 
+        auto incoming = block.incoming(opt.base);
+        if(incoming.size() != 1) return;
+
+        auto from = opt.base[incoming[0]]->index.index;
+        if(from >= ended.size() || !ended[from]) return;
+
+        for(U32 i = 0; i < endCount[from]; i++) {
+            auto fact = ends[endFirst[from] + i];
+            fact.pending = nullptr;
+            fact.inherited = true;
+            known.push(fact);
+        }
+    }
+
+    void finish(Block& block) {
+        auto index = block.index.index;
+        if(index >= ended.size()) return;
+
+        endFirst[index] = U32(ends.size());
+        endCount[index] = U32(known.size());
+        for(auto& fact: known) ends.push(fact);
+        ended.set(index, true);
+    }
+
+    void run(Block& block) {
         SmallArray<SsaPtr<Inst>, 32> instructions;
         for(auto pointer: block.instructions(opt.base)) instructions.push(pointer);
 
@@ -710,6 +1190,7 @@ struct Forwarder {
                     continue;
                 }
                 if(tryForward(inst)) continue;
+                tryDirectReaders(inst);
 
                 auto address = opt.base[((InstLoad&)inst).address.value()];
                 auto result = inst.results.size() ? opt.base[inst.results.get(opt.base, 0)] : nullptr;
@@ -748,6 +1229,15 @@ struct Forwarder {
                 continue;
             }
 
+            if(inst.kind == Inst::Drop && tryInertDrop(inst)) continue;
+
+            if(inst.kind == Inst::Call) {
+                for(Size i = known.size(); i-- > 0;) {
+                    if(known[i].inherited) known.remove(i);
+                    else known[i].crossed = true;
+                }
+            }
+
             forgetWritten(inst);
         }
     }
@@ -774,7 +1264,6 @@ struct Forwarder {
 struct StorageRemover {
     OptContext& opt;
     const Contained& contained;
-    const ConstantContents& constants;
 
     /*
      * Whether the allocation being considered holds a constant whose **teardown runs nothing** -
@@ -895,13 +1384,14 @@ struct StorageRemover {
 
         // The contents, where they are settled and their teardown was shown to run nothing - see
         // `inert`, where the whole of what it admits is argued.
-        auto held = constants[allocation];
-        inert = held.isSet() && opt.program.teardownIsNothing(held);
+        // Asked of this slot alone, and only of a contained one - J138: the whole table was read
+        // here once per allocation, and every removal moved its stamp, so it was rebuilt per removal.
+        if(!contained[allocation]) return false;
+        inert = constantHeldBy(opt, contained, allocation).isSet();
 
         // The occurrence rather than the type: a slot holding a borrowed occurrence of a type that
         // owes a teardown owes nothing, and one holding an owner of the same type owes everything.
         if(!inert && (hasTeardownAt(opt, alloc.held) || isLinearAt(opt, alloc.held))) return false;
-        if(!contained[allocation]) return false;
 
         /*
          * A heap placement is removed with the `Free` that hands it back, which is the correction
@@ -949,13 +1439,145 @@ struct StorageRemover {
 
 } // namespace
 
+/*
+ * Whether any use of a global's address - or of a projection of it, or a second name for it - is
+ * something other than the place of an access. J154, and `OptContext::addressedGlobals` is the reader.
+ *
+ * The admitted uses are the ones that touch the global's own storage and hand its address to
+ * nobody: the address of a load (whose `Guaranteed` result is a second name for the storage, and is
+ * followed), the address - not the value - of a store, the location of an atomic, the source of a
+ * copy, and the base of a projection or a `represent`, which are followed. Everything else is an
+ * escape: a call argument, an aggregate component, a stored value, an edge argument, a bitcast
+ * (which is what `addressOf` is), a drop, whose teardown is handed the address.
+ */
+static bool globalAddressEscapes(OptContext& opt, Value& address, U32 depth) {
+    if(depth > 16) return true;
+
+    for(auto userPointer: address.uses(opt.base)) {
+        auto& user = *opt.base[userPointer];
+
+        auto follow = [&]() {
+            if(!user.results.size()) return false;
+            return globalAddressEscapes(opt, *opt.base[user.results.get(opt.base, 0)], depth + 1);
+        };
+
+        switch(user.kind) {
+            case Inst::Load: {
+                auto& load = (InstLoad&)user;
+                if(opt.base[load.address.value()] != &address) return true;
+                if(!user.results.size()) continue;
+
+                auto result = opt.base[user.results.get(opt.base, 0)];
+                if(result->convention == Convention::Guaranteed && follow()) return true;
+                continue;
+            }
+
+            case Inst::Store: {
+                auto& store = (InstStore&)user;
+                if(opt.base[store.value.value()] == &address) return true;
+                continue;
+            }
+
+            case Inst::Atomic: {
+                auto& atomic = (InstAtomic&)user;
+                for(Size i = 1; i < atomic.arguments.size(); i++) {
+                    if(opt.base[atomic.arguments.get(opt.base, i).value()] == &address) return true;
+                }
+                continue;
+            }
+
+            case Inst::Copy:
+                continue;
+
+            case Inst::FieldAddress:
+                if(follow()) return true;
+                continue;
+
+            case Inst::ElementAddress: {
+                auto& element = (InstElementAddress&)user;
+                if(opt.base[element.base.value()] != &address) return true;
+                if(follow()) return true;
+                continue;
+            }
+
+            case Inst::Unary:
+                if(((InstUnary&)user).op != mir::UnaryOp::Represent) return true;
+                if(follow()) return true;
+                continue;
+
+            default:
+                return true;
+        }
+    }
+
+    return false;
+}
+
+void findAddressedGlobals(OptContext& opt) {
+    opt.addressedGlobals.clear();
+
+    // `opt.function` and `opt.body` are left as they are: `globalAddressEscapes` reads uses and
+    // nothing of the body being optimized. They used to be saved and put back around this loop,
+    // which never changed them - review J161 §5.5.
+    for(auto modulePointer: opt.program.modules) {
+        for(auto functionPointer: opt.decl[modulePointer]->functions.contents(opt.decl)) {
+            auto function = opt.decl[functionPointer];
+            if(!function->reachable || !function->ssa) continue;
+
+            auto body = opt.base[function->ssa];
+            for(auto blockPointer: body->blocks.contents(opt.base)) {
+                auto block = opt.base[blockPointer];
+                if(block->deleted) continue;
+
+                for(auto pointer: block->instructions(opt.base)) {
+                    auto inst = opt.base[pointer];
+                    if(inst->kind != Inst::GlobalAddress || !inst->results.size()) continue;
+
+                    auto global = ((InstGlobalAddress*)inst)->global;
+                    auto known = opt.addressedGlobals.get(global.offset);
+                    if(known && known.unwrap()) continue;
+
+                    auto escapes = globalAddressEscapes(opt, *opt.base[inst->results.get(opt.base, 0)], 0);
+                    opt.addressedGlobals[global.offset] = escapes;
+                }
+            }
+        }
+    }
+
+    opt.globalsScanned = true;
+}
+
 void forwardMemory(OptContext& opt) {
-    Forwarder forwarder { opt, containedOf(opt), constantContentsOf(opt) };
+    Forwarder forwarder { opt, containedOf(opt) };
+
+    auto count = U32(opt.body->blocks.size());
+    forwarder.endFirst.resize(count);
+    forwarder.endCount.resize(count);
+    forwarder.ended.reset(count);
+
+    // Reverse postorder first, so that a block's sole predecessor has finished before it starts -
+    // see `Forwarder::ends`. What the order leaves out is unreachable and starts empty.
+    SmallArray<U32, 64> order;
+    for(auto index: dominatorsOf(opt).order) order.push(index);
+
+    IndexSet visited;
+    visited.reset(count);
+
+    for(auto index: order) {
+        auto block = opt.body->block(opt.base, BlockId(index));
+        if(block->deleted) continue;
+
+        visited.set(index, true);
+        forwarder.seed(*block);
+        forwarder.run(*block);
+        forwarder.finish(*block);
+    }
 
     for(auto blockPointer: opt.body->blocks.contents(opt.base)) {
         auto block = opt.base[blockPointer];
-        if(block->deleted) continue;
+        if(block->deleted || visited[block->index.index]) continue;
 
+        forwarder.known.clear();
         forwarder.run(*block);
     }
 }
@@ -988,7 +1610,7 @@ void removeDeadStorage(OptContext& opt) {
     for(auto allocation: allocations) {
         if(!allocation->definer || !opt.base[allocation->definer]->block) continue;
 
-        StorageRemover remover { opt, contained, constantContentsOf(opt) };
+        StorageRemover remover { opt, contained };
         remover.remove(*allocation);
     }
 }

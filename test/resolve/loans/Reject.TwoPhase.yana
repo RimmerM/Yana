@@ -28,4 +28,60 @@ fn liveBorrow(&g: Guard) -> I32 = holds(g, peek(g))
 -- A second unique loan is not a read, so the reservation excludes it where it is written.
 fn twoUnique(&g: Guard) -> I32 = both(g, g)
 
+-- J140. A branch among the later arguments puts the activation in another block, where nothing
+-- activated it: `peek`'s borrow was excused at the read and never judged, and the callee wrote
+-- `g.id` while holding it. The block's exit stands in for the activation now.
+fn holds3(&g: Guard, seen: 'I32, k: I32) -> I32:
+    g.id = 100
+    return g.id + seen + k
+
+fn pastBranch(&g: Guard, c: Bool) -> I32 = holds3(g, peek(g), if c then 1 else 2)
+
+-- A window reserves its elements: the derivation that turns `xs` into `[I32]` runs with the
+-- argument, so a borrow of an element still live at the call meets it there -
+fn setAt(&xs: [I32], at: I32, v: I32): xs[at] = v
+fn first(xs: '[I32]) -> 'I32 = xs[0]
+fn holdsWindow(&xs: [I32], seen: 'I32) -> I32 = xs[0] + seen
+
+fn windowLive(&xs: Array(I32)) -> I32 = holdsWindow(xs, first(xs))
+
+-- - and an exclusive loan that ends before the call is refused outright, which the storage itself
+-- would have survived: `push` reallocates the elements the window already points into.
+fn pushCount(&xs: Array(I32)) -> I32:
+    push(xs, 1)
+    return truncate(length(xs))
+
+fn windowPush(&xs: Array(I32)):
+    setAt(xs, 0, pushCount(xs))
+
+-- A move out of reserved storage leaves the reservation pointing at a hole.
+fn eat(->g: Guard) -> I32 = g.id
+fn bump(&g: Guard, by: I32): g.id = g.id + by
+
+fn movedWhileReserved() -> I32:
+    let &g = Guard {id: 1}
+    bump(g, eat(g))
+    return 0
+
+-- J141. The reservation is carried into the arms of a later argument, and what it excuses there is
+-- still only what cannot observe it: a borrow an arm hands to the call is live at the activation -
+fn armHandsOver(&g: Guard, c: Bool) -> I32 = holds(g, if c then peek(g) else peek(g))
+
+-- - and under a window, an arm's exclusive loan is the reallocation it was outside one.
+fn armPush(&xs: Array(I32), c: Bool):
+    setAt(xs, 0, if c then pushCount(xs) else 0)
+
+-- And a move in an arm is a move, carried reservation or not.
+fn armMoves(c: Bool):
+    let &g = Guard {id: 1}
+    bump(g, if c then eat(g) else 0)
+
+-- J147. A subscript carries the reservation to the call like a derivation, windowed: the element's
+-- address is a snapshot of the run, so a later `push` is refused here - `TwoPhase.Subscript.yana`
+-- is the read it admits.
+fn addTo(&a: I32, by: I32): a = a + by
+
+fn subscriptThenPush(&xs: Array(I32)):
+    addTo(xs[1], pushCount(xs))
+
 fn main() -> I32 = 0

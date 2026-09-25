@@ -1,0 +1,53 @@
+{-
+   A copy of storage some record holds an exclusive loan of (J141).
+
+   # resolver: ownership
+
+   `doc/spec/ownership.md`: while an exclusive borrow is live, its storage is reached through the
+   borrow and through nothing else - and that includes *reading* a `TrivialCopy` value by the
+   lender's own name. J140 enforced it for one holder, a closure's `&` capture
+   (`Reject.Closure.yana`); every other holder admitted the copy, so `seen` below read `count` and
+   then `r` wrote it, and the program returned the value from before a write it had already
+   committed to. A copy *through* the holder - `r.p` - is the legal read, and
+   `TwoPhase.Branch.yana` is the accepting half.
+-}
+
+data Ref {p: &'I32}
+
+fn heldRecord() -> I32:
+    let &count = 1 :: I32
+    let &r = Ref {p: count}
+    let seen = count
+    r.p = r.p + 10
+    return seen + r.p
+
+-- A field of the lender, which the loan of the whole covers.
+data Pair {a: I32, b: I32}
+data RefPair {p: &'Pair}
+
+fn heldField() -> I32:
+    let &pair = Pair {a: 1, b: 2}
+    let &r = RefPair {p: pair}
+    let seen = pair.b
+    r.p.b = 7
+    return seen + r.p.b
+
+-- A disjoint field is not covered: the loan is of `pair.a` alone.
+data RefI32 {p: &'I32}
+
+fn disjoint() -> I32:
+    let &pair = Pair {a: 1, b: 2}
+    let &r = RefI32 {p: pair.a}
+    let seen = pair.b
+    r.p = 5
+    return seen + r.p
+
+-- Past a branch: the holder is used on one path after the read, so the loan is live at it.
+fn pastBranch(c: Bool) -> I32:
+    let &count = 1 :: I32
+    let &r = Ref {p: count}
+    let seen = count
+    if c then r.p = 2
+    return seen
+
+fn main() -> I32 = 0

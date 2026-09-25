@@ -5,21 +5,12 @@ fn opaque(one %r0) -> one %r0
 fn main() -> one %r0
   var $0: %r2
   block0:
-    %6: %r1 = const 2
-    %7: %r1 = convert %6
-    %8: %r0 = convert %7
-    %9: %r0 = const 2
-    %10: %r3 = binary.eq %8, %9
-    branch %10 -> block2 -> block1
+    jump -> block2
   block1:
     %11: %r3 = const 0
     jump -> block3(%11)
   block2:
-    %12: %r1 = const 122
-    %13: %r1 = convert %12
-    %14: %r0 = convert %13
-    %15: %r0 = const 122
-    %16: %r3 = binary.eq %14, %15
+    %16: %r3 = const 1
     jump -> block3(%16)
   block3(%0: %r3):
     %17: %r0 = const 1
@@ -72,34 +63,17 @@ fn main() -> one %r0
     %58: %r0 = select %55, %56, %57
     %59: %r0 = binary.add %28, %58
     %60: %r0 = coerce %59
-    %61: %r1 = const 0
-    %62: %r1 = const 2
-    %63: %r1 = convert %62
-    %64: %r1 = convert %61
-    %65: %r3 = binary.lt %64, %63
-    branch %65 -> block10 -> block11
+    jump -> block10
   block10:
-    %66: %r1 = const 2
-    %67: %r1 = const 1
-    %68: %r1 = convert %67
-    %69: %r1 = convert %66
-    %70: %r3 = binary.ge %69, %68
-    branch %70 -> block12 -> block11
+    jump -> block12
   block11:
     %71: %r3 = const 0
     jump -> block16(%71)
   block12:
-    %72: %r1 = const 1
-    %73: %r1 = const 0
-    %74: %r1 = convert %72
-    %75: %r1 = convert %73
-    %76: %r3 = binary.lt %74, %75
-    branch %76 -> block14 -> block13
+    jump -> block13
   block13:
-    %77: %r3 = binary.eq %74, %75
-    %78: %r1 = const 1
     %79: %r1 = const 2
-    %80: %r1 = select %77, %78, %79
+    %80: %r1 = alias %79
     jump -> block15(%80)
   block14:
     %81: %r1 = const 0
@@ -148,7 +122,7 @@ fn anyValue(Errno, I32)(one %r1) -> one %r0
     %2: %r0 = convert %1
     return %2
 
-optimizer clones 0 aliased 0 forwarded 0 removed 7 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 33 adopted 0 sunk 0 numbered 0 decided 4 unboxed 0 updated 0 split 0 promoted 0 folded 19
 
 rep %r0 = number signed 32
 rep %r1 = number unsigned 8

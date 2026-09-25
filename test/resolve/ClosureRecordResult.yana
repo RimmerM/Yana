@@ -1,0 +1,38 @@
+{-
+   A lambda called directly that answers a record in memory (J147).
+
+   # resolver: ownership
+
+   A lifted lambda declares its environment first and the hidden result pointer after it
+   (`resolve_ssa/lower/gen.cpp`), and a direct call - a closure is its own type, so `pick(a, b)`
+   names the lambda - passed the result pointer first. The callee then wrote its answer through the
+   environment pointer, four bytes into a one-byte slot, and the caller read an uninitialized
+   landing pad: `pick` answered 0 and `make(2)` a record built from the wrong capture. The optimizer
+   inlined every such call and hid it, so the run is repeated under `-no-ir-opt`, which is the
+   half that failed.
+-}
+
+data Cell {value: Int}
+data Big {a: Int, b: Int, c: Int, d: Int, e: Int}
+
+fn viaCell() -> Int:
+    let pick = (a: Cell, b: Cell) -> b
+    return pick(Cell {value: 3}, Cell {value: 4}).value
+
+fn viaBig() -> Int:
+    let pick = (x: Big, y: Big) -> y
+    let picked = pick(Big {a: 1, b: 2, c: 3, d: 4, e: 5}, Big {a: 6, b: 7, c: 8, d: 9, e: 10})
+    return picked.e * 10 + picked.a
+
+fn capturing() -> Int:
+    let k = 5 :: Int
+    let make = (x: Int) -> Cell {value: x + k}
+    return make(2).value
+
+fn capturingBig() -> Int:
+    let base = 100 :: Int
+    let spread = (x: Int) -> Big {a: base + x, b: base, c: x, d: 0, e: base - x}
+    let got = spread(3)
+    return got.a - got.e + got.c
+
+fn main() -> Int = viaCell() * 1000000 + viaBig() * 1000 + capturing() * 100 + capturingBig()

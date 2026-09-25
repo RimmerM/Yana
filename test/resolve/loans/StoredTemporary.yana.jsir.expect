@@ -1,0 +1,68 @@
+fn main() -> one %r0
+  var $0: %r1
+  var $1: %r1
+  var $2: %r1
+  var $3: %r1
+  var $4: %r0
+  var $5: %r0
+  var $6: %r0
+  var $7: %r0
+  var $8: %r0
+  var $9: %r0
+  var $10: %r0
+  var $11: %r0
+  var $12: %r0
+  var $13: %r0
+  var $14: %r0
+  var $15: %r0
+  var $16: %r0
+  var $17: %r0
+  block0:
+    %34: %r0 = const 42765
+    %45: %r0 = const 0
+    %46: %r0 = const 0
+    %47: %r0 = const 3
+    %48: %r0 = const 1
+    %50: %r0 = const 4
+    %52: %r0 = const 100
+    %53: %r0 = const 10
+    jump -> block1(%45, %46)
+  block1(%0: %r0, %1: %r0):
+    %54: %r4 = binary.lt %1, %47
+    branch %54 -> block3 -> block2
+  block2:
+    %55: %r0 = binary.add %34, %0
+    %56: %r0 = coerce %55
+    %68: %r0 = const 7000000
+    %69: %r0 = binary.add %56, %68
+    %70: %r0 = coerce %69
+    return %70
+  block3:
+    %71: %r0 = binary.add %1, %48
+    %72: %r0 = coerce %71
+    %73: %r0 = alias %72
+    %75: %r0 = binary.add %1, %50
+    %76: %r0 = coerce %75
+    %77: %r0 = alias %76
+    %79: %r0 = binary.mul %0, %52
+    %80: %r0 = coerce %79
+    %82: %r0 = alias %73
+    %83: %r0 = binary.mul %82, %53
+    %84: %r0 = coerce %83
+    %85: %r0 = binary.add %80, %84
+    %86: %r0 = coerce %85
+    %88: %r0 = alias %77
+    %89: %r0 = binary.add %86, %88
+    %90: %r0 = coerce %89
+    jump -> block1(%90, %72)
+
+optimizer clones 0 aliased 0 forwarded 0 removed 81 adopted 0 sunk 0 numbered 0 decided 0 unboxed 5 updated 0 split 4 promoted 10 folded 10
+
+shape %s0 object Held {value: %r0, extra: %r0}
+shape %s1 cell {$v: %r0 box}
+
+rep %r0 = number signed 32
+rep %r1 = object %s0
+rep %r2 = object %s1
+rep %r3 = array Int32Array of %r0
+rep %r4 = number bool

@@ -3,119 +3,51 @@ fn beforeShortCircuit(one %r1) -> one %r0
     %3: %r0 = const 0
     store global log: %r0, %3
     %4: %r0 = const 1
-    %5: %r0 = load global log: %r0
-    %6: %r0 = binary.add %5, %4
-    %7: %r0 = coerce %6
-    store global log: %r0, %7
-    %8: %r0 = load global log: %r0
-    %9: %r0 = const 0
-    %10: %r1 = binary.gt %8, %9
-    %11: %r1 = binary.and %10, %0
-    %12: %r0 = const 1
-    %13: %r0 = const 2
-    %14: %r0 = select %11, %12, %13
-    %15: %r0 = load global log: %r0
-    %16: %r0 = binary.add %14, %15
-    %17: %r0 = coerce %16
-    %18: %r0 = load global log: %r0
-    %19: %r0 = const 100
-    %20: %r0 = binary.add %18, %19
-    %21: %r0 = coerce %20
-    store global log: %r0, %21
-    return %17
+    store global log: %r0, %4
+    %5: %r0 = const 1
+    %6: %r0 = const 2
+    %7: %r0 = select %0, %5, %6
+    %8: %r0 = binary.add %7, %4
+    %9: %r0 = coerce %8
+    %10: %r0 = const 101
+    store global log: %r0, %10
+    return %9
 
 fn main() -> one %r0
   block0:
     %2: %r0 = const 0
     store global log: %r0, %2
     %3: %r0 = const 1
-    %4: %r0 = load global log: %r0
-    %5: %r0 = binary.add %4, %3
-    %6: %r0 = coerce %5
-    store global log: %r0, %6
-    %7: %r0 = load global log: %r0
-    %8: %r0 = const 3
-    %9: %r0 = binary.add %7, %8
-    %10: %r0 = coerce %9
-    %11: %r0 = load global log: %r0
-    %12: %r0 = binary.add %10, %11
-    %13: %r0 = coerce %12
-    %14: %r0 = load global log: %r0
-    %15: %r0 = const 100
-    %16: %r0 = binary.add %14, %15
-    %17: %r0 = coerce %16
+    store global log: %r0, %3
+    %5: %r0 = const 101
+    store global log: %r0, %5
+    %8: %r0 = const 0
+    store global log: %r0, %8
+    %9: %r0 = const 1
+    store global log: %r0, %9
+    %11: %r0 = const 101
+    store global log: %r0, %11
+    %14: %r0 = const 0
+    store global log: %r0, %14
+    %15: %r0 = const 1
+    store global log: %r0, %15
+    %17: %r0 = const 101
     store global log: %r0, %17
-    %20: %r0 = const 0
-    store global log: %r0, %20
-    %21: %r0 = const 1
-    %22: %r0 = load global log: %r0
-    %23: %r0 = binary.add %22, %21
-    %24: %r0 = coerce %23
-    store global log: %r0, %24
-    %25: %r0 = load global log: %r0
-    %26: %r0 = const 2
-    %27: %r0 = binary.mul %25, %26
-    %28: %r0 = coerce %27
-    %29: %r0 = const 3
-    %30: %r0 = binary.add %29, %28
-    %31: %r0 = coerce %30
-    %32: %r0 = load global log: %r0
-    %33: %r0 = binary.add %31, %32
-    %34: %r0 = coerce %33
-    %35: %r0 = load global log: %r0
-    %36: %r0 = const 100
-    %37: %r0 = binary.add %35, %36
-    %38: %r0 = coerce %37
-    store global log: %r0, %38
-    %41: %r0 = const 0
-    store global log: %r0, %41
-    %42: %r0 = const 1
-    %43: %r0 = load global log: %r0
-    %44: %r0 = binary.add %43, %42
-    %45: %r0 = coerce %44
-    store global log: %r0, %45
-    %46: %r0 = load global log: %r0
-    %47: %r0 = const 0
-    %48: %r1 = binary.gt %46, %47
-    %49: %r1 = unary.not %48
-    %50: %r0 = const 1
-    %51: %r0 = const 2
-    %52: %r0 = select %49, %50, %51
-    %53: %r0 = load global log: %r0
-    %54: %r0 = binary.add %52, %53
-    %55: %r0 = coerce %54
-    %56: %r0 = load global log: %r0
-    %57: %r0 = const 100
-    %58: %r0 = binary.add %56, %57
-    %59: %r0 = coerce %58
-    store global log: %r0, %59
-    %60: %r1 = const 1
-    %61: %r0 = call beforeShortCircuit %60
-    %62: %r1 = const 0
-    %63: %r0 = call beforeShortCircuit %62
-    %64: %r0 = const 10000
-    %65: %r0 = binary.mul %13, %64
-    %66: %r0 = coerce %65
-    %67: %r0 = const 1000
-    %68: %r0 = binary.mul %34, %67
-    %69: %r0 = coerce %68
-    %70: %r0 = binary.add %66, %69
-    %71: %r0 = coerce %70
-    %72: %r0 = const 100
-    %73: %r0 = binary.mul %55, %72
-    %74: %r0 = coerce %73
-    %75: %r0 = binary.add %71, %74
-    %76: %r0 = coerce %75
-    %77: %r0 = const 10
-    %78: %r0 = binary.mul %61, %77
-    %79: %r0 = coerce %78
-    %80: %r0 = binary.add %76, %79
-    %81: %r0 = coerce %80
-    %82: %r0 = binary.add %81, %63
-    %83: %r0 = coerce %82
-    return %83
+    %18: %r1 = const 1
+    %19: %r0 = call beforeShortCircuit %18
+    %20: %r1 = const 0
+    %21: %r0 = call beforeShortCircuit %20
+    %22: %r0 = const 56300
+    %23: %r0 = const 10
+    %24: %r0 = binary.mul %19, %23
+    %25: %r0 = coerce %24
+    %26: %r0 = binary.add %22, %25
+    %27: %r0 = coerce %26
+    %28: %r0 = binary.add %27, %21
+    %29: %r0 = coerce %28
+    return %29
 
-optimizer clones 0 aliased 0 forwarded 0 removed 12 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 15 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0 folded 0
 
 shape %s0 cell {$v: %r0 box}
 

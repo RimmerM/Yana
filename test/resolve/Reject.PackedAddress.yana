@@ -1,0 +1,25 @@
+-- `addressOf` a field that shares a machine word with its neighbours - the rule of
+-- `Reject.PackedBorrow.yana` that is the lowering's, since whether a field shares a word is a
+-- layout question and the layout is decided there. So this fixture is called from `main`: a body
+-- nothing reaches is never lowered.
+--
+-- A raw pointer is an address and nothing else - native.md, "Raw pointers": a `%T` carries no
+-- shift, because `bitcast(p) :: Size`, pointer arithmetic and a pointer handed to C all read it as
+-- a machine address. The shift a `&` carries is exactly what `%T` has no room for. The result is
+-- labelled with the parameter's origin so that the packed field is the only thing left to refuse.
+--
+-- `swap(f.optionA, f.optionB)` is not this: its bitcast is read and written through where it is
+-- made and never leaves as a pointer, which `Packed.yana` runs.
+--
+-- # resolver: ownership
+
+import Native
+
+data Flags {optionA: Bool, optionB: Bool}
+
+@noinline
+fn addressOfPacked(f: src'Flags) -> %src'Bool = addressOf(f.optionA)
+
+fn main() -> Int:
+    let f = Flags {optionA: True, optionB: False}
+    return if *addressOfPacked(f) then 1 else 0

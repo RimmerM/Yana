@@ -569,7 +569,7 @@ static ArmLayout placeArm(Layout layout, mir::RecordType& record, const Members&
          * niche *of* - so this is the only way a packed run contributes one.
          */
         if(run.span < wordBytes * 8) {
-            publish(Niche { 0, U8(wordBytes), 0, lowMask(run.span) }, offset);
+            publish(Niche { 0, U8(wordBytes), 0, maskOf(run.span) }, offset);
         }
 
         at += run.count;
@@ -749,7 +749,7 @@ static bool scalarizeRecord(Layout layout, mir::RecordType& record, const Member
 
     // Everything above the span, which is the niche `Maybe(Flags)` folds into - and the reason a
     // scalar record is worth having even where it saved no space.
-    into.niche = Niche { 0, U8(bytes), 0, lowMask(run.span) };
+    into.niche = Niche { 0, U8(bytes), 0, maskOf(run.span) };
     return true;
 }
 
@@ -952,7 +952,7 @@ static bool scalarizeSum(Layout layout, mir::RecordType& record, const Members& 
     // Everything above the tag, on the same bargain a co-packed word's leftover bits are held to:
     // nothing writes those bits, so they are free only because the storage was zeroed - which is
     // what `hasPaddedWord` arranges.
-    if(span < into.size * 8) into.niche = Niche { 0, U8(min(into.size, 8u)), 0, lowMask(span) };
+    if(span < into.size * 8) into.niche = Niche { 0, U8(min(into.size, 8u)), 0, maskOf(span) };
 
     return true;
 }
@@ -1259,6 +1259,70 @@ bool hasPaddedWord(Layout layout, DeclPtr<mir::Type> type, U32 depth) {
     return false;
 }
 
+// The argument is in repr.h, beside the declaration - see `paddedWords`.
+bool paddedWords(Layout layout, DeclPtr<mir::Type> type, U32 at, Array<PaddedWord>& words, U32 depth) {
+    if(depth > 8) return false;
+
+    auto base = layout.base;
+
+    auto push = [&](U32 offset, U32 bytes) {
+        if(!bytes) return true;
+        for(auto& word: words) {
+            if(word.offset == offset && word.bytes >= bytes) return true;
+        }
+
+        words.push(PaddedWord { offset, bytes });
+        return words.size() <= kMaxPaddedWords;
+    };
+
+    if(base[type]->kind == mir::Type::Array) {
+        auto& array = *(mir::ArrayType*)base[type];
+        if(!hasPaddedWord(layout, array.element, depth + 1)) return true;
+        if(!array.hasFixedLength() || array.length > kMaxPaddedWords) return false;
+
+        auto stride = elementStrideNative(layout, array.element);
+        for(U64 i = 0; i < array.length; i++) {
+            if(!paddedWords(layout, array.element, at + U32(i * stride), words, depth + 1)) return false;
+        }
+
+        return true;
+    }
+
+    if(base[type]->kind != mir::Type::Record) return true;
+
+    auto repr = reprOf(layout, type);
+    if(repr.opaque) return true;
+
+    if(repr.boxFlagsBytes && !push(at + repr.boxFlagsOffset, repr.boxFlagsBytes)) return false;
+
+    if(repr.isBitTagged() && repr.discriminantBitOffset + repr.discriminantBits < repr.size * 8) {
+        if(!push(at + repr.discriminantOffset, repr.discriminantBytes)) return false;
+    }
+
+    for(auto field: repr.fields.contents(base)) {
+        if(field.isPacked()) {
+            if(((mir::RecordType*)base[type])->pin == mir::TypeLayout::Packed) continue;
+
+            U32 used = 0;
+            for(auto other: repr.fields.contents(base)) {
+                if(other.isPacked() && other.offset == field.offset) {
+                    used = max(used, U32(other.bitOffset) + other.bitWidth);
+                }
+            }
+
+            if(used < U32(field.wordBytes) * 8 && !push(at + field.offset, field.wordBytes)) return false;
+            continue;
+        }
+
+        if(isReferenceValue(layout, field.occurrence)) continue;
+        if(field.occurrence.type == type) continue;
+
+        if(!paddedWords(layout, field.occurrence.type, at + field.offset, words, depth + 1)) return false;
+    }
+
+    return true;
+}
+
 // The argument is in repr.h, beside the declaration.
 bool storesBoxProvenance(Layout layout) {
     if(layout.program->roles.function(intrinsic::Known::isHeapAddress)) return false;
@@ -1296,7 +1360,7 @@ Repr reprOf(Layout layout, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipSchema
              * with a neighbour. What that costs is one instruction: a packed read of a signed field
              * shifts up and back down arithmetically where an unsigned one shifts down and masks.
              */
-            if(!integer.isSigned) repr.niche = lowRangeNiche(bytes, bits, lowMask(bits));
+            if(!integer.isSigned) repr.niche = lowRangeNiche(bytes, bits, maskOf(bits));
 
             return repr;
         }

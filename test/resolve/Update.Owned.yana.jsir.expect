@@ -31,7 +31,6 @@ fn main() -> one %r0
     store var $3: %r0, %8
     %12: %r0 = const 100
     %13: %r0 = alias %12
-    %16: %r0 = const 3
     store var $9: %r0, %13
     %23: %r0 = const 8
     %24: %r0 = alias %23
@@ -43,22 +42,16 @@ fn main() -> one %r0
     %39: %r0 = load global closed: %r0
     %41: %r0 = load var $3: %r0
     call Handle.drop %41
-    %43: %r0 = alias %16
     %46: %r0 = load var $9: %r0
     call Handle.drop %46
     %48: %r0 = alias %31
     call Handle.drop %48
-    %49: %r0 = const 15
-    %50: %r0 = binary.add %43, %49
-    %51: %r0 = coerce %50
-    %52: %r0 = const 10000
-    %53: %r0 = binary.mul %51, %52
-    %54: %r0 = coerce %53
+    %54: %r0 = const 180000
     %55: %r0 = binary.add %54, %39
     %56: %r0 = coerce %55
     return %56
 
-optimizer clones 0 aliased 0 forwarded 0 removed 45 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 4 promoted 3
+optimizer clones 0 aliased 0 forwarded 0 removed 52 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 4 promoted 3 folded 4
 
 shape %s0 object Slot {held: %r0, tag: %r0}
 shape %s1 object Outer {slot: %r2, name: %r0}

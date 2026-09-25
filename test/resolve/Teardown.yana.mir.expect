@@ -12,17 +12,11 @@ instance Drop(Handle): Handle.drop
 
 let & effects: I32 = 0
 
-let & released: I32 = 0
-
 fn Buffer.reclaim(value: Buffer) -> {} {
 bb0:
-  %0: I32 = read copy.trivial (global released)
-  %1: I32 = const 1
-  %2: I32 = add inspect %0 inspect %1
-  write.assign borrow.unique (global released) take %2
-  %4: %I64 = read copy.trivial (value.cells)
-  %5: %U8 = bitcast inspect %4
-  %6: {} = call freeHeap borrow.shared %5
+  %0: %I64 = read copy.trivial (value.cells)
+  %1: %U8 = bitcast inspect %0
+  %2: {} = call freeHeap borrow.shared %1
   return
 }
 
@@ -100,9 +94,7 @@ bb0:
   %14: I32 = add inspect %12 inspect %13
   %15: I32 = read copy.trivial (global effects)
   %16: I32 = add inspect %14 inspect %15
-  %17: I32 = read copy.trivial (global released)
-  %18: I32 = sub inspect %16 inspect %17
-  return take %18
+  return take %16
 }
 
 fn duplicate(I32)(x: I32 [shared call]) -> {left: I32, right: I32} = <duplicate at I32>

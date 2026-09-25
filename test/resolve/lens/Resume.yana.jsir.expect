@@ -19,7 +19,6 @@ fn guardedSum(one %r0) -> one %r0
     %16: %r0 = const 0
     %17: %r0 = const 0
     %18: %r0 = const 4
-    %19: %r2 = const 1
     %20: %r0 = const 10
     %21: %r0 = const 1
     jump -> block2(%17, %11)
@@ -44,11 +43,7 @@ fn guardedSum(one %r0) -> one %r0
     %25: %r0 = coerce %24
     %26: %r0 = binary.add %25, %3
     %27: %r0 = coerce %26
-    %28: %r2 = const 0
-    %29: %r0 = const 0
-    %32: %r2 = alias %28
-    %33: %r6 = binary.eq %32, %19
-    branch %33 -> block6 -> block5
+    jump -> block5
   block5:
     %35: %r0 = alias %21
     %36: %r0 = binary.add %3, %35
@@ -125,14 +120,8 @@ fn main() -> one %r0
     %61: %r0 = const 6
     %62: %r0 = const 0
     %67: %r0 = const 0
-    %68: %r2 = const 1
-    %69: %r2 = const 0
-    %70: %r2 = const 1
-    %71: %r0 = const 3
     %72: %r0 = const 2
-    %73: %r0 = const 1
     %74: %r0 = const 10
-    %75: %r2 = const 1
     jump -> block1(%67, %62)
   block1(%0: %r0, %1: %r0):
     %76: %r6 = binary.lt %0, %61
@@ -142,18 +131,11 @@ fn main() -> one %r0
     %78: %r0 = coerce %77
     %79: %r0 = binary.add %78, %0
     %80: %r0 = coerce %79
-    %81: %r2 = const 0
-    %85: %r2 = alias %81
-    %86: %r6 = binary.eq %85, %68
-    branch %86 -> block9(%80) -> block3
+    jump -> block3
   block3:
-    %88: %r2 = alias %75
-    %90: %r2 = alias %88
-    %91: %r6 = binary.eq %90, %69
-    branch %91 -> block7 -> block4
+    jump -> block4
   block4:
-    %92: %r6 = binary.eq %90, %70
-    branch %92 -> block6 -> block5
+    jump -> block6
   block5:
     %93: %r0 = binary.add %0, %71
     %94: %r0 = coerce %93
@@ -405,13 +387,13 @@ fn main() -> one %r0
     %264: %r0 = const 10
     jump -> block50(%262, %261)
   block49:
-    %720: %r0 = binary.mul %21, %258
-    %721: %r0 = coerce %720
-    %722: %r0 = binary.add %721, %20
-    %723: %r0 = coerce %722
-    %724: %r0 = binary.add %20, %257
-    %725: %r0 = coerce %724
-    jump -> block47(%725, %723)
+    %708: %r0 = binary.mul %21, %258
+    %709: %r0 = coerce %708
+    %710: %r0 = binary.add %709, %20
+    %711: %r0 = coerce %710
+    %712: %r0 = binary.add %20, %257
+    %713: %r0 = coerce %712
+    jump -> block47(%713, %711)
   block50(%22: %r0, %23: %r0):
     %265: %r6 = binary.lt %22, %260
     branch %265 -> block52 -> block51
@@ -427,18 +409,16 @@ fn main() -> one %r0
     %278: %r0 = const 2
     %279: %r0 = const 1
     %280: %r0 = const 10
-    %281: %r2 = const 1
-    %282: %r0 = const 2
     %283: %r2 = const 0
     jump -> block53(%273, %268, %267)
   block52:
-    %714: %r0 = binary.mul %23, %264
-    %715: %r0 = coerce %714
-    %716: %r0 = binary.add %715, %22
-    %717: %r0 = coerce %716
-    %718: %r0 = binary.add %22, %263
-    %719: %r0 = coerce %718
-    jump -> block50(%719, %717)
+    %702: %r0 = binary.mul %23, %264
+    %703: %r0 = coerce %702
+    %704: %r0 = binary.add %703, %22
+    %705: %r0 = coerce %704
+    %706: %r0 = binary.add %22, %263
+    %707: %r0 = coerce %706
+    jump -> block50(%707, %705)
   block53(%24: %r0, %25: %r0, %26: %r0):
     %284: %r6 = binary.lt %24, %266
     branch %284 -> block54 -> block64(%26)
@@ -447,11 +427,7 @@ fn main() -> one %r0
     %290: %r0 = coerce %289
     %291: %r0 = binary.add %26, %290
     %292: %r0 = coerce %291
-    %293: %r2 = const 0
-    %294: %r0 = const 0
-    %297: %r2 = alias %293
-    %298: %r6 = binary.eq %297, %281
-    branch %298 -> block56 -> block55
+    jump -> block55
   block55:
     %300: %r2 = alias %283
     %301: %r2 = const 0
@@ -583,371 +559,338 @@ fn main() -> one %r0
   block78(%38: %r0):
     jump -> block65(%38, %37, %35)
   block79(%39: %r0):
-    %392: %r0 = load global trail: %r0
-    %393: %r0 = const 1
-    %394: %r0 = binary.add %392, %393
-    %395: %r0 = coerce %394
-    store global trail: %r0, %395
-    %396: %r0 = const 0
-    store global trail: %r0, %396
-    %405: %r0 = const 1
-    %406: %r0 = const 3
-    %407: %r2 = const 0
-    %411: %r2 = alias %407
-    %412: %r2 = const 1
-    %413: %r6 = binary.eq %411, %412
-    branch %413 -> block82(%405) -> block80
+    %392: %r0 = const 0
+    store global trail: %r0, %392
+    %402: %r0 = const 3
+    jump -> block80
   block80:
-    %415: %r0 = alias %406
-    %416: %r0 = load global trail: %r0
-    %417: %r0 = binary.add %416, %415
-    %418: %r0 = coerce %417
-    store global trail: %r0, %418
-    %419: %r0 = const 12
-    %420: %r0 = binary.add %415, %419
-    %421: %r0 = coerce %420
-    %422: %r0 = const 3
-    %423: %r2 = const 0
-    %427: %r2 = alias %423
-    %428: %r2 = const 1
-    %429: %r6 = binary.eq %427, %428
-    branch %429 -> block82(%421) -> block81
+    %411: %r0 = alias %402
+    store global trail: %r0, %411
+    %414: %r0 = const 15
+    jump -> block81
   block81:
-    %431: %r0 = alias %422
-    %432: %r0 = load global trail: %r0
-    %433: %r0 = const 100
-    %434: %r0 = binary.mul %431, %433
-    %435: %r0 = coerce %434
-    %436: %r0 = binary.add %432, %435
-    %437: %r0 = coerce %436
-    store global trail: %r0, %437
-    jump -> block82(%421)
+    %429: %r0 = const 303
+    store global trail: %r0, %429
+    jump -> block82(%414)
   block82(%40: %r0):
-    %438: %r0 = const 10000
-    %439: %r0 = binary.mul %40, %438
-    %440: %r0 = coerce %439
-    %441: %r0 = load global trail: %r0
-    %442: %r0 = binary.add %440, %441
-    %443: %r0 = coerce %442
-    %444: %r0 = const 0
-    store global trail: %r0, %444
-    %453: %r0 = const 1
-    %455: %r2 = const 1
-    %456: %r0 = const 0
-    %459: %r2 = alias %455
-    %460: %r2 = const 1
-    %461: %r6 = binary.eq %459, %460
-    branch %461 -> block85(%453) -> block83
+    %430: %r0 = const 10000
+    %431: %r0 = binary.mul %40, %430
+    %432: %r0 = coerce %431
+    %433: %r0 = load global trail: %r0
+    %434: %r0 = binary.add %432, %433
+    %435: %r0 = coerce %434
+    %436: %r0 = const 0
+    store global trail: %r0, %436
+    %445: %r0 = const 1
+    jump -> block85(%445)
   block83:
-    %463: %r0 = alias %456
-    %464: %r0 = load global trail: %r0
-    %465: %r0 = binary.add %464, %463
-    %466: %r0 = coerce %465
-    store global trail: %r0, %466
-    %467: %r0 = const 12
-    %468: %r0 = binary.add %463, %467
-    %469: %r0 = coerce %468
-    %471: %r2 = const 1
-    %472: %r0 = const 0
-    %475: %r2 = alias %471
-    %476: %r2 = const 1
-    %477: %r6 = binary.eq %475, %476
-    branch %477 -> block85(%469) -> block84
+    %455: %r0 = alias %448
+    store global trail: %r0, %455
+    %456: %r0 = const 12
+    %457: %r0 = const 12
+    %458: %r0 = const 12
+    %460: %r2 = const 1
+    %461: %r0 = const 0
+    store var $44: %r2, %460
+    store var $45: %r0, %461
+    %464: %r2 = alias %460
+    %465: %r2 = const 1
+    %466: %r6 = const 1
+    jump -> block85(%458)
   block84:
-    %479: %r0 = alias %472
-    %480: %r0 = load global trail: %r0
-    %481: %r0 = const 100
-    %482: %r0 = binary.mul %479, %481
-    %483: %r0 = coerce %482
-    %484: %r0 = binary.add %480, %483
-    %485: %r0 = coerce %484
-    store global trail: %r0, %485
-    jump -> block85(%469)
+    %468: %r0 = alias %461
+    %469: %r0 = const 100
+    %470: %r0 = const 0
+    %471: %r0 = const 0
+    %472: %r0 = const 0
+    %473: %r0 = const 0
+    store global trail: %r0, %473
+    jump -> block85(%458)
   block85(%41: %r0):
-    %486: %r0 = const 10000
-    %487: %r0 = binary.mul %41, %486
-    %488: %r0 = coerce %487
-    %489: %r0 = load global trail: %r0
-    %490: %r0 = binary.add %488, %489
-    %491: %r0 = coerce %490
-    %492: %r0 = const 0
-    store global trail: %r0, %492
-    %493: %r0 = const 3
-    %494: %r0 = const 0
-    %499: %r0 = alias %493
-    %500: %r6 = const 1
-    %501: %r0 = const 0
-    %502: %r2 = const 1
-    %503: %r0 = const 10
-    %504: %r0 = const 1
-    %505: %r0 = const 2
-    jump -> block86(%501, %494)
+    %474: %r0 = const 10000
+    %475: %r0 = binary.mul %41, %474
+    %476: %r0 = coerce %475
+    %477: %r0 = load global trail: %r0
+    %478: %r0 = binary.add %476, %477
+    %479: %r0 = coerce %478
+    %480: %r0 = const 0
+    store global trail: %r0, %480
+    %481: %r0 = const 3
+    %482: %r0 = const 0
+    %487: %r0 = alias %481
+    %488: %r6 = const 1
+    %489: %r0 = const 0
+    %490: %r2 = const 1
+    %491: %r0 = const 10
+    %492: %r0 = const 1
+    %493: %r0 = const 2
+    jump -> block86(%489, %482)
   block86(%42: %r0, %43: %r0):
-    %506: %r6 = binary.lt %42, %493
-    branch %506 -> block87 -> block93(%500, %43)
+    %494: %r6 = binary.lt %42, %481
+    branch %494 -> block87 -> block93(%488, %43)
   block87:
-    %507: %r0 = binary.add %42, %493
-    %508: %r0 = coerce %507
-    %509: %r6 = binary.gt %508, %493
-    branch %509 -> block89 -> block88
+    %495: %r0 = binary.add %42, %481
+    %496: %r0 = coerce %495
+    %497: %r6 = binary.gt %496, %481
+    branch %497 -> block89 -> block88
   block88:
-    %510: %r0 = binary.mul %43, %503
-    %511: %r0 = coerce %510
-    %512: %r0 = binary.add %511, %508
-    %513: %r0 = coerce %512
-    %514: %r2 = const 0
-    %515: %r0 = const 0
-    %516: %r3 = object %s0 %514, %504, %515
-    jump -> block90(%516, %513)
+    %498: %r0 = binary.mul %43, %491
+    %499: %r0 = coerce %498
+    %500: %r0 = binary.add %499, %496
+    %501: %r0 = coerce %500
+    %502: %r2 = const 0
+    %503: %r0 = const 0
+    %504: %r3 = object %s0 %502, %492, %503
+    jump -> block90(%504, %501)
   block89:
-    %517: %r2 = const 1
-    %518: %r0 = const 0
-    %519: %r3 = object %s0 %517, %518, %505
-    jump -> block90(%519, %43)
+    %505: %r2 = const 1
+    %506: %r0 = const 0
+    %507: %r3 = object %s0 %505, %506, %493
+    jump -> block90(%507, %43)
   block90(%44: %r3, %45: %r0):
-    %520: %r3 = alias %44
-    %521: %r2 = load property %520.$tag: %r2
-    %522: %r6 = binary.eq %521, %502
-    branch %522 -> block92 -> block91
+    %508: %r3 = alias %44
+    %509: %r2 = load property %508.$tag: %r2
+    %510: %r6 = binary.eq %509, %490
+    branch %510 -> block92 -> block91
   block91:
-    %523: %r3 = alias %44
-    %524: %r0 = load property %523.Proceed: %r0
-    %525: %r0 = binary.add %42, %524
-    %526: %r0 = coerce %525
-    jump -> block86(%526, %45)
+    %511: %r3 = alias %44
+    %512: %r0 = load property %511.Proceed: %r0
+    %513: %r0 = binary.add %42, %512
+    %514: %r0 = coerce %513
+    jump -> block86(%514, %45)
   block92:
-    %527: %r0 = alias %499
-    call Box.drop %527
-    %528: %r6 = const 0
-    jump -> block93(%528, %45)
+    %515: %r0 = alias %487
+    call Box.drop %515
+    %516: %r6 = const 0
+    jump -> block93(%516, %45)
   block93(%46: %r6, %47: %r0):
     branch %46 -> block94 -> block95
   block94:
-    %529: %r0 = alias %499
-    call Box.drop %529
+    %517: %r0 = alias %487
+    call Box.drop %517
     jump -> block95
   block95:
-    %530: %r0 = load global trail: %r0
-    %531: %r0 = const 1000
-    %532: %r0 = binary.add %530, %531
-    %533: %r0 = coerce %532
-    store global trail: %r0, %533
-    %534: %r0 = const 3
-    %535: %r0 = const 0
-    store var $28: %r0, %535
-    %541: %r0 = const 0
-    %542: %r0 = alias %534
-    %543: %r6 = const 1
-    %544: %r0 = const 0
-    %545: %r2 = const 1
-    %546: %r0 = const 1
-    %547: %r0 = const 7
-    %548: %r0 = const 1
-    %549: %r0 = const 4
-    jump -> block96(%544)
+    %518: %r0 = load global trail: %r0
+    %519: %r0 = const 1000
+    %520: %r0 = binary.add %518, %519
+    %521: %r0 = coerce %520
+    store global trail: %r0, %521
+    %522: %r0 = const 3
+    %523: %r0 = const 0
+    store var $28: %r0, %523
+    %529: %r0 = const 0
+    %530: %r0 = alias %522
+    %531: %r6 = const 1
+    %532: %r0 = const 0
+    %533: %r2 = const 1
+    %534: %r0 = const 1
+    %535: %r0 = const 7
+    %536: %r0 = const 1
+    %537: %r0 = const 4
+    jump -> block96(%532)
   block96(%48: %r0):
-    %550: %r6 = binary.lt %48, %534
-    branch %550 -> block97 -> block103(%541, %543)
+    %538: %r6 = binary.lt %48, %522
+    branch %538 -> block97 -> block103(%529, %531)
   block97:
-    %551: %r0 = binary.add %48, %534
-    %552: %r0 = coerce %551
-    %553: %r6 = binary.gt %552, %549
-    branch %553 -> block99 -> block98
+    %539: %r0 = binary.add %48, %522
+    %540: %r0 = coerce %539
+    %541: %r6 = binary.gt %540, %537
+    branch %541 -> block99 -> block98
   block98:
-    %554: %r2 = const 0
-    %555: %r0 = const 0
-    %556: %r3 = object %s0 %554, %546, %555
-    jump -> block100(%556)
+    %542: %r2 = const 0
+    %543: %r0 = const 0
+    %544: %r3 = object %s0 %542, %534, %543
+    jump -> block100(%544)
   block99:
-    %557: %r0 = binary.mul %552, %547
-    %558: %r0 = coerce %557
-    store var $28: %r0, %558
-    %559: %r2 = const 1
-    %560: %r0 = const 0
-    %561: %r3 = object %s0 %559, %560, %548
-    jump -> block100(%561)
+    %545: %r0 = binary.mul %540, %535
+    %546: %r0 = coerce %545
+    store var $28: %r0, %546
+    %547: %r2 = const 1
+    %548: %r0 = const 0
+    %549: %r3 = object %s0 %547, %548, %536
+    jump -> block100(%549)
   block100(%49: %r3):
-    %562: %r3 = alias %49
-    %563: %r2 = load property %562.$tag: %r2
-    %564: %r6 = binary.eq %563, %545
-    branch %564 -> block102 -> block101
+    %550: %r3 = alias %49
+    %551: %r2 = load property %550.$tag: %r2
+    %552: %r6 = binary.eq %551, %533
+    branch %552 -> block102 -> block101
   block101:
-    %565: %r3 = alias %49
-    %566: %r0 = load property %565.Proceed: %r0
-    %567: %r0 = binary.add %48, %566
-    %568: %r0 = coerce %567
-    jump -> block96(%568)
+    %553: %r3 = alias %49
+    %554: %r0 = load property %553.Proceed: %r0
+    %555: %r0 = binary.add %48, %554
+    %556: %r0 = coerce %555
+    jump -> block96(%556)
   block102:
-    %569: %r0 = alias %542
-    call Box.drop %569
-    %570: %r6 = const 0
-    %571: %r3 = alias %49
-    %572: %r0 = load property %571.Exit: %r0
-    jump -> block103(%572, %570)
+    %557: %r0 = alias %530
+    call Box.drop %557
+    %558: %r6 = const 0
+    %559: %r3 = alias %49
+    %560: %r0 = load property %559.Exit: %r0
+    jump -> block103(%560, %558)
   block103(%50: %r0, %51: %r6):
     branch %51 -> block104 -> block105
   block104:
-    %573: %r0 = alias %542
-    call Box.drop %573
+    %561: %r0 = alias %530
+    call Box.drop %561
     jump -> block105
   block105:
-    %574: %r0 = load global trail: %r0
-    %575: %r0 = const 1000
-    %576: %r0 = binary.add %574, %575
-    %577: %r0 = coerce %576
-    store global trail: %r0, %577
-    %578: %r0 = const 1
-    %579: %r6 = binary.eq %50, %578
-    %580: %r0 = load var $28: %r0
-    %581: %r0 = const 0
-    %582: %r0 = select %579, %580, %581
-    %583: %r0 = const 5
-    %584: %r0 = const 0
-    %594: %r0 = const 0
-    %595: %r2 = const 1
-    %596: %r0 = const 10
-    %597: %r0 = const 2
-    %598: %r0 = const 0
-    jump -> block106(%594, %584)
+    %562: %r0 = load global trail: %r0
+    %563: %r0 = const 1000
+    %564: %r0 = binary.add %562, %563
+    %565: %r0 = coerce %564
+    store global trail: %r0, %565
+    %566: %r0 = const 1
+    %567: %r6 = binary.eq %50, %566
+    %568: %r0 = load var $28: %r0
+    %569: %r0 = const 0
+    %570: %r0 = select %567, %568, %569
+    %571: %r0 = const 5
+    %572: %r0 = const 0
+    %582: %r0 = const 0
+    %583: %r2 = const 1
+    %584: %r0 = const 10
+    %585: %r0 = const 2
+    %586: %r0 = const 0
+    jump -> block106(%582, %572)
   block106(%52: %r0, %53: %r0):
-    %599: %r6 = binary.lt %52, %583
-    branch %599 -> block107 -> block110(%53)
+    %587: %r6 = binary.lt %52, %571
+    branch %587 -> block107 -> block110(%53)
   block107:
-    %600: %r0 = binary.mul %53, %596
-    %601: %r0 = coerce %600
-    %602: %r0 = binary.add %601, %52
-    %603: %r0 = coerce %602
-    %604: %r0 = alias %598
-    %605: %r8 = object %s5 %597, %604
-    %606: %r2 = const 0
-    %607: %r0 = const 0
-    %608: %r9 = object %s4 %606, %605, %607
-    %609: %r9 = alias %608
-    %610: %r2 = load property %609.$tag: %r2
-    %611: %r6 = binary.eq %610, %595
-    branch %611 -> block109 -> block108
+    %588: %r0 = binary.mul %53, %584
+    %589: %r0 = coerce %588
+    %590: %r0 = binary.add %589, %52
+    %591: %r0 = coerce %590
+    %592: %r0 = alias %586
+    %593: %r8 = object %s5 %585, %592
+    %594: %r2 = const 0
+    %595: %r0 = const 0
+    %596: %r9 = object %s4 %594, %593, %595
+    %597: %r9 = alias %596
+    %598: %r2 = load property %597.$tag: %r2
+    %599: %r6 = binary.eq %598, %583
+    branch %599 -> block109 -> block108
   block108:
-    %612: %r9 = alias %608
-    %613: %r8 = load property %612.Proceed: %r8
-    %614: %r8 = alias %613
-    %615: %r0 = load property %614.code: %r0
-    %616: %r8 = alias %613
-    %617: %r0 = load property %616.box: %r0
-    call Box.drop %617
-    %618: %r0 = binary.add %52, %615
-    %619: %r0 = coerce %618
-    jump -> block106(%619, %603)
+    %600: %r9 = alias %596
+    %601: %r8 = load property %600.Proceed: %r8
+    %602: %r8 = alias %601
+    %603: %r0 = load property %602.code: %r0
+    %604: %r8 = alias %601
+    %605: %r0 = load property %604.box: %r0
+    call Box.drop %605
+    %606: %r0 = binary.add %52, %603
+    %607: %r0 = coerce %606
+    jump -> block106(%607, %591)
   block109:
-    %620: %r9 = alias %608
-    type.drop %620
-    jump -> block110(%603)
+    %608: %r9 = alias %596
+    type.drop %608
+    jump -> block110(%591)
   block110(%54: %r0):
-    %621: %r0 = const 4
-    %622: %r0 = const 0
-    %632: %r0 = const 0
-    %633: %r0 = const 0
-    %634: %r0 = alias %633
-    %635: %r10 = object %s6 %632, %634
-    store var $24: %r10, %635
-    %636: %r0 = const 0
-    %637: %r6 = const 1
-    %638: %r6 = const 0
-    %639: %r2 = const 1
-    %640: %r0 = const 1
-    %641: %r0 = const 10
-    %642: %r0 = const 5
-    %643: %r0 = const 0
-    jump -> block111(%636, %622)
+    %609: %r0 = const 4
+    %610: %r0 = const 0
+    %620: %r0 = const 0
+    %621: %r0 = const 0
+    %622: %r0 = alias %621
+    %623: %r10 = object %s6 %620, %622
+    store var $24: %r10, %623
+    %624: %r0 = const 0
+    %625: %r6 = const 1
+    %626: %r6 = const 0
+    %627: %r2 = const 1
+    %628: %r0 = const 1
+    %629: %r0 = const 10
+    %630: %r0 = const 5
+    %631: %r0 = const 0
+    jump -> block111(%624, %610)
   block111(%55: %r0, %56: %r0):
-    %644: %r6 = binary.lt %55, %621
-    branch %644 -> block112 -> block115(%637, %56)
+    %632: %r6 = binary.lt %55, %609
+    branch %632 -> block112 -> block115(%625, %56)
   block112:
-    %645: %r10 = load var $24: %r10
-    %646: %r0 = load property %645.mark: %r0
-    %647: %r10 = load var $24: %r10
-    %648: %r0 = load property %647.box: %r0
-    call Box.drop %648
-    %649: %r0 = binary.add %55, %646
-    %650: %r0 = coerce %649
-    %651: %r0 = binary.mul %56, %641
-    %652: %r0 = coerce %651
-    %653: %r0 = binary.add %652, %650
-    %654: %r0 = coerce %653
-    %655: %r0 = alias %643
-    %656: %r10 = object %s6 %642, %655
-    %657: %r2 = const 0
-    %658: %r0 = const 0
-    %659: %r11 = object %s7 %657, %656, %658
-    %660: %r11 = alias %659
-    %661: %r2 = load property %660.$tag: %r2
-    %662: %r6 = binary.eq %661, %639
-    branch %662 -> block114 -> block113
+    %633: %r10 = load var $24: %r10
+    %634: %r0 = load property %633.mark: %r0
+    %635: %r10 = load var $24: %r10
+    %636: %r0 = load property %635.box: %r0
+    call Box.drop %636
+    %637: %r0 = binary.add %55, %634
+    %638: %r0 = coerce %637
+    %639: %r0 = binary.mul %56, %629
+    %640: %r0 = coerce %639
+    %641: %r0 = binary.add %640, %638
+    %642: %r0 = coerce %641
+    %643: %r0 = alias %631
+    %644: %r10 = object %s6 %630, %643
+    %645: %r2 = const 0
+    %646: %r0 = const 0
+    %647: %r11 = object %s7 %645, %644, %646
+    %648: %r11 = alias %647
+    %649: %r2 = load property %648.$tag: %r2
+    %650: %r6 = binary.eq %649, %627
+    branch %650 -> block114 -> block113
   block113:
-    %663: %r11 = alias %659
-    %664: %r10 = load property %663.Proceed: %r10
-    %665: %r10 = alias %664
-    store var $24: %r10, %665
-    %666: %r0 = binary.add %55, %640
-    %667: %r0 = coerce %666
-    jump -> block111(%667, %654)
+    %651: %r11 = alias %647
+    %652: %r10 = load property %651.Proceed: %r10
+    %653: %r10 = alias %652
+    store var $24: %r10, %653
+    %654: %r0 = binary.add %55, %628
+    %655: %r0 = coerce %654
+    jump -> block111(%655, %642)
   block114:
-    %668: %r11 = alias %659
-    type.drop %668
-    jump -> block115(%638, %654)
+    %656: %r11 = alias %647
+    type.drop %656
+    jump -> block115(%626, %642)
   block115(%57: %r6, %58: %r0):
     branch %57 -> block116 -> block117
   block116:
-    %669: %r10 = load var $24: %r10
-    %670: %r0 = load property %669.box: %r0
-    call Box.drop %670
+    %657: %r10 = load var $24: %r10
+    %658: %r0 = load property %657.box: %r0
+    call Box.drop %658
     jump -> block117
   block117:
-    %671: %r0 = const 3
-    %672: %r0 = call guardedSum %671
-    %673: %r0 = const 9
-    %674: %r0 = call guardedSum %673
-    %675: %r0 = binary.add %3, %9
+    %659: %r0 = const 3
+    %660: %r0 = call guardedSum %659
+    %661: %r0 = const 9
+    %662: %r0 = call guardedSum %661
+    %663: %r0 = binary.add %3, %9
+    %664: %r0 = coerce %663
+    %665: %r0 = binary.add %664, %15
+    %666: %r0 = coerce %665
+    %667: %r0 = binary.add %666, %253
+    %668: %r0 = coerce %667
+    %669: %r0 = binary.add %668, %21
+    %670: %r0 = coerce %669
+    %671: %r0 = binary.add %670, %23
+    %672: %r0 = coerce %671
+    %673: %r0 = binary.add %672, %30
+    %674: %r0 = coerce %673
+    %675: %r0 = binary.add %674, %435
     %676: %r0 = coerce %675
-    %677: %r0 = binary.add %676, %15
+    %677: %r0 = binary.add %676, %479
     %678: %r0 = coerce %677
-    %679: %r0 = binary.add %678, %253
+    %679: %r0 = binary.add %678, %47
     %680: %r0 = coerce %679
-    %681: %r0 = binary.add %680, %21
+    %681: %r0 = binary.add %680, %570
     %682: %r0 = coerce %681
-    %683: %r0 = binary.add %682, %23
+    %683: %r0 = binary.add %682, %54
     %684: %r0 = coerce %683
-    %685: %r0 = binary.add %684, %30
+    %685: %r0 = binary.add %684, %660
     %686: %r0 = coerce %685
-    %687: %r0 = binary.add %686, %443
+    %687: %r0 = binary.add %686, %662
     %688: %r0 = coerce %687
-    %689: %r0 = binary.add %688, %491
+    %689: %r0 = binary.add %688, %58
     %690: %r0 = coerce %689
-    %691: %r0 = binary.add %690, %47
+    %691: %r0 = binary.add %690, %39
     %692: %r0 = coerce %691
-    %693: %r0 = binary.add %692, %582
-    %694: %r0 = coerce %693
-    %695: %r0 = binary.add %694, %54
+    %693: %r0 = load global gone: %r0
+    %694: %r0 = const 100000
+    %695: %r0 = binary.mul %693, %694
     %696: %r0 = coerce %695
-    %697: %r0 = binary.add %696, %672
+    %697: %r0 = binary.add %692, %696
     %698: %r0 = coerce %697
-    %699: %r0 = binary.add %698, %674
-    %700: %r0 = coerce %699
-    %701: %r0 = binary.add %700, %58
-    %702: %r0 = coerce %701
-    %703: %r0 = binary.add %702, %39
-    %704: %r0 = coerce %703
-    %705: %r0 = load global gone: %r0
-    %706: %r0 = const 100000
-    %707: %r0 = binary.mul %705, %706
-    %708: %r0 = coerce %707
-    %709: %r0 = binary.add %704, %708
-    %710: %r0 = coerce %709
-    %711: %r0 = load global trail: %r0
-    %712: %r0 = binary.add %710, %711
-    %713: %r0 = coerce %712
-    return %713
+    %699: %r0 = load global trail: %r0
+    %700: %r0 = binary.add %698, %699
+    %701: %r0 = coerce %700
+    return %701
 
-optimizer clones 0 aliased 0 forwarded 0 removed 193 adopted 0 sunk 0 numbered 0 decided 0 unboxed 2 updated 0 split 7 promoted 55
+optimizer clones 0 aliased 0 forwarded 0 removed 237 adopted 0 sunk 0 numbered 0 decided 9 unboxed 2 updated 0 split 7 promoted 55 folded 21
 
 shape %s0 object Outcome {$tag: %r2 tag, Proceed: %r0, Exit: %r0}
 shape %s1 object Outcome {$tag: %r2 tag, Proceed: %r0, Exit: %r4}

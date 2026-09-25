@@ -1,0 +1,25 @@
+-- **A folded float that is not finite, written into JavaScript.** The shared optimizer folds
+-- `(3.0e38 :: F32) * 10.0` to an infinity natively, and the JavaScript writer spelled the literal it
+-- became through Tritium's `show`, which writes `Inf` - an unbound name in Node, so the program died
+-- with a `ReferenceError` (J149). Negative infinity, NaN and the reciprocal of negative zero are the
+-- rest of the family. Each folded value crosses a `@noinline` call, so it reaches the emitted text as
+-- a literal rather than folding into its comparison; the answer is one bit per claim, 127.
+
+@noinline fn above(x: F32, limit: F32) -> Bool = x > limit
+@noinline fn below(x: F64, limit: F64) -> Bool = x < limit
+@noinline fn unequal(x: F32) -> Bool = x != x
+
+fn main() -> Int:
+    let big = (3.0e38 :: F32) * (10.0 :: F32)
+    let low = (0.0 :: F32) - big
+    let wide = (1.0e308 :: F64) * (10.0 :: F64)
+    let negativeZero = (0.0 :: F64) * ((0.0 :: F64) - (1.0 :: F64))
+    let &bits = 0
+    if above(big, 3.0e38 :: F32) then bits += 1
+    if !above(low, 0.0 - (3.0e38 :: F32)) then bits += 2
+    if unequal(big + low) then bits += 4
+    if !below(wide, 1.0e308 :: F64) then bits += 8
+    if below((0.0 :: F64) - wide, 0.0 - (1.0e308 :: F64)) then bits += 16
+    if below((1.0 :: F64) / negativeZero, 0.0 - (1.0e308 :: F64)) then bits += 32
+    if !unequal(big) then bits += 64
+    return bits

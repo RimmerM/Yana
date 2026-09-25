@@ -10,100 +10,95 @@ function objectBreak() {
 }
 
 function main() {
+  trace = 9;
+  if (9 !== objectBreak()) return 1;
   trace = 0;
-  trace = Math.imul(trace, 10) + 9 | 0;
-  if (trace !== objectBreak()) return 1;
-  trace = 0;
-  trace = Math.imul(trace, 10) + 9 | 0;
-  var v21 = trace;
-  trace = 0;
-  var v28 = { $index: 0, $slot: 0, n: 3, i: 0 };
+  var v12 = { $index: 0, $slot: 0, n: 3, i: 0 };
   L0: for (;;) {
-    var v43 = v28.$index;
+    var v27 = v12.$index;
     B1: {
-      if (v43 === 0) {
-        v28.i = 0;
+      if (v27 === 0) {
+        v12.i = 0;
       } else {
-        if (v43 === 1) {
-          v28.i = v28.i + 1 | 0;
+        if (v27 === 1) {
+          v12.i = v12.i + 1 | 0;
           break B1;
         }
         break L0;
       }
     }
-    var v52 = v28.i;
-    if (v52 < v28.n) {
-      v28.$slot = v52;
-      v28.$index = 1;
+    var v36 = v12.i;
+    if (v36 < v12.n) {
+      v12.$slot = v36;
+      v12.$index = 1;
       continue L0;
     }
     trace = Math.imul(trace, 10) + 9 | 0;
-    v28.$index = 2147483647;
+    v12.$index = 2147483647;
     break L0;
   }
-  noisy$drop(v28);
-  if (v21 !== trace) return 2;
+  noisy$drop(v12);
+  if (9 !== trace) return 2;
   if (objectBreak() !== 9) return 3;
   trace = 0;
-  var v74 = { $index: 1, $slot: 0, n: 3, i: 0 };
-  if (!(v74.$slot === null)) {
-    noisy$drop(v74);
-    trace = trace;
+  var v58 = { $index: 1, $slot: 0, n: 3, i: 0 };
+  if (!(v58.$slot === null)) {
+    noisy$drop(v58);
   } else {
-    noisy$drop(v74);
+    noisy$drop(v58);
   }
   if (trace !== 9) return 4;
   trace = 0;
   noisy$drop({ $index: 0, $slot: 0, n: 3, i: 0 });
   if (trace) return 5;
-  var v129 = { $index: 0, $slot: 0, n: 3, i: 0 };
-  var v135 = { $index: v129.$index, $slot: v129.$slot, n: v129.n, i: v129.i };
-  var v136 = { $index: v135.$index, $slot: v135.$slot, n: v135.n, i: v135.i };
+  var v112 = { $index: 0, $slot: 0, n: 3, i: 0 };
+  var v118 = { $index: v112.$index, $slot: v112.$slot, n: v112.n, i: v112.i };
+  var v119 = { $index: v118.$index, $slot: v118.$slot, n: v118.n, i: v118.i };
   var p1 = 0;
   L3: for (;;) {
-    var v149 = v129.$index;
+    var v132 = v112.$index;
     B4: {
-      if (v149 === 0) {
-        v129.i = 0;
+      if (v132 === 0) {
+        v112.i = 0;
       } else {
-        if (v149 === 1) {
-          v129.i = v129.i + 1 | 0;
+        if (v132 === 1) {
+          v112.i = v112.i + 1 | 0;
           break B4;
         }
         break L3;
       }
     }
-    var v158 = v129.i;
-    if (v158 < v129.n) {
-      v129.$slot = v158;
-      v129.$index = 1;
-      p1 = (Math.imul(p1, 10) + v158 | 0) + 1 | 0;
+    var v141 = v112.i;
+    if (v141 < v112.n) {
+      v112.$slot = v141;
+      v112.$index = 1;
+      p1 = (Math.imul(p1, 10) + v141 | 0) + 1 | 0;
       continue L3;
     }
-    v129.$index = 2147483647;
+    v112.$index = 2147483647;
     break L3;
   }
   L5: for (;;) {
-    var v174 = v136.$index;
+    var v157 = v119.$index;
     B6: {
-      if (v174 === 0) {
-        v136.i = 0;
+      if (v157 === 0) {
+        v119.i = 0;
       } else {
-        if (v174 === 1) {
-          v136.i = v136.i + 1 | 0;
+        if (v157 === 1) {
+          v119.i = v119.i + 1 | 0;
           break B6;
         }
         break L5;
       }
     }
-    var v183 = v136.i;
-    if (v183 < v136.n) {
-      v136.$slot = v183;
-      v136.$index = 1;
-      p1 = (Math.imul(p1, 10) + v183 | 0) + 1 | 0;
+    var v166 = v119.i;
+    if (v166 < v119.n) {
+      v119.$slot = v166;
+      v119.$index = 1;
+      p1 = (Math.imul(p1, 10) + v166 | 0) + 1 | 0;
       continue L5;
     }
-    v136.$index = 2147483647;
+    v119.$index = 2147483647;
     break L5;
   }
   return p1 !== 123123 ? 6 : 0;

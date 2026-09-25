@@ -92,27 +92,15 @@ fn main() -> one %r2
     %58: %r2 = const 28
     %59: %r2 = binary.add %49, %58
     %60: %r2 = coerce %59
-    %61: %r0 = const 0
-    %63: %r0 = alias %61
-    %64: %r0 = const 0
-    %65: %r4 = binary.eq %63, %64
-    %66: %r0 = const 1
-    %67: %r4 = binary.eq %63, %66
     jump -> block2
   block1(%0: %r2):
     %70: %r2 = binary.add %60, %0
     %71: %r2 = coerce %70
-    %72: %r0 = const 1
-    %74: %r0 = alias %72
-    %75: %r0 = const 0
-    %76: %r4 = binary.eq %74, %75
-    %77: %r0 = const 1
-    %78: %r4 = binary.eq %74, %77
     jump -> block7
   block2:
-    branch %65 -> block5 -> block3
+    jump -> block5
   block3:
-    branch %67 -> block4 -> block2
+    jump -> block2
   block4:
     %68: %r2 = const 100
     jump -> block1(%68)
@@ -122,15 +110,11 @@ fn main() -> one %r2
   block6(%1: %r2):
     %81: %r2 = binary.add %71, %1
     %82: %r2 = coerce %81
-    %83: %r0 = const 0
-    %85: %r0 = alias %83
-    %86: %r0 = const 0
-    %87: %r4 = binary.eq %85, %86
-    branch %87 -> block13 -> block12
+    jump -> block13
   block7:
-    branch %76 -> block10 -> block8
+    jump -> block8
   block8:
-    branch %78 -> block9 -> block7
+    jump -> block9
   block9:
     %79: %r2 = const 100
     jump -> block6(%79)
@@ -140,17 +124,13 @@ fn main() -> one %r2
   block11(%2: %r2):
     %94: %r2 = binary.add %82, %2
     %95: %r2 = coerce %94
-    %96: %r0 = const 1
-    %98: %r0 = alias %96
-    %99: %r0 = const 0
-    %100: %r4 = binary.eq %98, %99
-    branch %100 -> block16 -> block15
+    jump -> block15
   block12:
     %88: %r0 = const 1
-    %89: %r4 = binary.eq %85, %88
+    %89: %r4 = const 0
     %90: %r2 = const 7
     %91: %r2 = const 8
-    %92: %r2 = select %89, %90, %91
+    %92: %r2 = alias %91
     jump -> block11(%92)
   block13:
     %93: %r2 = const 9
@@ -158,17 +138,10 @@ fn main() -> one %r2
   block14(%3: %r2):
     %107: %r2 = binary.add %95, %3
     %108: %r2 = coerce %107
-    %109: %r0 = const 2
-    %111: %r0 = alias %109
-    %112: %r0 = const 0
-    %113: %r4 = binary.eq %111, %112
-    branch %113 -> block19 -> block18
+    jump -> block18
   block15:
-    %101: %r0 = const 1
-    %102: %r4 = binary.eq %98, %101
     %103: %r2 = const 7
-    %104: %r2 = const 8
-    %105: %r2 = select %102, %103, %104
+    %105: %r2 = alias %103
     jump -> block14(%105)
   block16:
     %106: %r2 = const 9
@@ -178,17 +151,14 @@ fn main() -> one %r2
     %121: %r2 = coerce %120
     return %121
   block18:
-    %114: %r0 = const 1
-    %115: %r4 = binary.eq %111, %114
-    %116: %r2 = const 7
     %117: %r2 = const 8
-    %118: %r2 = select %115, %116, %117
+    %118: %r2 = alias %117
     jump -> block17(%118)
   block19:
     %119: %r2 = const 9
     jump -> block17(%119)
 
-optimizer clones 0 aliased 0 forwarded 0 removed 34 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 8
+optimizer clones 0 aliased 0 forwarded 0 removed 64 adopted 0 sunk 0 numbered 0 decided 7 unboxed 0 updated 0 split 0 promoted 8 folded 13
 
 rep %r0 = number unsigned 8
 rep %r1 = nullable of %r0

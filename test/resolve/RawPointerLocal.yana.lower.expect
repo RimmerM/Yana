@@ -1,0 +1,187 @@
+@image$base = []
+mut @calls = [0, 0, 0, 0]
+
++=(I32)<complex>(%target: Ptr, %amount: I32) {
+  b_0 {
+    %v_1 = loads %target, 4: I32
+    %v_2 = add %v_1, %amount: I32
+    store %target, %v_2, 4
+    ret 
+  }
+}
+
+setViaBox<complex>(%into: Ptr): I32 {
+  b_0 {
+    store %into, 42, 8
+    ret 1
+  }
+}
+
+setViaArray<complex>(%into: Ptr): I32 {
+  b_0 {
+    %v_1 = add %into, 8: Ptr
+    store %v_1, 7, 8
+    ret 1
+  }
+}
+
+setP<complex>(%b: Ptr, %p: Ptr) {
+  b_0 {
+    store %b, %p, 8
+    ret 
+  }
+}
+
+setViaCall<complex>(%into: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 12, 8: Ptr
+    %v_2 = bitcast 0: Ptr
+    store %v_1, %v_2, 8
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 0, 4
+    %v_4 = add %into, 8: Ptr
+    call_complex setP, %v_1, %v_4
+    %v_5 = load %v_1, 8: Ptr
+    store %v_5, 66, 8
+    ret 1
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    call_complex +=(I32), @calls, 1
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, 0, 8
+    %v_2 = add %v_1, 8: Ptr
+    store %v_2, 0, 8
+    %v_3 = call_complex setViaBox, %v_1: I32
+    %v_4 = cmp_ilt %v_3, 0: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = loads %v_1, 8: I64
+    %v_8 = cmp_neq %v_7, 42: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_5 {
+    jmp b_9
+  }
+
+  b_10 {
+    jmp b_11
+  }
+
+  b_9 {
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = phi [b_10, 0], [b_9, 1]: I32
+    call_complex +=(I32), @calls, 1
+    %v_13 = alloca 16, 8: Ptr
+    store %v_13, 0, 8
+    %v_14 = add %v_13, 8: Ptr
+    store %v_14, 0, 8
+    %v_15 = call_complex setViaArray, %v_13: I32
+    %v_16 = cmp_ilt %v_15, 0: I32
+    je %v_16, b_17, b_18
+  }
+
+  b_18 {
+    %v_19 = add %v_13, 8: Ptr
+    %v_20 = loads %v_19, 8: I64
+    %v_21 = cmp_neq %v_20, 7: I32
+    je %v_21, b_22, b_23
+  }
+
+  b_17 {
+    jmp b_22
+  }
+
+  b_23 {
+    jmp b_24
+  }
+
+  b_22 {
+    %v_25 = add %v_12, 2: I32
+    jmp b_24
+  }
+
+  b_24 {
+    %v_26 = phi [b_23, %v_12], [b_22, %v_25]: I32
+    call_complex +=(I32), @calls, 1
+    %v_27 = alloca 16, 8: Ptr
+    store %v_27, 0, 8
+    %v_28 = add %v_27, 8: Ptr
+    store %v_28, 0, 8
+    %r = call_complex setViaBox, %v_27: I32
+    %v_29 = loads %v_27, 8: I64
+    %v_30 = cmp_neq %v_29, 42: I32
+    je %v_30, b_31, b_32
+  }
+
+  b_32 {
+    jmp b_33
+  }
+
+  b_31 {
+    %v_34 = add %v_26, 4: I32
+    jmp b_33
+  }
+
+  b_33 {
+    %v_35 = phi [b_32, %v_26], [b_31, %v_34]: I32
+    call_complex +=(I32), @calls, 1
+    %v_36 = alloca 16, 8: Ptr
+    store %v_36, 0, 8
+    %v_37 = add %v_36, 8: Ptr
+    store %v_37, 0, 8
+    %v_38 = call_complex setViaCall, %v_36: I32
+    %v_39 = cmp_ilt %v_38, 0: I32
+    je %v_39, b_40, b_41
+  }
+
+  b_41 {
+    %v_42 = add %v_36, 8: Ptr
+    %v_43 = loads %v_42, 8: I64
+    %v_44 = cmp_neq %v_43, 66: I32
+    je %v_44, b_45, b_46
+  }
+
+  b_40 {
+    jmp b_45
+  }
+
+  b_46 {
+    jmp b_47
+  }
+
+  b_45 {
+    %v_48 = add %v_35, 8: I32
+    jmp b_47
+  }
+
+  b_47 {
+    %v_49 = phi [b_46, %v_35], [b_45, %v_48]: I32
+    %v_50 = loads @calls, 4: I32
+    %v_51 = cmp_neq %v_50, 4: I32
+    je %v_51, b_52, b_53
+  }
+
+  b_53 {
+    jmp b_54
+  }
+
+  b_52 {
+    %v_55 = add %v_49, 16: I32
+    jmp b_54
+  }
+
+  b_54 {
+    %v_56 = phi [b_53, %v_49], [b_52, %v_55]: I32
+    ret %v_56
+  }
+}
+

@@ -856,6 +856,7 @@ Ptr<File> genJsirProgram(Context& context, mir::Program& program, ssa::Converted
 
     Assembler assembler(a, program);
     auto ok = assembler.run(dump);
+    target.releaseVerifierReports();
 
     if(!ok || context.diagnostics.errorCount()) {
         file->statements = statements;

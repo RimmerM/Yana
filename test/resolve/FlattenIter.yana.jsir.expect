@@ -191,19 +191,18 @@ fn main() -> one %r0
     host host.throw "yana: a runtime check failed"
     unreachable
   block18:
-    %140: %r6 = load property %12.items: %r6
-    store element %140[%131]: %r0, %0
-    %141: %r15 = convert %133
-    %142: %r7 = convert %141
-    store property %12.length: %r7, %142
-    %143: %r0 = binary.add %0, %19
-    %144: %r0 = coerce %143
-    jump -> block1(%144)
+    %139: %r6 = load property %12.items: %r6
+    store element %139[%131]: %r0, %0
+    %140: %r15 = convert %133
+    %141: %r7 = convert %140
+    store property %12.length: %r7, %141
+    %142: %r0 = binary.add %0, %19
+    %143: %r0 = coerce %142
+    jump -> block1(%143)
   block19:
-    %137: %r6 = alias %134
-    %138: %r0 = host host.field "length" host-range %137
-    %139: %r11 = binary.le %133, %138
-    branch %139 -> block18 -> block20
+    %137: %r0 = host host.field "length" host-range %134
+    %138: %r11 = binary.le %133, %137
+    branch %138 -> block18 -> block20
   block20:
     call growJsArray(I32) %12, %133
     jump -> block18
@@ -277,7 +276,7 @@ fn growJsArray(I32)(one %r8, one %r0) -> omitted
     store property %0.items: %r6, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 2 removed 20 adopted 1 sunk 0 numbered 4 decided 1 unboxed 0 updated 0 split 0 promoted 2
+optimizer clones 0 aliased 0 forwarded 2 removed 20 adopted 1 sunk 0 numbered 3 decided 1 unboxed 0 updated 0 split 0 promoted 2 folded 0
 
 shape %s0 object chain.lambda.env {scale: %r0}
 shape %s1 object chainBreak.lambda.env {scale: %r0}

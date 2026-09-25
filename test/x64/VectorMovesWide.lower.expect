@@ -192,10 +192,10 @@ block #1:
   popcnt uses=[rcx] creates=[rdx]  => f30fb8d1
   cast uses=[rdx] creates=[rdx]  => 
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rsi]  => 488d3424
-  store uses=[rsi, xmm0] creates=[]  => c5fe7f06
-  x86_addr scale=1 disp=0 uses=[rsi, rdx] creates=[-]  => 
-  load uses=[-] creates=[xmm1]  => c5fa6f0c16
+  alloca uses=[-] creates=[remat:0]  => 
+  store uses=[remat:0, xmm0] creates=[]  => c5fe7f0424
+  x86_addr scale=1 disp=0 uses=[remat:0, rdx] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fa6f0c14
   vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c5f970c0e4
   imm uses=[] creates=[-]  => 
   and uses=[rdx, -] creates=[rdx] pre=[rcx->rdx]  => 8bd181e2ff000000
@@ -205,17 +205,17 @@ block #1:
   cast uses=[rdx] creates=[rdx]  => 
   imm uses=[] creates=[-]  => 
   shl uses=[rdx, -] creates=[rdx]  => 48c1e204
-  global uses=[] creates=[remat:0]  => 
-  x86_addr scale=1 disp=0 uses=[rdi, rdx] creates=[-] pre=[remat:0->rdi]  => 488d3dbf230000
+  global uses=[] creates=[remat:1]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rdx] creates=[-] pre=[remat:1->rdi]  => 488d3dc2230000
   load uses=[-] creates=[xmm2]  => c5fa6f1417
   cast uses=[rcx] creates=[rcx]  => 
   imm uses=[] creates=[-]  => 
   shl uses=[rcx, -] creates=[rcx]  => 48c1e104
-  global uses=[] creates=[remat:1]  => 
+  global uses=[] creates=[remat:2]  => 
   vsplat uses=[rsi] creates=[xmm3]  => c5f96edec4e27978db
   x86_addr [rip + $v128$0000000000000000ffffffffffffffff] uses=[] creates=[-]  => 
-  and uses=[xmm3, -] creates=[xmm3]  => c5e1db1da5430000
-  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-] pre=[remat:1->rdi]  => 488d3d9e330000
+  and uses=[xmm3, -] creates=[xmm3]  => c5e1db1da8430000
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-] pre=[remat:2->rdi]  => 488d3da1330000
   or uses=[xmm2, -] creates=[xmm2]  => c5e9eb140f
   add uses=[xmm2, xmm3] creates=[xmm2]  => c5e9fcd3
   x86_permute uses=[xmm2, xmm0] creates=[xmm2]  => c4e27900d2
@@ -227,17 +227,17 @@ block #1:
   cast uses=[rcx] creates=[rcx]  => 
   imm uses=[] creates=[-]  => 
   shl uses=[rcx, -] creates=[rcx]  => 48c1e104
-  global uses=[] creates=[remat:2]  => 
-  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-] pre=[remat:2->rdi]  => 488d3d76230000
+  global uses=[] creates=[remat:3]  => 
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-] pre=[remat:3->rdi]  => 488d3d79230000
   load uses=[-] creates=[xmm0]  => c5fa6f040f
   cast uses=[rax] creates=[rax]  => 
   imm uses=[] creates=[-]  => 
   shl uses=[rax, -] creates=[rax]  => 48c1e004
-  global uses=[] creates=[remat:3]  => 
+  global uses=[] creates=[remat:4]  => 
   vsplat uses=[rdx] creates=[xmm3]  => c5f96edac4e27978db
   x86_addr [rip + $v128$0000000000000000ffffffffffffffff] uses=[] creates=[-]  => 
-  and uses=[xmm3, -] creates=[xmm3]  => c5e1db1d5c430000
-  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-] pre=[remat:3->rdi]  => 488d3d55330000
+  and uses=[xmm3, -] creates=[xmm3]  => c5e1db1d5f430000
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-] pre=[remat:4->rdi]  => 488d3d58330000
   or uses=[xmm0, -] creates=[xmm0]  => c5f9eb0407
   add uses=[xmm0, xmm3] creates=[xmm0]  => c5f9fcc3
   x86_permute uses=[xmm0, xmm1] creates=[xmm0]  => c4e27100c0
@@ -337,26 +337,26 @@ block #1:
   popcnt uses=[rcx] creates=[rdx]  => f30fb8d1
   cast uses=[rdx] creates=[rdx]  => 
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rsi]  => 488d3424
-  store uses=[rsi, xmm0] creates=[]  => c5fe7f06
+  alloca uses=[-] creates=[remat:1]  => 
+  store uses=[remat:1, xmm0] creates=[]  => c5fe7f0424
   imm uses=[] creates=[-]  => 
-  x86_addr scale=2 disp=0 uses=[rsi, rdx] creates=[-]  => 
-  load uses=[-] creates=[xmm1]  => c5fa6f0c56
+  x86_addr scale=2 disp=0 uses=[remat:1, rdx] creates=[-]  => 
+  load uses=[-] creates=[xmm1]  => c5fa6f0c54
   vshuffle uses=[xmm0, xmm0] creates=[xmm0]  => c5f970c0e4
   cast uses=[rcx] creates=[rcx]  => 
   imm uses=[] creates=[-]  => 
   shl uses=[rcx, -] creates=[rcx]  => 48c1e104
-  global uses=[] creates=[remat:1]  => 
+  global uses=[] creates=[remat:2]  => 
   bitcast uses=[xmm0] creates=[xmm0]  => 
-  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-] pre=[remat:1->rdi]  => 488d3d74520000
+  x86_addr scale=1 disp=0 uses=[rdi, rcx] creates=[-] pre=[remat:2->rdi]  => 488d3d77520000
   x86_permute uses=[-, xmm0] creates=[xmm0]  => c4e27900040f
   bitcast uses=[xmm0] creates=[xmm0]  => 
   cast uses=[rax] creates=[rax]  => 
   imm uses=[] creates=[-]  => 
   shl uses=[rax, -] creates=[rax]  => 48c1e004
-  global uses=[] creates=[remat:2]  => 
+  global uses=[] creates=[remat:3]  => 
   bitcast uses=[xmm1] creates=[xmm1]  => 
-  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-] pre=[remat:2->rdi]  => 488d3d63520000
+  x86_addr scale=1 disp=0 uses=[rdi, rax] creates=[-] pre=[remat:3->rdi]  => 488d3d66520000
   x86_permute uses=[-, xmm1] creates=[xmm1]  => c4e271000c07
   bitcast uses=[xmm1] creates=[xmm1]  => 
   imm uses=[] creates=[-]  => 
@@ -365,9 +365,9 @@ block #1:
   imm uses=[] creates=[-]  => 
   x86_addr scale=1 disp=16 uses=[rax] creates=[-]  => 
   store uses=[-, xmm1] creates=[]  => c5fa7f4810
-  imm uses=[] creates=[remat:3]  => 
+  imm uses=[] creates=[remat:4]  => 
   imm uses=[] creates=[-]  => 
-  x86_addr scale=2 disp=0 uses=[rax, rdi] creates=[-] pre=[remat:3->rdi]  => bf00000000
+  x86_addr scale=2 disp=0 uses=[rax, rdi] creates=[-] pre=[remat:4->rdi]  => bf00000000
   load uses=[-] creates=[xmm0]  => c5fe6f0478
   ret uses=[xmm0] creates=[]  => 4883c440c3
 

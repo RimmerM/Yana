@@ -1,0 +1,127 @@
+module ResolveTest
+
+fn shr8(x: I8 [shared call], n: I8 [shared call]) -> I8 {
+bb0:
+  %0: I8 = read copy.trivial (x)
+  %1: I8 = read copy.trivial (n)
+  %2: I8 = shr inspect %0 inspect %1
+  return take %2
+}
+
+fn shr16(x: I16 [shared call], n: I16 [shared call]) -> I16 {
+bb0:
+  %0: I16 = read copy.trivial (x)
+  %1: I16 = read copy.trivial (n)
+  %2: I16 = shr inspect %0 inspect %1
+  return take %2
+}
+
+fn shr32(x: I32 [shared call], n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (n)
+  %2: I32 = shr inspect %0 inspect %1
+  return take %2
+}
+
+fn sar8(x: I8 [shared call], n: I8 [shared call]) -> I8 {
+bb0:
+  %0: I8 = read copy.trivial (x)
+  %1: I8 = read copy.trivial (n)
+  %2: I8 = sar inspect %0 inspect %1
+  return take %2
+}
+
+fn main() -> I32 {
+  local m8: I8
+  local m16: I16
+  local scalars: I32
+  local controls: I32
+  local s: Vec(I8)
+  local t: Vec(I16)
+  local one: Vec(I8)
+  local three: Vec(I16)
+  local lanes: I32
+
+bb0:
+  %0: I8 = const 0
+  %1: I8 = const 100
+  %2: I8 = sub inspect %0 inspect %1
+  write.init borrow.unique (m8) take %2
+  %4: I16 = const 0
+  %5: I16 = const 100
+  %6: I16 = sub inspect %4 inspect %5
+  write.init borrow.unique (m16) take %6
+  %8: I8 = read copy.trivial (m8)
+  %9: I8 = const 1
+  %10: I8 = call shr8 borrow.shared %8 borrow.shared %9
+  %11: I32 = convert inspect %10
+  %12: I8 = read copy.trivial (m8)
+  %13: I8 = const 7
+  %14: I8 = call shr8 borrow.shared %12 borrow.shared %13
+  %15: I32 = convert inspect %14
+  %16: I32 = add inspect %11 inspect %15
+  %17: I16 = read copy.trivial (m16)
+  %18: I16 = const 1
+  %19: I16 = call shr16 borrow.shared %17 borrow.shared %18
+  %20: I32 = convert inspect %19
+  %21: I32 = add inspect %16 inspect %20
+  %22: I16 = read copy.trivial (m16)
+  %23: I16 = const 15
+  %24: I16 = call shr16 borrow.shared %22 borrow.shared %23
+  %25: I32 = convert inspect %24
+  %26: I32 = add inspect %21 inspect %25
+  write.init borrow.unique (scalars) take %26
+  %28: I32 = const 0
+  %29: I32 = const 100
+  %30: I32 = sub inspect %28 inspect %29
+  %31: I32 = const 20
+  %32: I32 = call shr32 borrow.shared %30 borrow.shared %31
+  %33: I8 = read copy.trivial (m8)
+  %34: I8 = const 1
+  %35: I8 = call sar8 borrow.shared %33 borrow.shared %34
+  %36: I32 = convert inspect %35
+  %37: I32 = add inspect %32 inspect %36
+  write.init borrow.unique (controls) take %37
+  %39: I8 = read copy.trivial (m8)
+  %40: Vec(I8) = vec.splat inspect %39
+  write.init borrow.unique (s) take %40
+  %42: I16 = read copy.trivial (m16)
+  %43: Vec(I16) = vec.splat inspect %42
+  write.init borrow.unique (t) take %43
+  %45: I8 = const 1
+  %46: Vec(I8) = vec.splat inspect %45
+  write.init borrow.unique (one) take %46
+  %48: I16 = const 3
+  %49: Vec(I16) = vec.splat inspect %48
+  write.init borrow.unique (three) take %49
+  %51: Vec(I8) = read copy.trivial (s)
+  %52: Vec(I8) = read copy.trivial (one)
+  %53: Vec(I8) = shr inspect %51 inspect %52
+  %54: I32 = const 0
+  %55: I8 = vec.lane #0 inspect %53
+  %56: I32 = convert inspect %55
+  %57: Vec(I8) = read copy.trivial (s)
+  %58: Vec(I8) = read copy.trivial (one)
+  %59: Vec(I8) = sar inspect %57 inspect %58
+  %60: I32 = const 15
+  %61: I8 = vec.lane #15 inspect %59
+  %62: I32 = convert inspect %61
+  %63: I32 = add inspect %56 inspect %62
+  %64: Vec(I16) = read copy.trivial (t)
+  %65: Vec(I16) = read copy.trivial (three)
+  %66: Vec(I16) = shr inspect %64 inspect %65
+  %67: I32 = const 7
+  %68: I16 = vec.lane #7 inspect %66
+  %69: I32 = convert inspect %68
+  %70: I32 = add inspect %63 inspect %69
+  write.init borrow.unique (lanes) take %70
+  %72: I32 = read copy.trivial (scalars)
+  %73: I32 = read copy.trivial (controls)
+  %74: I32 = add inspect %72 inspect %73
+  %75: I32 = read copy.trivial (lanes)
+  %76: I32 = add inspect %74 inspect %75
+  return take %76
+}
+
+entry main

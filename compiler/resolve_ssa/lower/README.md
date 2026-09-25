@@ -91,6 +91,9 @@ to a declared function: the call instruction, an authored teardown, and the thre
   across the allocation.
 - A pointer cell travels as `I64`: the lower IR has no pointer literal, and a returned `Nothing`
   whose niche folds to zero would be one.
+- **A window's cells are its view record's**, not its owner's (J153): `Array(T)` under
+  `AccessForm::View` crosses as `{items, length: I64}` - `mir::viewRecordOf` is asked first in
+  `CellWalk::walk` and in `joinCells`.
 
 ### A sum is a tag and one shared payload
 
@@ -240,7 +243,10 @@ them is *where* the value starts - the unit to load and the mask to apply both f
 it was told. So the shift travels in the sixteen bits of a pointer no user address uses
 (`NativeTarget::addressBits`), and folds away entirely where it is zero, which is every borrow of
 anything the target left alone. Whether a pointee carries one is `Repr::isNarrow` and nothing else,
-which is what makes it an ABI rather than a per-site decision.
+which is what makes it an ABI rather than a per-site decision. It is decoded at run time only when
+it arrived from elsewhere (J153): `seeNarrowRef` (`pack.cpp`) reads a reference built in this frame
+off its construction - a `taggedAddress` is its address at the shift it was built with, and an
+untagged address of `placedStorage` (an `alloca` or a global at constant offsets) is at shift zero.
 
 The split against the callee's unit is where the natural-unit rule is spent, and it is the only
 thing that rule is for: `packBits` guarantees a field lies inside one `storageBitsFor(bits)` block
@@ -256,10 +262,18 @@ bitstream and may cross these boundaries, using exact byte accesses where no sin
 reaches a value of a type parameter through a plain address and sizes it out of a descriptor, so a
 narrow reference handed to one is copied into storage of its own and copied back when the call
 returns - `materializeNarrow` and `commitPackedBorrow`, at the call argument rather than at the
-borrow, because that is where the position's declared type is. A call with no declaration to read
-(one through a function value) is flattened on the same terms, which is conservative in the one
+borrow, because that is where the position's declared type is. It is also the parameter declared
+at the *unrefined* type - `&x: U32` lent a `@bits(4) U32` field - where the callee works on a
+full-width temporary; since J149 that temporary is sized at `mir::canonicalInt` (the refined-from
+type) rather than at the refinement, which let a four-byte callee write three bytes past a one-byte
+slot. A call with no declaration to read
+(one through a function value) would be flattened on the same terms, which is conservative in the one
 direction that is safe: a temporary is a real address at shift zero, and a callee expecting either
-form reads it correctly. The word is re-read at the write-back, which is what stops two co-packed
+form reads it correctly. **No source program reaches that path today** (J162): the resolver refuses a
+`@bits(n)` field lent to a `&` position of a function value's type - `f(h.version)` over
+`f: (&U32) -> U32` - with `coerce`'s sentence (`Reject.PackedBorrow.yana`), where the shipping stage
+accepts it. Lending it there was tried: unoptimized it agreed on both targets, and optimized a
+lambda's call answered garbage natively and the JSIR conversion refused the inlined write. The word is re-read at the write-back, which is what stops two co-packed
 fields flattened across one call from losing an update.
 
 **Fresh storage is zeroed where a word has spare bits.** A packed word is filled by read-modify-
@@ -380,6 +394,12 @@ whatever phi alternative its edges promised. And **the declared ranges are hinte
 `hintDeclaredRanges`, over the finished value mapping: `LowerType` is a register class, so an
 unsigned type's width and a payload-free sum's tag range are facts the lower passes would otherwise
 have to reconstruct from instructions - and cannot, for an argument or a phi.
+
+A third, since J152: **a block argument held in memory crosses its edges as its cells**
+(`convention.cpp`'s `joinCells`). Each predecessor loads the cells out of its own storage, a phi per
+cell joins them, and the join stores them into one slot of its own - the parameter-in-parts shape the
+entry already had. It was a `Ptr` phi over one slot per predecessor, which no slot pass can take
+apart, and after an inlined `?` that was the whole of the join.
 
 Behind both of them is `lower/lower_pipeline.h`, the run of shared lower passes both resolve stages
 owe their output. This stage called one member of it - `makeDivisionTotal` - until phase 1 of

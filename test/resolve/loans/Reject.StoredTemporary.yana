@@ -1,0 +1,64 @@
+{-
+   A reference field or a published reference parameter handed a value with no storage (J147).
+
+   # resolver: ownership
+
+   ownership.md's "Temporaries": a value with no storage of its own - `5`, `i + 1`, a call's result -
+   is given a slot in the frame when a loan is taken of it, and lives as long as that loan is used.
+   `data Held(a) {value: 'a, ...}` at `a := Int` takes such a loan, and so does `keep(x: 'Int)`,
+   whose result holds its argument. Until J147 the slot was made by the SSA conversion, *after* the
+   loan check, so none of these was refused: `make` returned the address of a dead frame (it printed
+   garbage under `-no-ir-opt`), and the two loops left every element of `hs` pointing at the one
+   slot a pass reuses - 333 natively where JavaScript said 123. `StoredTemporary.yana` is the
+   accepting half: the same values used where their temporary still lives.
+-}
+
+data Held(a) {value: 'a, extra: Int}
+
+fn make() -> Held(Int) = Held {value: 5 :: Int, extra: 1}
+
+fn keep(x: 'Int) -> Held(Int) = Held {value: x, extra: 0}
+
+fn pushedLiteral() -> Int:
+    let &hs = [] :: [Held(Int)]
+    for i in 0..3:
+        push(hs, Held {value: i + 1, extra: 0})
+    return truncate(length(hs))
+
+fn pushedThroughCall() -> Int:
+    let &hs = [] :: [Held(Int)]
+    for i in 0..3:
+        push(hs, keep(i + 1))
+    return truncate(length(hs))
+
+fn returnedThroughCall() -> Held(Int) = keep(40 + 2)
+
+-- A generic record at a record holding a reference is the same relation a declared field states
+-- (`StoredTemporary.yana`'s `nestedGeneric` is the accepting half): it may not leave the frame
+-- holding a loan of `n`, and `n` may not be written while it is live.
+data L1 {r: 'Int}
+data Box2(t) {v: t}
+
+fn wrap1(n: 'Int) -> L1 = L1 {r: n}
+
+fn boxEscapes() -> Box2(L1):
+    let &n = 7 :: Int
+    return Box2 {v: wrap1(n)}
+
+fn boxedLenderWritten() -> Int:
+    let &n = 7 :: Int
+    let b = Box2 {v: wrap1(n)}
+    n = 9
+    return b.v.r
+
+-- A value with no storage **returned** at a result naming an origin (J162). The `return` was the one
+-- position J147 did not give a temporary: the loan check saw a bare register and accepted it, and
+-- the native lowering then failed with an internal error at 1:1 where JavaScript ran it. The value
+-- is held in a temporary now, as an argument at such a position is, and the result is rooted in it.
+fn plusOne(xs: s'[Int]) -> s'Int = copy(xs[0]) + 1
+
+fn literalOrFirst(xs: s'[Int], k: Int) -> s'Int:
+    if k > 0 then return xs[0]
+    return 5
+
+fn main() -> Int = 0

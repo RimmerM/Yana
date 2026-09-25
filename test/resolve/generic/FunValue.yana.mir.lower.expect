@@ -1,6 +1,6 @@
-@image$base = []
 @environment(twiceOver(Label)) = [0, 0, 0, 0, 0, 0, 0, 0] {slot 0: @descriptor(Label)}
 @descriptor(Label) = [4, 0, 0, 13, 0, 0, 0, 0] {slot 4: teardown()}
+@image$base = []
 
 twice<complex>(%x: I32): I32 {
   b_0 {
@@ -34,29 +34,20 @@ twiceOver<complex>(%v_0: Ptr, %x: Ptr, %f: Ptr): I32 {
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 20, 8: Ptr
-    store %v_1, funvalue(twice), 8
+    %funvalue(twice) = fun funvalue(twice): Ptr
+    store %v_1, %funvalue(twice), 8
+    %v_2 = imm 0: I64
     %v_3 = add %v_1, 8: Ptr
-    store %v_3, 0, 8
-    %funvalue(thrice) = fun funvalue(thrice): Ptr
-    store %v_2, %funvalue(thrice), 8
-    %v_4 = add %v_2, 8: Ptr
-    store %v_4, 0, 8
-    %v_5 = add %v_2, 16: Ptr
-    store %v_5, 5, 4
-    %v_6 = load %v_4, 8: Ptr
-    %v_7 = call_complex %funvalue(thrice), %v_6, 100: I32
-    %v_8 = add %v_2, 16: Ptr
-    %v_9 = loads %v_8, 4: I32
-    %v_10 = add %v_7, %v_9: I32
-    call_complex teardown(fun), %v_2
-    %v_11 = add 20, %v_10: I32
-    %v_12 = alloca 4, 4: Ptr
-    store %v_12, 7, 4
-    %v_13 = call_complex twiceOver, @environment(twiceOver(Label)), %v_12, %v_1: I32
-    %v_14 = add %v_11, %v_13: I32
-    %v_15 = add %v_14, 2: I32
-    ret %v_15
+    store %v_3, %v_2, 8
+    %v_4 = bitcast %v_2: Ptr
+    %v_5 = call_complex %funvalue(twice), %v_4, 10: I32
+    %v_6 = add %v_5, 305: I32
+    %v_7 = alloca 4, 4: Ptr
+    store %v_7, 7, 4
+    %v_8 = call_complex twiceOver, @environment(twiceOver(Label)), %v_7, %v_1: I32
+    %v_9 = add %v_6, %v_8: I32
+    %v_10 = add %v_9, 2: I32
+    ret %v_10
   }
 }
 
@@ -71,35 +62,6 @@ funvalue(thrice)<complex>(%v_0: Ptr, %v_1: I32): I32 {
   b_2 {
     %v_3 = call_complex thrice, %v_1: I32
     ret %v_3
-  }
-}
-
-teardown(fun)<complex>(%v_0: Ptr) {
-  b_1 {
-    %v_2 = add %v_0, 8: Ptr
-    %v_3 = load %v_2, 8: I64
-    %v_4 = cmp_eq %v_3, 0: I32
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = load %v_0, 8: Ptr
-    %v_8 = sub %v_7, 4: Ptr
-    %v_9 = loads %v_8, 4: I32
-    %v_10 = sext %v_9: I64
-    %v_11 = cmp_eq %v_10, 0: I32
-    je %v_11, b_5, b_12
-  }
-
-  b_12 {
-    %v_13 = add %v_10, @image$base: Ptr
-    %v_14 = bitcast %v_3: Ptr
-    call_complex %v_13, %v_14
-    jmp b_5
-  }
-
-  b_5 {
-    ret 
   }
 }
 

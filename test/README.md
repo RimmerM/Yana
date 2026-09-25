@@ -1,6 +1,6 @@
 # Running the tests
 
-Ten drivers, each over its own fixture directory. They read their fixtures by paths relative to the
+Twelve drivers, each over its own fixture directory or none. They read their fixtures by paths relative to the
 working directory, so they run from **this** directory and nowhere else.
 
 ```sh
@@ -14,16 +14,17 @@ directory is passed through to every driver.
 | driver | fixtures | what it asserts |
 | --- | --- | --- |
 | `YanaResolveTest` | `resolve/` | the whole pipeline: resolve IR, ownership, lowered IR, the amd64 and JavaScript backends, and what `main` answers on both |
-| `YanaLibTest` | `lib/` | what the standard library *computes*, on both targets, with no golden files at all |
+| `YanaLibTest` | `lib/` | what the standard library *computes*, on both targets, with no golden files at all - through the rewrite, and through the old stage as a second row |
 | `YanaParseTest` | `parser/` | the AST, the diagnostics, and that no prefix of a fixture hangs the parser |
 | `YanaLowerTest` | `lower/` | the lower IR in isolation |
 | `YanaX64Test` | `x64/` | instruction selection and register allocation from lower IR |
 | `YanaLlvmTest` | `llvm/` | the LLVM module built from lower IR, and that LLVM's own verifier accepts it |
-| `YanaElfTest` | `resolve/`, `lib/` | the same fixtures compiled to real ELF executables and run as processes |
+| `YanaElfTest` | `resolve/` and its subdirectories, `lib/` | the same fixtures compiled by the rewrite to real ELF executables and run as processes |
 | `YanaOssaTest` | none - it builds and breaks its own IR | that the OSSA verifier *rejects* what it is meant to |
 | `YanaJsirTest` | none - it builds and breaks its own IR | that the JSIR verifier does the same: a number used as an object receiver, parts used as one value, an edge at the wrong representation, a missing definition, a store the place cannot hold, and a call that disagrees with its callee's plan |
 | `YanaLspTest` | `lsp/` | the editor-facing answers |
 | `YanaLspProtocolTest` | `lsp/protocol.expect` | the lifecycle over the real message loop |
+| `YanaEditTest` | none - it builds its own IR by hand | the old stage's `IrEditor` (`compiler/resolve/edit.h`): edge shapes no source program produces, each step followed by `verifyFunction` |
 | `../tools/check-layering.sh` | `compiler/`'s `#include` lines | the rewrite's directory boundaries: nothing in `resolve_ssa` outside `lower/` or `js/` reaches into either, and neither target's tier reaches into the other's |
 
 The last row is a shell script rather than a driver, because what it checks is the *text of the
@@ -53,7 +54,14 @@ beside it. `.ssa.opt.expect` is the SSA after `compiler/resolve_ssa/opt` has run
 the stricter terms `.mir.repr.expect` has — `generate` regenerates one that exists and never creates
 one — because a fixture that is not about the optimizer would otherwise carry a second copy of its IR
 that moves whenever a pass changes. `.ssa.expect` stays the *conversion's* output, so the pair is the
-before and after of the whole stage.
+before and after of the whole stage. `.mir.llvm.expect` is this stage's lowering handed to LLVM, on
+the same opt-in terms as the shipping stage's `.llvm.expect` beside it.
+
+**Every fixture with a shipping-stage optimizer or LLVM golden has the rewrite's too** since
+2026-09-24 (J133), where the rewrite compiles it: the sixteen `.llvm.expect` fixtures with a
+`.mir.expect` have a `.mir.llvm.expect`, and the five `.opt.expect` ones a `.ssa.opt.expect`. The
+two that could not - `Packed` and `ConstGenericVec`, J94 §3.4 gaps - have theirs since J142. A new
+`.opt.expect` or `.llvm.expect` should arrive with its partner.
 `.js.ssa.expect` is the fifth, and it is the same source compiled as a **JavaScript** program by
 that same stage - Analysis-IR-JS.md milestone 3. It is additional rather than alternative: a fixture
 acquires one by having the file beside it and none of its native goldens move, so `.mir.expect` and
@@ -73,13 +81,13 @@ beside the shipping stage's `.js.expect` rather than replacing it.
 **It is the opt-in in the rewrite-only directories too** since 2026-09-21 (J66), where there is no
 `.js.expect` for it to sit beside: `resolve/{ownership,loans,lens,generic,lazy,iter}/` hold the
 programs the shipping stage never compiled, and a `.jsir.expect` there is what says the JavaScript
-half of one runs. 70 of them have one, against 314 in the corpus proper.
+half of one runs. 117 of them have one, against 374 in the corpus proper (J165).
 
 **And it does not follow `.js.expect`** since J70. The shipping stage's own opt-in is which fixtures
 *that* backend was ever taught to compile, which is a different question from which programs have a
 JavaScript meaning - so the rule here is the second one: a fixture with a `.run.expect` that the
 rewrite compiles for this target and that answers the same number carries a `.jsir.expect`, whether
-or not a `.js.expect` sits beside it. 94 of the 384 have no `.js.expect` at all. What is left out is
+or not a `.js.expect` sits beside it. 241 of the 491 have no `.js.expect` at all. What is left out is
 five fixtures whose JavaScript answer genuinely differs from their native one and which have no
 `.js.run.expect` saying so - `NoChecks`, `Replaces`, `intrinsic/Supplied`, `VecLong.Avx512` and
 `VecMaskUpTo.Avx2`, all five of which answer the same different number under the shipping backend, so
@@ -131,14 +139,19 @@ It exists because a sweep is not a golden. `lib/Native`'s `allocateHeap`, `heapN
 between vectors of *different lane widths* has none either, a lane being a number here rather than a
 run of bits; and nine `X86.*` rows are one machine's. All of those are gaps this target is supposed
 to have, and until J71 the only thing standing over them was a count in a progress record - so a gap
-that silently became a *different* gap, or a wrong answer, changed nothing anybody would see. 66
+that silently became a *different* gap, or a wrong answer, changed nothing anybody would see. 68
 fixtures carry one. A file that records a *resolver* diagnostic rather than a JSIR one says so in its
 own text, which is what makes it answer "which of the two is this gap" rather than only "is there
 one".
 
 Mutually exclusive with `.jsir.expect` by construction: a fixture that converts has a dump and one
 that reports has none. A fixture that starts converting therefore loses this file and gains the other
-two, which is exactly the change a slice that closes a gap should show in its diff.
+two, which is exactly the change a slice that closes a gap should show in its diff. **The one
+exception is a gap only the unoptimized build has** (J165): with both files, the optimized build is
+held to the dump and the answer, and the `-no-ir-opt` compilation - which keeps a construct the
+optimizer removed - is the one expected to report this file's sentence, in place of being run.
+`Instance.yana` is the case: JSIR refuses a reference to storage written into a pointer field, and
+only the optimized program forwards that store away.
 
 `.js.ssa.expect` and `.js.mir.expect` stay as they are and stay separately optional: a fixture may
 have either, both or neither. The first is about what the *resolver* made of a JavaScript program and
@@ -210,21 +223,26 @@ machine's own instability looks like, and a test failure must not be indistingui
 
 **`@test(aborts)` is the case that could not be written before.** Its verdict is inverted - the case
 passes when the process stops and fails when it returns - so a failed `assert` and a subscript past
-the end are things this corpus now *runs* rather than describes; `lib/Aborts.yana` is that fixture.
-It needs a real process to re-execute, so `YanaLibTest`, which JITs, skips those cases and
-`YanaElfTest`, where the kernel starts the program, runs them.
+the end are things this corpus now *runs* rather than describes. It needs a real process to
+re-execute, so `YanaLibTest`, which JITs, skips those cases and `YanaElfTest`, where the kernel starts
+the program, runs them. The library's own such cases moved to `lib/Native/Aborts.test.native.yana`
+and run in `run-base.sh`'s native rows; in this driver's corpora the one left is
+`resolve/TestEntry.yana`'s, against the minimal runner.
 
 Every fixture is compiled and run three times - specialized, forced generic, and with the optimizer
 off - and a fourth and fifth time on JavaScript where a `<fixture>.yana.js` marker file exists. Those
 are the assertions that cannot be regenerated into agreeing with a bad pass. `generate` is accepted
 and ignored, because there is nothing here to generate.
 
-`resolver:ownership` replaces all five with the **rewritten stage's** builds - one native and, where
+Those five are the **shipping stage's**, and since 2026-09-24 (J133) they are asked for with
+`resolver:legacy`: the driver's default is the **rewritten stage's** builds - one native and, where
 the same `<fixture>.yana.js` marker exists, one JavaScript build through JSIR. Two rather than five,
 because the switches the other three vary are the shipping optimizer's and the shipping specializer's
 and the rewrite's own are asserted by `YanaResolveTest`, which runs every `.jsir.expect` fixture in
 the optimized and unoptimized form and compares the answers. What these two add is the one thing that
 corpus cannot say - that the *library's* own suite passes when the rewrite compiled it.
+`run-tests.sh` runs both, the old stage as the `lib-legacy.*` jobs, because five fixtures cost a
+second or two; `resolver:ownership` is still accepted and means the default.
 
 **Two of the five carry the marker** since 2026-09-21 (J68) - `MapLiteral` and
 `StringLiteralStorage`, which are exactly the two the shipping stage's own JavaScript rows compile.
@@ -246,12 +264,28 @@ expected status is zero: a 1 is a suite that reported a failure and a 134 is one
 it stood, both arriving as themselves. It is also the only driver that runs a `@test(aborts)` case,
 for the reason above. It is skipped entirely off amd64 Linux.
 
-### `resolve/ownership/` - the rewritten stage only
+**It builds with the rewrite** since 2026-09-24 (J133), and `resolver:legacy` is the old stage by hand.
+It had built with the old stage alone, which left the driver that asserts a program runs as a *file*
+saying nothing about the compiler `yana` builds files with. Which `resolve/` fixtures it runs is the
+corpus's word, not a trial: the ones carrying `# resolver: ownership` or a `.mir.expect`, which is how
+`YanaResolveTest` adopts one - and since J143 there is **no** top-level `.run.expect` fixture with
+neither: `InlineCapacity`, J94 §3.4's last gap, has its `.mir.expect` (fifteen at J133; J139-J141
+adopted eleven, J142 `Lens`, `NamedArgument.Value` and `Packed`, with `ConstGenericVec` beside them
+on JavaScript and LLVM, and J143 the last). It walks `resolve/`'s subdirectories too since then, one level as `YanaResolveTest` does - they
+are almost all the rewrite's, which is why it never had - and its module provider reads the grouped
+`resolve/modules/<Name>/` form for them. It names the module `ResolveTest` as the in-process driver
+does, because a program may compute with its module's name and the two share `.run.expect`:
+`RecordFields` adds it into its answer, and read four less as `ElfTest`. The old stage is not a row of
+`run-tests.sh`: what it computes is `YanaResolveTest`'s to assert, and everything this driver is
+about is below the `LowerModule` the two share.
+
+### `# resolver: ownership` - the rewritten stage only
 
 The rewrite in `compiler/resolve_mir` already accepts programs the shipping stage refuses; a partial
-move out of a record is the first of them. Such a program has nowhere to live in the shared corpus,
-because every fixture there is compiled by the shipping stage first, so it goes in
-`resolve/ownership/` and says so in its own source:
+move out of a record is the first of them. Such a fixture says so in its own source, wherever it is
+filed - `resolve/ownership/`, `loans/`, `lens/`, `generic/`, `lazy/` and `iter/` hold most of them,
+and the top of `resolve/` holds respellings the shipping stage refuses and every rejection fixture
+whose rule the rewrite enforces:
 
 ```
    # resolver: ownership
@@ -259,7 +293,9 @@ because every fixture there is compiled by the shipping stage first, so it goes 
 
 The directive is what makes it run that way - see `directives.h` - and the directory is filing. A
 fixture anywhere carrying that line is compiled only by the rewritten stage; `YanaResolveTest` skips
-the legacy half and its six goldens for it, and `YanaElfTest` and `YanaBench` skip it entirely.
+the legacy half and its eight goldens for it, `YanaBench -legacy` skips it (the default run, on the
+rewrite since J150, includes it), and `YanaElfTest` - which
+builds with the rewrite since J133 - runs it, and skips it only under `resolver:legacy`.
 
 **The corpus's stage is not the command line's.** `-resolver` defaults to the rewrite since
 2026-09-22 (J81), and `applyResolverDirective` pins `ResolverStage::Legacy` before it looks for the
@@ -270,6 +306,23 @@ reclassified as the other's, and the `.mir.expect` oracle would have been assert
 agrees with itself. The passes that *are* the rewrite's set the stage themselves, after the
 directives run. `resolve/` has no `# resolver: legacy` and needs none: legacy is what a fixture with
 no directive already is.
+
+**A `Reject.X.Legacy.yana` is the part of `Reject.X.yana` only the shipping stage refuses.** When
+the rewrite enforces a rejection fixture's rule, the fixture carries the directive above; a line
+it does not refuse yet, or refuses only as "does not implement ... yet", is split into the
+remainder, whose header says the rule and what the rewrite does instead. When the rewrite enforces
+it, the line goes back and the remainder is deleted. **One is left, by decision rather than as
+pending work**: `Reject.GenericDefault.Legacy.yana` records the shipping stage's refusal of a generic
+default naming an earlier parameter, which is language since J144 and which the rewrite accepts, so it
+goes when that stage does. A rejection fixture the rewrite resolves *clean* is then converted,
+optimized and lowered, because a few refusals are the lowering's - `Reject.PackedAddress.yana` is
+asserted that way.
+
+`# recover: yes` is `CompileSettings::recover`: the rewritten stage goes on past a checkpoint that
+reported. Without it a compile stops at the first failing checkpoint, so a declaration error hides
+every body error after it. A rejection fixture that asserts both kinds, or several body errors in
+functions whose checks run at different checkpoints, needs it; one whose golden is the same without
+it should not carry it.
 
 `# test: yes` is `-test`, and it is the one directive that changes what the *entry* is. A fixture
 carrying it has no `main`: it has `@test` declarations, and what runs is the entry the compiler
@@ -357,8 +410,9 @@ corpus is 62 s serially and 4.8 s by default.
 ../build-assert/test/YanaResolveTest jobs:1       # one process, for a debugger
 ```
 
-The other seven drivers take neither argument, and that is a measurement rather than an omission:
-`YanaLowerTest`, `YanaX64Test`, `YanaLlvmTest` and `YanaEditTest` are each under a tenth of a second,
+The other eight drivers take neither argument, and that is a measurement rather than an omission:
+`YanaLowerTest`, `YanaX64Test`, `YanaLlvmTest`, `YanaEditTest` and `YanaJsirTest` are each under a
+tenth of a second (`YanaJsirTest` about a hundredth, even in `build-assert`),
 and `YanaOssaTest`, `YanaLspTest` and `YanaLspProtocolTest` are each under half of one — less than a
 fork costs.
 
@@ -478,8 +532,12 @@ goldens.
 
 **Every row of that file names its stage and writes `-resolver` out**, since 2026-09-22 (J81) - the
 shipping rows are `legacy`, `legacy-generic`, `legacy-unoptimized`, `legacy-no-replacements`, the
-three `legacy-avx*`/`legacy-sha` rows and the two `legacy-js` ones, and the rewrite's are the native
-`ownership` row and the three `ownership-js` ones. The default moved that day; a matrix whose rows
+four `legacy-avx2`/`legacy-sha`/`legacy-avx512`/`legacy-avx512-256` rows and the two `legacy-js` ones, and the rewrite's are the native
+`ownership` and `ownership-unoptimized` rows, the three `ownership-js` ones and - since 2026-09-24
+(J133) - `ownership-no-replacements` and the same `ownership-avx*`/`ownership-sha` ladder, started by
+one `start_levels` function per stage so that the two cannot disagree about which rows this machine
+can run. `legacy-generic` is the one row with no partner: the rewrite refuses `-specialize never`
+(J98). The default moved that day; a matrix whose rows
 inherit a default is a matrix that silently changes which compiler it is about when the default moves
 again, which is the one thing a comparison suite may not do.
 

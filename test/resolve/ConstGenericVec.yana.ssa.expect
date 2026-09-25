@@ -1,0 +1,121 @@
+module ResolveTest
+
+let & sink: Vec(I16, 4) = [0, 0, 0, 0]
+
+fn secondLane(v: Vec(I16, n) [shared call]) -> I16 = <no body>
+
+fn widthOf(v: Vec(I16, n) [shared call]) -> I32 = <no body>
+
+fn doubled(v: Vec(I16, n) [shared call]) -> Vec(I16, n) = <no body>
+
+fn twice(v: Vec(I16, n) [shared call]) -> Vec(I16, n) = <no body>
+
+fn sameCount(v: Vec(I16, n) [shared call], w: Vec(I16, n) [shared call]) -> Vec(I16, n) = <no body>
+
+fn quadWidth(v: Vec(I16, 4) [shared call]) -> I32 {
+bb0(%0: Vec(I16, 4) trivial):
+  %1: %Vec(I16, 4) address = alloc frame Vec(I16, 4) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(I16, 4) trivial = load inspect %1
+  %3: I32 trivial = call widthOf(4) borrow %2
+  return consume %3
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Vec(I16, 4) address = alloc frame Vec(I16, 4)
+  %1: %Vec(I16, 4) address = alloc frame Vec(I16, 4)
+  %2: %Vec(I16, 4) address = alloc frame Vec(I16, 4)
+  %3: %Vec(I16, 4) address = global.addr sink
+  %4: Vec(I16, 4) trivial = load inspect %3
+  %5: I32 trivial = const 1
+  %6: I16 trivial = const 9
+  %7: Vec(I16, 4) trivial = vec.withlane #1 inspect %4 inspect %6
+  store inspect %0 consume %7
+  %8: Vec(I16, 4) trivial = load inspect %0
+  %9: Vec(I16, 4) trivial = call doubled(4) borrow %8
+  store inspect %1 consume %9
+  %10: Vec(I16, 4) trivial = load inspect %0
+  %11: Vec(I16, 4) trivial = call twice(4) borrow %10
+  %12: Vec(I16, 4) trivial = load inspect %0
+  %13: Vec(I16, 4) trivial = load inspect %1
+  %14: Vec(I16, 4) trivial = call sameCount(4) borrow %12 borrow %13
+  %15: Vec(I16, 4) trivial = call sameCount(4) borrow %11 borrow %14
+  store inspect %2 consume %15
+  %16: Vec(I16, 4) trivial = load inspect %1
+  %17: %Vec(I16, 4) address = global.addr sink
+  store inspect %17 consume %16
+  %18: Vec(I16, 4) trivial = load inspect %0
+  %19: I32 trivial = call widthOf(4) borrow %18
+  %20: Vec(I16, 4) trivial = load inspect %0
+  %21: I32 trivial = call quadWidth borrow %20
+  %22: I32 trivial = add inspect %19 inspect %21
+  %23: Vec(I16, 4) trivial = load inspect %1
+  %24: I16 trivial = call secondLane(4) borrow %23
+  %25: I32 trivial = convert inspect %24
+  %26: I32 trivial = add inspect %22 inspect %25
+  %27: Vec(I16, 4) trivial = load inspect %2
+  %28: I16 trivial = call secondLane(4) borrow %27
+  %29: I32 trivial = convert inspect %28
+  %30: I32 trivial = add inspect %26 inspect %29
+  %31: Vec(I16, 4) trivial = load inspect %2
+  %32: I32 trivial = const 2
+  %33: I16 trivial = vec.lane #2 inspect %31
+  %34: I32 trivial = convert inspect %33
+  %35: I32 trivial = add inspect %30 inspect %34
+  return consume %35
+}
+
+fn doubled(4)(v: Vec(I16, 4) [shared call]) -> Vec(I16, 4) {
+bb0(%0: Vec(I16, 4) trivial):
+  %1: %Vec(I16, 4) address = alloc frame Vec(I16, 4) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(I16, 4) trivial = load inspect %1
+  %3: Vec(I16, 4) trivial = vec.shuffle [3, 2, 1, 0] inspect %2 inspect %2
+  %4: Vec(I16, 4) trivial = load inspect %1
+  %5: Mask(I16, 4) trivial = gt inspect %3 inspect %4
+  %6: Vec(I16, 4) trivial = select inspect %5 inspect %3 inspect %4
+  return consume %6
+}
+
+fn twice(4)(v: Vec(I16, 4) [shared call]) -> Vec(I16, 4) {
+bb0(%0: Vec(I16, 4) trivial):
+  %1: %Vec(I16, 4) address = alloc frame Vec(I16, 4) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(I16, 4) trivial = load inspect %1
+  %3: Vec(I16, 4) trivial = load inspect %1
+  %4: Vec(I16, 4) trivial = call Vec(a, n).+(I16, 4) borrow %2 borrow %3
+  return consume %4
+}
+
+fn sameCount(4)(v: Vec(I16, 4) [shared call], w: Vec(I16, 4) [shared call]) -> Vec(I16, 4) {
+bb0(%0: Vec(I16, 4) trivial, %1: Vec(I16, 4) trivial):
+  %2: %Vec(I16, 4) address = alloc frame Vec(I16, 4) [shared call]
+  %3: %Vec(I16, 4) address = alloc frame Vec(I16, 4) [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: Vec(I16, 4) trivial = load inspect %2
+  %5: Vec(I16, 4) trivial = load inspect %3
+  %6: Vec(I16, 4) trivial = call Vec(a, n).+(I16, 4) borrow %4 borrow %5
+  return consume %6
+}
+
+fn widthOf(4)(v: Vec(I16, 4) [shared call]) -> I32 {
+bb0(%0: Vec(I16, 4) trivial):
+  %1: %Vec(I16, 4) address = alloc frame Vec(I16, 4) [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = const 4
+  return consume %2
+}
+
+fn secondLane(4)(v: Vec(I16, 4) [shared call]) -> I16 {
+bb0(%0: Vec(I16, 4) trivial):
+  %1: %Vec(I16, 4) address = alloc frame Vec(I16, 4) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(I16, 4) trivial = load inspect %1
+  %3: I32 trivial = const 1
+  %4: I16 trivial = vec.lane #1 inspect %2
+  return consume %4
+}
+
+entry main

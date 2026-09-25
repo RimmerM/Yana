@@ -347,68 +347,48 @@ main<complex>(): I32 {
   }
 
   b_195 {
-    %v_230 = alloca 4, 4: Ptr
-    store %v_230, 40, 4
-    jmp b_231
+    jmp b_230
   }
 
   b_198 {
-    %v_232 = alloca 4, 4: Ptr
-    store %v_232, 30, 4
-    jmp b_231
+    jmp b_230
   }
 
   b_197 {
-    %v_233 = alloca 4, 4: Ptr
-    store %v_233, 20, 4
-    jmp b_231
+    jmp b_230
   }
 
   b_196 {
-    %v_234 = alloca 4, 4: Ptr
-    store %v_234, 10, 4
-    jmp b_231
+    jmp b_230
   }
 
-  b_231 {
-    %v_235 = phi [b_195, %v_230], [b_198, %v_232], [b_197, %v_233], [b_196, %v_234]: Ptr
-    %v_236 = loads %v_235, 4: I32
-    %v_237 = load %v_235, 4: I32
-    call_complex Token.drop, %v_237
-    %v_238 = cmp_eq %v_236, 10: I32
-    je %v_238, b_224, b_202
+  b_230 {
+    %v_231 = phi [b_195, 40], [b_198, 30], [b_197, 20], [b_196, 10]: I32
+    call_complex Token.drop, %v_231
+    %v_232 = cmp_eq %v_231, 10: I32
+    je %v_232, b_224, b_202
   }
 
   b_226 {
-    %v_239 = alloca 4, 4: Ptr
-    store %v_239, 40, 4
     jmp b_205
   }
 
   b_229 {
-    %v_240 = alloca 4, 4: Ptr
-    store %v_240, 30, 4
     jmp b_205
   }
 
   b_228 {
-    %v_241 = alloca 4, 4: Ptr
-    store %v_241, 20, 4
     jmp b_205
   }
 
   b_227 {
-    %v_242 = alloca 4, 4: Ptr
-    store %v_242, 10, 4
     jmp b_205
   }
 
   b_205 {
-    %v_243 = phi [b_226, %v_239], [b_229, %v_240], [b_228, %v_241], [b_227, %v_242]: Ptr
-    %v_244 = loads %v_243, 4: I32
-    %v_245 = load %v_243, 4: I32
-    call_complex Token.drop, %v_245
-    %v_206 = cmp_eq %v_244, 40: I32
+    %v_233 = phi [b_226, 40], [b_229, 30], [b_228, 20], [b_227, 10]: I32
+    call_complex Token.drop, %v_233
+    %v_206 = cmp_eq %v_233, 40: I32
     jmp b_203
   }
 }

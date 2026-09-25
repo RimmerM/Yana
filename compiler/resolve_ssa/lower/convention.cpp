@@ -63,10 +63,16 @@ namespace {
 // bound `splitAggregateSlots` puts on the callee's slot, past which the cells would not promote.
 constexpr Size kMaxCells = 16;
 
+// How many cells a block argument may cross its edges as - `joinCells`. Fewer than a call's
+// bound, because every one is a phi live across the edge and a store in the join: `test/base` is
+// 1,152 bytes larger at four and 768 larger at sixteen than at eight.
+constexpr Size kMaxJoinCells = 8;
+
 // How far into nested records and fixed arrays the walk goes before declining.
 constexpr U32 kMaxDepth = 6;
 
-bool isPowerOfTwo(U32 value) { return value && (value & (value - 1)) == 0; }
+// compiler/lower/fold_arith.h's - J163.
+using foldArith::isPowerOfTwo;
 
 struct CellWalk {
     Layout layout;
@@ -92,6 +98,19 @@ struct CellWalk {
         auto decl = layout.base;
         auto manifest = manifestNative(layout, occurrence);
         if(manifest.dynamic) { ok = false; return; }
+
+        /*
+         * A **window** is laid out as its view record, so it comes apart as that record's cells -
+         * `{items, length: I64}` for `ArrayView` - and not the owner's `{items, word, length}`, which
+         * is what `occurrence.type` names. `manifestNative` already answers the view's size, so
+         * walking the owner's fields named cells the value does not have: a view field crossed as
+         * two `I32`s the callee stored and read back as one `I64`, a store-forwarding stall on every
+         * such call (J151's I2, 149 of them in `test/base`).
+         */
+        if(auto view = mir::viewRecordOf(*layout.context, *layout.program, occurrence)) {
+            walk(mir::owned(view), at, depth);
+            return;
+        }
 
         // A register value is one cell - a scalar, a vector, an enum-layout record, a loan.
         if(!manifest.inMemory) {
@@ -186,8 +205,11 @@ struct CellWalk {
  * `LexCommand`'s one-byte payload read back as the four-byte cell it shares with its sibling is a
  * load wider than the store in front of it, which store forwarding cannot serve - on the lexer's
  * resume path that was 8.6% of the whole run, at an unchanged instruction count.
+ *
+ * `widen` is the exception `joinCells` makes, and says why: two cells that overlap become the span of
+ * both where that span is one aligned access of at most a word.
  */
-bool normalizeCells(SmallArray<CarriedPart, 16>& cells) {
+bool normalizeCells(SmallArray<CarriedPart, 16>& cells, bool widen = false) {
     for(Size i = 1; i < cells.size(); i++) {
         for(Size j = i; j > 0 && cells[j - 1].offset > cells[j].offset; j--) {
             auto held = cells[j]; cells[j] = cells[j - 1]; cells[j - 1] = held;
@@ -201,8 +223,20 @@ bool normalizeCells(SmallArray<CarriedPart, 16>& cells) {
             auto& last = merged[merged.size() - 1];
 
             if(next.offset < last.offset + last.bytes) {
-                if(next.offset != last.offset || next.bytes != last.bytes) return false;
                 if(isVectorLike(last.type) || isVectorLike(next.type)) return false;
+
+                if(next.offset != last.offset || next.bytes != last.bytes) {
+                    if(!widen) return false;
+
+                    // The span of both, where it is one aligned access - see `joinCells`.
+                    auto end = max(last.offset + last.bytes, next.offset + next.bytes);
+                    auto bytes = end - last.offset;
+                    if(bytes > 8 || !isPowerOfTwo(bytes) || last.offset % bytes) return false;
+
+                    last.bytes = bytes;
+                    last.type = packLane(bytes);
+                    continue;
+                }
 
                 if(next.type != last.type) last.type = packLane(last.bytes);
                 continue;
@@ -247,6 +281,59 @@ bool Lowering::carriedCells(const mir::Occurrence& occurrence, SmallArray<Carrie
     if(!walker.ok || !cells.size() || !normalizeCells(cells)) return false;
 
     return true;
+}
+
+/*
+ * The cells a block argument held in memory crosses its edges as, or false where it stays an
+ * address.
+ *
+ * An in-memory value is an address at this tier, so a join of two of them was a `Ptr` phi over two
+ * pieces of storage - each predecessor building its own, and the join reading the fields back
+ * through the phi. Nothing below can take that apart: `splitAggregateSlots` and `promoteStackSlots`
+ * work on one allocation, and a phi of two is neither. After an inlined `?` it was the whole shape of
+ * the join - a tag each predecessor stored as a constant, read back and tested - and J151 counted
+ * 411 such phis, 1,417 stores into the predecessors' slots and 1,688 loads out of them in
+ * `test/base`. So the value crosses the edge the way a carried parameter crosses a call: each
+ * predecessor loads its cells, a phi per cell joins them, and the join stores them into one slot of
+ * its own - which the slot passes take apart again wherever the join only reads fields, and which
+ * the phis make a value the branch threading below this tier can see.
+ *
+ * **Phis rather than one slot every predecessor writes**, which was the other way to give the slot
+ * passes one allocation. A phi is a parallel copy and a store on an edge is not: a loop that hands
+ * its two arguments over swapped, or one argument's old value as the other's new one, writes a slot
+ * the next store reads. Phis make that the register allocator's problem, which is where it is solved.
+ *
+ * **What is admitted** is a value the join may own a copy of: a trivial one, or a handover (a
+ * relocatable type, which `carriedCells` requires). A `Guaranteed` value is a loan of storage
+ * somebody else owns, whose address is the value's identity, and is left an address.
+ *
+ * **A sum's arms are widened rather than refused.** The call convention declines two cells that
+ * overlap other than exactly (`normalizeCells`), because a register return read back wider than the
+ * arm wrote is a store-forwarding stall on every call. Here the widened cell is only ever read from
+ * the predecessor's own slot, and the arm that wrote the narrower field is the one that did not
+ * build the wide one - `Result(E, I64)`'s error arm, which is the cold one. Refusing would leave
+ * every such join a phi of addresses, which is the thing this exists to remove.
+ */
+bool Lowering::joinCells(Value& argument, SmallArray<CarriedPart, 16>& cells) {
+    cells.clear();
+
+    if(argument.convention != Convention::Trivial && !isTracked(argument.convention)) return false;
+
+    auto& occurrence = argument.occurrence;
+    auto manifest = manifestNative(layout, occurrence);
+    if(!manifest.inMemory || manifest.dynamic || !manifest.size) return false;
+
+    // A window's copy is its view record, not the owner `occurrence.type` names - see `CellWalk`.
+    auto view = mir::viewRecordOf(*layout.context, *layout.program, occurrence);
+    auto owned = view ? mir::owned(view)
+                      : occurrence.contract.isOwned() ? occurrence : mir::owned(occurrence.type);
+    if(!mir::isRelocatable(decl, owned.type)) return false;
+
+    CellWalk walker { layout, cells };
+    walker.walk(owned, 0, 0);
+    if(!walker.ok || !cells.size() || !normalizeCells(cells, true)) return false;
+
+    return cells.size() <= kMaxJoinCells;
 }
 
 // The argument is in the file comment.

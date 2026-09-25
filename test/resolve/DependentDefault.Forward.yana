@@ -1,0 +1,25 @@
+{-
+   A default that applies another head **leaving out that head's own defaulted parameters** - J146.
+
+   `b = Link(a)` fills `Link`'s `y` with `Link`'s own default, so reading `Node`'s defaults needs
+   `Link`'s first, and `Link` is written below it. The defaults are read on demand rather than in
+   source order; before J146 the application indexed a list not filled yet, which was an assertion
+   in the checked build and a crash in the other. `Chain` goes two heads deep the same way.
+
+   `DependentDefault.yana` is the rule itself; `Reject.GenericDefault.yana` has the cycle.
+
+   # resolver: ownership
+-}
+
+data Node(a, b = Link(a)) {value: a, link: b}
+data Link(x, y = I32) {head: x, weight: y}
+data Chain(a, b = Node(a)) {start: a, rest: b}
+
+fn weigh(n: Node(I32)) -> I32 = n.value + n.link.head * n.link.weight
+
+fn follow(c: Chain(I32)) -> I32 = c.start * 100 + weigh(c.rest)
+
+fn main() -> I32:
+    let n = Node {value: 1 :: I32, link: Link {head: 2 :: I32, weight: 3 :: I32}}
+    let c = Chain {start: 4 :: I32, rest: Node {value: 5 :: I32, link: Link {head: 6 :: I32, weight: 7 :: I32}}}
+    return weigh(n) * 1000 + follow(c)

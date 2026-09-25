@@ -2,8 +2,8 @@ fn fallbackSkipped(one %r2) -> one %r0
   var $0: %r2
   block0(%0: %r2):
     %5: %r2 = alias %0
-    %6: %r4 = fun.code fallbackSkipped.thunk
-    %7: %r4 = const null
+    %6: %r3 = fun.code fallbackSkipped.thunk
+    %7: %r3 = const null
     store var $0: %r2, %5
     %9: %r2 = load var $0: %r2
     %10: %r2 = const null
@@ -12,11 +12,11 @@ fn fallbackSkipped(one %r2) -> one %r0
     %13: %r1 = const 0
     %14: %r1 = select %11, %13, %12
     %15: %r1 = const 1
-    %16: %r3 = binary.eq %14, %15
+    %16: %r5 = binary.eq %14, %15
     branch %16 -> block2 -> block1
   block1:
-    %17: %r4 = alias %6
-    %18: %r4 = alias %7
+    %17: %r3 = alias %6
+    %18: %r3 = alias %7
     %19: %r0 = call.value %17, %18
     jump -> block3(%19)
   block2:
@@ -25,15 +25,35 @@ fn fallbackSkipped(one %r2) -> one %r0
   block3(%1: %r0):
     return %1
 
-fn onceKept(one %r3, one %r5) -> one %r0
-  block0(%0: %r3, %1: %r5):
+fn bothSet(one %r0, one %r4) -> one %r0
+  block0(%0: %r0, %1: %r4):
+    %3: %r0 = const 0
+    %4: %r5 = binary.eq %0, %3
+    branch %4 -> block3 -> block1
+  block1:
+    %5: %r0 = alias %0
+    %6: %r3 = load property %1.$c: %r3
+    %7: %r3 = load property %1.$e: %r3
+    %8: %r0 = call.value %6, %7
+    %9: %r0 = binary.and %5, %8
+    %10: %r0 = coerce %9
+    %11: %r0 = alias %10
+    jump -> block2(%11)
+  block2(%2: %r0):
+    return %2
+  block3:
+    %12: %r0 = alias %0
+    jump -> block2(%12)
+
+fn onceKept(one %r5, one %r4) -> one %r0
+  block0(%0: %r5, %1: %r4):
     branch %0 -> block2 -> block1
   block1:
     %2: %r0 = const 0
     return %2
   block2:
-    %3: %r4 = load property %1.$c: %r4
-    %4: %r4 = load property %1.$e: %r4
+    %3: %r3 = load property %1.$c: %r3
+    %4: %r3 = load property %1.$e: %r3
     %5: %r0 = call.value %3, %4
     %6: %r0 = const 1
     %7: %r0 = binary.add %5, %6
@@ -41,163 +61,138 @@ fn onceKept(one %r3, one %r5) -> one %r0
     return %8
 
 fn main() -> one %r0
-  var $0: %r5
-  var $1: %r5
-  var $2: %r5
-  var $3: %r5
+  var $0: %r4
+  var $1: %r4
+  var $2: %r4
+  var $3: %r4
   var $4: %r0
   var $5: %r0
-  var $6: %r4
-  var $7: %r4
-  var $8: %r4
-  var $9: %r4
-  var $10: %r4
-  var $11: %r4
-  var $12: %r4
-  var $13: %r4
+  var $6: %r3
+  var $7: %r3
+  var $8: %r3
+  var $9: %r3
+  var $10: %r3
+  var $11: %r3
+  var $12: %r3
+  var $13: %r3
   block0:
-    %14: %r0 = load global effects: %r0
-    %15: %r0 = const 1
-    %16: %r0 = binary.add %14, %15
-    %17: %r0 = coerce %16
-    store global effects: %r0, %17
-    %18: %r0 = load global effects: %r0
-    %19: %r0 = const 1
-    %20: %r0 = binary.add %18, %19
-    %21: %r0 = coerce %20
-    store global effects: %r0, %21
-    %26: %r0 = const 127
-    %27: %r0 = const 5
-    %28: %r2 = alias %27
+    %12: %r0 = load global effects: %r0
+    %13: %r0 = const 2
+    %14: %r0 = binary.add %12, %13
+    %15: %r0 = coerce %14
+    store global effects: %r0, %15
+    %20: %r0 = const 127
+    %21: %r0 = const 5
+    %22: %r2 = alias %21
+    %23: %r0 = call fallbackSkipped %22
+    %24: %r0 = const 5
+    %25: %r5 = binary.eq %23, %24
+    %26: %r0 = const 255
+    %27: %r0 = select %25, %26, %20
+    %28: %r2 = const null
     %29: %r0 = call fallbackSkipped %28
-    %30: %r0 = const 5
-    %31: %r3 = binary.eq %29, %30
-    %32: %r0 = const 255
-    %33: %r0 = select %31, %32, %26
-    %34: %r2 = const null
-    %35: %r0 = call fallbackSkipped %34
-    %36: %r0 = const 7
-    %37: %r3 = binary.eq %35, %36
-    %38: %r0 = const 256
-    %39: %r0 = binary.add %33, %38
-    %40: %r0 = coerce %39
-    %41: %r0 = select %37, %40, %33
-    %45: %r0 = const 512
-    %46: %r0 = binary.add %41, %45
-    %47: %r0 = coerce %46
-    %48: %r4 = fun.code main.thunk'2
-    %49: %r4 = const null
-    %51: %r4 = alias %48
-    %52: %r4 = alias %49
-    %53: %r0 = call.value %51, %52
-    %54: %r0 = const 1
-    %55: %r0 = binary.add %53, %54
-    %56: %r0 = coerce %55
-    %57: %r0 = const 8
-    %58: %r3 = binary.eq %56, %57
-    %59: %r0 = const 1536
-    %60: %r0 = binary.add %41, %59
-    %61: %r0 = coerce %60
-    %62: %r0 = select %58, %61, %47
-    %66: %r0 = const 0
-    jump -> block2
-  block1:
-    %73: %r0 = alias %67
-    %74: %r4 = load property %65.$c: %r4
-    %75: %r4 = load property %65.$e: %r4
-    %76: %r0 = call.value %74, %75
-    %77: %r0 = binary.and %73, %76
-    %78: %r0 = coerce %77
-    %79: %r0 = alias %78
-    jump -> block3(%79)
-  block2:
-    %67: %r0 = alias %66
-    %80: %r0 = alias %67
-    jump -> block3(%80)
-  block3(%0: %r0):
-    %82: %r0 = alias %0
-    %83: %r0 = const 0
-    %84: %r3 = binary.eq %82, %83
-    %85: %r0 = const 2048
-    %86: %r0 = binary.add %62, %85
-    %87: %r0 = coerce %86
-    %88: %r0 = select %84, %87, %62
-    %92: %r0 = const 7
-    %94: %r4 = fun.code maskRuns.thunk
-    %95: %r4 = const null
-    jump -> block4
-  block4:
-    %93: %r0 = alias %92
-    %99: %r0 = alias %93
-    %100: %r4 = alias %94
-    %101: %r4 = alias %95
-    %102: %r0 = call.value %100, %101
-    %103: %r0 = binary.and %99, %102
-    %104: %r0 = coerce %103
-    %105: %r0 = alias %104
-    jump -> block6(%105)
-  block5:
-    %106: %r0 = alias %93
-    jump -> block6(%106)
-  block6(%1: %r0):
-    %108: %r0 = alias %1
-    %109: %r0 = const 3
-    %110: %r3 = binary.eq %108, %109
-    %111: %r0 = const 4096
-    %112: %r0 = binary.add %88, %111
+    %30: %r0 = const 7
+    %31: %r5 = binary.eq %29, %30
+    %32: %r0 = const 256
+    %33: %r0 = binary.add %27, %32
+    %34: %r0 = coerce %33
+    %35: %r0 = select %31, %34, %27
+    %39: %r0 = const 512
+    %40: %r0 = binary.add %35, %39
+    %41: %r0 = coerce %40
+    %42: %r3 = fun.code main.thunk'2
+    %43: %r3 = const null
+    %45: %r3 = alias %42
+    %46: %r3 = alias %43
+    %47: %r0 = call.value %45, %46
+    %48: %r0 = const 1
+    %49: %r0 = binary.add %47, %48
+    %50: %r0 = coerce %49
+    %51: %r0 = const 8
+    %52: %r5 = binary.eq %50, %51
+    %53: %r0 = const 1536
+    %54: %r0 = binary.add %35, %53
+    %55: %r0 = coerce %54
+    %56: %r0 = select %52, %55, %41
+    %60: %r0 = const 0
+    %61: %r0 = alias %60
+    %62: %r3 = fun.code maskSkips.thunk
+    %63: %r3 = const null
+    %64: %r4 = object %s0 %62, %63
+    %59: %r4 = alias %64
+    %65: %r0 = call bothSet %61, %59
+    %67: %r0 = alias %65
+    %68: %r0 = const 0
+    %69: %r5 = binary.eq %67, %68
+    %70: %r0 = const 2048
+    %71: %r0 = binary.add %56, %70
+    %72: %r0 = coerce %71
+    %73: %r0 = select %69, %72, %56
+    %77: %r0 = const 7
+    %78: %r0 = alias %77
+    %79: %r3 = fun.code maskRuns.thunk
+    %80: %r3 = const null
+    %81: %r4 = object %s0 %79, %80
+    %76: %r4 = alias %81
+    %82: %r0 = call bothSet %78, %76
+    %84: %r0 = alias %82
+    %85: %r0 = const 3
+    %86: %r5 = binary.eq %84, %85
+    %87: %r0 = const 4096
+    %88: %r0 = binary.add %73, %87
+    %89: %r0 = coerce %88
+    %90: %r0 = select %86, %89, %73
+    %97: %r0 = const 24576
+    %98: %r0 = binary.add %90, %97
+    %99: %r0 = coerce %98
+    %100: %r3 = fun.code main.thunk'3
+    %101: %r3 = const null
+    %103: %r3 = alias %100
+    %104: %r3 = alias %101
+    %105: %r0 = call.value %103, %104
+    %106: %r0 = const 1
+    %107: %r0 = binary.add %105, %106
+    %108: %r0 = coerce %107
+    %109: %r0 = const 8
+    %110: %r5 = binary.eq %108, %109
+    %111: %r0 = const 57344
+    %112: %r0 = binary.add %90, %111
     %113: %r0 = coerce %112
-    %114: %r0 = select %110, %113, %88
-    %121: %r0 = const 24576
-    %122: %r0 = binary.add %114, %121
-    %123: %r0 = coerce %122
-    %124: %r4 = fun.code main.thunk'3
-    %125: %r4 = const null
-    %127: %r4 = alias %124
-    %128: %r4 = alias %125
-    %129: %r0 = call.value %127, %128
-    %130: %r0 = const 1
-    %131: %r0 = binary.add %129, %130
-    %132: %r0 = coerce %131
-    %133: %r0 = const 8
-    %134: %r3 = binary.eq %132, %133
-    %135: %r0 = const 57344
-    %136: %r0 = binary.add %114, %135
-    %137: %r0 = coerce %136
-    %138: %r0 = select %134, %137, %123
-    %142: %r0 = const 65536
-    %143: %r0 = binary.add %138, %142
-    %144: %r0 = coerce %143
-    %145: %r3 = const 0
-    %146: %r4 = fun.code main.thunk'5
-    %147: %r4 = const null
-    %148: %r5 = object %s0 %146, %147
-    %10: %r5 = alias %148
-    %149: %r0 = call onceKept %145, %10
-    %150: %r0 = const 0
-    %151: %r3 = binary.eq %149, %150
-    %152: %r0 = const 196608
-    %153: %r0 = binary.add %138, %152
-    %154: %r0 = coerce %153
-    %155: %r0 = select %151, %154, %144
-    %156: %r3 = const 1
-    %157: %r4 = fun.code main.thunk'6
-    %158: %r4 = const null
-    %159: %r5 = object %s0 %157, %158
-    %13: %r5 = alias %159
-    %160: %r0 = call onceKept %156, %13
-    %161: %r0 = const 8
-    %162: %r3 = binary.eq %160, %161
-    %163: %r0 = const 262144
-    %164: %r0 = binary.add %155, %163
-    %165: %r0 = coerce %164
-    %166: %r0 = select %162, %165, %155
-    %167: %r0 = const 100
-    %168: %r0 = binary.mul %166, %167
-    %169: %r0 = coerce %168
-    %170: %r0 = load global effects: %r0
-    %171: %r0 = binary.add %169, %170
-    %172: %r0 = coerce %171
-    return %172
+    %114: %r0 = select %110, %113, %99
+    %118: %r0 = const 65536
+    %119: %r0 = binary.add %114, %118
+    %120: %r0 = coerce %119
+    %121: %r5 = const 0
+    %122: %r3 = fun.code main.thunk'5
+    %123: %r3 = const null
+    %124: %r4 = object %s0 %122, %123
+    %8: %r4 = alias %124
+    %125: %r0 = call onceKept %121, %8
+    %126: %r0 = const 0
+    %127: %r5 = binary.eq %125, %126
+    %128: %r0 = const 196608
+    %129: %r0 = binary.add %114, %128
+    %130: %r0 = coerce %129
+    %131: %r0 = select %127, %130, %120
+    %132: %r5 = const 1
+    %133: %r3 = fun.code main.thunk'6
+    %134: %r3 = const null
+    %135: %r4 = object %s0 %133, %134
+    %11: %r4 = alias %135
+    %136: %r0 = call onceKept %132, %11
+    %137: %r0 = const 8
+    %138: %r5 = binary.eq %136, %137
+    %139: %r0 = const 262144
+    %140: %r0 = binary.add %131, %139
+    %141: %r0 = coerce %140
+    %142: %r0 = select %138, %141, %131
+    %143: %r0 = const 100
+    %144: %r0 = binary.mul %142, %143
+    %145: %r0 = coerce %144
+    %146: %r0 = load global effects: %r0
+    %147: %r0 = binary.add %145, %146
+    %148: %r0 = coerce %147
+    return %148
 
 fn fallbackSkipped.thunk(one %r6) -> one %r0 env
   block0(%0: %r6):
@@ -296,9 +291,9 @@ fn main.thunk'6(one %r14) -> one %r0 env
     %5: %r0 = const 7
     return %5
 
-optimizer clones 0 aliased 0 forwarded 8 removed 59 adopted 7 sunk 3 numbered 0 decided 2 unboxed 0 updated 0 split 4 promoted 2
+optimizer clones 0 aliased 0 forwarded 6 removed 49 adopted 7 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 4 promoted 2 folded 0
 
-shape %s0 fun {$c: %r4 code, $e: %r4 env}
+shape %s0 fun {$c: %r3 code, $e: %r3 env}
 shape %s1 object fallbackSkipped.thunk.env {}
 shape %s2 object maskSkips.thunk.env {}
 shape %s3 object maskRuns.thunk.env {}
@@ -312,9 +307,9 @@ shape %s9 object main.thunk'6.env {}
 rep %r0 = number signed 32
 rep %r1 = number unsigned 8
 rep %r2 = nullable of %r0
-rep %r3 = number bool
-rep %r4 = erased
-rep %r5 = object %s0
+rep %r3 = erased
+rep %r4 = object %s0
+rep %r5 = number bool
 rep %r6 = object %s1
 rep %r7 = object %s2
 rep %r8 = object %s3

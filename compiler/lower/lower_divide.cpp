@@ -1,4 +1,5 @@
 #include "lower_divide.h"
+#include "fold_arith.h"
 #include "lower_builder.h"
 
 namespace {
@@ -9,9 +10,8 @@ U32 widthOf(LowerType type) {
     return laneBytes(type.lane) * 8;
 }
 
-U64 maskOf(U32 bits) {
-    return bits >= 64 ? maxLimit<U64> : (U64(1) << bits) - 1;
-}
+// fold_arith.h's, the one spelling of the low-bits mask - J163.
+using foldArith::maskOf;
 
 bool isDivision(LowerInst::Kind kind) {
     return kind == LowerInst::Div || kind == LowerInst::IDiv

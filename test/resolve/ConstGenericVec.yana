@@ -24,6 +24,12 @@
 
    Like `VecWidth.yana` this runs under Node and not natively: the x64 opcode list is
    Implementation-Vector.md stage 5 and nothing here helps with it.
+
+   **The default stage compiles each body once** (J142) and the substitution settles the count
+   below it: a lane index into `Vec(I16, n)` is held to the count where the count is a number, and
+   `reverse` of one is a shuffle whose pattern the SSA conversion writes (`NodeVecShuffle::reversed`),
+   as `iota`'s chain is. `sameCount` writes its constraint before `n` because the const entries are
+   declared first either way. It runs on JavaScript and under LLVM (`.mir.llvm.expect`).
 -}
 
 import Native

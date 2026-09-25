@@ -262,27 +262,27 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rax]  => 488d0424
-  imm uses=[] creates=[-]  => 
   alloca uses=[-] creates=[remat:0]  => 
-  store uses=[rax, rdi] creates=[]  => 488938
-  store uses=[rsi, rdi] creates=[] pre=[remat:0->rsi]  => 488d74240848893e
-  load uses=[rax] creates=[rax]  => 488b00
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[remat:1]  => 
+  store uses=[remat:0, rdi] creates=[]  => 48893c24
+  store uses=[remat:1, rdi] creates=[]  => 48897c2408
+  load uses=[remat:0] creates=[rax]  => 488b0424
   ret uses=[rax] creates=[]  => 4883c428c3
 
 --- codegen: localsAndCall ---
-  prologue  => 534883ec08
+  prologue  => 4883ec08
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rbx]  => 488d1c24
-  store uses=[rbx, rdi] creates=[]  => 48893b
+  alloca uses=[-] creates=[remat:0]  => 
+  store uses=[remat:0, rdi] creates=[]  => 48893c24
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e81fffffff
-  load uses=[rbx] creates=[rbx]  => 488b1b
-  add uses=[rax, rbx] creates=[rax]  => 01d8
-  ret uses=[rax] creates=[]  => 4883c4085bc3
+  call_complex uses=[-, rdi] creates=[rax]  => e823ffffff
+  load uses=[remat:0] creates=[rcx]  => 488b0c24
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => 4883c408c3
 
 --- codegen: dynamicLocal ---
   prologue  => 55488bec
@@ -300,9 +300,9 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rax]  => 488d0424
-  store uses=[rax, rdi] creates=[]  => 488938
-  load uses=[rax] creates=[rax]  => 488b00
+  alloca uses=[-] creates=[remat:0]  => 
+  store uses=[remat:0, rdi] creates=[]  => 48893c24
+  load uses=[remat:0] creates=[rax]  => 488b0424
   ret uses=[rax] creates=[]  => c9c3
 
 --- codegen: overAlignedDynamicLocal ---
@@ -324,19 +324,19 @@ block #1:
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: stackArgsAndLocals ---
-  prologue  => 534883ec10
+  prologue  => 4883ec10
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   x86_pusharg uses=[rdi] creates=[-]  => 48893c24
   imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rbx]  => 488d5c2408
-  store uses=[rbx, rdi] creates=[]  => 48893b
+  alloca uses=[-] creates=[remat:0]  => 
+  store uses=[remat:0, rdi] creates=[]  => 48897c2408
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, rax, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11, rdi->rax]  => 8bf78bd78bcf448bc7448bcf448bd7448bdf8bc7e8c6ffffff
-  load uses=[rbx] creates=[rbx]  => 488b1b
-  add uses=[rax, rbx] creates=[rax]  => 01d8
-  ret uses=[rax] creates=[]  => 4883c4105bc3
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, rax, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11, rdi->rax]  => 8bf78bd78bcf448bc7448bcf448bd7448bdf8bc7e8caffffff
+  load uses=[remat:0] creates=[rcx]  => 488b4c2408
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => 4883c410c3
 
 --- codegen: stackArgsOnly ---
   prologue  => 4883ec08

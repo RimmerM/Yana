@@ -31,6 +31,12 @@
  *
  *     ../build-bench/test/YanaBench -repeat 20
  *
+ * **Which compiler.** The default stage - `resolve_mir` and `resolve_ssa`, natively and through JSIR
+ * - since J150; `-legacy` measures `compiler/resolve`'s native and JavaScript rows instead, which is
+ * what every run measured before then, and is the only way this driver reaches that stage. One or
+ * the other per run and never both, because the phases below are shared. Numbers recorded before
+ * J150 are the old stage's and are not comparable with a default run now.
+ *
  * ## Which build
  *
  * `build-bench` is CMAKE_BUILD_TYPE=Bench, which is `-O2 -g` and *not* what ships: CMakeLists.txt
@@ -77,6 +83,7 @@
 #include "../compiler/resolve_ssa/pipeline.h"
 #include "corpus.h"
 #include "directives.h"
+#include "provider.h"
 
 using namespace Tritium;
 
@@ -201,75 +208,15 @@ extern "C" void free(void* p) {
 }
 #endif
 
-// Modules an `import` names, read from `resolve/modules/` exactly as the resolve driver does. The
-// source text is only ever asked for by a diagnostic, and this driver reports none.
-struct BenchProvider: SourceProvider, ModuleProvider {
-    struct Loaded {
-        StringId name;
-        Ptr<char, HeapDeleter> text;
-        Size length;
-        ast::Module* ast;
-        ast::ModuleGroup* group;
-    };
-
-    StringView source;
-    Context* context = nullptr;
-    Array<Loaded> loaded;
-
-    // Which directory an `import` this driver has to answer is looked for in - `resolve/modules/`
-    // for a compiler fixture and `lib/modules/` for a library one. Set per fixture, because the two
-    // corpora are compiled by one process here.
-    String moduleRoot = String("resolve/modules/");
-
-    ~BenchProvider() override {
-        for(auto& entry: loaded) {
-            delete entry.group;
-            delete entry.ast;
-        }
-    }
-
-    StringView getSource(StringId id) override {
-        for(auto& entry: loaded) {
-            if(entry.name == id) return StringView { entry.text.get(), entry.length };
-        }
-
-        return source;
-    }
-
-    const Location* getNode(LocationId id) override {
-        return context ? context->getLocation(id) : nullptr;
-    }
-
-    ast::ModuleGroup* getModule(StringId name) override {
-        for(auto& entry: loaded) {
-            if(entry.name == name) return entry.group;
-        }
-
-        // `OpenExisting`, for the reason ResolveTester gives: the default mode *creates* the file,
-        // so an import this directory does not answer leaves an empty module behind - which then
-        // shadows the library module of that name on every run afterwards, silently.
-        auto path = moduleRoot + context->findName(name) + String(".yana");
-        auto opened = File::openFile(path, readAccess(), File::OpenExisting);
-        if(opened.isErr()) return nullptr;
-
-        auto file = opened.moveUnwrapOk();
-        auto size = file.size();
-        Ptr<char, HeapDeleter> text { (char*)hAlloc(size) };
-        file.read({ (Byte*)text.get(), size });
-
-        Lexer lexer(*context, context->diagnostics, StringView { text.get(), size }, name);
-        Parser parser(*context, lexer, name);
-        auto ast = new ast::Module(parser.parseModule());
-
-        // A group of one file. These fixtures name a module per file, which is what a file that
-        // wrote `module` would be under the directory rule too - Analysis-Modules.md §2.1.
-        auto group = new ast::ModuleGroup { .name = name };
-        group->files.push(ast);
-
-        loaded.push(Loaded { name, ::move(text), size, ast, group });
-        return group;
-    }
-};
+// Modules an `import` names: `provider.h`'s, the one the fixture drivers use, since J165. This
+// driver kept its own copy until then - one file per module, no directory form and no `.test`
+// companion - so the `lib/` fixtures it compiles under `-test` were not the programs YanaElfTest and
+// YanaLibTest build: `TestFileGlobals` was benchmarked without `GlobalInit.test.yana`.
+static void pointProvider(TestProvider& provider, const String& path) {
+    if(!stringView(path).startsWith("lib/"_v)) return;
+    provider.moduleRoot = String("lib/modules");
+    provider.testCompanions = true;
+}
 
 struct Fixture {
     String path;
@@ -400,30 +347,68 @@ static ast::Module parseFixture(Context& context, Diagnostics& diagnostics, Stri
 }
 
 /*
- * The native pipeline for one fixture, from text to machine code.
+ * The amd64 backend over one lowered module - the part of a native build both stages share, since
+ * the first object the two resolve stages have in common is the `LowerModule`.
+ */
+static void benchX64(Context& context, LowerModule& lowered) {
+    PhaseTimer timer(PhaseX64);
+    auto base = *lowered.arena;
+    AsmModule assembly;
+    RegScratch scratch;
+    FunctionRegs registers;
+    MachineFunction machine;
+
+    for(auto functionPointer: lowered.functionOrder) {
+        auto function = base[functionPointer];
+        machine.reset();
+        // Refused by the backend and already reported - see `transformFunction`. Stopped rather than
+        // skipped, as `genX64Executable` does: a call into the refused function is a relocation to
+        // an offset that never existed, which `resolveRelocations` asserts on. The old stage's row
+        // never reached one; the rewrite's reaches `VecPermute2.Avx512`, whose `# enable-inst` this
+        // driver does not read.
+        if(!transformFunction(context, base, *function, machine)) return;
+
+        scratch.resetRecords();
+        allocateRegisters(context, base, *function, machine, scratch, registers);
+        genFunction(context, base, assembly, *function, machine, registers);
+    }
+
+    for(auto globalPointer: lowered.globalOrder) assembly.addGlobal(base, base[globalPointer]);
+    assembly.resolveRelocations(lowered.imageAnchor ? base[lowered.imageAnchor] : nullptr);
+}
+
+/*
+ * The native pipeline for one fixture, from text to machine code, through `compiler/resolve` - the
+ * `-legacy` row, which is what this benchmark measured by default until J150.
  *
  * Codegen is run but nothing is executed and nothing is written: what is being measured is the
  * compiler, and a fixture's answer is the resolve suite's business. A fixture the resolver rejects
  * - there are a few, and they are as much of a compile as any other - stops after resolve rather
  * than lowering a program that has no meaning.
  */
-static void benchNative(const Fixture& fixture) {
+static void benchLegacyNative(const Fixture& fixture) {
     if(gTrace) println("native %@", fixture.path);
-    BenchProvider provider;
+    TestProvider provider;
     provider.source = StringView { fixture.source.get(), fixture.length };
-    if(stringView(fixture.path).startsWith("lib/"_v)) provider.moduleRoot = String("lib/modules/");
+    pointProvider(provider, fixture.path);
     Diagnostics diagnostics(provider);
     Context context(diagnostics);
 
     // The shipping stage, named rather than defaulted to: `CompileSettings::resolver` is the rewrite
-    // since 2026-09-22 (J81), and what this row measures is `compiler/resolve` - `benchJsir` below
-    // is the other stage's row and `PhaseResolve` would otherwise be two compilers' number.
+    // since 2026-09-22 (J81), and what this row measures is `compiler/resolve`. It never runs in the
+    // same process as `benchNative` and `benchJsir`, so `PhaseResolve` is one compiler's number.
+    //
+    // The fixture's directives first, for the reason `benchNative` gives: without them this row
+    // asserted in the backend on `VecShuffleWidth` (`# extensions: avx2`) in a build with assertions
+    // - unnoticed, because `build-bench` has none.
+    applyFixtureDirectives(context.settings, provider.source);
+    if(isJsMode(context.settings)) return;
     context.settings.resolver = ResolverStage::Legacy;
 
     // A `lib/` fixture is a suite with a synthesized entry rather than a program with a `main` -
     // Design-Test.md §11.2's F1. Without this it does not resolve at all, and a fixture that does
     // not resolve is a compile this benchmark stops half way through and therefore mistimes.
-    context.settings.test = stringView(fixture.path).startsWith("lib/"_v);
+    if(stringView(fixture.path).startsWith("lib/"_v)) context.settings.test = true;
     provider.context = &context;
 
     auto name = context.addUnqualifiedName("Bench", 5);
@@ -454,28 +439,7 @@ static void benchNative(const Fixture& fixture) {
     // comparable with each other rather than with anything absolute.
     if(!validateLowerModule(&diagnostics, lowered.get())) return;
 
-    {
-        PhaseTimer timer(PhaseX64);
-        auto base = *lowered->arena;
-        AsmModule assembly;
-        RegScratch scratch;
-        FunctionRegs registers;
-        MachineFunction machine;
-
-        for(auto functionPointer: lowered->functionOrder) {
-            auto function = base[functionPointer];
-            machine.reset();
-            // Refused by the backend and already reported - see `transformFunction`.
-            if(!transformFunction(context, base, *function, machine)) continue;
-
-            scratch.resetRecords();
-            allocateRegisters(context, base, *function, machine, scratch, registers);
-            genFunction(context, base, assembly, *function, machine, registers);
-        }
-
-        for(auto globalPointer: lowered->globalOrder) assembly.addGlobal(base, base[globalPointer]);
-        assembly.resolveRelocations(lowered->imageAnchor ? base[lowered->imageAnchor] : nullptr);
-    }
+    benchX64(context, *lowered);
 }
 
 /*
@@ -485,18 +449,18 @@ static void benchNative(const Fixture& fixture) {
  * selects which declarations exist, so the two targets do not share a resolved program - and the
  * two backends between them are most of what a change to the shared containers touches.
  */
-static void benchJs(const Fixture& fixture) {
+static void benchLegacyJs(const Fixture& fixture) {
     if(!fixture.js) return;
 
-    BenchProvider provider;
+    TestProvider provider;
     provider.source = StringView { fixture.source.get(), fixture.length };
-    if(stringView(fixture.path).startsWith("lib/"_v)) provider.moduleRoot = String("lib/modules/");
+    pointProvider(provider, fixture.path);
     Diagnostics diagnostics(provider);
     Context context(diagnostics);
     context.settings.platform = TargetPlatform::Js;
 
-    // The shipping stage, for the reason `benchNative` states: this is the `js` row and `benchJsir`
-    // is the rewrite's.
+    // The shipping stage, for the reason `benchLegacyNative` states: this is the `-legacy` run's
+    // `js` row and `benchJsir` is the rewrite's.
     context.settings.resolver = ResolverStage::Legacy;
     context.settings.test = stringView(fixture.path).startsWith("lib/"_v);
     provider.context = &context;
@@ -525,11 +489,82 @@ static void benchJs(const Fixture& fixture) {
 }
 
 /*
+ * The rewrite's front half for one fixture, charged to the phases the old stage's rows used: MIR
+ * resolution and its analyses and the SSA conversion are `resolve`, the SSA optimizer is `opt`.
+ * Before J150 the JavaScript row ran these outside every phase, so they were in `other`.
+ */
+static bool ownershipFront(ssa::Pipeline& pipeline, ast::Module& ast, TestProvider& provider) {
+    {
+        PhaseTimer timer(PhaseResolve);
+        if(!pipeline.resolve(ast, &provider)) return false;
+        if(!pipeline.convert()) return false;
+    }
+
+    pipeline.releaseMir();
+
+    PhaseTimer timer(PhaseOpt);
+    return pipeline.optimize();
+}
+
+/*
+ * The native pipeline for one fixture, from text to machine code, through the default stage -
+ * `resolve_mir`, `resolve_ssa` and its lowering, and the same amd64 backend.
+ *
+ * The default row since J150. This benchmark used to measure `compiler/resolve` alone on the native
+ * side, which after J81 was measuring the compiler nobody runs; that is `-legacy` now.
+ *
+ * Every fixture rather than only those a golden says the rewrite compiles, on the old row's terms:
+ * one that does not resolve stops there, and a rejection is as much of a compile as any other.
+ */
+static void benchNative(const Fixture& fixture) {
+    if(gTrace) println("native %@", fixture.path);
+    TestProvider provider;
+    provider.source = StringView { fixture.source.get(), fixture.length };
+    pointProvider(provider, fixture.path);
+    Diagnostics diagnostics(provider);
+    Context context(diagnostics);
+
+    // The fixture's own `# extensions:`, `# target:` and the rest, as ElfTester reads them. The old
+    // stage's row never did and still does not; this one has to, because the rewrite compiles the
+    // `Avx2`/`Avx512` fixtures that stage refused, and at the default level the backend refuses or
+    // asserts on them. A JavaScript fixture is not a native build.
+    applyFixtureDirectives(context.settings, provider.source);
+    if(isJsMode(context.settings)) return;
+
+    context.settings.resolver = ResolverStage::Ownership;
+    if(stringView(fixture.path).startsWith("lib/"_v)) context.settings.test = true;
+    provider.context = &context;
+
+    auto name = context.addUnqualifiedName("Bench", 5);
+    auto ast = parseFixture(context, diagnostics, provider.source, name);
+
+    // The lowered module points into the pipeline's regions, so it is used inside this scope and
+    // never returned out of it - see ElfTester.cpp's `lowerFixture`.
+    ssa::Pipeline pipeline(context);
+    if(!ownershipFront(pipeline, ast, provider) || diagnostics.errorCount()) return;
+
+    Ptr<LowerModule> lowered;
+    {
+        PhaseTimer timer(PhaseLower);
+        lowered = pipeline.lower();
+    }
+
+    if(!lowered || diagnostics.errorCount() || !fixture.native) return;
+
+    // Outside any phase, for the reason `benchLegacyNative` gives.
+    if(!validateLowerModule(&diagnostics, lowered.get())) return;
+
+    benchX64(context, *lowered);
+}
+
+/*
  * The same fixture through the ownership pipeline's JavaScript half - Analysis-IR-JS.md §7.8.
  *
- * Beside `benchJs` rather than folded into it, because the two are two compilers: this one resolves
- * through `resolve_mir`, converts to SSA, optimizes it and then builds JSIR, and the only phase the
- * two share is the parse. Charged to `jsir` as one number for the reason the phase comment gives.
+ * Beside `benchLegacyJs` rather than folded into it, because the two are two compilers: this one
+ * resolves through `resolve_mir`, converts to SSA, optimizes it and then builds JSIR. The front half
+ * is charged to `resolve` and `opt` as the native row's is (`ownershipFront`); the conversion to
+ * JSIR, its verifier and the emission are `jsir`, as one number for the reason the phase comment
+ * gives.
  *
  * Silent where the program does not compile for this target yet, which is most of the corpus: what
  * is being measured is the cost of the path, and a fixture that reports is a fixture the path did
@@ -538,9 +573,9 @@ static void benchJs(const Fixture& fixture) {
 static void benchJsir(const Fixture& fixture) {
     if(!fixture.js) return;
 
-    BenchProvider provider;
+    TestProvider provider;
     provider.source = StringView { fixture.source.get(), fixture.length };
-    if(stringView(fixture.path).startsWith("lib/"_v)) provider.moduleRoot = String("lib/modules/");
+    pointProvider(provider, fixture.path);
     Diagnostics diagnostics(provider);
     Context context(diagnostics);
     context.settings.platform = TargetPlatform::Js;
@@ -552,11 +587,7 @@ static void benchJsir(const Fixture& fixture) {
     auto ast = parseFixture(context, diagnostics, provider.source, name);
 
     ssa::Pipeline pipeline(context);
-    if(!pipeline.resolve(ast, &provider)) return;
-    if(!pipeline.convert()) return;
-
-    pipeline.releaseMir();
-    if(!pipeline.optimize()) return;
+    if(!ownershipFront(pipeline, ast, provider)) return;
 
     {
         PhaseTimer timer(PhaseJsir);
@@ -668,9 +699,14 @@ static void reportSites(Size repeat) {
 int main(int argc, const char** argv) {
     Size repeat = 10;
 
+    // Which compiler is measured - the default stage, or with `-legacy` the old one, never both in
+    // one run: the phases are shared, and a column holding two compilers' costs answers nothing.
+    auto legacy = false;
+
     for(int i = 1; i < argc; i++) {
         if(String(argv[i]) == "-repeat" && i + 1 < argc) repeat = (Size)atoi(argv[++i]);
         else if(String(argv[i]) == "-trace") gTrace = true;
+        else if(String(argv[i]) == "-legacy") legacy = true;
         else if(String(argv[i]) == "-sites") {
             gProfiling = true;
 
@@ -721,9 +757,9 @@ int main(int argc, const char** argv) {
             Ptr<char, HeapDeleter> source { (char*)hAlloc(size) };
             file.read({ (Byte*)source.get(), size });
 
-            // A fixture only the rewritten stage compiles - see directives.h. This measures the
-            // shipping compiler, which cannot read it.
-            if(fixtureNeedsOwnershipStage({ source.get(), size })) return;
+            // A fixture only the rewritten stage compiles - see directives.h. The `-legacy` run
+            // measures the shipping compiler, which cannot read it.
+            if(legacy && fixtureNeedsOwnershipStage({ source.get(), size })) return;
 
             auto native = library || hasContent(path + String(".run.expect"));
             auto js = library ? fileExists(path + String(".js"))
@@ -745,11 +781,19 @@ int main(int argc, const char** argv) {
 
     // One untimed pass, so that whatever the allocator and the page tables do the first time a
     // process touches this much memory lands outside the measurement.
-    for(auto& fixture: fixtures) {
-        benchNative(fixture);
-        benchJs(fixture);
-        benchJsir(fixture);
-    }
+    auto runAll = [&]() {
+        for(auto& fixture: fixtures) {
+            if(legacy) {
+                benchLegacyNative(fixture);
+                benchLegacyJs(fixture);
+            } else {
+                benchNative(fixture);
+                benchJsir(fixture);
+            }
+        }
+    };
+
+    runAll();
 
     for(auto& phase: gPhases) {
         phase.time = 0;
@@ -764,13 +808,7 @@ int main(int argc, const char** argv) {
     gCounting = true;
     auto start = nanoTime();
 
-    for(Size i = 0; i < repeat; i++) {
-        for(auto& fixture: fixtures) {
-            benchNative(fixture);
-            benchJs(fixture);
-            benchJsir(fixture);
-        }
-    }
+    for(Size i = 0; i < repeat; i++) runAll();
 
     auto elapsed = nanoTime() - start;
     auto total = gAllocations;
@@ -778,7 +816,8 @@ int main(int argc, const char** argv) {
     gStageObserver = nullptr;
     assertTrue(gPhaseDepth == 0); // a phase entered and never left
 
-    println("%@ fixtures x %@ repeats", fixtures.size(), repeat);
+    println("%@ fixtures x %@ repeats, %@", fixtures.size(), repeat,
+            legacy ? "compiler/resolve (-legacy)" : "the ownership stage");
 
     U64 phaseTime = 0;
     U64 phaseAllocations = 0;

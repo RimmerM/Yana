@@ -384,6 +384,7 @@ void fuseTernaryLogic(Context& ctx, LowerBase base, LowerFunction& fun);
 void lowerWideLanePermutes(Context& ctx, LowerBase base, LowerFunction& fun);
 void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun);
 void sinkVectorConstants(Context&, LowerBase base, LowerFunction& fun);
+void sinkFrameAddresses(Context&, LowerBase base, LowerFunction& fun);
 void poolFloatConstants(Context& ctx, LowerBase base, LowerFunction& fun);
 
 // One read-only global per distinct constant, which the sign masks enter by hand.

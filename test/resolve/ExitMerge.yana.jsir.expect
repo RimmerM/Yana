@@ -30,78 +30,69 @@ fn main() -> one %r0
     %10: %r0 = const 0
     %11: %r0 = const 1
     %12: %r0 = const 2
-    %13: %r0 = const 0
-    %14: %r0 = const 0
-    %15: %r6 = convert %13
-    %16: %r0 = const -3
-    %17: %r0 = const -2
-    %18: %r0 = const -1
-    %19: %r0 = const 1
+    %15: %r0 = const 0
+    %17: %r0 = const -3
+    %18: %r0 = const -2
+    %19: %r0 = const -1
+    %20: %r0 = const 1
     jump -> block1(%3, %4)
   block1(%0: %r0, %1: %r0):
-    %20: %r5 = binary.lt %1, %5
-    branch %20 -> block3 -> block2
+    %21: %r5 = binary.lt %1, %5
+    branch %21 -> block3 -> block2
   block2:
     return %0
   block3:
-    %24: %r1 = host host.array %6, %7, %8
-    %25: %r3 = object %s0 %24, %9
-    %26: %r5 = binary.eq %1, %10
-    branch %26 -> block12 -> block5
+    %22: %r1 = host host.array %6, %7, %8
+    %23: %r3 = object %s0 %22, %9
+    %24: %r5 = binary.eq %1, %10
+    branch %24 -> block12 -> block5
   block4(%2: %r0):
-    %44: %r0 = binary.add %0, %2
-    %45: %r0 = coerce %44
-    %46: %r0 = call parity %1, %1
-    %47: %r0 = binary.add %45, %46
-    %48: %r0 = coerce %47
-    %49: %r0 = binary.add %1, %19
-    %50: %r0 = coerce %49
-    jump -> block1(%48, %50)
+    %37: %r0 = binary.add %0, %2
+    %38: %r0 = coerce %37
+    %39: %r0 = call parity %1, %1
+    %40: %r0 = binary.add %38, %39
+    %41: %r0 = coerce %40
+    %42: %r0 = binary.add %1, %20
+    %43: %r0 = coerce %42
+    jump -> block1(%41, %43)
   block5:
-    %27: %r5 = binary.eq %1, %11
-    branch %27 -> block11 -> block6
+    %25: %r5 = binary.eq %1, %11
+    branch %25 -> block11 -> block6
   block6:
-    %28: %r5 = binary.eq %1, %12
-    branch %28 -> block10 -> block7
+    %26: %r5 = binary.eq %1, %12
+    branch %26 -> block10 -> block7
   block7:
-    %29: %r3 = alias %25
-    %30: %r1 = load property %29.items: %r1
-    %31: %r3 = alias %25
-    %32: %r2 = load property %31.length: %r2
-    %33: %r0 = convert %32
-    %34: %r6 = convert %33
-    %35: %r5 = binary.ge %15, %34
-    branch %35 -> block9 -> block8
+    jump -> block8
   block8:
-    %36: %r1 = alias %30
-    %37: %r0 = load element %36[%14]: %r0
-    %38: %r3 = alias %25
-    call Array(a).reclaim(I32) %38
-    %39: %r0 = binary.add %37, %1
-    %40: %r0 = coerce %39
-    jump -> block4(%40)
+    %29: %r1 = alias %22
+    %30: %r0 = load element %29[%15]: %r0
+    %31: %r3 = alias %23
+    call Array(a).reclaim(I32) %31
+    %32: %r0 = binary.add %30, %1
+    %33: %r0 = coerce %32
+    jump -> block4(%33)
   block9:
     host host.throw "yana: a runtime check failed"
     unreachable
   block10:
-    %41: %r3 = alias %25
-    call Array(a).reclaim(I32) %41
-    jump -> block4(%16)
-  block11:
-    %42: %r3 = alias %25
-    call Array(a).reclaim(I32) %42
+    %34: %r3 = alias %23
+    call Array(a).reclaim(I32) %34
     jump -> block4(%17)
-  block12:
-    %43: %r3 = alias %25
-    call Array(a).reclaim(I32) %43
+  block11:
+    %35: %r3 = alias %23
+    call Array(a).reclaim(I32) %35
     jump -> block4(%18)
+  block12:
+    %36: %r3 = alias %23
+    call Array(a).reclaim(I32) %36
+    jump -> block4(%19)
 
 fn Array(a).reclaim(I32)(one %r3) -> omitted
   var $0: %r3
   block0(%0: %r3):
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 6 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 6
+optimizer clones 0 aliased 0 forwarded 0 removed 7 adopted 0 sunk 0 numbered 0 decided 1 unboxed 0 updated 0 split 0 promoted 4 folded 3
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}

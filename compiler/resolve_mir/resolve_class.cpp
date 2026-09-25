@@ -281,7 +281,7 @@ void Resolver::declareClass(ast::Decl& declaration) {
     // is the point of it being one function: the arity, the defaults, the dependency arrow and the
     // instance key are one rule for a const parameter and a type one, so the walk that tells them
     // apart cannot be a third copy.
-    declareHead(written.type.kind, klass->gen, written.type.name);
+    declareHead(written.type.kind, klass->gen, written.type.name, true);
 
     /*
      * `class Contiguous(c -> a)` - which parameters the others decide.
@@ -1001,6 +1001,7 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         // value, so the drop elaboration has no reason to reach it, and the flag that tells it not
         // to place one for the subject would be wrong.
         function->teardown = intrinsic::isTeardownRole(declared.role);
+        function->authoredReclaim = declared.role == intrinsic::Known::reclaim;
 
         // And the same statement `ownerSubjectNext` made about the signature, kept for the body:
         // this is where an owner becomes a view, so nothing in it may ask for one - `adaptToView`.
@@ -1058,6 +1059,10 @@ void Resolver::declareInstance(ast::Decl& declaration) {
     current->instances.push(program.decl, pointer);
     writtenInstances[writtenInstances.size() - 1] = pointer;
 
+    // Ahead of filing, so a head that breaks the dependency is not one selection can then offer -
+    // which of the two a call reached would be declaration order again, the thing refused.
+    if(breaksDependency(pointer, declaration.source)) return;
+
     if(!program.addInstance(decl(), pointer)) {
         // Two heads of one *shape*, which is what the key is - see `Program::addInstance`. The
         // message names the head rather than the key, since a key is not a thing anyone wrote.
@@ -1065,6 +1070,97 @@ void Resolver::declareInstance(ast::Decl& declaration) {
                                   appliedClassText(context, decl(), klass, arguments.pointer(),
                                                    arguments.size()));
     }
+}
+
+/*
+ * One ordering of the dependency check: whether `pattern`'s determining positions cover `other`'s
+ * while the two disagree about what they determine - under the bindings that match made, since
+ * `C(Array(a) -> a)` promises its element is whatever the container's is rather than any fixed
+ * type.
+ *
+ * A determined position mentioning a variable the determining ones leave unbound - one the
+ * instance's context deduces, `GenContext::deduced` - is not compared: what it stands for is
+ * decided by a requirement, not by the head, and a substitution would leave the variable standing
+ * and call every such pair a conflict.
+ */
+static bool dependencyConflict(Context& context, Program& program, Instance& pattern,
+                               Instance& other, U16 determined) {
+    auto base = *program.decl;
+
+    SmallArray<DeclPtr<Type>, 4> bindings;
+    if(pattern.gen) {
+        for(Size i = 0; i < base[pattern.gen]->variables.size(); i++) bindings.push(nullptr);
+    }
+
+    auto head = pattern.args.pointer(base);
+    auto against = other.args.pointer(base);
+
+    for(U16 i = 0; i < determined; i++) {
+        if(!matchType(base, program.types, pattern.gen, bindings, head[i], against[i])) return false;
+    }
+
+    for(Size i = 0; i < bindings.size(); i++) {
+        if(!bindings[i]) return false;
+    }
+
+    Substitution with { pattern.gen, bindings.pointer(), bindings.size() };
+    for(Size i = determined; i < pattern.args.size(); i++) {
+        auto promised = with.isEmpty() ? head[i] : substituteType(context, program, head[i], with);
+        if(!sameType(promised, against[i])) return true;
+    }
+
+    return false;
+}
+
+/*
+ * Two instances disagreeing about what a class head's `->` determines - classes.md, "Functional
+ * dependencies".
+ *
+ * `instance Elem(Int, Bool)` and `instance Elem(Int, Int)` are not one shape and neither covers the
+ * other, so `Program::addInstance` files both - and a call that leaves the determined position open
+ * would be answered by whichever `candidateInstances` offered first. Reading a hole back off
+ * "whichever instance matched" only means something because this is an error.
+ *
+ * Against every instance of the class rather than the new head's bucket: the key reads the outer
+ * constructor of each deciding position, so `Elem(a, a)` and `Elem(Int, Bool)` are two buckets and
+ * one conflict. A walk over the program's instances, and only for a class that declares a
+ * dependency at all - a handful in the library, against every instance declaration there is.
+ * Both orderings, since either head may be the more general one. True after reporting.
+ */
+bool Resolver::breaksDependency(DeclPtr<Instance> pointer, LocationId source) {
+    auto base = decl();
+    auto& added = *base[pointer];
+    auto& klass = *base[added.klass];
+
+    auto determined = klass.determined;
+    if(determined == 0 || determined >= added.args.size()) return false;
+
+    for(auto module: program.modules) {
+        for(auto existing: base[module]->instances.contents(base)) {
+            if(existing == pointer || !existing) continue;
+
+            auto& other = *base[existing];
+            if(other.klass != added.klass || other.args.size() != added.args.size()) continue;
+
+            if(!dependencyConflict(context, program, other, added, determined) &&
+               !dependencyConflict(context, program, added, other, determined)) {
+                continue;
+            }
+
+            auto args = added.args.pointer(base);
+            Tritium::String prefix;
+            for(U16 i = 0; i < determined; i++) {
+                if(i) prefix = prefix + Tritium::String(", ");
+                prefix = prefix + typeText(context, base, args[i]);
+            }
+
+            context.diagnostics.error("this instance of %@ disagrees with an existing one about what (%@) determines - the class head's `->` promises one answer, so the two cannot both hold"_v,
+                                      source, context.findName(klass.name), prefix);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /*
@@ -1135,6 +1231,39 @@ void Resolver::checkInstanceSuperclasses() {
 }
 
 /*
+ * `class Unimplemented(a = Wrapper(Int))` with no `instance Unimplemented(Wrapper(Int))` -
+ * declarations.md, "Class defaults": the type must have an instance of that class.
+ *
+ * A default nothing could ever take: what it answers is which type an unconstrained variable of the
+ * class settles to, and settling to a type with no instance is a refusal at every use that reaches
+ * it, reported against whoever wrote the literal rather than against the head. Here rather than
+ * where the default is read because that is before any instance exists, and in the superclass
+ * check's pass for its reason - an answer that depends on how much of the program has been read
+ * depends on the order it was written in. A generated instance counts: `FromInt(a = Int)` is
+ * answered by the compiler's own `FromInt(I32)`.
+ */
+void Resolver::checkClassDefaultInstances() {
+    for(auto pointer: writtenClasses) {
+        if(!pointer) continue;
+
+        auto& declared = *decl()[pointer];
+        auto gen = declared.gen;
+        if(!gen || decl()[gen]->variables.size() != 1 || decl()[gen]->defaults.size() != 1) continue;
+
+        auto type = decl()[gen]->defaults.get(decl(), 0);
+        if(!type) continue;
+
+        InstanceMatch found;
+        if(selectInstance(context, program, pointer, &type, 1, declared.source, false, found)) continue;
+
+        auto variable = (VariableType*)decl()[decl()[gen]->variables.get(decl(), 0)];
+        context.diagnostics.error("%@ is the default of %@ but has no instance of it"_v,
+                                  variable->source, typeText(context, decl(), type),
+                                  context.findName(declared.name));
+    }
+}
+
+/*
  * One written member against the one the class declared, at this instance's type.
  *
  * The class's signature substituted is what every caller is checked against, so an implementation
@@ -1156,8 +1285,15 @@ bool Resolver::checkMemberSignature(Function& written, Function& expected, const
         auto& supplied = *decl()[written.args.get(decl(), U32(i))];
         auto& declared = *decl()[expected.args.get(decl(), U32(i))];
 
-        ok = supplied.occurrence ==
-             substituteOccurrence(context, program, declared.occurrence, with);
+        /*
+         * Compared with the implied pointee origin on both sides (J164): the instance wrote `'%a`
+         * and got `'%'a`, where the class's `source'c` at `c := %a` is the same spelling reached by
+         * substitution, which does not add it. The instance keeps what it wrote - a call selected
+         * to it binds the pointee - and a call through the class binds what the class says.
+         */
+        ok = impliedPointeeOrigin(program, supplied.occurrence) ==
+             impliedPointeeOrigin(program, substituteOccurrence(context, program,
+                                                                declared.occurrence, with));
 
         /*
          * `@lazy`, which the occurrence alone does not carry.
@@ -1185,7 +1321,9 @@ bool Resolver::checkMemberSignature(Function& written, Function& expected, const
         ok = ok && sameType(written.failure, expected.failure ?
                             substituteType(context, program, expected.failure, with) : nullptr);
     } else if(ok) {
-        ok = written.result == substituteOccurrence(context, program, expected.result, with);
+        ok = impliedPointeeOrigin(program, written.result) ==
+             impliedPointeeOrigin(program, substituteOccurrence(context, program, expected.result,
+                                                                with));
     }
 
     if(!ok) {

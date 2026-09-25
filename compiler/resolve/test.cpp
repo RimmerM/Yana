@@ -95,21 +95,6 @@ void readTestAttribute(Module& module, const ast::Decl& decl, Function& function
     }
 }
 
-bool moduleDeclaresTests(Context& context, ast::ModuleGroup& group) {
-    ast::ParseBase parse(*context.parseRegion);
-    auto testName = context.addUnqualifiedName("test", 4);
-
-    for(auto file: group.files) {
-        for(auto decl: file->decls.contents(parse)) {
-            for(auto attribute: decl.attributes.contents(parse)) {
-                if(attribute.name == testName) return true;
-            }
-        }
-    }
-
-    return false;
-}
-
 /*
  * `Test.Case` and `Test.runMain`, found by name.
  *

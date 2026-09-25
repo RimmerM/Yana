@@ -43,21 +43,15 @@ fn main() -> one %r0
     %55: %r0 = binary.add %42, %54
     %56: %r0 = coerce %55
     %57: %r0 = select %53, %56, %42
-    %58: %r0 = const 5
-    %63: %r0 = alias %58
     %64: %r0 = const 16
     %65: %r0 = load global effects: %r0
     %66: %r0 = binary.add %65, %64
     %67: %r0 = coerce %66
     store global effects: %r0, %67
-    %68: %r0 = binary.add %63, %64
-    %69: %r0 = coerce %68
-    %70: %r0 = const 21
-    %71: %r14 = binary.eq %69, %70
     %72: %r0 = const 8
     %73: %r0 = binary.add %57, %72
     %74: %r0 = coerce %73
-    %75: %r0 = select %71, %74, %57
+    %75: %r0 = alias %74
     %76: %r0 = const 0
     %77: %r23 = object %s20 %76
     %82: %r0 = const 41
@@ -353,7 +347,7 @@ fn main.thunk'15(one %r21) -> one %r14 env
     %5: %r14 = const 1
     return %5
 
-optimizer clones 0 aliased 0 forwarded 20 removed 85 adopted 10 sunk 2 numbered 0 decided 0 unboxed 0 updated 0 split 6 promoted 2
+optimizer clones 0 aliased 0 forwarded 20 removed 91 adopted 10 sunk 2 numbered 0 decided 0 unboxed 0 updated 0 split 6 promoted 2 folded 4
 
 shape %s0 object capturing.thunk.env {n: %r0}
 shape %s1 object mutableCapture.thunk.env {n: %r3}

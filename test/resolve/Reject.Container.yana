@@ -11,7 +11,12 @@ import Native
    The author is trusted about "I call nothing else", which is a walk over the call graph and is what
    these two are rejected by. The author is never trusted about "my members are effect-free", which
    is computed from the element types instead.
+
+   The default stage since J142 (`checkReclaimShape`): storage release is the `releaseRun` and
+   `freeHeap` roles, so the set is one of callees and names no function by its spelling.
 -}
+
+-- # resolver: ownership
 
 let &closes = 0 :: I64
 
@@ -38,6 +43,58 @@ fn closeLedger(it: Ledger):
 
 instance Reclaim(Ledger):
     fn reclaim(->value: Ledger): closeLedger(value)
+
+-- J146: the walk looked at direct calls only. A lens call, a call through a function value - a
+-- closure field or a local one - a write to a global and an intrinsic that reaches outside the
+-- program's memory are effects too, and each is refused where it is written.
+lens fn bracketed():
+    recordClose()
+    yield {}
+    recordClose()
+
+data Hooked {slots: Run(I64), hook: () -> {}}
+data Bracketed {slots: Run(I64)}
+data Counted {slots: Run(I64)}
+data Signalled {slots: Run(I64)}
+
+instance Reclaim(Hooked):
+    fn reclaim(->value: Hooked):
+        value.hook()
+        releaseRun(value.slots)
+
+instance Reclaim(Bracketed):
+    fn reclaim(->value: Bracketed):
+        bracketed():
+            releaseRun(value.slots)
+
+instance Reclaim(Counted):
+    fn reclaim(->value: Counted):
+        let local = () -> recordClose()
+        local()
+        closes = 7
+        releaseRun(value.slots)
+
+instance Reclaim(Signalled):
+    fn reclaim(->value: Signalled):
+        syscall1(39, 0)
+        releaseRun(value.slots)
+
+-- A global written by a compound assignment - a call to `+=`, which is lent the global exclusively -
+-- and one written through its address. Both are the write they are since J162: the first was
+-- "cannot call +=" and the second was accepted.
+data Tallied {slots: Run(I64)}
+data Poked {slots: Run(I64)}
+
+instance Reclaim(Tallied):
+    fn reclaim(->value: Tallied):
+        closes += 1
+        releaseRun(value.slots)
+
+instance Reclaim(Poked):
+    fn reclaim(->value: Poked):
+        let p = bitcast(addressOf(closes)) :: %I64
+        store(p, 3)
+        releaseRun(value.slots)
 
 fn main() -> I64:
     let pool = Pool {slots: emptyRun(), live: 0}

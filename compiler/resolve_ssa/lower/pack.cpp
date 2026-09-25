@@ -101,7 +101,7 @@ LowerPtr<LowerValue> Lowering::decodePackedBytes(LowerBlock& block, const Virtua
     }
 
     if(place.bitWidth < 64) {
-        auto mask = immediate(block, LowerType::Int64, lowMask(place.bitWidth));
+        auto mask = immediate(block, LowerType::Int64, maskOf(place.bitWidth));
         bits = binary<LowerInst::And>(lower, to, block, lower[bits], lower[mask],
                                       LowerType::Int64, StringId())->created().ptr - lower;
     }
@@ -141,7 +141,7 @@ void Lowering::encodePackedBytes(LowerBlock& block, const VirtualPlace& place,
         auto overlapEnd = byteEnd < fieldEnd ? byteEnd : fieldEnd;
         auto overlapWidth = overlapEnd - overlapStart;
         auto valueShift = overlapStart - fieldStart;
-        auto fieldMask = lowMask(overlapWidth);
+        auto fieldMask = maskOf(overlapWidth);
         auto part = widened;
 
         if(valueShift) {
@@ -239,7 +239,7 @@ LowerPtr<LowerValue> Lowering::decodePacked(LowerBlock& block, const VirtualPlac
         }
 
         if(place.shift || place.bitOffset + place.bitWidth < place.wordBytes * 8) {
-            auto mask = immediate(block, LowerType::Int64, lowMask(place.bitWidth));
+            auto mask = immediate(block, LowerType::Int64, maskOf(place.bitWidth));
             bits = binary<LowerInst::And>(lower, to, block, lower[bits], lower[mask],
                                           LowerType::Int64, StringId())->created().ptr - lower;
         }
@@ -280,7 +280,7 @@ void Lowering::encodePacked(LowerBlock& block, const VirtualPlace& place,
     auto widened = cast<false, false>(lower, to, block, lower[value], LowerType::Int64, StringId())
                  ->created().ptr - lower;
 
-    auto fieldMask = immediate(block, LowerType::Int64, lowMask(place.bitWidth));
+    auto fieldMask = immediate(block, LowerType::Int64, maskOf(place.bitWidth));
     auto trimmed = binary<LowerInst::And>(lower, to, block, lower[widened], lower[fieldMask],
                                           LowerType::Int64, StringId())->created().ptr - lower;
 
@@ -307,7 +307,7 @@ void Lowering::encodePacked(LowerBlock& block, const VirtualPlace& place,
                                             LowerType::Int64, StringId())->created().ptr - lower;
         }
 
-        clear = immediate(block, LowerType::Int64, ~(lowMask(place.bitWidth) << place.bitOffset));
+        clear = immediate(block, LowerType::Int64, ~(maskOf(place.bitWidth) << place.bitOffset));
     }
 
     auto cleared = binary<LowerInst::And>(lower, to, block, lower[word], lower[clear],
@@ -597,10 +597,107 @@ LowerPtr<LowerValue> Lowering::taggedAddress(LowerBlock& block, LowerPtr<LowerVa
  * *through* this reference adds its own constant to the constant half - see `VirtualPlace::shift`,
  * where the two are argued.
  */
+static LowerValue* underBitcasts(LowerBase base, LowerValue* value) {
+    while(value->inst()->kind == LowerInst::Bitcast) value = base[((LowerInstUnary*)value->inst())->from];
+    return value;
+}
+
+static bool integerConstant(LowerBase base, LowerPtr<LowerValue> value, U64& into) {
+    auto inst = base[value]->inst();
+    if(inst->kind != LowerInst::Imm || !isInt(base[value]->type)) return false;
+
+    into = ((LowerImm*)inst)->i;
+    return true;
+}
+
+// Whether an address is storage this body placed - an `alloca` or a global, at constant offsets -
+// and therefore a plain address with nothing above `addressBits`, rather than a reference that came
+// in with its shift already folded into it.
+static bool placedStorage(LowerBase base, LowerValue* value) {
+    for(U32 depth = 0; depth < 8; depth++) {
+        auto inst = value->inst();
+        U64 offset;
+
+        switch(inst->kind) {
+            case LowerInst::Alloca:
+            case LowerInst::Global:
+                return true;
+            case LowerInst::Bitcast:
+                value = base[((LowerInstUnary*)inst)->from];
+                break;
+            case LowerInst::Add:
+            case LowerInst::Sub:
+                if(!integerConstant(base, ((LowerInstBinary*)inst)->rhs, offset)) return false;
+                value = base[((LowerInstBinary*)inst)->lhs];
+                break;
+            default:
+                return false;
+        }
+    }
+
+    return false;
+}
+
+/*
+ * A narrow reference whose construction this body can see, taken apart by reading the construction
+ * rather than by running the arithmetic that undoes it.
+ *
+ * Only a reference that crosses a call - a parameter, a result, anything loaded back out of memory -
+ * has to be decoded at run time. One `borrowNarrow` built in this frame and spent in it is either a
+ * `taggedAddress` (the address and a tag, `or`ed) or, where the shift was zero, the address itself.
+ * The decode below masked the one and shifted the other at run time: `Packed.ReadBack`'s `main` was
+ * 126 lowered instructions where the shipping stage, which keeps the two halves apart, has 31. The
+ * alternative was a rule in `lower_fold.cpp` that knows an `alloca`'s top sixteen bits are zero,
+ * which would also have to see through the `or` - two rules to recover what the construction states.
+ *
+ * The tagged form is taken apart whatever the address is, because `packNarrowRef` already required
+ * its top bits to be clear; the untagged form only where the address is storage placed here, since
+ * any other address may be a reference that arrived with a shift in it.
+ */
+bool Lowering::seeNarrowRef(LowerPtr<LowerValue> reference, VirtualPlace& place) {
+    auto seen = underBitcasts(lower, lower[reference]);
+    auto inst = seen->inst();
+
+    if(inst->kind != LowerInst::Or) {
+        if(!placedStorage(lower, seen)) return false;
+        place.word = reference;
+        return true;
+    }
+
+    auto& tagged = *(LowerInstBinary*)inst;
+    auto addressBits = layout.target.addressBits;
+    auto address = underBitcasts(lower, lower[tagged.lhs]);
+    if(address->type != LowerType::Pointer) return false;
+
+    U64 tag;
+    if(integerConstant(lower, tagged.rhs, tag)) {
+        if(tag & maskOf(addressBits)) return false;
+        place.bitOffset = U32(tag >> addressBits);
+    } else {
+        auto& shifted = *lower[tagged.rhs]->inst();
+        U64 amount;
+        if(shifted.kind != LowerInst::Shl) return false;
+        if(!integerConstant(lower, ((LowerInstBinary&)shifted).rhs, amount) || amount != addressBits) return false;
+        place.shift = ((LowerInstBinary&)shifted).lhs;
+    }
+
+    place.word = address - lower;
+    return true;
+}
+
 Lowering::VirtualPlace Lowering::unpackNarrowRef(LowerBlock& block, LowerPtr<LowerValue> reference,
                                                  DeclPtr<mir::Type> pointee) {
     auto repr = reprOf(layout, pointee);
     auto addressBits = layout.target.addressBits;
+
+    {
+        VirtualPlace place;
+        place.kind = VirtualPlace::Packed;
+        place.wordBytes = U32(mir::storageBitsFor(U8(repr.scalarBits)) / 8);
+        place.bitWidth = repr.scalarBits;
+        place.isSigned = manifestNative(layout, mir::owned(pointee)).isSigned;
+        if(seeNarrowRef(reference, place)) return place;
+    }
 
     /*
      * The bit arithmetic runs on an integer and the result becomes an address again.
@@ -610,7 +707,7 @@ Lowering::VirtualPlace Lowering::unpackNarrowRef(LowerBlock& block, LowerPtr<Low
      */
     auto word = reinterpret(block, reference, LowerType::Int64);
 
-    auto mask = immediate(block, LowerType::Int64, lowMask(addressBits));
+    auto mask = immediate(block, LowerType::Int64, maskOf(addressBits));
     auto masked = binary<LowerInst::And>(lower, to, block, lower[word], lower[mask],
                                          LowerType::Int64, StringId())->created().ptr - lower;
 
@@ -723,9 +820,19 @@ LowerPtr<LowerValue> Lowering::borrowNarrow(LowerBlock& block, Value& result,
 Lowering::PackedBorrow Lowering::materializeNarrow(LowerBlock& block, LowerPtr<LowerValue> reference,
                                                    const mir::Occurrence& held) {
     auto place = unpackNarrowRef(block, reference, held.type);
-    auto manifest = manifestNative(layout, mir::owned(held.type));
 
-    auto storage = frameStorage(block, mir::owned(held.type), true);
+    /*
+     * The temporary is the type the refinement refines, not the refinement: the callee declared
+     * `&U32` and writes four bytes through it, and a slot sized for `@bits(4) U32` is one - so each
+     * call wrote three bytes past it into whatever the frame put beside it (J149, found by
+     * `Packed.ReadBack.yana`'s answer changing in its upper bits once five such calls shared a
+     * frame). A position generic in the pointee is sized by its descriptor and writes no more
+     * than this, and the commit masks whatever the upper bytes hold.
+     */
+    auto wide = mir::canonicalInt(layout.base, held.type);
+    auto manifest = manifestNative(layout, mir::owned(wide));
+
+    auto storage = frameStorage(block, mir::owned(wide), true);
     auto bits = decodePacked(block, place, packLane(manifest.size));
 
     block.addInst(lower, new (to.arena) LowerInstStore(storage, bits, manifest.size));
@@ -840,9 +947,50 @@ bool Lowering::checkAddressable(Value& result, DeclPtr<mir::Type> record, U16 fi
     auto& declared = *(mir::RecordType*)decl[record];
     auto placed = reprOf(layout, record).fields.get(decl, field);
 
+    /*
+     * A `&` of the field restated as a `%T` - `addressOf(f.optionA)` - that goes anywhere but a load
+     * or a store through it. native.md's decision: **a `%T` is a machine address and carries no
+     * shift**. `bitcast(p) :: Size`, pointer arithmetic in elements and a pointer handed to C all
+     * read it as one, so a shift in its high bits would be a wrong address to each of them rather
+     * than a narrower one. The bitcast `swap` and `exchange` expand to is read and written through
+     * where it is made and never leaves, which `narrowPointee` serves - so that one is allowed.
+     */
+    auto escapesAsPointer = [&](Value& reference) {
+        if(!isReferenceValue(layout, reference.occurrence)) return false;
+
+        for(auto used: reference.uses(ssa)) {
+            auto& inst = *ssa[used];
+            if(inst.kind != Inst::Unary || ((InstUnary&)inst).op != mir::UnaryOp::Bitcast) continue;
+
+            for(auto made: inst.results.contents(ssa)) {
+                auto madeType = ssa[made]->occurrence.type;
+                if(!madeType || decl[madeType]->kind != mir::Type::Pointer) continue;
+
+                for(auto user: ssa[made]->uses(ssa)) {
+                    auto& through = *ssa[user];
+                    if(through.kind == Inst::Load) continue;
+                    if(through.kind == Inst::Store && ((InstStore&)through).address.value() == made) continue;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    };
+
     for(auto used: result.uses(ssa)) {
         switch(ssa[used]->kind) {
-            case Inst::Load:
+            case Inst::Load: {
+                auto& load = *ssa[used];
+                auto escapes = false;
+                for(auto made: load.results.contents(ssa)) escapes |= escapesAsPointer(*ssa[made]);
+                if(!escapes) continue;
+
+                context.diagnostics.error(
+                    "cannot take the address of %@ - it shares a machine word with its neighbours, so it has no address of its own. A `&` borrow of it works, because that carries the shift as well as the address"_v,
+                    source, context.findName(declared.fields.get(decl, field).name));
+                return false;
+            }
             case Inst::Store:
             case Inst::Copy:
             case Inst::FieldAddress:

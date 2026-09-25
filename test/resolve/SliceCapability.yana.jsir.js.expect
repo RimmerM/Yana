@@ -18,9 +18,10 @@ function main() {
   var v87 = { items: v9, length: 3, offset: 0 };
   if (readView({ buf: v87, at: 0 }) !== 4) return -5n;
   if (0 >= v87.length >>> 0) throw $t;
-  v87.items[v87.offset + 0] = 100;
-  if (0 >= v87.length >>> 0) throw $t;
-  if (v87.items[v87.offset] !== 100) return -6n;
+  var v103 = v87.items;
+  var v105 = v87.offset;
+  v103[v105] = 100;
+  if (v103[v105] !== 100) return -6n;
   return BigInt.asIntN(64, BigInt(v9[1] + v9[2] | 0));
 }
 var $t = "yana: a runtime check failed";

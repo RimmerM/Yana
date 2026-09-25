@@ -32,11 +32,7 @@ fn main() -> one %r1
   block0:
     %13: %r1 = const 14
     %14: %r1 = const 16
-    %16: %r0 = const 1
-    %18: %r0 = alias %16
-    %19: %r0 = const 1
-    %20: %r3 = binary.eq %18, %19
-    branch %20 -> block1 -> block2
+    jump -> block1
   block1:
     %15: %r4 = alias %14
     %21: %r4 = alias %15
@@ -58,11 +54,7 @@ fn main() -> one %r1
     %32: %r1 = binary.add %13, %0
     %33: %r1 = coerce %32
     %34: %r4 = const null
-    %35: %r0 = const 1
-    %37: %r0 = alias %35
-    %38: %r0 = const 1
-    %39: %r3 = binary.eq %37, %38
-    branch %39 -> block5 -> block6
+    jump -> block5
   block5:
     %40: %r4 = alias %34
     %41: %r4 = const null
@@ -85,12 +77,7 @@ fn main() -> one %r1
     %53: %r1 = coerce %52
     %54: %r1 = binary.add %33, %53
     %55: %r1 = coerce %54
-    %56: %r0 = const 0
-    %57: %r4 = const null
-    %59: %r0 = alias %56
-    %60: %r0 = const 1
-    %61: %r3 = binary.eq %59, %60
-    branch %61 -> block9 -> block10
+    jump -> block10
   block9:
     %62: %r4 = alias %57
     %63: %r4 = const null
@@ -178,7 +165,7 @@ fn main() -> one %r1
     %142: %r1 = coerce %141
     return %142
 
-optimizer clones 0 aliased 0 forwarded 9 removed 30 adopted 0 sunk 0 numbered 4 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 9 removed 43 adopted 0 sunk 0 numbered 4 decided 3 unboxed 0 updated 0 split 0 promoted 0 folded 3
 
 shape %s0 object Shape {$tag: %r0 tag, Circle: %r1, width: %r1, height: %r1}
 shape %s1 object Maybe {$tag: %r0 tag, Just: %r4}

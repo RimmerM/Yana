@@ -190,69 +190,11 @@ fn uremQuadBy7(parts %r11) -> parts %r11
 
 fn main() -> one %r0
   block0:
-    %9: %r0 = const 0
-    %10: %r0 = const 1
-    %11: %r0 = const 2
-    %12: %r0 = const 3
-    %13: %r0 = const 200
-    %14: %r0 = binary.mul %9, %13
-    %15: %r0 = coerce %14
-    %16: %r0 = binary.mul %10, %13
-    %17: %r0 = coerce %16
-    %18: %r0 = binary.mul %11, %13
-    %19: %r0 = coerce %18
-    %20: %r0 = binary.mul %12, %13
-    %21: %r0 = coerce %20
-    %22: %r0 = const 1
-    %23: %r0 = const 1
-    %24: %r0 = binary.and %9, %23
-    %25: %r0 = coerce %24
-    %26: %r0 = binary.and %10, %23
-    %27: %r0 = coerce %26
-    %28: %r0 = binary.and %11, %23
-    %29: %r0 = coerce %28
-    %30: %r0 = binary.and %12, %23
-    %31: %r0 = coerce %30
-    %32: %r0 = const 2
-    %33: %r0 = binary.mul %25, %32
-    %34: %r0 = coerce %33
-    %35: %r0 = binary.mul %27, %32
-    %36: %r0 = coerce %35
-    %37: %r0 = binary.mul %29, %32
-    %38: %r0 = coerce %37
-    %39: %r0 = binary.mul %31, %32
-    %40: %r0 = coerce %39
-    %41: %r0 = binary.sub %22, %34
-    %42: %r0 = coerce %41
-    %43: %r0 = binary.sub %22, %36
-    %44: %r0 = coerce %43
-    %45: %r0 = binary.sub %22, %38
-    %46: %r0 = coerce %45
-    %47: %r0 = binary.sub %22, %40
-    %48: %r0 = coerce %47
-    %49: %r0 = const 71
-    %50: %r0 = binary.add %49, %15
-    %51: %r0 = coerce %50
-    %52: %r0 = binary.add %49, %17
-    %53: %r0 = coerce %52
-    %54: %r0 = binary.add %49, %19
-    %55: %r0 = coerce %54
-    %56: %r0 = binary.add %49, %21
-    %57: %r0 = coerce %56
-    %58: %r0 = binary.mul %51, %42
-    %59: %r0 = coerce %58
-    %60: %r0 = binary.mul %53, %44
-    %61: %r0 = coerce %60
-    %62: %r0 = binary.mul %55, %46
-    %63: %r0 = coerce %62
-    %64: %r0 = binary.mul %57, %48
-    %65: %r0 = coerce %64
-    %66: %r0 = const 71
-    %67: %r0 = const -271
-    %68: %r0 = const 471
-    %69: %r0 = const -671
-    %70: %r12 = binary.eq %59, %66
-    branch %70 -> block5 -> block8
+    %59: %r0 = const 71
+    %61: %r0 = const -271
+    %63: %r0 = const 471
+    %65: %r0 = const -671
+    jump -> block5
   block1:
     %451: %r0 = const 0
     jump -> block2(%451)
@@ -286,10 +228,8 @@ fn main() -> one %r0
     %482: %r0 = select %479, %480, %481
     %483: %r0 = binary.add %474, %482
     %484: %r0 = coerce %483
-    %485: %r9 = convert %444
-    %486: %r9 = coerce %485
-    %487: %r9 = convert %446
-    %488: %r9 = coerce %487
+    %486: %r9 = const 123456789012345n
+    %488: %r9 = const 18446619616920539264n
     %489: %r10 = call udivQuadBy7 %486, %488
     %490: %r9 = split %489 #0 of %r11
     %492: %r6 = convert %490
@@ -331,8 +271,8 @@ fn main() -> one %r0
     %529: %r0 = convert %527
     %530: %r0 = binary.add %528, %529
     %531: %r0 = coerce %530
-    %532: %r13 = binary.eq %444, %444
-    %533: %r13 = binary.eq %446, %446
+    %532: %r13 = const true
+    %533: %r13 = const true
     %534: %r0 = convert %532
     %535: %r0 = convert %533
     %536: %r0 = binary.add %534, %535
@@ -364,8 +304,8 @@ fn main() -> one %r0
     %562: %r0 = convert %560
     %563: %r0 = binary.add %561, %562
     %564: %r0 = coerce %563
-    %565: %r13 = binary.eq %486, %486
-    %566: %r13 = binary.eq %488, %488
+    %565: %r13 = const true
+    %566: %r13 = const true
     %567: %r0 = convert %565
     %568: %r0 = convert %566
     %569: %r0 = binary.add %567, %568
@@ -378,21 +318,16 @@ fn main() -> one %r0
     %576: %r0 = coerce %575
     return %576
   block3:
-    %449: %r6 = const -124456789012352n
-    %450: %r12 = binary.eq %446, %449
-    branch %450 -> block4 -> block1
+    jump -> block4
   block4:
     %452: %r0 = const 1
     jump -> block2(%452)
   block5:
-    %71: %r12 = binary.eq %61, %67
-    branch %71 -> block6 -> block8
+    jump -> block6
   block6:
-    %72: %r12 = binary.eq %63, %68
-    branch %72 -> block7 -> block8
+    jump -> block7
   block7:
-    %73: %r12 = binary.eq %65, %69
-    branch %73 -> block9 -> block8
+    jump -> block9
   block8:
     %74: %r0 = const 0
     jump -> block10(%74)
@@ -603,14 +538,10 @@ fn main() -> one %r0
   block52(%8: %r0):
     %193: %r0 = binary.add %177, %8
     %194: %r0 = coerce %193
-    %195: %r3 = convert %59
-    %196: %r3 = coerce %195
-    %197: %r3 = convert %61
-    %198: %r3 = coerce %197
-    %199: %r3 = convert %63
-    %200: %r3 = coerce %199
-    %201: %r3 = convert %65
-    %202: %r3 = coerce %201
+    %196: %r3 = const 71
+    %198: %r3 = const 4.294967025E9
+    %200: %r3 = const 471
+    %202: %r3 = const 4.294966625E9
     %203: %r4 = call udivBy3 %196, %198, %200, %202
     %204: %r4 = call udivBy7 %196, %198, %200, %202
     %205: %r3 = split %203 #0 of %r5
@@ -681,10 +612,10 @@ fn main() -> one %r0
     %275: %r0 = coerce %274
     %276: %r0 = binary.add %271, %275
     %277: %r0 = coerce %276
-    %278: %r13 = binary.eq %59, %59
-    %279: %r13 = binary.eq %61, %61
-    %280: %r13 = binary.eq %63, %63
-    %281: %r13 = binary.eq %65, %65
+    %278: %r13 = const true
+    %279: %r13 = const true
+    %280: %r13 = const true
+    %281: %r13 = const true
     %282: %r0 = convert %278
     %283: %r0 = convert %279
     %284: %r0 = binary.add %282, %283
@@ -799,10 +730,10 @@ fn main() -> one %r0
     %393: %r0 = coerce %392
     %394: %r0 = binary.add %389, %393
     %395: %r0 = coerce %394
-    %396: %r13 = binary.eq %196, %196
-    %397: %r13 = binary.eq %198, %198
-    %398: %r13 = binary.eq %200, %200
-    %399: %r13 = binary.eq %202, %202
+    %396: %r13 = const true
+    %397: %r13 = const true
+    %398: %r13 = const true
+    %399: %r13 = const true
     %400: %r0 = convert %396
     %401: %r0 = convert %397
     %402: %r0 = binary.add %400, %401
@@ -819,54 +750,23 @@ fn main() -> one %r0
     %413: %r0 = select %410, %411, %412
     %414: %r0 = binary.add %354, %413
     %415: %r0 = coerce %414
-    %416: %r6 = const 0n
-    %417: %r6 = const 1n
-    %418: %r6 = const 1000000000007n
-    %419: %r6 = binary.mul %416, %418
-    %420: %r6 = coerce %419
-    %421: %r6 = binary.mul %417, %418
-    %422: %r6 = coerce %421
-    %423: %r6 = const 1n
-    %424: %r6 = const 1n
-    %425: %r6 = binary.and %416, %424
-    %426: %r6 = coerce %425
-    %427: %r6 = binary.and %417, %424
-    %428: %r6 = coerce %427
-    %429: %r6 = const 2n
-    %430: %r6 = binary.mul %426, %429
-    %431: %r6 = coerce %430
-    %432: %r6 = binary.mul %428, %429
-    %433: %r6 = coerce %432
-    %434: %r6 = binary.sub %423, %431
-    %435: %r6 = coerce %434
-    %436: %r6 = binary.sub %423, %433
-    %437: %r6 = coerce %436
-    %438: %r6 = const 123456789012345n
-    %439: %r6 = binary.add %438, %420
-    %440: %r6 = coerce %439
-    %441: %r6 = binary.add %438, %422
-    %442: %r6 = coerce %441
-    %443: %r6 = binary.mul %440, %435
-    %444: %r6 = coerce %443
-    %445: %r6 = binary.mul %442, %437
-    %446: %r6 = coerce %445
-    %447: %r6 = const 123456789012345n
-    %448: %r12 = binary.eq %444, %447
-    branch %448 -> block3 -> block1
+    %444: %r6 = const 123456789012345n
+    %446: %r6 = const -124456789012352n
+    jump -> block3
 
-optimizer clones 0 aliased 0 forwarded 0 removed 10 adopted 0 sunk 0 numbered 0 decided 0 unboxed 0 updated 0 split 0 promoted 0
+optimizer clones 0 aliased 0 forwarded 0 removed 110 adopted 0 sunk 0 numbered 0 decided 6 unboxed 0 updated 0 split 0 promoted 0 folded 102
 
 rep %r0 = number signed 32
-rep %r1 = array Int32Array of %r0
+rep %r1 = array Array of %r0
 rep %r2 = parts (%r0, %r0, %r0, %r0) as %r1
 rep %r3 = number unsigned 32
-rep %r4 = array Uint32Array of %r3
+rep %r4 = array Array of %r3
 rep %r5 = parts (%r3, %r3, %r3, %r3) as %r4
 rep %r6 = bigint signed
-rep %r7 = array BigInt64Array of %r6
+rep %r7 = array Array of %r6
 rep %r8 = parts (%r6, %r6) as %r7
 rep %r9 = bigint unsigned
-rep %r10 = array BigUint64Array of %r9
+rep %r10 = array Array of %r9
 rep %r11 = parts (%r9, %r9) as %r10
 rep %r12 = number bool
 rep %r13 = boolean

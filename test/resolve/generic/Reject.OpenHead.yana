@@ -3,6 +3,7 @@
    `OpenHead.yana`.
 
    # resolver: ownership
+   # recover: yes - the instance refused at its declaration and the call refused in a body, in one compile.
 
    A head whose outermost constructor is this body's own **variable** names nothing to look up, and
    answering it from whichever instances happen to be declared is exactly what makes a specialization
@@ -16,6 +17,12 @@
    narrower head first. So the body's answer and its specialization's would be two different types,
    and neither of them is more right than the other; `selectOpenInstance` says so naming both heads
    rather than picking one.
+
+   Since J134 that pair is refused where the narrower head is *declared*: two heads answering the
+   dependency differently for one type are the functional-dependency rule's (classes.md,
+   "Functional dependencies"), so the second instance is never filed and the call below compiles
+   against the one that is. `selectOpenInstance`'s refusal is still there for a determined position
+   the rule does not compare - one naming a variable the instance's context deduces.
 -}
 
 data Box(a) {value: a}

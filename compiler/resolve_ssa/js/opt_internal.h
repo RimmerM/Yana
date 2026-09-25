@@ -442,6 +442,9 @@ struct Optimizer {
     void unlinkEdge(JsBlock* from, JsBlock* to, Array<U32>& orphans);
     bool constantNumber(JsValue* value, F64& out, U32 depth = 0);
     void foldConstantBranches();
+    void foldConstants();
+    bool foldedValueOf(JsInst& inst, JsConstant& out);
+    const JsConstant* literalOf(JsValue* value);
 
     // opt_objects.cpp: where an object is built, and whether it needs to be one.
     void adoptInitialStores();

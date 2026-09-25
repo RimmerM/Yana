@@ -7,25 +7,15 @@ fn main() -> one %r0
     %2: %r0 = const 30
     %3: %r1 = host host.array %0, %1, %2
     %4: %r2 = const 3
-    %6: %r0 = const 0
-    %7: %r0 = const 3
     %8: %r0 = const 0
-    %9: %r7 = convert %6
-    %10: %r7 = convert %7
-    %11: %r8 = binary.ge %9, %10
-    branch %11 -> block4 -> block1
+    jump -> block1
   block1:
     %12: %r1 = alias %3
     %13: %r0 = load element %12[%8]: %r0
-    %14: %r0 = const 2
-    %16: %r7 = convert %14
-    %17: %r7 = convert %7
-    %18: %r8 = binary.ge %16, %17
-    branch %18 -> block3 -> block2
+    jump -> block2
   block2:
     %19: %r1 = alias %3
-    %20: %r0 = alias %14
-    %21: %r0 = coerce %20
+    %21: %r0 = const 2
     %22: %r0 = load element %19[%21]: %r0
     %5: %r3 = object %s0 %3, %4
     %23: %r3 = alias %5
@@ -43,12 +33,11 @@ fn main() -> one %r0
     call push(I32) %28, %35
     %36: %r0 = const 5
     call push(I32) %28, %36
-    %37: %r0 = const 0
     %38: %r1 = load property %28.items: %r1
     %39: %r2 = load property %28.length: %r2
     %40: %r0 = convert %39
     %41: %r0 = const 0
-    %42: %r7 = convert %37
+    %42: %r7 = const 0
     %43: %r7 = convert %40
     %44: %r8 = binary.ge %42, %43
     branch %44 -> block6 -> block5
@@ -61,38 +50,31 @@ fn main() -> one %r0
   block5:
     %45: %r1 = alias %38
     %46: %r0 = load element %45[%41]: %r0
-    %49: %r0 = alias %40
     call Array(a).reclaim(I32) %28
-    %51: %r0 = convert %49
-    %52: %r0 = binary.add %46, %51
-    %53: %r0 = coerce %52
-    %54: %r0 = binary.add %25, %53
-    %55: %r0 = coerce %54
-    %56: %r0 = const 4
-    %57: %r0 = const 5
-    %58: %r0 = const 6
-    %59: %r1 = host host.array %56, %57, %58
-    %60: %r2 = const 3
-    %62: %r0 = const 1
-    %63: %r0 = const 3
-    %65: %r7 = convert %62
-    %66: %r7 = convert %63
-    %67: %r8 = binary.ge %65, %66
-    branch %67 -> block8 -> block7
+    %48: %r0 = convert %40
+    %49: %r0 = binary.add %46, %48
+    %50: %r0 = coerce %49
+    %51: %r0 = binary.add %25, %50
+    %52: %r0 = coerce %51
+    %53: %r0 = const 4
+    %54: %r0 = const 5
+    %55: %r0 = const 6
+    %56: %r1 = host host.array %53, %54, %55
+    %57: %r2 = const 3
+    jump -> block7
   block6:
     host host.throw "yana: a runtime check failed"
     unreachable
   block7:
-    %68: %r1 = alias %59
-    %69: %r0 = alias %62
-    %70: %r0 = coerce %69
-    %71: %r0 = load element %68[%70]: %r0
-    %61: %r3 = object %s0 %59, %60
-    %72: %r3 = alias %61
-    call Array(a).reclaim(I32) %72
-    %73: %r0 = binary.add %55, %71
-    %74: %r0 = coerce %73
-    return %74
+    %65: %r1 = alias %56
+    %67: %r0 = const 1
+    %68: %r0 = load element %65[%67]: %r0
+    %58: %r3 = object %s0 %56, %57
+    %69: %r3 = alias %58
+    call Array(a).reclaim(I32) %69
+    %70: %r0 = binary.add %52, %68
+    %71: %r0 = coerce %70
+    return %71
   block8:
     host host.throw "yana: a runtime check failed"
     unreachable
@@ -144,7 +126,7 @@ fn growJsArray(I32)(one %r3, one %r0) -> omitted
     store property %0.items: %r1, %13
     return
 
-optimizer clones 0 aliased 0 forwarded 0 removed 13 adopted 1 sunk 2 numbered 7 decided 1 unboxed 0 updated 0 split 0 promoted 2
+optimizer clones 0 aliased 0 forwarded 0 removed 28 adopted 1 sunk 2 numbered 2 decided 4 unboxed 0 updated 0 split 0 promoted 2 folded 14
 
 shape %s0 object Array {items: %r1, length: %r2}
 shape %s1 object ArrayView {items: %r1, length: %r0, offset: %r0}
