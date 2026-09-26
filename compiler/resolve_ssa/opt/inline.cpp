@@ -186,6 +186,16 @@
  * paid for in `blocks`, and a `field.addr`/`element.addr` is address arithmetic the lowering folds
  * into the access it feeds. What is left is the work.
  *
+ * **And, since J174, what the lowering takes away** - `weighBlock` is an estimate of the lowered
+ * body, not a count of the settled one. A `metric` is an immediate; `represent` and `bitcast` are
+ * their operand; a `load` of an address-only value or of a field of an aggregate built in the body
+ * reads nothing; an aggregate only read back is forwarded away; pointer arithmetic feeding only
+ * memory accesses, and the stride multiply under it, is an addressing mode; a store into a slot
+ * nothing reads is dead; a value nothing that costs reads is dead; and a block that never returns
+ * weighs `kDeadEndWeight`. An array view's construction and every read through it was all of those,
+ * so the lexer's `formatState` - one load, a compare and a bounds check - weighed 28 against a flat
+ * budget of 20, and now weighs 11. `J174` in `doc/progress` has the numbers.
+ *
  * **The sole call site is the exemption**, and it is a size win rather than a speed one: a callee
  * this is the only reference to is a body that *moves* rather than one that is copied, and `reach`
  * running after the round is what then takes the original away. "Only reference" is stricter than
@@ -337,6 +347,22 @@ constexpr U32 kColdBudget = 3;
 
 // How many times a cold block counts in a site's residue - `coldExtra`, J138.
 constexpr U32 kColdResidueWeight = 2;
+
+/*
+ * What a block that never returns weighs, however much it holds - `findDeadEnds`, J174.
+ *
+ * One, for the branch into it. A bounds check's failure arm is the case: after `checkFailed` is
+ * copied in it is a `syscall` behind a chain of `bitcast`s and `convert`s of constants, weighed five,
+ * and a 46-byte accessor such as the lexer's `formatState` carries one per subscript. Nothing on the
+ * warm path runs any of it, and what it costs in bytes is a few instructions at the end of the
+ * copy. A message an assertion formats is not priced here: that arm returns, and `@cold`'s rules
+ * (`coldSizeOf`, `coldExtra`) are what keep it out.
+ *
+ * Measured beside the rest of J174's weights, it moves almost nothing on its own - 659,911 against
+ * 659,992 bytes over `test/resolve` - because what the arm cost was mostly the instructions of it
+ * the other rows now take out. It is kept because it is what the weight says: time, not bytes.
+ */
+constexpr U32 kDeadEndWeight = 1;
 
 /*
  * What a **call** costs where the callee is about to stop existing - `coldOnlyCallee`'s second term,
@@ -667,6 +693,7 @@ struct Inliner {
 
     Array<SsaPtr<Inst>> pending;
     Array<bool> pendingOnce;
+    Array<bool> pendingInLoop;
 
     static constexpr U8 kUnset = 0;
     static constexpr U8 kNumber = 1;
@@ -753,19 +780,253 @@ struct Inliner {
      */
     U32 sizeOf(mir::Function& function) {
         auto body = base()[function.ssa];
+
+        auto cached = sizes.add(function.ssa.offset);
+        auto& answer = *cached.value;
+        if(cached.existed && answer.version.values == body->version.values &&
+           answer.version.blocks == body->version.blocks) {
+            bodyNests = answer.nests;
+            return answer.size;
+        }
+
         reversePostorder(base(), *body, sizeOrder);
 
-        U32 size = 0;
-        for(auto index: sizeOrder) size += weighBlock(*body->block(base(), BlockId(index)));
+        prepareWeighing(*body, sizeOrder);
 
+        U32 size = 0;
+        for(auto index: sizeOrder) size += weighInBody(*body->block(base(), BlockId(index)), nullptr);
+
+        bodyNests = nested(*body, nullptr);
+
+        answer = SizeAnswer { body->version, size, bodyNests };
         return size;
+    }
+
+    /*
+     * `sizeOf`'s answers, per body, stamped with the `IrVersion` they were read at - J182.
+     *
+     * The question is asked at every call site of a callee, and the answer is a property of the
+     * callee's body alone: `weighBlock` reads instructions, their operands and use lists and the
+     * declarations' fixed attributes, and nothing that changes without the editor bumping the body's
+     * counters. So a callee that ten sites call is weighed once until something edits it. Keyed by
+     * the body rather than the declaration because the body is what is weighed; a stamp from an
+     * older version is recomputed, exactly as `AnalysisStamp` does for the optimizer's analyses.
+     *
+     * `coldSizeOf` is not cached: it reads `Block::cold`, which `findColdBlocks` writes directly and
+     * without a version bump, and it is asked only of a site already under the flat budget.
+     */
+    struct SizeAnswer {
+        IrVersion version;
+        U32 size = 0;
+        bool nests = false;
+    };
+
+    HashMap<U32, SizeAnswer> sizes;
+
+    /*
+     * Which blocks of the body being weighed **never return** - control that enters one reaches an
+     * `unreachable` and nothing else. `endNonReturningBlocks` runs in front of this pass, so every
+     * bounds check's failure arm, every `unwrap` of a `Nothing` and every diverging call ends in one.
+     *
+     * Asked of the order the weighing walks, backwards, so a successor is answered before the block
+     * that reaches it; a back edge reads "not known", which is the conservative answer and the only
+     * one a loop inside a failure arm ever gets.
+     */
+    Array<bool> deadEnds;
+
+    /*
+     * Which of the body's values something that costs is still reading - the weighing's own dead
+     * code elimination, and looser than the optimizer's for the reason the weight is an estimate of
+     * the *lowering*: `isDiscardableIfUnread` keeps an `aggregate` that consumes its components,
+     * which is a statement about ownership that no instruction below this tier makes. A view built
+     * for a subscript whose length nothing reads is the shape - the length's load and its two
+     * `convert`s stand in the settled body and are gone by the time anything emits it.
+     *
+     * One backward walk over the weighing's order, which visits a use before its definition except
+     * across a block's own arguments - and those are read by a terminator, which is always needed.
+     */
+    Array<bool> neededValues;
+
+    bool discardable(Inst& inst) {
+        if(inst.kind == Inst::Load) return !((InstLoad&)inst).isVolatile;
+        return isPure(inst) || inst.kind == Inst::Aggregate || inst.kind == Inst::Copy ||
+               inst.kind == Inst::FunValue;
+    }
+
+    bool isNeeded(Inst& inst) {
+        if(inst.kind == Inst::Store) return !storesNowhere((InstStore&)inst);
+        if(!discardable(inst) || !inst.results.size()) return true;
+
+        for(auto pointer: inst.results.contents(base())) {
+            auto index = base()[pointer]->id.index;
+            if(index >= neededValues.size() || neededValues[index]) return true;
+        }
+
+        return false;
+    }
+
+    void findNeeded(Body& body, Array<U32>& order) {
+        neededValues.clear();
+        for(U32 i = 0, values = U32(body.values.size()); i < values; i++) neededValues.push(false);
+
+        auto need = [&](Use used) {
+            if(!used.isSet()) return;
+
+            auto index = base()[used.value()]->id.index;
+            if(index < neededValues.size()) neededValues[index] = true;
+        };
+
+        for(Size k = order.size(); k-- > 0;) {
+            auto& block = *body.block(base(), BlockId(order[k]));
+
+            for(Size i = block.instructionCount(); i-- > 0;) {
+                auto& inst = *base()[block.instructionAt(base(), i)];
+                if(!isNeeded(inst)) continue;
+
+                forEachUse(base(), inst, need);
+                forEachEdge(base(), inst, [&](Edge& edge) {
+                    for(auto used: edge.arguments.contents(base())) need(used);
+                });
+            }
+        }
+    }
+
+    /*
+     * The back edges of the body being weighed - an edge to a block at or before its source in the
+     * order - and whether the last two weighings met a loop **nest** among them: `bodyNests` of the
+     * whole callee, `residueNests` of what the site's constants leave of it. `worthInlining`'s nest
+     * rule reads both.
+     */
+    Array<U32> weighPosition;
+    bool bodyNests = false;
+    bool residueNests = false;
+
+    // Each back edge, as the header it returns to and the latch it leaves from - both block indices.
+    struct LoopSpan {
+        U32 header;
+        U32 block;
+    };
+
+    SmallArray<LoopSpan, 8> loopSpans;
+
+    void findLatches(Body& body, Array<U32>& order) {
+        weighPosition.clear();
+        for(U32 i = 0; i < body.blocks.size(); i++) weighPosition.push(~U32(0));
+
+        for(U32 k = 0; k < order.size(); k++) weighPosition[order[k]] = k;
+
+        loopSpans.clear();
+        for(U32 k = 0; k < order.size(); k++) {
+            forEachSuccessor(base(), *body.block(base(), BlockId(order[k])), [&](U32 target) {
+                if(target < weighPosition.size() && weighPosition[target] <= k) {
+                    loopSpans.push(LoopSpan { target, order[k] });
+                }
+            });
+        }
+    }
+
+    /*
+     * Whether one of the loops `findLatches` found contains another's header - a **nest**. Each
+     * loop's blocks are its latch's predecessors walked back to its header, the natural loop of the
+     * back edge; a residue asks about its live blocks alone. A handful of back edges per body, so a
+     * walk per edge is nothing beside the weighing itself.
+     */
+    Array<U32> loopStamp;
+    Array<U32> loopWork;
+
+    bool nested(Body& body, IndexSet* live) {
+        if(loopSpans.size() < 2) return false;
+
+        loopStamp.clear();
+        for(U32 i = 0; i < body.blocks.size(); i++) loopStamp.push(0);
+
+        U32 stamp = 0;
+        for(auto& outer: loopSpans) {
+            if(live && !(*live)[outer.block]) continue;
+
+            auto header = outer.header;
+            stamp++;
+            loopStamp[header] = stamp;
+            loopWork.clear();
+            loopWork.push(outer.block);
+
+            while(loopWork.size()) {
+                auto index = loopWork.pop().unwrap();
+                if(loopStamp[index] == stamp) continue;
+                loopStamp[index] = stamp;
+
+                for(auto pointer: body.block(base(), BlockId(index))->incoming(base())) {
+                    auto from = base()[pointer]->index.index;
+                    if(from < loopStamp.size() && loopStamp[from] != stamp && (!live || (*live)[from])) {
+                        loopWork.push(from);
+                    }
+                }
+            }
+
+            for(auto& inner: loopSpans) {
+                if(inner.header == outer.header || (live && !(*live)[inner.block])) continue;
+
+                auto innerHeader = inner.header;
+                if(innerHeader != header && loopStamp[innerHeader] == stamp && loopStamp[inner.block] == stamp) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    // The three tables every weighing reads, for the body and the order it is about to walk.
+    void prepareWeighing(Body& body, Array<U32>& order) {
+        findDeadEnds(body, order);
+        findNeeded(body, order);
+        findLatches(body, order);
+    }
+
+    void findDeadEnds(Body& body, Array<U32>& order) {
+        deadEnds.clear();
+        for(U32 i = 0; i < body.blocks.size(); i++) deadEnds.push(false);
+
+        for(Size k = order.size(); k-- > 0;) {
+            auto& block = *body.block(base(), BlockId(order[k]));
+            auto end = block.terminator(base());
+            if(!end || end->kind == Inst::Return) continue;
+
+            if(end->kind == Inst::Unreachable) {
+                deadEnds[order[k]] = true;
+                continue;
+            }
+
+            auto successors = 0u;
+            auto returns = false;
+            forEachSuccessor(base(), block, [&](U32 target) {
+                successors++;
+                if(target >= deadEnds.size() || !deadEnds[target]) returns = true;
+            });
+
+            if(successors && !returns) deadEnds[order[k]] = true;
+        }
+    }
+
+    // One block of the body `findDeadEnds` was last asked about, with a failure arm priced at
+    // `kDeadEndWeight` - see there.
+    U32 weighInBody(Block& block, Array<SiteValue>* decided) {
+        auto weight = weighBlock(block, decided);
+        auto index = block.index.index;
+
+        if(index < deadEnds.size() && deadEnds[index] && weight > kDeadEndWeight) return kDeadEndWeight;
+        return weight;
     }
 
     // What of that is **cold** - the blocks `findColdBlocks` marked in the callee's own body, which
     // lead nowhere but to a `@cold` call. Read only by the flat budget; see the note there.
+    //
+    // Only `findNeeded` of the three tables: `weighBlock` reads `isNeeded` and nothing else, and the
+    // dead ends and the latches are `weighInBody`'s and `nested`'s (J182).
     U32 coldSizeOf(mir::Function& function) {
         auto body = base()[function.ssa];
         reversePostorder(base(), *body, sizeOrder);
+        findNeeded(*body, sizeOrder);
 
         U32 size = 0;
         for(auto index: sizeOrder) {
@@ -869,6 +1130,7 @@ struct Inliner {
         if(!supplied) return ~U32(0);
 
         reversePostorder(base(), *body, siteOrder);
+        prepareWeighing(*body, siteOrder);
 
         // The two lattices, both of which only ever fall: a block becomes reachable and stays so, and
         // a value goes from unset to a number to unknown. That is what makes the sweep below
@@ -904,10 +1166,12 @@ struct Inliner {
             if(!moved) break;
         }
 
+        residueNests = nested(*body, &live);
+
         U32 size = 0;
         for(auto index: siteOrder) {
             if(!live[index]) continue;
-            size += weighBlock(*body->block(base(), BlockId(index)), &facts);
+            size += weighInBody(*body->block(base(), BlockId(index)), &facts);
             size += coldExtra(*body->block(base(), BlockId(index)), &facts);
         }
 
@@ -1112,7 +1376,8 @@ struct Inliner {
 
     /*
      * What one block weighs, by the rule `sizeOf` states - the two callers share it so that a residue
-     * and a whole are measured the same way and the two numbers are comparable.
+     * and a whole are measured the same way and the two numbers are comparable. Read after
+     * `prepareWeighing` has been asked about the body the block is in: `isNeeded` is its table.
      *
      * `decided` is the site estimate's table or null. An instruction whose result the propagation
      * came out with a number for is one the folder will replace with a `Const`, and a `Const` is
@@ -1120,6 +1385,222 @@ struct Inliner {
      * though it were still there, which is most of what this estimate is for. `compareMemory`'s
      * preamble is four such instructions and its two loop bounds are two more.
      */
+    // How far the three walks below follow a chain of re-borrows and projections before answering
+    // "costs something" - an estimate that stops early over-states, which is the safe direction.
+    static constexpr U32 kWeighDepth = 8;
+
+    /*
+     * Whether a value *is* an address in the lowering, so that a load producing one reads nothing -
+     * `arrivesAsAddress` in `lower/manifest.cpp` without the numbers. Bytes that live in storage
+     * (`holdsAggregate` is `manifestNative`'s rows, askable here), and a loan the source published
+     * as one: a unique loan, or one of a slot. A shared call-bounded loan of a scalar is the scalar.
+     */
+    bool isAddressOnly(Value& value) {
+        auto contract = value.contract();
+        if(!contract.isOwned() &&
+           (contract.access() == mir::Access::Unique || contract.origin() == mir::Origin::Slot)) {
+            return true;
+        }
+
+        return holdsAggregate(decl(), value.type());
+    }
+
+    /*
+     * Whether a `store` writes a frame slot nothing reads - an `alloc` every use of which is a store
+     * into it, directly or through a field's address. What a view's loan anchor is when the view
+     * itself was answered from its components: the lowering's dead-store pass takes the stores and
+     * the slot with them.
+     */
+    bool storesNowhere(InstStore& store) {
+        auto address = base()[store.address.value()];
+        for(U32 depth = 0; address->definer && depth < kWeighDepth; depth++) {
+            auto inst = base()[address->definer];
+            if(inst->kind != Inst::FieldAddress) break;
+
+            address = base()[((InstFieldAddress*)inst)->base.value()];
+        }
+
+        if(!address->definer || base()[address->definer]->kind != Inst::Alloc) return false;
+
+        auto writtenOnly = [&](Value& place, auto& self, U32 depth) -> bool {
+            if(depth >= kWeighDepth) return false;
+
+            for(auto pointer: place.uses(base())) {
+                auto& user = *base()[pointer];
+                if(user.kind == Inst::Store) {
+                    if(base()[((InstStore&)user).value.value()] == &place) return false;
+                    continue;
+                }
+
+                if(user.kind != Inst::FieldAddress) return false;
+                if(!self(*base()[user.results.get(base(), 0)], self, depth + 1)) return false;
+            }
+
+            return true;
+        };
+
+        return writtenOnly(*address, writtenOnly, 0);
+    }
+
+    /*
+     * The `Aggregate` a value restates, through re-borrows and `represent`, or null.
+     *
+     * An array view is the shape: `aggregate.ArrayView` of a pointer and a length, `represent`ed as
+     * the `Array` under `View`, and then re-borrowed at every read - each of those a `load` of an
+     * address-only value, which the lowering maps to its operand.
+     */
+    InstAggregate* aggregateBehind(Value* value) {
+        for(U32 depth = 0; value && value->definer && depth < kWeighDepth; depth++) {
+            auto inst = base()[value->definer];
+
+            if(inst->kind == Inst::Aggregate) return (InstAggregate*)inst;
+
+            if(inst->kind == Inst::Unary && ((InstUnary*)inst)->op == mir::UnaryOp::Represent) {
+                value = base()[((InstUnary*)inst)->value.value()];
+                continue;
+            }
+
+            if(inst->kind == Inst::Load && isAddressOnly(*value)) {
+                value = base()[((InstLoad*)inst)->address.value()];
+                continue;
+            }
+
+            return nullptr;
+        }
+
+        return nullptr;
+    }
+
+    /*
+     * Whether a `load` lowers to no instruction: its result is address-only, or it reads a field of
+     * an aggregate built in this body - which the lowering's store-to-load forwarding answers with
+     * the component the aggregate was built from. The second is every `length(xs)` and `xs[i]` of a
+     * window the callee made itself.
+     */
+    bool loadsNothing(InstLoad& load) {
+        if(!load.results.size()) return false;
+        if(isAddressOnly(*base()[load.results.get(base(), 0)])) return true;
+
+        auto address = base()[load.address.value()];
+        for(U32 depth = 0; address && address->definer && depth < kWeighDepth; depth++) {
+            auto inst = base()[address->definer];
+            if(inst->kind != Inst::FieldAddress) break;
+
+            address = base()[((InstFieldAddress*)inst)->base.value()];
+        }
+
+        return address != base()[load.address.value()] && aggregateBehind(address);
+    }
+
+    /*
+     * Whether an `Aggregate` is built only to be read back - every use a `represent`, a re-borrow or
+     * a field's address feeding a load, to `kWeighDepth`. The lowering gives it a frame slot and
+     * stores, and forwarding then takes both away; an aggregate that is stored, passed or returned
+     * is the stores it lowers to and keeps its one.
+     *
+     * An enum-layout record is its discriminant, an immediate, and costs nothing either way.
+     */
+    bool aggregateVanishes(Inst& aggregate) {
+        if(!aggregate.results.size()) return false;
+
+        auto result = base()[aggregate.results.get(base(), 0)];
+        if(!isAddressOnly(*result)) return true;
+
+        return onlyReadBack(*result, 0);
+    }
+
+    bool onlyReadBack(Value& value, U32 depth) {
+        if(depth >= kWeighDepth) return false;
+
+        for(auto pointer: value.uses(base())) {
+            auto& user = *base()[pointer];
+            auto result = user.results.size() ? base()[user.results.get(base(), 0)] : nullptr;
+
+            switch(user.kind) {
+                case Inst::Unary:
+                    if(((InstUnary&)user).op != mir::UnaryOp::Represent) return false;
+                    if(!onlyReadBack(*result, depth + 1)) return false;
+                    break;
+
+                case Inst::Load:
+                    if(!result || !isAddressOnly(*result)) return false;
+                    if(!onlyReadBack(*result, depth + 1)) return false;
+                    break;
+
+                case Inst::FieldAddress:
+                    for(auto reader: result->uses(base())) {
+                        if(base()[reader]->kind != Inst::Load) return false;
+                    }
+                    break;
+
+                default:
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    /*
+     * Whether a `Binary` is pointer arithmetic every use of which is a memory access through it -
+     * the same address arithmetic `element.addr` is, written out, and folded by the backend into
+     * the access's addressing mode. `xs[i]`'s `base + i * stride` is the shape.
+     *
+     * The multiply by the stride is the index's scale when every use of it is such an addition.
+     * Whether the stride is one the target can scale by is a `Metric` question this tier cannot
+     * answer; an element of one, two, four or eight bytes is what a subscript nearly always reads,
+     * and a record stride that is not one of those is a `shl` or an `imul` under-counted by one.
+     */
+    bool scalesIndex(InstBinary& multiply) {
+        if(multiply.results.size() != 1) return false;
+
+        auto byMetric = [&](Use used) {
+            if(!used.isSet()) return false;
+
+            auto value = base()[used.value()];
+            return value->definer && base()[value->definer]->kind == Inst::Metric;
+        };
+
+        if(!byMetric(multiply.lhs) && !byMetric(multiply.rhs)) return false;
+
+        auto result = base()[multiply.results.get(base(), 0)];
+        for(auto pointer: result->uses(base())) {
+            auto& user = *base()[pointer];
+            if(user.kind != Inst::Binary || ((InstBinary&)user).op != mir::BinaryOp::Add) return false;
+            if(!foldsIntoAddress((InstBinary&)user)) return false;
+        }
+
+        return true;
+    }
+
+    bool foldsIntoAddress(InstBinary& binary) {
+        if(binary.op == mir::BinaryOp::Mul) return scalesIndex(binary);
+        if(binary.op != mir::BinaryOp::Add || binary.results.size() != 1) return false;
+
+        auto result = base()[binary.results.get(base(), 0)];
+        if(decl()[result->type()]->kind != mir::Type::Pointer) return false;
+
+        for(auto pointer: result->uses(base())) {
+            auto& user = *base()[pointer];
+            switch(user.kind) {
+                case Inst::Load:
+                case Inst::FieldAddress:
+                case Inst::ElementAddress:
+                    break;
+
+                case Inst::Store:
+                    if(base()[((InstStore&)user).address.value()] != result) return false;
+                    if(base()[((InstStore&)user).value.value()] == result) return false;
+                    break;
+
+                default:
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
     U32 weighBlock(Block& block, Array<SiteValue>* decided = nullptr) {
         U32 size = 0;
 
@@ -1129,6 +1610,8 @@ struct Inliner {
                 auto index = base()[inst.results.get(base(), 0)]->id.index;
                 if(index < decided->size() && (*decided)[index].state == kNumber) continue;
             }
+
+            if(!isNeeded(inst)) continue;
 
             switch(base()[pointer]->kind) {
                 case Inst::Const:
@@ -1148,6 +1631,31 @@ struct Inliner {
                  */
                 case Inst::Switch:
                     size += U32(((InstSwitch&)*base()[pointer]).cases.size());
+                    break;
+
+                // A measurement is an immediate once the target is in hand - J59's `byteSpan`, and
+                // `lower/inst.cpp` is where it becomes one.
+                case Inst::Metric:
+                    break;
+
+                // `represent` is the same value under another occurrence and `bitcast` the same bits
+                // in the same register; the lowering maps both to their operand.
+                case Inst::Unary: {
+                    auto op = ((InstUnary&)inst).op;
+                    if(op != mir::UnaryOp::Represent && op != mir::UnaryOp::Bitcast) size++;
+                    break;
+                }
+
+                case Inst::Load:
+                    if(!loadsNothing((InstLoad&)inst)) size++;
+                    break;
+
+                case Inst::Aggregate:
+                    if(!aggregateVanishes(inst)) size++;
+                    break;
+
+                case Inst::Binary:
+                    if(!foldsIntoAddress((InstBinary&)inst)) size++;
                     break;
 
                 default:
@@ -1322,6 +1830,21 @@ struct Inliner {
         }
     }
 
+    // Which of the caller's blocks are in a natural loop - read per call, as `onceBlocks` is. See
+    // `worthInlining`'s loop rule.
+    Array<bool> loopBlocks;
+
+    void findLoopBlocks() {
+        loopBlocks.clear();
+        for(U32 i = 0; i < opt.body->blocks.size(); i++) loopBlocks.push(false);
+
+        for(auto& loop: loopsOf(opt)) {
+            loop.contains.forEach([&](U32 index) {
+                if(index < loopBlocks.size()) loopBlocks[index] = true;
+            });
+        }
+    }
+
     bool inColdBlock(SsaPtr<Block> pointer) {
         if(!pointer) return false;
 
@@ -1437,9 +1960,10 @@ struct Inliner {
      * `flattening` is the one term that is about the *site* rather than about the callee - a link of
      * an adaptor chain, weighed at `soleBudget` because what the copy buys is not the body: it is
      * the indirect call on the other side of it becoming a direct one. See `flattenContinuations`,
-     * where the chain's own two budgets are.
+     * where the chain's own two budgets are. `intoStep` is the other: the caller is an iterator's
+     * `f$step`, whose sole callees are moved past the ceiling (see the rule below).
      */
-    bool worthInlining(InstCall& call, bool flattening, bool cold, bool once) {
+    bool worthInlining(InstCall& call, bool flattening, bool cold, bool once, bool inLoop, bool intoStep) {
         // The site's row: `onceLimits` in straight-line code of a body that runs once. A local of
         // the member's name, so that every rule below reads the site's row and none can forget to.
         auto& limits = once ? onceLimits : this->limits;
@@ -1565,12 +2089,54 @@ struct Inliner {
          * copied anyway pays nothing for this.
          */
         auto weighed = size;
+        auto weighedNests = bodyNests;
         if(size > limits.budget) {
             auto residue = sizeAtSite(call, *callee);
-            if(residue < weighed) weighed = residue;
+            if(residue < weighed) {
+                weighed = residue;
+                weighedNests = residueNests;
+            }
         }
 
-        if(weighed > limits.ceiling) return false;
+        /*
+         * **A loop nest is not moved into a loop** by the rows that admit more than the flat budget
+         * - the sole call site and the residue at `soleBudget`. J174, and it is the +10.7% the file
+         * comment's cost model paragraph names, arriving through the weights rather than the budget.
+         *
+         * `test/bench/programs`' `Matrix` is the case: `multiply` is a four-deep nest called once,
+         * from `main`'s loop of thirty rounds. The J174 weights put it at 74, under `soleBudget`, and
+         * moved into `main` its innermost loop spilled a product and an index through the frame -
+         * 3.65 G instructions to **4.61 G**, and LLVM's own build of the same SSA 78 -> 88 ms. The
+         * copy buys a call per *round*; the spill costs an instruction per innermost iteration.
+         *
+         * A nest and not any loop, because the single loop is where a move does pay: `VecBits`'
+         * checkers are a run of one-loop references, moved into a two-deep driver, and refusing them
+         * was +340 K instructions of that fixture. The flat budget is not asked this: a body under
+         * it is small enough that what it adds to a loop is what the call it removes was adding.
+         */
+        auto nestIntoLoop = inLoop && weighedNests && weighed > limits.budget;
+
+        /*
+         * **The sole callee of an iterator's step is moved whatever its size** - J179. The ceiling
+         * is "a body of any size is not copied on the strength of one reason", and a step is the one
+         * caller with a second reason: it is entered once per item, and it is a frame the author did
+         * not write. `iter fn lex` calls `readToken` from its loop; converted, the consumer calls
+         * `lex$step` and the step calls `readToken`, so every token paid two prologues, two
+         * epilogues and two returns where the hand-written lexer's consumer pays one. Moving the
+         * sole callee takes the second frame back, and costs no bytes, since a move is not a copy.
+         *
+         * `test/bench/lexer`: idiom/iter 500 -> 476 and iter 494 -> 481 instructions a token
+         * locally, 3-4% of cycles; LLVM already made this move itself (its sole-call-site bonus)
+         * and does not change. **Not a wider ceiling for every sole call site**: that was measured
+         * at 200, 400, 1000 and 5000 and took idiom/hand from 458 to 568-584, because moving large
+         * bodies early changed which of *their* callees the later rounds could still afford
+         * (`String.==` stopped being copied into `parseVariable`). Not in a cold block, where
+         * nothing runs per item, and a nest is still not moved into a loop.
+         */
+        auto stepSole = intoStep && !cold;
+        auto soleLimit = stepSole ? maxLimit<U32> : limits.soleBudget;
+
+        if(weighed > limits.ceiling && !stepSole) return false;
 
         /*
          * The **sole call site**, which is a move rather than a copy: the callee's last reference
@@ -1582,6 +2148,8 @@ struct Inliner {
          * argument.
          */
         auto solelyReferenced = [&] {
+            if(nestIntoLoop) return false;
+
             auto found = references.getValue(pointer.offset);
             if(!found) return false;
 
@@ -1589,7 +2157,7 @@ struct Inliner {
             if(counts.other || counts.calls != 1) return false;
             if(callee->teardown || pointer == opt.program.entry) return false;
 
-            return size <= limits.soleBudget;
+            return size <= soleLimit;
         };
 
         /*
@@ -1718,7 +2286,7 @@ struct Inliner {
          * name promises. The LLVM rows do not move, and should not: that backend performs this
          * estimate itself, so what the copy buys there is already bought.
          */
-        if(limits.hints && weighed < size && weighed <= limits.soleBudget) return true;
+        if(limits.hints && weighed < size && weighed <= limits.soleBudget && !nestIntoLoop) return true;
 
         // A link of a chain, at `soleBudget` and for the same sentence the hint is weighed by: there
         // is a reason to copy this body that the body itself does not show. Gated on the chain's own
@@ -2822,7 +3390,8 @@ struct Inliner {
         return flattened;
     }
 
-    bool inlineSite(mir::Function& caller, InstCall& call, bool flattening = false, bool once = false) {
+    bool inlineSite(mir::Function& caller, InstCall& call, bool flattening = false, bool once = false,
+                    bool inLoop = false) {
         if(call.through != mir::CallThrough::Declaration || !call.callee) return false;
         if(decl()[call.callee]->teardown && eraseInertTeardown(opt, call)) return true;
         if(!clonableDeclaration(caller, call.callee)) return false;
@@ -2874,7 +3443,8 @@ struct Inliner {
 
         // Whether the *caller's* block is rare - see `findColdBlocks`. A fact about the site rather
         // than about the callee, which is why it is read here and passed in.
-        if(!worthInlining(call, flattening, inColdBlock(call.block), once)) return false;
+        if(!worthInlining(call, flattening, inColdBlock(call.block), once, inLoop,
+                          caller.generated == mir::Function::Generated::IterStep)) return false;
 
         auto block = base()[call.block];
         Size position = 0;
@@ -3018,6 +3588,8 @@ struct Inliner {
          */
         pending.clear();
         pendingOnce.clear();
+        pendingInLoop.clear();
+        findLoopBlocks();
 
         for(U32 i = 0; i < opt.body->blocks.size(); i++) {
             auto block = opt.body->block(base(), BlockId(i));
@@ -3030,6 +3602,7 @@ struct Inliner {
 
                 pending.push(pointer);
                 pendingOnce.push(once);
+                pendingInLoop.push(i < loopBlocks.size() && loopBlocks[i]);
             }
         }
 
@@ -3039,7 +3612,8 @@ struct Inliner {
             auto inst = base()[pending[i]];
             if(!inst->block) continue;
 
-            inlined = inlineSite(function, (InstCall&)*inst, false, pendingOnce[i]) || inlined;
+            inlined = inlineSite(function, (InstCall&)*inst, false, pendingOnce[i], pendingInLoop[i]) ||
+                      inlined;
         }
 
         /*

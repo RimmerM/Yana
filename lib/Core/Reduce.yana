@@ -203,13 +203,16 @@ pub fn (Eq(a)) itemsEqual(left: [a], right: [a]) -> Bool:
     return True
 
 {-
-   Natively this is `Native.compareMemory`, which is the vector walk with the element type taken out
-   of it: whole registers under `all`, and one overreading compare for everything below a register.
+   Natively this is `Native.sameMemory`, which is the vector walk with the element type taken out of
+   it: whole registers under `all`, and one overreading compare for everything below a register.
    Both windows are storage the language allocated, so the tail read is Design-Vector §8's and is
-   exactly what that guarantee is for. The `Ordering` it answers costs nothing here - the equal
-   answer is the path with no differing lane on it. Its condition is the constraints that say the
-   element is a lane - a `[U8]`, a `[I32]` or a `[Double]` is a register a turn, and a container of
-   records is the loop it always was.
+   exactly what that guarantee is for. Its condition is the constraints that say the element is a
+   lane - a `[U8]`, a `[I32]` or a `[Double]` is a register a turn, and a container of records is the
+   loop it always was.
+
+   **`sameMemory` and not `compareMemory(...) == EQ`**, which it was until J182 and which J175 had
+   already replaced for strings: an equality has no lane to find, so a block that differs is the
+   answer, and the re-read of the lane and the `compare` of it are gone from every copy.
 
    **On JS there is no replacement**, and this is the one bulk operation where that is the right
    answer rather than a missing implementation. A host vector is `lanes` values (Design-Vector
@@ -221,8 +224,8 @@ pub fn (Eq(a)) itemsEqual(left: [a], right: [a]) -> Bool:
    element walk; the baseline is that walk, so a JS build simply has nothing to choose.
 -}
 @replaces @platform(native)
-fn (Eq(a), Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a))) itemsEqual(left: [a], right: [a]) -> Bool =
-    compareMemory(left.items, right.items, length(left)) == EQ
+fn (Eq(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a))) itemsEqual(left: [a], right: [a]) -> Bool =
+    sameMemory(left.items, right.items, length(left))
 
 {-
    ------------------------------------------------------------------------------------------

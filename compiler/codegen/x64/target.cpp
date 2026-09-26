@@ -90,14 +90,21 @@ BlockExpansion x64BlockExpansionFor(const CompileSettings& settings, bool legacy
      */
     if(legacyVectors) step = min(step, U32(16));
 
-    U64 pairs = 4, bytes = 128;
+    /*
+     * `Balanced` is what `Speed` is: eight pairs and 256 bytes, so 128 at v2 and 256 at v3 - which is
+     * also LLVM's own line (`MaxStoresPerMemcpy` is eight at -O2). It was four pairs and 128 bytes,
+     * and the difference was measured rather than argued (J181): on the Zen 5 this was built on,
+     * `rep movsb` over a 128-256 byte record costs 14-15 ns a copy where the eight-pair line costs
+     * 1.3-2.5, so "about thirty cycles" is an underestimate by half and the ceiling was a factor of
+     * six on every copy between the old one and this. The corpus carried twenty-one such copies,
+     * 92 and 96 bytes at v2 in iterator steps and drops. `Speed` is left where it was: nothing past
+     * 256 bytes has been measured.
+     */
+    U64 pairs = 8, bytes = 256;
 
     if(settings.inlining == InlineLevel::None || settings.inlining == InlineLevel::Size) {
         pairs = 2;
         bytes = 32;
-    } else if(settings.inlining == InlineLevel::Speed) {
-        pairs = 8;
-        bytes = 256;
     }
 
     auto limit = min(bytes, U64(step) * pairs);

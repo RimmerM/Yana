@@ -137,7 +137,7 @@ struct ParameterRemover {
                     used.ptr[kept++] = used.ptr[i];
                 }
 
-                call->usedCount = U8(kept);
+                call->usedCount = U16(kept);
                 changed = true;
             }
         }

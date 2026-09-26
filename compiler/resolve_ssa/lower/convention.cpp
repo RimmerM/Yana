@@ -354,9 +354,13 @@ bool Lowering::joinCells(Value& argument, SmallArray<CarriedPart, 16>& cells) {
  * convention (`emitErasedTeardown`). Every direct call reads its callee's `callType`, so choosing it
  * here is the whole change for the members. The local backend only: LLVM's reading of `simple` is
  * `preserve_most`, which is measured nowhere yet.
+ *
+ * Asked of `LowerModule::consumer` rather than of `settings.backend` (J182), so that the convention
+ * and the gated transforms answer one question: `-mode llvm` is LLVM's reading whatever `-backend`
+ * says, and a driver that re-lowers for a second consumer changes one thing.
  */
 bool Lowering::releasesUnderSimple(DeclPtr<mir::Function> pointer) {
-    if(context.settings.backend == NativeBackend::Llvm) return false;
+    if(to.consumer == LowerConsumer::Llvm) return false;
 
     auto& function = *decl[pointer];
     if(function.convention || !function.teardown || !function.ssa) return false;
@@ -431,7 +435,7 @@ void Lowering::planCallShape(DeclPtr<mir::Function> pointer) {
      * `test/resolve` is 2.7% smaller, because a record handed over in registers is one LLVM no longer
      * has to prove it may take apart.
      */
-    auto budget = context.settings.backend == NativeBackend::Llvm
+    auto budget = to.consumer == LowerConsumer::Llvm
         ? ConventionBudget { RegisterBudget { 6, 8 }, RegisterBudget { 4, 4 } }
         : complexBudget();
 

@@ -382,10 +382,20 @@ struct MachineAddress {
     // address holds one element rather than a vector - see LowerInstX86Address::broadcast.
     U8 broadcast = 0;
 
-    // Set instead of `displacement` when the address names something whose offset is not known yet.
-    // Exactly one of the two may be set, and only on a RIP-relative address.
+    // Set when the address names something whose offset is not known yet, and `displacement` is then
+    // the addend on top of it. Exactly one of the two may be set, and only on a RIP-relative or an
+    // `absolute` address.
     LowerFunction* relocFunction = nullptr;
     LowerGlobal* relocGlobal = nullptr;
+
+    /*
+     * `[relocGlobal + displacement + index*scale]` with the global's *absolute* address as the SIB
+     * form's disp32 and no base: the one way to index a global without first putting its address in
+     * a register, since `[rip + disp]` has no index field. Legal only in an image whose load address
+     * is fixed and low enough for the sum to fit a sign-extended 32-bit field - see
+     * LowerModule::fixedLoadAddress and AsmRelocation::absolute.
+     */
+    bool absolute = false;
 
     // `[frame base + offset of frameSlot + displacement]`, with `hasBase` clear until emission sets
     // it - see the comment above. Never RIP-relative; may carry an index.
@@ -1432,6 +1442,19 @@ struct AsmRelocation {
      */
     bool anchorRelative = false;
 
+    /*
+     * Code sites only: the field holds the target's absolute address, sign-extended from 32 bits,
+     * rather than its distance from the end of the instruction - x86-64's `R_X86_64_32S`. It is what
+     * an indexed global's `[g + index*scale]` carries (MachineAddress::absolute). Like an absolute
+     * data site it cannot be written until the image has an address, so resolveRelocations hands it
+     * to applyDataRelocations rather than writing it.
+     */
+    bool absolute = false;
+
+    // Added to the target's offset: `[rip + g + 8]` is `g`'s relocation with eight on top. Zero for a
+    // call and for every site that names a whole symbol.
+    I32 addend = 0;
+
     // Resolution target: exactly one of these is set.
     // `function` is used for calls/address-loads that target a (possibly not-yet-emitted)
     // function elsewhere in the module; `global` is used for address-loads of module-level data
@@ -1526,6 +1549,9 @@ struct AsmDataRelocation {
 
     // The buffer offset of what it points at.
     U32 targetOffset;
+
+    // Added to the address; only an absolute code site carries one (AsmRelocation::addend).
+    I32 addend = 0;
 };
 
 struct AsmModule {
@@ -1535,6 +1561,15 @@ struct AsmModule {
     Array<AsmBlock> blocks;
     Array<AsmRelocation> relocations;
     Array<AsmDataRelocation> dataRelocations;
+
+    // The four-byte absolute sites in code (AsmRelocation::absolute), finished beside the data ones
+    // once the load address is known.
+    Array<AsmDataRelocation> absoluteRelocations;
+
+    // LowerModule::fixedLoadAddress, for the one encoding decision that is made here rather than in
+    // the transforms: a symbol's address materialized into a register is `mov r32, imm32` (five
+    // bytes) rather than a RIP-relative `lea` (seven) when the image is at a fixed low address.
+    U64 fixedLoadAddress = 0;
 
     // Data relocations whose target offset is not known yet, because the global or function they
     // name had not been emitted when the data holding them was. Drained by resolveRelocations.
@@ -1697,7 +1732,7 @@ struct AsmModule {
      * buffer ended up at. Whoever maps the module calls this once, afterwards; a linker would emit
      * the same list as dynamic relocations and let the loader do it.
      */
-    void applyDataRelocations(Byte* loadBase) {
+    bool applyDataRelocations(Byte* loadBase) {
         // Through a writer over the same bytes rather than a copy of a host U64: a relocation site
         // is a target-endian word exactly like every immediate the emitter wrote above it, and the
         // one place that wrote one by copying host bytes was the one place it was not stated.
@@ -1711,22 +1746,42 @@ struct AsmModule {
             site.offset(relocation.siteOffset);
             site.writeLong<LittleEndian>(U64(loadBase) + U64(relocation.targetOffset));
         }
+
+        // The absolute code sites, which are four bytes and sign-extended by the processor: a sum
+        // past 2 GiB would read somewhere else entirely, so it is refused rather than truncated. Only
+        // a module built for a fixed load address has any (LowerModule::fixedLoadAddress), and its
+        // caller reports the refusal.
+        auto fits = true;
+        for(auto& relocation: absoluteRelocations) {
+            auto address = I64(U64(loadBase) + U64(relocation.targetOffset)) + relocation.addend;
+            if(address < I64(minLimit<I32>) || address > I64(maxLimit<I32>)) {
+                fits = false;
+                continue;
+            }
+
+            site.offset(relocation.siteOffset);
+            site.writeInt<LittleEndian>(U32(I32(address)));
+        }
+
+        return fits;
     }
 
     // Records a placeholder relocation at the rel32 field about to be written at the buffer's
     // current offset, then writes a placeholder 0 in its place. Call resolveRelocations() once
     // all functions referenced by any relocation have been emitted. `trailing` is how many bytes of
     // the instruction still follow the field - see AsmRelocation.
-    void addRelocation(LowerFunction* target, U8 trailing = 0) {
+    void addRelocation(LowerFunction* target, U8 trailing = 0, I32 addend = 0, bool absolute = false) {
         relocations.push(AsmRelocation {
-            .siteOffset = U32(buffer.offset()), .trailing = trailing, .function = target,
+            .siteOffset = U32(buffer.offset()), .trailing = trailing, .absolute = absolute,
+            .addend = addend, .function = target,
         });
         buffer.writeInt<LittleEndian>(0);
     }
 
-    void addRelocation(LowerGlobal* target, U8 trailing = 0) {
+    void addRelocation(LowerGlobal* target, U8 trailing = 0, I32 addend = 0, bool absolute = false) {
         relocations.push(AsmRelocation {
-            .siteOffset = U32(buffer.offset()), .trailing = trailing, .global = target,
+            .siteOffset = U32(buffer.offset()), .trailing = trailing, .absolute = absolute,
+            .addend = addend, .global = target,
         });
         buffer.writeInt<LittleEndian>(0);
     }

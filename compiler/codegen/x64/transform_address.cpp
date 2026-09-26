@@ -305,6 +305,48 @@ static bool peelAddress(LowerBase base, LowerValue* address, AddressPattern& out
     return folded.isNotEmpty();
 }
 
+/*
+ * A global's own address as the base of a folded address, taken into the encoding.
+ *
+ * `peelAddress` stops on the global - it is not arithmetic - so what it leaves is `g` in a register:
+ * a seven-byte RIP-relative `lea` in front of the access, rematerialized at every access rather than
+ * kept (§5.6), even inside a loop. The addressing unit can take it instead, in one of two shapes:
+ *
+ *   - `[rip + g + disp]` where there is no index, which is legal anywhere;
+ *   - `[g + disp + index*scale]` where there is one - the SIB form with no base and the global's
+ *     *absolute* address as its disp32. RIP-relative addressing has no index field, so this is the
+ *     only spelling, and it needs an image whose load address is fixed and low
+ *     (`LowerModule::fixedLoadAddress`); a module a JIT maps wherever `mmap` answers keeps the `lea`.
+ *
+ * A global met as a scale-1 *index* is the same thing with the roles exchanged, the lowering's `add`
+ * having had it on the other side. A function's address is not taken: nothing indexes one.
+ *
+ * What it measured is in §3.4.2 of the README. What LLVM emits for the same programs is the second
+ * shape, and it is what closed the 1,090 RIP-relative `lea`s the corpus binaries carried.
+ */
+static LowerGlobal* takeGlobalBase(LowerBase base, LowerFunction& fun, AddressPattern& pattern) {
+    auto isGlobal = [](LowerValue* v) { return v && v->inst()->kind == LowerInst::Global; };
+
+    if(!isGlobal(pattern.base) && isGlobal(pattern.index) && pattern.scale == 1) {
+        auto index = pattern.index;
+        pattern.index = pattern.base;
+        pattern.base = index;
+    }
+
+    if(!isGlobal(pattern.base)) return nullptr;
+    if(pattern.index && !fun.module->fixedLoadAddress) return nullptr;
+
+    auto global = base[((LowerInstGlobal*)pattern.base->inst())->target];
+    pattern.base = nullptr;
+    return global;
+}
+
+// The global instruction a folded address stopped reading, once nothing reads it: there is no
+// dead-value sweep between this pass and allocation, and a `lea` nothing reads is still emitted.
+static void removeIfUnread(LowerBase base, LowerValue* v) {
+    if(v && v->uses.isEmpty()) removeInst(base, v->inst());
+}
+
 static bool matchAddress(LowerBase base, LowerValue* address, AddressPattern& out, SmallArray<LowerInst*, 8>& folded) {
     if(!isOnlyUsedAsAddress(base, address)) return false;
 
@@ -345,6 +387,11 @@ void foldAddresses(LowerBase base, LowerFunction& fun) {
             SmallArray<LowerInst*, 8> folded;
             if(!matchAddress(base, address, pattern, folded)) continue;
 
+            auto globalValue = pattern.base;
+            if(globalValue && globalValue->inst()->kind != LowerInst::Global) globalValue = pattern.index;
+            auto symbol = takeGlobalBase(base, fun, pattern);
+            if(!symbol) globalValue = nullptr;
+
             // Snapshotted: the loop below rewrites the very list it is reading.
             SmallArray<LowerInst*, 8> users;
             for(auto u: address->uses.contents(base)) users.push(base[u]);
@@ -356,6 +403,7 @@ void foldAddresses(LowerBase base, LowerFunction& fun) {
                     pattern.index ? pattern.index - base : nullptr,
                     pattern.scale, U32(I32(pattern.displacement))
                 );
+                if(symbol) computed->symbol = symbol - *fun.module->arena;
 
                 auto userBlock = base[user->block];
                 insertInstAt(base, userBlock, indexOfInst(base, userBlock, user), computed);
@@ -367,6 +415,7 @@ void foldAddresses(LowerBase base, LowerFunction& fun) {
             }
 
             for(auto dead: folded) removeInst(base, dead);
+            removeIfUnread(base, globalValue);
 
             // Both the insertions and the removals moved things around underneath the walk, so the
             // position to carry on from is wherever this access ended up.
@@ -431,7 +480,14 @@ void foldLeas(LowerBase base, LowerFunction& fun) {
             AddressPattern pattern;
             SmallArray<LowerInst*, 8> folded;
             if(!peelAddress(base, &result, pattern, folded)) continue;
-            if(!isLeaProfitable(pattern, folded)) continue;
+
+            // A global taken into the encoding is always worth it: the `lea` that materialized its
+            // address is gone as well as the arithmetic on top of it.
+            auto globalValue = pattern.base;
+            if(globalValue && globalValue->inst()->kind != LowerInst::Global) globalValue = pattern.index;
+            auto symbol = takeGlobalBase(base, fun, pattern);
+            if(!symbol) globalValue = nullptr;
+            if(!symbol && !isLeaProfitable(pattern, folded)) continue;
 
             auto lea = new (arena) LowerInstX86Address(
                 LowerInst::X86Lea, result.name,
@@ -439,6 +495,7 @@ void foldLeas(LowerBase base, LowerFunction& fun) {
                 pattern.index ? pattern.index - base : nullptr,
                 pattern.scale, U32(I32(pattern.displacement))
             );
+            if(symbol) lea->symbol = symbol - *fun.module->arena;
 
             // In front of the instruction it replaces, which is where the value was already
             // available to everything that reads it.
@@ -446,6 +503,7 @@ void foldLeas(LowerBase base, LowerFunction& fun) {
 
             replaceAllUses(base, &result, &lea->result);
             for(auto dead: folded) removeInst(base, dead);
+            removeIfUnread(base, globalValue);
 
             // Both the insertion and the removals moved things around underneath the walk, so the
             // position to carry on from is wherever the new instruction ended up. Everything the

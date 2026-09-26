@@ -50,7 +50,11 @@
  *    entry that lost `reachable` is a module with no entry at all and nothing says so.
  *  - **the allocator**, where `Program::usesBoxes`. `allocateHeap`, `freeHeap` and `isHeapAddress`
  *    are called by the *lowering* - `lower/box.cpp` - so no instruction here names them and no edge
- *    could find them.
+ *    could find them. Nothing clears `usesBoxes` once the optimizer has taken the boxes away, so this
+ *    root is an over-approximation - and the over-approximation is repaired one tier down rather
+ *    than here: `lower/lower_sweep.h` runs after the lower pipeline, where every call is an
+ *    instruction, and takes out whatever nothing calls any more (J176). Keeping this root costs the
+ *    optimizer the work of a body that may be swept; it costs the binary nothing.
  *  - **every teardown, where the program has no entry or is JavaScript** - and, since J138, a
  *    native program roots a teardown only where a `drop`, a closure environment or a witness
  *    descriptor still left in the SSA can run it (`reachTeardown`, which follows the lowering's own

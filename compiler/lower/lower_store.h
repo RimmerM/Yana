@@ -48,6 +48,11 @@
  * reads. And a zero written over bytes a standing zero write already covers is no write at all - a
  * record literal's zero fields in a slot its padded word already cleared.
  *
+ * **A load is a record as well** (J180): a second read of the word an earlier read placed, at the
+ * same width into the same type, with no write between that may overlap it and no call, is the
+ * first read's value. The lexer re-read `self.p` at the top of a loop body its header had just read
+ * it in. It never stands for a dead store - it is observed from the start.
+ *
  * Two roots are only known apart where both are allocations, or where one is an allocation whose
  * address is used for nothing but its own accesses (`addressContained` in lower_store.cpp) - nothing
  * else can point into that, not a parameter and not a call. Everything else that could read or write

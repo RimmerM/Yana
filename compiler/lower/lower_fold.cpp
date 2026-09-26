@@ -1381,10 +1381,67 @@ static bool narrowShift(LowerBase base, LowerInst* inst, LowerValue*& value, U64
     return true;
 }
 
+/*
+ * A load of bytes nothing writes, read out of the global at a constant offset - J175.
+ *
+ * `sameUnits` compares a string against a literal of eight bytes or fewer as two overlapping scalar
+ * reads a side, and on the literal's side those are reads of placed data at an offset the count
+ * decided. Folded, each is an immediate and the compare is `cmp $imm, mem`; unfolded it was a `lea`
+ * of the literal and a load per read. The rule is the one `tryFoldLoad` in the x64 backend holds a
+ * global to: not written, and holding every byte read - so an overreading load past the literal's
+ * end is never folded, since what follows it in the image is not the global's to answer. A byte a
+ * relocation will fill is not known yet either.
+ *
+ * Scalar integers only. A vector read is the pool's business in the x64 backend, and a float
+ * reinterpreted from placed bytes is a constant nothing downstream spells.
+ */
+Folded foldConstantLoad(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::Load) return Folded::nothing();
+
+    auto load = (LowerInstLoad*)inst;
+    auto type = load->result.type;
+    auto width = load->getWidth();
+    if(load->isVolatile() || !isInt(type) || width == 0 || width > 8) return Folded::nothing();
+
+    auto address = base[load->from];
+    U64 offset = 0;
+
+    if(address->inst()->kind == LowerInst::Add) {
+        auto add = (LowerInstBinary*)address->inst();
+        if(!lowerConstantOf(base, base[add->rhs], offset)) return Folded::nothing();
+        address = base[add->lhs];
+    }
+
+    if(address->inst()->kind != LowerInst::Global) return Folded::nothing();
+
+    auto global = base[((LowerInstGlobal*)address->inst())->target];
+    if(!global || global->mut || global->pooled) return Folded::nothing();
+
+    auto size = U64(global->initialContents.size());
+    if(offset > size || width > size - offset) return Folded::nothing();
+
+    for(auto relocation: global->relocations.contents(base)) {
+        if(relocation.offset < offset + width && offset < relocation.offset + 8) return Folded::nothing();
+    }
+
+    U64 value = 0;
+    auto bytes = global->initialContents.data() + offset;
+    for(U32 i = width; i-- > 0;) value = (value << 8) | bytes[i];
+
+    if(load->isSigned() && width < 8) {
+        auto sign = U64(1) << (width * 8 - 1);
+        value = (value ^ sign) - sign;
+    }
+
+    return Folded::value(value & maskOf(widthOf(type)));
+}
+
 // What an instruction that is already in a block comes to, for the pass below. One switch over the
-// three shapes the folds above cover; everything else answers nothing.
+// shapes the folds above cover - a constant load among them since J175; everything else answers
+// nothing.
 Folded foldInstruction(LowerBase base, LowerInst* inst) {
     if(auto boolean = foldBooleanValue(base, inst); boolean.kind != Folded::None) return boolean;
+    if(auto loaded = foldConstantLoad(base, inst); loaded.kind != Folded::None) return loaded;
     if(auto compared = foldConstantCompare(base, inst); compared.kind != Folded::None) return compared;
     if(auto selected = foldConstantSelect(base, inst); selected.kind != Folded::None) return selected;
 
@@ -2202,6 +2259,76 @@ static bool removeWriteOnlySlots(LowerBase base, Region<LowerRegion>& arena, Low
     return true;
 }
 
+/*
+ * The dead **cycles** of phis the use-count sweep below cannot see: a set of phis every one of
+ * whose readers is a phi of the set. The step of an iterator object is where they come from - a
+ * loop-carried flag the conversion threads through the producer's loop, `phi [.., 0], [.., 1],
+ * [latch, itself]`, whose every reader the folds and the threading have since taken away. It reads
+ * itself, so its use list is never empty, and the register allocator gave `lex$step` a callee-saved
+ * register for it: a `push`, a `pop` and a `xor` on every item (J179).
+ *
+ * Marked live from the readers that are not phis and closed over the phis' operands, which is the
+ * whole of "reachable from a real use"; what is left unmarked is detached together, so no member
+ * is ever detached while a live instruction still reads it.
+ */
+static bool removeDeadPhiCycles(LowerBase base, LowerFunction& fun) {
+    SmallArray<LowerInstPhi*, 16> phis;
+    SmallArray<LowerInstPhi*, 16> work;
+    HashMap<U32, U8> live;
+
+    for(auto blockPtr: fun.blocks.contents(base)) {
+        for(auto phiPtr: base[blockPtr]->phis.contents(base)) {
+            auto phi = base[phiPtr];
+            phis.push(phi);
+
+            for(auto user: phi->result.uses.contents(base)) {
+                if(base[user]->kind == LowerInst::Phi) continue;
+                live.add(U32((LowerInst*)phi - base), 1);
+                work.push(phi);
+                break;
+            }
+        }
+    }
+
+    // Every phi live already: the common case, and it costs one pass over the phis.
+    if(live.size() == phis.size()) return false;
+
+    while(work.size()) {
+        auto phi = work.pop().unwrap();
+        auto used = phi->used();
+
+        for(Size i = 0; i < used.length; i++) {
+            auto source = base[used.ptr[i]]->inst();
+            if(source->kind != LowerInst::Phi) continue;
+
+            auto key = U32(source - base);
+            if(live.getValue(key)) continue;
+
+            live.add(key, 1);
+            work.push((LowerInstPhi*)source);
+        }
+    }
+
+    auto removed = false;
+    for(auto blockPtr: fun.blocks.contents(base)) {
+        auto block = base[blockPtr];
+
+        for(Size i = 0; i < block->phis.size();) {
+            auto phi = base[block->phis.get(base, i)];
+            if(live.getValue(U32((LowerInst*)phi - base))) {
+                i++;
+                continue;
+            }
+
+            detach(base, (LowerInst*)phi);
+            block->phis.remove(base, i);
+            removed = true;
+        }
+    }
+
+    return removed;
+}
+
 bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun) {
     auto changed = true;
     auto dropped = false;
@@ -2224,10 +2351,9 @@ bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction&
              * exhausted-scan path computes, and on the path that returns `Nothing` the join is read
              * by nobody, so the addition feeding it was written out on every no-match tail.
              *
-             * Two phis that only read each other are not removed, and the loop below is why: each is
-             * a use of the other, so neither is ever seen with an empty use list. That is a whole
-             * dead cycle left in place rather than an unsound removal, and it is the one thing a
-             * use-count sweep cannot see.
+             * Two phis that only read each other are not removed here, and the loop below is why:
+             * each is a use of the other, so neither is ever seen with an empty use list. That is
+             * `removeDeadPhiCycles`' case, asked once this sweep has nothing left to take.
              */
             SmallArray<LowerInstPhi*, 8> deadPhis;
             for(auto phiPtr: block->phis.contents(base)) {
@@ -2273,7 +2399,13 @@ bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction&
             dropped = true;
         }
 
-        // And the storage only ever written, which a use count cannot see - see the function above.
+        // And the phi cycles and the storage only ever written, which a use count cannot see - see
+        // the two functions above.
+        if(!changed && removeDeadPhiCycles(base, fun)) {
+            changed = true;
+            dropped = true;
+        }
+
         if(removeWriteOnlySlots(base, arena, fun)) {
             changed = true;
             dropped = true;

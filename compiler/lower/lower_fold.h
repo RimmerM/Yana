@@ -76,6 +76,10 @@ LowerInst* foldBinary(LowerBase base, LowerModule& module, LowerBlock& block, Lo
  * is what keeps the chains from being created at all, and this is what folds the ones that only
  * became constant later. Iterated, since folding one operation is what makes the next one's operand
  * a literal.
+ *
+ * One rule here has no builder half: a scalar load of placed bytes nothing writes, at a constant
+ * offset inside them, is those bytes (`foldConstantLoad`, J175). The offset is what inlining at a
+ * constant count decided, which a builder never sees.
  */
 void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& fun);
 
@@ -106,6 +110,11 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
  * a constant offset - is dead together with those writes, which a use count never shows: a store has
  * no result to go unused, and the slot it names is used by the store. `splitAggregateSlots` leaves
  * these behind when the cell a temporary was copied into turns out to be one nothing reads.
+ *
+ * **And phis that only read one another** - a cycle, which a use count never shows either, because
+ * each member is a use of the next. An iterator step's loop-carried flags are where they come from
+ * once every reader has been threaded away: 1,242 of the 2,809 phis in the 37 lowered goldens that
+ * held any (J179).
  */
 bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun);
 

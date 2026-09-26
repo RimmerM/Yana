@@ -532,12 +532,25 @@ static MachineAddress frameAddress(const Placement& placement, MachineLocation a
 static MachineAddress computedAddress(LowerBase base, const Placement& placement, LowerInstX86Address& addr,
     const Array<ResolvedOperand>& uses)
 {
-    // A symbol is the whole address rather than a part of one: `[rip + g]` has no base, index or
-    // scale field to combine it with, which is why the fold that builds one requires the other two
-    // to be absent.
+    // A symbol takes the place of the base, which `[rip + g + disp]` has no field for, and of an
+    // index only where the image is at a fixed address: `[g + index*scale]` is the SIB form with no
+    // base, the global's absolute address as its disp32 (`globalBase` in transform_address.cpp).
     if(addr.symbol) {
         auto out = MachineAddress::atSymbol(nullptr, base[addr.symbol]);
         out.broadcast = addr.broadcast;
+        out.displacement = I32(addr.displacement);
+        assertTrue(!addr.hasBase);
+
+        if(addr.hasIndex) {
+            auto at = uses[0].at;
+            assertTrue(at.isPhysical() && at.bank == BankGpr); // an address operand that is not a register
+            out.ripRelative = false;
+            out.absolute = true;
+            out.hasIndex = true;
+            out.index = U8(at.index);
+            out.scale = addr.scale;
+        }
+
         return out;
     }
 

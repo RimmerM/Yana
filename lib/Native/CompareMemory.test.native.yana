@@ -161,3 +161,109 @@ fn ordered(buffer: %U8, at: Size, to: Size, count: Size, differ: Size, by: Int) 
 
     check(compareMemory(values(elements(negative)), values(elements(positive)), 2) == LT)
     check(compareMemory(values(elements(positive)), values(elements(negative)), 2) == GT)
+
+{-
+   `sameUnits`, the equality `String.==` asks, over the same painted windows `ordered` builds - so the
+   byte past each window disagrees, and an equal window that answers `False` is a read past `count`
+   leaking in. The counts to eight are the scalar rungs, whose two reads overlap at every count but
+   four and eight; the rest is the vector walk and its tail.
+-}
+fn sameAt(buffer: %U8, at: Size, to: Size, count: Size, differ: Size) -> Bool:
+    paintAscending(buffer, at, 7, count + overrun)
+    paintAscending(buffer, to, 7, count + overrun)
+
+    if differ >= 0 && differ < count:
+        store(buffer + to + differ, truncate((8 + differ) :: Size) :: U8)
+
+    if count >= 0:
+        store(buffer + at + count, 255)
+        store(buffer + to + count, 0)
+
+    return sameUnits(bitcast(buffer + at) :: %CodeUnit, bitcast(buffer + to) :: %CodeUnit, count)
+
+@test fn sameUnitsSweep():
+    let buffer = allocateHeap(16384)
+    let &bad = 0 :: Int
+    let &count = 0 - 2 :: Size
+
+    while count <= 200:
+        let left = 3 + (count % 3)
+        let right = apartBytes + (count % 5)
+
+        if !sameAt(buffer, left, right, count, 0 - 1) then bad = bad + 1
+
+        for differ in 0 .. count:
+            if sameAt(buffer, left, right, count, differ) then bad = bad + 1
+
+        count = count + 1
+
+    checkEqual(bad, 0)
+    freeHeap(buffer)
+
+{-
+   `sameMemory`, the generic walk under `sameUnits` and `itemsEqual`'s replacement, over the same
+   painted windows - at `U8`, where the counts to eight are the vector tail rather than `sameUnits`'
+   rungs, and at `U32`, where a lane is four bytes and the difference is planted in the middle one of
+   an element so that a walk comparing the wrong bytes of it answers `True`. `count` is in elements.
+-}
+fn sameBytesAt(buffer: %U8, at: Size, to: Size, count: Size, differ: Size) -> Bool:
+    paintAscending(buffer, at, 7, count + overrun)
+    paintAscending(buffer, to, 7, count + overrun)
+
+    if differ >= 0 && differ < count:
+        store(buffer + to + differ, truncate((8 + differ) :: Size) :: U8)
+
+    if count >= 0:
+        store(buffer + at + count, 255)
+        store(buffer + to + count, 0)
+
+    return sameMemory(buffer + at, buffer + to, count)
+
+fn sameWordsAt(buffer: %U8, at: Size, to: Size, count: Size, differ: Size) -> Bool:
+    let bytes = if count > 0 then count * 4 else 0
+    paintAscending(buffer, at, 7, bytes + overrun)
+    paintAscending(buffer, to, 7, bytes + overrun)
+
+    if differ >= 0 && differ < count:
+        -- Half the byte's range away from what `paintAscending` wrote there, which no position
+        -- can wrap back onto.
+        store(buffer + to + differ * 4 + 2, truncate((7 + differ * 4 + 2 + 128) :: Size) :: U8)
+
+    if count >= 0:
+        store(buffer + at + bytes, 255)
+        store(buffer + to + bytes, 0)
+
+    return sameMemory(bitcast(buffer + at) :: %U32, bitcast(buffer + to) :: %U32, count)
+
+@test fn sameMemorySweep():
+    let buffer = allocateHeap(16384)
+    let &bad = 0 :: Int
+    let &count = 0 - 2 :: Size
+
+    while count <= 200:
+        let left = 3 + (count % 3)
+        let right = apartBytes + (count % 5)
+
+        if !sameBytesAt(buffer, left, right, count, 0 - 1) then bad = bad + 1
+        if !sameWordsAt(buffer, left, right, count, 0 - 1) then bad = bad + 1
+
+        for differ in 0 .. count:
+            if sameBytesAt(buffer, left, right, count, differ) then bad = bad + 1
+            if sameWordsAt(buffer, left, right, count, differ) then bad = bad + 1
+
+        count = count + 1
+
+    checkEqual(bad, 0)
+    freeHeap(buffer)
+
+-- The element's equality and not its bits: a NaN lane is unequal to itself and a signed zero equal
+-- to the other, which is what the element walk `itemsEqual` replaces answers.
+@test fn sameMemoryFloats():
+    let zero = 0.0 :: Double
+    let nan = zero / zero
+    let withNan = [1.0, nan, 3.0] :: [Double *3]
+    let negative = [1.0, zero * (0.0 - 1.0), 3.0] :: [Double *3]
+    let positive = [1.0, zero, 3.0] :: [Double *3]
+
+    check(!sameMemory(values(elements(withNan)), values(elements(withNan)), 3))
+    check(sameMemory(values(elements(negative)), values(elements(positive)), 3))

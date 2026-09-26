@@ -1160,6 +1160,28 @@ struct Placer {
         }
 
         auto reg = PhysicalReg { bank, U16(chosen) };
+
+        /*
+         * A vector constant that would be the first value in a callee-saved register.
+         *
+         * First-fit hands out the preserved registers only once the clobbered ones are taken, which
+         * for a web across a call is at once - and for a *vector* the register is not free. The
+         * prologue stores it and the epilogue reloads it, at the full width, and a register wider
+         * than sixteen bytes needs a frame aligned to its width to be stored into, which is a frame
+         * pointer and an `and` on `rsp`. The shortcut above leaves vectors out on the ground that a
+         * recipe costs bytes a free register would not; this is the case where the register was
+         * never free. So the recipe is weighed against the save and restore it avoids, at entry
+         * weight, and a constant read once below a call - `findAscii`'s newline splat in the lexer's
+         * `skipWhitespace`, stored into a continuation's record, which held `zmm12` and realigned
+         * the frame to sixty-four bytes on every token (J181) - is recreated where it is read. One
+         * read inside a loop is worth more than the pair and keeps the register.
+         */
+        if(info.canRemat && isVectorLike(v->type) && !written.has(reg) &&
+           constraints.getConvention(fun.callType).calleeSaved.has(reg)) {
+            auto price = 2 * kStoreCost + (accessWidthOf(v->type) > 16 ? 2 * kStoreCost : 0);
+            if(info.rematCost < price) return assignHomeless(webId, v->type, cls, interval);
+        }
+
         occupy(cls, reg, webId);
         written.add(reg);
 

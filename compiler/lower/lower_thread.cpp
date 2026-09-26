@@ -101,6 +101,9 @@ bool isPhiOf(LowerBase base, LowerBlock* block, LowerValue* value, LowerInstPhi*
     return true;
 }
 
+// Defined with `decideEdge`, which is the other reader - see there.
+bool knownNonZeroAddress(LowerBase base, LowerValue* value, U32 depth);
+
 /*
  * The branch at the end of a block, read back as "one phi, and what is asked of it".
  *
@@ -129,7 +132,48 @@ bool readCondition(LowerBase base, LowerBlock* block, Condition& into) {
 
     auto inst = cond->inst();
     if(inst->kind != LowerInst::Cmp || base[inst->block] != block) return false;
-    if(block->instructions.size() != 1 || cond->uses.size() != 1) return false;
+    if(cond->uses.size() != 1) return false;
+
+    // A null test is only ever answered for a phi one of whose alternatives is an address.
+    auto nullTest = false;
+
+    /*
+     * The comparison and nothing else - except a **null test**'s zero, where the lowering has written
+     * it as an `imm` of its own in the block and nothing but the comparison reads it. A `Maybe(&T)`
+     * is a nullable pointer, and its test is `cmp_neq %p, %zero` with the zero materialized beside
+     * it; the instruction goes with the block exactly as the comparison does.
+     *
+     * Only the null test, and deliberately: admitting any materialized literal also threads every
+     * loop header whose entry value is one (`BranchOrder`'s `phi [15, ..]; cmp_gt .., 10`), which
+     * rotates the loop - a change to loop shape across the corpus that is gap 5's to measure
+     * (`doc/inflight/Analysis-Native-Parity.md` §4.4), not this one's. And only where the phi has an
+     * address among its alternatives: a zero test of a phi of *literals* (a step's `$index == 0`)
+     * is the same loop-shape change one step removed, and it cost `VecBits` 20% of its instructions
+     * under `-backend llvm`, which is handed this tier's output (J177).
+     *
+     * J178 gated the address condition off for `-backend local`, to take J177's 6 instructions a
+     * token on the lexer without the LLVM column's 20%. Without it the lexer's lowered IR was
+     * byte-identical: by this point in the pipeline no zero test of a phi of literals is left for it
+     * to answer, so the gain J177 measured belonged to a different form and was not kept.
+     */
+    for(auto instPtr: block->instructions.contents(base)) {
+        auto at = base[instPtr];
+        if(at == inst) continue;
+        if(at->kind != LowerInst::Imm) return false;
+
+        auto made = ((LowerInstSingle*)at)->created().ptr;
+        U64 zero;
+        if(!integerConstant(base, made, zero) || zero != 0) return false;
+
+        auto cmp = ((LowerInstCmp*)inst)->getCmp();
+        if(cmp != LowerCmp::eq && cmp != LowerCmp::neq) return false;
+
+        for(auto user: made->uses.contents(base)) {
+            if(base[user] != inst) return false;
+        }
+
+        nullTest = true;
+    }
 
     auto compare = (LowerInstCmp*)inst;
     auto lhs = base[compare->lhs];
@@ -143,6 +187,13 @@ bool readCondition(LowerBase base, LowerBlock* block, Condition& into) {
         into.phiOnLeft = false;
     } else {
         return false;
+    }
+
+    if(nullTest) {
+        auto any = false;
+        auto used = into.phi->used();
+        for(Size i = 0; i < used.length && !any; i++) any = knownNonZeroAddress(base, base[used.ptr[i]], 0);
+        if(!any) return false;
     }
 
     into.compare = compare;
@@ -177,11 +228,64 @@ bool canRedirect(LowerBase base, LowerBlock* from, LowerBlock* block, LowerBlock
     return true;
 }
 
+/*
+ * Whether a value is an address that cannot be zero: a frame slot, a global's or a function's
+ * address, or one of those moved by a small non-negative offset, through any bitcast.
+ *
+ * What an optional reference is built from - `Maybe(&T)` lowers to a nullable pointer, so the
+ * `Just` arm of a join is the address of the thing lent and the `Nothing` arm is the literal zero.
+ * An iterator object's `resume` is the shape (`doc/inflight/Analysis-Native-Parity.md` gap 4): the
+ * consumer's `step` returns `is Just(token)` of a phi of `0` and `&it.$slot`, and without this the
+ * join below the step call materialized the pointer and tested it again, which a phi of two literals
+ * would have threaded away. The offset is bounded because that is what keeps "inside an object"
+ * true - no object this compiler lays out is within 2 GB of the top of the address space - and a
+ * parameter is not an answer, since a raw `Ptr` argument may be anything.
+ */
+bool knownNonZeroAddress(LowerBase base, LowerValue* value, U32 depth) {
+    if(depth > 4 || !isIntLike(value->type) || widthOf(value->type) != 64) return false;
+
+    auto inst = value->inst();
+
+    switch(inst->kind) {
+        case LowerInst::Alloca:
+        case LowerInst::Global:
+        case LowerInst::Fun:
+            return true;
+        case LowerInst::Bitcast:
+            return knownNonZeroAddress(base, base[((LowerInstUnary*)inst)->from], depth + 1);
+        case LowerInst::Add: {
+            auto add = (LowerInstBinary*)inst;
+            U64 offset;
+            if(!integerConstant(base, base[add->rhs], offset) || offset >= (U64(1) << 31)) return false;
+            return knownNonZeroAddress(base, base[add->lhs], depth + 1);
+        }
+        default:
+            return false;
+    }
+}
+
 // Which arm the branch takes when the condition phi arrives holding this value, or nothing where the
-// value is not a literal.
+// value is not a literal or an address known not to be zero.
 bool decideEdge(LowerBase base, const Condition& condition, LowerValue* incoming, bool& taken) {
     U64 value;
-    if(!integerConstant(base, incoming, value)) return false;
+
+    if(!integerConstant(base, incoming, value)) {
+        if(!knownNonZeroAddress(base, incoming, 0)) return false;
+
+        // Nonzero decides a truth test and an equality with zero, and nothing else.
+        if(!condition.compare) {
+            taken = true;
+            return true;
+        }
+
+        if(condition.constant != 0) return false;
+
+        auto cmp = condition.compare->getCmp();
+        if(cmp != LowerCmp::eq && cmp != LowerCmp::neq) return false;
+
+        taken = cmp == LowerCmp::neq;
+        return true;
+    }
 
     if(!condition.compare) {
         taken = value != 0;
@@ -517,17 +621,28 @@ void removeUnreachableBlocks(LowerBase base, Region<LowerRegion>& arena, LowerFu
     SmallArray<LowerBlock*, 32> reachable;
     SmallArray<LowerBlock*, 32> pending;
 
+    /*
+     * A mark per block, indexed by its position - renumbered first, because the pass calling this
+     * may have added blocks since the positions were last written, and the renumbering at the bottom
+     * is the same one.
+     *
+     * Rather than a search of `reachable` for each successor, which is what this was until J182:
+     * that is quadratic in the blocks, and the threading loops call this once per edge they move,
+     * so a `match` of 1,000 string literals spent 14 s of a 17 s compile here - in both the
+     * dominator-tree climb J175 made of `impliedArm` and the single-predecessor one it replaced.
+     */
+    SmallArray<bool, 64> marked;
+    for(Size i = 0; i < fun.blocks.size(); i++) {
+        base[fun.blocks.get(base, i)]->index = BlockIndex(i);
+        marked.push(false);
+    }
+
+    auto known = [&](LowerBlock* block) { return marked[block->index]; };
+
     auto entry = base[fun.blocks.get(base, 0)];
     pending.push(entry);
     reachable.push(entry);
-
-    auto known = [&](LowerBlock* block) {
-        for(auto seen: reachable) {
-            if(seen == block) return true;
-        }
-
-        return false;
-    };
+    marked[entry->index] = true;
 
     while(pending.size()) {
         auto block = pending.pop().unwrap();
@@ -536,6 +651,7 @@ void removeUnreachableBlocks(LowerBase base, Region<LowerRegion>& arena, LowerFu
             auto successor = base[successorPtr];
             if(known(successor)) continue;
 
+            marked[successor->index] = true;
             reachable.push(successor);
             pending.push(successor);
         }
@@ -718,9 +834,22 @@ bool threadBlock(LowerBase base, LowerModule& module, LowerFunction& fun, LowerB
     // so makes "the reads to repair" exactly "the reads the arm dominates"; and neither may carry a
     // phi of its own, whose alternatives a new edge would have to be given room in. A block that is
     // its own successor is refused outright - the repair would be answering for its own edge.
+    //
+    // The first half is asked only where there are reads to repair (J180). A block whose phis nothing
+    // outside it reads - a truth value that was only ever branched on - has no reads under an arm, so
+    // what the arm's other predecessors are does not matter; `splitBranchConditions` leaves exactly
+    // that, with its second test as another way into the arm.
     if(then == block || otherwise == block) return false;
-    if(then->incoming.size() != 1 || otherwise->incoming.size() != 1) return false;
     if(!then->phis.isEmpty() || !otherwise->phis.isEmpty()) return false;
+
+    if(then->incoming.size() != 1 || otherwise->incoming.size() != 1) {
+        for(auto phiPtr: block->phis.contents(base)) {
+            auto result = ((LowerInstSingle*)base[phiPtr])->created().ptr;
+            for(auto userPtr: result->uses.contents(base)) {
+                if(base[base[userPtr]->block] != block) return false;
+            }
+        }
+    }
 
     // The predecessors that answer, in the block's own edge order.
     SmallArray<LowerBlock*, 8> sources;
@@ -989,47 +1118,108 @@ bool edgeFact(LowerBase base, LowerBlock* from, LowerBlock* to, const RangeTest&
 /*
  * Which arm `block`'s test takes when entered from `from`, found in the facts on the way there.
  *
- * The walk climbs from the edge into `block` through every block that has exactly one way in, and
- * asks each edge it crosses. Everything on that walk runs in sequence every time the edge is taken,
- * so a value tested anywhere on it holds the value tested here. The bound is the depth of a chain of
- * `if`s worth reading, not a correctness limit.
+ * The edge itself first, and then every edge that is the only way into a block dominating `from`:
+ * control that reaches `from` has passed through that block and so came along that edge, so the
+ * value tested there holds the value tested here. The bound is the depth of a chain of `if`s worth
+ * reading, not a correctness limit.
+ *
+ * **The dominator tree rather than the blocks with one way in**, which is what this climbed until
+ * J175. The two agree on a chain, and part ways at the first join: an arm of a string `match` whose
+ * compare failed leaves on two edges - the lanes differed, or the lane that differed was past the
+ * end - and the next arm's test is reached from a block both of them enter. That block is under the
+ * compare, and the compare is under the edge that settled the length, so the fact is there; a climb
+ * that stopped at the join could not see it, and each arm after the first threaded one re-tested the
+ * length again.
+ *
+ * **What the deeper climb costs** was measured on a generated `match` of 1,000 string literals
+ * (J182): `threadImpliedBranches` takes 0.80 s there against 0.70 s with the old climb emulated (depth
+ * eight, single predecessors), and the difference is rounds - 13,193 against 8,883, because it finds
+ * more edges to move - rather than the climb, which does not register in a profile. Each round
+ * rebuilds the dominator tree and rescans the blocks, so the pass is quadratic in the arms either
+ * way; at 1,000 arms the SSA optimizer costs about twice as much again.
  */
-static constexpr Size kImpliedDepth = 8;
+static constexpr Size kImpliedDepth = 64;
 
-bool impliedArm(LowerBase base, LowerBlock* block, LowerBlock* from, const RangeTest& test, bool& taken) {
-    auto to = block;
-
-    for(Size depth = 0; depth < kImpliedDepth; depth++) {
+bool impliedArm(LowerBase base, LowerFunction& fun, LowerBlock* block, LowerBlock* from, const RangeTest& test,
+                const DominatorTree& dominators, bool& taken)
+{
+    auto decide = [&](LowerBlock* above, LowerBlock* below) {
         Interval known;
+        if(!edgeFact(base, above, below, test, known)) return false;
 
-        if(edgeFact(base, from, to, test, known)) {
-            if(containsInterval(test.holds, known, test.bits)) {
-                taken = true;
-                return true;
-            }
-
-            Interval fails;
-            if(complementOf(test.holds, test.bits, fails) && containsInterval(fails, known, test.bits)) {
-                taken = false;
-                return true;
-            }
+        if(containsInterval(test.holds, known, test.bits)) {
+            taken = true;
+            return true;
         }
 
-        if(from->incoming.size() != 1) return false;
+        Interval fails;
+        if(complementOf(test.holds, test.bits, fails) && containsInterval(fails, known, test.bits)) {
+            taken = false;
+            return true;
+        }
 
-        to = from;
-        from = base[from->incoming.get(base, 0)];
-        if(from == block || from == to) return false;
+        return false;
+    };
+
+    if(decide(from, block)) return true;
+
+    auto at = from;
+    for(Size depth = 0; depth < kImpliedDepth; depth++) {
+        if(at->postIndex == kNullBlock || at->postIndex == dominators.startIndex) return false;
+
+        if(at->incoming.size() == 1) {
+            auto above = base[at->incoming.get(base, 0)];
+            if(above == block) return false;
+            if(decide(above, at)) return true;
+        }
+
+        at = base[fun.blocks.get(base, dominators.postorder[dominators.tree[at->postIndex]])];
+        if(at == block) return false;
     }
 
     return false;
 }
 
 /*
- * Whether skipping the block skips nothing: no phis, and nothing but the test's own arithmetic, none
- * of it read anywhere else. Answers the test.
+ * A value with no operands - a literal, a global's address, a function's address - which is the whole
+ * of what may be defined again anywhere at the cost of the one instruction it already is.
  */
-bool readSkippableTest(LowerBase base, LowerBlock* block, RangeTest& into) {
+bool isProvidedValue(LowerInst* inst) {
+    return inst->kind == LowerInst::Imm || inst->kind == LowerInst::Global || inst->kind == LowerInst::Fun;
+}
+
+/*
+ * The successor of `block` a reader outside it sits under, or null. Only a successor `block` is the
+ * one way into counts: a copy placed at its top then runs exactly when the original did on the way
+ * there, and it still dominates the reader once the moved edge gives the successor a second way in.
+ */
+LowerBlock* readerUnder(LowerBase base, LowerBlock* block, LowerBlock* reader, const DominatorTree& dominators) {
+    for(Size i = 0; i < 2; i++) {
+        auto successor = block->successor(base, i);
+        if(successor == block || successor->incoming.size() != 1) continue;
+        if(dominatesBlock(successor, reader, dominators)) return successor;
+    }
+
+    return nullptr;
+}
+
+/*
+ * Whether skipping the block skips nothing: no phis, and nothing but the test's own arithmetic, none
+ * of it read anywhere else - apart from a provided value, which is collected into `carried` and
+ * defined again under the successor that reads it once an edge is known to move (`carryInto`).
+ * Answers the test.
+ *
+ * **The provided value is what a `match` on string literals needed.** Each arm's block tests the
+ * length and also materializes the literal's address for the compare below it, so the rule "read
+ * nowhere else" refused every block of `keywordOf`'s thirty-three - and an arm that failed its
+ * compare re-tested the length of every arm after it, 2,872 bytes of a chain with none of it skipped.
+ * Sinking the address rather than copying it would be the same where the reader has one way in,
+ * which is the only case accepted; a copy is what keeps the original for the edges that still pass
+ * through the block.
+ */
+bool readSkippableTest(LowerBase base, LowerBlock* block, const DominatorTree& dominators, RangeTest& into,
+                       SmallArray<LowerInstSingle*, 4>& carried)
+{
     if(!block->phis.isEmpty()) return false;
 
     auto terminator = base[block->terminator];
@@ -1043,18 +1233,79 @@ bool readSkippableTest(LowerBase base, LowerBlock* block, RangeTest& into) {
 
     for(auto instPtr: block->instructions.contents(base)) {
         auto inst = base[instPtr];
-        if(inst->kind != LowerInst::Imm && !isRepeatable(inst)) return false;
+        auto provided = isProvidedValue(inst);
+        if(!provided && !isRepeatable(inst)) return false;
         if(mayFault(inst)) return false;
 
         auto results = inst->created();
+        auto readOutside = false;
+
         for(Size i = 0; i < results.length; i++) {
             for(auto userPtr: results.ptr[i].uses.contents(base)) {
-                if(base[base[userPtr]->block] != block) return false;
+                auto user = base[userPtr];
+                auto reader = base[user->block];
+                if(reader == block) continue;
+
+                // A phi reads on an edge rather than in its block, so the successor over the block
+                // says nothing about where the copy would have to be.
+                if(!provided || user->kind == LowerInst::Phi) return false;
+                if(!readerUnder(base, block, reader, dominators)) return false;
+                readOutside = true;
             }
         }
+
+        if(readOutside) carried.push((LowerInstSingle*)inst);
     }
 
     return readRangeTest(base, cond, into);
+}
+
+/*
+ * A provided value defined again at the top of each successor that has readers under it, and those
+ * readers pointed at the copy - which is what makes the block's own definition something the moved
+ * edge may skip. One copy per successor rather than per reader: the compare an arm's literal feeds
+ * and the byte reads of its mismatch arm are one successor's region.
+ */
+void carryInto(LowerBase base, LowerModule& module, LowerBlock* block, LowerInstSingle* inst,
+               const DominatorTree& dominators)
+{
+    for(Size s = 0; s < 2; s++) {
+        auto successor = block->successor(base, s);
+        LowerInstSingle* copy = nullptr;
+
+        // A copy of the list, because moving a reader edits it.
+        SmallArray<LowerPtr<LowerInst>, 8> users;
+        for(auto userPtr: inst->result.uses.contents(base)) users.push(userPtr);
+
+        for(auto userPtr: users) {
+            auto user = base[userPtr];
+            auto reader = base[user->block];
+            if(reader == block || readerUnder(base, block, reader, dominators) != successor) continue;
+
+            if(!copy) {
+                if(inst->kind == LowerInst::Imm) {
+                    auto imm = new (module.arena) LowerImm(StringId(), inst->result.type, U64(0));
+                    imm->i = ((LowerImm*)inst)->i;
+                    copy = imm;
+                } else if(inst->kind == LowerInst::Global) {
+                    copy = new (module.arena) LowerInstGlobal(StringId(), ((LowerInstGlobal*)inst)->target);
+                } else {
+                    copy = new (module.arena) LowerInstFun(StringId(), ((LowerInstFun*)inst)->target);
+                }
+
+                // At the top, above every reader the successor holds.
+                successor->addInst(base, copy);
+                auto& list = successor->instructions;
+                for(Size i = list.size() - 1; i > 0; i--) list.set(base, i, list.get(base, i - 1));
+                list.set(base, 0, (LowerInst*)copy - base);
+            }
+
+            auto operands = user->used();
+            for(Size i = 0; i < operands.length; i++) {
+                if(operands.ptr[i] == &inst->result - base) setOperand(base, module.arena, user, operands.ptr[i], &copy->result);
+            }
+        }
+    }
 }
 
 /*
@@ -1070,7 +1321,8 @@ bool threadOneImplied(LowerBase base, LowerModule& module, LowerFunction& fun, L
     if(block->index == 0 || block->postIndex == kNullBlock) return false;
 
     RangeTest test;
-    if(!readSkippableTest(base, block, test)) return false;
+    SmallArray<LowerInstSingle*, 4> carried;
+    if(!readSkippableTest(base, block, dominators, test, carried)) return false;
 
     for(auto incoming: block->incoming.contents(base)) {
         if(dominatesBlock(block, base[incoming], dominators)) return false;
@@ -1085,7 +1337,7 @@ bool threadOneImplied(LowerBase base, LowerModule& module, LowerFunction& fun, L
         if(kind != LowerInst::Je && kind != LowerInst::Jmp) continue;
 
         bool taken;
-        if(!impliedArm(base, block, from, test, taken)) continue;
+        if(!impliedArm(base, fun, block, from, test, dominators, taken)) continue;
 
         /*
          * An arm with phis of its own is declined rather than given an alternative for the new edge.
@@ -1096,6 +1348,7 @@ bool threadOneImplied(LowerBase base, LowerModule& module, LowerFunction& fun, L
         auto to = taken ? then : otherwise;
         if(to == block || !to->phis.isEmpty() || !canRedirect(base, from, block, to)) continue;
 
+        for(auto inst: carried) carryInto(base, module, block, inst, dominators);
         redirectEdge(base, module.arena, from, block, to);
         return true;
     }
@@ -1305,6 +1558,183 @@ bool threadImpliedBranches(LowerBase base, LowerModule& module, LowerFunction& f
 
         removeUnreachableBlocks(base, module.arena, fun);
         changed = true;
+    }
+
+    return changed;
+}
+
+namespace {
+
+/*
+ * Whether a value is 0 or 1 and nothing else - a comparison, a literal of either, a phi of those or
+ * an `and`/`or` of two of them. What `splitOneCondition` needs of both operands of an `and`, whose
+ * bits would otherwise decide something no single test of either operand does: `1 and 2` is zero.
+ */
+bool isTruthValue(LowerBase base, LowerValue* value, U32 depth) {
+    if(depth > 4) return false;
+    auto inst = value->inst();
+
+    switch(inst->kind) {
+        case LowerInst::Cmp:
+            return true;
+        case LowerInst::Imm:
+            return ((LowerImm*)inst)->i <= 1;
+        case LowerInst::And:
+        case LowerInst::Or: {
+            auto binary = (LowerInstBinary*)inst;
+            return isTruthValue(base, base[binary->lhs], depth + 1) && isTruthValue(base, base[binary->rhs], depth + 1);
+        }
+        case LowerInst::Phi: {
+            auto used = inst->used();
+            for(Size i = 0; i < used.length; i++) {
+                if(!isTruthValue(base, base[used.ptr[i]], depth + 1)) return false;
+            }
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+
+// Every phi of `block` that names `from` as a source, naming `to` instead.
+void renameSource(LowerBase base, LowerBlock* block, LowerBlock* from, LowerBlock* to) {
+    for(auto phiPtr: block->phis.contents(base)) {
+        auto sources = base[phiPtr]->sources();
+        for(Size i = 0; i < sources.length; i++) {
+            if(sources.ptr[i] == from - base) sources.ptr[i] = to - base;
+        }
+    }
+}
+
+bool splitOneCondition(LowerBase base, LowerModule& module, LowerFunction& fun, LowerBlock* block) {
+    auto terminator = base[block->terminator];
+    if(!terminator || terminator->kind != LowerInst::Je) return false;
+
+    auto branch = (LowerInstJe*)terminator;
+    if(branch->getEmbeddedCmp()) return false;
+
+    auto cond = base[branch->cond];
+    auto combine = cond->inst();
+    if(combine->kind != LowerInst::Or && combine->kind != LowerInst::And) return false;
+    if(base[combine->block] != block || cond->uses.size() != 1) return false;
+
+    auto isOr = combine->kind == LowerInst::Or;
+    auto binary = (LowerInstBinary*)combine;
+    auto first = base[binary->lhs];
+    auto second = base[binary->rhs];
+    if(first == second) return false;
+
+    // Nonzero-or-nonzero is the `or` of any two integers; the `and` is a conjunction of truth values
+    // only.
+    if(!isInt(cond->type)) return false;
+    if(!isOr && (!isTruthValue(base, first, 0) || !isTruthValue(base, second, 0))) return false;
+
+    auto then = base[branch->then];
+    auto otherwise = base[branch->otherwise];
+    if(then == block || otherwise == block) return false;
+
+    // The target the second test adds an edge into is given no phi alternative for it: both front
+    // ends put a block of its own on every edge into a join, so that target is one of those.
+    auto shared = isOr ? then : otherwise;
+    auto moved = isOr ? otherwise : then;
+    if(!shared->phis.isEmpty()) return false;
+
+    auto second_ = fun.addBlock(base, StringId());
+    second_->source = block->source;
+
+    /*
+     * The second operand's own computation goes with it, where nothing else reads it: a comparison
+     * left above the first branch would be materialized as a truth value to survive it, which is the
+     * `setcc` this is taking away. Walked backward so that a chain - `sub`, then the `cmp_le` reading
+     * it - moves whole, and only what may be computed anywhere: no load, no division.
+     */
+    SmallArray<LowerPtr<LowerInst>, 32> kept;
+    SmallArray<LowerPtr<LowerInst>, 8> sunk;
+    SmallArray<LowerInst*, 8> sinking;
+
+    SmallArray<LowerPtr<LowerInst>, 32> list;
+    for(auto instPtr: block->instructions.contents(base)) list.push(instPtr);
+
+    auto isSinking = [&](LowerInst* inst) {
+        for(auto at: sinking) if(at == inst) return true;
+        return false;
+    };
+
+    for(auto i = list.size(); i > 0; i--) {
+        auto inst = base[list[i - 1]];
+        if(inst == combine) continue;
+
+        auto movable = inst->kind == LowerInst::Imm || (isRepeatable(inst) && !mayFault(inst));
+        auto results = inst->created();
+        for(Size r = 0; r < results.length && movable; r++) {
+            auto& result = results.ptr[r];
+            if(result.uses.size() == 0) { movable = false; break; }
+
+            for(auto userPtr: result.uses.contents(base)) {
+                auto user = base[userPtr];
+                if(user == combine && &result == second) continue;
+                if(!isSinking(user)) { movable = false; break; }
+            }
+        }
+
+        if(movable) sinking.push(inst);
+    }
+
+    for(auto instPtr: list) {
+        auto inst = base[instPtr];
+        if(inst == combine) continue;
+        if(isSinking(inst)) sunk.push(instPtr);
+        else kept.push(instPtr);
+    }
+
+    block->instructions.clear();
+    for(auto instPtr: kept) block->instructions.push(module.arena, instPtr);
+
+    for(auto instPtr: sunk) {
+        base[instPtr]->block = second_ - base;
+        second_->instructions.push(module.arena, instPtr);
+    }
+
+    // The old branch and the combination it read, and the edges they stated.
+    auto likelihood0 = branch->likelihood[0];
+    auto likelihood1 = branch->likelihood[1];
+
+    detach(base, branch);
+    detach(base, combine);
+    block->terminator = nullptr;
+    block->clearSuccessors();
+
+    for(auto target: {then, otherwise}) {
+        auto& incoming = target->incoming;
+        for(Size i = 0; i < incoming.size(); i++) {
+            if(base[incoming.get(base, i)] == block) { incoming.remove(base, i); break; }
+        }
+    }
+
+    renameSource(base, moved, block, second_);
+
+    auto head = (LowerInstJe*)(isOr ? je(base, module, *block, first, then, second_)
+                                     : je(base, module, *block, first, second_, otherwise));
+    auto tail = (LowerInstJe*)je(base, module, *second_, second, then, otherwise);
+    head->source = branch->source;
+    tail->source = branch->source;
+    head->likelihood[0] = likelihood0;
+    head->likelihood[1] = likelihood1;
+    tail->likelihood[0] = likelihood0;
+    tail->likelihood[1] = likelihood1;
+    return true;
+}
+
+} // namespace
+
+bool splitBranchConditions(LowerBase base, LowerModule& module, LowerFunction& fun) {
+    auto changed = false;
+
+    // By index, since a split appends the block its second test goes in - and that block is asked in
+    // turn, which is what takes an `or` of three apart.
+    for(Size i = 0; i < fun.blocks.size(); i++) {
+        auto block = base[fun.blocks.get(base, i)];
+        while(splitOneCondition(base, module, fun, block)) changed = true;
     }
 
     return changed;

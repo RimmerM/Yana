@@ -146,6 +146,7 @@ struct EncodedAddress {
 
     LowerFunction* relocFunction = nullptr;
     LowerGlobal* relocGlobal = nullptr;
+    bool absolute = false; // the relocation is R_X86_64_32S rather than rel32 - MachineAddress::absolute
 };
 
 // The two-bit SIB scale field. Anything else has to have been turned into arithmetic before it got
@@ -170,7 +171,9 @@ static EncodedAddress encodeAddress(const MachineAddress& a) {
     assertTrue(!a.hasIndex || a.index != U8(IntRegister::rsp));
     assertTrue(!a.ripRelative || (!a.hasBase && !a.hasIndex));
     assertTrue(!a.frameRelative); // an alloca's address the emitter never completed - Emitter::frameResolved
-    assertTrue(a.ripRelative || (!a.relocFunction && !a.relocGlobal));
+    assertTrue(a.ripRelative || a.absolute || (!a.relocFunction && !a.relocGlobal));
+    assertTrue(!a.absolute || (!a.hasBase && !a.ripRelative && a.relocGlobal));
+    out.absolute = a.absolute;
 
     // [rip + disp32] is mod=00 rm=101 - which is exactly the encoding an rbp/r13 base would
     // otherwise take, and why one with no displacement still has to write a zero byte below.
@@ -487,7 +490,7 @@ static void writeAddressOperand(AsmModule& to, U8 regField, const EncodedAddress
         // same four bytes a disp32 would have occupied. `trailing` is what the instruction still has
         // to write after it, which a RIP-relative displacement is measured past - see AsmRelocation.
         if(a.relocFunction) to.addRelocation(a.relocFunction, trailing);
-        else if(a.relocGlobal) to.addRelocation(a.relocGlobal, trailing);
+        else if(a.relocGlobal) to.addRelocation(a.relocGlobal, trailing, I32(a.disp), a.absolute);
         else if(a.disp32) to.buffer.writeInt<LittleEndian>(a.disp);
         else to.buffer.writeByte(U8(a.disp));
     }
@@ -1492,8 +1495,32 @@ static void genInterruptReturn(AsmModule& to, bool hasErrorCode) {
 // RIP-relative LEA (0x8d, mod=00 rm=101) + a relocation against the target's eventual offset. The
 // relocation is written by the shared address encoder in place of the disp32, which is what keeps
 // this from being another handwritten ModRM byte.
+static void genLoadAddress(AsmModule& to, MachineLocation destReg, RegisterClassId regClass, LowerGlobal* global, LowerFunction* function);
+
+/*
+ * A symbol's address into a register, in an image at a fixed address: `mov r32, imm32` with the
+ * absolute address as the immediate, which the 32-bit `mov` zero-extends. Five bytes (six with REX)
+ * where `lea r, [rip + g]` is seven, and what LLVM writes for a non-PIE executable. False where the
+ * image is not at a fixed address, or the address is not a bare symbol, and the caller writes the
+ * `lea` instead.
+ */
+static bool genAbsoluteAddress(AsmModule& to, U8 dest, const MachineAddress& a) {
+    if(!to.fixedLoadAddress || !a.ripRelative || a.broadcast) return false;
+    if(!a.relocGlobal && !a.relocFunction) return false;
+
+    if(needsRex(dest)) to.buffer.writeByte(makeRex(false, dest, 0, 0));
+    to.buffer.writeByte(0xb8 + (dest & 7));
+
+    if(a.relocFunction) to.addRelocation(a.relocFunction, 0, a.displacement, true);
+    else to.addRelocation(a.relocGlobal, 0, a.displacement, true);
+    return true;
+}
+
 static void genLoadAddress(AsmModule& to, MachineLocation destReg, RegisterClassId regClass, LowerGlobal* global, LowerFunction* function) {
-    genMemory(to, MachineAddress::atSymbol(function, global), reg(destReg, regClass), MemForm {
+    auto address = MachineAddress::atSymbol(function, global);
+    if(genAbsoluteAddress(to, reg(destReg, regClass), address)) return;
+
+    genMemory(to, address, reg(destReg, regClass), MemForm {
         .opCode = 0x8d, .is64 = true,
     });
 }
@@ -2108,6 +2135,9 @@ struct Emitter {
     // An address materialized into a register rather than dereferenced.
     void emitLea(const EncodingDescriptor& e, const InstRegs& regs, bool is64) {
         assertTrue(regs.hasAddress); // an address encoding with no address resolved for it
+
+        if(is64 && e.opcode == 0x8d && !e.escape && !e.prefix &&
+           genAbsoluteAddress(to, reg(field(regs, e.regField)), regs.address)) return;
 
         genMemory(to, frameResolved(regs.address), reg(field(regs, e.regField)), MemForm {
             .opCode = e.opcode, .escape = e.escape, .prefix = e.prefix, .is64 = is64,
@@ -4355,7 +4385,7 @@ static void computeBypass(LowerBase base, FunctionRegs& regs, Blocks blocks, boo
  * instructions, which are not the same unit, so it is stated once - in one place, with the
  * measurement that set it beside it - rather than implied by a rule somewhere.
  *
- * At 32: a return taken on every call of its function has to save 32 bytes before it will jump to a
+ * At 28: a return taken on every call of its function has to save 28 bytes before it will jump to a
  * shared epilogue, and one taken on an eighth of them has to save four. That is what separates the
  * two shapes §15.2 of `test/bench/findings.md` measured. `allocateHeap`'s failure arms are taken
  * almost never and share a six-byte saving each; `Tree`'s `build` has two returns, both taken on
@@ -5436,7 +5466,14 @@ void AsmModule::resolveRelocations(LowerGlobal* anchor) {
             target = o.unwrap();
         }
 
-        auto rel = I32(target) - I32(r.siteOffset + 4 + r.trailing);
+        if(r.absolute) {
+            absoluteRelocations.push(AsmDataRelocation {
+                .siteOffset = r.siteOffset, .targetOffset = target, .addend = r.addend,
+            });
+            continue;
+        }
+
+        auto rel = I32(target) + r.addend - I32(r.siteOffset + 4 + r.trailing);
         auto savedOffset = buffer.offset();
 
         buffer.offset(r.siteOffset);

@@ -456,6 +456,11 @@ void removeDeadStorage(OptContext& opt);
 void elideMoves(OptContext& opt);
 void aliasBorrowedCopies(OptContext& opt);
 
+// An iterator's `f$step` building the item it hands over in the record's `$slot` rather than in a
+// frame local copied there at the `yield` - `opt/memory.cpp`, where the object rule that makes it
+// legal is written out.
+void buildItemsInSlot(OptContext& opt);
+
 /*
  * A run of slots the frame can keep - `opt/place.cpp`, and the one placement this tier decides.
  *

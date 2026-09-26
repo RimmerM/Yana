@@ -212,6 +212,36 @@ bool genX64Executable(Context& context, LowerModule& module, const String& path)
     auto entry = findEntry(context, base, module);
     if(!entry) return false;
 
+    /*
+     * Where the image will be mapped, which this caller alone knows: an executable is not
+     * position-independent (see elf.h), so the code may name a global by its absolute address
+     * wherever that fits a sign-extended 32-bit field - `[g + index*scale]` instead of a RIP-relative
+     * `lea` and an access through it (§3.4.2 of the README).
+     *
+     * **Only with a gigabyte to spare** (J182): only where the load address and the program's data
+     * together end at most 1 GiB up, which leaves the code a gigabyte before any absolute site could
+     * name an address past 2 GiB. The decision has to be made before the first function is
+     * transformed, which is before anything knows how large the code will be, and an absolute site
+     * that does not fit cannot be re-encoded afterwards - `[g + index*scale]` has no RIP-relative
+     * spelling. J181 enabled it for any load address below 2 GiB and refused the image when a site
+     * did not fit, which failed builds that had always built: `-format raw -image-base 0x7ff00000`
+     * with more than a megabyte of image. Every other image keeps the RIP-relative spelling, which
+     * reaches anything the rel32 branches between its functions reach.
+     *
+     * The data is summed rather than assumed small, because a zero-filled global is as large as the
+     * program says, and each entry is charged its worst alignment; the pool the backend adds while
+     * transforming is constants an instruction reads, and the margin covers it.
+     */
+    auto loadAddress = context.settings.format == ExecutableFormat::Raw
+        ? context.settings.imageBase : elfCodeAddress();
+
+    U64 dataBytes = 0;
+    for(auto global: module.globalOrder) dataBytes += base[global]->initialContents.size() + 64;
+
+    constexpr U64 kAbsoluteLimit = U64(1) << 30;
+    module.fixedLoadAddress = loadAddress <= kAbsoluteLimit && dataBytes <= kAbsoluteLimit - loadAddress
+        ? loadAddress : 0;
+
     // Built into the image's own symbol list as the emission goes, rather than gathered afterwards
     // out of the offset maps: a symbol's *extent* is only knowable at the moment its last byte is
     // written, and nothing recorded here records it.
@@ -228,6 +258,7 @@ bool genX64Executable(Context& context, LowerModule& module, const String& path)
     RegScratch scratch;
     FunctionRegs registers;
     MachineFunction machine;
+    assembly.fixedLoadAddress = module.fixedLoadAddress;
 
     auto emitFunction = [&](LowerFunction* function) -> bool {
 
@@ -344,9 +375,14 @@ bool genX64Executable(Context& context, LowerModule& module, const String& path)
     // holding a function pointer - are only knowable once the image has an address, and this image
     // has one because it is not position-independent. A dynamically linked program would emit these
     // as loader relocations instead; there is no loader here to emit them to.
-    auto loadAddress = context.settings.format == ExecutableFormat::Raw
-        ? context.settings.imageBase : elfCodeAddress();
-    assembly.applyDataRelocations((Byte*)loadAddress);
+    //
+    // A failure here is an absolute site past 2 GiB, which the gigabyte of headroom above keeps out
+    // of every image that could have been built without the fold - so it is a code section larger
+    // than a gigabyte, and refused rather than truncated.
+    if(!assembly.applyDataRelocations((Byte*)loadAddress)) {
+        context.diagnostics.error("amd64: the image is too large for its load address - its code passes 1 GiB"_v, nullptr);
+        return false;
+    }
 
     image.bytes = assembly.buffer.buffer;
     image.size = assembly.buffer.offset();

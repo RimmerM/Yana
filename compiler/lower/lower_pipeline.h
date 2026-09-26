@@ -24,6 +24,9 @@
  * fixture runner's optimized/unoptimized comparison covers the lower tier instead of stopping above
  * it.
  *
+ * Which backend reads the result is `LowerModule::consumer`, on the module rather than a parameter
+ * here - see lower.h for why, and for the rule a pass reading it follows.
+ *
  * `returnPlace` is the hidden result pointer where this function has one, and null where it does
  * not. Only `forwardCopyDestinations` reads it - see lower_forward.h, which is the whole of why the
  * pass has to be told which parameter that is.
@@ -32,8 +35,9 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
                            LowerPtr<LowerValue> returnPlace, bool optimize);
 
 /*
- * The pass that needs every function's pipeline to have run first, because it rewrites a callee and
- * its callers together - lower_params.h. Called once per module by each producer, behind the last
- * `optimizeLowerFunction`, and gated the same way.
+ * The passes that need every function's pipeline to have run first: the sweep of what nothing can
+ * reach any more (lower_sweep.h), which reads every body's final references, and the removal of
+ * unread parameters, which rewrites a callee and its callers together (lower_params.h). Called once
+ * per module by each producer, behind the last `optimizeLowerFunction`, and gated the same way.
  */
 void optimizeLowerModule(LowerBase base, LowerModule& module, bool optimize);

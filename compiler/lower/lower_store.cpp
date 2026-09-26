@@ -62,6 +62,22 @@ LowerValue* forwardedValue(LowerBase base, LowerInstStore* store, LowerInstLoad*
         ? stored : nullptr;
 }
 
+// A second load of the word an earlier one read, answered by the first: the same width, into the
+// same type, extended the same way - see the load records in `StoreForwarder::walk`.
+LowerValue* repeatedValue(LowerBase base, LowerInstLoad* first, LowerInstLoad* load) {
+    if(load->isVolatile() || load->isOverread()) return nullptr;
+    if(first->getWidth() != load->getWidth() || first->isSigned() != load->isSigned()) return nullptr;
+    if(first->result.type != load->result.type) return nullptr;
+
+    if(first->from != load->from) {
+        auto earlier = placeOf(base, first->from, first->getWidth());
+        auto read = placeOf(base, load->from, load->getWidth());
+        if(!earlier.root || earlier.root != read.root || earlier.offset != read.offset) return nullptr;
+    }
+
+    return &first->result;
+}
+
 /*
  * The low bytes of what a store wrote, read back at another width or into the other integer register
  * - J152. `forwardedValue` answers only a load that reads exactly what was written, in the register
@@ -448,6 +464,11 @@ void StoreForwarder::walk(LowerPtr<LowerBlock> blockPtr) {
 
             // Newest first: where two records answer, the later store is the one in the word.
             for(auto i = recordCount; i > 0 && !forwarded; i--) {
+                if(records[i - 1].write->kind == LowerInst::Load) {
+                    if(!records[i - 1].crossedCall) forwarded = repeatedValue(base, (LowerInstLoad*)records[i - 1].write, load);
+                    continue;
+                }
+
                 if(records[i - 1].write->kind != LowerInst::Store) continue;
                 forwarded = forwardedValue(base, (LowerInstStore*)records[i - 1].write, load);
             }
@@ -624,6 +645,32 @@ void StoreForwarder::walk(LowerPtr<LowerBlock> blockPtr) {
                 records[recordCount].write = inst;
                 records[recordCount].place = place;
                 records[recordCount].observed = false;
+                records[recordCount].crossedCall = false;
+                recordCount++;
+            }
+        }
+
+        /*
+         * A load is a record too, of what the word held when it read it - J180. A second read of the
+         * same word with nothing between that may have written it is the first read's value: the
+         * lexer's `skipWhitespace` tests `self.p < self.m` at the top of its loop and reads `self.p`
+         * again for the character at the top of the body, one block down. The same invalidation
+         * applies as to a store's record, since a record is dropped by any write that may overlap
+         * it; it is observed from the start, so no write ever takes it for a dead store. Not across
+         * a call, for the reason the reshaping gives: holding the value over the call costs a
+         * callee-saved register, and the reload was the cheaper of the two.
+         */
+        if(inst->kind == LowerInst::Load && !((LowerInstLoad*)inst)->isVolatile() &&
+           !((LowerInstLoad*)inst)->isOverread())
+        {
+            auto load = (LowerInstLoad*)inst;
+            auto place = placeOf(base, contained, load->from, load->getWidth());
+
+            if(place.root && place.bytes != 0) {
+                if(recordCount == kRecords) drop(0);
+                records[recordCount].write = inst;
+                records[recordCount].place = place;
+                records[recordCount].observed = true;
                 records[recordCount].crossedCall = false;
                 recordCount++;
             }

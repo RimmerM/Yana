@@ -1024,6 +1024,12 @@ struct LowerGlobal {
     U8 alignment = 0;
 };
 
+// The code generator a `LowerModule` is lowered for - see `LowerModule::consumer`.
+enum class LowerConsumer: U8 {
+    Llvm,  /// `-backend llvm` and `-mode llvm`: LLVM's pipeline runs over what this tier leaves.
+    Local, /// `-backend local`: compiler/codegen/x64, which takes the module as this tier leaves it.
+};
+
 struct LowerModule {
     explicit LowerModule(Size maxMemory): arena(maxMemory) {}
 
@@ -1055,6 +1061,20 @@ struct LowerModule {
     // Null for a program with no tables, and on a target whose tables hold references rather than
     // offsets; a backend that finds relocations to write and no anchor has a real inconsistency.
     LowerPtr<LowerGlobal> imageAnchor = nullptr;
+
+    /*
+     * Where the finished image will be mapped, when that is already fixed - zero when it is not.
+     *
+     * Set by the one caller that knows: a backend writing an executable at a fixed load address (the
+     * ELF writer's `kElfLoadAddress`, or `-image-base` for a raw image), and only with a gigabyte of
+     * headroom below 2 GiB left for the code - see `genX64Executable`. What it permits is an
+     * *absolute* address in the code, `[g + index*scale]` with the global's address as a sign-extended
+     * 32-bit displacement, which is one instruction and no register where the position-independent
+     * spelling is a RIP-relative `lea` and an access through it. Zero - a module handed to a JIT that
+     * maps it wherever `mmap` answers - keeps every reference RIP-relative. See §3.4.2 of
+     * codegen/x64/README.md.
+     */
+    U64 fixedLoadAddress = 0;
 
     /*
      * The globals the compiler itself fills - `compiler/intrinsic/supplied.def`, indexed by `Builtin`.
@@ -1102,6 +1122,34 @@ struct LowerModule {
      * host manages.
      */
     LowerPtr<LowerFunction> allocator = nullptr;
+
+    /*
+     * Which code generator reads this module - `-backend`, or LLVM under `-mode llvm` whatever
+     * `-backend` says. Set once by the producer (`resolve_ssa/lower/gen.cpp`'s `lowerProgram`) and
+     * read by the lower pipeline and the lowering, and by nothing that changes what a program means.
+     *
+     * **A fact on the module rather than a separate pass list per backend.** Two measurements
+     * wanted a rewrite that one backend profits from and the other loses on - `borrowCopies`
+     * (`test/bench/lexer/findings.md` §16) and J177's zero test of a phi of literals - and a third
+     * was expected to (J178's copy out of an iterator's slot, `lower_alias.h`) - and each is one
+     * condition inside a pass both backends run, not a pass of its own. A second pass list would have been two orders to keep in step for three `if`s,
+     * and a pipeline option would have had to be threaded through every pass signature between
+     * `optimizeLowerFunction` and the one test that reads it, where every pass already holds the
+     * module. The rule for reading it: **a transform gated on it names, in its comment, the
+     * measurement on the backend it is kept from** - a gate with no number behind it is a fork of the
+     * compiler nobody can later justify removing.
+     *
+     * LLVM by default, which leaves a gated transform off: a module parsed from text for a backend
+     * test states nothing, and the ungated form is the one both backends were measured on.
+     *
+     * The copy alias was built behind it (J178) and measured faster on LLVM too, so the gate came
+     * off; J177's zero test, re-enabled behind it, left the lexer's lowered IR byte-identical, so it
+     * was not kept. **`splitBranchConditions` is the first thing it gates** (J180): the split is
+     * 36 instructions a token off the `hand` lexer locally and was 7-13 *on* under LLVM (hand 300.1
+     * -> 307.3, idiom/iter 318.5 -> 331.4), whose own selection makes the same split where it pays
+     * and is handed more blocks by this one.
+     */
+    LowerConsumer consumer = LowerConsumer::Llvm;
 
     U16 errorCount = 0;
     U16 warningCount = 0;

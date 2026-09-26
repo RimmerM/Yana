@@ -545,6 +545,92 @@ pub fn (Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a))) com
     return EQ
 
 {-
+   Whether two runs of elements are the same - `compareMemory`'s question with the order taken out of
+   it, over any element that is a lane. What `==` on a container of lanes asks (`itemsEqual`'s
+   replacement in `Core/Reduce.yana`) and, below a fast path of its own, what `sameUnits` asks.
+
+   **`compareMemory`'s walk answering `Bool`**, and the tail is where that differs: the lanes are
+   equal exactly where the lowest one that disagrees is at or past `count`, so it is `firstSet`
+   against the count and no element is read back. The lanes' own `.==` is what answers, so a `Double`
+   NaN is unequal to itself and `-0.0` equals `0.0`, as the element walk it replaces says.
+
+   **The caller owes the tail-read guarantee**, exactly as `compareMemory`'s does: below a register,
+   and past the last whole one, this reads a register's width from a position within one of the end,
+   and the lanes past `count` are allowed to disagree. `sameUnits` is the path that reads nothing past
+   `count`, for the short runs where the difference is worth a rung.
+
+   **`@inline(always)`, because each of its callers is a wrapper around it** - `sameUnits` and the
+   replacement - and a call from the wrapper was a second out-of-line function in every program that
+   compares strings: +2,583 bytes over the resolve corpus, `EnumNames.yana` +405, for a body that had
+   been one function before J182 made it two. Grafted, `sameUnits` is the body it was.
+
+   A count of zero or below is the empty comparison and is `True`, reading nothing.
+-}
+@inline(always)
+pub fn (TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a))) sameMemory(left: %a, right: %a, count: Size) -> Bool:
+    let width = lanes(zero() :: Vec(a)) :: Size
+    let stride = width * 4
+    let block = count - stride
+    let last = count - width
+    let &at = 0 :: Size
+
+    -- Four registers a turn under one test, which is `compareMemory`'s shape and its reason; there is
+    -- no lane to find here, so a block that does not hold is the answer.
+    while at <= block:
+        let first = vectorAt(left + at) .== vectorAt(right + at)
+        let second = vectorAt(left + at + width) .== vectorAt(right + at + width)
+        let third = vectorAt(left + at + width + width) .== vectorAt(right + at + width + width)
+        let fourth = vectorAt(left + at + width + width + width) .== vectorAt(right + at + width + width + width)
+
+        if !all(and(and(first, second), and(third, fourth))) then return False
+        at = at + stride
+
+    while at <= last:
+        if !all(vectorAt(left + at) .== vectorAt(right + at)) then return False
+        at = at + width
+
+    if at < count:
+        let same = vectorPast(left + at) .== vectorPast(right + at)
+        if !all(same) then return at + (firstSet(not(same)) :: Size) >= count
+
+    return True
+
+{-
+   Whether two runs of code units are the same - what `==` on a `String` asks and every `match` on a
+   string literal asks once per arm. `sameMemory` at `CodeUnit`, with a rung in front of it.
+
+   **Eight bytes or fewer are two overlapping scalar reads a side**, the ones `memcmp` expansions
+   use: four and four at `0` and `count - 4` for four to eight, two and two below that, one byte for
+   one. Nothing is read past `count`, so this path owes the caller no tail guarantee at all. Where
+   the count is a constant - a literal's length, proved at the arm that tested it (resolve_ssa/opt
+   README §J63) - the site estimate keeps only the rung it selects, the literal's own reads fold to
+   immediates (`foldConstantLoad` in compiler/lower/lower_fold.cpp) and an arm of `keywordOf` is two
+   `cmp $imm, mem` - J175. Through `compareMemory` it was a whole-register compare against the
+   literal's run and a three-way compare of the lane that differed, eighty-five bytes an arm, since
+   the equal answer was the only path the order did not pay for.
+
+   The rung is `CodeUnit`'s and not `sameMemory`'s because it compares **bits**: a `U32` read of four
+   units is their equality exactly because a unit is an integer, where four `F32`s are not - `-0.0`
+   and `0.0` are equal and differently spelled. Longer runs are `sameMemory`'s walk (J182).
+-}
+pub fn sameUnits(left: %CodeUnit, right: %CodeUnit, count: Size) -> Bool:
+    if count <= 8:
+        if count >= 4:
+            let tail = count - 4
+            return *(bitcast(left) :: %U32) == *(bitcast(right) :: %U32) &&
+                *(bitcast(left + tail) :: %U32) == *(bitcast(right + tail) :: %U32)
+
+        if count >= 2:
+            let tail = count - 2
+            return *(bitcast(left) :: %U16) == *(bitcast(right) :: %U16) &&
+                *(bitcast(left + tail) :: %U16) == *(bitcast(right + tail) :: %U16)
+
+        if count == 1 then return *left == *right
+        return True
+
+    return sameMemory(left, right, count)
+
+{-
    The system call intrinsic, at each arity a call needs.
 
    Design.md's "Interfacing the OS" builds the OS interface as a thin template over exactly this; the

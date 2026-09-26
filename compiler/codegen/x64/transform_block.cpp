@@ -5,7 +5,7 @@
  * Block operations with a compile-time size, written out as ordinary loads and stores.
  *
  * `rep movsb` and `rep stosb` have a **flat** startup of about thirty cycles: a copy of one byte and
- * a copy of a hundred and twenty-eight cost the same. So every block operation short enough to be
+ * a copy of a hundred and twenty-eight cost the same - and nearer seventy on Zen 5 (J181). So every block operation short enough to be
  * written out as transfers is cheaper written out, and the only question is where "short enough"
  * stops - which is `BlockExpansion` in target.h, and the one decision in this backend that trades
  * size for speed rather than being a straight win.

@@ -174,7 +174,15 @@ void hoistLoopInvariants(LowerBase base, LowerModule& module, LowerFunction& fun
  * and takes what the enclosing loop does not write further out.
  */
 //
-// Answers whether it moved the stores of a contained cell out of a loop, which leaves that slot with
-// no access inside the loop at all - the shape `promoteStackSlots` takes whole, and the caller runs it
-// again for exactly that reason.
-bool promoteLoopCells(LowerBase base, LowerModule& module, LowerFunction& fun, const LoopAnalysis& analysis);
+// Answers two things. `sank`: whether it moved the stores of a contained cell out of a loop, which
+// leaves that slot with no access inside the loop at all - the shape `promoteStackSlots` takes whole,
+// and the caller runs it again for exactly that reason. `promoted`: whether it carried any cell,
+// which leaves a read in a preheader that may stand behind a store of the same word - J180. The
+// lexer's `parseVariable` stores `self.p` and enters its identifier loop, and the read this placed
+// was a round trip through memory the forwarding had already run past; the caller forwards again.
+struct CellPromotion {
+    bool promoted = false;
+    bool sank = false;
+};
+
+CellPromotion promoteLoopCells(LowerBase base, LowerModule& module, LowerFunction& fun, const LoopAnalysis& analysis);

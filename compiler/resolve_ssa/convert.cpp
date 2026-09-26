@@ -5474,6 +5474,20 @@ struct Conversion {
             return;
         }
 
+        /*
+         * And the chain tests the **resume** index first and the fresh one last. Index 0 is entered
+         * once per object and the resume index once per item, so testing 0 first put a compare and a
+         * branch that never answers on every item's path: `mov`, `test`, `je`, `cmp`, `je` where
+         * `mov`, `cmp`, `je` is the step. Two instructions a token on `test/bench/lexer`'s iter rows
+         * (J179). The `switch` above is left in index order: its lowering picks its own.
+         */
+        auto freshValue = values[0];
+        auto freshTarget = targets[0];
+        values.remove(0);
+        targets.remove(0);
+        values.push(freshValue);
+        targets.push(freshTarget);
+
         auto answer = mir::owned(mir::booleanType(program));
 
         for(Size i = 0; i < values.size(); i++) {

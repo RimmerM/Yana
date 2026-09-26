@@ -100,6 +100,10 @@ set(LOWER_SOURCE_FILES
     lower/lower_store.cpp
     lower/lower_params.h
     lower/lower_params.cpp
+    lower/lower_sweep.h
+    lower/lower_sweep.cpp
+    lower/lower_alias.h
+    lower/lower_alias.cpp
     lower/lower_teardown.h
     lower/lower_teardown.cpp
     lower/lower_cse.h

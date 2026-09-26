@@ -18,6 +18,8 @@
 #include "lower_thread.h"
 #include "lower_fold.h"
 #include "lower_params.h"
+#include "lower_sweep.h"
+#include "lower_alias.h"
 #include "lower_teardown.h"
 
 void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& fun,
@@ -129,8 +131,23 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
     // With a fold behind it for the reason the strength reduction has one: a phi left with a single
     // alternative is that alternative, and the comparison the next level out branches on folds
     // against it.
+    //
+    // The branches on an `or` or an `and` of two conditions go first, taken apart into two, because
+    // what that leaves is often a phi and a branch on it - see `splitBranchConditions`.
+    auto splitting = module.consumer == LowerConsumer::Local;
+    if(splitting) splitBranchConditions(base, module, fun);
     threadDecidedBranches(base, module, fun);
     foldFunctionConstants(base, module, fun);
+
+    // And once more behind it, because threading is also what *makes* these: a callee's `return a ||
+    // b` inlined under an `if` is a phi of literals and the `or`, and once the literal edges have gone
+    // the phi collapses into the `or` and the branch reads it directly - `handleWhitespace`'s
+    // `isSpace` in the lexer's `skipWhitespace` is the shape. The `or` is then still in the block
+    // that jumps to the branch, which is why the linear blocks are merged first.
+    if(splitting) {
+        mergeLinearBlocks(base, fun);
+        if(splitBranchConditions(base, module, fun)) threadDecidedBranches(base, module, fun);
+    }
 
     // And the tests a test above them already answered - see lower_thread.h. Behind the pass above,
     // whose folds are what make a condition a comparison against a literal.
@@ -183,6 +200,11 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
     // built above still describes it.
     promoteStackSlots(base, fun);
 
+    // And a frame copy nothing but reads, made a read of what it copied - see lower_alias.h. Behind
+    // both promotions and the null-test threading, which are what reduce an iterator's `Just` arm to
+    // one alloca and one phi; it changes no block.
+    aliasReadOnlyCopies(base, module, fun);
+
     // And the pair again where the CSE took a decided arm, which is the one thing in this run that
     // removes an edge and renumbers the blocks the two are indexed by. Conditional rather than
     // unconditional because most functions have no such branch in them, and the four passes below
@@ -200,10 +222,13 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
     // of a loop the slot is accessed only outside loops now, and one more forwarding and promotion
     // turn it into values - `[Int *3]` counters indexed by literals are the shape. Neither changes
     // the block set.
-    if(promoteLoopCells(base, module, fun, analysis)) {
-        forwardStoredValues(base, module, fun);
-        promoteStackSlots(base, fun);
-    }
+    //
+    // The forwarding runs again behind any promotion rather than only a sinking one (J180): the read
+    // a promotion leaves in the preheader is a new load, and the block it lands in often stored the
+    // word just above it.
+    auto cells = promoteLoopCells(base, module, fun, analysis);
+    if(cells.promoted) forwardStoredValues(base, module, fun);
+    if(cells.sank) promoteStackSlots(base, fun);
 
     hoistLoopInvariants(base, module, fun, analysis);
 
@@ -261,5 +286,6 @@ void optimizeLowerFunction(LowerBase base, LowerModule& module, LowerFunction& f
 
 void optimizeLowerModule(LowerBase base, LowerModule& module, bool optimize) {
     if(!optimize) return;
+    removeUnreachableDeclarations(base, module);
     removeUnusedParameters(base, module);
 }

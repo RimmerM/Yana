@@ -989,9 +989,9 @@ void loopsInnermostFirst(LowerBase base, LowerFunction& fun, const LoopInfo& loo
 
 } // namespace
 
-bool promoteLoopCells(LowerBase base, LowerModule& module, LowerFunction& fun, const LoopAnalysis& analysis) {
-    if(fun.blocks.size() < 2) return false;
-    auto sank = false;
+CellPromotion promoteLoopCells(LowerBase base, LowerModule& module, LowerFunction& fun, const LoopAnalysis& analysis) {
+    if(fun.blocks.size() < 2) return {};
+    CellPromotion result;
 
     auto& loops = analysis.loops;
     auto& dominators = analysis.dominators;
@@ -1082,7 +1082,8 @@ bool promoteLoopCells(LowerBase base, LowerModule& module, LowerFunction& fun, c
             if(!rewrite.plan()) continue;
 
             rewrite.apply();
-            if(rewrite.sink) sank = true;
+            result.promoted = true;
+            if(rewrite.sink) result.sank = true;
 
             // What is left of each block, without the loads the rewrite answered.
             for(auto blockPtr: fun.blocks.contents(base)) {
@@ -1101,5 +1102,5 @@ bool promoteLoopCells(LowerBase base, LowerModule& module, LowerFunction& fun, c
             }
         }
     }
-    return sank;
+    return result;
 }

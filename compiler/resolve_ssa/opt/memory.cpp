@@ -2260,3 +2260,185 @@ void aliasBorrowedCopies(OptContext& opt) {
 }
 
 } // namespace ssa
+
+namespace ssa {
+
+/*
+ * An iterator object's item built where the consumer reads it - `f$step`'s one local that a `yield`
+ * copies into `$slot`, made the slot itself.
+ *
+ * `iter fn lex` fills a `let &token = emptyToken()` through `readToken(self, token)` and then hands
+ * it over, and the conversion writes that as `store $self.$slot, copy %token`: a 58-byte frame
+ * local zeroed, filled, and every word of it moved into the record on every step
+ * (`doc/inflight/Analysis-Native-Parity.md` gap 4). Neither `elideMoves` nor the lowering's
+ * `destinationFor` can take it: the destination is a field of a parameter rather than a second
+ * slot, and the producer's writes happen a call away from the store. What makes it legal is the
+ * object's own rule rather than an analysis - **the slot holds nothing anyone may read while a step
+ * is running**, since `Iterate` lends the item out of the record and the next step needs the record
+ * whole, so the loan checker has already ended every read of the last item before this body is
+ * entered. The slot is therefore free storage until the hand-over, and a local whose life ends at
+ * the hand-over can live in it.
+ *
+ * The conditions are the ones under which the step itself cannot tell the two apart:
+ *
+ *  - the record is this function's own site type, its slot holds the item by value (not a lent
+ *    address, not a window) and owes no teardown, so no `$held` flag and no drop reads it;
+ *  - `$self` is used only through field addresses of that record, and every address of the slot is
+ *    used only as the address of a store - the body touches the slot nowhere but at its hand-overs;
+ *  - every one of those stores writes `copy %a` of **one** frame allocation `%a` of the slot's type,
+ *    with nothing touching `%a` between the copy and the store, and the store's block returning
+ *    below it without touching `%a` again - so no path reads the local after its value has become
+ *    the item, and two locals can never be competing for the one slot.
+ *
+ * Measured on `test/bench/lexer` (J177): 534 -> 521 instructions a token on `iter` locally and
+ * 343 -> 321 under `-backend llvm`, which is handed this SSA and cannot make the rewrite itself -
+ * the slot is reached through a pointer argument that `readToken` might, as far as it can tell,
+ * read. The zeroing stays: `readToken` does not write every field, so `emptyToken()` is observable.
+ *
+ * After `elideMoves`, so that `promote` has already taken the local apart wherever it could: a local
+ * in registers is stored into the slot a field at a time anyway, and pinning it to memory would be
+ * the loss. Native only, for `aliasBorrowedCopies`' reason - a record on JavaScript is an object.
+ */
+void buildItemsInSlot(OptContext& opt) {
+    if(isJsMode(opt.context.settings) || !opt.function || !opt.body->entry) return;
+
+    auto& entry = *opt.base[opt.body->entry];
+    if(!entry.argumentCount()) return;
+    auto self = opt.base[entry.argumentAt(opt.base, 0)];
+
+    DeclPtr<mir::Type> recordType = nullptr;
+    mir::RecordType* record = nullptr;
+    SmallArray<Inst*, 4> slots;
+
+    for(auto usePointer: self->uses(opt.base)) {
+        auto& use = *opt.base[usePointer];
+        if(use.kind != Inst::FieldAddress) return;
+
+        auto& field = (InstFieldAddress&)use;
+        if(!field.base.isSet() || opt.base[field.base.value()] != self) return;
+
+        if(!field.record) return;
+
+        if(!recordType) {
+            recordType = field.record;
+            auto declared = opt.decl[recordType];
+            if(declared->kind != mir::Type::Record) return;
+
+            record = (mir::RecordType*)declared;
+            if(!record->producerStep || opt.decl[record->producerStep] != opt.function) return;
+            if(record->heldField || record->slotWindow) return;
+        } else if(field.record != recordType) {
+            return;
+        }
+
+        if(field.field == 1) slots.push(&use);
+    }
+
+    if(!record || !slots.size()) return;
+
+    auto slotType = record->field(opt.decl, 1).occurrence.type;
+    if(opt.decl[slotType]->kind == mir::Type::Pointer) return;
+
+    // Every hand-over, and the one local all of them copy.
+    SmallArray<Inst*, 4> stores;
+    Value* local = nullptr;
+
+    for(auto slot: slots) {
+        auto address = opt.base[slot->results.get(opt.base, 0)];
+
+        for(auto usePointer: address->uses(opt.base)) {
+            auto& use = *opt.base[usePointer];
+            if(use.kind != Inst::Store) return;
+
+            auto& store = (InstStore&)use;
+            if(store.isVolatile || opt.base[store.address.value()] != address) return;
+
+            auto copied = opt.base[store.value.value()];
+            if(copied->convention != Convention::Trivial || copied->useCount() != 1 || !copied->definer) {
+                return;
+            }
+
+            auto copy = opt.base[copied->definer];
+            if(copy->kind != Inst::Copy || copy->block != store.block) return;
+
+            auto source = opt.base[((InstCopy*)copy)->address.value()];
+            if(!source->definer) return;
+
+            auto& alloc = *opt.base[source->definer];
+            if(alloc.kind != Inst::Alloc || !alloc.block) return;
+
+            auto& held = ((InstAlloc&)alloc).held;
+            if(((InstAlloc&)alloc).storage != StorageClass::Frame || held.type != slotType ||
+               hasTeardownAt(opt, held)) {
+                return;
+            }
+
+            if(local && local != source) return;
+            local = source;
+            stores.push(&use);
+        }
+    }
+
+    if(!local || !stores.size()) return;
+
+    // Every instruction that names the local's storage, through any projection of it.
+    IndexSet touches;
+    touches.reset(opt.body->insts.size());
+    SmallArray<Value*, 16> names;
+    names.push(local);
+
+    for(Size at = 0; at < names.size(); at++) {
+        if(names.size() > kNameLimit) return;
+
+        for(auto usePointer: names[at]->uses(opt.base)) {
+            auto use = opt.base[usePointer];
+            touches.set(use->id.index, true);
+            if(!use->results.size()) continue;
+
+            auto result = opt.base[use->results.get(opt.base, 0)];
+            if(use->kind == Inst::FieldAddress || use->kind == Inst::ElementAddress ||
+               (use->kind == Inst::Load && result->convention == Convention::Guaranteed)) {
+                names.push(result);
+            }
+        }
+    }
+
+    // From the copy to the end of the store's block, nothing but the copy touches the local, and the
+    // block returns.
+    for(auto inst: stores) {
+        auto& block = *opt.base[inst->block];
+        auto copy = opt.base[opt.base[((InstStore*)inst)->value.value()]->definer];
+        auto count = block.instructionCount();
+        auto inside = false;
+
+        for(Size i = 0; i < count; i++) {
+            auto at = opt.base[block.instructionAt(opt.base, i)];
+            if(at == copy) { inside = true; continue; }
+            if(inside && touches[at->id.index]) return;
+        }
+
+        if(!inside || !count) return;
+        if(opt.base[block.instructionAt(opt.base, count - 1)]->kind != Inst::Return) return;
+    }
+
+    auto& alloc = *opt.base[local->definer];
+    auto& first = (InstFieldAddress&)*slots[0];
+
+    auto editor = opt.ir();
+    editor.setBlock(*opt.base[alloc.block]);
+    editor.setInsertBefore(alloc);
+
+    auto slot = editor.addFieldAddress(alloc.source, first.base.withKind(UseKind::Inspect), recordType, 1,
+                                       first.shape);
+
+    for(auto inst: stores) {
+        auto copy = opt.base[opt.base[((InstStore*)inst)->value.value()]->definer];
+        editor.eraseInst(*inst);
+        editor.eraseInst(*copy);
+    }
+
+    editor.replaceAllUses(*local, *editor.resultOf(*slot));
+    editor.eraseInst(alloc);
+}
+
+} // namespace ssa

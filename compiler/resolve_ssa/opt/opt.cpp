@@ -156,6 +156,10 @@ void optimizeBody(OptContext& opt) {
          */
         runPass(elideMoves);
 
+        // And the same merge where the second slot is an iterator object's `$slot`, which is a
+        // field of `$self` rather than an allocation and so is not a slot `elideMoves` compares.
+        runPass(buildItemsInSlot);
+
         // And a copy only shared borrows read, made a read of the slot it came from - behind the
         // forwarder, which may already have answered the copy's source, and in front of the next
         // round's `promote` and `forwardMemory`, which take the load away where they can.

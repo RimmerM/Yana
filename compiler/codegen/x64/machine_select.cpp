@@ -89,7 +89,11 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Xor:        return isPackedOp() ? OpVXor : OpXor;
         case LowerInst::Add:        return isPackedOp() ? OpVAdd : isFloatOp() ? OpFAdd : OpAdd;
         case LowerInst::Sub:        return isPackedOp() ? OpVSub : isFloatOp() ? OpFSub : OpSub;
-        case LowerInst::Mul:        return isPackedOp() ? OpVMul : isFloatOp() ? OpFMul : OpMul;
+        // An integer `mul` is `imul`'s: the low half of a product is the same bits whichever way the
+        // operands are read, and only the high half (`MulHi`) keeps the two apart. The one-operand
+        // `mul` pins rax and rdx and has no immediate form, so `x * 1000 :: U32` was a `mov` of the
+        // constant and a `mul` clobbering rdx - 301 in the resolve corpus against LLVM's 80 (J180).
+        case LowerInst::Mul:        return isPackedOp() ? OpVMul : isFloatOp() ? OpFMul : OpIMul;
         case LowerInst::Div:        return isPackedOp() ? OpVDiv : isFloatOp() ? OpFDiv : OpDiv;
         // A mask tested for emptiness - `kortestd`, see `fuseMaskRegisters` - reads a mask and
         // answers a condition, which is the scalar comparison's business rather than a packed one.
@@ -909,10 +913,11 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
                 return inst->kind == LowerInst::Add ? FormAddImm : FormSubImm;
             }
 
-            // The group-3 multiply and divide read and write the rdx:rax pair, which only the
-            // integer encodings have.
+            // The group-3 divide reads and writes the rdx:rax pair, which only the integer encodings
+            // have. The multiply is `imul`'s two- and three-operand forms - see `opcodeFor`.
             assertTrue(isInt(type)); // no integer form for this type
-            return inst->kind == LowerInst::Mul ? FormMul : FormDiv;
+            if(inst->kind == LowerInst::Mul) return hasEmbeddedRhs(base, inst) ? FormIMulImm : FormIMulReg;
+            return FormDiv;
         }
 
         case LowerInst::IDiv:

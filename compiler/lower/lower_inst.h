@@ -428,15 +428,28 @@ struct LowerInst {
     static constexpr Kind LastTerminator = Unreachable;
     static constexpr Kind LastInst = X86LowBit;
 
-    explicit LowerInst(Kind kind): kind(kind) {}
+    explicit LowerInst(Kind kind): kind(kind), createdCount(0), usedCount(0) {}
 
     LowerPtr<LowerBlock> block = nullptr; // Block this instruction belongs to.
     LocationId source = kNullLocation;     // Reference to original source code location.
     U16 liveId = kNullLive;                // Index into liveness information.
     Kind kind;                             // Instruction type.
-    U8 createdCount = 0;                   // Number of values created (embedded values packed into the same allocation after this header).
-    U8 usedCount = 0;                      // Number of values used (pointers packed into the same allocation after created values).
     U8 flags = 0;                          // Type-specific content.
+
+    /*
+     * The two counts share one word. `usedCount` was a U8, and a join's phi has one operand per
+     * predecessor: a `match` of 256 string arms that yields a value wrapped it, and the phi read its
+     * alternatives from the wrong place (J182). Widening it is not free, because the header's two
+     * trailing bytes are not padding - a row's own fields sit there (`LowerInstIntrinsic::intrinsic`
+     * among them), and `created()` finds the values at `this + 1` - so the word is split instead:
+     * nothing creates more than a handful of values, and 4095 predecessors is a join no program
+     * reaches. `kMaxCreated` and `kMaxUsed` are what the constructors taking a count assert.
+     */
+    U16 createdCount: 4;                   // Number of values created (embedded values packed into the same allocation after this header).
+    U16 usedCount: 12;                     // Number of values used (pointers packed into the same allocation after created values).
+
+    static constexpr Size kMaxCreated = 15;
+    static constexpr Size kMaxUsed = 4095;
 
     Buffer<LowerValue> created() {
         auto created = (LowerValue*)(this + 1);
@@ -473,6 +486,9 @@ struct LowerInst {
 
     LowerAccess accessAt(Size) { return {}; }
 };
+
+// Fourteen bytes of fields: the last two belong to the rows (see `createdCount`).
+static_assert(sizeof(LowerInst) == 16, "the instruction header is sixteen bytes");
 
 /*
  * The row for a kind, and the questions asked through it.
@@ -2138,7 +2154,7 @@ struct LowerInstX86Address: LowerInstSingle {
     {
         assertTrue(kind == LowerInst::X86Address || kind == LowerInst::X86Lea);
 
-        usedCount = U8((hasBase ? 1 : 0) + (hasIndex ? 1 : 0));
+        usedCount = U16((hasBase ? 1 : 0) + (hasIndex ? 1 : 0));
 
         if(kind == LowerInst::X86Address) {
             result.flags |= LowerValue::Implicit;
@@ -2417,6 +2433,7 @@ struct LowerInstIntrinsic: LowerInst {
     LowerInstIntrinsic(LowerIntrinsic intrinsic, Size createdCount, Size usedCount):
         LowerInst(Intrinsic), intrinsic(intrinsic)
     {
+        assertTrue(createdCount <= kMaxCreated && usedCount <= kMaxUsed);
         this->createdCount = createdCount;
         this->usedCount = usedCount;
     }
@@ -2472,6 +2489,7 @@ struct LowerInstX86MovbeStore: LowerInst {
 
 struct LowerInstCall: LowerInst {
     explicit LowerInstCall(Size createdCount, Size usedCount, LowerCallType callType): LowerInst(Call) {
+        assertTrue(createdCount <= kMaxCreated && usedCount <= kMaxUsed);
         this->createdCount = createdCount;
         this->usedCount = usedCount;
         this->flags = (U8)callType;
@@ -2544,6 +2562,7 @@ struct LowerInstRet: LowerInst {
     // describes it are stated together. A caller that fills the list as it goes can still default it
     // to zero and count up - see lower_resolve.cpp.
     explicit LowerInstRet(Size usedCount = 0): LowerInst(Ret) {
+        assertTrue(usedCount <= kMaxUsed);
         this->usedCount = usedCount;
     }
 

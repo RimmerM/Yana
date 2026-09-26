@@ -639,7 +639,8 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
                     to.arena, sizeof(LowerPtr<LowerValue>) * incoming + sizeof(LowerPtr<LowerBlock>) * incoming);
 
                 auto phi = new (storage) LowerInstPhi(StringId(), type);
-                phi->usedCount = U8(incoming);
+                assertTrue(incoming <= LowerInst::kMaxUsed);
+                phi->usedCount = U16(incoming);
 
                 // Zeroed rather than left as the arena found it: an alternative that is still null
                 // is what says this phi is not answerable yet, and reading whatever the arena last
@@ -977,6 +978,14 @@ void Lowering::run() {
 
 Ptr<LowerModule> lowerProgram(Context& context, mir::Program& program, Converted& converted) {
     auto result = Ptr<LowerModule>(new LowerModule(8 * 1024 * 1024));
+
+    // `-mode llvm` is LLVM's reading whatever `-backend` says, since that is what reads the dump;
+    // `-mode lower` is the backend's, so the dump shows what that backend is handed. The calling
+    // convention reads this field too rather than the setting (J182), so the two cannot disagree -
+    // and a driver that runs one backend has to set `settings.backend` to it, since the setting's
+    // default is LLVM (see test/ResolveTester.cpp's `FixtureFront`).
+    result->consumer = context.settings.backend == NativeBackend::Local && context.settings.mode != CompileMode::Llvm
+        ? LowerConsumer::Local : LowerConsumer::Llvm;
 
     Lowering lowering {
         context, program, converted, *result,

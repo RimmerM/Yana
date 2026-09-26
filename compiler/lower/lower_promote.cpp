@@ -617,7 +617,7 @@ LowerInstPhi* makePhi(LowerModule& module, LowerBlock& block, LowerType type) {
         module.arena, sizeof(LowerPtr<LowerValue>) * count + sizeof(LowerPtr<LowerBlock>) * count);
 
     auto phi = new (storage) LowerInstPhi(StringId(), type);
-    phi->usedCount = U8(count);
+    phi->usedCount = U16(count);
 
     /*
      * Zeroed rather than left as the arena found it, which is not tidiness.

@@ -295,7 +295,7 @@ FeatureSet x64FeaturesFor(const CompileSettings& settings);
  * How far a block operation with a compile-time size is straight-lined.
  *
  * `rep movsb` has a flat startup of about thirty cycles: a copy of one byte and a copy of a hundred
- * and twenty-eight cost the same. So every block operation short enough to be written out as
+ * and twenty-eight cost the same. (On Zen 5 it is nearer seventy - 14-15 ns for 128-256 bytes, J181.) So every block operation short enough to be written out as
  * transfers is cheaper written out, and the only question is where "short enough" stops - which is
  * the one decision in this backend that trades size for speed rather than being a straight win, and
  * therefore the one that reads a setting.

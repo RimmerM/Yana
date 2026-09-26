@@ -180,7 +180,7 @@ void removePhiInput(LowerBase base, LowerInstPhi* phi, Size at) {
     }
 
     for(Size i = at; i + 1 < count; i++) operands.ptr[i] = operands.ptr[i + 1];
-    phi->usedCount = U8(count - 1);
+    phi->usedCount = U16(count - 1);
 
     auto moved = phi->sources();
     for(Size i = 0; i < kept.size(); i++) moved.ptr[i] = kept[i];
@@ -292,7 +292,7 @@ LowerInstPhi* makePhi(LowerModule& module, Size count, LowerType type) {
         module.arena, sizeof(LowerPtr<LowerValue>) * count + sizeof(LowerPtr<LowerBlock>) * count);
 
     auto phi = new (storage) LowerInstPhi(StringId(), type);
-    phi->usedCount = U8(count);
+    phi->usedCount = U16(count);
     return phi;
 }
 
